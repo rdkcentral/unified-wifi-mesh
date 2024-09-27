@@ -1,0 +1,57 @@
+@startuml
+skinparam defaultTextAlignment center
+!pragma useVerticalIf on
+start
+repeat
+:wait;
+split
+    :cce_ind<
+    if (status <= prov_none) then (yes)
+		:presence_announcement>
+		:state = auth_req_pending|	
+    endif
+split again
+    :presence_announcement<
+    if (status == presnce_announcement_pending) then (yes)
+		:auth_req>
+		:state = auth_rsp_pending|	
+    endif
+split again
+    :auth_req<
+    if (status == auth_req_pending) then (yes)
+		:auth_rsp>
+		:state = auth_cnf_pending|	
+    endif
+split again
+    :auth_rsp<
+    if (status == auth_rsp_pending) then (yes)
+		:auth_cnf>
+		:state = config_req_pending|	
+    endif
+split again
+    :auth_cnf<
+    if (status == auth_cnf_pending) then (yes)
+		:config_req>
+		:state = config_rsp_pending|	
+    endif
+split again
+    :config_req<
+    if (status == auth_req_pending) then (yes)
+		:config_rsp>
+		:state = config_res_pending|	
+    endif
+split again
+    :config_rsp<
+    if (status == config_rsp_pending) then (yes)
+		:config_res>
+		:state = prov_complete|	
+    endif
+split again
+    :config_res<
+    if (status == config_res_pending) then (yes)
+		:state = prov_complete|	
+    endif
+end split
+repeat while()
+stop
+

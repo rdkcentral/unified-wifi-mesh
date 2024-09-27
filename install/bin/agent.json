@@ -1,0 +1,40 @@
+{
+	"Device": {
+		"ID": "dc:a6:32:d5:91:63",
+       		"MultiAPCapabilities": "4A==",
+        	"CollectionInterval": 20000,
+        	"NumberOfRadios": 3,
+        	"ReportUnsuccessfulAssociations": true,
+        	"MaxReportingRate": 1000,
+        	"APMetricsReportingInterval": 200,
+        	"Manufacturer": "testManufacturer",
+        	"SerialNumber": "ABC-123456789",
+        	"ManufacturerModel": "testClass",
+        	"SoftwareVersion": "133.456.789-A",
+        	"ExecutionEnv": "testEnv",
+        	"Default8021Q": {
+        	"PrimaryVID": 1,
+            	"DefaultPCP": 7,
+            	"Enable":true
+        },
+        "IEEE1905Security": {
+            "OnboardingProtocol": 0,
+            "IntegrityAlgorithm": 0,
+        	"EncryptionAlgorithm": 0
+         },
+         "CountryCode": "US",
+         "TrafficSeparationAllowed": true,
+         "ServicePrioritizationAllowed": true,
+         "DFSEnable": true,
+         "MaxUnsuccessfulAssociationReportingRate": 100,
+         "STASteeringState": true,
+         "CoordinatedCACAllowed": true,
+         "BackhaulMACAddress" : "00:0c:29:dc:63:48",
+         "BackhaulMediaType" : "IEEE 802.11be",
+         "BackhaulALID" : "00:0c:29:dc:63:48",
+         "TrafficSeparationCapability": true,
+         "EasyConnectCapability": true,
+         "TestCapabilities" : 3
+
+	}
+}

@@ -1,0 +1,85 @@
+{
+    "wfa-dataelements:StaList": {
+        "ID": "testID",
+        "NumberOfDevices": 2,
+        "TimeStamp": "2019-02-11T06:23:43.743847-08:00",
+        "ControllerID": "02:01:02:01:00:01",
+        "DeviceList": [{
+                "ID": "d8:3a:dd:0e:00:cb",
+                "RadioList": [{
+                        "BSSList": [{
+                                "BSSID": "d8:3a:dd:0e:00:cc",
+                                "STAList": [{
+                                        "MACAddress": "11:50:43:22:2f:47",
+                                        "LastDataUplinkRate": 130,
+                                        "TimeStamp": "2019-02-11T06:23:43.754654-08:00",
+                                        "EstMACDataRateUplink": 130,
+                                        "LastConnectTime": 256,
+                                        "RetransCount": 3,
+                                        "EstMACDataRateDownlink": 115,
+                                        "HTCapabilities": "WA==",
+                                        "SignalStrength": 54,
+                                        "UtilizationTransmit": 256000,
+                                        "VHTCapabilities": "//r/+iYg",
+                                        "HECapabilities": "//r/+iYg",
+                                        "WiFi6Capabilities": {
+                                            "HE160": true,
+                                            "HE8080": true,
+                                            "MCSNSS": "WA==",
+                                            "SUBeamformer": true,
+                                            "SUBeamformee": true,
+                                            "Beamformee80orLess": true,
+                                            "BeamformeeAbove80": true,
+                                            "ULOFDMA": true,
+                                            "DLOFDMA": true,
+                                            "RTS": true,
+                                            "MURTS": true,
+                                            "MUEDCA": true,
+                                            "TWTRequestor": true,
+                                            "TWTResponder": true,
+                                            "SpatialReuse": false,
+                                            "AnticipatedChannelUsage": false
+                                        },
+                                        "ClientCapabilities": "//r/+iYg",
+                                        "TIDQueueSizes": [{
+                                                "TID": 0,
+                                                "Size": 0
+                                            }
+                                        ],
+                                        "LastDataDownlinkRate": 115,
+                                        "PacketsReceived": 8129,
+                                        "UtilizationReceive": 256000,
+                                        "BytesSent": 8560234,
+                                        "PacketsSent": 8036,
+                                        "BytesReceived": 8351179,
+                                        "ErrorsSent": 0,
+                                        "ErrorsReceived": 0,
+                                        "CellularDataPreference": "Excluded",
+                                        "ReAssociationDelay": 4000,
+                                        "SecurityAssociation": "PMKSA",
+                                        "SleepMode" : "Deep_Sleep"
+                                    }
+                                ],
+									"UnassociatedStaList": [{
+                                		"MACAddress": "90:21:81:73:1c:5f",
+                                		"SignalStrength": 20,
+                                		"OperatingClass": 81,
+                                		"Channel":6
+                            		}
+                        	]
+							}
+                        ],
+                        "ID": "00:ab:cd:ef:00:01"
+                    }
+                ]
+            }
+        ],
+        "ColocatedAgentID" : "02:01:02:01:00:00"
+    }
+}
+
+
+
+
+
+

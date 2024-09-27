@@ -1,0 +1,177 @@
+/**
+ * Copyright 2023 Comcast Cable Communications Management, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#ifndef EM_CONFIGURATION_H
+#define EM_CONFIGURATION_H
+
+#include "em_base.h"
+#include "em_crypto.h"
+
+class em_cmd_t;
+class em_configuration_t {
+
+    int create_autoconfig_resp_msg(unsigned char *buff);
+    int create_autoconfig_search_msg(unsigned char *buff);
+    int create_autoconfig_wsc_m1_msg(unsigned char *buff);
+    int create_autoconfig_wsc_m2_msg(unsigned char *buff);
+    int create_topology_notify_msg(unsigned char *buff);
+
+    int handle_autoconfig_resp(unsigned char *buff, unsigned int len);
+    int handle_autoconfig_search(unsigned char *buff, unsigned int len);
+    int handle_autoconfig_wsc_m1(unsigned char *buff, unsigned int len);
+    int handle_autoconfig_wsc_m2(unsigned char *buff, unsigned int len);
+    int handle_wsc_m1(unsigned char *buff, unsigned int len);
+    int handle_wsc_m2(unsigned char *buff, unsigned int len);
+    int handle_autoconfig_renew(unsigned char *buff, unsigned int len);
+
+
+    short create_m1_msg(unsigned char *buff);
+    short create_m2_msg(unsigned char *buff);
+    short create_traffic_separation_policy(unsigned char *buff);
+    short create_client_notify_msg(unsigned char *buff);
+   
+    // state handlers 
+    void handle_state_config_none();
+    void handle_state_autoconfig_rsp_pending();
+    void handle_state_wsc_m1_pending();
+    void handle_state_wsc_m2_pending();
+    void handle_state_topology_notify();
+    void handle_state_autoconfig_renew();
+		
+    virtual em_state_t get_state() = 0;
+    virtual void set_state(em_state_t state) = 0;
+    virtual em_service_type_t get_service_type() = 0;
+    virtual em_profile_type_t get_profile_type() = 0;
+    virtual void set_profile_type(em_profile_type_t profile) = 0;
+    virtual unsigned char *get_radio_interface_mac() = 0;
+    virtual em_interface_t *get_radio_interface() = 0;
+    virtual unsigned char *get_al_interface_mac() = 0;
+    virtual rdk_wifi_radio_t *get_radio_data(em_interface_t *radio) = 0;
+    virtual em_ieee_1905_security_cap_t *get_ieee_1905_security_cap() = 0;
+    virtual em_device_info_t *get_device_info() = 0;
+    virtual unsigned char *get_peer_mac() = 0;
+    virtual em_crypto_info_t *get_crypto_info() = 0;
+    virtual em_crypto_t *get_crypto() = 0;
+    virtual void set_peer_mac(unsigned char *mac) = 0;
+    virtual void set_peer_band(em_freq_band_t band) = 0;	
+    virtual int send_frame(unsigned char *buff, unsigned int len, bool multicast = false) = 0;
+    virtual em_cmd_t *get_current_cmd() = 0;
+    virtual short create_ap_radio_basic_cap(unsigned char *buff) = 0;
+    virtual bool is_al_interface_em() = 0;
+
+    virtual char *get_manufacturer() = 0;
+    virtual char *get_manufacturer_model() = 0;
+    virtual char *get_software_version() = 0;
+    virtual char *get_serial_number() = 0;
+    virtual char *get_primary_device_type() = 0;
+
+    virtual void set_manufacturer(char *) = 0;
+    virtual void set_manufacturer_model(char *) = 0;
+    virtual void set_software_version(char *) = 0;
+    virtual void set_serial_number(char *) = 0;
+    virtual void set_primary_device_type(char *) = 0;
+
+private:
+    unsigned char m_m1_msg[MAX_EM_BUFF_SZ];
+    unsigned char m_m2_msg[MAX_EM_BUFF_SZ];
+    size_t m_m1_length;
+    size_t m_m2_length;
+
+    unsigned char m_m2_authenticator[SHA256_MAC_LEN];
+    unsigned int m_m2_authenticator_len;
+    unsigned char m_m2_encrypted_settings[MAX_EM_BUFF_SZ];
+    unsigned int m_m2_encrypted_settings_len;
+
+public:
+    void process_msg(unsigned char *data, unsigned int len);	
+    void process_agent_state();
+    void process_ctrl_state();
+    static em_wsc_msg_type_t get_wsc_msg_type(unsigned char *buff, unsigned int len);
+
+    int handle_encrypted_settings();
+    unsigned int create_encrypted_settings(unsigned char *buff);
+    unsigned int create_authenticator(unsigned char *buff);
+
+    unsigned int get_e_uuid(unsigned char *uuid) { return m_crypto.get_e_uuid(uuid); }
+    unsigned int get_r_uuid(unsigned char *uuid) { return m_crypto.get_r_uuid(uuid); }
+    unsigned int get_e_nonce(unsigned char *nonce) { return m_crypto.get_e_nonce(nonce); }
+    unsigned int get_r_nonce(unsigned char *nonce) { return m_crypto.get_r_nonce(nonce); }
+
+    unsigned char *get_e_nonce() { return m_crypto.get_e_nonce(); }
+    unsigned char *get_r_nonce() { return m_crypto.get_r_nonce(); }
+    
+    void set_e_uuid(unsigned char *uuid, unsigned int len) { m_crypto.set_e_uuid(uuid, len); }
+    void set_r_uuid(unsigned char *uuid, unsigned int len) { m_crypto.set_r_uuid(uuid, len); }
+    void set_e_nonce(unsigned char *nonce, unsigned int len) { m_crypto.set_e_nonce(nonce, len); }
+    void set_r_nonce(unsigned char *nonce, unsigned int len) { m_crypto.set_r_nonce(nonce, len); }	
+
+    unsigned char *get_e_public() { return m_crypto.get_e_public(); }
+    unsigned int get_e_public_len() { return m_crypto.get_e_public_len(); }
+    unsigned char *get_e_private() { return m_crypto.get_e_private(); }
+    unsigned int get_e_private_len() { return m_crypto.get_e_private_len(); }
+    unsigned char *get_r_public() { return m_crypto.get_r_public(); }
+    unsigned int get_r_public_len() { return m_crypto.get_r_public_len(); }
+    unsigned char *get_r_private() { return m_crypto.get_r_private(); }
+    unsigned int get_r_private_len() { return m_crypto.get_r_private_len(); }
+
+    void set_e_public(unsigned char *pub, unsigned int len) { m_crypto.set_e_public(pub, len); }
+    void set_r_public(unsigned char *pub, unsigned int len) { m_crypto.set_r_public(pub, len); }
+
+    unsigned char *get_e_mac() { return m_crypto.get_e_mac(); }
+    unsigned char *get_r_mac() { return m_crypto.get_r_mac(); }
+
+    void set_e_mac(unsigned char *mac) { m_crypto.set_e_mac(mac); }
+    void set_r_mac(unsigned char *mac) { m_crypto.set_r_mac(mac); }
+
+    int compute_secret(unsigned char **secret, unsigned short *secret_len, 
+        unsigned char *remote_pub, unsigned short pub_len, 
+        unsigned char *local_priv, unsigned short priv_len) { 
+            return m_crypto.platform_compute_shared_secret(secret, secret_len, remote_pub, pub_len, local_priv, priv_len); 
+    }
+
+    int compute_digest(unsigned char num, unsigned char **addr, unsigned int *len, unsigned char *digest) {
+        return m_crypto.platform_SHA256(num, addr, len, digest); 
+    }
+
+    int compute_kdk(unsigned char *key, unsigned short keylen, 
+        unsigned char num_elem, unsigned char **addr, 
+        unsigned int *len, unsigned char *hmac) {
+            return m_crypto.platform_hmac_SHA256(key, keylen, num_elem, addr, len, hmac);
+    }
+
+    int derive_key(unsigned char *key, unsigned char *label_prefix, unsigned int label_prefix_len, 
+        char *label, unsigned char *res, unsigned int res_len) {
+            return m_crypto.wps_key_derivation_function(key, label_prefix, label_prefix_len, label, res, res_len);
+    }
+
+    int compute_keys(unsigned char *remote_pub, unsigned short pub_len, unsigned char *local_priv, unsigned short priv_len);
+    static unsigned short msg_id;
+
+    em_profile_type_t   m_peer_profile;
+    em_freq_band_t	m_peer_band;
+    em_crypto_t m_crypto;
+    unsigned char m_auth_key[WPS_AUTHKEY_LEN];
+    unsigned char m_key_wrap_key[WPS_KEYWRAPKEY_LEN];
+    unsigned char m_emsk[WPS_EMSK_LEN];
+
+    em_configuration_t();
+    ~em_configuration_t();
+
+};
+
+#endif

@@ -1,0 +1,20 @@
+{
+    "wfa-dataelements:StaList": {
+        "ID": "testID",
+        "NumberOfDevices": 2,
+        "TimeStamp": "2019-02-11T06:23:43.743847-08:00",
+        "ControllerID": "02:01:02:01:00:01",
+        "DeviceList": [{
+                "ID": "d8:3a:dd:0e:00:cb",
+                "RadioList": [{
+                        "BSSList": [{
+                                "BSSID": "d8:3a:dd:0e:00:cc",
+                                "STAList": [{
+                                        "MACAddress": "11:50:43:22:2f:47"
+                                }]
+                        }]
+                }]
+        }]
+    }
+}
+

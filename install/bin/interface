@@ -1,0 +1,7 @@
+sudo ip link add wl0 type dummy
+sudo ifconfig wl0 hw ether c8:d7:4a:4e:47:50
+sudo ip link set dev wl0 up
+sudo ip link add wl1 type dummy
+sudo ifconfig wl1 hw ether c8:d7:4a:4e:47:51
+sudo ip link set dev wl1 up
+

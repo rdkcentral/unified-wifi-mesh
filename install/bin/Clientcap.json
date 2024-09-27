@@ -1,0 +1,14 @@
+{
+    "wfa-dataelements:ClientCapReport": {
+        "ID": "Private",
+        "NumberOfDevices": 1,
+        "TimeStamp": "2019-02-11T06:23:43.743847-08:00",
+        "ControllerID": "02:01:02:01:00:01",
+        "DeviceList": [{
+                "ID": "d8:3a:dd:0e:00:cb",
+		"MsgID": 12345,
+		"ClientMac": "11:02:03:04:05:06",
+		"RadioMac": "02:01:02:01:03:01"
+		}]
+	}
+}

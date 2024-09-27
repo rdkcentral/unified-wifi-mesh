@@ -1,0 +1,14 @@
+{
+     
+	"ClientSteer": {
+        	"TargetBSSID": "00:01:02:03:04:05",
+            "RequestMode": "Steering_Opportunity",
+            "BTMDisassociationImminent": true,
+            "BTMAbridged": true,
+            "LinkRemovalImminent": true,
+            "SteeringOpportunityWindow": 2,
+            "BTMDisassociationTimer": 2,
+            "TargetBSSOperatingClass": 16,
+			"TargetBSSChannel": 41
+	}   
+}
