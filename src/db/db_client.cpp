@@ -34,16 +34,25 @@ void *db_client_t::execute(const char *query)
         sql::Statement *stmt;
         sql::ResultSet *res;
 
-        //printf("%s:%d: Query: %s\n", __func__, __LINE__, query);
-        stmt = ((sql::Connection *)m_con)->createStatement();
-        res = stmt->executeQuery(query);
-        tmp = res; 
+        if (m_con) {
+            stmt = ((sql::Connection *)m_con)->createStatement();
+        } else {
+            printf("%s:%d: Query: %s m_con is NULL, exciting\n", __func__, __LINE__, query);
+            return tmp;
+        }
+
+        if (stmt) {
+            res = stmt->executeQuery(query);
+        } else {
+            printf("%s:%d: Query: %s stmt is NULL, exciting\n", __func__, __LINE__, query);
+            return tmp;
+        }
+        tmp = res;
         delete stmt;
 
     } catch (sql::SQLException &e) {
         //printf("%s:%d: Exception in executing query, error code:%d\n", __func__, __LINE__, e.getErrorCode());
     }
-
 
     return tmp;
 }
