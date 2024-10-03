@@ -27,12 +27,12 @@ PROGRAM = $(INSTALLDIR)/bin/onewifi_em_ctrl
 INCLUDEDIRS = \
 	-I$(ONEWIFI_EM_HOME)/inc \
 	-I$(ONEWIFI_EM_HOME)/src/utils \
-	-I$(ONEWIFI_HOME)/halinterface/generic \
-	-I$(ONEWIFI_HOME)/one-wifi/generic/source/utils \
-	-I$(ONEWIFI_HOME)/one-wifi/generic/include \
-    	-I$(RBUS_HOME)/include \
+	-I$(ONEWIFI_HAL_INTF_HOME)/generic \
+	-I$(ONEWIFI_HOME)/generic/source/utils \
+	-I$(ONEWIFI_HOME)/generic/include \
+    -I$(RBUS_HOME)/include \
+    -I$(ONEWIFI_EM_HOME)/src/util_crypto \
 	-I$(WIFI_CJSON) \
-	-I$(ONEWIFI_EM_HOME)/src/util_crypto \
 
 CXXFLAGS = $(INCLUDEDIRS) -g -DUNIT_TEST
 LDFLAGS = $(LIBDIRS) $(LIBS)
@@ -41,7 +41,7 @@ LIBDIRS = \
 
 LIBS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lmysqlcppconn
 
-GENERIC_SOURCES = $(ONEWIFI_HOME)/one-wifi/generic/source/utils/collection.c \
+GENERIC_SOURCES = $(ONEWIFI_HOME)/generic/source/utils/collection.c \
 	$(ONEWIFI_EM_SRC)/util_crypto/aes_siv.c \
 
 CTRL_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \

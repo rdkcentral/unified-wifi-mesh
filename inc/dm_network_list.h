@@ -23,8 +23,8 @@
 #include "dm_network.h"
 #include "db_easy_mesh.h"
 
+class dm_easy_mesh_t;
 class dm_network_list_t : public dm_network_t, public db_easy_mesh_t {
-    hash_map_t  *m_list;
 
 public:
     int init();
@@ -32,11 +32,8 @@ public:
     int decode(const cJSON *obj_arr, void *parent_id);
     void encode(cJSON *obj_arr);
 
-    dm_network_t *get_first() { return (dm_network_t *)hash_map_get_first(m_list); }
-    dm_network_t *get_next(dm_network_t *net) { return (dm_network_t *)hash_map_get_next(m_list, net); }
-    dm_network_t *get_network(em_long_string_t net_id) { return (dm_network_t *)hash_map_get(m_list, net_id); }
 
-    dm_orch_type_t get_dm_orch_type(const dm_network_t& net);
+    dm_orch_type_t get_dm_orch_type(db_client_t& db_client, const dm_network_t& net);
     void update_list(const dm_network_t& net, dm_orch_type_t op);
     void delete_list();
 
@@ -44,12 +41,20 @@ public:
 
     void init_table();
     void init_columns();
-    void sync_db(db_client_t& db_client, void *ctx);
+    int sync_db(db_client_t& db_client, void *ctx);
     int update_db(db_client_t& db_client, dm_orch_type_t op, void *data = NULL);
+    bool search_db(db_client_t& db_client, void *ctx, void *key);
     bool operator == (const db_easy_mesh_t& obj);
     int set_config(db_client_t& db_client, dm_network_t& net, void *parent_id);
     int set_config(db_client_t& db_client, const cJSON *obj, void *parent_id);
-    int get_config(cJSON *obj, void *parent_id);
+    int get_config(cJSON *obj, void *parent_id, bool summary = false);
+
+    virtual dm_network_t *get_first_network() = 0;
+    virtual dm_network_t *get_next_network(dm_network_t *net) = 0;
+    virtual dm_network_t *get_network(const char *key) = 0;
+    virtual void remove_network(const char *key) = 0;
+    virtual void put_network(const char *key, const dm_network_t *net) = 0;
+
 };
 
 #endif

@@ -53,20 +53,27 @@ dm_easy_mesh_t dm_easy_mesh_t::operator =(dm_easy_mesh_t const& obj)
     memcpy(&this->m_device, &obj.m_device, sizeof(dm_device_t));
     memcpy(&this->m_network, &obj.m_network, sizeof(dm_network_t));
     memcpy(&this->m_ieee_1905_security, &obj.m_ieee_1905_security, sizeof(dm_ieee_1905_security_t));
-    this->msg_id = obj.msg_id;
-    for (unsigned int i = 0; i < EM_MAX_BANDS; i++) {
-        memcpy(&this->m_radio, &obj.m_radio, sizeof(dm_radio_t));
-    }
+    
     this->m_num_radios = obj.m_num_radios;
-    this->m_num_opclass = obj.m_num_opclass;
+    for (unsigned int i = 0; i < obj.m_num_radios; i++) {
+        memcpy(&this->m_radio[i], &obj.m_radio[i], sizeof(dm_radio_t));
+    }
+
+    this->m_num_bss = obj.m_num_bss;
     for (unsigned int i = 0; i < EM_MAX_BSSS; i++) {
         memcpy(&this->m_bss[i], &obj.m_bss[i], sizeof(dm_bss_t));
     }
     memcpy(&this->m_dpp, &obj.m_dpp, sizeof(dm_dpp_t));
+
+    this->m_num_opclass = obj.m_num_opclass;
     for (unsigned int i = 0; i < EM_MAX_OPCLASS; i++) {
         memcpy(&this->m_op_class[i], &obj.m_op_class[i], sizeof(dm_op_class_t));
     }
-    memcpy(&this->m_network_ssid, &obj.m_network_ssid, sizeof(dm_network_ssid_t));
+
+    this->m_num_net_ssids = obj.m_num_net_ssids;
+    for (unsigned int i = 0; i < EM_MAX_NET_SSIDS; i++) {
+        memcpy(&this->m_network_ssid[i], &obj.m_network_ssid[i], sizeof(dm_network_ssid_t));
+    }
 
     hash_map_t **dst_m_sta_assoc_map = (hash_map_t** ) this->get_assoc_sta_map();
     hash_map_t **dst_m_sta_dassoc_map = (hash_map_t** ) this->get_dassoc_sta_map();
@@ -104,6 +111,7 @@ dm_easy_mesh_t dm_easy_mesh_t::operator =(dm_easy_mesh_t const& obj)
             }
     }
 
+    this->m_em = obj.m_em;
     return *this;
 }
 
@@ -150,10 +158,19 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
                 }
 		return 0;		
 	}
+
+    else if( target == em_commit_target_al) {
+        m_network = dm.m_network;
+        m_device = dm.m_device;
+        return 0;
+    }
+
 	m_network = dm.m_network;
 	m_device = dm.m_device;
 	m_ieee_1905_security = dm.m_ieee_1905_security;
-	m_network_ssid = dm.m_network_ssid;
+
+    //m_network_ssid = dm.m_network_ssid;
+
 	m_num_radios = dm.m_num_radios;
 
 	for (i = 0; i < EM_MAX_BANDS; i++) {
@@ -164,12 +181,27 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
 		m_bss[i] = dm.m_bss[i];
 	}
 
+    for (i = 0; i < EM_MAX_NET_SSIDS; i++) {
+        m_network_ssid[i] = dm.m_network_ssid[i];
+    }
+
 	return 0;
 }
 
 int dm_easy_mesh_t::commit_config(em_tlv_type_t tlv, unsigned char *data, unsigned int len, bssid_t id, em_commit_target_t target)
 {
 	return 0;
+}
+
+int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, unsigned int radio_index, unsigned int vap_index)
+{
+    if ((radio_index >= EM_MAX_BANDS) || (vap_index >= EM_MAX_BSS_PER_RADIO)) {
+        printf("%s:%d Invalid index radio_index=%d, vap_index=%d\n", __func__, __LINE__,radio_index,vap_index);
+        return 1;
+    }
+    m_radio[radio_index] = dm.m_radio[radio_index];
+    m_bss[vap_index] = dm.m_bss[vap_index];
+    return 0;
 }
 
 int dm_easy_mesh_t::commit_config(em_attrib_id_t attrib, unsigned char *data, unsigned int len, bssid_t id, em_commit_target_t target)
@@ -232,7 +264,7 @@ int dm_easy_mesh_t::analyze_autoconfig_renew(em_bus_event_t *evt, em_cmd_t *pcmd
 
     subdoc = &evt->u.subdoc;
 
-    if (dm.decode_config(subdoc, "Renew", 0) == -1) {
+    if (dm.decode_config(subdoc, "Renew") == -1) {
         printf("%s:%d: Failed to decode\n", __func__, __LINE__);
         return 0;
     }
@@ -312,132 +344,230 @@ int dm_easy_mesh_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[])
 
 int dm_easy_mesh_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
-    unsigned int index = 0;
-    unsigned int num = 0, i, j = 0, num_radios = 0;
-    dm_orch_type_t op;
-    em_subdoc_info_t *subdoc;
-    dm_easy_mesh_t  dm;
-    dm_device_t *dev, *tgt_dev;
-    dm_radio_t *rd, *tgt_rd;
-	em_cmd_t *tmp;
-
-	printf("%s:%d: Enter\n", __func__, __LINE__);
-    subdoc = &evt->u.subdoc;
-    if (dm.decode_config(subdoc, "Network", 0) == -1) {
-        printf("%s:%d: Failed to decode\n", __func__, __LINE__);
-        return 0;
-    }
-
-    num_radios = dm.get_num_radios();
-	printf("%s:%d: Number of radios: %d\n", __func__, __LINE__, num_radios);
-    dev = dm.get_device();
-    tgt_dev = find_matching_device(dev);
-    if (tgt_dev != NULL) {
-        op = dm_orch_type_rd_update;
-    } else {
-        op = dm_orch_type_dev_insert;
-    }
-
-    pcmd[num] = new em_cmd_dev_init_t(evt->params,dm);
-    //pcmd[num]->init(&dm);
-	pcmd[num]->override_op(pcmd[num]->get_orch_op_index(), op);
-	printf("%s:%d: Orch op :%s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(pcmd[num]->get_orch_op()));
-	tmp = pcmd[num];
-    num++;
-
-    while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
-        //pcmd[num]->init(&dm);
-        if (pcmd[num]->get_orch_op() == dm_orch_type_rd_insert) {
-			i = 0;
-			do {
-				rd = dm.get_radio(i);
-			tgt_rd = find_matching_radio(rd);
-			if (tgt_rd != NULL) {
-				op = dm_orch_type_rd_update;
-			} else {
-				op = dm_orch_type_rd_insert;
-			}
-                                index = pcmd[num]->m_data_model.get_cmd_ctx()->arr_index;
-                                pcmd[num]->m_data_model.m_radio[index] = dm.m_radio[i];
-		
-				pcmd[num]->override_op(pcmd[num]->get_orch_op_index(), op);
-				printf("%s:%d: Orch op :%s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(pcmd[num]->get_orch_op()));
-				pcmd[num]->set_rd_freq_band(j);
-				j++;
-		tmp = pcmd[num]; i++; num++; 
-				if (i < num_radios) {
-					pcmd[num] = tmp->clone();
-				//pcmd[num]->init(&dm);
-				}
-			} while (i < num_radios);
-                } else if ((pcmd[num]->get_orch_op() == dm_orch_type_owconfig_req) ||
-                                                                (pcmd[num]->get_orch_op() == dm_orch_type_owconfig_cnf)) {
-                        i = 0;
-                        do {
-                                //printf("%s:%d: Orch op :%s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(pcmd[num]->get_orch_op()));
-                tmp = pcmd[num]; i++; num++;
-                                if (i < num_radios) {
-                                        pcmd[num] = tmp->clone();
-                                }
-                        } while (i < num_radios);
-        }else {
-			printf("%s:%d: Orch op :%s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(pcmd[num]->get_orch_op()));
-			tmp = pcmd[num];
-            num++;
-        }
-    }
-
-    return num;
+    return 0;
 }
 
-int dm_easy_mesh_t::encode_config(em_subdoc_info_t *subdoc)
+int dm_easy_mesh_t::encode_config(em_subdoc_info_t *subdoc, const char *str)
 {
-	cJSON *parent_obj, *net_obj, *dev_arr_objs,  *dev_obj;
-	
-	if ((parent_obj = cJSON_CreateObject()) == NULL) {
-		printf("%s:%d: Could not create parent object\n", __func__, __LINE__);
-		return -1;
-	}
-	if ((net_obj = cJSON_CreateObject()) == NULL) {
-		printf("%s:%d: Could not create net object\n", __func__, __LINE__);
-		cJSON_Delete(parent_obj);
-		return -1;
-	}
-	if (cJSON_AddItemToObject(parent_obj, "wfa-dataelements:Network", net_obj) == false) {
-		printf("%s:%d: Could not create net object\n", __func__, __LINE__);
-		cJSON_Delete(parent_obj);
-		return -1;
-	}
-	m_network.encode(net_obj);
-	if ((dev_arr_objs = cJSON_CreateArray()) == NULL) {
-		printf("%s:%d: Could not create dev array object\n", __func__, __LINE__);
-		cJSON_Delete(parent_obj);
-		return -1;
-	}
-	if (cJSON_AddItemToObject(net_obj, "DeviceList", dev_arr_objs) == false) {
-		printf("%s:%d: Could not create net object\n", __func__, __LINE__);
-		cJSON_Delete(parent_obj);
-		return -1;
-	}
-	if ((dev_obj = cJSON_CreateObject()) == NULL) {
-		printf("%s:%d: Could not create dev object\n", __func__, __LINE__);
-		cJSON_Delete(parent_obj);
-		return -1;
-	}
-	m_device.encode(dev_obj);
-	if (cJSON_AddItemToArray(dev_arr_objs, dev_obj) == false) {
-		cJSON_Delete(parent_obj);
-		printf("%s:%d: Could not create net object\n", __func__, __LINE__);
-		return -1;
-	}
-	if (cJSON_PrintPreallocated(parent_obj, subdoc->buff, subdoc->sz, true) == false) {
-		cJSON_Delete(parent_obj);
-		printf("%s:%d: Could not create net object\n", __func__, __LINE__);
-		return -1;
-	}
-	cJSON_Delete(parent_obj);
-	return 0;
+	em_long_string_t key;
+
+	if (strncmp(str, "Reset", strlen("Reset")) == 0) {
+    	snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
+		return encode_config_reset(subdoc, key);
+	} else if (strncmp(str, "Test", strlen("Test")) == 0) {
+        snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
+        return encode_config_test(subdoc, key);
+    } else if (strncmp(str, "dm_cache", strlen("dm_cache")) == 0) {
+        snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
+        return encode_config_test(subdoc, key);
+    }
+
+	return -1;
+
 }
+
+int dm_easy_mesh_t::encode_config_reset(em_subdoc_info_t *subdoc, const char *key)
+{
+    cJSON *parent_obj, *net_obj, *ssid_obj, *ssid_arr_objs;
+	char *formatted_json;
+	unsigned int i;
+
+	printf("%s:%d: Start encoding\n", __func__, __LINE__);
+    
+    if ((parent_obj = cJSON_CreateObject()) == NULL) {
+        printf("%s:%d: Could not create parent object\n", __func__, __LINE__);
+        return -1;
+    }
+    if ((net_obj = cJSON_CreateObject()) == NULL) {
+        printf("%s:%d: Could not create net object\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return -1;
+    }
+    if (cJSON_AddItemToObject(parent_obj, key, net_obj) == false) {
+        printf("%s:%d: Could not create net object\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return -1;
+    }
+    m_network.encode(net_obj);
+    if ((ssid_arr_objs = cJSON_CreateArray()) == NULL) {
+        printf("%s:%d: Could not create NetworkSSIDList array object\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return -1;
+    }
+    if (cJSON_AddItemToObject(net_obj, "NetworkSSIDList", ssid_arr_objs) == false) {
+        printf("%s:%d: Could not create net object\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return -1;
+    }
+
+	for (i = 0; i < m_num_net_ssids; i++) {
+		if ((ssid_obj = cJSON_CreateObject()) == NULL) {	
+        	printf("%s:%d: Could not create ssid object\n", __func__, __LINE__);
+        	cJSON_Delete(parent_obj);
+        	return -1;
+		}
+			
+		m_network_ssid[i].encode(ssid_obj);
+        if (cJSON_AddItemToArray(ssid_arr_objs, ssid_obj) == false) {
+            cJSON_Delete(parent_obj);
+            printf("%s:%d: Could not create net object\n", __func__, __LINE__);
+            return -1;
+        }
+	}
+	
+	formatted_json = cJSON_Print(parent_obj);
+    printf("%s:%d: %s\n", __func__, __LINE__, formatted_json);
+    snprintf(subdoc->buff,sizeof(em_subdoc_data_buff_t),"%s",cJSON_Print(parent_obj));
+    cJSON_Delete(parent_obj);
+    return 0;
+}
+
+int dm_easy_mesh_t::encode_config_test(em_subdoc_info_t *subdoc, const char *key)
+{
+    cJSON *parent_obj, *net_obj, *dev_arr_objs,  *dev_obj, *radio_arr_objs, *radio_obj;
+	cJSON *op_arr_objs, *op_obj, *bss_obj, *bss_arr_objs;
+	char *formatted_json;
+	unsigned int i, j, num_op_classes = 0, num_bss = 0;
+	em_op_class_id_t id;
+
+	printf("%s:%d: Start encoding\n", __func__, __LINE__);
+    
+    if ((parent_obj = cJSON_CreateObject()) == NULL) {
+        printf("%s:%d: Could not create parent object\n", __func__, __LINE__);
+        return -1;
+    }
+    if ((net_obj = cJSON_CreateObject()) == NULL) {
+        printf("%s:%d: Could not create net object\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return -1;
+    }
+    if (cJSON_AddItemToObject(parent_obj, key, net_obj) == false) {
+        printf("%s:%d: Could not create net object\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return -1;
+    }
+    
+    m_network.encode(net_obj);
+
+	if ((dev_arr_objs = cJSON_CreateArray()) == NULL) {
+        printf("%s:%d: Could not create dev array object\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return -1;
+    }
+    if (cJSON_AddItemToObject(net_obj, "DeviceList", dev_arr_objs) == false) {
+        printf("%s:%d: Could not create net object\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return -1;
+    }
+    if ((dev_obj = cJSON_CreateObject()) == NULL) {
+        printf("%s:%d: Could not create dev object\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return -1;
+    }
+    m_device.encode(dev_obj);
+    if (cJSON_AddItemToArray(dev_arr_objs, dev_obj) == false) {
+        cJSON_Delete(parent_obj);
+        printf("%s:%d: Could not create net object\n", __func__, __LINE__);
+        return -1;
+    }
+    
+    if ((radio_arr_objs = cJSON_CreateArray()) == NULL) {
+        printf("%s:%d: Could not create dev array object\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return -1;
+    }
+    if (cJSON_AddItemToObject(dev_obj, "RadioList", radio_arr_objs) == false) {
+        printf("%s:%d: Could not create Radio object\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return -1;
+    }
+
+    printf("%s:%d:  Radio no of obj=%d\n", __func__, __LINE__,m_num_radios);
+
+    for (i = 0; i < m_num_radios; i++) {
+        if ((radio_obj = cJSON_CreateObject()) == NULL) {
+            printf("%s:%d: Could not create dev object\n", __func__, __LINE__);
+            cJSON_Delete(parent_obj);
+            return -1;
+        }
+        m_radio[i].encode(radio_obj);
+        if (cJSON_AddItemToArray(radio_arr_objs, radio_obj) == false) {
+            cJSON_Delete(parent_obj);
+            printf("%s:%d: Could not create net object\n", __func__, __LINE__);
+            return -1;
+        }
+
+        if ((op_arr_objs = cJSON_CreateArray()) == NULL) {
+            printf("%s:%d: Could not create op array object\n", __func__, __LINE__);
+            cJSON_Delete(parent_obj);
+            return -1;
+        }
+        if (cJSON_AddItemToObject(radio_obj, "CurrentOperatingClasses", op_arr_objs) == false) {
+            printf("%s:%d: Could not create op object\n", __func__, __LINE__);
+            cJSON_Delete(parent_obj);
+            return -1;
+        }
+        for (j = 0; j < m_num_opclass; j++) {
+			if (memcmp(m_op_class[j].m_op_class_info.id.ruid, m_radio[i].m_radio_info.id.mac, sizeof(mac_address_t)) != 0) {
+				continue;
+			}
+            if ((op_obj = cJSON_CreateObject()) == NULL) {
+                printf("%s:%d: Could not create op object\n", __func__, __LINE__);
+                cJSON_Delete(parent_obj);
+                return -1;
+            }
+
+            m_op_class[j].encode(op_obj);
+            if (cJSON_AddItemToArray(op_arr_objs, op_obj) == false) {
+                cJSON_Delete(parent_obj);
+                printf("%s:%d: Could not create net object\n", __func__, __LINE__);
+                return -1;
+            }
+        }
+
+        if ((bss_arr_objs = cJSON_CreateArray()) == NULL) {
+            printf("%s:%d: Could not create bss array object\n", __func__, __LINE__);
+            cJSON_Delete(parent_obj);
+            return -1;
+        }
+		if (cJSON_AddItemToObject(radio_obj, "BSSList", bss_arr_objs) == false) {
+            printf("%s:%d: Could not create Radio object\n", __func__, __LINE__);
+            cJSON_Delete(parent_obj);
+            return -1;
+        }
+        printf("%s:%d: VAP object num of bss=%d\n", __func__, __LINE__,m_num_bss);
+
+        for (j = 0; j < m_num_bss; j++) {
+			/*if (memcmp(m_bss[j].m_bss_info.ruid.mac, m_radio[i].m_radio_info.id.mac, sizeof(mac_address_t)) != 0) {
+				continue;
+			}*/
+
+            if ((bss_obj = cJSON_CreateObject()) == NULL) {
+                printf("%s:%d: Could not create net object\n", __func__, __LINE__);
+                cJSON_Delete(parent_obj);
+                return -1;
+            }
+            m_bss[j].encode(bss_obj);
+            if (cJSON_AddItemToArray(bss_arr_objs, bss_obj) == false) {
+                if (cJSON_AddItemToArray(bss_arr_objs, bss_obj) == false) {
+                    printf("%s:%d: Could not create net object\n", __func__, __LINE__);
+                    cJSON_Delete(parent_obj);
+                    return -1;
+                }
+
+            }
+        }
+
+    }
+
+
+	formatted_json = cJSON_Print(parent_obj);
+    printf("%s:%d: %s\n", __func__, __LINE__, formatted_json);
+    snprintf(subdoc->buff,sizeof(em_subdoc_data_buff_t),"%s",cJSON_Print(parent_obj));
+    cJSON_Delete(parent_obj);
+    return 0;
+}
+
 
 unsigned int dm_easy_mesh_t::decode_num_devices(em_subdoc_info_t *subdoc)
 {
@@ -471,92 +601,189 @@ unsigned int dm_easy_mesh_t::decode_num_devices(em_subdoc_info_t *subdoc)
 
 }
 
-int dm_easy_mesh_t::decode_config(em_subdoc_info_t *subdoc, const char *str, unsigned int dev_idx)
+
+int dm_easy_mesh_t::decode_config(em_subdoc_info_t *subdoc, const char *str)
 {
-        cJSON *parent_obj, *net_obj, *dev_arr_objs,  *dev_obj, *radio_arr_objs, *radio_obj , *op_arr_objs, *op_obj;
-        unsigned int size, i,num_opclass;
+	em_long_string_t key;
+
+	if (strncmp(str, "Reset", strlen("Reset")) == 0) {
+    	snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
+		return decode_config_reset(subdoc, key);
+	} else if (strncmp(str, "Test", strlen("Test")) == 0) {
+        snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
+        return decode_config_test(subdoc, key);
+    } else if (strncmp(str, "dm_cache", strlen("dm_cache")) == 0) {
+        snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
+        return decode_config_test(subdoc, key); 
+	}
+
+	return -1;
+}
+
+int dm_easy_mesh_t::decode_config_reset(em_subdoc_info_t *subdoc, const char *key)
+{
+    cJSON *parent_obj, *net_obj, *tmp, *ssid_obj, *ssid_arr_obj;
+    unsigned int i;
+
+    //printf("%s\n", subdoc->buff);
+    if ((parent_obj = cJSON_Parse(subdoc->buff)) == NULL) {
+        printf("%s:%d: Failed to initialize device data model\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if ((net_obj = cJSON_GetObjectItem(parent_obj, key)) == NULL) {
+        cJSON_Delete(parent_obj);
+        return -1;
+    }
+
+    m_network.decode(net_obj, NULL);
+	
+	if ((ssid_arr_obj = cJSON_GetObjectItem(net_obj, "NetworkSSIDList")) == NULL) {
+        cJSON_Delete(parent_obj);
+        printf("%s:%d: NetworkSSID List not present\n", __func__, __LINE__);
+        return -1;
+    }
+
+	m_num_net_ssids = cJSON_GetArraySize(ssid_arr_obj);
+    if (m_num_net_ssids == 0) {
+        cJSON_Delete(parent_obj);
+        printf("%s:%d: NetworkSSIDList has no memebers not present\n", __func__, __LINE__);
+        return -1;
+    }
+
+	for (i = 0; i < m_num_net_ssids; i++) {
+        if((ssid_obj = cJSON_GetArrayItem(ssid_arr_obj, i)) == NULL) {
+            cJSON_Delete(parent_obj);
+            printf("%s:%d: NetworkSSIDList has no members present\n", __func__, __LINE__);
+            return -1;
+        }
+			
+        m_network_ssid[i].decode(ssid_obj, m_network.m_net_info.id);
+	}
+
+    cJSON_Delete(parent_obj);
+    //printf("%s:%d: End\n", __func__, __LINE__);
+    return 0;
+}
+
+int dm_easy_mesh_t::decode_config_test(em_subdoc_info_t *subdoc, const char *key)
+{
+    cJSON *parent_obj, *net_obj, *dev_arr_objs,  *dev_obj, *radio_arr_objs, *radio_obj , *op_arr_objs, *op_obj;
+	cJSON *bss_arr_objs,*bss_obj, *tmp;
+    unsigned int size, i, j, num_objs;
+	mac_addr_str_t mac_str;
 	em_long_string_t parent_key;
 
-	printf("%s:%d: Received Subdoc\n", __func__, __LINE__);
-	printf("%s\n", subdoc->buff);
+    if ((parent_obj = cJSON_Parse(subdoc->buff)) == NULL) {
+        printf("%s:%d: Failed to initialize device data model\n", __func__, __LINE__);
+        return -1;
+    }
 
-	snprintf(parent_key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
-
-        if ((parent_obj = cJSON_Parse(subdoc->buff)) == NULL) {
-                printf("%s:%d: Failed to initialize device data model\n", __func__, __LINE__);
-                return -1;
-        }
-
-	if ((net_obj = cJSON_GetObjectItem(parent_obj, parent_key)) == NULL) {
-		cJSON_Delete(parent_obj);
-		printf("%s:%d: wfa-dataelements:%s not present\n", __func__, __LINE__, str);
-		return -1;
-	}
-        m_network.decode(net_obj, NULL);
-        if ((dev_arr_objs = cJSON_GetObjectItem(net_obj, "DeviceList")) == NULL) {
-                cJSON_Delete(parent_obj);
-                printf("%s:%d: DeviceList not present\n", __func__, __LINE__);
-                return -1;
-        }
-
-        size = cJSON_GetArraySize(dev_arr_objs);
-        if (size == 0) {
-                cJSON_Delete(parent_obj);
-                printf("%s:%d: DeviceList has no memebers not present\n", __func__, __LINE__);
-                return -1;
-        }
-
-        if ((dev_obj = cJSON_GetArrayItem(dev_arr_objs, dev_idx)) != NULL) {
-                m_device.decode(dev_obj, m_network.get_network_id());
-        }
-
-        if ((radio_arr_objs = cJSON_GetObjectItem(dev_obj, "RadioList")) == NULL) {
-                cJSON_Delete(parent_obj);
-                printf("%s:%d: RadioList not present\n", __func__, __LINE__);
-                return -1;
-
-        }
-
-        m_num_radios = cJSON_GetArraySize(radio_arr_objs);
-        if (m_num_radios == 0) {
-                cJSON_Delete(parent_obj);
-                printf("%s:%d: RadioList has no memebers not present\n", __func__, __LINE__);
-                return -1;
-        }
-
-        for (i =0; i < m_num_radios; i++) {
-            if((radio_obj = cJSON_GetArrayItem(radio_arr_objs, i)) == NULL) {
-                cJSON_Delete(parent_obj);
-                printf("%s:%d: RadioList has no members present\n", __func__, __LINE__);
-                return -1;
-            }
-
-            m_radio[i].decode(radio_obj, m_device.get_dev_interface_mac());
-
-            if ((op_arr_objs = cJSON_GetObjectItem(radio_obj, "CurrentOperatingClasses")) == NULL) {
-                cJSON_Delete(parent_obj);
-                printf("%s:%d: CurrentOperatingClasses not present\n", __func__, __LINE__);
-                return -1;
-            }
-
-            num_opclass = cJSON_GetArraySize(op_arr_objs);
-
-            if (num_opclass == 0) {
-                cJSON_Delete(parent_obj);
-                printf("%s:%d: CurrentOperatingClasses has no memebers not present\n", __func__, __LINE__);
-                return -1;
-            }
-	    int j = 0;
-            if ((op_obj = cJSON_GetArrayItem(op_arr_objs, j)) == NULL) {
-                    cJSON_Delete(parent_obj);
-                    printf("%s:%d: CurrentOperatingClasses has no memebers not present\n", __func__, __LINE__);
-                    return -1;
-            }
-            m_op_class[i].decode(op_obj, m_radio[i].get_radio_id());
-	}
-	m_num_opclass = m_num_radios;
-	printf("num op class= %d\n",m_num_opclass);
+    if ((net_obj = cJSON_GetObjectItem(parent_obj, key)) == NULL) {
         cJSON_Delete(parent_obj);
+        return -1;
+    }
+
+    m_network.decode(net_obj, NULL);
+
+    if ((dev_arr_objs = cJSON_GetObjectItem(net_obj, "DeviceList")) == NULL) {
+        cJSON_Delete(parent_obj);
+        printf("%s:%d: DeviceList not present\n", __func__, __LINE__);
+        return -1;
+    }
+
+    size = cJSON_GetArraySize(dev_arr_objs);
+    if (size == 0) {
+        cJSON_Delete(parent_obj);
+        printf("%s:%d: DeviceList has no memebers not present\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if ((dev_obj = cJSON_GetArrayItem(dev_arr_objs, 0)) != NULL) {
+        m_device.decode(dev_obj, m_network.get_network_id());
+    }
+
+    if ((radio_arr_objs = cJSON_GetObjectItem(dev_obj, "RadioList")) == NULL) {
+        cJSON_Delete(parent_obj);
+        printf("%s:%d: RadioList not present\n", __func__, __LINE__);
+        return -1;
+
+    }
+
+    m_num_radios = cJSON_GetArraySize(radio_arr_objs);
+    if (m_num_radios == 0) {
+        cJSON_Delete(parent_obj);
+        printf("%s:%d: RadioList has no memebers not present\n", __func__, __LINE__);
+        return -1;
+    }
+    printf("%s:%d: No of radio\n", __func__, __LINE__,m_num_radios);
+    for (i = 0; i < m_num_radios; i++) {
+        if((radio_obj = cJSON_GetArrayItem(radio_arr_objs, i)) == NULL) {
+            cJSON_Delete(parent_obj);
+            printf("%s:%d: RadioList has no members present\n", __func__, __LINE__);
+            return -1;
+        }
+			
+		dm_easy_mesh_t::macbytes_to_string(m_device.get_dev_interface_mac(), mac_str);	
+		snprintf(parent_key, sizeof(parent_key), "%s@%s", mac_str, m_device.m_device_info.net_id);
+
+        m_radio[i].decode(radio_obj, parent_key);
+
+        if ((op_arr_objs = cJSON_GetObjectItem(radio_obj, "CurrentOperatingClasses")) == NULL) {
+            cJSON_Delete(parent_obj);
+            printf("%s:%d: CurrentOperatingClasses not present\n", __func__, __LINE__);
+            return -1;
+        }
+
+        num_objs = cJSON_GetArraySize(op_arr_objs);
+
+		for (j = 0; j < num_objs; j++) {
+        	if ((op_obj = cJSON_GetArrayItem(op_arr_objs, j)) == NULL) {
+            	cJSON_Delete(parent_obj);
+            	printf("%s:%d: CurrentOperatingClasses has no memebers not present\n", __func__, __LINE__);
+            	return -1;
+        	}
+
+			dm_easy_mesh_t::macbytes_to_string(m_radio[i].m_radio_info.id.mac, mac_str);	
+			snprintf(parent_key, sizeof(parent_key), "%s@%d@%d", mac_str, em_op_class_type_current, j);
+			
+        	m_op_class[j + m_num_opclass].decode(op_obj, parent_key);
+		}
+
+		m_num_opclass += num_objs;
+
+        if ((bss_arr_objs = cJSON_GetObjectItem(radio_obj, "BSSList")) == NULL) {
+            cJSON_Delete(parent_obj);
+            printf("%s:%d: BssList not present\n", __func__, __LINE__);
+            return -1;
+        }
+
+        num_objs = cJSON_GetArraySize(bss_arr_objs);
+        
+		for (j = 0; j < num_objs; j++) {
+
+            if((bss_obj = cJSON_GetArrayItem(bss_arr_objs, j)) == NULL) {
+                cJSON_Delete(parent_obj);
+                printf("%s:%d: BSSObj member read failed \n", __func__, __LINE__);
+                return -1;
+            }
+
+            if ((tmp = cJSON_GetObjectItem(bss_obj, "BSSID")) == NULL) {
+                cJSON_Delete(parent_obj);
+                printf("%s:%d: BSSID not found\n", __func__, __LINE__);
+                return -1;
+            }
+			printf("%s:%d: BSSID: %s\n", __func__, __LINE__, cJSON_GetStringValue(tmp));
+			dm_easy_mesh_t::macbytes_to_string(m_radio[i].m_radio_info.id.mac, mac_str);
+            m_bss[j + m_num_bss].decode(bss_obj, mac_str);
+        }
+
+		m_num_bss += num_objs;
+
+    }
+    printf("%s:%d: m_num_bss=%d\n", __func__, __LINE__,m_num_bss);     
+    cJSON_Delete(parent_obj);
+    //printf("%s:%d: End\n", __func__, __LINE__);
     return 0;
 }
 
@@ -736,7 +963,7 @@ int dm_easy_mesh_t::decode_sta_config(em_subdoc_info_t *subdoc, unsigned int dev
 int dm_easy_mesh_t::decode_ap_cap_config(em_subdoc_info_t *subdoc, const char *str)
 {
     cJSON *parent_obj, *net_obj, *dev_arr_objs, *dev_obj;
-    unsigned int size, i,num_opclass;
+    unsigned int size, i,num_objs;
     em_long_string_t parent_key;
     cJSON *id, *cltmac;
 
@@ -838,35 +1065,22 @@ void dm_easy_mesh_t::deinit()
 
 int dm_easy_mesh_t::init()
 {
+    unsigned int i;
 	m_network.init();
     m_device.init();
 	m_ieee_1905_security.init();
-	m_network_ssid.init();
+    
+    for (i = 0; i < EM_MAX_BANDS; i++) {
+        m_radio[i].init();
+    }
+    for (i = 0; i < EM_MAX_NET_SSIDS; i++) {
+	    m_network_ssid[i].init();
+    }
 	m_sta_map = hash_map_create();
-        m_sta_assoc_map = hash_map_create();
-        m_sta_dassoc_map = hash_map_create();
-	return 0;
-}
-
-dm_easy_mesh_t::dm_easy_mesh_t(const dm_network_t& net)
-{
-	memcpy(&m_device.m_device_info.id, &net.m_net_info.ctrl_id, sizeof(em_interface_t));
-	memcpy(&m_device.m_device_info.backhaul_alid, &net.m_net_info.ctrl_id, sizeof(em_interface_t));
-	memcpy(&m_device.m_device_info.backhaul_mac, &net.m_net_info.ctrl_id, sizeof(em_interface_t));
-
-	name_from_mac_address(&m_device.m_device_info.id.mac, m_device.m_device_info.id.name);	
-	name_from_mac_address(&m_device.m_device_info.backhaul_alid.mac, m_device.m_device_info.backhaul_alid.name);	
-	name_from_mac_address(&m_device.m_device_info.backhaul_mac.mac, m_device.m_device_info.backhaul_mac.name);	
-}
-
-dm_easy_mesh_t::dm_easy_mesh_t()
-{
-	m_num_radios = 0;
-}
-
-dm_easy_mesh_t::~dm_easy_mesh_t()
-{
-
+    m_sta_assoc_map = hash_map_create();
+    m_sta_dassoc_map = hash_map_create();
+	
+    return 0;
 }
 
 void dm_easy_mesh_t::print_hex_dump(unsigned int length, unsigned char *buffer)
@@ -906,13 +1120,15 @@ void dm_easy_mesh_t::print_hex_dump(unsigned int length, unsigned char *buffer)
 
 char *dm_easy_mesh_t::macbytes_to_string(mac_address_t mac, char* string)
 {
-    sprintf((char *)string, "%02x:%02x:%02x:%02x:%02x:%02x",
+    if( mac != NULL) {
+        sprintf((char *)string, "%02x:%02x:%02x:%02x:%02x:%02x",
             mac[0] & 0xff,
             mac[1] & 0xff,
             mac[2] & 0xff,
             mac[3] & 0xff,
             mac[4] & 0xff,
             mac[5] & 0xff);
+    }
     return (char *)string;
 }
 
@@ -928,6 +1144,42 @@ void dm_easy_mesh_t::string_to_macbytes(char *key, mac_address_t bmac)
     bmac[0] = mac[0]; bmac[1] = mac[1]; bmac[2] = mac[2];
     bmac[3] = mac[3]; bmac[4] = mac[4]; bmac[5] = mac[5];
 
+}
+
+void dm_easy_mesh_t::securitymode_to_str(unsigned short mode, char *sec_mode_str, int len)
+{
+    if (mode == EM_AUTH_OPEN)
+        snprintf(sec_mode_str, len, "%s", "OPEN");
+    else if (mode == EM_AUTH_WPAPSK)
+        snprintf(sec_mode_str, len, "%s", "WEP_64");
+    else if (mode == EM_AUTH_SHARED)
+        snprintf(sec_mode_str, len, "%s", "WEP_128");
+    else if (mode == EM_AUTH_SAE)
+        snprintf(sec_mode_str, len, "%s", "WPA-WPA2-Personal"); //TODO Need to check what SAE
+    else if (mode == EM_AUTH_WPA2PSK)
+        snprintf(sec_mode_str, len, "%s", "WPA-Personal");
+    else if (mode == EM_AUTH_WPA2)
+        snprintf(sec_mode_str, len, "%s", "WPA2-Personal");
+    else if (mode == EM_AUTH_WPA2PSK)
+        snprintf(sec_mode_str, len, "%s", "WPA-WPA2-Personal");
+}
+
+void dm_easy_mesh_t::str_to_securitymode(unsigned short *mode, char *sec_mode_str, int len)
+{
+    if (strncmp(sec_mode_str,"OPEN", len) == 0)
+        *mode = EM_AUTH_OPEN;
+    else if (strncmp(sec_mode_str,"WEP_64", len) == 0)
+        *mode = EM_AUTH_WPAPSK;
+    else if (strncmp(sec_mode_str,"WEP_128", len) == 0)
+        *mode = EM_AUTH_SHARED;
+    else if (strncmp(sec_mode_str,"WPA-WPA2-Personal", len) == 0)
+        *mode = EM_AUTH_WPA2PSK;
+    else if (strncmp(sec_mode_str,"WPA-Personal", len) == 0)
+        *mode = EM_AUTH_WPA;
+    else if (strncmp(sec_mode_str,"WPA2-Personal", len) == 0)
+        *mode = EM_AUTH_WPA2;
+    else if (strncmp(sec_mode_str,"WPA-WPA2-Personal",len) == 0) 
+        *mode = EM_AUTH_SAE;
 }
 
 int dm_easy_mesh_t::mac_address_from_name(const char *ifname, mac_address_t mac)
@@ -1005,9 +1257,6 @@ rdk_wifi_radio_t *dm_easy_mesh_t::get_radio_data(em_interface_t *interface)
 
 dm_radio_t *dm_easy_mesh_t::get_radio(unsigned int index)
 {
-	if (index >= m_num_radios) {
-		return NULL;
-	}
 
 	return &m_radio[index];
 }
@@ -1047,10 +1296,6 @@ dm_radio_t *dm_easy_mesh_t::find_matching_radio(dm_radio_t *radio)
 
 dm_op_class_t *dm_easy_mesh_t::get_curr_op_class(unsigned int index)
 {
-        if (index >= m_num_opclass) {
-                return NULL;
-        }
-
         return &m_op_class[index];
 }
 
@@ -1065,17 +1310,28 @@ dm_device_t *dm_easy_mesh_t::find_matching_device(dm_device_t *dev)
 
 void dm_easy_mesh_t::print_config()
 {
-	mac_addr_str_t  ctrl_mac, ctrl_al_mac, agent_al_mac;
+    unsigned int i;
+    mac_addr_str_t  ctrl_mac, ctrl_al_mac, agent_al_mac, radio_mac;
 
-	dm_easy_mesh_t::macbytes_to_string(get_controller_interface_mac(), ctrl_mac);
+    dm_easy_mesh_t::macbytes_to_string(get_controller_interface_mac(), ctrl_mac);
     dm_easy_mesh_t::macbytes_to_string(get_ctrl_al_interface_mac(), ctrl_al_mac);
     dm_easy_mesh_t::macbytes_to_string(get_agent_al_interface_mac(), agent_al_mac);
 	printf("%s:%d:Network:%s\n", __func__, __LINE__, m_network.m_net_info.id);
     printf("%s:%d:Controller MAC:%s\tController AL MAC:%s\tAgent AL MAC:%s\n", __func__, __LINE__,
             ctrl_mac, ctrl_al_mac, agent_al_mac);
-    printf("%s:%d:Manufacturer:%s\tManufacturere Model:%s\tSiftwareVersion:%s\n", __func__, __LINE__,
+    printf("%s:%d:Manufacturer:%s\tManufacturere Model:%s\tSoftwareVersion:%s\n", __func__, __LINE__,
             get_manufacturer(), get_manufacturer_model(), get_software_version());
+
+    for (i = 0; i < m_num_net_ssids; i++) {
+        printf("%s:%d:Data Model SSID[%d]: %s\n", __func__, __LINE__, i, m_network_ssid[i].m_network_ssid_info.ssid);
+    }
+
+    for (i = 0; i < m_num_opclass; i++) {
+        dm_easy_mesh_t::macbytes_to_string(m_op_class[i].m_op_class_info.id.ruid, radio_mac);
+        printf("%s:%d: OpClass[%d] id.ruid: %s id.type: %d id.index: %d\n", __func__, __LINE__, i, radio_mac, m_op_class[i].m_op_class_info.id.type, m_op_class[i].m_op_class_info.id.index);
+    }
 }
+
 
 bool dm_easy_mesh_t::operator==(dm_easy_mesh_t const& obj)
 {
@@ -1188,3 +1444,140 @@ void dm_easy_mesh_t::create_client_cap_query_json_cmd(char* src_mac_addr, char* 
     snprintf(ap_query_json, sizeof(ap_query_json), "%s", tmp);
     cJSON_Delete(root);
 }
+
+em_network_ssid_info_t *dm_easy_mesh_t::get_network_ssid_info_by_haul_type(em_haul_type_t haul_type)
+{
+    em_network_ssid_info_t *info;
+    unsigned int i, j;
+    bool found = false;
+
+    for (i = 0; i < m_num_net_ssids; i++) {
+        info = &m_network_ssid[i].m_network_ssid_info;
+        //printf("%s:%d: ssid: %s, Number of Hauls: %d Haul Type: %s\n", __func__, __LINE__, info->ssid, info->num_hauls, info->haul_type[0]);
+        for (j = 0; j < info->num_hauls; j++) {
+            if (info->haul_type[j] == haul_type) {
+                found = true;
+                break;
+            }
+        }
+        if (found == true) {
+            break;
+        }
+    }
+
+    return (found == true) ? info:NULL;
+}
+
+em_sta_info_t *dm_easy_mesh_t::get_first_sta_info()
+{
+	dm_sta_t *sta = NULL;
+
+	//sta = (dm_sta_t *)hash_map_get_first(m_sta_map);
+	sta = (dm_sta_t *)hash_map_get_first(m_sta_assoc_map);
+    if (sta != NULL) {
+		return &sta->m_sta_info;
+	}
+
+	return NULL;
+}
+
+em_sta_info_t *dm_easy_mesh_t::get_next_sta_info(em_sta_info_t *info)
+{
+	dm_sta_t *sta = NULL;
+	bool return_next = false;
+
+	//sta = (dm_sta_t *)hash_map_get_first(m_sta_map);
+    sta = (dm_sta_t *)hash_map_get_first(m_sta_assoc_map);
+	while (sta != NULL) {
+		if (return_next == true) {
+			break;
+		}
+		if (info == &sta->m_sta_info) {
+			return_next = true;
+		}
+		//sta = (dm_sta_t *)hash_map_get_next(m_sta_map, sta);
+	    sta = (dm_sta_t *)hash_map_get_next(m_sta_assoc_map, sta);
+    }
+
+	if (return_next == true) {
+		return &sta->m_sta_info;
+	}
+
+	return NULL;
+}
+
+em_sta_info_t *dm_easy_mesh_t::get_sta_info(unsigned char *mac)
+{
+	mac_addr_str_t mac_str;
+	dm_sta_t *sta = NULL;
+
+	dm_easy_mesh_t::macbytes_to_string(mac, mac_str);
+	//sta = (dm_sta_t *)hash_map_get(m_sta_map, mac_str);
+    sta = (dm_sta_t *)hash_map_get(m_sta_assoc_map, mac_str);
+	if (sta != NULL) {
+		return &sta->m_sta_info;
+	}	
+
+	return NULL;
+}
+
+/*void dm_easy_mesh_t::put_sta_info(em_sta_info_t *sta_info)
+{
+	mac_addr_str_t mac_str;
+
+	dm_easy_mesh_t::macbytes_to_string(sta_info->id, mac_str);
+	if (get_sta_info(sta_info->id) != NULL) {
+		hash_map_put(m_sta_map, strdup(mac_str), new dm_sta_t(sta_info));	
+	}	
+}
+*/
+
+void dm_easy_mesh_t::put_sta_info(em_sta_info_t *sta_info)
+{
+    printf("---put_sta_info dm map addr: %p\n", m_sta_assoc_map);
+    mac_addr_str_t s_mac_str, d_mac_str;
+    em_sta_info_t *em_sta;
+    em_sta = get_sta_info(sta_info->id);
+    if(em_sta != NULL)
+    {
+        dm_easy_mesh_t::macbytes_to_string(sta_info->id, s_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(em_sta->id, d_mac_str);
+        if(strcmp(s_mac_str, d_mac_str) != 0)
+        {
+            return;
+        }
+    }
+    if(sta_info == NULL)
+    {
+        printf("sta info in put map null\n");
+    }
+//  hash_map_put(m_sta_map, strdup(s_mac_str), new dm_sta_t(sta_info));
+    int ret = hash_map_put(m_sta_assoc_map, strdup(s_mac_str), new dm_sta_t(sta_info));
+    printf("---put_sta_info ret %d\n", ret);
+}
+
+dm_easy_mesh_t::dm_easy_mesh_t(const dm_network_t& net)
+{
+    memcpy(&m_device.m_device_info.id, &net.m_net_info.ctrl_id, sizeof(em_interface_t));
+    memcpy(&m_device.m_device_info.backhaul_alid, &net.m_net_info.ctrl_id, sizeof(em_interface_t));
+    memcpy(&m_device.m_device_info.backhaul_mac, &net.m_net_info.ctrl_id, sizeof(em_interface_t));
+
+    name_from_mac_address(&m_device.m_device_info.id.mac, m_device.m_device_info.id.name);  
+    name_from_mac_address(&m_device.m_device_info.backhaul_alid.mac, m_device.m_device_info.backhaul_alid.name);    
+    name_from_mac_address(&m_device.m_device_info.backhaul_mac.mac, m_device.m_device_info.backhaul_mac.name);  
+}
+
+dm_easy_mesh_t::dm_easy_mesh_t()
+{
+    m_num_radios = 0;
+	m_num_opclass = 0;
+	m_num_bss = 0;
+	m_db_cfg_type = db_cfg_type_none;
+}
+
+dm_easy_mesh_t::~dm_easy_mesh_t()
+{
+
+}
+
+

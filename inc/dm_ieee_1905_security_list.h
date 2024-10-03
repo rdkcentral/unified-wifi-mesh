@@ -23,6 +23,7 @@
 #include "dm_ieee_1905_security.h"
 #include "db_easy_mesh.h"
 
+class dm_easy_mesh_t;
 class dm_ieee_1905_security_list_t : public dm_ieee_1905_security_t, public db_easy_mesh_t {
     hash_map_t  *m_list;
 
@@ -33,17 +34,18 @@ public:
     dm_ieee_1905_security_t *get_first() { return (dm_ieee_1905_security_t *)hash_map_get_first(m_list); }
     dm_ieee_1905_security_t *get_next(dm_ieee_1905_security_t *net_ssid) { return (dm_ieee_1905_security_t *)hash_map_get_next(m_list, net_ssid); }
     
-    dm_orch_type_t get_dm_orch_type(const dm_ieee_1905_security_t& security);
+    dm_orch_type_t get_dm_orch_type(db_client_t& db_client, const dm_ieee_1905_security_t& security);
     void update_list(const dm_ieee_1905_security_t& security, dm_orch_type_t op);
     void delete_list();
 
     void init_table();
     void init_columns();
-    void sync_db(db_client_t& db_client, void *ctx);
+    int sync_db(db_client_t& db_client, void *ctx);
     int update_db(db_client_t& db_client, dm_orch_type_t op, void *data = NULL);
+    bool search_db(db_client_t& db_client, void *ctx, void *key);
     bool operator == (const db_easy_mesh_t& obj);
     int set_config(db_client_t& db_client, const cJSON *obj, void *parent_id);
-    int get_config(cJSON *obj, void *parent_id);
+    int get_config(cJSON *obj, void *parent_id, bool summary = false);
 
 };
 

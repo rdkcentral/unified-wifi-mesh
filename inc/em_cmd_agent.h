@@ -34,7 +34,8 @@ public:
     int send_result(em_cmd_out_status_t status);
 
     static em_event_t *create_event(char *buff);
-
+    static em_event_t *create_raw_event(char *buff, em_bus_event_type_t type);
+    
     em_cmd_agent_t(em_cmd_type_t type);
     em_cmd_agent_t(em_cmd_t& obj);
     em_cmd_agent_t();

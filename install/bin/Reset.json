@@ -1,0 +1,75 @@
+{
+    "wfa-dataelements:Reset": {
+        "ID": "Private",
+        "NumberOfDevices": 1,
+        "TimeStamp": "2019-02-11T06:23:43.743847-08:00",
+        "ControllerID": "02:01:02:01:00:01",
+        "MSCSDisallowedStaList": ["00:01:02:03:04:05"],
+        "SCSDisallowedStaList": [],
+        "NetworkSSIDList": [{
+                "SSID": "private_ssid",
+                "PassPhrase": "test-fronthaul",
+                "Band": ["2.4", "5", "6"],
+                "Enable": true,
+                "AKMsAllowed": ["dpp"],
+                "AdvertisementEnabled": true,
+                "MFPConfig": "Optional",
+                "MobilityDomain":"00:01:02:03:04:05",
+                "HaulType": ["Fronthaul"]
+            }, {
+                "SSID": "iot_ssid",
+                "Passphrase": "test-backhaul",
+                "Band": ["2.4", "5", "6"],
+                "Enable": true,
+                "AKMsAllowed": ["dpp","sae","SuiteSelector"],
+                "SuiteSelector": "00010203",
+                "AdvertisementEnabled": true,
+                "MFPConfig": "Required",
+                "MobilityDomain":"00:01:02:03:04:05",
+                "HaulType": ["IoT"]
+            }, {
+                "SSID": "lnf_radius",
+                "Passphrase": "test-backhaul",
+                "Band": ["2.4", "5", "6"],
+                "Enable": true,
+                "AKMsAllowed": ["dpp","sae","SuiteSelector"],
+                "SuiteSelector": "00010203",
+                "AdvertisementEnabled": true,
+                "MFPConfig": "Required",
+                "MobilityDomain":"00:01:02:03:04:05",
+                "HaulType": ["Configurator"]
+            }, {
+                "SSID": "mesh_backhaul",
+                "Passphrase": "test-backhaul",
+                "Band": ["2.4", "5", "6"],
+                "Enable": true,
+                "AKMsAllowed": ["dpp","sae","SuiteSelector"],
+                "SuiteSelector": "00010203",
+                "AdvertisementEnabled": true,
+                "MFPConfig": "Required",
+                "MobilityDomain":"00:01:02:03:04:05",
+                "HaulType": ["Backhaul"]
+            }
+        ],
+        "STABlock": [
+            {
+                "BlockedSTA": "00:01:02:03:04:05",
+                "BSSID": ["0a:01:02:03:04:05","0a:01:02:03:04:06"],
+                "Schedule" : [
+                    {
+                        "Alias" : "Schedule_1",
+                        "Day": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
+                        "StartTime": "00:30",
+                        "Duration":3600
+                    }
+                ]
+            }
+        ],
+        "PreferredBackhauls" : [
+            { "BackhaulMACAddress" : "02:01:02:01:04:01", "BackhaulStaMACAddress" : "02:01:02:02:04:03"}
+        ],
+        "ColocatedAgentID" : "02:01:02:01:00:04"
+    }
+}
+
+

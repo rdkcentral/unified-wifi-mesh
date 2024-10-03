@@ -40,24 +40,34 @@ public:
     void input_listener();
 
     int data_model_init(const char *data_model_path);
+    bool	is_data_model_initialized() { return m_data_model.is_initialized(); }
+   
     int orch_init();
 
+    void handle_dirty_dm();
     void handle_5s_timeout();
     void handle_timeout();
     void handle_event(em_event_t *evt);
     void handle_start_dpp(em_bus_event_t *evt);
     void handle_client_steer(em_bus_event_t *evt);
     void handle_set_ssid_list(em_bus_event_t *evt);
+    void handle_set_channel_list(em_bus_event_t *evt);
     void handle_reset(em_bus_event_t *evt);
+    void handle_dev_test(em_bus_event_t *evt);
     void handle_getdb(em_bus_event_t *evt);
+    void handle_topology_req();
     void handle_radio_metrics_req();
     void handle_ap_metrics_req();
     void handle_client_metrics_req();
+    void handle_get_dm_data(em_bus_event_t *evt);
+    void handle_dm_commit(em_bus_event_t *evt);
 
     void io(void *data, bool input = true);
-    bool io_subdoc_process(em_event_t *evt);
+    bool io_process(em_event_t *evt);
 
-    void *get_data_model() { return &m_data_model; }
+    dm_easy_mesh_t *get_data_model(const char *net_id, const unsigned char *al_mac = NULL) { return m_data_model.get_data_model(net_id, al_mac); }
+    dm_easy_mesh_t *create_data_model(const char *net_id, const unsigned char *al_mac, em_profile_type_t profile = em_profile_type_3) { return m_data_model.create_data_model(net_id, al_mac, profile); }
+
     em_service_type_t get_service_type() { return em_service_type_ctrl; }
 
     em_ctrl_t();

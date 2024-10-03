@@ -44,6 +44,8 @@
 #include "em_mgr.h"
 #include "em_msg.h"
 
+extern char *global_netid;
+
 void em_mgr_t::proto_process(unsigned char *data, unsigned int len, em_t *em)
 {
     em_raw_hdr_t *hdr;
@@ -51,11 +53,13 @@ void em_mgr_t::proto_process(unsigned char *data, unsigned int len, em_t *em)
     em_event_t	*evt;
     mac_address_t ruid;
     em_freq_band_t band;
-    mac_addr_str_t mac_str;
+    em_profile_type_t profile;
+    mac_addr_str_t mac_str1, mac_str2;
     em_interface_t intf;
     em_t *radio_em = NULL;
     em_t *al_em = em;
     bool found = false;
+    dm_easy_mesh_t *dm;
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
     if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
@@ -85,7 +89,7 @@ void em_mgr_t::proto_process(unsigned char *data, unsigned int len, em_t *em)
         }  
 
         if (found == true) {
-            dm_easy_mesh_t::macbytes_to_string(radio_em->get_radio_interface_mac(), mac_str);
+            dm_easy_mesh_t::macbytes_to_string(radio_em->get_radio_interface_mac(), mac_str1);
             //printf("%s:%d: Found em:%s with matching frequency band:%d\n", __func__, __LINE__, mac_str, band);
             em = radio_em;
         } else {
@@ -94,25 +98,34 @@ void em_mgr_t::proto_process(unsigned char *data, unsigned int len, em_t *em)
         }
 
     } else if (((get_service_type() == em_service_type_ctrl) && (htons(cmdu->type) == em_msg_type_autoconf_search)) == true) {
-        if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
-                    len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_freq_band(&band) == true) {
+        if ((em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_freq_band(&band) == true) && (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_al_mac_address(intf.mac) == true)) {
+            if ((dm = get_data_model((const char *)global_netid, (const unsigned char *)intf.mac)) == NULL) {
+                if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_profile(&profile) == false) {
+                    profile = em_profile_type_1;
+                }
+                dm = create_data_model((const char *)global_netid, (const unsigned char *)intf.mac, profile);
+            }
             em = al_em;
-            em->set_peer_band(band);
-            em->set_peer_mac(hdr->src);
         } 
 
     } else if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                 len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == true) {
-        dm_easy_mesh_t::macbytes_to_string(ruid, mac_str);
-        if ((radio_em = (em_t *)hash_map_get(m_em_map, mac_str)) != NULL) {
+        dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
+        if ((radio_em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
             em = radio_em;
         } else if (((get_service_type() == em_service_type_ctrl) && (htons(cmdu->type) == em_msg_type_autoconf_wsc)) == true) {
+            if ((dm = get_data_model((const char *)global_netid, (const unsigned char *)hdr->src)) == NULL) {
+                printf("%s:%d: Can not find data model\n", __func__, __LINE__);
+            }
+
+            dm_easy_mesh_t::macbytes_to_string(hdr->src, mac_str1);
+            dm_easy_mesh_t::macbytes_to_string(ruid, mac_str2);
+
+            printf("%s:%d: Found data model for mac: %s, creating node for ruid: %s\n", __func__, __LINE__, mac_str1, mac_str2);
+
             memcpy(intf.mac, ruid, sizeof(mac_address_t));
-            if ((radio_em = create_node(&intf, false, em_profile_type_3, em_service_type_ctrl)) != NULL) {
+            if ((radio_em = create_node(&intf, dm, false,  dm->get_device()->m_device_info.profile, em_service_type_ctrl)) != NULL) {
                 em = radio_em;
-                em->copy_data_model(*(al_em->get_data_model()));
-                em->set_peer_mac(hdr->src);
-                em->set_peer_profile(al_em->get_peer_profile());
                 em->set_state(em_state_agent_wsc_m1_pending);
             } else {
                 em = al_em;
@@ -168,7 +181,7 @@ void em_mgr_t::delete_node(em_interface_t *ruid)
 
 }
 
-em_t *em_mgr_t::create_node(em_interface_t *ruid, bool is_al_mac,em_profile_type_t profile, em_service_type_t type)
+em_t *em_mgr_t::create_node(em_interface_t *ruid, dm_easy_mesh_t *dm, bool is_al_mac,em_profile_type_t profile, em_service_type_t type)
 {
     em_t *em = NULL;
     mac_addr_str_t  mac_str;
@@ -191,7 +204,7 @@ em_t *em_mgr_t::create_node(em_interface_t *ruid, bool is_al_mac,em_profile_type
         return em;
     }
 
-    em = new em_t(ruid, profile, type);
+    em = new em_t(ruid, dm, profile, type);
     em->set_al_type(is_al_mac);
     if (em->init() != 0) {
         delete em;
@@ -285,6 +298,7 @@ void em_mgr_t::nodes_listener()
     struct timeval tm;
     int rc, len, highest_fd = 0;
     unsigned char buff[MAX_EM_BUFF_SZ];
+    em_raw_hdr_t *hdr;
 
     tm.tv_sec = m_timeout;
     tm.tv_usec = 0;
@@ -307,6 +321,7 @@ void em_mgr_t::nodes_listener()
                     memset(buff, 0, MAX_EM_BUFF_SZ);
                     len = read(em->get_fd(), buff, MAX_EM_BUFF_SZ);
                     if (len) {
+                        hdr = (em_raw_hdr_t *)buff;
                         proto_process(buff, len, em);
                     }
                 }
@@ -372,14 +387,18 @@ int em_mgr_t::start()
                     continue;
                 }
                 pthread_mutex_unlock(&m_queue.lock);
-                handle_event(evt);
+                if (((evt->type == em_event_type_bus) && (evt->u.bevt.type == em_bus_event_type_reset)) || (is_data_model_initialized() == true)) {
+                    handle_event(evt);
+                }
                 free(evt);
                 pthread_mutex_lock(&m_queue.lock);
             }
         } else if (rc == ETIMEDOUT) {
             pthread_mutex_unlock(&m_queue.lock);
             //printf("%s:%d: Timeout secs: %d\n", __func__, __LINE__, time_to_wait.tv_sec);
-            handle_timeout();
+            if (is_data_model_initialized() == true) {            
+                handle_timeout();
+            }
             pthread_mutex_lock(&m_queue.lock);
         } else {
             printf("%s:%d em exited with rc - %d",__func__,__LINE__,rc);

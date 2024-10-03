@@ -37,6 +37,8 @@
 #include "em_cmd.h"
 #include "em_orch_agent.h"
 
+extern char *global_netid;
+
 void em_orch_agent_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 {
     em_cmd_stats_t *stats;
@@ -88,8 +90,9 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
     bool submit = true;
     em_t *em;
     em_cmd_ctx_t *ctx;
-    em_interface_t *interface;
+    em_interface_t *intf;
     mac_addr_str_t	mac_str;
+    dm_easy_mesh_t *dm;
 
     ctx = pcmd->m_data_model.get_cmd_ctx();
 
@@ -97,22 +100,30 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
         case dm_orch_type_dev_insert:
             // for device insert, just create the al interface em and return, do not submit command
             printf("%s:%d: calling create node\n", __func__, __LINE__);
-            em = m_mgr->create_node(pcmd->get_agent_al_interface(), 1, em_profile_type_3, em_service_type_agent);
+
+            intf = pcmd->get_agent_al_interface();
+            if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
+                dm = m_mgr->create_data_model(global_netid, intf->mac);
+            }
+            em = m_mgr->create_node(intf, dm, 1, em_profile_type_3, em_service_type_agent);
             if (em != NULL) {
                 // since this does not have to go through orchestration of M1 M2, commit the data model
-                em->get_data_model()->commit_config(pcmd->m_data_model, em_commit_target_em);
+                em->get_data_model()->commit_config(pcmd->m_data_model, em_commit_target_al);
             }
             submit = false;
             break;
         case dm_orch_type_rd_insert:
             // for radio insert, create the radio em and then submit command
-            interface = pcmd->get_radio_interface(ctx->arr_index);
-            dm_easy_mesh_t::macbytes_to_string(interface->mac, mac_str);
+            intf = pcmd->get_radio_interface(ctx->arr_index);
+            if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
+                dm = m_mgr->create_data_model(global_netid, intf->mac);
+            }    
+            dm_easy_mesh_t::macbytes_to_string(intf->mac, mac_str);
             printf("%s:%d: calling create_node\n", __func__, __LINE__);
-            if ((em = m_mgr->create_node(pcmd->get_radio_interface(ctx->arr_index), 0, em_profile_type_3, em_service_type_agent)) == NULL) {
+            if ((em = m_mgr->create_node(intf, dm, 0, em_profile_type_3, em_service_type_agent)) == NULL) {
                 printf("%s:%d: Failed to create node\n", __func__, __LINE__);
                 submit = false;
-            } else {
+            
             }
             break;
         case dm_orch_type_rd_update:
@@ -186,6 +197,10 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
     mac_addr_str_t	src_mac_str, dst_mac_str;
     em_freq_band_t freq_band, em_freq_band;
     int build_autoconf_renew = 0;
+    char radio_mac[64] = {0};
+    dm_sta_t *sta;
+    dm_easy_mesh_t dm;
+    hash_map_t **m_sta_assoc_map;
 
     ctx = pcmd->m_data_model.get_cmd_ctx();
     em = (em_t *)hash_map_get_first(m_mgr->m_em_map);	
@@ -214,25 +229,42 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                 }
                 break;
             case em_cmd_type_sta_list:
-                if (em->is_al_interface_em()) {
+                /*if (em->is_al_interface_em()) {
                     dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), dst_mac_str);
                     printf("%s:%d Sta List build candidate MAC=%s\n", __func__, __LINE__,dst_mac_str);
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
-                }
-		break;
-	    case em_cmd_type_ap_cap_query:
+                }*/
+                m_sta_assoc_map = pcmd->get_data_model()->get_assoc_sta_map();
+                    if ((m_sta_assoc_map != NULL) && (*m_sta_assoc_map != NULL)) {
+                        sta = (dm_sta_t *)hash_map_get_first(*m_sta_assoc_map);
+                        if (sta != NULL) {
+                            dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), dst_mac_str);
+                            printf("%s:%d Sta List build candidate MAC=%s\n", __func__, __LINE__,dst_mac_str);
+                            dm_easy_mesh_t::macbytes_to_string(sta->get_sta_info()->radiomac, dst_mac_str);
+                            printf("%s:%d Sta List build candidate MAC=%s\n", __func__, __LINE__,dst_mac_str);
+
+                            if(memcmp(em->get_radio_interface_mac(),&sta->get_sta_info()->radiomac,sizeof(mac_address_t)) == 0) {
+                                printf("%s:%d Sta List build candidate MAC=%s push to queue\n", __func__, __LINE__,dst_mac_str);
+                                queue_push(pcmd->m_em_candidates, em);
+                                count++;
+                           }
+
+                        }
+                    }
+                break;	
+	        case em_cmd_type_ap_cap_query:
                 if (!(em->is_al_interface_em())) {
                     dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), dst_mac_str);
                     printf("%s:%d Radio CAP report build candidate MAC=%s\n", __func__, __LINE__,dst_mac_str);
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }
-		break;
-	    case em_cmd_type_client_cap_query:
+		        break;
+	        case em_cmd_type_client_cap_query:
                 if (!(em->is_al_interface_em())) {
                     radio = pcmd->m_data_model.get_radio((unsigned int)0);
-		    if (radio == NULL) {
+		            if (radio == NULL) {
                         printf("%s:%d client cap radio cannot be found.\n", __func__, __LINE__);
                         break;
                     }

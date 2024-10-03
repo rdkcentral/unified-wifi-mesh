@@ -37,6 +37,8 @@ public:
     int init(const char *data_model_path);
     int start();
 
+    virtual bool    is_data_model_initialized() = 0;
+
     void push_to_queue(em_event_t *evt);
     em_event_t *pop_from_queue();
 
@@ -44,7 +46,7 @@ public:
     int input_listen();
     void proto_process(unsigned char *data, unsigned int len, em_t *em = NULL);
 
-    em_t *create_node(em_interface_t *ruid, bool is_al_mac = false, em_profile_type_t profile = em_profile_type_3, em_service_type_t type = em_service_type_agent);
+    em_t *create_node(em_interface_t *ruid, dm_easy_mesh_t *dm, bool is_al_mac = false, em_profile_type_t profile = em_profile_type_3, em_service_type_t type = em_service_type_agent);
     void delete_node(em_interface_t* ruid);
     void delete_nodes();
     em_t *get_node_by_freq_band(em_freq_band_t *band);
@@ -63,7 +65,11 @@ public:
     virtual void handle_event(em_event_t *evt) = 0;
     virtual void handle_timeout() = 0;
     virtual void io(void *data, bool input = true) = 0;
-    virtual void *get_data_model() = 0;
+    
+    virtual dm_easy_mesh_t *get_data_model(const char *net_id, const unsigned char *al_mac = NULL) = 0;
+    virtual dm_easy_mesh_t *create_data_model(const char *net_id, const unsigned char *al_mac, em_profile_type_t profile = em_profile_type_3) = 0;
+
+
     virtual em_service_type_t get_service_type() = 0;
 
     em_mgr_t();

@@ -24,10 +24,9 @@ BASE = $(shell pwd)
 
 ONEWIFI_EM_HOME = $(BASE)/../..
 ONEWIFI_HOME = $(BASE)/../../../one_wifi_program
+ONEWIFI_HAL_INTF_HOME = $(BASE)/../../../one_wifi_program/halinterface
+ONEWIFI_BUS_LIB_HOME = $(ONEWIFI_HOME)/generic/lib/bus
 ONEWIFI_EM_SRC = $(ONEWIFI_EM_HOME)/src
-WIFI_CJSON = $(ONEWIFI_HOME)/cJSON-master
-HOSTAP_HOME = $(ONEWIFI_HOME)/rdk-wifi-libhostap/source/hostap-2.10/src
-RBUS_HOME = $(ONEWIFI_HOME)/rbus/generic
 INSTALLDIR = $(ONEWIFI_EM_HOME)/install
 OBJDIR = obj
 CXX = g++

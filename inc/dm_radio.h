@@ -32,8 +32,7 @@ public:
     em_interface_t  *get_radio_interface() { return &m_radio_info.id; }
     unsigned char   *get_radio_interface_mac() { return m_radio_info.id.mac; }
     char *get_radio_interface_name() { return m_radio_info.id.name; }
-    char *get_radio_id() { return m_radio_info.dev_id; }
-
+    unsigned char *get_radio_id() { return m_radio_info.id.mac; }
     int decode(const cJSON *obj, void *parent_id);
     void encode(cJSON *obj);
 

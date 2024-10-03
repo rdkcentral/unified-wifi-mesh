@@ -50,7 +50,6 @@ class em_provisioning_t {
     virtual char *get_radio_interface_name() = 0;
     virtual unsigned char *get_peer_mac() = 0;
     virtual unsigned char *get_al_interface_mac() = 0;
-    virtual void set_peer_mac(unsigned char *mac) = 0;
     virtual unsigned char *get_radio_interface_mac() = 0;
     virtual int send_frame(unsigned char *buff, unsigned int len, bool multicast = false) = 0;
     virtual int send_cmd(em_cmd_type_t type, em_service_type_t svc, unsigned char *buff, unsigned int len) = 0;

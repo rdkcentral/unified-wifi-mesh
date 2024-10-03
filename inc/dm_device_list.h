@@ -23,28 +23,33 @@
 #include "dm_device.h"
 #include "db_easy_mesh.h"
 
+class dm_easy_mesh_t;
+
 class dm_device_list_t : public dm_device_t, public db_easy_mesh_t {
-    hash_map_t  *m_list;
 
 public:
     int init();
 
-    dm_device_t *get_first() { return (dm_device_t *)hash_map_get_first(m_list); }
-    dm_device_t *get_next(dm_device_t *dev) { return (dm_device_t *)hash_map_get_next(m_list, dev); }
     
-    dm_orch_type_t get_dm_orch_type(const dm_device_t& dev);
+    dm_orch_type_t get_dm_orch_type(db_client_t& db_client, const dm_device_t& dev);
     void update_list(const dm_device_t& dev, dm_orch_type_t op);
     void delete_list();
 
     void init_table();
     void init_columns();
-    void sync_db(db_client_t& db_client, void *ctx);
+    int sync_db(db_client_t& db_client, void *ctx);
     int update_db(db_client_t& db_client, dm_orch_type_t op, void *data = NULL);
+    bool search_db(db_client_t& db_client, void *ctx, void *key);
     bool operator == (const db_easy_mesh_t& obj);
     int set_config(db_client_t& db_client, const cJSON *obj, void *parent_id);
     int set_config(db_client_t& db_client, dm_device_t& device, void *parent_id);
-    int get_config(cJSON *obj, void *parent_id);
+    int get_config(cJSON *obj, void *parent_id, bool summary = false);
 
+    virtual dm_device_t *get_first_device() = 0;
+    virtual dm_device_t *get_next_device(dm_device_t *dev) = 0;
+    virtual dm_device_t *get_device(const char *key) = 0;
+    virtual void remove_device(const char *key) = 0;
+    virtual void put_device(const char *key, const dm_device_t *dev) = 0;
 };
 
 #endif

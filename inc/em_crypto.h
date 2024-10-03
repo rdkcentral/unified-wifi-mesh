@@ -52,7 +52,7 @@ public:
     void _I4B (const uint32_t *memory_pointer, uint8_t **packet_ppointer);
     uint8_t wps_key_derivation_function(uint8_t *key, uint8_t *label_prefix, uint32_t label_prefix_len, char *label, uint8_t *res, uint32_t res_len);
     uint8_t platform_aes_decrypt(uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len);
-    uint8_t platform_aes_encrypt(uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len);
+    uint8_t platform_aes_encrypt(uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher_text, uint32_t *cipher_len);
     EVP_PKEY* create_dh_pkey(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv, BIGNUM *bn_pub);
     static uint8_t platform_compute_shared_secret(uint8_t **shared_secret, uint16_t *shared_secret_len,
         uint8_t *remote_pub, uint16_t remote_pub_len,
@@ -78,6 +78,8 @@ public:
     unsigned int get_r_public_len() { return m_crypto_info.r_pub_len; }
     unsigned char *get_r_private() { return m_crypto_info.r_priv; }
     unsigned int get_r_private_len() { return m_crypto_info.r_priv_len; }
+
+    uint8_t generate_iv(unsigned char *iv, unsigned int len) { if (!RAND_bytes(iv, len)) { return 0; } else { return 1; } }
 
     void set_e_public(unsigned char *pub, unsigned int len) { memcpy(m_crypto_info.e_pub, pub, len); }
     void set_r_public(unsigned char *pub, unsigned int len) { memcpy(m_crypto_info.r_pub, pub, len); }

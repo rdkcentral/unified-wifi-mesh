@@ -45,14 +45,14 @@
 #include "em_cmd_exec.h"
 #include "em_cmd_client_cap.h"
 
-void em_capability_t::handle_state_rd_cap_report()
+void em_capability_t::handle_state_ap_cap_report()
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
     unsigned int sz;
     //char* Errors[EM_MAX_TLV_MEMBERS];
 
     memset(&buff, 0, sizeof(MAX_EM_BUFF_SZ));
-    sz = create_rd_cap_report_msg(buff);
+    sz = create_ap_cap_report_msg(buff);
 
     printf("%s:%d:Creation of AP Capability message  sz=%d successful\n", __func__, __LINE__,sz);
     // em_msg_t validateObj(em_msg_type_autoconf_search,em_profile_type_3,buff,sz); TODO
@@ -93,7 +93,7 @@ void em_capability_t::handle_state_client_cap_report()
     }
 }
 
-int em_capability_t::create_rd_cap_report_msg(unsigned char *buff)
+int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
 {
     unsigned short  msg_type = em_msg_type_ap_cap_rprt;
     int len = 0;
@@ -269,7 +269,6 @@ void em_capability_t::process_msg(unsigned char *data, unsigned int len)
     switch (htons(cmdu->type)) {
         case em_msg_type_ap_cap_query:
             if (get_service_type() == em_service_type_ctrl) {
-                set_peer_mac(hdr->src);
                 printf("%s:%d em_msg_type_ap_cap_query received\n",__func__, __LINE__);
                 handle_ctrl_cap_query(data, len, em_bus_event_type_ap_cap_query);
 
@@ -280,7 +279,6 @@ void em_capability_t::process_msg(unsigned char *data, unsigned int len)
             break;
         case em_msg_type_client_cap_query:
             if (get_service_type() == em_service_type_ctrl) {
-                set_peer_mac(hdr->src);
                 printf("%s:%d em_msg_type_ap_cap_query received\n",__func__, __LINE__);
                 handle_ctrl_cap_query(data, len, em_bus_event_type_client_cap_query);
 
@@ -302,7 +300,7 @@ void em_capability_t::process_state()
     switch (get_state()) {
 
         case em_state_agent_ap_cap_report:
-                handle_state_rd_cap_report();
+                handle_state_ap_cap_report();
                 break;
         case em_state_agent_client_cap_report:
                 handle_state_client_cap_report();

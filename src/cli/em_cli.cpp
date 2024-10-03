@@ -94,9 +94,10 @@ em_cmd_t& em_cli_t::get_command(char *in, size_t in_len)
     return em_cmd_cli_t::m_client_cmd_spec[idx];
 }
 
-char *em_cli_t::exec(char *in, size_t sz, em_long_string_t out)
+char *em_cli_t::exec(char *in, size_t sz, em_status_string_t out)
 {
-    em_long_string_t cmd, res;
+    em_long_string_t cmd;
+    em_status_string_t res;
     em_cmd_cli_t *cli_cmd;
 
     snprintf(cmd, sizeof(cmd),  "%s", in);
@@ -113,7 +114,7 @@ char *em_cli_t::exec(char *in, size_t sz, em_long_string_t out)
         }
     }
 
-    snprintf(out, sizeof(out), "%s", res);
+    snprintf(out, EM_IO_BUFF_SZ, "%s", res);
     delete cli_cmd;
 
     return out;
@@ -122,7 +123,7 @@ char *em_cli_t::exec(char *in, size_t sz, em_long_string_t out)
 int em_cli_t::start()
 {
     char *line = NULL;
-    em_long_string_t output;
+    em_status_string_t output;
 
     while(1) {
         //show_prompt();
@@ -168,6 +169,11 @@ em_cli_t::em_cli_t()
 
 em_cli_t::~em_cli_t()
 {
+}
+
+em_cli_t *get_cli()
+{
+    return &g_cli;
 }
 
 int main(int argc, const char *argv[])

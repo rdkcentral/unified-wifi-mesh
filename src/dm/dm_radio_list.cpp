@@ -39,79 +39,107 @@
 #include "dm_easy_mesh.h"
 #include "dm_easy_mesh_ctrl.h"
 
-int dm_radio_list_t::get_config(cJSON *obj_arr, void *parent)
+int dm_radio_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 {
-	dm_radio_t *pradio;
-	cJSON *obj, *sec_obj;
-	mac_addr_str_t  mac_str;
-	mac_address_t *dev_mac = (mac_address_t *)parent;
+    dm_radio_t *pradio;
+    cJSON *obj, *sec_obj;
+    mac_addr_str_t  mac_str;
+    char *dev_mac_str = (char *)parent;
+    mac_address_t	dev_mac;
+
+    dm_easy_mesh_t::string_to_macbytes(dev_mac_str, dev_mac);
 	
-	pradio = (dm_radio_t *)hash_map_get_first(m_list);
+    pradio = get_first_radio();
     while (pradio != NULL) {
-		if (memcmp(dev_mac, &pradio->m_radio_info.id.mac, sizeof(mac_address_t)) != 0) {
-			pradio = (dm_radio_t *)hash_map_get_next(m_list, pradio);
-			continue;
-		}
+        dm_easy_mesh_t::macbytes_to_string(pradio->m_radio_info.id.mac, mac_str);
+	if (memcmp(dev_mac, pradio->m_radio_info.dev_id, sizeof(mac_address_t)) != 0) {
+            dm_easy_mesh_t::macbytes_to_string(pradio->m_radio_info.dev_id, mac_str);
+	    pradio = get_next_radio(pradio);
+	    continue;
+	}
        	obj = cJSON_CreateObject(); 
 
-		dm_easy_mesh_t::macbytes_to_string(pradio->m_radio_info.id.mac, mac_str);
-		cJSON_AddStringToObject(obj, "ID", mac_str);
+	dm_easy_mesh_t::macbytes_to_string(pradio->m_radio_info.id.mac, mac_str);
+	cJSON_AddStringToObject(obj, "ID", mac_str);
 
-		cJSON_AddBoolToObject(obj, "Enabled", pradio->m_radio_info.enabled);
-		cJSON_AddNumberToObject(obj, "NumberOfBSS", pradio->m_radio_info.number_of_bss);
-		cJSON_AddNumberToObject(obj, "NumberOfUnassocSta", pradio->m_radio_info.number_of_unassoc_sta);
-		cJSON_AddNumberToObject(obj, "Noise", pradio->m_radio_info.noise);
-		cJSON_AddNumberToObject(obj, "Utilization", pradio->m_radio_info.utilization);
-		cJSON_AddNumberToObject(obj, "NumberOfCurrOpClass", pradio->m_radio_info.number_of_curr_op_classes);
-		cJSON_AddBoolToObject(obj, "TrafficSeparationCombinedFronthaul", pradio->m_radio_info.traffic_sep_combined_fronthaul);
-		cJSON_AddBoolToObject(obj, "TrafficSeparationCombinedBackhaul", pradio->m_radio_info.traffic_sep_combined_backhaul);
-		cJSON_AddNumberToObject(obj, "SteeringPolicy", pradio->m_radio_info.steering_policy);
-		cJSON_AddNumberToObject(obj, "ChannelUtilizationThreshold", pradio->m_radio_info.channel_util_threshold);
-		cJSON_AddNumberToObject(obj, "RCPISteeringThreshold", pradio->m_radio_info.rcpi_steering_threshold);
-		cJSON_AddNumberToObject(obj, "STAReportingRCPIThreshold", pradio->m_radio_info.sta_reporting_rcpi_threshold);
-		cJSON_AddNumberToObject(obj, "STAReportingRCPIHysteresisMarginOverride", pradio->m_radio_info.sta_reporting_hysteresis_margin_override);
-		cJSON_AddNumberToObject(obj, "ChannelUtilizationReportingThreshold", pradio->m_radio_info.channel_utilization_reporting_threshold);
-		cJSON_AddBoolToObject(obj, "AssociatedSTATrafficStatsInclusionPolicy", pradio->m_radio_info.associated_sta_traffic_stats_inclusion_policy);
-		cJSON_AddBoolToObject(obj, "AssociatedSTALinkMetricsInclusionPolicy", pradio->m_radio_info.associated_sta_link_mterics_inclusion_policy);
+        if (summary == true) {
+            cJSON_AddItemToArray(obj_arr, obj);
+            pradio = get_next_radio(pradio);
+            continue;
+	}
+
+	cJSON_AddBoolToObject(obj, "Enabled", pradio->m_radio_info.enabled);
+	cJSON_AddNumberToObject(obj, "NumberOfUnassocSta", pradio->m_radio_info.number_of_unassoc_sta);
+	cJSON_AddNumberToObject(obj, "Noise", pradio->m_radio_info.noise);
+	cJSON_AddNumberToObject(obj, "Utilization", pradio->m_radio_info.utilization);
+	cJSON_AddBoolToObject(obj, "TrafficSeparationCombinedFronthaul", pradio->m_radio_info.traffic_sep_combined_fronthaul);
+	cJSON_AddBoolToObject(obj, "TrafficSeparationCombinedBackhaul", pradio->m_radio_info.traffic_sep_combined_backhaul);
+	cJSON_AddNumberToObject(obj, "SteeringPolicy", pradio->m_radio_info.steering_policy);
+	cJSON_AddNumberToObject(obj, "ChannelUtilizationThreshold", pradio->m_radio_info.channel_util_threshold);
+	cJSON_AddNumberToObject(obj, "RCPISteeringThreshold", pradio->m_radio_info.rcpi_steering_threshold);
+	cJSON_AddNumberToObject(obj, "STAReportingRCPIThreshold", pradio->m_radio_info.sta_reporting_rcpi_threshold);
+	cJSON_AddNumberToObject(obj, "STAReportingRCPIHysteresisMarginOverride", pradio->m_radio_info.sta_reporting_hysteresis_margin_override);
+	cJSON_AddNumberToObject(obj, "ChannelUtilizationReportingThreshold", pradio->m_radio_info.channel_utilization_reporting_threshold);
+	cJSON_AddBoolToObject(obj, "AssociatedSTATrafficStatsInclusionPolicy", pradio->m_radio_info.associated_sta_traffic_stats_inclusion_policy);
+	cJSON_AddBoolToObject(obj, "AssociatedSTALinkMetricsInclusionPolicy", pradio->m_radio_info.associated_sta_link_mterics_inclusion_policy);
 			
-		cJSON_AddStringToObject(obj, "ChipsetVendor", pradio->m_radio_info.chip_vendor);
+	cJSON_AddStringToObject(obj, "ChipsetVendor", pradio->m_radio_info.chip_vendor);
 
 	
-		cJSON_AddItemToArray(obj_arr, obj);
-		pradio = (dm_radio_t *)hash_map_get_next(m_list, pradio);
+	cJSON_AddItemToArray(obj_arr, obj);
+	pradio = get_next_radio(pradio);
     }
     
 	
-	return 0;
+    return 0;
+}
+
+int dm_radio_list_t::set_config(db_client_t& db_client, dm_radio_t& radio, void *parent_id)
+{
+    dm_orch_type_t op;
+    mac_addr_str_t  mac_str, dev_mac_str;
+    dm_device_t::parse_device_params_from_key((char *)parent_id, radio.m_radio_info.dev_id, radio.m_radio_info.net_id);
+    dm_easy_mesh_t::macbytes_to_string(radio.m_radio_info.id.mac, mac_str);
+    dm_easy_mesh_t::macbytes_to_string(radio.m_radio_info.dev_id, dev_mac_str);	
+    printf("%s:%d: Enter: Radio id: %s Device: %s\n", __func__, __LINE__, mac_str, dev_mac_str);
+
+    update_db(db_client, (op = get_dm_orch_type(db_client, radio)), radio.get_radio_info());
+    update_list(radio, op);
+    
+    return 0;
 }
 
 int dm_radio_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void *parent_id)
 {
     cJSON *obj;
     unsigned int i, size;
-	dm_radio_t radio;
-	dm_orch_type_t op;
+    dm_radio_t radio;
+    dm_orch_type_t op;
 
     size = cJSON_GetArraySize(obj_arr);
 
     for (i = 0; i < size; i++) {
         obj = cJSON_GetArrayItem(obj_arr, i);
-		radio.decode(obj, parent_id);
-		update_db(db_client, (op = get_dm_orch_type(radio)), radio.get_radio_info());
-		update_list(radio, op);
+	radio.decode(obj, parent_id);
+	update_db(db_client, (op = get_dm_orch_type(db_client, radio)), radio.get_radio_info());
+	update_list(radio, op);
     }
 
     return 0;
 }
 
-dm_orch_type_t dm_radio_list_t::get_dm_orch_type(const dm_radio_t& radio)
+dm_orch_type_t dm_radio_list_t::get_dm_orch_type(db_client_t& db_client, const dm_radio_t& radio)
 {
-	dm_radio_t *pradio;
+    dm_radio_t *pradio;
     mac_addr_str_t  mac_str = {0};
 
-	dm_easy_mesh_t::macbytes_to_string((unsigned char *)radio.m_radio_info.id.mac, mac_str);
-	pradio = (dm_radio_t *)hash_map_get(m_list, mac_str);
+    dm_easy_mesh_t::macbytes_to_string((unsigned char *)radio.m_radio_info.id.mac, mac_str);
+    pradio = get_radio(mac_str);
     if (pradio != NULL) {
+        if (entry_exists_in_table(db_client, mac_str) == false) {
+            return dm_orch_type_dev_insert;
+        }
+
         if (*pradio == radio) {
             printf("%s:%d: Device: %s already in list\n", __func__, __LINE__,
                         dm_easy_mesh_t::macbytes_to_string(pradio->m_radio_info.id.mac, mac_str));
@@ -120,7 +148,7 @@ dm_orch_type_t dm_radio_list_t::get_dm_orch_type(const dm_radio_t& radio)
 
 
         printf("%s:%d: Device: %s in list but needs update\n", __func__, __LINE__,
-            dm_easy_mesh_t::macbytes_to_string(pradio->m_radio_info.id.mac, mac_str));
+        dm_easy_mesh_t::macbytes_to_string(pradio->m_radio_info.id.mac, mac_str));
         return dm_orch_type_rd_update;
     }  
 
@@ -130,24 +158,23 @@ dm_orch_type_t dm_radio_list_t::get_dm_orch_type(const dm_radio_t& radio)
 
 void dm_radio_list_t::update_list(const dm_radio_t& radio, dm_orch_type_t op)
 {
-	dm_radio_t *pradio;
-	mac_addr_str_t	mac_str = {0};
+    dm_radio_t *pradio;
+    mac_addr_str_t	mac_str = {0};
 
-	dm_easy_mesh_t::macbytes_to_string((unsigned char *)radio.m_radio_info.id.mac, mac_str);
+    dm_easy_mesh_t::macbytes_to_string((unsigned char *)radio.m_radio_info.id.mac, mac_str);
 
     switch (op) {
         case dm_orch_type_rd_insert:
-            hash_map_put(m_list, strdup(mac_str), new dm_radio_t(radio));
+        put_radio(mac_str, &radio);
             break;
 
         case dm_orch_type_rd_update:
-            pradio = (dm_radio_t *)hash_map_get(m_list, mac_str);
+            pradio = get_radio(mac_str);
             memcpy(&pradio->m_radio_info, &radio.m_radio_info, sizeof(em_radio_info_t));
             break;
 
         case dm_orch_type_rd_delete:
-            pradio = (dm_radio_t *)hash_map_remove(m_list, mac_str);
-            delete(pradio);
+            remove_radio(mac_str);
             break;
     }
 
@@ -156,38 +183,36 @@ void dm_radio_list_t::update_list(const dm_radio_t& radio, dm_orch_type_t op)
 void dm_radio_list_t::delete_list()
 {       
     dm_radio_t *pradio, *tmp;
-	mac_addr_str_t	mac_str = {0};
+    mac_addr_str_t	mac_str = {0};
     
-    pradio = (dm_radio_t *)hash_map_get_first(m_list);
+    pradio = get_first_radio();
     while (pradio != NULL) {
         tmp = pradio;
-        pradio = (dm_radio_t *)hash_map_get_next(m_list, pradio);       
+        pradio = get_next_radio(pradio);       
 		dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_radio_info.id.mac, mac_str);
-    
-        hash_map_remove(m_list, mac_str);
-        delete(tmp);
+        remove_radio(mac_str);    
     }
 }   
 
 
 bool dm_radio_list_t::operator == (const db_easy_mesh_t& obj)
 {
-	return true;
+    return true;
 }
 
 int dm_radio_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *data)
 {
     mac_addr_str_t mac_str, dev_mac_str;
     em_radio_info_t *info = (em_radio_info_t *)data;
-	int ret = 0;
+    int ret = 0;
 
-	printf("%s:%d: Opeartion:%d\n", __func__, __LINE__, op);
+    printf("%s:%d: Opeartion:%d\n", __func__, __LINE__, op);
 	switch (op) {
 		case dm_orch_type_rd_insert:
 			ret = insert_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->id.mac, mac_str), 
-						dm_easy_mesh_t::macbytes_to_string(info->id.mac, dev_mac_str), info->enabled,
-            			info->number_of_bss, info->number_of_unassoc_sta, info->noise, info->utilization, 
-						info->number_of_curr_op_classes, info->traffic_sep_combined_fronthaul, 
+						dm_easy_mesh_t::macbytes_to_string(info->dev_id, dev_mac_str), info->net_id, info->enabled,
+            			info->number_of_unassoc_sta, info->noise, info->utilization, 
+						info->traffic_sep_combined_fronthaul, 
 						info->traffic_sep_combined_backhaul, info->steering_policy, info->channel_util_threshold, info->rcpi_steering_threshold, 
             			info->sta_reporting_rcpi_threshold, info->sta_reporting_hysteresis_margin_override, info->channel_utilization_reporting_threshold, 
 						info->associated_sta_traffic_stats_inclusion_policy, info->associated_sta_link_mterics_inclusion_policy,
@@ -195,9 +220,9 @@ int dm_radio_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *
 			break;
 
 		case dm_orch_type_rd_update:
-			ret = update_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->id.mac, dev_mac_str), info->enabled,
-                        info->number_of_bss, info->number_of_unassoc_sta, info->noise, info->utilization,
-                        info->number_of_curr_op_classes, info->traffic_sep_combined_fronthaul,
+			ret = update_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->dev_id, dev_mac_str), info->net_id, info->enabled,
+                        info->number_of_unassoc_sta, info->noise, info->utilization,
+                        info->traffic_sep_combined_fronthaul,
                         info->traffic_sep_combined_backhaul, info->steering_policy, info->channel_util_threshold, info->rcpi_steering_threshold,
                         info->sta_reporting_rcpi_threshold, info->sta_reporting_hysteresis_margin_override, info->channel_utilization_reporting_threshold, 
                         info->associated_sta_traffic_stats_inclusion_policy, info->associated_sta_link_mterics_inclusion_policy,
@@ -215,42 +240,58 @@ int dm_radio_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *
     return ret;
 }
 
-void dm_radio_list_t::sync_db(db_client_t& db_client, void *ctx)
+bool dm_radio_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
 {
-	em_radio_info_t info;
-	mac_addr_str_t	mac;
-    em_short_string_t   str;
+    mac_addr_str_t  mac;
 
     while (db_client.next_result(ctx)) {
-		memset(&info, 0, sizeof(em_radio_info_t));
+        db_client.get_string(ctx, mac, 1);
 
-		db_client.get_string(ctx, mac, 1);
-		dm_easy_mesh_t::string_to_macbytes(mac, info.id.mac);
+        if (strncmp(mac, (char *)key, strlen((char *)key)) == 0) {
+            return true;
+        }
+    }
 
-		db_client.get_string(ctx, mac, 2);
-		dm_easy_mesh_t::string_to_macbytes(mac, info.id.mac);
+    return false;
+}
 
-        info.enabled = db_client.get_number(ctx, 3);
-        info.number_of_bss = db_client.get_number(ctx, 4);
+int dm_radio_list_t::sync_db(db_client_t& db_client, void *ctx)
+{
+    em_radio_info_t info;
+    mac_addr_str_t	mac;
+    em_short_string_t   str;
+    int rc = 0;
+
+    while (db_client.next_result(ctx)) {
+	memset(&info, 0, sizeof(em_radio_info_t));
+
+	db_client.get_string(ctx, mac, 1);
+	dm_easy_mesh_t::string_to_macbytes(mac, info.id.mac);
+
+	db_client.get_string(ctx, mac, 2);
+	dm_easy_mesh_t::string_to_macbytes(mac, info.dev_id);
+
+        db_client.get_string(ctx, info.net_id, 3);
+        info.enabled = db_client.get_number(ctx, 4);
         info.number_of_unassoc_sta = db_client.get_number(ctx, 5);
         info.noise = db_client.get_number(ctx, 6);
         info.utilization = db_client.get_number(ctx, 7);
-        info.number_of_curr_op_classes = db_client.get_number(ctx, 8);
-        info.traffic_sep_combined_fronthaul = db_client.get_number(ctx, 9);
-        info.traffic_sep_combined_backhaul = db_client.get_number(ctx, 10);
-        info.steering_policy = db_client.get_number(ctx, 11);
-        info.channel_util_threshold = db_client.get_number(ctx, 12);
-        info.rcpi_steering_threshold = db_client.get_number(ctx, 13);
-        info.sta_reporting_rcpi_threshold = db_client.get_number(ctx, 14);
-        info.sta_reporting_hysteresis_margin_override = db_client.get_number(ctx, 15);
-        info.channel_utilization_reporting_threshold = db_client.get_number(ctx, 16);
-        info.associated_sta_traffic_stats_inclusion_policy = db_client.get_number(ctx, 17);
-        info.associated_sta_link_mterics_inclusion_policy = db_client.get_number(ctx, 18);
+        info.traffic_sep_combined_fronthaul = db_client.get_number(ctx, 8);
+        info.traffic_sep_combined_backhaul = db_client.get_number(ctx, 9);
+        info.steering_policy = db_client.get_number(ctx, 10);
+        info.channel_util_threshold = db_client.get_number(ctx, 11);
+        info.rcpi_steering_threshold = db_client.get_number(ctx, 12);
+        info.sta_reporting_rcpi_threshold = db_client.get_number(ctx, 13);
+        info.sta_reporting_hysteresis_margin_override = db_client.get_number(ctx, 14);
+        info.channel_utilization_reporting_threshold = db_client.get_number(ctx, 15);
+        info.associated_sta_traffic_stats_inclusion_policy = db_client.get_number(ctx, 16);
+        info.associated_sta_link_mterics_inclusion_policy = db_client.get_number(ctx, 17);
         
-		db_client.get_string(ctx, info.chip_vendor, 19);
+	db_client.get_string(ctx, info.chip_vendor, 18);
 		
-		update_list(dm_radio_t(&info), dm_orch_type_rd_insert);
+	update_list(dm_radio_t(&info), dm_orch_type_rd_insert);
     }
+    return rc;
 }
 
 void dm_radio_list_t::init_table()
@@ -264,12 +305,11 @@ void dm_radio_list_t::init_columns()
 
     m_columns[m_num_cols++] = db_column_t("ID", db_data_type_char, 17);
     m_columns[m_num_cols++] = db_column_t("DeviceID", db_data_type_char, 17);
+    m_columns[m_num_cols++] = db_column_t("NetworkID", db_data_type_char, 64);
     m_columns[m_num_cols++] = db_column_t("Enabled", db_data_type_tinyint, 0);
-    m_columns[m_num_cols++] = db_column_t("NumberOfBSS", db_data_type_tinyint, 0);
     m_columns[m_num_cols++] = db_column_t("NumberOfUnassocSta", db_data_type_tinyint, 0);
     m_columns[m_num_cols++] = db_column_t("Noise", db_data_type_tinyint, 0);
     m_columns[m_num_cols++] = db_column_t("Utilization", db_data_type_tinyint, 0);
-    m_columns[m_num_cols++] = db_column_t("NumberOfCurrOpClass", db_data_type_tinyint, 0);
     m_columns[m_num_cols++] = db_column_t("TrafficSeparationCombinedFronthaul", db_data_type_tinyint, 0);
     m_columns[m_num_cols++] = db_column_t("TrafficSeparationCombinedBackhaul", db_data_type_tinyint, 0);
     m_columns[m_num_cols++] = db_column_t("SteeringPolicy", db_data_type_tinyint, 0);
@@ -285,7 +325,6 @@ void dm_radio_list_t::init_columns()
 
 int dm_radio_list_t::init()
 {
-	m_list = hash_map_create();
     init_table();
     init_columns();
     return 0;

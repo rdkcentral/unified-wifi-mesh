@@ -65,6 +65,43 @@ bool em_msg_t::get_client_mac_info(mac_address_t *mac)
        return false;
 }
 
+bool em_msg_t::get_al_mac_address(unsigned char *mac)
+{
+    em_tlv_t    *tlv;
+    int len;
+
+    tlv = (em_tlv_t *)m_buff; len = m_len;
+    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+        if (tlv->type == em_tlv_type_al_mac_address) {
+            memcpy(mac, tlv->value, htons(tlv->len));
+            return true;
+        }
+        len -= (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+    return false;
+}
+
+bool em_msg_t::get_profile(em_profile_type_t *profile)
+{
+    em_tlv_t    *tlv;
+    int len;
+
+    tlv = (em_tlv_t *)m_buff; len = m_len;
+    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+        if (tlv->type == em_tlv_type_profile) {
+            memcpy(profile, tlv->value, htons(tlv->len));
+            return true;
+        }
+
+        len -= (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+    return false;
+}
+
 bool em_msg_t::get_radio_id(mac_address_t *mac)
 {
     em_tlv_t    *tlv;
@@ -207,6 +244,14 @@ unsigned int em_msg_t::validate(char *errors[])
             //printf("%s:%d; TLV type: 0x%04x Length: %d, presence validation error, profile: %d\n", __func__, __LINE__, 
             //tlv->type, htons(tlv->len), m_profile);
             validation = false;
+        }
+    }
+
+    if (validation == false) {
+        for (int i = 0; i < EM_MAX_TLV_MEMBERS; i++) {
+            if (errors[i] != NULL) {
+                printf("Failed TLV [%d]: %s\n",(i+1),errors[i]);
+            }
         }
     }
 

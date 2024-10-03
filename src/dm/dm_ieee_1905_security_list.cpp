@@ -38,7 +38,7 @@
 #include "dm_ieee_1905_security_list.h"
 #include "dm_easy_mesh.h"
 
-int dm_ieee_1905_security_list_t::get_config(cJSON *obj, void *parent_id)
+int dm_ieee_1905_security_list_t::get_config(cJSON *obj, void *parent_id, bool summary)
 {
 	dm_ieee_1905_security_t *pieee_1905_security;
 	mac_address_t *mac = (mac_address_t *)parent_id;
@@ -89,7 +89,7 @@ int dm_ieee_1905_security_list_t::set_config(db_client_t& db_client, const cJSON
 
 		ieee_1905_security.decode(obj);		
 
-		update_db(db_client, (op = get_dm_orch_type(ieee_1905_security)), ieee_1905_security.get_ieee_1905_security_info());
+		update_db(db_client, (op = get_dm_orch_type(db_client, ieee_1905_security)), ieee_1905_security.get_ieee_1905_security_info());
 		update_list(ieee_1905_security, op);
 	}
 
@@ -98,7 +98,7 @@ int dm_ieee_1905_security_list_t::set_config(db_client_t& db_client, const cJSON
 }
 
 
-dm_orch_type_t dm_ieee_1905_security_list_t::get_dm_orch_type(const dm_ieee_1905_security_t& ieee_1905_security)
+dm_orch_type_t dm_ieee_1905_security_list_t::get_dm_orch_type(db_client_t& db_client, const dm_ieee_1905_security_t& ieee_1905_security)
 {
     dm_ieee_1905_security_t *pieee_1905_security;
     mac_addr_str_t  mac_str;
@@ -199,13 +199,19 @@ int dm_ieee_1905_security_list_t::update_db(db_client_t& db_client, dm_orch_type
     return ret;
 }
 
-void dm_ieee_1905_security_list_t::sync_db(db_client_t& db_client, void *ctx)
+bool dm_ieee_1905_security_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
+{
+    return false;
+}
+
+int dm_ieee_1905_security_list_t::sync_db(db_client_t& db_client, void *ctx)
 {
 	em_ieee_1905_security_info_t info;
 	mac_addr_str_t	mac;
     em_long_string_t   str;
 	char *tmp;
 	unsigned int i;
+    int rc = 0;
 
     while (db_client.next_result(ctx)) {
 		memset(&info, 0, sizeof(em_ieee_1905_security_info_t));
@@ -219,6 +225,7 @@ void dm_ieee_1905_security_list_t::sync_db(db_client_t& db_client, void *ctx)
         
 		update_list(dm_ieee_1905_security_t(&info), dm_orch_type_sec_insert);
     }
+    return rc;
 }
 
 void dm_ieee_1905_security_list_t::init_table()

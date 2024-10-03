@@ -99,7 +99,7 @@ int dm_network_ssid_t::decode(const cJSON *obj, void *parent_id)
         m_network_ssid_info.num_hauls = cJSON_GetArraySize(tmp_arr);
         for (j = 0; j < m_network_ssid_info.num_hauls; j++) {	
             tmp = cJSON_GetArrayItem(tmp_arr, j);
-            snprintf(m_network_ssid_info.haul_type[j], sizeof(m_network_ssid_info.haul_type[j]), "%s", cJSON_GetStringValue(tmp));
+            m_network_ssid_info.haul_type[j] = dm_network_ssid_t::haul_type_from_string(cJSON_GetStringValue(tmp));
         }
     }
 
@@ -112,6 +112,7 @@ void dm_network_ssid_t::encode(cJSON *obj)
     cJSON *tmp;
     unsigned int i;
     mac_addr_str_t  mac_str;
+    em_string_t	haul_str;
 
     cJSON_AddStringToObject(obj, "SSID", m_network_ssid_info.ssid);
     cJSON_AddStringToObject(obj, "PassPhrase", m_network_ssid_info.pass_phrase);
@@ -141,9 +142,9 @@ void dm_network_ssid_t::encode(cJSON *obj)
 	
     cJSON *haultype_Array = cJSON_CreateArray();
     for (i = 0; i < m_network_ssid_info.num_hauls; i++) {
-        cJSON_AddItemToArray(haultype_Array, cJSON_CreateString(m_network_ssid_info.haul_type[i]));
+        dm_network_ssid_t::haul_type_to_string(m_network_ssid_info.haul_type[i], haul_str);
+        cJSON_AddItemToArray(haultype_Array, cJSON_CreateString(haul_str));
     }
-    cJSON_AddItemToArray(haultype_Array, cJSON_CreateString("Backhaul"));
     // Add the array to the object
     cJSON_AddItemToObject(obj, "HaulType", haultype_Array);
 }
@@ -169,7 +170,7 @@ bool dm_network_ssid_t::operator == (const dm_network_ssid_t& obj)
     ret += (memcmp(&this->m_network_ssid_info.mobility_domain, &obj.m_network_ssid_info.mobility_domain, sizeof(mac_address_t)) != 0);
     ret += (this->m_network_ssid_info.num_hauls != obj.m_network_ssid_info.num_hauls);
     for (int i = 0; i < this->m_network_ssid_info.num_hauls; i++) {
-    ret += (memcmp(&this->m_network_ssid_info.haul_type[i], &obj.m_network_ssid_info.haul_type[i], sizeof(em_string_t)) != 0);
+    ret += (this->m_network_ssid_info.haul_type[i] == obj.m_network_ssid_info.haul_type[i]);
 }
     //em_util_info_print(EM_MGR, "%s:%d: MUH ret=%d\n", __func__, __LINE__,ret);
 
@@ -201,9 +202,53 @@ void dm_network_ssid_t::operator = (const dm_network_ssid_t& obj)
     memcpy(&this->m_network_ssid_info.mobility_domain, &obj.m_network_ssid_info.mobility_domain, sizeof(mac_address_t));
     this->m_network_ssid_info.num_hauls = obj.m_network_ssid_info.num_hauls;
     for (int i = 0; i < this->m_network_ssid_info.num_hauls; i++) {
-       memcpy(&this->m_network_ssid_info.haul_type[i], &obj.m_network_ssid_info.haul_type[i], sizeof(em_string_t));
+        this->m_network_ssid_info.haul_type[i] = obj.m_network_ssid_info.haul_type[i];
     }
 
+}
+
+char *dm_network_ssid_t::haul_type_to_string(em_haul_type_t type, em_string_t   str)
+{
+	switch (type) {
+		case em_haul_type_fronthaul:
+			strncpy(str, "Fronthaul", strlen("Fronthaul") + 1);
+			break;
+
+		case em_haul_type_backhaul:
+			strncpy(str, "Backhaul", strlen("Backhaul") + 1);
+			break;
+		
+		case em_haul_type_iot:
+			strncpy(str, "IoT", strlen("IoT") + 1);
+			break;
+
+		case em_haul_type_configurator:
+			strncpy(str, "Configurator", strlen("Configurator") + 1);
+			break;
+
+		case em_haul_type_max:
+			strncpy(str, "Unknown", strlen("Unknown") + 1);
+			break;
+	}
+
+	return str;
+}
+
+em_haul_type_t dm_network_ssid_t::haul_type_from_string(em_string_t str)
+{
+    em_haul_type_t type;
+
+    if (strncmp(str, "Fronthaul", strlen(str)) == 0) {
+	type = em_haul_type_fronthaul;		
+    } else if (strncmp(str, "Backhaul", strlen(str)) == 0) {
+        type = em_haul_type_backhaul;
+    } else if (strncmp(str, "IoT", strlen(str)) == 0) {
+        type = em_haul_type_iot;
+    } else if (strncmp(str, "Configurator", strlen(str)) == 0) {
+        type = em_haul_type_configurator;
+    } else {
+        type = em_haul_type_max;
+    }	
 }
 
 dm_network_ssid_t::dm_network_ssid_t(em_network_ssid_info_t *net_ssid)

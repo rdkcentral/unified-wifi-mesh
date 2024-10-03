@@ -21,15 +21,18 @@
 
 #include "em_base.h"
 #include "em_crypto.h"
+#include "dm_easy_mesh.h"
 
 class em_cmd_t;
 class em_configuration_t {
 
-    int create_autoconfig_resp_msg(unsigned char *buff);
+    int create_autoconfig_resp_msg(unsigned char *buff, em_freq_band_t band, unsigned char *dst);
     int create_autoconfig_search_msg(unsigned char *buff);
-    int create_autoconfig_wsc_m1_msg(unsigned char *buff);
-    int create_autoconfig_wsc_m2_msg(unsigned char *buff);
+    int create_autoconfig_wsc_m1_msg(unsigned char *buff, unsigned char *dst);
+    int create_autoconfig_wsc_m2_msg(unsigned char *buff, em_haul_type_t haul_type[], unsigned int num_hauls);
     int create_topology_notify_msg(unsigned char *buff);
+
+    int send_topology_response_msg();
 
     int handle_autoconfig_resp(unsigned char *buff, unsigned int len);
     int handle_autoconfig_search(unsigned char *buff, unsigned int len);
@@ -38,10 +41,12 @@ class em_configuration_t {
     int handle_wsc_m1(unsigned char *buff, unsigned int len);
     int handle_wsc_m2(unsigned char *buff, unsigned int len);
     int handle_autoconfig_renew(unsigned char *buff, unsigned int len);
-
+    int handle_ap_radio_basic_cap(unsigned char *buff, unsigned int len);
+    int handle_ap_radio_advanced_cap(unsigned char *buff, unsigned int len);
+    int handle_topology_response(unsigned char *buff, unsigned int len);
 
     short create_m1_msg(unsigned char *buff);
-    short create_m2_msg(unsigned char *buff);
+    short create_m2_msg(unsigned char *buff, em_haul_type_t haul_type);
     short create_traffic_separation_policy(unsigned char *buff);
     short create_client_notify_msg(unsigned char *buff);
    
@@ -52,7 +57,8 @@ class em_configuration_t {
     void handle_state_wsc_m2_pending();
     void handle_state_topology_notify();
     void handle_state_autoconfig_renew();
-		
+
+    virtual dm_easy_mesh_t *get_data_model() = 0;
     virtual em_state_t get_state() = 0;
     virtual void set_state(em_state_t state) = 0;
     virtual em_service_type_t get_service_type() = 0;
@@ -67,8 +73,6 @@ class em_configuration_t {
     virtual unsigned char *get_peer_mac() = 0;
     virtual em_crypto_info_t *get_crypto_info() = 0;
     virtual em_crypto_t *get_crypto() = 0;
-    virtual void set_peer_mac(unsigned char *mac) = 0;
-    virtual void set_peer_band(em_freq_band_t band) = 0;	
     virtual int send_frame(unsigned char *buff, unsigned int len, bool multicast = false) = 0;
     virtual em_cmd_t *get_current_cmd() = 0;
     virtual short create_ap_radio_basic_cap(unsigned char *buff) = 0;
@@ -86,7 +90,10 @@ class em_configuration_t {
     virtual void set_serial_number(char *) = 0;
     virtual void set_primary_device_type(char *) = 0;
 
+    virtual em_network_ssid_info_t *get_network_ssid_info_by_haul_type(em_haul_type_t haul_type) = 0;
+
 private:
+    em_profile_type_t   m_peer_profile;
     unsigned char m_m1_msg[MAX_EM_BUFF_SZ];
     unsigned char m_m2_msg[MAX_EM_BUFF_SZ];
     size_t m_m1_length;
@@ -103,8 +110,10 @@ public:
     void process_ctrl_state();
     static em_wsc_msg_type_t get_wsc_msg_type(unsigned char *buff, unsigned int len);
 
+    int send_topology_query_msg();
+
     int handle_encrypted_settings();
-    unsigned int create_encrypted_settings(unsigned char *buff);
+    unsigned int create_encrypted_settings(unsigned char *buff, em_haul_type_t haul_type);
     unsigned int create_authenticator(unsigned char *buff);
 
     unsigned int get_e_uuid(unsigned char *uuid) { return m_crypto.get_e_uuid(uuid); }
@@ -160,14 +169,15 @@ public:
     }
 
     int compute_keys(unsigned char *remote_pub, unsigned short pub_len, unsigned char *local_priv, unsigned short priv_len);
+
+    void test_topology_response_msg() { send_topology_response_msg(); }
     static unsigned short msg_id;
 
-    em_profile_type_t   m_peer_profile;
-    em_freq_band_t	m_peer_band;
     em_crypto_t m_crypto;
     unsigned char m_auth_key[WPS_AUTHKEY_LEN];
     unsigned char m_key_wrap_key[WPS_KEYWRAPKEY_LEN];
     unsigned char m_emsk[WPS_EMSK_LEN];
+    int construct_private_subdoc();
 
     em_configuration_t();
     ~em_configuration_t();

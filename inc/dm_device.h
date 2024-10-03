@@ -30,7 +30,7 @@ public:
     em_device_info_t *get_device_info() { return &m_device_info; }
 	
     int decode(const cJSON *obj, void *parent_id);
-    void encode(cJSON *obj);
+    void encode(cJSON *obj, bool summary = false);
 
     em_interface_t *get_dev_interface() { return &m_device_info.id; }
     unsigned char *get_dev_interface_mac() { return m_device_info.id.mac; }
@@ -57,6 +57,8 @@ public:
     void operator = (const dm_device_t& obj);
     //void operator = (const dm_device_t& obj) { memcpy(&m_device_info, &obj.m_device_info, sizeof(em_device_info_t)); }
     dm_orch_type_t get_dm_orch_type(const dm_device_t& device);
+
+    static int parse_device_params_from_key(const char *key, mac_address_t mac, char *net_id);
 
     dm_device_t(em_device_info_t *dev);
     dm_device_t(const dm_device_t& dev);

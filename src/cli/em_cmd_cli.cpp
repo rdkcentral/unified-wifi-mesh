@@ -40,50 +40,63 @@
 #include <cjson/cJSON.h>
 #include "em_cli.h"
 #include "em_cmd_cli.h"
+#include <readline/readline.h>
+#include <readline/history.h>
 
 em_cmd_t em_cmd_cli_t::m_client_cmd_spec[] = {
     em_cmd_t(em_cmd_type_none, {0, {"", "", "", "", ""}, "none"}),
     // arguments are AL MAC, model
-    em_cmd_t(em_cmd_type_reset, {3, {"", "", "", "", ""}, "Template.json"}),
+    em_cmd_t(em_cmd_type_reset, {3, {"", "", "", "", ""}, "Reset.json"}),
     em_cmd_t(em_cmd_type_ap_cap_query, {1, {"", "", "", "", ""}, "Radiocap.json"}),
-    em_cmd_t(em_cmd_type_dev_init, {1, {"", "", "", "", ""}, "DevInit.json"}),
+    em_cmd_t(em_cmd_type_dev_test, {3, {"", "", "", "", ""}, "DevTest.json"}),
     em_cmd_t(em_cmd_type_cfg_renew, {1, {"", "", "", "", ""}, "CfgRenew.json"}),
     em_cmd_t(em_cmd_type_radio_config, {1, {"", "", "", "", ""}, "RadioConfig.json"}),
     em_cmd_t(em_cmd_type_vap_config, {1, {"", "", "", "", ""}, "VapConfig.json"}),
     em_cmd_t(em_cmd_type_sta_list, {1, {"", "", "", "", ""}, "STAList.json"}),
-    em_cmd_t(em_cmd_type_getdb, {2, {"", "", "", "", ""}, "Network"}),
-    em_cmd_t(em_cmd_type_set_ssid, {1, {"", "", "", "", ""}, "NetworkSSID.json"}),
+    em_cmd_t(em_cmd_type_get_network, {2, {"", "", "", "", ""}, "Network"}),
+    em_cmd_t(em_cmd_type_get_ssid, {2, {"", "", "", "", ""}, "NetworkSSIDList"}),
+    em_cmd_t(em_cmd_type_set_ssid, {2, {"", "", "", "", ""}, "NetworkSSID.json"}),
+    em_cmd_t(em_cmd_type_get_channel, {2, {"", "", "", "", ""}, "ChannelList"}),
+    em_cmd_t(em_cmd_type_set_channel, {2, {"", "", "", "", ""}, "Channel.json"}),
+    em_cmd_t(em_cmd_type_get_bss, {2, {"", "", "", "", ""}, "BSSList"}),
+    em_cmd_t(em_cmd_type_get_sta, {2, {"", "", "", "", ""}, "STAList"}),
     em_cmd_t(em_cmd_type_start_dpp, {1, {"", "", "", "", ""}, "DPPURI.json"}),
     em_cmd_t(em_cmd_type_client_steer, {1, {"", "", "", "", ""}, "ClientSteer.json"}),
     em_cmd_t(em_cmd_type_client_cap_query, {1, {"", "", "", "", ""}, "Clientcap.json"}),
     em_cmd_t(em_cmd_type_max, {0, {"", "", "", "", ""}, "max"}),
 };
 
-int em_cmd_cli_t::update_platform_defaults(em_subdoc_info_t *subdoc, em_cmd_params_t *param)
+int em_cmd_cli_t::update_platform_defaults(em_subdoc_info_t *subdoc, em_cmd_params_t *param, em_cmd_type_t cmd_type)
 {
     mac_address_t   al_mac;
     dm_easy_mesh_t dm;
     mac_addr_str_t  ctrl_mac, ctrl_al_mac, agent_al_mac;
-
+    em_string_t key;
+    
+    strncpy(key, (cmd_type == em_cmd_type_reset) ? "Reset":"Test", sizeof(key));
     dm.init();
-    dm.decode_config(subdoc, "Network", 0);
+    dm.decode_config(subdoc, key);
 
     //dm.print_config();
 
     if (dm_easy_mesh_t::mac_address_from_name(param->args[1], al_mac) != 0) {
         return -1;
     }
-    dm.set_agent_al_interface_mac(al_mac);
-    dm.set_agent_al_interface_name(param->args[1]);
+    
     dm.set_ctrl_al_interface_mac(al_mac);
     dm.set_ctrl_al_interface_name(param->args[1]);
+
+    if (cmd_type == em_cmd_type_dev_test) {
+        dm.set_agent_al_interface_mac(al_mac);
+        dm.set_agent_al_interface_name(param->args[1]);
+    }
 
     //dm.print_config();
 
     // Now empty the buffer and encode again
     memset(subdoc->buff, 0, EM_SUBDOC_BUFF_SZ);
     subdoc->sz = EM_SUBDOC_BUFF_SZ;
-    dm.encode_config(subdoc);
+    dm.encode_config(subdoc, key);
 
     return 0;
 }
@@ -97,8 +110,10 @@ int em_cmd_cli_t::execute(em_string_t res)
     em_event_t *evt;
     em_cmd_params_t *param;
     dm_easy_mesh_t dm;
-    unsigned int sz = sizeof(em_event_t), i, offset, iter;
+    unsigned int sz = sizeof(em_event_t);
     unsigned char *tmp;
+    em_long_string_t	in;
+    em_status_string_t out;
 
     evt = get_event();
     param = get_param();
@@ -109,13 +124,17 @@ int em_cmd_cli_t::execute(em_string_t res)
 
     switch (get_type()) {
 
-        case em_cmd_type_dev_init:
-            bevt->type = em_bus_event_type_dev_init;
+        case em_cmd_type_dev_test:
+            bevt->type = em_bus_event_type_dev_test;
             info = &bevt->u.subdoc;
             snprintf(info->name, sizeof(info->name), "%s", param->fixed_args);
             if ((info->sz = get_cmd()->load_params_file(info->buff)) < 0) {
                 printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__,
                 param->fixed_args, errno);
+                return -1;
+            }
+            if (update_platform_defaults(info, param, em_cmd_type_dev_test) != 0) {
+                printf("%s:%d: failed to update default parameters\n", __func__, __LINE__);
                 return -1;
             }
             break;
@@ -165,7 +184,7 @@ int em_cmd_cli_t::execute(em_string_t res)
             break;
 
         case em_cmd_type_reset:
-            bevt->type = em_bus_event_type_reset_subdoc;
+            bevt->type = em_bus_event_type_reset;
             info = &bevt->u.subdoc;
             snprintf(info->name, sizeof(info->name), "%s", param->fixed_args);
             if ((info->sz = get_cmd()->load_params_file(info->buff)) < 0) {
@@ -173,27 +192,74 @@ int em_cmd_cli_t::execute(em_string_t res)
                 param->fixed_args, errno);
                 return -1;
             }
-            if (update_platform_defaults(info, param) != 0) {
+            if (update_platform_defaults(info, param, em_cmd_type_reset) != 0) {
                 printf("%s:%d: failed to update default parameters\n", __func__, __LINE__);
                 return -1;
             }
             break;
 
-        case em_cmd_type_getdb:
-            bevt->type = em_bus_event_type_getdb_subdoc;
+        case em_cmd_type_get_network:
+            bevt->type = em_bus_event_type_get_network;
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->fixed_args, strlen(param->fixed_args) + 1);
+            break;
+
+        case em_cmd_type_get_ssid:
+            bevt->type = em_bus_event_type_get_ssid;
             info = &bevt->u.subdoc;
             snprintf(info->name, sizeof(info->name), "%s", param->fixed_args);
             break;
 
         case em_cmd_type_set_ssid:
+            snprintf(in, sizeof(in), "get_ssid %s", m_cmd.m_param.args[1]);
+            get_cli()->exec(in, strlen(in), out);
+            get_cmd()->write_params_file(out);
             bevt->type = em_bus_event_type_set_ssid;
+			if (get_cmd()->edit_params_file() != 0) {
+                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->fixed_args, errno);
+                return -1;
+			}	
             info = &bevt->u.subdoc;
-            snprintf(info->name, sizeof(info->name), "%s", param->fixed_args);
+            strncpy(info->name, param->fixed_args, strlen(param->fixed_args) + 1);
             if ((info->sz = get_cmd()->load_params_file(info->buff)) < 0) {
-                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__,
-                param->fixed_args, errno);
+                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->fixed_args, errno);
                 return -1;
             }
+            break;
+
+        case em_cmd_type_get_channel:
+            bevt->type = em_bus_event_type_get_channel;
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->fixed_args, strlen(param->fixed_args) + 1);
+            break;
+
+        case em_cmd_type_set_channel:
+			snprintf(in, sizeof(in), "get_channel %s", m_cmd.m_param.args[1]);
+			get_cli()->exec(in, strlen(in), out);
+			get_cmd()->write_params_file(out);
+            bevt->type = em_bus_event_type_set_channel;
+			if (get_cmd()->edit_params_file() != 0) {
+                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->fixed_args, errno);
+                return -1;
+			}	
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->fixed_args, strlen(param->fixed_args) + 1);
+            if ((info->sz = get_cmd()->load_params_file(info->buff)) < 0) {
+                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->fixed_args, errno);
+                return -1;
+            }
+            break;
+
+        case em_cmd_type_get_bss:
+            bevt->type = em_bus_event_type_get_bss;
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->fixed_args, strlen(param->fixed_args) + 1);
+            break;
+
+        case em_cmd_type_get_sta:
+            bevt->type = em_bus_event_type_get_sta;
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->fixed_args, strlen(param->fixed_args) + 1);
             break;
 
         case em_cmd_type_start_dpp:
@@ -211,6 +277,17 @@ int em_cmd_cli_t::execute(em_string_t res)
             bevt->type = em_bus_event_type_client_steer;
             info = &bevt->u.subdoc;
             snprintf(info->name, sizeof(info->name), "%s", param->fixed_args);
+            if ((info->sz = get_cmd()->load_params_file(info->buff)) < 0) {
+                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__,
+                param->fixed_args, errno);
+                return -1;
+            }
+            break;
+
+        case em_cmd_type_onewifi_private_subdoc:
+            bevt->type = em_bus_event_type_onewifi_private_subdoc;
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->fixed_args, strlen(param->fixed_args) + 1);
             if ((info->sz = get_cmd()->load_params_file(info->buff)) < 0) {
                 printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__,
                 param->fixed_args, errno);
@@ -241,18 +318,13 @@ int em_cmd_cli_t::execute(em_string_t res)
     }
 
     tmp = (unsigned char *)get_event();
-    offset = 0;
-    iter = ((sizeof(em_event_t)%EM_IO_BUFF_SZ) == 0) ? sizeof(em_event_t)/EM_IO_BUFF_SZ:(sizeof(em_event_t)/EM_IO_BUFF_SZ + 1);
-    sz = EM_IO_BUFF_SZ;
-    for (i = 0; i < iter; i++) {
-        if ((ret = send(dsock, tmp + offset, sz, 0)) <= 0) {
-            return -1;
-        }
-        offset += ret;
-        sz = ((sizeof(em_event_t) - offset) < EM_IO_BUFF_SZ) ? sizeof(em_event_t) - offset:EM_IO_BUFF_SZ;
-    }
+
+    if ((ret = send(dsock, tmp, sizeof(em_event_t), 0)) <= 0) {
+        return -1;
+	}
+    
     /* Receive result. */
-    if ((ret = recv(dsock, (unsigned char *)res, sizeof(em_long_string_t), 0)) <= 0) {
+    if ((ret = recv(dsock, (unsigned char *)res, sizeof(em_status_string_t), 0)) <= 0) {
         snprintf(res, sizeof(em_long_string_t), "%s:%d: result read error on socket, err:%d\n", __func__, __LINE__, errno);
         return -1;
     }

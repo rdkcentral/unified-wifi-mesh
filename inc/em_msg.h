@@ -52,9 +52,11 @@ class em_msg_t {
 public:
     unsigned int validate(char *errors[]);
     bool get_radio_id(mac_address_t *mac);
+    bool get_profile(em_profile_type_t *profile);
     bool get_freq_band(em_freq_band_t *band);
     bool get_tlv(em_tlv_t *tlv);
     bool get_profile_type(em_profile_type_t *profile);
+    bool get_al_mac_address(unsigned char *mac);
     em_tlv_t *get_tlv(em_tlv_type_t type);
     void autoconfig_search();
     void autoconfig_resp();

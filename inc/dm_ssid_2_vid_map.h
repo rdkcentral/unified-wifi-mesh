@@ -36,11 +36,12 @@ public:
 
     void init_table();
     void init_columns();
-    void sync_db(db_client_t& db_client, void *ctx);
+    int sync_db(db_client_t& db_client, void *ctx);
     int update_db(db_client_t& db_client, dm_orch_type_t op, void *data = NULL);
+    bool search_db(db_client_t& db_client, void *ctx, void *key);
     bool operator == (const db_easy_mesh_t& obj);
     int set_config(db_client_t& db_client, const cJSON *obj, void *parent_id);
-    int get_config(cJSON *obj, void *parent_id);
+    int get_config(cJSON *obj, void *parent_id, bool summary = false);
 
     dm_ssid_2_vid_map_t(em_ssid_2_vid_map_info_t *ssid_2_vid);
     dm_ssid_2_vid_map_t(const dm_ssid_2_vid_map_t& ssid_2_vid);

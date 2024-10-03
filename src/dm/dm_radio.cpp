@@ -44,9 +44,7 @@
 int dm_radio_t::decode(const cJSON *obj, void *parent_id)
 {
     cJSON *tmp;
-    mac_addr_str_t  mac_str = {0};
-
-    mac_address_t *dev_id = (mac_address_t *)parent_id;
+    mac_addr_str_t  mac_str, dev_mac;
 
     memset(&m_radio_info, 0, sizeof(em_radio_info_t));
 
@@ -56,16 +54,14 @@ int dm_radio_t::decode(const cJSON *obj, void *parent_id)
         dm_easy_mesh_t::name_from_mac_address(&m_radio_info.id.mac, m_radio_info.id.name);
     }
 
-    printf("%s:%d: Radio: %s\n", __func__, __LINE__, mac_str);
+    dm_device_t::parse_device_params_from_key((char *)parent_id, m_radio_info.dev_id, m_radio_info.net_id);
+    dm_easy_mesh_t::macbytes_to_string(m_radio_info.id.mac, mac_str);
+    dm_easy_mesh_t::macbytes_to_string(m_radio_info.dev_id, dev_mac);
 
-    //memcpy(&m_radio_info.dev_id.mac, dev_id, sizeof(mac_address_t));
+    printf("%s:%d: Radio: %s Device: %s Network: %s\n", __func__, __LINE__, mac_str, dev_mac, m_radio_info.net_id);
 
     if ((tmp = cJSON_GetObjectItem(obj, "Enabled")) != NULL) {
         m_radio_info.enabled = cJSON_IsTrue(tmp);
-    }
-
-    if ((tmp = cJSON_GetObjectItem(obj, "NumberOfBSS")) != NULL) {
-        m_radio_info.number_of_bss = tmp->valuedouble;
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "NumberOfUnassocSta")) != NULL) {
@@ -78,10 +74,6 @@ int dm_radio_t::decode(const cJSON *obj, void *parent_id)
 
     if ((tmp = cJSON_GetObjectItem(obj, "Utilization")) != NULL) {
         m_radio_info.utilization = tmp->valuedouble;
-    }
-
-    if ((tmp = cJSON_GetObjectItem(obj, "NumberOfCurrOpClass")) != NULL) {
-        m_radio_info.number_of_curr_op_classes = tmp->valuedouble;
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "TrafficSeparationCombinedFronthaul")) != NULL) {
@@ -143,11 +135,9 @@ void dm_radio_t::encode(cJSON *obj)
     cJSON_AddStringToObject(obj, "ID", mac_str);
 
     cJSON_AddBoolToObject(obj, "Enabled", m_radio_info.enabled);
-    cJSON_AddNumberToObject(obj, "NumberOfBSS", m_radio_info.number_of_bss);
     cJSON_AddNumberToObject(obj, "NumberOfUnassocSta", m_radio_info.number_of_unassoc_sta);
     cJSON_AddNumberToObject(obj, "Noise", m_radio_info.noise);
     cJSON_AddNumberToObject(obj, "Utilization", m_radio_info.utilization);
-    cJSON_AddNumberToObject(obj, "NumberOfCurrOpClass", m_radio_info.number_of_curr_op_classes);
     cJSON_AddBoolToObject(obj, "TrafficSeparationCombinedFronthaul", m_radio_info.traffic_sep_combined_fronthaul);
     cJSON_AddBoolToObject(obj, "TrafficSeparationCombinedBackhaul", m_radio_info.traffic_sep_combined_backhaul);
     cJSON_AddNumberToObject(obj, "SteeringPolicy", m_radio_info.steering_policy);
@@ -178,11 +168,9 @@ bool dm_radio_t::operator == (const dm_radio_t& obj) {
     ret += (memcmp(&this->m_radio_info.id.mac ,&obj.m_radio_info.id.mac,sizeof(mac_address_t)) != 0);
     ret += (memcmp(&this->m_radio_info.id.name,&obj.m_radio_info.id.name,sizeof(em_interface_name_t)) != 0);
     ret += !(this->m_radio_info.enabled == obj.m_radio_info.enabled);
-    ret += !(this->m_radio_info.number_of_bss == obj.m_radio_info.number_of_bss);
     ret += !(this->m_radio_info.number_of_unassoc_sta == obj.m_radio_info.number_of_unassoc_sta);
     ret += !(this->m_radio_info.noise == obj.m_radio_info.noise);
     ret += !(this->m_radio_info.utilization == obj.m_radio_info.utilization);
-    ret += !(this->m_radio_info.number_of_curr_op_classes == obj.m_radio_info.number_of_curr_op_classes);
     ret += !(this->m_radio_info.traffic_sep_combined_fronthaul == obj.m_radio_info.traffic_sep_combined_fronthaul);
     ret += !(this->m_radio_info.traffic_sep_combined_backhaul == obj.m_radio_info.traffic_sep_combined_backhaul);
     ret += !(this->m_radio_info.steering_policy == obj.m_radio_info.steering_policy);
@@ -206,12 +194,12 @@ void dm_radio_t::operator = (const dm_radio_t& obj)
 {
     memcpy(&this->m_radio_info.id.mac ,&obj.m_radio_info.id.mac,sizeof(mac_address_t));
     memcpy(&this->m_radio_info.id.name,&obj.m_radio_info.id.name,sizeof(em_interface_name_t));
+    memcpy(&this->m_radio_info.dev_id,&obj.m_radio_info.dev_id,sizeof(mac_address_t));
+    strncpy(this->m_radio_info.net_id, obj.m_radio_info.net_id, strlen(obj.m_radio_info.net_id) + 1);
     this->m_radio_info.enabled = obj.m_radio_info.enabled;
-    this->m_radio_info.number_of_bss = obj.m_radio_info.number_of_bss;
     this->m_radio_info.number_of_unassoc_sta = obj.m_radio_info.number_of_unassoc_sta;
     this->m_radio_info.noise = obj.m_radio_info.noise;
     this->m_radio_info.utilization = obj.m_radio_info.utilization;
-    this->m_radio_info.number_of_curr_op_classes = obj.m_radio_info.number_of_curr_op_classes;
     this->m_radio_info.traffic_sep_combined_fronthaul = obj.m_radio_info.traffic_sep_combined_fronthaul;
     this->m_radio_info.traffic_sep_combined_backhaul = obj.m_radio_info.traffic_sep_combined_backhaul;
     this->m_radio_info.steering_policy = obj.m_radio_info.steering_policy;

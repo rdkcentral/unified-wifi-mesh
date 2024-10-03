@@ -30,7 +30,7 @@ public:
     em_network_info_t *get_network_info() { return &m_net_info; }
     
     int decode(const cJSON *obj, void *parent_id);
-    void encode(cJSON *obj);
+    void encode(cJSON *obj, bool summary = false);
 
     char *get_network_id() { return m_net_info.id; }
 

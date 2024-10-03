@@ -25,17 +25,19 @@
 class em_cli_t {
     void show_prompt();
     em_cmd_t& get_command(char *in, size_t in_len);
-    char *exec(char *in, size_t in_len, em_long_string_t out);
 
 public:
-    static const char *m_prompt;    
-
+    static const char *m_prompt;
+    char *exec(char *in, size_t in_len, em_status_string_t out);
+    
     int init();
     int start();
+
 
     em_cli_t();
     ~em_cli_t();
 };
 
+em_cli_t *get_cli();
 
 #endif

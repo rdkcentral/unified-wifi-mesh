@@ -31,6 +31,9 @@ public:
     int decode(const cJSON *obj, void *parent_id);
     void encode(cJSON *obj);
 
+    static char *haul_type_to_string(em_haul_type_t type, em_string_t	str);
+    static em_haul_type_t haul_type_from_string(em_string_t	str);
+
     bool operator == (const dm_network_ssid_t& obj);
     void operator = (const dm_network_ssid_t& obj);
     dm_network_ssid_t(em_network_ssid_info_t *net_ssid);

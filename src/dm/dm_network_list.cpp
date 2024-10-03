@@ -39,32 +39,34 @@
 #include "dm_easy_mesh.h"
 #include "dm_network_list.h"
 
-int dm_network_list_t::get_config(cJSON *obj, void *parent_id)
+int dm_network_list_t::get_config(cJSON *obj, void *net_id, bool summary)
 {
-	dm_network_t *pnet;
+    dm_network_t *pnet = NULL;
 	
-	pnet = (dm_network_t *)hash_map_get_first(m_list);
-	while (pnet != NULL) {
-		pnet->encode(obj);
-		pnet = (dm_network_t *)hash_map_get_next(m_list, pnet);
-	}
+    pnet = get_network((char *)net_id);
+    if (pnet == NULL) {
+	printf("%s:%d: Network Object not found for key: %s\n", __func__, __LINE__, (char *)net_id);
+	return -1;
+    }
+		
+    pnet->encode(obj, summary);
 	
-	return 0;
+    return 0;
 }
 
 int dm_network_list_t::set_config(db_client_t& db_client, dm_network_t& net, void *parent_id)
 {
-	dm_orch_type_t op;
-	mac_addr_str_t  mac_str;	
+    dm_orch_type_t op;
+    mac_addr_str_t  mac_str;	
 
-	dm_easy_mesh_t::macbytes_to_string((unsigned char *)net.m_net_info.ctrl_id.mac, mac_str);
+    dm_easy_mesh_t::macbytes_to_string((unsigned char *)net.m_net_info.ctrl_id.mac, mac_str);
 
-	//printf("%s:%d: Enter: networl: %s controller id:%s\n", __func__, __LINE__, net.m_net_info.id, mac_str);
+    //printf("%s:%d: Enter: networl: %s controller id:%s\n", __func__, __LINE__, net.m_net_info.id, mac_str);
 
-	update_db(db_client, (op = get_dm_orch_type(net)), net.get_network_info());
-	update_list(net, op);
+    update_db(db_client, (op = get_dm_orch_type(db_client, net)), net.get_network_info());
+    update_list(net, op);
 
-	return 0;
+    return 0;
 }
 
 int dm_network_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void *parent_id)
@@ -79,7 +81,7 @@ int dm_network_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, 
     for (i = 0; i < size; i++) {
         obj = cJSON_GetArrayItem(obj_arr, i);
         net.decode(obj, parent_id);
-        update_db(db_client, (op = get_dm_orch_type(net)), net.get_network_info());
+        update_db(db_client, (op = get_dm_orch_type(db_client, net)), net.get_network_info());
         update_list(net, op);
     }
 
@@ -87,13 +89,16 @@ int dm_network_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, 
 }
 
 
-dm_orch_type_t dm_network_list_t::get_dm_orch_type(const dm_network_t& net)
+dm_orch_type_t dm_network_list_t::get_dm_orch_type(db_client_t& db_client, const dm_network_t& net)
 {
     dm_network_t *pnet;
 
-    pnet = (dm_network_t *)hash_map_get(m_list, net.m_net_info.id);
+    pnet = get_network(net.m_net_info.id);
 
     if (pnet != NULL) {
+        if (entry_exists_in_table(db_client, (char *)net.m_net_info.id) == false) {
+            return dm_orch_type_dev_insert;
+        }
         if (*pnet == net) {
             printf("%s:%d: Network: %s already in list\n", __func__, __LINE__, net.m_net_info.id);
             return dm_orch_type_none;
@@ -113,49 +118,48 @@ void dm_network_list_t::update_list(const dm_network_t& net, dm_orch_type_t op)
     dm_network_t *pnet;
     mac_addr_str_t  mac_str;
 
+    dm_easy_mesh_t::macbytes_to_string((unsigned char *)net.m_net_info.colocated_agent_id.mac, mac_str);
+
     switch (op) {
         case dm_orch_type_net_insert:
-            hash_map_put(m_list, strdup(net.m_net_info.id), new dm_network_t(net));
+            put_network(net.m_net_info.id, &net);
             break;
 
         case dm_orch_type_net_update:
-            pnet = (dm_network_t *)hash_map_get(m_list, net.m_net_info.id);
+            pnet = get_network(net.m_net_info.id);
             memcpy(&pnet->m_net_info, &net.m_net_info, sizeof(em_network_info_t));
             break;
 
         case dm_orch_type_net_delete:
-            pnet = (dm_network_t *)hash_map_remove(m_list, net.m_net_info.id);
-            delete(pnet);
+            remove_network(net.m_net_info.id);
             break;
     }
 }
 
 void dm_network_list_t::delete_list()
 {
-	dm_network_t *pnet, *tmp;
+    dm_network_t *pnet, *tmp;
 
-	pnet = (dm_network_t *)hash_map_get_first(m_list);
-	while (pnet != NULL) {
-		tmp = pnet;
-		pnet = (dm_network_t *)hash_map_get_next(m_list, pnet);	
-	
-		hash_map_remove(m_list, tmp->m_net_info.id);	
-		delete(tmp);
-	}
+    pnet = get_first_network();
+    while (pnet != NULL) {
+	tmp = pnet;
+	pnet = get_next_network(pnet);	
+        remove_network(tmp->m_net_info.id);	
+    }
 }
 
 bool dm_network_list_t::operator == (const db_easy_mesh_t& obj)
 {
-	return true;
+    return true;
 }
 
 int dm_network_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *data)
 {
-	int ret = 0;
+    int ret = 0;
     mac_addr_str_t agent_str, ctrl_str;
     em_network_info_t *info = (em_network_info_t *)data;
 
-	//printf("%s:%d: Opeartion:%d\n", __func__, __LINE__, op);
+    printf("%s:%d: Operation:%d\n", __func__, __LINE__, op);
 	switch (op) {
 		case dm_orch_type_net_insert:
 			ret = insert_row(db_client, info->id, 
@@ -181,24 +185,39 @@ int dm_network_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void
     return ret;
 }
 
-void dm_network_list_t::sync_db(db_client_t& db_client, void *ctx)
+bool dm_network_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
 {
-	mac_addr_str_t	mac;
-	em_network_info_t info;
+    em_string_t net_id;
 
+    while (db_client.next_result(ctx)) {
+        db_client.get_string(ctx, net_id, 1);
 
-	// there is only one row in network
-	while (db_client.next_result(ctx)) {
-		db_client.get_string(ctx, info.id, 1);
-		db_client.get_string(ctx, mac, 2);
-		dm_easy_mesh_t::string_to_macbytes(mac, info.ctrl_id.mac);
+        if (strncmp(net_id, (char *)key, strlen((char *)key)) == 0) {
+            return true;
+        }
+    }
 
-		db_client.get_string(ctx, mac, 3);
-		dm_easy_mesh_t::string_to_macbytes(mac, info.colocated_agent_id.mac);
+    return false;
+}
 
-		update_list(dm_network_t(&info), dm_orch_type_net_insert);
-	}
+int dm_network_list_t::sync_db(db_client_t& db_client, void *ctx)
+{
+    mac_addr_str_t	mac;
+    em_network_info_t info;
+    int rc = 0;
 
+    // there is only one row in network
+    while (db_client.next_result(ctx)) {
+	db_client.get_string(ctx, info.id, 1);
+	db_client.get_string(ctx, mac, 2);
+	dm_easy_mesh_t::string_to_macbytes(mac, info.ctrl_id.mac);
+
+	db_client.get_string(ctx, mac, 3);
+	dm_easy_mesh_t::string_to_macbytes(mac, info.colocated_agent_id.mac);
+
+	update_list(dm_network_t(&info), dm_orch_type_net_insert);
+    }
+    return rc;
 }
 
 void dm_network_list_t::init_table()
@@ -217,21 +236,20 @@ void dm_network_list_t::init_columns()
 
 int dm_network_list_t::init()
 {
-	m_list = hash_map_create();
     init_table();
     init_columns();
 
-	return 0;
+    return 0;
 }
 
 em_interface_t *dm_network_list_t::get_ctrl_al_interface(em_long_string_t net_id)
 {
-	dm_network_t *net;
+    dm_network_t *net;
 
-	if ((net = (dm_network_t *)hash_map_get(m_list, net_id)) == NULL) {
-		printf("%s:%d: Could not find network with id: %s\n", __func__, __LINE__, net_id);
-		return NULL;
-	}
+    if ((net = get_network(net_id)) == NULL) {
+	printf("%s:%d: Could not find network with id: %s\n", __func__, __LINE__, net_id);
+	return NULL;
+    }
 	
-	return net->get_colocated_agent_interface();	
+    return net->get_colocated_agent_interface();	
 }
