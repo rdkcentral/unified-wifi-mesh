@@ -89,12 +89,18 @@ int dm_network_t::decode(const cJSON *obj, void *parent_id)
     return 0;
 }
 
-void dm_network_t::encode(cJSON *obj)
+void dm_network_t::encode(cJSON *obj, bool summary)
 {
     mac_addr_str_t  mac_str;
     unsigned short i;
 
+
     cJSON_AddStringToObject(obj, "ID", m_net_info.id);
+
+    if (summary == true) {
+        return;
+    }
+
 
     cJSON_AddNumberToObject(obj, "NumberOfDevices", m_net_info.num_of_devices); 
     cJSON_AddStringToObject(obj, "TimeStamp", m_net_info.timestamp);

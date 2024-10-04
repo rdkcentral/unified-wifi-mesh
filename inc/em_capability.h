@@ -42,7 +42,6 @@ class em_capability_t {
     virtual unsigned char *get_peer_mac() = 0;
     virtual em_crypto_info_t    *get_crypto_info() = 0;
     virtual em_crypto_t   *get_crypto() = 0;
-    virtual void set_peer_mac(unsigned char *mac) = 0;
     virtual em_cmd_t *get_current_cmd() = 0;
     virtual short create_ap_radio_basic_cap(unsigned char *buff) = 0;
     virtual short create_ap_cap_tlv(unsigned char *buff) = 0;
@@ -57,11 +56,11 @@ class em_capability_t {
     virtual short create_metric_col_int_tlv(unsigned char *buff) = 0;
     virtual short create_cac_cap_tlv(unsigned char *buff) = 0;
 
-    int create_rd_cap_report_msg(unsigned char *buff);
+    int create_ap_cap_report_msg(unsigned char *buff);
     int create_client_cap_report_msg(unsigned char *buff);
  
     // state handlers 
-    void handle_state_rd_cap_report();
+    void handle_state_ap_cap_report();
     int handle_ctrl_cap_query(unsigned char *buff, unsigned int len, em_bus_event_type_t msg_type);
     void handle_state_client_cap_report();
 

@@ -32,7 +32,7 @@ public:
     static em_cmd_t m_client_cmd_spec[];
 public:
     int execute(em_long_string_t result);
-    int update_platform_defaults(em_subdoc_info_t *info, em_cmd_params_t *param);
+    int update_platform_defaults(em_subdoc_info_t *info, em_cmd_params_t *param, em_cmd_type_t cmd_type);
 
     em_cmd_cli_t(em_cmd_t& obj);
 };

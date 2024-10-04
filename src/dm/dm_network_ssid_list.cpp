@@ -39,15 +39,29 @@
 #include "dm_easy_mesh.h"
 #include "em_cmd.h"
 
-int dm_network_ssid_list_t::get_config(cJSON *obj_arr, void *parent_id)
+int dm_network_ssid_list_t::get_config(cJSON *obj_arr, void *parent_id, bool summary)
 {
 	dm_network_ssid_t *pnet_ssid;
+    em_network_ssid_info_t *info;
 	cJSON *obj, *band_arr, *akms_arr, *hauls_arr;
 	mac_addr_str_t	mac_str;
 	unsigned int i;
+    em_string_t	haul_str;
+    char *tmp = NULL, *net_id = (char *)parent_id;
 
-	pnet_ssid = (dm_network_ssid_t *)hash_map_get_first(m_list);
+	pnet_ssid = get_first_network_ssid();
 	while (pnet_ssid != NULL) {
+        info = pnet_ssid->get_network_ssid_info();
+		if ((tmp = strchr(info->id, '@')) == NULL) {
+			pnet_ssid = get_next_network_ssid(pnet_ssid);
+			continue;
+		}
+
+		if ((strncmp(tmp + 1, net_id, strlen(net_id))) != 0) {
+			pnet_ssid = get_next_network_ssid(pnet_ssid);
+			continue;
+		}
+
 		obj = cJSON_CreateObject();
 
 		cJSON_AddStringToObject(obj, "SSID", pnet_ssid->m_network_ssid_info.ssid);
@@ -74,12 +88,13 @@ int dm_network_ssid_list_t::get_config(cJSON *obj_arr, void *parent_id)
 		
 		hauls_arr = cJSON_AddArrayToObject(obj, "HaulType");
 		for (i = 0; i < pnet_ssid->m_network_ssid_info.num_hauls; i++) {
-			cJSON_AddItemToArray(hauls_arr, cJSON_CreateString(pnet_ssid->m_network_ssid_info.haul_type[i]));
+            haul_type_to_string(pnet_ssid->m_network_ssid_info.haul_type[i], haul_str);
+            cJSON_AddItemToArray(hauls_arr, cJSON_CreateString(haul_str));
 		}
 
 
 		cJSON_AddItemToArray(obj_arr, obj);		
-		pnet_ssid = (dm_network_ssid_t *)hash_map_get_next(m_list, pnet_ssid);
+		pnet_ssid = get_next_network_ssid(pnet_ssid);
 	}
 
 	
@@ -92,6 +107,19 @@ int dm_network_ssid_list_t::analyze_config(const cJSON *obj_arr, void *parent_id
 
 	return num;
 }
+
+int dm_network_ssid_list_t::set_config(db_client_t& db_client, dm_network_ssid_t& net_ssid, void *parent_id)
+{
+    dm_orch_type_t op;
+    
+    //printf("%s:%d: Enter: Network SSID: %s\n", __func__, __LINE__, (char *)parent_id);
+    
+    update_db(db_client, (op = get_dm_orch_type(net_ssid)), net_ssid.get_network_ssid_info());
+    update_list(net_ssid, op);
+    //printf("%s:%d: Exit: Network SSID: %s\n", __func__, __LINE__, (char *)parent_id);
+    return 0;
+}
+
 
 int dm_network_ssid_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void *parent_id)
 {
@@ -116,7 +144,7 @@ dm_orch_type_t dm_network_ssid_list_t::get_dm_orch_type(const dm_network_ssid_t&
 {
     dm_network_ssid_t *pnet_ssid;
 
-    pnet_ssid = (dm_network_ssid_t *)hash_map_get(m_list, net_ssid.m_network_ssid_info.id);
+    pnet_ssid = get_network_ssid(net_ssid.m_network_ssid_info.id);
 
     if (pnet_ssid != NULL) {
         if (*pnet_ssid == net_ssid) {
@@ -139,18 +167,17 @@ void dm_network_ssid_list_t::update_list(const dm_network_ssid_t& net_ssid, dm_o
 
 	switch (op) {
 		case dm_orch_type_ssid_insert:
-			hash_map_put(m_list, strdup(net_ssid.m_network_ssid_info.id), new dm_network_ssid_t(net_ssid));	
-			break;
+            put_network_ssid(net_ssid.m_network_ssid_info.id, &net_ssid);
+            break;
 
 		case dm_orch_type_ssid_update:
-    		pnet_ssid = (dm_network_ssid_t *)hash_map_get(m_list, net_ssid.m_network_ssid_info.id);
-			memcpy(&pnet_ssid->m_network_ssid_info, &net_ssid.m_network_ssid_info, sizeof(em_network_ssid_info_t));
+            pnet_ssid = get_network_ssid(net_ssid.m_network_ssid_info.id);
+            memcpy(&pnet_ssid->m_network_ssid_info, &net_ssid.m_network_ssid_info, sizeof(em_network_ssid_info_t));
 			break;
 		
 		case dm_orch_type_ssid_delete:
-    		pnet_ssid = (dm_network_ssid_t *)hash_map_remove(m_list, net_ssid.m_network_ssid_info.id);
-			delete(pnet_ssid);
-			break;
+            remove_network_ssid(net_ssid.m_network_ssid_info.id);
+            break;
 	}
 }
 
@@ -158,13 +185,11 @@ void dm_network_ssid_list_t::delete_list()
 {       
     dm_network_ssid_t *pnetssid, *tmp;
     
-    pnetssid = (dm_network_ssid_t *)hash_map_get_first(m_list);
+    pnetssid = get_first_network_ssid();
     while (pnetssid != NULL) {
         tmp = pnetssid;
-        pnetssid = (dm_network_ssid_t *)hash_map_get_next(m_list, pnetssid);       
-    
-        hash_map_remove(m_list, tmp->m_network_ssid_info.id);
-        delete(tmp);
+        pnetssid = get_next_network_ssid(pnetssid);
+        remove_network_ssid(tmp->m_network_ssid_info.id);
     }
 }   
 
@@ -265,7 +290,7 @@ bool dm_network_ssid_list_t::operator == (const db_easy_mesh_t& obj)
 	for (i = 0; i < m_network_ssid_info.num_hauls; i++) {
 		matched = false;
 		for (j = 0; j < pnet_ssid->m_network_ssid_info.num_hauls; j++) {
-			if (strncmp(m_network_ssid_info.haul_type[i], pnet_ssid->m_network_ssid_info.haul_type[j], strlen(m_network_ssid_info.haul_type[i])) == 0) {
+			if (m_network_ssid_info.haul_type[i] == pnet_ssid->m_network_ssid_info.haul_type[j]) {
 				matched = true;
 				break;
 			}
@@ -286,6 +311,7 @@ int dm_network_ssid_list_t::update_db(db_client_t& db_client, dm_orch_type_t op,
     em_network_ssid_info_t *info = (em_network_ssid_info_t *)data;
 	int ret = 0;
 	em_long_string_t	bands, hauls, akms;
+    em_string_t	haul_str;
 	unsigned int i;
 
 	//printf("%s:%d: Opeartion:%d\n", __func__, __LINE__, op);
@@ -300,8 +326,9 @@ int dm_network_ssid_list_t::update_db(db_client_t& db_client, dm_orch_type_t op,
 
 	memset(hauls, 0, sizeof(em_long_string_t));
     for (i = 0; i < info->num_hauls; i++) {
-        snprintf(hauls + strlen(hauls), sizeof(hauls) - strlen(hauls), "%s", info->haul_type[i]);
-        snprintf(hauls + strlen(hauls), sizeof(hauls) - strlen(hauls), "%s", ",");
+        dm_network_ssid_t::haul_type_to_string(info->haul_type[i], haul_str);
+        strncat(hauls, haul_str, strlen(haul_str));
+        strncat(hauls, ",", strlen(","));
     }
     hauls[strlen(hauls) - 1] = 0;
     //printf("%s:%d: Haul Types: %s\n", __func__, __LINE__, bands);
@@ -316,12 +343,12 @@ int dm_network_ssid_list_t::update_db(db_client_t& db_client, dm_orch_type_t op,
 
 	switch (op) {
 		case dm_orch_type_ssid_insert:
-			ret = insert_row(db_client, info->id, info->ssid, bands, info->enable, akms, info->suite_select,
+			ret = insert_row(db_client, info->id, info->ssid, info->pass_phrase, bands, info->enable, akms, info->suite_select,
 						info->advertisement, info->mfp, dm_easy_mesh_t::macbytes_to_string(info->mobility_domain, mac_str), hauls);
 			break;
 
 		case dm_orch_type_ssid_update:
-			ret = update_row(db_client, info->ssid, bands, info->enable, akms, info->suite_select, info->advertisement, info->mfp, 
+			ret = update_row(db_client, info->ssid, info->pass_phrase, bands, info->enable, akms, info->suite_select, info->advertisement, info->mfp, 
 						dm_easy_mesh_t::macbytes_to_string(info->mobility_domain, mac_str), hauls, info->id);
 			break;
 
@@ -336,22 +363,39 @@ int dm_network_ssid_list_t::update_db(db_client_t& db_client, dm_orch_type_t op,
     return ret;
 }
 
-void dm_network_ssid_list_t::sync_db(db_client_t& db_client, void *ctx)
+bool dm_network_ssid_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
+{
+    em_long_string_t id;
+
+    while (db_client.next_result(ctx)) {
+        db_client.get_string(ctx, id, 1);
+
+        if (strncmp(id, (char *)key, strlen((char *)key)) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+int dm_network_ssid_list_t::sync_db(db_client_t& db_client, void *ctx)
 {
 	em_network_ssid_info_t info;
 	mac_addr_str_t	mac;
     em_long_string_t   str;
     char   *token_parts[10];
+    em_string_t haul_type[10];
 	char *tmp;
 	unsigned int i;
+    int rc = 0;
 
     while (db_client.next_result(ctx)) {
 		memset(&info, 0, sizeof(em_network_ssid_info_t));
 
 		db_client.get_string(ctx, info.id, 1);
 		db_client.get_string(ctx, info.ssid, 2);
-
-		db_client.get_string(ctx, str, 3);
+        db_client.get_string(ctx, info.pass_phrase, 3);
+		db_client.get_string(ctx, str, 4);
 		for (i = 0; i < EM_MAX_BANDS; i++) {
 			token_parts[i] = info.band[i];
 		}
@@ -360,9 +404,9 @@ void dm_network_ssid_list_t::sync_db(db_client_t& db_client, void *ctx)
 			//printf("%s:%d: Band[%d]: %s\n", __func__, __LINE__, i, info.band[i]);
 		}
 
-        info.enable = db_client.get_number(ctx, 4);
+        info.enable = db_client.get_number(ctx, 5);
 
-		db_client.get_string(ctx, str, 5);
+		db_client.get_string(ctx, str, 6);
 		for (i = 0; i < EM_MAX_AKMS; i++) {
 			token_parts[i] = info.akm[i];
 		}
@@ -372,30 +416,32 @@ void dm_network_ssid_list_t::sync_db(db_client_t& db_client, void *ctx)
 		}
 
 
-		db_client.get_string(ctx, info.suite_select, 6);
-		info.advertisement = db_client.get_number(ctx, 7);
-		db_client.get_string(ctx, info.mfp, 8);
+		db_client.get_string(ctx, info.suite_select, 7);
+		info.advertisement = db_client.get_number(ctx, 8);
+		db_client.get_string(ctx, info.mfp, 9);
 
-		db_client.get_string(ctx, mac, 9);
+		db_client.get_string(ctx, mac, 10);
 		dm_easy_mesh_t::string_to_macbytes(mac, info.mobility_domain);
 
-		db_client.get_string(ctx, str, 10);
+		db_client.get_string(ctx, str, 11);
 		for (i = 0; i < EM_MAX_HAUL_TYPES; i++) {
-			token_parts[i] = info.haul_type[i];
+			token_parts[i] = haul_type[i];
 		}
 		info.num_hauls = get_strings_by_token(str, ',', EM_MAX_HAUL_TYPES, token_parts);
 		for (i = 0; i < info.num_hauls; i++) {
+            info.haul_type[i] = dm_network_ssid_t::haul_type_from_string(haul_type[i]);
 			//printf("%s:%d: Haul Type[%d]: %s\n", __func__, __LINE__, i, info.haul_type[i]);
 		}
 
         
 		update_list(dm_network_ssid_t(&info), dm_orch_type_ssid_insert);
     }
+    return rc;
 }
 
 void dm_network_ssid_list_t::init_table()
 {
-    snprintf(m_table_name,sizeof(db_table_name_t), "%s", "NetworkSSIDList");
+    snprintf(m_table_name, sizeof(m_table_name), "%s", "NetworkSSIDList");
 }
 
 void dm_network_ssid_list_t::init_columns()
@@ -417,7 +463,6 @@ void dm_network_ssid_list_t::init_columns()
 
 int dm_network_ssid_list_t::init()
 {
-	m_list = hash_map_create();
     init_table();
     init_columns();
     return 0;

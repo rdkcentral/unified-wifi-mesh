@@ -42,7 +42,7 @@
 
 em_cmd_dev_init_t::em_cmd_dev_init_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
 {
-    em_cmd_ctx_t ctx;
+    em_cmd_ctx_t ctx;;
     m_type = em_cmd_type_dev_init;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
 

@@ -40,6 +40,46 @@
 #include <cjson/cJSON.h>
 #include "em_cmd.h"
 
+int em_cmd_t::edit_params_file()
+{
+    char buff[EM_IO_BUFF_SZ];
+    em_long_string_t cmd;
+    cJSON *obj;
+
+
+    snprintf(cmd, sizeof(em_long_string_t), "vi %s", m_param.fixed_args);
+    system(cmd);
+
+    if (load_params_file(buff) < 0) {
+        printf("%s:%d: Failed to load params file\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if ((obj = cJSON_Parse(buff)) == NULL) {
+        printf("%s:%d: Failed to read file\n", __func__, __LINE__);
+        return -1;
+    }
+
+    return 0;
+}
+
+int em_cmd_t::write_params_file(char *buff)
+{
+    FILE *fp;
+    char tmp[1024];
+    unsigned int sz = 0;
+
+    if ((fp = fopen(m_param.fixed_args, "w")) == NULL) {
+        printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, m_param.fixed_args, errno);
+        return -1;
+    } else {
+        fputs(buff, fp);
+        fclose(fp);
+    }
+
+    return strlen(buff);
+}
+
 int em_cmd_t::load_params_file(char *buff)
 {
     FILE *fp;
@@ -75,8 +115,14 @@ bool em_cmd_t::validate()
 
 char *em_cmd_t::status_to_string(em_cmd_out_status_t status, em_status_string_t str)
 {
-    cJSON *obj;
+    cJSON *obj, *res = NULL;
     em_long_string_t status_str;
+    em_subdoc_info_t *info;
+    em_event_t *evt;
+    char *tmp;
+
+    evt = get_event();
+    info = &evt->u.bevt.u.subdoc;
 
     obj = cJSON_CreateObject();
 
@@ -116,11 +162,18 @@ char *em_cmd_t::status_to_string(em_cmd_out_status_t status, em_status_string_t 
         case em_cmd_out_status_no_change:
             snprintf(status_str, sizeof(status_str), "%s", "Error_No_Config_Change_Detected");
             break;
-    }	
+    }
 
     cJSON_AddStringToObject(obj, "Status", status_str);
+    if (status == em_cmd_out_status_success) {
+        res = cJSON_Parse(info->buff);
+        if (res != NULL) {
+            cJSON_AddItemToObject(obj, "Result", res);
+        }
+    }
 
-    cJSON_PrintPreallocated(obj, str, sizeof(em_status_string_t), true);
+    tmp = cJSON_Print(obj);
+    strncpy(str, tmp, strlen(tmp) + 1);
     cJSON_Delete(obj);
 
     return str;
@@ -133,7 +186,7 @@ void em_cmd_t::set_rd_freq_band(unsigned int i)
     em_freq_band_t freq_band;
     dm_op_class_t *op_class_info;
     em_op_class_info_t em_op_class;
-    num_curr_opclass = m_data_model.get_num_opclass();
+    num_curr_opclass = m_data_model.get_num_op_class();
     printf("number of op_class = %d\n",num_curr_opclass);
 
     op_class_info = m_data_model.get_curr_op_class(i);
@@ -183,6 +236,8 @@ em_cmd_t *em_cmd_t::clone()
         out->m_orch_op_array[i] = m_orch_op_array[i];
     }
 
+    out->m_db_cfg_type = m_db_cfg_type;
+
     pctx = m_data_model.get_cmd_ctx();	
     memcpy(&ctx, pctx, sizeof(em_cmd_ctx_t));	
     ctx.arr_index += 1;
@@ -208,6 +263,8 @@ em_cmd_t *em_cmd_t::clone_for_next()
     for (i = 0; i < m_num_orch_ops; i++) {
         out->m_orch_op_array[i] = m_orch_op_array[i];
     }
+
+    out->m_db_cfg_type = m_db_cfg_type;
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
     ctx.type = out->get_orch_op();
@@ -240,13 +297,43 @@ void em_cmd_t::init()
             m_svc = em_service_type_ctrl;
             break;
 
-        case em_cmd_type_getdb:
-            snprintf(m_name, sizeof(m_name), "%s", "getdb");
+        case em_cmd_type_dev_test:
+            snprintf(m_name, sizeof(m_name), "%s", "dev_test");
+            m_svc = em_service_type_ctrl;
+            break;
+
+        case em_cmd_type_get_network:
+            snprintf(m_name, sizeof(m_name), "%s", "get_network");
+            m_svc = em_service_type_ctrl;
+            break;
+
+        case em_cmd_type_get_ssid:
+            snprintf(m_name, sizeof(m_name), "%s", "get_ssid");
             m_svc = em_service_type_ctrl;
             break;
 
         case em_cmd_type_set_ssid:
             snprintf(m_name, sizeof(m_name), "%s", "set_ssid");
+            m_svc = em_service_type_ctrl;
+            break;
+
+        case em_cmd_type_get_channel:
+            snprintf(m_name, sizeof(m_name), "%s", "get_channel");
+            m_svc = em_service_type_ctrl;
+            break;
+
+        case em_cmd_type_set_channel:
+            snprintf(m_name, sizeof(m_name), "%s", "set_channel");
+            m_svc = em_service_type_ctrl;
+            break;
+
+        case em_cmd_type_get_bss:
+            snprintf(m_name, sizeof(m_name), "%s", "get_bss");
+            m_svc = em_service_type_ctrl;
+            break;
+
+        case em_cmd_type_get_sta:
+            snprintf(m_name, sizeof(m_name), "%s", "get_sta");
             m_svc = em_service_type_ctrl;
             break;
 
@@ -295,6 +382,11 @@ void em_cmd_t::init()
             m_svc = em_service_type_ctrl;
             break;
 
+        case em_cmd_type_onewifi_private_subdoc:
+			strncpy(m_name, "onewifi_priv", strlen("onewifi_priv") + 1);
+			m_svc = em_service_type_agent;
+            break;
+
         case em_cmd_type_max:
             snprintf(m_name, sizeof(m_name), "%s", "max");
             m_svc = em_service_type_none;
@@ -302,30 +394,33 @@ void em_cmd_t::init()
 
     }
 }
-em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param, dm_easy_mesh_t& dm)
+
+const char *em_cmd_t::get_bus_event_type_str(em_bus_event_type_t type)
 {
-    m_type = type;
-    memcpy(&m_param, &param, sizeof(em_cmd_params_t));
-    init(&dm);
-    init();
-}
-
-em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param)
-{
-    m_type = type;
-    memcpy(&m_param, &param, sizeof(em_cmd_params_t));
-    init();
-}
-
-em_cmd_t::em_cmd_t()
-{
-
-}
-
-em_cmd_t::~em_cmd_t()
-{
-
-}
+#define BUS_EVENT_TYPE_2S(x) case x: return #x;
+    switch (type) { 
+    BUS_EVENT_TYPE_2S(em_bus_event_type_none)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_chirp)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_reset)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_dev_test)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_get_network)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_get_ssid)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_set_ssid)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_get_channel)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_set_channel)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_get_bss)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_get_sta)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_start_dpp)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_client_steer)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_dev_init)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_cfg_renew)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_radio_config)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_vap_config)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_sta_list)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_listener_stop)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_dm_commit)
+    }
+}   
 
 const char *em_cmd_t::get_orch_op_str(dm_orch_type_t type)
 {
@@ -373,7 +468,7 @@ const char *em_cmd_t::get_orch_op_str(dm_orch_type_t type)
         ORCH_TYPE_2S(dm_orch_type_owconfig_cnf)
         ORCH_TYPE_2S(dm_orch_type_ctrl_notify)
         ORCH_TYPE_2S(dm_orch_type_ap_cap_report)
-	ORCH_TYPE_2S(dm_orch_type_client_cap_report)
+        ORCH_TYPE_2S(dm_orch_type_client_cap_report)
     }
 
     return "dm_orch_type_unknown";
@@ -384,12 +479,36 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
     em_cmd_type_t type = em_cmd_type_none;
 
     switch (etype) {
-        case em_bus_event_type_reset_subdoc:
+        case em_bus_event_type_reset:
             type = em_cmd_type_reset;
+            break;
+
+        case em_bus_event_type_dev_test:
+            type = em_cmd_type_dev_test;
             break;
 
         case em_bus_event_type_set_ssid:
             type = em_cmd_type_set_ssid;
+            break;
+
+        case em_bus_event_type_get_ssid:
+            type = em_cmd_type_get_ssid;
+            break;
+
+        case em_bus_event_type_set_channel:
+            type = em_cmd_type_set_channel;
+            break;
+
+        case em_bus_event_type_get_channel:
+            type = em_cmd_type_get_channel;
+            break;
+
+        case em_bus_event_type_get_bss:
+            type = em_cmd_type_get_bss;
+            break;
+
+        case em_bus_event_type_get_sta:
+            type = em_cmd_type_get_sta;
             break;
 
         case em_bus_event_type_dev_init:
@@ -408,9 +527,13 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
             type = em_cmd_type_ap_cap_query;
             break;
 
-	case em_bus_event_type_client_cap_query:
-	    type = em_cmd_type_client_cap_query;
-	    break;
+	    case em_bus_event_type_client_cap_query:
+	        type = em_cmd_type_client_cap_query;
+	        break;
+
+        case em_bus_event_type_onewifi_private_subdoc:
+			type = em_cmd_type_onewifi_private_subdoc;
+            break;
 
     }
 
@@ -423,7 +546,11 @@ em_bus_event_type_t em_cmd_t::cmd_2_bus_event_type(em_cmd_type_t ctype)
 
     switch (ctype) {
         case em_cmd_type_reset:
-            type = em_bus_event_type_reset_subdoc;
+            type = em_bus_event_type_reset;
+            break;
+
+        case em_cmd_type_dev_test:
+            type = em_bus_event_type_dev_test;
             break;
 
         case em_cmd_type_set_ssid:
@@ -441,8 +568,65 @@ em_bus_event_type_t em_cmd_t::cmd_2_bus_event_type(em_cmd_type_t ctype)
         case em_cmd_type_sta_list:
             type = em_bus_event_type_sta_list;
             break;
+
+        case em_cmd_type_onewifi_private_subdoc:
+			type = em_bus_event_type_onewifi_private_subdoc;
+            break;
     }
 
     return type;
+}
+
+void em_cmd_t::dump_bus_event(em_bus_event_t *evt)
+{
+    em_cmd_params_t *params;
+    unsigned int i;
+    em_subdoc_info_t *info;
+
+    printf("Bus Event\n");
+    params = &evt->params;
+
+    switch (evt->type) {
+        case em_bus_event_type_get_network:
+        case em_bus_event_type_get_ssid:
+        case em_bus_event_type_get_channel:
+        case em_bus_event_type_get_bss:
+        case em_bus_event_type_get_sta:
+            info = &evt->u.subdoc;
+            printf("Name: %s\n", info->name);
+            break;
+    }
+
+    printf("Type: %s\tNumber of Command Parameters: %d\n", get_bus_event_type_str(evt->type), params->num_args);
+    for (i = 0; i < params->num_args; i++) {
+        printf("Arg[%d]: %s\n", i, params->args[i]);
+    }   
+}   
+
+em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param, dm_easy_mesh_t& dm)
+{
+    m_type = type;
+    m_db_cfg_type = db_cfg_type_none;
+    memcpy(&m_param, &param, sizeof(em_cmd_params_t));
+    init(&dm);
+    init();
+}
+
+em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param)
+{
+    m_type = type;
+    m_db_cfg_type = db_cfg_type_none;
+    memcpy(&m_param, &param, sizeof(em_cmd_params_t));
+    init();
+}
+
+em_cmd_t::em_cmd_t()
+{
+
+}
+
+em_cmd_t::~em_cmd_t()
+{
+
 }
 

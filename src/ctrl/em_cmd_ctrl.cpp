@@ -44,7 +44,7 @@ int em_cmd_ctrl_t::execute(em_long_string_t result)
 {
     struct sockaddr_un addr;
     int ret, lsock, dsock;
-    unsigned int sz = sizeof(em_event_t), i, offset, iter;
+    unsigned int sz = sizeof(em_event_t);
     unsigned char *tmp;
     bool wait = false;
 
@@ -86,30 +86,19 @@ int em_cmd_ctrl_t::execute(em_long_string_t result)
         printf("%s:%d: Connection accepted from client\n", __func__, __LINE__);
 
         tmp = (unsigned char *)get_event();
-        offset = 0;
-        iter = ((sizeof(em_event_t)%EM_IO_BUFF_SZ) == 0) ? sizeof(em_event_t)/EM_IO_BUFF_SZ:(sizeof(em_event_t)/EM_IO_BUFF_SZ + 1);
-        sz = EM_IO_BUFF_SZ;
 
-        //printf("%s:%d: Iterations: %d\n", __func__, __LINE__, iter);
-
-        for (i = 0; i < iter; i++) {
-            if ((ret = recv(m_dsock, tmp + offset, sz, 0)) <= 0) {
+            if ((ret = recv(m_dsock, tmp, sizeof(em_event_t), 0)) <= 0) {
                 printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
-                break;
             }
 
-            offset += ret;
-            sz = ((sizeof(em_event_t) - offset) < EM_IO_BUFF_SZ) ? sizeof(em_event_t) - offset:EM_IO_BUFF_SZ;
-
-            //printf("%s:%d Received Bytes: %d, Size to receive: %d\n", __func__, __LINE__, offset, sz);
-        }
 
         //printf("%s:%d: Read bytes: %d Size: %d Buff: %s\n", __func__, __LINE__, ret, 
         //			get_event()->u.bevt.u.subdoc.sz, get_event()->u.bevt.u.subdoc.buff);
-
+        //printf("%s:%d: Read bytes: %d\n", __func__, __LINE__, ret);
+        
         switch (get_event()->type) {
             case em_event_type_bus:
-                wait = m_ctrl.io_subdoc_process(get_event());
+                wait = m_ctrl.io_process(get_event());
                 break;
 
             default:

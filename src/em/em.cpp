@@ -50,6 +50,7 @@
 #include "em_cmd.h"
 #include "em_cmd_exec.h"
 
+
 void em_t::orch_execute(em_cmd_t *pcmd)
 {
     em_cmd_type_t cmd_type;
@@ -92,7 +93,7 @@ void em_t::set_orch_state(em_orch_state_t state)
 {
     if (state == em_orch_state_fini) {
         // commit the parameters of command into data model
-        m_data_model.commit_config(m_cmd->m_data_model, em_commit_target_em);
+        m_data_model->commit_config(m_cmd->m_data_model, em_commit_target_em);
     } else if (state == em_orch_state_cancel) {
         state = em_orch_state_fini;
     }
@@ -612,6 +613,9 @@ short em_t::create_cac_cap_tlv(unsigned char *buff)
 
 int em_t::init()
 {
+    m_data_model->print_config();
+    m_data_model->set_em(this);
+
     if (is_al_interface_em() == true) {
         if (start_al_interface() != 0) {
             return -1;
@@ -642,7 +646,7 @@ int em_t::init()
 
 }
 
-em_t::em_t(em_interface_t *ruid, em_profile_type_t profile, em_service_type_t type)
+em_t::em_t(em_interface_t *ruid, dm_easy_mesh_t *dm, em_profile_type_t profile, em_service_type_t type)
 {
     memcpy(&m_ruid, ruid, sizeof(em_interface_t));
     m_service_type = type;  
@@ -652,6 +656,7 @@ em_t::em_t(em_interface_t *ruid, em_profile_type_t profile, em_service_type_t ty
     m_cmd = NULL;
     RAND_bytes(get_crypto_info()->e_nonce, sizeof(em_nonce_t));
     RAND_bytes(get_crypto_info()->r_nonce, sizeof(em_nonce_t));
+    m_data_model = dm;
 }
 
 em_t::~em_t()

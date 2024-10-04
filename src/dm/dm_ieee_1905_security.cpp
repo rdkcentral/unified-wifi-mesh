@@ -39,7 +39,7 @@
 
 int dm_ieee_1905_security_t::decode(const cJSON *obj)
 {
-	cJSON *tmp;
+    cJSON *tmp;
 
     if ((tmp = cJSON_GetObjectItem(obj, "OnboardingProtocol")) != NULL) {
        	m_ieee_1905_security_info.sec_cap.onboarding_proto = tmp->valuedouble;

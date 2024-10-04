@@ -61,9 +61,6 @@ int dm_device_t::decode(const cJSON *obj, void *parent_id)
     if ((tmp = cJSON_GetObjectItem(obj, "CollectionInterval")) != NULL) {
        	m_device_info.coll_interval = tmp->valuedouble;
    	}
-    if ((tmp = cJSON_GetObjectItem(obj, "NumberOfRadios")) != NULL) {
-        m_device_info.num_radios = tmp->valuedouble;
-    }
     if ((tmp = cJSON_GetObjectItem(obj, "ReportUnsuccessfulAssociations")) != NULL) {
        	m_device_info.report_unsuccess_assocs = cJSON_IsTrue(tmp);
     }
@@ -182,16 +179,20 @@ int dm_device_t::decode(const cJSON *obj, void *parent_id)
     }
     return 0;
 }
-void dm_device_t::encode(cJSON *obj)
+void dm_device_t::encode(cJSON *obj, bool summary)
 {
     mac_addr_str_t  mac_str;
     unsigned int i;
 
     dm_easy_mesh_t::macbytes_to_string(m_device_info.id.mac, mac_str);
     cJSON_AddStringToObject(obj, "ID", mac_str);
+
+    if (summary == true) {
+        return;
+    }
+
     cJSON_AddStringToObject(obj, "MultiAPCapabilities", m_device_info.multi_ap_cap);
     cJSON_AddNumberToObject(obj, "CollectionInterval", m_device_info.coll_interval);
-    cJSON_AddNumberToObject(obj, "NumberOfRadios", m_device_info.num_radios);
     cJSON_AddBoolToObject(obj, "ReportUnsuccessfulAssociations", m_device_info.report_unsuccess_assocs);
     cJSON_AddNumberToObject(obj, "MaxReportingRate", m_device_info.max_reporting_rate);
     cJSON_AddNumberToObject(obj, "APMetricsReportingInterval", m_device_info.ap_metrics_reporting_interval);
@@ -256,7 +257,6 @@ void dm_device_t::operator = (const dm_device_t& obj) {
     memcpy(&this->m_device_info.net_id,&obj.m_device_info.net_id,sizeof(em_long_string_t));
     memcpy(&this->m_device_info.multi_ap_cap,&obj.m_device_info.multi_ap_cap,sizeof(em_long_string_t));
     this->m_device_info.coll_interval = obj.m_device_info.coll_interval;
-    this->m_device_info.num_radios = obj.m_device_info.num_radios;
     this->m_device_info.report_unsuccess_assocs = obj.m_device_info.report_unsuccess_assocs;
     this->m_device_info.max_reporting_rate = obj.m_device_info.max_reporting_rate;
     this->m_device_info.ap_metrics_reporting_interval = obj.m_device_info.ap_metrics_reporting_interval;
@@ -294,7 +294,6 @@ bool dm_device_t::operator == (const dm_device_t& obj)
     ret += (memcmp(&this->m_device_info.net_id,&obj.m_device_info.net_id,sizeof(em_long_string_t)) != 0);
     ret += (memcmp(&this->m_device_info.multi_ap_cap,&obj.m_device_info.multi_ap_cap,sizeof(em_long_string_t)) != 0);
     ret += !(this->m_device_info.coll_interval == obj.m_device_info.coll_interval);
-    ret += !(this->m_device_info.num_radios == obj.m_device_info.num_radios);
     ret += !(this->m_device_info.report_unsuccess_assocs == obj.m_device_info.report_unsuccess_assocs);
     ret += !(this->m_device_info.max_reporting_rate == obj.m_device_info.max_reporting_rate);
     ret += !(this->m_device_info.ap_metrics_reporting_interval == obj.m_device_info.ap_metrics_reporting_interval);
@@ -329,6 +328,20 @@ bool dm_device_t::operator == (const dm_device_t& obj)
         return false;
     else
         return true;
+}
+
+int dm_device_t::parse_device_params_from_key(const char *key, mac_address_t mac, char *net_id)
+{
+	em_long_string_t str;
+	char *tmp;
+
+	strncpy(str, key, strlen(key) + 1);
+	if ((tmp = strchr(str, '@')) != NULL) {
+		*tmp = 0;
+		dm_easy_mesh_t::string_to_macbytes(str, mac);
+		tmp++;
+		strncpy(net_id, tmp, strlen(tmp) + 1);
+	}
 }
 
 dm_device_t::dm_device_t(em_device_info_t *dev)

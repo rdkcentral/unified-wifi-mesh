@@ -544,14 +544,13 @@ uint8_t em_crypto_t:: wps_key_derivation_function(uint8_t *key, uint8_t *label_p
     }
     return 1; 
 }
-uint8_t em_crypto_t::platform_aes_encrypt(uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len)
+uint8_t em_crypto_t::platform_aes_encrypt(uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher, uint32_t *cipher_len)
 {
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX _ctx;
 #endif
     EVP_CIPHER_CTX *ctx;
-    int             plen, len;
-    uint8_t         buf[AES_BLOCK_SIZE];
+    int             len = plain_len + AES_BLOCK_SIZE - 1, final_len = 0;
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX_init(&_ctx);
@@ -568,15 +567,18 @@ uint8_t em_crypto_t::platform_aes_encrypt(uint8_t *key, uint8_t *iv, uint8_t *da
 
     EVP_CIPHER_CTX_set_padding(ctx, 0);
 
-    plen = data_len;
-    if (EVP_EncryptUpdate(ctx, data, &plen, data, data_len) != 1 || plen != (int) data_len) {
+    
+    if (EVP_EncryptUpdate(ctx, cipher, &len, plain, plain_len) != 1) {
         return 0;
     }
 
-    len = sizeof(buf);
-    if (EVP_EncryptFinal_ex(ctx, buf, &len) != 1 || len != 0) {
+    //printf("%s:%d: plain len: %d cipher len: %d\n", __func__, __LINE__, plain_len, len);
+
+    if (EVP_EncryptFinal_ex(ctx, cipher + len, &final_len) != 1) {
         return 0;
     }
+
+    *cipher_len = len;
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX_cleanup(ctx);

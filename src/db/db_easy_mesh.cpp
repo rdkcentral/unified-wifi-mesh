@@ -190,7 +190,7 @@ int db_easy_mesh_t::delete_row(db_client_t& db_client, ...)
 }
 
 
-void db_easy_mesh_t::sync_table(db_client_t& db_client)
+int db_easy_mesh_t::sync_table(db_client_t& db_client)
 {
     db_query_t    query;
     db_result_t   result;
@@ -201,8 +201,22 @@ void db_easy_mesh_t::sync_table(db_client_t& db_client)
 
     ctx = db_client.execute(query);
 
-    sync_db(db_client, ctx);
+    return sync_db(db_client, ctx);
 
+}
+
+bool db_easy_mesh_t::entry_exists_in_table(db_client_t& db_client, void *key)
+{
+    db_query_t    query;
+    db_result_t   result;
+    void *ctx;
+    
+    memset(query, 0, sizeof(db_query_t));
+    snprintf(query, sizeof(db_query_t), "select * from %s", m_table_name);
+
+    ctx = db_client.execute(query);
+
+    return search_db(db_client, ctx, key);
 }
 
 void db_easy_mesh_t::delete_table(db_client_t& db_client)
@@ -215,7 +229,7 @@ void db_easy_mesh_t::delete_table(db_client_t& db_client)
     ctx = db_client.execute(query);
 }
 
-void db_easy_mesh_t::create_table(db_client_t& db_client)
+int db_easy_mesh_t::create_table(db_client_t& db_client)
 {
     db_query_t    query;
     void *ctx;
@@ -274,9 +288,11 @@ void db_easy_mesh_t::create_table(db_client_t& db_client)
     query[strlen(query) - 1] = 0;
 
     ctx = db_client.execute(query);
+
+    return 0;
 }
 
-void db_easy_mesh_t::load_table(db_client_t& db_client)
+int db_easy_mesh_t::load_table(db_client_t& db_client)
 {
     db_query_t    query;
     db_result_t   result;
@@ -303,6 +319,7 @@ void db_easy_mesh_t::load_table(db_client_t& db_client)
         create_table(db_client);
     }
 
+    return (present == true) ? 0:-1;
 }
 
 db_easy_mesh_t::db_easy_mesh_t()

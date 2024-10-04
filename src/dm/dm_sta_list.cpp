@@ -39,74 +39,74 @@
 #include "dm_easy_mesh.h"
 #include "dm_easy_mesh_ctrl.h"
 
-int dm_sta_list_t::get_config(cJSON *obj_arr, void *parent)
+int dm_sta_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 {
-	dm_sta_t *psta;
-	cJSON *obj, *akms_arr;
-	mac_addr_str_t  mac_str;
-	unsigned int i;
+    dm_sta_t *psta;
+    cJSON *obj, *akms_arr;
+    mac_addr_str_t  mac_str;
+    unsigned int i;
 	
-	psta = (dm_sta_t *)hash_map_get_first(m_list);
+    psta = get_first_sta();
     while (psta != NULL) {
        	obj = cJSON_CreateObject(); 
 
-		dm_easy_mesh_t::macbytes_to_string(psta->m_sta_info.id, mac_str);
-		cJSON_AddStringToObject(obj, "MACAddress", mac_str);
-		cJSON_AddNumberToObject(obj, "LastDataUplinkRate", psta->m_sta_info.last_ul_rate);
-		cJSON_AddNumberToObject(obj, "LastDataDownlinkRate", psta->m_sta_info.last_dl_rate);
-		cJSON_AddNumberToObject(obj, "EstMACDataRateUplink", psta->m_sta_info.est_ul_rate);
-		cJSON_AddNumberToObject(obj, "EstMACDataRateDownlink", psta->m_sta_info.est_dl_rate);
-		cJSON_AddNumberToObject(obj, "LastConnectTime", psta->m_sta_info.last_conn_time);
-		cJSON_AddNumberToObject(obj, "RetransCount", psta->m_sta_info.retrans_count);
-		cJSON_AddNumberToObject(obj, "SignalStrength", psta->m_sta_info.signal_strength);
-		cJSON_AddNumberToObject(obj, "UtilizationTransmit", psta->m_sta_info.util_tx);
-		cJSON_AddNumberToObject(obj, "UtilizationReceive", psta->m_sta_info.util_rx);
-		cJSON_AddNumberToObject(obj, "PacketsSent", psta->m_sta_info.pkts_tx);
-		cJSON_AddNumberToObject(obj, "PacketsReceived", psta->m_sta_info.pkts_rx);
-		cJSON_AddNumberToObject(obj, "BytesSent", psta->m_sta_info.bytes_tx);
-		cJSON_AddNumberToObject(obj, "BytesReceived", psta->m_sta_info.bytes_rx);
-		cJSON_AddNumberToObject(obj, "ErrorsSent", psta->m_sta_info.errors_tx);
-		cJSON_AddNumberToObject(obj, "ErrorsReceived", psta->m_sta_info.errors_rx);
-		cJSON_AddStringToObject(obj, "ClientCapabilities", psta->m_sta_info.cap);
-		cJSON_AddStringToObject(obj, "HTCapabilities", psta->m_sta_info.ht_cap);
-		cJSON_AddStringToObject(obj, "VHTCapabilities", psta->m_sta_info.vht_cap);
-		cJSON_AddStringToObject(obj, "HECapabilities", psta->m_sta_info.he_cap);
+	dm_easy_mesh_t::macbytes_to_string(psta->m_sta_info.id, mac_str);
+	cJSON_AddStringToObject(obj, "MACAddress", mac_str);
+	cJSON_AddNumberToObject(obj, "LastDataUplinkRate", psta->m_sta_info.last_ul_rate);
+	cJSON_AddNumberToObject(obj, "LastDataDownlinkRate", psta->m_sta_info.last_dl_rate);
+	cJSON_AddNumberToObject(obj, "EstMACDataRateUplink", psta->m_sta_info.est_ul_rate);
+	cJSON_AddNumberToObject(obj, "EstMACDataRateDownlink", psta->m_sta_info.est_dl_rate);
+	cJSON_AddNumberToObject(obj, "LastConnectTime", psta->m_sta_info.last_conn_time);
+	cJSON_AddNumberToObject(obj, "RetransCount", psta->m_sta_info.retrans_count);
+	cJSON_AddNumberToObject(obj, "SignalStrength", psta->m_sta_info.signal_strength);
+	cJSON_AddNumberToObject(obj, "UtilizationTransmit", psta->m_sta_info.util_tx);
+	cJSON_AddNumberToObject(obj, "UtilizationReceive", psta->m_sta_info.util_rx);
+	cJSON_AddNumberToObject(obj, "PacketsSent", psta->m_sta_info.pkts_tx);
+	cJSON_AddNumberToObject(obj, "PacketsReceived", psta->m_sta_info.pkts_rx);
+	cJSON_AddNumberToObject(obj, "BytesSent", psta->m_sta_info.bytes_tx);
+	cJSON_AddNumberToObject(obj, "BytesReceived", psta->m_sta_info.bytes_rx);
+	cJSON_AddNumberToObject(obj, "ErrorsSent", psta->m_sta_info.errors_tx);
+	cJSON_AddNumberToObject(obj, "ErrorsReceived", psta->m_sta_info.errors_rx);
+	cJSON_AddStringToObject(obj, "ClientCapabilities", psta->m_sta_info.cap);
+	cJSON_AddStringToObject(obj, "HTCapabilities", psta->m_sta_info.ht_cap);
+	cJSON_AddStringToObject(obj, "VHTCapabilities", psta->m_sta_info.vht_cap);
+	cJSON_AddStringToObject(obj, "HECapabilities", psta->m_sta_info.he_cap);
 
-		cJSON_AddItemToArray(obj_arr, obj);
-		psta = (dm_sta_t *)hash_map_get_next(m_list, psta);
+	cJSON_AddItemToArray(obj_arr, obj);
+	psta = get_next_sta(psta);
     }
     
 	
-	return 0;
+    return 0;
 }
 
 int dm_sta_list_t::analyze_config(const cJSON *obj_arr, void *parent_id, em_cmd_t *pcmd[], em_cmd_params_t *param)
 {
-	printf("%s:%d: Enter\n", __func__, __LINE__);
+    printf("%s:%d: Enter\n", __func__, __LINE__);
 
-	return 0;
+    return 0;
 }
 
 int dm_sta_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void *parent_id)
 {
     cJSON *obj;
     unsigned int i, size;
-	dm_sta_t sta;
-	dm_orch_type_t op;
+    dm_sta_t sta;
+    dm_orch_type_t op;
 
     size = cJSON_GetArraySize(obj_arr);
 
     for (i = 0; i < size; i++) {
         obj = cJSON_GetArrayItem(obj_arr, i);
-		sta.decode(obj, parent_id);
-		update_db(db_client, (op = get_dm_orch_type(sta)), sta.get_sta_info());
-		update_list(sta, op);
+	sta.decode(obj, parent_id);
+	update_db(db_client, (op = get_dm_orch_type(db_client, sta)), sta.get_sta_info());
+	update_list(sta, op);
     }
 
     return 0;
 }
 
-dm_orch_type_t dm_sta_list_t::get_dm_orch_type(const dm_sta_t& sta)
+dm_orch_type_t dm_sta_list_t::get_dm_orch_type(db_client_t& db_client, const dm_sta_t& sta)
 {
     dm_sta_t *psta;
     mac_addr_str_t  sta_mac_str, bssid_mac_str;
@@ -116,20 +116,19 @@ dm_orch_type_t dm_sta_list_t::get_dm_orch_type(const dm_sta_t& sta)
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)sta.m_sta_info.bssid, bssid_mac_str);
     snprintf(key, sizeof (em_long_string_t), "%s-%s", sta_mac_str, bssid_mac_str);
 
-	psta = (dm_sta_t *)hash_map_get(m_list, key);
-
+    psta = get_sta(key);
     if (psta != NULL) {
         if (*psta == sta) {
             printf("%s:%d: STA: %s BSS: %s already in list\n", __func__, __LINE__, 
-                        dm_easy_mesh_t::macbytes_to_string(psta->m_sta_info.id, sta_mac_str),
-                        dm_easy_mesh_t::macbytes_to_string(psta->m_sta_info.bssid, bssid_mac_str));
+            dm_easy_mesh_t::macbytes_to_string(psta->m_sta_info.id, sta_mac_str),
+            dm_easy_mesh_t::macbytes_to_string(psta->m_sta_info.bssid, bssid_mac_str));
             return dm_orch_type_none;
         }
 
 
         printf("%s:%d: STA: %s BSS: %s in list but needs update\n", __func__, __LINE__,
-                        dm_easy_mesh_t::macbytes_to_string(psta->m_sta_info.id, sta_mac_str),
-                        dm_easy_mesh_t::macbytes_to_string(psta->m_sta_info.bssid, bssid_mac_str));
+        dm_easy_mesh_t::macbytes_to_string(psta->m_sta_info.id, sta_mac_str),
+        dm_easy_mesh_t::macbytes_to_string(psta->m_sta_info.bssid, bssid_mac_str));
         return dm_orch_type_sta_update;
     }
 
@@ -140,27 +139,26 @@ dm_orch_type_t dm_sta_list_t::get_dm_orch_type(const dm_sta_t& sta)
 
 void dm_sta_list_t::update_list(const dm_sta_t& sta, dm_orch_type_t op)
 {
-	dm_sta_t *psta;
-	mac_addr_str_t	sta_mac_str, bssid_mac_str;
-	em_long_string_t key;
+    dm_sta_t *psta;
+    mac_addr_str_t	sta_mac_str, bssid_mac_str;
+    em_long_string_t key;
 
-   	dm_easy_mesh_t::macbytes_to_string((unsigned char *)sta.m_sta_info.id, sta_mac_str);
+    dm_easy_mesh_t::macbytes_to_string((unsigned char *)sta.m_sta_info.id, sta_mac_str);
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)sta.m_sta_info.bssid, bssid_mac_str);
     snprintf(key, sizeof (em_long_string_t), "%s-%s", sta_mac_str, bssid_mac_str);
 
     switch (op) {
         case dm_orch_type_sta_insert:
-			hash_map_put(m_list, strdup(key), new dm_sta_t(sta));	
+			put_sta(key, &sta);	
             break;
 
         case dm_orch_type_sta_update:
-			psta = (dm_sta_t *)hash_map_get(m_list, key);
+			psta = get_sta(key);
             memcpy(&psta->m_sta_info, &sta.m_sta_info, sizeof(em_sta_info_t));
             break;
 
         case dm_orch_type_sta_delete:
-			psta = (dm_sta_t *)hash_map_remove(m_list, key);
-            delete(psta);
+            remove_sta(key);            
             break;
     }
 
@@ -169,33 +167,32 @@ void dm_sta_list_t::update_list(const dm_sta_t& sta, dm_orch_type_t op)
 void dm_sta_list_t::delete_list()
 {       
     dm_sta_t *psta, *tmp;
-	mac_addr_str_t	sta_mac_str, bssid_mac_str;
-	em_long_string_t key;
+    mac_addr_str_t	sta_mac_str, bssid_mac_str;
+    em_long_string_t key;
     
-    psta = (dm_sta_t *)hash_map_get_first(m_list);
+    psta = get_first_sta();
     while (psta != NULL) {
         tmp = psta;
-        psta = (dm_sta_t *)hash_map_get_next(m_list, psta);       
+        psta = get_next_sta(psta);       
     
-   		dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_sta_info.id, sta_mac_str);
+   	dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_sta_info.id, sta_mac_str);
     	dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_sta_info.bssid, bssid_mac_str);
     	snprintf(key, sizeof (em_long_string_t), "%s-%s", sta_mac_str, bssid_mac_str);
-        hash_map_remove(m_list, key);
-        delete(tmp);
+        remove_sta(key);    
     }
 }   
 
 
 bool dm_sta_list_t::operator == (const db_easy_mesh_t& obj)
 {
-	return true;
+    return true;
 }
 
 int dm_sta_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *data)
 {
     mac_addr_str_t sta_mac_str, bssid_mac_str;
     em_sta_info_t *info = (em_sta_info_t *)data;
-	int ret = 0;
+    int ret = 0;
 
 	switch (op) {
 		case dm_orch_type_sta_insert:
@@ -229,44 +226,61 @@ int dm_sta_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
     return ret;
 }
 
-void dm_sta_list_t::sync_db(db_client_t& db_client, void *ctx)
+bool dm_sta_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
 {
-	em_sta_info_t info;
-	mac_addr_str_t	mac;
-    em_long_string_t   str;
-	unsigned int i;
+    mac_addr_str_t  mac;
 
     while (db_client.next_result(ctx)) {
-		memset(&info, 0, sizeof(em_sta_info_t));
+        db_client.get_string(ctx, mac, 1);
 
-		db_client.get_string(ctx, mac, 1);
-		dm_easy_mesh_t::string_to_macbytes(mac, info.id);
-
-		db_client.get_string(ctx, mac, 2);
-		dm_easy_mesh_t::string_to_macbytes(mac, info.bssid);
-
-		info.last_ul_rate = db_client.get_number(ctx, 3);
-		info.last_dl_rate = db_client.get_number(ctx, 4);
-		info.est_ul_rate = db_client.get_number(ctx, 5);
-		info.est_dl_rate = db_client.get_number(ctx, 6);
-		info.last_conn_time = db_client.get_number(ctx, 7);
-		info.retrans_count = db_client.get_number(ctx, 8);
-		info.signal_strength = db_client.get_number(ctx, 9);
-		info.util_tx = db_client.get_number(ctx, 10);
-		info.util_rx = db_client.get_number(ctx, 11);
-		info.pkts_tx = db_client.get_number(ctx, 12);
-		info.pkts_rx = db_client.get_number(ctx, 13);
-		info.bytes_tx = db_client.get_number(ctx, 14);
-		info.bytes_rx = db_client.get_number(ctx, 15);
-		info.errors_tx = db_client.get_number(ctx, 16);
-		info.errors_rx = db_client.get_number(ctx, 17);
-		db_client.get_string(ctx, info.cap, 18);
-		db_client.get_string(ctx, info.ht_cap, 19);
-		db_client.get_string(ctx, info.vht_cap, 20);
-		db_client.get_string(ctx, info.he_cap, 21);
-        
-		update_list(dm_sta_t(&info), dm_orch_type_sta_insert);
+        if (strncmp(mac, (char *)key, strlen((char *)key)) == 0) {
+            return true;
+        }
     }
+
+    return false;
+}
+
+int dm_sta_list_t::sync_db(db_client_t& db_client, void *ctx)
+{
+    em_sta_info_t info;
+    mac_addr_str_t	mac;
+    em_long_string_t   str;
+    unsigned int i;
+    int rc = 0;
+
+    while (db_client.next_result(ctx)) {
+	memset(&info, 0, sizeof(em_sta_info_t));
+
+	db_client.get_string(ctx, mac, 1);
+	dm_easy_mesh_t::string_to_macbytes(mac, info.id);
+
+	db_client.get_string(ctx, mac, 2);
+	dm_easy_mesh_t::string_to_macbytes(mac, info.bssid);
+
+	info.last_ul_rate = db_client.get_number(ctx, 3);
+	info.last_dl_rate = db_client.get_number(ctx, 4);
+	info.est_ul_rate = db_client.get_number(ctx, 5);
+	info.est_dl_rate = db_client.get_number(ctx, 6);
+	info.last_conn_time = db_client.get_number(ctx, 7);
+	info.retrans_count = db_client.get_number(ctx, 8);
+	info.signal_strength = db_client.get_number(ctx, 9);
+	info.util_tx = db_client.get_number(ctx, 10);
+	info.util_rx = db_client.get_number(ctx, 11);
+	info.pkts_tx = db_client.get_number(ctx, 12);
+	info.pkts_rx = db_client.get_number(ctx, 13);
+	info.bytes_tx = db_client.get_number(ctx, 14);
+	info.bytes_rx = db_client.get_number(ctx, 15);
+	info.errors_tx = db_client.get_number(ctx, 16);
+	info.errors_rx = db_client.get_number(ctx, 17);
+	db_client.get_string(ctx, info.cap, 18);
+	db_client.get_string(ctx, info.ht_cap, 19);
+	db_client.get_string(ctx, info.vht_cap, 20);
+	db_client.get_string(ctx, info.he_cap, 21);
+        
+	update_list(dm_sta_t(&info), dm_orch_type_sta_insert);
+    }
+    return rc;
 }
 
 void dm_sta_list_t::init_table()
@@ -303,7 +317,6 @@ void dm_sta_list_t::init_columns()
 
 int dm_sta_list_t::init()
 {
-	m_list = hash_map_create();
     init_table();
     init_columns();
     return 0;

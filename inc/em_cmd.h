@@ -41,9 +41,12 @@ public:
     em_freq_band_t m_rd_freq_band;
     unsigned int m_rd_op_class;
     unsigned int m_rd_channel;
+    unsigned int	m_db_cfg_type;
 
 public:
     int     load_params_file(char *buff);
+    int 	write_params_file(char *buff);
+    int 	edit_params_file();
     bool    validate();
 
     char *status_to_string(em_cmd_out_status_t status, em_status_string_t str);
@@ -56,7 +59,9 @@ public:
     em_cmd_params_t *get_param() { return &m_param; }
     em_bus_event_t *get_bus_event() { return &m_evt.u.bevt; }
     dm_easy_mesh_t *get_data_model() { return &m_data_model; }
-    
+
+    void copy_bus_event(em_bus_event_t *evt) { m_evt.type = em_event_type_bus; memcpy(&m_evt.u.bevt, evt, sizeof(em_bus_event_t)); }
+
     virtual dm_orch_type_t get_orch_op() { return m_orch_op_array[m_orch_op_idx]; }
     virtual em_cmd_t *clone_for_next();
     virtual em_cmd_t *clone();
@@ -64,7 +69,6 @@ public:
     virtual unsigned int get_orch_op_index() { return m_orch_op_idx; }
     virtual void override_op(unsigned int index, dm_orch_type_t op);
     
-    static const char *get_orch_op_str(dm_orch_type_t type);
 
     em_interface_t *get_ctrl_al_interface() { return m_data_model.get_ctrl_al_interface(); }
     em_interface_t *get_agent_al_interface() { return m_data_model.get_agent_al_interface(); }
@@ -77,7 +81,9 @@ public:
     em_ieee_1905_security_cap_t *get_ieee_1905_security_cap() { return m_data_model.get_ieee_1905_security_cap(); }
     char *get_primary_device_type() { return m_data_model.get_primary_device_type(); }
 
-    dm_network_ssid_t *get_network_ssid() { return m_data_model.get_network_ssid(); }
+    unsigned int get_num_network_ssid() { return m_data_model.get_num_network_ssid(); }
+
+    dm_network_ssid_t *get_network_ssid(unsigned int index) { return m_data_model.get_network_ssid(index); }
     dm_dpp_t *get_dpp() { return m_data_model.get_dpp(); }
     dm_radio_t *get_radio(unsigned int index) { return m_data_model.get_radio(index); }
     dm_op_class_t *get_curr_op_class(unsigned int index) { return m_data_model.get_curr_op_class(index); }
@@ -96,8 +102,14 @@ public:
     void deinit();
     void reset_cmd_ctx() { m_data_model.reset_cmd_ctx(); }
 
+    unsigned int get_db_cfg_type() { return m_db_cfg_type; }
+    void set_db_cfg_type(unsigned int type) { m_db_cfg_type = type; }
+
     static em_cmd_type_t bus_2_cmd_type(em_bus_event_type_t type);
     static em_bus_event_type_t cmd_2_bus_event_type(em_cmd_type_t type);
+    static const char *get_orch_op_str(dm_orch_type_t type);
+    static const char *get_bus_event_type_str(em_bus_event_type_t type);
+    static void dump_bus_event(em_bus_event_t *evt);
     
     em_cmd_t(em_cmd_type_t type, em_cmd_params_t param, dm_easy_mesh_t& dm);
     em_cmd_t(em_cmd_type_t type, em_cmd_params_t param);

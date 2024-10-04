@@ -1,0 +1,33 @@
+{
+	"Status":	"Success",
+	"Result":	{
+		"Network":	{
+			"ID":	"Private",
+			"DeviceList":	[{
+					"ID":	"00:0c:29:dc:63:48",
+					"RadioList":	[{
+							"ID":	"00:ab:cd:ef:00:01",
+							"CurrentOperatingClasses":	[{
+									"Class":	81,
+									"Channel":	6,
+									"TxPower":	20,
+									"MaxTxPower":	0,
+									"NonOperable":	[0]
+								}]
+						}, {
+							"ID":	"00:ab:cd:ef:00:02",
+							"CurrentOperatingClasses":	[{
+									"Class":	115,
+									"Channel":	36,
+									"TxPower":	20,
+									"MaxTxPower":	0,
+									"NonOperable":	[0]
+								}]
+						}, {
+							"ID":	"00:ab:cd:ef:00:10",
+							"CurrentOperatingClasses":	[]
+						}]
+				}]
+		}
+	}
+}

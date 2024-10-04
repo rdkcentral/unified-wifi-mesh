@@ -41,6 +41,8 @@ public:
     em_cmd_type_t get_type() { return m_cmd.m_type; }
     const char *get_path() { return m_sock_path; }
 
+    void copy_bus_event(em_bus_event_t *evt) { m_cmd.copy_bus_event(evt); }
+
     void init();
     static int send_cmd(em_service_type_t to_svc, unsigned char *in, unsigned int in_len, char *out = NULL, unsigned int out_len = 0);
     static int execute(em_cmd_type_t type, em_service_type_t to_svc, unsigned char *in, unsigned int in_len);

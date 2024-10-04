@@ -34,6 +34,8 @@ public:
     bool operator == (const dm_op_class_t& obj);
     void operator = (const dm_op_class_t& obj);
 
+    static int parse_op_class_id_from_key(const char *key, em_op_class_id_t *id);
+
     dm_op_class_t(em_op_class_info_t *op_class);
     dm_op_class_t(const dm_op_class_t& op_class);
     dm_op_class_t();

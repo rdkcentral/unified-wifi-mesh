@@ -22,24 +22,21 @@
 #include "em.h"
 #include "em_mgr.h"
 #include "ieee80211.h"
-#include "dm_easy_mesh.h"
+#include "dm_easy_mesh_agent.h"
 #include "em_crypto.h"
 #include "em_orch_agent.h"
+#include "bus.h"
+#include "bus_common.h"
 
 class em_cmd_agent_t;
 
 class em_agent_t : public em_mgr_t {
 
     em_orch_agent_t *m_orch;
-    dm_easy_mesh_t m_data_model;
+    dm_easy_mesh_agent_t m_data_model;
     em_short_string_t   m_data_model_path;
     em_cmd_agent_t  *m_agent_cmd;
 
-    void handle_add_node(em_node_event_t *evt);
-    void handle_del_node(em_node_event_t *evt);
-    void handle_node_event(em_node_event_t *evt);
-    void io_add_node(em_interface_t *ruid);
-    void io_del_node(em_interface_t *ruid);
     void io_run(char *buff);
 
     void handle_bus_event(em_bus_event_t *evt);
@@ -49,10 +46,13 @@ class em_agent_t : public em_mgr_t {
 
 public:
 
-    //rbusHandle_t rbus_em;
+    bus_handle_t m_bus_hdl;
+
     void input_listener();
 
     int data_model_init(const char *data_model_path);
+    bool    is_data_model_initialized() { return true; }
+
     int orch_init();
 
     void handle_timeout();
@@ -66,13 +66,18 @@ public:
     void handle_ap_cap_query(em_bus_event_t *evt);
     void handle_autoconfig_renew(em_bus_event_t *evt);
     void handle_client_cap_query(em_bus_event_t *evt);
+    void handle_onewifi_private_subdoc(em_bus_event_t *evt);
 
     em_cmd_t& get_command(char *in);
-    void *get_data_model() { return &m_data_model; }
-    em_service_type_t get_service_type() { return em_service_type_agent; }
-    //static void rbus_listener_agent(rbusHandle_t handle, rbusEvent_t const* event,rbusEventSubscription_t* subscription);
-    //void io(char *buff);
+    
+    dm_easy_mesh_t *get_data_model(const char *net_id, const unsigned char *al_mac = NULL) { return &m_data_model; }
+    dm_easy_mesh_t *create_data_model(const char *net_id, const unsigned char *al_mac, em_profile_type_t profile = em_profile_type_3) { return NULL; }
 
+    em_service_type_t get_service_type() { return em_service_type_agent; }
+    static bus_error_t bus_listener(bus_handle_t *handle, bus_event_sub_action_t action, char const* eventName, bus_filter_t filter, int32_t interval, bool* autoPublish);    
+    //void io(char *buff);
+    static int sta_cb(char *event_name, raw_data_t *data);
+    void *get_assoc(void*);
     void io(void *data, bool input = true);
     bool agent_input(void *data);
     bool agent_output(void *data);

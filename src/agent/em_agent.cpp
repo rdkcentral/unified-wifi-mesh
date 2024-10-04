@@ -39,6 +39,7 @@
 #include "util.h"
 
 em_agent_t g_agent;
+const char *global_netid = "Private";
 
 void em_agent_t::handle_sta_list(em_bus_event_t *evt)
 {
@@ -73,6 +74,7 @@ void em_agent_t::handle_ap_cap_query(em_bus_event_t *evt)
     }
 
 }
+
 
 void em_agent_t::handle_client_cap_query(em_bus_event_t *evt)
 {
@@ -142,28 +144,21 @@ void em_agent_t::handle_dev_init(em_bus_event_t *evt)
 
 }
 
-void em_agent_t::handle_add_node(em_node_event_t *evt)
+void em_agent_t::handle_onewifi_private_subdoc(em_bus_event_t *evt)
 {
+    unsigned int num;
+    wifi_bus_desc_t *desc;
+    raw_data_t l_bus_data;
 
-    //create_node(&evt->u.ruid);    //commenting now for fixing build issues
-}
+    if((desc = get_bus_descriptor()) == NULL) {
+       printf("descriptor is null");
+    }
 
-void em_agent_t::handle_del_node(em_node_event_t *evt)
-{
-    delete_node(&evt->u.ruid);  
-}
-
-void em_agent_t::handle_node_event(em_node_event_t *evt)
-{
-    switch (evt->type) {
-        case em_node_event_type_add:
-            handle_add_node(evt);
-            break;
-
-        case em_node_event_type_del:
-            handle_del_node(evt);
-            break;
-
+    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+        m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+    } else if ((num = m_data_model.analyze_onewifi_private_subdoc(evt, desc, &m_bus_hdl)) == 0) {
+        //m_agent_cmd->send_result(em_cmd_out_status_no_change);
+	printf("analyze_onewifi_private_subdoc complete");
     }
 }
 
@@ -256,9 +251,13 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
             handle_ap_cap_query(evt);
             break;
 
-	case em_bus_event_type_client_cap_query:
-	    handle_client_cap_query(evt);
-	    break;
+        case em_bus_event_type_client_cap_query:
+	        handle_client_cap_query(evt);
+	        break;
+
+        case em_bus_event_type_onewifi_private_subdoc:
+			handle_onewifi_private_subdoc(evt);
+			break;
 
         default:
             break;
@@ -268,10 +267,6 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 void em_agent_t::handle_event(em_event_t *evt)
 {
     switch(evt->type) {
-        case em_event_type_node:
-            handle_node_event(&evt->u.nevt);
-            break;
-
         case em_event_type_frame:
             handle_frame_event(&evt->u.fevt);
             break;
@@ -293,23 +288,60 @@ void em_agent_t::handle_timeout()
 
 void em_agent_t::input_listener()
 {
-    // the listener must block on inputs (rbus or pipe or other ipc messages)
-#if 0
-    if (rbus_open(&rbus_em, "EasyMesh_service") != RBUS_ERROR_SUCCESS) {
-        //em_util_info_print(EM_MGR,"%s:%d Rbus open failed\n",__func__, __LINE__);
+    wifi_bus_desc_t *desc;
+    dm_easy_mesh_t dm;
+    em_event_t evt;
+    em_bus_event_t *bevt;
+    raw_data_t data;
+
+    bus_init(&m_bus_hdl);
+
+    if((desc = get_bus_descriptor()) == NULL) {
+        printf("%s:%d descriptor is null\n", __func__, __LINE__);
+    }
+
+    if (desc->bus_open_fn(&m_bus_hdl, "EasyMesh_service") != 0) {
+        printf("%s:%d bus open failed\n",__func__, __LINE__);
         return;
     }
-    do {
-        if (rbusEvent_Subscribe(rbus_em, WIFI_EASYMESH_NOTIFICATION, em_agent_t::rbus_listener_agent, this, 0) != RBUS_ERROR_SUCCESS) {
-            //em_util_info_print(EM_MGR,"%s:%d Rbus event:%s subscribe is success\n",__func__, __LINE__, WIFI_EASYMESH_NOTIFICATION);
-            break;
-        } else {
-            //em_util_info_print(EM_MGR,"%s:%d Rbus event:%s subscribe is not success\n",__func__, __LINE__, WIFI_EASYMESH_NOTIFICATION);
-            delay(30);
-        }
-    } while(1);
-#endif
+
+    printf("%s:%d he_bus open success\n", __func__, __LINE__);
+
+    memset(&data, 0, sizeof(raw_data_t));
+
+    if (desc->bus_get_fn(&m_bus_hdl, WIFI_WEBCONFIG_INIT_DML_DATA, &data) != 0) {
+        printf("%s:%d bus get failed\n", __func__, __LINE__);
+        return;
+    } else {
+        printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data.raw_data.bytes);
+    }
+
+    bevt = &evt.u.bevt;
+    bevt->type = em_bus_event_type_dev_init;
+    memcpy(bevt->u.raw_buff, data.raw_data.bytes, data.raw_data_len);
+
+    g_agent.agent_input(&evt);
+
+    printf("%s:%d: Enter\n", __func__, __LINE__);
+    if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_WEBCONFIG_GET_ASSOC, (void *)&em_agent_t::sta_cb, NULL, 0) != 0) {
+        printf("%s:%d bus get failed\n", __func__, __LINE__);
+        return;
+    }
     io(NULL);
+}
+
+int em_agent_t::sta_cb(char *event_name, raw_data_t *data)
+{
+    printf("%s:%d Recv data from onewifi:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
+    em_event_t evt;
+    em_bus_event_t *bevt;
+
+    bevt = &evt.u.bevt;
+    bevt->type = em_bus_event_type_sta_list;
+    memcpy(bevt->u.raw_buff, data->raw_data.bytes, data->raw_data_len);
+
+    g_agent.agent_input(&evt);
+
 }
 
 int em_agent_t::data_model_init(const char *data_model_path)

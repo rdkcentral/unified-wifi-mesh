@@ -50,6 +50,7 @@ em_cmd_t em_cmd_agent_t::m_client_cmd_spec[] = {
     em_cmd_t(em_cmd_type_sta_list,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:StaList"}),
     em_cmd_t(em_cmd_type_ap_cap_query,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:CapReport"}),
     em_cmd_t(em_cmd_type_client_cap_query,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:ClientCapReport"}),
+    em_cmd_t(em_cmd_type_onewifi_private_subdoc,em_cmd_params_t{1, {"", "", "", "", ""},"wfa-dataelements:dm_cache"}),
     em_cmd_t(em_cmd_type_max,em_cmd_params_t{0, {"", "", "", "", ""}, "max"}),
 };
 
@@ -201,6 +202,7 @@ em_event_t *em_cmd_agent_t::create_event(char *buff)
     cJSON_Delete(obj);
 
     if ((type == em_cmd_type_none) || (type >= em_cmd_type_max)) {
+        printf("%s:%d: type invalid=%d\n", __func__, __LINE__,type);
         return NULL;
     }
 
@@ -221,24 +223,70 @@ em_event_t *em_cmd_agent_t::create_event(char *buff)
             bevt->type = em_bus_event_type_ap_cap_query;
             break;
 
-	case em_cmd_type_client_cap_query:
-	    bevt->type = em_bus_event_type_client_cap_query;
-	    break;
+	    case em_cmd_type_client_cap_query:
+	        bevt->type = em_bus_event_type_client_cap_query;
+	        break;
 
         case em_cmd_type_cfg_renew:
             bevt->type = em_bus_event_type_cfg_renew;
             break;
-        default:
+       
+        case em_cmd_type_onewifi_private_subdoc:
+			bevt->type = em_bus_event_type_onewifi_private_subdoc;
+			break;
+
+         default:
             break;
     }
 
     memcpy(&bevt->params, &cmd->m_param, sizeof(em_cmd_params_t));
     memcpy(&bevt->u.subdoc.buff, buff, EM_SUBDOC_BUFF_SZ-1);
     bevt->u.subdoc.sz = strlen(buff);   
-
+    printf("%s:%d: Parse JSON btype=%d priv=%d\n", __func__, __LINE__,bevt->type,em_bus_event_type_onewifi_private_subdoc);
     return evt;
 }
 
+em_event_t *em_cmd_agent_t::create_raw_event(char *buff, em_bus_event_type_t type)
+
+{
+    printf("entering create_raw_event\n");
+    em_cmd_type_t   cmd_type = em_cmd_type_none;
+    cJSON *obj, *child_obj;
+    char *tmp;
+    em_cmd_t    *cmd;
+    unsigned int idx;
+    em_event_t *evt;
+    em_bus_event_t *bevt;
+
+    if ((obj = cJSON_Parse(buff)) == NULL) {
+        printf("%s:%d: Failed to parse JSON object\n", __func__, __LINE__);
+        return NULL;
+    }
+    cJSON_Delete(obj);
+    evt = (em_event_t *)malloc(sizeof(em_event_t));
+    evt->type = em_event_type_bus;
+    bevt = &evt->u.bevt;
+
+    if(type == em_bus_event_type_dev_init)
+    {
+        cmd = &em_cmd_agent_t::m_client_cmd_spec[1];
+    }
+    else if(type == em_bus_event_type_sta_list)
+    {
+        cmd = &em_cmd_agent_t::m_client_cmd_spec[5];
+    }
+
+    bevt->type = type;
+
+    //cmd = &em_cmd_agent_t::m_client_cmd_spec[1];
+    //bevt->type = em_bus_event_type_dev_init;
+    memcpy(&bevt->params, &cmd->m_param, sizeof(em_cmd_params_t));
+    //memcpy(&bevt->u.subdoc.buff, buff, strlen(buff));
+    memcpy(&bevt->u.raw_buff, buff, strlen(buff));
+    bevt->u.subdoc.sz = strlen(buff);
+
+    return evt;
+}
 
 em_cmd_agent_t::em_cmd_agent_t(em_cmd_t& obj)
 {

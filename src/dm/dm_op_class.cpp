@@ -43,16 +43,12 @@ int dm_op_class_t::decode(const cJSON *obj, void *parent_id)
 {
     cJSON *tmp, *non_op_array;
     unsigned int i;
-    em_op_class_id_t    *id = (em_op_class_id_t *)parent_id;
-    char *radio_id = (char *)parent_id;
 
     memset(&m_op_class_info, 0, sizeof(em_op_class_info_t));
-    memcpy(&m_op_class_info.radio_id, radio_id, sizeof(em_long_string_t));
-    memcpy(m_op_class_info.id.ruid.mac, id->ruid.mac, sizeof(mac_address_t));
-
+    dm_op_class_t::parse_op_class_id_from_key((char *)parent_id, &m_op_class_info.id);
+	
     if ((tmp = cJSON_GetObjectItem(obj, "Class")) != NULL) {
         m_op_class_info.op_class = tmp->valuedouble;
-        printf("m_op_class_info.op_class = %d",m_op_class_info.op_class);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "Channel")) != NULL) {
@@ -65,18 +61,19 @@ int dm_op_class_t::decode(const cJSON *obj, void *parent_id)
 
     if ((tmp = cJSON_GetObjectItem(obj, "MaxTxPower")) != NULL) {
        m_op_class_info.max_tx_power = tmp->valuedouble;
+    }
+    
+    m_op_class_info.num_non_op_channels = 0;
+    if ((non_op_array = cJSON_GetObjectItem(obj, "NonOperable")) != NULL) {
+        m_op_class_info.num_non_op_channels = cJSON_GetArraySize(non_op_array);
+        for (i = 0; i < m_op_class_info.num_non_op_channels; i++) {
+            if ((tmp = cJSON_GetArrayItem(non_op_array, i)) != NULL) {
+                m_op_class_info.non_op_channel[i] = tmp->valuedouble;
+            }
         }
+    }
 
-        if ((non_op_array = cJSON_GetObjectItem(obj, "NonOperable")) != NULL) {
-                m_op_class_info.num_non_op_channels = cJSON_GetArraySize(non_op_array);
-                for (i = 0; i < m_op_class_info.num_non_op_channels; i++) {
-                        if ((tmp = cJSON_GetArrayItem(non_op_array, i)) != NULL) {
-                                m_op_class_info.non_op_channel[i] = tmp->valuedouble;
-                        }
-                }
-        }
-
-        return 0;
+    return 0;
 
 }
 
@@ -102,10 +99,10 @@ void dm_op_class_t::encode(cJSON *obj)
 
 bool dm_op_class_t::operator == (const dm_op_class_t& obj)
 {
-     int ret = 0;
-    ret += (memcmp(&this->m_op_class_info.id.ruid.mac ,&obj.m_op_class_info.id.ruid.mac,sizeof(mac_address_t)) != 0);
-    ret += (memcmp(&this->m_op_class_info.id.ruid.name,&obj.m_op_class_info.id.ruid.name,sizeof(em_interface_name_t)) != 0);
+    int ret = 0;
+    ret += (memcmp(&this->m_op_class_info.id.ruid ,&obj.m_op_class_info.id.ruid,sizeof(mac_address_t)) != 0);
     ret += !(this->m_op_class_info.id.type == obj.m_op_class_info.id.type);
+    ret += !(this->m_op_class_info.id.index == obj.m_op_class_info.id.index);
     ret += !(this->m_op_class_info.op_class == obj.m_op_class_info.op_class);
     ret += !(this->m_op_class_info.channel == obj.m_op_class_info.channel);
     ret += !(this->m_op_class_info.tx_power == obj.m_op_class_info.tx_power);
@@ -123,15 +120,40 @@ bool dm_op_class_t::operator == (const dm_op_class_t& obj)
 
 void dm_op_class_t::operator = (const dm_op_class_t& obj)
 {
-    memcpy(&this->m_op_class_info.id.ruid.mac ,&obj.m_op_class_info.id.ruid.mac,sizeof(mac_address_t));
-    memcpy(&this->m_op_class_info.id.ruid.name,&obj.m_op_class_info.id.ruid.name,sizeof(em_interface_name_t));
+    memcpy(&this->m_op_class_info.id.ruid ,&obj.m_op_class_info.id.ruid,sizeof(mac_address_t));
     this->m_op_class_info.id.type = obj.m_op_class_info.id.type;
+    this->m_op_class_info.id.index = obj.m_op_class_info.id.index;
     this->m_op_class_info.op_class = obj.m_op_class_info.op_class;
     this->m_op_class_info.channel = obj.m_op_class_info.channel;
     this->m_op_class_info.tx_power = obj.m_op_class_info.tx_power;
     this->m_op_class_info.max_tx_power = obj.m_op_class_info.max_tx_power;
     this->m_op_class_info.num_non_op_channels = obj.m_op_class_info.num_non_op_channels;
     memcpy(this->m_op_class_info.non_op_channel, obj.m_op_class_info.non_op_channel, sizeof(unsigned int) * EM_MAX_NON_OP_CHANNELS);
+}
+
+int dm_op_class_t::parse_op_class_id_from_key(const char *key, em_op_class_id_t *id)
+{
+    em_long_string_t   str;
+    char *tmp;
+    unsigned int i = 0;
+
+    strncpy(str, key, strlen(key) + 1);
+    while ((tmp = strchr(str, '@')) != NULL) {
+	if (i == 0) {
+	    *tmp = 0;
+	    dm_easy_mesh_t::string_to_macbytes(str, id->ruid);
+	    tmp++;
+	    strncpy(str, tmp, strlen(tmp) + 1);
+		
+	} else if (i == 1) {
+	    *tmp = 0;
+	    id->type = (em_op_class_type_t)atoi(str);
+	    tmp++;
+	    id->index = atoi(tmp);
+	}
+	i++;   
+    }
+
 }
 
 dm_op_class_t::dm_op_class_t(em_op_class_info_t *op_class)
@@ -141,7 +163,7 @@ dm_op_class_t::dm_op_class_t(em_op_class_info_t *op_class)
 
 dm_op_class_t::dm_op_class_t(const dm_op_class_t& op_class)
 {
-	memcpy(&m_op_class_info, &op_class.m_op_class_info, sizeof(em_op_class_info_t));
+    memcpy(&m_op_class_info, &op_class.m_op_class_info, sizeof(em_op_class_info_t));
 }
 
 dm_op_class_t::dm_op_class_t()

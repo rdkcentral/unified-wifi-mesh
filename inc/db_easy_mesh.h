@@ -34,22 +34,24 @@ public:
 public:
     virtual void init_table() = 0;
     virtual void init_columns() = 0;
-    virtual void sync_db(db_client_t& db_client, void *ctx) = 0;
+    virtual int sync_db(db_client_t& db_client, void *ctx) = 0;
     virtual int update_db(db_client_t& db_client, dm_orch_type_t op, void *data = NULL) = 0;
+    virtual bool search_db(db_client_t& db_client, void *ctx, void *key) = 0;
     virtual bool operator == (const db_easy_mesh_t& obj) = 0;
 
     virtual int set_config(db_client_t& db_client, const cJSON *obj, void *parent_id) = 0;
-    virtual int get_config(cJSON *obj, void *parent_id) = 0;
+    virtual int get_config(cJSON *obj, void *parent_id, bool summary = false) = 0;
 
     char *get_column_format(db_fmt_t fmt, unsigned int pos);
     int get_strings_by_token(char *parent, int token, unsigned int argc, char *argv[]);
 
-    void create_table(db_client_t& db_client);
-    void load_table(db_client_t& db_client);
-    void sync_table(db_client_t& db_client);
+    int create_table(db_client_t& db_client);
+    int load_table(db_client_t& db_client);
+    int sync_table(db_client_t& db_client);
     void delete_table(db_client_t& db_client);
 
     bool is_table_empty(db_client_t& db_client);
+    bool entry_exists_in_table(db_client_t& db_client, void *key);
 
     int insert_row(db_client_t& db_client, ...);
     int update_row(db_client_t& db_client, ...);

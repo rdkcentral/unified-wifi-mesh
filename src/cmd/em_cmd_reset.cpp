@@ -42,17 +42,17 @@
 
 em_cmd_reset_t::em_cmd_reset_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
 {
-    em_cmd_ctx_t ctx;
+    em_cmd_ctx_t ctx;;
     m_type = em_cmd_type_reset;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
 
     m_orch_op_idx = 0;
-    m_num_orch_ops = 5;
+    m_num_orch_ops = 3;
     m_orch_op_array[0] = dm_orch_type_em_reset;
     m_orch_op_array[1] = dm_orch_type_db_reset;
     m_orch_op_array[2] = dm_orch_type_db_cfg;
-    m_orch_op_array[3] = dm_orch_type_dev_insert;
-    m_orch_op_array[4] = dm_orch_type_tx_cfg_renew;
+
+    m_db_cfg_type = db_cfg_type_network_list | db_cfg_type_network_ssid_list;
 
     snprintf(m_name, sizeof(m_name), "%s", "reset");
     m_svc = em_service_type_ctrl;
