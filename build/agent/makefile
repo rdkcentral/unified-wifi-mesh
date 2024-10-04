@@ -30,13 +30,13 @@ INCLUDEDIRS = \
 	-I$(ONEWIFI_HAL_INTF_HOME)/generic \
 	-I$(ONEWIFI_HOME)/generic/source/utils \
 	-I$(ONEWIFI_HOME)/generic/include \
-    -I$(ONEWIFI_BUS_LIB_HOME)/inc \
-    -I$(ONEWIFI_HOME)/generic/lib/log \
-    -I$(ONEWIFI_HOME)/generic/lib/ds \
-    -I$(ONEWIFI_HOME)/generic/source/platform/linux \
-    -I$(ONEWIFI_HOME)/generic/source/platform/common \
-    -I$(ONEWIFI_EM_HOME)/src/util_crypto \
-    -I$(ONEWIFI_HOME)/generic/source/platform/linux/he_bus/inc \
+    	-I$(ONEWIFI_BUS_LIB_HOME)/inc \
+    	-I$(ONEWIFI_HOME)/generic/lib/log \
+    	-I$(ONEWIFI_HOME)/generic/lib/ds \
+    	-I$(ONEWIFI_HOME)/generic/source/platform/linux \
+    	-I$(ONEWIFI_HOME)/generic/source/platform/common \
+    	-I$(ONEWIFI_EM_HOME)/src/util_crypto \
+    	-I$(ONEWIFI_HOME)/generic/source/platform/linux/he_bus/inc \
 
 $(info The value of VARIABLE is $(ONEWIFI_HAL_INTF_HOME))
 
@@ -44,7 +44,7 @@ CXXFLAGS = $(INCLUDEDIRS) -g
 LDFLAGS = $(LIBDIRS) $(LIBS)
 LIBDIRS = \
 	-L$(INSTALLDIR)/lib \
-    -L$(ONEWIFI_HOME)/install/lib/
+    	-L$(ONEWIFI_HOME)/install/lib/
 
 LIBS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwebconfig -lhebus
 
@@ -62,8 +62,8 @@ AGENT_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/em/metrics/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/em/steering/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/em/crypto/*.cpp) \
-    $(ONEWIFI_EM_SRC)/orch/em_orch.cpp \
-    $(ONEWIFI_EM_SRC)/orch/em_orch_agent.cpp \
+    	$(ONEWIFI_EM_SRC)/orch/em_orch.cpp \
+    	$(ONEWIFI_EM_SRC)/orch/em_orch_agent.cpp \
 	$(wildcard $(ONEWIFI_EM_SRC)/cmd/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/agent/*.cpp) \
 	$(ONEWIFI_EM_SRC)/dm/dm_device.cpp \
