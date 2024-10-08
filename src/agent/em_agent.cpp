@@ -158,7 +158,7 @@ void em_agent_t::handle_onewifi_private_subdoc(em_bus_event_t *evt)
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
     } else if ((num = m_data_model.analyze_onewifi_private_subdoc(evt, desc, &m_bus_hdl)) == 0) {
         //m_agent_cmd->send_result(em_cmd_out_status_no_change);
-	printf("analyze_onewifi_private_subdoc complete");
+	    printf("analyze_onewifi_private_subdoc complete");
     }
 }
 

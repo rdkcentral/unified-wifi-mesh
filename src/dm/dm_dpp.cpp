@@ -69,7 +69,7 @@ int dm_dpp_t::decode(const cJSON *obj, void *parent_id)
     memset(&m_dpp_info, 0, sizeof(em_dpp_info_t));
 		
     if ((tmp = cJSON_GetObjectItem(obj, "V:")) != NULL) {
-	m_dpp_info.version = cJSON_GetNumberValue(tmp);
+	    m_dpp_info.version = cJSON_GetNumberValue(tmp);
     }
 		
     return 0;
@@ -91,8 +91,8 @@ bool dm_dpp_t::operator == (const dm_dpp_t& obj)
     ret += memcmp(this->m_dpp_info.ec_data.tran_id, obj.m_dpp_info.ec_data.tran_id, sizeof(this->m_dpp_info.ec_data.tran_id)) != 0;
     ret += this->m_dpp_info.ec_data.match_tran_id != obj.m_dpp_info.ec_data.match_tran_id;
     for (int i = 0; i < DPP_MAX_EN_CHANNELS; i++) {
-	ret += this->m_dpp_info.en_chans[i].channel != obj.m_dpp_info.en_chans[i].channel;
-	ret += this->m_dpp_info.en_chans[i].band != obj.m_dpp_info.en_chans[i].band;
+	    ret += this->m_dpp_info.en_chans[i].channel != obj.m_dpp_info.en_chans[i].channel;
+	    ret += this->m_dpp_info.en_chans[i].band != obj.m_dpp_info.en_chans[i].band;
     }
     if (ret > 0)
         return false;
@@ -110,7 +110,7 @@ void dm_dpp_t::operator = (const dm_dpp_t& obj)
     memcpy(this->m_dpp_info.ec_data.tran_id, obj.m_dpp_info.ec_data.tran_id, sizeof(this->m_dpp_info.ec_data.tran_id));
     this->m_dpp_info.ec_data.match_tran_id == obj.m_dpp_info.ec_data.match_tran_id;
     for (int i = 0; i < DPP_MAX_EN_CHANNELS; i++) {
-	this->m_dpp_info.en_chans[i].channel == obj.m_dpp_info.en_chans[i].channel; 
+	    this->m_dpp_info.en_chans[i].channel == obj.m_dpp_info.en_chans[i].channel; 
         this->m_dpp_info.en_chans[i].band == obj.m_dpp_info.en_chans[i].band;
     }
 

@@ -86,7 +86,6 @@ int em_cmd_agent_t::execute(em_long_string_t result)
         return -1;
     }
     while (1) {
-
         printf("%s:%d: Waiting for client connection\n", __func__, __LINE__);
         if ((m_dsock = accept(lsock, NULL, NULL)) == -1) {
             printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
@@ -118,7 +117,7 @@ int em_cmd_agent_t::execute(em_long_string_t result)
         }
 
         printf("%s:%d: Read bytes: %d Type:%d, Subtype: %d Size: %d Buff: %s\n", __func__, __LINE__, ret,
-                get_event()->type, get_event()->u.bevt.type, get_event()->u.bevt.u.subdoc.sz, get_event()->u.bevt.u.subdoc.buff);
+        get_event()->type, get_event()->u.bevt.type, get_event()->u.bevt.u.subdoc.sz, get_event()->u.bevt.u.subdoc.buff);
 
         switch (get_event()->type) {
             case em_event_type_bus:
@@ -253,7 +252,7 @@ em_event_t *em_cmd_agent_t::create_raw_event(char *buff, em_bus_event_type_t typ
     em_cmd_type_t   cmd_type = em_cmd_type_none;
     cJSON *obj, *child_obj;
     char *tmp;
-    em_cmd_t    *cmd;
+    em_cmd_t *cmd;
     unsigned int idx;
     em_event_t *evt;
     em_bus_event_t *bevt;
@@ -267,12 +266,10 @@ em_event_t *em_cmd_agent_t::create_raw_event(char *buff, em_bus_event_type_t typ
     evt->type = em_event_type_bus;
     bevt = &evt->u.bevt;
 
-    if(type == em_bus_event_type_dev_init)
-    {
+    if (type == em_bus_event_type_dev_init) {
         cmd = &em_cmd_agent_t::m_client_cmd_spec[1];
     }
-    else if(type == em_bus_event_type_sta_list)
-    {
+    else if (type == em_bus_event_type_sta_list) {
         cmd = &em_cmd_agent_t::m_client_cmd_spec[5];
     }
 

@@ -157,21 +157,21 @@ bool dm_network_ssid_t::operator == (const dm_network_ssid_t& obj)
     ret += (memcmp(&this->m_network_ssid_info.pass_phrase, &obj.m_network_ssid_info.pass_phrase, sizeof(em_long_string_t)) != 0);
     ret += (this->m_network_ssid_info.num_bands != obj.m_network_ssid_info.num_bands);
     for (int i = 0; i < this->m_network_ssid_info.num_bands; i++) {
-    ret += (memcmp(&this->m_network_ssid_info.band[i], &obj.m_network_ssid_info.band[i], sizeof(em_tiny_string_t)) != 0);
+        ret += (memcmp(&this->m_network_ssid_info.band[i], &obj.m_network_ssid_info.band[i], sizeof(em_tiny_string_t)) != 0);
     }
     ret += (this->m_network_ssid_info.enable != obj.m_network_ssid_info.enable);
     ret += (this->m_network_ssid_info.num_akms != obj.m_network_ssid_info.num_akms);
     for (int i = 0; i < this->m_network_ssid_info.num_akms; i++) {
-    ret += (memcmp(&this->m_network_ssid_info.akm[i], &obj.m_network_ssid_info.akm[i], sizeof(em_string_t)) != 0);
-}
+        ret += (memcmp(&this->m_network_ssid_info.akm[i], &obj.m_network_ssid_info.akm[i], sizeof(em_string_t)) != 0);
+    }
     ret += (memcmp(&this->m_network_ssid_info.suite_select, &obj.m_network_ssid_info.suite_select, sizeof(em_string_t)) != 0);
     ret += (this->m_network_ssid_info.advertisement != obj.m_network_ssid_info.advertisement);
     ret += (memcmp(&this->m_network_ssid_info.mfp, &obj.m_network_ssid_info.mfp, sizeof(em_string_t)) != 0);
     ret += (memcmp(&this->m_network_ssid_info.mobility_domain, &obj.m_network_ssid_info.mobility_domain, sizeof(mac_address_t)) != 0);
     ret += (this->m_network_ssid_info.num_hauls != obj.m_network_ssid_info.num_hauls);
     for (int i = 0; i < this->m_network_ssid_info.num_hauls; i++) {
-    ret += (this->m_network_ssid_info.haul_type[i] == obj.m_network_ssid_info.haul_type[i]);
-}
+        ret += (this->m_network_ssid_info.haul_type[i] == obj.m_network_ssid_info.haul_type[i]);
+    }
     //em_util_info_print(EM_MGR, "%s:%d: MUH ret=%d\n", __func__, __LINE__,ret);
 
     if (ret > 0)
@@ -239,7 +239,7 @@ em_haul_type_t dm_network_ssid_t::haul_type_from_string(em_string_t str)
     em_haul_type_t type;
 
     if (strncmp(str, "Fronthaul", strlen(str)) == 0) {
-	type = em_haul_type_fronthaul;		
+	    type = em_haul_type_fronthaul;		
     } else if (strncmp(str, "Backhaul", strlen(str)) == 0) {
         type = em_haul_type_backhaul;
     } else if (strncmp(str, "IoT", strlen(str)) == 0) {

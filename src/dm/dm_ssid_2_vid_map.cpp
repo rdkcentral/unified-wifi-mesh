@@ -57,34 +57,34 @@ int dm_ssid_2_vid_map_t::set_config(db_client_t& db_client, const cJSON *obj_arr
     for (i = 0; i < size; i++) {
 
         obj = cJSON_GetArrayItem(obj_arr, i);
-	if ((tmp = cJSON_GetObjectItem(obj, "ID")) != NULL) {
+        if ((tmp = cJSON_GetObjectItem(obj, "ID")) != NULL) {
             snprintf(mac_str, sizeof(mac_str), "%s", cJSON_GetStringValue(tmp));
             dm_easy_mesh_t::string_to_macbytes(mac_str, dev_mac);
         }
 
-	if ((map_arr = cJSON_GetObjectItem(obj, "SSIDtoVIDMapping")) == NULL) {
-	    assert(1);
-	}
+        if ((map_arr = cJSON_GetObjectItem(obj, "SSIDtoVIDMapping")) == NULL) {
+            assert(1);
+        }
 
-	for (j = 0; j < cJSON_GetArraySize(map_arr); j++) {
+        for (j = 0; j < cJSON_GetArraySize(map_arr); j++) {
 
-	    obj = cJSON_GetArrayItem(map_arr, j);
+            obj = cJSON_GetArrayItem(map_arr, j);
 
-    	    memset(&info, 0, sizeof(em_ssid_2_vid_map_info_t));
-		
-    	    if ((tmp = cJSON_GetObjectItem(obj, "SSID")) != NULL) {
-    	        snprintf(info.ssid, sizeof(info.ssid), "%s", cJSON_GetStringValue(tmp));
+            memset(&info, 0, sizeof(em_ssid_2_vid_map_info_t));
+
+            if ((tmp = cJSON_GetObjectItem(obj, "SSID")) != NULL) {
+                snprintf(info.ssid, sizeof(info.ssid), "%s", cJSON_GetStringValue(tmp));
             }
-			
-	    snprintf(info.id, sizeof(em_long_string_t), "%s@%s", info.ssid, mac_str);
 
-    	    if ((tmp = cJSON_GetObjectItem(obj, "VID")) != NULL) {
-        	info.vid = tmp->valuedouble;
-    	    }
+            snprintf(info.id, sizeof(em_long_string_t), "%s@%s", info.ssid, mac_str);
 
-	    update_db(db_client, update_list(dm_ssid_2_vid_map_t(&info)), &info);
+            if ((tmp = cJSON_GetObjectItem(obj, "VID")) != NULL) {
+                info.vid = tmp->valuedouble;
+            }
 
-	}
+            update_db(db_client, update_list(dm_ssid_2_vid_map_t(&info)), &info);
+
+        }
     }
 
 
@@ -100,27 +100,27 @@ dm_orch_type_t dm_ssid_2_vid_map_t::update_list(const dm_ssid_2_vid_map_t& ssid_
 
     pssid_2_vid_map = (dm_ssid_2_vid_map_t *)hash_map_get_first(m_list);
     while (pssid_2_vid_map != NULL) {
-	if (strncmp(ssid_2_vid_map.m_ssid_2_vid_map_info.id, pssid_2_vid_map->m_ssid_2_vid_map_info.id, strlen(ssid_2_vid_map.m_ssid_2_vid_map_info.id)) == 0) {
-	    found = true;
-	    break;
-	}	
-	pssid_2_vid_map = (dm_ssid_2_vid_map_t *)hash_map_get_next(m_list, pssid_2_vid_map);
+        if (strncmp(ssid_2_vid_map.m_ssid_2_vid_map_info.id, pssid_2_vid_map->m_ssid_2_vid_map_info.id, strlen(ssid_2_vid_map.m_ssid_2_vid_map_info.id)) == 0) {
+            found = true;
+            break;
+        }	
+        pssid_2_vid_map = (dm_ssid_2_vid_map_t *)hash_map_get_next(m_list, pssid_2_vid_map);
     }
 
     if (found == true) {
         if (*pssid_2_vid_map == ssid_2_vid_map) {
             printf("%s:%d: Network SSID: %s already in list\n", __func__, __LINE__, pssid_2_vid_map->m_ssid_2_vid_map_info.id);
-	    return dm_orch_type_none;
-	}
-		
-        	
-	printf("%s:%d: Network SSID: %s in list but needs update\n", __func__, __LINE__, pssid_2_vid_map->m_ssid_2_vid_map_info.id);
-	return dm_orch_type_ssid_vid_update;
+            return dm_orch_type_none;
+        }
+
+
+        printf("%s:%d: Network SSID: %s in list but needs update\n", __func__, __LINE__, pssid_2_vid_map->m_ssid_2_vid_map_info.id);
+        return dm_orch_type_ssid_vid_update;
     }	
 
     hash_map_put(m_list, strdup(ssid_2_vid_map.m_ssid_2_vid_map_info.id), new dm_ssid_2_vid_map_t(ssid_2_vid_map));	
 
-		
+
     return dm_orch_type_ssid_vid_insert;
 }
 
@@ -131,18 +131,18 @@ bool dm_ssid_2_vid_map_t::operator == (const db_easy_mesh_t& obj)
     bool matched = false;
 
     if (strncmp(m_ssid_2_vid_map_info.id, pssid_2_vid_map->m_ssid_2_vid_map_info.id, strlen(pssid_2_vid_map->m_ssid_2_vid_map_info.id)) != 0) {
-	printf("%s:%d: id is different\n", __func__, __LINE__);
-	return false;
+        printf("%s:%d: id is different\n", __func__, __LINE__);
+        return false;
     }
 
     if (strncmp(m_ssid_2_vid_map_info.ssid, pssid_2_vid_map->m_ssid_2_vid_map_info.ssid, strlen(pssid_2_vid_map->m_ssid_2_vid_map_info.ssid)) != 0) {
         printf("%s:%d: ssid is different\n", __func__, __LINE__);
-	return false;
+        return false;
     }
 
     if (m_ssid_2_vid_map_info.vid != pssid_2_vid_map->m_ssid_2_vid_map_info.vid) {
-	printf("%s:%d: vids are different\n", __func__, __LINE__);
-	return false;
+        printf("%s:%d: vids are different\n", __func__, __LINE__);
+        return false;
     }
 
     return true;
@@ -155,23 +155,23 @@ int dm_ssid_2_vid_map_t::update_db(db_client_t& db_client, dm_orch_type_t op, vo
     int ret = 0;
 
     //printf("%s:%d: Opeartion:%d\n", __func__, __LINE__, op);
-	
-	switch (op) {
-		case dm_orch_type_ssid_vid_insert:
-			ret = insert_row(db_client, info->id, info->ssid, info->vid);
-			break;
 
-		case dm_orch_type_ssid_vid_update:
-			ret = update_row(db_client, info->ssid, info->vid, info->id);
-			break;
+    switch (op) {
+        case dm_orch_type_ssid_vid_insert:
+            ret = insert_row(db_client, info->id, info->ssid, info->vid);
+            break;
 
-		case dm_orch_type_ssid_vid_delete:
-			ret = delete_row(db_client, info->id);
-			break;
+        case dm_orch_type_ssid_vid_update:
+            ret = update_row(db_client, info->ssid, info->vid, info->id);
+            break;
 
-		default:
-			break;
-	}
+        case dm_orch_type_ssid_vid_delete:
+            ret = delete_row(db_client, info->id);
+            break;
+
+        default:
+            break;
+    }
 
     return ret;
 }
@@ -188,13 +188,13 @@ int dm_ssid_2_vid_map_t::sync_db(db_client_t& db_client, void *ctx)
     int rc = 0;
 
     while (db_client.next_result(ctx)) {
-	memset(&info, 0, sizeof(em_ssid_2_vid_map_info_t));
+        memset(&info, 0, sizeof(em_ssid_2_vid_map_info_t));
 
-	db_client.get_string(ctx, info.id, 1);
-	db_client.get_string(ctx, info.ssid, 2);
+        db_client.get_string(ctx, info.id, 1);
+        db_client.get_string(ctx, info.ssid, 2);
         info.vid = db_client.get_number(ctx, 3);
-        
-	update_list(dm_ssid_2_vid_map_t(&info));
+
+        update_list(dm_ssid_2_vid_map_t(&info));
     }
     return rc;
 }
@@ -215,7 +215,7 @@ void dm_ssid_2_vid_map_t::init_columns()
 
 int dm_ssid_2_vid_map_t::init()
 {
-	m_list = hash_map_create();
+    m_list = hash_map_create();
     init_table();
     init_columns();
     return 0;

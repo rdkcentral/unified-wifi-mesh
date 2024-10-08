@@ -385,9 +385,9 @@ bool em_t::is_matching_freq_band(em_freq_band_t *band)
     em_freq_band_t freq_band;
     if (get_current_cmd()) {
         freq_band = get_current_cmd()->get_rd_freq_band();
-    return (freq_band == *band) ? true:false;
+        return (freq_band == *band) ? true:false;
     } else {
-    return false;
+        return false;
     }
 }
 

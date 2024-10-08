@@ -94,7 +94,7 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
                 tmp = pcmd[num]; i++; num++;
                 if (i < num_radios) {
                     pcmd[num] = tmp->clone();
-                   //pcmd[num]->init(&dm);
+                    //pcmd[num]->init(&dm);
                 }
             } while (i < num_radios);
         } else if ((pcmd[num]->get_orch_op() == dm_orch_type_owconfig_req) || (pcmd[num]->get_orch_op() == dm_orch_type_owconfig_cnf)) {
@@ -120,6 +120,7 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
 {
     unsigned int index = 0;
     unsigned int num = 0, i, j = 0, num_radios = 0;
+    int count = 0;
     dm_orch_type_t op;
     dm_device_t *dev, *tgt_dev;
     dm_radio_t *rd, *tgt_rd;
@@ -147,23 +148,17 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
     //dm_sta_t *pcmd_get_sta = NULL;
 
     std::unordered_map<std::string, int> mac_to_index_map; // To map MAC addresses to pcmd instances and their indices
-    int count = 0;
-    
+
     if ((ptr_sta_map != NULL) && (*ptr_sta_map != NULL)) {
 
         get_sta = (dm_sta_t *)hash_map_get_first(*ptr_sta_map);
 
         while (get_sta != NULL) {
-             printf("\n\nWhile: Index>>>>>>>>>>>> %d\n", count);
             dm_sta_t put_sta;// = NULL;// = *get_sta;
-
             memcpy(&temp_rmacaddr, put_sta.get_sta_info()->radiomac, 6);
-
-    	    memcpy(&radio_macaddr, get_sta->get_sta_info()->radiomac, sizeof(mac_address_t));
-
+            memcpy(&radio_macaddr, get_sta->get_sta_info()->radiomac, sizeof(mac_address_t));
             std::string mac_str(reinterpret_cast<char*>(&radio_macaddr), sizeof(mac_address_t));
-            if ((mac_to_index_map.find(mac_str) == mac_to_index_map.end()) == true)
-            {
+            if ((mac_to_index_map.find(mac_str) == mac_to_index_map.end()) == true) {
                 //returned true, means its a new rmac and was not processed earlier
                 //so use a new dm object, as in new hash_map.
                 mac_addr_str_t dst_mac_str;
@@ -183,26 +178,20 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
                     count = mac_to_index_map[mac_str];
                 }
                 hash_map_t **put_hm = dm_pcmd[count].get_assoc_sta_map();
-                if(*put_hm == NULL)
-                {
-
+                if (*put_hm == NULL) {
                     *put_hm = hash_map_create();
                 }
                 //printf("WHILE: put_hm %p and **put_hm %p\n", *put_hm, **put_hm);
                 em_sta_info_t *em_sta;
                 em_sta = get_sta->get_sta_info();
                 hash_map_put(*put_hm, strdup(put_sta.get_sta_info()->m_sta_key), new dm_sta_t(em_sta));
-            }
-            else
-            {
+            } else {
                 printf("Else-case: new mac found\n");
                 // Use the existing index for this MAC address
                 // since it already has an index, get the index based on rmac to push to same hash_map
                 count = mac_to_index_map[mac_str];
                 hash_map_t **put_hm = dm_pcmd[count].get_assoc_sta_map();
-                if(*put_hm == NULL)
-                {
-
+                if (*put_hm == NULL) {
                     *put_hm = hash_map_create();
                 }
                 //printf("WHILE: put_hm %p and **put_hm %p\n", *put_hm, **put_hm);
@@ -223,8 +212,7 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
 
     //pcmd cmd create code
     //printf("\nPut now , index val %d and count val %d\n", index, count);
-    for(int i = 0; i <= count; i++)
-    {
+    for (int i = 0; i <= count; i++) {
         hash_map_t **test_map = dm_pcmd[i].get_assoc_sta_map();
         //push all in a loop now for the number of indexes
         //printf("create cmd\n");
@@ -243,27 +231,26 @@ void dm_easy_mesh_agent_t::translate_onewifi_dml_data (char *str)
     webconfig_subdoc_type_t type;
     int num_radios,num_op,num_bss;
     unsigned int i = 0;
-                
-    webconfig_proto_easymesh_init(&ext, this, get_num_radios, set_num_radios, 
-            get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
-            get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info, get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info);
+
+    webconfig_proto_easymesh_init (&ext, this, get_num_radios, set_num_radios,get_num_op_class, 
+        set_num_op_class, get_num_bss, set_num_bss, get_device_info, get_network_info, get_radio_info, 
+        get_ieee_1905_security_info, get_bss_info, get_op_class_info, get_first_sta_info, get_next_sta_info, 
+        get_sta_info, put_sta_info);
+
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply; 
-                
     if (webconfig_init(&config) != webconfig_error_none) {
         printf( "[%s]:%d Init WiFi Web Config  fail\n",__func__,__LINE__);
         return ;
-                
     }           
-                
     if ((webconfig_easymesh_decode(&config, str, &ext, &type)) == webconfig_error_none) {
         printf("%s:%d Dev-Init decode success\n",__func__, __LINE__);
     } else {       
         printf("%s:%d Dev-Init decode fail\n",__func__, __LINE__);
     }       
-        
+
 }
-    
+
 int dm_easy_mesh_agent_t::analyze_onewifi_private_subdoc(em_bus_event_t *evt, wifi_bus_desc_t *desc,bus_handle_t *bus_hdl)
 {
     dm_orch_type_t op;
@@ -282,7 +269,7 @@ int dm_easy_mesh_agent_t::analyze_onewifi_private_subdoc(em_bus_event_t *evt, wi
     raw_data_t data;
 
     printf("%s:%d: Enter\n", __func__, __LINE__);
-    if ( dm.decode_config(subdoc, "dm_cache") == -1) {
+    if (dm.decode_config(subdoc, "dm_cache") == -1) {
         printf("%s:%d: Failed to decode\n", __func__, __LINE__);
         return 0;
     }
@@ -290,13 +277,13 @@ int dm_easy_mesh_agent_t::analyze_onewifi_private_subdoc(em_bus_event_t *evt, wi
     printf("%s:%d: Number of radios: %d\n", __func__, __LINE__, num_radios);
     memset(&data, 0, sizeof(raw_data_t));
 
-    webconfig_proto_easymesh_init(&dev_data, &dm, get_num_radios, set_num_radios, 
-				get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
-				get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
-				get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info);
+    webconfig_proto_easymesh_init (&dev_data, &dm, get_num_radios, set_num_radios, 
+        get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
+        get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
+        get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info);
 
     config.initializer = webconfig_initializer_onewifi;
-    config.apply_data =  webconfig_dummy_apply;
+    config.apply_data = webconfig_dummy_apply;
 
     if (webconfig_init(&config) != webconfig_error_none) {
         printf( "[%s]:%d Init WiFi Web Config  fail\n",__func__,__LINE__);
@@ -304,7 +291,7 @@ int dm_easy_mesh_agent_t::analyze_onewifi_private_subdoc(em_bus_event_t *evt, wi
     }
 
     printf("%s:%d New configuration SSID=%s Security mode=%d  passphrase=%s \n",__func__,__LINE__,
-	    dm.get_bss(index)->get_bss_info()->ssid,dm.get_bss(index)->get_bss_info()->sec_mode,dm.get_bss(index)->get_bss_info()->passphrase);
+            dm.get_bss(index)->get_bss_info()->ssid,dm.get_bss(index)->get_bss_info()->sec_mode,dm.get_bss(index)->get_bss_info()->passphrase);
 
     if ((webconfig_easymesh_encode(&config, &dev_data, type, &webconfig_easymesh_raw_data_ptr )) == webconfig_error_none) {
         printf("%s:%d Private subdoc encode success %s\n",__func__, __LINE__,webconfig_easymesh_raw_data_ptr);
@@ -314,29 +301,28 @@ int dm_easy_mesh_agent_t::analyze_onewifi_private_subdoc(em_bus_event_t *evt, wi
     }
     memset(&l_bus_data, 0, sizeof(raw_data_t));
 
-    l_bus_data.data_type    = bus_data_type_bytes;
-    l_bus_data.raw_data.bytes   = webconfig_easymesh_raw_data_ptr;
+    l_bus_data.data_type = bus_data_type_bytes;
+    l_bus_data.raw_data.bytes = webconfig_easymesh_raw_data_ptr;
     l_bus_data.raw_data_len = strlen(webconfig_easymesh_raw_data_ptr);
     if (desc->bus_set_fn(bus_hdl, "Device.WiFi.WebConfig.Data.Subdoc.South", &l_bus_data)== 0) {
-	printf("%s:%d private subdoc send successfull\n",__func__, __LINE__);
-	printf("%s:%d Before commit config SSID=%s Security mode=%d  passphrase=%s \n",__func__,__LINE__,
-		get_bss(index)->get_bss_info()->ssid,get_bss(index)->get_bss_info()->sec_mode,get_bss(index)->get_bss_info()->passphrase);
+        printf("%s:%d private subdoc send successfull\n",__func__, __LINE__);
+        printf("%s:%d Before commit config SSID=%s Security mode=%d  passphrase=%s \n",__func__,__LINE__,
+        get_bss(index)->get_bss_info()->ssid,get_bss(index)->get_bss_info()->sec_mode,get_bss(index)->get_bss_info()->passphrase);
         commit_config(dm,index,index);//Private vap will always be first index
-	printf("%s:%d After commit SSID=%s Security mode=%d  passphrase=%s \n",__func__,__LINE__,get_bss(index)->get_bss_info()->ssid,
-		get_bss(index)->get_bss_info()->sec_mode,get_bss(index)->get_bss_info()->passphrase);
-    }
-    else {
-	printf("%s:%d private subdoc send fail\n",__func__, __LINE__);
-	return -1;
+        printf("%s:%d After commit SSID=%s Security mode=%d  passphrase=%s \n",__func__,__LINE__,get_bss(index)->get_bss_info()->ssid,
+        get_bss(index)->get_bss_info()->sec_mode,get_bss(index)->get_bss_info()->passphrase);
+    } else {
+        printf("%s:%d private subdoc send fail\n",__func__, __LINE__);
+        return -1;
     }
     return 1;
 }
-        
+
 void dm_easy_mesh_agent_t::translate_onewifi_sta_data(char *str)
 {               
-                
+
 }               
-                    
+
 void dm_easy_mesh_agent_t::translate_onewifi_stats_data(char *str)
 {
     printf("---------translate_onewifi_stats_data %s\n",str);
@@ -349,7 +335,7 @@ void dm_easy_mesh_agent_t::translate_onewifi_stats_data(char *str)
     webconfig_proto_easymesh_init(&extdata, this, get_num_radios, set_num_radios, 
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
-			get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info);
+            get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info);
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;

@@ -93,7 +93,6 @@ public:
     em_profile_type_t   get_profile_type() { return m_profile_type; }
     void    set_profile_type(em_profile_type_t profile) { m_profile_type = profile; }
 
-
     dm_easy_mesh_t *get_data_model() { return m_data_model; }  
     void copy_data_model(dm_easy_mesh_t& dm) { *m_data_model = dm; }
 

@@ -59,11 +59,11 @@ dm_network_t *dm_easy_mesh_list_t::get_first_network()
     dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
     while (dm != NULL) {
         net = dm->get_network();
-	if (strncmp(net->m_net_info.id, m_network_list[0], strlen(m_network_list[0])) == 0) {
-	    found = true;
-	    break;
-	}
-	dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+	    if (strncmp(net->m_net_info.id, m_network_list[0], strlen(m_network_list[0])) == 0) {
+	        found = true;
+	        break;
+	    }
+	    dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
     }
 	
     return (found == true) ? net:NULL;
@@ -79,8 +79,8 @@ dm_network_t *dm_easy_mesh_list_t::get_next_network(dm_network_t *net)
 
     for (i = 0; i < m_num_networks; i++) {
         if (strncmp(net->m_net_info.id, m_network_list[i], strlen(m_network_list[i])) == 0) {
-	    break;
-	}
+	        break;
+	    }
     }
 
     if ((i + 1) >= m_num_networks) {
@@ -112,11 +112,11 @@ dm_network_t *dm_easy_mesh_list_t::get_network(const char *key)
     dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
     while (dm != NULL) {
         net = dm->get_network();
-	if (strncmp(net->m_net_info.id, key, strlen(key)) == 0) {
-	    found = true;
-	    break;
-	}
-	dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+	    if (strncmp(net->m_net_info.id, key, strlen(key)) == 0) {
+	        found = true;
+	        break;
+	    }
+	    dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
     }
 
     return (found == true) ? net:NULL;
@@ -139,17 +139,17 @@ void dm_easy_mesh_list_t::put_network(const char *key, const dm_network_t *net)
 
     /* try to find any data model with this network, if exists, the colocated dm must be there, otherwise create one */
     if ((dm = get_data_model(key, net_info->colocated_agent_id.mac)) == NULL) {
-	dm = create_data_model(key, net_info->colocated_agent_id.mac, em_profile_type_3);
-	pnet = dm->get_network();
-	*pnet = *net;	
-	strncpy(m_network_list[m_num_networks], key, strlen(key));
-	m_num_networks++;
+	    dm = create_data_model(key, net_info->colocated_agent_id.mac, em_profile_type_3);
+	    pnet = dm->get_network();
+	    *pnet = *net;	
+	    strncpy(m_network_list[m_num_networks], key, strlen(key));
+	    m_num_networks++;
     } else {
         dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
         while (dm != NULL) {
             pnet = dm->get_network();
             if (strncmp(net->m_net_info.id, key, strlen(key)) == 0) {
-	        *pnet = *net;	
+	            *pnet = *net;	
             }
             dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
         }
@@ -162,7 +162,7 @@ dm_device_t *dm_easy_mesh_list_t::get_first_device()
 
     dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
     if (dm == NULL) {
-	return NULL;
+	    return NULL;
     }
 
     return dm->get_device();
@@ -211,8 +211,7 @@ void dm_easy_mesh_list_t::remove_device(const char *key)
     dm = (dm_easy_mesh_t *)hash_map_get(m_list, key);
     if (dm != NULL) {
         device = dm->get_device();
-
-	delete_data_model(device->m_device_info.net_id, device->m_device_info.id.mac);
+	    delete_data_model(device->m_device_info.net_id, device->m_device_info.id.mac);
     }
 }
 
@@ -227,7 +226,7 @@ void dm_easy_mesh_list_t::put_device(const char *key, const dm_device_t *dev)
     if ((pdev = get_device(key)) == NULL) {
         printf("%s:%d: device at key: %s not found\n", __func__, __LINE__, key);
         dm_easy_mesh_t::string_to_macbytes((char *)key, mac);
-	dm = create_data_model(dev->m_device_info.net_id, mac, dev->m_device_info.profile);
+	    dm = create_data_model(dev->m_device_info.net_id, mac, dev->m_device_info.profile);
         pdev = dm->get_device();
     }
     *pdev = *dev;
@@ -454,11 +453,11 @@ void dm_easy_mesh_list_t::put_bss(const char *key, const dm_bss_t *bss)
 		if (radio != NULL) {
 			dm_easy_mesh_t::macbytes_to_string(radio->m_radio_info.dev_id, dev_mac);
 			printf("%s:%d: Finding dm for radio: %s Device: %s in network: %s\n", __func__, __LINE__, 
-					radio_mac, dev_mac, radio->m_radio_info.net_id);
+			    radio_mac, dev_mac, radio->m_radio_info.net_id);
         	dm = get_data_model(radio->m_radio_info.net_id, radio->m_radio_info.dev_id);
         	if (dm == NULL) {
 				printf("%s:%d: Could not find dm for radio: %s Device: %s in network: %s\n", __func__, __LINE__, 
-					radio_mac, dev_mac, radio->m_radio_info.net_id);
+                    radio_mac, dev_mac, radio->m_radio_info.net_id);
             	return;
         	}
 		} else {

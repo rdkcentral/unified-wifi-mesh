@@ -220,7 +220,6 @@ int dm_easy_mesh_ctrl_t::set_radio_list(cJSON *radio_list_obj, mac_address_t *de
     printf("%s:%d: Number of devices: %d\n", __func__, __LINE__, num);
     for (i = 0; i < num; i++) {
         if ((radio_obj = cJSON_GetArrayItem(radio_list_obj, i)) != NULL) {
-
             obj = cJSON_GetObjectItem(radio_obj, "ID");
             dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(obj), radio_mac);
             printf("%s:%d: BSSList for radio[%d]: %s\n", __func__, __LINE__, i, cJSON_GetStringValue(obj));
@@ -360,15 +359,15 @@ int dm_easy_mesh_ctrl_t::get_channel_config(cJSON *parent, char *key)
 
     for (i = 0; i < cJSON_GetArraySize(dev_list_obj); i++) {	
         dev_obj = cJSON_GetArrayItem(dev_list_obj, i);
-	radio_list_obj = cJSON_AddArrayToObject(dev_obj, "RadioList");
-	dm_radio_list_t::get_config(radio_list_obj, cJSON_GetStringValue(cJSON_GetObjectItem(dev_obj, "ID")), true);
-	for (j = 0; j < cJSON_GetArraySize(radio_list_obj); j++) {
-	    radio_obj = cJSON_GetArrayItem(radio_list_obj, j);
-	    tmp = cJSON_GetStringValue(cJSON_GetObjectItem(radio_obj, "ID"));
-	    op_class_list_obj = cJSON_AddArrayToObject(radio_obj, "CurrentOperatingClasses");
-	    snprintf(op_key, sizeof(op_key), "%s@%d@&d", tmp, em_op_class_type_current, 0);
-	    dm_op_class_list_t::get_config(op_class_list_obj, op_key);
-	}
+	    radio_list_obj = cJSON_AddArrayToObject(dev_obj, "RadioList");
+	    dm_radio_list_t::get_config(radio_list_obj, cJSON_GetStringValue(cJSON_GetObjectItem(dev_obj, "ID")), true);
+	    for (j = 0; j < cJSON_GetArraySize(radio_list_obj); j++) {
+	        radio_obj = cJSON_GetArrayItem(radio_list_obj, j);
+	        tmp = cJSON_GetStringValue(cJSON_GetObjectItem(radio_obj, "ID"));
+	        op_class_list_obj = cJSON_AddArrayToObject(radio_obj, "CurrentOperatingClasses");
+	        snprintf(op_key, sizeof(op_key), "%s@%d@&d", tmp, em_op_class_type_current, 0);
+	        dm_op_class_list_t::get_config(op_class_list_obj, op_key);
+	    }
     }
 
     return 0;
@@ -393,12 +392,12 @@ int dm_easy_mesh_ctrl_t::get_network_config(cJSON *parent, char *key)
 #ifdef FIX_B
     num = cJSON_GetArraySize(dev_list_obj);
     for (i = 0; i < num; i++) {
-	if (((dev_obj = cJSON_GetArrayItem(dev_list_obj, i)) != NULL) &&
-			((obj = cJSON_GetObjectItem(dev_obj, "ID")) != NULL)) {
-	    radio_list_obj = cJSON_AddArrayToObject(dev_obj, "RadioList");
-	    dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(obj), dev_mac);
-	    dm_radio_list_t::get_config(radio_list_obj, &dev_mac);
-	}
+	    if (((dev_obj = cJSON_GetArrayItem(dev_list_obj, i)) != NULL) &&
+		    	((obj = cJSON_GetObjectItem(dev_obj, "ID")) != NULL)) {
+	        radio_list_obj = cJSON_AddArrayToObject(dev_obj, "RadioList");
+	        dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(obj), dev_mac);
+	        dm_radio_list_t::get_config(radio_list_obj, &dev_mac);
+	    }
     }
 #endif // FIX_B
 }
@@ -460,10 +459,10 @@ void dm_easy_mesh_ctrl_t::handle_dirty_dm()
 
     dm = m_data_model_list.get_first_dm();
     while (dm != NULL) {
-	if (dm->get_db_cfg_type()) {
-	    set_config(dm);		
-	}
-	dm = m_data_model_list.get_next_dm(dm);
+	    if (dm->get_db_cfg_type()) {
+	        set_config(dm);		
+	    }
+	    dm = m_data_model_list.get_next_dm(dm);
     }
 }
 
@@ -568,7 +567,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
 			op_class = dm->get_op_class_by_ref(i);
 			dm_easy_mesh_t::macbytes_to_string(op_class.m_op_class_info.id.ruid, mac_str);
 			printf("%s:%d: Op Class[%d] ruid: %s type: %d index: %d\n", __func__, __LINE__, i,
-				mac_str, op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.index);
+			mac_str, op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.index);
 			snprintf(parent, sizeof(em_long_string_t), "%s@%d@%d", mac_str, op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.index);
    			if (dm_op_class_list_t::set_config(m_db_client, dm->get_op_class_by_ref(i), parent) != 0) {
         		type = dm_orch_type_rd_update;

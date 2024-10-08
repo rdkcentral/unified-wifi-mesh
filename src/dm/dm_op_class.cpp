@@ -139,19 +139,18 @@ int dm_op_class_t::parse_op_class_id_from_key(const char *key, em_op_class_id_t 
 
     strncpy(str, key, strlen(key) + 1);
     while ((tmp = strchr(str, '@')) != NULL) {
-	if (i == 0) {
-	    *tmp = 0;
-	    dm_easy_mesh_t::string_to_macbytes(str, id->ruid);
-	    tmp++;
-	    strncpy(str, tmp, strlen(tmp) + 1);
-		
-	} else if (i == 1) {
-	    *tmp = 0;
-	    id->type = (em_op_class_type_t)atoi(str);
-	    tmp++;
-	    id->index = atoi(tmp);
-	}
-	i++;   
+	    if (i == 0) {
+	        *tmp = 0;
+	        dm_easy_mesh_t::string_to_macbytes(str, id->ruid);
+	        tmp++;
+	        strncpy(str, tmp, strlen(tmp) + 1);	
+	    } else if (i == 1) {
+	        *tmp = 0;
+	        id->type = (em_op_class_type_t)atoi(str);
+	        tmp++;
+	        id->index = atoi(tmp);
+	    }
+	    i++;   
     }
 
 }

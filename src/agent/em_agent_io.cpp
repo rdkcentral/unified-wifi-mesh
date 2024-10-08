@@ -82,4 +82,5 @@ void em_agent_t::io(void *data, bool input)
 
 bus_error_t em_agent_t::bus_listener(bus_handle_t *handle, bus_event_sub_action_t action, char const* eventName, bus_filter_t filter, int32_t interval, bool* autoPublish)
 {
+
 }

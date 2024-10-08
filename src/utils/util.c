@@ -67,36 +67,36 @@ void em_util_print(easymesh_log_level_t level, easymesh_dbg_type_t module, const
     char filename[100];
 
     switch (module) {
-        case EM_AGENT: {
-                          snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emAgentDbg");
-                          snprintf(module_filename, sizeof(module_filename), "emAgent");
-                          break;
-                      }
-        case EM_CTRL: {
-                         snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emCtrlDbg");
-                         snprintf(module_filename, sizeof(module_filename), "emCtrl");
-                         break;
-                     }
-        case EM_MGR: {
-                        snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emMgrDbg");
-                        snprintf(module_filename, sizeof(module_filename), "emMgr");
-                        break;
-                    }
-        case EM_DB: {
-                       snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emDbDbg");
-                       snprintf(module_filename, sizeof(module_filename), "emDb");
-                       break;
-                   }
-        case EM_PROV: {
-                         snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emProvDbg");
-                         snprintf(module_filename, sizeof(module_filename), "emProv");
-                         break;
-                     }
-        case EM_CONF: {
-                         snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emConfDbg");
-                         snprintf(module_filename, sizeof(module_filename), "emConf");
-                         break;
-                     }
+        case EM_AGENT:
+            snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emAgentDbg");
+            snprintf(module_filename, sizeof(module_filename), "emAgent");
+            break;
+
+        case EM_CTRL:
+            snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emCtrlDbg");
+            snprintf(module_filename, sizeof(module_filename), "emCtrl");
+            break;
+
+        case EM_MGR: 
+            snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emMgrDbg");
+            snprintf(module_filename, sizeof(module_filename), "emMgr");
+            break;
+
+        case EM_DB: 
+            snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emDbDbg");
+            snprintf(module_filename, sizeof(module_filename), "emDb");
+            break;
+
+        case EM_PROV: 
+            snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emProvDbg");
+            snprintf(module_filename, sizeof(module_filename), "emProv");
+            break;
+
+        case EM_CONF:
+            snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emConfDbg");
+            snprintf(module_filename, sizeof(module_filename), "emConf");
+            break;
+
         default:
             return;
     }

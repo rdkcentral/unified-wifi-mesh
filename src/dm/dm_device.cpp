@@ -52,7 +52,7 @@ int dm_device_t::decode(const cJSON *obj, void *parent_id)
     if ((tmp = cJSON_GetObjectItem(obj, "ID")) != NULL) {
         snprintf(mac_str, sizeof(mac_str), "%s", cJSON_GetStringValue(tmp));
        	dm_easy_mesh_t::string_to_macbytes(mac_str, m_device_info.id.mac);
-	dm_easy_mesh_t::name_from_mac_address(&m_device_info.id.mac, m_device_info.id.name);
+	    dm_easy_mesh_t::name_from_mac_address(&m_device_info.id.mac, m_device_info.id.name);
     }
     snprintf(m_device_info.net_id, sizeof(m_device_info.net_id), "%s", net_id);
     if ((tmp = cJSON_GetObjectItem(obj, "MultiAPCapabilities")) != NULL) {
@@ -149,7 +149,7 @@ int dm_device_t::decode(const cJSON *obj, void *parent_id)
     if ((tmp = cJSON_GetObjectItem(obj, "BackhaulALID")) != NULL) {
         snprintf(mac_str, sizeof(mac_str), "%s", cJSON_GetStringValue(tmp));
         dm_easy_mesh_t::string_to_macbytes(mac_str, m_device_info.backhaul_alid.mac);
-	dm_easy_mesh_t::name_from_mac_address(&m_device_info.backhaul_alid.mac, m_device_info.backhaul_alid.name);
+	    dm_easy_mesh_t::name_from_mac_address(&m_device_info.backhaul_alid.mac, m_device_info.backhaul_alid.name);
     }
     if ((tmp = cJSON_GetObjectItem(obj, "TrafficSeparationCapability")) != NULL) {
         m_device_info.traffic_sep_cap = cJSON_IsTrue(tmp);

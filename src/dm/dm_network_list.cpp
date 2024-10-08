@@ -45,8 +45,8 @@ int dm_network_list_t::get_config(cJSON *obj, void *net_id, bool summary)
 	
     pnet = get_network((char *)net_id);
     if (pnet == NULL) {
-	printf("%s:%d: Network Object not found for key: %s\n", __func__, __LINE__, (char *)net_id);
-	return -1;
+	    printf("%s:%d: Network Object not found for key: %s\n", __func__, __LINE__, (char *)net_id);
+	    return -1;
     }
 		
     pnet->encode(obj, summary);
@@ -104,7 +104,6 @@ dm_orch_type_t dm_network_list_t::get_dm_orch_type(db_client_t& db_client, const
             return dm_orch_type_none;
         }
 
-
         printf("%s:%d: Network: %s in list but needs update\n", __func__, __LINE__, net.m_net_info.id);
         return dm_orch_type_net_update;
     }
@@ -142,8 +141,8 @@ void dm_network_list_t::delete_list()
 
     pnet = get_first_network();
     while (pnet != NULL) {
-	tmp = pnet;
-	pnet = get_next_network(pnet);	
+	    tmp = pnet;
+	    pnet = get_next_network(pnet);	
         remove_network(tmp->m_net_info.id);	
     }
 }
@@ -208,14 +207,14 @@ int dm_network_list_t::sync_db(db_client_t& db_client, void *ctx)
 
     // there is only one row in network
     while (db_client.next_result(ctx)) {
-	db_client.get_string(ctx, info.id, 1);
-	db_client.get_string(ctx, mac, 2);
-	dm_easy_mesh_t::string_to_macbytes(mac, info.ctrl_id.mac);
+	    db_client.get_string(ctx, info.id, 1);
+	    db_client.get_string(ctx, mac, 2);
+	    dm_easy_mesh_t::string_to_macbytes(mac, info.ctrl_id.mac);
 
-	db_client.get_string(ctx, mac, 3);
-	dm_easy_mesh_t::string_to_macbytes(mac, info.colocated_agent_id.mac);
+	    db_client.get_string(ctx, mac, 3);
+	    dm_easy_mesh_t::string_to_macbytes(mac, info.colocated_agent_id.mac);
 
-	update_list(dm_network_t(&info), dm_orch_type_net_insert);
+	    update_list(dm_network_t(&info), dm_orch_type_net_insert);
     }
     return rc;
 }
@@ -247,8 +246,8 @@ em_interface_t *dm_network_list_t::get_ctrl_al_interface(em_long_string_t net_id
     dm_network_t *net;
 
     if ((net = get_network(net_id)) == NULL) {
-	printf("%s:%d: Could not find network with id: %s\n", __func__, __LINE__, net_id);
-	return NULL;
+	    printf("%s:%d: Could not find network with id: %s\n", __func__, __LINE__, net_id);
+	    return NULL;
     }
 	
     return net->get_colocated_agent_interface();	

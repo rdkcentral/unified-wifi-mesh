@@ -87,9 +87,9 @@ int em_cmd_ctrl_t::execute(em_long_string_t result)
 
         tmp = (unsigned char *)get_event();
 
-            if ((ret = recv(m_dsock, tmp, sizeof(em_event_t), 0)) <= 0) {
-                printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
-            }
+        if ((ret = recv(m_dsock, tmp, sizeof(em_event_t), 0)) <= 0) {
+            printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
+        }
 
 
         //printf("%s:%d: Read bytes: %d Size: %d Buff: %s\n", __func__, __LINE__, ret, 

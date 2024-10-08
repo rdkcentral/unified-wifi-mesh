@@ -50,19 +50,19 @@ bool em_msg_t::get_tlv(em_tlv_t *itlv)
 
 bool em_msg_t::get_client_mac_info(mac_address_t *mac)
 {
-        em_tlv_t    *tlv;
-        int len;
-       em_client_info_t *cltinfo;
+    em_tlv_t    *tlv;
+    int len;
+    em_client_info_t *cltinfo;
 
-        tlv = (em_tlv_t *)m_buff; len = m_len;
-        while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
-                if (tlv->type == em_tlv_type_client_info) {
-                       cltinfo = (em_client_info_t *)tlv->value;
-                        memcpy(mac, &cltinfo->client_mac_addr, sizeof(mac_address_t));
-                        return true;
-               }
-       }
-       return false;
+    tlv = (em_tlv_t *)m_buff; len = m_len;
+    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+        if (tlv->type == em_tlv_type_client_info) {
+            cltinfo = (em_client_info_t *)tlv->value;
+            memcpy(mac, &cltinfo->client_mac_addr, sizeof(mac_address_t));
+            return true;
+        }
+    }
+    return false;
 }
 
 bool em_msg_t::get_al_mac_address(unsigned char *mac)

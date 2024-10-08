@@ -98,7 +98,7 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
 
         case dm_orch_type_dev_insert:
             mgr_dm = m_mgr->get_data_model(global_netid, pcmd->get_al_interface_mac());
-            
+
             // for device insert, just create the al interface em and return, do not submit command
             em = m_mgr->create_node(pcmd->get_ctrl_al_interface(), mgr_dm, true, em_profile_type_3, em_service_type_ctrl);
             if (em != NULL) {
@@ -114,9 +114,9 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
         case dm_orch_type_topology_response:
             mgr_dm = m_mgr->get_data_model(global_netid, pcmd->get_al_interface_mac());
             em = mgr_dm->get_em();
-			em->test_topology_response_msg();	
+            em->test_topology_response_msg();	
             submit = false;
-			break;
+            break;
 
         default:
             break;

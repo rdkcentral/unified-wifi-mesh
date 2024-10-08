@@ -68,7 +68,7 @@ em_cmd_t em_cmd_cli_t::m_client_cmd_spec[] = {
 
 int em_cmd_cli_t::update_platform_defaults(em_subdoc_info_t *subdoc, em_cmd_params_t *param, em_cmd_type_t cmd_type)
 {
-    mac_address_t   al_mac;
+    mac_address_t al_mac;
     dm_easy_mesh_t dm;
     mac_addr_str_t  ctrl_mac, ctrl_al_mac, agent_al_mac;
     em_string_t key;

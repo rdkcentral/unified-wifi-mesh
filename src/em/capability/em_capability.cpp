@@ -188,7 +188,7 @@ int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
 
     tmp += (sizeof(em_tlv_t) + sz);
     len += (sizeof(em_tlv_t) + sz);
-/*
+    /*
     // 1905 layer security capability tlv 17.2.67
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_1905_layer_security_cap;
@@ -197,7 +197,7 @@ int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
 
     tmp += (sizeof(em_tlv_t) + sizeof(em_ieee_1905_security_cap_t));
     len += (sizeof(em_tlv_t) + sizeof(em_ieee_1905_security_cap_t));
-*/
+    */
     // CAC capabilities 17.2.46
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_cac_cap;
@@ -300,13 +300,13 @@ void em_capability_t::process_state()
     switch (get_state()) {
 
         case em_state_agent_ap_cap_report:
-                handle_state_ap_cap_report();
-                break;
+            handle_state_ap_cap_report();
+            break;
         case em_state_agent_client_cap_report:
-                handle_state_client_cap_report();
-                break;
+            handle_state_client_cap_report();
+            break;
         default:
-                break;
+            break;
     }
 }
 
@@ -327,10 +327,8 @@ int em_capability_t::handle_ctrl_cap_query(unsigned char *buff, unsigned int len
     mac_addr_str_t mac_str;
 
     if (em_msg_t(em_msg_type_ap_cap_query, em_profile_type_2, buff, len).validate(errors) == 0) {
-
-            printf("AP Query validation failed\n");
-            return -1;
-
+        printf("AP Query validation failed\n");
+        return -1;
     }
     hdr = (em_raw_hdr_t *)buff;
     cmdu = (em_cmdu_t *)(buff + sizeof(em_raw_hdr_t));
@@ -344,8 +342,8 @@ int em_capability_t::handle_ctrl_cap_query(unsigned char *buff, unsigned int len
     printf("AP query src mac = %s\n",ctrl_mac_str);
 
     if (em_msg_t(buff + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
-            len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_client_mac_info(&mac) == true) {
-            dm_easy_mesh_t::macbytes_to_string(mac, mac_str);
+                len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_client_mac_info(&mac) == true) {
+        dm_easy_mesh_t::macbytes_to_string(mac, mac_str);
     }
 
     dm_easy_mesh_t::macbytes_to_string(get_al_interface_mac(), agent_al_mac);
@@ -368,28 +366,28 @@ short em_capability_t::create_client_cap_tlv(unsigned char *buff)
     hash_map_t **em_m_sta_map = get_data_model()->get_sta_map();
     sta = (dm_sta_t *)hash_map_get_first(*assocclt);
     if ((*assocclt != NULL) &&  (assocclt != NULL) && (*em_m_sta_map != NULL) && (em_m_sta_map != NULL) && (sta != NULL)) {
-	
-            active_sta = (dm_sta_t *)hash_map_get_first(*em_m_sta_map);
-            while (active_sta != NULL) {
-                    if (strncmp((char *)active_sta->get_sta_info()->id,(char *)sta->get_sta_info()->id,sizeof(mac_address_t)) == 0) {
-                            memcpy(&rprt->assoc_frame_body,&active_sta->get_sta_info()->assoc_frame_body,sizeof(rprt->assoc_frame_body));
-                            len += sizeof(rprt->assoc_frame_body);
-                            rprt->assoc_frame_body_len = active_sta->get_sta_info()->assoc_frame_body_len;
-                            len += 1;
-                            rprt->result_code = 0x00;
-                            len += 1;
-                            found++;
-                    }
-                    active_sta = (dm_sta_t *)hash_map_get_next(*em_m_sta_map, sta);
+
+        active_sta = (dm_sta_t *)hash_map_get_first(*em_m_sta_map);
+        while (active_sta != NULL) {
+            if (strncmp((char *)active_sta->get_sta_info()->id,(char *)sta->get_sta_info()->id,sizeof(mac_address_t)) == 0) {
+                memcpy(&rprt->assoc_frame_body,&active_sta->get_sta_info()->assoc_frame_body,sizeof(rprt->assoc_frame_body));
+                len += sizeof(rprt->assoc_frame_body);
+                rprt->assoc_frame_body_len = active_sta->get_sta_info()->assoc_frame_body_len;
+                len += 1;
+                rprt->result_code = 0x00;
+                len += 1;
+                found++;
             }
+            active_sta = (dm_sta_t *)hash_map_get_next(*em_m_sta_map, sta);
+        }
     }
     else {
-            rprt->result_code = 0x01; //STA cannot be found
-            len += 1;
+        rprt->result_code = 0x01; //STA cannot be found
+        len += 1;
     }
     if (found == 0) {
-            rprt->result_code = 0x01; //STA cannot be found
-            len += 1;
+        rprt->result_code = 0x01; //STA cannot be found
+        len += 1;
     }
     return len;
 }
@@ -427,14 +425,14 @@ short em_capability_t::create_error_code_tlv(unsigned char *buff)
         active_sta = (dm_sta_t *)hash_map_get_first(*em_m_sta_map);
         while (active_sta != NULL) {
             if (strncmp((char *)active_sta->get_sta_info()->id,(char *)sta->get_sta_info()->id,sizeof(mac_address_t)) == 0) {
-	
+
                 err->reason_code = 0x00; // STA associated with any BSS operated
                 len += 1;
                 memcpy(&err->sta_mac_addr,&active_sta->get_sta_info()->id,sizeof(err->sta_mac_addr));
                 len += sizeof(err->sta_mac_addr);
                 found ++;
             }
-             active_sta = (dm_sta_t *)hash_map_get_next(*em_m_sta_map, sta);
+            active_sta = (dm_sta_t *)hash_map_get_next(*em_m_sta_map, sta);
         }
     } else {
         err->reason_code = 0x02; // STA not associated with any BSS operated
@@ -465,64 +463,64 @@ int em_capability_t::create_client_cap_report_msg(unsigned char *buff)
     unsigned short sz = 0;
     unsigned short type = htons(ETH_P_1905);
     short msg_id = get_current_cmd()->get_data_model()->get_msg_id();
-	
+
     memcpy(tmp, (unsigned char *)get_peer_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
-	
+
     memcpy(tmp, get_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
-	
+
     memcpy(tmp, (unsigned char *)&type, sizeof(unsigned short));
     tmp += sizeof(unsigned short);
     len += sizeof(unsigned short);
-	
+
     cmdu = (em_cmdu_t *)tmp;
-	
+
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_type);
     cmdu->id = htons(msg_id);
     cmdu->last_frag_ind = 1;
-	
+
     tmp += sizeof(em_cmdu_t);
     len += sizeof(em_cmdu_t);
-	
+
     //Client Info  TLV 17.2.18
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_client_info;
     sz = create_client_info_tlv(tlv->value);
     tlv->len = htons(sz);
-	
+
     tmp += (sizeof(em_tlv_t) + sz);
     len += (sizeof(em_tlv_t) + sz);
-	
+
     //Client Capability Report TLV 17.2.19
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_client_cap_report;
     sz = create_client_cap_tlv(tlv->value);
     tlv->len = htons(sz);
-	
+
     tmp += (sizeof(em_tlv_t) + sz);
     len += (sizeof(em_tlv_t) + sz);
-	
+
     //Error code  TLV 17.2.36
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_error_code;
     sz = create_error_code_tlv(tlv->value);
     tlv->len = htons(sz);
-	
+
     tmp += (sizeof(em_tlv_t) + sz);
     len += (sizeof(em_tlv_t) + sz);
-	
+
     // End of message
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_eom;
     tlv->len = 0;
-	
+
     tmp += (sizeof (em_tlv_t));
     len += (sizeof (em_tlv_t));
-	
+
     return len;
 }
 
