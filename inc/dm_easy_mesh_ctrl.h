@@ -61,9 +61,13 @@ public:
     void	set_initialized() { m_initialized = true; }
 
     int analyze_network_ssid_list(em_bus_event_t *evt, em_cmd_t *cmd[]);
+    int analyze_set_ssid(em_bus_event_t *evt, em_cmd_t *cmd[]);
+    int analyze_set_channel(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_dpp_start(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_client_steer(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_reset(em_bus_event_t *evt, em_cmd_t *cmd[]);
+    int analyze_remove_device(em_bus_event_t *evt, em_cmd_t *cmd[]);
+    int analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_dev_test(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_radio_metrics_req(em_cmd_t *cmd[]);
     int analyze_ap_metrics_req(em_cmd_t *cmd[]);
@@ -73,6 +77,8 @@ public:
     int get_sta_config(cJSON *parent, char *key);
     int get_bss_config(cJSON *parent, char *key);
     int get_network_config(cJSON *parent, char *key);
+    int get_device_config(cJSON *parent, char *key, bool summary = false);
+    int get_radio_config(cJSON *parent, char *key);
     int get_network_ssid_config(cJSON *parent, char *key);
     int get_channel_config(cJSON *parent, char *key);
     int get_config(em_long_string_t net_id, em_subdoc_info_t *subdoc);
@@ -129,7 +135,11 @@ public:
     void handle_dirty_dm();
     void init_tables();
     int load_tables();
+    int load_net_ssid_table();
     int update_tables(dm_easy_mesh_t *dm);
+    void delete_data_model(const char *net_id, const unsigned char *al_mac) { m_data_model_list.delete_data_model(net_id, al_mac); }
+    void delete_all_data_models() { m_data_model_list.delete_all_data_models(); }
+    void debug_probe() { m_data_model_list.debug_probe(); }
 
     dm_easy_mesh_ctrl_t();
     ~dm_easy_mesh_ctrl_t(); 

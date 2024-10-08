@@ -125,7 +125,7 @@ dm_orch_type_t dm_op_class_list_t::get_dm_orch_type(db_client_t& db_client, cons
 
         if (entry_exists_in_table(db_client, key) == false) {
             printf("%s:%d: Op Class: %s does not exist in db\n", __func__, __LINE__, key);
-            return dm_orch_type_op_class_insert;
+            return dm_orch_type_db_insert;
         }
         if (*pop_class == op_class) {
             printf("%s:%d: Op Class: %s already in list\n", __func__, __LINE__, key);
@@ -133,10 +133,10 @@ dm_orch_type_t dm_op_class_list_t::get_dm_orch_type(db_client_t& db_client, cons
         }
 
         printf("%s:%d: Op Class: %s in list but needs update\n", __func__, __LINE__, key);
-        return dm_orch_type_op_class_update;
+        return dm_orch_type_db_update;
     }  
 
-    return dm_orch_type_op_class_insert;
+    return dm_orch_type_db_insert;
 }
 
 void dm_op_class_list_t::update_list(const dm_op_class_t& op_class, dm_orch_type_t op)
@@ -149,16 +149,16 @@ void dm_op_class_list_t::update_list(const dm_op_class_t& op_class, dm_orch_type
     snprintf(key, sizeof(key), "%s@%d@%d", mac_str, op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.index);
 
     switch (op) {
-        case dm_orch_type_op_class_insert:
+        case dm_orch_type_db_insert:
             put_op_class(key, &op_class);
             break;
 
-        case dm_orch_type_op_class_update:
+        case dm_orch_type_db_update:
             pop_class = get_op_class(key);
             memcpy(&pop_class->m_op_class_info, &op_class.m_op_class_info, sizeof(em_op_class_info_t));
             break;
 
-        case dm_orch_type_op_class_delete:
+        case dm_orch_type_db_delete:
             remove_op_class(key);
             break;
     }
@@ -178,7 +178,6 @@ void dm_op_class_list_t::delete_list()
     	snprintf(key, sizeof(key), "%s@%d@%d", mac_str, tmp->m_op_class_info.id.type, tmp->m_op_class_info.id.index);
   
         remove_op_class(key);
-        delete(tmp);
     }
 }
 
@@ -208,15 +207,15 @@ int dm_op_class_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, voi
     non_op_str[strlen(non_op_str) - 1] = 0;
 
     switch (op) {
-        case dm_orch_type_op_class_insert:
+        case dm_orch_type_db_insert:
             ret = insert_row(db_client, id, info->op_class, info->channel, info->tx_power, info->max_tx_power, non_op_str); 
             break;
 
-	case dm_orch_type_op_class_update:
+	case dm_orch_type_db_update:
             ret = update_row(db_client, info->op_class, info->channel, info->tx_power, info->max_tx_power, non_op_str, id);
             break;
 
-	case dm_orch_type_op_class_delete:
+	case dm_orch_type_db_delete:
 	    ret = delete_row(db_client, id);
             break;
 
@@ -251,26 +250,26 @@ int dm_op_class_list_t::sync_db(db_client_t& db_client, void *ctx)
     int rc = 0;
 
     while (db_client.next_result(ctx)) {
-	memset(&info, 0, sizeof(em_op_class_info_t));
+        memset(&info, 0, sizeof(em_op_class_info_t));
 
-	db_client.get_string(ctx, id, 1);
+        db_client.get_string(ctx, id, 1);
         dm_op_class_t::parse_op_class_id_from_key(id, &info.id);
         info.op_class = db_client.get_number(ctx, 2);
         info.channel = db_client.get_number(ctx, 3);
         info.tx_power = db_client.get_number(ctx, 4);
         info.max_tx_power = db_client.get_number(ctx, 5);
-        
-	db_client.get_string(ctx, str, 6);
-	for (i = 0; i < EM_MAX_NON_OP_CHANNELS; i++) {
-	    token_parts[i] = ch_str[i];
-	}
 
-	info.num_non_op_channels = get_strings_by_token(str, ',', EM_MAX_NON_OP_CHANNELS, token_parts);
-	for (i = 0; i < info.num_non_op_channels; i++) {
-	    info.non_op_channel[i] = atoi(token_parts[i]);
-	}
-		
-	update_list(dm_op_class_t(&info), dm_orch_type_op_class_insert);
+        db_client.get_string(ctx, str, 6);
+        for (i = 0; i < EM_MAX_NON_OP_CHANNELS; i++) {
+            token_parts[i] = ch_str[i];
+        }
+
+        info.num_non_op_channels = get_strings_by_token(str, ',', EM_MAX_NON_OP_CHANNELS, token_parts);
+        for (i = 0; i < info.num_non_op_channels; i++) {
+            info.non_op_channel[i] = atoi(token_parts[i]);
+        }
+
+        update_list(dm_op_class_t(&info), dm_orch_type_db_insert);
     }
     return rc;
 }

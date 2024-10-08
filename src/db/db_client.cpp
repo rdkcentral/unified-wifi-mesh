@@ -26,6 +26,12 @@
 #include "db_client.h"
 #include "em_base.h"
 
+int db_client_t::recreate_db()
+{
+	execute("drop database OneWifiMesh");
+	execute("create database OneWifiMesh");
+}
+
 void *db_client_t::execute(const char *query)
 {
     void *tmp = NULL;

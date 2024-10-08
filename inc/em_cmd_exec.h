@@ -24,13 +24,13 @@
 
 
 class em_cmd_exec_t {
-    static const char *m_sock_path;
 
     pthread_cond_t  m_cond;
     pthread_mutex_t m_lock;
 
 public:
     em_cmd_t m_cmd;
+    em_long_string_t    m_sock_path;
 
 public:
     //char *get_result() { return m_cmd.get_result(); }
@@ -39,13 +39,15 @@ public:
     em_cmd_t *get_cmd() { return &m_cmd; }
     em_cmd_params_t *get_param() { return m_cmd.get_param(); }
     em_cmd_type_t get_type() { return m_cmd.m_type; }
-    const char *get_path() { return m_sock_path; }
+    em_service_type_t get_svc() { return m_cmd.get_svc(); }
+    char *get_path() { return m_sock_path; }
 
     void copy_bus_event(em_bus_event_t *evt) { m_cmd.copy_bus_event(evt); }
 
     void init();
     static int send_cmd(em_service_type_t to_svc, unsigned char *in, unsigned int in_len, char *out = NULL, unsigned int out_len = 0);
     static int execute(em_cmd_type_t type, em_service_type_t to_svc, unsigned char *in, unsigned int in_len);
+    static char *get_path_from_dst_service(em_service_type_t to_svc, em_long_string_t sock_path);
 
     virtual int execute(em_long_string_t result) = 0;
     void release_wait();

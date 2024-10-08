@@ -37,13 +37,13 @@
 #include <unistd.h>
 #include "dm_network_ssid.h"
 #include "dm_easy_mesh.h"
-//#include "util.h"
 
 int dm_network_ssid_t::decode(const cJSON *obj, void *parent_id)
 {
     cJSON *tmp, *tmp_arr;
     mac_addr_str_t  mac_str;
     unsigned int j;
+    em_string_t haul_str;
 
     char *net_id = (char *)parent_id;
 
@@ -56,7 +56,6 @@ int dm_network_ssid_t::decode(const cJSON *obj, void *parent_id)
         snprintf(m_network_ssid_info.pass_phrase, sizeof(m_network_ssid_info.pass_phrase), "%s", cJSON_GetStringValue(tmp));
     }
 		
-    snprintf(m_network_ssid_info.id, sizeof(em_long_string_t), "%s@%s", m_network_ssid_info.ssid, net_id);
 
     if ((tmp_arr = cJSON_GetObjectItem(obj, "Band")) != NULL) {
 		m_network_ssid_info.num_bands = cJSON_GetArraySize(tmp_arr);
@@ -101,8 +100,9 @@ int dm_network_ssid_t::decode(const cJSON *obj, void *parent_id)
             tmp = cJSON_GetArrayItem(tmp_arr, j);
             m_network_ssid_info.haul_type[j] = dm_network_ssid_t::haul_type_from_string(cJSON_GetStringValue(tmp));
         }
+        m_network_ssid_info.num_hauls = j;
     }
-
+    snprintf(m_network_ssid_info.id, sizeof(em_long_string_t), "%s@%s", dm_network_ssid_t::haul_type_to_string(m_network_ssid_info.haul_type[0], haul_str), net_id);
     return 0;
 }
 
@@ -151,17 +151,17 @@ void dm_network_ssid_t::encode(cJSON *obj)
 
 bool dm_network_ssid_t::operator == (const dm_network_ssid_t& obj)
 {
-    int ret = 0;
+    int ret = 0, i;
     ret += (memcmp(&this->m_network_ssid_info.id,&obj.m_network_ssid_info.id,sizeof(em_long_string_t)) != 0);
     ret += (memcmp(&this->m_network_ssid_info.ssid, &obj.m_network_ssid_info.ssid, sizeof(ssid_t)) != 0);
     ret += (memcmp(&this->m_network_ssid_info.pass_phrase, &obj.m_network_ssid_info.pass_phrase, sizeof(em_long_string_t)) != 0);
     ret += (this->m_network_ssid_info.num_bands != obj.m_network_ssid_info.num_bands);
-    for (int i = 0; i < this->m_network_ssid_info.num_bands; i++) {
+    for (i = 0; i < this->m_network_ssid_info.num_bands; i++) {
     ret += (memcmp(&this->m_network_ssid_info.band[i], &obj.m_network_ssid_info.band[i], sizeof(em_tiny_string_t)) != 0);
     }
     ret += (this->m_network_ssid_info.enable != obj.m_network_ssid_info.enable);
     ret += (this->m_network_ssid_info.num_akms != obj.m_network_ssid_info.num_akms);
-    for (int i = 0; i < this->m_network_ssid_info.num_akms; i++) {
+    for (i = 0; i < this->m_network_ssid_info.num_akms; i++) {
     ret += (memcmp(&this->m_network_ssid_info.akm[i], &obj.m_network_ssid_info.akm[i], sizeof(em_string_t)) != 0);
 }
     ret += (memcmp(&this->m_network_ssid_info.suite_select, &obj.m_network_ssid_info.suite_select, sizeof(em_string_t)) != 0);
@@ -169,7 +169,7 @@ bool dm_network_ssid_t::operator == (const dm_network_ssid_t& obj)
     ret += (memcmp(&this->m_network_ssid_info.mfp, &obj.m_network_ssid_info.mfp, sizeof(em_string_t)) != 0);
     ret += (memcmp(&this->m_network_ssid_info.mobility_domain, &obj.m_network_ssid_info.mobility_domain, sizeof(mac_address_t)) != 0);
     ret += (this->m_network_ssid_info.num_hauls != obj.m_network_ssid_info.num_hauls);
-    for (int i = 0; i < this->m_network_ssid_info.num_hauls; i++) {
+    for (i = 0; i < this->m_network_ssid_info.num_hauls; i++) {
     ret += (this->m_network_ssid_info.haul_type[i] == obj.m_network_ssid_info.haul_type[i]);
 }
     //em_util_info_print(EM_MGR, "%s:%d: MUH ret=%d\n", __func__, __LINE__,ret);

@@ -154,10 +154,10 @@ dm_orch_type_t dm_network_ssid_list_t::get_dm_orch_type(const dm_network_ssid_t&
 
 
         printf("%s:%d: Network SSID: %s in list but needs update\n", __func__, __LINE__, pnet_ssid->m_network_ssid_info.id);
-        return dm_orch_type_ssid_update;
+        return dm_orch_type_db_update;
     }  
 
-    return dm_orch_type_ssid_insert;
+    return dm_orch_type_db_insert;
 }
 
 
@@ -166,16 +166,16 @@ void dm_network_ssid_list_t::update_list(const dm_network_ssid_t& net_ssid, dm_o
 	dm_network_ssid_t *pnet_ssid;
 
 	switch (op) {
-		case dm_orch_type_ssid_insert:
+		case dm_orch_type_db_insert:
             put_network_ssid(net_ssid.m_network_ssid_info.id, &net_ssid);
             break;
 
-		case dm_orch_type_ssid_update:
+		case dm_orch_type_db_update:
             pnet_ssid = get_network_ssid(net_ssid.m_network_ssid_info.id);
             memcpy(&pnet_ssid->m_network_ssid_info, &net_ssid.m_network_ssid_info, sizeof(em_network_ssid_info_t));
 			break;
 		
-		case dm_orch_type_ssid_delete:
+		case dm_orch_type_db_delete:
             remove_network_ssid(net_ssid.m_network_ssid_info.id);
             break;
 	}
@@ -342,17 +342,16 @@ int dm_network_ssid_list_t::update_db(db_client_t& db_client, dm_orch_type_t op,
     //printf("%s:%d: AKMs: %s\n", __func__, __LINE__, akms);
 
 	switch (op) {
-		case dm_orch_type_ssid_insert:
+		case dm_orch_type_db_insert:
 			ret = insert_row(db_client, info->id, info->ssid, info->pass_phrase, bands, info->enable, akms, info->suite_select,
 						info->advertisement, info->mfp, dm_easy_mesh_t::macbytes_to_string(info->mobility_domain, mac_str), hauls);
 			break;
 
-		case dm_orch_type_ssid_update:
-			ret = update_row(db_client, info->ssid, info->pass_phrase, bands, info->enable, akms, info->suite_select, info->advertisement, info->mfp, 
-						dm_easy_mesh_t::macbytes_to_string(info->mobility_domain, mac_str), hauls, info->id);
+		case dm_orch_type_db_update:
+			ret = update_row(db_client, info->ssid, info->pass_phrase, bands, info->enable, akms, info->suite_select, info->advertisement, info->mfp, dm_easy_mesh_t::macbytes_to_string(info->mobility_domain, mac_str), hauls, info->id);
 			break;
 
-		case dm_orch_type_ssid_delete:
+		case dm_orch_type_db_delete:
 			ret = delete_row(db_client, info->id);
 			break;
 
@@ -434,7 +433,7 @@ int dm_network_ssid_list_t::sync_db(db_client_t& db_client, void *ctx)
 		}
 
         
-		update_list(dm_network_ssid_t(&info), dm_orch_type_ssid_insert);
+		update_list(dm_network_ssid_t(&info), dm_orch_type_db_insert);
     }
     return rc;
 }

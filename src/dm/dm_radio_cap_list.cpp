@@ -99,10 +99,10 @@ dm_orch_type_t dm_radio_cap_list_t::get_dm_orch_type(db_client_t& db_client, con
 
         printf("%s:%d: Device: %s in list but needs update\n", __func__, __LINE__,
             dm_easy_mesh_t::macbytes_to_string(pradio_cap->m_radio_cap_info.ruid.mac, mac_str));
-        return dm_orch_type_cap_update;
+        return dm_orch_type_db_update;
     }
 
-    return dm_orch_type_cap_insert;
+    return dm_orch_type_db_insert;
 
 }
 
@@ -114,16 +114,16 @@ void dm_radio_cap_list_t::update_list(const dm_radio_cap_t& radio_cap, dm_orch_t
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)radio_cap.m_radio_cap_info.ruid.mac, mac_str);
     
     switch (op) {
-        case dm_orch_type_cap_insert:
+        case dm_orch_type_db_insert:
 			hash_map_put(m_list, strdup(mac_str), new dm_radio_cap_t(radio_cap));	
             break;
 
-        case dm_orch_type_cap_update:
+        case dm_orch_type_db_update:
             pradio_cap = (dm_radio_cap_t *)hash_map_get(m_list, mac_str);
             memcpy(&pradio_cap->m_radio_cap_info, &radio_cap.m_radio_cap_info, sizeof(em_radio_cap_info_t));
             break;
 
-        case dm_orch_type_cap_delete:
+        case dm_orch_type_db_delete:
             pradio_cap = (dm_radio_cap_t *)hash_map_remove(m_list, mac_str);
             delete(pradio_cap);
             break;
@@ -162,17 +162,17 @@ int dm_radio_cap_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, vo
     printf("%s:%d: Opeartion:%d\n", __func__, __LINE__, op);
 
 	switch (op) {
-		case dm_orch_type_cap_insert:
+		case dm_orch_type_db_insert:
 			ret = insert_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->ruid.mac, mac_str), 
 						info->ht_cap, info->vht_cap, info->he_cap, info->eht_cap, info->num_op_classes);
 			break;
 
-		case dm_orch_type_cap_update:
+		case dm_orch_type_db_update:
 			ret = update_row(db_client, info->ht_cap, info->vht_cap, info->he_cap, info->eht_cap, info->num_op_classes,
 						dm_easy_mesh_t::macbytes_to_string(info->ruid.mac, mac_str));
 			break;
 
-		case dm_orch_type_cap_delete:
+		case dm_orch_type_db_delete:
 			ret = delete_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->ruid.mac, mac_str));
 			break;
 
@@ -205,7 +205,7 @@ int dm_radio_cap_list_t::sync_db(db_client_t& db_client, void *ctx)
 	//db_client.get_string(ctx, info.he_cap, 4);
 	//db_client.get_string(ctx, info.eht_cap, 5);
 		
-	update_list(dm_radio_cap_t(&info), dm_orch_type_cap_insert);
+	update_list(dm_radio_cap_t(&info), dm_orch_type_db_insert);
     }
     return rc;
 }

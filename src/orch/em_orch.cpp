@@ -196,10 +196,11 @@ bool em_orch_t::orchestrate(em_cmd_t *pcmd, em_t *em)
     if (orch_state == em_orch_state_pending) {
         if (is_em_ready_for_orch_exec(pcmd, em) == true) {
             // ask em to execute the command
+            printf("%s:%d: Start executing cmd type: %d\n", __func__, __LINE__, pcmd->m_type);
             pcmd->set_start_time();
             em->orch_execute(pcmd);
         } else {
-            printf("%s:%d: skippping em orchestration because of incorrect state, state: %d\n", __func__, __LINE__, em->get_state());
+            printf("%s:%d: skipping em orchestration because of incorrect state, state: %d\n", __func__, __LINE__, em->get_state());
         }
 
     } else if (orch_state == em_orch_state_progress) {

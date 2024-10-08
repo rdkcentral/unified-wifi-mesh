@@ -57,6 +57,7 @@ public:
     short           msg_id;
     unsigned int	m_db_cfg_type;
     em_t *m_em;
+    bool    m_colocated;
 
 public:
     int init();
@@ -73,6 +74,7 @@ public:
     int decode_config(em_subdoc_info_t *subdoc, const char *key);
     int decode_config_reset(em_subdoc_info_t *subdoc, const char *key);
     int decode_config_test(em_subdoc_info_t *subdoc, const char *key);
+    int decode_config_set_ssid(em_subdoc_info_t *subdoc, const char *key);
     
     int encode_config(em_subdoc_info_t *subdoc, const char *key);
     int encode_config_reset(em_subdoc_info_t *subdoc, const char *key);
@@ -216,6 +218,8 @@ public:
 
     void handle_dirty_dm();
     void set_em(em_t *em) { m_em = em; }
+    void set_colocated(bool col) { m_colocated = col; }
+    bool get_colocated() { return m_colocated; }
     em_t *get_em() { return m_em; }
 
     dm_easy_mesh_t();

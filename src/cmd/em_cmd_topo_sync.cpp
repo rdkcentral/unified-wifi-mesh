@@ -38,27 +38,28 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <cjson/cJSON.h>
-#include "em_cmd_channel_sel.h"
+#include "em_cmd_topo_sync.h"
 
-em_cmd_channel_sel_t::em_cmd_channel_sel_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
+em_cmd_topo_sync_t::em_cmd_topo_sync_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
 {
-    em_cmd_ctx_t ctx;
+    em_cmd_ctx_t ctx;;
 
-    m_type = em_cmd_type_dev_init;
+    m_type = em_cmd_type_topo_sync;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
 
-    m_orch_op_idx = 0;
-    m_num_orch_ops = 3;
-    m_orch_op_array[0] = dm_orch_type_rd_update;
-    m_orch_op_array[1] = dm_orch_type_owconfig_req;
-    m_orch_op_array[2] = dm_orch_type_owconfig_cnf;
+	memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
 
-    snprintf(m_name, sizeof(m_name), "%s", "channel_sel");
-    m_svc = em_service_type_agent;
+    m_orch_op_idx = 0;
+    m_num_orch_desc = 1;
+    m_orch_desc[0].op = dm_orch_type_topo_sync;
+    m_orch_desc[0].submit = true;
+
+    strncpy(m_name, "topo_sync", strlen("topo_sync") + 1);
+    m_svc = em_service_type_ctrl;
     init(&dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
-    ctx.type = m_orch_op_array[0];    
+    ctx.type = m_orch_desc[0].op;
     m_data_model.set_cmd_ctx(&ctx);
 }
 

@@ -72,6 +72,11 @@ public:
     
     dm_easy_mesh_t *get_data_model(const char *net_id, const unsigned char *al_mac = NULL) { return &m_data_model; }
     dm_easy_mesh_t *create_data_model(const char *net_id, const unsigned char *al_mac, em_profile_type_t profile = em_profile_type_3) { return NULL; }
+    void delete_data_model(const char *net_id, const unsigned char *al_mac) { }
+    void delete_all_data_models() { }
+    int update_tables(dm_easy_mesh_t *dm) { return 0; }
+    int load_net_ssid_table() { return 0; }
+    void debug_probe();
 
     em_service_type_t get_service_type() { return em_service_type_agent; }
     static bus_error_t bus_listener(bus_handle_t *handle, bus_event_sub_action_t action, char const* eventName, bus_filter_t filter, int32_t interval, bool* autoPublish);    

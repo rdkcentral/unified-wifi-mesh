@@ -63,17 +63,50 @@ int em_cmd_t::edit_params_file()
     return 0;
 }
 
-int em_cmd_t::write_params_file(char *buff)
+int em_cmd_t::write_params_file(char *buff, const char *net_id, const char *header)
 {
     FILE *fp;
-    char tmp[1024];
+    char tmp[EM_IO_BUFF_SZ];
     unsigned int sz = 0;
+
+    em_long_string_t wfa;
+	cJSON *obj, *res_obj, *wfa_obj;
+
+	obj = cJSON_Parse(buff);
+	if (obj == NULL) {
+		printf("%s:%d: Failed to parse\n", __func__, __LINE__);
+        return -1;
+	}
+
+	if ((res_obj = cJSON_GetObjectItem(obj, "Result")) == NULL) {
+		printf("%s:%d: Failed to parse\n", __func__, __LINE__);
+		cJSON_free(obj);
+        return -1;
+	}
+
+	if (header != NULL) {
+		snprintf(wfa, sizeof(wfa), "wfa-dataelements:%s", header);
+		wfa_obj = cJSON_CreateObject();
+		if (wfa_obj == NULL) {
+			printf("%s:%d: Failed to parse\n", __func__, __LINE__);
+			cJSON_free(obj);
+        	return -1;
+		}
+		cJSON_AddItemToObject(wfa_obj, wfa, res_obj);
+		cJSON_AddStringToObject(res_obj, "ID", net_id);
+	} else {
+		wfa_obj = res_obj;
+	}
+
+	cJSON_PrintPreallocated(wfa_obj, tmp, EM_IO_BUFF_SZ, true);
+
+	cJSON_free(obj);
 
     if ((fp = fopen(m_param.fixed_args, "w")) == NULL) {
         printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, m_param.fixed_args, errno);
         return -1;
     } else {
-        fputs(buff, fp);
+        fputs(tmp, fp);
         fclose(fp);
     }
 
@@ -231,12 +264,13 @@ em_cmd_t *em_cmd_t::clone()
 
     out->m_data_model = m_data_model;
     out->set_orch_op_index(m_orch_op_idx);
-    out->m_num_orch_ops = m_num_orch_ops;
-    for (i = 0; i < m_num_orch_ops; i++) {
-        out->m_orch_op_array[i] = m_orch_op_array[i];
+    out->m_num_orch_desc = m_num_orch_desc;
+    for (i = 0; i < m_num_orch_desc; i++) {
+        out->m_orch_desc[i].op = m_orch_desc[i].op;
+        out->m_orch_desc[i].submit = m_orch_desc[i].submit;
     }
 
-    out->m_db_cfg_type = m_db_cfg_type;
+    //out->m_db_cfg_type = m_db_cfg_type; check if needed
 
     pctx = m_data_model.get_cmd_ctx();	
     memcpy(&ctx, pctx, sizeof(em_cmd_ctx_t));	
@@ -251,7 +285,7 @@ em_cmd_t *em_cmd_t::clone_for_next()
     unsigned int i;
     em_cmd_ctx_t ctx;
 
-    if (m_orch_op_idx == (m_num_orch_ops - 1)) {
+    if (m_orch_op_idx == (m_num_orch_desc - 1)) {
         return NULL;
     }
 
@@ -259,12 +293,13 @@ em_cmd_t *em_cmd_t::clone_for_next()
 
     out->m_data_model = m_data_model;
     out->set_orch_op_index(m_orch_op_idx + 1);
-    out->m_num_orch_ops = m_num_orch_ops;
-    for (i = 0; i < m_num_orch_ops; i++) {
-        out->m_orch_op_array[i] = m_orch_op_array[i];
+    out->m_num_orch_desc = m_num_orch_desc;
+    for (i = 0; i < m_num_orch_desc; i++) {
+        out->m_orch_desc[i].op = m_orch_desc[i].op;
+        out->m_orch_desc[i].submit = m_orch_desc[i].submit;
     }
 
-    out->m_db_cfg_type = m_db_cfg_type;
+    //out->m_db_cfg_type = m_db_cfg_type; check if needed
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
     ctx.type = out->get_orch_op();
@@ -273,14 +308,15 @@ em_cmd_t *em_cmd_t::clone_for_next()
     return out;
 }
 
-void em_cmd_t::override_op(unsigned int index, dm_orch_type_t op)
+void em_cmd_t::override_op(unsigned int index, em_orch_desc_t *desc)
 {
     em_cmd_ctx_t *ctx;
 
-    m_orch_op_array[index] = op;
+    m_orch_desc[index].op = desc->op;
+    m_orch_desc[index].submit = desc->submit;
     ctx = m_data_model.get_cmd_ctx();
-    ctx->type = op;
-    printf("%s:%d: op = %d\n", __func__, __LINE__,op);
+    ctx->type = desc->op;
+    m_data_model.set_cmd_ctx(ctx);
     m_data_model.set_cmd_ctx(ctx);
 }
 
@@ -304,6 +340,21 @@ void em_cmd_t::init()
 
         case em_cmd_type_get_network:
             snprintf(m_name, sizeof(m_name), "%s", "get_network");
+            m_svc = em_service_type_ctrl;
+            break;
+
+        case em_cmd_type_get_device:
+            strncpy(m_name, "get_device", strlen("get_device") + 1);
+            m_svc = em_service_type_ctrl;
+            break;
+
+        case em_cmd_type_remove_device:
+            strncpy(m_name, "remove_device", strlen("remove_device") + 1);
+            m_svc = em_service_type_ctrl;
+            break;
+
+        case em_cmd_type_get_radio:
+            strncpy(m_name, "get_radio", strlen("get_radio") + 1);
             m_svc = em_service_type_ctrl;
             break;
 
@@ -392,6 +443,10 @@ void em_cmd_t::init()
             m_svc = em_service_type_none;
             break;
 
+        case em_cmd_type_topo_sync:
+            strncpy(m_name, "topo_sync", strlen("topo_sync") + 1);
+            m_svc = em_service_type_ctrl;
+            break;
     }
 }
 
@@ -404,6 +459,9 @@ const char *em_cmd_t::get_bus_event_type_str(em_bus_event_type_t type)
     BUS_EVENT_TYPE_2S(em_bus_event_type_reset)
     BUS_EVENT_TYPE_2S(em_bus_event_type_dev_test)
     BUS_EVENT_TYPE_2S(em_bus_event_type_get_network)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_get_device)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_remove_device)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_get_radio)
     BUS_EVENT_TYPE_2S(em_bus_event_type_get_ssid)
     BUS_EVENT_TYPE_2S(em_bus_event_type_set_ssid)
     BUS_EVENT_TYPE_2S(em_bus_event_type_get_channel)
@@ -419,6 +477,7 @@ const char *em_cmd_t::get_bus_event_type_str(em_bus_event_type_t type)
     BUS_EVENT_TYPE_2S(em_bus_event_type_sta_list)
     BUS_EVENT_TYPE_2S(em_bus_event_type_listener_stop)
     BUS_EVENT_TYPE_2S(em_bus_event_type_dm_commit)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_topo_sync)
     }
 }   
 
@@ -430,12 +489,12 @@ const char *em_cmd_t::get_orch_op_str(dm_orch_type_t type)
         ORCH_TYPE_2S(dm_orch_type_net_insert)
         ORCH_TYPE_2S(dm_orch_type_net_update)
         ORCH_TYPE_2S(dm_orch_type_net_delete)
-        ORCH_TYPE_2S(dm_orch_type_rd_insert)
-        ORCH_TYPE_2S(dm_orch_type_rd_update)
-        ORCH_TYPE_2S(dm_orch_type_rd_delete)
-        ORCH_TYPE_2S(dm_orch_type_dev_insert)
-        ORCH_TYPE_2S(dm_orch_type_dev_update)
-        ORCH_TYPE_2S(dm_orch_type_dev_delete)
+        ORCH_TYPE_2S(dm_orch_type_al_insert)
+        ORCH_TYPE_2S(dm_orch_type_al_update)
+        ORCH_TYPE_2S(dm_orch_type_al_delete)
+        ORCH_TYPE_2S(dm_orch_type_em_insert)
+        ORCH_TYPE_2S(dm_orch_type_em_update)
+        ORCH_TYPE_2S(dm_orch_type_em_delete)
         ORCH_TYPE_2S(dm_orch_type_bss_insert)
         ORCH_TYPE_2S(dm_orch_type_bss_update)
         ORCH_TYPE_2S(dm_orch_type_bss_delete)
@@ -463,15 +522,53 @@ const char *em_cmd_t::get_orch_op_str(dm_orch_type_t type)
         ORCH_TYPE_2S(dm_orch_type_em_reset)
         ORCH_TYPE_2S(dm_orch_type_db_reset)
         ORCH_TYPE_2S(dm_orch_type_db_cfg)
+        ORCH_TYPE_2S(dm_orch_type_db_insert)
+        ORCH_TYPE_2S(dm_orch_type_db_update)
+        ORCH_TYPE_2S(dm_orch_type_db_delete)
+        ORCH_TYPE_2S(dm_orch_type_dm_delete)
         ORCH_TYPE_2S(dm_orch_type_tx_cfg_renew)
         ORCH_TYPE_2S(dm_orch_type_owconfig_req)
         ORCH_TYPE_2S(dm_orch_type_owconfig_cnf)
         ORCH_TYPE_2S(dm_orch_type_ctrl_notify)
         ORCH_TYPE_2S(dm_orch_type_ap_cap_report)
         ORCH_TYPE_2S(dm_orch_type_client_cap_report)
+        ORCH_TYPE_2S(dm_orch_type_net_ssid_update)
+        ORCH_TYPE_2S(dm_orch_type_topo_sync)
     }
 
     return "dm_orch_type_unknown";
+}
+
+const char *em_cmd_t::get_cmd_type_str(em_cmd_type_t type)
+{
+#define CMD_TYPE_2S(x) case x: return #x;
+    switch (type) {
+        CMD_TYPE_2S(em_cmd_type_none)
+        CMD_TYPE_2S(em_cmd_type_reset)
+        CMD_TYPE_2S(em_cmd_type_get_network)
+        CMD_TYPE_2S(em_cmd_type_get_device)
+        CMD_TYPE_2S(em_cmd_type_remove_device)
+        CMD_TYPE_2S(em_cmd_type_get_radio)
+        CMD_TYPE_2S(em_cmd_type_get_ssid)
+        CMD_TYPE_2S(em_cmd_type_set_ssid)
+        CMD_TYPE_2S(em_cmd_type_get_channel)
+        CMD_TYPE_2S(em_cmd_type_set_channel)
+        CMD_TYPE_2S(em_cmd_type_get_bss)
+        CMD_TYPE_2S(em_cmd_type_get_sta)
+        CMD_TYPE_2S(em_cmd_type_dev_init)
+        CMD_TYPE_2S(em_cmd_type_dev_test)
+        CMD_TYPE_2S(em_cmd_type_cfg_renew)
+        CMD_TYPE_2S(em_cmd_type_vap_config)
+        CMD_TYPE_2S(em_cmd_type_radio_config)
+        CMD_TYPE_2S(em_cmd_type_sta_list)
+        CMD_TYPE_2S(em_cmd_type_start_dpp)
+        CMD_TYPE_2S(em_cmd_type_client_steer)
+        CMD_TYPE_2S(em_cmd_type_ap_cap_query)
+        CMD_TYPE_2S(em_cmd_type_client_cap_query)
+        CMD_TYPE_2S(em_cmd_type_topo_sync)
+    }
+
+    return "em_cmd_type_unknown";
 }
 
 em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
@@ -485,6 +582,22 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
 
         case em_bus_event_type_dev_test:
             type = em_cmd_type_dev_test;
+            break;
+
+        case em_bus_event_type_get_network:
+            type = em_cmd_type_get_network;
+            break;
+
+        case em_bus_event_type_get_device:
+            type = em_cmd_type_get_device;
+            break;
+
+        case em_bus_event_type_remove_device:
+            type = em_cmd_type_remove_device;
+            break;
+
+        case em_bus_event_type_get_radio:
+            type = em_cmd_type_get_radio;
             break;
 
         case em_bus_event_type_set_ssid:
@@ -531,6 +644,10 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
 	        type = em_cmd_type_client_cap_query;
 	        break;
 
+        case em_bus_event_type_topo_sync:
+            type = em_cmd_type_topo_sync;
+            break;
+
         case em_bus_event_type_onewifi_private_subdoc:
 			type = em_cmd_type_onewifi_private_subdoc;
             break;
@@ -555,6 +672,10 @@ em_bus_event_type_t em_cmd_t::cmd_2_bus_event_type(em_cmd_type_t ctype)
 
         case em_cmd_type_set_ssid:
             type = em_bus_event_type_set_ssid;;
+            break;
+
+        case em_cmd_type_topo_sync:
+            type = em_bus_event_type_topo_sync;;
             break;
 
         case em_cmd_type_dev_init:
@@ -588,6 +709,9 @@ void em_cmd_t::dump_bus_event(em_bus_event_t *evt)
 
     switch (evt->type) {
         case em_bus_event_type_get_network:
+        case em_bus_event_type_get_device:
+        case em_bus_event_type_remove_device:
+        case em_bus_event_type_get_radio:
         case em_bus_event_type_get_ssid:
         case em_bus_event_type_get_channel:
         case em_bus_event_type_get_bss:

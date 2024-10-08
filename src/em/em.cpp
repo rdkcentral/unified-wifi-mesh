@@ -66,6 +66,7 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 
         case em_cmd_type_set_ssid:
+            m_state = em_state_ctrl_cfg_renew_pending;
             break;
 
         case em_cmd_type_dev_init:
@@ -86,12 +87,16 @@ void em_t::orch_execute(em_cmd_t *pcmd)
         case em_cmd_type_client_cap_query:
             m_state = em_state_agent_client_cap_report;
             break;
+
+        case em_cmd_type_topo_sync:
+            m_state = em_state_ctrl_topo_sync_pending;
+            break;
     }
 }
 
 void em_t::set_orch_state(em_orch_state_t state)
 {
-    if (state == em_orch_state_fini) {
+    if ((state == em_orch_state_fini) && (m_service_type == em_service_type_agent)) {
         // commit the parameters of command into data model
         m_data_model->commit_config(m_cmd->m_data_model, em_commit_target_em);
     } else if (state == em_orch_state_cancel) {
@@ -112,10 +117,12 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
     em_cmdu_t *cmdu;
     unsigned char *tlvs;
     unsigned int tlvs_len;
+    mac_addr_str_t mac_str;
 
     hdr = (em_raw_hdr_t *)data;
     cmdu = (em_cmdu_t *)(data + sizeof(em_raw_hdr_t));
 
+    dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(), mac_str);
     switch (htons(cmdu->type)) {
         case em_msg_type_autoconf_search:
         case em_msg_type_autoconf_resp:
@@ -186,12 +193,21 @@ void em_t::handle_ctrl_state()
     assert(m_cmd != NULL);
 
     cmd_type = m_cmd->m_type;
+    switch (cmd_type) {
+        case em_cmd_type_set_ssid:
+            em_configuration_t::process_ctrl_state();
+            break;
+
+        case em_cmd_type_topo_sync:
+            em_configuration_t::process_ctrl_state();
+            break;
+    }
 
 }
 
 void em_t::proto_timeout()
 {
-    if (em_service_type_agent == em_service_type_agent) {
+    if (m_service_type == em_service_type_agent) {
         handle_agent_state();
     } else if (m_service_type == em_service_type_ctrl) {
         handle_ctrl_state();
@@ -382,13 +398,7 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
 
 bool em_t::is_matching_freq_band(em_freq_band_t *band)
 {
-    em_freq_band_t freq_band;
-    if (get_current_cmd()) {
-        freq_band = get_current_cmd()->get_rd_freq_band();
-    return (freq_band == *band) ? true:false;
-    } else {
-    return false;
-    }
+    return (get_band() == *band);
 }
 
 void em_t::push_to_queue(em_event_t *evt)
@@ -646,10 +656,23 @@ int em_t::init()
 
 }
 
-em_t::em_t(em_interface_t *ruid, dm_easy_mesh_t *dm, em_profile_type_t profile, em_service_type_t type)
+const char *em_t::get_band_type_str(em_freq_band_t band)
+{
+#define BAND_TYPE_2S(x) case x: return #x;
+    switch (band) {
+        BAND_TYPE_2S(em_freq_band_24)
+        BAND_TYPE_2S(em_freq_band_5)
+        BAND_TYPE_2S(em_freq_band_60)
+    }
+
+    return "band_type_unknown";
+}
+
+em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_profile_type_t profile, em_service_type_t type)
 {
     memcpy(&m_ruid, ruid, sizeof(em_interface_t));
-    m_service_type = type;  
+    m_service_type = type;
+    m_band = band;  
     m_profile_type = profile;
     m_state = (type == em_service_type_agent) ? em_state_agent_config_none:em_state_ctrl_none;
     m_orch_state = em_orch_state_idle;

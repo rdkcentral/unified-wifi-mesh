@@ -87,7 +87,6 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 
 bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
 {
-    bool submit = true;
     em_t *em;
     em_cmd_ctx_t *ctx;
     em_interface_t *intf;
@@ -97,7 +96,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
     ctx = pcmd->m_data_model.get_cmd_ctx();
 
     switch (pcmd->get_orch_op()) {
-        case dm_orch_type_dev_insert:
+        case dm_orch_type_al_insert:
             // for device insert, just create the al interface em and return, do not submit command
             printf("%s:%d: calling create node\n", __func__, __LINE__);
 
@@ -105,14 +104,13 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
             if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
                 dm = m_mgr->create_data_model(global_netid, intf->mac);
             }
-            em = m_mgr->create_node(intf, dm, 1, em_profile_type_3, em_service_type_agent);
+            em = m_mgr->create_node(intf, em_freq_band_unknown, dm, 1, em_profile_type_3, em_service_type_agent);
             if (em != NULL) {
                 // since this does not have to go through orchestration of M1 M2, commit the data model
-                em->get_data_model()->commit_config(pcmd->m_data_model, em_commit_target_al);
+                em->get_data_model()->commit_config(pcmd->m_data_model, em_commit_target_em);
             }
-            submit = false;
             break;
-        case dm_orch_type_rd_insert:
+        case dm_orch_type_em_insert:
             // for radio insert, create the radio em and then submit command
             intf = pcmd->get_radio_interface(ctx->arr_index);
             if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
@@ -120,14 +118,12 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
             }    
             dm_easy_mesh_t::macbytes_to_string(intf->mac, mac_str);
             printf("%s:%d: calling create_node\n", __func__, __LINE__);
-            if ((em = m_mgr->create_node(intf, dm, 0, em_profile_type_3, em_service_type_agent)) == NULL) {
+            if ((em = m_mgr->create_node(intf, em_freq_band_60, dm, 0, em_profile_type_3, em_service_type_agent)) == NULL) {
                 printf("%s:%d: Failed to create node\n", __func__, __LINE__);
-                submit = false;
             
             }
             break;
-        case dm_orch_type_rd_update:
-            submit = true;
+        case dm_orch_type_em_update:
             break;	
         case dm_orch_type_sta_insert:
         case dm_orch_type_sta_update: {
@@ -174,18 +170,16 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
                                                   sta = (dm_sta_t *)hash_map_get_next(*m_sta_dassoc_map, sta);
                                               }
                                           }
-                                          submit = true;
                                           break;
                                       }
         case dm_orch_type_ap_cap_report:
         case dm_orch_type_client_cap_report:
-            submit = true;
             break;
         default:
             break;
     }
 
-    return submit;
+    return pcmd->get_orch_submit();
 }
 
 unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)

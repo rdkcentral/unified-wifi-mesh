@@ -47,15 +47,17 @@ em_cmd_get_ssid_t::em_cmd_get_ssid_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
     m_type = em_cmd_type_get_ssid;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
 
-    m_orch_op_idx = 0;
-    m_num_orch_ops = 0;
+    memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
 
-    strncpy(m_name, "get_ssid", strlen("get_ssid") + 1);
-    m_svc = em_service_type_agent;
+	m_orch_op_idx = 0;
+	m_num_orch_desc = 0;
+
+	strncpy(m_name, "get_ssid", strlen("get_ssid") + 1);
+   	m_svc = em_service_type_ctrl;
+
     init(&dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
-    ctx.type = m_orch_op_array[0];    
     m_data_model.set_cmd_ctx(&ctx);
 }
 

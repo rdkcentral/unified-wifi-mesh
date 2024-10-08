@@ -31,6 +31,9 @@ class em_configuration_t {
     int create_autoconfig_wsc_m1_msg(unsigned char *buff, unsigned char *dst);
     int create_autoconfig_wsc_m2_msg(unsigned char *buff, em_haul_type_t haul_type[], unsigned int num_hauls);
     int create_topology_notify_msg(unsigned char *buff);
+    int	create_operational_bss_tlv(unsigned char *buff);
+    int	create_bss_config_rprt_tlv(unsigned char *buff);
+    int create_device_info_type_tlv(unsigned char *buff);
 
     int send_topology_response_msg();
 
@@ -44,6 +47,8 @@ class em_configuration_t {
     int handle_ap_radio_basic_cap(unsigned char *buff, unsigned int len);
     int handle_ap_radio_advanced_cap(unsigned char *buff, unsigned int len);
     int handle_topology_response(unsigned char *buff, unsigned int len);
+    int handle_ap_operational_bss(unsigned char *buff, unsigned int len);
+    int handle_bss_configuration_report(unsigned char *buff, unsigned int len);
 
     short create_m1_msg(unsigned char *buff);
     short create_m2_msg(unsigned char *buff, em_haul_type_t haul_type);
@@ -57,6 +62,9 @@ class em_configuration_t {
     void handle_state_wsc_m2_pending();
     void handle_state_topology_notify();
     void handle_state_autoconfig_renew();
+
+    // helpers
+    void fill_media_data(em_media_spec_data_t *spec);
 
     virtual dm_easy_mesh_t *get_data_model() = 0;
     virtual em_state_t get_state() = 0;
@@ -89,6 +97,8 @@ class em_configuration_t {
     virtual void set_software_version(char *) = 0;
     virtual void set_serial_number(char *) = 0;
     virtual void set_primary_device_type(char *) = 0;
+    virtual em_freq_band_t get_band() = 0;
+    virtual void set_band(em_freq_band_t band) = 0;
 
     virtual em_network_ssid_info_t *get_network_ssid_info_by_haul_type(em_haul_type_t haul_type) = 0;
 
@@ -111,7 +121,7 @@ public:
     static em_wsc_msg_type_t get_wsc_msg_type(unsigned char *buff, unsigned int len);
 
     int send_topology_query_msg();
-
+    int send_autoconfig_renew_msg();
     int handle_encrypted_settings();
     unsigned int create_encrypted_settings(unsigned char *buff, em_haul_type_t haul_type);
     unsigned int create_authenticator(unsigned char *buff);
@@ -171,12 +181,20 @@ public:
     int compute_keys(unsigned char *remote_pub, unsigned short pub_len, unsigned char *local_priv, unsigned short priv_len);
 
     void test_topology_response_msg() { send_topology_response_msg(); }
+    void print_ap_operational_bss_tlv(unsigned char *value, unsigned int len);
+	void print_bss_configuration_report_tlv(unsigned char *value, unsigned int len);
+    int get_renew_tx_count() { return m_renew_tx_cnt; }
+    void set_renew_tx_count(unsigned int cnt) { m_renew_tx_cnt = cnt; }
+    int get_topo_query_tx_count() { return m_topo_query_tx_cnt; }
+    void set_topo_query_tx_count(unsigned int cnt) { m_topo_query_tx_cnt = cnt; }
     static unsigned short msg_id;
 
     em_crypto_t m_crypto;
     unsigned char m_auth_key[WPS_AUTHKEY_LEN];
     unsigned char m_key_wrap_key[WPS_KEYWRAPKEY_LEN];
     unsigned char m_emsk[WPS_EMSK_LEN];
+    unsigned int m_renew_tx_cnt;
+    unsigned int m_topo_query_tx_cnt;
     int construct_private_subdoc();
 
     em_configuration_t();

@@ -24,6 +24,7 @@
 #include <assert.h>
 #include <signal.h>
 #include <unistd.h>
+#include <math.h>
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <linux/filter.h>
@@ -74,6 +75,8 @@ dm_easy_mesh_t dm_easy_mesh_t::operator =(dm_easy_mesh_t const& obj)
     for (unsigned int i = 0; i < EM_MAX_NET_SSIDS; i++) {
         memcpy(&this->m_network_ssid[i], &obj.m_network_ssid[i], sizeof(dm_network_ssid_t));
     }
+
+    this->m_db_cfg_type = obj.m_db_cfg_type;
 
     hash_map_t **dst_m_sta_assoc_map = (hash_map_t** ) this->get_assoc_sta_map();
     hash_map_t **dst_m_sta_dassoc_map = (hash_map_t** ) this->get_dassoc_sta_map();
@@ -220,10 +223,10 @@ int dm_easy_mesh_t::commit_config(em_cmd_t  *cmd)
             break;
         case em_cmd_type_dev_init: {
                 switch (cmd->get_orch_op()) {
-                    case dm_orch_type_dev_insert:
+                    case dm_orch_type_al_insert:
                         m_device = cmd->m_data_model.m_device;
                         break;
-                    case dm_orch_type_rd_insert:
+                    case dm_orch_type_em_insert:
                         m_radio[m_num_radios] = cmd->m_data_model.m_radio[0];
                         m_num_radios++;
 
@@ -257,7 +260,7 @@ int dm_easy_mesh_t::analyze_vap_config(em_bus_event_t *evt, em_cmd_t *pcmd[])
 int dm_easy_mesh_t::analyze_autoconfig_renew(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     dm_easy_mesh_t  dm;
-    dm_orch_type_t op;
+    em_orch_desc_t desc;
     em_subdoc_info_t *subdoc;
 
     printf("%s:%d: Enter\n", __func__, __LINE__);
@@ -268,10 +271,13 @@ int dm_easy_mesh_t::analyze_autoconfig_renew(em_bus_event_t *evt, em_cmd_t *pcmd
         printf("%s:%d: Failed to decode\n", __func__, __LINE__);
         return 0;
     }
-    op = dm_orch_type_rd_update;
+    
+    desc.op = dm_orch_type_em_update;
+    desc.submit = true;
+
     pcmd[0] = new em_cmd_autoconfig_renew_t(evt->params,dm);
     pcmd[0]->set_rd_freq_band(0);
-    pcmd[0]->override_op(0, op);
+    pcmd[0]->override_op(0, &desc);
 
     return 1;
 }
@@ -279,14 +285,16 @@ int dm_easy_mesh_t::analyze_autoconfig_renew(em_bus_event_t *evt, em_cmd_t *pcmd
 int dm_easy_mesh_t::analyze_ap_cap_query(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     dm_easy_mesh_t  dm;
-    dm_orch_type_t op;
+    em_orch_desc_t desc;
     em_subdoc_info_t *subdoc;
     subdoc = &evt->u.subdoc;
 
-    op = dm_orch_type_ap_cap_report;
+    desc.op = dm_orch_type_ap_cap_report;
+    desc.submit = true;    
+
     dm.decode_ap_cap_config(subdoc, "CapReport");
     pcmd[0] = new em_cmd_ap_cap_report_t(evt->params,dm);
-    pcmd[0]->override_op(0, op);
+    pcmd[0]->override_op(0, &desc);
 
     return 1;
 }
@@ -294,9 +302,12 @@ int dm_easy_mesh_t::analyze_ap_cap_query(em_bus_event_t *evt, em_cmd_t *pcmd[])
 int dm_easy_mesh_t::analyze_client_cap_query(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     dm_easy_mesh_t  dm;
-    dm_orch_type_t op;
+    em_orch_desc_t desc;
     em_subdoc_info_t *subdoc;
-    op = dm_orch_type_client_cap_report;
+    
+    desc.op = dm_orch_type_client_cap_report;
+	desc.submit = true;
+
     subdoc = &evt->u.subdoc;
     mac_addr_str_t client_mac,radio_str_mac;
     dm_sta_t *sta = new dm_sta_t();;
@@ -317,14 +328,14 @@ int dm_easy_mesh_t::analyze_client_cap_query(em_bus_event_t *evt, em_cmd_t *pcmd
     dm.m_num_radios = 1;
     mac_addr_str_t mac_str;dm_easy_mesh_t::macbytes_to_string(dm.m_radio[0].get_radio_info()->id.mac,mac_str);
     pcmd[0] = new em_cmd_client_cap_report_t(evt->params,dm);
-    pcmd[0]->override_op(0, op);
+    pcmd[0]->override_op(0, &desc);
     return 1;
 }
 
 int dm_easy_mesh_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     dm_easy_mesh_t  dm;
-    dm_orch_type_t op;
+    em_orch_desc_t desc;
     em_subdoc_info_t *subdoc;
 
     printf("%s:%d: Enter\n", __func__, __LINE__);
@@ -334,9 +345,12 @@ int dm_easy_mesh_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[])
         printf("%s:%d: Failed to decode\n", __func__, __LINE__);
         return 0;
     }
-    op = dm_orch_type_sta_update;
+    
+    desc.op = dm_orch_type_sta_update;
+	desc.submit = true;
+
     pcmd[0] =  new em_cmd_sta_list_t(evt->params,dm);
-    pcmd[0]->override_op(0, op);
+    pcmd[0]->override_op(0, &desc);
 
     return 1;
 
@@ -482,8 +496,6 @@ int dm_easy_mesh_t::encode_config_test(em_subdoc_info_t *subdoc, const char *key
         return -1;
     }
 
-    printf("%s:%d:  Radio no of obj=%d\n", __func__, __LINE__,m_num_radios);
-
     for (i = 0; i < m_num_radios; i++) {
         if ((radio_obj = cJSON_CreateObject()) == NULL) {
             printf("%s:%d: Could not create dev object\n", __func__, __LINE__);
@@ -535,12 +547,12 @@ int dm_easy_mesh_t::encode_config_test(em_subdoc_info_t *subdoc, const char *key
             cJSON_Delete(parent_obj);
             return -1;
         }
-        printf("%s:%d: VAP object num of bss=%d\n", __func__, __LINE__,m_num_bss);
+        //printf("%s:%d: VAP object num of bss=%d\n", __func__, __LINE__,m_num_bss);
 
         for (j = 0; j < m_num_bss; j++) {
-			/*if (memcmp(m_bss[j].m_bss_info.ruid.mac, m_radio[i].m_radio_info.id.mac, sizeof(mac_address_t)) != 0) {
+			if (memcmp(m_bss[j].m_bss_info.ruid.mac, m_radio[i].m_radio_info.id.mac, sizeof(mac_address_t)) != 0) {
 				continue;
-			}*/
+			}
 
             if ((bss_obj = cJSON_CreateObject()) == NULL) {
                 printf("%s:%d: Could not create net object\n", __func__, __LINE__);
@@ -609,10 +621,10 @@ int dm_easy_mesh_t::decode_config(em_subdoc_info_t *subdoc, const char *str)
 	if (strncmp(str, "Reset", strlen("Reset")) == 0) {
     	snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
 		return decode_config_reset(subdoc, key);
-	} else if (strncmp(str, "Test", strlen("Test")) == 0) {
+	} else if (strncmp(str, "SetSSID", strlen("SetSSID")) == 0) {
         snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
-        return decode_config_test(subdoc, key);
-    } else if (strncmp(str, "dm_cache", strlen("dm_cache")) == 0) {
+        return decode_config_set_ssid(subdoc, key);
+    } else if (strncmp(str, "Test", strlen("Test")) == 0) {
         snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
         return decode_config_test(subdoc, key); 
 	}
@@ -666,6 +678,80 @@ int dm_easy_mesh_t::decode_config_reset(em_subdoc_info_t *subdoc, const char *ke
     return 0;
 }
 
+int dm_easy_mesh_t::decode_config_set_ssid(em_subdoc_info_t *subdoc, const char *key)
+{
+	cJSON *parent_obj, *net_obj, *net_obj_id, *netssid_list_obj;
+	unsigned int i, arr_size;
+	char *parent;
+	int ret = 0;
+	int haul_bit_mask = 0;
+
+    parent_obj = cJSON_Parse(subdoc->buff);
+    if (parent_obj == NULL) {
+        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        return EM_PARSE_ERR_GEN;
+    }
+
+    if ((net_obj = cJSON_GetObjectItem(parent_obj, key)) == NULL) {
+        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_GEN;
+    }
+
+	if ((net_obj_id = cJSON_GetObjectItem(net_obj, "ID")) == NULL) {
+        printf("%s:%d: Network ID not present\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+		return EM_PARSE_ERR_NET_ID;
+	}
+
+	if ((parent = cJSON_GetStringValue(net_obj_id)) == NULL) {
+        printf("%s:%d: Network ID not present\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+		return EM_PARSE_ERR_NET_ID;
+	}
+
+    netssid_list_obj = cJSON_GetObjectItem(net_obj, "NetworkSSIDList");
+    if (netssid_list_obj == NULL) {
+        printf("%s:%d: NetworkSSIDList not present\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_CONFIG;
+    }
+
+	arr_size = cJSON_GetArraySize(netssid_list_obj);
+	if (arr_size != EM_MAX_NET_SSIDS) {
+		printf("%s:%d: Invalid configuration: %s\n", __func__, __LINE__, key);
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_CONFIG;
+	}
+
+	for (i = 0; i < arr_size; i++) {
+		m_network_ssid[i].decode(cJSON_GetArrayItem(netssid_list_obj, i), parent);
+	}
+
+	m_num_net_ssids = arr_size;
+
+    cJSON_free(parent_obj);
+	
+	// now validate
+	for (i = 0; i < arr_size; i++) {
+		if (m_network_ssid[i].m_network_ssid_info.num_hauls != 1) {
+			printf("%s:%d: Invalid haul configuration\n", __func__, __LINE__);
+			return EM_PARSE_ERR_CONFIG;
+		}
+
+		haul_bit_mask |= (1 << m_network_ssid[i].m_network_ssid_info.haul_type[0]);
+
+	}
+
+	if (haul_bit_mask != (pow(2, (double)em_haul_type_max) - 1)) {
+		printf("%s:%d: Invalid haul configuration, bit mask: %x\n", __func__, __LINE__, haul_bit_mask);
+		return EM_PARSE_ERR_CONFIG;
+	}
+
+
+	return ret;
+}
+
 int dm_easy_mesh_t::decode_config_test(em_subdoc_info_t *subdoc, const char *key)
 {
     cJSON *parent_obj, *net_obj, *dev_arr_objs,  *dev_obj, *radio_arr_objs, *radio_obj , *op_arr_objs, *op_obj;
@@ -716,7 +802,6 @@ int dm_easy_mesh_t::decode_config_test(em_subdoc_info_t *subdoc, const char *key
         printf("%s:%d: RadioList has no memebers not present\n", __func__, __LINE__);
         return -1;
     }
-    printf("%s:%d: No of radio\n", __func__, __LINE__,m_num_radios);
     for (i = 0; i < m_num_radios; i++) {
         if((radio_obj = cJSON_GetArrayItem(radio_arr_objs, i)) == NULL) {
             cJSON_Delete(parent_obj);
@@ -1369,7 +1454,7 @@ void dm_easy_mesh_t::create_autoconfig_renew_json_cmd(char* src_mac_addr, char* 
     radio_list = cJSON_CreateArray();
     current_operating_classes = cJSON_CreateArray();
     class_item = cJSON_CreateObject();
-    cJSON_AddStringToObject(renew, "ID", "Private");
+    cJSON_AddStringToObject(renew, "ID", "OneWifiMesh");
     cJSON_AddNumberToObject(renew, "NumberOfDevices", 1);
     cJSON_AddStringToObject(renew, "TimeStamp", "2019-02-11T06:23:43.743847-08:00");
     cJSON_AddStringToObject(renew, "ControllerID", src_mac_addr);
@@ -1408,7 +1493,7 @@ void dm_easy_mesh_t::create_ap_cap_query_json_cmd(char* src_mac_addr, char* agen
     root = cJSON_CreateObject();
     query_info = cJSON_CreateObject();
     device_list = cJSON_CreateArray();
-    cJSON_AddStringToObject(query_info, "ID", "Private");
+    cJSON_AddStringToObject(query_info, "ID", "OneWifiMesh");
     cJSON_AddNumberToObject(query_info, "NumberOfDevices", 1);
     cJSON_AddStringToObject(query_info, "TimeStamp", "2019-02-11T06:23:43.743847-08:00");
     cJSON_AddStringToObject(query_info, "ControllerID", src_mac_addr);
@@ -1429,7 +1514,7 @@ void dm_easy_mesh_t::create_client_cap_query_json_cmd(char* src_mac_addr, char* 
     root = cJSON_CreateObject();
     query_info = cJSON_CreateObject();
     device_list = cJSON_CreateArray();
-    cJSON_AddStringToObject(query_info, "ID", "Private");
+    cJSON_AddStringToObject(query_info, "ID", "OneWifiMesh");
     cJSON_AddNumberToObject(query_info, "NumberOfDevices", 1);
     cJSON_AddStringToObject(query_info, "TimeStamp", "2019-02-11T06:23:43.743847-08:00");
     cJSON_AddStringToObject(query_info, "ControllerID", src_mac_addr);
@@ -1573,6 +1658,7 @@ dm_easy_mesh_t::dm_easy_mesh_t()
 	m_num_opclass = 0;
 	m_num_bss = 0;
 	m_db_cfg_type = db_cfg_type_none;
+    m_colocated = false;
 }
 
 dm_easy_mesh_t::~dm_easy_mesh_t()

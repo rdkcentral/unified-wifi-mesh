@@ -44,7 +44,7 @@
 #include "em_orch_ctrl.h"
 
 em_ctrl_t g_ctrl;
-const char *global_netid = "Private";
+const char *global_netid = "OneWifiMesh";
 
 
 void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
@@ -104,7 +104,7 @@ void em_ctrl_t::handle_set_channel_list(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_network_ssid_list(evt, pcmd)) == 0) {
+    } else if ((num = m_data_model.analyze_set_channel(evt, pcmd)) == 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
@@ -114,14 +114,46 @@ void em_ctrl_t::handle_set_channel_list(em_bus_event_t *evt)
 
 }
 
+void em_ctrl_t::handle_m2_tx(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+    
+    if ((num = m_data_model.analyze_m2_tx(evt, pcmd)) > 0) {
+        m_orch->submit_commands(pcmd, num);
+    }
+}
+
 void em_ctrl_t::handle_set_ssid_list(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+    int ret;
+
+    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+    } else if ((ret = m_data_model.analyze_set_ssid(evt, pcmd)) <= 0) {
+        if (ret == EM_PARSE_ERR_NO_CHANGE) {
+        	m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+		} else {
+        	m_ctrl_cmd->send_result(em_cmd_out_status_invalid_input);
+		}
+    } else if (m_orch->submit_commands(pcmd, num = ret) > 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_success);
+    } else {
+        m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+    } 
+
+}
+
+void em_ctrl_t::handle_remove_device(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num;
 
     if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_network_ssid_list(evt, pcmd)) == 0) {
+    } else if ((num = m_data_model.analyze_remove_device(evt, pcmd)) == 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
@@ -179,7 +211,7 @@ void em_ctrl_t::handle_reset(em_bus_event_t *evt)
 
 }
 
-void em_ctrl_t::handle_topology_req()
+/*void em_ctrl_t::handle_topology_req()
 {
     em_t *em;
 
@@ -190,7 +222,7 @@ void em_ctrl_t::handle_topology_req()
         }
         em = em = (em_t *)hash_map_get_next(m_em_map, em);
     }
-}
+}*/
 
 void em_ctrl_t::handle_radio_metrics_req()
 {
@@ -236,7 +268,9 @@ void em_ctrl_t::handle_client_metrics_req()
 
 void em_ctrl_t::handle_timeout()
 {
+    m_tick_demultiplex++;
     handle_dirty_dm();
+    handle_2s_timeout();
     handle_5s_timeout();
     m_orch->handle_timeout();
 }
@@ -246,14 +280,20 @@ void em_ctrl_t::handle_dirty_dm()
 	m_data_model.handle_dirty_dm();
 }
 
+void em_ctrl_t::handle_2s_timeout()
+{
+    if ((m_tick_demultiplex % EM_2_TOUT_MULT) != 0) {
+        return;
+    }
+}
+
 void em_ctrl_t::handle_5s_timeout()
 {
     char buffer[30];
     struct timeval tv;
     time_t curtime;
 
-    m_tick_demultiplex++;
-    if ((m_tick_demultiplex % EM_METRICS_REQ_MULT) != 0) {
+    if ((m_tick_demultiplex % EM_5_TOUT_MULT) != 0) {
         return;
     }
     gettimeofday(&tv, NULL);
@@ -261,7 +301,7 @@ void em_ctrl_t::handle_5s_timeout()
 
     //strftime(buffer,30,"%m-%d-%Y  %T.",localtime(&curtime));
     //printf("%s:%d: %s%ld\n", __func__, __LINE__, buffer, tv.tv_usec);
-    handle_topology_req();
+    //handle_topology_req();
     handle_radio_metrics_req();
     handle_ap_metrics_req();
     handle_client_metrics_req();
@@ -290,6 +330,8 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
         case em_bus_event_type_get_network:
         case em_bus_event_type_get_ssid:
         case em_bus_event_type_get_channel:
+        case em_bus_event_type_get_device:
+        case em_bus_event_type_get_radio:
         case em_bus_event_type_get_bss:
         case em_bus_event_type_get_sta:
             handle_get_dm_data(evt);
@@ -299,6 +341,10 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
             handle_set_ssid_list(evt);  
             break;
 
+        case em_bus_event_type_remove_device:
+            handle_remove_device(evt);
+            break;
+        
         case em_bus_event_type_set_channel:
             handle_set_channel_list(evt);
             break;
@@ -313,6 +359,10 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
 
         case em_bus_event_type_dm_commit:
             handle_dm_commit(evt);
+            break;
+
+        case em_bus_event_type_m2_tx:
+            handle_m2_tx(evt);
             break;
 
         default:
@@ -357,7 +407,7 @@ int em_ctrl_t::data_model_init(const char *data_model_path)
         printf("%s:%s:%d: Data model found, creating node for mac:%s\n", __FILE__, __func__, __LINE__, mac_str);
         dm->print_config();
 
-        if ((em = create_node(intf, dm, true, em_profile_type_3, em_service_type_ctrl)) == NULL) {
+        if ((em = create_node(intf, em_freq_band_unknown, dm, true, em_profile_type_3, em_service_type_ctrl)) == NULL) {
             printf("%s:%d: Could not create and start abstraction layer interface\n", __func__, __LINE__);
         }
     }

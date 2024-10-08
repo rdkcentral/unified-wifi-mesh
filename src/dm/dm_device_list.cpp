@@ -35,6 +35,7 @@
 #include <sys/uio.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include "em_cmd.h"
 #include "dm_device_list.h"
 #include "dm_easy_mesh.h"
 #include "dm_easy_mesh_ctrl.h"
@@ -106,7 +107,7 @@ dm_orch_type_t dm_device_list_t::get_dm_orch_type(db_client_t& db_client, const 
     em_long_string_t	key;
 
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)dev.m_device_info.id.mac, mac_str);
-    snprintf(key, sizeof(em_long_string_t), "%s-%s", dev.m_device_info.net_id, mac_str);
+    snprintf(key, sizeof(em_long_string_t), "%s@%s", dev.m_device_info.net_id, mac_str);
 
     pdev = get_device(key);
     
@@ -114,7 +115,7 @@ dm_orch_type_t dm_device_list_t::get_dm_orch_type(db_client_t& db_client, const 
         
         if (entry_exists_in_table(db_client, key) == false) {
             printf("%s:%d: Device: %s does not exist in db\n", __func__, __LINE__, dm_easy_mesh_t::macbytes_to_string(pdev->m_device_info.id.mac, mac_str));
-            return dm_orch_type_dev_insert;
+            return dm_orch_type_db_insert;
         }
 
         if (*pdev == dev) { 
@@ -126,10 +127,10 @@ dm_orch_type_t dm_device_list_t::get_dm_orch_type(db_client_t& db_client, const 
 
         printf("%s:%d: Device: %s in list but needs update\n", __func__, __LINE__,
             dm_easy_mesh_t::macbytes_to_string(pdev->m_device_info.id.mac, mac_str));
-        return dm_orch_type_dev_update;
+        return dm_orch_type_db_update;
     }  
 
-    return dm_orch_type_dev_insert;
+    return dm_orch_type_db_insert;
 }
 
 void dm_device_list_t::update_list(const dm_device_t& dev, dm_orch_type_t op)
@@ -139,19 +140,19 @@ void dm_device_list_t::update_list(const dm_device_t& dev, dm_orch_type_t op)
     em_long_string_t	key;
 
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)dev.m_device_info.id.mac, mac_str);
-    snprintf(key, sizeof(em_long_string_t), "%s-%s", dev.m_device_info.net_id, mac_str);
+    snprintf(key, sizeof(em_long_string_t), "%s@%s", dev.m_device_info.net_id, mac_str);
 
     switch (op) {
-        case dm_orch_type_dev_insert:
+        case dm_orch_type_db_insert:
             put_device(key, &dev);
             break;
 
-        case dm_orch_type_dev_update:
+        case dm_orch_type_db_update:
             pdev = get_device(key);
             memcpy(&pdev->m_device_info, &dev.m_device_info, sizeof(em_device_info_t));
             break;
 
-        case dm_orch_type_dev_delete:
+        case dm_orch_type_db_delete:
             remove_device(key);            
             break;
     }
@@ -184,9 +185,9 @@ int dm_device_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
     em_device_info_t *info = (em_device_info_t *)data;
 	int ret = 0;
 
-	printf("%s:%d: Operation:%d\n", __func__, __LINE__, op);
+    printf("dm_device_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
 	switch (op) {
-		case dm_orch_type_dev_insert:
+		case dm_orch_type_db_insert:
 			ret = insert_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->id.mac, mac_str),
             			info->net_id, info->profile, info->multi_ap_cap, info->coll_interval, info->report_unsuccess_assocs, 
 						info->max_reporting_rate, info->ap_metrics_reporting_interval, info->manufacturer, info->serial_number, 
@@ -197,7 +198,7 @@ int dm_device_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
             			info->test_cap);
 			break;
 
-		case dm_orch_type_dev_update:
+		case dm_orch_type_db_update:
 			ret = update_row(db_client, info->net_id, info->profile, info->multi_ap_cap, info->coll_interval, info->report_unsuccess_assocs, 
 						info->max_reporting_rate, info->ap_metrics_reporting_interval, info->manufacturer, info->serial_number,
 						info->manufacturer_model, info->software_ver, info->exec_env, info->country_code, info->traffic_sep_allowed,
@@ -207,7 +208,7 @@ int dm_device_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
 						info->test_cap, dm_easy_mesh_t::macbytes_to_string(info->id.mac, mac_str));
 			break;
 
-		case dm_orch_type_dev_delete:
+		case dm_orch_type_db_delete:
 			ret = delete_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->id.mac, mac_str));
 			break;
 
@@ -227,7 +228,7 @@ bool dm_device_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
     while (db_client.next_result(ctx)) {
         db_client.get_string(ctx, mac, 1);
         db_client.get_string(ctx, net_id, 2);
-        snprintf(str, sizeof(em_long_string_t), "%s-%s", net_id, mac);
+        snprintf(str, sizeof(em_long_string_t), "%s@%s", net_id, mac);
 
         if (strncmp(str, (char *)key, strlen((char *)key)) == 0) {
             return true;
@@ -245,44 +246,43 @@ int dm_device_list_t::sync_db(db_client_t& db_client, void *ctx)
     int rc = 0;
 
     while (db_client.next_result(ctx)) {
-	memset(&info, 0, sizeof(em_device_info_t));
+        memset(&info, 0, sizeof(em_device_info_t));
 
-	db_client.get_string(ctx, mac, 1);
-	dm_easy_mesh_t::string_to_macbytes(mac, info.id.mac);
-
-	db_client.get_string(ctx, info.net_id, 2);
+        db_client.get_string(ctx, mac, 1);
+        dm_easy_mesh_t::string_to_macbytes(mac, info.id.mac);
+        db_client.get_string(ctx, info.net_id, 2);
         info.profile = (em_profile_type_t)db_client.get_number(ctx, 3);
         db_client.get_string(ctx, info.multi_ap_cap, 4);
         info.coll_interval = db_client.get_number(ctx, 5);
-	info.report_unsuccess_assocs = db_client.get_number(ctx, 6);	
-	info.max_reporting_rate = db_client.get_number(ctx, 7);	
-	info.ap_metrics_reporting_interval = db_client.get_number(ctx, 8);	
-	db_client.get_string(ctx, info.manufacturer, 9);
+        info.report_unsuccess_assocs = db_client.get_number(ctx, 6);
+        info.max_reporting_rate = db_client.get_number(ctx, 7);
+        info.ap_metrics_reporting_interval = db_client.get_number(ctx, 8);
+        db_client.get_string(ctx, info.manufacturer, 9);
         db_client.get_string(ctx, info.serial_number, 10);
         db_client.get_string(ctx, info.manufacturer_model, 11);
         db_client.get_string(ctx, info.software_ver, 12);
         db_client.get_string(ctx, info.exec_env, 13);
         db_client.get_string(ctx, info.country_code, 14);
-	info.traffic_sep_allowed = db_client.get_number(ctx, 15);
-	info.svc_prio_allowed = db_client.get_number(ctx, 16);
-	info.dfs_enable = db_client.get_number(ctx, 17);
-	info.max_unsuccessful_assoc_report_rate = db_client.get_number(ctx, 18);
-	info.sta_steer_state = db_client.get_number(ctx, 19);
-	info.coord_cac_allowed = db_client.get_number(ctx, 20);
+        info.traffic_sep_allowed = db_client.get_number(ctx, 15);
+        info.svc_prio_allowed = db_client.get_number(ctx, 16);
+        info.dfs_enable = db_client.get_number(ctx, 17);
+        info.max_unsuccessful_assoc_report_rate = db_client.get_number(ctx, 18);
+        info.sta_steer_state = db_client.get_number(ctx, 19);
+        info.coord_cac_allowed = db_client.get_number(ctx, 20);
 
-	db_client.get_string(ctx, mac, 21);
-	dm_easy_mesh_t::string_to_macbytes(mac, info.backhaul_mac.mac);
+        db_client.get_string(ctx, mac, 21);
+        dm_easy_mesh_t::string_to_macbytes(mac, info.backhaul_mac.mac);
 
-	db_client.get_string(ctx, str, 22);
+        db_client.get_string(ctx, str, 22);
+    
+        db_client.get_string(ctx, mac, 23);
+        dm_easy_mesh_t::string_to_macbytes(mac, info.backhaul_alid.mac);
 
-	db_client.get_string(ctx, mac, 23);
-	dm_easy_mesh_t::string_to_macbytes(mac, info.backhaul_alid.mac);
+        info.traffic_sep_cap = db_client.get_number(ctx, 24);
+        info.easy_conn_cap = db_client.get_number(ctx, 25);
+        info.test_cap = db_client.get_number(ctx, 26);
 
-	info.traffic_sep_cap = db_client.get_number(ctx, 24);
-	info.easy_conn_cap = db_client.get_number(ctx, 25);
-	info.test_cap = db_client.get_number(ctx, 26);
-        
-	update_list(dm_device_t(&info), dm_orch_type_dev_insert);
+        update_list(dm_device_t(&info), dm_orch_type_db_insert);
     }
 
     return rc;

@@ -50,7 +50,7 @@ int dm_dpp_t::analyze_config(const cJSON *obj, void *parent, em_cmd_t *pcmd[], e
 		return 0;
 	}
 
-	op = dm_orch_type_dpp_insert;
+	op = dm_orch_type_db_insert;
 	pcmd[num] = new em_cmd_start_dpp_t(*param);
     pcmd[num]->init(&dm);
     num++;	

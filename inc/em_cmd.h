@@ -36,8 +36,8 @@ public:
     struct timeval  m_start_time;
 
     unsigned int m_orch_op_idx;
-    dm_orch_type_t  m_orch_op_array[EM_MAX_CMD];
-    unsigned int m_num_orch_ops;
+    em_orch_desc_t  m_orch_desc[EM_MAX_CMD];
+    unsigned int m_num_orch_desc;
     em_freq_band_t m_rd_freq_band;
     unsigned int m_rd_op_class;
     unsigned int m_rd_channel;
@@ -45,7 +45,7 @@ public:
 
 public:
     int     load_params_file(char *buff);
-    int 	write_params_file(char *buff);
+    int 	write_params_file(char *buff, const char *net_id, const char *header = NULL);
     int 	edit_params_file();
     bool    validate();
 
@@ -62,12 +62,13 @@ public:
 
     void copy_bus_event(em_bus_event_t *evt) { m_evt.type = em_event_type_bus; memcpy(&m_evt.u.bevt, evt, sizeof(em_bus_event_t)); }
 
-    virtual dm_orch_type_t get_orch_op() { return m_orch_op_array[m_orch_op_idx]; }
+    dm_orch_type_t get_orch_op()  { return m_orch_desc[m_orch_op_idx].op; }
+    bool get_orch_submit() { return m_orch_desc[m_orch_op_idx].submit; }
     virtual em_cmd_t *clone_for_next();
     virtual em_cmd_t *clone();
     virtual void set_orch_op_index(unsigned int idx) { m_orch_op_idx = idx; }
     virtual unsigned int get_orch_op_index() { return m_orch_op_idx; }
-    virtual void override_op(unsigned int index, dm_orch_type_t op);
+    virtual void override_op(unsigned int index, em_orch_desc_t *desc);
     
 
     em_interface_t *get_ctrl_al_interface() { return m_data_model.get_ctrl_al_interface(); }
@@ -109,6 +110,7 @@ public:
     static em_bus_event_type_t cmd_2_bus_event_type(em_cmd_type_t type);
     static const char *get_orch_op_str(dm_orch_type_t type);
     static const char *get_bus_event_type_str(em_bus_event_type_t type);
+    static const char *get_cmd_type_str(em_cmd_type_t type);    
     static void dump_bus_event(em_bus_event_t *evt);
     
     em_cmd_t(em_cmd_type_t type, em_cmd_params_t param, dm_easy_mesh_t& dm);

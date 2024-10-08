@@ -54,6 +54,9 @@ em_cmd_t em_cmd_cli_t::m_client_cmd_spec[] = {
     em_cmd_t(em_cmd_type_vap_config, {1, {"", "", "", "", ""}, "VapConfig.json"}),
     em_cmd_t(em_cmd_type_sta_list, {1, {"", "", "", "", ""}, "STAList.json"}),
     em_cmd_t(em_cmd_type_get_network, {2, {"", "", "", "", ""}, "Network"}),
+    em_cmd_t(em_cmd_type_get_device, {2, {"", "", "", "", ""}, "DeviceList"}),
+    em_cmd_t(em_cmd_type_remove_device, {2, {"", "", "", "", ""}, "DeviceList.json"}),
+    em_cmd_t(em_cmd_type_get_radio, {2, {"", "", "", "", ""}, "RadioList"}),
     em_cmd_t(em_cmd_type_get_ssid, {2, {"", "", "", "", ""}, "NetworkSSIDList"}),
     em_cmd_t(em_cmd_type_set_ssid, {2, {"", "", "", "", ""}, "NetworkSSID.json"}),
     em_cmd_t(em_cmd_type_get_channel, {2, {"", "", "", "", ""}, "ChannelList"}),
@@ -112,7 +115,7 @@ int em_cmd_cli_t::execute(em_string_t res)
     dm_easy_mesh_t dm;
     unsigned int sz = sizeof(em_event_t);
     unsigned char *tmp;
-    em_long_string_t	in;
+    em_long_string_t	in, sock_path;
     em_status_string_t out;
 
     evt = get_event();
@@ -121,6 +124,14 @@ int em_cmd_cli_t::execute(em_string_t res)
     evt->type = em_event_type_bus;
     bevt = &evt->u.bevt;
     memcpy(&bevt->params, param, sizeof(em_cmd_params_t));
+
+    if (get_path_from_dst_service(get_svc(), sock_path) == NULL) {
+        printf("%s:%d: Could not find path from destination service: %d\n", get_svc());
+        return -1;
+    }
+
+    printf("%s:%d: Executing command: %s, Dst Service: %d with path: %s\n", __func__, __LINE__,
+            em_cmd_t::get_cmd_type_str(get_type()), get_svc(), sock_path);
 
     switch (get_type()) {
 
@@ -213,7 +224,7 @@ int em_cmd_cli_t::execute(em_string_t res)
         case em_cmd_type_set_ssid:
             snprintf(in, sizeof(in), "get_ssid %s", m_cmd.m_param.args[1]);
             get_cli()->exec(in, strlen(in), out);
-            get_cmd()->write_params_file(out);
+            get_cmd()->write_params_file(out, m_cmd.m_param.args[1], "SetSSID");
             bevt->type = em_bus_event_type_set_ssid;
 			if (get_cmd()->edit_params_file() != 0) {
                 printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->fixed_args, errno);
@@ -236,7 +247,7 @@ int em_cmd_cli_t::execute(em_string_t res)
         case em_cmd_type_set_channel:
 			snprintf(in, sizeof(in), "get_channel %s", m_cmd.m_param.args[1]);
 			get_cli()->exec(in, strlen(in), out);
-			get_cmd()->write_params_file(out);
+			get_cmd()->write_params_file(out, m_cmd.m_param.args[1]);
             bevt->type = em_bus_event_type_set_channel;
 			if (get_cmd()->edit_params_file() != 0) {
                 printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->fixed_args, errno);
@@ -311,7 +322,7 @@ int em_cmd_cli_t::execute(em_string_t res)
 
     memset(&addr, 0, sizeof(struct sockaddr_un));
     addr.sun_family = AF_UNIX;
-    snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", get_path());
+    snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", sock_path);
     if ((ret = connect(dsock, (const struct sockaddr *) &addr, sizeof(struct sockaddr_un))) != 0) {
         snprintf(res, sizeof(em_long_string_t), "%s:%d: connect error on socket, err:%d\n", __func__, __LINE__, errno);
         return -1;

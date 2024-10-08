@@ -46,12 +46,11 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
 {
     unsigned int index = 0;
     unsigned int num = 0, i, j = 0, num_radios = 0;
-    dm_orch_type_t op;
     dm_easy_mesh_agent_t  dm;
+    em_orch_desc_t desc;
     dm_device_t *dev, *tgt_dev;
     dm_radio_t *rd, *tgt_rd;
     em_cmd_t *tmp;
-    printf("evt->u.raw_buff = %s\n",evt->u.raw_buff);
     printf("%s:%d: Enter\n", __func__, __LINE__);
     dm.translate_onewifi_dml_data(evt->u.raw_buff);
 
@@ -60,34 +59,34 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
     dev = dm.get_device();
     tgt_dev = find_matching_device(dev);
     if (tgt_dev != NULL) {
-        op = dm_orch_type_rd_update;
+        desc.op = dm_orch_type_em_update;
     } else {
-        op = dm_orch_type_dev_insert;
+        desc.op = dm_orch_type_al_insert;
     }
 
     pcmd[num] = new em_cmd_dev_init_t(evt->params,dm);
     //pcmd[num]->init(&dm);
-    pcmd[num]->override_op(pcmd[num]->get_orch_op_index(), op);
+    pcmd[num]->override_op(pcmd[num]->get_orch_op_index(), &desc);
     printf("%s:%d: Orch op :%s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(pcmd[num]->get_orch_op()));
     tmp = pcmd[num];
     num++;
 
     while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
         //pcmd[num]->init(&dm);
-        if (pcmd[num]->get_orch_op() == dm_orch_type_rd_insert) {
+        if (pcmd[num]->get_orch_op() == dm_orch_type_em_insert) {
             i = 0;
             do {
                 rd = dm.get_radio(i);
                 tgt_rd = find_matching_radio(rd);
                 if (tgt_rd != NULL) {
-                    op = dm_orch_type_rd_update;
+                    desc.op = dm_orch_type_em_update;
                 } else {
-                    op = dm_orch_type_rd_insert;
+                    desc.op = dm_orch_type_em_insert;
                 }
                 index = pcmd[num]->m_data_model.get_cmd_ctx()->arr_index;
                 pcmd[num]->m_data_model.m_radio[index] = dm.m_radio[i];
 
-                pcmd[num]->override_op(pcmd[num]->get_orch_op_index(), op);
+                pcmd[num]->override_op(pcmd[num]->get_orch_op_index(), &desc);
                 printf("%s:%d: Orch op :%s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(pcmd[num]->get_orch_op()));
                 pcmd[num]->set_rd_freq_band(j);
                 j++;
@@ -120,7 +119,7 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
 {
     unsigned int index = 0;
     unsigned int num = 0, i, j = 0, num_radios = 0;
-    dm_orch_type_t op;
+    em_orch_desc_t desc;
     dm_device_t *dev, *tgt_dev;
     dm_radio_t *rd, *tgt_rd;
     em_cmd_t *tmp;
@@ -130,12 +129,12 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
     translate_onewifi_stats_data(evt->u.raw_buff);
 
 #if 0
-    op = dm_orch_type_sta_update;
+    desc.op = dm_orch_type_sta_update;
     //pcmd[0] =  new em_cmd_sta_list_t(evt->params,dm);
     pcmd[0] =  new em_cmd_sta_list_t(evt->params,*this);
-    pcmd[0]->override_op(0, op);
+    pcmd[0]->override_op(0, &desc);
 #endif
-    op = dm_orch_type_sta_update;
+    desc.op = dm_orch_type_sta_update;
 
     dm_easy_mesh_agent_t  *dm = this;
     dm_easy_mesh_agent_t* dm_pcmd = new dm_easy_mesh_agent_t[2];
@@ -229,7 +228,7 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
         //push all in a loop now for the number of indexes
         //printf("create cmd\n");
         pcmd[i] = new em_cmd_sta_list_t(evt->params, dm_pcmd[i]);
-        pcmd[i]->override_op(0, op);
+        pcmd[i]->override_op(0, &desc);
         printf("Pushed to PCMD for index %d\n",i );
     }
 

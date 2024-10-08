@@ -99,11 +99,17 @@ void em_mgr_t::proto_process(unsigned char *data, unsigned int len, em_t *em)
 
     } else if (((get_service_type() == em_service_type_ctrl) && (htons(cmdu->type) == em_msg_type_autoconf_search)) == true) {
         if ((em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_freq_band(&band) == true) && (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_al_mac_address(intf.mac) == true)) {
+            dm_easy_mesh_t::macbytes_to_string(intf.mac, mac_str1);
+            printf("%s:%d: Received autoconfig search from agenti al mac: %s\n", __func__, __LINE__, mac_str1);
             if ((dm = get_data_model((const char *)global_netid, (const unsigned char *)intf.mac)) == NULL) {
                 if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_profile(&profile) == false) {
                     profile = em_profile_type_1;
                 }
                 dm = create_data_model((const char *)global_netid, (const unsigned char *)intf.mac, profile);
+                printf("%s:%d: Created data model for mac: %s net: %s\n", __func__, __LINE__, mac_str1, global_netid);
+            } else {
+                dm_easy_mesh_t::macbytes_to_string(dm->get_agent_al_interface_mac(), mac_str1);
+                printf("%s:%d: Found existing data model for mac: %s net: %s\n", __func__, __LINE__, mac_str1, global_netid);
             }
             em = al_em;
         } 
@@ -113,6 +119,8 @@ void em_mgr_t::proto_process(unsigned char *data, unsigned int len, em_t *em)
         dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
         if ((radio_em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
             em = radio_em;
+            printf("%s:%d: Found existing radio:%s\n", __func__, __LINE__, mac_str1);
+            em->set_state(em_state_ctrl_wsc_m1_pending);
         } else if (((get_service_type() == em_service_type_ctrl) && (htons(cmdu->type) == em_msg_type_autoconf_wsc)) == true) {
             if ((dm = get_data_model((const char *)global_netid, (const unsigned char *)hdr->src)) == NULL) {
                 printf("%s:%d: Can not find data model\n", __func__, __LINE__);
@@ -124,9 +132,10 @@ void em_mgr_t::proto_process(unsigned char *data, unsigned int len, em_t *em)
             printf("%s:%d: Found data model for mac: %s, creating node for ruid: %s\n", __func__, __LINE__, mac_str1, mac_str2);
 
             memcpy(intf.mac, ruid, sizeof(mac_address_t));
-            if ((radio_em = create_node(&intf, dm, false,  dm->get_device()->m_device_info.profile, em_service_type_ctrl)) != NULL) {
+            if ((radio_em = create_node(&intf, em_freq_band_unknown, dm, false,  dm->get_device()->m_device_info.profile, 
+					em_service_type_ctrl)) != NULL) {                
                 em = radio_em;
-                em->set_state(em_state_agent_wsc_m1_pending);
+                em->set_state(em_state_ctrl_wsc_m1_pending);
             } else {
                 em = al_em;
             } 	
@@ -157,7 +166,9 @@ void em_mgr_t::delete_nodes()
     while (em != NULL) {
         tmp = em;
         em = (em_t *)hash_map_get_next(m_em_map, em);
-        delete_node(tmp->get_radio_interface());
+        if (tmp->is_al_interface_em() == false) {
+            delete_node(tmp->get_radio_interface());
+        }
 
     }	
 }
@@ -181,7 +192,7 @@ void em_mgr_t::delete_node(em_interface_t *ruid)
 
 }
 
-em_t *em_mgr_t::create_node(em_interface_t *ruid, dm_easy_mesh_t *dm, bool is_al_mac,em_profile_type_t profile, em_service_type_t type)
+em_t *em_mgr_t::create_node(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, bool is_al_mac,em_profile_type_t profile, em_service_type_t type)
 {
     em_t *em = NULL;
     mac_addr_str_t  mac_str;
@@ -204,7 +215,7 @@ em_t *em_mgr_t::create_node(em_interface_t *ruid, dm_easy_mesh_t *dm, bool is_al
         return em;
     }
 
-    em = new em_t(ruid, dm, profile, type);
+    em = new em_t(ruid, band, dm, profile, type);
     em->set_al_type(is_al_mac);
     if (em->init() != 0) {
         delete em;

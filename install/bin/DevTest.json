@@ -1,6 +1,6 @@
 {
     "wfa-dataelements:Test": {
-        "ID": "Private",
+        "ID": "OneWifiMesh",
         "NumberOfDevices": 1,
         "TimeStamp": "2019-02-11T06:23:43.743847-08:00",
         "ControllerID": "02:01:02:01:00:01",
@@ -98,7 +98,7 @@
                         "BSSList": [{
                                 "BSSID": "02:01:02:01:01:01",
                                 "UnicastBytesSent": 8560234,
-                                "SSID": "SLO_Fronthaul",
+                                "SSID": "Private_Fronthaul_2G",
                                 "EstServiceParametersBE": "GQBk",
                                 "Enabled": true,
                                 "LastChange": 660,
@@ -130,7 +130,7 @@
                             }, {
                                 "BSSID": "02:01:02:01:01:02",
                                 "UnicastBytesSent": 0,
-                                "SSID": "MLO_Backhaul",
+                                "SSID": "Private_Backhaul_2G",
                                 "EstServiceParametersBE": "GQBk",
                                 "Enabled": true,
                                 "LastChange": 560,
@@ -246,7 +246,7 @@
                         "BSSList": [
                             {
                                 "BSSID": "02:01:02:01:02:03",
-                                "SSID": "SLO_Fronthaul",
+                                "SSID": "Private_Fronthaul_5G",
                                 "Enabled": true,
                                 "LastChange": 560,
                                 "TimeStamp": "2019-02-11T06:23:43.778134-08:00",
@@ -275,7 +275,7 @@
                             },
                             {
                                 "BSSID": "02:01:02:01:02:04",
-                                "SSID": "MLO_Backhaul",
+                                "SSID": "Private_Backhaul_5G",
                                 "Enabled": true,
                                 "LastChange": 560,
                                 "TimeStamp": "2019-02-11T06:23:43.778134-08:00",
@@ -391,7 +391,7 @@
                         "BSSList": [{
                                 "BSSID": "02:01:02:01:03:05",
                                 "UnicastBytesSent": 8556450,
-                                "SSID": "SLO_Fronthaul",
+                                "SSID": "Private_Fronthaul_6G",
                                 "EstServiceParametersBE": "GQBk",
                                 "Enabled": true,
                                 "LastChange": 660,
@@ -417,7 +417,7 @@
                             }, {
                                 "BSSID": "02:01:02:01:03:06",
                                 "UnicastBytesSent": 0,
-                                "SSID": "MLO_Backhaul",
+                                "SSID": "Private_Backhaul_6G",
                                 "EstServiceParametersBE": "GQBk",
                                 "Enabled": true,
                                 "LastChange": 560,

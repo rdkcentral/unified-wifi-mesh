@@ -35,6 +35,7 @@
 #include <sys/uio.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include "em_cmd.h"
 #include "dm_radio_list.h"
 #include "dm_easy_mesh.h"
 #include "dm_easy_mesh_ctrl.h"
@@ -137,7 +138,7 @@ dm_orch_type_t dm_radio_list_t::get_dm_orch_type(db_client_t& db_client, const d
     pradio = get_radio(mac_str);
     if (pradio != NULL) {
         if (entry_exists_in_table(db_client, mac_str) == false) {
-            return dm_orch_type_dev_insert;
+            return dm_orch_type_db_insert;
         }
 
         if (*pradio == radio) {
@@ -149,10 +150,10 @@ dm_orch_type_t dm_radio_list_t::get_dm_orch_type(db_client_t& db_client, const d
 
         printf("%s:%d: Device: %s in list but needs update\n", __func__, __LINE__,
         dm_easy_mesh_t::macbytes_to_string(pradio->m_radio_info.id.mac, mac_str));
-        return dm_orch_type_rd_update;
+        return dm_orch_type_db_update;
     }  
 
-    return dm_orch_type_rd_insert;
+    return dm_orch_type_db_insert;
 
 }
 
@@ -164,16 +165,16 @@ void dm_radio_list_t::update_list(const dm_radio_t& radio, dm_orch_type_t op)
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)radio.m_radio_info.id.mac, mac_str);
 
     switch (op) {
-        case dm_orch_type_rd_insert:
+        case dm_orch_type_db_insert:
         put_radio(mac_str, &radio);
             break;
 
-        case dm_orch_type_rd_update:
+        case dm_orch_type_db_update:
             pradio = get_radio(mac_str);
             memcpy(&pradio->m_radio_info, &radio.m_radio_info, sizeof(em_radio_info_t));
             break;
 
-        case dm_orch_type_rd_delete:
+        case dm_orch_type_db_delete:
             remove_radio(mac_str);
             break;
     }
@@ -206,9 +207,9 @@ int dm_radio_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *
     em_radio_info_t *info = (em_radio_info_t *)data;
     int ret = 0;
 
-    printf("%s:%d: Opeartion:%d\n", __func__, __LINE__, op);
-	switch (op) {
-		case dm_orch_type_rd_insert:
+    printf("dm_radio_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
+    switch (op) {
+		case dm_orch_type_db_insert:
 			ret = insert_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->id.mac, mac_str), 
 						dm_easy_mesh_t::macbytes_to_string(info->dev_id, dev_mac_str), info->net_id, info->enabled,
             			info->number_of_unassoc_sta, info->noise, info->utilization, 
@@ -219,7 +220,7 @@ int dm_radio_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *
             			info->chip_vendor); 
 			break;
 
-		case dm_orch_type_rd_update:
+		case dm_orch_type_db_update:
 			ret = update_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->dev_id, dev_mac_str), info->net_id, info->enabled,
                         info->number_of_unassoc_sta, info->noise, info->utilization,
                         info->traffic_sep_combined_fronthaul,
@@ -229,7 +230,7 @@ int dm_radio_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *
                         info->chip_vendor, dm_easy_mesh_t::macbytes_to_string(info->id.mac, mac_str));
 			break;
 
-		case dm_orch_type_rd_delete:
+		case dm_orch_type_db_delete:
 			ret = delete_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->id.mac, mac_str));
 			break;
 
@@ -289,7 +290,7 @@ int dm_radio_list_t::sync_db(db_client_t& db_client, void *ctx)
         
 	db_client.get_string(ctx, info.chip_vendor, 18);
 		
-	update_list(dm_radio_t(&info), dm_orch_type_rd_insert);
+	update_list(dm_radio_t(&info), dm_orch_type_db_insert);
     }
     return rc;
 }

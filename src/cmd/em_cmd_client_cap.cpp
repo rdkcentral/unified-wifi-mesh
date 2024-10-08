@@ -47,16 +47,19 @@ em_cmd_client_cap_report_t::em_cmd_client_cap_report_t(em_cmd_params_t param, dm
     m_type = em_cmd_type_client_cap_query;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
 
-    m_orch_op_idx = 0;
-    m_num_orch_ops = 1;
-    m_orch_op_array[0] = dm_orch_type_client_cap_report;
+    memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
 
-    snprintf(m_name, sizeof(m_name), "%s", "client_cap");
+    m_orch_op_idx = 0;
+    m_num_orch_desc = 1;
+    m_orch_desc[0].op = dm_orch_type_client_cap_report;
+	m_orch_desc[0].submit = true;
+
+    strncpy(m_name, "client_cap", strlen("client_cap") + 1);
     m_svc = em_service_type_agent;
     init(&dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
-    ctx.type = m_orch_op_array[0]; 
+    ctx.type = m_orch_desc[0].op; 
     m_data_model.set_cmd_ctx(&ctx);
 }
 

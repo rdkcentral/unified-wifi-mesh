@@ -35,6 +35,7 @@
 #include <sys/uio.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include "em_cmd.h"
 #include "dm_easy_mesh_ctrl.h"
 #include "dm_easy_mesh.h"
 #include "dm_network_list.h"
@@ -97,7 +98,7 @@ dm_orch_type_t dm_network_list_t::get_dm_orch_type(db_client_t& db_client, const
 
     if (pnet != NULL) {
         if (entry_exists_in_table(db_client, (char *)net.m_net_info.id) == false) {
-            return dm_orch_type_dev_insert;
+            return dm_orch_type_db_insert;
         }
         if (*pnet == net) {
             printf("%s:%d: Network: %s already in list\n", __func__, __LINE__, net.m_net_info.id);
@@ -106,10 +107,10 @@ dm_orch_type_t dm_network_list_t::get_dm_orch_type(db_client_t& db_client, const
 
 
         printf("%s:%d: Network: %s in list but needs update\n", __func__, __LINE__, net.m_net_info.id);
-        return dm_orch_type_net_update;
+        return dm_orch_type_db_update;
     }
 
-    return dm_orch_type_net_insert;
+    return dm_orch_type_db_insert;
 }
 
 
@@ -121,16 +122,16 @@ void dm_network_list_t::update_list(const dm_network_t& net, dm_orch_type_t op)
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)net.m_net_info.colocated_agent_id.mac, mac_str);
 
     switch (op) {
-        case dm_orch_type_net_insert:
+        case dm_orch_type_db_insert:
             put_network(net.m_net_info.id, &net);
             break;
 
-        case dm_orch_type_net_update:
+        case dm_orch_type_db_update:
             pnet = get_network(net.m_net_info.id);
             memcpy(&pnet->m_net_info, &net.m_net_info, sizeof(em_network_info_t));
             break;
 
-        case dm_orch_type_net_delete:
+        case dm_orch_type_db_delete:
             remove_network(net.m_net_info.id);
             break;
     }
@@ -159,21 +160,21 @@ int dm_network_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void
     mac_addr_str_t agent_str, ctrl_str;
     em_network_info_t *info = (em_network_info_t *)data;
 
-    printf("%s:%d: Operation:%d\n", __func__, __LINE__, op);
+    printf("dm_network_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
 	switch (op) {
-		case dm_orch_type_net_insert:
+		case dm_orch_type_db_insert:
 			ret = insert_row(db_client, info->id, 
             			dm_easy_mesh_t::macbytes_to_string(info->ctrl_id.mac, ctrl_str), 
             			dm_easy_mesh_t::macbytes_to_string(info->colocated_agent_id.mac, agent_str));
 			break;
 
-		case dm_orch_type_net_update:
+		case dm_orch_type_db_update:
 			ret = update_row(db_client,
             			dm_easy_mesh_t::macbytes_to_string(info->ctrl_id.mac, ctrl_str), 
             			dm_easy_mesh_t::macbytes_to_string(info->colocated_agent_id.mac, agent_str), info->id);
 			break;
 
-		case dm_orch_type_net_delete:
+		case dm_orch_type_db_delete:
 			ret = delete_row(db_client, (info == NULL) ? m_net_info.id:info->id);
 			break;
 
@@ -215,7 +216,7 @@ int dm_network_list_t::sync_db(db_client_t& db_client, void *ctx)
 	db_client.get_string(ctx, mac, 3);
 	dm_easy_mesh_t::string_to_macbytes(mac, info.colocated_agent_id.mac);
 
-	update_list(dm_network_t(&info), dm_orch_type_net_insert);
+	update_list(dm_network_t(&info), dm_orch_type_db_insert);
     }
     return rc;
 }

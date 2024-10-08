@@ -39,7 +39,7 @@
 #include "util.h"
 
 em_agent_t g_agent;
-const char *global_netid = "Private";
+const char *global_netid = "OneWifiMesh";
 
 void em_agent_t::handle_sta_list(em_bus_event_t *evt)
 {
@@ -366,6 +366,11 @@ int em_agent_t::orch_init()
 {
     m_orch = new em_orch_agent_t(this);
     return 0;
+}
+
+void em_agent_t::debug_probe()
+{
+
 }
 
 em_agent_t::em_agent_t()

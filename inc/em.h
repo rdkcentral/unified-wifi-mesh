@@ -45,6 +45,7 @@ class em_t :
     em_service_type_t   m_service_type;
     int m_fd;
     em_interface_t  m_ruid;
+    em_freq_band_t  m_band;
     em_profile_type_t   m_profile_type;
     em_queue_t  m_iq;
     pthread_t   m_tid;
@@ -147,9 +148,13 @@ public:
     void set_software_version(char *version) { m_data_model->set_software_version(version); }
     void set_serial_number(char *serial) { m_data_model->set_serial_number(serial); }
     void set_primary_device_type(char *type) { m_data_model->set_primary_device_type(type); }
-    static void *em_func(void *);
+    em_freq_band_t get_band() { return m_band; }
+    void set_band(em_freq_band_t band) { m_band = band; }
 
-    em_t(em_interface_t *ruid, dm_easy_mesh_t *dm, em_profile_type_t profile, em_service_type_t type);
+    static void *em_func(void *);
+    static const char *get_band_type_str(em_freq_band_t band);
+
+    em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_profile_type_t profile, em_service_type_t type);
     ~em_t();
 
 };

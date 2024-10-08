@@ -16,27 +16,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#ifndef EM_CMD_GET_DEVICE_H
+#define EM_CMD_GET_DEVICE_H
 
-#ifndef DB_CLIENT_H
-#define DB_CLIENT_H
+#include "em_cmd.h"
 
-class db_client_t {
-    void *m_driver;
-    void *m_con;
-
-    int connect(const char *path);
+class em_cmd_get_device_t : public em_cmd_t {
 
 public:
-    int init(const char *path);
-    void *execute(const char *query);
-    bool next_result(void *ctx);
-    char *get_string(void *ctx, char *res, unsigned int col);
-    int get_number(void *ctx, unsigned int col);
-
-    int recreate_db();
-
-    db_client_t();
-    ~db_client_t();	
+	em_cmd_get_device_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif
