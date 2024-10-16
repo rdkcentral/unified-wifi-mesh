@@ -66,7 +66,7 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 
         case em_cmd_type_set_ssid:
-            m_state = em_state_ctrl_cfg_renew_pending;
+            m_state = em_state_ctrl_misconfigured;
             break;
 
         case em_cmd_type_dev_init:
@@ -74,7 +74,8 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 
         case em_cmd_type_cfg_renew:
-            m_state = em_state_agent_autoconfig_renew_pending;
+            m_state = (m_service_type == em_service_type_agent) ? 
+							em_state_agent_autoconfig_renew_pending:em_state_ctrl_misconfigured;
             break;
 
         case em_cmd_type_start_dpp:
@@ -88,9 +89,13 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_state = em_state_agent_client_cap_report;
             break;
 
-        case em_cmd_type_topo_sync:
+        case em_cmd_type_em_config:
             m_state = em_state_ctrl_topo_sync_pending;
             break;
+
+        case em_cmd_type_dev_test:
+			m_state = em_state_ctrl_channel_query_pending;
+			break;
     }
 }
 
@@ -195,12 +200,17 @@ void em_t::handle_ctrl_state()
     cmd_type = m_cmd->m_type;
     switch (cmd_type) {
         case em_cmd_type_set_ssid:
+        case em_cmd_type_cfg_renew:
             em_configuration_t::process_ctrl_state();
             break;
 
-        case em_cmd_type_topo_sync:
+        case em_cmd_type_em_config:
             em_configuration_t::process_ctrl_state();
             break;
+
+        case em_cmd_type_dev_test:
+			em_channel_t::process_ctrl_state();
+			break;
     }
 
 }
@@ -671,8 +681,8 @@ const char *em_t::get_band_type_str(em_freq_band_t band)
 em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_profile_type_t profile, em_service_type_t type)
 {
     memcpy(&m_ruid, ruid, sizeof(em_interface_t));
-    m_service_type = type;
     m_band = band;  
+    m_service_type = type;
     m_profile_type = profile;
     m_state = (type == em_service_type_agent) ? em_state_agent_config_none:em_state_ctrl_none;
     m_orch_state = em_orch_state_idle;

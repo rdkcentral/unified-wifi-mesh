@@ -76,9 +76,11 @@ public:
 
     bool is_al_interface_em() { return m_is_al_em; }
     bool is_set_ssid_candidate(dm_network_ssid_t *net_ssid) { return (is_al_interface_em() == true) ? false:true; }
+    bool is_dev_test_candidate() { return is_al_interface_em(); }
     bool is_start_dpp_candidate(dm_dpp_t *dpp) { return (is_al_interface_em() == true) ? false:true; }
     bool is_start_dev_init(dm_radio_t *radio) { return (is_al_interface_em() == true) ? false:true; }
     bool is_tx_cfg_renew_candidate() { return is_al_interface_em(); }
+    bool is_cfg_renew_candidate() { return (m_state == em_state_ctrl_misconfigured) ? true:false;; }
     bool is_dev_init_candidate(unsigned char *mac) { return (memcmp(mac, get_radio_interface_mac(), sizeof(mac_address_t)) == 0); }
     bool is_autoconfig_renew_candidate(em_freq_band_t radio_freq_band , em_freq_band_t em_freq_band) { return (radio_freq_band == em_freq_band) ? true:false;}
     bool is_matching_freq_band(em_freq_band_t *band);

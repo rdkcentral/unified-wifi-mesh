@@ -436,10 +436,38 @@ int dm_easy_mesh_t::encode_config_reset(em_subdoc_info_t *subdoc, const char *ke
     return 0;
 }
 
+int dm_easy_mesh_t::encode_config_op_class_array(cJSON *arr_obj, em_op_class_type_t type, unsigned char *mac)
+{
+	unsigned int i;
+	cJSON *op_obj;
+	mac_addr_str_t	mac_str;
+	
+	dm_easy_mesh_t::macbytes_to_string(mac, mac_str);
+
+	for (i = 0; i < m_num_opclass; i++) {
+		if ((memcmp(m_op_class[i].m_op_class_info.id.ruid, mac, sizeof(mac_address_t)) != 0) ||
+					(m_op_class[i].m_op_class_info.id.type != type)) {
+			continue;
+		}
+		if ((op_obj = cJSON_CreateObject()) == NULL) {
+        	printf("%s:%d: Could not create op object\n", __func__, __LINE__);
+            return -1;
+		}
+
+		m_op_class[i].encode(op_obj);
+        if (cJSON_AddItemToArray(arr_obj, op_obj) == false) {
+            printf("%s:%d: Could not create net object\n", __func__, __LINE__);
+            return -1;
+        }
+	}
+
+	return 0;
+}
+
 int dm_easy_mesh_t::encode_config_test(em_subdoc_info_t *subdoc, const char *key)
 {
     cJSON *parent_obj, *net_obj, *dev_arr_objs,  *dev_obj, *radio_arr_objs, *radio_obj;
-	cJSON *op_arr_objs, *op_obj, *bss_obj, *bss_arr_objs;
+	cJSON *cap_obj, *op_arr_objs, *op_obj, *bss_obj, *bss_arr_objs;
 	char *formatted_json;
 	unsigned int i, j, num_op_classes = 0, num_bss = 0;
 	em_op_class_id_t id;
@@ -519,23 +547,12 @@ int dm_easy_mesh_t::encode_config_test(em_subdoc_info_t *subdoc, const char *key
             cJSON_Delete(parent_obj);
             return -1;
         }
-        for (j = 0; j < m_num_opclass; j++) {
-			if (memcmp(m_op_class[j].m_op_class_info.id.ruid, m_radio[i].m_radio_info.id.mac, sizeof(mac_address_t)) != 0) {
-				continue;
-			}
-            if ((op_obj = cJSON_CreateObject()) == NULL) {
-                printf("%s:%d: Could not create op object\n", __func__, __LINE__);
-                cJSON_Delete(parent_obj);
-                return -1;
-            }
 
-            m_op_class[j].encode(op_obj);
-            if (cJSON_AddItemToArray(op_arr_objs, op_obj) == false) {
-                cJSON_Delete(parent_obj);
-                printf("%s:%d: Could not create net object\n", __func__, __LINE__);
-                return -1;
-            }
-        }
+        if (encode_config_op_class_array(op_arr_objs, em_op_class_type_current, m_radio[i].m_radio_info.id.mac) != 0) {
+            printf("%s:%d: CurrentOperatingClasses Encoding failed \n", __func__, __LINE__);
+            cJSON_Delete(parent_obj);
+            return -1;
+		}         
 
         if ((bss_arr_objs = cJSON_CreateArray()) == NULL) {
             printf("%s:%d: Could not create bss array object\n", __func__, __LINE__);
@@ -572,6 +589,103 @@ int dm_easy_mesh_t::encode_config_test(em_subdoc_info_t *subdoc, const char *key
 
     }
 
+    // Capabilities
+    	if ((cap_obj = cJSON_CreateObject()) == NULL) {
+        	printf("%s:%d: Could not create capability object\n", __func__, __LINE__);
+        	cJSON_Delete(parent_obj);
+        	return -1;
+    	}
+
+		if (cJSON_AddItemToObject(radio_obj, "Capabilities", cap_obj) == false) {
+            printf("%s:%d: Could not add capability object\n", __func__, __LINE__);
+            cJSON_Delete(parent_obj);
+            return -1;
+        }  
+
+		if ((op_arr_objs = cJSON_CreateArray()) == NULL) {
+            printf("%s:%d: Could not create op array object\n", __func__, __LINE__);
+            cJSON_Delete(parent_obj);
+            return -1;
+        }
+
+        if (cJSON_AddItemToObject(cap_obj, "OperatingClasses", op_arr_objs) == false) {
+            printf("%s:%d: Could not create op object\n", __func__, __LINE__);
+            cJSON_Delete(parent_obj);
+            return -1;
+        }
+
+        if (encode_config_op_class_array(op_arr_objs, em_op_class_type_capability, m_radio[i].m_radio_info.id.mac) != 0) {
+            printf("%s:%d: CurrentOperatingClasses Encoding failed \n", __func__, __LINE__);
+            cJSON_Delete(parent_obj);
+            return -1;
+        }
+
+	// CACStatus
+   	if ((cap_obj = cJSON_CreateObject()) == NULL) {
+       	printf("%s:%d: Could not create capability object\n", __func__, __LINE__);
+       	cJSON_Delete(parent_obj);
+       	return -1;
+   	}
+
+	if (cJSON_AddItemToObject(dev_obj, "CACStatus", cap_obj) == false) {
+		printf("%s:%d: Could not add cac status object\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return -1;
+    }  
+
+	if ((op_arr_objs = cJSON_CreateArray()) == NULL) {
+        printf("%s:%d: Could not create op array object\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return -1;
+    }
+
+    if (cJSON_AddItemToObject(cap_obj, "AvailableChannelList", op_arr_objs) == false) {
+       	printf("%s:%d: Could not create op object\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+       	return -1;
+	}
+
+  	if (encode_config_op_class_array(op_arr_objs, em_op_class_type_cac_available, m_device.m_device_info.id.mac) != 0) {
+        printf("%s:%d: AvailableChannelList Encoding failed \n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return -1;
+    }
+
+	if ((op_arr_objs = cJSON_CreateArray()) == NULL) {
+        printf("%s:%d: Could not create op array object\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return -1;
+    }
+
+    if (cJSON_AddItemToObject(cap_obj, "NonOccupancyChannelList", op_arr_objs) == false) {
+       	printf("%s:%d: Could not create op object\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+       	return -1;
+	}
+
+  	if (encode_config_op_class_array(op_arr_objs, em_op_class_type_cac_non_occ, m_device.m_device_info.id.mac) != 0) {
+        printf("%s:%d: NonOccupancyChannelList Encoding failed \n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return -1;
+    }
+
+	if ((op_arr_objs = cJSON_CreateArray()) == NULL) {
+        printf("%s:%d: Could not create op array object\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return -1;
+    }
+
+    if (cJSON_AddItemToObject(cap_obj, "ActiveChannelList", op_arr_objs) == false) {
+       	printf("%s:%d: Could not create op object\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+       	return -1;
+	}
+
+  	if (encode_config_op_class_array(op_arr_objs, em_op_class_type_cac_active, m_device.m_device_info.id.mac) != 0) {
+        printf("%s:%d: ActiveChannelList Encoding failed \n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return -1;
+    }
 
 	formatted_json = cJSON_Print(parent_obj);
     printf("%s:%d: %s\n", __func__, __LINE__, formatted_json);
@@ -627,7 +741,10 @@ int dm_easy_mesh_t::decode_config(em_subdoc_info_t *subdoc, const char *str)
     } else if (strncmp(str, "Test", strlen("Test")) == 0) {
         snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
         return decode_config_test(subdoc, key); 
-	}
+	} else if (strncmp(str, "dm_cache", strlen("dm_cache")) == 0) {
+         snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
+         return decode_config_test(subdoc, key);
+    }
 
 	return -1;
 }
@@ -752,10 +869,60 @@ int dm_easy_mesh_t::decode_config_set_ssid(em_subdoc_info_t *subdoc, const char 
 	return ret;
 }
 
+int dm_easy_mesh_t::decode_config_op_class_array(cJSON *arr_obj, em_op_class_type_t type, unsigned char *mac)
+{
+	cJSON *op_obj;
+	unsigned int num_objs, i;
+	mac_addr_str_t	mac_str;
+	em_long_string_t key;
+
+	num_objs = cJSON_GetArraySize(arr_obj);
+	//printf("%s:%d: Operating Classes for type: %d are: %d\n", __func__, __LINE__, type, num_objs);
+
+	for (i = 0; i < num_objs; i++) {
+		if ((op_obj = cJSON_GetArrayItem(arr_obj, i)) == NULL) {
+			printf("%s:%d: Type: %d has no memebers\n", __func__, __LINE__, type);
+			return -1;
+		}
+
+		dm_easy_mesh_t::macbytes_to_string(mac, mac_str);
+		snprintf(key, sizeof(em_long_string_t), "%s@%d@%d", mac_str, type, i);
+
+		//printf("%s:%d: Data at m_op_class[%d]\n", __func__, __LINE__, i + m_num_opclass);
+		m_op_class[i + m_num_opclass].decode(op_obj, key);
+	}
+
+	m_num_opclass += num_objs;
+
+	return 0;
+}
+
+void dm_easy_mesh_t::update_cac_status_id(mac_address_t al_mac)
+{
+	unsigned int i;
+	mac_addr_str_t	mac_str;
+	em_long_string_t	key;
+
+	for (i = 0; i < m_num_opclass; i++) {
+		if (m_op_class[i].m_op_class_info.id.type > em_op_class_type_capability) {
+			memcpy(m_op_class[i].m_op_class_info.id.ruid, al_mac, sizeof(mac_address_t));
+		}
+	}
+
+    for (i = 0; i < m_num_opclass; i++) {
+        dm_easy_mesh_t::macbytes_to_string(m_op_class[i].m_op_class_info.id.ruid, mac_str);
+        snprintf(key, sizeof(em_long_string_t), "%s@%d@%d", mac_str,
+                m_op_class[i].m_op_class_info.id.type, m_op_class[i].m_op_class_info.id.index);
+        printf("%s:%d: ID: %s: OpClass: %d Channel: %d\n", __func__, __LINE__,
+                key, m_op_class[i].m_op_class_info.op_class, m_op_class[i].m_op_class_info.channel);
+    }
+}
+
 int dm_easy_mesh_t::decode_config_test(em_subdoc_info_t *subdoc, const char *key)
 {
-    cJSON *parent_obj, *net_obj, *dev_arr_objs,  *dev_obj, *radio_arr_objs, *radio_obj , *op_arr_objs, *op_obj;
-	cJSON *bss_arr_objs,*bss_obj, *tmp;
+    cJSON *parent_obj, *net_obj, *dev_arr_objs,  *dev_obj, *radio_arr_objs, *radio_obj , *cap_obj;
+	cJSON *op_arr_objs, *op_obj, *cac_status_obj;
+    cJSON *bss_arr_objs,*bss_obj, *tmp;
     unsigned int size, i, j, num_objs;
 	mac_addr_str_t mac_str;
 	em_long_string_t parent_key;
@@ -820,22 +987,30 @@ int dm_easy_mesh_t::decode_config_test(em_subdoc_info_t *subdoc, const char *key
             return -1;
         }
 
-        num_objs = cJSON_GetArraySize(op_arr_objs);
-
-		for (j = 0; j < num_objs; j++) {
-        	if ((op_obj = cJSON_GetArrayItem(op_arr_objs, j)) == NULL) {
-            	cJSON_Delete(parent_obj);
-            	printf("%s:%d: CurrentOperatingClasses has no memebers not present\n", __func__, __LINE__);
-            	return -1;
-        	}
-
-			dm_easy_mesh_t::macbytes_to_string(m_radio[i].m_radio_info.id.mac, mac_str);	
-			snprintf(parent_key, sizeof(parent_key), "%s@%d@%d", mac_str, em_op_class_type_current, j);
-			
-        	m_op_class[j + m_num_opclass].decode(op_obj, parent_key);
+        if (decode_config_op_class_array(op_arr_objs, em_op_class_type_current, m_radio[i].m_radio_info.id.mac) != 0) {
+            cJSON_Delete(parent_obj);
+            printf("%s:%d: CurrentOperatingClasses decode failed\n", __func__, __LINE__);
+            return -1;
 		}
 
-		m_num_opclass += num_objs;
+		// Capabilities
+		if ((cap_obj = cJSON_GetObjectItem(radio_obj, "Capabilities")) == NULL) {
+            cJSON_Delete(parent_obj);
+            printf("%s:%d: Capabilities not present\n", __func__, __LINE__);
+            return -1;
+        }
+
+		if ((op_arr_objs = cJSON_GetObjectItem(cap_obj, "OperatingClasses")) == NULL) {
+            cJSON_Delete(parent_obj);
+            printf("%s:%d: OperatingClasses not present\n", __func__, __LINE__);
+            return -1;
+		}
+
+		if (decode_config_op_class_array(op_arr_objs, em_op_class_type_capability, m_radio[i].m_radio_info.id.mac) != 0) {
+            cJSON_Delete(parent_obj);
+            printf("%s:%d: OperatingClasses decode failed\n", __func__, __LINE__);
+            return -1;
+		}
 
         if ((bss_arr_objs = cJSON_GetObjectItem(radio_obj, "BSSList")) == NULL) {
             cJSON_Delete(parent_obj);
@@ -866,7 +1041,50 @@ int dm_easy_mesh_t::decode_config_test(em_subdoc_info_t *subdoc, const char *key
 		m_num_bss += num_objs;
 
     }
-    printf("%s:%d: m_num_bss=%d\n", __func__, __LINE__,m_num_bss);     
+    
+    if ((cac_status_obj = cJSON_GetObjectItem(dev_obj, "CACStatus")) == NULL) {
+        cJSON_Delete(parent_obj);
+        printf("%s:%d: CACStatus not present\n", __func__, __LINE__);
+        return -1;
+
+    }
+
+	if ((op_arr_objs = cJSON_GetObjectItem(cac_status_obj, "AvailableChannelList")) == NULL) {
+        cJSON_Delete(parent_obj);
+        printf("%s:%d: AvailableChannelList not present\n", __func__, __LINE__);
+        return -1;
+	}	
+		
+	if (decode_config_op_class_array(op_arr_objs, em_op_class_type_cac_available, m_device.m_device_info.id.mac) != 0) {
+        cJSON_Delete(parent_obj);
+        printf("%s:%d: AvailableChannelList decode failed\n", __func__, __LINE__);
+        return -1;
+	}
+        
+	if ((op_arr_objs = cJSON_GetObjectItem(cac_status_obj, "NonOccupancyChannelList")) == NULL) {
+        cJSON_Delete(parent_obj);
+        printf("%s:%d: NonOccupancyChannelList not present\n", __func__, __LINE__);
+        return -1;
+	}	
+
+	if (decode_config_op_class_array(op_arr_objs, em_op_class_type_cac_non_occ, m_device.m_device_info.id.mac) != 0) {
+        cJSON_Delete(parent_obj);
+        printf("%s:%d: NonOccupancyChannelList decode failed\n", __func__, __LINE__);
+        return -1;
+	}
+        
+	if ((op_arr_objs = cJSON_GetObjectItem(cac_status_obj, "ActiveChannelList")) == NULL) {
+        cJSON_Delete(parent_obj);
+        printf("%s:%d: ActiveChannelList not present\n", __func__, __LINE__);
+        return -1;
+	}	
+
+	if (decode_config_op_class_array(op_arr_objs, em_op_class_type_cac_active, m_device.m_device_info.id.mac) != 0) {
+        cJSON_Delete(parent_obj);
+        printf("%s:%d: ActiveChannelList decode failed\n", __func__, __LINE__);
+        return -1;
+	}
+
     cJSON_Delete(parent_obj);
     //printf("%s:%d: End\n", __func__, __LINE__);
     return 0;

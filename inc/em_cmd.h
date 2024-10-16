@@ -62,6 +62,7 @@ public:
 
     void copy_bus_event(em_bus_event_t *evt) { m_evt.type = em_event_type_bus; memcpy(&m_evt.u.bevt, evt, sizeof(em_bus_event_t)); }
 
+    em_orch_desc_t *get_orch_desc() { return &m_orch_desc[m_orch_op_idx]; }
     dm_orch_type_t get_orch_op()  { return m_orch_desc[m_orch_op_idx].op; }
     bool get_orch_submit() { return m_orch_desc[m_orch_op_idx].submit; }
     virtual em_cmd_t *clone_for_next();
@@ -89,7 +90,7 @@ public:
     dm_radio_t *get_radio(unsigned int index) { return m_data_model.get_radio(index); }
     dm_op_class_t *get_curr_op_class(unsigned int index) { return m_data_model.get_curr_op_class(index); }
     rdk_wifi_radio_t *get_radio_data(em_interface_t *radio) { return m_data_model.get_radio_data(radio); };
-    em_freq_band_t get_curr_freq_band();
+    em_freq_band_t get_band() { return m_rd_freq_band; }    
     void set_rd_freq_band(unsigned int i);
     em_freq_band_t get_rd_freq_band() { return m_rd_freq_band; }
     unsigned int get_rd_op_class() { return m_rd_op_class; }

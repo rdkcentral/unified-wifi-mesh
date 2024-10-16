@@ -24,7 +24,7 @@
 class em_cmd_cfg_renew_t : public em_cmd_t {
 
 public:
-    em_cmd_cfg_renew_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+    em_cmd_cfg_renew_t(em_service_type_t service, em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif

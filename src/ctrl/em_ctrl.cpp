@@ -38,6 +38,7 @@
 #include <pthread.h>
 #include <cjson/cJSON.h>
 #include "em.h"
+#include "em_msg.h"
 #include "em_ctrl.h"
 #include "em_cmd_ctrl.h"
 #include "dm_easy_mesh.h"
@@ -112,6 +113,16 @@ void em_ctrl_t::handle_set_channel_list(em_bus_event_t *evt)
         m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
     } 
 
+}
+
+void em_ctrl_t::handle_config_renew(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+    
+    if ((num = m_data_model.analyze_config_renew(evt, pcmd)) > 0) {
+        m_orch->submit_commands(pcmd, num);
+    }
 }
 
 void em_ctrl_t::handle_m2_tx(em_bus_event_t *evt)
@@ -365,6 +376,10 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
             handle_m2_tx(evt);
             break;
 
+        case em_bus_event_type_cfg_renew:
+			handle_config_renew(evt);
+			break;
+
         default:
             break;
     }
@@ -420,6 +435,101 @@ int em_ctrl_t::orch_init()
     m_orch = new em_orch_ctrl_t(this);
     return 0;
 }
+
+em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_t *al_em)
+{
+	em_raw_hdr_t *hdr;
+    em_cmdu_t *cmdu;
+	em_interface_t intf;
+	em_freq_band_t band;
+	dm_easy_mesh_t *dm;
+	em_t *em = NULL;
+	em_radio_id_t ruid;
+	em_profile_type_t profile;
+	mac_addr_str_t mac_str1, mac_str2;
+
+    assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
+    if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
+        return NULL;
+    }
+    
+    hdr = (em_raw_hdr_t *)data;
+    
+    if (hdr->type != htons(ETH_P_1905)) {
+        return NULL;
+    }
+    
+    cmdu = (em_cmdu_t *)(data + sizeof(em_raw_hdr_t));
+
+	switch (htons(cmdu->type)) {
+		case em_msg_type_autoconf_search:
+			if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_freq_band(&band) == false) {
+				return NULL;
+			}
+
+			if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_al_mac_address(intf.mac) == false) {
+				return NULL;
+			}
+
+            dm_easy_mesh_t::macbytes_to_string(intf.mac, mac_str1);
+            printf("%s:%d: Received autoconfig search from agenti al mac: %s\n", __func__, __LINE__, mac_str1);
+            if ((dm = get_data_model((const char *)global_netid, (const unsigned char *)intf.mac)) == NULL) {
+                if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_profile(&profile) == false) {
+                    profile = em_profile_type_1;
+                }
+                dm = create_data_model((const char *)global_netid, (const unsigned char *)intf.mac, profile);
+                printf("%s:%d: Created data model for mac: %s net: %s\n", __func__, __LINE__, mac_str1, global_netid);
+            } else {
+                dm_easy_mesh_t::macbytes_to_string(dm->get_agent_al_interface_mac(), mac_str1);
+                printf("%s:%d: Found existing data model for mac: %s net: %s\n", __func__, __LINE__, mac_str1, global_netid);
+            }
+            em = al_em;
+			break;
+
+		case em_msg_type_autoconf_wsc:
+			if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+                len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+				return NULL;
+			}
+
+			dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
+        
+			if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
+            	printf("%s:%d: Found existing radio:%s\n", __func__, __LINE__, mac_str1);
+            	em->set_state(em_state_ctrl_wsc_m1_pending);
+        	} else {
+				if ((dm = get_data_model((const char *)global_netid, (const unsigned char *)hdr->src)) == NULL) {
+                	printf("%s:%d: Can not find data model\n", __func__, __LINE__);
+            	}
+
+            	dm_easy_mesh_t::macbytes_to_string(hdr->src, mac_str1);
+            	dm_easy_mesh_t::macbytes_to_string(ruid, mac_str2);
+
+            	printf("%s:%d: Found data model for mac: %s, creating node for ruid: %s\n", __func__, __LINE__, mac_str1, mac_str2);
+
+            	memcpy(intf.mac, ruid, sizeof(mac_address_t));
+            	if ((em = create_node(&intf, em_freq_band_unknown, dm, false,  dm->get_device()->m_device_info.profile,
+                    	em_service_type_ctrl)) != NULL) {
+                	em->set_state(em_state_ctrl_wsc_m1_pending);
+            	}
+			}
+
+			break;
+
+		case em_msg_type_autoconf_resp:
+		case em_msg_type_topo_query:
+		case em_msg_type_autoconf_renew:
+			break;
+
+		default:
+			printf("%s:%d: Frame: %d not handled in controller\n", __func__, __LINE__, htons(cmdu->type));
+			assert(0);
+			break;
+	}
+
+	return em;
+}
+
 
 em_ctrl_t::em_ctrl_t()
 {

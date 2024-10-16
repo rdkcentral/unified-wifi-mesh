@@ -44,9 +44,40 @@
 #include "em_cmd_remove_device.h"
 #include "em_cmd_set_ssid.h"
 #include "em_cmd_topo_sync.h"
-
+#include "em_cmd_em_config.h"
+#include "em_cmd_cfg_renew.h"
 
 extern char *global_netid;
+
+int dm_easy_mesh_ctrl_t::analyze_config_renew(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    mac_addr_str_t  radio_str;
+    em_bus_event_type_cfg_renew_params_t *params;
+    unsigned int num = 0;
+    em_cmd_params_t *evt_param;
+    dm_easy_mesh_t  dm;
+    em_cmd_t *tmp;
+
+    params = (em_bus_event_type_cfg_renew_params_t *)evt->u.raw_buff;
+    dm_easy_mesh_t::macbytes_to_string(params->radio, radio_str);
+    printf("%s:%d: Radio: %s\n", __func__, __LINE__, radio_str);
+
+    evt_param = &evt->params;
+
+    evt_param->num_args = 1;
+    strncpy(evt_param->args[0], radio_str, strlen(radio_str) + 1);
+    pcmd[num] = new em_cmd_cfg_renew_t(em_service_type_ctrl, evt->params, dm);
+    tmp = pcmd[num];
+    num++;
+
+    while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+        tmp = pcmd[num];
+        num++;
+    }
+    printf("%s:%d: Number of commands:%d\n", __func__, __LINE__, num);
+
+    return num;
+}
 
 int dm_easy_mesh_ctrl_t::analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
@@ -67,7 +98,7 @@ int dm_easy_mesh_ctrl_t::analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *pcmd[])
     evt_param->num_args = 2;
     strncpy(evt_param->args[0], radio_str, strlen(radio_str) + 1);
     strncpy(evt_param->args[1], al_str, strlen(al_str) + 1);
-    pcmd[num] = new em_cmd_topo_sync_t(evt->params, dm);
+    pcmd[num] = new em_cmd_em_config_t(evt->params, dm);
     tmp = pcmd[num];
     num++;
 

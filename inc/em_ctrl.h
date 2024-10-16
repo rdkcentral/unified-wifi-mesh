@@ -64,6 +64,7 @@ public:
     void handle_get_dm_data(em_bus_event_t *evt);
     void handle_dm_commit(em_bus_event_t *evt);
     void handle_m2_tx(em_bus_event_t *evt);
+    void handle_config_renew(em_bus_event_t *evt);
 
     void io(void *data, bool input = true);
     bool io_process(em_event_t *evt);
@@ -77,6 +78,7 @@ public:
     void debug_probe() { m_data_model.debug_probe(); }
 
     em_service_type_t get_service_type() { return em_service_type_ctrl; }
+    em_t *find_em_for_msg_type(unsigned char *data, unsigned int len, em_t *al_em);
 
     em_ctrl_t();
     ~em_ctrl_t();

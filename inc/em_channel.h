@@ -26,8 +26,25 @@ class em_channel_t {
     virtual int send_frame(unsigned char *buff, unsigned int len, bool multicast = false) = 0;
 
 public:
+    virtual dm_easy_mesh_t *get_data_model() = 0;
+    virtual unsigned char *get_radio_interface_mac() = 0;
+    virtual em_state_t get_state() = 0;
+    virtual void set_state(em_state_t state) = 0;
+
+    short create_channel_pref_tlv(unsigned char *buff);
+    short create_operating_channel_report_tlv(unsigned char *buff);
+    short create_radio_op_restriction_tlv(unsigned char *buff);
+	short create_cac_complete_report_tlv(unsigned char *buff);
+	short create_cac_status_report_tlv(unsigned char *buff);
+
+    int send_channel_sel_request_msg();
+    int send_channel_sel_response_msg(em_chan_sel_resp_code_type_t code);
+	int send_operating_channel_report_msg();
+	int send_channel_pref_query_msg();
+	int send_channel_pref_report_msg();
+
     void    process_msg(unsigned char *data, unsigned int len);
-    void    process_state();
+    void    process_ctrl_state();
 
     em_channel_t();
     ~em_channel_t();

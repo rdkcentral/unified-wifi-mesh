@@ -33,6 +33,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include "em_agent.h"
+#include "em_msg.h"
 #include "ieee80211.h"
 #include "em_cmd_agent.h"
 #include "em_orch_agent.h"
@@ -368,9 +369,79 @@ int em_agent_t::orch_init()
     return 0;
 }
 
-void em_agent_t::debug_probe()
+em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_t *al_em)
 {
+    em_raw_hdr_t *hdr;
+    em_cmdu_t *cmdu;
+    em_interface_t intf;
+    em_freq_band_t band;
+    dm_easy_mesh_t *dm;
+    em_t *em = NULL;
+    em_radio_id_t ruid;
+    em_profile_type_t profile;
+    mac_addr_str_t mac_str1, mac_str2;
+	bool found = false;
 
+    assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
+    if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
+        return NULL;
+    }
+   
+    hdr = (em_raw_hdr_t *)data;
+
+    if (hdr->type != htons(ETH_P_1905)) {
+        return NULL;
+    }
+   
+    cmdu = (em_cmdu_t *)(data + sizeof(em_raw_hdr_t));
+
+    switch (htons(cmdu->type)) {
+		case em_msg_type_autoconf_resp:
+		case em_msg_type_autoconf_renew:
+			if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+                    len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_freq_band(&band) == false) {
+            	printf("%s:%d: Could not find frequency band\n", __func__, __LINE__);
+            	return NULL;
+        	}
+			
+			em = (em_t *)hash_map_get_first(m_em_map);
+        	while (em != NULL) {
+            	if (em->is_matching_freq_band(&band) == true) {
+                	found = true;
+                	break;
+            	}
+            	em = (em_t *)hash_map_get_next(m_em_map, em);
+        	}  
+
+        	if (found == false) {
+            	printf("%s:%d: Could not find em with matching band%d\n", __func__, __LINE__, band);
+            	return NULL;
+        	}
+
+			break;
+
+		case em_msg_type_autoconf_wsc:
+			if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+                len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+				return NULL;
+			}
+
+			dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
+        	if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
+            	printf("%s:%d: Found existing radio:%s\n", __func__, __LINE__, mac_str1);
+            	em->set_state(em_state_ctrl_wsc_m1_pending);
+        	} else {
+				return NULL;
+			}
+			break;
+
+		default:
+            printf("%s:%d: Frame: %d not handled in agent\n", __func__, __LINE__, htons(cmdu->type));
+            assert(0);
+            break;	
+	}
+
+	return em;
 }
 
 em_agent_t::em_agent_t()

@@ -300,4 +300,5 @@ em_cmd_agent_t::em_cmd_agent_t(em_cmd_type_t type)
 
 em_cmd_agent_t::em_cmd_agent_t()
 {
+    snprintf(m_sock_path, sizeof(m_sock_path), "%s_%s", EM_PATH_PREFIX, EM_AGENT_PATH);
 }

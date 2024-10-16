@@ -94,7 +94,6 @@ em_cmd_t& em_cli_t::get_command(char *in, size_t in_len)
 		}
 	}
     
-    cmd->m_param.num_args = num_args; //check if needed
     for (i = 0; i < num_args; i++) {
         snprintf(cmd->m_param.args[i], sizeof(cmd->m_param.args[i]), "%s", args[i]);
     }

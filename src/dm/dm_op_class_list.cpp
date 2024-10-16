@@ -105,6 +105,7 @@ int dm_op_class_list_t::set_config(db_client_t& db_client, dm_op_class_t& op_cla
     dm_orch_type_t op;
     char *tmp = (char *)parent_id;
 
+    printf("dm_op_class_list_t::%s:%d: id: %s\n", __func__, __LINE__, (char *)parent_id);
     update_db(db_client, (op = get_dm_orch_type(db_client, op_class)), op_class.get_op_class_info());
     update_list(op_class, op);
 
@@ -136,6 +137,7 @@ dm_orch_type_t dm_op_class_list_t::get_dm_orch_type(db_client_t& db_client, cons
         return dm_orch_type_db_update;
     }  
 
+    printf("%s:%d: Op Class: %s could not be found, inserting\n", __func__, __LINE__, key);
     return dm_orch_type_db_insert;
 }
 
@@ -208,19 +210,21 @@ int dm_op_class_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, voi
 
     switch (op) {
         case dm_orch_type_db_insert:
-            ret = insert_row(db_client, id, info->op_class, info->channel, info->tx_power, info->max_tx_power, non_op_str); 
+            ret = insert_row(db_client, id, info->op_class, info->channel, info->tx_power, info->max_tx_power, non_op_str,
+                                           info->mins_since_cac_comp, info->sec_remain_non_occ_dur, info->countdown_cac_comp);
             break;
 
-	case dm_orch_type_db_update:
-            ret = update_row(db_client, info->op_class, info->channel, info->tx_power, info->max_tx_power, non_op_str, id);
+	    case dm_orch_type_db_update:
+            ret = update_row(db_client, info->op_class, info->channel, info->tx_power, info->max_tx_power, non_op_str, id,
+                                       info->mins_since_cac_comp, info->sec_remain_non_occ_dur, info->countdown_cac_comp, id);
             break;
 
-	case dm_orch_type_db_delete:
-	    ret = delete_row(db_client, id);
+	    case dm_orch_type_db_delete:
+	        ret = delete_row(db_client, id);
             break;
 
-	default:
-	    break;
+	    default:
+	        break;
 	}
 
     return ret;
@@ -268,6 +272,9 @@ int dm_op_class_list_t::sync_db(db_client_t& db_client, void *ctx)
         for (i = 0; i < info.num_non_op_channels; i++) {
             info.non_op_channel[i] = atoi(token_parts[i]);
         }
+        info.mins_since_cac_comp = db_client.get_number(ctx, 7);
+        info.sec_remain_non_occ_dur = db_client.get_number(ctx, 8);
+        info.countdown_cac_comp = db_client.get_number(ctx, 9);
 
         update_list(dm_op_class_t(&info), dm_orch_type_db_insert);
     }
@@ -284,11 +291,14 @@ void dm_op_class_list_t::init_columns()
     m_num_cols = 0;
 
     m_columns[m_num_cols++] = db_column_t("ID", db_data_type_char, 32);
-    m_columns[m_num_cols++] = db_column_t("Class", db_data_type_tinyint, 0);
-    m_columns[m_num_cols++] = db_column_t("Channel", db_data_type_tinyint, 0);
-    m_columns[m_num_cols++] = db_column_t("TxPower", db_data_type_tinyint, 0);
-    m_columns[m_num_cols++] = db_column_t("MaxTxPower", db_data_type_tinyint, 0);
+    m_columns[m_num_cols++] = db_column_t("Class", db_data_type_int, 0);
+    m_columns[m_num_cols++] = db_column_t("Channel", db_data_type_int, 0);
+    m_columns[m_num_cols++] = db_column_t("TxPower", db_data_type_int, 0);
+    m_columns[m_num_cols++] = db_column_t("MaxTxPower", db_data_type_int, 0);
     m_columns[m_num_cols++] = db_column_t("NonOperable", db_data_type_char, 64);
+    m_columns[m_num_cols++] = db_column_t("Minutes", db_data_type_int, 0);
+    m_columns[m_num_cols++] = db_column_t("Seconds", db_data_type_int, 0);
+    m_columns[m_num_cols++] = db_column_t("Countdown", db_data_type_int, 0);
 }
 
 int dm_op_class_list_t::init()

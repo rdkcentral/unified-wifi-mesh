@@ -36,6 +36,7 @@
 #include "em_base.h"
 #include "em_cmd.h"
 #include "em_orch_ctrl.h"
+#include "em_cmd_exec.h"
 
 extern char *global_netid;
 
@@ -69,8 +70,8 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             }
             break;
 
-        case em_cmd_type_topo_sync:
-            if (em->get_topo_query_tx_count() >= EM_MAX_TOPO_QUERY_TX_THRESH) {
+        case em_cmd_type_em_config:
+            if (em->get_state() == em_state_ctrl_configured) {
                 em->set_state(em_state_ctrl_idle);
                 em->set_topo_query_tx_count(0);
                 printf("%s:%d: Maximum topo sync tx threshold crossed, transitioning to fini\n", __func__, __LINE__);
@@ -88,10 +89,41 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
         return true;
     } else if (pcmd->m_type == em_cmd_type_set_ssid) {
         return true;
-    } else if (pcmd->m_type == em_cmd_type_topo_sync) {
+    } else if (pcmd->m_type == em_cmd_type_em_config) {
+        return true;
+    } else if (pcmd->m_type == em_cmd_type_dev_test) {
+        return true;
+    } else if (pcmd->m_type == em_cmd_type_cfg_renew) {
         return true;
     }
     return false;
+}
+
+void em_orch_ctrl_t::pre_process_cancel(em_cmd_t *pcmd, em_t *em)
+{
+	em_event_t  ev;
+    em_bus_event_t *bev;
+    em_bus_event_type_cfg_renew_params_t    *raw;
+
+	switch (pcmd->get_type()) {
+		case em_cmd_type_em_config:
+           	em->set_state(em_state_ctrl_misconfigured);
+            em->set_topo_query_tx_count(0);
+
+			// send cfg renew so that controller can orchestrate renew
+			ev.type = em_event_type_bus;
+    		bev = &ev.u.bevt;
+    		bev->type = em_bus_event_type_cfg_renew;
+    		raw = (em_bus_event_type_cfg_renew_params_t *)bev->u.raw_buff;
+    		memcpy(raw->radio, em->get_radio_interface_mac(), sizeof(mac_address_t));
+    		em_cmd_exec_t::send_cmd(em_service_type_ctrl, (unsigned char *)&ev, sizeof(em_event_t));
+			break;
+		
+		case em_cmd_type_cfg_renew:
+           	em->set_state(em_state_ctrl_idle);
+            em->set_renew_tx_count(0);
+			break;
+	}
 }
 
 bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
@@ -158,6 +190,8 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
 			break;
 
 		case dm_orch_type_em_update:
+        case dm_orch_type_em_test:
+			printf("%s:%d: Submit: %d\n", __func__, __LINE__, pcmd->get_orch_submit());
             break;  
 
 		case dm_orch_type_net_ssid_update:
@@ -183,7 +217,7 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
     em_t *em;
     unsigned int count = 0, i;
 
-    if (pcmd->m_type == em_cmd_type_topo_sync) {
+    if (pcmd->m_type == em_cmd_type_em_config) {
         em = (em_t *)hash_map_get(m_mgr->m_em_map, pcmd->m_param.args[0]);
         if (em != NULL) {
             queue_push(pcmd->m_em_candidates, em);
@@ -205,8 +239,8 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 }
                 break;
 
-            case em_cmd_type_start_dpp:
-                if (em->is_start_dpp_candidate(pcmd->get_dpp())) {
+            case em_cmd_type_dev_test:
+                if (em->is_dev_test_candidate()) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }
@@ -214,6 +248,13 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
 
             case em_cmd_type_reset:
                 if (em->is_tx_cfg_renew_candidate()) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
+                }
+                break;
+
+            case em_cmd_type_cfg_renew:
+                if (em->is_cfg_renew_candidate()) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }

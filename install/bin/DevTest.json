@@ -36,6 +36,27 @@
                         "VID": 2
                     }
                 ],
+                "CACStatus": {
+                    "TimeStamp": "2019-02-11T06:23:43.750419-08:00",
+                    "AvailableChannelList": [{
+                            "OpClass": 128,
+                            "Channel": 100,
+                            "Minutes": 10
+                        }
+                    ],
+                    "NonOccupancyChannelList": [{
+                            "OpClass": 128,
+                            "Channel": 116,
+                            "Seconds": 30
+                        }
+                    ],
+                    "ActiveChannelList": [{
+                            "OpClass": 128,
+                            "Channel": 112,
+                            "Countdown": 30
+                        }
+                    ]
+                },
                 "DSCPMap": "WA==",
                 "MaxPrioritizationRules": 1,
                 "MaxVIDs": 2,

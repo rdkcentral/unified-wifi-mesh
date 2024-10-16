@@ -44,7 +44,6 @@ unsigned int em_orch_t::submit_commands(em_cmd_t *pcmd[], unsigned int num)
     unsigned int submitted = 0;
     bool submit = true;
     em_t *em;
-    printf("%s:%d: Enter\n", __func__, __LINE__);
 
     for (i = 0; i < num; i++) {
         if ((submit = pre_process_orch_op(pcmd[i])) == false) {
@@ -57,7 +56,7 @@ unsigned int em_orch_t::submit_commands(em_cmd_t *pcmd[], unsigned int num)
         }
     }	
 
-    printf("%s:%d: Submitted commands count:%d\n", __func__, __LINE__, submitted);
+    //printf("%s:%d: Submitted commands count:%d\n", __func__, __LINE__, submitted);
 
     return submitted;
 }
@@ -177,6 +176,7 @@ void em_orch_t::cancel_command(em_cmd_type_t type)
                 em = (em_t *)queue_peek(pcmd->m_em_candidates, j);
                 dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
                 printf("%s:%d: Setting em:%s State set to cancel\n", __func__, __LINE__, mac_str);
+                pre_process_cancel(pcmd, em);
                 em->set_orch_state(em_orch_state_cancel);
             }
         }
@@ -196,7 +196,8 @@ bool em_orch_t::orchestrate(em_cmd_t *pcmd, em_t *em)
     if (orch_state == em_orch_state_pending) {
         if (is_em_ready_for_orch_exec(pcmd, em) == true) {
             // ask em to execute the command
-            printf("%s:%d: Start executing cmd type: %d\n", __func__, __LINE__, pcmd->m_type);
+            printf("%s:%d: Start executing cmd:%s, Orchestartion:%s\n", __func__, __LINE__, 
+				em_cmd_t::get_cmd_type_str(pcmd->m_type), em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
             pcmd->set_start_time();
             em->orch_execute(pcmd);
         } else {
@@ -268,8 +269,8 @@ void em_orch_t::handle_timeout()
         pcmd = (em_cmd_t *)queue_peek(m_pending, i);
         if (eligible_for_active(pcmd) == true) {
             queue_remove(m_pending, i);
-            printf("%s:%d: Cmd: %s Orch Type: %s eligible for active\n", __func__, __LINE__, 
-                    pcmd->get_cmd_name(), em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
+            //printf("%s:%d: Cmd: %s Orch Type: %s eligible for active\n", __func__, __LINE__, 
+                    //pcmd->get_cmd_name(), em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
             eligible_to_move = true;
             break;			
         }
@@ -284,7 +285,8 @@ void em_orch_t::handle_timeout()
         queue_push(m_active, pcmd);
     } else {
         if ((cnt = queue_count(m_pending))) {
-            printf("%s:%d:%d Command in pending but not eligible for active\n", __func__, __LINE__, cnt);
+            pcmd = (em_cmd_t *)queue_peek(m_pending, cnt - 1);
+            //printf("%s:%d:%d Command in pending but not eligible for active\n", __func__, __LINE__, cnt);
         }
     }
 
@@ -299,8 +301,8 @@ void em_orch_t::handle_timeout()
 
         if (ret == true) {
             // means the command is in fini sate 
-            printf("%s:%d: Removing and destroying Command type: %s because command is in fini state\n", 
-                    __func__, __LINE__, pcmd->get_cmd_name());
+            printf("%s:%d: Removing and destroying Command type: %s Orchestration: %s because command is in fini state\n", 
+                    __func__, __LINE__, pcmd->get_cmd_name(), em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
             queue_remove(m_active, i);
             pop_stats(pcmd);
             for (j = queue_count(pcmd->m_em_candidates) - 1; j >= 0; j--) {

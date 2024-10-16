@@ -92,6 +92,7 @@ int em_cmd_cli_t::update_platform_defaults(em_subdoc_info_t *subdoc, em_cmd_para
     if (cmd_type == em_cmd_type_dev_test) {
         dm.set_agent_al_interface_mac(al_mac);
         dm.set_agent_al_interface_name(param->args[1]);
+        dm.update_cac_status_id(al_mac);
     }
 
     //dm.print_config();
@@ -211,6 +212,35 @@ int em_cmd_cli_t::execute(em_string_t res)
 
         case em_cmd_type_get_network:
             bevt->type = em_bus_event_type_get_network;
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->fixed_args, strlen(param->fixed_args) + 1);
+            break;
+
+        case em_cmd_type_get_device:
+            bevt->type = em_bus_event_type_get_device;
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->fixed_args, strlen(param->fixed_args) + 1);
+            break;
+    
+        case em_cmd_type_remove_device:
+			snprintf(in, sizeof(in), "get_device %s 1", m_cmd.m_param.args[1]);
+			get_cli()->exec(in, strlen(in), out);
+			get_cmd()->write_params_file(out, m_cmd.m_param.args[1], "RemoveDevice");
+            bevt->type = em_bus_event_type_remove_device;
+			if (get_cmd()->edit_params_file() != 0) {
+                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->fixed_args, errno);
+                return -1;
+			}	
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->fixed_args, strlen(param->fixed_args) + 1);
+            if ((info->sz = get_cmd()->load_params_file(info->buff)) < 0) {
+                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->fixed_args, errno);
+                return -1;
+            }
+			break;
+
+        case em_cmd_type_get_radio:
+            bevt->type = em_bus_event_type_get_radio;
             info = &bevt->u.subdoc;
             strncpy(info->name, param->fixed_args, strlen(param->fixed_args) + 1);
             break;

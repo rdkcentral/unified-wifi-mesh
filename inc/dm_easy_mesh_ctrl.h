@@ -60,7 +60,7 @@ public:
     bool    is_initialized() { return m_initialized; }
     void	set_initialized() { m_initialized = true; }
 
-    int analyze_network_ssid_list(em_bus_event_t *evt, em_cmd_t *cmd[]);
+    //int analyze_network_ssid_list(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_set_ssid(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_set_channel(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_dpp_start(em_bus_event_t *evt, em_cmd_t *cmd[]);
@@ -68,6 +68,7 @@ public:
     int analyze_reset(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_remove_device(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *cmd[]);
+    int analyze_config_renew(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_dev_test(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_radio_metrics_req(em_cmd_t *cmd[]);
     int analyze_ap_metrics_req(em_cmd_t *cmd[]);

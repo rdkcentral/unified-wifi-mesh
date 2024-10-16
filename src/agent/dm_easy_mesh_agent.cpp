@@ -46,8 +46,8 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
 {
     unsigned int index = 0;
     unsigned int num = 0, i, j = 0, num_radios = 0;
-    dm_easy_mesh_agent_t  dm;
     em_orch_desc_t desc;
+    dm_easy_mesh_agent_t  dm;
     dm_device_t *dev, *tgt_dev;
     dm_radio_t *rd, *tgt_rd;
     em_cmd_t *tmp;

@@ -85,6 +85,12 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
     return false;
 }
 
+
+void em_orch_agent_t::pre_process_cancel(em_cmd_t *pcmd, em_t *em)
+{
+
+}
+
 bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
 {
     em_t *em;
@@ -104,7 +110,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
             if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
                 dm = m_mgr->create_data_model(global_netid, intf->mac);
             }
-            em = m_mgr->create_node(intf, em_freq_band_unknown, dm, 1, em_profile_type_3, em_service_type_agent);
+            em = m_mgr->create_node(intf, pcmd->get_band(), dm, 1, em_profile_type_3, em_service_type_agent);
             if (em != NULL) {
                 // since this does not have to go through orchestration of M1 M2, commit the data model
                 em->get_data_model()->commit_config(pcmd->m_data_model, em_commit_target_em);
@@ -118,7 +124,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
             }    
             dm_easy_mesh_t::macbytes_to_string(intf->mac, mac_str);
             printf("%s:%d: calling create_node\n", __func__, __LINE__);
-            if ((em = m_mgr->create_node(intf, em_freq_band_60, dm, 0, em_profile_type_3, em_service_type_agent)) == NULL) {
+            if ((em = m_mgr->create_node(intf, pcmd->get_band(), dm, 0, em_profile_type_3, em_service_type_agent)) == NULL) {
                 printf("%s:%d: Failed to create node\n", __func__, __LINE__);
             
             }

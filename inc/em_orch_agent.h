@@ -26,6 +26,7 @@ class em_orch_agent_t : public em_orch_t {
 public:
     unsigned int build_candidates(em_cmd_t *cmd);
     bool    pre_process_orch_op(em_cmd_t *pcmd);
+    void    pre_process_cancel(em_cmd_t *pcmd, em_t *em);
     bool    is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em);
     bool    is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em);
     void    orch_transient(em_cmd_t *pcmd, em_t *em);

@@ -2056,7 +2056,7 @@ int em_configuration_t::construct_private_subdoc()
     to_svc = em_service_type_agent;
     info->sz = strlen(bevt->u.subdoc.buff);
     strncpy(info->buff,bevt->u.subdoc.buff,strlen(bevt->u.subdoc.buff)+1);
-    em_cmd_exec_t::send_cmd(to_svc, (unsigned char *)&evt, sizeof(em_event_t), res, sizeof(em_long_string_t));
+    em_cmd_exec_t::send_cmd(to_svc, (unsigned char *)&evt, sizeof(em_event_t));
 
     return 0;
 }
@@ -2452,7 +2452,7 @@ int em_configuration_t::handle_autoconfig_renew(unsigned char *buff, unsigned in
     to_svc = em_service_type_agent;
     info->sz = strlen(autoconfig_renew_json);
     snprintf(info->buff,sizeof(info->buff),"%s",autoconfig_renew_json);
-    em_cmd_exec_t::send_cmd(to_svc, (unsigned char *)&evt, sizeof(em_event_t));
+    //em_cmd_exec_t::send_cmd(to_svc, (unsigned char *)&evt, sizeof(em_event_t));
     return 0;
 
 }
@@ -2624,7 +2624,7 @@ void em_configuration_t::process_agent_state()
 void em_configuration_t::process_ctrl_state()
 {
     switch (get_state()) {
-        case em_state_ctrl_cfg_renew_pending:
+        case em_state_ctrl_misconfigured:
             send_autoconfig_renew_msg();
             break;
 

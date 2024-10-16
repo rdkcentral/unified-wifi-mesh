@@ -270,8 +270,6 @@ em_cmd_t *em_cmd_t::clone()
         out->m_orch_desc[i].submit = m_orch_desc[i].submit;
     }
 
-    //out->m_db_cfg_type = m_db_cfg_type; check if needed
-
     pctx = m_data_model.get_cmd_ctx();	
     memcpy(&ctx, pctx, sizeof(em_cmd_ctx_t));	
     ctx.arr_index += 1;
@@ -299,8 +297,6 @@ em_cmd_t *em_cmd_t::clone_for_next()
         out->m_orch_desc[i].submit = m_orch_desc[i].submit;
     }
 
-    //out->m_db_cfg_type = m_db_cfg_type; check if needed
-
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
     ctx.type = out->get_orch_op();
     out->m_data_model.set_cmd_ctx(&ctx);
@@ -316,7 +312,6 @@ void em_cmd_t::override_op(unsigned int index, em_orch_desc_t *desc)
     m_orch_desc[index].submit = desc->submit;
     ctx = m_data_model.get_cmd_ctx();
     ctx->type = desc->op;
-    m_data_model.set_cmd_ctx(ctx);
     m_data_model.set_cmd_ctx(ctx);
 }
 
@@ -447,6 +442,11 @@ void em_cmd_t::init()
             strncpy(m_name, "topo_sync", strlen("topo_sync") + 1);
             m_svc = em_service_type_ctrl;
             break;
+
+        case em_cmd_type_em_config:
+            strncpy(m_name, "em_config", strlen("em_config") + 1);
+            m_svc = em_service_type_ctrl;
+            break;
     }
 }
 
@@ -495,6 +495,7 @@ const char *em_cmd_t::get_orch_op_str(dm_orch_type_t type)
         ORCH_TYPE_2S(dm_orch_type_em_insert)
         ORCH_TYPE_2S(dm_orch_type_em_update)
         ORCH_TYPE_2S(dm_orch_type_em_delete)
+        ORCH_TYPE_2S(dm_orch_type_em_test)
         ORCH_TYPE_2S(dm_orch_type_bss_insert)
         ORCH_TYPE_2S(dm_orch_type_bss_update)
         ORCH_TYPE_2S(dm_orch_type_bss_delete)
@@ -534,6 +535,8 @@ const char *em_cmd_t::get_orch_op_str(dm_orch_type_t type)
         ORCH_TYPE_2S(dm_orch_type_client_cap_report)
         ORCH_TYPE_2S(dm_orch_type_net_ssid_update)
         ORCH_TYPE_2S(dm_orch_type_topo_sync)
+        ORCH_TYPE_2S(dm_orch_type_channel_pref)
+        ORCH_TYPE_2S(dm_orch_type_channel_sel)
     }
 
     return "dm_orch_type_unknown";
@@ -566,6 +569,7 @@ const char *em_cmd_t::get_cmd_type_str(em_cmd_type_t type)
         CMD_TYPE_2S(em_cmd_type_ap_cap_query)
         CMD_TYPE_2S(em_cmd_type_client_cap_query)
         CMD_TYPE_2S(em_cmd_type_topo_sync)
+        CMD_TYPE_2S(em_cmd_type_em_config)
     }
 
     return "em_cmd_type_unknown";
@@ -645,7 +649,7 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
 	        break;
 
         case em_bus_event_type_topo_sync:
-            type = em_cmd_type_topo_sync;
+            type = em_cmd_type_em_config;
             break;
 
         case em_bus_event_type_onewifi_private_subdoc:
@@ -674,7 +678,7 @@ em_bus_event_type_t em_cmd_t::cmd_2_bus_event_type(em_cmd_type_t ctype)
             type = em_bus_event_type_set_ssid;;
             break;
 
-        case em_cmd_type_topo_sync:
+        case em_cmd_type_em_config:
             type = em_bus_event_type_topo_sync;;
             break;
 

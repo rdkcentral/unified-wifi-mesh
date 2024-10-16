@@ -419,7 +419,7 @@ void em_msg_t::channel_sel_rsp()
 }
 void em_msg_t::op_channel_rprt()
 {
-    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_op_channel, mandatory, "17.2.17 of Wi-Fi Easy Mesh 5.0", 13);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_op_channel_report, mandatory, "17.2.17 of Wi-Fi Easy Mesh 5.0", 13);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_spatial_reuse_rep, optional, "17.2.90 of Wi-Fi Easy Mesh 5.0", 38);
 }
 void em_msg_t::client_cap_query()

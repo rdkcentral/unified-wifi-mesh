@@ -34,34 +34,57 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <sys/time.h>
-#include <sys/un.h>
 #include <unistd.h>
-#include <pthread.h>
-#include <cjson/cJSON.h>
-#include "em_cmd_dev_test.h"
+#include "dm_cac_comp.h"
+#include "dm_easy_mesh.h"
+#include "dm_easy_mesh_ctrl.h"
 
-em_cmd_dev_test_t::em_cmd_dev_test_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
+
+
+int dm_cac_comp_t::decode(const cJSON *obj, void *parent_id)
 {
-    em_cmd_ctx_t ctx;;
-    m_type = em_cmd_type_dev_test;
-    memcpy(&m_param, &param, sizeof(em_cmd_params_t));
-
-    memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
-
-    m_orch_op_idx = 0;
-    m_num_orch_desc = 4;
-    m_orch_desc[0].op = dm_orch_type_db_cfg;
-    m_orch_desc[1].op = dm_orch_type_al_insert;
-    m_orch_desc[2].op = dm_orch_type_net_ssid_update;
-	m_orch_desc[3].op = dm_orch_type_em_test;
-    m_orch_desc[3].submit = true;
-
-    strncpy(m_name, "dev_test", strlen("dev_test") + 1);
-    m_svc = em_service_type_ctrl;
-    init(&dm);
-
-    memset(&ctx, 0, sizeof(em_cmd_ctx_t));
-    ctx.type = m_orch_desc[0].op;
-    m_data_model.set_cmd_ctx(&ctx);
+    return 0;
 }
 
+void dm_cac_comp_t::encode(cJSON *obj)
+{
+}
+
+dm_orch_type_t dm_cac_comp_t::get_dm_orch_type(const dm_cac_comp_t& cac_comp)
+{
+    if ( this == &cac_comp) {
+         dm_orch_type_none;
+    } else {
+        return dm_orch_type_db_update;
+    }
+    return dm_orch_type_db_insert;
+}
+
+bool dm_cac_comp_t::operator == (const dm_cac_comp_t& obj) 
+{   
+	return true;
+}
+
+void dm_cac_comp_t::operator = (const dm_cac_comp_t& obj)
+{
+}
+
+dm_cac_comp_t::dm_cac_comp_t(em_cac_comp_info_t *radio)
+{
+    memcpy(&m_cac_comp_info, radio, sizeof(em_cac_comp_info_t));
+}
+
+dm_cac_comp_t::dm_cac_comp_t(const dm_cac_comp_t& radio)
+{
+	memcpy(&m_cac_comp_info, &radio.m_cac_comp_info, sizeof(em_cac_comp_info_t));
+}
+
+dm_cac_comp_t::dm_cac_comp_t()
+{
+
+}
+
+dm_cac_comp_t::~dm_cac_comp_t()
+{
+
+}
