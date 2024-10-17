@@ -45,12 +45,14 @@ public:
     int orch_init();
 
     void handle_dirty_dm();
+    void handle_2s_timeout();
     void handle_5s_timeout();
     void handle_timeout();
     void handle_event(em_event_t *evt);
     void handle_start_dpp(em_bus_event_t *evt);
     void handle_client_steer(em_bus_event_t *evt);
     void handle_set_ssid_list(em_bus_event_t *evt);
+    void handle_remove_device(em_bus_event_t *evt);
     void handle_set_channel_list(em_bus_event_t *evt);
     void handle_reset(em_bus_event_t *evt);
     void handle_dev_test(em_bus_event_t *evt);
@@ -61,14 +63,22 @@ public:
     void handle_client_metrics_req();
     void handle_get_dm_data(em_bus_event_t *evt);
     void handle_dm_commit(em_bus_event_t *evt);
+    void handle_m2_tx(em_bus_event_t *evt);
+    void handle_config_renew(em_bus_event_t *evt);
 
     void io(void *data, bool input = true);
     bool io_process(em_event_t *evt);
 
     dm_easy_mesh_t *get_data_model(const char *net_id, const unsigned char *al_mac = NULL) { return m_data_model.get_data_model(net_id, al_mac); }
     dm_easy_mesh_t *create_data_model(const char *net_id, const unsigned char *al_mac, em_profile_type_t profile = em_profile_type_3) { return m_data_model.create_data_model(net_id, al_mac, profile); }
+    void delete_data_model(const char *net_id, const unsigned char *al_mac) { m_data_model.delete_data_model(net_id, al_mac); }
+    void delete_all_data_models() { m_data_model.delete_all_data_models(); }
+    int update_tables(dm_easy_mesh_t *dm) { return m_data_model.update_tables(dm); }
+    int load_net_ssid_table() { return m_data_model.load_net_ssid_table(); }
+    void debug_probe() { m_data_model.debug_probe(); }
 
     em_service_type_t get_service_type() { return em_service_type_ctrl; }
+    em_t *find_em_for_msg_type(unsigned char *data, unsigned int len, em_t *al_em);
 
     em_ctrl_t();
     ~em_ctrl_t();

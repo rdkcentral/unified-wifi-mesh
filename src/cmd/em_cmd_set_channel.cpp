@@ -47,17 +47,21 @@ em_cmd_set_channel_t::em_cmd_set_channel_t(em_cmd_params_t param, dm_easy_mesh_t
     m_type = em_cmd_type_dev_init;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
 
+    memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
+
     m_orch_op_idx = 0;
-    m_num_orch_ops = 3;
-    m_orch_op_array[0] = dm_orch_type_rd_update;
-    m_orch_op_array[1] = dm_orch_type_owconfig_req;
-    m_orch_op_array[2] = dm_orch_type_owconfig_cnf;
+    m_num_orch_desc = 3;
+    m_orch_desc[0].op = dm_orch_type_em_update;
+    m_orch_desc[0].submit = true;
+    m_orch_desc[1].op = dm_orch_type_owconfig_req;
+    m_orch_desc[2].op = dm_orch_type_owconfig_cnf;
 
     strncpy(m_name, "set_channel", strlen("set_channel") + 1);
-    m_svc = em_service_type_agent;
+    m_svc = em_service_type_ctrl;
     init(&dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
-    ctx.type = m_orch_op_array[0];    
+    ctx.type = m_orch_desc[0].op;
+
     m_data_model.set_cmd_ctx(&ctx);
 }

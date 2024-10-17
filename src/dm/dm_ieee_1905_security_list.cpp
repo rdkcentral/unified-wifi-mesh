@@ -114,10 +114,10 @@ dm_orch_type_t dm_ieee_1905_security_list_t::get_dm_orch_type(db_client_t& db_cl
    
  
         printf("%s:%d: Network SSID: %s in list but needs update\n", __func__, __LINE__, pieee_1905_security->m_ieee_1905_security_info.id);
-        return dm_orch_type_sec_update;
+        return dm_orch_type_db_update;
     }  
 
-    return dm_orch_type_sec_insert;
+    return dm_orch_type_db_insert;
 
 }
 
@@ -129,16 +129,16 @@ void dm_ieee_1905_security_list_t::update_list(const dm_ieee_1905_security_t& ie
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)ieee_1905_security.m_ieee_1905_security_info.id, mac_str);
 
     switch (op) {
-        case dm_orch_type_sec_insert:
+        case dm_orch_type_db_insert:
 			hash_map_put(m_list, strdup(mac_str), new dm_ieee_1905_security_t(ieee_1905_security));	
             break;
 
-        case dm_orch_type_sec_update:
+        case dm_orch_type_db_update:
     		pieee_1905_security = (dm_ieee_1905_security_t *)hash_map_get(m_list, mac_str);
             memcpy(&pieee_1905_security->m_ieee_1905_security_info, &ieee_1905_security.m_ieee_1905_security_info, sizeof(em_ieee_1905_security_info_t));
             break;
     
-        case dm_orch_type_sec_delete:
+        case dm_orch_type_db_delete:
     		pieee_1905_security = (dm_ieee_1905_security_t *)hash_map_remove(m_list, mac_str);
             delete(pieee_1905_security);
             break;
@@ -178,17 +178,17 @@ int dm_ieee_1905_security_list_t::update_db(db_client_t& db_client, dm_orch_type
 	//printf("%s:%d: Opeartion:%d\n", __func__, __LINE__, op);
 	
 	switch (op) {
-		case dm_orch_type_sec_insert:
+		case dm_orch_type_db_insert:
 			ret = insert_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->id, mac_str), 
 						info->sec_cap.onboarding_proto, info->sec_cap.integrity_algo, info->sec_cap.encryption_algo);
 			break;
 
-		case dm_orch_type_sec_update:
+		case dm_orch_type_db_update:
 			ret = update_row(db_client, info->sec_cap.onboarding_proto, info->sec_cap.integrity_algo, info->sec_cap.encryption_algo,
 						dm_easy_mesh_t::macbytes_to_string(info->id, mac_str));
 			break;
 
-		case dm_orch_type_sec_delete:
+		case dm_orch_type_db_delete:
 			ret = delete_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->id, mac_str));
 			break;
 
@@ -223,7 +223,7 @@ int dm_ieee_1905_security_list_t::sync_db(db_client_t& db_client, void *ctx)
         info.sec_cap.integrity_algo = db_client.get_number(ctx, 3);
         info.sec_cap.encryption_algo = db_client.get_number(ctx, 4);
         
-		update_list(dm_ieee_1905_security_t(&info), dm_orch_type_sec_insert);
+		update_list(dm_ieee_1905_security_t(&info), dm_orch_type_db_insert);
     }
     return rc;
 }

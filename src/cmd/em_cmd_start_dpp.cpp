@@ -45,9 +45,10 @@ em_cmd_start_dpp_t::em_cmd_start_dpp_t(em_cmd_params_t param)
     m_type = em_cmd_type_start_dpp;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
 
+    memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
+
     m_orch_op_idx = 0;
-    m_num_orch_ops = 1;
-    m_orch_op_array[0] = dm_orch_type_dpp_insert;
+    m_num_orch_desc = 0;
 
     snprintf(m_name, sizeof(m_name), "%s", "start_dpp");
     m_svc = em_service_type_ctrl;

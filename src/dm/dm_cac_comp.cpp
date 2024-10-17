@@ -34,31 +34,57 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <sys/time.h>
-#include <sys/un.h>
 #include <unistd.h>
-#include <pthread.h>
-#include <cjson/cJSON.h>
-#include "em_cmd_channel_sel.h"
+#include "dm_cac_comp.h"
+#include "dm_easy_mesh.h"
+#include "dm_easy_mesh_ctrl.h"
 
-em_cmd_channel_sel_t::em_cmd_channel_sel_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
+
+
+int dm_cac_comp_t::decode(const cJSON *obj, void *parent_id)
 {
-    em_cmd_ctx_t ctx;
-
-    m_type = em_cmd_type_dev_init;
-    memcpy(&m_param, &param, sizeof(em_cmd_params_t));
-
-    m_orch_op_idx = 0;
-    m_num_orch_ops = 3;
-    m_orch_op_array[0] = dm_orch_type_rd_update;
-    m_orch_op_array[1] = dm_orch_type_owconfig_req;
-    m_orch_op_array[2] = dm_orch_type_owconfig_cnf;
-
-    snprintf(m_name, sizeof(m_name), "%s", "channel_sel");
-    m_svc = em_service_type_agent;
-    init(&dm);
-
-    memset(&ctx, 0, sizeof(em_cmd_ctx_t));
-    ctx.type = m_orch_op_array[0];    
-    m_data_model.set_cmd_ctx(&ctx);
+    return 0;
 }
 
+void dm_cac_comp_t::encode(cJSON *obj)
+{
+}
+
+dm_orch_type_t dm_cac_comp_t::get_dm_orch_type(const dm_cac_comp_t& cac_comp)
+{
+    if ( this == &cac_comp) {
+         dm_orch_type_none;
+    } else {
+        return dm_orch_type_db_update;
+    }
+    return dm_orch_type_db_insert;
+}
+
+bool dm_cac_comp_t::operator == (const dm_cac_comp_t& obj) 
+{   
+	return true;
+}
+
+void dm_cac_comp_t::operator = (const dm_cac_comp_t& obj)
+{
+}
+
+dm_cac_comp_t::dm_cac_comp_t(em_cac_comp_info_t *radio)
+{
+    memcpy(&m_cac_comp_info, radio, sizeof(em_cac_comp_info_t));
+}
+
+dm_cac_comp_t::dm_cac_comp_t(const dm_cac_comp_t& radio)
+{
+	memcpy(&m_cac_comp_info, &radio.m_cac_comp_info, sizeof(em_cac_comp_info_t));
+}
+
+dm_cac_comp_t::dm_cac_comp_t()
+{
+
+}
+
+dm_cac_comp_t::~dm_cac_comp_t()
+{
+
+}

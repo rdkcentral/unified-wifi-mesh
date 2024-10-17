@@ -22,7 +22,7 @@ PLATFORM = $(shell uname -a)
 
 BASE = $(shell pwd)
 
-ONEWIFI_EM_HOME = $(BASE)/../..
+ONEWIFI_EM_HOME = $(BASE)/../../
 ONEWIFI_HOME = $(BASE)/../../../one_wifi_program
 ONEWIFI_HAL_INTF_HOME = $(BASE)/../../../one_wifi_program/halinterface
 ONEWIFI_BUS_LIB_HOME = $(ONEWIFI_HOME)/generic/lib/bus

@@ -16,15 +16,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef EM_CMD_CHANNEL_SEL_H
-#define EM_CMD_CHANNEL_SEL_H
+#ifndef EM_CMD_GET_RADIO_H
+#define EM_CMD_GET_RADIO_H
 
 #include "em_cmd.h"
 
-class em_cmd_channel_sel_t : public em_cmd_t {
+class em_cmd_get_radio_t : public em_cmd_t {
 
 public:
-    em_cmd_channel_sel_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+	em_cmd_get_radio_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif

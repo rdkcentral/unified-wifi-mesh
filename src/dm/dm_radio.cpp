@@ -157,9 +157,9 @@ dm_orch_type_t dm_radio_t::get_dm_orch_type(const dm_radio_t& radio)
     if ( this == &radio) {
         dm_orch_type_none;
     } else {
-        return dm_orch_type_rd_update;
+        return dm_orch_type_db_update;
     }
-    return dm_orch_type_rd_insert;
+    return dm_orch_type_db_insert;
 }
 
 bool dm_radio_t::operator == (const dm_radio_t& obj) {   

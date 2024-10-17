@@ -31,6 +31,7 @@
 #include "dm_op_class.h"
 #include "dm_radio_cap.h"
 #include "webconfig_external_proto.h"
+#include "dm_cac_comp.h"
 
 class em_t;
 
@@ -54,9 +55,11 @@ public:
     dm_op_class_t m_op_class[EM_MAX_OPCLASS];
     hash_map_t      *m_sta_assoc_map = NULL;
     hash_map_t      *m_sta_dassoc_map = NULL;
+    dm_cac_comp_t	m_cac_comp;
     short           msg_id;
     unsigned int	m_db_cfg_type;
     em_t *m_em;
+    bool    m_colocated;
 
 public:
     int init();
@@ -73,10 +76,13 @@ public:
     int decode_config(em_subdoc_info_t *subdoc, const char *key);
     int decode_config_reset(em_subdoc_info_t *subdoc, const char *key);
     int decode_config_test(em_subdoc_info_t *subdoc, const char *key);
+    int decode_config_set_ssid(em_subdoc_info_t *subdoc, const char *key);
+    int decode_config_op_class_array(cJSON *arr_obj, em_op_class_type_t type, unsigned char *mac);
     
     int encode_config(em_subdoc_info_t *subdoc, const char *key);
     int encode_config_reset(em_subdoc_info_t *subdoc, const char *key);
     int encode_config_test(em_subdoc_info_t *subdoc, const char *key);
+    int encode_config_op_class_array(cJSON *arr_obj, em_op_class_type_t type, unsigned char *mac);
 
     int decode_sta_config(em_subdoc_info_t *subdoc, unsigned int dev_index);
     unsigned int decode_num_devices(em_subdoc_info_t *subdoc);
@@ -102,6 +108,8 @@ public:
     char *get_agent_al_interface_name() { return m_device.get_dev_interface_name(); }
     void set_agent_al_interface_mac(unsigned char *mac) { m_device.set_dev_interface_mac(mac); }
     void set_agent_al_interface_name(char *name) { return m_device.set_dev_interface_name(name); }
+
+    void update_cac_status_id(mac_address_t al_mac);
 
     em_interface_t *get_controller_interface() { return m_network.get_controller_interface(); }
     unsigned char *get_controller_interface_mac() { return m_network.get_controller_interface_mac(); }
@@ -216,6 +224,8 @@ public:
 
     void handle_dirty_dm();
     void set_em(em_t *em) { m_em = em; }
+    void set_colocated(bool col) { m_colocated = col; }
+    bool get_colocated() { return m_colocated; }
     em_t *get_em() { return m_em; }
 
     dm_easy_mesh_t();

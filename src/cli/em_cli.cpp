@@ -83,10 +83,17 @@ em_cmd_t& em_cli_t::get_command(char *in, size_t in_len)
     }
 
     if (num_args != cmd->m_param.num_args) {
-        return em_cmd_cli_t::m_client_cmd_spec[em_cmd_type_none];;
-    }
-
-    cmd->m_param.num_args = num_args;
+        if ((cmd->get_type() == em_cmd_type_get_device) && ((num_args == cmd->m_param.num_args + 1))) {
+			strncat(cmd->m_param.fixed_args, "Summary", strlen("Summary"));
+		} else {
+            return em_cmd_cli_t::m_client_cmd_spec[em_cmd_type_none];;
+        }
+    } else {
+		if ((tmp = strstr(cmd->m_param.fixed_args, "Summary")) != NULL) {
+			*tmp = 0;
+		}
+	}
+    
     for (i = 0; i < num_args; i++) {
         snprintf(cmd->m_param.args[i], sizeof(cmd->m_param.args[i]), "%s", args[i]);
     }

@@ -115,13 +115,13 @@ dm_orch_type_t dm_ssid_2_vid_map_t::update_list(const dm_ssid_2_vid_map_t& ssid_
 		
         	
 	printf("%s:%d: Network SSID: %s in list but needs update\n", __func__, __LINE__, pssid_2_vid_map->m_ssid_2_vid_map_info.id);
-	return dm_orch_type_ssid_vid_update;
+	return dm_orch_type_db_update;
     }	
 
     hash_map_put(m_list, strdup(ssid_2_vid_map.m_ssid_2_vid_map_info.id), new dm_ssid_2_vid_map_t(ssid_2_vid_map));	
 
 		
-    return dm_orch_type_ssid_vid_insert;
+    return dm_orch_type_db_insert;
 }
 
 bool dm_ssid_2_vid_map_t::operator == (const db_easy_mesh_t& obj)
@@ -157,15 +157,15 @@ int dm_ssid_2_vid_map_t::update_db(db_client_t& db_client, dm_orch_type_t op, vo
     //printf("%s:%d: Opeartion:%d\n", __func__, __LINE__, op);
 	
 	switch (op) {
-		case dm_orch_type_ssid_vid_insert:
+		case dm_orch_type_db_insert:
 			ret = insert_row(db_client, info->id, info->ssid, info->vid);
 			break;
 
-		case dm_orch_type_ssid_vid_update:
+		case dm_orch_type_db_update:
 			ret = update_row(db_client, info->ssid, info->vid, info->id);
 			break;
 
-		case dm_orch_type_ssid_vid_delete:
+		case dm_orch_type_db_delete:
 			ret = delete_row(db_client, info->id);
 			break;
 

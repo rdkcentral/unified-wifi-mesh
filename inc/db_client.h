@@ -33,6 +33,8 @@ public:
     char *get_string(void *ctx, char *res, unsigned int col);
     int get_number(void *ctx, unsigned int col);
 
+    int recreate_db();
+
     db_client_t();
     ~db_client_t();	
 };

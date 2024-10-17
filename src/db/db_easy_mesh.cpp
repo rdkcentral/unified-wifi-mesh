@@ -178,6 +178,7 @@ int db_easy_mesh_t::delete_row(db_client_t& db_client, ...)
     snprintf(format + strlen(format), sizeof(format) - strlen(format), "%s", tmp);
 
     snprintf(format + strlen(format), sizeof(format) - strlen(format), "%s", get_column_format(col_fmt, 0));
+    format[strlen(format) - 2] = 0;
     
     va_start(list, format);
     (void) vsnprintf(query, sizeof(db_query_t), format, list);

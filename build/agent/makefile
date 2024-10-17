@@ -22,6 +22,7 @@ include ../makefile.inc
 # program
 #
 
+BUS_LIBRARY = $(INSTALLDIR)/lib/libbus.a
 PROGRAM = $(INSTALLDIR)/bin/onewifi_em_agent
 
 INCLUDEDIRS = \
@@ -35,8 +36,8 @@ INCLUDEDIRS = \
     	-I$(ONEWIFI_HOME)/generic/lib/ds \
     	-I$(ONEWIFI_HOME)/generic/source/platform/linux \
     	-I$(ONEWIFI_HOME)/generic/source/platform/common \
-    	-I$(ONEWIFI_EM_HOME)/src/util_crypto \
     	-I$(ONEWIFI_HOME)/generic/source/platform/linux/he_bus/inc \
+        -I$(ONEWIFI_EM_HOME)/src/util_crypto \
 
 $(info The value of VARIABLE is $(ONEWIFI_HAL_INTF_HOME))
 
@@ -44,9 +45,9 @@ CXXFLAGS = $(INCLUDEDIRS) -g
 LDFLAGS = $(LIBDIRS) $(LIBS)
 LIBDIRS = \
 	-L$(INSTALLDIR)/lib \
-    	-L$(ONEWIFI_HOME)/install/lib/
+    -L$(ONEWIFI_HOME)/install/lib/
 
-LIBS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwebconfig -lhebus
+LIBS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lbus -lwebconfig -lhebus
 
 GENERIC_SOURCES = $(ONEWIFI_HOME)/generic/source/utils/collection.c \
 	$(ONEWIFI_EM_SRC)/util_crypto/aes_siv.c \
@@ -77,6 +78,7 @@ AGENT_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
 	$(ONEWIFI_EM_SRC)/dm/dm_op_class.cpp \
 	$(ONEWIFI_EM_SRC)/dm/dm_sta.cpp \
 	$(ONEWIFI_EM_SRC)/dm/dm_radio_cap.cpp \
+    $(ONEWIFI_EM_SRC)/dm/dm_cac_comp.cpp \
 
 BUS_LIBRARY_SOURCES = $(wildcard $(ONEWIFI_BUS_LIB_HOME)/src/*.c) \
 

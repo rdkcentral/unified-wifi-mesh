@@ -51,6 +51,10 @@ int dm_op_class_t::decode(const cJSON *obj, void *parent_id)
         m_op_class_info.op_class = tmp->valuedouble;
     }
 
+    if ((tmp = cJSON_GetObjectItem(obj, "OpClass")) != NULL) {
+        m_op_class_info.op_class = tmp->valuedouble;
+    }
+
     if ((tmp = cJSON_GetObjectItem(obj, "Channel")) != NULL) {
         m_op_class_info.channel = tmp->valuedouble;
     }
@@ -73,6 +77,17 @@ int dm_op_class_t::decode(const cJSON *obj, void *parent_id)
         }
     }
 
+    if ((tmp = cJSON_GetObjectItem(obj, "Minutes")) != NULL) {
+       m_op_class_info.mins_since_cac_comp = tmp->valuedouble;
+    }
+
+    if ((tmp = cJSON_GetObjectItem(obj, "Seconds")) != NULL) {
+       m_op_class_info.sec_remain_non_occ_dur = tmp->valuedouble;
+    }
+
+    if ((tmp = cJSON_GetObjectItem(obj, "Countdown")) != NULL) {
+       m_op_class_info.countdown_cac_comp = tmp->valuedouble;
+    }
     return 0;
 
 }
@@ -81,20 +96,32 @@ void dm_op_class_t::encode(cJSON *obj)
 {
     unsigned int i;
 
-    cJSON_AddNumberToObject(obj, "NumberOfNonOperChan", m_op_class_info.num_non_op_channels);
-    cJSON_AddNumberToObject(obj, "Class", m_op_class_info.op_class);
-    cJSON_AddNumberToObject(obj, "MaxTxPower", m_op_class_info.max_tx_power);
-    cJSON_AddNumberToObject(obj, "TxPower", m_op_class_info.tx_power);
     cJSON_AddNumberToObject(obj, "Channel", m_op_class_info.channel);
 
-    cJSON *non_op_array = cJSON_CreateArray();
+	if (m_op_class_info.id.type == em_op_class_type_current) {
+    	cJSON_AddNumberToObject(obj, "Class", m_op_class_info.op_class);
+    	cJSON_AddNumberToObject(obj, "TxPower", m_op_class_info.tx_power);
+	} else if (m_op_class_info.id.type == em_op_class_type_capability) {
+    	cJSON_AddNumberToObject(obj, "Class", m_op_class_info.op_class);
+    	cJSON_AddNumberToObject(obj, "MaxTxPower", m_op_class_info.max_tx_power);
+    	cJSON_AddNumberToObject(obj, "NumberOfNonOperChan", m_op_class_info.num_non_op_channels);
+    	cJSON *non_op_array = cJSON_CreateArray();
 
-    for (i = 0; i < m_op_class_info.num_non_op_channels; i++) {
-        cJSON_AddItemToArray(non_op_array, cJSON_CreateNumber(m_op_class_info.non_op_channel[i]));
-    }
-    // Add the array to the object
-    cJSON_AddItemToObject(obj, "NonOperable", non_op_array);
-
+    	for (i = 0; i < m_op_class_info.num_non_op_channels; i++) {
+        	cJSON_AddItemToArray(non_op_array, cJSON_CreateNumber(m_op_class_info.non_op_channel[i]));
+    	}
+    	// Add the array to the object
+    	cJSON_AddItemToObject(obj, "NonOperable", non_op_array);
+	} else if (m_op_class_info.id.type == em_op_class_type_cac_available) {
+    	cJSON_AddNumberToObject(obj, "OpClass", m_op_class_info.op_class);
+    	cJSON_AddNumberToObject(obj, "Minutes", m_op_class_info.mins_since_cac_comp);
+	} else if (m_op_class_info.id.type == em_op_class_type_cac_non_occ) {
+    	cJSON_AddNumberToObject(obj, "OpClass", m_op_class_info.op_class);
+    	cJSON_AddNumberToObject(obj, "Seconds", m_op_class_info.sec_remain_non_occ_dur);
+	} else if (m_op_class_info.id.type == em_op_class_type_cac_active) {
+    	cJSON_AddNumberToObject(obj, "OpClass", m_op_class_info.op_class);
+    	cJSON_AddNumberToObject(obj, "Countdown", m_op_class_info.countdown_cac_comp);
+	}
 }
 
 bool dm_op_class_t::operator == (const dm_op_class_t& obj)
@@ -102,15 +129,21 @@ bool dm_op_class_t::operator == (const dm_op_class_t& obj)
     int ret = 0;
     ret += (memcmp(&this->m_op_class_info.id.ruid ,&obj.m_op_class_info.id.ruid,sizeof(mac_address_t)) != 0);
     ret += !(this->m_op_class_info.id.type == obj.m_op_class_info.id.type);
-    ret += !(this->m_op_class_info.id.index == obj.m_op_class_info.id.index);
     ret += !(this->m_op_class_info.op_class == obj.m_op_class_info.op_class);
     ret += !(this->m_op_class_info.channel == obj.m_op_class_info.channel);
-    ret += !(this->m_op_class_info.tx_power == obj.m_op_class_info.tx_power);
-    ret += !(this->m_op_class_info.max_tx_power == obj.m_op_class_info.max_tx_power);
-    ret += !(this->m_op_class_info.num_non_op_channels == obj.m_op_class_info.num_non_op_channels);
-    ret += (memcmp(this->m_op_class_info.non_op_channel, obj.m_op_class_info.non_op_channel, sizeof(unsigned int) * EM_MAX_NON_OP_CHANNELS) != 0);
-   
-    //em_util_info_print(EM_MGR, "%s:%d: MUH ret=%d\n", __func__, __LINE__,ret);
+    if (this->m_op_class_info.id.type == em_op_class_type_current) {
+        ret += !(this->m_op_class_info.tx_power == obj.m_op_class_info.tx_power);
+    } else if (this->m_op_class_info.id.type == em_op_class_type_capability) {
+        ret += !(this->m_op_class_info.max_tx_power == obj.m_op_class_info.max_tx_power);
+        ret += !(this->m_op_class_info.num_non_op_channels == obj.m_op_class_info.num_non_op_channels);
+        ret += (memcmp(this->m_op_class_info.non_op_channel, obj.m_op_class_info.non_op_channel, sizeof(unsigned int) * EM_MAX_NON_OP_CHANNELS) != 0);
+   } else if (this->m_op_class_info.id.type == em_op_class_type_cac_available) {
+    	ret += !(this->m_op_class_info.mins_since_cac_comp == obj.m_op_class_info.mins_since_cac_comp);
+	} else if (this->m_op_class_info.id.type == em_op_class_type_cac_non_occ) {
+    	ret += !(this->m_op_class_info.sec_remain_non_occ_dur == obj.m_op_class_info.sec_remain_non_occ_dur);
+	} else if (this->m_op_class_info.id.type == em_op_class_type_cac_active) {
+    	ret += !(this->m_op_class_info.countdown_cac_comp == obj.m_op_class_info.countdown_cac_comp);
+	} 
      
     if (ret > 0)
         return false;
@@ -129,6 +162,9 @@ void dm_op_class_t::operator = (const dm_op_class_t& obj)
     this->m_op_class_info.max_tx_power = obj.m_op_class_info.max_tx_power;
     this->m_op_class_info.num_non_op_channels = obj.m_op_class_info.num_non_op_channels;
     memcpy(this->m_op_class_info.non_op_channel, obj.m_op_class_info.non_op_channel, sizeof(unsigned int) * EM_MAX_NON_OP_CHANNELS);
+    this->m_op_class_info.mins_since_cac_comp = obj.m_op_class_info.mins_since_cac_comp;
+    this->m_op_class_info.sec_remain_non_occ_dur = obj.m_op_class_info.sec_remain_non_occ_dur;
+    this->m_op_class_info.countdown_cac_comp = obj.m_op_class_info.countdown_cac_comp;
 }
 
 int dm_op_class_t::parse_op_class_id_from_key(const char *key, em_op_class_id_t *id)

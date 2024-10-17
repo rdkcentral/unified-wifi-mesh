@@ -42,6 +42,7 @@ public:
     bool eligible_for_active(em_cmd_t *pcmd);
 
     virtual bool    pre_process_orch_op(em_cmd_t *pcmd) = 0;
+    virtual void    pre_process_cancel(em_cmd_t *pcmd, em_t *em) = 0;
     virtual bool    is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em) = 0;
     virtual bool    is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em) = 0;
     virtual void    orch_transient(em_cmd_t *pcmd, em_t *em) = 0;

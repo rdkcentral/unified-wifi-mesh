@@ -47,17 +47,21 @@ em_cmd_sta_list_t::em_cmd_sta_list_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
     m_type = em_cmd_type_sta_list;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
 
-    m_orch_op_idx = 0;
-    m_num_orch_ops = 2;
-    m_orch_op_array[0] = dm_orch_type_sta_insert;
-    m_orch_op_array[1] = dm_orch_type_ctrl_notify;
+    memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
 
-    snprintf(m_name, sizeof(m_name), "%s", "sta_list");
+    m_orch_op_idx = 0;
+    m_num_orch_desc = 2;
+    m_orch_desc[0].op = dm_orch_type_sta_insert;
+    m_orch_desc[0].submit = true;
+    m_orch_desc[1].op = dm_orch_type_ctrl_notify;
+
+    strncpy(m_name, "sta_list", strlen("sta_list") + 1);
     m_svc = em_service_type_agent;
     init(&dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
-    ctx.type = m_orch_op_array[0];    
+    ctx.type = m_orch_desc[0].op;    
+
     m_data_model.set_cmd_ctx(&ctx);
 }
 

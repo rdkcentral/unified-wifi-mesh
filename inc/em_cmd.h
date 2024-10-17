@@ -36,8 +36,8 @@ public:
     struct timeval  m_start_time;
 
     unsigned int m_orch_op_idx;
-    dm_orch_type_t  m_orch_op_array[EM_MAX_CMD];
-    unsigned int m_num_orch_ops;
+    em_orch_desc_t  m_orch_desc[EM_MAX_CMD];
+    unsigned int m_num_orch_desc;
     em_freq_band_t m_rd_freq_band;
     unsigned int m_rd_op_class;
     unsigned int m_rd_channel;
@@ -45,7 +45,7 @@ public:
 
 public:
     int     load_params_file(char *buff);
-    int 	write_params_file(char *buff);
+    int 	write_params_file(char *buff, const char *net_id, const char *header = NULL);
     int 	edit_params_file();
     bool    validate();
 
@@ -62,12 +62,14 @@ public:
 
     void copy_bus_event(em_bus_event_t *evt) { m_evt.type = em_event_type_bus; memcpy(&m_evt.u.bevt, evt, sizeof(em_bus_event_t)); }
 
-    virtual dm_orch_type_t get_orch_op() { return m_orch_op_array[m_orch_op_idx]; }
+    em_orch_desc_t *get_orch_desc() { return &m_orch_desc[m_orch_op_idx]; }
+    dm_orch_type_t get_orch_op()  { return m_orch_desc[m_orch_op_idx].op; }
+    bool get_orch_submit() { return m_orch_desc[m_orch_op_idx].submit; }
     virtual em_cmd_t *clone_for_next();
     virtual em_cmd_t *clone();
     virtual void set_orch_op_index(unsigned int idx) { m_orch_op_idx = idx; }
     virtual unsigned int get_orch_op_index() { return m_orch_op_idx; }
-    virtual void override_op(unsigned int index, dm_orch_type_t op);
+    virtual void override_op(unsigned int index, em_orch_desc_t *desc);
     
 
     em_interface_t *get_ctrl_al_interface() { return m_data_model.get_ctrl_al_interface(); }
@@ -88,7 +90,7 @@ public:
     dm_radio_t *get_radio(unsigned int index) { return m_data_model.get_radio(index); }
     dm_op_class_t *get_curr_op_class(unsigned int index) { return m_data_model.get_curr_op_class(index); }
     rdk_wifi_radio_t *get_radio_data(em_interface_t *radio) { return m_data_model.get_radio_data(radio); };
-    em_freq_band_t get_curr_freq_band();
+    em_freq_band_t get_band() { return m_rd_freq_band; }    
     void set_rd_freq_band(unsigned int i);
     em_freq_band_t get_rd_freq_band() { return m_rd_freq_band; }
     unsigned int get_rd_op_class() { return m_rd_op_class; }
@@ -109,6 +111,7 @@ public:
     static em_bus_event_type_t cmd_2_bus_event_type(em_cmd_type_t type);
     static const char *get_orch_op_str(dm_orch_type_t type);
     static const char *get_bus_event_type_str(em_bus_event_type_t type);
+    static const char *get_cmd_type_str(em_cmd_type_t type);    
     static void dump_bus_event(em_bus_event_t *evt);
     
     em_cmd_t(em_cmd_type_t type, em_cmd_params_t param, dm_easy_mesh_t& dm);

@@ -40,7 +40,6 @@
 #include <cjson/cJSON.h>
 #include "em_cli.h"
 
-const char *em_cmd_exec_t::m_sock_path = "/tmp/onewifimesh";
 
 void em_cmd_exec_t::wait(struct timespec *time_to_wait)
 {
@@ -72,25 +71,39 @@ int em_cmd_exec_t::execute(em_cmd_type_t type, em_service_type_t to_svc, unsigne
     return send_cmd(to_svc, (unsigned char *)&ev, sizeof(em_event_t));;
 }
 
+char *em_cmd_exec_t::get_path_from_dst_service(em_service_type_t to_svc, em_long_string_t sock_path)
+{
+    switch (to_svc) {
+        case em_service_type_ctrl:
+            snprintf(sock_path, sizeof(em_long_string_t), "%s_%s", EM_PATH_PREFIX, EM_CTRL_PATH);
+            break;
+
+        case em_service_type_agent:
+            snprintf(sock_path, sizeof(em_long_string_t), "%s_%s", EM_PATH_PREFIX, EM_AGENT_PATH);
+            break;
+
+        case em_service_type_cli:
+            snprintf(sock_path, sizeof(em_long_string_t), "%s_%s", EM_PATH_PREFIX, EM_CLI_PATH);
+            break;
+
+        default:
+            return NULL;
+            break;
+    }
+
+    return sock_path;
+}
+
 int em_cmd_exec_t::send_cmd(em_service_type_t to_svc, unsigned char *in, unsigned int in_len, char *out, unsigned int out_len)
 {
     struct sockaddr_un addr;
     int dsock, ret;
     em_long_string_t sock_path;
     unsigned int sz = sizeof(em_event_t);
-    switch (to_svc) {
-        case em_service_type_ctrl:
-            snprintf(sock_path, sizeof(sock_path), "%s_%s", EM_PATH_PREFIX, EM_CTRL_PATH);
-            break;
-        case em_service_type_agent:
-            snprintf(sock_path, sizeof(sock_path), "%s_%s", EM_PATH_PREFIX, EM_AGENT_PATH);
-            break;
-        case em_service_type_cli:
-            snprintf(sock_path, sizeof(sock_path), "%s_%s", EM_PATH_PREFIX, EM_CLI_PATH);
-            break;
-        default:
-            return -1;
-            break;
+
+    if (get_path_from_dst_service(to_svc, sock_path) == NULL) {
+        printf("%s:%d: Could not find path from destination service: %d\n", to_svc);
+        return -1;
     }
     if ((dsock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
         snprintf(out, out_len, "%s:%d: error opening socket, err:%d\n", __func__, __LINE__, errno);
@@ -100,7 +113,7 @@ int em_cmd_exec_t::send_cmd(em_service_type_t to_svc, unsigned char *in, unsigne
     setsockopt(dsock, SOL_SOCKET, SO_RCVBUF, &sz, sizeof(sz)); // Receive buffer 1K
     memset(&addr, 0, sizeof(struct sockaddr_un));
     addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, "/tmp/onewifimesh", sizeof(addr.sun_path));    
+    strncpy(addr.sun_path, sock_path, sizeof(addr.sun_path));    
     //snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", sock_path);
     if ((ret = connect(dsock, (const struct sockaddr *) &addr, sizeof(struct sockaddr_un))) != 0) {
         snprintf(out, out_len, "%s:%d: connect error on socket, err:%d\n", __func__, __LINE__, errno);

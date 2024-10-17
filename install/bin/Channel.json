@@ -2,7 +2,7 @@
 	"Status":	"Success",
 	"Result":	{
 		"Network":	{
-			"ID":	"Private",
+			"ID":	"OneWifiMesh",
 			"DeviceList":	[{
 					"ID":	"00:0c:29:dc:63:48",
 					"RadioList":	[{

@@ -1,0 +1,11 @@
+{
+	"wfa-dataelements:RemoveDevice":	{
+		"Network":	{
+			"ID":	"OneWifiMesh",
+			"DeviceList":	[{
+					"ID":	"e4:5f:01:40:70:5b"
+				}]
+		},
+		"ID":	"OneWifiMesh"
+	}
+}

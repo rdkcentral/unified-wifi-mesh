@@ -36,6 +36,7 @@
 #include "em_base.h"
 #include "em_cmd.h"
 #include "em_orch_ctrl.h"
+#include "em_cmd_exec.h"
 
 extern char *global_netid;
 
@@ -57,6 +58,28 @@ void em_orch_ctrl_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 
 bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
 {
+    // if the command is SetSSID and 5 renews have been sent transition to fini
+
+    switch (pcmd->m_type) {
+        case em_cmd_type_set_ssid:
+            if (em->get_renew_tx_count() >= EM_MAX_RENEW_TX_THRESH) {
+                em->set_state(em_state_ctrl_idle);
+                em->set_renew_tx_count(0);
+                printf("%s:%d: Maximum renew tx threshold crossed, transitioning to fini\n", __func__, __LINE__);
+                return true;
+            }
+            break;
+
+        case em_cmd_type_em_config:
+            if (em->get_state() == em_state_ctrl_configured) {
+                em->set_state(em_state_ctrl_idle);
+                em->set_topo_query_tx_count(0);
+                printf("%s:%d: Maximum topo sync tx threshold crossed, transitioning to fini\n", __func__, __LINE__);
+                return true;
+            }
+            break;
+    }
+
     return false;
 }
 
@@ -64,71 +87,145 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 {
     if ((em->get_state() == em_state_ctrl_none) || (em->get_state() == em_state_ctrl_idle)) {
         return true;
+    } else if (pcmd->m_type == em_cmd_type_set_ssid) {
+        return true;
+    } else if (pcmd->m_type == em_cmd_type_em_config) {
+        return true;
+    } else if (pcmd->m_type == em_cmd_type_dev_test) {
+        return true;
+    } else if (pcmd->m_type == em_cmd_type_cfg_renew) {
+        return true;
     }
     return false;
 }
 
+void em_orch_ctrl_t::pre_process_cancel(em_cmd_t *pcmd, em_t *em)
+{
+	em_event_t  ev;
+    em_bus_event_t *bev;
+    em_bus_event_type_cfg_renew_params_t    *raw;
+
+	switch (pcmd->get_type()) {
+		case em_cmd_type_em_config:
+           	em->set_state(em_state_ctrl_misconfigured);
+            em->set_topo_query_tx_count(0);
+
+			// send cfg renew so that controller can orchestrate renew
+			ev.type = em_event_type_bus;
+    		bev = &ev.u.bevt;
+    		bev->type = em_bus_event_type_cfg_renew;
+    		raw = (em_bus_event_type_cfg_renew_params_t *)bev->u.raw_buff;
+    		memcpy(raw->radio, em->get_radio_interface_mac(), sizeof(mac_address_t));
+    		em_cmd_exec_t::send_cmd(em_service_type_ctrl, (unsigned char *)&ev, sizeof(em_event_t));
+			break;
+		
+		case em_cmd_type_cfg_renew:
+           	em->set_state(em_state_ctrl_idle);
+            em->set_renew_tx_count(0);
+			break;
+	}
+}
+
 bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
 {
-    bool submit = true;
     em_t *em;
     em_ctrl_t *ctrl = (em_ctrl_t *)m_mgr;
     dm_easy_mesh_ctrl_t *dm_ctrl = (dm_easy_mesh_ctrl_t *)ctrl->get_data_model(global_netid);
     dm_easy_mesh_t *dm = &pcmd->m_data_model;
     dm_easy_mesh_t *mgr_dm;
+    mac_addr_str_t	mac_str;
 
     printf("%s:%d: Orchestration operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
     switch (pcmd->get_orch_op()) {
         case dm_orch_type_db_reset:
             dm_ctrl->reset_config();
-            submit = false;
             break;	
 
         case dm_orch_type_em_reset:
             m_mgr->delete_nodes();
-            submit = false;
             break;
 
+        case dm_orch_type_em_delete:
+			em = dm->get_em();
+            m_mgr->delete_node(em->get_radio_interface());
+            break;
+        
         case dm_orch_type_db_cfg:
-            dm->set_db_cfg_type(pcmd->get_db_cfg_type());
             dm_ctrl->set_config(dm);
             dm_ctrl->set_initialized();
-            submit = false;
             break;
 
-        case dm_orch_type_dev_insert:
+        case dm_orch_type_al_insert:
             mgr_dm = m_mgr->get_data_model(global_netid, pcmd->get_al_interface_mac());
+            if (mgr_dm == NULL) {
+                break;
+            }
+			dm_easy_mesh_t::macbytes_to_string(pcmd->get_al_interface_mac(), mac_str);	
+			//printf("%s:%d: DM of net_id: %s, AL MAC: %s Manager dm: %p\n", __func__, __LINE__, global_netid, mac_str, mgr_dm);
             
             // for device insert, just create the al interface em and return, do not submit command
-            em = m_mgr->create_node(pcmd->get_ctrl_al_interface(), mgr_dm, true, em_profile_type_3, em_service_type_ctrl);
+            em = m_mgr->create_node(pcmd->get_ctrl_al_interface(), em_freq_band_unknown, mgr_dm, true, em_profile_type_3, em_service_type_ctrl);
             if (em != NULL) {
                 // since this does not have to go through orchestration of M1 M2, commit the data model
-                em->get_data_model()->commit_config(pcmd->m_data_model, em_commit_target_al);
+                em->get_data_model()->commit_config(pcmd->m_data_model, em_commit_target_em);
             }
-            submit = false;
             break;
 
         case dm_orch_type_tx_cfg_renew:
             break;
 
-        case dm_orch_type_topology_response:
+        case dm_orch_type_db_delete:
+			dm->set_db_cfg_type(db_cfg_type_device_list_delete|db_cfg_type_radio_list_delete|db_cfg_type_bss_list_delete|db_cfg_type_op_class_list_delete|db_cfg_type_op_class_list_delete);
+            m_mgr->update_tables(dm);
+			break;
+
+		case dm_orch_type_dm_delete:
+			printf("%s:%d: Deleting data model\n", __func__, __LINE__);
+			m_mgr->delete_data_model((dm->get_device())->m_device_info.net_id, (dm->get_device())->m_device_info.id.mac);
+			break;
+
+		case dm_orch_type_dm_delete_all:
+			printf("%s:%d: Deleting all data models\n", __func__, __LINE__);
+			m_mgr->delete_all_data_models();
+			break;
+
+		case dm_orch_type_em_update:
+        case dm_orch_type_em_test:
+			printf("%s:%d: Submit: %d\n", __func__, __LINE__, pcmd->get_orch_submit());
+            break;  
+
+		case dm_orch_type_net_ssid_update:
+			m_mgr->load_net_ssid_table();
+            break;  
+
+        /*case dm_orch_type_topology_response:
             mgr_dm = m_mgr->get_data_model(global_netid, pcmd->get_al_interface_mac());
             em = mgr_dm->get_em();
 			em->test_topology_response_msg();	
             submit = false;
-			break;
+			break;*/
 
         default:
             break;
     }
 
-    return submit;
+    return pcmd->get_orch_submit();
 }
 
 unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
 {
     em_t *em;
     unsigned int count = 0, i;
+
+    if (pcmd->m_type == em_cmd_type_em_config) {
+        em = (em_t *)hash_map_get(m_mgr->m_em_map, pcmd->m_param.args[0]);
+        if (em != NULL) {
+            queue_push(pcmd->m_em_candidates, em);
+            count++;
+        }
+
+        return count;
+    }
 
     em = (em_t *)hash_map_get_first(m_mgr->m_em_map);	
     while (em != NULL) {
@@ -142,8 +239,8 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 }
                 break;
 
-            case em_cmd_type_start_dpp:
-                if (em->is_start_dpp_candidate(pcmd->get_dpp())) {
+            case em_cmd_type_dev_test:
+                if (em->is_dev_test_candidate()) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }
@@ -151,6 +248,13 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
 
             case em_cmd_type_reset:
                 if (em->is_tx_cfg_renew_candidate()) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
+                }
+                break;
+
+            case em_cmd_type_cfg_renew:
+                if (em->is_cfg_renew_candidate()) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }

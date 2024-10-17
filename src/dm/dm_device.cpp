@@ -245,9 +245,9 @@ dm_orch_type_t dm_device_t::get_dm_orch_type(const dm_device_t& device)
     if ( this == &device) {
          dm_orch_type_none;
     } else {
-        return dm_orch_type_dev_update;
+        return dm_orch_type_db_update;
     }
-    return dm_orch_type_dev_insert;
+    return dm_orch_type_db_insert;
 }   
 
 void dm_device_t::operator = (const dm_device_t& obj) {

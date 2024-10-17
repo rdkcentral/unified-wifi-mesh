@@ -43,23 +43,25 @@
 em_cmd_dev_test_t::em_cmd_dev_test_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
 {
     em_cmd_ctx_t ctx;;
-    m_type = em_cmd_type_reset;
+    m_type = em_cmd_type_dev_test;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
 
-    m_orch_op_idx = 0;
-    m_num_orch_ops = 3;
-    m_orch_op_array[0] = dm_orch_type_db_cfg;
-    m_orch_op_array[1] = dm_orch_type_dev_insert;
-    m_orch_op_array[2] = dm_orch_type_topology_response;
+    memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
 
-    m_db_cfg_type = db_cfg_type_device_list | db_cfg_type_radio_list | db_cfg_type_bss_list | db_cfg_type_op_class_list;
+    m_orch_op_idx = 0;
+    m_num_orch_desc = 4;
+    m_orch_desc[0].op = dm_orch_type_db_cfg;
+    m_orch_desc[1].op = dm_orch_type_al_insert;
+    m_orch_desc[2].op = dm_orch_type_net_ssid_update;
+	m_orch_desc[3].op = dm_orch_type_em_test;
+    m_orch_desc[3].submit = true;
 
     strncpy(m_name, "dev_test", strlen("dev_test") + 1);
     m_svc = em_service_type_ctrl;
     init(&dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
-    ctx.type = m_orch_op_array[0];
+    ctx.type = m_orch_desc[0].op;
     m_data_model.set_cmd_ctx(&ctx);
 }
 

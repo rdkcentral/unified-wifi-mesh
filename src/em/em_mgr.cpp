@@ -46,100 +46,16 @@
 
 extern char *global_netid;
 
-void em_mgr_t::proto_process(unsigned char *data, unsigned int len, em_t *em)
+void em_mgr_t::proto_process(unsigned char *data, unsigned int len, em_t *al_em)
 {
-    em_raw_hdr_t *hdr;
-    em_cmdu_t *cmdu;
     em_event_t	*evt;
-    mac_address_t ruid;
-    em_freq_band_t band;
-    em_profile_type_t profile;
-    mac_addr_str_t mac_str1, mac_str2;
-    em_interface_t intf;
-    em_t *radio_em = NULL;
-    em_t *al_em = em;
-    bool found = false;
-    dm_easy_mesh_t *dm;
+    em_t *em = NULL;
 
-    assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
-    if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
-        return;
-    }
-
-    hdr = (em_raw_hdr_t *)data;
-
-    if (hdr->type != htons(ETH_P_1905)) {
-        return;
-    }
-
-    cmdu = (em_cmdu_t *)(data + sizeof(em_raw_hdr_t));
-    if (((get_service_type() == em_service_type_agent) && (htons(cmdu->type) == em_msg_type_autoconf_resp)) == true) {
-        if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
-                    len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_freq_band(&band) == false) {
-            printf("%s:%d: Could not find frequency band\n", __func__, __LINE__);
-            return;
-        }
-        radio_em = (em_t *)hash_map_get_first(m_em_map);
-        while (radio_em != NULL) {
-            if (radio_em->is_matching_freq_band(&band) == true) {
-                found = true;
-                break;
-            }
-            radio_em = (em_t *)hash_map_get_next(m_em_map, radio_em);
-        }  
-
-        if (found == true) {
-            dm_easy_mesh_t::macbytes_to_string(radio_em->get_radio_interface_mac(), mac_str1);
-            //printf("%s:%d: Found em:%s with matching frequency band:%d\n", __func__, __LINE__, mac_str, band);
-            em = radio_em;
-        } else {
-            printf("%s:%d: Could not find em with matching band%d\n", __func__, __LINE__, band);
-            return;
-        }
-
-    } else if (((get_service_type() == em_service_type_ctrl) && (htons(cmdu->type) == em_msg_type_autoconf_search)) == true) {
-        if ((em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_freq_band(&band) == true) && (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_al_mac_address(intf.mac) == true)) {
-            if ((dm = get_data_model((const char *)global_netid, (const unsigned char *)intf.mac)) == NULL) {
-                if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_profile(&profile) == false) {
-                    profile = em_profile_type_1;
-                }
-                dm = create_data_model((const char *)global_netid, (const unsigned char *)intf.mac, profile);
-            }
-            em = al_em;
-        } 
-
-    } else if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
-                len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == true) {
-        dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
-        if ((radio_em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
-            em = radio_em;
-        } else if (((get_service_type() == em_service_type_ctrl) && (htons(cmdu->type) == em_msg_type_autoconf_wsc)) == true) {
-            if ((dm = get_data_model((const char *)global_netid, (const unsigned char *)hdr->src)) == NULL) {
-                printf("%s:%d: Can not find data model\n", __func__, __LINE__);
-            }
-
-            dm_easy_mesh_t::macbytes_to_string(hdr->src, mac_str1);
-            dm_easy_mesh_t::macbytes_to_string(ruid, mac_str2);
-
-            printf("%s:%d: Found data model for mac: %s, creating node for ruid: %s\n", __func__, __LINE__, mac_str1, mac_str2);
-
-            memcpy(intf.mac, ruid, sizeof(mac_address_t));
-            if ((radio_em = create_node(&intf, dm, false,  dm->get_device()->m_device_info.profile, em_service_type_ctrl)) != NULL) {
-                em = radio_em;
-                em->set_state(em_state_agent_wsc_m1_pending);
-            } else {
-                em = al_em;
-            } 	
-        }
-
-    } else if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
-                len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_freq_band(&band) == true) {
-        if ((radio_em = get_node_by_freq_band(&band)) != NULL) {
-            em = radio_em;
-        }
-    } else {
-        em = al_em;	
-    }
+	em = find_em_for_msg_type(data, len, al_em);
+	if (em == NULL) {
+		printf("%s:%d: Could not find radio node object\n", __func__, __LINE__);
+		return;
+	}
 
     evt = (em_event_t *)malloc(sizeof(em_event_t));
     evt->type = em_event_type_frame;
@@ -157,7 +73,9 @@ void em_mgr_t::delete_nodes()
     while (em != NULL) {
         tmp = em;
         em = (em_t *)hash_map_get_next(m_em_map, em);
-        delete_node(tmp->get_radio_interface());
+        if (tmp->is_al_interface_em() == false) {
+            delete_node(tmp->get_radio_interface());
+        }
 
     }	
 }
@@ -181,7 +99,7 @@ void em_mgr_t::delete_node(em_interface_t *ruid)
 
 }
 
-em_t *em_mgr_t::create_node(em_interface_t *ruid, dm_easy_mesh_t *dm, bool is_al_mac,em_profile_type_t profile, em_service_type_t type)
+em_t *em_mgr_t::create_node(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, bool is_al_mac,em_profile_type_t profile, em_service_type_t type)
 {
     em_t *em = NULL;
     mac_addr_str_t  mac_str;
@@ -204,7 +122,7 @@ em_t *em_mgr_t::create_node(em_interface_t *ruid, dm_easy_mesh_t *dm, bool is_al
         return em;
     }
 
-    em = new em_t(ruid, dm, profile, type);
+    em = new em_t(ruid, band, dm, profile, type);
     em->set_al_type(is_al_mac);
     if (em->init() != 0) {
         delete em;

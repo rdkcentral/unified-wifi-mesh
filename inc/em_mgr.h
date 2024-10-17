@@ -46,7 +46,7 @@ public:
     int input_listen();
     void proto_process(unsigned char *data, unsigned int len, em_t *em = NULL);
 
-    em_t *create_node(em_interface_t *ruid, dm_easy_mesh_t *dm, bool is_al_mac = false, em_profile_type_t profile = em_profile_type_3, em_service_type_t type = em_service_type_agent);
+    em_t *create_node(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, bool is_al_mac = false, em_profile_type_t profile = em_profile_type_3, em_service_type_t type = em_service_type_agent);
     void delete_node(em_interface_t* ruid);
     void delete_nodes();
     em_t *get_node_by_freq_band(em_freq_band_t *band);
@@ -58,6 +58,7 @@ public:
     static void *mgr_nodes_listen(void *arg);
     static void *mgr_input_listen(void *arg);
 
+    virtual em_t *find_em_for_msg_type(unsigned char *data, unsigned int len, em_t *al_em) = 0;
     virtual int data_model_init(const char *data_model_path) = 0;
     virtual int orch_init() = 0;
     virtual void input_listener() = 0;
@@ -68,7 +69,11 @@ public:
     
     virtual dm_easy_mesh_t *get_data_model(const char *net_id, const unsigned char *al_mac = NULL) = 0;
     virtual dm_easy_mesh_t *create_data_model(const char *net_id, const unsigned char *al_mac, em_profile_type_t profile = em_profile_type_3) = 0;
-
+    virtual void delete_data_model(const char *net_id, const unsigned char *al_mac) = 0;
+    virtual void delete_all_data_models() = 0;
+    virtual int update_tables(dm_easy_mesh_t *dm) = 0;
+    virtual int load_net_ssid_table() = 0;
+    virtual void debug_probe() = 0;
 
     virtual em_service_type_t get_service_type() = 0;
 

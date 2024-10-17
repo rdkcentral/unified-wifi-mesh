@@ -52,6 +52,8 @@ int em_cmd_ctrl_t::execute(em_long_string_t result)
 
     unlink(get_path());
 
+    printf("%s:%d: Controller communication path: %s\n", __func__, __LINE__, get_path());
+
     if ((lsock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
         printf("%s:%d: error opening socket, err:%d\n", __func__, __LINE__, errno);
         return -1;
@@ -92,8 +94,8 @@ int em_cmd_ctrl_t::execute(em_long_string_t result)
             }
 
 
-        //printf("%s:%d: Read bytes: %d Size: %d Buff: %s\n", __func__, __LINE__, ret, 
-        //			get_event()->u.bevt.u.subdoc.sz, get_event()->u.bevt.u.subdoc.buff);
+        //printf("%s:%d: Read bytes: %d Size: %d Name: %s Buff: %s\n", __func__, __LINE__, ret, 
+        			//get_event()->u.bevt.u.subdoc.sz, get_event()->u.bevt.u.subdoc.name, get_event()->u.bevt.u.subdoc.buff);
         //printf("%s:%d: Read bytes: %d\n", __func__, __LINE__, ret);
         
         switch (get_event()->type) {
@@ -143,5 +145,6 @@ em_cmd_ctrl_t::em_cmd_ctrl_t()
     dm_easy_mesh_t dm;
 
     m_cmd.init(&dm);
+    snprintf(m_sock_path, sizeof(m_sock_path), "%s_%s", EM_PATH_PREFIX, EM_CTRL_PATH);
 }
 
