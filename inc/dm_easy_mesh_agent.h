@@ -36,6 +36,7 @@ public:
     void translate_onewifi_sta_data(char *); //translate when we receive the assoc client subdoc
     void translate_onewifi_stats_data(char *);// translate when we receive ap , radio, client stats
     int analyze_onewifi_private_subdoc(em_bus_event_t *evt, wifi_bus_desc_t *desc,bus_handle_t *bus_hdl);
+    int analyze_onewifi_cb(em_bus_event_t *evt, em_cmd_t *pcmd[]);
 
     static webconfig_error_t webconfig_dummy_apply(webconfig_subdoc_t *doc, webconfig_subdoc_data_t *data);
 

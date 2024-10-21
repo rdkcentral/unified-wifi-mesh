@@ -48,7 +48,7 @@ bool em_agent_t::agent_input(void *data)
 
     inp = &((em_event_t *)data)->u.bevt;
     
-    if ((inp->type == em_bus_event_type_dev_init) || (inp->type == em_bus_event_type_sta_list)) {
+    if ((inp->type == em_bus_event_type_dev_init) || (inp->type == em_bus_event_type_sta_list) || (inp->type == em_bus_event_type_onewifi_cb)) {
         evt = em_cmd_agent_t::create_raw_event((char *)inp->u.raw_buff, inp->type);
     } else {
         evt = em_cmd_agent_t::create_event((char *)inp->u.subdoc.buff);

@@ -158,7 +158,7 @@ void em_configuration_t::handle_state_topology_notify()
         sz = 0;
         memset(buff,0,MAX_EM_BUFF_SZ);
     }
-    set_state(em_state_agent_config_complete);
+    //set_state(em_state_agent_config_complete);
 }
 
 
@@ -392,173 +392,169 @@ int em_configuration_t::send_topology_query_msg()
 
 int em_configuration_t::create_operational_bss_tlv(unsigned char *buff)
 {
-	em_tlv_t *tlv;
-	unsigned char *tmp = buff;
-	em_ap_op_bss_t	*ap;
-	em_ap_op_bss_radio_t    *radio;
+    em_tlv_t *tlv;
+    unsigned char *tmp = buff;
+    em_ap_op_bss_t  *ap;
+    em_ap_op_bss_radio_t    *radio;
     em_ap_operational_bss_t *bss;
-	dm_easy_mesh_t	*dm;
-	unsigned int i, j, all_bss_len = 0;
-	unsigned short tlv_len = 0;
+    dm_easy_mesh_t  *dm;
+    unsigned int i, j, all_bss_len = 0;
+    unsigned short tlv_len = 0;
 
-	dm = get_data_model();
+    dm = get_data_model();
 
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_operational_bss;
     tlv_len = sizeof(em_ap_op_bss_t);
+    printf("first tlv_len in em_configuration_t::create_operational_bss_tlv = %d\n",tlv_len);
 
     ap = (em_ap_op_bss_t *)tlv->value;
-    ap->radios_num = dm->get_num_radios();
+    ap->radios_num = 1;
     radio = ap->radios;
-    for (i = 0; i < dm->get_num_radios(); i++) {
-        memcpy(radio->ruid, dm->m_radio[i].m_radio_info.id.mac, sizeof(mac_address_t));
-        {
-            mac_addr_str_t mac_str;
-            dm_easy_mesh_t::macbytes_to_string(dm->m_radio[i].m_radio_info.id.mac, mac_str);
+    memcpy(radio->ruid, get_radio_interface_mac(), sizeof(mac_address_t));
+    radio->bss_num = 0;
+    bss = radio->bss;
+    all_bss_len = 0;
+    for (j = 0; j < dm->get_num_bss(); j++) {
+        if (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
+            continue;
         }
-        radio->bss_num = 0;
-        bss = radio->bss;
-        all_bss_len = 0;
-        for (j = 0; j < dm->get_num_bss(); j++) {
-            if (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, dm->m_radio[i].m_radio_info.id.mac, sizeof(mac_address_t)) != 0) {
-                continue;
-            }
-            radio->bss_num++;
-            memcpy(bss->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
-            strncpy(bss->ssid, dm->m_bss[j].m_bss_info.ssid, strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
-            bss->ssid_len = strlen(dm->m_bss[j].m_bss_info.ssid) + 1;
-            all_bss_len += sizeof(em_ap_operational_bss_t) + bss->ssid_len;
-            bss = (em_ap_operational_bss_t *)((unsigned char *)bss + sizeof(em_ap_operational_bss_t) + bss->ssid_len);
-        }
-
-        radio = (em_ap_op_bss_radio_t *)((unsigned char *)radio + sizeof(em_ap_op_bss_radio_t) + all_bss_len);
-        tlv_len += sizeof(em_ap_op_bss_radio_t) + all_bss_len;
-
+        radio->bss_num++;
+        memcpy(bss->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
+        strncpy(bss->ssid, dm->m_bss[j].m_bss_info.ssid, strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
+        printf("bss->ssid=%s\n",bss->ssid);
+        bss->ssid_len = strlen(dm->m_bss[j].m_bss_info.ssid) + 1;
+        all_bss_len += sizeof(em_ap_operational_bss_t) + bss->ssid_len;
+        bss = (em_ap_operational_bss_t *)((unsigned char *)bss + sizeof(em_ap_operational_bss_t) + bss->ssid_len);
     }
-    tlv->len = htons(tlv_len);
-    //print_ap_operational_bss_tlv(tlv->value, tlv->len);
+    radio = (em_ap_op_bss_radio_t *)((unsigned char *)radio + sizeof(em_ap_op_bss_radio_t) + all_bss_len);
+    tlv_len += sizeof(em_ap_op_bss_radio_t) + all_bss_len;
 
-	return tlv_len;
+    tlv->len = htons(tlv_len);
+    print_ap_operational_bss_tlv(tlv->value, tlv->len);
+
+    return tlv_len;
 }
+
 
 int em_configuration_t::create_bss_config_rprt_tlv(unsigned char *buff)
 {
     em_tlv_t *tlv;
-	unsigned char *tmp = buff;
-	em_bss_config_rprt_t	*rprt;
-	em_radio_rprt_t    *rd_rprt;
+    unsigned char *tmp = buff;
+    em_bss_config_rprt_t    *rprt;
+    em_radio_rprt_t    *rd_rprt;
     em_bss_rprt_t *bss_rprt;
-	dm_easy_mesh_t	*dm;
-	unsigned int i, j;
-	unsigned int bss_rprt_len = 0;
-	unsigned short tlv_len = 0;
+    dm_easy_mesh_t  *dm;
+    unsigned int i, j;
+    unsigned int bss_rprt_len = 0;
+    unsigned short tlv_len = 0;
 
-	dm = get_data_model();
-    
-	tlv = (em_tlv_t *)tmp;
+    dm = get_data_model();
+
+    tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_bss_conf_rep;
 
-	rprt = (em_bss_config_rprt_t *)tlv->value;
-	rprt->num_radios = dm->get_num_radios();
+    rprt = (em_bss_config_rprt_t *)tlv->value;
+    rprt->num_radios = dm->get_num_radios();
 
-	tlv_len = sizeof(em_bss_config_rprt_t);
+    tlv_len = sizeof(em_bss_config_rprt_t);
 
-	rd_rprt = rprt->radio_rprt;
+    rd_rprt = rprt->radio_rprt;
 
-	for (i = 0; i < dm->get_num_radios(); i++) {
-		memcpy(rd_rprt->ruid, dm->m_radio[i].m_radio_info.id.mac, sizeof(mac_address_t));
-		rd_rprt->num_bss = 0;
-		bss_rprt = rd_rprt->bss_rprt;
+    memcpy(rd_rprt->ruid, get_radio_interface_mac(), sizeof(mac_address_t));
+    rd_rprt->num_bss = 0;
+    bss_rprt = rd_rprt->bss_rprt;
 
-		for (j = 0; j < dm->get_num_bss(); j++) {
-			if (memcmp(rd_rprt->ruid, dm->m_bss[j].m_bss_info.ruid.mac, sizeof(mac_address_t)) != 0) {
-				continue;
-			}
-			bss_rprt_len += sizeof(em_bss_rprt_t);	
-			memcpy(bss_rprt->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(bssid_t));
-            bss_rprt->ssid_len = strlen(dm->m_bss[j].m_bss_info.ssid) + 1;
-			strncpy(bss_rprt->ssid, dm->m_bss[j].m_bss_info.ssid, strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
-			bss_rprt_len += bss_rprt->ssid_len;
+    for (j = 0; j < dm->get_num_bss(); j++) {
+        if (memcmp(rd_rprt->ruid, dm->m_bss[j].m_bss_info.ruid.mac, sizeof(mac_address_t)) != 0) {
+            continue;
+        }
+        bss_rprt_len += sizeof(em_bss_rprt_t);
+        memcpy(bss_rprt->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(bssid_t));
+        bss_rprt->ssid_len = strlen(dm->m_bss[j].m_bss_info.ssid) + 1;
+        strncpy(bss_rprt->ssid, dm->m_bss[j].m_bss_info.ssid, strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
 
-			bss_rprt = (em_bss_rprt_t *)((unsigned char *)bss_rprt + sizeof(em_bss_rprt_t) + strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
+        bss_rprt_len += bss_rprt->ssid_len;
 
-			rd_rprt->num_bss++;
-		}
+        bss_rprt = (em_bss_rprt_t *)((unsigned char *)bss_rprt + sizeof(em_bss_rprt_t) + strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
 
-		rd_rprt = (em_radio_rprt_t *)((unsigned char *)rd_rprt + sizeof(em_radio_rprt_t) + bss_rprt_len);
-		
-		tlv_len += sizeof(em_radio_rprt_t) + bss_rprt_len;
-		bss_rprt_len = 0;
-		
-	}
+        rd_rprt->num_bss++;
+    }
 
-	tlv->len = htons(tlv_len);
+    rd_rprt = (em_radio_rprt_t *)((unsigned char *)rd_rprt + sizeof(em_radio_rprt_t) + bss_rprt_len);
+
+    tlv_len += sizeof(em_radio_rprt_t) + bss_rprt_len;
+    bss_rprt_len = 0;
+
+
+    tlv->len = htons(tlv_len);
     //print_bss_configuration_report_tlv(tlv->value, tlv->len);
 
-	return tlv_len;
+    return tlv_len;
 }
 
 int em_configuration_t::create_device_info_type_tlv(unsigned char *buff)
 {
     em_tlv_t *tlv;
-	unsigned char *tmp = buff;
-	em_device_info_type_t *dev_info;
-	em_local_interface_t *local_intf;
-	dm_easy_mesh_t	*dm;
-	unsigned int i, j;
-	unsigned short tlv_len = 0;
+    unsigned char *tmp = buff;
+    em_device_info_type_t *dev_info;
+    em_local_interface_t *local_intf;
+    dm_easy_mesh_t  *dm;
+    unsigned int i, j;
+    unsigned short tlv_len = 0;
 
-	dm = get_data_model();
+    dm = get_data_model();
 
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_device_info;
-	dev_info = (em_device_info_type_t *)tlv->value;
-	
-	memcpy(dev_info->al_mac_addr, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
-	dev_info->local_interface_num = dm->get_num_bss();
-	local_intf = dev_info->local_interface;
-	tlv_len = sizeof(em_device_info_type_t);
+    dev_info = (em_device_info_type_t *)tlv->value;
 
-	for (i = 0; i < dm->get_num_bss(); i++) {
-		for (j = 0; j < dm->get_num_radios(); j++) {
-			if (memcmp(dm->m_bss[i].m_bss_info.ruid.mac, dm->m_radio[j].m_radio_info.id.mac, sizeof(mac_address_t)) != 0) {
-				continue;
-			}
-		}
-		memcpy(local_intf->mac_addr, dm->m_bss[i].m_bss_info.bssid.mac, sizeof(mac_address_t));
+    memcpy(dev_info->al_mac_addr, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    dev_info->local_interface_num = dm->get_num_bss();
+    local_intf = dev_info->local_interface;
+    tlv_len = sizeof(em_device_info_type_t);
+
+    for (i = 0; i < dm->get_num_bss(); i++) {
+        if (memcmp(dm->m_bss[i].m_bss_info.ruid.mac, get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
+            continue;
+        }
+        memcpy(local_intf->mac_addr, dm->m_bss[i].m_bss_info.bssid.mac, sizeof(mac_address_t));
         // fill test data
-        fill_media_data(&dm->m_radio[j].m_radio_info.media_data); 
-		memcpy(&local_intf->media_data, &dm->m_radio[j].m_radio_info.media_data, sizeof(em_media_spec_data_t));
+        fill_media_data(&dm->m_radio[j].m_radio_info.media_data);
+        memcpy(&local_intf->media_data, &dm->m_radio[j].m_radio_info.media_data, sizeof(em_media_spec_data_t));
 
-		local_intf = (em_local_interface_t *)((unsigned char *)local_intf + sizeof(em_local_interface_t));
-		tlv_len = tlv_len + sizeof(em_local_interface_t);
-	}
-	
-	tlv->len = htons(tlv_len);
+        local_intf = (em_local_interface_t *)((unsigned char *)local_intf + sizeof(em_local_interface_t));
+        tlv_len = tlv_len + sizeof(em_local_interface_t);
+    }
 
-	return tlv_len;
+    tlv->len = htons(tlv_len);
+
+    return tlv_len;
 }
 
-int em_configuration_t::send_topology_response_msg()
+
+int em_configuration_t::send_topology_response_msg(unsigned char *dst)
 {
-	unsigned char buff[MAX_EM_BUFF_SZ];
+    unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned short  msg_id = em_msg_type_topo_resp;
     int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
-	unsigned short tlv_len;
+    unsigned short tlv_len;
     unsigned char *tmp = buff;
     unsigned short type = htons(ETH_P_1905);
     em_service_type_t   service_type = get_service_type();
-	dm_easy_mesh_t	*dm;
-	em_enum_type_t profile;	
+    dm_easy_mesh_t  *dm;
+    em_enum_type_t profile;
 
-	dm = get_data_model();
-	printf("%s:%d: Testing topo, number of radios: %d, bss: %d\n", __func__, __LINE__, 
-			dm->get_num_radios(), dm->get_num_bss());
+    em_raw_hdr_t *hdr = (em_raw_hdr_t *)dst;
 
-    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    dm = get_data_model();
+    printf("%s:%d: Testing topo, number of radios: %d, bss: %d\n", __func__, __LINE__,
+                        dm->get_num_radios(), dm->get_num_bss());
+
+    memcpy(tmp, (unsigned char *)hdr->src, sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
@@ -571,7 +567,6 @@ int em_configuration_t::send_topology_response_msg()
     len += sizeof(unsigned short);
 
     cmdu = (em_cmdu_t *)tmp;
-
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_id);
     cmdu->id = htons(msg_id);
@@ -582,7 +577,7 @@ int em_configuration_t::send_topology_response_msg()
     len += sizeof(em_cmdu_t);
 
     // Device Info type TLV 1905.1 6.4.5
-	tlv_len = create_device_info_type_tlv(tmp);
+    tlv_len = create_device_info_type_tlv(tmp);
 
     tmp += (sizeof (em_tlv_t) + tlv_len);
     len += (sizeof (em_tlv_t) + tlv_len);
@@ -591,16 +586,16 @@ int em_configuration_t::send_topology_response_msg()
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_supported_service;
     tlv->len = htons(sizeof(em_enum_type_t) + 1);
-    tlv->value[0] = 0;
+    tlv->value[0] = 1;
     memcpy(&tlv->value[1], &service_type, sizeof(em_enum_type_t));
 
     tmp += (sizeof(em_tlv_t) + sizeof(em_enum_type_t) + 1);
     len += (sizeof(em_tlv_t) + sizeof(em_enum_type_t) + 1);
 
-	// AP operational BSS
-	tlv_len = create_operational_bss_tlv(tmp);
+    // AP operational BSS
+    tlv_len = create_operational_bss_tlv(tmp);
 
-	tmp += (sizeof(em_tlv_t) + tlv_len);
+    tmp += (sizeof(em_tlv_t) + tlv_len);
     len += (sizeof(em_tlv_t) + tlv_len);
 
     // One multiAP profile tlv 17.2.47
@@ -614,7 +609,7 @@ int em_configuration_t::send_topology_response_msg()
     len += (sizeof(em_tlv_t) + sizeof(em_enum_type_t));
 
     // One BSS Configuration Report 17.2.75
-	tlv_len = create_bss_config_rprt_tlv(tmp);
+    tlv_len = create_bss_config_rprt_tlv(tmp);
 
     tmp += (sizeof(em_tlv_t) + tlv_len);
     len += (sizeof(em_tlv_t) + tlv_len);
@@ -627,20 +622,21 @@ int em_configuration_t::send_topology_response_msg()
     tmp += (sizeof (em_tlv_t));
     len += (sizeof (em_tlv_t));
 
-	// Validate the frame
+    // Validate the frame
     if (em_msg_t(em_msg_type_topo_resp, em_profile_type_3, buff, len).validate(errors) == 0) {
         printf("Topology Response msg failed validation in tnx end\n");
 
         return -1;
     }
 
-	printf("%s:%d: Testing topo, frame length: %d\n", __func__, __LINE__, len);
+    printf("%s:%d: Testing topo, frame length: %d\n", __func__, __LINE__, len);
     if (send_frame(buff, len)  < 0) {
         printf("%s:%d: Topology Response send failed, error:%d\n", __func__, __LINE__, errno);
         return -1;
     }
-
-	return len;
+    printf("setting state to em_state_agent_channel_pref_pending\n");
+    set_state(em_state_agent_channel_pref_pending);
+    return len;
 }
 
 void em_configuration_t::print_bss_configuration_report_tlv(unsigned char *value, unsigned int len)
@@ -2025,13 +2021,14 @@ int em_configuration_t::handle_encrypted_settings()
     }
 
     if ((radio != NULL) && (bss != NULL)) {
-    radio->enabled = true;
-    memcpy(&bss->bssid.mac, get_radio_interface_mac(), sizeof(mac_address_t));
-    memcpy(&bss->ssid, &ssid, sizeof(bss->ssid));
-    memcpy(&bss->passphrase, &pass,sizeof(bss->passphrase));
-    bss->sec_mode =  authtype;
-    printf("%s:%d Recived new config ssid=%s mode=%d pass=%s \n", __func__, __LINE__,ssid,bss->sec_mode,bss->passphrase);
-    construct_private_subdoc();
+        radio->enabled = true;
+        memcpy(&bss->bssid.mac, get_radio_interface_mac(), sizeof(mac_address_t));
+        memcpy(&bss->ssid, &ssid, sizeof(bss->ssid));
+        memcpy(&bss->passphrase, &pass,sizeof(bss->passphrase));
+        bss->sec_mode =  authtype;
+        printf("%s:%d Recived new config ssid=%s mode=%d pass=%s \n", __func__, __LINE__,ssid,bss->sec_mode,bss->passphrase);
+        construct_private_subdoc();
+        set_state(em_state_agent_owconfig_pending);
     } else {
         printf("%s:%d vap details update failed\n", __func__, __LINE__);
     }
@@ -2505,7 +2502,9 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
             break;
 
         case em_msg_type_topo_query:
-            send_topology_response_msg();
+            if ((get_service_type() == em_service_type_agent) && (get_state() == em_state_agent_onewifi_bssconfig_ind)) {
+                send_topology_response_msg(data);
+            }
 			break;
 
         case em_msg_type_topo_resp:

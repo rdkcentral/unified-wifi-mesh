@@ -41,6 +41,7 @@
 #include "dm_easy_mesh_agent.h"
 #include <cjson/cJSON.h>
 #include "em_cmd_sta_list.h"
+#include "em_cmd_onewifi_cb.h"
 
 int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
@@ -51,68 +52,20 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
     dm_device_t *dev, *tgt_dev;
     dm_radio_t *rd, *tgt_rd;
     em_cmd_t *tmp;
-    printf("%s:%d: Enter\n", __func__, __LINE__);
     dm.translate_onewifi_dml_data(evt->u.raw_buff);
 
     num_radios = dm.get_num_radios();
     printf("%s:%d: Number of radios: %d\n", __func__, __LINE__, num_radios);
-    dev = dm.get_device();
-    tgt_dev = find_matching_device(dev);
-    if (tgt_dev != NULL) {
-        desc.op = dm_orch_type_em_update;
-    } else {
-        desc.op = dm_orch_type_al_insert;
-    }
-
-    pcmd[num] = new em_cmd_dev_init_t(evt->params,dm);
-    //pcmd[num]->init(&dm);
-    pcmd[num]->override_op(pcmd[num]->get_orch_op_index(), &desc);
-    printf("%s:%d: Orch op :%s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(pcmd[num]->get_orch_op()));
+    pcmd[num] = new em_cmd_dev_init_t(evt->params, dm);
     tmp = pcmd[num];
     num++;
 
     while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
-        //pcmd[num]->init(&dm);
-        if (pcmd[num]->get_orch_op() == dm_orch_type_em_insert) {
-            i = 0;
-            do {
-                rd = dm.get_radio(i);
-                tgt_rd = find_matching_radio(rd);
-                if (tgt_rd != NULL) {
-                    desc.op = dm_orch_type_em_update;
-                } else {
-                    desc.op = dm_orch_type_em_insert;
-                }
-                index = pcmd[num]->m_data_model.get_cmd_ctx()->arr_index;
-                pcmd[num]->m_data_model.m_radio[index] = dm.m_radio[i];
-
-                pcmd[num]->override_op(pcmd[num]->get_orch_op_index(), &desc);
-                printf("%s:%d: Orch op :%s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(pcmd[num]->get_orch_op()));
-                pcmd[num]->set_rd_freq_band(j);
-                j++;
-                tmp = pcmd[num]; i++; num++;
-                if (i < num_radios) {
-                    pcmd[num] = tmp->clone();
-                   //pcmd[num]->init(&dm);
-                }
-            } while (i < num_radios);
-        } else if ((pcmd[num]->get_orch_op() == dm_orch_type_owconfig_req) || (pcmd[num]->get_orch_op() == dm_orch_type_owconfig_cnf)) {
-            i = 0;
-            do {
-                //printf("%s:%d: Orch op :%s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(pcmd[num]->get_orch_op()));
-                tmp = pcmd[num]; i++; num++;
-                if (i < num_radios) {
-                    pcmd[num] = tmp->clone();
-                }
-            } while (i < num_radios);
-        } else {
-            printf("%s:%d: Orch op :%s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(pcmd[num]->get_orch_op()));
-            tmp = pcmd[num];
-            num++;
-        }
+        tmp = pcmd[num];
+        num++;
     }
-
     return num;
+
 }
 
 int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[])
@@ -320,7 +273,7 @@ int dm_easy_mesh_agent_t::analyze_onewifi_private_subdoc(em_bus_event_t *evt, wi
 	printf("%s:%d private subdoc send successfull\n",__func__, __LINE__);
 	printf("%s:%d Before commit config SSID=%s Security mode=%d  passphrase=%s \n",__func__,__LINE__,
 		get_bss(index)->get_bss_info()->ssid,get_bss(index)->get_bss_info()->sec_mode,get_bss(index)->get_bss_info()->passphrase);
-        commit_config(dm,index,index);//Private vap will always be first index
+    commit_config(dm,index,index,dm.m_num_radios,dm.m_num_bss);
 	printf("%s:%d After commit SSID=%s Security mode=%d  passphrase=%s \n",__func__,__LINE__,get_bss(index)->get_bss_info()->ssid,
 		get_bss(index)->get_bss_info()->sec_mode,get_bss(index)->get_bss_info()->passphrase);
     }
@@ -329,6 +282,52 @@ int dm_easy_mesh_agent_t::analyze_onewifi_private_subdoc(em_bus_event_t *evt, wi
 	return -1;
     }
     return 1;
+}
+
+int dm_easy_mesh_agent_t::analyze_onewifi_cb(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    webconfig_t config;
+    webconfig_external_easymesh_t ext;
+    webconfig_subdoc_type_t type;
+    int num = 0;
+    unsigned int i = 0, j = 0;
+    dm_easy_mesh_agent_t  dm;
+    em_cmd_t *tmp;
+    webconfig_proto_easymesh_init(&ext, &dm, get_num_radios, set_num_radios,
+            get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
+            get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info, get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info);
+    config.initializer = webconfig_initializer_onewifi;
+    config.apply_data =  webconfig_dummy_apply;
+    if (webconfig_init(&config) != webconfig_error_none) {
+        printf( "[%s]:%d Init WiFi Web Config  fail\n",__func__,__LINE__);
+        return 0;
+    }
+
+    if ((webconfig_easymesh_decode(&config, evt->u.raw_buff, &ext, &type)) == webconfig_error_none) {
+        printf("%s:%d Private subdoc decode success\n",__func__, __LINE__);
+    } else {
+        printf("%s:%d Private subdoc decode fail\n",__func__, __LINE__);
+    }
+
+    for (i = 0; i < m_num_bss; i++) {
+        for (j = 0; j < dm.m_num_bss; j++) {
+           if (memcmp(get_bss(i)->get_bss_info()->ruid.mac, dm.get_bss(j)->get_bss_info()->ruid.mac, sizeof(mac_address_t)) == 0) {
+               if (memcmp(get_bss(i)->get_bss_info()->bssid.mac, dm.get_bss(j)->get_bss_info()->bssid.mac, sizeof(mac_address_t)) == 0) {
+                   commit_bss_config(dm, j);
+               }
+           }
+       }
+    }
+
+    pcmd[num] = new em_cmd_ow_cb_t(evt->params, dm);
+    tmp = pcmd[num];
+    num++;
+
+    while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+        tmp = pcmd[num];
+        num++;
+    }
+    return num;
 }
         
 void dm_easy_mesh_agent_t::translate_onewifi_sta_data(char *str)

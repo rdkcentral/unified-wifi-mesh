@@ -278,10 +278,6 @@ em_event_t *em_cmd_agent_t::create_raw_event(char *buff, em_bus_event_type_t typ
 
     bevt->type = type;
 
-    //cmd = &em_cmd_agent_t::m_client_cmd_spec[1];
-    //bevt->type = em_bus_event_type_dev_init;
-    memcpy(&bevt->params, &cmd->m_param, sizeof(em_cmd_params_t));
-    //memcpy(&bevt->u.subdoc.buff, buff, strlen(buff));
     memcpy(&bevt->u.raw_buff, buff, strlen(buff));
     bevt->u.subdoc.sz = strlen(buff);
 
