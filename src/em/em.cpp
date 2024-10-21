@@ -96,6 +96,9 @@ void em_t::orch_execute(em_cmd_t *pcmd)
         case em_cmd_type_dev_test:
 			m_state = em_state_ctrl_channel_query_pending;
 			break;
+        case em_cmd_type_onewifi_cb:
+            m_state = em_state_agent_onewifi_bssconfig_ind;
+            break;
     }
 }
 
@@ -103,7 +106,7 @@ void em_t::set_orch_state(em_orch_state_t state)
 {
     if ((state == em_orch_state_fini) && (m_service_type == em_service_type_agent)) {
         // commit the parameters of command into data model
-        m_data_model->commit_config(m_cmd->m_data_model, em_commit_target_em);
+        // m_data_model->commit_config(m_cmd->m_data_model, em_commit_target_em);
     } else if (state == em_orch_state_cancel) {
         state = em_orch_state_fini;
     }
@@ -133,6 +136,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_autoconf_resp:
         case em_msg_type_autoconf_wsc:
         case em_msg_type_autoconf_renew:
+        case em_msg_type_topo_query:
             em_configuration_t::process_msg(data, len);
             break;
 
@@ -375,19 +379,7 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     mac_address_t   multi_addr = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x13};
     em_raw_hdr_t *hdr = (em_raw_hdr_t *)buff;
 
-    if (m_service_type == em_service_type_agent) {
-        assert(m_cmd != NULL);
-
-        if (m_cmd == NULL) {
-            printf("%s:%d: Error in sending frame\n", __func__, __LINE__);
-            return -1;
-        }
-
-        al = m_cmd->get_agent_al_interface();
-        dm_easy_mesh_t::name_from_mac_address(&al->mac, ifname);
-    } else {
-        dm_easy_mesh_t::name_from_mac_address((mac_address_t *)get_al_interface_mac(), ifname);
-    }
+    dm_easy_mesh_t::name_from_mac_address((mac_address_t *)get_al_interface_mac(), ifname);
 
     sock = socket(AF_PACKET, SOCK_RAW, IPPROTO_RAW);
     if (sock < 0) {

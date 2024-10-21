@@ -35,8 +35,8 @@ class em_configuration_t {
     int	create_bss_config_rprt_tlv(unsigned char *buff);
     int create_device_info_type_tlv(unsigned char *buff);
 
-    int send_topology_response_msg();
-
+    int send_topology_response_msg(unsigned char *dst);
+    
     int handle_autoconfig_resp(unsigned char *buff, unsigned int len);
     int handle_autoconfig_search(unsigned char *buff, unsigned int len);
     int handle_autoconfig_wsc_m1(unsigned char *buff, unsigned int len);
@@ -180,7 +180,7 @@ public:
 
     int compute_keys(unsigned char *remote_pub, unsigned short pub_len, unsigned char *local_priv, unsigned short priv_len);
 
-    void test_topology_response_msg() { send_topology_response_msg(); }
+    //void test_topology_response_msg() { send_topology_response_msg(); }
     void print_ap_operational_bss_tlv(unsigned char *value, unsigned int len);
 	void print_bss_configuration_report_tlv(unsigned char *value, unsigned int len);
     int get_renew_tx_count() { return m_renew_tx_cnt; }

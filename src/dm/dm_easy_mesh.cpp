@@ -196,7 +196,7 @@ int dm_easy_mesh_t::commit_config(em_tlv_type_t tlv, unsigned char *data, unsign
 	return 0;
 }
 
-int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, unsigned int radio_index, unsigned int vap_index)
+int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, unsigned int radio_index, unsigned int vap_index , unsigned int num_radios, unsigned int num_bss)
 {
     if ((radio_index >= EM_MAX_BANDS) || (vap_index >= EM_MAX_BSS_PER_RADIO)) {
         printf("%s:%d Invalid index radio_index=%d, vap_index=%d\n", __func__, __LINE__,radio_index,vap_index);
@@ -204,13 +204,28 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, unsigned int radio_index, 
     }
     m_radio[radio_index] = dm.m_radio[radio_index];
     m_bss[vap_index] = dm.m_bss[vap_index];
+    m_num_radios = num_radios;
+    m_num_bss = num_bss;
     return 0;
 }
+
 
 int dm_easy_mesh_t::commit_config(em_attrib_id_t attrib, unsigned char *data, unsigned int len, bssid_t id, em_commit_target_t target)
 {
     return 0;
 }
+
+int dm_easy_mesh_t::commit_bss_config(dm_easy_mesh_t& dm, unsigned int vap_index)
+{
+    if (vap_index >= EM_MAX_BSS_PER_RADIO) {
+        printf("%s:%d Invalid index vap_index=%d\n", __func__, __LINE__,vap_index);
+        return 1;
+    }
+    m_bss[vap_index] = dm.m_bss[vap_index];
+
+    return 0;
+}
+
 
 int dm_easy_mesh_t::commit_config(em_cmd_t  *cmd)
 {
