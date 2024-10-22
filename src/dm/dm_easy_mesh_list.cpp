@@ -841,8 +841,10 @@ void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_
 	for (i = 0; i < dm->get_num_op_class(); i++) {
 		pop_class = &dm->m_op_class[i];
 		if (memcmp(&pop_class->m_op_class_info.id, &op_class->m_op_class_info.id, sizeof(em_op_class_id_t)) == 0) {
-			memcpy(&pop_class->m_op_class_info, &op_class->m_op_class_info, sizeof(em_op_class_info_t));
-			return;
+            if (pop_class->m_op_class_info.op_class == op_class->m_op_class_info.op_class) {
+                memcpy(&pop_class->m_op_class_info, &op_class->m_op_class_info, sizeof(em_op_class_info_t));
+			    return;
+            }
 		}	
 	}
 

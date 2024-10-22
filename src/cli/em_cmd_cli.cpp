@@ -277,7 +277,7 @@ int em_cmd_cli_t::execute(em_string_t res)
         case em_cmd_type_set_channel:
 			snprintf(in, sizeof(in), "get_channel %s", m_cmd.m_param.args[1]);
 			get_cli()->exec(in, strlen(in), out);
-			get_cmd()->write_params_file(out, m_cmd.m_param.args[1]);
+			get_cmd()->write_params_file(out, m_cmd.m_param.args[1], "SetAnticipatedChannelPreference");
             bevt->type = em_bus_event_type_set_channel;
 			if (get_cmd()->edit_params_file() != 0) {
                 printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->fixed_args, errno);

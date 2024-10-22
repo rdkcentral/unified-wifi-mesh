@@ -70,7 +70,8 @@ int dm_radio_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 	}
 
 	cJSON_AddBoolToObject(obj, "Enabled", pradio->m_radio_info.enabled);
-	cJSON_AddNumberToObject(obj, "NumberOfUnassocSta", pradio->m_radio_info.number_of_unassoc_sta);
+    cJSON_AddNumberToObject(obj, "NumberOfBSS", pradio->m_radio_info.number_of_bss);
+    cJSON_AddNumberToObject(obj, "NumberOfUnassocSta", pradio->m_radio_info.number_of_unassoc_sta);
 	cJSON_AddNumberToObject(obj, "Noise", pradio->m_radio_info.noise);
 	cJSON_AddNumberToObject(obj, "Utilization", pradio->m_radio_info.utilization);
 	cJSON_AddBoolToObject(obj, "TrafficSeparationCombinedFronthaul", pradio->m_radio_info.traffic_sep_combined_fronthaul);
@@ -212,7 +213,7 @@ int dm_radio_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *
 		case dm_orch_type_db_insert:
 			ret = insert_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->id.mac, mac_str), 
 						dm_easy_mesh_t::macbytes_to_string(info->dev_id, dev_mac_str), info->net_id, info->enabled,
-            			info->number_of_unassoc_sta, info->noise, info->utilization, 
+            			info->number_of_bss, info->number_of_unassoc_sta, info->noise, info->utilization, 
 						info->traffic_sep_combined_fronthaul, 
 						info->traffic_sep_combined_backhaul, info->steering_policy, info->channel_util_threshold, info->rcpi_steering_threshold, 
             			info->sta_reporting_rcpi_threshold, info->sta_reporting_hysteresis_margin_override, info->channel_utilization_reporting_threshold, 
@@ -222,7 +223,7 @@ int dm_radio_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *
 
 		case dm_orch_type_db_update:
 			ret = update_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->dev_id, dev_mac_str), info->net_id, info->enabled,
-                        info->number_of_unassoc_sta, info->noise, info->utilization,
+                        info->number_of_bss, info->number_of_unassoc_sta, info->noise, info->utilization,
                         info->traffic_sep_combined_fronthaul,
                         info->traffic_sep_combined_backhaul, info->steering_policy, info->channel_util_threshold, info->rcpi_steering_threshold,
                         info->sta_reporting_rcpi_threshold, info->sta_reporting_hysteresis_margin_override, info->channel_utilization_reporting_threshold, 
@@ -274,21 +275,22 @@ int dm_radio_list_t::sync_db(db_client_t& db_client, void *ctx)
 
         db_client.get_string(ctx, info.net_id, 3);
         info.enabled = db_client.get_number(ctx, 4);
-        info.number_of_unassoc_sta = db_client.get_number(ctx, 5);
-        info.noise = db_client.get_number(ctx, 6);
-        info.utilization = db_client.get_number(ctx, 7);
-        info.traffic_sep_combined_fronthaul = db_client.get_number(ctx, 8);
-        info.traffic_sep_combined_backhaul = db_client.get_number(ctx, 9);
-        info.steering_policy = db_client.get_number(ctx, 10);
-        info.channel_util_threshold = db_client.get_number(ctx, 11);
-        info.rcpi_steering_threshold = db_client.get_number(ctx, 12);
-        info.sta_reporting_rcpi_threshold = db_client.get_number(ctx, 13);
-        info.sta_reporting_hysteresis_margin_override = db_client.get_number(ctx, 14);
-        info.channel_utilization_reporting_threshold = db_client.get_number(ctx, 15);
-        info.associated_sta_traffic_stats_inclusion_policy = db_client.get_number(ctx, 16);
-        info.associated_sta_link_mterics_inclusion_policy = db_client.get_number(ctx, 17);
+        info.number_of_bss = db_client.get_number(ctx, 5);
+        info.number_of_unassoc_sta = db_client.get_number(ctx, 6);
+        info.noise = db_client.get_number(ctx, 7);
+        info.utilization = db_client.get_number(ctx, 8);
+        info.traffic_sep_combined_fronthaul = db_client.get_number(ctx, 9);
+        info.traffic_sep_combined_backhaul = db_client.get_number(ctx, 10);
+        info.steering_policy = db_client.get_number(ctx, 11);
+        info.channel_util_threshold = db_client.get_number(ctx, 12);
+        info.rcpi_steering_threshold = db_client.get_number(ctx, 13);
+        info.sta_reporting_rcpi_threshold = db_client.get_number(ctx, 14);
+        info.sta_reporting_hysteresis_margin_override = db_client.get_number(ctx, 15);
+        info.channel_utilization_reporting_threshold = db_client.get_number(ctx, 16);
+        info.associated_sta_traffic_stats_inclusion_policy = db_client.get_number(ctx, 17);
+        info.associated_sta_link_mterics_inclusion_policy = db_client.get_number(ctx, 18);
         
-	db_client.get_string(ctx, info.chip_vendor, 18);
+	db_client.get_string(ctx, info.chip_vendor, 19);
 		
 	update_list(dm_radio_t(&info), dm_orch_type_db_insert);
     }
@@ -308,6 +310,7 @@ void dm_radio_list_t::init_columns()
     m_columns[m_num_cols++] = db_column_t("DeviceID", db_data_type_char, 17);
     m_columns[m_num_cols++] = db_column_t("NetworkID", db_data_type_char, 64);
     m_columns[m_num_cols++] = db_column_t("Enabled", db_data_type_tinyint, 0);
+    m_columns[m_num_cols++] = db_column_t("NumberOfBSS", db_data_type_tinyint, 0);
     m_columns[m_num_cols++] = db_column_t("NumberOfUnassocSta", db_data_type_tinyint, 0);
     m_columns[m_num_cols++] = db_column_t("Noise", db_data_type_tinyint, 0);
     m_columns[m_num_cols++] = db_column_t("Utilization", db_data_type_tinyint, 0);

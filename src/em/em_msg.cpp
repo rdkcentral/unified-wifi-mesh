@@ -111,6 +111,8 @@ bool em_msg_t::get_radio_id(mac_address_t *mac)
     em_ap_ht_cap_t *rd_ht_cap;
     em_ap_vht_cap_t *rd_vht_cap;
     em_ap_he_cap_t *rd_he_cap;
+    em_ap_op_bss_t  *ap;
+	em_ap_op_bss_radio_t    *radio;
 
     tlv = (em_tlv_t *)m_buff; len = m_len;
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
@@ -137,7 +139,14 @@ bool em_msg_t::get_radio_id(mac_address_t *mac)
         } else if (tlv->type == em_tlv_type_he_cap) {
             rd_he_cap = (em_ap_he_cap_t *)tlv->value;
             memcpy(mac, &rd_he_cap->ruid, sizeof(mac_address_t));
-            return true;    
+            return true;
+        } else if (tlv->type == em_tlv_type_operational_bss) {
+			ap = (em_ap_op_bss_t *)tlv->value;
+			if (ap->radios_num >= 1) {
+				radio = ap->radios;
+				memcpy(mac, &radio->ruid, sizeof(mac_address_t));
+				return true;	
+			} 
         }
 
         len -= (sizeof(em_tlv_t) + htons(tlv->len));

@@ -1,6 +1,6 @@
 {
-	"Status":	"Success",
-	"Result":	{
+    "wfa-dataelements:SetAnticipatedChannelPreference":	{
+
 		"Network":	{
 			"ID":	"OneWifiMesh",
 			"DeviceList":	[{
@@ -10,24 +10,35 @@
 							"CurrentOperatingClasses":	[{
 									"Class":	81,
 									"Channel":	6,
-									"TxPower":	20,
-									"MaxTxPower":	0,
-									"NonOperable":	[0]
+									"TxPower":	20
 								}]
 						}, {
 							"ID":	"00:ab:cd:ef:00:02",
 							"CurrentOperatingClasses":	[{
 									"Class":	115,
 									"Channel":	36,
-									"TxPower":	20,
-									"MaxTxPower":	0,
-									"NonOperable":	[0]
+									"TxPower":	20
 								}]
 						}, {
 							"ID":	"00:ab:cd:ef:00:10",
-							"CurrentOperatingClasses":	[]
+							"CurrentOperatingClasses":	[{
+                                            "Class":	135,
+									"Channel":	1,
+									"TxPower":	20
+								}]
+						}],
+					"AnticipatedChannelPreference":	[{
+							"Class":	134,
+							"ChannelList":	[1, 2]
+						}, {
+							"Class":	136,
+							"ChannelList":	[1, 2]
+						}, {
+							"Class":	137,
+							"ChannelList":	[1, 2]
 						}]
 				}]
-		}
+		},
+        "ID":	"OneWifiMesh"
 	}
 }

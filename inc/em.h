@@ -155,6 +155,7 @@ public:
 
     static void *em_func(void *);
     static const char *get_band_type_str(em_freq_band_t band);
+    static const char *state_2_str(em_state_t state);
 
     em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_profile_type_t profile, em_service_type_t type);
     ~em_t();

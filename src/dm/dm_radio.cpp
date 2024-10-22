@@ -64,6 +64,10 @@ int dm_radio_t::decode(const cJSON *obj, void *parent_id)
         m_radio_info.enabled = cJSON_IsTrue(tmp);
     }
 
+    if ((tmp = cJSON_GetObjectItem(obj, "NumberOfBSS")) != NULL) {
+        m_radio_info.number_of_bss = tmp->valuedouble;
+    }
+
     if ((tmp = cJSON_GetObjectItem(obj, "NumberOfUnassocSta")) != NULL) {
         m_radio_info.number_of_unassoc_sta = tmp->valuedouble;
     }
@@ -135,6 +139,7 @@ void dm_radio_t::encode(cJSON *obj)
     cJSON_AddStringToObject(obj, "ID", mac_str);
 
     cJSON_AddBoolToObject(obj, "Enabled", m_radio_info.enabled);
+    cJSON_AddNumberToObject(obj, "NumberOfBSS", m_radio_info.number_of_bss);
     cJSON_AddNumberToObject(obj, "NumberOfUnassocSta", m_radio_info.number_of_unassoc_sta);
     cJSON_AddNumberToObject(obj, "Noise", m_radio_info.noise);
     cJSON_AddNumberToObject(obj, "Utilization", m_radio_info.utilization);

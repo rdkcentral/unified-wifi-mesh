@@ -43,7 +43,7 @@
 short em_channel_t::create_channel_pref_tlv(unsigned char *buff)
 {
 	short len = 0;
-	unsigned int i;
+	unsigned int i, j;
 	em_channel_pref_t	*pref;
 	em_channel_pref_op_class_t	*pref_op_class;
 	dm_easy_mesh_t *dm;
@@ -55,27 +55,33 @@ short em_channel_t::create_channel_pref_tlv(unsigned char *buff)
 
 	pref = (em_channel_pref_t *)buff;
 	memcpy(pref->ruid, get_radio_interface_mac(), sizeof(em_radio_id_t));
-	pref->op_classes_num = 0;
 	pref_op_class = pref->op_classes;
+    pref->op_classes_num = 0;
+
 	tmp = (unsigned char *)pref_op_class;
 	len += sizeof(em_channel_pref_t);
 
 	for (i = 0; i < dm->m_num_opclass; i++) {
 		op_class = &dm->m_op_class[i];
-		if ((memcmp(op_class->m_op_class_info.id.ruid, pref->ruid, sizeof(em_radio_id_t)) == 0)	&&
-			(op_class->m_op_class_info.id.type == em_op_class_type_current)) {
-		
-			pref_op_class->op_class = op_class->m_op_class_info.op_class;
-			pref_op_class->channels.num = 1;
-			memcpy(pref_op_class->channels.channel, (unsigned char *)&op_class->m_op_class_info.channel, sizeof(unsigned char));
+        if (((memcmp(op_class->m_op_class_info.id.ruid, dm->m_device.m_device_info.id.mac, sizeof(em_radio_id_t)) == 0)	&&
+					(op_class->m_op_class_info.id.type == em_op_class_type_preference)) == false) {
+			continue;		
+		}
+	
+		pref_op_class->op_class = op_class->m_op_class_info.op_class;
+		for (j = 0; j < op_class->m_op_class_info.num_anticipated_channels; j++) {	
+			pref_op_class->channels.num++;
+			memcpy(pref_op_class->channels.channel, (unsigned char *)&op_class->m_op_class_info.anticipated_channel[j], sizeof(unsigned char));
 			len += sizeof(em_channel_pref_op_class_t) + sizeof(unsigned char);
 			tmp += sizeof(em_channel_pref_op_class_t) + sizeof(unsigned char);
 			memcpy(tmp, &pref_bits, sizeof(unsigned char));
 			len += sizeof(unsigned char);
 			tmp += sizeof(unsigned char);
-			pref_op_class = (em_channel_pref_op_class_t *)tmp;	
-			pref->op_classes_num++;
 		}
+
+        pref_op_class = (em_channel_pref_op_class_t *)tmp;
+        pref->op_classes_num++;
+		
 	}
 	
 	return len;
@@ -391,6 +397,9 @@ int em_channel_t::send_channel_pref_query_msg()
         return -1;
     }
 
+    m_channel_pref_query_tx_cnt++;
+    printf("%s:%d: Channel Pref Query (%d) Send Successful\n", __func__, __LINE__, m_channel_pref_query_tx_cnt);
+
     return len;
 }
 
@@ -669,23 +678,51 @@ int em_channel_t::send_channel_pref_report_msg()
     return len;
 }
 
+int em_channel_t::handle_channel_pref_rprt(unsigned char *buff, unsigned int len)
+{
+	set_state(em_state_ctrl_channel_queried);
+	return 0;
+}
+
 void em_channel_t::process_msg(unsigned char *data, unsigned int len)
 {
-
+    em_raw_hdr_t *hdr;
+    em_cmdu_t *cmdu;
+    
+    hdr = (em_raw_hdr_t *)data;
+    cmdu = (em_cmdu_t *)(data + sizeof(em_raw_hdr_t));
+    
+    switch (htons(cmdu->type)) {
+        case em_msg_type_channel_pref_query:
+            send_channel_pref_report_msg();
+            break; 
+    
+        case em_msg_type_channel_pref_rprt:
+            send_channel_pref_report_msg();
+            break; 
+    
+        default:
+            break;
+    }
 }
 
 void em_channel_t::process_ctrl_state()
 {
     switch (get_state()) {
         case em_state_ctrl_channel_query_pending:
-            send_channel_pref_report_msg();
+            send_channel_pref_query_msg();
             break;
+
+        case em_state_ctrl_channel_select_pending:
+            send_channel_sel_request_msg();
+            break; 
     }
 }
 
 em_channel_t::em_channel_t()
 {
-
+    m_channel_pref_query_tx_cnt = 0;
+	m_channel_sel_req_tx_cnt = 0;
 }
 
 em_channel_t::~em_channel_t()

@@ -35,8 +35,8 @@
 #include <assert.h>
 #include "em_base.h"
 #include "em_cmd.h"
-#include "em_orch_ctrl.h"
 #include "em_cmd_exec.h"
+#include "em_orch_ctrl.h"
 
 extern char *global_netid;
 
@@ -62,8 +62,8 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
 
     switch (pcmd->m_type) {
         case em_cmd_type_set_ssid:
+        case em_cmd_type_cfg_renew:
             if (em->get_renew_tx_count() >= EM_MAX_RENEW_TX_THRESH) {
-                em->set_state(em_state_ctrl_idle);
                 em->set_renew_tx_count(0);
                 printf("%s:%d: Maximum renew tx threshold crossed, transitioning to fini\n", __func__, __LINE__);
                 return true;
@@ -72,11 +72,20 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
 
         case em_cmd_type_em_config:
             if (em->get_state() == em_state_ctrl_configured) {
-                em->set_state(em_state_ctrl_idle);
                 em->set_topo_query_tx_count(0);
-                printf("%s:%d: Maximum topo sync tx threshold crossed, transitioning to fini\n", __func__, __LINE__);
+                em->set_channel_pref_query_tx_count(0);
+				em->set_channel_sel_req_tx_count(0);
                 return true;
-            }
+            } else if (em->get_state() == em_state_ctrl_topo_synchronized) {
+                return true;
+            } else if (em->get_state() == em_state_ctrl_channel_queried) {
+                return true;
+            } else if (em->get_state() == em_state_ctrl_channel_selected) {
+                return true;
+			}
+			//printf("%s:%d: em not ready orchestration:%s(%s) because of incorrect state, state:%s\n", __func__, __LINE__,
+                    //em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
+					//em_t::state_2_str(em->get_state()));
             break;
     }
 
@@ -85,16 +94,27 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
 
 bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 {
-    if ((em->get_state() == em_state_ctrl_none) || (em->get_state() == em_state_ctrl_idle)) {
-        return true;
-    } else if (pcmd->m_type == em_cmd_type_set_ssid) {
-        return true;
-    } else if (pcmd->m_type == em_cmd_type_em_config) {
-        return true;
-    } else if (pcmd->m_type == em_cmd_type_dev_test) {
-        return true;
-    } else if (pcmd->m_type == em_cmd_type_cfg_renew) {
-        return true;
+    switch (pcmd->m_type) {
+        case em_cmd_type_set_ssid:
+            return true;
+            break;
+
+        case em_cmd_type_em_config:
+        case em_cmd_type_cfg_renew:
+            if (em->get_state() == em_state_ctrl_unconfigured) {
+				return true;
+            } else if (em->get_state() == em_state_ctrl_wsc_m2_sent) {
+                return true;
+            } else if (em->get_state() == em_state_ctrl_topo_synchronized) {
+                return true;
+            } else if (em->get_state() == em_state_ctrl_channel_queried) {
+                return true;
+            } else if (em->get_state() == em_state_ctrl_channel_selected) {
+                return true;
+            } else if (em->get_state() == em_state_ctrl_misconfigured) {
+                return true;
+            }
+            break;
     }
     return false;
 }
@@ -109,6 +129,7 @@ void em_orch_ctrl_t::pre_process_cancel(em_cmd_t *pcmd, em_t *em)
 		case em_cmd_type_em_config:
            	em->set_state(em_state_ctrl_misconfigured);
             em->set_topo_query_tx_count(0);
+            em->set_channel_pref_query_tx_count(0);
 
 			// send cfg renew so that controller can orchestrate renew
 			ev.type = em_event_type_bus;
@@ -120,7 +141,7 @@ void em_orch_ctrl_t::pre_process_cancel(em_cmd_t *pcmd, em_t *em)
 			break;
 		
 		case em_cmd_type_cfg_renew:
-           	em->set_state(em_state_ctrl_idle);
+           	em->set_state(em_state_ctrl_misconfigured);
             em->set_renew_tx_count(0);
 			break;
 	}

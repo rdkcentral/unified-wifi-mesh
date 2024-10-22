@@ -51,11 +51,11 @@ int dm_bss_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
     dm_easy_mesh_t::string_to_macbytes((char *)parent, ruid);
 
     pbss = get_first_bss();
-    printf("%s:%d: pbss: %p\n", __func__, __LINE__, pbss);
+    //printf("%s:%d: pbss: %p\n", __func__, __LINE__, pbss);
     
     while (pbss != NULL) {
         dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.ruid.mac, mac_str);
-        printf("%s:%d: Parent Radio: %s, Current BSS Radio: %s\n", __func__, __LINE__, (char *)parent, mac_str);
+        //printf("%s:%d: Parent Radio: %s, Current BSS Radio: %s\n", __func__, __LINE__, (char *)parent, mac_str);
         if (memcmp(pbss->m_bss_info.ruid.mac, ruid, sizeof(mac_address_t)) != 0) {
             pbss = get_next_bss(pbss);
             continue;
@@ -109,7 +109,7 @@ int dm_bss_list_t::set_config(db_client_t& db_client, dm_bss_t& bss, void *paren
                         
     dm_easy_mesh_t::macbytes_to_string(bss.m_bss_info.bssid.mac, bss_mac_str);
     dm_easy_mesh_t::macbytes_to_string(bss.m_bss_info.ruid.mac, radio_mac_str);
-    printf("%s:%d: Enter: BSSID: %s RadioID: %s\n", __func__, __LINE__, bss_mac_str, radio_mac_str);
+    //printf("%s:%d: Enter: BSSID: %s RadioID: %s\n", __func__, __LINE__, bss_mac_str, radio_mac_str);
 
     update_db(db_client, (op = get_dm_orch_type(db_client, bss)), bss.get_bss_info());
     update_list(bss, op);
@@ -152,16 +152,16 @@ dm_orch_type_t dm_bss_list_t::get_dm_orch_type(db_client_t& db_client, const dm_
         }
 
         if (*pbss == bss) {
-            printf("%s:%d: BSS: %s Radio: %s already in list\n", __func__, __LINE__, 
-            dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.bssid.mac, bss_mac_str),
-            dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.ruid.mac, radio_mac_str));
+            //printf("%s:%d: BSS: %s Radio: %s already in list\n", __func__, __LINE__, 
+            //dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.bssid.mac, bss_mac_str),
+            //dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.ruid.mac, radio_mac_str));
             return dm_orch_type_none;
         }
 
 
-        printf("%s:%d: BSS: %s Radio: %s in list but needs update\n", __func__, __LINE__,
-        dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.bssid.mac, bss_mac_str),
-        dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.ruid.mac, radio_mac_str));
+        //printf("%s:%d: BSS: %s Radio: %s in list but needs update\n", __func__, __LINE__,
+        //dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.bssid.mac, bss_mac_str),
+        //dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.ruid.mac, radio_mac_str));
         return dm_orch_type_db_update;
     }
 
@@ -177,7 +177,7 @@ void dm_bss_list_t::update_list(const dm_bss_t& bss, dm_orch_type_t op)
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)bss.m_bss_info.bssid.mac, bss_mac_str);
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)bss.m_bss_info.ruid.mac, radio_mac_str);
 
-    printf("%s:%d: BSSID: %s Radio ID: %s\n", __func__, __LINE__, bss_mac_str, radio_mac_str);
+    //printf("%s:%d: BSSID: %s Radio ID: %s\n", __func__, __LINE__, bss_mac_str, radio_mac_str);
 
     switch (op) {
         case dm_orch_type_db_insert:
@@ -228,7 +228,7 @@ int dm_bss_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
     unsigned int i;
     em_long_string_t	front_akms, back_akms;
 
-    printf("dm_bss_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
+    //printf("dm_bss_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
     memset(front_akms, 0, sizeof(em_long_string_t));
     for (i = 0; i < info->num_fronthaul_akms; i++) {
         strncat(front_akms, info->fronthaul_akm[i], strlen(info->fronthaul_akm[i]));

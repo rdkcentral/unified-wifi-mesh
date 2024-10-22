@@ -72,7 +72,7 @@ int dm_device_list_t::set_config(db_client_t& db_client, dm_device_t& device, vo
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)device.m_device_info.id.mac, mac_str);
 
     strncpy(device.m_device_info.net_id, (char *)parent_id, strlen((char *)parent_id) + 1);
-    printf("%s:%d: Enter: Device id: %s, Network: %s\n", __func__, __LINE__, mac_str, device.m_device_info.net_id);
+    //printf("%s:%d: Enter: Device id: %s, Network: %s\n", __func__, __LINE__, mac_str, device.m_device_info.net_id);
  
     update_db(db_client, (op = get_dm_orch_type(db_client, device)), device.get_device_info());
     update_list(device, op);
@@ -91,9 +91,9 @@ int dm_device_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, v
 
     for (i = 0; i < size; i++) {
         obj = cJSON_GetArrayItem(obj_arr, i);
-	device.decode(obj, parent_id);
-	update_db(db_client, (op = get_dm_orch_type(db_client, device)), device.get_device_info());
-	update_list(device, op);
+        device.decode(obj, parent_id);
+        update_db(db_client, (op = get_dm_orch_type(db_client, device)), device.get_device_info());
+        update_list(device, op);
     }
 
     return 0;
@@ -114,19 +114,20 @@ dm_orch_type_t dm_device_list_t::get_dm_orch_type(db_client_t& db_client, const 
     if (pdev != NULL) {
         
         if (entry_exists_in_table(db_client, key) == false) {
-            printf("%s:%d: Device: %s does not exist in db\n", __func__, __LINE__, dm_easy_mesh_t::macbytes_to_string(pdev->m_device_info.id.mac, mac_str));
+            //printf("%s:%d: Device: %s does not exist in db\n", __func__, __LINE__, 
+                         //dm_easy_mesh_t::macbytes_to_string(pdev->m_device_info.id.mac, mac_str));
             return dm_orch_type_db_insert;
         }
 
         if (*pdev == dev) { 
-            printf("%s:%d: Device: %s already in list\n", __func__, __LINE__, 
-                        dm_easy_mesh_t::macbytes_to_string(pdev->m_device_info.id.mac, mac_str));
+            //printf("%s:%d: Device: %s already in list\n", __func__, __LINE__, 
+                        //dm_easy_mesh_t::macbytes_to_string(pdev->m_device_info.id.mac, mac_str));
             return dm_orch_type_none;
         }
 
 
-        printf("%s:%d: Device: %s in list but needs update\n", __func__, __LINE__,
-            dm_easy_mesh_t::macbytes_to_string(pdev->m_device_info.id.mac, mac_str));
+        //printf("%s:%d: Device: %s in list but needs update\n", __func__, __LINE__,
+            //dm_easy_mesh_t::macbytes_to_string(pdev->m_device_info.id.mac, mac_str));
         return dm_orch_type_db_update;
     }  
 
@@ -185,7 +186,7 @@ int dm_device_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
     em_device_info_t *info = (em_device_info_t *)data;
 	int ret = 0;
 
-    printf("dm_device_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
+    //printf("dm_device_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
 	switch (op) {
 		case dm_orch_type_db_insert:
 			ret = insert_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->id.mac, mac_str),
