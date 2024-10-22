@@ -1580,6 +1580,8 @@ typedef enum {
     em_state_agent_wsc_m2_pending,
     em_state_agent_autoconfig_renew_pending,
     em_state_agent_owconfig_pending,
+    em_state_agent_onewifi_bssconfig_ind,
+    em_state_agent_channel_pref_pending,
     em_state_agent_topology_notify,
     em_state_agent_ap_cap_report,
     em_state_agent_client_cap_report,
@@ -1627,6 +1629,7 @@ typedef enum {
     em_cmd_type_topo_sync,
     em_cmd_type_em_config,
     em_cmd_type_onewifi_private_subdoc,
+    em_cmd_type_onewifi_cb,
     em_cmd_type_max,
 } em_cmd_type_t;
 
@@ -2006,6 +2009,7 @@ typedef enum {
     em_bus_event_type_m2_tx,
     em_bus_event_type_topo_sync,
     em_bus_event_type_onewifi_private_subdoc,
+    em_bus_event_type_onewifi_cb,
 } em_bus_event_type_t;
 
 typedef struct {
