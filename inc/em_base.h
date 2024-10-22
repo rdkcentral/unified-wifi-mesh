@@ -26,6 +26,7 @@
 
 #define EM_MAX_NETWORKS	5
 #define EM_MAX_NET_SSIDS 4
+#define EM_MAX_DEVICES 16
 #define ETH_P_1905      0x893a
 #define MAX_INTF_NAME_SZ    16
 #define EM_MAC_STR_LEN  17
@@ -286,7 +287,7 @@ typedef struct {
     em_radio_id_t   ruid;
     unsigned char   num_bss;
     unsigned char   op_class_num;
-    em_op_class_t   op_classes[EM_MAX_OP_CLASS];
+    em_op_class_t   op_classes[0];
 } __attribute__((__packed__)) em_ap_radio_basic_cap_t;
 
 
@@ -1579,22 +1580,23 @@ typedef enum {
     em_state_agent_wsc_m2_pending,
     em_state_agent_autoconfig_renew_pending,
     em_state_agent_owconfig_pending,
-    em_state_agent_onewifi_bssconfig_ind,
-    em_state_agent_channel_pref_pending,
     em_state_agent_topology_notify,
     em_state_agent_ap_cap_report,
     em_state_agent_client_cap_report,
     em_state_agent_config_complete, // idle state after configured, should return to this state
 
-    em_state_ctrl_none = 0x100,
+    em_state_ctrl_unconfigured = 0x100,
     em_state_ctrl_wsc_m1_pending,
+    em_state_ctrl_wsc_m2_sent,
     em_state_ctrl_topo_sync_pending,
+    em_state_ctrl_topo_synchronized,
     em_state_ctrl_channel_query_pending,
+    em_state_ctrl_channel_queried,
 	em_state_ctrl_channel_select_pending,
+    em_state_ctrl_channel_selected,
 	em_state_ctrl_channel_report_pending,
     em_state_ctrl_configured,
     em_state_ctrl_misconfigured,
-    em_state_ctrl_idle,
 
     em_state_max,
 } em_state_t;
@@ -1625,7 +1627,6 @@ typedef enum {
     em_cmd_type_topo_sync,
     em_cmd_type_em_config,
     em_cmd_type_onewifi_private_subdoc,
-    em_cmd_type_onewifi_cb,
     em_cmd_type_max,
 } em_cmd_type_t;
 
@@ -1778,6 +1779,7 @@ typedef enum {
     em_op_class_type_cac_available,
 	em_op_class_type_cac_non_occ,
 	em_op_class_type_cac_active,
+    em_op_class_type_preference,
 } em_op_class_type_t;
 
 typedef struct {
@@ -1794,6 +1796,8 @@ typedef struct {
     int max_tx_power;
     unsigned int    num_non_op_channels;
     unsigned int    non_op_channel[EM_MAX_NON_OP_CHANNELS];
+    unsigned int    num_anticipated_channels;
+    unsigned int    anticipated_channel[EM_MAX_NON_OP_CHANNELS];
     unsigned short	mins_since_cac_comp;
 	unsigned short	sec_remain_non_occ_dur;
 	unsigned int	countdown_cac_comp;
@@ -1896,6 +1900,7 @@ typedef struct {
     em_long_string_t net_id;
     bool    enabled;
     em_media_spec_data_t	media_data;
+    unsigned  int   number_of_bss;
     unsigned  int   number_of_unassoc_sta;
     int     noise;
     unsigned short utilization;
@@ -2001,7 +2006,6 @@ typedef enum {
     em_bus_event_type_m2_tx,
     em_bus_event_type_topo_sync,
     em_bus_event_type_onewifi_private_subdoc,
-    em_bus_event_type_onewifi_cb,
 } em_bus_event_type_t;
 
 typedef struct {

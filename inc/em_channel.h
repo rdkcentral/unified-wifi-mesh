@@ -43,8 +43,18 @@ public:
 	int send_channel_pref_query_msg();
 	int send_channel_pref_report_msg();
 
+    int handle_channel_pref_rprt(unsigned char *buff, unsigned int len);
+
+    int get_channel_pref_query_tx_count() { return m_channel_pref_query_tx_cnt; }
+    void set_channel_pref_query_tx_count(unsigned int cnt) { m_channel_pref_query_tx_cnt = cnt; }
+    int get_channel_sel_req_tx_count() { return m_channel_sel_req_tx_cnt; }
+    void set_channel_sel_req_tx_count(unsigned int cnt) { m_channel_sel_req_tx_cnt = cnt; }
+
     void    process_msg(unsigned char *data, unsigned int len);
     void    process_ctrl_state();
+
+    unsigned int m_channel_pref_query_tx_cnt;
+    unsigned int m_channel_sel_req_tx_cnt;
 
     em_channel_t();
     ~em_channel_t();

@@ -62,7 +62,6 @@ int em_cmd_ctrl_t::execute(em_long_string_t result)
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
     snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", get_path());
-    //strcpy(addr.sun_path, m_sock_path);
 
     if ((ret = bind(lsock, (const struct sockaddr *)&addr, sizeof(struct sockaddr_un))) == -1) {
         printf("%s:%d: bind error on socket: %d, err:%d\n", __func__, __LINE__, lsock, errno);

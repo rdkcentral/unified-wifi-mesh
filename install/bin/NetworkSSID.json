@@ -3,7 +3,7 @@
 
 		"NetworkSSIDList":	[{
 				"SSID":	"private_ssid",
-				"PassPhrase":	"fronthaul",
+				"PassPhrase":	"test-fronthaul",
 				"Band":	["2.4", "5", "6"],
 				"Enable":	true,
 				"AKMsAllowed":	["dpp"],

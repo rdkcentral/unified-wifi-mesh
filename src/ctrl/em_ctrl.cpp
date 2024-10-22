@@ -516,13 +516,29 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 
 			break;
 
+        case em_msg_type_topo_resp:
+		case em_msg_type_channel_pref_rprt:
+			if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+                len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+				printf("%s:%d: Could not find radio id in msg:0x%04x\n", __func__, __LINE__, htons(cmdu->type));
+                return NULL;
+            }
+	
+			dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
+			if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) == NULL) {
+            	printf("%s:%d: Could not find radio:%s\n", __func__, __LINE__, mac_str1);
+				return NULL;
+			}
+			break;
+
 		case em_msg_type_autoconf_resp:
 		case em_msg_type_topo_query:
 		case em_msg_type_autoconf_renew:
+        case em_msg_type_channel_pref_query:
 			break;
 
 		default:
-			printf("%s:%d: Frame: %d not handled in controller\n", __func__, __LINE__, htons(cmdu->type));
+			printf("%s:%d: Frame: 0x%04x not handled in controller\n", __func__, __LINE__, htons(cmdu->type));
 			assert(0);
 			break;
 	}

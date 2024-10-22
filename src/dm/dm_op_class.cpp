@@ -121,6 +121,15 @@ void dm_op_class_t::encode(cJSON *obj)
 	} else if (m_op_class_info.id.type == em_op_class_type_cac_active) {
     	cJSON_AddNumberToObject(obj, "OpClass", m_op_class_info.op_class);
     	cJSON_AddNumberToObject(obj, "Countdown", m_op_class_info.countdown_cac_comp);
+    } else if (m_op_class_info.id.type == em_op_class_type_preference) {
+    	cJSON_AddNumberToObject(obj, "OpClass", m_op_class_info.op_class);
+    	cJSON *chan_array = cJSON_CreateArray();
+
+    	for (i = 0; i < m_op_class_info.num_anticipated_channels; i++) {
+        	cJSON_AddItemToArray(chan_array, cJSON_CreateNumber(m_op_class_info.anticipated_channel[i]));
+    	}
+    	// Add the array to the object
+    	cJSON_AddItemToObject(obj, "ChannelList", chan_array);
 	}
 }
 
@@ -137,12 +146,15 @@ bool dm_op_class_t::operator == (const dm_op_class_t& obj)
         ret += !(this->m_op_class_info.max_tx_power == obj.m_op_class_info.max_tx_power);
         ret += !(this->m_op_class_info.num_non_op_channels == obj.m_op_class_info.num_non_op_channels);
         ret += (memcmp(this->m_op_class_info.non_op_channel, obj.m_op_class_info.non_op_channel, sizeof(unsigned int) * EM_MAX_NON_OP_CHANNELS) != 0);
-   } else if (this->m_op_class_info.id.type == em_op_class_type_cac_available) {
+    } else if (this->m_op_class_info.id.type == em_op_class_type_cac_available) {
     	ret += !(this->m_op_class_info.mins_since_cac_comp == obj.m_op_class_info.mins_since_cac_comp);
 	} else if (this->m_op_class_info.id.type == em_op_class_type_cac_non_occ) {
     	ret += !(this->m_op_class_info.sec_remain_non_occ_dur == obj.m_op_class_info.sec_remain_non_occ_dur);
 	} else if (this->m_op_class_info.id.type == em_op_class_type_cac_active) {
     	ret += !(this->m_op_class_info.countdown_cac_comp == obj.m_op_class_info.countdown_cac_comp);
+    } else if (this->m_op_class_info.id.type == em_op_class_type_preference) {
+        ret += !(this->m_op_class_info.num_anticipated_channels == obj.m_op_class_info.num_anticipated_channels);
+        ret += (memcmp(this->m_op_class_info.anticipated_channel, obj.m_op_class_info.anticipated_channel, sizeof(unsigned int) * EM_MAX_NON_OP_CHANNELS) != 0);
 	} 
      
     if (ret > 0)
@@ -165,6 +177,8 @@ void dm_op_class_t::operator = (const dm_op_class_t& obj)
     this->m_op_class_info.mins_since_cac_comp = obj.m_op_class_info.mins_since_cac_comp;
     this->m_op_class_info.sec_remain_non_occ_dur = obj.m_op_class_info.sec_remain_non_occ_dur;
     this->m_op_class_info.countdown_cac_comp = obj.m_op_class_info.countdown_cac_comp;
+    this->m_op_class_info.num_anticipated_channels = obj.m_op_class_info.num_anticipated_channels;
+    memcpy(this->m_op_class_info.anticipated_channel, obj.m_op_class_info.anticipated_channel, sizeof(unsigned int) * EM_MAX_NON_OP_CHANNELS);
 }
 
 int dm_op_class_t::parse_op_class_id_from_key(const char *key, em_op_class_id_t *id)

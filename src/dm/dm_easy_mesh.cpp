@@ -196,7 +196,7 @@ int dm_easy_mesh_t::commit_config(em_tlv_type_t tlv, unsigned char *data, unsign
 	return 0;
 }
 
-int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, unsigned int radio_index, unsigned int vap_index , unsigned int num_radios, unsigned int num_bss)
+int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, unsigned int radio_index, unsigned int vap_index)
 {
     if ((radio_index >= EM_MAX_BANDS) || (vap_index >= EM_MAX_BSS_PER_RADIO)) {
         printf("%s:%d Invalid index radio_index=%d, vap_index=%d\n", __func__, __LINE__,radio_index,vap_index);
@@ -204,28 +204,13 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, unsigned int radio_index, 
     }
     m_radio[radio_index] = dm.m_radio[radio_index];
     m_bss[vap_index] = dm.m_bss[vap_index];
-    m_num_radios = num_radios;
-    m_num_bss = num_bss;
     return 0;
 }
-
 
 int dm_easy_mesh_t::commit_config(em_attrib_id_t attrib, unsigned char *data, unsigned int len, bssid_t id, em_commit_target_t target)
 {
     return 0;
 }
-
-int dm_easy_mesh_t::commit_bss_config(dm_easy_mesh_t& dm, unsigned int vap_index)
-{
-    if (vap_index >= EM_MAX_BSS_PER_RADIO) {
-        printf("%s:%d Invalid index vap_index=%d\n", __func__, __LINE__,vap_index);
-        return 1;
-    }
-    m_bss[vap_index] = dm.m_bss[vap_index];
-
-    return 0;
-}
-
 
 int dm_easy_mesh_t::commit_config(em_cmd_t  *cmd)
 {
@@ -401,8 +386,6 @@ int dm_easy_mesh_t::encode_config_reset(em_subdoc_info_t *subdoc, const char *ke
 	char *formatted_json;
 	unsigned int i;
 
-	printf("%s:%d: Start encoding\n", __func__, __LINE__);
-    
     if ((parent_obj = cJSON_CreateObject()) == NULL) {
         printf("%s:%d: Could not create parent object\n", __func__, __LINE__);
         return -1;
@@ -487,8 +470,6 @@ int dm_easy_mesh_t::encode_config_test(em_subdoc_info_t *subdoc, const char *key
 	unsigned int i, j, num_op_classes = 0, num_bss = 0;
 	em_op_class_id_t id;
 
-	printf("%s:%d: Start encoding\n", __func__, __LINE__);
-    
     if ((parent_obj = cJSON_CreateObject()) == NULL) {
         printf("%s:%d: Could not create parent object\n", __func__, __LINE__);
         return -1;
@@ -602,8 +583,6 @@ int dm_easy_mesh_t::encode_config_test(em_subdoc_info_t *subdoc, const char *key
             }
         }
 
-    }
-
     // Capabilities
     	if ((cap_obj = cJSON_CreateObject()) == NULL) {
         	printf("%s:%d: Could not create capability object\n", __func__, __LINE__);
@@ -634,6 +613,7 @@ int dm_easy_mesh_t::encode_config_test(em_subdoc_info_t *subdoc, const char *key
             cJSON_Delete(parent_obj);
             return -1;
         }
+    }
 
 	// CACStatus
    	if ((cap_obj = cJSON_CreateObject()) == NULL) {
@@ -743,7 +723,7 @@ unsigned int dm_easy_mesh_t::decode_num_devices(em_subdoc_info_t *subdoc)
 }
 
 
-int dm_easy_mesh_t::decode_config(em_subdoc_info_t *subdoc, const char *str)
+int dm_easy_mesh_t::decode_config(em_subdoc_info_t *subdoc, const char *str, unsigned int index, unsigned int *num)
 {
 	em_long_string_t key;
 
@@ -753,6 +733,9 @@ int dm_easy_mesh_t::decode_config(em_subdoc_info_t *subdoc, const char *str)
 	} else if (strncmp(str, "SetSSID", strlen("SetSSID")) == 0) {
         snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
         return decode_config_set_ssid(subdoc, key);
+    } else if (strncmp(str, "SetAnticipatedChannelPreference", strlen("SetAnticipatedChannelPreference")) == 0) {
+        snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
+        return decode_config_set_channel(subdoc, key, index, num);
     } else if (strncmp(str, "Test", strlen("Test")) == 0) {
         snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
         return decode_config_test(subdoc, key); 
@@ -805,6 +788,117 @@ int dm_easy_mesh_t::decode_config_reset(em_subdoc_info_t *subdoc, const char *ke
         m_network_ssid[i].decode(ssid_obj, m_network.m_net_info.id);
 	}
 
+    cJSON_Delete(parent_obj);
+    //printf("%s:%d: End\n", __func__, __LINE__);
+    return 0;
+}
+
+int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const char *key, unsigned int index, unsigned int *num)
+{
+    cJSON *parent_obj, *net_obj, *net_obj_id, *dev_arr_obj, *dev_obj; 
+	cJSON *anticipated_arr_obj, *anticipated_obj, *channel_arr_obj, *channel_obj;
+    unsigned int i, j, arr_size;
+    char *dev_id, *net_id;
+    int ret = 0;
+    int haul_bit_mask = 0;
+
+    parent_obj = cJSON_Parse(subdoc->buff);
+    if (parent_obj == NULL) {
+        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        return EM_PARSE_ERR_GEN;
+    }
+
+    if ((net_obj = cJSON_GetObjectItem(parent_obj, key)) == NULL) {
+        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_GEN;
+    }
+
+    if ((net_obj = cJSON_GetObjectItem(net_obj, "Network")) == NULL) {
+        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_GEN;
+    }
+
+    if ((net_obj_id = cJSON_GetObjectItem(net_obj, "ID")) == NULL) {
+        printf("%s:%d: Network ID not present\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_NET_ID;
+    }
+
+    if ((net_id = cJSON_GetStringValue(net_obj_id)) == NULL) {
+        printf("%s:%d: Network ID not present\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_NET_ID;
+    }
+
+
+    dev_arr_obj = cJSON_GetObjectItem(net_obj, "DeviceList");
+    if (dev_arr_obj == NULL) {
+        printf("%s:%d: DeviceList not present\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_CONFIG;
+    }
+
+	arr_size = cJSON_GetArraySize(dev_arr_obj);
+	*num = arr_size;
+
+	if (index >= arr_size) {
+		printf("%s:%d: Passed index: %d greater than array size: %d\n", __func__, __LINE__, index, arr_size);
+    	cJSON_Delete(parent_obj);
+    	//printf("%s:%d: End\n", __func__, __LINE__);
+    	return 0;
+	}
+
+	if	((dev_obj = cJSON_GetArrayItem(dev_arr_obj, index)) == NULL) {
+		cJSON_Delete(parent_obj);
+        printf("%s:%d: DeviceList has no members present\n", __func__, __LINE__);
+        return -1;
+	}	
+
+	dev_id = cJSON_GetStringValue(cJSON_GetObjectItem(dev_obj, "ID"));
+	dm_easy_mesh_t::string_to_macbytes(dev_id, m_device.m_device_info.id.mac);
+	strncpy(m_device.m_device_info.net_id, net_id, strlen(net_id) + 1);
+
+	if ((anticipated_arr_obj = cJSON_GetObjectItem(dev_obj, "AnticipatedChannelPreference")) == NULL) {
+		cJSON_Delete(parent_obj);
+        printf("%s:%d: AnticipatedChannelPreference not present\n", __func__, __LINE__);
+        return -1;
+
+	}	
+
+	m_num_opclass = 0;
+	arr_size = cJSON_GetArraySize(anticipated_arr_obj);
+	for (i = 0; i < arr_size; i++) {
+		if ((anticipated_obj = cJSON_GetArrayItem(anticipated_arr_obj, i)) == NULL) {
+			cJSON_Delete(parent_obj);
+        	printf("%s:%d: AnticipatedChannelPreference not present\n", __func__, __LINE__);
+        	return -1;
+    	}
+
+		memset(&m_op_class[m_num_opclass].m_op_class_info, 0, sizeof(em_op_class_info_t));   
+
+		m_op_class[m_num_opclass].m_op_class_info.id.type = em_op_class_type_preference;
+		dm_easy_mesh_t::string_to_macbytes(dev_id, m_op_class[m_num_opclass].m_op_class_info.id.ruid);
+		m_op_class[m_num_opclass].m_op_class_info.id.index = i;
+		m_op_class[m_num_opclass].m_op_class_info.op_class = cJSON_GetNumberValue(cJSON_GetObjectItem(anticipated_obj, "Class"));
+
+		if ((channel_arr_obj = cJSON_GetObjectItem(anticipated_obj, "ChannelList")) == NULL) {
+			cJSON_Delete(parent_obj);
+        	printf("%s:%d: AnticipatedChannelPreference not present\n", __func__, __LINE__);
+        	return -1;
+		}
+
+		m_op_class[m_num_opclass].m_op_class_info.num_anticipated_channels = 0;
+
+		for (j = 0; j < cJSON_GetArraySize(channel_arr_obj); j++) {
+			m_op_class[m_num_opclass].m_op_class_info.anticipated_channel[m_op_class[m_num_opclass].m_op_class_info.num_anticipated_channels] = cJSON_GetNumberValue(cJSON_GetArrayItem(channel_arr_obj, j));
+			m_op_class[m_num_opclass].m_op_class_info.num_anticipated_channels++;
+		}	
+
+		m_num_opclass++;
+	}	
+	
     cJSON_Delete(parent_obj);
     //printf("%s:%d: End\n", __func__, __LINE__);
     return 0;
@@ -1116,7 +1210,7 @@ int dm_easy_mesh_t::decode_sta_config(em_subdoc_info_t *subdoc, unsigned int dev
         char sta_list_key[64];
         m_sta_assoc_map = hash_map_create();
         m_sta_dassoc_map = hash_map_create();
-	m_sta_map = hash_map_create();
+        m_sta_map = hash_map_create();
 
         if ((parent_obj = cJSON_Parse(subdoc->buff)) == NULL) {
                 printf("%s:%d: Failed to initialize device data model\n", __func__, __LINE__);

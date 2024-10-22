@@ -43,6 +43,7 @@
 #include "em_cmd_dev_test.h"
 #include "em_cmd_remove_device.h"
 #include "em_cmd_set_ssid.h"
+#include "em_cmd_set_channel.h"
 #include "em_cmd_topo_sync.h"
 #include "em_cmd_em_config.h"
 #include "em_cmd_cfg_renew.h"
@@ -239,7 +240,74 @@ int dm_easy_mesh_ctrl_t::analyze_dpp_start(em_bus_event_t *evt, em_cmd_t *cmd[])
 
 int dm_easy_mesh_ctrl_t::analyze_set_channel(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
-	return 0;
+    int ret;
+    em_subdoc_info_t *subdoc;
+	dm_easy_mesh_t dm, *pdm, tgt;
+    em_cmd_t *tmp;
+	mac_addr_str_t mac_str;
+	bool found_match = false;
+	unsigned int i, j, k, num_devices = EM_MAX_DEVICES, num = 0;
+    
+	subdoc = &evt->u.subdoc;
+
+	for (i = 0; i < num_devices; i++) {
+    	if ((ret = dm.decode_config(subdoc, "SetAnticipatedChannelPreference", i, &num_devices)) < 0) {
+        	return ret;
+    	}
+
+		if (dm.m_num_opclass == 0) {
+			continue;
+		}
+
+		if ((pdm = get_data_model(dm.m_device.m_device_info.net_id, dm.m_device.m_device_info.id.mac)) == NULL) {
+			dm_easy_mesh_t::macbytes_to_string(dm.m_device.m_device_info.id.mac, mac_str);
+			printf("%s:%d: Could not find data model for device: %s and net id: %s\n", __func__, __LINE__, mac_str, dm.m_device.m_device_info.net_id);
+			continue;
+		}
+
+		tgt.m_num_opclass = 0;
+		memcpy(&tgt.m_device.m_device_info, &dm.m_device.m_device_info, sizeof(em_device_info_t));
+
+		for (j = 0; j < dm.m_num_opclass; j++) {
+			for (k = 0; k < pdm->m_num_opclass; k++) {
+				if (dm.m_op_class[j] == pdm->m_op_class[k]) {
+					found_match = true;
+					break;
+				}
+			}
+
+			if (found_match == true) {
+				found_match = false;
+			} else {
+				memcpy(&tgt.m_op_class[tgt.m_num_opclass].m_op_class_info, &dm.m_op_class[j].m_op_class_info, sizeof(em_op_class_info_t));
+				tgt.m_num_opclass++;
+			}
+		}
+
+		printf("%s:%d: New target with new op_classes:%d\n", __func__, __LINE__, tgt.m_num_opclass);
+		for (j = 0; j < tgt.m_num_opclass; j++) {
+			printf("%s:%d: OperatingClass[%d]: %d\t[\t", __func__, __LINE__, j, tgt.m_op_class[j].m_op_class_info.op_class);
+			for (k = 0; k < tgt.m_op_class[j].m_op_class_info.num_anticipated_channels; k++) {
+				printf("%d\t", tgt.m_op_class[j].m_op_class_info.anticipated_channel[k]);
+			}
+			printf("]\n");
+		}
+
+
+
+		tgt.set_db_cfg_type(db_cfg_type_op_class_list_update);
+    	pcmd[num] = new em_cmd_set_channel_t(evt->params, tgt);
+    	tmp = pcmd[num];
+    	num++;
+
+    	while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+        	tmp = pcmd[num];
+        	num++;
+    	}
+    	printf("%s:%d: Number of commands:%d\n", __func__, __LINE__, num);
+	}
+
+	return num;
 }
 
 int dm_easy_mesh_ctrl_t::analyze_set_ssid(em_bus_event_t *evt, em_cmd_t *pcmd[])
@@ -442,13 +510,13 @@ int dm_easy_mesh_ctrl_t::set_radio_list(cJSON *radio_list_obj, mac_address_t *de
     dm_radio_list_t::set_config(m_db_client, radio_list_obj, dev_mac);
 
     num = cJSON_GetArraySize(radio_list_obj);
-    printf("%s:%d: Number of devices: %d\n", __func__, __LINE__, num);
+    //printf("%s:%d: Number of devices: %d\n", __func__, __LINE__, num);
     for (i = 0; i < num; i++) {
         if ((radio_obj = cJSON_GetArrayItem(radio_list_obj, i)) != NULL) {
 
             obj = cJSON_GetObjectItem(radio_obj, "ID");
             dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(obj), radio_mac);
-            printf("%s:%d: BSSList for radio[%d]: %s\n", __func__, __LINE__, i, cJSON_GetStringValue(obj));
+            //printf("%s:%d: BSSList for radio[%d]: %s\n", __func__, __LINE__, i, cJSON_GetStringValue(obj));
 
             if ((bss_list_obj = cJSON_GetObjectItem(radio_obj, "BSSList")) != NULL) {
                 set_bss_list(bss_list_obj, &radio_mac);
@@ -477,13 +545,13 @@ int dm_easy_mesh_ctrl_t::set_device_list(cJSON *dev_list_obj)
     dm_device_list_t::set_config(m_db_client, dev_list_obj, (void *)global_netid);
 
     num = cJSON_GetArraySize(dev_list_obj);
-    printf("%s:%d: Number of devices: %d\n", __func__, __LINE__, num);
+    //printf("%s:%d: Number of devices: %d\n", __func__, __LINE__, num);
     for (i = 0; i < num; i++) {
         if (((dev_obj = cJSON_GetArrayItem(dev_list_obj, i)) != NULL) &&
            ((radio_list_obj = cJSON_GetObjectItem(dev_obj, "RadioList")) != NULL)) {
             obj = cJSON_GetObjectItem(dev_obj, "ID");
             dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(obj), dev_mac);
-            printf("%s:%d: RadioList for device[%d]: %s\n", __func__, __LINE__, i, cJSON_GetStringValue(obj));
+            //printf("%s:%d: RadioList for device[%d]: %s\n", __func__, __LINE__, i, cJSON_GetStringValue(obj));
             set_radio_list(radio_list_obj, &dev_mac);
         }
     }
@@ -572,7 +640,7 @@ int dm_easy_mesh_ctrl_t::get_network_ssid_config(cJSON *parent, char *key)
 
 int dm_easy_mesh_ctrl_t::get_channel_config(cJSON *parent, char *key)
 {
-    cJSON *net_obj, *dev_list_obj, *dev_obj, *radio_list_obj, *radio_obj, *op_class_list_obj;
+    cJSON *net_obj, *dev_list_obj, *dev_obj, *radio_list_obj, *radio_obj, *op_class_list_obj, *anticipated_channels_list_obj;
     unsigned int i, j;
     char *tmp;
     em_long_string_t op_key;
@@ -585,15 +653,19 @@ int dm_easy_mesh_ctrl_t::get_channel_config(cJSON *parent, char *key)
 
     for (i = 0; i < cJSON_GetArraySize(dev_list_obj); i++) {	
         dev_obj = cJSON_GetArrayItem(dev_list_obj, i);
-	radio_list_obj = cJSON_AddArrayToObject(dev_obj, "RadioList");
-	dm_radio_list_t::get_config(radio_list_obj, cJSON_GetStringValue(cJSON_GetObjectItem(dev_obj, "ID")), true);
-	for (j = 0; j < cJSON_GetArraySize(radio_list_obj); j++) {
-	    radio_obj = cJSON_GetArrayItem(radio_list_obj, j);
-	    tmp = cJSON_GetStringValue(cJSON_GetObjectItem(radio_obj, "ID"));
-	    op_class_list_obj = cJSON_AddArrayToObject(radio_obj, "CurrentOperatingClasses");
-	    snprintf(op_key, sizeof(op_key), "%s@%d@&d", tmp, em_op_class_type_current, 0);
-	    dm_op_class_list_t::get_config(op_class_list_obj, op_key);
-	}
+        radio_list_obj = cJSON_AddArrayToObject(dev_obj, "RadioList");
+        dm_radio_list_t::get_config(radio_list_obj, cJSON_GetStringValue(cJSON_GetObjectItem(dev_obj, "ID")), true);
+        for (j = 0; j < cJSON_GetArraySize(radio_list_obj); j++) {
+            radio_obj = cJSON_GetArrayItem(radio_list_obj, j);
+            tmp = cJSON_GetStringValue(cJSON_GetObjectItem(radio_obj, "ID"));
+            op_class_list_obj = cJSON_AddArrayToObject(radio_obj, "CurrentOperatingClasses");
+            snprintf(op_key, sizeof(op_key), "%s@%d@&d", tmp, em_op_class_type_current, 0);
+            dm_op_class_list_t::get_config(op_class_list_obj, op_key);
+        }
+        anticipated_channels_list_obj = cJSON_AddArrayToObject(dev_obj, "AnticipatedChannelPreference");
+        tmp = cJSON_GetStringValue(cJSON_GetObjectItem(dev_obj, "ID"));
+        snprintf(op_key, sizeof(op_key), "%s@%d@&d", tmp, em_op_class_type_preference, 0);
+        dm_op_class_list_t::get_config(anticipated_channels_list_obj, op_key);
     }
 
     return 0;
@@ -689,7 +761,7 @@ int dm_easy_mesh_ctrl_t::get_config(em_long_string_t net_id, em_subdoc_info_t *s
 	}
 
     tmp = cJSON_Print(parent);
-    printf("%s:%d: Subdoc: %s\n", __func__, __LINE__, tmp);
+    //printf("%s:%d: Subdoc: %s\n", __func__, __LINE__, tmp);
     strncpy(subdoc->buff, tmp, strlen(tmp) + 1);
     cJSON_free(parent);
 }
@@ -925,6 +997,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
 				at_least_one_failed = true;
 			}
 		}
+        at_least_one_failed = true;
 		if (at_least_one_failed == true) {
 			at_least_one_failed = false;
 		} else {
