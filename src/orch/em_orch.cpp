@@ -313,7 +313,7 @@ void em_orch_t::handle_timeout()
                 em->set_orch_state(em_orch_state_idle);
             }
             destroy_command(pcmd);
-            em->set_state(em_state_agent_config_complete);
+            //em->set_state(em_state_agent_config_complete);
             break;
         }
 

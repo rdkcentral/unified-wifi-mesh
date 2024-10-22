@@ -93,8 +93,9 @@ public:
     int commit_config(dm_easy_mesh_t& dm, em_commit_target_t target);
     int commit_config(em_tlv_type_t tlv, unsigned char *data, unsigned int len, bssid_t id, em_commit_target_t target);
     int commit_config(em_attrib_id_t attrib, unsigned char *data, unsigned int len, bssid_t id, em_commit_target_t target);
-    int commit_config(dm_easy_mesh_t& dm, unsigned int radio_index, unsigned int vap_index);
+    int commit_config(dm_easy_mesh_t& dm, unsigned int radio_index, unsigned int vap_index, unsigned int num_radios, unsigned int num_bss);
     int commit_config(em_cmd_t  *cmd);
+    int commit_bss_config(dm_easy_mesh_t& dm, unsigned int vap_index);
 
     void set_network(dm_network_t &network) { m_network = network; }
 

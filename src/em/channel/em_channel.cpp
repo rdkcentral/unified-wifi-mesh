@@ -95,7 +95,7 @@ int em_channel_t::send_channel_sel_request_msg()
     int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
-	short sz = 0;
+    short sz = 0;
     unsigned char *tmp = buff;
     unsigned short type = htons(ETH_P_1905);
     dm_easy_mesh_t *dm;
@@ -128,7 +128,7 @@ int em_channel_t::send_channel_sel_request_msg()
     // Zero or more Channel Preference TLVs (see section 17.2.13).
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_channel_pref;
-	sz = create_channel_pref_tlv(tlv->value);
+    sz = create_channel_pref_tlv(tlv->value);
     tlv->len = htons(sz);
 
     tmp += (sizeof(em_tlv_t) + sz);
@@ -167,12 +167,12 @@ int em_channel_t::send_channel_sel_response_msg(em_chan_sel_resp_code_type_t cod
     int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
-	em_channel_sel_rsp_t *resp;
+    em_channel_sel_rsp_t *resp;
     unsigned char *tmp = buff;
-	dm_easy_mesh_t *dm;
+    dm_easy_mesh_t *dm;
     unsigned short type = htons(ETH_P_1905);
 
-	dm = get_data_model();
+    dm = get_data_model();
 
     memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
@@ -201,9 +201,9 @@ int em_channel_t::send_channel_sel_response_msg(em_chan_sel_resp_code_type_t cod
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_channel_sel_resp;
     tlv->len = htons(sizeof(em_channel_sel_rsp_t));
-	resp = (em_channel_sel_rsp_t *)tlv->value;
-	memcpy(resp->ruid, get_radio_interface_mac(), sizeof(em_radio_id_t));
-	memcpy(&resp->response_code, (unsigned char *)&code, sizeof(unsigned char));
+    resp = (em_channel_sel_rsp_t *)tlv->value;
+    memcpy(resp->ruid, get_radio_interface_mac(), sizeof(em_radio_id_t));
+    memcpy(&resp->response_code, (unsigned char *)&code, sizeof(unsigned char));
 
     tmp += (sizeof(em_tlv_t) + sizeof(em_channel_sel_rsp_t));
     len += (sizeof(em_tlv_t) + sizeof(em_channel_sel_rsp_t));
@@ -277,7 +277,7 @@ int em_channel_t::send_operating_channel_report_msg()
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned short  msg_id = em_msg_type_op_channel_rprt;
-	short sz;
+    short sz;
     int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
@@ -313,8 +313,8 @@ int em_channel_t::send_operating_channel_report_msg()
 	// One or more Operating Channel Report TLVs (see section 17.2.17)
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_op_channel_report;
-	sz = create_operating_channel_report_tlv(tlv->value);
-	tlv->len = htons(sz);
+    sz = create_operating_channel_report_tlv(tlv->value);
+    tlv->len = htons(sz);
 
     tmp += (sizeof(em_tlv_t) + sz);
     len += (sizeof(em_tlv_t) + sz);
@@ -386,8 +386,8 @@ int em_channel_t::send_channel_pref_query_msg()
 
     tmp += (sizeof (em_tlv_t));
     len += (sizeof (em_tlv_t));
-    
-	if (em_msg_t(em_msg_type_channel_pref_query, em_profile_type_3, buff, len).validate(errors) == 0) {
+
+    if (em_msg_t(em_msg_type_channel_pref_query, em_profile_type_3, buff, len).validate(errors) == 0) {
         printf("Channel Preference Query msg failed validation in tnx end\n");
         return -1;
     }
@@ -587,7 +587,7 @@ int em_channel_t::send_channel_pref_report_msg()
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned short  msg_id = em_msg_type_channel_pref_rprt;
     int len = 0;
-	short sz;
+    short sz;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     unsigned char *tmp = buff;
@@ -619,7 +619,7 @@ int em_channel_t::send_channel_pref_report_msg()
     tmp += sizeof(em_cmdu_t);
     len += sizeof(em_cmdu_t);
 
-	// Zero or more Channel Preference TLVs (see section 17.2.13).
+    // Zero or more Channel Preference TLVs (see section 17.2.13).
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_channel_pref;
     sz = create_channel_pref_tlv(tlv->value);
@@ -628,7 +628,7 @@ int em_channel_t::send_channel_pref_report_msg()
     tmp += (sizeof(em_tlv_t) + sz);
     len += (sizeof(em_tlv_t) + sz);
 
-	// Zero or more Radio Operation Restriction TLVs (see section 17.2.14).
+    // Zero or more Radio Operation Restriction TLVs (see section 17.2.14).
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_radio_op_restriction;
     sz = create_radio_op_restriction_tlv(tlv->value);
@@ -637,7 +637,7 @@ int em_channel_t::send_channel_pref_report_msg()
     tmp += (sizeof(em_tlv_t) + sz);
     len += (sizeof(em_tlv_t) + sz);
 
-	// Zero or one CAC Completion Report TLV (see section 17.2.44) [Profile-2].
+    // Zero or one CAC Completion Report TLV (see section 17.2.44) [Profile-2].
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_cac_cmpltn_rprt;
     sz = create_cac_complete_report_tlv(tlv->value);
@@ -646,7 +646,7 @@ int em_channel_t::send_channel_pref_report_msg()
     tmp += (sizeof(em_tlv_t) + sz);
     len += (sizeof(em_tlv_t) + sz);
 
-	// One CAC Status Report TLV (see section 17.2.45) [Profile-2].
+    // One CAC Status Report TLV (see section 17.2.45) [Profile-2].
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_cac_sts_rprt;
     sz = create_cac_status_report_tlv(tlv->value);
@@ -722,7 +722,7 @@ void em_channel_t::process_ctrl_state()
 em_channel_t::em_channel_t()
 {
     m_channel_pref_query_tx_cnt = 0;
-	m_channel_sel_req_tx_cnt = 0;
+    m_channel_sel_req_tx_cnt = 0;
 }
 
 em_channel_t::~em_channel_t()
