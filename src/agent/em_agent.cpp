@@ -476,6 +476,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 			break;
 
         case em_msg_type_autoconf_search:
+        case em_msg_type_topo_resp:
         case em_msg_type_topo_query:
             em = (em_t *)hash_map_get_first(m_em_map);
 
