@@ -571,7 +571,7 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst)
     cmdu->type = htons(msg_id);
     cmdu->id = htons(msg_id);
     cmdu->last_frag_ind = 1;
-    cmdu->relay_ind = 1;
+    cmdu->relay_ind = 0;
 
     tmp += sizeof(em_cmdu_t);
     len += sizeof(em_cmdu_t);

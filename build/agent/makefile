@@ -22,7 +22,6 @@ include ../makefile.inc
 # program
 #
 
-BUS_LIBRARY = $(INSTALLDIR)/lib/libbus.a
 PROGRAM = $(INSTALLDIR)/bin/onewifi_em_agent
 
 INCLUDEDIRS = \
@@ -80,23 +79,17 @@ AGENT_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
 	$(ONEWIFI_EM_SRC)/dm/dm_radio_cap.cpp \
     $(ONEWIFI_EM_SRC)/dm/dm_cac_comp.cpp \
 
-BUS_LIBRARY_SOURCES = $(wildcard $(ONEWIFI_BUS_LIB_HOME)/src/*.c) \
 
-BUS_LIBRARY_OBJECTS = $(BUS_LIBRARY_SOURCES:.c=.o)
 AGENT_OBJECTS = $(AGENT_SOURCES:.cpp=.o)
 GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o) 
 ALLOBJECTS = $(AGENT_OBJECTS) $(GENERIC_OBJECTS)
 
-all: $(BUS_LIBRARY) $(PROGRAM)
+all: $(PROGRAM)
 
-$(BUS_LIBRARY): $(BUS_LIBRARY_OBJECTS)
-	$(AR) $@ $^
 
 $(PROGRAM): $(ALLOBJECTS)
 	$(CXX) -o $@ $(ALLOBJECTS) $(LDFLAGS)
 
-$(BUS_LIBRARY_OBJECTS): %.o: %.c
-	$(CC) $(CXXFLAGS) -o $@ -c $<
 
 $(GENERIC_OBJECTS): %.o: %.c
 	$(CC) $(CXXFLAGS) -o $@ -c $<
@@ -108,7 +101,7 @@ $(AGENT_OBJECTS): %.o: %.cpp
 #
 
 clean:
-	$(RM) $(ALLOBJECTS) $(PROGRAM) $(BUS_LIBRARY_OBJECTS) $(BUS_LIBRARY)
+	$(RM) $(ALLOBJECTS) $(PROGRAM)
 
 #
 # Run target: "make -f Makefile.Linux run" to execute the application
