@@ -40,13 +40,13 @@ INCLUDEDIRS = \
 
 $(info The value of VARIABLE is $(ONEWIFI_HAL_INTF_HOME))
 
-CXXFLAGS = $(INCLUDEDIRS) -g
-LDFLAGS = $(LIBDIRS) $(LIBS)
+CXXFLAGS = $(INCLUDEDIRS) -g -DEASY_MESH_NODE
+LDFLAGS = $(LIBDIRS) $(LIBS) 
 LIBDIRS = \
 	-L$(INSTALLDIR)/lib \
     -L$(ONEWIFI_HOME)/install/lib/
 
-LIBS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lbus -lwebconfig -lhebus
+LIBS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwebconfig -lhebus
 
 GENERIC_SOURCES = $(ONEWIFI_HOME)/generic/source/utils/collection.c \
 	$(ONEWIFI_EM_SRC)/util_crypto/aes_siv.c \
@@ -79,17 +79,14 @@ AGENT_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
 	$(ONEWIFI_EM_SRC)/dm/dm_radio_cap.cpp \
     $(ONEWIFI_EM_SRC)/dm/dm_cac_comp.cpp \
 
-
 AGENT_OBJECTS = $(AGENT_SOURCES:.cpp=.o)
 GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o) 
 ALLOBJECTS = $(AGENT_OBJECTS) $(GENERIC_OBJECTS)
 
-all: $(PROGRAM)
-
+all: $(BUS_LIBRARY) $(PROGRAM)
 
 $(PROGRAM): $(ALLOBJECTS)
 	$(CXX) -o $@ $(ALLOBJECTS) $(LDFLAGS)
-
 
 $(GENERIC_OBJECTS): %.o: %.c
 	$(CC) $(CXXFLAGS) -o $@ -c $<

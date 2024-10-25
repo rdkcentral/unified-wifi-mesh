@@ -325,17 +325,6 @@ int em_cmd_cli_t::execute(em_string_t res)
             }
             break;
 
-        case em_cmd_type_onewifi_private_subdoc:
-            bevt->type = em_bus_event_type_onewifi_private_subdoc;
-            info = &bevt->u.subdoc;
-            strncpy(info->name, param->fixed_args, strlen(param->fixed_args) + 1);
-            if ((info->sz = get_cmd()->load_params_file(info->buff)) < 0) {
-                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__,
-                param->fixed_args, errno);
-                return -1;
-            }
-            break;
-
         default:
             break;
     }

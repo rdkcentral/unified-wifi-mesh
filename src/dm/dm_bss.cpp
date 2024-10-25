@@ -45,8 +45,6 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
     mac_addr_str_t  mac_str;
     unsigned int i;
 
-    em_short_string_t sec_mode;
-
     memset(&m_bss_info, 0, sizeof(em_bss_info_t));
     dm_easy_mesh_t::string_to_macbytes((char *)parent_id, m_bss_info.ruid.mac);
 
@@ -157,16 +155,6 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
         m_bss_info.transmitted_bssid = cJSON_IsTrue(tmp);
     }
 
-    
-    if ((tmp = cJSON_GetObjectItem(obj, "SecurityMode")) != NULL) {
-        strncpy(sec_mode, cJSON_GetStringValue(tmp), strlen(cJSON_GetStringValue(tmp)));
-        dm_easy_mesh_t::str_to_securitymode(&m_bss_info.sec_mode,sec_mode,sizeof(sec_mode));
-    }
-
-    if ((tmp = cJSON_GetObjectItem(obj, "Passpharse")) != NULL) {
-        strncpy(m_bss_info.passphrase, cJSON_GetStringValue(tmp), strlen(cJSON_GetStringValue(tmp)));
-    }
-
     return 0;
 
 }
@@ -175,7 +163,6 @@ void dm_bss_t::encode(cJSON *obj)
 {
     mac_addr_str_t  mac_str;
     unsigned short i;
-    em_short_string_t sec_mode_str;
 
     dm_easy_mesh_t::macbytes_to_string(m_bss_info.bssid.mac, mac_str);
     cJSON_AddStringToObject(obj, "BSSID", mac_str);
@@ -202,10 +189,6 @@ void dm_bss_t::encode(cJSON *obj)
     cJSON_AddBoolToObject(obj, "R2disallowed", m_bss_info.r2_disallowed);
     cJSON_AddBoolToObject(obj, "MultiBSSID", m_bss_info.multi_bssid);
     cJSON_AddBoolToObject(obj, "TransmittedBSSID", m_bss_info.transmitted_bssid);
-
-    dm_easy_mesh_t::securitymode_to_str(m_bss_info.sec_mode,sec_mode_str, sizeof(sec_mode_str));
-    cJSON_AddStringToObject(obj, "SecurityMode",sec_mode_str);
-    cJSON_AddStringToObject(obj, "Passpharse",m_bss_info.passphrase);
 
     cJSON *fronthaul_akmsArray = cJSON_CreateArray();
     for (i = 0; i < m_bss_info.num_fronthaul_akms; i++) {
@@ -249,8 +232,6 @@ void dm_bss_t::operator = (const dm_bss_t& obj)
     this->m_bss_info.r2_disallowed = obj.m_bss_info.r2_disallowed;
     this->m_bss_info.multi_bssid = obj.m_bss_info.multi_bssid;
     this->m_bss_info.transmitted_bssid = obj.m_bss_info.transmitted_bssid;
-    this->m_bss_info.sec_mode =  obj.m_bss_info.sec_mode;
-    memcpy(&this->m_bss_info.passphrase, obj.m_bss_info.passphrase,sizeof(this->m_bss_info.passphrase));
 }
 
 
@@ -280,8 +261,6 @@ bool dm_bss_t::operator == (const dm_bss_t& obj)
     ret += !(this->m_bss_info.r2_disallowed == obj.m_bss_info.r2_disallowed);
     ret += !(this->m_bss_info.multi_bssid == obj.m_bss_info.multi_bssid);
     ret += !(this->m_bss_info.transmitted_bssid == obj.m_bss_info.transmitted_bssid);
-    ret += !(this->m_bss_info.sec_mode == obj.m_bss_info.sec_mode);
-    ret += (memcmp(&this->m_bss_info.passphrase, &obj.m_bss_info.passphrase,sizeof(this->m_bss_info.passphrase)));
 
     if (ret > 0)
         return false;

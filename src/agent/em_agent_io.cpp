@@ -45,11 +45,16 @@ bool em_agent_t::agent_input(void *data)
     em_event_t *evt; 
     em_bus_event_t *inp;
     bool ret = true;
+    em_bus_event_t *bevt;
 
     inp = &((em_event_t *)data)->u.bevt;
-    
-    if ((inp->type == em_bus_event_type_dev_init) || (inp->type == em_bus_event_type_sta_list) || (inp->type == em_bus_event_type_onewifi_cb)) {
-        evt = em_cmd_agent_t::create_raw_event((char *)inp->u.raw_buff, inp->type);
+
+    if ((inp->type == em_bus_event_type_dev_init) || (inp->type == em_bus_event_type_sta_list) || (inp->type == em_bus_event_type_onewifi_cb) || (inp->type == em_bus_event_type_m2ctrl_configuration)) {
+        evt = (em_event_t *)malloc(sizeof(em_event_t));
+        evt->type = em_event_type_bus;
+        bevt = &evt->u.bevt;
+        bevt->type = inp->type;
+        memcpy(&bevt->u.raw_buff, inp->u.raw_buff, sizeof(inp->u.raw_buff));
     } else {
         evt = em_cmd_agent_t::create_event((char *)inp->u.subdoc.buff);
     }
@@ -80,6 +85,3 @@ void em_agent_t::io(void *data, bool input)
     }
 }
 
-bus_error_t em_agent_t::bus_listener(bus_handle_t *handle, bus_event_sub_action_t action, char const* eventName, bus_filter_t filter, int32_t interval, bool* autoPublish)
-{
-}

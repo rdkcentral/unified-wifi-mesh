@@ -49,8 +49,6 @@ em_cmd_t em_cmd_agent_t::m_client_cmd_spec[] = {
     em_cmd_t(em_cmd_type_vap_config,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:BssConfig"}),
     em_cmd_t(em_cmd_type_sta_list,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:StaList"}),
     em_cmd_t(em_cmd_type_ap_cap_query,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:CapReport"}),
-    em_cmd_t(em_cmd_type_client_cap_query,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:ClientCapReport"}),
-    em_cmd_t(em_cmd_type_onewifi_private_subdoc,em_cmd_params_t{1, {"", "", "", "", ""},"wfa-dataelements:dm_cache"}),
     em_cmd_t(em_cmd_type_max,em_cmd_params_t{0, {"", "", "", "", ""}, "max"}),
 };
 
@@ -99,26 +97,11 @@ int em_cmd_agent_t::execute(em_long_string_t result)
         printf("%s:%d: Connection accepted from client\n", __func__, __LINE__);
 
         tmp = (unsigned char *)get_event();
-        offset = 0;
-        iter = ((sizeof(em_event_t)%EM_IO_BUFF_SZ) == 0) ? sizeof(em_event_t)/EM_IO_BUFF_SZ:(sizeof(em_event_t)/EM_IO_BUFF_SZ + 1);
-        sz = EM_IO_BUFF_SZ;
 
-        //printf("%s:%d: Iterations: %d\n", __func__, __LINE__, iter);
-
-        for (i = 0; i < iter; i++) {
-            if ((ret = recv(m_dsock, tmp + offset, sz, 0)) <= 0) {
-                printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
-                break;
-            }
-
-            offset += ret;
-            sz = ((sizeof(em_event_t) - offset) < EM_IO_BUFF_SZ) ? sizeof(em_event_t) - offset:EM_IO_BUFF_SZ;
-
-            //printf("%s:%d Received Bytes: %d, Size to receive: %d\n", __func__, __LINE__, offset, sz);
+        if ((ret = recv(m_dsock, tmp, sizeof(em_event_t), 0)) <= 0) {
+            printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
+            break;
         }
-
-        printf("%s:%d: Read bytes: %d Type:%d, Subtype: %d Size: %d Buff: %s\n", __func__, __LINE__, ret,
-                get_event()->type, get_event()->u.bevt.type, get_event()->u.bevt.u.subdoc.sz, get_event()->u.bevt.u.subdoc.buff);
 
         switch (get_event()->type) {
             case em_event_type_bus:
@@ -231,10 +214,6 @@ em_event_t *em_cmd_agent_t::create_event(char *buff)
             bevt->type = em_bus_event_type_cfg_renew;
             break;
        
-        case em_cmd_type_onewifi_private_subdoc:
-			bevt->type = em_bus_event_type_onewifi_private_subdoc;
-			break;
-
          default:
             break;
     }
@@ -242,45 +221,6 @@ em_event_t *em_cmd_agent_t::create_event(char *buff)
     memcpy(&bevt->params, &cmd->m_param, sizeof(em_cmd_params_t));
     memcpy(&bevt->u.subdoc.buff, buff, EM_SUBDOC_BUFF_SZ-1);
     bevt->u.subdoc.sz = strlen(buff);   
-    printf("%s:%d: Parse JSON btype=%d priv=%d\n", __func__, __LINE__,bevt->type,em_bus_event_type_onewifi_private_subdoc);
-    return evt;
-}
-
-em_event_t *em_cmd_agent_t::create_raw_event(char *buff, em_bus_event_type_t type)
-
-{
-    printf("entering create_raw_event\n");
-    em_cmd_type_t   cmd_type = em_cmd_type_none;
-    cJSON *obj, *child_obj;
-    char *tmp;
-    em_cmd_t    *cmd;
-    unsigned int idx;
-    em_event_t *evt;
-    em_bus_event_t *bevt;
-
-    if ((obj = cJSON_Parse(buff)) == NULL) {
-        printf("%s:%d: Failed to parse JSON object\n", __func__, __LINE__);
-        return NULL;
-    }
-    cJSON_Delete(obj);
-    evt = (em_event_t *)malloc(sizeof(em_event_t));
-    evt->type = em_event_type_bus;
-    bevt = &evt->u.bevt;
-
-    if(type == em_bus_event_type_dev_init)
-    {
-        cmd = &em_cmd_agent_t::m_client_cmd_spec[1];
-    }
-    else if(type == em_bus_event_type_sta_list)
-    {
-        cmd = &em_cmd_agent_t::m_client_cmd_spec[5];
-    }
-
-    bevt->type = type;
-
-    memcpy(&bevt->u.raw_buff, buff, strlen(buff));
-    bevt->u.subdoc.sz = strlen(buff);
-
     return evt;
 }
 
