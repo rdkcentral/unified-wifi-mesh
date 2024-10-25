@@ -68,11 +68,12 @@ public:
     void handle_client_cap_query(em_bus_event_t *evt);
     void handle_onewifi_private_subdoc(em_bus_event_t *evt);
     void handle_onewifi_cb(em_bus_event_t *evt);
+    void handle_m2ctrl_configuration(em_bus_event_t *evt);
 
     em_cmd_t& get_command(char *in);
     
     dm_easy_mesh_t *get_data_model(const char *net_id, const unsigned char *al_mac = NULL) { return &m_data_model; }
-    dm_easy_mesh_t *create_data_model(const char *net_id, const unsigned char *al_mac, em_profile_type_t profile = em_profile_type_3) { return NULL; }
+    dm_easy_mesh_t *create_data_model(const char *net_id, const unsigned char *al_mac, em_profile_type_t profile = em_profile_type_3) { return &m_data_model; }
     void delete_data_model(const char *net_id, const unsigned char *al_mac) { }
     void delete_all_data_models() { }
     int update_tables(dm_easy_mesh_t *dm) { return 0; }
@@ -82,8 +83,6 @@ public:
     em_service_type_t get_service_type() { return em_service_type_agent; }
     em_t *find_em_for_msg_type(unsigned char *data, unsigned int len, em_t *al_em);
 
-    static bus_error_t bus_listener(bus_handle_t *handle, bus_event_sub_action_t action, char const* eventName, bus_filter_t filter, int32_t interval, bool* autoPublish);    
-    //void io(char *buff);
     static int sta_cb(char *event_name, raw_data_t *data);
     static int onewifi_cb(char *event_name, raw_data_t *data);
     void *get_assoc(void*);

@@ -155,6 +155,7 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
     dm_easy_mesh_t *dm = &pcmd->m_data_model;
     dm_easy_mesh_t *mgr_dm;
     mac_addr_str_t	mac_str;
+    em_commit_target_t config;
 
     printf("%s:%d: Orchestration operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
     switch (pcmd->get_orch_op()) {
@@ -187,8 +188,9 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
             // for device insert, just create the al interface em and return, do not submit command
             em = m_mgr->create_node(pcmd->get_ctrl_al_interface(), em_freq_band_unknown, mgr_dm, true, em_profile_type_3, em_service_type_ctrl);
             if (em != NULL) {
+                config.type = em_commit_target_em;
                 // since this does not have to go through orchestration of M1 M2, commit the data model
-                em->get_data_model()->commit_config(pcmd->m_data_model, em_commit_target_em);
+                em->get_data_model()->commit_config(pcmd->m_data_model, config);
             }
             break;
 

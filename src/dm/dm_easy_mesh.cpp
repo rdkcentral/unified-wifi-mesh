@@ -120,75 +120,92 @@ dm_easy_mesh_t dm_easy_mesh_t::operator =(dm_easy_mesh_t const& obj)
 
 int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
 {
-	unsigned int i;
+    unsigned int i;
+    int j = 0;
+    dm_radio_t *radio;
+    mac_address_t mac;
+    dm_sta_t *sta;
+    mac_addr_str_t mac_str;
 
-	if ( target == em_commit_target_sta_hash_map ) {
-                dm_sta_t *sta;
-                hash_map_t **m_sta_assoc_map = (hash_map_t **)dm.get_assoc_sta_map();
-                hash_map_t **em_m_sta_map = get_sta_map();
-				
-                if ((m_sta_assoc_map != NULL) && (*m_sta_assoc_map != NULL)) {
-                        sta = (dm_sta_t *)hash_map_get_first(*m_sta_assoc_map);
-                        while (sta != NULL) {
-				// update the em
-				if ((em_m_sta_map != NULL) && (*em_m_sta_map != NULL)) {
-                                        hash_map_put(*em_m_sta_map,strdup(sta->get_sta_info()->m_sta_key),sta);
-					printf("%s:%d: node with key:%s updated\n", __func__, \
-						 __LINE__,sta->get_sta_info()->m_sta_key);
-					sta = (dm_sta_t *)hash_map_get_next(*m_sta_assoc_map, sta);
-					continue;
-				} else {
-                                        *em_m_sta_map = hash_map_create();
-                                        hash_map_put(*em_m_sta_map,strdup(sta->get_sta_info()->m_sta_key),sta);
-					printf("%s:%d: New node created with key:%s \n", __func__,\
-						 __LINE__,sta->get_sta_info()->m_sta_key);
-					sta = (dm_sta_t *)hash_map_get_next(*m_sta_assoc_map, sta);
-					continue;
-				}
-                                sta = (dm_sta_t *)hash_map_get_next(*m_sta_assoc_map, sta);
-                        }
-                }
-                hash_map_t **m_sta_dassoc_map = (hash_map_t **)dm.get_dassoc_sta_map();
-                if ((m_sta_dassoc_map != NULL) && (*m_sta_dassoc_map != NULL) && \
-			 (em_m_sta_map != NULL) && (*em_m_sta_map != NULL )) {
-                        sta = (dm_sta_t *)hash_map_get_first(*m_sta_dassoc_map);
-                        while (sta != NULL) {
-                                hash_map_remove(*em_m_sta_map,sta->get_sta_info()->m_sta_key);
-				printf("%s:%d: node with key:%s removed\n", __func__,\
-						 __LINE__,sta->get_sta_info()->m_sta_key);
-                                sta = (dm_sta_t *)hash_map_get_next(*m_sta_dassoc_map, sta);
-                        }
-                }
-		return 0;		
-	}
+    if ( target.type == em_commit_target_sta_hash_map ) {
+        hash_map_t **m_sta_assoc_map = (hash_map_t **)dm.get_assoc_sta_map();
+        hash_map_t **em_m_sta_map = get_sta_map();
 
-    else if( target == em_commit_target_al) {
+        if ((m_sta_assoc_map != NULL) && (*m_sta_assoc_map != NULL)) {
+            sta = (dm_sta_t *)hash_map_get_first(*m_sta_assoc_map);
+            while (sta != NULL) {
+                // update the em
+                if ((em_m_sta_map != NULL) && (*em_m_sta_map != NULL)) {
+                    hash_map_put(*em_m_sta_map,strdup(sta->get_sta_info()->m_sta_key),sta);
+                    printf("%s:%d: node with key:%s updated\n", __func__, \
+                                 __LINE__,sta->get_sta_info()->m_sta_key);
+                    sta = (dm_sta_t *)hash_map_get_next(*m_sta_assoc_map, sta);
+                    continue;
+                } else {
+                    *em_m_sta_map = hash_map_create();
+                    hash_map_put(*em_m_sta_map,strdup(sta->get_sta_info()->m_sta_key),sta);
+                    printf("%s:%d: New node created with key:%s \n", __func__,\
+                             __LINE__,sta->get_sta_info()->m_sta_key);
+                    sta = (dm_sta_t *)hash_map_get_next(*m_sta_assoc_map, sta);
+                    continue;
+                }
+                sta = (dm_sta_t *)hash_map_get_next(*m_sta_assoc_map, sta);
+            }
+        }
+        hash_map_t **m_sta_dassoc_map = (hash_map_t **)dm.get_dassoc_sta_map();
+        if ((m_sta_dassoc_map != NULL) && (*m_sta_dassoc_map != NULL) && \
+             (em_m_sta_map != NULL) && (*em_m_sta_map != NULL )) {
+             sta = (dm_sta_t *)hash_map_get_first(*m_sta_dassoc_map);
+             while (sta != NULL) {
+                hash_map_remove(*em_m_sta_map,sta->get_sta_info()->m_sta_key);
+                printf("%s:%d: node with key:%s removed\n", __func__,\
+                                 __LINE__,sta->get_sta_info()->m_sta_key);
+                sta = (dm_sta_t *)hash_map_get_next(*m_sta_dassoc_map, sta);
+            }
+        }
+    } else if( target.type == em_commit_target_al) {
         m_network = dm.m_network;
         m_device = dm.m_device;
-        return 0;
+    } else if (target.type == em_commit_target_radio) {
+        string_to_macbytes((char *)target.params,mac);
+        radio = dm.get_radio(mac);
+        if (radio != NULL) {
+            for (i = 0;i < m_num_radios; i++) {
+                if (memcmp(radio->get_radio_info()->id.mac, get_radio(i)->get_radio_info()->id.mac, sizeof(mac_address_t)) == 0) {
+                    m_radio[i] = *(radio);
+                    printf("%s:%d Radio %s configuration updated \n", __func__, __LINE__,target.params);
+                    break;
+                }
+            }
+            if (i == m_num_radios) { //New Radio
+                m_radio[m_num_radios] = *(radio);
+                m_num_radios = m_num_radios + 1;
+                printf("%s:%d New Radio %s configuration created no of radios=%d\n", __func__, __LINE__,target.params,m_num_radios);
+            }
+        }
+    } else if (target.type == em_commit_target_bss) {
+        printf("%s:%d Commit radio=%s\n", __func__, __LINE__,target.params);
+        string_to_macbytes((char *)target.params,mac);
+        for (i = 0; i < dm.m_num_bss; i++) {
+            for (j = 0; j < m_num_bss; j++) {
+
+                if ((memcmp(mac, dm.get_bss(i)->get_bss_info()->ruid.mac, sizeof(mac_address_t)) == 0) &&
+                    (memcmp(get_bss(j)->get_bss_info()->bssid.mac, dm.get_bss(i)->get_bss_info()->bssid.mac, sizeof(mac_address_t)) == 0)){
+                        m_bss[j] = dm.m_bss[i];
+                        macbytes_to_string(dm.get_bss(i)->get_bss_info()->bssid.mac,mac_str);
+                        printf("%s:%d BSS %s configuration updated \n", __func__, __LINE__,mac_str);
+                        break;
+                }
+            }
+            if (j == m_num_bss) { //New bss Configuration
+                m_bss[m_num_bss] = dm.m_bss[i];
+                m_num_bss = m_num_bss + 1;
+                macbytes_to_string(dm.get_bss(i)->get_bss_info()->bssid.mac,mac_str);
+                printf("%s:%d New BSS %s configuration updated  no of bss=%d\n", __func__, __LINE__,mac_str,m_num_bss);
+            }
+        }
     }
-
-	m_network = dm.m_network;
-	m_device = dm.m_device;
-	m_ieee_1905_security = dm.m_ieee_1905_security;
-
-    //m_network_ssid = dm.m_network_ssid;
-
-	m_num_radios = dm.m_num_radios;
-
-	for (i = 0; i < EM_MAX_BANDS; i++) {
-		m_radio[i] = dm.m_radio[i];
-	}
-	
-	for (i = 0; i < EM_MAX_BSSS; i++) {
-		m_bss[i] = dm.m_bss[i];
-	}
-
-    for (i = 0; i < EM_MAX_NET_SSIDS; i++) {
-        m_network_ssid[i] = dm.m_network_ssid[i];
-    }
-
-	return 0;
+    return 0;
 }
 
 int dm_easy_mesh_t::commit_config(em_tlv_type_t tlv, unsigned char *data, unsigned int len, bssid_t id, em_commit_target_t target)
@@ -196,34 +213,28 @@ int dm_easy_mesh_t::commit_config(em_tlv_type_t tlv, unsigned char *data, unsign
 	return 0;
 }
 
-int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, unsigned int radio_index, unsigned int vap_index, unsigned int num_radios, unsigned int num_bss)
+int dm_easy_mesh_t::commit_bss_config(dm_easy_mesh_t& dm, unsigned int vap_index)
 {
-    if ((radio_index >= EM_MAX_BANDS) || (vap_index >= EM_MAX_BSS_PER_RADIO)) {
-        printf("%s:%d Invalid index radio_index=%d, vap_index=%d\n", __func__, __LINE__,radio_index,vap_index);
-        return 1;
+    int i = 0;
+    if (vap_index >= EM_MAX_BSS_PER_RADIO) {
+        printf("%s:%d Invalid index vap_index=%d\n", __func__, __LINE__,vap_index);
+        return false;
     }
-    m_radio[radio_index] = dm.m_radio[radio_index];
-    m_bss[vap_index] = dm.m_bss[vap_index];
-    m_num_radios = num_radios;
-    m_num_bss = num_bss;
-    return 0;
+    for (i = 0; i < m_num_bss; i++) {
+           if (memcmp(get_bss(i)->get_bss_info()->ruid.mac, dm.get_bss(vap_index)->get_bss_info()->ruid.mac, sizeof(mac_address_t)) == 0) {
+               if (memcmp(get_bss(i)->get_bss_info()->bssid.mac, dm.get_bss(vap_index)->get_bss_info()->bssid.mac, sizeof(mac_address_t)) == 0) {
+                   m_bss[i] = dm.m_bss[vap_index];
+                    return true;
+               }
+           }
+       }
+    return false;
 }
 
 int dm_easy_mesh_t::commit_config(em_attrib_id_t attrib, unsigned char *data, unsigned int len, bssid_t id, em_commit_target_t target)
 {
     return 0;
 }
-
-int dm_easy_mesh_t::commit_bss_config(dm_easy_mesh_t& dm, unsigned int vap_index)
-{
-    if (vap_index >= EM_MAX_BSS_PER_RADIO) {
-        printf("%s:%d Invalid index vap_index=%d\n", __func__, __LINE__,vap_index);
-        return 1;
-    }
-    m_bss[vap_index] = dm.m_bss[vap_index];
-    return 0;
-}
-
 
 int dm_easy_mesh_t::commit_config(em_cmd_t  *cmd)
 {
@@ -1736,7 +1747,7 @@ dm_device_t *dm_easy_mesh_t::find_matching_device(dm_device_t *dev)
 void dm_easy_mesh_t::print_config()
 {
     unsigned int i;
-    mac_addr_str_t  ctrl_mac, ctrl_al_mac, agent_al_mac, radio_mac;
+    mac_addr_str_t  ctrl_mac, ctrl_al_mac, agent_al_mac, radio_mac, mac_str;
 
     dm_easy_mesh_t::macbytes_to_string(get_controller_interface_mac(), ctrl_mac);
     dm_easy_mesh_t::macbytes_to_string(get_ctrl_al_interface_mac(), ctrl_al_mac);
@@ -1754,6 +1765,19 @@ void dm_easy_mesh_t::print_config()
     for (i = 0; i < m_num_opclass; i++) {
         dm_easy_mesh_t::macbytes_to_string(m_op_class[i].m_op_class_info.id.ruid, radio_mac);
         printf("%s:%d: OpClass[%d] id.ruid: %s id.type: %d id.index: %d\n", __func__, __LINE__, i, radio_mac, m_op_class[i].m_op_class_info.id.type, m_op_class[i].m_op_class_info.id.index);
+    }
+
+    printf("%s:%d:No of BSS=%d No of Radios=%d \n", __func__, __LINE__, m_num_bss, m_num_radios);
+    for (i = 0; i < m_num_bss; i++) {
+        dm_easy_mesh_t::macbytes_to_string(get_bss(i)->get_bss_info()->ruid.mac, mac_str);
+        printf("%s:%d:Radio Mac : %s ", __func__, __LINE__, mac_str);
+        dm_easy_mesh_t::macbytes_to_string(get_bss(i)->get_bss_info()->bssid.mac, mac_str);
+        printf("BSSID : %s\n", mac_str);
+    }
+
+    for (i = 0;i < m_num_radios; i++) {
+        dm_easy_mesh_t::macbytes_to_string(m_radio[i].get_radio_info()->id.mac, mac_str);
+        printf("%s:%d:Radio Mac: %s \n", __func__, __LINE__, mac_str);
     }
 }
 

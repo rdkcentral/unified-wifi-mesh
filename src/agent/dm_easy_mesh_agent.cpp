@@ -54,8 +54,8 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
     em_cmd_t *tmp;
     dm.translate_onewifi_dml_data(evt->u.raw_buff);
 
+    dm.print_config();
     num_radios = dm.get_num_radios();
-    printf("%s:%d: Number of radios: %d\n", __func__, __LINE__, num_radios);
     pcmd[num] = new em_cmd_dev_init_t(evt->params, dm);
     tmp = pcmd[num];
     num++;
@@ -77,7 +77,6 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
     dm_radio_t *rd, *tgt_rd;
     em_cmd_t *tmp;
 
-    printf("%s:%d: -------Enterstr=%s\n", __func__, __LINE__,evt->u.raw_buff);
 
     translate_onewifi_stats_data(evt->u.raw_buff);
 
@@ -196,7 +195,7 @@ void dm_easy_mesh_agent_t::translate_onewifi_dml_data (char *str)
     int num_radios,num_op,num_bss;
     unsigned int i = 0;
                 
-    webconfig_proto_easymesh_init(&ext, this, get_num_radios, set_num_radios, 
+    webconfig_proto_easymesh_init(&ext, this, NULL, get_num_radios, set_num_radios, 
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info, get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info);
     config.initializer = webconfig_initializer_onewifi;
@@ -215,13 +214,9 @@ void dm_easy_mesh_agent_t::translate_onewifi_dml_data (char *str)
     }       
         
 }
-    
-int dm_easy_mesh_agent_t::analyze_onewifi_private_subdoc(em_bus_event_t *evt, wifi_bus_desc_t *desc,bus_handle_t *bus_hdl)
+
+int dm_easy_mesh_agent_t::analyze_m2ctrl_configuration(em_bus_event_t *evt, wifi_bus_desc_t *desc,bus_handle_t *bus_hdl)
 {
-    dm_orch_type_t op;
-    em_subdoc_info_t *subdoc;
-    unsigned int num_radios;
-    subdoc = &evt->u.subdoc;
     em_event_t bus;
     webconfig_external_easymesh_t dev_data;
     webconfig_subdoc_type_t type = webconfig_subdoc_type_private;
@@ -231,21 +226,19 @@ int dm_easy_mesh_agent_t::analyze_onewifi_private_subdoc(em_bus_event_t *evt, wi
     dm_easy_mesh_agent_t  dm;
     raw_data_t l_bus_data;
     unsigned int index = 0;
-    raw_data_t data;
+    m2ctrl_vapconfig *vapconfig;
+    m2ctrl_vapconfig m2ctrl;
 
-    printf("%s:%d: Enter\n", __func__, __LINE__);
-    if ( dm.decode_config(subdoc, "dm_cache") == -1) {
-        printf("%s:%d: Failed to decode\n", __func__, __LINE__);
-        return 0;
-    }
-    num_radios = dm.get_num_radios();
-    printf("%s:%d: Number of radios: %d\n", __func__, __LINE__, num_radios);
-    memset(&data, 0, sizeof(raw_data_t));
+    vapconfig = (m2ctrl_vapconfig *)evt->u.raw_buff;
+    memcpy(m2ctrl.ssid, vapconfig->ssid, sizeof(m2ctrl.ssid));
+    m2ctrl.authtype = vapconfig->authtype;
+    memcpy(m2ctrl.password, vapconfig->password, sizeof(m2ctrl.password));
+     printf("%s:%d New configuration SSID=%s Security mode=%d  passphrase=%s \n",__func__,__LINE__,m2ctrl.ssid,m2ctrl.authtype,m2ctrl.password);
 
-    webconfig_proto_easymesh_init(&dev_data, &dm, get_num_radios, set_num_radios, 
-				get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
-				get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
-				get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info);
+    webconfig_proto_easymesh_init(&dev_data, &dm, &m2ctrl, get_num_radios, set_num_radios,
+                                get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
+                                get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
+                                get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info);
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -255,9 +248,6 @@ int dm_easy_mesh_agent_t::analyze_onewifi_private_subdoc(em_bus_event_t *evt, wi
         return 0;
     }
 
-    printf("%s:%d New configuration SSID=%s Security mode=%d  passphrase=%s \n",__func__,__LINE__,
-	    dm.get_bss(index)->get_bss_info()->ssid,dm.get_bss(index)->get_bss_info()->sec_mode,dm.get_bss(index)->get_bss_info()->passphrase);
-
     if ((webconfig_easymesh_encode(&config, &dev_data, type, &webconfig_easymesh_raw_data_ptr )) == webconfig_error_none) {
         printf("%s:%d Private subdoc encode success %s\n",__func__, __LINE__,webconfig_easymesh_raw_data_ptr);
     } else {
@@ -266,23 +256,19 @@ int dm_easy_mesh_agent_t::analyze_onewifi_private_subdoc(em_bus_event_t *evt, wi
     }
     memset(&l_bus_data, 0, sizeof(raw_data_t));
 
-    l_bus_data.data_type    = bus_data_type_bytes;
+    l_bus_data.data_type    = bus_data_type_string;
     l_bus_data.raw_data.bytes   = webconfig_easymesh_raw_data_ptr;
     l_bus_data.raw_data_len = strlen(webconfig_easymesh_raw_data_ptr);
+
     if (desc->bus_set_fn(bus_hdl, "Device.WiFi.WebConfig.Data.Subdoc.South", &l_bus_data)== 0) {
-	printf("%s:%d private subdoc send successfull\n",__func__, __LINE__);
-	printf("%s:%d Before commit config SSID=%s Security mode=%d  passphrase=%s \n",__func__,__LINE__,
-		get_bss(index)->get_bss_info()->ssid,get_bss(index)->get_bss_info()->sec_mode,get_bss(index)->get_bss_info()->passphrase);
-    commit_config(dm,index,index,dm.m_num_radios,dm.m_num_bss);
-	printf("%s:%d After commit SSID=%s Security mode=%d  passphrase=%s \n",__func__,__LINE__,get_bss(index)->get_bss_info()->ssid,
-		get_bss(index)->get_bss_info()->sec_mode,get_bss(index)->get_bss_info()->passphrase);
+        printf("%s:%d private subdoc send successfull\n",__func__, __LINE__);
     }
     else {
-	printf("%s:%d private subdoc send fail\n",__func__, __LINE__);
-	return -1;
+        printf("%s:%d private subdoc send fail\n",__func__, __LINE__);
+        return -1;
     }
     return 1;
-}
+}    
 
 int dm_easy_mesh_agent_t::analyze_onewifi_cb(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
@@ -293,7 +279,7 @@ int dm_easy_mesh_agent_t::analyze_onewifi_cb(em_bus_event_t *evt, em_cmd_t *pcmd
     unsigned int i = 0, j = 0;
     dm_easy_mesh_agent_t  dm;
     em_cmd_t *tmp;
-    webconfig_proto_easymesh_init(&ext, &dm, get_num_radios, set_num_radios,
+    webconfig_proto_easymesh_init(&ext, &dm, NULL, get_num_radios, set_num_radios,
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info, get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info);
     config.initializer = webconfig_initializer_onewifi;
@@ -344,7 +330,7 @@ void dm_easy_mesh_agent_t::translate_onewifi_stats_data(char *str)
     webconfig_subdoc_type_t type;
     //declare dm = this;
 
-    webconfig_proto_easymesh_init(&extdata, this, get_num_radios, set_num_radios, 
+    webconfig_proto_easymesh_init(&extdata, this, NULL, get_num_radios, set_num_radios, 
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
 			get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info);

@@ -106,6 +106,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
     em_interface_t *intf;
     mac_addr_str_t	mac_str;
     dm_easy_mesh_t *dm;
+    em_commit_target_t config;
 
     ctx = pcmd->m_data_model.get_cmd_ctx();
 
@@ -118,10 +119,12 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
             if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
                 dm = m_mgr->create_data_model(global_netid, intf->mac);
             }
+            config.type = em_commit_target_al;
+            //commit basic configuration before orchestrate
+            dm->commit_config(pcmd->m_data_model, config);
             em = m_mgr->create_node(intf, pcmd->get_band(), dm, 1, em_profile_type_3, em_service_type_agent);
             if (em != NULL) {
-                // since this does not have to go through orchestration of M1 M2, commit the data model
-                em->get_data_model()->commit_config(pcmd->m_data_model, em_commit_target_em);
+                printf("%s:%d: AL node created\n", __func__, __LINE__);
             }
             break;
         case dm_orch_type_em_insert:
@@ -131,6 +134,11 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
                 dm = m_mgr->create_data_model(global_netid, intf->mac);
             }    
             dm_easy_mesh_t::macbytes_to_string(intf->mac, mac_str);
+            config.type = em_commit_target_radio;
+            snprintf((char *)config.params,sizeof(config.params),(char*)"%s",mac_str);
+            dm->commit_config(pcmd->m_data_model, config);
+            config.type = em_commit_target_bss;
+            dm->commit_config(pcmd->m_data_model, config);
             printf("%s:%d: calling create_node\n", __func__, __LINE__);
             if ((em = m_mgr->create_node(intf, pcmd->get_band(), dm, 0, em_profile_type_3, em_service_type_agent)) == NULL) {
                 printf("%s:%d: Failed to create node\n", __func__, __LINE__);
@@ -140,52 +148,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
         case dm_orch_type_em_update:
             break;	
         case dm_orch_type_sta_insert:
-        case dm_orch_type_sta_update: {
-            char radio_mac[64] = {0};
-            dm_sta_t *sta;
-            dm_easy_mesh_t dm;
-            hash_map_t **m_sta_assoc_map = pcmd->get_data_model()->get_assoc_sta_map();
-            hash_map_t **temp = dm.get_assoc_sta_map();
-            if ((m_sta_assoc_map != NULL) && (*m_sta_assoc_map != NULL)) {
-                sta = (dm_sta_t *)hash_map_get_first(*m_sta_assoc_map);
-                while (sta != NULL) {
-                    sscanf(sta->get_sta_info()->m_sta_key,"%[^-]-%*s",radio_mac);
-                    em = (em_t *)hash_map_get(m_mgr->m_em_map,radio_mac);
-                    if (em != NULL) {
-                        dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
-                        // update the em
-                        *temp = hash_map_create();
-                        hash_map_put(*temp,strdup(sta->get_sta_info()->m_sta_key),sta);
-                        printf("%s:%d: Add key%s \nfrom node %s  found\n", __func__,\
-                                                              __LINE__,sta->get_sta_info()->m_sta_key,mac_str);
-                        em->get_data_model()->commit_config(dm, em_commit_target_sta_hash_map);
-                        memset(&dm,0,sizeof(dm));
-                    }
-                    sta = (dm_sta_t *)hash_map_get_next(*m_sta_assoc_map, sta);
-                }
-            }
-            hash_map_t **m_sta_dassoc_map = pcmd->get_data_model()->get_dassoc_sta_map();
-            hash_map_t **dtemp = dm.get_dassoc_sta_map();
-            if ((m_sta_dassoc_map != NULL) && (*m_sta_dassoc_map != NULL)) {
-                sta = (dm_sta_t *)hash_map_get_first(*m_sta_dassoc_map);
-                while (sta != NULL) {
-                    sscanf(sta->get_sta_info()->m_sta_key,"%[^-]-%*s",radio_mac);
-                    em = (em_t *)hash_map_get(m_mgr->m_em_map,radio_mac);
-                    if (em != NULL) {
-                        dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
-                        // update the em
-                        *dtemp = hash_map_create();
-                        hash_map_put(*dtemp,strdup(sta->get_sta_info()->m_sta_key),sta);
-                        printf("%s:%d: Remove key%s \nfrom node %s  found\n", __func__,\
-                                                              __LINE__,sta->get_sta_info()->m_sta_key,mac_str);
-                        em->get_data_model()->commit_config(dm, em_commit_target_sta_hash_map);
-                        memset(&dm,0,sizeof(dm));
-                    }
-                    sta = (dm_sta_t *)hash_map_get_next(*m_sta_dassoc_map, sta);
-                }
-            }
-            break;
-        }
+        case dm_orch_type_sta_update:
         case dm_orch_type_ap_cap_report:
         case dm_orch_type_client_cap_report:
         case dm_orch_type_owconfig_cnf:
