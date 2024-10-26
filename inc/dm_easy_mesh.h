@@ -70,7 +70,6 @@ public:
     int analyze_vap_config(em_bus_event_t *evt, em_cmd_t *pcmd[]);
     int analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]);
     int analyze_ap_cap_query(em_bus_event_t *evt, em_cmd_t *pcmd[]);
-    int analyze_autoconfig_renew(em_bus_event_t *evt, em_cmd_t *pcmd[]);
     int analyze_client_cap_query(em_bus_event_t *evt, em_cmd_t *pcmd[]);
 
     int decode_config(em_subdoc_info_t *subdoc, const char *key, unsigned int index = 0, unsigned int *num = NULL);

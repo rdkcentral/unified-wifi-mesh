@@ -42,6 +42,7 @@
 #include <cjson/cJSON.h>
 #include "em_cmd_sta_list.h"
 #include "em_cmd_onewifi_cb.h"
+#include "em_cmd_cfg_renew.h"
 
 int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
@@ -67,6 +68,29 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
     return num;
 
 }
+
+int dm_easy_mesh_agent_t::analyze_autoconfig_renew(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    em_bus_event_type_cfg_renew_params_t *raw;
+    em_event_t bus;
+    dm_easy_mesh_agent_t  dm = *this;
+    int num = 0;
+    em_cmd_t *tmp;
+
+    raw = (em_bus_event_type_cfg_renew_params_t *)evt->u.raw_buff;
+    memcpy(dm.get_controller_interface_mac(), raw->ctrl_src, sizeof(mac_address_t));
+
+    pcmd[num] = new em_cmd_cfg_renew_t(em_service_type_agent, evt->params, dm);
+    tmp = pcmd[num];
+    num++;
+
+    while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+        tmp = pcmd[num];
+        num++;
+    }
+    return num;
+}
+
 
 int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {

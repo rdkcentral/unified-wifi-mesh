@@ -31,6 +31,7 @@ public:
 
     int analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]);
     int analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]);
+    int analyze_autoconfig_renew(em_bus_event_t *evt, em_cmd_t *pcmd[]);
 
     void translate_onewifi_dml_data(char *);
     void translate_onewifi_sta_data(char *); //translate when we receive the assoc client subdoc

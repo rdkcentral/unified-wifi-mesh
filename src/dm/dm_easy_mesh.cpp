@@ -44,7 +44,6 @@
 #include <cjson/cJSON.h>
 #include "em_cmd_sta_list.h"
 #include "em_cmd_ap_cap.h"
-#include "em_cmd_autoconfig_renew.h"
 #include "em_cmd_client_cap.h"
 
 dm_easy_mesh_t dm_easy_mesh_t::operator =(dm_easy_mesh_t const& obj)
@@ -279,31 +278,6 @@ int dm_easy_mesh_t::analyze_vap_config(em_bus_event_t *evt, em_cmd_t *pcmd[])
 
 	printf("%s:%d: Enter\n", __func__, __LINE__);
 	return num;
-}
-
-int dm_easy_mesh_t::analyze_autoconfig_renew(em_bus_event_t *evt, em_cmd_t *pcmd[])
-{
-    dm_easy_mesh_t  dm;
-    em_orch_desc_t desc;
-    em_subdoc_info_t *subdoc;
-
-    printf("%s:%d: Enter\n", __func__, __LINE__);
-
-    subdoc = &evt->u.subdoc;
-
-    if (dm.decode_config(subdoc, "Renew") == -1) {
-        printf("%s:%d: Failed to decode\n", __func__, __LINE__);
-        return 0;
-    }
-    
-    desc.op = dm_orch_type_em_update;
-    desc.submit = true;
-
-    pcmd[0] = new em_cmd_autoconfig_renew_t(evt->params,dm);
-    pcmd[0]->set_rd_freq_band(0);
-    pcmd[0]->override_op(0, &desc);
-
-    return 1;
 }
 
 int dm_easy_mesh_t::analyze_ap_cap_query(em_bus_event_t *evt, em_cmd_t *pcmd[])

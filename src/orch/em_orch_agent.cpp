@@ -66,11 +66,15 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             }
             break;
         case em_cmd_type_onewifi_cb:
-            if (em->get_state() == em_state_agent_channel_pref_pending) {
+            if (em->get_state() == em_state_agent_topo_synchronized) {
                 return true;
             }
             break;
-
+        case em_cmd_type_cfg_renew:
+            if (em->get_state() == em_state_agent_owconfig_pending) {
+                return true;
+            }
+            break;
         default:
             if ((em->get_state() == em_state_agent_config_none) || \
                     (em->get_state() == em_state_agent_config_complete)) {
@@ -88,7 +92,10 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
         return true;
     } else if (pcmd->m_type == em_cmd_type_onewifi_cb) {
         return true;
+    } else if (pcmd->m_type == em_cmd_type_cfg_renew) {
+        return true;
     }
+
 
     return false;
 }
@@ -152,6 +159,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
         case dm_orch_type_ap_cap_report:
         case dm_orch_type_client_cap_report:
         case dm_orch_type_owconfig_cnf:
+        case dm_orch_type_tx_cfg_renew:
             break;
         default:
             break;
@@ -163,7 +171,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
 unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 {
     em_t *em;
-    unsigned int count = 0 ;
+    unsigned int count = 0 , num = 0;
     em_cmd_ctx_t *ctx;
     dm_radio_t *radio;
     mac_addr_str_t	src_mac_str, dst_mac_str;
@@ -190,14 +198,9 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                 }
                 break;
             case em_cmd_type_cfg_renew:
-                freq_band = pcmd->get_rd_freq_band();
-                printf("pcmd radio frequency = %d\n",freq_band);
-                em_freq_band = em->get_current_cmd()->get_rd_freq_band();
-                printf("em freq_band = %d\n",em_freq_band);
-                if (em->is_autoconfig_renew_candidate(freq_band,em_freq_band) == true) {
+                if (memcmp(pcmd->get_data_model()->get_radio(num)->get_radio_info()->id.mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
-                    build_autoconf_renew = 1;
                 }
                 break;
             case em_cmd_type_sta_list:
@@ -260,9 +263,6 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
             default:
                 break;
         }
-        if (build_autoconf_renew == 1) {
-            break;
-        }		
         em = (em_t *)hash_map_get_next(m_mgr->m_em_map, em);	
     }
 
