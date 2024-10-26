@@ -1581,7 +1581,7 @@ typedef enum {
     em_state_agent_autoconfig_renew_pending,
     em_state_agent_owconfig_pending,
     em_state_agent_onewifi_bssconfig_ind,
-    em_state_agent_channel_pref_pending,
+    em_state_agent_topo_synchronized,
     em_state_agent_topology_notify,
     em_state_agent_ap_cap_report,
     em_state_agent_client_cap_report,
@@ -2121,6 +2121,7 @@ typedef struct {
 
 typedef struct {
     mac_address_t   radio;
+    mac_address_t   ctrl_src;
 } em_bus_event_type_cfg_renew_params_t;
 
 typedef struct {

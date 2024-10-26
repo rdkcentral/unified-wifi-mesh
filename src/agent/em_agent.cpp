@@ -238,9 +238,6 @@ void em_agent_t::handle_autoconfig_renew(em_bus_event_t *evt)
     } else if ((num = m_data_model.analyze_autoconfig_renew(evt, pcmd)) == 0) {
         m_agent_cmd->send_result(em_cmd_out_status_no_change);
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
-        m_agent_cmd->send_result(em_cmd_out_status_success);
-    } else {
-        m_agent_cmd->send_result(em_cmd_out_status_not_ready);
     }
 
 }
@@ -439,28 +436,30 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
     switch (htons(cmdu->type)) {
 		case em_msg_type_autoconf_resp:
 		case em_msg_type_autoconf_renew:
-			if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                     len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_freq_band(&band) == false) {
-            	printf("%s:%d: Could not find frequency band\n", __func__, __LINE__);
-            	return NULL;
-        	}
-			
-			em = (em_t *)hash_map_get_first(m_em_map);
-        	while (em != NULL) {
-            	if (em->is_matching_freq_band(&band) == true) {
-                	found = true;
-                	break;
-            	}
-            	em = (em_t *)hash_map_get_next(m_em_map, em);
-        	}  
+                printf("%s:%d: Could not find frequency band\n", __func__, __LINE__);
+                return NULL;
+            }
 
-        	if (found == false) {
-            	printf("%s:%d: Could not find em with matching band%d\n", __func__, __LINE__, band);
-            	return NULL;
-        	}
+            em = (em_t *)hash_map_get_first(m_em_map);
+            while (em != NULL) {
+                if (!(em->is_al_interface_em())) {
+                    if (em->is_matching_freq_band(&band) == true) {
+                        if ((em->get_state() != em_state_agent_autoconfig_renew_pending) && (em->get_state() !=em_state_agent_wsc_m2_pending) && (em->get_state() != em_state_agent_owconfig_pending) ) {
+                            found = true;
+                            break;
+                        }
+                    }
+                }   
+                em = (em_t *)hash_map_get_next(m_em_map, em);
+            }
+            if (found == false) {
+                printf("%s:%d: Could not find em with matching band%d\n", __func__, __LINE__, band);
+                return NULL;
+            }
 
-			break;
-
+            break;
 		case em_msg_type_autoconf_wsc:
 			if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                 len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
