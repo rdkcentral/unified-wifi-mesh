@@ -67,7 +67,9 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                 em->set_renew_tx_count(0);
                 printf("%s:%d: Maximum renew tx threshold crossed, transitioning to fini\n", __func__, __LINE__);
                 return true;
-            }
+            } else if (em->get_state() == em_state_ctrl_wsc_m2_sent) {
+                return true;
+			}
             break;
 
         case em_cmd_type_em_config:

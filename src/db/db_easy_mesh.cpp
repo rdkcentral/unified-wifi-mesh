@@ -72,6 +72,10 @@ int db_easy_mesh_t::get_strings_by_token(char *parent, int token, unsigned int a
     em_long_string_t str_copy;
     char *tmp, *orig;
 
+	if (*parent == 0) {
+		return 0;
+	}
+
     for (i = 0; i < argc; i++) {
         memset(argv[i], 0, sizeof(em_long_string_t));
     }
