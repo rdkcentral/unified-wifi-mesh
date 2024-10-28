@@ -2254,13 +2254,14 @@ int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned 
 
     radio_info->number_of_bss = radio_basic_cap->num_bss;
 
-    //dm_easy_mesh_t::macbytes_to_string(ruid, mac_str);
-    //printf("%s:%d: Assigned radio: %s to data model\n", __func__, __LINE__, mac_str);
+    dm_easy_mesh_t::macbytes_to_string(ruid, mac_str);
+    printf("%s:%d: Radio: %s\n", __func__, __LINE__, mac_str);
 	db_cfg_type = dm->get_db_cfg_type();
     dm->set_db_cfg_type(db_cfg_type | db_cfg_type_radio_list_update);
 	
 	basic_cap_op_class = radio_basic_cap->op_classes;
 	for (i = 0; i < radio_basic_cap->op_class_num; i++) {
+		memset(&op_class_info, 0, sizeof(em_op_class_info_t));
 		memcpy(op_class_info.id.ruid, ruid, sizeof(mac_address_t));
 		op_class_info.id.type = em_op_class_type_capability;
 		op_class_info.op_class = basic_cap_op_class->op_class;
@@ -2271,6 +2272,8 @@ int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned 
 		}
 		basic_cap_op_class += sizeof(em_op_class_t) + op_class_info.num_non_op_channels;
 
+		op_class_obj = &dm->m_op_class[0];
+
 		// now check if the op_class already exists
 		for (j = 0; j < dm->get_num_op_class(); j++) {
 			op_class_obj = &dm->m_op_class[j];
@@ -2279,6 +2282,8 @@ int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned 
 				break;	
 			}
 		}
+
+		//printf("%s:%d: Op Class Exists: %s\n", __func__, __LINE__, (op_class_exists == true)?"yes":"no");
 
 		if (op_class_exists == true) {
 			op_class_exists = false;

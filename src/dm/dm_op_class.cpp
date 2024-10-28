@@ -218,7 +218,7 @@ dm_op_class_t::dm_op_class_t(const dm_op_class_t& op_class)
 
 dm_op_class_t::dm_op_class_t()
 {
-
+	memset(&m_op_class_info, 0, sizeof(em_op_class_info_t));
 }
 
 dm_op_class_t::~dm_op_class_t()
