@@ -27,7 +27,7 @@ PROGRAM = $(INSTALLDIR)/bin/onewifi_em_agent
 INCLUDEDIRS = \
 	-I$(ONEWIFI_EM_HOME)/inc \
 	-I$(ONEWIFI_EM_HOME)/src/utils \
-	-I$(ONEWIFI_HAL_INTF_HOME)/generic \
+	-I$(ONEWIFI_HAL_INTF_HOME) \
 	-I$(ONEWIFI_HOME)/generic/source/utils \
 	-I$(ONEWIFI_HOME)/generic/include \
     	-I$(ONEWIFI_BUS_LIB_HOME)/inc \
@@ -37,6 +37,7 @@ INCLUDEDIRS = \
     	-I$(ONEWIFI_HOME)/generic/source/platform/common \
     	-I$(ONEWIFI_HOME)/generic/source/platform/linux/he_bus/inc \
         -I$(ONEWIFI_EM_HOME)/src/util_crypto \
+        -I$(ONEWIFI_HOME)/generic/source/ccsp
 
 $(info The value of VARIABLE is $(ONEWIFI_HAL_INTF_HOME))
 

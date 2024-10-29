@@ -2112,6 +2112,7 @@ typedef struct{
     em_long_string_t password;
     mac_address_t mac;
     unsigned int key_wrap_authenticator;
+    bool enable;
 }m2ctrl_vapconfig;
 
 typedef struct {

@@ -23,7 +23,7 @@
 #include "wifi_webconfig.h"
 #include "dm_easy_mesh.h"
 #include "webconfig_external_proto.h"
-#include "bus_common.h"
+#include "bus.h"
 
 class dm_easy_mesh_agent_t : public dm_easy_mesh_t {
 

@@ -48,15 +48,12 @@ void em_agent_t::handle_sta_list(em_bus_event_t *evt)
     unsigned int num;
 
     if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
-        m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+        printf("analyze_sta_list in progress\n");
     } else if ((num = m_data_model.analyze_sta_list(evt, pcmd)) == 0) {
-        m_agent_cmd->send_result(em_cmd_out_status_no_change);
+        printf("analyze_sta_list failed\n");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
-        m_agent_cmd->send_result(em_cmd_out_status_success);
-    } else {
-        m_agent_cmd->send_result(em_cmd_out_status_not_ready);
+        printf("analyze_sta_list submit complete\n");
     }
-
 }
 
 void em_agent_t::handle_ap_cap_query(em_bus_event_t *evt)
@@ -234,9 +231,9 @@ void em_agent_t::handle_autoconfig_renew(em_bus_event_t *evt)
     unsigned int num;
 
     if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
-        m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+        printf("handle_autoconfig_renew in progress\n");
     } else if ((num = m_data_model.analyze_autoconfig_renew(evt, pcmd)) == 0) {
-        m_agent_cmd->send_result(em_cmd_out_status_no_change);
+        printf("handle_autoconfig_renew cmd creation failed\n");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
     }
 
@@ -352,7 +349,29 @@ void em_agent_t::input_listener()
         printf("%s:%d bus get failed\n", __func__, __LINE__);
         return;
     }
+
+    //if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_COLLECT_STATS_ASSOC_DEVICE_STATS, (void *)&em_agent_t::assoc_stats_cb, NULL, 0) != 0) {
+    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.CollectStats.AccessPoint.1.AssociatedDeviceStats", (void *)&em_agent_t::assoc_stats_cb, NULL, 0) != 0) {
+        printf("%s:%d bus get failed\n", __func__, __LINE__);
+        return;
+    }
+
     io(NULL);
+}
+
+int em_agent_t::assoc_stats_cb(char *event_name, raw_data_t *data)
+{
+    printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
+    /*em_event_t evt;
+    em_bus_event_t *bevt;
+
+    bevt = &evt.u.bevt;
+    bevt->type = em_bus_event_type_sta_list;
+    memcpy(bevt->u.raw_buff, data->raw_data.bytes, data->raw_data_len);
+
+    g_agent.agent_input(&evt);*/
+
+    return 1;
 }
 
 int em_agent_t::sta_cb(char *event_name, raw_data_t *data)
@@ -491,6 +510,9 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             break;
         case em_msg_type_channel_pref_query:
             printf("Received channel preference query\n");
+            break;
+
+        case em_msg_type_topo_notif:
             break;
 
 		default:
