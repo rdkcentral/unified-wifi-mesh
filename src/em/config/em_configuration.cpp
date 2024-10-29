@@ -129,7 +129,7 @@ void em_configuration_t::handle_state_topology_notify()
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
     unsigned int sz;
-    char* Errors[EM_MAX_TLV_MEMBERS];
+    char* errors[EM_MAX_TLV_MEMBERS];
     hash_map_t **m_sta_assoc_map = get_current_cmd()->get_data_model()->get_assoc_sta_map();
     hash_map_t **m_sta_dassoc_map = (hash_map_t**)get_current_cmd()->get_data_model()->get_dassoc_sta_map();
 
@@ -140,25 +140,21 @@ void em_configuration_t::handle_state_topology_notify()
     while (count != 0) {
         sz = create_topology_notify_msg(buff);
 
-
         printf("%s:%d: Creation of topology notify size=%d successful\n", __func__, __LINE__,sz);
-        // em_msg_t validateObj(em_msg_type_topo_notif,em_profile_type_3,buff,sz);//TODO
-
-        //    if (validateObj.validate(Errors)) //TODO
-        if (1) {
-            if (send_frame(buff, sz)  < 0) {
-                printf("%s:%d: failed, err:%d\n", __func__, __LINE__, errno);
-                return;
-            }
-            printf("%s:%d: Topology notify send successful\n", __func__, __LINE__);
+        if (em_msg_t(em_msg_type_topo_notif, em_profile_type_3, buff, sz).validate(errors) == 0) {
+            printf("Toplogy notification msg validation failed\n");
         }
+        if (send_frame(buff, sz)  < 0) {
+            printf("%s:%d: failed, err:%d\n", __func__, __LINE__, errno);
+            return;
+        }
+        printf("%s:%d: Topology notify send successful\n", __func__, __LINE__);
         count = hash_map_count(*m_sta_assoc_map);
         count += hash_map_count(*m_sta_dassoc_map);
         printf("%s:%d Topology notify Client Count=%d\n", __func__, __LINE__,count);
         sz = 0;
         memset(buff,0,MAX_EM_BUFF_SZ);
     }
-    //set_state(em_state_agent_config_complete);
 }
 
 
@@ -172,12 +168,15 @@ int em_configuration_t::create_topology_notify_msg(unsigned char *buff)
     unsigned char *tmp = buff;
     unsigned short type = htons(ETH_P_1905);
     mac_address_t   multi_addr = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x13};
+    dm_easy_mesh_t *dm;
+
+    dm = get_data_model();
 
     memcpy(tmp, (unsigned char *)multi_addr, sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
-    memcpy(tmp, get_current_cmd()->get_al_interface_mac(), sizeof(mac_address_t));
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
@@ -2031,6 +2030,7 @@ int em_configuration_t::handle_encrypted_settings()
         if (id == attr_id_ssid) {
             memcpy(ssid, attr->val, htons(attr->len));
             memcpy(vapconfig->ssid, attr->val, htons(attr->len));
+            vapconfig->enable = true;
             printf("%s:%d: ssid attrib: %s\n", __func__, __LINE__, ssid);
         } else if (id == attr_id_auth_type) {
             printf("%s:%d: auth type attrib\n", __func__, __LINE__);
@@ -2069,7 +2069,7 @@ unsigned int em_configuration_t::create_encrypted_settings(unsigned char *buff, 
     unsigned int size = 0, cipher_len, plain_len;
     unsigned char iv[AES_BLOCK_SIZE];
     unsigned char plain[MAX_EM_BUFF_SZ];
-    unsigned short auth_type = 0x0020;
+    unsigned short auth_type = 0x0010;
     em_network_ssid_info_t *net_ssid_info;
 
 

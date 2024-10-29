@@ -94,8 +94,9 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
         return true;
     } else if (pcmd->m_type == em_cmd_type_cfg_renew) {
         return true;
+    } else if (pcmd->m_type == em_cmd_type_sta_list) {
+        return true;
     }
-
 
     return false;
 }
@@ -204,29 +205,22 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                 }
                 break;
             case em_cmd_type_sta_list:
-                /*if (em->is_al_interface_em()) {
-                    dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), dst_mac_str);
-                    printf("%s:%d Sta List build candidate MAC=%s\n", __func__, __LINE__,dst_mac_str);
-                    queue_push(pcmd->m_em_candidates, em);
-                    count++;
-                }*/
                 m_sta_assoc_map = pcmd->get_data_model()->get_assoc_sta_map();
-                    if ((m_sta_assoc_map != NULL) && (*m_sta_assoc_map != NULL)) {
-                        sta = (dm_sta_t *)hash_map_get_first(*m_sta_assoc_map);
-                        if (sta != NULL) {
-                            dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), dst_mac_str);
-                            printf("%s:%d Sta List build candidate MAC=%s\n", __func__, __LINE__,dst_mac_str);
-                            dm_easy_mesh_t::macbytes_to_string(sta->get_sta_info()->radiomac, dst_mac_str);
-                            printf("%s:%d Sta List build candidate MAC=%s\n", __func__, __LINE__,dst_mac_str);
+                if ((m_sta_assoc_map != NULL) && (*m_sta_assoc_map != NULL)) {
+                    sta = (dm_sta_t *)hash_map_get_first(*m_sta_assoc_map);
+                    if (sta != NULL) {
+                        dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), dst_mac_str);
+                        printf("%s:%d Sta List build candidate MAC=%s\n", __func__, __LINE__,dst_mac_str);
+                        dm_easy_mesh_t::macbytes_to_string(sta->get_sta_info()->radiomac, dst_mac_str);
+                        printf("%s:%d Sta List build candidate MAC=%s\n", __func__, __LINE__,dst_mac_str);
 
-                            if(memcmp(em->get_radio_interface_mac(),&sta->get_sta_info()->radiomac,sizeof(mac_address_t)) == 0) {
-                                printf("%s:%d Sta List build candidate MAC=%s push to queue\n", __func__, __LINE__,dst_mac_str);
-                                queue_push(pcmd->m_em_candidates, em);
-                                count++;
-                           }
-
+                        if(memcmp(em->get_radio_interface_mac(),&sta->get_sta_info()->radiomac,sizeof(mac_address_t)) == 0) {
+                            printf("%s:%d Sta List build candidate MAC=%s push to queue\n", __func__, __LINE__,dst_mac_str);
+                            queue_push(pcmd->m_em_candidates, em);
+                            count++;
                         }
                     }
+                }
                 break;	
 	        case em_cmd_type_ap_cap_query:
                 if (!(em->is_al_interface_em())) {

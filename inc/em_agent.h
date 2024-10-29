@@ -26,7 +26,6 @@
 #include "em_crypto.h"
 #include "em_orch_agent.h"
 #include "bus.h"
-#include "bus_common.h"
 
 class em_cmd_agent_t;
 
@@ -85,6 +84,7 @@ public:
 
     static int sta_cb(char *event_name, raw_data_t *data);
     static int onewifi_cb(char *event_name, raw_data_t *data);
+    static int assoc_stats_cb(char *event_name, raw_data_t *data);
     void *get_assoc(void*);
     void io(void *data, bool input = true);
     bool agent_input(void *data);

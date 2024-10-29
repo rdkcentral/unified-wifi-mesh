@@ -535,6 +535,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 		case em_msg_type_topo_query:
 		case em_msg_type_autoconf_renew:
         case em_msg_type_channel_pref_query:
+		case em_msg_type_topo_notif:
 			break;
 
 		default:
