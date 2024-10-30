@@ -147,13 +147,13 @@ void em_agent_t::handle_channel_pref_query(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num;
 
-    if (m_orch->is_cmd_type_in_progress(evt->type) == false) {
-	return; 
+    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+        m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+    } else if ((num = m_data_model.analyze_channel_pref_query(evt, pcmd)) == 0) {
+        printf("%s:%d query send fail \n", __func__, __LINE__);
+    } else if (m_orch->submit_commands(pcmd, num) > 0) {
+        printf("%s:%d send success \n", __func__, __LINE__);
     }
-    if ((num = m_data_model.analyze_channel_pref_query(evt, pcmd)) > 0) {
-	m_orch->submit_commands(pcmd, num);
-    }
-
 }
 
 void em_agent_t::handle_m2ctrl_configuration(em_bus_event_t *evt)
