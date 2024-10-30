@@ -68,6 +68,7 @@ public:
     void handle_onewifi_private_subdoc(em_bus_event_t *evt);
     void handle_onewifi_cb(em_bus_event_t *evt);
     void handle_m2ctrl_configuration(em_bus_event_t *evt);
+	void handle_channel_pref_query(em_bus_event_t *evt);	
 
     em_cmd_t& get_command(char *in);
     

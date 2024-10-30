@@ -43,6 +43,7 @@
 #include "em_cmd_sta_list.h"
 #include "em_cmd_onewifi_cb.h"
 #include "em_cmd_cfg_renew.h"
+#include "em_cmd_channel_pref_query.h"
 
 int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
@@ -53,7 +54,7 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
     dm_device_t *dev, *tgt_dev;
     dm_radio_t *rd, *tgt_rd;
     em_cmd_t *tmp;
-    dm.translate_onewifi_dml_data(evt->u.raw_buff);
+    dm.translate_onewifi_dml_data((char *)evt->u.raw_buff);
 
     dm.print_config();
     num_radios = dm.get_num_radios();
@@ -102,7 +103,7 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
     std::unordered_map<std::string, int> mac_to_index_map;
     int count = 0;
 
-    translate_onewifi_stats_data(evt->u.raw_buff);
+    translate_onewifi_stats_data((char *)evt->u.raw_buff);
 
 #if 0
     desc.op = dm_orch_type_sta_update;
@@ -292,7 +293,7 @@ int dm_easy_mesh_agent_t::analyze_onewifi_cb(em_bus_event_t *evt, em_cmd_t *pcmd
         return 0;
     }
 
-    if ((webconfig_easymesh_decode(&config, evt->u.raw_buff, &ext, &type)) == webconfig_error_none) {
+    if ((webconfig_easymesh_decode(&config, (char *)evt->u.raw_buff, &ext, &type)) == webconfig_error_none) {
         printf("%s:%d Private subdoc decode success\n",__func__, __LINE__);
     } else {
         printf("%s:%d Private subdoc decode fail\n",__func__, __LINE__);
@@ -351,6 +352,21 @@ void dm_easy_mesh_agent_t::translate_onewifi_stats_data(char *str)
     } else {
         printf("%s:%d Assoc clients decode fail\n",__func__, __LINE__);
     }
+}
+
+int dm_easy_mesh_agent_t::analyze_channel_pref_query(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    em_bus_event_type_cfg_renew_params_t *raw;
+    em_event_t bus;
+    dm_easy_mesh_agent_t  dm = *this;
+    int num = 0;
+    em_cmd_t *tmp;
+
+    pcmd[num] = new em_cmd_channel_pref_query_t(em_service_type_agent, evt->params, dm);
+    //pcmd[num] = new em_cmd_ow_cb_t(evt->params, dm);
+    num++;
+
+    return num;
 }
 
 webconfig_error_t dm_easy_mesh_agent_t::webconfig_dummy_apply(webconfig_subdoc_t *doc, webconfig_subdoc_data_t *data)

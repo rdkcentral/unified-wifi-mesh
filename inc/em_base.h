@@ -68,7 +68,7 @@
 #define EM_MAX_TOPO_QUERY_TX_THRESH  5
 
 
-#define EM_CLI_AMX_ARGS 5
+#define EM_CLI_MAX_ARGS 5
 
 /* Authentication Type Flags */
 #define EM_AUTH_OPEN 0x0001
@@ -185,7 +185,7 @@ typedef char    em_tiny_string_t[4];
 typedef char    em_subdoc_name_space_t[64];
 typedef char    em_subdoc_data_buff_t[EM_SUBDOC_BUFF_SZ];
 typedef char    em_status_string_t[EM_IO_BUFF_SZ];
-typedef char    em_raw_data_t[EM_SUBDOC_BUFF_SZ];
+typedef unsigned char    em_raw_data_t[EM_SUBDOC_BUFF_SZ];
 
 typedef struct {
     unsigned char   dsap;
@@ -240,7 +240,7 @@ typedef struct {
     mac_address_t   bssid;
     unsigned char   reserved_field:7;
     unsigned char   assoc_event:1;
-} __attribute__((__packed__)) em_tlv_client_assoc_t;
+} __attribute__((__packed__)) em_client_assoc_event_t;
 
 typedef unsigned char em_enum_type_t;
 
@@ -1558,34 +1558,23 @@ typedef enum {
 } data_elem_attr_id_t;
 
 typedef enum {
-    em_state_agent_none,
-    em_state_agent_prov_none,
-    em_state_agent_prov,
-    em_state_agent_auth_req_pending,
-    em_state_agent_auth_rsp_pending,
-    em_state_agent_auth_cnf_pending,
-    em_state_agent_config_req_pending,
-    em_state_agent_config_rsp_pending,
-    em_state_agent_config_res_pending,
-    em_state_agent_prov_complete,   // idle state after provisioned
-    em_state_agent_discover_none,
-    em_state_agent_discover_pending,
-    em_state_agent_topo_query_pending,
-    em_state_agent_topo_rsp_pending,
-    em_state_agent_topo_rsp_recvd,
-    em_state_agent_discover_max,
-    em_state_agent_config_none,     // idle state after provisioned, but does not have configuration for M1/M2
-    em_state_agent_config_pending,
+    em_state_agent_unconfigured,
     em_state_agent_autoconfig_rsp_pending,
     em_state_agent_wsc_m2_pending,
-    em_state_agent_autoconfig_renew_pending,
     em_state_agent_owconfig_pending,
     em_state_agent_onewifi_bssconfig_ind,
+	em_state_agent_autoconfig_renew_pending,
     em_state_agent_topo_synchronized,
+	em_state_agent_channel_selection_pending,
+    em_state_agent_channel_report_pending,
+    em_state_agent_configured,
+	
+	// Transient agent stats
     em_state_agent_topology_notify,
     em_state_agent_ap_cap_report,
     em_state_agent_client_cap_report,
-    em_state_agent_config_complete, // idle state after configured, should return to this state
+    em_state_agent_channel_pref_query,
+
 
     em_state_ctrl_unconfigured = 0x100,
     em_state_ctrl_wsc_m1_pending,
@@ -1629,6 +1618,7 @@ typedef enum {
     em_cmd_type_topo_sync,
     em_cmd_type_em_config,
     em_cmd_type_onewifi_cb,
+    em_cmd_type_channel_pref_query,
     em_cmd_type_max,
 } em_cmd_type_t;
 
@@ -2007,6 +1997,8 @@ typedef enum {
     em_bus_event_type_topo_sync,
     em_bus_event_type_onewifi_cb,
     em_bus_event_type_m2ctrl_configuration,
+	em_bus_event_type_sta_assoc,
+	em_bus_event_type_channel_pref_query,
 } em_bus_event_type_t;
 
 typedef struct {
@@ -2121,13 +2113,19 @@ typedef struct {
 } em_bus_event_type_m2_tx_params_t;
 
 typedef struct {
+    mac_address_t   dev;
+    em_client_assoc_event_t   assoc;
+} em_bus_event_type_client_assoc_params_t;
+
+
+typedef struct {
     mac_address_t   radio;
     mac_address_t   ctrl_src;
 } em_bus_event_type_cfg_renew_params_t;
 
 typedef struct {
     unsigned int num_args;
-    em_long_string_t args[EM_CLI_AMX_ARGS];
+    em_long_string_t args[EM_CLI_MAX_ARGS];
     em_long_string_t fixed_args;
 } em_cmd_params_t;
 

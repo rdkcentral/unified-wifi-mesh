@@ -124,6 +124,7 @@ public:
     dm_network_t& get_network_by_ref() { return m_network; }
     em_network_info_t *get_network_info() { return m_network.get_network_info(); }
     static em_network_info_t *get_network_info(void *dm) { return ((dm_easy_mesh_t *)dm)->get_network_info(); }
+    unsigned char *get_ctl_mac() { return m_network.get_controller_interface_mac();}
 
     dm_device_t *get_device() { return &m_device; }
     dm_device_t& get_device_by_ref() { return m_device; }

@@ -81,7 +81,8 @@ int em_provisioning_t::create_cce_ind_msg(unsigned char *buff)
     // One DPP CCE Indication tlv 17.2.82
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_dpp_cce_indication;
-    enable = (get_state() == em_state_agent_prov) ? 1:0;
+    //enable = (get_state() == em_state_agent_prov) ? 1:0;
+	enable = (get_state() == em_state_agent_configured) ? 1:0;
     memcpy(tlv->value, &enable, sizeof(unsigned short));
     tlv->len = htons(sizeof(unsigned short));
 
@@ -381,12 +382,12 @@ int em_provisioning_t::handle_cce_ind_msg(unsigned char *buff, unsigned int len)
     }
 
     // if this is a proxy agent (must be provisioned) , ask onewifi to beacon cce otherwise send presence announcement
-    if (get_state() > em_state_agent_prov_complete) {
+    if (get_state() > em_state_agent_configured) {
         sz = create_cce_ind_cmd(msg);
         //ret = send_cmd(msg, sz); // Modify send_cmd
         if (ret > 0) {
             printf("%s:%d: cmd send success\n", __func__, __LINE__);
-            set_state(em_state_agent_auth_req_pending);
+            //set_state(em_state_agent_auth_req_pending);
         } else {
             printf("%s:%d: cmd send failed, error:%d\n", __func__, __LINE__, errno);
         }
@@ -477,7 +478,8 @@ void em_provisioning_t::handle_state_config_res_pending()
 void em_provisioning_t::process_agent_state()
 {
     switch (get_state()) {
-        case em_state_agent_prov_none:
+/* To be implemented
+		case em_state_agent_prov_none:
             handle_state_prov_none();
             break;
 
@@ -508,7 +510,7 @@ void em_provisioning_t::process_agent_state()
         case em_state_agent_config_res_pending:
             handle_state_config_res_pending();
             break;
-
+*/
         default:
             break; 
     }

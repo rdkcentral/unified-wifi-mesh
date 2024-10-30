@@ -39,6 +39,7 @@
 #include <openssl/rand.h>
 #include "em.h"
 #include "em_msg.h"
+#include "em_cmd_exec.h"
 
 short em_channel_t::create_channel_pref_tlv(unsigned char *buff)
 {
@@ -593,14 +594,15 @@ int em_channel_t::send_channel_pref_report_msg()
     unsigned char *tmp = buff;
     unsigned short type = htons(ETH_P_1905);
     dm_easy_mesh_t *dm;
+    mac_addr_str_t mac_str;
 
     dm = get_data_model();
 
-    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
-    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    memcpy(tmp, get_radio_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
@@ -663,18 +665,19 @@ int em_channel_t::send_channel_pref_report_msg()
     tmp += (sizeof (em_tlv_t));
     len += (sizeof (em_tlv_t));
 
+/*
     if (em_msg_t(em_msg_type_channel_pref_rprt, em_profile_type_3, buff, len).validate(errors) == 0) {
         printf("Channel Preference Report msg validation failed\n");
         return -1;
     }
-
+*/
     if (send_frame(buff, len)  < 0) {
         printf("%s:%d: Channel Preference Report send failed, error:%d\n", __func__, __LINE__, errno);
         return -1;
     }
         
     printf("%s:%d: Channel Preference Report send success\n", __func__, __LINE__);
-
+	set_state(em_state_agent_channel_selection_pending);
     return len;
 }
 
@@ -682,6 +685,19 @@ int em_channel_t::handle_channel_pref_rprt(unsigned char *buff, unsigned int len
 {
 	set_state(em_state_ctrl_channel_queried);
 	return 0;
+}
+
+int em_channel_t::handle_channel_pref_query(unsigned char *buff, unsigned int len)
+{
+    em_event_t  ev;
+    em_bus_event_t *bev;
+
+    ev.type = em_event_type_bus;
+    bev = &ev.u.bevt;
+    bev->type = em_bus_event_type_channel_pref_query;
+    em_cmd_exec_t::send_cmd(em_service_type_agent, (unsigned char *)&ev, sizeof(em_event_t));
+    printf("Received channel preference query\n");
+    return 0;
 }
 
 void em_channel_t::process_msg(unsigned char *data, unsigned int len)
@@ -694,14 +710,29 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
     
     switch (htons(cmdu->type)) {
         case em_msg_type_channel_pref_query:
-            send_channel_pref_report_msg();
+	    if (get_service_type() == em_service_type_agent) {
+		handle_channel_pref_query(data, len);
+	    }
             break; 
     
         case em_msg_type_channel_pref_rprt:
-            send_channel_pref_report_msg();
-            break; 
+            handle_channel_pref_rprt(data, len);
+			break; 
     
         default:
+            break;
+    }
+}
+
+void em_channel_t::process_state()
+{
+    switch (get_state()) {
+        case em_state_agent_channel_pref_query:
+            if (get_service_type() == em_service_type_agent) {
+                send_channel_pref_report_msg();
+                printf("%s:%d channel_pref_report_msg send\n", __func__, __LINE__);
+		set_state(em_state_agent_channel_selection_pending);
+            }
             break;
     }
 }

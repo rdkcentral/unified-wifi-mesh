@@ -135,6 +135,16 @@ void em_ctrl_t::handle_m2_tx(em_bus_event_t *evt)
     }
 }
 
+void em_ctrl_t::handle_sta_assoc_event(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+    
+    if ((num = m_data_model.analyze_sta_assoc_event(evt, pcmd)) > 0) {
+        m_orch->submit_commands(pcmd, num);
+    }
+}
+
 void em_ctrl_t::handle_set_ssid_list(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
@@ -380,6 +390,10 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
 			handle_config_renew(evt);
 			break;
 
+		case em_bus_event_type_sta_assoc:
+			handle_sta_assoc_event(evt);
+			break;
+	
         default:
             break;
     }
@@ -531,11 +545,15 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 			}
 			break;
 
+		case em_msg_type_topo_notif:
+			em = al_em;
+			break;
+		
 		case em_msg_type_autoconf_resp:
 		case em_msg_type_topo_query:
 		case em_msg_type_autoconf_renew:
         case em_msg_type_channel_pref_query:
-		case em_msg_type_topo_notif:
+		case em_msg_type_channel_sel_req:
 			break;
 
 		default:

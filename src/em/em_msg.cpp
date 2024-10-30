@@ -147,7 +147,10 @@ bool em_msg_t::get_radio_id(mac_address_t *mac)
 				memcpy(mac, &radio->ruid, sizeof(mac_address_t));
 				return true;	
 			} 
-        }
+        } else if (tlv->type == em_tlv_type_channel_pref) {
+			memcpy(mac, tlv->value, sizeof(mac_address_t));
+			return true;	
+		}
 
         len -= (sizeof(em_tlv_t) + htons(tlv->len));
         tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
