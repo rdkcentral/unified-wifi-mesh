@@ -47,6 +47,7 @@
 #include "em_cmd_topo_sync.h"
 #include "em_cmd_em_config.h"
 #include "em_cmd_cfg_renew.h"
+#include "em_cmd_sta_assoc.h"
 
 extern char *global_netid;
 
@@ -78,6 +79,46 @@ int dm_easy_mesh_ctrl_t::analyze_config_renew(em_bus_event_t *evt, em_cmd_t *pcm
     printf("%s:%d: Number of commands:%d\n", __func__, __LINE__, num);
 
     return num;
+}
+
+int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    mac_addr_str_t  dev_mac_str, sta_mac_str, bss_mac_str;
+    em_bus_event_type_client_assoc_params_t *params;
+    unsigned int num = 0, len;
+    em_cmd_params_t *evt_param;
+    dm_easy_mesh_t  dm;
+    em_cmd_t *tmp;
+	em_string_t	assoc;
+
+    params = (em_bus_event_type_client_assoc_params_t *)evt->u.raw_buff;
+    dm_easy_mesh_t::macbytes_to_string(params->dev, dev_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(params->assoc.cli_mac_address, sta_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(params->assoc.bssid, bss_mac_str);
+    
+	printf("%s:%d: Client:%s %s BSS: %s of Device: %s\n", __func__, __LINE__, 
+		sta_mac_str, (params->assoc.assoc_event == 1)?"associated with":"disassociated from", bss_mac_str, dev_mac_str);
+
+    evt_param = &evt->params;
+
+    evt_param->num_args = 4;
+    strncpy(evt_param->args[0], dev_mac_str, strlen(dev_mac_str) + 1);
+    strncpy(evt_param->args[1], bss_mac_str, strlen(bss_mac_str) + 1);
+    strncpy(evt_param->args[2], sta_mac_str, strlen(sta_mac_str) + 1);
+	len = (params->assoc.assoc_event == 1)?strlen("Assoc") + 1:strlen("Disassoc") + 1;
+    strncpy(evt_param->args[3], (params->assoc.assoc_event == 1)?"Assoc":"Disassoc", len);
+    pcmd[num] = new em_cmd_sta_assoc_t(evt->params, dm);
+    tmp = pcmd[num];
+    num++;
+
+    while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+        tmp = pcmd[num];
+        num++;
+    }
+    printf("%s:%d: Number of commands:%d\n", __func__, __LINE__, num);
+
+    return num;
+
 }
 
 int dm_easy_mesh_ctrl_t::analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *pcmd[])

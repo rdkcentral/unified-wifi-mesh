@@ -65,7 +65,7 @@ void em_capability_t::handle_state_ap_cap_report()
             return;
         }
         printf("%s:%d: AP Capability send successful\n", __func__, __LINE__);
-        set_state(em_state_agent_config_complete);
+        set_state(em_state_agent_configured);
     }
 }
 
@@ -89,7 +89,7 @@ void em_capability_t::handle_state_client_cap_report()
             return;
         }
         printf("%s:%d: Client Capability send successful\n", __func__, __LINE__);
-        set_state(em_state_agent_config_complete);
+        set_state(em_state_agent_configured);
     }
 }
 

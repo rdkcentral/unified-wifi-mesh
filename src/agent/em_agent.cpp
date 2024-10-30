@@ -142,6 +142,20 @@ void em_agent_t::handle_dev_init(em_bus_event_t *evt)
 
 }
 
+void em_agent_t::handle_channel_pref_query(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+
+    if (m_orch->is_cmd_type_in_progress(evt->type) == false) {
+	return; 
+    }
+    if ((num = m_data_model.analyze_channel_pref_query(evt, pcmd)) > 0) {
+	m_orch->submit_commands(pcmd, num);
+    }
+
+}
+
 void em_agent_t::handle_m2ctrl_configuration(em_bus_event_t *evt)
 {
     unsigned int num;
@@ -276,7 +290,11 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
         case em_bus_event_type_onewifi_cb:
             handle_onewifi_cb(evt);
             break;
-
+		
+		case em_bus_event_type_channel_pref_query:
+	    	handle_channel_pref_query(evt);
+	    	break;
+		
         default:
             break;
     }    
@@ -509,12 +527,29 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             }
             break;
         case em_msg_type_channel_pref_query:
-            printf("Received channel preference query\n");
+
+            em = (em_t *)hash_map_get_first(m_em_map);
+            if (em != NULL) { //Work-Around
+                found = true;
+                printf("Received channel preference query recv\n");
+                break;
+            }
+            if (found == false) {
+                printf("%s:%d: Could not find em for em_msg_type_channel_pref_query\n", __func__, __LINE__);
+                return NULL;
+            }
             break;
 
         case em_msg_type_topo_notif:
             break;
+		
+		case em_msg_type_channel_pref_rprt:
+		    printf("Received channel preference report\n");
+		    break;		
 
+	case  em_msg_type_channel_sel_req:
+	    printf("Received channel selection request recv\n");
+	    break;
 		default:
             printf("%s:%d: Frame: %d not handled in agent\n", __func__, __LINE__, htons(cmdu->type));
             assert(0);

@@ -47,7 +47,8 @@ class em_configuration_t {
     int handle_ap_radio_basic_cap(unsigned char *buff, unsigned int len);
     int handle_ap_radio_advanced_cap(unsigned char *buff, unsigned int len);
     int handle_topology_response(unsigned char *buff, unsigned int len);
-    int handle_ap_operational_bss(unsigned char *buff, unsigned int len);
+    int handle_topology_notification(unsigned char *buff, unsigned int len);
+	int handle_ap_operational_bss(unsigned char *buff, unsigned int len);
     int handle_bss_configuration_report(unsigned char *buff, unsigned int len);
 
     short create_m1_msg(unsigned char *buff);
