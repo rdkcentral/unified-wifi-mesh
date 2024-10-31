@@ -29,8 +29,8 @@ INCLUDEDIRS = \
 	-I$(ONEWIFI_EM_HOME)/src/utils \
 	-I$(ONEWIFI_EM_HOME)/src/util/ \
 	-I$(ONEWIFI_HAL_INTF_HOME) \
-	-I$(ONEWIFI_HOME)/generic/source/utils \
-	-I$(ONEWIFI_HOME)/generic/include \
+	-I$(ONEWIFI_HOME)/source/utils \
+	-I$(ONEWIFI_HOME)/include \
     -I$(RBUS_HOME)/include \
 	-I$(WIFI_CJSON) \
 
@@ -41,7 +41,7 @@ LIBDIRS = \
 
 LIBS = -lm -lpthread -ldl -lcjson -lreadline
 
-GENERIC_SOURCES = $(ONEWIFI_HOME)/generic/source/utils/collection.c
+GENERIC_SOURCES = $(ONEWIFI_HOME)/source/utils/collection.c
 
 CLI_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/cli/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/cmd/*.cpp) \
