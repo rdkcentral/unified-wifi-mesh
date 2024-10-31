@@ -45,7 +45,7 @@ CXXFLAGS = $(INCLUDEDIRS) -g -DEASY_MESH_NODE
 LDFLAGS = $(LIBDIRS) $(LIBS) 
 LIBDIRS = \
 	-L$(INSTALLDIR)/lib \
-    -L$(ONEWIFI_HOME)/install/lib/
+    -L$(ONEWIFI_HOME)/generic/install/lib/
 
 LIBS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwebconfig -lhebus
 
