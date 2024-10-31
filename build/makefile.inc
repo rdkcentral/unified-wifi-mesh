@@ -24,7 +24,7 @@ BASE = $(shell pwd)
 
 ONEWIFI_EM_HOME = $(BASE)/../../
 ONEWIFI_HOME = $(BASE)/../../../
-ONEWIFI_HAL_INTF_HOME = $(BASE)/../../../halinterface
+ONEWIFI_HAL_INTF_HOME = $(BASE)/../../../halinterface/include
 ONEWIFI_BUS_LIB_HOME = $(ONEWIFI_HOME)/generic/lib/bus
 ONEWIFI_EM_SRC = $(ONEWIFI_EM_HOME)/src
 INSTALLDIR = $(ONEWIFI_EM_HOME)/install
