@@ -81,10 +81,6 @@ dm_easy_mesh_t dm_easy_mesh_t::operator =(dm_easy_mesh_t const& obj)
     hash_map_t **dst_m_sta_dassoc_map = (hash_map_t** ) this->get_dassoc_sta_map();
     hash_map_t **dst_m_sta_map = (hash_map_t** ) this->get_sta_map();
 
-    *dst_m_sta_assoc_map = hash_map_create();
-    *dst_m_sta_dassoc_map = hash_map_create();
-    *dst_m_sta_map = hash_map_create();
-
     hash_map_t **m_sta_map = (hash_map_t** ) &obj.m_sta_map;
     if((m_sta_map != NULL) && (*m_sta_map != NULL)) {
         sta = (dm_sta_t *)hash_map_get_first(*m_sta_map);
@@ -141,7 +137,6 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
                     sta = (dm_sta_t *)hash_map_get_next(*m_sta_assoc_map, sta);
                     continue;
                 } else {
-                    *em_m_sta_map = hash_map_create();
                     hash_map_put(*em_m_sta_map,strdup(sta->get_sta_info()->m_sta_key),sta);
                     printf("%s:%d: New node created with key:%s \n", __func__,\
                              __LINE__,sta->get_sta_info()->m_sta_key);
@@ -311,7 +306,6 @@ int dm_easy_mesh_t::analyze_client_cap_query(em_bus_event_t *evt, em_cmd_t *pcmd
     dm_sta_t *sta = new dm_sta_t();;
     hash_map_t **m_sta_assoc_map = (hash_map_t **)dm.get_assoc_sta_map();
     mac_address_t cap_mac,radio_mac;
-    *m_sta_assoc_map = hash_map_create();
 
     dm.decode_client_cap_config(subdoc, "ClientCapReport", client_mac, radio_str_mac);
     string_to_macbytes(client_mac,cap_mac);
@@ -1206,9 +1200,6 @@ int dm_easy_mesh_t::decode_sta_config(em_subdoc_info_t *subdoc, unsigned int dev
         mac_address_t mac_add;
         dm_sta_t *sta_list ;
         char sta_list_key[64];
-        m_sta_assoc_map = hash_map_create();
-        m_sta_dassoc_map = hash_map_create();
-        m_sta_map = hash_map_create();
 
         if ((parent_obj = cJSON_Parse(subdoc->buff)) == NULL) {
                 printf("%s:%d: Failed to initialize device data model\n", __func__, __LINE__);
@@ -2001,27 +1992,36 @@ void dm_easy_mesh_t::put_sta_info(em_sta_info_t *sta_info, em_target_sta_map_t t
 
 void dm_easy_mesh_t::deinit()
 {
-    dm_sta_t *sta;
+    dm_sta_t *sta = NULL;
+    dm_sta_t *tmp = NULL;
 
     //destroy elements of m_sta_map
     sta = (dm_sta_t *)hash_map_get_first(m_sta_map);
     while (sta != NULL)
     {
-        hash_map_remove(m_sta_map,sta->get_sta_info()->m_sta_key);
+        tmp = sta;
+        sta = (dm_sta_t *)hash_map_get_next(m_sta_map, sta);
+        hash_map_remove(m_sta_map, tmp->get_sta_info()->m_sta_key);
     }
     hash_map_destroy(m_sta_map);
+    sta = NULL;
 
     sta = (dm_sta_t *)hash_map_get_first(m_sta_assoc_map);
     while (sta != NULL)
     {
-        hash_map_remove(m_sta_assoc_map,sta->get_sta_info()->m_sta_key);
+        tmp = sta;
+        sta = (dm_sta_t *)hash_map_get_next(m_sta_assoc_map, sta);
+        hash_map_remove(m_sta_assoc_map, tmp->get_sta_info()->m_sta_key);
     }
 	hash_map_destroy(m_sta_assoc_map);
+    sta = NULL;
 
     sta = (dm_sta_t *)hash_map_get_first(m_sta_dassoc_map);
     while (sta != NULL)
     {
-        hash_map_remove(m_sta_dassoc_map,sta->get_sta_info()->m_sta_key);
+        tmp = sta;
+        sta = (dm_sta_t *)hash_map_get_next(m_sta_dassoc_map, sta);
+        hash_map_remove(m_sta_dassoc_map, tmp->get_sta_info()->m_sta_key);
     }
 	hash_map_destroy(m_sta_dassoc_map);
 }

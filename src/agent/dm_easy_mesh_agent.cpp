@@ -95,44 +95,31 @@ int dm_easy_mesh_agent_t::analyze_autoconfig_renew(em_bus_event_t *evt, em_cmd_t
 int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     unsigned int index = 0;
-    em_orch_desc_t desc;
-    //put hash_map for dm_pcmd from this object
     mac_address_t radio_macaddr, temp_rmacaddr;
     dm_sta_t *get_sta = NULL;
     //To map radio MAC addresses to pcmd instances
     std::unordered_map<std::string, int> mac_to_index_map;
-    int count = 0;
+    unsigned int num_radios = 0, count = 0;
+    dm_sta_t put_sta;
+    mac_addr_str_t  rad_str_mac;
+    mac_addr_str_t dst_mac_str;
+    em_sta_info_t *em_sta = NULL;
+
+    num_radios = this->get_num_radios();
+    dm_easy_mesh_agent_t* dm_pcmd = new dm_easy_mesh_agent_t[num_radios];
 
     translate_onewifi_stats_data((char *)evt->u.raw_buff);
 
-#if 0
-    desc.op = dm_orch_type_sta_update;
-    //pcmd[0] =  new em_cmd_sta_list_t(evt->params,dm);
-    pcmd[0] =  new em_cmd_sta_list_t(evt->params,*this);
-    pcmd[0]->override_op(0, &desc);
-#endif
-    desc.op = dm_orch_type_sta_update;
-
-    dm_easy_mesh_agent_t  *dm = this;
-    dm_easy_mesh_agent_t* dm_pcmd = new dm_easy_mesh_agent_t[2];
-
-    hash_map_t **ptr_sta_map = dm->get_assoc_sta_map();
-
+    hash_map_t **ptr_sta_map = this->get_assoc_sta_map();
     if ((ptr_sta_map != NULL) && (*ptr_sta_map != NULL)) {
-
         get_sta = (dm_sta_t *)hash_map_get_first(*ptr_sta_map);
-
         while (get_sta != NULL) {
-            dm_sta_t put_sta;
-
             memcpy(&temp_rmacaddr, put_sta.get_sta_info()->radiomac, 6);
     	    memcpy(&radio_macaddr, get_sta->get_sta_info()->radiomac, sizeof(mac_address_t));
             std::string mac_str(reinterpret_cast<char*>(&radio_macaddr), sizeof(mac_address_t));
-            if ((mac_to_index_map.find(mac_str) == mac_to_index_map.end()) == true)
-            {
+            if ((mac_to_index_map.find(mac_str) == mac_to_index_map.end()) == true) {
                 //returned true, means its a new rmac and was not processed earlier
                 //so use a new dm object, as in new hash_map.
-                mac_addr_str_t dst_mac_str;
                 dm_easy_mesh_t::macbytes_to_string(radio_macaddr, dst_mac_str);
                 printf("%s:%d radio_macaddr MAC=%s\n", __func__, __LINE__,dst_mac_str);
                 dm_easy_mesh_t::macbytes_to_string(temp_rmacaddr, dst_mac_str);
@@ -145,32 +132,25 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
                     mac_to_index_map[mac_str] = index; // Map the MAC address to the index
                     count = mac_to_index_map[mac_str];
                 }
+
                 hash_map_t **put_hm = dm_pcmd[count].get_assoc_sta_map();
-                if (*put_hm == NULL)
-                {
-                    *put_hm = hash_map_create();
+                if (*put_hm == NULL) {
+                    dm_pcmd[count].init();
                 }
-                em_sta_info_t *em_sta;
                 em_sta = get_sta->get_sta_info();
                 hash_map_put(*put_hm, strdup(put_sta.get_sta_info()->m_sta_key), new dm_sta_t(em_sta));
-            }
-            else
-            {
+            } else {
                 // Use the existing index for this MAC address
                 // since it already has an index, get the index based on rmac to push to same hash_map
                 count = mac_to_index_map[mac_str];
                 hash_map_t **put_hm = dm_pcmd[count].get_assoc_sta_map();
-                if(*put_hm == NULL)
-                {
-                    *put_hm = hash_map_create();
+                if (*put_hm == NULL) {
+                    dm_pcmd[count].init();
                 }
-                em_sta_info_t *em_sta;
                 em_sta = get_sta->get_sta_info();
                 hash_map_put(*put_hm, strdup(put_sta.get_sta_info()->m_sta_key), new dm_sta_t(em_sta));
             }
-            mac_addr_str_t  rad_str_mac;
             macbytes_to_string(radio_macaddr, rad_str_mac);
-
             get_sta = (dm_sta_t *)hash_map_get_next(*ptr_sta_map, get_sta);
         }
         printf("%s:%d:[DEBUG] DM objects created\n", __func__, __LINE__);
@@ -179,10 +159,8 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
     //pcmd cmd create code
     for (int i = 0; i <= count; i++)
     {
-        hash_map_t **test_map = dm_pcmd[i].get_assoc_sta_map();
         //push all in a loop now for the number of indexes
         pcmd[i] = new em_cmd_sta_list_t(evt->params, dm_pcmd[i]);
-        pcmd[i]->override_op(0, &desc);
         printf("%s:%d:[DEBUG] Pushed to PCMD for index %d\n",__func__, __LINE__, i);
     }
 
