@@ -65,6 +65,7 @@ public:
     void handle_dm_commit(em_bus_event_t *evt);
     void handle_m2_tx(em_bus_event_t *evt);
     void handle_config_renew(em_bus_event_t *evt);
+    void handle_sta_assoc_event(em_bus_event_t *evt);
 
     void io(void *data, bool input = true);
     bool io_process(em_event_t *evt);

@@ -68,7 +68,7 @@
 #define EM_MAX_TOPO_QUERY_TX_THRESH  5
 
 
-#define EM_CLI_AMX_ARGS 5
+#define EM_CLI_MAX_ARGS 5
 
 /* Authentication Type Flags */
 #define EM_AUTH_OPEN 0x0001
@@ -185,7 +185,7 @@ typedef char    em_tiny_string_t[4];
 typedef char    em_subdoc_name_space_t[64];
 typedef char    em_subdoc_data_buff_t[EM_SUBDOC_BUFF_SZ];
 typedef char    em_status_string_t[EM_IO_BUFF_SZ];
-typedef char    em_raw_data_t[EM_SUBDOC_BUFF_SZ];
+typedef unsigned	char    em_raw_data_t[EM_SUBDOC_BUFF_SZ];
 
 typedef struct {
     unsigned char   dsap;
@@ -240,7 +240,7 @@ typedef struct {
     mac_address_t   bssid;
     unsigned char   reserved_field:7;
     unsigned char   assoc_event:1;
-} __attribute__((__packed__)) em_tlv_client_assoc_t;
+} __attribute__((__packed__)) em_client_assoc_event_t;
 
 typedef unsigned char em_enum_type_t;
 
@@ -1599,8 +1599,9 @@ typedef enum {
 	em_state_ctrl_channel_report_pending,
     em_state_ctrl_configured,
     em_state_ctrl_misconfigured,
-
-    em_state_max,
+	em_state_ctrl_sta_cap_pending,
+    
+	em_state_max,
 } em_state_t;
 
 typedef enum {
@@ -1629,6 +1630,7 @@ typedef enum {
     em_cmd_type_topo_sync,
     em_cmd_type_em_config,
     em_cmd_type_onewifi_cb,
+    em_cmd_type_sta_assoc,
     em_cmd_type_max,
 } em_cmd_type_t;
 
@@ -1864,6 +1866,12 @@ typedef struct {
     em_subdoc_data_buff_t assoc_frame_body;
 } em_sta_info_t;
 
+typedef enum {
+	em_target_sta_map_assoc,
+	em_target_sta_map_disassoc,
+	em_target_sta_map_consolidated,
+} em_target_sta_map_t;
+
 typedef struct {
     em_interface_t  bssid;
     em_interface_t  ruid;
@@ -2007,6 +2015,7 @@ typedef enum {
     em_bus_event_type_topo_sync,
     em_bus_event_type_onewifi_cb,
     em_bus_event_type_m2ctrl_configuration,
+	em_bus_event_type_sta_assoc,
 } em_bus_event_type_t;
 
 typedef struct {
@@ -2077,6 +2086,7 @@ typedef enum {
     dm_orch_type_topo_sync,
     dm_orch_type_channel_pref,
     dm_orch_type_channel_sel,
+	dm_orch_type_sta_cap,
 } dm_orch_type_t;
 
 typedef struct {
@@ -2121,13 +2131,18 @@ typedef struct {
 } em_bus_event_type_m2_tx_params_t;
 
 typedef struct {
+    mac_address_t   dev;
+    em_client_assoc_event_t   assoc;
+} em_bus_event_type_client_assoc_params_t;
+
+typedef struct {
     mac_address_t   radio;
     mac_address_t   ctrl_src;
 } em_bus_event_type_cfg_renew_params_t;
 
 typedef struct {
     unsigned int num_args;
-    em_long_string_t args[EM_CLI_AMX_ARGS];
+    em_long_string_t args[EM_CLI_MAX_ARGS];
     em_long_string_t fixed_args;
 } em_cmd_params_t;
 

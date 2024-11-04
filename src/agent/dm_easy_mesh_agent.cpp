@@ -53,7 +53,7 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
     dm_device_t *dev, *tgt_dev;
     dm_radio_t *rd, *tgt_rd;
     em_cmd_t *tmp;
-    dm.translate_onewifi_dml_data(evt->u.raw_buff);
+    dm.translate_onewifi_dml_data((char *)evt->u.raw_buff);
 
     dm.print_config();
     num_radios = dm.get_num_radios();
@@ -91,6 +91,7 @@ int dm_easy_mesh_agent_t::analyze_autoconfig_renew(em_bus_event_t *evt, em_cmd_t
     return num;
 }
 
+
 int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     unsigned int index = 0;
@@ -102,7 +103,7 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
     std::unordered_map<std::string, int> mac_to_index_map;
     int count = 0;
 
-    translate_onewifi_stats_data(evt->u.raw_buff);
+    translate_onewifi_stats_data((char *)evt->u.raw_buff);
 
 #if 0
     desc.op = dm_orch_type_sta_update;
@@ -291,7 +292,7 @@ int dm_easy_mesh_agent_t::analyze_onewifi_cb(em_bus_event_t *evt, em_cmd_t *pcmd
         return 0;
     }
 
-    if ((webconfig_easymesh_decode(&config, evt->u.raw_buff, &ext, &type)) == webconfig_error_none) {
+    if ((webconfig_easymesh_decode(&config, (char *)evt->u.raw_buff, &ext, &type)) == webconfig_error_none) {
         printf("%s:%d Private subdoc decode success\n",__func__, __LINE__);
     } else {
         printf("%s:%d Private subdoc decode fail\n",__func__, __LINE__);

@@ -698,7 +698,7 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
             break; 
     
         case em_msg_type_channel_pref_rprt:
-            send_channel_pref_report_msg();
+            handle_channel_pref_rprt(data, len);
             break; 
     
         default:

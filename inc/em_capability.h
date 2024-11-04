@@ -58,6 +58,8 @@ class em_capability_t {
 
     int create_ap_cap_report_msg(unsigned char *buff);
     int create_client_cap_report_msg(unsigned char *buff);
+
+	int send_client_cap_query();
  
     // state handlers 
     void handle_state_ap_cap_report();

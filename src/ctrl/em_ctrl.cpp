@@ -135,6 +135,16 @@ void em_ctrl_t::handle_m2_tx(em_bus_event_t *evt)
     }
 }
 
+void em_ctrl_t::handle_sta_assoc_event(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+
+    if ((num = m_data_model.analyze_sta_assoc_event(evt, pcmd)) > 0) {
+        m_orch->submit_commands(pcmd, num);
+    }
+}
+
 void em_ctrl_t::handle_set_ssid_list(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
@@ -380,6 +390,10 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
 			handle_config_renew(evt);
 			break;
 
+        case em_bus_event_type_sta_assoc:
+			handle_sta_assoc_event(evt);
+			break;
+
         default:
             break;
     }
@@ -445,6 +459,8 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 	dm_easy_mesh_t *dm;
 	em_t *em = NULL;
 	em_radio_id_t ruid;
+	bssid_t	bssid;
+	dm_bss_t *bss;
 	em_profile_type_t profile;
 	mac_addr_str_t mac_str1, mac_str2;
 
@@ -531,11 +547,37 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 			}
 			break;
 
+        case em_msg_type_topo_notif:
+            em = al_em;
+            break;
+
+        case em_msg_type_client_cap_query:
+            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+                len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_bss_id(&bssid) == false) {
+                printf("%s:%d: Could not find bss id in msg:0x%04x\n", __func__, __LINE__, htons(cmdu->type));
+                return NULL;
+            }
+
+            dm_easy_mesh_t::macbytes_to_string(bssid, mac_str1);
+
+            if ((bss = m_data_model.get_bss(mac_str1)) == NULL) {
+                printf("%s:%d: Could not find bss:%s from data model\n", __func__, __LINE__, mac_str1);
+                return NULL;
+            }
+            dm_easy_mesh_t::macbytes_to_string(bss->m_bss_info.ruid.mac, mac_str1);
+            if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) == NULL) {
+                printf("%s:%d: Could not find radio:%s\n", __func__, __LINE__, mac_str1);
+                return NULL;
+            }
+
+            break;
+
 		case em_msg_type_autoconf_resp:
 		case em_msg_type_topo_query:
 		case em_msg_type_autoconf_renew:
         case em_msg_type_channel_pref_query:
 		case em_msg_type_topo_notif:
+		case em_msg_type_channel_sel_req:
 			break;
 
 		default:

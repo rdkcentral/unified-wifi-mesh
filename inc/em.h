@@ -30,6 +30,7 @@
 #include "em_metrics.h"
 #include "em_steering.h"
 #include "dm_easy_mesh.h"
+#include "em_sm.h"
 
 class em_t : 
     public em_configuration_t, public em_discovery_t, 
@@ -42,6 +43,7 @@ class em_t :
     em_orch_state_t m_orch_state;
     em_cmd_t *m_cmd;
     em_state_t  m_state;
+    em_sm_t  m_sm;
     em_service_type_t   m_service_type;
     int m_fd;
     em_interface_t  m_ruid;
@@ -80,7 +82,7 @@ public:
     bool is_start_dpp_candidate(dm_dpp_t *dpp) { return (is_al_interface_em() == true) ? false:true; }
     bool is_start_dev_init(dm_radio_t *radio) { return (is_al_interface_em() == true) ? false:true; }
     bool is_tx_cfg_renew_candidate() { return is_al_interface_em(); }
-    bool is_cfg_renew_candidate() { return (m_state == em_state_ctrl_misconfigured) ? true:false;; }
+    bool is_cfg_renew_candidate() { return (m_sm.get_state() == em_state_ctrl_misconfigured) ? true:false;; }
     bool is_dev_init_candidate(unsigned char *mac) { return (memcmp(mac, get_radio_interface_mac(), sizeof(mac_address_t)) == 0); }
     bool is_autoconfig_renew_candidate(em_freq_band_t radio_freq_band , em_freq_band_t em_freq_band) { return (radio_freq_band == em_freq_band) ? true:false;}
     bool is_matching_freq_band(em_freq_band_t *band);
@@ -90,8 +92,8 @@ public:
     em_orch_state_t get_orch_state() { return m_orch_state; }
     void set_orch_state(em_orch_state_t state);
 
-    em_state_t get_state() { return m_state; }
-    void set_state(em_state_t state) {  m_state = state; }
+    em_state_t get_state() { return m_sm.get_state(); }
+    void set_state(em_state_t state) {  m_sm.set_state(state); }
     em_service_type_t   get_service_type() { return m_service_type; }
     em_profile_type_t   get_profile_type() { return m_profile_type; }
     void    set_profile_type(em_profile_type_t profile) { m_profile_type = profile; }

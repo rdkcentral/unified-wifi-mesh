@@ -68,6 +68,8 @@ public:
     int analyze_reset(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_remove_device(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *cmd[]);
+    int analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *cmd[]);
+    int analyze_client_assoc(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_config_renew(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_dev_test(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_radio_metrics_req(em_cmd_t *cmd[]);

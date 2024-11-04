@@ -88,7 +88,7 @@ short em_configuration_t::create_ap_radio_basic_cap(unsigned char *buff)
 short em_configuration_t::create_client_notify_msg(unsigned char *buff)
 {
     short len = 0;
-    em_tlv_client_assoc_t *client_info = (em_tlv_client_assoc_t*) buff;
+    em_client_assoc_event_t *client_info = (em_client_assoc_event_t *) buff;
     dm_sta_t *sta;
 
     hash_map_t **m_sta_assoc_map = get_current_cmd()->get_data_model()->get_assoc_sta_map();
@@ -758,6 +758,64 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
 
 	return 0;
 
+}
+
+int em_configuration_t::handle_topology_notification(unsigned char *buff, unsigned int len)
+{
+    em_tlv_t *tlv;
+    int tmp_len, ret = 0;
+	mac_address_t dev_mac;
+	bool found_dev_mac = false;
+	em_client_assoc_event_t *assoc_evt_tlv;
+	em_event_t  ev;
+    em_bus_event_t *bev;
+    em_bus_event_type_client_assoc_params_t    *raw;
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+
+	if (em_msg_t(em_msg_type_topo_notif, m_peer_profile, buff, len).validate(errors) == 0) {
+        printf("%s:%d: topology response msg validation failed\n", __func__, __LINE__);
+
+        //return -1;
+    }
+
+    tlv =  (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        if (tlv->type == em_tlv_type_al_mac_address) {
+			memcpy(dev_mac, tlv->value, sizeof(mac_address_t));
+			found_dev_mac = true;
+			break;
+        }
+
+		tmp_len -= (sizeof(em_tlv_t) + htons(tlv->len));
+		tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+	if (found_dev_mac == false) {
+		printf("%s:%d: Could not find device al mac address\n", __func__, __LINE__);
+		return -1;
+	}
+
+    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        if (tlv->type == em_tlv_type_client_assoc_event) {
+			assoc_evt_tlv = (em_client_assoc_event_t *)tlv->value;
+            ev.type = em_event_type_bus;
+            bev = &ev.u.bevt;
+            bev->type = em_bus_event_type_sta_assoc;
+            raw = (em_bus_event_type_client_assoc_params_t *)bev->u.raw_buff;
+            memcpy(raw->dev, dev_mac, sizeof(mac_address_t));
+            memcpy((unsigned char *)&raw->assoc, (unsigned char *)assoc_evt_tlv, sizeof(em_client_assoc_event_t));
+
+            em_cmd_exec_t::send_cmd(em_service_type_ctrl, (unsigned char *)&ev, sizeof(em_event_t));
+
+        }
+
+		tmp_len -= (sizeof(em_tlv_t) + htons(tlv->len));
+		tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+	return 0;
 }
 
 int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned int len)

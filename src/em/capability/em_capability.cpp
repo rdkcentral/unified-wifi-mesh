@@ -292,6 +292,77 @@ void em_capability_t::process_msg(unsigned char *data, unsigned int len)
     }
 }
 
+int em_capability_t::send_client_cap_query()
+{
+    unsigned char buff[MAX_EM_BUFF_SZ];
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    unsigned short  msg_id = em_msg_type_client_cap_query;
+    int len = 0;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    short sz = 0;
+    unsigned char *tmp = buff;
+    unsigned short type = htons(ETH_P_1905);
+    dm_easy_mesh_t *dm;
+	em_cmd_t *pcmd = get_current_cmd();
+	em_cmd_params_t *evt_param = &pcmd->m_param;
+
+    dm = get_data_model();
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, (unsigned char *)&type, sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += sizeof(unsigned short);
+
+    cmdu = (em_cmdu_t *)tmp;
+
+    memset(tmp, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(msg_id);
+    cmdu->id = htons(msg_id);
+    cmdu->last_frag_ind = 1;
+    cmdu->relay_ind = 0;
+
+    tmp += sizeof(em_cmdu_t);
+    len += sizeof(em_cmdu_t);
+
+	// One Client Info TLV (see section 17.2.18).
+	tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_client_info;
+	dm_easy_mesh_t::string_to_macbytes(evt_param->args[1], tlv->value);
+	dm_easy_mesh_t::string_to_macbytes(evt_param->args[2], tlv->value + sizeof(mac_address_t));
+    tlv->len = htons(2*sizeof(mac_address_t));
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += (sizeof(em_tlv_t) + sz);
+
+    // End of message
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_eom;
+    tlv->len = 0;
+
+    tmp += (sizeof (em_tlv_t));
+    len += (sizeof (em_tlv_t));
+    if (em_msg_t(em_msg_type_client_cap_query, em_profile_type_3, buff, len).validate(errors) == 0) {
+        printf("Channel Selection Request msg failed validation in tnx end\n");
+        return -1;
+    }
+
+    if (send_frame(buff, len)  < 0) {
+        printf("%s:%d: Channel Selection Request msg failed, error:%d\n", __func__, __LINE__, errno);
+        return -1;
+    }
+
+    return len;
+
+}
+
 void em_capability_t::process_state()
 {
     mac_addr_str_t mac_str;
@@ -300,13 +371,19 @@ void em_capability_t::process_state()
     switch (get_state()) {
 
         case em_state_agent_ap_cap_report:
-                handle_state_ap_cap_report();
-                break;
+            handle_state_ap_cap_report();
+            break;
+
         case em_state_agent_client_cap_report:
-                handle_state_client_cap_report();
-                break;
+            handle_state_client_cap_report();
+            break;
+
+		case em_state_ctrl_sta_cap_pending:
+			send_client_cap_query();
+			break;
+
         default:
-                break;
+            break;
     }
 }
 
