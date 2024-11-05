@@ -52,7 +52,7 @@ em_cmd_t& em_cli_t::get_command(char *in, size_t in_len)
     em_cmd_type_t	allowed = em_cmd_type_none;
     char *tmp;
     em_cmd_t	*cmd;
-    em_long_string_t args[EM_CLI_AMX_ARGS];
+    em_long_string_t args[EM_CLI_MAX_ARGS];
 
     in[strlen(in) - 1] = 0; // get rid of line feed
     memset(args[num_args], 0, sizeof(em_long_string_t));
