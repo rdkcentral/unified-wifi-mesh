@@ -89,7 +89,7 @@ short em_configuration_t::create_client_notify_msg(unsigned char *buff)
 {
     short len = 0;
     em_client_assoc_event_t *client_info = (em_client_assoc_event_t *) buff;
-    dm_sta_t *sta;
+	dm_sta_t *sta;
 
     hash_map_t **m_sta_assoc_map = get_current_cmd()->get_data_model()->get_assoc_sta_map();
 
@@ -771,23 +771,23 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
     em_bus_event_t *bev;
     em_bus_event_type_client_assoc_params_t    *raw;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-
+	
 	if (em_msg_t(em_msg_type_topo_notif, m_peer_profile, buff, len).validate(errors) == 0) {
         printf("%s:%d: topology response msg validation failed\n", __func__, __LINE__);
-
+            
         //return -1;
-    }
-
+    }       
+        
     tlv =  (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-
+        
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_al_mac_address) {
 			memcpy(dev_mac, tlv->value, sizeof(mac_address_t));
 			found_dev_mac = true;
 			break;
         }
-
+            
 		tmp_len -= (sizeof(em_tlv_t) + htons(tlv->len));
 		tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
     }
@@ -799,18 +799,18 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_client_assoc_event) {
-			assoc_evt_tlv = (em_client_assoc_event_t *)tlv->value;
-            ev.type = em_event_type_bus;
-            bev = &ev.u.bevt;
-            bev->type = em_bus_event_type_sta_assoc;
-            raw = (em_bus_event_type_client_assoc_params_t *)bev->u.raw_buff;
-            memcpy(raw->dev, dev_mac, sizeof(mac_address_t));
-            memcpy((unsigned char *)&raw->assoc, (unsigned char *)assoc_evt_tlv, sizeof(em_client_assoc_event_t));
+			assoc_evt_tlv = (em_client_assoc_event_t *)tlv->value;	
+    		ev.type = em_event_type_bus;
+    		bev = &ev.u.bevt;
+    		bev->type = em_bus_event_type_sta_assoc;
+    		raw = (em_bus_event_type_client_assoc_params_t *)bev->u.raw_buff;
+    		memcpy(raw->dev, dev_mac, sizeof(mac_address_t));
+    		memcpy((unsigned char *)&raw->assoc, (unsigned char *)assoc_evt_tlv, sizeof(em_client_assoc_event_t));
 
-            em_cmd_exec_t::send_cmd(em_service_type_ctrl, (unsigned char *)&ev, sizeof(em_event_t));
-
+    		em_cmd_exec_t::send_cmd(em_service_type_ctrl, (unsigned char *)&ev, sizeof(em_event_t));
+			
         }
-
+            
 		tmp_len -= (sizeof(em_tlv_t) + htons(tlv->len));
 		tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
     }
@@ -1979,7 +1979,6 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
 
 int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned int len)
 {
-
     em_tlv_t *tlv;
     int tmp_len, ret = 0;
     unsigned char msg[MAX_EM_BUFF_SZ];
@@ -1989,6 +1988,9 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
     unsigned char *secret;
     unsigned short secret_len;
     unsigned char hash[SHA256_MAC_LEN];
+    dm_easy_mesh_t *dm;
+    dm_network_t network;
+    em_raw_hdr_t *hdr = (em_raw_hdr_t *)buff;
 
     if (em_msg_t(em_msg_type_autoconf_wsc, m_peer_profile, buff, len).validate(errors) == 0) {
         printf("%s:%d: received wsc m2 msg failed validation\n", __func__, __LINE__);
@@ -2045,6 +2047,12 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
         return -1;
     }
 
+    dm = get_data_model();
+    //Commit controller mac address
+    if ((dm != NULL) && (hdr != NULL)) {
+        memcpy(&network.m_net_info.ctrl_id.mac, &hdr->src, sizeof(mac_address_t));
+        dm->set_network(network);
+    }
     return 0;
 }
 
@@ -2687,7 +2695,7 @@ void em_configuration_t::fill_media_data(em_media_spec_data_t *spec)
 void em_configuration_t::process_agent_state()
 {
     switch (get_state()) {
-        case em_state_agent_config_none:
+        case em_state_agent_unconfigured:
             handle_state_config_none();
             break;
 

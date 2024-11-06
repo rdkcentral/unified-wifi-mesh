@@ -83,24 +83,21 @@ int dm_easy_mesh_ctrl_t::analyze_config_renew(em_bus_event_t *evt, em_cmd_t *pcm
 
 int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
-    mac_addr_str_t  dev_mac_str, sta_mac_str, bss_mac_str, radio_mac_str;
+    mac_addr_str_t  dev_mac_str, sta_mac_str, bss_mac_str;
     em_bus_event_type_client_assoc_params_t *params;
-    unsigned int num = 0, len, i;
+    unsigned int num = 0, len;
     em_cmd_params_t *evt_param;
-    dm_easy_mesh_t  dm, *pdm;
+    dm_easy_mesh_t  dm;
     em_cmd_t *tmp;
-    em_string_t	assoc;
-    dm_bss_t *pbss;
-    bool radio_matched = false;
-    em_sta_info_t sta_info;
+	em_string_t	assoc;
 
     params = (em_bus_event_type_client_assoc_params_t *)evt->u.raw_buff;
     dm_easy_mesh_t::macbytes_to_string(params->dev, dev_mac_str);
     dm_easy_mesh_t::macbytes_to_string(params->assoc.cli_mac_address, sta_mac_str);
     dm_easy_mesh_t::macbytes_to_string(params->assoc.bssid, bss_mac_str);
-
-    printf("%s:%d: Client:%s %s BSS: %s of Device: %s\n", __func__, __LINE__,
-        sta_mac_str, (params->assoc.assoc_event == 1)?"associated with":"disassociated from", bss_mac_str, dev_mac_str);
+    
+	printf("%s:%d: Client:%s %s BSS: %s of Device: %s\n", __func__, __LINE__, 
+		sta_mac_str, (params->assoc.assoc_event == 1)?"associated with":"disassociated from", bss_mac_str, dev_mac_str);
 
     evt_param = &evt->params;
 
@@ -108,44 +105,11 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     strncpy(evt_param->args[0], dev_mac_str, strlen(dev_mac_str) + 1);
     strncpy(evt_param->args[1], bss_mac_str, strlen(bss_mac_str) + 1);
     strncpy(evt_param->args[2], sta_mac_str, strlen(sta_mac_str) + 1);
-    len = (params->assoc.assoc_event == 1)?strlen("Assoc") + 1:strlen("Disassoc") + 1;
+	len = (params->assoc.assoc_event == 1)?strlen("Assoc") + 1:strlen("Disassoc") + 1;
     strncpy(evt_param->args[3], (params->assoc.assoc_event == 1)?"Assoc":"Disassoc", len);
     pcmd[num] = new em_cmd_sta_assoc_t(evt->params, dm);
     tmp = pcmd[num];
     num++;
-
-    pdm = get_data_model(global_netid, params->dev);
-    if (pdm == NULL) {
-        printf("%s:%d: Could not find data model for dev: %s\n", __func__, __LINE__, dev_mac_str);
-        return -1;
-    }
-
-    pbss = get_bss(bss_mac_str);
-    if (pbss = NULL) {
-        printf("%s:%d: Could not find bss: %s\n", __func__, __LINE__, bss_mac_str);
-        return -1;
-    }
-
-    dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.ruid.mac, radio_mac_str);
-
-    // confirm that the radio is on this device
-    for (i = 0; i < pdm->m_num_radios; i++) {
-        if (memcmp(pbss->m_bss_info.ruid.mac, pdm->m_radio[i].m_radio_info.id.mac, sizeof(mac_address_t)) == 0) {
-            radio_matched == true;
-            break;
-        }
-    }
-
-    if (radio_matched == false) {
-        printf("%s:%d: Could not find bss: %s on radio: %s\n", __func__, __LINE__, bss_mac_str, radio_mac_str);
-        return -1;
-    }
-
-    memcpy(sta_info.id, params->assoc.cli_mac_address, sizeof(mac_address_t));
-    memcpy(sta_info.bssid, params->assoc.bssid, sizeof(mac_address_t));
-    memcpy(sta_info.radiomac, pbss->m_bss_info.ruid.mac, sizeof(mac_address_t));
-
-    pdm->put_sta_info(&sta_info, em_target_sta_map_consolidated);
 
     while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
         tmp = pcmd[num];

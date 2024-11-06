@@ -67,55 +67,54 @@ void em_t::orch_execute(em_cmd_t *pcmd)
     switch (cmd_type) {
         case em_cmd_type_sta_list:
             m_sm.set_state(em_state_agent_topology_notify);
-            break;
+			break;
 
         case em_cmd_type_set_ssid:
             m_sm.set_state(em_state_ctrl_misconfigured);
-            break;
+			break;
 
         case em_cmd_type_dev_init:
-            m_sm.set_state(em_state_agent_config_none);
+			m_sm.set_state(em_state_agent_unconfigured);
             break;
 
         case em_cmd_type_cfg_renew:
             m_sm.set_state((m_service_type == em_service_type_agent) ? 
 							em_state_agent_autoconfig_renew_pending:em_state_ctrl_misconfigured);
-            break;
+			break;
 
         case em_cmd_type_start_dpp:
             break;
 
         case em_cmd_type_ap_cap_query:
             m_sm.set_state(em_state_agent_ap_cap_report);
-            break;
+			break;
 
         case em_cmd_type_client_cap_query:
-            m_sm.set_state(em_state_agent_client_cap_report);
+			m_sm.set_state(em_state_agent_client_cap_report);
             break;
 
         case em_cmd_type_em_config:
             printf("%s:%d: %s(%s) state: 0x%04x\n", __func__, __LINE__,
                     em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), get_state());
-			if ((pcmd->get_orch_op() == dm_orch_type_topo_sync) && (m_sm.get_state() == em_state_ctrl_wsc_m2_sent)) {
+            if ((pcmd->get_orch_op() == dm_orch_type_topo_sync) && (m_sm.get_state() == em_state_ctrl_wsc_m2_sent)) {
             	m_sm.set_state(em_state_ctrl_topo_sync_pending);
 			} else if ((pcmd->get_orch_op() == dm_orch_type_channel_pref) && (m_sm.get_state() == em_state_ctrl_topo_synchronized)) {
             	m_sm.set_state(em_state_ctrl_channel_query_pending);
 			} else if ((pcmd->get_orch_op() == dm_orch_type_channel_sel) && (m_sm.get_state() == em_state_ctrl_channel_queried)) {
             	m_sm.set_state(em_state_ctrl_channel_select_pending);
 			}
-            break;
+			break;
 
         case em_cmd_type_dev_test:
 			m_sm.set_state(em_state_ctrl_channel_query_pending);
 			break;
-        
-		case em_cmd_type_onewifi_cb:
+        case em_cmd_type_onewifi_cb:
             m_sm.set_state(em_state_agent_onewifi_bssconfig_ind);
-            break;
-
-		case em_cmd_type_sta_assoc:
-            m_sm.set_state(em_state_ctrl_sta_cap_pending);
 			break;
+		
+	case em_cmd_type_channel_pref_query:
+	    m_sm.set_state(em_state_agent_channel_pref_query);
+	    break;
     }
 }
 
@@ -191,21 +190,24 @@ void em_t::handle_agent_state()
         case em_cmd_type_dev_init:
         case em_cmd_type_sta_list:
         case em_cmd_type_cfg_renew:
-            if ((m_sm.get_state() >= em_state_agent_config_none) && (m_sm.get_state() < em_state_agent_config_complete)) {
-                em_configuration_t::process_agent_state();
+            if ((m_sm.get_state() >= em_state_agent_unconfigured) && (m_sm.get_state() < em_state_agent_configured)) {
+				em_configuration_t::process_agent_state();
             }
             break;
 
         case em_cmd_type_start_dpp:
-            if ((m_sm.get_state() >= em_state_agent_prov_none) && (m_sm.get_state() < em_state_agent_prov_complete)) {
-                em_provisioning_t::process_agent_state();
+            if ((m_sm.get_state() >= em_state_agent_unconfigured) && (m_sm.get_state() < em_state_agent_configured)) {
+				em_provisioning_t::process_agent_state();
             }
             break;
         case em_cmd_type_ap_cap_query:
         case em_cmd_type_client_cap_query:
-            if ((m_sm.get_state() >= em_state_agent_config_none) && (m_sm.get_state() < em_state_agent_config_complete)) {
+			if ((m_sm.get_state() >= em_state_agent_configured)) {
                 em_capability_t::process_state();
             }
+            break;
+        case em_cmd_type_channel_pref_query:
+                em_channel_t::process_state();
             break;
         default:
             break;
@@ -722,7 +724,7 @@ em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_pro
     m_service_type = type;
     m_profile_type = profile;
     m_sm.init_sm(type);
-    m_orch_state = em_orch_state_idle;
+	m_orch_state = em_orch_state_idle;
     m_cmd = NULL;
     RAND_bytes(get_crypto_info()->e_nonce, sizeof(em_nonce_t));
     RAND_bytes(get_crypto_info()->r_nonce, sizeof(em_nonce_t));

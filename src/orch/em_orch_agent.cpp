@@ -51,8 +51,12 @@ void em_orch_agent_t::orch_transient(em_cmd_t *pcmd, em_t *em)
     if (stats->time > EM_MAX_CMD_TTL) {
         printf("%s:%d: Canceling comd: %s because time limit exceeded\n", __func__, __LINE__, pcmd->get_cmd_name());
         cancel_command(pcmd->get_type());
-        em->set_state(em_state_agent_config_complete);
-    }
+    	if (em->get_state() < em_state_agent_topo_synchronized) {
+	    	em->set_state(em_state_agent_unconfigured);
+		} else {
+	    	em->set_state(em_state_agent_topo_synchronized);
+		}
+	}
 
 }
 
@@ -75,9 +79,14 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                 return true;
             }
             break;
+		case em_cmd_type_channel_pref_query:
+		    if (em->get_state() == em_state_agent_channel_selection_pending) {
+				return true;
+	    	}
+	    	break;
         default:
-            if ((em->get_state() == em_state_agent_config_none) || \
-                    (em->get_state() == em_state_agent_config_complete)) {
+            if ((em->get_state() == em_state_agent_unconfigured) || \
+                    (em->get_state() == em_state_agent_configured)) {
                 return true;
             }
             break;
@@ -88,7 +97,7 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
 
 bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 {
-    if ((em->get_state() == em_state_agent_config_none) || (em->get_state() == em_state_agent_config_complete)) {
+    if (em->get_state() == em_state_agent_unconfigured) {
         return true;
     } else if (pcmd->m_type == em_cmd_type_onewifi_cb) {
         return true;
@@ -96,8 +105,9 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
         return true;
     } else if (pcmd->m_type == em_cmd_type_sta_list) {
         return true;
+    } else if ((pcmd->m_type == em_cmd_type_channel_pref_query) && (em->get_state() == em_state_agent_topo_synchronized)) {
+		return true;
     }
-
     return false;
 }
 
@@ -161,6 +171,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
         case dm_orch_type_client_cap_report:
         case dm_orch_type_owconfig_cnf:
         case dm_orch_type_tx_cfg_renew:
+	case dm_orch_type_channel_pref:
             break;
         default:
             break;
@@ -254,6 +265,17 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                     }
                 }
                 break;
+	    case em_cmd_type_channel_pref_query:
+                if (!(em->is_al_interface_em())) {
+                    if ((em->get_state() >= em_state_agent_topo_synchronized) && (em->get_state() < em_state_agent_configured)){
+                        dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), dst_mac_str);
+                        printf("em %s candidates created for em_cmd_type_channel_pref_query\n",dst_mac_str);
+                        queue_push(pcmd->m_em_candidates, em);
+			count++;
+                    }
+                }
+                break;
+
             default:
                 break;
         }

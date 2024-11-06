@@ -16,19 +16,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <assert.h>
-#include <signal.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <net/if.h>
-#include <linux/filter.h>
-#include <netinet/ether.h>
-#include <netpacket/packet.h>
-#include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
@@ -38,32 +25,28 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <cjson/cJSON.h>
-#include "em_cmd_sta_assoc.h"
+#include "em_cmd_channel_pref_query.h"
 
-em_cmd_sta_assoc_t::em_cmd_sta_assoc_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
+em_cmd_channel_pref_query_t::em_cmd_channel_pref_query_t(em_service_type_t service, em_cmd_params_t param, dm_easy_mesh_t& dm)
 {
     em_cmd_ctx_t ctx;;
-
-    m_type = em_cmd_type_em_config;
+    m_type = em_cmd_type_channel_pref_query;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
 
-	memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
+    memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
 
+    m_svc = service;    
     m_orch_op_idx = 0;
-    m_num_orch_desc = 3;
-    m_orch_desc[0].op = dm_orch_type_topo_sync;
+    m_num_orch_desc = 1;
+    m_orch_desc[0].op = dm_orch_type_channel_pref;
     m_orch_desc[0].submit = true;
-    m_orch_desc[1].op = dm_orch_type_channel_pref;
-    m_orch_desc[1].submit = true;
-    m_orch_desc[2].op = dm_orch_type_channel_sel;
-    m_orch_desc[2].submit = true;
 
-    strncpy(m_name, "sta_assoc", strlen("sta_assoc") + 1);
+    snprintf(m_name, sizeof(m_name), "%s", "channel_pref_query");
     m_svc = em_service_type_ctrl;
     init(&dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
-    ctx.type = m_orch_desc[0].op;
+    ctx.type = m_orch_desc[0].op;    
     m_data_model.set_cmd_ctx(&ctx);
 }
 

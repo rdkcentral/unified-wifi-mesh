@@ -16,41 +16,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <ctype.h>
-#include <errno.h>
-#include <assert.h>
-#include "em_sm.h"
+#ifndef EM_CMD_CHANNEL_PREF_QUERY_H
+#define EM_CMD_CHANNEL_PREF_QUERY_H
 
+#include "em_cmd.h"
 
-bool em_sm_t::validate_sm(em_state_t state)
-{
-	return true;
-}
+class em_cmd_channel_pref_query_t : public em_cmd_t {
 
-int em_sm_t::set_state(em_state_t state)
-{
-	if (validate_sm(state) == true) {
-		m_state = state;
-		return 0;
-	}
+public:
+    em_cmd_channel_pref_query_t(em_service_type_t service, em_cmd_params_t param, dm_easy_mesh_t& dm);
+};
 
-	return -1;
-}
-
-void em_sm_t::init_sm(em_service_type_t service)
-{
-	m_state = (service == em_service_type_agent) ? em_state_agent_unconfigured:em_state_ctrl_unconfigured;	
-}
-
-em_sm_t::em_sm_t()
-{
-
-}
-
-em_sm_t::~em_sm_t()
-{
-
-}
+#endif

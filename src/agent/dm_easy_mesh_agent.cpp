@@ -43,6 +43,7 @@
 #include "em_cmd_sta_list.h"
 #include "em_cmd_onewifi_cb.h"
 #include "em_cmd_cfg_renew.h"
+#include "em_cmd_channel_pref_query.h"
 
 int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
@@ -90,7 +91,6 @@ int dm_easy_mesh_agent_t::analyze_autoconfig_renew(em_bus_event_t *evt, em_cmd_t
     }
     return num;
 }
-
 
 int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
@@ -175,11 +175,12 @@ void dm_easy_mesh_agent_t::translate_onewifi_dml_data (char *str)
     int num_radios,num_op,num_bss;
     unsigned int i = 0;
                 
-    webconfig_proto_easymesh_init(&ext, this, NULL, get_num_radios, set_num_radios, 
+    /*webconfig_proto_easymesh_init(&ext, this, NULL, get_num_radios, set_num_radios, 
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info, get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info);
+    */
     config.initializer = webconfig_initializer_onewifi;
-    config.apply_data =  webconfig_dummy_apply; 
+    config.apply_data =  webconfig_dummy_apply;
                 
     if (webconfig_init(&config) != webconfig_error_none) {
         printf( "[%s]:%d Init WiFi Web Config  fail\n",__func__,__LINE__);
@@ -216,10 +217,10 @@ int dm_easy_mesh_agent_t::analyze_m2ctrl_configuration(em_bus_event_t *evt, wifi
     m2ctrl.enable = vapconfig->enable;
     printf("%s:%d New configuration SSID=%s Security mode=%d  passphrase=%s \n",__func__,__LINE__,m2ctrl.ssid,m2ctrl.authtype,m2ctrl.password);
 
-    webconfig_proto_easymesh_init(&dev_data, &dm, &m2ctrl, get_num_radios, set_num_radios,
+    /*webconfig_proto_easymesh_init(&dev_data, &dm, &m2ctrl, get_num_radios, set_num_radios,
                                 get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
                                 get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
-                                get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info);
+                                get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info);*/
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -260,9 +261,9 @@ int dm_easy_mesh_agent_t::analyze_onewifi_cb(em_bus_event_t *evt, em_cmd_t *pcmd
     unsigned int i = 0, j = 0;
     dm_easy_mesh_agent_t  dm;
     em_cmd_t *tmp;
-    webconfig_proto_easymesh_init(&ext, &dm, NULL, get_num_radios, set_num_radios,
+    /*webconfig_proto_easymesh_init(&ext, &dm, NULL, get_num_radios, set_num_radios,
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
-            get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info, get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info);
+            get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info, get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info);*/
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
     if (webconfig_init(&config) != webconfig_error_none) {
@@ -313,7 +314,7 @@ void dm_easy_mesh_agent_t::translate_onewifi_stats_data(char *str)
     webconfig_proto_easymesh_init(&extdata, this, NULL, get_num_radios, set_num_radios,
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
-			get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info);
+			get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info);*/
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -329,6 +330,21 @@ void dm_easy_mesh_agent_t::translate_onewifi_stats_data(char *str)
     } else {
         printf("%s:%d Assoc clients decode fail\n",__func__, __LINE__);
     }
+}
+
+int dm_easy_mesh_agent_t::analyze_channel_pref_query(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    em_bus_event_type_cfg_renew_params_t *raw;
+    em_event_t bus;
+    dm_easy_mesh_agent_t  dm = *this;
+    int num = 0;
+    em_cmd_t *tmp;
+
+    pcmd[num] = new em_cmd_channel_pref_query_t(em_service_type_agent, evt->params, dm);
+    //pcmd[num] = new em_cmd_ow_cb_t(evt->params, dm);
+    num++;
+
+    return num;
 }
 
 webconfig_error_t dm_easy_mesh_agent_t::webconfig_dummy_apply(webconfig_subdoc_t *doc, webconfig_subdoc_data_t *data)

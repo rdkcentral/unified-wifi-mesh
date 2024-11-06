@@ -28,16 +28,16 @@ INCLUDEDIRS = \
 	-I$(ONEWIFI_EM_HOME)/inc \
 	-I$(ONEWIFI_EM_HOME)/src/utils \
 	-I$(ONEWIFI_HAL_INTF_HOME) \
-	-I$(ONEWIFI_HOME)/generic/source/utils \
-	-I$(ONEWIFI_HOME)/generic/include \
+	-I$(ONEWIFI_HOME)/source/utils \
+	-I$(ONEWIFI_HOME)/include \
     	-I$(ONEWIFI_BUS_LIB_HOME)/inc \
-    	-I$(ONEWIFI_HOME)/generic/lib/log \
-    	-I$(ONEWIFI_HOME)/generic/lib/ds \
-    	-I$(ONEWIFI_HOME)/generic/source/platform/linux \
-    	-I$(ONEWIFI_HOME)/generic/source/platform/common \
-    	-I$(ONEWIFI_HOME)/generic/source/platform/linux/he_bus/inc \
+    	-I$(ONEWIFI_HOME)/lib/log \
+    	-I$(ONEWIFI_HOME)/lib/ds \
+    	-I$(ONEWIFI_HOME)/source/platform/linux \
+    	-I$(ONEWIFI_HOME)/source/platform/common \
+    	-I$(ONEWIFI_HOME)/source/platform/linux/he_bus/inc \
         -I$(ONEWIFI_EM_HOME)/src/util_crypto \
-        -I$(ONEWIFI_HOME)/generic/source/ccsp
+        -I$(ONEWIFI_HOME)/source/ccsp
 
 $(info The value of VARIABLE is $(ONEWIFI_HAL_INTF_HOME))
 
@@ -49,10 +49,10 @@ LIBDIRS = \
 
 LIBS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwebconfig -lhebus
 
-GENERIC_SOURCES = $(ONEWIFI_HOME)/generic/source/utils/collection.c \
+GENERIC_SOURCES = $(ONEWIFI_HOME)/source/utils/collection.c \
 	$(ONEWIFI_EM_SRC)/util_crypto/aes_siv.c \
-    	$(ONEWIFI_HOME)/generic/lib/common/util.c \
-    	$(ONEWIFI_HOME)/generic/source/platform/linux/bus.c \
+    	$(ONEWIFI_HOME)/lib/common/util.c \
+    	$(ONEWIFI_HOME)/source/platform/linux/bus.c \
 
 AGENT_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/em/config/*.cpp) \
