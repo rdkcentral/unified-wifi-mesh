@@ -57,34 +57,6 @@ static inline void _EnB(uint8_t **packet_ppointer, void *memory_pointer, uint32_
     (*packet_ppointer) += n;
 }
 
-short em_configuration_t::create_ap_radio_basic_cap(unsigned char *buff)
-{
-    short len = 0;
-    em_ap_radio_basic_cap_t *cap = (em_ap_radio_basic_cap_t *)buff;
-    memcpy(&cap->ruid, get_radio_interface_mac(), sizeof(mac_address_t));
-    len += sizeof(mac_address_t);
-
-    em_interface_t* radio_interface = get_radio_interface();
-    rdk_wifi_radio_t* radio_data = get_current_cmd()->get_radio_data(radio_interface);
-    if (radio_data != NULL)
-        cap->num_bss = radio_data->vaps.num_vaps;
-    cap->num_bss = 1;
-
-    len += 1;
-    cap->op_class_num= 1;
-    len += 1;
-
-    cap->op_classes[0].op_class = get_current_cmd()->get_rd_op_class();
-    len += 1;
-    cap->op_classes[0].channels.num = 1;
-    len += 1;
-    cap->op_classes[0].channels.channel[0] = get_current_cmd()->get_rd_channel();
-    len += 2;
-
-
-    return len;
-}       
-
 short em_configuration_t::create_client_notify_msg(unsigned char *buff)
 {
     short len = 0;
@@ -2291,11 +2263,11 @@ int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned 
     bool radio_exists = false;
     bool op_class_exists = false;
     mac_addr_str_t mac_str;
-    em_ap_radio_basic_cap_t	*radio_basic_cap = (em_ap_radio_basic_cap_t *)buff;
-	em_op_class_t *basic_cap_op_class;
-	em_op_class_info_t	op_class_info;
-	dm_op_class_t *op_class_obj;
-	unsigned int db_cfg_type;
+    em_ap_radio_basic_cap_t     *radio_basic_cap = (em_ap_radio_basic_cap_t *)buff;
+    em_op_class_t *basic_cap_op_class;
+    em_op_class_info_t      op_class_info;
+    dm_op_class_t *op_class_obj;
+    unsigned int db_cfg_type;
 
     dm_easy_mesh_t *dm = get_data_model();
 
@@ -2317,53 +2289,51 @@ int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned 
 
     radio_info = &radio->m_radio_info;
     memcpy(radio_info->id.mac, ruid, sizeof(mac_address_t));
-
     radio_info->number_of_bss = radio_basic_cap->num_bss;
-
     dm_easy_mesh_t::macbytes_to_string(ruid, mac_str);
     printf("%s:%d: Radio: %s\n", __func__, __LINE__, mac_str);
-	db_cfg_type = dm->get_db_cfg_type();
+    db_cfg_type = dm->get_db_cfg_type();
     dm->set_db_cfg_type(db_cfg_type | db_cfg_type_radio_list_update);
-	
-	basic_cap_op_class = radio_basic_cap->op_classes;
-	for (i = 0; i < radio_basic_cap->op_class_num; i++) {
-		memset(&op_class_info, 0, sizeof(em_op_class_info_t));
-		memcpy(op_class_info.id.ruid, ruid, sizeof(mac_address_t));
-		op_class_info.id.type = em_op_class_type_capability;
-		op_class_info.op_class = basic_cap_op_class->op_class;
-		op_class_info.max_tx_power = basic_cap_op_class->max_tx_eirp;
-		op_class_info.num_non_op_channels = basic_cap_op_class->channels.num;
-		for (j = 0; j < op_class_info.num_non_op_channels; j++) {
-			op_class_info.non_op_channel[j] = basic_cap_op_class->channels.channel[j];
-		}
-		basic_cap_op_class += sizeof(em_op_class_t) + op_class_info.num_non_op_channels;
 
-		op_class_obj = &dm->m_op_class[0];
+    basic_cap_op_class = radio_basic_cap->op_classes;
+    if (basic_cap_op_class != NULL) {
+        for (i = 0; i < radio_basic_cap->op_class_num; i++) {
+            memset(&op_class_info, 0, sizeof(em_op_class_info_t));
+            memcpy(op_class_info.id.ruid, ruid, sizeof(mac_address_t));
+            op_class_info.id.type = em_op_class_type_capability;
+            op_class_info.op_class = (unsigned int)basic_cap_op_class->op_class;
+            op_class_info.max_tx_power = (int)basic_cap_op_class->max_tx_eirp;
+            op_class_info.num_non_op_channels = (unsigned int)basic_cap_op_class->num;
+            for (j = 0; j < op_class_info.num_non_op_channels; j++) {
+                op_class_info.non_op_channel[j] = (unsigned int )basic_cap_op_class->channels.channel[j];
+            }
+            basic_cap_op_class = (em_op_class_t *)((unsigned char *)basic_cap_op_class + sizeof(em_op_class_t) + op_class_info.num_non_op_channels);
 
-		// now check if the op_class already exists
-		for (j = 0; j < dm->get_num_op_class(); j++) {
-			op_class_obj = &dm->m_op_class[j];
-			if (*op_class_obj == dm_op_class_t(&op_class_info)) {
-				op_class_exists = true;
-				break;	
-			}
-		}
-
-		//printf("%s:%d: Op Class Exists: %s\n", __func__, __LINE__, (op_class_exists == true)?"yes":"no");
-
-		if (op_class_exists == true) {
-			op_class_exists = false;
-		} else {
-			op_class_obj = &dm->m_op_class[dm->get_num_op_class()];
-			dm->set_num_op_class(dm->get_num_op_class() + 1);
-		}
-			
-		memcpy(&op_class_obj->m_op_class_info, &op_class_info, sizeof(em_op_class_info_t));
-		db_cfg_type = dm->get_db_cfg_type();
-		dm->set_db_cfg_type(db_cfg_type | db_cfg_type_op_class_list_update);
-	}
+            op_class_obj = &dm->m_op_class[0];
+            // now check if the op_class already exists
+            for (j = 0; j < dm->get_num_op_class(); j++) {
+                op_class_obj = &dm->m_op_class[j];
+                if (*op_class_obj == dm_op_class_t(&op_class_info)) {
+                    op_class_exists = true;
+                    break;
+                }
+            }
+            if (op_class_exists == true) {
+                op_class_exists = false;
+            } else {
+                op_class_obj = &dm->m_op_class[dm->get_num_op_class()];
+                dm->set_num_op_class(dm->get_num_op_class() + 1);
+            }
+            memcpy(&op_class_obj->m_op_class_info, &op_class_info, sizeof(em_op_class_info_t));
+            db_cfg_type = dm->get_db_cfg_type();
+            dm->set_db_cfg_type(db_cfg_type | db_cfg_type_op_class_list_update);
+        }
+    } else {
+        printf("%s:%d basic_cap_op_class is NULL \n", __func__, __LINE__);
+    }
 
     return 0;
+
 }
 
 int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned int len)

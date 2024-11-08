@@ -446,26 +446,38 @@ short em_t::create_ap_radio_basic_cap(unsigned char *buff)
 {
     short len = 0;
     em_ap_radio_basic_cap_t *cap = (em_ap_radio_basic_cap_t *)buff;
+    em_channels_list_t *channel_list;
+    em_op_class_t *op_class;
+    unsigned int all_channel_len = 0;
+    len = sizeof(em_ap_radio_basic_cap_t);
+
     memcpy(&cap->ruid, get_radio_interface_mac(), sizeof(mac_address_t));
-    len += sizeof(mac_address_t);
 
     em_interface_t* radio_interface = get_radio_interface();
-    rdk_wifi_radio_t* radio_data = get_current_cmd()->get_radio_data(radio_interface);
-    if (radio_data != NULL)
-        cap->num_bss = radio_data->vaps.num_vaps;
-    cap->num_bss = 1;
+    cap->num_bss = get_current_cmd()->get_data_model()->get_num_bss();
+    cap->op_class_num = get_current_cmd()->get_data_model()->get_num_op_class();
+    op_class = cap->op_classes;
 
-    len += 1;
-    cap->op_class_num= 1;
-    len += 1;
-
-    cap->op_classes[0].op_class = get_current_cmd()->get_rd_op_class();
-    len += 1;
-    cap->op_classes[0].channels.num = 1;
-    len += 1;
-    cap->op_classes[0].channels.channel[0] = get_current_cmd()->get_rd_channel();
-    len += 2;
-
+    for (int i = 0; i < cap->op_class_num; i++) {
+        em_op_class_info_t *op_class_info = get_current_cmd()->get_data_model()->get_op_class_info(i);
+        if (op_class_info != NULL) {
+            op_class->op_class = op_class_info->op_class;
+            op_class->max_tx_eirp = op_class_info->max_tx_power;
+            op_class->num = op_class_info->num_non_op_channels;
+            len += sizeof(em_op_class_t);
+            if (op_class_info->num_non_op_channels != 0) {
+                channel_list = &op_class->channels;
+                for (int j = 0; j < op_class_info->num_non_op_channels; j++) {
+                    memcpy( (unsigned char *)&channel_list->channel, (unsigned char *)&op_class_info->non_op_channel[j], sizeof(unsigned char));
+                    all_channel_len = all_channel_len + sizeof(unsigned char);
+                    channel_list = (em_channels_list_t *)((unsigned char *)channel_list + sizeof(em_channels_list_t) + sizeof(unsigned char) );
+                    len += sizeof(unsigned char);
+                }              
+            }
+        }
+        op_class = (em_op_class_t *)((unsigned char *)op_class + sizeof(em_op_class_t) + all_channel_len);
+        all_channel_len = 0;
+    }
 
     return len;
 }

@@ -273,13 +273,13 @@ typedef struct {
 } __attribute__((__packed__)) em_chirp_t;
 
 typedef struct {
-    unsigned char   num;
     unsigned char   channel[0];
 } __attribute__((__packed__)) em_channels_list_t;
 
 typedef struct {
     unsigned char   op_class;
-    unsigned char   max_tx_eirp;
+    char   max_tx_eirp;
+    unsigned char   num;
     em_channels_list_t  channels;
 } __attribute__((__packed__)) em_op_class_t;
 
@@ -289,7 +289,6 @@ typedef struct {
     unsigned char   op_class_num;
     em_op_class_t   op_classes[0];
 } __attribute__((__packed__)) em_ap_radio_basic_cap_t;
-
 
 typedef enum {
     mandatory,
@@ -883,6 +882,7 @@ typedef struct {
 
 typedef struct {
     unsigned char op_class;
+    unsigned char num;
     em_channels_list_t channels;
 } __attribute__((__packed__)) em_channel_pref_op_class_t;
 
