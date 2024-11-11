@@ -475,15 +475,42 @@ void dm_easy_mesh_list_t::put_bss(const char *key, const dm_bss_t *bss)
 dm_sta_t *dm_easy_mesh_list_t::get_first_sta()
 {
     dm_sta_t *sta = NULL;
+    dm_easy_mesh_t *dm;
+
+    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    while (dm != NULL) {
+        sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_map);
+        if (sta != NULL) {
+            return sta;
+        }
+        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+    }
 
     return sta;
 }
 
-dm_sta_t *dm_easy_mesh_list_t::get_next_sta(dm_sta_t *sta)
+dm_sta_t *dm_easy_mesh_list_t::get_next_sta(dm_sta_t *psta)
 {
-    dm_sta_t *psta = NULL;
-  
-    return psta;
+    dm_sta_t *sta = NULL;
+    dm_easy_mesh_t *dm;
+    bool return_next = false;
+
+    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    while (dm != NULL) {
+        sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_map);
+        while (sta != NULL) {
+            if (return_next == true) {
+                return sta;
+            }
+            if (sta == psta) {
+                return_next = true;
+            }
+            sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_map, sta);
+        }
+        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+    }
+
+    return NULL;
 }   
     
 dm_sta_t *dm_easy_mesh_list_t::get_sta(const char *key)
@@ -500,7 +527,41 @@ void dm_easy_mesh_list_t::remove_sta(const char *key)
 
 void dm_easy_mesh_list_t::put_sta(const char *key, const dm_sta_t *sta)
 {
+    dm_sta_t *psta;
+    dm_easy_mesh_t *dm;
+    mac_address_t sta_mac, ruid;
+    bssid_t	bssid;
+    bool found = false;
+    unsigned int i;
 
+    dm_sta_t::parse_sta_bss_radio_from_key(key, sta_mac, bssid, ruid);
+
+    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    while (dm != NULL) {
+        for (i = 0; i < dm->m_num_radios; i++) {
+            if (memcmp(dm->m_radio[i].m_radio_info.id.mac, ruid, sizeof(mac_address_t)) == 0) {
+                found = true;
+                break;
+            }
+        }
+
+        if (found == true) {
+            break;
+        }
+        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+    }
+
+    if (found == false) {
+        return;
+    }
+
+    if ((psta = (dm_sta_t *)hash_map_get(dm->m_sta_map, key)) != NULL) {
+        memcpy(&psta->m_sta_info, &sta->m_sta_info, sizeof(em_sta_info_t));
+        return;
+    }
+
+    psta = new dm_sta_t(*sta);
+    hash_map_put(dm->m_sta_map, strdup(key), psta);
 }
 
 dm_network_ssid_t *dm_easy_mesh_list_t::get_first_network_ssid()

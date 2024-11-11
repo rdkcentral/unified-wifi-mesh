@@ -49,10 +49,10 @@ public:
     unsigned int    m_num_bss;    
     dm_bss_t    m_bss[EM_MAX_BSSS];
     dm_dpp_t        m_dpp;
-    hash_map_t  *m_sta_map = NULL;
     em_cmd_ctx_t    m_cmd_ctx;
     unsigned int 	m_num_opclass;    
     dm_op_class_t m_op_class[EM_MAX_OPCLASS];
+    hash_map_t  	*m_sta_map = NULL;
     hash_map_t      *m_sta_assoc_map = NULL;
     hash_map_t      *m_sta_dassoc_map = NULL;
     dm_cac_comp_t	m_cac_comp;
@@ -194,18 +194,14 @@ public:
     void    set_cmd_ctx(em_cmd_ctx_t *ctx) { memcpy(&m_cmd_ctx, ctx, sizeof(em_cmd_ctx_t)); }
     void    reset_cmd_ctx() { memset(&m_cmd_ctx, 0, sizeof(em_cmd_ctx_t)); }
 
-    hash_map_t **get_assoc_sta_map() {return &m_sta_assoc_map;}
-    hash_map_t **get_dassoc_sta_map() {return &m_sta_dassoc_map;}
-    hash_map_t **get_sta_map() {return &m_sta_map;}
-
-    em_sta_info_t *get_first_sta_info();
-    em_sta_info_t *get_next_sta_info(em_sta_info_t *info);
-    em_sta_info_t *get_sta_info(unsigned char *mac);
-    void put_sta_info(em_sta_info_t *info);
-    static em_sta_info_t *get_first_sta_info(void *dm) { return ((dm_easy_mesh_t *)dm)->get_first_sta_info(); }
-    static em_sta_info_t *get_next_sta_info(void *dm, em_sta_info_t *info) { return ((dm_easy_mesh_t *)dm)->get_first_sta_info(info); }
-    static em_sta_info_t *get_sta_info(void *dm, unsigned char *mac) { return ((dm_easy_mesh_t *)dm)->get_sta_info(mac); }
-    static void put_sta_info(void *dm, em_sta_info_t *info) { ((dm_easy_mesh_t *)dm)->put_sta_info(info); }
+    em_sta_info_t *get_first_sta_info(em_target_sta_map_t target);
+    em_sta_info_t *get_next_sta_info(em_sta_info_t *info, em_target_sta_map_t target);
+    em_sta_info_t *get_sta_info(mac_address_t sta, bssid_t bssid, mac_address_t ruid, em_target_sta_map_t target);
+    void put_sta_info(em_sta_info_t *info, em_target_sta_map_t target);
+    static em_sta_info_t *get_first_sta_info(void *dm, em_target_sta_map_t target) { return ((dm_easy_mesh_t *)dm)->get_first_sta_info(target); }
+    static em_sta_info_t *get_next_sta_info(void *dm, em_sta_info_t *info, em_target_sta_map_t target) { return ((dm_easy_mesh_t *)dm)->get_first_sta_info(info, target); }
+    static em_sta_info_t *get_sta_info(void *dm, mac_address_t sta, bssid_t bssid, mac_address_t ruid, em_target_sta_map_t target) { return ((dm_easy_mesh_t *)dm)->get_sta_info(sta, bssid, ruid, target); }
+    static void put_sta_info(void *dm, em_sta_info_t *info, em_target_sta_map_t target) { ((dm_easy_mesh_t *)dm)->put_sta_info(info, target); }
     
     static void print_hex_dump(unsigned int length, unsigned char *buffer);
     static char *macbytes_to_string(mac_address_t mac, char* string);
@@ -229,6 +225,7 @@ public:
     void set_colocated(bool col) { m_colocated = col; }
     bool get_colocated() { return m_colocated; }
     em_t *get_em() { return m_em; }
+    void clone_hash_maps(dm_easy_mesh_t& obj);
 
     dm_easy_mesh_t();
     dm_easy_mesh_t(const dm_network_t& net);

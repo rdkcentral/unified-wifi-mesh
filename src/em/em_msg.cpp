@@ -102,6 +102,31 @@ bool em_msg_t::get_profile(em_profile_type_t *profile)
     return false;
 }
 
+bool em_msg_t::get_bss_id(mac_address_t *mac)
+{
+    em_tlv_t    *tlv;
+    int len;
+
+    tlv = (em_tlv_t *)m_buff; len = m_len;
+    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+        if (tlv->type == em_tlv_type_client_info) {
+            memcpy(mac, tlv->value, sizeof(mac_address_t));
+            return true;
+        } else if (tlv->type == em_tlv_type_client_assoc_event) {
+            memcpy(mac, tlv->value + sizeof(mac_address_t), sizeof(mac_address_t));
+            return true;
+        } else if (tlv->type == em_tlv_type_client_info) {
+            memcpy(mac, tlv->value + sizeof(mac_address_t), sizeof(mac_address_t));
+            return true;
+        }
+
+        len -= (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+    return false;
+}
+
 bool em_msg_t::get_radio_id(mac_address_t *mac)
 {
     em_tlv_t    *tlv;
@@ -150,6 +175,12 @@ bool em_msg_t::get_radio_id(mac_address_t *mac)
         } else if (tlv->type == em_tlv_type_channel_pref) {
 			memcpy(mac, tlv->value, sizeof(mac_address_t));
 			return true;	
+		} else if (tlv->type == em_tlv_type_channel_sel_resp) {
+			memcpy(mac, tlv->value, sizeof(mac_address_t));
+			return true;
+		} else if (tlv->type == em_tlv_type_op_channel_report) {
+			memcpy(mac, tlv->value, sizeof(mac_address_t));
+			return true;
 		}
 
         len -= (sizeof(em_tlv_t) + htons(tlv->len));
