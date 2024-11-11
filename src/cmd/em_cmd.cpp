@@ -573,6 +573,7 @@ const char *em_cmd_t::get_cmd_type_str(em_cmd_type_t type)
         CMD_TYPE_2S(em_cmd_type_topo_sync)
         CMD_TYPE_2S(em_cmd_type_em_config)
         CMD_TYPE_2S(em_cmd_type_sta_assoc)
+        CMD_TYPE_2S(em_cmd_type_channel_pref_query)
     }
 
     return "em_cmd_type_unknown";
