@@ -190,6 +190,7 @@ void dm_easy_mesh_agent_t::translate_onewifi_dml_data (char *str)
     webconfig_proto_easymesh_init(&ext, this, NULL, get_num_radios, set_num_radios, 
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info, get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info);
+    
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
                 
