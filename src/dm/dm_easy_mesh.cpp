@@ -49,67 +49,48 @@
 dm_easy_mesh_t dm_easy_mesh_t::operator =(dm_easy_mesh_t const& obj)
 {
     dm_sta_t *sta;
+    em_long_string_t key;
+    mac_addr_str_t radio_mac_str, bss_mac_str, sta_mac_str;
 
-    memcpy(&this->m_device, &obj.m_device, sizeof(dm_device_t));
-    memcpy(&this->m_network, &obj.m_network, sizeof(dm_network_t));
-    memcpy(&this->m_ieee_1905_security, &obj.m_ieee_1905_security, sizeof(dm_ieee_1905_security_t));
+    memcpy(&m_device, &obj.m_device, sizeof(dm_device_t));
+    memcpy(&m_network, &obj.m_network, sizeof(dm_network_t));
+    memcpy(&m_ieee_1905_security, &obj.m_ieee_1905_security, sizeof(dm_ieee_1905_security_t));
     
     this->m_num_radios = obj.m_num_radios;
     for (unsigned int i = 0; i < obj.m_num_radios; i++) {
-        memcpy(&this->m_radio[i], &obj.m_radio[i], sizeof(dm_radio_t));
+        memcpy(&m_radio[i], &obj.m_radio[i], sizeof(dm_radio_t));
     }
 
     this->m_num_bss = obj.m_num_bss;
     for (unsigned int i = 0; i < EM_MAX_BSSS; i++) {
-        memcpy(&this->m_bss[i], &obj.m_bss[i], sizeof(dm_bss_t));
+        memcpy(&m_bss[i], &obj.m_bss[i], sizeof(dm_bss_t));
     }
-    memcpy(&this->m_dpp, &obj.m_dpp, sizeof(dm_dpp_t));
+    memcpy(&m_dpp, &obj.m_dpp, sizeof(dm_dpp_t));
 
-    this->m_num_opclass = obj.m_num_opclass;
+    m_num_opclass = obj.m_num_opclass;
     for (unsigned int i = 0; i < EM_MAX_OPCLASS; i++) {
-        memcpy(&this->m_op_class[i], &obj.m_op_class[i], sizeof(dm_op_class_t));
+        memcpy(&m_op_class[i], &obj.m_op_class[i], sizeof(dm_op_class_t));
     }
 
     this->m_num_net_ssids = obj.m_num_net_ssids;
     for (unsigned int i = 0; i < EM_MAX_NET_SSIDS; i++) {
-        memcpy(&this->m_network_ssid[i], &obj.m_network_ssid[i], sizeof(dm_network_ssid_t));
+        memcpy(&m_network_ssid[i], &obj.m_network_ssid[i], sizeof(dm_network_ssid_t));
     }
 
-    this->m_db_cfg_type = obj.m_db_cfg_type;
+    m_db_cfg_type = obj.m_db_cfg_type;
 
-    hash_map_t **dst_m_sta_assoc_map = (hash_map_t** ) this->get_assoc_sta_map();
-    hash_map_t **dst_m_sta_dassoc_map = (hash_map_t** ) this->get_dassoc_sta_map();
-    hash_map_t **dst_m_sta_map = (hash_map_t** ) this->get_sta_map();
+	sta = (dm_sta_t *)hash_map_get_first(obj.m_sta_map);
+	while (sta != NULL) {
+        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
+        snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
+		hash_map_put(m_sta_map, strdup(key), new dm_sta_t(*sta));
+		sta = (dm_sta_t *)hash_map_get_next(obj.m_sta_map, sta);
+	}
 
-    hash_map_t **m_sta_map = (hash_map_t** ) &obj.m_sta_map;
-    if((m_sta_map != NULL) && (*m_sta_map != NULL)) {
-        sta = (dm_sta_t *)hash_map_get_first(*m_sta_map);
-        while (sta != NULL) {
-            hash_map_put(*dst_m_sta_map,strdup(sta->get_sta_info()->m_sta_key),sta);
-            sta = (dm_sta_t *)hash_map_get_next(*m_sta_map, sta);
-            }
-    }
+    m_em = obj.m_em;
 
-    hash_map_t **m_sta_assoc_map = (hash_map_t** ) &obj.m_sta_assoc_map;
-    if((m_sta_assoc_map != NULL) && (*m_sta_assoc_map != NULL)) {
-        sta = (dm_sta_t *)hash_map_get_first(*m_sta_assoc_map);
-        while (sta != NULL) {
-	    hash_map_put(*dst_m_sta_assoc_map,strdup(sta->get_sta_info()->m_sta_key),sta);
-            sta = (dm_sta_t *)hash_map_get_next(*m_sta_assoc_map, sta);
-            }
-    }
-
-    hash_map_t **m_sta_dassoc_map = (hash_map_t** ) &obj.m_sta_dassoc_map;
-
-    if((m_sta_dassoc_map != NULL) && (*m_sta_dassoc_map != NULL)) {
-        sta = (dm_sta_t *)hash_map_get_first(*m_sta_dassoc_map);
-        while (sta != NULL) {
-            hash_map_put(*dst_m_sta_dassoc_map,strdup(sta->get_sta_info()->m_sta_key),sta);
-            sta = (dm_sta_t *)hash_map_get_next(*m_sta_dassoc_map, sta);
-            }
-    }
-
-    this->m_em = obj.m_em;
     return *this;
 }
 
@@ -122,42 +103,8 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
     dm_sta_t *sta;
     mac_addr_str_t mac_str;
 
-    if ( target.type == em_commit_target_sta_hash_map ) {
-        hash_map_t **m_sta_assoc_map = (hash_map_t **)dm.get_assoc_sta_map();
-        hash_map_t **em_m_sta_map = get_sta_map();
-
-        if ((m_sta_assoc_map != NULL) && (*m_sta_assoc_map != NULL)) {
-            sta = (dm_sta_t *)hash_map_get_first(*m_sta_assoc_map);
-            while (sta != NULL) {
-                // update the em
-                if ((em_m_sta_map != NULL) && (*em_m_sta_map != NULL)) {
-                    hash_map_put(*em_m_sta_map,strdup(sta->get_sta_info()->m_sta_key),sta);
-                    printf("%s:%d: node with key:%s updated\n", __func__, \
-                                 __LINE__,sta->get_sta_info()->m_sta_key);
-                    sta = (dm_sta_t *)hash_map_get_next(*m_sta_assoc_map, sta);
-                    continue;
-                } else {
-                    hash_map_put(*em_m_sta_map,strdup(sta->get_sta_info()->m_sta_key),sta);
-                    printf("%s:%d: New node created with key:%s \n", __func__,\
-                             __LINE__,sta->get_sta_info()->m_sta_key);
-                    sta = (dm_sta_t *)hash_map_get_next(*m_sta_assoc_map, sta);
-                    continue;
-                }
-                sta = (dm_sta_t *)hash_map_get_next(*m_sta_assoc_map, sta);
-            }
-        }
-        hash_map_t **m_sta_dassoc_map = (hash_map_t **)dm.get_dassoc_sta_map();
-        if ((m_sta_dassoc_map != NULL) && (*m_sta_dassoc_map != NULL) && \
-             (em_m_sta_map != NULL) && (*em_m_sta_map != NULL )) {
-             sta = (dm_sta_t *)hash_map_get_first(*m_sta_dassoc_map);
-             while (sta != NULL) {
-                hash_map_remove(*em_m_sta_map,sta->get_sta_info()->m_sta_key);
-                printf("%s:%d: node with key:%s removed\n", __func__,\
-                                 __LINE__,sta->get_sta_info()->m_sta_key);
-                sta = (dm_sta_t *)hash_map_get_next(*m_sta_dassoc_map, sta);
-            }
-        }
-    } else if( target.type == em_commit_target_al) {
+    if (target.type == em_commit_target_sta_hash_map ) {
+    } else if (target.type == em_commit_target_al) {
         m_network = dm.m_network;
         m_device = dm.m_device;
     } else if (target.type == em_commit_target_radio) {
@@ -294,58 +241,12 @@ int dm_easy_mesh_t::analyze_ap_cap_query(em_bus_event_t *evt, em_cmd_t *pcmd[])
 
 int dm_easy_mesh_t::analyze_client_cap_query(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
-    dm_easy_mesh_t  dm;
-    em_orch_desc_t desc;
-    em_subdoc_info_t *subdoc;
-    
-    desc.op = dm_orch_type_client_cap_report;
-	desc.submit = true;
-
-    subdoc = &evt->u.subdoc;
-    mac_addr_str_t client_mac,radio_str_mac;
-    dm_sta_t *sta = new dm_sta_t();;
-    hash_map_t **m_sta_assoc_map = (hash_map_t **)dm.get_assoc_sta_map();
-    mac_address_t cap_mac,radio_mac;
-
-    dm.decode_client_cap_config(subdoc, "ClientCapReport", client_mac, radio_str_mac);
-    string_to_macbytes(client_mac,cap_mac);
-    printf("%s:%d:ClientCapReport msg id %d", __func__, __LINE__,dm.msg_id);
-    printf("%s:%d: clientmac %s", __func__, __LINE__,client_mac);
-    printf("%s:%d: Radiomac %s\n", __func__, __LINE__,radio_str_mac);
-    string_to_macbytes(radio_str_mac,radio_mac);
-    memcpy(sta->get_sta_info()->id,&cap_mac,sizeof(mac_address_t));
-    //memcpy(sta->get_sta_info()->bssid,&bss_mac,sizeof(mac_address_t)); TODO once cache is available
-    hash_map_put(*m_sta_assoc_map,strdup(client_mac),sta);
-    memcpy(dm.m_radio[0].get_radio_info()->id.mac,&radio_mac,sizeof(mac_address_t));
-    dm.m_num_radios = 1;
-    mac_addr_str_t mac_str;dm_easy_mesh_t::macbytes_to_string(dm.m_radio[0].get_radio_info()->id.mac,mac_str);
-    pcmd[0] = new em_cmd_client_cap_report_t(evt->params,dm);
-    pcmd[0]->override_op(0, &desc);
-    return 1;
+    return 0;
 }
 
 int dm_easy_mesh_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
-    dm_easy_mesh_t  dm;
-    em_orch_desc_t desc;
-    em_subdoc_info_t *subdoc;
-
-    printf("%s:%d: Enter\n", __func__, __LINE__);
-
-    subdoc = &evt->u.subdoc;
-    if (dm.decode_sta_config(subdoc, 0) == -1) {
-        printf("%s:%d: Failed to decode\n", __func__, __LINE__);
-        return 0;
-    }
-    
-    desc.op = dm_orch_type_sta_update;
-	desc.submit = true;
-
-    pcmd[0] =  new em_cmd_sta_list_t(evt->params,dm);
-    pcmd[0]->override_op(0, &desc);
-
-    return 1;
-
+    return 0;
 }
 
 int dm_easy_mesh_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[])
@@ -1191,176 +1092,6 @@ int dm_easy_mesh_t::decode_config_test(em_subdoc_info_t *subdoc, const char *key
     return 0;
 }
 
-int dm_easy_mesh_t::decode_sta_config(em_subdoc_info_t *subdoc, unsigned int dev_idx)
-{
-        cJSON *parent_obj, *net_obj, *dev_arr_objs,  *dev_obj, *radio_arr_objs, *radio_obj, *tmp, *bss_arr_objs, *bss_obj;
-        cJSON *dev_arr_bss_objs, *dev_arr_sta_objs, *sta_obj;
-        unsigned int size, i = 0,j = 0, k = 0, sta = 0, m_num_sta = 0;
-        mac_addr_str_t  mac_str;
-        mac_address_t mac_add;
-        dm_sta_t *sta_list ;
-        char sta_list_key[64];
-
-        if ((parent_obj = cJSON_Parse(subdoc->buff)) == NULL) {
-                printf("%s:%d: Failed to initialize device data model\n", __func__, __LINE__);
-                return -1;
-        }
-
-        if ((net_obj = cJSON_GetObjectItem(parent_obj, "wfa-dataelements:StaList")) == NULL) {
-                cJSON_Delete(parent_obj);
-                printf("%s:%d: wfa-dataelements:StaList not present\n", __func__, __LINE__);
-                return -1;
-        }
-
-        m_network.decode(net_obj, NULL);
-        if ((dev_arr_objs = cJSON_GetObjectItem(net_obj, "DeviceList")) == NULL) {
-                cJSON_Delete(parent_obj);
-                printf("%s:%d: DeviceList not present\n", __func__, __LINE__);
-                return -1;
-        }
-
-        size = cJSON_GetArraySize(dev_arr_objs);
-        if (size == 0) {
-                cJSON_Delete(parent_obj);
-                printf("%s:%d: DeviceList has no memebers not present\n", __func__, __LINE__);
-                return -1;
-        }
-
-        if ((dev_obj = cJSON_GetArrayItem(dev_arr_objs, dev_idx)) != NULL) {
-                m_device.decode(dev_obj, m_network.get_network_id());
-        }
-
-        if ((radio_arr_objs = cJSON_GetObjectItem(dev_obj, "RadioList")) == NULL) {
-                cJSON_Delete(parent_obj);
-                printf("%s:%d: RadioList not present\n", __func__, __LINE__);
-                return -1;
-
-        }
-
-        m_num_radios = cJSON_GetArraySize(radio_arr_objs);
-        if (m_num_radios == 0) {
-                cJSON_Delete(parent_obj);
-                printf("%s:%d: RadioList has no memebers not present\n", __func__, __LINE__);
-                return -1;
-        }
-
-        for (i =0; i < m_num_radios; i++) {
-            if((radio_obj = cJSON_GetArrayItem(radio_arr_objs, i)) == NULL) {
-                cJSON_Delete(parent_obj);
-                printf("%s:%d: RadioList has no members present\n", __func__, __LINE__);
-                return -1;
-            }
-            m_radio[i].decode(radio_obj, m_device.get_dev_interface_mac());
-            if ((dev_arr_bss_objs = cJSON_GetObjectItem(radio_obj, "BSSList")) == NULL) {
-                cJSON_Delete(parent_obj);
-                printf("%s:%d: BSSList has no members present\n", __func__, __LINE__);
-                return -1;
-            }
-
-            m_num_bss = cJSON_GetArraySize(dev_arr_bss_objs);
-
-            if (m_num_bss == 0) {
-                cJSON_Delete(parent_obj);
-                printf("%s:%d: Bss has no memebers not present\n", __func__, __LINE__);
-                return -1;
-            }
-
-            for (j = 0;j < m_num_bss; j++) {
-
-                if((bss_obj = cJSON_GetArrayItem(dev_arr_bss_objs, j)) == NULL) {
-                    cJSON_Delete(parent_obj);
-                    printf("%s:%d: BSSObj member read failed \n", __func__, __LINE__);
-                    return -1;
-                }
-
-                if ((tmp = cJSON_GetObjectItem(bss_obj, "BSSID")) == NULL) {
-                    cJSON_Delete(parent_obj);
-                    printf("%s:%d: BSSID not found\n", __func__, __LINE__);
-                    return -1;
-                }
-                snprintf(mac_str, sizeof(mac_str), "%s", cJSON_GetStringValue(tmp));
-                dm_easy_mesh_t::string_to_macbytes(mac_str, mac_add);
-                if ((dev_arr_sta_objs = cJSON_GetObjectItem(bss_obj, "STAList")) != NULL) {
-                    m_num_sta = cJSON_GetArraySize(dev_arr_sta_objs);
-                    if (m_num_sta == 0) {
-                        cJSON_Delete(parent_obj);
-                        printf("%s:%d: STAList has no memebers not present\n", __func__, __LINE__);
-                        return -1;
-                    }
-
-
-                        for (k = 0;k < m_num_sta; k++) {
-                            if((sta_obj = cJSON_GetArrayItem(dev_arr_sta_objs, k)) != NULL) {
-                                sta_list = new dm_sta_t();
-                                sta_list->decode(sta_obj, mac_add);
-
-                                memset(sta_list_key,0,sizeof(sta_list_key));
-                                dm_easy_mesh_t::macbytes_to_string(m_radio[i].get_radio_interface_mac(),mac_str);
-                                snprintf(sta_list_key + strlen(sta_list_key), sizeof(sta_list_key) - strlen(sta_list_key), "%s-", mac_str);
-                                dm_easy_mesh_t::macbytes_to_string(mac_add,mac_str);
-
-                                snprintf(sta_list_key + strlen(sta_list_key), sizeof(sta_list_key) - strlen(sta_list_key), "%s-", mac_str);
-                                if ((tmp = cJSON_GetObjectItem(sta_obj, "MACAddress")) == NULL) {
-                                    cJSON_Delete(parent_obj);
-                                    printf("%s:%d: STA ID not found\n", __func__, __LINE__);
-                                    return -1;
-                                }
-                                snprintf(mac_str, sizeof(mac_str), "%s", cJSON_GetStringValue(tmp));
-                                snprintf(sta_list_key + strlen(sta_list_key), sizeof(sta_list_key) - strlen(sta_list_key), "%s", mac_str);
-                                snprintf(sta_list->get_sta_info()->m_sta_key, sizeof(sta_list->get_sta_info()->m_sta_key), "%s", sta_list_key);
-                                printf("%s:%d: Add key=%s\n", __func__, __LINE__,sta_list_key);
-                                hash_map_put(m_sta_assoc_map,strdup(sta_list->get_sta_info()->m_sta_key),sta_list);
-                				hash_map_put(m_sta_map,strdup(sta_list->get_sta_info()->m_sta_key),sta_list);
-                                memset(sta_list_key,0,sizeof(sta_list_key));
-                                sta++;
-                        }
-                    }
-                }
-
-                if ((dev_arr_sta_objs = cJSON_GetObjectItem(bss_obj, "UnassociatedStaList")) != NULL) {
-                    m_num_sta = cJSON_GetArraySize(dev_arr_sta_objs);
-                    if (m_num_sta == 0) {
-                        cJSON_Delete(parent_obj);
-                        printf("%s:%d: STAList has no memebers not present\n", __func__, __LINE__);
-                        return -1;
-                    }
-
-                        for (k = 0;k < m_num_sta; k++) {
-                            if((sta_obj = cJSON_GetArrayItem(dev_arr_sta_objs, k)) != NULL) {
-                                sta_list = new dm_sta_t();
-                                sta_list->decode(sta_obj, mac_add);
-
-                                memset(sta_list_key,0,sizeof(sta_list_key));
-                                dm_easy_mesh_t::macbytes_to_string(m_radio[i].get_radio_interface_mac(),mac_str);
-                                snprintf(sta_list_key + strlen(sta_list_key), sizeof(sta_list_key) - strlen(sta_list_key), "%s-", mac_str);
-                                dm_easy_mesh_t::macbytes_to_string(mac_add,mac_str);
-                                snprintf(sta_list_key + strlen(sta_list_key), sizeof(sta_list_key) - strlen(sta_list_key), "%s-", mac_str);
-                                if ((tmp = cJSON_GetObjectItem(sta_obj, "MACAddress")) == NULL) {
-                                    cJSON_Delete(parent_obj);
-                                    printf("%s:%d: STA ID not found\n", __func__, __LINE__);
-                                    return -1;
-                                }
-                                snprintf(mac_str, sizeof(mac_str), "%s", cJSON_GetStringValue(tmp));
-                				
-                                snprintf(sta_list_key + strlen(sta_list_key), sizeof(sta_list_key) - strlen(sta_list_key), "%s", mac_str);
-                                snprintf(sta_list->get_sta_info()->m_sta_key, sizeof(sta_list->get_sta_info()->m_sta_key), "%s", sta_list_key);
-                                printf("%s:%d: Remove key=%s\n", __func__, __LINE__,sta_list_key);
-                                hash_map_put(m_sta_dassoc_map,strdup(sta_list->get_sta_info()->m_sta_key),sta_list);
-
-                                memset(sta_list_key,0,sizeof(sta_list_key));
-                                sta++;
-                        }
-                    }
-                }
-            }
-
-        }
-        printf("%s:%d: Update for %d clients \n", __func__, __LINE__,sta);
-        cJSON_Delete(parent_obj);
-
-    return 0;
-}
-
 int dm_easy_mesh_t::decode_ap_cap_config(em_subdoc_info_t *subdoc, const char *str)
 {
     cJSON *parent_obj, *net_obj, *dev_arr_objs, *dev_obj;
@@ -1990,10 +1721,49 @@ void dm_easy_mesh_t::put_sta_info(em_sta_info_t *sta_info, em_target_sta_map_t t
     hash_map_put(map, strdup(key), new dm_sta_t(sta_info));
 }
 
+void dm_easy_mesh_t::clone_hash_maps(dm_easy_mesh_t& obj)
+{
+    mac_addr_str_t  sta_mac_str, bss_mac_str, radio_mac_str;
+    dm_sta_t *sta;
+    em_long_string_t key;
+
+    sta = (dm_sta_t *)hash_map_get_first(m_sta_map);
+    while (sta != NULL) {
+        macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
+        macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
+        macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
+        snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
+        hash_map_put(obj.m_sta_map, strdup(key),sta);
+        sta = (dm_sta_t *)hash_map_get_next(m_sta_map, sta);
+    }
+
+    sta = (dm_sta_t *)hash_map_get_first(m_sta_assoc_map);
+    while (sta != NULL) {
+        macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
+        macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
+        macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
+        snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
+        hash_map_put(obj.m_sta_assoc_map, strdup(key),sta);
+        sta = (dm_sta_t *)hash_map_get_next(m_sta_assoc_map, sta);
+    }
+
+    sta = (dm_sta_t *)hash_map_get_first(m_sta_dassoc_map);
+    while (sta != NULL) {
+        macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
+        macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
+        macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
+        snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
+        hash_map_put(obj.m_sta_dassoc_map, strdup(key),sta);
+        sta = (dm_sta_t *)hash_map_get_next(m_sta_dassoc_map, sta);
+    }
+}
+
 void dm_easy_mesh_t::deinit()
 {
     dm_sta_t *sta = NULL;
     dm_sta_t *tmp = NULL;
+    em_long_string_t key;
+    mac_addr_str_t radio_mac_str, bss_mac_str, sta_mac_str;
 
     //destroy elements of m_sta_map
     sta = (dm_sta_t *)hash_map_get_first(m_sta_map);
@@ -2001,7 +1771,13 @@ void dm_easy_mesh_t::deinit()
     {
         tmp = sta;
         sta = (dm_sta_t *)hash_map_get_next(m_sta_map, sta);
-        hash_map_remove(m_sta_map, tmp->get_sta_info()->m_sta_key);
+
+        dm_easy_mesh_t::macbytes_to_string(tmp->m_sta_info.id, sta_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(tmp->m_sta_info.bssid, bss_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(tmp->m_sta_info.radiomac, radio_mac_str);
+        snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
+
+        hash_map_remove(m_sta_map, key);
     }
     hash_map_destroy(m_sta_map);
     sta = NULL;
@@ -2011,7 +1787,12 @@ void dm_easy_mesh_t::deinit()
     {
         tmp = sta;
         sta = (dm_sta_t *)hash_map_get_next(m_sta_assoc_map, sta);
-        hash_map_remove(m_sta_assoc_map, tmp->get_sta_info()->m_sta_key);
+        dm_easy_mesh_t::macbytes_to_string(tmp->m_sta_info.id, sta_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(tmp->m_sta_info.bssid, bss_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(tmp->m_sta_info.radiomac, radio_mac_str);
+        snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
+
+        hash_map_remove(m_sta_assoc_map, key);
     }
 	hash_map_destroy(m_sta_assoc_map);
     sta = NULL;
@@ -2021,7 +1802,13 @@ void dm_easy_mesh_t::deinit()
     {
         tmp = sta;
         sta = (dm_sta_t *)hash_map_get_next(m_sta_dassoc_map, sta);
-        hash_map_remove(m_sta_dassoc_map, tmp->get_sta_info()->m_sta_key);
+
+        dm_easy_mesh_t::macbytes_to_string(tmp->m_sta_info.id, sta_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(tmp->m_sta_info.bssid, bss_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(tmp->m_sta_info.radiomac, radio_mac_str);
+        snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
+
+        hash_map_remove(m_sta_dassoc_map, key);
     }
 	hash_map_destroy(m_sta_dassoc_map);
 }

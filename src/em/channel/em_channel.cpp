@@ -700,6 +700,17 @@ int em_channel_t::handle_channel_pref_query(unsigned char *buff, unsigned int le
     return 0;
 }
 
+int em_channel_t::handle_channel_sel_rsp(unsigned char *buff, unsigned int len)
+{
+	set_state(em_state_ctrl_channel_selected);
+	return 0;
+}
+
+int em_channel_t::handle_operating_channel_rprt(unsigned char *buff, unsigned int len)
+{
+	set_state(em_state_ctrl_channel_confirmed);
+}
+
 void em_channel_t::process_msg(unsigned char *data, unsigned int len)
 {
     em_raw_hdr_t *hdr;
@@ -717,7 +728,15 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
     
         case em_msg_type_channel_pref_rprt:
             handle_channel_pref_rprt(data, len);
-			break; 
+            break;
+
+        case em_msg_type_channel_sel_rsp:
+            handle_channel_sel_rsp(data, len);
+            break;
+
+        case em_msg_type_op_channel_rprt:
+            handle_operating_channel_rprt(data, len);
+            break;
     
         default:
             break;

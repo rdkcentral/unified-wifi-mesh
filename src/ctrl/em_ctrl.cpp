@@ -534,6 +534,8 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 
         case em_msg_type_topo_resp:
 		case em_msg_type_channel_pref_rprt:
+		case em_msg_type_channel_sel_rsp:
+		case em_msg_type_op_channel_rprt:
 			if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                 len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
 				printf("%s:%d: Could not find radio id in msg:0x%04x\n", __func__, __LINE__, htons(cmdu->type));
@@ -548,14 +550,33 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 			break;
 
 		case em_msg_type_topo_notif:
-			em = al_em;
+		case em_msg_type_client_cap_rprt:
+			if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+                len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_bss_id(&bssid) == false) {
+				printf("%s:%d: Could not find bss id in msg:0x%04x\n", __func__, __LINE__, htons(cmdu->type));
+                return NULL;
+            }
+
+			dm_easy_mesh_t::macbytes_to_string(bssid, mac_str1);
+
+			if ((bss = m_data_model.get_bss(mac_str1)) == NULL) {
+				printf("%s:%d: Could not find bss:%s from data model\n", __func__, __LINE__, mac_str1);
+				return NULL;
+			}
+			dm_easy_mesh_t::macbytes_to_string(bss->m_bss_info.ruid.mac, mac_str1);
+			if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) == NULL) {
+            	printf("%s:%d: Could not find radio:%s\n", __func__, __LINE__, mac_str1);
+				return NULL;
+			}
+	
 			break;
 		
 		case em_msg_type_autoconf_resp:
 		case em_msg_type_topo_query:
 		case em_msg_type_autoconf_renew:
         case em_msg_type_channel_pref_query:
-		case em_msg_type_channel_sel_req:
+        case em_msg_type_channel_sel_req:
+		case em_msg_type_client_cap_query:
 			break;
 
 		default:

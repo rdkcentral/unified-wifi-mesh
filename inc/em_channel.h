@@ -47,6 +47,8 @@ public:
 
     int handle_channel_pref_rprt(unsigned char *buff, unsigned int len);
     int handle_channel_pref_query(unsigned char *buff, unsigned int len);
+    int handle_channel_sel_rsp(unsigned char *buff, unsigned int len);
+    int handle_operating_channel_rprt(unsigned char *buff, unsigned int len);
 
     int get_channel_pref_query_tx_count() { return m_channel_pref_query_tx_cnt; }
     void set_channel_pref_query_tx_count(unsigned int cnt) { m_channel_pref_query_tx_cnt = cnt; }

@@ -537,6 +537,7 @@ const char *em_cmd_t::get_orch_op_str(dm_orch_type_t type)
         ORCH_TYPE_2S(dm_orch_type_topo_sync)
         ORCH_TYPE_2S(dm_orch_type_channel_pref)
         ORCH_TYPE_2S(dm_orch_type_channel_sel)
+        ORCH_TYPE_2S(dm_orch_type_channel_cnf)
         ORCH_TYPE_2S(dm_orch_type_sta_cap)
     }
 

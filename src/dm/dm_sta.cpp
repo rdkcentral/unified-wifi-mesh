@@ -140,7 +140,7 @@ int dm_sta_t::decode(const cJSON *obj, void *parent_id)
         snprintf(m_sta_info.cellular_data_pref, sizeof(m_sta_info.cellular_data_pref), "%s", cJSON_GetStringValue(tmp));
     }
 
-    if ((tmp = cJSON_GetObjectItem(obj, "ReAssociationDelay")) != NULL) {
+    /*if ((tmp = cJSON_GetObjectItem(obj, "ReAssociationDelay")) != NULL) {
         m_sta_info.reassoc_delay = tmp->valuedouble;
     }
 
@@ -150,7 +150,7 @@ int dm_sta_t::decode(const cJSON *obj, void *parent_id)
 
     if ((tmp = cJSON_GetObjectItem(obj, "SleepMode")) != NULL) {
         snprintf(m_sta_info.sleep_mode, sizeof(m_sta_info.sleep_mode), "%s", cJSON_GetStringValue(tmp));
-    }
+    }*///TODO:
     return 0;
 
 }
@@ -182,9 +182,9 @@ void dm_sta_t::encode(cJSON *obj)
     cJSON_AddNumberToObject(obj, "ErrorsSent", m_sta_info.errors_tx);
     cJSON_AddNumberToObject(obj, "ErrorsReceived", m_sta_info.errors_rx);
     cJSON_AddStringToObject(obj, "CellularDataPreference", m_sta_info.cellular_data_pref);
-    cJSON_AddNumberToObject(obj, "ReAssociationDelay", m_sta_info.reassoc_delay);
+    /*cJSON_AddNumberToObject(obj, "ReAssociationDelay", m_sta_info.reassoc_delay);
     cJSON_AddStringToObject(obj, "SecurityAssociation", m_sta_info.sec_association);
-    cJSON_AddStringToObject(obj, "SleepMode", m_sta_info.sleep_mode);
+    cJSON_AddStringToObject(obj, "SleepMode", m_sta_info.sleep_mode);*/
 }
 
 bool dm_sta_t::operator == (const dm_sta_t& obj)
@@ -213,10 +213,10 @@ bool dm_sta_t::operator == (const dm_sta_t& obj)
     ret += (memcmp(&this->m_sta_info.he_cap,&obj.m_sta_info.he_cap,sizeof(em_long_string_t)) != 0);
     ret += (memcmp(&this->m_sta_info.wifi6_cap,&obj.m_sta_info.wifi6_cap,sizeof(em_long_string_t)) != 0);
     ret += (memcmp(&this->m_sta_info.cellular_data_pref,&obj.m_sta_info.cellular_data_pref,sizeof(em_long_string_t)) != 0);
-    ret += !(this->m_sta_info.reassoc_delay == obj.m_sta_info.reassoc_delay);
+    /*ret += !(this->m_sta_info.reassoc_delay == obj.m_sta_info.reassoc_delay);
     ret += (memcmp(&this->m_sta_info.sec_association,&obj.m_sta_info.sec_association,sizeof(em_long_string_t)) != 0);
     ret += (memcmp(&this->m_sta_info.sleep_mode,&obj.m_sta_info.sleep_mode,sizeof(em_short_string_t)) != 0);
-    ret += !(this->m_sta_info.sec_cap == obj.m_sta_info.sec_cap);
+    ret += !(this->m_sta_info.sec_cap == obj.m_sta_info.sec_cap);*/
 
     //em_util_info_print(EM_MGR, "%s:%d: MUH ret=%d\n", __func__, __LINE__,ret);
 
@@ -250,11 +250,33 @@ void dm_sta_t::operator = (const dm_sta_t& obj)
     memcpy(&this->m_sta_info.he_cap,&obj.m_sta_info.he_cap,sizeof(em_long_string_t));
     memcpy(&this->m_sta_info.wifi6_cap,&obj.m_sta_info.wifi6_cap,sizeof(em_long_string_t));
     memcpy(&this->m_sta_info.cellular_data_pref,&obj.m_sta_info.cellular_data_pref,sizeof(em_long_string_t));
-    this->m_sta_info.reassoc_delay = obj.m_sta_info.reassoc_delay;
+    /*this->m_sta_info.reassoc_delay = obj.m_sta_info.reassoc_delay;
     memcpy(&this->m_sta_info.sec_association,&obj.m_sta_info.sec_association,sizeof(em_long_string_t));
     memcpy(&this->m_sta_info.sleep_mode,&obj.m_sta_info.sleep_mode,sizeof(em_short_string_t));
-    this->m_sta_info.sec_cap = obj.m_sta_info.sec_cap;
+    this->m_sta_info.sec_cap = obj.m_sta_info.sec_cap;*/
 
+}
+
+void dm_sta_t::parse_sta_bss_radio_from_key(const char *key, mac_address_t sta, bssid_t bssid, mac_address_t ruid)
+{
+    em_long_string_t   str;
+    char *tmp;
+    unsigned int i = 0;
+
+    strncpy(str, key, strlen(key) + 1);
+    while ((tmp = strchr(str, '@')) != NULL) {
+		*tmp = 0;
+		if (i == 0) {
+        	dm_easy_mesh_t::string_to_macbytes(str, sta);
+		} else if (i == 1) {
+        	dm_easy_mesh_t::string_to_macbytes(str, bssid);
+		} else {
+        	dm_easy_mesh_t::string_to_macbytes(str, ruid);
+		}
+        tmp++;
+        strncpy(str, tmp, strlen(tmp) + 1);
+    	i++;
+    }
 }
 
 dm_sta_t::dm_sta_t(em_sta_info_t *sta)

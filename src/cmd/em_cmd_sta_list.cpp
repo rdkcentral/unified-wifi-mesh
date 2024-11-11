@@ -51,9 +51,9 @@ em_cmd_sta_list_t::em_cmd_sta_list_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
 
     m_orch_op_idx = 0;
     m_num_orch_desc = 2;
-    m_orch_desc[0].op = dm_orch_type_sta_insert;
+    m_orch_desc[0].op = dm_orch_type_ctrl_notify;
     m_orch_desc[0].submit = true;
-    m_orch_desc[1].op = dm_orch_type_ctrl_notify;
+    m_orch_desc[1].op = dm_orch_type_sta_aggregate;
 
     strncpy(m_name, "sta_list", strlen("sta_list") + 1);
     m_svc = em_service_type_agent;

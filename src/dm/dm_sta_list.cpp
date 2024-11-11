@@ -50,31 +50,10 @@ int dm_sta_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
     psta = get_first_sta();
     while (psta != NULL) {
        	obj = cJSON_CreateObject(); 
+		psta->encode(obj);
 
-	dm_easy_mesh_t::macbytes_to_string(psta->m_sta_info.id, mac_str);
-	cJSON_AddStringToObject(obj, "MACAddress", mac_str);
-	cJSON_AddNumberToObject(obj, "LastDataUplinkRate", psta->m_sta_info.last_ul_rate);
-	cJSON_AddNumberToObject(obj, "LastDataDownlinkRate", psta->m_sta_info.last_dl_rate);
-	cJSON_AddNumberToObject(obj, "EstMACDataRateUplink", psta->m_sta_info.est_ul_rate);
-	cJSON_AddNumberToObject(obj, "EstMACDataRateDownlink", psta->m_sta_info.est_dl_rate);
-	cJSON_AddNumberToObject(obj, "LastConnectTime", psta->m_sta_info.last_conn_time);
-	cJSON_AddNumberToObject(obj, "RetransCount", psta->m_sta_info.retrans_count);
-	cJSON_AddNumberToObject(obj, "SignalStrength", psta->m_sta_info.signal_strength);
-	cJSON_AddNumberToObject(obj, "UtilizationTransmit", psta->m_sta_info.util_tx);
-	cJSON_AddNumberToObject(obj, "UtilizationReceive", psta->m_sta_info.util_rx);
-	cJSON_AddNumberToObject(obj, "PacketsSent", psta->m_sta_info.pkts_tx);
-	cJSON_AddNumberToObject(obj, "PacketsReceived", psta->m_sta_info.pkts_rx);
-	cJSON_AddNumberToObject(obj, "BytesSent", psta->m_sta_info.bytes_tx);
-	cJSON_AddNumberToObject(obj, "BytesReceived", psta->m_sta_info.bytes_rx);
-	cJSON_AddNumberToObject(obj, "ErrorsSent", psta->m_sta_info.errors_tx);
-	cJSON_AddNumberToObject(obj, "ErrorsReceived", psta->m_sta_info.errors_rx);
-	cJSON_AddStringToObject(obj, "ClientCapabilities", psta->m_sta_info.cap);
-	cJSON_AddStringToObject(obj, "HTCapabilities", psta->m_sta_info.ht_cap);
-	cJSON_AddStringToObject(obj, "VHTCapabilities", psta->m_sta_info.vht_cap);
-	cJSON_AddStringToObject(obj, "HECapabilities", psta->m_sta_info.he_cap);
-
-	cJSON_AddItemToArray(obj_arr, obj);
-	psta = get_next_sta(psta);
+		cJSON_AddItemToArray(obj_arr, obj);
+		psta = get_next_sta(psta);
     }
     
 	
@@ -99,9 +78,9 @@ int dm_sta_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void
 
     for (i = 0; i < size; i++) {
         obj = cJSON_GetArrayItem(obj_arr, i);
-	sta.decode(obj, parent_id);
-	update_db(db_client, (op = get_dm_orch_type(db_client, sta)), sta.get_sta_info());
-	update_list(sta, op);
+		sta.decode(obj, parent_id);
+		update_db(db_client, (op = get_dm_orch_type(db_client, sta)), sta.get_sta_info());
+		update_list(sta, op);
     }
 
     return 0;
@@ -260,25 +239,23 @@ int dm_sta_list_t::sync_db(db_client_t& db_client, void *ctx)
 	    db_client.get_string(ctx, mac, 2);
 	    dm_easy_mesh_t::string_to_macbytes(mac, info.bssid);
 
-	    info.last_ul_rate = db_client.get_number(ctx, 3);
-	    info.last_dl_rate = db_client.get_number(ctx, 4);
-	    info.est_ul_rate = db_client.get_number(ctx, 5);
-	    info.est_dl_rate = db_client.get_number(ctx, 6);
-	    info.last_conn_time = db_client.get_number(ctx, 7);
-	    info.retrans_count = db_client.get_number(ctx, 8);
-	    info.signal_strength = db_client.get_number(ctx, 9);
-	    info.util_tx = db_client.get_number(ctx, 10);
-	    info.util_rx = db_client.get_number(ctx, 11);
-	    info.pkts_tx = db_client.get_number(ctx, 12);
-	    info.pkts_rx = db_client.get_number(ctx, 13);
-	    info.bytes_tx = db_client.get_number(ctx, 14);
-	    info.bytes_rx = db_client.get_number(ctx, 15);
-	    info.errors_tx = db_client.get_number(ctx, 16);
-	    info.errors_rx = db_client.get_number(ctx, 17);
-	    db_client.get_string(ctx, info.cap, 18);
-	    db_client.get_string(ctx, info.ht_cap, 19);
-	    db_client.get_string(ctx, info.vht_cap, 20);
-	    db_client.get_string(ctx, info.he_cap, 21);
+	    info.associated = db_client.get_number(ctx, 3);
+	    info.last_ul_rate = db_client.get_number(ctx, 4);
+	    info.last_dl_rate = db_client.get_number(ctx, 5);
+	    info.est_ul_rate = db_client.get_number(ctx, 6);
+	    info.est_dl_rate = db_client.get_number(ctx, 7);
+	    info.last_conn_time = db_client.get_number(ctx, 8);
+	    info.retrans_count = db_client.get_number(ctx, 9);
+	    info.signal_strength = db_client.get_number(ctx, 10);
+	    info.util_tx = db_client.get_number(ctx, 11);
+	    info.util_rx = db_client.get_number(ctx, 12);
+	    info.pkts_tx = db_client.get_number(ctx, 13);
+	    info.pkts_rx = db_client.get_number(ctx, 14);
+	    info.bytes_tx = db_client.get_number(ctx, 15);
+	    info.bytes_rx = db_client.get_number(ctx, 16);
+	    info.errors_tx = db_client.get_number(ctx, 17);
+	    info.errors_rx = db_client.get_number(ctx, 18);
+	    info.frame_body_len = db_client.get_number(ctx, 19);
         
 	    update_list(dm_sta_t(&info), dm_orch_type_db_insert);
     }
@@ -296,6 +273,7 @@ void dm_sta_list_t::init_columns()
 
     m_columns[m_num_cols++] = db_column_t("MACAddress", db_data_type_char, 17);
     m_columns[m_num_cols++] = db_column_t("BSSID", db_data_type_char, 17);
+    m_columns[m_num_cols++] = db_column_t("Associated", db_data_type_tinyint, 0);
     m_columns[m_num_cols++] = db_column_t("LastDataUplinkRate", db_data_type_int, 0);
     m_columns[m_num_cols++] = db_column_t("LastDataDownlinkRate", db_data_type_int, 0);
     m_columns[m_num_cols++] = db_column_t("EstMACDataRateUplink", db_data_type_int, 0);
@@ -311,10 +289,8 @@ void dm_sta_list_t::init_columns()
     m_columns[m_num_cols++] = db_column_t("BytesReceived", db_data_type_int, 0);
     m_columns[m_num_cols++] = db_column_t("ErrorsSent", db_data_type_int, 0);
     m_columns[m_num_cols++] = db_column_t("ErrorsReceived", db_data_type_int, 0);
-    m_columns[m_num_cols++] = db_column_t("ClientCapabilities", db_data_type_char, 255);
-    m_columns[m_num_cols++] = db_column_t("HTCapabilities", db_data_type_char, 255);
-    m_columns[m_num_cols++] = db_column_t("VHTCapabilities", db_data_type_char, 255);
-    m_columns[m_num_cols++] = db_column_t("HECapabilities", db_data_type_char, 255);
+    m_columns[m_num_cols++] = db_column_t("FrameBodyLength", db_data_type_int, 0);
+    m_columns[m_num_cols++] = db_column_t("FrameBody", db_data_type_binary, 0);
 }
 
 int dm_sta_list_t::init()

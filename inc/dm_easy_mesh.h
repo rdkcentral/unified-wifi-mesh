@@ -194,10 +194,6 @@ public:
     void    set_cmd_ctx(em_cmd_ctx_t *ctx) { memcpy(&m_cmd_ctx, ctx, sizeof(em_cmd_ctx_t)); }
     void    reset_cmd_ctx() { memset(&m_cmd_ctx, 0, sizeof(em_cmd_ctx_t)); }
 
-    hash_map_t **get_assoc_sta_map() {return &m_sta_assoc_map;}
-    hash_map_t **get_dassoc_sta_map() {return &m_sta_dassoc_map;}
-    hash_map_t **get_sta_map() {return &m_sta_map;}
-
     em_sta_info_t *get_first_sta_info(em_target_sta_map_t target);
     em_sta_info_t *get_next_sta_info(em_sta_info_t *info, em_target_sta_map_t target);
     em_sta_info_t *get_sta_info(mac_address_t sta, bssid_t bssid, mac_address_t ruid, em_target_sta_map_t target);
@@ -229,6 +225,7 @@ public:
     void set_colocated(bool col) { m_colocated = col; }
     bool get_colocated() { return m_colocated; }
     em_t *get_em() { return m_em; }
+    void clone_hash_maps(dm_easy_mesh_t& obj);
 
     dm_easy_mesh_t();
     dm_easy_mesh_t(const dm_network_t& net);
