@@ -85,89 +85,35 @@ short em_configuration_t::create_ap_radio_basic_cap(unsigned char *buff)
     return len;
 }       
 
-short em_configuration_t::create_client_notify_msg(unsigned char *buff)
+short em_configuration_t::create_client_assoc_event_tlv(unsigned char *buff, mac_address_t sta, bssid_t bssid, bool assoc)
 {
     short len = 0;
-    em_client_assoc_event_t *client_info = (em_client_assoc_event_t *) buff;
-	dm_sta_t *sta;
+    unsigned char *tmp;
+    unsigned char joined = (assoc == true)?0x80:0x00;
 
-    hash_map_t **m_sta_assoc_map = get_current_cmd()->get_data_model()->get_assoc_sta_map();
+    tmp = buff;
+    memcpy(tmp, sta, sizeof(mac_address_t));
+    memcpy(tmp + sizeof(mac_address_t), bssid, sizeof(bssid_t));
+    memcpy(tmp + 2*sizeof(mac_address_t), &joined, sizeof(unsigned char));
 
-    if ((m_sta_assoc_map != NULL) && (*m_sta_assoc_map != NULL)) {
-        sta = (dm_sta_t *)hash_map_get_first(*m_sta_assoc_map);
-        if (sta != NULL) {
-            memcpy(&client_info->cli_mac_address,&sta->get_sta_info()->id,sizeof(client_info->cli_mac_address));
-            len += sizeof(client_info->cli_mac_address);
-            memcpy(&client_info->bssid,&sta->get_sta_info()->bssid,sizeof(client_info->bssid));
-            len += sizeof(client_info->bssid);
-            client_info->assoc_event = 1;
-            len+= 1;
-            hash_map_remove(*m_sta_assoc_map,sta->get_sta_info()->m_sta_key);
-            return len;
-        }
-    }
+    len = 2*sizeof(mac_address_t) + sizeof(unsigned char);
 
-    hash_map_t **m_sta_dassoc_map = (hash_map_t**)get_current_cmd()->get_data_model()->get_dassoc_sta_map();
-
-    if ((m_sta_dassoc_map != NULL) && (*m_sta_dassoc_map != NULL)) {
-        sta = (dm_sta_t *)hash_map_get_first(*m_sta_dassoc_map);
-        if (sta != NULL) {
-            memcpy(&client_info->cli_mac_address,&sta->get_sta_info()->id,sizeof(client_info->cli_mac_address));
-            len += sizeof(client_info->cli_mac_address);
-            memcpy(&client_info->bssid,&sta->get_sta_info()->bssid,sizeof(client_info->bssid));
-            len += sizeof(client_info->bssid);
-            client_info->assoc_event = 0;
-            len+= 1;
-            hash_map_remove(*m_sta_dassoc_map,sta->get_sta_info()->m_sta_key);
-            return len;
-        }
-    }
     return len;
 }
 
-void em_configuration_t::handle_state_topology_notify()
-{
-    unsigned char buff[MAX_EM_BUFF_SZ];
-    unsigned int sz;
-    char* errors[EM_MAX_TLV_MEMBERS];
-    hash_map_t **m_sta_assoc_map = get_current_cmd()->get_data_model()->get_assoc_sta_map();
-    hash_map_t **m_sta_dassoc_map = (hash_map_t**)get_current_cmd()->get_data_model()->get_dassoc_sta_map();
-
-    int count = hash_map_count(*m_sta_assoc_map);
-    count += hash_map_count(*m_sta_dassoc_map);
-
-    printf("%s:%d Topology notify Client Count=%d\n", __func__, __LINE__,count);
-    while (count != 0) {
-        sz = create_topology_notify_msg(buff);
-
-        printf("%s:%d: Creation of topology notify size=%d successful\n", __func__, __LINE__,sz);
-        if (em_msg_t(em_msg_type_topo_notif, em_profile_type_3, buff, sz).validate(errors) == 0) {
-            printf("Toplogy notification msg validation failed\n");
-        }
-        if (send_frame(buff, sz)  < 0) {
-            printf("%s:%d: failed, err:%d\n", __func__, __LINE__, errno);
-            return;
-        }
-        printf("%s:%d: Topology notify send successful\n", __func__, __LINE__);
-        count = hash_map_count(*m_sta_assoc_map);
-        count += hash_map_count(*m_sta_dassoc_map);
-        printf("%s:%d Topology notify Client Count=%d\n", __func__, __LINE__,count);
-        sz = 0;
-        memset(buff,0,MAX_EM_BUFF_SZ);
-    }
-}
-
-
-int em_configuration_t::create_topology_notify_msg(unsigned char *buff)
+int em_configuration_t::send_topology_notification_by_client(mac_address_t sta, bssid_t bssid, bool assoc)
 {
     unsigned short  msg_id = em_msg_type_topo_notif;
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
     int len = 0;
-    int sz = 0;
+    short sz;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
+    unsigned char buff[MAX_EM_BUFF_SZ];
     unsigned char *tmp = buff;
     unsigned short type = htons(ETH_P_1905);
     mac_address_t   multi_addr = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x13};
+    unsigned char joined = (assoc == true)?0x80:0x00;
     dm_easy_mesh_t *dm;
 
     dm = get_data_model();
@@ -199,7 +145,7 @@ int em_configuration_t::create_topology_notify_msg(unsigned char *buff)
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_al_mac_address;
     tlv->len = htons(sizeof(mac_address_t));
-    memcpy(tlv->value,get_current_cmd()->get_al_interface_mac(), sizeof(mac_address_t));
+    memcpy(tlv->value, get_al_interface_mac(), sizeof(mac_address_t));
 
     tmp += (sizeof (em_tlv_t) + sizeof(mac_address_t));
     len += (sizeof (em_tlv_t) + sizeof(mac_address_t));
@@ -207,7 +153,7 @@ int em_configuration_t::create_topology_notify_msg(unsigned char *buff)
     // Client Association Event  17.2.20
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_client_assoc_event;
-    sz = create_client_notify_msg(tlv->value);
+    sz = create_client_assoc_event_tlv(tlv->value, sta, bssid, joined);
     tlv->len =  htons(sz);
 
     tmp += (sizeof(em_tlv_t) + sz);
@@ -222,7 +168,42 @@ int em_configuration_t::create_topology_notify_msg(unsigned char *buff)
     len += (sizeof (em_tlv_t));
 
     printf("%s:%d Create topology notification msg successfull\n", __func__, __LINE__);
+
+    if (em_msg_t(em_msg_type_topo_notif, em_profile_type_3, buff, len).validate(errors) == 0) {
+        printf("Topology notification msg validation failed\n");
+
+        return -1;
+    }
+
+    if (send_frame(buff, len)  < 0) {
+        printf("%s:%d: Topology notification send failed, error:%d\n", __func__, __LINE__, errno);
+        return -1;
+    }
+
+    printf("%s:%d: Topology notification Send Successful\n", __func__, __LINE__);
+
     return len;
+}
+
+void em_configuration_t::handle_state_topology_notify()
+{
+    dm_easy_mesh_t *dm;
+    dm_sta_t *sta;
+
+    dm = get_current_cmd()->get_data_model();
+
+    sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_assoc_map);
+    while (sta != NULL) {
+        send_topology_notification_by_client(sta->m_sta_info.id, sta->m_sta_info.bssid, true);
+        sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_assoc_map, sta);
+    }
+
+    sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_dassoc_map);
+    while (sta != NULL) {
+        send_topology_notification_by_client(sta->m_sta_info.id, sta->m_sta_info.bssid, false);
+        sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_dassoc_map, sta);
+    }
+    set_state(em_state_agent_configured);
 }
 
 int em_configuration_t::send_autoconfig_renew_msg()
@@ -2613,6 +2594,13 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
 				}
             }			
             break;
+
+        case em_msg_type_topo_notif:
+            if ((get_service_type() == em_service_type_ctrl) && (get_state() >= em_state_ctrl_topo_synchronized)) {
+                handle_topology_notification(data, len);
+            }
+            break;
+
 
         default:
             break;

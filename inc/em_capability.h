@@ -56,8 +56,9 @@ class em_capability_t {
     virtual short create_metric_col_int_tlv(unsigned char *buff) = 0;
     virtual short create_cac_cap_tlv(unsigned char *buff) = 0;
 
+    int send_client_cap_query();
+    int send_client_cap_report_msg(mac_address_t sta, bssid_t bss);
     int create_ap_cap_report_msg(unsigned char *buff);
-    int create_client_cap_report_msg(unsigned char *buff);
  
     // state handlers 
     void handle_state_ap_cap_report();
@@ -65,13 +66,21 @@ class em_capability_t {
     void handle_state_client_cap_report();
 
     //TLV
-    short create_error_code_tlv(unsigned char *buff);
-    short create_client_cap_tlv(unsigned char *buff);
-    short create_client_info_tlv(unsigned char *buff);
+    short create_error_code_tlv(unsigned char *buff, mac_address_t sta, bssid_t bssid);
+    short create_client_cap_tlv(unsigned char *buff, mac_address_t sta, bssid_t bssid);
+    short create_client_info_tlv(unsigned char *buff, mac_address_t sta, bssid_t bssid);
+
+    void handle_client_cap_query(unsigned char *data, unsigned int len);
+    void handle_client_cap_report(unsigned char *data, unsigned int len);
 
 public:
     void    process_msg(unsigned char *data, unsigned int len);
     void    process_state();
+
+    int get_cap_query_tx_count() { return m_cap_query_tx_cnt; }
+    void set_cap_query_tx_count(unsigned int cnt) { m_cap_query_tx_cnt = cnt; }
+
+    unsigned int m_cap_query_tx_cnt;
 
     em_capability_t();
     ~em_capability_t();

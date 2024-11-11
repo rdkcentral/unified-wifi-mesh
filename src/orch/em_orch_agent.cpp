@@ -84,6 +84,11 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
 				return true;
 	    	}
 	    	break;
+        case em_cmd_type_sta_list:
+            if (em->get_state() == em_state_agent_configured) {
+                return true;
+            }
+            break;
         default:
             if ((em->get_state() == em_state_agent_unconfigured) || \
                     (em->get_state() == em_state_agent_configured)) {
@@ -125,6 +130,10 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
     mac_addr_str_t	mac_str;
     dm_easy_mesh_t *dm;
     em_commit_target_t config;
+    dm_sta_t *sta;
+    em_long_string_t key;
+    mac_addr_str_t sta_mac_str, bss_mac_str, radio_mac_str;
+    mac_address_t   radio_mac;
 
     ctx = pcmd->m_data_model.get_cmd_ctx();
 
@@ -164,14 +173,56 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
             }
             break;
         case dm_orch_type_em_update:
-            break;	
+            break;
+        case dm_orch_type_sta_aggregate:
+            intf = pcmd->get_radio_interface(ctx->arr_index);
+            if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
+                dm = m_mgr->create_data_model(global_netid, intf->mac);
+            }
+
+            sta = (dm_sta_t *)hash_map_get_first(pcmd->get_data_model()->m_sta_assoc_map);
+            while(sta != NULL) {
+                dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
+                dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
+                dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
+                snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
+
+                em_sta_info_t *em_sta = dm->get_sta_info(sta->get_sta_info()->id, sta->get_sta_info()->bssid, sta->get_sta_info()->radiomac, em_target_sta_map_consolidated);
+                if (em_sta != NULL) {
+                    printf("Consolidated Map, sta exists; updating with key: %s\n", key);
+                    memcpy(em_sta, sta->get_sta_info(), sizeof(em_sta_info_t));
+                } else {
+                    printf("Consolidated map new addition with key: %s\n", key);
+                    hash_map_put(dm->m_sta_map, strdup(key), new dm_sta_t(*sta));
+                }
+
+                sta = (dm_sta_t *)hash_map_get_next(pcmd->get_data_model()->m_sta_assoc_map, sta);
+            }
+
+            sta = (dm_sta_t *)hash_map_get_first(pcmd->get_data_model()->m_sta_dassoc_map);
+            while(sta != NULL) {
+                dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
+                dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
+                dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
+                snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
+
+                em_sta_info_t *em_sta = dm->get_sta_info(sta->get_sta_info()->id, sta->get_sta_info()->bssid, sta->get_sta_info()->radiomac, em_target_sta_map_consolidated);
+                sta = (dm_sta_t *)hash_map_get_next(pcmd->get_data_model()->m_sta_dassoc_map, sta);
+                if (em_sta != NULL) {
+                    printf("Consolidated Map removed with key: %s\n", key);
+                    dm_sta_t *tmp = sta;
+                    tmp = (dm_sta_t *)hash_map_remove(dm->m_sta_map, key);
+                    delete tmp;
+                }
+            }
+            break;
         case dm_orch_type_sta_insert:
         case dm_orch_type_sta_update:
         case dm_orch_type_ap_cap_report:
         case dm_orch_type_client_cap_report:
         case dm_orch_type_owconfig_cnf:
         case dm_orch_type_tx_cfg_renew:
-	case dm_orch_type_channel_pref:
+    	case dm_orch_type_channel_pref:
             break;
         default:
             break;
@@ -189,10 +240,8 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
     mac_addr_str_t	src_mac_str, dst_mac_str;
     em_freq_band_t freq_band, em_freq_band;
     int build_autoconf_renew = 0;
-    char radio_mac[64] = {0};
-    dm_sta_t *sta;
     dm_easy_mesh_t dm;
-    hash_map_t **m_sta_assoc_map;
+    mac_address_t	radio_mac;
 
     ctx = pcmd->m_data_model.get_cmd_ctx();
     em = (em_t *)hash_map_get_first(m_mgr->m_em_map);	
@@ -216,21 +265,15 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                 }
                 break;
             case em_cmd_type_sta_list:
-                m_sta_assoc_map = pcmd->get_data_model()->get_assoc_sta_map();
-                if ((m_sta_assoc_map != NULL) && (*m_sta_assoc_map != NULL)) {
-                    sta = (dm_sta_t *)hash_map_get_first(*m_sta_assoc_map);
-                    if (sta != NULL) {
-                        dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), dst_mac_str);
-                        printf("%s:%d Sta List build candidate MAC=%s\n", __func__, __LINE__,dst_mac_str);
-                        dm_easy_mesh_t::macbytes_to_string(sta->get_sta_info()->radiomac, dst_mac_str);
-                        printf("%s:%d Sta List build candidate MAC=%s\n", __func__, __LINE__,dst_mac_str);
+                dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.args[0], radio_mac);
+                if (memcmp(radio_mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
+                    break;
+                }
 
-                        if(memcmp(em->get_radio_interface_mac(),&sta->get_sta_info()->radiomac,sizeof(mac_address_t)) == 0) {
-                            printf("%s:%d Sta List build candidate MAC=%s push to queue\n", __func__, __LINE__,dst_mac_str);
-                            queue_push(pcmd->m_em_candidates, em);
-                            count++;
-                        }
-                    }
+                printf("%s:%d pcmd radio mac=%s\n", __func__, __LINE__, pcmd->m_param.args[0]);
+                if ((hash_map_count(pcmd->get_data_model()->m_sta_assoc_map) != 0) || (hash_map_count(pcmd->get_data_model()->m_sta_dassoc_map) != 0)) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
                 }
                 break;	
 	        case em_cmd_type_ap_cap_query:

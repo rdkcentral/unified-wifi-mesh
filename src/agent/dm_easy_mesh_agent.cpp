@@ -58,6 +58,7 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
 
     dm.print_config();
     num_radios = dm.get_num_radios();
+    //TODO: Check for multiple radios
     pcmd[num] = new em_cmd_dev_init_t(evt->params, dm);
     tmp = pcmd[num];
     num++;
@@ -68,6 +69,90 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
     }
     return num;
 
+}
+
+int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    unsigned int num = 0, i = 0, num_radios = 0;
+    dm_easy_mesh_agent_t  dm;
+    dm_sta_t *sta = NULL;
+    em_cmd_t *tmp = NULL;
+    em_sta_info_t *em_sta = NULL;
+    em_long_string_t key;
+    mac_addr_str_t radio_str;
+    em_cmd_params_t *evt_param = NULL;
+    mac_addr_str_t  sta_mac_str, bss_mac_str, radio_mac_str;
+
+    num_radios = get_num_radios();
+    dm.init();
+
+    evt_param = &evt->params;
+
+    num_radios = m_num_radios;
+    for (unsigned int i = 0; i < m_num_radios; i++) {
+        memcpy(&dm.m_radio[i], &m_radio[i], sizeof(dm_radio_t));
+    }
+
+    dm.m_num_bss = m_num_bss;
+    for (unsigned int i = 0; i < EM_MAX_BSSS; i++) {
+        memcpy(&dm.m_bss[i], &m_bss[i], sizeof(dm_bss_t));
+    }
+
+    dm.translate_onewifi_stats_data((char *)evt->u.raw_buff);
+
+    for ( i = 0; i < num_radios; i++) {
+        evt_param->num_args = 1;
+        dm_easy_mesh_t::macbytes_to_string(get_radio_by_ref(i).get_radio_interface_mac(), radio_str);
+        strncpy(evt_param->args[0], radio_str, strlen(radio_str) + 1);
+
+        pcmd[num] = new em_cmd_sta_list_t(evt->params, dm);
+
+        sta = (dm_sta_t *)hash_map_get_first(dm.m_sta_assoc_map);
+        while(sta != NULL) {
+            em_sta = sta->get_sta_info();
+            if (memcmp(sta->get_sta_info()->radiomac, get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
+                sta = (dm_sta_t *)hash_map_get_next(dm.m_sta_assoc_map, sta);
+                continue;
+            }
+
+            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
+            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
+            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
+            snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
+            printf("Key in assoc map: %s\n", key);
+            hash_map_put(pcmd[num]->m_data_model.m_sta_assoc_map, strdup(key), new dm_sta_t(*sta));
+            sta = (dm_sta_t *)hash_map_get_next(dm.m_sta_assoc_map, sta);
+        }
+
+        sta = (dm_sta_t *)hash_map_get_first(dm.m_sta_dassoc_map);
+        while(sta != NULL) {
+            em_sta = sta->get_sta_info();
+
+            if (memcmp(sta->get_sta_info()->radiomac, get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
+                sta = (dm_sta_t *)hash_map_get_next(dm.m_sta_dassoc_map, sta);
+                continue;
+             }
+
+            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
+            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
+            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
+            snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
+            printf("Key in Dassoc map: %s\n", key);
+            hash_map_put(pcmd[num]->m_data_model.m_sta_dassoc_map, strdup(key), new dm_sta_t(*sta));
+            sta = (dm_sta_t *)hash_map_get_next(dm.m_sta_dassoc_map, sta);
+        }
+
+        tmp = pcmd[num];
+        num++;
+
+        while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+            dm.clone_hash_maps(*pcmd[num]->get_data_model());
+            tmp = pcmd[num];
+            num++;
+        }
+    }
+
+    return num;
 }
 
 int dm_easy_mesh_agent_t::analyze_autoconfig_renew(em_bus_event_t *evt, em_cmd_t *pcmd[])
@@ -90,103 +175,6 @@ int dm_easy_mesh_agent_t::analyze_autoconfig_renew(em_bus_event_t *evt, em_cmd_t
         num++;
     }
     return num;
-}
-
-int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[])
-{
-    unsigned int index = 0;
-    em_orch_desc_t desc;
-    //put hash_map for dm_pcmd from this object
-    mac_address_t radio_macaddr, temp_rmacaddr;
-    dm_sta_t *get_sta = NULL;
-    //To map radio MAC addresses to pcmd instances
-    std::unordered_map<std::string, int> mac_to_index_map;
-    int count = 0;
-
-    translate_onewifi_stats_data((char *)evt->u.raw_buff);
-
-#if 0
-    desc.op = dm_orch_type_sta_update;
-    //pcmd[0] =  new em_cmd_sta_list_t(evt->params,dm);
-    pcmd[0] =  new em_cmd_sta_list_t(evt->params,*this);
-    pcmd[0]->override_op(0, &desc);
-#endif
-    desc.op = dm_orch_type_sta_update;
-
-    dm_easy_mesh_agent_t  *dm = this;
-    dm_easy_mesh_agent_t* dm_pcmd = new dm_easy_mesh_agent_t[2];
-
-    hash_map_t **ptr_sta_map = dm->get_assoc_sta_map();
-
-    if ((ptr_sta_map != NULL) && (*ptr_sta_map != NULL)) {
-
-        get_sta = (dm_sta_t *)hash_map_get_first(*ptr_sta_map);
-
-        while (get_sta != NULL) {
-            dm_sta_t put_sta;
-
-            memcpy(&temp_rmacaddr, put_sta.get_sta_info()->radiomac, 6);
-    	    memcpy(&radio_macaddr, get_sta->get_sta_info()->radiomac, sizeof(mac_address_t));
-            std::string mac_str(reinterpret_cast<char*>(&radio_macaddr), sizeof(mac_address_t));
-            if ((mac_to_index_map.find(mac_str) == mac_to_index_map.end()) == true)
-            {
-                //returned true, means its a new rmac and was not processed earlier
-                //so use a new dm object, as in new hash_map.
-                mac_addr_str_t dst_mac_str;
-                dm_easy_mesh_t::macbytes_to_string(radio_macaddr, dst_mac_str);
-                printf("%s:%d radio_macaddr MAC=%s\n", __func__, __LINE__,dst_mac_str);
-                dm_easy_mesh_t::macbytes_to_string(temp_rmacaddr, dst_mac_str);
-                printf("%s:%d temp_rmacaddr MAC=%s\n", __func__, __LINE__,dst_mac_str);
-                if (memcmp(&radio_macaddr, &temp_rmacaddr, sizeof(mac_address_t)) == 0) {
-                    index = index + 1;
-                    mac_to_index_map[mac_str] = index; // Map the MAC address to the index
-                    count = mac_to_index_map[mac_str];
-                } else {
-                    mac_to_index_map[mac_str] = index; // Map the MAC address to the index
-                    count = mac_to_index_map[mac_str];
-                }
-                hash_map_t **put_hm = dm_pcmd[count].get_assoc_sta_map();
-                if (*put_hm == NULL)
-                {
-                    *put_hm = hash_map_create();
-                }
-                em_sta_info_t *em_sta;
-                em_sta = get_sta->get_sta_info();
-                hash_map_put(*put_hm, strdup(put_sta.get_sta_info()->m_sta_key), new dm_sta_t(em_sta));
-            }
-            else
-            {
-                // Use the existing index for this MAC address
-                // since it already has an index, get the index based on rmac to push to same hash_map
-                count = mac_to_index_map[mac_str];
-                hash_map_t **put_hm = dm_pcmd[count].get_assoc_sta_map();
-                if(*put_hm == NULL)
-                {
-                    *put_hm = hash_map_create();
-                }
-                em_sta_info_t *em_sta;
-                em_sta = get_sta->get_sta_info();
-                hash_map_put(*put_hm, strdup(put_sta.get_sta_info()->m_sta_key), new dm_sta_t(em_sta));
-            }
-            mac_addr_str_t  rad_str_mac;
-            macbytes_to_string(radio_macaddr, rad_str_mac);
-
-            get_sta = (dm_sta_t *)hash_map_get_next(*ptr_sta_map, get_sta);
-        }
-        printf("%s:%d:[DEBUG] DM objects created\n", __func__, __LINE__);
-    }
-
-    //pcmd cmd create code
-    for (int i = 0; i <= count; i++)
-    {
-        hash_map_t **test_map = dm_pcmd[i].get_assoc_sta_map();
-        //push all in a loop now for the number of indexes
-        pcmd[i] = new em_cmd_sta_list_t(evt->params, dm_pcmd[i]);
-        pcmd[i]->override_op(0, &desc);
-        printf("%s:%d:[DEBUG] Pushed to PCMD for index %d\n",__func__, __LINE__, i);
-    }
-
-    return 1;
 }
 
 void dm_easy_mesh_agent_t::translate_onewifi_dml_data (char *str)
@@ -286,7 +274,6 @@ int dm_easy_mesh_agent_t::analyze_onewifi_cb(em_bus_event_t *evt, em_cmd_t *pcmd
     webconfig_proto_easymesh_init(&ext, &dm, NULL, get_num_radios, set_num_radios,
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info, get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info);
-
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
     if (webconfig_init(&config) != webconfig_error_none) {

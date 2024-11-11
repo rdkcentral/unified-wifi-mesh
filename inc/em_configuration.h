@@ -30,12 +30,13 @@ class em_configuration_t {
     int create_autoconfig_search_msg(unsigned char *buff);
     int create_autoconfig_wsc_m1_msg(unsigned char *buff, unsigned char *dst);
     int create_autoconfig_wsc_m2_msg(unsigned char *buff, em_haul_type_t haul_type[], unsigned int num_hauls);
-    int create_topology_notify_msg(unsigned char *buff);
     int	create_operational_bss_tlv(unsigned char *buff);
     int	create_bss_config_rprt_tlv(unsigned char *buff);
     int create_device_info_type_tlv(unsigned char *buff);
+    short create_client_assoc_event_tlv(unsigned char *buff, mac_address_t sta, bssid_t bssid, bool assoc);
 
     int send_topology_response_msg(unsigned char *dst);
+    int send_topology_notification_by_client(mac_address_t sta, bssid_t bssid, bool assoc);
     
     int handle_autoconfig_resp(unsigned char *buff, unsigned int len);
     int handle_autoconfig_search(unsigned char *buff, unsigned int len);
@@ -54,7 +55,6 @@ class em_configuration_t {
     short create_m1_msg(unsigned char *buff);
     short create_m2_msg(unsigned char *buff, em_haul_type_t haul_type);
     short create_traffic_separation_policy(unsigned char *buff);
-    short create_client_notify_msg(unsigned char *buff);
    
     // state handlers 
     void handle_state_config_none();

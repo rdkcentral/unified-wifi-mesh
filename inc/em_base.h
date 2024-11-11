@@ -40,6 +40,7 @@
 #define EM_CTRL_CAP_SZ  8
 #define MIN_MAC_LEN 12
 #define MAX_EM_BUFF_SZ  1024
+#define EM_MAX_FRAME_BODY_LEN	512
 
 #define EM_TEST_IO_PERM 0666
 #define EM_IO_BUFF_SZ   4096
@@ -65,6 +66,7 @@
 #define EM_MAX_NON_OP_CHANNELS  16
 #define EM_MAX_CMD_TTL  10
 #define EM_MAX_RENEW_TX_THRESH  5
+#define EM_MAX_CAP_QUERY_TX_THRESH  2
 #define EM_MAX_TOPO_QUERY_TX_THRESH  5
 
 
@@ -1585,9 +1587,13 @@ typedef enum {
     em_state_ctrl_channel_queried,
 	em_state_ctrl_channel_select_pending,
     em_state_ctrl_channel_selected,
-	em_state_ctrl_channel_report_pending,
+    em_state_ctrl_channel_cnf_pending,
+    em_state_ctrl_channel_confirmed,
+    em_state_ctrl_channel_report_pending,
     em_state_ctrl_configured,
     em_state_ctrl_misconfigured,
+    em_state_ctrl_sta_cap_pending,
+    em_state_ctrl_sta_cap_confirmed,
 
     em_state_max,
 } em_state_t;
@@ -1618,6 +1624,7 @@ typedef enum {
     em_cmd_type_topo_sync,
     em_cmd_type_em_config,
     em_cmd_type_onewifi_cb,
+    em_cmd_type_sta_assoc,
     em_cmd_type_channel_pref_query,
     em_cmd_type_max,
 } em_cmd_type_t;
@@ -1823,6 +1830,7 @@ typedef struct {
     mac_address_t   id;
     mac_address_t   bssid;
     mac_address_t radiomac;
+    bool associated;
     unsigned int    last_ul_rate;
     em_long_string_t    timestamp;
     unsigned int    last_dl_rate;
@@ -1839,20 +1847,22 @@ typedef struct {
     unsigned int    bytes_rx;
     unsigned int    errors_tx;
     unsigned int    errors_rx;
+    unsigned int 	frame_body_len;
+    unsigned char	frame_body[EM_MAX_FRAME_BODY_LEN];
+
     em_long_string_t    cap;
     em_long_string_t    ht_cap;
     em_long_string_t    vht_cap;
     em_long_string_t    he_cap;
     em_long_string_t    wifi6_cap;
     em_long_string_t    cellular_data_pref;
-    unsigned int    reassoc_delay;
-    em_long_string_t    sec_association;
-    em_short_string_t    sleep_mode;
-    wifi_security_key_type_t    sec_cap;
-    em_long_string_t m_sta_key;
-    unsigned int assoc_frame_body_len;
-    em_subdoc_data_buff_t assoc_frame_body;
 } em_sta_info_t;
+
+typedef enum {
+    em_target_sta_map_assoc,
+    em_target_sta_map_disassoc,
+    em_target_sta_map_consolidated,
+} em_target_sta_map_t;
 
 typedef struct {
     em_interface_t  bssid;
@@ -2034,6 +2044,7 @@ typedef enum {
     dm_orch_type_ssid_delete,
     dm_orch_type_sta_insert,
     dm_orch_type_sta_update,
+    dm_orch_type_sta_aggregate,
     dm_orch_type_sta_delete,
     dm_orch_type_sec_insert,
     dm_orch_type_sec_update,
@@ -2069,6 +2080,8 @@ typedef enum {
     dm_orch_type_topo_sync,
     dm_orch_type_channel_pref,
     dm_orch_type_channel_sel,
+    dm_orch_type_channel_cnf,
+    dm_orch_type_sta_cap,
 } dm_orch_type_t;
 
 typedef struct {
@@ -2116,7 +2129,6 @@ typedef struct {
     mac_address_t   dev;
     em_client_assoc_event_t   assoc;
 } em_bus_event_type_client_assoc_params_t;
-
 
 typedef struct {
     mac_address_t   radio;
@@ -2176,6 +2188,7 @@ typedef enum {
     db_data_type_float,
     db_data_type_double,
     db_data_type_bit,
+    db_data_type_binary,
     db_data_type_date,
     db_data_type_datetime,
     db_data_type_timestamp,
