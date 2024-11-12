@@ -71,7 +71,7 @@ short em_channel_t::create_channel_pref_tlv(unsigned char *buff)
 	
 		pref_op_class->op_class = op_class->m_op_class_info.op_class;
 		for (j = 0; j < op_class->m_op_class_info.num_anticipated_channels; j++) {	
-			pref_op_class->channels.num++;
+			pref_op_class->num++;
 			memcpy(pref_op_class->channels.channel, (unsigned char *)&op_class->m_op_class_info.anticipated_channel[j], sizeof(unsigned char));
 			len += sizeof(em_channel_pref_op_class_t) + sizeof(unsigned char);
 			tmp += sizeof(em_channel_pref_op_class_t) + sizeof(unsigned char);

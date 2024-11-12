@@ -275,13 +275,13 @@ typedef struct {
 } __attribute__((__packed__)) em_chirp_t;
 
 typedef struct {
-    unsigned char   num;
     unsigned char   channel[0];
 } __attribute__((__packed__)) em_channels_list_t;
 
 typedef struct {
     unsigned char   op_class;
     unsigned char   max_tx_eirp;
+    unsigned char   num;
     em_channels_list_t  channels;
 } __attribute__((__packed__)) em_op_class_t;
 
@@ -885,6 +885,7 @@ typedef struct {
 
 typedef struct {
     unsigned char op_class;
+    unsigned char num;
     em_channels_list_t channels;
 } __attribute__((__packed__)) em_channel_pref_op_class_t;
 
