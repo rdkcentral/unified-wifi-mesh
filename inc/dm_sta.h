@@ -34,6 +34,8 @@ public:
     bool operator == (const dm_sta_t& obj);
     void operator = (const dm_sta_t& obj);
 
+    static void parse_sta_bss_radio_from_key(const char *key, mac_address_t sta, bssid_t bssid, mac_address_t radio);
+
     dm_sta_t(em_sta_info_t *sta);
     dm_sta_t(const dm_sta_t& sta);
     dm_sta_t();

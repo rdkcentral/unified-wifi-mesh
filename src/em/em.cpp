@@ -111,6 +111,9 @@ void em_t::orch_execute(em_cmd_t *pcmd)
         case em_cmd_type_onewifi_cb:
             m_sm.set_state(em_state_agent_onewifi_bssconfig_ind);
 			break;
+        case em_cmd_type_sta_assoc:
+            m_sm.set_state(em_state_ctrl_sta_cap_pending);
+            break;
 		
 	case em_cmd_type_channel_pref_query:
 	    m_sm.set_state(em_state_agent_channel_pref_query);
@@ -154,16 +157,21 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_autoconf_renew:
         case em_msg_type_topo_resp:
         case em_msg_type_topo_query:
+        case em_msg_type_topo_notif:
             em_configuration_t::process_msg(data, len);
             break;
 
         case em_msg_type_ap_cap_query:
         case em_msg_type_client_cap_query:
+        case em_msg_type_client_cap_rprt:
             em_capability_t::process_msg(data, len);
             break;
 
         case em_msg_type_channel_pref_query:
         case em_msg_type_channel_pref_rprt:
+        case em_msg_type_channel_sel_req:
+        case em_msg_type_channel_sel_rsp:
+        case em_msg_type_op_channel_rprt:
             em_channel_t::process_msg(data, len);
             break;
 
@@ -188,11 +196,14 @@ void em_t::handle_agent_state()
     cmd_type = m_cmd->m_type;
     switch (cmd_type) {
         case em_cmd_type_dev_init:
-        case em_cmd_type_sta_list:
         case em_cmd_type_cfg_renew:
             if ((m_sm.get_state() >= em_state_agent_unconfigured) && (m_sm.get_state() < em_state_agent_configured)) {
 				em_configuration_t::process_agent_state();
             }
+            break;
+
+        case em_cmd_type_sta_list:
+            em_configuration_t::process_agent_state();
             break;
 
         case em_cmd_type_start_dpp:
@@ -239,10 +250,13 @@ void em_t::handle_ctrl_state()
             break;
 
         case em_cmd_type_dev_test:
-			em_channel_t::process_ctrl_state();
-			break;
-    }
+            em_channel_t::process_ctrl_state();
+            break;
 
+        case em_cmd_type_sta_assoc:
+            em_capability_t::process_state();
+            break;
+    }
 }
 
 void em_t::proto_timeout()
@@ -710,8 +724,12 @@ const char *em_t::state_2_str(em_state_t state)
 		EM_STATE_2S(em_state_ctrl_channel_select_pending)
 		EM_STATE_2S(em_state_ctrl_channel_selected)
 		EM_STATE_2S(em_state_ctrl_channel_report_pending)
+		EM_STATE_2S(em_state_ctrl_channel_cnf_pending)
+		EM_STATE_2S(em_state_ctrl_channel_confirmed)
 		EM_STATE_2S(em_state_ctrl_configured)
 		EM_STATE_2S(em_state_ctrl_misconfigured)
+		EM_STATE_2S(em_state_ctrl_sta_cap_pending)
+		EM_STATE_2S(em_state_ctrl_sta_cap_confirmed)
     }
 
     return "em_state_unknown";

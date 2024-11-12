@@ -452,21 +452,23 @@ int em_ctrl_t::orch_init()
 
 em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_t *al_em)
 {
-	em_raw_hdr_t *hdr;
+    em_raw_hdr_t *hdr;
     em_cmdu_t *cmdu;
-	em_interface_t intf;
-	em_freq_band_t band;
-	dm_easy_mesh_t *dm;
-	em_t *em = NULL;
-	em_radio_id_t ruid;
-	em_profile_type_t profile;
-	mac_addr_str_t mac_str1, mac_str2;
+    em_interface_t intf;
+    em_freq_band_t band;
+    dm_easy_mesh_t *dm;
+    em_t *em = NULL;
+    em_radio_id_t ruid;
+    bssid_t	bssid;
+    dm_bss_t *bss;
+    em_profile_type_t profile;
+    mac_addr_str_t mac_str1, mac_str2;
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
     if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
         return NULL;
     }
-    
+
     hdr = (em_raw_hdr_t *)data;
     
     if (hdr->type != htons(ETH_P_1905)) {
@@ -475,15 +477,15 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
     
     cmdu = (em_cmdu_t *)(data + sizeof(em_raw_hdr_t));
 
-	switch (htons(cmdu->type)) {
-		case em_msg_type_autoconf_search:
-			if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_freq_band(&band) == false) {
-				return NULL;
-			}
+    switch (htons(cmdu->type)) {
+        case em_msg_type_autoconf_search:
+            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_freq_band(&band) == false) {
+                return NULL;
+            }
 
-			if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_al_mac_address(intf.mac) == false) {
-				return NULL;
-			}
+            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_al_mac_address(intf.mac) == false) {
+                return NULL;
+            }
 
             dm_easy_mesh_t::macbytes_to_string(intf.mac, mac_str1);
             printf("%s:%d: Received autoconfig search from agenti al mac: %s\n", __func__, __LINE__, mac_str1);
@@ -498,71 +500,92 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 printf("%s:%d: Found existing data model for mac: %s net: %s\n", __func__, __LINE__, mac_str1, global_netid);
             }
             em = al_em;
-			break;
+            break;
 
-		case em_msg_type_autoconf_wsc:
-			if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+        case em_msg_type_autoconf_wsc:
+            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                 len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
-				return NULL;
-			}
-
-			dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
-        
-			if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
-            	printf("%s:%d: Found existing radio:%s\n", __func__, __LINE__, mac_str1);
-            	em->set_state(em_state_ctrl_wsc_m1_pending);
-        	} else {
-				if ((dm = get_data_model((const char *)global_netid, (const unsigned char *)hdr->src)) == NULL) {
-                	printf("%s:%d: Can not find data model\n", __func__, __LINE__);
-            	}
-
-            	dm_easy_mesh_t::macbytes_to_string(hdr->src, mac_str1);
-            	dm_easy_mesh_t::macbytes_to_string(ruid, mac_str2);
-
-            	printf("%s:%d: Found data model for mac: %s, creating node for ruid: %s\n", __func__, __LINE__, mac_str1, mac_str2);
-
-            	memcpy(intf.mac, ruid, sizeof(mac_address_t));
-            	if ((em = create_node(&intf, em_freq_band_unknown, dm, false,  dm->get_device()->m_device_info.profile,
-                    	em_service_type_ctrl)) != NULL) {
-                	em->set_state(em_state_ctrl_wsc_m1_pending);
-            	}
-			}
-
-			break;
-
-        case em_msg_type_topo_resp:
-		case em_msg_type_channel_pref_rprt:
-			if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
-                len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
-				printf("%s:%d: Could not find radio id in msg:0x%04x\n", __func__, __LINE__, htons(cmdu->type));
                 return NULL;
             }
-	
-			dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
-			if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) == NULL) {
-            	printf("%s:%d: Could not find radio:%s\n", __func__, __LINE__, mac_str1);
-				return NULL;
-			}
-			break;
 
-		case em_msg_type_topo_notif:
-			em = al_em;
-			break;
-		
-		case em_msg_type_autoconf_resp:
-		case em_msg_type_topo_query:
-		case em_msg_type_autoconf_renew:
+            dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
+        
+            if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
+                printf("%s:%d: Found existing radio:%s\n", __func__, __LINE__, mac_str1);
+                        em->set_state(em_state_ctrl_wsc_m1_pending);
+            } else {
+                if ((dm = get_data_model((const char *)global_netid, (const unsigned char *)hdr->src)) == NULL) {
+                    printf("%s:%d: Can not find data model\n", __func__, __LINE__);
+                }
+
+                dm_easy_mesh_t::macbytes_to_string(hdr->src, mac_str1);
+                dm_easy_mesh_t::macbytes_to_string(ruid, mac_str2);
+
+                printf("%s:%d: Found data model for mac: %s, creating node for ruid: %s\n", __func__, __LINE__, mac_str1, mac_str2);
+
+                memcpy(intf.mac, ruid, sizeof(mac_address_t));
+                if ((em = create_node(&intf, em_freq_band_unknown, dm, false,  dm->get_device()->m_device_info.profile,
+                        em_service_type_ctrl)) != NULL) {
+                    em->set_state(em_state_ctrl_wsc_m1_pending);
+                }
+            }
+
+            break;
+
+        case em_msg_type_topo_resp:
+        case em_msg_type_channel_pref_rprt:
+        case em_msg_type_channel_sel_rsp:
+        case em_msg_type_op_channel_rprt:
+            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+                    len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+                printf("%s:%d: Could not find radio id in msg:0x%04x\n", __func__, __LINE__, htons(cmdu->type));
+                return NULL;
+            }
+
+            dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
+            if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) == NULL) {
+                printf("%s:%d: Could not find radio:%s\n", __func__, __LINE__, mac_str1);
+                return NULL;
+            }
+            break;
+
+        case em_msg_type_topo_notif:
+        case em_msg_type_client_cap_rprt:
+            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+                    len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_bss_id(&bssid) == false) {
+                printf("%s:%d: Could not find bss id in msg:0x%04x\n", __func__, __LINE__, htons(cmdu->type));
+                return NULL;
+            }
+
+            dm_easy_mesh_t::macbytes_to_string(bssid, mac_str1);
+
+            if ((bss = m_data_model.get_bss(mac_str1)) == NULL) {
+                printf("%s:%d: Could not find bss:%s from data model\n", __func__, __LINE__, mac_str1);
+                return NULL;
+            }
+            dm_easy_mesh_t::macbytes_to_string(bss->m_bss_info.ruid.mac, mac_str1);
+            if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) == NULL) {
+                printf("%s:%d: Could not find radio:%s\n", __func__, __LINE__, mac_str1);
+                return NULL;
+            }
+
+            break;
+
+        case em_msg_type_autoconf_resp:
+        case em_msg_type_topo_query:
+        case em_msg_type_autoconf_renew:
         case em_msg_type_channel_pref_query:
-		case em_msg_type_channel_sel_req:
-			break;
+        case em_msg_type_channel_sel_req:
+        case em_msg_type_client_cap_query:
+            break;
 
-		default:
-			printf("%s:%d: Frame: 0x%04x not handled in controller\n", __func__, __LINE__, htons(cmdu->type));
-			assert(0);
-			break;
-	}
+        default:
+            printf("%s:%d: Frame: 0x%04x not handled in controller\n", __func__, __LINE__, htons(cmdu->type));
+            assert(0);
+            break;
+    }
 
-	return em;
+    return em;
 }
 
 
