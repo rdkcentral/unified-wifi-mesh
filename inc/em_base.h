@@ -301,7 +301,7 @@ typedef enum {
 } em_tlv_requirement_t;
 
 typedef enum {
-    em_msg_type_topo_disc,
+    em_msg_type_topo_disc = 0x0000,
     em_msg_type_topo_notif,
     em_msg_type_topo_query,
     em_msg_type_topo_resp,
@@ -312,7 +312,8 @@ typedef enum {
     em_msg_type_autoconf_resp,
     em_msg_type_autoconf_wsc,
     em_msg_type_autoconf_renew,
-    em_msg_type_ap_cap_query = 0x8001,
+    em_msg_type_1905_ack = 0x8000,
+    em_msg_type_ap_cap_query,
     em_msg_type_ap_cap_rprt,
     em_msg_type_map_policy_config_req,
     em_msg_type_channel_pref_query,
@@ -363,10 +364,9 @@ typedef enum {
     em_msg_type_dpp_bootstrap_uri_notif,
     em_msg_type_anticipated_channel_pref,
     em_msg_type_failed_conn,
-    em_msg_type_agent_list,
+    em_msg_type_agent_list = 0x8035,
     em_msg_type_anticipated_channel_usage_rprt,
     em_msg_type_qos_mgmt_notif,
-    em_msg_type_1905_ack,
 } em_msg_type_t;
 
 typedef enum {
