@@ -275,13 +275,13 @@ typedef struct {
 } __attribute__((__packed__)) em_chirp_t;
 
 typedef struct {
-    unsigned char   num;
     unsigned char   channel[0];
 } __attribute__((__packed__)) em_channels_list_t;
 
 typedef struct {
     unsigned char   op_class;
     unsigned char   max_tx_eirp;
+	unsigned char   num;
     em_channels_list_t  channels;
 } __attribute__((__packed__)) em_op_class_t;
 
@@ -885,6 +885,7 @@ typedef struct {
 
 typedef struct {
     unsigned char op_class;
+	unsigned char   num;
     em_channels_list_t channels;
 } __attribute__((__packed__)) em_channel_pref_op_class_t;
 
@@ -1576,6 +1577,7 @@ typedef enum {
     em_state_agent_ap_cap_report,
     em_state_agent_client_cap_report,
     em_state_agent_channel_pref_query,
+	em_state_agent_channel_sel_resp,
 
 
     em_state_ctrl_unconfigured = 0x100,
@@ -1626,6 +1628,7 @@ typedef enum {
     em_cmd_type_onewifi_cb,
     em_cmd_type_sta_assoc,
     em_cmd_type_channel_pref_query,
+	em_cmd_type_channel_sel_resp,
     em_cmd_type_max,
 } em_cmd_type_t;
 
@@ -2005,10 +2008,12 @@ typedef enum {
     em_bus_event_type_dm_commit,
     em_bus_event_type_m2_tx,
     em_bus_event_type_topo_sync,
-    em_bus_event_type_onewifi_cb,
+    em_bus_event_type_onewifi_private_cb,
+    em_bus_event_type_onewifi_radio_cb,
     em_bus_event_type_m2ctrl_configuration,
 	em_bus_event_type_sta_assoc,
 	em_bus_event_type_channel_pref_query,
+	em_bus_event_type_channel_sel_req,
 } em_bus_event_type_t;
 
 typedef struct {
@@ -2082,6 +2087,7 @@ typedef enum {
     dm_orch_type_channel_sel,
     dm_orch_type_channel_cnf,
     dm_orch_type_sta_cap,
+	dm_orch_type_channel_sel_resp,
 } dm_orch_type_t;
 
 typedef struct {
@@ -2119,6 +2125,11 @@ typedef struct{
     unsigned int key_wrap_authenticator;
     bool enable;
 }m2ctrl_vapconfig;
+
+typedef struct{
+    unsigned int num;
+    em_op_class_info_t op_class_info[EM_MAX_OP_CLASS];
+}op_class_channel_sel;
 
 typedef struct {
     mac_address_t   al;

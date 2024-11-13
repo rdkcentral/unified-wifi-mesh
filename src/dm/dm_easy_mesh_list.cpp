@@ -873,7 +873,9 @@ void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_
 		    for (i = 0; i < dm->get_num_radios(); i++) {
 			    radio = dm->get_radio(i);
                 dm_easy_mesh_t::macbytes_to_string(radio->m_radio_info.id.mac, mac_str);
-			    //printf("%s:%d: Comparing with radio: %s\n", __func__, __LINE__, mac_str);
+			    printf("%s:%d: Comparing with radio: %s\n", __func__, __LINE__, mac_str);
+				dm_easy_mesh_t::macbytes_to_string(id.ruid,mac_str);
+				printf("%s:%d: Comparing with 2 radio: %s\n", __func__, __LINE__, mac_str);
 			    if (memcmp(radio->m_radio_info.id.mac, id.ruid, sizeof(mac_address_t)) == 0) {
 				    found_dm = true;
 				    break;
@@ -894,7 +896,7 @@ void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_
 		}
         dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
 	}
-
+	printf("%s:%d: status %d\n", __func__, __LINE__, found_dm);
 	assert(found_dm == true);
 	
 	// now check if the op class is already there

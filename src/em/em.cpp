@@ -115,9 +115,14 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_ctrl_sta_cap_pending);
             break;
 		
-	case em_cmd_type_channel_pref_query:
-	    m_sm.set_state(em_state_agent_channel_pref_query);
-	    break;
+		case em_cmd_type_channel_pref_query:
+			m_sm.set_state(em_state_agent_channel_pref_query);
+			break;
+		
+		case em_cmd_type_channel_sel_resp:
+			m_sm.set_state(em_state_agent_channel_sel_resp);
+			break;
+
     }
 }
 
@@ -218,6 +223,7 @@ void em_t::handle_agent_state()
             }
             break;
         case em_cmd_type_channel_pref_query:
+		case em_cmd_type_channel_sel_resp:
                 em_channel_t::process_state();
             break;
         default:
@@ -456,32 +462,48 @@ em_event_t *em_t::pop_from_queue()
     return (em_event_t *)queue_pop(m_iq.queue);
 }
 
-short em_t::create_ap_radio_basic_cap(unsigned char *buff)
-{
-    short len = 0;
-    em_ap_radio_basic_cap_t *cap = (em_ap_radio_basic_cap_t *)buff;
-    memcpy(&cap->ruid, get_radio_interface_mac(), sizeof(mac_address_t));
-    len += sizeof(mac_address_t);
+short em_t::create_ap_radio_basic_cap(unsigned char *buff) {
+	short len = 0;
+	em_ap_radio_basic_cap_t *cap = (em_ap_radio_basic_cap_t *)buff;
+	em_channels_list_t *channel_list;
+	em_op_class_t *op_class;
+	unsigned int all_channel_len = 0;
+	len = sizeof(em_ap_radio_basic_cap_t);
 
-    em_interface_t* radio_interface = get_radio_interface();
-    rdk_wifi_radio_t* radio_data = get_current_cmd()->get_radio_data(radio_interface);
-    if (radio_data != NULL)
-        cap->num_bss = radio_data->vaps.num_vaps;
-    cap->num_bss = 1;
+	memcpy(&cap->ruid, get_radio_interface_mac(), sizeof(mac_address_t));
 
-    len += 1;
-    cap->op_class_num= 1;
-    len += 1;
+	em_interface_t* radio_interface = get_radio_interface();
+	cap->num_bss = get_current_cmd()->get_data_model()->get_num_bss();
+	cap->op_class_num = 0;
+	op_class = cap->op_classes;
+	for (int i = 0; i < get_current_cmd()->get_data_model()->get_num_op_class(); i++) {
 
-    cap->op_classes[0].op_class = get_current_cmd()->get_rd_op_class();
-    len += 1;
-    cap->op_classes[0].channels.num = 1;
-    len += 1;
-    cap->op_classes[0].channels.channel[0] = get_current_cmd()->get_rd_channel();
-    len += 2;
+		em_op_class_info_t *op_class_info = get_current_cmd()->get_data_model()->get_op_class_info(i);
+		if ((op_class_info != NULL) && (op_class_info->id.type == em_op_class_type_capability)){
+			cap->op_class_num++;
+			op_class->op_class = op_class_info->op_class;
+			op_class->max_tx_eirp = op_class_info->max_tx_power;
+			op_class->num = op_class_info->num_non_op_channels;
+			len += sizeof(em_op_class_t);
+			if (op_class_info->num_non_op_channels != 0) {
+				channel_list = &op_class->channels;
+				for (int j = 0; j < op_class_info->num_non_op_channels; j++) {
+					memcpy( (unsigned char *)&channel_list->channel, (unsigned char *)&op_class_info->non_op_channel[j], sizeof(unsigned char));
+					all_channel_len = all_channel_len + sizeof(unsigned char);
+					channel_list = (em_channels_list_t *)((unsigned char *)channel_list + sizeof(em_channels_list_t) + sizeof(unsigned char) );
+									   len += sizeof(unsigned char);
+				}
+			}
+			printf("Op Class %d: %d, max_tx_eirp: %d, channels.num: %d\n",
+				   i, op_class_info->op_class, op_class_info->max_tx_power, op_class_info->num_non_op_channels);
+			printf(" cap->op_classes[%d].op_class: %d, cap->op_classes[%d].max_tx_eirp %d,	cap->op_classes[%d].channels.num %d\n",
+				   i, cap->op_classes[i].op_class, i, cap->op_classes[i].max_tx_eirp, i, cap->op_classes[i].num);
 
-
-    return len;
+		}
+		op_class = (em_op_class_t *)((unsigned char *)op_class + sizeof(em_op_class_t) + all_channel_len);
+		all_channel_len = 0;
+	}
+	return len;
 }
 
 short em_t::create_ap_cap_tlv(unsigned char *buff)

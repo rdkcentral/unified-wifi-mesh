@@ -66,9 +66,11 @@ public:
     void handle_autoconfig_renew(em_bus_event_t *evt);
     void handle_client_cap_query(em_bus_event_t *evt);
     void handle_onewifi_private_subdoc(em_bus_event_t *evt);
-    void handle_onewifi_cb(em_bus_event_t *evt);
+	void handle_onewifi_private_cb(em_bus_event_t *evt);
+	void handle_onewifi_radio_cb(em_bus_event_t *evt);
     void handle_m2ctrl_configuration(em_bus_event_t *evt);
-	void handle_channel_pref_query(em_bus_event_t *evt);	
+    void handle_channel_pref_query(em_bus_event_t *evt);
+    void handle_channel_sel_req(em_bus_event_t *evt);
 
     em_cmd_t& get_command(char *in);
     

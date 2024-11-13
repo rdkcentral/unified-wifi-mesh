@@ -41,52 +41,111 @@
 #include "em_msg.h"
 #include "em_cmd_exec.h"
 
-short em_channel_t::create_channel_pref_tlv(unsigned char *buff)
+short em_channel_t::create_channel_pref_tlv_agent(unsigned char *buff)
 {
-	short len = 0;
-	unsigned int i, j;
-	em_channel_pref_t	*pref;
-	em_channel_pref_op_class_t	*pref_op_class;
-	dm_easy_mesh_t *dm;
-	dm_op_class_t	*op_class;
-	unsigned char *tmp;
-	unsigned char pref_bits = 0xee;
+    short len = 0;
+    unsigned int i, j;
+    em_channel_pref_t	*pref;
+    em_channel_pref_op_class_t	*pref_op_class;
+    dm_easy_mesh_t *dm;
+    dm_op_class_t	*op_class;
+    unsigned char *tmp;
+    unsigned char pref_bits = 0xee;
+    unsigned int num_of_channel = 0;
+    em_channels_list_t *channel_list;
 
-	dm = get_data_model();
-
-	pref = (em_channel_pref_t *)buff;
-	memcpy(pref->ruid, get_radio_interface_mac(), sizeof(em_radio_id_t));
-	pref_op_class = pref->op_classes;
+    dm = get_data_model();
+    pref = (em_channel_pref_t *)buff;
+    memcpy(pref->ruid, get_radio_interface_mac(), sizeof(em_radio_id_t));
+    pref_op_class = pref->op_classes;
     pref->op_classes_num = 0;
 
-	tmp = (unsigned char *)pref_op_class;
-	len += sizeof(em_channel_pref_t);
+    tmp = (unsigned char *)pref_op_class;
+    len += sizeof(em_channel_pref_t);
 
-	for (i = 0; i < dm->m_num_opclass; i++) {
-		op_class = &dm->m_op_class[i];
-        if (((memcmp(op_class->m_op_class_info.id.ruid, dm->m_device.m_device_info.id.mac, sizeof(em_radio_id_t)) == 0)	&&
-					(op_class->m_op_class_info.id.type == em_op_class_type_preference)) == false) {
-			continue;		
-		}
+    for (i = 0; i < dm->m_num_opclass; i++) {
+	op_class = &dm->m_op_class[i];
+	if (((memcmp(op_class->m_op_class_info.id.ruid, get_radio_interface_mac(), sizeof(em_radio_id_t)) == 0) &&
+                                        (op_class->m_op_class_info.id.type == em_op_class_type_capability)) == false) {
+	    continue;
+        }
 	
-		pref_op_class->op_class = op_class->m_op_class_info.op_class;
-		for (j = 0; j < op_class->m_op_class_info.num_anticipated_channels; j++) {	
-			pref_op_class->channels.num++;
-			memcpy(pref_op_class->channels.channel, (unsigned char *)&op_class->m_op_class_info.anticipated_channel[j], sizeof(unsigned char));
-			len += sizeof(em_channel_pref_op_class_t) + sizeof(unsigned char);
-			tmp += sizeof(em_channel_pref_op_class_t) + sizeof(unsigned char);
-			memcpy(tmp, &pref_bits, sizeof(unsigned char));
-			len += sizeof(unsigned char);
-			tmp += sizeof(unsigned char);
-		}
+	pref_op_class->op_class = op_class->m_op_class_info.op_class;
+	num_of_channel = op_class->m_op_class_info.num_non_op_channels;
+	channel_list = &pref_op_class->channels;
+	len += sizeof(em_channel_pref_op_class_t);
+	for (j = 0; j < num_of_channel; j++) {
+	    pref_op_class->num++;
+	    memcpy(channel_list->channel, (unsigned char *)&op_class->m_op_class_info.non_op_channel[j], sizeof(unsigned char));
+	    channel_list =(em_channels_list_t *)((unsigned char *)channel_list + sizeof(unsigned char));
+	    len += sizeof(unsigned char);
+	}
 
+	tmp += sizeof(em_channel_pref_op_class_t) + pref_op_class->num;
+	memcpy(tmp, &pref_bits, sizeof(unsigned char));
+	len += sizeof(unsigned char);
+	tmp += sizeof(unsigned char);
         pref_op_class = (em_channel_pref_op_class_t *)tmp;
         pref->op_classes_num++;
 		
-	}
-	
-	return len;
+    }
+    return len;
 }
+
+short em_channel_t::create_channel_pref_tlv(unsigned char *buff)
+{
+    short len = 0;
+    unsigned int i, j;
+    em_channel_pref_t       *pref;
+    em_channel_pref_op_class_t      *pref_op_class;
+    dm_easy_mesh_t *dm;
+    dm_op_class_t   *op_class;
+    unsigned char *tmp;
+    unsigned char pref_bits = 0xee;
+    unsigned int num_of_channel = 0;
+    em_channels_list_t *channel_list;
+
+    dm = get_data_model();
+    pref = (em_channel_pref_t *)buff;
+    memcpy(pref->ruid, get_radio_interface_mac(), sizeof(em_radio_id_t));
+    pref_op_class = pref->op_classes;
+    pref->op_classes_num = 0;
+
+    tmp = (unsigned char *)pref_op_class;
+    len += sizeof(em_channel_pref_t);
+
+    for (i = 0; i < dm->m_num_opclass; i++) {
+	op_class = &dm->m_op_class[i];
+        op_class->m_op_class_info.id.type = em_op_class_type_preference;
+	if (((memcmp(op_class->m_op_class_info.id.ruid, get_radio_interface_mac(), sizeof(em_radio_id_t)) == 0)     &&
+                                        (op_class->m_op_class_info.id.type == em_op_class_type_preference)) == false) {
+	    continue;
+        }
+	    //hardcode data
+	op_class->m_op_class_info.op_class = 81;
+	op_class->m_op_class_info.num_anticipated_channels = 1;
+	op_class->m_op_class_info.anticipated_channel[0] = 6; 
+        pref_op_class->op_class = op_class->m_op_class_info.op_class;
+	num_of_channel = op_class->m_op_class_info.num_anticipated_channels;
+        channel_list = &pref_op_class->channels;
+        len += sizeof(em_channel_pref_op_class_t);
+	pref_op_class->num = num_of_channel;
+        for (j = 0; j < num_of_channel; j++) {
+	    memcpy(channel_list->channel, (unsigned char *)&op_class->m_op_class_info.anticipated_channel[j], sizeof(unsigned char));
+            channel_list =(em_channels_list_t *)((unsigned char *)channel_list + sizeof(unsigned char));
+            len += sizeof(unsigned char);
+        }
+
+        tmp += sizeof(em_channel_pref_op_class_t) + pref_op_class->num;
+        memcpy(tmp, &pref_bits, sizeof(unsigned char));
+        len += sizeof(unsigned char);
+        tmp += sizeof(unsigned char);
+        pref_op_class = (em_channel_pref_op_class_t *)tmp;
+        pref->op_classes_num++;
+    }
+    return len;
+}
+
 
 int em_channel_t::send_channel_sel_request_msg()
 {
@@ -175,14 +234,14 @@ int em_channel_t::send_channel_sel_response_msg(em_chan_sel_resp_code_type_t cod
 
     dm = get_data_model();
 
-    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
-    tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
-
+    memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
     memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+	tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
     memcpy(tmp, (unsigned char *)&type, sizeof(unsigned short));
     tmp += sizeof(unsigned short);
     len += sizeof(unsigned short);
@@ -379,6 +438,16 @@ int em_channel_t::send_channel_pref_query_msg()
 
     tmp += sizeof(em_cmdu_t);
     len += sizeof(em_cmdu_t);
+
+    // One AP Radio Identifier tlv 17.2.3
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_radio_id;
+    memcpy(tlv->value, get_radio_interface_mac(), sizeof(mac_address_t));
+    tlv->len = htons(sizeof(mac_address_t));
+
+    tmp += (sizeof(em_tlv_t) + sizeof(mac_address_t));
+    len += (sizeof(em_tlv_t) + sizeof(mac_address_t));
+
 
     // End of message
     tlv = (em_tlv_t *)tmp;
@@ -624,7 +693,7 @@ int em_channel_t::send_channel_pref_report_msg()
     // Zero or more Channel Preference TLVs (see section 17.2.13).
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_channel_pref;
-    sz = create_channel_pref_tlv(tlv->value);
+    sz = create_channel_pref_tlv_agent(tlv->value);
     tlv->len = htons(sz);
 
     tmp += (sizeof(em_tlv_t) + sz);
@@ -677,7 +746,6 @@ int em_channel_t::send_channel_pref_report_msg()
     }
         
     printf("%s:%d: Channel Preference Report send success\n", __func__, __LINE__);
-	set_state(em_state_agent_channel_selection_pending);
     return len;
 }
 
@@ -687,16 +755,80 @@ int em_channel_t::handle_channel_pref_rprt(unsigned char *buff, unsigned int len
 	return 0;
 }
 
+int em_channel_t::handle_channel_pref_tlv(unsigned char *buff, unsigned int len)
+{
+    em_channel_pref_t   *pref = (em_channel_pref_t *) buff;
+    em_channel_pref_op_class_t *channel_pref;
+    unsigned int i = 0, j = 0;
+    em_op_class_info_t      op_class_info[EM_MAX_OP_CLASS];
+    op_class_channel_sel *op_class;
+    em_event_t  ev;
+    em_bus_event_t *bev;
+
+    channel_pref = pref->op_classes;
+    if (pref != NULL) {
+		channel_pref = pref->op_classes;
+		memcpy(op_class_info[i].id.ruid, pref->ruid, sizeof(mac_address_t));
+			for (i = 0; i < pref->op_classes_num; i++) {
+				memcpy(op_class_info[i].id.ruid, pref->ruid, sizeof(mac_address_t));
+                op_class_info[i].id.type = em_op_class_type_current;
+				op_class_info[i].id.index = i;
+                op_class_info[i].op_class = (unsigned int)channel_pref->op_class;
+                op_class_info[i].num_anticipated_channels = (unsigned int)channel_pref->num;
+                for (j = 0; j < op_class_info[i].num_anticipated_channels; j++) {
+                        op_class_info[i].anticipated_channel[j] = (unsigned int )channel_pref->channels.channel[j];
+                }
+                channel_pref = (em_channel_pref_op_class_t *)((unsigned char *)channel_pref + sizeof(em_op_class_t) +
+				op_class_info[i].num_anticipated_channels);
+			}
+		ev.type = em_event_type_bus;
+		bev = &ev.u.bevt;
+		bev->type = em_bus_event_type_channel_sel_req;
+		op_class = (op_class_channel_sel *)&bev->u.raw_buff;
+
+		op_class->num = pref->op_classes_num;
+		for (i = 0; i < pref->op_classes_num ; i++) {
+			memcpy(&op_class->op_class_info[i], &op_class_info[i],sizeof(em_op_class_info_t));
+		}
+		em_cmd_exec_t::send_cmd(em_service_type_agent, (unsigned char *)&ev, sizeof(em_event_t));
+        printf("%s:%d Received channel selection request \n",__func__, __LINE__);
+    }
+}
+
 int em_channel_t::handle_channel_pref_query(unsigned char *buff, unsigned int len)
 {
     em_event_t  ev;
     em_bus_event_t *bev;
+	mac_address_t *mac;
+    mac_addr_str_t radio_mac;
 
-    ev.type = em_event_type_bus;
+	ev.type = em_event_type_bus;
     bev = &ev.u.bevt;
     bev->type = em_bus_event_type_channel_pref_query;
+    mac = (mac_address_t *) &bev->u.raw_buff;
+    dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(), radio_mac);
+    memcpy(mac, get_radio_interface_mac(), sizeof(mac_address_t));
     em_cmd_exec_t::send_cmd(em_service_type_agent, (unsigned char *)&ev, sizeof(em_event_t));
-    printf("Received channel preference query\n");
+    return 0;	
+}
+
+int em_channel_t::handle_channel_sel_req(unsigned char *buff, unsigned int len)
+{
+    em_tlv_t    *tlv;
+    int tlv_len;
+
+    tlv = (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tlv_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+        if (tlv->type == em_tlv_type_channel_pref) {
+            handle_channel_pref_tlv(tlv->value, htons(tlv->len));
+            break;
+        }
+
+        tlv_len -= (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+    }
     return 0;
 }
 
@@ -721,9 +853,9 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
     
     switch (htons(cmdu->type)) {
         case em_msg_type_channel_pref_query:
-	    if (get_service_type() == em_service_type_agent) {
-		handle_channel_pref_query(data, len);
-	    }
+	        if (get_service_type() == em_service_type_agent) {
+		        handle_channel_pref_query(data, len);
+	        }
             break; 
     
         case em_msg_type_channel_pref_rprt:
@@ -738,6 +870,14 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
             handle_operating_channel_rprt(data, len);
             break;
     
+	    break;
+
+	    case em_msg_type_channel_sel_req:
+            if (get_service_type() == em_service_type_agent) {
+                handle_channel_sel_req(data, len);
+            }
+            break;
+
         default:
             break;
     }
@@ -746,13 +886,22 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
 void em_channel_t::process_state()
 {
     switch (get_state()) {
-        case em_state_agent_channel_pref_query:
-            if (get_service_type() == em_service_type_agent) {
-                send_channel_pref_report_msg();
-                printf("%s:%d channel_pref_report_msg send\n", __func__, __LINE__);
-		set_state(em_state_agent_channel_selection_pending);
-            }
+		case em_state_agent_channel_pref_query:
+			if (get_service_type() == em_service_type_agent) {
+				send_channel_pref_report_msg();
+				printf("%s:%d channel_pref_report_msg send\n", __func__, __LINE__);
+				set_state(em_state_agent_channel_selection_pending);
+			}
             break;
+		
+		case em_state_agent_channel_sel_resp:
+			if (get_service_type() == em_service_type_agent) {
+				send_channel_sel_response_msg(em_chan_sel_resp_code_type_accept);
+				printf("%s:%d channel_sel_response send\n", __func__, __LINE__);
+				set_state(em_state_agent_configured);
+			}
+			break;
+
     }
 }
 
@@ -760,11 +909,15 @@ void em_channel_t::process_ctrl_state()
 {
     switch (get_state()) {
         case em_state_ctrl_channel_query_pending:
-            send_channel_pref_query_msg();
+			if(get_service_type() == em_service_type_ctrl) {
+				send_channel_pref_query_msg();
+			}
             break;
 
         case em_state_ctrl_channel_select_pending:
-            send_channel_sel_request_msg();
+			if(get_service_type() == em_service_type_ctrl) {
+				send_channel_sel_request_msg();
+			}
             break; 
     }
 }
