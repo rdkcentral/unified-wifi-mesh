@@ -82,9 +82,8 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
 		case em_cmd_type_channel_pref_query:
 			if (em->get_state() == em_state_agent_channel_selection_pending) {
 				return true;
-			}
-	    break;
-
+	    	}
+	    	break;
         case em_cmd_type_sta_list:
             if (em->get_state() == em_state_agent_configured) {
                 return true;

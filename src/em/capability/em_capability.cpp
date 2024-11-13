@@ -284,16 +284,29 @@ short em_capability_t::create_client_cap_tlv(unsigned char *buff, mac_address_t 
 {
     short len = 0;
     unsigned char *tmp = buff;
-    unsigned char cap[16]; // replace this with cap from dm
     unsigned char res = 0;
+    dm_easy_mesh_t *dm;
+    dm_sta_t *dm_sta;
+
+    dm = get_data_model();
+
+    dm_sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_map);
+    while(dm_sta != NULL) {
+        if (memcmp(dm_sta->get_sta_info()->id, sta, sizeof(mac_address_t)) == 0) {
+            //printf("STA found\n");
+            break;
+        }
+        dm_sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_map, sta);
+    }
 
     memcpy(tmp, &res, sizeof(unsigned char));
     tmp += sizeof(unsigned char);
     len += sizeof(unsigned char);
 
-    memcpy(tmp, &cap, sizeof(cap));
-    tmp += sizeof(cap);
-    len += sizeof(cap);
+    //frame_body
+    memcpy(tmp, &dm_sta->get_sta_info()->frame_body, dm_sta->get_sta_info()->frame_body_len);
+    tmp += dm_sta->get_sta_info()->frame_body_len;
+    len += dm_sta->get_sta_info()->frame_body_len;
 
     return len;
 }
@@ -417,23 +430,87 @@ int em_capability_t::send_client_cap_report_msg(mac_address_t sta, bssid_t bss)
     return len;
 }
 
-void em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int len)
+int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int len)
 {
     em_cmdu_t *cmdu;
+    int tmp_len;
     em_tlv_t *tlv;
+    em_sta_info_t sta_info;
+    mac_addr_str_t sta_mac_str, bssid_str, radio_mac_str;
+    em_long_string_t	key;
+    unsigned int db_cfg_type;
+    dm_easy_mesh_t  *dm;
+    bool found_client_info = false;
+    bool found_cap_report = false;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     em_raw_hdr_t *hdr = (em_raw_hdr_t *)buff;
 
-    printf("%s:%d: Enter\n", __func__, __LINE__);
+    dm = get_data_model();
 
     if (em_msg_t(em_msg_type_client_cap_rprt, em_profile_type_3, buff, len).validate(errors) == 0) {
         printf("%s:%d:Client Capability query message validation failed\n");
-        return;
+        return -1;
     }
 
     cmdu = (em_cmdu_t *)(buff + sizeof(em_raw_hdr_t));
     tlv = (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        if (tlv->type == em_tlv_type_client_info) {
+            memset(&sta_info, 0, sizeof(em_sta_info_t));
+            memcpy(sta_info.bssid, tlv->value, sizeof(mac_address_t));
+            memcpy(sta_info.id, tlv->value + sizeof(mac_address_t), sizeof(mac_address_t));
+            memcpy(sta_info.radiomac, get_radio_interface_mac(), sizeof(mac_address_t));
+            found_client_info = true;
+            break;
+        }
+
+        tmp_len -= (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+    if (found_client_info == false) {
+        printf("%s:%d: Could not find client info\n", __func__, __LINE__);
+        return -1;
+    }
+
+    tlv = (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        if (tlv->type == em_tlv_type_client_cap_report) {
+            if (tlv->value[0] != 0) {
+                printf("%s:%d: result code: failure\n", __func__, __LINE__);
+                return -1;
+            }
+            sta_info.associated = true;
+            sta_info.frame_body_len = htons(tlv->len) - 1;
+            memcpy(sta_info.frame_body, &tlv->value[1], htons(tlv->len) - 1);
+            found_cap_report = true;
+            break;
+        }
+
+        tmp_len -= (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+    if (found_cap_report == false) {
+        printf("%s:%d: Could not find client cap report\n", __func__, __LINE__);
+        return -1;
+    }
+
     set_state(em_state_ctrl_sta_cap_confirmed);
+
+    dm_easy_mesh_t::macbytes_to_string(sta_info.id, sta_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(sta_info.bssid, bssid_str);
+    dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(), radio_mac_str);
+    snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bssid_str, radio_mac_str);
+
+    hash_map_put(dm->m_sta_assoc_map, strdup(key), new dm_sta_t(&sta_info));
+
+    db_cfg_type = dm->get_db_cfg_type();
+    dm->set_db_cfg_type(db_cfg_type | db_cfg_type_sta_list_update);
+
+    return 0;
 }
 
 void em_capability_t::handle_client_cap_query(unsigned char *buff, unsigned int len)
@@ -457,6 +534,7 @@ void em_capability_t::handle_client_cap_query(unsigned char *buff, unsigned int 
     memcpy(sta, tlv->value + sizeof(mac_address_t), sizeof(bssid_t));
 
     send_client_cap_report_msg(sta, bss);
+    set_state(em_state_agent_configured);
 }
 
 void em_capability_t::process_msg(unsigned char *data, unsigned int len)

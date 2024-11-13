@@ -832,6 +832,17 @@ int em_channel_t::handle_channel_sel_req(unsigned char *buff, unsigned int len)
     return 0;
 }
 
+int em_channel_t::handle_channel_sel_rsp(unsigned char *buff, unsigned int len)
+{
+    set_state(em_state_ctrl_channel_selected);
+    return 0;
+}
+
+int em_channel_t::handle_operating_channel_rprt(unsigned char *buff, unsigned int len)
+{
+    set_state(em_state_ctrl_channel_confirmed);
+}
+
 void em_channel_t::process_msg(unsigned char *data, unsigned int len)
 {
     em_raw_hdr_t *hdr;
@@ -842,20 +853,30 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
     
     switch (htons(cmdu->type)) {
         case em_msg_type_channel_pref_query:
-	    if (get_service_type() == em_service_type_agent) {
-		handle_channel_pref_query(data, len);
-	    }
+	        if (get_service_type() == em_service_type_agent) {
+		        handle_channel_pref_query(data, len);
+	        }
             break; 
     
         case em_msg_type_channel_pref_rprt:
             handle_channel_pref_rprt(data, len);
+            break;
+
+        case em_msg_type_channel_sel_rsp:
+            handle_channel_sel_rsp(data, len);
+            break;
+
+        case em_msg_type_op_channel_rprt:
+            handle_operating_channel_rprt(data, len);
+            break;
+    
 	    break;
 
-	case em_msg_type_channel_sel_req:
-	    if (get_service_type() == em_service_type_agent) {
-		handle_channel_sel_req(data, len);
-	    }
-	    break;
+	    case em_msg_type_channel_sel_req:
+            if (get_service_type() == em_service_type_agent) {
+                handle_channel_sel_req(data, len);
+            }
+            break;
 
         default:
             break;

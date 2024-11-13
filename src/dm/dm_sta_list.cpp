@@ -42,20 +42,27 @@
 
 int dm_sta_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 {
-    dm_sta_t *psta;
+    dm_sta_t *sta;
     cJSON *obj, *akms_arr;
     mac_addr_str_t  mac_str;
+    bssid_t	bssid;
     unsigned int i;
-	
-    psta = get_first_sta();
-    while (psta != NULL) {
+
+    dm_easy_mesh_t::string_to_macbytes((char *)parent, bssid);
+
+    sta = get_first_sta();
+    while (sta != NULL) {
+        if (memcmp(sta->m_sta_info.bssid, bssid, sizeof(mac_address_t)) != 0) {
+            sta = get_next_sta(sta);
+            continue;
+        }
         obj = cJSON_CreateObject(); 
-        psta->encode(obj);
+        sta->encode(obj);
 
         cJSON_AddItemToArray(obj_arr, obj);
-        psta = get_next_sta(psta);
+        sta = get_next_sta(sta);
     }
-    
+
     return 0;
 }
 
@@ -85,33 +92,46 @@ int dm_sta_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void
     return 0;
 }
 
+int dm_sta_list_t::set_config(db_client_t& db_client, dm_sta_t& sta, void *parent_id)
+{
+    dm_orch_type_t op;
+    char *tmp = (char *)parent_id;
+
+    //printf("dm_op_class_list_t::%s:%d: id: %s\n", __func__, __LINE__, (char *)parent_id);
+    update_db(db_client, (op = get_dm_orch_type(db_client, sta)), sta.get_sta_info());
+    update_list(sta, op);
+
+    return 0;
+}
+
 dm_orch_type_t dm_sta_list_t::get_dm_orch_type(db_client_t& db_client, const dm_sta_t& sta)
 {
     dm_sta_t *psta;
-    mac_addr_str_t  sta_mac_str, bssid_mac_str;
+    mac_addr_str_t  sta_mac_str, bssid_mac_str, radio_mac_str;
     em_long_string_t key;
 
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)sta.m_sta_info.id, sta_mac_str);
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)sta.m_sta_info.bssid, bssid_mac_str);
-    snprintf(key, sizeof (em_long_string_t), "%s@%s", sta_mac_str, bssid_mac_str);
+    dm_easy_mesh_t::macbytes_to_string((unsigned char *)sta.m_sta_info.radiomac, radio_mac_str);
+    snprintf(key, sizeof (em_long_string_t), "%s@%s@%s", sta_mac_str, bssid_mac_str, radio_mac_str);
 
     psta = get_sta(key);
     if (psta != NULL) {
+        if (entry_exists_in_table(db_client, sta_mac_str) == false) {
+            //printf("%s:%d: STA: %s does not exist in db\n", __func__, __LINE__, key);
+            return dm_orch_type_db_insert;
+        }
+
         if (*psta == sta) {
-            printf("%s:%d: STA: %s BSS: %s already in list\n", __func__, __LINE__, 
-            dm_easy_mesh_t::macbytes_to_string(psta->m_sta_info.id, sta_mac_str),
-            dm_easy_mesh_t::macbytes_to_string(psta->m_sta_info.bssid, bssid_mac_str));
+            //printf("%s:%d: STA: %s BSS: %s already in list\n", __func__, __LINE__, sta_mac_str, bssid_mac_str);
             return dm_orch_type_none;
         }
 
-
-        printf("%s:%d: STA: %s BSS: %s in list but needs update\n", __func__, __LINE__,
-        dm_easy_mesh_t::macbytes_to_string(psta->m_sta_info.id, sta_mac_str),
-        dm_easy_mesh_t::macbytes_to_string(psta->m_sta_info.bssid, bssid_mac_str));
+        //printf("%s:%d: STA: %s BSS: %s in list but needs update\n", __func__, __LINE__, sta_mac_str, bssid_mac_str);
         return dm_orch_type_db_update;
     }
 
-
+    //printf("%s:%d: STA: %s on BSS: %s not found, inserting\n", __func__, __LINE__, sta_mac_str, bssid_mac_str);
     return dm_orch_type_db_insert;
 }
 
@@ -119,12 +139,13 @@ dm_orch_type_t dm_sta_list_t::get_dm_orch_type(db_client_t& db_client, const dm_
 void dm_sta_list_t::update_list(const dm_sta_t& sta, dm_orch_type_t op)
 {
     dm_sta_t *psta;
-    mac_addr_str_t	sta_mac_str, bssid_mac_str;
+    mac_addr_str_t	sta_mac_str, bssid_mac_str, radio_mac_str;
     em_long_string_t key;
 
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)sta.m_sta_info.id, sta_mac_str);
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)sta.m_sta_info.bssid, bssid_mac_str);
-    snprintf(key, sizeof (em_long_string_t), "%s@%s", sta_mac_str, bssid_mac_str);
+    dm_easy_mesh_t::macbytes_to_string((unsigned char *)sta.m_sta_info.radiomac, radio_mac_str);
+    snprintf(key, sizeof (em_long_string_t), "%s@%s@%s", sta_mac_str, bssid_mac_str, radio_mac_str);
 
     switch (op) {
         case dm_orch_type_db_insert:
@@ -169,29 +190,36 @@ bool dm_sta_list_t::operator == (const db_easy_mesh_t& obj)
 
 int dm_sta_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *data)
 {
-    mac_addr_str_t sta_mac_str, bssid_mac_str;
+    mac_addr_str_t sta_mac_str, bssid_mac_str, radio_mac_str;
     em_sta_info_t *info = (em_sta_info_t *)data;
     int ret = 0;
+    char frame_body[EM_MAX_FRAME_BODY_LEN*2];
 
-    printf("dm_sta_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
+    //printf("dm_sta_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
+
 	switch (op) {
 		case dm_orch_type_db_insert:
+			dm_easy_mesh_t::hex(info->frame_body_len, info->frame_body, EM_MAX_FRAME_BODY_LEN*2, frame_body);
 			ret = insert_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->id, sta_mac_str),
-						dm_easy_mesh_t::macbytes_to_string(info->bssid, bssid_mac_str), info->last_ul_rate, info->last_dl_rate,
+						dm_easy_mesh_t::macbytes_to_string(info->bssid, bssid_mac_str),
+						dm_easy_mesh_t::macbytes_to_string(info->radiomac, radio_mac_str),
+						info->associated, info->last_ul_rate, info->last_dl_rate,
 						info->est_ul_rate, info->est_dl_rate, info->last_conn_time, info->retrans_count,
 						info->signal_strength, info->util_tx, info->util_rx, info->pkts_tx, info->pkts_rx,
-						info->bytes_tx, info->bytes_rx, info->errors_tx, info->errors_rx, info->cap, 
-						info->ht_cap, info->vht_cap, info->he_cap);
+						info->bytes_tx, info->bytes_rx, info->errors_tx, info->errors_rx,
+						info->frame_body_len, frame_body);
 							
 			break;
 
 		case dm_orch_type_db_update:
+			dm_easy_mesh_t::hex(info->frame_body_len, info->frame_body, EM_MAX_FRAME_BODY_LEN*2, frame_body);
 			ret = update_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->bssid, bssid_mac_str), 
-						info->last_ul_rate, info->last_dl_rate,
+						dm_easy_mesh_t::macbytes_to_string(info->radiomac, radio_mac_str),
+						info->associated, info->last_ul_rate, info->last_dl_rate,
 						info->est_ul_rate, info->est_dl_rate, info->last_conn_time, info->retrans_count,
 						info->signal_strength, info->util_tx, info->util_rx, info->pkts_tx, info->pkts_rx,
-						info->bytes_tx, info->bytes_rx, info->errors_tx, info->errors_rx, info->cap, 
-						info->ht_cap, info->vht_cap, info->he_cap,
+						info->bytes_tx, info->bytes_rx, info->errors_tx, info->errors_rx,
+						info->frame_body_len, frame_body,
 						dm_easy_mesh_t::macbytes_to_string(info->id, sta_mac_str));
 			break;
 
@@ -228,35 +256,42 @@ int dm_sta_list_t::sync_db(db_client_t& db_client, void *ctx)
     em_long_string_t   str;
     unsigned int i;
     int rc = 0;
+    char frame_body[EM_MAX_FRAME_BODY_LEN*2];
 
     while (db_client.next_result(ctx)) {
-	    memset(&info, 0, sizeof(em_sta_info_t));
+        memset(&info, 0, sizeof(em_sta_info_t));
 
-	    db_client.get_string(ctx, mac, 1);
-	    dm_easy_mesh_t::string_to_macbytes(mac, info.id);
+        db_client.get_string(ctx, mac, 1);
+        dm_easy_mesh_t::string_to_macbytes(mac, info.id);
 
-	    db_client.get_string(ctx, mac, 2);
-	    dm_easy_mesh_t::string_to_macbytes(mac, info.bssid);
+        db_client.get_string(ctx, mac, 2);
+        dm_easy_mesh_t::string_to_macbytes(mac, info.bssid);
 
-	    info.associated = db_client.get_number(ctx, 3);
-	    info.last_ul_rate = db_client.get_number(ctx, 4);
-	    info.last_dl_rate = db_client.get_number(ctx, 5);
-	    info.est_ul_rate = db_client.get_number(ctx, 6);
-	    info.est_dl_rate = db_client.get_number(ctx, 7);
-	    info.last_conn_time = db_client.get_number(ctx, 8);
-	    info.retrans_count = db_client.get_number(ctx, 9);
-	    info.signal_strength = db_client.get_number(ctx, 10);
-	    info.util_tx = db_client.get_number(ctx, 11);
-	    info.util_rx = db_client.get_number(ctx, 12);
-	    info.pkts_tx = db_client.get_number(ctx, 13);
-	    info.pkts_rx = db_client.get_number(ctx, 14);
-	    info.bytes_tx = db_client.get_number(ctx, 15);
-	    info.bytes_rx = db_client.get_number(ctx, 16);
-	    info.errors_tx = db_client.get_number(ctx, 17);
-	    info.errors_rx = db_client.get_number(ctx, 18);
-	    info.frame_body_len = db_client.get_number(ctx, 19);
-        
-	    update_list(dm_sta_t(&info), dm_orch_type_db_insert);
+        db_client.get_string(ctx, mac, 3);
+        dm_easy_mesh_t::string_to_macbytes(mac, info.radiomac);
+
+        info.associated = db_client.get_number(ctx, 4);
+        info.last_ul_rate = db_client.get_number(ctx, 5);
+        info.last_dl_rate = db_client.get_number(ctx, 6);
+        info.est_ul_rate = db_client.get_number(ctx, 7);
+        info.est_dl_rate = db_client.get_number(ctx, 8);
+        info.last_conn_time = db_client.get_number(ctx, 9);
+        info.retrans_count = db_client.get_number(ctx, 10);
+        info.signal_strength = db_client.get_number(ctx, 11);
+        info.util_tx = db_client.get_number(ctx, 12);
+        info.util_rx = db_client.get_number(ctx, 13);
+        info.pkts_tx = db_client.get_number(ctx, 14);
+        info.pkts_rx = db_client.get_number(ctx, 15);
+        info.bytes_tx = db_client.get_number(ctx, 16);
+        info.bytes_rx = db_client.get_number(ctx, 17);
+        info.errors_tx = db_client.get_number(ctx, 18);
+        info.errors_rx = db_client.get_number(ctx, 19);
+        info.frame_body_len = db_client.get_number(ctx, 20);
+
+        db_client.get_string(ctx, frame_body, 21);
+        dm_easy_mesh_t::unhex(strlen(frame_body), frame_body, EM_MAX_FRAME_BODY_LEN, info.frame_body);
+
+        update_list(dm_sta_t(&info), dm_orch_type_db_insert);
     }
     return rc;
 }
@@ -272,6 +307,7 @@ void dm_sta_list_t::init_columns()
 
     m_columns[m_num_cols++] = db_column_t("MACAddress", db_data_type_char, 17);
     m_columns[m_num_cols++] = db_column_t("BSSID", db_data_type_char, 17);
+    m_columns[m_num_cols++] = db_column_t("RUID", db_data_type_char, 17);
     m_columns[m_num_cols++] = db_column_t("Associated", db_data_type_tinyint, 0);
     m_columns[m_num_cols++] = db_column_t("LastDataUplinkRate", db_data_type_int, 0);
     m_columns[m_num_cols++] = db_column_t("LastDataDownlinkRate", db_data_type_int, 0);
@@ -289,7 +325,7 @@ void dm_sta_list_t::init_columns()
     m_columns[m_num_cols++] = db_column_t("ErrorsSent", db_data_type_int, 0);
     m_columns[m_num_cols++] = db_column_t("ErrorsReceived", db_data_type_int, 0);
     m_columns[m_num_cols++] = db_column_t("FrameBodyLength", db_data_type_int, 0);
-    m_columns[m_num_cols++] = db_column_t("FrameBody", db_data_type_binary, 0);
+    m_columns[m_num_cols++] = db_column_t("FrameBody", db_data_type_text, 1024);
 }
 
 int dm_sta_list_t::init()

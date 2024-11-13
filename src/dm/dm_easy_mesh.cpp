@@ -1206,6 +1206,68 @@ int dm_easy_mesh_t::decode_client_cap_config(em_subdoc_info_t *subdoc, const cha
     return 0;
 }
 
+char *dm_easy_mesh_t::hex(unsigned int in_len, unsigned char *in, unsigned int out_len, char *out)
+{
+    unsigned int i;
+    unsigned char tmp;
+
+    if (out_len < 2*in_len + 1) {
+        return NULL;
+    }
+
+    memset(out, 0, out_len);
+
+    for (i = 0; i < in_len; i++) {
+        tmp = in[i] >> 4;
+        if (tmp < 0xa) {
+            out[2*i] = tmp + 0x30;
+        } else {
+            out[2*i] = tmp - 0xa + 0x61;
+        }
+
+        tmp = in[i] & 0xf;
+        if (tmp < 0xa) {
+            out[2*i + 1] = tmp + 0x30;
+        } else {
+            out[2*i + 1] = tmp - 0xa + 0x61;
+        }
+    }
+
+    return out;
+}
+
+unsigned char *dm_easy_mesh_t::unhex(unsigned int in_len, char *in, unsigned int out_len, unsigned char *out)
+{
+    unsigned int i;
+    unsigned char tmp1, tmp2;
+
+    if (out_len < in_len/2) {
+        return NULL;
+    }
+
+    for (i = 0; i < in_len; i++) {
+        if (in[2*i] <= '9') {
+            tmp1 = (unsigned char)in[2*i] - 0x30;
+        } else {
+            tmp1 = (unsigned char)in[2*i] - 0x61 + 0xa;
+        }
+
+        tmp1 = tmp1 << 4;
+
+        if (in[2*i + 1] <= '9') {
+            tmp2 = (unsigned char)in[2*i + 1] - 0x30;
+        } else {
+            tmp2 = (unsigned char)in[2*i + 1] - 0x61 + 0xa;
+        }
+
+        tmp2 &= 0xf;
+
+        out[i] = tmp1 | tmp2;
+    }
+
+    return out;
+}
+
 
 void dm_easy_mesh_t::print_hex_dump(unsigned int length, unsigned char *buffer)
 {

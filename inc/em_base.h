@@ -2188,6 +2188,9 @@ typedef em_long_string_t db_column_name_t;
 typedef enum {
     db_data_type_char,
     db_data_type_varchar,
+    db_data_type_binary,
+    db_data_type_varbinary,
+    db_data_type_text,
     db_data_type_integer,
     db_data_type_int,
     db_data_type_smallint,
@@ -2199,7 +2202,6 @@ typedef enum {
     db_data_type_float,
     db_data_type_double,
     db_data_type_bit,
-    db_data_type_binary,
     db_data_type_date,
     db_data_type_datetime,
     db_data_type_timestamp,
