@@ -422,7 +422,7 @@ int em_ctrl_t::data_model_init(const char *data_model_path)
     m_ctrl_cmd = new em_cmd_ctrl_t();
     m_ctrl_cmd->init();
     
-    if (m_data_model.init(data_model_path) != 0) {
+    if (m_data_model.init(data_model_path, this) != 0) {
         printf("%s:%d: data model init failed\n", __func__, __LINE__);
         return 0;
     }

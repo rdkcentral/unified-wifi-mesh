@@ -45,6 +45,7 @@ public:
     bool search_db(db_client_t& db_client, void *ctx, void *key);
     bool operator == (const db_easy_mesh_t& obj);
     int set_config(db_client_t& db_client, const cJSON *obj, void *parent_id);
+    int set_config(db_client_t& db_client, dm_sta_t& sta, void *parent_id);
     int get_config(cJSON *obj, void *parent_id, bool summary = false);
 
     virtual dm_sta_t *get_first_sta() = 0;

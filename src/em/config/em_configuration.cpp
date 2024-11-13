@@ -717,13 +717,21 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
 {
     em_tlv_t *tlv;
     int tmp_len, ret = 0;
-	mac_address_t dev_mac;
-	bool found_dev_mac = false;
-	em_client_assoc_event_t *assoc_evt_tlv;
-	em_event_t  ev;
+    mac_address_t dev_mac;
+    mac_addr_str_t sta_mac_str, bssid_str, radio_mac_str;
+    em_long_string_t    key;
+    dm_easy_mesh_t  *dm;
+    unsigned int db_cfg_type;
+    bool found_dev_mac = false;
+    dm_sta_t *sta;
+    em_client_assoc_event_t *assoc_evt_tlv;
+    em_sta_info_t sta_info;
+    em_event_t  ev;
     em_bus_event_t *bev;
     em_bus_event_type_client_assoc_params_t    *raw;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
+
+    dm = get_data_model();
 	
 	if (em_msg_t(em_msg_type_topo_notif, m_peer_profile, buff, len).validate(errors) == 0) {
         printf("%s:%d: topology response msg validation failed\n", __func__, __LINE__);
@@ -752,16 +760,38 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_client_assoc_event) {
-			assoc_evt_tlv = (em_client_assoc_event_t *)tlv->value;	
-    		ev.type = em_event_type_bus;
-    		bev = &ev.u.bevt;
-    		bev->type = em_bus_event_type_sta_assoc;
-    		raw = (em_bus_event_type_client_assoc_params_t *)bev->u.raw_buff;
-    		memcpy(raw->dev, dev_mac, sizeof(mac_address_t));
-    		memcpy((unsigned char *)&raw->assoc, (unsigned char *)assoc_evt_tlv, sizeof(em_client_assoc_event_t));
+            assoc_evt_tlv = (em_client_assoc_event_t *)tlv->value;
+            dm_easy_mesh_t::macbytes_to_string(assoc_evt_tlv->cli_mac_address, sta_mac_str);
+            dm_easy_mesh_t::macbytes_to_string(assoc_evt_tlv->bssid, bssid_str);
+            dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(), radio_mac_str);
+            snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bssid_str, radio_mac_str);
 
-    		em_cmd_exec_t::send_cmd(em_service_type_ctrl, (unsigned char *)&ev, sizeof(em_event_t));
-			
+            //printf("%s:%d: Client Device:%s %s\n", __func__, __LINE__, sta_mac_str,
+                    //(assoc_evt_tlv->assoc_event == 1)?"associated":"disassociated");
+
+            // if associated for first time, orchestrate a client capability query/response
+            if ((sta = (dm_sta_t *)hash_map_get(dm->m_sta_map, key)) == NULL) {
+                ev.type = em_event_type_bus;
+                bev = &ev.u.bevt;
+                bev->type = em_bus_event_type_sta_assoc;
+                raw = (em_bus_event_type_client_assoc_params_t *)bev->u.raw_buff;
+                memcpy(raw->dev, dev_mac, sizeof(mac_address_t));
+                memcpy((unsigned char *)&raw->assoc, (unsigned char *)assoc_evt_tlv, sizeof(em_client_assoc_event_t));
+
+                em_cmd_exec_t::send_cmd(em_service_type_ctrl, (unsigned char *)&ev, sizeof(em_event_t));
+            } else {
+                memset(&sta_info, 0, sizeof(em_sta_info_t));
+                memcpy(sta_info.id, assoc_evt_tlv->cli_mac_address, sizeof(mac_address_t));
+                memcpy(sta_info.bssid, assoc_evt_tlv->bssid, sizeof(mac_address_t));
+                memcpy(sta_info.radiomac, get_radio_interface_mac(), sizeof(mac_address_t));
+                sta_info.associated = assoc_evt_tlv->assoc_event;
+
+                hash_map_put(dm->m_sta_assoc_map, strdup(key), new dm_sta_t(&sta_info));
+
+                db_cfg_type = dm->get_db_cfg_type();
+                dm->set_db_cfg_type(db_cfg_type | db_cfg_type_sta_list_update);
+            }
+            break;
         }
             
 		tmp_len -= (sizeof(em_tlv_t) + htons(tlv->len));

@@ -23,10 +23,13 @@
 #include "em_base.h"
 #include "dm_easy_mesh.h"
 
+class em_mgr_t;
+
 class dm_easy_mesh_list_t {
     em_long_string_t	m_network_list[EM_MAX_NETWORKS];
     unsigned int m_num_networks;
     hash_map_t  *m_list;
+    em_mgr_t *m_mgr;
 
 public:
 
@@ -37,7 +40,7 @@ public:
 
     void debug_probe();
 
-    void init();
+    void init(em_mgr_t *mgr);
 
     dm_easy_mesh_t *get_first_dm() { return (dm_easy_mesh_t *)hash_map_get_first(m_list); }
     dm_easy_mesh_t *get_next_dm(dm_easy_mesh_t *dm) { return (dm_easy_mesh_t *)hash_map_get_next(m_list, dm); }

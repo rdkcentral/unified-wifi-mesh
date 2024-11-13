@@ -63,14 +63,21 @@ int dm_bss_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 
         obj = cJSON_CreateObject(); 
 
-	dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.bssid.mac, mac_str);
-	cJSON_AddStringToObject(obj, "bssid", mac_str);
-	cJSON_AddStringToObject(obj, "ssid", pbss->m_bss_info.ssid);
-	cJSON_AddBoolToObject(obj, "Enabled", pbss->m_bss_info.enabled);
-	cJSON_AddStringToObject(obj, "EstServiceParametersBE", pbss->m_bss_info.est_svc_params_be);
-	cJSON_AddStringToObject(obj, "EstServiceParametersBK", pbss->m_bss_info.est_svc_params_bk);
-	cJSON_AddStringToObject(obj, "EstServiceParametersVI", pbss->m_bss_info.est_svc_params_vi);
-	cJSON_AddStringToObject(obj, "EstServiceParametersVO", pbss->m_bss_info.est_svc_params_vo);
+        dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.bssid.mac, mac_str);
+        cJSON_AddStringToObject(obj, "bssid", mac_str);
+
+        if (summary == true) {
+            cJSON_AddItemToArray(obj_arr, obj);
+            pbss = get_next_bss(pbss);
+            continue;
+        }
+
+        cJSON_AddStringToObject(obj, "ssid", pbss->m_bss_info.ssid);
+        cJSON_AddBoolToObject(obj, "Enabled", pbss->m_bss_info.enabled);
+        cJSON_AddStringToObject(obj, "EstServiceParametersBE", pbss->m_bss_info.est_svc_params_be);
+        cJSON_AddStringToObject(obj, "EstServiceParametersBK", pbss->m_bss_info.est_svc_params_bk);
+        cJSON_AddStringToObject(obj, "EstServiceParametersVI", pbss->m_bss_info.est_svc_params_vi);
+        cJSON_AddStringToObject(obj, "EstServiceParametersVO", pbss->m_bss_info.est_svc_params_vo);
 
         akms_arr = cJSON_AddArrayToObject(obj, "FronthaulAKMsAllowed");
         for (i = 0; i < pbss->m_bss_info.num_fronthaul_akms; i++) {
@@ -82,20 +89,20 @@ int dm_bss_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
             cJSON_AddItemToArray(akms_arr, cJSON_CreateString(pbss->m_bss_info.backhaul_akm[i]));
         }
 
-	cJSON_AddBoolToObject(obj, "Profile1bSTAsDisallowed", pbss->m_bss_info.profile_1b_sta_allowed);
-	cJSON_AddBoolToObject(obj, "Profile2bSTAsDisallowed", pbss->m_bss_info.profile_2b_sta_allowed);
+        cJSON_AddBoolToObject(obj, "Profile1bSTAsDisallowed", pbss->m_bss_info.profile_1b_sta_allowed);
+        cJSON_AddBoolToObject(obj, "Profile2bSTAsDisallowed", pbss->m_bss_info.profile_2b_sta_allowed);
 
-	cJSON_AddNumberToObject(obj, "AssociationAllowanceStatus", pbss->m_bss_info.assoc_allowed_status);
+        cJSON_AddNumberToObject(obj, "AssociationAllowanceStatus", pbss->m_bss_info.assoc_allowed_status);
 
-	cJSON_AddBoolToObject(obj, "FronthaulUse", pbss->m_bss_info.fronthaul_use);
-	cJSON_AddBoolToObject(obj, "BackhaulUse", pbss->m_bss_info.backhaul_use);
-	cJSON_AddBoolToObject(obj, "R1disallowed", pbss->m_bss_info.r1_disallowed);
-	cJSON_AddBoolToObject(obj, "R2disallowed", pbss->m_bss_info.r2_disallowed);
-	cJSON_AddBoolToObject(obj, "MultiBSSID", pbss->m_bss_info.multi_bssid);
-	cJSON_AddBoolToObject(obj, "TransmittedBSSID", pbss->m_bss_info.transmitted_bssid);
+        cJSON_AddBoolToObject(obj, "FronthaulUse", pbss->m_bss_info.fronthaul_use);
+        cJSON_AddBoolToObject(obj, "BackhaulUse", pbss->m_bss_info.backhaul_use);
+        cJSON_AddBoolToObject(obj, "R1disallowed", pbss->m_bss_info.r1_disallowed);
+        cJSON_AddBoolToObject(obj, "R2disallowed", pbss->m_bss_info.r2_disallowed);
+        cJSON_AddBoolToObject(obj, "MultiBSSID", pbss->m_bss_info.multi_bssid);
+        cJSON_AddBoolToObject(obj, "TransmittedBSSID", pbss->m_bss_info.transmitted_bssid);
 
-	cJSON_AddItemToArray(obj_arr, obj);
-	pbss = get_next_bss(pbss);
+        cJSON_AddItemToArray(obj_arr, obj);
+        pbss = get_next_bss(pbss);
     }
     
 	

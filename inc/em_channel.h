@@ -48,6 +48,8 @@ public:
 
     int handle_channel_pref_rprt(unsigned char *buff, unsigned int len);
     int handle_channel_pref_query(unsigned char *buff, unsigned int len);
+    int handle_channel_sel_rsp(unsigned char *buff, unsigned int len);
+    int handle_operating_channel_rprt(unsigned char *buff, unsigned int len);
     int handle_channel_sel_req(unsigned char *buff, unsigned int len);
     int handle_channel_pref_tlv(unsigned char *buff, unsigned int len);
 

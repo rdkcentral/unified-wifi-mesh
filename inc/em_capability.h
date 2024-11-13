@@ -71,7 +71,7 @@ class em_capability_t {
     short create_client_info_tlv(unsigned char *buff, mac_address_t sta, bssid_t bssid);
 
     void handle_client_cap_query(unsigned char *data, unsigned int len);
-    void handle_client_cap_report(unsigned char *data, unsigned int len);
+    int handle_client_cap_report(unsigned char *data, unsigned int len);
 
 public:
     void    process_msg(unsigned char *data, unsigned int len);

@@ -114,9 +114,9 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
             break;
 
         case em_cmd_type_sta_assoc:
-            if (em->get_state() == em_state_ctrl_configured) {
+            //if (em->get_state() == em_state_ctrl_configured) {
                 return true;
-            }
+            //}
             break;
 
         case em_cmd_type_em_config:
@@ -179,7 +179,7 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
     mac_addr_str_t	mac_str;
     em_commit_target_t config;
 
-    printf("%s:%d: Orchestration operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
+    //printf("%s:%d: Orchestration operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
     switch (pcmd->get_orch_op()) {
         case dm_orch_type_db_reset:
             dm_ctrl->reset_config();
@@ -237,11 +237,10 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
 		case dm_orch_type_em_update:
         case dm_orch_type_em_test:
         case dm_orch_type_sta_cap:
-			printf("%s:%d: Submit: %d\n", __func__, __LINE__, pcmd->get_orch_submit());
             break;  
 
-		case dm_orch_type_net_ssid_update:
-			m_mgr->load_net_ssid_table();
+        case dm_orch_type_net_ssid_update:
+            m_mgr->load_net_ssid_table();
             break;  
 
         default:
