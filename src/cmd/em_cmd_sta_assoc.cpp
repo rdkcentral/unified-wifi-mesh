@@ -42,24 +42,17 @@
 
 em_cmd_sta_assoc_t::em_cmd_sta_assoc_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
 {
-    em_cmd_ctx_t ctx;;
+    em_cmd_ctx_t ctx;
 
-    m_type = em_cmd_type_em_config;
-    //m_type = em_cmd_type_sta_assoc;
+    m_type = em_cmd_type_sta_assoc;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
 
 	memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
 
     m_orch_op_idx = 0;
-    m_num_orch_desc = 4;
-    m_orch_desc[0].op = dm_orch_type_topo_sync;
+    m_num_orch_desc = 1;
+    m_orch_desc[0].op = dm_orch_type_sta_cap;
     m_orch_desc[0].submit = true;
-    m_orch_desc[1].op = dm_orch_type_channel_pref;
-    m_orch_desc[1].submit = true;
-    m_orch_desc[2].op = dm_orch_type_channel_sel;
-    m_orch_desc[2].submit = true;
-    m_orch_desc[3].op = dm_orch_type_sta_cap;
-    m_orch_desc[3].submit = true;
 
     strncpy(m_name, "sta_assoc", strlen("sta_assoc") + 1);
     m_svc = em_service_type_ctrl;

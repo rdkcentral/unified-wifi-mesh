@@ -204,6 +204,8 @@ public:
     static void put_sta_info(void *dm, em_sta_info_t *info, em_target_sta_map_t target) { ((dm_easy_mesh_t *)dm)->put_sta_info(info, target); }
     
     static void print_hex_dump(unsigned int length, unsigned char *buffer);
+    static char *hex(unsigned int in_len, unsigned char *in, unsigned int out_len, char *out);
+    static unsigned char *unhex(unsigned int in_len, char *in, unsigned int out_len, unsigned char *out);
     static char *macbytes_to_string(mac_address_t mac, char* string);
     static void string_to_macbytes (char *key, mac_address_t bmac);
     static int mac_address_from_name(const char *ifname, mac_address_t mac);

@@ -97,20 +97,22 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             printf("%s:%d: %s(%s) state: 0x%04x\n", __func__, __LINE__,
                     em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), get_state());
             if ((pcmd->get_orch_op() == dm_orch_type_topo_sync) && (m_sm.get_state() == em_state_ctrl_wsc_m2_sent)) {
-            	m_sm.set_state(em_state_ctrl_topo_sync_pending);
-			} else if ((pcmd->get_orch_op() == dm_orch_type_channel_pref) && (m_sm.get_state() == em_state_ctrl_topo_synchronized)) {
-            	m_sm.set_state(em_state_ctrl_channel_query_pending);
-			} else if ((pcmd->get_orch_op() == dm_orch_type_channel_sel) && (m_sm.get_state() == em_state_ctrl_channel_queried)) {
-            	m_sm.set_state(em_state_ctrl_channel_select_pending);
-			}
-			break;
+                m_sm.set_state(em_state_ctrl_topo_sync_pending);
+            } else if ((pcmd->get_orch_op() == dm_orch_type_channel_pref) && (m_sm.get_state() == em_state_ctrl_topo_synchronized)) {
+                m_sm.set_state(em_state_ctrl_channel_query_pending);
+            } else if ((pcmd->get_orch_op() == dm_orch_type_channel_sel) && (m_sm.get_state() == em_state_ctrl_channel_queried)) {
+                set_state(em_state_ctrl_channel_select_pending);
+            } else if ((pcmd->get_orch_op() == dm_orch_type_channel_cnf) && (m_sm.get_state() == em_state_ctrl_channel_selected)) {
+                set_state(em_state_ctrl_channel_cnf_pending);
+            }
+            break;
 
         case em_cmd_type_dev_test:
-			m_sm.set_state(em_state_ctrl_channel_query_pending);
-			break;
+            m_sm.set_state(em_state_ctrl_channel_query_pending);
+            break;
         case em_cmd_type_onewifi_cb:
             m_sm.set_state(em_state_agent_onewifi_bssconfig_ind);
-			break;
+            break;
         case em_cmd_type_sta_assoc:
             m_sm.set_state(em_state_ctrl_sta_cap_pending);
             break;

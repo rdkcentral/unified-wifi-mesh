@@ -598,30 +598,30 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             }
             break;
         case em_msg_type_channel_pref_query:
-	     if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                 len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
-		printf("%s:%d: Could not find radio_id for em_msg_type_channel_pref_query\n", __func__, __LINE__);
-		return NULL;
-	    }
+                printf("%s:%d: Could not find radio_id for em_msg_type_channel_pref_query\n", __func__, __LINE__);
+                return NULL;
+            }
 
             dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
-	    if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
+            if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
                 printf("%s:%d: Received channel preference query recv, found existing radio:%s\n", __func__, __LINE__, mac_str1);
             } else {
-		printf("%s:%d: Could not find em for em_msg_type_channel_pref_query\n", __func__, __LINE__);
-		return NULL;
-	    }
+                printf("%s:%d: Could not find em for em_msg_type_channel_pref_query\n", __func__, __LINE__);
+                return NULL;
+            }
             break;
 
         case em_msg_type_topo_notif:
             break;
 		
-	case em_msg_type_channel_pref_rprt:
-	    printf("%s:%d:Received channel preference report\n",__func__, __LINE__);
-	    break;	
+        case em_msg_type_channel_pref_rprt:
+            printf("%s:%d:Received channel preference report\n",__func__, __LINE__);
+            break;	
 
-	case  em_msg_type_channel_sel_req:
-             if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+        case  em_msg_type_channel_sel_req:
+            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                 len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
                 printf("%s:%d: Could not find radio_id for em_msg_type_channel_pref_query\n", __func__, __LINE__);
                 return NULL;
@@ -635,13 +635,30 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
                 return NULL;
             }
 
-	    break;
+            break;
 
-	case em_msg_type_channel_sel_rsp:
-		printf("%s:%d: Received em_msg_type_channel_sel_resp\n", __func__, __LINE__);
-		break;
+        case em_msg_type_channel_sel_rsp:
+            printf("%s:%d: Received em_msg_type_channel_sel_resp\n", __func__, __LINE__);
+            break;
 
-	default:
+        case  em_msg_type_client_cap_query:
+            printf("i%s:%d: Received client cap query\n", __func__, __LINE__);
+            em = (em_t *)hash_map_get_first(m_em_map);
+
+            while (em != NULL) {
+                if (!(em->is_al_interface_em())) {
+                    em->set_state(em_state_agent_client_cap_report);
+                    break;
+                }
+                em = (em_t *)hash_map_get_next(m_em_map, em);
+            }
+            break;
+
+        case em_msg_type_client_cap_rprt:
+            printf("%s:%d: Sending client cap report\n", __func__, __LINE__);
+            break;
+
+        default:
             printf("%s:%d: Frame: %d not handled in agent\n", __func__, __LINE__, htons(cmdu->type));
             assert(0);
             break;	
