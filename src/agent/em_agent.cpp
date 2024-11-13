@@ -156,6 +156,23 @@ void em_agent_t::handle_channel_pref_query(em_bus_event_t *evt)
     }
 }
 
+void em_agent_t::handle_channel_sel_req(em_bus_event_t *evt)
+{
+    unsigned int num;
+    wifi_bus_desc_t *desc;
+    raw_data_t l_bus_data;
+
+    if((desc = get_bus_descriptor()) == NULL) {
+       printf("descriptor is null");
+    }
+
+    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+        m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+    } else if ((num = m_data_model.analyze_channel_sel_req(evt, desc, &m_bus_hdl)) == 0) {
+            printf("handle_channel_sel_req complete");
+    }
+}
+
 void em_agent_t::handle_m2ctrl_configuration(em_bus_event_t *evt)
 {
     unsigned int num;
@@ -173,7 +190,7 @@ void em_agent_t::handle_m2ctrl_configuration(em_bus_event_t *evt)
     }
 }
 
-void em_agent_t::handle_onewifi_cb(em_bus_event_t *evt)
+void em_agent_t::handle_onewifi_private_cb(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num;
@@ -185,8 +202,27 @@ void em_agent_t::handle_onewifi_cb(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_onewifi_cb(evt, pcmd)) == 0) {
-        printf("analyze_onewifi_cb completed\n");
+    } else if ((num = m_data_model.analyze_onewifi_private_cb(evt, pcmd)) == 0) {
+        printf("analyze_onewifi_private_cb completed\n");
+    } else if (m_orch->submit_commands(pcmd, num) > 0) {
+        printf("submitted command for orchestration\n");
+    }
+}
+
+void em_agent_t::handle_onewifi_radio_cb(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+    wifi_bus_desc_t *desc;
+
+    if ((desc = get_bus_descriptor()) == NULL) {
+        printf("descriptor is null");
+    }
+
+    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+        m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+    } else if ((num = m_data_model.analyze_onewifi_radio_cb(evt, pcmd)) == 0) {
+        printf("analyze_onewifi_radio_cb completed\n");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
         printf("submitted command for orchestration\n");
     }
@@ -286,15 +322,23 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
         case em_bus_event_type_m2ctrl_configuration:
             handle_m2ctrl_configuration(evt);
             break;
-
-        case em_bus_event_type_onewifi_cb:
-            handle_onewifi_cb(evt);
+		
+		case em_bus_event_type_onewifi_private_cb:
+            handle_onewifi_private_cb(evt);
             break;
-		
+
+		case em_bus_event_type_onewifi_radio_cb:
+			handle_onewifi_radio_cb(evt);
+			break;
+
 		case em_bus_event_type_channel_pref_query:
-	    	handle_channel_pref_query(evt);
-	    	break;
-		
+			handle_channel_pref_query(evt);
+			break;
+
+		case em_bus_event_type_channel_sel_req:
+			handle_channel_sel_req(evt);
+			break;
+
         default:
             break;
     }    
@@ -408,15 +452,42 @@ int em_agent_t::sta_cb(char *event_name, raw_data_t *data)
 
 int em_agent_t::onewifi_cb(char *event_name, raw_data_t *data)
 {
-    em_event_t evt;
-    em_bus_event_t *bevt;
+	em_event_t evt;
+	em_bus_event_t *bevt;
+	const char *json_data = (char *)data->raw_data.bytes;
+	cJSON *json = cJSON_Parse(json_data);
 
-    printf("%s:%dRecv data from onewifi:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
-    bevt = &evt.u.bevt;
-    bevt->type = em_bus_event_type_onewifi_cb;
-    memcpy(bevt->u.raw_buff, data->raw_data.bytes, data->raw_data_len);
+	printf("%s:%dRecv data from onewifi:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
 
-    g_agent.agent_input(&evt);
+	if (json == NULL) {
+		printf("%s:%d Error parsing JSON\n", __func__, __LINE__);
+	} else {
+		cJSON *subdoc_name = cJSON_GetObjectItemCaseSensitive(json, "SubDocName");
+		if (cJSON_IsString(subdoc_name) && (subdoc_name->valuestring != NULL)) {
+			if (strcmp(subdoc_name->valuestring, "private") == 0) {
+				printf("%s:%d Found SubDocName: private\n", __func__, __LINE__);
+				bevt = &evt.u.bevt;
+				bevt->type = em_bus_event_type_onewifi_private_cb;
+				memcpy(bevt->u.raw_buff, data->raw_data.bytes, data->raw_data_len);
+
+			} else if (strcmp(subdoc_name->valuestring, "radio") == 0) {
+				printf("%s:%d Found SubDocName: radio\n", __func__, __LINE__);
+				bevt = &evt.u.bevt;
+				bevt->type = em_bus_event_type_onewifi_radio_cb;
+				memcpy(bevt->u.raw_buff, data->raw_data.bytes, data->raw_data_len);
+
+			} else {
+				printf("%s:%d SubDocName not matching private or radio \n", __func__, __LINE__);
+				return 0;
+			}
+		} else {
+			printf("%s:%d SubDocName not found\n", __func__, __LINE__);
+		}
+
+		cJSON_Delete(json);
+	}
+
+	g_agent.agent_input(&evt);
 
 }
 
@@ -527,30 +598,50 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             }
             break;
         case em_msg_type_channel_pref_query:
+	     if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+                len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+		printf("%s:%d: Could not find radio_id for em_msg_type_channel_pref_query\n", __func__, __LINE__);
+		return NULL;
+	    }
 
-            em = (em_t *)hash_map_get_first(m_em_map);
-            if (em != NULL) { //Work-Around
-                found = true;
-                printf("Received channel preference query recv\n");
-                break;
-            }
-            if (found == false) {
-                printf("%s:%d: Could not find em for em_msg_type_channel_pref_query\n", __func__, __LINE__);
-                return NULL;
-            }
+            dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
+	    if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
+                printf("%s:%d: Received channel preference query recv, found existing radio:%s\n", __func__, __LINE__, mac_str1);
+            } else {
+		printf("%s:%d: Could not find em for em_msg_type_channel_pref_query\n", __func__, __LINE__);
+		return NULL;
+	    }
             break;
 
         case em_msg_type_topo_notif:
             break;
 		
-		case em_msg_type_channel_pref_rprt:
-		    printf("Received channel preference report\n");
-		    break;		
+	case em_msg_type_channel_pref_rprt:
+	    printf("%s:%d:Received channel preference report\n",__func__, __LINE__);
+	    break;	
 
 	case  em_msg_type_channel_sel_req:
-	    printf("Received channel selection request recv\n");
+             if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+                len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+                printf("%s:%d: Could not find radio_id for em_msg_type_channel_pref_query\n", __func__, __LINE__);
+                return NULL;
+            }
+
+            dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
+            if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
+                printf("%s:%d: Received em_msg_type_channel_sel_req, found existing radio:%s\n", __func__, __LINE__, mac_str1);
+            } else {
+                printf("%s:%d: Could not find em for em_msg_type_channel_sel_req\n", __func__, __LINE__);
+                return NULL;
+            }
+
 	    break;
-		default:
+
+	case em_msg_type_channel_sel_rsp:
+		printf("%s:%d: Received em_msg_type_channel_sel_resp\n", __func__, __LINE__);
+		break;
+
+	default:
             printf("%s:%d: Frame: %d not handled in agent\n", __func__, __LINE__, htons(cmdu->type));
             assert(0);
             break;	

@@ -123,6 +123,24 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
                 m_num_radios = m_num_radios + 1;
                 printf("%s:%d New Radio %s configuration created no of radios=%d\n", __func__, __LINE__,target.params,m_num_radios);
             }
+			//Commit op class
+			for (i = 0; i<dm.m_num_opclass; i++) {
+				for (j = 0; j<m_num_opclass;j++) {
+					if ((memcmp(radio->get_radio_info()->id.mac, m_op_class[j].m_op_class_info.id.ruid, sizeof(mac_address_t)) == 0) &&
+						(dm.m_op_class[i].m_op_class_info.op_class == m_op_class[j].m_op_class_info.op_class) &&
+						(dm.m_op_class[i].m_op_class_info.id.type == m_op_class[j].m_op_class_info.id.type)) {
+						m_op_class[j].m_op_class_info = dm.m_op_class[i].m_op_class_info;
+						printf("%s:%d op class=%d  already exist so updated \n", __func__, __LINE__,dm.m_op_class[i].m_op_class_info.op_class);
+						break;
+					}
+				}
+				if (j == m_num_opclass) {
+					//New Op class
+					printf("%s:%d New op class=%d commiting it \n", __func__, __LINE__,dm.m_op_class[i].m_op_class_info.op_class);
+					m_op_class[m_num_opclass].m_op_class_info = dm.m_op_class[i].m_op_class_info;
+					m_num_opclass++;
+				}
+			}
         }
     } else if (target.type == em_commit_target_bss) {
         printf("%s:%d Commit radio=%s\n", __func__, __LINE__,target.params);
@@ -1436,7 +1454,7 @@ void dm_easy_mesh_t::print_config()
 
     for (i = 0; i < m_num_opclass; i++) {
         dm_easy_mesh_t::macbytes_to_string(m_op_class[i].m_op_class_info.id.ruid, radio_mac);
-        printf("%s:%d: OpClass[%d] id.ruid: %s id.type: %d id.index: %d\n", __func__, __LINE__, i, radio_mac, m_op_class[i].m_op_class_info.id.type, m_op_class[i].m_op_class_info.id.index);
+        printf("%s:%d: OpClass[%d] id.ruid: %s id.type: %d id.index: %d Channel : %d Op_class : %d num_channel : %d\n\n", __func__, __LINE__, i, radio_mac, m_op_class[i].m_op_class_info.id.type, m_op_class[i].m_op_class_info.id.index, m_op_class[i].m_op_class_info.channel, m_op_class[i].m_op_class_info.op_class, m_op_class[i].m_op_class_info.num_non_op_channels);
     }
 
     printf("%s:%d:No of BSS=%d No of Radios=%d \n", __func__, __LINE__, m_num_bss, m_num_radios);
