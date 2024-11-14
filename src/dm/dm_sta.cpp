@@ -228,6 +228,7 @@ void dm_sta_t::operator = (const dm_sta_t& obj)
 
     memcpy(&this->m_sta_info.frame_body, &obj.m_sta_info.frame_body, obj.m_sta_info.frame_body_len);
     this->m_sta_info.num_vendor_infos = obj.m_sta_info.num_vendor_infos;
+    memcpy(&this->m_sta_info.ht_cap, &obj.m_sta_info.ht_cap, sizeof(em_long_string_t));
     memcpy(&this->m_sta_info.listen_interval, &obj.m_sta_info.listen_interval, sizeof(em_long_string_t));
     memcpy(&this->m_sta_info.ssid, &obj.m_sta_info.ssid, sizeof(em_long_string_t));
     memcpy(&this->m_sta_info.supp_rates, &obj.m_sta_info.supp_rates, sizeof(em_long_string_t));
