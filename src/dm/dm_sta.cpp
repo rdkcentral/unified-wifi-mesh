@@ -227,7 +227,19 @@ void dm_sta_t::operator = (const dm_sta_t& obj)
     this->m_sta_info.errors_rx = obj.m_sta_info.errors_rx;
 
     memcpy(&this->m_sta_info.frame_body, &obj.m_sta_info.frame_body, obj.m_sta_info.frame_body_len);
-
+    this->m_sta_info.num_vendor_infos = obj.m_sta_info.num_vendor_infos;
+    memcpy(&this->m_sta_info.listen_interval, &obj.m_sta_info.listen_interval, sizeof(em_long_string_t));
+    memcpy(&this->m_sta_info.ssid, &obj.m_sta_info.ssid, sizeof(em_long_string_t));
+    memcpy(&this->m_sta_info.supp_rates, &obj.m_sta_info.supp_rates, sizeof(em_long_string_t));
+    memcpy(&this->m_sta_info.power_cap, &obj.m_sta_info.power_cap, sizeof(em_long_string_t));
+    memcpy(&this->m_sta_info.supp_channels, &obj.m_sta_info.supp_channels, sizeof(em_long_string_t));
+    memcpy(&this->m_sta_info.rsn_info, &obj.m_sta_info.rsn_info, sizeof(em_long_string_t));
+    memcpy(&this->m_sta_info.ext_supp_rates, &obj.m_sta_info.ext_supp_rates, sizeof(em_long_string_t));
+    memcpy(&this->m_sta_info.supp_op_classes, &obj.m_sta_info.supp_op_classes, sizeof(em_long_string_t));
+    memcpy(&this->m_sta_info.ext_cap, &obj.m_sta_info.ext_cap, sizeof(em_long_string_t));
+    for (unsigned int i = 0; i < this->m_sta_info.num_vendor_infos; i++) {
+        memcpy(&this->m_sta_info.vendor_info, &obj.m_sta_info.vendor_info, sizeof(em_long_string_t));
+    }
 }
 
 void dm_sta_t::parse_sta_bss_radio_from_key(const char *key, mac_address_t sta, bssid_t bssid, mac_address_t ruid)
@@ -250,6 +262,99 @@ void dm_sta_t::parse_sta_bss_radio_from_key(const char *key, mac_address_t sta, 
         tmp++;
         remain = tmp;
         i++;
+    }
+
+}
+
+void dm_sta_t::decode_sta_capabilty(dm_sta_t *sta)
+{
+    unsigned int offset = 0;
+    unsigned char length;
+    tag_type_t tag_id;
+
+    if (sta->m_sta_info.frame_body_len < 4) {
+        printf("%s:%d: Packet length is too short to contain basic fields\n", __func__, __LINE__);
+        return;
+    }
+    dm_easy_mesh_t::hex(2, &sta->m_sta_info.frame_body[offset], sizeof(em_long_string_t), sta->m_sta_info.cap);
+    offset += 2;
+    dm_easy_mesh_t::hex(2, &sta->m_sta_info.frame_body[offset], sizeof(em_long_string_t), sta->m_sta_info.listen_interval);
+    offset += 2;
+    sta->m_sta_info.num_vendor_infos = 0;
+
+    while (offset < sta->m_sta_info.frame_body_len) {
+        if (offset + 2 > sta->m_sta_info.frame_body_len) {
+            printf("%s:%d: Insufficient data for tag header\n", __func__, __LINE__);
+            return;
+        }
+
+        tag_id = (tag_type_t)sta->m_sta_info.frame_body[offset];
+        length = sta->m_sta_info.frame_body[offset + 1];
+
+        if (offset + 2 + length > sta->m_sta_info.frame_body_len) {
+            printf("%s:%d: Tag length exceeds remaining packet length\n", __func__, __LINE__);
+            return;
+        }
+
+        ieee80211_tagvalue_t *tag = (ieee80211_tagvalue_t *) malloc(sizeof(ieee80211_tagvalue_t) + length);
+        if (!tag) {
+            printf("%s:%d: Memory allocation failed\n", __func__, __LINE__);
+            return;
+        }
+
+        tag->tag_id = tag_id;
+        tag->length = length;
+        memcpy(tag->value, &sta->m_sta_info.frame_body[offset + 2], length);
+
+        switch (tag->tag_id) {
+            case tag_ssid:
+                dm_easy_mesh_t::hex(tag->length, tag->value, sizeof(em_long_string_t), sta->m_sta_info.ssid);
+                break;
+
+            case tag_supported_rates:
+                dm_easy_mesh_t::hex(tag->length, tag->value, sizeof(em_long_string_t), sta->m_sta_info.supp_rates);
+                break;
+
+            case tag_extended_supported_rates:
+                dm_easy_mesh_t::hex(tag->length, tag->value, sizeof(em_long_string_t), sta->m_sta_info.ext_supp_rates);
+                break;
+
+            case tag_power_capability:
+                dm_easy_mesh_t::hex(tag->length, tag->value, sizeof(em_long_string_t), sta->m_sta_info.power_cap);
+                break;
+
+            case tag_supported_channels:
+                dm_easy_mesh_t::hex(tag->length, tag->value, sizeof(em_long_string_t), sta->m_sta_info.supp_channels);
+                break;
+
+            case tag_rsn_information:
+                dm_easy_mesh_t::hex(tag->length, tag->value, sizeof(em_long_string_t), sta->m_sta_info.rsn_info);
+                break;
+
+            case tag_supported_operating_classes:
+                dm_easy_mesh_t::hex(tag->length, tag->value, sizeof(em_long_string_t), sta->m_sta_info.supp_op_classes);
+                break;
+
+            case tag_ht_capabilities:
+                dm_easy_mesh_t::hex(tag->length, tag->value, sizeof(em_long_string_t), sta->m_sta_info.ht_cap);
+                break;
+
+            case tag_extended_capabilities:
+                dm_easy_mesh_t::hex(tag->length, tag->value, sizeof(em_long_string_t), sta->m_sta_info.ext_cap);
+                break;
+
+            case tag_vendor_specific:
+                if (sta->m_sta_info.num_vendor_infos < MAX_VENDOR_INFO) {
+                    dm_easy_mesh_t::hex(tag->length, tag->value, sizeof(sta->m_sta_info.vendor_info[sta->m_sta_info.num_vendor_infos]), sta->m_sta_info.vendor_info[sta->m_sta_info.num_vendor_infos]);
+                    sta->m_sta_info.num_vendor_infos++;
+                }
+                break;
+            default:
+                printf("%s:%d: Unknown Tag ID: %d\n", __func__, __LINE__, tag->tag_id);
+                break;
+        }
+    offset += 2 + tag->length;
+    free(tag);
     }
 
 }

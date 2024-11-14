@@ -41,6 +41,7 @@
 #define MIN_MAC_LEN 12
 #define MAX_EM_BUFF_SZ  1024
 #define EM_MAX_FRAME_BODY_LEN	512
+#define MAX_VENDOR_INFO 5
 
 #define EM_TEST_IO_PERM 0666
 #define EM_IO_BUFF_SZ   4096
@@ -1852,6 +1853,7 @@ typedef struct {
     unsigned int    errors_rx;
     unsigned int 	frame_body_len;
     unsigned char	frame_body[EM_MAX_FRAME_BODY_LEN];
+    unsigned int    num_vendor_infos;
 
     em_long_string_t    cap;
     em_long_string_t    ht_cap;
@@ -1859,6 +1861,16 @@ typedef struct {
     em_long_string_t    he_cap;
     em_long_string_t    wifi6_cap;
     em_long_string_t    cellular_data_pref;
+    em_long_string_t    listen_interval;
+    em_long_string_t    ssid;
+    em_long_string_t    supp_rates;
+    em_long_string_t    power_cap;
+    em_long_string_t    supp_channels;
+    em_long_string_t    rsn_info;
+    em_long_string_t    ext_supp_rates;
+    em_long_string_t    supp_op_classes;
+    em_long_string_t    ext_cap;
+    em_long_string_t    vendor_info[MAX_VENDOR_INFO];
 } em_sta_info_t;
 
 typedef enum {
@@ -2256,4 +2268,24 @@ typedef struct {
     char ssid[MAX_WIFI_SSID_LEN];
     char keypass_phrase[MAX_WIFI_PASSWORD_LEN];
 }__attribute__((__packed__)) em_vap_info_t;
+
+typedef enum {
+    tag_ssid = 0,
+    tag_supported_rates = 1,
+    tag_power_capability = 33,
+    tag_supported_channels = 36,
+    tag_ht_capabilities = 45,
+    tag_rsn_information = 48,
+    tag_extended_supported_rates = 50,
+    tag_supported_operating_classes = 59,
+    tag_extended_capabilities = 127,
+    tag_vendor_specific = 221,
+} tag_type_t;
+
+typedef struct {
+    tag_type_t tag_id;
+    unsigned char length;
+    unsigned char value[0];
+} __attribute__((packed)) ieee80211_tagvalue_t;
+
 #endif // EM_BASE_H
