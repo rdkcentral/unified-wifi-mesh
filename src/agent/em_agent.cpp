@@ -636,6 +636,10 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             printf("%s:%d: Sending client cap report\n", __func__, __LINE__);
             break;
 
+        case em_msg_type_op_channel_rprt:
+            printf("%s:%d: Sending Operating Channel report\n", __func__, __LINE__);
+            break;
+
         default:
             printf("%s:%d: Frame: %d not handled in agent\n", __func__, __LINE__, htons(cmdu->type));
             assert(0);

@@ -90,11 +90,11 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             }
             break;
 		
-		case em_cmd_type_channel_sel_resp:
-			if (em->get_state() == em_state_agent_configured) {
-				return true;
-			}
-			break;
+        case em_cmd_type_op_channel_report:
+            if (em->get_state() == em_state_agent_configured) {
+                return true;
+            }
+            break;
 
         default:
             if ((em->get_state() == em_state_agent_unconfigured) || \
@@ -117,11 +117,11 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
         return true;
     } else if (pcmd->m_type == em_cmd_type_sta_list) {
         return true;
-    } else if ((pcmd->m_type == em_cmd_type_channel_pref_query) && (em->get_state() == em_state_agent_topo_synchronized)) {
+    } else if ((pcmd->m_type == em_cmd_type_channel_pref_query) && (em->get_state() >= em_state_agent_topo_synchronized)) {
 		return true;
-	} else if (pcmd->m_type == em_cmd_type_channel_sel_resp) {
-		return true;
-	}
+    } else if (pcmd->m_type == em_cmd_type_op_channel_report) {
+        return true;
+    }
 
     return false;
 }
@@ -232,8 +232,8 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
         case dm_orch_type_client_cap_report:
         case dm_orch_type_owconfig_cnf:
         case dm_orch_type_tx_cfg_renew:
-    	case dm_orch_type_channel_pref:
-		case dm_orch_type_channel_sel_resp:
+        case dm_orch_type_channel_pref:
+        case dm_orch_type_op_channel_report:
             break;
         default:
             break;
@@ -336,22 +336,21 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 					}
 				}
 				break;
-			
-			case em_cmd_type_channel_sel_resp:
-				if (!(em->is_al_interface_em())) {
-					radio = pcmd->m_data_model.get_radio((unsigned int)0);
-					if (radio == NULL) {
-						printf("%s:%d channel sel radio cannot be found.\n", __func__, __LINE__);
-						break;
-					}
-					if (memcmp(radio->get_radio_interface_mac(),em->get_radio_interface_mac(),sizeof(mac_address_t)) == 0) {
-						queue_push(pcmd->m_em_candidates, em);
-						count++;
-						dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), dst_mac_str);
-						printf("%s:%d Channel Sel Response build candidate MAC=%s\n", __func__, __LINE__,dst_mac_str);
-					}
-				}
-				break;
+            case em_cmd_type_op_channel_report:
+                if (!(em->is_al_interface_em())) {
+                    radio = pcmd->m_data_model.get_radio((unsigned int)0);
+                    if (radio == NULL) {
+                        printf("%s:%d channel sel radio cannot be found.\n", __func__, __LINE__);
+                        break;
+                    }
+                    if (memcmp(radio->get_radio_interface_mac(),em->get_radio_interface_mac(),sizeof(mac_address_t)) == 0) {
+                        queue_push(pcmd->m_em_candidates, em);
+                        count++;
+                        dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), dst_mac_str);
+                        printf("%s:%d Operating Channel Report build candidate MAC=%s\n", __func__, __LINE__,dst_mac_str);
+                    }
+                }
+                break;
 
 			default:
                 break;

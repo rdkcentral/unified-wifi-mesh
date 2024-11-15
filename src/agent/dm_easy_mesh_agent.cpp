@@ -44,7 +44,7 @@
 #include "em_cmd_onewifi_cb.h"
 #include "em_cmd_cfg_renew.h"
 #include "em_cmd_channel_pref_query.h"
-#include "em_cmd_channel_sel_response.h"
+#include "em_cmd_op_channel_report.h"
 
 int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
@@ -347,7 +347,7 @@ int dm_easy_mesh_agent_t::analyze_onewifi_radio_cb(em_bus_event_t *evt, em_cmd_t
             }
         }
     }
-    pcmd[num] = new em_cmd_channel_sel_resp_t(evt->params, dm);
+    pcmd[num] = new em_cmd_op_channel_report_t(evt->params, dm);
     tmp = pcmd[num];
     num++;
 
