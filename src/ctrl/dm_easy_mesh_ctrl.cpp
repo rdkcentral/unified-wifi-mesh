@@ -48,8 +48,27 @@
 #include "em_cmd_em_config.h"
 #include "em_cmd_cfg_renew.h"
 #include "em_cmd_sta_assoc.h"
+#include "em_cmd_sta_link_metrics.h"
 
 extern char *global_netid;
+
+int dm_easy_mesh_ctrl_t::analyze_sta_link_metrics(em_cmd_t *pcmd[])
+{
+    int num = 0;
+    em_cmd_t *tmp;
+
+    pcmd[num] = new em_cmd_sta_link_metrics_t();
+    tmp = pcmd[num];
+    num++;
+
+    while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+        tmp = pcmd[num];
+        num++;
+    }
+
+    return num;
+}
+
 
 int dm_easy_mesh_ctrl_t::analyze_config_renew(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
@@ -76,7 +95,6 @@ int dm_easy_mesh_ctrl_t::analyze_config_renew(em_bus_event_t *evt, em_cmd_t *pcm
         tmp = pcmd[num];
         num++;
     }
-    printf("%s:%d: Number of commands:%d\n", __func__, __LINE__, num);
 
     return num;
 }
@@ -101,8 +119,8 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     dm_easy_mesh_t::macbytes_to_string(params->assoc.cli_mac_address, sta_mac_str);
     dm_easy_mesh_t::macbytes_to_string(params->assoc.bssid, bss_mac_str);
     
-	printf("%s:%d: Client:%s %s BSS: %s of Device: %s\n", __func__, __LINE__, 
-		sta_mac_str, (params->assoc.assoc_event == 1)?"associated with":"disassociated from", bss_mac_str, dev_mac_str);
+	//printf("%s:%d: Client:%s %s BSS: %s of Device: %s\n", __func__, __LINE__,
+        //sta_mac_str, (params->assoc.assoc_event == 1)?"associated with":"disassociated from", bss_mac_str, dev_mac_str);
 
     evt_param = &evt->params;
 
@@ -189,24 +207,8 @@ int dm_easy_mesh_ctrl_t::analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *pcmd[])
         tmp = pcmd[num];
         num++;
     }
-    printf("%s:%d: Number of commands:%d\n", __func__, __LINE__, num);
 
     return num;
-}
-
-int dm_easy_mesh_ctrl_t::analyze_radio_metrics_req(em_cmd_t *cmd[])
-{
-    return 0;
-}
-
-int dm_easy_mesh_ctrl_t::analyze_ap_metrics_req(em_cmd_t *cmd[])
-{
-    return 0;
-}
-
-int dm_easy_mesh_ctrl_t::analyze_client_metrics_req(em_cmd_t *cmd[])
-{
-    return 0;
 }
 
 int dm_easy_mesh_ctrl_t::analyze_dev_test(em_bus_event_t *evt, em_cmd_t *pcmd[])
@@ -852,7 +854,7 @@ int dm_easy_mesh_ctrl_t::get_config(em_long_string_t net_id, em_subdoc_info_t *s
 
     parent = cJSON_CreateObject();
 
-    printf("%s:%d: Subdoc Name: %s\n", __func__, __LINE__, subdoc->name);
+    //printf("%s:%d: Subdoc Name: %s\n", __func__, __LINE__, subdoc->name);
     if (strncmp(subdoc->name, "Network", strlen(subdoc->name)) == 0) {
 		get_network_config(parent, net_id);
     } else if (strncmp(subdoc->name, "DeviceList", strlen(subdoc->name)) == 0) {
@@ -992,7 +994,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
     em_string_t haul_str;
     bool at_least_one_failed = false;
 
-    printf("%s:%d: Database Config Bitmask: 0x%08x\n", __func__, __LINE__, dm->get_db_cfg_type());
+    //printf("%s:%d: Database Config Bitmask: 0x%08x\n", __func__, __LINE__, dm->get_db_cfg_type());
 
     if (dm->get_db_cfg_type() & db_cfg_type_network_list_update) {
         if (dm_network_list_t::set_config(m_db_client, dm->get_network_by_ref(), global_netid) == 0) {
@@ -1123,7 +1125,6 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
             if (dm_sta_list_t::set_config(m_db_client, *sta, NULL) == 0) {
                 dm->set_db_cfg_type(dm->get_db_cfg_type() & ~db_cfg_type_sta_list_update);
             }
-
             sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_assoc_map, sta);
         }
 
@@ -1168,13 +1169,15 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
             hash_map_remove(dm->m_sta_dassoc_map, key);
             delete tmp;
         }
+
     }
+
 
     if (dm->get_db_cfg_type() & db_cfg_type_network_ssid_list_update) {
         for (i = 0; i < dm->get_num_network_ssid(); i++) {
             net_ssid = dm->get_network_ssid_by_ref(i);
-            snprintf(parent, sizeof(em_long_string_t), "%s@%s", 
-            global_netid, dm_network_ssid_t::haul_type_to_string(net_ssid.m_network_ssid_info.haul_type[0], haul_str));
+            snprintf(parent, sizeof(em_long_string_t), "%s@%s",
+                    global_netid, dm_network_ssid_t::haul_type_to_string(net_ssid.m_network_ssid_info.haul_type[0], haul_str));
             //printf("%s:%d: Key: %s\n", __func__, __LINE__, parent);
             if (dm_network_ssid_list_t::set_config(m_db_client, dm->get_network_ssid_by_ref(i), parent) != 0) {
                 at_least_one_failed = true;

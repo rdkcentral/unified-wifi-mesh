@@ -196,15 +196,15 @@ bool em_orch_t::orchestrate(em_cmd_t *pcmd, em_t *em)
     if (orch_state == em_orch_state_pending) {
         if (is_em_ready_for_orch_exec(pcmd, em) == true) {
             // ask em to execute the command
-            printf("%s:%d: Start orchestartion:%s(%s), em state:%s\n", __func__, __LINE__, 
-					em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
-					em_t::state_2_str(em->get_state()));
+            //printf("%s:%d: Start orchestartion:%s(%s), em state:%s\n", __func__, __LINE__, 
+					//em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
+					//em_t::state_2_str(em->get_state()));
             pcmd->set_start_time();
             em->orch_execute(pcmd);
         } else {
-            printf("%s:%d: skipping orchestration:%s(%s) because of incorrect state, state:%s\n", __func__, __LINE__, 
-					em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
-					em_t::state_2_str(em->get_state()));
+            //printf("%s:%d: skipping orchestration:%s(%s) because of incorrect state, state:%s\n", __func__, __LINE__, 
+					//em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
+					//em_t::state_2_str(em->get_state()));
         }
 
     } else if (orch_state == em_orch_state_progress) {
@@ -216,7 +216,7 @@ bool em_orch_t::orchestrate(em_cmd_t *pcmd, em_t *em)
         }
 
     } else if (orch_state == em_orch_state_fini) {
-        printf("%s:%d: em:%s Detected in fini state\n", __func__, __LINE__, mac_str);
+        //printf("%s:%d: em:%s Detected in fini state\n", __func__, __LINE__, mac_str);
         done = true;
     }
 
@@ -272,7 +272,7 @@ void em_orch_t::handle_timeout()
         pcmd = (em_cmd_t *)queue_peek(m_pending, i);
         if (eligible_for_active(pcmd) == true) {
             queue_remove(m_pending, i);
-            //printf("%s:%d: Cmd: %s  Orch Type: %s eligible for active\n", __func__, __LINE__, 
+            //printf("%s:%d: Cmd: %s Orch Type: %s eligible for active\n", __func__, __LINE__, 
                     //pcmd->get_cmd_name(), em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
             eligible_to_move = true;
             break;			
@@ -304,8 +304,8 @@ void em_orch_t::handle_timeout()
 
         if (ret == true) {
             // means the command is in fini sate 
-            printf("%s:%d: Removing and destroying Command type: %s Orchestration: %s because command is in fini state\n", 
-                    __func__, __LINE__, pcmd->get_cmd_name(), em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
+            //printf("%s:%d: Removing and destroying Command type: %s Orchestration: %s because command is in fini state\n", 
+                    //__func__, __LINE__, pcmd->get_cmd_name(), em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
             queue_remove(m_active, i);
             pop_stats(pcmd);
             for (j = queue_count(pcmd->m_em_candidates) - 1; j >= 0; j--) {

@@ -131,12 +131,16 @@ int dm_radio_t::decode(const cJSON *obj, void *parent_id)
     return 0;
 }
 
-void dm_radio_t::encode(cJSON *obj)
+void dm_radio_t::encode(cJSON *obj, bool summary)
 {
     mac_addr_str_t  mac_str;
 
     dm_easy_mesh_t::macbytes_to_string(m_radio_info.id.mac, mac_str);
     cJSON_AddStringToObject(obj, "ID", mac_str);
+
+    if (summary == true) {
+        return;
+    }
 
     cJSON_AddBoolToObject(obj, "Enabled", m_radio_info.enabled);
     cJSON_AddNumberToObject(obj, "NumberOfBSS", m_radio_info.number_of_bss);
@@ -173,6 +177,8 @@ bool dm_radio_t::operator == (const dm_radio_t& obj) {
     ret += (memcmp(&this->m_radio_info.id.mac ,&obj.m_radio_info.id.mac,sizeof(mac_address_t)) != 0);
     ret += (memcmp(&this->m_radio_info.id.name,&obj.m_radio_info.id.name,sizeof(em_interface_name_t)) != 0);
     ret += !(this->m_radio_info.enabled == obj.m_radio_info.enabled);
+    ret += !(this->m_radio_info.media_data.media_type == obj.m_radio_info.media_data.media_type);
+    ret += !(this->m_radio_info.media_data.band == obj.m_radio_info.media_data.band);
     ret += !(this->m_radio_info.number_of_unassoc_sta == obj.m_radio_info.number_of_unassoc_sta);
     ret += !(this->m_radio_info.noise == obj.m_radio_info.noise);
     ret += !(this->m_radio_info.utilization == obj.m_radio_info.utilization);
@@ -202,6 +208,8 @@ void dm_radio_t::operator = (const dm_radio_t& obj)
     memcpy(&this->m_radio_info.dev_id,&obj.m_radio_info.dev_id,sizeof(mac_address_t));
     strncpy(this->m_radio_info.net_id, obj.m_radio_info.net_id, strlen(obj.m_radio_info.net_id) + 1);
     this->m_radio_info.enabled = obj.m_radio_info.enabled;
+    this->m_radio_info.media_data.media_type = obj.m_radio_info.media_data.media_type;
+    this->m_radio_info.media_data.band = obj.m_radio_info.media_data.band;
     this->m_radio_info.number_of_unassoc_sta = obj.m_radio_info.number_of_unassoc_sta;
     this->m_radio_info.noise = obj.m_radio_info.noise;
     this->m_radio_info.utilization = obj.m_radio_info.utilization;

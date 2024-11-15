@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <stdio.h>
+    #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -117,14 +117,17 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_ctrl_sta_cap_pending);
             break;
 		
-		case em_cmd_type_channel_pref_query:
-			m_sm.set_state(em_state_agent_channel_pref_query);
-			break;
-		
-		case em_cmd_type_channel_sel_resp:
-			m_sm.set_state(em_state_agent_channel_sel_resp);
-			break;
+        case em_cmd_type_channel_pref_query:
+            m_sm.set_state(em_state_agent_channel_pref_query);
+            break;
 
+        case em_cmd_type_channel_sel_resp:
+            m_sm.set_state(em_state_agent_channel_sel_resp);
+            break;
+
+        case em_cmd_type_sta_link_metrics:
+            set_state(em_state_ctrl_sta_link_metrics_pending);
+			break;
     }
 }
 
@@ -264,6 +267,10 @@ void em_t::handle_ctrl_state()
         case em_cmd_type_sta_assoc:
             em_capability_t::process_state();
             break;
+
+        case em_cmd_type_sta_link_metrics:
+            em_metrics_t::process_ctrl_state();
+			break;
     }
 }
 

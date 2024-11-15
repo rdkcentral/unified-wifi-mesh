@@ -52,7 +52,6 @@ em_cmd_t em_cmd_cli_t::m_client_cmd_spec[] = {
     em_cmd_t(em_cmd_type_cfg_renew, {1, {"", "", "", "", ""}, "CfgRenew.json"}),
     em_cmd_t(em_cmd_type_radio_config, {1, {"", "", "", "", ""}, "RadioConfig.json"}),
     em_cmd_t(em_cmd_type_vap_config, {1, {"", "", "", "", ""}, "VapConfig.json"}),
-    em_cmd_t(em_cmd_type_sta_list, {1, {"", "", "", "", ""}, "STAList.json"}),
     em_cmd_t(em_cmd_type_get_network, {2, {"", "", "", "", ""}, "Network"}),
     em_cmd_t(em_cmd_type_get_device, {2, {"", "", "", "", ""}, "DeviceList"}),
     em_cmd_t(em_cmd_type_remove_device, {2, {"", "", "", "", ""}, "DeviceList.json"}),
@@ -61,10 +60,12 @@ em_cmd_t em_cmd_cli_t::m_client_cmd_spec[] = {
     em_cmd_t(em_cmd_type_set_ssid, {2, {"", "", "", "", ""}, "NetworkSSID.json"}),
     em_cmd_t(em_cmd_type_get_channel, {2, {"", "", "", "", ""}, "ChannelList"}),
     em_cmd_t(em_cmd_type_set_channel, {2, {"", "", "", "", ""}, "Channel.json"}),
+    em_cmd_t(em_cmd_type_scan_channel, {2, {"", "", "", "", ""}, "ChannelScan.json"}),
     em_cmd_t(em_cmd_type_get_bss, {2, {"", "", "", "", ""}, "BSSList"}),
     em_cmd_t(em_cmd_type_get_sta, {2, {"", "", "", "", ""}, "STAList"}),
+    em_cmd_t(em_cmd_type_steer_sta, {2, {"", "", "", "", ""}, "STASteer.json"}),
+    em_cmd_t(em_cmd_type_disassoc_sta, {2, {"", "", "", "", ""}, "STADisassoc.json"}),
     em_cmd_t(em_cmd_type_start_dpp, {1, {"", "", "", "", ""}, "DPPURI.json"}),
-    em_cmd_t(em_cmd_type_client_steer, {1, {"", "", "", "", ""}, "ClientSteer.json"}),
     em_cmd_t(em_cmd_type_client_cap_query, {1, {"", "", "", "", ""}, "Clientcap.json"}),
     em_cmd_t(em_cmd_type_max, {0, {"", "", "", "", ""}, "max"}),
 };
@@ -153,17 +154,6 @@ int em_cmd_cli_t::execute(em_string_t res)
 
         case em_cmd_type_cfg_renew:
             bevt->type = em_bus_event_type_cfg_renew;
-            info = &bevt->u.subdoc;
-            snprintf(info->name, sizeof(info->name), "%s", param->fixed_args);
-            if ((info->sz = get_cmd()->load_params_file(info->buff)) < 0) {
-                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__,
-                param->fixed_args, errno);
-                return -1;
-            }
-            break;
-
-        case em_cmd_type_sta_list:
-            bevt->type = em_bus_event_type_sta_list;
             info = &bevt->u.subdoc;
             snprintf(info->name, sizeof(info->name), "%s", param->fixed_args);
             if ((info->sz = get_cmd()->load_params_file(info->buff)) < 0) {
@@ -303,19 +293,25 @@ int em_cmd_cli_t::execute(em_string_t res)
             strncpy(info->name, param->fixed_args, strlen(param->fixed_args) + 1);
             break;
 
-        case em_cmd_type_start_dpp:
-            bevt->type = em_bus_event_type_start_dpp;
+        case em_cmd_type_steer_sta:
+            snprintf(in, sizeof(in), "get_sta %s", m_cmd.m_param.args[1]);
+            get_cli()->exec(in, strlen(in), out);
+            get_cmd()->write_params_file(out, m_cmd.m_param.args[1], "ClientSteer");
+            bevt->type = em_bus_event_type_set_channel;
+            if (get_cmd()->edit_params_file() != 0) {
+                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->fixed_args, errno);
+                return -1;
+            }
             info = &bevt->u.subdoc;
-            snprintf(info->name, sizeof(info->name), "%s", param->fixed_args);
+            strncpy(info->name, param->fixed_args, strlen(param->fixed_args) + 1);
             if ((info->sz = get_cmd()->load_params_file(info->buff)) < 0) {
-                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__,
-                param->fixed_args, errno);
+                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->fixed_args, errno);
                 return -1;
             }
             break;
 
-        case em_cmd_type_client_steer:
-            bevt->type = em_bus_event_type_client_steer;
+        case em_cmd_type_start_dpp:
+            bevt->type = em_bus_event_type_start_dpp;
             info = &bevt->u.subdoc;
             snprintf(info->name, sizeof(info->name), "%s", param->fixed_args);
             if ((info->sz = get_cmd()->load_params_file(info->buff)) < 0) {

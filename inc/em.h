@@ -118,6 +118,8 @@ public:
     em_device_info_t    *get_device_info() { return m_data_model->get_device_info(); }
 
     unsigned char *get_peer_mac() { return (m_service_type == em_service_type_ctrl) ? m_data_model->get_agent_al_interface_mac():m_data_model->get_ctrl_al_interface_mac(); }
+
+    bool has_at_least_one_associated_sta() { return get_data_model()->has_at_least_one_associated_sta(); }
     
     void push_to_queue(em_event_t *evt);
     em_event_t *pop_from_queue();

@@ -20,14 +20,26 @@
 #define EM_METRICS_H
 
 #include "em_base.h"
+#include "dm_easy_mesh.h"
 
 class em_metrics_t {
 
+    virtual dm_easy_mesh_t *get_data_model() = 0;
+    virtual em_state_t get_state() = 0;
+    virtual void set_state(em_state_t state) = 0;
     virtual int send_frame(unsigned char *buff, unsigned int len, bool multicast = false) = 0;
+    virtual em_profile_type_t get_profile_type() = 0;
+
+    int send_all_associated_sta_link_mterics_msg();
+    int send_associated_sta_link_metrics_msg(mac_address_t sta_mac);
+
+    int handle_associated_sta_link_metrics_resp(unsigned char *buff, unsigned int len);
+    int handle_assoc_sta_link_metrics_tlv(unsigned char *buff);
+    int handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff);
 
 public:
     void    process_msg(unsigned char *data, unsigned int len);
-    void    process_state();
+    void    process_ctrl_state();
 
     em_metrics_t();
     ~em_metrics_t();

@@ -101,6 +101,12 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                 return true;
             }
             break;
+
+        case em_cmd_type_sta_link_metrics:
+            if (em->get_state() == em_state_ctrl_configured) {
+                return true;
+            }
+            break;
     }
 
     return false;
@@ -111,12 +117,6 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
     switch (pcmd->m_type) {
         case em_cmd_type_set_ssid:
             return true;
-            break;
-
-        case em_cmd_type_sta_assoc:
-            //if (em->get_state() == em_state_ctrl_configured) {
-                return true;
-            //}
             break;
 
         case em_cmd_type_em_config:
@@ -131,9 +131,21 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
                 return true;
             } else if (em->get_state() == em_state_ctrl_channel_selected) {
                 return true;
-            } else if (em->get_state() == em_state_ctrl_channel_confirmed) {
+            } else if (em->get_state() == em_state_ctrl_configured) {
                 return true;
             } else if (em->get_state() == em_state_ctrl_misconfigured) {
+                return true;
+            }
+            break;
+
+        case em_cmd_type_sta_assoc:
+            if (em->get_state() >= em_state_ctrl_topo_synchronized) {
+                return true;
+            }
+            break;
+
+        case em_cmd_type_sta_link_metrics:
+            if (em->get_state() == em_state_ctrl_configured) {
                 return true;
             }
             break;
@@ -237,6 +249,7 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
 		case dm_orch_type_em_update:
         case dm_orch_type_em_test:
         case dm_orch_type_sta_cap:
+        case dm_orch_type_sta_link_metrics:
             break;  
 
         case dm_orch_type_net_ssid_update:
@@ -311,6 +324,13 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                         //printf("%s:%d:Found em this STA, candidate count: %d\n", __func__, __LINE__, count);
                         break;
                     }
+                }
+                break;
+            case em_cmd_type_sta_link_metrics:
+                if ((em->is_al_interface_em() == false) && (em->get_state() == em_state_ctrl_configured)  &&
+                    (em->has_at_least_one_associated_sta() == true)) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
                 }
                 break;
 
