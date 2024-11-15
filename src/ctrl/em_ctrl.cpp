@@ -247,43 +247,21 @@ void em_ctrl_t::handle_reset(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_radio_metrics_req()
 {
-    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
-    unsigned int num = 0;
 
-    if ((num = m_data_model.analyze_radio_metrics_req(pcmd)) != 0) {
-        if (m_orch->submit_commands(pcmd, num) == 0) {
-            printf("%s:%d: Radio metrics request not submitted\n", __func__, __LINE__);
-        }
-    } else {
-        //printf("%s:%d: Radio metrics request command not created\n", __func__, __LINE__);
-    }
 }
 
 void em_ctrl_t::handle_ap_metrics_req()
 {
-    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
-    unsigned int num = 0;
 
-    if ((num = m_data_model.analyze_ap_metrics_req(pcmd)) != 0) {
-        if (m_orch->submit_commands(pcmd, num) == 0) {
-            printf("%s:%d: AP metrics request not submitted\n", __func__, __LINE__);
-        }
-    } else {
-        //printf("%s:%d: AP metrics request command not created\n", __func__, __LINE__);
-    }
 }
 
 void em_ctrl_t::handle_client_metrics_req()
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
-    unsigned int num = 0;
+    unsigned int num;
 
-    if ((num = m_data_model.analyze_client_metrics_req(pcmd)) != 0) {
-        if (m_orch->submit_commands(pcmd, num) == 0) {
-            printf("%s:%d: Client metrics request not submitted\n", __func__, __LINE__);
-        }
-    } else {
-        //printf("%s:%d: Client metrics request command not created\n", __func__, __LINE__);
+    if ((num = m_data_model.analyze_sta_link_metrics(pcmd)) > 0) {
+        m_orch->submit_commands(pcmd, num);
     }
 }
 
@@ -323,8 +301,8 @@ void em_ctrl_t::handle_5s_timeout()
     //strftime(buffer,30,"%m-%d-%Y  %T.",localtime(&curtime));
     //printf("%s:%d: %s%ld\n", __func__, __LINE__, buffer, tv.tv_usec);
     //handle_topology_req();
-    handle_radio_metrics_req();
-    handle_ap_metrics_req();
+    //handle_radio_metrics_req();
+    //handle_ap_metrics_req();
     handle_client_metrics_req();
 }
 
@@ -374,7 +352,7 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
             handle_start_dpp(evt);  
             break;
 
-        case em_bus_event_type_client_steer:
+        case em_bus_event_type_steer_sta:
             handle_client_steer(evt);   
             break;
 
@@ -512,7 +490,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         
             if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
                 printf("%s:%d: Found existing radio:%s\n", __func__, __LINE__, mac_str1);
-                        em->set_state(em_state_ctrl_wsc_m1_pending);
+                em->set_state(em_state_ctrl_wsc_m1_pending);
             } else {
                 if ((dm = get_data_model((const char *)global_netid, (const unsigned char *)hdr->src)) == NULL) {
                     printf("%s:%d: Can not find data model\n", __func__, __LINE__);
@@ -577,6 +555,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         case em_msg_type_channel_pref_query:
         case em_msg_type_channel_sel_req:
         case em_msg_type_client_cap_query:
+        case em_msg_type_assoc_sta_link_metrics_query:
             break;
 
         default:

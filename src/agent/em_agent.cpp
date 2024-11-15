@@ -73,24 +73,6 @@ void em_agent_t::handle_ap_cap_query(em_bus_event_t *evt)
 
 }
 
-
-void em_agent_t::handle_client_cap_query(em_bus_event_t *evt)
-{
-    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
-    unsigned int num;
-
-    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
-        m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_client_cap_query(evt, pcmd)) == 0) {
-        m_agent_cmd->send_result(em_cmd_out_status_no_change);
-    } else if (m_orch->submit_commands(pcmd, num) > 0) {
-        m_agent_cmd->send_result(em_cmd_out_status_success);
-    } else {
-        m_agent_cmd->send_result(em_cmd_out_status_not_ready);
-    }
-
-}
-
 void em_agent_t::handle_radio_config(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
@@ -314,10 +296,6 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
         case em_bus_event_type_ap_cap_query:
             handle_ap_cap_query(evt);
             break;
-
-        case em_bus_event_type_client_cap_query:
-	        handle_client_cap_query(evt);
-	        break;
 
         case em_bus_event_type_m2ctrl_configuration:
             handle_m2ctrl_configuration(evt);

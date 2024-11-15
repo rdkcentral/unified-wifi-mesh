@@ -75,7 +75,7 @@ int em_cmd_ctrl_t::execute(em_long_string_t result)
 
     while (1) {
 
-        printf("%s:%d: Waiting for client connection\n", __func__, __LINE__);
+        //printf("%s:%d: Waiting for client connection\n", __func__, __LINE__);
         if ((m_dsock = accept(lsock, NULL, NULL)) == -1) {
             printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
             continue;
@@ -84,7 +84,7 @@ int em_cmd_ctrl_t::execute(em_long_string_t result)
         setsockopt(m_dsock, SOL_SOCKET, SO_SNDBUF, &sz, sizeof(sz)); // Send buffer 1K
         setsockopt(m_dsock, SOL_SOCKET, SO_RCVBUF, &sz, sizeof(sz)); // Receive buffer 1K
 
-        printf("%s:%d: Connection accepted from client\n", __func__, __LINE__);
+        //printf("%s:%d: Connection accepted from client\n", __func__, __LINE__);
 
         tmp = (unsigned char *)get_event();
 

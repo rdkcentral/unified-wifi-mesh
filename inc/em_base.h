@@ -188,7 +188,7 @@ typedef char    em_tiny_string_t[4];
 typedef char    em_subdoc_name_space_t[64];
 typedef char    em_subdoc_data_buff_t[EM_SUBDOC_BUFF_SZ];
 typedef char    em_status_string_t[EM_IO_BUFF_SZ];
-typedef unsigned char    em_raw_data_t[EM_SUBDOC_BUFF_SZ];
+typedef unsigned	char    em_raw_data_t[EM_SUBDOC_BUFF_SZ];
 
 typedef struct {
     unsigned char   dsap;
@@ -746,23 +746,31 @@ typedef struct {
 }__attribute__((__packed__)) em_assoc_sta_mac_addr_t;
 
 typedef struct {
-    mac_address_t sta_mac_addr;
-    unsigned char num_bssids;
-    unsigned char bssid[6];
+    bssid_t     bssid;
     unsigned int  time_delta_ms;
     unsigned int  est_mac_data_rate_dl;
     unsigned int  est_mac_data_rate_ul;
     unsigned char rcpi;
+}__attribute__((__packed__)) em_assoc_link_metrics_t;
+
+typedef struct {
+    mac_address_t sta_mac;
+    unsigned char num_bssids;
+    em_assoc_link_metrics_t	assoc_link_metrics[0];
 }__attribute__((__packed__)) em_assoc_sta_link_metrics_t;
 
 typedef struct {
-    mac_address_t sta_mac_addr;
-    unsigned char num_bssids;
-    unsigned char bssid[6];
+    bssid_t 	bssid;
     unsigned int  last_data_dl_rate;
     unsigned int  last_data_ul_rate;
     unsigned int  util_receive;
     unsigned int  util_transmit;
+}__attribute__((__packed__)) em_assoc_ext_link_metrics_t;
+
+typedef struct {
+    mac_address_t sta_mac;
+    unsigned char num_bssids;
+    em_assoc_ext_link_metrics_t	assoc_ext_link_metrics[0];
 }__attribute__((__packed__)) em_assoc_sta_ext_link_metrics_t;
 
 typedef struct {
@@ -1597,6 +1605,7 @@ typedef enum {
     em_state_ctrl_misconfigured,
     em_state_ctrl_sta_cap_pending,
     em_state_ctrl_sta_cap_confirmed,
+    em_state_ctrl_sta_link_metrics_pending,
 
     em_state_max,
 } em_state_t;
@@ -1612,8 +1621,11 @@ typedef enum {
     em_cmd_type_set_ssid,
     em_cmd_type_get_channel,
     em_cmd_type_set_channel,
+    em_cmd_type_scan_channel,
     em_cmd_type_get_bss,
     em_cmd_type_get_sta,
+    em_cmd_type_steer_sta,
+    em_cmd_type_disassoc_sta,
     em_cmd_type_dev_init,
     em_cmd_type_dev_test,
     em_cmd_type_cfg_renew,
@@ -1621,7 +1633,6 @@ typedef enum {
     em_cmd_type_radio_config,
     em_cmd_type_sta_list,
     em_cmd_type_start_dpp,
-    em_cmd_type_client_steer,
     em_cmd_type_ap_cap_query,
     em_cmd_type_client_cap_query,
     em_cmd_type_topo_sync,
@@ -1629,7 +1640,9 @@ typedef enum {
     em_cmd_type_onewifi_cb,
     em_cmd_type_sta_assoc,
     em_cmd_type_channel_pref_query,
-	em_cmd_type_channel_sel_resp,
+    em_cmd_type_channel_sel_resp,
+    em_cmd_type_sta_link_metrics,
+
     em_cmd_type_max,
 } em_cmd_type_t;
 
@@ -1835,14 +1848,15 @@ typedef struct {
     mac_address_t   bssid;
     mac_address_t radiomac;
     bool associated;
-    unsigned int    last_ul_rate;
     em_long_string_t    timestamp;
+    unsigned int    last_ul_rate;
     unsigned int    last_dl_rate;
     unsigned int    est_ul_rate;
     unsigned int    est_dl_rate;
     unsigned int    last_conn_time;
     unsigned int    retrans_count;
     signed int      signal_strength;
+    unsigned char   rcpi;
     unsigned int    util_tx;
     unsigned int    util_rx;
     unsigned int    pkts_tx;
@@ -2005,10 +2019,12 @@ typedef enum {
     em_bus_event_type_set_ssid,
     em_bus_event_type_get_channel,
     em_bus_event_type_set_channel,
+    em_bus_event_type_scan_channel,
     em_bus_event_type_get_bss,
     em_bus_event_type_get_sta,
+    em_bus_event_type_steer_sta,
+    em_bus_event_type_disassoc_sta,
     em_bus_event_type_start_dpp,
-    em_bus_event_type_client_steer,
     em_bus_event_type_dev_init,
     em_bus_event_type_cfg_renew,
     em_bus_event_type_radio_config,
@@ -2098,8 +2114,9 @@ typedef enum {
     dm_orch_type_channel_pref,
     dm_orch_type_channel_sel,
     dm_orch_type_channel_cnf,
+    dm_orch_type_channel_sel_resp,
     dm_orch_type_sta_cap,
-	dm_orch_type_channel_sel_resp,
+    dm_orch_type_sta_link_metrics,
 } dm_orch_type_t;
 
 typedef struct {

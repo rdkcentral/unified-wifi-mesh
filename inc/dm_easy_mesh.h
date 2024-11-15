@@ -27,6 +27,7 @@
 #include "dm_network_ssid.h"
 #include "dm_radio.h"
 #include "dm_bss.h"
+#include "dm_sta.h"
 #include "dm_dpp.h"
 #include "dm_op_class.h"
 #include "dm_radio_cap.h"
@@ -154,6 +155,7 @@ public:
     void set_num_bss(unsigned int num) { m_num_bss = num; }
     static void set_num_bss(void *dm, unsigned int num) { ((dm_easy_mesh_t *)dm)->set_num_bss(num); }
     dm_bss_t *get_bss(unsigned int index) { return &m_bss[index]; }
+    dm_bss_t *get_bss_index(mac_address_t radio, mac_address_t bss, bool *new_bss);
     dm_bss_t& get_bss_by_ref(unsigned int index) { return m_bss[index]; }
 
     dm_dpp_t *get_dpp() { return &m_dpp; }
@@ -202,6 +204,11 @@ public:
     static em_sta_info_t *get_next_sta_info(void *dm, em_sta_info_t *info, em_target_sta_map_t target) { return ((dm_easy_mesh_t *)dm)->get_first_sta_info(info, target); }
     static em_sta_info_t *get_sta_info(void *dm, mac_address_t sta, bssid_t bssid, mac_address_t ruid, em_target_sta_map_t target) { return ((dm_easy_mesh_t *)dm)->get_sta_info(sta, bssid, ruid, target); }
     static void put_sta_info(void *dm, em_sta_info_t *info, em_target_sta_map_t target) { ((dm_easy_mesh_t *)dm)->put_sta_info(info, target); }
+
+    dm_sta_t *find_sta(mac_address_t sta_mac, bssid_t bssid);
+    dm_sta_t *get_first_sta(mac_address_t sta_mac);
+    dm_sta_t *get_next_sta(mac_address_t sta_mac, dm_sta_t *psta);
+    bool has_at_least_one_associated_sta();
     
     static void print_hex_dump(unsigned int length, unsigned char *buffer);
     static char *hex(unsigned int in_len, unsigned char *in, unsigned int out_len, char *out);

@@ -373,6 +373,11 @@ void em_cmd_t::init()
             m_svc = em_service_type_ctrl;
             break;
 
+        case em_cmd_type_scan_channel:
+            snprintf(m_name, sizeof(m_name), "%s", "scan_channel");
+            m_svc = em_service_type_ctrl;
+            break;
+
         case em_cmd_type_get_bss:
             snprintf(m_name, sizeof(m_name), "%s", "get_bss");
             m_svc = em_service_type_ctrl;
@@ -380,6 +385,16 @@ void em_cmd_t::init()
 
         case em_cmd_type_get_sta:
             snprintf(m_name, sizeof(m_name), "%s", "get_sta");
+            m_svc = em_service_type_ctrl;
+            break;
+
+        case em_cmd_type_steer_sta:
+            snprintf(m_name, sizeof(m_name), "%s", "steer_sta");
+            m_svc = em_service_type_ctrl;
+            break;
+
+        case em_cmd_type_disassoc_sta:
+            snprintf(m_name, sizeof(m_name), "%s", "disassoc_sta");
             m_svc = em_service_type_ctrl;
             break;
 
@@ -423,11 +438,6 @@ void em_cmd_t::init()
             m_svc = em_service_type_ctrl;
             break;
 
-        case em_cmd_type_client_steer:
-            snprintf(m_name, sizeof(m_name), "%s", "client_steer");
-            m_svc = em_service_type_ctrl;
-            break;
-
         case em_cmd_type_max:
             snprintf(m_name, sizeof(m_name), "%s", "max");
             m_svc = em_service_type_none;
@@ -440,6 +450,11 @@ void em_cmd_t::init()
 
         case em_cmd_type_sta_assoc:
             strncpy(m_name, "sta_assoc", strlen("sta_assoc") + 1);
+            m_svc = em_service_type_ctrl;
+            break;
+
+        case em_cmd_type_sta_link_metrics:
+            strncpy(m_name, "sta_link_metrics", strlen("sta_link_metrics") + 1);
             m_svc = em_service_type_ctrl;
             break;
 
@@ -468,8 +483,8 @@ const char *em_cmd_t::get_bus_event_type_str(em_bus_event_type_t type)
     BUS_EVENT_TYPE_2S(em_bus_event_type_set_channel)
     BUS_EVENT_TYPE_2S(em_bus_event_type_get_bss)
     BUS_EVENT_TYPE_2S(em_bus_event_type_get_sta)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_steer_sta)
     BUS_EVENT_TYPE_2S(em_bus_event_type_start_dpp)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_client_steer)
     BUS_EVENT_TYPE_2S(em_bus_event_type_dev_init)
     BUS_EVENT_TYPE_2S(em_bus_event_type_cfg_renew)
     BUS_EVENT_TYPE_2S(em_bus_event_type_radio_config)
@@ -539,6 +554,7 @@ const char *em_cmd_t::get_orch_op_str(dm_orch_type_t type)
         ORCH_TYPE_2S(dm_orch_type_channel_sel)
         ORCH_TYPE_2S(dm_orch_type_channel_cnf)
         ORCH_TYPE_2S(dm_orch_type_sta_cap)
+        ORCH_TYPE_2S(dm_orch_type_sta_link_metrics)
     }
 
     return "dm_orch_type_unknown";
@@ -558,8 +574,11 @@ const char *em_cmd_t::get_cmd_type_str(em_cmd_type_t type)
         CMD_TYPE_2S(em_cmd_type_set_ssid)
         CMD_TYPE_2S(em_cmd_type_get_channel)
         CMD_TYPE_2S(em_cmd_type_set_channel)
+        CMD_TYPE_2S(em_cmd_type_scan_channel)
         CMD_TYPE_2S(em_cmd_type_get_bss)
         CMD_TYPE_2S(em_cmd_type_get_sta)
+        CMD_TYPE_2S(em_cmd_type_steer_sta)
+        CMD_TYPE_2S(em_cmd_type_disassoc_sta)
         CMD_TYPE_2S(em_cmd_type_dev_init)
         CMD_TYPE_2S(em_cmd_type_dev_test)
         CMD_TYPE_2S(em_cmd_type_cfg_renew)
@@ -567,13 +586,13 @@ const char *em_cmd_t::get_cmd_type_str(em_cmd_type_t type)
         CMD_TYPE_2S(em_cmd_type_radio_config)
         CMD_TYPE_2S(em_cmd_type_sta_list)
         CMD_TYPE_2S(em_cmd_type_start_dpp)
-        CMD_TYPE_2S(em_cmd_type_client_steer)
         CMD_TYPE_2S(em_cmd_type_ap_cap_query)
         CMD_TYPE_2S(em_cmd_type_client_cap_query)
         CMD_TYPE_2S(em_cmd_type_topo_sync)
         CMD_TYPE_2S(em_cmd_type_em_config)
         CMD_TYPE_2S(em_cmd_type_sta_assoc)
         CMD_TYPE_2S(em_cmd_type_channel_pref_query)
+        CMD_TYPE_2S(em_cmd_type_sta_link_metrics)
     }
 
     return "em_cmd_type_unknown";
@@ -624,12 +643,24 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
             type = em_cmd_type_get_channel;
             break;
 
+        case em_bus_event_type_scan_channel:
+            type = em_cmd_type_scan_channel;
+            break;
+
         case em_bus_event_type_get_bss:
             type = em_cmd_type_get_bss;
             break;
 
         case em_bus_event_type_get_sta:
             type = em_cmd_type_get_sta;
+            break;
+
+        case em_bus_event_type_steer_sta:
+            type = em_cmd_type_steer_sta;
+            break;
+
+        case em_bus_event_type_disassoc_sta:
+            type = em_cmd_type_disassoc_sta;
             break;
 
         case em_bus_event_type_dev_init:

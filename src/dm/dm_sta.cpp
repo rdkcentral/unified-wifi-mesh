@@ -144,13 +144,17 @@ int dm_sta_t::decode(const cJSON *obj, void *parent_id)
 
 }
 
-void dm_sta_t::encode(cJSON *obj)
+void dm_sta_t::encode(cJSON *obj, bool summary)
 {
     mac_addr_str_t  mac_str;
 
     dm_easy_mesh_t::macbytes_to_string(m_sta_info.id, mac_str);
     cJSON_AddStringToObject(obj, "MACAddress", mac_str);
     cJSON_AddBoolToObject(obj, "Associated", m_sta_info.associated);
+
+    if (summary == true) {
+        return;
+    }
     cJSON_AddNumberToObject(obj, "LastDataUplinkRate", m_sta_info.last_ul_rate);
     cJSON_AddStringToObject(obj, "TimeStamp", m_sta_info.timestamp);
     cJSON_AddNumberToObject(obj, "EstMACDataRateUplink", m_sta_info.est_ul_rate);

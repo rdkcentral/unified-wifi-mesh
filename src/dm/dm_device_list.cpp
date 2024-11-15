@@ -57,9 +57,8 @@ int dm_device_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
             sec_obj = cJSON_AddObjectToObject(obj, "IEEE1905Security");
             cJSON_AddItemToArray(obj_arr, obj);
         }
-	pdev = get_next_device(pdev);
+        pdev = get_next_device(pdev);
     }
-    
 	
     return 0;
 }

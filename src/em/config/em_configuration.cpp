@@ -665,7 +665,7 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
 	em_ap_operational_bss_t	*bss;
 	dm_bss_t *dm_bss;
 	unsigned int db_cfg_type;
-	bool found_radio = false;
+	bool found_radio = false, new_bss;
 	unsigned int i, j;
 	unsigned int all_bss_len = 0;
 
@@ -696,11 +696,13 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
         all_bss_len = 0;
         for (j = 0; j < radio->bss_num; j++) {
             dm->set_db_cfg_type(db_cfg_type | db_cfg_type_bss_list_update);
-            dm_bss = &dm->m_bss[dm->get_num_bss() + j];
-            memcpy(dm_bss->m_bss_info.bssid.mac, bss->bssid, sizeof(mac_address_t));
-            memcpy(dm_bss->m_bss_info.ruid.mac, radio->ruid, sizeof(mac_address_t));
+            dm_bss = dm->get_bss_index(radio->ruid, bss->bssid, &new_bss);
             strncpy(dm_bss->m_bss_info.ssid, bss->ssid, bss->ssid_len);
-            dm->set_num_bss(dm->get_num_bss() + 1);
+            if (new_bss == true) {
+                memcpy(dm_bss->m_bss_info.bssid.mac, bss->bssid, sizeof(mac_address_t));
+                memcpy(dm_bss->m_bss_info.ruid.mac, radio->ruid, sizeof(mac_address_t));
+                dm->set_num_bss(dm->get_num_bss() + 1);
+            }
             bss += sizeof(em_ap_operational_bss_t) + bss->ssid_len;
             all_bss_len += sizeof(em_ap_operational_bss_t) + bss->ssid_len;
         }

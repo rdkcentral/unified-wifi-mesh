@@ -257,7 +257,7 @@ int dm_easy_mesh_t::analyze_ap_cap_query(em_bus_event_t *evt, em_cmd_t *pcmd[])
     return 1;
 }
 
-int dm_easy_mesh_t::analyze_client_cap_query(em_bus_event_t *evt, em_cmd_t *pcmd[])
+int analyze_client_cap_query(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     return 0;
 }
@@ -1206,6 +1206,7 @@ int dm_easy_mesh_t::decode_client_cap_config(em_subdoc_info_t *subdoc, const cha
     return 0;
 }
 
+
 char *dm_easy_mesh_t::hex(unsigned int in_len, unsigned char *in, unsigned int out_len, char *out)
 {
     unsigned int i;
@@ -1669,6 +1670,30 @@ em_network_ssid_info_t *dm_easy_mesh_t::get_network_ssid_info_by_haul_type(em_ha
     return (found == true) ? info:NULL;
 }
 
+dm_bss_t *dm_easy_mesh_t::get_bss_index(mac_address_t radio_mac, mac_address_t bss_mac, bool *new_bss)
+{
+    unsigned int i;
+    dm_bss_t *bss;
+    bool found_bss = false;
+
+    for (i = 0; i < m_num_bss; i++) {
+        bss = &m_bss[i];
+        if ((memcmp(bss->m_bss_info.bssid.mac, bss_mac, sizeof(mac_address_t)) == 0) &&
+                (memcmp(bss->m_bss_info.ruid.mac, radio_mac, sizeof(mac_address_t)) == 0)) {
+            found_bss = true;
+            break;
+        }
+    }
+
+    if (found_bss == false) {
+        *new_bss = true;
+        return &m_bss[m_num_bss];
+    }
+
+    *new_bss = false;
+    return &m_bss[i];
+}
+
 em_sta_info_t *dm_easy_mesh_t::get_first_sta_info(em_target_sta_map_t target)
 {
     hash_map_t *map;
@@ -1731,6 +1756,71 @@ em_sta_info_t *dm_easy_mesh_t::get_next_sta_info(em_sta_info_t *info, em_target_
     }
 
     return &sta->m_sta_info;
+}
+
+bool dm_easy_mesh_t::has_at_least_one_associated_sta()
+{
+    dm_sta_t *sta;
+
+    sta = (dm_sta_t *)hash_map_get_first(m_sta_map);
+    while (sta != NULL) {
+        if (sta->m_sta_info.associated == true) {
+            return true;
+        }
+        sta = (dm_sta_t *)hash_map_get_next(m_sta_map, sta);
+    }
+
+    return false;
+}
+
+dm_sta_t *dm_easy_mesh_t::find_sta(mac_address_t sta_mac, bssid_t bssid)
+{
+    dm_sta_t *sta;
+
+    sta = (dm_sta_t *)hash_map_get_first(m_sta_map);
+    while (sta != NULL) {
+        if ((memcmp(sta->m_sta_info.id, sta_mac, sizeof(mac_address_t)) == 0) &&
+                        (memcmp(sta->m_sta_info.bssid, bssid, sizeof(mac_address_t)) == 0)) {
+            return sta;
+        }
+        sta = (dm_sta_t *)hash_map_get_next(m_sta_map, sta);
+    }
+
+    return NULL;
+}
+
+dm_sta_t *dm_easy_mesh_t::get_first_sta(mac_address_t sta_mac)
+{
+    dm_sta_t *sta;
+
+    sta = (dm_sta_t *)hash_map_get_first(m_sta_map);
+    while (sta != NULL) {
+        if (memcmp(sta->m_sta_info.id, sta_mac, sizeof(mac_address_t)) == 0) {
+            return sta;
+        }
+        sta = (dm_sta_t *)hash_map_get_next(m_sta_map, sta);
+    }
+
+    return NULL;
+}
+
+dm_sta_t *dm_easy_mesh_t::get_next_sta(mac_address_t sta_mac, dm_sta_t *psta)
+{
+    dm_sta_t *sta;
+    bool return_next = false;
+
+    sta = (dm_sta_t *)hash_map_get_first(m_sta_map);
+    while (sta != NULL) {
+        if ((return_next == true) && (memcmp(sta->m_sta_info.id, sta_mac, sizeof(mac_address_t)) == 0)) {
+            return sta;
+        }
+        if (sta == psta) {
+            return_next = true;
+        }
+        sta = (dm_sta_t *)hash_map_get_next(m_sta_map, sta);
+    }
+
+    return NULL;
 }
 
 em_sta_info_t *dm_easy_mesh_t::get_sta_info(mac_address_t sta_mac, bssid_t bssid, mac_address_t ruid, em_target_sta_map_t target)

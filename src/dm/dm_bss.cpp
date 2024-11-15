@@ -159,7 +159,7 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
 
 }
 
-void dm_bss_t::encode(cJSON *obj)
+void dm_bss_t::encode(cJSON *obj, bool summary)
 {
     mac_addr_str_t  mac_str;
     unsigned short i;
@@ -167,12 +167,15 @@ void dm_bss_t::encode(cJSON *obj)
     dm_easy_mesh_t::macbytes_to_string(m_bss_info.bssid.mac, mac_str);
     cJSON_AddStringToObject(obj, "BSSID", mac_str);
 
-    cJSON_AddNumberToObject(obj, "UnicastBytesSent", m_bss_info.unicast_bytes_sent); 
+    if (summary == true) {
+        return;
+    }
+
     cJSON_AddStringToObject(obj, "SSID", m_bss_info.ssid);
-    printf("m_bss_info.ssid=%s\n",m_bss_info.ssid);
     cJSON_AddBoolToObject(obj, "Enabled", m_bss_info.enabled);
     cJSON_AddNumberToObject(obj, "LastChange", m_bss_info.last_change);
     cJSON_AddStringToObject(obj, "TimeStamp", m_bss_info.timestamp);
+    cJSON_AddNumberToObject(obj, "UnicastBytesSent", m_bss_info.unicast_bytes_sent);
     cJSON_AddNumberToObject(obj, "UnicastBytesReceived", m_bss_info.unicast_bytes_rcvd);
     cJSON_AddNumberToObject(obj, "NumberOfSTA", m_bss_info.numberofsta );
     cJSON_AddStringToObject(obj, "EstServiceParametersBE", m_bss_info.est_svc_params_be);

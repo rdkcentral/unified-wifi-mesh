@@ -57,7 +57,7 @@ int dm_sta_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
             continue;
         }
         obj = cJSON_CreateObject(); 
-        sta->encode(obj);
+        sta->encode(obj, summary);
 
         cJSON_AddItemToArray(obj_arr, obj);
         sta = get_next_sta(sta);

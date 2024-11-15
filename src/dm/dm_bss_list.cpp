@@ -63,43 +63,7 @@ int dm_bss_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 
         obj = cJSON_CreateObject(); 
 
-        dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.bssid.mac, mac_str);
-        cJSON_AddStringToObject(obj, "bssid", mac_str);
-
-        if (summary == true) {
-            cJSON_AddItemToArray(obj_arr, obj);
-            pbss = get_next_bss(pbss);
-            continue;
-        }
-
-        cJSON_AddStringToObject(obj, "ssid", pbss->m_bss_info.ssid);
-        cJSON_AddBoolToObject(obj, "Enabled", pbss->m_bss_info.enabled);
-        cJSON_AddStringToObject(obj, "EstServiceParametersBE", pbss->m_bss_info.est_svc_params_be);
-        cJSON_AddStringToObject(obj, "EstServiceParametersBK", pbss->m_bss_info.est_svc_params_bk);
-        cJSON_AddStringToObject(obj, "EstServiceParametersVI", pbss->m_bss_info.est_svc_params_vi);
-        cJSON_AddStringToObject(obj, "EstServiceParametersVO", pbss->m_bss_info.est_svc_params_vo);
-
-        akms_arr = cJSON_AddArrayToObject(obj, "FronthaulAKMsAllowed");
-        for (i = 0; i < pbss->m_bss_info.num_fronthaul_akms; i++) {
-            cJSON_AddItemToArray(akms_arr, cJSON_CreateString(pbss->m_bss_info.fronthaul_akm[i]));
-        }
-
-        akms_arr = cJSON_AddArrayToObject(obj, "BackhaulAKMsAllowed");
-        for (i = 0; i < pbss->m_bss_info.num_backhaul_akms; i++) {
-            cJSON_AddItemToArray(akms_arr, cJSON_CreateString(pbss->m_bss_info.backhaul_akm[i]));
-        }
-
-        cJSON_AddBoolToObject(obj, "Profile1bSTAsDisallowed", pbss->m_bss_info.profile_1b_sta_allowed);
-        cJSON_AddBoolToObject(obj, "Profile2bSTAsDisallowed", pbss->m_bss_info.profile_2b_sta_allowed);
-
-        cJSON_AddNumberToObject(obj, "AssociationAllowanceStatus", pbss->m_bss_info.assoc_allowed_status);
-
-        cJSON_AddBoolToObject(obj, "FronthaulUse", pbss->m_bss_info.fronthaul_use);
-        cJSON_AddBoolToObject(obj, "BackhaulUse", pbss->m_bss_info.backhaul_use);
-        cJSON_AddBoolToObject(obj, "R1disallowed", pbss->m_bss_info.r1_disallowed);
-        cJSON_AddBoolToObject(obj, "R2disallowed", pbss->m_bss_info.r2_disallowed);
-        cJSON_AddBoolToObject(obj, "MultiBSSID", pbss->m_bss_info.multi_bssid);
-        cJSON_AddBoolToObject(obj, "TransmittedBSSID", pbss->m_bss_info.transmitted_bssid);
+        pbss->encode(obj, summary);
 
         cJSON_AddItemToArray(obj_arr, obj);
         pbss = get_next_bss(pbss);
@@ -160,15 +124,15 @@ dm_orch_type_t dm_bss_list_t::get_dm_orch_type(db_client_t& db_client, const dm_
 
         if (*pbss == bss) {
             //printf("%s:%d: BSS: %s Radio: %s already in list\n", __func__, __LINE__, 
-            //dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.bssid.mac, bss_mac_str),
-            //dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.ruid.mac, radio_mac_str));
+                //dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.bssid.mac, bss_mac_str),
+                //dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.ruid.mac, radio_mac_str));
             return dm_orch_type_none;
         }
 
 
         //printf("%s:%d: BSS: %s Radio: %s in list but needs update\n", __func__, __LINE__,
-        //dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.bssid.mac, bss_mac_str),
-        //dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.ruid.mac, radio_mac_str));
+            //dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.bssid.mac, bss_mac_str),
+            //dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.ruid.mac, radio_mac_str));
         return dm_orch_type_db_update;
     }
 
@@ -184,7 +148,8 @@ void dm_bss_list_t::update_list(const dm_bss_t& bss, dm_orch_type_t op)
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)bss.m_bss_info.bssid.mac, bss_mac_str);
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)bss.m_bss_info.ruid.mac, radio_mac_str);
 
-    //printf("%s:%d: BSSID: %s Radio ID: %s\n", __func__, __LINE__, bss_mac_str, radio_mac_str);
+    //printf("%s:%d: BSSID: %s Radio ID: %s Op:%s\n", __func__, __LINE__,
+		//bss_mac_str, radio_mac_str, em_cmd_t::get_orch_op_str(op));
 
     switch (op) {
         case dm_orch_type_db_insert:

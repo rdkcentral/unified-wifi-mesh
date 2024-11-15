@@ -16,28 +16,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef DM_BSS_H
-#define DM_BSS_H
+#ifndef EM_CMD_STA_LINK_METRICS_H
+#define EM_CMD_STA_LINK_METRICS_H
 
-#include "em_base.h"
+#include "em_cmd.h"
 
-class dm_bss_t {
-public:
-    em_bss_info_t    m_bss_info;
+class em_cmd_sta_link_metrics_t : public em_cmd_t {
 
 public:
-    int init() { memset(&m_bss_info, 0, sizeof(em_bss_info_t)); return 0; }
-    em_bss_info_t *get_bss_info() { return &m_bss_info; }
-    int decode(const cJSON *obj, void *parent_id);
-    void encode(cJSON *obj, bool summary = false);
-
-    bool operator == (const dm_bss_t& obj);
-    void operator = (const dm_bss_t& obj);
-
-    dm_bss_t(em_bss_info_t *bss);
-    dm_bss_t(const dm_bss_t& bss);
-    dm_bss_t();
-    ~dm_bss_t();
+    em_cmd_sta_link_metrics_t();
 };
 
 #endif

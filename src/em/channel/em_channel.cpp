@@ -840,7 +840,7 @@ int em_channel_t::handle_channel_sel_rsp(unsigned char *buff, unsigned int len)
 
 int em_channel_t::handle_operating_channel_rprt(unsigned char *buff, unsigned int len)
 {
-    set_state(em_state_ctrl_channel_confirmed);
+    set_state(em_state_ctrl_configured);
 }
 
 void em_channel_t::process_msg(unsigned char *data, unsigned int len)
