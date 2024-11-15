@@ -16,15 +16,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef EM_CMD_OP_CHANNEL_SEL_RESPONSE_H
-#define EM_CMD_OP_CHANNEL_SEL_RESPONSE_H
+#ifndef EM_CMD_OP_CHANNEL_REPORT_H
+#define EM_CMD_OP_CHANNEL_REPORT_H
 
 #include "em_cmd.h"
 
-class em_cmd_channel_sel_resp_t : public em_cmd_t {
+class em_cmd_op_channel_report_t : public em_cmd_t {
 
 public:
-    em_cmd_channel_sel_resp_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+    em_cmd_op_channel_report_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif
+

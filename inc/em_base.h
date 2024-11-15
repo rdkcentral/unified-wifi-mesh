@@ -1586,7 +1586,6 @@ typedef enum {
     em_state_agent_ap_cap_report,
     em_state_agent_client_cap_report,
     em_state_agent_channel_pref_query,
-	em_state_agent_channel_sel_resp,
 
 
     em_state_ctrl_unconfigured = 0x100,
@@ -1640,9 +1639,8 @@ typedef enum {
     em_cmd_type_onewifi_cb,
     em_cmd_type_sta_assoc,
     em_cmd_type_channel_pref_query,
-    em_cmd_type_channel_sel_resp,
     em_cmd_type_sta_link_metrics,
-
+    em_cmd_type_op_channel_report,
     em_cmd_type_max,
 } em_cmd_type_t;
 
@@ -2114,9 +2112,9 @@ typedef enum {
     dm_orch_type_channel_pref,
     dm_orch_type_channel_sel,
     dm_orch_type_channel_cnf,
-    dm_orch_type_channel_sel_resp,
     dm_orch_type_sta_cap,
     dm_orch_type_sta_link_metrics,
+    dm_orch_type_op_channel_report,
 } dm_orch_type_t;
 
 typedef struct {

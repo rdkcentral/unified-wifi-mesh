@@ -347,7 +347,7 @@ int em_channel_t::send_operating_channel_report_msg()
 
     dm = get_data_model();
 
-    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
@@ -388,13 +388,13 @@ int em_channel_t::send_operating_channel_report_msg()
 
     tmp += (sizeof (em_tlv_t));
     len += (sizeof (em_tlv_t));
-    if (em_msg_t(em_msg_type_channel_sel_rsp, em_profile_type_3, buff, len).validate(errors) == 0) {
-        printf("Channel Selection Response msg failed validation in tnx end\n");
+    if (em_msg_t(em_msg_type_op_channel_rprt, em_profile_type_3, buff, len).validate(errors) == 0) {
+        printf("Operating Channel Report msg failed validation in tnx end\n");   
         return -1;
     }
 
     if (send_frame(buff, len)  < 0) {
-        printf("%s:%d: Channel Selection Response msg failed, error:%d\n", __func__, __LINE__, errno);
+        printf("%s:%d:  Operating Channel Report msg failed, error:%d\n", __func__, __LINE__, errno);
         return -1;
     }
 
@@ -875,9 +875,10 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
     
 	    break;
 
-	    case em_msg_type_channel_sel_req:
+        case em_msg_type_channel_sel_req:
             if (get_service_type() == em_service_type_agent) {
                 handle_channel_sel_req(data, len);
+                send_channel_sel_response_msg(em_chan_sel_resp_code_type_accept);
             }
             break;
 
@@ -896,14 +897,14 @@ void em_channel_t::process_state()
 				set_state(em_state_agent_channel_selection_pending);
 			}
             break;
-		
-		case em_state_agent_channel_sel_resp:
-			if (get_service_type() == em_service_type_agent) {
-				send_channel_sel_response_msg(em_chan_sel_resp_code_type_accept);
-				printf("%s:%d channel_sel_response send\n", __func__, __LINE__);
-				set_state(em_state_agent_configured);
-			}
-			break;
+        		
+        case em_state_agent_channel_report_pending:
+            if (get_service_type() == em_service_type_agent) {
+                send_operating_channel_report_msg();
+                printf("%s:%d operating_channel_report_msg send\n", __func__, __LINE__);
+                set_state(em_state_agent_configured);
+            }
+            break;
 
     }
 }
