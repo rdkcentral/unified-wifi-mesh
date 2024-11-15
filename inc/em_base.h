@@ -2166,6 +2166,11 @@ typedef struct {
 } em_bus_event_type_m2_tx_params_t;
 
 typedef struct {
+    mac_address_t   mac;
+    unsigned short  msg_id;
+} em_bus_event_type_channel_pref_query_params_t;
+
+typedef struct {
     mac_address_t   dev;
     em_client_assoc_event_t   assoc;
 } em_bus_event_type_client_assoc_params_t;

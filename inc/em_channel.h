@@ -32,6 +32,7 @@ public:
     virtual em_state_t get_state() = 0;
     virtual void set_state(em_state_t state) = 0;
     virtual em_service_type_t get_service_type() = 0;
+    virtual em_cmd_t *get_current_cmd() = 0;
 
     short create_channel_pref_tlv(unsigned char *buff);
     short create_operating_channel_report_tlv(unsigned char *buff);

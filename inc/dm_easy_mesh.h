@@ -57,7 +57,7 @@ public:
     hash_map_t      *m_sta_assoc_map = NULL;
     hash_map_t      *m_sta_dassoc_map = NULL;
     dm_cac_comp_t	m_cac_comp;
-    short           msg_id;
+    unsigned short  msg_id;
     unsigned int	m_db_cfg_type;
     em_t *m_em;
     bool    m_colocated;
@@ -182,7 +182,8 @@ public:
     char *get_serial_number() { return m_device.get_serial_number(); }
     char *get_primary_device_type() { return m_device.get_primary_device_type(); }
 
-    short   get_msg_id() { return msg_id;}
+    unsigned short   get_msg_id() { return msg_id; }
+    unsigned short   set_msg_id(unsigned short id) { msg_id = id; }
 
     void set_manufacturer(char *manufacturer) { m_device.set_manufacturer(manufacturer); }
     void set_manufacturer_model(char *model) { m_device.set_manufacturer_model(model); }
