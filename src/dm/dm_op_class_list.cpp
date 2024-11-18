@@ -207,20 +207,23 @@ int dm_op_class_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, voi
     snprintf(id, sizeof(id), "%s@%d@%d", mac_str, info->id.type, info->id.index);
     //printf("%s:%d: Opeartion:%d, id:%s mac:%s, type:%d, index:%d\n", __func__, __LINE__, op, id, mac_str, info->id.type, info->id.index);
 
-    for (i = 0; i < info->num_non_op_channels; i++) {
-		snprintf(tmp, sizeof(tmp), "%d,", info->non_op_channel[i]);
-		snprintf(non_op_str + strlen(non_op_str), sizeof(non_op_str) - strlen(non_op_str), "%s", tmp);
+    if (info->id.type == em_op_class_type_capability) {
+        for (i = 0; i < info->num_non_op_channels; i++) {
+            snprintf(tmp, sizeof(tmp), "%d,", info->non_op_channel[i]);
+            snprintf(non_op_str + strlen(non_op_str), sizeof(non_op_str) - strlen(non_op_str), "%s", tmp);
+        }
+
+        non_op_str[strlen(non_op_str) - 1] = 0;
     }
 
-    non_op_str[strlen(non_op_str) - 1] = 0;
+    if (info->id.type == em_op_class_type_preference) {
+        for (i = 0; i < info->num_anticipated_channels; i++) {
+            snprintf(tmp, sizeof(tmp), "%d,", info->anticipated_channel[i]);
+            strncat(anticipated_str, tmp, strlen(tmp));
+        }
 
-    for (i = 0; i < info->num_anticipated_channels; i++) {
-		snprintf(tmp, sizeof(tmp), "%d,", info->anticipated_channel[i]);
-		strncat(anticipated_str, tmp, strlen(tmp));
-	}
-
-	anticipated_str[strlen(anticipated_str) - 1] = 0;
-
+        anticipated_str[strlen(anticipated_str) - 1] = 0;
+    }
     switch (op) {
         case dm_orch_type_db_insert:
             ret = insert_row(db_client, id, info->op_class, info->channel, info->tx_power, info->max_tx_power, non_op_str,
