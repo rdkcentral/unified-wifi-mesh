@@ -220,11 +220,11 @@ int em_channel_t::send_channel_sel_request_msg()
 
 }
 
-int em_channel_t::send_channel_sel_response_msg(em_chan_sel_resp_code_type_t code)
+int em_channel_t::send_channel_sel_response_msg(em_chan_sel_resp_code_type_t code, unsigned short msg_id)
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    unsigned short  msg_id = em_msg_type_channel_sel_rsp;
+    unsigned short  msg_type = em_msg_type_channel_sel_rsp;
     int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
@@ -250,7 +250,7 @@ int em_channel_t::send_channel_sel_response_msg(em_chan_sel_resp_code_type_t cod
     cmdu = (em_cmdu_t *)tmp;
 
     memset(tmp, 0, sizeof(em_cmdu_t));
-    cmdu->type = htons(msg_id);
+    cmdu->type = htons(msg_type);
     cmdu->id = htons(msg_id);
     cmdu->last_frag_ind = 1;
     cmdu->relay_ind = 0;
@@ -656,7 +656,8 @@ int em_channel_t::send_channel_pref_report_msg()
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    unsigned short  msg_id = em_msg_type_channel_pref_rprt;
+    unsigned short msg_id = get_current_cmd()->get_data_model()->get_msg_id();
+    unsigned short  msg_type = em_msg_type_channel_pref_rprt;
     int len = 0;
     short sz;
     em_cmdu_t *cmdu;
@@ -683,7 +684,7 @@ int em_channel_t::send_channel_pref_report_msg()
     cmdu = (em_cmdu_t *)tmp;
 
     memset(tmp, 0, sizeof(em_cmdu_t));
-    cmdu->type = htons(msg_id);
+    cmdu->type = htons(msg_type);
     cmdu->id = htons(msg_id);
     cmdu->last_frag_ind = 1;
     cmdu->relay_ind = 0;
@@ -864,17 +865,19 @@ int em_channel_t::handle_channel_pref_query(unsigned char *buff, unsigned int le
 {
     em_event_t  ev;
     em_bus_event_t *bev;
-	mac_address_t *mac;
-    mac_addr_str_t radio_mac;
+    em_cmdu_t *cmdu;
+    em_bus_event_type_channel_pref_query_params_t *params;
 
-	ev.type = em_event_type_bus;
+    cmdu = (em_cmdu_t *)(buff + sizeof(em_raw_hdr_t));
+
+    ev.type = em_event_type_bus;
     bev = &ev.u.bevt;
     bev->type = em_bus_event_type_channel_pref_query;
-    mac = (mac_address_t *) &bev->u.raw_buff;
-    dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(), radio_mac);
-    memcpy(mac, get_radio_interface_mac(), sizeof(mac_address_t));
+    params = (em_bus_event_type_channel_pref_query_params_t *) &bev->u.raw_buff;
+    memcpy(params->mac, get_radio_interface_mac(), sizeof(mac_address_t));
+    params->msg_id = ntohs(cmdu->id);
     em_cmd_exec_t::send_cmd(em_service_type_agent, (unsigned char *)&ev, sizeof(em_event_t));
-    return 0;	
+    return 0;
 }
 
 int em_channel_t::handle_channel_sel_req(unsigned char *buff, unsigned int len)
@@ -940,7 +943,7 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
         case em_msg_type_channel_sel_req:
             if (get_service_type() == em_service_type_agent) {
                 handle_channel_sel_req(data, len);
-                send_channel_sel_response_msg(em_chan_sel_resp_code_type_accept);
+                send_channel_sel_response_msg(em_chan_sel_resp_code_type_accept, htons(cmdu->id));
             }
             break;
 
