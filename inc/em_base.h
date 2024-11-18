@@ -2159,6 +2159,11 @@ typedef struct{
 }op_class_channel_sel;
 
 typedef struct {
+    mac_address_t   mac;
+    unsigned short  msg_id;
+} em_bus_event_type_channel_pref_query_params_t;
+
+typedef struct {
     mac_address_t   al;
     mac_address_t   radio;
 } em_bus_event_type_m2_tx_params_t;

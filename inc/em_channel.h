@@ -33,6 +33,7 @@ public:
     virtual void set_state(em_state_t state) = 0;
     virtual em_service_type_t get_service_type() = 0;
     virtual em_device_info_t *get_device_info() = 0;
+    virtual em_cmd_t *get_current_cmd() = 0;
 
     short create_channel_pref_tlv(unsigned char *buff);
     short create_operating_channel_report_tlv(unsigned char *buff);
@@ -42,7 +43,7 @@ public:
     short create_channel_pref_tlv_agent(unsigned char *buff);
 
     int send_channel_sel_request_msg();
-    int send_channel_sel_response_msg(em_chan_sel_resp_code_type_t code);
+    int send_channel_sel_response_msg(em_chan_sel_resp_code_type_t code, unsigned short msg_id);
 	int send_operating_channel_report_msg();
 	int send_channel_pref_query_msg();
 	int send_channel_pref_report_msg();

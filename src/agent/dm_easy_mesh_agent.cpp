@@ -396,21 +396,22 @@ void dm_easy_mesh_agent_t::translate_onewifi_stats_data(char *str)
 
 int dm_easy_mesh_agent_t::analyze_channel_pref_query(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
-	int num = 0;
-	mac_address_t *mac;
-	dm_easy_mesh_agent_t  dm;
-	em_radio_info_t *radio;
-	mac = (mac_address_t *) evt->u.raw_buff;
-	dm.set_num_radios(1);
-	radio = dm.get_radio_info(0);
-	if (radio != NULL) {
-		memcpy(radio->id.mac, mac, sizeof(mac_address_t));
-	}
-	dm.print_config();
-	pcmd[num] = new em_cmd_channel_pref_query_t(em_service_type_agent, evt->params, dm);
-	num++;
+    int num = 0;
+    dm_easy_mesh_agent_t  dm;
+    em_bus_event_type_channel_pref_query_params_t *params;
+    
+    params = (em_bus_event_type_channel_pref_query_params_t *)evt->u.raw_buff;
+    dm.set_num_radios(1);
+    radio = dm.get_radio_info(0);
+    if (radio != NULL) {
+        memcpy(&radio->id.mac, &params->mac, sizeof(mac_address_t));
+    }
+    dm.set_msg_id(params->msg_id);
+    dm.print_config();
+    pcmd[num] = new em_cmd_channel_pref_query_t(em_service_type_agent, evt->params, dm);
+    num++;
 
-	return num;
+    return num;
 }
 
 int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_desc_t *desc,bus_handle_t *bus_hdl)
