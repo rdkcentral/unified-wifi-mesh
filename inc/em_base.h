@@ -122,6 +122,7 @@
 #define EM_MAX_AKMS     10
 #define EM_MAX_HAUL_TYPES   3
 #define EM_MAX_OPCLASS  64
+#define EM_MAX_AP_MLD   64
 
 #define EM_MAX_CMD  16
 
@@ -367,6 +368,10 @@ typedef enum {
     em_msg_type_agent_list = 0x8035,
     em_msg_type_anticipated_channel_usage_rprt,
     em_msg_type_qos_mgmt_notif,
+    em_msg_type_ap_mld_config_req = 0x8044,
+    em_msg_type_ap_mld_config_resp,
+    em_msg_type_bsta_mld_config_req,
+    em_msg_type_bsta_mld_config_resp,
 } em_msg_type_t;
 
 typedef enum {
@@ -519,6 +524,8 @@ typedef enum {
     em_tlv_type_qos_mgmt_policy = 0xdb,
     em_tlv_type_qos_mgmt_desc = 0xdc,
     em_tlv_type_ctrl_cap = 0xdd,
+    em_tlv_type_ap_mld_config = 0xe0,
+    em_tlv_type_bsta_mld_config = 0xe1,
 } em_tlv_type_t;
 
 typedef struct {
@@ -1923,6 +1930,26 @@ typedef struct {
 } em_bss_info_t;
 
 typedef struct {
+    bool  mac_addr_valid;
+    bool  link_id_valid;
+    em_interface_t  ruid;
+    mac_address_t  mac_addr;
+    unsigned char  link_id;
+} em_affiliated_ap_info_t;
+
+typedef struct {
+    bool  mac_addr_valid;
+    ssid_t  ssid;
+    mac_address_t  mac_addr;
+    bool  str;
+    bool  nstr;
+    bool  emlsr;
+    bool  emlmr;
+    unsigned char  num_affiliated_ap;
+    em_affiliated_ap_info_t  affiliated_ap[EM_MAX_AP_MLD];
+} em_ap_mld_info_t;
+
+typedef struct {
     em_interface_t  id;
 	mac_address_t dev_id;
     em_long_string_t net_id;
@@ -1983,6 +2010,41 @@ typedef struct {
     unsigned char num_radios;
     em_radio_rprt_t radio_rprt[0];
 } __attribute__((__packed__)) em_bss_config_rprt_t;
+
+typedef struct {
+    unsigned char ssid_len;
+    char ssid[0];
+} __attribute__((__packed__)) em_ap_mld_ssids_t;
+
+typedef struct {
+    unsigned char affiliated_mac_addr_valid : 1;
+    unsigned char link_id_valid : 1;
+    unsigned char reseverd1 : 6;
+    em_radio_id_t ruid;
+    mac_addr_t affiliated_mac_addr;
+    unsigned char link_id;
+    unsigned char reserved2[18];
+} __attribute__((__packed__)) em_affiliated_ap_mld_t;
+
+typedef struct {
+    unsigned char ap_mld_mac_addr_valid : 1;
+    unsigned char reserved1 : 7;
+    em_ap_mld_ssids_t ssids[0];
+    mac_addr_t ap_mld_mac_addr;
+    unsigned char str : 1;
+    unsigned char nstr : 1;
+    unsigned char emlsr : 1;
+    unsigned char emlmr : 1;
+    unsigned char reseverd2 : 4;
+    unsigned char reserved3[20];
+    unsigned char num_affiliated_ap;
+    em_affiliated_ap_mld_t affiliated_ap_mld[0];
+} __attribute__((__packed__)) em_ap_mld_t;
+
+typedef struct {
+    unsigned char num_ap_mld;
+    em_ap_mld_t ap_mld[0];
+} __attribute__((__packed__)) em_ap_mld_config_t;
 
 typedef struct {
     em_nonce_t  e_nonce;  
