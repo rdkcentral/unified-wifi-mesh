@@ -55,6 +55,7 @@ public:
     int handle_channel_sel_req(unsigned char *buff, unsigned int len);
     int handle_channel_pref_tlv(unsigned char *buff, unsigned int len);
     int handle_channel_pref_tlv_ctrl(unsigned char *buff, unsigned int len);
+    int handle_op_channel_report(unsigned char *buff, unsigned int len);
 
     int get_channel_pref_query_tx_count() { return m_channel_pref_query_tx_cnt; }
     void set_channel_pref_query_tx_count(unsigned int cnt) { m_channel_pref_query_tx_cnt = cnt; }

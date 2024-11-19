@@ -346,7 +346,7 @@ void dm_easy_mesh_list_t::put_radio(const char *key, const dm_radio_t *radio)
 
     if ((em = m_mgr->create_node(&pradio->m_radio_info.id, (em_freq_band_t)pradio->m_radio_info.media_data.band, dm, false,
             em_profile_type_3, em_service_type_ctrl)) != NULL) {
-        em->set_state(em_state_ctrl_configured);
+        printf("%s:%d Node created successfully\n", __func__, __LINE__);
     }
 
     dm_easy_mesh_t::macbytes_to_string(pradio->m_radio_info.id.mac, radio_mac);
