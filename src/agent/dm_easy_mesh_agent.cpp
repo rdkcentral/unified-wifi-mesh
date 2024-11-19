@@ -398,6 +398,7 @@ int dm_easy_mesh_agent_t::analyze_channel_pref_query(em_bus_event_t *evt, em_cmd
 {
     int num = 0;
     dm_easy_mesh_agent_t  dm;
+    em_radio_info_t *radio;
     em_bus_event_type_channel_pref_query_params_t *params;
     
     params = (em_bus_event_type_channel_pref_query_params_t *)evt->u.raw_buff;
