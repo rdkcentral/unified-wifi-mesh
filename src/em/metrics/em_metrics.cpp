@@ -243,7 +243,6 @@ int em_metrics_t::send_all_associated_sta_link_mterics_msg()
         sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_map, sta);
     }
 
-    set_state(em_state_ctrl_configured);
 }
 
 void em_metrics_t::process_msg(unsigned char *data, unsigned int len)

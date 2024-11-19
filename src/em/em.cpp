@@ -128,6 +128,12 @@ void em_t::orch_execute(em_cmd_t *pcmd)
         case em_cmd_type_sta_link_metrics:
             set_state(em_state_ctrl_sta_link_metrics_pending);
 			break;
+
+        case em_cmd_type_set_channel:
+            m_sm.set_state(em_state_ctrl_channel_select_pending);
+            break;
+
+
     }
 }
 
@@ -256,6 +262,7 @@ void em_t::handle_ctrl_state()
             break;
 
         case em_cmd_type_em_config:
+        case em_cmd_type_set_channel:
             em_configuration_t::process_ctrl_state();
             em_channel_t::process_ctrl_state();
             break;
