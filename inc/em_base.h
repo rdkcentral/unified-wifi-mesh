@@ -1882,6 +1882,7 @@ typedef struct {
     em_long_string_t    ext_supp_rates;
     em_long_string_t    supp_op_classes;
     em_long_string_t    ext_cap;
+    em_long_string_t    rm_cap;
     em_long_string_t    vendor_info[MAX_VENDOR_INFO];
 } em_sta_info_t;
 
@@ -2298,7 +2299,9 @@ typedef enum {
     tag_rsn_information = 48,
     tag_extended_supported_rates = 50,
     tag_supported_operating_classes = 59,
+    tag_rm_enabled_capability = 70,
     tag_extended_capabilities = 127,
+    tag_vht_capability = 191,
     tag_vendor_specific = 221,
 } tag_type_t;
 

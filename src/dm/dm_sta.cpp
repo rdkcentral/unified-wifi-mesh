@@ -146,8 +146,10 @@ int dm_sta_t::decode(const cJSON *obj, void *parent_id)
 
 void dm_sta_t::encode(cJSON *obj, bool summary)
 {
+    unsigned int i = 0;
     mac_addr_str_t  mac_str;
 
+    dm_sta_t::decode_sta_capability(this);
     dm_easy_mesh_t::macbytes_to_string(m_sta_info.id, mac_str);
     cJSON_AddStringToObject(obj, "MACAddress", mac_str);
     cJSON_AddBoolToObject(obj, "Associated", m_sta_info.associated);
@@ -176,6 +178,23 @@ void dm_sta_t::encode(cJSON *obj, bool summary)
     cJSON_AddNumberToObject(obj, "ErrorsSent", m_sta_info.errors_tx);
     cJSON_AddNumberToObject(obj, "ErrorsReceived", m_sta_info.errors_rx);
     cJSON_AddStringToObject(obj, "CellularDataPreference", m_sta_info.cellular_data_pref);
+    cJSON_AddStringToObject(obj, "ListenInterval", m_sta_info.listen_interval);
+    cJSON_AddStringToObject(obj, "SSID", m_sta_info.ssid);
+    cJSON_AddStringToObject(obj, "SupportedRates", m_sta_info.supp_rates);
+    cJSON_AddStringToObject(obj, "PowerCapability", m_sta_info.power_cap);
+    cJSON_AddStringToObject(obj, "SupportedChannels", m_sta_info.supp_channels);
+    cJSON_AddStringToObject(obj, "RSNInformation", m_sta_info.rsn_info);
+    cJSON_AddStringToObject(obj, "ExtendedSupportedRates", m_sta_info.ext_supp_rates);
+    cJSON_AddStringToObject(obj, "SupportedOperatingClasses", m_sta_info.supp_op_classes);
+    cJSON_AddStringToObject(obj, "ExtendedCapabilities", m_sta_info.ext_cap);
+    cJSON_AddStringToObject(obj, "RMEnabledCapabilities", m_sta_info.rm_cap);
+    cJSON *vendor_info = cJSON_CreateArray();
+    for (i = 0; i < m_sta_info.num_vendor_infos; i++) {
+        cJSON *vendor = cJSON_CreateObject();
+        cJSON_AddStringToObject(vendor, "VendorInfo", m_sta_info.vendor_info[i]);
+        cJSON_AddItemToArray(vendor_info, vendor);
+    }
+    cJSON_AddItemToObject(obj, "VendorSpecific", vendor_info);
 }
 
 bool dm_sta_t::operator == (const dm_sta_t& obj)
@@ -233,6 +252,7 @@ void dm_sta_t::operator = (const dm_sta_t& obj)
     memcpy(&this->m_sta_info.frame_body, &obj.m_sta_info.frame_body, obj.m_sta_info.frame_body_len);
     this->m_sta_info.num_vendor_infos = obj.m_sta_info.num_vendor_infos;
     memcpy(&this->m_sta_info.ht_cap, &obj.m_sta_info.ht_cap, sizeof(em_long_string_t));
+    memcpy(&this->m_sta_info.vht_cap, &obj.m_sta_info.vht_cap, sizeof(em_long_string_t));
     memcpy(&this->m_sta_info.listen_interval, &obj.m_sta_info.listen_interval, sizeof(em_long_string_t));
     memcpy(&this->m_sta_info.ssid, &obj.m_sta_info.ssid, sizeof(em_long_string_t));
     memcpy(&this->m_sta_info.supp_rates, &obj.m_sta_info.supp_rates, sizeof(em_long_string_t));
@@ -242,6 +262,7 @@ void dm_sta_t::operator = (const dm_sta_t& obj)
     memcpy(&this->m_sta_info.ext_supp_rates, &obj.m_sta_info.ext_supp_rates, sizeof(em_long_string_t));
     memcpy(&this->m_sta_info.supp_op_classes, &obj.m_sta_info.supp_op_classes, sizeof(em_long_string_t));
     memcpy(&this->m_sta_info.ext_cap, &obj.m_sta_info.ext_cap, sizeof(em_long_string_t));
+    memcpy(&this->m_sta_info.rm_cap, &obj.m_sta_info.rm_cap, sizeof(em_long_string_t));
     for (unsigned int i = 0; i < this->m_sta_info.num_vendor_infos; i++) {
         memcpy(&this->m_sta_info.vendor_info, &obj.m_sta_info.vendor_info, sizeof(em_long_string_t));
     }
@@ -271,20 +292,12 @@ void dm_sta_t::parse_sta_bss_radio_from_key(const char *key, mac_address_t sta, 
 
 }
 
-void dm_sta_t::decode_sta_capabilty(dm_sta_t *sta)
+void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
 {
     unsigned int offset = 0;
     unsigned char length;
     tag_type_t tag_id;
 
-    if (sta->m_sta_info.frame_body_len < 4) {
-        printf("%s:%d: Packet length is too short to contain basic fields\n", __func__, __LINE__);
-        return;
-    }
-    dm_easy_mesh_t::hex(2, &sta->m_sta_info.frame_body[offset], sizeof(em_long_string_t), sta->m_sta_info.cap);
-    offset += 2;
-    dm_easy_mesh_t::hex(2, &sta->m_sta_info.frame_body[offset], sizeof(em_long_string_t), sta->m_sta_info.listen_interval);
-    offset += 2;
     sta->m_sta_info.num_vendor_infos = 0;
 
     while (offset < sta->m_sta_info.frame_body_len) {
@@ -340,6 +353,10 @@ void dm_sta_t::decode_sta_capabilty(dm_sta_t *sta)
                 dm_easy_mesh_t::hex(tag->length, tag->value, sizeof(em_long_string_t), sta->m_sta_info.supp_op_classes);
                 break;
 
+            case tag_rm_enabled_capability:
+                dm_easy_mesh_t::hex(tag->length, tag->value, sizeof(em_long_string_t), sta->m_sta_info.rm_cap);
+                break;
+
             case tag_ht_capabilities:
                 dm_easy_mesh_t::hex(tag->length, tag->value, sizeof(em_long_string_t), sta->m_sta_info.ht_cap);
                 break;
@@ -348,12 +365,17 @@ void dm_sta_t::decode_sta_capabilty(dm_sta_t *sta)
                 dm_easy_mesh_t::hex(tag->length, tag->value, sizeof(em_long_string_t), sta->m_sta_info.ext_cap);
                 break;
 
+            case tag_vht_capability:
+                dm_easy_mesh_t::hex(tag->length, tag->value, sizeof(em_long_string_t), sta->m_sta_info.vht_cap);
+                break;
+
             case tag_vendor_specific:
                 if (sta->m_sta_info.num_vendor_infos < MAX_VENDOR_INFO) {
                     dm_easy_mesh_t::hex(tag->length, tag->value, sizeof(sta->m_sta_info.vendor_info[sta->m_sta_info.num_vendor_infos]), sta->m_sta_info.vendor_info[sta->m_sta_info.num_vendor_infos]);
                     sta->m_sta_info.num_vendor_infos++;
                 }
                 break;
+
             default:
                 printf("%s:%d: Unknown Tag ID: %d\n", __func__, __LINE__, tag->tag_id);
                 break;
