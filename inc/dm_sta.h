@@ -35,7 +35,7 @@ public:
     void operator = (const dm_sta_t& obj);
 
     static void parse_sta_bss_radio_from_key(const char *key, mac_address_t sta, bssid_t bssid, mac_address_t radio);
-    static void decode_sta_capabilty(dm_sta_t *sta);
+    static void decode_sta_capability(dm_sta_t *sta);
 
     dm_sta_t(em_sta_info_t *sta);
     dm_sta_t(const dm_sta_t& sta);
