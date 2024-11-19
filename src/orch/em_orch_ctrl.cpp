@@ -91,6 +91,11 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                     //em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
 					//em_t::state_2_str(em->get_state()));
             break;
+        
+        case em_cmd_type_set_channel:
+            if (em->get_state() == em_state_ctrl_channel_confirmed) {                               return true;
+            }
+            break;
 
         case em_cmd_type_sta_assoc:
             if (em->get_cap_query_tx_count() >= EM_MAX_CAP_QUERY_TX_THRESH) {
@@ -146,6 +151,12 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 
         case em_cmd_type_sta_link_metrics:
             if (em->get_state() == em_state_ctrl_configured) {
+                return true;
+            }
+            break;
+
+        case em_cmd_type_set_channel:
+            if (em->get_state() >= em_state_ctrl_channel_selected) {
                 return true;
             }
             break;
@@ -269,6 +280,9 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
     dm_easy_mesh_t *dm;
     mac_address_t	bss_mac;
     unsigned int count = 0, i;
+    em_device_info_t *device ;
+    mac_addr_str_t mac_str;
+
 
     if (pcmd->m_type == em_cmd_type_em_config) {
         em = (em_t *)hash_map_get(m_mgr->m_em_map, pcmd->m_param.args[0]);
@@ -331,6 +345,17 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                     (em->has_at_least_one_associated_sta() == true)) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
+                }
+                break;
+            
+            case em_cmd_type_set_channel:
+                dm = em->get_data_model();
+                device = dm->get_device_info();
+                if ((em->is_al_interface_em() == false) && (memcmp(pcmd->get_data_model()->get_agent_al_interface_mac(), device->id.mac, sizeof(mac_address_t)) == 0)) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
+                    dm_easy_mesh_t::macbytes_to_string(device->id.mac, mac_str);
+                    printf("%s:%d:%s Channel change for device\n", __func__, __LINE__,mac_str);
                 }
                 break;
 
