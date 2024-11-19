@@ -32,6 +32,7 @@
 #include "dm_op_class.h"
 #include "dm_radio_cap.h"
 #include "dm_cac_comp.h"
+#include "dm_ap_mld.h"
 #include "webconfig_external_proto.h"
 
 class em_t;
@@ -61,6 +62,8 @@ public:
     unsigned int	m_db_cfg_type;
     em_t *m_em;
     bool    m_colocated;
+    unsigned int    m_num_ap_mld;
+    dm_ap_mld_t     m_ap_mld[EM_MAX_AP_MLD];
 
 public:
     int init();
@@ -157,6 +160,13 @@ public:
     dm_bss_t *get_bss(unsigned int index) { return &m_bss[index]; }
     dm_bss_t *get_bss_index(mac_address_t radio, mac_address_t bss, bool *new_bss);
     dm_bss_t& get_bss_by_ref(unsigned int index) { return m_bss[index]; }
+
+    unsigned int get_num_ap_mld() { return m_num_ap_mld; }
+    static unsigned int get_num_ap_mld(void *dm) { return ((dm_easy_mesh_t *)dm)->get_num_ap_mld(); }
+    void set_num_ap_mld(unsigned int num) { m_num_ap_mld = num; }
+    static void set_num_ap_mld(void *dm, unsigned int num) { ((dm_easy_mesh_t *)dm)->set_num_ap_mld(num); }
+    dm_ap_mld_t *get_ap_mld(unsigned int index) { return &m_ap_mld[index]; }
+    dm_ap_mld_t& get_ap_mld_by_ref(unsigned int index) { return m_ap_mld[index]; }
 
     dm_dpp_t *get_dpp() { return &m_dpp; }
 

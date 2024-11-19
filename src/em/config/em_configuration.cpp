@@ -484,6 +484,70 @@ int em_configuration_t::create_device_info_type_tlv(unsigned char *buff)
     return tlv_len;
 }
 
+int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
+{
+    em_tlv_t *tlv;
+    unsigned char *tmp = buff;
+    em_ap_mld_config_t *ap_mld_conf;
+    em_ap_mld_t *ap_mld;
+    em_ap_mld_ssids_t *ap_mld_ssids;
+    em_affiliated_ap_mld_t *affiliated_ap_mld;
+    dm_easy_mesh_t  *dm;
+    unsigned int i, j;
+    unsigned short ap_mld_len = 0;
+    unsigned short affiliated_ap_len = 0;
+    unsigned short tlv_len = 0;
+
+    dm = get_data_model();
+
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_ap_mld_config;
+
+    ap_mld_conf = (em_ap_mld_config_t *)tlv->value;
+    ap_mld_conf->num_ap_mld = dm->get_num_ap_mld();
+
+    tlv_len = sizeof(em_ap_mld_config_t);
+
+    ap_mld = ap_mld_conf->ap_mld;
+
+    for (i = 0; i < dm->get_num_ap_mld(); i++) {
+        em_ap_mld_info_t& ap_mld_info = dm->m_ap_mld[i].m_ap_mld_info;
+        ap_mld->ap_mld_mac_addr_valid = ap_mld_info.mac_addr_valid;
+
+        ap_mld_ssids = ap_mld->ssids;
+        ap_mld_ssids->ssid_len = strlen(ap_mld_info.ssid) + 1;
+        strncpy(ap_mld_ssids->ssid, ap_mld_info.ssid, ap_mld_ssids->ssid_len);
+
+        memcpy(ap_mld->ap_mld_mac_addr, ap_mld_info.mac_addr, sizeof(mac_address_t));
+        ap_mld->str = ap_mld_info.str;
+        ap_mld->nstr = ap_mld_info.nstr;
+        ap_mld->emlsr = ap_mld_info.emlsr;
+        ap_mld->emlmr = ap_mld_info.emlmr;
+
+        ap_mld->num_affiliated_ap = ap_mld_info.num_affiliated_ap;
+        affiliated_ap_mld = ap_mld->affiliated_ap_mld;
+
+        for (j = 0; j < ap_mld->num_affiliated_ap; j++) {
+            em_affiliated_ap_info_t& affiliated_ap_info = dm->m_ap_mld[i].m_ap_mld_info.affiliated_ap[j];
+            affiliated_ap_mld->affiliated_mac_addr_valid = affiliated_ap_info.mac_addr_valid;
+            affiliated_ap_mld->link_id_valid = affiliated_ap_info.link_id_valid;
+            memcpy(affiliated_ap_mld->ruid, affiliated_ap_info.ruid.mac, sizeof(mac_address_t));
+            memcpy(affiliated_ap_mld->affiliated_mac_addr, affiliated_ap_info.mac_addr, sizeof(mac_address_t));
+            memcpy(&affiliated_ap_mld->link_id, &affiliated_ap_info.link_id, sizeof(unsigned char));
+
+            affiliated_ap_mld = (em_affiliated_ap_mld_t *)((unsigned char *)affiliated_ap_mld + sizeof(em_affiliated_ap_mld_t));
+            affiliated_ap_len += sizeof(em_affiliated_ap_mld_t);
+        }
+
+        ap_mld = (em_ap_mld_t *)((unsigned char *)ap_mld + sizeof(em_ap_mld_t) + ap_mld_ssids->ssid_len + affiliated_ap_len);
+        ap_mld_len += sizeof(em_ap_mld_t) + ap_mld_ssids->ssid_len + affiliated_ap_len;
+    }
+
+    tlv_len += ap_mld_len;
+    tlv->len = htons(tlv_len);
+
+    return tlv_len;
+}
 
 int em_configuration_t::send_topology_response_msg(unsigned char *dst)
 {
@@ -562,6 +626,12 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst)
 
     // One BSS Configuration Report 17.2.75
     tlv_len = create_bss_config_rprt_tlv(tmp);
+
+    tmp += (sizeof(em_tlv_t) + tlv_len);
+    len += (sizeof(em_tlv_t) + tlv_len);
+
+    // One AP MLD Configuration TLV
+    tlv_len = create_ap_mld_config_tlv(tmp);
 
     tmp += (sizeof(em_tlv_t) + tlv_len);
     len += (sizeof(em_tlv_t) + tlv_len);
