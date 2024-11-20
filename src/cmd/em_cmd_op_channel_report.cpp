@@ -1,4 +1,3 @@
-
 /**
  * Copyright 2023 Comcast Cable Communications Management, LLC
  *
@@ -39,23 +38,23 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <cjson/cJSON.h>
-#include "em_cmd_channel_sel_response.h"
+#include "em_cmd_op_channel_report.h"
 
-em_cmd_channel_sel_resp_t::em_cmd_channel_sel_resp_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
+em_cmd_op_channel_report_t::em_cmd_op_channel_report_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
 {
     em_cmd_ctx_t ctx;;
 
-    m_type = em_cmd_type_channel_sel_resp;
+    m_type = em_cmd_type_op_channel_report;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
 
     memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
 
     m_orch_op_idx = 0;
     m_num_orch_desc = 1;
-    m_orch_desc[0].op = dm_orch_type_channel_sel_resp;
+    m_orch_desc[0].op = dm_orch_type_op_channel_report;
     m_orch_desc[0].submit = true;
 
-    snprintf(m_name, sizeof(m_name), "%s", "channel_response");
+    snprintf(m_name, sizeof(m_name), "%s", "channel_report");
     m_svc = em_service_type_agent;
     init(&dm);
 

@@ -122,6 +122,7 @@
 #define EM_MAX_AKMS     10
 #define EM_MAX_HAUL_TYPES   3
 #define EM_MAX_OPCLASS  64
+#define EM_MAX_AP_MLD   64
 
 #define EM_MAX_CMD  16
 
@@ -301,7 +302,7 @@ typedef enum {
 } em_tlv_requirement_t;
 
 typedef enum {
-    em_msg_type_topo_disc,
+    em_msg_type_topo_disc = 0x0000,
     em_msg_type_topo_notif,
     em_msg_type_topo_query,
     em_msg_type_topo_resp,
@@ -312,7 +313,8 @@ typedef enum {
     em_msg_type_autoconf_resp,
     em_msg_type_autoconf_wsc,
     em_msg_type_autoconf_renew,
-    em_msg_type_ap_cap_query = 0x8001,
+    em_msg_type_1905_ack = 0x8000,
+    em_msg_type_ap_cap_query,
     em_msg_type_ap_cap_rprt,
     em_msg_type_map_policy_config_req,
     em_msg_type_channel_pref_query,
@@ -363,10 +365,13 @@ typedef enum {
     em_msg_type_dpp_bootstrap_uri_notif,
     em_msg_type_anticipated_channel_pref,
     em_msg_type_failed_conn,
-    em_msg_type_agent_list,
+    em_msg_type_agent_list = 0x8035,
     em_msg_type_anticipated_channel_usage_rprt,
     em_msg_type_qos_mgmt_notif,
-    em_msg_type_1905_ack,
+    em_msg_type_ap_mld_config_req = 0x8044,
+    em_msg_type_ap_mld_config_resp,
+    em_msg_type_bsta_mld_config_req,
+    em_msg_type_bsta_mld_config_resp,
 } em_msg_type_t;
 
 typedef enum {
@@ -519,6 +524,8 @@ typedef enum {
     em_tlv_type_qos_mgmt_policy = 0xdb,
     em_tlv_type_qos_mgmt_desc = 0xdc,
     em_tlv_type_ctrl_cap = 0xdd,
+    em_tlv_type_ap_mld_config = 0xe0,
+    em_tlv_type_bsta_mld_config = 0xe1,
 } em_tlv_type_t;
 
 typedef struct {
@@ -1586,7 +1593,6 @@ typedef enum {
     em_state_agent_ap_cap_report,
     em_state_agent_client_cap_report,
     em_state_agent_channel_pref_query,
-	em_state_agent_channel_sel_resp,
 
 
     em_state_ctrl_unconfigured = 0x100,
@@ -1640,9 +1646,8 @@ typedef enum {
     em_cmd_type_onewifi_cb,
     em_cmd_type_sta_assoc,
     em_cmd_type_channel_pref_query,
-    em_cmd_type_channel_sel_resp,
     em_cmd_type_sta_link_metrics,
-
+    em_cmd_type_op_channel_report,
     em_cmd_type_max,
 } em_cmd_type_t;
 
@@ -1884,6 +1889,7 @@ typedef struct {
     em_long_string_t    ext_supp_rates;
     em_long_string_t    supp_op_classes;
     em_long_string_t    ext_cap;
+    em_long_string_t    rm_cap;
     em_long_string_t    vendor_info[MAX_VENDOR_INFO];
 } em_sta_info_t;
 
@@ -1922,6 +1928,26 @@ typedef struct {
     bool    multi_bssid;
     bool    transmitted_bssid;
 } em_bss_info_t;
+
+typedef struct {
+    bool  mac_addr_valid;
+    bool  link_id_valid;
+    em_interface_t  ruid;
+    mac_address_t  mac_addr;
+    unsigned char  link_id;
+} em_affiliated_ap_info_t;
+
+typedef struct {
+    bool  mac_addr_valid;
+    ssid_t  ssid;
+    mac_address_t  mac_addr;
+    bool  str;
+    bool  nstr;
+    bool  emlsr;
+    bool  emlmr;
+    unsigned char  num_affiliated_ap;
+    em_affiliated_ap_info_t  affiliated_ap[EM_MAX_AP_MLD];
+} em_ap_mld_info_t;
 
 typedef struct {
     em_interface_t  id;
@@ -1984,6 +2010,41 @@ typedef struct {
     unsigned char num_radios;
     em_radio_rprt_t radio_rprt[0];
 } __attribute__((__packed__)) em_bss_config_rprt_t;
+
+typedef struct {
+    unsigned char ssid_len;
+    char ssid[0];
+} __attribute__((__packed__)) em_ap_mld_ssids_t;
+
+typedef struct {
+    unsigned char affiliated_mac_addr_valid : 1;
+    unsigned char link_id_valid : 1;
+    unsigned char reseverd1 : 6;
+    em_radio_id_t ruid;
+    mac_addr_t affiliated_mac_addr;
+    unsigned char link_id;
+    unsigned char reserved2[18];
+} __attribute__((__packed__)) em_affiliated_ap_mld_t;
+
+typedef struct {
+    unsigned char ap_mld_mac_addr_valid : 1;
+    unsigned char reserved1 : 7;
+    em_ap_mld_ssids_t ssids[0];
+    mac_addr_t ap_mld_mac_addr;
+    unsigned char str : 1;
+    unsigned char nstr : 1;
+    unsigned char emlsr : 1;
+    unsigned char emlmr : 1;
+    unsigned char reseverd2 : 4;
+    unsigned char reserved3[20];
+    unsigned char num_affiliated_ap;
+    em_affiliated_ap_mld_t affiliated_ap_mld[0];
+} __attribute__((__packed__)) em_ap_mld_t;
+
+typedef struct {
+    unsigned char num_ap_mld;
+    em_ap_mld_t ap_mld[0];
+} __attribute__((__packed__)) em_ap_mld_config_t;
 
 typedef struct {
     em_nonce_t  e_nonce;  
@@ -2117,6 +2178,7 @@ typedef enum {
     dm_orch_type_channel_sel_resp,
     dm_orch_type_sta_cap,
     dm_orch_type_sta_link_metrics,
+    dm_orch_type_op_channel_report,
 } dm_orch_type_t;
 
 typedef struct {
@@ -2159,6 +2221,11 @@ typedef struct{
     unsigned int num;
     em_op_class_info_t op_class_info[EM_MAX_OP_CLASS];
 }op_class_channel_sel;
+
+typedef struct {
+    mac_address_t   mac;
+    unsigned short  msg_id;
+} em_bus_event_type_channel_pref_query_params_t;
 
 typedef struct {
     mac_address_t   al;
@@ -2295,7 +2362,9 @@ typedef enum {
     tag_rsn_information = 48,
     tag_extended_supported_rates = 50,
     tag_supported_operating_classes = 59,
+    tag_rm_enabled_capability = 70,
     tag_extended_capabilities = 127,
+    tag_vht_capability = 191,
     tag_vendor_specific = 221,
 } tag_type_t;
 

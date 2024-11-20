@@ -44,7 +44,7 @@ em_cmd_set_channel_t::em_cmd_set_channel_t(em_cmd_params_t param, dm_easy_mesh_t
 {
     em_cmd_ctx_t ctx;;
 
-    m_type = em_cmd_type_set_ssid;
+    m_type = em_cmd_type_set_channel;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
 
     memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));

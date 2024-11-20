@@ -121,13 +121,19 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_agent_channel_pref_query);
             break;
 
-        case em_cmd_type_channel_sel_resp:
-            m_sm.set_state(em_state_agent_channel_sel_resp);
+        case em_cmd_type_op_channel_report:
+            m_sm.set_state(em_state_agent_channel_report_pending);
             break;
 
         case em_cmd_type_sta_link_metrics:
             set_state(em_state_ctrl_sta_link_metrics_pending);
 			break;
+
+        case em_cmd_type_set_channel:
+            m_sm.set_state(em_state_ctrl_channel_select_pending);
+            break;
+
+
     }
 }
 
@@ -228,8 +234,8 @@ void em_t::handle_agent_state()
             }
             break;
         case em_cmd_type_channel_pref_query:
-		case em_cmd_type_channel_sel_resp:
-                em_channel_t::process_state();
+        case em_cmd_type_op_channel_report:
+            em_channel_t::process_state();
             break;
         default:
             break;
@@ -256,6 +262,7 @@ void em_t::handle_ctrl_state()
             break;
 
         case em_cmd_type_em_config:
+        case em_cmd_type_set_channel:
             em_configuration_t::process_ctrl_state();
             em_channel_t::process_ctrl_state();
             break;

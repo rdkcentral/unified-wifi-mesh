@@ -32,6 +32,7 @@
 #include "dm_op_class.h"
 #include "dm_radio_cap.h"
 #include "dm_cac_comp.h"
+#include "dm_ap_mld.h"
 #include "webconfig_external_proto.h"
 
 class em_t;
@@ -57,10 +58,12 @@ public:
     hash_map_t      *m_sta_assoc_map = NULL;
     hash_map_t      *m_sta_dassoc_map = NULL;
     dm_cac_comp_t	m_cac_comp;
-    short           msg_id;
+    unsigned short           msg_id;
     unsigned int	m_db_cfg_type;
     em_t *m_em;
     bool    m_colocated;
+    unsigned int    m_num_ap_mld;
+    dm_ap_mld_t     m_ap_mld[EM_MAX_AP_MLD];
 
 public:
     int init();
@@ -158,6 +161,13 @@ public:
     dm_bss_t *get_bss_index(mac_address_t radio, mac_address_t bss, bool *new_bss);
     dm_bss_t& get_bss_by_ref(unsigned int index) { return m_bss[index]; }
 
+    unsigned int get_num_ap_mld() { return m_num_ap_mld; }
+    static unsigned int get_num_ap_mld(void *dm) { return ((dm_easy_mesh_t *)dm)->get_num_ap_mld(); }
+    void set_num_ap_mld(unsigned int num) { m_num_ap_mld = num; }
+    static void set_num_ap_mld(void *dm, unsigned int num) { ((dm_easy_mesh_t *)dm)->set_num_ap_mld(num); }
+    dm_ap_mld_t *get_ap_mld(unsigned int index) { return &m_ap_mld[index]; }
+    dm_ap_mld_t& get_ap_mld_by_ref(unsigned int index) { return m_ap_mld[index]; }
+
     dm_dpp_t *get_dpp() { return &m_dpp; }
 
     dm_radio_t *get_radio(unsigned int index);
@@ -182,7 +192,8 @@ public:
     char *get_serial_number() { return m_device.get_serial_number(); }
     char *get_primary_device_type() { return m_device.get_primary_device_type(); }
 
-    short   get_msg_id() { return msg_id;}
+    unsigned short get_msg_id() { return msg_id; }
+    unsigned short set_msg_id(unsigned short id) { msg_id = id; }
 
     void set_manufacturer(char *manufacturer) { m_device.set_manufacturer(manufacturer); }
     void set_manufacturer_model(char *model) { m_device.set_manufacturer_model(model); }

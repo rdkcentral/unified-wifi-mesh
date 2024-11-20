@@ -32,6 +32,8 @@ public:
     virtual em_state_t get_state() = 0;
     virtual void set_state(em_state_t state) = 0;
     virtual em_service_type_t get_service_type() = 0;
+    virtual em_device_info_t *get_device_info() = 0;
+    virtual em_cmd_t *get_current_cmd() = 0;
 
     short create_channel_pref_tlv(unsigned char *buff);
     short create_operating_channel_report_tlv(unsigned char *buff);
@@ -41,7 +43,7 @@ public:
     short create_channel_pref_tlv_agent(unsigned char *buff);
 
     int send_channel_sel_request_msg();
-    int send_channel_sel_response_msg(em_chan_sel_resp_code_type_t code);
+    int send_channel_sel_response_msg(em_chan_sel_resp_code_type_t code, unsigned short msg_id);
 	int send_operating_channel_report_msg();
 	int send_channel_pref_query_msg();
 	int send_channel_pref_report_msg();
@@ -52,6 +54,8 @@ public:
     int handle_operating_channel_rprt(unsigned char *buff, unsigned int len);
     int handle_channel_sel_req(unsigned char *buff, unsigned int len);
     int handle_channel_pref_tlv(unsigned char *buff, unsigned int len);
+    int handle_channel_pref_tlv_ctrl(unsigned char *buff, unsigned int len);
+    int handle_op_channel_report(unsigned char *buff, unsigned int len);
 
     int get_channel_pref_query_tx_count() { return m_channel_pref_query_tx_cnt; }
     void set_channel_pref_query_tx_count(unsigned int cnt) { m_channel_pref_query_tx_cnt = cnt; }

@@ -16,15 +16,28 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef EM_CMD_OP_CHANNEL_SEL_RESPONSE_H
-#define EM_CMD_OP_CHANNEL_SEL_RESPONSE_H
+#ifndef DM_AP_MLD_H
+#define DM_AP_MLD_H
 
-#include "em_cmd.h"
+#include "em_base.h"
 
-class em_cmd_channel_sel_resp_t : public em_cmd_t {
+class dm_ap_mld_t {
+public:
+    em_ap_mld_info_t    m_ap_mld_info;
 
 public:
-    em_cmd_channel_sel_resp_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+    int init() { memset(&m_ap_mld_info, 0, sizeof(em_ap_mld_info_t)); return 0; }
+    em_ap_mld_info_t *get_ap_mld_info() { return &m_ap_mld_info; }
+    int decode(const cJSON *obj, void *parent_id);
+    void encode(cJSON *obj);
+
+    bool operator == (const dm_ap_mld_t& obj);
+    void operator = (const dm_ap_mld_t& obj);
+
+    dm_ap_mld_t(em_ap_mld_info_t *ap_mld_info);
+    dm_ap_mld_t(const dm_ap_mld_t& ap_mld);
+    dm_ap_mld_t();
+    ~dm_ap_mld_t();
 };
 
 #endif

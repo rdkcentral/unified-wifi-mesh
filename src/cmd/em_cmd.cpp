@@ -555,6 +555,7 @@ const char *em_cmd_t::get_orch_op_str(dm_orch_type_t type)
         ORCH_TYPE_2S(dm_orch_type_channel_cnf)
         ORCH_TYPE_2S(dm_orch_type_sta_cap)
         ORCH_TYPE_2S(dm_orch_type_sta_link_metrics)
+        ORCH_TYPE_2S(dm_orch_type_op_channel_report)
     }
 
     return "dm_orch_type_unknown";
