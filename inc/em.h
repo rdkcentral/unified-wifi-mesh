@@ -132,6 +132,8 @@ public:
     short create_vht_tlv(unsigned char *buff);
     short create_he_tlv(unsigned char *buff);
     short create_wifi6_tlv(unsigned char *buff);
+    short create_wifi7_tlv(unsigned char *buff);
+    short create_eht_operations_tlv(unsigned char *buff);
     short create_channelscan_tlv(unsigned char *buff);
     short create_prof_2_tlv(unsigned char *buff);
     short create_device_inventory_tlv(unsigned char *buff);

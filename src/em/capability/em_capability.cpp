@@ -132,6 +132,24 @@ int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
     tmp += (sizeof(em_tlv_t) + sz);
     len += (sizeof(em_tlv_t) + sz);
 
+    // AP WiFi7 capabilities 17.2.95
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_wifi7_agent_cap;
+    sz = create_wifi7_tlv(tlv->value);
+    tlv->len = htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += (sizeof(em_tlv_t) + sz);
+
+    // AP EHT Operations 17.2.103
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_eht_operations;
+    sz = create_eht_operations_tlv(tlv->value);
+    tlv->len = htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += (sizeof(em_tlv_t) + sz);  
+
     // AP Channel Scan capabilities 17.2.38
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_channel_scan_cap;

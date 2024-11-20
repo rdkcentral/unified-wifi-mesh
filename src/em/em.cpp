@@ -604,6 +604,36 @@ short em_t::create_wifi6_tlv(unsigned char *buff)
     return len;
 }
 
+short em_t::create_wifi7_tlv(unsigned char *buff)
+{
+    short len = 0;
+    em_radio_cap_info_t* cap_info = get_data_model()->get_radio_cap(get_radio_interface_mac())->get_radio_cap_info();
+    em_wifi7_agent_cap_t *wifi7_cap = (em_wifi7_agent_cap_t *)buff;
+
+    if ((wifi7_cap == NULL) || (cap_info == NULL)) {
+        printf("%s:%d No data Found\n", __func__, __LINE__);
+        return 0;
+    }
+    memcpy(&wifi7_cap,&cap_info->wifi7_cap,sizeof(em_wifi7_agent_cap_t));
+    len = sizeof(em_wifi7_agent_cap_t);
+    return len;
+}
+
+short em_t::create_eht_operations_tlv(unsigned char *buff)
+{
+    short len = 0;
+    em_radio_cap_info_t* cap_info = get_data_model()->get_radio_cap(get_radio_interface_mac())->get_radio_cap_info();
+    em_eht_operations_t *eht_ops = (em_eht_operations_t *)buff;
+
+    if ((eht_ops == NULL) || (cap_info == NULL)) {
+        printf("%s:%d No data Found\n", __func__, __LINE__);
+        return 0;
+    }
+    memcpy(&eht_ops,&cap_info->eht_ops,sizeof(em_eht_operations_t));
+    len = sizeof(em_eht_operations_t);
+    return len;
+}
+
 short em_t::create_channelscan_tlv(unsigned char *buff)
 {
     short len = 0;
