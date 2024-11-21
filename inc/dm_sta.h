@@ -29,7 +29,7 @@ public:
     int init() { memset(&m_sta_info, 0, sizeof(em_sta_info_t)); return 0; }
     em_sta_info_t *get_sta_info() { return &m_sta_info; }
     int decode(const cJSON *obj, void *parent_id);
-    void encode(cJSON *obj, bool summary = false);
+    void encode(cJSON *obj, em_get_sta_list_reason_t reson = em_get_sta_list_reason_none);
 
     bool operator == (const dm_sta_t& obj);
     void operator = (const dm_sta_t& obj);

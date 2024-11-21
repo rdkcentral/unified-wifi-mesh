@@ -71,14 +71,45 @@ void em_ctrl_t::handle_client_steer(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_client_steer(evt, pcmd)) == 0) {
+    } else if ((num = m_data_model.analyze_command_steer(evt, pcmd)) == 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
         m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
-    } 
+    }
+}
 
+void em_ctrl_t::handle_client_disassoc(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+
+    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+    } else if ((num = m_data_model.analyze_command_disassoc(evt, pcmd)) == 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if (m_orch->submit_commands(pcmd, num) > 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_success);
+    } else {
+        m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+    }
+}
+
+void em_ctrl_t::handle_client_btm(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+
+    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+    } else if ((num = m_data_model.analyze_command_btm(evt, pcmd)) == 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if (m_orch->submit_commands(pcmd, num) > 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_success);
+    } else {
+        m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+    }
 }
 
 void em_ctrl_t::handle_start_dpp(em_bus_event_t *evt)
@@ -189,12 +220,12 @@ void em_ctrl_t::handle_get_dm_data(em_bus_event_t *evt)
     em_cmd_params_t *params = &evt->params;
         
     //em_cmd_t::dump_bus_event(evt);
-    if (params->num_args < 1) {
+    if (params->u.args.num_args < 1) {
         m_ctrl_cmd->send_result(em_cmd_out_status_invalid_input);
         return;
-    }       
-            
-    m_data_model.get_config(params->args[1], &evt->u.subdoc);
+    }
+
+    m_data_model.get_config(params->u.args.args[1], &evt->u.subdoc);
     m_ctrl_cmd->copy_bus_event(evt);
     m_ctrl_cmd->send_result(em_cmd_out_status_success);
 }        
@@ -356,6 +387,14 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
             handle_client_steer(evt);   
             break;
 
+        case em_bus_event_type_disassoc_sta:
+            handle_client_disassoc(evt);
+            break;
+
+        case em_bus_event_type_btm_sta:
+            handle_client_btm(evt);
+            break;
+
         case em_bus_event_type_dm_commit:
             handle_dm_commit(evt);
             break;
@@ -411,8 +450,8 @@ int em_ctrl_t::data_model_init(const char *data_model_path)
     if ((dm = get_data_model(global_netid, intf->mac)) == NULL) {
         printf("%s:%s:%d: Could not find data model for mac:%s\n", __FILE__, __func__, __LINE__, mac_str);
     } else {
-        printf("%s:%s:%d: Data model found, creating node for mac:%s\n", __FILE__, __func__, __LINE__, mac_str);
-        dm->print_config();
+        //printf("%s:%s:%d: Data model found, creating node for mac:%s\n", __FILE__, __func__, __LINE__, mac_str);
+            //dm->print_config();
 
         if ((em = create_node(intf, em_freq_band_unknown, dm, true, em_profile_type_3, em_service_type_ctrl)) == NULL) {
             printf("%s:%d: Could not create and start abstraction layer interface\n", __func__, __LINE__);
@@ -556,6 +595,8 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         case em_msg_type_channel_sel_req:
         case em_msg_type_client_cap_query:
         case em_msg_type_assoc_sta_link_metrics_query:
+        case em_msg_type_client_steering_req:
+        case em_msg_type_client_assoc_ctrl_req:
             break;
 
         default:

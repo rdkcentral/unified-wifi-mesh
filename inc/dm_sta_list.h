@@ -47,6 +47,7 @@ public:
     int set_config(db_client_t& db_client, const cJSON *obj, void *parent_id);
     int set_config(db_client_t& db_client, dm_sta_t& sta, void *parent_id);
     int get_config(cJSON *obj, void *parent_id, bool summary = false);
+    int get_config(cJSON *obj, void *parent_id, em_get_sta_list_reason_t reason);
 
     virtual dm_sta_t *get_first_sta() = 0;
     virtual dm_sta_t *get_next_sta(dm_sta_t *sta) = 0;

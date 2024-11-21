@@ -42,6 +42,11 @@
 
 int dm_sta_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 {
+    return 0;
+}
+
+int dm_sta_list_t::get_config(cJSON *obj_arr, void *parent, em_get_sta_list_reason_t reason)
+{
     dm_sta_t *sta;
     cJSON *obj, *akms_arr;
     mac_addr_str_t  mac_str;
@@ -57,7 +62,7 @@ int dm_sta_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
             continue;
         }
         obj = cJSON_CreateObject(); 
-        sta->encode(obj, summary);
+        sta->encode(obj, reason);
 
         cJSON_AddItemToArray(obj_arr, obj);
         sta = get_next_sta(sta);

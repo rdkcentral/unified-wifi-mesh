@@ -144,57 +144,86 @@ int dm_sta_t::decode(const cJSON *obj, void *parent_id)
 
 }
 
-void dm_sta_t::encode(cJSON *obj, bool summary)
+void dm_sta_t::encode(cJSON *obj, em_get_sta_list_reason_t reason)
 {
-    unsigned int i = 0;
     mac_addr_str_t  mac_str;
+    cJSON *reason_obj, *request_obj;
 
     dm_sta_t::decode_sta_capability(this);
     dm_easy_mesh_t::macbytes_to_string(m_sta_info.id, mac_str);
     cJSON_AddStringToObject(obj, "MACAddress", mac_str);
     cJSON_AddBoolToObject(obj, "Associated", m_sta_info.associated);
 
-    if (summary == true) {
-        return;
+    if (reason == em_get_sta_list_reason_none) {
+        cJSON_AddNumberToObject(obj, "LastDataUplinkRate", m_sta_info.last_ul_rate);
+        cJSON_AddStringToObject(obj, "TimeStamp", m_sta_info.timestamp);
+        cJSON_AddNumberToObject(obj, "EstMACDataRateUplink", m_sta_info.est_ul_rate);
+        cJSON_AddNumberToObject(obj, "LastConnectTime", m_sta_info.last_conn_time);
+        cJSON_AddNumberToObject(obj, "RetransCount", m_sta_info.retrans_count);
+        cJSON_AddNumberToObject(obj, "EstMACDataRateDownlink", m_sta_info.est_dl_rate);
+        cJSON_AddStringToObject(obj, "HTCapabilities", m_sta_info.ht_cap);
+        cJSON_AddNumberToObject(obj, "SignalStrength", m_sta_info.signal_strength);
+        cJSON_AddNumberToObject(obj, "UtilizationTransmit", m_sta_info.util_tx);
+        cJSON_AddStringToObject(obj, "VHTCapabilities", m_sta_info.vht_cap);
+        cJSON_AddStringToObject(obj, "HECapabilities", m_sta_info.he_cap);
+        cJSON_AddStringToObject(obj, "ClientCapabilities", m_sta_info.cap);
+        cJSON_AddNumberToObject(obj, "LastDataDownlinkRate", m_sta_info.last_dl_rate);
+        cJSON_AddNumberToObject(obj, "PacketsReceived", m_sta_info.pkts_rx);
+        cJSON_AddNumberToObject(obj, "UtilizationReceive", m_sta_info.util_rx);
+        cJSON_AddNumberToObject(obj, "BytesSent", m_sta_info.bytes_tx);
+        cJSON_AddNumberToObject(obj, "PacketsSent", m_sta_info.pkts_tx);
+        cJSON_AddNumberToObject(obj, "BytesReceived", m_sta_info.bytes_rx);
+        cJSON_AddNumberToObject(obj, "ErrorsSent", m_sta_info.errors_tx);
+        cJSON_AddNumberToObject(obj, "ErrorsReceived", m_sta_info.errors_rx);
+        cJSON_AddStringToObject(obj, "CellularDataPreference", m_sta_info.cellular_data_pref);
+        cJSON_AddStringToObject(obj, "ListenInterval", m_sta_info.listen_interval);
+        cJSON_AddStringToObject(obj, "SSID", m_sta_info.ssid);
+        cJSON_AddStringToObject(obj, "SupportedRates", m_sta_info.supp_rates);
+        cJSON_AddStringToObject(obj, "PowerCapability", m_sta_info.power_cap);
+        cJSON_AddStringToObject(obj, "SupportedChannels", m_sta_info.supp_channels);
+        cJSON_AddStringToObject(obj, "RSNInformation", m_sta_info.rsn_info);
+        cJSON_AddStringToObject(obj, "ExtendedSupportedRates", m_sta_info.ext_supp_rates);
+        cJSON_AddStringToObject(obj, "SupportedOperatingClasses", m_sta_info.supp_op_classes);
+        cJSON_AddStringToObject(obj, "ExtendedCapabilities", m_sta_info.ext_cap);
+        cJSON_AddStringToObject(obj, "RMEnabledCapabilities", m_sta_info.rm_cap);
+        cJSON *vendor_info = cJSON_CreateArray();
+        for (int i = 0; i < m_sta_info.num_vendor_infos; i++) {
+            cJSON *vendor = cJSON_CreateObject();
+            cJSON_AddStringToObject(vendor, "VendorInfo", m_sta_info.vendor_info[i]);
+            cJSON_AddItemToArray(vendor_info, vendor);
+        }
+        cJSON_AddItemToObject(obj, "VendorSpecific", vendor_info);
+    } else if (reason == em_get_sta_list_reason_steer) {
+        reason_obj = cJSON_CreateObject();
+        cJSON_AddItemToObject(obj, "ClientSteer", reason_obj);
+        cJSON_AddStringToObject(reason_obj, "TargetBSSID", "00:00:00:00:00:00");
+        request_obj = cJSON_CreateObject();
+        cJSON_AddItemToObject(reason_obj, "RequestMode", request_obj);
+        cJSON_AddNumberToObject(request_obj, "Steering_Opportunity", 0);
+        cJSON_AddNumberToObject(request_obj, "Steering_Mandate", 1);
+        cJSON_AddFalseToObject(reason_obj, "BTMDisassociationImminent");
+        cJSON_AddFalseToObject(reason_obj, "BTMAbridged");
+        cJSON_AddFalseToObject(reason_obj, "LinkRemovalImminent");
+        cJSON_AddNumberToObject(reason_obj, "SteeringOpportunityWindow", 1);
+        cJSON_AddNumberToObject(reason_obj, "BTMDisassociationTimer", 5);
+        cJSON_AddNumberToObject(reason_obj, "TargetBSSOperatingClass", 81);
+        cJSON_AddNumberToObject(reason_obj, "TargetBSSChannel", 6);
+    } else if (reason == em_get_sta_list_reason_disassoc) {
+        reason_obj = cJSON_CreateObject();
+        cJSON_AddItemToObject(obj, "Disassociate", reason_obj);
+        cJSON_AddNumberToObject(reason_obj, "DisassociationTimer", 0);
+        cJSON_AddNumberToObject(reason_obj, "ReasonCode", 0);
+        cJSON_AddFalseToObject(reason_obj, "Silent");
+    } else if (reason == em_get_sta_list_reason_btm) {
+        reason_obj = cJSON_CreateObject();
+        cJSON_AddItemToObject(obj, "BTMRequest", reason_obj);
+        cJSON_AddTrueToObject(reason_obj, "DisassociationImminent");
+        cJSON_AddNumberToObject(reason_obj, "DisassociationTimer", 0);
+        cJSON_AddNumberToObject(reason_obj, "BSSTerminationDuration", 0);
+        cJSON_AddNumberToObject(reason_obj, "ValidityInterval", 0);
+        cJSON_AddNumberToObject(reason_obj, "SteeringTimer", 0);
+        cJSON_AddStringToObject(reason_obj, "TargetBSS", "00:00:00:00:00:00");
     }
-    cJSON_AddNumberToObject(obj, "LastDataUplinkRate", m_sta_info.last_ul_rate);
-    cJSON_AddStringToObject(obj, "TimeStamp", m_sta_info.timestamp);
-    cJSON_AddNumberToObject(obj, "EstMACDataRateUplink", m_sta_info.est_ul_rate);
-    cJSON_AddNumberToObject(obj, "LastConnectTime", m_sta_info.last_conn_time);
-    cJSON_AddNumberToObject(obj, "RetransCount", m_sta_info.retrans_count);
-    cJSON_AddNumberToObject(obj, "EstMACDataRateDownlink", m_sta_info.est_dl_rate);
-    cJSON_AddStringToObject(obj, "HTCapabilities", m_sta_info.ht_cap);
-    cJSON_AddNumberToObject(obj, "SignalStrength", m_sta_info.signal_strength);
-    cJSON_AddNumberToObject(obj, "UtilizationTransmit", m_sta_info.util_tx);
-    cJSON_AddStringToObject(obj, "VHTCapabilities", m_sta_info.vht_cap);
-    cJSON_AddStringToObject(obj, "HECapabilities", m_sta_info.he_cap);
-    cJSON_AddStringToObject(obj, "ClientCapabilities", m_sta_info.cap);
-    cJSON_AddNumberToObject(obj, "LastDataDownlinkRate", m_sta_info.last_dl_rate);
-    cJSON_AddNumberToObject(obj, "PacketsReceived", m_sta_info.pkts_rx);
-    cJSON_AddNumberToObject(obj, "UtilizationReceive", m_sta_info.util_rx);
-    cJSON_AddNumberToObject(obj, "BytesSent", m_sta_info.bytes_tx);
-    cJSON_AddNumberToObject(obj, "PacketsSent", m_sta_info.pkts_tx);
-    cJSON_AddNumberToObject(obj, "BytesReceived", m_sta_info.bytes_rx);
-    cJSON_AddNumberToObject(obj, "ErrorsSent", m_sta_info.errors_tx);
-    cJSON_AddNumberToObject(obj, "ErrorsReceived", m_sta_info.errors_rx);
-    cJSON_AddStringToObject(obj, "CellularDataPreference", m_sta_info.cellular_data_pref);
-    cJSON_AddStringToObject(obj, "ListenInterval", m_sta_info.listen_interval);
-    cJSON_AddStringToObject(obj, "SSID", m_sta_info.ssid);
-    cJSON_AddStringToObject(obj, "SupportedRates", m_sta_info.supp_rates);
-    cJSON_AddStringToObject(obj, "PowerCapability", m_sta_info.power_cap);
-    cJSON_AddStringToObject(obj, "SupportedChannels", m_sta_info.supp_channels);
-    cJSON_AddStringToObject(obj, "RSNInformation", m_sta_info.rsn_info);
-    cJSON_AddStringToObject(obj, "ExtendedSupportedRates", m_sta_info.ext_supp_rates);
-    cJSON_AddStringToObject(obj, "SupportedOperatingClasses", m_sta_info.supp_op_classes);
-    cJSON_AddStringToObject(obj, "ExtendedCapabilities", m_sta_info.ext_cap);
-    cJSON_AddStringToObject(obj, "RMEnabledCapabilities", m_sta_info.rm_cap);
-    cJSON *vendor_info = cJSON_CreateArray();
-    for (i = 0; i < m_sta_info.num_vendor_infos; i++) {
-        cJSON *vendor = cJSON_CreateObject();
-        cJSON_AddStringToObject(vendor, "VendorInfo", m_sta_info.vendor_info[i]);
-        cJSON_AddItemToArray(vendor_info, vendor);
-    }
-    cJSON_AddItemToObject(obj, "VendorSpecific", vendor_info);
 }
 
 bool dm_sta_t::operator == (const dm_sta_t& obj)

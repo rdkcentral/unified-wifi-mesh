@@ -1850,11 +1850,11 @@ em_sta_info_t *dm_easy_mesh_t::get_sta_info(mac_address_t sta_mac, bssid_t bssid
     printf("\n%s:%d: key=%s\n", __func__, __LINE__,key);
     sta = (dm_sta_t *)hash_map_get(map, key);
     if (sta == NULL) {
-    printf("%s:%d: sta: %s not found in %s\n", __func__, __LINE__, sta_str, map_str);
-    return NULL;
-}
+        printf("%s:%d: sta: %s not found in %s\n", __func__, __LINE__, sta_str, map_str);
+        return NULL;
+    }
 
-return &sta->m_sta_info;
+    return &sta->m_sta_info;
 }
 
 void dm_easy_mesh_t::put_sta_info(em_sta_info_t *sta_info, em_target_sta_map_t target)

@@ -47,7 +47,7 @@ int em_cmd_t::edit_params_file()
     cJSON *obj;
 
 
-    snprintf(cmd, sizeof(em_long_string_t), "vi %s", m_param.fixed_args);
+    snprintf(cmd, sizeof(em_long_string_t), "vi %s", m_param.u.args.fixed_args);
     system(cmd);
 
     if (load_params_file(buff) < 0) {
@@ -102,8 +102,8 @@ int em_cmd_t::write_params_file(char *buff, const char *net_id, const char *head
 
 	cJSON_free(obj);
 
-    if ((fp = fopen(m_param.fixed_args, "w")) == NULL) {
-        printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, m_param.fixed_args, errno);
+    if ((fp = fopen(m_param.u.args.fixed_args, "w")) == NULL) {
+        printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, m_param.u.args.fixed_args, errno);
         return -1;
     } else {
         fputs(tmp, fp);
@@ -119,8 +119,8 @@ int em_cmd_t::load_params_file(char *buff)
     char tmp[1024];
     unsigned int sz = 0;
 
-    if ((fp = fopen(m_param.fixed_args, "r")) == NULL) {
-        printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, m_param.fixed_args, errno);
+    if ((fp = fopen(m_param.u.args.fixed_args, "r")) == NULL) {
+        printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, m_param.u.args.fixed_args, errno);
         return -1;
     } else {
 
@@ -398,6 +398,11 @@ void em_cmd_t::init()
             m_svc = em_service_type_ctrl;
             break;
 
+        case em_cmd_type_btm_sta:
+            snprintf(m_name, sizeof(m_name), "%s", "btm_sta");
+            m_svc = em_service_type_ctrl;
+            break;
+
         case em_cmd_type_dev_init:
             snprintf(m_name, sizeof(m_name), "%s", "dev_init");
             m_svc = em_service_type_agent;
@@ -458,6 +463,16 @@ void em_cmd_t::init()
             m_svc = em_service_type_ctrl;
             break;
 
+        case em_cmd_type_sta_steer:
+            strncpy(m_name, "sta_steer", strlen("sta_steer") + 1);
+            m_svc = em_service_type_ctrl;
+            break;
+
+        case em_cmd_type_sta_disassoc:
+            strncpy(m_name, "sta_disassoc", strlen("sta_disassoc") + 1);
+            m_svc = em_service_type_ctrl;
+            break;
+
         case em_cmd_type_em_config:
             strncpy(m_name, "em_config", strlen("em_config") + 1);
             m_svc = em_service_type_ctrl;
@@ -484,6 +499,8 @@ const char *em_cmd_t::get_bus_event_type_str(em_bus_event_type_t type)
     BUS_EVENT_TYPE_2S(em_bus_event_type_get_bss)
     BUS_EVENT_TYPE_2S(em_bus_event_type_get_sta)
     BUS_EVENT_TYPE_2S(em_bus_event_type_steer_sta)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_disassoc_sta)
+    BUS_EVENT_TYPE_2S(em_bus_event_type_btm_sta)
     BUS_EVENT_TYPE_2S(em_bus_event_type_start_dpp)
     BUS_EVENT_TYPE_2S(em_bus_event_type_dev_init)
     BUS_EVENT_TYPE_2S(em_bus_event_type_cfg_renew)
@@ -556,6 +573,8 @@ const char *em_cmd_t::get_orch_op_str(dm_orch_type_t type)
         ORCH_TYPE_2S(dm_orch_type_sta_cap)
         ORCH_TYPE_2S(dm_orch_type_sta_link_metrics)
         ORCH_TYPE_2S(dm_orch_type_op_channel_report)
+        ORCH_TYPE_2S(dm_orch_type_sta_steer)
+        ORCH_TYPE_2S(dm_orch_type_sta_disassoc)
     }
 
     return "dm_orch_type_unknown";
@@ -580,6 +599,7 @@ const char *em_cmd_t::get_cmd_type_str(em_cmd_type_t type)
         CMD_TYPE_2S(em_cmd_type_get_sta)
         CMD_TYPE_2S(em_cmd_type_steer_sta)
         CMD_TYPE_2S(em_cmd_type_disassoc_sta)
+        CMD_TYPE_2S(em_cmd_type_btm_sta)
         CMD_TYPE_2S(em_cmd_type_dev_init)
         CMD_TYPE_2S(em_cmd_type_dev_test)
         CMD_TYPE_2S(em_cmd_type_cfg_renew)
@@ -594,6 +614,8 @@ const char *em_cmd_t::get_cmd_type_str(em_cmd_type_t type)
         CMD_TYPE_2S(em_cmd_type_sta_assoc)
         CMD_TYPE_2S(em_cmd_type_channel_pref_query)
         CMD_TYPE_2S(em_cmd_type_sta_link_metrics)
+        CMD_TYPE_2S(em_cmd_type_sta_steer)
+        CMD_TYPE_2S(em_cmd_type_sta_disassoc)
     }
 
     return "em_cmd_type_unknown";
@@ -662,6 +684,10 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
 
         case em_bus_event_type_disassoc_sta:
             type = em_cmd_type_disassoc_sta;
+            break;
+
+        case em_bus_event_type_btm_sta:
+            type = em_cmd_type_btm_sta;
             break;
 
         case em_bus_event_type_dev_init:
@@ -753,9 +779,9 @@ void em_cmd_t::dump_bus_event(em_bus_event_t *evt)
             break;
     }
 
-    printf("Type: %s\tNumber of Command Parameters: %d\n", get_bus_event_type_str(evt->type), params->num_args);
-    for (i = 0; i < params->num_args; i++) {
-        printf("Arg[%d]: %s\n", i, params->args[i]);
+    printf("Type: %s\tNumber of Command Parameters: %d\n", get_bus_event_type_str(evt->type), params->u.args.num_args);
+    for (i = 0; i < params->u.args.num_args; i++) {
+        printf("Arg[%d]: %s\n", i, params->u.args.args[i]);
     }   
 }   
 

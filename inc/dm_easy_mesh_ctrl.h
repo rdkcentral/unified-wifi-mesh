@@ -66,7 +66,13 @@ public:
     int analyze_set_ssid(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_set_channel(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_dpp_start(em_bus_event_t *evt, em_cmd_t *cmd[]);
-    int analyze_client_steer(em_bus_event_t *evt, em_cmd_t *cmd[]);
+    int analyze_sta_steer(em_cmd_steer_params_t &params, em_cmd_t *cmd[]);
+    int analyze_sta_disassoc(em_cmd_disassoc_params_t &params, em_cmd_t *cmd[]);
+    int analyze_sta_disassoc(em_bus_event_t *evt, em_cmd_t *cmd[]);
+    int analyze_sta_btm(em_bus_event_t *evt, em_cmd_t *cmd[]);
+    int analyze_command_steer(em_bus_event_t *evt, em_cmd_t *cmd[]);
+    int analyze_command_disassoc(em_bus_event_t *evt, em_cmd_t *cmd[]);
+    int analyze_command_btm(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_reset(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_remove_device(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *cmd[]);
@@ -79,7 +85,7 @@ public:
     int analyze_client_metrics_req(em_cmd_t *cmd[]);
 
     int reset_config();
-    int get_sta_config(cJSON *parent, char *key);
+    int get_sta_config(cJSON *parent, char *key, em_get_sta_list_reason_t reason = em_get_sta_list_reason_none);
     int get_bss_config(cJSON *parent, char *key);
     int get_network_config(cJSON *parent, char *key);
     int get_device_config(cJSON *parent, char *key, bool summary = false);

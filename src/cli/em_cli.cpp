@@ -54,7 +54,6 @@ em_cmd_t& em_cli_t::get_command(char *in, size_t in_len)
     em_cmd_t	*cmd;
     em_long_string_t args[EM_CLI_MAX_ARGS];
 
-    in[strlen(in) - 1] = 0; // get rid of line feed
     memset(args[num_args], 0, sizeof(em_long_string_t));
     snprintf(args[num_args], sizeof(args[num_args]), "%s", in);
     tmp = args[num_args];
@@ -82,20 +81,40 @@ em_cmd_t& em_cli_t::get_command(char *in, size_t in_len)
         return em_cmd_cli_t::m_client_cmd_spec[em_cmd_type_none];;
     }
 
-    if (num_args != cmd->m_param.num_args) {
-        if ((cmd->get_type() == em_cmd_type_get_device) && ((num_args == cmd->m_param.num_args + 1))) {
-			strncat(cmd->m_param.fixed_args, "Summary", strlen("Summary"));
-		} else {
+    if (num_args != cmd->m_param.u.args.num_args) {
+        if ((num_args == cmd->m_param.u.args.num_args + 1)) {
+            switch (cmd->get_type()) {
+                case em_cmd_type_get_device:
+                    strncat(cmd->m_param.u.args.fixed_args, "Summary", strlen("Summary"));
+                    break;
+
+                case em_cmd_type_get_sta:
+                    if ((tmp = strstr(cmd->m_param.u.args.fixed_args, "Summary")) != NULL) {
+                        *tmp = 0;
+                    }
+                    if (strncmp(args[num_args - 1], "1", strlen("1")) == 0) {
+                        strncat(cmd->m_param.u.args.fixed_args, "Summary@Steer", strlen("Summary@Steer"));
+                    } else if (strncmp(args[num_args - 1], "2", strlen("2")) == 0) {
+                        strncat(cmd->m_param.u.args.fixed_args, "Summary@Disassociate", strlen("Summary@Disassociate"));
+                    } else if (strncmp(args[num_args - 1], "3", strlen("3")) == 0) {
+                        strncat(cmd->m_param.u.args.fixed_args, "Summary@BTM", strlen("Summary@BTM"));
+                    }
+                    break;
+
+                default:
+                    break;
+            }
+        } else {
             return em_cmd_cli_t::m_client_cmd_spec[em_cmd_type_none];;
         }
     } else {
-		if ((tmp = strstr(cmd->m_param.fixed_args, "Summary")) != NULL) {
-			*tmp = 0;
-		}
-	}
+        if ((tmp = strstr(cmd->m_param.u.args.fixed_args, "Summary")) != NULL) {
+            *tmp = 0;
+        }
+    }
     
     for (i = 0; i < num_args; i++) {
-        snprintf(cmd->m_param.args[i], sizeof(cmd->m_param.args[i]), "%s", args[i]);
+        snprintf(cmd->m_param.u.args.args[i], sizeof(cmd->m_param.u.args.args[i]), "%s", args[i]);
     }
 
     return em_cmd_cli_t::m_client_cmd_spec[idx];

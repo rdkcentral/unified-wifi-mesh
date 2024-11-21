@@ -70,6 +70,9 @@
 #define EM_MAX_RENEW_TX_THRESH  5
 #define EM_MAX_CAP_QUERY_TX_THRESH  2
 #define EM_MAX_TOPO_QUERY_TX_THRESH  5
+#define EM_MAX_CLIENT_STEER_REQ_TX_THRESH  5
+#define EM_MAX_CLIENT_ASSOC_CTRL_REQ_TX_THRESH  5
+#define MAX_STA_TO_DISASSOC		32
 
 
 #define EM_CLI_MAX_ARGS 5
@@ -675,11 +678,11 @@ typedef struct {
 }__attribute__((__packed__)) em_bh_steering_req_t;
 
 typedef struct {
-    unsigned char bssid[6];
+    bssid_t 	bssid;
     unsigned char assoc_control;
     unsigned short validity_period;
-    unsigned char sta_list_count;
-    mac_address_t sta_mac_addr;
+    unsigned char count;
+    mac_address_t sta_mac;
 }__attribute__((__packed__)) em_client_assoc_ctrl_req_t;
 
 typedef struct {
@@ -1693,6 +1696,8 @@ typedef enum {
     em_state_ctrl_sta_cap_pending,
     em_state_ctrl_sta_cap_confirmed,
     em_state_ctrl_sta_link_metrics_pending,
+    em_state_ctrl_sta_steer_pending,
+    em_state_ctrl_sta_disassoc_pending,
 
     em_state_max,
 } em_state_t;
@@ -1713,6 +1718,7 @@ typedef enum {
     em_cmd_type_get_sta,
     em_cmd_type_steer_sta,
     em_cmd_type_disassoc_sta,
+    em_cmd_type_btm_sta,
     em_cmd_type_dev_init,
     em_cmd_type_dev_test,
     em_cmd_type_cfg_renew,
@@ -1729,6 +1735,8 @@ typedef enum {
     em_cmd_type_channel_pref_query,
     em_cmd_type_sta_link_metrics,
     em_cmd_type_op_channel_report,
+    em_cmd_type_sta_steer,
+    em_cmd_type_sta_disassoc,
     em_cmd_type_max,
 } em_cmd_type_t;
 
@@ -2169,6 +2177,7 @@ typedef enum {
     em_bus_event_type_get_sta,
     em_bus_event_type_steer_sta,
     em_bus_event_type_disassoc_sta,
+    em_bus_event_type_btm_sta,
     em_bus_event_type_start_dpp,
     em_bus_event_type_dev_init,
     em_bus_event_type_cfg_renew,
@@ -2262,6 +2271,8 @@ typedef enum {
     dm_orch_type_sta_cap,
     dm_orch_type_sta_link_metrics,
     dm_orch_type_op_channel_report,
+    dm_orch_type_sta_steer,
+    dm_orch_type_sta_disassoc,
 } dm_orch_type_t;
 
 typedef struct {
@@ -2329,6 +2340,53 @@ typedef struct {
     unsigned int num_args;
     em_long_string_t args[EM_CLI_MAX_ARGS];
     em_long_string_t fixed_args;
+} em_cmd_args_t;
+
+typedef enum {
+    em_steering_opportunity_none,
+} em_steering_opportunity_t;
+
+typedef enum {
+    em_steering_mandate_none,
+} em_steering_mandate_t;
+
+typedef struct {
+    em_steering_opportunity_t	opportunity;
+    em_steering_mandate_t	mandate;
+} em_steer_req_mode_t;
+
+typedef struct {
+    mac_address_t	sta_mac;
+    bssid_t	source;
+    bssid_t	target;
+    em_steer_req_mode_t	request_mode;
+    bool	disassoc_imminent;
+    bool	btm_abridged;
+    bool	link_removal_imminent;
+    unsigned int	steer_opportunity_win;
+    unsigned int 	target_op_class;
+    unsigned int	target_channel;
+} em_cmd_steer_params_t;
+
+typedef struct {
+    mac_address_t	sta_mac;
+    bssid_t	bssid;
+    unsigned int disassoc_time;
+    unsigned int reason;
+    bool	silent;
+} em_disassoc_params_t;
+
+typedef struct {
+    unsigned int num;
+    em_disassoc_params_t	params[MAX_STA_TO_DISASSOC];
+} em_cmd_disassoc_params_t;
+
+typedef struct {
+    union {
+        em_cmd_args_t	args;
+        em_cmd_steer_params_t	steer_params;
+        em_cmd_disassoc_params_t	disassoc_params;
+    } u;
 } em_cmd_params_t;
 
 typedef struct {
@@ -2456,5 +2514,12 @@ typedef struct {
     unsigned char length;
     unsigned char value[0];
 } __attribute__((packed)) ieee80211_tagvalue_t;
+
+typedef enum {
+    em_get_sta_list_reason_none,
+    em_get_sta_list_reason_steer,
+    em_get_sta_list_reason_btm,
+    em_get_sta_list_reason_disassoc,
+} em_get_sta_list_reason_t;
 
 #endif // EM_BASE_H

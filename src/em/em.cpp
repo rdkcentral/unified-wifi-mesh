@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-    #include <stdio.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -133,7 +133,13 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_ctrl_channel_select_pending);
             break;
 
+        case em_cmd_type_sta_steer:
+            set_state(em_state_ctrl_sta_steer_pending);
+            break;
 
+        case em_cmd_type_sta_disassoc:
+            set_state(em_state_ctrl_sta_disassoc_pending);
+            break;
     }
 }
 
@@ -254,6 +260,8 @@ void em_t::handle_ctrl_state()
 
     assert(m_cmd != NULL);
 
+    //printf("%s:%d: Cmd: %s State: %s\n", __func__, __LINE__, 
+        //em_cmd_t::get_cmd_type_str(m_cmd->m_type), em_t::state_2_str(get_state()));
     cmd_type = m_cmd->m_type;
     switch (cmd_type) {
         case em_cmd_type_set_ssid:
@@ -278,6 +286,14 @@ void em_t::handle_ctrl_state()
         case em_cmd_type_sta_link_metrics:
             em_metrics_t::process_ctrl_state();
 			break;
+
+        case em_cmd_type_sta_steer:
+            em_steering_t::process_ctrl_state();
+            break;
+
+        case em_cmd_type_sta_disassoc:
+            em_steering_t::process_ctrl_state();
+            break;
     }
 }
 
@@ -476,6 +492,23 @@ void em_t::push_to_queue(em_event_t *evt)
 em_event_t *em_t::pop_from_queue()
 {
     return (em_event_t *)queue_pop(m_iq.queue);
+}
+
+dm_sta_t *em_t::find_sta(mac_address_t sta_mac, bssid_t bssid)
+{
+    dm_sta_t *sta;
+
+    sta = get_data_model()->find_sta(sta_mac, bssid);
+    if (sta == NULL) {
+        return NULL;
+    }
+
+    // the sta can be from a different radio
+    if (memcmp(sta->m_sta_info.radiomac, get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
+        return sta;
+    }
+
+    return NULL;
 }
 
 short em_t::create_ap_radio_basic_cap(unsigned char *buff) {
@@ -733,7 +766,7 @@ short em_t::create_cac_cap_tlv(unsigned char *buff)
 
 int em_t::init()
 {
-    m_data_model->print_config();
+    //m_data_model->print_config();
     m_data_model->set_em(this);
 
     if (is_al_interface_em() == true) {
@@ -786,6 +819,9 @@ const char *em_t::state_2_str(em_state_t state)
 		EM_STATE_2S(em_state_ctrl_misconfigured)
 		EM_STATE_2S(em_state_ctrl_sta_cap_pending)
 		EM_STATE_2S(em_state_ctrl_sta_cap_confirmed)
+		EM_STATE_2S(em_state_ctrl_sta_link_metrics_pending)
+		EM_STATE_2S(em_state_ctrl_sta_steer_pending)
+		EM_STATE_2S(em_state_ctrl_sta_disassoc_pending)
     }
 
     return "em_state_unknown";

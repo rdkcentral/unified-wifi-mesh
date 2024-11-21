@@ -51,6 +51,8 @@ public:
     void handle_event(em_event_t *evt);
     void handle_start_dpp(em_bus_event_t *evt);
     void handle_client_steer(em_bus_event_t *evt);
+    void handle_client_disassoc(em_bus_event_t *evt);
+    void handle_client_btm(em_bus_event_t *evt);
     void handle_set_ssid_list(em_bus_event_t *evt);
     void handle_remove_device(em_bus_event_t *evt);
     void handle_set_channel_list(em_bus_event_t *evt);
