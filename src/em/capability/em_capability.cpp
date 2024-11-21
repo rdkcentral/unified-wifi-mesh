@@ -250,8 +250,8 @@ int em_capability_t::send_client_cap_query()
     // One Client Info TLV (see section 17.2.18). 
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_client_info;
-    dm_easy_mesh_t::string_to_macbytes(evt_param->args[1], tlv->value);
-    dm_easy_mesh_t::string_to_macbytes(evt_param->args[2], tlv->value + sizeof(mac_address_t));
+    dm_easy_mesh_t::string_to_macbytes(evt_param->u.args.args[1], tlv->value);
+    dm_easy_mesh_t::string_to_macbytes(evt_param->u.args.args[2], tlv->value + sizeof(mac_address_t));
     tlv->len = htons(2*sizeof(mac_address_t));
 
     tmp += (sizeof(em_tlv_t) + 2*sizeof(mac_address_t));

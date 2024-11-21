@@ -23,10 +23,31 @@
 
 class em_steering_t {
 
-    virtual int send_frame(unsigned char *buff, unsigned int len, bool multicast = false) = 0;
+    unsigned int m_client_steering_req_tx_cnt;
+    unsigned int m_client_assoc_ctrl_req_tx_cnt;
+
+    int send_client_steering_req_msg();
+    int send_client_assoc_ctrl_req_msg();
+    int send_client_assoc_ctrl_req_msg(em_client_assoc_ctrl_req_t *assoc_ctrl);
+
 public:
+    virtual int send_frame(unsigned char *buff, unsigned int len, bool multicast = false) = 0;
+    virtual dm_easy_mesh_t *get_data_model() = 0;
+    virtual unsigned char *get_radio_interface_mac() = 0;
+    virtual em_state_t get_state() = 0;
+    virtual void set_state(em_state_t state) = 0;
+    virtual em_cmd_t *get_current_cmd() = 0;
+
+public:
+
+    int get_client_steering_req_tx_count() { return m_client_steering_req_tx_cnt; }
+    void set_client_steering_req_tx_count(unsigned int cnt) { m_client_steering_req_tx_cnt = cnt; }
+    int get_client_assoc_ctrl_req_tx_count() { return m_client_assoc_ctrl_req_tx_cnt; }
+    void set_client_assoc_ctrl_req_tx_count(unsigned int cnt) { m_client_assoc_ctrl_req_tx_cnt = cnt; }
+
     void    process_msg(unsigned char *data, unsigned int len);
     void    process_state();
+    void    process_ctrl_state();
 
     em_steering_t();
     ~em_steering_t();

@@ -276,12 +276,12 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                 }
                 break;
             case em_cmd_type_sta_list:
-                dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.args[0], radio_mac);
+                dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.u.args.args[0], radio_mac);
                 if (memcmp(radio_mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
                     break;
                 }
 
-                printf("%s:%d pcmd radio mac=%s\n", __func__, __LINE__, pcmd->m_param.args[0]);
+                printf("%s:%d pcmd radio mac=%s\n", __func__, __LINE__, pcmd->m_param.u.args.args[0]);
                 if ((hash_map_count(pcmd->get_data_model()->m_sta_assoc_map) != 0) || (hash_map_count(pcmd->get_data_model()->m_sta_dassoc_map) != 0)) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;

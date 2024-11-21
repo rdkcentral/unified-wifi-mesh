@@ -84,7 +84,7 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                 return true;
             } else if (em->get_state() == em_state_ctrl_channel_selected) {
                 return true;
-            } else if (em->get_state() == em_state_ctrl_channel_confirmed) {
+            } else if (em->get_state() == em_state_ctrl_configured) {
                 return true;
 			}
 			//printf("%s:%d: em not ready orchestration:%s(%s) because of incorrect state, state:%s\n", __func__, __LINE__,
@@ -111,6 +111,28 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             if (em->get_state() == em_state_ctrl_configured) {
                 return true;
             }
+            break;
+        case em_cmd_type_sta_steer:
+            if (em->get_client_steering_req_tx_count() >= EM_MAX_CLIENT_STEER_REQ_TX_THRESH) {
+                em->set_client_steering_req_tx_count(0);
+                em->set_state(em_state_ctrl_configured);
+                printf("%s:%d: Maximum client steering req threshold crossed, transitioning to fini\n", __func__, __LINE__);
+                return true;
+            } else if (em->get_state() == em_state_ctrl_configured) {
+                return true;
+            }
+            break;
+
+        case em_cmd_type_sta_disassoc:
+            if (em->get_client_assoc_ctrl_req_tx_count() >= EM_MAX_CLIENT_ASSOC_CTRL_REQ_TX_THRESH) {
+                em->set_client_assoc_ctrl_req_tx_count(0);
+                em->set_state(em_state_ctrl_configured);
+                printf("%s:%d: Maximum client assoc control req threshold crossed, transitioning to fini\n", __func__, __LINE__);
+                return true;
+            } else if (em->get_state() == em_state_ctrl_configured) {
+                return true;
+            }
+
             break;
     }
 
@@ -149,6 +171,8 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
             }
             break;
 
+        case em_cmd_type_sta_steer:
+        case em_cmd_type_sta_disassoc:
         case em_cmd_type_sta_link_metrics:
             if (em->get_state() == em_state_ctrl_configured) {
                 return true;
@@ -282,15 +306,15 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
     unsigned int count = 0, i;
     em_device_info_t *device ;
     mac_addr_str_t mac_str;
-
+    em_disassoc_params_t *disassoc_param;
+    dm_sta_t *sta;
 
     if (pcmd->m_type == em_cmd_type_em_config) {
-        em = (em_t *)hash_map_get(m_mgr->m_em_map, pcmd->m_param.args[0]);
+        em = (em_t *)hash_map_get(m_mgr->m_em_map, pcmd->m_param.u.args.args[0]);
         if (em != NULL) {
             queue_push(pcmd->m_em_candidates, em);
             count++;
         }
-
         return count;
     }
 
@@ -329,7 +353,7 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
 
             case em_cmd_type_sta_assoc:
                 dm = em->get_data_model();
-                dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.args[1], bss_mac);
+                dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.u.args.args[1], bss_mac);
                 //printf("%s:%d:BSS for this STA is %s\n", __func__, __LINE__, pcmd->m_param.args[1]);
                 for (i = 0; i < dm->m_num_bss; i++) {
                     if (memcmp(dm->m_bss[i].m_bss_info.bssid.mac, bss_mac, sizeof(mac_address_t)) == 0) {
@@ -340,9 +364,10 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                     }
                 }
                 break;
+
             case em_cmd_type_sta_link_metrics:
-                if ((em->is_al_interface_em() == false) && (em->get_state() == em_state_ctrl_configured)  &&
-                    (em->has_at_least_one_associated_sta() == true)) {
+                if ((em->is_al_interface_em() == false) && (em->get_state() == em_state_ctrl_configured)  && 
+                        (em->has_at_least_one_associated_sta() == true)) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }
@@ -356,6 +381,24 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                     count++;
                     dm_easy_mesh_t::macbytes_to_string(device->id.mac, mac_str);
                     printf("%s:%d:%s Channel change for device\n", __func__, __LINE__,mac_str);
+                }
+                break;
+
+            case em_cmd_type_sta_steer:
+                if (em->find_sta(pcmd->m_param.u.steer_params.sta_mac, pcmd->m_param.u.steer_params.source) != NULL) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
+                }
+                break;
+
+            case em_cmd_type_sta_disassoc:
+                dm = pcmd->get_data_model();
+                for (i = 0; i < pcmd->m_param.u.disassoc_params.num; i++) {
+                    disassoc_param = &pcmd->m_param.u.disassoc_params.params[i];
+                    if ((sta = em->find_sta(disassoc_param->sta_mac, disassoc_param->bssid)) != NULL) {
+                        queue_push(pcmd->m_em_candidates, em);
+                        count++;
+                    }
                 }
                 break;
 
