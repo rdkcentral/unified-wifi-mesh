@@ -94,8 +94,9 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 
         case em_cmd_type_em_config:
-            printf("%s:%d: %s(%s) state: 0x%04x\n", __func__, __LINE__,
-                    em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), get_state());
+            printf("%s:%d: %s(%s) state: %s\n", __func__, __LINE__,
+                    em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
+					em_t::state_2_str(get_state()));
             if ((pcmd->get_orch_op() == dm_orch_type_topo_sync) && (m_sm.get_state() == em_state_ctrl_wsc_m2_sent)) {
                 m_sm.set_state(em_state_ctrl_topo_sync_pending);
             } else if ((pcmd->get_orch_op() == dm_orch_type_channel_pref) && (m_sm.get_state() == em_state_ctrl_topo_synchronized)) {
@@ -814,7 +815,6 @@ const char *em_t::state_2_str(em_state_t state)
 		EM_STATE_2S(em_state_ctrl_channel_selected)
 		EM_STATE_2S(em_state_ctrl_channel_report_pending)
 		EM_STATE_2S(em_state_ctrl_channel_cnf_pending)
-		EM_STATE_2S(em_state_ctrl_channel_confirmed)
 		EM_STATE_2S(em_state_ctrl_configured)
 		EM_STATE_2S(em_state_ctrl_misconfigured)
 		EM_STATE_2S(em_state_ctrl_sta_cap_pending)

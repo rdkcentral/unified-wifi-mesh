@@ -66,7 +66,8 @@
 #define EM_BUFF_SZ_MUL  20
 #define EM_SUBDOC_BUFF_SZ   EM_IO_BUFF_SZ*EM_BUFF_SZ_MUL
 #define EM_MAX_NON_OP_CHANNELS  16
-#define EM_MAX_CMD_TTL  10
+#define EM_MAX_CMD_GEN_TTL  10
+#define EM_MAX_CMD_EXT_TTL  30
 #define EM_MAX_RENEW_TX_THRESH  5
 #define EM_MAX_CAP_QUERY_TX_THRESH  2
 #define EM_MAX_TOPO_QUERY_TX_THRESH  5
@@ -1689,7 +1690,6 @@ typedef enum {
 	em_state_ctrl_channel_select_pending,
     em_state_ctrl_channel_selected,
     em_state_ctrl_channel_cnf_pending,
-    em_state_ctrl_channel_confirmed,
     em_state_ctrl_channel_report_pending,
     em_state_ctrl_configured,
     em_state_ctrl_misconfigured,

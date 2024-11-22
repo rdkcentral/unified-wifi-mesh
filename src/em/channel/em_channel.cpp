@@ -980,7 +980,7 @@ int em_channel_t::handle_operating_channel_rprt(unsigned char *buff, unsigned in
         tlv_len -= (sizeof(em_tlv_t) + htons(tlv->len));
         tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
     }
-    set_state(em_state_ctrl_channel_confirmed);
+    set_state(em_state_ctrl_configured);
 
 }
 
