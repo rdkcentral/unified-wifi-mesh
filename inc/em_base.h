@@ -52,6 +52,7 @@
 #define EM_MAX_BSS_PER_RADIO           16
 #define EM_MAX_RADIO_PER_AGENT         4
 #define EM_MAX_TRAFFIC_SEP_SSID        8
+#define EM_MAX_FREQ_RECORDS_PER_RADIO  8
 #define EM_MAX_CHANNELS   30
 #define MAP_INVENTORY_ITEM_LEN  64
 #define MAX_MCS  6
@@ -527,8 +528,10 @@ typedef enum {
     em_tlv_type_qos_mgmt_policy = 0xdb,
     em_tlv_type_qos_mgmt_desc = 0xdc,
     em_tlv_type_ctrl_cap = 0xdd,
+    em_tlv_type_wifi7_agent_cap = 0xdf,
     em_tlv_type_ap_mld_config = 0xe0,
     em_tlv_type_bsta_mld_config = 0xe1,
+    em_tlv_eht_operations = 0xe7,
 } em_tlv_type_t;
 
 typedef struct {
@@ -1357,6 +1360,84 @@ typedef struct {
 } __attribute__((__packed__))em_ap_wifi6_cap_t;
 
 typedef struct {
+    em_radio_id_t ruid;
+    unsigned char freq_sep : 5;
+    unsigned char reserved : 3;
+} __attribute__((__packed__)) em_radio_wifi7_freq_record_t;
+
+typedef struct {
+    unsigned char num_records;
+    em_radio_wifi7_freq_record_t records[EM_MAX_FREQ_RECORDS_PER_RADIO];
+} __attribute__((__packed__)) em_radio_wifi7_freq_records_t;
+
+typedef struct {
+    unsigned char max_num_mlds;
+    unsigned char ap_max_links : 4;
+    unsigned char bsta_max_links : 4;
+    unsigned char tid_link_mapping_cap : 2;
+    unsigned char reserved1 : 6;
+    unsigned char reserved2[13];
+} __attribute__((__packed__)) em_radio_wifi7_cap_data_t;
+
+typedef struct {
+    em_radio_id_t ruid;
+    unsigned char reserved3[24];
+    unsigned char ap_str_support : 1;
+    unsigned char ap_nstr_support : 1;
+    unsigned char ap_emlsr_support : 1;
+    unsigned char ap_emlmr_support : 1;
+    unsigned char reserved4 : 4;
+    unsigned char bsta_str_support : 1;
+    unsigned char bsta_nstr_support : 1;
+    unsigned char bsta_emlrs_support : 1;
+    unsigned char bsta_emlmr_support : 1;
+    unsigned char reserved5 : 4;
+    em_radio_wifi7_freq_records_t ap_str;
+    em_radio_wifi7_freq_records_t ap_nstr;
+    em_radio_wifi7_freq_records_t ap_emlsr;
+    em_radio_wifi7_freq_records_t ap_emlmr;
+    em_radio_wifi7_freq_records_t bsta_str;
+    em_radio_wifi7_freq_records_t bsta_nstr;
+    em_radio_wifi7_freq_records_t bsta_emlsr;
+    em_radio_wifi7_freq_records_t bsta_emlmr;
+} __attribute__((__packed__)) em_radio_wifi7_radio_t;
+
+typedef struct {
+    em_radio_wifi7_cap_data_t cap_data;
+    unsigned char radios_num;
+    em_radio_wifi7_radio_t radios[EM_MAX_RADIO_PER_AGENT];
+} __attribute__((__packed__)) em_wifi7_agent_cap_t;
+
+typedef struct {
+    mac_address_t bssid;
+    unsigned char op_info_valid : 1;
+    unsigned char disabled_subchannel_valid : 1;
+    unsigned char default_pe_duration : 1;
+    unsigned char group_addr_bu_ind_limit : 1;
+    unsigned char group_addr_bu_ind_exp : 2;
+    unsigned char reserved1 : 2;
+    unsigned char eht_msc_nss_set[4];
+    unsigned char control;
+    unsigned char ccfs0;
+    unsigned char ccfs1;
+    unsigned char disabled_subchannel_bitmap[2];
+    unsigned char reserved2[16];
+} __attribute__((__packed__)) em_eht_operations_bss_t;
+
+typedef struct {
+    em_radio_id_t ruid;
+    unsigned char bss_num;
+    em_eht_operations_bss_t bss[EM_MAX_BSS_PER_RADIO];
+    unsigned char reserved[25];
+} __attribute__((__packed__)) em_eht_operations_radio_t;
+
+typedef struct {
+    unsigned char reserved[32];
+    unsigned char radios_num;
+    em_eht_operations_radio_t radios[EM_MAX_RADIO_PER_AGENT];
+} __attribute__((__packed__)) em_eht_operations_t;
+
+typedef struct {
     em_radio_id_t  ruid;
     unsigned char  boot_only : 1;
     unsigned char  scan_impact : 2;
@@ -1887,6 +1968,7 @@ typedef struct {
     em_long_string_t    vht_cap;
     em_long_string_t    he_cap;
     em_long_string_t    wifi6_cap;
+    em_long_string_t    wifi7_cap;
     em_long_string_t    cellular_data_pref;
     em_long_string_t    listen_interval;
     em_long_string_t    ssid;
@@ -1992,6 +2074,8 @@ typedef struct {
     em_ap_he_cap_t  he_cap;
     em_long_string_t    eht_cap;
     em_radio_wifi6_cap_data_t wifi6_cap;
+    em_wifi7_agent_cap_t wifi7_cap;
+    em_eht_operations_t eht_ops;
     em_radio_info_t ch_scan;
     em_ap_radio_advanced_cap_t radio_ad_cap;
     em_profile_2_ap_cap_t   prof_2_ap_cap;
