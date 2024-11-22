@@ -49,10 +49,22 @@ void em_orch_ctrl_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 
     stats = (em_cmd_stats_t *)hash_map_get(m_cmd_map, key);
     assert(stats != NULL);
-    if (stats->time > EM_MAX_CMD_TTL) {
-        printf("%s:%d: Canceling comd: %s because time limit exceeded\n", __func__, __LINE__, pcmd->get_cmd_name());
-        cancel_command(pcmd->get_type());
-    }   
+	
+	switch (pcmd->m_type) {
+		case em_cmd_type_em_config:
+    		if (stats->time > (EM_MAX_CMD_GEN_TTL + EM_MAX_CMD_EXT_TTL)) {
+        		printf("%s:%d: Canceling cmd: %s because time limit exceeded\n", __func__, __LINE__, pcmd->get_cmd_name());
+        		cancel_command(pcmd->get_type());
+    		}
+			break;
+
+		default:
+    		if (stats->time > EM_MAX_CMD_GEN_TTL) {
+        		printf("%s:%d: Canceling cmd: %s because time limit exceeded\n", __func__, __LINE__, pcmd->get_cmd_name());
+        		cancel_command(pcmd->get_type());
+    		}
+			break;   
+	}
 
 }
 
@@ -87,13 +99,14 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             } else if (em->get_state() == em_state_ctrl_configured) {
                 return true;
 			}
-			//printf("%s:%d: em not ready orchestration:%s(%s) because of incorrect state, state:%s\n", __func__, __LINE__,
-                    //em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
-					//em_t::state_2_str(em->get_state()));
+			printf("%s:%d: em not ready orchestration:%s(%s) because of incorrect state, state:%s\n", __func__, __LINE__,
+                    em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
+					em_t::state_2_str(em->get_state()));
             break;
         
         case em_cmd_type_set_channel:
-            if (em->get_state() == em_state_ctrl_channel_confirmed) {                               return true;
+            if (em->get_state() == em_state_ctrl_configured) {                               
+				return true;
             }
             break;
 
