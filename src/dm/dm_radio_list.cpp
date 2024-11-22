@@ -49,50 +49,22 @@ int dm_radio_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
     mac_address_t	dev_mac;
 
     dm_easy_mesh_t::string_to_macbytes(dev_mac_str, dev_mac);
-	
+
     pradio = get_first_radio();
     while (pradio != NULL) {
         dm_easy_mesh_t::macbytes_to_string(pradio->m_radio_info.id.mac, mac_str);
-	if (memcmp(dev_mac, pradio->m_radio_info.dev_id, sizeof(mac_address_t)) != 0) {
+        if (memcmp(dev_mac, pradio->m_radio_info.dev_id, sizeof(mac_address_t)) != 0) {
             dm_easy_mesh_t::macbytes_to_string(pradio->m_radio_info.dev_id, mac_str);
-	    pradio = get_next_radio(pradio);
-	    continue;
-	}
-       	obj = cJSON_CreateObject(); 
-
-	dm_easy_mesh_t::macbytes_to_string(pradio->m_radio_info.id.mac, mac_str);
-	cJSON_AddStringToObject(obj, "ID", mac_str);
-
-        if (summary == true) {
-            cJSON_AddItemToArray(obj_arr, obj);
             pradio = get_next_radio(pradio);
             continue;
-	}
+        }
+        obj = cJSON_CreateObject();
 
-	cJSON_AddBoolToObject(obj, "Enabled", pradio->m_radio_info.enabled);
-    cJSON_AddNumberToObject(obj, "NumberOfBSS", pradio->m_radio_info.number_of_bss);
-    cJSON_AddNumberToObject(obj, "NumberOfUnassocSta", pradio->m_radio_info.number_of_unassoc_sta);
-	cJSON_AddNumberToObject(obj, "Noise", pradio->m_radio_info.noise);
-	cJSON_AddNumberToObject(obj, "Utilization", pradio->m_radio_info.utilization);
-	cJSON_AddBoolToObject(obj, "TrafficSeparationCombinedFronthaul", pradio->m_radio_info.traffic_sep_combined_fronthaul);
-	cJSON_AddBoolToObject(obj, "TrafficSeparationCombinedBackhaul", pradio->m_radio_info.traffic_sep_combined_backhaul);
-	cJSON_AddNumberToObject(obj, "SteeringPolicy", pradio->m_radio_info.steering_policy);
-	cJSON_AddNumberToObject(obj, "ChannelUtilizationThreshold", pradio->m_radio_info.channel_util_threshold);
-	cJSON_AddNumberToObject(obj, "RCPISteeringThreshold", pradio->m_radio_info.rcpi_steering_threshold);
-	cJSON_AddNumberToObject(obj, "STAReportingRCPIThreshold", pradio->m_radio_info.sta_reporting_rcpi_threshold);
-	cJSON_AddNumberToObject(obj, "STAReportingRCPIHysteresisMarginOverride", pradio->m_radio_info.sta_reporting_hysteresis_margin_override);
-	cJSON_AddNumberToObject(obj, "ChannelUtilizationReportingThreshold", pradio->m_radio_info.channel_utilization_reporting_threshold);
-	cJSON_AddBoolToObject(obj, "AssociatedSTATrafficStatsInclusionPolicy", pradio->m_radio_info.associated_sta_traffic_stats_inclusion_policy);
-	cJSON_AddBoolToObject(obj, "AssociatedSTALinkMetricsInclusionPolicy", pradio->m_radio_info.associated_sta_link_mterics_inclusion_policy);
-			
-	cJSON_AddStringToObject(obj, "ChipsetVendor", pradio->m_radio_info.chip_vendor);
-
-	
-	cJSON_AddItemToArray(obj_arr, obj);
-	pradio = get_next_radio(pradio);
+        pradio->encode(obj, summary);
+        cJSON_AddItemToArray(obj_arr, obj);
+        pradio = get_next_radio(pradio);
     }
-    
-	
+
     return 0;
 }
 

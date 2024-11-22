@@ -53,7 +53,7 @@ public:
 
     em_cmd_type_t get_type() { return m_type; }
     const char *get_cmd_name() { return m_name; }
-    const char *get_arg() { return m_param.fixed_args; }
+    const char *get_arg() { return m_param.u.args.fixed_args; }
     em_service_type_t get_svc() { return m_svc; }
     em_event_t *get_event() { return &m_evt; }
     em_cmd_params_t *get_param() { return &m_param; }

@@ -49,6 +49,8 @@
 #include "em_cmd_cfg_renew.h"
 #include "em_cmd_sta_assoc.h"
 #include "em_cmd_sta_link_metrics.h"
+#include "em_cmd_sta_steer.h"
+#include "em_cmd_sta_disassoc.h"
 
 extern char *global_netid;
 
@@ -85,8 +87,8 @@ int dm_easy_mesh_ctrl_t::analyze_config_renew(em_bus_event_t *evt, em_cmd_t *pcm
 
     evt_param = &evt->params;
 
-    evt_param->num_args = 1;
-    strncpy(evt_param->args[0], radio_str, strlen(radio_str) + 1);
+    evt_param->u.args.num_args = 1;
+    strncpy(evt_param->u.args.args[0], radio_str, strlen(radio_str) + 1);
     pcmd[num] = new em_cmd_cfg_renew_t(em_service_type_ctrl, evt->params, dm);
     tmp = pcmd[num];
     num++;
@@ -119,17 +121,17 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     dm_easy_mesh_t::macbytes_to_string(params->assoc.cli_mac_address, sta_mac_str);
     dm_easy_mesh_t::macbytes_to_string(params->assoc.bssid, bss_mac_str);
     
-	//printf("%s:%d: Client:%s %s BSS: %s of Device: %s\n", __func__, __LINE__,
+    //printf("%s:%d: Client:%s %s BSS: %s of Device: %s\n", __func__, __LINE__,
         //sta_mac_str, (params->assoc.assoc_event == 1)?"associated with":"disassociated from", bss_mac_str, dev_mac_str);
 
     evt_param = &evt->params;
 
-    evt_param->num_args = 4;
-    strncpy(evt_param->args[0], dev_mac_str, strlen(dev_mac_str) + 1);
-    strncpy(evt_param->args[1], bss_mac_str, strlen(bss_mac_str) + 1);
-    strncpy(evt_param->args[2], sta_mac_str, strlen(sta_mac_str) + 1);
+    evt_param->u.args.num_args = 4;
+    strncpy(evt_param->u.args.args[0], dev_mac_str, strlen(dev_mac_str) + 1);
+    strncpy(evt_param->u.args.args[1], bss_mac_str, strlen(bss_mac_str) + 1);
+    strncpy(evt_param->u.args.args[2], sta_mac_str, strlen(sta_mac_str) + 1);
     len = (params->assoc.assoc_event == 1)?strlen("Assoc") + 1:strlen("Disassoc") + 1;
-    strncpy(evt_param->args[3], (params->assoc.assoc_event == 1)?"Assoc":"Disassoc", len);
+    strncpy(evt_param->u.args.args[3], (params->assoc.assoc_event == 1)?"Assoc":"Disassoc", len);
     pdm = get_data_model(global_netid, params->dev);
     if (pdm == NULL) {
         printf("%s:%d: Could not find data model for dev: %s\n", __func__, __LINE__, dev_mac_str);
@@ -196,9 +198,9 @@ int dm_easy_mesh_ctrl_t::analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *pcmd[])
 
     evt_param = &evt->params;
 
-    evt_param->num_args = 2;
-    strncpy(evt_param->args[0], radio_str, strlen(radio_str) + 1);
-    strncpy(evt_param->args[1], al_str, strlen(al_str) + 1);
+    evt_param->u.args.num_args = 2;
+    strncpy(evt_param->u.args.args[0], radio_str, strlen(radio_str) + 1);
+    strncpy(evt_param->u.args.args[1], al_str, strlen(al_str) + 1);
     pcmd[num] = new em_cmd_em_config_t(evt->params, dm);
     tmp = pcmd[num];
     num++;
@@ -221,7 +223,7 @@ int dm_easy_mesh_ctrl_t::analyze_dev_test(em_bus_event_t *evt, em_cmd_t *pcmd[])
     subdoc = &evt->u.subdoc;
 
     dm.decode_config(subdoc, "Test");
-    dm.print_config();
+    //dm.print_config();
 
     dm.set_db_cfg_type(db_cfg_type_device_list_update | db_cfg_type_radio_list_update |
                         db_cfg_type_bss_list_update | db_cfg_type_op_class_list_update);
@@ -250,7 +252,7 @@ int dm_easy_mesh_ctrl_t::analyze_reset(em_bus_event_t *evt, em_cmd_t *pcmd[])
     subdoc = &evt->u.subdoc;
 
     dm.decode_config(subdoc, "Reset");
-    dm.print_config();
+    //dm.print_config();
 
     dm.set_db_cfg_type(db_cfg_type_network_list_update | db_cfg_type_network_ssid_list_update);
 
@@ -262,19 +264,258 @@ int dm_easy_mesh_ctrl_t::analyze_reset(em_bus_event_t *evt, em_cmd_t *pcmd[])
 		tmp = pcmd[num];
 		num++;
     }
-    printf("%s:%d: Number of commands:%d\n", __func__, __LINE__, num);
 
     return num;
 
 }
 
-
-int dm_easy_mesh_ctrl_t::analyze_client_steer(em_bus_event_t *evt, em_cmd_t *cmd[])
+int dm_easy_mesh_ctrl_t::analyze_sta_steer(em_cmd_steer_params_t &params, em_cmd_t *pcmd[])
 {
-    cJSON *obj, *steer_obj;
+    int num = 0;
+    em_cmd_t *tmp;
+
+    pcmd[num] = new em_cmd_sta_steer_t(params);
+    tmp = pcmd[num];
+    num++;
+
+    while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+        tmp = pcmd[num];
+        num++;
+    }
+
+    return num;
+}
+
+int dm_easy_mesh_ctrl_t::analyze_command_steer(em_bus_event_t *evt, em_cmd_t *cmd[])
+{
+    cJSON *obj, *wfa_obj, *net_obj, *dev_list_obj, *dev_obj;
+    cJSON *radio_list_obj, *radio_obj, *bss_list_obj, *bss_obj, *bss_id_obj;
+    cJSON *sta_list_obj, *sta_obj, *sta_mac_obj, *assoc_obj, *steer_obj;
+    cJSON *target_obj, *request_mode_obj, *imminent_obj, *bridged_obj;
+    cJSON *link_obj, *opportunity_obj, *timer_obj, *op_class_obj, *channel_obj;
+    unsigned int num = 0;
+    em_subdoc_info_t *subdoc;
+    unsigned int i, j, k, l;
+    em_long_string_t wfa;
+    em_cmd_steer_params_t	steer_param;
+
+    subdoc = &evt->u.subdoc;
+    obj = cJSON_Parse(subdoc->buff);
+    if (obj == NULL) {
+        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        return 0;
+    }
+
+    snprintf(wfa, sizeof(wfa), "wfa-dataelements:ClientSteer");
+
+    if ((wfa_obj = cJSON_GetObjectItem(obj, wfa)) == NULL) {
+        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        cJSON_free(obj);
+        return 0;
+    }
+
+    if ((net_obj = cJSON_GetObjectItem(wfa_obj, "Network")) == NULL) {
+        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        cJSON_free(obj);
+        return 0;
+    }
+
+    if ((dev_list_obj = cJSON_GetObjectItem(net_obj, "DeviceList")) == NULL) {
+        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        cJSON_free(obj);
+        return 0;
+    }
+
+    for (i = 0; i < cJSON_GetArraySize(dev_list_obj); i++) {
+        dev_obj = cJSON_GetArrayItem(dev_list_obj, i);
+        if ((radio_list_obj = cJSON_GetObjectItem(dev_obj, "RadioList")) == NULL) {
+            continue;
+        }
+
+        for (j = 0; j < cJSON_GetArraySize(radio_list_obj); j++) {
+            radio_obj = cJSON_GetArrayItem(radio_list_obj, j);
+
+            if ((bss_list_obj = cJSON_GetObjectItem(radio_obj, "BSSList")) == NULL) {
+                continue;
+            }
+
+            for (k = 0; k < cJSON_GetArraySize(bss_list_obj); k++) {
+                bss_obj = cJSON_GetArrayItem(bss_list_obj, k);
+                bss_id_obj = cJSON_GetObjectItem(bss_obj, "BSSID");
+
+                if ((sta_list_obj = cJSON_GetObjectItem(bss_obj, "STAList")) == NULL) {
+                    continue;
+                }
+
+                for (l = 0; l < cJSON_GetArraySize(sta_list_obj); l++) {
+                    sta_obj = cJSON_GetArrayItem(sta_list_obj, l);
+                    memset(&steer_param, 0, sizeof(em_cmd_steer_params_t));
+
+                    if ((sta_mac_obj = cJSON_GetObjectItem(sta_obj, "MACAddress")) == NULL) {
+                        continue;
+                    }
+                    if ((assoc_obj = cJSON_GetObjectItem(sta_obj, "Associated")) == NULL) {
+                        continue;
+                    }
+
+                    if ((steer_obj = cJSON_GetObjectItem(sta_obj, "ClientSteer")) == NULL) {
+                        continue;
+                    }
+
+                    dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(sta_mac_obj), steer_param.sta_mac);
+                    dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(bss_id_obj), steer_param.source);
+                    target_obj = cJSON_GetObjectItem(steer_obj, "TargetBSSID");
+                    dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(target_obj), steer_param.target);
+                    request_mode_obj = cJSON_GetObjectItem(steer_obj, "RequestMode");
+
+                    imminent_obj = cJSON_GetObjectItem(steer_obj, "BTMDisassociationImminent");
+                    steer_param.disassoc_imminent = (cJSON_IsTrue(imminent_obj) == true) ? true:false;
+                    bridged_obj = cJSON_GetObjectItem(steer_obj, "BTMAbridged");
+                    steer_param.btm_abridged = (cJSON_IsTrue(bridged_obj) == true) ? true:false;
+                    link_obj = cJSON_GetObjectItem(steer_obj, "LinkRemovalImminent");
+                    steer_param.link_removal_imminent = (cJSON_IsTrue(link_obj) == true) ? true:false;
+                    opportunity_obj = cJSON_GetObjectItem(steer_obj, "SteeringOpportunityWindow");
+                    steer_param.steer_opportunity_win = cJSON_GetNumberValue(opportunity_obj);
+                    op_class_obj = cJSON_GetObjectItem(steer_obj, "TargetBSSOperatingClass");
+                    steer_param.target_op_class = cJSON_GetNumberValue(op_class_obj);
+                    channel_obj = cJSON_GetObjectItem(steer_obj, "TargetBSSChannel");
+                    steer_param.target_channel = cJSON_GetNumberValue(channel_obj);
+
+                    num += analyze_sta_steer(steer_param, cmd);
+                }
+            }
+        }
+    }
+    cJSON_free(obj);
+
+    return num;
+}
+
+int dm_easy_mesh_ctrl_t::analyze_sta_disassoc(em_cmd_disassoc_params_t &params, em_cmd_t *pcmd[])
+{
+    int num = 0;
+    em_cmd_t *tmp;
+
+    pcmd[num] = new em_cmd_sta_disassoc_t(params);
+    tmp = pcmd[num];
+    num++;
+
+    while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+        tmp = pcmd[num];
+        num++;
+    }
+
+    return num;
+}
+
+int dm_easy_mesh_ctrl_t::analyze_command_disassoc(em_bus_event_t *evt, em_cmd_t *cmd[])
+{
+    cJSON *obj, *wfa_obj, *net_obj, *dev_list_obj, *dev_obj;
+    cJSON *radio_list_obj, *radio_obj, *bss_list_obj, *bss_obj, *bss_id_obj;
+    cJSON *sta_list_obj, *sta_obj, *sta_mac_obj, *assoc_obj, *disassoc_obj;
+    cJSON *timer_obj, *reason_obj, *silent_obj;
+    unsigned int num = 0;
+    em_subdoc_info_t *subdoc;
+    unsigned int i, j, k, l;
+    em_long_string_t wfa;
+    em_cmd_disassoc_params_t	disassoc_param;
+
+    memset(&disassoc_param, 0, sizeof(em_cmd_disassoc_params_t));
+
+    subdoc = &evt->u.subdoc;
+    obj = cJSON_Parse(subdoc->buff);
+    if (obj == NULL) {
+        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        return 0;
+    }
+
+    snprintf(wfa, sizeof(wfa), "wfa-dataelements:Disassociate");
+
+    if ((wfa_obj = cJSON_GetObjectItem(obj, wfa)) == NULL) {
+        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        cJSON_free(obj);
+        return 0;
+    }
+
+    if ((net_obj = cJSON_GetObjectItem(wfa_obj, "Network")) == NULL) {
+        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        cJSON_free(obj);
+        return 0;
+    }
+
+    if ((dev_list_obj = cJSON_GetObjectItem(net_obj, "DeviceList")) == NULL) {
+        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        cJSON_free(obj);
+        return 0;
+    }
+
+    for (i = 0; i < cJSON_GetArraySize(dev_list_obj); i++) {
+        dev_obj = cJSON_GetArrayItem(dev_list_obj, i);
+        if ((radio_list_obj = cJSON_GetObjectItem(dev_obj, "RadioList")) == NULL) {
+            continue;
+        }
+
+        for (j = 0; j < cJSON_GetArraySize(radio_list_obj); j++) {
+            radio_obj = cJSON_GetArrayItem(radio_list_obj, j);
+
+            if ((bss_list_obj = cJSON_GetObjectItem(radio_obj, "BSSList")) == NULL) {
+                continue;
+            }
+
+            for (k = 0; k < cJSON_GetArraySize(bss_list_obj); k++) {
+                bss_obj = cJSON_GetArrayItem(bss_list_obj, k);
+                bss_id_obj = cJSON_GetObjectItem(bss_obj, "BSSID");
+
+                if ((sta_list_obj = cJSON_GetObjectItem(bss_obj, "STAList")) == NULL) {
+                    continue;
+                }
+
+                for (l = 0; l < cJSON_GetArraySize(sta_list_obj); l++) {
+                    sta_obj = cJSON_GetArrayItem(sta_list_obj, l);
+
+                    if ((sta_mac_obj = cJSON_GetObjectItem(sta_obj, "MACAddress")) == NULL) {
+                        continue;
+                    }
+                    if ((assoc_obj = cJSON_GetObjectItem(sta_obj, "Associated")) == NULL) {
+                        continue;
+                    }
+
+                    if ((disassoc_obj = cJSON_GetObjectItem(sta_obj, "Disassociate")) == NULL) {
+                        continue;
+                    }
+
+                    dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(sta_mac_obj), 
+                        disassoc_param.params[disassoc_param.num].sta_mac);
+                    dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(bss_id_obj), 
+                        disassoc_param.params[disassoc_param.num].bssid);
+
+                    timer_obj = cJSON_GetObjectItem(disassoc_obj, "DisassociationTimer");
+                    disassoc_param.params[disassoc_param.num].disassoc_time = cJSON_GetNumberValue(timer_obj);
+
+                    reason_obj = cJSON_GetObjectItem(disassoc_obj, "ReasonCode");
+                    disassoc_param.params[disassoc_param.num].reason = cJSON_GetNumberValue(reason_obj);
+
+                    silent_obj = cJSON_GetObjectItem(disassoc_obj, "Silent");
+                    disassoc_param.params[disassoc_param.num].silent = (cJSON_IsTrue(silent_obj) == true) ? true:false;
+
+                    disassoc_param.num++;
+                }
+            }
+        }
+    }
+    cJSON_free(obj);
+
+    num = analyze_sta_disassoc(disassoc_param, cmd);
+    return num;
+}
+
+int dm_easy_mesh_ctrl_t::analyze_command_btm(em_bus_event_t *evt, em_cmd_t *cmd[])
+{
+    cJSON *obj;
     unsigned int num = 0;
     em_subdoc_info_t *subdoc;
 
+    printf("%s:%d: Enter\n", __func__, __LINE__);
     subdoc = &evt->u.subdoc;
 
     obj = cJSON_Parse(subdoc->buff);
@@ -282,14 +523,6 @@ int dm_easy_mesh_ctrl_t::analyze_client_steer(em_bus_event_t *evt, em_cmd_t *cmd
         printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
         return 0;
     }
-
-    steer_obj = cJSON_GetObjectItem(obj, "ClientSteer");
-    if (steer_obj == NULL) {
-        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
-        return 0;
-    }
-
-    num = dm_sta_list_t::analyze_config(steer_obj, NULL, cmd, &evt->params);
 
     cJSON_free(obj);
 
@@ -706,7 +939,7 @@ int dm_easy_mesh_ctrl_t::get_bss_config(cJSON *parent, char *key)
     return 0;
 }
 
-int dm_easy_mesh_ctrl_t::get_sta_config(cJSON *parent, char *key)
+int dm_easy_mesh_ctrl_t::get_sta_config(cJSON *parent, char *key, em_get_sta_list_reason_t reason)
 {
     cJSON *net_obj, *dev_list_obj, *dev_obj, *radio_list_obj, *radio_obj, *bss_list_obj;
     cJSON *bss_obj, *sta_list_obj;
@@ -733,7 +966,7 @@ int dm_easy_mesh_ctrl_t::get_sta_config(cJSON *parent, char *key)
                 bss_obj = cJSON_GetArrayItem(bss_list_obj, k);
                 tmp = cJSON_GetStringValue(cJSON_GetObjectItem(bss_obj, "bssid"));
                 sta_list_obj = cJSON_AddArrayToObject(bss_obj, "STAList");
-                dm_sta_list_t::get_config(sta_list_obj, tmp);
+                dm_sta_list_t::get_config(sta_list_obj, tmp, reason);
             }
         }
     }
@@ -856,22 +1089,28 @@ int dm_easy_mesh_ctrl_t::get_config(em_long_string_t net_id, em_subdoc_info_t *s
 
     //printf("%s:%d: Subdoc Name: %s\n", __func__, __LINE__, subdoc->name);
     if (strncmp(subdoc->name, "Network", strlen(subdoc->name)) == 0) {
-		get_network_config(parent, net_id);
+        get_network_config(parent, net_id);
     } else if (strncmp(subdoc->name, "DeviceList", strlen(subdoc->name)) == 0) {
-		get_device_config(parent, net_id); 
+        get_device_config(parent, net_id);
     } else if (strncmp(subdoc->name, "DeviceListSummary", strlen(subdoc->name)) == 0) {
-		get_device_config(parent, net_id, true); 
+        get_device_config(parent, net_id, true);
     } else if (strncmp(subdoc->name, "RadioList", strlen(subdoc->name)) == 0) {
-		get_radio_config(parent, net_id);
+        get_radio_config(parent, net_id);
     } else if (strncmp(subdoc->name, "NetworkSSIDList", strlen(subdoc->name)) == 0) {
-		get_network_ssid_config(parent, net_id); 
-	} else if (strncmp(subdoc->name, "ChannelList", strlen(subdoc->name)) == 0) {
-		get_channel_config(parent, net_id); 
-	} else if (strncmp(subdoc->name, "BSSList", strlen(subdoc->name)) == 0) {
-		get_bss_config(parent, net_id); 
-	} else if (strncmp(subdoc->name, "STAList", strlen(subdoc->name)) == 0) {
-		get_sta_config(parent, net_id); 
-	}
+        get_network_ssid_config(parent, net_id);
+    } else if (strncmp(subdoc->name, "ChannelList", strlen(subdoc->name)) == 0) {
+        get_channel_config(parent, net_id);
+    } else if (strncmp(subdoc->name, "BSSList", strlen(subdoc->name)) == 0) {
+        get_bss_config(parent, net_id);
+    } else if (strncmp(subdoc->name, "STAList", strlen(subdoc->name)) == 0) {
+        get_sta_config(parent, net_id);
+    } else if (strncmp(subdoc->name, "STAListSummary@Steer", strlen(subdoc->name)) == 0) {
+        get_sta_config(parent, net_id, em_get_sta_list_reason_steer);
+    } else if (strncmp(subdoc->name, "STAListSummary@Disassociate", strlen(subdoc->name)) == 0) {
+        get_sta_config(parent, net_id, em_get_sta_list_reason_disassoc);
+    } else if (strncmp(subdoc->name, "STAListSummary@BTM", strlen(subdoc->name)) == 0) {
+        get_sta_config(parent, net_id, em_get_sta_list_reason_btm);
+    }
 
     tmp = cJSON_Print(parent);
     //printf("%s:%d: Subdoc: %s\n", __func__, __LINE__, tmp);

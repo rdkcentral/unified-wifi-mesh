@@ -102,9 +102,9 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
     dm.translate_onewifi_stats_data((char *)evt->u.raw_buff);
 
     for ( i = 0; i < num_radios; i++) {
-        evt_param->num_args = 1;
+        evt_param->u.args.num_args = 1;
         dm_easy_mesh_t::macbytes_to_string(get_radio_by_ref(i).get_radio_interface_mac(), radio_str);
-        strncpy(evt_param->args[0], radio_str, strlen(radio_str) + 1);
+        strncpy(evt_param->u.args.args[0], radio_str, strlen(radio_str) + 1);
 
         pcmd[num] = new em_cmd_sta_list_t(evt->params, dm);
 
