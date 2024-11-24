@@ -292,7 +292,7 @@ int em_cmd_cli_t::execute(em_string_t res)
             break;
 
         case em_cmd_type_set_channel:
-			snprintf(in, sizeof(in), "get_channel %s", m_cmd.m_param.u.args.args[1]);
+			snprintf(in, sizeof(in), "get_channel %s 1", m_cmd.m_param.u.args.args[1]);
 			get_cli()->exec(in, strlen(in), out);
 			get_cmd()->write_params_file(out, m_cmd.m_param.u.args.args[1], "SetAnticipatedChannelPreference");
             bevt->type = em_bus_event_type_set_channel;

@@ -101,6 +101,16 @@ em_cmd_t& em_cli_t::get_command(char *in, size_t in_len)
                     }
                     break;
 
+                case em_cmd_type_get_channel:
+                    if ((tmp = strstr(cmd->m_param.u.args.fixed_args, "Summary")) != NULL) {
+                        *tmp = 0;
+                    }
+                    if (strncmp(args[num_args - 1], "1", strlen("1")) == 0) {
+                        strncat(cmd->m_param.u.args.fixed_args, "Summary@SetAnticipatedChannelPreference", 
+							strlen("Summary@SetAnticipatedChannelPreference"));
+                    }
+                    break;
+
                 default:
                     break;
             }

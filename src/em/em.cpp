@@ -533,19 +533,19 @@ short em_t::create_ap_radio_basic_cap(unsigned char *buff) {
 			cap->op_class_num++;
 			op_class->op_class = op_class_info->op_class;
 			op_class->max_tx_eirp = op_class_info->max_tx_power;
-			op_class->num = op_class_info->num_non_op_channels;
+			op_class->num = op_class_info->num_channels;
 			len += sizeof(em_op_class_t);
-			if (op_class_info->num_non_op_channels != 0) {
+			if (op_class_info->num_channels != 0) {
 				channel_list = &op_class->channels;
-				for (int j = 0; j < op_class_info->num_non_op_channels; j++) {
-					memcpy( (unsigned char *)&channel_list->channel, (unsigned char *)&op_class_info->non_op_channel[j], sizeof(unsigned char));
+				for (int j = 0; j < op_class_info->num_channels; j++) {
+					memcpy( (unsigned char *)&channel_list->channel, (unsigned char *)&op_class_info->channels[j], sizeof(unsigned char));
 					all_channel_len = all_channel_len + sizeof(unsigned char);
 					channel_list = (em_channels_list_t *)((unsigned char *)channel_list + sizeof(em_channels_list_t) + sizeof(unsigned char) );
 									   len += sizeof(unsigned char);
 				}
 			}
 			printf("Op Class %d: %d, max_tx_eirp: %d, channels.num: %d\n",
-				   i, op_class_info->op_class, op_class_info->max_tx_power, op_class_info->num_non_op_channels);
+				   i, op_class_info->op_class, op_class_info->max_tx_power, op_class_info->num_channels);
 			printf(" cap->op_classes[%d].op_class: %d, cap->op_classes[%d].max_tx_eirp %d,	cap->op_classes[%d].channels.num %d\n",
 				   i, cap->op_classes[i].op_class, i, cap->op_classes[i].max_tx_eirp, i, cap->op_classes[i].num);
 

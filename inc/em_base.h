@@ -65,7 +65,7 @@
 //#define   EM_SUBDOC_BUFF_SZ   4096*100
 #define EM_BUFF_SZ_MUL  20
 #define EM_SUBDOC_BUFF_SZ   EM_IO_BUFF_SZ*EM_BUFF_SZ_MUL
-#define EM_MAX_NON_OP_CHANNELS  16
+#define EM_MAX_CHANNELS_IN_LIST  8
 #define EM_MAX_CMD_GEN_TTL  10
 #define EM_MAX_CMD_EXT_TTL  30
 #define EM_MAX_RENEW_TX_THRESH  5
@@ -122,7 +122,7 @@
 #define EM_CONN_ESS 0x01
 #define EM_CONN_IBSS 0x02
 
-#define EM_MAX_BANDS    5
+#define EM_MAX_BANDS    3
 #define EM_MAX_BSSS     EM_MAX_BANDS*8  
 #define EM_MAX_AKMS     10
 #define EM_MAX_HAUL_TYPES   3
@@ -1890,12 +1890,13 @@ typedef enum {
 	em_op_class_type_cac_non_occ,
 	em_op_class_type_cac_active,
     em_op_class_type_preference,
+    em_op_class_type_anticipated,
 } em_op_class_type_t;
 
 typedef struct {
     em_radio_id_t  ruid;
     em_op_class_type_t  type;
-    unsigned int 	index;
+    unsigned int 	op_class;
 } em_op_class_id_t;
 
 typedef struct {
@@ -1904,10 +1905,8 @@ typedef struct {
     unsigned int channel;
     int tx_power;
     int max_tx_power;
-    unsigned int    num_non_op_channels;
-    unsigned int    non_op_channel[EM_MAX_NON_OP_CHANNELS];
-    unsigned int    num_anticipated_channels;
-    unsigned int    anticipated_channel[EM_MAX_NON_OP_CHANNELS];
+    unsigned int    num_channels;
+    unsigned int    channels[EM_MAX_CHANNELS_IN_LIST];
     unsigned short	mins_since_cac_comp;
 	unsigned short	sec_remain_non_occ_dur;
 	unsigned int	countdown_cac_comp;

@@ -706,10 +706,10 @@ int dm_easy_mesh_t::decode_config_reset(em_subdoc_info_t *subdoc, const char *ke
 
 int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const char *key, unsigned int index, unsigned int *num)
 {
-    cJSON *parent_obj, *net_obj, *net_obj_id, *dev_arr_obj, *dev_obj; 
+    cJSON *parent_obj, *net_obj, *net_obj_id; 
 	cJSON *anticipated_arr_obj, *anticipated_obj, *channel_arr_obj, *channel_obj;
     unsigned int i, j, arr_size;
-    char *dev_id, *net_id;
+    char *net_id;
     int ret = 0;
     int haul_bit_mask = 0;
 
@@ -743,35 +743,7 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
         return EM_PARSE_ERR_NET_ID;
     }
 
-
-    dev_arr_obj = cJSON_GetObjectItem(net_obj, "DeviceList");
-    if (dev_arr_obj == NULL) {
-        printf("%s:%d: DeviceList not present\n", __func__, __LINE__);
-        cJSON_Delete(parent_obj);
-        return EM_PARSE_ERR_CONFIG;
-    }
-
-	arr_size = cJSON_GetArraySize(dev_arr_obj);
-	*num = arr_size;
-
-	if (index >= arr_size) {
-		printf("%s:%d: Passed index: %d greater than array size: %d\n", __func__, __LINE__, index, arr_size);
-    	cJSON_Delete(parent_obj);
-    	//printf("%s:%d: End\n", __func__, __LINE__);
-    	return 0;
-	}
-
-	if	((dev_obj = cJSON_GetArrayItem(dev_arr_obj, index)) == NULL) {
-		cJSON_Delete(parent_obj);
-        printf("%s:%d: DeviceList has no members present\n", __func__, __LINE__);
-        return -1;
-	}	
-
-	dev_id = cJSON_GetStringValue(cJSON_GetObjectItem(dev_obj, "ID"));
-	dm_easy_mesh_t::string_to_macbytes(dev_id, m_device.m_device_info.id.mac);
-	strncpy(m_device.m_device_info.net_id, net_id, strlen(net_id) + 1);
-
-	if ((anticipated_arr_obj = cJSON_GetObjectItem(dev_obj, "AnticipatedChannelPreference")) == NULL) {
+	if ((anticipated_arr_obj = cJSON_GetObjectItem(net_obj, "AnticipatedChannelPreference")) == NULL) {
 		cJSON_Delete(parent_obj);
         printf("%s:%d: AnticipatedChannelPreference not present\n", __func__, __LINE__);
         return -1;
@@ -789,10 +761,9 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
 
 		memset(&m_op_class[m_num_opclass].m_op_class_info, 0, sizeof(em_op_class_info_t));   
 
-		m_op_class[m_num_opclass].m_op_class_info.id.type = em_op_class_type_preference;
-		dm_easy_mesh_t::string_to_macbytes(dev_id, m_op_class[m_num_opclass].m_op_class_info.id.ruid);
-		m_op_class[m_num_opclass].m_op_class_info.id.index = i;
+		m_op_class[m_num_opclass].m_op_class_info.id.type = em_op_class_type_anticipated;
 		m_op_class[m_num_opclass].m_op_class_info.op_class = cJSON_GetNumberValue(cJSON_GetObjectItem(anticipated_obj, "Class"));
+		m_op_class[m_num_opclass].m_op_class_info.id.op_class = m_op_class[m_num_opclass].m_op_class_info.op_class;
 
 		if ((channel_arr_obj = cJSON_GetObjectItem(anticipated_obj, "ChannelList")) == NULL) {
 			cJSON_Delete(parent_obj);
@@ -800,11 +771,11 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
         	return -1;
 		}
 
-		m_op_class[m_num_opclass].m_op_class_info.num_anticipated_channels = 0;
+		m_op_class[m_num_opclass].m_op_class_info.num_channels = 0;
 
 		for (j = 0; j < cJSON_GetArraySize(channel_arr_obj); j++) {
-			m_op_class[m_num_opclass].m_op_class_info.anticipated_channel[m_op_class[m_num_opclass].m_op_class_info.num_anticipated_channels] = cJSON_GetNumberValue(cJSON_GetArrayItem(channel_arr_obj, j));
-			m_op_class[m_num_opclass].m_op_class_info.num_anticipated_channels++;
+			m_op_class[m_num_opclass].m_op_class_info.channels[m_op_class[m_num_opclass].m_op_class_info.num_channels] = cJSON_GetNumberValue(cJSON_GetArrayItem(channel_arr_obj, j));
+			m_op_class[m_num_opclass].m_op_class_info.num_channels++;
 		}	
 
 		m_num_opclass++;
@@ -932,7 +903,7 @@ void dm_easy_mesh_t::update_cac_status_id(mac_address_t al_mac)
     for (i = 0; i < m_num_opclass; i++) {
         dm_easy_mesh_t::macbytes_to_string(m_op_class[i].m_op_class_info.id.ruid, mac_str);
         snprintf(key, sizeof(em_long_string_t), "%s@%d@%d", mac_str,
-                m_op_class[i].m_op_class_info.id.type, m_op_class[i].m_op_class_info.id.index);
+                m_op_class[i].m_op_class_info.id.type, m_op_class[i].m_op_class_info.id.op_class);
         printf("%s:%d: ID: %s: OpClass: %d Channel: %d\n", __func__, __LINE__,
                 key, m_op_class[i].m_op_class_info.op_class, m_op_class[i].m_op_class_info.channel);
     }
@@ -1517,7 +1488,10 @@ void dm_easy_mesh_t::print_config()
 
     for (i = 0; i < m_num_opclass; i++) {
         dm_easy_mesh_t::macbytes_to_string(m_op_class[i].m_op_class_info.id.ruid, radio_mac);
-        printf("%s:%d: OpClass[%d] id.ruid: %s id.type: %d id.index: %d Channel : %d Op_class : %d num_channel : %d\n\n", __func__, __LINE__, i, radio_mac, m_op_class[i].m_op_class_info.id.type, m_op_class[i].m_op_class_info.id.index, m_op_class[i].m_op_class_info.channel, m_op_class[i].m_op_class_info.op_class, m_op_class[i].m_op_class_info.num_non_op_channels);
+        printf("%s:%d: OpClass[%d] id.ruid: %s id.type: %d id.index: %d Channel : %d Op_class : %d num_channel : %d\n\n", 
+				__func__, __LINE__, i, radio_mac, m_op_class[i].m_op_class_info.id.type, 
+				m_op_class[i].m_op_class_info.id.op_class, m_op_class[i].m_op_class_info.channel, 
+				m_op_class[i].m_op_class_info.op_class, m_op_class[i].m_op_class_info.num_channels);
     }
 
     printf("%s:%d:No of BSS=%d No of Radios=%d \n", __func__, __LINE__, m_num_bss, m_num_radios);
@@ -1983,6 +1957,63 @@ void dm_easy_mesh_t::deinit()
 	hash_map_destroy(m_sta_dassoc_map);
 }
 
+void dm_easy_mesh_t::set_anticipated_channels_list(dm_op_class_t op_class[])
+{
+	unsigned int i, j, last_index = 0;
+	bool empty_array = false;
+	mac_addr_str_t mac_str;
+
+	if (m_num_opclass == 0) {
+		empty_array = true;
+	}
+
+	for (i = 0; i < EM_MAX_BANDS; i++) {
+		if (empty_array == true) {
+			memcpy(m_op_class[m_num_opclass].m_op_class_info.id.ruid, m_device.m_device_info.id.mac, sizeof(mac_address_t));
+			m_op_class[m_num_opclass].m_op_class_info.id.type = em_op_class_type_anticipated;
+			m_op_class[m_num_opclass].m_op_class_info.id.op_class = op_class[i].m_op_class_info.id.op_class;
+			m_op_class[m_num_opclass].m_op_class_info.op_class = m_op_class[m_num_opclass].m_op_class_info.id.op_class;
+			m_op_class[m_num_opclass].m_op_class_info.num_channels = 1;
+			m_op_class[m_num_opclass].m_op_class_info.channels[0] = op_class[i].m_op_class_info.channels[0];
+			m_num_opclass++;
+		} else {
+			for (j = last_index; j < m_num_opclass; j++) {
+				if (m_op_class[j].m_op_class_info.id.type != em_op_class_type_anticipated) {
+					continue;
+				}
+
+				last_index = j + 1;
+				memcpy(m_op_class[j].m_op_class_info.id.ruid, m_device.m_device_info.id.mac, sizeof(mac_address_t));
+				m_op_class[j].m_op_class_info.id.type = em_op_class_type_anticipated;
+				m_op_class[j].m_op_class_info.id.op_class = op_class[i].m_op_class_info.id.op_class;
+				m_op_class[j].m_op_class_info.op_class = m_op_class[m_num_opclass].m_op_class_info.id.op_class;
+				m_op_class[j].m_op_class_info.num_channels = 1;
+				m_op_class[j].m_op_class_info.channels[0] = op_class[i].m_op_class_info.channels[0];
+				dm_easy_mesh_t::macbytes_to_string(m_op_class[j].m_op_class_info.id.ruid, mac_str);	
+				//printf("%s:%d: Index: %d\tMAC: %s\tType: %d\tOp Class:%d\tChannel:%d\n", __func__, __LINE__, j, mac_str, 
+						//m_op_class[j].m_op_class_info.id.type, m_op_class[j].m_op_class_info.id.op_class,
+						//m_op_class[j].m_op_class_info.channels[0]);
+				break;	
+			}
+		}
+	}
+}
+
+void dm_easy_mesh_t::print_op_class_list(dm_easy_mesh_t *dm)
+{
+	unsigned int i;
+	mac_addr_str_t mac_str;
+
+	printf("\n\n");
+	for (i = 0; i < dm->m_num_opclass; i++) {
+		dm_easy_mesh_t::macbytes_to_string(dm->m_op_class[i].m_op_class_info.id.ruid, mac_str);	
+		printf("%s:%d: Index: %d\tMAC: %s\tType: %d\tOp Class:%d\tChannel:%d\n", __func__, __LINE__, i, mac_str, 
+						dm->m_op_class[i].m_op_class_info.id.type, dm->m_op_class[i].m_op_class_info.id.op_class,
+						dm->m_op_class[i].m_op_class_info.channels[0]);
+
+	}
+	printf("\n\n");
+}
 
 int dm_easy_mesh_t::init()
 {
@@ -1994,9 +2025,11 @@ int dm_easy_mesh_t::init()
     for (i = 0; i < EM_MAX_BANDS; i++) {
         m_radio[i].init();
     }
-    for (i = 0; i < EM_MAX_NET_SSIDS; i++) {
+    
+	for (i = 0; i < EM_MAX_NET_SSIDS; i++) {
 	    m_network_ssid[i].init();
     }
+
     m_sta_map = hash_map_create();
     m_sta_assoc_map = hash_map_create();
     m_sta_dassoc_map = hash_map_create();

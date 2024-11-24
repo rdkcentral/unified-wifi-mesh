@@ -38,6 +38,7 @@ public:
 
     dm_op_class_t(em_op_class_info_t *op_class);
     dm_op_class_t(const dm_op_class_t& op_class);
+    dm_op_class_t(const em_op_class_info_t& op_class_info);
     dm_op_class_t();
     ~dm_op_class_t();
 };

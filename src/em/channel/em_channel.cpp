@@ -71,12 +71,12 @@ short em_channel_t::create_channel_pref_tlv_agent(unsigned char *buff)
         }
 	
 	pref_op_class->op_class = op_class->m_op_class_info.op_class;
-	num_of_channel = op_class->m_op_class_info.num_non_op_channels;
+	num_of_channel = op_class->m_op_class_info.num_channels;
 	channel_list = &pref_op_class->channels;
 	len += sizeof(em_channel_pref_op_class_t);
 	for (j = 0; j < num_of_channel; j++) {
 	    pref_op_class->num++;
-	    memcpy(channel_list->channel, (unsigned char *)&op_class->m_op_class_info.non_op_channel[j], sizeof(unsigned char));
+	    memcpy(channel_list->channel, (unsigned char *)&op_class->m_op_class_info.channels[j], sizeof(unsigned char));
 	    channel_list =(em_channels_list_t *)((unsigned char *)channel_list + sizeof(unsigned char));
 	    len += sizeof(unsigned char);
 	}
@@ -119,17 +119,17 @@ short em_channel_t::create_channel_pref_tlv(unsigned char *buff)
     for (i = 0; i < dm->m_num_opclass; i++) {
         op_class = &dm->m_op_class[i];
         if (((memcmp(op_class->m_op_class_info.id.ruid, device->id.mac, sizeof(em_radio_id_t)) == 0)     &&
-                    (op_class->m_op_class_info.id.type == em_op_class_type_preference)) == false) {
+                    (op_class->m_op_class_info.id.type == em_op_class_type_anticipated)) == false) {
             continue;
         }
         
         pref_op_class->op_class = op_class->m_op_class_info.op_class;
-        num_of_channel = op_class->m_op_class_info.num_anticipated_channels;
+        num_of_channel = op_class->m_op_class_info.num_channels;
         channel_list = &pref_op_class->channels;
         len += sizeof(em_channel_pref_op_class_t);
         pref_op_class->num = num_of_channel;
         for (j = 0; j < num_of_channel; j++) {
-            memcpy(channel_list->channel, (unsigned char *)&op_class->m_op_class_info.anticipated_channel[j], sizeof(unsigned char));
+            memcpy(channel_list->channel, (unsigned char *)&op_class->m_op_class_info.channels[j], sizeof(unsigned char));
             channel_list =(em_channels_list_t *)((unsigned char *)channel_list + sizeof(unsigned char));
             len += sizeof(unsigned char);
         }
@@ -630,11 +630,11 @@ short em_channel_t::create_radio_op_restriction_tlv(unsigned char *buff)
 			(op_class->m_op_class_info.id.type == em_op_class_type_capability)) {
 
 			op_class_rest->op_class = op_class->m_op_class_info.op_class;
-			op_class_rest->channels_num = op_class->m_op_class_info.num_non_op_channels;
+			op_class_rest->channels_num = op_class->m_op_class_info.num_channels;
 			op_len += sizeof(em_radio_op_restrict_op_class_t);
 			chan_rest = op_class_rest->channels;
 			for (j = 0; j < op_class_rest->channels_num; j++) {
-				chan_rest->channel = op_class->m_op_class_info.non_op_channel[j];
+				chan_rest->channel = op_class->m_op_class_info.channels[j];
 				chan_rest = (em_radio_op_restrict_channel_t *)((unsigned char *)chan_rest + sizeof(em_radio_op_restrict_channel_t));	
 				op_len += sizeof(em_radio_op_restrict_channel_t);
 			}
@@ -768,9 +768,9 @@ int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len
     if (found == 0) {
         op_class_info = &dm->m_op_class[dm->get_num_op_class()].m_op_class_info;
         op_class_info->id.type = em_op_class_type_current;
-        op_class_info->id.index = 0;
         memcpy(op_class_info->id.ruid, get_radio_interface_mac(), sizeof(mac_address_t));
         op_class_info->op_class = (unsigned int) rpt->op_classes[0].op_class;
+        op_class_info->id.op_class = op_class_info->op_class;
         op_class_info->channel = (unsigned int) rpt->op_classes[0].channel;
         dm->set_num_op_class(dm->get_num_op_class() + 1);
         db_cfg_type = dm->get_db_cfg_type();
@@ -784,73 +784,57 @@ int em_channel_t::handle_channel_pref_tlv_ctrl(unsigned char *buff, unsigned int
 {
     em_channel_pref_t   *pref = (em_channel_pref_t *) buff;
     em_channel_pref_op_class_t *channel_pref;
-    unsigned int i = 0, j = 0, found = 0;
+    unsigned int i = 0, j = 0;
+	bool match_found = false;
     em_op_class_info_t      op_class_info[EM_MAX_OP_CLASS];
-    em_op_class_info_t *op_class;
+    em_op_class_info_t *pop_class_info;
     dm_easy_mesh_t *dm;
     unsigned int db_cfg_type = 0;
 
     dm = get_data_model();
     em_device_info_t    *device = dm->get_device_info();
-    mac_addr_str_t mac_str;
-    if (device != NULL) {
-        dm_easy_mesh_t::macbytes_to_string(device->id.mac, mac_str);
-        printf("%s:%d mac: %s\n", __func__, __LINE__,mac_str);
-    }
 
-    /*TODO: Update Anticiapated channel list from channel preference report of agent
-    channel_pref = pref->op_classes;
-    if (pref != NULL) {
-        channel_pref = pref->op_classes;
-        memcpy(op_class_info[i].id.ruid, pref->ruid, sizeof(mac_address_t));
-        for (i = 0; i < pref->op_classes_num; i++) {
-            memcpy(op_class_info[i].id.ruid, device->id.mac, sizeof(mac_address_t));
-            op_class_info[i].id.type = em_op_class_type_preference;
-            op_class_info[i].id.index = i;
-            op_class_info[i].op_class = (unsigned int)channel_pref->op_class;
-            op_class_info[i].num_anticipated_channels = (unsigned int)channel_pref->num;
-            for (j = 0; j < op_class_info[i].num_anticipated_channels; j++) {
-                op_class_info[i].anticipated_channel[j] = (unsigned int )channel_pref->channels.channel[j];
-            }
-            channel_pref = (em_channel_pref_op_class_t *)((unsigned char *)channel_pref + sizeof(em_op_class_t) +
-                    op_class_info[i].num_anticipated_channels);
-            printf("%s:%d op class=%d \n", __func__, __LINE__,op_class_info[i].op_class);
-        }
-        for (i = 0; i < pref->op_classes_num; i++) {
-            op_class = &dm->m_op_class[dm->get_num_op_class()].m_op_class_info;
-            memcpy(op_class, &op_class_info[i],sizeof(em_op_class_info_t));
-            dm->set_num_op_class(dm->get_num_op_class() + 1);
-            db_cfg_type = dm->get_db_cfg_type();
-            dm->set_db_cfg_type(db_cfg_type | db_cfg_type_op_class_list_update | db_cfg_type_radio_list_update);
-            printf("%s:%d  classinfo=%d \n", __func__, __LINE__,op_class_info[i]);
-        }
-    }
-    */
+	channel_pref = pref->op_classes;
+	memcpy(op_class_info[i].id.ruid, pref->ruid, sizeof(mac_address_t));
+	for (i = 0; i < pref->op_classes_num; i++) {
+		memcpy(op_class_info[i].id.ruid, device->id.mac, sizeof(mac_address_t));
+		op_class_info[i].id.type = em_op_class_type_preference;
+		op_class_info[i].op_class = (unsigned int)channel_pref->op_class;
+		op_class_info[i].id.op_class = op_class_info[i].op_class;
+		op_class_info[i].num_channels = (unsigned int)channel_pref->num;
+		for (j = 0; j < op_class_info[i].num_channels; j++) {
+			op_class_info[i].channels[j] = (unsigned int )channel_pref->channels.channel[j];
+		}
+		channel_pref = (em_channel_pref_op_class_t *)((unsigned char *)channel_pref + sizeof(em_channel_pref_op_class_t) +
+				op_class_info[i].num_channels + sizeof(unsigned char));
+		//printf("%s:%d op class: %d\tAnticipated Channels: %d\n", __func__, __LINE__, 
+				//op_class_info[i].op_class, op_class_info[i].num_anticipated_channels);
+	}
+	
+	for (i = 0; i < pref->op_classes_num; i++) {
+		for (j = 0; j < dm->get_num_op_class(); j++) {
+			pop_class_info = &dm->m_op_class[j].m_op_class_info;
 
-    //Work-Around
-    for (i = 0; i < dm->m_num_opclass; i++) {
-        op_class = &dm->m_op_class[i].m_op_class_info;
-        if (((memcmp(op_class->id.ruid, device->id.mac, sizeof(em_radio_id_t)) == 0) &&
-                    (op_class->id.type == em_op_class_type_preference)) == true) {
-            op_class->num_anticipated_channels = 1;
-            op_class->op_class = 81;
-            op_class->anticipated_channel[0] = 6;
-            found++;
-        }
-    }
-    if (found == 0) {
-        op_class = &dm->m_op_class[dm->get_num_op_class()].m_op_class_info;
-        op_class->id.type = em_op_class_type_preference;
-        op_class->id.index = 0;
-        memcpy(op_class->id.ruid, device->id.mac, sizeof(mac_address_t));
-        op_class->num_anticipated_channels = 1;
-        op_class->op_class = 81;
-        op_class->channel = 6;
-        op_class->anticipated_channel[0] = 6;
-        dm->set_num_op_class(dm->get_num_op_class() + 1);
-        db_cfg_type = dm->get_db_cfg_type();
-        dm->set_db_cfg_type(db_cfg_type | db_cfg_type_op_class_list_update | db_cfg_type_radio_list_update);
-    }
+			if ((memcmp(pop_class_info->id.ruid, op_class_info[i].id.ruid, sizeof(mac_address_t)) == 0) &&
+						(pop_class_info->id.type == op_class_info[i].id.type) &&
+						(pop_class_info->id.op_class == op_class_info[i].id.op_class)) {
+				match_found = true;
+				break;
+			}
+		}
+
+		if (match_found == true) {
+			match_found = false;
+			continue;
+		}
+		
+		pop_class_info = &dm->m_op_class[dm->get_num_op_class()].m_op_class_info;
+		memcpy(pop_class_info, &op_class_info[i], sizeof(em_op_class_info_t));
+		dm->set_num_op_class(dm->get_num_op_class() + 1);
+		db_cfg_type = dm->get_db_cfg_type();
+		dm->set_db_cfg_type(db_cfg_type | db_cfg_type_op_class_list_update | db_cfg_type_radio_list_update);
+	}
+
     return 0;
 
 }
@@ -895,14 +879,14 @@ int em_channel_t::handle_channel_pref_tlv(unsigned char *buff, unsigned int len)
 			for (i = 0; i < pref->op_classes_num; i++) {
 				memcpy(op_class_info[i].id.ruid, pref->ruid, sizeof(mac_address_t));
                 op_class_info[i].id.type = em_op_class_type_current;
-				op_class_info[i].id.index = i;
                 op_class_info[i].op_class = (unsigned int)channel_pref->op_class;
-                op_class_info[i].num_anticipated_channels = (unsigned int)channel_pref->num;
-                for (j = 0; j < op_class_info[i].num_anticipated_channels; j++) {
-                        op_class_info[i].anticipated_channel[j] = (unsigned int )channel_pref->channels.channel[j];
+				op_class_info[i].id.op_class = op_class_info[i].op_class;
+                op_class_info[i].num_channels = (unsigned int)channel_pref->num;
+                for (j = 0; j < op_class_info[i].num_channels; j++) {
+                        op_class_info[i].channels[j] = (unsigned int )channel_pref->channels.channel[j];
                 }
                 channel_pref = (em_channel_pref_op_class_t *)((unsigned char *)channel_pref + sizeof(em_op_class_t) +
-				op_class_info[i].num_anticipated_channels);
+				op_class_info[i].num_channels);
 			}
 		ev.type = em_event_type_bus;
 		bev = &ev.u.bevt;
