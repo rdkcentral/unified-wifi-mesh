@@ -86,6 +86,8 @@ public:
     dm_op_class_t *get_op_class(const char *key);
     void remove_op_class(const char *key);
     void put_op_class(const char *key, const dm_op_class_t *op_class);
+	dm_op_class_t *get_first_anticipated_op_class();
+    dm_op_class_t *get_next_anticipated_op_class(dm_op_class_t *op_class);
 
     dm_easy_mesh_list_t();
     ~dm_easy_mesh_list_t();

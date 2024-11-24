@@ -2377,35 +2377,36 @@ int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned 
 	basic_cap_op_class = radio_basic_cap->op_classes;
 	if (basic_cap_op_class != NULL) {
 		for (i = 0; i < radio_basic_cap->op_class_num; i++) {
-				memset(&op_class_info, 0, sizeof(em_op_class_info_t));
-				memcpy(op_class_info.id.ruid, ruid, sizeof(mac_address_t));
-				op_class_info.id.type = em_op_class_type_capability;
-				op_class_info.op_class = (unsigned int)basic_cap_op_class->op_class;
-				op_class_info.max_tx_power = (int)basic_cap_op_class->max_tx_eirp;
-				op_class_info.num_non_op_channels = (unsigned int)basic_cap_op_class->num;
-				for (j = 0; j < op_class_info.num_non_op_channels; j++) {
-						op_class_info.non_op_channel[j] = (unsigned int )basic_cap_op_class->channels.channel[j];
+			memset(&op_class_info, 0, sizeof(em_op_class_info_t));
+			memcpy(op_class_info.id.ruid, ruid, sizeof(mac_address_t));
+			op_class_info.id.type = em_op_class_type_capability;
+			op_class_info.op_class = (unsigned int)basic_cap_op_class->op_class;
+			op_class_info.id.op_class = op_class_info.op_class;
+			op_class_info.max_tx_power = (int)basic_cap_op_class->max_tx_eirp;
+			op_class_info.num_channels = (unsigned int)basic_cap_op_class->num;
+			for (j = 0; j < op_class_info.num_channels; j++) {
+				op_class_info.channels[j] = (unsigned int )basic_cap_op_class->channels.channel[j];
+			}
+			basic_cap_op_class = (em_op_class_t *)((unsigned char *)basic_cap_op_class + sizeof(em_op_class_t) + op_class_info.num_channels);
+			op_class_obj = &dm->m_op_class[0];
+			// now check if the op_class already exists
+			for (j = 0; j < dm->get_num_op_class(); j++) {
+				op_class_obj = &dm->m_op_class[j];
+				if (*op_class_obj == dm_op_class_t(&op_class_info)) {
+					op_class_exists = true;
+					break;
 				}
-				basic_cap_op_class = (em_op_class_t *)((unsigned char *)basic_cap_op_class + sizeof(em_op_class_t) + op_class_info.num_non_op_channels);
-				op_class_obj = &dm->m_op_class[0];
-				// now check if the op_class already exists
-				for (j = 0; j < dm->get_num_op_class(); j++) {
-						op_class_obj = &dm->m_op_class[j];
-						if (*op_class_obj == dm_op_class_t(&op_class_info)) {
-								op_class_exists = true;
-								break;
-						}
-				}
+			}
 
-				if (op_class_exists == true) {
-						op_class_exists = false;
-				} else {
-						op_class_obj = &dm->m_op_class[dm->get_num_op_class()];
-						dm->set_num_op_class(dm->get_num_op_class() + 1);
-				}
-				memcpy(&op_class_obj->m_op_class_info, &op_class_info, sizeof(em_op_class_info_t));
-				db_cfg_type = dm->get_db_cfg_type();
-				dm->set_db_cfg_type(db_cfg_type | db_cfg_type_op_class_list_update);
+			if (op_class_exists == true) {
+				op_class_exists = false;
+			} else {
+				op_class_obj = &dm->m_op_class[dm->get_num_op_class()];
+				dm->set_num_op_class(dm->get_num_op_class() + 1);
+			}
+			memcpy(&op_class_obj->m_op_class_info, &op_class_info, sizeof(em_op_class_info_t));
+			db_cfg_type = dm->get_db_cfg_type();
+			dm->set_db_cfg_type(db_cfg_type | db_cfg_type_op_class_list_update);
 		}
 	} else {
 		printf("%s:%d basic_cap_op_class is NULL \n", __func__, __LINE__);

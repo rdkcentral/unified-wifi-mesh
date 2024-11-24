@@ -91,7 +91,7 @@ public:
     int get_device_config(cJSON *parent, char *key, bool summary = false);
     int get_radio_config(cJSON *parent, char *key);
     int get_network_ssid_config(cJSON *parent, char *key);
-    int get_channel_config(cJSON *parent, char *key);
+    int get_channel_config(cJSON *parent, char *key, bool set_channel = false);
     int get_config(em_long_string_t net_id, em_subdoc_info_t *subdoc);
     int set_config(dm_easy_mesh_t *dm);
     int copy_config(dm_easy_mesh_t *dm, em_long_string_t net_id);
@@ -136,6 +136,8 @@ public:
     dm_op_class_t *get_op_class(const char *key) { return m_data_model_list.get_op_class(key); }
     void remove_op_class(const char *key) { m_data_model_list.remove_op_class(key); }
     void put_op_class(const char *key, const dm_op_class_t *op_class) { m_data_model_list.put_op_class(key, op_class); }
+	dm_op_class_t *get_first_anticipated_op_class() { return m_data_model_list.get_first_anticipated_op_class(); }
+    dm_op_class_t *get_next_anticipated_op_class(dm_op_class_t *op_class) { return m_data_model_list.get_next_anticipated_op_class(op_class); }
 
     dm_network_ssid_t *get_first_network_ssid() { return m_data_model_list.get_first_network_ssid(); }
     dm_network_ssid_t *get_next_network_ssid(dm_network_ssid_t *network_ssid) { return m_data_model_list.get_next_network_ssid(network_ssid); }
