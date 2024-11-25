@@ -49,7 +49,7 @@
 int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     unsigned int index = 0;
-    unsigned int num = 0, i, j = 0, num_radios = 0;
+    unsigned int num = 0, i, j = 0, num_radios = 0, op_class_index = 0;
     em_orch_desc_t desc;
     dm_easy_mesh_agent_t  dm;
     dm_device_t *dev, *tgt_dev;
@@ -65,6 +65,13 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
     num++;
 
     while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+        //Checking the freq band of current op class
+        for (int i = 0; i < dm.get_num_op_class(); i++) {
+            if (dm.get_op_class(i)->get_op_class_info()->id.type == em_op_class_type_current) {
+                op_class_index = i;
+            }
+        }
+        pcmd[num]->set_rd_freq_band(op_class_index);
         tmp = pcmd[num];
         num++;
     }
