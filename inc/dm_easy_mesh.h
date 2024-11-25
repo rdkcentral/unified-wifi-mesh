@@ -33,6 +33,7 @@
 #include "dm_radio_cap.h"
 #include "dm_cac_comp.h"
 #include "dm_ap_mld.h"
+#include "dm_bsta_mld.h"
 #include "webconfig_external_proto.h"
 
 class em_t;
@@ -64,6 +65,7 @@ public:
     bool    m_colocated;
     unsigned int    m_num_ap_mld;
     dm_ap_mld_t     m_ap_mld[EM_MAX_AP_MLD];
+    dm_bsta_mld_t   m_bsta_mld;
 
 public:
     int init();
