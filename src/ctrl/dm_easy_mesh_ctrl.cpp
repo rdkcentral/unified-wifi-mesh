@@ -581,7 +581,7 @@ int dm_easy_mesh_ctrl_t::analyze_set_channel(em_bus_event_t *evt, em_cmd_t *pcmd
 		pdm = m_data_model_list.get_next_dm(pdm);
 	}
 	
-/*
+
    	pcmd[num] = new em_cmd_set_channel_t(evt->params, dm);
    	tmp = pcmd[num];
    	num++;
@@ -590,8 +590,6 @@ int dm_easy_mesh_ctrl_t::analyze_set_channel(em_bus_event_t *evt, em_cmd_t *pcmd
        	tmp = pcmd[num];
        	num++;
    	}
-*/
-   	printf("%s:%d: Number of commands:%d\n", __func__, __LINE__, num);
 
 	return num;
 }
@@ -1302,10 +1300,11 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
         for (i = 0; i < dm->get_num_op_class(); i++) {
             op_class = dm->get_op_class_by_ref(i);
             dm_easy_mesh_t::macbytes_to_string(dm->m_op_class[i].m_op_class_info.id.ruid, mac_str);
-            printf("%s:%d: Op Class[%d] ruid: %s\tType: %d\tClass: %d\n", __func__, __LINE__, i,
-            	mac_str, dm->m_op_class[i].m_op_class_info.id.type, dm->m_op_class[i].m_op_class_info.id.op_class);
+            printf("%s:%d: Op Class[%d] ruid: %s\tType: %d\tClass: %d\tClass: %d\n", __func__, __LINE__, i,
+            	mac_str, dm->m_op_class[i].m_op_class_info.id.type, dm->m_op_class[i].m_op_class_info.id.op_class,
+				dm->m_op_class[i].m_op_class_info.op_class);
             snprintf(parent, sizeof(em_long_string_t), "%s@%d@%d", mac_str, dm->m_op_class[i].m_op_class_info.id.type, 
-					dm->m_op_class[i].m_op_class_info.id.op_class);
+					dm->m_op_class[i].m_op_class_info.id.op_class, dm->m_op_class[i].m_op_class_info.op_class);
             if (dm_op_class_list_t::set_config(m_db_client, dm->m_op_class[i], parent) != 0) {
                 at_least_one_failed = true;
             }
@@ -1315,6 +1314,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
         } else {
             dm->set_db_cfg_type(dm->get_db_cfg_type() & ~db_cfg_type_op_class_list_update);
         }
+		printf("\n");
     } 
 
     if (dm->get_db_cfg_type() & db_cfg_type_op_class_list_delete) {
