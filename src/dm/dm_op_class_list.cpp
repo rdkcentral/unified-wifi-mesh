@@ -236,7 +236,7 @@ int dm_op_class_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, voi
 
     dm_easy_mesh_t::macbytes_to_string(info->id.ruid, mac_str);
     snprintf(id, sizeof(id), "%s@%d@%d", mac_str, info->id.type, info->id.op_class);
-    //printf("%s:%d: Opeartion:%d, id:%s mac:%s, type:%d, Class:%d\n", __func__, __LINE__, op, id, mac_str, info->id.type, info->id.op_class);
+    //printf("\n%s:%d: Opeartion:%d, id:%s\tmac:%s\ttype:%d\tClass:%d\tClass: %d\n", __func__, __LINE__, op, id, mac_str, info->id.type, info->id.op_class, info->op_class);
 
 	for (i = 0; i < info->num_channels; i++) {
 		snprintf(tmp, sizeof(tmp), "%d,", info->channels[i]);
