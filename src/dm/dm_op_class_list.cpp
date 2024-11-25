@@ -53,37 +53,65 @@ int dm_op_class_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
     pop_class = (dm_op_class_t *)get_first_op_class();
     while (pop_class != NULL) {
         info = pop_class->get_op_class_info();
-	dm_easy_mesh_t::macbytes_to_string(info->id.ruid, mac_str);
-	//printf("%s:%d: ruid: %s type: %d\n", __func__, __LINE__, mac_str, info->id.type);
-	if ((memcmp(info->id.ruid, id.ruid, sizeof(mac_address_t)) != 0) || (info->id.type != id.type)) {
-	    pop_class = get_next_op_class(pop_class);
-	    continue;
-	}
+		dm_easy_mesh_t::macbytes_to_string(info->id.ruid, mac_str);
+		//printf("%s:%d: ruid: %s type: %d\n", __func__, __LINE__, mac_str, info->id.type);
+		if ((memcmp(info->id.ruid, id.ruid, sizeof(mac_address_t)) != 0) || (info->id.type != id.type)) {
+	    	pop_class = get_next_op_class(pop_class);
+	    	continue;
+		}
 
        	obj = cJSON_CreateObject(); 
 
-	cJSON_AddNumberToObject(obj, "Class", pop_class->m_op_class_info.op_class);
-    if (id.type == em_op_class_type_current) {
-        cJSON_AddNumberToObject(obj, "Channel", pop_class->m_op_class_info.channel);
-        cJSON_AddNumberToObject(obj, "TxPower", pop_class->m_op_class_info.tx_power);
-    } else if (id.type == em_op_class_type_capability) {
-        cJSON_AddNumberToObject(obj, "MaxTxPower", pop_class->m_op_class_info.max_tx_power);
-        non_op_arr = cJSON_AddArrayToObject(obj, "NonOperable");
-	    for (i = 0; i < pop_class->m_op_class_info.num_non_op_channels; i++) {
-            cJSON_AddItemToArray(non_op_arr, cJSON_CreateNumber(pop_class->m_op_class_info.non_op_channel[i]));
-        }
-    } else if (id.type == em_op_class_type_preference) {
-			anticipated_arr = cJSON_AddArrayToObject(obj, "ChannelList");
-			for (i = 0; i < pop_class->m_op_class_info.num_anticipated_channels; i++) {
-            	cJSON_AddItemToArray(anticipated_arr, cJSON_CreateNumber(pop_class->m_op_class_info.anticipated_channel[i]));
+		cJSON_AddNumberToObject(obj, "Class", pop_class->m_op_class_info.op_class);
+    	if (id.type == em_op_class_type_current) {
+        	cJSON_AddNumberToObject(obj, "Channel", pop_class->m_op_class_info.channel);
+        	cJSON_AddNumberToObject(obj, "TxPower", pop_class->m_op_class_info.tx_power);
+    	} else if (id.type == em_op_class_type_capability) {
+        	cJSON_AddNumberToObject(obj, "MaxTxPower", pop_class->m_op_class_info.max_tx_power);
+        	non_op_arr = cJSON_AddArrayToObject(obj, "NonOperable");
+	    	for (i = 0; i < pop_class->m_op_class_info.num_channels; i++) {
+            	cJSON_AddItemToArray(non_op_arr, cJSON_CreateNumber(pop_class->m_op_class_info.channels[i]));
         	}
-    }
-	cJSON_AddItemToArray(obj_arr, obj);
-	pop_class = get_next_op_class(pop_class);
+    	} else if ((id.type == em_op_class_type_preference) || (id.type == em_op_class_type_anticipated)) {
+			anticipated_arr = cJSON_AddArrayToObject(obj, "ChannelList");
+			for (i = 0; i < pop_class->m_op_class_info.num_channels; i++) {
+            	cJSON_AddItemToArray(anticipated_arr, cJSON_CreateNumber(pop_class->m_op_class_info.channels[i]));
+        	}
+    	}
+		cJSON_AddItemToArray(obj_arr, obj);
+		pop_class = get_next_op_class(pop_class);
     }
     
 	
     return 0;
+}
+
+int dm_op_class_list_t::get_config(cJSON *obj_arr, em_op_class_type_t type)
+{
+	dm_op_class_t *op_class;
+	cJSON *obj, *channel_arr;
+	unsigned int i;
+
+	// only anticipated is implemented now
+	if (type != em_op_class_type_anticipated) {
+		printf("%s:%d: Non anticipated category not imeplemented\n", __func__, __LINE__);
+		assert(0);
+		return -1;
+	}		
+
+	op_class = (dm_op_class_t *)get_first_anticipated_op_class();
+	while (op_class) {
+       	obj = cJSON_CreateObject(); 
+
+		cJSON_AddNumberToObject(obj, "Class", op_class->m_op_class_info.op_class);
+		channel_arr = cJSON_AddArrayToObject(obj, "ChannelList");
+		for (i = 0; i < op_class->m_op_class_info.num_channels; i++) {
+           	cJSON_AddItemToArray(channel_arr, cJSON_CreateNumber(op_class->m_op_class_info.channels[i]));
+       	}
+
+		cJSON_AddItemToArray(obj_arr, obj);
+		op_class = (dm_op_class_t *)get_next_anticipated_op_class(op_class);
+	}
 }
 
 int dm_op_class_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void *parent_id)
@@ -125,7 +153,9 @@ dm_orch_type_t dm_op_class_list_t::get_dm_orch_type(db_client_t& db_client, cons
     em_short_string_t   key;
 
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)op_class.m_op_class_info.id.ruid, mac_str);
-    snprintf(key, sizeof(key), "%s@%d@%d", mac_str, op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.index);
+	//printf("%s:%d: MAC: %s\tType: %d\tClass: %d\n", __func__, __LINE__, mac_str,
+			//op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.op_class);
+    snprintf(key, sizeof(key), "%s@%d@%d", mac_str, op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.op_class);
 
     pop_class = get_op_class(key);
     if (pop_class != NULL) {
@@ -134,9 +164,10 @@ dm_orch_type_t dm_op_class_list_t::get_dm_orch_type(db_client_t& db_client, cons
             //printf("%s:%d: Op Class: %s does not exist in db\n", __func__, __LINE__, key);
             return dm_orch_type_db_insert;
         }
+
         if (*pop_class == op_class) {
             //printf("%s:%d: Op Class: %s already in list\n", __func__, __LINE__, key);
-            return dm_orch_type_none;
+            return dm_orch_type_db_update;
         }
 
         //printf("%s:%d: Op Class: %s in list but needs update\n", __func__, __LINE__, key);
@@ -154,7 +185,7 @@ void dm_op_class_list_t::update_list(const dm_op_class_t& op_class, dm_orch_type
     em_long_string_t	key;
 
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)op_class.m_op_class_info.id.ruid, mac_str);
-    snprintf(key, sizeof(key), "%s@%d@%d", mac_str, op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.index);
+    snprintf(key, sizeof(key), "%s@%d@%d", mac_str, op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.op_class);
 
     switch (op) {
         case dm_orch_type_db_insert:
@@ -183,7 +214,7 @@ void dm_op_class_list_t::delete_list()
         tmp = pop_class;
         pop_class = get_next_op_class(pop_class);
     	dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_op_class_info.id.ruid, mac_str);
-    	snprintf(key, sizeof(key), "%s@%d@%d", mac_str, tmp->m_op_class_info.id.type, tmp->m_op_class_info.id.index);
+    	snprintf(key, sizeof(key), "%s@%d@%d", mac_str, tmp->m_op_class_info.id.type, tmp->m_op_class_info.id.op_class);
   
         remove_op_class(key);
     }
@@ -197,42 +228,31 @@ bool dm_op_class_list_t::operator == (const db_easy_mesh_t& obj)
 int dm_op_class_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *data)
 {
     mac_addr_str_t mac_str;
-    em_long_string_t non_op_str = {0}, anticipated_str = {0}, id;
+    em_long_string_t channels_str = {0}, id;
     char tmp[8];
     em_op_class_info_t *info = (em_op_class_info_t *)data;
     int ret = 0;
     unsigned int i;
 
     dm_easy_mesh_t::macbytes_to_string(info->id.ruid, mac_str);
-    snprintf(id, sizeof(id), "%s@%d@%d", mac_str, info->id.type, info->id.index);
-    //printf("%s:%d: Opeartion:%d, id:%s mac:%s, type:%d, index:%d\n", __func__, __LINE__, op, id, mac_str, info->id.type, info->id.index);
+    snprintf(id, sizeof(id), "%s@%d@%d", mac_str, info->id.type, info->id.op_class);
+    //printf("\n%s:%d: Opeartion:%d, id:%s\tmac:%s\ttype:%d\tClass:%d\tClass: %d\n", __func__, __LINE__, op, id, mac_str, info->id.type, info->id.op_class, info->op_class);
 
-    if (info->id.type == em_op_class_type_capability) {
-        for (i = 0; i < info->num_non_op_channels; i++) {
-            snprintf(tmp, sizeof(tmp), "%d,", info->non_op_channel[i]);
-            snprintf(non_op_str + strlen(non_op_str), sizeof(non_op_str) - strlen(non_op_str), "%s", tmp);
-        }
+	for (i = 0; i < info->num_channels; i++) {
+		snprintf(tmp, sizeof(tmp), "%d,", info->channels[i]);
+		snprintf(channels_str + strlen(channels_str), sizeof(channels_str) - strlen(channels_str), "%s", tmp);
+	}
 
-        non_op_str[strlen(non_op_str) - 1] = 0;
-    }
-
-    if (info->id.type == em_op_class_type_preference) {
-        for (i = 0; i < info->num_anticipated_channels; i++) {
-            snprintf(tmp, sizeof(tmp), "%d,", info->anticipated_channel[i]);
-            strncat(anticipated_str, tmp, strlen(tmp));
-        }
-
-        anticipated_str[strlen(anticipated_str) - 1] = 0;
-    }
+	channels_str[strlen(channels_str) - 1] = 0;
     switch (op) {
         case dm_orch_type_db_insert:
-            ret = insert_row(db_client, id, info->op_class, info->channel, info->tx_power, info->max_tx_power, non_op_str,
-                                           info->mins_since_cac_comp, info->sec_remain_non_occ_dur, info->countdown_cac_comp, anticipated_str);
+            ret = insert_row(db_client, id, info->op_class, info->channel, channels_str, info->tx_power, info->max_tx_power,
+                                           info->mins_since_cac_comp, info->sec_remain_non_occ_dur, info->countdown_cac_comp);
             break;
 
 	    case dm_orch_type_db_update:
-            ret = update_row(db_client, info->op_class, info->channel, info->tx_power, info->max_tx_power, non_op_str,
-                                       info->mins_since_cac_comp, info->sec_remain_non_occ_dur, info->countdown_cac_comp, anticipated_str, id);
+            ret = update_row(db_client, info->op_class, info->channel, channels_str, info->tx_power, info->max_tx_power, 
+                                       info->mins_since_cac_comp, info->sec_remain_non_occ_dur, info->countdown_cac_comp, id);
             break;
 
 	    case dm_orch_type_db_delete:
@@ -252,6 +272,8 @@ bool dm_op_class_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
 
     while (db_client.next_result(ctx)) {
         db_client.get_string(ctx, str, 1);
+		//printf("%s:%d: Comparing source: %s target: %s\n", __func__, __LINE__, str, (char *)key);
+
         if (strncmp(str, (char *)key, strlen((char *)key)) == 0) {
             return true;
         }
@@ -264,8 +286,8 @@ int dm_op_class_list_t::sync_db(db_client_t& db_client, void *ctx)
     em_op_class_info_t info;
     em_long_string_t   str, id;
     mac_addr_str_t	mac_str;
-    em_string_t	ch_str[EM_MAX_NON_OP_CHANNELS];
-    char   *token_parts[EM_MAX_NON_OP_CHANNELS], *tmp;
+    em_string_t	ch_str[EM_MAX_CHANNELS_IN_LIST];
+    char   *token_parts[EM_MAX_CHANNELS_IN_LIST], *tmp;
     unsigned int i = 0;
     int rc = 0;
 
@@ -276,30 +298,29 @@ int dm_op_class_list_t::sync_db(db_client_t& db_client, void *ctx)
         dm_op_class_t::parse_op_class_id_from_key(id, &info.id);
         info.op_class = db_client.get_number(ctx, 2);
         info.channel = db_client.get_number(ctx, 3);
-        info.tx_power = db_client.get_number(ctx, 4);
-        info.max_tx_power = db_client.get_number(ctx, 5);
-
-        db_client.get_string(ctx, str, 6);
-        for (i = 0; i < EM_MAX_NON_OP_CHANNELS; i++) {
+        
+		db_client.get_string(ctx, str, 4);
+		for (i = 0; i < EM_MAX_CHANNELS_IN_LIST; i++) {
             token_parts[i] = ch_str[i];
         }
 
-        info.num_non_op_channels = get_strings_by_token(str, ',', EM_MAX_NON_OP_CHANNELS, token_parts);
-        for (i = 0; i < info.num_non_op_channels; i++) {
-            info.non_op_channel[i] = atoi(token_parts[i]);
-        }
+		if ((str != NULL) && (*str != 0)) {	
+			info.num_channels = get_strings_by_token(str, ',', EM_MAX_CHANNELS_IN_LIST, token_parts);
+			for (i = 0; i < info.num_channels; i++) {
+				info.channels[i] = atoi(token_parts[i]);
+			}
+		}
+
+        info.tx_power = db_client.get_number(ctx, 5);
+        info.max_tx_power = db_client.get_number(ctx, 6);
+
         info.mins_since_cac_comp = db_client.get_number(ctx, 7);
         info.sec_remain_non_occ_dur = db_client.get_number(ctx, 8);
         info.countdown_cac_comp = db_client.get_number(ctx, 9);
 
-        db_client.get_string(ctx, str, 10);
-		info.num_anticipated_channels = get_strings_by_token(str, ',', EM_MAX_NON_OP_CHANNELS, token_parts);
-		for (i = 0; i < info.num_anticipated_channels; i++) {
-			info.anticipated_channel[i] = atoi(token_parts[i]);
-		}
-
         update_list(dm_op_class_t(&info), dm_orch_type_db_insert);
     }
+
     return rc;
 }
 
@@ -315,13 +336,12 @@ void dm_op_class_list_t::init_columns()
     m_columns[m_num_cols++] = db_column_t("ID", db_data_type_char, 32);
     m_columns[m_num_cols++] = db_column_t("Class", db_data_type_int, 0);
     m_columns[m_num_cols++] = db_column_t("Channel", db_data_type_int, 0);
+    m_columns[m_num_cols++] = db_column_t("ChannelList", db_data_type_char, 64);
     m_columns[m_num_cols++] = db_column_t("TxPower", db_data_type_int, 0);
     m_columns[m_num_cols++] = db_column_t("MaxTxPower", db_data_type_int, 0);
-    m_columns[m_num_cols++] = db_column_t("NonOperable", db_data_type_char, 64);
     m_columns[m_num_cols++] = db_column_t("Minutes", db_data_type_int, 0);
     m_columns[m_num_cols++] = db_column_t("Seconds", db_data_type_int, 0);
     m_columns[m_num_cols++] = db_column_t("Countdown", db_data_type_int, 0);
-    m_columns[m_num_cols++] = db_column_t("Anticipated", db_data_type_char, 64);
 }
 
 int dm_op_class_list_t::init()

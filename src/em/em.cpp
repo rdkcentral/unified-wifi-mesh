@@ -94,8 +94,9 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 
         case em_cmd_type_em_config:
-            printf("%s:%d: %s(%s) state: 0x%04x\n", __func__, __LINE__,
-                    em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), get_state());
+            printf("%s:%d: %s(%s) state: %s\n", __func__, __LINE__,
+                    em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
+					em_t::state_2_str(get_state()));
             if ((pcmd->get_orch_op() == dm_orch_type_topo_sync) && (m_sm.get_state() == em_state_ctrl_wsc_m2_sent)) {
                 m_sm.set_state(em_state_ctrl_topo_sync_pending);
             } else if ((pcmd->get_orch_op() == dm_orch_type_channel_pref) && (m_sm.get_state() == em_state_ctrl_topo_synchronized)) {
@@ -532,19 +533,19 @@ short em_t::create_ap_radio_basic_cap(unsigned char *buff) {
 			cap->op_class_num++;
 			op_class->op_class = op_class_info->op_class;
 			op_class->max_tx_eirp = op_class_info->max_tx_power;
-			op_class->num = op_class_info->num_non_op_channels;
+			op_class->num = op_class_info->num_channels;
 			len += sizeof(em_op_class_t);
-			if (op_class_info->num_non_op_channels != 0) {
+			if (op_class_info->num_channels != 0) {
 				channel_list = &op_class->channels;
-				for (int j = 0; j < op_class_info->num_non_op_channels; j++) {
-					memcpy( (unsigned char *)&channel_list->channel, (unsigned char *)&op_class_info->non_op_channel[j], sizeof(unsigned char));
+				for (int j = 0; j < op_class_info->num_channels; j++) {
+					memcpy( (unsigned char *)&channel_list->channel, (unsigned char *)&op_class_info->channels[j], sizeof(unsigned char));
 					all_channel_len = all_channel_len + sizeof(unsigned char);
 					channel_list = (em_channels_list_t *)((unsigned char *)channel_list + sizeof(em_channels_list_t) + sizeof(unsigned char) );
 									   len += sizeof(unsigned char);
 				}
 			}
 			printf("Op Class %d: %d, max_tx_eirp: %d, channels.num: %d\n",
-				   i, op_class_info->op_class, op_class_info->max_tx_power, op_class_info->num_non_op_channels);
+				   i, op_class_info->op_class, op_class_info->max_tx_power, op_class_info->num_channels);
 			printf(" cap->op_classes[%d].op_class: %d, cap->op_classes[%d].max_tx_eirp %d,	cap->op_classes[%d].channels.num %d\n",
 				   i, cap->op_classes[i].op_class, i, cap->op_classes[i].max_tx_eirp, i, cap->op_classes[i].num);
 
@@ -634,6 +635,36 @@ short em_t::create_wifi6_tlv(unsigned char *buff)
     }
     memcpy(&wifi6_cap,&cap_info->wifi6_cap,sizeof(em_radio_wifi6_cap_data_t));
     len = sizeof(em_radio_wifi6_cap_data_t);
+    return len;
+}
+
+short em_t::create_wifi7_tlv(unsigned char *buff)
+{
+    short len = 0;
+    em_radio_cap_info_t* cap_info = get_data_model()->get_radio_cap(get_radio_interface_mac())->get_radio_cap_info();
+    em_wifi7_agent_cap_t *wifi7_cap = (em_wifi7_agent_cap_t *)buff;
+
+    if ((wifi7_cap == NULL) || (cap_info == NULL)) {
+        printf("%s:%d No data Found\n", __func__, __LINE__);
+        return 0;
+    }
+    memcpy(&wifi7_cap,&cap_info->wifi7_cap,sizeof(em_wifi7_agent_cap_t));
+    len = sizeof(em_wifi7_agent_cap_t);
+    return len;
+}
+
+short em_t::create_eht_operations_tlv(unsigned char *buff)
+{
+    short len = 0;
+    em_radio_cap_info_t* cap_info = get_data_model()->get_radio_cap(get_radio_interface_mac())->get_radio_cap_info();
+    em_eht_operations_t *eht_ops = (em_eht_operations_t *)buff;
+
+    if ((eht_ops == NULL) || (cap_info == NULL)) {
+        printf("%s:%d No data Found\n", __func__, __LINE__);
+        return 0;
+    }
+    memcpy(&eht_ops,&cap_info->eht_ops,sizeof(em_eht_operations_t));
+    len = sizeof(em_eht_operations_t);
     return len;
 }
 
@@ -784,7 +815,6 @@ const char *em_t::state_2_str(em_state_t state)
 		EM_STATE_2S(em_state_ctrl_channel_selected)
 		EM_STATE_2S(em_state_ctrl_channel_report_pending)
 		EM_STATE_2S(em_state_ctrl_channel_cnf_pending)
-		EM_STATE_2S(em_state_ctrl_channel_confirmed)
 		EM_STATE_2S(em_state_ctrl_configured)
 		EM_STATE_2S(em_state_ctrl_misconfigured)
 		EM_STATE_2S(em_state_ctrl_sta_cap_pending)

@@ -161,7 +161,7 @@ dm_device_t *dm_easy_mesh_list_t::get_first_device()
 
     dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
     if (dm == NULL) {
-	return NULL;
+		return NULL;
     }
 
     return dm->get_device();
@@ -801,10 +801,8 @@ dm_op_class_t *dm_easy_mesh_list_t::get_first_op_class()
     while (dm != NULL) {
         if (dm->get_num_op_class() > 0) {
             op_class = dm->get_op_class((unsigned int)0);
-			if (op_class->m_op_class_info.id.index == 0) {
-				found = true;
-				break;
-			}
+			found = true;
+			break;
         }
         dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
     }
@@ -859,8 +857,12 @@ dm_op_class_t *dm_easy_mesh_list_t::get_op_class(const char *key)
 	bool found_dm = false;
 	unsigned int i;
     dm_op_class_t *pop_class;
+	mac_addr_str_t	mac_str;
 	
     dm_op_class_t::parse_op_class_id_from_key(key, &id);
+
+	dm_easy_mesh_t::macbytes_to_string(id.ruid, mac_str);
+	//printf("%s:%d: MAC: %s\tType: %d\tClass: %d\n", __func__, __LINE__, mac_str, id.type, id.op_class);
 	
     dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
     while (dm != NULL) {
@@ -887,16 +889,74 @@ dm_op_class_t *dm_easy_mesh_list_t::get_op_class(const char *key)
 	if (found_dm == false) {
 		return NULL;
 	}
+	//printf("%s:%d: Number of op classes: %d\n", __func__, __LINE__, dm->get_num_op_class());
 
     // now check if the op class is already there
 	for (i = 0; i < dm->get_num_op_class(); i++) {
 		pop_class = &dm->m_op_class[i];
-		if (memcmp(&pop_class->m_op_class_info.id, &id, sizeof(em_op_class_id_t)) == 0) {
+		dm_easy_mesh_t::macbytes_to_string(pop_class->m_op_class_info.id.ruid, mac_str);
+		//printf("%s:%d: MAC: %s\tType: %d\tClass: %d\n", __func__, __LINE__, 
+				//mac_str, pop_class->m_op_class_info.id.type, pop_class->m_op_class_info.id.op_class);
+		if ((memcmp(pop_class->m_op_class_info.id.ruid, id.ruid, sizeof(mac_address_t)) == 0) && 
+					(pop_class->m_op_class_info.id.type == id.type) &&
+					(pop_class->m_op_class_info.id.op_class == id.op_class)) {
+			//printf("%s:%d: Found match\n\n\n", __func__, __LINE__);
 			return pop_class;
 		}	
 	}
 
+	//printf("%s:%d: Match not found\n\n\n", __func__, __LINE__);
 	return NULL;
+}
+
+dm_op_class_t *dm_easy_mesh_list_t::get_first_anticipated_op_class()
+{
+	dm_easy_mesh_t *dm;
+	dm_op_class_t *op_class;
+	unsigned int i;
+    
+	dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    if (dm == NULL) {
+		return NULL;
+    }
+
+	for (i = 0; i < dm->get_num_op_class(); i++) {
+		op_class = &dm->m_op_class[i];
+		if (op_class->m_op_class_info.id.type == em_op_class_type_anticipated) {
+			return op_class;
+		}
+	}	
+
+	return NULL;
+}
+
+dm_op_class_t *dm_easy_mesh_list_t::get_next_anticipated_op_class(dm_op_class_t *op_class)
+{
+	dm_easy_mesh_t *dm;
+	dm_op_class_t *pop_class;
+	unsigned int i;
+	bool return_next = false;
+    
+	dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    if (dm == NULL) {
+		return NULL;
+    }
+
+	for (i = 0; i < dm->get_num_op_class(); i++) {
+		pop_class = &dm->m_op_class[i];
+
+		if ((return_next == true) && (pop_class->m_op_class_info.id.type == em_op_class_type_anticipated)) {
+			return pop_class;
+		}
+
+		if ((pop_class->m_op_class_info.id.type == em_op_class_type_anticipated) &&
+				(pop_class == op_class)) {
+			return_next = true;
+		}
+	}	
+
+	return NULL;
+
 }
 
 void dm_easy_mesh_list_t::remove_op_class(const char *key)
@@ -915,8 +975,8 @@ void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_
 	dm_radio_t *radio;
 
 	dm_easy_mesh_t::macbytes_to_string((unsigned char *)op_class->m_op_class_info.id.ruid, mac_str);
-	printf("%s:%d: key: %s, ruid: %s, type: %d, index: %d\n", __func__, __LINE__, 
-		key, mac_str, op_class->m_op_class_info.id.type, op_class->m_op_class_info.id.index);
+	//printf("%s:%d: key: %s, ruid: %s, type: %d, op_class: %d\n", __func__, __LINE__, 
+		//key, mac_str, op_class->m_op_class_info.id.type, op_class->m_op_class_info.id.op_class);
 	dm_op_class_t::parse_op_class_id_from_key(key, &id);
 
 	// find the dm that has this radio
@@ -953,17 +1013,21 @@ void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_
     // now check if the op class is already there
     for (i = 0; i < dm->get_num_op_class(); i++) {
         pop_class = &dm->m_op_class[i];
-        if (memcmp(&pop_class->m_op_class_info.id, &op_class->m_op_class_info.id, sizeof(em_op_class_id_t)) == 0) {
-            if (pop_class->m_op_class_info.op_class == op_class->m_op_class_info.op_class) {
-                memcpy(&pop_class->m_op_class_info, &op_class->m_op_class_info, sizeof(em_op_class_info_t));
-                return;
-            }
+        if ((memcmp(pop_class->m_op_class_info.id.ruid, op_class->m_op_class_info.id.ruid, sizeof(mac_address_t)) == 0) &&
+					(pop_class->m_op_class_info.id.type == op_class->m_op_class_info.id.type) &&
+					(pop_class->m_op_class_info.id.op_class == op_class->m_op_class_info.id.op_class)) {
+        	memcpy(&pop_class->m_op_class_info, &op_class->m_op_class_info, sizeof(em_op_class_info_t));
+        	return;
         }
     }
 
     pop_class = &dm->m_op_class[dm->get_num_op_class()];
     memcpy(&pop_class->m_op_class_info, &op_class->m_op_class_info, sizeof(em_op_class_info_t));
+	dm_easy_mesh_t::macbytes_to_string((unsigned char *)pop_class->m_op_class_info.id.ruid, mac_str);
+	//printf("%s:%d: ruid: %s, type: %d, op_class: %d\n", __func__, __LINE__, 
+		//mac_str, pop_class->m_op_class_info.id.type, pop_class->m_op_class_info.id.op_class);
     dm->set_num_op_class(dm->get_num_op_class() + 1);
+	//printf("%s:%d: Number of op classes: %d\n", __func__, __LINE__, dm->get_num_op_class());
 }
 
 void dm_easy_mesh_list_t::delete_all_data_models()
@@ -1018,6 +1082,11 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
     dm_device_t *dev;
     dm_network_ssid_t *net_ssid, *pnet_ssid;
     unsigned int i;
+	dm_op_class_t	op_class[] 	= 	{
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 81}, 81, 0, 0, 0, 1, {6}, 0, 0, 0}), 
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 115}, 115, 0, 0, 0, 1, {36}, 0, 0, 0}), 
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 135}, 135, 0, 0, 0, 1, {1}, 0, 0, 0})
+									};
 	
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)al_mac, mac_str);
     snprintf(key, sizeof(em_short_string_t), "%s@%s", net_id, mac_str);
@@ -1031,6 +1100,7 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
     memcpy(dev->m_device_info.id.mac, al_mac, sizeof(mac_address_t));
     strncpy(dev->m_device_info.net_id, net_id, strlen(net_id) + 1);
     dev->m_device_info.profile = profile;
+	dm->set_anticipated_channels_list(op_class);
 
     // is this the first data model
     if ((net = get_network(net_id)) != NULL) {

@@ -48,7 +48,7 @@ void em_orch_agent_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 
     stats = (em_cmd_stats_t *)hash_map_get(m_cmd_map, key);
     assert(stats != NULL);
-    if (stats->time > EM_MAX_CMD_TTL) {
+    if (stats->time > EM_MAX_CMD_GEN_TTL) {
         printf("%s:%d: Canceling comd: %s because time limit exceeded\n", __func__, __LINE__, pcmd->get_cmd_name());
         cancel_command(pcmd->get_type());
     	if (em->get_state() < em_state_agent_topo_synchronized) {

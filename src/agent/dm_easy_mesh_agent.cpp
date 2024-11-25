@@ -49,7 +49,7 @@
 int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     unsigned int index = 0;
-    unsigned int num = 0, i, j = 0, num_radios = 0;
+    unsigned int num = 0, i, j = 0, num_radios = 0, op_class_index = 0;
     em_orch_desc_t desc;
     dm_easy_mesh_agent_t  dm;
     dm_device_t *dev, *tgt_dev;
@@ -65,6 +65,13 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
     num++;
 
     while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+        //Checking the freq band of current op class
+        for (int i = 0; i < dm.get_num_op_class(); i++) {
+            if (dm.get_op_class(i)->get_op_class_info()->id.type == em_op_class_type_current) {
+                op_class_index = i;
+            }
+        }
+        pcmd[num]->set_rd_freq_band(op_class_index);
         tmp = pcmd[num];
         num++;
     }
@@ -439,7 +446,7 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
 		dm_op_class = dm.get_op_class_info(i);
 		if ((memcmp(dm_op_class->id.ruid, &channel_sel->op_class_info[0].id.ruid, sizeof(mac_address_t)) == 0) && 
 			(dm_op_class->id.type == channel_sel->op_class_info[0].id.type)) {
-			dm_op_class->channel =  channel_sel->op_class_info[0].anticipated_channel[0];
+			dm_op_class->channel =  channel_sel->op_class_info[0].channels[0];
 			dm_op_class->op_class = channel_sel->op_class_info[0].op_class;
 		break;
 		}
@@ -447,7 +454,7 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
 	if (i == noofopclass) {
 		dm_op_class = dm.get_op_class_info(i);
 		memcpy(dm_op_class, &channel_sel->op_class_info[i], sizeof(em_op_class_info_t));
-		dm_op_class->channel = channel_sel->op_class_info[0].anticipated_channel[0];
+		dm_op_class->channel = channel_sel->op_class_info[0].channels[0];
 		dm_op_class->op_class = channel_sel->op_class_info[0].op_class;
 		noofopclass++;
 	}

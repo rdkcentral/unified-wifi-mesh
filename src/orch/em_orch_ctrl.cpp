@@ -49,10 +49,22 @@ void em_orch_ctrl_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 
     stats = (em_cmd_stats_t *)hash_map_get(m_cmd_map, key);
     assert(stats != NULL);
-    if (stats->time > EM_MAX_CMD_TTL) {
-        printf("%s:%d: Canceling comd: %s because time limit exceeded\n", __func__, __LINE__, pcmd->get_cmd_name());
-        cancel_command(pcmd->get_type());
-    }   
+	
+	switch (pcmd->m_type) {
+		case em_cmd_type_em_config:
+    		if (stats->time > (EM_MAX_CMD_GEN_TTL + EM_MAX_CMD_EXT_TTL)) {
+        		printf("%s:%d: Canceling cmd: %s because time limit exceeded\n", __func__, __LINE__, pcmd->get_cmd_name());
+        		cancel_command(pcmd->get_type());
+    		}
+			break;
+
+		default:
+    		if (stats->time > EM_MAX_CMD_GEN_TTL) {
+        		printf("%s:%d: Canceling cmd: %s because time limit exceeded\n", __func__, __LINE__, pcmd->get_cmd_name());
+        		cancel_command(pcmd->get_type());
+    		}
+			break;   
+	}
 
 }
 
@@ -87,13 +99,14 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             } else if (em->get_state() == em_state_ctrl_configured) {
                 return true;
 			}
-			//printf("%s:%d: em not ready orchestration:%s(%s) because of incorrect state, state:%s\n", __func__, __LINE__,
-                    //em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
-					//em_t::state_2_str(em->get_state()));
+			printf("%s:%d: em not ready orchestration:%s(%s) because of incorrect state, state:%s\n", __func__, __LINE__,
+                    em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
+					em_t::state_2_str(em->get_state()));
             break;
         
         case em_cmd_type_set_channel:
-            if (em->get_state() == em_state_ctrl_channel_confirmed) {                               return true;
+            if (em->get_state() == em_state_ctrl_configured) {                               
+				return true;
             }
             break;
 
@@ -180,7 +193,7 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
             break;
 
         case em_cmd_type_set_channel:
-            if (em->get_state() >= em_state_ctrl_channel_selected) {
+            if (em->get_state() == em_state_ctrl_configured) {
                 return true;
             }
             break;
@@ -374,13 +387,27 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 break;
             
             case em_cmd_type_set_channel:
-                dm = em->get_data_model();
-                device = dm->get_device_info();
-                if ((em->is_al_interface_em() == false) && (memcmp(pcmd->get_data_model()->get_agent_al_interface_mac(), device->id.mac, sizeof(mac_address_t)) == 0)) {
+                if (em->is_al_interface_em() == false) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
-                    dm_easy_mesh_t::macbytes_to_string(device->id.mac, mac_str);
-                    printf("%s:%d:%s Channel change for device\n", __func__, __LINE__,mac_str);
+                }
+                break;
+
+            case em_cmd_type_sta_steer:
+                if (em->find_sta(pcmd->m_param.u.steer_params.sta_mac, pcmd->m_param.u.steer_params.source) != NULL) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
+                }
+                break;
+
+            case em_cmd_type_sta_disassoc:
+                dm = pcmd->get_data_model();
+                for (i = 0; i < pcmd->m_param.u.disassoc_params.num; i++) {
+                    disassoc_param = &pcmd->m_param.u.disassoc_params.params[i];
+                    if ((sta = em->find_sta(disassoc_param->sta_mac, disassoc_param->bssid)) != NULL) {
+                        queue_push(pcmd->m_em_candidates, em);
+                        count++;
+                    }
                 }
                 break;
 

@@ -51,8 +51,9 @@ em_cmd_set_channel_t::em_cmd_set_channel_t(em_cmd_params_t param, dm_easy_mesh_t
 
     m_orch_op_idx = 0;
     m_num_orch_desc = 2;
-    m_orch_desc[0].op = dm_orch_type_db_cfg;
-    m_orch_desc[1].op = dm_orch_type_em_update;
+    m_orch_desc[0].op = dm_orch_type_channel_sel;
+    m_orch_desc[0].submit = true;
+    m_orch_desc[1].op = dm_orch_type_channel_cnf;
     m_orch_desc[1].submit = true;
 
     strncpy(m_name, "set_channel", strlen("set_channel") + 1);

@@ -152,6 +152,7 @@ public:
     static void set_num_op_class(void *dm, unsigned int num) { ((dm_easy_mesh_t *)dm)->set_num_op_class(num); }
     dm_op_class_t *get_op_class(unsigned int index) { return &m_op_class[index]; }
     dm_op_class_t& get_op_class_by_ref(unsigned int index) { return m_op_class[index]; }
+	static void print_op_class_list(dm_easy_mesh_t *dm);
 
     unsigned int get_num_bss() { return m_num_bss; }
     static unsigned int get_num_bss(void *dm) { return ((dm_easy_mesh_t *)dm)->get_num_bss(); }
@@ -244,6 +245,7 @@ public:
     void set_em(em_t *em) { m_em = em; }
     void set_colocated(bool col) { m_colocated = col; }
     bool get_colocated() { return m_colocated; }
+	void set_anticipated_channels_list(dm_op_class_t op_class[]);
     em_t *get_em() { return m_em; }
     void clone_hash_maps(dm_easy_mesh_t& obj);
 

@@ -559,70 +559,37 @@ int dm_easy_mesh_ctrl_t::analyze_set_channel(em_bus_event_t *evt, em_cmd_t *pcmd
 {
     int ret;
     em_subdoc_info_t *subdoc;
-	dm_easy_mesh_t dm, *pdm, tgt;
+	dm_easy_mesh_t dm, *pdm;
     em_cmd_t *tmp;
-	mac_addr_str_t mac_str;
-	bool found_match = false;
-	unsigned int i, j, k, num_devices = EM_MAX_DEVICES, num = 0;
+	unsigned int num = 0, num_devices = 0, i = 0;
+	unsigned int db_cfg_type = 0;
     
 	subdoc = &evt->u.subdoc;
 
-	for (i = 0; i < num_devices; i++) {
-    	if ((ret = dm.decode_config(subdoc, "SetAnticipatedChannelPreference", i, &num_devices)) < 0) {
-        	return ret;
-    	}
+   	if ((ret = dm.decode_config(subdoc, "SetAnticipatedChannelPreference", i, &num_devices)) < 0) {
+       	return ret;
+   	}
 
-		if (dm.m_num_opclass == 0) {
-			continue;
-		}
+	assert(dm.get_num_op_class() == EM_MAX_BANDS);
 
-		if ((pdm = get_data_model(dm.m_device.m_device_info.net_id, dm.m_device.m_device_info.id.mac)) == NULL) {
-			dm_easy_mesh_t::macbytes_to_string(dm.m_device.m_device_info.id.mac, mac_str);
-			printf("%s:%d: Could not find data model for device: %s and net id: %s\n", __func__, __LINE__, mac_str, dm.m_device.m_device_info.net_id);
-			continue;
-		}
+	pdm = m_data_model_list.get_first_dm();
+	while (pdm != NULL) {
+		pdm->set_anticipated_channels_list(dm.m_op_class);
 
-		tgt.m_num_opclass = 0;
-		memcpy(&tgt.m_device.m_device_info, &dm.m_device.m_device_info, sizeof(em_device_info_t));
-
-		for (j = 0; j < dm.m_num_opclass; j++) {
-			for (k = 0; k < pdm->m_num_opclass; k++) {
-				if (dm.m_op_class[j] == pdm->m_op_class[k]) {
-					found_match = true;
-					break;
-				}
-			}
-
-			if (found_match == true) {
-				found_match = false;
-			} else {
-				memcpy(&tgt.m_op_class[tgt.m_num_opclass].m_op_class_info, &dm.m_op_class[j].m_op_class_info, sizeof(em_op_class_info_t));
-				tgt.m_num_opclass++;
-			}
-		}
-
-		printf("%s:%d: New target with new op_classes:%d\n", __func__, __LINE__, tgt.m_num_opclass);
-		for (j = 0; j < tgt.m_num_opclass; j++) {
-			printf("%s:%d: OperatingClass[%d]: %d\t[\t", __func__, __LINE__, j, tgt.m_op_class[j].m_op_class_info.op_class);
-			for (k = 0; k < tgt.m_op_class[j].m_op_class_info.num_anticipated_channels; k++) {
-				printf("%d\t", tgt.m_op_class[j].m_op_class_info.anticipated_channel[k]);
-			}
-			printf("]\n");
-		}
-
-
-
-		tgt.set_db_cfg_type(db_cfg_type_op_class_list_update);
-    	pcmd[num] = new em_cmd_set_channel_t(evt->params, tgt);
-    	tmp = pcmd[num];
-    	num++;
-
-    	while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
-        	tmp = pcmd[num];
-        	num++;
-    	}
-    	printf("%s:%d: Number of commands:%d\n", __func__, __LINE__, num);
+		db_cfg_type = pdm->get_db_cfg_type();	
+		pdm->set_db_cfg_type(db_cfg_type_op_class_list_update);
+		pdm = m_data_model_list.get_next_dm(pdm);
 	}
+	
+
+   	pcmd[num] = new em_cmd_set_channel_t(evt->params, dm);
+   	tmp = pcmd[num];
+   	num++;
+
+   	while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+       	tmp = pcmd[num];
+       	num++;
+   	}
 
 	return num;
 }
@@ -984,15 +951,21 @@ int dm_easy_mesh_ctrl_t::get_network_ssid_config(cJSON *parent, char *key)
     return 0;
 }
 
-int dm_easy_mesh_ctrl_t::get_channel_config(cJSON *parent, char *key)
+int dm_easy_mesh_ctrl_t::get_channel_config(cJSON *parent, char *key, bool set_channel)
 {
-    cJSON *net_obj, *dev_list_obj, *dev_obj, *radio_list_obj, *radio_obj, *op_class_list_obj, *anticipated_channels_list_obj;
+    cJSON *net_obj, *dev_list_obj, *dev_obj, *radio_list_obj, *radio_obj, *op_class_list_obj;
+	cJSON *preferred_channels_list_obj, *anticipated_channel_list_obj;
     unsigned int i, j;
     char *tmp;
     em_long_string_t op_key;
 		
     net_obj = cJSON_AddObjectToObject(parent, "Network");
     dm_network_list_t::get_config(net_obj, key, true);
+
+	if (set_channel == true) {
+    	anticipated_channel_list_obj = cJSON_AddArrayToObject(net_obj, "AnticipatedChannelPreference");
+    	dm_op_class_list_t::get_config(anticipated_channel_list_obj, em_op_class_type_anticipated);
+	}
 
     dev_list_obj = cJSON_AddArrayToObject(net_obj, "DeviceList");
     dm_device_list_t::get_config(dev_list_obj, key, true);
@@ -1008,10 +981,10 @@ int dm_easy_mesh_ctrl_t::get_channel_config(cJSON *parent, char *key)
             snprintf(op_key, sizeof(op_key), "%s@%d@&d", tmp, em_op_class_type_current, 0);
             dm_op_class_list_t::get_config(op_class_list_obj, op_key);
         }
-        anticipated_channels_list_obj = cJSON_AddArrayToObject(dev_obj, "AnticipatedChannelPreference");
+        preferred_channels_list_obj = cJSON_AddArrayToObject(dev_obj, "PreferredChannels");
         tmp = cJSON_GetStringValue(cJSON_GetObjectItem(dev_obj, "ID"));
         snprintf(op_key, sizeof(op_key), "%s@%d@&d", tmp, em_op_class_type_preference, 0);
-        dm_op_class_list_t::get_config(anticipated_channels_list_obj, op_key);
+        dm_op_class_list_t::get_config(preferred_channels_list_obj, op_key);
     }
 
     return 0;
@@ -1100,6 +1073,8 @@ int dm_easy_mesh_ctrl_t::get_config(em_long_string_t net_id, em_subdoc_info_t *s
         get_network_ssid_config(parent, net_id);
     } else if (strncmp(subdoc->name, "ChannelList", strlen(subdoc->name)) == 0) {
         get_channel_config(parent, net_id);
+    } else if (strncmp(subdoc->name, "ChannelListSummary@SetAnticipatedChannelPreference", strlen(subdoc->name)) == 0) {
+        get_channel_config(parent, net_id, true);
     } else if (strncmp(subdoc->name, "BSSList", strlen(subdoc->name)) == 0) {
         get_bss_config(parent, net_id);
     } else if (strncmp(subdoc->name, "STAList", strlen(subdoc->name)) == 0) {
@@ -1150,10 +1125,10 @@ void dm_easy_mesh_ctrl_t::handle_dirty_dm()
 
     dm = m_data_model_list.get_first_dm();
     while (dm != NULL) {
-	if (dm->get_db_cfg_type()) {
-	    set_config(dm);		
-	}
-	dm = m_data_model_list.get_next_dm(dm);
+		if (dm->get_db_cfg_type()) {
+	    	set_config(dm);		
+		}
+		dm = m_data_model_list.get_next_dm(dm);
     }
 }
 
@@ -1321,14 +1296,16 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
         }
     } 
 
-    if (dm->get_db_cfg_type() & db_cfg_type_op_class_list_update) {
+	if (dm->get_db_cfg_type() & db_cfg_type_op_class_list_update) {
         for (i = 0; i < dm->get_num_op_class(); i++) {
             op_class = dm->get_op_class_by_ref(i);
-            dm_easy_mesh_t::macbytes_to_string(op_class.m_op_class_info.id.ruid, mac_str);
-            printf("%s:%d: Op Class[%d] ruid: %s type: %d index: %d\n", __func__, __LINE__, i,
-            mac_str, op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.index);
-            snprintf(parent, sizeof(em_long_string_t), "%s@%d@%d", mac_str, op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.index);
-            if (dm_op_class_list_t::set_config(m_db_client, dm->get_op_class_by_ref(i), parent) != 0) {
+            dm_easy_mesh_t::macbytes_to_string(dm->m_op_class[i].m_op_class_info.id.ruid, mac_str);
+            printf("%s:%d: Op Class[%d] ruid: %s\tType: %d\tClass: %d\tClass: %d\n", __func__, __LINE__, i,
+            	mac_str, dm->m_op_class[i].m_op_class_info.id.type, dm->m_op_class[i].m_op_class_info.id.op_class,
+				dm->m_op_class[i].m_op_class_info.op_class);
+            snprintf(parent, sizeof(em_long_string_t), "%s@%d@%d", mac_str, dm->m_op_class[i].m_op_class_info.id.type, 
+					dm->m_op_class[i].m_op_class_info.id.op_class, dm->m_op_class[i].m_op_class_info.op_class);
+            if (dm_op_class_list_t::set_config(m_db_client, dm->m_op_class[i], parent) != 0) {
                 at_least_one_failed = true;
             }
         }
@@ -1337,15 +1314,16 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
         } else {
             dm->set_db_cfg_type(dm->get_db_cfg_type() & ~db_cfg_type_op_class_list_update);
         }
+		printf("\n");
     } 
 
     if (dm->get_db_cfg_type() & db_cfg_type_op_class_list_delete) {
         for (i = 0; i < dm->get_num_op_class(); i++) {
             op_class = dm->get_op_class_by_ref(i);
             dm_easy_mesh_t::macbytes_to_string(op_class.m_op_class_info.id.ruid, mac_str);
-            printf("%s:%d: Op Class[%d] ruid: %s type: %d index: %d\n", __func__, __LINE__, i,
-            mac_str, op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.index);
-            snprintf(parent, sizeof(em_long_string_t), "%s@%d@%d", mac_str, op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.index);
+            printf("%s:%d: Op Class[%d] ruid: %s\tType: %d\tClass: %d\n", __func__, __LINE__, i,
+            	mac_str, op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.op_class);
+            snprintf(parent, sizeof(em_long_string_t), "%s@%d@%d", mac_str, op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.op_class);
             if (dm_op_class_list_t::update_db(m_db_client, dm_orch_type_db_delete, dm->get_op_class(i)) != 0) {
                 at_least_one_failed = true;
             }
