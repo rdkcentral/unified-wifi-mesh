@@ -220,14 +220,13 @@ void em_cmd_t::set_rd_freq_band(unsigned int i)
     dm_op_class_t *op_class_info;
     em_op_class_info_t em_op_class;
     num_curr_opclass = m_data_model.get_num_op_class();
-    printf("number of op_class = %d\n",num_curr_opclass);
 
     op_class_info = m_data_model.get_curr_op_class(i);
     if (op_class_info == NULL) {
-        printf("op_class_info is NULL\n");
+        printf("%s:%d: op_class_info is NULL\n", __func__, __LINE__);
     }
     em_op_class = op_class_info->m_op_class_info;
-    printf("opclass = %d\n",em_op_class.op_class);
+    printf("%s:%d: current opclass = %d\n", __func__, __LINE__, em_op_class.op_class);
     m_rd_op_class = em_op_class.op_class;
     m_rd_channel = em_op_class.channel;
     if (em_op_class.op_class >= EM_MIN_OP_CLASS_24 && em_op_class.op_class <= EM_MAX_OP_CLASS_24) {
