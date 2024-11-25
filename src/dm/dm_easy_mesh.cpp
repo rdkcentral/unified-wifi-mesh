@@ -1986,7 +1986,7 @@ void dm_easy_mesh_t::set_anticipated_channels_list(dm_op_class_t op_class[])
 				memcpy(m_op_class[j].m_op_class_info.id.ruid, m_device.m_device_info.id.mac, sizeof(mac_address_t));
 				m_op_class[j].m_op_class_info.id.type = em_op_class_type_anticipated;
 				m_op_class[j].m_op_class_info.id.op_class = op_class[i].m_op_class_info.id.op_class;
-				m_op_class[j].m_op_class_info.op_class = m_op_class[m_num_opclass].m_op_class_info.id.op_class;
+				m_op_class[j].m_op_class_info.op_class = m_op_class[j].m_op_class_info.id.op_class;
 				m_op_class[j].m_op_class_info.num_channels = 1;
 				m_op_class[j].m_op_class_info.channels[0] = op_class[i].m_op_class_info.channels[0];
 				dm_easy_mesh_t::macbytes_to_string(m_op_class[j].m_op_class_info.id.ruid, mac_str);	
@@ -2007,9 +2007,9 @@ void dm_easy_mesh_t::print_op_class_list(dm_easy_mesh_t *dm)
 	printf("\n\n");
 	for (i = 0; i < dm->m_num_opclass; i++) {
 		dm_easy_mesh_t::macbytes_to_string(dm->m_op_class[i].m_op_class_info.id.ruid, mac_str);	
-		printf("%s:%d: Index: %d\tMAC: %s\tType: %d\tOp Class:%d\tChannel:%d\n", __func__, __LINE__, i, mac_str, 
+		printf("%s:%d: Index: %d\tMAC: %s\tType: %d\tOp Class:%d\tClass: %d\tChannel:%d\n", __func__, __LINE__, i, mac_str, 
 						dm->m_op_class[i].m_op_class_info.id.type, dm->m_op_class[i].m_op_class_info.id.op_class,
-						dm->m_op_class[i].m_op_class_info.channels[0]);
+						dm->m_op_class[i].m_op_class_info.op_class, dm->m_op_class[i].m_op_class_info.channels[0]);
 
 	}
 	printf("\n\n");

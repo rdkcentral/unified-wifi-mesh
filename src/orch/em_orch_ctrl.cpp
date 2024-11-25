@@ -193,7 +193,7 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
             break;
 
         case em_cmd_type_set_channel:
-            if (em->get_state() >= em_state_ctrl_channel_selected) {
+            if (em->get_state() == em_state_ctrl_configured) {
                 return true;
             }
             break;
@@ -387,13 +387,9 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 break;
             
             case em_cmd_type_set_channel:
-                dm = em->get_data_model();
-                device = dm->get_device_info();
-                if ((em->is_al_interface_em() == false) && (memcmp(pcmd->get_data_model()->get_agent_al_interface_mac(), device->id.mac, sizeof(mac_address_t)) == 0)) {
+                if (em->is_al_interface_em() == false) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
-                    dm_easy_mesh_t::macbytes_to_string(device->id.mac, mac_str);
-                    printf("%s:%d:%s Channel change for device\n", __func__, __LINE__,mac_str);
                 }
                 break;
 
