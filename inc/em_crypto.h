@@ -45,12 +45,8 @@ public:
     static uint8_t g_dh1536_p[];
 
     int init();
-    em_crypto_info_t *get_crypto_info() { return &m_crypto_info; }
-    uint8_t get_shared_key(uint8_t **shared_secret, uint16_t *shared_secret_len, uint8_t *remote_pub, uint16_t remote_pub_len, uint8_t *local_priv, uint16_t local_priv_len);
-    uint8_t platform_hmac_SHA256(uint8_t *key, uint32_t keylen, uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *hmac);
-    uint8_t platform_SHA256(uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *digest);
-    void _I4B (const uint32_t *memory_pointer, uint8_t **packet_ppointer);
-    uint8_t wps_key_derivation_function(uint8_t *key, uint8_t *label_prefix, uint32_t label_prefix_len, char *label, uint8_t *res, uint32_t res_len);
+
+    static uint8_t get_shared_key(uint8_t **shared_secret, uint16_t *shared_secret_len, uint8_t *remote_pub, uint16_t remote_pub_len, uint8_t *local_priv, uint16_t local_priv_len);
 
     /**
      * @brief Computes an HMAC hash using OpenSSL for multiple input elements
@@ -188,38 +184,43 @@ public:
     static uint8_t platform_compute_shared_secret(uint8_t **shared_secret, uint16_t *shared_secret_len,
         uint8_t *remote_pub, uint16_t remote_pub_len,
         uint8_t *local_priv, uint8_t local_priv_len);
-    unsigned int get_e_uuid(unsigned char *uuid) { memcpy(uuid, (unsigned char *)&m_crypto_info.e_uuid, sizeof(uuid_t)); return sizeof(uuid_t); }
-    unsigned int get_r_uuid(unsigned char *uuid) { memcpy(uuid, (unsigned char *)&m_crypto_info.r_uuid, sizeof(uuid_t)); return sizeof(uuid_t); }
-    unsigned int get_e_nonce(unsigned char *nonce) { memcpy(nonce, (unsigned char *)&m_crypto_info.e_nonce, sizeof(em_nonce_t)); return sizeof(em_nonce_t); }
-    unsigned int get_r_nonce(unsigned char *nonce) { memcpy(nonce, (unsigned char *)&m_crypto_info.r_nonce, sizeof(em_nonce_t)); return sizeof(em_nonce_t); }
 
-    unsigned char *get_e_nonce() { return (unsigned char *)&m_crypto_info.e_nonce; }
-    unsigned char *get_r_nonce() { return (unsigned char *)&m_crypto_info.r_nonce; }
+    static inline uint8_t generate_iv(unsigned char *iv, unsigned int len) { if (!RAND_bytes(iv, len)) { return 0; } else { return 1; } }
 
-    void set_e_uuid(unsigned char *uuid, unsigned int len) { memcpy((unsigned char *)&m_crypto_info.e_uuid, uuid, len); }
-    void set_r_uuid(unsigned char *uuid, unsigned int len) { memcpy((unsigned char *)&m_crypto_info.r_uuid, uuid, len); }
-    void set_e_nonce(unsigned char *nonce, unsigned int len) { memcpy((unsigned char *)&m_crypto_info.e_nonce, nonce, len); }
-    void set_r_nonce(unsigned char *nonce, unsigned int len) { memcpy((unsigned char *)&m_crypto_info.r_nonce, nonce, len); }
+    // START: Object getters and setters
+    inline em_crypto_info_t *get_crypto_info() { return &m_crypto_info; }
 
-    unsigned char *get_e_public() { return m_crypto_info.e_pub; }
-    unsigned int get_e_public_len() { return m_crypto_info.e_pub_len; }
-    unsigned char *get_e_private() { return m_crypto_info.e_priv; }
-    unsigned int get_e_private_len() { return m_crypto_info.e_priv_len; }
-    unsigned char *get_r_public() { return m_crypto_info.r_pub; }
-    unsigned int get_r_public_len() { return m_crypto_info.r_pub_len; }
-    unsigned char *get_r_private() { return m_crypto_info.r_priv; }
-    unsigned int get_r_private_len() { return m_crypto_info.r_priv_len; }
+    inline unsigned int get_e_uuid(unsigned char *uuid) { memcpy(uuid, (unsigned char *)&m_crypto_info.e_uuid, sizeof(uuid_t)); return sizeof(uuid_t); }
+    inline unsigned int get_r_uuid(unsigned char *uuid) { memcpy(uuid, (unsigned char *)&m_crypto_info.r_uuid, sizeof(uuid_t)); return sizeof(uuid_t); }
+    inline unsigned int get_e_nonce(unsigned char *nonce) { memcpy(nonce, (unsigned char *)&m_crypto_info.e_nonce, sizeof(em_nonce_t)); return sizeof(em_nonce_t); }
+    inline unsigned int get_r_nonce(unsigned char *nonce) { memcpy(nonce, (unsigned char *)&m_crypto_info.r_nonce, sizeof(em_nonce_t)); return sizeof(em_nonce_t); }
 
-    uint8_t generate_iv(unsigned char *iv, unsigned int len) { if (!RAND_bytes(iv, len)) { return 0; } else { return 1; } }
+    inline unsigned char *get_e_nonce() { return (unsigned char *)&m_crypto_info.e_nonce; }
+    inline unsigned char *get_r_nonce() { return (unsigned char *)&m_crypto_info.r_nonce; }
 
-    void set_e_public(unsigned char *pub, unsigned int len) { memcpy(m_crypto_info.e_pub, pub, len); }
-    void set_r_public(unsigned char *pub, unsigned int len) { memcpy(m_crypto_info.r_pub, pub, len); }
+    inline void set_e_uuid(unsigned char *uuid, unsigned int len) { memcpy((unsigned char *)&m_crypto_info.e_uuid, uuid, len); }
+    inline void set_r_uuid(unsigned char *uuid, unsigned int len) { memcpy((unsigned char *)&m_crypto_info.r_uuid, uuid, len); }
+    inline void set_e_nonce(unsigned char *nonce, unsigned int len) { memcpy((unsigned char *)&m_crypto_info.e_nonce, nonce, len); }
+    inline void set_r_nonce(unsigned char *nonce, unsigned int len) { memcpy((unsigned char *)&m_crypto_info.r_nonce, nonce, len); }
 
-    unsigned char *get_e_mac() { return m_crypto_info.e_mac; }
-    unsigned char *get_r_mac() { return m_crypto_info.r_mac; }
+    inline unsigned char *get_e_public() { return m_crypto_info.e_pub; }
+    inline unsigned int get_e_public_len() { return m_crypto_info.e_pub_len; }
+    inline unsigned char *get_e_private() { return m_crypto_info.e_priv; }
+    inline unsigned int get_e_private_len() { return m_crypto_info.e_priv_len; }
+    inline unsigned char *get_r_public() { return m_crypto_info.r_pub; }
+    inline unsigned int get_r_public_len() { return m_crypto_info.r_pub_len; }
+    inline unsigned char *get_r_private() { return m_crypto_info.r_priv; }
+    inline unsigned int get_r_private_len() { return m_crypto_info.r_priv_len; }
 
-    void set_e_mac(unsigned char *mac) { memcpy(m_crypto_info.e_mac, mac, sizeof(mac_address_t)); }
-    void set_r_mac(unsigned char *mac) { memcpy(m_crypto_info.r_mac, mac, sizeof(mac_address_t)); }
+    inline void set_e_public(unsigned char *pub, unsigned int len) { memcpy(m_crypto_info.e_pub, pub, len); }
+    inline void set_r_public(unsigned char *pub, unsigned int len) { memcpy(m_crypto_info.r_pub, pub, len); }
+
+    inline unsigned char *get_e_mac() { return m_crypto_info.e_mac; }
+    inline unsigned char *get_r_mac() { return m_crypto_info.r_mac; }
+
+    inline void set_e_mac(unsigned char *mac) { memcpy(m_crypto_info.e_mac, mac, sizeof(mac_address_t)); }
+    inline void set_r_mac(unsigned char *mac) { memcpy(m_crypto_info.r_mac, mac, sizeof(mac_address_t)); }
+
     em_crypto_t();
     ~em_crypto_t() {}
 };
