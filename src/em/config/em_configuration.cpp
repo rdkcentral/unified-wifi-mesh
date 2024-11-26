@@ -2186,7 +2186,7 @@ int em_configuration_t::handle_encrypted_settings()
     memset(&ev,0,sizeof(em_event_t));
     // first decrypt the encrypted m2 data
 
-    if (get_crypto()->platform_aes_decrypt(m_key_wrap_key, m_m2_encrypted_settings, plain, plain_len) != 1) {
+    if (get_crypto()->platform_aes_128_cbc_decrypt(m_key_wrap_key, m_m2_encrypted_settings, plain, plain_len) != 1) {
         printf("%s:%d: platform decrypt failed\n", __func__, __LINE__);
         return 0;
     }
@@ -2318,7 +2318,7 @@ unsigned int em_configuration_t::create_encrypted_settings(unsigned char *buff, 
     plain_len = len + (AES_BLOCK_SIZE - len%AES_BLOCK_SIZE);
     
     // encrypt the m2 data
-    if (get_crypto()->platform_aes_encrypt(m_key_wrap_key, iv, plain, plain_len, buff + AES_BLOCK_SIZE, &cipher_len) != 1) {
+    if (get_crypto()->platform_aes_128_cbc_encrypt(m_key_wrap_key, iv, plain, plain_len, buff + AES_BLOCK_SIZE, &cipher_len) != 1) {
         printf("%s:%d: platform encrypt failed\n", __func__, __LINE__);
         return 0;
     }
