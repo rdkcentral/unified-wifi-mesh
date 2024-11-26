@@ -795,7 +795,7 @@ uint8_t em_crypto_t::platform_compute_shared_secret(uint8_t **shared_secret, uin
     if (EVP_PKEY_derive(pkey_ctx, NULL, &secret_len) != 1 || secret_len == 0) {
         goto bail;
     }
-    *shared_secret = malloc(secret_len);
+    *shared_secret = (uint8_t*) malloc(secret_len);
     if (EVP_PKEY_derive(pkey_ctx, *shared_secret, &secret_len) != 1) {
         goto bail;
     }
