@@ -81,17 +81,15 @@ uint8_t em_crypto_t::g_dh1536_p[] =  {
 };
 uint8_t em_crypto_t::g_dh1536_g[] = { 0x02 };
 
-em_crypto_t::em_crypto_t()
-{
-    m_crypto_info.dh = DH_new();
-}
+em_crypto_t::em_crypto_t() {}
 
 int em_crypto_t::init()
 {
-    const BIGNUM *priv_key = NULL, *pub_key = NULL;
+    BIGNUM *priv_key = NULL, *pub_key = NULL;
+    DH *dh = NULL;
     //em_util_info_print(EM_CONF,"em_crypto_t::init %s:%d\n",__func__,__LINE__);
 
-    RAND_bytes(m_crypto_info.e_nonce, sizeof(em_nonce_t));
+    generate_nonce(m_crypto_info.e_nonce);
     uuid_generate(m_crypto_info.e_uuid);
 
     //em_util_info_print(EM_CONF,"em_crypto_t::init %s:%d\n",__func__,__LINE__);
@@ -105,39 +103,36 @@ int em_crypto_t::init()
     EVP_PKEY *param_pkey = NULL;
     EVP_PKEY_CTX *pkey_ctx = NULL;
     EVP_PKEY *pkey = NULL;
-    BIGNUM *bn_priv = NULL;
-    BIGNUM *bn_pub = NULL;
     int selection = OSSL_KEYMGMT_SELECT_ALL;
 #endif
     /* Create prime and generator by converting binary to BIGNUM format */
     p = BN_bin2bn(g_dh1536_p, sizeof(g_dh1536_p), NULL);
-    if (p == NULL) {
-        goto bail;
-    }
+    if (!p) { goto bail; }
     g = BN_bin2bn(g_dh1536_g, sizeof(g_dh1536_g), NULL);
-    if (g == NULL) {
-        goto bail;
-    }
+    if (!g) { goto bail; }
 
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
-    if (NULL == (m_crypto_info.dh = DH_new())) {
+    if (NULL == (dh = DH_new())) {
         goto bail;
     }
 #else
-    param_bld = OSSL_PARAM_BLD_new();
-    if (param_bld == NULL) {
+    if (NULL == (param_bld = OSSL_PARAM_BLD_new())) {
         goto bail;
     }
 #endif
 
     /* Set prime and generator */
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    m_crypto_info.dh->p = p;
-    m_crypto_info.dh->g = g;
-#elif OPENSSL_VERSION_NUMBER < 0x30000000L
-    if (DH_set0_pqg(m_crypto_info.dh, p, NULL, g) != 1) {
+#if OPENSSL_VERSION_NUMBER < 0x30000000L 
+
+    #if OPENSSL_VERSION_NUMBER < 0x10100000L
+    dh->p = p;
+    dh->g = g;
+
+    #else 
+    if (DH_set0_pqg(dh, p, NULL, g) != 1) {
         goto bail;
     }
+    #endif
 #else
     if (OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_FFC_P, p) != 1 ||
             OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_FFC_G, g) != 1) {
@@ -151,43 +146,45 @@ int em_crypto_t::init()
 
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
     /* Obtain key pair */
-    if (0 == DH_generate_key(m_crypto_info.dh)) {
+    if (0 == DH_generate_key(dh)) {
         goto bail;
     }
+
+    // Get private and public keys (pre 3.0)
+    DH_get0_key(dh, &pub_key, &priv_key);
+    DH_get0_key(dh, &pub_key, &priv_key);
 #else
     /* Create DH context */
     dh_ctx = EVP_PKEY_CTX_new_from_name(NULL, "DH", NULL);
     if (dh_ctx == NULL) {
         goto bail;
     }
-    if (EVP_PKEY_fromdata_init(dh_ctx) != 1) {
-        goto bail;
-    }
+    if (EVP_PKEY_fromdata_init(dh_ctx) != 1) { goto bail; }
     if (EVP_PKEY_fromdata(dh_ctx, &param_pkey, selection, params) != 1 || param_pkey == NULL) {
         goto bail;
     }
 
     /* Create key pair */
     pkey_ctx = EVP_PKEY_CTX_new_from_pkey(NULL, param_pkey, NULL);
-    if (pkey_ctx == NULL) {
+    if (pkey_ctx == NULL) { goto bail; }
+    if (EVP_PKEY_keygen_init(pkey_ctx) != 1) { goto bail; }
+    if (EVP_PKEY_keygen(pkey_ctx, &pkey) != 1 || pkey == NULL) { goto bail; }
+
+    // Get private and public keys (post 3.0)
+    if (EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_PUB_KEY, &pub_key) != 1) {
         goto bail;
     }
-    if (EVP_PKEY_keygen_init(pkey_ctx) != 1) {
-        goto bail;
-    }
-    if (EVP_PKEY_keygen(pkey_ctx, &pkey) != 1 || pkey == NULL) {
+    if (EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_PRIV_KEY, &priv_key) != 1) {
         goto bail;
     }
 #endif
 
     // now generate the keys
-    DH_get0_key(m_crypto_info.dh, &pub_key, &priv_key);
     BN_bn2bin(pub_key, m_crypto_info.e_pub);
     BN_bn2bin(priv_key, m_crypto_info.e_priv);
     m_crypto_info.e_pub_len = BN_num_bytes(pub_key);
     m_crypto_info.e_priv_len = BN_num_bytes(priv_key);
     
-    DH_get0_key(m_crypto_info.dh, &pub_key, &priv_key);
     BN_bn2bin(pub_key, m_crypto_info.r_pub);
     BN_bn2bin(priv_key, m_crypto_info.r_priv);
     m_crypto_info.r_pub_len = BN_num_bytes(pub_key);
@@ -196,7 +193,24 @@ int em_crypto_t::init()
     return 0;
 bail:
 
-    // Clean up
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+    if (dh) {
+        DH_free(dh);
+        cleanup_bignums(NULL, NULL, priv_key, pub_key);
+    }else{
+        cleanup_bignums(p, g, priv_key, pub_key);
+    }
+#else
+    if (param_bld) OSSL_PARAM_BLD_free(param_bld);
+    if (params) OSSL_PARAM_free(params);
+    if (dh_ctx) EVP_PKEY_CTX_free(dh_ctx);
+    if (param_pkey) EVP_PKEY_free(param_pkey);
+    if (pkey_ctx) EVP_PKEY_CTX_free(pkey_ctx);
+    if (pkey) EVP_PKEY_free(pkey);
+
+    cleanup_bignums(p, g, priv_key, pub_key);
+#endif
+
     EVP_cleanup();
     ERR_free_strings();
     return -1;
