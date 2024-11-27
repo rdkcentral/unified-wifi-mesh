@@ -71,8 +71,6 @@ public:
 
     int init();
 
-    static uint8_t get_shared_key(uint8_t **shared_secret, uint16_t *shared_secret_len, uint8_t *remote_pub, uint16_t remote_pub_len, uint8_t *local_priv, uint16_t local_priv_len);
-
     /**
      * @brief Computes an HMAC hash using OpenSSL for multiple input elements
      *
