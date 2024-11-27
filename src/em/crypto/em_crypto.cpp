@@ -472,21 +472,11 @@ bail:
     //em_util_info_print(EM_CONF," %s:%d\n",__func__,__LINE__);
     return 0;
 }
-void em_crypto_t:: _I4B(const uint32_t *memory_pointer, uint8_t **packet_ppointer)
+void em_crypto_t::append_u32_net(const uint32_t *memory_pointer, uint8_t **packet_ppointer)
 {
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-    **packet_ppointer = *(((uint8_t *)memory_pointer)+0); (*packet_ppointer)++;
-    **packet_ppointer = *(((uint8_t *)memory_pointer)+1); (*packet_ppointer)++;
-    **packet_ppointer = *(((uint8_t *)memory_pointer)+2); (*packet_ppointer)++;
-    **packet_ppointer = *(((uint8_t *)memory_pointer)+3); (*packet_ppointer)++;
-#elif __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    **packet_ppointer = *(((uint8_t *)memory_pointer)+3); (*packet_ppointer)++;
-    **packet_ppointer = *(((uint8_t *)memory_pointer)+2); (*packet_ppointer)++;
-    **packet_ppointer = *(((uint8_t *)memory_pointer)+1); (*packet_ppointer)++;
-    **packet_ppointer = *(((uint8_t *)memory_pointer)+0); (*packet_ppointer)++;
-#else
-#error You must specify your architecture endianess
-#endif
+    uint32_t network_value = htonl(*memory_pointer);
+    memcpy(*packet_ppointer, &network_value, sizeof(uint32_t));
+    *packet_ppointer += sizeof(uint32_t);
 }
 
 uint8_t em_crypto_t:: wps_key_derivation_function(uint8_t *key, uint8_t *label_prefix, uint32_t label_prefix_len, char *label, uint8_t *res, uint32_t res_len)
@@ -504,18 +494,19 @@ uint8_t em_crypto_t:: wps_key_derivation_function(uint8_t *key, uint8_t *label_p
 
     uint32_t left;
 
-    uint8_t  *p;
-    uint32_t  aux;
+    
+    uint32_t  aux = res_len * 8;
+    uint8_t  *p   = key_bits;
 
-    aux = res_len * 8;
-    p   = key_bits;
+    append_u32_net(&aux, &p);
 
-    _I4B(&aux, &p);
-
+    // Prepare the buffers to hash (in order)
     addr[0] = i_buf;
     addr[1] = label_prefix;
     addr[2] = (uint8_t *) label;
     addr[3] = key_bits;
+
+    // Prepare the length of each buffer
     len[0]  = sizeof(i_buf);
     len[1]  = label_prefix_len;
     len[2]  = strlen(label);
@@ -527,7 +518,7 @@ uint8_t em_crypto_t:: wps_key_derivation_function(uint8_t *key, uint8_t *label_p
 
     for (i = 1; i <= iter; i++) {
         p = i_buf;
-        _I4B(&i, &p);
+        append_u32_net(&i, &p);
 
         if (platform_hmac_SHA256(key, SHA256_MAC_LEN, 4, addr, len, hash) != 1) {
             //em_util_info_print(EM_CONF,"platform_hmac_SHA256 error %s:%d\n" ,__func__,__LINE__);
@@ -630,9 +621,13 @@ uint8_t em_crypto_t::platform_aes_decrypt(uint8_t *key, uint8_t *iv, uint8_t *da
 
     return 1;
 }
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+
 EVP_PKEY* em_crypto_t::create_dh_pkey(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv, BIGNUM *bn_pub)
 {
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+    // Not supported
+    return NULL;
+#else
     OSSL_PARAM_BLD *param_bld = NULL;
     OSSL_PARAM *params = NULL;
     EVP_PKEY_CTX *dh_ctx = NULL;
