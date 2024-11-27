@@ -2039,6 +2039,25 @@ typedef struct {
 } em_ap_mld_info_t;
 
 typedef struct {
+    bool  mac_addr_valid;
+    em_interface_t  ruid;
+    mac_address_t  mac_addr;
+} em_affiliated_bsta_info_t;
+
+typedef struct {
+    bool  mac_addr_valid;
+    bool  ap_mld_mac_addr_valid;
+    mac_address_t  mac_addr;
+    mac_address_t  ap_mld_mac_addr;
+    bool  str;
+    bool  nstr;
+    bool  emlsr;
+    bool  emlmr;
+    unsigned char  num_affiliated_bsta;
+    em_affiliated_bsta_info_t  affiliated_bsta[EM_MAX_AP_MLD];
+} em_bsta_mld_info_t;
+
+typedef struct {
     em_interface_t  id;
 	mac_address_t dev_id;
     em_long_string_t net_id;
@@ -2136,6 +2155,30 @@ typedef struct {
     unsigned char num_ap_mld;
     em_ap_mld_t ap_mld[0];
 } __attribute__((__packed__)) em_ap_mld_config_t;
+
+typedef struct {
+    unsigned char affiliated_bsta_mac_addr_valid : 1;
+    unsigned char reseverd1 : 7;
+    em_radio_id_t ruid;
+    mac_addr_t affiliated_bsta_mac_addr;
+    unsigned char reserved2[19];
+} __attribute__((__packed__)) em_affiliated_bsta_mld_t;
+
+typedef struct {
+    unsigned char bsta_mld_mac_addr_valid : 1;
+    unsigned char ap_mld_mac_addr_valid : 1;
+    unsigned char reserved1 : 6;
+    mac_addr_t bsta_mld_mac_addr;
+    mac_addr_t ap_mld_mac_addr;
+    unsigned char str : 1;
+    unsigned char nstr : 1;
+    unsigned char emlsr : 1;
+    unsigned char emlmr : 1;
+    unsigned char reseverd2 : 4;
+    unsigned char reserved3[17];
+    unsigned char num_affiliated_bsta;
+    em_affiliated_bsta_mld_t affiliated_bsta_mld[0];
+} __attribute__((__packed__)) em_bsta_mld_config_t;
 
 typedef struct {
     em_nonce_t  e_nonce;  
