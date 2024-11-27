@@ -37,9 +37,34 @@
 #define WPS_EMSK_LEN       32
 
 class em_crypto_t {
+
+private:
     em_crypto_info_t m_crypto_info;
     em_nonce_t e_nonce;
     uuid_t e_uuid;
+
+    /**
+    * Securely frees multiple BIGNUM objects
+    * @param p, g, priv, pub BIGNUM pointers to free (can be NULL)
+    */
+    static void cleanup_bignums(BIGNUM *p, BIGNUM *g, BIGNUM *priv, BIGNUM *pub);
+
+    /**
+    * Helper function to compute a Diffie-Hellman shared secret using version-specific OpenSSL APIs
+    * 
+    * @param p              Prime modulus as BIGNUM
+    * @param g              Generator as BIGNUM  
+    * @param bn_priv        Local private key as BIGNUM
+    * @param bn_pub         Remote public key as BIGNUM
+    * @param shared_secret  Output buffer for computed shared secret (allocated within function)
+    * @param secret_len     Length of computed shared secret
+    * 
+    * @return 1 on success, 0 on failure
+    * 
+    * @note For OpenSSL < 3.0: Uses legacy DH APIs
+    * @note For OpenSSL >= 3.0: Uses modern EVP APIs
+    */ 
+    static uint8_t compute_secret_internal(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv,  BIGNUM *bn_pub, uint8_t **shared_secret, size_t *secret_len);
 public:
     static uint8_t g_dh1536_g[];
     static uint8_t g_dh1536_p[];
