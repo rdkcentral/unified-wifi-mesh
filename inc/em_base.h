@@ -1678,7 +1678,7 @@ typedef enum {
     em_state_agent_ap_cap_report,
     em_state_agent_client_cap_report,
     em_state_agent_channel_pref_query,
-
+    em_state_agent_sta_link_metrics,
 
     em_state_ctrl_unconfigured = 0x100,
     em_state_ctrl_wsc_m1_pending,
@@ -2235,9 +2235,10 @@ typedef enum {
     em_bus_event_type_onewifi_private_cb,
     em_bus_event_type_onewifi_radio_cb,
     em_bus_event_type_m2ctrl_configuration,
-	em_bus_event_type_sta_assoc,
-	em_bus_event_type_channel_pref_query,
-	em_bus_event_type_channel_sel_req,
+    em_bus_event_type_sta_assoc,
+    em_bus_event_type_channel_pref_query,
+    em_bus_event_type_channel_sel_req,
+    em_bus_event_type_sta_link_metrics
 } em_bus_event_type_t;
 
 typedef struct {
@@ -2324,25 +2325,26 @@ typedef struct {
 } em_orch_desc_t;
 
 typedef enum {
-	db_cfg_type_none,
-	db_cfg_type_network_list_update = (1 << 0),
-	db_cfg_type_network_list_delete = (1 << 1),
-	db_cfg_type_device_list_update = (1 << 2),
-	db_cfg_type_device_list_delete = (1 << 3),
-	db_cfg_type_radio_list_update = (1 << 4),
-	db_cfg_type_radio_list_delete = (1 << 5),
-	db_cfg_type_op_class_list_update = (1 << 6),
-	db_cfg_type_op_class_list_delete = (1 << 7),
-	db_cfg_type_bss_list_update = (1 << 8),
-	db_cfg_type_bss_list_delete = (1 << 9),
-	db_cfg_type_sta_list_update = (1 << 10),
-	db_cfg_type_sta_list_delete = (1 << 11),
-	db_cfg_type_network_ssid_list_update = (1 << 12),
-	db_cfg_type_network_ssid_list_delete = (1 << 13),
-	db_cfg_type_radio_cap_list_update = (1 << 14),
-	db_cfg_type_radio_cap_list_delete = (1 << 15),
-	db_cfg_type_1905_security_list_update = (1 << 16),
-	db_cfg_type_1905_security_list_delete = (1 << 17),
+    db_cfg_type_none,
+    db_cfg_type_network_list_update = (1 << 0),
+    db_cfg_type_network_list_delete = (1 << 1),
+    db_cfg_type_device_list_update = (1 << 2),
+    db_cfg_type_device_list_delete = (1 << 3),
+    db_cfg_type_radio_list_update = (1 << 4),
+    db_cfg_type_radio_list_delete = (1 << 5),
+    db_cfg_type_op_class_list_update = (1 << 6),
+    db_cfg_type_op_class_list_delete = (1 << 7),
+    db_cfg_type_bss_list_update = (1 << 8),
+    db_cfg_type_bss_list_delete = (1 << 9),
+    db_cfg_type_sta_list_update = (1 << 10),
+    db_cfg_type_sta_list_delete = (1 << 11),
+    db_cfg_type_network_ssid_list_update = (1 << 12),
+    db_cfg_type_network_ssid_list_delete = (1 << 13),
+    db_cfg_type_radio_cap_list_update = (1 << 14),
+    db_cfg_type_radio_cap_list_delete = (1 << 15),
+    db_cfg_type_1905_security_list_update = (1 << 16),
+    db_cfg_type_1905_security_list_delete = (1 << 17),
+    db_cfg_type_sta_metrics_update = (1 << 18)
 } db_cfg_type_t;
 
 typedef struct{

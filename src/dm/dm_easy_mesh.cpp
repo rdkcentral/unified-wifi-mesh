@@ -1865,6 +1865,22 @@ void dm_easy_mesh_t::put_sta_info(em_sta_info_t *sta_info, em_target_sta_map_t t
     hash_map_put(map, strdup(key), new dm_sta_t(sta_info));
 }
 
+int dm_easy_mesh_t::get_num_bss_for_associated_sta(mac_address_t sta_mac)
+{
+    dm_sta_t *sta;
+    unsigned int num_bssids = 0;
+
+    sta = (dm_sta_t *)hash_map_get_first(m_sta_map);
+    while (sta != NULL) {
+        if (memcmp(sta->m_sta_info.id, sta_mac, sizeof(mac_address_t)) == 0) {
+            num_bssids++;
+        }
+        sta = (dm_sta_t *)hash_map_get_next(m_sta_map, sta);
+    }
+
+    return num_bssids;
+}
+
 void dm_easy_mesh_t::clone_hash_maps(dm_easy_mesh_t& obj)
 {
     mac_addr_str_t  sta_mac_str, bss_mac_str, radio_mac_str;

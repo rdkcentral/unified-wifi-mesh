@@ -311,10 +311,14 @@ short em_capability_t::create_client_cap_tlv(unsigned char *buff, mac_address_t 
     dm_sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_map);
     while(dm_sta != NULL) {
         if (memcmp(dm_sta->get_sta_info()->id, sta, sizeof(mac_address_t)) == 0) {
-            //printf("STA found\n");
             break;
         }
         dm_sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_map, sta);
+    }
+
+    //TODO; if dm_sta is null break; fill result 0?
+    if(dm_sta == NULL) {
+        return 0;
     }
 
     memcpy(tmp, &res, sizeof(unsigned char));
@@ -503,6 +507,7 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
             sta_info.associated = true;
             sta_info.frame_body_len = htons(tlv->len) - 1;
             memcpy(sta_info.frame_body, &tlv->value[1], htons(tlv->len) - 1);
+
             found_cap_report = true;
             break;
         }

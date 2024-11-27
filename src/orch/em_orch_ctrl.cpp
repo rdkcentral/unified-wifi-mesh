@@ -113,9 +113,11 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
         case em_cmd_type_sta_assoc:
             if (em->get_cap_query_tx_count() >= EM_MAX_CAP_QUERY_TX_THRESH) {
                 em->set_cap_query_tx_count(0);
+               // em->set_state(em_state_ctrl_configured);
                 printf("%s:%d: Maximum renew tx threshold crossed, transitioning to fini\n", __func__, __LINE__);
                 return true;
             } else if (em->get_state() == em_state_ctrl_sta_cap_confirmed) {
+                em->set_state(em_state_ctrl_configured);
                 return true;
             }
             break;
@@ -367,12 +369,13 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
             case em_cmd_type_sta_assoc:
                 dm = em->get_data_model();
                 dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.u.args.args[1], bss_mac);
-                //printf("%s:%d:BSS for this STA is %s\n", __func__, __LINE__, pcmd->m_param.args[1]);
+                printf("%s:%d:BSS for this STA %s is %s\n", __func__, __LINE__, pcmd->m_param.u.args.args[2], pcmd->m_param.u.args.args[1]);
                 for (i = 0; i < dm->m_num_bss; i++) {
-                    if (memcmp(dm->m_bss[i].m_bss_info.bssid.mac, bss_mac, sizeof(mac_address_t)) == 0) {
+                    if ((memcmp(dm->m_bss[i].m_bss_info.bssid.mac, bss_mac, sizeof(mac_address_t)) == 0) &&
+                        (em->is_al_interface_em() == false)) {
                         queue_push(pcmd->m_em_candidates, em);
                         count++;
-                        //printf("%s:%d:Found em this STA, candidate count: %d\n", __func__, __LINE__, count);
+                        printf("%s:%d:Found em this STA, candidate count: %d\n", __func__, __LINE__, count);
                         break;
                     }
                 }
@@ -390,24 +393,6 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 if (em->is_al_interface_em() == false) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
-                }
-                break;
-
-            case em_cmd_type_sta_steer:
-                if (em->find_sta(pcmd->m_param.u.steer_params.sta_mac, pcmd->m_param.u.steer_params.source) != NULL) {
-                    queue_push(pcmd->m_em_candidates, em);
-                    count++;
-                }
-                break;
-
-            case em_cmd_type_sta_disassoc:
-                dm = pcmd->get_data_model();
-                for (i = 0; i < pcmd->m_param.u.disassoc_params.num; i++) {
-                    disassoc_param = &pcmd->m_param.u.disassoc_params.params[i];
-                    if ((sta = em->find_sta(disassoc_param->sta_mac, disassoc_param->bssid)) != NULL) {
-                        queue_push(pcmd->m_em_candidates, em);
-                        count++;
-                    }
                 }
                 break;
 

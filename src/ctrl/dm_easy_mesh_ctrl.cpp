@@ -168,7 +168,7 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     num++;
 
     snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
-    if (get_sta(key) != NULL) {
+    if ((get_sta(key) != NULL) && (params->assoc.assoc_event == false)){
         desc.op = dm_orch_type_sta_update;
         desc.submit = false;
         pcmd[num - 1]->override_op(0, &desc);
@@ -1389,6 +1389,15 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
 
     }
 
+    if (dm->get_db_cfg_type() & db_cfg_type_sta_metrics_update) {
+        sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_map);
+        while (sta != NULL) {
+            if (dm_sta_list_t::set_config(m_db_client, *sta, NULL) == 0) {
+                dm->set_db_cfg_type(dm->get_db_cfg_type() & ~db_cfg_type_sta_metrics_update);
+            }
+            sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_map, sta);
+        }
+    }
 
     if (dm->get_db_cfg_type() & db_cfg_type_network_ssid_list_update) {
         for (i = 0; i < dm->get_num_network_ssid(); i++) {
