@@ -343,7 +343,7 @@ bail:
     return 0;
 }
 
-uint8_t em_crypto_t::platform_SHA256(uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *digest)
+uint8_t em_crypto_t::platform_hash(const EVP_MD * hashing_algo, uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *digest)
 {  
     EVP_MD_CTX   *ctx;
     unsigned int  mac_len;
@@ -361,7 +361,7 @@ uint8_t em_crypto_t::platform_SHA256(uint8_t num_elem, uint8_t **addr, uint32_t 
     EVP_MD_CTX_init(ctx);
 #endif
 
-    if (!EVP_DigestInit_ex(ctx, EVP_sha256(), NULL)) {
+    if (!EVP_DigestInit_ex(ctx, hashing_algo, NULL)) {
         res = 0;
     }
 
@@ -388,7 +388,7 @@ uint8_t em_crypto_t::platform_SHA256(uint8_t num_elem, uint8_t **addr, uint32_t 
 
     return res;
 }
-uint8_t em_crypto_t::platform_hmac_SHA256(uint8_t *key, uint32_t keylen, uint8_t num_elem, uint8_t **addr,
+uint8_t em_crypto_t::platform_hmac_hash(const EVP_MD * hashing_algo, uint8_t *key, uint32_t keylen, uint8_t num_elem, uint8_t **addr,
         uint32_t *len, uint8_t *hmac)
 {
     //em_util_info_print(EM_CONF," %s:%d\n",__func__,__LINE__);
@@ -421,7 +421,7 @@ uint8_t em_crypto_t::platform_hmac_SHA256(uint8_t *key, uint32_t keylen, uint8_t
     if (pkey == NULL) {
         goto bail;
     }
-    if (EVP_DigestSignInit(ctx, NULL, EVP_sha256(), NULL, pkey) != 1) {
+    if (EVP_DigestSignInit(ctx, NULL, hashing_algo, NULL, pkey) != 1) {
         goto bail;
     }
 
@@ -433,7 +433,7 @@ uint8_t em_crypto_t::platform_hmac_SHA256(uint8_t *key, uint32_t keylen, uint8_t
         goto bail;
     }
 #else
-    if (HMAC_Init_ex(ctx, key, keylen, EVP_sha256(), NULL) != 1) {
+    if (HMAC_Init_ex(ctx, key, keylen, hashing_algo, NULL) != 1) {
         goto bail;
     }
 
