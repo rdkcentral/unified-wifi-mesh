@@ -45,15 +45,194 @@ public:
     static uint8_t g_dh1536_p[];
 
     int init();
-    em_crypto_info_t *get_crypto_info() { return &m_crypto_info; }
-    uint8_t get_shared_key(uint8_t **shared_secret, uint16_t *shared_secret_len, uint8_t *remote_pub, uint16_t remote_pub_len, uint8_t *local_priv, uint16_t local_priv_len);
-    uint8_t platform_hmac_SHA256(uint8_t *key, uint32_t keylen, uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *hmac);
-    uint8_t platform_SHA256(uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *digest);
-    void _I4B (const uint32_t *memory_pointer, uint8_t **packet_ppointer);
-    uint8_t wps_key_derivation_function(uint8_t *key, uint8_t *label_prefix, uint32_t label_prefix_len, char *label, uint8_t *res, uint32_t res_len);
-    uint8_t platform_aes_decrypt(uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len);
-    uint8_t platform_aes_encrypt(uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher_text, uint32_t *cipher_len);
-    EVP_PKEY* create_dh_pkey(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv, BIGNUM *bn_pub);
+
+    static uint8_t get_shared_key(uint8_t **shared_secret, uint16_t *shared_secret_len, uint8_t *remote_pub, uint16_t remote_pub_len, uint8_t *local_priv, uint16_t local_priv_len);
+
+    /**
+     * @brief Computes an HMAC hash using OpenSSL for multiple input elements
+     *
+     * This function calculates an HMAC hash using a specified hashing algorithm and key,
+     * supporting multiple input elements. It's compatible with different OpenSSL versions
+     * (pre-1.1.0, 1.1.0+, and 3.0.0+) through conditional compilation.
+     *
+     * @param hashing_algo The OpenSSL message digest algorithm to use (e.g., EVP_sha256())
+     * @param key         Pointer to the key used for HMAC calculation
+     * @param keylen      Length of the key in bytes
+     * @param num_elem    Number of elements to be hashed
+     * @param addr        Array of pointers to input data elements
+     * @param len         Array of lengths corresponding to each input element
+     * @param hmac        Output buffer where the computed HMAC will be stored
+     *
+     * @return uint8_t    Returns 1 on success, 0 on failure
+     *
+     * @note The hmac buffer must be pre-allocated with sufficient space for the output
+     *       (32 bytes for SHA-256)
+     */
+    static uint8_t platform_hmac_hash(const EVP_MD * hashing_algo, uint8_t *key, uint32_t keylen, uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *hmac);
+
+    /**
+    * @brief Convenience wrapper to compute HMAC-SHA256 hash for multiple input elements
+    *
+    * @param key      Key used for HMAC calculation
+    * @param keylen   Length of the key in bytes  
+    * @param num_elem Number of elements to hash
+    * @param addr     Array of pointers to input data elements
+    * @param len      Array of lengths for each input element
+    * @param hmac     Output buffer for computed HMAC
+    *
+    * @return 1 on success, 0 on failure
+    */
+    inline static uint8_t platform_hmac_SHA256(uint8_t *key, uint32_t keylen, uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *hmac) {
+        return platform_hmac_hash(EVP_sha256(), key, keylen, num_elem, addr, len, hmac);
+    }
+    
+    /**
+    * @brief Computes a cryptographic hash of multiple input elements using OpenSSL
+    *
+    * @param hashing_algo OpenSSL message digest algorithm to use (e.g., EVP_sha256())
+    * @param num_elem     Number of elements to hash
+    * @param addr         Array of pointers to input data elements  
+    * @param len          Array of lengths for each input element
+    * @param digest       Output buffer for computed hash value
+    *
+    * @return 1 on success, 0 on failure
+    */
+    static uint8_t platform_hash(const EVP_MD * hashing_algo, uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *digest);
+
+    /**
+    * @brief Convenience wrapper to compute SHA-256 hash for multiple input elements
+    *
+    * @param num_elem Number of elements to hash
+    * @param addr     Array of pointers to input data elements
+    * @param len      Array of lengths for each input element  
+    * @param digest   Output buffer for computed hash
+    * 
+    * @return 1 on success, 0 on failure
+    */
+    inline static uint8_t platform_SHA256(uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *digest) {
+        return platform_hash(EVP_sha256(), num_elem, addr, len, digest);
+    }
+    
+
+    /**
+    * Appends a 32-bit value in **network byte order** to a buffer and advances the pointer
+    * @param memory_pointer Pointer to 32-bit value to append (converted to network byte order)
+    * @param packet_ppointer Pointer to buffer pointer (will be advanced by 4 bytes)
+    */
+    static void append_u32_net (const uint32_t *memory_pointer, uint8_t **packet_ppointer);
+
+    /**
+    * Key Derivation Function used in WPS (Wi-Fi Protected Setup)
+    * Generates cryptographic key material using HMAC-SHA256
+    * 
+    * @param key              HMAC key
+    * @param label_prefix     Binary prefix for the label
+    * @param label_prefix_len Length of the label prefix
+    * @param label            ASCII label string
+    * @param res              Output buffer for generated key material
+    * @param res_len          Length of requested key material in bytes
+    * 
+    * @return 1 on success, 0 on HMAC failure
+    */
+    static uint8_t wps_key_derivation_function(uint8_t *key, uint8_t *label_prefix, uint32_t label_prefix_len, char *label, uint8_t *res, uint32_t res_len);
+
+    /**
+    * @brief Decrypts data using OpenSSL cipher in place
+    *
+    * @param cipher_type Type of cipher to use (e.g., EVP_aes_256_cbc())
+    * @param key        Decryption key
+    * @param iv         Initialization vector
+    * @param data       Buffer containing ciphertext, also used for plaintext output
+    * @param data_len   Length of input ciphertext
+    *
+    * @return 1 on success, 0 on failure
+    * 
+    * @note Padding is disabled. Input length must be multiple of block size.
+    */
+    static uint8_t platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len);
+
+    /**
+    * @brief Encrypts data using OpenSSL cipher in place
+    *
+    * @param cipher_type Type of cipher to use (e.g., EVP_aes_256_cbc())
+    * @param key        Encryption key
+    * @param iv         Initialization vector
+    * @param plain      Input plaintext buffer
+    * @param plain_len  Length of input plaintext
+    * @param cipher     Output buffer for ciphertext
+    * @param cipher_len Output parameter for length of ciphertext
+    *
+    * @return 1 on success, 0 on failure
+    *
+    * @note Padding is disabled. Input length must be multiple of block size.
+    */
+    static uint8_t platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher_text, uint32_t *cipher_len);
+
+    /**
+    * @brief Decrypts data using AES-128 in CBC mode (in-place)
+    *
+    * @param key      128-bit AES key
+    * @param iv       Initialization vector
+    * @param data     Data to decrypt (overwritten with plaintext)
+    * @param data_len Length of data
+    *
+    * @return 1 on success, 0 on failure
+    */
+    static inline uint8_t platform_aes_128_cbc_decrypt(uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len) {
+        return platform_cipher_decrypt(EVP_aes_128_cbc(), key, iv, data, data_len);
+    }
+    
+    /**
+    * @brief Encrypts data using AES-128 in CBC mode
+    *
+    * @param key         128-bit AES key
+    * @param iv          Initialization vector
+    * @param plain       Input plaintext
+    * @param plain_len   Length of plaintext
+    * @param cipher_text Output ciphertext buffer
+    * @param cipher_len  Output ciphertext length
+    *
+    * @return 1 on success, 0 on failure
+    */
+    static inline uint8_t platform_aes_128_cbc_encrypt(uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher_text, uint32_t *cipher_len) {
+        return platform_cipher_encrypt(EVP_aes_128_cbc(), key, iv, plain, plain_len, cipher_text, cipher_len);
+    }
+
+    /**
+    * Creates a DH (Diffie-Hellman) key using OpenSSL 3.0+ APIs
+    * 
+    * @param p         Prime modulus
+    * @param g         Generator
+    * @param bn_priv   Private key component (optional, can be NULL)
+    * @param bn_pub    Public key component (optional, can be NULL)
+    * 
+    * @return EVP_PKEY object containing the DH key on success, NULL on failure
+    * 
+    * @note Requires OpenSSL 3.0 or later
+    */
+    static EVP_PKEY* create_dh_pkey(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv, BIGNUM *bn_pub);
+
+
+    /**
+     * Computes the Diffie-Hellman shared secret using the local private key and remote public key
+     * 
+     * This function uses a 1536-bit DH group (RFC 3526) to compute a shared secret.
+     * It supports both legacy OpenSSL (<3.0.0) and modern OpenSSL (>=3.0.0) implementations.
+     * 
+     * @param[out] shared_secret     Pointer to buffer pointer where the computed shared secret will be stored. 
+     *                                  Memory is allocated by the function and must be freed by the caller.
+     * @param[out] shared_secret_len Pointer to store the length of the computed shared secret
+     * @param[in]  remote_pub        Remote party's public key buffer
+     * @param[in]  remote_pub_len    Length of the remote public key
+     * @param[in]  local_priv        Local party's private key buffer
+     * @param[in]  local_priv_len    Length of the local private key
+     * 
+     * @return 1 on success, 0 on failure
+     *         If the function returns 0, any allocated memory is freed and output parameters are set to NULL/0
+     * 
+     * @warning Input parameters must not be NULL
+     * @warning Caller is responsible for freeing the allocated shared_secret buffer **on success**
+     */
     static uint8_t platform_compute_shared_secret(uint8_t **shared_secret, uint16_t *shared_secret_len,
         uint8_t *remote_pub, uint16_t remote_pub_len,
         uint8_t *local_priv, uint8_t local_priv_len);
