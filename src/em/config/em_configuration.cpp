@@ -2197,7 +2197,7 @@ int em_configuration_t::handle_encrypted_settings()
     memset(&ev,0,sizeof(em_event_t));
     // first decrypt the encrypted m2 data
 
-    if (get_crypto()->platform_aes_decrypt(m_key_wrap_key, m_m2_encrypted_settings, plain, plain_len) != 1) {
+    if (em_crypto_t::platform_aes_128_cbc_decrypt(m_key_wrap_key, m_m2_encrypted_settings, plain, plain_len) != 1) {
         printf("%s:%d: platform decrypt failed\n", __func__, __LINE__);
         return 0;
     }
@@ -2319,7 +2319,7 @@ unsigned int em_configuration_t::create_encrypted_settings(unsigned char *buff, 
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
 
-    if (get_crypto()->generate_iv(iv, AES_BLOCK_SIZE) != 1) {
+    if (em_crypto_t::generate_iv(iv, AES_BLOCK_SIZE) != 1) {
         printf("%s:%d: iv generate failed\n", __func__, __LINE__);
         return 0;
     }
@@ -2329,7 +2329,7 @@ unsigned int em_configuration_t::create_encrypted_settings(unsigned char *buff, 
     plain_len = len + (AES_BLOCK_SIZE - len%AES_BLOCK_SIZE);
     
     // encrypt the m2 data
-    if (get_crypto()->platform_aes_encrypt(m_key_wrap_key, iv, plain, plain_len, buff + AES_BLOCK_SIZE, &cipher_len) != 1) {
+    if (em_crypto_t::platform_aes_128_cbc_encrypt(m_key_wrap_key, iv, plain, plain_len, buff + AES_BLOCK_SIZE, &cipher_len) != 1) {
         printf("%s:%d: platform encrypt failed\n", __func__, __LINE__);
         return 0;
     }
@@ -2353,7 +2353,7 @@ unsigned int em_configuration_t::create_authenticator(unsigned char *buff)
     //printf( "%s:%d m2 addr:%s::length:%d,\n", __func__, __LINE__, addr[1], length[1]);
     //dm_easy_mesh_t::print_hex_dump(length[1], addr[1]);
 
-    if (get_crypto()->platform_hmac_SHA256(m_auth_key, WPS_AUTHKEY_LEN, 2, addr, length, hash) != 1) {
+    if (em_crypto_t::platform_hmac_SHA256(m_auth_key, WPS_AUTHKEY_LEN, 2, addr, length, hash) != 1) {
         printf("%s:%d: Authenticator create failed\n", __func__, __LINE__);
         return -1;
     }
