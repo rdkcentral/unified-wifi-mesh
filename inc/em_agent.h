@@ -71,6 +71,7 @@ public:
     void handle_m2ctrl_configuration(em_bus_event_t *evt);
     void handle_channel_pref_query(em_bus_event_t *evt);
     void handle_channel_sel_req(em_bus_event_t *evt);
+    void handle_sta_link_metrics(em_bus_event_t *evt);
 
     em_cmd_t& get_command(char *in);
     

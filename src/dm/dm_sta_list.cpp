@@ -129,6 +129,10 @@ dm_orch_type_t dm_sta_list_t::get_dm_orch_type(db_client_t& db_client, const dm_
 
         if (*psta == sta) {
             //printf("%s:%d: STA: %s BSS: %s already in list\n", __func__, __LINE__, sta_mac_str, bssid_mac_str);
+            if (compare_db(db_client, sta) != true) {
+                //printf("%s:%d: sta_map and DB mismatch, needs update\n", __func__, __LINE__);
+                return dm_orch_type_db_update;
+            }
             return dm_orch_type_none;
         }
 
@@ -139,7 +143,6 @@ dm_orch_type_t dm_sta_list_t::get_dm_orch_type(db_client_t& db_client, const dm_
     //printf("%s:%d: STA: %s on BSS: %s not found, inserting\n", __func__, __LINE__, sta_mac_str, bssid_mac_str);
     return dm_orch_type_db_insert;
 }
-
 
 void dm_sta_list_t::update_list(const dm_sta_t& sta, dm_orch_type_t op)
 {
@@ -186,7 +189,6 @@ void dm_sta_list_t::delete_list()
         remove_sta(key);    
     }
 }   
-
 
 bool dm_sta_list_t::operator == (const db_easy_mesh_t& obj)
 {
@@ -247,6 +249,62 @@ bool dm_sta_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
         db_client.get_string(ctx, mac, 1);
 
         if (strncmp(mac, (char *)key, strlen((char *)key)) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool dm_sta_list_t::compare_db(db_client_t& db_client, const dm_sta_t& sta)
+{
+    em_sta_info_t info;
+    mac_addr_str_t mac;
+    char frame_body[EM_MAX_FRAME_BODY_LEN*2];
+
+    db_query_t    query;
+    db_result_t   result;
+    void *ctx;
+
+    memset(query, 0, sizeof(db_query_t));
+    snprintf(query, sizeof(db_query_t), "select * from %s", m_table_name);
+
+    ctx = db_client.execute(query);
+
+    while (db_client.next_result(ctx)) {
+        memset(&info, 0, sizeof(em_sta_info_t));
+
+        db_client.get_string(ctx, mac, 1);
+        dm_easy_mesh_t::string_to_macbytes(mac, info.id);
+
+        db_client.get_string(ctx, mac, 2);
+        dm_easy_mesh_t::string_to_macbytes(mac, info.bssid);
+
+        db_client.get_string(ctx, mac, 3);
+        dm_easy_mesh_t::string_to_macbytes(mac, info.radiomac);
+
+        info.associated = db_client.get_number(ctx, 4);
+        info.last_ul_rate = db_client.get_number(ctx, 5);
+        info.last_dl_rate = db_client.get_number(ctx, 6);
+        info.est_ul_rate = db_client.get_number(ctx, 7);
+        info.est_dl_rate = db_client.get_number(ctx, 8);
+        info.last_conn_time = db_client.get_number(ctx, 9);
+        info.retrans_count = db_client.get_number(ctx, 10);
+        info.signal_strength = db_client.get_number(ctx, 11);
+        info.util_tx = db_client.get_number(ctx, 12);
+        info.util_rx = db_client.get_number(ctx, 13);
+        info.pkts_tx = db_client.get_number(ctx, 14);
+        info.pkts_rx = db_client.get_number(ctx, 15);
+        info.bytes_tx = db_client.get_number(ctx, 16);
+        info.bytes_rx = db_client.get_number(ctx, 17);
+        info.errors_tx = db_client.get_number(ctx, 18);
+        info.errors_rx = db_client.get_number(ctx, 19);
+        info.frame_body_len = db_client.get_number(ctx, 20);
+
+        db_client.get_string(ctx, frame_body, 21);
+        dm_easy_mesh_t::unhex(strlen(frame_body), frame_body, EM_MAX_FRAME_BODY_LEN, info.frame_body);
+
+        if (memcmp((const void*)&sta.m_sta_info, (const void*)&info, sizeof(em_sta_info_t)) == 0) {
             return true;
         }
     }

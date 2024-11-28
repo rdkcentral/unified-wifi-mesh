@@ -102,9 +102,9 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             } else if ((pcmd->get_orch_op() == dm_orch_type_channel_pref) && (m_sm.get_state() == em_state_ctrl_topo_synchronized)) {
                 m_sm.set_state(em_state_ctrl_channel_query_pending);
             } else if ((pcmd->get_orch_op() == dm_orch_type_channel_sel) && (m_sm.get_state() == em_state_ctrl_channel_queried)) {
-                set_state(em_state_ctrl_channel_select_pending);
+                m_sm.set_state(em_state_ctrl_channel_select_pending);
             } else if ((pcmd->get_orch_op() == dm_orch_type_channel_cnf) && (m_sm.get_state() == em_state_ctrl_channel_selected)) {
-                set_state(em_state_ctrl_channel_cnf_pending);
+                m_sm.set_state(em_state_ctrl_channel_cnf_pending);
             }
             break;
 
@@ -127,19 +127,19 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 
         case em_cmd_type_sta_link_metrics:
-            set_state(em_state_ctrl_sta_link_metrics_pending);
-			break;
+            m_sm.set_state(em_state_ctrl_sta_link_metrics_pending);
+            break;
 
         case em_cmd_type_set_channel:
             m_sm.set_state(em_state_ctrl_channel_select_pending);
             break;
 
         case em_cmd_type_sta_steer:
-            set_state(em_state_ctrl_sta_steer_pending);
+            m_sm.set_state(em_state_ctrl_sta_steer_pending);
             break;
 
         case em_cmd_type_sta_disassoc:
-            set_state(em_state_ctrl_sta_disassoc_pending);
+            m_sm.set_state(em_state_ctrl_sta_disassoc_pending);
             break;
     }
 }
@@ -196,6 +196,11 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_channel_sel_rsp:
         case em_msg_type_op_channel_rprt:
             em_channel_t::process_msg(data, len);
+            break;
+
+        case em_msg_type_assoc_sta_link_metrics_query:
+        case em_msg_type_assoc_sta_link_metrics_rsp:
+            em_metrics_t::process_msg(data, len);
             break;
 
         default:
