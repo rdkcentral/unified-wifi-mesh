@@ -55,6 +55,7 @@ public:
 
     int insert_row(db_client_t& db_client, ...);
     int update_row(db_client_t& db_client, ...);
+    int compare_row(db_client_t& db_client, ...);
     int delete_row(db_client_t& db_client, ...);
     
     db_easy_mesh_t();

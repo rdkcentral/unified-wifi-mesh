@@ -223,6 +223,7 @@ public:
     dm_sta_t *get_first_sta(mac_address_t sta_mac);
     dm_sta_t *get_next_sta(mac_address_t sta_mac, dm_sta_t *psta);
     bool has_at_least_one_associated_sta();
+    int get_num_bss_for_associated_sta(mac_address_t sta_mac);
     
     static void print_hex_dump(unsigned int length, unsigned char *buffer);
     static char *hex(unsigned int in_len, unsigned char *in, unsigned int out_len, char *out);

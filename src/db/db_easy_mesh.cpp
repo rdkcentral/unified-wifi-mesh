@@ -175,6 +175,38 @@ int db_easy_mesh_t::update_row(db_client_t& db_client, ...)
     return 0;
 }
 
+int db_easy_mesh_t::compare_row(db_client_t& db_client, ...)
+{
+    unsigned int i;
+    db_query_t tmp, format, query;
+    va_list list;
+    db_fmt_t col_fmt;
+    void *ctx;
+
+    snprintf(format, sizeof(db_query_t), "select * from %s where ", m_table_name);
+
+    for (i = 0; i < m_num_cols; i++) {
+        memset(tmp, 0, sizeof(db_query_t));
+        snprintf(tmp, sizeof(db_query_t), "%s = ", m_columns[i].m_name);
+        snprintf(format + strlen(format), sizeof(format) - strlen(format), "%s", tmp);
+        snprintf(format + strlen(format), sizeof(format) - strlen(format), "%s", get_column_format(col_fmt, i));
+
+        if (i < m_num_cols - 1) {
+            snprintf(format + strlen(format), sizeof(format) - strlen(format), " and ");
+        }
+    }
+
+    ctx = db_client.execute(query);
+    bool comparison_success = false;
+
+    while (db_client.next_result(ctx) == true) {
+        // Process each row to compare
+        comparison_success = true;
+    }
+
+    return comparison_success;
+}
+
 int db_easy_mesh_t::delete_row(db_client_t& db_client, ...)
 {
     db_query_t	tmp, format, query;

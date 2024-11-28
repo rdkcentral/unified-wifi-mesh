@@ -856,6 +856,7 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
     em_bus_event_t *bev;
     em_bus_event_type_client_assoc_params_t    *raw;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    bool eligible_to_req_cap = false;
 
     dm = get_data_model();
 	
@@ -895,8 +896,18 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
             //printf("%s:%d: Client Device:%s %s\n", __func__, __LINE__, sta_mac_str,
                     //(assoc_evt_tlv->assoc_event == 1)?"associated":"disassociated");
 
-            // if associated for first time, orchestrate a client capability query/response
             if ((sta = (dm_sta_t *)hash_map_get(dm->m_sta_map, key)) == NULL) {
+                eligible_to_req_cap = true;
+            } else {
+                sta = (dm_sta_t *)hash_map_get(dm->m_sta_map, key);
+                // During an association if map data has empty frame for an existing entry, request cap report to update Frame body
+                if ((assoc_evt_tlv->assoc_event == true)) {
+                    eligible_to_req_cap = true;
+                }
+            }
+
+            // if associated for first time, orchestrate a client capability query/response
+            if(eligible_to_req_cap == true) {
                 ev.type = em_event_type_bus;
                 bev = &ev.u.bevt;
                 bev->type = em_bus_event_type_sta_assoc;
