@@ -191,7 +191,7 @@ int em_configuration_t::send_autoconfig_renew_msg()
     unsigned short type = htons(ETH_P_1905);
     dm_easy_mesh_t *dm;
     unsigned char registrar = 0;
-    em_freq_band_t band;
+    em_freq_band_t freq_band;
 
     dm = get_data_model();
 
@@ -240,8 +240,8 @@ int em_configuration_t::send_autoconfig_renew_msg()
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_supported_freq_band;
     tlv->len = htons(sizeof(unsigned char));
-    band = get_band();
-    memcpy(&tlv->value, &band, sizeof(unsigned char));
+    freq_band = em_t::convert_freq_band(get_band());
+    memcpy(&tlv->value, &freq_band, sizeof(unsigned char));
 
     tmp += (sizeof (em_tlv_t) + 1);
     len += (sizeof (em_tlv_t) + 1);
@@ -1067,8 +1067,8 @@ short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul
     unsigned short size;
     unsigned char *tmp;
     tmp = buff;
-    em_freq_band_t band;
-    
+    em_rd_freq_band_t rf_band;
+ 
     // version
     attr = (data_elem_attr_t *)tmp;
     attr->id = htons(attr_id_version);
@@ -1214,9 +1214,9 @@ short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul
     attr->id = htons(attr_id_rf_bands);
     size = 1;
     attr->len = htons(size);
-    band = get_band();
-    memcpy(attr->val, &band, size);
-    
+    rf_band = (em_rd_freq_band_t)get_band();
+    memcpy(attr->val, &rf_band, size);
+ 
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
     // association state
@@ -1224,7 +1224,7 @@ short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul
     attr->id = htons(attr_id_assoc_state);
     size = sizeof(unsigned short);
     attr->len = htons(size);
-    memcpy(attr->val, &band, sizeof(attr->val));
+    memcpy(attr->val, &rf_band, sizeof(attr->val));
     
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -1233,7 +1233,7 @@ short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul
     attr->id = htons(attr_id_cfg_error);
     size = sizeof(unsigned short);
     attr->len = htons(size);
-    memcpy(attr->val, &band, sizeof(attr->val));
+    memcpy(attr->val, &rf_band, sizeof(attr->val));
     
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -1242,7 +1242,7 @@ short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul
     attr->id = htons(attr_id_device_password_id);
     size = sizeof(unsigned short);
     attr->len = htons(size);
-    memcpy(attr->val, &band, sizeof(attr->val));
+    memcpy(attr->val, &rf_band, sizeof(attr->val));
     
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -1251,7 +1251,7 @@ short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul
     attr->id = htons(attr_id_os_version);
     size = sizeof(unsigned short);
     attr->len = htons(size);
-    memcpy(attr->val, &band, sizeof(attr->val));
+    memcpy(attr->val, &rf_band, sizeof(attr->val));
     
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -1282,7 +1282,7 @@ short em_configuration_t::create_m1_msg(unsigned char *buff)
     short len = 0;
     unsigned short size;
     unsigned char *tmp;
-    em_freq_band_t band;
+    em_rd_freq_band_t rf_band;
 
     tmp = buff;
 
@@ -1461,8 +1461,8 @@ short em_configuration_t::create_m1_msg(unsigned char *buff)
     attr->id = htons(attr_id_rf_bands);
     size = 1;
     attr->len = htons(size);
-    band = get_band();
-    memcpy(attr->val, &band, size);
+    rf_band = map_freq_band_to_rf_band(get_band());
+    memcpy(attr->val, &rf_band, size);
 
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -1472,7 +1472,7 @@ short em_configuration_t::create_m1_msg(unsigned char *buff)
     attr->id = htons(attr_id_assoc_state);
     size = sizeof(unsigned short);
     attr->len = htons(size);
-    memcpy(attr->val, &band, sizeof(attr->val));
+    memcpy(attr->val, &rf_band, sizeof(attr->val));
 
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -1482,7 +1482,7 @@ short em_configuration_t::create_m1_msg(unsigned char *buff)
     attr->id = htons(attr_id_device_password_id);
     size = sizeof(unsigned short);
     attr->len = htons(size);
-    memcpy(attr->val, &band, sizeof(attr->val));
+    memcpy(attr->val, &rf_band, sizeof(attr->val));
 
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -1492,7 +1492,7 @@ short em_configuration_t::create_m1_msg(unsigned char *buff)
     attr->id = htons(attr_id_cfg_error);
     size = sizeof(unsigned short);
     attr->len = htons(size);
-    memcpy(attr->val, &band, sizeof(attr->val));
+    memcpy(attr->val, &rf_band, sizeof(attr->val));
 
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -1502,7 +1502,7 @@ short em_configuration_t::create_m1_msg(unsigned char *buff)
     attr->id = htons(attr_id_os_version);
     size = sizeof(unsigned short);
     attr->len = htons(size);
-    memcpy(attr->val, &band, sizeof(attr->val));
+    memcpy(attr->val, &rf_band, sizeof(attr->val));
 
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -1924,7 +1924,7 @@ int em_configuration_t::create_autoconfig_search_msg(unsigned char *buff)
     len += (sizeof (em_tlv_t) + 1);
 
     //6-23—autoconf_freq_band TLV
-    freq_band = get_current_cmd()->get_rd_freq_band();
+    freq_band = get_band();
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_autoconf_freq_band;
     tlv->len = htons(sizeof(unsigned char));

@@ -212,34 +212,6 @@ char *em_cmd_t::status_to_string(em_cmd_out_status_t status, em_status_string_t 
     return str;
 }
 
-void em_cmd_t::set_rd_freq_band(unsigned int i)
-{
-    unsigned int num_curr_opclass = 0;
-
-    em_freq_band_t freq_band;
-    dm_op_class_t *op_class_info;
-    em_op_class_info_t em_op_class;
-    num_curr_opclass = m_data_model.get_num_op_class();
-
-    op_class_info = m_data_model.get_curr_op_class(i);
-    if (op_class_info == NULL) {
-        printf("%s:%d: op_class_info is NULL\n", __func__, __LINE__);
-    }
-    em_op_class = op_class_info->m_op_class_info;
-    printf("%s:%d: current opclass = %d\n", __func__, __LINE__, em_op_class.op_class);
-    m_rd_op_class = em_op_class.op_class;
-    m_rd_channel = em_op_class.channel;
-    if (em_op_class.op_class >= EM_MIN_OP_CLASS_24 && em_op_class.op_class <= EM_MAX_OP_CLASS_24) {
-        freq_band = em_freq_band_24;
-    } else if (em_op_class.op_class >= EM_MIN_OP_CLASS_5  && em_op_class.op_class<= EM_MAX_OP_CLASS_5) {
-        freq_band = em_freq_band_5;
-    } else {
-        freq_band = em_freq_band_60;
-    }
-    m_rd_freq_band = freq_band;
-
-}
-
 void em_cmd_t::deinit()
 {
     queue_destroy(m_em_candidates);
