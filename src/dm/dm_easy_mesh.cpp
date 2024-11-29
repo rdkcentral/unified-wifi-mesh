@@ -1505,6 +1505,7 @@ void dm_easy_mesh_t::print_config()
     for (i = 0;i < m_num_radios; i++) {
         dm_easy_mesh_t::macbytes_to_string(m_radio[i].get_radio_info()->id.mac, mac_str);
         printf("%s:%d:Radio Mac: %s \n", __func__, __LINE__, mac_str);
+        printf("%s:%d:Radio Band: %d \n", __func__, __LINE__, m_radio[i].get_radio_info()->band);
     }
 }
 
