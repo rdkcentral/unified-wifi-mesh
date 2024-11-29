@@ -175,7 +175,7 @@ int em_metrics_t::handle_associated_sta_link_metrics_resp(unsigned char *buff, u
     tmp_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type == em_tlv_type_assoc_sta_link_metric) {
+        if (tlv->type == em_tlv_type_assoc_sta_ext_link_metric) {
             handle_assoc_sta_ext_link_metrics_tlv(tlv->value);
         }
 
@@ -410,13 +410,13 @@ short em_metrics_t::create_assoc_sta_link_metrics_tlv(unsigned char *buff, mac_a
             memcpy(&metrics->bssid, &sta->get_sta_info()->bssid, sizeof(metrics->bssid));
             len += sizeof(metrics->bssid);
 
-            metrics->time_delta_ms = 10;
+            metrics->time_delta_ms = 10;//TODO: Pending proper update
             len += sizeof(metrics->time_delta_ms);
 
-            metrics->est_mac_data_rate_dl = sta->get_sta_info()->est_dl_rate;
+            metrics->est_mac_data_rate_dl = sta->get_sta_info()->last_dl_rate;
             len += sizeof(metrics->est_mac_data_rate_dl);
 
-            metrics->est_mac_data_rate_ul = sta->get_sta_info()->est_ul_rate;
+            metrics->est_mac_data_rate_ul = sta->get_sta_info()->last_ul_rate;
             len += sizeof(metrics->est_mac_data_rate_ul);
 
             metrics->rcpi = 1;//TODO: Pending proper update
@@ -470,10 +470,10 @@ short em_metrics_t::create_assoc_ext_sta_link_metrics_tlv(unsigned char *buff, m
             memcpy(metrics->bssid, sta->get_sta_info()->bssid, sizeof(metrics->bssid));
             len += sizeof(metrics->bssid);
 
-            metrics->last_data_dl_rate = sta->get_sta_info()->est_dl_rate;
+            metrics->last_data_dl_rate = sta->get_sta_info()->last_dl_rate;
             len += sizeof(metrics->last_data_dl_rate);
 
-            metrics->last_data_ul_rate = sta->get_sta_info()->est_ul_rate;
+            metrics->last_data_ul_rate = sta->get_sta_info()->last_ul_rate;
             len += sizeof(metrics->last_data_ul_rate);
 
             metrics->util_receive = sta->get_sta_info()->util_rx;

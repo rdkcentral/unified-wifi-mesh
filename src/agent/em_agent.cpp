@@ -416,9 +416,22 @@ void em_agent_t::input_listener()
 
 int em_agent_t::assoc_stats_cb(char *event_name, raw_data_t *data)
 {
-    printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
+    //printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
     em_event_t evt;
     em_bus_event_t *bevt;
+    cJSON *json, *assoc_stats_arr;
+
+    json = cJSON_Parse((const char *)data->raw_data.bytes);
+    if (json != NULL) {
+        assoc_stats_arr = cJSON_GetObjectItem(json, "AssociatedDeviceStats");
+        if ((assoc_stats_arr == NULL) && (cJSON_IsObject(assoc_stats_arr) == false)) {
+            return -1;
+        }
+        if (cJSON_IsArray(assoc_stats_arr) && cJSON_GetArraySize(assoc_stats_arr) == 0) {
+            //printf("%s:%d AssociatedDeviceStats is NULL\n", __func__, __LINE__);
+            return -1;
+        }
+    }
 
     bevt = &evt.u.bevt;
     bevt->type = em_bus_event_type_sta_link_metrics;
