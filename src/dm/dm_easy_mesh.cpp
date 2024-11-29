@@ -1472,6 +1472,7 @@ void dm_easy_mesh_t::print_config()
 {
     unsigned int i;
     mac_addr_str_t  ctrl_mac, ctrl_al_mac, agent_al_mac, radio_mac, mac_str;
+    int transmit_power_limit;
 
     dm_easy_mesh_t::macbytes_to_string(get_controller_interface_mac(), ctrl_mac);
     dm_easy_mesh_t::macbytes_to_string(get_ctrl_al_interface_mac(), ctrl_al_mac);
@@ -1504,8 +1505,10 @@ void dm_easy_mesh_t::print_config()
 
     for (i = 0;i < m_num_radios; i++) {
         dm_easy_mesh_t::macbytes_to_string(m_radio[i].get_radio_info()->id.mac, mac_str);
+        transmit_power_limit = m_radio[i].get_radio_info()->transmit_power_limit;
         printf("%s:%d:Radio Mac: %s \n", __func__, __LINE__, mac_str);
         printf("%s:%d:Radio Band: %d \n", __func__, __LINE__, m_radio[i].get_radio_info()->band);
+        printf("%s:%d:TransmitPowerLimit: %d \n", __func__, __LINE__, transmit_power_limit);
     }
 }
 

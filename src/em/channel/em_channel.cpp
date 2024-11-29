@@ -144,6 +144,23 @@ short em_channel_t::create_channel_pref_tlv(unsigned char *buff)
     return len;
 }
 
+short em_channel_t::create_transmit_power_limit_tlv(unsigned char *buff)
+{
+    int len = 0;
+    em_tx_power_limit_t	*tx_power_limit;
+
+    tx_power_limit = (em_tx_power_limit_t *)buff;
+    memcpy(tx_power_limit->ruid, get_radio_interface_mac(), sizeof(em_radio_id_t));
+    
+    dm_radio_t* radio = get_data_model()->get_radio(get_radio_interface_mac());
+    em_radio_info_t* radio_info = radio->get_radio_info();
+    tx_power_limit->tx_power_eirp = (unsigned char)radio_info->transmit_power_limit;
+
+    len += sizeof(em_tx_power_limit_t);
+
+    return len;
+}
+
 
 int em_channel_t::send_channel_sel_request_msg()
 {
@@ -193,6 +210,13 @@ int em_channel_t::send_channel_sel_request_msg()
     len += (sizeof(em_tlv_t) + sz);
 
 	// Zero or more Transmit Power Limit TLVs (see section 17.2.15)
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_tx_power;
+    sz = create_transmit_power_limit_tlv(tlv->value);
+    tlv->len = htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += (sizeof(em_tlv_t) + sz);
 
 	// Zero or more Spatial Reuse Request TLVs (see section 17.2.89).
 
@@ -862,15 +886,12 @@ int em_channel_t::handle_channel_pref_rprt(unsigned char *buff, unsigned int len
 	return 0;
 }
 
-int em_channel_t::handle_channel_pref_tlv(unsigned char *buff, unsigned int len)
+int em_channel_t::handle_channel_pref_tlv(unsigned char *buff, op_class_channel_sel *op_class)
 {
     em_channel_pref_t   *pref = (em_channel_pref_t *) buff;
     em_channel_pref_op_class_t *channel_pref;
     unsigned int i = 0, j = 0;
     em_op_class_info_t      op_class_info[EM_MAX_OP_CLASS];
-    op_class_channel_sel *op_class;
-    em_event_t  ev;
-    em_bus_event_t *bev;
 
     channel_pref = pref->op_classes;
     if (pref != NULL) {
@@ -888,18 +909,14 @@ int em_channel_t::handle_channel_pref_tlv(unsigned char *buff, unsigned int len)
                 channel_pref = (em_channel_pref_op_class_t *)((unsigned char *)channel_pref + sizeof(em_op_class_t) +
 				op_class_info[i].num_channels);
 			}
-		ev.type = em_event_type_bus;
-		bev = &ev.u.bevt;
-		bev->type = em_bus_event_type_channel_sel_req;
-		op_class = (op_class_channel_sel *)&bev->u.raw_buff;
 
-		op_class->num = pref->op_classes_num;
-		for (i = 0; i < pref->op_classes_num ; i++) {
-			memcpy(&op_class->op_class_info[i], &op_class_info[i],sizeof(em_op_class_info_t));
-		}
-		em_cmd_exec_t::send_cmd(em_service_type_agent, (unsigned char *)&ev, sizeof(em_event_t));
-        printf("%s:%d Received channel selection request \n",__func__, __LINE__);
+        op_class->num = pref->op_classes_num;
+        for (i = 0; i < pref->op_classes_num; i++) {
+            memcpy(&op_class->op_class_info[i], &op_class_info[i], sizeof(em_op_class_info_t));
+        }
     }
+
+    return 0;
 }
 
 int em_channel_t::handle_channel_pref_query(unsigned char *buff, unsigned int len)
@@ -926,18 +943,37 @@ int em_channel_t::handle_channel_sel_req(unsigned char *buff, unsigned int len)
     em_tlv_t    *tlv;
     int tlv_len;
 
+    op_class_channel_sel *op_class;
+    em_tx_power_limit_t	*tx_power_limit;
+
+    em_event_t  ev;
+    em_bus_event_t *bev;
+
+    ev.type = em_event_type_bus;
+    bev = &ev.u.bevt;
+    bev->type = em_bus_event_type_channel_sel_req;
+    op_class = (op_class_channel_sel *)&bev->u.raw_buff;
+
     tlv = (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tlv_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if (tlv->type == em_tlv_type_channel_pref) {
-            handle_channel_pref_tlv(tlv->value, htons(tlv->len));
-            break;
+            op_class = (op_class_channel_sel *)&bev->u.raw_buff;
+            handle_channel_pref_tlv(tlv->value, op_class);
+        }
+        if (tlv->type == em_tlv_type_tx_power) {
+            tx_power_limit = (em_tx_power_limit_t *)((unsigned char *)&bev->u.raw_buff + op_class->num * sizeof(em_op_class_info_t));
+            memcpy(tx_power_limit, tlv->value, sizeof(em_tx_power_limit_t));
         }
 
         tlv_len -= (sizeof(em_tlv_t) + htons(tlv->len));
         tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
     }
+
+    em_cmd_exec_t::send_cmd(em_service_type_agent, (unsigned char *)&ev, sizeof(em_event_t));
+    printf("%s:%d Received channel selection request \n",__func__, __LINE__);
+
     return 0;
 }
 
