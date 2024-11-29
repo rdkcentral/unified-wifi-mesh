@@ -51,13 +51,14 @@
 #include "util.h"
 #include <iostream>
 #include <openssl/dh.h>
+#include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/err.h>
 #include <fstream>
 #include <sstream>
 #include <string>
 
-//#define OPENSSL_VERSION_NUMBER 0x10100000L
+#define OPENSSL_VERSION_NUMBER 0x10100000L
 // Initialize the static member variables
 // From RFC 3526
 uint8_t em_crypto_t::g_dh1536_p[] =  {
@@ -543,11 +544,8 @@ uint8_t em_crypto_t:: wps_key_derivation_function(uint8_t *key, uint8_t *label_p
     }
     return 1; 
 }
-uint8_t em_crypto_t::platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher, uint32_t *cipher_len)
+uint8_t em_crypto_t::platform_aes_encrypt(uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher, uint32_t *cipher_len)
 {
-    if (cipher_type == NULL){
-        return 0;
-    }
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX _ctx;
 #endif
@@ -563,7 +561,7 @@ uint8_t em_crypto_t::platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint
         return 0;
     }
 #endif
-    if (EVP_EncryptInit_ex2(ctx, cipher_type, key, iv, NULL) != 1) {
+    if (EVP_EncryptInit_ex(ctx, EVP_aes_128_cbc(), NULL, key, iv) != 1) {
         return 0;
     }
 
@@ -590,12 +588,8 @@ uint8_t em_crypto_t::platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint
 
     return 1;
 }
-uint8_t em_crypto_t::platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len)
+uint8_t em_crypto_t::platform_aes_decrypt(uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len)
 {
-    if (cipher_type == NULL){
-        return 0;
-    }
-
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX _ctx;
 #endif
@@ -612,7 +606,7 @@ uint8_t em_crypto_t::platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint
         return 0;
     }
 #endif
-    if (EVP_DecryptInit_ex2(ctx, cipher_type, key, iv, NULL)  != 1) {
+    if (EVP_DecryptInit_ex(ctx, EVP_aes_128_cbc(), NULL, key, iv) != 1) {
         return 0;
     }
 
@@ -636,7 +630,6 @@ uint8_t em_crypto_t::platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint
 
     return 1;
 }
-
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
 EVP_PKEY* em_crypto_t::create_dh_pkey(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv, BIGNUM *bn_pub)
 {
