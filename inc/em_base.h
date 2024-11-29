@@ -268,11 +268,18 @@ typedef enum {
 } em_profile_type_t;
 
 typedef enum {
-    em_freq_band_24,
+    em_freq_band_24,    //IEEE-1905-1-2013 table 6-23
     em_freq_band_5,
     em_freq_band_60,
     em_freq_band_unknown
 } em_freq_band_t;
+
+typedef enum {
+    em_rd_freq_band_unknown,    //rf band based on Wi-Fi Simple Configuration Technical Specification v2 table 44
+    em_rd_freq_band_24,
+    em_rd_freq_band_5,
+    em_rd_freq_band_60 = 0x4,
+} em_rd_freq_band_t;
 
 typedef struct {
     unsigned int    bit_map;
@@ -2062,6 +2069,7 @@ typedef struct {
 	mac_address_t dev_id;
     em_long_string_t net_id;
     bool    enabled;
+    em_freq_band_t band;
     em_media_spec_data_t	media_data;
     unsigned  int   number_of_bss;
     unsigned  int   number_of_unassoc_sta;

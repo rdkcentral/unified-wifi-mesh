@@ -196,7 +196,7 @@ public:
     char *get_primary_device_type() { return m_device.get_primary_device_type(); }
 
     unsigned short get_msg_id() { return msg_id; }
-    unsigned short set_msg_id(unsigned short id) { msg_id = id; }
+    void set_msg_id(unsigned short id) { msg_id = id; }
 
     void set_manufacturer(char *manufacturer) { m_device.set_manufacturer(manufacturer); }
     void set_manufacturer_model(char *model) { m_device.set_manufacturer_model(model); }
