@@ -2113,6 +2113,7 @@ typedef struct {
     em_long_string_t    chip_vendor;
     bool    ap_metrics_wifi6;
     em_device_inventory_t inventory_info;
+    int     transmit_power_limit;
 } em_radio_info_t;
 
 typedef struct {
