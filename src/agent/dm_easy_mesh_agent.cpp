@@ -487,8 +487,6 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
 
 int dm_easy_mesh_agent_t::analyze_sta_link_metrics(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
-    printf("%s:%d Enter func\n", __func__, __LINE__);
-    dm_easy_mesh_agent_t  dm;
     dm_sta_t *sta = NULL;
     em_cmd_t *tmp = NULL;
     em_sta_info_t *em_sta = NULL;
@@ -496,10 +494,6 @@ int dm_easy_mesh_agent_t::analyze_sta_link_metrics(em_bus_event_t *evt, em_cmd_t
     mac_addr_str_t radio_str;
     em_cmd_params_t *evt_param = NULL;
     mac_addr_str_t  sta_mac_str, bss_mac_str, radio_mac_str;
-
-    if (has_at_least_one_associated_sta() == false) {
-        return -1;
-    }
 
     webconfig_t config;
     webconfig_external_easymesh_t extdata = {0};

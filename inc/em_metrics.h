@@ -32,16 +32,16 @@ class em_metrics_t {
 
     int send_all_associated_sta_link_mterics_msg();
     int send_associated_sta_link_metrics_msg(mac_address_t sta_mac);
-    int send_associated_link_metrics_response(mac_address_t sta);
+    int send_associated_link_metrics_response(mac_address_t sta_mac);
 
     int handle_associated_sta_link_metrics_query(unsigned char *buff, unsigned int len);
     int handle_associated_sta_link_metrics_resp(unsigned char *buff, unsigned int len);
     int handle_assoc_sta_link_metrics_tlv(unsigned char *buff);
     int handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff);
 
-    short create_assoc_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac);
-    short create_assoc_ext_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac);
-    short create_error_code_tlv(unsigned char *buff, mac_address_t sta);
+    short create_assoc_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac, const dm_sta_t *const sta);
+    short create_assoc_ext_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac, const dm_sta_t *const sta);
+    short create_error_code_tlv(unsigned char *buff, mac_address_t sta, bool sta_found);
 
 public:
     void    process_msg(unsigned char *data, unsigned int len);

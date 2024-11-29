@@ -175,7 +175,7 @@ int em_metrics_t::handle_associated_sta_link_metrics_resp(unsigned char *buff, u
     tmp_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type == em_tlv_type_assoc_sta_link_metric) {
+        if (tlv->type == em_tlv_type_assoc_sta_ext_link_metric) {
             handle_assoc_sta_ext_link_metrics_tlv(tlv->value);
         }
 
@@ -270,7 +270,7 @@ int em_metrics_t::send_all_associated_sta_link_mterics_msg()
     }
 }
 
-int em_metrics_t::send_associated_link_metrics_response(mac_address_t sta)
+int em_metrics_t::send_associated_link_metrics_response(mac_address_t sta_mac)
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
@@ -282,17 +282,27 @@ int em_metrics_t::send_associated_link_metrics_response(mac_address_t sta)
     unsigned short sz = 0;
     unsigned short type = htons(ETH_P_1905);
     dm_easy_mesh_t *dm = get_data_model();
+    mac_addr_str_t mac_str;
+    bool sta_found = false;
+    dm_sta_t *sta;
 
-    mac_addr_str_t dst_mac_str;
+    sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_map);
+    while(sta != NULL) {
+        if (memcmp(sta->m_sta_info.id, sta_mac, sizeof(mac_address_t)) == 0) {
+            sta_found = true;
+            break;
+        }
+        sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_map, sta);
+    }
 
-    if (strncmp((const char*)&sta, "0", sizeof(mac_address_t)) == 0)
-    {
-        dm_easy_mesh_t::macbytes_to_string(sta, dst_mac_str);
-        printf("STA is NULLLLLLL %s\n", dst_mac_str);
+    if (sta == NULL) {
+        //TODO: Have to fix Failed TLV while sending empty frame with error code
         return -1;
     }
 
     short msg_id = em_msg_type_assoc_sta_link_metrics_rsp;
+
+    dm_easy_mesh_t::macbytes_to_string(sta_mac, mac_str);
 
     memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
@@ -319,7 +329,7 @@ int em_metrics_t::send_associated_link_metrics_response(mac_address_t sta)
     //Assoc sta link metrics 17.2.24
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_assoc_sta_link_metric;
-    sz = create_assoc_sta_link_metrics_tlv(tlv->value, sta);
+    sz = create_assoc_sta_link_metrics_tlv(tlv->value, sta_mac, sta);
     tlv->len =  htons(sz);
 
     tmp += (sizeof(em_tlv_t) + sz);
@@ -328,7 +338,7 @@ int em_metrics_t::send_associated_link_metrics_response(mac_address_t sta)
     //Error code  TLV 17.2.36
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_error_code;
-    sz = create_error_code_tlv(tlv->value,sta);
+    sz = create_error_code_tlv(tlv->value, sta_mac, sta_found);
     tlv->len = htons(sz);
 
     tmp += (sizeof(em_tlv_t) + sz);
@@ -337,12 +347,11 @@ int em_metrics_t::send_associated_link_metrics_response(mac_address_t sta)
     //assoc ext link metrics 17.2.62
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_assoc_sta_ext_link_metric;
-    sz = create_assoc_ext_sta_link_metrics_tlv(tlv->value, sta);
+    sz = create_assoc_ext_sta_link_metrics_tlv(tlv->value, sta_mac, sta);
     tlv->len = htons(sz);
 
     tmp += (sizeof(em_tlv_t) + sz);
     len += (sizeof(em_tlv_t) + sz);
-
 
     // End of message
     tlv = (em_tlv_t *)tmp;
@@ -352,41 +361,31 @@ int em_metrics_t::send_associated_link_metrics_response(mac_address_t sta)
     tmp += (sizeof (em_tlv_t));
     len += (sizeof (em_tlv_t));
 
-    if (em_msg_t(em_msg_type_assoc_sta_link_metrics_rsp, em_profile_type_2, buff, len).validate(errors) == 0) {
-        printf("%s:%d: Associated STA Link Mterics validation failed\n", __func__, __LINE__);
+    if (em_msg_t(em_msg_type_assoc_sta_link_metrics_rsp, em_profile_type_3, buff, len).validate(errors) == 0) {
+        printf("%s:%d: Associated STA Link Metrics validation failed for %s\n", __func__, __LINE__, mac_str);
         return -1;
     }
 
     if (send_frame(buff, len)  < 0) {
-        printf("%s:%d: Associated STA Link Mterics  send failed, error:%d\n", __func__, __LINE__, errno);
+        printf("%s:%d: Associated STA Link Metrics  send failed, error:%d\n", __func__, __LINE__, errno);
         return -1;
     }
+    printf("%s:%d: Associated STA Link Metrics for sta %s sent successfully\n", __func__, __LINE__, mac_str);
+
     return len;
 }
 
-short em_metrics_t::create_assoc_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac)
+short em_metrics_t::create_assoc_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac, const dm_sta_t *const sta)
 {
     //TODO: Cleanup hard-coded data
     short len = 0;
-    dm_sta_t *sta = NULL;
-    mac_addr_str_t dst_mac_str;
     dm_easy_mesh_t *dm;
-    int cnt = 0;
     int num_bssids = 0;
-
     em_assoc_sta_link_metrics_t *assoc_sta_metrics = (em_assoc_sta_link_metrics_t*) buff;
     em_assoc_link_metrics_t *metrics;
 
     dm = get_data_model();
     num_bssids = dm->get_num_bss_for_associated_sta(sta_mac);
-
-    sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_map);
-    while(sta != NULL) {
-        if (memcmp(sta->get_sta_info()->id, sta_mac, sizeof(mac_address_t)) == 0) {
-            break;
-        }
-        sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_map, sta);
-    }
 
     if (sta == NULL) {
         memcpy(&assoc_sta_metrics->sta_mac, &sta_mac, sizeof(assoc_sta_metrics->sta_mac));
@@ -398,25 +397,23 @@ short em_metrics_t::create_assoc_sta_link_metrics_tlv(unsigned char *buff, mac_a
     }
     else {
         metrics	= &assoc_sta_metrics->assoc_link_metrics[0];
-
-        sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_map);
         if ((memcmp(sta->m_sta_info.id, sta_mac, sizeof(mac_address_t)) == 0)) {
-            memcpy(&assoc_sta_metrics->sta_mac, &sta->get_sta_info()->id, sizeof(assoc_sta_metrics->sta_mac));
+            memcpy(&assoc_sta_metrics->sta_mac, &sta->m_sta_info.id, sizeof(assoc_sta_metrics->sta_mac));
             len += sizeof(assoc_sta_metrics->sta_mac);
 
             assoc_sta_metrics->num_bssids = num_bssids;
             len += sizeof(assoc_sta_metrics->num_bssids);
 
-            memcpy(&metrics->bssid, &sta->get_sta_info()->bssid, sizeof(metrics->bssid));
+            memcpy(&metrics->bssid, &sta->m_sta_info.bssid, sizeof(metrics->bssid));
             len += sizeof(metrics->bssid);
 
-            metrics->time_delta_ms = 10;
+            metrics->time_delta_ms = 10;//TODO: Pending proper update
             len += sizeof(metrics->time_delta_ms);
 
-            metrics->est_mac_data_rate_dl = sta->get_sta_info()->est_dl_rate;
+            metrics->est_mac_data_rate_dl = sta->m_sta_info.last_dl_rate;
             len += sizeof(metrics->est_mac_data_rate_dl);
 
-            metrics->est_mac_data_rate_ul = sta->get_sta_info()->est_ul_rate;
+            metrics->est_mac_data_rate_ul = sta->m_sta_info.last_ul_rate;
             len += sizeof(metrics->est_mac_data_rate_ul);
 
             metrics->rcpi = 1;//TODO: Pending proper update
@@ -426,29 +423,17 @@ short em_metrics_t::create_assoc_sta_link_metrics_tlv(unsigned char *buff, mac_a
     return len;
 }
 
-short em_metrics_t::create_assoc_ext_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac)
+short em_metrics_t::create_assoc_ext_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac, const dm_sta_t *const sta)
 {
     //TODO: Cleanup hard-coded data
     short len = 0;
-    dm_sta_t *sta = NULL;
-    mac_addr_str_t dst_mac_str;
     dm_easy_mesh_t *dm;
-    int cnt = 0;
     int num_bssids = 0;
-
     em_assoc_sta_ext_link_metrics_t *assoc_sta_metrics = (em_assoc_sta_ext_link_metrics_t*) buff;
     em_assoc_ext_link_metrics_t *metrics;
 
     dm = get_data_model();
     num_bssids = dm->get_num_bss_for_associated_sta(sta_mac);
-
-    sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_map);
-    while(sta != NULL) {
-        if (memcmp(sta->get_sta_info()->id, sta_mac, sizeof(mac_address_t)) == 0) {
-            break;
-        }
-        sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_map, sta);
-    }
 
     if (sta == NULL) {
         memcpy(&assoc_sta_metrics->sta_mac, &sta_mac, sizeof(assoc_sta_metrics->sta_mac));
@@ -461,25 +446,25 @@ short em_metrics_t::create_assoc_ext_sta_link_metrics_tlv(unsigned char *buff, m
     else {
         metrics	= &assoc_sta_metrics->assoc_ext_link_metrics[0];
         if ((memcmp(sta->m_sta_info.id, sta_mac, sizeof(mac_address_t)) == 0)) {
-            memcpy(assoc_sta_metrics->sta_mac, sta->get_sta_info()->id, sizeof(assoc_sta_metrics->sta_mac));
+            memcpy(assoc_sta_metrics->sta_mac, sta->m_sta_info.id, sizeof(assoc_sta_metrics->sta_mac));
             len += sizeof(assoc_sta_metrics->sta_mac);
 
             assoc_sta_metrics->num_bssids = dm->get_num_bss_for_associated_sta(sta_mac);
             len += sizeof(assoc_sta_metrics->num_bssids);
 
-            memcpy(metrics->bssid, sta->get_sta_info()->bssid, sizeof(metrics->bssid));
+            memcpy(metrics->bssid, sta->m_sta_info.bssid, sizeof(metrics->bssid));
             len += sizeof(metrics->bssid);
 
-            metrics->last_data_dl_rate = sta->get_sta_info()->est_dl_rate;
+            metrics->last_data_dl_rate = sta->m_sta_info.last_dl_rate;
             len += sizeof(metrics->last_data_dl_rate);
 
-            metrics->last_data_ul_rate = sta->get_sta_info()->est_ul_rate;
+            metrics->last_data_ul_rate = sta->m_sta_info.last_ul_rate;
             len += sizeof(metrics->last_data_ul_rate);
 
-            metrics->util_receive = sta->get_sta_info()->util_rx;
+            metrics->util_receive = sta->m_sta_info.util_rx;
             len += sizeof(metrics->util_receive);
 
-            metrics->util_transmit = sta->get_sta_info()->util_tx;
+            metrics->util_transmit = sta->m_sta_info.util_tx;
             len += sizeof(metrics->util_transmit);
         }
     }
@@ -487,11 +472,16 @@ short em_metrics_t::create_assoc_ext_sta_link_metrics_tlv(unsigned char *buff, m
 }
 
 
-short em_metrics_t::create_error_code_tlv(unsigned char *buff, mac_address_t sta)
+short em_metrics_t::create_error_code_tlv(unsigned char *buff, mac_address_t sta, bool sta_found)
 {
     short len = 0;
     unsigned char *tmp = buff;
     unsigned char reason = 0;
+
+    /* if(sta_found == false)
+    {
+        reason = 0x02;
+    } */
 
     memcpy(tmp, &reason, sizeof(unsigned char));
     tmp += sizeof(unsigned char);
