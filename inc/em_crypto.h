@@ -186,7 +186,6 @@ public:
         uint8_t *local_priv, uint8_t local_priv_len);
 
     static inline uint8_t generate_iv(unsigned char *iv, unsigned int len) { if (!RAND_bytes(iv, len)) { return 0; } else { return 1; } }
-    static inline uint8_t generate_nonce(em_nonce_t nonce) { if (!RAND_bytes(nonce, sizeof(em_nonce_t))) { return 0; } else { return 1; } }
 
     // START: Object getters and setters
     inline em_crypto_info_t *get_crypto_info() { return &m_crypto_info; }
