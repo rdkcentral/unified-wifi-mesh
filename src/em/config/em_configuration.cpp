@@ -883,6 +883,11 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     bool found_profile = false;
     bool found_bss_config_rprt = false;
     em_profile_type_t profile;
+	dm_easy_mesh_t *dm;
+	unsigned int db_cfg_type;
+    
+	dm = get_data_model();
+    db_cfg_type = dm->get_db_cfg_type();
 
     tlv =  (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
@@ -962,6 +967,8 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 		printf("%s:%d: BSS Configuration Report handling failed\n", __func__, __LINE__);
 		return -1;
 	}
+
+	dm->set_db_cfg_type(db_cfg_type | db_cfg_type_policy_list_update);
 
 	return ret;
 }

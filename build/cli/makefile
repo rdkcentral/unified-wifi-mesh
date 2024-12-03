@@ -54,6 +54,7 @@ CLI_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/cli/*.cpp) \
     $(ONEWIFI_EM_SRC)/dm/dm_network_ssid.cpp \
     $(ONEWIFI_EM_SRC)/dm/dm_network.cpp \
     $(ONEWIFI_EM_SRC)/dm/dm_op_class.cpp \
+    $(ONEWIFI_EM_SRC)/dm/dm_policy.cpp \
     $(ONEWIFI_EM_SRC)/dm/dm_sta.cpp \
     $(ONEWIFI_EM_SRC)/dm/dm_radio_cap.cpp \
     $(ONEWIFI_EM_SRC)/dm/dm_cac_comp.cpp \

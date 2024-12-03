@@ -62,6 +62,8 @@ public:
     dm_radio_t *get_radio(const char *key);
     void remove_radio(const char *key);
     void put_radio(const char *key, const dm_radio_t *radio);
+    dm_radio_t *get_first_radio(const char *net_id, mac_address_t al_mac);
+    dm_radio_t *get_next_radio(const char *net_id, mac_address_t al_mac, dm_radio_t *radio);
 
     dm_bss_t *get_first_bss();
     dm_bss_t *get_next_bss(dm_bss_t *bss);
@@ -88,6 +90,12 @@ public:
     void put_op_class(const char *key, const dm_op_class_t *op_class);
 	dm_op_class_t *get_first_anticipated_op_class();
     dm_op_class_t *get_next_anticipated_op_class(dm_op_class_t *op_class);
+
+	dm_policy_t *get_first_policy();
+    dm_policy_t *get_next_policy(dm_policy_t *policy);
+    dm_policy_t *get_policy(const char *key);
+    void remove_policy(const char *key);
+    void put_policy(const char *key, const dm_policy_t *policy);
 
     dm_easy_mesh_list_t();
     ~dm_easy_mesh_list_t();

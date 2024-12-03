@@ -29,6 +29,7 @@
 #include "dm_op_class_list.h"
 #include "dm_bss_list.h"
 #include "dm_sta_list.h"
+#include "dm_policy_list.h"
 #include "dm_dpp.h"
 #include "db_client.h"
 #include "dm_easy_mesh_list.h"
@@ -42,7 +43,7 @@ class dm_easy_mesh_ctrl_t :
     public dm_network_list_t, public dm_device_list_t, public dm_network_ssid_list_t,
     public dm_ieee_1905_security_list_t, public dm_radio_list_t, public dm_radio_cap_list_t,
         
-    public dm_op_class_list_t, public dm_bss_list_t, public dm_sta_list_t {
+    public dm_op_class_list_t, public dm_bss_list_t, public dm_sta_list_t, public dm_policy_list_t {
 
     db_client_t m_db_client;
     bool	m_initialized;
@@ -65,6 +66,7 @@ public:
     int analyze_sta_link_metrics(em_cmd_t *pcmd[]);
     int analyze_set_ssid(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_set_channel(em_bus_event_t *evt, em_cmd_t *cmd[]);
+    int analyze_set_policy(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_dpp_start(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_sta_steer(em_cmd_steer_params_t &params, em_cmd_t *cmd[]);
     int analyze_sta_disassoc(em_cmd_disassoc_params_t &params, em_cmd_t *cmd[]);
@@ -92,6 +94,7 @@ public:
     int get_radio_config(cJSON *parent, char *key);
     int get_network_ssid_config(cJSON *parent, char *key);
     int get_channel_config(cJSON *parent, char *key, bool set_channel = false);
+    int get_policy_config(cJSON *parent, char *key);
     int get_config(em_long_string_t net_id, em_subdoc_info_t *subdoc);
     int set_config(dm_easy_mesh_t *dm);
     int copy_config(dm_easy_mesh_t *dm, em_long_string_t net_id);
@@ -144,6 +147,12 @@ public:
     dm_network_ssid_t *get_network_ssid(const char *key) { return m_data_model_list.get_network_ssid(key); }
     void remove_network_ssid(const char *key) { m_data_model_list.remove_network_ssid(key); }
     void put_network_ssid(const char *key, const dm_network_ssid_t *network_ssid) { m_data_model_list.put_network_ssid(key, network_ssid); }
+
+	dm_policy_t *get_first_policy() { return m_data_model_list.get_first_policy(); }
+    dm_policy_t *get_next_policy(dm_policy_t *policy) { return m_data_model_list.get_next_policy(policy); }
+    dm_policy_t *get_policy(const char *key) { return m_data_model_list.get_policy(key); }
+    void remove_policy(const char *key) { m_data_model_list.remove_policy(key); }
+    void put_policy(const char *key, const dm_policy_t *policy) { m_data_model_list.put_policy(key, policy); }
 
     void handle_dirty_dm();
     void init_tables();

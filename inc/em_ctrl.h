@@ -56,6 +56,7 @@ public:
     void handle_set_ssid_list(em_bus_event_t *evt);
     void handle_remove_device(em_bus_event_t *evt);
     void handle_set_channel_list(em_bus_event_t *evt);
+    void handle_set_policy(em_bus_event_t *evt);
     void handle_reset(em_bus_event_t *evt);
     void handle_dev_test(em_bus_event_t *evt);
     void handle_getdb(em_bus_event_t *evt);

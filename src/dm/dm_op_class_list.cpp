@@ -286,7 +286,7 @@ int dm_op_class_list_t::sync_db(db_client_t& db_client, void *ctx)
     em_op_class_info_t info;
     em_long_string_t   str, id;
     mac_addr_str_t	mac_str;
-    em_string_t	ch_str[EM_MAX_CHANNELS_IN_LIST];
+    em_short_string_t	ch_str[EM_MAX_CHANNELS_IN_LIST];
     char   *token_parts[EM_MAX_CHANNELS_IN_LIST], *tmp;
     unsigned int i = 0;
     int rc = 0;

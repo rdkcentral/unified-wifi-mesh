@@ -80,7 +80,7 @@ int db_easy_mesh_t::get_strings_by_token(char *parent, int token, unsigned int a
 	}
 
     for (i = 0; i < argc; i++) {
-        memset(argv[i], 0, sizeof(em_long_string_t));
+        memset(argv[i], 0, sizeof(em_short_string_t));
     }
     
     snprintf(str_copy, sizeof(str_copy), "%s", parent);

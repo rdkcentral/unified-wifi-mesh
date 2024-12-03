@@ -66,6 +66,8 @@ em_cmd_params_t spec_params[] = {
 	{.u = {.args = {2, {"", "", "", "", ""}, "STABtm.json"}}},
 	{.u = {.args = {1, {"", "", "", "", ""}, "DPPURI.json"}}},
 	{.u = {.args = {1, {"", "", "", "", ""}, "Clientcap.json"}}},
+	{.u = {.args = {2, {"", "", "", "", ""}, "Policy"}}},
+	{.u = {.args = {2, {"", "", "", "", ""}, "Policy.json"}}},
 	{.u = {.args = {0, {"", "", "", "", ""}, "max"}}},
 };
 
@@ -94,7 +96,9 @@ em_cmd_t em_cmd_cli_t::m_client_cmd_spec[] = {
     em_cmd_t(em_cmd_type_btm_sta, spec_params[19]),
     em_cmd_t(em_cmd_type_start_dpp, spec_params[20]),
     em_cmd_t(em_cmd_type_client_cap_query, spec_params[21]),
-    em_cmd_t(em_cmd_type_max, spec_params[22]),
+    em_cmd_t(em_cmd_type_get_policy, spec_params[22]),
+    em_cmd_t(em_cmd_type_set_policy, spec_params[23]),
+    em_cmd_t(em_cmd_type_max, spec_params[24]),
 };
 
 int em_cmd_cli_t::update_platform_defaults(em_subdoc_info_t *subdoc, em_cmd_params_t *param, em_cmd_type_t cmd_type)
@@ -159,8 +163,8 @@ int em_cmd_cli_t::execute(em_string_t res)
         return -1;
     }
 
-    printf("%s:%d: Executing command: %s, Dst Service: %d with path: %s\n", __func__, __LINE__,
-            em_cmd_t::get_cmd_type_str(get_type()), get_svc(), sock_path);
+    //printf("%s:%d: Executing command: %s, Dst Service: %d with path: %s\n", __func__, __LINE__,
+            //em_cmd_t::get_cmd_type_str(get_type()), get_svc(), sock_path);
 
     switch (get_type()) {
 
@@ -296,6 +300,30 @@ int em_cmd_cli_t::execute(em_string_t res)
 			get_cli()->exec(in, strlen(in), out);
 			get_cmd()->write_params_file(out, m_cmd.m_param.u.args.args[1], "SetAnticipatedChannelPreference");
             bevt->type = em_bus_event_type_set_channel;
+			if (get_cmd()->edit_params_file() != 0) {
+                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
+                return -1;
+			}	
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
+            if ((info->sz = get_cmd()->load_params_file(info->buff)) < 0) {
+                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
+                return -1;
+            }
+            break;
+
+        case em_cmd_type_get_policy:
+            bevt->type = em_bus_event_type_get_policy;
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
+			printf("%s:%d: Name: %s\n", __func__, __LINE__, info->name);
+            break;
+
+        case em_cmd_type_set_policy:
+			snprintf(in, sizeof(in), "get_policy %s", m_cmd.m_param.u.args.args[1]);
+			get_cli()->exec(in, strlen(in), out);
+			get_cmd()->write_params_file(out, m_cmd.m_param.u.args.args[1], "SetPolicy");
+            bevt->type = em_bus_event_type_set_policy;
 			if (get_cmd()->edit_params_file() != 0) {
                 printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
                 return -1;
