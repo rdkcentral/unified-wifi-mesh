@@ -36,6 +36,7 @@ class em_configuration_t {
     short create_client_assoc_event_tlv(unsigned char *buff, mac_address_t sta, bssid_t bssid, bool assoc);
     int create_ap_mld_config_tlv(unsigned char *buff);
     int create_bsta_mld_config_tlv(unsigned char *buff);
+    int create_tid_to_link_map_policy_tlv(unsigned char *buff);
 
     int send_topology_response_msg(unsigned char *dst);
     int send_topology_notification_by_client(mac_address_t sta, bssid_t bssid, bool assoc);

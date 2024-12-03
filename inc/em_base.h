@@ -539,6 +539,7 @@ typedef enum {
     em_tlv_type_wifi7_agent_cap = 0xdf,
     em_tlv_type_ap_mld_config = 0xe0,
     em_tlv_type_bsta_mld_config = 0xe1,
+    em_tlv_type_tid_to_link_map_policy = 0xe6,
     em_tlv_eht_operations = 0xe7,
 } em_tlv_type_t;
 
@@ -2065,6 +2066,27 @@ typedef struct {
 } em_bsta_mld_info_t;
 
 typedef struct {
+    bool  add_remove;
+    mac_address_t  sta_mld_mac_addr;
+    bool  direction;
+    bool  default_link_map;
+    bool  map_switch_time_present;
+    bool  expected_dur_present;
+    bool  link_map_size;
+    unsigned char  link_map_presence_ind;
+    unsigned char  expected_dur[3];
+    unsigned char tid_to_link_map;
+} em_tid_to_link_map_info_t;
+
+typedef struct {
+    bool  is_bsta_config;
+    mac_address_t  mld_mac_addr;
+    bool  tid_to_link_map_neg;
+    unsigned char  num_mapping;
+    em_tid_to_link_map_info_t  tid_to_link_mapping[EM_MAX_AP_MLD];
+} em_tid_to_link_info_t;
+
+typedef struct {
     em_interface_t  id;
 	mac_address_t dev_id;
     em_long_string_t net_id;
@@ -2187,6 +2209,33 @@ typedef struct {
     unsigned char num_affiliated_bsta;
     em_affiliated_bsta_mld_t affiliated_bsta_mld[0];
 } __attribute__((__packed__)) em_bsta_mld_config_t;
+
+typedef struct {
+    unsigned char add_remove : 1;
+    unsigned char reserved4 : 7;
+    mac_addr_t sta_mld_mac_addr;
+    unsigned char direction : 2;
+    unsigned char default_link_mapping : 1;
+    unsigned char map_switch_time_present : 1;
+    unsigned char exp_dur_present : 1;
+    unsigned char link_map_size : 1;
+    unsigned char reserved5 : 2;
+    unsigned char link_map_presence_ind;
+    unsigned char expected_duration[3];
+    unsigned char tid_to_link_map[0];
+    unsigned char reserved6[7];
+} __attribute__((__packed__)) em_tid_to_link_mapping_t;
+
+typedef struct {
+    unsigned char is_bsta_config : 1;
+    unsigned char reserved1 : 7;
+    mac_addr_t mld_mac_addr;
+    unsigned char tid_to_link_map_negotiation : 1;
+    unsigned char reserved2 : 7;
+    unsigned char reserved3[22];
+    unsigned char num_mapping;
+    em_tid_to_link_mapping_t tid_to_link_mapping[0];
+} __attribute__((__packed__)) em_tid_to_link_map_policy_t;
 
 typedef struct {
     em_nonce_t  e_nonce;  

@@ -597,6 +597,55 @@ int em_configuration_t::create_bsta_mld_config_tlv(unsigned char *buff)
     return tlv_len;
 }
 
+int em_configuration_t::create_tid_to_link_map_policy_tlv(unsigned char *buff)
+{
+    em_tlv_t *tlv;
+    unsigned char *tmp = buff;
+    em_tid_to_link_map_policy_t *tid_to_link_map_policy;
+    em_tid_to_link_mapping_t *tid_to_link_mapping;
+    dm_easy_mesh_t  *dm;
+    unsigned int i;
+    unsigned short tid_to_link_map_len = 0;
+    unsigned short tlv_len = 0;
+
+    dm = get_data_model();
+
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_tid_to_link_map_policy;
+
+    tid_to_link_map_policy = (em_tid_to_link_map_policy_t *)tlv->value;
+    tlv_len = sizeof(em_tid_to_link_map_policy_t);
+
+    em_tid_to_link_info_t& tid_to_link_info = dm->m_tid_to_link.m_tid_to_link_info;
+    tid_to_link_map_policy->is_bsta_config = tid_to_link_info.is_bsta_config;
+    memcpy(tid_to_link_map_policy->mld_mac_addr, tid_to_link_info.mld_mac_addr, sizeof(mac_address_t));
+    tid_to_link_map_policy->tid_to_link_map_negotiation = tid_to_link_info.tid_to_link_map_neg;
+
+    tid_to_link_map_policy->num_mapping = tid_to_link_info.num_mapping;
+    tid_to_link_mapping = tid_to_link_map_policy->tid_to_link_mapping;
+
+    for (i = 0; i < tid_to_link_map_policy->num_mapping; i++) {
+        em_tid_to_link_map_info_t& tid_to_link_map_info = tid_to_link_info.tid_to_link_mapping[i];
+        tid_to_link_mapping->add_remove = tid_to_link_map_info.add_remove;
+        memcpy(tid_to_link_mapping->sta_mld_mac_addr, tid_to_link_map_info.sta_mld_mac_addr, sizeof(mac_address_t));
+        tid_to_link_mapping->direction = tid_to_link_map_info.direction;
+        tid_to_link_mapping->default_link_mapping = tid_to_link_map_info.default_link_map;
+        tid_to_link_mapping->map_switch_time_present = tid_to_link_map_info.map_switch_time_present;
+        tid_to_link_mapping->link_map_size = tid_to_link_map_info.link_map_size;
+        tid_to_link_mapping->link_map_presence_ind = tid_to_link_map_info.link_map_presence_ind;
+        memcpy(tid_to_link_mapping->expected_duration, tid_to_link_map_info.expected_dur, 3 * sizeof(unsigned char));
+        //TODO: tid_to_link_map
+
+        tid_to_link_mapping = (em_tid_to_link_mapping_t *)((unsigned char *)tid_to_link_mapping + sizeof(em_tid_to_link_mapping_t));
+        tid_to_link_map_len += sizeof(em_tid_to_link_mapping_t);
+    }
+
+    tlv_len += tid_to_link_map_len;
+    tlv->len = htons(tlv_len);
+
+    return tlv_len;
+}
+
 int em_configuration_t::send_topology_response_msg(unsigned char *dst)
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
@@ -686,6 +735,12 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst)
 
     // One Backhaul STA MLD Configuration TLV
     tlv_len = create_bsta_mld_config_tlv(tmp);
+
+    tmp += (sizeof(em_tlv_t) + tlv_len);
+    len += (sizeof(em_tlv_t) + tlv_len);
+
+    // One TID-to-Link Mapping Policy TLV
+    tlv_len = create_tid_to_link_map_policy_tlv(tmp);
 
     tmp += (sizeof(em_tlv_t) + tlv_len);
     len += (sizeof(em_tlv_t) + tlv_len);
