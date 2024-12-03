@@ -36,6 +36,7 @@
 #include "em_base.h"
 #include "em_cmd.h"
 #include "em_orch_agent.h"
+#include "em.h"
 
 extern char *global_netid;
 
@@ -144,6 +145,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
     em_long_string_t key;
     mac_addr_str_t sta_mac_str, bss_mac_str, radio_mac_str;
     mac_address_t   radio_mac;
+    em_freq_band_t band, freq_band;
 
     ctx = pcmd->m_data_model.get_cmd_ctx();
 
@@ -159,27 +161,31 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
             config.type = em_commit_target_al;
             //commit basic configuration before orchestrate
             dm->commit_config(pcmd->m_data_model, config);
-            em = m_mgr->create_node(intf, pcmd->get_band(), dm, 1, em_profile_type_3, em_service_type_agent);
+            em = m_mgr->create_node(intf, em_freq_band_unknown, dm, 1, em_profile_type_3, em_service_type_agent);
             if (em != NULL) {
                 printf("%s:%d: AL node created\n", __func__, __LINE__);
             }
             break;
         case dm_orch_type_em_insert:
             // for radio insert, create the radio em and then submit command
-            intf = pcmd->get_radio_interface(ctx->arr_index);
-            if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
-                dm = m_mgr->create_data_model(global_netid, intf->mac);
-            }    
-            dm_easy_mesh_t::macbytes_to_string(intf->mac, mac_str);
-            config.type = em_commit_target_radio;
-            snprintf((char *)config.params,sizeof(config.params),(char*)"%s",mac_str);
-            dm->commit_config(pcmd->m_data_model, config);
-            config.type = em_commit_target_bss;
-            dm->commit_config(pcmd->m_data_model, config);
-            printf("%s:%d: calling create_node\n", __func__, __LINE__);
-            if ((em = m_mgr->create_node(intf, pcmd->get_band(), dm, 0, em_profile_type_3, em_service_type_agent)) == NULL) {
-                printf("%s:%d: Failed to create node\n", __func__, __LINE__);
+            for (unsigned int i = 0; i < pcmd->get_data_model()->get_num_radios(); i++) {
+                intf = pcmd->get_radio_interface(i);
+                if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
+                    dm = m_mgr->create_data_model(global_netid, intf->mac);
+                }    
+                dm_easy_mesh_t::macbytes_to_string(intf->mac, mac_str);
+                config.type = em_commit_target_radio;
+                snprintf((char *)config.params,sizeof(config.params),(char*)"%s",mac_str);
+                dm->commit_config(pcmd->m_data_model, config);
+                config.type = em_commit_target_bss;
+                dm->commit_config(pcmd->m_data_model, config);
+                band =  pcmd->get_radio(i)->get_radio_info()->band;
+                freq_band = em_t::convert_freq_band(band);
+                printf("%s:%d: calling create_node\n", __func__, __LINE__);
+                if ((em = m_mgr->create_node(intf, freq_band, dm, 0, em_profile_type_3, em_service_type_agent)) == NULL) {
+                    printf("%s:%d: Failed to create node\n", __func__, __LINE__);
             
+                }
             }
             break;
         case dm_orch_type_em_update:

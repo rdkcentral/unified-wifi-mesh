@@ -102,9 +102,9 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             } else if ((pcmd->get_orch_op() == dm_orch_type_channel_pref) && (m_sm.get_state() == em_state_ctrl_topo_synchronized)) {
                 m_sm.set_state(em_state_ctrl_channel_query_pending);
             } else if ((pcmd->get_orch_op() == dm_orch_type_channel_sel) && (m_sm.get_state() == em_state_ctrl_channel_queried)) {
-                set_state(em_state_ctrl_channel_select_pending);
+                m_sm.set_state(em_state_ctrl_channel_select_pending);
             } else if ((pcmd->get_orch_op() == dm_orch_type_channel_cnf) && (m_sm.get_state() == em_state_ctrl_channel_selected)) {
-                set_state(em_state_ctrl_channel_cnf_pending);
+                m_sm.set_state(em_state_ctrl_channel_cnf_pending);
             }
             break;
 
@@ -127,19 +127,19 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 
         case em_cmd_type_sta_link_metrics:
-            set_state(em_state_ctrl_sta_link_metrics_pending);
-			break;
+            m_sm.set_state(em_state_ctrl_sta_link_metrics_pending);
+            break;
 
         case em_cmd_type_set_channel:
             m_sm.set_state(em_state_ctrl_channel_select_pending);
             break;
 
         case em_cmd_type_sta_steer:
-            set_state(em_state_ctrl_sta_steer_pending);
+            m_sm.set_state(em_state_ctrl_sta_steer_pending);
             break;
 
         case em_cmd_type_sta_disassoc:
-            set_state(em_state_ctrl_sta_disassoc_pending);
+            m_sm.set_state(em_state_ctrl_sta_disassoc_pending);
             break;
         
 		case em_cmd_type_set_policy:
@@ -200,6 +200,11 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_channel_sel_rsp:
         case em_msg_type_op_channel_rprt:
             em_channel_t::process_msg(data, len);
+            break;
+
+        case em_msg_type_assoc_sta_link_metrics_query:
+        case em_msg_type_assoc_sta_link_metrics_rsp:
+            em_metrics_t::process_msg(data, len);
             break;
 
         default:
@@ -518,6 +523,40 @@ dm_sta_t *em_t::find_sta(mac_address_t sta_mac, bssid_t bssid)
     }
 
     return NULL;
+}
+
+// Used to convert freq band from Onewifi to IEEE-1905-1-2013 table 6-23 & IEEE-1905-1-2013 table 6-23 to Wi-Fi Simple Configuration Technical Specification v2 table 44
+em_freq_band_t em_t::convert_freq_band(em_freq_band_t band)
+{
+    unsigned int int_band;
+    int_band = (int)band;
+
+    if (int_band == 1) {
+        return em_freq_band_24; // Return 2.4 GHz band
+    } else if (int_band == 2) {
+        return em_freq_band_5;  // Return 5 GHz band
+    } else if (int_band == 32 || band == 4) {
+        return em_freq_band_60;	// Return 60 GHz band
+    } else {
+        return em_freq_band_unknown; // Return unknown for other values
+    }
+}
+
+// Used to convert freq band from Wi-Fi Simple Configuration Technical Specification v2 table 44 to IEEE-1905-1-2013 table 6-23
+em_rd_freq_band_t em_t::map_freq_band_to_rf_band(em_freq_band_t band)
+{
+    unsigned int int_band;
+    int_band = (int)band;
+
+    if (int_band == 0) {
+        return em_rd_freq_band_24; // Return 2.4 GHz band
+    } else if (int_band == 1) {
+        return em_rd_freq_band_5; // Return 5 GHz band
+    } else if (int_band == 2) {
+        return em_rd_freq_band_60; // Return 60 GHz band
+    } else {
+        return em_rd_freq_band_unknown; // Return unknown for other values
+    }
 }
 
 short em_t::create_ap_radio_basic_cap(unsigned char *buff) {

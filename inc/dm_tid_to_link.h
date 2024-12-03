@@ -16,25 +16,28 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef EM_ORCH_AGENT_H
-#define EM_ORCH_AGENT_H
+#ifndef DM_TID_TO_LINK_H
+#define DM_TID_TO_LINK_H
 
-#include "em_orch.h"
+#include "em_base.h"
 
-class em_orch_agent_t : public em_orch_t {
+class dm_tid_to_link_t {
+public:
+    em_tid_to_link_info_t    m_tid_to_link_info;
 
 public:
-    unsigned int build_candidates(em_cmd_t *cmd);
-    bool    pre_process_orch_op(em_cmd_t *pcmd);
-    void    pre_process_cancel(em_cmd_t *pcmd, em_t *em);
-    bool    is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em);
-    bool    is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em);
-    void    orch_transient(em_cmd_t *pcmd, em_t *em);
+    int init() { memset(&m_tid_to_link_info, 0, sizeof(em_tid_to_link_info_t)); return 0; }
+    em_tid_to_link_info_t *get_tid_to_link_info() { return &m_tid_to_link_info; }
+    int decode(const cJSON *obj, void *parent_id);
+    void encode(cJSON *obj);
 
-    em_freq_band_t convert_freq_band(em_freq_band_t band);
+    bool operator == (const dm_tid_to_link_t& obj);
+    void operator = (const dm_tid_to_link_t& obj);
 
-public:
-    em_orch_agent_t(em_mgr_t *mgr);
+    dm_tid_to_link_t(em_tid_to_link_info_t *tid_to_link_info);
+    dm_tid_to_link_t(const dm_tid_to_link_t& tid_to_link);
+    dm_tid_to_link_t();
+    ~dm_tid_to_link_t();
 };
 
 #endif

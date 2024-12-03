@@ -1653,6 +1653,7 @@ void dm_easy_mesh_t::print_config()
     for (i = 0;i < m_num_radios; i++) {
         dm_easy_mesh_t::macbytes_to_string(m_radio[i].get_radio_info()->id.mac, mac_str);
         printf("%s:%d:Radio Mac: %s \n", __func__, __LINE__, mac_str);
+        printf("%s:%d:Radio Band: %d \n", __func__, __LINE__, m_radio[i].get_radio_info()->band);
     }
 }
 
@@ -2011,6 +2012,22 @@ void dm_easy_mesh_t::put_sta_info(em_sta_info_t *sta_info, em_target_sta_map_t t
     printf("\n%s:%d: key=%s\n", __func__, __LINE__,key);
 
     hash_map_put(map, strdup(key), new dm_sta_t(sta_info));
+}
+
+int dm_easy_mesh_t::get_num_bss_for_associated_sta(mac_address_t sta_mac)
+{
+    dm_sta_t *sta;
+    unsigned int num_bssids = 0;
+
+    sta = (dm_sta_t *)hash_map_get_first(m_sta_map);
+    while (sta != NULL) {
+        if (memcmp(sta->m_sta_info.id, sta_mac, sizeof(mac_address_t)) == 0) {
+            num_bssids++;
+        }
+        sta = (dm_sta_t *)hash_map_get_next(m_sta_map, sta);
+    }
+
+    return num_bssids;
 }
 
 void dm_easy_mesh_t::clone_hash_maps(dm_easy_mesh_t& obj)

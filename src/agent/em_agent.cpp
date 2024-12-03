@@ -56,6 +56,18 @@ void em_agent_t::handle_sta_list(em_bus_event_t *evt)
     }
 }
 
+void em_agent_t::handle_sta_link_metrics(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+
+    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+        printf("analyze_sta_link_metrics in progress\n");
+    } else if ((num = m_data_model.analyze_sta_link_metrics(evt, pcmd)) == 0) {
+        printf("analyze_sta_link_metrics failed\n");
+    }
+}
+
 void em_agent_t::handle_ap_cap_query(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
@@ -317,6 +329,10 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 			handle_channel_sel_req(evt);
 			break;
 
+        case em_bus_event_type_sta_link_metrics:
+            handle_sta_link_metrics(evt);
+            break;
+
         default:
             break;
     }    
@@ -390,7 +406,6 @@ void em_agent_t::input_listener()
         return;
     }
 
-    //if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_COLLECT_STATS_ASSOC_DEVICE_STATS, (void *)&em_agent_t::assoc_stats_cb, NULL, 0) != 0) {
     if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.CollectStats.AccessPoint.1.AssociatedDeviceStats", (void *)&em_agent_t::assoc_stats_cb, NULL, 0) != 0) {
         printf("%s:%d bus get failed\n", __func__, __LINE__);
         return;
@@ -401,15 +416,28 @@ void em_agent_t::input_listener()
 
 int em_agent_t::assoc_stats_cb(char *event_name, raw_data_t *data)
 {
-    printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
-    /*em_event_t evt;
+    //printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
+    em_event_t evt;
     em_bus_event_t *bevt;
+    cJSON *json, *assoc_stats_arr;
+
+    json = cJSON_Parse((const char *)data->raw_data.bytes);
+    if (json != NULL) {
+        assoc_stats_arr = cJSON_GetObjectItem(json, "AssociatedDeviceStats");
+        if ((assoc_stats_arr == NULL) && (cJSON_IsObject(assoc_stats_arr) == false)) {
+            return -1;
+        }
+        if (cJSON_IsArray(assoc_stats_arr) && cJSON_GetArraySize(assoc_stats_arr) == 0) {
+            //printf("%s:%d AssociatedDeviceStats is NULL\n", __func__, __LINE__);
+            return -1;
+        }
+    }
 
     bevt = &evt.u.bevt;
-    bevt->type = em_bus_event_type_sta_list;
+    bevt->type = em_bus_event_type_sta_link_metrics;
     memcpy(bevt->u.raw_buff, data->raw_data.bytes, data->raw_data_len);
 
-    g_agent.agent_input(&evt);*/
+    g_agent.agent_input(&evt);
 
     return 1;
 }
@@ -504,7 +532,9 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
     em_radio_id_t ruid;
     em_profile_type_t profile;
     mac_addr_str_t mac_str1, mac_str2;
-	bool found = false;
+    bssid_t bss_mac;
+    mac_address_t client_mac;
+    bool found = false;
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
     if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
@@ -620,15 +650,20 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             break;
 
         case  em_msg_type_client_cap_query:
-            printf("i%s:%d: Received client cap query\n", __func__, __LINE__);
-            em = (em_t *)hash_map_get_first(m_em_map);
+            printf("%s:%d: Received client cap query\n", __func__, __LINE__);
 
-            while (em != NULL) {
-                if (!(em->is_al_interface_em())) {
-                    em->set_state(em_state_agent_client_cap_report);
-                    break;
-                }
-                em = (em_t *)hash_map_get_next(m_em_map, em);
+            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+                len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_bss_id(&bss_mac) == false) {
+                printf("%s:%d: Could not find BSS mac for em_msg_type_client_cap_query\n", __func__, __LINE__);
+                return NULL;
+            }
+
+            dm_easy_mesh_t::macbytes_to_string(bss_mac, mac_str1);
+            if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
+                printf("%s:%d: Received client cap query, found existing BSS:%s\n", __func__, __LINE__, mac_str1);
+            } else {
+                printf("%s:%d: Could not find em for em_msg_type_client_cap_query\n", __func__, __LINE__);
+                return NULL;
             }
             break;
 
@@ -638,6 +673,22 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 
         case em_msg_type_op_channel_rprt:
             printf("%s:%d: Sending Operating Channel report\n", __func__, __LINE__);
+            break;
+
+        case em_msg_type_assoc_sta_link_metrics_query:
+            printf("\n%s:%d: Rcvd Assoc STA Link Metrics Query\n", __func__, __LINE__);
+
+            em = (em_t *)hash_map_get_first(m_em_map);
+            while (em != NULL) {
+                if ((em->is_al_interface_em() == false)) {
+                    break;
+                }
+                em = (em_t *)hash_map_get_next(m_em_map, em);
+            }
+            break;
+
+        case em_msg_type_assoc_sta_link_metrics_rsp:
+            printf("%s:%d: Sending Assoc STA Link Metrics response\n", __func__, __LINE__);
             break;
 
         default:

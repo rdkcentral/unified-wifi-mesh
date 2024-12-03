@@ -49,7 +49,7 @@
 int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     unsigned int index = 0;
-    unsigned int num = 0, i, j = 0, num_radios = 0, op_class_index = 0;
+    unsigned int num = 0, i, j = 0, num_radios = 0;
     em_orch_desc_t desc;
     dm_easy_mesh_agent_t  dm;
     dm_device_t *dev, *tgt_dev;
@@ -65,13 +65,6 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
     num++;
 
     while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
-        //Checking the freq band of current op class
-        for (int i = 0; i < dm.get_num_op_class(); i++) {
-            if (dm.get_op_class(i)->get_op_class_info()->id.type == em_op_class_type_current) {
-                op_class_index = i;
-            }
-        }
-        pcmd[num]->set_rd_freq_band(op_class_index);
         tmp = pcmd[num];
         num++;
     }
@@ -117,7 +110,6 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
 
         sta = (dm_sta_t *)hash_map_get_first(dm.m_sta_assoc_map);
         while(sta != NULL) {
-            em_sta = sta->get_sta_info();
             if (memcmp(sta->get_sta_info()->radiomac, get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
                 sta = (dm_sta_t *)hash_map_get_next(dm.m_sta_assoc_map, sta);
                 continue;
@@ -127,15 +119,12 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
             dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
             dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
             snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
-            printf("Key in assoc map: %s\n", key);
             hash_map_put(pcmd[num]->m_data_model.m_sta_assoc_map, strdup(key), new dm_sta_t(*sta));
             sta = (dm_sta_t *)hash_map_get_next(dm.m_sta_assoc_map, sta);
         }
 
         sta = (dm_sta_t *)hash_map_get_first(dm.m_sta_dassoc_map);
         while(sta != NULL) {
-            em_sta = sta->get_sta_info();
-
             if (memcmp(sta->get_sta_info()->radiomac, get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
                 sta = (dm_sta_t *)hash_map_get_next(dm.m_sta_dassoc_map, sta);
                 continue;
@@ -145,7 +134,6 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
             dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
             dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
             snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
-            printf("Key in Dassoc map: %s\n", key);
             hash_map_put(pcmd[num]->m_data_model.m_sta_dassoc_map, strdup(key), new dm_sta_t(*sta));
             sta = (dm_sta_t *)hash_map_get_next(dm.m_sta_dassoc_map, sta);
         }
@@ -495,6 +483,42 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
 	}
 
 	return 1;
+}
+
+int dm_easy_mesh_agent_t::analyze_sta_link_metrics(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    dm_sta_t *sta = NULL;
+    em_cmd_t *tmp = NULL;
+    em_sta_info_t *em_sta = NULL;
+    em_long_string_t key;
+    mac_addr_str_t radio_str;
+    em_cmd_params_t *evt_param = NULL;
+    mac_addr_str_t  sta_mac_str, bss_mac_str, radio_mac_str;
+
+    webconfig_t config;
+    webconfig_external_easymesh_t extdata = {0};
+    webconfig_subdoc_type_t type = webconfig_subdoc_type_assocdev_stats;
+
+    webconfig_proto_easymesh_init(&extdata, this, NULL, get_num_radios, set_num_radios,
+            get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
+            get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
+			get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info);
+
+    config.initializer = webconfig_initializer_onewifi;
+    config.apply_data =  webconfig_dummy_apply;
+
+    if (webconfig_init(&config) != webconfig_error_none) {
+        printf( "[%s]:%d Init WiFi Web Config  fail\n",__func__,__LINE__);
+        return 0;
+    }
+
+    if ((webconfig_easymesh_decode(&config, (char *)evt->u.raw_buff, &extdata, &type)) == webconfig_error_none) {
+        printf("%s:%d assoc sta Link metrics decode success:\n%s\n",__func__, __LINE__, evt->u.raw_buff);
+    } else {
+        printf("%s:%d assoc sta link metrics decode fail\n",__func__, __LINE__);
+    }
+
+    return 1;
 }
 
 webconfig_error_t dm_easy_mesh_agent_t::webconfig_dummy_apply(webconfig_subdoc_t *doc, webconfig_subdoc_data_t *data)
