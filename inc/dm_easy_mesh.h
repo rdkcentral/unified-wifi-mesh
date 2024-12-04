@@ -30,6 +30,7 @@
 #include "dm_sta.h"
 #include "dm_dpp.h"
 #include "dm_op_class.h"
+#include "dm_policy.h"
 #include "dm_radio_cap.h"
 #include "dm_cac_comp.h"
 #include "dm_ap_mld.h"
@@ -56,6 +57,8 @@ public:
     em_cmd_ctx_t    m_cmd_ctx;
     unsigned int 	m_num_opclass;    
     dm_op_class_t m_op_class[EM_MAX_OPCLASS];
+	unsigned int	m_num_policy;
+	dm_policy_t	m_policy[EM_MAX_POLICIES];
     hash_map_t  	*m_sta_map = NULL;
     hash_map_t      *m_sta_assoc_map = NULL;
     hash_map_t      *m_sta_dassoc_map = NULL;
@@ -70,9 +73,6 @@ public:
     dm_tid_to_link_t m_tid_to_link;
 
 public:
-    int init();
-    void deinit();
-
     virtual int analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]);
     int analyze_radio_config(em_bus_event_t *evt, em_cmd_t *pcmd[]);
     int analyze_vap_config(em_bus_event_t *evt, em_cmd_t *pcmd[]);
@@ -85,6 +85,7 @@ public:
     int decode_config_test(em_subdoc_info_t *subdoc, const char *key);
     int decode_config_set_ssid(em_subdoc_info_t *subdoc, const char *key);
     int decode_config_set_channel(em_subdoc_info_t *subdoc, const char *key, unsigned int index, unsigned int *num);
+    int decode_config_set_policy(em_subdoc_info_t *subdoc, const char *key, unsigned int index, unsigned int *num);
     int decode_config_op_class_array(cJSON *arr_obj, em_op_class_type_t type, unsigned char *mac);
     
     int encode_config(em_subdoc_info_t *subdoc, const char *key);
@@ -165,6 +166,11 @@ public:
     dm_bss_t *get_bss(unsigned int index) { return &m_bss[index]; }
     dm_bss_t *get_bss_index(mac_address_t radio, mac_address_t bss, bool *new_bss);
     dm_bss_t& get_bss_by_ref(unsigned int index) { return m_bss[index]; }
+
+	unsigned int get_num_policy() { return m_num_policy; }
+	void set_num_policy(unsigned int num) { m_num_policy = num; }
+	dm_policy_t *get_policy(unsigned int index) { return &m_policy[index]; }
+    dm_policy_t& get_policy_by_ref(unsigned int index) { return m_policy[index]; }
 
     unsigned int get_num_ap_mld() { return m_num_ap_mld; }
     static unsigned int get_num_ap_mld(void *dm) { return ((dm_easy_mesh_t *)dm)->get_num_ap_mld(); }
@@ -251,8 +257,13 @@ public:
     void set_colocated(bool col) { m_colocated = col; }
     bool get_colocated() { return m_colocated; }
 	void set_anticipated_channels_list(dm_op_class_t op_class[]);
+	void set_policy(dm_policy_t policy);
     em_t *get_em() { return m_em; }
     void clone_hash_maps(dm_easy_mesh_t& obj);
+
+	void reset();
+    int init();
+    void deinit();
 
     dm_easy_mesh_t();
     dm_easy_mesh_t(const dm_network_t& net);

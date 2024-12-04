@@ -205,6 +205,7 @@ int dm_op_class_t::parse_op_class_id_from_key(const char *key, em_op_class_id_t 
         i++;
     }
 
+	return 0;
 }
 
 dm_op_class_t::dm_op_class_t(em_op_class_info_t *op_class)

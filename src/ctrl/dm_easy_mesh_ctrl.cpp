@@ -44,6 +44,7 @@
 #include "em_cmd_remove_device.h"
 #include "em_cmd_set_ssid.h"
 #include "em_cmd_set_channel.h"
+#include "em_cmd_set_policy.h"
 #include "em_cmd_topo_sync.h"
 #include "em_cmd_em_config.h"
 #include "em_cmd_cfg_renew.h"
@@ -555,6 +556,51 @@ int dm_easy_mesh_ctrl_t::analyze_dpp_start(em_bus_event_t *evt, em_cmd_t *cmd[])
     return num;
 }
 
+int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+	int ret;
+	unsigned int num = 0, num_devices = 0;
+	em_subdoc_info_t *subdoc;
+	dm_easy_mesh_t dm;
+	unsigned int i = 0;
+    em_cmd_t *tmp;
+	dm_radio_t *radio;
+	mac_addr_str_t mac_str;
+	
+	subdoc = &evt->u.subdoc;
+
+	do {
+		dm.reset();
+
+		if ((ret = dm.decode_config(subdoc, "SetPolicy", i, &num_devices)) < 0) {
+        	return ret;
+    	}
+			
+		dm_easy_mesh_t::macbytes_to_string(dm.m_device.m_device_info.id.mac, mac_str);
+		//printf("%s:%d: Network: %s\tDevice MAC: %s\n", __func__, __LINE__, dm.m_network.m_net_info.id, mac_str);
+
+		radio = m_data_model_list.get_first_radio(dm.m_network.m_net_info.id, dm.m_device.m_device_info.id.mac);
+		while (radio != NULL) {
+			memcpy(dm.m_radio[dm.m_num_radios].m_radio_info.id.mac, radio->m_radio_info.id.mac, sizeof(mac_address_t));
+			dm.m_num_radios++;
+			radio = m_data_model_list.get_next_radio(dm.m_network.m_net_info.id, dm.m_device.m_device_info.id.mac, radio);
+		}
+
+   		pcmd[num] = new em_cmd_set_policy_t(evt->params, dm);
+   		tmp = pcmd[num];
+   		num++;
+
+   		while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+       		tmp = pcmd[num];
+       		num++;
+   		}
+
+		i++;
+	} while (i < num_devices);
+
+	return num;
+}
+
 int dm_easy_mesh_ctrl_t::analyze_set_channel(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     int ret;
@@ -855,6 +901,7 @@ int dm_easy_mesh_ctrl_t::reset_config()
     dm_op_class_list_t::delete_list();
     dm_bss_list_t::delete_list();
     dm_sta_list_t::delete_list();
+    dm_policy_list_t::delete_list();
     
     dm_network_list_t::delete_table(m_db_client);
     dm_device_list_t::delete_table(m_db_client);
@@ -865,6 +912,7 @@ int dm_easy_mesh_ctrl_t::reset_config()
     dm_op_class_list_t::delete_table(m_db_client);
     dm_bss_list_t::delete_table(m_db_client);
     dm_sta_list_t::delete_table(m_db_client);
+    dm_policy_list_t::delete_table(m_db_client);
 
     dm_network_list_t::load_table(m_db_client);
     dm_device_list_t::load_table(m_db_client);
@@ -875,6 +923,7 @@ int dm_easy_mesh_ctrl_t::reset_config()
     dm_op_class_list_t::load_table(m_db_client);
     dm_bss_list_t::load_table(m_db_client);
     dm_sta_list_t::load_table(m_db_client);
+    dm_policy_list_t::load_table(m_db_client);
 
     return 0;
 }
@@ -904,6 +953,29 @@ int dm_easy_mesh_ctrl_t::get_bss_config(cJSON *parent, char *key)
     }
 
     return 0;
+}
+
+int dm_easy_mesh_ctrl_t::get_policy_config(cJSON *parent, char *net_id)
+{
+    cJSON *net_obj, *dev_list_obj, *dev_obj, *policy_obj;
+    unsigned int i;
+	char *tmp;
+
+    net_obj = cJSON_AddObjectToObject(parent, "Network");
+    dm_network_list_t::get_config(net_obj, net_id, true);
+
+    dev_list_obj = cJSON_AddArrayToObject(net_obj, "DeviceList");
+    dm_device_list_t::get_config(dev_list_obj, net_id, true);
+
+    for (i = 0; i < cJSON_GetArraySize(dev_list_obj); i++) {
+        dev_obj = cJSON_GetArrayItem(dev_list_obj, i);
+        tmp = cJSON_GetStringValue(cJSON_GetObjectItem(dev_obj, "ID"));
+        policy_obj = cJSON_AddObjectToObject(dev_obj, "Policy");
+		dm_policy_list_t::get_config(policy_obj, tmp);
+    }
+
+    return 0;
+
 }
 
 int dm_easy_mesh_ctrl_t::get_sta_config(cJSON *parent, char *key, em_get_sta_list_reason_t reason)
@@ -1085,6 +1157,8 @@ int dm_easy_mesh_ctrl_t::get_config(em_long_string_t net_id, em_subdoc_info_t *s
         get_sta_config(parent, net_id, em_get_sta_list_reason_disassoc);
     } else if (strncmp(subdoc->name, "STAListSummary@BTM", strlen(subdoc->name)) == 0) {
         get_sta_config(parent, net_id, em_get_sta_list_reason_btm);
+    } else if (strncmp(subdoc->name, "Policy", strlen(subdoc->name)) == 0) {
+        get_policy_config(parent, net_id);
     }
 
     tmp = cJSON_Print(parent);
@@ -1152,6 +1226,7 @@ void dm_easy_mesh_ctrl_t::init_tables()
     dm_op_class_list_t::init();
     dm_bss_list_t::init();
     dm_sta_list_t::init();
+    dm_policy_list_t::init();
 }
 
 int dm_easy_mesh_ctrl_t::load_net_ssid_table()
@@ -1177,13 +1252,8 @@ int dm_easy_mesh_ctrl_t::load_tables()
 		type = db_cfg_type_bss_list_update;
 	} else if (dm_sta_list_t::load_table(m_db_client) != 0) {
 		type = db_cfg_type_sta_list_update;
-/*
-	} else if (dm_ieee_1905_security_list_t::load_table(m_db_client) != 0) {
-		type = db_cfg_type_1905_security_list_update;
-	} else if (dm_radio_cap_list_t::load_table(m_db_client) != 0) {
-		type = db_cfg_type_radio_cap_list_update;
-*/
-
+	} else if (dm_policy_list_t::load_table(m_db_client) != 0) {
+		type = db_cfg_type_policy_list_update;
     }
 
     if (type == dm_orch_type_none) {
@@ -1199,10 +1269,11 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
     dm_device_t device;
     dm_radio_t radio;
     dm_op_class_t op_class;
+	dm_policy_t	policy;
     dm_bss_t bss;
     dm_sta_t *sta, *tmp;
     dm_network_ssid_t net_ssid;
-    mac_addr_str_t	mac_str, sta_mac_str, bssid_str, radio_mac_str;
+    mac_addr_str_t	mac_str, sta_mac_str, bssid_str, radio_mac_str, dev_mac_str;
     unsigned int i;
     em_long_string_t	parent, key;
     em_string_t haul_str;
@@ -1413,6 +1484,24 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
             at_least_one_failed = false;
         } else {
             dm->set_db_cfg_type(dm->get_db_cfg_type() & ~db_cfg_type_network_ssid_list_update);
+        }
+    }
+
+    if (dm->get_db_cfg_type() & db_cfg_type_policy_list_update) {
+        for (i = 0; i < dm->get_num_policy(); i++) {
+			policy = dm->get_policy_by_ref(i);
+			dm_easy_mesh_t::macbytes_to_string(policy.m_policy.id.dev_mac, dev_mac_str);
+			dm_easy_mesh_t::macbytes_to_string(policy.m_policy.id.radio_mac, radio_mac_str);
+            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d", global_netid, dev_mac_str, radio_mac_str, policy.m_policy.id.type);
+            //printf("%s:%d: Key: %s\n", __func__, __LINE__, parent);
+            if (dm_policy_list_t::set_config(m_db_client, dm->get_policy_by_ref(i), parent) != 0) {
+                at_least_one_failed = true;
+            }
+        }
+        if (at_least_one_failed == true) {
+            at_least_one_failed = false;
+        } else {
+            dm->set_db_cfg_type(dm->get_db_cfg_type() & ~db_cfg_type_policy_list_update);
         }
     }
 

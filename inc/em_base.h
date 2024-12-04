@@ -47,6 +47,7 @@
 #define EM_IO_BUFF_SZ   4096
 
 #define EM_MAX_OP_CLASS    48
+#define EM_MAX_POLICIES	16	
 #define EM_MAX_CHANNEL_PER_OP_CLASS  59
 #define EM_MAX_SERVICE          8
 #define EM_MAX_BSS_PER_RADIO           16
@@ -60,6 +61,7 @@
 #define MAX_MCS_NSS 6
 #define EM_MAX_CAC_METHODS 4
 #define EM_MAX_STA_PER_BSS         128
+#define EM_MAX_STA_PER_STEER_POLICY        16 
 #define EM_MAX_STA_PER_AGENT       (EM_MAX_RADIO_PER_AGENT * EM_MAX_STA_PER_BSS)
 
 //#define   EM_SUBDOC_BUFF_SZ   4096*100
@@ -1484,6 +1486,11 @@ typedef struct {
 } __attribute__((__packed__))em_metric_cltn_interval_t;
 
 typedef struct {
+    unsigned char   num_sta;
+    mac_address_t   sta_mac[0];
+} __attribute__((__packed__))em_steering_policy_sta_t;
+
+typedef struct {
     em_radio_id_t   ruid;
     unsigned char   steering_policy;
     unsigned char   channel_util_thresh;
@@ -1491,26 +1498,17 @@ typedef struct {
 } __attribute__((__packed__))em_steering_policy_radio_t;
 
 typedef struct {
-    unsigned char   local_steering_dis_macs_num;
-    mac_address_t   *local_steering_dis_macs;
-    unsigned char   btm_steering_dis_macs_nr;
-    mac_address_t   *btm_steering_dis_macs;
-    unsigned char   radios_num;
-    em_steering_policy_radio_t  radios[EM_MAX_RADIO_PER_AGENT];
-} __attribute__((__packed__))em_steering_policy_t;
-
-typedef struct {
     em_radio_id_t   ruid;
-    unsigned char   rprt_rssi_thres;
-    unsigned char   rprt_rssi_margin_override;
-    unsigned char   channel_util_rprt_thres;
-    unsigned char   assoc_sta_policy;
+    unsigned char   rcpi_thres;
+    unsigned char   rcpi_hysteresis;
+    unsigned char   util_thres;
+    unsigned char   sta_policy;
 } __attribute__((__packed__)) em_metric_rprt_policy_radio_t;
 
 typedef struct {
-    unsigned char   metric_rprt_interval;
+    unsigned char   interval;
     unsigned char   radios_num;
-    em_metric_rprt_policy_radio_t radios[EM_MAX_RADIO_PER_AGENT];
+    em_metric_rprt_policy_radio_t radios[0];
 } __attribute__((__packed__)) em_metric_rprt_policy_t;
 
 typedef struct {
@@ -1706,6 +1704,7 @@ typedef enum {
     em_state_ctrl_sta_link_metrics_pending,
     em_state_ctrl_sta_steer_pending,
     em_state_ctrl_sta_disassoc_pending,
+    em_state_ctrl_set_policy_pending,
 
     em_state_max,
 } em_state_t;
@@ -1745,6 +1744,8 @@ typedef enum {
     em_cmd_type_op_channel_report,
     em_cmd_type_sta_steer,
     em_cmd_type_sta_disassoc,
+    em_cmd_type_get_policy,
+    em_cmd_type_set_policy,
     em_cmd_type_max,
 } em_cmd_type_t;
 
@@ -1872,10 +1873,10 @@ typedef struct {
     ssid_t  ssid;
     em_long_string_t    pass_phrase;
     unsigned char   num_bands;
-    em_tiny_string_t    band[EM_MAX_BANDS];
+    em_short_string_t    band[EM_MAX_BANDS];
     bool    enable;
     unsigned char   num_akms;
-    em_string_t akm[EM_MAX_AKMS];
+    em_short_string_t akm[EM_MAX_AKMS];
     em_string_t suite_select;
     bool    advertisement;
     em_string_t mfp;
@@ -2012,9 +2013,9 @@ typedef struct {
     em_string_t     est_svc_params_vo;
     unsigned int    byte_counter_units;
     unsigned char   num_fronthaul_akms;
-    em_string_t     fronthaul_akm[EM_MAX_AKMS];
+    em_short_string_t     fronthaul_akm[EM_MAX_AKMS];
     unsigned char   num_backhaul_akms;
-    em_string_t     backhaul_akm[EM_MAX_AKMS];
+    em_short_string_t     backhaul_akm[EM_MAX_AKMS];
     bool    profile_1b_sta_allowed;
     bool    profile_2b_sta_allowed;
     unsigned int    assoc_allowed_status;
@@ -2277,6 +2278,8 @@ typedef enum {
     em_bus_event_type_get_sta,
     em_bus_event_type_steer_sta,
     em_bus_event_type_disassoc_sta,
+    em_bus_event_type_get_policy,
+    em_bus_event_type_set_policy,
     em_bus_event_type_btm_sta,
     em_bus_event_type_start_dpp,
     em_bus_event_type_dev_init,
@@ -2375,6 +2378,7 @@ typedef enum {
     dm_orch_type_op_channel_report,
     dm_orch_type_sta_steer,
     dm_orch_type_sta_disassoc,
+    dm_orch_type_policy_cfg,
 } dm_orch_type_t;
 
 typedef struct {
@@ -2383,26 +2387,28 @@ typedef struct {
 } em_orch_desc_t;
 
 typedef enum {
-    db_cfg_type_none,
-    db_cfg_type_network_list_update = (1 << 0),
-    db_cfg_type_network_list_delete = (1 << 1),
-    db_cfg_type_device_list_update = (1 << 2),
-    db_cfg_type_device_list_delete = (1 << 3),
-    db_cfg_type_radio_list_update = (1 << 4),
-    db_cfg_type_radio_list_delete = (1 << 5),
-    db_cfg_type_op_class_list_update = (1 << 6),
-    db_cfg_type_op_class_list_delete = (1 << 7),
-    db_cfg_type_bss_list_update = (1 << 8),
-    db_cfg_type_bss_list_delete = (1 << 9),
-    db_cfg_type_sta_list_update = (1 << 10),
-    db_cfg_type_sta_list_delete = (1 << 11),
-    db_cfg_type_network_ssid_list_update = (1 << 12),
-    db_cfg_type_network_ssid_list_delete = (1 << 13),
-    db_cfg_type_radio_cap_list_update = (1 << 14),
-    db_cfg_type_radio_cap_list_delete = (1 << 15),
-    db_cfg_type_1905_security_list_update = (1 << 16),
-    db_cfg_type_1905_security_list_delete = (1 << 17),
-    db_cfg_type_sta_metrics_update = (1 << 18)
+	db_cfg_type_none,
+	db_cfg_type_network_list_update = (1 << 0),
+	db_cfg_type_network_list_delete = (1 << 1),
+	db_cfg_type_device_list_update = (1 << 2),
+	db_cfg_type_device_list_delete = (1 << 3),
+	db_cfg_type_radio_list_update = (1 << 4),
+	db_cfg_type_radio_list_delete = (1 << 5),
+	db_cfg_type_op_class_list_update = (1 << 6),
+	db_cfg_type_op_class_list_delete = (1 << 7),
+	db_cfg_type_bss_list_update = (1 << 8),
+	db_cfg_type_bss_list_delete = (1 << 9),
+	db_cfg_type_sta_list_update = (1 << 10),
+	db_cfg_type_sta_list_delete = (1 << 11),
+	db_cfg_type_network_ssid_list_update = (1 << 12),
+	db_cfg_type_network_ssid_list_delete = (1 << 13),
+	db_cfg_type_radio_cap_list_update = (1 << 14),
+	db_cfg_type_radio_cap_list_delete = (1 << 15),
+	db_cfg_type_1905_security_list_update = (1 << 16),
+	db_cfg_type_1905_security_list_delete = (1 << 17),
+  db_cfg_type_sta_metrics_update = (1 << 18),
+	db_cfg_type_policy_list_update = (1 << 19),
+	db_cfg_type_policy_list_delete = (1 << 20),
 } db_cfg_type_t;
 
 typedef struct{
@@ -2624,5 +2630,48 @@ typedef enum {
     em_get_sta_list_reason_btm,
     em_get_sta_list_reason_disassoc,
 } em_get_sta_list_reason_t;
+
+typedef enum {
+	em_policy_id_type_steering_local,
+	em_policy_id_type_steering_btm,
+	em_policy_id_type_steering_param,
+	em_policy_id_type_ap_metrics_rep,
+	em_policy_id_type_radio_metrics_rep,
+	em_policy_id_type_channel_scan,
+	em_policy_id_type_backhaul_bss_config,
+	em_policy_id_type_unknown,
+} em_policy_id_type_t;
+
+typedef struct {
+    em_long_string_t    net_id;
+	mac_address_t	dev_mac;
+	em_radio_id_t	radio_mac;
+	em_policy_id_type_t	type;
+} em_policy_id_t;
+
+typedef enum {
+	em_steering_policy_type_disallowed,
+	em_steering_policy_type_rcpi_mandated,
+	em_steering_policy_type_rcpi_allowed,
+	em_steering_policy_type_unknown,
+} em_steering_policy_type_t;
+
+typedef struct {
+	em_policy_id_t	id;
+	unsigned int num_sta;
+	mac_address_t	sta_mac[EM_MAX_STA_PER_STEER_POLICY];
+	em_steering_policy_type_t	policy;
+	unsigned short	util_threshold;
+	unsigned short	rcpi_threshold;	
+	unsigned short	interval;
+	unsigned short	rcpi_hysteresis;
+	bool	sta_traffic_stats;
+	bool	sta_link_metric;
+	bool	sta_status;
+	em_long_string_t	managed_sta_marker;	
+	bool	independent_scan_report;
+	bool	profile_1_sta_disallowed;
+	bool	profile_2_sta_disallowed;
+} em_policy_t;
 
 #endif // EM_BASE_H

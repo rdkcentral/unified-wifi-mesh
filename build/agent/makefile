@@ -62,6 +62,7 @@ AGENT_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/em/capability/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/em/metrics/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/em/steering/*.cpp) \
+	$(wildcard $(ONEWIFI_EM_SRC)/em/policy_cfg/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/em/crypto/*.cpp) \
     	$(ONEWIFI_EM_SRC)/orch/em_orch.cpp \
     	$(ONEWIFI_EM_SRC)/orch/em_orch_agent.cpp \
@@ -76,6 +77,7 @@ AGENT_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
 	$(ONEWIFI_EM_SRC)/dm/dm_network_ssid.cpp \
 	$(ONEWIFI_EM_SRC)/dm/dm_network.cpp \
 	$(ONEWIFI_EM_SRC)/dm/dm_op_class.cpp \
+	$(ONEWIFI_EM_SRC)/dm/dm_policy.cpp \
 	$(ONEWIFI_EM_SRC)/dm/dm_sta.cpp \
 	$(ONEWIFI_EM_SRC)/dm/dm_radio_cap.cpp \
     $(ONEWIFI_EM_SRC)/dm/dm_cac_comp.cpp \

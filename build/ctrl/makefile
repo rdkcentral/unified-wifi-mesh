@@ -52,6 +52,7 @@ CTRL_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
     	$(wildcard $(ONEWIFI_EM_SRC)/em/capability/*.cpp) \
     	$(wildcard $(ONEWIFI_EM_SRC)/em/metrics/*.cpp) \
     	$(wildcard $(ONEWIFI_EM_SRC)/em/steering/*.cpp) \
+    	$(wildcard $(ONEWIFI_EM_SRC)/em/policy_cfg/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/em/crypto/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/cmd/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/ctrl/*.cpp) \

@@ -647,6 +647,9 @@ int dm_easy_mesh_t::decode_config(em_subdoc_info_t *subdoc, const char *str, uns
     } else if (strncmp(str, "SetAnticipatedChannelPreference", strlen("SetAnticipatedChannelPreference")) == 0) {
         snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
         return decode_config_set_channel(subdoc, key, index, num);
+    } else if (strncmp(str, "SetPolicy", strlen("SetPolicy")) == 0) {
+        snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
+        return decode_config_set_policy(subdoc, key, index, num);
     } else if (strncmp(str, "Test", strlen("Test")) == 0) {
         snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
         return decode_config_test(subdoc, key); 
@@ -702,6 +705,151 @@ int dm_easy_mesh_t::decode_config_reset(em_subdoc_info_t *subdoc, const char *ke
     cJSON_Delete(parent_obj);
     //printf("%s:%d: End\n", __func__, __LINE__);
     return 0;
+}
+
+int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const char *key, unsigned int index, unsigned int *num)
+{
+	cJSON *parent_obj, *net_obj, *net_obj_id, *dev_arr_obj, *dev_obj, *dev_obj_id, *policy_obj; 
+	cJSON *ap_metrics_obj, *scan_obj, *radio_metrics_arr_obj, *radio_steer_arr_obj, *local_steer_obj, *btm_steer_obj;
+	cJSON *backhaul_obj, *radio_id_obj, *radio_metrics_obj, *radio_steer_obj;
+	unsigned int num_devices = 0, i;
+	char *dev_mac_str, *net_id;
+	em_long_string_t parent;
+
+    parent_obj = cJSON_Parse(subdoc->buff);
+    if (parent_obj == NULL) {
+        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        return EM_PARSE_ERR_GEN;
+    }
+
+    if ((net_obj = cJSON_GetObjectItem(parent_obj, key)) == NULL) {
+        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_GEN;
+    }
+
+    if ((net_obj = cJSON_GetObjectItem(net_obj, "Network")) == NULL) {
+        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_GEN;
+    }
+
+    if ((net_obj_id = cJSON_GetObjectItem(net_obj, "ID")) == NULL) {
+        printf("%s:%d: Network ID not present\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_NET_ID;
+    }
+
+	if ((net_id = cJSON_GetStringValue(net_obj_id)) == NULL) {
+        printf("%s:%d: Network ID not present\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_NET_ID;
+	}
+
+	strncpy(m_network.m_net_info.id, net_id, strlen(net_id) + 1);
+
+    if ((dev_arr_obj = cJSON_GetObjectItem(net_obj, "DeviceList")) == NULL) {
+        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_GEN;
+    }
+
+	num_devices = cJSON_GetArraySize(dev_arr_obj);
+	*num = num_devices;
+
+	// check if the index passed is within range
+	if (index >= num_devices) {
+        printf("%s:%d: Invalid input index: %d\n", __func__, __LINE__, index);
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_GEN;
+	}
+
+	if ((dev_obj = cJSON_GetArrayItem(dev_arr_obj, index)) == NULL) {
+        printf("%s:%d: Invalid input index: %d\n", __func__, __LINE__, index);
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_GEN;
+	}
+
+	if ((dev_obj_id = cJSON_GetObjectItem(dev_obj, "ID")) == NULL) {
+        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_GEN;
+    }
+
+	if ((dev_mac_str = cJSON_GetStringValue(dev_obj_id)) == NULL) {
+        printf("%s:%d: Dev Obj ID not present\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_NET_ID;
+	}
+
+	dm_easy_mesh_t::string_to_macbytes(dev_mac_str, m_device.m_device_info.id.mac);
+
+	if ((policy_obj = cJSON_GetObjectItem(dev_obj, "Policy")) == NULL) {
+        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_GEN;
+    }
+
+	if ((ap_metrics_obj = cJSON_GetObjectItem(policy_obj, "AP Metrics Reporting Policy")) != NULL) {
+		snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+					em_policy_id_type_ap_metrics_rep);
+		m_policy[m_num_policy].decode(ap_metrics_obj, parent, em_policy_id_type_ap_metrics_rep);
+		m_num_policy++;
+    }
+
+	if ((local_steer_obj = cJSON_GetObjectItem(policy_obj, "Local Steering Disallowed Policy")) != NULL) {
+		snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+					em_policy_id_type_steering_local);
+		m_policy[m_num_policy].decode(local_steer_obj, parent, em_policy_id_type_steering_local);
+		m_num_policy++;
+    }
+
+	if ((btm_steer_obj = cJSON_GetObjectItem(policy_obj, "BTM Steering Disallowed Policy")) != NULL) {
+		snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+					em_policy_id_type_steering_btm);
+		m_policy[m_num_policy].decode(btm_steer_obj, parent, em_policy_id_type_steering_btm);
+		m_num_policy++;
+    }
+
+	if ((backhaul_obj = cJSON_GetObjectItem(policy_obj, "Backhaul BSS Configuration Policy")) != NULL) {
+		snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+					em_policy_id_type_backhaul_bss_config);
+		m_policy[m_num_policy].decode(backhaul_obj, parent, em_policy_id_type_backhaul_bss_config);
+		m_num_policy++;
+    }
+
+	if ((scan_obj = cJSON_GetObjectItem(policy_obj, "Channel Scan Reporting Policy")) != NULL) {
+		snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+					em_policy_id_type_channel_scan);
+		m_policy[m_num_policy].decode(scan_obj, parent, em_policy_id_type_channel_scan);
+		m_num_policy++;
+    }
+
+	if ((radio_metrics_arr_obj = cJSON_GetObjectItem(policy_obj, "Radio Specific Metrics Policy")) != NULL) {
+		for (i = 0; i < cJSON_GetArraySize(radio_metrics_arr_obj); i++) {
+			radio_metrics_obj = cJSON_GetArrayItem(radio_metrics_arr_obj, i);
+			radio_id_obj = cJSON_GetObjectItem(radio_metrics_obj, "ID");
+			snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d", net_id, dev_mac_str, cJSON_GetStringValue(radio_id_obj),
+						em_policy_id_type_radio_metrics_rep);
+			m_policy[m_num_policy].decode(radio_metrics_obj, parent, em_policy_id_type_radio_metrics_rep);
+			m_num_policy++;
+		}
+    }
+
+
+	if ((radio_steer_arr_obj = cJSON_GetObjectItem(policy_obj, "Radio Steering Parameters")) != NULL) {
+		for (i = 0; i < cJSON_GetArraySize(radio_steer_arr_obj); i++) {
+			radio_steer_obj = cJSON_GetArrayItem(radio_steer_arr_obj, i);
+			radio_id_obj = cJSON_GetObjectItem(radio_steer_obj, "ID");
+			snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d", net_id, dev_mac_str, cJSON_GetStringValue(radio_id_obj),
+						em_policy_id_type_steering_param);
+			m_policy[m_num_policy].decode(radio_steer_obj, parent, em_policy_id_type_steering_param);
+			m_num_policy++;
+		}
+    }
+
+
+	return 0;
 }
 
 int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const char *key, unsigned int index, unsigned int *num)
@@ -1977,6 +2125,30 @@ void dm_easy_mesh_t::deinit()
 	hash_map_destroy(m_sta_dassoc_map);
 }
 
+void dm_easy_mesh_t::set_policy(dm_policy_t policy)
+{
+	unsigned int i = 0;
+	dm_policy_t *ppolicy;
+	bool found_match = false;
+
+	for (i = 0; i < m_num_policy; i++) {
+		ppolicy = &m_policy[i];
+		if ((strncmp(policy.m_policy.id.net_id, ppolicy->m_policy.id.net_id, strlen(policy.m_policy.id.net_id) == 0)) &&
+				(memcmp(policy.m_policy.id.dev_mac, ppolicy->m_policy.id.dev_mac, sizeof(mac_address_t)) == 0) &&
+				(memcmp(policy.m_policy.id.radio_mac, ppolicy->m_policy.id.radio_mac, sizeof(mac_address_t)) == 0) && 
+				(policy.m_policy.id.type == ppolicy->m_policy.id.type)) {
+			found_match = true;
+			break;
+		}
+	}	
+
+	memcpy(&m_policy[i].m_policy, &policy.m_policy, sizeof(em_policy_t));
+	memcpy(m_policy[i].m_policy.id.dev_mac, m_device.m_device_info.id.mac, sizeof(mac_address_t));
+	if (found_match == false) {
+		m_num_policy++;
+	}	
+}
+
 void dm_easy_mesh_t::set_anticipated_channels_list(dm_op_class_t op_class[])
 {
 	unsigned int i, j, last_index = 0;
@@ -2057,6 +2229,20 @@ int dm_easy_mesh_t::init()
     return 0;
 }
 
+void dm_easy_mesh_t::reset()
+{
+    m_num_radios = 0;
+	m_num_opclass = 0;
+	m_num_policy = 0;
+	m_num_bss = 0;
+    m_num_ap_mld = 0;
+	m_db_cfg_type = db_cfg_type_none;
+    m_colocated = false;
+
+	memset(&m_network.m_net_info, 0, sizeof(em_network_info_t));
+	memset(&m_device.m_device_info, 0, sizeof(em_device_info_t));
+}
+
 dm_easy_mesh_t::dm_easy_mesh_t(const dm_network_t& net)
 {
     memcpy(&m_device.m_device_info.id, &net.m_net_info.ctrl_id, sizeof(em_interface_t));
@@ -2072,6 +2258,7 @@ dm_easy_mesh_t::dm_easy_mesh_t()
 {
     m_num_radios = 0;
 	m_num_opclass = 0;
+	m_num_policy = 0;
 	m_num_bss = 0;
     m_num_ap_mld = 0;
 	m_db_cfg_type = db_cfg_type_none;

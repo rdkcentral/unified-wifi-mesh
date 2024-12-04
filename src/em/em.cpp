@@ -141,6 +141,10 @@ void em_t::orch_execute(em_cmd_t *pcmd)
         case em_cmd_type_sta_disassoc:
             m_sm.set_state(em_state_ctrl_sta_disassoc_pending);
             break;
+        
+		case em_cmd_type_set_policy:
+            set_state(em_state_ctrl_set_policy_pending);
+            break;
     }
 }
 
@@ -299,6 +303,10 @@ void em_t::handle_ctrl_state()
 
         case em_cmd_type_sta_disassoc:
             em_steering_t::process_ctrl_state();
+            break;
+        
+		case em_cmd_type_set_policy:
+            em_policy_cfg_t::process_ctrl_state();
             break;
     }
 }
@@ -861,6 +869,7 @@ const char *em_t::state_2_str(em_state_t state)
 		EM_STATE_2S(em_state_ctrl_sta_link_metrics_pending)
 		EM_STATE_2S(em_state_ctrl_sta_steer_pending)
 		EM_STATE_2S(em_state_ctrl_sta_disassoc_pending)
+		EM_STATE_2S(em_state_ctrl_set_policy_pending)
     }
 
     return "em_state_unknown";

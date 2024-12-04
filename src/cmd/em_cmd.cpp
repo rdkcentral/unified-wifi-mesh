@@ -448,6 +448,16 @@ void em_cmd_t::init()
             strncpy(m_name, "em_config", strlen("em_config") + 1);
             m_svc = em_service_type_ctrl;
             break;
+        
+		case em_cmd_type_get_policy:
+            strncpy(m_name, "get_policy", strlen("get_policy") + 1);
+            m_svc = em_service_type_ctrl;
+            break;
+		
+		case em_cmd_type_set_policy:
+            strncpy(m_name, "set_policy", strlen("set_policy") + 1);
+            m_svc = em_service_type_ctrl;
+            break;
     }
 }
 
@@ -455,32 +465,34 @@ const char *em_cmd_t::get_bus_event_type_str(em_bus_event_type_t type)
 {
 #define BUS_EVENT_TYPE_2S(x) case x: return #x;
     switch (type) { 
-    BUS_EVENT_TYPE_2S(em_bus_event_type_none)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_chirp)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_reset)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_dev_test)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_get_network)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_get_device)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_remove_device)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_get_radio)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_get_ssid)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_set_ssid)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_get_channel)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_set_channel)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_get_bss)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_get_sta)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_steer_sta)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_disassoc_sta)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_btm_sta)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_start_dpp)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_dev_init)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_cfg_renew)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_radio_config)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_vap_config)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_sta_list)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_listener_stop)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_dm_commit)
-    BUS_EVENT_TYPE_2S(em_bus_event_type_topo_sync)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_none)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_chirp)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_reset)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_dev_test)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_get_network)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_get_device)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_remove_device)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_get_radio)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_get_ssid)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_set_ssid)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_get_channel)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_set_channel)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_get_bss)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_get_sta)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_steer_sta)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_disassoc_sta)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_btm_sta)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_start_dpp)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_dev_init)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_cfg_renew)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_radio_config)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_vap_config)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_sta_list)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_listener_stop)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_dm_commit)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_topo_sync)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_get_policy)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_set_policy)
     }
 }   
 
@@ -546,6 +558,7 @@ const char *em_cmd_t::get_orch_op_str(dm_orch_type_t type)
         ORCH_TYPE_2S(dm_orch_type_op_channel_report)
         ORCH_TYPE_2S(dm_orch_type_sta_steer)
         ORCH_TYPE_2S(dm_orch_type_sta_disassoc)
+        ORCH_TYPE_2S(dm_orch_type_policy_cfg)
     }
 
     return "dm_orch_type_unknown";
@@ -587,6 +600,8 @@ const char *em_cmd_t::get_cmd_type_str(em_cmd_type_t type)
         CMD_TYPE_2S(em_cmd_type_sta_link_metrics)
         CMD_TYPE_2S(em_cmd_type_sta_steer)
         CMD_TYPE_2S(em_cmd_type_sta_disassoc)
+        CMD_TYPE_2S(em_cmd_type_get_policy)
+        CMD_TYPE_2S(em_cmd_type_set_policy)
     }
 
     return "em_cmd_type_unknown";
@@ -655,6 +670,14 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
 
         case em_bus_event_type_disassoc_sta:
             type = em_cmd_type_disassoc_sta;
+            break;
+
+        case em_bus_event_type_get_policy:
+            type = em_cmd_type_get_policy;
+            break;
+
+        case em_bus_event_type_set_policy:
+            type = em_cmd_type_set_policy;
             break;
 
         case em_bus_event_type_btm_sta:

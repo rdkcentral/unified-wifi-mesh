@@ -354,6 +354,44 @@ void dm_easy_mesh_list_t::put_radio(const char *key, const dm_radio_t *radio)
 
 }
 
+dm_radio_t *dm_easy_mesh_list_t::get_first_radio(const char *net_id, mac_address_t al_mac)
+{
+	dm_easy_mesh_t *dm;
+
+	dm = get_data_model(net_id, al_mac);
+	if ((dm != NULL) && (dm->get_num_radios() > 0)) {
+		return &dm->m_radio[0];
+	}
+
+	return NULL;
+}
+
+dm_radio_t *dm_easy_mesh_list_t::get_next_radio(const char *net_id, mac_address_t al_mac, dm_radio_t *radio)
+{
+	dm_easy_mesh_t *dm;
+	unsigned int i;
+	bool found_match = false;
+
+	dm = get_data_model(net_id, al_mac);
+	if ((dm == NULL) || (dm->get_num_radios() == 0)) {
+		return NULL;
+	}
+
+	for (i = 0; i < dm->get_num_radios(); i++) {
+		if (&dm->m_radio[i] == radio) {
+			found_match = true;
+			break;
+		}
+	}
+
+	if ((found_match == true) && (i < (dm->get_num_radios() - 1))) {
+		return &dm->m_radio[i + 1];
+	}
+
+	return NULL;
+
+}
+
 dm_bss_t *dm_easy_mesh_list_t::get_first_bss()
 {
     dm_bss_t *bss = NULL;
@@ -1030,6 +1068,110 @@ void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_
 	//printf("%s:%d: Number of op classes: %d\n", __func__, __LINE__, dm->get_num_op_class());
 }
 
+dm_policy_t *dm_easy_mesh_list_t::get_first_policy()
+{
+	dm_easy_mesh_t *dm;
+
+	dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    while (dm != NULL) {
+		if (dm->m_num_policy > 0) {
+			return &dm->m_policy[0];
+		}	
+
+        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+    }
+
+	return NULL;
+}
+
+dm_policy_t *dm_easy_mesh_list_t::get_next_policy(dm_policy_t *policy)
+{
+	dm_easy_mesh_t *dm;
+	bool return_next = false;
+	unsigned int i;
+
+	dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    while (dm != NULL) {
+		if (dm->m_num_policy == 0) {
+			dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+			continue;		
+		}
+
+		if (return_next == true) {
+			return &dm->m_policy[0];
+		}
+
+		for (i = 0; i < dm->m_num_policy; i++) {
+			if (policy == &dm->m_policy[i]) {
+				return_next = true;
+				break;
+			}
+		}
+
+		if ((return_next == true) && ((i + 1) < dm->m_num_policy)) {
+			return &dm->m_policy[i + 1];
+		}
+	
+        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+    }
+	return NULL;
+}
+
+dm_policy_t *dm_easy_mesh_list_t::get_policy(const char *key)
+{
+	em_policy_id_t	id;
+	dm_easy_mesh_t	*dm;
+	mac_addr_str_t	dev_mac_str, radio_mac_str;
+	unsigned int i;
+	dm_policy_t *policy;
+	
+	dm_policy_t::parse_dev_radio_mac_from_key(key, &id);
+	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
+	dm_easy_mesh_t::macbytes_to_string(id.radio_mac, radio_mac_str);
+	//printf("%s:%d: Net id: %s\tdev: %s\tradio: %s\tType: %d\n", __func__, __LINE__, id.net_id, dev_mac_str, radio_mac_str, id.type);
+	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
+
+	if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
+		printf("%s:%d: Could not find data model for Network: %s and dev: %s\n", __func__, __LINE__, id.net_id, dev_mac_str);
+		return NULL;
+	} 
+
+	for (i = 0; i < dm->get_num_policy(); i++) {
+		policy = &dm->m_policy[i];
+		if ((strncmp(policy->m_policy.id.net_id, id.net_id, strlen(id.net_id)) == 0) && 
+				(memcmp(policy->m_policy.id.dev_mac, id.dev_mac, sizeof(mac_address_t)) == 0) && 
+				(memcmp(policy->m_policy.id.radio_mac, id.radio_mac, sizeof(mac_address_t)) == 0) && 
+				(policy->m_policy.id.type == id.type)) {
+			//printf("%s:%d: Policy found for key: %s\n", __func__, __LINE__, key);
+			return policy;
+		}
+	}
+
+	printf("%s:%d: Policy not found for key: %s\n", __func__, __LINE__, key);
+	return NULL;
+}
+
+void dm_easy_mesh_list_t::remove_policy(const char *key)
+{
+
+}
+
+void dm_easy_mesh_list_t::put_policy(const char *key, const dm_policy_t *policy)
+{
+	em_policy_id_t	id;
+	dm_easy_mesh_t	*dm;
+	mac_addr_str_t	dev_mac_str;
+	
+	dm_policy_t::parse_dev_radio_mac_from_key(key, &id);
+	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
+	if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
+		printf("%s:%d: Could not find data model for Network: %s and dev: %s\n", __func__, __LINE__, id.net_id, dev_mac_str);
+		return;
+	} 
+
+	dm->set_policy(*policy);		
+}
+
 void dm_easy_mesh_list_t::delete_all_data_models()
 {
 	dm_easy_mesh_t *dm = NULL, *tmp;
@@ -1081,12 +1223,40 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
     dm_network_t *net, *pnet;
     dm_device_t *dev;
     dm_network_ssid_t *net_ssid, *pnet_ssid;
+	const em_policy_t	em_policy[] = {
+						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 
+							em_policy_id_type_ap_metrics_rep}, 0, {}, em_steering_policy_type_unknown, 
+							0, 0, 120, 0, false, false, false, "", false, false, false},
+						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, 
+							em_policy_id_type_radio_metrics_rep}, 0, {}, em_steering_policy_type_unknown, 
+							60, 120, 0, 5, false, false, false, "", false, false, false},
+						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 
+							em_policy_id_type_steering_local}, 1, {{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}}, 
+							em_steering_policy_type_unknown, 
+							0, 0, 0, 0, false, false, false, "", false, false, false},
+						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 
+							em_policy_id_type_steering_btm}, 1, {{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}}, 
+							em_steering_policy_type_unknown, 
+							0, 0, 0, 0, false, false, false, "", false, false, false},
+						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, 
+							em_policy_id_type_steering_param}, 1, {{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}}, 
+							em_steering_policy_type_rcpi_allowed, 
+							60, 120, 0, 0, false, false, false, "", false, false, false},
+						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 
+							em_policy_id_type_channel_scan}, 0, {}, em_steering_policy_type_unknown, 
+							0, 0, 0, 0, false, false, false, "", false, false, false}
+					};
     unsigned int i;
 	dm_op_class_t	op_class[] 	= 	{
 		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 81}, 81, 0, 0, 0, 1, {6}, 0, 0, 0}), 
 		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 115}, 115, 0, 0, 0, 1, {36}, 0, 0, 0}), 
 		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 135}, 135, 0, 0, 0, 1, {1}, 0, 0, 0})
 									};
+	dm_policy_t	policy[] = {
+								dm_policy_t(em_policy[0]), dm_policy_t(em_policy[1]), 
+								dm_policy_t(em_policy[2]), dm_policy_t(em_policy[3]), 
+								dm_policy_t(em_policy[4]), dm_policy_t(em_policy[5])
+						};
 	
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)al_mac, mac_str);
     snprintf(key, sizeof(em_short_string_t), "%s@%s", net_id, mac_str);
@@ -1101,6 +1271,12 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
     strncpy(dev->m_device_info.net_id, net_id, strlen(net_id) + 1);
     dev->m_device_info.profile = profile;
 	dm->set_anticipated_channels_list(op_class);
+	
+	for (i = 0; i < sizeof(em_policy)/sizeof(em_policy_t); i++) {
+		dm->set_policy(policy[i]);
+	}
+
+	printf("%s:%d: Number of policies: %d\n", __func__, __LINE__, dm->get_num_policy());
 
     // is this the first data model
     if ((net = get_network(net_id)) != NULL) {
@@ -1117,7 +1293,7 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
             *pnet_ssid = *net_ssid;
         }
     }
-    //printf("%s:%d: Putting data model at key: %s\n", __func__, __LINE__, key);
+    printf("%s:%d: Putting data model at key: %s\n", __func__, __LINE__, key);
     hash_map_put(m_list, strdup(key), dm);	
 
     return dm;
