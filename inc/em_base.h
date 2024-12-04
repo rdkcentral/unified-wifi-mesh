@@ -2408,7 +2408,7 @@ typedef enum {
 	db_cfg_type_radio_cap_list_delete = (1 << 15),
 	db_cfg_type_1905_security_list_update = (1 << 16),
 	db_cfg_type_1905_security_list_delete = (1 << 17),
-    db_cfg_type_sta_metrics_update = (1 << 18)
+  db_cfg_type_sta_metrics_update = (1 << 18),
 	db_cfg_type_policy_list_update = (1 << 19),
 	db_cfg_type_policy_list_delete = (1 << 20),
 } db_cfg_type_t;

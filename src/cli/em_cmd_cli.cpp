@@ -431,6 +431,30 @@ int em_cmd_cli_t::execute(em_string_t res)
             }
             break;
 
+        case em_cmd_type_get_policy:
+            bevt->type = em_bus_event_type_get_policy;
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
+			printf("%s:%d: Name: %s\n", __func__, __LINE__, info->name);
+            break;
+
+        case em_cmd_type_set_policy:
+			snprintf(in, sizeof(in), "get_policy %s", m_cmd.m_param.u.args.args[1]);
+			get_cli()->exec(in, strlen(in), out);
+			get_cmd()->write_params_file(out, m_cmd.m_param.u.args.args[1], "SetPolicy");
+            bevt->type = em_bus_event_type_set_policy;
+			if (get_cmd()->edit_params_file() != 0) {
+                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
+                return -1;
+			}	
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
+            if ((info->sz = get_cmd()->load_params_file(info->buff)) < 0) {
+                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
+                return -1;
+            }
+            break;
+
         case em_cmd_type_get_bss:
             bevt->type = em_bus_event_type_get_bss;
             info = &bevt->u.subdoc;
