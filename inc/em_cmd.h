@@ -43,9 +43,6 @@ public:
     unsigned int m_db_cfg_type;
 
 public:
-    int     load_params_file(char *buff);
-    int 	write_params_file(char *buff, const char *net_id, const char *header = NULL);
-    int 	edit_params_file();
     bool    validate();
 
     char *status_to_string(em_cmd_out_status_t status, em_status_string_t str);

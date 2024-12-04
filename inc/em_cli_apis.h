@@ -16,27 +16,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef EM_CLI_H
-#define EM_CLI_H
+#ifndef EM_CLI_APIS_H
+#define EM_CLI_APIS_H
 
-#include "em_base.h"
-#include "em_cmd_exec.h"
-
-class em_cli_t {
-    em_cmd_t& get_command(char *in, size_t in_len);
-
-public:
-	em_editor_callback_t m_editor_cb;
-
-    char *exec(char *in, size_t in_len, em_status_string_t out);
+extern "C" {
+	char *exec(char *in, size_t in_len, em_status_string_t out);
     int init(em_editor_callback_t func);
-	const char *get_first_cmd_str();
-	const char *get_next_cmd_str(const char *cmd);
-
-    em_cli_t();
-    ~em_cli_t();
-};
-
-em_cli_t *get_cli();
+    const char *get_first_cmd_str();
+    const char *get_next_cmd_str(const char *cmd);
+}
 
 #endif
