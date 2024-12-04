@@ -38,10 +38,9 @@ public:
     unsigned int m_orch_op_idx;
     em_orch_desc_t  m_orch_desc[EM_MAX_CMD];
     unsigned int m_num_orch_desc;
-    em_freq_band_t m_rd_freq_band;
     unsigned int m_rd_op_class;
     unsigned int m_rd_channel;
-    unsigned int	m_db_cfg_type;
+    unsigned int m_db_cfg_type;
 
 public:
     int     load_params_file(char *buff);
@@ -90,9 +89,6 @@ public:
     dm_radio_t *get_radio(unsigned int index) { return m_data_model.get_radio(index); }
     dm_op_class_t *get_curr_op_class(unsigned int index) { return m_data_model.get_curr_op_class(index); }
     rdk_wifi_radio_t *get_radio_data(em_interface_t *radio) { return m_data_model.get_radio_data(radio); };
-    em_freq_band_t get_band() { return m_rd_freq_band; }    
-    void set_rd_freq_band(unsigned int i);
-    em_freq_band_t get_rd_freq_band() { return m_rd_freq_band; }
     unsigned int get_rd_op_class() { return m_rd_op_class; }
     unsigned int get_rd_channel() { return m_rd_channel; }
 

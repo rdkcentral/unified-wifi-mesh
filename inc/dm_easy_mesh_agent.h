@@ -41,6 +41,7 @@ public:
 	int analyze_m2ctrl_configuration(em_bus_event_t *evt, wifi_bus_desc_t *desc,bus_handle_t *bus_hdl);
     int analyze_channel_pref_query(em_bus_event_t *evt, em_cmd_t *pcmd[]);
     int analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_desc_t *desc,bus_handle_t *bus_hdl);
+    int analyze_sta_link_metrics(em_bus_event_t *evt, em_cmd_t *pcmd[]);
 
     static webconfig_error_t webconfig_dummy_apply(webconfig_subdoc_t *doc, webconfig_subdoc_data_t *data);
 

@@ -34,6 +34,8 @@
 #include "dm_radio_cap.h"
 #include "dm_cac_comp.h"
 #include "dm_ap_mld.h"
+#include "dm_bsta_mld.h"
+#include "dm_tid_to_link.h"
 #include "webconfig_external_proto.h"
 
 class em_t;
@@ -67,6 +69,8 @@ public:
     bool    m_colocated;
     unsigned int    m_num_ap_mld;
     dm_ap_mld_t     m_ap_mld[EM_MAX_AP_MLD];
+    dm_bsta_mld_t   m_bsta_mld;
+    dm_tid_to_link_t m_tid_to_link;
 
 public:
     virtual int analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]);
@@ -227,6 +231,7 @@ public:
     dm_sta_t *get_first_sta(mac_address_t sta_mac);
     dm_sta_t *get_next_sta(mac_address_t sta_mac, dm_sta_t *psta);
     bool has_at_least_one_associated_sta();
+    int get_num_bss_for_associated_sta(mac_address_t sta_mac);
     
     static void print_hex_dump(unsigned int length, unsigned char *buffer);
     static char *hex(unsigned int in_len, unsigned char *in, unsigned int out_len, char *out);

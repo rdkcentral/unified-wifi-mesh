@@ -35,6 +35,8 @@ class em_configuration_t {
     int create_device_info_type_tlv(unsigned char *buff);
     short create_client_assoc_event_tlv(unsigned char *buff, mac_address_t sta, bssid_t bssid, bool assoc);
     int create_ap_mld_config_tlv(unsigned char *buff);
+    int create_bsta_mld_config_tlv(unsigned char *buff);
+    int create_tid_to_link_map_policy_tlv(unsigned char *buff);
 
     int send_topology_response_msg(unsigned char *dst);
     int send_topology_notification_by_client(mac_address_t sta, bssid_t bssid, bool assoc);
@@ -101,8 +103,9 @@ class em_configuration_t {
     virtual void set_primary_device_type(char *) = 0;
     virtual em_freq_band_t get_band() = 0;
     virtual void set_band(em_freq_band_t band) = 0;
-
     virtual em_network_ssid_info_t *get_network_ssid_info_by_haul_type(em_haul_type_t haul_type) = 0;
+    virtual em_rd_freq_band_t map_freq_band_to_rf_band(em_freq_band_t band) = 0;
+    em_freq_band_t convert_freq_band(em_freq_band_t band);
 
 private:
     em_profile_type_t   m_peer_profile;

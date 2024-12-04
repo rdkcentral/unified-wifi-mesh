@@ -270,11 +270,18 @@ typedef enum {
 } em_profile_type_t;
 
 typedef enum {
-    em_freq_band_24,
+    em_freq_band_24,    //IEEE-1905-1-2013 table 6-23
     em_freq_band_5,
     em_freq_band_60,
     em_freq_band_unknown
 } em_freq_band_t;
+
+typedef enum {
+    em_rd_freq_band_unknown,    //rf band based on Wi-Fi Simple Configuration Technical Specification v2 table 44
+    em_rd_freq_band_24,
+    em_rd_freq_band_5,
+    em_rd_freq_band_60 = 0x4,
+} em_rd_freq_band_t;
 
 typedef struct {
     unsigned int    bit_map;
@@ -534,6 +541,7 @@ typedef enum {
     em_tlv_type_wifi7_agent_cap = 0xdf,
     em_tlv_type_ap_mld_config = 0xe0,
     em_tlv_type_bsta_mld_config = 0xe1,
+    em_tlv_type_tid_to_link_map_policy = 0xe6,
     em_tlv_eht_operations = 0xe7,
 } em_tlv_type_t;
 
@@ -1676,7 +1684,7 @@ typedef enum {
     em_state_agent_ap_cap_report,
     em_state_agent_client_cap_report,
     em_state_agent_channel_pref_query,
-
+    em_state_agent_sta_link_metrics,
 
     em_state_ctrl_unconfigured = 0x100,
     em_state_ctrl_wsc_m1_pending,
@@ -2040,10 +2048,51 @@ typedef struct {
 } em_ap_mld_info_t;
 
 typedef struct {
+    bool  mac_addr_valid;
+    em_interface_t  ruid;
+    mac_address_t  mac_addr;
+} em_affiliated_bsta_info_t;
+
+typedef struct {
+    bool  mac_addr_valid;
+    bool  ap_mld_mac_addr_valid;
+    mac_address_t  mac_addr;
+    mac_address_t  ap_mld_mac_addr;
+    bool  str;
+    bool  nstr;
+    bool  emlsr;
+    bool  emlmr;
+    unsigned char  num_affiliated_bsta;
+    em_affiliated_bsta_info_t  affiliated_bsta[EM_MAX_AP_MLD];
+} em_bsta_mld_info_t;
+
+typedef struct {
+    bool  add_remove;
+    mac_address_t  sta_mld_mac_addr;
+    bool  direction;
+    bool  default_link_map;
+    bool  map_switch_time_present;
+    bool  expected_dur_present;
+    bool  link_map_size;
+    unsigned char  link_map_presence_ind;
+    unsigned char  expected_dur[3];
+    unsigned char tid_to_link_map;
+} em_tid_to_link_map_info_t;
+
+typedef struct {
+    bool  is_bsta_config;
+    mac_address_t  mld_mac_addr;
+    bool  tid_to_link_map_neg;
+    unsigned char  num_mapping;
+    em_tid_to_link_map_info_t  tid_to_link_mapping[EM_MAX_AP_MLD];
+} em_tid_to_link_info_t;
+
+typedef struct {
     em_interface_t  id;
 	mac_address_t dev_id;
     em_long_string_t net_id;
     bool    enabled;
+    em_freq_band_t band;
     em_media_spec_data_t	media_data;
     unsigned  int   number_of_bss;
     unsigned  int   number_of_unassoc_sta;
@@ -2065,6 +2114,7 @@ typedef struct {
     em_long_string_t    chip_vendor;
     bool    ap_metrics_wifi6;
     em_device_inventory_t inventory_info;
+    int     transmit_power_limit;
 } em_radio_info_t;
 
 typedef struct {
@@ -2139,6 +2189,57 @@ typedef struct {
 } __attribute__((__packed__)) em_ap_mld_config_t;
 
 typedef struct {
+    unsigned char affiliated_bsta_mac_addr_valid : 1;
+    unsigned char reseverd1 : 7;
+    em_radio_id_t ruid;
+    mac_addr_t affiliated_bsta_mac_addr;
+    unsigned char reserved2[19];
+} __attribute__((__packed__)) em_affiliated_bsta_mld_t;
+
+typedef struct {
+    unsigned char bsta_mld_mac_addr_valid : 1;
+    unsigned char ap_mld_mac_addr_valid : 1;
+    unsigned char reserved1 : 6;
+    mac_addr_t bsta_mld_mac_addr;
+    mac_addr_t ap_mld_mac_addr;
+    unsigned char str : 1;
+    unsigned char nstr : 1;
+    unsigned char emlsr : 1;
+    unsigned char emlmr : 1;
+    unsigned char reseverd2 : 4;
+    unsigned char reserved3[17];
+    unsigned char num_affiliated_bsta;
+    em_affiliated_bsta_mld_t affiliated_bsta_mld[0];
+} __attribute__((__packed__)) em_bsta_mld_config_t;
+
+typedef struct {
+    unsigned char add_remove : 1;
+    unsigned char reserved4 : 7;
+    mac_addr_t sta_mld_mac_addr;
+    unsigned char direction : 2;
+    unsigned char default_link_mapping : 1;
+    unsigned char map_switch_time_present : 1;
+    unsigned char exp_dur_present : 1;
+    unsigned char link_map_size : 1;
+    unsigned char reserved5 : 2;
+    unsigned char link_map_presence_ind;
+    unsigned char expected_duration[3];
+    unsigned char tid_to_link_map[0];
+    unsigned char reserved6[7];
+} __attribute__((__packed__)) em_tid_to_link_mapping_t;
+
+typedef struct {
+    unsigned char is_bsta_config : 1;
+    unsigned char reserved1 : 7;
+    mac_addr_t mld_mac_addr;
+    unsigned char tid_to_link_map_negotiation : 1;
+    unsigned char reserved2 : 7;
+    unsigned char reserved3[22];
+    unsigned char num_mapping;
+    em_tid_to_link_mapping_t tid_to_link_mapping[0];
+} __attribute__((__packed__)) em_tid_to_link_map_policy_t;
+
+typedef struct {
     em_nonce_t  e_nonce;  
     em_nonce_t  r_nonce;  
     uuid_t  e_uuid;
@@ -2195,9 +2296,10 @@ typedef enum {
     em_bus_event_type_onewifi_private_cb,
     em_bus_event_type_onewifi_radio_cb,
     em_bus_event_type_m2ctrl_configuration,
-	em_bus_event_type_sta_assoc,
-	em_bus_event_type_channel_pref_query,
-	em_bus_event_type_channel_sel_req,
+    em_bus_event_type_sta_assoc,
+    em_bus_event_type_channel_pref_query,
+    em_bus_event_type_channel_sel_req,
+    em_bus_event_type_sta_link_metrics
 } em_bus_event_type_t;
 
 typedef struct {
@@ -2270,6 +2372,7 @@ typedef enum {
     dm_orch_type_channel_pref,
     dm_orch_type_channel_sel,
     dm_orch_type_channel_cnf,
+    dm_orch_type_channel_sel_resp,
     dm_orch_type_sta_cap,
     dm_orch_type_sta_link_metrics,
     dm_orch_type_op_channel_report,
@@ -2303,8 +2406,9 @@ typedef enum {
 	db_cfg_type_radio_cap_list_delete = (1 << 15),
 	db_cfg_type_1905_security_list_update = (1 << 16),
 	db_cfg_type_1905_security_list_delete = (1 << 17),
-	db_cfg_type_policy_list_update = (1 << 18),
-	db_cfg_type_policy_list_delete = (1 << 19),
+    db_cfg_type_sta_metrics_update = (1 << 18)
+	db_cfg_type_policy_list_update = (1 << 19),
+	db_cfg_type_policy_list_delete = (1 << 20),
 } db_cfg_type_t;
 
 typedef struct{

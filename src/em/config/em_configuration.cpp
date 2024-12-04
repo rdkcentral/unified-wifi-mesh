@@ -191,7 +191,7 @@ int em_configuration_t::send_autoconfig_renew_msg()
     unsigned short type = htons(ETH_P_1905);
     dm_easy_mesh_t *dm;
     unsigned char registrar = 0;
-    em_freq_band_t band;
+    em_freq_band_t freq_band;
 
     dm = get_data_model();
 
@@ -240,8 +240,8 @@ int em_configuration_t::send_autoconfig_renew_msg()
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_supported_freq_band;
     tlv->len = htons(sizeof(unsigned char));
-    band = get_band();
-    memcpy(&tlv->value, &band, sizeof(unsigned char));
+    freq_band = em_t::convert_freq_band(get_band());
+    memcpy(&tlv->value, &freq_band, sizeof(unsigned char));
 
     tmp += (sizeof (em_tlv_t) + 1);
     len += (sizeof (em_tlv_t) + 1);
@@ -549,6 +549,103 @@ int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
     return tlv_len;
 }
 
+int em_configuration_t::create_bsta_mld_config_tlv(unsigned char *buff)
+{
+    em_tlv_t *tlv;
+    unsigned char *tmp = buff;
+    em_bsta_mld_config_t *bsta_mld_conf;
+    em_affiliated_bsta_mld_t *affiliated_bsta_mld;
+    dm_easy_mesh_t  *dm;
+    unsigned int i;
+    unsigned short affiliated_bsta_len = 0;
+    unsigned short tlv_len = 0;
+
+    dm = get_data_model();
+
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_bsta_mld_config;
+
+    bsta_mld_conf = (em_bsta_mld_config_t *)tlv->value;
+    tlv_len = sizeof(em_bsta_mld_config_t);
+
+    em_bsta_mld_info_t& bsta_mld_info = dm->m_bsta_mld.m_bsta_mld_info;
+    bsta_mld_conf->bsta_mld_mac_addr_valid = bsta_mld_info.mac_addr_valid;
+    bsta_mld_conf->ap_mld_mac_addr_valid = bsta_mld_info.ap_mld_mac_addr_valid;
+    memcpy(bsta_mld_conf->bsta_mld_mac_addr, bsta_mld_info.mac_addr, sizeof(mac_address_t));
+    memcpy(bsta_mld_conf->ap_mld_mac_addr, bsta_mld_info.ap_mld_mac_addr, sizeof(mac_address_t));
+    bsta_mld_conf->str = bsta_mld_info.str;
+    bsta_mld_conf->nstr = bsta_mld_info.nstr;
+    bsta_mld_conf->emlsr = bsta_mld_info.emlsr;
+    bsta_mld_conf->emlmr = bsta_mld_info.emlmr;
+
+    bsta_mld_conf->num_affiliated_bsta = bsta_mld_info.num_affiliated_bsta;
+    affiliated_bsta_mld = bsta_mld_conf->affiliated_bsta_mld;
+
+    for (i = 0; i < bsta_mld_conf->num_affiliated_bsta; i++) {
+        em_affiliated_bsta_info_t& affiliated_bsta_info = bsta_mld_info.affiliated_bsta[i];
+        affiliated_bsta_mld->affiliated_bsta_mac_addr_valid = affiliated_bsta_info.mac_addr_valid;
+        memcpy(affiliated_bsta_mld->ruid, affiliated_bsta_info.ruid.mac, sizeof(mac_address_t));
+        memcpy(affiliated_bsta_mld->affiliated_bsta_mac_addr, affiliated_bsta_info.mac_addr, sizeof(mac_address_t));
+
+        affiliated_bsta_mld = (em_affiliated_bsta_mld_t *)((unsigned char *)affiliated_bsta_mld + sizeof(em_affiliated_bsta_mld_t));
+        affiliated_bsta_len += sizeof(em_affiliated_bsta_mld_t);
+    }
+
+    tlv_len += affiliated_bsta_len;
+    tlv->len = htons(tlv_len);
+
+    return tlv_len;
+}
+
+int em_configuration_t::create_tid_to_link_map_policy_tlv(unsigned char *buff)
+{
+    em_tlv_t *tlv;
+    unsigned char *tmp = buff;
+    em_tid_to_link_map_policy_t *tid_to_link_map_policy;
+    em_tid_to_link_mapping_t *tid_to_link_mapping;
+    dm_easy_mesh_t  *dm;
+    unsigned int i;
+    unsigned short tid_to_link_map_len = 0;
+    unsigned short tlv_len = 0;
+
+    dm = get_data_model();
+
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_tid_to_link_map_policy;
+
+    tid_to_link_map_policy = (em_tid_to_link_map_policy_t *)tlv->value;
+    tlv_len = sizeof(em_tid_to_link_map_policy_t);
+
+    em_tid_to_link_info_t& tid_to_link_info = dm->m_tid_to_link.m_tid_to_link_info;
+    tid_to_link_map_policy->is_bsta_config = tid_to_link_info.is_bsta_config;
+    memcpy(tid_to_link_map_policy->mld_mac_addr, tid_to_link_info.mld_mac_addr, sizeof(mac_address_t));
+    tid_to_link_map_policy->tid_to_link_map_negotiation = tid_to_link_info.tid_to_link_map_neg;
+
+    tid_to_link_map_policy->num_mapping = tid_to_link_info.num_mapping;
+    tid_to_link_mapping = tid_to_link_map_policy->tid_to_link_mapping;
+
+    for (i = 0; i < tid_to_link_map_policy->num_mapping; i++) {
+        em_tid_to_link_map_info_t& tid_to_link_map_info = tid_to_link_info.tid_to_link_mapping[i];
+        tid_to_link_mapping->add_remove = tid_to_link_map_info.add_remove;
+        memcpy(tid_to_link_mapping->sta_mld_mac_addr, tid_to_link_map_info.sta_mld_mac_addr, sizeof(mac_address_t));
+        tid_to_link_mapping->direction = tid_to_link_map_info.direction;
+        tid_to_link_mapping->default_link_mapping = tid_to_link_map_info.default_link_map;
+        tid_to_link_mapping->map_switch_time_present = tid_to_link_map_info.map_switch_time_present;
+        tid_to_link_mapping->link_map_size = tid_to_link_map_info.link_map_size;
+        tid_to_link_mapping->link_map_presence_ind = tid_to_link_map_info.link_map_presence_ind;
+        memcpy(tid_to_link_mapping->expected_duration, tid_to_link_map_info.expected_dur, 3 * sizeof(unsigned char));
+        //TODO: tid_to_link_map
+
+        tid_to_link_mapping = (em_tid_to_link_mapping_t *)((unsigned char *)tid_to_link_mapping + sizeof(em_tid_to_link_mapping_t));
+        tid_to_link_map_len += sizeof(em_tid_to_link_mapping_t);
+    }
+
+    tlv_len += tid_to_link_map_len;
+    tlv->len = htons(tlv_len);
+
+    return tlv_len;
+}
+
 int em_configuration_t::send_topology_response_msg(unsigned char *dst)
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
@@ -632,6 +729,18 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst)
 
     // One AP MLD Configuration TLV
     tlv_len = create_ap_mld_config_tlv(tmp);
+
+    tmp += (sizeof(em_tlv_t) + tlv_len);
+    len += (sizeof(em_tlv_t) + tlv_len);
+
+    // One Backhaul STA MLD Configuration TLV
+    tlv_len = create_bsta_mld_config_tlv(tmp);
+
+    tmp += (sizeof(em_tlv_t) + tlv_len);
+    len += (sizeof(em_tlv_t) + tlv_len);
+
+    // One TID-to-Link Mapping Policy TLV
+    tlv_len = create_tid_to_link_map_policy_tlv(tmp);
 
     tmp += (sizeof(em_tlv_t) + tlv_len);
     len += (sizeof(em_tlv_t) + tlv_len);
@@ -802,6 +911,7 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
     em_bus_event_t *bev;
     em_bus_event_type_client_assoc_params_t    *raw;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    bool eligible_to_req_cap = false;
 
     dm = get_data_model();
 	
@@ -841,8 +951,18 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
             //printf("%s:%d: Client Device:%s %s\n", __func__, __LINE__, sta_mac_str,
                     //(assoc_evt_tlv->assoc_event == 1)?"associated":"disassociated");
 
-            // if associated for first time, orchestrate a client capability query/response
             if ((sta = (dm_sta_t *)hash_map_get(dm->m_sta_map, key)) == NULL) {
+                eligible_to_req_cap = true;
+            } else {
+                sta = (dm_sta_t *)hash_map_get(dm->m_sta_map, key);
+                // During an association if map data has empty frame for an existing entry, request cap report to update Frame body
+                if ((assoc_evt_tlv->assoc_event == true)) {
+                    eligible_to_req_cap = true;
+                }
+            }
+
+            // if associated for first time, orchestrate a client capability query/response
+            if(eligible_to_req_cap == true) {
                 ev.type = em_event_type_bus;
                 bev = &ev.u.bevt;
                 bev->type = em_bus_event_type_sta_assoc;
@@ -1009,8 +1129,8 @@ short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul
     unsigned short size;
     unsigned char *tmp;
     tmp = buff;
-    em_freq_band_t band;
-    
+    em_rd_freq_band_t rf_band;
+ 
     // version
     attr = (data_elem_attr_t *)tmp;
     attr->id = htons(attr_id_version);
@@ -1156,9 +1276,9 @@ short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul
     attr->id = htons(attr_id_rf_bands);
     size = 1;
     attr->len = htons(size);
-    band = get_band();
-    memcpy(attr->val, &band, size);
-    
+    rf_band = (em_rd_freq_band_t)get_band();
+    memcpy(attr->val, &rf_band, size);
+ 
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
     // association state
@@ -1166,7 +1286,7 @@ short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul
     attr->id = htons(attr_id_assoc_state);
     size = sizeof(unsigned short);
     attr->len = htons(size);
-    memcpy(attr->val, &band, sizeof(attr->val));
+    memcpy(attr->val, &rf_band, sizeof(attr->val));
     
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -1175,7 +1295,7 @@ short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul
     attr->id = htons(attr_id_cfg_error);
     size = sizeof(unsigned short);
     attr->len = htons(size);
-    memcpy(attr->val, &band, sizeof(attr->val));
+    memcpy(attr->val, &rf_band, sizeof(attr->val));
     
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -1184,7 +1304,7 @@ short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul
     attr->id = htons(attr_id_device_password_id);
     size = sizeof(unsigned short);
     attr->len = htons(size);
-    memcpy(attr->val, &band, sizeof(attr->val));
+    memcpy(attr->val, &rf_band, sizeof(attr->val));
     
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -1193,7 +1313,7 @@ short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul
     attr->id = htons(attr_id_os_version);
     size = sizeof(unsigned short);
     attr->len = htons(size);
-    memcpy(attr->val, &band, sizeof(attr->val));
+    memcpy(attr->val, &rf_band, sizeof(attr->val));
     
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -1224,7 +1344,7 @@ short em_configuration_t::create_m1_msg(unsigned char *buff)
     short len = 0;
     unsigned short size;
     unsigned char *tmp;
-    em_freq_band_t band;
+    em_rd_freq_band_t rf_band;
 
     tmp = buff;
 
@@ -1403,8 +1523,8 @@ short em_configuration_t::create_m1_msg(unsigned char *buff)
     attr->id = htons(attr_id_rf_bands);
     size = 1;
     attr->len = htons(size);
-    band = get_band();
-    memcpy(attr->val, &band, size);
+    rf_band = map_freq_band_to_rf_band(get_band());
+    memcpy(attr->val, &rf_band, size);
 
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -1414,7 +1534,7 @@ short em_configuration_t::create_m1_msg(unsigned char *buff)
     attr->id = htons(attr_id_assoc_state);
     size = sizeof(unsigned short);
     attr->len = htons(size);
-    memcpy(attr->val, &band, sizeof(attr->val));
+    memcpy(attr->val, &rf_band, sizeof(attr->val));
 
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -1424,7 +1544,7 @@ short em_configuration_t::create_m1_msg(unsigned char *buff)
     attr->id = htons(attr_id_device_password_id);
     size = sizeof(unsigned short);
     attr->len = htons(size);
-    memcpy(attr->val, &band, sizeof(attr->val));
+    memcpy(attr->val, &rf_band, sizeof(attr->val));
 
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -1434,7 +1554,7 @@ short em_configuration_t::create_m1_msg(unsigned char *buff)
     attr->id = htons(attr_id_cfg_error);
     size = sizeof(unsigned short);
     attr->len = htons(size);
-    memcpy(attr->val, &band, sizeof(attr->val));
+    memcpy(attr->val, &rf_band, sizeof(attr->val));
 
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -1444,7 +1564,7 @@ short em_configuration_t::create_m1_msg(unsigned char *buff)
     attr->id = htons(attr_id_os_version);
     size = sizeof(unsigned short);
     attr->len = htons(size);
-    memcpy(attr->val, &band, sizeof(attr->val));
+    memcpy(attr->val, &rf_band, sizeof(attr->val));
 
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -1866,7 +1986,7 @@ int em_configuration_t::create_autoconfig_search_msg(unsigned char *buff)
     len += (sizeof (em_tlv_t) + 1);
 
     //6-23—autoconf_freq_band TLV
-    freq_band = get_current_cmd()->get_rd_freq_band();
+    freq_band = get_band();
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_autoconf_freq_band;
     tlv->len = htons(sizeof(unsigned char));
