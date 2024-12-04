@@ -41,6 +41,7 @@ public:
     short create_cac_complete_report_tlv(unsigned char *buff);
     short create_cac_status_report_tlv(unsigned char *buff);
     short create_channel_pref_tlv_agent(unsigned char *buff);
+    short create_transmit_power_limit_tlv(unsigned char *buff);
 
     int send_channel_sel_request_msg();
     int send_channel_sel_response_msg(em_chan_sel_resp_code_type_t code, unsigned short msg_id);
@@ -53,7 +54,7 @@ public:
     int handle_channel_sel_rsp(unsigned char *buff, unsigned int len);
     int handle_operating_channel_rprt(unsigned char *buff, unsigned int len);
     int handle_channel_sel_req(unsigned char *buff, unsigned int len);
-    int handle_channel_pref_tlv(unsigned char *buff, unsigned int len);
+    int handle_channel_pref_tlv(unsigned char *buff, op_class_channel_sel *op_class);
     int handle_channel_pref_tlv_ctrl(unsigned char *buff, unsigned int len);
     int handle_op_channel_report(unsigned char *buff, unsigned int len);
 

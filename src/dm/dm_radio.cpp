@@ -128,6 +128,10 @@ int dm_radio_t::decode(const cJSON *obj, void *parent_id)
         m_radio_info.ap_metrics_wifi6 = cJSON_IsTrue(tmp);
     }
 
+    if ((tmp = cJSON_GetObjectItem(obj, "TransmitPowerLimit")) != NULL) {
+        m_radio_info.transmit_power_limit = tmp->valuedouble;;
+    }
+
     return 0;
 }
 
@@ -159,6 +163,7 @@ void dm_radio_t::encode(cJSON *obj, bool summary)
     cJSON_AddBoolToObject(obj, "AssociatedSTALinkMetricsInclusionPolicy", m_radio_info.associated_sta_link_mterics_inclusion_policy);
     cJSON_AddStringToObject(obj, "ChipsetVendor", m_radio_info.chip_vendor);
     cJSON_AddBoolToObject(obj, "APMetricsWiFi6", m_radio_info.ap_metrics_wifi6);
+    cJSON_AddNumberToObject(obj, "TransmitPowerLimit", m_radio_info.transmit_power_limit);
 }
 
 dm_orch_type_t dm_radio_t::get_dm_orch_type(const dm_radio_t& radio)
@@ -194,6 +199,7 @@ bool dm_radio_t::operator == (const dm_radio_t& obj) {
     ret += !(this->m_radio_info.associated_sta_link_mterics_inclusion_policy == obj.m_radio_info.associated_sta_link_mterics_inclusion_policy);
     ret += (memcmp(&this->m_radio_info.chip_vendor,&obj.m_radio_info.chip_vendor,sizeof(em_long_string_t)) != 0);
     //ret += !(this->m_radio_info.ap_metrics_wifi6 == obj.m_radio_info.ap_metrics_wifi6);
+    ret += !(this->m_radio_info.transmit_power_limit == obj.m_radio_info.transmit_power_limit);
 
     if (ret > 0)
         return false;
@@ -225,6 +231,7 @@ void dm_radio_t::operator = (const dm_radio_t& obj)
     this->m_radio_info.associated_sta_link_mterics_inclusion_policy = obj.m_radio_info.associated_sta_link_mterics_inclusion_policy;
     memcpy(&this->m_radio_info.chip_vendor,&obj.m_radio_info.chip_vendor,sizeof(em_long_string_t));
     //this->m_radio_info.ap_metrics_wifi6 = obj.m_radio_info.ap_metrics_wifi6;
+    this->m_radio_info.transmit_power_limit = obj.m_radio_info.transmit_power_limit;
 }
 
 dm_radio_t::dm_radio_t(em_radio_info_t *radio)
