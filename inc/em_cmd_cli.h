@@ -31,6 +31,9 @@ class em_cmd_cli_t : public em_cmd_exec_t {
 public:
     static em_cmd_t m_client_cmd_spec[];
 public:
+    int     load_params_file(const char *filename, char *buff);
+    int     write_params_file(const char *filename, char *buff, const char *net_id, const char *header = NULL);
+    int     edit_params_file(const char *filename);
     int execute(em_long_string_t result);
     int update_platform_defaults(em_subdoc_info_t *info, em_cmd_params_t *param, em_cmd_type_t cmd_type);
 

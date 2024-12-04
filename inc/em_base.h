@@ -198,6 +198,8 @@ typedef char    em_subdoc_data_buff_t[EM_SUBDOC_BUFF_SZ];
 typedef char    em_status_string_t[EM_IO_BUFF_SZ];
 typedef unsigned	char    em_raw_data_t[EM_SUBDOC_BUFF_SZ];
 
+typedef int (* em_editor_callback_t)(const char *);
+
 typedef struct {
     unsigned char   dsap;
     unsigned char   ssap;

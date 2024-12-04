@@ -44,7 +44,36 @@
 #include <readline/history.h>
 
 em_cli_t g_cli;
-const char *em_cli_t::m_prompt = "<<OneWifiMeshCli>>: ";
+
+const char *em_cli_t::get_first_cmd_str()
+{
+	return em_cmd_cli_t::m_client_cmd_spec[0].get_cmd_name();
+}
+
+const char *em_cli_t::get_next_cmd_str(const char *cmd)
+{
+	unsigned int i = 0;
+	bool found_match = false;
+
+	if (cmd == NULL) {
+		return NULL;
+	}
+
+	while (em_cmd_cli_t::m_client_cmd_spec[i].get_type() != em_cmd_type_max) {
+		if (strncmp(em_cmd_cli_t::m_client_cmd_spec[i].get_cmd_name(), cmd, strlen(cmd)) == 0) {
+			found_match = true;
+			break;
+		}
+
+		i++;
+	}
+
+	if ((found_match == true) && (em_cmd_cli_t::m_client_cmd_spec[i + 1].get_type() != em_cmd_type_max)) {
+		return em_cmd_cli_t::m_client_cmd_spec[i + 1].get_cmd_name();
+	}
+
+	return NULL;
+}
 
 em_cmd_t& em_cli_t::get_command(char *in, size_t in_len)
 {
@@ -156,47 +185,11 @@ char *em_cli_t::exec(char *in, size_t sz, em_status_string_t out)
     return out;
 }
 
-int em_cli_t::start()
+int em_cli_t::init(em_editor_callback_t cb)
 {
-    char *line = NULL;
-    em_status_string_t output;
+	m_editor_cb = cb;
 
-    while(1) {
-        //show_prompt();
-        line = readline(m_prompt);
-        if (line == NULL || strcmp(line, "exit") == 0) {
-            free(line);
-            break;
-        }
-
-        if (strcmp(line, "history") == 0) {
-            HIST_ENTRY **hist_list = history_list();
-            if (hist_list) {
-                for (int i = 0; hist_list[i]; i++) {
-                    printf("%d. %s\n", i + 1, hist_list[i]->line);
-                }
-            }
-        } else {
-            if (*line) {
-                add_history(line);
-            }
-
-            printf("%s\n", exec(line, strlen(line), output));        
-        }
-
-        free(line);
-    }
-    return 0;
-}
-
-int em_cli_t::init()
-{
-    return 0;
-}
-
-void em_cli_t::show_prompt()
-{
-    printf("%s", m_prompt);
+	return 0;
 }
 
 em_cli_t::em_cli_t()
@@ -209,15 +202,25 @@ em_cli_t::~em_cli_t()
 
 em_cli_t *get_cli()
 {
-    return &g_cli;
+	return &g_cli;
 }
 
-int main(int argc, const char *argv[])
+extern "C" char *exec(char *in, size_t in_len, em_status_string_t out)
 {
-    if (g_cli.init() == 0) {
-        g_cli.start();
-    }
-
-    return 0;
+	return g_cli.exec(in, in_len, out);
+}
+    
+extern "C" int init(em_editor_callback_t func)
+{
+	return g_cli.init(func);
 }
 
+extern "C" const char *get_first_cmd_str()
+{
+	return g_cli.get_first_cmd_str();
+}
+
+extern "C" const char *get_next_cmd_str(const char *cmd)
+{
+	return g_cli.get_next_cmd_str(cmd);
+}

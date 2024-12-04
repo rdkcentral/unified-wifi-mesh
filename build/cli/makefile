@@ -23,6 +23,7 @@ include ../makefile.inc
 #
 
 PROGRAM = $(INSTALLDIR)/bin/onewifi_em_cli
+EM_CLI_LIBRARY = $(INSTALLDIR)/lib/libemcli.so
 
 INCLUDEDIRS = \
 	-I$(ONEWIFI_EM_HOME)/inc \
@@ -34,12 +35,13 @@ INCLUDEDIRS = \
     -I$(RBUS_HOME)/include \
 	-I$(WIFI_CJSON) \
 
-CXXFLAGS = $(INCLUDEDIRS) -g
+CXXFLAGS = $(INCLUDEDIRS) -g -fPIC
+CFLAGS = $(INCLUDEDIRS) -g
 LDFLAGS = $(LIBDIRS) $(LIBS)
 LIBDIRS = \
 	-L$(INSTALLDIR)/lib \
 
-LIBS = -lm -lpthread -ldl -lcjson -lreadline
+LIBS = -lemcli -lm -lpthread -ldl -lcjson -lreadline
 
 GENERIC_SOURCES = $(ONEWIFI_HOME)/source/utils/collection.c
 
@@ -62,14 +64,20 @@ CLI_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/cli/*.cpp) \
     $(ONEWIFI_EM_SRC)/dm/dm_bsta_mld.cpp \
     $(ONEWIFI_EM_SRC)/dm/dm_tid_to_link.cpp \
 
+MAIN_SOURCE = $(ONEWIFI_EM_SRC)/cli/main.c
+
 CLI_OBJECTS = $(CLI_SOURCES:.cpp=.o)
 GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o) 
-ALLOBJECTS = $(CLI_OBJECTS) $(GENERIC_OBJECTS)
+EMCLIOBJECTS = $(CLI_OBJECTS) $(GENERIC_OBJECTS)
+MAIN_OBJECT = $(MAIN_SOURCE:.c=.o) 
 
-all: $(PROGRAM)
+all: $(EM_CLI_LIBRARY) $(PROGRAM)
 
-$(PROGRAM): $(ALLOBJECTS)
-	$(CXX) -o $@ $(ALLOBJECTS) $(LDFLAGS)
+$(PROGRAM): $(MAIN_OBJECT)
+	$(CXX) -o $@ $(MAIN_OBJECT) $(LDFLAGS)
+
+$(EM_CLI_LIBRARY): $(EMCLIOBJECTS)
+	$(CXX) -shared -o $@ $(EMCLIOBJECTS)
 
 $(GENERIC_OBJECTS): %.o: %.c
 	$(CC) $(CXXFLAGS) -o $@ -c $<
@@ -77,11 +85,14 @@ $(GENERIC_OBJECTS): %.o: %.c
 $(CLI_OBJECTS): %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -o $@ -c $<
 
+$(MAIN_OBJECT): %.o: %.c
+	$(CXX) $(CFLAGS) -o $@ -c $<
+
 # Clean target: "make -f Makefile.Linux clean" to remove unwanted objects and executables.
 #
 
 clean:
-	$(RM) $(ALLOBJECTS) $(PROGRAM)
+	$(RM) $(MAIN_OBJECT) $(EMCLIOBJECTS) $(EM_CLI_LIBRARY) $(PROGRAM)
 
 #
 # Run target: "make -f Makefile.Linux run" to execute the application
