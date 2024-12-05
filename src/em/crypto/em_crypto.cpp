@@ -681,12 +681,16 @@ EVP_PKEY* em_crypto_t::create_dh_pkey(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv, BIG
     if (dh_ctx == NULL) {
         goto bail;
     }
-    if (EVP_PKEY_fromdata_init(dh_ctx) != 1) {
+
+    if (EVP_PKEY_keygen_init(dh_ctx) <= 0) {
+        fprintf(stderr, "EVP_PKEY_keygen_init failed\n");
         goto bail;
     }
-    if (EVP_PKEY_fromdata(dh_ctx, &dh_pkey, selection, params) != 1 || dh_pkey == NULL) {
-        goto bail;
-    }
+
+    if (EVP_PKEY_CTX_set_params(dh_ctx, params) != 1) goto bail;
+
+    /* Create key pair */
+    if (EVP_PKEY_generate(dh_ctx, &dh_pkey) != 1) goto bail;
 
     /* Release resources */
     EVP_PKEY_CTX_free(dh_ctx);
