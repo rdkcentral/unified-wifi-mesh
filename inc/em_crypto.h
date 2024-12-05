@@ -47,7 +47,7 @@ private:
     * Securely frees multiple BIGNUM objects
     * @param p, g, priv, pub BIGNUM pointers to free (can be NULL)
     */
-    static void cleanup_bignums(BIGNUM *p, BIGNUM *g, BIGNUM *priv, BIGNUM *pub);
+    //static void cleanup_bignums(BIGNUM *p, BIGNUM *g, BIGNUM *priv, BIGNUM *pub);
 
     /**
     * Helper function to compute a Diffie-Hellman shared secret using version-specific OpenSSL APIs
@@ -64,7 +64,7 @@ private:
     * @note For OpenSSL < 3.0: Uses legacy DH APIs
     * @note For OpenSSL >= 3.0: Uses modern EVP APIs
     */ 
-    static uint8_t compute_secret_internal(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv,  BIGNUM *bn_pub, uint8_t **shared_secret, size_t *secret_len);
+    //static uint8_t compute_secret_internal(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv,  BIGNUM *bn_pub, uint8_t **shared_secret, size_t *secret_len);
 public:
     static uint8_t g_dh1536_g[];
     static uint8_t g_dh1536_p[];
@@ -91,7 +91,7 @@ public:
      * @note The hmac buffer must be pre-allocated with sufficient space for the output
      *       (32 bytes for SHA-256)
      */
-    static uint8_t platform_hmac_hash(const EVP_MD * hashing_algo, uint8_t *key, uint32_t keylen, uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *hmac);
+    //static uint8_t platform_hmac_hash(const EVP_MD * hashing_algo, uint8_t *key, uint32_t keylen, uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *hmac);
 
     /**
     * @brief Convenience wrapper to compute HMAC-SHA256 hash for multiple input elements
@@ -105,9 +105,10 @@ public:
     *
     * @return 1 on success, 0 on failure
     */
-    inline static uint8_t platform_hmac_SHA256(uint8_t *key, uint32_t keylen, uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *hmac) {
-        return platform_hmac_hash(EVP_sha256(), key, keylen, num_elem, addr, len, hmac);
-    }
+    /*inline */static uint8_t platform_hmac_SHA256(uint8_t *key, uint32_t keylen, uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *hmac);
+    //  {
+    //     return platform_hmac_hash(EVP_sha256(), key, keylen, num_elem, addr, len, hmac);
+    // }
     
     /**
     * @brief Computes a cryptographic hash of multiple input elements using OpenSSL
@@ -120,7 +121,7 @@ public:
     *
     * @return 1 on success, 0 on failure
     */
-    static uint8_t platform_hash(const EVP_MD * hashing_algo, uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *digest);
+    //static uint8_t platform_hash(const EVP_MD * hashing_algo, uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *digest);
 
     /**
     * @brief Convenience wrapper to compute SHA-256 hash for multiple input elements
@@ -132,9 +133,10 @@ public:
     * 
     * @return 1 on success, 0 on failure
     */
-    inline static uint8_t platform_SHA256(uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *digest) {
-        return platform_hash(EVP_sha256(), num_elem, addr, len, digest);
-    }
+    /*inline */static uint8_t platform_SHA256(uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *digest);
+    //  {
+    //     return platform_hash(EVP_sha256(), num_elem, addr, len, digest);
+    // }
     
 
     /**
@@ -172,7 +174,7 @@ public:
     * 
     * @note Padding is disabled. Input length must be multiple of block size.
     */
-    static uint8_t platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len);
+    //static uint8_t platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len);
 
     /**
     * @brief Encrypts data using OpenSSL cipher in place
@@ -189,7 +191,7 @@ public:
     *
     * @note Padding is disabled. Input length must be multiple of block size.
     */
-    static uint8_t platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher_text, uint32_t *cipher_len);
+    //static uint8_t platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher_text, uint32_t *cipher_len);
 
     /**
     * @brief Decrypts data using AES-128 in CBC mode (in-place)
@@ -201,9 +203,10 @@ public:
     *
     * @return 1 on success, 0 on failure
     */
-    static inline uint8_t platform_aes_128_cbc_decrypt(uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len) {
-        return platform_cipher_decrypt(EVP_aes_128_cbc(), key, iv, data, data_len);
-    }
+    static uint8_t platform_aes_128_cbc_decrypt(uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len);
+    //  {
+    //     return platform_cipher_decrypt(EVP_aes_128_cbc(), key, iv, data, data_len);
+    // }
     
     /**
     * @brief Encrypts data using AES-128 in CBC mode
@@ -217,9 +220,10 @@ public:
     *
     * @return 1 on success, 0 on failure
     */
-    static inline uint8_t platform_aes_128_cbc_encrypt(uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher_text, uint32_t *cipher_len) {
-        return platform_cipher_encrypt(EVP_aes_128_cbc(), key, iv, plain, plain_len, cipher_text, cipher_len);
-    }
+    static uint8_t platform_aes_128_cbc_encrypt(uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher_text, uint32_t *cipher_len); 
+    // {
+    //     return platform_cipher_encrypt(EVP_aes_128_cbc(), key, iv, plain, plain_len, cipher_text, cipher_len);
+    // }
 
     /**
     * Creates a DH (Diffie-Hellman) key using OpenSSL 3.0+ APIs
@@ -259,6 +263,8 @@ public:
     static uint8_t platform_compute_shared_secret(uint8_t **shared_secret, uint16_t *shared_secret_len,
         uint8_t *remote_pub, uint16_t remote_pub_len,
         uint8_t *local_priv, uint8_t local_priv_len);
+
+    uint8_t get_shared_key(uint8_t **shared_secret, uint16_t *shared_secret_len, uint8_t *remote_pub, uint16_t remote_pub_len, uint8_t *local_priv, uint16_t local_priv_len);
 
     static inline uint8_t generate_iv(unsigned char *iv, unsigned int len) { if (!RAND_bytes(iv, len)) { return 0; } else { return 1; } }
     static inline uint8_t generate_nonce(em_nonce_t nonce) { if (!RAND_bytes(nonce, sizeof(em_nonce_t))) { return 0; } else { return 1; } }
