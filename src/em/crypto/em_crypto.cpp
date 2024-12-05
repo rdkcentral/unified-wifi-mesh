@@ -92,7 +92,7 @@ int em_crypto_t::init()
     DH *dh = NULL;
     //em_util_info_print(EM_CONF,"em_crypto_t::init %s:%d\n",__func__,__LINE__);
 
-    generate_nonce(m_crypto_info.e_nonce);
+    RAND_bytes(m_crypto_info.e_nonce, sizeof(em_nonce_t));
     uuid_generate(m_crypto_info.e_uuid);
 
     //em_util_info_print(EM_CONF,"em_crypto_t::init %s:%d\n",__func__,__LINE__);
@@ -106,6 +106,7 @@ int em_crypto_t::init()
     EVP_PKEY *param_pkey = NULL;
     EVP_PKEY_CTX *pkey_ctx = NULL;
     EVP_PKEY *pkey = NULL;
+    
     int selection = OSSL_KEYMGMT_SELECT_ALL;
 #endif
     /* Create prime and generator by converting binary to BIGNUM format */
@@ -162,16 +163,11 @@ int em_crypto_t::init()
     if (dh_ctx == NULL) {
         goto bail;
     }
-    if (EVP_PKEY_fromdata_init(dh_ctx) != 1) { goto bail; }
-    if (EVP_PKEY_fromdata(dh_ctx, &param_pkey, selection, params) != 1 || param_pkey == NULL) {
-        goto bail;
-    }
+
+    if (EVP_PKEY_CTX_set_params(dh_ctx, params) != 1) goto bail;
 
     /* Create key pair */
-    pkey_ctx = EVP_PKEY_CTX_new_from_pkey(NULL, param_pkey, NULL);
-    if (pkey_ctx == NULL) { goto bail; }
-    if (EVP_PKEY_keygen_init(pkey_ctx) != 1) { goto bail; }
-    if (EVP_PKEY_keygen(pkey_ctx, &pkey) != 1 || pkey == NULL) { goto bail; }
+    if (EVP_PKEY_generate(dh_ctx, &pkey) != 1) goto bail;
 
     // Get private and public keys (post 3.0)
     if (EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_PUB_KEY, &pub_key) != 1) {
