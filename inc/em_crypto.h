@@ -47,7 +47,7 @@ private:
     * Securely frees multiple BIGNUM objects
     * @param p, g, priv, pub BIGNUM pointers to free (can be NULL)
     */
-    //static void cleanup_bignums(BIGNUM *p, BIGNUM *g, BIGNUM *priv, BIGNUM *pub);
+    static void cleanup_bignums(BIGNUM *p, BIGNUM *g, BIGNUM *priv, BIGNUM *pub);
 
     /**
     * Helper function to compute a Diffie-Hellman shared secret using version-specific OpenSSL APIs
@@ -64,7 +64,7 @@ private:
     * @note For OpenSSL < 3.0: Uses legacy DH APIs
     * @note For OpenSSL >= 3.0: Uses modern EVP APIs
     */ 
-    //static uint8_t compute_secret_internal(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv,  BIGNUM *bn_pub, uint8_t **shared_secret, size_t *secret_len);
+    static uint8_t compute_secret_internal(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv,  BIGNUM *bn_pub, uint8_t **shared_secret, size_t *secret_len);
 public:
     static uint8_t g_dh1536_g[];
     static uint8_t g_dh1536_p[];
