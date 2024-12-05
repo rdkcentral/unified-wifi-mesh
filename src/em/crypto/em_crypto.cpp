@@ -408,95 +408,108 @@ uint8_t em_crypto_t:: wps_key_derivation_function(uint8_t *key, uint8_t *label_p
     }
     return 1; 
 }
-uint8_t em_crypto_t::platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher, uint32_t *cipher_len)
+uint8_t em_crypto_t::platform_cipher_encrypt(const EVP_CIPHER *cipher_type, 
+    uint8_t *key, uint8_t *iv,  uint8_t *plain, uint32_t plain_len, 
+    uint8_t *cipher, uint32_t *cipher_len) 
 {
-    if (cipher_type == NULL){
+    if (!cipher_type || !key || !iv || !plain || !cipher || !cipher_len) {
         return 0;
     }
-    EVP_CIPHER_CTX *ctx;
-    int             len = plain_len + AES_BLOCK_SIZE - 1, final_len = 0;
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
-    // OpenSSL 1.0.x uses a stack allocated context
     EVP_CIPHER_CTX _ctx;
     EVP_CIPHER_CTX_init(&_ctx);
-    ctx = &_ctx;
+    EVP_CIPHER_CTX *ctx = &_ctx;
 #else
-    ctx=EVP_CIPHER_CTX_new();
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (!ctx) {
         return 0;
     }
 #endif
+
+    int len = 0, final_len = 0;
+    uint8_t ret = 0;
+
+    // Initialize encryption
     if (EVP_EncryptInit_ex2(ctx, cipher_type, key, iv, NULL) != 1) {
-        return 0;
+        goto cleanup;
     }
 
+    // Disable padding since we're handling fixed-size blocks
     EVP_CIPHER_CTX_set_padding(ctx, 0);
 
-    
+    // Encrypt data
     if (EVP_EncryptUpdate(ctx, cipher, &len, plain, plain_len) != 1) {
-        return 0;
+        goto cleanup;
     }
 
-    //printf("%s:%d: plain len: %d cipher len: %d\n", __func__, __LINE__, plain_len, len);
-
+    // Finalize encryption
     if (EVP_EncryptFinal_ex(ctx, cipher + len, &final_len) != 1) {
-        return 0;
+        goto cleanup;
     }
 
-    *cipher_len = len;
+    *cipher_len = len + final_len;
+    ret = 1;
 
+cleanup:
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX_cleanup(ctx);
 #else
     EVP_CIPHER_CTX_free(ctx);
 #endif
-
-    return 1;
+    return ret;
 }
-uint8_t em_crypto_t::platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len)
+uint8_t em_crypto_t::platform_cipher_decrypt(const EVP_CIPHER *cipher_type, 
+    uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len)
 {
-    if (cipher_type == NULL){
+    if (!cipher_type || !key || !iv || !data || data_len == 0) {
         return 0;
     }
-    EVP_CIPHER_CTX *ctx;
-    int             plen, len;
-    uint8_t         buf[AES_BLOCK_SIZE];
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
-    // OpenSSL 1.0.x uses a stack allocated context
     EVP_CIPHER_CTX _ctx;
     EVP_CIPHER_CTX_init(&_ctx);
-    ctx = &_ctx;
+    EVP_CIPHER_CTX *ctx = &_ctx;
 #else
-    ctx=EVP_CIPHER_CTX_new();
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (!ctx) {
         return 0;
     }
 #endif
-    if (EVP_DecryptInit_ex2(ctx, cipher_type, key, iv, NULL)  != 1) {
-        return 0;
+
+    int plen = 0, final_len = 0;
+    uint8_t ret = 0;
+    uint8_t *buf = NULL;
+
+    // Initialize decryption
+    if (EVP_DecryptInit_ex2(ctx, cipher_type, key, iv, NULL) != 1) {
+        goto cleanup;
     }
 
+    // Disable padding since we're handling fixed-size blocks
     EVP_CIPHER_CTX_set_padding(ctx, 0);
 
-    plen = data_len;
-    if (EVP_DecryptUpdate(ctx, data, &plen, data, data_len) != 1 || plen != (int) data_len) {
-        return 0;
+    // Decrypt data in-place
+    if (EVP_DecryptUpdate(ctx, data, &plen, data, data_len) != 1 || 
+        plen != (int)data_len) {
+        goto cleanup;
     }
 
-    len = sizeof(buf);
-    if (EVP_DecryptFinal_ex(ctx, buf, &len) != 1 || len != 0) {
-        return 0;
+    // Finalize decryption - expect no final block since padding is disabled
+    if (EVP_DecryptFinal_ex(ctx, data + plen, &final_len) != 1 || 
+        final_len != 0) {
+        goto cleanup;
     }
 
+    ret = 1;
+
+cleanup:
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX_cleanup(ctx);
 #else
     EVP_CIPHER_CTX_free(ctx);
 #endif
-
-    return 1;
+    return ret;
 }
 
 
