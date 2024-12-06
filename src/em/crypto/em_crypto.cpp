@@ -700,7 +700,7 @@ EVP_PKEY* em_crypto_t::create_dh_pkey(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv, BIG
     EVP_PKEY *dh_pkey = NULL;
 int selection;
 if (bn_priv) {
-    selection = EVP_PKEY_KEYPAIR;
+    selection = EVP_PKEY_PRIVATE_KEY;
 } else {
     selection = EVP_PKEY_PUBLIC_KEY;
 }
@@ -823,146 +823,64 @@ void em_crypto_t::cleanup_bignums(BIGNUM *p, BIGNUM *g, BIGNUM *priv, BIGNUM *pu
     BN_clear_free(pub);
 }
 
-#if OPENSSL_TEST_VERSION_NUMBER >= 0x30000000L
+#if 1
 uint8_t em_crypto_t::compute_secret_internal(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv, 
                                 BIGNUM *bn_pub, uint8_t **shared_secret,
                                 size_t *secret_len) {
-    EVP_PKEY_CTX *param_ctx = NULL;
-    EVP_PKEY *pkey = NULL;
-    EVP_PKEY_CTX *ctx = NULL;
-    OSSL_PARAM_BLD *param_bld = NULL;
-    OSSL_PARAM *params = NULL;
-    uint8_t ret = 0;
+    if (!p || !g || !bn_priv || !bn_pub) {
+        fprintf(stderr, "Failed to initialize BIGNUMs\n");
+        return 0;
+    }
 
-    EVP_PKEY *peer_key = NULL;
-    OSSL_PARAM *peer_params = NULL;
-    OSSL_PARAM_BLD *peer_bld = NULL;
-    EVP_PKEY_CTX *peer_ctx = NULL;
+    EVP_PKEY* dh_priv = create_dh_pkey(p, g, bn_priv, NULL);
+    EVP_PKEY* dh_pub = create_dh_pkey(p, g, NULL, bn_pub);
+    if (!dh_priv || !dh_pub) {
+        fprintf(stderr, "Failed to create DH keys\n");
+        return 0;
+    }
 
-    printf("Starting DH key computation\n");
+    EVP_PKEY_CTX *ctx;
+    int ret = 0;
+
+    ctx = EVP_PKEY_CTX_new(dh_priv, NULL);
+
+    if (EVP_PKEY_derive_init(ctx) <= 0){
+        printf("EVP_PKEY_derive_init failed\n");
+        goto cleanup;
+    }
+
+    if (EVP_PKEY_derive_set_peer(ctx, dh_pub) <= 0){
+        printf("EVP_PKEY_derive_set_peer failed\n");
+        goto cleanup;
+    }
+
+    /* Determine buffer length */
+    if (EVP_PKEY_derive(ctx, NULL, secret_len) <= 0) {
+        printf("EVP_PKEY_derive failed\n");
+        goto cleanup;
+    }
+
+    *shared_secret = (uint8_t*)OPENSSL_malloc(*secret_len);
+
+    if (!*shared_secret) {
+        printf("malloc failed\n");
+        goto cleanup;
+    }
     
-    param_bld = OSSL_PARAM_BLD_new();
-    if (param_bld == NULL) {
-        printf("Failed to create param_bld\n");
+    if (EVP_PKEY_derive(ctx, *shared_secret, secret_len) <= 0) {
+        printf("EVP_PKEY_derive failed\n");
         goto cleanup;
     }
 
-    if (!OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_FFC_P, p) ||
-        !OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_FFC_G, g) ||
-        !OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_PRIV_KEY, bn_priv)) {
-        printf("Failed to push parameters to param_bld\n");
-        ERR_print_errors_fp(stdout);
-        goto cleanup;
-    }
+    // Print shared secret as hex
+    print_key("Shared secret", *shared_secret, *secret_len);
 
-    params = OSSL_PARAM_BLD_to_param(param_bld);
-    if (params == NULL) {
-        printf("Failed to create params from param_bld\n");
-        ERR_print_errors_fp(stdout);
-        goto cleanup;
-    }
-
-    param_ctx = EVP_PKEY_CTX_new_from_name(NULL, "DH", NULL);
-    if (param_ctx == NULL) {
-        printf("Failed to create param_ctx\n");
-        ERR_print_errors_fp(stdout);
-        goto cleanup;
-    }
-
-    if (EVP_PKEY_fromdata_init(param_ctx) != 1) {
-        printf("Failed to initialize fromdata\n");
-        ERR_print_errors_fp(stdout);
-        goto cleanup;
-    }
-
-    if (EVP_PKEY_fromdata(param_ctx, &pkey, EVP_PKEY_KEYPAIR, params) != 1) {
-        printf("Failed to create pkey from data\n");
-        ERR_print_errors_fp(stdout);
-        goto cleanup;
-    }
-
-    ctx = EVP_PKEY_CTX_new(pkey, NULL);
-    if (ctx == NULL) {
-        printf("Failed to create ctx\n");
-        ERR_print_errors_fp(stdout);
-        goto cleanup;
-    }
-
-    if (EVP_PKEY_derive_init(ctx) != 1) {
-        printf("Failed to initialize derive context\n");
-        ERR_print_errors_fp(stdout);
-        goto cleanup;
-    }
-
-    if ((peer_bld = OSSL_PARAM_BLD_new()) == NULL) {
-        printf("Failed to create peer_bld\n");
-        ERR_print_errors_fp(stdout);
-        goto cleanup;
-    }
-
-    if (!OSSL_PARAM_BLD_push_BN(peer_bld, OSSL_PKEY_PARAM_FFC_P, p) ||
-        !OSSL_PARAM_BLD_push_BN(peer_bld, OSSL_PKEY_PARAM_FFC_G, g) ||
-        !OSSL_PARAM_BLD_push_BN(peer_bld, OSSL_PKEY_PARAM_PUB_KEY, bn_pub)) {
-        printf("Failed to push parameters to peer_bld\n");
-        ERR_print_errors_fp(stdout);
-        goto cleanup;
-    }
-
-    peer_params = OSSL_PARAM_BLD_to_param(peer_bld);
-    if (peer_params == NULL) {
-        printf("Failed to create peer_params\n");
-        ERR_print_errors_fp(stdout);
-        goto cleanup;
-    }
-
-    peer_ctx = EVP_PKEY_CTX_new_from_name(NULL, "DH", NULL);
-    if (peer_ctx == NULL || 
-        EVP_PKEY_fromdata_init(peer_ctx) != 1 ||
-        EVP_PKEY_fromdata(peer_ctx, &peer_key, EVP_PKEY_PUBLIC_KEY, peer_params) != 1) {
-        printf("Failed to create peer key\n");
-        ERR_print_errors_fp(stdout);
-        goto cleanup;
-    }
-
-    if (EVP_PKEY_derive_set_peer(ctx, peer_key) != 1) {
-        printf("Failed to set peer key\n");
-        ERR_print_errors_fp(stdout);
-        goto cleanup;
-    }
-
-    if (EVP_PKEY_derive(ctx, NULL, secret_len) != 1) {
-        printf("Failed to determine secret length\n");
-        ERR_print_errors_fp(stdout);
-        goto cleanup;
-    }
-
-    printf("Allocated secret length: %zu\n", *secret_len);
-    *shared_secret = (uint8_t *)OPENSSL_malloc(*secret_len);
-    if (*shared_secret == NULL) {
-        printf("Failed to allocate shared secret buffer\n");
-        goto cleanup;
-    }
-
-    if (EVP_PKEY_derive(ctx, *shared_secret, secret_len) != 1) {
-        printf("Failed to derive shared secret\n");
-        ERR_print_errors_fp(stdout);
-        OPENSSL_free(*shared_secret);
-        *shared_secret = NULL;
-        goto cleanup;
-    }
-
-    printf("Successfully derived shared secret\n");
     ret = 1;
 
 cleanup:
+    // Cleanup
+
     EVP_PKEY_CTX_free(ctx);
-    EVP_PKEY_CTX_free(param_ctx);
-    EVP_PKEY_free(pkey);
-    OSSL_PARAM_free(params);
-    OSSL_PARAM_BLD_free(param_bld);
-    EVP_PKEY_CTX_free(peer_ctx);
-    OSSL_PARAM_free(peer_params);
-    EVP_PKEY_free(peer_key);
 
     cleanup_bignums(p, g, bn_priv, bn_pub);
     return ret;
