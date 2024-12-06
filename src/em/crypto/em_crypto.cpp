@@ -109,16 +109,10 @@ int em_crypto_t::init()
     //em_util_info_print(EM_CONF,"em_crypto_t::init %s:%d\n",__func__,__LINE__);
     BIGNUM *p = NULL;
     BIGNUM *g = NULL;
-#if OPENSSL_TEST_VERSION_NUMBER < 0x30000000L
-#else
-    OSSL_PARAM_BLD *param_bld = NULL;
-    OSSL_PARAM *params = NULL;
-    EVP_PKEY_CTX *dh_ctx = NULL;
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
     EVP_PKEY *param_pkey = NULL;
     EVP_PKEY_CTX *pkey_ctx = NULL;
     EVP_PKEY *pkey = NULL;
-    
-    int selection = OSSL_KEYMGMT_SELECT_ALL;
 #endif
     /* Create prime and generator by converting binary to BIGNUM format */
     p = BN_bin2bn(g_dh1536_p, sizeof(g_dh1536_p), NULL);
@@ -126,21 +120,14 @@ int em_crypto_t::init()
     g = BN_bin2bn(g_dh1536_g, sizeof(g_dh1536_g), NULL);
     if (!g) { goto bail; }
 
-#if OPENSSL_TEST_VERSION_NUMBER < 0x30000000L
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
     if (NULL == (dh = DH_new())) {
         goto bail;
     }
-#else
-    if (NULL == (param_bld = OSSL_PARAM_BLD_new())) {
-        printf("Failed to create OSSL_PARAM_BLD\n");
-        goto bail;
-    }
-#endif
 
     /* Set prime and generator */
-#if OPENSSL_TEST_VERSION_NUMBER < 0x30000000L 
 
-    #if OPENSSL_TEST_VERSION_NUMBER < 0x10100000L
+    #if OPENSSL_VERSION_NUMBER < 0x10100000L
     dh->p = p;
     dh->g = g;
 
@@ -149,20 +136,7 @@ int em_crypto_t::init()
         goto bail;
     }
     #endif
-#else
-    if (OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_FFC_P, p) != 1 ||
-            OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_FFC_G, g) != 1) {
-        printf("Failed to add DH parameters\n");
-        goto bail;
-    }
-    params = OSSL_PARAM_BLD_to_param(param_bld);
-    if (params == NULL) {
-        printf("Failed to convert to OSSL_PARAM\n");
-        goto bail;
-    }
-#endif
 
-#if OPENSSL_TEST_VERSION_NUMBER < 0x30000000L
     /* Obtain key pair */
     if (0 == DH_generate_key(dh)) {
         goto bail;
@@ -172,22 +146,9 @@ int em_crypto_t::init()
     DH_get0_key(dh, (const BIGNUM**)&pub_key, (const BIGNUM**)&priv_key);
     DH_get0_key(dh, (const BIGNUM**)&pub_key, (const BIGNUM**)&priv_key);
 #else
-    /* Create DH context */
-    dh_ctx = EVP_PKEY_CTX_new_from_name(NULL, "DH", NULL);
-    if (dh_ctx == NULL) {
-        printf("Failed to create DH context\n");
-        goto bail;
-    }
 
-    /* Initialize for parameter generation */
-    if (EVP_PKEY_fromdata_init(dh_ctx) != 1) {
-        printf("Failed to initialize fromdata\n");
-        goto bail;
-    }
-
-    /* Create the parameter key */
-    if (EVP_PKEY_fromdata(dh_ctx, &param_pkey, EVP_PKEY_KEY_PARAMETERS, params) != 1) {
-        printf("Failed to create key from parameters\n");
+    if (NULL == (param_pkey = create_dh_pkey(p, g, NULL, NULL))){
+        printf("Failed to create DH parameter key\n");
         goto bail;
     }
 
@@ -238,7 +199,7 @@ int em_crypto_t::init()
     return 0;
 bail:
 
-#if OPENSSL_TEST_VERSION_NUMBER < 0x30000000L
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
     if (dh) {
         DH_free(dh);
         cleanup_bignums(NULL, NULL, priv_key, pub_key);
@@ -246,9 +207,6 @@ bail:
         cleanup_bignums(p, g, priv_key, pub_key);
     }
 #else
-    if (param_bld) OSSL_PARAM_BLD_free(param_bld);
-    if (params) OSSL_PARAM_free(params);
-    if (dh_ctx) EVP_PKEY_CTX_free(dh_ctx);
     if (param_pkey) EVP_PKEY_free(param_pkey);
     if (pkey_ctx) EVP_PKEY_CTX_free(pkey_ctx);
     if (pkey) EVP_PKEY_free(pkey);
@@ -698,12 +656,14 @@ EVP_PKEY* em_crypto_t::create_dh_pkey(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv, BIG
     OSSL_PARAM *params = NULL;
     EVP_PKEY_CTX *dh_ctx = NULL;
     EVP_PKEY *dh_pkey = NULL;
-int selection;
-if (bn_priv) {
-    selection = EVP_PKEY_PRIVATE_KEY;
-} else {
-    selection = EVP_PKEY_PUBLIC_KEY;
-}
+    int selection;
+    if (bn_priv) {
+        selection = EVP_PKEY_KEYPAIR;
+    } else if (bn_pub) {
+        selection = EVP_PKEY_PUBLIC_KEY;
+    } else {
+        selection = EVP_PKEY_KEY_PARAMETERS;
+    }
 
     param_bld = OSSL_PARAM_BLD_new();
     if (param_bld == NULL) {
@@ -738,11 +698,11 @@ if (bn_priv) {
         goto bail;
     }
 
-printf("Attempt from data\n");
+    printf("Attempt from data\n");
     if (EVP_PKEY_fromdata_init(dh_ctx) != 1) {
         goto bail;
     }
-printf("Attempt pkey gen from data\n");
+    printf("Attempt pkey gen from data\n");
     if (EVP_PKEY_fromdata(dh_ctx, &dh_pkey, selection, params) != 1 || dh_pkey == NULL) {
         goto bail;
     }   
@@ -823,7 +783,7 @@ void em_crypto_t::cleanup_bignums(BIGNUM *p, BIGNUM *g, BIGNUM *priv, BIGNUM *pu
     BN_clear_free(pub);
 }
 
-#if 1
+#if 0
 uint8_t em_crypto_t::compute_secret_internal(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv, 
                                 BIGNUM *bn_pub, uint8_t **shared_secret,
                                 size_t *secret_len) {
