@@ -44,6 +44,7 @@
 #include <openssl/rand.h>
 #include <openssl/evp.h>
 #include <openssl/dh.h>
+#include <openssl/provider.h>
 #include <sys/types.h>
 #include <ifaddrs.h>
 #include "em.h"
@@ -58,7 +59,8 @@
 #include <sstream>
 #include <string>
 
-#define OPENSSL_VERSION_NUMBER 0x10100000L
+//#define OPENSSL_VERSION_NUMBER 0x10100000L
+#define OPENSSL_TEST_VERSION_NUMBER 0x10100000L
 // Initialize the static member variables
 // From RFC 3526
 uint8_t em_crypto_t::g_dh1536_p[] =  {
@@ -81,14 +83,39 @@ uint8_t em_crypto_t::g_dh1536_p[] =  {
 };
 uint8_t em_crypto_t::g_dh1536_g[] = { 0x02 };
 
-em_crypto_t::em_crypto_t()
-{
+static pthread_once_t init_once = PTHREAD_ONCE_INIT;
+
+em_crypto_t::em_crypto_t() {
+
+
+    pthread_once(&init_once, []() {
+        if (OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CONFIG, NULL) == 0) {
+            fprintf(stderr, "OpenSSL initialization failed\n");
+            exit(1);
+        }
+
+        if (OSSL_PROVIDER_load(NULL, "default") == NULL) {
+            fprintf(stderr, "Failed to load default provider\n");
+            exit(1);
+        }
+    });
     m_crypto_info.dh = DH_new();
+}
+
+static void print_key(const char* label, const uint8_t* key, uint16_t len) {
+    printf("%s (%d bytes): ", label, len);
+    for(int i = 0; i < len; i++) {
+        printf("%02X", key[i]);
+    }
+    printf("\n");
 }
 
 int em_crypto_t::init()
 {
-    const BIGNUM *priv_key = NULL, *pub_key = NULL;
+
+    printf("em_crypto_t::init %s:%d\n",__func__,__LINE__);
+     BIGNUM *priv_key = NULL, *pub_key = NULL;
+    DH *dh = NULL;
     //em_util_info_print(EM_CONF,"em_crypto_t::init %s:%d\n",__func__,__LINE__);
 
     RAND_bytes(m_crypto_info.e_nonce, sizeof(em_nonce_t));
@@ -97,108 +124,115 @@ int em_crypto_t::init()
     //em_util_info_print(EM_CONF,"em_crypto_t::init %s:%d\n",__func__,__LINE__);
     BIGNUM *p = NULL;
     BIGNUM *g = NULL;
-#if OPENSSL_VERSION_NUMBER < 0x30000000L
-#else
-    OSSL_PARAM_BLD *param_bld = NULL;
-    OSSL_PARAM *params = NULL;
-    EVP_PKEY_CTX *dh_ctx = NULL;
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
     EVP_PKEY *param_pkey = NULL;
     EVP_PKEY_CTX *pkey_ctx = NULL;
     EVP_PKEY *pkey = NULL;
-    BIGNUM *bn_priv = NULL;
-    BIGNUM *bn_pub = NULL;
-    int selection = OSSL_KEYMGMT_SELECT_ALL;
 #endif
     /* Create prime and generator by converting binary to BIGNUM format */
     p = BN_bin2bn(g_dh1536_p, sizeof(g_dh1536_p), NULL);
-    if (p == NULL) {
-        goto bail;
-    }
+    if (!p) { goto bail; }
     g = BN_bin2bn(g_dh1536_g, sizeof(g_dh1536_g), NULL);
-    if (g == NULL) {
-        goto bail;
-    }
+    if (!g) { goto bail; }
 
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
-    if (NULL == (m_crypto_info.dh = DH_new())) {
+    if (NULL == (dh = DH_new())) {
         goto bail;
     }
-#else
-    param_bld = OSSL_PARAM_BLD_new();
-    if (param_bld == NULL) {
-        goto bail;
-    }
-#endif
 
     /* Set prime and generator */
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    m_crypto_info.dh->p = p;
-    m_crypto_info.dh->g = g;
-#elif OPENSSL_VERSION_NUMBER < 0x30000000L
-    if (DH_set0_pqg(m_crypto_info.dh, p, NULL, g) != 1) {
-        goto bail;
-    }
-#else
-    if (OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_FFC_P, p) != 1 ||
-            OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_FFC_G, g) != 1) {
-        goto bail;
-    }
-    params = OSSL_PARAM_BLD_to_param(param_bld);
-    if (params == NULL) {
-        goto bail;
-    }
-#endif
 
-#if OPENSSL_VERSION_NUMBER < 0x30000000L
+    #if OPENSSL_VERSION_NUMBER < 0x10100000L
+    dh->p = p;
+    dh->g = g;
+
+    #else 
+    if (DH_set0_pqg(dh, p, NULL, g) != 1) {
+        goto bail;
+    }
+    #endif
+
     /* Obtain key pair */
-    if (0 == DH_generate_key(m_crypto_info.dh)) {
+    if (0 == DH_generate_key(dh)) {
         goto bail;
     }
+
+    // Get private and public keys (pre 3.0)
+    DH_get0_key(dh, (const BIGNUM**)&pub_key, (const BIGNUM**)&priv_key);
+    DH_get0_key(dh, (const BIGNUM**)&pub_key, (const BIGNUM**)&priv_key);
 #else
-    /* Create DH context */
-    dh_ctx = EVP_PKEY_CTX_new_from_name(NULL, "DH", NULL);
-    if (dh_ctx == NULL) {
+
+    if (NULL == (param_pkey = create_dh_pkey(p, g, NULL, NULL))){
+        printf("Failed to create DH parameter key\n");
         goto bail;
     }
-    if (EVP_PKEY_fromdata_init(dh_ctx) != 1) {
+
+    /* Create new context for key generation using the parameters */
+    pkey_ctx = EVP_PKEY_CTX_new_from_pkey(NULL, param_pkey, NULL);
+    if (pkey_ctx == NULL) {
+        printf("Failed to create key generation context\n");
         goto bail;
     }
-    if (EVP_PKEY_fromdata(dh_ctx, &param_pkey, selection, params) != 1 || param_pkey == NULL) {
+
+    /* Initialize for key generation */
+    if (EVP_PKEY_keygen_init(pkey_ctx) != 1) {
+        printf("Failed to initialize key generation\n");
         goto bail;
     }
 
     /* Create key pair */
-    pkey_ctx = EVP_PKEY_CTX_new_from_pkey(NULL, param_pkey, NULL);
-    if (pkey_ctx == NULL) {
+    if (EVP_PKEY_keygen(pkey_ctx, &pkey) != 1) {
+        printf("Failed to generate key pair\n");
         goto bail;
     }
-    if (EVP_PKEY_keygen_init(pkey_ctx) != 1) {
+
+    // Get private and public keys (post 3.0)
+    if (EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_PUB_KEY, &pub_key) != 1) {
+        printf("Failed to get public key\n");
         goto bail;
     }
-    if (EVP_PKEY_keygen(pkey_ctx, &pkey) != 1 || pkey == NULL) {
+    if (EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_PRIV_KEY, &priv_key) != 1) {
+        printf("Failed to get private key\n");
         goto bail;
     }
 #endif
 
     // now generate the keys
-    DH_get0_key(m_crypto_info.dh, &pub_key, &priv_key);
     BN_bn2bin(pub_key, m_crypto_info.e_pub);
     BN_bn2bin(priv_key, m_crypto_info.e_priv);
     m_crypto_info.e_pub_len = BN_num_bytes(pub_key);
     m_crypto_info.e_priv_len = BN_num_bytes(priv_key);
     
-    DH_get0_key(m_crypto_info.dh, &pub_key, &priv_key);
     BN_bn2bin(pub_key, m_crypto_info.r_pub);
     BN_bn2bin(priv_key, m_crypto_info.r_priv);
     m_crypto_info.r_pub_len = BN_num_bytes(pub_key);
     m_crypto_info.r_priv_len = BN_num_bytes(priv_key);
+
+    print_key("Public Key", m_crypto_info.e_pub, m_crypto_info.e_pub_len);
+    print_key("Private Key", m_crypto_info.e_priv, m_crypto_info.e_priv_len);
     
     return 0;
 bail:
 
-    // Clean up
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+    if (dh) {
+        DH_free(dh);
+        cleanup_bignums(NULL, NULL, priv_key, pub_key);
+    }else{
+        cleanup_bignums(p, g, priv_key, pub_key);
+    }
+#else
+    if (param_pkey) EVP_PKEY_free(param_pkey);
+    if (pkey_ctx) EVP_PKEY_CTX_free(pkey_ctx);
+    if (pkey) EVP_PKEY_free(pkey);
+
+    cleanup_bignums(p, g, priv_key, pub_key);
+#endif
+
     EVP_cleanup();
     ERR_free_strings();
+
+    printf("em_crypto_t::init failed!%s:%d\n",__func__,__LINE__);
     return -1;
 }
 
@@ -350,7 +384,7 @@ uint8_t em_crypto_t::platform_SHA256(uint8_t num_elem, uint8_t **addr, uint32_t 
     unsigned int  mac_len;
     uint8_t       res = 1;
 
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+#if OPENSSL_TEST_VERSION_NUMBER >= 0x10100000L
     ctx = EVP_MD_CTX_new();
     if (!ctx) {
         return 0;
@@ -383,7 +417,7 @@ uint8_t em_crypto_t::platform_SHA256(uint8_t num_elem, uint8_t **addr, uint32_t 
         }
     }
 
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+#if OPENSSL_TEST_VERSION_NUMBER >= 0x10100000L
     EVP_MD_CTX_free(ctx);
 #endif
 
@@ -393,7 +427,7 @@ uint8_t em_crypto_t::platform_hmac_SHA256(uint8_t *key, uint32_t keylen, uint8_t
         uint32_t *len, uint8_t *hmac)
 {
     //em_util_info_print(EM_CONF," %s:%d\n",__func__,__LINE__);
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#if OPENSSL_TEST_VERSION_NUMBER >= 0x30000000L
     EVP_MD_CTX   *ctx;
     EVP_PKEY     *pkey;
     size_t        mdlen = 32;
@@ -403,9 +437,9 @@ uint8_t em_crypto_t::platform_hmac_SHA256(uint8_t *key, uint32_t keylen, uint8_t
 #endif
     size_t        i;
 
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#if OPENSSL_TEST_VERSION_NUMBER >= 0x30000000L
     ctx = EVP_MD_CTX_new();
-#elif OPENSSL_VERSION_NUMBER >= 0x10100000L
+#elif OPENSSL_TEST_VERSION_NUMBER >= 0x10100000L
     ctx = HMAC_CTX_new();
 #else
     HMAC_CTX  ctx_aux;
@@ -417,7 +451,7 @@ uint8_t em_crypto_t::platform_hmac_SHA256(uint8_t *key, uint32_t keylen, uint8_t
         return 0;
     }
 
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#if OPENSSL_TEST_VERSION_NUMBER >= 0x30000000L
     pkey = EVP_PKEY_new_raw_private_key(EVP_PKEY_HMAC, NULL, key, keylen);
     if (pkey == NULL) {
         goto bail;
@@ -448,10 +482,10 @@ uint8_t em_crypto_t::platform_hmac_SHA256(uint8_t *key, uint32_t keylen, uint8_t
 #endif
 
     /* Release resources */
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#if OPENSSL_TEST_VERSION_NUMBER >= 0x30000000L
     EVP_PKEY_free(pkey);
     EVP_MD_CTX_free(ctx);
-#elif OPENSSL_VERSION_NUMBER >= 0x10100000L
+#elif OPENSSL_TEST_VERSION_NUMBER >= 0x10100000L
     HMAC_CTX_free(ctx);
 #else
     HMAC_CTX_cleanup(ctx);
@@ -460,10 +494,10 @@ uint8_t em_crypto_t::platform_hmac_SHA256(uint8_t *key, uint32_t keylen, uint8_t
     return 1;
 
 bail:
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#if OPENSSL_TEST_VERSION_NUMBER >= 0x30000000L
     EVP_PKEY_free(pkey);
     EVP_MD_CTX_free(ctx);
-#elif OPENSSL_VERSION_NUMBER >= 0x10100000L
+#elif OPENSSL_TEST_VERSION_NUMBER >= 0x10100000L
     HMAC_CTX_free(ctx);
 #else
     HMAC_CTX_cleanup(ctx);
@@ -472,7 +506,7 @@ bail:
     //em_util_info_print(EM_CONF," %s:%d\n",__func__,__LINE__);
     return 0;
 }
-void em_crypto_t:: _I4B(const uint32_t *memory_pointer, uint8_t **packet_ppointer)
+void em_crypto_t:: append_u32_net(const uint32_t *memory_pointer, uint8_t **packet_ppointer)
 {
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
     **packet_ppointer = *(((uint8_t *)memory_pointer)+0); (*packet_ppointer)++;
@@ -510,7 +544,7 @@ uint8_t em_crypto_t:: wps_key_derivation_function(uint8_t *key, uint8_t *label_p
     aux = res_len * 8;
     p   = key_bits;
 
-    _I4B(&aux, &p);
+    append_u32_net(&aux, &p);
 
     addr[0] = i_buf;
     addr[1] = label_prefix;
@@ -527,7 +561,7 @@ uint8_t em_crypto_t:: wps_key_derivation_function(uint8_t *key, uint8_t *label_p
 
     for (i = 1; i <= iter; i++) {
         p = i_buf;
-        _I4B(&i, &p);
+        append_u32_net(&i, &p);
 
         if (platform_hmac_SHA256(key, SHA256_MAC_LEN, 4, addr, len, hash) != 1) {
             //em_util_info_print(EM_CONF,"platform_hmac_SHA256 error %s:%d\n" ,__func__,__LINE__);
@@ -544,15 +578,15 @@ uint8_t em_crypto_t:: wps_key_derivation_function(uint8_t *key, uint8_t *label_p
     }
     return 1; 
 }
-uint8_t em_crypto_t::platform_aes_encrypt(uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher, uint32_t *cipher_len)
+uint8_t em_crypto_t::platform_aes_128_cbc_encrypt(uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher, uint32_t *cipher_len)
 {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if OPENSSL_TEST_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX _ctx;
 #endif
     EVP_CIPHER_CTX *ctx;
     int             len = plain_len + AES_BLOCK_SIZE - 1, final_len = 0;
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if OPENSSL_TEST_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX_init(&_ctx);
     ctx = &_ctx;
 #else
@@ -580,7 +614,7 @@ uint8_t em_crypto_t::platform_aes_encrypt(uint8_t *key, uint8_t *iv, uint8_t *pl
 
     *cipher_len = len;
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if OPENSSL_TEST_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX_cleanup(ctx);
 #else
     EVP_CIPHER_CTX_free(ctx);
@@ -588,16 +622,16 @@ uint8_t em_crypto_t::platform_aes_encrypt(uint8_t *key, uint8_t *iv, uint8_t *pl
 
     return 1;
 }
-uint8_t em_crypto_t::platform_aes_decrypt(uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len)
+uint8_t em_crypto_t::platform_aes_128_cbc_decrypt(uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len)
 {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if OPENSSL_TEST_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX _ctx;
 #endif
     EVP_CIPHER_CTX *ctx;
     int             plen, len;
     uint8_t         buf[AES_BLOCK_SIZE];
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if OPENSSL_TEST_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX_init(&_ctx);
     ctx = &_ctx;
 #else
@@ -622,7 +656,7 @@ uint8_t em_crypto_t::platform_aes_decrypt(uint8_t *key, uint8_t *iv, uint8_t *da
         return 0;
     }
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if OPENSSL_TEST_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX_cleanup(ctx);
 #else
     EVP_CIPHER_CTX_free(ctx);
@@ -637,7 +671,14 @@ EVP_PKEY* em_crypto_t::create_dh_pkey(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv, BIG
     OSSL_PARAM *params = NULL;
     EVP_PKEY_CTX *dh_ctx = NULL;
     EVP_PKEY *dh_pkey = NULL;
-    int selection = EVP_PKEY_KEYPAIR;
+    int selection;
+    if (bn_priv) {
+        selection = EVP_PKEY_KEYPAIR;
+    } else if (bn_pub) {
+        selection = EVP_PKEY_PUBLIC_KEY;
+    } else {
+        selection = EVP_PKEY_KEY_PARAMETERS;
+    }
 
     param_bld = OSSL_PARAM_BLD_new();
     if (param_bld == NULL) {
@@ -664,17 +705,23 @@ EVP_PKEY* em_crypto_t::create_dh_pkey(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv, BIG
         goto bail;
     }
 
+	printf("Generated params\n");
+
     dh_ctx = EVP_PKEY_CTX_new_from_name(NULL, "DH", NULL);
     if (dh_ctx == NULL) {
-        goto bail;
-    }
-    if (EVP_PKEY_fromdata_init(dh_ctx) != 1) {
-        goto bail;
-    }
-    if (EVP_PKEY_fromdata(dh_ctx, &dh_pkey, selection, params) != 1 || dh_pkey == NULL) {
+	printf("Failed to create context\n");
         goto bail;
     }
 
+    printf("Attempt from data\n");
+    if (EVP_PKEY_fromdata_init(dh_ctx) != 1) {
+        goto bail;
+    }
+    printf("Attempt pkey gen from data\n");
+    if (EVP_PKEY_fromdata(dh_ctx, &dh_pkey, selection, params) != 1 || dh_pkey == NULL) {
+        goto bail;
+    }   
+    printf("Succeeded with DH pkey gen\n");
     /* Release resources */
     EVP_PKEY_CTX_free(dh_ctx);
     OSSL_PARAM_free(params);
@@ -691,146 +738,191 @@ bail:
     return NULL;
 }
 #endif
+
 uint8_t em_crypto_t::platform_compute_shared_secret(uint8_t **shared_secret, uint16_t *shared_secret_len,
         uint8_t *remote_pub, uint16_t remote_pub_len,
-        uint8_t *local_priv, uint8_t local_priv_len)
+        uint8_t *local_priv, uint8_t local_priv_len) 
 {
-    BIGNUM *p = NULL;
-    BIGNUM *g = NULL;
-    BIGNUM *bn_priv = NULL;
-    BIGNUM *bn_pub = NULL;
-#if OPENSSL_VERSION_NUMBER < 0x30000000L
-    DH *dh = NULL;
-    size_t rlen;
-#else
-    EVP_PKEY *dh_priv = NULL;
-    EVP_PKEY *dh_pub = NULL;
-    EVP_PKEY_CTX *pkey_ctx = NULL;
-#endif
-    size_t secret_len = 0;
-
-    if (NULL == shared_secret     ||
-            NULL == shared_secret_len ||
-            NULL == remote_pub        ||
-            NULL == local_priv) {
+    if (!shared_secret || !shared_secret_len || !remote_pub || !local_priv) {
+	printf("NULL\n");
         return 0;
     }
 
-    /* Create prime and generator by converting binary to BIGNUM format */
-    p = BN_bin2bn(g_dh1536_p, sizeof(g_dh1536_p), NULL);
-    if (p == NULL) {
-        goto bail;
-    }
-    g = BN_bin2bn(g_dh1536_g, sizeof(g_dh1536_g), NULL);
-    if (g == NULL) {
-        goto bail;
-    }
-    bn_priv = BN_bin2bn(local_priv, local_priv_len, NULL);
-    if (bn_priv == NULL) {
-        goto bail;
-    }
-    bn_pub = BN_bin2bn(remote_pub, remote_pub_len, NULL);
-    if (bn_pub == NULL) {
-        goto bail;
+    if (remote_pub_len == 0 || local_priv_len == 0) {
+        printf("Invalid key lengths: remote_pub_len=%d, local_priv_len=%d\n", 
+               remote_pub_len, local_priv_len);
+        return 0;
     }
 
-#if OPENSSL_VERSION_NUMBER < 0x30000000L
-    if (NULL == (dh = DH_new())) {
-        goto bail;
-    }
-#endif
+    print_key("Remote public key", remote_pub, remote_pub_len);
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+    BIGNUM *p = BN_bin2bn(g_dh1536_p, sizeof(g_dh1536_p), NULL);
+    BIGNUM *g = BN_bin2bn(g_dh1536_g, sizeof(g_dh1536_g), NULL);
+    BIGNUM *bn_priv = BN_bin2bn(local_priv, local_priv_len, NULL);
+    BIGNUM *bn_pub = BN_bin2bn(remote_pub, remote_pub_len, NULL);
+
+    if (!p || !g || !bn_priv || !bn_pub) {
+        cleanup_bignums(p, g, bn_priv, bn_pub);
+	printf("something null\n");
+        return 0;
+    }
+
+    size_t secret_len = 0;
+    uint8_t did_succeed = compute_secret_internal(p, g, bn_priv, bn_pub, 
+                                           shared_secret, &secret_len);
+    
+// #if OPENSSL_TEST_VERSION_NUMBER >= 0x30000000L
+//     // Only cleanup BIGNUMs in OpenSSL 3.0+ path since DH_free handles them in older versions
+//     cleanup_bignums(p, g, bn_priv, bn_pub);
+// #else
+//     BN_clear_free(bn_pub); // Only bn_pub needs to be freed as the DH_free call handles the others
+// #endif
+    
+    if (did_succeed) {
+        *shared_secret_len = secret_len;
+        return 1;
+    }
+
+    free(*shared_secret);
+    *shared_secret = NULL;
+    *shared_secret_len = 0;
+    printf("Internal failed\n");
+    return 0;
+}
+
+
+void em_crypto_t::cleanup_bignums(BIGNUM *p, BIGNUM *g, BIGNUM *priv, BIGNUM *pub) {
+    BN_clear_free(p);
+    BN_clear_free(g);
+    BN_clear_free(priv);
+    BN_clear_free(pub);
+}
+
+#if 1
+uint8_t em_crypto_t::compute_secret_internal(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv, 
+                                BIGNUM *bn_pub, uint8_t **shared_secret,
+                                size_t *secret_len) {
+    if (!p || !g || !bn_priv || !bn_pub) {
+        fprintf(stderr, "Failed to initialize BIGNUMs\n");
+        return 0;
+    }
+
+    EVP_PKEY* dh_priv = create_dh_pkey(p, g, bn_priv, NULL);
+    EVP_PKEY* dh_pub = create_dh_pkey(p, g, NULL, bn_pub);
+    if (!dh_priv || !dh_pub) {
+        fprintf(stderr, "Failed to create DH keys\n");
+        return 0;
+    }
+
+    EVP_PKEY_CTX *ctx;
+    int ret = 0;
+
+    // Thread-local library context (if needed for thread isolation)
+    static thread_local OSSL_LIB_CTX *libctx = nullptr;
+    if (!libctx) {
+        libctx = OSSL_LIB_CTX_new(); // Create a new thread-local context
+        if (!libctx) {
+            fprintf(stderr, "Failed to create thread-local library context\n");
+            return 0;
+        }
+        // Load providers into the thread-local context
+        if (!OSSL_PROVIDER_load(libctx, "default")) {
+            fprintf(stderr, "Failed to load default provider in thread-local context\n");
+            OSSL_LIB_CTX_free(libctx);
+            libctx = nullptr;
+            return 0;
+        }
+    }
+
+    if (NULL == (ctx = EVP_PKEY_CTX_new_from_pkey(libctx, dh_priv, NULL))){
+        printf("EVP_PKEY_CTX_new failed\n");
+        goto cleanup;
+    }
+
+    if (EVP_PKEY_derive_init(ctx) <= 0){
+        printf("EVP_PKEY_derive_init failed\n");
+        goto cleanup;
+    }
+
+    if (EVP_PKEY_derive_set_peer(ctx, dh_pub) <= 0){
+        printf("EVP_PKEY_derive_set_peer failed\n");
+        goto cleanup;
+    }
+
+    /* Determine buffer length */
+    if (EVP_PKEY_derive(ctx, NULL, secret_len) <= 0) {
+        printf("EVP_PKEY_derive failed\n");
+        goto cleanup;
+    }
+
+    *shared_secret = (uint8_t*)OPENSSL_malloc(*secret_len);
+
+    if (!*shared_secret) {
+        printf("malloc failed\n");
+        goto cleanup;
+    }
+    
+    if (EVP_PKEY_derive(ctx, *shared_secret, secret_len) <= 0) {
+        printf("EVP_PKEY_derive failed\n");
+        goto cleanup;
+    }
+
+    // Print shared secret as hex
+    print_key("Shared secret", *shared_secret, *secret_len);
+
+    ret = 1;
+
+cleanup:
+    // Cleanup
+
+    EVP_PKEY_CTX_free(ctx);
+    EVP_PKEY_free(dh_priv);
+    EVP_PKEY_free(dh_pub);
+
+    cleanup_bignums(p, g, bn_priv, bn_pub);
+    return ret;
+}
+#else
+uint8_t em_crypto_t::compute_secret_internal(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv,
+                                BIGNUM *bn_pub, uint8_t **shared_secret,
+                                size_t *secret_len) {
+    DH *dh = DH_new();
+    if (!dh) {
+        BN_clear_free(bn_pub);
+        return 0;
+    }
+
+#if OPENSSL_TEST_VERSION_NUMBER < 0x10100000L
     dh->p = p;
     dh->g = g;
     dh->priv_key = bn_priv;
-#elif OPENSSL_VERSION_NUMBER < 0x30000000L
-    if (DH_set0_pqg(dh, p, NULL, g) != 1) {
-        BN_clear_free(bn_priv);
-        goto bail;
-    }
-    if (DH_set0_key(dh, NULL, bn_priv) != 1) {
-        goto bail;
-    }
 #else
-    dh_priv = create_dh_pkey(p, g, bn_priv, NULL);
-    if (dh_priv == NULL) {
-        goto bail;
-    }
-    dh_pub = create_dh_pkey(p, g, NULL, bn_pub);
-    if (dh_pub == NULL) {
-        goto bail;
+    if (DH_set0_pqg(dh, p, NULL, g) != 1 ||
+        DH_set0_key(dh, NULL, bn_priv) != 1) {
+        DH_free(dh);
+        BN_clear_free(bn_pub);
+        return 0;
     }
 #endif
-
-    /* Allocate output buffer and extract secret onto it */
-#if OPENSSL_VERSION_NUMBER < 0x30000000L
-    rlen = DH_size(dh);
-    *shared_secret = (uint8_t*)malloc(rlen);
-    secret_len = DH_compute_key(*shared_secret, bn_pub, dh);
-    if (secret_len <= 0) {
-        goto bail;
+    int size = DH_size(dh);
+    if (size <= 0) {
+        DH_free(dh);
+        BN_clear_free(bn_pub);
+        return 0;
     }
-
+    *shared_secret = (uint8_t*)calloc(size, sizeof(uint8_t));
+    if (!*shared_secret) {
+        // Memory allocation failed
+        DH_free(dh);
+        BN_clear_free(bn_pub);
+        return 0;
+    }
+    *secret_len = DH_compute_key(*shared_secret, bn_pub, dh);
+    
     DH_free(dh);
     BN_clear_free(bn_pub);
-#else
-    pkey_ctx = EVP_PKEY_CTX_new_from_pkey(NULL, dh_priv, NULL);
-    if (pkey_ctx == NULL) {
-        goto bail;
-    }
-    if (EVP_PKEY_derive_init(pkey_ctx) != 1) {
-        goto bail;
-    }
-    if (EVP_PKEY_derive_set_peer(pkey_ctx, dh_pub) != 1) {
-        goto bail;
-    }
-    if (EVP_PKEY_derive(pkey_ctx, NULL, &secret_len) != 1 || secret_len == 0) {
-        goto bail;
-    }
-    *shared_secret = malloc(secret_len);
-    if (EVP_PKEY_derive(pkey_ctx, *shared_secret, &secret_len) != 1) {
-        goto bail;
-    }
 
-    /* Release resources */
-    EVP_PKEY_CTX_free(pkey_ctx);
-    EVP_PKEY_free(dh_pub);
-    EVP_PKEY_free(dh_priv);
-    BN_clear_free(bn_pub);
-    BN_clear_free(g);
-    BN_clear_free(p);
-#endif
-
-    *shared_secret_len = secret_len;
-
-    return 1;
-
-bail:
-    *shared_secret_len = 0;
-    if (*shared_secret) {
-        free(*shared_secret);
-        *shared_secret = NULL;
-    }
-#if OPENSSL_VERSION_NUMBER < 0x30000000L
-    if (dh) {
-        DH_free(dh);
-    } else {
-        BN_clear_free(bn_priv);
-        BN_clear_free(g);
-        BN_clear_free(p);
-    }
-    BN_clear_free(bn_pub);
-#else
-    EVP_PKEY_CTX_free(pkey_ctx);
-    EVP_PKEY_free(dh_pub);
-    EVP_PKEY_free(dh_priv);
-    BN_clear_free(bn_pub);
-    BN_clear_free(bn_priv);
-    BN_clear_free(g);
-    BN_clear_free(p);
-#endif
-
-    return 0;
+    return (*secret_len > 0) ? 1 : 0;
 }
+#endif
 
