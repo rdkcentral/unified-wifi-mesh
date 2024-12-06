@@ -96,6 +96,8 @@ static void print_key(const char* label, const uint8_t* key, uint16_t len) {
 
 int em_crypto_t::init()
 {
+
+    printf("em_crypto_t::init %s:%d\n",__func__,__LINE__);
      BIGNUM *priv_key = NULL, *pub_key = NULL;
     DH *dh = NULL;
     //em_util_info_print(EM_CONF,"em_crypto_t::init %s:%d\n",__func__,__LINE__);
@@ -123,12 +125,15 @@ int em_crypto_t::init()
     g = BN_bin2bn(g_dh1536_g, sizeof(g_dh1536_g), NULL);
     if (!g) { goto bail; }
 
+    printf("em_crypto_t::init %s:%d\n",__func__,__LINE__);
+
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
     if (NULL == (dh = DH_new())) {
         goto bail;
     }
 #else
     if (NULL == (param_bld = OSSL_PARAM_BLD_new())) {
+        printf("Failed to create OSSL_PARAM_BLD\n");
         goto bail;
     }
 #endif
@@ -148,10 +153,12 @@ int em_crypto_t::init()
 #else
     if (OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_FFC_P, p) != 1 ||
             OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_FFC_G, g) != 1) {
+        printf("Failed to add DH parameters\n");
         goto bail;
     }
     params = OSSL_PARAM_BLD_to_param(param_bld);
     if (params == NULL) {
+        printf("Failed to convert to OSSL_PARAM\n");
         goto bail;
     }
 #endif
@@ -169,19 +176,48 @@ int em_crypto_t::init()
     /* Create DH context */
     dh_ctx = EVP_PKEY_CTX_new_from_name(NULL, "DH", NULL);
     if (dh_ctx == NULL) {
+        printf("Failed to create DH context\n");
         goto bail;
     }
 
-    if (EVP_PKEY_CTX_set_params(dh_ctx, params) != 1) goto bail;
+    /* Initialize for parameter generation */
+    if (EVP_PKEY_fromdata_init(dh_ctx) != 1) {
+        printf("Failed to initialize fromdata\n");
+        goto bail;
+    }
+
+    /* Create the parameter key */
+    if (EVP_PKEY_fromdata(dh_ctx, &param_pkey, EVP_PKEY_KEY_PARAMETERS, params) != 1) {
+        printf("Failed to create key from parameters\n");
+        goto bail;
+    }
+
+    /* Create new context for key generation using the parameters */
+    pkey_ctx = EVP_PKEY_CTX_new_from_pkey(NULL, param_pkey, NULL);
+    if (pkey_ctx == NULL) {
+        printf("Failed to create key generation context\n");
+        goto bail;
+    }
+
+    /* Initialize for key generation */
+    if (EVP_PKEY_keygen_init(pkey_ctx) != 1) {
+        printf("Failed to initialize key generation\n");
+        goto bail;
+    }
 
     /* Create key pair */
-    if (EVP_PKEY_generate(dh_ctx, &pkey) != 1) goto bail;
+    if (EVP_PKEY_keygen(pkey_ctx, &pkey) != 1) {
+        printf("Failed to generate key pair\n");
+        goto bail;
+    }
 
     // Get private and public keys (post 3.0)
     if (EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_PUB_KEY, &pub_key) != 1) {
+        printf("Failed to get public key\n");
         goto bail;
     }
     if (EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_PRIV_KEY, &priv_key) != 1) {
+        printf("Failed to get private key\n");
         goto bail;
     }
 #endif
@@ -223,6 +259,8 @@ bail:
 
     EVP_cleanup();
     ERR_free_strings();
+
+    printf("em_crypto_t::init failed!%s:%d\n",__func__,__LINE__);
     return -1;
 }
 
