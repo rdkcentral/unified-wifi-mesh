@@ -59,6 +59,7 @@
 #include <string>
 
 //#define OPENSSL_VERSION_NUMBER 0x10100000L
+#define OPENSSL_TEST_VERSION_NUMBER 0x10100000L
 // Initialize the static member variables
 // From RFC 3526
 uint8_t em_crypto_t::g_dh1536_p[] =  {
@@ -124,8 +125,6 @@ int em_crypto_t::init()
     if (!p) { goto bail; }
     g = BN_bin2bn(g_dh1536_g, sizeof(g_dh1536_g), NULL);
     if (!g) { goto bail; }
-
-    printf("em_crypto_t::init %s:%d\n",__func__,__LINE__);
 
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
     if (NULL == (dh = DH_new())) {
@@ -412,7 +411,7 @@ uint8_t em_crypto_t::platform_SHA256(uint8_t num_elem, uint8_t **addr, uint32_t 
     unsigned int  mac_len;
     uint8_t       res = 1;
 
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+#if OPENSSL_TEST_VERSION_NUMBER >= 0x10100000L
     ctx = EVP_MD_CTX_new();
     if (!ctx) {
         return 0;
@@ -445,7 +444,7 @@ uint8_t em_crypto_t::platform_SHA256(uint8_t num_elem, uint8_t **addr, uint32_t 
         }
     }
 
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+#if OPENSSL_TEST_VERSION_NUMBER >= 0x10100000L
     EVP_MD_CTX_free(ctx);
 #endif
 
@@ -455,7 +454,7 @@ uint8_t em_crypto_t::platform_hmac_SHA256(uint8_t *key, uint32_t keylen, uint8_t
         uint32_t *len, uint8_t *hmac)
 {
     //em_util_info_print(EM_CONF," %s:%d\n",__func__,__LINE__);
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#if OPENSSL_TEST_VERSION_NUMBER >= 0x30000000L
     EVP_MD_CTX   *ctx;
     EVP_PKEY     *pkey;
     size_t        mdlen = 32;
@@ -465,9 +464,9 @@ uint8_t em_crypto_t::platform_hmac_SHA256(uint8_t *key, uint32_t keylen, uint8_t
 #endif
     size_t        i;
 
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#if OPENSSL_TEST_VERSION_NUMBER >= 0x30000000L
     ctx = EVP_MD_CTX_new();
-#elif OPENSSL_VERSION_NUMBER >= 0x10100000L
+#elif OPENSSL_TEST_VERSION_NUMBER >= 0x10100000L
     ctx = HMAC_CTX_new();
 #else
     HMAC_CTX  ctx_aux;
@@ -479,7 +478,7 @@ uint8_t em_crypto_t::platform_hmac_SHA256(uint8_t *key, uint32_t keylen, uint8_t
         return 0;
     }
 
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#if OPENSSL_TEST_VERSION_NUMBER >= 0x30000000L
     pkey = EVP_PKEY_new_raw_private_key(EVP_PKEY_HMAC, NULL, key, keylen);
     if (pkey == NULL) {
         goto bail;
@@ -510,10 +509,10 @@ uint8_t em_crypto_t::platform_hmac_SHA256(uint8_t *key, uint32_t keylen, uint8_t
 #endif
 
     /* Release resources */
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#if OPENSSL_TEST_VERSION_NUMBER >= 0x30000000L
     EVP_PKEY_free(pkey);
     EVP_MD_CTX_free(ctx);
-#elif OPENSSL_VERSION_NUMBER >= 0x10100000L
+#elif OPENSSL_TEST_VERSION_NUMBER >= 0x10100000L
     HMAC_CTX_free(ctx);
 #else
     HMAC_CTX_cleanup(ctx);
@@ -522,10 +521,10 @@ uint8_t em_crypto_t::platform_hmac_SHA256(uint8_t *key, uint32_t keylen, uint8_t
     return 1;
 
 bail:
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#if OPENSSL_TEST_VERSION_NUMBER >= 0x30000000L
     EVP_PKEY_free(pkey);
     EVP_MD_CTX_free(ctx);
-#elif OPENSSL_VERSION_NUMBER >= 0x10100000L
+#elif OPENSSL_TEST_VERSION_NUMBER >= 0x10100000L
     HMAC_CTX_free(ctx);
 #else
     HMAC_CTX_cleanup(ctx);
@@ -608,13 +607,13 @@ uint8_t em_crypto_t:: wps_key_derivation_function(uint8_t *key, uint8_t *label_p
 }
 uint8_t em_crypto_t::platform_aes_128_cbc_encrypt(uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher, uint32_t *cipher_len)
 {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if OPENSSL_TEST_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX _ctx;
 #endif
     EVP_CIPHER_CTX *ctx;
     int             len = plain_len + AES_BLOCK_SIZE - 1, final_len = 0;
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if OPENSSL_TEST_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX_init(&_ctx);
     ctx = &_ctx;
 #else
@@ -642,7 +641,7 @@ uint8_t em_crypto_t::platform_aes_128_cbc_encrypt(uint8_t *key, uint8_t *iv, uin
 
     *cipher_len = len;
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if OPENSSL_TEST_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX_cleanup(ctx);
 #else
     EVP_CIPHER_CTX_free(ctx);
@@ -652,14 +651,14 @@ uint8_t em_crypto_t::platform_aes_128_cbc_encrypt(uint8_t *key, uint8_t *iv, uin
 }
 uint8_t em_crypto_t::platform_aes_128_cbc_decrypt(uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len)
 {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if OPENSSL_TEST_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX _ctx;
 #endif
     EVP_CIPHER_CTX *ctx;
     int             plen, len;
     uint8_t         buf[AES_BLOCK_SIZE];
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if OPENSSL_TEST_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX_init(&_ctx);
     ctx = &_ctx;
 #else
@@ -684,7 +683,7 @@ uint8_t em_crypto_t::platform_aes_128_cbc_decrypt(uint8_t *key, uint8_t *iv, uin
         return 0;
     }
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if OPENSSL_TEST_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX_cleanup(ctx);
 #else
     EVP_CIPHER_CTX_free(ctx);
