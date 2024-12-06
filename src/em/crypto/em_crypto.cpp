@@ -86,6 +86,14 @@ em_crypto_t::em_crypto_t()
     m_crypto_info.dh = DH_new();
 }
 
+static void print_key(const char* label, const uint8_t* key, uint16_t len) {
+    printf("%s (%d bytes): ", label, len);
+    for(int i = 0; i < len; i++) {
+        printf("%02X", key[i]);
+    }
+    printf("\n");
+}
+
 int em_crypto_t::init()
 {
      BIGNUM *priv_key = NULL, *pub_key = NULL;
@@ -188,6 +196,9 @@ int em_crypto_t::init()
     BN_bn2bin(priv_key, m_crypto_info.r_priv);
     m_crypto_info.r_pub_len = BN_num_bytes(pub_key);
     m_crypto_info.r_priv_len = BN_num_bytes(priv_key);
+
+    print_key("Public Key", m_crypto_info.e_pub, m_crypto_info.e_pub_len);
+    print_key("Private Key", m_crypto_info.e_priv, m_crypto_info.e_priv_len);
     
     return 0;
 bail:
@@ -650,7 +661,12 @@ EVP_PKEY* em_crypto_t::create_dh_pkey(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv, BIG
     OSSL_PARAM *params = NULL;
     EVP_PKEY_CTX *dh_ctx = NULL;
     EVP_PKEY *dh_pkey = NULL;
-    int selection = EVP_PKEY_KEYPAIR;
+int selection;
+if (bn_priv) {
+    selection = EVP_PKEY_KEYPAIR;
+} else {
+    selection = EVP_PKEY_PUBLIC_KEY;
+}
 
     param_bld = OSSL_PARAM_BLD_new();
     if (param_bld == NULL) {
@@ -677,21 +693,23 @@ EVP_PKEY* em_crypto_t::create_dh_pkey(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv, BIG
         goto bail;
     }
 
+	printf("Generated params\n");
+
     dh_ctx = EVP_PKEY_CTX_new_from_name(NULL, "DH", NULL);
     if (dh_ctx == NULL) {
+	printf("Failed to create context\n");
         goto bail;
     }
 
-    if (EVP_PKEY_keygen_init(dh_ctx) <= 0) {
-        fprintf(stderr, "EVP_PKEY_keygen_init failed\n");
+printf("Attempt from data\n");
+    if (EVP_PKEY_fromdata_init(dh_ctx) != 1) {
         goto bail;
     }
-
-    if (EVP_PKEY_CTX_set_params(dh_ctx, params) != 1) goto bail;
-
-    /* Create key pair */
-    if (EVP_PKEY_generate(dh_ctx, &dh_pkey) != 1) goto bail;
-
+printf("Attempt pkey gen from data\n");
+    if (EVP_PKEY_fromdata(dh_ctx, &dh_pkey, selection, params) != 1 || dh_pkey == NULL) {
+        goto bail;
+    }   
+    printf("Succeeded with DH pkey gen\n");
     /* Release resources */
     EVP_PKEY_CTX_free(dh_ctx);
     OSSL_PARAM_free(params);
@@ -708,13 +726,23 @@ bail:
     return NULL;
 }
 #endif
+
 uint8_t em_crypto_t::platform_compute_shared_secret(uint8_t **shared_secret, uint16_t *shared_secret_len,
         uint8_t *remote_pub, uint16_t remote_pub_len,
         uint8_t *local_priv, uint8_t local_priv_len) 
 {
     if (!shared_secret || !shared_secret_len || !remote_pub || !local_priv) {
+	printf("NULL\n");
         return 0;
     }
+
+    if (remote_pub_len == 0 || local_priv_len == 0) {
+        printf("Invalid key lengths: remote_pub_len=%d, local_priv_len=%d\n", 
+               remote_pub_len, local_priv_len);
+        return 0;
+    }
+
+    print_key("Remote public key", remote_pub, remote_pub_len);
 
     BIGNUM *p = BN_bin2bn(g_dh1536_p, sizeof(g_dh1536_p), NULL);
     BIGNUM *g = BN_bin2bn(g_dh1536_g, sizeof(g_dh1536_g), NULL);
@@ -723,6 +751,7 @@ uint8_t em_crypto_t::platform_compute_shared_secret(uint8_t **shared_secret, uin
 
     if (!p || !g || !bn_priv || !bn_pub) {
         cleanup_bignums(p, g, bn_priv, bn_pub);
+	printf("something null\n");
         return 0;
     }
 
@@ -745,6 +774,7 @@ uint8_t em_crypto_t::platform_compute_shared_secret(uint8_t **shared_secret, uin
     free(*shared_secret);
     *shared_secret = NULL;
     *shared_secret_len = 0;
+    printf("Internal failed\n");
     return 0;
 }
 
@@ -762,22 +792,52 @@ uint8_t em_crypto_t::compute_secret_internal(BIGNUM *p, BIGNUM *g, BIGNUM *bn_pr
                                 size_t *secret_len) {
     EVP_PKEY *dh_priv = create_dh_pkey(p, g, bn_priv, NULL);
     EVP_PKEY *dh_pub = create_dh_pkey(p, g, NULL, bn_pub);
+
     if (!dh_priv || !dh_pub) {
+        printf("Failed to create DH keys\n");
+        EVP_PKEY_free(dh_priv);
+        EVP_PKEY_free(dh_pub);
+        return 0;
+    }
+
+    // Add parameter equality check
+    if (!EVP_PKEY_parameters_eq(dh_priv, dh_pub)) {
+        printf("DH parameters mismatch between keys\n");
         EVP_PKEY_free(dh_priv);
         EVP_PKEY_free(dh_pub);
         return 0;
     }
 
     EVP_PKEY_CTX *pkey_ctx = EVP_PKEY_CTX_new_from_pkey(NULL, dh_priv, NULL);
+    if (!pkey_ctx) {
+        printf("Failed to create context\n");
+        goto fail;
+    }
 
-    if (!pkey_ctx) goto fail;
-    if (EVP_PKEY_derive_init(pkey_ctx) != 1) goto fail;
-    if (EVP_PKEY_derive_set_peer(pkey_ctx, dh_pub) != 1) goto fail;
+    if (EVP_PKEY_derive_init(pkey_ctx) != 1) {
+        unsigned long err = ERR_get_error();
+        char err_buf[256];
+        ERR_error_string_n(err, err_buf, sizeof(err_buf));
+        printf("Derive init failed: %s\n", err_buf);
+        goto fail;
+    }
+
+    // Add error printing for the failing operation
+    if (EVP_PKEY_derive_set_peer(pkey_ctx, dh_pub) != 1) {
+        unsigned long err = ERR_get_error();
+        char err_buf[256];
+        ERR_error_string_n(err, err_buf, sizeof(err_buf));
+        printf("Set peer failed: %s\n", err_buf);
+        goto fail;
+    }
+
+
     if (EVP_PKEY_derive(pkey_ctx, NULL, secret_len) != 1 || *secret_len == 0) goto fail;
-
+    printf("Attempting derive\n");
 
     *shared_secret = (uint8_t*) calloc(*secret_len, sizeof(uint8_t));
     if (EVP_PKEY_derive(pkey_ctx, *shared_secret, secret_len) != 1) {
+	printf("Failed derive\n");
         goto fail;
     }
 
