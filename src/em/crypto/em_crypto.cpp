@@ -44,6 +44,7 @@
 #include <openssl/rand.h>
 #include <openssl/evp.h>
 #include <openssl/dh.h>
+#include <openssl/provider.h>
 #include <sys/types.h>
 #include <ifaddrs.h>
 #include "em.h"
@@ -82,8 +83,22 @@ uint8_t em_crypto_t::g_dh1536_p[] =  {
 };
 uint8_t em_crypto_t::g_dh1536_g[] = { 0x02 };
 
-em_crypto_t::em_crypto_t()
-{
+static pthread_once_t init_once = PTHREAD_ONCE_INIT;
+
+em_crypto_t::em_crypto_t() {
+
+
+    pthread_once(&init_once, []() {
+        if (OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CONFIG, NULL) == 0) {
+            fprintf(stderr, "OpenSSL initialization failed\n");
+            exit(1);
+        }
+
+        if (OSSL_PROVIDER_load(NULL, "default") == NULL) {
+            fprintf(stderr, "Failed to load default provider\n");
+            exit(1);
+        }
+    });
     m_crypto_info.dh = DH_new();
 }
 
@@ -783,7 +798,7 @@ void em_crypto_t::cleanup_bignums(BIGNUM *p, BIGNUM *g, BIGNUM *priv, BIGNUM *pu
     BN_clear_free(pub);
 }
 
-#if 0
+#if 1
 uint8_t em_crypto_t::compute_secret_internal(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv, 
                                 BIGNUM *bn_pub, uint8_t **shared_secret,
                                 size_t *secret_len) {
@@ -802,7 +817,27 @@ uint8_t em_crypto_t::compute_secret_internal(BIGNUM *p, BIGNUM *g, BIGNUM *bn_pr
     EVP_PKEY_CTX *ctx;
     int ret = 0;
 
-    ctx = EVP_PKEY_CTX_new(dh_priv, NULL);
+    // Thread-local library context (if needed for thread isolation)
+    static thread_local OSSL_LIB_CTX *libctx = nullptr;
+    if (!libctx) {
+        libctx = OSSL_LIB_CTX_new(); // Create a new thread-local context
+        if (!libctx) {
+            fprintf(stderr, "Failed to create thread-local library context\n");
+            return 0;
+        }
+        // Load providers into the thread-local context
+        if (!OSSL_PROVIDER_load(libctx, "default")) {
+            fprintf(stderr, "Failed to load default provider in thread-local context\n");
+            OSSL_LIB_CTX_free(libctx);
+            libctx = nullptr;
+            return 0;
+        }
+    }
+
+    if (NULL == (ctx = EVP_PKEY_CTX_new_from_pkey(libctx, dh_priv, NULL))){
+        printf("EVP_PKEY_CTX_new failed\n");
+        goto cleanup;
+    }
 
     if (EVP_PKEY_derive_init(ctx) <= 0){
         printf("EVP_PKEY_derive_init failed\n");
@@ -841,6 +876,8 @@ cleanup:
     // Cleanup
 
     EVP_PKEY_CTX_free(ctx);
+    EVP_PKEY_free(dh_priv);
+    EVP_PKEY_free(dh_pub);
 
     cleanup_bignums(p, g, bn_priv, bn_pub);
     return ret;
