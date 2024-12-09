@@ -65,7 +65,9 @@ public:
     //int analyze_network_ssid_list(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_sta_link_metrics(em_cmd_t *pcmd[]);
     int analyze_set_ssid(em_bus_event_t *evt, em_cmd_t *cmd[]);
+    int analyze_set_radio(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_set_channel(em_bus_event_t *evt, em_cmd_t *cmd[]);
+    int analyze_scan_channel(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_set_policy(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_dpp_start(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_sta_steer(em_cmd_steer_params_t &params, em_cmd_t *cmd[]);
@@ -91,9 +93,9 @@ public:
     int get_bss_config(cJSON *parent, char *key);
     int get_network_config(cJSON *parent, char *key);
     int get_device_config(cJSON *parent, char *key, bool summary = false);
-    int get_radio_config(cJSON *parent, char *key);
+    int get_radio_config(cJSON *parent, char *key, em_get_radio_list_reason_t reason = em_get_radio_list_reason_none);
     int get_network_ssid_config(cJSON *parent, char *key);
-    int get_channel_config(cJSON *parent, char *key, bool set_channel = false);
+    int get_channel_config(cJSON *parent, char *key, em_get_channel_list_reason_t reason = em_get_channel_list_reason_none);
     int get_policy_config(cJSON *parent, char *key);
     int get_config(em_long_string_t net_id, em_subdoc_info_t *subdoc);
     int set_config(dm_easy_mesh_t *dm);
@@ -139,8 +141,8 @@ public:
     dm_op_class_t *get_op_class(const char *key) { return m_data_model_list.get_op_class(key); }
     void remove_op_class(const char *key) { m_data_model_list.remove_op_class(key); }
     void put_op_class(const char *key, const dm_op_class_t *op_class) { m_data_model_list.put_op_class(key, op_class); }
-	dm_op_class_t *get_first_anticipated_op_class() { return m_data_model_list.get_first_anticipated_op_class(); }
-    dm_op_class_t *get_next_anticipated_op_class(dm_op_class_t *op_class) { return m_data_model_list.get_next_anticipated_op_class(op_class); }
+	dm_op_class_t *get_first_pre_set_op_class_by_type(em_op_class_type_t type) { return m_data_model_list.get_first_pre_set_op_class_by_type(type); }
+    dm_op_class_t *get_next_pre_set_op_class_by_type(em_op_class_type_t type, dm_op_class_t *op_class) { return m_data_model_list.get_next_pre_set_op_class_by_type(type, op_class); }
 
     dm_network_ssid_t *get_first_network_ssid() { return m_data_model_list.get_first_network_ssid(); }
     dm_network_ssid_t *get_next_network_ssid(dm_network_ssid_t *network_ssid) { return m_data_model_list.get_next_network_ssid(network_ssid); }

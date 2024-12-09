@@ -86,6 +86,7 @@ public:
     int decode_config_set_ssid(em_subdoc_info_t *subdoc, const char *key);
     int decode_config_set_channel(em_subdoc_info_t *subdoc, const char *key, unsigned int index, unsigned int *num);
     int decode_config_set_policy(em_subdoc_info_t *subdoc, const char *key, unsigned int index, unsigned int *num);
+    int decode_config_set_radio(em_subdoc_info_t *subdoc, const char *key, unsigned int index, unsigned int *num);
     int decode_config_op_class_array(cJSON *arr_obj, em_op_class_type_t type, unsigned char *mac);
     
     int encode_config(em_subdoc_info_t *subdoc, const char *key);
@@ -187,14 +188,12 @@ public:
     em_interface_t *get_radio_interface(unsigned int index) { return m_radio[index].get_radio_interface(); }
     em_radio_info_t *get_radio_info(unsigned int index) { return m_radio[index].get_radio_info(); }
     static em_radio_info_t *get_radio_info(void *dm, unsigned int index) { return ((dm_easy_mesh_t *)dm)->get_radio_info(index); }
-
     rdk_wifi_radio_t    *get_radio_data(em_interface_t *radio);
     unsigned int get_num_radios() { return m_num_radios; }
     static unsigned int get_num_radios(void *dm) { return ((dm_easy_mesh_t *)dm)->get_num_radios(); }
     void set_num_radios(unsigned int num) { m_num_radios = num; }
     static void set_num_radios(void *dm, unsigned int num) { ((dm_easy_mesh_t *)dm)->set_num_radios(num); }
     dm_radio_t *find_matching_radio(dm_radio_t *radio);
-
     dm_radio_cap_t *get_radio_cap(mac_address_t mac);
 
     char *get_manufacturer() { return m_device.get_manufacturer(); }
@@ -256,7 +255,7 @@ public:
     void set_em(em_t *em) { m_em = em; }
     void set_colocated(bool col) { m_colocated = col; }
     bool get_colocated() { return m_colocated; }
-	void set_anticipated_channels_list(dm_op_class_t op_class[]);
+	void set_channels_list(dm_op_class_t op_class[], unsigned int num);
 	void set_policy(dm_policy_t policy);
     em_t *get_em() { return m_em; }
     void clone_hash_maps(dm_easy_mesh_t& obj);

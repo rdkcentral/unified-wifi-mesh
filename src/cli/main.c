@@ -60,6 +60,15 @@ int main(int argc, const char *argv[])
 {
    	char *line = NULL;
     em_status_string_t output;
+	em_network_node_t *node;
+
+#ifdef TEST_CLI
+	node = get_network_tree("./NetworkSSID.json");
+	print_network_tree(node);
+	free_network_tree(node);
+
+	return 0;
+#endif
 
 	init(editor);
 

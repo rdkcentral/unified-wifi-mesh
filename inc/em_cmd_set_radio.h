@@ -16,28 +16,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef EM_CMD_CLI_H
-#define EM_CMD_CLI_H
+#ifndef EM_CMD_SET_RADIO_H
+#define EM_CMD_SET_RADIO_H
 
-#include "em_cmd_exec.h"
-#include "dm_easy_mesh.h"
+#include "em_cmd.h"
 
-class em_cli_t;
-extern em_cli_t g_cli;
+class em_cmd_set_radio_t : public em_cmd_t {
 
-class em_cmd_cli_t : public em_cmd_exec_t {
-
-    em_cli_t& m_cli = g_cli;
 public:
-    static em_cmd_t m_client_cmd_spec[];
-public:
-    static int     load_params_file(const char *filename, char *buff);
-    int     write_params_file(const char *filename, char *buff, const char *net_id, const char *header = NULL);
-    int     edit_params_file(const char *filename);
-    int execute(em_long_string_t result);
-    int update_platform_defaults(em_subdoc_info_t *info, em_cmd_params_t *param, em_cmd_type_t cmd_type);
-
-    em_cmd_cli_t(em_cmd_t& obj);
+    em_cmd_set_radio_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif

@@ -45,6 +45,156 @@
 
 em_cli_t g_cli;
 
+void em_cli_t::print_network_tree_node(em_network_node_t *node, unsigned int *pident)
+{
+	unsigned int i, ident = 0;
+	em_long_string_t fmt = {0};
+
+	ident = *pident;
+	ident++;
+	*pident = ident;
+
+	for (i = 0; i < ident; i++) {
+		strncat(fmt, "\t", strlen("\t"));
+	}
+
+	switch (node->type) {
+		case em_network_node_data_type_invalid:
+			break;
+
+		case em_network_node_data_type_false:
+			break;
+
+		case em_network_node_data_type_true:
+			break;
+
+		case em_network_node_data_type_null:
+			break;
+
+		case em_network_node_data_type_number:
+			printf("%s%s:\t%d\n", fmt, node->key, node->value_int);
+			break;
+
+		case em_network_node_data_type_string:
+			printf("%s%s:\t%s\n", fmt, node->key, node->value_str);
+			break;
+
+		case em_network_node_data_type_array:
+		case em_network_node_data_type_obj:
+			printf("%s%s:\t\n", fmt, node->key);
+			break;
+
+		case em_network_node_data_type_raw:
+			break;
+
+	}
+
+	for (i = 0; i < node->num_children; i++) {
+		print_network_tree_node(node->child[i], pident);
+	}
+
+	ident = *pident;
+	ident--;
+	*pident = ident;
+}
+
+void em_cli_t::print_network_tree(em_network_node_t *node)
+{
+	unsigned int ident = 0;
+
+	print_network_tree_node(node, &ident);	
+}
+
+int em_cli_t::get_network_tree_node(cJSON *obj, em_network_node_t *root)
+{
+	cJSON *child_obj, *tmp_obj;
+
+	if (obj->string != NULL) {
+		strncpy(root->key, obj->string, strlen(obj->string) + 1);
+	}
+
+	if (cJSON_IsInvalid(obj) == true) {
+		root->type = em_network_node_data_type_invalid;
+	} else if (cJSON_IsString(obj) == true) {
+		root->type = em_network_node_data_type_string;
+		strncpy(root->value_str, obj->valuestring, strlen(obj->valuestring) + 1);
+	} else if (cJSON_IsNumber(obj) == true) {
+		root->type = em_network_node_data_type_number;
+		root->value_int = obj->valueint;
+	} else if (cJSON_IsArray(obj) == true) {
+		root->type = em_network_node_data_type_array;
+	} else if (cJSON_IsFalse(obj) == true) {
+		root->type = em_network_node_data_type_false;
+	} else if (cJSON_IsTrue(obj) == true) {
+		root->type = em_network_node_data_type_true;
+	} else if (cJSON_IsNull(obj) == true) {
+		root->type = em_network_node_data_type_null;
+	} else if (cJSON_IsRaw(obj) == true) {
+		root->type = em_network_node_data_type_raw;
+	} else if (cJSON_IsObject(obj) == true) {
+		root->type = em_network_node_data_type_obj;
+	}
+
+	if (obj->child == NULL) {
+		root->num_children = 0;
+		return 0;
+	}
+
+	child_obj = obj->child;
+	tmp_obj = child_obj;
+
+	while (tmp_obj != NULL) {
+		root->child[root->num_children] = (em_network_node_t *)malloc(sizeof(em_network_node_t));
+		memset(root->child[root->num_children], 0, sizeof(em_network_node_t));
+		get_network_tree_node(tmp_obj, root->child[root->num_children]);
+			
+		root->num_children++;
+
+		tmp_obj = tmp_obj->next;	
+	}
+	
+	return root->num_children;
+}
+
+em_network_node_t *em_cli_t::get_network_tree(const char *file_name)
+{
+	cJSON *obj = NULL;
+	char buff[EM_IO_BUFF_SZ];
+	em_network_node_t *root;
+
+	if (em_cmd_cli_t::load_params_file(file_name, buff) < 0) {
+		return NULL;
+	}
+
+	if ((obj = cJSON_Parse(buff)) == NULL) {
+		return NULL;
+	}
+
+	root = (em_network_node_t *)malloc(sizeof(em_network_node_t));
+	memset(root, 0, sizeof(em_network_node_t));
+	get_network_tree_node(obj, root);
+
+	cJSON_Delete(obj);
+
+	return root;
+}
+
+void em_cli_t::free_network_tree_node(em_network_node_t *node)
+{
+	unsigned int i;
+
+	for (i = 0; i < node->num_children; i++) {
+		free_network_tree_node(node->child[i]);
+	}
+
+	free(node);
+}
+
+void em_cli_t::free_network_tree(em_network_node_t *node)
+{
+	free_network_tree_node(node);
+}
+
 const char *em_cli_t::get_first_cmd_str()
 {
 	return em_cmd_cli_t::m_client_cmd_spec[0].get_cmd_name();
@@ -137,6 +287,19 @@ em_cmd_t& em_cli_t::get_command(char *in, size_t in_len)
                     if (strncmp(args[num_args - 1], "1", strlen("1")) == 0) {
                         strncat(cmd->m_param.u.args.fixed_args, "Summary@SetAnticipatedChannelPreference", 
 							strlen("Summary@SetAnticipatedChannelPreference"));
+                    } else if (strncmp(args[num_args - 1], "2", strlen("2")) == 0) {
+                        strncat(cmd->m_param.u.args.fixed_args, "Summary@ScanChannel", 
+							strlen("Summary@ScanChannel"));
+					}
+                    break;
+
+				case em_cmd_type_get_radio:
+                    if ((tmp = strstr(cmd->m_param.u.args.fixed_args, "Summary")) != NULL) {
+                        *tmp = 0;
+                    }
+                    if (strncmp(args[num_args - 1], "1", strlen("1")) == 0) {
+                        strncat(cmd->m_param.u.args.fixed_args, "Summary@RadioEnable",
+                            strlen("Summary@RadioEnable"));
                     }
                     break;
 
@@ -223,4 +386,19 @@ extern "C" const char *get_first_cmd_str()
 extern "C" const char *get_next_cmd_str(const char *cmd)
 {
 	return g_cli.get_next_cmd_str(cmd);
+}
+
+extern "C" em_network_node_t *get_network_tree(const char *file_name)
+{
+	return g_cli.get_network_tree(file_name);
+}
+
+extern "C" void free_network_tree(em_network_node_t *node)
+{
+	return g_cli.free_network_tree(node);
+}
+
+extern "C" void print_network_tree(em_network_node_t *node)
+{
+	return g_cli.print_network_tree(node);
 }
