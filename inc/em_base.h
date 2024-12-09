@@ -1387,7 +1387,8 @@ typedef struct {
     unsigned char  mu_edca : 1;
     unsigned char  twt_req : 1;
     unsigned char  twt_resp : 1;
-    unsigned char  reserved : 2;
+    unsigned char  spatial_reuse : 1;
+    unsigned char  reserved : 1;
 } __attribute__((__packed__)) em_radio_wifi6_cap_data_t;
 
 typedef struct {
@@ -2128,6 +2129,18 @@ typedef struct {
     bool    ap_metrics_wifi6;
     em_device_inventory_t inventory_info;
     int     transmit_power_limit;
+    unsigned char partial_bss_color;
+    unsigned char bss_color;
+    bool hesiga_spatial_reuse_value15_allowed;
+    bool srg_information_valid;
+    bool non_srg_offset_valid;
+    bool psr_disallowed;
+    unsigned char non_srg_obsspd_max_offset;
+    unsigned char srg_obsspd_min_offset;
+    unsigned char srg_obsspd_max_offset;
+    unsigned char srg_bss_color_bitmap[8];
+    unsigned char srg_partial_bssid_bitmap[8];
+    unsigned char neigh_bss_color_in_use_bitmap[8];
 } em_radio_info_t;
 
 typedef struct {

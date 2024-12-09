@@ -425,10 +425,12 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
 	op_class_channel_sel *channel_sel;
 	em_op_class_info_t *dm_op_class;
 	em_tx_power_limit_t	*tx_power_limit;
+	em_spatial_reuse_req_t *spatial_reuse_req;
 
 	channel_sel = (op_class_channel_sel*) evt->u.raw_buff;
 	printf("%s:%d No of opclass=%d\n", __func__, __LINE__,channel_sel->num);
-	tx_power_limit = (em_tx_power_limit_t*) ((unsigned char *)evt->u.raw_buff + channel_sel->num * sizeof(em_op_class_info_t));
+	tx_power_limit = (em_tx_power_limit_t*) ((unsigned char *)channel_sel + channel_sel->num * sizeof(em_op_class_info_t));
+	spatial_reuse_req = (em_spatial_reuse_req_t*) ((unsigned char *)tx_power_limit + channel_sel->num * sizeof(em_op_class_info_t));
 
 	noofopclass = dm.get_num_op_class();
 	//TODO Select the right op class and number and configure
@@ -455,6 +457,19 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
 		em_radio_info_t* radio_info = radio->get_radio_info();
 		radio_info->transmit_power_limit = tx_power_limit->tx_power_eirp;
 	}
+
+    dm_radio_t* radio = dm.get_radio(tx_power_limit->ruid);
+    em_radio_info_t* radio_info = radio->get_radio_info();
+    radio_info->bss_color = spatial_reuse_req->bss_color;
+    radio_info->hesiga_spatial_reuse_value15_allowed = spatial_reuse_req->hesiga_spatial_reuse_value15_allowed;
+    radio_info->srg_information_valid = spatial_reuse_req->srg_info_valid;
+    radio_info->non_srg_offset_valid = spatial_reuse_req->non_srg_offset_valid;
+    radio_info->psr_disallowed = spatial_reuse_req->psr_disallowed;
+    radio_info->non_srg_obsspd_max_offset = spatial_reuse_req->non_srg_obsspd_max_offset;
+    radio_info->srg_obsspd_min_offset = spatial_reuse_req->srg_obsspd_min_offset;
+    radio_info->srg_obsspd_max_offset = spatial_reuse_req->srg_obsspd_max_offset;
+    memcpy(radio_info->srg_bss_color_bitmap, spatial_reuse_req->srg_bss_color_bitmap, sizeof(radio_info->srg_bss_color_bitmap));
+    memcpy(radio_info->srg_partial_bssid_bitmap, spatial_reuse_req->srg_partial_bssid_bitmap, sizeof(radio_info->srg_partial_bssid_bitmap));   
 
 	dm.print_config();
 
