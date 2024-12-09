@@ -1,0 +1,54 @@
+name: C/C++ CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout current repository
+      uses: actions/checkout@v4
+      with:
+        path: 'unified-wifi-mesh'
+
+    - name: Clone OneWiFi repository
+      run: |
+        mkdir -p easymesh_project
+        git clone https://github.com/rdkcentral/OneWifi.git easymesh_project/OneWifi
+        mv unified-wifi-mesh easymesh_project/unified-wifi-mesh
+
+    - name: Set up dependencies
+      run: |
+        sudo apt-get update;
+        sudo apt-get upgrade;
+        sudo apt-get install -y vim libev-dev libjansson-dev zlib1g-dev libnl-3-dev libnl-genl-3-dev libnl-route-3-dev libavro-dev libcjson1 libcjson-dev;
+        sudo apt-get install -y libssl-dev uuid-dev libmysqlcppconn-dev libreadline-dev iptables mariadb-server;
+
+    - name: Setup OneWiFi
+      working-directory: easymesh_project/OneWifi
+      run: |
+        make -f build/linux/makefile setup
+
+    - name: Build OneWiFi
+      working-directory: easymesh_project/OneWifi
+      run: |
+        make -f build/linux/makefile all
+
+    - name: Build unified-wifi-mesh controller
+      working-directory: easymesh_project/unified-wifi-mesh/build/ctrl
+      run: |
+        make all
+    - name: Build unified-wifi-mesh agent
+      working-directory: easymesh_project/unified-wifi-mesh/build/agent
+      run: |
+        make all
+    - name: Build unified-wifi-mesh CLI
+      working-directory: easymesh_project/unified-wifi-mesh/build/cli
+      run: |
+        make all
