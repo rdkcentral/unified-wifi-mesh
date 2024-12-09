@@ -42,6 +42,11 @@
 
 int dm_radio_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 {
+	return 0;
+}
+
+int dm_radio_list_t::get_config(cJSON *obj_arr, void *parent, em_get_radio_list_reason_t reason)
+{
     dm_radio_t *pradio;
     cJSON *obj, *sec_obj;
     mac_addr_str_t  mac_str;
@@ -60,7 +65,7 @@ int dm_radio_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
         }
         obj = cJSON_CreateObject();
 
-        pradio->encode(obj, summary);
+        pradio->encode(obj, reason);
         cJSON_AddItemToArray(obj_arr, obj);
         pradio = get_next_radio(pradio);
     }

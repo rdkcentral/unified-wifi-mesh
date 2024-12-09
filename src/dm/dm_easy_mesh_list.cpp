@@ -947,7 +947,7 @@ dm_op_class_t *dm_easy_mesh_list_t::get_op_class(const char *key)
 	return NULL;
 }
 
-dm_op_class_t *dm_easy_mesh_list_t::get_first_anticipated_op_class()
+dm_op_class_t *dm_easy_mesh_list_t::get_first_pre_set_op_class_by_type(em_op_class_type_t type)
 {
 	dm_easy_mesh_t *dm;
 	dm_op_class_t *op_class;
@@ -960,7 +960,7 @@ dm_op_class_t *dm_easy_mesh_list_t::get_first_anticipated_op_class()
 
 	for (i = 0; i < dm->get_num_op_class(); i++) {
 		op_class = &dm->m_op_class[i];
-		if (op_class->m_op_class_info.id.type == em_op_class_type_anticipated) {
+		if (op_class->m_op_class_info.id.type == type) {
 			return op_class;
 		}
 	}	
@@ -968,7 +968,7 @@ dm_op_class_t *dm_easy_mesh_list_t::get_first_anticipated_op_class()
 	return NULL;
 }
 
-dm_op_class_t *dm_easy_mesh_list_t::get_next_anticipated_op_class(dm_op_class_t *op_class)
+dm_op_class_t *dm_easy_mesh_list_t::get_next_pre_set_op_class_by_type(em_op_class_type_t type, dm_op_class_t *op_class)
 {
 	dm_easy_mesh_t *dm;
 	dm_op_class_t *pop_class;
@@ -983,11 +983,11 @@ dm_op_class_t *dm_easy_mesh_list_t::get_next_anticipated_op_class(dm_op_class_t 
 	for (i = 0; i < dm->get_num_op_class(); i++) {
 		pop_class = &dm->m_op_class[i];
 
-		if ((return_next == true) && (pop_class->m_op_class_info.id.type == em_op_class_type_anticipated)) {
+		if ((return_next == true) && (pop_class->m_op_class_info.id.type == type)) {
 			return pop_class;
 		}
 
-		if ((pop_class->m_op_class_info.id.type == em_op_class_type_anticipated) &&
+		if ((pop_class->m_op_class_info.id.type == type) &&
 				(pop_class == op_class)) {
 			return_next = true;
 		}
@@ -1247,10 +1247,13 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
 							0, 0, 0, 0, false, false, false, "", false, false, false}
 					};
     unsigned int i;
-	dm_op_class_t	op_class[] 	= 	{
+	dm_op_class_t	op_class[EM_MAX_PRE_SET_CHANNELS] 	= 	{
 		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 81}, 81, 0, 0, 0, 1, {6}, 0, 0, 0}), 
 		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 115}, 115, 0, 0, 0, 1, {36}, 0, 0, 0}), 
-		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 135}, 135, 0, 0, 0, 1, {1}, 0, 0, 0})
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 135}, 135, 0, 0, 0, 1, {1}, 0, 0, 0}),
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 81}, 81, 0, 0, 0, 3, {3, 6, 9}, 0, 0, 0}),
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 115}, 115, 0, 0, 0, 9, {36, 40, 44, 48, 149, 153, 157, 161, 165}, 0, 0, 0}),
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 135}, 135, 0, 0, 0, 1, {1}, 0, 0, 0})
 									};
 	dm_policy_t	policy[] = {
 								dm_policy_t(em_policy[0]), dm_policy_t(em_policy[1]), 
@@ -1270,7 +1273,7 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
     memcpy(dev->m_device_info.id.mac, al_mac, sizeof(mac_address_t));
     strncpy(dev->m_device_info.net_id, net_id, strlen(net_id) + 1);
     dev->m_device_info.profile = profile;
-	dm->set_anticipated_channels_list(op_class);
+	dm->set_channels_list(op_class, EM_MAX_PRE_SET_CHANNELS);
 	
 	for (i = 0; i < sizeof(em_policy)/sizeof(em_policy_t); i++) {
 		dm->set_policy(policy[i]);

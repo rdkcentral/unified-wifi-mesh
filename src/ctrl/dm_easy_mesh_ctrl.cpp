@@ -44,6 +44,8 @@
 #include "em_cmd_remove_device.h"
 #include "em_cmd_set_ssid.h"
 #include "em_cmd_set_channel.h"
+#include "em_cmd_scan_channel.h"
+#include "em_cmd_set_radio.h"
 #include "em_cmd_set_policy.h"
 #include "em_cmd_topo_sync.h"
 #include "em_cmd_em_config.h"
@@ -601,6 +603,46 @@ int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[
 	return num;
 }
 
+int dm_easy_mesh_ctrl_t::analyze_scan_channel(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    int ret;
+    em_subdoc_info_t *subdoc;
+    dm_easy_mesh_t dm, *pdm;
+    em_cmd_t *tmp;
+    unsigned int num = 0, num_devices = 0, i = 0;
+    unsigned int db_cfg_type = 0;
+        
+    subdoc = &evt->u.subdoc;
+        
+    if ((ret = dm.decode_config(subdoc, "ChannelScanRequest", i, &num_devices)) < 0) {
+        return ret;
+    } 
+        
+    assert(dm.get_num_op_class() == EM_MAX_BANDS);
+        
+    pdm = m_data_model_list.get_first_dm();
+    while (pdm != NULL) {
+        pdm->set_channels_list(dm.m_op_class, dm.get_num_op_class());
+    
+        db_cfg_type = pdm->get_db_cfg_type();   
+        pdm->set_db_cfg_type(db_cfg_type_op_class_list_update);
+        pdm = m_data_model_list.get_next_dm(pdm);
+    }
+
+
+    pcmd[num] = new em_cmd_scan_channel_t(evt->params, dm);
+    tmp = pcmd[num];
+    num++;
+
+    while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+        tmp = pcmd[num];
+        num++;
+    }
+
+    return num;
+
+}
+
 int dm_easy_mesh_ctrl_t::analyze_set_channel(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     int ret;
@@ -620,7 +662,7 @@ int dm_easy_mesh_ctrl_t::analyze_set_channel(em_bus_event_t *evt, em_cmd_t *pcmd
 
 	pdm = m_data_model_list.get_first_dm();
 	while (pdm != NULL) {
-		pdm->set_anticipated_channels_list(dm.m_op_class);
+		pdm->set_channels_list(dm.m_op_class, dm.get_num_op_class());
 
 		db_cfg_type = pdm->get_db_cfg_type();	
 		pdm->set_db_cfg_type(db_cfg_type_op_class_list_update);
@@ -638,6 +680,79 @@ int dm_easy_mesh_ctrl_t::analyze_set_channel(em_bus_event_t *evt, em_cmd_t *pcmd
    	}
 
 	return num;
+}
+
+int dm_easy_mesh_ctrl_t::analyze_set_radio(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    int ret;
+    unsigned int num = 0, num_devices = 0;
+    em_subdoc_info_t *subdoc;
+    dm_easy_mesh_t dm, tgt, *pdm;
+    unsigned int i = 0, j, k;
+    em_cmd_t *tmp;
+    dm_radio_t *radio, *pradio;
+    mac_addr_str_t mac_str;
+   
+    subdoc = &evt->u.subdoc;
+
+    do {
+        dm.reset();
+
+        if ((ret = dm.decode_config(subdoc, "RadioEnable", i, &num_devices)) < 0) {
+            return ret;
+        }
+
+		dm_easy_mesh_t::macbytes_to_string(dm.m_device.m_device_info.id.mac, mac_str);
+
+		// Now check the difference with existing
+		if ((pdm = get_data_model(dm.m_network.m_net_info.id, dm.m_device.m_device_info.id.mac)) == NULL) {
+			printf("%s:%d: Getting data model for Network:%s and Device:%s failed\n", __func__, __LINE__, 
+				dm.m_network.m_net_info.id, mac_str);
+			return 0;
+		}
+
+		//Copy the networlk information to target
+		tgt.m_network = dm.m_network;
+		tgt.m_device = dm.m_device;
+
+		dm_easy_mesh_t::macbytes_to_string(dm.m_device.m_device_info.id.mac, mac_str);
+		//printf("%s:%d: Decoded device: %s, Radios: %d\n", __func__, __LINE__, mac_str, dm.get_num_radios());
+		dm_easy_mesh_t::macbytes_to_string(pdm->m_device.m_device_info.id.mac, mac_str);
+		//printf("%s:%d: Datamodel device: %s, Radios: %d\n", __func__, __LINE__, mac_str, pdm->get_num_radios());
+		
+		assert(memcmp(dm.m_device.m_device_info.id.mac, pdm->m_device.m_device_info.id.mac, sizeof(mac_address_t)) == 0);
+
+		for (j = 0; j < dm.get_num_radios(); j++) {
+			radio = &dm.m_radio[j];	
+			for (k = 0; k < pdm->get_num_radios(); k++) {
+				pradio = &pdm->m_radio[k];
+				if (memcmp(radio->m_radio_info.id.mac, pradio->m_radio_info.id.mac, sizeof(mac_address_t)) == 0) {
+					if (radio->m_radio_info.enabled != pradio->m_radio_info.enabled) {
+						printf("%s:%d: Radio: %s changed, adding to target\n", __func__, __LINE__, mac_str);
+						tgt.m_radio[tgt.m_num_radios] = dm.m_radio[j];
+						tgt.m_num_radios++;	
+					} else {
+						dm_easy_mesh_t::macbytes_to_string(radio->m_radio_info.id.mac, mac_str);
+						printf("%s:%d: Radio: %s hasn't changed, not adding\n", __func__, __LINE__, mac_str);
+					}
+				}
+			}
+		}	
+
+        pcmd[num] = new em_cmd_set_radio_t(evt->params, tgt);
+        tmp = pcmd[num];
+        num++;
+
+        while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+            tmp = pcmd[num];
+            num++;
+        }
+
+        i++;
+    } while (i < num_devices);
+
+    return num;
+
 }
 
 int dm_easy_mesh_ctrl_t::analyze_set_ssid(em_bus_event_t *evt, em_cmd_t *pcmd[])
@@ -943,7 +1058,8 @@ int dm_easy_mesh_ctrl_t::get_bss_config(cJSON *parent, char *key)
     for (i = 0; i < cJSON_GetArraySize(dev_list_obj); i++) {
         dev_obj = cJSON_GetArrayItem(dev_list_obj, i);
         radio_list_obj = cJSON_AddArrayToObject(dev_obj, "RadioList");
-        dm_radio_list_t::get_config(radio_list_obj, cJSON_GetStringValue(cJSON_GetObjectItem(dev_obj, "ID")), true);
+        dm_radio_list_t::get_config(radio_list_obj, cJSON_GetStringValue(cJSON_GetObjectItem(dev_obj, "ID")), 
+				em_get_radio_list_reason_radio_summary);
         for (j = 0; j < cJSON_GetArraySize(radio_list_obj); j++) {
             radio_obj = cJSON_GetArrayItem(radio_list_obj, j);
             tmp = cJSON_GetStringValue(cJSON_GetObjectItem(radio_obj, "ID"));
@@ -994,7 +1110,8 @@ int dm_easy_mesh_ctrl_t::get_sta_config(cJSON *parent, char *key, em_get_sta_lis
     for (i = 0; i < cJSON_GetArraySize(dev_list_obj); i++) {
         dev_obj = cJSON_GetArrayItem(dev_list_obj, i);
         radio_list_obj = cJSON_AddArrayToObject(dev_obj, "RadioList");
-        dm_radio_list_t::get_config(radio_list_obj, cJSON_GetStringValue(cJSON_GetObjectItem(dev_obj, "ID")), true);
+        dm_radio_list_t::get_config(radio_list_obj, cJSON_GetStringValue(cJSON_GetObjectItem(dev_obj, "ID")), 
+				em_get_radio_list_reason_radio_summary);
         for (j = 0; j < cJSON_GetArraySize(radio_list_obj); j++) {
             radio_obj = cJSON_GetArrayItem(radio_list_obj, j);
             tmp = cJSON_GetStringValue(cJSON_GetObjectItem(radio_obj, "ID"));
@@ -1023,20 +1140,23 @@ int dm_easy_mesh_ctrl_t::get_network_ssid_config(cJSON *parent, char *key)
     return 0;
 }
 
-int dm_easy_mesh_ctrl_t::get_channel_config(cJSON *parent, char *key, bool set_channel)
+int dm_easy_mesh_ctrl_t::get_channel_config(cJSON *parent, char *key, em_get_channel_list_reason_t reason)
 {
     cJSON *net_obj, *dev_list_obj, *dev_obj, *radio_list_obj, *radio_obj, *op_class_list_obj;
-	cJSON *preferred_channels_list_obj, *anticipated_channel_list_obj;
+	cJSON *preferred_channels_list_obj, *channel_list_obj;
     unsigned int i, j;
     char *tmp;
     em_long_string_t op_key;
-		
+
     net_obj = cJSON_AddObjectToObject(parent, "Network");
     dm_network_list_t::get_config(net_obj, key, true);
 
-	if (set_channel == true) {
-    	anticipated_channel_list_obj = cJSON_AddArrayToObject(net_obj, "AnticipatedChannelPreference");
-    	dm_op_class_list_t::get_config(anticipated_channel_list_obj, em_op_class_type_anticipated);
+	if (reason == em_get_channel_list_reason_set_anticipated) {
+    	channel_list_obj = cJSON_AddArrayToObject(net_obj, "AnticipatedChannelPreference");
+    	dm_op_class_list_t::get_config(channel_list_obj, em_op_class_type_anticipated);
+	} else if (reason == em_get_channel_list_reason_scan_params) {
+    	channel_list_obj = cJSON_AddArrayToObject(net_obj, "ChannelScanParameters");
+    	dm_op_class_list_t::get_config(channel_list_obj, em_op_class_type_scan_param);
 	}
 
     dev_list_obj = cJSON_AddArrayToObject(net_obj, "DeviceList");
@@ -1045,7 +1165,8 @@ int dm_easy_mesh_ctrl_t::get_channel_config(cJSON *parent, char *key, bool set_c
     for (i = 0; i < cJSON_GetArraySize(dev_list_obj); i++) {	
         dev_obj = cJSON_GetArrayItem(dev_list_obj, i);
         radio_list_obj = cJSON_AddArrayToObject(dev_obj, "RadioList");
-        dm_radio_list_t::get_config(radio_list_obj, cJSON_GetStringValue(cJSON_GetObjectItem(dev_obj, "ID")), true);
+        dm_radio_list_t::get_config(radio_list_obj, cJSON_GetStringValue(cJSON_GetObjectItem(dev_obj, "ID")), 
+				em_get_radio_list_reason_radio_summary);
         for (j = 0; j < cJSON_GetArraySize(radio_list_obj); j++) {
             radio_obj = cJSON_GetArrayItem(radio_list_obj, j);
             tmp = cJSON_GetStringValue(cJSON_GetObjectItem(radio_obj, "ID"));
@@ -1062,7 +1183,7 @@ int dm_easy_mesh_ctrl_t::get_channel_config(cJSON *parent, char *key, bool set_c
     return 0;
 }
 
-int dm_easy_mesh_ctrl_t::get_radio_config(cJSON *parent, char *key)
+int dm_easy_mesh_ctrl_t::get_radio_config(cJSON *parent, char *key, em_get_radio_list_reason_t reason)
 {
     cJSON *net_obj, *dev_list_obj, *dev_obj, *radio_list_obj, *radio_obj, *op_class_list_obj;
 	unsigned int i;
@@ -1076,7 +1197,7 @@ int dm_easy_mesh_ctrl_t::get_radio_config(cJSON *parent, char *key)
 	for (i = 0; i < cJSON_GetArraySize(dev_list_obj); i++) {	
 		dev_obj = cJSON_GetArrayItem(dev_list_obj, i);
 		radio_list_obj = cJSON_AddArrayToObject(dev_obj, "RadioList");
-		dm_radio_list_t::get_config(radio_list_obj, cJSON_GetStringValue(cJSON_GetObjectItem(dev_obj, "ID")));
+		dm_radio_list_t::get_config(radio_list_obj, cJSON_GetStringValue(cJSON_GetObjectItem(dev_obj, "ID")), reason);
 	}
 
 	return 0;
@@ -1141,12 +1262,16 @@ int dm_easy_mesh_ctrl_t::get_config(em_long_string_t net_id, em_subdoc_info_t *s
         get_device_config(parent, net_id, true);
     } else if (strncmp(subdoc->name, "RadioList", strlen(subdoc->name)) == 0) {
         get_radio_config(parent, net_id);
+    } else if (strncmp(subdoc->name, "RadioListSummary@RadioEnable", strlen(subdoc->name)) == 0) {
+        get_radio_config(parent, net_id, em_get_radio_list_reason_radio_enable);
     } else if (strncmp(subdoc->name, "NetworkSSIDList", strlen(subdoc->name)) == 0) {
         get_network_ssid_config(parent, net_id);
     } else if (strncmp(subdoc->name, "ChannelList", strlen(subdoc->name)) == 0) {
         get_channel_config(parent, net_id);
     } else if (strncmp(subdoc->name, "ChannelListSummary@SetAnticipatedChannelPreference", strlen(subdoc->name)) == 0) {
-        get_channel_config(parent, net_id, true);
+        get_channel_config(parent, net_id, em_get_channel_list_reason_set_anticipated);
+    } else if (strncmp(subdoc->name, "ChannelListSummary@ScanChannel", strlen(subdoc->name)) == 0) {
+        get_channel_config(parent, net_id, em_get_channel_list_reason_scan_params);
     } else if (strncmp(subdoc->name, "BSSList", strlen(subdoc->name)) == 0) {
         get_bss_config(parent, net_id);
     } else if (strncmp(subdoc->name, "STAList", strlen(subdoc->name)) == 0) {

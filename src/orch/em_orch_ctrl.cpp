@@ -75,6 +75,7 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
     switch (pcmd->m_type) {
         case em_cmd_type_set_ssid:
         case em_cmd_type_cfg_renew:
+		case em_cmd_type_set_radio:
             if (em->get_renew_tx_count() >= EM_MAX_RENEW_TX_THRESH) {
                 em->set_renew_tx_count(0);
                 printf("%s:%d: Maximum renew tx threshold crossed, transitioning to fini\n", __func__, __LINE__);
@@ -105,6 +106,7 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             break;
         
         case em_cmd_type_set_channel:
+        case em_cmd_type_scan_channel:
             if (em->get_state() == em_state_ctrl_configured) {                               
 				return true;
             }
@@ -164,6 +166,7 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 {
     switch (pcmd->m_type) {
         case em_cmd_type_set_ssid:
+        case em_cmd_type_set_radio:
             return true;
             break;
 
@@ -196,6 +199,7 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
         case em_cmd_type_sta_disassoc:
         case em_cmd_type_sta_link_metrics:
         case em_cmd_type_set_channel:
+        case em_cmd_type_scan_channel:
         case em_cmd_type_set_policy:
             if (em->get_state() == em_state_ctrl_configured) {
                 return true;
@@ -392,6 +396,7 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 break;
             
             case em_cmd_type_set_channel:
+            case em_cmd_type_scan_channel:
                 if (em->is_al_interface_em() == false) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
@@ -417,6 +422,7 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 break;
 
 			case em_cmd_type_set_policy:
+			case em_cmd_type_set_radio:
 				dm = pcmd->get_data_model();
 				for (i = 0; i < dm->get_num_radios(); i++) {
 					if (memcmp(em->get_radio_interface_mac(), dm->m_radio[i].m_radio_info.id.mac, sizeof(mac_address_t)) == 0) {

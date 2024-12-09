@@ -137,10 +137,12 @@ bool em_orch_t::submit_command(em_cmd_t *pcmd)
 void em_orch_t::destroy_command(em_cmd_t *pcmd)
 {
     unsigned int count;
+	em_t *em;
 
     // remove candidates from queue
     while (count = queue_count(pcmd->m_em_candidates)) {
-        queue_remove(pcmd->m_em_candidates, count - 1);
+        em = (em_t *)queue_remove(pcmd->m_em_candidates, count - 1);
+		em->clear_cmd();	
     }	
 
     pcmd->deinit();

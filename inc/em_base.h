@@ -31,6 +31,7 @@
 #define MAX_INTF_NAME_SZ    16
 #define EM_MAC_STR_LEN  17
 #define EM_MAX_COLS     32
+#define EM_MAX_DM_CHILDREN	32
 
 #define EM_PROTO_TOUT   1
 #define EM_MGR_TOUT     1
@@ -67,7 +68,7 @@
 //#define   EM_SUBDOC_BUFF_SZ   4096*100
 #define EM_BUFF_SZ_MUL  20
 #define EM_SUBDOC_BUFF_SZ   EM_IO_BUFF_SZ*EM_BUFF_SZ_MUL
-#define EM_MAX_CHANNELS_IN_LIST  8
+#define EM_MAX_CHANNELS_IN_LIST  9
 #define EM_MAX_CMD_GEN_TTL  10
 #define EM_MAX_CMD_EXT_TTL  30
 #define EM_MAX_RENEW_TX_THRESH  5
@@ -130,6 +131,7 @@
 #define EM_MAX_HAUL_TYPES   3
 #define EM_MAX_OPCLASS  64
 #define EM_MAX_AP_MLD   64
+#define EM_MAX_PRE_SET_CHANNELS   6
 
 #define EM_MAX_CMD  16
 
@@ -545,6 +547,9 @@ typedef enum {
     em_tlv_type_bsta_mld_config = 0xe1,
     em_tlv_type_tid_to_link_map_policy = 0xe6,
     em_tlv_eht_operations = 0xe7,
+
+	// RDK Proprietary TLV values
+	em_tlv_type_rdk_radio_enable = 0xfe,
 } em_tlv_type_t;
 
 typedef struct {
@@ -657,14 +662,18 @@ typedef struct {
 }__attribute__((__packed__)) em_channel_scan_result_t;
 
 typedef struct {
+    unsigned char op_class;
+    unsigned char num_channels;
+    unsigned char channel_list[0]; 
+} __attribute__((__packed__)) em_channel_scan_req_op_class_t;
+
+typedef struct {
     unsigned char perform_fresh_scan : 1;
     unsigned char reserved : 7;
     unsigned char num_radios;
     em_radio_id_t ruid;
     unsigned char num_op_classes;
-    unsigned char op_class;
-    unsigned char num_channels;
-    unsigned char channel_list[0]; 
+	em_channel_scan_req_op_class_t op_class[0];
 }__attribute__((__packed__)) em_channel_scan_req_t;
 
 typedef struct {
@@ -1699,6 +1708,7 @@ typedef enum {
     em_state_ctrl_channel_selected,
     em_state_ctrl_channel_cnf_pending,
     em_state_ctrl_channel_report_pending,
+	em_state_ctrl_channel_scan_pending,
     em_state_ctrl_configured,
     em_state_ctrl_misconfigured,
     em_state_ctrl_sta_cap_pending,
@@ -1718,6 +1728,7 @@ typedef enum {
     em_cmd_type_get_device,
     em_cmd_type_remove_device,
     em_cmd_type_get_radio,
+    em_cmd_type_set_radio,
     em_cmd_type_get_ssid,
     em_cmd_type_set_ssid,
     em_cmd_type_get_channel,
@@ -1732,7 +1743,6 @@ typedef enum {
     em_cmd_type_dev_test,
     em_cmd_type_cfg_renew,
     em_cmd_type_vap_config,
-    em_cmd_type_radio_config,
     em_cmd_type_sta_list,
     em_cmd_type_start_dpp,
     em_cmd_type_ap_cap_query,
@@ -1902,6 +1912,7 @@ typedef enum {
 	em_op_class_type_cac_active,
     em_op_class_type_preference,
     em_op_class_type_anticipated,
+    em_op_class_type_scan_param,
 } em_op_class_type_t;
 
 typedef struct {
@@ -1931,21 +1942,6 @@ typedef struct {
     unsigned char detected_pairs_num;
 	em_cac_comp_rprt_pair_t	detected_pairs[EM_MAX_CAC_METHODS];
 } em_cac_comp_info_t;
-
-/*typedef struct {    
-    em_interface_t  ruid;
-    em_ap_ht_cap_t  ht_cap;
-    em_ap_vht_cap_t vht_cap;
-    em_ap_he_cap_t  he_cap;
-    em_long_string_t    eht_cap;
-    em_radio_wifi6_cap_data_t wifi6_cap;
-    em_radio_info_t ch_scan;
-    em_ap_radio_advanced_cap_t radio_ad_cap;
-    em_profile_2_ap_cap_t   prof_2_ap_cap;
-    em_cac_cap_radio_t cac_cap;
-    em_metric_cltn_interval_t metric_interval;
-    unsigned int        num_op_classes;
-} em_radio_cap_info_t;*/
 
 typedef struct {
     mac_address_t   id;
@@ -2271,6 +2267,7 @@ typedef enum {
     em_bus_event_type_get_device,
     em_bus_event_type_remove_device,
     em_bus_event_type_get_radio,
+    em_bus_event_type_set_radio,
     em_bus_event_type_get_ssid,
     em_bus_event_type_set_ssid,
     em_bus_event_type_get_channel,
@@ -2375,6 +2372,7 @@ typedef enum {
     dm_orch_type_channel_sel,
     dm_orch_type_channel_cnf,
     dm_orch_type_channel_sel_resp,
+    dm_orch_type_channel_scan_req,
     dm_orch_type_sta_cap,
     dm_orch_type_sta_link_metrics,
     dm_orch_type_op_channel_report,
@@ -2634,6 +2632,19 @@ typedef enum {
 } em_get_sta_list_reason_t;
 
 typedef enum {
+	em_get_radio_list_reason_none,
+	em_get_radio_list_reason_radio_summary,
+	em_get_radio_list_reason_radio_enable,
+	em_get_radio_list_reason_channel_scan,
+} em_get_radio_list_reason_t;
+
+typedef enum {
+	em_get_channel_list_reason_none,
+	em_get_channel_list_reason_set_anticipated,
+	em_get_channel_list_reason_scan_params,
+} em_get_channel_list_reason_t;
+
+typedef enum {
 	em_policy_id_type_steering_local,
 	em_policy_id_type_steering_btm,
 	em_policy_id_type_steering_param,
@@ -2675,5 +2686,28 @@ typedef struct {
 	bool	profile_1_sta_disallowed;
 	bool	profile_2_sta_disallowed;
 } em_policy_t;
+
+
+typedef enum {
+    em_network_node_data_type_invalid,
+    em_network_node_data_type_false,
+    em_network_node_data_type_true,
+    em_network_node_data_type_null,
+    em_network_node_data_type_number,
+    em_network_node_data_type_string,
+    em_network_node_data_type_array,
+    em_network_node_data_type_obj,
+    em_network_node_data_type_raw,
+} em_network_node_data_type_t;
+
+typedef struct em_network_node {
+    em_short_string_t   key;
+    em_network_node_data_type_t type;
+    em_long_string_t    value_str;
+    unsigned int        value_int;
+    unsigned int        num_children;
+    struct em_network_node     *child[EM_MAX_DM_CHILDREN];
+} em_network_node_t;
+
 
 #endif // EM_BASE_H

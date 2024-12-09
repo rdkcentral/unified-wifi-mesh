@@ -47,13 +47,14 @@ em_cmd_params_t spec_params[] = {
 	{.u = {.args = {0, {"", "", "", "", ""}, "none"}}},
 	{.u = {.args = {3, {"", "", "", "", ""}, "Reset.json"}}},
 	{.u = {.args = {1, {"", "", "", "", ""}, "Radiocap.json"}}},
+	{.u = {.args = {1, {"", "", "", "", ""}, "DevTest.json"}}},
 	{.u = {.args = {1, {"", "", "", "", ""}, "CfgRenew.json"}}},
-	{.u = {.args = {1, {"", "", "", "", ""}, "RadioConfig.json"}}},
 	{.u = {.args = {1, {"", "", "", "", ""}, "VapConfig.json"}}},
 	{.u = {.args = {2, {"", "", "", "", ""}, "Network"}}},
 	{.u = {.args = {2, {"", "", "", "", ""}, "DeviceList"}}},
 	{.u = {.args = {2, {"", "", "", "", ""}, "DeviceList.json"}}},
 	{.u = {.args = {2, {"", "", "", "", ""}, "RadioList"}}},
+	{.u = {.args = {2, {"", "", "", "", ""}, "RadioList.json"}}},
 	{.u = {.args = {2, {"", "", "", "", ""}, "NetworkSSIDList"}}},
 	{.u = {.args = {2, {"", "", "", "", ""}, "NetworkSSID.json"}}},
 	{.u = {.args = {2, {"", "", "", "", ""}, "ChannelList"}}},
@@ -78,27 +79,27 @@ em_cmd_t em_cmd_cli_t::m_client_cmd_spec[] = {
     em_cmd_t(em_cmd_type_ap_cap_query, spec_params[2]),
     em_cmd_t(em_cmd_type_dev_test, spec_params[3]),
     em_cmd_t(em_cmd_type_cfg_renew, spec_params[4]),
-    em_cmd_t(em_cmd_type_radio_config, spec_params[4]),
     em_cmd_t(em_cmd_type_vap_config, spec_params[5]),
     em_cmd_t(em_cmd_type_get_network, spec_params[6]),
     em_cmd_t(em_cmd_type_get_device, spec_params[7]),
     em_cmd_t(em_cmd_type_remove_device, spec_params[8]),
     em_cmd_t(em_cmd_type_get_radio, spec_params[9]),
-    em_cmd_t(em_cmd_type_get_ssid, spec_params[10]),
-    em_cmd_t(em_cmd_type_set_ssid, spec_params[11]),
-    em_cmd_t(em_cmd_type_get_channel, spec_params[12]),
-    em_cmd_t(em_cmd_type_set_channel, spec_params[13]),
-    em_cmd_t(em_cmd_type_scan_channel, spec_params[14]),
-    em_cmd_t(em_cmd_type_get_bss, spec_params[15]),
-    em_cmd_t(em_cmd_type_get_sta, spec_params[16]),
-    em_cmd_t(em_cmd_type_steer_sta, spec_params[17]),
-    em_cmd_t(em_cmd_type_disassoc_sta, spec_params[18]),
-    em_cmd_t(em_cmd_type_btm_sta, spec_params[19]),
-    em_cmd_t(em_cmd_type_start_dpp, spec_params[20]),
-    em_cmd_t(em_cmd_type_client_cap_query, spec_params[21]),
-    em_cmd_t(em_cmd_type_get_policy, spec_params[22]),
-    em_cmd_t(em_cmd_type_set_policy, spec_params[23]),
-    em_cmd_t(em_cmd_type_max, spec_params[24]),
+    em_cmd_t(em_cmd_type_set_radio, spec_params[10]),
+    em_cmd_t(em_cmd_type_get_ssid, spec_params[11]),
+    em_cmd_t(em_cmd_type_set_ssid, spec_params[12]),
+    em_cmd_t(em_cmd_type_get_channel, spec_params[13]),
+    em_cmd_t(em_cmd_type_set_channel, spec_params[14]),
+    em_cmd_t(em_cmd_type_scan_channel, spec_params[15]),
+    em_cmd_t(em_cmd_type_get_bss, spec_params[16]),
+    em_cmd_t(em_cmd_type_get_sta, spec_params[17]),
+    em_cmd_t(em_cmd_type_steer_sta, spec_params[18]),
+    em_cmd_t(em_cmd_type_disassoc_sta, spec_params[19]),
+    em_cmd_t(em_cmd_type_btm_sta, spec_params[20]),
+    em_cmd_t(em_cmd_type_start_dpp, spec_params[21]),
+    em_cmd_t(em_cmd_type_client_cap_query, spec_params[22]),
+    em_cmd_t(em_cmd_type_get_policy, spec_params[23]),
+    em_cmd_t(em_cmd_type_set_policy, spec_params[24]),
+    em_cmd_t(em_cmd_type_max, spec_params[25]),
 };
 
 int em_cmd_cli_t::update_platform_defaults(em_subdoc_info_t *subdoc, em_cmd_params_t *param, em_cmd_type_t cmd_type)
@@ -361,6 +362,24 @@ int em_cmd_cli_t::execute(em_string_t res)
             strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
             break;
 
+        case em_cmd_type_set_radio:
+            snprintf(in, sizeof(in), "get_radio %s 1", m_cmd.m_param.u.args.args[1]);
+            get_cli()->exec(in, strlen(in), out);
+            write_params_file(m_cmd.m_param.u.args.fixed_args, out, m_cmd.m_param.u.args.args[1], "RadioEnable");
+            bevt->type = em_bus_event_type_set_radio;
+			if (edit_params_file(m_cmd.m_param.u.args.fixed_args) != 0) {
+                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
+                return -1;
+			}	
+            bevt->type = em_bus_event_type_set_radio;
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
+			if ((info->sz = load_params_file(m_cmd.m_param.u.args.fixed_args, info->buff)) < 0) {
+                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
+                return -1;
+            }
+            break;
+
         case em_cmd_type_get_ssid:
             bevt->type = em_bus_event_type_get_ssid;
             info = &bevt->u.subdoc;
@@ -402,6 +421,24 @@ int em_cmd_cli_t::execute(em_string_t res)
             info = &bevt->u.subdoc;
             strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
             if ((info->sz = load_params_file(m_cmd.m_param.u.args.fixed_args, info->buff)) < 0) {
+                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
+                return -1;
+            }
+            break;
+
+        case em_cmd_type_scan_channel:
+            snprintf(in, sizeof(in), "get_channel %s 2", m_cmd.m_param.u.args.args[1]);
+            get_cli()->exec(in, strlen(in), out);
+            write_params_file(m_cmd.m_param.u.args.fixed_args, out, m_cmd.m_param.u.args.args[1], "ChannelScanRequest");
+            bevt->type = em_bus_event_type_set_radio;
+			if (edit_params_file(m_cmd.m_param.u.args.fixed_args) != 0) {
+                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
+                return -1;
+			}	
+            bevt->type = em_bus_event_type_scan_channel;
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
+			if ((info->sz = load_params_file(m_cmd.m_param.u.args.fixed_args, info->buff)) < 0) {
                 printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
                 return -1;
             }
