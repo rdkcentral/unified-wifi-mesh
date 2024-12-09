@@ -91,6 +91,7 @@ public:
     void orch_execute(em_cmd_t *pcmd);
     em_orch_state_t get_orch_state() { return m_orch_state; }
     void set_orch_state(em_orch_state_t state);
+	void clear_cmd() { m_cmd = NULL; }
 
     em_state_t get_state() { return m_sm.get_state(); }
     void set_state(em_state_t state) {  m_sm.set_state(state); }
@@ -106,6 +107,7 @@ public:
     em_interface_t  *get_radio_interface() { return &m_ruid; }
     unsigned char   *get_radio_interface_mac() { return m_ruid.mac; }
     char *get_radio_interface_name() { return m_ruid.name; }
+	dm_radio_t *get_radio_from_dm(bool command_dm = false);
 
     unsigned char *get_al_interface_mac() { return (m_service_type == em_service_type_agent) ? 
             m_data_model->get_agent_al_interface_mac():m_data_model->get_ctrl_al_interface_mac(); }

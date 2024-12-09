@@ -45,7 +45,6 @@ em_cmd_t em_cmd_agent_t::m_client_cmd_spec[] = {
     em_cmd_t(em_cmd_type_none,em_cmd_params_t{0, {"", "", "", "", ""}, "none"}),
     em_cmd_t(em_cmd_type_dev_init,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:Network"}),
     em_cmd_t(em_cmd_type_cfg_renew, em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:Renew"}),
-    em_cmd_t(em_cmd_type_radio_config,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:RadioConfig"}),
     em_cmd_t(em_cmd_type_vap_config,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:BssConfig"}),
     em_cmd_t(em_cmd_type_sta_list,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:StaList"}),
     em_cmd_t(em_cmd_type_ap_cap_query,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:CapReport"}),

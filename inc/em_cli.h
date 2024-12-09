@@ -32,6 +32,13 @@ public:
     int init(em_editor_callback_t func);
 	const char *get_first_cmd_str();
 	const char *get_next_cmd_str(const char *cmd);
+	
+	em_network_node_t *get_network_tree(const char *file_name);
+	int get_network_tree_node(cJSON *obj, em_network_node_t *root);
+	void free_network_tree(em_network_node_t *tree);
+	void free_network_tree_node(em_network_node_t *node);
+	void print_network_tree(em_network_node_t *tree);
+	void print_network_tree_node(em_network_node_t *node, unsigned int *pident);
 
     em_cli_t();
     ~em_cli_t();

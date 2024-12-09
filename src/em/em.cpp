@@ -70,6 +70,7 @@ void em_t::orch_execute(em_cmd_t *pcmd)
 			break;
 
         case em_cmd_type_set_ssid:
+        case em_cmd_type_set_radio:
             m_sm.set_state(em_state_ctrl_misconfigured);
 			break;
 
@@ -132,6 +133,10 @@ void em_t::orch_execute(em_cmd_t *pcmd)
 
         case em_cmd_type_set_channel:
             m_sm.set_state(em_state_ctrl_channel_select_pending);
+            break;
+
+        case em_cmd_type_scan_channel:
+            m_sm.set_state(em_state_ctrl_channel_scan_pending);
             break;
 
         case em_cmd_type_sta_steer:
@@ -275,6 +280,7 @@ void em_t::handle_ctrl_state()
     cmd_type = m_cmd->m_type;
     switch (cmd_type) {
         case em_cmd_type_set_ssid:
+        case em_cmd_type_set_radio:
         case em_cmd_type_cfg_renew:
             em_configuration_t::process_ctrl_state();
             break;
@@ -284,6 +290,10 @@ void em_t::handle_ctrl_state()
             em_configuration_t::process_ctrl_state();
             em_channel_t::process_ctrl_state();
             break;
+
+		case em_cmd_type_scan_channel:
+            em_channel_t::process_ctrl_state();
+			break;
 
         case em_cmd_type_dev_test:
             em_channel_t::process_ctrl_state();
@@ -557,6 +567,37 @@ em_rd_freq_band_t em_t::map_freq_band_to_rf_band(em_freq_band_t band)
     } else {
         return em_rd_freq_band_unknown; // Return unknown for other values
     }
+}
+
+dm_radio_t *em_t::get_radio_from_dm(bool command_dm)
+{
+	dm_easy_mesh_t *dm;
+	bool match_found = false;
+	dm_radio_t *radio;
+	unsigned int i;
+
+	if (command_dm == false) {
+		dm = get_data_model();
+	} else {
+		if (get_current_cmd() == NULL) {
+			return NULL;
+		}
+
+		dm = get_current_cmd()->get_data_model();
+		if (dm == NULL) {
+			return NULL;
+		}
+	}
+
+	for (i = 0; i < dm->get_num_radios(); i++) {
+		radio = &dm->m_radio[i];
+		if (memcmp(get_radio_interface_mac(), radio->m_radio_info.id.mac, sizeof(mac_address_t)) == 0) {
+			match_found = true;
+			break;
+		}
+	}
+
+	return (match_found == true) ? radio:NULL;
 }
 
 short em_t::create_ap_radio_basic_cap(unsigned char *buff) {
@@ -862,6 +903,7 @@ const char *em_t::state_2_str(em_state_t state)
 		EM_STATE_2S(em_state_ctrl_channel_selected)
 		EM_STATE_2S(em_state_ctrl_channel_report_pending)
 		EM_STATE_2S(em_state_ctrl_channel_cnf_pending)
+		EM_STATE_2S(em_state_ctrl_channel_scan_pending)
 		EM_STATE_2S(em_state_ctrl_configured)
 		EM_STATE_2S(em_state_ctrl_misconfigured)
 		EM_STATE_2S(em_state_ctrl_sta_cap_pending)

@@ -72,7 +72,9 @@ int dm_op_class_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 	    	for (i = 0; i < pop_class->m_op_class_info.num_channels; i++) {
             	cJSON_AddItemToArray(non_op_arr, cJSON_CreateNumber(pop_class->m_op_class_info.channels[i]));
         	}
-    	} else if ((id.type == em_op_class_type_preference) || (id.type == em_op_class_type_anticipated)) {
+    	} else if ((id.type == em_op_class_type_preference) || 
+							(id.type == em_op_class_type_anticipated) ||
+							(id.type == em_op_class_type_scan_param)) {
 			anticipated_arr = cJSON_AddArrayToObject(obj, "ChannelList");
 			for (i = 0; i < pop_class->m_op_class_info.num_channels; i++) {
             	cJSON_AddItemToArray(anticipated_arr, cJSON_CreateNumber(pop_class->m_op_class_info.channels[i]));
@@ -93,13 +95,13 @@ int dm_op_class_list_t::get_config(cJSON *obj_arr, em_op_class_type_t type)
 	unsigned int i;
 
 	// only anticipated is implemented now
-	if (type != em_op_class_type_anticipated) {
-		printf("%s:%d: Non anticipated category not imeplemented\n", __func__, __LINE__);
+	if ((type != em_op_class_type_anticipated) && (type != em_op_class_type_scan_param)) {
+		printf("%s:%d: Non anticipated category not imeplemented, type: %d\n", __func__, __LINE__, type);
 		assert(0);
 		return -1;
 	}		
 
-	op_class = (dm_op_class_t *)get_first_anticipated_op_class();
+	op_class = (dm_op_class_t *)get_first_pre_set_op_class_by_type(type);
 	while (op_class) {
        	obj = cJSON_CreateObject(); 
 
@@ -110,7 +112,7 @@ int dm_op_class_list_t::get_config(cJSON *obj_arr, em_op_class_type_t type)
        	}
 
 		cJSON_AddItemToArray(obj_arr, obj);
-		op_class = (dm_op_class_t *)get_next_anticipated_op_class(op_class);
+		op_class = (dm_op_class_t *)get_next_pre_set_op_class_by_type(type, op_class);
 	}
 }
 

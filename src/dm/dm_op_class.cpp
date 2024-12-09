@@ -153,7 +153,9 @@ bool dm_op_class_t::operator == (const dm_op_class_t& obj)
     	ret += !(this->m_op_class_info.sec_remain_non_occ_dur == obj.m_op_class_info.sec_remain_non_occ_dur);
 	} else if (this->m_op_class_info.id.type == em_op_class_type_cac_active) {
     	ret += !(this->m_op_class_info.countdown_cac_comp == obj.m_op_class_info.countdown_cac_comp);
-    } else if ((this->m_op_class_info.id.type == em_op_class_type_preference) || (this->m_op_class_info.id.type == em_op_class_type_anticipated)) {
+    } else if ((this->m_op_class_info.id.type == em_op_class_type_preference) || 
+						(this->m_op_class_info.id.type == em_op_class_type_anticipated) ||
+						(this->m_op_class_info.id.type == em_op_class_type_scan_param)) {
         ret += !(this->m_op_class_info.num_channels == obj.m_op_class_info.num_channels);
         ret += (memcmp(this->m_op_class_info.channels, obj.m_op_class_info.channels, sizeof(unsigned int) * EM_MAX_CHANNELS_IN_LIST) != 0);
 	} 

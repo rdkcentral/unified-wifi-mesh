@@ -1652,6 +1652,10 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, em_hau
     unsigned char *tmp = buff;
     unsigned short sz = 0;
     unsigned short type = htons(ETH_P_1905);
+	dm_radio_t *radio, *pradio;
+
+	radio = get_radio_from_dm();
+	pradio = get_radio_from_dm(true);
 
     // first compute keys
     if (compute_keys(get_e_public(), get_e_public_len(), get_r_private(), get_r_private_len()) != 1) {
@@ -1689,6 +1693,22 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, em_hau
     
     tmp += (sizeof(em_tlv_t) + sizeof(mac_address_t));
     len += (sizeof(em_tlv_t) + sizeof(mac_address_t));
+
+	// RDK proprietary tlv for radio enable/disable
+	tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_rdk_radio_enable;
+	
+	if (pradio != NULL) {
+    	memcpy(tlv->value, &pradio->m_radio_info.enabled, sizeof(unsigned char));
+		radio->m_radio_info.enabled = pradio->m_radio_info.enabled;
+	} else {
+    	memcpy(tlv->value, &radio->m_radio_info.enabled, sizeof(unsigned char));
+	}
+
+    tlv->len = htons(sizeof(unsigned char));
+    
+    tmp += (sizeof(em_tlv_t) + sizeof(unsigned char));
+    len += (sizeof(em_tlv_t) + sizeof(unsigned char));
 
     // As many wsc tlv containing M2 as number of BSS
     for (i = 0; i < num_hauls; i++) {
@@ -2497,6 +2517,7 @@ int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned 
 
 	radio_info = &radio->m_radio_info;
 	memcpy(radio_info->id.mac, ruid, sizeof(mac_address_t));
+	radio_info->enabled = true;
 	radio_info->number_of_bss = radio_basic_cap->num_bss;
 	db_cfg_type = dm->get_db_cfg_type();
 	dm->set_db_cfg_type(db_cfg_type | db_cfg_type_radio_list_update);
