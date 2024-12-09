@@ -34,7 +34,7 @@ public:
     char *get_radio_interface_name() { return m_radio_info.id.name; }
     unsigned char *get_radio_id() { return m_radio_info.id.mac; }
     int decode(const cJSON *obj, void *parent_id);
-    void encode(cJSON *obj, bool summary = false);
+    void encode(cJSON *obj, em_get_radio_list_reason_t reason = em_get_radio_list_reason_none);
 
     bool operator == (const dm_radio_t& obj);
     void operator = (const dm_radio_t& obj);

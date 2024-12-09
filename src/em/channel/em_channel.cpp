@@ -92,6 +92,48 @@ short em_channel_t::create_channel_pref_tlv_agent(unsigned char *buff)
     return len;
 }
 
+short em_channel_t::create_channel_scan_req_tlv(unsigned char *buff)
+{
+    short len = 0;
+	em_channel_scan_req_t *req;
+	em_channel_scan_req_op_class_t *req_op_class;
+	dm_op_class_t *opclass;
+	dm_easy_mesh_t *dm;
+	unsigned int i, j;
+
+	dm = get_data_model();
+
+	req = (em_channel_scan_req_t *)buff;
+	req->perform_fresh_scan = 0;
+
+	req->num_radios = 1;
+	req->num_op_classes = 0;
+	memcpy(req->ruid, get_radio_interface_mac(), sizeof(mac_address_t));
+	len += sizeof(em_channel_scan_req_t);
+
+	for (i = 0; i < dm->get_num_op_class(); i++) {
+		opclass = &dm->m_op_class[i];
+		if (opclass->m_op_class_info.id.type != em_op_class_type_scan_param) {
+			continue;
+		}
+
+		req_op_class = &req->op_class[req->num_op_classes];
+		req_op_class->op_class = opclass->m_op_class_info.op_class;
+		req_op_class->num_channels = opclass->m_op_class_info.num_channels;
+
+		for (j = 0; j < req_op_class->num_channels; j++) {
+			req_op_class->channel_list[j] = opclass->m_op_class_info.channels[j];
+		}
+	
+		len += (sizeof(em_channel_scan_req_op_class_t) + req_op_class->num_channels*sizeof(unsigned char));	
+		
+		req->num_op_classes++;
+	}
+
+	printf("%s:%d: Length: %d\n", __func__, __LINE__, len);
+	return len;
+}
+
 short em_channel_t::create_channel_pref_tlv(unsigned char *buff)
 {
     short len = 0;
@@ -161,6 +203,75 @@ short em_channel_t::create_transmit_power_limit_tlv(unsigned char *buff)
     return len;
 }
 
+int em_channel_t::send_channel_scan_request_msg()
+{
+    unsigned char buff[MAX_EM_BUFF_SZ];
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    unsigned short  msg_id = em_msg_type_channel_scan_req;
+    int len = 0;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    short sz = 0;
+    unsigned char *tmp = buff;
+    unsigned short type = htons(ETH_P_1905);
+    dm_easy_mesh_t *dm;
+
+    dm = get_data_model();
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, (unsigned char *)&type, sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += sizeof(unsigned short);
+
+    cmdu = (em_cmdu_t *)tmp;
+
+    memset(tmp, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(msg_id);
+    cmdu->id = htons(msg_id);
+    cmdu->last_frag_ind = 1;
+    cmdu->relay_ind = 0;
+
+    tmp += sizeof(em_cmdu_t);
+    len += sizeof(em_cmdu_t);
+
+	// One Channel Scan Request TLV (see section 17.2.39).
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_channel_scan_req;
+    sz = create_channel_scan_req_tlv(tlv->value);
+    tlv->len = htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += (sizeof(em_tlv_t) + sz);
+
+    // End of message
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_eom;
+    tlv->len = 0;
+
+    tmp += (sizeof (em_tlv_t));
+    len += (sizeof (em_tlv_t));
+    if (em_msg_t(em_msg_type_channel_scan_req, em_profile_type_3, buff, len).validate(errors) == 0) {
+        printf("Channel Selection Request msg failed validation in tnx end\n");
+        //return -1;
+    }
+
+    if (send_frame(buff, len)  < 0) {
+        printf("%s:%d: Channel Selection Request msg failed, error:%d\n", __func__, __LINE__, errno);
+        return -1;
+    }
+
+	set_state(em_state_ctrl_configured);
+
+    return len;
+
+}
 
 int em_channel_t::send_channel_sel_request_msg()
 {
@@ -1071,15 +1182,15 @@ void em_channel_t::process_ctrl_state()
 {
     switch (get_state()) {
         case em_state_ctrl_channel_query_pending:
-			if(get_service_type() == em_service_type_ctrl) {
-				send_channel_pref_query_msg();
-			}
+			send_channel_pref_query_msg();
             break;
 
         case em_state_ctrl_channel_select_pending:
-			if(get_service_type() == em_service_type_ctrl) {
-				send_channel_sel_request_msg();
-			}
+			send_channel_sel_request_msg();
+            break; 
+        
+		case em_state_ctrl_channel_scan_pending:
+			send_channel_scan_request_msg();
             break; 
     }
 }

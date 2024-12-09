@@ -42,7 +42,8 @@ public:
     bool operator == (const db_easy_mesh_t& obj);
     int set_config(db_client_t& db_client, const cJSON *obj, void *parent_id);
     int set_config(db_client_t& db_client, dm_radio_t& radio, void *parent_id);   
-    int get_config(cJSON *obj, void *parent_id, bool summary = false);
+    int get_config(cJSON *obj, void *parent_id, em_get_radio_list_reason_t reason = em_get_radio_list_reason_none);
+    int get_config(cJSON *obj, void *parent_id, bool summary);
 
     virtual dm_radio_t *get_first_radio() = 0;
     virtual dm_radio_t *get_next_radio(dm_radio_t *radio) = 0;

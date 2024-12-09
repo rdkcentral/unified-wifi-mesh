@@ -88,8 +88,8 @@ public:
     dm_op_class_t *get_op_class(const char *key);
     void remove_op_class(const char *key);
     void put_op_class(const char *key, const dm_op_class_t *op_class);
-	dm_op_class_t *get_first_anticipated_op_class();
-    dm_op_class_t *get_next_anticipated_op_class(dm_op_class_t *op_class);
+	dm_op_class_t *get_first_pre_set_op_class_by_type(em_op_class_type_t type);
+    dm_op_class_t *get_next_pre_set_op_class_by_type(em_op_class_type_t type, dm_op_class_t *op_class);
 
 	dm_policy_t *get_first_policy();
     dm_policy_t *get_next_policy(dm_policy_t *policy);

@@ -228,6 +228,11 @@ void em_cmd_t::init()
             m_svc = em_service_type_ctrl;
             break;
 
+        case em_cmd_type_set_radio:
+            strncpy(m_name, "set_radio", strlen("set_radio") + 1);
+            m_svc = em_service_type_ctrl;
+            break;
+
         case em_cmd_type_get_ssid:
             snprintf(m_name, sizeof(m_name), "%s", "get_ssid");
             m_svc = em_service_type_ctrl;
@@ -290,11 +295,6 @@ void em_cmd_t::init()
 
         case em_cmd_type_vap_config:
             snprintf(m_name, sizeof(m_name), "%s", "vap_config");
-            m_svc = em_service_type_agent;
-            break;
-
-        case em_cmd_type_radio_config:
-            snprintf(m_name, sizeof(m_name), "%s", "radio_config");
             m_svc = em_service_type_agent;
             break;
 
@@ -377,6 +377,7 @@ const char *em_cmd_t::get_bus_event_type_str(em_bus_event_type_t type)
     	BUS_EVENT_TYPE_2S(em_bus_event_type_get_device)
     	BUS_EVENT_TYPE_2S(em_bus_event_type_remove_device)
     	BUS_EVENT_TYPE_2S(em_bus_event_type_get_radio)
+    	BUS_EVENT_TYPE_2S(em_bus_event_type_set_radio)
     	BUS_EVENT_TYPE_2S(em_bus_event_type_get_ssid)
     	BUS_EVENT_TYPE_2S(em_bus_event_type_set_ssid)
     	BUS_EVENT_TYPE_2S(em_bus_event_type_get_channel)
@@ -457,6 +458,8 @@ const char *em_cmd_t::get_orch_op_str(dm_orch_type_t type)
         ORCH_TYPE_2S(dm_orch_type_channel_pref)
         ORCH_TYPE_2S(dm_orch_type_channel_sel)
         ORCH_TYPE_2S(dm_orch_type_channel_cnf)
+        ORCH_TYPE_2S(dm_orch_type_channel_sel_resp)
+        ORCH_TYPE_2S(dm_orch_type_channel_scan_req)
         ORCH_TYPE_2S(dm_orch_type_sta_cap)
         ORCH_TYPE_2S(dm_orch_type_sta_link_metrics)
         ORCH_TYPE_2S(dm_orch_type_op_channel_report)
@@ -478,6 +481,7 @@ const char *em_cmd_t::get_cmd_type_str(em_cmd_type_t type)
         CMD_TYPE_2S(em_cmd_type_get_device)
         CMD_TYPE_2S(em_cmd_type_remove_device)
         CMD_TYPE_2S(em_cmd_type_get_radio)
+        CMD_TYPE_2S(em_cmd_type_set_radio)
         CMD_TYPE_2S(em_cmd_type_get_ssid)
         CMD_TYPE_2S(em_cmd_type_set_ssid)
         CMD_TYPE_2S(em_cmd_type_get_channel)
@@ -492,7 +496,6 @@ const char *em_cmd_t::get_cmd_type_str(em_cmd_type_t type)
         CMD_TYPE_2S(em_cmd_type_dev_test)
         CMD_TYPE_2S(em_cmd_type_cfg_renew)
         CMD_TYPE_2S(em_cmd_type_vap_config)
-        CMD_TYPE_2S(em_cmd_type_radio_config)
         CMD_TYPE_2S(em_cmd_type_sta_list)
         CMD_TYPE_2S(em_cmd_type_start_dpp)
         CMD_TYPE_2S(em_cmd_type_ap_cap_query)
@@ -538,6 +541,10 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
 
         case em_bus_event_type_get_radio:
             type = em_cmd_type_get_radio;
+            break;
+
+        case em_bus_event_type_set_radio:
+            type = em_cmd_type_set_radio;
             break;
 
         case em_bus_event_type_set_ssid:
