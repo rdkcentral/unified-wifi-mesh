@@ -938,6 +938,7 @@ em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_pro
     m_sm.init_sm(type);
 	m_orch_state = em_orch_state_idle;
     m_cmd = NULL;
+    
     RAND_bytes(get_crypto_info()->e_nonce, sizeof(em_nonce_t));
     RAND_bytes(get_crypto_info()->r_nonce, sizeof(em_nonce_t));
     m_data_model = dm;

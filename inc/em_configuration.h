@@ -166,22 +166,22 @@ public:
     int compute_secret(unsigned char **secret, unsigned short *secret_len, 
         unsigned char *remote_pub, unsigned short pub_len, 
         unsigned char *local_priv, unsigned short priv_len) { 
-            return m_crypto.platform_compute_shared_secret(secret, secret_len, remote_pub, pub_len, local_priv, priv_len); 
+            return em_crypto_t::platform_compute_shared_secret(secret, secret_len, remote_pub, pub_len, local_priv, priv_len); 
     }
 
     int compute_digest(unsigned char num, unsigned char **addr, unsigned int *len, unsigned char *digest) {
-        return m_crypto.platform_SHA256(num, addr, len, digest); 
+        return em_crypto_t::platform_SHA256(num, addr, len, digest); 
     }
 
     int compute_kdk(unsigned char *key, unsigned short keylen, 
         unsigned char num_elem, unsigned char **addr, 
         unsigned int *len, unsigned char *hmac) {
-            return m_crypto.platform_hmac_SHA256(key, keylen, num_elem, addr, len, hmac);
+            return em_crypto_t::platform_hmac_SHA256(key, keylen, num_elem, addr, len, hmac);
     }
 
     int derive_key(unsigned char *key, unsigned char *label_prefix, unsigned int label_prefix_len, 
         char *label, unsigned char *res, unsigned int res_len) {
-            return m_crypto.wps_key_derivation_function(key, label_prefix, label_prefix_len, label, res, res_len);
+            return em_crypto_t::wps_key_derivation_function(key, label_prefix, label_prefix_len, label, res, res_len);
     }
 
     int compute_keys(unsigned char *remote_pub, unsigned short pub_len, unsigned char *local_priv, unsigned short priv_len);
