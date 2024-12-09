@@ -89,6 +89,7 @@ class em_configuration_t {
     virtual em_cmd_t *get_current_cmd() = 0;
     virtual short create_ap_radio_basic_cap(unsigned char *buff) = 0;
     virtual bool is_al_interface_em() = 0;
+	virtual dm_radio_t *get_radio_from_dm(bool command_dm = false) = 0;
 
     virtual char *get_manufacturer() = 0;
     virtual char *get_manufacturer_model() = 0;

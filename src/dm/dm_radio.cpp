@@ -135,18 +135,18 @@ int dm_radio_t::decode(const cJSON *obj, void *parent_id)
     return 0;
 }
 
-void dm_radio_t::encode(cJSON *obj, bool summary)
+void dm_radio_t::encode(cJSON *obj, em_get_radio_list_reason_t reason)
 {
     mac_addr_str_t  mac_str;
 
     dm_easy_mesh_t::macbytes_to_string(m_radio_info.id.mac, mac_str);
     cJSON_AddStringToObject(obj, "ID", mac_str);
+    cJSON_AddBoolToObject(obj, "Enabled", m_radio_info.enabled);
 
-    if (summary == true) {
+    if ((reason == em_get_radio_list_reason_radio_enable) || (reason == em_get_radio_list_reason_radio_summary)) {
         return;
     }
 
-    cJSON_AddBoolToObject(obj, "Enabled", m_radio_info.enabled);
     cJSON_AddNumberToObject(obj, "NumberOfBSS", m_radio_info.number_of_bss);
     cJSON_AddNumberToObject(obj, "NumberOfUnassocSta", m_radio_info.number_of_unassoc_sta);
     cJSON_AddNumberToObject(obj, "Noise", m_radio_info.noise);

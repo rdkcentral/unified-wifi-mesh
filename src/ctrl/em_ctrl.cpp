@@ -146,6 +146,23 @@ void em_ctrl_t::handle_set_channel_list(em_bus_event_t *evt)
 
 }
 
+void em_ctrl_t::handle_scan_channel_list(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+
+    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+    } else if ((num = m_data_model.analyze_scan_channel(evt, pcmd)) == 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if (m_orch->submit_commands(pcmd, num) > 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_success);
+    } else {
+        m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+    } 
+
+}
+
 void em_ctrl_t::handle_set_policy(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
@@ -191,6 +208,22 @@ void em_ctrl_t::handle_sta_assoc_event(em_bus_event_t *evt)
     if ((num = m_data_model.analyze_sta_assoc_event(evt, pcmd)) > 0) {
         m_orch->submit_commands(pcmd, num);
     }
+}
+
+void em_ctrl_t::handle_set_radio(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+
+    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+    } else if ((num = m_data_model.analyze_set_radio(evt, pcmd)) == 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if (m_orch->submit_commands(pcmd, num) > 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_success);
+    } else {
+        m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+    } 
 }
 
 void em_ctrl_t::handle_set_ssid_list(em_bus_event_t *evt)
@@ -279,19 +312,6 @@ void em_ctrl_t::handle_reset(em_bus_event_t *evt)
     }
 
 }
-
-/*void em_ctrl_t::handle_topology_req()
-{
-    em_t *em;
-
-    em = em = (em_t *)hash_map_get_first(m_em_map);
-    while (em != NULL) {
-        if (em->is_al_interface_em() == false) {
-            em->send_topology_query_msg();
-        }
-        em = em = (em_t *)hash_map_get_next(m_em_map, em);
-    }
-}*/
 
 void em_ctrl_t::handle_radio_metrics_req()
 {
@@ -385,6 +405,10 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
             handle_get_dm_data(evt);
             break;
 
+        case em_bus_event_type_set_radio:
+            handle_set_radio(evt);  
+            break;
+
         case em_bus_event_type_set_ssid:
             handle_set_ssid_list(evt);  
             break;
@@ -395,6 +419,10 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
         
         case em_bus_event_type_set_channel:
             handle_set_channel_list(evt);
+            break;
+
+        case em_bus_event_type_scan_channel:
+            handle_scan_channel_list(evt);
             break;
 
         case em_bus_event_type_set_policy:
@@ -620,7 +648,9 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         case em_msg_type_client_steering_req:
         case em_msg_type_client_assoc_ctrl_req:
         case em_msg_type_map_policy_config_req:
+        case em_msg_type_channel_scan_req:
             break;
+
         case em_msg_type_assoc_sta_link_metrics_rsp:
             em = (em_t *)hash_map_get_first(m_em_map);
             while(em != NULL) {
