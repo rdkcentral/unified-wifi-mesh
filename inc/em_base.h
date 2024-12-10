@@ -160,8 +160,6 @@ extern "C"
 
 #define EM_BACKHAUL_DOWNMAC_ADDR 16
 
-#define DPP_MAX_EN_CHANNELS 4
-
 #define EM_PATH_PREFIX "/tmp/onewifi_mesh"
 #define EM_AGENT_PATH   "agent"
 #define EM_CTRL_PATH    "ctrl"

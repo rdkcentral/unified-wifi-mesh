@@ -20,6 +20,8 @@
 #define EM_PROVISIONING_H
 
 #include "em_base.h"
+#include "ec_session.h"
+#include <memory>
 
 class em_cmd_t;
 class em_provisioning_t {
@@ -59,6 +61,8 @@ public:
     void    process_msg(unsigned char *data, unsigned int len);
     void    process_agent_state();
     void    process_ctrl_state();
+
+    std::unique_ptr<ec_session_t> m_ec_session;
 
     em_provisioning_t();
     ~em_provisioning_t();

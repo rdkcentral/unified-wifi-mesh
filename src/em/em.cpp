@@ -83,8 +83,11 @@ void em_t::orch_execute(em_cmd_t *pcmd)
 							em_state_agent_autoconfig_renew_pending:em_state_ctrl_misconfigured);
 			break;
 
-        case em_cmd_type_start_dpp:
+        case em_cmd_type_start_dpp: {
+            em_dpp_info_t *dpp_info = pcmd->m_data_model.get_dpp()->get_dpp_info();
+            m_ec_session->init_session(&dpp_info->ec_data);
             break;
+        }
 
         case em_cmd_type_ap_cap_query:
             m_sm.set_state(em_state_agent_ap_cap_report);

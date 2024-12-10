@@ -530,7 +530,7 @@ void em_provisioning_t::process_ctrl_state()
 
 em_provisioning_t::em_provisioning_t()
 {
-
+    m_ec_session = std::make_unique<ec_session_t>();
 }
 
 em_provisioning_t::~em_provisioning_t()
