@@ -547,6 +547,7 @@ typedef enum {
     em_tlv_type_bsta_mld_config = 0xe1,
     em_tlv_type_tid_to_link_map_policy = 0xe6,
     em_tlv_eht_operations = 0xe7,
+    em_tlv_vendor_sta_metrics = 0xf1,
 
 	// RDK Proprietary TLV values
 	em_tlv_type_rdk_radio_enable = 0xfe,
@@ -807,6 +808,20 @@ typedef struct {
     unsigned char num_bssids;
     em_assoc_ext_link_metrics_t	assoc_ext_link_metrics[0];
 }__attribute__((__packed__)) em_assoc_sta_ext_link_metrics_t;
+
+typedef struct {
+    bssid_t     bssid;
+    unsigned int  packets_received;
+    unsigned int  packets_sent;
+    unsigned int  bytes_received;
+    unsigned int  bytes_sent;
+}__attribute__((__packed__)) em_assoc_vendor_link_metrics_t;
+
+typedef struct {
+    mac_address_t sta_mac;
+    unsigned char num_bssids;
+    em_assoc_vendor_link_metrics_t assoc_vendor_link_metrics[0];
+}__attribute__((__packed__)) em_assoc_sta_vendor_link_metrics_t;
 
 typedef struct {
     unsigned char num_bssids;
