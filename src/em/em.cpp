@@ -212,6 +212,18 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
             em_metrics_t::process_msg(data, len);
             break;
 
+        case em_msg_type_dpp_cce_ind:
+        case em_msg_type_proxied_encap_dpp:
+        case em_msg_type_direct_encap_dpp:
+        case em_msg_type_reconfig_trigger:
+        case em_msg_type_bss_config_req:
+        case em_msg_type_bss_config_rsp:
+        case em_msg_type_bss_config_res:
+        case em_msg_type_chirp_notif:
+        case em_msg_type_dpp_bootstrap_uri_notif:
+            em_provisioning_t::process_msg(data, len);
+            break;
+
         default:
             break;  
     }
@@ -938,6 +950,7 @@ em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_pro
     m_sm.init_sm(type);
 	m_orch_state = em_orch_state_idle;
     m_cmd = NULL;
+    
     RAND_bytes(get_crypto_info()->e_nonce, sizeof(em_nonce_t));
     RAND_bytes(get_crypto_info()->r_nonce, sizeof(em_nonce_t));
     m_data_model = dm;
