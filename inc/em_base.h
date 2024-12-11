@@ -2282,7 +2282,6 @@ typedef enum {
     em_bus_event_type_get_device,
     em_bus_event_type_remove_device,
     em_bus_event_type_get_radio,
-    em_bus_event_type_set_radio,
     em_bus_event_type_get_ssid,
     em_bus_event_type_set_ssid,
     em_bus_event_type_get_channel,
@@ -2313,7 +2312,8 @@ typedef enum {
     em_bus_event_type_sta_assoc,
     em_bus_event_type_channel_pref_query,
     em_bus_event_type_channel_sel_req,
-    em_bus_event_type_sta_link_metrics
+    em_bus_event_type_sta_link_metrics,
+    em_bus_event_type_set_radio
 } em_bus_event_type_t;
 
 typedef struct {
