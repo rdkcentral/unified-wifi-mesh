@@ -24,6 +24,9 @@
 #include "db_client.h"
 #include <cjson/cJSON.h>
 
+#include <string>
+#include <vector>
+
 class db_easy_mesh_t {
 
 public: 
@@ -44,6 +47,7 @@ public:
 
     char *get_column_format(db_fmt_t fmt, unsigned int pos);
     int get_strings_by_token(char *parent, int token, unsigned int argc, char *argv[]);
+    std::vector<std::string> get_strings_by_token(char *parent, int token);
 
     int create_table(db_client_t& db_client);
     int load_table(db_client_t& db_client);

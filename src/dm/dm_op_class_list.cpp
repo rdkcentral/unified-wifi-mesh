@@ -39,6 +39,8 @@
 #include "dm_easy_mesh.h"
 #include "dm_easy_mesh_ctrl.h"
 
+#include <vector>
+
 int dm_op_class_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 {
     dm_op_class_t *pop_class;
@@ -288,8 +290,7 @@ int dm_op_class_list_t::sync_db(db_client_t& db_client, void *ctx)
     em_op_class_info_t info;
     em_long_string_t   str, id;
     mac_addr_str_t	mac_str;
-    em_short_string_t	ch_str[EM_MAX_CHANNELS_IN_LIST];
-    char   *token_parts[EM_MAX_CHANNELS_IN_LIST], *tmp;
+    char *tmp;
     unsigned int i = 0;
     int rc = 0;
 
@@ -300,18 +301,15 @@ int dm_op_class_list_t::sync_db(db_client_t& db_client, void *ctx)
         dm_op_class_t::parse_op_class_id_from_key(id, &info.id);
         info.op_class = db_client.get_number(ctx, 2);
         info.channel = db_client.get_number(ctx, 3);
-        
-		db_client.get_string(ctx, str, 4);
-		for (i = 0; i < EM_MAX_CHANNELS_IN_LIST; i++) {
-            token_parts[i] = ch_str[i];
-        }
 
-		if ((str != NULL) && (*str != 0)) {	
-			info.num_channels = get_strings_by_token(str, ',', EM_MAX_CHANNELS_IN_LIST, token_parts);
-			for (i = 0; i < info.num_channels; i++) {
-				info.channels[i] = atoi(token_parts[i]);
-			}
-		}
+		    db_client.get_string(ctx, str, 4);
+		    if ((str != NULL) && (*str != 0)) {	
+            const auto& channels = get_strings_by_token(str, ',');
+            info.num_channels = channels.size();
+		        for (i = 0; i < info.num_channels; i++) {
+		    		  info.channels[i] = atoi(channels[i].c_str());
+		    	  }
+		    }
 
         info.tx_power = db_client.get_number(ctx, 5);
         info.max_tx_power = db_client.get_number(ctx, 6);

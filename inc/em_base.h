@@ -24,6 +24,8 @@
 #include <uuid/uuid.h>
 #include "ec_base.h"
 
+#include <vector>
+
 #define EM_MAX_NETWORKS	5
 #define EM_MAX_NET_SSIDS 4
 #define EM_MAX_DEVICES 16
@@ -1944,7 +1946,7 @@ typedef struct {
     int tx_power;
     int max_tx_power;
     unsigned int    num_channels;
-    unsigned int    channels[EM_MAX_CHANNELS_IN_LIST];
+    std::vector<unsigned int> channels;
     unsigned short	mins_since_cac_comp;
 	unsigned short	sec_remain_non_occ_dur;
 	unsigned int	countdown_cac_comp;

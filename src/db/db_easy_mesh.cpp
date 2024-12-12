@@ -102,6 +102,37 @@ int db_easy_mesh_t::get_strings_by_token(char *parent, int token, unsigned int a
     return num;
 }
 
+std::vector<std::string> db_easy_mesh_t::get_strings_by_token(char *parent, int token)
+{
+    unsigned int num = 0, i;
+    em_long_string_t str_copy;
+    char *tmp, *orig;
+
+    std::vector<std::string> output;
+
+    if (*parent == 0) {
+		    return {};
+	  }
+
+    snprintf(str_copy, sizeof(str_copy), "%s", parent);
+    tmp = str_copy;
+    orig = str_copy;
+
+    while (tmp != NULL) {
+        if ((tmp = strchr(orig, token)) != NULL) {
+            *tmp = 0;
+            output.push_back(orig);
+            tmp++; num++;
+            orig = tmp;
+        }
+    }
+
+    output.push_back(orig);
+    num++;
+
+    return output;
+}
+
 int db_easy_mesh_t::insert_row(db_client_t& db_client, ...)
 {
     unsigned int i;

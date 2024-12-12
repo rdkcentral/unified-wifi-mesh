@@ -146,7 +146,10 @@ bool dm_op_class_t::operator == (const dm_op_class_t& obj)
     } else if (this->m_op_class_info.id.type == em_op_class_type_capability) {
         ret += !(this->m_op_class_info.max_tx_power == obj.m_op_class_info.max_tx_power);
         ret += !(this->m_op_class_info.num_channels == obj.m_op_class_info.num_channels);
-        ret += (memcmp(this->m_op_class_info.channels, obj.m_op_class_info.channels, sizeof(unsigned int) * EM_MAX_CHANNELS_IN_LIST) != 0);
+        bool isVecEqual = (this->m_op_class_info.channels == obj.m_op_class_info.channels);
+        if (!isVecEqual) {
+          ret += 1;
+        }
     } else if (this->m_op_class_info.id.type == em_op_class_type_cac_available) {
     	ret += !(this->m_op_class_info.mins_since_cac_comp == obj.m_op_class_info.mins_since_cac_comp);
 	} else if (this->m_op_class_info.id.type == em_op_class_type_cac_non_occ) {
@@ -157,7 +160,10 @@ bool dm_op_class_t::operator == (const dm_op_class_t& obj)
 						(this->m_op_class_info.id.type == em_op_class_type_anticipated) ||
 						(this->m_op_class_info.id.type == em_op_class_type_scan_param)) {
         ret += !(this->m_op_class_info.num_channels == obj.m_op_class_info.num_channels);
-        ret += (memcmp(this->m_op_class_info.channels, obj.m_op_class_info.channels, sizeof(unsigned int) * EM_MAX_CHANNELS_IN_LIST) != 0);
+        bool isVecEqual = (this->m_op_class_info.channels == obj.m_op_class_info.channels);
+        if (!isVecEqual) {
+          ret += 1;
+        }
 	} 
      
     if (ret > 0)
@@ -176,12 +182,13 @@ void dm_op_class_t::operator = (const dm_op_class_t& obj)
     this->m_op_class_info.tx_power = obj.m_op_class_info.tx_power;
     this->m_op_class_info.max_tx_power = obj.m_op_class_info.max_tx_power;
     this->m_op_class_info.num_channels = obj.m_op_class_info.num_channels;
-    memcpy(this->m_op_class_info.channels, obj.m_op_class_info.channels, sizeof(unsigned int) * EM_MAX_CHANNELS_IN_LIST);
+    this->m_op_class_info.channels = obj.m_op_class_info.channels;
     this->m_op_class_info.mins_since_cac_comp = obj.m_op_class_info.mins_since_cac_comp;
     this->m_op_class_info.sec_remain_non_occ_dur = obj.m_op_class_info.sec_remain_non_occ_dur;
     this->m_op_class_info.countdown_cac_comp = obj.m_op_class_info.countdown_cac_comp;
     this->m_op_class_info.num_channels = obj.m_op_class_info.num_channels;
-    memcpy(this->m_op_class_info.channels, obj.m_op_class_info.channels, sizeof(unsigned int) * EM_MAX_CHANNELS_IN_LIST);
+
+    this->m_op_class_info.channels = obj.m_op_class_info.channels; // std::vector c++ copying
 }
 
 int dm_op_class_t::parse_op_class_id_from_key(const char *key, em_op_class_id_t *id)

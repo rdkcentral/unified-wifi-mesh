@@ -462,7 +462,7 @@ int em_t::start_al_interface()
     slen = sizeof(struct sockaddr_ll);
 
     if ((sock_fd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0) {
-        printf("%s:%d: Error opening socket, err:%d\n", __func__, __LINE__, errno);
+        printf("%s:%d: Error opening socket, err:%d name: %s\n", __func__, __LINE__, errno, m_ruid.name);
         return -1;
     }
 
