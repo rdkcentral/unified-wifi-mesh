@@ -283,6 +283,34 @@ void em_agent_t::handle_autoconfig_renew(em_bus_event_t *evt)
 
 }
 
+void em_agent_t::handle_btm_request_action_frame(em_bus_event_t *evt)
+{
+    unsigned int num;
+    wifi_bus_desc_t *desc;
+
+    if((desc = get_bus_descriptor()) == NULL) {
+       printf("descriptor is null");
+    }
+
+    if ((num = m_data_model.analyze_btm_request_action_frame(evt, desc, &m_bus_hdl)) == 0) {
+	    printf("analyze_btm_request_action_frame complete\n");
+    }
+}
+
+void em_agent_t::handle_btm_response_action_frame(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+
+    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+        printf("analyze_btm_response_action_frame in progress\n");
+    } else if ((num = m_data_model.analyze_btm_response_action_frame(evt, pcmd)) == 0) {
+        printf("analyze_btm_response_action_frame failed\n");
+    } else if (m_orch->submit_commands(pcmd, num) > 0) {
+        printf("submitted handle_btm_response_action_frame command for orchestration\n");
+    }
+}
+
 void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 {   
     
@@ -331,6 +359,14 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 
         case em_bus_event_type_sta_link_metrics:
             handle_sta_link_metrics(evt);
+            break;
+
+        case em_bus_event_type_bss_tm_req:
+            handle_btm_request_action_frame(evt);
+            break;
+
+        case em_bus_event_type_btm_response:
+            handle_btm_response_action_frame(evt);
             break;
 
         default:
@@ -411,7 +447,31 @@ void em_agent_t::input_listener()
         return;
     }
 
+    if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_RAWFRAME_MGMT_ACTION_RX, (void *)&em_agent_t::mgmt_action_frame_cb, NULL, 0) != 0) {
+        printf("%s:%d bus get failed\n", __func__, __LINE__);
+        return;
+    }
+
     io(NULL);
+}
+
+int em_agent_t::mgmt_action_frame_cb(char *event_name, raw_data_t *data)
+{
+    em_bus_event_t *bevt;
+    em_event_t evt;
+    frame_data_t *mgmt_frame = (frame_data_t *)data->raw_data.bytes;
+
+    //printf("Received Frame data for event %s \n", event_name);
+    if (mgmt_frame->frame.type == WIFI_MGMT_FRAME_TYPE_ACTION)
+    {
+        bevt = &evt.u.bevt;
+        bevt->type = em_bus_event_type_btm_response;
+        memcpy(bevt->u.raw_buff, mgmt_frame->data, mgmt_frame->frame.len);
+
+        g_agent.agent_input(&evt);
+    }
+
+    return 1;
 }
 
 int em_agent_t::assoc_stats_cb(char *event_name, raw_data_t *data)
@@ -444,7 +504,7 @@ int em_agent_t::assoc_stats_cb(char *event_name, raw_data_t *data)
 
 int em_agent_t::sta_cb(char *event_name, raw_data_t *data)
 {
-    printf("%s:%d Recv data from onewifi:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
+    //printf("%s:%d Recv data from onewifi:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
     em_event_t evt;
     em_bus_event_t *bevt;
 
@@ -463,7 +523,7 @@ int em_agent_t::onewifi_cb(char *event_name, raw_data_t *data)
 	const char *json_data = (char *)data->raw_data.bytes;
 	cJSON *json = cJSON_Parse(json_data);
 
-	printf("%s:%dRecv data from onewifi:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
+	//printf("%s:%dRecv data from onewifi:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
 
 	if (json == NULL) {
 		printf("%s:%d Error parsing JSON\n", __func__, __LINE__);
@@ -689,6 +749,25 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 
         case em_msg_type_assoc_sta_link_metrics_rsp:
             printf("%s:%d: Sending Assoc STA Link Metrics response\n", __func__, __LINE__);
+            break;
+
+        case em_msg_type_client_steering_req:
+            printf("%s:%d: Rcvd Client steering request\n", __func__, __LINE__);
+            em = (em_t *)hash_map_get_first(m_em_map);
+            while (em != NULL) {
+                if ((em->is_al_interface_em() == false)) {
+                    //printf("%s:%d: Found em\n", __func__, __LINE__);
+                    break;
+                }
+                em = (em_t *)hash_map_get_next(m_em_map, em);
+            }
+            break;
+
+        case em_msg_type_client_steering_btm_rprt:
+            printf("%s:%d: Sending Client BTM REPORT\n", __func__, __LINE__);
+            break;
+
+        case em_msg_type_1905_ack:
             break;
 
         default:

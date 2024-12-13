@@ -40,11 +40,13 @@
 #include "em_cmd_dev_init.h"
 #include "dm_easy_mesh_agent.h"
 #include <cjson/cJSON.h>
+#include "ieee80211.h"
 #include "em_cmd_sta_list.h"
 #include "em_cmd_onewifi_cb.h"
 #include "em_cmd_cfg_renew.h"
 #include "em_cmd_channel_pref_query.h"
 #include "em_cmd_op_channel_report.h"
+#include "em_cmd_btm_report.h"
 
 int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
@@ -353,7 +355,6 @@ int dm_easy_mesh_agent_t::analyze_onewifi_radio_cb(em_bus_event_t *evt, em_cmd_t
     return num;
 
 }
-
         
 void dm_easy_mesh_agent_t::translate_onewifi_sta_data(char *str)
 {               
@@ -543,6 +544,109 @@ int dm_easy_mesh_agent_t::analyze_sta_link_metrics(em_bus_event_t *evt, em_cmd_t
     }
 
     return 1;
+}
+
+int dm_easy_mesh_agent_t::analyze_btm_request_action_frame(em_bus_event_t *evt, wifi_bus_desc_t *desc, bus_handle_t *bus_hdl)
+{
+    struct ieee80211_mgmt *ieeeframe;
+    action_frame_params_t *aframe;
+    raw_data_t l_bus_data;
+    int len = 0;
+    mac_addr_str_t mac_str;
+    em_steering_req_t *steer_req = (em_steering_req_t *)&evt->u.raw_buff;
+
+    len = sizeof(ieeeframe->u.action.category) + sizeof(ieeeframe->u.action.u.bss_tm_req) \
+        + sizeof(em_80211_neighbor_report_t);
+    aframe = (action_frame_params_t *)malloc(sizeof(action_frame_params_t) + len);
+    // Point ieeeframe to aframe->frame_data
+    ieeeframe = (struct ieee80211_mgmt *)aframe->frame_data;
+
+    //convert steering req to 802.11 bss tm req
+    ieeeframe->u.action.category = WLAN_ACTION_WNM;
+    ieeeframe->u.action.u.bss_tm_req.action = WLAN_ACTION_HT;
+    ieeeframe->u.action.u.bss_tm_req.dialog_token = 1;
+
+    em_80211_btm_req_reqmode_t req_mode;
+    req_mode.pref_candidate_list_inc = 0;
+    req_mode.btm_abridged = steer_req->btm_abridged;
+    req_mode.btm_disassoc_imminent = steer_req->btm_dissoc_imminent;
+    //todo: check what is this
+    req_mode.bss_termination_inc = steer_req->btm_dissoc_timer;
+    //todo: check what is this
+    req_mode.ess_disassoc_imminent = steer_req->btm_dissoc_imminent;
+
+    ieeeframe->u.action.u.bss_tm_req.req_mode = *(uint8_t *)&req_mode;
+    memcpy(&ieeeframe->u.action.u.bss_tm_req.disassoc_timer, &steer_req->btm_dissoc_timer, sizeof(steer_req->btm_dissoc_timer));
+    //todo: check this
+    ieeeframe->u.action.u.bss_tm_req.validity_interval = 0;
+
+    // Copy the variable part
+    em_80211_btm_req_var_t *bss_list = (em_80211_btm_req_var_t *)&ieeeframe->u.action.u.bss_tm_req.variable;
+    bss_list->bss_transition_cand_list[0].elem_id = 52;
+    bss_list->bss_transition_cand_list[0].length = 13;
+    memcpy(bss_list->bss_transition_cand_list[0].bssid, steer_req->target_bssids, sizeof(bssid_t));
+    //todo: capabilities mapping tbd
+    bss_list->bss_transition_cand_list[0].bssid_info = 0;
+        bss_list->bss_transition_cand_list[0].op_class = steer_req->target_bss_op_class;
+    bss_list->bss_transition_cand_list[0].channel_num = steer_req->target_bss_channel_num;
+    //todo: check how to get this
+    bss_list->bss_transition_cand_list[0].phy_type = 0;
+
+    dm_easy_mesh_t::macbytes_to_string(steer_req->sta_mac_addr, mac_str);
+    printf("%s:%d STA MAC for BTM request %s\n", __func__, __LINE__, mac_str);
+    memcpy(aframe->dest_addr, steer_req->sta_mac_addr, sizeof(mac_addr_t));
+    aframe->frequency = 2412;
+    //here sendng only the btm_req union to onewifi as header is dealt internally
+    aframe->frame_len = len;
+    memcpy(aframe->frame_data, &ieeeframe->u.action, len);
+
+    l_bus_data.data_type = bus_data_type_bytes;
+    l_bus_data.raw_data.bytes = (void *)aframe;
+    l_bus_data.raw_data_len = len + sizeof(action_frame_params_t);
+
+    if (desc->bus_set_fn(bus_hdl, WIFI_RAWFRAME_MGMT_ACTION_TX, &l_bus_data)== 0) {
+        printf("%s:%d Frame subdoc send successfull\n",__func__, __LINE__);
+    }
+    else {
+        printf("%s:%d Frame subdoc send fail\n",__func__, __LINE__);
+        return -1;
+    }
+
+    return 1;
+}
+
+int dm_easy_mesh_agent_t::analyze_btm_response_action_frame(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    //TODO: if callback would give for multiple entries or one by one
+    dm_easy_mesh_agent_t  dm;
+    em_cmd_t *tmp;
+    em_cmd_params_t *evt_param;
+    int num = 0;
+    em_steering_btm_rprt_t btm;
+    mac_addr_str_t mac_str;
+    struct ieee80211_mgmt *btm_frame = (struct ieee80211_mgmt *)&evt->u.raw_buff;
+
+    if(btm_frame == NULL)
+    {
+        return 0;
+    }
+
+    em_cmd_btm_report_params_t  btm_report_param;
+    memcpy(btm_report_param.source, btm_frame->bssid, sizeof(mac_addr_t));
+    memcpy(btm_report_param.sta_mac, btm_frame->sa, sizeof(mac_addr_t));
+    btm_report_param.status_code = btm_frame->u.action.u.bss_tm_resp.status_code;
+    memcpy(btm_report_param.target, &btm_frame->u.action.u.bss_tm_resp.variable, sizeof(mac_addr_t));
+
+    pcmd[num] = new em_cmd_btm_report_t(btm_report_param);
+    tmp = pcmd[num];
+    num++;
+
+    while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+        tmp = pcmd[num];
+        num++;
+    }
+
+    return num;
 }
 
 webconfig_error_t dm_easy_mesh_agent_t::webconfig_dummy_apply(webconfig_subdoc_t *doc, webconfig_subdoc_data_t *data)
