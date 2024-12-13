@@ -49,13 +49,15 @@ void em_cli_t::print_network_tree_node(em_network_node_t *node, unsigned int *pi
 {
 	unsigned int i, ident = 0;
 	em_long_string_t fmt = {0};
+	em_long_string_t value_str = {0};
+	em_short_string_t tmp_str;
 
 	ident = *pident;
 	ident++;
 	*pident = ident;
 
 	for (i = 0; i < ident; i++) {
-		strncat(fmt, "\t", strlen("\t"));
+		strncat(fmt, "   ", strlen("   "));
 	}
 
 	switch (node->type) {
@@ -63,9 +65,11 @@ void em_cli_t::print_network_tree_node(em_network_node_t *node, unsigned int *pi
 			break;
 
 		case em_network_node_data_type_false:
+			printf("%s%s:\tfalse\n", fmt, node->key);
 			break;
 
 		case em_network_node_data_type_true:
+			printf("%s%s:\ttrue\n", fmt, node->key);
 			break;
 
 		case em_network_node_data_type_null:
@@ -80,17 +84,79 @@ void em_cli_t::print_network_tree_node(em_network_node_t *node, unsigned int *pi
 			break;
 
 		case em_network_node_data_type_array:
+			printf("%s%s:", fmt, node->key);
+			if ((node->num_children > 0) && ((node->child[0]->type == em_network_node_data_type_array) ||
+									(node->child[0]->type == em_network_node_data_type_obj))) {
+				printf("\n");
+			} else if (node->num_children == 0) {
+				//printf("\n");
+			}
+			break;
+
 		case em_network_node_data_type_obj:
-			printf("%s%s:\t\n", fmt, node->key);
+			if (node->key[0] != 0) {
+				printf("%s%s\t\n", fmt, node->key);
+			}
 			break;
 
 		case em_network_node_data_type_raw:
 			break;
 
 	}
+		
+	if ((node->type == em_network_node_data_type_array) && (node->num_children > 0) &&
+			((node->child[0]->type == em_network_node_data_type_number) ||
+			(node->child[0]->type == em_network_node_data_type_string))) {
+			
+		snprintf(value_str, sizeof(em_long_string_t), "[");
+		for (i = 0; i < node->num_children; i++) {
+			if (node->child[0]->type == em_network_node_data_type_string) {
+				snprintf(tmp_str, sizeof(em_short_string_t), "%s, ", node->child[i]->value_str);
+			} else {
+				snprintf(tmp_str, sizeof(em_short_string_t), "%d, ", node->child[i]->value_int);
+			}
+			strncat(value_str, tmp_str, strlen(tmp_str));	
+		}
 
-	for (i = 0; i < node->num_children; i++) {
-		print_network_tree_node(node->child[i], pident);
+		value_str[strlen(value_str) - 2] = ']';
+		printf("%s\n", value_str);
+	} else {
+
+		if (node->type == em_network_node_data_type_array) {
+			if (node->num_children == 0) {
+				printf("[");
+			} else {
+				snprintf(value_str, sizeof(value_str), "%s[", fmt);
+				printf("%s\n", value_str);
+			}
+		} else if (node->type == em_network_node_data_type_obj) {
+			if (node->num_children == 0) {
+				printf("{");
+			} else {
+				snprintf(value_str, sizeof(value_str), "%s{", fmt);
+				printf("%s\n", value_str);
+			}
+		}
+
+		for (i = 0; i < node->num_children; i++) {
+			print_network_tree_node(node->child[i], pident);
+		}
+		if (node->type == em_network_node_data_type_array) {
+			if (node->num_children == 0) {
+				printf("]\n");
+			} else {
+				snprintf(value_str, sizeof(value_str), "%s]", fmt);
+				printf("%s\n", value_str);
+			}
+		} else if (node->type == em_network_node_data_type_obj) {
+			if (node->num_children == 0) {
+				printf("}\n");
+			} else {
+				snprintf(value_str, sizeof(value_str), "%s}", fmt);
+				printf("%s\n", value_str);
+			}
+
+		}
 	}
 
 	ident = *pident;
@@ -156,15 +222,10 @@ int em_cli_t::get_network_tree_node(cJSON *obj, em_network_node_t *root)
 	return root->num_children;
 }
 
-em_network_node_t *em_cli_t::get_network_tree(const char *file_name)
+em_network_node_t *em_cli_t::get_network_tree(char *buff)
 {
 	cJSON *obj = NULL;
-	char buff[EM_IO_BUFF_SZ];
 	em_network_node_t *root;
-
-	if (em_cmd_cli_t::load_params_file(file_name, buff) < 0) {
-		return NULL;
-	}
 
 	if ((obj = cJSON_Parse(buff)) == NULL) {
 		return NULL;
@@ -177,6 +238,18 @@ em_network_node_t *em_cli_t::get_network_tree(const char *file_name)
 	cJSON_Delete(obj);
 
 	return root;
+
+}
+
+em_network_node_t *em_cli_t::get_network_tree_by_file(const char *file_name)
+{
+	char buff[EM_IO_BUFF_SZ];
+
+	if (em_cmd_cli_t::load_params_file(file_name, buff) < 0) {
+		return NULL;
+	}
+
+	return get_network_tree(buff);
 }
 
 void em_cli_t::free_network_tree_node(em_network_node_t *node)
@@ -324,7 +397,7 @@ em_cmd_t& em_cli_t::get_command(char *in, size_t in_len)
 
 char *em_cli_t::exec(char *in, size_t sz, em_status_string_t out)
 {
-    em_long_string_t cmd;
+	em_long_string_t cmd;
     em_status_string_t res;
     em_cmd_cli_t *cli_cmd;
 
@@ -348,6 +421,31 @@ char *em_cli_t::exec(char *in, size_t sz, em_status_string_t out)
     return out;
 }
 
+em_network_node_t *em_cli_t::exec(char *in, size_t sz)
+{
+    em_long_string_t cmd;
+    em_status_string_t res;
+    em_cmd_cli_t *cli_cmd;
+
+    snprintf(cmd, sizeof(cmd),  "%s", in);
+    cli_cmd = new em_cmd_cli_t(get_command(cmd, sz));
+
+    cli_cmd->init();
+
+    if (cli_cmd->validate() == false) {
+        cli_cmd->m_cmd.status_to_string(em_cmd_out_status_invalid_input, res);
+    } else {
+        if (cli_cmd->execute(res) != 0) {
+            cli_cmd->m_cmd.status_to_string(em_cmd_out_status_invalid_input, res);
+
+        }
+    }
+
+    delete cli_cmd;
+
+	return get_network_tree(res);	
+}
+
 int em_cli_t::init(em_editor_callback_t cb)
 {
 	m_editor_cb = cb;
@@ -368,9 +466,9 @@ em_cli_t *get_cli()
 	return &g_cli;
 }
 
-extern "C" char *exec(char *in, size_t in_len, em_status_string_t out)
+extern "C" em_network_node_t *exec(char *in, size_t in_len)
 {
-	return g_cli.exec(in, in_len, out);
+	return g_cli.exec(in, in_len);
 }
     
 extern "C" int init(em_editor_callback_t func)
@@ -388,14 +486,19 @@ extern "C" const char *get_next_cmd_str(const char *cmd)
 	return g_cli.get_next_cmd_str(cmd);
 }
 
-extern "C" em_network_node_t *get_network_tree(const char *file_name)
+extern "C" void *get_network_tree_by_file(const char *file_name)
 {
-	return g_cli.get_network_tree(file_name);
+	return g_cli.get_network_tree_by_file(file_name);
 }
 
-extern "C" void free_network_tree(em_network_node_t *node)
+extern "C" void *get_network_tree(char *buff)
 {
-	return g_cli.free_network_tree(node);
+	return g_cli.get_network_tree(buff);
+}
+
+extern "C" void free_network_tree(void *node)
+{
+	return g_cli.free_network_tree((em_network_node_t *)node);
 }
 
 extern "C" void print_network_tree(em_network_node_t *node)

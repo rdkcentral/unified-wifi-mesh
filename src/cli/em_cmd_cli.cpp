@@ -217,7 +217,7 @@ int em_cmd_cli_t::edit_params_file(const char *filename)
     char buff[EM_IO_BUFF_SZ];
     cJSON *obj; 
     
-    m_cli.m_editor_cb(filename);
+    m_cli.m_editor_cb((char *)filename);
 
     if (load_params_file(filename, buff) < 0) {
         printf("%s:%d: Failed to load params file\n", __func__, __LINE__);
