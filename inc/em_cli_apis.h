@@ -32,6 +32,7 @@ const char *get_next_cmd_str(const char *cmd);
 em_network_node_t *get_network_tree_by_file(const char *file_name);
 em_network_node_t *get_network_tree(char *buff);
 void free_network_tree(em_network_node_t *node);
+void *network_tree_to_json(em_network_node_t *node);
 void print_network_tree(em_network_node_t *node);
 
 #ifdef __cplusplus

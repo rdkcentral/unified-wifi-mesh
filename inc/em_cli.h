@@ -39,6 +39,8 @@ public:
 	int get_network_tree_node(cJSON *obj, em_network_node_t *root);
 	void free_network_tree(em_network_node_t *tree);
 	void free_network_tree_node(em_network_node_t *node);
+	void *network_tree_to_json(em_network_node_t *root);
+	cJSON *network_tree_node_to_json(em_network_node_t *node, cJSON *parent);
 	void print_network_tree(em_network_node_t *tree);
 	void print_network_tree_node(em_network_node_t *node, unsigned int *pident);
 

@@ -171,6 +171,82 @@ void em_cli_t::print_network_tree(em_network_node_t *node)
 	print_network_tree_node(node, &ident);	
 }
 
+cJSON *em_cli_t::network_tree_node_to_json(em_network_node_t *node, cJSON *parent)
+{
+	unsigned int i;
+	cJSON *obj;
+
+	switch (node->type) {
+		case em_network_node_data_type_invalid:
+			break;
+
+		case em_network_node_data_type_false:
+			obj = cJSON_CreateFalse();
+			break;
+
+		case em_network_node_data_type_true:
+			obj = cJSON_CreateTrue();
+			break;
+
+		case em_network_node_data_type_null:
+			obj = cJSON_CreateNull();
+			break;
+
+		case em_network_node_data_type_number:
+			obj = cJSON_CreateNumber(node->value_int);
+			break;
+
+		case em_network_node_data_type_string:
+			obj = cJSON_CreateString(node->value_str);
+			break;
+
+		case em_network_node_data_type_array:
+			obj = cJSON_CreateArray();
+			break;
+
+		case em_network_node_data_type_obj:
+			obj = cJSON_CreateObject();
+			break;
+
+		case em_network_node_data_type_raw:
+			break;
+	}
+
+	if (obj == NULL) {
+		printf("%s:%d: Failed to allocate JSON object\n");
+		return NULL;
+	}
+
+	cJSON_AddItemToObject(parent, node->key, obj);
+
+    for (i = 0; i < node->num_children; i++) {
+        network_tree_node_to_json(node->child[i], obj);
+    }
+
+	return obj;
+	
+}
+
+void *em_cli_t::network_tree_to_json(em_network_node_t *root)
+{
+	cJSON *obj;
+	unsigned int i;
+
+	obj = cJSON_CreateObject();
+	if (obj == NULL) {
+		printf("%s:%d: Failed to allocate JSON object\n");
+		return NULL;
+	}
+
+	for (i = 0; i < root->num_children; i++) {
+		network_tree_node_to_json(root->child[i], obj);	
+	}
+
+	//printf("%s:%d: %s\n", __func__, __LINE__, cJSON_Print(obj));
+
+	return obj;	
+}
+
 int em_cli_t::get_network_tree_node(cJSON *obj, em_network_node_t *root)
 {
 	cJSON *child_obj, *tmp_obj;
@@ -499,6 +575,11 @@ extern "C" void *get_network_tree(char *buff)
 extern "C" void free_network_tree(void *node)
 {
 	return g_cli.free_network_tree((em_network_node_t *)node);
+}
+
+extern "C" void *network_tree_to_json(em_network_node_t *node)
+{
+    return g_cli.network_tree_to_json(node);
 }
 
 extern "C" void print_network_tree(em_network_node_t *node)

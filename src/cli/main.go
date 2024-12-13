@@ -18,7 +18,6 @@ import "C"
 import (
 	"unsafe"
 	"fmt"
-	"runtime"
 )
 
 //export editor_func
@@ -38,6 +37,7 @@ func main() {
 		node := C.exec(line, C.strlen(line))
 		if node != nil {
 			C.print_network_tree(node)
+			//C.network_tree_to_json(node)
 			C.free_network_tree(node)
 		}	
 
