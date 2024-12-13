@@ -46,7 +46,7 @@
 const char *prompt = "<<OneWifiMeshCli>>: ";
 
 
-int editor(const char *args)
+int editor(char *args)
 {
 	em_long_string_t cmd;
 
@@ -59,16 +59,7 @@ int editor(const char *args)
 int main(int argc, const char *argv[])
 {
    	char *line = NULL;
-    em_status_string_t output;
 	em_network_node_t *node;
-
-#ifdef TEST_CLI
-	node = get_network_tree("./NetworkSSID.json");
-	print_network_tree(node);
-	free_network_tree(node);
-
-	return 0;
-#endif
 
 	init(editor);
 
@@ -91,7 +82,10 @@ int main(int argc, const char *argv[])
                 add_history(line);
             }
 
-            printf("%s\n", exec(line, strlen(line), output));
+			if ((node = exec(line, strlen(line))) != NULL) {
+				print_network_tree(node);
+				free_network_tree(node);
+			}		
         }
 
         free(line);

@@ -201,7 +201,7 @@ typedef char    em_subdoc_data_buff_t[EM_SUBDOC_BUFF_SZ];
 typedef char    em_status_string_t[EM_IO_BUFF_SZ];
 typedef unsigned	char    em_raw_data_t[EM_SUBDOC_BUFF_SZ];
 
-typedef int (* em_editor_callback_t)(const char *);
+typedef int (* em_editor_callback_t)(char *);
 
 typedef struct {
     unsigned char   dsap;
@@ -2742,7 +2742,7 @@ typedef enum {
 } em_network_node_data_type_t;
 
 typedef struct em_network_node {
-    em_short_string_t   key;
+    em_long_string_t   key;
     em_network_node_data_type_t type;
     em_long_string_t    value_str;
     unsigned int        value_int;

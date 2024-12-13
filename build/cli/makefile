@@ -23,6 +23,7 @@ include ../makefile.inc
 #
 
 PROGRAM = $(INSTALLDIR)/bin/onewifi_em_cli
+PROGRAM_GO = $(INSTALLDIR)/bin/cli
 EM_CLI_LIBRARY = $(INSTALLDIR)/lib/libemcli.so
 
 INCLUDEDIRS = \
@@ -71,7 +72,7 @@ GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o)
 EMCLIOBJECTS = $(CLI_OBJECTS) $(GENERIC_OBJECTS)
 MAIN_OBJECT = $(MAIN_SOURCE:.c=.o) 
 
-all: $(EM_CLI_LIBRARY) $(PROGRAM)
+all: $(EM_CLI_LIBRARY) $(PROGRAM) $(PROGRAM_GO)
 
 $(PROGRAM): $(MAIN_OBJECT)
 	$(CXX) -o $@ $(MAIN_OBJECT) $(LDFLAGS)
@@ -88,11 +89,14 @@ $(CLI_OBJECTS): %.o: %.cpp
 $(MAIN_OBJECT): %.o: %.c
 	$(CXX) $(CFLAGS) -o $@ -c $<
 
+$(PROGRAM_GO):
+	go build -o $(PROGRAM_GO) $(ONEWIFI_EM_SRC)/cli/main.go
+
 # Clean target: "make -f Makefile.Linux clean" to remove unwanted objects and executables.
 #
 
 clean:
-	$(RM) $(MAIN_OBJECT) $(EMCLIOBJECTS) $(EM_CLI_LIBRARY) $(PROGRAM)
+	$(RM) $(MAIN_OBJECT) $(EMCLIOBJECTS) $(EM_CLI_LIBRARY) $(PROGRAM) $(PROGRAM_GO)
 
 #
 # Run target: "make -f Makefile.Linux run" to execute the application
