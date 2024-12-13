@@ -233,18 +233,18 @@ dm_radio_t *dm_easy_mesh_list_t::get_first_radio()
     dm_radio_t *radio = NULL;
     dm_easy_mesh_t *dm;
 
-	
-	dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
-	while (dm != NULL) {
+    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    while (dm != NULL) {
         //printf("%s:%d: Number of radios:%d\n", __func__, __LINE__, dm->get_num_radios());
-		if (dm->get_num_radios() > 0) {
-			radio = dm->get_radio((unsigned int)0);
-		}
-		dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
-	}
+        if (dm->get_num_radios() > 0) {
+            radio = dm->get_radio((unsigned int)0);
+            break;
+        }
+        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+    }
 
     return radio;
-}   
+}
 
 dm_radio_t *dm_easy_mesh_list_t::get_next_radio(dm_radio_t *radio)
 {  

@@ -429,7 +429,14 @@ void em_provisioning_t::process_msg(unsigned char *data, unsigned int len)
         case em_msg_type_bss_config_res:
             break;
 
+        case em_msg_type_chirp_notif:
+            break;
+
+        case em_msg_type_dpp_bootstrap_uri_notif:
+            break;
+
         default:
+            printf("%s:%d: unhandled message type %u\n", __func__, __LINE__, htons(cmdu->type));
             break;
     }
 }

@@ -38,11 +38,13 @@ public:
     short create_channel_scan_req_tlv(unsigned char *buff);
     short create_channel_pref_tlv(unsigned char *buff);
     short create_operating_channel_report_tlv(unsigned char *buff);
+    short create_spatial_reuse_report_tlv(unsigned char *buff);
     short create_radio_op_restriction_tlv(unsigned char *buff);
     short create_cac_complete_report_tlv(unsigned char *buff);
     short create_cac_status_report_tlv(unsigned char *buff);
     short create_channel_pref_tlv_agent(unsigned char *buff);
     short create_transmit_power_limit_tlv(unsigned char *buff);
+    short create_spatial_reuse_req_tlv(unsigned char *buff);
 
     int send_channel_scan_request_msg();
     int send_channel_sel_request_msg();
@@ -59,6 +61,7 @@ public:
     int handle_channel_pref_tlv(unsigned char *buff, op_class_channel_sel *op_class);
     int handle_channel_pref_tlv_ctrl(unsigned char *buff, unsigned int len);
     int handle_op_channel_report(unsigned char *buff, unsigned int len);
+    int handle_spatial_reuse_report(unsigned char *buff, unsigned int len);
 
     int get_channel_pref_query_tx_count() { return m_channel_pref_query_tx_cnt; }
     void set_channel_pref_query_tx_count(unsigned int cnt) { m_channel_pref_query_tx_cnt = cnt; }
@@ -71,6 +74,7 @@ public:
 
     unsigned int m_channel_pref_query_tx_cnt;
     unsigned int m_channel_sel_req_tx_cnt;
+	virtual em_freq_band_t get_band() = 0;
 
     em_channel_t();
     ~em_channel_t();
