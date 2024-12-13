@@ -100,6 +100,35 @@ int em_metrics_t::handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff)
     return 0;
 }
 
+int em_metrics_t::handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff)
+{
+    em_assoc_sta_vendor_link_metrics_t *sta_metrics;
+    em_assoc_vendor_link_metrics_t *metrics;
+    dm_sta_t *sta;
+    unsigned int i;
+    dm_easy_mesh_t  *dm;
+
+    dm = get_data_model();
+
+    sta_metrics = (em_assoc_sta_vendor_link_metrics_t *)buff;
+
+    for (i = 0; i < sta_metrics->num_bssids; i++) {
+        metrics = &sta_metrics->assoc_vendor_link_metrics[i];
+        sta = dm->find_sta(sta_metrics->sta_mac, metrics->bssid);
+        if (sta == NULL) {
+            continue;
+        }
+
+        sta->m_sta_info.pkts_rx = metrics->packets_received;
+        sta->m_sta_info.pkts_tx = metrics->packets_sent;
+        sta->m_sta_info.bytes_rx = metrics->bytes_received;
+        sta->m_sta_info.bytes_tx = metrics->bytes_sent;
+    }
+
+    return 0;
+}
+
+
 int em_metrics_t::handle_associated_sta_link_metrics_query(unsigned char *buff, unsigned int len)
 {
     mac_address_t sta;
@@ -183,8 +212,20 @@ int em_metrics_t::handle_associated_sta_link_metrics_resp(unsigned char *buff, u
         tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
+    tlv =  (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        if (tlv->type == em_tlv_vendor_sta_metrics) {
+            handle_assoc_sta_vendor_link_metrics_tlv(tlv->value);
+        }
+
+        tmp_len -= (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+    }
     db_cfg_type = dm->get_db_cfg_type();
     dm->set_db_cfg_type(db_cfg_type | db_cfg_type_sta_metrics_update);
+    set_state(em_state_ctrl_configured);
 
     return 0;
 }
@@ -249,23 +290,25 @@ int em_metrics_t::send_associated_sta_link_metrics_msg(mac_address_t sta_mac)
     }
 
     if (send_frame(buff, len)  < 0) {
-        printf("%s:%d: Associated STA Link Mterics Query send failed, error:%d\n", __func__, __LINE__, errno);
+        printf("%s:%d: Associated STA Link Metrics Query send failed, error:%d\n", __func__, __LINE__, errno);
         return -1;
     }
 
-    printf("%s:%d: Associated STA Link Mterics Query send success\n", __func__, __LINE__);
+    printf("%s:%d: Associated STA Link Metrics Query send success\n", __func__, __LINE__);
     return len;
 }
 
-int em_metrics_t::send_all_associated_sta_link_mterics_msg()
+int em_metrics_t::send_all_associated_sta_link_metrics_msg()
 {
     dm_easy_mesh_t *dm;
     dm_sta_t *sta;
 
     dm = get_data_model();
     sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_map);
-    while ((sta != NULL) && (sta->m_sta_info.associated == true)) {
-        send_associated_sta_link_metrics_msg(sta->m_sta_info.id);
+    while (sta != NULL) {
+        if (sta->m_sta_info.associated == true) {
+            send_associated_sta_link_metrics_msg(sta->m_sta_info.id);
+        }
         sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_map, sta);
     }
 }
@@ -348,6 +391,15 @@ int em_metrics_t::send_associated_link_metrics_response(mac_address_t sta_mac)
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_assoc_sta_ext_link_metric;
     sz = create_assoc_ext_sta_link_metrics_tlv(tlv->value, sta_mac, sta);
+    tlv->len = htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += (sizeof(em_tlv_t) + sz);
+
+    //assoc vendor link metrics
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_vendor_sta_metrics;
+    sz = create_assoc_vendor_sta_link_metrics_tlv(tlv->value, sta_mac, sta);
     tlv->len = htons(sz);
 
     tmp += (sizeof(em_tlv_t) + sz);
@@ -471,6 +523,52 @@ short em_metrics_t::create_assoc_ext_sta_link_metrics_tlv(unsigned char *buff, m
     return len;
 }
 
+short em_metrics_t::create_assoc_vendor_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac, const dm_sta_t *const sta)
+{
+    short len = 0;
+    dm_easy_mesh_t *dm;
+    int num_bssids = 0;
+    em_assoc_sta_vendor_link_metrics_t *assoc_sta_metrics = (em_assoc_sta_vendor_link_metrics_t*) buff;
+    em_assoc_vendor_link_metrics_t *metrics;
+
+    dm = get_data_model();
+    num_bssids = dm->get_num_bss_for_associated_sta(sta_mac);
+
+    if (sta == NULL) {
+        memcpy(&assoc_sta_metrics->sta_mac, &sta_mac, sizeof(assoc_sta_metrics->sta_mac));
+        len += sizeof(assoc_sta_metrics->sta_mac);
+
+        assoc_sta_metrics->num_bssids = 0;
+        len += sizeof(assoc_sta_metrics->num_bssids);
+        return len;
+    }
+    else {
+        metrics = &assoc_sta_metrics->assoc_vendor_link_metrics[0];
+        if ((memcmp(sta->m_sta_info.id, sta_mac, sizeof(mac_address_t)) == 0)) {
+            memcpy(assoc_sta_metrics->sta_mac, sta->m_sta_info.id, sizeof(assoc_sta_metrics->sta_mac));
+            len += sizeof(assoc_sta_metrics->sta_mac);
+
+            assoc_sta_metrics->num_bssids = dm->get_num_bss_for_associated_sta(sta_mac);
+            len += sizeof(assoc_sta_metrics->num_bssids);
+
+            memcpy(metrics->bssid, sta->m_sta_info.bssid, sizeof(metrics->bssid));
+            len += sizeof(metrics->bssid);
+
+            metrics->packets_received = sta->m_sta_info.pkts_rx;
+            len += sizeof(metrics->packets_received);
+
+            metrics->packets_sent = sta->m_sta_info.pkts_tx;
+            len += sizeof(metrics->packets_sent);
+
+            metrics->bytes_received = sta->m_sta_info.bytes_rx;
+            len += sizeof(metrics->bytes_received);
+
+            metrics->bytes_sent = sta->m_sta_info.bytes_tx;
+            len += sizeof(metrics->bytes_sent);
+        }
+    }
+    return len;
+}
 
 short em_metrics_t::create_error_code_tlv(unsigned char *buff, mac_address_t sta, bool sta_found)
 {
@@ -525,7 +623,7 @@ void em_metrics_t::process_ctrl_state()
 {
     switch (get_state()) {
         case em_state_ctrl_sta_link_metrics_pending:
-            send_all_associated_sta_link_mterics_msg();
+            send_all_associated_sta_link_metrics_msg();
             break;
     }
 }

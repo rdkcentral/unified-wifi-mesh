@@ -253,7 +253,7 @@ bool em_orch_t::is_cmd_type_in_progress(em_bus_event_type_t etype)
     snprintf(key, sizeof(em_short_string_t), "%d", type);
 
     if ((stats = (em_cmd_stats_t *)hash_map_get(m_cmd_map, key)) != NULL) {
-        printf("%s:%d: Command of type: %d actively executing\n", __func__, __LINE__, type);
+        //printf("%s:%d: Command of type: %d actively executing\n", __func__, __LINE__, type);
         return true;
     }
 
@@ -307,7 +307,7 @@ void em_orch_t::handle_timeout()
         if (ret == true) {
             // means the command is in fini sate 
             //printf("%s:%d: Removing and destroying Command type: %s Orchestration: %s because command is in fini state\n", 
-                    //__func__, __LINE__, pcmd->get_cmd_name(), em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
+                   // __func__, __LINE__, pcmd->get_cmd_name(), em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
             queue_remove(m_active, i);
             pop_stats(pcmd);
             for (j = queue_count(pcmd->m_em_candidates) - 1; j >= 0; j--) {
