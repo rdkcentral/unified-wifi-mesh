@@ -32,6 +32,7 @@
 #define EM_MAC_STR_LEN  17
 #define EM_MAX_COLS     32
 #define EM_MAX_DM_CHILDREN	32
+#define EM_MAX_E4_TABLE_CHANNEL 32
 
 #define EM_PROTO_TOUT   1
 #define EM_MGR_TOUT     1
@@ -1719,6 +1720,7 @@ typedef enum {
     em_state_ctrl_topo_sync_pending,
     em_state_ctrl_topo_synchronized,
     em_state_ctrl_channel_query_pending,
+	em_state_ctrl_channel_pref_report_pending,
     em_state_ctrl_channel_queried,
 	em_state_ctrl_channel_select_pending,
     em_state_ctrl_channel_selected,
@@ -2446,11 +2448,22 @@ typedef struct{
     mac_address_t mac;
     unsigned int key_wrap_authenticator;
     bool enable;
+	em_freq_band_t freq;
 }m2ctrl_vapconfig;
+
+typedef struct{
+	int op_class;
+	em_freq_band_t band;
+	int channel_spacing;
+	int num_channels;
+	int channels[EM_MAX_E4_TABLE_CHANNEL];
+}em_e4_table_t;
 
 typedef struct{
     unsigned int num;
     em_op_class_info_t op_class_info[EM_MAX_OP_CLASS];
+	em_tx_power_limit_t tx_power;
+	em_freq_band_t freq_band;
 }op_class_channel_sel;
 
 typedef struct {

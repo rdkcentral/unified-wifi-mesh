@@ -74,6 +74,7 @@ public:
 
     unsigned int m_channel_pref_query_tx_cnt;
     unsigned int m_channel_sel_req_tx_cnt;
+	virtual em_freq_band_t get_band() = 0;
 
     em_channel_t();
     ~em_channel_t();
