@@ -217,9 +217,8 @@ void dm_op_class_list_t::delete_list()
     while (pop_class != NULL) {
         tmp = pop_class;
         pop_class = get_next_op_class(pop_class);
-    	dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_op_class_info.id.ruid, mac_str);
-    	snprintf(key, sizeof(key), "%s@%d@%d", mac_str, tmp->m_op_class_info.id.type, tmp->m_op_class_info.id.op_class);
-  
+        dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_op_class_info.id.ruid, mac_str);
+        snprintf(key, sizeof(key), "%s@%d@%d", mac_str, tmp->m_op_class_info.id.type, tmp->m_op_class_info.id.op_class);
         remove_op_class(key);
     }
 }
@@ -288,6 +287,7 @@ bool dm_op_class_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
 int dm_op_class_list_t::sync_db(db_client_t& db_client, void *ctx)
 {
     em_op_class_info_t info;
+    info.channels = NULL;
     em_long_string_t   str, id;
     mac_addr_str_t	mac_str;
     char *tmp;
@@ -306,6 +306,7 @@ int dm_op_class_list_t::sync_db(db_client_t& db_client, void *ctx)
 		    if ((str != NULL) && (*str != 0)) {	
             const auto& channels = get_strings_by_token(str, ',');
             info.num_channels = channels.size();
+            info.channels = (unsigned int*)malloc(sizeof(unsigned int) * info.num_channels);
 		        for (i = 0; i < info.num_channels; i++) {
 		    		  info.channels[i] = atoi(channels[i].c_str());
 		    	  }

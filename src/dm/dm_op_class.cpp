@@ -239,5 +239,5 @@ dm_op_class_t::dm_op_class_t()
 
 dm_op_class_t::~dm_op_class_t()
 {
-
+  free(m_op_class_info.channels);
 }

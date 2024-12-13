@@ -44,6 +44,8 @@
 #include "em_cmd_sta_list.h"
 #include "em_cmd_ap_cap.h" 
 
+#include <vector>
+
 dm_network_t *dm_easy_mesh_list_t::get_first_network()
 {
     unsigned int i;
@@ -994,12 +996,10 @@ dm_op_class_t *dm_easy_mesh_list_t::get_next_pre_set_op_class_by_type(em_op_clas
 	}	
 
 	return NULL;
-
 }
 
 void dm_easy_mesh_list_t::remove_op_class(const char *key)
 {
-
 }
 
 void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_class)
@@ -1215,6 +1215,15 @@ void dm_easy_mesh_list_t::delete_data_model(const char *net_id, const unsigned c
     delete dm;
 }
 
+
+template<typename Container>
+unsigned int* create_channel_list(Container&& container)
+{
+    unsigned int* channels = (unsigned int*)malloc(sizeof(unsigned int) * container.size());
+    memcpy(channels, container.data(), container.size() * sizeof(unsigned int));
+    return channels;
+}
+
 dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const unsigned char *al_mac, em_profile_type_t profile, bool colocated)
 {
     dm_easy_mesh_t *dm = NULL, *ref_dm;
@@ -1248,12 +1257,12 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
 					};
     unsigned int i;
 	dm_op_class_t	op_class[EM_MAX_PRE_SET_CHANNELS] 	= 	{
-		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 81}, 81, 0, 0, 0, 1, {6}, 0, 0, 0}), 
-		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 115}, 115, 0, 0, 0, 1, {36}, 0, 0, 0}), 
-		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 135}, 135, 0, 0, 0, 1, {1}, 0, 0, 0}),
-		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 81}, 81, 0, 0, 0, 3, {3, 6, 9}, 0, 0, 0}),
-		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 115}, 115, 0, 0, 0, 9, {36, 40, 44, 48, 149, 153, 157, 161, 165}, 0, 0, 0}),
-		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 135}, 135, 0, 0, 0, 1, {1}, 0, 0, 0})
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 81}, 81, 0, 0, 0, 1, create_channel_list<std::vector<unsigned int>>({6}), 0, 0, 0}),
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 115}, 115, 0, 0, 0, 1, create_channel_list<std::vector<unsigned int>>({36}), 0, 0, 0}),
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 135}, 135, 0, 0, 0, 1, create_channel_list<std::vector<unsigned int>>({1}), 0, 0, 0}),
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 81}, 81, 0, 0, 0, 3, create_channel_list<std::vector<unsigned int>>({3, 6, 9}), 0, 0, 0}),
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 115}, 115, 0, 0, 0, 9, create_channel_list<std::vector<unsigned int>>({36, 40, 44, 48, 149, 153, 157, 161, 165}), 0, 0, 0}),
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 135}, 135, 0, 0, 0, 1, create_channel_list<std::vector<unsigned int>>({1}), 0, 0, 0})
 									};
 	dm_policy_t	policy[] = {
 								dm_policy_t(em_policy[0]), dm_policy_t(em_policy[1]), 
