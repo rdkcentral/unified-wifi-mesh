@@ -25,6 +25,7 @@ class em_cmd_t;
 class em_channel_t {
 
     virtual int send_frame(unsigned char *buff, unsigned int len, bool multicast = false) = 0;
+	virtual int push_event(em_event_t *evt) = 0;
 
 public:
     virtual dm_easy_mesh_t *get_data_model() = 0;

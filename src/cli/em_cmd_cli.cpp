@@ -161,75 +161,57 @@ int em_cmd_cli_t::load_params_file(const char *filename, char *buff)
     return sz;
 }
 
-int em_cmd_cli_t::write_params_file(const char *filename, char *buff, const char *net_id, const char *header)
-{
-    FILE *fp;
-    char tmp[EM_IO_BUFF_SZ];
-    unsigned int sz = 0;
-
-    em_long_string_t wfa;
-    cJSON *obj, *res_obj, *wfa_obj;
-
-    obj = cJSON_Parse(buff);
-    if (obj == NULL) {
-        printf("%s:%d: Failed to parse\n", __func__, __LINE__);
-        return -1;
-    }
-
-    if ((res_obj = cJSON_GetObjectItem(obj, "Result")) == NULL) {
-        printf("%s:%d: Failed to parse\n", __func__, __LINE__);
-        cJSON_free(obj);
-        return -1;
-    }
-
-    if (header != NULL) {
-        snprintf(wfa, sizeof(wfa), "wfa-dataelements:%s", header);
-        wfa_obj = cJSON_CreateObject();
-        if (wfa_obj == NULL) {
-            printf("%s:%d: Failed to parse\n", __func__, __LINE__);
-            cJSON_free(obj);
-            return -1;
-        }
-        cJSON_AddItemToObject(wfa_obj, wfa, res_obj);
-        cJSON_AddStringToObject(res_obj, "ID", net_id);
-    } else {
-        wfa_obj = res_obj;
-    }
-
-    cJSON_PrintPreallocated(wfa_obj, tmp, EM_IO_BUFF_SZ, true);
-
-    cJSON_free(obj);
-
-    if ((fp = fopen(filename, "w")) == NULL) {
-        printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, filename, errno);
-        return -1;
-    } else {
-        fputs(tmp, fp);
-        fclose(fp);
-    }
-
-    return strlen(buff);
-}
-
-
-int em_cmd_cli_t::edit_params_file(const char *filename)
+int em_cmd_cli_t::get_edited_node(em_network_node_t *node, const char *header, char *buff)
 {       
-    char buff[EM_IO_BUFF_SZ];
     cJSON *obj; 
-    
-    m_cli.m_editor_cb((char *)filename);
-
-    if (load_params_file(filename, buff) < 0) {
-        printf("%s:%d: Failed to load params file\n", __func__, __LINE__);
-        return -1;
-    }   
-    
-    if ((obj = cJSON_Parse(buff)) == NULL) {
-        printf("%s:%d: Failed to read file\n", __func__, __LINE__);
+    em_network_node_t *new_node, *tmp;
+    em_network_node_t *child;
+    bool found_result = false;
+    unsigned int i;
+	char *net_id = m_cmd.m_param.u.args.args[1], *formatted;
+            
+    for (i = 0; i < node->num_children; i++) {
+        child = node->child[i];
+        if (strncmp(child->key, "Result", strlen("Result")) == 0) {
+            found_result = true;
+            break;
+        }
+    }       
+            
+    if (found_result == false) {
+		printf("%s:%d: Could not find child with Result\n", __func__, __LINE__);
         return -1;
     }
+
+	snprintf(child->key, sizeof(em_long_string_t), "wfa-dataelements:%s", header);
     
-    return 0;
+	tmp = (em_network_node_t *)malloc(sizeof(em_network_node_t));   
+    memset(tmp, 0, sizeof(em_network_node_t));
+    strncpy(tmp->key, "ID", strlen("ID") + 1);
+    tmp->type = em_network_node_data_type_string;
+    strncpy(tmp->value_str, net_id, strlen(net_id) + 1);
+
+    child->child[child->num_children] = tmp;
+    child->num_children++;
+
+        
+    new_node = (em_network_node_t *)malloc(sizeof(em_network_node_t));  
+    memset(new_node, 0, sizeof(em_network_node_t));
+    new_node->type = node->type;
+    new_node->child[new_node->num_children] = child;
+    new_node->num_children++;
+	
+    free(node);
+
+    m_cli.m_editor_cb(new_node);
+	obj = (cJSON *)get_cli()->network_tree_to_json(new_node);
+	formatted = cJSON_Print((cJSON *)get_cli()->network_tree_to_json(new_node));
+	strncpy(buff, formatted, strlen(formatted) + 1);
+	cJSON_Delete(obj);
+
+    get_cli()->free_network_tree(new_node);
+
+    return strlen(formatted) + 1;
 }
 
 
@@ -246,6 +228,7 @@ int em_cmd_cli_t::execute(em_string_t res)
     unsigned char *tmp;
     em_long_string_t	in, sock_path;
     em_status_string_t out;
+	em_network_node_t *node;
 
     evt = get_event();
     param = get_param();
@@ -341,19 +324,16 @@ int em_cmd_cli_t::execute(em_string_t res)
     
         case em_cmd_type_remove_device:
 			snprintf(in, sizeof(in), "get_device %s 1", m_cmd.m_param.u.args.args[1]);
-			get_cli()->exec(in, strlen(in), out);
-			write_params_file(m_cmd.m_param.u.args.fixed_args, out, m_cmd.m_param.u.args.args[1], "RemoveDevice");
+			if ((node = get_cli()->exec(in, strlen(in))) == NULL) {
+				return -1;
+			}
             bevt->type = em_bus_event_type_remove_device;
-			if (edit_params_file(m_cmd.m_param.u.args.fixed_args) != 0) {
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
+			if ((info->sz = get_edited_node(node, "RemoveDevice", info->buff)) < 0) {
                 printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
                 return -1;
 			}	
-            info = &bevt->u.subdoc;
-            strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
-            if ((info->sz = load_params_file(m_cmd.m_param.u.args.fixed_args, info->buff)) < 0) {
-                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
-                return -1;
-            }
 			break;
 
         case em_cmd_type_get_radio:
@@ -364,20 +344,16 @@ int em_cmd_cli_t::execute(em_string_t res)
 
         case em_cmd_type_set_radio:
             snprintf(in, sizeof(in), "get_radio %s 1", m_cmd.m_param.u.args.args[1]);
-            get_cli()->exec(in, strlen(in), out);
-            write_params_file(m_cmd.m_param.u.args.fixed_args, out, m_cmd.m_param.u.args.args[1], "RadioEnable");
-            bevt->type = em_bus_event_type_set_radio;
-			if (edit_params_file(m_cmd.m_param.u.args.fixed_args) != 0) {
-                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
-                return -1;
-			}	
+			if ((node = get_cli()->exec(in, strlen(in))) == NULL) {
+				return -1;
+			}
             bevt->type = em_bus_event_type_set_radio;
             info = &bevt->u.subdoc;
             strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
-			if ((info->sz = load_params_file(m_cmd.m_param.u.args.fixed_args, info->buff)) < 0) {
+			if ((info->sz = get_edited_node(node, "RadioEnable", info->buff)) < 0) {
                 printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
                 return -1;
-            }
+			}	
             break;
 
         case em_cmd_type_get_ssid:
@@ -388,19 +364,16 @@ int em_cmd_cli_t::execute(em_string_t res)
 
         case em_cmd_type_set_ssid:
             snprintf(in, sizeof(in), "get_ssid %s", m_cmd.m_param.u.args.args[1]);
-            get_cli()->exec(in, strlen(in), out);
-            write_params_file(m_cmd.m_param.u.args.fixed_args, out, m_cmd.m_param.u.args.args[1], "SetSSID");
+			if ((node = get_cli()->exec(in, strlen(in))) == NULL) {
+				return -1;
+			}
             bevt->type = em_bus_event_type_set_ssid;
-			if (edit_params_file(m_cmd.m_param.u.args.fixed_args) != 0) {
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
+			if ((info->sz = get_edited_node(node, "SetSSID", info->buff)) < 0) {
                 printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
                 return -1;
 			}	
-            info = &bevt->u.subdoc;
-            strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
-            if ((info->sz = load_params_file(m_cmd.m_param.u.args.fixed_args, info->buff)) < 0) {
-                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
-                return -1;
-            }
             break;
 
         case em_cmd_type_get_channel:
@@ -411,37 +384,30 @@ int em_cmd_cli_t::execute(em_string_t res)
 
         case em_cmd_type_set_channel:
 			snprintf(in, sizeof(in), "get_channel %s 1", m_cmd.m_param.u.args.args[1]);
-			get_cli()->exec(in, strlen(in), out);
-			write_params_file(m_cmd.m_param.u.args.fixed_args, out, m_cmd.m_param.u.args.args[1], "SetAnticipatedChannelPreference");
+			if ((node = get_cli()->exec(in, strlen(in))) == NULL) {
+				return -1;
+			}
             bevt->type = em_bus_event_type_set_channel;
-			if (edit_params_file(m_cmd.m_param.u.args.fixed_args) != 0) {
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
+			if ((info->sz = get_edited_node(node, "SetAnticipatedChannelPreference", info->buff)) < 0) {
                 printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
                 return -1;
 			}	
-            info = &bevt->u.subdoc;
-            strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
-            if ((info->sz = load_params_file(m_cmd.m_param.u.args.fixed_args, info->buff)) < 0) {
-                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
-                return -1;
-            }
             break;
 
         case em_cmd_type_scan_channel:
             snprintf(in, sizeof(in), "get_channel %s 2", m_cmd.m_param.u.args.args[1]);
-            get_cli()->exec(in, strlen(in), out);
-            write_params_file(m_cmd.m_param.u.args.fixed_args, out, m_cmd.m_param.u.args.args[1], "ChannelScanRequest");
-            bevt->type = em_bus_event_type_set_radio;
-			if (edit_params_file(m_cmd.m_param.u.args.fixed_args) != 0) {
-                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
-                return -1;
-			}	
+			if ((node = get_cli()->exec(in, strlen(in))) == NULL) {
+				return -1;
+			}
             bevt->type = em_bus_event_type_scan_channel;
             info = &bevt->u.subdoc;
             strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
-			if ((info->sz = load_params_file(m_cmd.m_param.u.args.fixed_args, info->buff)) < 0) {
+			if ((info->sz = get_edited_node(node, "ChannelScanRequest", info->buff)) < 0) {
                 printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
                 return -1;
-            }
+			}	
             break;
 
         case em_cmd_type_get_policy:
@@ -453,19 +419,16 @@ int em_cmd_cli_t::execute(em_string_t res)
 
         case em_cmd_type_set_policy:
 			snprintf(in, sizeof(in), "get_policy %s", m_cmd.m_param.u.args.args[1]);
-			get_cli()->exec(in, strlen(in), out);
-			write_params_file(m_cmd.m_param.u.args.fixed_args, out, m_cmd.m_param.u.args.args[1], "SetPolicy");
+			if ((node = get_cli()->exec(in, strlen(in))) == NULL) {
+				return -1;
+			}
             bevt->type = em_bus_event_type_set_policy;
-			if (edit_params_file(m_cmd.m_param.u.args.fixed_args) != 0) {
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
+			if ((info->sz = get_edited_node(node, "SetPolicy", info->buff)) < 0) {
                 printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
                 return -1;
 			}	
-            info = &bevt->u.subdoc;
-            strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
-            if ((info->sz = load_params_file(m_cmd.m_param.u.args.fixed_args, info->buff)) < 0) {
-                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
-                return -1;
-            }
             break;
 
         case em_cmd_type_get_bss:
@@ -482,16 +445,13 @@ int em_cmd_cli_t::execute(em_string_t res)
 
         case em_cmd_type_steer_sta:
             snprintf(in, sizeof(em_long_string_t), "get_sta %s 1", m_cmd.m_param.u.args.args[1]);
-            get_cli()->exec(in, strlen(in), out);
-            write_params_file(m_cmd.m_param.u.args.fixed_args, out, m_cmd.m_param.u.args.args[1], "ClientSteer");
+			if ((node = get_cli()->exec(in, strlen(in))) == NULL) {
+				return -1;
+			}
             bevt->type = em_bus_event_type_steer_sta;
-            if (edit_params_file(m_cmd.m_param.u.args.fixed_args) != 0) {
-                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
-                return -1;
-            }
             info = &bevt->u.subdoc;
             strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
-            if ((info->sz = load_params_file(m_cmd.m_param.u.args.fixed_args, info->buff)) < 0) {
+            if ((info->sz = get_edited_node(node, "ClientSteer", info->buff)) < 0) {
                 printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
                 return -1;
             }
@@ -499,16 +459,13 @@ int em_cmd_cli_t::execute(em_string_t res)
 
         case em_cmd_type_disassoc_sta:
             snprintf(in, sizeof(em_long_string_t), "get_sta %s 2", m_cmd.m_param.u.args.args[1]);
-            get_cli()->exec(in, strlen(in), out);
-            write_params_file(m_cmd.m_param.u.args.fixed_args, out, m_cmd.m_param.u.args.args[1], "Disassociate");
+			if ((node = get_cli()->exec(in, strlen(in))) == NULL) {
+				return -1;
+			}
             bevt->type = em_bus_event_type_disassoc_sta;
-            if (edit_params_file(m_cmd.m_param.u.args.fixed_args) != 0) {
-                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
-                return -1;
-            }
             info = &bevt->u.subdoc;
             strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
-            if ((info->sz = load_params_file(m_cmd.m_param.u.args.fixed_args, info->buff)) < 0) {
+            if ((info->sz = get_edited_node(node, "Disassociate", info->buff)) < 0) {
                 printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
                 return -1;
             }
@@ -516,14 +473,15 @@ int em_cmd_cli_t::execute(em_string_t res)
 
         case em_cmd_type_btm_sta:
             snprintf(in, sizeof(em_long_string_t), "get_sta %s 3", m_cmd.m_param.u.args.args[1]);
-            get_cli()->exec(in, strlen(in), out);
-            write_params_file(m_cmd.m_param.u.args.fixed_args, out, m_cmd.m_param.u.args.args[1], "BTMRequest");
+			if ((node = get_cli()->exec(in, strlen(in))) == NULL) {
+				return -1;
+			}
             bevt->type = em_bus_event_type_btm_sta;
-            if (edit_params_file(m_cmd.m_param.u.args.fixed_args) != 0) {
+            info = &bevt->u.subdoc;
+            if ((info->sz = get_edited_node(node, "BTMRequest", info->buff)) < 0) {
                 printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
                 return -1;
             }
-            info = &bevt->u.subdoc;
             strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
             if ((info->sz = load_params_file(m_cmd.m_param.u.args.fixed_args, info->buff)) < 0) {
                 printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);

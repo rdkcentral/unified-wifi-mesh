@@ -7,7 +7,7 @@ package main
 #include <readline/history.h>
 #include "em_cli_apis.h"
 
-extern int editor_func(char *s);
+extern int editor_func(em_network_node_t *node);
 
 static int register_editor_cb() {
 	return init(editor_func);	
@@ -21,7 +21,7 @@ import (
 )
 
 //export editor_func
-func editor_func(*C.char) C.int {
+func editor_func(*C.em_network_node_t) C.int {
 	fmt.Println("Inside Go Callnack")
 	return 0
 }

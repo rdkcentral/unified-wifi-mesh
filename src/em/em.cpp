@@ -853,6 +853,16 @@ short em_t::create_cac_cap_tlv(unsigned char *buff)
     return len;
 }
 
+int em_t::push_event(em_event_t *evt)
+{
+	em_event_t *e;
+
+    e = (em_event_t *)malloc(sizeof(em_event_t));
+    memcpy(e, evt, sizeof(em_event_t));
+
+    m_mgr->push_to_queue(e);
+}
+
 int em_t::init()
 {
     //m_data_model->print_config();
@@ -929,7 +939,7 @@ const char *em_t::get_band_type_str(em_freq_band_t band)
     return "band_type_unknown";
 }
 
-em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_profile_type_t profile, em_service_type_t type)
+em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr_t *mgr, em_profile_type_t profile, em_service_type_t type)
 {
     memcpy(&m_ruid, ruid, sizeof(em_interface_t));
     m_band = band;  
@@ -941,6 +951,7 @@ em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_pro
     RAND_bytes(get_crypto_info()->e_nonce, sizeof(em_nonce_t));
     RAND_bytes(get_crypto_info()->r_nonce, sizeof(em_nonce_t));
     m_data_model = dm;
+	m_mgr = mgr;
 }
 
 em_t::~em_t()

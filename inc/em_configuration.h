@@ -86,6 +86,7 @@ class em_configuration_t {
     virtual em_crypto_info_t *get_crypto_info() = 0;
     virtual em_crypto_t *get_crypto() = 0;
     virtual int send_frame(unsigned char *buff, unsigned int len, bool multicast = false) = 0;
+	virtual int push_event(em_event_t *evt) = 0;
     virtual em_cmd_t *get_current_cmd() = 0;
     virtual short create_ap_radio_basic_cap(unsigned char *buff) = 0;
     virtual bool is_al_interface_em() = 0;

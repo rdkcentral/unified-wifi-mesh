@@ -201,12 +201,13 @@ bool em_orch_t::orchestrate(em_cmd_t *pcmd, em_t *em)
             //printf("%s:%d: Start orchestartion:%s(%s), em state:%s\n", __func__, __LINE__, 
 					//em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
 					//em_t::state_2_str(em->get_state()));
-            pcmd->set_start_time();
             em->orch_execute(pcmd);
         } else {
             //printf("%s:%d: skipping orchestration:%s(%s) because of incorrect state, state:%s\n", __func__, __LINE__, 
 					//em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
 					//em_t::state_2_str(em->get_state()));
+            update_stats(pcmd);
+            orch_transient(pcmd, em);
         }
 
     } else if (orch_state == em_orch_state_progress) {
@@ -287,6 +288,8 @@ void em_orch_t::handle_timeout()
             em->set_orch_state(em_orch_state_pending);
         }
 
+		// as soon as command is pushed to active start timing
+		pcmd->set_start_time();
         queue_push(m_active, pcmd);
     } else {
         if ((cnt = queue_count(m_pending))) {
@@ -299,6 +302,8 @@ void em_orch_t::handle_timeout()
     // go through active queue and check command states
     for (i = queue_count(m_active) - 1; i >= 0; i--) {
         pcmd = (em_cmd_t *)queue_peek(m_active, i);
+		//printf("%s:%d: Cmd: %s, em candidates: %d\n", __func__, __LINE__, 
+					//em_cmd_t::get_cmd_type_str(pcmd->m_type), queue_count(pcmd->m_em_candidates));
         for (j = queue_count(pcmd->m_em_candidates) - 1; j >= 0; j--) {
             em = (em_t *)queue_peek(pcmd->m_em_candidates, j);
             ret &= orchestrate(pcmd, em);
