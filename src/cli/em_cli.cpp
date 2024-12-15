@@ -471,32 +471,6 @@ em_cmd_t& em_cli_t::get_command(char *in, size_t in_len)
     return em_cmd_cli_t::m_client_cmd_spec[idx];
 }
 
-char *em_cli_t::exec(char *in, size_t sz, em_status_string_t out)
-{
-	em_long_string_t cmd;
-    em_status_string_t res;
-    em_cmd_cli_t *cli_cmd;
-
-    snprintf(cmd, sizeof(cmd),  "%s", in);
-    cli_cmd = new em_cmd_cli_t(get_command(cmd, sz));
-
-    cli_cmd->init();
-
-    if (cli_cmd->validate() == false) {
-        cli_cmd->m_cmd.status_to_string(em_cmd_out_status_invalid_input, res);
-    } else {
-        if (cli_cmd->execute(res) != 0) {
-            cli_cmd->m_cmd.status_to_string(em_cmd_out_status_invalid_input, res);
-
-        }
-    }
-
-    snprintf(out, EM_IO_BUFF_SZ, "%s", res);
-    delete cli_cmd;
-
-    return out;
-}
-
 em_network_node_t *em_cli_t::exec(char *in, size_t sz)
 {
     em_long_string_t cmd;

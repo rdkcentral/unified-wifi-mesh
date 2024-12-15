@@ -28,7 +28,6 @@ class em_cli_t {
 public:
 	em_editor_callback_t m_editor_cb;
 
-	char *exec(char *in, size_t in_len, em_status_string_t out);
     em_network_node_t *exec(char *in, size_t in_len);
     int init(em_editor_callback_t func);
 	const char *get_first_cmd_str();

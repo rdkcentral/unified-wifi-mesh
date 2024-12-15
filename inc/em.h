@@ -33,6 +33,8 @@
 #include "dm_easy_mesh.h"
 #include "em_sm.h"
 
+class em_mgr_t;
+
 class em_t : 
     public em_configuration_t, public em_discovery_t, 
     public em_provisioning_t, public em_channel_t,
@@ -40,6 +42,7 @@ class em_t :
     public em_steering_t, public em_policy_cfg_t  {
     
     dm_easy_mesh_t*  m_data_model;
+	em_mgr_t	*m_mgr;
 
     em_orch_state_t m_orch_state;
     em_cmd_t *m_cmd;
@@ -65,7 +68,7 @@ class em_t :
     int start_al_interface();
     int send_frame(unsigned char *buff, unsigned int len, bool multicast = false);
     int send_cmd(em_cmd_type_t type, em_service_type_t svc, unsigned char *buff, unsigned int len);
-
+	int push_event(em_event_t *evt);
 
 
 public:
@@ -168,7 +171,7 @@ public:
     static const char *get_band_type_str(em_freq_band_t band);
     static const char *state_2_str(em_state_t state);
 
-    em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_profile_type_t profile, em_service_type_t type);
+    em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr_t *mgr, em_profile_type_t profile, em_service_type_t type);
     ~em_t();
 
 };
