@@ -212,6 +212,18 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
             em_metrics_t::process_msg(data, len);
             break;
 
+        case em_msg_type_dpp_cce_ind:
+        case em_msg_type_proxied_encap_dpp:
+        case em_msg_type_direct_encap_dpp:
+        case em_msg_type_reconfig_trigger:
+        case em_msg_type_bss_config_req:
+        case em_msg_type_bss_config_rsp:
+        case em_msg_type_bss_config_res:
+        case em_msg_type_chirp_notif:
+        case em_msg_type_dpp_bootstrap_uri_notif:
+            em_provisioning_t::process_msg(data, len);
+            break;
+
         default:
             break;  
     }
@@ -606,6 +618,7 @@ short em_t::create_ap_radio_basic_cap(unsigned char *buff) {
 	em_channels_list_t *channel_list;
 	em_op_class_t *op_class;
 	unsigned int all_channel_len = 0;
+	int i = 0;
 	len = sizeof(em_ap_radio_basic_cap_t);
 
 	memcpy(&cap->ruid, get_radio_interface_mac(), sizeof(mac_address_t));
@@ -614,32 +627,33 @@ short em_t::create_ap_radio_basic_cap(unsigned char *buff) {
 	cap->num_bss = get_current_cmd()->get_data_model()->get_num_bss();
 	cap->op_class_num = 0;
 	op_class = cap->op_classes;
-	for (int i = 0; i < get_current_cmd()->get_data_model()->get_num_op_class(); i++) {
-
-		em_op_class_info_t *op_class_info = get_current_cmd()->get_data_model()->get_op_class_info(i);
-		if ((op_class_info != NULL) && (op_class_info->id.type == em_op_class_type_capability)){
-			cap->op_class_num++;
-			op_class->op_class = op_class_info->op_class;
-			op_class->max_tx_eirp = op_class_info->max_tx_power;
-			op_class->num = op_class_info->num_channels;
-			len += sizeof(em_op_class_t);
-			if (op_class_info->num_channels != 0) {
-				channel_list = &op_class->channels;
-				for (int j = 0; j < op_class_info->num_channels; j++) {
-					memcpy( (unsigned char *)&channel_list->channel, (unsigned char *)&op_class_info->channels[j], sizeof(unsigned char));
-					all_channel_len = all_channel_len + sizeof(unsigned char);
-					channel_list = (em_channels_list_t *)((unsigned char *)channel_list + sizeof(em_channels_list_t) + sizeof(unsigned char) );
+	for (i = 0; i < get_current_cmd()->get_data_model()->get_num_op_class(); i++) {
+		if (memcmp(get_radio_interface_mac(), get_current_cmd()->get_data_model()->get_op_class_info(i)->id.ruid, sizeof(mac_address_t)) == 0) {
+			em_op_class_info_t *op_class_info = get_current_cmd()->get_data_model()->get_op_class_info(i);
+			if ((op_class_info != NULL) && (op_class_info->id.type == em_op_class_type_capability)){
+				cap->op_class_num++;
+				op_class->op_class = op_class_info->op_class;
+				op_class->max_tx_eirp = op_class_info->max_tx_power;
+				op_class->num = op_class_info->num_channels;
+				len += sizeof(em_op_class_t);
+				if (op_class_info->num_channels != 0) {
+					channel_list = &op_class->channels;
+					for (int j = 0; j < op_class_info->num_channels; j++) {
+						memcpy( (unsigned char *)&channel_list->channel, (unsigned char *)&op_class_info->channels[j], sizeof(unsigned char));
+						all_channel_len = all_channel_len + sizeof(unsigned char);
+						channel_list = (em_channels_list_t *)((unsigned char *)channel_list + sizeof(em_channels_list_t) + sizeof(unsigned char) );
 									   len += sizeof(unsigned char);
+					}
 				}
-			}
-			printf("Op Class %d: %d, max_tx_eirp: %d, channels.num: %d\n",
-				   i, op_class_info->op_class, op_class_info->max_tx_power, op_class_info->num_channels);
-			printf(" cap->op_classes[%d].op_class: %d, cap->op_classes[%d].max_tx_eirp %d,	cap->op_classes[%d].channels.num %d\n",
-				   i, cap->op_classes[i].op_class, i, cap->op_classes[i].max_tx_eirp, i, cap->op_classes[i].num);
+				printf("Op Class %d: %d, max_tx_eirp: %d, channels.num: %d\n",
+					   i, op_class_info->op_class, op_class_info->max_tx_power, op_class_info->num_channels);
+				printf(" cap->op_classes[%d].op_class: %d, cap->op_classes[%d].max_tx_eirp %d,	cap->op_classes[%d].channels.num %d\n",
+					   i, cap->op_classes[i].op_class, i, cap->op_classes[i].max_tx_eirp, i, cap->op_classes[i].num);
 
+			}
+			op_class = (em_op_class_t *)((unsigned char *)op_class + sizeof(em_op_class_t) + all_channel_len);
+			all_channel_len = 0;
 		}
-		op_class = (em_op_class_t *)((unsigned char *)op_class + sizeof(em_op_class_t) + all_channel_len);
-		all_channel_len = 0;
 	}
 	return len;
 }
@@ -908,6 +922,7 @@ const char *em_t::state_2_str(em_state_t state)
 		EM_STATE_2S(em_state_ctrl_topo_sync_pending)
 		EM_STATE_2S(em_state_ctrl_topo_synchronized)
 		EM_STATE_2S(em_state_ctrl_channel_query_pending)
+		EM_STATE_2S(em_state_ctrl_channel_pref_report_pending)
 		EM_STATE_2S(em_state_ctrl_channel_queried)
 		EM_STATE_2S(em_state_ctrl_channel_select_pending)
 		EM_STATE_2S(em_state_ctrl_channel_selected)
@@ -948,6 +963,7 @@ em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr
     m_sm.init_sm(type);
 	m_orch_state = em_orch_state_idle;
     m_cmd = NULL;
+    
     RAND_bytes(get_crypto_info()->e_nonce, sizeof(em_nonce_t));
     RAND_bytes(get_crypto_info()->r_nonce, sizeof(em_nonce_t));
     m_data_model = dm;

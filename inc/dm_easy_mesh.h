@@ -73,6 +73,10 @@ public:
     dm_tid_to_link_t m_tid_to_link;
 
 public:
+	static em_e4_table_t m_e4_table[];
+	static em_freq_band_t get_freq_band_by_op_class(int op_class);
+	em_bss_info_t *get_bss_info_with_mac(mac_address_t mac);
+	static em_bss_info_t *get_bss_info_with_mac(void *dm, mac_address_t mac) { return ((dm_easy_mesh_t *)dm)->get_bss_info_with_mac(mac); }
     virtual int analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]);
     int analyze_radio_config(em_bus_event_t *evt, em_cmd_t *pcmd[]);
     int analyze_vap_config(em_bus_event_t *evt, em_cmd_t *pcmd[]);

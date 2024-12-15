@@ -272,6 +272,31 @@ int em_channel_t::send_channel_scan_request_msg()
     return len;
 
 }
+short em_channel_t::create_spatial_reuse_req_tlv(unsigned char *buff)
+{
+    int len = 0;
+    em_spatial_reuse_req_t *spatial_reuse_req;
+
+    spatial_reuse_req = (em_spatial_reuse_req_t *)buff;
+    memcpy(spatial_reuse_req->ruid, get_radio_interface_mac(), sizeof(em_radio_id_t));
+
+    dm_radio_t *radio = get_data_model()->get_radio(get_radio_interface_mac());
+    em_radio_info_t *radio_info = radio->get_radio_info();
+    spatial_reuse_req->bss_color = radio_info->bss_color;
+    spatial_reuse_req->hesiga_spatial_reuse_value15_allowed = radio_info->hesiga_spatial_reuse_value15_allowed;
+    spatial_reuse_req->srg_info_valid = radio_info->srg_information_valid;
+    spatial_reuse_req->non_srg_offset_valid = (unsigned char)radio_info->non_srg_offset_valid;
+    spatial_reuse_req->psr_disallowed = (unsigned char)radio_info->psr_disallowed;
+    spatial_reuse_req->non_srg_obsspd_max_offset = (unsigned char)radio_info->non_srg_obsspd_max_offset;
+    spatial_reuse_req->srg_obsspd_min_offset = (unsigned char)radio_info->srg_obsspd_min_offset;
+    spatial_reuse_req->srg_obsspd_max_offset = (unsigned char)radio_info->srg_obsspd_max_offset;
+    memcpy(spatial_reuse_req->srg_bss_color_bitmap, radio_info->srg_bss_color_bitmap, sizeof(spatial_reuse_req->srg_bss_color_bitmap));
+    memcpy(spatial_reuse_req->srg_partial_bssid_bitmap, radio_info->srg_partial_bssid_bitmap, sizeof(spatial_reuse_req->srg_partial_bssid_bitmap));
+
+    len += sizeof(em_spatial_reuse_req_t);
+
+    return len;
+}
 
 int em_channel_t::send_channel_sel_request_msg()
 {
@@ -329,7 +354,14 @@ int em_channel_t::send_channel_sel_request_msg()
     tmp += (sizeof(em_tlv_t) + sz);
     len += (sizeof(em_tlv_t) + sz);
 
-	// Zero or more Spatial Reuse Request TLVs (see section 17.2.89).
+    // Zero or more Spatial Reuse Request TLVs (see section 17.2.89).
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_spatial_reuse_req;
+    sz = create_spatial_reuse_req_tlv(tlv->value);
+    tlv->len = htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += (sizeof(em_tlv_t) + sz);
 
     // End of message
     tlv = (em_tlv_t *)tmp;
@@ -402,7 +434,15 @@ int em_channel_t::send_channel_sel_response_msg(em_chan_sel_resp_code_type_t cod
     len += (sizeof(em_tlv_t) + sizeof(em_channel_sel_rsp_t));
     
 	// Zero or more Spatial Reuse Config Response TLVs (see section 17.2.91)
+	tlv = (em_tlv_t *)tmp;
+	tlv->type = em_tlv_type_spatial_reuse_cfg_rsp;
+	tlv->len = htons(sizeof(em_spatial_reuse_cfg_rsp_t));
+	resp = (em_channel_sel_rsp_t *)tlv->value;
+	memcpy(resp->ruid, get_radio_interface_mac(), sizeof(em_radio_id_t));
+    memcpy(&resp->response_code, (unsigned char *)&code, sizeof(unsigned char));
 
+    tmp += (sizeof(em_tlv_t) + sizeof(em_channel_sel_rsp_t));
+    len += (sizeof(em_tlv_t) + sizeof(em_channel_sel_rsp_t));
 	// End of message
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_eom;
@@ -465,6 +505,39 @@ short em_channel_t::create_operating_channel_report_tlv(unsigned char *buff)
 	return len;
 }
 
+short em_channel_t::create_spatial_reuse_report_tlv(unsigned char *buff)
+{
+    short len = 0;
+    unsigned int i;
+    dm_easy_mesh_t *dm;
+    em_spatial_reuse_rprt_t *rprt_spatial_reuse;
+    unsigned char *tmp;
+
+    dm = get_data_model();
+
+    rprt_spatial_reuse = (em_spatial_reuse_rprt_t *)buff;
+    memcpy(rprt_spatial_reuse->ruid, get_radio_interface_mac(), sizeof(em_radio_id_t));
+
+    dm_radio_t *radio = dm->get_radio(get_radio_interface_mac());
+    em_radio_info_t *radio_info = radio->get_radio_info();
+    rprt_spatial_reuse->partial_bss_color = radio_info->partial_bss_color;
+    rprt_spatial_reuse->bss_color = radio_info->bss_color;
+    rprt_spatial_reuse->hesiga_spatial_reuse_value15_allowed = radio_info->hesiga_spatial_reuse_value15_allowed;
+    rprt_spatial_reuse->srg_info_valid = radio_info->srg_information_valid;
+    rprt_spatial_reuse->non_srg_offset_valid = (unsigned char)radio_info->non_srg_offset_valid;
+    rprt_spatial_reuse->psr_disallowed = (unsigned char)radio_info->psr_disallowed;
+    rprt_spatial_reuse->non_srg_obsspd_max_offset = (unsigned char)radio_info->non_srg_obsspd_max_offset;
+    rprt_spatial_reuse->srg_obsspd_min_offset = (unsigned char)radio_info->srg_obsspd_min_offset;
+    rprt_spatial_reuse->srg_obsspd_max_offset = (unsigned char)radio_info->srg_obsspd_max_offset;
+    memcpy(rprt_spatial_reuse->srg_bss_color_bitmap, radio_info->srg_bss_color_bitmap, sizeof(rprt_spatial_reuse->srg_bss_color_bitmap));
+    memcpy(rprt_spatial_reuse->srg_partial_bssid_bitmap, radio_info->srg_partial_bssid_bitmap, sizeof(rprt_spatial_reuse->srg_partial_bssid_bitmap));
+    memcpy(rprt_spatial_reuse->neigh_bss_color_in_use_bitmap, radio_info->neigh_bss_color_in_use_bitmap, sizeof(rprt_spatial_reuse->neigh_bss_color_in_use_bitmap));
+
+    len += sizeof(em_spatial_reuse_rprt_t);
+
+    return len;
+}
+
 int em_channel_t::send_operating_channel_report_msg()
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
@@ -513,6 +586,13 @@ int em_channel_t::send_operating_channel_report_msg()
     len += (sizeof(em_tlv_t) + sz);
 
     // Zero or more Spatial Reuse Report TLVs (see section 17.2.90)
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_spatial_reuse_rep;
+    sz = create_spatial_reuse_report_tlv(tlv->value);
+    tlv->len = htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += (sizeof(em_tlv_t) + sz);
 
     // End of message
     tlv = (em_tlv_t *)tmp;
@@ -914,6 +994,31 @@ int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len
     return 0;
 }
 
+int em_channel_t::handle_spatial_reuse_report(unsigned char *buff, unsigned int len)
+{
+    dm_easy_mesh_t *dm;
+    unsigned int db_cfg_type = 0, i = 0, found = 0;
+    em_spatial_reuse_rprt_t *rpt = (em_spatial_reuse_rprt_t *) buff;
+    dm = get_data_model();
+
+    dm_radio_t *radio = dm->get_radio(get_radio_interface_mac());
+    em_radio_info_t *radio_info = radio->get_radio_info();
+    radio_info->partial_bss_color = rpt->partial_bss_color;
+    radio_info->bss_color = rpt->bss_color;
+    radio_info->hesiga_spatial_reuse_value15_allowed = rpt->hesiga_spatial_reuse_value15_allowed;
+    radio_info->srg_information_valid = rpt->srg_info_valid;
+    radio_info->non_srg_offset_valid = (unsigned char)rpt->non_srg_offset_valid;
+    radio_info->psr_disallowed = (unsigned char)rpt->psr_disallowed;
+    radio_info->non_srg_obsspd_max_offset = (unsigned char)rpt->non_srg_obsspd_max_offset;
+    radio_info->srg_obsspd_min_offset = (unsigned char)rpt->srg_obsspd_min_offset;
+    radio_info->srg_obsspd_max_offset = (unsigned char)rpt->srg_obsspd_max_offset;
+    memcpy(radio_info->srg_bss_color_bitmap, rpt->srg_bss_color_bitmap, sizeof(radio_info->srg_bss_color_bitmap));
+    memcpy(radio_info->srg_partial_bssid_bitmap, rpt->srg_partial_bssid_bitmap, sizeof(radio_info->srg_partial_bssid_bitmap));
+    memcpy(radio_info->neigh_bss_color_in_use_bitmap, rpt->neigh_bss_color_in_use_bitmap, sizeof(radio_info->neigh_bss_color_in_use_bitmap));
+
+    return 0;
+}
+
 
 int em_channel_t::handle_channel_pref_tlv_ctrl(unsigned char *buff, unsigned int len)
 {
@@ -999,32 +1104,38 @@ int em_channel_t::handle_channel_pref_rprt(unsigned char *buff, unsigned int len
 
 int em_channel_t::handle_channel_pref_tlv(unsigned char *buff, op_class_channel_sel *op_class)
 {
-    em_channel_pref_t   *pref = (em_channel_pref_t *) buff;
+    em_channel_pref_t *pref = (em_channel_pref_t *) buff;
     em_channel_pref_op_class_t *channel_pref;
     unsigned int i = 0, j = 0;
-    em_op_class_info_t      op_class_info[EM_MAX_OP_CLASS];
+	em_op_class_info_t op_class_info[EM_MAX_OP_CLASS];
+	em_event_t  ev;
+	em_bus_event_t *bev;
 
     channel_pref = pref->op_classes;
     if (pref != NULL) {
 		channel_pref = pref->op_classes;
 		memcpy(op_class_info[i].id.ruid, pref->ruid, sizeof(mac_address_t));
-			for (i = 0; i < pref->op_classes_num; i++) {
-				memcpy(op_class_info[i].id.ruid, pref->ruid, sizeof(mac_address_t));
-                op_class_info[i].id.type = em_op_class_type_current;
-                op_class_info[i].op_class = (unsigned int)channel_pref->op_class;
-				op_class_info[i].id.op_class = op_class_info[i].op_class;
-                op_class_info[i].num_channels = (unsigned int)channel_pref->num;
-                for (j = 0; j < op_class_info[i].num_channels; j++) {
-                        op_class_info[i].channels[j] = (unsigned int )channel_pref->channels.channel[j];
-                }
-                channel_pref = (em_channel_pref_op_class_t *)((unsigned char *)channel_pref + sizeof(em_op_class_t) +
-				op_class_info[i].num_channels);
+		for (i = 0; i < pref->op_classes_num; i++) {
+			memcpy(op_class_info[i].id.ruid, pref->ruid, sizeof(mac_address_t));
+			op_class_info[i].id.type = em_op_class_type_current;
+			op_class_info[i].op_class = (unsigned int)channel_pref->op_class;
+			op_class_info[i].id.op_class = op_class_info[i].op_class;
+			op_class_info[i].num_channels = (unsigned int)channel_pref->num;
+			for (j = 0; j < op_class_info[i].num_channels; j++) {
+					op_class_info[i].channels[j] = (unsigned int )channel_pref->channels.channel[j];
 			}
+			channel_pref = (em_channel_pref_op_class_t *)((unsigned char *)channel_pref + sizeof(em_op_class_t) +
+							op_class_info[i].num_channels);
+		}
 
-        op_class->num = pref->op_classes_num;
-        for (i = 0; i < pref->op_classes_num; i++) {
-            memcpy(&op_class->op_class_info[i], &op_class_info[i], sizeof(em_op_class_info_t));
-        }
+		op_class->num = 1;
+		for (i = 0; i < pref->op_classes_num; i++) {
+			if (get_band() == (dm_easy_mesh_t::get_freq_band_by_op_class(op_class_info[i].op_class))) {
+				memcpy(&op_class->op_class_info[0], &op_class_info[i], sizeof(em_op_class_info_t));
+				printf("%s:%d Received channel selection request op_class=%d \n",__func__, __LINE__,op_class_info[i].op_class);
+				break;
+			}
+		}
     }
 
     return 0;
@@ -1056,9 +1167,11 @@ int em_channel_t::handle_channel_sel_req(unsigned char *buff, unsigned int len)
 
     op_class_channel_sel *op_class;
     em_tx_power_limit_t	*tx_power_limit;
+    em_spatial_reuse_req_t *spatial_reuse_req;
 
     em_event_t  ev;
     em_bus_event_t *bev;
+    unsigned char* tmp = (unsigned char *) &ev.u.bevt.u.raw_buff;
 
     ev.type = em_event_type_bus;
     bev = &ev.u.bevt;
@@ -1070,18 +1183,26 @@ int em_channel_t::handle_channel_sel_req(unsigned char *buff, unsigned int len)
 
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if (tlv->type == em_tlv_type_channel_pref) {
-            op_class = (op_class_channel_sel *)&bev->u.raw_buff;
+            op_class = (op_class_channel_sel *)tmp;
             handle_channel_pref_tlv(tlv->value, op_class);
+            tmp = (unsigned char *)tmp + op_class->num * sizeof(em_op_class_info_t);
         }
         if (tlv->type == em_tlv_type_tx_power) {
-            tx_power_limit = (em_tx_power_limit_t *)((unsigned char *)&bev->u.raw_buff + op_class->num * sizeof(em_op_class_info_t));
-            memcpy(tx_power_limit, tlv->value, sizeof(em_tx_power_limit_t));
+			memcpy(&op_class->tx_power, tlv->value, sizeof(em_tx_power_limit_t));
+            tmp = (unsigned char *)tmp + sizeof(em_tx_power_limit_t);
+        }
+        if (tlv->type == em_tlv_type_spatial_reuse_req)
+        {
+            spatial_reuse_req = (em_spatial_reuse_req_t *)tmp;
+            memcpy(spatial_reuse_req, tlv->value, sizeof(em_spatial_reuse_req_t));
+            tmp = (unsigned char *)tmp + sizeof(em_spatial_reuse_req_t);
         }
 
         tlv_len -= (sizeof(em_tlv_t) + htons(tlv->len));
         tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
+	op_class->freq_band = get_band();
     em_cmd_exec_t::send_cmd(em_service_type_agent, (unsigned char *)&ev, sizeof(em_event_t));
     printf("%s:%d Received channel selection request \n",__func__, __LINE__);
 
@@ -1105,7 +1226,9 @@ int em_channel_t::handle_operating_channel_rprt(unsigned char *buff, unsigned in
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if (tlv->type == em_tlv_type_op_channel_report) {
             handle_op_channel_report(tlv->value, htons(tlv->len));
-            break;
+        }
+        if (tlv->type == em_tlv_type_spatial_reuse_rep) {
+            handle_spatial_reuse_report(tlv->value, htons(tlv->len));
         }
 
         tlv_len -= (sizeof(em_tlv_t) + htons(tlv->len));
@@ -1139,7 +1262,9 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
             break;
 
         case em_msg_type_op_channel_rprt:
-            handle_operating_channel_rprt(data, len);
+			if (get_service_type() == em_service_type_ctrl) {
+           		handle_operating_channel_rprt(data, len);
+			}
             break;
     
 	    break;
@@ -1182,11 +1307,16 @@ void em_channel_t::process_ctrl_state()
 {
     switch (get_state()) {
         case em_state_ctrl_channel_query_pending:
-			send_channel_pref_query_msg();
+			if(get_service_type() == em_service_type_ctrl) {
+				send_channel_pref_query_msg();
+				set_state(em_state_ctrl_channel_pref_report_pending);
+			}
             break;
 
         case em_state_ctrl_channel_select_pending:
-			send_channel_sel_request_msg();
+			if(get_service_type() == em_service_type_ctrl) {
+				send_channel_sel_request_msg();
+			}
             break; 
         
 		case em_state_ctrl_channel_scan_pending:

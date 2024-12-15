@@ -470,13 +470,15 @@ int em_agent_t::onewifi_cb(char *event_name, raw_data_t *data)
 	} else {
 		cJSON *subdoc_name = cJSON_GetObjectItemCaseSensitive(json, "SubDocName");
 		if (cJSON_IsString(subdoc_name) && (subdoc_name->valuestring != NULL)) {
-			if (strcmp(subdoc_name->valuestring, "private") == 0) {
+			if ((strcmp(subdoc_name->valuestring, "private") == 0) || (strcmp(subdoc_name->valuestring, "Vap_5G") == 0) ||
+				(strcmp(subdoc_name->valuestring, "Vap_2.4G") == 0)) {
 				printf("%s:%d Found SubDocName: private\n", __func__, __LINE__);
 				bevt = &evt.u.bevt;
 				bevt->type = em_bus_event_type_onewifi_private_cb;
 				memcpy(bevt->u.raw_buff, data->raw_data.bytes, data->raw_data_len);
 
-			} else if (strcmp(subdoc_name->valuestring, "radio") == 0) {
+			} else if ((strcmp(subdoc_name->valuestring, "radio") == 0) || (strcmp(subdoc_name->valuestring, "radio_5G") == 0) ||
+				(strcmp(subdoc_name->valuestring, "radio_2.4G") == 0)) {
 				printf("%s:%d Found SubDocName: radio\n", __func__, __LINE__);
 				bevt = &evt.u.bevt;
 				bevt->type = em_bus_event_type_onewifi_radio_cb;
