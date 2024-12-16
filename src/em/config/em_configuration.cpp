@@ -602,6 +602,51 @@ int em_configuration_t::create_bsta_mld_config_tlv(unsigned char *buff)
     return tlv_len;
 }
 
+int em_configuration_t::create_assoc_sta_mld_config_report_tlv(unsigned char *buff)
+{
+    em_tlv_t *tlv;
+    unsigned char *tmp = buff;
+    em_assoc_sta_mld_config_report_t *assoc_sta_mld_conf_report;
+    em_affiliated_sta_mld_t *affiliated_sta_mld;
+    dm_easy_mesh_t  *dm;
+    unsigned int i;
+    unsigned short affiliated_sta_len = 0;
+    unsigned short tlv_len = 0;
+
+    dm = get_data_model();
+
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_assoc_sta_mld_conf_rep;
+
+    assoc_sta_mld_conf_report = (em_assoc_sta_mld_config_report_t *)tlv->value;
+    tlv_len = sizeof(em_assoc_sta_mld_config_report_t);
+
+    em_assoc_sta_mld_info_t& assoc_sta_mld_info = dm->m_assoc_sta_mld.m_assoc_sta_mld_info;
+    memcpy(assoc_sta_mld_conf_report->sta_mld_mac_addr, assoc_sta_mld_info.mac_addr, sizeof(mac_address_t));
+    memcpy(assoc_sta_mld_conf_report->ap_mld_mac_addr, assoc_sta_mld_info.ap_mld_mac_addr, sizeof(mac_address_t));
+    assoc_sta_mld_conf_report->str = assoc_sta_mld_info.str;
+    assoc_sta_mld_conf_report->nstr = assoc_sta_mld_info.nstr;
+    assoc_sta_mld_conf_report->emlsr = assoc_sta_mld_info.emlsr;
+    assoc_sta_mld_conf_report->emlmr = assoc_sta_mld_info.emlmr;
+
+    assoc_sta_mld_conf_report->num_affiliated_sta = assoc_sta_mld_info.num_affiliated_sta;
+    affiliated_sta_mld = assoc_sta_mld_conf_report->affiliated_sta_mld;
+
+    for (i = 0; i < assoc_sta_mld_conf_report->num_affiliated_sta; i++) {
+        em_affiliated_sta_info_t& affiliated_sta_info = assoc_sta_mld_info.affiliated_sta[i];
+        memcpy(affiliated_sta_mld->bssid, affiliated_sta_info.bssid, sizeof(mac_address_t));
+        memcpy(affiliated_sta_mld->affiliated_sta_mac_addr, affiliated_sta_info.mac_addr, sizeof(mac_address_t));
+
+        affiliated_sta_mld = (em_affiliated_sta_mld_t *)((unsigned char *)affiliated_sta_mld + sizeof(em_affiliated_sta_mld_t));
+        affiliated_sta_len += sizeof(em_affiliated_sta_mld_t);
+    }
+
+    tlv_len += affiliated_sta_len;
+    tlv->len = htons(tlv_len);
+
+    return tlv_len;
+}
+
 int em_configuration_t::create_tid_to_link_map_policy_tlv(unsigned char *buff)
 {
     em_tlv_t *tlv;
@@ -740,6 +785,12 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst)
 
     // One Backhaul STA MLD Configuration TLV
     tlv_len = create_bsta_mld_config_tlv(tmp);
+
+    tmp += (sizeof(em_tlv_t) + tlv_len);
+    len += (sizeof(em_tlv_t) + tlv_len);
+
+    // One Associated STA MLD Configuration Report TLV
+    tlv_len = create_assoc_sta_mld_config_report_tlv(tmp);
 
     tmp += (sizeof(em_tlv_t) + tlv_len);
     len += (sizeof(em_tlv_t) + tlv_len);

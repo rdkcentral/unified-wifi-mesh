@@ -35,6 +35,7 @@
 #include "dm_cac_comp.h"
 #include "dm_ap_mld.h"
 #include "dm_bsta_mld.h"
+#include "dm_assoc_sta_mld.h"
 #include "dm_tid_to_link.h"
 #include "webconfig_external_proto.h"
 
@@ -70,6 +71,7 @@ public:
     unsigned int    m_num_ap_mld;
     dm_ap_mld_t     m_ap_mld[EM_MAX_AP_MLD];
     dm_bsta_mld_t   m_bsta_mld;
+    dm_assoc_sta_mld_t m_assoc_sta_mld;
     dm_tid_to_link_t m_tid_to_link;
 
 public:
