@@ -16,8 +16,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/*
+ * NOTE: This file is included also in OneWifi project which is C based, thus
+ * there should be only usage of C based constructs in this file.
+ * C++ constructs are not allowed in this file.
+ */
 #ifndef EM_BASE_H
 #define EM_BASE_H
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 #include "wifi_webconfig.h"
 #include <openssl/evp.h>
@@ -2786,5 +2796,9 @@ typedef struct em_network_node {
 } em_network_node_t;
 
 typedef int (* em_editor_callback_t)(em_network_node_t *);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // EM_BASE_H
