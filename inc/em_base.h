@@ -545,6 +545,7 @@ typedef enum {
     em_tlv_type_wifi7_agent_cap = 0xdf,
     em_tlv_type_ap_mld_config = 0xe0,
     em_tlv_type_bsta_mld_config = 0xe1,
+    em_tlv_type_assoc_sta_mld_conf_rep = 0xe2,
     em_tlv_type_tid_to_link_map_policy = 0xe6,
     em_tlv_eht_operations = 0xe7,
     em_tlv_vendor_sta_metrics = 0xf1,
@@ -2082,6 +2083,22 @@ typedef struct {
 } em_bsta_mld_info_t;
 
 typedef struct {
+    mac_address_t  bssid;
+    mac_address_t  mac_addr;
+} em_affiliated_sta_info_t;
+
+typedef struct {
+    mac_address_t  mac_addr;
+    mac_address_t  ap_mld_mac_addr;
+    bool  str;
+    bool  nstr;
+    bool  emlsr;
+    bool  emlmr;
+    unsigned char  num_affiliated_sta;
+    em_affiliated_sta_info_t  affiliated_sta[EM_MAX_AP_MLD];
+} em_assoc_sta_mld_info_t;
+
+typedef struct {
     bool  add_remove;
     mac_address_t  sta_mld_mac_addr;
     bool  direction;
@@ -2238,6 +2255,25 @@ typedef struct {
     unsigned char num_affiliated_bsta;
     em_affiliated_bsta_mld_t affiliated_bsta_mld[0];
 } __attribute__((__packed__)) em_bsta_mld_config_t;
+
+typedef struct {
+    bssid_t bssid;
+    mac_addr_t affiliated_sta_mac_addr;
+    unsigned char reserved1[19];
+} __attribute__((__packed__)) em_affiliated_sta_mld_t;
+
+typedef struct {
+    mac_addr_t sta_mld_mac_addr;
+    mac_addr_t ap_mld_mac_addr;
+    unsigned char str : 1;
+    unsigned char nstr : 1;
+    unsigned char emlsr : 1;
+    unsigned char emlmr : 1;
+    unsigned char reseverd1 : 4;
+    unsigned char reserved2[18];
+    unsigned char num_affiliated_sta;
+    em_affiliated_sta_mld_t affiliated_sta_mld[0];
+} __attribute__((__packed__)) em_assoc_sta_mld_config_report_t;
 
 typedef struct {
     unsigned char add_remove : 1;
