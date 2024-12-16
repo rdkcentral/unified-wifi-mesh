@@ -309,6 +309,15 @@ int em_configuration_t::send_topology_query_msg()
     tmp += sizeof(em_cmdu_t);
     len += sizeof(em_cmdu_t);
 
+    // One AP Radio Identifier tlv 17.2.3
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_radio_id;
+    memcpy(tlv->value, get_radio_interface_mac(), sizeof(mac_address_t));
+    tlv->len = htons(sizeof(mac_address_t));
+
+    tmp += (sizeof(em_tlv_t) + sizeof(mac_address_t));
+    len += (sizeof(em_tlv_t) + sizeof(mac_address_t));
+
     // One multiAP profile tlv 17.2.47
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_profile;
@@ -754,6 +763,15 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst)
 
     tmp += (sizeof(em_tlv_t) + sizeof(em_enum_type_t) + 1);
     len += (sizeof(em_tlv_t) + sizeof(em_enum_type_t) + 1);
+
+    // One AP Radio Identifier tlv 17.2.3
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_radio_id;
+    memcpy(tlv->value, get_radio_interface_mac(), sizeof(mac_address_t));
+    tlv->len = htons(sizeof(mac_address_t));
+
+    tmp += (sizeof(em_tlv_t) + sizeof(mac_address_t));
+    len += (sizeof(em_tlv_t) + sizeof(mac_address_t));
 
     // AP operational BSS
     tlv_len = create_operational_bss_tlv(tmp);
