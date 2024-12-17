@@ -1745,6 +1745,8 @@ typedef enum {
     em_state_ctrl_sta_steer_pending,
     em_state_ctrl_sta_disassoc_pending,
     em_state_ctrl_set_policy_pending,
+    em_state_ctrl_ap_mld_config_pending,
+    em_state_ctrl_ap_mld_configured,
 
     em_state_max,
 } em_state_t;
