@@ -1125,7 +1125,7 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 
         } else {
             found_profile = true;
-			memcpy(&profile, tlv->value, tlv->len);
+			memcpy(&profile, tlv->value, ntohs(tlv->len));
             break; 
         }
     }
