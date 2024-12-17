@@ -16,27 +16,28 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef EM_CMD_CLI_H
-#define EM_CMD_CLI_H
+#ifndef DM_ASSOC_STA_MLD_H
+#define DM_ASSOC_STA_MLD_H
 
-#include "em_cmd_exec.h"
-#include "dm_easy_mesh.h"
+#include "em_base.h"
 
-class em_cli_t;
-extern em_cli_t g_cli;
-
-class em_cmd_cli_t : public em_cmd_exec_t {
-
-    em_cli_t& m_cli = g_cli;
+class dm_assoc_sta_mld_t {
 public:
-    static em_cmd_t m_client_cmd_spec[];
-public:
-    static int     load_params_file(const char *filename, char *buff);
-    int     get_edited_node(em_network_node_t *node, const char *header, char *buff);
-    int execute(em_long_string_t result);
-    int update_platform_defaults(em_subdoc_info_t *info, em_cmd_params_t *param, em_cmd_type_t cmd_type);
+    em_assoc_sta_mld_info_t    m_assoc_sta_mld_info;
 
-    em_cmd_cli_t(em_cmd_t& obj);
+public:
+    int init() { memset(&m_assoc_sta_mld_info, 0, sizeof(em_assoc_sta_mld_info_t)); return 0; }
+    em_assoc_sta_mld_info_t *get_ap_mld_info() { return &m_assoc_sta_mld_info; }
+    int decode(const cJSON *obj, void *parent_id);
+    void encode(cJSON *obj);
+
+    bool operator == (const dm_assoc_sta_mld_t& obj);
+    void operator = (const dm_assoc_sta_mld_t& obj);
+
+    dm_assoc_sta_mld_t(em_assoc_sta_mld_info_t *ap_mld_info);
+    dm_assoc_sta_mld_t(const dm_assoc_sta_mld_t& ap_mld);
+    dm_assoc_sta_mld_t();
+    ~dm_assoc_sta_mld_t();
 };
 
 #endif

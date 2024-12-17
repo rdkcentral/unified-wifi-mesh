@@ -25,6 +25,7 @@ class em_cmd_t;
 class em_channel_t {
 
     virtual int send_frame(unsigned char *buff, unsigned int len, bool multicast = false) = 0;
+	virtual int push_event(em_event_t *evt) = 0;
 
 public:
     virtual dm_easy_mesh_t *get_data_model() = 0;
@@ -74,6 +75,7 @@ public:
 
     unsigned int m_channel_pref_query_tx_cnt;
     unsigned int m_channel_sel_req_tx_cnt;
+	virtual em_freq_band_t get_band() = 0;
 
     em_channel_t();
     ~em_channel_t();

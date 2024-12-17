@@ -189,7 +189,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
                 dm->commit_config(pcmd->m_data_model, config);
                 band =  pcmd->get_radio(i)->get_radio_info()->band;
                 freq_band = em_t::convert_freq_band(band);
-                printf("%s:%d: calling create_node\n", __func__, __LINE__);
+                printf("%s:%d: calling create_node freq_band=%d\n", __func__, __LINE__, freq_band);
                 if ((em = m_mgr->create_node(intf, freq_band, dm, 0, em_profile_type_3, em_service_type_agent)) == NULL) {
                     printf("%s:%d: Failed to create node\n", __func__, __LINE__);
             
@@ -277,13 +277,13 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                 radio = pcmd->m_data_model.get_radio(ctx->arr_index);
                 dm_easy_mesh_t::macbytes_to_string(radio->get_radio_interface_mac(), src_mac_str);
                 dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), dst_mac_str);
-                if (em->is_dev_init_candidate(radio->get_radio_interface_mac()) == true) {
-                    //printf("%s:%d: Matched source mac: %s and destination mac: %s\n", __func__, __LINE__, 
-                    //src_mac_str, dst_mac_str);
-                    queue_push(pcmd->m_em_candidates, em);
-                    count++;
-                }
-                break;
+				if (!(em->is_al_interface_em())) {
+					//printf("%s:%d: Matched source mac: %s and destination mac: %s\n", __func__, __LINE__, 
+					//src_mac_str, dst_mac_str);
+					queue_push(pcmd->m_em_candidates, em);
+					count++;
+				}
+				break;
             case em_cmd_type_cfg_renew:
                 if (memcmp(pcmd->get_data_model()->get_radio(num)->get_radio_info()->id.mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
                     queue_push(pcmd->m_em_candidates, em);
@@ -326,11 +326,13 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                 }
                 break;
             case em_cmd_type_onewifi_cb:
-                if (memcmp(pcmd->get_data_model()->m_bss[0].m_bss_info.ruid.mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
-                    if (em->get_state() == em_state_agent_owconfig_pending) {
-                        printf("em candidates created for em_cmd_type_onewifi_cb\n");
-                        queue_push(pcmd->m_em_candidates, em);
-                        count++;
+				if (!(em->is_al_interface_em())) {
+                    if (memcmp(pcmd->get_data_model()->m_radio[0].m_radio_info.id.mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
+                        if (em->get_state() == em_state_agent_owconfig_pending) {
+                        	printf("em candidates created for em_cmd_type_onewifi_cb\n");
+                        	queue_push(pcmd->m_em_candidates, em);
+                        	count++;
+						}
                     }
                 }
                 break;

@@ -50,6 +50,10 @@ void em_orch_ctrl_t::orch_transient(em_cmd_t *pcmd, em_t *em)
     stats = (em_cmd_stats_t *)hash_map_get(m_cmd_map, key);
     assert(stats != NULL);
 	
+	//printf("%s:%d: Orchestration:%s(%s) state:%s, time in transient:%d\n", __func__, __LINE__, 
+		//em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
+		//em_t::state_2_str(em->get_state()), stats->time);
+	
 	switch (pcmd->m_type) {
 		case em_cmd_type_em_config:
     		if (stats->time > (EM_MAX_CMD_GEN_TTL + EM_MAX_CMD_EXT_TTL)) {

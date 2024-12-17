@@ -1,6 +1,5 @@
 {
-    "wfa-dataelements:SetSSID":	{
-
+	"wfa-dataelements:SetSSID":	{
 		"NetworkSSIDList":	[{
 				"SSID":	"private_ssid",
 				"PassPhrase":	"test-fronthaul",
@@ -46,6 +45,6 @@
 				"MobilityDomain":	"00:01:02:03:04:05",
 				"HaulType":	["Backhaul"]
 			}],
-        "ID":	"OneWifiMesh"
+		"ID":	"OneWifiMesh"
 	}
 }

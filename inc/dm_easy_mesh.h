@@ -35,6 +35,7 @@
 #include "dm_cac_comp.h"
 #include "dm_ap_mld.h"
 #include "dm_bsta_mld.h"
+#include "dm_assoc_sta_mld.h"
 #include "dm_tid_to_link.h"
 #include "webconfig_external_proto.h"
 
@@ -70,9 +71,14 @@ public:
     unsigned int    m_num_ap_mld;
     dm_ap_mld_t     m_ap_mld[EM_MAX_AP_MLD];
     dm_bsta_mld_t   m_bsta_mld;
+    dm_assoc_sta_mld_t m_assoc_sta_mld;
     dm_tid_to_link_t m_tid_to_link;
 
 public:
+	static em_e4_table_t m_e4_table[];
+	static em_freq_band_t get_freq_band_by_op_class(int op_class);
+	em_bss_info_t *get_bss_info_with_mac(mac_address_t mac);
+	static em_bss_info_t *get_bss_info_with_mac(void *dm, mac_address_t mac) { return ((dm_easy_mesh_t *)dm)->get_bss_info_with_mac(mac); }
     virtual int analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]);
     int analyze_radio_config(em_bus_event_t *evt, em_cmd_t *pcmd[]);
     int analyze_vap_config(em_bus_event_t *evt, em_cmd_t *pcmd[]);

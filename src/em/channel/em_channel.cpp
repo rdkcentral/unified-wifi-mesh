@@ -1104,32 +1104,38 @@ int em_channel_t::handle_channel_pref_rprt(unsigned char *buff, unsigned int len
 
 int em_channel_t::handle_channel_pref_tlv(unsigned char *buff, op_class_channel_sel *op_class)
 {
-    em_channel_pref_t   *pref = (em_channel_pref_t *) buff;
+    em_channel_pref_t *pref = (em_channel_pref_t *) buff;
     em_channel_pref_op_class_t *channel_pref;
     unsigned int i = 0, j = 0;
-    em_op_class_info_t      op_class_info[EM_MAX_OP_CLASS];
+	em_op_class_info_t op_class_info[EM_MAX_OP_CLASS];
+	em_event_t  ev;
+	em_bus_event_t *bev;
 
     channel_pref = pref->op_classes;
     if (pref != NULL) {
 		channel_pref = pref->op_classes;
 		memcpy(op_class_info[i].id.ruid, pref->ruid, sizeof(mac_address_t));
-			for (i = 0; i < pref->op_classes_num; i++) {
-				memcpy(op_class_info[i].id.ruid, pref->ruid, sizeof(mac_address_t));
-                op_class_info[i].id.type = em_op_class_type_current;
-                op_class_info[i].op_class = (unsigned int)channel_pref->op_class;
-				op_class_info[i].id.op_class = op_class_info[i].op_class;
-                op_class_info[i].num_channels = (unsigned int)channel_pref->num;
-                for (j = 0; j < op_class_info[i].num_channels; j++) {
-                        op_class_info[i].channels[j] = (unsigned int )channel_pref->channels.channel[j];
-                }
-                channel_pref = (em_channel_pref_op_class_t *)((unsigned char *)channel_pref + sizeof(em_op_class_t) +
-				op_class_info[i].num_channels);
+		for (i = 0; i < pref->op_classes_num; i++) {
+			memcpy(op_class_info[i].id.ruid, pref->ruid, sizeof(mac_address_t));
+			op_class_info[i].id.type = em_op_class_type_current;
+			op_class_info[i].op_class = (unsigned int)channel_pref->op_class;
+			op_class_info[i].id.op_class = op_class_info[i].op_class;
+			op_class_info[i].num_channels = (unsigned int)channel_pref->num;
+			for (j = 0; j < op_class_info[i].num_channels; j++) {
+					op_class_info[i].channels[j] = (unsigned int )channel_pref->channels.channel[j];
 			}
+			channel_pref = (em_channel_pref_op_class_t *)((unsigned char *)channel_pref + sizeof(em_op_class_t) +
+							op_class_info[i].num_channels);
+		}
 
-        op_class->num = pref->op_classes_num;
-        for (i = 0; i < pref->op_classes_num; i++) {
-            memcpy(&op_class->op_class_info[i], &op_class_info[i], sizeof(em_op_class_info_t));
-        }
+		op_class->num = 1;
+		for (i = 0; i < pref->op_classes_num; i++) {
+			if (get_band() == (dm_easy_mesh_t::get_freq_band_by_op_class(op_class_info[i].op_class))) {
+				memcpy(&op_class->op_class_info[0], &op_class_info[i], sizeof(em_op_class_info_t));
+				printf("%s:%d Received channel selection request op_class=%d \n",__func__, __LINE__,op_class_info[i].op_class);
+				break;
+			}
+		}
     }
 
     return 0;
@@ -1182,8 +1188,7 @@ int em_channel_t::handle_channel_sel_req(unsigned char *buff, unsigned int len)
             tmp = (unsigned char *)tmp + op_class->num * sizeof(em_op_class_info_t);
         }
         if (tlv->type == em_tlv_type_tx_power) {
-            tx_power_limit = (em_tx_power_limit_t *)tmp;
-            memcpy(tx_power_limit, tlv->value, sizeof(em_tx_power_limit_t));
+			memcpy(&op_class->tx_power, tlv->value, sizeof(em_tx_power_limit_t));
             tmp = (unsigned char *)tmp + sizeof(em_tx_power_limit_t);
         }
         if (tlv->type == em_tlv_type_spatial_reuse_req)
@@ -1197,6 +1202,7 @@ int em_channel_t::handle_channel_sel_req(unsigned char *buff, unsigned int len)
         tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
+	op_class->freq_band = get_band();
     em_cmd_exec_t::send_cmd(em_service_type_agent, (unsigned char *)&ev, sizeof(em_event_t));
     printf("%s:%d Received channel selection request \n",__func__, __LINE__);
 
@@ -1256,7 +1262,9 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
             break;
 
         case em_msg_type_op_channel_rprt:
-            handle_operating_channel_rprt(data, len);
+			if (get_service_type() == em_service_type_ctrl) {
+           		handle_operating_channel_rprt(data, len);
+			}
             break;
     
 	    break;
@@ -1299,11 +1307,16 @@ void em_channel_t::process_ctrl_state()
 {
     switch (get_state()) {
         case em_state_ctrl_channel_query_pending:
-			send_channel_pref_query_msg();
+			if(get_service_type() == em_service_type_ctrl) {
+				send_channel_pref_query_msg();
+				set_state(em_state_ctrl_channel_pref_report_pending);
+			}
             break;
 
         case em_state_ctrl_channel_select_pending:
-			send_channel_sel_request_msg();
+			if(get_service_type() == em_service_type_ctrl) {
+				send_channel_sel_request_msg();
+			}
             break; 
         
 		case em_state_ctrl_channel_scan_pending:

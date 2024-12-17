@@ -36,6 +36,7 @@ class em_configuration_t {
     short create_client_assoc_event_tlv(unsigned char *buff, mac_address_t sta, bssid_t bssid, bool assoc);
     int create_ap_mld_config_tlv(unsigned char *buff);
     int create_bsta_mld_config_tlv(unsigned char *buff);
+    int create_assoc_sta_mld_config_report_tlv(unsigned char *buff);
     int create_tid_to_link_map_policy_tlv(unsigned char *buff);
 
     int send_topology_response_msg(unsigned char *dst);
@@ -86,6 +87,7 @@ class em_configuration_t {
     virtual em_crypto_info_t *get_crypto_info() = 0;
     virtual em_crypto_t *get_crypto() = 0;
     virtual int send_frame(unsigned char *buff, unsigned int len, bool multicast = false) = 0;
+	virtual int push_event(em_event_t *evt) = 0;
     virtual em_cmd_t *get_current_cmd() = 0;
     virtual short create_ap_radio_basic_cap(unsigned char *buff) = 0;
     virtual bool is_al_interface_em() = 0;

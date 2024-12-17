@@ -96,7 +96,7 @@ dm_easy_mesh_t dm_easy_mesh_t::operator =(dm_easy_mesh_t const& obj)
 
 int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
 {
-    unsigned int i;
+    unsigned int i, found = 0;
     int j = 0;
     dm_radio_t *radio;
     mac_address_t mac;
@@ -125,46 +125,58 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
             }
 			//Commit op class
 			for (i = 0; i<dm.m_num_opclass; i++) {
-				for (j = 0; j<m_num_opclass;j++) {
-					if ((memcmp(radio->get_radio_info()->id.mac, m_op_class[j].m_op_class_info.id.ruid, sizeof(mac_address_t)) == 0) &&
-						(dm.m_op_class[i].m_op_class_info.op_class == m_op_class[j].m_op_class_info.op_class) &&
-						(dm.m_op_class[i].m_op_class_info.id.type == m_op_class[j].m_op_class_info.id.type)) {
-						m_op_class[j].m_op_class_info = dm.m_op_class[i].m_op_class_info;
-						printf("%s:%d op class=%d  already exist so updated \n", __func__, __LINE__,dm.m_op_class[i].m_op_class_info.op_class);
-						break;
+				if (memcmp(radio->get_radio_info()->id.mac, dm.m_op_class[i].m_op_class_info.id.ruid, sizeof(mac_address_t)) == 0) {
+					found = 0;
+					for (j = 0; j<m_num_opclass;j++) {
+						if ((dm.m_op_class[i].m_op_class_info.op_class == m_op_class[j].m_op_class_info.op_class) &&
+							(dm.m_op_class[i].m_op_class_info.id.type == m_op_class[j].m_op_class_info.id.type)) {
+							m_op_class[j].m_op_class_info = dm.m_op_class[i].m_op_class_info;
+							printf("%s:%d op class=%d  already exist so updated \n", __func__, __LINE__,
+								dm.m_op_class[i].m_op_class_info.op_class);
+							found++;
+							break;
+						} else if ((dm.m_op_class[i].m_op_class_info.id.type == m_op_class[j].m_op_class_info.id.type) && 
+							(dm.m_op_class[j].m_op_class_info.id.type == 1)) {
+							m_op_class[j].m_op_class_info = dm.m_op_class[i].m_op_class_info;
+							printf("%s:%d op class=%d  already exist so updated \n", 
+								__func__, __LINE__,dm.m_op_class[i].m_op_class_info.op_class);
+                           	found++;
+                           	break;
+						}
+					}
+					if (found == 0) {
+						//New Op class
+						printf("%s:%d New op class=%d commiting it \n", __func__, __LINE__,dm.m_op_class[i].m_op_class_info.op_class);
+						m_op_class[m_num_opclass].m_op_class_info = dm.m_op_class[i].m_op_class_info;
+						m_num_opclass++;
 					}
 				}
-				if (j == m_num_opclass) {
-					//New Op class
-					printf("%s:%d New op class=%d commiting it \n", __func__, __LINE__,dm.m_op_class[i].m_op_class_info.op_class);
-					m_op_class[m_num_opclass].m_op_class_info = dm.m_op_class[i].m_op_class_info;
-					m_num_opclass++;
-				}
-			}
-        }
+        	}
+		}	
     } else if (target.type == em_commit_target_bss) {
         printf("%s:%d Commit radio=%s\n", __func__, __LINE__,target.params);
         string_to_macbytes((char *)target.params,mac);
-        for (i = 0; i < dm.m_num_bss; i++) {
-            for (j = 0; j < m_num_bss; j++) {
-
-                if ((memcmp(mac, dm.get_bss(i)->get_bss_info()->ruid.mac, sizeof(mac_address_t)) == 0) &&
-                    (memcmp(get_bss(j)->get_bss_info()->bssid.mac, dm.get_bss(i)->get_bss_info()->bssid.mac, sizeof(mac_address_t)) == 0)){
-                        m_bss[j] = dm.m_bss[i];
-                        macbytes_to_string(dm.get_bss(i)->get_bss_info()->bssid.mac,mac_str);
-                        printf("%s:%d BSS %s configuration updated \n", __func__, __LINE__,mac_str);
-                        break;
-                }
-            }
-            if (j == m_num_bss) { //New bss Configuration
-                m_bss[m_num_bss] = dm.m_bss[i];
-                m_num_bss = m_num_bss + 1;
-                macbytes_to_string(dm.get_bss(i)->get_bss_info()->bssid.mac,mac_str);
-                printf("%s:%d New BSS %s configuration updated  no of bss=%d\n", __func__, __LINE__,mac_str,m_num_bss);
-            }
-        }
-    }
-    return 0;
+		for (i = 0; i < dm.m_num_bss; i++) {
+			if (memcmp(mac, dm.get_bss(i)->get_bss_info()->ruid.mac, sizeof(mac_address_t)) == 0) {
+				for (j = 0; j < m_num_bss; j++) {
+					if ((memcmp(get_bss(j)->get_bss_info()->bssid.mac, dm.get_bss(i)->get_bss_info()->bssid.mac, sizeof(mac_address_t)) == 0)){
+						m_bss[j] = dm.m_bss[i];
+						macbytes_to_string(dm.get_bss(i)->get_bss_info()->bssid.mac,mac_str);
+						printf("%s:%d BSS %s configuration updated \n", __func__, __LINE__,mac_str);
+						break;
+					}
+				}
+            
+				if (j == m_num_bss) { //New bss Configuration
+					m_bss[m_num_bss] = dm.m_bss[i];
+					m_num_bss = m_num_bss + 1;
+					macbytes_to_string(dm.get_bss(i)->get_bss_info()->bssid.mac,mac_str);
+					printf("%s:%d New BSS %s configuration updated  no of bss=%d\n", __func__, __LINE__,mac_str,m_num_bss);
+				}
+			}
+		}
+	}
+    return false;
 }
 
 int dm_easy_mesh_t::commit_config(em_tlv_type_t tlv, unsigned char *data, unsigned int len, bssid_t id, em_commit_target_t target)
@@ -1798,6 +1810,41 @@ bool dm_easy_mesh_t::operator==(dm_easy_mesh_t const& obj)
         return false;
     else
         return true;
+}
+
+em_e4_table_t dm_easy_mesh_t::m_e4_table[] = {
+	{ 81, em_freq_band_24, 25, 11, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} },
+	{ 83, em_freq_band_24, 40, 9, {1, 2, 3, 4, 5, 6, 7, 8, 9} },
+	{ 84, em_freq_band_24, 40, 7, {5, 6, 7, 8, 9, 10, 11} },
+	{ 115, em_freq_band_5, 20, 4, {36, 40, 44, 48} },
+	{ 116, em_freq_band_5, 40, 2, {36, 44} },
+	{ 117, em_freq_band_5, 40, 2, {40, 48} },
+	{ 118, em_freq_band_5, 20, 4, {52, 56, 60, 64} }
+};
+
+// Function to get frequency band by operating class
+em_freq_band_t  dm_easy_mesh_t::get_freq_band_by_op_class(int op_class)
+{
+	int i = 0;
+	for (i = 0; i < sizeof(m_e4_table) / sizeof(m_e4_table[0]); ++i) {
+		if (m_e4_table[i].op_class == op_class) {
+			return m_e4_table[i].band;
+		}
+	}
+    
+	return em_freq_band_unknown; // Return invalid if op_class not found
+}
+
+em_bss_info_t *dm_easy_mesh_t::get_bss_info_with_mac(mac_address_t mac)
+{
+	unsigned int i = 0;
+
+	for (i = 0; i < m_num_bss; i++) {
+		if (memcmp(m_bss[i].m_bss_info.bssid.mac, mac, sizeof(mac_address_t)) == 0) {
+			return &m_bss[i].m_bss_info;
+		}
+	}
+	return NULL;
 }
 
 void dm_easy_mesh_t::create_autoconfig_renew_json_cmd(char* src_mac_addr, char* agent_al_mac, em_freq_band_t freq_band, char* autoconfig_renew_json)

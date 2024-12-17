@@ -46,12 +46,28 @@
 const char *prompt = "<<OneWifiMeshCli>>: ";
 
 
-int editor(const char *args)
+int editor(em_network_node_t *node)
 {
 	em_long_string_t cmd;
+	cJSON *obj;
+	FILE *fp = NULL;
 
-	snprintf(cmd, sizeof(em_long_string_t), "vi %s", args);
-    system(cmd);
+	obj = (cJSON *)network_tree_to_json(node);
+	if (obj == NULL) {
+		return -1;
+	}
+
+	if ((fp = fopen("tmp.json", "w")) == NULL) {
+        printf("%s:%d: failed to open file error:%d\n", __func__, __LINE__, errno);
+        return -1;
+    } else {
+        fputs(cJSON_Print(obj), fp);
+        fclose(fp);
+    }
+
+    system("vi tmp.json");
+
+	cJSON_Delete(obj);
 
 	return 0;
 }
@@ -59,16 +75,8 @@ int editor(const char *args)
 int main(int argc, const char *argv[])
 {
    	char *line = NULL;
-    em_status_string_t output;
 	em_network_node_t *node;
-
-#ifdef TEST_CLI
-	node = get_network_tree("./NetworkSSID.json");
-	print_network_tree(node);
-	free_network_tree(node);
-
-	return 0;
-#endif
+	cJSON *obj;
 
 	init(editor);
 
@@ -91,7 +99,13 @@ int main(int argc, const char *argv[])
                 add_history(line);
             }
 
-            printf("%s\n", exec(line, strlen(line), output));
+			if ((node = exec(line, strlen(line))) != NULL) {
+				if ((obj = (cJSON *)network_tree_to_json(node)) != NULL) {
+					printf("%s\n", cJSON_Print(obj));
+					cJSON_Delete(obj);
+				}
+				free_network_tree(node);
+			}		
         }
 
         free(line);

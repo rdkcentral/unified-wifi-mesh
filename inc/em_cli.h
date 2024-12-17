@@ -28,15 +28,18 @@ class em_cli_t {
 public:
 	em_editor_callback_t m_editor_cb;
 
-    char *exec(char *in, size_t in_len, em_status_string_t out);
+    em_network_node_t *exec(char *in, size_t in_len);
     int init(em_editor_callback_t func);
 	const char *get_first_cmd_str();
 	const char *get_next_cmd_str(const char *cmd);
 	
-	em_network_node_t *get_network_tree(const char *file_name);
+	em_network_node_t *get_network_tree_by_file(const char *file_name);
+	em_network_node_t *get_network_tree(char *buff);
 	int get_network_tree_node(cJSON *obj, em_network_node_t *root);
 	void free_network_tree(em_network_node_t *tree);
 	void free_network_tree_node(em_network_node_t *node);
+	void *network_tree_to_json(em_network_node_t *root);
+	cJSON *network_tree_node_to_json(em_network_node_t *node, cJSON *parent);
 	void print_network_tree(em_network_node_t *tree);
 	void print_network_tree_node(em_network_node_t *node, unsigned int *pident);
 

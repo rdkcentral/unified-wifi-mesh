@@ -32,6 +32,7 @@
 #define EM_MAC_STR_LEN  17
 #define EM_MAX_COLS     32
 #define EM_MAX_DM_CHILDREN	32
+#define EM_MAX_E4_TABLE_CHANNEL 32
 
 #define EM_PROTO_TOUT   1
 #define EM_MGR_TOUT     1
@@ -200,7 +201,6 @@ typedef char    em_subdoc_data_buff_t[EM_SUBDOC_BUFF_SZ];
 typedef char    em_status_string_t[EM_IO_BUFF_SZ];
 typedef unsigned	char    em_raw_data_t[EM_SUBDOC_BUFF_SZ];
 
-typedef int (* em_editor_callback_t)(const char *);
 
 typedef struct {
     unsigned char   dsap;
@@ -545,6 +545,7 @@ typedef enum {
     em_tlv_type_wifi7_agent_cap = 0xdf,
     em_tlv_type_ap_mld_config = 0xe0,
     em_tlv_type_bsta_mld_config = 0xe1,
+    em_tlv_type_assoc_sta_mld_conf_rep = 0xe2,
     em_tlv_type_tid_to_link_map_policy = 0xe6,
     em_tlv_eht_operations = 0xe7,
     em_tlv_vendor_sta_metrics = 0xf1,
@@ -1747,6 +1748,7 @@ typedef enum {
     em_state_ctrl_topo_sync_pending,
     em_state_ctrl_topo_synchronized,
     em_state_ctrl_channel_query_pending,
+	em_state_ctrl_channel_pref_report_pending,
     em_state_ctrl_channel_queried,
 	em_state_ctrl_channel_select_pending,
     em_state_ctrl_channel_selected,
@@ -2110,6 +2112,22 @@ typedef struct {
 } em_bsta_mld_info_t;
 
 typedef struct {
+    mac_address_t  bssid;
+    mac_address_t  mac_addr;
+} em_affiliated_sta_info_t;
+
+typedef struct {
+    mac_address_t  mac_addr;
+    mac_address_t  ap_mld_mac_addr;
+    bool  str;
+    bool  nstr;
+    bool  emlsr;
+    bool  emlmr;
+    unsigned char  num_affiliated_sta;
+    em_affiliated_sta_info_t  affiliated_sta[EM_MAX_AP_MLD];
+} em_assoc_sta_mld_info_t;
+
+typedef struct {
     bool  add_remove;
     mac_address_t  sta_mld_mac_addr;
     bool  direction;
@@ -2266,6 +2284,25 @@ typedef struct {
     unsigned char num_affiliated_bsta;
     em_affiliated_bsta_mld_t affiliated_bsta_mld[0];
 } __attribute__((__packed__)) em_bsta_mld_config_t;
+
+typedef struct {
+    bssid_t bssid;
+    mac_addr_t affiliated_sta_mac_addr;
+    unsigned char reserved1[19];
+} __attribute__((__packed__)) em_affiliated_sta_mld_t;
+
+typedef struct {
+    mac_addr_t sta_mld_mac_addr;
+    mac_addr_t ap_mld_mac_addr;
+    unsigned char str : 1;
+    unsigned char nstr : 1;
+    unsigned char emlsr : 1;
+    unsigned char emlmr : 1;
+    unsigned char reseverd1 : 4;
+    unsigned char reserved2[18];
+    unsigned char num_affiliated_sta;
+    em_affiliated_sta_mld_t affiliated_sta_mld[0];
+} __attribute__((__packed__)) em_assoc_sta_mld_config_report_t;
 
 typedef struct {
     unsigned char add_remove : 1;
@@ -2478,11 +2515,22 @@ typedef struct{
     mac_address_t mac;
     unsigned int key_wrap_authenticator;
     bool enable;
+	em_freq_band_t freq;
 }m2ctrl_vapconfig;
+
+typedef struct{
+	int op_class;
+	em_freq_band_t band;
+	int channel_spacing;
+	int num_channels;
+	int channels[EM_MAX_E4_TABLE_CHANNEL];
+}em_e4_table_t;
 
 typedef struct{
     unsigned int num;
     em_op_class_info_t op_class_info[EM_MAX_OP_CLASS];
+	em_tx_power_limit_t tx_power;
+	em_freq_band_t freq_band;
 }op_class_channel_sel;
 
 typedef struct {
@@ -2770,7 +2818,7 @@ typedef enum {
 } em_network_node_data_type_t;
 
 typedef struct em_network_node {
-    em_short_string_t   key;
+    em_long_string_t   key;
     em_network_node_data_type_t type;
     em_long_string_t    value_str;
     unsigned int        value_int;
@@ -2778,5 +2826,6 @@ typedef struct em_network_node {
     struct em_network_node     *child[EM_MAX_DM_CHILDREN];
 } em_network_node_t;
 
+typedef int (* em_editor_callback_t)(em_network_node_t *);
 
 #endif // EM_BASE_H
