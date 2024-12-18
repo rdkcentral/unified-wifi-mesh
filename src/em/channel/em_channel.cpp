@@ -298,6 +298,54 @@ short em_channel_t::create_spatial_reuse_req_tlv(unsigned char *buff)
     return len;
 }
 
+short em_channel_t::create_eht_operations_tlv(unsigned char *buff)
+{
+    short len = 0;
+    int i = 0, j = 0;
+    unsigned char *tmp = buff;
+    dm_easy_mesh_t  *dm;
+    em_eht_operations_bss_t  *eht_ops_bss;
+
+    dm = get_data_model();
+
+    unsigned char num_radios = dm->get_num_radios();
+    unsigned char num_bss;
+
+    memcpy(tmp, &num_radios, sizeof(unsigned char));
+    tmp += sizeof(unsigned char);
+    len += sizeof(unsigned char);
+
+    for (i = 0; i < num_radios; i++) {
+        memcpy(tmp, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t));
+        tmp += sizeof(mac_address_t);
+        len += sizeof(mac_address_t);
+
+        num_bss = dm->get_num_bss();
+
+        memcpy(tmp, &num_bss, sizeof(unsigned char));
+        tmp += sizeof(unsigned char);
+        len += sizeof(unsigned char);
+
+
+        for (j = 0; j < dm->get_num_bss(); j++) {
+        	if (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
+            	continue;
+        	}
+
+            memcpy(tmp, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
+            tmp += sizeof(mac_address_t);
+            len += sizeof(mac_address_t);
+
+            eht_ops_bss = &dm->m_bss[j].m_bss_info.eht_ops;
+            memcpy(tmp, eht_ops_bss, sizeof(em_eht_operations_bss_t));
+            tmp += sizeof(em_eht_operations_bss_t);
+            len += sizeof(em_eht_operations_bss_t);
+        }
+    }
+
+    return len;
+}
+
 int em_channel_t::send_channel_sel_request_msg()
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
@@ -358,6 +406,15 @@ int em_channel_t::send_channel_sel_request_msg()
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_spatial_reuse_req;
     sz = create_spatial_reuse_req_tlv(tlv->value);
+    tlv->len = htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += (sizeof(em_tlv_t) + sz);
+
+    // Zero or one EHT Operations TLV (see section 17.2.103)
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_eht_operations;
+    sz = create_eht_operations_tlv(tlv->value);
     tlv->len = htons(sz);
 
     tmp += (sizeof(em_tlv_t) + sz);
@@ -534,9 +591,9 @@ short em_channel_t::create_spatial_reuse_report_tlv(unsigned char *buff)
     memcpy(rprt_spatial_reuse->neigh_bss_color_in_use_bitmap, radio_info->neigh_bss_color_in_use_bitmap, sizeof(rprt_spatial_reuse->neigh_bss_color_in_use_bitmap));
 
     len += sizeof(em_spatial_reuse_rprt_t);
-
     return len;
 }
+
 
 int em_channel_t::send_operating_channel_report_msg()
 {
@@ -589,6 +646,15 @@ int em_channel_t::send_operating_channel_report_msg()
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_spatial_reuse_rep;
     sz = create_spatial_reuse_report_tlv(tlv->value);
+    tlv->len = htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += (sizeof(em_tlv_t) + sz);
+
+    // Zero or more EHT Operations TLV (see section 17.2.103)
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_eht_operations;
+    sz = create_eht_operations_tlv(tlv->value);
     tlv->len = htons(sz);
 
     tmp += (sizeof(em_tlv_t) + sz);
@@ -940,6 +1006,15 @@ int em_channel_t::send_channel_pref_report_msg()
     tmp += (sizeof(em_tlv_t) + sz);
     len += (sizeof(em_tlv_t) + sz);
 
+    // Zero or one EHT Operations TLV (see section 17.2.103)
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_eht_operations;
+    sz = create_eht_operations_tlv(tlv->value);
+    tlv->len = htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += (sizeof(em_tlv_t) + sz);
+
     // End of message
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_eom;
@@ -1079,6 +1154,79 @@ int em_channel_t::handle_channel_pref_tlv_ctrl(unsigned char *buff, unsigned int
 
 }
 
+int em_channel_t::handle_eht_operations_tlv_ctrl(unsigned char *buff, unsigned int len)
+{
+    short tmp_len = 0;
+    int i = 0, j = 0, k = 0, l = 0;
+    unsigned char *tmp = buff;
+    dm_easy_mesh_t  *dm;
+    em_eht_operations_bss_t  *eht_ops_bss;
+    mac_address_t ruid, bss;
+    bool found_radio = false, found_bss = false;
+
+    unsigned char num_radios;
+    unsigned char num_bss;
+
+    memcpy(&num_radios, tmp, sizeof(unsigned char));
+    tmp += sizeof(unsigned char);
+    tmp_len += sizeof(unsigned char);
+
+    dm = get_data_model();
+    assert(num_radios == dm->get_num_radios());
+
+    for (i = 0; i < num_radios; i++) {
+        memcpy(&ruid, tmp, sizeof(mac_address_t));
+        tmp += sizeof(mac_address_t);
+        tmp_len += sizeof(mac_address_t);
+
+        for (j = 0; j < dm->get_num_radios(); j++) {
+            if (memcmp(ruid, dm->m_radio[j].m_radio_info.id.mac, sizeof(mac_address_t)) == 0) {
+                found_radio = true;
+                break;
+            }
+
+            if (found_radio == false) {
+                // do not update anything and retrun error
+                return -1;
+            }
+        }
+
+        found_radio = false;
+        memcpy(&num_bss, tmp, sizeof(unsigned char));
+        tmp += sizeof(unsigned char);
+        tmp_len += sizeof(unsigned char);
+
+        for(k = 0; k < num_bss; k++) {
+            memcpy(&bss, tmp, sizeof(mac_address_t));
+            tmp += sizeof(mac_address_t);
+            tmp_len += sizeof(mac_address_t);
+
+            for(l = 0; l < dm->get_num_bss(); l++) {
+                if (memcmp(bss, dm->m_bss[l].m_bss_info.bssid.mac, sizeof(mac_address_t)) == 0) {
+                    found_bss = true;
+                    break;
+                }
+
+                if (found_bss == false) {
+                    // do not update anything and retrun error
+                    return -1;
+                }
+            }
+
+            found_bss = false;
+            eht_ops_bss = &dm->m_bss[l].get_bss_info()->eht_ops;
+            memcpy(eht_ops_bss, tmp, sizeof(em_eht_operations_bss_t));
+            tmp += sizeof(em_eht_operations_bss_t);
+            tmp_len += sizeof(em_eht_operations_bss_t);
+
+        }
+        
+    }
+    assert(tmp_len == len);
+
+    return 0;
+}
+
 
 int em_channel_t::handle_channel_pref_rprt(unsigned char *buff, unsigned int len)
 {
@@ -1091,6 +1239,9 @@ int em_channel_t::handle_channel_pref_rprt(unsigned char *buff, unsigned int len
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if (tlv->type == em_tlv_type_channel_pref) {
             handle_channel_pref_tlv_ctrl(tlv->value, htons(tlv->len));
+        }
+        if (tlv->type == em_tlv_eht_operations) {
+            handle_eht_operations_tlv_ctrl(tlv->value, htons(tlv->len));
             break;
         }
 
@@ -1141,6 +1292,40 @@ int em_channel_t::handle_channel_pref_tlv(unsigned char *buff, op_class_channel_
     return 0;
 }
 
+int em_channel_t::handle_eht_operations_tlv(unsigned char *buff, em_eht_operations_t *eht_ops)
+{
+    short len = 0;
+    int i = 0, j = 0, k = 0, l = 0;
+    unsigned char *tmp = buff;
+
+    unsigned char num_radios;
+    unsigned char num_bss;
+
+    memcpy(&num_radios, tmp, sizeof(unsigned char));
+    eht_ops->radios_num = num_radios;
+    tmp += sizeof(unsigned char);
+    len += sizeof(unsigned char);
+
+    for (i = 0; i < num_radios; i++) {
+        memcpy(&eht_ops->radios[i].ruid, tmp, sizeof(mac_address_t));
+        tmp += sizeof(mac_address_t);
+        len += sizeof(mac_address_t);
+
+        memcpy(&num_bss, tmp, sizeof(unsigned char));
+        eht_ops->radios[i].bss_num = num_bss;
+        tmp += sizeof(unsigned char);
+        len += sizeof(unsigned char);
+
+        for(j = 0; j < num_bss; j++) {
+            memcpy(&eht_ops->radios[i].bss[j], tmp, sizeof(em_eht_operations_bss_t));
+            tmp += sizeof(em_eht_operations_bss_t);
+            len += sizeof(em_eht_operations_bss_t);
+        }
+    }
+
+    return 0;
+}
+
 int em_channel_t::handle_channel_pref_query(unsigned char *buff, unsigned int len)
 {
     em_event_t  ev;
@@ -1166,8 +1351,6 @@ int em_channel_t::handle_channel_sel_req(unsigned char *buff, unsigned int len)
     int tlv_len;
 
     op_class_channel_sel *op_class;
-    em_tx_power_limit_t	*tx_power_limit;
-    em_spatial_reuse_req_t *spatial_reuse_req;
 
     em_event_t  ev;
     em_bus_event_t *bev;
@@ -1183,19 +1366,17 @@ int em_channel_t::handle_channel_sel_req(unsigned char *buff, unsigned int len)
 
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if (tlv->type == em_tlv_type_channel_pref) {
-            op_class = (op_class_channel_sel *)tmp;
             handle_channel_pref_tlv(tlv->value, op_class);
-            tmp = (unsigned char *)tmp + op_class->num * sizeof(em_op_class_info_t);
         }
         if (tlv->type == em_tlv_type_tx_power) {
 			memcpy(&op_class->tx_power, tlv->value, sizeof(em_tx_power_limit_t));
-            tmp = (unsigned char *)tmp + sizeof(em_tx_power_limit_t);
         }
-        if (tlv->type == em_tlv_type_spatial_reuse_req)
-        {
-            spatial_reuse_req = (em_spatial_reuse_req_t *)tmp;
-            memcpy(spatial_reuse_req, tlv->value, sizeof(em_spatial_reuse_req_t));
-            tmp = (unsigned char *)tmp + sizeof(em_spatial_reuse_req_t);
+        if (tlv->type == em_tlv_type_spatial_reuse_req) {
+            memcpy(&op_class->spatial_reuse_req, tlv->value, sizeof(em_spatial_reuse_req_t));
+        }
+        if (tlv->type == em_tlv_eht_operations) {
+            handle_eht_operations_tlv(tlv->value, &op_class->eht_ops);
+            break;
         }
 
         tlv_len -= (sizeof(em_tlv_t) + htons(tlv->len));
@@ -1229,6 +1410,10 @@ int em_channel_t::handle_operating_channel_rprt(unsigned char *buff, unsigned in
         }
         if (tlv->type == em_tlv_type_spatial_reuse_rep) {
             handle_spatial_reuse_report(tlv->value, htons(tlv->len));
+        }
+        if (tlv->type == em_tlv_eht_operations) {
+            handle_eht_operations_tlv_ctrl(tlv->value, htons(tlv->len));
+            break;
         }
 
         tlv_len -= (sizeof(em_tlv_t) + htons(tlv->len));

@@ -46,6 +46,7 @@ public:
     short create_channel_pref_tlv_agent(unsigned char *buff);
     short create_transmit_power_limit_tlv(unsigned char *buff);
     short create_spatial_reuse_req_tlv(unsigned char *buff);
+    short create_eht_operations_tlv(unsigned char *buff);
 
     int send_channel_scan_request_msg();
     int send_channel_sel_request_msg();
@@ -63,6 +64,8 @@ public:
     int handle_channel_pref_tlv_ctrl(unsigned char *buff, unsigned int len);
     int handle_op_channel_report(unsigned char *buff, unsigned int len);
     int handle_spatial_reuse_report(unsigned char *buff, unsigned int len);
+    int handle_eht_operations_tlv(unsigned char *buff, em_eht_operations_t *eht_ops);
+    int handle_eht_operations_tlv_ctrl(unsigned char *buff, unsigned int len);
 
     int get_channel_pref_query_tx_count() { return m_channel_pref_query_tx_cnt; }
     void set_channel_pref_query_tx_count(unsigned int cnt) { m_channel_pref_query_tx_cnt = cnt; }
