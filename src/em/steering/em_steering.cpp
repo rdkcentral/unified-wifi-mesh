@@ -185,8 +185,7 @@ int em_steering_t::send_client_steering_req_msg()
     tmp += sizeof(em_cmdu_t);
     len += sizeof(em_cmdu_t);
 
-    // 17.2.29 Steering Request TLV (non-agile mutiband STAs)
-    //Todo: profile-2 Steering Request TLV
+    // 17.2.29 Steering Request TLV/ Profile-2 Steering Request TLV 17.2.57
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_steering_request;
     sz = create_btm_request_tlv(tlv->value);
@@ -232,10 +231,8 @@ int em_steering_t::send_btm_report_msg(mac_address_t sta, bssid_t bss)
     unsigned short type = htons(ETH_P_1905);
     short msg_id = em_msg_type_client_steering_btm_rprt;
     dm_easy_mesh_t *dm = get_data_model();
-    mac_address_t ctrl_mac = {0xe4, 0x5f, 0x01, 0x40, 0x70, 0x5b};
 
-    //memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
-    memcpy(tmp, ctrl_mac, sizeof(mac_address_t));
+    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
@@ -302,12 +299,11 @@ int em_steering_t::send_1905_ack_message(mac_addr_t sta_mac)
     unsigned short type = htons(ETH_P_1905);
     short msg_id = em_msg_type_1905_ack;
     dm_easy_mesh_t *dm = get_data_model();
-    mac_address_t ctrl_mac = {0xe4, 0x5f, 0x01, 0x40, 0x70, 0x5b};
 
     em_cmd_t *pcmd = get_current_cmd();
     em_cmd_params_t *evt_param = &pcmd->m_param;
 
-    memcpy(tmp, ctrl_mac, sizeof(mac_address_t));
+    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
@@ -466,7 +462,6 @@ int em_steering_t::handle_client_steering_req(unsigned char *buff, unsigned int 
     printf("%s:%d Recived steer req for sta=%s\n", __func__, __LINE__, mac_str);
     em_cmd_exec_t::send_cmd(em_service_type_agent, (unsigned char *)&ev, sizeof(em_event_t));
 
-    //todo: handle use case of this ack msg
     send_1905_ack_message(steer_req->sta_mac_addr);
 
     return 0;
@@ -498,8 +493,14 @@ int em_steering_t::handle_client_steering_report(unsigned char *buff, unsigned i
     set_state(em_state_ctrl_configured);
 
     //send ack for report rcvd
-    send_1905_ack_message(btm_rprt->sta_mac_addr);
+    //send_1905_ack_message(btm_rprt->sta_mac_addr);
 
+    return 0;
+}
+
+int em_steering_t::handle_ack_msg(unsigned char *buff, unsigned int len)
+{
+    set_state(em_state_ctrl_steer_btm_req_ack_rcvd);
     return 0;
 }
 
@@ -549,6 +550,9 @@ void em_steering_t::process_msg(unsigned char *data, unsigned int len)
         case em_msg_type_client_steering_btm_rprt:
             handle_client_steering_report(data, len);
             break;
+
+        case em_msg_type_1905_ack:
+            handle_ack_msg(data, len);
 
         default:
             break;

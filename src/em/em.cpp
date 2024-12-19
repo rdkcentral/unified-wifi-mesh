@@ -229,6 +229,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
             break;
         case em_msg_type_client_steering_req:
         case em_msg_type_client_steering_btm_rprt:
+        case em_msg_type_1905_ack:
             em_steering_t::process_msg(data, len);
 
         default:

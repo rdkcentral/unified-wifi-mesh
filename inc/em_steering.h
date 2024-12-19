@@ -33,6 +33,7 @@ class em_steering_t {
     int send_1905_ack_message(mac_addr_t sta_mac);
     int handle_client_steering_req(unsigned char *buff, unsigned int len);
     int handle_client_steering_report(unsigned char *buff, unsigned int len);
+    int handle_ack_msg(unsigned char *buff, unsigned int len);
     short create_error_code_tlv(unsigned char *buff, int val, mac_addr_t sta_mac);
     short create_btm_report_tlv(unsigned char *buff);
     short create_btm_request_tlv(unsigned char *buff);

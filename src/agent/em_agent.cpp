@@ -293,7 +293,7 @@ void em_agent_t::handle_btm_request_action_frame(em_bus_event_t *evt)
     }
 
     if ((num = m_data_model.analyze_btm_request_action_frame(evt, desc, &m_bus_hdl)) == 0) {
-	    printf("analyze_btm_request_action_frame complete\n");
+	    printf("analyze_btm_request_action_frame failed\n");
     }
 }
 
@@ -447,7 +447,7 @@ void em_agent_t::input_listener()
         return;
     }
 
-    if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_RAWFRAME_MGMT_ACTION_RX, (void *)&em_agent_t::mgmt_action_frame_cb, NULL, 0) != 0) {
+    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.AccessPoint.1.RawFrame.Mgmt.Action.Rx", (void *)&em_agent_t::mgmt_action_frame_cb, NULL, 0) != 0) {
         printf("%s:%d bus get failed\n", __func__, __LINE__);
         return;
     }
@@ -459,19 +459,21 @@ int em_agent_t::mgmt_action_frame_cb(char *event_name, raw_data_t *data)
 {
     em_bus_event_t *bevt;
     em_event_t evt;
-    frame_data_t *mgmt_frame = (frame_data_t *)data->raw_data.bytes;
+    struct ieee80211_mgmt *btm_frame = (struct ieee80211_mgmt *)data->raw_data.bytes;
 
     //printf("Received Frame data for event %s \n", event_name);
-    if (mgmt_frame->frame.type == WIFI_MGMT_FRAME_TYPE_ACTION)
+    if(btm_frame->u.action.u.bss_tm_resp.action == WLAN_WNM_BTM_RESPONSE)
     {
         bevt = &evt.u.bevt;
         bevt->type = em_bus_event_type_btm_response;
-        memcpy(bevt->u.raw_buff, mgmt_frame->data, mgmt_frame->frame.len);
+        memcpy(bevt->u.raw_buff, data->raw_data.bytes, data->raw_data_len);
 
         g_agent.agent_input(&evt);
+
+        return 1;
     }
 
-    return 1;
+    return 0;
 }
 
 int em_agent_t::assoc_stats_cb(char *event_name, raw_data_t *data)
@@ -754,7 +756,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             break;
 
         case em_msg_type_client_steering_req:
-            printf("%s:%d: Rcvd Client steering request\n", __func__, __LINE__);
+            printf("\n%s:%d: Rcvd Client steering request\n", __func__, __LINE__);
             em = (em_t *)hash_map_get_first(m_em_map);
             while (em != NULL) {
                 if ((em->is_al_interface_em() == false)) {

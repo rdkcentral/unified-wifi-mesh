@@ -562,7 +562,7 @@ int dm_easy_mesh_agent_t::analyze_sta_link_metrics(em_bus_event_t *evt, em_cmd_t
     }
 
     if ((webconfig_easymesh_decode(&config, (char *)evt->u.raw_buff, &extdata, &type)) == webconfig_error_none) {
-        printf("%s:%d assoc sta Link metrics decode success:\n%s\n",__func__, __LINE__, evt->u.raw_buff);
+        printf("%s:%d assoc sta Link metrics decode success\n",__func__, __LINE__);
     } else {
         printf("%s:%d assoc sta link metrics decode fail\n",__func__, __LINE__);
     }
@@ -620,6 +620,7 @@ int dm_easy_mesh_agent_t::analyze_btm_request_action_frame(em_bus_event_t *evt, 
     printf("%s:%d STA MAC for BTM request %s\n", __func__, __LINE__, mac_str);
     memcpy(aframe->dest_addr, steer_req->sta_mac_addr, sizeof(mac_addr_t));
     aframe->frequency = 2412;
+    aframe->ap_index = 0;
     //here sendng only the btm_req union to onewifi as header is dealt internally
     aframe->frame_len = len;
     memcpy(aframe->frame_data, &ieeeframe->u.action, len);
@@ -628,7 +629,7 @@ int dm_easy_mesh_agent_t::analyze_btm_request_action_frame(em_bus_event_t *evt, 
     l_bus_data.raw_data.bytes = (void *)aframe;
     l_bus_data.raw_data_len = len + sizeof(action_frame_params_t);
 
-    if (desc->bus_set_fn(bus_hdl, WIFI_RAWFRAME_MGMT_ACTION_TX, &l_bus_data)== 0) {
+    if (desc->bus_set_fn(bus_hdl, "Device.WiFi.AccessPoint.1.RawFrame.Mgmt.Action.Tx", &l_bus_data)== 0) {
         printf("%s:%d Frame subdoc send successfull\n",__func__, __LINE__);
     }
     else {
@@ -649,11 +650,6 @@ int dm_easy_mesh_agent_t::analyze_btm_response_action_frame(em_bus_event_t *evt,
     em_steering_btm_rprt_t btm;
     mac_addr_str_t mac_str;
     struct ieee80211_mgmt *btm_frame = (struct ieee80211_mgmt *)&evt->u.raw_buff;
-
-    if(btm_frame == NULL)
-    {
-        return 0;
-    }
 
     em_cmd_btm_report_params_t  btm_report_param;
     memcpy(btm_report_param.source, btm_frame->bssid, sizeof(mac_addr_t));

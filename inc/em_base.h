@@ -1751,7 +1751,6 @@ typedef enum {
     em_state_agent_sta_link_metrics,
     em_state_agent_steer_btm_res_pending,
 
-
     em_state_ctrl_unconfigured = 0x100,
     em_state_ctrl_wsc_m1_pending,
     em_state_ctrl_wsc_m2_sent,
@@ -1771,6 +1770,7 @@ typedef enum {
     em_state_ctrl_sta_cap_confirmed,
     em_state_ctrl_sta_link_metrics_pending,
     em_state_ctrl_sta_steer_pending,
+    em_state_ctrl_steer_btm_req_ack_rcvd,
     em_state_ctrl_sta_disassoc_pending,
     em_state_ctrl_set_policy_pending,
 

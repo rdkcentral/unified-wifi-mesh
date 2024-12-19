@@ -1537,6 +1537,11 @@ typedef uint8_t le16[2];
 #define WLAN_PA_FTM 33
 #define WLAN_PA_FILS_DISCOVERY 34
 
+/* WNM action codes (IEEE Std 802.11-2016, 9.6.14.1, Table 9-354) */
+#define WLAN_WNM_BTM_QUERY 6
+#define WLAN_WNM_BTM_REQUEST 7
+#define WLAN_WNM_BTM_RESPONSE 8
+
 struct ieee80211_hdr {
     le16 frame_control;
     le16 duration;
