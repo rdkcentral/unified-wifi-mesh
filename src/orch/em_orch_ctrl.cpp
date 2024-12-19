@@ -134,7 +134,8 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             }
             break;
         case em_cmd_type_sta_steer:
-            if (em->get_client_steering_req_tx_count() >= EM_MAX_CLIENT_STEER_REQ_TX_THRESH) {
+            if (em->get_client_steering_req_tx_count() >= EM_MAX_CLIENT_STEER_REQ_TX_THRESH
+                || (em->get_state() == em_state_ctrl_steer_btm_req_ack_rcvd)) {
                 em->set_client_steering_req_tx_count(0);
                 em->set_state(em_state_ctrl_configured);
                 printf("%s:%d: Maximum client steering req threshold crossed, transitioning to fini\n", __func__, __LINE__);

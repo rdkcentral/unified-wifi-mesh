@@ -588,7 +588,7 @@ void em_capability_t::process_msg(unsigned char *data, unsigned int len)
     }
 }
 
-void em_capability_t::process_state()
+void em_capability_t::process_agent_state()
 {
     mac_addr_str_t mac_str;
     dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(),mac_str);
