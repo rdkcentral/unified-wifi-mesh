@@ -1989,6 +1989,7 @@ typedef struct {
     unsigned int 	frame_body_len;
     unsigned char	frame_body[EM_MAX_FRAME_BODY_LEN];
     unsigned int    num_vendor_infos;
+    bool            multi_band_cap;
 
     em_long_string_t    cap;
     em_long_string_t    ht_cap;
