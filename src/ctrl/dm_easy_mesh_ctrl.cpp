@@ -370,6 +370,16 @@ int dm_easy_mesh_ctrl_t::analyze_command_steer(em_bus_event_t *evt, em_cmd_t *cm
                     target_obj = cJSON_GetObjectItem(steer_obj, "TargetBSSID");
                     dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(target_obj), steer_param.target);
                     request_mode_obj = cJSON_GetObjectItem(steer_obj, "RequestMode");
+                    // Check for "Steering_Opportunity"
+                    if (cJSON_GetObjectItem(request_mode_obj, "Steering_Opportunity") != NULL) {
+                        cJSON *steer_opp = cJSON_GetObjectItem(request_mode_obj, "Steering_Opportunity");
+                        steer_param.request_mode = cJSON_GetNumberValue(steer_opp);
+                    }
+                    // Check for "Steering_Mandate"
+                    else if (cJSON_GetObjectItem(request_mode_obj, "Steering_Mandate") != NULL) {
+                        cJSON *steer_mandate = cJSON_GetObjectItem(request_mode_obj, "Steering_Mandate");
+                        steer_param.request_mode = cJSON_GetNumberValue(steer_mandate);
+                    }
 
                     imminent_obj = cJSON_GetObjectItem(steer_obj, "BTMDisassociationImminent");
                     steer_param.disassoc_imminent = (cJSON_IsTrue(imminent_obj) == true) ? true:false;
@@ -379,6 +389,8 @@ int dm_easy_mesh_ctrl_t::analyze_command_steer(em_bus_event_t *evt, em_cmd_t *cm
                     steer_param.link_removal_imminent = (cJSON_IsTrue(link_obj) == true) ? true:false;
                     opportunity_obj = cJSON_GetObjectItem(steer_obj, "SteeringOpportunityWindow");
                     steer_param.steer_opportunity_win = cJSON_GetNumberValue(opportunity_obj);
+                    timer_obj = cJSON_GetObjectItem(steer_obj, "BTMDisassociationTimer");
+                    steer_param.btm_disassociation_timer = cJSON_GetNumberValue(timer_obj);
                     op_class_obj = cJSON_GetObjectItem(steer_obj, "TargetBSSOperatingClass");
                     steer_param.target_op_class = cJSON_GetNumberValue(op_class_obj);
                     channel_obj = cJSON_GetObjectItem(steer_obj, "TargetBSSChannel");

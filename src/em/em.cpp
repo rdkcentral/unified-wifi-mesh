@@ -143,6 +143,10 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_ctrl_sta_steer_pending);
             break;
 
+        case em_cmd_type_btm_report:
+            m_sm.set_state(em_state_agent_steer_btm_res_pending);
+            break;
+
         case em_cmd_type_sta_disassoc:
             m_sm.set_state(em_state_ctrl_sta_disassoc_pending);
             break;
@@ -223,6 +227,10 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_dpp_bootstrap_uri_notif:
             em_provisioning_t::process_msg(data, len);
             break;
+        case em_msg_type_client_steering_req:
+        case em_msg_type_client_steering_btm_rprt:
+        case em_msg_type_1905_ack:
+            em_steering_t::process_msg(data, len);
 
         default:
             break;  
@@ -262,14 +270,21 @@ void em_t::handle_agent_state()
             break;
         case em_cmd_type_ap_cap_query:
         case em_cmd_type_client_cap_query:
-			if ((m_sm.get_state() >= em_state_agent_configured)) {
-                em_capability_t::process_state();
+            if ((m_sm.get_state() >= em_state_agent_configured)) {
+                em_capability_t::process_agent_state();
             }
             break;
         case em_cmd_type_channel_pref_query:
         case em_cmd_type_op_channel_report:
             em_channel_t::process_state();
             break;
+
+        case em_cmd_type_btm_report:
+            if ((m_sm.get_state() >= em_state_agent_configured)) {
+                em_steering_t::process_agent_state();
+            }
+            break;
+
         default:
             break;
     }
@@ -312,7 +327,7 @@ void em_t::handle_ctrl_state()
             break;
 
         case em_cmd_type_sta_assoc:
-            em_capability_t::process_state();
+            em_capability_t::process_agent_state();
             break;
 
         case em_cmd_type_sta_link_metrics:
@@ -901,6 +916,7 @@ const char *em_t::state_2_str(em_state_t state)
 		EM_STATE_2S(em_state_ctrl_sta_cap_confirmed)
 		EM_STATE_2S(em_state_ctrl_sta_link_metrics_pending)
 		EM_STATE_2S(em_state_ctrl_sta_steer_pending)
+		EM_STATE_2S(em_state_agent_steer_btm_res_pending)
 		EM_STATE_2S(em_state_ctrl_sta_disassoc_pending)
 		EM_STATE_2S(em_state_ctrl_set_policy_pending)
     }

@@ -50,7 +50,9 @@ bool em_agent_t::agent_input(void *data)
 	inp = &((em_event_t *)data)->u.bevt;
 
 	if ((inp->type == em_bus_event_type_dev_init) || (inp->type == em_bus_event_type_sta_list) || (inp->type == em_bus_event_type_onewifi_private_cb) || (inp->type == em_bus_event_type_m2ctrl_configuration) || (inp->type == em_bus_event_type_cfg_renew) || (inp->type == em_bus_event_type_channel_pref_query) || (inp->type == em_bus_event_type_channel_sel_req) || (inp->type == em_bus_event_type_onewifi_radio_cb)
-        || (inp->type == em_bus_event_type_sta_link_metrics)) {
+        || (inp->type == em_bus_event_type_sta_link_metrics)
+        || (inp->type == em_bus_event_type_bss_tm_req)
+        || (inp->type == em_bus_event_type_btm_response)) {
         evt = (em_event_t *)malloc(sizeof(em_event_t));
         evt->type = em_event_type_bus;
         bevt = &evt->u.bevt;
