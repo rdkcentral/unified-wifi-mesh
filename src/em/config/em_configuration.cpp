@@ -240,7 +240,7 @@ int em_configuration_t::send_autoconfig_renew_msg()
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_supported_freq_band;
     tlv->len = htons(sizeof(unsigned char));
-    freq_band = em_t::convert_freq_band(get_band());
+    freq_band = (em_freq_band_t)(get_band() >> 1);
     memcpy(&tlv->value, &freq_band, sizeof(unsigned char));
 
     tmp += (sizeof (em_tlv_t) + 1);
@@ -1203,7 +1203,7 @@ short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul
     unsigned short size;
     unsigned char *tmp;
     tmp = buff;
-    em_rd_freq_band_t rf_band;
+    em_freq_band_t rf_band;
  
     // version
     attr = (data_elem_attr_t *)tmp;
@@ -1350,7 +1350,7 @@ short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul
     attr->id = htons(attr_id_rf_bands);
     size = 1;
     attr->len = htons(size);
-    rf_band = (em_rd_freq_band_t)get_band();
+    rf_band = get_band();
     memcpy(attr->val, &rf_band, size);
  
     len += (sizeof(data_elem_attr_t) + size);
@@ -1418,7 +1418,7 @@ short em_configuration_t::create_m1_msg(unsigned char *buff)
     short len = 0;
     unsigned short size;
     unsigned char *tmp;
-    em_rd_freq_band_t rf_band;
+    em_freq_band_t rf_band;
 
     tmp = buff;
 
@@ -1597,7 +1597,7 @@ short em_configuration_t::create_m1_msg(unsigned char *buff)
     attr->id = htons(attr_id_rf_bands);
     size = 1;
     attr->len = htons(size);
-    rf_band = map_freq_band_to_rf_band(get_band());
+    rf_band = (em_freq_band_t)(1 << get_band());
     memcpy(attr->val, &rf_band, size);
 
     len += (sizeof(data_elem_attr_t) + size);
