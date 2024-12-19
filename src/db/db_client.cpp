@@ -125,6 +125,8 @@ int db_client_t::connect(const char *path)
     int ret = 0;
     char *tmp;
 
+    if (path == NULL || strlen(path) <= 0) return -1;
+
     if ((tmp = strchr((char *)path, '@')) == NULL) {
         printf("%s:%d: invalid path: %s\n", __func__, __LINE__, path);
         return -1;
