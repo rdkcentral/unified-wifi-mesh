@@ -719,9 +719,8 @@ typedef struct {
     unsigned char target_bssid[6];
 }__attribute__((__packed__)) em_steering_btm_rprt_t;
 
-
 typedef struct {
-    unsigned char bssid[6];
+    bssid_t bssid;
     unsigned char req_mode : 1;
     unsigned char btm_dissoc_imminent : 1;
     unsigned char btm_abridged : 1;
@@ -731,10 +730,37 @@ typedef struct {
     unsigned char sta_list_count;
     mac_address_t sta_mac_addr;
     unsigned char target_bssid_list_count;
-    unsigned char target_bssids[6];
+    bssid_t target_bssids;
     unsigned char target_bss_op_class;
     unsigned char target_bss_channel_num;
 }__attribute__((__packed__)) em_steering_req_t;
+
+typedef struct {
+    unsigned char pref_candidate_list_inc : 1;
+    unsigned char btm_abridged : 1;
+    unsigned char btm_disassoc_imminent : 1;
+    unsigned char bss_termination_inc : 1;
+    unsigned char ess_disassoc_imminent : 1;
+    unsigned char reserved : 3;
+}__attribute__((__packed__)) em_80211_btm_req_reqmode_t;
+
+typedef struct {
+    unsigned char elem_id;//52
+    unsigned char length;
+    bssid_t bssid;
+    unsigned int bssid_info;
+    unsigned char op_class;
+    unsigned char channel_num;
+    unsigned char phy_type;
+    //optional elements
+    unsigned char var[0];
+}__attribute__((__packed__)) em_80211_neighbor_report_t;
+
+typedef struct {
+    //todo: bss_termination_duration;
+    //session_info_url;
+    em_80211_neighbor_report_t bss_transition_cand_list[0];
+}__attribute__((__packed__)) em_80211_btm_req_var_t;
 
 typedef struct {
     em_steering_req_t agile_multiband;
@@ -1716,6 +1742,7 @@ typedef enum {
     em_state_agent_client_cap_report,
     em_state_agent_channel_pref_query,
     em_state_agent_sta_link_metrics,
+    em_state_agent_steer_btm_res_pending,
 
     em_state_ctrl_unconfigured = 0x100,
     em_state_ctrl_wsc_m1_pending,
@@ -1736,6 +1763,7 @@ typedef enum {
     em_state_ctrl_sta_cap_confirmed,
     em_state_ctrl_sta_link_metrics_pending,
     em_state_ctrl_sta_steer_pending,
+    em_state_ctrl_steer_btm_req_ack_rcvd,
     em_state_ctrl_sta_disassoc_pending,
     em_state_ctrl_set_policy_pending,
     em_state_ctrl_ap_mld_config_pending,
@@ -1778,6 +1806,7 @@ typedef enum {
     em_cmd_type_sta_link_metrics,
     em_cmd_type_op_channel_report,
     em_cmd_type_sta_steer,
+    em_cmd_type_btm_report,
     em_cmd_type_sta_disassoc,
     em_cmd_type_get_policy,
     em_cmd_type_set_policy,
@@ -2370,7 +2399,9 @@ typedef enum {
     em_bus_event_type_channel_pref_query,
     em_bus_event_type_channel_sel_req,
     em_bus_event_type_sta_link_metrics,
-    em_bus_event_type_set_radio
+    em_bus_event_type_set_radio,
+    em_bus_event_type_bss_tm_req,
+    em_bus_event_type_btm_response
 } em_bus_event_type_t;
 
 typedef struct {
@@ -2449,6 +2480,7 @@ typedef enum {
     dm_orch_type_sta_link_metrics,
     dm_orch_type_op_channel_report,
     dm_orch_type_sta_steer,
+    dm_orch_type_sta_steer_btm_report,
     dm_orch_type_sta_disassoc,
     dm_orch_type_policy_cfg,
 } dm_orch_type_t;
@@ -2553,14 +2585,22 @@ typedef struct {
     mac_address_t	sta_mac;
     bssid_t	source;
     bssid_t	target;
-    em_steer_req_mode_t	request_mode;
+    unsigned int	request_mode;
     bool	disassoc_imminent;
     bool	btm_abridged;
     bool	link_removal_imminent;
     unsigned int	steer_opportunity_win;
+    unsigned int    btm_disassociation_timer;
     unsigned int 	target_op_class;
     unsigned int	target_channel;
 } em_cmd_steer_params_t;
+
+typedef struct {
+    bssid_t	source;
+    mac_address_t	sta_mac;
+    unsigned char status_code;
+    bssid_t	target;
+} em_cmd_btm_report_params_t;
 
 typedef struct {
     mac_address_t	sta_mac;
@@ -2579,6 +2619,7 @@ typedef struct {
     union {
         em_cmd_args_t	args;
         em_cmd_steer_params_t	steer_params;
+        em_cmd_btm_report_params_t  btm_report_params;
         em_cmd_disassoc_params_t	disassoc_params;
     } u;
 } em_cmd_params_t;

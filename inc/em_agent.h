@@ -42,6 +42,8 @@ class em_agent_t : public em_mgr_t {
     void handle_action_frame(struct ieee80211_mgmt *frame);
     void handle_public_action_frame(struct ieee80211_mgmt *frame);
     void handle_vendor_public_action_frame(struct ieee80211_mgmt *frame);
+    void handle_btm_request_action_frame(em_bus_event_t *evt);
+    void handle_btm_response_action_frame(em_bus_event_t *evt);
 
 public:
 
@@ -72,6 +74,7 @@ public:
     void handle_channel_pref_query(em_bus_event_t *evt);
     void handle_channel_sel_req(em_bus_event_t *evt);
     void handle_sta_link_metrics(em_bus_event_t *evt);
+    void handle_steer_sta(em_bus_event_t *evt);
 
     em_cmd_t& get_command(char *in);
     
@@ -89,6 +92,7 @@ public:
     static int sta_cb(char *event_name, raw_data_t *data);
     static int onewifi_cb(char *event_name, raw_data_t *data);
     static int assoc_stats_cb(char *event_name, raw_data_t *data);
+    static int mgmt_action_frame_cb(char *event_name, raw_data_t *data);
     void *get_assoc(void*);
     void io(void *data, bool input = true);
     bool agent_input(void *data);
