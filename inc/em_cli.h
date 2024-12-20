@@ -35,6 +35,11 @@ public:
 	
 	em_network_node_t *get_network_tree_by_file(const char *file_name);
 	em_network_node_t *get_network_tree(char *buff);
+    em_network_node_t *get_child_node_at_index(em_network_node_t *node, unsigned int idx);
+    char *get_formatted_node_scalar_value(em_network_node_t *node);
+    char *get_formatted_node_array_value(em_network_node_t *node);
+    em_network_node_data_type_t get_node_type(em_network_node_t *node);
+    void free_formatted_node_value(char *str);
 	int get_network_tree_node(cJSON *obj, em_network_node_t *root);
 	void free_network_tree(em_network_node_t *tree);
 	void free_network_tree_node(em_network_node_t *node);
