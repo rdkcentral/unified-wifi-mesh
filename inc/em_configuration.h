@@ -41,6 +41,8 @@ class em_configuration_t {
 
     int send_topology_response_msg(unsigned char *dst);
     int send_topology_notification_by_client(mac_address_t sta, bssid_t bssid, bool assoc);
+    int send_ap_mld_config_req_msg(unsigned char *buff);
+    int send_ap_mld_config_resp_msg(unsigned char *buff);
     
     int handle_autoconfig_resp(unsigned char *buff, unsigned int len);
     int handle_autoconfig_search(unsigned char *buff, unsigned int len);
@@ -107,8 +109,6 @@ class em_configuration_t {
     virtual em_freq_band_t get_band() = 0;
     virtual void set_band(em_freq_band_t band) = 0;
     virtual em_network_ssid_info_t *get_network_ssid_info_by_haul_type(em_haul_type_t haul_type) = 0;
-    virtual em_rd_freq_band_t map_freq_band_to_rf_band(em_freq_band_t band) = 0;
-    em_freq_band_t convert_freq_band(em_freq_band_t band);
 
 private:
     em_profile_type_t   m_peer_profile;

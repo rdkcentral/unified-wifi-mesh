@@ -244,8 +244,9 @@ int dm_op_class_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, voi
 		snprintf(tmp, sizeof(tmp), "%d,", info->channels[i]);
 		snprintf(channels_str + strlen(channels_str), sizeof(channels_str) - strlen(channels_str), "%s", tmp);
 	}
-
-	channels_str[strlen(channels_str) - 1] = 0;
+	if (strlen(channels_str) > 0) {
+		channels_str[strlen(channels_str) - 1] = 0;
+	}
     switch (op) {
         case dm_orch_type_db_insert:
             ret = insert_row(db_client, id, info->op_class, info->channel, channels_str, info->tx_power, info->max_tx_power,
