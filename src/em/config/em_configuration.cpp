@@ -240,7 +240,7 @@ int em_configuration_t::send_autoconfig_renew_msg()
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_supported_freq_band;
     tlv->len = htons(sizeof(unsigned char));
-    freq_band = em_t::convert_freq_band(get_band());
+    freq_band = (em_freq_band_t)(get_band() >> 1);
     memcpy(&tlv->value, &freq_band, sizeof(unsigned char));
 
     tmp += (sizeof (em_tlv_t) + 1);
@@ -844,6 +844,36 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst)
     return len;
 }
 
+int em_configuration_t::send_ap_mld_config_req_msg(unsigned char *buff)
+{
+    int tlv_len = create_ap_mld_config_tlv(buff);
+    em_radio_cap_info_t* cap_info = get_data_model()->get_radio_cap(get_radio_interface_mac())->get_radio_cap_info();
+    em_eht_operations_t *eht_ops = (em_eht_operations_t *)buff;
+
+    if ((eht_ops == NULL) || (cap_info == NULL)) {
+        printf("%s:%d No data Found\n", __func__, __LINE__);
+        return 0;
+    }
+    memcpy(&eht_ops,&cap_info->eht_ops,sizeof(em_eht_operations_t));
+    tlv_len += sizeof(em_eht_operations_t);
+    return tlv_len;
+}
+
+int em_configuration_t::send_ap_mld_config_resp_msg(unsigned char *buff)
+{
+    int tlv_len = create_ap_mld_config_tlv(buff);
+    em_radio_cap_info_t* cap_info = get_data_model()->get_radio_cap(get_radio_interface_mac())->get_radio_cap_info();
+    em_eht_operations_t *eht_ops = (em_eht_operations_t *)buff;
+
+    if ((eht_ops == NULL) || (cap_info == NULL)) {
+        printf("%s:%d No data Found\n", __func__, __LINE__);
+        return 0;
+    }
+    memcpy(&eht_ops,&cap_info->eht_ops,sizeof(em_eht_operations_t));
+    tlv_len += sizeof(em_eht_operations_t);
+    return tlv_len;
+}
+
 void em_configuration_t::print_bss_configuration_report_tlv(unsigned char *value, unsigned int len)
 {
 	mac_addr_str_t	rd_mac_str, bss_mac_str;
@@ -1095,7 +1125,7 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 
         } else {
             found_profile = true;
-			memcpy(&profile, tlv->value, tlv->len);
+			memcpy(&profile, tlv->value, ntohs(tlv->len));
             break; 
         }
     }
@@ -1203,7 +1233,7 @@ short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul
     unsigned short size;
     unsigned char *tmp;
     tmp = buff;
-    em_rd_freq_band_t rf_band;
+    em_freq_band_t rf_band;
  
     // version
     attr = (data_elem_attr_t *)tmp;
@@ -1350,7 +1380,7 @@ short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul
     attr->id = htons(attr_id_rf_bands);
     size = 1;
     attr->len = htons(size);
-    rf_band = (em_rd_freq_band_t)get_band();
+    rf_band = get_band();
     memcpy(attr->val, &rf_band, size);
  
     len += (sizeof(data_elem_attr_t) + size);
@@ -1418,7 +1448,7 @@ short em_configuration_t::create_m1_msg(unsigned char *buff)
     short len = 0;
     unsigned short size;
     unsigned char *tmp;
-    em_rd_freq_band_t rf_band;
+    em_freq_band_t rf_band;
 
     tmp = buff;
 
@@ -1597,7 +1627,7 @@ short em_configuration_t::create_m1_msg(unsigned char *buff)
     attr->id = htons(attr_id_rf_bands);
     size = 1;
     attr->len = htons(size);
-    rf_band = map_freq_band_to_rf_band(get_band());
+    rf_band = (em_freq_band_t)(1 << get_band());
     memcpy(attr->val, &rf_band, size);
 
     len += (sizeof(data_elem_attr_t) + size);
@@ -2893,6 +2923,18 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
         case em_msg_type_topo_notif:
             if ((get_service_type() == em_service_type_ctrl) && (get_state() >= em_state_ctrl_topo_synchronized)) {
                 handle_topology_notification(data, len);
+            }
+            break;
+        
+        case em_msg_type_ap_mld_config_req:
+            if ((get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_ap_mld_config_pending)) {
+                send_ap_mld_config_req_msg(data);
+            }
+            break;
+
+        case em_msg_type_ap_mld_config_resp:
+            if ((get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_ap_mld_configured)) {
+                send_ap_mld_config_resp_msg(data);
             }
             break;
 

@@ -254,7 +254,10 @@ int dm_policy_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
         strncat(sta_mac_list_str, ",", strlen(","));
     }
 
-	sta_mac_list_str[strlen(sta_mac_list_str) - 1] = 0;
+	if (strlen(sta_mac_list_str) > 0)
+	{
+		sta_mac_list_str[strlen(sta_mac_list_str) - 1] = 0;
+	}
 
     switch (op) {
         case dm_orch_type_db_insert:

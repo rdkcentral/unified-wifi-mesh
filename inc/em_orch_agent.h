@@ -31,8 +31,6 @@ public:
     bool    is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em);
     void    orch_transient(em_cmd_t *pcmd, em_t *em);
 
-    em_freq_band_t convert_freq_band(em_freq_band_t band);
-
 public:
     em_orch_agent_t(em_mgr_t *mgr);
 };
