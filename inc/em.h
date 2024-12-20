@@ -164,8 +164,6 @@ public:
     void set_primary_device_type(char *type) { m_data_model->set_primary_device_type(type); }
     em_freq_band_t get_band() { return m_band; }
     void set_band(em_freq_band_t band) { m_band = band; }
-    em_rd_freq_band_t map_freq_band_to_rf_band(em_freq_band_t band);
-    static em_freq_band_t convert_freq_band(em_freq_band_t band);
     
     static void *em_func(void *);
     static const char *get_band_type_str(em_freq_band_t band);
