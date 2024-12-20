@@ -392,6 +392,15 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
 
             case tag_extended_capabilities:
                 dm_easy_mesh_t::hex(tag->length, tag->value, sizeof(em_long_string_t), sta->m_sta_info.ext_cap);
+                if (tag->length >= 3) {
+                    if (tag->value[2] & (1 << 3)) {
+                        sta->m_sta_info.multi_band_cap = true;
+                    } else {
+                        sta->m_sta_info.multi_band_cap = false;
+                    }
+                } else {
+                    sta->m_sta_info.multi_band_cap = false;
+                }
                 break;
 
             case tag_vht_capability:

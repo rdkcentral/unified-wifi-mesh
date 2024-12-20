@@ -290,13 +290,6 @@ typedef enum {
     em_freq_band_unknown
 } em_freq_band_t;
 
-typedef enum {
-    em_rd_freq_band_unknown,    //rf band based on Wi-Fi Simple Configuration Technical Specification v2 table 44
-    em_rd_freq_band_24,
-    em_rd_freq_band_5,
-    em_rd_freq_band_60 = 0x4,
-} em_rd_freq_band_t;
-
 typedef struct {
     unsigned int    bit_map;
     mac_address_t   enrollee_mac;
@@ -1745,6 +1738,8 @@ typedef enum {
     em_state_ctrl_sta_steer_pending,
     em_state_ctrl_sta_disassoc_pending,
     em_state_ctrl_set_policy_pending,
+    em_state_ctrl_ap_mld_config_pending,
+    em_state_ctrl_ap_mld_configured,
 
     em_state_max,
 } em_state_t;
@@ -1996,6 +1991,7 @@ typedef struct {
     unsigned int 	frame_body_len;
     unsigned char	frame_body[EM_MAX_FRAME_BODY_LEN];
     unsigned int    num_vendor_infos;
+    bool            multi_band_cap;
 
     em_long_string_t    cap;
     em_long_string_t    ht_cap;
