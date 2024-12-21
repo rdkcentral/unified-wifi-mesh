@@ -58,6 +58,7 @@ public:
 
     static void *mgr_nodes_listen(void *arg);
     static void *mgr_input_listen(void *arg);
+    static void em_printf(const char *func_name, int line_num, const char *msg_format, ...);
 
     virtual em_t *find_em_for_msg_type(unsigned char *data, unsigned int len, em_t *al_em) = 0;
     virtual int data_model_init(const char *data_model_path) = 0;

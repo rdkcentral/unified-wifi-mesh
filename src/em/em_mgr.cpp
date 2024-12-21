@@ -19,6 +19,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
+#include <stdarg.h>
 #include <errno.h>
 #include <assert.h>
 #include <signal.h>
@@ -358,6 +360,25 @@ int em_mgr_t::init(const char *data_model_path)
 
     orch_init();
     return data_model_init(data_model_path);
+}
+
+void em_mgr_t::em_printf(const char *func_name, int line_num, const char *msg_format, ...)
+{
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+
+    printf("%02d/%02d/%04d %02d:%02d:%02d - ",
+            tm_info->tm_mday, tm_info->tm_mon + 1, tm_info->tm_year + 1900,
+            tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec);
+
+    printf("[%s:%d] - ", func_name, line_num);
+
+    va_list args;
+    va_start(args, msg_format);
+    vprintf(msg_format, args);
+    va_end(args);
+
+    printf("\n");
 }
 
 em_mgr_t::em_mgr_t()
