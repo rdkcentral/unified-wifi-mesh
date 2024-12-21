@@ -2820,7 +2820,7 @@ int em_configuration_t::handle_autoconfig_search(unsigned char *buff, unsigned i
 
         return -1;
     }
-    printf("%s:%d: autoconfig rsp send success\n", __func__, __LINE__);
+    em_mgr_t::em_printf(__func__, __LINE__, "autoconfig_resp send successful");
     set_state(em_state_ctrl_wsc_m1_pending);
 
     return 0;
@@ -2961,8 +2961,8 @@ void em_configuration_t::handle_state_config_none()
         printf("%s:%d: failed, err:%d\n", __func__, __LINE__, errno);
         return;
     }
-
-    printf("%s:%d: autoconfig_search send successful\n", __func__, __LINE__);
+    
+    em_mgr_t::em_printf(__func__, __LINE__, "autoconfig_search send successful");
     set_state(em_state_agent_autoconfig_rsp_pending);
 
     return;
