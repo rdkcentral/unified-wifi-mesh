@@ -46,6 +46,7 @@
 
 #define EM_TEST_IO_PERM 0666
 #define EM_IO_BUFF_SZ   4096
+#define EM_LONG_IO_BUFF_SZ   4096*4
 
 #define EM_MAX_OP_CLASS    48
 #define EM_MAX_POLICIES	16	
@@ -2699,8 +2700,16 @@ typedef enum {
     em_network_node_data_type_raw,
 } em_network_node_data_type_t;
 
+typedef struct {
+	bool collapsed;
+	unsigned int orig_node_ctr;
+	unsigned int node_ctr;
+	unsigned int node_pos;
+} em_node_display_info_t;
+
 typedef struct em_network_node {
     em_long_string_t   key;
+	em_node_display_info_t	display_info;
     em_network_node_data_type_t type;
     em_long_string_t    value_str;
     unsigned int        value_int;
@@ -2708,6 +2717,6 @@ typedef struct em_network_node {
     struct em_network_node     *child[EM_MAX_DM_CHILDREN];
 } em_network_node_t;
 
-typedef int (* em_editor_callback_t)(em_network_node_t *);
+typedef em_network_node_t *(* em_editor_callback_t)(em_network_node_t *);
 
 #endif // EM_BASE_H

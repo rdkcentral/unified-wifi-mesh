@@ -164,7 +164,7 @@ int em_cmd_cli_t::load_params_file(const char *filename, char *buff)
 int em_cmd_cli_t::get_edited_node(em_network_node_t *node, const char *header, char *buff)
 {       
     cJSON *obj; 
-    em_network_node_t *new_node, *tmp;
+    em_network_node_t *curr_node, *new_node, *tmp;
     em_network_node_t *child;
     bool found_result = false;
     unsigned int i;
@@ -195,15 +195,15 @@ int em_cmd_cli_t::get_edited_node(em_network_node_t *node, const char *header, c
     child->num_children++;
 
         
-    new_node = (em_network_node_t *)malloc(sizeof(em_network_node_t));  
-    memset(new_node, 0, sizeof(em_network_node_t));
-    new_node->type = node->type;
-    new_node->child[new_node->num_children] = child;
-    new_node->num_children++;
+    curr_node = (em_network_node_t *)malloc(sizeof(em_network_node_t));  
+    memset(curr_node, 0, sizeof(em_network_node_t));
+    curr_node->type = node->type;
+    curr_node->child[curr_node->num_children] = child;
+    curr_node->num_children++;
 	
     free(node);
 
-    m_cli.m_editor_cb(new_node);
+    new_node = m_cli.m_editor_cb(curr_node);
 	obj = (cJSON *)get_cli()->network_tree_to_json(new_node);
 	formatted = cJSON_Print((cJSON *)get_cli()->network_tree_to_json(new_node));
 	strncpy(buff, formatted, strlen(formatted) + 1);
