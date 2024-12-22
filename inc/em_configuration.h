@@ -36,10 +36,13 @@ class em_configuration_t {
     short create_client_assoc_event_tlv(unsigned char *buff, mac_address_t sta, bssid_t bssid, bool assoc);
     int create_ap_mld_config_tlv(unsigned char *buff);
     int create_bsta_mld_config_tlv(unsigned char *buff);
+    int create_assoc_sta_mld_config_report_tlv(unsigned char *buff);
     int create_tid_to_link_map_policy_tlv(unsigned char *buff);
 
     int send_topology_response_msg(unsigned char *dst);
     int send_topology_notification_by_client(mac_address_t sta, bssid_t bssid, bool assoc);
+    int send_ap_mld_config_req_msg(unsigned char *buff);
+    int send_ap_mld_config_resp_msg(unsigned char *buff);
     
     int handle_autoconfig_resp(unsigned char *buff, unsigned int len);
     int handle_autoconfig_search(unsigned char *buff, unsigned int len);
@@ -106,8 +109,6 @@ class em_configuration_t {
     virtual em_freq_band_t get_band() = 0;
     virtual void set_band(em_freq_band_t band) = 0;
     virtual em_network_ssid_info_t *get_network_ssid_info_by_haul_type(em_haul_type_t haul_type) = 0;
-    virtual em_rd_freq_band_t map_freq_band_to_rf_band(em_freq_band_t band) = 0;
-    em_freq_band_t convert_freq_band(em_freq_band_t band);
 
 private:
     em_profile_type_t   m_peer_profile;
@@ -167,22 +168,22 @@ public:
     int compute_secret(unsigned char **secret, unsigned short *secret_len, 
         unsigned char *remote_pub, unsigned short pub_len, 
         unsigned char *local_priv, unsigned short priv_len) { 
-            return m_crypto.platform_compute_shared_secret(secret, secret_len, remote_pub, pub_len, local_priv, priv_len); 
+            return em_crypto_t::platform_compute_shared_secret(secret, secret_len, remote_pub, pub_len, local_priv, priv_len); 
     }
 
     int compute_digest(unsigned char num, unsigned char **addr, unsigned int *len, unsigned char *digest) {
-        return m_crypto.platform_SHA256(num, addr, len, digest); 
+        return em_crypto_t::platform_SHA256(num, addr, len, digest); 
     }
 
     int compute_kdk(unsigned char *key, unsigned short keylen, 
         unsigned char num_elem, unsigned char **addr, 
         unsigned int *len, unsigned char *hmac) {
-            return m_crypto.platform_hmac_SHA256(key, keylen, num_elem, addr, len, hmac);
+            return em_crypto_t::platform_hmac_SHA256(key, keylen, num_elem, addr, len, hmac);
     }
 
     int derive_key(unsigned char *key, unsigned char *label_prefix, unsigned int label_prefix_len, 
         char *label, unsigned char *res, unsigned int res_len) {
-            return m_crypto.wps_key_derivation_function(key, label_prefix, label_prefix_len, label, res, res_len);
+            return em_crypto_t::wps_key_derivation_function(key, label_prefix, label_prefix_len, label, res, res_len);
     }
 
     int compute_keys(unsigned char *remote_pub, unsigned short pub_len, unsigned char *local_priv, unsigned short priv_len);

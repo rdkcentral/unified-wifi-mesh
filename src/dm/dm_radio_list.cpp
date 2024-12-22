@@ -59,7 +59,6 @@ int dm_radio_list_t::get_config(cJSON *obj_arr, void *parent, em_get_radio_list_
     while (pradio != NULL) {
         dm_easy_mesh_t::macbytes_to_string(pradio->m_radio_info.id.mac, mac_str);
         if (memcmp(dev_mac, pradio->m_radio_info.dev_id, sizeof(mac_address_t)) != 0) {
-            dm_easy_mesh_t::macbytes_to_string(pradio->m_radio_info.dev_id, mac_str);
             pradio = get_next_radio(pradio);
             continue;
         }

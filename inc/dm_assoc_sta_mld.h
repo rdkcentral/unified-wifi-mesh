@@ -16,23 +16,28 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef EM_ORCH_AGENT_H
-#define EM_ORCH_AGENT_H
+#ifndef DM_ASSOC_STA_MLD_H
+#define DM_ASSOC_STA_MLD_H
 
-#include "em_orch.h"
+#include "em_base.h"
 
-class em_orch_agent_t : public em_orch_t {
+class dm_assoc_sta_mld_t {
+public:
+    em_assoc_sta_mld_info_t    m_assoc_sta_mld_info;
 
 public:
-    unsigned int build_candidates(em_cmd_t *cmd);
-    bool    pre_process_orch_op(em_cmd_t *pcmd);
-    void    pre_process_cancel(em_cmd_t *pcmd, em_t *em);
-    bool    is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em);
-    bool    is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em);
-    void    orch_transient(em_cmd_t *pcmd, em_t *em);
+    int init() { memset(&m_assoc_sta_mld_info, 0, sizeof(em_assoc_sta_mld_info_t)); return 0; }
+    em_assoc_sta_mld_info_t *get_ap_mld_info() { return &m_assoc_sta_mld_info; }
+    int decode(const cJSON *obj, void *parent_id);
+    void encode(cJSON *obj);
 
-public:
-    em_orch_agent_t(em_mgr_t *mgr);
+    bool operator == (const dm_assoc_sta_mld_t& obj);
+    void operator = (const dm_assoc_sta_mld_t& obj);
+
+    dm_assoc_sta_mld_t(em_assoc_sta_mld_info_t *ap_mld_info);
+    dm_assoc_sta_mld_t(const dm_assoc_sta_mld_t& ap_mld);
+    dm_assoc_sta_mld_t();
+    ~dm_assoc_sta_mld_t();
 };
 
 #endif

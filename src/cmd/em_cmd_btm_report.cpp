@@ -38,30 +38,29 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <cjson/cJSON.h>
-#include "em_cmd_set_ssid.h"
+#include "em_cmd_btm_report.h"
 
-em_cmd_set_ssid_t::em_cmd_set_ssid_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
+em_cmd_btm_report_t::em_cmd_btm_report_t(em_cmd_btm_report_params_t params)
 {
-    em_cmd_ctx_t ctx;;
+    em_cmd_ctx_t ctx;
+    dm_easy_mesh_t dm;
 
-    m_type = em_cmd_type_set_ssid;
-    memcpy(&m_param, &param, sizeof(em_cmd_params_t));
+    m_type = em_cmd_type_btm_report;
+    memcpy(&m_param.u.btm_report_params, &params, sizeof(em_cmd_steer_params_t));
 
-	memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
+    memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
 
     m_orch_op_idx = 0;
-    m_num_orch_desc = 3;
-    m_orch_desc[0].op = dm_orch_type_db_cfg;
-    m_orch_desc[1].op = dm_orch_type_em_update;
-    m_orch_desc[1].submit = true;
-    m_orch_desc[2].op = dm_orch_type_net_ssid_update;
+    m_num_orch_desc = 1;
+    m_orch_desc[0].op = dm_orch_type_sta_steer_btm_report;
+    m_orch_desc[0].submit = true;
 
-    strncpy(m_name, "set_ssid", strlen("set_ssid") + 1);
-    m_svc = em_service_type_ctrl;
+    strncpy(m_name, "btm_report", strlen("btm_report") + 1);
+    m_svc = em_service_type_agent;
     init(&dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
     ctx.type = m_orch_desc[0].op;
-
     m_data_model.set_cmd_ctx(&ctx);
 }
+

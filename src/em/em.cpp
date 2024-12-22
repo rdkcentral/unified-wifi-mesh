@@ -143,6 +143,10 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_ctrl_sta_steer_pending);
             break;
 
+        case em_cmd_type_btm_report:
+            m_sm.set_state(em_state_agent_steer_btm_res_pending);
+            break;
+
         case em_cmd_type_sta_disassoc:
             m_sm.set_state(em_state_ctrl_sta_disassoc_pending);
             break;
@@ -212,6 +216,22 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
             em_metrics_t::process_msg(data, len);
             break;
 
+        case em_msg_type_dpp_cce_ind:
+        case em_msg_type_proxied_encap_dpp:
+        case em_msg_type_direct_encap_dpp:
+        case em_msg_type_reconfig_trigger:
+        case em_msg_type_bss_config_req:
+        case em_msg_type_bss_config_rsp:
+        case em_msg_type_bss_config_res:
+        case em_msg_type_chirp_notif:
+        case em_msg_type_dpp_bootstrap_uri_notif:
+            em_provisioning_t::process_msg(data, len);
+            break;
+        case em_msg_type_client_steering_req:
+        case em_msg_type_client_steering_btm_rprt:
+        case em_msg_type_1905_ack:
+            em_steering_t::process_msg(data, len);
+
         default:
             break;  
     }
@@ -250,14 +270,21 @@ void em_t::handle_agent_state()
             break;
         case em_cmd_type_ap_cap_query:
         case em_cmd_type_client_cap_query:
-			if ((m_sm.get_state() >= em_state_agent_configured)) {
-                em_capability_t::process_state();
+            if ((m_sm.get_state() >= em_state_agent_configured)) {
+                em_capability_t::process_agent_state();
             }
             break;
         case em_cmd_type_channel_pref_query:
         case em_cmd_type_op_channel_report:
             em_channel_t::process_state();
             break;
+
+        case em_cmd_type_btm_report:
+            if ((m_sm.get_state() >= em_state_agent_configured)) {
+                em_steering_t::process_agent_state();
+            }
+            break;
+
         default:
             break;
     }
@@ -300,7 +327,7 @@ void em_t::handle_ctrl_state()
             break;
 
         case em_cmd_type_sta_assoc:
-            em_capability_t::process_state();
+            em_capability_t::process_agent_state();
             break;
 
         case em_cmd_type_sta_link_metrics:
@@ -535,40 +562,6 @@ dm_sta_t *em_t::find_sta(mac_address_t sta_mac, bssid_t bssid)
     return NULL;
 }
 
-// Used to convert freq band from Onewifi to IEEE-1905-1-2013 table 6-23 & IEEE-1905-1-2013 table 6-23 to Wi-Fi Simple Configuration Technical Specification v2 table 44
-em_freq_band_t em_t::convert_freq_band(em_freq_band_t band)
-{
-    unsigned int int_band;
-    int_band = (int)band;
-
-    if (int_band == 1) {
-        return em_freq_band_24; // Return 2.4 GHz band
-    } else if (int_band == 2) {
-        return em_freq_band_5;  // Return 5 GHz band
-    } else if (int_band == 32 || band == 4) {
-        return em_freq_band_60;	// Return 60 GHz band
-    } else {
-        return em_freq_band_unknown; // Return unknown for other values
-    }
-}
-
-// Used to convert freq band from Wi-Fi Simple Configuration Technical Specification v2 table 44 to IEEE-1905-1-2013 table 6-23
-em_rd_freq_band_t em_t::map_freq_band_to_rf_band(em_freq_band_t band)
-{
-    unsigned int int_band;
-    int_band = (int)band;
-
-    if (int_band == 0) {
-        return em_rd_freq_band_24; // Return 2.4 GHz band
-    } else if (int_band == 1) {
-        return em_rd_freq_band_5; // Return 5 GHz band
-    } else if (int_band == 2) {
-        return em_rd_freq_band_60; // Return 60 GHz band
-    } else {
-        return em_rd_freq_band_unknown; // Return unknown for other values
-    }
-}
-
 dm_radio_t *em_t::get_radio_from_dm(bool command_dm)
 {
 	dm_easy_mesh_t *dm;
@@ -606,6 +599,7 @@ short em_t::create_ap_radio_basic_cap(unsigned char *buff) {
 	em_channels_list_t *channel_list;
 	em_op_class_t *op_class;
 	unsigned int all_channel_len = 0;
+	int i = 0;
 	len = sizeof(em_ap_radio_basic_cap_t);
 
 	memcpy(&cap->ruid, get_radio_interface_mac(), sizeof(mac_address_t));
@@ -614,32 +608,33 @@ short em_t::create_ap_radio_basic_cap(unsigned char *buff) {
 	cap->num_bss = get_current_cmd()->get_data_model()->get_num_bss();
 	cap->op_class_num = 0;
 	op_class = cap->op_classes;
-	for (int i = 0; i < get_current_cmd()->get_data_model()->get_num_op_class(); i++) {
-
-		em_op_class_info_t *op_class_info = get_current_cmd()->get_data_model()->get_op_class_info(i);
-		if ((op_class_info != NULL) && (op_class_info->id.type == em_op_class_type_capability)){
-			cap->op_class_num++;
-			op_class->op_class = op_class_info->op_class;
-			op_class->max_tx_eirp = op_class_info->max_tx_power;
-			op_class->num = op_class_info->num_channels;
-			len += sizeof(em_op_class_t);
-			if (op_class_info->num_channels != 0) {
-				channel_list = &op_class->channels;
-				for (int j = 0; j < op_class_info->num_channels; j++) {
-					memcpy( (unsigned char *)&channel_list->channel, (unsigned char *)&op_class_info->channels[j], sizeof(unsigned char));
-					all_channel_len = all_channel_len + sizeof(unsigned char);
-					channel_list = (em_channels_list_t *)((unsigned char *)channel_list + sizeof(em_channels_list_t) + sizeof(unsigned char) );
+	for (i = 0; i < get_current_cmd()->get_data_model()->get_num_op_class(); i++) {
+		if (memcmp(get_radio_interface_mac(), get_current_cmd()->get_data_model()->get_op_class_info(i)->id.ruid, sizeof(mac_address_t)) == 0) {
+			em_op_class_info_t *op_class_info = get_current_cmd()->get_data_model()->get_op_class_info(i);
+			if ((op_class_info != NULL) && (op_class_info->id.type == em_op_class_type_capability)){
+				cap->op_class_num++;
+				op_class->op_class = op_class_info->op_class;
+				op_class->max_tx_eirp = op_class_info->max_tx_power;
+				op_class->num = op_class_info->num_channels;
+				len += sizeof(em_op_class_t);
+				if (op_class_info->num_channels != 0) {
+					channel_list = &op_class->channels;
+					for (int j = 0; j < op_class_info->num_channels; j++) {
+						memcpy( (unsigned char *)&channel_list->channel, (unsigned char *)&op_class_info->channels[j], sizeof(unsigned char));
+						all_channel_len = all_channel_len + sizeof(unsigned char);
+						channel_list = (em_channels_list_t *)((unsigned char *)channel_list + sizeof(em_channels_list_t) + sizeof(unsigned char) );
 									   len += sizeof(unsigned char);
+					}
 				}
-			}
-			printf("Op Class %d: %d, max_tx_eirp: %d, channels.num: %d\n",
-				   i, op_class_info->op_class, op_class_info->max_tx_power, op_class_info->num_channels);
-			printf(" cap->op_classes[%d].op_class: %d, cap->op_classes[%d].max_tx_eirp %d,	cap->op_classes[%d].channels.num %d\n",
-				   i, cap->op_classes[i].op_class, i, cap->op_classes[i].max_tx_eirp, i, cap->op_classes[i].num);
+				printf("Op Class %d: %d, max_tx_eirp: %d, channels.num: %d\n",
+					   i, op_class_info->op_class, op_class_info->max_tx_power, op_class_info->num_channels);
+				printf(" cap->op_classes[%d].op_class: %d, cap->op_classes[%d].max_tx_eirp %d,	cap->op_classes[%d].channels.num %d\n",
+					   i, cap->op_classes[i].op_class, i, cap->op_classes[i].max_tx_eirp, i, cap->op_classes[i].num);
 
+			}
+			op_class = (em_op_class_t *)((unsigned char *)op_class + sizeof(em_op_class_t) + all_channel_len);
+			all_channel_len = 0;
 		}
-		op_class = (em_op_class_t *)((unsigned char *)op_class + sizeof(em_op_class_t) + all_channel_len);
-		all_channel_len = 0;
 	}
 	return len;
 }
@@ -908,6 +903,7 @@ const char *em_t::state_2_str(em_state_t state)
 		EM_STATE_2S(em_state_ctrl_topo_sync_pending)
 		EM_STATE_2S(em_state_ctrl_topo_synchronized)
 		EM_STATE_2S(em_state_ctrl_channel_query_pending)
+		EM_STATE_2S(em_state_ctrl_channel_pref_report_pending)
 		EM_STATE_2S(em_state_ctrl_channel_queried)
 		EM_STATE_2S(em_state_ctrl_channel_select_pending)
 		EM_STATE_2S(em_state_ctrl_channel_selected)
@@ -920,6 +916,7 @@ const char *em_t::state_2_str(em_state_t state)
 		EM_STATE_2S(em_state_ctrl_sta_cap_confirmed)
 		EM_STATE_2S(em_state_ctrl_sta_link_metrics_pending)
 		EM_STATE_2S(em_state_ctrl_sta_steer_pending)
+		EM_STATE_2S(em_state_agent_steer_btm_res_pending)
 		EM_STATE_2S(em_state_ctrl_sta_disassoc_pending)
 		EM_STATE_2S(em_state_ctrl_set_policy_pending)
     }
@@ -948,6 +945,7 @@ em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr
     m_sm.init_sm(type);
 	m_orch_state = em_orch_state_idle;
     m_cmd = NULL;
+    
     RAND_bytes(get_crypto_info()->e_nonce, sizeof(em_nonce_t));
     RAND_bytes(get_crypto_info()->r_nonce, sizeof(em_nonce_t));
     m_data_model = dm;

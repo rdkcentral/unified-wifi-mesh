@@ -47,39 +47,38 @@ em_cli_t g_cli;
 
 em_network_node_data_type_t em_cli_t::get_node_type(em_network_node_t *node)
 {
-	return node->type;
+    return node->type;
 }
 
 void em_cli_t::free_formatted_node_value(char *str)
 {
-	free(str);
+    free(str);
 }
 
 char *em_cli_t::get_formatted_node_array_value(em_network_node_t *node)
 {
     char *str;
-	em_short_string_t tmp_str;
-	unsigned int i;
+    em_short_string_t tmp_str;
+    unsigned int i;
 
     str = (char *)malloc(sizeof(em_long_string_t));
     memset(str, 0, sizeof(em_long_string_t));
 
-	if (node->num_children == 0) {
-		return str;
-	}
-		
-	snprintf(str, sizeof(em_long_string_t), "[");
-	for (i = 0; i < node->num_children; i++) {
-		if (node->child[0]->type == em_network_node_data_type_string) {
-			snprintf(tmp_str, sizeof(em_short_string_t), "%s, ", node->child[i]->value_str);
-		} else {
-			snprintf(tmp_str, sizeof(em_short_string_t), "%d, ", node->child[i]->value_int);
-		}
-		strncat(str, tmp_str, strlen(tmp_str));	
-	}
+    if (node->num_children == 0) {
+        return str;
+    }
 
-	str[strlen(str) - 2] = ']';
-	
+    snprintf(str, sizeof(em_long_string_t), "[");
+    for (i = 0; i < node->num_children; i++) {
+        if (node->child[0]->type == em_network_node_data_type_string) {
+            snprintf(tmp_str, sizeof(em_short_string_t), "%s, ", node->child[i]->value_str);
+        } else {
+            snprintf(tmp_str, sizeof(em_short_string_t), "%d, ", node->child[i]->value_int);
+        }
+        strncat(str, tmp_str, strlen(tmp_str));
+    }
+
+    str[strlen(str) - 2] = ']';
 
     return str;
 }
@@ -87,10 +86,10 @@ char *em_cli_t::get_formatted_node_array_value(em_network_node_t *node)
 
 char *em_cli_t::get_formatted_node_scalar_value(em_network_node_t *node)
 {
-	char *str;
+    char *str;
 
-	str = (char *)malloc(sizeof(em_long_string_t));
-	memset(str, 0, sizeof(em_long_string_t));
+    str = (char *)malloc(sizeof(em_long_string_t));
+    memset(str, 0, sizeof(em_long_string_t));
 
     switch (node->type) {
         case em_network_node_data_type_invalid:
@@ -404,6 +403,13 @@ int em_cli_t::get_network_tree_node(cJSON *obj, em_network_node_t *root, unsigne
 	
 	return root->num_children;
 }
+
+em_network_node_t *em_cli_t::get_child_node_at_index(em_network_node_t *node, unsigned int idx)
+{
+    //printf("%s:%d: Index: %d(%d), node:%p\n", __func__, __LINE__, idx, node->num_children, node->child[idx]);
+    return node->child[idx];
+}
+
 
 em_network_node_t *em_cli_t::get_network_tree(char *buff)
 {
@@ -899,4 +905,3 @@ extern "C" unsigned int can_expand_node(em_network_node_t *node)
 
     return 0;
 }
-

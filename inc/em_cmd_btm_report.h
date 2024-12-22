@@ -16,23 +16,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef EM_ORCH_AGENT_H
-#define EM_ORCH_AGENT_H
+#ifndef EM_CMD_STA_STEER_H
+#define EM_CMD_STA_STEER_H
 
-#include "em_orch.h"
+#include "em_cmd.h"
 
-class em_orch_agent_t : public em_orch_t {
-
-public:
-    unsigned int build_candidates(em_cmd_t *cmd);
-    bool    pre_process_orch_op(em_cmd_t *pcmd);
-    void    pre_process_cancel(em_cmd_t *pcmd, em_t *em);
-    bool    is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em);
-    bool    is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em);
-    void    orch_transient(em_cmd_t *pcmd, em_t *em);
+class em_cmd_btm_report_t : public em_cmd_t {
 
 public:
-    em_orch_agent_t(em_mgr_t *mgr);
+    em_cmd_btm_report_t(em_cmd_btm_report_params_t params);
 };
 
 #endif
