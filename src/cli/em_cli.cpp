@@ -75,7 +75,7 @@ char *em_cli_t::get_formatted_node_array_value(em_network_node_t *node)
         } else {
             snprintf(tmp_str, sizeof(em_short_string_t), "%d, ", node->child[i]->value_int);
         }
-        strncat(str, tmp_str, strlen(tmp_str));
+        strncat(str, tmp_str, strlen(tmp_str));	
     }
 
     str[strlen(str) - 2] = ']';
@@ -131,257 +131,435 @@ char *em_cli_t::get_formatted_node_scalar_value(em_network_node_t *node)
 
 }
 
-void em_cli_t::print_network_tree_node(em_network_node_t *node, unsigned int *pident)
+void em_cli_t::get_network_tree_node_string(char *str, em_network_node_t *node, unsigned int *pident)
 {
-	unsigned int i, ident = 0;
-	em_long_string_t fmt = {0};
-	em_long_string_t value_str = {0};
-	em_short_string_t tmp_str;
+    unsigned int i, ident = 0;
+    em_long_string_t fmt = {0};
+    em_long_string_t string = {0};
+    em_long_string_t value_str = {0};
+    em_short_string_t tmp_str;
 
-	ident = *pident;
-	ident++;
-	*pident = ident;
+    ident = *pident;
+    ident++;
+    *pident = ident;
 
-	for (i = 0; i < ident; i++) {
-		strncat(fmt, "   ", strlen("   "));
-	}
+    for (i = 0; i < ident; i++) {
+        strncat(fmt, "   ", strlen("   "));
+    }
 
-	switch (node->type) {
-		case em_network_node_data_type_invalid:
-			break;
+    switch (node->type) {
+        case em_network_node_data_type_invalid:
+            break;
 
-		case em_network_node_data_type_false:
-			printf("%s%s:\tfalse\n", fmt, node->key);
-			break;
+        case em_network_node_data_type_false:
+            snprintf(string, sizeof(em_long_string_t), "%s%s:\tfalse\n", fmt, node->key);
+            break;
 
-		case em_network_node_data_type_true:
-			printf("%s%s:\ttrue\n", fmt, node->key);
-			break;
+        case em_network_node_data_type_true:
+            snprintf(string, sizeof(em_long_string_t), "%s%s:\ttrue\n", fmt, node->key);
+            break;
 
-		case em_network_node_data_type_null:
-			break;
+        case em_network_node_data_type_null:
+            break;
 
-		case em_network_node_data_type_number:
-			printf("%s%s:\t%d\n", fmt, node->key, node->value_int);
-			break;
+        case em_network_node_data_type_number:
+            snprintf(string, sizeof(em_long_string_t), "%s%s:\t%d\n", fmt, node->key, node->value_int);
+            break;
 
-		case em_network_node_data_type_string:
-			printf("%s%s:\t%s\n", fmt, node->key, node->value_str);
-			break;
+        case em_network_node_data_type_string:
+            snprintf(string, sizeof(em_long_string_t), "%s%s:\t%s\n", fmt, node->key, node->value_str);
+            break;
 
-		case em_network_node_data_type_array:
-			printf("%s%s:", fmt, node->key);
-			if ((node->num_children > 0) && ((node->child[0]->type == em_network_node_data_type_array) ||
-									(node->child[0]->type == em_network_node_data_type_obj))) {
-				printf("\n");
-			} else if (node->num_children == 0) {
-				//printf("\n");
-			}
-			break;
+        case em_network_node_data_type_array:
+            snprintf(string, sizeof(em_long_string_t), "%s%s:", fmt, node->key);
+            if ((node->num_children > 0) && ((node->child[0]->type == em_network_node_data_type_array) ||
+                        (node->child[0]->type == em_network_node_data_type_obj))) {
+                printf("\n");
+            } else if (node->num_children == 0) {
+                //printf("\n");
+            }
+            break;
 
-		case em_network_node_data_type_obj:
-			if (node->key[0] != 0) {
-				printf("%s%s\t\n", fmt, node->key);
-			}
-			break;
+        case em_network_node_data_type_obj:
+            if (node->key[0] != 0) {
+                snprintf(string, sizeof(em_long_string_t), "%s%s\t\n", fmt, node->key);
+            }
+            break;
 
-		case em_network_node_data_type_raw:
-			break;
+        case em_network_node_data_type_raw:
+            break;
 
-	}
-		
-	if ((node->type == em_network_node_data_type_array) && (node->num_children > 0) &&
-			((node->child[0]->type == em_network_node_data_type_number) ||
-			(node->child[0]->type == em_network_node_data_type_string))) {
-			
-		snprintf(value_str, sizeof(em_long_string_t), "[");
-		for (i = 0; i < node->num_children; i++) {
-			if (node->child[0]->type == em_network_node_data_type_string) {
-				snprintf(tmp_str, sizeof(em_short_string_t), "%s, ", node->child[i]->value_str);
-			} else {
-				snprintf(tmp_str, sizeof(em_short_string_t), "%d, ", node->child[i]->value_int);
-			}
-			strncat(value_str, tmp_str, strlen(tmp_str));	
-		}
+    }
 
-		value_str[strlen(value_str) - 2] = ']';
-		printf("%s\n", value_str);
-	} else {
+    strncat(str, string, strlen(string));
 
-		if (node->type == em_network_node_data_type_array) {
-			if (node->num_children == 0) {
-				printf("[");
-			} else {
-				snprintf(value_str, sizeof(value_str), "%s[", fmt);
-				printf("%s\n", value_str);
-			}
-		} else if (node->type == em_network_node_data_type_obj) {
-			if (node->num_children == 0) {
-				printf("{");
-			} else {
-				snprintf(value_str, sizeof(value_str), "%s{", fmt);
-				printf("%s\n", value_str);
-			}
-		}
+    if ((node->type == em_network_node_data_type_array) && (node->num_children > 0) &&
+            ((node->child[0]->type == em_network_node_data_type_number) ||
+             (node->child[0]->type == em_network_node_data_type_string))) {
 
-		for (i = 0; i < node->num_children; i++) {
-			print_network_tree_node(node->child[i], pident);
-		}
-		if (node->type == em_network_node_data_type_array) {
-			if (node->num_children == 0) {
-				printf("]\n");
-			} else {
-				snprintf(value_str, sizeof(value_str), "%s]", fmt);
-				printf("%s\n", value_str);
-			}
-		} else if (node->type == em_network_node_data_type_obj) {
-			if (node->num_children == 0) {
-				printf("}\n");
-			} else {
-				snprintf(value_str, sizeof(value_str), "%s}", fmt);
-				printf("%s\n", value_str);
-			}
+        snprintf(value_str, sizeof(em_long_string_t), "[");
+        for (i = 0; i < node->num_children; i++) {
+            if (node->child[0]->type == em_network_node_data_type_string) {
+                snprintf(tmp_str, sizeof(em_short_string_t), "%s, ", node->child[i]->value_str);
+            } else {
+                snprintf(tmp_str, sizeof(em_short_string_t), "%d, ", node->child[i]->value_int);
+            }
+            strncat(value_str, tmp_str, strlen(tmp_str));	
+        }
 
-		}
-	}
+        value_str[strlen(value_str) - 2] = ']';
+        strncat(value_str, "\n", strlen("\n"));
+        strncat(str, value_str, strlen(value_str));
+    } else {
 
-	ident = *pident;
-	ident--;
-	*pident = ident;
+        if (node->type == em_network_node_data_type_array) {
+            if (node->num_children == 0) {
+                strncat(str, "[", strlen("["));
+            } else {
+                snprintf(value_str, sizeof(value_str), "%s[\n", fmt);
+                strncat(str, value_str, strlen(value_str));
+            }
+        } else if (node->type == em_network_node_data_type_obj) {
+            if (node->num_children == 0) {
+                strncat(str, "{", strlen("{"));
+            } else {
+                snprintf(value_str, sizeof(value_str), "%s{\n", fmt);
+                strncat(str, value_str, strlen(value_str));
+            }
+        }
+
+        for (i = 0; i < node->num_children; i++) {
+            get_network_tree_node_string(str, node->child[i], pident);
+        }
+        if (node->type == em_network_node_data_type_array) {
+            if (node->num_children == 0) {
+                strncat(str, "]\n", strlen("]\n"));
+            } else {
+                snprintf(value_str, sizeof(value_str), "%s]\n", fmt);
+                strncat(str, value_str, strlen(value_str));
+            }
+        } else if (node->type == em_network_node_data_type_obj) {
+            if (node->num_children == 0) {
+                strncat(str, "}\n", strlen("}\n"));
+            } else {
+                snprintf(value_str, sizeof(value_str), "%s}\n", fmt);
+                strncat(str, value_str, strlen(value_str));
+            }
+
+        }
+    }
+
+    ident = *pident;
+    ident--;
+    *pident = ident;
 }
 
-void em_cli_t::print_network_tree(em_network_node_t *node)
+char *em_cli_t::get_network_tree_string(em_network_node_t *node)
 {
-	unsigned int ident = 0;
+    unsigned int ident = 0;
+    unsigned int size = EM_LONG_IO_BUFF_SZ;
+    char *str;
 
-	print_network_tree_node(node, &ident);	
+    str = (char *)malloc(size);
+    memset(str, 0, size);
+
+    get_network_tree_node_string(str, node, &ident);	
+
+    return str;
 }
 
 cJSON *em_cli_t::network_tree_node_to_json(em_network_node_t *node, cJSON *parent)
 {
-	unsigned int i;
-	cJSON *obj;
+    unsigned int i;
+    cJSON *obj;
 
-	switch (node->type) {
-		case em_network_node_data_type_invalid:
-			break;
+    switch (node->type) {
+        case em_network_node_data_type_invalid:
+            break;
 
-		case em_network_node_data_type_false:
-			obj = cJSON_CreateFalse();
-			break;
+        case em_network_node_data_type_false:
+            obj = cJSON_CreateFalse();
+            break;
 
-		case em_network_node_data_type_true:
-			obj = cJSON_CreateTrue();
-			break;
+        case em_network_node_data_type_true:
+            obj = cJSON_CreateTrue();
+            break;
 
-		case em_network_node_data_type_null:
-			obj = cJSON_CreateNull();
-			break;
+        case em_network_node_data_type_null:
+            obj = cJSON_CreateNull();
+            break;
 
-		case em_network_node_data_type_number:
-			obj = cJSON_CreateNumber(node->value_int);
-			break;
+        case em_network_node_data_type_number:
+            obj = cJSON_CreateNumber(node->value_int);
+            break;
 
-		case em_network_node_data_type_string:
-			obj = cJSON_CreateString(node->value_str);
-			break;
+        case em_network_node_data_type_string:
+            obj = cJSON_CreateString(node->value_str);
+            break;
 
-		case em_network_node_data_type_array:
-			obj = cJSON_CreateArray();
-			break;
+        case em_network_node_data_type_array:
+            obj = cJSON_CreateArray();
+            break;
 
-		case em_network_node_data_type_obj:
-			obj = cJSON_CreateObject();
-			break;
+        case em_network_node_data_type_obj:
+            obj = cJSON_CreateObject();
+            break;
 
-		case em_network_node_data_type_raw:
-			break;
-	}
+        case em_network_node_data_type_raw:
+            break;
+    }
 
-	if (obj == NULL) {
-		printf("%s:%d: Failed to allocate JSON object\n");
-		return NULL;
-	}
+    if (obj == NULL) {
+        printf("%s:%d: Failed to allocate JSON object\n");
+        return NULL;
+    }
 
-	cJSON_AddItemToObject(parent, node->key, obj);
+    cJSON_AddItemToObject(parent, node->key, obj);
 
     for (i = 0; i < node->num_children; i++) {
         network_tree_node_to_json(node->child[i], obj);
     }
 
-	return obj;
-	
+    return obj;
+
 }
 
 void *em_cli_t::network_tree_to_json(em_network_node_t *root)
 {
-	cJSON *obj;
-	unsigned int i;
+    cJSON *obj;
+    unsigned int i;
 
-	obj = cJSON_CreateObject();
-	if (obj == NULL) {
-		printf("%s:%d: Failed to allocate JSON object\n");
-		return NULL;
-	}
+    obj = cJSON_CreateObject();
+    if (obj == NULL) {
+        printf("%s:%d: Failed to allocate JSON object\n");
+        return NULL;
+    }
 
-	for (i = 0; i < root->num_children; i++) {
-		network_tree_node_to_json(root->child[i], obj);	
-	}
+    for (i = 0; i < root->num_children; i++) {
+        network_tree_node_to_json(root->child[i], obj);	
+    }
 
-	//printf("%s:%d: %s\n", __func__, __LINE__, cJSON_Print(obj));
+    //printf("%s:%d: %s\n", __func__, __LINE__, cJSON_Print(obj));
 
-	return obj;	
+    return obj;	
 }
 
-int em_cli_t::get_network_tree_node(cJSON *obj, em_network_node_t *root)
+int em_cli_t::get_network_tree_node(cJSON *obj, em_network_node_t *root, unsigned int *node_display_ctr)
 {
-	cJSON *child_obj, *tmp_obj;
+    cJSON *child_obj, *tmp_obj;
 
-	if (obj->string != NULL) {
-		strncpy(root->key, obj->string, strlen(obj->string) + 1);
-	}
+    if (obj->string != NULL) {
+        strncpy(root->key, obj->string, strlen(obj->string) + 1);
+    }
 
-	if (cJSON_IsInvalid(obj) == true) {
-		root->type = em_network_node_data_type_invalid;
-	} else if (cJSON_IsString(obj) == true) {
-		root->type = em_network_node_data_type_string;
-		strncpy(root->value_str, obj->valuestring, strlen(obj->valuestring) + 1);
-	} else if (cJSON_IsNumber(obj) == true) {
-		root->type = em_network_node_data_type_number;
-		root->value_int = obj->valueint;
-	} else if (cJSON_IsArray(obj) == true) {
-		root->type = em_network_node_data_type_array;
-	} else if (cJSON_IsFalse(obj) == true) {
-		root->type = em_network_node_data_type_false;
-	} else if (cJSON_IsTrue(obj) == true) {
-		root->type = em_network_node_data_type_true;
-	} else if (cJSON_IsNull(obj) == true) {
-		root->type = em_network_node_data_type_null;
-	} else if (cJSON_IsRaw(obj) == true) {
-		root->type = em_network_node_data_type_raw;
-	} else if (cJSON_IsObject(obj) == true) {
-		root->type = em_network_node_data_type_obj;
-	}
+    if (cJSON_IsInvalid(obj) == true) {
+        root->type = em_network_node_data_type_invalid;
+    } else if (cJSON_IsString(obj) == true) {
+        root->type = em_network_node_data_type_string;
+        strncpy(root->value_str, obj->valuestring, strlen(obj->valuestring) + 1);
+    } else if (cJSON_IsNumber(obj) == true) {
+        root->type = em_network_node_data_type_number;
+        root->value_int = obj->valueint;
+    } else if (cJSON_IsArray(obj) == true) {
+        root->type = em_network_node_data_type_array;
+    } else if (cJSON_IsFalse(obj) == true) {
+        root->type = em_network_node_data_type_false;
+    } else if (cJSON_IsTrue(obj) == true) {
+        root->type = em_network_node_data_type_true;
+    } else if (cJSON_IsNull(obj) == true) {
+        root->type = em_network_node_data_type_null;
+    } else if (cJSON_IsRaw(obj) == true) {
+        root->type = em_network_node_data_type_raw;
+    } else if (cJSON_IsObject(obj) == true) {
+        root->type = em_network_node_data_type_obj;
+    }
 
-	if (obj->child == NULL) {
-		root->num_children = 0;
-		return 0;
-	}
+    if (obj->child == NULL) {
+        root->num_children = 0;
+        return 0;
+    }
 
-	child_obj = obj->child;
-	tmp_obj = child_obj;
+    child_obj = obj->child;
+    tmp_obj = child_obj;
 
-	while (tmp_obj != NULL) {
-		root->child[root->num_children] = (em_network_node_t *)malloc(sizeof(em_network_node_t));
-		memset(root->child[root->num_children], 0, sizeof(em_network_node_t));
-		get_network_tree_node(tmp_obj, root->child[root->num_children]);
-			
-		root->num_children++;
+    while (tmp_obj != NULL) {
+        root->child[root->num_children] = (em_network_node_t *)malloc(sizeof(em_network_node_t));
+        memset(root->child[root->num_children], 0, sizeof(em_network_node_t));
+        if (cJSON_IsArray(obj) == true) {
+            if ((cJSON_IsObject(tmp_obj) == true) || (cJSON_IsArray(tmp_obj) == true)) {
+                (*node_display_ctr)++;
+            }	
+        } else {
+            (*node_display_ctr)++;
+        }
+        root->child[root->num_children]->display_info.node_ctr = *node_display_ctr;
+        root->child[root->num_children]->display_info.orig_node_ctr = *node_display_ctr;
+        root->child[root->num_children]->display_info.node_pos = root->display_info.node_pos + 1;
+        get_network_tree_node(tmp_obj, root->child[root->num_children], node_display_ctr);
 
-		tmp_obj = tmp_obj->next;	
-	}
-	
-	return root->num_children;
+        root->num_children++;
+
+        tmp_obj = tmp_obj->next;	
+    }
+
+    return root->num_children;
+}
+
+em_network_node_t *em_cli_t::get_network_tree(char *buff)
+{
+    cJSON *obj = NULL;
+    em_network_node_t *root;
+    unsigned int node_display_ctr = 0;
+
+    if ((obj = cJSON_Parse(buff)) == NULL) {
+        return NULL;
+    }
+
+    root = (em_network_node_t *)malloc(sizeof(em_network_node_t));
+    memset(root, 0, sizeof(em_network_node_t));
+
+    get_network_tree_node(obj, root, &node_display_ctr);
+
+    cJSON_Delete(obj);
+
+    return root;
+
+}
+
+em_network_node_t *em_cli_t::get_node_from_node_ctr(em_network_node_t *tree, unsigned int node_display_ctr)
+{
+    em_network_node_t *node = NULL;
+    bool found_match = false;
+    unsigned int i;
+    em_long_string_t	dbg;
+
+    snprintf(dbg, sizeof(em_long_string_t), "Node: %s, Node Counter: %d", tree->key, tree->display_info.node_ctr); 
+    dump_lib_dbg(dbg);	
+
+    if (tree->display_info.node_ctr == node_display_ctr) {
+        return tree;
+    } else {
+        for (i = 0; i < tree->num_children; i++) {
+            if ((node = get_node_from_node_ctr(tree->child[i], node_display_ctr)) != NULL) {
+                found_match = true;
+                break;
+            }
+        }
+
+        if (found_match == true) {
+            return node;
+        }
+    }
+
+    return NULL;
+}
+
+em_network_node_t *em_cli_t::clone_network_tree(em_network_node_t *orig_node, em_network_node_t *dis_node, unsigned int index, bool collapse, unsigned int *node_display_ctr)
+{
+    em_network_node_t *cloned = NULL, *tree_to_add = NULL;
+    unsigned int i;
+    bool should_consider = false;
+    em_network_node_t *node;
+    unsigned int start_node_ctr = 0;
+
+    if (node_display_ctr == NULL) {
+        node_display_ctr = &start_node_ctr;
+    }
+
+    if (orig_node == NULL) {
+        return NULL;
+    }
+
+    if (dis_node == NULL) {
+        node = orig_node;
+    } else {
+        node = dis_node;
+    }
+
+    cloned = (em_network_node_t *)malloc(sizeof(em_network_node_t));
+    memset(cloned, 0, sizeof(em_network_node_t));
+
+    strncpy(cloned->key, node->key, strlen(node->key) + 1);
+    memcpy(&cloned->display_info, &node->display_info, sizeof(em_node_display_info_t));
+    cloned->display_info.node_ctr = *node_display_ctr;
+    cloned->display_info.orig_node_ctr = node->display_info.orig_node_ctr;
+
+    cloned->type = node->type;
+    strncpy(cloned->value_str, node->value_str, strlen(node->value_str) + 1);
+    cloned->value_int = node->value_int;
+
+    should_consider = (node->display_info.node_ctr == index);
+
+    if (should_consider == true) {
+        if (collapse == false) {
+            tree_to_add = get_node_from_node_ctr(orig_node, node->display_info.orig_node_ctr);	
+            dump_lib_dbg(get_network_tree_string(tree_to_add));
+            assert(tree_to_add != NULL);
+            assert(tree_to_add->num_children > 0);
+            for (i = 0; i < tree_to_add->num_children; i++) {
+                if (node->type == em_network_node_data_type_array) {
+                    if ((tree_to_add->child[0]->type == em_network_node_data_type_array) || 
+                            (tree_to_add->child[0]->type == em_network_node_data_type_obj)) {
+                        (*node_display_ctr)++;
+                    }
+                } else {
+                    (*node_display_ctr)++;
+                }
+                cloned->child[i] = clone_network_tree(orig_node, tree_to_add->child[i], index, collapse, node_display_ctr);
+            }
+            cloned->display_info.collapsed = false;
+            cloned->num_children = tree_to_add->num_children;
+
+
+        } else {
+            if (dis_node->num_children > 0) {
+                cloned->display_info.collapsed = true;
+            }
+        }
+
+    } else {
+        for (i = 0; i < node->num_children; i++) {
+            if (node->type == em_network_node_data_type_array) {
+                if ((node->child[0]->type == em_network_node_data_type_array) || (node->child[0]->type == em_network_node_data_type_obj)) {
+                    (*node_display_ctr)++;
+                }
+            } else {
+                (*node_display_ctr)++;
+            }
+            cloned->child[i] = clone_network_tree(orig_node, node->child[i], index, collapse, node_display_ctr);
+            cloned->num_children++;
+        }
+
+    }
+
+    return cloned;
+}
+
+em_network_node_t *em_cli_t::get_network_tree_by_file(const char *file_name)
+{
+    char buff[EM_IO_BUFF_SZ];
+
+    if (em_cmd_cli_t::load_params_file(file_name, buff) < 0) {
+        return NULL;
+    }
+
+    return get_network_tree(buff);
+}
+
+void em_cli_t::free_network_tree_node(em_network_node_t *node)
+{
+    unsigned int i;
+
+    for (i = 0; i < node->num_children; i++) {
+        free_network_tree_node(node->child[i]);
+    }
+
+    free(node);
+}
+
+void em_cli_t::free_network_tree(em_network_node_t *node)
+{
+    free_network_tree_node(node);
 }
 
 em_network_node_t *em_cli_t::get_child_node_at_index(em_network_node_t *node, unsigned int idx)
@@ -390,81 +568,40 @@ em_network_node_t *em_cli_t::get_child_node_at_index(em_network_node_t *node, un
     return node->child[idx];
 }
 
-
-em_network_node_t *em_cli_t::get_network_tree(char *buff)
+unsigned int em_cli_t::get_node_display_position(em_network_node_t *node)
 {
-	cJSON *obj = NULL;
-	em_network_node_t *root;
-
-	if ((obj = cJSON_Parse(buff)) == NULL) {
-		return NULL;
-	}
-
-	root = (em_network_node_t *)malloc(sizeof(em_network_node_t));
-	memset(root, 0, sizeof(em_network_node_t));
-	get_network_tree_node(obj, root);
-
-	cJSON_Delete(obj);
-
-	return root;
-
+    return node->display_info.node_pos;
 }
 
-em_network_node_t *em_cli_t::get_network_tree_by_file(const char *file_name)
-{
-	char buff[EM_IO_BUFF_SZ];
-
-	if (em_cmd_cli_t::load_params_file(file_name, buff) < 0) {
-		return NULL;
-	}
-
-	return get_network_tree(buff);
-}
-
-void em_cli_t::free_network_tree_node(em_network_node_t *node)
-{
-	unsigned int i;
-
-	for (i = 0; i < node->num_children; i++) {
-		free_network_tree_node(node->child[i]);
-	}
-
-	free(node);
-}
-
-void em_cli_t::free_network_tree(em_network_node_t *node)
-{
-	free_network_tree_node(node);
-}
 
 const char *em_cli_t::get_first_cmd_str()
 {
-	return em_cmd_cli_t::m_client_cmd_spec[0].get_cmd_name();
+    return em_cmd_cli_t::m_client_cmd_spec[0].get_cmd_name();
 }
 
 const char *em_cli_t::get_next_cmd_str(const char *cmd)
 {
-	unsigned int i = 0;
-	bool found_match = false;
+    unsigned int i = 0;
+    bool found_match = false;
 
-	if (cmd == NULL) {
-		return NULL;
-	}
+    if (cmd == NULL) {
+        return NULL;
+    }
 
-	while (em_cmd_cli_t::m_client_cmd_spec[i].get_type() != em_cmd_type_max) {
-		if (strncmp(em_cmd_cli_t::m_client_cmd_spec[i].get_cmd_name(), cmd, strlen(cmd)) == 0) {
-			found_match = true;
-			break;
-		}
+    while (em_cmd_cli_t::m_client_cmd_spec[i].get_type() != em_cmd_type_max) {
+        if (strncmp(em_cmd_cli_t::m_client_cmd_spec[i].get_cmd_name(), cmd, strlen(cmd)) == 0) {
+            found_match = true;
+            break;
+        }
 
-		i++;
-	}
+        i++;
+    }
 
-	if ((found_match == true) && (em_cmd_cli_t::m_client_cmd_spec[i + 1].get_type() != em_cmd_type_max)) {
-		return em_cmd_cli_t::m_client_cmd_spec[i + 1].get_cmd_name();
-	}
+    if ((found_match == true) && (em_cmd_cli_t::m_client_cmd_spec[i + 1].get_type() != em_cmd_type_max)) {
+        return em_cmd_cli_t::m_client_cmd_spec[i + 1].get_cmd_name();
+    }
 
-	return NULL;
+    return NULL;
 }
 
 em_cmd_t& em_cli_t::get_command(char *in, size_t in_len)
@@ -528,20 +665,20 @@ em_cmd_t& em_cli_t::get_command(char *in, size_t in_len)
                     }
                     if (strncmp(args[num_args - 1], "1", strlen("1")) == 0) {
                         strncat(cmd->m_param.u.args.fixed_args, "Summary@SetAnticipatedChannelPreference", 
-							strlen("Summary@SetAnticipatedChannelPreference"));
+                                strlen("Summary@SetAnticipatedChannelPreference"));
                     } else if (strncmp(args[num_args - 1], "2", strlen("2")) == 0) {
                         strncat(cmd->m_param.u.args.fixed_args, "Summary@ScanChannel", 
-							strlen("Summary@ScanChannel"));
-					}
+                                strlen("Summary@ScanChannel"));
+                    }
                     break;
 
-				case em_cmd_type_get_radio:
+                case em_cmd_type_get_radio:
                     if ((tmp = strstr(cmd->m_param.u.args.fixed_args, "Summary")) != NULL) {
                         *tmp = 0;
                     }
                     if (strncmp(args[num_args - 1], "1", strlen("1")) == 0) {
                         strncat(cmd->m_param.u.args.fixed_args, "Summary@RadioEnable",
-                            strlen("Summary@RadioEnable"));
+                                strlen("Summary@RadioEnable"));
                     }
                     break;
 
@@ -556,7 +693,7 @@ em_cmd_t& em_cli_t::get_command(char *in, size_t in_len)
             *tmp = 0;
         }
     }
-    
+
     for (i = 0; i < num_args; i++) {
         snprintf(cmd->m_param.u.args.args[i], sizeof(cmd->m_param.u.args.args[i]), "%s", args[i]);
     }
@@ -586,14 +723,40 @@ em_network_node_t *em_cli_t::exec(char *in, size_t sz)
 
     delete cli_cmd;
 
-	return get_network_tree(res);	
+    return get_network_tree(res);	
+}
+
+void em_cli_t::init_lib_dbg(char *file_name)
+{
+    FILE *fp;
+
+    strncpy(m_lib_dbg_file_name, file_name, strlen(file_name) + 1);
+    if ((fp = fopen(file_name, "w")) == NULL) {
+        return;
+    }
+
+    fclose(fp);
+}
+
+void em_cli_t::dump_lib_dbg(char *str)
+{
+    FILE *fp;
+
+    if ((fp = fopen(m_lib_dbg_file_name, "a")) == NULL) {
+        return;
+    }
+
+    fputs("\n==========\n", fp);	
+    fputs(str, fp);
+
+    fclose(fp);
 }
 
 int em_cli_t::init(em_editor_callback_t cb)
 {
-	m_editor_cb = cb;
+    m_editor_cb = cb;
 
-	return 0;
+    return 0;
 }
 
 em_cli_t::em_cli_t()
@@ -606,37 +769,37 @@ em_cli_t::~em_cli_t()
 
 em_cli_t *get_cli()
 {
-	return &g_cli;
+    return &g_cli;
 }
 
 extern "C" em_network_node_t *exec(char *in, size_t in_len)
 {
-	return g_cli.exec(in, in_len);
+    return g_cli.exec(in, in_len);
 }
-    
+
 extern "C" int init(em_editor_callback_t func)
 {
-	return g_cli.init(func);
+    return g_cli.init(func);
 }
 
 extern "C" const char *get_first_cmd_str()
 {
-	return g_cli.get_first_cmd_str();
+    return g_cli.get_first_cmd_str();
 }
 
 extern "C" const char *get_next_cmd_str(const char *cmd)
 {
-	return g_cli.get_next_cmd_str(cmd);
+    return g_cli.get_next_cmd_str(cmd);
 }
 
 extern "C" void *get_network_tree_by_file(const char *file_name)
 {
-	return g_cli.get_network_tree_by_file(file_name);
+    return g_cli.get_network_tree_by_file(file_name);
 }
 
 extern "C" void *get_network_tree(char *buff)
 {
-	return g_cli.get_network_tree(buff);
+    return g_cli.get_network_tree(buff);
 }
 
 extern "C" em_network_node_t *get_child_node_at_index(em_network_node_t *node, unsigned int idx)
@@ -646,7 +809,7 @@ extern "C" em_network_node_t *get_child_node_at_index(em_network_node_t *node, u
 
 extern "C" void free_network_tree(void *node)
 {
-	return g_cli.free_network_tree((em_network_node_t *)node);
+    return g_cli.free_network_tree((em_network_node_t *)node);
 }
 
 extern "C" void *network_tree_to_json(em_network_node_t *node)
@@ -654,9 +817,14 @@ extern "C" void *network_tree_to_json(em_network_node_t *node)
     return g_cli.network_tree_to_json(node);
 }
 
-extern "C" void print_network_tree(em_network_node_t *node)
+extern "C" char *get_network_tree_string(em_network_node_t *node)
 {
-	return g_cli.print_network_tree(node);
+    return g_cli.get_network_tree_string(node);
+}
+
+extern "C" void free_network_tree_string(char *str)
+{
+    free(str);
 }
 
 extern "C" char *get_formatted_node_scalar_value(em_network_node_t *node)
@@ -677,4 +845,57 @@ extern "C" void free_formatted_node_value(char *str)
 extern "C" em_network_node_data_type_t get_node_type(em_network_node_t *node)
 {
     return g_cli.get_node_type(node);
+}
+
+extern "C" unsigned int get_node_display_position(em_network_node_t *node)
+{
+    return g_cli.get_node_display_position(node);
+}
+
+extern "C" em_network_node_t *get_node_from_node_ctr(em_network_node_t *tree, unsigned int node_display_ctr)
+{
+    return g_cli.get_node_from_node_ctr(tree, node_display_ctr);
+}
+
+extern "C" em_network_node_t *clone_network_tree(em_network_node_t *orig_node, em_network_node_t *dis_node, unsigned int index, bool collapse)
+{
+    return g_cli.clone_network_tree(orig_node, dis_node, index, collapse);
+}
+
+extern "C" void init_lib_dbg(char *file_name)
+{
+    g_cli.init_lib_dbg(file_name);
+}
+
+extern "C" void dump_lib_dbg(char *str)
+{
+    g_cli.dump_lib_dbg(str);
+}
+
+extern "C" unsigned int can_collapse_node(em_network_node_t *node)
+{
+    em_long_string_t dbg;
+
+    snprintf(dbg, sizeof(em_long_string_t), "display counter: %d, type: %d, children:%d, node: %s, value:%s\n", 
+            node->display_info.node_ctr, node->type, node->num_children, node->key, node->value_str);	
+    g_cli.dump_lib_dbg(dbg);
+
+    if ((node->type == em_network_node_data_type_obj) || (node->type == em_network_node_data_type_array)) {
+        if ((node->display_info.collapsed == false) && (node->num_children > 0)) {
+            return 1;
+        }
+    }	
+
+    return 0;
+}
+
+extern "C" unsigned int can_expand_node(em_network_node_t *node) 
+{
+    if ((node->type == em_network_node_data_type_obj) || (node->type == em_network_node_data_type_array)) {
+        if (node->display_info.collapsed == true) {
+            return 1;
+        }
+    }
+
+    return 0;
 }
