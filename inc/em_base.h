@@ -45,10 +45,10 @@ extern "C"
 #define EM_MAX_E4_TABLE_CHANNEL 32
 
 #define EM_PROTO_TOUT   1
-#define EM_MGR_TOUT     1
+#define EM_MGR_TOUT     0.5
 #define EM_METRICS_REQ_MULT 5
-#define EM_2_TOUT_MULT 	2
-#define EM_5_TOUT_MULT 	5
+#define EM_2_TOUT_MULT 	4
+#define EM_5_TOUT_MULT 	10
 #define EM_CTRL_CAP_SZ  8
 #define MIN_MAC_LEN 12
 #define MAX_EM_BUFF_SZ  1024
@@ -2844,8 +2844,7 @@ typedef struct em_network_node {
     struct em_network_node     *child[EM_MAX_DM_CHILDREN];
 } em_network_node_t;
 
-typedef int (* em_editor_callback_t)(em_network_node_t *);
-
+typedef em_network_node_t *(* em_editor_callback_t)(em_network_node_t *, void *);
 #ifdef __cplusplus
 }
 #endif

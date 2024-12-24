@@ -195,6 +195,7 @@ int em_mgr_t::reset_listeners()
 
     FD_ZERO(&m_rset);
 
+	pthread_mutex_lock(&m_mutex);
     em = (em_t *)hash_map_get_first(m_em_map);
     while (em != NULL) {
         if (em->is_al_interface_em() == true) {
@@ -204,7 +205,7 @@ int em_mgr_t::reset_listeners()
         }
         em = (em_t *)hash_map_get_next(m_em_map, em);
     }
-
+	pthread_mutex_unlock(&m_mutex);
     return highest_fd;
 
 }

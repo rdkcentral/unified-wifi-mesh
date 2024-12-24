@@ -162,58 +162,56 @@ int em_cmd_cli_t::load_params_file(const char *filename, char *buff)
 }
 
 int em_cmd_cli_t::get_edited_node(em_network_node_t *node, const char *header, char *buff)
-{       
-    cJSON *obj; 
-    em_network_node_t *new_node, *tmp;
-    em_network_node_t *child;
-    bool found_result = false;
-    unsigned int i;
+{
+	cJSON *obj;
+	em_network_node_t *curr_node, *new_node, *tmp;
+	em_network_node_t *child;
+	bool found_result = false;
+	unsigned int i;
 	char *net_id = m_cmd.m_param.u.args.args[1], *formatted;
-            
-    for (i = 0; i < node->num_children; i++) {
-        child = node->child[i];
-        if (strncmp(child->key, "Result", strlen("Result")) == 0) {
-            found_result = true;
-            break;
-        }
-    }       
-            
-    if (found_result == false) {
+
+	for (i = 0; i < node->num_children; i++) {
+		child = node->child[i];
+		if (strncmp(child->key, "Result", strlen("Result")) == 0) {
+			found_result = true;
+			break;
+		}
+	}
+
+	if (found_result == false) {
 		printf("%s:%d: Could not find child with Result\n", __func__, __LINE__);
-        return -1;
-    }
+		return -1;
+	}
 
 	snprintf(child->key, sizeof(em_long_string_t), "wfa-dataelements:%s", header);
-    
-	tmp = (em_network_node_t *)malloc(sizeof(em_network_node_t));   
-    memset(tmp, 0, sizeof(em_network_node_t));
-    strncpy(tmp->key, "ID", strlen("ID") + 1);
-    tmp->type = em_network_node_data_type_string;
-    strncpy(tmp->value_str, net_id, strlen(net_id) + 1);
 
-    child->child[child->num_children] = tmp;
-    child->num_children++;
+	tmp = (em_network_node_t *)malloc(sizeof(em_network_node_t));
+	memset(tmp, 0, sizeof(em_network_node_t));
+	strncpy(tmp->key, "ID", strlen("ID") + 1);
+	tmp->type = em_network_node_data_type_string;
+	strncpy(tmp->value_str, net_id, strlen(net_id) + 1);
+	child->child[child->num_children] = tmp;
+	child->num_children++;
 
-        
-    new_node = (em_network_node_t *)malloc(sizeof(em_network_node_t));  
-    memset(new_node, 0, sizeof(em_network_node_t));
-    new_node->type = node->type;
-    new_node->child[new_node->num_children] = child;
-    new_node->num_children++;
-	
-    free(node);
 
-    m_cli.m_editor_cb(new_node);
+	curr_node = (em_network_node_t *)malloc(sizeof(em_network_node_t));
+	memset(curr_node, 0, sizeof(em_network_node_t));
+	curr_node->type = node->type;
+	curr_node->child[curr_node->num_children] = child;
+	curr_node->num_children++;
+
+	free(node);
+
+	new_node = m_cli.m_editor_cb(curr_node, get_cli()->m_user_data);
 	obj = (cJSON *)get_cli()->network_tree_to_json(new_node);
 	formatted = cJSON_Print((cJSON *)get_cli()->network_tree_to_json(new_node));
 	strncpy(buff, formatted, strlen(formatted) + 1);
 	cJSON_Delete(obj);
 
-    get_cli()->free_network_tree(new_node);
+	get_cli()->free_network_tree(new_node);
 
-    return strlen(formatted) + 1;
+	return strlen(formatted) + 1;
 }
-
 
 int em_cmd_cli_t::execute(em_string_t res)
 {
