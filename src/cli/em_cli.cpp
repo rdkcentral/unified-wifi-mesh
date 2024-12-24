@@ -752,9 +752,10 @@ void em_cli_t::dump_lib_dbg(char *str)
     fclose(fp);
 }
 
-int em_cli_t::init(em_editor_callback_t cb)
+int em_cli_t::init(em_editor_callback_t cb, void *user_data)
 {
     m_editor_cb = cb;
+	m_user_data = user_data;
 
     return 0;
 }
@@ -777,9 +778,9 @@ extern "C" em_network_node_t *exec(char *in, size_t in_len)
     return g_cli.exec(in, in_len);
 }
 
-extern "C" int init(em_editor_callback_t func)
+extern "C" int init(em_editor_callback_t func, void *user_data)
 {
-    return g_cli.init(func);
+    return g_cli.init(func, user_data);
 }
 
 extern "C" const char *get_first_cmd_str()

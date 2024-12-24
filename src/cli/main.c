@@ -46,30 +46,32 @@
 const char *prompt = "<<OneWifiMeshCli>>: ";
 
 
-int editor(em_network_node_t *node)
+em_network_node_t *editor(em_network_node_t *node, void *user_data)
 {
 	em_long_string_t cmd;
 	cJSON *obj;
 	FILE *fp = NULL;
+	char buff[EM_IO_BUFF_SZ];
 
 	obj = (cJSON *)network_tree_to_json(node);
+	free_network_tree(node);
 	if (obj == NULL) {
-		return -1;
+		return NULL;
 	}
 
 	if ((fp = fopen("tmp.json", "w")) == NULL) {
         printf("%s:%d: failed to open file error:%d\n", __func__, __LINE__, errno);
-        return -1;
-    } else {
-        fputs(cJSON_Print(obj), fp);
-        fclose(fp);
+        return NULL;
     }
+        
+	fputs(cJSON_Print(obj), fp);
+	fclose(fp);
+	cJSON_Delete(obj);
 
     system("vi tmp.json");
 
-	cJSON_Delete(obj);
+	return get_network_tree_by_file("tmp.json");
 
-	return 0;
 }
 
 int main(int argc, const char *argv[])
@@ -78,7 +80,7 @@ int main(int argc, const char *argv[])
 	em_network_node_t *node;
 	cJSON *obj;
 
-	init(editor);
+	init(editor, NULL);
 
     while(1) {
         line = readline(prompt);

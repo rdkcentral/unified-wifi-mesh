@@ -26,7 +26,7 @@ extern "C" {
 #include "em_base.h"
 	
 em_network_node_t *exec(char *in, size_t in_len);
-int init(em_editor_callback_t func);
+int init(em_editor_callback_t func, void *user_data);
 const char *get_first_cmd_str();
 const char *get_next_cmd_str(const char *cmd);
 em_network_node_t *get_network_tree_by_file(const char *file_name);

@@ -136,9 +136,10 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
 							found++;
 							break;
 						} else if ((dm.m_op_class[i].m_op_class_info.id.type == m_op_class[j].m_op_class_info.id.type) && 
-							(dm.m_op_class[j].m_op_class_info.id.type == 1)) {
+							(dm.m_op_class[i].m_op_class_info.id.type == 1) &&
+							(memcmp(dm.m_op_class[i].m_op_class_info.id.ruid, m_op_class[j].m_op_class_info.id.ruid, sizeof(mac_address_t)) == 0)) {
 							m_op_class[j].m_op_class_info = dm.m_op_class[i].m_op_class_info;
-							printf("%s:%d op class=%d  already exist so updated \n", 
+							printf("%s:%d op class=%d  already exist so updated  ID = 1\n", 
 								__func__, __LINE__,dm.m_op_class[i].m_op_class_info.op_class);
                            	found++;
                            	break;
@@ -1762,10 +1763,10 @@ void dm_easy_mesh_t::print_config()
 
     for (i = 0; i < m_num_opclass; i++) {
         dm_easy_mesh_t::macbytes_to_string(m_op_class[i].m_op_class_info.id.ruid, radio_mac);
-        printf("%s:%d: OpClass[%d] id.ruid: %s id.type: %d id.index: %d Channel : %d Op_class : %d num_channel : %d\n\n", 
-				__func__, __LINE__, i, radio_mac, m_op_class[i].m_op_class_info.id.type, 
-				m_op_class[i].m_op_class_info.id.op_class, m_op_class[i].m_op_class_info.channel, 
-				m_op_class[i].m_op_class_info.op_class, m_op_class[i].m_op_class_info.num_channels);
+        //printf("%s:%d: OpClass[%d] id.ruid: %s id.type: %d id.index: %d Channel : %d Op_class : %d num_channel : %d Max tx_p : %d\n\n", 
+		//		__func__, __LINE__, i, radio_mac, m_op_class[i].m_op_class_info.id.type, 
+		//		m_op_class[i].m_op_class_info.id.op_class, m_op_class[i].m_op_class_info.channel, 
+		//		m_op_class[i].m_op_class_info.op_class, m_op_class[i].m_op_class_info.num_channels, m_op_class[i].m_op_class_info.max_tx_power);
     }
 
     printf("%s:%d:No of BSS=%d No of Radios=%d \n", __func__, __LINE__, m_num_bss, m_num_radios);
