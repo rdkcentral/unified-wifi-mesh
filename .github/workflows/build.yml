@@ -48,6 +48,7 @@ jobs:
                                 mariadb-server \
                                 gnupg \
                                 file \
+                                golang
 
     - name: Setup OneWiFi
       working-directory: easymesh_project/OneWifi
