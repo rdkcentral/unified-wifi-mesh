@@ -11,14 +11,14 @@ package main
 extern int editor_func(em_network_node_t *node);
 
 static int register_editor_cb() {
-	return init(editor_func);	
+        return init(editor_func);
 }
 */
 import "C"
 
 import (
-	"fmt"
-	"os"
+    "fmt"
+    "os"
     "strings"
     tea "github.com/charmbracelet/bubbletea"
     "github.com/charmbracelet/lipgloss"
@@ -55,9 +55,13 @@ var (
 
     listItemStyle = lipgloss.NewStyle().
     Foreground(lipgloss.Color("#FFFFFF")).
-    Background(lipgloss.Color("#080563")). 
+    Background(lipgloss.Color("#080563")).
     Width(25).
-    Align(lipgloss.Center) 
+    Align(lipgloss.Center)
+
+    activeItemStyle = listItemStyle.Copy().
+    Background(lipgloss.Color("39")).
+    Bold(true)
 
     buttonStyle = lipgloss.NewStyle().
     Foreground(lipgloss.Color("#FFFFFF")).
@@ -85,7 +89,7 @@ type item struct {
 
 func (i item) Title() string {
     if i.isActive {
-        return activeButtonStyle.Render(i.title)
+        return activeItemStyle.Render(i.title)
     }
     return listItemStyle.Render(i.title)
 }
@@ -111,7 +115,7 @@ type model struct {
     currentNetNode   *C.em_network_node_t
     displayedNetNode   *C.em_network_node_t
     cursor int
-    dump 	*os.File
+    dump        *os.File
     collapsedState    map[string]bool
 }
 
@@ -206,24 +210,34 @@ func formatTree(nodes []tree.Node, m *model, cursor *int, currentIdx *int) strin
         uniqueID := fmt.Sprintf("%s_%d", node.Value, *currentIdx)
         isCollapsed := m.collapsedState[uniqueID]
 
-        prefix := "[+]"
-        if !isCollapsed {
-            prefix = "[-]"
+        netNode := C.get_node_from_node_ctr(m.displayedNetNode, C.uint(*currentIdx))
+        hasChildren := len(node.Children) > 0 || nodeHasChildren(netNode)
+
+        var prefix string
+
+        if hasChildren {
+            if isCollapsed {
+                prefix = "[+]"
+            } else {
+                prefix = "[-]"
+            }
+        } else {
+            prefix = "└──"
         }
 
         idx := *currentIdx
         *currentIdx++
 
         var line string
+
+        line = fmt.Sprintf("%s%s %s %s", indent, prefix, node.Value, node.Desc)
         if *cursor == idx {
-            line = fmt.Sprintf("%s%s%s  %s", indent, prefix, activeNodeStyle.Render(node.Value), activeNodeStyle.Render(node.Desc))
-        } else {
-            line = fmt.Sprintf("%s%s%s  %s", indent, prefix, node.Value, node.Desc)
+            line = activeNodeStyle.Render(line)
         }
 
         builder.WriteString(line + "\n")
 
-        if !isCollapsed {
+        if len(node.Children) > 0 && !isCollapsed {
             for _, child := range node.Children {
                 traverse(child, indent+"    ")
             }
@@ -236,6 +250,16 @@ func formatTree(nodes []tree.Node, m *model, cursor *int, currentIdx *int) strin
     return builder.String()
 }
 
+
+func nodeHasChildren(netNode *C.em_network_node_t) bool {
+    nodeType := C.get_node_type(netNode)
+
+    if  nodeType == C.em_network_node_data_type_obj || nodeType == C.em_network_node_data_type_array {
+        return true
+    }
+
+    return false
+}
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     var cmds []tea.Cmd
@@ -310,8 +334,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         case "c":
             netNode := C.get_node_from_node_ctr(m.displayedNetNode, C.uint(m.cursor))
             if uint(C.can_collapse_node(netNode)) == 1 {
-                uniqueID := fmt.Sprintf("%s_%d", C.GoString(&netNode.key[0]), m.cursor) 
-                m.collapsedState[uniqueID] = true 
+                uniqueID := fmt.Sprintf("%s_%d", C.GoString(&netNode.key[0]), m.cursor)
+                m.collapsedState[uniqueID] = true
 
                 tmp := m.displayedNetNode
                 m.displayedNetNode = C.clone_network_tree(m.currentNetNode, m.displayedNetNode, C.uint(m.cursor), true)
@@ -325,16 +349,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                 updateNodes(m.displayedNetNode, m.currentTreeNode)
 
                 currentIdx := 0
-                cursor := 0
+                cursor := m.cursor
                 content := formatTree(treeNode, &m, &cursor, &currentIdx)
                 m.scrollContent = splitIntoLines(content)
-                m.scrollIndex = 0
             }
 
         case "e":
             netNode := C.get_node_from_node_ctr(m.displayedNetNode, C.uint(m.cursor))
             if (uint(C.can_expand_node(netNode))) == 1 {
-                uniqueID := fmt.Sprintf("%s_%d", C.GoString(&netNode.key[0]), m.cursor)  
+                uniqueID := fmt.Sprintf("%s_%d", C.GoString(&netNode.key[0]), m.cursor)
                 m.collapsedState[uniqueID] = false
 
                 tmp := m.displayedNetNode
@@ -350,10 +373,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                 updateNodes(m.displayedNetNode, m.currentTreeNode)
 
                 currentIdx := 0
-                cursor := 0
+                cursor := m.cursor
                 content := formatTree(treeNode, &m, &cursor, &currentIdx)
                 m.scrollContent = splitIntoLines(content)
-                m.scrollIndex = 0
             }
 
 
@@ -404,7 +426,7 @@ func (m model) View() string {
     } else {
         statusView = m.statusMessage
     }
-    
+
     updateButton := buttonStyle.Render("Update")
     okButton := buttonStyle.Render("OK")
     cancelButton := buttonStyle.Render("Cancel")
