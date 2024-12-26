@@ -11,7 +11,7 @@ package main
 extern int editor_func(em_network_node_t *node);
 
 static int register_editor_cb() {
-	return init(editor_func);	
+	return init(editor_func, NULL);
 }
 */
 import "C"
