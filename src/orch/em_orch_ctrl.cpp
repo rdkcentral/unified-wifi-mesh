@@ -104,9 +104,9 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             } else if (em->get_state() == em_state_ctrl_configured) {
                 return true;
 			}
-			printf("%s:%d: em not ready orchestration:%s(%s) because of incorrect state, state:%s\n", __func__, __LINE__,
-                    em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
-					em_t::state_2_str(em->get_state()));
+			//printf("%s:%d: em not ready orchestration:%s(%s) because of incorrect state, state:%s\n", __func__, __LINE__,
+                    //em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
+					//em_t::state_2_str(em->get_state()));
             break;
         
         case em_cmd_type_set_channel:
@@ -345,6 +345,7 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
         return count;
     }
 
+	pthread_mutex_lock(&m_mgr->m_mutex);
     em = (em_t *)hash_map_get_first(m_mgr->m_em_map);	
     while (em != NULL) {
         switch (pcmd->m_type) {
@@ -446,6 +447,7 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
         }			
         em = (em_t *)hash_map_get_next(m_mgr->m_em_map, em);	
     }
+	pthread_mutex_unlock(&m_mgr->m_mutex);
 
     return count;
 }

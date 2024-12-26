@@ -269,6 +269,7 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
     dm_sta_t *sta;
 
     ctx = pcmd->m_data_model.get_cmd_ctx();
+	pthread_mutex_lock(&m_mgr->m_mutex);
     em = (em_t *)hash_map_get_first(m_mgr->m_em_map);	
     while (em != NULL) {
         switch (pcmd->m_type) {
@@ -326,7 +327,7 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                 break;
             case em_cmd_type_onewifi_cb:
 				if (!(em->is_al_interface_em())) {
-                    if (memcmp(pcmd->get_data_model()->m_radio[0].m_radio_info.id.mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
+                    if (memcmp(pcmd->get_data_model()->get_bss(0)->get_bss_info()->ruid.mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
                         if (em->get_state() == em_state_agent_owconfig_pending) {
                         	printf("em candidates created for em_cmd_type_onewifi_cb\n");
                         	queue_push(pcmd->m_em_candidates, em);
@@ -385,7 +386,7 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
         }
         em = (em_t *)hash_map_get_next(m_mgr->m_em_map, em);	
     }
-
+	pthread_mutex_unlock(&m_mgr->m_mutex);
     return count;
 }
 

@@ -30,6 +30,7 @@ class em_mgr_t {
     em_queue_t  m_queue;
 
 public:
+	pthread_mutex_t m_mutex;
     hash_map_t      *m_em_map;
     unsigned int m_timeout;
     fd_set  m_rset;

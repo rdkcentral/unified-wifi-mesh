@@ -45,10 +45,10 @@ extern "C"
 #define EM_MAX_E4_TABLE_CHANNEL 32
 
 #define EM_PROTO_TOUT   1
-#define EM_MGR_TOUT     1
+#define EM_MGR_TOUT     0.5
 #define EM_METRICS_REQ_MULT 5
-#define EM_2_TOUT_MULT 	2
-#define EM_5_TOUT_MULT 	5
+#define EM_2_TOUT_MULT 	4
+#define EM_5_TOUT_MULT 	10
 #define EM_CTRL_CAP_SZ  8
 #define MIN_MAC_LEN 12
 #define MAX_EM_BUFF_SZ  1024
@@ -57,6 +57,7 @@ extern "C"
 
 #define EM_TEST_IO_PERM 0666
 #define EM_IO_BUFF_SZ   4096
+#define EM_LONG_IO_BUFF_SZ   4096*4
 
 #define EM_MAX_OP_CLASS    48
 #define EM_MAX_POLICIES	16	
@@ -2826,8 +2827,16 @@ typedef enum {
     em_network_node_data_type_raw,
 } em_network_node_data_type_t;
 
+typedef struct {
+    bool collapsed;
+    unsigned int orig_node_ctr;
+    unsigned int node_ctr;
+    unsigned int node_pos;
+} em_node_display_info_t;
+
 typedef struct em_network_node {
     em_long_string_t   key;
+    em_node_display_info_t	display_info;
     em_network_node_data_type_t type;
     em_long_string_t    value_str;
     unsigned int        value_int;
@@ -2835,8 +2844,7 @@ typedef struct em_network_node {
     struct em_network_node     *child[EM_MAX_DM_CHILDREN];
 } em_network_node_t;
 
-typedef int (* em_editor_callback_t)(em_network_node_t *);
-
+typedef em_network_node_t *(* em_editor_callback_t)(em_network_node_t *, void *);
 #ifdef __cplusplus
 }
 #endif
