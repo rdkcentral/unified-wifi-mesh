@@ -227,6 +227,7 @@ void em_cli_t::dump_lib_dbg(char *str)
     fclose(fp);
 }
 
+
 int em_cli_t::init(em_cli_params_t	*params)
 {
 	memcpy(&m_params, params, sizeof(em_cli_params_t));

@@ -140,13 +140,14 @@ int em_cmd_cli_t::update_platform_defaults(em_subdoc_info_t *subdoc, em_cmd_para
 }
 
 int em_cmd_cli_t::get_edited_node(em_network_node_t *node, const char *header, char *buff)
-{       
-    cJSON *obj; 
-    em_network_node_t *new_node, *tmp;
-    em_network_node_t *child;
-    bool found_result = false;
-    unsigned int i;
+{
+	cJSON *obj;
+	em_network_node_t *curr_node, *new_node, *tmp;
+	em_network_node_t *child;
+	bool found_result = false;
+	unsigned int i;
 	char *net_id = m_cmd.m_param.u.args.args[1], *formatted;
+
             
     for (i = 0; i < node->num_children; i++) {
         if (strncmp(node->child[i]->key, "Result", strlen("Result")) == 0) {
@@ -191,9 +192,9 @@ int em_cmd_cli_t::get_edited_node(em_network_node_t *node, const char *header, c
 
     em_net_node_t::free_network_tree(new_node);
 
-    return strlen(formatted) + 1;
-}
 
+	return strlen(formatted) + 1;
+}
 
 int em_cmd_cli_t::execute(em_string_t res)
 {

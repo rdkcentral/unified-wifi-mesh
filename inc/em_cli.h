@@ -27,6 +27,7 @@ class em_cli_t {
     em_long_string_t	m_lib_dbg_file_name;
 
 public:
+
 	em_cli_params_t	m_params;
 
     em_network_node_t *exec(char *in, size_t in_len, em_network_node_t *node);
