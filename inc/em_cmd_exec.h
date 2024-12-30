@@ -48,6 +48,7 @@ public:
     static int send_cmd(em_service_type_t to_svc, unsigned char *in, unsigned int in_len, char *out = NULL, unsigned int out_len = 0);
     static int execute(em_cmd_type_t type, em_service_type_t to_svc, unsigned char *in, unsigned int in_len);
     static char *get_path_from_dst_service(em_service_type_t to_svc, em_long_string_t sock_path);
+	static int     load_params_file(const char *filename, char *buff);
 
     virtual int execute(em_long_string_t result) = 0;
     void release_wait();

@@ -7,24 +7,25 @@ package main
 #include <readline/readline.h>
 #include <readline/history.h>
 #include "em_cli_apis.h"
-
-extern int editor_func(em_network_node_t *node);
-
-static int register_editor_cb() {
-	return init(editor_func);	
-}
 */
 import "C"
 
 import (
+	"etree"
+	"unsafe"
 	"fmt"
 	"os"
     "strings"
+	"github.com/charmbracelet/bubbles/textinput"
     tea "github.com/charmbracelet/bubbletea"
     "github.com/charmbracelet/lipgloss"
     "github.com/charmbracelet/bubbles/list"
+	"golang.org/x/term"
     "github.com/davecgh/go-spew/spew"
-    tree "github.com/savannahostrowski/tree-bubble"
+)
+
+const (
+	linesToDisplay int = 38
 )
 
 var (
@@ -45,12 +46,12 @@ var (
 
     jsonStyle = lipgloss.NewStyle().
     Border(lipgloss.RoundedBorder()).
-    BorderForeground(lipgloss.Color("#080563")).
+    //BorderForeground(lipgloss.Color("#080563")).
     Background(lipgloss.Color("#FFFFFF")).
-    Foreground(lipgloss.Color("#000000")).
+    //Foreground(lipgloss.Color("#000000")).
     Width(95).
-    Padding(0, 10).
-    MarginLeft(10).
+    //Padding(0, 10).
+    //MarginLeft(10).
     MarginTop(2)
 
     listItemStyle = lipgloss.NewStyle().
@@ -58,6 +59,10 @@ var (
     Background(lipgloss.Color("#080563")). 
     Width(25).
     Align(lipgloss.Center) 
+
+	activeItemStyle = listItemStyle.Copy().
+    Background(lipgloss.Color("39")).
+    Bold(true)
 
     buttonStyle = lipgloss.NewStyle().
     Foreground(lipgloss.Color("#FFFFFF")).
@@ -72,10 +77,7 @@ var (
     Background(lipgloss.Color("39")).
     Bold(true)
 
-    activeNodeStyle = lipgloss.NewStyle().
-    Background(lipgloss.Color("39")).
-    Foreground(lipgloss.Color("black")).
-    Bold(true)
+	styleDoc = lipgloss.NewStyle().Padding(1)
 )
 
 type item struct {
@@ -104,15 +106,15 @@ var commandDescriptions = map[string]string{
 type model struct {
     list          list.Model
     statusMessage string
+	currentOperatingInstructions	string
     scrollContent []string
     scrollIndex   int
     activeButton  int
-    currentTreeNode   *tree.Node
+    tree   etree.Model
     currentNetNode   *C.em_network_node_t
     displayedNetNode   *C.em_network_node_t
     cursor int
     dump 	*os.File
-    collapsedState    map[string]bool
 }
 
 func newModel() model {
@@ -131,14 +133,58 @@ func newModel() model {
     commandList.SetShowPagination(false)
     commandList.SetShowHelp(false)
 
+	// etree related
+	w, h, err := term.GetSize(int(os.Stdout.Fd()))
+    if err != nil {
+        w = 80
+        h = 24
+    }
+    top, right, bottom, left := styleDoc.GetPadding()
+    w = w - left - right
+    h = h - top - bottom
+
+	nodes := make([]etree.Node, 3)
+
+    nodes[0].Key = "Key1"
+    nodes[0].Vector = true;
+    nodes[0].Children = make([]etree.Node, 1)
+
+	nodes[0].Children[0].Key = "Child of Key1"
+    nodes[0].Children[0].Vector = false;
+    nodes[0].Children[0].Value = textinput.New();
+	nodes[0].Children[0].Value.Placeholder = "Value"
+    nodes[0].Children[0].Children = nil
+
+
+    nodes[1].Key = "Key2"
+    nodes[1].Vector = true;
+    nodes[1].Children = make([]etree.Node, 1)
+
+	nodes[1].Children[0].Key = "Child of Key2"
+    nodes[1].Children[0].Vector = false;
+    nodes[1].Children[0].Value = textinput.New();
+	nodes[1].Children[0].Value.Placeholder = "Value"
+    nodes[1].Children[0].Children = nil
+
+    nodes[2].Key = "Key3"
+    nodes[2].Vector = true;
+    nodes[2].Children = make([]etree.Node, 1)
+
+	nodes[2].Children[0].Key = "Child of Key3"
+    nodes[2].Children[0].Vector = false;
+    nodes[2].Children[0].Value = textinput.New();
+	nodes[2].Children[0].Value.Placeholder = "Value"
+    nodes[2].Children[0].Children = nil
+
     dump, _ := os.OpenFile("messages.log", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
     C.init_lib_dbg(C.CString("messages_lib.log"))
 
     return model{
         list:          commandList,
         statusMessage: "",
+		activeButton: 4,
+		tree: etree.New(nodes, false, w, h, dump),
         dump: dump,
-        collapsedState: make(map[string]bool),
     }
 }
 
@@ -147,20 +193,36 @@ func splitIntoLines(content string) []string {
 }
 
 func (m model) Init() tea.Cmd {
-    return nil
+	var params *C.em_cli_params_t
+
+	params = (*C.em_cli_params_t)(C.malloc(C.sizeof_em_cli_params_t))
+	
+	params.user_data = unsafe.Pointer(&m)
+	params.cb_func = nil
+	params.cli_type = C.em_cli_type_go
+		
+	m.currentOperatingInstructions = "\n\n\t Press 'w' to scroll up, 's' to scroll down"
+
+	C.init(params)
+
+    return textinput.Blink
 }
 
-//export editor_func
-func editor_func(*C.em_network_node_t) C.int {
-    fmt.Println("Inside Go Callnack")
-    return 0
+func treeToNodes(tree []etree.Node) *C.em_network_node_t {
+	for _, node := range tree {
+		netNode := (*C.em_network_node_t)(C.malloc(C.sizeof_em_network_node_t));
+		C.memset(unsafe.Pointer(netNode), 0, C.sizeof_em_network_node_t);
+		C.strncpy((*C.char)(&netNode.key[0]), C.CString(node.Key), C.ulong(len(node.Key)))
+	}
+
+	return nil
 }
 
-func updateNodes(netNode *C.em_network_node_t, treeNode *tree.Node) {
+func nodesToTree(netNode *C.em_network_node_t, treeNode *etree.Node) {
     var str *C.char
 
     //treeNode.Value = C.GoString(&netNode.key[0]) + "." + fmt.Sprintf("%d", uint(netNode.display_info.node_ctr)) + "." + fmt.Sprintf("%d", uint(netNode.display_info.orig_node_ctr))
-    treeNode.Value = C.GoString(&netNode.key[0])
+    treeNode.Key = C.GoString(&netNode.key[0])
     nodeType := C.get_node_type(netNode)
 
     if nodeType == C.em_network_node_data_type_array {
@@ -168,82 +230,67 @@ func updateNodes(netNode *C.em_network_node_t, treeNode *tree.Node) {
             childNetNode := C.get_child_node_at_index(netNode, 0);
             childNodeType := C.get_node_type(childNetNode)
             if ((childNodeType == C.em_network_node_data_type_string) || (childNodeType == C.em_network_node_data_type_number) ||
-            (childNodeType == C.em_network_node_data_type_false) || (childNodeType == C.em_network_node_data_type_true)) {
+            		(childNodeType == C.em_network_node_data_type_false) || (childNodeType == C.em_network_node_data_type_true)) {
                 str = C.get_formatted_node_array_value(netNode)
-                treeNode.Desc = C.GoString(str)
+				treeNode.Value = textinput.New()
+                treeNode.Value.Placeholder = C.GoString(str)
+				treeNode.Vector = false
                 C.free_formatted_node_value(str)
             } else {
-                treeNode.Children = make([]tree.Node, uint(netNode.num_children))
+                treeNode.Children = make([]etree.Node, uint(netNode.num_children))
+				treeNode.Vector = true
+				if (netNode.display_info.collapsed) {
+					treeNode.Collapsed = true
+				}
                 for i := 0; i < int(netNode.num_children); i++ {
                     childNetNode := C.get_child_node_at_index(netNode, C.uint(i));
-                    childTreeNode := &treeNode.Children[i]
-                    updateNodes(childNetNode, childTreeNode)
+                    nodesToTree(childNetNode, &treeNode.Children[i])
                 }
             }
         }
 
     } else if ((nodeType == C.em_network_node_data_type_string) || (nodeType == C.em_network_node_data_type_number) ||
-    (nodeType == C.em_network_node_data_type_false) || (nodeType == C.em_network_node_data_type_true)) {
+    				(nodeType == C.em_network_node_data_type_false) || (nodeType == C.em_network_node_data_type_true)) {
         str = C.get_formatted_node_scalar_value(netNode)
-        treeNode.Desc = C.GoString(str)
+		treeNode.Vector = false
+		treeNode.Value = textinput.New()
+        treeNode.Value.Placeholder = C.GoString(str)
         C.free_formatted_node_value(str)
     } else {
-        treeNode.Children = make([]tree.Node, uint(netNode.num_children))
+        treeNode.Children = make([]etree.Node, uint(netNode.num_children))
+		treeNode.Vector = true
+		if (netNode.display_info.collapsed) {
+			treeNode.Collapsed = true
+		}
         for i := 0; i < int(netNode.num_children); i++ {
             childNetNode := C.get_child_node_at_index(netNode, C.uint(i));
-            childTreeNode := &treeNode.Children[i]
-            updateNodes(childNetNode, childTreeNode)
+            nodesToTree(childNetNode, &treeNode.Children[i])
         }
     }
 }
 
-func formatTree(nodes []tree.Node, m *model, cursor *int, currentIdx *int) string {
-    var builder strings.Builder
+func isNodeScalar(netNode *C.em_network_node_t) bool {
+	nodeType := C.get_node_type(netNode)
 
-    var traverse func(node tree.Node, indent string)
-    traverse = func(node tree.Node, indent string) {
+	if nodeType == C.em_network_node_data_type_false || nodeType == C.em_network_node_data_type_true ||
+				nodeType == C.em_network_node_data_type_number || nodeType == C.em_network_node_data_type_string {
+		return true
+	}
 
-        uniqueID := fmt.Sprintf("%s_%d", node.Value, *currentIdx)
-        isCollapsed := m.collapsedState[uniqueID]
+	if nodeType == C.em_network_node_data_type_array && netNode.num_children > 0 {
+		child := netNode.child[0]
+		nodeType = C.get_node_type(child)
+		if nodeType == C.em_network_node_data_type_false || nodeType == C.em_network_node_data_type_true ||
+                nodeType == C.em_network_node_data_type_number || nodeType == C.em_network_node_data_type_string {
+        	return true
+    	}
+	}
 
-        prefix := "[+]"
-        if !isCollapsed {
-            prefix = "[-]"
-        }
-
-        idx := *currentIdx
-        *currentIdx++
-
-        var line string
-        if *cursor == idx {
-            line = fmt.Sprintf("%s%s%s  %s", indent, prefix, activeNodeStyle.Render(node.Value), activeNodeStyle.Render(node.Desc))
-        } else {
-            line = fmt.Sprintf("%s%s%s  %s", indent, prefix, node.Value, node.Desc)
-        }
-
-        builder.WriteString(line + "\n")
-
-        if !isCollapsed {
-            for _, child := range node.Children {
-                traverse(child, indent+"    ")
-            }
-        }
-    }
-
-    for _, node := range nodes {
-        traverse(node, "")
-    }
-    return builder.String()
+	return false
 }
-
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     var cmds []tea.Cmd
-    const linesToDisplay = 38
-
-    if m.dump != nil {
-        spew.Fdump(m.dump, msg)
-    }
 
     switch msg := msg.(type) {
     case tea.WindowSizeMsg:
@@ -256,104 +303,113 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         case "tab":
             m.activeButton = (m.activeButton + 1) % 3
 
-        case "enter":
-            if m.activeButton == 0 && len(m.scrollContent) > 0 {
-                m.statusMessage = "OK Button Pressed"
-            } else if m.activeButton == 1 {
-                m.statusMessage = "Cancel Button Pressed"
-            } else if selectedItem, ok := m.list.SelectedItem().(item); ok {
-                if selectedItem.title == "Network SSID List" {
-                    m.currentNetNode = C.get_network_tree_by_file(C.CString("NetworkSSID.json"))
-                    if m.currentNetNode == nil {
-                        m.statusMessage = "Error: Failed to retrieve network tree."
-                        m.scrollContent = nil
-                    } else {
-                        treeNode := make([]tree.Node, 1)
-                        m.currentTreeNode = &treeNode[0]
-                        m.displayedNetNode = C.clone_network_tree(m.currentNetNode, nil, 0xffff, false)
-                        updateNodes(m.displayedNetNode, m.currentTreeNode)
+		case "j", "k":
+			m.currentOperatingInstructions = "\n\n\t Press 'w' to scroll up, 's' to scroll down"
 
-                        currentIdx := 0
-                        cursor := 0
-                        content := formatTree(treeNode, &m, &cursor, &currentIdx)
-                        m.scrollContent = splitIntoLines(content)
-                        m.scrollIndex = 0
-                    }
-                } else if description, found := commandDescriptions[selectedItem.title]; found {
-                    m.statusMessage = description
-                    m.scrollContent = nil
-                } else {
-                    m.statusMessage = "No command available for this option."
-                    m.scrollContent = nil
-                }
+			if m.activeButton != 0 {
+            	newListModel, cmd := m.list.Update(msg)
+            	m.list = newListModel
+            	for i := range m.list.Items() {
+                	if listItem, ok := m.list.Items()[i].(item); ok {
+                    	listItem.isActive = i == m.list.Index()
+                    	m.list.SetItem(i, listItem)
+                	}
+            	}
+            	cmds = append(cmds, cmd)
 
-            }
-
-        case "w":
+            	if selectedItem, ok := m.list.SelectedItem().(item); ok {
+					if selectedItem.title == "Network SSID List" { 
+                   		m.currentNetNode = C.exec(C.CString("get_ssid OneWifiMesh"), C.strlen(C.CString("get_ssid OneWifiMesh")), nil)
+        				spew.Fdump(m.dump, "Nodes Created for SetSSID")
+					} else if selectedItem.title == "Radios" {
+                   		m.currentNetNode = C.exec(C.CString("get_radio OneWifiMesh"), C.strlen(C.CString("get_ssid OneWifiMesh")), nil)
+        				spew.Fdump(m.dump, "Radio List")
+					} else if selectedItem.title == "Network Tree" {
+                   		m.currentNetNode = C.exec(C.CString("get_bss OneWifiMesh"), C.strlen(C.CString("get_ssid OneWifiMesh")), nil)
+        				spew.Fdump(m.dump, "BSS List")
+					} else if selectedItem.title == "Channels" {
+                   		m.currentNetNode = C.exec(C.CString("get_channel OneWifiMesh"), C.strlen(C.CString("get_ssid OneWifiMesh")), nil)
+        				spew.Fdump(m.dump, "Channels List")
+					} else if selectedItem.title == "Client Devices" {
+                   		m.currentNetNode = C.exec(C.CString("get_sta OneWifiMesh"), C.strlen(C.CString("get_ssid OneWifiMesh")), nil)
+        				spew.Fdump(m.dump, "Clients List")
+					} 
+						
+					treeNode := make([]etree.Node, 1)
+    				m.displayedNetNode = C.clone_network_tree_for_display(m.currentNetNode, nil, 0xffff, false)
+    				nodesToTree(m.displayedNetNode, &treeNode[0])
+					m.tree.SetNodes(treeNode)
+				}
+			}
+/*
+        case "down":
             if m.cursor > 0 {
                 m.cursor--
                 if m.cursor < m.scrollIndex {
                     m.scrollIndex--
                 }
-                updateScrollContent(&m)
             }
-
-        case "s":
-            if m.cursor < len(m.scrollContent)-1 {
+        
+        case "up":
+            if m.cursor < len(m.scrollContent) - 1 {
                 m.cursor++
-                if m.cursor >= m.scrollIndex+linesToDisplay {
+                if m.cursor >= m.scrollIndex + linesToDisplay {
                     m.scrollIndex++
                 }
-                updateScrollContent(&m)
-            }
+            }  
+*/ 
+
+        case "enter":
+           	if m.activeButton == 0 {
+       			m.currentOperatingInstructions = "\n\n\t Editor Mode: Press 'OK' to apply settings, 'Cancel' to leave"
+				m.tree.SetEditable(true)
+           	} else if m.activeButton == 1 {
+				m.tree.SetEditable(false)
+       			m.currentOperatingInstructions = "\n\n\t Press 'w' to scroll up, 's' to scroll down"
+            	if selectedItem, ok := m.list.SelectedItem().(item); ok {
+					if selectedItem.title == "Network SSID List" { 
+                		spew.Fdump(m.dump, "Setting SSID node list")
+                   		C.exec(C.CString("set_ssid OneWifiMesh"), C.strlen(C.CString("set_ssid OneWifiMesh")), treeToNodes(m.tree.Nodes()))
+					} else if selectedItem.title == "Radios" {
+
+					} 
+				}
+           	} else if m.activeButton == 2 {
+				m.tree.SetEditable(false)
+       			m.currentOperatingInstructions = "\n\n\t Press 'w' to scroll up, 's' to scroll down"
+			}
 
         case "c":
-            netNode := C.get_node_from_node_ctr(m.displayedNetNode, C.uint(m.cursor))
+            netNode := C.get_node_from_node_ctr(m.displayedNetNode, C.uint(m.tree.Cursor()))
             if uint(C.can_collapse_node(netNode)) == 1 {
-                uniqueID := fmt.Sprintf("%s_%d", C.GoString(&netNode.key[0]), m.cursor) 
-                m.collapsedState[uniqueID] = true 
 
                 tmp := m.displayedNetNode
-                m.displayedNetNode = C.clone_network_tree(m.currentNetNode, m.displayedNetNode, C.uint(m.cursor), true)
+                m.displayedNetNode = C.clone_network_tree_for_display(m.currentNetNode, m.displayedNetNode, C.uint(m.tree.Cursor()), true)
                 defer C.free_network_tree(tmp);
-                str := C.get_network_tree_string(m.displayedNetNode)
-                spew.Fdump(m.dump, "Collapse", m.cursor)
-                C.dump_lib_dbg(str)
+                //str := C.get_network_tree_string(m.displayedNetNode)
+                //spew.Fdump(m.dump, "Collapse", m.tree.Cursor())
+                //C.dump_lib_dbg(str)
 
-                treeNode := make([]tree.Node, 1)
-                m.currentTreeNode = &treeNode[0]
-                updateNodes(m.displayedNetNode, m.currentTreeNode)
-
-                currentIdx := 0
-                cursor := 0
-                content := formatTree(treeNode, &m, &cursor, &currentIdx)
-                m.scrollContent = splitIntoLines(content)
-                m.scrollIndex = 0
+                treeNode := make([]etree.Node, 1)
+                nodesToTree(m.displayedNetNode, &treeNode[0])
+				m.tree.SetNodes(treeNode)
             }
 
         case "e":
-            netNode := C.get_node_from_node_ctr(m.displayedNetNode, C.uint(m.cursor))
+            netNode := C.get_node_from_node_ctr(m.displayedNetNode, C.uint(m.tree.Cursor()))
             if (uint(C.can_expand_node(netNode))) == 1 {
-                uniqueID := fmt.Sprintf("%s_%d", C.GoString(&netNode.key[0]), m.cursor)  
-                m.collapsedState[uniqueID] = false
 
                 tmp := m.displayedNetNode
-                m.displayedNetNode = C.clone_network_tree(m.currentNetNode, m.displayedNetNode, C.uint(m.cursor), false)
+                m.displayedNetNode = C.clone_network_tree_for_display(m.currentNetNode, m.displayedNetNode, C.uint(m.tree.Cursor()), false)
                 defer C.free_network_tree(tmp);
 
-                str := C.get_network_tree_string(m.displayedNetNode)
-                spew.Fdump(m.dump, "Expand", m.cursor)
-                C.dump_lib_dbg(str)
+                //str := C.get_network_tree_string(m.displayedNetNode)
+                //spew.Fdump(m.dump, "Expand", m.tree.Cursor())
+                //C.dump_lib_dbg(str)
 
-                treeNode := make([]tree.Node, 1)
-                m.currentTreeNode = &treeNode[0]
-                updateNodes(m.displayedNetNode, m.currentTreeNode)
-
-                currentIdx := 0
-                cursor := 0
-                content := formatTree(treeNode, &m, &cursor, &currentIdx)
-                m.scrollContent = splitIntoLines(content)
-                m.scrollIndex = 0
+                treeNode := make([]etree.Node, 1)
+                nodesToTree(m.displayedNetNode, &treeNode[0])
+				m.tree.SetNodes(treeNode)
             }
 
 
@@ -369,15 +425,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             cmds = append(cmds, cmd)
         }
     }
-    return m, tea.Batch(cmds...)
-}
+	var cmd tea.Cmd
 
-func updateScrollContent(m *model) {
-    if m.currentTreeNode != nil {
-        currentIdx := 0
-        content := formatTree([]tree.Node{*m.currentTreeNode}, m, &m.cursor, &currentIdx)
-        m.scrollContent = splitIntoLines(content)
-    }
+	m.tree, cmd = m.tree.Update(msg)
+	cmds = append(cmds, cmd)
+
+    return m, tea.Batch(cmds...)
 }
 
 func (m model) View() string {
@@ -390,17 +443,21 @@ func (m model) View() string {
     Render("↑/k up ● ↓/j down ● q quit")
 
     menuViewWithInstructions := lipgloss.JoinVertical(lipgloss.Left, menuView, instructions)
+		
+	content := m.tree.TreeView()
+	m.scrollContent = splitIntoLines(content)
 
     var statusView string
     if len(m.scrollContent) > 0 {
-        const linesToDisplay = 38
         end := m.scrollIndex + linesToDisplay
         if end > len(m.scrollContent) {
             end = len(m.scrollContent)
         }
-        styledContent := jsonStyle.Render(strings.Join(m.scrollContent[m.scrollIndex:end], "\n"))
 
-        statusView = styledContent + "\n\n\t Press 'w' to scroll up, 's' to scroll down"
+		styledContent := jsonStyle.Render(strings.Join(m.scrollContent[m.scrollIndex:end], "\n"))
+
+        //statusView = styledContent + "\n\n\t Press 'w' to scroll up, 's' to scroll down"
+        statusView = styledContent + m.currentOperatingInstructions
     } else {
         statusView = m.statusMessage
     }

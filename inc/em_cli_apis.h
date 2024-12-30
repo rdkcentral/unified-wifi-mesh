@@ -25,8 +25,8 @@ extern "C" {
 
 #include "em_base.h"
 	
-em_network_node_t *exec(char *in, size_t in_len);
-int init(em_editor_callback_t func);
+em_network_node_t *exec(char *in, size_t in_len, em_network_node_t *node);
+int init(em_cli_params_t *params);
 const char *get_first_cmd_str();
 const char *get_next_cmd_str(const char *cmd);
 em_network_node_t *get_network_tree_by_file(const char *file_name);
@@ -39,7 +39,8 @@ void free_formatted_node_value(char *str);
 em_network_node_data_type_t get_node_type(em_network_node_t *node);
 void free_network_tree(em_network_node_t *node);
 void *network_tree_to_json(em_network_node_t *node);
-em_network_node_t *clone_network_tree(em_network_node_t *orig_node, em_network_node_t *dis_node, unsigned int index, bool collapse);
+em_network_node_t *clone_network_tree(em_network_node_t *node);
+em_network_node_t *clone_network_tree_for_display(em_network_node_t *orig_node, em_network_node_t *dis_node, unsigned int index, bool collapse);
 char *get_network_tree_string(em_network_node_t *node);
 em_network_node_t *get_node_from_node_ctr(em_network_node_t *tree, unsigned int node_display_ctr);
 unsigned int can_collapse_node(em_network_node_t *node);

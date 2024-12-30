@@ -65,6 +65,7 @@ CLI_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/cli/*.cpp) \
     $(ONEWIFI_EM_SRC)/dm/dm_bsta_mld.cpp \
     $(ONEWIFI_EM_SRC)/dm/dm_assoc_sta_mld.cpp \
     $(ONEWIFI_EM_SRC)/dm/dm_tid_to_link.cpp \
+    $(ONEWIFI_EM_SRC)/em/em_net_node.cpp \
 
 MAIN_SOURCE = $(ONEWIFI_EM_SRC)/cli/main.c
 

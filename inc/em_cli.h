@@ -23,35 +23,17 @@
 #include "em_cmd_exec.h"
 
 class em_cli_t {
-    em_cmd_t& get_command(char *in, size_t in_len);
+    em_cmd_t& get_command(char *in, size_t in_len, em_network_node_t *node = NULL);
     em_long_string_t	m_lib_dbg_file_name;
 
 public:
-	em_editor_callback_t m_editor_cb;
+	em_cli_params_t	m_params;
 
-    em_network_node_t *exec(char *in, size_t in_len);
-    int init(em_editor_callback_t func);
+    em_network_node_t *exec(char *in, size_t in_len, em_network_node_t *node);
+    int init(em_cli_params_t *params);
 	const char *get_first_cmd_str();
 	const char *get_next_cmd_str(const char *cmd);
 	
-    em_network_node_t *get_network_tree_by_file(const char *file_name);
-    em_network_node_t *get_network_tree(char *buff);
-    em_network_node_t *clone_network_tree(em_network_node_t *orig_node, em_network_node_t *dis_node, 
-            unsigned int index, bool collapse, unsigned int *node_ctr = NULL);
-    em_network_node_t *get_node_from_node_ctr(em_network_node_t *tree, unsigned int node_display_ctr);
-    int get_network_tree_node(cJSON *obj, em_network_node_t *root, unsigned int *node_ctr);
-    em_network_node_t *get_child_node_at_index(em_network_node_t *node, unsigned int idx);
-    unsigned int get_node_display_position(em_network_node_t *node);
-    char *get_formatted_node_scalar_value(em_network_node_t *node);
-    char *get_formatted_node_array_value(em_network_node_t *node);
-    em_network_node_data_type_t get_node_type(em_network_node_t *node);
-    void free_formatted_node_value(char *str);
-    void free_network_tree(em_network_node_t *tree);
-    void free_network_tree_node(em_network_node_t *node);
-    void *network_tree_to_json(em_network_node_t *root);
-    cJSON *network_tree_node_to_json(em_network_node_t *node, cJSON *parent);
-    char *get_network_tree_string(em_network_node_t *tree);
-    void get_network_tree_node_string(char *str, em_network_node_t *node, unsigned int *pident);
     void init_lib_dbg(char *file_name);
     void dump_lib_dbg(char *str);
 

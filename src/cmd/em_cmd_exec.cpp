@@ -57,6 +57,29 @@ void em_cmd_exec_t::release_wait()
     pthread_mutex_unlock(&m_lock);
 }
 
+int em_cmd_exec_t::load_params_file(const char *filename, char *buff)
+{
+    FILE *fp;
+    char tmp[1024];
+    unsigned int sz = 0;
+
+    if ((fp = fopen(filename, "r")) == NULL) {
+        printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, filename, errno);
+        return -1;
+    } else {
+
+        memset(buff, 0, sizeof(buff));
+        while (fgets(tmp, sizeof(tmp), fp) != NULL) {
+            strncat(buff, tmp, sizeof(tmp));
+            sz += strlen(tmp);
+        }
+
+        fclose(fp);
+    }
+
+    return sz;
+}   
+
 int em_cmd_exec_t::execute(em_cmd_type_t type, em_service_type_t to_svc, unsigned char *in, unsigned int len)
 {
     em_event_t ev;
