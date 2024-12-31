@@ -147,6 +147,7 @@ int em_cmd_cli_t::get_edited_node(em_network_node_t *node, const char *header, c
     bool found_result = false;
     unsigned int i;
 	char *net_id = m_cmd.m_param.u.args.args[1], *formatted, *node_str;
+
             
     for (i = 0; i < node->num_children; i++) {
         if (strncmp(node->child[i]->key, "Result", strlen("Result")) == 0) {
@@ -195,9 +196,9 @@ int em_cmd_cli_t::get_edited_node(em_network_node_t *node, const char *header, c
 
     em_net_node_t::free_network_tree(new_node);
 
-    return strlen(formatted) + 1;
-}
 
+	return strlen(formatted) + 1;
+}
 
 int em_cmd_cli_t::execute(em_string_t res)
 {

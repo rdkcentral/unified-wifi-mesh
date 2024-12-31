@@ -43,6 +43,7 @@ LIBS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lmysqlcppconn
 
 GENERIC_SOURCES = $(ONEWIFI_HOME)/source/utils/collection.c \
 	$(ONEWIFI_EM_SRC)/util_crypto/aes_siv.c \
+	$(ONEWIFI_EM_SRC)/utils/util.c \
 
 CTRL_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
     	$(wildcard $(ONEWIFI_EM_SRC)/em/config/*.cpp) \

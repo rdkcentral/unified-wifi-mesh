@@ -71,6 +71,8 @@ em_network_node_t *editor(em_network_node_t *node, void *user_data)
     system("vi tmp.json");
 
 	return get_network_tree_by_file("tmp.json");
+
+
 }
 
 int main(int argc, const char *argv[])
@@ -84,7 +86,9 @@ int main(int argc, const char *argv[])
 	params.cb_func = editor;
 	params.cli_type = em_cli_type_cmd;
 
+
 	init(&params);
+
 
     while(1) {
         line = readline(prompt);

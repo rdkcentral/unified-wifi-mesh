@@ -74,8 +74,8 @@ short em_channel_t::create_channel_pref_tlv_agent(unsigned char *buff)
 	num_of_channel = op_class->m_op_class_info.num_channels;
 	channel_list = &pref_op_class->channels;
 	len += sizeof(em_channel_pref_op_class_t);
+	pref_op_class->num = num_of_channel;
 	for (j = 0; j < num_of_channel; j++) {
-	    pref_op_class->num++;
 	    memcpy(channel_list->channel, (unsigned char *)&op_class->m_op_class_info.channels[j], sizeof(unsigned char));
 	    channel_list =(em_channels_list_t *)((unsigned char *)channel_list + sizeof(unsigned char));
 	    len += sizeof(unsigned char);

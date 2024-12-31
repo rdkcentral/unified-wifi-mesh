@@ -25,8 +25,10 @@ extern "C" {
 
 #include "em_base.h"
 	
+
 em_network_node_t *exec(char *in, size_t in_len, em_network_node_t *node);
 int init(em_cli_params_t *params);
+
 const char *get_first_cmd_str();
 const char *get_next_cmd_str(const char *cmd);
 em_network_node_t *get_network_tree_by_file(const char *file_name);

@@ -37,7 +37,7 @@ void delay(int seconds) {
     } while ((current_time - start_time) < seconds); // Loop until desired delay is achieved
 }
 
-char *get_formatted_time(char *time)
+char *get_formatted_time_em(char *time)
 {
     struct tm *tm_info;
     struct timeval tv_now;
@@ -46,16 +46,16 @@ char *get_formatted_time(char *time)
     gettimeofday(&tv_now, NULL);
     tm_info = (struct tm *)localtime(&tv_now.tv_sec);
 
-    strftime(tmp, 128, "%y%m%d-%T", tm_info);
+    strftime(tmp, 128, "%m/%d/%y - %T", tm_info);
 
     snprintf(time, 128, "%s.%06lld", tmp, (long long)tv_now.tv_usec);
     return time;
 }
 
-
-void em_util_print(easymesh_log_level_t level, easymesh_dbg_type_t module, const char *format, ...)
+void em_util_print(easymesh_log_level_t level, easymesh_dbg_type_t module, const char *func, int line, const char *format, ...)
 {
     char buff[256] = {0};
+    char time_buff[128] = {0};
     va_list list;
     FILE *fpg = NULL;
 #if defined(__ENABLE_PID__) && (__ENABLE_PID__)
@@ -65,38 +65,33 @@ void em_util_print(easymesh_log_level_t level, easymesh_dbg_type_t module, const
     char filename_dbg_enable[64];
     char module_filename[32];
     char filename[100];
+    const char *severity;
 
     switch (module) {
-        case EM_AGENT: {
-                          snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emAgentDbg");
-                          snprintf(module_filename, sizeof(module_filename), "emAgent");
-                          break;
-                      }
-        case EM_CTRL: {
-                         snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emCtrlDbg");
-                         snprintf(module_filename, sizeof(module_filename), "emCtrl");
-                         break;
-                     }
-        case EM_MGR: {
-                        snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emMgrDbg");
-                        snprintf(module_filename, sizeof(module_filename), "emMgr");
-                        break;
-                    }
-        case EM_DB: {
-                       snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emDbDbg");
-                       snprintf(module_filename, sizeof(module_filename), "emDb");
-                       break;
-                   }
-        case EM_PROV: {
-                         snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emProvDbg");
-                         snprintf(module_filename, sizeof(module_filename), "emProv");
-                         break;
-                     }
-        case EM_CONF: {
-                         snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emConfDbg");
-                         snprintf(module_filename, sizeof(module_filename), "emConf");
-                         break;
-                     }
+        case EM_AGENT:
+            snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emAgentDbg");
+            snprintf(module_filename, sizeof(module_filename), "emAgent");
+            break;
+        case EM_CTRL:
+            snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emCtrlDbg");
+            snprintf(module_filename, sizeof(module_filename), "emCtrl");
+            break;
+        case EM_MGR:
+            snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emMgrDbg");
+            snprintf(module_filename, sizeof(module_filename), "emMgr");
+            break;
+        case EM_DB:
+            snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emDbDbg");
+            snprintf(module_filename, sizeof(module_filename), "emDb");
+            break;
+        case EM_PROV:
+            snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emProvDbg");
+            snprintf(module_filename, sizeof(module_filename), "emProv");
+            break;
+        case EM_CONF:
+            snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emConfDbg");
+            snprintf(module_filename, sizeof(module_filename), "emConf");
+            break;
         default:
             return;
     }
@@ -122,10 +117,25 @@ void em_util_print(easymesh_log_level_t level, easymesh_dbg_type_t module, const
                 return;
         }
     }
-    snprintf(&buff[0], sizeof(buff), "[%s] ", __progname ? __progname : "");
-    get_formatted_time(&buff[strlen(buff)]);
 
-    fprintf(fpg, "%s ", buff);
+    switch (level) {
+        case EM_LOG_LVL_INFO:
+            severity = "INFO";
+            break;
+        case EM_LOG_LVL_ERROR:
+            severity = "ERROR";
+            break;
+        case EM_LOG_LVL_DEBUG:
+            severity = "DEBUG";
+            break;
+        default:
+            severity = "UNKNOWN";
+            break;
+    }
+
+    get_formatted_time_em(time_buff);
+    snprintf(buff, sizeof(buff), "\n[%s] %s %s:%s:%d: %s: ", __progname ? __progname : "", time_buff, module_filename, func, line, severity);
+    fprintf(fpg, "%s", buff);
 
     va_start(list, format);
     vfprintf(fpg, format, list);
@@ -134,3 +144,4 @@ void em_util_print(easymesh_log_level_t level, easymesh_dbg_type_t module, const
     fflush(fpg);
     fclose(fpg);
 }
+
