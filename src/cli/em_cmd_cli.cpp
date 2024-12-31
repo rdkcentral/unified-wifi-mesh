@@ -146,7 +146,7 @@ int em_cmd_cli_t::get_edited_node(em_network_node_t *node, const char *header, c
     em_network_node_t *child;
     bool found_result = false;
     unsigned int i;
-	char *net_id = m_cmd.m_param.u.args.args[1], *formatted;
+	char *net_id = m_cmd.m_param.u.args.args[1], *formatted, *node_str;
             
     for (i = 0; i < node->num_children; i++) {
         if (strncmp(node->child[i]->key, "Result", strlen("Result")) == 0) {
@@ -183,6 +183,10 @@ int em_cmd_cli_t::get_edited_node(em_network_node_t *node, const char *header, c
     	free(node);
     	m_cli.m_params.cb_func(new_node, m_cli.m_params.user_data);
 	}
+
+	node_str = em_net_node_t::get_network_tree_string(new_node);
+	m_cli.dump_lib_dbg(node_str);
+	em_net_node_t::free_network_tree_string(node_str);
 
 	obj = (cJSON *)em_net_node_t::network_tree_to_json(new_node);
 	formatted = cJSON_Print((cJSON *)em_net_node_t::network_tree_to_json(new_node));

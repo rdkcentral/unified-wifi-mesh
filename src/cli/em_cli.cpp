@@ -285,7 +285,7 @@ extern "C" unsigned int can_collapse_node(em_network_node_t *node)
             node->display_info.node_ctr, node->type, node->num_children, node->key, node->value_str);	
     g_cli.dump_lib_dbg(dbg);
 
-    if ((node->type == em_network_node_data_type_obj) || (node->type == em_network_node_data_type_array)) {
+    if ((node->type == em_network_node_data_type_obj) || (node->type == em_network_node_data_type_array_obj)) {
         if ((node->display_info.collapsed == false) && (node->num_children > 0)) {
             return 1;
         }
@@ -296,7 +296,7 @@ extern "C" unsigned int can_collapse_node(em_network_node_t *node)
 
 extern "C" unsigned int can_expand_node(em_network_node_t *node) 
 {
-    if ((node->type == em_network_node_data_type_obj) || (node->type == em_network_node_data_type_array)) {
+    if ((node->type == em_network_node_data_type_obj) || (node->type == em_network_node_data_type_array_obj)) {
         if (node->display_info.collapsed == true) {
             return 1;
         }
