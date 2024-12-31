@@ -38,6 +38,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <cjson/cJSON.h>
+#include "em_net_node.h"
 #include "em_cli.h"
 #include "em_cmd_cli.h"
 #include <readline/readline.h>
@@ -138,29 +139,6 @@ int em_cmd_cli_t::update_platform_defaults(em_subdoc_info_t *subdoc, em_cmd_para
     return 0;
 }
 
-int em_cmd_cli_t::load_params_file(const char *filename, char *buff)
-{
-    FILE *fp;
-    char tmp[1024];
-    unsigned int sz = 0;
-
-    if ((fp = fopen(filename, "r")) == NULL) {
-        printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, filename, errno);
-        return -1;
-    } else {
-
-        memset(buff, 0, sizeof(buff));
-        while (fgets(tmp, sizeof(tmp), fp) != NULL) {
-            strncat(buff, tmp, sizeof(tmp));
-            sz += strlen(tmp);
-        }
-
-        fclose(fp);
-    }
-
-    return sz;
-}
-
 int em_cmd_cli_t::get_edited_node(em_network_node_t *node, const char *header, char *buff)
 {
 	cJSON *obj;
@@ -170,45 +148,50 @@ int em_cmd_cli_t::get_edited_node(em_network_node_t *node, const char *header, c
 	unsigned int i;
 	char *net_id = m_cmd.m_param.u.args.args[1], *formatted;
 
-	for (i = 0; i < node->num_children; i++) {
-		child = node->child[i];
-		if (strncmp(child->key, "Result", strlen("Result")) == 0) {
-			found_result = true;
-			break;
-		}
-	}
-
-	if (found_result == false) {
+            
+    for (i = 0; i < node->num_children; i++) {
+        if (strncmp(node->child[i]->key, "Result", strlen("Result")) == 0) {
+            found_result = true;
+			child = node->child[i];
+            break;
+        }
+    }       
+            
+    if (found_result == false) {
 		printf("%s:%d: Could not find child with Result\n", __func__, __LINE__);
-		return -1;
-	}
+		child = em_net_node_t::clone_network_tree(node);;	
+    } 
 
 	snprintf(child->key, sizeof(em_long_string_t), "wfa-dataelements:%s", header);
+    
+	tmp = (em_network_node_t *)malloc(sizeof(em_network_node_t));   
+    memset(tmp, 0, sizeof(em_network_node_t));
+    strncpy(tmp->key, "ID", strlen("ID") + 1);
+    tmp->type = em_network_node_data_type_string;
+    strncpy(tmp->value_str, net_id, strlen(net_id) + 1);
 
-	tmp = (em_network_node_t *)malloc(sizeof(em_network_node_t));
-	memset(tmp, 0, sizeof(em_network_node_t));
-	strncpy(tmp->key, "ID", strlen("ID") + 1);
-	tmp->type = em_network_node_data_type_string;
-	strncpy(tmp->value_str, net_id, strlen(net_id) + 1);
-	child->child[child->num_children] = tmp;
-	child->num_children++;
+    child->child[child->num_children] = tmp;
+    child->num_children++;
 
+        
+    new_node = (em_network_node_t *)malloc(sizeof(em_network_node_t));  
+    memset(new_node, 0, sizeof(em_network_node_t));
+    new_node->type = node->type;
+    new_node->child[new_node->num_children] = child;
+    new_node->num_children++;
 
-	curr_node = (em_network_node_t *)malloc(sizeof(em_network_node_t));
-	memset(curr_node, 0, sizeof(em_network_node_t));
-	curr_node->type = node->type;
-	curr_node->child[curr_node->num_children] = child;
-	curr_node->num_children++;
+	if (m_cli.m_params.cli_type == em_cli_type_cmd) {	
+    	free(node);
+    	m_cli.m_params.cb_func(new_node, m_cli.m_params.user_data);
+	}
 
-	free(node);
-
-	new_node = m_cli.m_editor_cb(curr_node, get_cli()->m_user_data);
-	obj = (cJSON *)get_cli()->network_tree_to_json(new_node);
-	formatted = cJSON_Print((cJSON *)get_cli()->network_tree_to_json(new_node));
+	obj = (cJSON *)em_net_node_t::network_tree_to_json(new_node);
+	formatted = cJSON_Print((cJSON *)em_net_node_t::network_tree_to_json(new_node));
 	strncpy(buff, formatted, strlen(formatted) + 1);
 	cJSON_Delete(obj);
 
-	get_cli()->free_network_tree(new_node);
+    em_net_node_t::free_network_tree(new_node);
+
 
 	return strlen(formatted) + 1;
 }
@@ -322,7 +305,7 @@ int em_cmd_cli_t::execute(em_string_t res)
     
         case em_cmd_type_remove_device:
 			snprintf(in, sizeof(in), "get_device %s 1", m_cmd.m_param.u.args.args[1]);
-			if ((node = get_cli()->exec(in, strlen(in))) == NULL) {
+			if ((node = m_cli.exec(in, strlen(in), NULL)) == NULL) {
 				return -1;
 			}
             bevt->type = em_bus_event_type_remove_device;
@@ -342,7 +325,7 @@ int em_cmd_cli_t::execute(em_string_t res)
 
         case em_cmd_type_set_radio:
             snprintf(in, sizeof(in), "get_radio %s 1", m_cmd.m_param.u.args.args[1]);
-			if ((node = get_cli()->exec(in, strlen(in))) == NULL) {
+			if ((node = m_cli.exec(in, strlen(in), NULL)) == NULL) {
 				return -1;
 			}
             bevt->type = em_bus_event_type_set_radio;
@@ -361,9 +344,15 @@ int em_cmd_cli_t::execute(em_string_t res)
             break;
 
         case em_cmd_type_set_ssid:
-            snprintf(in, sizeof(in), "get_ssid %s", m_cmd.m_param.u.args.args[1]);
-			if ((node = get_cli()->exec(in, strlen(in))) == NULL) {
-				return -1;
+			if (m_cli.m_params.cli_type == em_cli_type_cmd) {
+            	snprintf(in, sizeof(in), "get_ssid %s", m_cmd.m_param.u.args.args[1]);
+				if ((node = m_cli.exec(in, strlen(in), NULL)) == NULL) {
+					return -1;
+				}
+			} else {
+				if ((node = m_cmd.m_param.net_node) == NULL) {
+					return -1;
+				}
 			}
             bevt->type = em_bus_event_type_set_ssid;
             info = &bevt->u.subdoc;
@@ -382,7 +371,7 @@ int em_cmd_cli_t::execute(em_string_t res)
 
         case em_cmd_type_set_channel:
 			snprintf(in, sizeof(in), "get_channel %s 1", m_cmd.m_param.u.args.args[1]);
-			if ((node = get_cli()->exec(in, strlen(in))) == NULL) {
+			if ((node = m_cli.exec(in, strlen(in), NULL)) == NULL) {
 				return -1;
 			}
             bevt->type = em_bus_event_type_set_channel;
@@ -396,7 +385,7 @@ int em_cmd_cli_t::execute(em_string_t res)
 
         case em_cmd_type_scan_channel:
             snprintf(in, sizeof(in), "get_channel %s 2", m_cmd.m_param.u.args.args[1]);
-			if ((node = get_cli()->exec(in, strlen(in))) == NULL) {
+			if ((node = m_cli.exec(in, strlen(in), NULL)) == NULL) {
 				return -1;
 			}
             bevt->type = em_bus_event_type_scan_channel;
@@ -417,7 +406,7 @@ int em_cmd_cli_t::execute(em_string_t res)
 
         case em_cmd_type_set_policy:
 			snprintf(in, sizeof(in), "get_policy %s", m_cmd.m_param.u.args.args[1]);
-			if ((node = get_cli()->exec(in, strlen(in))) == NULL) {
+			if ((node = m_cli.exec(in, strlen(in), NULL)) == NULL) {
 				return -1;
 			}
             bevt->type = em_bus_event_type_set_policy;
@@ -443,7 +432,7 @@ int em_cmd_cli_t::execute(em_string_t res)
 
         case em_cmd_type_steer_sta:
             snprintf(in, sizeof(em_long_string_t), "get_sta %s 1", m_cmd.m_param.u.args.args[1]);
-			if ((node = get_cli()->exec(in, strlen(in))) == NULL) {
+			if ((node = m_cli.exec(in, strlen(in), NULL)) == NULL) {
 				return -1;
 			}
             bevt->type = em_bus_event_type_steer_sta;
@@ -457,7 +446,7 @@ int em_cmd_cli_t::execute(em_string_t res)
 
         case em_cmd_type_disassoc_sta:
             snprintf(in, sizeof(em_long_string_t), "get_sta %s 2", m_cmd.m_param.u.args.args[1]);
-			if ((node = get_cli()->exec(in, strlen(in))) == NULL) {
+			if ((node = m_cli.exec(in, strlen(in), NULL)) == NULL) {
 				return -1;
 			}
             bevt->type = em_bus_event_type_disassoc_sta;
@@ -471,7 +460,7 @@ int em_cmd_cli_t::execute(em_string_t res)
 
         case em_cmd_type_btm_sta:
             snprintf(in, sizeof(em_long_string_t), "get_sta %s 3", m_cmd.m_param.u.args.args[1]);
-			if ((node = get_cli()->exec(in, strlen(in))) == NULL) {
+			if ((node = m_cli.exec(in, strlen(in), NULL)) == NULL) {
 				return -1;
 			}
             bevt->type = em_bus_event_type_btm_sta;
@@ -539,8 +528,27 @@ int em_cmd_cli_t::execute(em_string_t res)
 
 em_cmd_cli_t::em_cmd_cli_t(em_cmd_t& obj)
 {
+	em_cmd_params_t *param;
+
     m_cmd.m_type = obj.m_type;
     m_cmd.m_svc = obj.m_svc;
-    memcpy(&m_cmd.m_param, &obj.m_param, sizeof(em_cmd_params_t));
 
+	param = &m_cmd.m_param;
+    memcpy(param, &obj.m_param, sizeof(em_cmd_params_t));
+
+	if (obj.m_param.net_node != NULL) {
+		param->net_node = em_net_node_t::clone_network_tree(obj.m_param.net_node);
+	} else {
+		param->net_node = NULL;
+	}
+}
+
+em_cmd_cli_t::~em_cmd_cli_t()
+{
+	em_cmd_params_t *param;
+
+	param = &m_cmd.m_param;
+	if (param->net_node != NULL) {
+		em_net_node_t::free_network_tree(param->net_node);
+	}
 }
