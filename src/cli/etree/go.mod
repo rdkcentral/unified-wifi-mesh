@@ -1,4 +1,4 @@
-module etree
+module github.com/rdkcentral/unified-wifi-mesh/src/cli/etree
 
 go 1.18
 
