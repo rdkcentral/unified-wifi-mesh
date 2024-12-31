@@ -2623,8 +2623,10 @@ typedef enum {
     em_network_node_data_type_null,
     em_network_node_data_type_number,
     em_network_node_data_type_string,
-    em_network_node_data_type_array,
     em_network_node_data_type_obj,
+    em_network_node_data_type_array_obj,
+    em_network_node_data_type_array_str,
+    em_network_node_data_type_array_num,
     em_network_node_data_type_raw,
 } em_network_node_data_type_t;
 

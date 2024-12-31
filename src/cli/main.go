@@ -146,33 +146,33 @@ func newModel() model {
 	nodes := make([]etree.Node, 3)
 
     nodes[0].Key = "Key1"
-    nodes[0].Vector = true;
+    nodes[0].Type = etree.NodeTypeObject
     nodes[0].Children = make([]etree.Node, 1)
 
 	nodes[0].Children[0].Key = "Child of Key1"
-    nodes[0].Children[0].Vector = false;
-    nodes[0].Children[0].Value = textinput.New();
+    nodes[0].Children[0].Type = etree.NodeTypeString
+    nodes[0].Children[0].Value = textinput.New()
 	nodes[0].Children[0].Value.Placeholder = "Value"
     nodes[0].Children[0].Children = nil
 
 
     nodes[1].Key = "Key2"
-    nodes[1].Vector = true;
+    nodes[1].Type = etree.NodeTypeObject
     nodes[1].Children = make([]etree.Node, 1)
 
 	nodes[1].Children[0].Key = "Child of Key2"
-    nodes[1].Children[0].Vector = false;
-    nodes[1].Children[0].Value = textinput.New();
+    nodes[1].Children[0].Type = etree.NodeTypeString 
+    nodes[1].Children[0].Value = textinput.New()
 	nodes[1].Children[0].Value.Placeholder = "Value"
     nodes[1].Children[0].Children = nil
 
     nodes[2].Key = "Key3"
-    nodes[2].Vector = true;
+    nodes[2].Type = etree.NodeTypeObject
     nodes[2].Children = make([]etree.Node, 1)
 
 	nodes[2].Children[0].Key = "Child of Key3"
-    nodes[2].Children[0].Vector = false;
-    nodes[2].Children[0].Value = textinput.New();
+    nodes[2].Children[0].Type = etree.NodeTypeString
+    nodes[2].Children[0].Value = textinput.New()
 	nodes[2].Children[0].Value.Placeholder = "Value"
     nodes[2].Children[0].Children = nil
 
@@ -208,14 +208,33 @@ func (m model) Init() tea.Cmd {
     return textinput.Blink
 }
 
-func treeToNodes(tree []etree.Node) *C.em_network_node_t {
-	for _, node := range tree {
-		netNode := (*C.em_network_node_t)(C.malloc(C.sizeof_em_network_node_t));
-		C.memset(unsafe.Pointer(netNode), 0, C.sizeof_em_network_node_t);
-		C.strncpy((*C.char)(&netNode.key[0]), C.CString(node.Key), C.ulong(len(node.Key)))
+func treeToNodes(treeNode *etree.Node) *C.em_network_node_t {
+	netNode := (*C.em_network_node_t)(C.malloc(C.sizeof_em_network_node_t))
+	C.memset(unsafe.Pointer(netNode), 0, C.sizeof_em_network_node_t)
+	C.strncpy((*C.char)(&netNode.key[0]), C.CString(treeNode.Key), C.ulong(len(treeNode.Key)))
+
+	C.set_node_type(netNode, C.int(treeNode.Type))
+
+	value := treeNode.Value.Value()
+	if value == "" {
+		value = treeNode.Value.Placeholder
 	}
 
-	return nil
+	if treeNode.Type == etree.NodeTypeArrayStr || treeNode.Type == etree.NodeTypeArrayNum {
+		C.set_node_array_value(netNode, C.CString(value))
+	} else {
+		C.set_node_scalar_value(netNode, C.CString(value))
+	}
+
+	if treeNode.Children != nil {
+		for i := 0; i < len(treeNode.Children); i++ {
+			netNode.child[i] = treeToNodes(&treeNode.Children[i])
+		}
+
+		netNode.num_children = C.uint(len(treeNode.Children))
+	}
+
+	return netNode
 }
 
 func nodesToTree(netNode *C.em_network_node_t, treeNode *etree.Node) {
@@ -225,20 +244,21 @@ func nodesToTree(netNode *C.em_network_node_t, treeNode *etree.Node) {
     treeNode.Key = C.GoString(&netNode.key[0])
     nodeType := C.get_node_type(netNode)
 
-    if nodeType == C.em_network_node_data_type_array {
+    if nodeType == C.em_network_node_data_type_array_obj {
         if int(netNode.num_children) > 0 {
             childNetNode := C.get_child_node_at_index(netNode, 0);
             childNodeType := C.get_node_type(childNetNode)
             if ((childNodeType == C.em_network_node_data_type_string) || (childNodeType == C.em_network_node_data_type_number) ||
             		(childNodeType == C.em_network_node_data_type_false) || (childNodeType == C.em_network_node_data_type_true)) {
-                str = C.get_formatted_node_array_value(netNode)
+				var arrNodeType C.em_network_node_data_type_t
+                str = C.get_node_array_value(netNode, &arrNodeType)
 				treeNode.Value = textinput.New()
                 treeNode.Value.Placeholder = C.GoString(str)
-				treeNode.Vector = false
-                C.free_formatted_node_value(str)
+				treeNode.Type = int(arrNodeType)
+                C.free_node_value(str)
             } else {
                 treeNode.Children = make([]etree.Node, uint(netNode.num_children))
-				treeNode.Vector = true
+				treeNode.Type = int(C.em_network_node_data_type_array_obj)
 				if (netNode.display_info.collapsed) {
 					treeNode.Collapsed = true
 				}
@@ -251,14 +271,14 @@ func nodesToTree(netNode *C.em_network_node_t, treeNode *etree.Node) {
 
     } else if ((nodeType == C.em_network_node_data_type_string) || (nodeType == C.em_network_node_data_type_number) ||
     				(nodeType == C.em_network_node_data_type_false) || (nodeType == C.em_network_node_data_type_true)) {
-        str = C.get_formatted_node_scalar_value(netNode)
-		treeNode.Vector = false
+        str = C.get_node_scalar_value(netNode)
+		treeNode.Type = int(nodeType)
 		treeNode.Value = textinput.New()
         treeNode.Value.Placeholder = C.GoString(str)
-        C.free_formatted_node_value(str)
+        C.free_node_value(str)
     } else {
         treeNode.Children = make([]etree.Node, uint(netNode.num_children))
-		treeNode.Vector = true
+		treeNode.Type = int(nodeType)
 		if (netNode.display_info.collapsed) {
 			treeNode.Collapsed = true
 		}
@@ -277,7 +297,7 @@ func isNodeScalar(netNode *C.em_network_node_t) bool {
 		return true
 	}
 
-	if nodeType == C.em_network_node_data_type_array && netNode.num_children > 0 {
+	if nodeType == C.em_network_node_data_type_array_obj && netNode.num_children > 0 {
 		child := netNode.child[0]
 		nodeType = C.get_node_type(child)
 		if nodeType == C.em_network_node_data_type_false || nodeType == C.em_network_node_data_type_true ||
@@ -368,8 +388,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
        			m.currentOperatingInstructions = "\n\n\t Press 'w' to scroll up, 's' to scroll down"
             	if selectedItem, ok := m.list.SelectedItem().(item); ok {
 					if selectedItem.title == "Network SSID List" { 
-                		spew.Fdump(m.dump, "Setting SSID node list")
-                   		C.exec(C.CString("set_ssid OneWifiMesh"), C.strlen(C.CString("set_ssid OneWifiMesh")), treeToNodes(m.tree.Nodes()))
+						root := m.tree.Nodes()
+                   		C.exec(C.CString("set_ssid OneWifiMesh"), C.strlen(C.CString("set_ssid OneWifiMesh")), treeToNodes(&root[0]))
 					} else if selectedItem.title == "Radios" {
 
 					} 
@@ -413,7 +433,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             }
 
 
-        default:
+        case "q":
             newListModel, cmd := m.list.Update(msg)
             m.list = newListModel
             for i := range m.list.Items() {

@@ -30,30 +30,44 @@ func newModel() model {
 	top, right, bottom, left := styleDoc.GetPadding()
 	w = w - left - right
 	h = h - top - bottom
+
+    nodes := make([]etree.Node, 3)
+
+    nodes[0].Key = "Key1"
+    nodes[0].Type = 6
+    nodes[0].Children = make([]etree.Node, 1)
+
+    nodes[0].Children[0].Key = "Child of Key1"
+    nodes[0].Children[0].Type = 5;
+    nodes[0].Children[0].Value = textinput.New();
+    nodes[0].Children[0].Value.Placeholder = "Value"
+    nodes[0].Children[0].Children = nil
+
+
+    nodes[1].Key = "Key2"
+    nodes[1].Type = 6;
+    nodes[1].Children = make([]etree.Node, 1)
+
+    nodes[1].Children[0].Key = "Child of Key2"
+    nodes[1].Children[0].Type = 5;
+    nodes[1].Children[0].Value = textinput.New();
+    nodes[1].Children[0].Value.Placeholder = "Value"
+    nodes[1].Children[0].Children = nil
+
+    nodes[2].Key = "Key3"
+    nodes[2].Type = 6;
+    nodes[2].Children = make([]etree.Node, 1)
+
+    nodes[2].Children[0].Key = "Child of Key3"
+    nodes[2].Children[0].Type = 5;
+    nodes[2].Children[0].Value = textinput.New();
+    nodes[2].Children[0].Value.Placeholder = "Value"
+    nodes[2].Children[0].Children = nil
 	
-	nodes := make([]etree.Node, 1)
-
-	nodes[0].Key = ""
-	nodes[0].Vector = true;
-	nodes[0].Children = make([]etree.Node, 1)
-
-    nodes[0].Children[0].Key = "NetworkSSIDList"
-	nodes[0].Children[0].Vector = true;
-    nodes[0].Children[0].Children = make([]etree.Node, 1)
-
-    nodes[0].Children[0].Children[0].Key = ""
-	nodes[0].Children[0].Children[0].Vector = true;
-    nodes[0].Children[0].Children[0].Children = make([]etree.Node, 1)
-
-    nodes[0].Children[0].Children[0].Children[0].Key = "SSID"
-	nodes[0].Children[0].Children[0].Children[0].Vector = false;
-    nodes[0].Children[0].Children[0].Children[0].Value = textinput.New()
-    nodes[0].Children[0].Children[0].Children[0].Value.Placeholder = "value"
-    nodes[0].Children[0].Children[0].Children[0].Children = nil
 	
 	dump, _ := os.OpenFile("messages.log", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
 
-	return model{tree: etree.New(nodes, false, w, h, dump),
+	return model{tree: etree.New(nodes, true, w, h, dump),
 		dump: dump,
 	}
 }

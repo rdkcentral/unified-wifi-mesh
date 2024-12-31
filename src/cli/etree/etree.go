@@ -12,7 +12,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 )
 
-type NodeType int
 
 const (
     scalarPrefix string = "  └──"
@@ -22,14 +21,20 @@ const (
     white  = lipgloss.Color("#ffffff")
     black  = lipgloss.Color("#000000")
     purple = lipgloss.Color("#bd93f9")
-
-	nodeTypeNode NodeType =	iota
-	nodeTypeObject
-	nodeTypeArray
-	nodeTypeBool
-	nodeTypeStr
-	nodeTypeInt
+	
+	NodeTypeInvalid = 0
+	NodeTypeFalse = 1
+	NodeTypeTrue = 2
+	NodeTypeNull = 3
+	NodeTypeNumber = 4
+	NodeTypeString = 5
+	NodeTypeObject = 6
+	NodeTypeArrayObj = 7
+	NodeTypeArrayStr = 8
+	NodeTypeArrayNum = 9
+	NodeTypeRaw = 10
 )
+
 
 type Styles struct {
     Shapes     lipgloss.Style
@@ -49,7 +54,7 @@ func defaultStyles() Styles {
 
 type Node struct {
     Key    string
-	Vector	bool
+	Type	int
 	Collapsed	bool
     Value    textinput.Model
     Children []Node
@@ -145,6 +150,14 @@ func DefaultKeyMap() KeyMap {
             key.WithHelp("q", "quit"),
         ),
     }
+}
+
+func isNodeVector(node *Node) bool {
+	if node.Type == NodeTypeObject || node.Type == NodeTypeArrayObj {
+		return true
+	}
+
+	return false
 }
 
 func (m Model) Nodes() []Node {
@@ -276,7 +289,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
     count := 0
     node := m.NodeAtCursor(m.nodes, &count)
-	if m.editable == true && node != nil && node.Vector == false {
+	if m.editable == true && node != nil && isNodeVector(node) == false {
     	var cmd tea.Cmd
    		node.Value.Focus()
    		node.Value, cmd = node.Value.Update(msg)
@@ -322,7 +335,7 @@ func (m *Model) renderTree(remainingNodes []Node, indent int, count *int) string
         var str string
 		var prefix string
 
-		if node.Vector == false {
+		if isNodeVector(&node) == false {
 			prefix = scalarPrefix
 		} else {
 			if node.Collapsed == true {
@@ -347,7 +360,7 @@ func (m *Model) renderTree(remainingNodes []Node, indent int, count *int) string
         valWidth := 20
         keyStr := fmt.Sprintf("%-*s", keyWidth, node.Key)
 		valStr := ""
-		if node.Vector == false {
+		if isNodeVector(&node) == false {
         	valStr = fmt.Sprintf("%-*s", valWidth, node.Value.View())
 		}
 

@@ -33,15 +33,18 @@ public:
     static int get_network_tree_node(cJSON *obj, em_network_node_t *root, unsigned int *node_ctr);
     static em_network_node_t *get_child_node_at_index(em_network_node_t *node, unsigned int idx);
     static unsigned int get_node_display_position(em_network_node_t *node);
-    static char *get_formatted_node_scalar_value(em_network_node_t *node);
-    static char *get_formatted_node_array_value(em_network_node_t *node);
+    static char *get_node_scalar_value(em_network_node_t *node);
+    static char *get_node_array_value(em_network_node_t *node, em_network_node_data_type_t *type);
+	static void set_node_scalar_value(em_network_node_t *node, char *fmt);
+	static void set_node_array_value(em_network_node_t *node, char *fmt);
     static em_network_node_data_type_t get_node_type(em_network_node_t *node);
-    static void free_formatted_node_value(char *str);
+    static void free_node_value(char *str);
     static void free_network_tree(em_network_node_t *tree);
     static void free_network_tree_node(em_network_node_t *node);
     static void *network_tree_to_json(em_network_node_t *root);
     static cJSON *network_tree_node_to_json(em_network_node_t *node, cJSON *parent);
     static char *get_network_tree_string(em_network_node_t *tree);
+	static void free_network_tree_string(char *str) { free(str); }
     static void get_network_tree_node_string(char *str, em_network_node_t *node, unsigned int *pident);
 
     em_net_node_t();
