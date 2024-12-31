@@ -2616,6 +2616,35 @@ typedef struct {
     em_disassoc_params_t	params[MAX_STA_TO_DISASSOC];
 } em_cmd_disassoc_params_t;
 
+typedef enum {
+    em_network_node_data_type_invalid,
+    em_network_node_data_type_false,
+    em_network_node_data_type_true,
+    em_network_node_data_type_null,
+    em_network_node_data_type_number,
+    em_network_node_data_type_string,
+    em_network_node_data_type_array,
+    em_network_node_data_type_obj,
+    em_network_node_data_type_raw,
+} em_network_node_data_type_t;
+
+typedef struct {
+    bool collapsed;
+    unsigned int orig_node_ctr;
+    unsigned int node_ctr;
+    unsigned int node_pos;
+} em_node_display_info_t;
+
+typedef struct em_network_node {
+    em_long_string_t   key;
+    em_node_display_info_t	display_info;
+    em_network_node_data_type_t type;
+    em_long_string_t    value_str;
+    unsigned int        value_int;
+    unsigned int        num_children;
+    struct em_network_node     *child[EM_MAX_DM_CHILDREN];
+} em_network_node_t;
+
 typedef struct {
     union {
         em_cmd_args_t	args;
@@ -2623,6 +2652,7 @@ typedef struct {
         em_cmd_btm_report_params_t  btm_report_params;
         em_cmd_disassoc_params_t	disassoc_params;
     } u;
+	em_network_node_t *net_node;
 } em_cmd_params_t;
 
 typedef struct {
@@ -2814,37 +2844,20 @@ typedef struct {
 	bool	profile_2_sta_disallowed;
 } em_policy_t;
 
+typedef em_network_node_t  *(* em_editor_callback_t)(em_network_node_t *, void *);
 
 typedef enum {
-    em_network_node_data_type_invalid,
-    em_network_node_data_type_false,
-    em_network_node_data_type_true,
-    em_network_node_data_type_null,
-    em_network_node_data_type_number,
-    em_network_node_data_type_string,
-    em_network_node_data_type_array,
-    em_network_node_data_type_obj,
-    em_network_node_data_type_raw,
-} em_network_node_data_type_t;
+	em_cli_type_none,
+	em_cli_type_cmd,
+	em_cli_type_go,
+} em_cli_type_t;
 
 typedef struct {
-    bool collapsed;
-    unsigned int orig_node_ctr;
-    unsigned int node_ctr;
-    unsigned int node_pos;
-} em_node_display_info_t;
+    void *user_data; 
+	em_editor_callback_t	cb_func;
+	em_cli_type_t	cli_type;
+} em_cli_params_t;
 
-typedef struct em_network_node {
-    em_long_string_t   key;
-    em_node_display_info_t	display_info;
-    em_network_node_data_type_t type;
-    em_long_string_t    value_str;
-    unsigned int        value_int;
-    unsigned int        num_children;
-    struct em_network_node     *child[EM_MAX_DM_CHILDREN];
-} em_network_node_t;
-
-typedef em_network_node_t *(* em_editor_callback_t)(em_network_node_t *, void *);
 #ifdef __cplusplus
 }
 #endif

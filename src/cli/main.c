@@ -72,6 +72,7 @@ em_network_node_t *editor(em_network_node_t *node, void *user_data)
 
 	return get_network_tree_by_file("tmp.json");
 
+
 }
 
 int main(int argc, const char *argv[])
@@ -79,8 +80,15 @@ int main(int argc, const char *argv[])
    	char *line = NULL;
 	em_network_node_t *node;
 	cJSON *obj;
+	em_cli_params_t	params;
 
-	init(editor, NULL);
+	params.user_data = NULL;
+	params.cb_func = editor;
+	params.cli_type = em_cli_type_cmd;
+
+
+	init(&params);
+
 
     while(1) {
         line = readline(prompt);
@@ -101,7 +109,7 @@ int main(int argc, const char *argv[])
                 add_history(line);
             }
 
-			if ((node = exec(line, strlen(line))) != NULL) {
+			if ((node = exec(line, strlen(line), NULL)) != NULL) {
 				if ((obj = (cJSON *)network_tree_to_json(node)) != NULL) {
 					printf("%s\n", cJSON_Print(obj));
 					cJSON_Delete(obj);
