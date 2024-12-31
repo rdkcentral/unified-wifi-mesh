@@ -93,7 +93,9 @@ void em_mgr_t::delete_node(em_interface_t *ruid)
 
     em->stop();
     em->deinit();
-    hash_map_remove(m_em_map, mac_str);
+	pthread_mutex_lock(&m_mutex);
+	hash_map_remove(m_em_map, mac_str);
+	pthread_mutex_unlock(&m_mutex);
     delete em;
 
 }
@@ -130,7 +132,9 @@ em_t *em_mgr_t::create_node(em_interface_t *ruid, em_freq_band_t band, dm_easy_m
     }
 
     // add this em to hash map 
+	pthread_mutex_lock(&m_mutex);
     hash_map_put(m_em_map, strdup(mac_str), em);
+	pthread_mutex_unlock(&m_mutex);
     printf("%s:%d: created entry for key:%s\n", __func__, __LINE__, mac_str);
 
     return em;
@@ -214,7 +218,7 @@ void em_mgr_t::nodes_listener()
 {
     em_t *em = NULL;
     struct timeval tm;
-    int rc, len, highest_fd = 0;
+    int rc, len, highest_fd = 0, ret = 0;
     unsigned char buff[MAX_EM_BUFF_SZ];
     em_raw_hdr_t *hdr;
 
@@ -234,7 +238,10 @@ void em_mgr_t::nodes_listener()
         em = (em_t *)hash_map_get_first(m_em_map);
         while (em != NULL) {
             if (em->is_al_interface_em() == true) {
-                if (FD_ISSET(em->get_fd(), &m_rset)) {
+				pthread_mutex_lock(&m_mutex);
+				ret = FD_ISSET(em->get_fd(), &m_rset);
+				pthread_mutex_unlock(&m_mutex);
+				if (ret) {
                     // receive data from this interface
                     memset(buff, 0, MAX_EM_BUFF_SZ);
                     len = read(em->get_fd(), buff, MAX_EM_BUFF_SZ);
