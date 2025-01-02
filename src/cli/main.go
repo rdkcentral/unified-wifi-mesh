@@ -11,10 +11,11 @@ package main
 import "C"
 
 import (
-	"etree"
+	"github.com/rdkcentral/unified-wifi-mesh/src/cli/etree"
 	"unsafe"
 	"fmt"
 	"os"
+	"time"
     "strings"
 	"github.com/charmbracelet/bubbles/textinput"
     tea "github.com/charmbracelet/bubbletea"
@@ -26,6 +27,21 @@ import (
 
 const (
 	linesToDisplay int = 38
+	
+	NetworkTopologyCmd = 1
+	NetworkSSIDListCmd = 2
+	RadioListCmd = 3
+	ChannelsListCmd = 4
+	ClientDevicesCmd = 5
+
+	GET = 0
+	GETX = 1 
+	SET = 2 
+
+	BTN_UPDATE	= 0
+	BTN_OK	= 1
+	BTN_CANCEL	= 2
+	BTN_MAX = 3
 )
 
 var (
@@ -49,7 +65,7 @@ var (
     //BorderForeground(lipgloss.Color("#080563")).
     Background(lipgloss.Color("#FFFFFF")).
     //Foreground(lipgloss.Color("#000000")).
-    Width(95).
+    Width(100).
     //Padding(0, 10).
     //MarginLeft(10).
     MarginTop(2)
@@ -95,12 +111,20 @@ func (i item) Title() string {
 func (i item) Description() string { return "" }
 func (i item) FilterValue() string { return i.title }
 
-var commandDescriptions = map[string]string{
-    "Network SSID List":               "allows you to configure the SSID.",
-    "Network Tree":                    "You have pressed Network Tree option.",
-    "Radios":                          "Radio details.",
-    "Channels":                        "Display channel details.",
-    "Client Devices":                  "Fetches the client information.",
+type EasyMeshCmd struct {
+	Title		string
+	GetCommand		string
+	GetCommandEx		string
+	SetCommand		string
+	Help		string
+}
+
+var emCommands = map[int]EasyMeshCmd {
+    NetworkTopologyCmd: 		{"Network Topology", "get_bss OneWifiMesh", "", "", ""},
+    NetworkSSIDListCmd: 	{"Network SSID List", "get_ssid OneWifiMesh", "get_ssid OneWifiMesh", "set_ssid OneWifiMesh", ""},
+    RadioListCmd: 			{"Wi-Fi Radios", "get_radio OneWifiMesh", "", "", ""},
+    ChannelsListCmd: 		{"Wi-Fi Channels", "get_channel OneWifiMesh", "get_channel OneWifiMesh 1", "set_channel OneWifiMesh", ""},
+    ClientDevicesCmd: 		{"Client Devices", "get_sta OneWifiMesh", "", "", ""},
 }
 
 type model struct {
@@ -114,17 +138,16 @@ type model struct {
     currentNetNode   *C.em_network_node_t
     displayedNetNode   *C.em_network_node_t
     cursor int
+	quit	chan bool
     dump 	*os.File
 }
 
 func newModel() model {
-    items := []list.Item{
-        item{title: "Network SSID List"},
-        item{title: "Network Tree"},
-        item{title: "Radios"},
-        item{title: "Channels"},
-        item{title: "Client Devices"},
-    }
+	var items []list.Item
+
+	for _, value := range emCommands {
+		items  = append(items, item{title: value.Title})
+	}
 
     commandList := list.New(items, list.NewDefaultDelegate(), 0, 0)
     commandList.Title = "OneWifiMesh"
@@ -137,44 +160,17 @@ func newModel() model {
 	w, h, err := term.GetSize(int(os.Stdout.Fd()))
     if err != nil {
         w = 80
-        h = 24
+        h = 50
     }
     top, right, bottom, left := styleDoc.GetPadding()
     w = w - left - right
     h = h - top - bottom
 
-	nodes := make([]etree.Node, 3)
+	nodes := make([]etree.Node, 1)
 
-    nodes[0].Key = "Key1"
+    nodes[0].Key = "OneWifiMesh"
     nodes[0].Type = etree.NodeTypeObject
-    nodes[0].Children = make([]etree.Node, 1)
-
-	nodes[0].Children[0].Key = "Child of Key1"
-    nodes[0].Children[0].Type = etree.NodeTypeString
-    nodes[0].Children[0].Value = textinput.New()
-	nodes[0].Children[0].Value.Placeholder = "Value"
-    nodes[0].Children[0].Children = nil
-
-
-    nodes[1].Key = "Key2"
-    nodes[1].Type = etree.NodeTypeObject
-    nodes[1].Children = make([]etree.Node, 1)
-
-	nodes[1].Children[0].Key = "Child of Key2"
-    nodes[1].Children[0].Type = etree.NodeTypeString 
-    nodes[1].Children[0].Value = textinput.New()
-	nodes[1].Children[0].Value.Placeholder = "Value"
-    nodes[1].Children[0].Children = nil
-
-    nodes[2].Key = "Key3"
-    nodes[2].Type = etree.NodeTypeObject
-    nodes[2].Children = make([]etree.Node, 1)
-
-	nodes[2].Children[0].Key = "Child of Key3"
-    nodes[2].Children[0].Type = etree.NodeTypeString
-    nodes[2].Children[0].Value = textinput.New()
-	nodes[2].Children[0].Value.Placeholder = "Value"
-    nodes[2].Children[0].Children = nil
+    nodes[0].Children = nil
 
     dump, _ := os.OpenFile("messages.log", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
     C.init_lib_dbg(C.CString("messages_lib.log"))
@@ -182,7 +178,7 @@ func newModel() model {
     return model{
         list:          commandList,
         statusMessage: "",
-		activeButton: 4,
+		activeButton: BTN_CANCEL,
 		tree: etree.New(nodes, false, w, h, dump),
         dump: dump,
     }
@@ -205,10 +201,32 @@ func (m model) Init() tea.Cmd {
 
 	C.init(params)
 
+	ticker := time.NewTicker(5 * time.Second)
+	m.quit = make(chan bool)
+
+	go func() {
+		for {
+			select {
+				case <- ticker.C:
+					spew.Fdump(m.dump, "5 second timer fired")
+
+				case <- m.quit:
+					ticker.Stop()
+					return
+			}	
+		}
+    }()
+
+	if listItem, ok := m.list.Items()[0].(item); ok {
+    	listItem.isActive = 0 == m.list.Index()
+        m.list.SetItem(0, listItem)
+		m.execSelectedCommand(listItem.title, GET)
+   	}
+
     return textinput.Blink
 }
 
-func treeToNodes(treeNode *etree.Node) *C.em_network_node_t {
+func (m model) treeToNodes(treeNode *etree.Node) *C.em_network_node_t {
 	netNode := (*C.em_network_node_t)(C.malloc(C.sizeof_em_network_node_t))
 	C.memset(unsafe.Pointer(netNode), 0, C.sizeof_em_network_node_t)
 	C.strncpy((*C.char)(&netNode.key[0]), C.CString(treeNode.Key), C.ulong(len(treeNode.Key)))
@@ -228,7 +246,7 @@ func treeToNodes(treeNode *etree.Node) *C.em_network_node_t {
 
 	if treeNode.Children != nil {
 		for i := 0; i < len(treeNode.Children); i++ {
-			netNode.child[i] = treeToNodes(&treeNode.Children[i])
+			netNode.child[i] = m.treeToNodes(&treeNode.Children[i])
 		}
 
 		netNode.num_children = C.uint(len(treeNode.Children))
@@ -237,7 +255,7 @@ func treeToNodes(treeNode *etree.Node) *C.em_network_node_t {
 	return netNode
 }
 
-func nodesToTree(netNode *C.em_network_node_t, treeNode *etree.Node) {
+func (m model) nodesToTree(netNode *C.em_network_node_t, treeNode *etree.Node) {
     var str *C.char
 
     //treeNode.Value = C.GoString(&netNode.key[0]) + "." + fmt.Sprintf("%d", uint(netNode.display_info.node_ctr)) + "." + fmt.Sprintf("%d", uint(netNode.display_info.orig_node_ctr))
@@ -264,7 +282,7 @@ func nodesToTree(netNode *C.em_network_node_t, treeNode *etree.Node) {
 				}
                 for i := 0; i < int(netNode.num_children); i++ {
                     childNetNode := C.get_child_node_at_index(netNode, C.uint(i));
-                    nodesToTree(childNetNode, &treeNode.Children[i])
+                    m.nodesToTree(childNetNode, &treeNode.Children[i])
                 }
             }
         }
@@ -284,29 +302,41 @@ func nodesToTree(netNode *C.em_network_node_t, treeNode *etree.Node) {
 		}
         for i := 0; i < int(netNode.num_children); i++ {
             childNetNode := C.get_child_node_at_index(netNode, C.uint(i));
-            nodesToTree(childNetNode, &treeNode.Children[i])
+            m.nodesToTree(childNetNode, &treeNode.Children[i])
         }
     }
 }
 
-func isNodeScalar(netNode *C.em_network_node_t) bool {
-	nodeType := C.get_node_type(netNode)
+func (m *model) execSelectedCommand(cmdStr string, cmdType int) {
+	for _, value := range emCommands {
+		if cmdStr == value.Title {
+			switch cmdType {
+				case GET:
+					m.currentNetNode = C.exec(C.CString(value.GetCommand), C.strlen(C.CString(value.GetCommand)), nil)	
+        			spew.Fdump(m.dump, value.GetCommand)
+					treeNode := make([]etree.Node, 1)
+                    m.displayedNetNode = C.clone_network_tree_for_display(m.currentNetNode, nil, 0xffff, false)
+                    m.nodesToTree(m.displayedNetNode, &treeNode[0])
+                    m.tree.SetNodes(treeNode)
 
-	if nodeType == C.em_network_node_data_type_false || nodeType == C.em_network_node_data_type_true ||
-				nodeType == C.em_network_node_data_type_number || nodeType == C.em_network_node_data_type_string {
-		return true
+				case GETX:
+					if value.GetCommandEx != "" {
+						m.currentNetNode = C.exec(C.CString(value.GetCommandEx), C.strlen(C.CString(value.GetCommandEx)), nil)	
+        				spew.Fdump(m.dump, value.GetCommandEx)
+						treeNode := make([]etree.Node, 1)
+                    	m.displayedNetNode = C.clone_network_tree_for_display(m.currentNetNode, nil, 0xffff, false)
+                    	m.nodesToTree(m.displayedNetNode, &treeNode[0])
+                    	m.tree.SetNodes(treeNode)
+					}
+
+				case SET:
+					if value.SetCommand != "" {
+						root := m.tree.Nodes()
+                   		C.exec(C.CString(value.SetCommand), C.strlen(C.CString(value.SetCommand)), m.treeToNodes(&root[0]))
+					}
+			}
+		}
 	}
-
-	if nodeType == C.em_network_node_data_type_array_obj && netNode.num_children > 0 {
-		child := netNode.child[0]
-		nodeType = C.get_node_type(child)
-		if nodeType == C.em_network_node_data_type_false || nodeType == C.em_network_node_data_type_true ||
-                nodeType == C.em_network_node_data_type_number || nodeType == C.em_network_node_data_type_string {
-        	return true
-    	}
-	}
-
-	return false
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -321,12 +351,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     case tea.KeyMsg:
         switch msg.String() {
         case "tab":
-            m.activeButton = (m.activeButton + 1) % 3
+            m.activeButton = (m.activeButton + 1) % BTN_MAX
 
 		case "j", "k":
 			m.currentOperatingInstructions = "\n\n\t Press 'w' to scroll up, 's' to scroll down"
 
-			if m.activeButton != 0 {
+			if m.activeButton != BTN_UPDATE {
             	newListModel, cmd := m.list.Update(msg)
             	m.list = newListModel
             	for i := range m.list.Items() {
@@ -338,27 +368,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             	cmds = append(cmds, cmd)
 
             	if selectedItem, ok := m.list.SelectedItem().(item); ok {
-					if selectedItem.title == "Network SSID List" { 
-                   		m.currentNetNode = C.exec(C.CString("get_ssid OneWifiMesh"), C.strlen(C.CString("get_ssid OneWifiMesh")), nil)
-        				spew.Fdump(m.dump, "Nodes Created for SetSSID")
-					} else if selectedItem.title == "Radios" {
-                   		m.currentNetNode = C.exec(C.CString("get_radio OneWifiMesh"), C.strlen(C.CString("get_ssid OneWifiMesh")), nil)
-        				spew.Fdump(m.dump, "Radio List")
-					} else if selectedItem.title == "Network Tree" {
-                   		m.currentNetNode = C.exec(C.CString("get_bss OneWifiMesh"), C.strlen(C.CString("get_ssid OneWifiMesh")), nil)
-        				spew.Fdump(m.dump, "BSS List")
-					} else if selectedItem.title == "Channels" {
-                   		m.currentNetNode = C.exec(C.CString("get_channel OneWifiMesh"), C.strlen(C.CString("get_ssid OneWifiMesh")), nil)
-        				spew.Fdump(m.dump, "Channels List")
-					} else if selectedItem.title == "Client Devices" {
-                   		m.currentNetNode = C.exec(C.CString("get_sta OneWifiMesh"), C.strlen(C.CString("get_ssid OneWifiMesh")), nil)
-        				spew.Fdump(m.dump, "Clients List")
-					} 
-						
-					treeNode := make([]etree.Node, 1)
-    				m.displayedNetNode = C.clone_network_tree_for_display(m.currentNetNode, nil, 0xffff, false)
-    				nodesToTree(m.displayedNetNode, &treeNode[0])
-					m.tree.SetNodes(treeNode)
+					m.execSelectedCommand(selectedItem.title, GET)
 				}
 			}
 /*
@@ -380,21 +390,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 */ 
 
         case "enter":
-           	if m.activeButton == 0 {
+           	if m.activeButton == BTN_UPDATE {
        			m.currentOperatingInstructions = "\n\n\t Editor Mode: Press 'OK' to apply settings, 'Cancel' to leave"
+            	if selectedItem, ok := m.list.SelectedItem().(item); ok {
+					m.execSelectedCommand(selectedItem.title, GETX)
+				}
 				m.tree.SetEditable(true)
-           	} else if m.activeButton == 1 {
+           	} else if m.activeButton == BTN_OK {
 				m.tree.SetEditable(false)
        			m.currentOperatingInstructions = "\n\n\t Press 'w' to scroll up, 's' to scroll down"
             	if selectedItem, ok := m.list.SelectedItem().(item); ok {
-					if selectedItem.title == "Network SSID List" { 
-						root := m.tree.Nodes()
-                   		C.exec(C.CString("set_ssid OneWifiMesh"), C.strlen(C.CString("set_ssid OneWifiMesh")), treeToNodes(&root[0]))
-					} else if selectedItem.title == "Radios" {
-
-					} 
+					m.execSelectedCommand(selectedItem.title, SET)
 				}
-           	} else if m.activeButton == 2 {
+           	} else if m.activeButton == BTN_CANCEL {
 				m.tree.SetEditable(false)
        			m.currentOperatingInstructions = "\n\n\t Press 'w' to scroll up, 's' to scroll down"
 			}
@@ -411,7 +419,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                 //C.dump_lib_dbg(str)
 
                 treeNode := make([]etree.Node, 1)
-                nodesToTree(m.displayedNetNode, &treeNode[0])
+                m.nodesToTree(m.displayedNetNode, &treeNode[0])
 				m.tree.SetNodes(treeNode)
             }
 
@@ -428,7 +436,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                 //C.dump_lib_dbg(str)
 
                 treeNode := make([]etree.Node, 1)
-                nodesToTree(m.displayedNetNode, &treeNode[0])
+                m.nodesToTree(m.displayedNetNode, &treeNode[0])
 				m.tree.SetNodes(treeNode)
             }
 
@@ -485,12 +493,15 @@ func (m model) View() string {
     updateButton := buttonStyle.Render("Update")
     okButton := buttonStyle.Render("OK")
     cancelButton := buttonStyle.Render("Cancel")
-    switch m.activeButton {
-        case 0:
+    
+	switch m.activeButton {
+        case BTN_UPDATE:
             updateButton = activeButtonStyle.Render("Update")
-        case 1:
+
+        case BTN_OK:
             okButton = activeButtonStyle.Render("OK")
-        case 2:
+
+        case BTN_CANCEL:
             cancelButton = activeButtonStyle.Render("Cancel")
     }
 
