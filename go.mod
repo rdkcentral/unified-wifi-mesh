@@ -7,6 +7,8 @@ require (
 	github.com/charmbracelet/bubbletea v1.2.4
 	github.com/charmbracelet/lipgloss v1.0.0
 	github.com/davecgh/go-spew v1.1.1
+	github.com/rdkcentral/unified-wifi-mesh/src/cli/etree v0.0.0-20241231191515-da76248f8ace
+	golang.org/x/term v0.27.0
 )
 
 require (
@@ -26,6 +28,5 @@ require (
 	github.com/sahilm/fuzzy v0.1.1 // indirect
 	golang.org/x/sync v0.9.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
-	golang.org/x/term v0.27.0 // indirect
 	golang.org/x/text v0.3.8 // indirect
 )
