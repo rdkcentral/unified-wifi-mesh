@@ -33,6 +33,11 @@ const (
 	RadioListCmd = 3
 	ChannelsListCmd = 4
 	ClientDevicesCmd = 5
+	NetworkPolicyCmd = 6
+	NeighborsListCmd = 7
+	SteerDevicesCmd = 8
+	NetworkMetricsCmd = 9
+	DeviceOnboardingCmd = 10
 
 	GET = 0
 	GETX = 1 
@@ -48,50 +53,40 @@ var (
     appStyle = lipgloss.NewStyle().Padding(1, 2)
 
     titleStyle = lipgloss.NewStyle().
-    Foreground(lipgloss.Color("#080563")).
-    Padding(1, 8).
-    Bold(true)
+    		Foreground(lipgloss.Color("#606060")).
+    		Bold(true)
 
-    menuBorderStyle = lipgloss.NewStyle().
-    Background(lipgloss.Color("#C1E5FB")).
-    Width(30)
+    menuBodyStyle = lipgloss.NewStyle().
+    		Background(lipgloss.Color("#ffffff"))
 
-    statusBorderStyle = lipgloss.NewStyle().
-    Background(lipgloss.Color("#79B4D7")).
-    Height(48)
+    viewBodyStyle = lipgloss.NewStyle().
+    		Background(lipgloss.Color("#ebebeb"))
 
     jsonStyle = lipgloss.NewStyle().
-    Border(lipgloss.RoundedBorder()).
-    //BorderForeground(lipgloss.Color("#080563")).
-    Background(lipgloss.Color("#FFFFFF")).
-    //Foreground(lipgloss.Color("#000000")).
-    Width(100).
-    //Padding(0, 10).
-    //MarginLeft(10).
-    MarginTop(2)
+    		Border(lipgloss.RoundedBorder()).
+    		Background(lipgloss.Color("#ffffff")).
+    		Foreground(lipgloss.Color("#ffffff"))
 
     listItemStyle = lipgloss.NewStyle().
-    Foreground(lipgloss.Color("#FFFFFF")).
-    Background(lipgloss.Color("#080563")). 
-    Width(25).
-    Align(lipgloss.Center) 
+    		Foreground(lipgloss.Color("#aaaaaa"))
 
 	activeItemStyle = listItemStyle.Copy().
-    Background(lipgloss.Color("39")).
-    Bold(true)
+    		Foreground(lipgloss.Color("#606060")).
+    		Align(lipgloss.Center).
+    		Bold(true)
 
     buttonStyle = lipgloss.NewStyle().
-    Foreground(lipgloss.Color("#FFFFFF")).
-    Background(lipgloss.Color("#080563")).
-    Padding(0, 1).
-    MarginRight(3).
-    Width(25).
-    Align(lipgloss.Center).
-    MarginBackground(lipgloss.Color("#79B4D7"))
+    		Foreground(lipgloss.Color("#ffffff")).
+    		Background(lipgloss.Color("#bfbfbf")).
+    		Padding(0, 1).
+    		MarginRight(3).
+    		Width(25).
+    		Align(lipgloss.Center).
+    		MarginBackground(lipgloss.Color("#ebebeb"))
 
     activeButtonStyle = buttonStyle.Copy().
-    Background(lipgloss.Color("39")).
-    Bold(true)
+    		Background(lipgloss.Color("#606060")).
+    		Bold(true)
 
 	styleDoc = lipgloss.NewStyle().Padding(1)
 )
@@ -103,7 +98,7 @@ type item struct {
 
 func (i item) Title() string {
     if i.isActive {
-        return activeButtonStyle.Render(i.title)
+        return activeItemStyle.Render(i.title)
     }
     return listItemStyle.Render(i.title)
 }
@@ -121,10 +116,16 @@ type EasyMeshCmd struct {
 
 var emCommands = map[int]EasyMeshCmd {
     NetworkTopologyCmd: 		{"Network Topology", "get_bss OneWifiMesh", "", "", ""},
-    NetworkSSIDListCmd: 	{"Network SSID List", "get_ssid OneWifiMesh", "get_ssid OneWifiMesh", "set_ssid OneWifiMesh", ""},
-    RadioListCmd: 			{"Wi-Fi Radios", "get_radio OneWifiMesh", "", "", ""},
-    ChannelsListCmd: 		{"Wi-Fi Channels", "get_channel OneWifiMesh", "get_channel OneWifiMesh 1", "set_channel OneWifiMesh", ""},
-    ClientDevicesCmd: 		{"Client Devices", "get_sta OneWifiMesh", "", "", ""},
+    NetworkPolicyCmd: 		{"Network Policy", "get_policy OneWifiMesh", "get_policy OneWifiMesh", "set_policy OneWifiMesh", ""},
+    NetworkSSIDListCmd: 	{"SSID List", "get_ssid OneWifiMesh", "get_ssid OneWifiMesh", "set_ssid OneWifiMesh", ""},
+    RadioListCmd: 			{"WiFi Radios", "get_radio OneWifiMesh", "", "", ""},
+    ChannelsListCmd: 		{"WiFi Channels", "get_channel OneWifiMesh", "get_channel OneWifiMesh 1", "set_channel OneWifiMesh", ""},
+    NeighborsListCmd: 		{"WiFi Neighbors", "get_channel OneWifiMesh", "get_channel OneWifiMesh 2", "scan_channel OneWifiMesh", ""},
+    ClientDevicesCmd: 		{"Client Connections", "get_sta OneWifiMesh", "", "", ""},
+    SteerDevicesCmd: 		{"Optimize Connections", "get_sta OneWifiMesh", "get_sta OneWifiMesh 1", "steer_sta OneWifiMesh", ""},
+    NetworkMetricsCmd: 		{"Network Metrics", "", "", "", ""},
+    DeviceOnboardingCmd: 		{"Onboarding & Provisioning", "", "", "", ""},
+	
 }
 
 type model struct {
@@ -134,15 +135,25 @@ type model struct {
     scrollContent []string
     scrollIndex   int
     activeButton  int
+	viewWidth		int
+	viewHeight		int
+	menuWidth		int
+	menuHeight		int
+	menuInstructionsHeight	int
+	bottomSpace	int
+	rightSpace	int
     tree   etree.Model
     currentNetNode   *C.em_network_node_t
     displayedNetNode   *C.em_network_node_t
     cursor int
 	quit	chan bool
+	ticker	*time.Ticker
+	timer	*time.Timer
     dump 	*os.File
 }
 
 func newModel() model {
+
 	var items []list.Item
 
 	for _, value := range emCommands {
@@ -176,6 +187,10 @@ func newModel() model {
     C.init_lib_dbg(C.CString("messages_lib.log"))
 
     return model{
+		menuWidth: 35,
+		menuInstructionsHeight: 3,
+		bottomSpace: 10,
+		rightSpace: 3,
         list:          commandList,
         statusMessage: "",
 		activeButton: BTN_CANCEL,
@@ -201,29 +216,34 @@ func (m model) Init() tea.Cmd {
 
 	C.init(params)
 
-	ticker := time.NewTicker(5 * time.Second)
+	m.timer = time.NewTimer(1 * time.Second)
+	m.ticker = time.NewTicker(5 * time.Second)
 	m.quit = make(chan bool)
 
-	go func() {
-		for {
-			select {
-				case <- ticker.C:
-					spew.Fdump(m.dump, "5 second timer fired")
-
-				case <- m.quit:
-					ticker.Stop()
-					return
-			}	
-		}
-    }()
-
-	if listItem, ok := m.list.Items()[0].(item); ok {
-    	listItem.isActive = 0 == m.list.Index()
-        m.list.SetItem(0, listItem)
-		m.execSelectedCommand(listItem.title, GET)
-   	}
+	m.list.Select(0)
+	go m.timerHandler()
 
     return textinput.Blink
+}
+
+func (m *model) timerHandler() {
+	for {
+		select {
+			case <- m.timer.C:
+				if listItem, ok := m.list.Items()[0].(item); ok {
+					spew.Fdump(m.dump, listItem.title)
+					m.execSelectedCommand(listItem.title, GET)
+   				}
+
+
+			case <- m.ticker.C:
+				spew.Fdump(m.dump, "5 second ticker fired")
+
+			case <- m.quit:
+				m.ticker.Stop()
+				return
+		}	
+	}
 }
 
 func (m model) treeToNodes(treeNode *etree.Node) *C.em_network_node_t {
@@ -344,9 +364,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
     switch msg := msg.(type) {
     case tea.WindowSizeMsg:
-        h, _ := appStyle.GetFrameSize()
-        menuHeight := 45
-        m.list.SetSize(msg.Width-h, menuHeight)
+        w, h:= appStyle.GetFrameSize()
+		spew.Fprintf(m.dump, "Frame Width: %d Frame Height: %d Msg Width: %d Msg Height: %d\n", 
+								w, h, msg.Width, msg.Height)
+
+		m.menuHeight = msg.Height - m.bottomSpace - m.menuInstructionsHeight
+		m.viewWidth = msg.Width - m.menuWidth - m.rightSpace
+		m.viewHeight = msg.Height - m.bottomSpace
 
     case tea.KeyMsg:
         switch msg.String() {
@@ -462,13 +486,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
+    m.list.SetSize(m.menuWidth, m.menuHeight)
     menuView := m.list.View()
 
     instructions := lipgloss.NewStyle().
-    Foreground(lipgloss.Color("#000000")).
-    Background(lipgloss.Color("#C1E5FB")).
-    Padding(1, 2).
-    Render("↑/k up ● ↓/j down ● q quit")
+    		Foreground(lipgloss.Color("#606060")).
+    		Background(lipgloss.Color("#FFFFFF")).
+    		Padding(1, 2).
+    		Render("↑/k up ● ↓/j down ● q quit")
 
     menuViewWithInstructions := lipgloss.JoinVertical(lipgloss.Left, menuView, instructions)
 		
@@ -482,7 +507,7 @@ func (m model) View() string {
             end = len(m.scrollContent)
         }
 
-		styledContent := jsonStyle.Render(strings.Join(m.scrollContent[m.scrollIndex:end], "\n"))
+		styledContent := jsonStyle.Width(m.viewWidth - 10).Render(strings.Join(m.scrollContent[m.scrollIndex:end], "\n"))
 
         //statusView = styledContent + "\n\n\t Press 'w' to scroll up, 's' to scroll down"
         statusView = styledContent + m.currentOperatingInstructions
@@ -511,15 +536,15 @@ func (m model) View() string {
 
     combinedView := lipgloss.JoinHorizontal(
         lipgloss.Top,
-        menuBorderStyle.Render(menuViewWithInstructions),
-        statusBorderStyle.Width(120).Render(statusView),
+        menuBodyStyle.Width(m.menuWidth).Height(m.menuHeight).Render(menuViewWithInstructions),
+        viewBodyStyle.Width(m.viewWidth).Height(m.viewHeight).Render(statusView),
     )
 
     commonBorderStyle := lipgloss.NewStyle().
-    Border(lipgloss.RoundedBorder()).
-    BorderForeground(lipgloss.Color("#080563")).
-    Padding(0).
-    Bold(true)
+    	Border(lipgloss.RoundedBorder()).
+    	BorderForeground(lipgloss.Color("#080563")).
+    	Padding(0).
+    	Bold(true)
 
     return commonBorderStyle.Render(combinedView)
 }
