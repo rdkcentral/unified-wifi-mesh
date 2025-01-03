@@ -450,6 +450,7 @@ int em_channel_t::send_channel_sel_response_msg(em_chan_sel_resp_code_type_t cod
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     em_channel_sel_rsp_t *resp;
+    em_prof2_error_t *prof2_error;
     unsigned char *tmp = buff;
     dm_easy_mesh_t *dm;
     unsigned short type = htons(ETH_P_1905);
@@ -498,8 +499,20 @@ int em_channel_t::send_channel_sel_response_msg(em_chan_sel_resp_code_type_t cod
 	memcpy(resp->ruid, get_radio_interface_mac(), sizeof(em_radio_id_t));
     memcpy(&resp->response_code, (unsigned char *)&code, sizeof(unsigned char));
 
+
     tmp += (sizeof(em_tlv_t) + sizeof(em_channel_sel_rsp_t));
     len += (sizeof(em_tlv_t) + sizeof(em_channel_sel_rsp_t));
+
+    //Zero or more Profile-2 Error Code TLV (see section 17.2.51)
+    tlv = (em_tlv_t *)tmp;
+	tlv->type = em_tlv_type_profile_2_error_code;
+	tlv->len = htons(sizeof(em_prof2_error_t));
+	prof2_error = (em_prof2_error_t *)tlv->value;
+    prof2_error->reason_code = em_prof2_error_code_reason_code_reserved;  // reason_code = 0x0
+
+    tmp += (sizeof(em_tlv_t) + sizeof(em_prof2_error_t));
+    len += (sizeof(em_tlv_t) + sizeof(em_prof2_error_t));
+
 	// End of message
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_eom;
