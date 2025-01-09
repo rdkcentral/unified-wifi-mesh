@@ -46,6 +46,65 @@
 
 extern char *global_netid;
 
+void em_mgr_t::io_process(em_bus_event_type_t type, char *data, unsigned int len)
+{
+    em_event_t *evt;
+    em_bus_event_t *bevt;
+
+    evt = (em_event_t *)malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN);
+    evt->type = em_event_type_bus;
+    bevt = &evt->u.bevt;
+    bevt->type = type;
+    bevt->data_len = len;
+    memcpy(bevt->u.subdoc.buff, data, len);
+
+    push_to_queue(evt);
+}
+
+void em_mgr_t::io_process(em_bus_event_type_t type, unsigned char *data, unsigned int len)
+{
+    em_event_t *evt;
+    em_bus_event_t *bevt;
+    
+    evt = (em_event_t *)malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN);
+    evt->type = em_event_type_bus;
+    bevt = &evt->u.bevt; 
+    bevt->type = type;
+    bevt->data_len = len;
+    memcpy(bevt->u.raw_buff, data, len);
+
+    push_to_queue(evt);
+}
+
+bool em_mgr_t::io_process(em_event_t *evt)
+{
+    em_event_t *e;
+    em_bus_event_t *bevt;
+    bool should_wait;
+
+    bevt = &evt->u.bevt;
+    //em_cmd_t::dump_bus_event(bevt);
+
+    e = (em_event_t *)malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN);
+    memcpy((unsigned char *)e, (unsigned char *)evt, EM_MAX_EVENT_DATA_LEN);
+
+    push_to_queue(e);
+
+    // check if the server should wait
+    should_wait = false;
+
+    switch (evt->type) {
+        case em_event_type_bus:
+            bevt = &evt->u.bevt;
+            if (bevt->type != em_bus_event_type_dm_commit) {
+                should_wait = true;
+            }
+            break;
+    }
+
+    return should_wait;
+}
+
 void em_mgr_t::proto_process(unsigned char *data, unsigned int len, em_t *al_em)
 {
     em_event_t	*evt;
@@ -60,7 +119,7 @@ void em_mgr_t::proto_process(unsigned char *data, unsigned int len, em_t *al_em)
     evt->type = em_event_type_frame;
     evt->u.fevt.frame = (unsigned char *)malloc(len);
     memcpy(evt->u.fevt.frame, data, len);
-    evt->u.fevt.len = len;
+    evt->u.fevt.frame_len = len;
     em->push_to_queue(evt);
 }
 

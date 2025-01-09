@@ -276,6 +276,7 @@ void em_ctrl_t::handle_get_dm_data(em_bus_event_t *evt)
     }
 
     m_data_model.get_config(params->u.args.args[1], &evt->u.subdoc);
+	evt->data_len = strlen(evt->u.subdoc.buff) + 1;
     m_ctrl_cmd->copy_bus_event(evt);
     m_ctrl_cmd->send_result(em_cmd_out_status_success);
 }        
@@ -391,9 +392,6 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
             break;
 
         case em_bus_event_type_dev_test:
-            handle_dev_test(evt);
-            break;
-
         case em_bus_event_type_get_network:
         case em_bus_event_type_get_ssid:
         case em_bus_event_type_get_channel:

@@ -40,37 +40,6 @@
 #include "util.h"
 
 
-bool em_agent_t::agent_input(void *data)
-{
-    em_event_t *evt; 
-    em_bus_event_t *inp;
-    bool ret = true;
-    em_bus_event_t *bevt;
-
-	inp = &((em_event_t *)data)->u.bevt;
-
-	if ((inp->type == em_bus_event_type_dev_init) || (inp->type == em_bus_event_type_sta_list) || (inp->type == em_bus_event_type_onewifi_private_cb) || (inp->type == em_bus_event_type_m2ctrl_configuration) || (inp->type == em_bus_event_type_cfg_renew) || (inp->type == em_bus_event_type_channel_pref_query) || (inp->type == em_bus_event_type_channel_sel_req) || (inp->type == em_bus_event_type_onewifi_radio_cb)
-        || (inp->type == em_bus_event_type_sta_link_metrics)
-        || (inp->type == em_bus_event_type_bss_tm_req)
-        || (inp->type == em_bus_event_type_btm_response)) {
-        evt = (em_event_t *)malloc(sizeof(em_event_t));
-        evt->type = em_event_type_bus;
-        bevt = &evt->u.bevt;
-        bevt->type = inp->type;
-        memcpy(&bevt->u.raw_buff, inp->u.raw_buff, sizeof(inp->u.raw_buff));
-    } else {
-        evt = em_cmd_agent_t::create_event((char *)inp->u.subdoc.buff);
-    }
-    if (evt != NULL) {
-        push_to_queue(evt);
-    } else {
-        if (strncmp(m_data_model_path, "sim", strlen("sim")) == 0) {
-            ret = false;
-        }
-    }
-    return ret;
-}
-
 bool em_agent_t::agent_output(void *data)
 {
     // send configuration to OneWifi after translating

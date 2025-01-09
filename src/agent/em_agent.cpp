@@ -400,8 +400,6 @@ void em_agent_t::input_listener()
 {
     wifi_bus_desc_t *desc;
     dm_easy_mesh_t dm;
-    em_event_t evt;
-    em_bus_event_t *bevt;
     raw_data_t data;
 
     bus_init(&m_bus_hdl);
@@ -426,11 +424,7 @@ void em_agent_t::input_listener()
         printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data.raw_data.bytes);
     }
 
-    bevt = &evt.u.bevt;
-    bevt->type = em_bus_event_type_dev_init;
-    memcpy(bevt->u.raw_buff, data.raw_data.bytes, data.raw_data_len);
-
-    g_agent.agent_input(&evt);
+    g_agent.io_process(em_bus_event_type_dev_init, (unsigned char *)data.raw_data.bytes, data.raw_data_len);
 
     if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_WEBCONFIG_DOC_DATA_NORTH, (void *)&em_agent_t::onewifi_cb, NULL, 0) != 0) {
         printf("%s:%d bus get failed\n", __func__, __LINE__);
@@ -457,18 +451,11 @@ void em_agent_t::input_listener()
 
 int em_agent_t::mgmt_action_frame_cb(char *event_name, raw_data_t *data)
 {
-    em_bus_event_t *bevt;
-    em_event_t evt;
     struct ieee80211_mgmt *btm_frame = (struct ieee80211_mgmt *)data->raw_data.bytes;
 
     //printf("Received Frame data for event %s \n", event_name);
-    if(btm_frame->u.action.u.bss_tm_resp.action == WLAN_WNM_BTM_RESPONSE)
-    {
-        bevt = &evt.u.bevt;
-        bevt->type = em_bus_event_type_btm_response;
-        memcpy(bevt->u.raw_buff, data->raw_data.bytes, data->raw_data_len);
-
-        g_agent.agent_input(&evt);
+    if (btm_frame->u.action.u.bss_tm_resp.action == WLAN_WNM_BTM_RESPONSE) {
+        g_agent.io_process(em_bus_event_type_btm_response, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
         return 1;
     }
@@ -479,8 +466,6 @@ int em_agent_t::mgmt_action_frame_cb(char *event_name, raw_data_t *data)
 int em_agent_t::assoc_stats_cb(char *event_name, raw_data_t *data)
 {
     //printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
-    em_event_t evt;
-    em_bus_event_t *bevt;
     cJSON *json, *assoc_stats_arr;
 
     json = cJSON_Parse((const char *)data->raw_data.bytes);
@@ -495,11 +480,7 @@ int em_agent_t::assoc_stats_cb(char *event_name, raw_data_t *data)
         }
     }
 
-    bevt = &evt.u.bevt;
-    bevt->type = em_bus_event_type_sta_link_metrics;
-    memcpy(bevt->u.raw_buff, data->raw_data.bytes, data->raw_data_len);
-
-    g_agent.agent_input(&evt);
+    g_agent.io_process(em_bus_event_type_sta_link_metrics, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
     return 1;
 }
@@ -507,21 +488,12 @@ int em_agent_t::assoc_stats_cb(char *event_name, raw_data_t *data)
 int em_agent_t::sta_cb(char *event_name, raw_data_t *data)
 {
     //printf("%s:%d Recv data from onewifi:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
-    em_event_t evt;
-    em_bus_event_t *bevt;
-
-    bevt = &evt.u.bevt;
-    bevt->type = em_bus_event_type_sta_list;
-    memcpy(bevt->u.raw_buff, data->raw_data.bytes, data->raw_data_len);
-
-    g_agent.agent_input(&evt);
+    g_agent.io_process(em_bus_event_type_sta_list, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
 }
 
 int em_agent_t::onewifi_cb(char *event_name, raw_data_t *data)
 {
-	em_event_t evt;
-	em_bus_event_t *bevt;
 	const char *json_data = (char *)data->raw_data.bytes;
 	cJSON *json = cJSON_Parse(json_data);
 
@@ -535,16 +507,12 @@ int em_agent_t::onewifi_cb(char *event_name, raw_data_t *data)
 			if ((strcmp(subdoc_name->valuestring, "private") == 0) || (strcmp(subdoc_name->valuestring, "Vap_5G") == 0) ||
 				(strcmp(subdoc_name->valuestring, "Vap_2.4G") == 0)) {
 				printf("%s:%d Found SubDocName: private\n", __func__, __LINE__);
-				bevt = &evt.u.bevt;
-				bevt->type = em_bus_event_type_onewifi_private_cb;
-				memcpy(bevt->u.raw_buff, data->raw_data.bytes, data->raw_data_len);
+				g_agent.io_process(em_bus_event_type_onewifi_private_cb, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
 			} else if ((strcmp(subdoc_name->valuestring, "radio") == 0) || (strcmp(subdoc_name->valuestring, "radio_5G") == 0) ||
 				(strcmp(subdoc_name->valuestring, "radio_2.4G") == 0)) {
 				printf("%s:%d Found SubDocName: radio\n", __func__, __LINE__);
-				bevt = &evt.u.bevt;
-				bevt->type = em_bus_event_type_onewifi_radio_cb;
-				memcpy(bevt->u.raw_buff, data->raw_data.bytes, data->raw_data_len);
+				g_agent.io_process(em_bus_event_type_onewifi_radio_cb, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
 			} else {
 				printf("%s:%d SubDocName not matching private or radio \n", __func__, __LINE__);
@@ -556,8 +524,6 @@ int em_agent_t::onewifi_cb(char *event_name, raw_data_t *data)
 
 		cJSON_Delete(json);
 	}
-
-	g_agent.agent_input(&evt);
 
 }
 

@@ -91,6 +91,8 @@ public:
     bool is_matching_freq_band(em_freq_band_t *band);
     void set_al_type(bool is_al_mac) {m_is_al_em = is_al_mac;}
 
+	em_mgr_t *get_mgr() { return m_mgr; }
+
     void orch_execute(em_cmd_t *pcmd);
     em_orch_state_t get_orch_state() { return m_orch_state; }
     void set_orch_state(em_orch_state_t state);

@@ -29,7 +29,7 @@ public:
     em_cmd_type_t   m_type;
     em_service_type_t   m_svc;
     em_cmd_params_t m_param;
-    em_event_t  m_evt;
+    em_event_t  *m_evt;
     em_string_t m_name;
     queue_t *m_em_candidates;
     dm_easy_mesh_t  m_data_model;
@@ -45,18 +45,22 @@ public:
 public:
     bool    validate();
 
-    char *status_to_string(em_cmd_out_status_t status, em_status_string_t str);
+    char *status_to_string(em_cmd_out_status_t status, char *str);
 
     em_cmd_type_t get_type() { return m_type; }
     const char *get_cmd_name() { return m_name; }
     const char *get_arg() { return m_param.u.args.fixed_args; }
     em_service_type_t get_svc() { return m_svc; }
-    em_event_t *get_event() { return &m_evt; }
+    em_event_t *get_event() { return m_evt; }
+    unsigned int get_event_length() { return (sizeof(em_event_t) + get_event_data_length()); }
+    unsigned int get_event_data_length();
+	void set_event_data_length(unsigned int len);
     em_cmd_params_t *get_param() { return &m_param; }
-    em_bus_event_t *get_bus_event() { return &m_evt.u.bevt; }
+    em_bus_event_t *get_bus_event() { return &m_evt->u.bevt; }
     dm_easy_mesh_t *get_data_model() { return &m_data_model; }
 
-    void copy_bus_event(em_bus_event_t *evt) { m_evt.type = em_event_type_bus; memcpy(&m_evt.u.bevt, evt, sizeof(em_bus_event_t)); }
+    void copy_bus_event(em_bus_event_t *evt);
+    void copy_frame_event(em_frame_event_t *evt);
 
     em_orch_desc_t *get_orch_desc() { return &m_orch_desc[m_orch_op_idx]; }
     dm_orch_type_t get_orch_op()  { return m_orch_desc[m_orch_op_idx].op; }
@@ -91,7 +95,7 @@ public:
 
     void set_start_time() { gettimeofday(&m_start_time, NULL);}
 
-    void reset() { memset(&m_evt, 0, sizeof(em_event_t)); memset(&m_param, 0, sizeof(em_cmd_params_t));; }
+    void reset() { memset(m_evt, 0, sizeof(em_event_t)); memset(&m_param, 0, sizeof(em_cmd_params_t));; }
     void init(dm_easy_mesh_t *dm);
     void init();
     void deinit();

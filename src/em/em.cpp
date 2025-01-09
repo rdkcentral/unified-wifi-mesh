@@ -392,7 +392,7 @@ void em_t::proto_run()
                 }
                 pthread_mutex_unlock(&m_iq.lock);
                 assert(evt->type == em_event_type_frame);
-                proto_process(evt->u.fevt.frame, evt->u.fevt.len);
+                proto_process(evt->u.fevt.frame, evt->u.fevt.frame_len);
                 free(evt);
                 pthread_mutex_lock(&m_iq.lock);
             }
