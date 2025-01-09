@@ -353,7 +353,10 @@ int dm_easy_mesh_t::encode_config_reset(em_subdoc_info_t *subdoc, const char *ke
 	
 	formatted_json = cJSON_Print(parent_obj);
     printf("%s:%d: %s\n", __func__, __LINE__, formatted_json);
-    snprintf(subdoc->buff,sizeof(em_subdoc_data_buff_t),"%s",cJSON_Print(parent_obj));
+    cJSON_free(formatted_json);
+    char* tmp = cJSON_Print(parent_obj);
+    snprintf(subdoc->buff,sizeof(em_subdoc_data_buff_t),"%s",tmp);
+    cJSON_free(tmp);
     cJSON_Delete(parent_obj);
     return 0;
 }
@@ -608,7 +611,10 @@ int dm_easy_mesh_t::encode_config_test(em_subdoc_info_t *subdoc, const char *key
 
 	formatted_json = cJSON_Print(parent_obj);
     printf("%s:%d: %s\n", __func__, __LINE__, formatted_json);
-    snprintf(subdoc->buff,sizeof(em_subdoc_data_buff_t),"%s",cJSON_Print(parent_obj));
+    cJSON_free(formatted_json);
+    char* tmp = cJSON_Print(parent_obj);
+    snprintf(subdoc->buff,sizeof(em_subdoc_data_buff_t),"%s",tmp);
+    cJSON_free(tmp);
     cJSON_Delete(parent_obj);
     return 0;
 }
@@ -1888,6 +1894,7 @@ void dm_easy_mesh_t::create_autoconfig_renew_json_cmd(char* src_mac_addr, char* 
     cJSON_AddItemToObject(root, "wfa-dataelements:Renew", renew);
     char* tmp = cJSON_Print(root);
     snprintf(autoconfig_renew_json, sizeof(autoconfig_renew_json), "%s", tmp);
+    cJSON_free(tmp);
     cJSON_Delete(root);
 }
 
@@ -1909,6 +1916,7 @@ void dm_easy_mesh_t::create_ap_cap_query_json_cmd(char* src_mac_addr, char* agen
     cJSON_AddItemToObject(root, "wfa-dataelements:Radiocap", query_info);
     char* tmp = cJSON_Print(root);
     snprintf(ap_query_json, sizeof(ap_query_json), "%s", tmp);
+    cJSON_free(tmp);
     cJSON_Delete(root);
 }
 
@@ -1931,6 +1939,7 @@ void dm_easy_mesh_t::create_client_cap_query_json_cmd(char* src_mac_addr, char* 
     cJSON_AddItemToObject(root, "wfa-dataelements:Clientcap", query_info);
     char* tmp = cJSON_Print(root);
     snprintf(ap_query_json, sizeof(ap_query_json), "%s", tmp);
+    cJSON_free(tmp);
     cJSON_Delete(root);
 }
 
