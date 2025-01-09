@@ -1341,21 +1341,17 @@ int em_channel_t::handle_eht_operations_tlv(unsigned char *buff, em_eht_operatio
 
 int em_channel_t::handle_channel_pref_query(unsigned char *buff, unsigned int len)
 {
-    em_event_t  ev;
-    em_bus_event_t *bev;
     em_cmdu_t *cmdu;
-    em_bus_event_type_channel_pref_query_params_t *params;
+    em_bus_event_type_channel_pref_query_params_t params;
 
     cmdu = (em_cmdu_t *)(buff + sizeof(em_raw_hdr_t));
 
-    ev.type = em_event_type_bus;
-    bev = &ev.u.bevt;
-    bev->type = em_bus_event_type_channel_pref_query;
-    params = (em_bus_event_type_channel_pref_query_params_t *) &bev->u.raw_buff;
-    memcpy(params->mac, get_radio_interface_mac(), sizeof(mac_address_t));
-    params->msg_id = ntohs(cmdu->id);
-    em_cmd_exec_t::send_cmd(em_service_type_agent, (unsigned char *)&ev, sizeof(em_event_t));
-    return 0;
+    memcpy(params.mac, get_radio_interface_mac(), sizeof(mac_address_t));
+    params.msg_id = ntohs(cmdu->id);
+   
+	get_mgr()->io_process(em_bus_event_type_channel_pref_query, (unsigned char *)&params, sizeof(em_bus_event_type_channel_pref_query_params_t)); 
+
+	return 0;
 }
 
 int em_channel_t::handle_channel_sel_req(unsigned char *buff, unsigned int len)
@@ -1363,32 +1359,23 @@ int em_channel_t::handle_channel_sel_req(unsigned char *buff, unsigned int len)
     em_tlv_t    *tlv;
     int tlv_len;
 
-    op_class_channel_sel *op_class;
-
-    em_event_t  ev;
-    em_bus_event_t *bev;
-    unsigned char* tmp = (unsigned char *) &ev.u.bevt.u.raw_buff;
-
-    ev.type = em_event_type_bus;
-    bev = &ev.u.bevt;
-    bev->type = em_bus_event_type_channel_sel_req;
-    op_class = (op_class_channel_sel *)&bev->u.raw_buff;
+    op_class_channel_sel op_class;
 
     tlv = (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tlv_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if (tlv->type == em_tlv_type_channel_pref) {
-            handle_channel_pref_tlv(tlv->value, op_class);
+            handle_channel_pref_tlv(tlv->value, &op_class);
         }
         if (tlv->type == em_tlv_type_tx_power) {
-			memcpy(&op_class->tx_power, tlv->value, sizeof(em_tx_power_limit_t));
+			memcpy(&op_class.tx_power, tlv->value, sizeof(em_tx_power_limit_t));
         }
         if (tlv->type == em_tlv_type_spatial_reuse_req) {
-            memcpy(&op_class->spatial_reuse_req, tlv->value, sizeof(em_spatial_reuse_req_t));
+            memcpy(&op_class.spatial_reuse_req, tlv->value, sizeof(em_spatial_reuse_req_t));
         }
         if (tlv->type == em_tlv_eht_operations) {
-            handle_eht_operations_tlv(tlv->value, &op_class->eht_ops);
+            handle_eht_operations_tlv(tlv->value, &op_class.eht_ops);
             break;
         }
 
@@ -1396,9 +1383,11 @@ int em_channel_t::handle_channel_sel_req(unsigned char *buff, unsigned int len)
         tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
-	op_class->freq_band = get_band();
-    em_cmd_exec_t::send_cmd(em_service_type_agent, (unsigned char *)&ev, sizeof(em_event_t));
-    printf("%s:%d Received channel selection request \n",__func__, __LINE__);
+	op_class.freq_band = get_band();
+   
+	get_mgr()->io_process(em_bus_event_type_channel_sel_req, (unsigned char *)&op_class, sizeof(op_class_channel_sel)); 
+    
+	printf("%s:%d Received channel selection request \n",__func__, __LINE__);
 
     return 0;
 }

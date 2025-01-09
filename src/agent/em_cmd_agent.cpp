@@ -55,9 +55,8 @@ int em_cmd_agent_t::execute(em_long_string_t result)
 {
     struct sockaddr_un addr;
     int ret, lsock, dsock;
-    unsigned int sz = sizeof(em_event_t), i, offset, iter;
+    unsigned int sz = EM_MAX_EVENT_DATA_LEN, i, offset, iter;
     unsigned char *tmp;
-    bool wait = false;
 
     m_cmd.reset();
 
@@ -90,30 +89,26 @@ int em_cmd_agent_t::execute(em_long_string_t result)
             continue;
         }
 
-        setsockopt(m_dsock, SOL_SOCKET, SO_SNDBUF, &sz, sizeof(sz)); // Send buffer 1K
-        setsockopt(m_dsock, SOL_SOCKET, SO_RCVBUF, &sz, sizeof(sz)); // Receive buffer 1K
+        setsockopt(m_dsock, SOL_SOCKET, SO_SNDBUF, &sz, sizeof(sz)); // Send buffer EM_MAX_EVENT_DATA_LEN
+        setsockopt(m_dsock, SOL_SOCKET, SO_RCVBUF, &sz, sizeof(sz)); // Receive buffer EM_MAX_EVENT_DATA_LEN
 
         printf("%s:%d: Connection accepted from client\n", __func__, __LINE__);
 
         tmp = (unsigned char *)get_event();
 
-        if ((ret = recv(m_dsock, tmp, sizeof(em_event_t), 0)) <= 0) {
+        if ((ret = recv(m_dsock, tmp, sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN, 0)) <= 0) {
             printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
             break;
         }
 
         switch (get_event()->type) {
             case em_event_type_bus:
-                wait = m_agent.agent_input(get_event());
+				//assert(0);
+                m_agent.io_process(get_event());
                 break;
 
             default:
-                wait = false;
                 break;
-        }
-
-        if (wait == false) {
-            send_result(em_cmd_out_status_other);
         }
 
         m_cmd.reset();
@@ -218,8 +213,8 @@ em_event_t *em_cmd_agent_t::create_event(char *buff)
     }
 
     memcpy(&bevt->params, &cmd->m_param, sizeof(em_cmd_params_t));
-    memcpy(&bevt->u.subdoc.buff, buff, EM_SUBDOC_BUFF_SZ-1);
-    bevt->u.subdoc.sz = strlen(buff);   
+    memcpy(&bevt->u.subdoc.buff, buff, EM_MAX_EVENT_DATA_LEN);
+    bevt->data_len = strlen(buff) + 1;   
     return evt;
 }
 

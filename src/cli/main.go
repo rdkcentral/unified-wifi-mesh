@@ -28,16 +28,19 @@ import (
 const (
 	linesToDisplay int = 38
 	
-	NetworkTopologyCmd = 1
-	NetworkSSIDListCmd = 2
-	RadioListCmd = 3
-	ChannelsListCmd = 4
-	ClientDevicesCmd = 5
-	NetworkPolicyCmd = 6
-	NeighborsListCmd = 7
-	SteerDevicesCmd = 8
-	NetworkMetricsCmd = 9
-	DeviceOnboardingCmd = 10
+	NetworkTopologyCmd = "Network Topology"
+	NetworkSSIDListCmd = "SSID List"
+	RadioListCmd = "WiFi Radios"
+	ChannelsListCmd = "WiFi Channels"
+	ClientDevicesCmd = "Client Connections"
+	NetworkPolicyCmd = "Network Policy"
+	NeighborsListCmd = "WiFi Neighbors"
+	SteerDevicesCmd = "Optimize Client Connections"
+	NetworkMetricsCmd = "Network Metrics"
+	DeviceOnboardingCmd = "Onboarding & Provisioning"
+	WiFiEventsCmd = "WiFi Events"
+	WiFiResetCmd = "WiFi Reset"
+	DebugCmd = "Debugging & Testing"
 
 	GET = 0
 	GETX = 1 
@@ -59,7 +62,7 @@ var (
     menuBodyStyle = lipgloss.NewStyle().
     		Background(lipgloss.Color("#ffffff"))
 
-    viewBodyStyle = lipgloss.NewStyle().
+    canvasStyle = lipgloss.NewStyle().
     		Background(lipgloss.Color("#ebebeb"))
 
     jsonStyle = lipgloss.NewStyle().
@@ -108,24 +111,27 @@ func (i item) FilterValue() string { return i.title }
 
 type EasyMeshCmd struct {
 	Title		string
+	LoadOrder	int
 	GetCommand		string
 	GetCommandEx		string
 	SetCommand		string
 	Help		string
 }
 
-var emCommands = map[int]EasyMeshCmd {
-    NetworkTopologyCmd: 		{"Network Topology", "get_bss OneWifiMesh", "", "", ""},
-    NetworkPolicyCmd: 		{"Network Policy", "get_policy OneWifiMesh", "get_policy OneWifiMesh", "set_policy OneWifiMesh", ""},
-    NetworkSSIDListCmd: 	{"SSID List", "get_ssid OneWifiMesh", "get_ssid OneWifiMesh", "set_ssid OneWifiMesh", ""},
-    RadioListCmd: 			{"WiFi Radios", "get_radio OneWifiMesh", "", "", ""},
-    ChannelsListCmd: 		{"WiFi Channels", "get_channel OneWifiMesh", "get_channel OneWifiMesh 1", "set_channel OneWifiMesh", ""},
-    NeighborsListCmd: 		{"WiFi Neighbors", "get_channel OneWifiMesh", "get_channel OneWifiMesh 2", "scan_channel OneWifiMesh", ""},
-    ClientDevicesCmd: 		{"Client Connections", "get_sta OneWifiMesh", "", "", ""},
-    SteerDevicesCmd: 		{"Optimize Connections", "get_sta OneWifiMesh", "get_sta OneWifiMesh 1", "steer_sta OneWifiMesh", ""},
-    NetworkMetricsCmd: 		{"Network Metrics", "", "", "", ""},
-    DeviceOnboardingCmd: 		{"Onboarding & Provisioning", "", "", "", ""},
-	
+var easyMeshCommands = map[string]EasyMeshCmd {
+    NetworkTopologyCmd: 		{NetworkTopologyCmd, 0, "get_bss OneWifiMesh", "", "", ""},
+    NetworkPolicyCmd: 		{NetworkPolicyCmd, 1, "get_policy OneWifiMesh", "get_policy OneWifiMesh", "set_policy OneWifiMesh", ""},
+    NetworkSSIDListCmd: 	{NetworkSSIDListCmd, 2, "get_ssid OneWifiMesh", "get_ssid OneWifiMesh", "set_ssid OneWifiMesh", ""},
+    RadioListCmd: 			{RadioListCmd, 3, "get_radio OneWifiMesh", "", "", ""},
+    ChannelsListCmd: 		{ChannelsListCmd, 4, "get_channel OneWifiMesh", "get_channel OneWifiMesh 1", "set_channel OneWifiMesh", ""},
+    NeighborsListCmd: 		{NeighborsListCmd, 5, "get_channel OneWifiMesh", "get_channel OneWifiMesh 2", "scan_channel OneWifiMesh", ""},
+    ClientDevicesCmd: 		{ClientDevicesCmd, 6, "get_sta OneWifiMesh", "", "", ""},
+    SteerDevicesCmd: 		{SteerDevicesCmd, 7, "get_sta OneWifiMesh", "get_sta OneWifiMesh 1", "steer_sta OneWifiMesh", ""},
+    NetworkMetricsCmd: 		{NetworkMetricsCmd, 8, "", "", "", ""},
+    DeviceOnboardingCmd: 		{DeviceOnboardingCmd, 9, "", "", "", ""},
+    WiFiEventsCmd: 		{WiFiEventsCmd, 10, "", "", "", ""},
+    WiFiResetCmd: 		{WiFiResetCmd, 11, "get_network OneWifiMesh", "", "", ""},
+    DebugCmd: 		{DebugCmd, 12, "dev_test OneWifiMesh", "", "", ""},
 }
 
 type model struct {
@@ -137,6 +143,8 @@ type model struct {
     activeButton  int
 	viewWidth		int
 	viewHeight		int
+	canvasWidth		int
+	canvasHeight		int
 	menuWidth		int
 	menuHeight		int
 	menuInstructionsHeight	int
@@ -145,7 +153,6 @@ type model struct {
     tree   etree.Model
     currentNetNode   *C.em_network_node_t
     displayedNetNode   *C.em_network_node_t
-    cursor int
 	quit	chan bool
 	ticker	*time.Ticker
 	timer	*time.Timer
@@ -156,8 +163,13 @@ func newModel() model {
 
 	var items []list.Item
 
-	for _, value := range emCommands {
-		items  = append(items, item{title: value.Title})
+	for i := 0; i < len(easyMeshCommands); i++ {
+		for _, value := range easyMeshCommands { 
+			if i == value.LoadOrder {
+				items  = append(items, item{title: value.Title})
+				break
+			}
+		}
 	}
 
     commandList := list.New(items, list.NewDefaultDelegate(), 0, 0)
@@ -237,7 +249,7 @@ func (m *model) timerHandler() {
 
 
 			case <- m.ticker.C:
-				spew.Fdump(m.dump, "5 second ticker fired")
+				//spew.Fdump(m.dump, "5 second ticker fired")
 
 			case <- m.quit:
 				m.ticker.Stop()
@@ -257,7 +269,7 @@ func (m model) treeToNodes(treeNode *etree.Node) *C.em_network_node_t {
 	if value == "" {
 		value = treeNode.Value.Placeholder
 	}
-
+		
 	if treeNode.Type == etree.NodeTypeArrayStr || treeNode.Type == etree.NodeTypeArrayNum {
 		C.set_node_array_value(netNode, C.CString(value))
 	} else {
@@ -305,7 +317,10 @@ func (m model) nodesToTree(netNode *C.em_network_node_t, treeNode *etree.Node) {
                     m.nodesToTree(childNetNode, &treeNode.Children[i])
                 }
             }
-        }
+        } else {
+			treeNode.Type = int(C.em_network_node_data_type_array_obj)
+			treeNode.Value.Placeholder = "[]"
+		}
 
     } else if ((nodeType == C.em_network_node_data_type_string) || (nodeType == C.em_network_node_data_type_number) ||
     				(nodeType == C.em_network_node_data_type_false) || (nodeType == C.em_network_node_data_type_true)) {
@@ -328,21 +343,23 @@ func (m model) nodesToTree(netNode *C.em_network_node_t, treeNode *etree.Node) {
 }
 
 func (m *model) execSelectedCommand(cmdStr string, cmdType int) {
-	for _, value := range emCommands {
+	for _, value := range easyMeshCommands {
 		if cmdStr == value.Title {
 			switch cmdType {
 				case GET:
 					m.currentNetNode = C.exec(C.CString(value.GetCommand), C.strlen(C.CString(value.GetCommand)), nil)	
-        			spew.Fdump(m.dump, value.GetCommand)
+        			//spew.Fdump(m.dump, value.GetCommand)
 					treeNode := make([]etree.Node, 1)
                     m.displayedNetNode = C.clone_network_tree_for_display(m.currentNetNode, nil, 0xffff, false)
                     m.nodesToTree(m.displayedNetNode, &treeNode[0])
                     m.tree.SetNodes(treeNode)
+                	//str := C.get_network_tree_string(m.displayedNetNode)
+					//C.dump_lib_dbg(str)
 
 				case GETX:
 					if value.GetCommandEx != "" {
 						m.currentNetNode = C.exec(C.CString(value.GetCommandEx), C.strlen(C.CString(value.GetCommandEx)), nil)	
-        				spew.Fdump(m.dump, value.GetCommandEx)
+        				//spew.Fdump(m.dump, value.GetCommandEx)
 						treeNode := make([]etree.Node, 1)
                     	m.displayedNetNode = C.clone_network_tree_for_display(m.currentNetNode, nil, 0xffff, false)
                     	m.nodesToTree(m.displayedNetNode, &treeNode[0])
@@ -357,10 +374,13 @@ func (m *model) execSelectedCommand(cmdStr string, cmdType int) {
 			}
 		}
 	}
+
+	m.scrollIndex = 0
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     var cmds []tea.Cmd
+	var cmd tea.Cmd
 
     switch msg := msg.(type) {
     case tea.WindowSizeMsg:
@@ -369,8 +389,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 								w, h, msg.Width, msg.Height)
 
 		m.menuHeight = msg.Height - m.bottomSpace - m.menuInstructionsHeight
-		m.viewWidth = msg.Width - m.menuWidth - m.rightSpace
-		m.viewHeight = msg.Height - m.bottomSpace
+		m.canvasWidth = msg.Width - m.menuWidth - m.rightSpace
+		m.canvasHeight = msg.Height - m.bottomSpace
 
     case tea.KeyMsg:
         switch msg.String() {
@@ -395,24 +415,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.execSelectedCommand(selectedItem.title, GET)
 				}
 			}
-/*
-        case "down":
-            if m.cursor > 0 {
-                m.cursor--
-                if m.cursor < m.scrollIndex {
-                    m.scrollIndex--
-                }
-            }
+        
+		case "down":
+			if m.scrollIndex < m.tree.Cursor() {
+				m.scrollIndex++
+			}
+			spew.Fprintf(m.dump, "down: %d\n", m.scrollIndex);
         
         case "up":
-            if m.cursor < len(m.scrollContent) - 1 {
-                m.cursor++
-                if m.cursor >= m.scrollIndex + linesToDisplay {
-                    m.scrollIndex++
-                }
-            }  
-*/ 
-
+			if m.scrollIndex > 0 {
+				m.scrollIndex--
+			}
+			spew.Fprintf(m.dump, "up: %d\n", m.scrollIndex);
+            	
         case "enter":
            	if m.activeButton == BTN_UPDATE {
        			m.currentOperatingInstructions = "\n\n\t Editor Mode: Press 'OK' to apply settings, 'Cancel' to leave"
@@ -477,7 +492,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             cmds = append(cmds, cmd)
         }
     }
-	var cmd tea.Cmd
 
 	m.tree, cmd = m.tree.Update(msg)
 	cmds = append(cmds, cmd)
@@ -496,24 +510,36 @@ func (m model) View() string {
     		Render("↑/k up ● ↓/j down ● q quit")
 
     menuViewWithInstructions := lipgloss.JoinVertical(lipgloss.Left, menuView, instructions)
-		
-	content := m.tree.TreeView()
-	m.scrollContent = splitIntoLines(content)
+	
+	m.viewWidth = m.canvasWidth - 10
+
+	if m.canvasHeight > 10 {
+		m.viewHeight = m.canvasHeight - 10
+	} else {
+		m.viewHeight = m.canvasHeight
+	}
+
+    m.tree.SetSize(m.viewWidth, m.viewHeight)
+	
+	m.scrollContent = splitIntoLines(m.tree.TreeView())
 
     var statusView string
-    if len(m.scrollContent) > 0 {
-        end := m.scrollIndex + linesToDisplay
-        if end > len(m.scrollContent) {
-            end = len(m.scrollContent)
-        }
 
-		styledContent := jsonStyle.Width(m.viewWidth - 10).Render(strings.Join(m.scrollContent[m.scrollIndex:end], "\n"))
+	start := 0
 
-        //statusView = styledContent + "\n\n\t Press 'w' to scroll up, 's' to scroll down"
-        statusView = styledContent + m.currentOperatingInstructions
-    } else {
-        statusView = m.statusMessage
-    }
+	if m.scrollIndex > m.viewHeight {
+		start = m.scrollIndex - m.viewHeight
+	}
+
+	end := len(m.scrollContent) - 1
+	if end > start + m.viewHeight {
+		end = start + m.viewHeight
+	}
+
+	spew.Fprintf(m.dump, "start: %d end: %d\n", start, end)
+	 
+	styledContent := jsonStyle.Width(m.viewWidth).Height(m.viewHeight).Render(strings.Join(m.scrollContent[start:end], "\n"))
+	statusView = styledContent + m.currentOperatingInstructions
     
     updateButton := buttonStyle.Render("Update")
     okButton := buttonStyle.Render("OK")
@@ -537,7 +563,7 @@ func (m model) View() string {
     combinedView := lipgloss.JoinHorizontal(
         lipgloss.Top,
         menuBodyStyle.Width(m.menuWidth).Height(m.menuHeight).Render(menuViewWithInstructions),
-        viewBodyStyle.Width(m.viewWidth).Height(m.viewHeight).Render(statusView),
+        canvasStyle.Width(m.canvasWidth).Height(m.canvasHeight).Render(statusView),
     )
 
     commonBorderStyle := lipgloss.NewStyle().

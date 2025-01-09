@@ -440,8 +440,6 @@ int em_steering_t::handle_client_steering_req(unsigned char *buff, unsigned int 
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     em_steering_req_t *steer_req;
     mac_addr_str_t mac_str;
-    em_event_t  ev;
-    em_bus_event_t *bev;
     int tlv_len = 0;
 
     if (em_msg_t(em_msg_type_client_steering_req, em_profile_type_2, buff, len).validate(errors) == 0) {
@@ -453,14 +451,10 @@ int em_steering_t::handle_client_steering_req(unsigned char *buff, unsigned int 
     tlv_len = ntohs(tlv->len);
     steer_req =  (em_steering_req_t *)&tlv->value;
 
-    ev.type = em_event_type_bus;
-    bev = &ev.u.bevt;
-    bev->type = em_bus_event_type_bss_tm_req;
-    memcpy(bev->u.raw_buff, steer_req, tlv_len);
-
     dm_easy_mesh_t::macbytes_to_string(steer_req->sta_mac_addr, mac_str);
     printf("%s:%d Recived steer req for sta=%s\n", __func__, __LINE__, mac_str);
-    em_cmd_exec_t::send_cmd(em_service_type_agent, (unsigned char *)&ev, sizeof(em_event_t));
+    
+	get_mgr()->io_process(em_bus_event_type_bss_tm_req, (unsigned char *)steer_req, sizeof(em_steering_req_t));
 
     send_1905_ack_message(steer_req->sta_mac_addr);
 

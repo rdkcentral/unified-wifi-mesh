@@ -77,9 +77,7 @@ extern "C"
 #define EM_MAX_STA_PER_STEER_POLICY        16 
 #define EM_MAX_STA_PER_AGENT       (EM_MAX_RADIO_PER_AGENT * EM_MAX_STA_PER_BSS)
 
-//#define   EM_SUBDOC_BUFF_SZ   4096*100
-#define EM_BUFF_SZ_MUL  20
-#define EM_SUBDOC_BUFF_SZ   EM_IO_BUFF_SZ*EM_BUFF_SZ_MUL
+#define   EM_MAX_EVENT_DATA_LEN   4096*100
 #define EM_MAX_CHANNELS_IN_LIST  9
 #define EM_MAX_CMD_GEN_TTL  10
 #define EM_MAX_CMD_EXT_TTL  30
@@ -208,9 +206,9 @@ typedef char    em_string_t[16];
 typedef char    em_small_string_t[8];
 typedef char    em_tiny_string_t[4];
 typedef char    em_subdoc_name_space_t[64];
-typedef char    em_subdoc_data_buff_t[EM_SUBDOC_BUFF_SZ];
+typedef char    em_subdoc_data_buff_t[0];
 typedef char    em_status_string_t[EM_IO_BUFF_SZ];
-typedef unsigned	char    em_raw_data_t[EM_SUBDOC_BUFF_SZ];
+typedef unsigned	char    em_raw_data_t[0];
 
 
 typedef struct {
@@ -1849,8 +1847,8 @@ typedef enum {
 } em_event_type_t;
 
 typedef struct {
+    unsigned int frame_len;
     unsigned char *frame;
-    unsigned int len;
 } __attribute__((__packed__)) em_frame_info_t;
 
 typedef struct {
@@ -2426,7 +2424,6 @@ typedef enum {
 typedef struct {
     em_subdoc_name_space_t  name;
     em_subdoc_data_buff_t   buff;
-    int sz;
 } __attribute__((__packed__)) em_subdoc_info_t;
 
 typedef struct {
@@ -2690,6 +2687,7 @@ typedef struct {
 typedef struct {
     em_bus_event_type_t type;
     em_cmd_params_t params;
+	unsigned int data_len;
     union {
         em_subdoc_info_t    subdoc;
         em_commit_info_t	commit;

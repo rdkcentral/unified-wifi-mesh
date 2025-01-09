@@ -28,6 +28,7 @@ class em_channel_t {
 	virtual int push_event(em_event_t *evt) = 0;
 
 public:
+	virtual em_mgr_t *get_mgr() = 0;
     virtual dm_easy_mesh_t *get_data_model() = 0;
     virtual unsigned char *get_radio_interface_mac() = 0;
     virtual em_state_t get_state() = 0;

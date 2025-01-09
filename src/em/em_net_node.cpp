@@ -61,6 +61,8 @@ char *em_net_node_t::get_node_array_value(em_network_node_t *node, em_network_no
     memset(str, 0, sizeof(em_long_string_t));
 
     if (node->num_children == 0) {
+		snprintf(str, sizeof(em_long_string_t), "[]");
+		*type = em_network_node_data_type_array_str;
         return str;
     }
 
@@ -105,8 +107,13 @@ void em_net_node_t::set_node_array_value(em_network_node_t *node, char *fmt)
 	}
 		
 	tmp++;
+
+	if (*tmp == ']') {
+		node->num_children = 0;
+		return;
+	}
+		
 	strncpy(value, tmp, strlen(tmp) + 1);
-	value[strlen(value) - 2] = 0;
 
 	tmp = value;
 	remain = value;
@@ -129,6 +136,9 @@ void em_net_node_t::set_node_array_value(em_network_node_t *node, char *fmt)
 		remain = tmp + 2;	
 	}
 
+	if ((tmp = strchr(remain, ']')) != NULL) {
+		*tmp = 0;
+	}
 
 	node->child[node->num_children] = (em_network_node_t *)malloc(sizeof(em_network_node_t));
 	memset(node->child[node->num_children], 0, sizeof(em_network_node_t));
@@ -419,8 +429,6 @@ void *em_net_node_t::network_tree_to_json(em_network_node_t *root)
         network_tree_node_to_json(root->child[i], obj);	
     }
 
-    //printf("%s:%d: %s\n", __func__, __LINE__, cJSON_Print(obj));
-
     return obj;	
 }
 
@@ -490,6 +498,10 @@ em_network_node_t *em_net_node_t::get_network_tree(char *buff)
     cJSON *root_obj = NULL;
     em_network_node_t *root;
     unsigned int node_display_ctr = 0;
+
+	if ((buff == NULL) || (*buff == 0)) {
+		return NULL;
+	}
 
     if ((root_obj = cJSON_Parse(buff)) == NULL) {
         return NULL;

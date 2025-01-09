@@ -40,11 +40,11 @@
 #include <cjson/cJSON.h>
 #include "em_cmd_ctrl.h"
 
-int em_cmd_ctrl_t::execute(em_long_string_t result)
+int em_cmd_ctrl_t::execute(char *result)
 {
     struct sockaddr_un addr;
     int ret, lsock, dsock;
-    unsigned int sz = sizeof(em_event_t);
+    unsigned int sz = sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN;
     unsigned char *tmp;
     bool wait = false;
 
@@ -81,21 +81,19 @@ int em_cmd_ctrl_t::execute(em_long_string_t result)
             continue;
         }
 
-        setsockopt(m_dsock, SOL_SOCKET, SO_SNDBUF, &sz, sizeof(sz)); // Send buffer 1K
-        setsockopt(m_dsock, SOL_SOCKET, SO_RCVBUF, &sz, sizeof(sz)); // Receive buffer 1K
+        setsockopt(m_dsock, SOL_SOCKET, SO_SNDBUF, &sz, sizeof(sz)); // Send buffer EM_MAX_EVENT_DATA_LEN
+        setsockopt(m_dsock, SOL_SOCKET, SO_RCVBUF, &sz, sizeof(sz)); // Receive buffer EM_MAX_EVENT_DATA_LEN
 
         //printf("%s:%d: Connection accepted from client\n", __func__, __LINE__);
 
         tmp = (unsigned char *)get_event();
 
-            if ((ret = recv(m_dsock, tmp, sizeof(em_event_t), 0)) <= 0) {
-                printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
-            }
-
+		if ((ret = recv(m_dsock, tmp, sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN, 0)) <= 0) {
+			printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
+		}
 
         //printf("%s:%d: Read bytes: %d Size: %d Name: %s Buff: %s\n", __func__, __LINE__, ret, 
-        			//get_event()->u.bevt.u.subdoc.sz, get_event()->u.bevt.u.subdoc.name, get_event()->u.bevt.u.subdoc.buff);
-        //printf("%s:%d: Read bytes: %d\n", __func__, __LINE__, ret);
+        	//get_event()->u.bevt.data_len, get_event()->u.bevt.u.subdoc.name, get_event()->u.bevt.u.subdoc.buff);
         
         switch (get_event()->type) {
             case em_event_type_bus:
@@ -124,16 +122,22 @@ int em_cmd_ctrl_t::execute(em_long_string_t result)
 int em_cmd_ctrl_t::send_result(em_cmd_out_status_t status)
 {
     int ret;
-    em_status_string_t str; 
+    char *str; 
     unsigned char *tmp;
+
+	str = (char *)malloc(EM_MAX_EVENT_DATA_LEN);
+	memset(str, 0, EM_MAX_EVENT_DATA_LEN);
 
     tmp = (unsigned char *)m_cmd.status_to_string(status, str);
 
-    if ((ret = send(m_dsock, tmp, sizeof(em_status_string_t), 0)) <= 0) {
+    if ((ret = send(m_dsock, tmp, strlen(str) + 1, 0)) <= 0) {
         printf("%s:%d: write error on socket, err:%d\n", __func__, __LINE__, errno);
     }
 
+	//printf("%s:%d: Send success bytes sent:%d\n", __func__, __LINE__, ret);
+
     close(m_dsock);
+	free(str);
 
     return 0;
 }

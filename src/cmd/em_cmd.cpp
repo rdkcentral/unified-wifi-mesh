@@ -50,7 +50,67 @@ bool em_cmd_t::validate()
 
 }
 
-char *em_cmd_t::status_to_string(em_cmd_out_status_t status, em_status_string_t str)
+unsigned int em_cmd_t::get_event_data_length()
+{
+	em_frame_event_t *fevt;
+	em_bus_event_t *bevt;
+	unsigned int sz = 0;
+
+	switch (m_evt->type) {
+		case em_event_type_frame:
+			fevt = &m_evt->u.fevt;
+			sz = fevt->frame_len;
+			break;
+
+		case em_event_type_bus:
+			bevt = &m_evt->u.bevt;
+			sz = bevt->data_len;
+			break;
+	}
+
+	return sz;
+}
+
+void em_cmd_t::set_event_data_length(unsigned int len)
+{
+	em_frame_event_t *fevt;
+    em_bus_event_t *bevt;
+    unsigned int sz = 0;
+    
+    switch (m_evt->type) {
+        case em_event_type_frame:
+            fevt = &m_evt->u.fevt;
+			fevt->frame_len = len;
+            break;
+        
+        case em_event_type_bus:
+            bevt = &m_evt->u.bevt;
+			bevt->data_len = len;
+            break;
+    }
+}
+
+void em_cmd_t::copy_bus_event(em_bus_event_t *evt)
+{
+	em_bus_event_t *bevt;
+
+	m_evt->type = em_event_type_bus;
+	bevt = &m_evt->u.bevt;
+	memcpy(bevt, evt, sizeof(em_bus_event_t));
+	memcpy(bevt->u.subdoc.buff, evt->u.subdoc.buff, evt->data_len);			
+}	
+
+void em_cmd_t::copy_frame_event(em_frame_event_t *evt)
+{
+	em_frame_event_t *fevt;
+
+	m_evt->type = em_event_type_frame;
+	fevt = &m_evt->u.fevt;
+	memcpy(fevt, evt, sizeof(em_frame_event_t));
+	memcpy(fevt->frame, evt->frame, evt->frame_len);			
+}	
+
+char *em_cmd_t::status_to_string(em_cmd_out_status_t status, char *str)
 {
     cJSON *obj, *res = NULL;
     em_long_string_t status_str;
@@ -120,6 +180,7 @@ void em_cmd_t::deinit()
 {
     queue_destroy(m_em_candidates);
     m_data_model.deinit();
+	//free(m_evt);
 }
 
 void em_cmd_t::init(dm_easy_mesh_t *dm)
@@ -192,6 +253,8 @@ void em_cmd_t::override_op(unsigned int index, em_orch_desc_t *desc)
 
 void em_cmd_t::init()
 {
+	//m_evt = (em_event_t *)malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN);
+
     switch (m_type) {
         case em_cmd_type_none:
             snprintf(m_name, sizeof(m_name), "%s", "none");
@@ -711,11 +774,11 @@ em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param)
 
 em_cmd_t::em_cmd_t()
 {
-
+	m_evt = (em_event_t *)malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN);
 }
 
 em_cmd_t::~em_cmd_t()
 {
-
+	free(m_evt);	
 }
 

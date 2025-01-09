@@ -95,7 +95,6 @@ public:
     static int mgmt_action_frame_cb(char *event_name, raw_data_t *data);
     void *get_assoc(void*);
     void io(void *data, bool input = true);
-    bool agent_input(void *data);
     bool agent_output(void *data);
     
     em_agent_t();

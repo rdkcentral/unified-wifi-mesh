@@ -179,7 +179,8 @@ em_cmd_t& em_cli_t::get_command(char *in, size_t in_len, em_network_node_t *node
 em_network_node_t *em_cli_t::exec(char *in, size_t sz, em_network_node_t *node)
 {
     em_long_string_t cmd;
-    em_status_string_t res;
+    char *result;
+	em_network_node_t *new_node;
     em_cmd_cli_t *cli_cmd;
 
     snprintf(cmd, sizeof(cmd),  "%s", in);
@@ -187,18 +188,24 @@ em_network_node_t *em_cli_t::exec(char *in, size_t sz, em_network_node_t *node)
 
     cli_cmd->init();
 
+	result = (char *)malloc(EM_MAX_EVENT_DATA_LEN);
+	memset(result, 0, EM_MAX_EVENT_DATA_LEN);
+
     if (cli_cmd->validate() == false) {
-        cli_cmd->m_cmd.status_to_string(em_cmd_out_status_invalid_input, res);
+        cli_cmd->m_cmd.status_to_string(em_cmd_out_status_invalid_input, result);
     } else {
-        if (cli_cmd->execute(res) != 0) {
-            cli_cmd->m_cmd.status_to_string(em_cmd_out_status_invalid_input, res);
+        if (cli_cmd->execute(result) != 0) {
+            cli_cmd->m_cmd.status_to_string(em_cmd_out_status_invalid_input, result);
 
         }
     }
 
     delete cli_cmd;
 
-    return em_net_node_t::get_network_tree(res);	
+    new_node = em_net_node_t::get_network_tree(result);	
+	free(result);
+
+	return new_node;
 }
 
 void em_cli_t::init_lib_dbg(char *file_name)

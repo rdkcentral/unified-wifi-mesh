@@ -1011,9 +1011,7 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
     dm_sta_t *sta;
     em_client_assoc_event_t *assoc_evt_tlv;
     em_sta_info_t sta_info;
-    em_event_t  ev;
-    em_bus_event_t *bev;
-    em_bus_event_type_client_assoc_params_t    *raw;
+    em_bus_event_type_client_assoc_params_t    raw;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     bool eligible_to_req_cap = false;
 
@@ -1067,14 +1065,11 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
 
             // if associated for first time, orchestrate a client capability query/response
             if(eligible_to_req_cap == true) {
-                ev.type = em_event_type_bus;
-                bev = &ev.u.bevt;
-                bev->type = em_bus_event_type_sta_assoc;
-                raw = (em_bus_event_type_client_assoc_params_t *)bev->u.raw_buff;
-                memcpy(raw->dev, dev_mac, sizeof(mac_address_t));
-                memcpy((unsigned char *)&raw->assoc, (unsigned char *)assoc_evt_tlv, sizeof(em_client_assoc_event_t));
+                memcpy(raw.dev, dev_mac, sizeof(mac_address_t));
+                memcpy((unsigned char *)&raw.assoc, (unsigned char *)assoc_evt_tlv, sizeof(em_client_assoc_event_t));
 
-                em_cmd_exec_t::send_cmd(em_service_type_ctrl, (unsigned char *)&ev, sizeof(em_event_t));
+				get_mgr()->io_process(em_bus_event_type_sta_assoc, (unsigned char *)&raw, sizeof(em_bus_event_type_client_assoc_params_t));
+
             } else {
                 memset(&sta_info, 0, sizeof(em_sta_info_t));
                 memcpy(sta_info.id, assoc_evt_tlv->cli_mac_address, sizeof(mac_address_t));
@@ -2374,13 +2369,9 @@ int em_configuration_t::handle_encrypted_settings()
     unsigned short plain_len;
     unsigned short authtype;
     unsigned int index = 0;
-    m2ctrl_vapconfig *vapconfig;
-    em_event_t  ev;
-    em_bus_event_t *bev;
+    m2ctrl_vapconfig vapconfig;
     plain = m_m2_encrypted_settings + AES_BLOCK_SIZE;
     plain_len = m_m2_encrypted_settings_len - AES_BLOCK_SIZE;
-    //ev = (em_event_t *)malloc(sizeof(em_event_t));
-    memset(&ev,0,sizeof(em_event_t));
     // first decrypt the encrypted m2 data
 
     if (em_crypto_t::platform_aes_128_cbc_decrypt(m_key_wrap_key, m_m2_encrypted_settings, plain, plain_len) != 1) {
@@ -2388,14 +2379,10 @@ int em_configuration_t::handle_encrypted_settings()
         return 0;
     }
 
-    ev.type = em_event_type_bus;
-    bev = &ev.u.bevt;
-    bev->type = em_bus_event_type_m2ctrl_configuration;
-    vapconfig = (m2ctrl_vapconfig *)&bev->u.raw_buff;
     attr = (data_elem_attr_t *)plain;
     tmp_len = plain_len;
-	memcpy(vapconfig->mac, get_radio_interface_mac(), sizeof(mac_address_t));
-    vapconfig->freq = get_band();
+	memcpy(vapconfig.mac, get_radio_interface_mac(), sizeof(mac_address_t));
+    vapconfig.freq = get_band();
 
     while (tmp_len > 0) {
 
@@ -2403,34 +2390,36 @@ int em_configuration_t::handle_encrypted_settings()
 
         if (id == attr_id_ssid) {
             memcpy(ssid, attr->val, htons(attr->len));
-            memcpy(vapconfig->ssid, attr->val, htons(attr->len));
-            vapconfig->enable = true;
+            memcpy(vapconfig.ssid, attr->val, htons(attr->len));
+            vapconfig.enable = true;
             printf("%s:%d: ssid attrib: %s\n", __func__, __LINE__, ssid);
         } else if (id == attr_id_auth_type) {
             printf("%s:%d: auth type attrib\n", __func__, __LINE__);
             authtype = attr->val[0];
-            vapconfig->authtype = attr->val[0];
+            vapconfig.authtype = attr->val[0];
         } else if (id == attr_id_encryption_type) {
             printf("%s:%d: encr type attrib\n", __func__, __LINE__);
         } else if (id == attr_id_network_key) {
             memcpy(pass, attr->val, htons(attr->len));
-            memcpy(vapconfig->password, attr->val, htons(attr->len));
+            memcpy(vapconfig.password, attr->val, htons(attr->len));
             printf("%s:%d: network key attrib: %s\n", __func__, __LINE__, pass);
         } else if (id == attr_id_mac_address) {
             dm_easy_mesh_t::macbytes_to_string(attr->val, mac_str);
             printf("%s:%d: mac address attrib: %s\n", __func__, __LINE__, mac_str);
-            memcpy(vapconfig->mac, attr->val, sizeof(mac_address_t));
+            memcpy(vapconfig.mac, attr->val, sizeof(mac_address_t));
         } else if (id == attr_id_key_wrap_authenticator) {
             printf("%s:%d: key wrap auth attrib\n", __func__, __LINE__);
-            vapconfig->key_wrap_authenticator = attr->val[0];
+            vapconfig.key_wrap_authenticator = attr->val[0];
         }
 
         tmp_len -= (sizeof(data_elem_attr_t) + htons(attr->len));
         attr = (data_elem_attr_t *)((unsigned char *)attr + sizeof(data_elem_attr_t) + htons(attr->len));
     }
 
-    printf("%s:%d Recived new config ssid=%s mode=%d pass=%s \n", __func__, __LINE__,vapconfig->ssid,vapconfig->authtype,vapconfig->password);
-    em_cmd_exec_t::send_cmd(em_service_type_agent, (unsigned char *)&ev, sizeof(em_event_t));
+    printf("%s:%d Recived new config ssid=%s mode=%d pass=%s \n", __func__, __LINE__,vapconfig.ssid,vapconfig.authtype,vapconfig.password);
+
+	get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, (unsigned char *)&vapconfig, sizeof(vapconfig));
+
     set_state(em_state_agent_owconfig_pending);
     return ret;
 }
@@ -2677,11 +2666,7 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
     mac_addr_str_t  mac_str;
     em_tlv_t    *tlv;
     int tlv_len;
-    //dm_easy_mesh_t *dm;
-    //dm_device_t *dev;
-    em_event_t  ev;
-    em_bus_event_t *bev;
-    em_bus_event_type_m2_tx_params_t    *raw;
+    em_bus_event_type_m2_tx_params_t   raw;
     em_haul_type_t haul_type[1];
 
     //dm = get_data_model();
@@ -2725,14 +2710,11 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
         return -1;
     }
 
-    ev.type = em_event_type_bus;
-    bev = &ev.u.bevt;
-    bev->type = em_bus_event_type_m2_tx;
-    raw = (em_bus_event_type_m2_tx_params_t *)bev->u.raw_buff;
-    memcpy(raw->al, (unsigned char *)get_peer_mac(), sizeof(mac_address_t));
-    memcpy(raw->radio, get_radio_interface_mac(), sizeof(mac_address_t));
+    memcpy(raw.al, (unsigned char *)get_peer_mac(), sizeof(mac_address_t));
+    memcpy(raw.radio, get_radio_interface_mac(), sizeof(mac_address_t));
 
-    em_cmd_exec_t::send_cmd(em_service_type_ctrl, (unsigned char *)&ev, sizeof(em_event_t));
+	get_mgr()->io_process(em_bus_event_type_m2_tx, (unsigned char *)&raw, sizeof(em_bus_event_type_m2_tx_params_t));
+
     set_state(em_state_ctrl_wsc_m2_sent);
 
     return 0;
@@ -2833,9 +2815,7 @@ int em_configuration_t::handle_autoconfig_renew(unsigned char *buff, unsigned in
     em_tlv_t *tlv;
     em_raw_hdr_t *hdr;
     char* errors[EM_MAX_TLV_MEMBERS];
-    em_bus_event_t *bevt;
-    em_event_t evt;
-    em_bus_event_type_cfg_renew_params_t *raw;
+    em_bus_event_type_cfg_renew_params_t raw;
 
     if (em_msg_t(em_msg_type_autoconf_renew, em_profile_type_2, buff, len).validate(errors) == 0) {
 
@@ -2846,13 +2826,10 @@ int em_configuration_t::handle_autoconfig_renew(unsigned char *buff, unsigned in
 
     hdr = (em_raw_hdr_t *)buff;
 
-    evt.type = em_event_type_bus;
-    bevt = &evt.u.bevt;
-    bevt->type = em_bus_event_type_cfg_renew;
-    raw = (em_bus_event_type_cfg_renew_params_t *)bevt->u.raw_buff;
-    memcpy(raw->radio, get_radio_interface_mac(), sizeof(mac_address_t));
-    memcpy(raw->ctrl_src, hdr->src, sizeof(mac_address_t));
-    em_cmd_exec_t::send_cmd(em_service_type_agent, (unsigned char *)&evt, sizeof(em_event_t));
+    memcpy(raw.radio, get_radio_interface_mac(), sizeof(mac_address_t));
+    memcpy(raw.ctrl_src, hdr->src, sizeof(mac_address_t));
+    
+	get_mgr()->io_process(em_bus_event_type_cfg_renew, (unsigned char *)&raw, sizeof(em_bus_event_type_cfg_renew_params_t));
 
     return 0;
 }

@@ -97,6 +97,7 @@ public:
     int get_network_ssid_config(cJSON *parent, char *key);
     int get_channel_config(cJSON *parent, char *key, em_get_channel_list_reason_t reason = em_get_channel_list_reason_none);
     int get_policy_config(cJSON *parent, char *key);
+    int get_reference_config(cJSON *parent, char *key);
     int get_config(em_long_string_t net_id, em_subdoc_info_t *subdoc);
     int set_config(dm_easy_mesh_t *dm);
     int copy_config(dm_easy_mesh_t *dm, em_long_string_t net_id);
