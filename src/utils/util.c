@@ -25,6 +25,22 @@
 #include <time.h>
 #include "util.h"
 
+void add_milliseconds(struct timespec *ts, long milliseconds)
+{
+	long seconds = milliseconds / 1000;
+    long nanoseconds = (milliseconds % 1000) * 1000000;
+
+    ts->tv_sec += seconds;
+    ts->tv_nsec += nanoseconds;
+
+    // Handle potential overflow in nanoseconds
+    if (ts->tv_nsec >= 1000000000) {
+        ts->tv_sec++;
+        ts->tv_nsec -= 1000000000;
+    }
+
+}
+
 void delay(int seconds) {
     time_t start_time, current_time;
 

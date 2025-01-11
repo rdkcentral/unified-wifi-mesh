@@ -46,7 +46,7 @@
 
 em_cmd_params_t spec_params[] = {
 	{.u = {.args = {0, {"", "", "", "", ""}, "none"}}},
-	{.u = {.args = {3, {"", "", "", "", ""}, "Reset.json"}}},
+	{.u = {.args = {2, {"", "", "", "", ""}, "Reset.json"}}},
 	{.u = {.args = {1, {"", "", "", "", ""}, "Radiocap.json"}}},
 	{.u = {.args = {1, {"", "", "", "", ""}, "DevTest"}}},
 	{.u = {.args = {1, {"", "", "", "", ""}, "CfgRenew.json"}}},
@@ -103,41 +103,6 @@ em_cmd_t em_cmd_cli_t::m_client_cmd_spec[] = {
     em_cmd_t(em_cmd_type_max, spec_params[25]),
 };
 
-int em_cmd_cli_t::update_platform_defaults(em_subdoc_info_t *subdoc, em_cmd_params_t *param, em_cmd_type_t cmd_type)
-{
-    mac_address_t   al_mac;
-    dm_easy_mesh_t dm;
-    mac_addr_str_t  ctrl_mac, ctrl_al_mac, agent_al_mac;
-    em_string_t key;
-    
-    strncpy(key, (cmd_type == em_cmd_type_reset) ? "Reset":"Test", sizeof(key));
-    dm.init();
-    dm.decode_config(subdoc, key);
-
-    //dm.print_config();
-
-    if (dm_easy_mesh_t::mac_address_from_name(param->u.args.args[1], al_mac) != 0) {
-        return -1;
-    }
-    
-    dm.set_ctrl_al_interface_mac(al_mac);
-    dm.set_ctrl_al_interface_name(param->u.args.args[1]);
-
-    if (cmd_type == em_cmd_type_dev_test) {
-        dm.set_agent_al_interface_mac(al_mac);
-        dm.set_agent_al_interface_name(param->u.args.args[1]);
-        dm.update_cac_status_id(al_mac);
-    }
-
-    //dm.print_config();
-
-    // Now empty the buffer and encode again
-    memset(subdoc->buff, 0, strlen(subdoc->buff) + 1);
-    dm.encode_config(subdoc, key);
-
-    return 0;
-}
-
 int em_cmd_cli_t::get_edited_node(em_network_node_t *node, const char *header, char *buff)
 {       
     cJSON *obj; 
@@ -147,45 +112,40 @@ int em_cmd_cli_t::get_edited_node(em_network_node_t *node, const char *header, c
     unsigned int i;
 	char *net_id = m_cmd.m_param.u.args.args[1], *formatted, *node_str;
 
-            
     for (i = 0; i < node->num_children; i++) {
         if (strncmp(node->child[i]->key, "Result", strlen("Result")) == 0) {
             found_result = true;
 			child = node->child[i];
             break;
         }
-    }       
-            
+    }
+
     if (found_result == false) {
-		child = em_net_node_t::clone_network_tree(node);;	
-    } 
+		new_node = em_net_node_t::clone_network_tree(node);;	
+    } else { 
 
-	snprintf(child->key, sizeof(em_long_string_t), "wfa-dataelements:%s", header);
+		snprintf(child->key, sizeof(em_long_string_t), "wfa-dataelements:%s", header);
     
-	tmp = (em_network_node_t *)malloc(sizeof(em_network_node_t));   
-    memset(tmp, 0, sizeof(em_network_node_t));
-    strncpy(tmp->key, "ID", strlen("ID") + 1);
-    tmp->type = em_network_node_data_type_string;
-    strncpy(tmp->value_str, net_id, strlen(net_id) + 1);
+		tmp = (em_network_node_t *)malloc(sizeof(em_network_node_t));   
+    	memset(tmp, 0, sizeof(em_network_node_t));
+    	strncpy(tmp->key, "ID", strlen("ID") + 1);
+    	tmp->type = em_network_node_data_type_string;
+    	strncpy(tmp->value_str, net_id, strlen(net_id) + 1);
 
-    child->child[child->num_children] = tmp;
-    child->num_children++;
-
-        
-    new_node = (em_network_node_t *)malloc(sizeof(em_network_node_t));  
-    memset(new_node, 0, sizeof(em_network_node_t));
-    new_node->type = node->type;
-    new_node->child[new_node->num_children] = child;
-    new_node->num_children++;
-
-	if (m_cli.m_params.cli_type == em_cli_type_cmd) {	
-    	free(node);
-    	m_cli.m_params.cb_func(new_node, m_cli.m_params.user_data);
+    	child->child[child->num_children] = tmp;
+    	child->num_children++;
+    
+		new_node = (em_network_node_t *)malloc(sizeof(em_network_node_t));  
+    	memset(new_node, 0, sizeof(em_network_node_t));
+    	new_node->type = node->type;
+    	new_node->child[new_node->num_children] = child;
+    	new_node->num_children++;
 	}
 
-	node_str = em_net_node_t::get_network_tree_string(new_node);
-	m_cli.dump_lib_dbg(node_str);
-	em_net_node_t::free_network_tree_string(node_str);
+        
+	//node_str = em_net_node_t::get_network_tree_string(new_node);
+	//m_cli.dump_lib_dbg(node_str);
+	//em_net_node_t::free_network_tree_string(node_str);
 	obj = (cJSON *)em_net_node_t::network_tree_to_json(new_node);
 	formatted = cJSON_Print(obj);
 	strncpy(buff, formatted, strlen(formatted) + 1);
@@ -267,18 +227,16 @@ int em_cmd_cli_t::execute(char *result)
             break;
 
         case em_cmd_type_reset:
+			if ((node = m_cmd.m_param.net_node) == NULL) {
+				return -1;
+			}
             bevt->type = em_bus_event_type_reset;
             info = &bevt->u.subdoc;
-            snprintf(info->name, sizeof(info->name), "%s", param->u.args.fixed_args);
-            if ((bevt->data_len = load_params_file(m_cmd.m_param.u.args.fixed_args, info->buff)) < 0) {
-                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__,
-                param->u.args.fixed_args, errno);
+            strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
+			if ((bevt->data_len = get_edited_node(node, "Reset", info->buff)) < 0) {
+                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
                 return -1;
-            }
-            if (update_platform_defaults(info, param, em_cmd_type_reset) != 0) {
-                printf("%s:%d: failed to update default parameters\n", __func__, __LINE__);
-                return -1;
-            }
+			}	
             break;
 
         case em_cmd_type_get_network:
@@ -334,15 +292,8 @@ int em_cmd_cli_t::execute(char *result)
             break;
 
         case em_cmd_type_set_ssid:
-			if (m_cli.m_params.cli_type == em_cli_type_cmd) {
-            	snprintf(in, sizeof(in), "get_ssid %s", m_cmd.m_param.u.args.args[1]);
-				if ((node = m_cli.exec(in, strlen(in), NULL)) == NULL) {
-					return -1;
-				}
-			} else {
-				if ((node = m_cmd.m_param.net_node) == NULL) {
-					return -1;
-				}
+			if ((node = m_cmd.m_param.net_node) == NULL) {
+				return -1;
 			}
             bevt->type = em_bus_event_type_set_ssid;
             info = &bevt->u.subdoc;
@@ -360,16 +311,9 @@ int em_cmd_cli_t::execute(char *result)
             break;
 
         case em_cmd_type_set_channel:
-			if (m_cli.m_params.cli_type == em_cli_type_cmd) {
-				snprintf(in, sizeof(in), "get_channel %s 1", m_cmd.m_param.u.args.args[1]);
-				if ((node = m_cli.exec(in, strlen(in), NULL)) == NULL) {
-					return -1;
-				}
-			} else {
-                if ((node = m_cmd.m_param.net_node) == NULL) {
-                    return -1;
-                }
-            }
+			if ((node = m_cmd.m_param.net_node) == NULL) {
+            	return -1;
+			}
             bevt->type = em_bus_event_type_set_channel;
             info = &bevt->u.subdoc;
             strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
