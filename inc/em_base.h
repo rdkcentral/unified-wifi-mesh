@@ -962,6 +962,24 @@ typedef enum {
     em_chan_sel_resp_code_type_decline_conflict,
 } em_chan_sel_resp_code_type_t;
 
+typedef enum {
+    em_prof2_error_code_reason_code_reserved,
+    em_prof2_error_code_reason_code_svc_prio_rule_not_found,
+    em_prof2_error_code_reason_code_svc_prio_rule_max,
+    em_prof2_error_code_reason_code_pcp_vlan_id_not_provided,
+    em_prof2_error_code_reason_code_reserved2,
+    em_prof2_error_code_reason_code_vlan_id_max,
+    em_prof2_error_code_reason_code_reserved3,
+    em_prof2_error_code_reason_code_traf_sep_comb_ass_unsupported,
+    em_prof2_error_code_reason_code_mix_traf_sep_unsupported,
+    em_prof2_error_code_reason_code_reserved4,
+    em_prof2_error_code_reason_code_traf_sep_not_supported,
+    em_prof2_error_code_reason_code_qos_mgmt_policy_not_conf,
+    em_prof2_error_code_reason_code_qos_mgmt_dscp_policy_rejected,
+    em_prof2_error_code_reason_code_agent_not_onboard_other,
+    em_prof2_error_code_reason_code_eht_subchan_bitmap_error,
+} em_prof2_error_code_reason_code_type_t;
+
 typedef struct {
     em_radio_id_t ruid;
     unsigned char response_code;
