@@ -749,6 +749,23 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 	return em;
 }
 
+bool em_agent_t::agent_output(void *data)
+{
+    // send configuration to OneWifi after translating
+    return true;
+}
+
+void em_agent_t::io(void *data, bool input)
+{
+    em_long_string_t result;
+
+    if (input == true) {
+        m_agent_cmd->execute(result);
+    } else {
+        agent_output(data);
+    }
+}
+
 em_agent_t::em_agent_t()
 {
 

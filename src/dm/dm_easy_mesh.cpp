@@ -352,9 +352,11 @@ int dm_easy_mesh_t::encode_config_reset(em_subdoc_info_t *subdoc, const char *ke
 	}
 	
 	formatted_json = cJSON_Print(parent_obj);
-    printf("%s:%d: %s\n", __func__, __LINE__, formatted_json);
-    snprintf(subdoc->buff,sizeof(em_subdoc_data_buff_t),"%s",cJSON_Print(parent_obj));
+
+    //printf("%s:%d: %s\n", __func__, __LINE__, formatted_json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", cJSON_Print(parent_obj));
     cJSON_Delete(parent_obj);
+
     return 0;
 }
 
@@ -607,8 +609,8 @@ int dm_easy_mesh_t::encode_config_test(em_subdoc_info_t *subdoc, const char *key
     }
 
 	formatted_json = cJSON_Print(parent_obj);
-    printf("%s:%d: %s\n", __func__, __LINE__, formatted_json);
-    snprintf(subdoc->buff,sizeof(em_subdoc_data_buff_t),"%s",cJSON_Print(parent_obj));
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", cJSON_Print(parent_obj));
+
     cJSON_Delete(parent_obj);
     return 0;
 }

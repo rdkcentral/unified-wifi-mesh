@@ -97,7 +97,15 @@ int em_cmd_ctrl_t::execute(char *result)
         
         switch (get_event()->type) {
             case em_event_type_bus:
-                wait = m_ctrl.io_process(get_event());
+				if (m_ctrl.is_data_model_initialized() == true) {
+                	wait = m_ctrl.io_process(get_event());
+				} else {
+					if (get_event()->u.bevt.type == em_bus_event_type_reset) {
+                		wait = m_ctrl.io_process(get_event());
+					} else {
+						wait = false;
+					}
+				}
                 break;
 
             default:
@@ -105,6 +113,7 @@ int em_cmd_ctrl_t::execute(char *result)
                 break;
         }	
 
+		//printf("%s:%d: Sending result: Wait: %d\n", __func__, __LINE__, wait);
         if (wait == false) {
             send_result(em_cmd_out_status_other);
         }

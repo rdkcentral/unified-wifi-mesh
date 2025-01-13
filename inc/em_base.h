@@ -45,7 +45,7 @@ extern "C"
 #define EM_MAX_E4_TABLE_CHANNEL 32
 
 #define EM_PROTO_TOUT   1
-#define EM_MGR_TOUT     0.5
+#define EM_MGR_TOUT     500 // in milliseconds
 #define EM_METRICS_REQ_MULT 5
 #define EM_2_TOUT_MULT 	4
 #define EM_5_TOUT_MULT 	10

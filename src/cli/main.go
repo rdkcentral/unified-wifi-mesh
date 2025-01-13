@@ -47,7 +47,7 @@ const (
 	SET = 2 
 
 	BTN_UPDATE	= 0
-	BTN_OK	= 1
+	BTN_APPLY	= 1
 	BTN_CANCEL	= 2
 	BTN_MAX = 3
 )
@@ -130,11 +130,12 @@ var easyMeshCommands = map[string]EasyMeshCmd {
     NetworkMetricsCmd: 		{NetworkMetricsCmd, 8, "", "", "", ""},
     DeviceOnboardingCmd: 		{DeviceOnboardingCmd, 9, "", "", "", ""},
     WiFiEventsCmd: 		{WiFiEventsCmd, 10, "", "", "", ""},
-    WiFiResetCmd: 		{WiFiResetCmd, 11, "get_network OneWifiMesh", "", "", ""},
+    WiFiResetCmd: 		{WiFiResetCmd, 11, "get_network OneWifiMesh", "", "reset OneWifiMesh", ""},
     DebugCmd: 		{DebugCmd, 12, "dev_test OneWifiMesh", "", "", ""},
 }
 
 type model struct {
+	platform	string
     list          list.Model
     statusMessage string
 	currentOperatingInstructions	string
@@ -159,7 +160,7 @@ type model struct {
     dump 	*os.File
 }
 
-func newModel() model {
+func newModel(platform string) model {
 
 	var items []list.Item
 
@@ -198,7 +199,8 @@ func newModel() model {
     dump, _ := os.OpenFile("messages.log", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
     C.init_lib_dbg(C.CString("messages_lib.log"))
 
-    return model{
+    return model {
+		platform: platform,
 		menuWidth: 35,
 		menuInstructionsHeight: 3,
 		bottomSpace: 10,
@@ -347,8 +349,14 @@ func (m *model) execSelectedCommand(cmdStr string, cmdType int) {
 		if cmdStr == value.Title {
 			switch cmdType {
 				case GET:
+					if value.GetCommand == "" {
+						return
+					}
 					m.currentNetNode = C.exec(C.CString(value.GetCommand), C.strlen(C.CString(value.GetCommand)), nil)	
-        			//spew.Fdump(m.dump, value.GetCommand)
+					if m.currentNetNode == nil {
+						spew.Fprintf(m.dump, "%s returned nil\n", value.GetCommand);
+						return
+					}
 					treeNode := make([]etree.Node, 1)
                     m.displayedNetNode = C.clone_network_tree_for_display(m.currentNetNode, nil, 0xffff, false)
                     m.nodesToTree(m.displayedNetNode, &treeNode[0])
@@ -364,13 +372,25 @@ func (m *model) execSelectedCommand(cmdStr string, cmdType int) {
                     	m.displayedNetNode = C.clone_network_tree_for_display(m.currentNetNode, nil, 0xffff, false)
                     	m.nodesToTree(m.displayedNetNode, &treeNode[0])
                     	m.tree.SetNodes(treeNode)
+					} else {
+						switch value.Title {
+							case WiFiResetCmd:
+								m.currentNetNode = C.get_reset_tree(C.CString(m.platform))
+								treeNode := make([]etree.Node, 1)
+                    			m.displayedNetNode = C.clone_network_tree_for_display(m.currentNetNode, nil, 0xffff, false)
+                    			m.nodesToTree(m.displayedNetNode, &treeNode[0])
+                    			m.tree.SetNodes(treeNode)
+
+							default:
+						}	
 					}
 
 				case SET:
-					if value.SetCommand != "" {
-						root := m.tree.Nodes()
-                   		C.exec(C.CString(value.SetCommand), C.strlen(C.CString(value.SetCommand)), m.treeToNodes(&root[0]))
+					if value.SetCommand == "" {
+						return
 					}
+					root := m.tree.Nodes()
+               		C.exec(C.CString(value.SetCommand), C.strlen(C.CString(value.SetCommand)), m.treeToNodes(&root[0]))
 			}
 		}
 	}
@@ -430,12 +450,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             	
         case "enter":
            	if m.activeButton == BTN_UPDATE {
-       			m.currentOperatingInstructions = "\n\n\t Editor Mode: Press 'OK' to apply settings, 'Cancel' to leave"
+       			m.currentOperatingInstructions = "\n\n\t Editor Mode: Press 'Apply' to apply settings, 'Cancel' to leave"
             	if selectedItem, ok := m.list.SelectedItem().(item); ok {
 					m.execSelectedCommand(selectedItem.title, GETX)
 				}
 				m.tree.SetEditable(true)
-           	} else if m.activeButton == BTN_OK {
+           	} else if m.activeButton == BTN_APPLY {
 				m.tree.SetEditable(false)
        			m.currentOperatingInstructions = "\n\n\t Press 'w' to scroll up, 's' to scroll down"
             	if selectedItem, ok := m.list.SelectedItem().(item); ok {
@@ -542,15 +562,15 @@ func (m model) View() string {
 	statusView = styledContent + m.currentOperatingInstructions
     
     updateButton := buttonStyle.Render("Update")
-    okButton := buttonStyle.Render("OK")
+    okButton := buttonStyle.Render("Apply")
     cancelButton := buttonStyle.Render("Cancel")
     
 	switch m.activeButton {
         case BTN_UPDATE:
             updateButton = activeButtonStyle.Render("Update")
 
-        case BTN_OK:
-            okButton = activeButtonStyle.Render("OK")
+        case BTN_APPLY:
+            okButton = activeButtonStyle.Render("Apply")
 
         case BTN_CANCEL:
             cancelButton = activeButtonStyle.Render("Cancel")
@@ -576,8 +596,12 @@ func (m model) View() string {
 }
 
 func main() {
+	if len(os.Args[1:]) != 1 {
+        fmt.Println("Invalid Arguments, please specify platform name")
+        os.Exit(1)
+	}
 
-    if _, err := tea.NewProgram(newModel(), tea.WithAltScreen()).Run(); err != nil {
+    if _, err := tea.NewProgram(newModel(os.Args[1]), tea.WithAltScreen()).Run(); err != nil {
         fmt.Println("Error running program:", err)
         os.Exit(1)
     }

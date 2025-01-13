@@ -31,6 +31,7 @@ int init(em_cli_params_t *params);
 
 const char *get_first_cmd_str();
 const char *get_next_cmd_str(const char *cmd);
+em_network_node_t *get_reset_tree(char *platform);
 em_network_node_t *get_network_tree_by_file(const char *file_name);
 em_network_node_t *get_network_tree(char *buff);
 em_network_node_t *get_child_node_at_index(em_network_node_t *node, unsigned int idx);
