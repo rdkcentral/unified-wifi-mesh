@@ -556,7 +556,7 @@ func (m model) View() string {
 		end = start + m.viewHeight
 	}
 
-	spew.Fprintf(m.dump, "start: %d end: %d\n", start, end)
+	//spew.Fprintf(m.dump, "start: %d end: %d\n", start, end)
 	 
 	styledContent := jsonStyle.Width(m.viewWidth).Height(m.viewHeight).Render(strings.Join(m.scrollContent[start:end], "\n"))
 	statusView = styledContent + m.currentOperatingInstructions

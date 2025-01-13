@@ -635,6 +635,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
                 em = (em_t *)hash_map_get_next(m_em_map, em);
             }
             break;
+
         case em_msg_type_channel_pref_query:
             if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                 len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
@@ -738,6 +739,8 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             break;
 
         case em_msg_type_1905_ack:
+        case em_msg_type_map_policy_config_req:
+		case em_msg_type_channel_scan_req:
             break;
 
         default:

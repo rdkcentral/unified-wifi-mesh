@@ -1,0 +1,165 @@
+diff --git a/src/agent/em_agent.cpp b/src/agent/em_agent.cpp
+index db545d0..665b441 100644
+--- a/src/agent/em_agent.cpp
++++ b/src/agent/em_agent.cpp
+@@ -635,6 +635,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
+                 em = (em_t *)hash_map_get_next(m_em_map, em);
+             }
+             break;
++
+         case em_msg_type_channel_pref_query:
+             if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+                 len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+@@ -738,6 +739,8 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
+             break;
+ 
+         case em_msg_type_1905_ack:
++        case em_msg_type_map_policy_config_req:
++		case em_msg_type_channel_scan_req:
+             break;
+ 
+         default:
+diff --git a/src/cli/em_cli.cpp b/src/cli/em_cli.cpp
+index 5f150e6..620b46a 100644
+--- a/src/cli/em_cli.cpp
++++ b/src/cli/em_cli.cpp
+@@ -71,12 +71,12 @@ em_network_node_t *em_cli_t::get_reset_tree(char *platform)
+     dm.init();
+     dm.decode_config(subdoc, "Reset");
+             
+-    if (dm_easy_mesh_t::mac_address_from_name("ens160", al_mac) != 0) {
++    if (dm_easy_mesh_t::mac_address_from_name(interface, al_mac) != 0) {
+         return NULL;
+     }       
+             
+     dm.set_ctrl_al_interface_mac(al_mac);
+-    dm.set_ctrl_al_interface_name("ens160");
++    dm.set_ctrl_al_interface_name(interface);
+             
+     //dm.print_config();
+ 
+diff --git a/src/cli/main.go b/src/cli/main.go
+index 67a5082..f078a93 100644
+--- a/src/cli/main.go
++++ b/src/cli/main.go
+@@ -556,7 +556,7 @@ func (m model) View() string {
+ 		end = start + m.viewHeight
+ 	}
+ 
+-	spew.Fprintf(m.dump, "start: %d end: %d\n", start, end)
++	//spew.Fprintf(m.dump, "start: %d end: %d\n", start, end)
+ 	 
+ 	styledContent := jsonStyle.Width(m.viewWidth).Height(m.viewHeight).Render(strings.Join(m.scrollContent[start:end], "\n"))
+ 	statusView = styledContent + m.currentOperatingInstructions
+diff --git a/src/cmd/em_cmd_em_config.cpp b/src/cmd/em_cmd_em_config.cpp
+index d23d74d..0de04bd 100644
+--- a/src/cmd/em_cmd_em_config.cpp
++++ b/src/cmd/em_cmd_em_config.cpp
+@@ -50,7 +50,7 @@ em_cmd_em_config_t::em_cmd_em_config_t(em_cmd_params_t param, dm_easy_mesh_t& dm
+ 	memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
+ 
+     m_orch_op_idx = 0;
+-    m_num_orch_desc = 4;
++    m_num_orch_desc = 6;
+     m_orch_desc[0].op = dm_orch_type_topo_sync;
+     m_orch_desc[0].submit = true;
+     m_orch_desc[1].op = dm_orch_type_channel_pref;
+@@ -59,6 +59,11 @@ em_cmd_em_config_t::em_cmd_em_config_t(em_cmd_params_t param, dm_easy_mesh_t& dm
+     m_orch_desc[2].submit = true;
+     m_orch_desc[3].op = dm_orch_type_channel_cnf;
+     m_orch_desc[3].submit = true;
++    m_orch_desc[4].op = dm_orch_type_policy_cfg;
++    m_orch_desc[4].submit = true;
++	m_orch_desc[5].op = dm_orch_type_channel_scan_req;
++    m_orch_desc[5].submit = true;
++
+ 
+     strncpy(m_name, "em_config", strlen("em_config") + 1);
+     m_svc = em_service_type_ctrl;
+diff --git a/src/em/channel/em_channel.cpp b/src/em/channel/em_channel.cpp
+index 7fafddc..03c623d 100644
+--- a/src/em/channel/em_channel.cpp
++++ b/src/em/channel/em_channel.cpp
+@@ -111,13 +111,13 @@ short em_channel_t::create_channel_scan_req_tlv(unsigned char *buff)
+ 	memcpy(req->ruid, get_radio_interface_mac(), sizeof(mac_address_t));
+ 	len += sizeof(em_channel_scan_req_t);
+ 
++	req_op_class = req->op_class;
+ 	for (i = 0; i < dm->get_num_op_class(); i++) {
+ 		opclass = &dm->m_op_class[i];
+ 		if (opclass->m_op_class_info.id.type != em_op_class_type_scan_param) {
+ 			continue;
+ 		}
+ 
+-		req_op_class = &req->op_class[req->num_op_classes];
+ 		req_op_class->op_class = opclass->m_op_class_info.op_class;
+ 		req_op_class->num_channels = opclass->m_op_class_info.num_channels;
+ 
+@@ -128,9 +128,9 @@ short em_channel_t::create_channel_scan_req_tlv(unsigned char *buff)
+ 		len += (sizeof(em_channel_scan_req_op_class_t) + req_op_class->num_channels*sizeof(unsigned char));	
+ 		
+ 		req->num_op_classes++;
++		req_op_class = (em_channel_scan_req_op_class_t *)((unsigned char *)req_op_class + sizeof(em_channel_scan_req_op_class_t) + req_op_class->num_channels*sizeof(unsigned char));
+ 	}
+ 
+-	printf("%s:%d: Length: %d\n", __func__, __LINE__, len);
+ 	return len;
+ }
+ 
+diff --git a/src/em/em.cpp b/src/em/em.cpp
+index f517dcb..a2e676b 100644
+--- a/src/em/em.cpp
++++ b/src/em/em.cpp
+@@ -106,6 +106,10 @@ void em_t::orch_execute(em_cmd_t *pcmd)
+                 m_sm.set_state(em_state_ctrl_channel_select_pending);
+             } else if ((pcmd->get_orch_op() == dm_orch_type_channel_cnf) && (m_sm.get_state() == em_state_ctrl_channel_selected)) {
+                 m_sm.set_state(em_state_ctrl_channel_cnf_pending);
++            } else if ((pcmd->get_orch_op() == dm_orch_type_policy_cfg) && (m_sm.get_state() == em_state_ctrl_configured)) {
++                m_sm.set_state(em_state_ctrl_set_policy_pending);
++            } else if ((pcmd->get_orch_op() == dm_orch_type_channel_scan_req) && (m_sm.get_state() == em_state_ctrl_configured)) {
++                m_sm.set_state(em_state_ctrl_channel_scan_pending);
+             }
+             break;
+ 
+@@ -316,6 +320,7 @@ void em_t::handle_ctrl_state()
+         case em_cmd_type_set_channel:
+             em_configuration_t::process_ctrl_state();
+             em_channel_t::process_ctrl_state();
++			em_policy_cfg_t::process_ctrl_state();
+             break;
+ 
+ 		case em_cmd_type_scan_channel:
+diff --git a/src/em/em_mgr.cpp b/src/em/em_mgr.cpp
+index 23f1e02..7add496 100644
+--- a/src/em/em_mgr.cpp
++++ b/src/em/em_mgr.cpp
+@@ -283,14 +283,14 @@ void em_mgr_t::nodes_listener()
+     unsigned char buff[MAX_EM_BUFF_SZ];
+     em_raw_hdr_t *hdr;
+ 
+-    tm.tv_sec = m_timeout;
+-    tm.tv_usec = 0;
++    tm.tv_sec = 0;
++    tm.tv_usec = m_timeout * 1000;
+     highest_fd = reset_listeners();
+ 
+     while ((rc = select(highest_fd + 1, &m_rset, NULL, NULL, &tm)) >= 0) {
+         if (rc == 0) {
+-            tm.tv_sec = m_timeout;
+-            tm.tv_usec = 0;
++            tm.tv_sec = 0;
++            tm.tv_usec = m_timeout * 1000;
+             highest_fd = reset_listeners();
+ 
+             continue;
+@@ -315,8 +315,8 @@ void em_mgr_t::nodes_listener()
+             em = (em_t *)hash_map_get_next(m_em_map, em);
+         }
+ 
+-        tm.tv_sec = m_timeout;
+-        tm.tv_usec = 0;
++        tm.tv_sec = 0;
++        tm.tv_usec = m_timeout * 1000;
+         highest_fd = reset_listeners();
+ 
+     }

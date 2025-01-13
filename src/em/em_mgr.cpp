@@ -283,14 +283,14 @@ void em_mgr_t::nodes_listener()
     unsigned char buff[MAX_EM_BUFF_SZ];
     em_raw_hdr_t *hdr;
 
-    tm.tv_sec = m_timeout;
-    tm.tv_usec = 0;
+    tm.tv_sec = 0;
+    tm.tv_usec = m_timeout * 1000;
     highest_fd = reset_listeners();
 
     while ((rc = select(highest_fd + 1, &m_rset, NULL, NULL, &tm)) >= 0) {
         if (rc == 0) {
-            tm.tv_sec = m_timeout;
-            tm.tv_usec = 0;
+            tm.tv_sec = 0;
+            tm.tv_usec = m_timeout * 1000;
             highest_fd = reset_listeners();
 
             continue;
@@ -315,8 +315,8 @@ void em_mgr_t::nodes_listener()
             em = (em_t *)hash_map_get_next(m_em_map, em);
         }
 
-        tm.tv_sec = m_timeout;
-        tm.tv_usec = 0;
+        tm.tv_sec = 0;
+        tm.tv_usec = m_timeout * 1000;
         highest_fd = reset_listeners();
 
     }
