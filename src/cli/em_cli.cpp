@@ -71,12 +71,12 @@ em_network_node_t *em_cli_t::get_reset_tree(char *platform)
     dm.init();
     dm.decode_config(subdoc, "Reset");
             
-    if (dm_easy_mesh_t::mac_address_from_name("ens160", al_mac) != 0) {
+    if (dm_easy_mesh_t::mac_address_from_name(interface, al_mac) != 0) {
         return NULL;
     }       
             
     dm.set_ctrl_al_interface_mac(al_mac);
-    dm.set_ctrl_al_interface_name("ens160");
+    dm.set_ctrl_al_interface_name(interface);
             
     //dm.print_config();
 

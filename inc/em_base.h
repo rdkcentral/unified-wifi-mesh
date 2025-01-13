@@ -642,6 +642,36 @@ typedef struct {
 }__attribute__((__packed__)) em_timestamp_t;
 
 typedef struct {
+    em_long_string_t    net_id;
+	mac_address_t	dev_mac;
+	em_radio_id_t ruid;
+    unsigned char op_class;
+    unsigned char channel;
+	bssid_t bssid;
+} em_scan_result_id_t;
+
+typedef struct {
+	bssid_t bssid;
+	ssid_t	ssid;
+    signed char signal_strength;
+	wifi_channelBandwidth_t	bandwidth;
+    unsigned char bss_color;
+    unsigned char channel_util;
+    unsigned short sta_count;
+    unsigned int  aggr_scan_duration;
+    unsigned char scan_type;
+} em_neighbor_t;
+
+typedef struct {
+	em_scan_result_id_t	id;
+	unsigned char scan_status;
+	em_long_string_t timestamp;
+    unsigned char util;
+    unsigned char noise;
+	em_neighbor_t	neighbor;
+} em_scan_result_t;
+
+typedef struct {
     em_radio_id_t ruid;
     unsigned char op_class;
     unsigned char channel;
