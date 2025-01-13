@@ -88,7 +88,7 @@ $(MAIN_OBJECT): %.o: %.c
 	$(CXX) $(CFLAGS) -o $@ -c $<
 
 $(PROGRAM):
-	go build -o $(PROGRAM) $(ONEWIFI_EM_SRC)/cli/main.go
+	go build -o $(PROGRAM) $(ONEWIFI_EM_SRC)/cli/*.go
 
 # Clean target: "make -f Makefile.Linux clean" to remove unwanted objects and executables.
 #
