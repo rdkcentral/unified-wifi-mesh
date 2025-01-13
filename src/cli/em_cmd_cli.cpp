@@ -66,7 +66,7 @@ em_cmd_params_t spec_params[] = {
 	{.u = {.args = {2, {"", "", "", "", ""}, "STASteer.json"}}},
 	{.u = {.args = {2, {"", "", "", "", ""}, "STADisassoc.json"}}},
 	{.u = {.args = {2, {"", "", "", "", ""}, "STABtm.json"}}},
-	{.u = {.args = {1, {"", "", "", "", ""}, "DPPURI.json"}}},
+	{.u = {.args = {1, {"", "", "", "", ""}, "DPPURI_sendable.json"}}},
 	{.u = {.args = {1, {"", "", "", "", ""}, "Clientcap.json"}}},
 	{.u = {.args = {2, {"", "", "", "", ""}, "Policy"}}},
 	{.u = {.args = {2, {"", "", "", "", ""}, "Policy.json"}}},
