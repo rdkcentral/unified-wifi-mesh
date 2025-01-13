@@ -55,6 +55,7 @@ public:
 	int send_operating_channel_report_msg();
 	int send_channel_pref_query_msg();
 	int send_channel_pref_report_msg();
+    int send_available_spectrum_inquiry_msg();
 
     int handle_channel_pref_rprt(unsigned char *buff, unsigned int len);
     int handle_channel_pref_query(unsigned char *buff, unsigned int len);

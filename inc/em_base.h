@@ -392,6 +392,7 @@ typedef enum {
     em_msg_type_ap_mld_config_resp,
     em_msg_type_bsta_mld_config_req,
     em_msg_type_bsta_mld_config_resp,
+    em_msg_type_avail_spectrum_inquiry = 0x8049,
 } em_msg_type_t;
 
 typedef enum {
@@ -550,6 +551,8 @@ typedef enum {
     em_tlv_type_assoc_sta_mld_conf_rep = 0xe2,
     em_tlv_type_tid_to_link_map_policy = 0xe6,
     em_tlv_eht_operations = 0xe7,
+    em_tlv_type_avail_spectrum_inquiry_reg = 0xe8,
+    em_tlv_type_avail_spectrum_inquiry_rsp = 0xe9,
     em_tlv_vendor_sta_metrics = 0xf1,
 
 	// RDK Proprietary TLV values
@@ -1523,6 +1526,14 @@ typedef struct {
 } __attribute__((__packed__)) em_eht_operations_t;
 
 typedef struct {
+    unsigned char *avail_spectrum_inquiry_req_obj;
+} __attribute__((__packed__)) em_avail_spectrum_inquiry_req_t;
+
+typedef struct {
+    unsigned char *avail_spectrum_inquiry_rsp_obj;
+} __attribute__((__packed__)) em_avail_spectrum_inquiry_rsp_t;
+
+typedef struct {
     em_radio_id_t  ruid;
     unsigned char  boot_only : 1;
     unsigned char  scan_impact : 2;
@@ -1785,6 +1796,7 @@ typedef enum {
     em_state_ctrl_set_policy_pending,
     em_state_ctrl_ap_mld_config_pending,
     em_state_ctrl_ap_mld_configured,
+    em_state_ctrl_avail_spectrum_inquiry_pending,
 
     em_state_max,
 } em_state_t;
@@ -1827,6 +1839,7 @@ typedef enum {
     em_cmd_type_sta_disassoc,
     em_cmd_type_get_policy,
     em_cmd_type_set_policy,
+    em_cmd_type_avail_spectrum_inquiry,
     em_cmd_type_max,
 } em_cmd_type_t;
 
