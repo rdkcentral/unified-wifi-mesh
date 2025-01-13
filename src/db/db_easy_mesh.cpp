@@ -90,11 +90,12 @@ int db_easy_mesh_t::get_strings_by_token(char *parent, int token, unsigned int a
     while (tmp != NULL) {
         if ((tmp = strchr(orig, token)) != NULL) {
             *tmp = 0;
+            assert (num < argc - 1 && "number of extracted values exceeds the limit");
             snprintf(argv[num], sizeof(argv[num]), "%s", orig);
             tmp++; num++;
             orig = tmp;
         }
-    }	
+    }
 
     snprintf(argv[num], sizeof(argv[num]), "%s", orig);
     num++;
