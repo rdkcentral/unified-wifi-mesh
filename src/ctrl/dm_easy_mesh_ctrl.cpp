@@ -93,6 +93,7 @@ int dm_easy_mesh_ctrl_t::analyze_config_renew(em_bus_event_t *evt, em_cmd_t *pcm
 
     evt_param->u.args.num_args = 1;
     strncpy(evt_param->u.args.args[0], radio_str, strlen(radio_str) + 1);
+    memcpy(&dm.m_radio[0].m_radio_info.id.mac, params->radio, sizeof(mac_address_t));
     pcmd[num] = new em_cmd_cfg_renew_t(em_service_type_ctrl, evt->params, dm);
     tmp = pcmd[num];
     num++;
@@ -675,6 +676,9 @@ int dm_easy_mesh_ctrl_t::analyze_set_channel(em_bus_event_t *evt, em_cmd_t *pcmd
 
 	pdm = m_data_model_list.get_first_dm();
 	while (pdm != NULL) {
+        for (i = 0; i < dm.get_num_op_class(); i++) {
+            memcpy(&dm.m_op_class[i].m_op_class_info.id.ruid, pdm->get_device_info()->id.mac, sizeof(mac_addr_t));
+        }
 		pdm->set_channels_list(dm.m_op_class, dm.get_num_op_class());
 
 		db_cfg_type = pdm->get_db_cfg_type();	

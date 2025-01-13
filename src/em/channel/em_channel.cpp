@@ -1076,9 +1076,10 @@ int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len
         op_class_info->id.op_class = op_class_info->op_class;
         op_class_info->channel = (unsigned int) rpt->op_classes[0].channel;
         dm->set_num_op_class(dm->get_num_op_class() + 1);
-        db_cfg_type = dm->get_db_cfg_type();
-        dm->set_db_cfg_type(db_cfg_type | db_cfg_type_op_class_list_update | db_cfg_type_radio_list_update);
     }
+    db_cfg_type = dm->get_db_cfg_type();
+    dm->set_db_cfg_type(db_cfg_type | db_cfg_type_op_class_list_update | db_cfg_type_radio_list_update);
+
     return 0;
 }
 

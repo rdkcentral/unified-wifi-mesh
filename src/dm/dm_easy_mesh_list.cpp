@@ -1038,7 +1038,7 @@ void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_
         if (found_dm == true) {
             break;
         } else {
-            if ((memcmp(dm->m_device.m_device_info.id.mac, id.ruid, sizeof(mac_address_t)) && (id.type >= em_op_class_type_cac_available)) == 0) {
+            if ((memcmp(dm->m_device.m_device_info.id.mac, id.ruid, sizeof(mac_address_t)) == 0) && (id.type >= em_op_class_type_cac_available) == 0) {
                 found_dm = true;
                 break;
             }
