@@ -158,6 +158,10 @@ void em_t::orch_execute(em_cmd_t *pcmd)
 		case em_cmd_type_set_policy:
             set_state(em_state_ctrl_set_policy_pending);
             break;
+
+        case em_cmd_type_avail_spectrum_inquiry:
+            m_sm.set_state(em_state_ctrl_avail_spectrum_inquiry_pending);
+            break;
     }
 }
 
@@ -212,6 +216,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_channel_sel_req:
         case em_msg_type_channel_sel_rsp:
         case em_msg_type_op_channel_rprt:
+        case em_msg_type_avail_spectrum_inquiry:
             em_channel_t::process_msg(data, len);
             break;
 

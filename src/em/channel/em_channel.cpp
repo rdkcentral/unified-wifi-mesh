@@ -450,6 +450,7 @@ int em_channel_t::send_channel_sel_response_msg(em_chan_sel_resp_code_type_t cod
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     em_channel_sel_rsp_t *resp;
+    em_prof2_error_t *prof2_error;
     unsigned char *tmp = buff;
     dm_easy_mesh_t *dm;
     unsigned short type = htons(ETH_P_1905);
@@ -498,8 +499,20 @@ int em_channel_t::send_channel_sel_response_msg(em_chan_sel_resp_code_type_t cod
 	memcpy(resp->ruid, get_radio_interface_mac(), sizeof(em_radio_id_t));
     memcpy(&resp->response_code, (unsigned char *)&code, sizeof(unsigned char));
 
+
     tmp += (sizeof(em_tlv_t) + sizeof(em_channel_sel_rsp_t));
     len += (sizeof(em_tlv_t) + sizeof(em_channel_sel_rsp_t));
+
+    //Zero or more Profile-2 Error Code TLV (see section 17.2.51)
+    tlv = (em_tlv_t *)tmp;
+	tlv->type = em_tlv_type_profile_2_error_code;
+	tlv->len = htons(sizeof(em_prof2_error_t));
+	prof2_error = (em_prof2_error_t *)tlv->value;
+    prof2_error->reason_code = em_prof2_error_code_reason_code_reserved;  // reason_code = 0x0
+
+    tmp += (sizeof(em_tlv_t) + sizeof(em_prof2_error_t));
+    len += (sizeof(em_tlv_t) + sizeof(em_prof2_error_t));
+
 	// End of message
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_eom;
@@ -1038,6 +1051,90 @@ int em_channel_t::send_channel_pref_report_msg()
     return len;
 }
 
+int em_channel_t::send_available_spectrum_inquiry_msg()
+{
+    unsigned char buff[MAX_EM_BUFF_SZ];
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    unsigned short  msg_id = em_msg_type_avail_spectrum_inquiry;
+    int len = 0;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    short sz = 0;
+    unsigned char *tmp = buff;
+    unsigned short type = htons(ETH_P_1905);
+    dm_easy_mesh_t *dm;
+
+    dm = get_data_model();
+
+    memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+	tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, (unsigned char *)&type, sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += sizeof(unsigned short);
+
+    cmdu = (em_cmdu_t *)tmp;
+
+    memset(tmp, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(msg_id);
+    cmdu->id = htons(msg_id);
+    cmdu->last_frag_ind = 1;
+    cmdu->relay_ind = 0;
+
+    tmp += sizeof(em_cmdu_t);
+    len += sizeof(em_cmdu_t);
+
+    // Zero or more Channel Preference TLVs (see section 17.2.13).
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_channel_pref;
+    sz = create_channel_pref_tlv(tlv->value);
+    tlv->len = htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += (sizeof(em_tlv_t) + sz);
+
+	// One Available Spectrum Inquiry Request TLV (see section 17.2.104)
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_avail_spectrum_inquiry_reg;
+    tlv->len = htons(sizeof(em_avail_spectrum_inquiry_req_t));
+
+    tmp += (sizeof(em_tlv_t) + sizeof(em_avail_spectrum_inquiry_req_t));
+    len += (sizeof(em_tlv_t) + sizeof(em_avail_spectrum_inquiry_req_t));
+
+    // One Available Spectrum Inquiry Response TLV (see section 17.2.105)
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_avail_spectrum_inquiry_rsp;
+    tlv->len = htons(sizeof(em_avail_spectrum_inquiry_rsp_t));
+
+    tmp += (sizeof(em_tlv_t) + sizeof(em_avail_spectrum_inquiry_rsp_t));
+    len += (sizeof(em_tlv_t) + sizeof(em_avail_spectrum_inquiry_rsp_t));
+
+    // End of message
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_eom;
+    tlv->len = 0;
+
+    tmp += (sizeof (em_tlv_t));
+    len += (sizeof (em_tlv_t));
+    if (em_msg_t(em_msg_type_avail_spectrum_inquiry, em_profile_type_3, buff, len).validate(errors) == 0) {
+        printf("Available Spectrum Inquiry msg failed validation in tnx end\n");
+        return -1;
+    }
+
+    if (send_frame(buff, len)  < 0) {
+        printf("%s:%d: Available Spectrum Inquiry msg failed, error:%d\n", __func__, __LINE__, errno);
+        return -1;
+    }
+
+    return len;
+
+}
+
 int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len)
 {
     dm_easy_mesh_t *dm;
@@ -1450,6 +1547,12 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
             }
             break;
 
+        case em_msg_type_avail_spectrum_inquiry:
+            if (get_service_type() == em_service_type_agent) {
+                send_available_spectrum_inquiry_msg();
+            }
+            break;
+
         default:
             break;
     }
@@ -1488,6 +1591,7 @@ void em_channel_t::process_ctrl_state()
             break;
 
         case em_state_ctrl_channel_select_pending:
+        case em_state_ctrl_avail_spectrum_inquiry_pending:
 			if(get_service_type() == em_service_type_ctrl) {
 				send_channel_sel_request_msg();
 			}
