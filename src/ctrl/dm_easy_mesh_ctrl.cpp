@@ -1052,6 +1052,7 @@ int dm_easy_mesh_ctrl_t::reset_config()
     dm_bss_list_t::load_table(m_db_client);
     dm_sta_list_t::load_table(m_db_client);
     dm_policy_list_t::load_table(m_db_client);
+    dm_scan_result_list_t::load_table(m_db_client);
 
     return 0;
 }
@@ -1392,6 +1393,7 @@ void dm_easy_mesh_ctrl_t::init_tables()
     dm_bss_list_t::init();
     dm_sta_list_t::init();
     dm_policy_list_t::init();
+    dm_scan_result_list_t::init();
 }
 
 int dm_easy_mesh_ctrl_t::load_net_ssid_table()
@@ -1419,6 +1421,8 @@ int dm_easy_mesh_ctrl_t::load_tables()
 		type = db_cfg_type_sta_list_update;
 	} else if (dm_policy_list_t::load_table(m_db_client) != 0) {
 		type = db_cfg_type_policy_list_update;
+	} else if (dm_scan_result_list_t::load_table(m_db_client) != 0) {
+		type = db_cfg_type_scan_result_list_update;
     }
 
     if (type == dm_orch_type_none) {

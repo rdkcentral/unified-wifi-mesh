@@ -30,6 +30,7 @@
 #include "dm_bss_list.h"
 #include "dm_sta_list.h"
 #include "dm_policy_list.h"
+#include "dm_scan_result_list.h"
 #include "dm_dpp.h"
 #include "db_client.h"
 #include "dm_easy_mesh_list.h"
@@ -39,11 +40,11 @@ class dm_easy_mesh_t;
 class em_mgr_t;
 
 class dm_easy_mesh_ctrl_t :
-
     public dm_network_list_t, public dm_device_list_t, public dm_network_ssid_list_t,
     public dm_ieee_1905_security_list_t, public dm_radio_list_t, public dm_radio_cap_list_t,
         
-    public dm_op_class_list_t, public dm_bss_list_t, public dm_sta_list_t, public dm_policy_list_t {
+    public dm_op_class_list_t, public dm_bss_list_t, public dm_sta_list_t, public dm_policy_list_t,
+	public dm_scan_result_list_t {
 
     db_client_t m_db_client;
     bool	m_initialized;
@@ -156,6 +157,12 @@ public:
     dm_policy_t *get_policy(const char *key) { return m_data_model_list.get_policy(key); }
     void remove_policy(const char *key) { m_data_model_list.remove_policy(key); }
     void put_policy(const char *key, const dm_policy_t *policy) { m_data_model_list.put_policy(key, policy); }
+
+	dm_scan_result_t *get_first_scan_result() { return m_data_model_list.get_first_scan_result(); }
+    dm_scan_result_t *get_next_scan_result(dm_scan_result_t *scan_result) { return m_data_model_list.get_next_scan_result(scan_result); }
+    dm_scan_result_t *get_scan_result(const char *key) { return m_data_model_list.get_scan_result(key); }
+    void remove_scan_result(const char *key) { m_data_model_list.remove_scan_result(key); }
+    void put_scan_result(const char *key, const dm_scan_result_t *scan_result) { m_data_model_list.put_scan_result(key, scan_result); }
 
     void handle_dirty_dm();
     void init_tables();
