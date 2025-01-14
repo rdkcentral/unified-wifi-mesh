@@ -177,7 +177,7 @@ int dm_scan_result_t::parse_scan_result_id_from_key(const char *key, em_scan_res
             remain = tmp;
         } else if (i == 2) {
             *tmp = 0; 
-            dm_easy_mesh_t::string_to_macbytes(remain, id->radio_mac);
+            dm_easy_mesh_t::string_to_macbytes(remain, id->ruid);
             tmp++;
             remain = tmp;
         } else if (i == 3) {
