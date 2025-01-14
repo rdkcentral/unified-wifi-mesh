@@ -39,6 +39,9 @@
 #include "em_orch_agent.h"
 #include "util.h"
 
+#define MAX_RETRY 20
+#define RETRY_SLEEP_INTERVAL_IN_MS 1000
+
 em_agent_t g_agent;
 const char *global_netid = "OneWifiMesh";
 
@@ -401,6 +404,8 @@ void em_agent_t::input_listener()
     wifi_bus_desc_t *desc;
     dm_easy_mesh_t dm;
     raw_data_t data;
+    int num_retry = 0;
+    bus_error_t bus_error_val;
 
     bus_init(&m_bus_hdl);
 
@@ -417,12 +422,25 @@ void em_agent_t::input_listener()
 
     memset(&data, 0, sizeof(raw_data_t));
 
-    if (desc->bus_data_get_fn(&m_bus_hdl, WIFI_WEBCONFIG_INIT_DML_DATA, &data) != 0) {
-        printf("%s:%d bus get failed\n", __func__, __LINE__);
-        return;
-    } else {
-        printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data.raw_data.bytes);
+    while (((bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_WEBCONFIG_INIT_DML_DATA, &data)) != bus_error_success)
+            && num_retry < MAX_RETRY) {
+        printf("%s:%d bus get failed, error:%d, ", __func__, __LINE__, bus_error_val);
+        if (bus_error_val == bus_error_access_not_allowed) {
+            // This error can come when backhaul STA is not yet connected, thus retry after some amount of sleep
+            usleep(RETRY_SLEEP_INTERVAL_IN_MS * 1000);
+            num_retry++;
+            printf("retry %d of %d\n", num_retry, MAX_RETRY);
+        } else {
+            printf("no retries, returning..\n");
+            return;
+        }
     }
+
+    if (num_retry == MAX_RETRY) {
+            printf("no further retries, returning..\n");
+            return;
+    }
+    printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data.raw_data.bytes);
 
     g_agent.io_process(em_bus_event_type_dev_init, (unsigned char *)data.raw_data.bytes, data.raw_data_len);
 
@@ -635,6 +653,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
                 em = (em_t *)hash_map_get_next(m_em_map, em);
             }
             break;
+
         case em_msg_type_channel_pref_query:
             if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                 len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
@@ -738,6 +757,8 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             break;
 
         case em_msg_type_1905_ack:
+        case em_msg_type_map_policy_config_req:
+		case em_msg_type_channel_scan_req:
             break;
 
         default:

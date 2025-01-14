@@ -11,18 +11,19 @@ package main
 import "C"
 
 import (
-	"github.com/rdkcentral/unified-wifi-mesh/src/cli/etree"
-	"unsafe"
 	"fmt"
 	"os"
+	"strings"
 	"time"
-    "strings"
+	"unsafe"
+
+	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
-    tea "github.com/charmbracelet/bubbletea"
-    "github.com/charmbracelet/lipgloss"
-    "github.com/charmbracelet/bubbles/list"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/davecgh/go-spew/spew"
+	"github.com/rdkcentral/unified-wifi-mesh/src/cli/etree"
 	"golang.org/x/term"
-    "github.com/davecgh/go-spew/spew"
 )
 
 const (
@@ -128,7 +129,7 @@ var easyMeshCommands = map[string]EasyMeshCmd {
     ClientDevicesCmd: 		{ClientDevicesCmd, 6, "get_sta OneWifiMesh", "", "", ""},
     SteerDevicesCmd: 		{SteerDevicesCmd, 7, "get_sta OneWifiMesh", "get_sta OneWifiMesh 1", "steer_sta OneWifiMesh", ""},
     NetworkMetricsCmd: 		{NetworkMetricsCmd, 8, "", "", "", ""},
-    DeviceOnboardingCmd: 		{DeviceOnboardingCmd, 9, "", "", "", ""},
+    DeviceOnboardingCmd: 		{DeviceOnboardingCmd, 9, "", "", "start_dpp OneWifiMesh", ""},
     WiFiEventsCmd: 		{WiFiEventsCmd, 10, "", "", "", ""},
     WiFiResetCmd: 		{WiFiResetCmd, 11, "get_network OneWifiMesh", "", "reset OneWifiMesh", ""},
     DebugCmd: 		{DebugCmd, 12, "dev_test OneWifiMesh", "", "", ""},
@@ -213,9 +214,7 @@ func newModel(platform string) model {
     }
 }
 
-func splitIntoLines(content string) []string {
-    return strings.Split(content, "\n")
-}
+
 
 func (m model) Init() tea.Cmd {
 	var params *C.em_cli_params_t
@@ -349,7 +348,17 @@ func (m *model) execSelectedCommand(cmdStr string, cmdType int) {
 		if cmdStr == value.Title {
 			switch cmdType {
 				case GET:
+					if value.Title == DeviceOnboardingCmd {
+						nodes, err := readJSONFile("DPPURI.json")
+						if err != nil {
+							spew.Fprintf(m.dump, "Error reading JSON file: %v\n", err)
+							return
+						}
+						m.tree.SetNodes(nodes)
+						return
+					}
 					if value.GetCommand == "" {
+						m.tree.SetNodes([]etree.Node{})
 						return
 					}
 					m.currentNetNode = C.exec(C.CString(value.GetCommand), C.strlen(C.CString(value.GetCommand)), nil)	
@@ -389,6 +398,18 @@ func (m *model) execSelectedCommand(cmdStr string, cmdType int) {
 					if value.SetCommand == "" {
 						return
 					}
+					if value.Title == DeviceOnboardingCmd {
+						// Write current nodes to a JSON file (could be modified or unmodified)
+						if err := writeJSONFile(m.tree.Nodes(), "DPPURI_sendable.json"); err != nil {
+							spew.Fprintf(m.dump, "Error writing JSON: %v\n", err)
+							return
+						}
+						spew.Fdump(m.dump, "Sending DPPURI JSON file")	
+						// Network nodes not needed for DPPURI
+						C.exec(C.CString(value.SetCommand), C.strlen(C.CString(value.SetCommand)), nil)
+						return
+					}
+    
 					root := m.tree.Nodes()
                		C.exec(C.CString(value.SetCommand), C.strlen(C.CString(value.SetCommand)), m.treeToNodes(&root[0]))
 			}
@@ -556,7 +577,7 @@ func (m model) View() string {
 		end = start + m.viewHeight
 	}
 
-	spew.Fprintf(m.dump, "start: %d end: %d\n", start, end)
+	//spew.Fprintf(m.dump, "start: %d end: %d\n", start, end)
 	 
 	styledContent := jsonStyle.Width(m.viewWidth).Height(m.viewHeight).Render(strings.Join(m.scrollContent[start:end], "\n"))
 	statusView = styledContent + m.currentOperatingInstructions

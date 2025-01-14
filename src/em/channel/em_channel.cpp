@@ -111,13 +111,13 @@ short em_channel_t::create_channel_scan_req_tlv(unsigned char *buff)
 	memcpy(req->ruid, get_radio_interface_mac(), sizeof(mac_address_t));
 	len += sizeof(em_channel_scan_req_t);
 
+	req_op_class = req->op_class;
 	for (i = 0; i < dm->get_num_op_class(); i++) {
 		opclass = &dm->m_op_class[i];
 		if (opclass->m_op_class_info.id.type != em_op_class_type_scan_param) {
 			continue;
 		}
 
-		req_op_class = &req->op_class[req->num_op_classes];
 		req_op_class->op_class = opclass->m_op_class_info.op_class;
 		req_op_class->num_channels = opclass->m_op_class_info.num_channels;
 
@@ -128,9 +128,9 @@ short em_channel_t::create_channel_scan_req_tlv(unsigned char *buff)
 		len += (sizeof(em_channel_scan_req_op_class_t) + req_op_class->num_channels*sizeof(unsigned char));	
 		
 		req->num_op_classes++;
+		req_op_class = (em_channel_scan_req_op_class_t *)((unsigned char *)req_op_class + sizeof(em_channel_scan_req_op_class_t) + req_op_class->num_channels*sizeof(unsigned char));
 	}
 
-	printf("%s:%d: Length: %d\n", __func__, __LINE__, len);
 	return len;
 }
 
