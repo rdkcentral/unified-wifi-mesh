@@ -76,6 +76,7 @@ extern "C"
 #define EM_MAX_STA_PER_BSS         128
 #define EM_MAX_STA_PER_STEER_POLICY        16 
 #define EM_MAX_STA_PER_AGENT       (EM_MAX_RADIO_PER_AGENT * EM_MAX_STA_PER_BSS)
+#define EM_MAX_NEIGHORS		32
 
 #define   EM_MAX_EVENT_DATA_LEN   4096*100
 #define EM_MAX_CHANNELS_IN_LIST  9
@@ -647,7 +648,6 @@ typedef struct {
 	em_radio_id_t ruid;
     unsigned char op_class;
     unsigned char channel;
-	bssid_t bssid;
 } em_scan_result_id_t;
 
 typedef struct {
@@ -668,7 +668,8 @@ typedef struct {
 	em_long_string_t timestamp;
     unsigned char util;
     unsigned char noise;
-	em_neighbor_t	neighbor;
+	unsigned int num_neighbors;
+	em_neighbor_t	neighbor[EM_MAX_NEIGHORS];
 } em_scan_result_t;
 
 typedef struct {
@@ -2538,9 +2539,11 @@ typedef enum {
 	db_cfg_type_radio_cap_list_delete = (1 << 15),
 	db_cfg_type_1905_security_list_update = (1 << 16),
 	db_cfg_type_1905_security_list_delete = (1 << 17),
-  db_cfg_type_sta_metrics_update = (1 << 18),
+	db_cfg_type_sta_metrics_update = (1 << 18),
 	db_cfg_type_policy_list_update = (1 << 19),
 	db_cfg_type_policy_list_delete = (1 << 20),
+	db_cfg_type_scan_result_list_update = (1 << 21),
+	db_cfg_type_scan_result_list_delete = (1 << 22),
 } db_cfg_type_t;
 
 typedef struct{

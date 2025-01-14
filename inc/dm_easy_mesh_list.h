@@ -97,6 +97,12 @@ public:
     void remove_policy(const char *key);
     void put_policy(const char *key, const dm_policy_t *policy);
 
+    dm_scan_result_t *get_first_scan_result();
+    dm_scan_result_t *get_next_scan_result(dm_scan_result_t *scan_result);
+    dm_scan_result_t *get_scan_result(const char *key);
+    void remove_scan_result(const char *key);
+    void put_scan_result(const char *key, const dm_scan_result_t *scan_result);
+
     dm_easy_mesh_list_t();
     ~dm_easy_mesh_list_t();
 };

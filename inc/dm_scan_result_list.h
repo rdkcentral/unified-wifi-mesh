@@ -23,14 +23,19 @@
 #include "dm_scan_result.h"
 #include "db_easy_mesh.h"
 
+typedef struct {
+	em_scan_result_t	*result;
+	unsigned int	index;
+} db_update_scan_result_t;
+
 class dm_easy_mesh_t;
 class dm_scan_result_list_t : public dm_scan_result_t, public db_easy_mesh_t {
 
 public:
     int init();
 
-    dm_orch_type_t get_dm_orch_type(db_client_t& db_client, const dm_scan_result_t& scan_result);
-    void update_list(const dm_scan_result_t& scan_result, dm_orch_type_t op);
+    dm_orch_type_t get_dm_orch_type(db_client_t& db_client, const dm_scan_result_t& scan_result, unsigned int index);
+    void update_list(const dm_scan_result_t& scan_result, unsigned int index, dm_orch_type_t op);
     void delete_list();
 
     void init_table();

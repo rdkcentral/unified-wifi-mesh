@@ -1172,6 +1172,31 @@ void dm_easy_mesh_list_t::put_policy(const char *key, const dm_policy_t *policy)
 	dm->set_policy(*policy);		
 }
 
+dm_scan_result_t *dm_easy_mesh_list_t::get_first_scan_result()
+{
+	return NULL;
+}
+
+dm_scan_result_t *dm_easy_mesh_list_t::get_next_scan_result(dm_scan_result_t *scan_result)
+{
+	return NULL;
+}
+
+dm_scan_result_t *dm_easy_mesh_list_t::get_scan_result(const char *key)
+{
+	return NULL;
+}
+
+void dm_easy_mesh_list_t::remove_scan_result(const char *key)
+{
+
+}
+
+void dm_easy_mesh_list_t::put_scan_result(const char *key, const dm_scan_result_t *scan_result)
+{
+
+}
+
 void dm_easy_mesh_list_t::delete_all_data_models()
 {
 	dm_easy_mesh_t *dm = NULL, *tmp;
