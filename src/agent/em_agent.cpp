@@ -39,7 +39,6 @@
 #include "em_orch_agent.h"
 #include "util.h"
 
-#define MAX_RETRY 20
 #define RETRY_SLEEP_INTERVAL_IN_MS 1000
 
 em_agent_t g_agent;
@@ -422,23 +421,11 @@ void em_agent_t::input_listener()
 
     memset(&data, 0, sizeof(raw_data_t));
 
-    while (((bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_WEBCONFIG_INIT_DML_DATA, &data)) != bus_error_success)
-            && num_retry < MAX_RETRY) {
+    while ((bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_WEBCONFIG_INIT_DML_DATA, &data)) != bus_error_success) {
         printf("%s:%d bus get failed, error:%d, ", __func__, __LINE__, bus_error_val);
-        if (bus_error_val == bus_error_access_not_allowed) {
-            // This error can come when backhaul STA is not yet connected, thus retry after some amount of sleep
             usleep(RETRY_SLEEP_INTERVAL_IN_MS * 1000);
             num_retry++;
-            printf("retry %d of %d\n", num_retry, MAX_RETRY);
-        } else {
-            printf("no retries, returning..\n");
-            return;
-        }
-    }
-
-    if (num_retry == MAX_RETRY) {
-            printf("no further retries, returning..\n");
-            return;
+            printf("retrying %d\n", num_retry);
     }
     printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data.raw_data.bytes);
 
