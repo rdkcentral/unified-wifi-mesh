@@ -365,32 +365,58 @@ func (m *model) timerHandler() {
 }
 
 func (m model) treeToNodes(treeNode *etree.Node) *C.em_network_node_t {
-	netNode := (*C.em_network_node_t)(C.malloc(C.sizeof_em_network_node_t))
-	C.memset(unsafe.Pointer(netNode), 0, C.sizeof_em_network_node_t)
-	C.strncpy((*C.char)(&netNode.key[0]), C.CString(treeNode.Key), C.ulong(len(treeNode.Key)))
+    // Allocate C em_network_node_t struct
+    netNode := (*C.em_network_node_t)(C.malloc(C.sizeof_em_network_node_t))
+    if netNode == nil {
+        return nil
+    }
+    
+    C.memset(unsafe.Pointer(netNode), 0, C.sizeof_em_network_node_t)
+    
+    // Copy key with bounds checking
+    keyStr := C.CString(treeNode.Key)
+    defer C.free(unsafe.Pointer(keyStr))
+    keyLen := C.ulong(len(treeNode.Key))
+    if keyLen > C.sizeof_em_network_node_t {
+        keyLen = C.sizeof_em_network_node_t 
+    }
+    C.strncpy((*C.char)(&netNode.key[0]), keyStr, keyLen)
 
-	C.set_node_type(netNode, C.int(treeNode.Type))
+    // Set node type
+    C.set_node_type(netNode, C.int(treeNode.Type))
 
-	value := treeNode.Value.Value()
-	if value == "" {
-		value = treeNode.Value.Placeholder
-	}
+    // Get value string
+    value := treeNode.Value.Value()
+    if value == "" {
+        value = treeNode.Value.Placeholder
+    }
+    
+    // Handle array vs scalar values
+    if treeNode.Type == etree.NodeTypeArrayStr || treeNode.Type == etree.NodeTypeArrayNum {
+        valueStr := C.CString(value) 
+        defer C.free(unsafe.Pointer(valueStr))
+        C.set_node_array_value(netNode, valueStr)
+    } else {
+        valueStr := C.CString(value)
+        defer C.free(unsafe.Pointer(valueStr))
+        C.set_node_scalar_value(netNode, valueStr)
+    }
 
-	if treeNode.Type == etree.NodeTypeArrayStr || treeNode.Type == etree.NodeTypeArrayNum {
-		C.set_node_array_value(netNode, C.CString(value))
-	} else {
-		C.set_node_scalar_value(netNode, C.CString(value))
-	}
+    // Handle children recursively
+    if treeNode.Children != nil && len(treeNode.Children) > 0 {
+        // Verify we don't exceed max children
+        numChildren := len(treeNode.Children)
+        if numChildren > int(C.EM_MAX_DM_CHILDREN) {
+            numChildren = int(C.EM_MAX_DM_CHILDREN)
+        }
+        
+        for i := 0; i < numChildren; i++ {
+            netNode.child[i] = m.treeToNodes(&treeNode.Children[i])
+        }
+        netNode.num_children = C.uint(numChildren)
+    }
 
-	if treeNode.Children != nil {
-		for i := 0; i < len(treeNode.Children); i++ {
-			netNode.child[i] = m.treeToNodes(&treeNode.Children[i])
-		}
-
-		netNode.num_children = C.uint(len(treeNode.Children))
-	}
-
-	return netNode
+    return netNode
 }
 
 func (m model) nodesToTree(netNode *C.em_network_node_t, treeNode *etree.Node) {
