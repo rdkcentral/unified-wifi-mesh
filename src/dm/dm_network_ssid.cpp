@@ -248,7 +248,9 @@ em_haul_type_t dm_network_ssid_t::haul_type_from_string(em_string_t str)
         type = em_haul_type_configurator;
     } else {
         type = em_haul_type_max;
-    }	
+    }
+
+    return type; 
 }
 
 dm_network_ssid_t::dm_network_ssid_t(em_network_ssid_info_t *net_ssid)

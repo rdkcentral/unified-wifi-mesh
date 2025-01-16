@@ -27,7 +27,7 @@ class em_cmd_ctrl_t : public em_cmd_exec_t {
     em_ctrl_t& m_ctrl = g_ctrl;
     int m_dsock;
 public:
-    int execute(em_long_string_t result);
+    int execute(char *result);
     int send_result(em_cmd_out_status_t status);
 
     em_cmd_ctrl_t();

@@ -90,7 +90,6 @@ int em_cmd_exec_t::execute(em_cmd_type_t type, em_service_type_t to_svc, unsigne
     bevt->type = em_cmd_t::cmd_2_bus_event_type(type);
     info = &bevt->u.subdoc;
     memcpy(info->buff, in, len);
-    info->sz = len;
     return send_cmd(to_svc, (unsigned char *)&ev, sizeof(em_event_t));;
 }
 
@@ -164,7 +163,6 @@ void em_cmd_exec_t::init()
 {
     pthread_cond_init(&m_cond, NULL);
     pthread_mutex_init(&m_lock, NULL);
-
 }
 
 em_cmd_exec_t::em_cmd_exec_t()

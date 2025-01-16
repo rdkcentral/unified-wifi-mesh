@@ -34,6 +34,7 @@ public:
     int init(em_cli_params_t *params);
 	const char *get_first_cmd_str();
 	const char *get_next_cmd_str(const char *cmd);
+	em_network_node_t *get_reset_tree(char *platform);
 	
     void init_lib_dbg(char *file_name);
     void dump_lib_dbg(char *str);

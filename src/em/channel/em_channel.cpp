@@ -111,13 +111,13 @@ short em_channel_t::create_channel_scan_req_tlv(unsigned char *buff)
 	memcpy(req->ruid, get_radio_interface_mac(), sizeof(mac_address_t));
 	len += sizeof(em_channel_scan_req_t);
 
+	req_op_class = req->op_class;
 	for (i = 0; i < dm->get_num_op_class(); i++) {
 		opclass = &dm->m_op_class[i];
 		if (opclass->m_op_class_info.id.type != em_op_class_type_scan_param) {
 			continue;
 		}
 
-		req_op_class = &req->op_class[req->num_op_classes];
 		req_op_class->op_class = opclass->m_op_class_info.op_class;
 		req_op_class->num_channels = opclass->m_op_class_info.num_channels;
 
@@ -128,9 +128,9 @@ short em_channel_t::create_channel_scan_req_tlv(unsigned char *buff)
 		len += (sizeof(em_channel_scan_req_op_class_t) + req_op_class->num_channels*sizeof(unsigned char));	
 		
 		req->num_op_classes++;
+		req_op_class = (em_channel_scan_req_op_class_t *)((unsigned char *)req_op_class + sizeof(em_channel_scan_req_op_class_t) + req_op_class->num_channels*sizeof(unsigned char));
 	}
 
-	printf("%s:%d: Length: %d\n", __func__, __LINE__, len);
 	return len;
 }
 
@@ -1051,6 +1051,90 @@ int em_channel_t::send_channel_pref_report_msg()
     return len;
 }
 
+int em_channel_t::send_available_spectrum_inquiry_msg()
+{
+    unsigned char buff[MAX_EM_BUFF_SZ];
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    unsigned short  msg_id = em_msg_type_avail_spectrum_inquiry;
+    int len = 0;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    short sz = 0;
+    unsigned char *tmp = buff;
+    unsigned short type = htons(ETH_P_1905);
+    dm_easy_mesh_t *dm;
+
+    dm = get_data_model();
+
+    memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+	tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, (unsigned char *)&type, sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += sizeof(unsigned short);
+
+    cmdu = (em_cmdu_t *)tmp;
+
+    memset(tmp, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(msg_id);
+    cmdu->id = htons(msg_id);
+    cmdu->last_frag_ind = 1;
+    cmdu->relay_ind = 0;
+
+    tmp += sizeof(em_cmdu_t);
+    len += sizeof(em_cmdu_t);
+
+    // Zero or more Channel Preference TLVs (see section 17.2.13).
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_channel_pref;
+    sz = create_channel_pref_tlv(tlv->value);
+    tlv->len = htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += (sizeof(em_tlv_t) + sz);
+
+	// One Available Spectrum Inquiry Request TLV (see section 17.2.104)
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_avail_spectrum_inquiry_reg;
+    tlv->len = htons(sizeof(em_avail_spectrum_inquiry_req_t));
+
+    tmp += (sizeof(em_tlv_t) + sizeof(em_avail_spectrum_inquiry_req_t));
+    len += (sizeof(em_tlv_t) + sizeof(em_avail_spectrum_inquiry_req_t));
+
+    // One Available Spectrum Inquiry Response TLV (see section 17.2.105)
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_avail_spectrum_inquiry_rsp;
+    tlv->len = htons(sizeof(em_avail_spectrum_inquiry_rsp_t));
+
+    tmp += (sizeof(em_tlv_t) + sizeof(em_avail_spectrum_inquiry_rsp_t));
+    len += (sizeof(em_tlv_t) + sizeof(em_avail_spectrum_inquiry_rsp_t));
+
+    // End of message
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_eom;
+    tlv->len = 0;
+
+    tmp += (sizeof (em_tlv_t));
+    len += (sizeof (em_tlv_t));
+    if (em_msg_t(em_msg_type_avail_spectrum_inquiry, em_profile_type_3, buff, len).validate(errors) == 0) {
+        printf("Available Spectrum Inquiry msg failed validation in tnx end\n");
+        return -1;
+    }
+
+    if (send_frame(buff, len)  < 0) {
+        printf("%s:%d: Available Spectrum Inquiry msg failed, error:%d\n", __func__, __LINE__, errno);
+        return -1;
+    }
+
+    return len;
+
+}
+
 int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len)
 {
     dm_easy_mesh_t *dm;
@@ -1341,21 +1425,17 @@ int em_channel_t::handle_eht_operations_tlv(unsigned char *buff, em_eht_operatio
 
 int em_channel_t::handle_channel_pref_query(unsigned char *buff, unsigned int len)
 {
-    em_event_t  ev;
-    em_bus_event_t *bev;
     em_cmdu_t *cmdu;
-    em_bus_event_type_channel_pref_query_params_t *params;
+    em_bus_event_type_channel_pref_query_params_t params;
 
     cmdu = (em_cmdu_t *)(buff + sizeof(em_raw_hdr_t));
 
-    ev.type = em_event_type_bus;
-    bev = &ev.u.bevt;
-    bev->type = em_bus_event_type_channel_pref_query;
-    params = (em_bus_event_type_channel_pref_query_params_t *) &bev->u.raw_buff;
-    memcpy(params->mac, get_radio_interface_mac(), sizeof(mac_address_t));
-    params->msg_id = ntohs(cmdu->id);
-    em_cmd_exec_t::send_cmd(em_service_type_agent, (unsigned char *)&ev, sizeof(em_event_t));
-    return 0;
+    memcpy(params.mac, get_radio_interface_mac(), sizeof(mac_address_t));
+    params.msg_id = ntohs(cmdu->id);
+   
+	get_mgr()->io_process(em_bus_event_type_channel_pref_query, (unsigned char *)&params, sizeof(em_bus_event_type_channel_pref_query_params_t)); 
+
+	return 0;
 }
 
 int em_channel_t::handle_channel_sel_req(unsigned char *buff, unsigned int len)
@@ -1363,32 +1443,23 @@ int em_channel_t::handle_channel_sel_req(unsigned char *buff, unsigned int len)
     em_tlv_t    *tlv;
     int tlv_len;
 
-    op_class_channel_sel *op_class;
-
-    em_event_t  ev;
-    em_bus_event_t *bev;
-    unsigned char* tmp = (unsigned char *) &ev.u.bevt.u.raw_buff;
-
-    ev.type = em_event_type_bus;
-    bev = &ev.u.bevt;
-    bev->type = em_bus_event_type_channel_sel_req;
-    op_class = (op_class_channel_sel *)&bev->u.raw_buff;
+    op_class_channel_sel op_class;
 
     tlv = (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tlv_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if (tlv->type == em_tlv_type_channel_pref) {
-            handle_channel_pref_tlv(tlv->value, op_class);
+            handle_channel_pref_tlv(tlv->value, &op_class);
         }
         if (tlv->type == em_tlv_type_tx_power) {
-			memcpy(&op_class->tx_power, tlv->value, sizeof(em_tx_power_limit_t));
+			memcpy(&op_class.tx_power, tlv->value, sizeof(em_tx_power_limit_t));
         }
         if (tlv->type == em_tlv_type_spatial_reuse_req) {
-            memcpy(&op_class->spatial_reuse_req, tlv->value, sizeof(em_spatial_reuse_req_t));
+            memcpy(&op_class.spatial_reuse_req, tlv->value, sizeof(em_spatial_reuse_req_t));
         }
         if (tlv->type == em_tlv_eht_operations) {
-            handle_eht_operations_tlv(tlv->value, &op_class->eht_ops);
+            handle_eht_operations_tlv(tlv->value, &op_class.eht_ops);
             break;
         }
 
@@ -1396,9 +1467,11 @@ int em_channel_t::handle_channel_sel_req(unsigned char *buff, unsigned int len)
         tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
-	op_class->freq_band = get_band();
-    em_cmd_exec_t::send_cmd(em_service_type_agent, (unsigned char *)&ev, sizeof(em_event_t));
-    printf("%s:%d Received channel selection request \n",__func__, __LINE__);
+	op_class.freq_band = get_band();
+   
+	get_mgr()->io_process(em_bus_event_type_channel_sel_req, (unsigned char *)&op_class, sizeof(op_class_channel_sel)); 
+    
+	printf("%s:%d Received channel selection request \n",__func__, __LINE__);
 
     return 0;
 }
@@ -1474,6 +1547,12 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
             }
             break;
 
+        case em_msg_type_avail_spectrum_inquiry:
+            if (get_service_type() == em_service_type_agent) {
+                send_available_spectrum_inquiry_msg();
+            }
+            break;
+
         default:
             break;
     }
@@ -1512,6 +1591,7 @@ void em_channel_t::process_ctrl_state()
             break;
 
         case em_state_ctrl_channel_select_pending:
+        case em_state_ctrl_avail_spectrum_inquiry_pending:
 			if(get_service_type() == em_service_type_ctrl) {
 				send_channel_sel_request_msg();
 			}

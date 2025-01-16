@@ -4,8 +4,6 @@
         "NumberOfDevices": 1,
         "TimeStamp": "2019-02-11T06:23:43.743847-08:00",
         "ControllerID": "02:01:02:01:00:01",
-        "MSCSDisallowedStaList": ["00:01:02:03:04:05"],
-        "SCSDisallowedStaList": [],
         "NetworkSSIDList": [{
                 "SSID": "private_ssid",
                 "PassPhrase": "test-fronthaul",
@@ -51,25 +49,9 @@
                 "HaulType": ["Backhaul"]
             }
         ],
-        "STABlock": [
-            {
-                "BlockedSTA": "00:01:02:03:04:05",
-                "BSSID": ["0a:01:02:03:04:05","0a:01:02:03:04:06"],
-                "Schedule" : [
-                    {
-                        "Alias" : "Schedule_1",
-                        "Day": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
-                        "StartTime": "00:30",
-                        "Duration":3600
-                    }
-                ]
-            }
-        ],
         "PreferredBackhauls" : [
             { "BackhaulMACAddress" : "02:01:02:01:04:01", "BackhaulStaMACAddress" : "02:01:02:02:04:03"}
         ],
         "ColocatedAgentID" : "02:01:02:01:00:04"
     }
 }
-
-

@@ -78,6 +78,10 @@ public:
 
     virtual em_service_type_t get_service_type() = 0;
 
+	bool io_process(em_event_t *evt);
+	void io_process(em_bus_event_type_t type, char *data, unsigned int len);
+	void io_process(em_bus_event_type_t type, unsigned char *data, unsigned int len);
+
     em_mgr_t();
     ~em_mgr_t();
 };

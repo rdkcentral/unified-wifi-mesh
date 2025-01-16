@@ -28,6 +28,7 @@ class em_channel_t {
 	virtual int push_event(em_event_t *evt) = 0;
 
 public:
+	virtual em_mgr_t *get_mgr() = 0;
     virtual dm_easy_mesh_t *get_data_model() = 0;
     virtual unsigned char *get_radio_interface_mac() = 0;
     virtual em_state_t get_state() = 0;
@@ -54,6 +55,7 @@ public:
 	int send_operating_channel_report_msg();
 	int send_channel_pref_query_msg();
 	int send_channel_pref_report_msg();
+    int send_available_spectrum_inquiry_msg();
 
     int handle_channel_pref_rprt(unsigned char *buff, unsigned int len);
     int handle_channel_pref_query(unsigned char *buff, unsigned int len);

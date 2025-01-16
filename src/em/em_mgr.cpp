@@ -43,8 +43,69 @@
 #include "em.h"
 #include "em_mgr.h"
 #include "em_msg.h"
+#include "em_cmd.h"
+#include "util.h"
 
 extern char *global_netid;
+
+void em_mgr_t::io_process(em_bus_event_type_t type, char *data, unsigned int len)
+{
+    em_event_t *evt;
+    em_bus_event_t *bevt;
+
+    evt = (em_event_t *)malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN);
+    evt->type = em_event_type_bus;
+    bevt = &evt->u.bevt;
+    bevt->type = type;
+    bevt->data_len = len;
+    memcpy(bevt->u.subdoc.buff, data, len);
+
+    push_to_queue(evt);
+}
+
+void em_mgr_t::io_process(em_bus_event_type_t type, unsigned char *data, unsigned int len)
+{
+    em_event_t *evt;
+    em_bus_event_t *bevt;
+    
+    evt = (em_event_t *)malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN);
+    evt->type = em_event_type_bus;
+    bevt = &evt->u.bevt; 
+    bevt->type = type;
+    bevt->data_len = len;
+    memcpy(bevt->u.raw_buff, data, len);
+
+    push_to_queue(evt);
+}
+
+bool em_mgr_t::io_process(em_event_t *evt)
+{
+    em_event_t *e;
+    em_bus_event_t *bevt;
+    bool should_wait;
+
+    bevt = &evt->u.bevt;
+    //em_cmd_t::dump_bus_event(bevt);
+
+    e = (em_event_t *)malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN);
+    memcpy((unsigned char *)e, (unsigned char *)evt, EM_MAX_EVENT_DATA_LEN);
+
+    push_to_queue(e);
+
+    // check if the server should wait
+    should_wait = false;
+
+    switch (evt->type) {
+        case em_event_type_bus:
+            bevt = &evt->u.bevt;
+            if (bevt->type != em_bus_event_type_dm_commit) {
+                should_wait = true;
+            }
+            break;
+    }
+
+    return should_wait;
+}
 
 void em_mgr_t::proto_process(unsigned char *data, unsigned int len, em_t *al_em)
 {
@@ -60,7 +121,7 @@ void em_mgr_t::proto_process(unsigned char *data, unsigned int len, em_t *al_em)
     evt->type = em_event_type_frame;
     evt->u.fevt.frame = (unsigned char *)malloc(len);
     memcpy(evt->u.fevt.frame, data, len);
-    evt->u.fevt.len = len;
+    evt->u.fevt.frame_len = len;
     em->push_to_queue(evt);
 }
 
@@ -222,14 +283,14 @@ void em_mgr_t::nodes_listener()
     unsigned char buff[MAX_EM_BUFF_SZ];
     em_raw_hdr_t *hdr;
 
-    tm.tv_sec = m_timeout;
-    tm.tv_usec = 0;
+    tm.tv_sec = 0;
+    tm.tv_usec = m_timeout * 1000;
     highest_fd = reset_listeners();
 
     while ((rc = select(highest_fd + 1, &m_rset, NULL, NULL, &tm)) >= 0) {
         if (rc == 0) {
-            tm.tv_sec = m_timeout;
-            tm.tv_usec = 0;
+            tm.tv_sec = 0;
+            tm.tv_usec = m_timeout * 1000;
             highest_fd = reset_listeners();
 
             continue;
@@ -254,8 +315,8 @@ void em_mgr_t::nodes_listener()
             em = (em_t *)hash_map_get_next(m_em_map, em);
         }
 
-        tm.tv_sec = m_timeout;
-        tm.tv_usec = 0;
+        tm.tv_sec = 0;
+        tm.tv_usec = m_timeout * 1000;
         highest_fd = reset_listeners();
 
     }
@@ -298,8 +359,8 @@ int em_mgr_t::start()
 
         gettimeofday(&tm, NULL);
         time_to_wait.tv_sec = tm.tv_sec;
-        time_to_wait.tv_nsec = tm.tv_usec * 1000;
-        time_to_wait.tv_sec += m_queue.timeout;
+       	time_to_wait.tv_nsec = tm.tv_usec * 1000;
+		add_milliseconds(&time_to_wait, m_queue.timeout);		
 
         if (queue_count(m_queue.queue) == 0) {
             rc = pthread_cond_timedwait(&m_queue.cond, &m_queue.lock, &time_to_wait);
@@ -312,7 +373,9 @@ int em_mgr_t::start()
                     continue;
                 }
                 pthread_mutex_unlock(&m_queue.lock);
-                if (((evt->type == em_event_type_bus) && (evt->u.bevt.type == em_bus_event_type_reset)) || (is_data_model_initialized() == true)) {
+                if (((evt->type == em_event_type_bus) && (evt->u.bevt.type == em_bus_event_type_reset)) || 
+						(is_data_model_initialized() == true)) {
+		
                     handle_event(evt);
                 }
                 free(evt);
@@ -326,7 +389,7 @@ int em_mgr_t::start()
             }
             pthread_mutex_lock(&m_queue.lock);
         } else {
-            printf("%s:%d em exited with rc - %d",__func__,__LINE__,rc);
+            printf("%s:%d em exited with rc - %d\n",__func__,__LINE__, rc);
             pthread_mutex_unlock(&m_queue.lock);
             return -1;
         }

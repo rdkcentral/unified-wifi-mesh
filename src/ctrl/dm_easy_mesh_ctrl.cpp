@@ -39,6 +39,7 @@
 #include "dm_easy_mesh_ctrl.h"
 #include "dm_easy_mesh.h"
 #include <cjson/cJSON.h>
+#include "em_cmd_exec.h"
 #include "em_cmd_reset.h"
 #include "em_cmd_dev_test.h"
 #include "em_cmd_remove_device.h"
@@ -1051,6 +1052,7 @@ int dm_easy_mesh_ctrl_t::reset_config()
     dm_bss_list_t::load_table(m_db_client);
     dm_sta_list_t::load_table(m_db_client);
     dm_policy_list_t::load_table(m_db_client);
+    dm_scan_result_list_t::load_table(m_db_client);
 
     return 0;
 }
@@ -1081,6 +1083,32 @@ int dm_easy_mesh_ctrl_t::get_bss_config(cJSON *parent, char *key)
     }
 
     return 0;
+}
+
+int dm_easy_mesh_ctrl_t::get_reference_config(cJSON *parent, char *net_id)
+{
+	char *buff;
+	cJSON *obj;
+
+	buff = (char *)malloc(EM_MAX_EVENT_DATA_LEN);
+
+	if (em_cmd_exec_t::load_params_file("DevTest.json", buff) < 0) {
+		printf("%s:%d: Failed to load test file\n", __func__, __LINE__);
+		free(buff);
+		return -1;
+	}
+
+	if ((obj = cJSON_Parse(buff)) == NULL) {
+		printf("%s:%d: Failed to load test file\n", __func__, __LINE__);
+		free(buff);
+		return -1;
+	}
+
+	free(buff);
+
+	cJSON_AddItemToObject(parent, "Reference", obj);
+	
+	return 0;
 }
 
 int dm_easy_mesh_ctrl_t::get_policy_config(cJSON *parent, char *net_id)
@@ -1244,18 +1272,17 @@ int dm_easy_mesh_ctrl_t::get_network_config(cJSON *parent, char *key)
     netssid_list_obj = cJSON_AddArrayToObject(net_obj, "NetworkSSIDList");
     dm_network_ssid_list_t::get_config(netssid_list_obj, key);
 
-#ifdef FIX_B
     num = cJSON_GetArraySize(dev_list_obj);
     for (i = 0; i < num; i++) {
-	if (((dev_obj = cJSON_GetArrayItem(dev_list_obj, i)) != NULL) &&
-			((obj = cJSON_GetObjectItem(dev_obj, "ID")) != NULL)) {
-	    radio_list_obj = cJSON_AddArrayToObject(dev_obj, "RadioList");
-	    dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(obj), dev_mac);
-	    dm_radio_list_t::get_config(radio_list_obj, &dev_mac);
-	}
+		if (((dev_obj = cJSON_GetArrayItem(dev_list_obj, i)) != NULL) &&
+				((obj = cJSON_GetObjectItem(dev_obj, "ID")) != NULL)) {
+	    	radio_list_obj = cJSON_AddArrayToObject(dev_obj, "RadioList");
+	    	dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(obj), dev_mac);
+	    	dm_radio_list_t::get_config(radio_list_obj, &dev_mac);
+		}
     }
-#endif // FIX_B
-    return 0;
+    
+	return 0;
 }
 
 int dm_easy_mesh_ctrl_t::get_config(em_long_string_t net_id, em_subdoc_info_t *subdoc)
@@ -1296,6 +1323,8 @@ int dm_easy_mesh_ctrl_t::get_config(em_long_string_t net_id, em_subdoc_info_t *s
         get_sta_config(parent, net_id, em_get_sta_list_reason_btm);
     } else if (strncmp(subdoc->name, "Policy", strlen(subdoc->name)) == 0) {
         get_policy_config(parent, net_id);
+    } else if (strncmp(subdoc->name, "DevTest", strlen(subdoc->name)) == 0) {
+        get_reference_config(parent, net_id);
     }
 
     tmp = cJSON_Print(parent);
@@ -1364,6 +1393,7 @@ void dm_easy_mesh_ctrl_t::init_tables()
     dm_bss_list_t::init();
     dm_sta_list_t::init();
     dm_policy_list_t::init();
+    dm_scan_result_list_t::init();
 }
 
 int dm_easy_mesh_ctrl_t::load_net_ssid_table()
@@ -1391,6 +1421,8 @@ int dm_easy_mesh_ctrl_t::load_tables()
 		type = db_cfg_type_sta_list_update;
 	} else if (dm_policy_list_t::load_table(m_db_client) != 0) {
 		type = db_cfg_type_policy_list_update;
+	} else if (dm_scan_result_list_t::load_table(m_db_client) != 0) {
+		type = db_cfg_type_scan_result_list_update;
     }
 
     if (type == dm_orch_type_none) {

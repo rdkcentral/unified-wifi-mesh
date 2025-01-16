@@ -46,6 +46,45 @@
 
 em_cli_t g_cli;
 
+em_network_node_t *em_cli_t::get_reset_tree(char *platform)
+{
+	unsigned int len;
+	mac_address_t   al_mac;
+    dm_easy_mesh_t dm; 
+    //mac_addr_str_t  ctrl_mac, ctrl_al_mac, agent_al_mac;
+	em_subdoc_info_t *subdoc;
+	unsigned char buff[EM_IO_BUFF_SZ];
+	em_short_string_t interface;
+
+	if (strncmp(platform, "rpi", strlen("rpi")) == 0) {
+		strncpy(interface, "eth0", strlen("eth0"));
+	} else if (strncmp(platform, "sim", strlen("sim")) == 0) {
+		strncpy(interface, "ens160", strlen("ens160"));
+	}
+	
+	subdoc = (em_subdoc_info_t *)buff;
+
+	if ((len = em_cmd_exec_t::load_params_file("Reset.json", subdoc->buff)) < 0) {
+		return NULL;
+	}
+
+    dm.init();
+    dm.decode_config(subdoc, "Reset");
+            
+    if (dm_easy_mesh_t::mac_address_from_name(interface, al_mac) != 0) {
+        return NULL;
+    }       
+            
+    dm.set_ctrl_al_interface_mac(al_mac);
+    dm.set_ctrl_al_interface_name(interface);
+            
+    //dm.print_config();
+
+    dm.encode_config(subdoc, "Reset");
+
+	return em_net_node_t::get_network_tree(subdoc->buff);
+}
+
 const char *em_cli_t::get_first_cmd_str()
 {
     return em_cmd_cli_t::m_client_cmd_spec[0].get_cmd_name();
@@ -179,7 +218,8 @@ em_cmd_t& em_cli_t::get_command(char *in, size_t in_len, em_network_node_t *node
 em_network_node_t *em_cli_t::exec(char *in, size_t sz, em_network_node_t *node)
 {
     em_long_string_t cmd;
-    em_status_string_t res;
+    char *result;
+	em_network_node_t *new_node;
     em_cmd_cli_t *cli_cmd;
 
     snprintf(cmd, sizeof(cmd),  "%s", in);
@@ -187,18 +227,24 @@ em_network_node_t *em_cli_t::exec(char *in, size_t sz, em_network_node_t *node)
 
     cli_cmd->init();
 
+	result = (char *)malloc(EM_MAX_EVENT_DATA_LEN);
+	memset(result, 0, EM_MAX_EVENT_DATA_LEN);
+
     if (cli_cmd->validate() == false) {
-        cli_cmd->m_cmd.status_to_string(em_cmd_out_status_invalid_input, res);
+        cli_cmd->m_cmd.status_to_string(em_cmd_out_status_invalid_input, result);
     } else {
-        if (cli_cmd->execute(res) != 0) {
-            cli_cmd->m_cmd.status_to_string(em_cmd_out_status_invalid_input, res);
+        if (cli_cmd->execute(result) != 0) {
+            cli_cmd->m_cmd.status_to_string(em_cmd_out_status_invalid_input, result);
 
         }
     }
 
     delete cli_cmd;
 
-    return em_net_node_t::get_network_tree(res);	
+    new_node = em_net_node_t::get_network_tree(result);	
+	free(result);
+
+	return new_node;
 }
 
 void em_cli_t::init_lib_dbg(char *file_name)
@@ -304,4 +350,9 @@ extern "C" unsigned int can_expand_node(em_network_node_t *node)
     }
 
     return 0;
+}
+
+extern "C" em_network_node_t *get_reset_tree(char *platform)
+{
+	return g_cli.get_reset_tree(platform);
 }

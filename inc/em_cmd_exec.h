@@ -36,6 +36,9 @@ public:
     //char *get_result() { return m_cmd.get_result(); }
     bool validate() { return m_cmd.validate(); }
     em_event_t *get_event() { return m_cmd.get_event(); }
+    unsigned int get_event_length() { return m_cmd.get_event_length(); }
+    unsigned int get_event_data_length() { return m_cmd.get_event_data_length(); }
+	void set_event_data_length(unsigned int len) { m_cmd.set_event_data_length(len); }
     em_cmd_t *get_cmd() { return &m_cmd; }
     em_cmd_params_t *get_param() { return m_cmd.get_param(); }
     em_cmd_type_t get_type() { return m_cmd.m_type; }
@@ -50,7 +53,7 @@ public:
     static char *get_path_from_dst_service(em_service_type_t to_svc, em_long_string_t sock_path);
 	static int     load_params_file(const char *filename, char *buff);
 
-    virtual int execute(em_long_string_t result) = 0;
+    virtual int execute(char *result) = 0;
     void release_wait();
     void wait(struct timespec *time_to_wait);
 

@@ -11,40 +11,44 @@ package main
 import "C"
 
 import (
-	"github.com/rdkcentral/unified-wifi-mesh/src/cli/etree"
-	"unsafe"
 	"fmt"
 	"os"
+	"strings"
 	"time"
-    "strings"
+	"unsafe"
+
+	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
-    tea "github.com/charmbracelet/bubbletea"
-    "github.com/charmbracelet/lipgloss"
-    "github.com/charmbracelet/bubbles/list"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/davecgh/go-spew/spew"
+	"github.com/rdkcentral/unified-wifi-mesh/src/cli/etree"
 	"golang.org/x/term"
-    "github.com/davecgh/go-spew/spew"
 )
 
 const (
 	linesToDisplay int = 38
 	
-	NetworkTopologyCmd = 1
-	NetworkSSIDListCmd = 2
-	RadioListCmd = 3
-	ChannelsListCmd = 4
-	ClientDevicesCmd = 5
-	NetworkPolicyCmd = 6
-	NeighborsListCmd = 7
-	SteerDevicesCmd = 8
-	NetworkMetricsCmd = 9
-	DeviceOnboardingCmd = 10
+	NetworkTopologyCmd = "Network Topology"
+	NetworkSSIDListCmd = "SSID List"
+	RadioListCmd = "WiFi Radios"
+	ChannelsListCmd = "WiFi Channels"
+	ClientDevicesCmd = "Client Connections"
+	NetworkPolicyCmd = "Network Policy"
+	NeighborsListCmd = "WiFi Neighbors"
+	SteerDevicesCmd = "Optimize Client Connections"
+	NetworkMetricsCmd = "Network Metrics"
+	DeviceOnboardingCmd = "Onboarding & Provisioning"
+	WiFiEventsCmd = "WiFi Events"
+	WiFiResetCmd = "WiFi Reset"
+	DebugCmd = "Debugging & Testing"
 
 	GET = 0
 	GETX = 1 
 	SET = 2 
 
 	BTN_UPDATE	= 0
-	BTN_OK	= 1
+	BTN_APPLY	= 1
 	BTN_CANCEL	= 2
 	BTN_MAX = 3
 )
@@ -59,7 +63,7 @@ var (
     menuBodyStyle = lipgloss.NewStyle().
     		Background(lipgloss.Color("#ffffff"))
 
-    viewBodyStyle = lipgloss.NewStyle().
+    canvasStyle = lipgloss.NewStyle().
     		Background(lipgloss.Color("#ebebeb"))
 
     jsonStyle = lipgloss.NewStyle().
@@ -108,27 +112,15 @@ func (i item) FilterValue() string { return i.title }
 
 type EasyMeshCmd struct {
 	Title		string
+	LoadOrder	int
 	GetCommand		string
 	GetCommandEx		string
 	SetCommand		string
 	Help		string
 }
 
-var emCommands = map[int]EasyMeshCmd {
-    NetworkTopologyCmd: 		{"Network Topology", "get_bss OneWifiMesh", "", "", ""},
-    NetworkPolicyCmd: 		{"Network Policy", "get_policy OneWifiMesh", "get_policy OneWifiMesh", "set_policy OneWifiMesh", ""},
-    NetworkSSIDListCmd: 	{"SSID List", "get_ssid OneWifiMesh", "get_ssid OneWifiMesh", "set_ssid OneWifiMesh", ""},
-    RadioListCmd: 			{"WiFi Radios", "get_radio OneWifiMesh", "", "", ""},
-    ChannelsListCmd: 		{"WiFi Channels", "get_channel OneWifiMesh", "get_channel OneWifiMesh 1", "set_channel OneWifiMesh", ""},
-    NeighborsListCmd: 		{"WiFi Neighbors", "get_channel OneWifiMesh", "get_channel OneWifiMesh 2", "scan_channel OneWifiMesh", ""},
-    ClientDevicesCmd: 		{"Client Connections", "get_sta OneWifiMesh", "", "", ""},
-    SteerDevicesCmd: 		{"Optimize Connections", "get_sta OneWifiMesh", "get_sta OneWifiMesh 1", "steer_sta OneWifiMesh", ""},
-    NetworkMetricsCmd: 		{"Network Metrics", "", "", "", ""},
-    DeviceOnboardingCmd: 		{"Onboarding & Provisioning", "", "", "", ""},
-	
-}
-
 type model struct {
+	platform	string
     list          list.Model
     statusMessage string
 	currentOperatingInstructions	string
@@ -137,6 +129,8 @@ type model struct {
     activeButton  int
 	viewWidth		int
 	viewHeight		int
+	canvasWidth		int
+	canvasHeight		int
 	menuWidth		int
 	menuHeight		int
 	menuInstructionsHeight	int
@@ -145,19 +139,41 @@ type model struct {
     tree   etree.Model
     currentNetNode   *C.em_network_node_t
     displayedNetNode   *C.em_network_node_t
-    cursor int
 	quit	chan bool
 	ticker	*time.Ticker
 	timer	*time.Timer
+	easyMeshCommands	map[string]EasyMeshCmd
+	contentUpdated		bool
     dump 	*os.File
 }
 
-func newModel() model {
+func newModel(platform string) model {
 
+	easyMeshCommands := map[string]EasyMeshCmd {
+    	NetworkTopologyCmd:         {NetworkTopologyCmd, 0, "get_bss OneWifiMesh", "", "", ""},
+        NetworkPolicyCmd:       {NetworkPolicyCmd, 1, "get_policy OneWifiMesh", "get_policy OneWifiMesh", "set_policy OneWifiMesh", ""},
+        NetworkSSIDListCmd:     {NetworkSSIDListCmd, 2, "get_ssid OneWifiMesh", "get_ssid OneWifiMesh", "set_ssid OneWifiMesh", ""},
+        RadioListCmd:           {RadioListCmd, 3, "get_radio OneWifiMesh", "", "", ""},
+        ChannelsListCmd:        {ChannelsListCmd, 4, "get_channel OneWifiMesh", "get_channel OneWifiMesh 1", "set_channel OneWifiMesh", ""},
+        NeighborsListCmd:       {NeighborsListCmd, 5, "get_channel OneWifiMesh", "get_channel OneWifiMesh 2", "scan_channel OneWifiMesh", ""},
+        ClientDevicesCmd:       {ClientDevicesCmd, 6, "get_sta OneWifiMesh", "", "", ""},
+        SteerDevicesCmd:        {SteerDevicesCmd, 7, "get_sta OneWifiMesh", "get_sta OneWifiMesh 1", "steer_sta OneWifiMesh", ""},
+        NetworkMetricsCmd:      {NetworkMetricsCmd, 8, "", "", "", ""},
+        DeviceOnboardingCmd:        {DeviceOnboardingCmd, 9, "", "", "", ""},
+        WiFiEventsCmd:      {WiFiEventsCmd, 10, "", "", "", ""},
+        WiFiResetCmd:       {WiFiResetCmd, 11, "get_network OneWifiMesh", "", "reset OneWifiMesh", ""},
+        DebugCmd:       {DebugCmd, 12, "dev_test OneWifiMesh", "", "", ""},
+    }
+	
 	var items []list.Item
-
-	for _, value := range emCommands {
-		items  = append(items, item{title: value.Title})
+	
+	for i := 0; i < len(easyMeshCommands); i++ {
+		for _, value := range easyMeshCommands { 
+			if i == value.LoadOrder {
+				items = append(items, item{title: value.Title})
+				break
+			}
+		}
 	}
 
     commandList := list.New(items, list.NewDefaultDelegate(), 0, 0)
@@ -186,7 +202,8 @@ func newModel() model {
     dump, _ := os.OpenFile("messages.log", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
     C.init_lib_dbg(C.CString("messages_lib.log"))
 
-    return model{
+    return model {
+		platform: platform,
 		menuWidth: 35,
 		menuInstructionsHeight: 3,
 		bottomSpace: 10,
@@ -196,25 +213,22 @@ func newModel() model {
 		activeButton: BTN_CANCEL,
 		tree: etree.New(nodes, false, w, h, dump),
         dump: dump,
+		easyMeshCommands: easyMeshCommands, 
+		contentUpdated: false,
     }
 }
 
-func splitIntoLines(content string) []string {
-    return strings.Split(content, "\n")
-}
+
 
 func (m model) Init() tea.Cmd {
 	var params *C.em_cli_params_t
-
 	params = (*C.em_cli_params_t)(C.malloc(C.sizeof_em_cli_params_t))
-	
 	params.user_data = unsafe.Pointer(&m)
 	params.cb_func = nil
 	params.cli_type = C.em_cli_type_go
+	C.init(params)
 		
 	m.currentOperatingInstructions = "\n\n\t Press 'w' to scroll up, 's' to scroll down"
-
-	C.init(params)
 
 	m.timer = time.NewTimer(1 * time.Second)
 	m.ticker = time.NewTicker(5 * time.Second)
@@ -237,7 +251,6 @@ func (m *model) timerHandler() {
 
 
 			case <- m.ticker.C:
-				spew.Fdump(m.dump, "5 second ticker fired")
 
 			case <- m.quit:
 				m.ticker.Stop()
@@ -257,7 +270,7 @@ func (m model) treeToNodes(treeNode *etree.Node) *C.em_network_node_t {
 	if value == "" {
 		value = treeNode.Value.Placeholder
 	}
-
+		
 	if treeNode.Type == etree.NodeTypeArrayStr || treeNode.Type == etree.NodeTypeArrayNum {
 		C.set_node_array_value(netNode, C.CString(value))
 	} else {
@@ -305,7 +318,10 @@ func (m model) nodesToTree(netNode *C.em_network_node_t, treeNode *etree.Node) {
                     m.nodesToTree(childNetNode, &treeNode.Children[i])
                 }
             }
-        }
+        } else {
+			treeNode.Type = int(C.em_network_node_data_type_array_obj)
+			treeNode.Value.Placeholder = "[]"
+		}
 
     } else if ((nodeType == C.em_network_node_data_type_string) || (nodeType == C.em_network_node_data_type_number) ||
     				(nodeType == C.em_network_node_data_type_false) || (nodeType == C.em_network_node_data_type_true)) {
@@ -328,54 +344,102 @@ func (m model) nodesToTree(netNode *C.em_network_node_t, treeNode *etree.Node) {
 }
 
 func (m *model) execSelectedCommand(cmdStr string, cmdType int) {
-	for _, value := range emCommands {
+	for _, value := range m.easyMeshCommands {
 		if cmdStr == value.Title {
 			switch cmdType {
 				case GET:
+					if value.Title == DeviceOnboardingCmd {
+						nodes, err := readJSONFile("DPPURI.json")
+						if err != nil {
+							spew.Fprintf(m.dump, "Error reading JSON file: %v\n", err)
+							return
+						}
+						m.tree.SetNodes(nodes)
+						return
+					}
+					if value.GetCommand == "" {
+						m.tree.SetNodes([]etree.Node{})
+						return
+					}
 					m.currentNetNode = C.exec(C.CString(value.GetCommand), C.strlen(C.CString(value.GetCommand)), nil)	
-        			spew.Fdump(m.dump, value.GetCommand)
+					if m.currentNetNode == nil {
+						return
+					}
 					treeNode := make([]etree.Node, 1)
                     m.displayedNetNode = C.clone_network_tree_for_display(m.currentNetNode, nil, 0xffff, false)
                     m.nodesToTree(m.displayedNetNode, &treeNode[0])
                     m.tree.SetNodes(treeNode)
+                	//str := C.get_network_tree_string(m.displayedNetNode)
+					//C.dump_lib_dbg(str)
 
 				case GETX:
 					if value.GetCommandEx != "" {
 						m.currentNetNode = C.exec(C.CString(value.GetCommandEx), C.strlen(C.CString(value.GetCommandEx)), nil)	
-        				spew.Fdump(m.dump, value.GetCommandEx)
+        				//spew.Fdump(m.dump, value.GetCommandEx)
 						treeNode := make([]etree.Node, 1)
                     	m.displayedNetNode = C.clone_network_tree_for_display(m.currentNetNode, nil, 0xffff, false)
                     	m.nodesToTree(m.displayedNetNode, &treeNode[0])
                     	m.tree.SetNodes(treeNode)
+					} else {
+						switch value.Title {
+							case WiFiResetCmd:
+								m.currentNetNode = C.get_reset_tree(C.CString(m.platform))
+								treeNode := make([]etree.Node, 1)
+                    			m.displayedNetNode = C.clone_network_tree_for_display(m.currentNetNode, nil, 0xffff, false)
+                    			m.nodesToTree(m.displayedNetNode, &treeNode[0])
+                    			m.tree.SetNodes(treeNode)
+
+							default:
+						}	
 					}
 
 				case SET:
-					if value.SetCommand != "" {
-						root := m.tree.Nodes()
-                   		C.exec(C.CString(value.SetCommand), C.strlen(C.CString(value.SetCommand)), m.treeToNodes(&root[0]))
+					if value.SetCommand == "" {
+						return
 					}
+					if value.Title == DeviceOnboardingCmd {
+						// Write current nodes to a JSON file (could be modified or unmodified)
+						if err := writeJSONFile(m.tree.Nodes(), "DPPURI_sendable.json"); err != nil {
+							spew.Fprintf(m.dump, "Error writing JSON: %v\n", err)
+							return
+						}
+						spew.Fdump(m.dump, "Sending DPPURI JSON file")	
+						// Network nodes not needed for DPPURI
+						C.exec(C.CString(value.SetCommand), C.strlen(C.CString(value.SetCommand)), nil)
+						return
+					}
+    
+					root := m.tree.Nodes()
+               		C.exec(C.CString(value.SetCommand), C.strlen(C.CString(value.SetCommand)), m.treeToNodes(&root[0]))
 			}
 		}
 	}
+
+	m.scrollIndex = 0
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     var cmds []tea.Cmd
+	var cmd tea.Cmd
 
     switch msg := msg.(type) {
     case tea.WindowSizeMsg:
-        w, h:= appStyle.GetFrameSize()
-		spew.Fprintf(m.dump, "Frame Width: %d Frame Height: %d Msg Width: %d Msg Height: %d\n", 
-								w, h, msg.Width, msg.Height)
-
 		m.menuHeight = msg.Height - m.bottomSpace - m.menuInstructionsHeight
-		m.viewWidth = msg.Width - m.menuWidth - m.rightSpace
-		m.viewHeight = msg.Height - m.bottomSpace
+		m.canvasWidth = msg.Width - m.menuWidth - m.rightSpace
+		m.canvasHeight = msg.Height - m.bottomSpace
 
     case tea.KeyMsg:
         switch msg.String() {
         case "tab":
-            m.activeButton = (m.activeButton + 1) % BTN_MAX
+			if m.contentUpdated == true {
+            	m.activeButton = (m.activeButton + 1) % BTN_MAX
+			} else {
+				if m.activeButton == BTN_UPDATE {
+					m.activeButton = BTN_CANCEL
+				} else {
+					m.activeButton = BTN_UPDATE
+				}
+			}
 
 		case "j", "k":
 			m.currentOperatingInstructions = "\n\n\t Press 'w' to scroll up, 's' to scroll down"
@@ -394,33 +458,30 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             	if selectedItem, ok := m.list.SelectedItem().(item); ok {
 					m.execSelectedCommand(selectedItem.title, GET)
 				}
+		
+				m.contentUpdated = false
+					
 			}
-/*
-        case "down":
-            if m.cursor > 0 {
-                m.cursor--
-                if m.cursor < m.scrollIndex {
-                    m.scrollIndex--
-                }
-            }
+        
+		case "down":
+			if m.scrollIndex < m.tree.Cursor() {
+				m.scrollIndex++
+			}
         
         case "up":
-            if m.cursor < len(m.scrollContent) - 1 {
-                m.cursor++
-                if m.cursor >= m.scrollIndex + linesToDisplay {
-                    m.scrollIndex++
-                }
-            }  
-*/ 
-
+			if m.scrollIndex > 0 {
+				m.scrollIndex--
+			}
+            	
         case "enter":
            	if m.activeButton == BTN_UPDATE {
-       			m.currentOperatingInstructions = "\n\n\t Editor Mode: Press 'OK' to apply settings, 'Cancel' to leave"
+       			m.currentOperatingInstructions = "\n\n\t Editor Mode: Press 'Apply' to apply settings, 'Cancel' to leave"
             	if selectedItem, ok := m.list.SelectedItem().(item); ok {
+					m.contentUpdated = true
 					m.execSelectedCommand(selectedItem.title, GETX)
 				}
 				m.tree.SetEditable(true)
-           	} else if m.activeButton == BTN_OK {
+           	} else if m.activeButton == BTN_APPLY {
 				m.tree.SetEditable(false)
        			m.currentOperatingInstructions = "\n\n\t Press 'w' to scroll up, 's' to scroll down"
             	if selectedItem, ok := m.list.SelectedItem().(item); ok {
@@ -477,7 +538,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             cmds = append(cmds, cmd)
         }
     }
-	var cmd tea.Cmd
 
 	m.tree, cmd = m.tree.Update(msg)
 	cmds = append(cmds, cmd)
@@ -496,48 +556,60 @@ func (m model) View() string {
     		Render("↑/k up ● ↓/j down ● q quit")
 
     menuViewWithInstructions := lipgloss.JoinVertical(lipgloss.Left, menuView, instructions)
-		
-	content := m.tree.TreeView()
-	m.scrollContent = splitIntoLines(content)
+	
+	m.viewWidth = m.canvasWidth - 10
+
+	if m.canvasHeight > 10 {
+		m.viewHeight = m.canvasHeight - 10
+	} else {
+		m.viewHeight = m.canvasHeight
+	}
+
+    m.tree.SetSize(m.viewWidth, m.viewHeight)
+	
+	m.scrollContent = splitIntoLines(m.tree.TreeView())
 
     var statusView string
-    if len(m.scrollContent) > 0 {
-        end := m.scrollIndex + linesToDisplay
-        if end > len(m.scrollContent) {
-            end = len(m.scrollContent)
-        }
 
-		styledContent := jsonStyle.Width(m.viewWidth - 10).Render(strings.Join(m.scrollContent[m.scrollIndex:end], "\n"))
+	start := 0
 
-        //statusView = styledContent + "\n\n\t Press 'w' to scroll up, 's' to scroll down"
-        statusView = styledContent + m.currentOperatingInstructions
-    } else {
-        statusView = m.statusMessage
-    }
+	if m.scrollIndex > m.viewHeight {
+		start = m.scrollIndex - m.viewHeight
+	}
+
+	end := len(m.scrollContent) - 1
+	if end > start + m.viewHeight {
+		end = start + m.viewHeight
+	}
+
+	//spew.Fprintf(m.dump, "start: %d end: %d\n", start, end)
+	 
+	styledContent := jsonStyle.Width(m.viewWidth).Height(m.viewHeight).Render(strings.Join(m.scrollContent[start:end], "\n"))
+	statusView = styledContent + m.currentOperatingInstructions
     
     updateButton := buttonStyle.Render("Update")
-    okButton := buttonStyle.Render("OK")
+    applyButton := buttonStyle.Render("Apply")
     cancelButton := buttonStyle.Render("Cancel")
     
 	switch m.activeButton {
         case BTN_UPDATE:
             updateButton = activeButtonStyle.Render("Update")
 
-        case BTN_OK:
-            okButton = activeButtonStyle.Render("OK")
+        case BTN_APPLY:
+            applyButton = activeButtonStyle.Render("Apply")
 
         case BTN_CANCEL:
             cancelButton = activeButtonStyle.Render("Cancel")
     }
 
-    buttons := lipgloss.JoinHorizontal(lipgloss.Center, updateButton, okButton, cancelButton)
+    buttons := lipgloss.JoinHorizontal(lipgloss.Center, updateButton, applyButton, cancelButton)
     centeredButtons := lipgloss.NewStyle().Width(100).Align(lipgloss.Center).Render(buttons)
     statusView = statusView + "\n\n" + centeredButtons
 
     combinedView := lipgloss.JoinHorizontal(
         lipgloss.Top,
         menuBodyStyle.Width(m.menuWidth).Height(m.menuHeight).Render(menuViewWithInstructions),
-        viewBodyStyle.Width(m.viewWidth).Height(m.viewHeight).Render(statusView),
+        canvasStyle.Width(m.canvasWidth).Height(m.canvasHeight).Render(statusView),
     )
 
     commonBorderStyle := lipgloss.NewStyle().
@@ -550,8 +622,12 @@ func (m model) View() string {
 }
 
 func main() {
+	if len(os.Args[1:]) != 1 {
+        fmt.Println("Invalid Arguments, please specify platform name")
+        os.Exit(1)
+	}
 
-    if _, err := tea.NewProgram(newModel(), tea.WithAltScreen()).Run(); err != nil {
+    if _, err := tea.NewProgram(newModel(os.Args[1]), tea.WithAltScreen()).Run(); err != nil {
         fmt.Println("Error running program:", err)
         os.Exit(1)
     }

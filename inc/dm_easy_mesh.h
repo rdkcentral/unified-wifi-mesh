@@ -31,6 +31,7 @@
 #include "dm_dpp.h"
 #include "dm_op_class.h"
 #include "dm_policy.h"
+#include "dm_scan_result.h"
 #include "dm_radio_cap.h"
 #include "dm_cac_comp.h"
 #include "dm_ap_mld.h"

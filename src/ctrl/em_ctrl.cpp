@@ -276,6 +276,7 @@ void em_ctrl_t::handle_get_dm_data(em_bus_event_t *evt)
     }
 
     m_data_model.get_config(params->u.args.args[1], &evt->u.subdoc);
+	evt->data_len = strlen(evt->u.subdoc.buff) + 1;
     m_ctrl_cmd->copy_bus_event(evt);
     m_ctrl_cmd->send_result(em_cmd_out_status_success);
 }        
@@ -300,7 +301,7 @@ void em_ctrl_t::handle_reset(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num = 0;
-
+	
     if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
     } else if ((num = m_data_model.analyze_reset(evt, pcmd)) == 0) {
@@ -391,9 +392,6 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
             break;
 
         case em_bus_event_type_dev_test:
-            handle_dev_test(evt);
-            break;
-
         case em_bus_event_type_get_network:
         case em_bus_event_type_get_ssid:
         case em_bus_event_type_get_channel:
@@ -680,6 +678,12 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
     }
 
     return em;
+}
+
+void em_ctrl_t::io(void *data, bool input)
+{
+    char *str = (char *)data;
+    m_ctrl_cmd->execute(str);
 }
 
 
