@@ -3006,10 +3006,6 @@ void em_configuration_t::process_agent_state()
             handle_state_autoconfig_rsp_pending();
             break;
 
-        case em_state_ctrl_wsc_m1_pending:
-            handle_state_wsc_m1_pending();
-            break;
-
         case em_state_agent_wsc_m2_pending:
             handle_state_wsc_m2_pending();
             break;
