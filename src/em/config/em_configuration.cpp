@@ -1839,6 +1839,15 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, em_hau
     tmp += (sizeof(em_tlv_t) + sz);
     len += (sizeof(em_tlv_t) + sz);
 
+    // ap mld tlv 17.2.96
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_ap_mld_config;
+    sz = create_ap_mld_config_tlv(tlv->value);
+    tlv->len = htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += (sizeof(em_tlv_t) + sz);
+
 
     // End of message
     tlv = (em_tlv_t *)tmp;
