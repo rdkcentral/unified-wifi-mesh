@@ -28,6 +28,7 @@ class em_mgr_t {
     pthread_t   m_tid;
     bool m_exit;
     em_queue_t  m_queue;
+	unsigned int m_tick_demultiplex;
 
 public:
 	pthread_mutex_t m_mutex;
@@ -55,6 +56,7 @@ public:
 
     void nodes_listener();
     int reset_listeners();
+    void handle_timeout();
 
     static void *mgr_nodes_listen(void *arg);
     static void *mgr_input_listen(void *arg);
@@ -65,7 +67,12 @@ public:
     virtual void input_listener() = 0;
     
     virtual void handle_event(em_event_t *evt) = 0;
-    virtual void handle_timeout() = 0;
+
+    virtual void handle_5s_tick() = 0;
+    virtual void handle_2s_tick() = 0;
+    virtual void handle_1s_tick() = 0;
+    virtual void handle_500ms_tick() = 0;
+
     virtual void io(void *data, bool input = true) = 0;
     
     virtual dm_easy_mesh_t *get_data_model(const char *net_id, const unsigned char *al_mac = NULL) = 0;
@@ -79,8 +86,8 @@ public:
     virtual em_service_type_t get_service_type() = 0;
 
 	bool io_process(em_event_t *evt);
-	void io_process(em_bus_event_type_t type, char *data, unsigned int len);
-	void io_process(em_bus_event_type_t type, unsigned char *data, unsigned int len);
+	void io_process(em_bus_event_type_t type, char *data, unsigned int len, em_cmd_params_t *params = NULL);
+	void io_process(em_bus_event_type_t type, unsigned char *data, unsigned int len, em_cmd_params_t *params = NULL);
 
     em_mgr_t();
     ~em_mgr_t();

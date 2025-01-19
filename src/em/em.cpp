@@ -162,6 +162,10 @@ void em_t::orch_execute(em_cmd_t *pcmd)
         case em_cmd_type_avail_spectrum_inquiry:
             m_sm.set_state(em_state_ctrl_avail_spectrum_inquiry_pending);
             break;
+
+		case em_cmd_type_scan_result:
+            m_sm.set_state(em_state_agent_channel_scan_result_pending);
+			break;
     }
 }
 
@@ -217,6 +221,8 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_channel_sel_rsp:
         case em_msg_type_op_channel_rprt:
         case em_msg_type_avail_spectrum_inquiry:
+		case em_msg_type_channel_scan_req:
+		case em_msg_type_channel_scan_rprt:
             em_channel_t::process_msg(data, len);
             break;
 
@@ -289,10 +295,16 @@ void em_t::handle_agent_state()
             break;
 
         case em_cmd_type_btm_report:
-            if ((m_sm.get_state() >= em_state_agent_configured)) {
+            if (m_sm.get_state() >= em_state_agent_configured) {
                 em_steering_t::process_agent_state();
             }
             break;
+
+		case em_cmd_type_scan_result:
+			if (m_sm.get_state() == em_state_agent_channel_scan_result_pending) {
+				em_channel_t::process_state();
+			}
+			break;
 
         default:
             break;
@@ -929,6 +941,7 @@ const char *em_t::state_2_str(em_state_t state)
 		EM_STATE_2S(em_state_agent_steer_btm_res_pending)
 		EM_STATE_2S(em_state_ctrl_sta_disassoc_pending)
 		EM_STATE_2S(em_state_ctrl_set_policy_pending)
+		EM_STATE_2S(em_state_agent_channel_scan_result_pending)
     }
 
     return "em_state_unknown";

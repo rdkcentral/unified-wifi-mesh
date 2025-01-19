@@ -2366,6 +2366,27 @@ void dm_easy_mesh_t::print_op_class_list(dm_easy_mesh_t *dm)
 	printf("\n\n");
 }
 
+dm_scan_result_t *dm_easy_mesh_t::find_matching_scan_result(em_scan_result_id_t *id)
+{
+    int index;
+    unsigned int i;
+    dm_scan_result_t *res;
+    
+    for (i = 0; i < m_num_scan_results; i++) {
+        res = &m_scan_result[i];
+    
+        if ((strncmp(res->m_scan_result.id.net_id, id->net_id, strlen(id->net_id)) == 0) &&
+                (memcmp(res->m_scan_result.id.dev_mac, id->dev_mac, sizeof(mac_address_t)) == 0) &&
+                (memcmp(res->m_scan_result.id.ruid, id->ruid, sizeof(mac_address_t)) == 0) &&
+                (res->m_scan_result.id.op_class == id->op_class) &&
+                (res->m_scan_result.id.channel == id->channel)) {
+            return res;
+        }
+    }   
+        
+    return NULL;
+}   
+
 int dm_easy_mesh_t::init()
 {
     unsigned int i;
@@ -2394,6 +2415,7 @@ void dm_easy_mesh_t::reset()
 	m_num_opclass = 0;
 	m_num_policy = 0;
 	m_num_bss = 0;
+	m_num_scan_results = 0;
     m_num_ap_mld = 0;
 	m_db_cfg_type = db_cfg_type_none;
     m_colocated = false;
@@ -2420,6 +2442,7 @@ dm_easy_mesh_t::dm_easy_mesh_t()
 	m_num_policy = 0;
 	m_num_bss = 0;
     m_num_ap_mld = 0;
+	m_num_scan_results = 0;
 	m_db_cfg_type = db_cfg_type_none;
     m_colocated = false;
 }

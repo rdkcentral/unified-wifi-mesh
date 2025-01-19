@@ -35,6 +35,7 @@ public:
     void operator = (const dm_scan_result_t& obj);
 
 	static int parse_scan_result_id_from_key(const char *key, em_scan_result_id_t *id);
+	bool has_same_id(em_scan_result_id_t *);
 
     dm_scan_result_t(em_scan_result_t *scan_result);
     dm_scan_result_t(const dm_scan_result_t& scan_result);

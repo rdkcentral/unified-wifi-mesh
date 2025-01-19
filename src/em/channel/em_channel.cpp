@@ -40,6 +40,7 @@
 #include "em.h"
 #include "em_msg.h"
 #include "em_cmd_exec.h"
+#include "util.h"
 
 short em_channel_t::create_channel_pref_tlv_agent(unsigned char *buff)
 {
@@ -272,6 +273,251 @@ int em_channel_t::send_channel_scan_request_msg()
     return len;
 
 }
+
+short em_channel_t::create_channel_scan_res_tlv(unsigned char *buff, unsigned int index)
+{
+	unsigned char *tmp = buff, ssid_len, bw_len, i;
+    short len = 0;
+	char date_time[EM_DATE_TIME_BUFF_SZ];
+    dm_easy_mesh_t *dm;
+	dm_scan_result_t *scan_res;
+	em_neighbor_t *nbr;
+	unsigned short param;
+	em_channel_scan_result_t *res = (em_channel_scan_result_t *)buff;
+
+    dm = get_data_model();
+	scan_res = &dm->m_scan_result[index];
+
+	memcpy(res->ruid, get_radio_interface_mac(), sizeof(em_radio_id_t));	
+	memcpy(&res->op_class, &scan_res->m_scan_result.id.op_class, sizeof(unsigned char));
+	memcpy(&res->channel, &scan_res->m_scan_result.id.channel, sizeof(unsigned char));
+	res->scan_status = scan_res->m_scan_result.scan_status;
+	get_date_time_rfc3399(date_time, sizeof(date_time));
+	memcpy(res->timestamp, date_time, strlen(date_time) + 1);
+	res->timestamp_len = strlen(date_time);	
+	
+	len += sizeof(em_channel_scan_result_t) + strlen(date_time);
+	tmp += sizeof(em_channel_scan_result_t) + strlen(date_time);
+	
+	memcpy(tmp, &scan_res->m_scan_result.util, sizeof(unsigned char));
+	len += sizeof(unsigned char);
+	tmp += sizeof(unsigned char);
+
+	memcpy(tmp, &scan_res->m_scan_result.noise, sizeof(unsigned char));
+	len += sizeof(unsigned char);
+	tmp += sizeof(unsigned char);
+
+	param = htons(scan_res->m_scan_result.num_neighbors);
+	memcpy(tmp, (unsigned char *)&param, sizeof(unsigned short));
+	len += sizeof(unsigned short);
+	tmp += sizeof(unsigned short);
+	
+	for (i = 0; i < scan_res->m_scan_result.num_neighbors; i++) {
+		nbr = &scan_res->m_scan_result.neighbor[i];
+
+		memcpy(tmp, nbr->bssid, sizeof(mac_address_t));
+		len += sizeof(mac_address_t);
+		tmp += sizeof(mac_address_t);
+
+		ssid_len = strlen(nbr->ssid);
+		memcpy(tmp, &ssid_len, sizeof(unsigned char));
+		len += sizeof(unsigned char);
+		tmp += sizeof(unsigned char);
+
+		memcpy(tmp, nbr->ssid, ssid_len);
+		len += ssid_len;
+		tmp += ssid_len;
+
+		memcpy(tmp, &nbr->signal_strength, sizeof(unsigned char));
+		len += sizeof(unsigned char);
+		tmp += sizeof(unsigned char);
+	
+		switch (nbr->bandwidth) {
+			case WIFI_CHANNELBANDWIDTH_20MHZ:
+				bw_len = strlen("20");
+				memcpy(tmp, &bw_len, sizeof(unsigned char));
+
+				len += sizeof(unsigned char);
+				tmp += sizeof(unsigned char);
+
+				memcpy(tmp, "20", strlen("20"));
+				len += strlen("20");
+				tmp += strlen("20");
+				break;
+
+			case WIFI_CHANNELBANDWIDTH_40MHZ:
+				bw_len = strlen("40");
+				memcpy(tmp, &bw_len, sizeof(unsigned char));
+
+				len += sizeof(unsigned char);
+				tmp += sizeof(unsigned char);
+
+				memcpy(tmp, "40", strlen("40"));
+				len += strlen("40");
+				tmp += strlen("40");
+				break;
+
+			case WIFI_CHANNELBANDWIDTH_80MHZ:
+				bw_len = strlen("80");
+				memcpy(tmp, &bw_len, sizeof(unsigned char));
+
+				len += sizeof(unsigned char);
+				tmp += sizeof(unsigned char);
+
+				memcpy(tmp, "80", strlen("80"));
+				len += strlen("80");
+				tmp += strlen("80");
+				break;
+
+			case WIFI_CHANNELBANDWIDTH_160MHZ:
+				bw_len = strlen("160");
+				memcpy(tmp, &bw_len, sizeof(unsigned char));
+
+				len += sizeof(unsigned char);
+				tmp += sizeof(unsigned char);
+
+				memcpy(tmp, "160", strlen("160"));
+				len += strlen("160");
+				tmp += strlen("160");
+				break;
+
+			case WIFI_CHANNELBANDWIDTH_320MHZ:
+				bw_len = strlen("320");
+				memcpy(tmp, &bw_len, sizeof(unsigned char));
+
+				len += sizeof(unsigned char);
+				tmp += sizeof(unsigned char);
+
+				memcpy(tmp, "320", strlen("320"));
+				len += strlen("320");
+				tmp += strlen("320");
+				break;
+
+		}	
+		
+		memcpy(tmp, &nbr->bss_color, sizeof(unsigned char));
+		len += sizeof(unsigned char);
+		tmp += sizeof(unsigned char);
+	
+		memcpy(tmp, &nbr->channel_util, sizeof(unsigned char));
+		len += sizeof(unsigned char);
+		tmp += sizeof(unsigned char);
+
+		param = htons(nbr->sta_count);	
+		memcpy(tmp, &param, sizeof(unsigned short));
+		len += sizeof(unsigned short);
+		tmp += sizeof(unsigned short);
+	
+	}			
+
+	memcpy(tmp, &scan_res->m_scan_result.aggr_scan_duration, sizeof(unsigned int));
+	len += sizeof(unsigned int);
+	tmp += sizeof(unsigned int);
+	
+	memcpy(tmp, &scan_res->m_scan_result.scan_type, sizeof(unsigned char));
+	len += sizeof(unsigned char);
+	tmp += sizeof(unsigned char);
+
+    return len;
+}
+
+
+int em_channel_t::send_channel_scan_report_msg(unsigned int *last_index)
+{
+    unsigned char buff[MAX_EM_BUFF_SZ];
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    unsigned short  msg_id = em_msg_type_channel_scan_rprt;
+    int len = 0;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    short sz = 0;
+    unsigned char *tmp = buff;
+    unsigned short type = htons(ETH_P_1905);
+	char date_time[EM_DATE_TIME_BUFF_SZ];
+    dm_easy_mesh_t *dm;
+	unsigned int i, start_idx = *last_index;
+	unsigned char time_len;
+
+    dm = get_data_model();
+
+    memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, (unsigned char *)&type, sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += sizeof(unsigned short);
+
+    cmdu = (em_cmdu_t *)tmp;
+
+    memset(tmp, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(msg_id);
+    cmdu->id = htons(msg_id);
+    cmdu->last_frag_ind = 1;
+    cmdu->relay_ind = 0;
+
+    tmp += sizeof(em_cmdu_t);
+    len += sizeof(em_cmdu_t);
+
+    // One Timestamp TLV (see section 17.2.41).
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_timestamp;
+	get_date_time_rfc3399(date_time, sizeof(date_time));
+	sz = strlen(date_time) + 1;
+	time_len = strlen(date_time);
+	memcpy(tlv->value, &time_len, sizeof(unsigned char));
+	memcpy(tlv->value + 1, date_time, sz);
+    tlv->len = htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += (sizeof(em_tlv_t) + sz);
+
+    // One or more Channel Scan Result TLVs (see section 17.2.40).
+	for (i = start_idx; i < dm->m_num_scan_results; i++) {
+    	tlv = (em_tlv_t *)tmp;
+    	tlv->type = em_tlv_type_channel_scan_rslt;
+    	sz = create_channel_scan_res_tlv(tlv->value, i);
+    	tlv->len = htons(sz);
+
+    	tmp += (sizeof(em_tlv_t) + sz);
+    	len += (sizeof(em_tlv_t) + sz);
+
+		if (len > EM_MAX_CHANNEL_SCAN_RPRT_MSG_LEN) {
+			break;	
+		}
+	}
+	
+	*last_index = i;
+
+    // Zero or more MLD Structure TLV (see section 17.2.99)
+
+    // End of message
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_eom;
+    tlv->len = 0;
+
+    tmp += (sizeof (em_tlv_t));
+    len += (sizeof (em_tlv_t));
+    //if (em_msg_t(em_msg_type_channel_scan_req, em_profile_type_3, buff, len).validate(errors) == 0) {
+        //printf("Channel Selection Request msg failed validation in tnx end\n");
+        //return -1;
+    //}
+
+    if (send_frame(buff, len)  < 0) {
+        printf("%s:%d: Channel Selection Request msg failed, error:%d\n", __func__, __LINE__, errno);
+        return -1;
+    }
+
+    set_state(em_state_ctrl_configured);
+
+    return len;
+
+}
+
 short em_channel_t::create_spatial_reuse_req_tlv(unsigned char *buff)
 {
     int len = 0;
@@ -1380,7 +1626,7 @@ int em_channel_t::handle_channel_pref_tlv(unsigned char *buff, op_class_channel_
 		for (i = 0; i < pref->op_classes_num; i++) {
 			if (get_band() == (dm_easy_mesh_t::get_freq_band_by_op_class(op_class_info[i].op_class))) {
 				memcpy(&op_class->op_class_info[0], &op_class_info[i], sizeof(em_op_class_info_t));
-				printf("%s:%d Received channel selection request op_class=%d \n",__func__, __LINE__,op_class_info[i].op_class);
+				//printf("%s:%d Received channel selection request op_class=%d \n",__func__, __LINE__,op_class_info[i].op_class);
 				break;
 			}
 		}
@@ -1507,6 +1753,179 @@ int em_channel_t::handle_operating_channel_rprt(unsigned char *buff, unsigned in
     }
     set_state(em_state_ctrl_configured);
 
+	return 0;
+}
+
+int em_channel_t::handle_channel_scan_req(unsigned char *buff, unsigned int len)
+{
+    em_tlv_t    *tlv;
+    int tlv_len;
+	em_channel_scan_req_t *req;
+	em_channel_scan_req_op_class_t	*op_class;
+	em_scan_params_t	params;
+	unsigned int i;
+
+	memset(&params, 0, sizeof(em_scan_params_t));
+
+    tlv = (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tlv_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+        if (tlv->type == em_tlv_type_channel_scan_req) {
+			req = (em_channel_scan_req_t *)tlv->value;
+
+			memcpy(params.ruid, get_radio_interface_mac(), sizeof(em_radio_id_t));
+			params.num_op_classes = req->num_op_classes;
+					
+			op_class = req->op_class;
+			for (i = 0; i < params.num_op_classes; i++) {
+				params.op_class[i].op_class = op_class->op_class;
+				params.op_class[i].num_channels = op_class->num_channels;
+				memcpy(params.op_class[i].channels, op_class->channel_list, op_class->num_channels);
+
+				op_class = (em_channel_scan_req_op_class_t *)((unsigned char *)op_class + 
+							sizeof(em_channel_scan_req_op_class_t) + op_class->num_channels);
+			}	
+        }
+
+        tlv_len -= (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+	if (params.num_op_classes > 0) {
+		get_mgr()->io_process(em_bus_event_type_channel_scan_params, (unsigned char *)&params, sizeof(em_scan_params_t)); 
+	}
+
+	return 0;
+}
+
+void em_channel_t::fill_scan_result(dm_scan_result_t *scan_res, em_channel_scan_result_t *res)
+{
+	unsigned char *tmp;
+	em_neighbor_t *nbr;
+	unsigned char ssid_len, bw_len;
+	char bandwidth[32] = {0};
+	unsigned int i;
+	mac_addr_str_t bssid_str;
+
+	scan_res->m_scan_result.scan_status = res->scan_status;
+	strncpy(scan_res->m_scan_result.timestamp, res->timestamp, res->timestamp_len + 1);
+
+	tmp = (unsigned char *)res + sizeof(em_channel_scan_result_t) + res->timestamp_len;
+	
+	memcpy(&scan_res->m_scan_result.util, tmp, sizeof(unsigned char));
+	tmp += sizeof(unsigned char);
+	
+	memcpy(&scan_res->m_scan_result.noise, tmp, sizeof(unsigned char));
+	tmp += sizeof(unsigned char);
+
+	memcpy(&scan_res->m_scan_result.num_neighbors, tmp, sizeof(unsigned short));
+	scan_res->m_scan_result.num_neighbors = htons(scan_res->m_scan_result.num_neighbors);	
+	tmp += sizeof(unsigned short);		
+
+    for (i = 0; i < scan_res->m_scan_result.num_neighbors; i++) {
+        nbr = &scan_res->m_scan_result.neighbor[i];
+
+        memcpy(nbr->bssid, tmp, sizeof(mac_address_t));
+        tmp += sizeof(mac_address_t);
+
+        memcpy(&ssid_len, tmp, sizeof(unsigned char));
+        tmp += sizeof(unsigned char);
+
+        strncpy(nbr->ssid, (char *)tmp, ssid_len + 1);
+        tmp += ssid_len;
+
+        memcpy(&nbr->signal_strength, tmp, sizeof(unsigned char));
+        tmp += sizeof(unsigned char);
+
+        memcpy(&bw_len, tmp, sizeof(unsigned char));
+        tmp += sizeof(unsigned char);
+
+        memcpy(bandwidth, tmp, bw_len);
+        tmp += bw_len;
+
+        if (strncmp(bandwidth, "20", strlen("20")) == 0) {
+            nbr->bandwidth = WIFI_CHANNELBANDWIDTH_20MHZ;
+        } else if (strncmp(bandwidth, "40", strlen("40")) == 0) {
+            nbr->bandwidth = WIFI_CHANNELBANDWIDTH_40MHZ;
+        } else if (strncmp(bandwidth, "80", strlen("80")) == 0) {
+            nbr->bandwidth = WIFI_CHANNELBANDWIDTH_40MHZ;
+        } else if (strncmp(bandwidth, "160", strlen("160")) == 0) {
+            nbr->bandwidth = WIFI_CHANNELBANDWIDTH_160MHZ;
+        } else if (strncmp(bandwidth, "320", strlen("320")) == 0) {
+            nbr->bandwidth = WIFI_CHANNELBANDWIDTH_320MHZ;
+        }
+
+        memcpy(&nbr->bss_color, tmp, sizeof(unsigned char));
+        tmp += sizeof(unsigned char);
+
+        memcpy(&nbr->channel_util, tmp, sizeof(unsigned char));
+        tmp += sizeof(unsigned char);
+
+        memcpy(&nbr->sta_count, tmp, sizeof(unsigned short));
+		nbr->sta_count = htons(nbr->sta_count);
+        tmp += sizeof(unsigned short);
+
+		dm_easy_mesh_t::macbytes_to_string(nbr->bssid, bssid_str);
+		//printf("%s:%d: bssid: %s\tssid: %s\trssi: %d\tbandwidth: %s\tutil: %d\tcount: %d\n", __func__, __LINE__,
+		//			bssid_str, nbr->ssid, nbr->signal_strength, bandwidth, nbr->channel_util, nbr->sta_count);	
+    }
+
+    memcpy(&scan_res->m_scan_result.aggr_scan_duration, tmp, sizeof(unsigned int));
+    tmp += sizeof(unsigned int);
+
+    memcpy(&scan_res->m_scan_result.scan_type, tmp, sizeof(unsigned char));
+    tmp += sizeof(unsigned char);
+
+}
+
+int em_channel_t::handle_channel_scan_rprt(unsigned char *buff, unsigned int len)
+{
+	em_tlv_t    *tlv;
+    int tlv_len;
+	em_channel_scan_result_t *res;
+	dm_easy_mesh_t *dm;
+	em_scan_result_id_t id;
+	dm_scan_result_t *scan_res;
+	int db_cfg_type = 0;
+
+	dm = get_data_model();
+
+    tlv = (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tlv_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+		if (tlv->type == em_tlv_type_channel_scan_rslt) {
+			res = (em_channel_scan_result_t *)tlv->value;;
+			
+			strncpy(id.net_id, dm->m_network.m_net_info.id, strlen(dm->m_network.m_net_info.id) + 1);	
+			memcpy(id.dev_mac, dm->m_device.m_device_info.id.mac, sizeof(mac_address_t));
+            memcpy(id.ruid, res->ruid, sizeof(mac_address_t));
+            id.op_class = res->op_class;
+            id.channel = res->channel;
+
+			if ((scan_res = dm->find_matching_scan_result(&id)) == NULL) {
+				scan_res = &dm->m_scan_result[dm->m_num_scan_results];
+				memcpy(&scan_res->m_scan_result.id, &id, sizeof(em_scan_result_id_t));
+				dm->m_num_scan_results++;	
+			}
+
+			fill_scan_result(scan_res, res);
+		}
+
+        if (tlv->type == em_tlv_type_timestamp) {
+       		; 
+		}
+
+        tlv_len -= (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+        
+	db_cfg_type = dm->get_db_cfg_type();
+	dm->set_db_cfg_type(db_cfg_type | db_cfg_type_scan_result_list_update);
+
+
+	return 0;
 }
 
 void em_channel_t::process_msg(unsigned char *data, unsigned int len)
@@ -1553,6 +1972,18 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
             }
             break;
 
+		case em_msg_type_channel_scan_req:
+            if (get_service_type() == em_service_type_agent) {
+                handle_channel_scan_req(data, len);
+            }
+			break;
+
+		case em_msg_type_channel_scan_rprt:
+			if (get_service_type() == em_service_type_ctrl) {
+           		handle_channel_scan_rprt(data, len);
+			}
+            break;
+
         default:
             break;
     }
@@ -1560,6 +1991,9 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
 
 void em_channel_t::process_state()
 {
+	unsigned int last_index = 0;
+	dm_easy_mesh_t *dm;
+
     switch (get_state()) {
 		case em_state_agent_channel_pref_query:
 			if (get_service_type() == em_service_type_agent) {
@@ -1576,6 +2010,16 @@ void em_channel_t::process_state()
                 set_state(em_state_agent_configured);
             }
             break;
+
+		case em_state_agent_channel_scan_result_pending:
+            if (get_service_type() == em_service_type_agent) {
+				dm = get_data_model();
+				while (last_index < dm->m_num_scan_results) {
+                	send_channel_scan_report_msg(&last_index);
+				}
+                set_state(em_state_agent_configured);
+            }
+			break;
 
     }
 }

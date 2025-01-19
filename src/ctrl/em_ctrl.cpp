@@ -43,6 +43,7 @@
 #include "em_cmd_ctrl.h"
 #include "dm_easy_mesh.h"
 #include "em_orch_ctrl.h"
+#include "util.h"
 
 em_ctrl_t g_ctrl;
 const char *global_netid = "OneWifiMesh";
@@ -334,45 +335,30 @@ void em_ctrl_t::handle_client_metrics_req()
     }
 }
 
-void em_ctrl_t::handle_timeout()
-{
-    m_tick_demultiplex++;
-    handle_dirty_dm();
-    handle_2s_timeout();
-    handle_5s_timeout();
-    m_orch->handle_timeout();
-}
-
 void em_ctrl_t::handle_dirty_dm()
 {
 	m_data_model.handle_dirty_dm();
 }
 
-void em_ctrl_t::handle_2s_timeout()
+void em_ctrl_t::handle_5s_tick()
 {
-    if ((m_tick_demultiplex % EM_2_TOUT_MULT) != 0) {
-        return;
-    }
+	handle_client_metrics_req();
 }
 
-void em_ctrl_t::handle_5s_timeout()
+void em_ctrl_t::handle_2s_tick()
 {
-    char buffer[30];
-    struct timeval tv;
-    time_t curtime;
 
-    if ((m_tick_demultiplex % EM_5_TOUT_MULT) != 0) {
-        return;
-    }
-    gettimeofday(&tv, NULL);
-    curtime = tv.tv_sec;
+}
 
-    //strftime(buffer,30,"%m-%d-%Y  %T.",localtime(&curtime));
-    //printf("%s:%d: %s%ld\n", __func__, __LINE__, buffer, tv.tv_usec);
-    //handle_topology_req();
-    //handle_radio_metrics_req();
-    //handle_ap_metrics_req();
-    handle_client_metrics_req();
+void em_ctrl_t::handle_1s_tick()
+{
+
+}
+
+void em_ctrl_t::handle_500ms_tick()
+{
+    handle_dirty_dm();
+    m_orch->handle_timeout();
 }
 
 void em_ctrl_t::input_listener()
@@ -569,7 +555,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 
         case em_msg_type_autoconf_wsc:
             if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
-                len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+                	len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
                 return NULL;
             }
 
@@ -647,6 +633,19 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         case em_msg_type_client_assoc_ctrl_req:
         case em_msg_type_map_policy_config_req:
         case em_msg_type_channel_scan_req:
+			break;
+
+		case em_msg_type_channel_scan_rprt:
+            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+                	len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+                return NULL;
+            }
+
+            dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
+        
+            if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
+                printf("%s:%d: Found existing radio:%s\n", __func__, __LINE__, mac_str1);
+			}
             break;
 
         case em_msg_type_assoc_sta_link_metrics_rsp:
@@ -689,7 +688,7 @@ void em_ctrl_t::io(void *data, bool input)
 
 em_ctrl_t::em_ctrl_t()
 {
-    m_tick_demultiplex = 0;
+
 }
 
 em_ctrl_t::~em_ctrl_t()
