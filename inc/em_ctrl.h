@@ -31,7 +31,6 @@ class em_ctrl_t : public em_mgr_t {
     dm_easy_mesh_ctrl_t m_data_model;
     em_cmd_ctrl_t   *m_ctrl_cmd;
     em_orch_ctrl_t *m_orch;
-    unsigned int m_tick_demultiplex;
 
     void handle_bus_event(em_bus_event_t *evt);
 
@@ -44,10 +43,12 @@ public:
    
     int orch_init();
 
+    void handle_5s_tick();
+    void handle_2s_tick();
+    void handle_1s_tick();
+    void handle_500ms_tick();
+
     void handle_dirty_dm();
-    void handle_2s_timeout();
-    void handle_5s_timeout();
-    void handle_timeout();
     void handle_event(em_event_t *evt);
     void handle_start_dpp(em_bus_event_t *evt);
     void handle_client_steer(em_bus_event_t *evt);

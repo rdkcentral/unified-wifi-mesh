@@ -61,6 +61,8 @@ public:
     dm_op_class_t m_op_class[EM_MAX_OPCLASS];
 	unsigned int	m_num_policy;
 	dm_policy_t	m_policy[EM_MAX_POLICIES];
+	unsigned int	m_num_scan_results;
+	dm_scan_result_t	m_scan_result[EM_MAX_SCAN_RESULTS];
     hash_map_t  	*m_sta_map = NULL;
     hash_map_t      *m_sta_assoc_map = NULL;
     hash_map_t      *m_sta_dassoc_map = NULL;
@@ -179,6 +181,12 @@ public:
 	void set_num_policy(unsigned int num) { m_num_policy = num; }
 	dm_policy_t *get_policy(unsigned int index) { return &m_policy[index]; }
     dm_policy_t& get_policy_by_ref(unsigned int index) { return m_policy[index]; }
+
+	unsigned int get_num_scan_results() { return m_num_scan_results; }
+	void set_num_scan_results(unsigned int num) { m_num_scan_results = num; }
+	dm_scan_result_t *get_scan_result(unsigned int index) { return &m_scan_result[index]; }
+    dm_scan_result_t& get_scan_result_by_ref(unsigned int index) { return m_scan_result[index]; }
+	dm_scan_result_t *find_matching_scan_result(em_scan_result_id_t *id);
 
     unsigned int get_num_ap_mld() { return m_num_ap_mld; }
     static unsigned int get_num_ap_mld(void *dm) { return ((dm_easy_mesh_t *)dm)->get_num_ap_mld(); }

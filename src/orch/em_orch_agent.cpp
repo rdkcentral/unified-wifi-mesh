@@ -98,13 +98,19 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             break;
 
         case em_cmd_type_btm_report:
-            if (em->get_state() >= em_state_agent_configured) {
+            if (em->get_state() == em_state_agent_configured) {
+                return true;
+            }
+            break;
+
+		case em_cmd_type_scan_result:
+			if (em->get_state() == em_state_agent_configured) {
                 return true;
             }
             break;
 
         default:
-            if ((em->get_state() == em_state_agent_unconfigured) || \
+            if ((em->get_state() == em_state_agent_unconfigured) ||
                     (em->get_state() == em_state_agent_configured)) {
                 return true;
             }
@@ -116,21 +122,29 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
 
 bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 {
-    if (em->get_state() == em_state_agent_unconfigured) {
+	if (pcmd->m_type == em_cmd_type_dev_init) {
         return true;
     } else if (pcmd->m_type == em_cmd_type_onewifi_cb) {
         return true;
     } else if (pcmd->m_type == em_cmd_type_cfg_renew) {
-        return true;
-    } else if (pcmd->m_type == em_cmd_type_sta_list) {
         return true;
     } else if ((pcmd->m_type == em_cmd_type_channel_pref_query) && (em->get_state() >= em_state_agent_topo_synchronized)) {
 		return true;
     } else if (pcmd->m_type == em_cmd_type_op_channel_report) {
         return true;
     } else if (pcmd->m_type == em_cmd_type_btm_report) {
-        return true;
-    }
+		if (em->get_state() == em_state_agent_configured) {
+			return true;
+		}
+    } else if (pcmd->m_type == em_cmd_type_sta_list) {
+		if (em->get_state() == em_state_agent_configured) {
+			return true;
+		}
+    } else if (pcmd->m_type == em_cmd_type_scan_result) {
+		if (em->get_state() == em_state_agent_configured) {
+			return true;
+		}
+	}
 
     return false;
 }
@@ -380,6 +394,15 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                     }
                 }
                 break;
+
+			case em_cmd_type_scan_result:
+				if (!(em->is_al_interface_em())) {
+					if (memcmp(em->get_radio_interface_mac(), pcmd->m_param.u.scan_params.ruid, sizeof(mac_address_t)) == 0) {
+                        queue_push(pcmd->m_em_candidates, em);
+                        count++;
+					}
+				}
+				break;
 
 			default:
                 break;

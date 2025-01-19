@@ -47,20 +47,17 @@
 #include "em_cmd_channel_pref_query.h"
 #include "em_cmd_op_channel_report.h"
 #include "em_cmd_btm_report.h"
+#include "em_cmd_scan_result.h"
 
 int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
-    unsigned int index = 0;
-    unsigned int num = 0, i, j = 0, num_radios = 0;
-    em_orch_desc_t desc;
+    unsigned int num = 0;
     dm_easy_mesh_agent_t  dm;
-    dm_device_t *dev, *tgt_dev;
-    dm_radio_t *rd, *tgt_rd;
     em_cmd_t *tmp;
-    dm.translate_onewifi_dml_data((char *)evt->u.raw_buff);
+    
+	dm.translate_onewifi_dml_data((char *)evt->u.raw_buff);
 
     dm.print_config();
-    num_radios = dm.get_num_radios();
     //TODO: Check for multiple radios
     pcmd[num] = new em_cmd_dev_init_t(evt->params, dm);
     tmp = pcmd[num];
@@ -70,8 +67,8 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
         tmp = pcmd[num];
         num++;
     }
-    return num;
 
+	return num;
 }
 
 int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[])
@@ -689,6 +686,24 @@ int dm_easy_mesh_agent_t::analyze_btm_response_action_frame(em_bus_event_t *evt,
     }
 
     return num;
+}
+
+int dm_easy_mesh_agent_t::analyze_scan_result(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    unsigned int num = 0;
+    dm_easy_mesh_agent_t  dm;
+    em_cmd_t *tmp;
+    
+    pcmd[num] = new em_cmd_scan_result_t(evt->params, dm);
+    tmp = pcmd[num];
+    num++;
+    
+    while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+        tmp = pcmd[num];
+        num++;
+    }
+
+    return num;  
 }
 
 webconfig_error_t dm_easy_mesh_agent_t::webconfig_dummy_apply(webconfig_subdoc_t *doc, webconfig_subdoc_data_t *data)

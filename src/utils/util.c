@@ -25,6 +25,20 @@
 #include <time.h>
 #include "util.h"
 
+char *get_date_time_rfc3399(char *buff, unsigned int len)
+{
+	time_t now;
+    struct tm *timeinfo;
+
+    time(&now);
+    timeinfo = localtime(&now);
+
+	memset(buff, 0, len);
+	strftime(buff, len, "%Y-%m-%dT%H:%M:%SZ", timeinfo);
+
+	return buff;
+}
+
 void add_milliseconds(struct timespec *ts, long milliseconds)
 {
 	long seconds = milliseconds / 1000;

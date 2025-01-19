@@ -48,7 +48,7 @@
 
 extern char *global_netid;
 
-void em_mgr_t::io_process(em_bus_event_type_t type, char *data, unsigned int len)
+void em_mgr_t::io_process(em_bus_event_type_t type, char *data, unsigned int len, em_cmd_params_t *params)
 {
     em_event_t *evt;
     em_bus_event_t *bevt;
@@ -58,12 +58,19 @@ void em_mgr_t::io_process(em_bus_event_type_t type, char *data, unsigned int len
     bevt = &evt->u.bevt;
     bevt->type = type;
     bevt->data_len = len;
-    memcpy(bevt->u.subdoc.buff, data, len);
+
+	if (data != NULL) {
+    	memcpy(bevt->u.subdoc.buff, data, len);
+	}
+
+	if (params != NULL) {
+		memcpy(&bevt->params, params, sizeof(em_cmd_params_t));
+	}
 
     push_to_queue(evt);
 }
 
-void em_mgr_t::io_process(em_bus_event_type_t type, unsigned char *data, unsigned int len)
+void em_mgr_t::io_process(em_bus_event_type_t type, unsigned char *data, unsigned int len, em_cmd_params_t *params)
 {
     em_event_t *evt;
     em_bus_event_t *bevt;
@@ -73,7 +80,14 @@ void em_mgr_t::io_process(em_bus_event_type_t type, unsigned char *data, unsigne
     bevt = &evt->u.bevt; 
     bevt->type = type;
     bevt->data_len = len;
-    memcpy(bevt->u.raw_buff, data, len);
+	
+	if (data != NULL) {
+    	memcpy(bevt->u.raw_buff, data, len);
+	}
+
+	if (params != NULL) {
+		memcpy(&bevt->params, params, sizeof(em_cmd_params_t));
+	}
 
     push_to_queue(evt);
 }
@@ -88,7 +102,7 @@ bool em_mgr_t::io_process(em_event_t *evt)
     //em_cmd_t::dump_bus_event(bevt);
 
     e = (em_event_t *)malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN);
-    memcpy((unsigned char *)e, (unsigned char *)evt, EM_MAX_EVENT_DATA_LEN);
+    memcpy((unsigned char *)e, (unsigned char *)evt, sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN);
 
     push_to_queue(e);
 
@@ -343,6 +357,27 @@ int em_mgr_t::nodes_listen()
     return 0;
 }
 
+void em_mgr_t::handle_timeout()
+{
+	m_tick_demultiplex++;
+
+	handle_500ms_tick();
+	
+	if ((m_tick_demultiplex % EM_1_TOUT_MULT) == 0) {
+		handle_1s_tick();
+	} 
+
+	if ((m_tick_demultiplex % EM_2_TOUT_MULT) == 0) {
+		handle_2s_tick();
+	} 
+
+	if ((m_tick_demultiplex % EM_5_TOUT_MULT) == 0) {
+		handle_5s_tick();
+		m_tick_demultiplex = 0;
+	}
+
+}
+
 int em_mgr_t::start()
 {
     int rc;
@@ -434,6 +469,7 @@ em_mgr_t::em_mgr_t()
 {
     m_exit = false;
     m_timeout = EM_MGR_TOUT;
+	m_tick_demultiplex = 0;
 }
 
 em_mgr_t::~em_mgr_t()

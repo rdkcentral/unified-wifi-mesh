@@ -79,6 +79,7 @@ AGENT_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
 	$(ONEWIFI_EM_SRC)/dm/dm_network.cpp \
 	$(ONEWIFI_EM_SRC)/dm/dm_op_class.cpp \
 	$(ONEWIFI_EM_SRC)/dm/dm_policy.cpp \
+	$(ONEWIFI_EM_SRC)/dm/dm_scan_result.cpp \
 	$(ONEWIFI_EM_SRC)/dm/dm_sta.cpp \
 	$(ONEWIFI_EM_SRC)/dm/dm_radio_cap.cpp \
     $(ONEWIFI_EM_SRC)/dm/dm_cac_comp.cpp \

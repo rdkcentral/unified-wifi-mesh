@@ -1443,6 +1443,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
     dm_radio_t radio;
     dm_op_class_t op_class;
 	dm_policy_t	policy;
+	dm_scan_result_t	scan_result;
     dm_bss_t bss;
     dm_sta_t *sta, *tmp;
     dm_network_ssid_t net_ssid;
@@ -1677,6 +1678,27 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
             dm->set_db_cfg_type(dm->get_db_cfg_type() & ~db_cfg_type_policy_list_update);
         }
     }
+
+	if (dm->get_db_cfg_type() & db_cfg_type_scan_result_list_update) {
+        for (i = 0; i < dm->get_num_scan_results(); i++) {
+            scan_result = dm->get_scan_result_by_ref(i);
+			dm_easy_mesh_t::macbytes_to_string(scan_result.m_scan_result.id.dev_mac, dev_mac_str);
+			dm_easy_mesh_t::macbytes_to_string(scan_result.m_scan_result.id.ruid, radio_mac_str);
+            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d@%d",
+                    scan_result.m_scan_result.id.net_id, dev_mac_str, radio_mac_str, 
+					scan_result.m_scan_result.id.op_class, scan_result.m_scan_result.id.channel);
+            //printf("%s:%d: Key: %s\n", __func__, __LINE__, parent);
+            if (dm_scan_result_list_t::set_config(m_db_client, dm->get_scan_result_by_ref(i), parent) != 0) {
+                at_least_one_failed = true;
+            }
+        }
+        if (at_least_one_failed == true) {
+            at_least_one_failed = false;
+        } else {
+            dm->set_db_cfg_type(dm->get_db_cfg_type() & ~db_cfg_type_scan_result_list_update);
+        }
+    }
+
 
     return 0;
 }

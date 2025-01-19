@@ -25,6 +25,7 @@
 #include "dm_easy_mesh_agent.h"
 #include "em_crypto.h"
 #include "em_orch_agent.h"
+#include "em_simulator.h"
 #include "bus.h"
 
 class em_cmd_agent_t;
@@ -35,8 +36,14 @@ class em_agent_t : public em_mgr_t {
     dm_easy_mesh_agent_t m_data_model;
     em_short_string_t   m_data_model_path;
     em_cmd_agent_t  *m_agent_cmd;
+	em_simulator_t	m_simulator;
 
     void io_run(char *buff);
+
+    void handle_5s_tick();
+    void handle_2s_tick();
+    void handle_1s_tick();
+    void handle_500ms_tick();
 
     void handle_bus_event(em_bus_event_t *evt);
     void handle_action_frame(struct ieee80211_mgmt *frame);
@@ -44,6 +51,8 @@ class em_agent_t : public em_mgr_t {
     void handle_vendor_public_action_frame(struct ieee80211_mgmt *frame);
     void handle_btm_request_action_frame(em_bus_event_t *evt);
     void handle_btm_response_action_frame(em_bus_event_t *evt);
+    void handle_channel_scan_result(em_bus_event_t *evt);
+    void handle_channel_scan_params(em_bus_event_t *evt);
 
 public:
 
