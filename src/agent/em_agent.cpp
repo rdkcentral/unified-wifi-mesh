@@ -672,7 +672,6 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 			dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
         	if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
             	printf("%s:%d: Found existing radio:%s\n", __func__, __LINE__, mac_str1);
-            	em->set_state(em_state_ctrl_wsc_m1_pending);
         	} else {
 				return NULL;
 			}
