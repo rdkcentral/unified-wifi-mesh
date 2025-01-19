@@ -53,6 +53,8 @@ const (
 	BTN_MAX = 3
 )
 
+var p *tea.Program
+
 var (
     appStyle = lipgloss.NewStyle().Padding(1, 2)
 
@@ -145,6 +147,10 @@ type model struct {
 	easyMeshCommands	map[string]EasyMeshCmd
 	contentUpdated		bool
     dump 	*os.File
+}
+
+type refreshUIMsg struct {
+    index    int
 }
 
 func newModel(platform string) model {
@@ -251,6 +257,12 @@ func (m *model) timerHandler() {
 
 
 			case <- m.ticker.C:
+                if listItem, ok := m.list.Items()[6].(item); ok {
+                    m.execSelectedCommand(listItem.title, GET)
+                    if p != nil {
+                        p.Send(refreshUIMsg{index: 6})
+                    }
+                }
 
 			case <- m.quit:
 				m.ticker.Stop()
@@ -537,6 +549,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             }
             cmds = append(cmds, cmd)
         }
+
+    case refreshUIMsg:
+        //spew.Fdump(m.dump, "Refresh Data!", msg.index)
+        newListModel, cmd := m.list.Update(msg)
+        m.list = newListModel
+        // Check if the current item is at index 6
+        if listItem, ok := m.list.Items()[msg.index].(item); ok {
+            listItem.isActive = msg.index == m.list.Index()
+            m.list.SetItem(msg.index, listItem)
+        }
+        cmds = append(cmds, cmd)
+
+        if selectedItem, ok := m.list.SelectedItem().(item); ok {
+            if m.list.Index() == msg.index {
+                m.execSelectedCommand(selectedItem.title, GET)
+            }
+        }
     }
 
 	m.tree, cmd = m.tree.Update(msg)
@@ -627,7 +656,9 @@ func main() {
         os.Exit(1)
 	}
 
-    if _, err := tea.NewProgram(newModel(os.Args[1]), tea.WithAltScreen()).Run(); err != nil {
+    p = tea.NewProgram(newModel(os.Args[1]), tea.WithAltScreen())
+
+    if _, err := p.Run(); err != nil {
         fmt.Println("Error running program:", err)
         os.Exit(1)
     }
