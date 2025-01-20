@@ -111,7 +111,9 @@ int main(int argc, const char *argv[])
 
 			if ((node = exec(line, strlen(line), NULL)) != NULL) {
 				if ((obj = (cJSON *)network_tree_to_json(node)) != NULL) {
-					printf("%s\n", cJSON_Print(obj));
+					char* tmp = cJSON_Print(obj);
+					printf("%s\n", tmp);
+					cJSON_free(tmp);
 					cJSON_Delete(obj);
 				}
 				free_network_tree(node);
