@@ -70,6 +70,7 @@ em_cmd_params_t spec_params[] = {
 	{.u = {.args = {1, {"", "", "", "", ""}, "Clientcap.json"}}},
 	{.u = {.args = {2, {"", "", "", "", ""}, "Policy"}}},
 	{.u = {.args = {2, {"", "", "", "", ""}, "Policy.json"}}},
+	{.u = {.args = {2, {"", "", "", "", ""}, "ScanResult"}}},
 	{.u = {.args = {0, {"", "", "", "", ""}, "max"}}},
 };
 
@@ -91,6 +92,7 @@ em_cmd_t em_cmd_cli_t::m_client_cmd_spec[] = {
     em_cmd_t(em_cmd_type_get_channel, spec_params[13]),
     em_cmd_t(em_cmd_type_set_channel, spec_params[14]),
     em_cmd_t(em_cmd_type_scan_channel, spec_params[15]),
+    em_cmd_t(em_cmd_type_scan_result, spec_params[25]),
     em_cmd_t(em_cmd_type_get_bss, spec_params[16]),
     em_cmd_t(em_cmd_type_get_sta, spec_params[17]),
     em_cmd_t(em_cmd_type_steer_sta, spec_params[18]),
@@ -340,6 +342,12 @@ int em_cmd_cli_t::execute(char *result)
                 printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
                 return -1;
 			}	
+            break;
+
+        case em_cmd_type_scan_result:
+            bevt->type = em_bus_event_type_scan_result;
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
             break;
 
         case em_cmd_type_get_policy:

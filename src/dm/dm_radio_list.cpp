@@ -98,9 +98,9 @@ int dm_radio_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, vo
 
     for (i = 0; i < size; i++) {
         obj = cJSON_GetArrayItem(obj_arr, i);
-	radio.decode(obj, parent_id);
-	update_db(db_client, (op = get_dm_orch_type(db_client, radio)), radio.get_radio_info());
-	update_list(radio, op);
+		radio.decode(obj, parent_id);
+		update_db(db_client, (op = get_dm_orch_type(db_client, radio)), radio.get_radio_info());
+		update_list(radio, op);
     }
 
     return 0;

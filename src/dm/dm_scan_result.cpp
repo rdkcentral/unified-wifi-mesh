@@ -115,11 +115,12 @@ int dm_scan_result_t::decode(const cJSON *obj, void *parent_id)
 	return 0;
 }
 
-void dm_scan_result_t::encode(cJSON *obj, em_scan_result_id_t id)
+void dm_scan_result_t::encode(cJSON *obj)
 {
 	cJSON *arr_obj, *tmp;
 	unsigned int i;
 	mac_addr_str_t	bssid_str;
+	mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 	cJSON_AddNumberToObject(obj, "ScanStatus", m_scan_result.scan_status);
 	cJSON_AddStringToObject(obj, "TimeStamp", m_scan_result.timestamp);
@@ -128,6 +129,9 @@ void dm_scan_result_t::encode(cJSON *obj, em_scan_result_id_t id)
 	
 	arr_obj = cJSON_AddArrayToObject(obj, "Neighbors");
 	for (i = 0; i < m_scan_result.num_neighbors; i++) {
+		if (memcmp(null_mac, m_scan_result.neighbor[i].bssid, sizeof(mac_address_t)) == 0) {
+			continue;
+		}
 		tmp = cJSON_CreateObject();
 
 		dm_easy_mesh_t::macbytes_to_string(m_scan_result.neighbor[i].bssid, bssid_str);
@@ -158,12 +162,11 @@ void dm_scan_result_t::operator = (const dm_scan_result_t& obj)
 
 }
 
-int dm_scan_result_t::parse_scan_result_id_from_key(const char *key, em_scan_result_id_t *id)
+int dm_scan_result_t::parse_scan_result_id_from_key(const char *key, em_scan_result_id_t *id, unsigned char *bssid)
 {
     em_long_string_t   str;
     char *tmp, *remain;
     unsigned int i = 0;
-	bssid_t bssid;
     
     strncpy(str, key, strlen(key) + 1);
     remain = str;
@@ -192,7 +195,9 @@ int dm_scan_result_t::parse_scan_result_id_from_key(const char *key, em_scan_res
             *tmp = 0; 
 			id->channel = atoi(remain);
             tmp++;
-            dm_easy_mesh_t::string_to_macbytes(tmp, bssid);
+			if (bssid != NULL) {
+            	dm_easy_mesh_t::string_to_macbytes(tmp, bssid);
+			}
         }   
         i++;
     }

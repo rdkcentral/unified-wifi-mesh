@@ -43,7 +43,8 @@ LIBDIRS = \
 
 LIBS = -lemcli -lm -lpthread -ldl -lcjson -lreadline
 
-GENERIC_SOURCES = $(ONEWIFI_HOME)/source/utils/collection.c
+GENERIC_SOURCES = $(ONEWIFI_HOME)/source/utils/collection.c	\
+    $(ONEWIFI_EM_SRC)/utils/util.c \
 
 CLI_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/cli/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/cmd/*.cpp) \

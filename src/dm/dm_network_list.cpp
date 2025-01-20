@@ -39,6 +39,7 @@
 #include "dm_easy_mesh_ctrl.h"
 #include "dm_easy_mesh.h"
 #include "dm_network_list.h"
+#include "util.h"
 
 int dm_network_list_t::get_config(cJSON *obj, void *net_id, bool summary)
 {
@@ -206,17 +207,22 @@ int dm_network_list_t::sync_db(db_client_t& db_client, void *ctx)
     mac_addr_str_t	mac;
     em_network_info_t info;
     int rc = 0;
+	char date_time[EM_DATE_TIME_BUFF_SZ];
+
+	memset(&info, 0, sizeof(em_network_info_t));
+	get_date_time_rfc3399(date_time, EM_DATE_TIME_BUFF_SZ);
+	strncpy(info.timestamp, date_time, strlen(date_time) + 1);
 
     // there is only one row in network
     while (db_client.next_result(ctx)) {
-	db_client.get_string(ctx, info.id, 1);
-	db_client.get_string(ctx, mac, 2);
-	dm_easy_mesh_t::string_to_macbytes(mac, info.ctrl_id.mac);
+		db_client.get_string(ctx, info.id, 1);
+		db_client.get_string(ctx, mac, 2);
+		dm_easy_mesh_t::string_to_macbytes(mac, info.ctrl_id.mac);
 
-	db_client.get_string(ctx, mac, 3);
-	dm_easy_mesh_t::string_to_macbytes(mac, info.colocated_agent_id.mac);
+		db_client.get_string(ctx, mac, 3);
+		dm_easy_mesh_t::string_to_macbytes(mac, info.colocated_agent_id.mac);
 
-	update_list(dm_network_t(&info), dm_orch_type_db_insert);
+		update_list(dm_network_t(&info), dm_orch_type_db_insert);
     }
     return rc;
 }

@@ -26,7 +26,7 @@ public:
     em_network_info_t   m_net_info;
 
 public:
-    int init() { memset(&m_net_info, 0, sizeof(em_network_info_t)); return 0;}
+    int init();
     em_network_info_t *get_network_info() { return &m_net_info; }
     
     int decode(const cJSON *obj, void *parent_id);
