@@ -338,9 +338,9 @@ int dm_device_t::parse_device_params_from_key(const char *key, mac_address_t mac
 	strncpy(str, key, strlen(key) + 1);
 	if ((tmp = strchr(str, '@')) != NULL) {
 		*tmp = 0;
-		dm_easy_mesh_t::string_to_macbytes(str, mac);
+		strncpy(net_id, str, strlen(str) + 1);
 		tmp++;
-		strncpy(net_id, tmp, strlen(tmp) + 1);
+		dm_easy_mesh_t::string_to_macbytes(tmp, mac);
 	}
 }
 

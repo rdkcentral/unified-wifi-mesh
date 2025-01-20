@@ -1115,6 +1115,42 @@ int dm_easy_mesh_ctrl_t::get_reference_config(cJSON *parent, char *net_id)
 	return 0;
 }
 
+int dm_easy_mesh_ctrl_t::get_scan_result(cJSON *parent, char *key)
+{
+    cJSON *net_obj, *dev_list_obj, *dev_obj, *radio_list_obj, *radio_obj;
+	unsigned int i, j;
+	em_long_string_t	scan_parent;
+	char *dev_id, *radio_id;
+	mac_addr_str_t	null_mac_str;
+	mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+	dm_easy_mesh_t::macbytes_to_string(null_mac, null_mac_str);
+		
+	net_obj = cJSON_AddObjectToObject(parent, "Network");
+	dm_network_list_t::get_config(net_obj, key);
+
+	dev_list_obj = cJSON_AddArrayToObject(net_obj, "DeviceList");
+	dm_device_list_t::get_config(dev_list_obj, key, true);
+
+	for (i = 0; i < cJSON_GetArraySize(dev_list_obj); i++) {	
+		dev_obj = cJSON_GetArrayItem(dev_list_obj, i);
+		dev_id = cJSON_GetStringValue(cJSON_GetObjectItem(dev_obj, "ID"));
+		radio_list_obj = cJSON_AddArrayToObject(dev_obj, "RadioList");
+		dm_radio_list_t::get_config(radio_list_obj, dev_id, em_get_radio_list_reason_radio_summary);
+
+		for (j = 0; j < cJSON_GetArraySize(radio_list_obj); j++) {
+			radio_obj = cJSON_GetArrayItem(radio_list_obj, j);
+			radio_id = cJSON_GetStringValue(cJSON_GetObjectItem(radio_obj, "ID"));
+
+			snprintf(scan_parent, sizeof(em_long_string_t), "%s@%s@%s@0@0@%s", key, dev_id, radio_id, null_mac_str);
+			//printf("%s:%d: Scan Parent ID: %s\n", __func__, __LINE__, scan_parent);
+			dm_scan_result_list_t::get_config(radio_obj, scan_parent);
+		} 
+	}
+
+	return 0;
+}
+
 int dm_easy_mesh_ctrl_t::get_policy_config(cJSON *parent, char *net_id)
 {
     cJSON *net_obj, *dev_list_obj, *dev_obj, *policy_obj;
@@ -1327,6 +1363,8 @@ int dm_easy_mesh_ctrl_t::get_config(em_long_string_t net_id, em_subdoc_info_t *s
         get_sta_config(parent, net_id, em_get_sta_list_reason_btm);
     } else if (strncmp(subdoc->name, "Policy", strlen(subdoc->name)) == 0) {
         get_policy_config(parent, net_id);
+    } else if (strncmp(subdoc->name, "ScanResult", strlen(subdoc->name)) == 0) {
+        get_scan_result(parent, net_id);
     } else if (strncmp(subdoc->name, "DevTest", strlen(subdoc->name)) == 0) {
         get_reference_config(parent, net_id);
     }
