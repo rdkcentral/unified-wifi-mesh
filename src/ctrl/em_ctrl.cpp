@@ -386,6 +386,7 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
         case em_bus_event_type_get_bss:
         case em_bus_event_type_get_sta:
         case em_bus_event_type_get_policy:
+        case em_bus_event_type_scan_result:
             handle_get_dm_data(evt);
             break;
 
