@@ -367,6 +367,7 @@ short em_steering_t::create_btm_request_tlv(unsigned char *buff)
     req->req_mode                           = params->request_mode;
     req->btm_dissoc_imminent                = params->disassoc_imminent;
     req->btm_abridged                       = params->btm_abridged;
+    req->btm_link_removal_imminent = params->link_removal_imminent;
     if(params->request_mode == 1)
     {
         //ignore this
