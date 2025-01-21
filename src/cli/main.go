@@ -161,7 +161,7 @@ func newModel(platform string) model {
         NetworkSSIDListCmd:     {NetworkSSIDListCmd, 2, "get_ssid OneWifiMesh", "get_ssid OneWifiMesh", "set_ssid OneWifiMesh", ""},
         RadioListCmd:           {RadioListCmd, 3, "get_radio OneWifiMesh", "", "", ""},
         ChannelsListCmd:        {ChannelsListCmd, 4, "get_channel OneWifiMesh", "get_channel OneWifiMesh 1", "set_channel OneWifiMesh", ""},
-        NeighborsListCmd:       {NeighborsListCmd, 5, "get_channel OneWifiMesh", "get_channel OneWifiMesh 2", "scan_channel OneWifiMesh", ""},
+        NeighborsListCmd:       {NeighborsListCmd, 5, "scan_result OneWifiMesh", "get_channel OneWifiMesh 2", "scan_channel OneWifiMesh", ""},
         ClientDevicesCmd:       {ClientDevicesCmd, 6, "get_sta OneWifiMesh", "", "", ""},
         SteerDevicesCmd:        {SteerDevicesCmd, 7, "get_sta OneWifiMesh", "get_sta OneWifiMesh 1", "steer_sta OneWifiMesh", ""},
         NetworkMetricsCmd:      {NetworkMetricsCmd, 8, "", "", "", ""},

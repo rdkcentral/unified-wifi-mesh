@@ -29,12 +29,12 @@ public:
     int init() { memset(&m_scan_result, 0, sizeof(em_scan_result_t)); return 0; }
     em_scan_result_t *get_scan_result() { return &m_scan_result; }
     int decode(const cJSON *obj, void *parent_id);
-    void encode(cJSON *obj, em_scan_result_id_t id);
+    void encode(cJSON *obj);
 
     bool operator == (const dm_scan_result_t& obj);
     void operator = (const dm_scan_result_t& obj);
 
-	static int parse_scan_result_id_from_key(const char *key, em_scan_result_id_t *id);
+	static int parse_scan_result_id_from_key(const char *key, em_scan_result_id_t *id, unsigned char *bssid = NULL);
 	bool has_same_id(em_scan_result_id_t *);
 
     dm_scan_result_t(em_scan_result_t *scan_result);
