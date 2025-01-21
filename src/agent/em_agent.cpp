@@ -652,13 +652,15 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
                         if ((em->get_state() != em_state_agent_autoconfig_renew_pending) && (em->get_state() !=em_state_agent_wsc_m2_pending) && (em->get_state() != em_state_agent_owconfig_pending) ) {
                             found = true;
                             break;
+                        } else {
+                            printf("%s:%d: Found matching band%d but incorrect em state %d\n", __func__, __LINE__, band, em->get_state());
                         }
                     }
                 }   
                 em = (em_t *)hash_map_get_next(m_em_map, em);
             }
             if (found == false) {
-                printf("%s:%d: Could not find em with matching band%d\n", __func__, __LINE__, band);
+                printf("%s:%d: Could not find em with matching band%d and expected state \n", __func__, __LINE__, band);
                 return NULL;
             }
 
