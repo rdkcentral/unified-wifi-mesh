@@ -31,8 +31,8 @@ github.com/muesli/cancelreader v0.2.2 h1:3I4Kt4BQjOR54NavqnDogx/MIoWBFa0StPA8ELU
 github.com/muesli/cancelreader v0.2.2/go.mod h1:3XuTXfFS2VjM+HTLZY9Ak0l6eUKfijIfMUZ4EgX0QYo=
 github.com/muesli/termenv v0.15.2 h1:GohcuySI0QmI3wN8Ok9PtKGkgkFIk7y6Vpb5PvrY+Wo=
 github.com/muesli/termenv v0.15.2/go.mod h1:Epx+iuz8sNs7mNKhxzH4fWXGNpZwUaJKRS1noLXviQ8=
-github.com/rdkcentral/unified-wifi-mesh/src/cli/etree v0.0.0-20250118163350-2fd6c5d4a3f8 h1:RIPBkgjPR8SrLXoUtEVJ/r+zySJ7WpnCdAq+Ui88EMs=
-github.com/rdkcentral/unified-wifi-mesh/src/cli/etree v0.0.0-20250118163350-2fd6c5d4a3f8/go.mod h1:hGYLUrGCHOarPsenxfr7zdJ3S/9bFhfgn4E9Y2v7+mk=
+github.com/rdkcentral/unified-wifi-mesh/src/cli/etree v0.0.0-20250121141939-856988e1ac67 h1:zc1LrqzVbTwaAlZD+2QlY8tqdydJcrFA4POkjrKVZkM=
+github.com/rdkcentral/unified-wifi-mesh/src/cli/etree v0.0.0-20250121141939-856988e1ac67/go.mod h1:hGYLUrGCHOarPsenxfr7zdJ3S/9bFhfgn4E9Y2v7+mk=
 github.com/rivo/uniseg v0.2.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
 github.com/rivo/uniseg v0.4.7 h1:WUdvkW8uEhrYfLC4ZzdpI2ztxP1I582+49Oc5Mq64VQ=
 github.com/rivo/uniseg v0.4.7/go.mod h1:FN3SvrM+Zdj16jyLfmOkMNblXMcoc8DfTHruCPUcx88=
