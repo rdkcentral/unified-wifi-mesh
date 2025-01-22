@@ -37,6 +37,7 @@
 #include <unistd.h>
 #include "dm_easy_mesh_ctrl.h"
 #include "dm_easy_mesh.h"
+#include "util.h"
 
 int dm_network_t::decode(const cJSON *obj, void *parent_id)
 {
@@ -65,6 +66,7 @@ int dm_network_t::decode(const cJSON *obj, void *parent_id)
 
     }
 
+#ifdef STA_ENGANCEMENT
     if ((tmp_arr = cJSON_GetObjectItem(obj, "MSCSDisallowedStaList")) != NULL) {
         m_net_info.num_mscs_disallowed_sta = cJSON_GetArraySize(tmp_arr);
         for (i = 0; i < m_net_info.num_mscs_disallowed_sta; i++) {
@@ -80,6 +82,7 @@ int dm_network_t::decode(const cJSON *obj, void *parent_id)
             snprintf(m_net_info.scs_disallowed_sta[i], sizeof(m_net_info.scs_disallowed_sta[i]), "%s", cJSON_GetStringValue(tmp));
         }
     }
+#endif
 
     if ((tmp = cJSON_GetObjectItem(obj, "CollocatedAgentID")) != NULL) {
         snprintf(mac_str, sizeof(mac_str), "%s", cJSON_GetStringValue(tmp));
@@ -97,21 +100,18 @@ void dm_network_t::encode(cJSON *obj, bool summary)
 
     cJSON_AddStringToObject(obj, "ID", m_net_info.id);
 
-    if (summary == true) {
-        return;
-    }
-
-
     cJSON_AddNumberToObject(obj, "NumberOfDevices", m_net_info.num_of_devices); 
     cJSON_AddStringToObject(obj, "TimeStamp", m_net_info.timestamp);
 
     dm_easy_mesh_t::macbytes_to_string(m_net_info.ctrl_id.mac, mac_str);
     cJSON_AddStringToObject(obj, "ControllerID", mac_str);
-
+    
+#ifdef STA_ENGANCEMENT
     cJSON *mscs_staArray = cJSON_CreateArray();
     for (i = 0; i < m_net_info.num_mscs_disallowed_sta; i++) {
         cJSON_AddItemToArray(mscs_staArray, cJSON_CreateString(m_net_info.mscs_disallowed_sta[i]));
     }
+
     // Add the array to the object
     cJSON_AddItemToObject(obj, "MSCSDisallowedStaList", mscs_staArray);
 
@@ -121,6 +121,7 @@ void dm_network_t::encode(cJSON *obj, bool summary)
     }
     // Add the array to the object
     cJSON_AddItemToObject(obj, "SCSDisallowedStaList", scs_staArray);
+#endif
 
     dm_easy_mesh_t::macbytes_to_string(m_net_info.colocated_agent_id.mac, mac_str);
     cJSON_AddStringToObject(obj, "CollocatedAgentID", mac_str);
@@ -155,7 +156,7 @@ void dm_network_t::operator = (const dm_network_t& obj)
 {
     memcpy(&this->m_net_info.id,&obj.m_net_info.id,sizeof(em_long_string_t));
     this->m_net_info.num_of_devices = obj.m_net_info.num_of_devices;
-    memcpy(&this->m_net_info.timestamp,&obj.m_net_info.timestamp,sizeof(em_long_string_t));
+    strncpy(this->m_net_info.timestamp, obj.m_net_info.timestamp, strlen(obj.m_net_info.timestamp) + 1);
     memcpy(&this->m_net_info.ctrl_id.mac ,&obj.m_net_info.ctrl_id.mac,sizeof(mac_address_t));
     memcpy(&this->m_net_info.ctrl_id.name,&obj.m_net_info.ctrl_id.name,sizeof(em_interface_name_t));
     this->m_net_info.num_mscs_disallowed_sta == obj.m_net_info.num_mscs_disallowed_sta;
@@ -169,6 +170,18 @@ void dm_network_t::operator = (const dm_network_t& obj)
     memcpy(&this->m_net_info.colocated_agent_id.mac ,&obj.m_net_info.colocated_agent_id.mac,sizeof(mac_address_t));
     memcpy(&this->m_net_info.colocated_agent_id.name,&obj.m_net_info.colocated_agent_id.name,sizeof(em_interface_name_t));
 }
+
+int dm_network_t::init()
+{
+	char date_time[EM_DATE_TIME_BUFF_SZ];
+
+	get_date_time_rfc3399(date_time, EM_DATE_TIME_BUFF_SZ);
+
+	memset(&m_net_info, 0, sizeof(em_network_info_t)); 
+	strncpy(m_net_info.timestamp, date_time, strlen(date_time) + 1);
+	return 0;
+}
+
 dm_network_t::dm_network_t(em_network_info_t *net)
 {
     memcpy(&m_net_info, net, sizeof(em_network_info_t));

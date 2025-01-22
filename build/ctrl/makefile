@@ -26,7 +26,6 @@ PROGRAM = $(INSTALLDIR)/bin/onewifi_em_ctrl
 
 INCLUDEDIRS = \
 	-I$(ONEWIFI_EM_HOME)/inc \
-	-I$(ONEWIFI_EM_HOME)/src/utils \
 	-I$(ONEWIFI_HAL_INTF_HOME)/ \
 	-I$(ONEWIFI_HOME)/source/utils \
 	-I$(ONEWIFI_HOME)/include \

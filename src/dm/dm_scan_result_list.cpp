@@ -41,7 +41,37 @@
 
 int dm_scan_result_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
 {
+	cJSON *scan_res_arr_obj, *scan_res_obj;
+	em_scan_result_id_t id;
+	dm_scan_result_t *res;
+	bool all_scan_rsults_of_radio = false;
 
+	dm_scan_result_t::parse_scan_result_id_from_key((char *)parent, &id);
+	if ((id.op_class == 0) && (id.channel == 0)) {
+		all_scan_rsults_of_radio = true;
+	}
+
+	scan_res_arr_obj = cJSON_AddArrayToObject(parent_obj, "ScanResults");
+
+	res = (dm_scan_result_t *)get_first_scan_result();
+	while (res != NULL) {
+		if (all_scan_rsults_of_radio == true) {
+			if ((strncmp(res->m_scan_result.id.net_id, id.net_id, strlen(id.net_id)) != 0) ||
+					(memcmp(res->m_scan_result.id.dev_mac, id.dev_mac, sizeof(mac_address_t)) != 0) ||
+					(memcmp(res->m_scan_result.id.ruid, id.ruid, sizeof(mac_address_t)) != 0)) {
+				res = (dm_scan_result_t *)get_next_scan_result(res);
+				continue;
+			}
+		}	
+
+		scan_res_obj = cJSON_CreateObject();
+		res->encode(scan_res_obj);
+		cJSON_AddItemToArray(scan_res_arr_obj, scan_res_obj);
+		
+
+		res = (dm_scan_result_t *)get_next_scan_result(res);
+	}
+	
     return 0;
 }
 
