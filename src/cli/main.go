@@ -37,6 +37,7 @@ const (
 	NetworkPolicyCmd = "Network Policy"
 	NeighborsListCmd = "WiFi Neighbors"
 	SteerDevicesCmd = "Optimize Client Connections"
+	BackhaulOptimizeCmd = "Optimize Backhaul Connections"
 	NetworkMetricsCmd = "Network Metrics"
 	DeviceOnboardingCmd = "Onboarding & Provisioning"
 	WiFiEventsCmd = "WiFi Events"
@@ -164,11 +165,12 @@ func newModel(platform string) model {
         NeighborsListCmd:       {NeighborsListCmd, 5, "scan_result OneWifiMesh", "get_channel OneWifiMesh 2", "scan_channel OneWifiMesh", ""},
         ClientDevicesCmd:       {ClientDevicesCmd, 6, "get_sta OneWifiMesh", "", "", ""},
         SteerDevicesCmd:        {SteerDevicesCmd, 7, "get_sta OneWifiMesh", "get_sta OneWifiMesh 1", "steer_sta OneWifiMesh", ""},
-        NetworkMetricsCmd:      {NetworkMetricsCmd, 8, "", "", "", ""},
-        DeviceOnboardingCmd:        {DeviceOnboardingCmd, 9, "", "", "", ""},
-        WiFiEventsCmd:      {WiFiEventsCmd, 10, "", "", "", ""},
-        WiFiResetCmd:       {WiFiResetCmd, 11, "get_network OneWifiMesh", "", "reset OneWifiMesh", ""},
-        DebugCmd:       {DebugCmd, 12, "dev_test OneWifiMesh", "", "", ""},
+        BackhaulOptimizeCmd:        {BackhaulOptimizeCmd, 8, "get_sta OneWifiMesh", "get_sta OneWifiMesh 1", "steer_sta OneWifiMesh", ""},
+        NetworkMetricsCmd:      {NetworkMetricsCmd, 9, "", "", "", ""},
+        DeviceOnboardingCmd:        {DeviceOnboardingCmd, 10, "", "", "", ""},
+        WiFiEventsCmd:      {WiFiEventsCmd, 11, "", "", "", ""},
+        WiFiResetCmd:       {WiFiResetCmd, 12, "get_network OneWifiMesh", "", "reset OneWifiMesh", ""},
+        DebugCmd:       {DebugCmd, 13, "dev_test OneWifiMesh", "", "", ""},
     }
 	
 	var items []list.Item
@@ -257,10 +259,10 @@ func (m *model) timerHandler() {
 
 
 			case <- m.ticker.C:
-                if listItem, ok := m.list.Items()[6].(item); ok {
+                if listItem, ok := m.list.Items()[m.list.Index()].(item); ok {
                     m.execSelectedCommand(listItem.title, GET)
                     if p != nil {
-                        p.Send(refreshUIMsg{index: 6})
+                        p.Send(refreshUIMsg{index: m.list.Index()})
                     }
                 }
 

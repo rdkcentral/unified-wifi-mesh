@@ -38,6 +38,7 @@ class em_agent_t : public em_mgr_t {
     em_cmd_agent_t  *m_agent_cmd;
 	em_simulator_t	m_simulator;
 
+	void start_complete();
     void io_run(char *buff);
 
     void handle_5s_tick();

@@ -159,7 +159,6 @@ int em_metrics_t::handle_associated_sta_link_metrics_resp(unsigned char *buff, u
     int tmp_len, ret = 0;
     mac_address_t 	sta_mac;
     dm_easy_mesh_t  *dm;
-    unsigned int db_cfg_type;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     mac_addr_str_t sta_mac_str, bssid_str, radio_mac_str;
     em_long_string_t	key;
@@ -223,8 +222,7 @@ int em_metrics_t::handle_associated_sta_link_metrics_resp(unsigned char *buff, u
         tmp_len -= (sizeof(em_tlv_t) + htons(tlv->len));
         tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
     }
-    db_cfg_type = dm->get_db_cfg_type();
-    dm->set_db_cfg_type(db_cfg_type | db_cfg_type_sta_metrics_update);
+    dm->set_db_cfg_param(db_cfg_type_sta_metrics_update, "");
     set_state(em_state_ctrl_configured);
 
     return 0;

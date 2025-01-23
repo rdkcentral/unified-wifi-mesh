@@ -1384,7 +1384,7 @@ int em_channel_t::send_available_spectrum_inquiry_msg()
 int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len)
 {
     dm_easy_mesh_t *dm;
-    unsigned int db_cfg_type = 0, i = 0, found = 0;
+    unsigned int i = 0, found = 0;
     em_op_class_info_t  *op_class_info;
     em_op_channel_rprt_t *rpt = (em_op_channel_rprt_t *) buff;
     dm = get_data_model();
@@ -1406,8 +1406,8 @@ int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len
         op_class_info->id.op_class = op_class_info->op_class;
         op_class_info->channel = (unsigned int) rpt->op_classes[0].channel;
         dm->set_num_op_class(dm->get_num_op_class() + 1);
-        db_cfg_type = dm->get_db_cfg_type();
-        dm->set_db_cfg_type(db_cfg_type | db_cfg_type_op_class_list_update | db_cfg_type_radio_list_update);
+        dm->set_db_cfg_param(db_cfg_type_op_class_list_update, "");
+        dm->set_db_cfg_param(db_cfg_type_radio_list_update, "");
     }
     return 0;
 }
@@ -1415,7 +1415,7 @@ int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len
 int em_channel_t::handle_spatial_reuse_report(unsigned char *buff, unsigned int len)
 {
     dm_easy_mesh_t *dm;
-    unsigned int db_cfg_type = 0, i = 0, found = 0;
+    unsigned int i = 0, found = 0;
     em_spatial_reuse_rprt_t *rpt = (em_spatial_reuse_rprt_t *) buff;
     dm = get_data_model();
 
@@ -1447,7 +1447,6 @@ int em_channel_t::handle_channel_pref_tlv_ctrl(unsigned char *buff, unsigned int
     em_op_class_info_t      op_class_info[EM_MAX_OP_CLASS];
     em_op_class_info_t *pop_class_info;
     dm_easy_mesh_t *dm;
-    unsigned int db_cfg_type = 0;
 
     dm = get_data_model();
     em_device_info_t    *device = dm->get_device_info();
@@ -1489,8 +1488,8 @@ int em_channel_t::handle_channel_pref_tlv_ctrl(unsigned char *buff, unsigned int
 		pop_class_info = &dm->m_op_class[dm->get_num_op_class()].m_op_class_info;
 		memcpy(pop_class_info, &op_class_info[i], sizeof(em_op_class_info_t));
 		dm->set_num_op_class(dm->get_num_op_class() + 1);
-		db_cfg_type = dm->get_db_cfg_type();
-		dm->set_db_cfg_type(db_cfg_type | db_cfg_type_op_class_list_update | db_cfg_type_radio_list_update);
+		dm->set_db_cfg_param(db_cfg_type_op_class_list_update, "");
+		dm->set_db_cfg_param(db_cfg_type_radio_list_update, "");
 	}
 
     return 0;
@@ -1887,7 +1886,6 @@ int em_channel_t::handle_channel_scan_rprt(unsigned char *buff, unsigned int len
 	dm_easy_mesh_t *dm;
 	em_scan_result_id_t id;
 	dm_scan_result_t *scan_res;
-	int db_cfg_type = 0;
 
 	dm = get_data_model();
 
@@ -1921,8 +1919,7 @@ int em_channel_t::handle_channel_scan_rprt(unsigned char *buff, unsigned int len
         tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
     }
         
-	db_cfg_type = dm->get_db_cfg_type();
-	dm->set_db_cfg_type(db_cfg_type | db_cfg_type_scan_result_list_update);
+	dm->set_db_cfg_param(db_cfg_type_scan_result_list_update, "");
 
 
 	return 0;
