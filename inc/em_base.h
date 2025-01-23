@@ -2039,7 +2039,8 @@ typedef struct {
 typedef struct {
     unsigned int    version;
     ec_data_t   ec_data;
-    wifi_channel_t  en_chans[DPP_MAX_EN_CHANNELS];
+    int  ec_freqs[DPP_MAX_EN_CHANNELS];
+    mac_address_t   mac_addr;
 } em_dpp_info_t;
 
 typedef enum {

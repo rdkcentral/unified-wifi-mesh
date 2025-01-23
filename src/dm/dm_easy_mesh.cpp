@@ -216,6 +216,7 @@ int dm_easy_mesh_t::commit_config(em_cmd_t  *cmd)
             break;
         case em_cmd_type_start_dpp:
             //To be Implemented
+            printf("COMMIT DPP\n");
             break;
         case em_cmd_type_dev_init: {
                 switch (cmd->get_orch_op()) {
