@@ -260,6 +260,34 @@ public:
         uint8_t *remote_pub, uint16_t remote_pub_len,
         uint8_t *local_priv, uint8_t local_priv_len);
 
+    /**
+     * Encodes binary data using base64 encoding.
+     *
+     * @param input          The binary data to encode
+     * @param length         Length of the input data in bytes
+     * @param output_length  Pointer to store the length of the encoded output string
+     *
+     * @return A null-terminated string containing the base64 encoded data.
+     *         Returns NULL on memory allocation failure.
+     * 
+     * @note The caller is responsible for freeing the returned memory
+     */
+    static char* base64_encode(const uint8_t* input, size_t length, size_t* output_length);
+
+    /**
+     * Decodes base64 encoded string back to binary data.
+     *
+     * @param input          The base64 encoded string to decode
+     * @param length         Length of the input string
+     * @param output_length  Pointer to store the length of the decoded binary data
+     *
+     * @return A buffer containing the decoded binary data.
+     *         Returns NULL on memory allocation failure or invalid input.
+     * 
+     * @note The caller is responsible for freeing the returned memory
+     */
+    static uint8_t* base64_decode(const char* input, size_t length, size_t* output_length);
+
 
     static inline uint8_t generate_iv(unsigned char *iv, unsigned int len) { if (!RAND_bytes(iv, len)) { return 0; } else { return 1; } }
     static inline uint8_t generate_nonce(em_nonce_t nonce) { if (!RAND_bytes(nonce, sizeof(em_nonce_t))) { return 0; } else { return 1; } }

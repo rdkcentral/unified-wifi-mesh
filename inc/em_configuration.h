@@ -44,6 +44,8 @@ class em_configuration_t {
     int send_topology_notification_by_client(mac_address_t sta, bssid_t bssid, bool assoc);
     int send_ap_mld_config_req_msg(unsigned char *buff);
     int send_ap_mld_config_resp_msg(unsigned char *buff);
+    int send_bsta_mld_config_req_msg(unsigned char *buff);
+    int send_bsta_mld_config_resp_msg(unsigned char *buff);
     
     int handle_autoconfig_resp(unsigned char *buff, unsigned int len);
     int handle_autoconfig_search(unsigned char *buff, unsigned int len);
@@ -58,6 +60,7 @@ class em_configuration_t {
     int handle_topology_notification(unsigned char *buff, unsigned int len);
 	int handle_ap_operational_bss(unsigned char *buff, unsigned int len);
     int handle_bss_configuration_report(unsigned char *buff, unsigned int len);
+    int handle_bsta_mld_config_req(unsigned char *buff, unsigned int len);
 
     short create_m1_msg(unsigned char *buff);
     short create_m2_msg(unsigned char *buff, em_haul_type_t haul_type);
