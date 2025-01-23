@@ -171,6 +171,7 @@ char *em_cmd_t::status_to_string(em_cmd_out_status_t status, char *str)
 
     tmp = cJSON_Print(obj);
     strncpy(str, tmp, strlen(tmp) + 1);
+    cJSON_free(tmp);
     cJSON_Delete(obj);
 
     return str;
