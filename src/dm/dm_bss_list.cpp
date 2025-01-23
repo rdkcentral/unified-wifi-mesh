@@ -76,11 +76,9 @@ int dm_bss_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 int dm_bss_list_t::set_config(db_client_t& db_client, dm_bss_t& bss, void *parent_id)
 {
     dm_orch_type_t op;  
-    mac_addr_str_t  bss_mac_str, radio_mac_str;
-                        
-    dm_easy_mesh_t::macbytes_to_string(bss.m_bss_info.bssid.mac, bss_mac_str);
-    dm_easy_mesh_t::macbytes_to_string(bss.m_bss_info.ruid.mac, radio_mac_str);
-    //printf("%s:%d: Enter: BSSID: %s RadioID: %s\n", __func__, __LINE__, bss_mac_str, radio_mac_str);
+
+    //printf("%s:%d: Parent: %s \n", __func__, __LINE__, (char *)parent_id);
+	parse_bss_id_from_key((char *)parent_id, &bss.m_bss_info.id);
 
     update_db(db_client, (op = get_dm_orch_type(db_client, bss)), bss.get_bss_info());
     update_list(bss, op);
@@ -99,9 +97,9 @@ int dm_bss_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void
 
     for (i = 0; i < size; i++) {
         obj = cJSON_GetArrayItem(obj_arr, i);
-	bss.decode(obj, parent_id);
-	update_db(db_client, (op = get_dm_orch_type(db_client, bss)), bss.get_bss_info());
-	update_list(bss, op);
+		bss.decode(obj, parent_id);
+		update_db(db_client, (op = get_dm_orch_type(db_client, bss)), bss.get_bss_info());
+		update_list(bss, op);
     }
 
     return 0;
@@ -171,7 +169,7 @@ void dm_bss_list_t::update_list(const dm_bss_t& bss, dm_orch_type_t op)
 void dm_bss_list_t::delete_list()
 {       
     dm_bss_t *pbss, *tmp;
-    mac_addr_str_t	bss_mac_str, radio_mac_str;
+    mac_addr_str_t	bss_mac_str, radio_mac_str, dev_mac_str;
     em_long_string_t key;
     
     pbss = get_first_bss();
@@ -179,9 +177,11 @@ void dm_bss_list_t::delete_list()
         tmp = pbss;
         pbss = get_next_bss(pbss);
     
-        dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_bss_info.bssid.mac, bss_mac_str);
+        dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_bss_info.id.dev_mac, dev_mac_str);
         dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_bss_info.ruid.mac, radio_mac_str);
-        snprintf(key, sizeof (em_long_string_t), "%s@%s", bss_mac_str, radio_mac_str);
+        dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_bss_info.bssid.mac, bss_mac_str);
+        snprintf(key, sizeof (em_long_string_t), "%s@%s@%s@%s", tmp->m_bss_info.id.net_id, dev_mac_str, radio_mac_str, bss_mac_str);
+
         remove_bss(key);
     }
 }   
@@ -194,11 +194,17 @@ bool dm_bss_list_t::operator == (const db_easy_mesh_t& obj)
 
 int dm_bss_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *data)
 {
-    mac_addr_str_t bss_mac_str, radio_mac_str;
+    mac_addr_str_t dev_mac_str, bss_mac_str, radio_mac_str;
     em_bss_info_t *info = (em_bss_info_t *)data;
     int ret = 0;
     unsigned int i;
+	em_long_string_t key;
     em_long_string_t	front_akms, back_akms;
+        
+	dm_easy_mesh_t::macbytes_to_string((unsigned char *)info->id.dev_mac, dev_mac_str);
+	dm_easy_mesh_t::macbytes_to_string((unsigned char *)info->ruid.mac, radio_mac_str);
+	dm_easy_mesh_t::macbytes_to_string((unsigned char *)info->bssid.mac, bss_mac_str);
+	snprintf(key, sizeof (em_long_string_t), "%s@%s@%s@%s", info->id.net_id, dev_mac_str, radio_mac_str, bss_mac_str);
 
     //printf("dm_bss_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
     memset(front_akms, 0, sizeof(em_long_string_t));
@@ -217,7 +223,7 @@ int dm_bss_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
 	
 	switch (op) {
 		case dm_orch_type_db_insert:
-			ret = insert_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->bssid.mac, bss_mac_str),
+			ret = insert_row(db_client, key, dm_easy_mesh_t::macbytes_to_string(info->bssid.mac, bss_mac_str),
 						dm_easy_mesh_t::macbytes_to_string(info->ruid.mac, radio_mac_str), info->ssid, info->enabled,
 						info->est_svc_params_be, info->est_svc_params_bk, info->est_svc_params_vi, info->est_svc_params_vo,
 						front_akms, back_akms, info->profile_1b_sta_allowed, info->profile_2b_sta_allowed, info->assoc_allowed_status,
@@ -227,7 +233,7 @@ int dm_bss_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
 			break;
 
 		case dm_orch_type_db_update:
-			ret = update_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->ruid.mac, radio_mac_str), info->ssid, info->enabled,
+			ret = update_row(db_client, key, dm_easy_mesh_t::macbytes_to_string(info->ruid.mac, radio_mac_str), info->ssid, info->enabled,
                         info->est_svc_params_be, info->est_svc_params_bk, info->est_svc_params_vi, info->est_svc_params_vo,
                         front_akms, back_akms, info->profile_1b_sta_allowed, info->profile_2b_sta_allowed, info->assoc_allowed_status,
                         info->backhaul_use, info->fronthaul_use, info->r1_disallowed, info->r2_disallowed, 
@@ -265,7 +271,7 @@ int dm_bss_list_t::sync_db(db_client_t& db_client, void *ctx)
 {
     em_bss_info_t info;
     mac_addr_str_t	mac;
-    em_short_string_t   str;
+    em_long_string_t   str;
     unsigned int i;
     char   *token_parts[EM_MAX_AKMS];
     int rc = 0;
@@ -273,42 +279,45 @@ int dm_bss_list_t::sync_db(db_client_t& db_client, void *ctx)
     while (db_client.next_result(ctx)) {
         memset(&info, 0, sizeof(em_bss_info_t));
 
-        db_client.get_string(ctx, mac, 1);
-        dm_easy_mesh_t::string_to_macbytes(mac, info.bssid.mac);
+        db_client.get_string(ctx, str, 1);
+		dm_bss_t::parse_bss_id_from_key(str, &info.id);
 
         db_client.get_string(ctx, mac, 2);
+        dm_easy_mesh_t::string_to_macbytes(mac, info.bssid.mac);
+
+        db_client.get_string(ctx, mac, 3);
         dm_easy_mesh_t::string_to_macbytes(mac, info.ruid.mac);
 
-        db_client.get_string(ctx, info.ssid, 3);
-        info.enabled = db_client.get_number(ctx, 4);
+        db_client.get_string(ctx, info.ssid, 4);
+        info.enabled = db_client.get_number(ctx, 5);
 
-        db_client.get_string(ctx, info.est_svc_params_be, 5);
-        db_client.get_string(ctx, info.est_svc_params_bk, 6);
-        db_client.get_string(ctx, info.est_svc_params_vi, 7);
-        db_client.get_string(ctx, info.est_svc_params_vo, 8);
+        db_client.get_string(ctx, info.est_svc_params_be, 6);
+        db_client.get_string(ctx, info.est_svc_params_bk, 7);
+        db_client.get_string(ctx, info.est_svc_params_vi, 8);
+        db_client.get_string(ctx, info.est_svc_params_vo, 9);
 
-        db_client.get_string(ctx, str, 9);
+        db_client.get_string(ctx, str, 10);
         for (i = 0; i < EM_MAX_AKMS; i++) {
             token_parts[i] = info.fronthaul_akm[i];
         }
         info.num_fronthaul_akms = get_strings_by_token(str, ',', EM_MAX_AKMS, token_parts);
 
-        db_client.get_string(ctx, str, 10);
+        db_client.get_string(ctx, str, 11);
 
         for (i = 0; i < EM_MAX_AKMS; i++) {
             token_parts[i] = info.backhaul_akm[i];
         }
         info.num_backhaul_akms = get_strings_by_token(str, ',', EM_MAX_AKMS, token_parts);
 
-        info.profile_1b_sta_allowed = db_client.get_number(ctx, 11);
-        info.profile_2b_sta_allowed = db_client.get_number(ctx, 12);
-        info.assoc_allowed_status = db_client.get_number(ctx, 13);
-        info.backhaul_use = db_client.get_number(ctx, 14);
-        info.fronthaul_use = db_client.get_number(ctx, 15);
-        info.r1_disallowed = db_client.get_number(ctx, 16);
-        info.r2_disallowed = db_client.get_number(ctx, 17);
-        info.multi_bssid = db_client.get_number(ctx, 18);
-        info.transmitted_bssid = db_client.get_number(ctx, 19);
+        info.profile_1b_sta_allowed = db_client.get_number(ctx, 12);
+        info.profile_2b_sta_allowed = db_client.get_number(ctx, 13);
+        info.assoc_allowed_status = db_client.get_number(ctx, 14);
+        info.backhaul_use = db_client.get_number(ctx, 15);
+        info.fronthaul_use = db_client.get_number(ctx, 16);
+        info.r1_disallowed = db_client.get_number(ctx, 17);
+        info.r2_disallowed = db_client.get_number(ctx, 18);
+        info.multi_bssid = db_client.get_number(ctx, 19);
+        info.transmitted_bssid = db_client.get_number(ctx, 20);
 
         update_list(dm_bss_t(&info), dm_orch_type_db_insert);
     }
@@ -326,8 +335,9 @@ void dm_bss_list_t::init_columns()
 {
     m_num_cols = 0;
 
-    m_columns[m_num_cols++] = db_column_t("ID", db_data_type_char, 17);
-    m_columns[m_num_cols++] = db_column_t("RadioID", db_data_type_char, 17);
+    m_columns[m_num_cols++] = db_column_t("ID", db_data_type_char, 128);
+	m_columns[m_num_cols++] = db_column_t("BSSID", db_data_type_char, 17);
+	m_columns[m_num_cols++] = db_column_t("RUID", db_data_type_char, 17);
     m_columns[m_num_cols++] = db_column_t("SSID", db_data_type_char, 32);
     m_columns[m_num_cols++] = db_column_t("Enabled", db_data_type_tinyint, 0);
     m_columns[m_num_cols++] = db_column_t("EstServiceParametersBE", db_data_type_char, 16);

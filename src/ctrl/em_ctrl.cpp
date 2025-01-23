@@ -645,7 +645,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
         
             if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
-                printf("%s:%d: Found existing radio:%s\n", __func__, __LINE__, mac_str1);
+                //printf("%s:%d: Found existing radio:%s\n", __func__, __LINE__, mac_str1);
 			}
             break;
 
@@ -684,6 +684,23 @@ void em_ctrl_t::io(void *data, bool input)
 {
     char *str = (char *)data;
     m_ctrl_cmd->execute(str);
+}
+
+void em_ctrl_t::start_complete()
+{
+	dm_easy_mesh_t *dm;
+
+    dm = m_data_model.get_first_dm();
+    while (dm != NULL) {
+		dm->set_db_cfg_param(db_cfg_type_scan_result_list_delete, "");
+		dm->set_db_cfg_param(db_cfg_type_sta_list_delete, "");
+		dm->set_db_cfg_param(db_cfg_type_op_class_list_delete, "");
+		dm->set_db_cfg_param(db_cfg_type_bss_list_delete, "");
+		dm->set_db_cfg_param(db_cfg_type_radio_list_delete, "");
+        dm = m_data_model.get_next_dm(dm);
+    }
+
+	io_process(em_bus_event_type_cfg_renew, (unsigned char *)NULL, 0);	
 }
 
 

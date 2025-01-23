@@ -68,7 +68,7 @@ public:
     hash_map_t      *m_sta_dassoc_map = NULL;
     dm_cac_comp_t	m_cac_comp;
     unsigned short           msg_id;
-    unsigned int	m_db_cfg_type;
+    em_db_cfg_param_t	m_db_cfg_param;
     em_t *m_em;
     bool    m_colocated;
     unsigned int    m_num_ap_mld;
@@ -174,7 +174,7 @@ public:
     void set_num_bss(unsigned int num) { m_num_bss = num; }
     static void set_num_bss(void *dm, unsigned int num) { ((dm_easy_mesh_t *)dm)->set_num_bss(num); }
     dm_bss_t *get_bss(unsigned int index) { return &m_bss[index]; }
-    dm_bss_t *get_bss_index(mac_address_t radio, mac_address_t bss, bool *new_bss);
+    dm_bss_t *get_bss(mac_address_t radio, mac_address_t bss);
     dm_bss_t& get_bss_by_ref(unsigned int index) { return m_bss[index]; }
 
 	unsigned int get_num_policy() { return m_num_policy; }
@@ -263,8 +263,10 @@ public:
     static void create_ap_cap_query_json_cmd(char* src_mac_addr, char* agent_al_mac, char* ap_query_json, short msg_id);
     void print_config();
 
-    unsigned int get_db_cfg_type() { return m_db_cfg_type; }
-    void set_db_cfg_type(unsigned int type) { m_db_cfg_type = type; }
+    void set_db_cfg_param(db_cfg_type_t type, char *param);
+	void reset_db_cfg_type(db_cfg_type_t type);
+	bool db_cfg_type_is_set(db_cfg_type_t type) { return m_db_cfg_param.db_cfg_type & type; }
+	bool db_cfg_type_is_set() { return m_db_cfg_param.db_cfg_type > 0; }
 
     void handle_dirty_dm();
     void set_em(em_t *em) { m_em = em; }

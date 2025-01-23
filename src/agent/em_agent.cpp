@@ -475,9 +475,9 @@ void em_agent_t::input_listener()
 
     while ((bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_WEBCONFIG_INIT_DML_DATA, &data)) != bus_error_success) {
         printf("%s:%d bus get failed, error:%d, ", __func__, __LINE__, bus_error_val);
-            usleep(RETRY_SLEEP_INTERVAL_IN_MS * 1000);
-            num_retry++;
-            printf("retrying %d\n", num_retry);
+		usleep(RETRY_SLEEP_INTERVAL_IN_MS * 1000);
+		num_retry++;
+		printf("retrying %d\n", num_retry);
     }
     printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data.raw_data.bytes);
 
@@ -838,6 +838,11 @@ void em_agent_t::io(void *data, bool input)
     } else {
         agent_output(data);
     }
+}
+
+void em_agent_t::start_complete()
+{
+
 }
 
 em_agent_t::em_agent_t()
