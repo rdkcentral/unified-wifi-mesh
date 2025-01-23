@@ -767,7 +767,7 @@ void em_cmd_t::dump_bus_event(em_bus_event_t *evt)
     }   
 }   
 
-em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param, dm_easy_mesh_t& dm)
+em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param, dm_easy_mesh_t& dm) : m_evt(NULL)
 {
     m_type = type;
     m_db_cfg_type = db_cfg_type_none;
@@ -776,7 +776,7 @@ em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param, dm_easy_mesh_t& dm
     init();
 }
 
-em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param)
+em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param) : m_evt(NULL)
 {
     m_type = type;
     m_db_cfg_type = db_cfg_type_none;
@@ -784,7 +784,7 @@ em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param)
     init();
 }
 
-em_cmd_t::em_cmd_t()
+em_cmd_t::em_cmd_t() : m_evt(NULL)
 {
 	m_evt = (em_event_t *)malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN);
 }
