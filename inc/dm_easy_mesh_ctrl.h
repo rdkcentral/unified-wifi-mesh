@@ -109,6 +109,9 @@ public:
     dm_easy_mesh_t	*get_data_model(const char *net_id, const unsigned char *al_mac);   
     dm_easy_mesh_t	*create_data_model(const char *net_id, const unsigned char *al_mac, em_profile_type_t profile);    
 
+	dm_easy_mesh_t *get_first_dm() { return m_data_model_list.get_first_dm(); }
+	dm_easy_mesh_t *get_next_dm(dm_easy_mesh_t *dm) { return m_data_model_list.get_next_dm(dm); }
+
     dm_network_t *get_first_network() { return m_data_model_list.get_first_network(); }
     dm_network_t *get_next_network(dm_network_t *net) { return m_data_model_list.get_next_network(net); }
     dm_network_t *get_network(const char *key) { return m_data_model_list.get_network(key); }

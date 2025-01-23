@@ -91,7 +91,7 @@ extern "C"
 #define EM_MAX_CLIENT_STEER_REQ_TX_THRESH  5
 #define EM_MAX_CLIENT_ASSOC_CTRL_REQ_TX_THRESH  5
 #define MAX_STA_TO_DISASSOC		32
-
+#define EM_MAX_DB_CFG_CRITERIA	32
 
 #define EM_CLI_MAX_ARGS 5
 
@@ -203,7 +203,6 @@ typedef char em_interface_name_t[32];
 typedef unsigned char em_nonce_t[16];
 typedef unsigned char em_dh5_key_t[192];    // because this is DH group 5 (1536 bits)
 typedef mac_address_t em_radio_id_t;
-typedef unsigned char em_bssid_id_t[6];
 typedef char    em_short_string_t[64];
 typedef char    em_long_string_t[128];
 typedef char    em_string_t[32];
@@ -2110,12 +2109,20 @@ typedef enum {
 } em_target_sta_map_t;
 
 typedef struct {
-    em_interface_t  bssid;
-    em_interface_t  ruid;
+	em_long_string_t	net_id;
+	mac_address_t	dev_mac;
+    mac_address_t  ruid;
+    mac_address_t  bssid;
+} em_bss_id_t;
+
+typedef struct {
+	em_bss_id_t	id;
+	em_interface_t	bssid;
+	em_interface_t	ruid;
     ssid_t  ssid;
     bool    enabled;
     unsigned int last_change;
-    em_string_t     timestamp;
+    em_long_string_t     timestamp;
     unsigned int unicast_bytes_sent;
     unsigned int    unicast_bytes_rcvd;
     unsigned int    numberofsta;
@@ -2580,6 +2587,11 @@ typedef enum {
 	db_cfg_type_scan_result_list_delete = (1 << 22),
 } db_cfg_type_t;
 
+typedef struct {
+    unsigned int db_cfg_type;
+	em_long_string_t	db_cfg_criteria[EM_MAX_DB_CFG_CRITERIA];
+} em_db_cfg_param_t;
+
 typedef struct{
     em_long_string_t ssid;
     unsigned int authtype;
@@ -2588,7 +2600,7 @@ typedef struct{
     unsigned int key_wrap_authenticator;
     bool enable;
 	em_freq_band_t freq;
-}m2ctrl_vapconfig;
+} m2ctrl_vapconfig;
 
 typedef struct{
 	int op_class;
@@ -2596,7 +2608,7 @@ typedef struct{
 	int channel_spacing;
 	int num_channels;
 	int channels[EM_MAX_E4_TABLE_CHANNEL];
-}em_e4_table_t;
+} em_e4_table_t;
 
 typedef struct{
     unsigned int num;
@@ -2605,7 +2617,7 @@ typedef struct{
     em_spatial_reuse_req_t spatial_reuse_req;
     em_eht_operations_t eht_ops;
 	em_freq_band_t freq_band;
-}op_class_channel_sel;
+} op_class_channel_sel;
 
 typedef struct {
     mac_address_t   mac;

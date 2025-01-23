@@ -21,7 +21,6 @@
 
 #include "em.h"
 #include "em_orch.h"
-//#define EM_MGR_TOUT   5
 
 class em_mgr_t {
    
@@ -65,6 +64,7 @@ public:
     virtual int data_model_init(const char *data_model_path) = 0;
     virtual int orch_init() = 0;
     virtual void input_listener() = 0;
+	virtual void	start_complete() = 0;
     
     virtual void handle_event(em_event_t *evt) = 0;
 
