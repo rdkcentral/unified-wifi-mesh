@@ -475,9 +475,9 @@ void em_agent_t::input_listener()
 
     while ((bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_WEBCONFIG_INIT_DML_DATA, &data)) != bus_error_success) {
         printf("%s:%d bus get failed, error:%d, ", __func__, __LINE__, bus_error_val);
-            usleep(RETRY_SLEEP_INTERVAL_IN_MS * 1000);
-            num_retry++;
-            printf("retrying %d\n", num_retry);
+		usleep(RETRY_SLEEP_INTERVAL_IN_MS * 1000);
+		num_retry++;
+		printf("retrying %d\n", num_retry);
     }
     printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data.raw_data.bytes);
 
@@ -652,13 +652,15 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
                         if ((em->get_state() != em_state_agent_autoconfig_renew_pending) && (em->get_state() !=em_state_agent_wsc_m2_pending) && (em->get_state() != em_state_agent_owconfig_pending) ) {
                             found = true;
                             break;
+                        } else {
+                            printf("%s:%d: Found matching band%d but incorrect em state %d\n", __func__, __LINE__, band, em->get_state());
                         }
                     }
                 }   
                 em = (em_t *)hash_map_get_next(m_em_map, em);
             }
             if (found == false) {
-                printf("%s:%d: Could not find em with matching band%d\n", __func__, __LINE__, band);
+                printf("%s:%d: Could not find em with matching band%d and expected state \n", __func__, __LINE__, band);
                 return NULL;
             }
 
@@ -836,6 +838,11 @@ void em_agent_t::io(void *data, bool input)
     } else {
         agent_output(data);
     }
+}
+
+void em_agent_t::start_complete()
+{
+
 }
 
 em_agent_t::em_agent_t()

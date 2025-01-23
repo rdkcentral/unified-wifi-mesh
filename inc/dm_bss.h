@@ -34,6 +34,8 @@ public:
     bool operator == (const dm_bss_t& obj);
     void operator = (const dm_bss_t& obj);
 
+	static int parse_bss_id_from_key(const char *key, em_bss_id_t *id);
+
     dm_bss_t(em_bss_info_t *bss);
     dm_bss_t(const dm_bss_t& bss);
     dm_bss_t();

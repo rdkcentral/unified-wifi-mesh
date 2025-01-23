@@ -77,7 +77,7 @@ dm_easy_mesh_t dm_easy_mesh_t::operator =(dm_easy_mesh_t const& obj)
         memcpy(&m_network_ssid[i], &obj.m_network_ssid[i], sizeof(dm_network_ssid_t));
     }
 
-    m_db_cfg_type = obj.m_db_cfg_type;
+    memcpy(&m_db_cfg_param, &obj.m_db_cfg_param, sizeof(em_db_cfg_param_t));
 
     sta = (dm_sta_t *)hash_map_get_first(obj.m_sta_map);
     while (sta != NULL) {
@@ -1961,28 +1961,20 @@ em_network_ssid_info_t *dm_easy_mesh_t::get_network_ssid_info_by_haul_type(em_ha
     return (found == true) ? info:NULL;
 }
 
-dm_bss_t *dm_easy_mesh_t::get_bss_index(mac_address_t radio_mac, mac_address_t bss_mac, bool *new_bss)
+dm_bss_t *dm_easy_mesh_t::get_bss(mac_address_t radio_mac, mac_address_t bss_mac)
 {
     unsigned int i;
     dm_bss_t *bss;
-    bool found_bss = false;
 
     for (i = 0; i < m_num_bss; i++) {
         bss = &m_bss[i];
         if ((memcmp(bss->m_bss_info.bssid.mac, bss_mac, sizeof(mac_address_t)) == 0) &&
                 (memcmp(bss->m_bss_info.ruid.mac, radio_mac, sizeof(mac_address_t)) == 0)) {
-            found_bss = true;
-            break;
+			return &m_bss[i];
         }
     }
 
-    if (found_bss == false) {
-        *new_bss = true;
-        return &m_bss[m_num_bss];
-    }
-
-    *new_bss = false;
-    return &m_bss[i];
+    return NULL;
 }
 
 em_sta_info_t *dm_easy_mesh_t::get_first_sta_info(em_target_sta_map_t target)
@@ -2387,7 +2379,29 @@ dm_scan_result_t *dm_easy_mesh_t::find_matching_scan_result(em_scan_result_id_t 
     }   
         
     return NULL;
+}
+
+void dm_easy_mesh_t::reset_db_cfg_type(db_cfg_type_t type) 
+{ 
+	strncpy(m_db_cfg_param.db_cfg_criteria[type - 1], "", strlen(""));
+	m_db_cfg_param.db_cfg_type &= ~type; 
 }   
+
+void dm_easy_mesh_t::set_db_cfg_param(db_cfg_type_t type, char *criteria)
+{
+	unsigned int num = type;
+
+	while (num % 2 == 0) {
+		num /= 2;
+	}
+
+	if (num != 1) {
+		return;
+	}
+
+	m_db_cfg_param.db_cfg_type |= type;
+	strncpy(m_db_cfg_param.db_cfg_criteria[type - 1], criteria, strlen(criteria));
+}
 
 int dm_easy_mesh_t::init()
 {
@@ -2408,6 +2422,7 @@ int dm_easy_mesh_t::init()
     m_sta_assoc_map = hash_map_create();
     m_sta_dassoc_map = hash_map_create();
 
+	memset(&m_db_cfg_param, 0, sizeof(em_db_cfg_param_t));
     return 0;
 }
 
@@ -2419,11 +2434,12 @@ void dm_easy_mesh_t::reset()
 	m_num_bss = 0;
 	m_num_scan_results = 0;
     m_num_ap_mld = 0;
-	m_db_cfg_type = db_cfg_type_none;
+	m_db_cfg_param.db_cfg_type = db_cfg_type_none;
     m_colocated = false;
 
 	memset(&m_network.m_net_info, 0, sizeof(em_network_info_t));
 	memset(&m_device.m_device_info, 0, sizeof(em_device_info_t));
+	memset(&m_db_cfg_param, 0, sizeof(em_db_cfg_param_t));
 }
 
 dm_easy_mesh_t::dm_easy_mesh_t(const dm_network_t& net)
@@ -2445,7 +2461,7 @@ dm_easy_mesh_t::dm_easy_mesh_t()
 	m_num_bss = 0;
     m_num_ap_mld = 0;
 	m_num_scan_results = 0;
-	m_db_cfg_type = db_cfg_type_none;
+	m_db_cfg_param.db_cfg_type = db_cfg_type_none;
     m_colocated = false;
 }
 

@@ -384,6 +384,7 @@ int em_mgr_t::start()
     em_event_t *evt;;
     struct timespec time_to_wait;
     struct timeval tm;
+	bool started = false;
 
     input_listen();
     nodes_listen();
@@ -419,7 +420,11 @@ int em_mgr_t::start()
         } else if (rc == ETIMEDOUT) {
             pthread_mutex_unlock(&m_queue.lock);
             //printf("%s:%d: Timeout secs: %d\n", __func__, __LINE__, time_to_wait.tv_sec);
-            if (is_data_model_initialized() == true) {            
+            if (is_data_model_initialized() == true) {  
+				if (started == false) {
+					start_complete();	
+					started = true;
+				}          
                 handle_timeout();
             }
             pthread_mutex_lock(&m_queue.lock);
