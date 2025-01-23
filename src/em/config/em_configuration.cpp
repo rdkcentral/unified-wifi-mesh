@@ -874,6 +874,16 @@ int em_configuration_t::send_ap_mld_config_resp_msg(unsigned char *buff)
     return tlv_len;
 }
 
+int em_configuration_t::send_bsta_mld_config_req_msg(unsigned char *buff)
+{
+    return create_bsta_mld_config_tlv(buff);
+}
+
+int em_configuration_t::send_bsta_mld_config_resp_msg(unsigned char *buff)
+{
+    return create_bsta_mld_config_tlv(buff);
+}
+
 void em_configuration_t::print_bss_configuration_report_tlv(unsigned char *value, unsigned int len)
 {
 	mac_addr_str_t	rd_mac_str, bss_mac_str;
@@ -940,6 +950,15 @@ int em_configuration_t::handle_bss_configuration_report(unsigned char *buff, uns
 	em_bss_config_rprt_t *rprt = (em_bss_config_rprt_t *)buff;
 
 
+	return 0;
+}
+
+int em_configuration_t::handle_bsta_mld_config_req(unsigned char *buff, unsigned int len)
+{
+    // TODO: 
+    // - send 1905 Ack message
+    // - apply ml requested (real/dummy data are needed for actual ml structure)
+    send_bsta_mld_config_resp_msg(buff);
 	return 0;
 }
 
@@ -2927,7 +2946,12 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                 send_ap_mld_config_resp_msg(data);
             }
             break;
-
+        
+        case em_msg_type_bsta_mld_config_req:
+            if ((get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_bsta_mld_config_pending)) {
+                handle_bsta_mld_config_req(data, len);
+            }
+            break;
 
         default:
             break;

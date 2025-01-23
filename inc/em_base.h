@@ -1825,6 +1825,7 @@ typedef enum {
     em_state_ctrl_set_policy_pending,
     em_state_ctrl_ap_mld_config_pending,
     em_state_ctrl_ap_mld_configured,
+    em_state_ctrl_bsta_mld_config_pending,
     em_state_ctrl_avail_spectrum_inquiry_pending,
 
     em_state_max,
