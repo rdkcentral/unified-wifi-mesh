@@ -271,6 +271,38 @@ bool dm_bss_t::operator == (const dm_bss_t& obj)
         return true;
 }
 
+int dm_bss_t::parse_bss_id_from_key(const char *key, em_bss_id_t *id)
+{
+    em_long_string_t   str;
+    char *tmp, *remain;
+    unsigned int i = 0;
+
+    strncpy(str, key, strlen(key) + 1);
+    remain = str;
+    while ((tmp = strchr(remain, '@')) != NULL) {
+        if (i == 0) {
+            *tmp = 0;
+            strncpy(id->net_id, remain, strlen(remain) + 1);
+            tmp++;
+            remain = tmp;
+        } else if (i == 1) {
+            *tmp = 0;
+            dm_easy_mesh_t::string_to_macbytes(remain, id->dev_mac);
+            tmp++;
+            remain = tmp;
+        } else if (i == 2) {
+            *tmp = 0;
+            dm_easy_mesh_t::string_to_macbytes(remain, id->ruid);
+            tmp++;
+			dm_easy_mesh_t::string_to_macbytes(tmp, id->bssid);
+        }
+        i++;
+    }
+   
+
+    return 0;
+}
+
 dm_bss_t::dm_bss_t(em_bss_info_t *bss)
 {
     memcpy(&m_bss_info, bss, sizeof(em_bss_info_t));
