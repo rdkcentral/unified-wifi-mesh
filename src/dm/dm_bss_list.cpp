@@ -254,12 +254,12 @@ int dm_bss_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
 
 bool dm_bss_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
 {
-    mac_addr_str_t	mac;
+    em_long_string_t    str;
 
     while (db_client.next_result(ctx)) {
-        db_client.get_string(ctx, mac, 1);
+        db_client.get_string(ctx, str, 1);
 
-        if (strncmp(mac, (char *)key, strlen((char *)key)) == 0) {
+        if (strncmp(str, (char *)key, strlen((char *)key)) == 0) {
             return true;
         }
     }
