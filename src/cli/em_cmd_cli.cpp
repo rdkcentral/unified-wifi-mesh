@@ -66,10 +66,11 @@ em_cmd_params_t spec_params[] = {
 	{.u = {.args = {2, {"", "", "", "", ""}, "STASteer.json"}}},
 	{.u = {.args = {2, {"", "", "", "", ""}, "STADisassoc.json"}}},
 	{.u = {.args = {2, {"", "", "", "", ""}, "STABtm.json"}}},
-	{.u = {.args = {1, {"", "", "", "", ""}, "DPPURI.json"}}},
+	{.u = {.args = {1, {"", "", "", "", ""}, "DPPURI_sendable.json"}}},
 	{.u = {.args = {1, {"", "", "", "", ""}, "Clientcap.json"}}},
 	{.u = {.args = {2, {"", "", "", "", ""}, "Policy"}}},
 	{.u = {.args = {2, {"", "", "", "", ""}, "Policy.json"}}},
+	{.u = {.args = {2, {"", "", "", "", ""}, "ScanResult"}}},
 	{.u = {.args = {0, {"", "", "", "", ""}, "max"}}},
 };
 
@@ -91,6 +92,7 @@ em_cmd_t em_cmd_cli_t::m_client_cmd_spec[] = {
     em_cmd_t(em_cmd_type_get_channel, spec_params[13]),
     em_cmd_t(em_cmd_type_set_channel, spec_params[14]),
     em_cmd_t(em_cmd_type_scan_channel, spec_params[15]),
+    em_cmd_t(em_cmd_type_scan_result, spec_params[25]),
     em_cmd_t(em_cmd_type_get_bss, spec_params[16]),
     em_cmd_t(em_cmd_type_get_sta, spec_params[17]),
     em_cmd_t(em_cmd_type_steer_sta, spec_params[18]),
@@ -110,6 +112,7 @@ int em_cmd_cli_t::get_edited_node(em_network_node_t *node, const char *header, c
     em_network_node_t *child;
     bool found_result = false;
     unsigned int i;
+	em_long_string_t	key;
 	char *net_id = m_cmd.m_param.u.args.args[1], *formatted, *node_str;
 
     for (i = 0; i < node->num_children; i++) {
@@ -121,31 +124,35 @@ int em_cmd_cli_t::get_edited_node(em_network_node_t *node, const char *header, c
     }
 
     if (found_result == false) {
-		new_node = em_net_node_t::clone_network_tree(node);;	
-    } else { 
+		child = em_net_node_t::clone_network_tree(node);;	
+    } 
 
-		snprintf(child->key, sizeof(em_long_string_t), "wfa-dataelements:%s", header);
-    
+
+	snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", header);
+
+	if (child->num_children && strncmp(child->child[0]->key, key, strlen(key)) != 0) {
+  		strncpy(child->key, key, strlen(key) + 1); 
 		tmp = (em_network_node_t *)malloc(sizeof(em_network_node_t));   
-    	memset(tmp, 0, sizeof(em_network_node_t));
-    	strncpy(tmp->key, "ID", strlen("ID") + 1);
-    	tmp->type = em_network_node_data_type_string;
-    	strncpy(tmp->value_str, net_id, strlen(net_id) + 1);
+   		memset(tmp, 0, sizeof(em_network_node_t));
+   		strncpy(tmp->key, "ID", strlen("ID") + 1);
+   		tmp->type = em_network_node_data_type_string;
+   		strncpy(tmp->value_str, net_id, strlen(net_id) + 1);
 
-    	child->child[child->num_children] = tmp;
-    	child->num_children++;
+   		child->child[child->num_children] = tmp;
+   		child->num_children++;
     
 		new_node = (em_network_node_t *)malloc(sizeof(em_network_node_t));  
-    	memset(new_node, 0, sizeof(em_network_node_t));
-    	new_node->type = node->type;
-    	new_node->child[new_node->num_children] = child;
-    	new_node->num_children++;
+   		memset(new_node, 0, sizeof(em_network_node_t));
+   		new_node->type = node->type;
+   		new_node->child[new_node->num_children] = child;
+   		new_node->num_children++;
+	} else {
+		new_node = child;
 	}
-
         
-	//node_str = em_net_node_t::get_network_tree_string(new_node);
-	//m_cli.dump_lib_dbg(node_str);
-	//em_net_node_t::free_network_tree_string(node_str);
+	node_str = em_net_node_t::get_network_tree_string(new_node);
+	m_cli.dump_lib_dbg(node_str);
+	em_net_node_t::free_network_tree_string(node_str);
 	obj = (cJSON *)em_net_node_t::network_tree_to_json(new_node);
 	formatted = cJSON_Print(obj);
 	strncpy(buff, formatted, strlen(formatted) + 1);
@@ -335,6 +342,12 @@ int em_cmd_cli_t::execute(char *result)
                 printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
                 return -1;
 			}	
+            break;
+
+        case em_cmd_type_scan_result:
+            bevt->type = em_bus_event_type_scan_result;
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
             break;
 
         case em_cmd_type_get_policy:

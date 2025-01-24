@@ -79,7 +79,7 @@ int dm_radio_list_t::set_config(db_client_t& db_client, dm_radio_t& radio, void 
     dm_device_t::parse_device_params_from_key((char *)parent_id, radio.m_radio_info.dev_id, radio.m_radio_info.net_id);
     dm_easy_mesh_t::macbytes_to_string(radio.m_radio_info.id.mac, mac_str);
     dm_easy_mesh_t::macbytes_to_string(radio.m_radio_info.dev_id, dev_mac_str);	
-    printf("%s:%d: Enter: Radio id: %s Device: %s\n", __func__, __LINE__, mac_str, dev_mac_str);
+    //printf("%s:%d: Enter: Radio id: %s Device: %s\n", __func__, __LINE__, mac_str, dev_mac_str);
 
     update_db(db_client, (op = get_dm_orch_type(db_client, radio)), radio.get_radio_info());
     update_list(radio, op);
@@ -98,9 +98,9 @@ int dm_radio_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, vo
 
     for (i = 0; i < size; i++) {
         obj = cJSON_GetArrayItem(obj_arr, i);
-	radio.decode(obj, parent_id);
-	update_db(db_client, (op = get_dm_orch_type(db_client, radio)), radio.get_radio_info());
-	update_list(radio, op);
+		radio.decode(obj, parent_id);
+		update_db(db_client, (op = get_dm_orch_type(db_client, radio)), radio.get_radio_info());
+		update_list(radio, op);
     }
 
     return 0;
@@ -184,7 +184,6 @@ int dm_radio_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *
     em_radio_info_t *info = (em_radio_info_t *)data;
     int ret = 0;
 
-    printf("dm_radio_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
     switch (op) {
 		case dm_orch_type_db_insert:
 			ret = insert_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->id.mac, mac_str), 

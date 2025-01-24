@@ -21,6 +21,7 @@ const (
     white  = lipgloss.Color("#ffffff")
     black  = lipgloss.Color("#000000")
     purple = lipgloss.Color("#bd93f9")
+    lightGrey = lipgloss.Color("#d3d3d3")
 	
 	NodeTypeInvalid = 0
 	NodeTypeFalse = 1
@@ -45,9 +46,9 @@ type Styles struct {
 
 func defaultStyles() Styles {
     return Styles{
-        Shapes:     lipgloss.NewStyle().Margin(0, 0, 0, 0).Foreground(purple),
-        Selected:   lipgloss.NewStyle().Margin(0, 0, 0, 0).Background(purple),
-        Unselected: lipgloss.NewStyle().Margin(0, 0, 0, 0).Foreground(lipgloss.AdaptiveColor{Light: "#000000", Dark: "#ffffff"}),
+        Shapes:     lipgloss.NewStyle().Margin(0, 0, 0, 0).Foreground(black),
+        Selected:   lipgloss.NewStyle().Margin(0, 0, 0, 0).Background(lightGrey),
+        //Unselected: lipgloss.NewStyle().Margin(0, 0, 0, 0).Foreground(lipgloss.AdaptiveColor{Light: "#000000", Dark: "#ffffff"}),
         Help:       lipgloss.NewStyle().Margin(0, 0, 0, 0).Foreground(lipgloss.AdaptiveColor{Light: "#000000", Dark: "#ffffff"}),
     }
 }

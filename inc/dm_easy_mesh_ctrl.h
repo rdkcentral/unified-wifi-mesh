@@ -30,6 +30,7 @@
 #include "dm_bss_list.h"
 #include "dm_sta_list.h"
 #include "dm_policy_list.h"
+#include "dm_scan_result_list.h"
 #include "dm_dpp.h"
 #include "db_client.h"
 #include "dm_easy_mesh_list.h"
@@ -39,11 +40,11 @@ class dm_easy_mesh_t;
 class em_mgr_t;
 
 class dm_easy_mesh_ctrl_t :
-
     public dm_network_list_t, public dm_device_list_t, public dm_network_ssid_list_t,
     public dm_ieee_1905_security_list_t, public dm_radio_list_t, public dm_radio_cap_list_t,
         
-    public dm_op_class_list_t, public dm_bss_list_t, public dm_sta_list_t, public dm_policy_list_t {
+    public dm_op_class_list_t, public dm_bss_list_t, public dm_sta_list_t, public dm_policy_list_t,
+	public dm_scan_result_list_t {
 
     db_client_t m_db_client;
     bool	m_initialized;
@@ -97,6 +98,7 @@ public:
     int get_network_ssid_config(cJSON *parent, char *key);
     int get_channel_config(cJSON *parent, char *key, em_get_channel_list_reason_t reason = em_get_channel_list_reason_none);
     int get_policy_config(cJSON *parent, char *key);
+    int get_scan_result(cJSON *parent, char *key);
     int get_reference_config(cJSON *parent, char *key);
     int get_config(em_long_string_t net_id, em_subdoc_info_t *subdoc);
     int set_config(dm_easy_mesh_t *dm);
@@ -106,6 +108,9 @@ public:
 
     dm_easy_mesh_t	*get_data_model(const char *net_id, const unsigned char *al_mac);   
     dm_easy_mesh_t	*create_data_model(const char *net_id, const unsigned char *al_mac, em_profile_type_t profile);    
+
+	dm_easy_mesh_t *get_first_dm() { return m_data_model_list.get_first_dm(); }
+	dm_easy_mesh_t *get_next_dm(dm_easy_mesh_t *dm) { return m_data_model_list.get_next_dm(dm); }
 
     dm_network_t *get_first_network() { return m_data_model_list.get_first_network(); }
     dm_network_t *get_next_network(dm_network_t *net) { return m_data_model_list.get_next_network(net); }
@@ -156,6 +161,12 @@ public:
     dm_policy_t *get_policy(const char *key) { return m_data_model_list.get_policy(key); }
     void remove_policy(const char *key) { m_data_model_list.remove_policy(key); }
     void put_policy(const char *key, const dm_policy_t *policy) { m_data_model_list.put_policy(key, policy); }
+
+	dm_scan_result_t *get_first_scan_result() { return m_data_model_list.get_first_scan_result(); }
+    dm_scan_result_t *get_next_scan_result(dm_scan_result_t *scan_result) { return m_data_model_list.get_next_scan_result(scan_result); }
+    dm_scan_result_t *get_scan_result(const char *key) { return m_data_model_list.get_scan_result(key); }
+    void remove_scan_result(const char *key) { m_data_model_list.remove_scan_result(key); }
+    void put_scan_result(const char *key, const dm_scan_result_t *scan_result) { m_data_model_list.put_scan_result(key, scan_result); }
 
     void handle_dirty_dm();
     void init_tables();

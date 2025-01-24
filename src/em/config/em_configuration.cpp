@@ -874,6 +874,16 @@ int em_configuration_t::send_ap_mld_config_resp_msg(unsigned char *buff)
     return tlv_len;
 }
 
+int em_configuration_t::send_bsta_mld_config_req_msg(unsigned char *buff)
+{
+    return create_bsta_mld_config_tlv(buff);
+}
+
+int em_configuration_t::send_bsta_mld_config_resp_msg(unsigned char *buff)
+{
+    return create_bsta_mld_config_tlv(buff);
+}
+
 void em_configuration_t::print_bss_configuration_report_tlv(unsigned char *value, unsigned int len)
 {
 	mac_addr_str_t	rd_mac_str, bss_mac_str;
@@ -937,6 +947,18 @@ void em_configuration_t::print_ap_operational_bss_tlv(unsigned char *value, unsi
 
 int em_configuration_t::handle_bss_configuration_report(unsigned char *buff, unsigned int len)
 {
+	em_bss_config_rprt_t *rprt = (em_bss_config_rprt_t *)buff;
+
+
+	return 0;
+}
+
+int em_configuration_t::handle_bsta_mld_config_req(unsigned char *buff, unsigned int len)
+{
+    // TODO: 
+    // - send 1905 Ack message
+    // - apply ml requested (real/dummy data are needed for actual ml structure)
+    send_bsta_mld_config_resp_msg(buff);
 	return 0;
 }
 
@@ -947,10 +969,10 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
 	em_ap_op_bss_radio_t	*radio;
 	em_ap_operational_bss_t	*bss;
 	dm_bss_t *dm_bss;
-	unsigned int db_cfg_type;
-	bool found_radio = false, new_bss;
+	bool found_radio = false, updated_at_least_one_bss = false;;
 	unsigned int i, j;
 	unsigned int all_bss_len = 0;
+	mac_addr_str_t radio_mac_str;
 
 	dm = get_data_model();
             
@@ -960,6 +982,7 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
     radio = (em_ap_op_bss_radio_t *)ap->radios;
 
     for (i = 0; i < ap->radios_num; i++) {
+		dm_easy_mesh_t::macbytes_to_string(radio->ruid, radio_mac_str);
         for (j = 0; j < dm->get_num_radios(); j++) {
             if (memcmp(radio->ruid, dm->m_radio[j].m_radio_info.id.mac, sizeof(mac_address_t)) == 0) {
                 found_radio = true;
@@ -969,23 +992,27 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
 
         if (found_radio == false) {
             // do not update anything and retrun error
+			printf("%s:%d; Could not find radio: %s in data model\n", __func__, __LINE__, radio_mac_str);
             return -1;
         }
 
-        db_cfg_type = dm->get_db_cfg_type();
+		// reset all bss for this radio
 
         found_radio = false;
         bss = radio->bss;
         all_bss_len = 0;
         for (j = 0; j < radio->bss_num; j++) {
-            dm->set_db_cfg_type(db_cfg_type | db_cfg_type_bss_list_update);
-            dm_bss = dm->get_bss_index(radio->ruid, bss->bssid, &new_bss);
-            strncpy(dm_bss->m_bss_info.ssid, bss->ssid, bss->ssid_len);
-            if (new_bss == true) {
+            dm_bss = dm->get_bss(radio->ruid, bss->bssid);
+		
+			if (dm_bss == NULL) {
+				dm_bss = &dm->m_bss[dm->m_num_bss];
                 memcpy(dm_bss->m_bss_info.bssid.mac, bss->bssid, sizeof(mac_address_t));
                 memcpy(dm_bss->m_bss_info.ruid.mac, radio->ruid, sizeof(mac_address_t));
                 dm->set_num_bss(dm->get_num_bss() + 1);
-            }
+			}
+            strncpy(dm_bss->m_bss_info.ssid, bss->ssid, bss->ssid_len);
+			updated_at_least_one_bss = true;
+			
 			all_bss_len += sizeof(em_ap_operational_bss_t) + bss->ssid_len;
             bss += sizeof(em_ap_operational_bss_t) + bss->ssid_len;
         }
@@ -993,6 +1020,10 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
         radio = (em_ap_op_bss_radio_t *)((unsigned char *)radio + sizeof(em_ap_op_bss_radio_t) + all_bss_len);
 
     }
+
+	if (updated_at_least_one_bss == true) {
+		dm->set_db_cfg_param(db_cfg_type_bss_list_update, "");
+	}
 
 	return 0;
 
@@ -1006,7 +1037,6 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
     mac_addr_str_t sta_mac_str, bssid_str, radio_mac_str;
     em_long_string_t    key;
     dm_easy_mesh_t  *dm;
-    unsigned int db_cfg_type;
     bool found_dev_mac = false;
     dm_sta_t *sta;
     em_client_assoc_event_t *assoc_evt_tlv;
@@ -1079,8 +1109,7 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
 
                 hash_map_put(dm->m_sta_assoc_map, strdup(key), new dm_sta_t(&sta_info));
 
-                db_cfg_type = dm->get_db_cfg_type();
-                dm->set_db_cfg_type(db_cfg_type | db_cfg_type_sta_list_update);
+                dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
             }
             break;
         }
@@ -1103,10 +1132,8 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     bool found_bss_config_rprt = false;
     em_profile_type_t profile;
 	dm_easy_mesh_t *dm;
-	unsigned int db_cfg_type;
     
 	dm = get_data_model();
-    db_cfg_type = dm->get_db_cfg_type();
 
     tlv =  (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
@@ -1187,7 +1214,7 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 		return -1;
 	}
 
-	dm->set_db_cfg_type(db_cfg_type | db_cfg_type_policy_list_update);
+	dm->set_db_cfg_param(db_cfg_type_policy_list_update, "");
 
 	return ret;
 }
@@ -1839,6 +1866,15 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, em_hau
     tmp += (sizeof(em_tlv_t) + sz);
     len += (sizeof(em_tlv_t) + sz);
 
+    // ap mld tlv 17.2.96
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_ap_mld_config;
+    sz = create_ap_mld_config_tlv(tlv->value);
+    tlv->len = htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += (sizeof(em_tlv_t) + sz);
+
 
     // End of message
     tlv = (em_tlv_t *)tmp;
@@ -2208,10 +2244,8 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
     mac_addr_str_t mac_str;
     em_device_info_t    dev_info;
     dm_easy_mesh_t *dm;
-    unsigned int db_cfg_type;
 
     dm = get_data_model();
-    db_cfg_type = dm->get_db_cfg_type();
     
     m_m1_length = len;
     memcpy(m_m1_msg, buff, m_m1_length);
@@ -2248,18 +2282,18 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
             memcpy(dev_info.manufacturer, attr->val, htons(attr->len));
             set_manufacturer(dev_info.manufacturer);
             //printf("%s:%d: Manufacturer:%s\n", __func__, __LINE__, dev_info.manufacturer);
-            dm->set_db_cfg_type(db_cfg_type | db_cfg_type_device_list_update);
+            dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
         } else if (id == attr_id_model_name) {
             memcpy(dev_info.manufacturer_model, attr->val, htons(attr->len));
             set_manufacturer_model(dev_info.manufacturer_model);
-            dm->set_db_cfg_type(db_cfg_type | db_cfg_type_device_list_update);
+            dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
             //printf("%s:%d: Manufacturer Model:%s\n", __func__, __LINE__, dev_info.manufacturer_model);
         } else if (id == attr_id_model_number) {
         } else if (id == attr_id_serial_num) {
             memcpy(dev_info.serial_number, attr->val, htons(attr->len));
             set_serial_number(dev_info.serial_number);
             //printf("%s:%d: Manufacturer:%s\n", __func__, __LINE__, dev_info.serial_number);
-            dm->set_db_cfg_type(db_cfg_type | db_cfg_type_device_list_update);
+            dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
         } else if (id == attr_id_primary_device_type) {
         } else if (id == attr_id_device_name) {
         } else if (id == attr_id_rf_bands) {
@@ -2591,7 +2625,6 @@ int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned 
 	em_op_class_t *basic_cap_op_class;
 	em_op_class_info_t	op_class_info;
 	dm_op_class_t *op_class_obj;
-	unsigned int db_cfg_type;
 
 	dm_easy_mesh_t *dm = get_data_model();
 
@@ -2614,8 +2647,7 @@ int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned 
 	memcpy(radio_info->id.mac, ruid, sizeof(mac_address_t));
 	radio_info->enabled = true;
 	radio_info->number_of_bss = radio_basic_cap->num_bss;
-	db_cfg_type = dm->get_db_cfg_type();
-	dm->set_db_cfg_type(db_cfg_type | db_cfg_type_radio_list_update);
+	dm->set_db_cfg_param(db_cfg_type_radio_list_update, "");
 
 	basic_cap_op_class = radio_basic_cap->op_classes;
 	if (basic_cap_op_class != NULL) {
@@ -2648,8 +2680,7 @@ int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned 
 				dm->set_num_op_class(dm->get_num_op_class() + 1);
 			}
 			memcpy(&op_class_obj->m_op_class_info, &op_class_info, sizeof(em_op_class_info_t));
-			db_cfg_type = dm->get_db_cfg_type();
-			dm->set_db_cfg_type(db_cfg_type | db_cfg_type_op_class_list_update);
+			dm->set_db_cfg_param(db_cfg_type_op_class_list_update, "");
 		}
 	} else {
 		printf("%s:%d basic_cap_op_class is NULL \n", __func__, __LINE__);
@@ -2915,7 +2946,12 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                 send_ap_mld_config_resp_msg(data);
             }
             break;
-
+        
+        case em_msg_type_bsta_mld_config_req:
+            if ((get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_bsta_mld_config_pending)) {
+                handle_bsta_mld_config_req(data, len);
+            }
+            break;
 
         default:
             break;
@@ -3004,10 +3040,6 @@ void em_configuration_t::process_agent_state()
 
         case em_state_agent_autoconfig_rsp_pending:
             handle_state_autoconfig_rsp_pending();
-            break;
-
-        case em_state_ctrl_wsc_m1_pending:
-            handle_state_wsc_m1_pending();
             break;
 
         case em_state_agent_wsc_m2_pending:

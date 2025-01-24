@@ -39,6 +39,8 @@
 #include "em_orch_agent.h"
 #include "util.h"
 
+#define RETRY_SLEEP_INTERVAL_IN_MS 1000
+
 em_agent_t g_agent;
 const char *global_netid = "OneWifiMesh";
 
@@ -311,6 +313,28 @@ void em_agent_t::handle_btm_response_action_frame(em_bus_event_t *evt)
     }
 }
 
+void em_agent_t::handle_channel_scan_result(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+
+    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+        printf("scan results in progress\n");
+    } else if ((num = m_data_model.analyze_scan_result(evt, pcmd)) == 0) {
+        printf("scan results failed\n");
+    } else if (m_orch->submit_commands(pcmd, num) > 0) {
+		;
+    }
+}
+
+void em_agent_t::handle_channel_scan_params(em_bus_event_t *evt)
+{
+#ifdef SCAN_RESULT_TEST
+	printf("%s:%d: Scan Parameters received\n", __func__, __LINE__);
+	m_simulator.configure(m_data_model, (em_scan_params_t *)evt->u.raw_buff);
+#endif
+}
+
 void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 {   
     
@@ -369,6 +393,14 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
             handle_btm_response_action_frame(evt);
             break;
 
+		case em_bus_event_type_channel_scan_params:
+			handle_channel_scan_params(evt);
+			break;
+
+		case em_bus_event_type_scan_result:
+			handle_channel_scan_result(evt);
+			break;
+
         default:
             break;
     }    
@@ -391,7 +423,29 @@ void em_agent_t::handle_event(em_event_t *evt)
 
 }
 
-void em_agent_t::handle_timeout()
+void em_agent_t::handle_5s_tick()
+{
+#ifdef SCAN_RESULT_TEST
+	unsigned char *buff = NULL;
+	em_cmd_params_t	params;
+
+	if (m_simulator.run(m_data_model) == true) {
+		io_process(em_bus_event_type_scan_result, buff, 0, m_simulator.get_cmd_param());	
+	}
+#endif
+}
+
+void em_agent_t::handle_2s_tick()
+{
+
+}
+
+void em_agent_t::handle_1s_tick()
+{
+
+}
+
+void em_agent_t::handle_500ms_tick()
 {
     m_orch->handle_timeout();
 }
@@ -401,6 +455,8 @@ void em_agent_t::input_listener()
     wifi_bus_desc_t *desc;
     dm_easy_mesh_t dm;
     raw_data_t data;
+    int num_retry = 0;
+    bus_error_t bus_error_val;
 
     bus_init(&m_bus_hdl);
 
@@ -417,12 +473,13 @@ void em_agent_t::input_listener()
 
     memset(&data, 0, sizeof(raw_data_t));
 
-    if (desc->bus_data_get_fn(&m_bus_hdl, WIFI_WEBCONFIG_INIT_DML_DATA, &data) != 0) {
-        printf("%s:%d bus get failed\n", __func__, __LINE__);
-        return;
-    } else {
-        printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data.raw_data.bytes);
+    while ((bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_WEBCONFIG_INIT_DML_DATA, &data)) != bus_error_success) {
+        printf("%s:%d bus get failed, error:%d, ", __func__, __LINE__, bus_error_val);
+		usleep(RETRY_SLEEP_INTERVAL_IN_MS * 1000);
+		num_retry++;
+		printf("retrying %d\n", num_retry);
     }
+    printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data.raw_data.bytes);
 
     g_agent.io_process(em_bus_event_type_dev_init, (unsigned char *)data.raw_data.bytes, data.raw_data_len);
 
@@ -595,27 +652,28 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
                         if ((em->get_state() != em_state_agent_autoconfig_renew_pending) && (em->get_state() !=em_state_agent_wsc_m2_pending) && (em->get_state() != em_state_agent_owconfig_pending) ) {
                             found = true;
                             break;
+                        } else {
+                            printf("%s:%d: Found matching band%d but incorrect em state %d\n", __func__, __LINE__, band, em->get_state());
                         }
                     }
                 }   
                 em = (em_t *)hash_map_get_next(m_em_map, em);
             }
             if (found == false) {
-                printf("%s:%d: Could not find em with matching band%d\n", __func__, __LINE__, band);
+                printf("%s:%d: Could not find em with matching band%d and expected state \n", __func__, __LINE__, band);
                 return NULL;
             }
 
             break;
 		case em_msg_type_autoconf_wsc:
 			if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
-                len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+                	len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
 				return NULL;
 			}
 
 			dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
         	if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
             	printf("%s:%d: Found existing radio:%s\n", __func__, __LINE__, mac_str1);
-            	em->set_state(em_state_ctrl_wsc_m1_pending);
         	} else {
 				return NULL;
 			}
@@ -635,9 +693,10 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
                 em = (em_t *)hash_map_get_next(m_em_map, em);
             }
             break;
+
         case em_msg_type_channel_pref_query:
             if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
-                len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+                	len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
                 printf("%s:%d: Could not find radio_id for em_msg_type_channel_pref_query\n", __func__, __LINE__);
                 return NULL;
             }
@@ -660,7 +719,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 
         case  em_msg_type_channel_sel_req:
             if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
-                len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+                	len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
                 printf("%s:%d: Could not find radio_id for em_msg_type_channel_pref_query\n", __func__, __LINE__);
                 return NULL;
             }
@@ -737,7 +796,22 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             printf("%s:%d: Sending Client BTM REPORT\n", __func__, __LINE__);
             break;
 
+		case em_msg_type_channel_scan_req:
+			if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+                	len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+				return NULL;
+			}
+
+			dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
+        	if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) == NULL) {
+				return NULL;
+			}
+			
+			break;
+
         case em_msg_type_1905_ack:
+        case em_msg_type_map_policy_config_req:
+		case em_msg_type_channel_scan_rprt:
             break;
 
         default:
@@ -764,6 +838,11 @@ void em_agent_t::io(void *data, bool input)
     } else {
         agent_output(data);
     }
+}
+
+void em_agent_t::start_complete()
+{
+
 }
 
 em_agent_t::em_agent_t()

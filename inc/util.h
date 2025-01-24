@@ -52,6 +52,7 @@ typedef enum {
 void em_util_print(easymesh_log_level_t level, easymesh_dbg_type_t module, const char *func, int line, const char *format, ...);
 void delay(int );
 void add_milliseconds(struct timespec *ts, long milliseconds);
+char *get_date_time_rfc3399(char *buff, unsigned int len);
 
 #define em_printf(format, ...)  em_util_print(EM_LOG_LVL_INFO, EM_AGENT, __func__, __LINE__, format, ##__VA_ARGS__)// general log
 #define em_util_dbg_print(module, format, ...)  em_util_print(EM_LOG_LVL_DEBUG, module, __func__, __LINE__, format, ##__VA_ARGS__)

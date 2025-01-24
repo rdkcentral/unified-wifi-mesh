@@ -106,6 +106,10 @@ void em_t::orch_execute(em_cmd_t *pcmd)
                 m_sm.set_state(em_state_ctrl_channel_select_pending);
             } else if ((pcmd->get_orch_op() == dm_orch_type_channel_cnf) && (m_sm.get_state() == em_state_ctrl_channel_selected)) {
                 m_sm.set_state(em_state_ctrl_channel_cnf_pending);
+            } else if ((pcmd->get_orch_op() == dm_orch_type_policy_cfg) && (m_sm.get_state() == em_state_ctrl_configured)) {
+                m_sm.set_state(em_state_ctrl_set_policy_pending);
+            } else if ((pcmd->get_orch_op() == dm_orch_type_channel_scan_req) && (m_sm.get_state() == em_state_ctrl_configured)) {
+                m_sm.set_state(em_state_ctrl_channel_scan_pending);
             }
             break;
 
@@ -154,6 +158,14 @@ void em_t::orch_execute(em_cmd_t *pcmd)
 		case em_cmd_type_set_policy:
             set_state(em_state_ctrl_set_policy_pending);
             break;
+
+        case em_cmd_type_avail_spectrum_inquiry:
+            m_sm.set_state(em_state_ctrl_avail_spectrum_inquiry_pending);
+            break;
+
+		case em_cmd_type_scan_result:
+            m_sm.set_state(em_state_agent_channel_scan_result_pending);
+			break;
     }
 }
 
@@ -208,6 +220,9 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_channel_sel_req:
         case em_msg_type_channel_sel_rsp:
         case em_msg_type_op_channel_rprt:
+        case em_msg_type_avail_spectrum_inquiry:
+		case em_msg_type_channel_scan_req:
+		case em_msg_type_channel_scan_rprt:
             em_channel_t::process_msg(data, len);
             break;
 
@@ -280,10 +295,16 @@ void em_t::handle_agent_state()
             break;
 
         case em_cmd_type_btm_report:
-            if ((m_sm.get_state() >= em_state_agent_configured)) {
+            if (m_sm.get_state() >= em_state_agent_configured) {
                 em_steering_t::process_agent_state();
             }
             break;
+
+		case em_cmd_type_scan_result:
+			if (m_sm.get_state() == em_state_agent_channel_scan_result_pending) {
+				em_channel_t::process_state();
+			}
+			break;
 
         default:
             break;
@@ -316,6 +337,7 @@ void em_t::handle_ctrl_state()
         case em_cmd_type_set_channel:
             em_configuration_t::process_ctrl_state();
             em_channel_t::process_ctrl_state();
+			em_policy_cfg_t::process_ctrl_state();
             break;
 
 		case em_cmd_type_scan_channel:
@@ -919,6 +941,7 @@ const char *em_t::state_2_str(em_state_t state)
 		EM_STATE_2S(em_state_agent_steer_btm_res_pending)
 		EM_STATE_2S(em_state_ctrl_sta_disassoc_pending)
 		EM_STATE_2S(em_state_ctrl_set_policy_pending)
+		EM_STATE_2S(em_state_agent_channel_scan_result_pending)
     }
 
     return "em_state_unknown";

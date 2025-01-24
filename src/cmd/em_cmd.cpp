@@ -171,6 +171,7 @@ char *em_cmd_t::status_to_string(em_cmd_out_status_t status, char *str)
 
     tmp = cJSON_Print(obj);
     strncpy(str, tmp, strlen(tmp) + 1);
+    cJSON_free(tmp);
     cJSON_Delete(obj);
 
     return str;
@@ -318,6 +319,11 @@ void em_cmd_t::init()
 
         case em_cmd_type_scan_channel:
             snprintf(m_name, sizeof(m_name), "%s", "scan_channel");
+            m_svc = em_service_type_ctrl;
+            break;
+
+        case em_cmd_type_scan_result:
+            snprintf(m_name, sizeof(m_name), "%s", "scan_result");
             m_svc = em_service_type_ctrl;
             break;
 
@@ -523,6 +529,7 @@ const char *em_cmd_t::get_orch_op_str(dm_orch_type_t type)
         ORCH_TYPE_2S(dm_orch_type_channel_cnf)
         ORCH_TYPE_2S(dm_orch_type_channel_sel_resp)
         ORCH_TYPE_2S(dm_orch_type_channel_scan_req)
+        ORCH_TYPE_2S(dm_orch_type_channel_scan_res)
         ORCH_TYPE_2S(dm_orch_type_sta_cap)
         ORCH_TYPE_2S(dm_orch_type_sta_link_metrics)
         ORCH_TYPE_2S(dm_orch_type_op_channel_report)
@@ -551,6 +558,7 @@ const char *em_cmd_t::get_cmd_type_str(em_cmd_type_t type)
         CMD_TYPE_2S(em_cmd_type_get_channel)
         CMD_TYPE_2S(em_cmd_type_set_channel)
         CMD_TYPE_2S(em_cmd_type_scan_channel)
+        CMD_TYPE_2S(em_cmd_type_scan_result)
         CMD_TYPE_2S(em_cmd_type_get_bss)
         CMD_TYPE_2S(em_cmd_type_get_sta)
         CMD_TYPE_2S(em_cmd_type_steer_sta)
@@ -630,6 +638,10 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
 
         case em_bus_event_type_scan_channel:
             type = em_cmd_type_scan_channel;
+            break;
+
+        case em_bus_event_type_scan_result:
+            type = em_cmd_type_scan_result;
             break;
 
         case em_bus_event_type_get_bss:
@@ -755,7 +767,7 @@ void em_cmd_t::dump_bus_event(em_bus_event_t *evt)
     }   
 }   
 
-em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param, dm_easy_mesh_t& dm)
+em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param, dm_easy_mesh_t& dm) : m_evt(NULL)
 {
     m_type = type;
     m_db_cfg_type = db_cfg_type_none;
@@ -764,7 +776,7 @@ em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param, dm_easy_mesh_t& dm
     init();
 }
 
-em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param)
+em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param) : m_evt(NULL)
 {
     m_type = type;
     m_db_cfg_type = db_cfg_type_none;
@@ -772,7 +784,7 @@ em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param)
     init();
 }
 
-em_cmd_t::em_cmd_t()
+em_cmd_t::em_cmd_t() : m_evt(NULL)
 {
 	m_evt = (em_event_t *)malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN);
 }

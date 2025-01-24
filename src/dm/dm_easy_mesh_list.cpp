@@ -111,11 +111,11 @@ dm_network_t *dm_easy_mesh_list_t::get_network(const char *key)
     dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
     while (dm != NULL) {
         net = dm->get_network();
-	if (strncmp(net->m_net_info.id, key, strlen(key)) == 0) {
-	    found = true;
-	    break;
-	}
-	dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+		if (strncmp(net->m_net_info.id, key, strlen(key)) == 0) {
+	    	found = true;
+	    	break;
+		}
+		dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
     }
 
     return (found == true) ? net:NULL;
@@ -123,6 +123,7 @@ dm_network_t *dm_easy_mesh_list_t::get_network(const char *key)
 
 void dm_easy_mesh_list_t::remove_network(const char *key)
 {
+
 }
 
 void dm_easy_mesh_list_t::put_network(const char *key, const dm_network_t *net)
@@ -134,21 +135,20 @@ void dm_easy_mesh_list_t::put_network(const char *key, const dm_network_t *net)
 
     net_info = &((dm_network_t *)net)->m_net_info;
     dm_easy_mesh_t::macbytes_to_string(net_info->colocated_agent_id.mac, mac_str);
-
-
+			
     /* try to find any data model with this network, if exists, the colocated dm must be there, otherwise create one */
     if ((dm = get_data_model(key, net_info->colocated_agent_id.mac)) == NULL) {
-	dm = create_data_model(key, net_info->colocated_agent_id.mac, em_profile_type_3, true);
-	pnet = dm->get_network();
-	*pnet = *net;	
-	strncpy(m_network_list[m_num_networks], key, strlen(key));
-	m_num_networks++;
+		dm = create_data_model(key, net_info->colocated_agent_id.mac, em_profile_type_3, true);
+		pnet = dm->get_network();
+		*pnet = *net;	
+		strncpy(m_network_list[m_num_networks], key, strlen(key));
+		m_num_networks++;
     } else {
         dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
         while (dm != NULL) {
             pnet = dm->get_network();
             if (strncmp(net->m_net_info.id, key, strlen(key)) == 0) {
-	        *pnet = *net;	
+	        	*pnet = *net;	
             }
             dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
         }
@@ -216,8 +216,11 @@ void dm_easy_mesh_list_t::put_device(const char *key, const dm_device_t *dev)
     dm_easy_mesh_t *dm;
     dm_device_t *pdev;
     mac_address_t mac;
+    mac_addr_str_t mac_str;
+	em_long_string_t net_id;
 
-    //printf("%s:%d: Putting device at key: %s\n", __func__, __LINE__, key);
+	dm_device_t::parse_device_params_from_key(key, mac, net_id);
+	dm_easy_mesh_t::macbytes_to_string(mac, mac_str);
 
     if ((pdev = get_device(key)) == NULL) {
         //printf("%s:%d: device at key: %s not found\n", __func__, __LINE__, key);
@@ -225,7 +228,13 @@ void dm_easy_mesh_list_t::put_device(const char *key, const dm_device_t *dev)
         pdev = dm->get_device();
     }
     *pdev = *dev;
-    //printf("%s:%d: Putting device at key: %s\n", __func__, __LINE__, key);
+	
+	if ((dm = get_data_model(net_id, mac)) == NULL) {
+		printf("%s:%d: Could not find data model for network: %s, mac: %s\n", __func__, __LINE__, net_id, mac_str);
+	} else {
+		printf("%s:%d: Device:%s inserted in network:%s\n", __func__, __LINE__, mac_str, net_id);
+		dm->m_network.m_net_info.num_of_devices++;
+	}
 }
 
 dm_radio_t *dm_easy_mesh_list_t::get_first_radio()
@@ -1170,6 +1179,139 @@ void dm_easy_mesh_list_t::put_policy(const char *key, const dm_policy_t *policy)
 	} 
 
 	dm->set_policy(*policy);		
+}
+
+dm_scan_result_t *dm_easy_mesh_list_t::get_first_scan_result()
+{
+	dm_easy_mesh_t *dm;
+
+    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    while (dm != NULL) {
+		if (dm->m_num_scan_results > 0) {
+			return &dm->m_scan_result[0];
+		}	
+		
+		dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+	}
+
+	return NULL;
+}
+
+dm_scan_result_t *dm_easy_mesh_list_t::get_next_scan_result(dm_scan_result_t *scan_result)
+{
+    dm_easy_mesh_t *dm;
+    bool return_next = false;
+    unsigned int i;
+
+    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    while (dm != NULL) {
+        if (dm->m_num_scan_results == 0) {
+            dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+            continue;
+        }
+
+        if (return_next == true) {
+            return &dm->m_scan_result[0];
+        }
+
+        for (i = 0; i < dm->m_num_scan_results; i++) {
+            if (scan_result == &dm->m_scan_result[i]) {
+                return_next = true;
+                break;
+            }
+        }
+
+        if ((return_next == true) && ((i + 1) < dm->m_num_scan_results)) {
+            return &dm->m_scan_result[i + 1];
+        }
+   
+        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+    }
+    return NULL;
+
+}
+
+dm_scan_result_t *dm_easy_mesh_list_t::get_scan_result(const char *key)
+{
+	em_scan_result_id_t	id;
+	dm_easy_mesh_t	*dm;
+	mac_addr_str_t	dev_mac_str;
+	dm_scan_result_t *res;
+	unsigned int i;
+	
+	dm_scan_result_t::parse_scan_result_id_from_key(key, &id);
+	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
+	if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
+		printf("%s:%d: Could not find data model for Network: %s and dev: %s\n", __func__, __LINE__, id.net_id, dev_mac_str);
+		return NULL;
+	} 
+
+	for (i = 0; i < dm->m_num_scan_results; i++) {
+		res = &dm->m_scan_result[i];
+		if (res->has_same_id(&id) == true) {
+			return res;
+		}
+	}
+
+	return NULL;
+}
+
+void dm_easy_mesh_list_t::remove_scan_result(const char *key)
+{
+
+}
+
+void dm_easy_mesh_list_t::put_scan_result(const char *key, const dm_scan_result_t *scan_result)
+{
+	em_scan_result_id_t	id;
+	dm_easy_mesh_t	*dm;
+	mac_addr_str_t	dev_mac_str, radio_mac_str;
+	dm_scan_result_t *res;
+	mac_address_t bssid;
+	bool found_neighbor = false;
+	unsigned int i;
+	em_neighbor_t *nbr;
+	
+	dm_scan_result_t::parse_scan_result_id_from_key(key, &id);
+
+	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
+	dm_easy_mesh_t::macbytes_to_string(id.ruid, radio_mac_str);
+	printf("%s:%d: network: %s\tdevice: %s\tradio: %s\topclass: %d\tchannel: %d\n", __func__, __LINE__,
+					id.net_id, dev_mac_str, radio_mac_str, id.op_class, id.channel);	
+	if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
+		printf("%s:%d: Could not find data model for Network: %s and dev: %s\n", __func__, __LINE__, id.net_id, dev_mac_str);
+		return;
+	}
+
+	if ((res = dm->find_matching_scan_result(&id)) == NULL) {
+		if (dm->m_num_scan_results == EM_MAX_SCAN_RESULTS) {
+			return;
+		}
+		res = &dm->m_scan_result[dm->m_num_scan_results];
+		memcpy(&res->m_scan_result, &scan_result->m_scan_result, sizeof(em_scan_result_t));
+		// increase the neighbors by 1
+		res->m_scan_result.num_neighbors++;		
+	
+		dm->m_num_scan_results++;
+	} else {
+		dm_scan_result_t::parse_scan_result_id_from_key(key, &id, bssid);
+		for (i = 0; i < res->m_scan_result.num_neighbors; i++) {
+			nbr = &res->m_scan_result.neighbor[i];
+
+			if (memcmp(nbr->bssid, bssid, sizeof(mac_address_t)) == 0) {
+				found_neighbor = true;
+				memcpy(nbr, &scan_result->m_scan_result.neighbor[0], sizeof(em_neighbor_t));
+				break;
+			}
+		}
+
+		if (found_neighbor == false) {
+			nbr = &res->m_scan_result.neighbor[res->m_scan_result.num_neighbors];
+			memcpy(nbr, &scan_result->m_scan_result.neighbor[0], sizeof(em_neighbor_t));
+			res->m_scan_result.num_neighbors++;
+		}
+	} 
+
 }
 
 void dm_easy_mesh_list_t::delete_all_data_models()
