@@ -145,6 +145,8 @@ extern "C"
 #define EM_MAX_HAUL_TYPES   3
 #define EM_MAX_OPCLASS  64
 #define EM_MAX_AP_MLD   64
+#define EM_MAX_BSTA_MLD   64
+#define EM_MAX_ASSOC_STA_MLD   64
 #define EM_MAX_PRE_SET_CHANNELS   6
 
 #define EM_MAX_CMD  16
@@ -2360,6 +2362,11 @@ typedef struct {
     unsigned char reserved3[17];
     unsigned char num_affiliated_bsta;
     em_affiliated_bsta_mld_t affiliated_bsta_mld[0];
+} __attribute__((__packed__)) em_bsta_mld_t;
+
+typedef struct {
+    unsigned char num_bsta_mld;
+    em_bsta_mld_t bsta_mld[0];
 } __attribute__((__packed__)) em_bsta_mld_config_t;
 
 typedef struct {
@@ -2379,6 +2386,11 @@ typedef struct {
     unsigned char reserved2[18];
     unsigned char num_affiliated_sta;
     em_affiliated_sta_mld_t affiliated_sta_mld[0];
+} __attribute__((__packed__)) em_assoc_sta_mld_t;
+
+typedef struct {
+    unsigned char num_assoc_sta_mld;
+    em_assoc_sta_mld_t assoc_sta_mld[0];
 } __attribute__((__packed__)) em_assoc_sta_mld_config_report_t;
 
 typedef struct {
