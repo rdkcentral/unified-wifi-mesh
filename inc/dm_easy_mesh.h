@@ -73,8 +73,10 @@ public:
     bool    m_colocated;
     unsigned int    m_num_ap_mld;
     dm_ap_mld_t     m_ap_mld[EM_MAX_AP_MLD];
-    dm_bsta_mld_t   m_bsta_mld;
-    dm_assoc_sta_mld_t m_assoc_sta_mld;
+    unsigned int    m_num_bsta_mld;
+    dm_bsta_mld_t   m_bsta_mld[EM_MAX_BSTA_MLD];
+    unsigned int    m_num_assoc_sta_mld;
+    dm_assoc_sta_mld_t m_assoc_sta_mld[EM_MAX_ASSOC_STA_MLD];
     dm_tid_to_link_t m_tid_to_link;
 
 public:
@@ -194,6 +196,12 @@ public:
     static void set_num_ap_mld(void *dm, unsigned int num) { ((dm_easy_mesh_t *)dm)->set_num_ap_mld(num); }
     dm_ap_mld_t *get_ap_mld(unsigned int index) { return &m_ap_mld[index]; }
     dm_ap_mld_t& get_ap_mld_by_ref(unsigned int index) { return m_ap_mld[index]; }
+
+    unsigned int get_num_bsta_mld() { return m_num_bsta_mld; }
+    static unsigned int get_num_bsta_mld(void *dm) { return ((dm_easy_mesh_t *)dm)->get_num_bsta_mld(); }
+
+    unsigned int get_num_assoc_sta_mld() { return m_num_assoc_sta_mld; }
+    static unsigned int get_num_assoc_sta_mld(void *dm) { return ((dm_easy_mesh_t *)dm)->get_num_assoc_sta_mld(); }
 
     dm_dpp_t *get_dpp() { return &m_dpp; }
 
