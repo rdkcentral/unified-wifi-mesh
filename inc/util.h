@@ -27,6 +27,7 @@
 #include "wifi_hal.h"
 #include <pthread.h>
 #include <sys/prctl.h>
+#include <string>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -54,6 +55,8 @@ void delay(int );
 void add_milliseconds(struct timespec *ts, long milliseconds);
 char *get_date_time_rfc3399(char *buff, unsigned int len);
 
+
+
 #define em_printf(format, ...)  em_util_print(EM_LOG_LVL_INFO, EM_AGENT, __func__, __LINE__, format, ##__VA_ARGS__)// general log
 #define em_util_dbg_print(module, format, ...)  em_util_print(EM_LOG_LVL_DEBUG, module, __func__, __LINE__, format, ##__VA_ARGS__)
 #define em_util_info_print(module, format, ...)  em_util_print(EM_LOG_LVL_INFO, module, __func__, __LINE__, format, ##__VA_ARGS__)
@@ -61,4 +64,15 @@ char *get_date_time_rfc3399(char *buff, unsigned int len);
 #ifdef __cplusplus
 }
 #endif
+
+/**
+ * em_chan_to_freq - Convert channel info to frequency
+ * @param country: Country code, if known; otherwise, global operating class is used
+ * @param op_class: Operating class
+ * @param chan: Channel number
+ * @return Frequency in MHz or -1 if the specified channel is unknown
+ * 
+ * @note Adapted from `hostapd/src/common/ieee80211_common.c:ieee80211_chan_to_freq`
+ */
+int em_chan_to_freq(const std::string& country, uint8_t op_class, uint8_t chan);
 #endif
