@@ -131,6 +131,7 @@ bool em_msg_t::get_radio_id(mac_address_t *mac)
 {
     em_tlv_t    *tlv;
     int len;
+	unsigned int num_radios = 0;
     em_ap_radio_basic_cap_t *rd_basic_cap;
     em_ap_radio_advanced_cap_t  *rd_adv_cap;
     em_ap_ht_cap_t *rd_ht_cap;
@@ -181,6 +182,17 @@ bool em_msg_t::get_radio_id(mac_address_t *mac)
 		} else if (tlv->type == em_tlv_type_op_channel_report) {
 			memcpy(mac, tlv->value, sizeof(mac_address_t));
 			return true;
+		} else if (tlv->type == em_tlv_type_channel_scan_req) {
+			memcpy(&num_radios, tlv->value + sizeof(unsigned char), sizeof(unsigned char));
+			if (num_radios != 0) {
+				memcpy(mac, tlv->value + 2*sizeof(unsigned char), sizeof(mac_address_t));
+				return true;
+			} else {
+				return false;
+			}
+		} else if (tlv->type == em_tlv_type_channel_scan_rslt) {
+			memcpy(mac, tlv->value, sizeof(mac_address_t));
+            return true;
 		}
 
         len -= (sizeof(em_tlv_t) + htons(tlv->len));

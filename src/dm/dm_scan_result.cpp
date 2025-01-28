@@ -101,24 +101,26 @@ int dm_scan_result_t::decode(const cJSON *obj, void *parent_id)
 			m_scan_result.neighbor[m_scan_result.num_neighbors].sta_count = cJSON_GetNumberValue(tmp);
 		}
 
-		if ((tmp = cJSON_GetObjectItem(arr_item, "ScanDuration")) != NULL) {
-			m_scan_result.neighbor[m_scan_result.num_neighbors].aggr_scan_duration = cJSON_GetNumberValue(tmp);
-		}
-
-		if ((tmp = cJSON_GetObjectItem(arr_item, "ScanType")) != NULL) {
-			m_scan_result.neighbor[m_scan_result.num_neighbors].scan_type = cJSON_GetNumberValue(tmp);
-		}
-
 	}	
+		
+	if ((tmp = cJSON_GetObjectItem(obj, "ScanDuration")) != NULL) {
+		m_scan_result.aggr_scan_duration = cJSON_GetNumberValue(tmp);
+	}
+
+	if ((tmp = cJSON_GetObjectItem(obj, "ScanType")) != NULL) {
+		m_scan_result.scan_type = cJSON_GetNumberValue(tmp);
+	}
+
 
 	return 0;
 }
 
-void dm_scan_result_t::encode(cJSON *obj, em_scan_result_id_t id)
+void dm_scan_result_t::encode(cJSON *obj)
 {
 	cJSON *arr_obj, *tmp;
 	unsigned int i;
 	mac_addr_str_t	bssid_str;
+	mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 	cJSON_AddNumberToObject(obj, "ScanStatus", m_scan_result.scan_status);
 	cJSON_AddStringToObject(obj, "TimeStamp", m_scan_result.timestamp);
@@ -127,6 +129,9 @@ void dm_scan_result_t::encode(cJSON *obj, em_scan_result_id_t id)
 	
 	arr_obj = cJSON_AddArrayToObject(obj, "Neighbors");
 	for (i = 0; i < m_scan_result.num_neighbors; i++) {
+		if (memcmp(null_mac, m_scan_result.neighbor[i].bssid, sizeof(mac_address_t)) == 0) {
+			continue;
+		}
 		tmp = cJSON_CreateObject();
 
 		dm_easy_mesh_t::macbytes_to_string(m_scan_result.neighbor[i].bssid, bssid_str);
@@ -137,11 +142,12 @@ void dm_scan_result_t::encode(cJSON *obj, em_scan_result_id_t id)
 		cJSON_AddNumberToObject(tmp, "BSSColor", m_scan_result.neighbor[i].bss_color);
 		cJSON_AddNumberToObject(tmp, "ChannelUtil", m_scan_result.neighbor[i].channel_util);
 		cJSON_AddNumberToObject(tmp, "STACount", m_scan_result.neighbor[i].sta_count);
-		cJSON_AddNumberToObject(tmp, "ScanDuration", m_scan_result.neighbor[i].aggr_scan_duration);
-		cJSON_AddNumberToObject(tmp, "ScanType", m_scan_result.neighbor[i].scan_type);
 		
 		cJSON_AddItemToArray(arr_obj, tmp);
 	}
+		
+	cJSON_AddNumberToObject(obj, "ScanDuration", m_scan_result.aggr_scan_duration);
+	cJSON_AddNumberToObject(obj, "ScanType", m_scan_result.scan_type);
 }
 
 bool dm_scan_result_t::operator == (const dm_scan_result_t& obj)
@@ -156,7 +162,7 @@ void dm_scan_result_t::operator = (const dm_scan_result_t& obj)
 
 }
 
-int dm_scan_result_t::parse_scan_result_id_from_key(const char *key, em_scan_result_id_t *id)
+int dm_scan_result_t::parse_scan_result_id_from_key(const char *key, em_scan_result_id_t *id, unsigned char *bssid)
 {
     em_long_string_t   str;
     char *tmp, *remain;
@@ -182,15 +188,47 @@ int dm_scan_result_t::parse_scan_result_id_from_key(const char *key, em_scan_res
             remain = tmp;
         } else if (i == 3) {
             *tmp = 0; 
-			id->op_class = atoi(tmp);
+			id->op_class = atoi(remain);
             tmp++;
-			id->channel = atoi(tmp);
+            remain = tmp;
+		} else if (i == 4) {
+            *tmp = 0; 
+			id->channel = atoi(remain);
+            tmp++;
+			if (bssid != NULL) {
+            	dm_easy_mesh_t::string_to_macbytes(tmp, bssid);
+			}
         }   
         i++;
     }
     
 
     return 0;
+}
+
+bool dm_scan_result_t::has_same_id(em_scan_result_id_t *id)
+{
+	if (strncmp(m_scan_result.id.net_id, id->net_id, strlen(id->net_id)) != 0) {
+		return false;
+	}	
+
+	if (memcmp(m_scan_result.id.dev_mac, id->dev_mac, sizeof(mac_address_t)) != 0) {
+		return false;
+	}
+
+	if (memcmp(m_scan_result.id.ruid, id->ruid, sizeof(mac_address_t)) != 0) {
+		return false;
+	}
+
+	if (m_scan_result.id.op_class != id->op_class) {
+		return false;
+	}
+
+	if (m_scan_result.id.channel != id->channel) {
+		return false;
+	}
+
+	return true;
 }
 
 dm_scan_result_t::dm_scan_result_t(em_scan_result_t *scan_result)

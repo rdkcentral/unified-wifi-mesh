@@ -43,12 +43,13 @@ extern "C"
 #define EM_MAX_COLS     32
 #define EM_MAX_DM_CHILDREN	32
 #define EM_MAX_E4_TABLE_CHANNEL 32
-
+#define EM_DATE_TIME_BUFF_SZ	64
 #define EM_PROTO_TOUT   1
-#define EM_MGR_TOUT     500 // in milliseconds
 #define EM_METRICS_REQ_MULT 5
-#define EM_2_TOUT_MULT 	4
-#define EM_5_TOUT_MULT 	10
+#define EM_MGR_TOUT     500 // in milliseconds
+#define EM_1_TOUT_MULT 	2
+#define EM_2_TOUT_MULT 	4	
+#define EM_5_TOUT_MULT 	10	
 #define EM_CTRL_CAP_SZ  8
 #define MIN_MAC_LEN 12
 #define MAX_EM_BUFF_SZ  1024
@@ -68,6 +69,7 @@ extern "C"
 #define EM_MAX_TRAFFIC_SEP_SSID        8
 #define EM_MAX_FREQ_RECORDS_PER_RADIO  8
 #define EM_MAX_CHANNELS   30
+#define EM_MAX_SCAN_RESULTS	32
 #define MAP_INVENTORY_ITEM_LEN  64
 #define MAX_MCS  6
 #define MAP_AP_ROLE_MAX 2
@@ -77,6 +79,7 @@ extern "C"
 #define EM_MAX_STA_PER_STEER_POLICY        16 
 #define EM_MAX_STA_PER_AGENT       (EM_MAX_RADIO_PER_AGENT * EM_MAX_STA_PER_BSS)
 #define EM_MAX_NEIGHORS		32
+#define EM_MAX_CHANNEL_SCAN_RPRT_MSG_LEN		768
 
 #define   EM_MAX_EVENT_DATA_LEN   4096*100
 #define EM_MAX_CHANNELS_IN_LIST  9
@@ -88,7 +91,7 @@ extern "C"
 #define EM_MAX_CLIENT_STEER_REQ_TX_THRESH  5
 #define EM_MAX_CLIENT_ASSOC_CTRL_REQ_TX_THRESH  5
 #define MAX_STA_TO_DISASSOC		32
-
+#define EM_MAX_DB_CFG_CRITERIA	32
 
 #define EM_CLI_MAX_ARGS 5
 
@@ -200,11 +203,10 @@ typedef char em_interface_name_t[32];
 typedef unsigned char em_nonce_t[16];
 typedef unsigned char em_dh5_key_t[192];    // because this is DH group 5 (1536 bits)
 typedef mac_address_t em_radio_id_t;
-typedef unsigned char em_bssid_id_t[6];
-typedef char    em_short_string_t[32];
-typedef char    em_long_string_t[64];
-typedef char    em_string_t[16];
-typedef char    em_small_string_t[8];
+typedef char    em_short_string_t[64];
+typedef char    em_long_string_t[128];
+typedef char    em_string_t[32];
+typedef char    em_small_string_t[16];
 typedef char    em_tiny_string_t[4];
 typedef char    em_subdoc_name_space_t[64];
 typedef char    em_subdoc_data_buff_t[0];
@@ -661,8 +663,6 @@ typedef struct {
     unsigned char bss_color;
     unsigned char channel_util;
     unsigned short sta_count;
-    unsigned int  aggr_scan_duration;
-    unsigned char scan_type;
 } em_neighbor_t;
 
 typedef struct {
@@ -671,8 +671,10 @@ typedef struct {
 	em_long_string_t timestamp;
     unsigned char util;
     unsigned char noise;
-	unsigned int num_neighbors;
+	unsigned short num_neighbors;
 	em_neighbor_t	neighbor[EM_MAX_NEIGHORS];
+    unsigned int  aggr_scan_duration;
+    unsigned char scan_type;
 } em_scan_result_t;
 
 typedef struct {
@@ -681,23 +683,18 @@ typedef struct {
     unsigned char channel;
     unsigned char scan_status;
     unsigned char timestamp_len;
-    unsigned char timestamp[0]; 
-    unsigned char util;
-    unsigned char noise;
-    unsigned short num_neigh;
-    unsigned char bssid[6];
-    unsigned char ssid_len;
-    unsigned char ssid[0]; 
-    unsigned char signal_strength;
-    unsigned char channel_band_len;
-    unsigned char channel_band[0]; 
-    unsigned char bss_load_element_present;
-    unsigned char bss_color;
-    unsigned char channel_util;
-    unsigned short sta_count;
-    unsigned int  aggr_scan_duration;
-    unsigned char scan_type;
+    char timestamp[0]; 
 }__attribute__((__packed__)) em_channel_scan_result_t;
+
+typedef struct {
+	em_radio_id_t ruid;	
+	unsigned int num_op_classes;
+	struct {
+		unsigned char op_class;
+		unsigned int num_channels;
+		unsigned char	channels[EM_MAX_CHANNELS_IN_LIST];
+	} op_class[EM_MAX_OP_CLASS];
+} em_scan_params_t;
 
 typedef struct {
     unsigned char op_class;
@@ -1794,6 +1791,7 @@ typedef enum {
     em_state_agent_topo_synchronized,
 	em_state_agent_channel_selection_pending,
     em_state_agent_channel_report_pending,
+	em_state_agent_channel_scan_result_pending,
     em_state_agent_configured,
 	
 	// Transient agent stats
@@ -1828,6 +1826,7 @@ typedef enum {
     em_state_ctrl_set_policy_pending,
     em_state_ctrl_ap_mld_config_pending,
     em_state_ctrl_ap_mld_configured,
+    em_state_ctrl_bsta_mld_config_pending,
     em_state_ctrl_avail_spectrum_inquiry_pending,
 
     em_state_max,
@@ -1846,6 +1845,7 @@ typedef enum {
     em_cmd_type_get_channel,
     em_cmd_type_set_channel,
     em_cmd_type_scan_channel,
+    em_cmd_type_scan_result,
     em_cmd_type_get_bss,
     em_cmd_type_get_sta,
     em_cmd_type_steer_sta,
@@ -2111,12 +2111,20 @@ typedef enum {
 } em_target_sta_map_t;
 
 typedef struct {
-    em_interface_t  bssid;
-    em_interface_t  ruid;
+	em_long_string_t	net_id;
+	mac_address_t	dev_mac;
+    mac_address_t  ruid;
+    mac_address_t  bssid;
+} em_bss_id_t;
+
+typedef struct {
+	em_bss_id_t	id;
+	em_interface_t	bssid;
+	em_interface_t	ruid;
     ssid_t  ssid;
     bool    enabled;
     unsigned int last_change;
-    em_string_t     timestamp;
+    em_long_string_t     timestamp;
     unsigned int unicast_bytes_sent;
     unsigned int    unicast_bytes_rcvd;
     unsigned int    numberofsta;
@@ -2435,6 +2443,7 @@ typedef enum {
     em_bus_event_type_get_channel,
     em_bus_event_type_set_channel,
     em_bus_event_type_scan_channel,
+    em_bus_event_type_scan_result,
     em_bus_event_type_get_bss,
     em_bus_event_type_get_sta,
     em_bus_event_type_steer_sta,
@@ -2463,7 +2472,8 @@ typedef enum {
     em_bus_event_type_sta_link_metrics,
     em_bus_event_type_set_radio,
     em_bus_event_type_bss_tm_req,
-    em_bus_event_type_btm_response
+    em_bus_event_type_btm_response,
+	em_bus_event_type_channel_scan_params
 } em_bus_event_type_t;
 
 typedef struct {
@@ -2537,6 +2547,7 @@ typedef enum {
     dm_orch_type_channel_cnf,
     dm_orch_type_channel_sel_resp,
     dm_orch_type_channel_scan_req,
+    dm_orch_type_channel_scan_res,
     dm_orch_type_sta_cap,
     dm_orch_type_sta_link_metrics,
     dm_orch_type_op_channel_report,
@@ -2578,6 +2589,11 @@ typedef enum {
 	db_cfg_type_scan_result_list_delete = (1 << 22),
 } db_cfg_type_t;
 
+typedef struct {
+    unsigned int db_cfg_type;
+	em_long_string_t	db_cfg_criteria[EM_MAX_DB_CFG_CRITERIA];
+} em_db_cfg_param_t;
+
 typedef struct{
     em_long_string_t ssid;
     unsigned int authtype;
@@ -2586,7 +2602,7 @@ typedef struct{
     unsigned int key_wrap_authenticator;
     bool enable;
 	em_freq_band_t freq;
-}m2ctrl_vapconfig;
+} m2ctrl_vapconfig;
 
 typedef struct{
 	int op_class;
@@ -2594,7 +2610,7 @@ typedef struct{
 	int channel_spacing;
 	int num_channels;
 	int channels[EM_MAX_E4_TABLE_CHANNEL];
-}em_e4_table_t;
+} em_e4_table_t;
 
 typedef struct{
     unsigned int num;
@@ -2603,7 +2619,7 @@ typedef struct{
     em_spatial_reuse_req_t spatial_reuse_req;
     em_eht_operations_t eht_ops;
 	em_freq_band_t freq_band;
-}op_class_channel_sel;
+} op_class_channel_sel;
 
 typedef struct {
     mac_address_t   mac;
@@ -2709,12 +2725,14 @@ typedef struct em_network_node {
     struct em_network_node     *child[EM_MAX_DM_CHILDREN];
 } em_network_node_t;
 
+typedef em_scan_params_t em_cmd_scan_params_t;
 typedef struct {
     union {
         em_cmd_args_t	args;
         em_cmd_steer_params_t	steer_params;
         em_cmd_btm_report_params_t  btm_report_params;
         em_cmd_disassoc_params_t	disassoc_params;
+		em_cmd_scan_params_t	scan_params;
     } u;
 	em_network_node_t *net_node;
 } em_cmd_params_t;

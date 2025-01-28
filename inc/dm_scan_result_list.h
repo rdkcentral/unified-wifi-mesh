@@ -23,6 +23,8 @@
 #include "dm_scan_result.h"
 #include "db_easy_mesh.h"
 
+#define scan_result_self_index 0xFFF
+
 typedef struct {
 	em_scan_result_t	*result;
 	unsigned int	index;

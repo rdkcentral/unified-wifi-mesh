@@ -37,6 +37,7 @@ const (
 	NetworkPolicyCmd = "Network Policy"
 	NeighborsListCmd = "WiFi Neighbors"
 	SteerDevicesCmd = "Optimize Client Connections"
+	BackhaulOptimizeCmd = "Optimize Backhaul Connections"
 	NetworkMetricsCmd = "Network Metrics"
 	DeviceOnboardingCmd = "Onboarding & Provisioning"
 	WiFiEventsCmd = "WiFi Events"
@@ -145,7 +146,7 @@ type model struct {
 	ticker	*time.Ticker
 	timer	*time.Timer
 	easyMeshCommands	map[string]EasyMeshCmd
-	contentUpdated		bool
+	updateButtonClicked		bool
     dump 	*os.File
 }
 
@@ -161,14 +162,15 @@ func newModel(platform string) model {
         NetworkSSIDListCmd:     {NetworkSSIDListCmd, 2, "get_ssid OneWifiMesh", "get_ssid OneWifiMesh", "set_ssid OneWifiMesh", ""},
         RadioListCmd:           {RadioListCmd, 3, "get_radio OneWifiMesh", "", "", ""},
         ChannelsListCmd:        {ChannelsListCmd, 4, "get_channel OneWifiMesh", "get_channel OneWifiMesh 1", "set_channel OneWifiMesh", ""},
-        NeighborsListCmd:       {NeighborsListCmd, 5, "get_channel OneWifiMesh", "get_channel OneWifiMesh 2", "scan_channel OneWifiMesh", ""},
+        NeighborsListCmd:       {NeighborsListCmd, 5, "scan_result OneWifiMesh", "get_channel OneWifiMesh 2", "scan_channel OneWifiMesh", ""},
         ClientDevicesCmd:       {ClientDevicesCmd, 6, "get_sta OneWifiMesh", "", "", ""},
         SteerDevicesCmd:        {SteerDevicesCmd, 7, "get_sta OneWifiMesh", "get_sta OneWifiMesh 1", "steer_sta OneWifiMesh", ""},
-        NetworkMetricsCmd:      {NetworkMetricsCmd, 8, "", "", "", ""},
-        DeviceOnboardingCmd:        {DeviceOnboardingCmd, 9, "", "", "", ""},
-        WiFiEventsCmd:      {WiFiEventsCmd, 10, "", "", "", ""},
-        WiFiResetCmd:       {WiFiResetCmd, 11, "get_network OneWifiMesh", "", "reset OneWifiMesh", ""},
-        DebugCmd:       {DebugCmd, 12, "dev_test OneWifiMesh", "", "", ""},
+        BackhaulOptimizeCmd:        {BackhaulOptimizeCmd, 8, "get_sta OneWifiMesh", "get_sta OneWifiMesh 1", "steer_sta OneWifiMesh", ""},
+        NetworkMetricsCmd:      {NetworkMetricsCmd, 9, "", "", "", ""},
+        DeviceOnboardingCmd:        {DeviceOnboardingCmd, 10, "", "", "", ""},
+        WiFiEventsCmd:      {WiFiEventsCmd, 11, "", "", "", ""},
+        WiFiResetCmd:       {WiFiResetCmd, 12, "get_network OneWifiMesh", "", "reset OneWifiMesh", ""},
+        DebugCmd:       {DebugCmd, 13, "dev_test OneWifiMesh", "", "", ""},
     }
 	
 	var items []list.Item
@@ -220,7 +222,7 @@ func newModel(platform string) model {
 		tree: etree.New(nodes, false, w, h, dump),
         dump: dump,
 		easyMeshCommands: easyMeshCommands, 
-		contentUpdated: false,
+		updateButtonClicked: false,
     }
 }
 
@@ -257,10 +259,10 @@ func (m *model) timerHandler() {
 
 
 			case <- m.ticker.C:
-                if listItem, ok := m.list.Items()[6].(item); ok {
+                if listItem, ok := m.list.Items()[m.list.Index()].(item); ok {
                     m.execSelectedCommand(listItem.title, GET)
                     if p != nil {
-                        p.Send(refreshUIMsg{index: 6})
+                        p.Send(refreshUIMsg{index: m.list.Index()})
                     }
                 }
 
@@ -443,7 +445,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     case tea.KeyMsg:
         switch msg.String() {
         case "tab":
-			if m.contentUpdated == true {
+			if m.updateButtonClicked == true {
             	m.activeButton = (m.activeButton + 1) % BTN_MAX
 			} else {
 				if m.activeButton == BTN_UPDATE {
@@ -456,7 +458,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "j", "k":
 			m.currentOperatingInstructions = "\n\n\t Press 'w' to scroll up, 's' to scroll down"
 
-			if m.activeButton != BTN_UPDATE {
+			if m.updateButtonClicked == false {
             	newListModel, cmd := m.list.Update(msg)
             	m.list = newListModel
             	for i := range m.list.Items() {
@@ -471,8 +473,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.execSelectedCommand(selectedItem.title, GET)
 				}
 		
-				m.contentUpdated = false
-					
 			}
         
 		case "down":
@@ -489,18 +489,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
            	if m.activeButton == BTN_UPDATE {
        			m.currentOperatingInstructions = "\n\n\t Editor Mode: Press 'Apply' to apply settings, 'Cancel' to leave"
             	if selectedItem, ok := m.list.SelectedItem().(item); ok {
-					m.contentUpdated = true
+					m.updateButtonClicked = true
 					m.execSelectedCommand(selectedItem.title, GETX)
 				}
 				m.tree.SetEditable(true)
            	} else if m.activeButton == BTN_APPLY {
 				m.tree.SetEditable(false)
+				m.updateButtonClicked = false
        			m.currentOperatingInstructions = "\n\n\t Press 'w' to scroll up, 's' to scroll down"
             	if selectedItem, ok := m.list.SelectedItem().(item); ok {
 					m.execSelectedCommand(selectedItem.title, SET)
 				}
            	} else if m.activeButton == BTN_CANCEL {
 				m.tree.SetEditable(false)
+				m.updateButtonClicked = false
        			m.currentOperatingInstructions = "\n\n\t Press 'w' to scroll up, 's' to scroll down"
 			}
 

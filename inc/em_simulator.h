@@ -16,30 +16,26 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef DM_BSS_H
-#define DM_BSS_H
+#ifndef EM_SIMULATOR_H
+#define EM_SIMULATOR_H
 
 #include "em_base.h"
+#include "dm_easy_mesh_agent.h"
 
-class dm_bss_t {
+class em_simulator_t {
+	em_cmd_params_t	m_param;
+	bool	m_can_run_scan_res;
+
+	int find_matching_scan_result_index(dm_easy_mesh_agent_t& dm, unsigned char *mac, unsigned int op_class, unsigned int channel);
+
 public:
-    em_bss_info_t    m_bss_info;
+	em_cmd_params_t *get_cmd_param() { return &m_param; }
+	bool run(dm_easy_mesh_agent_t& dm);
+	void configure(dm_easy_mesh_agent_t& dm, em_scan_params_t *params);
 
 public:
-    int init() { memset(&m_bss_info, 0, sizeof(em_bss_info_t)); return 0; }
-    em_bss_info_t *get_bss_info() { return &m_bss_info; }
-    int decode(const cJSON *obj, void *parent_id);
-    void encode(cJSON *obj, bool summary = false);
-
-    bool operator == (const dm_bss_t& obj);
-    void operator = (const dm_bss_t& obj);
-
-	static int parse_bss_id_from_key(const char *key, em_bss_id_t *id);
-
-    dm_bss_t(em_bss_info_t *bss);
-    dm_bss_t(const dm_bss_t& bss);
-    dm_bss_t();
-    ~dm_bss_t();
+    em_simulator_t();
+    ~em_simulator_t();
 };
 
 #endif

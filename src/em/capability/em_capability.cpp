@@ -460,7 +460,6 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
     em_sta_info_t sta_info;
     mac_addr_str_t sta_mac_str, bssid_str, radio_mac_str;
     em_long_string_t	key;
-    unsigned int db_cfg_type;
     dm_easy_mesh_t  *dm;
     bool found_client_info = false;
     bool found_cap_report = false;
@@ -530,8 +529,7 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
 
     hash_map_put(dm->m_sta_assoc_map, strdup(key), new dm_sta_t(&sta_info));
 
-    db_cfg_type = dm->get_db_cfg_type();
-    dm->set_db_cfg_type(db_cfg_type | db_cfg_type_sta_list_update);
+    dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
 
     return 0;
 }
