@@ -103,8 +103,12 @@ extern "C"
 #define EM_AUTH_WPA 0x0008
 #define EM_AUTH_WPA2 0x0010
 #define EM_AUTH_WPA2PSK 0x0020
+#define EM_AUTH_SAE_AKM8 0x0040
+#define EM_AUTH_DPP_AKM 0x0080
+#define EM_AUTH_SAE_AKM24 0x0100
 #define EM_AUTH_TYPES (EM_AUTH_OPEN | EM_AUTH_WPAPSK | EM_AUTH_SHARED | \
-            EM_AUTH_WPA | EM_AUTH_WPA2 | EM_AUTH_WPA2PSK)
+            EM_AUTH_WPA | EM_AUTH_WPA2 | EM_AUTH_WPA2PSK | EM_AUTH_SAE_AKM8 | \
+            EM_AUTH_DPP_AKM | EM_AUTH_SAE_AKM24 )
     
 /* Encryption Type Flags */
 #define EM_ENCR_NONE 0x0001
@@ -118,6 +122,7 @@ extern "C"
 #define EM_RF_24GHZ 0x01
 #define EM_RF_50GHZ 0x02
 #define EM_RF_60GHZ 0x04
+#define EM_RF_6GHZ  0x08
 
 /* Config Methods */
 #define EM_CONFIG_USBA 0x0001
