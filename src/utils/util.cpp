@@ -22,12 +22,15 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <fcntl.h>
-#include <time.h>
+#include <sys/time.h>
+#include <unistd.h>
+
 
 #include <string>
 #include <vector>
 #include <unordered_map>
-#include <cstdint>
+#include <algorithm>
+
 
 #include "util.h"
 
@@ -214,10 +217,10 @@ const std::vector<std::string> cn_region = {"CN"};
 // Becomes in the map:
 //   {12, {1, 11, 2407, 5}}
 //
-// The FreqRange struct handles the channel range check and frequency calculation
+// The freq_range struct handles the channel range check and frequency calculation
 // that was previously done in each switch case.
 
-const std::unordered_map<uint8_t, FreqRange> us_freq_map = {
+const std::unordered_map<uint8_t, freq_range> us_freq_map = {
     {12, {1, 11, 2407, 5}},      // 2.4 GHz channels 1-11
     {32, {1, 7, 2407, 5}},       // 2.4 GHz 40MHz channels 1-7
     {33, {5, 11, 2407, 5}},      // 2.4 GHz 40MHz channels 5-11
@@ -231,7 +234,7 @@ const std::unordered_map<uint8_t, FreqRange> us_freq_map = {
     {39, {25, 29, 56160, 2160}}  // 60 GHz EDMG CB4
 };
 
-const std::unordered_map<uint8_t, FreqRange> eu_freq_map = {
+const std::unordered_map<uint8_t, freq_range> eu_freq_map = {
     {4, {1, 13, 2407, 5}},       // 2.4 GHz channels 1-13
     {11, {1, 9, 2407, 5}},       // 2.4 GHz 40MHz channels 1-9
     {12, {5, 13, 2407, 5}},      // 2.4 GHz 40MHz channels 5-13
@@ -245,7 +248,7 @@ const std::unordered_map<uint8_t, FreqRange> eu_freq_map = {
     {23, {25, 25, 56160, 2160}}  // 60 GHz EDMG CB4
 };
 
-const std::unordered_map<uint8_t, FreqRange> jp_freq_map = {
+const std::unordered_map<uint8_t, freq_range> jp_freq_map = {
     {30, {1, 13, 2407, 5}},      // 2.4 GHz channels 1-13
     {31, {14, 14, 2414, 5}},     // 2.4 GHz channel 14
     {1, {34, 64, 5000, 5}},      // 5 GHz channels 34-64
@@ -257,7 +260,7 @@ const std::unordered_map<uint8_t, FreqRange> jp_freq_map = {
     {64, {25, 25, 56160, 2160}}  // 60 GHz EDMG CB4
 };
 
-const std::unordered_map<uint8_t, FreqRange> cn_freq_map = {
+const std::unordered_map<uint8_t, freq_range> cn_freq_map = {
     {7, {1, 13, 2407, 5}},       // 2.4 GHz channels 1-13
     {8, {1, 9, 2407, 5}},        // 2.4 GHz 40MHz channels 1-9
     {9, {5, 13, 2407, 5}},       // 2.4 GHz 40MHz channels 5-13
@@ -271,7 +274,7 @@ const std::unordered_map<uint8_t, FreqRange> cn_freq_map = {
 // Instead of checking each region's frequency mapping with separate function calls,
 // it uses the map structure to look up the correct frequency calculation parameters
 // Global frequency map (from original em_chan_to_freq_global function)
-const std::unordered_map<uint8_t, FreqRange> global_freq_map = {
+const std::unordered_map<uint8_t, freq_range> global_freq_map = {
     // 2.4 GHz band
     {81, {1, 13, 2407, 5}},      // channels 1-13
     {82, {14, 14, 2414, 5}},     // channel 14
@@ -311,7 +314,7 @@ const std::unordered_map<uint8_t, FreqRange> global_freq_map = {
     {183, {25, 29, 56160, 2160}}   // EDMG CB4
 };
 
-const std::unordered_map<uint8_t, FreqRange>* get_region_map(const std::string& country) {
+const std::unordered_map<uint8_t, freq_range>* get_region_map(const std::string& country) {
     if (country.length() != 2) return nullptr;
 
     if (std::find(us_region.begin(), us_region.end(), country) != us_region.end())
