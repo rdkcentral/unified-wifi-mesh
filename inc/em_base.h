@@ -759,7 +759,8 @@ typedef struct {
     unsigned char req_mode : 1;
     unsigned char btm_dissoc_imminent : 1;
     unsigned char btm_abridged : 1;
-    unsigned char reserved : 5;
+    unsigned char btm_link_removal_imminent : 1;
+    unsigned char reserved : 4;
     unsigned short steering_opportunity_window;
     unsigned short btm_dissoc_timer;
     unsigned char sta_list_count;
