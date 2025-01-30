@@ -82,7 +82,7 @@ extern "C"
 #define EM_MAX_CHANNEL_SCAN_RPRT_MSG_LEN		768
 
 #define   EM_MAX_EVENT_DATA_LEN   4096*100
-#define EM_MAX_CHANNELS_IN_LIST  9
+#define EM_MAX_CHANNELS_IN_LIST  64
 #define EM_MAX_CMD_GEN_TTL  10
 #define EM_MAX_CMD_EXT_TTL  30
 #define EM_MAX_RENEW_TX_THRESH  5
@@ -756,7 +756,8 @@ typedef struct {
     unsigned char req_mode : 1;
     unsigned char btm_dissoc_imminent : 1;
     unsigned char btm_abridged : 1;
-    unsigned char reserved : 5;
+    unsigned char btm_link_removal_imminent : 1;
+    unsigned char reserved : 4;
     unsigned short steering_opportunity_window;
     unsigned short btm_dissoc_timer;
     unsigned char sta_list_count;
