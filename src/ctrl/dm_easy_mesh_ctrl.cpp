@@ -1322,8 +1322,8 @@ int dm_easy_mesh_ctrl_t::get_network_config(cJSON *parent, char *key)
 		if (((dev_obj = cJSON_GetArrayItem(dev_list_obj, i)) != NULL) &&
 				((obj = cJSON_GetObjectItem(dev_obj, "ID")) != NULL)) {
 	    	radio_list_obj = cJSON_AddArrayToObject(dev_obj, "RadioList");
-	    	dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(obj), dev_mac);
-	    	dm_radio_list_t::get_config(radio_list_obj, &dev_mac);
+		char* value = cJSON_GetStringValue(obj);
+		dm_radio_list_t::get_config(radio_list_obj, value);
 		}
     }
     
