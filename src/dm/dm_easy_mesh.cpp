@@ -1495,7 +1495,7 @@ unsigned char *dm_easy_mesh_t::unhex(unsigned int in_len, char *in, unsigned int
         return NULL;
     }
 
-    for (i = 0; i < in_len; i++) {
+    for (i = 0; i < in_len/2; i++) {
         if (in[2*i] <= '9') {
             tmp1 = (unsigned char)in[2*i] - 0x30;
         } else {
