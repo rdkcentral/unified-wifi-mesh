@@ -1598,6 +1598,12 @@ void dm_easy_mesh_t::securitymode_to_str(unsigned short mode, char *sec_mode_str
         snprintf(sec_mode_str, len, "%s", "WPA2-Personal");
     else if (mode == EM_AUTH_WPA2PSK)
         snprintf(sec_mode_str, len, "%s", "WPA-WPA2-Personal");
+    else if (mode == EM_AUTH_SAE_AKM8)
+        snprintf(sec_mode_str, len, "%s", "WPA-WPA3-Personal_AKM8"); //TODO Need to check what SAE_AKM8
+    else if (mode == EM_AUTH_DPP_AKM)
+        snprintf(sec_mode_str, len, "%s", "WPA-WPA3-Personal_DPP"); //TODO Need to check what DPP
+    else if (mode == EM_AUTH_SAE_AKM24)
+        snprintf(sec_mode_str, len, "%s", "WPA-WPA3-Personal_AKM24"); //TODO Need to check what SAE_AKM24
 }
 
 void dm_easy_mesh_t::str_to_securitymode(unsigned short *mode, char *sec_mode_str, int len)
@@ -1616,6 +1622,12 @@ void dm_easy_mesh_t::str_to_securitymode(unsigned short *mode, char *sec_mode_st
         *mode = EM_AUTH_WPA2;
     else if (strncmp(sec_mode_str,"WPA-WPA2-Personal",len) == 0) 
         *mode = EM_AUTH_SAE;
+    else if (strncmp(sec_mode_str,"WPA-WPA3-Personal",len) == 0) 
+        *mode = EM_AUTH_SAE_AKM8;
+    else if (strncmp(sec_mode_str,"WPA-WPA3-Personal_DPP",len) == 0) 
+        *mode = EM_AUTH_DPP_AKM;
+    else if (strncmp(sec_mode_str,"WPA-WPA3-Personal_AKM24",len) == 0) 
+        *mode = EM_AUTH_SAE_AKM24;
 }
 
 int dm_easy_mesh_t::mac_address_from_name(const char *ifname, mac_address_t mac)

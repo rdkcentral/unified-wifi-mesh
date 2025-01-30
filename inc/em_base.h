@@ -103,8 +103,12 @@ extern "C"
 #define EM_AUTH_WPA 0x0008
 #define EM_AUTH_WPA2 0x0010
 #define EM_AUTH_WPA2PSK 0x0020
+#define EM_AUTH_SAE_AKM8 0x0040
+#define EM_AUTH_DPP_AKM 0x0080
+#define EM_AUTH_SAE_AKM24 0x0100
 #define EM_AUTH_TYPES (EM_AUTH_OPEN | EM_AUTH_WPAPSK | EM_AUTH_SHARED | \
-            EM_AUTH_WPA | EM_AUTH_WPA2 | EM_AUTH_WPA2PSK)
+            EM_AUTH_WPA | EM_AUTH_WPA2 | EM_AUTH_WPA2PSK | EM_AUTH_SAE_AKM8 | \
+            EM_AUTH_DPP_AKM | EM_AUTH_SAE_AKM24 )
     
 /* Encryption Type Flags */
 #define EM_ENCR_NONE 0x0001
@@ -118,6 +122,7 @@ extern "C"
 #define EM_RF_24GHZ 0x01
 #define EM_RF_50GHZ 0x02
 #define EM_RF_60GHZ 0x04
+#define EM_RF_6GHZ  0x08
 
 /* Config Methods */
 #define EM_CONFIG_USBA 0x0001
@@ -145,6 +150,8 @@ extern "C"
 #define EM_MAX_HAUL_TYPES   3
 #define EM_MAX_OPCLASS  64
 #define EM_MAX_AP_MLD   64
+#define EM_MAX_BSTA_MLD   64
+#define EM_MAX_ASSOC_STA_MLD   64
 #define EM_MAX_PRE_SET_CHANNELS   6
 
 #define EM_MAX_CMD  16
@@ -2360,6 +2367,11 @@ typedef struct {
     unsigned char reserved3[17];
     unsigned char num_affiliated_bsta;
     em_affiliated_bsta_mld_t affiliated_bsta_mld[0];
+} __attribute__((__packed__)) em_bsta_mld_t;
+
+typedef struct {
+    unsigned char num_bsta_mld;
+    em_bsta_mld_t bsta_mld[0];
 } __attribute__((__packed__)) em_bsta_mld_config_t;
 
 typedef struct {
@@ -2379,6 +2391,11 @@ typedef struct {
     unsigned char reserved2[18];
     unsigned char num_affiliated_sta;
     em_affiliated_sta_mld_t affiliated_sta_mld[0];
+} __attribute__((__packed__)) em_assoc_sta_mld_t;
+
+typedef struct {
+    unsigned char num_assoc_sta_mld;
+    em_assoc_sta_mld_t assoc_sta_mld[0];
 } __attribute__((__packed__)) em_assoc_sta_mld_config_report_t;
 
 typedef struct {
