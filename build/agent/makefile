@@ -51,7 +51,6 @@ LIBS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwebconfig -lhebus
 
 GENERIC_SOURCES = $(ONEWIFI_HOME)/source/utils/collection.c \
     $(ONEWIFI_EM_SRC)/util_crypto/aes_siv.c \
-    $(ONEWIFI_EM_SRC)/utils/util.c \
     $(ONEWIFI_HOME)/lib/common/util.c \
     $(ONEWIFI_HOME)/source/platform/linux/bus.c \
 
@@ -87,6 +86,7 @@ AGENT_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
     $(ONEWIFI_EM_SRC)/dm/dm_bsta_mld.cpp \
     $(ONEWIFI_EM_SRC)/dm/dm_assoc_sta_mld.cpp \
     $(ONEWIFI_EM_SRC)/dm/dm_tid_to_link.cpp \
+    $(ONEWIFI_EM_SRC)/utils/util.cpp \
 
 AGENT_OBJECTS = $(AGENT_SOURCES:.cpp=.o)
 GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o) 
