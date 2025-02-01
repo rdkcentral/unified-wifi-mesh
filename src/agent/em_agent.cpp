@@ -616,7 +616,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
     em_freq_band_t band;
     dm_easy_mesh_t *dm;
     em_t *em = NULL;
-    em_radio_id_t ruid;
+    mac_address_t ruid;
     em_profile_type_t profile;
     mac_addr_str_t mac_str1, mac_str2;
     bssid_t bss_mac;

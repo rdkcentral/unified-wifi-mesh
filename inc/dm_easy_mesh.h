@@ -45,6 +45,10 @@ class em_t;
 class dm_easy_mesh_t {
 public:
     webconfig_subdoc_data_t m_wifi_data;
+	unsigned int m_num_preferences;
+	em_interface_preference_t	m_preference[EM_MAX_PLATFORMS];
+	unsigned int	m_num_interfaces;
+	em_interface_t	m_interfaces[EM_MAX_INTERFACES];
     dm_network_t    m_network;
     dm_device_t     m_device;
     dm_ieee_1905_security_t m_ieee_1905_security;
@@ -121,7 +125,9 @@ public:
     unsigned char *get_ctrl_al_interface_mac() { return m_network.get_colocated_agent_interface_mac(); }
     char *get_ctrl_al_interface_name() { return m_network.get_colocated_agent_interface_name(); }
     void set_ctrl_al_interface_mac(unsigned char *mac) { m_network.set_colocated_agent_interface_mac(mac); }
-    void set_ctrl_al_interface_name(char *name) { return m_network.set_colocated_agent_interface_name(name); }
+    void set_ctrl_al_interface_name(char *name) { m_network.set_colocated_agent_interface_name(name); }
+	void set_controller_id(unsigned char *mac) { m_network.set_controller_id(mac); }
+	void set_controller_intf_media(em_media_type_t media) { m_network.set_controller_intf_media(media); }
 
     em_interface_t *get_agent_al_interface() { return m_device.get_dev_interface(); }
     unsigned char *get_agent_al_interface_mac() { return m_device.get_dev_interface_mac(); }
@@ -145,6 +151,9 @@ public:
     static em_network_info_t *get_network_info(void *dm) { return ((dm_easy_mesh_t *)dm)->get_network_info(); }
     unsigned char *get_ctl_mac() { return m_network.get_controller_interface_mac();}
 
+	em_interface_t *get_interface_by_index(unsigned int index) { return &m_interfaces[index]; }
+	em_interface_t *get_prioritized_interface(const char *platform);
+
     dm_device_t *get_device() { return &m_device; }
     dm_device_t& get_device_by_ref() { return m_device; }
     dm_device_t *find_matching_device(dm_device_t *dev);
@@ -156,11 +165,8 @@ public:
     dm_network_ssid_t& get_network_ssid_by_ref(unsigned int index) { return m_network_ssid[index]; }
     em_network_ssid_info_t *get_network_ssid_info_by_haul_type(em_haul_type_t haul_type);
 
-    em_bss_info_t *get_bss_info(unsigned int index) { return m_bss[index].get_bss_info(); }
-    static em_bss_info_t *get_bss_info(void *dm, unsigned int index) { return ((dm_easy_mesh_t *)dm)->get_bss_info(index); }
-    em_op_class_info_t *get_op_class_info(unsigned int index) { return m_op_class[index].get_op_class_info(); }
+	em_op_class_info_t *get_op_class_info(unsigned int index) { return m_op_class[index].get_op_class_info(); }
     static em_op_class_info_t *get_op_class_info(void *dm, unsigned int index) { return ((dm_easy_mesh_t *)dm)->get_op_class_info(index); }
-
     unsigned int get_num_op_class() { return m_num_opclass; }
     static unsigned int get_num_op_class(void *dm) { return ((dm_easy_mesh_t *)dm)->get_num_op_class(); }
     void set_num_op_class(unsigned int num) { m_num_opclass = num; }
@@ -169,6 +175,8 @@ public:
     dm_op_class_t& get_op_class_by_ref(unsigned int index) { return m_op_class[index]; }
 	static void print_op_class_list(dm_easy_mesh_t *dm);
 
+    em_bss_info_t *get_bss_info(unsigned int index) { return m_bss[index].get_bss_info(); }
+    static em_bss_info_t *get_bss_info(void *dm, unsigned int index) { return ((dm_easy_mesh_t *)dm)->get_bss_info(index); }
     unsigned int get_num_bss() { return m_num_bss; }
     static unsigned int get_num_bss(void *dm) { return ((dm_easy_mesh_t *)dm)->get_num_bss(); }
     void set_num_bss(unsigned int num) { m_num_bss = num; }
@@ -176,6 +184,8 @@ public:
     dm_bss_t *get_bss(unsigned int index) { return &m_bss[index]; }
     dm_bss_t *get_bss(mac_address_t radio, mac_address_t bss);
     dm_bss_t& get_bss_by_ref(unsigned int index) { return m_bss[index]; }
+	void remove_bss_by_index(unsigned int index);
+	dm_bss_t *find_matching_bss(em_bss_id_t *id);
 
 	unsigned int get_num_policy() { return m_num_policy; }
 	void set_num_policy(unsigned int num) { m_num_policy = num; }
@@ -187,6 +197,7 @@ public:
 	dm_scan_result_t *get_scan_result(unsigned int index) { return &m_scan_result[index]; }
     dm_scan_result_t& get_scan_result_by_ref(unsigned int index) { return m_scan_result[index]; }
 	dm_scan_result_t *find_matching_scan_result(em_scan_result_id_t *id);
+	void remove_scan_result_by_index(unsigned int index);
 
     unsigned int get_num_ap_mld() { return m_num_ap_mld; }
     static unsigned int get_num_ap_mld(void *dm) { return ((dm_easy_mesh_t *)dm)->get_num_ap_mld(); }
@@ -254,6 +265,7 @@ public:
     static void string_to_macbytes (char *key, mac_address_t bmac);
     static int mac_address_from_name(const char *ifname, mac_address_t mac);
     static int name_from_mac_address(const mac_address_t *mac, char *ifname);
+	static int get_interfaces_list(em_interface_t interfaces[], unsigned int *num_interfaces);
     static void securitymode_to_str(unsigned short mode, char *sec_mode_str, int len);
 	static void str_to_securitymode(unsigned short *mode, char *sec_mode_str, int len);
 
@@ -266,6 +278,7 @@ public:
     void set_db_cfg_param(db_cfg_type_t type, char *param);
 	void reset_db_cfg_type(db_cfg_type_t type);
 	bool db_cfg_type_is_set(db_cfg_type_t type) { return m_db_cfg_param.db_cfg_type & type; }
+	char *db_cfg_type_get_criteria(db_cfg_type_t type);
 	bool db_cfg_type_is_set() { return m_db_cfg_param.db_cfg_type > 0; }
 
     void handle_dirty_dm();

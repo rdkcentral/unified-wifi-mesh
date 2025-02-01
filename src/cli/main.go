@@ -54,7 +54,7 @@ const (
 	BTN_MAX = 3
 )
 
-var p *tea.Program
+var program *tea.Program
 
 var (
     appStyle = lipgloss.NewStyle().Padding(1, 2)
@@ -157,7 +157,7 @@ type refreshUIMsg struct {
 func newModel(platform string) model {
 
 	easyMeshCommands := map[string]EasyMeshCmd {
-    	NetworkTopologyCmd:         {NetworkTopologyCmd, 0, "get_bss OneWifiMesh", "", "", ""},
+    	NetworkTopologyCmd:         {NetworkTopologyCmd, 0, "get_network OneWifiMesh", "", "", ""},
         NetworkPolicyCmd:       {NetworkPolicyCmd, 1, "get_policy OneWifiMesh", "get_policy OneWifiMesh", "set_policy OneWifiMesh", ""},
         NetworkSSIDListCmd:     {NetworkSSIDListCmd, 2, "get_ssid OneWifiMesh", "get_ssid OneWifiMesh", "set_ssid OneWifiMesh", ""},
         RadioListCmd:           {RadioListCmd, 3, "get_radio OneWifiMesh", "", "", ""},
@@ -259,12 +259,9 @@ func (m *model) timerHandler() {
 
 
 			case <- m.ticker.C:
-                if listItem, ok := m.list.Items()[m.list.Index()].(item); ok {
-                    m.execSelectedCommand(listItem.title, GET)
-                    if p != nil {
-                        p.Send(refreshUIMsg{index: m.list.Index()})
-                    }
-                }
+				if program != nil {
+                	program.Send(refreshUIMsg{index: m.list.Index()})
+				}
 
 			case <- m.quit:
 				m.ticker.Stop()
@@ -553,21 +550,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         }
 
     case refreshUIMsg:
-        //spew.Fdump(m.dump, "Refresh Data!", msg.index)
-        newListModel, cmd := m.list.Update(msg)
-        m.list = newListModel
-        // Check if the current item is at index 6
-        if listItem, ok := m.list.Items()[msg.index].(item); ok {
-            listItem.isActive = msg.index == m.list.Index()
-            m.list.SetItem(msg.index, listItem)
-        }
-        cmds = append(cmds, cmd)
-
-        if selectedItem, ok := m.list.SelectedItem().(item); ok {
-            if m.list.Index() == msg.index {
-                m.execSelectedCommand(selectedItem.title, GET)
-            }
-        }
+        spew.Fdump(m.dump, "Refresh Data!", m.updateButtonClicked)
+		if m.updateButtonClicked == false {
+        	newListModel, cmd := m.list.Update(msg)
+        	m.list = newListModel
+        	cmds = append(cmds, cmd)
+        	if selectedItem, ok := m.list.SelectedItem().(item); ok {
+         		m.execSelectedCommand(selectedItem.title, GET)
+        	}
+		}
     }
 
 	m.tree, cmd = m.tree.Update(msg)
@@ -658,9 +649,9 @@ func main() {
         os.Exit(1)
 	}
 
-    p = tea.NewProgram(newModel(os.Args[1]), tea.WithAltScreen())
+    program = tea.NewProgram(newModel(os.Args[1]), tea.WithAltScreen())
 
-    if _, err := p.Run(); err != nil {
+    if _, err := program.Run(); err != nil {
         fmt.Println("Error running program:", err)
         os.Exit(1)
     }

@@ -36,6 +36,8 @@ public:
 
     em_interface_t *get_controller_interface() { return &m_net_info.ctrl_id; }
     unsigned char *get_controller_interface_mac() { return m_net_info.ctrl_id.mac; }
+    void set_controller_id(unsigned char *mac) { memcpy(m_net_info.ctrl_id.mac, mac, sizeof(mac_address_t)); }
+	void set_controller_intf_media(em_media_type_t media) { m_net_info.media = media; }
 
     em_interface_t *get_colocated_agent_interface() { return &m_net_info.colocated_agent_id; }
     unsigned char *get_colocated_agent_interface_mac() { return m_net_info.colocated_agent_id.mac; }

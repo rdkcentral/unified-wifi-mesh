@@ -108,12 +108,17 @@ int dm_bss_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void
 dm_orch_type_t dm_bss_list_t::get_dm_orch_type(db_client_t& db_client, const dm_bss_t& bss)
 {
     dm_bss_t *pbss;
-    mac_addr_str_t  bss_mac_str, radio_mac_str;
+    mac_addr_str_t  bss_mac_str, radio_mac_str, dev_mac_str;
+	em_long_string_t key;
 
+    dm_easy_mesh_t::macbytes_to_string((unsigned char *)bss.m_bss_info.id.dev_mac, dev_mac_str);
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)bss.m_bss_info.bssid.mac, bss_mac_str);
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)bss.m_bss_info.ruid.mac, radio_mac_str);
 
-    pbss = get_bss(bss_mac_str);
+	snprintf(key, sizeof(em_long_string_t), "%s@%s@%s@%s@%d", bss.m_bss_info.id.net_id, dev_mac_str, 
+					radio_mac_str, bss_mac_str, bss.m_bss_info.id.haul_type);
+
+    pbss = get_bss(key);
 
     if (pbss != NULL) {
         if (entry_exists_in_table(db_client, bss_mac_str) == false) {
@@ -141,26 +146,28 @@ dm_orch_type_t dm_bss_list_t::get_dm_orch_type(db_client_t& db_client, const dm_
 void dm_bss_list_t::update_list(const dm_bss_t& bss, dm_orch_type_t op)
 {
     dm_bss_t *pbss;
-    mac_addr_str_t	bss_mac_str, radio_mac_str;
+    mac_addr_str_t	bss_mac_str, radio_mac_str, dev_mac_str;
+	em_long_string_t	key;
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)bss.m_bss_info.bssid.mac, bss_mac_str);
+    dm_easy_mesh_t::macbytes_to_string((unsigned char *)bss.m_bss_info.id.dev_mac, dev_mac_str);
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)bss.m_bss_info.ruid.mac, radio_mac_str);
+    dm_easy_mesh_t::macbytes_to_string((unsigned char *)bss.m_bss_info.bssid.mac, bss_mac_str);
 
-    //printf("%s:%d: BSSID: %s Radio ID: %s Op:%s\n", __func__, __LINE__,
-		//bss_mac_str, radio_mac_str, em_cmd_t::get_orch_op_str(op));
+	snprintf(key, sizeof(em_long_string_t), "%s@%s@%s@%s@%d", bss.m_bss_info.id.net_id, dev_mac_str, 
+					radio_mac_str, bss_mac_str, bss.m_bss_info.id.haul_type);
 
     switch (op) {
         case dm_orch_type_db_insert:
-            put_bss(bss_mac_str, &bss);
+            put_bss(key, &bss);
             break;
 
         case dm_orch_type_db_update:
-			pbss = get_bss(bss_mac_str);
+			pbss = get_bss(key);
             memcpy(&pbss->m_bss_info, &bss.m_bss_info, sizeof(em_bss_info_t));
             break;
 
         case dm_orch_type_db_delete:
-            remove_bss(bss_mac_str);            
+            remove_bss(key);            
             break;
     }
 
@@ -180,7 +187,8 @@ void dm_bss_list_t::delete_list()
         dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_bss_info.id.dev_mac, dev_mac_str);
         dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_bss_info.ruid.mac, radio_mac_str);
         dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_bss_info.bssid.mac, bss_mac_str);
-        snprintf(key, sizeof (em_long_string_t), "%s@%s@%s@%s", tmp->m_bss_info.id.net_id, dev_mac_str, radio_mac_str, bss_mac_str);
+        snprintf(key, sizeof (em_long_string_t), "%s@%s@%s@%s@%d", tmp->m_bss_info.id.net_id, dev_mac_str, 
+						radio_mac_str, bss_mac_str, tmp->m_bss_info.id.haul_type);
 
         remove_bss(key);
     }
@@ -204,7 +212,8 @@ int dm_bss_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
 	dm_easy_mesh_t::macbytes_to_string((unsigned char *)info->id.dev_mac, dev_mac_str);
 	dm_easy_mesh_t::macbytes_to_string((unsigned char *)info->ruid.mac, radio_mac_str);
 	dm_easy_mesh_t::macbytes_to_string((unsigned char *)info->bssid.mac, bss_mac_str);
-	snprintf(key, sizeof (em_long_string_t), "%s@%s@%s@%s", info->id.net_id, dev_mac_str, radio_mac_str, bss_mac_str);
+	snprintf(key, sizeof (em_long_string_t), "%s@%s@%s@%s@%d", info->id.net_id, dev_mac_str, 
+					radio_mac_str, bss_mac_str, info->id.haul_type);
 
     //printf("dm_bss_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
     memset(front_akms, 0, sizeof(em_long_string_t));
@@ -242,7 +251,7 @@ int dm_bss_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
 			break;
 
 		case dm_orch_type_db_delete:
-			ret = delete_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->bssid.mac, bss_mac_str));
+			ret = delete_row(db_client, key);
 			break;
 
 		default:
@@ -254,12 +263,12 @@ int dm_bss_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
 
 bool dm_bss_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
 {
-    mac_addr_str_t	mac;
+	em_long_string_t str;
 
     while (db_client.next_result(ctx)) {
-        db_client.get_string(ctx, mac, 1);
+        db_client.get_string(ctx, str, 1);
 
-        if (strncmp(mac, (char *)key, strlen((char *)key)) == 0) {
+        if (strncmp(str, (char *)key, strlen((char *)key)) == 0) {
             return true;
         }
     }

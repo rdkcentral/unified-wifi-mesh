@@ -36,7 +36,9 @@ extern "C"
 
 #define EM_MAX_NETWORKS	5
 #define EM_MAX_NET_SSIDS 4
+#define EM_MAX_INTERFACES	8 
 #define EM_MAX_DEVICES 16
+#define EM_MAX_PLATFORMS	5
 #define ETH_P_1905      0x893a
 #define MAX_INTF_NAME_SZ    16
 #define EM_MAC_STR_LEN  17
@@ -202,7 +204,6 @@ extern "C"
 typedef char em_interface_name_t[32];
 typedef unsigned char em_nonce_t[16];
 typedef unsigned char em_dh5_key_t[192];    // because this is DH group 5 (1536 bits)
-typedef mac_address_t em_radio_id_t;
 typedef char    em_short_string_t[64];
 typedef char    em_long_string_t[128];
 typedef char    em_string_t[32];
@@ -311,7 +312,7 @@ typedef struct {
 } __attribute__((__packed__)) em_op_class_t;
 
 typedef struct {
-    em_radio_id_t   ruid;
+    mac_address_t   ruid;
     unsigned char   num_bss;
     unsigned char   op_class_num;
     em_op_class_t   op_classes[0];
@@ -594,7 +595,7 @@ typedef struct {
 } __attribute__((__packed__)) em_anti_chan_usage_t;
 
 typedef struct {
-    em_radio_id_t   ruid;
+    mac_address_t   ruid;
     unsigned char bssid[6];
     mac_address_t bsta_addr;
     unsigned char dpp_uri[0];
@@ -625,7 +626,7 @@ typedef struct {
 }__attribute__((__packed__)) em_prof2_error_t;
 
 typedef struct {
-    em_radio_id_t   ruid;
+    mac_address_t   ruid;
     unsigned char num_radios;
     unsigned char op_class;
     unsigned char channel;
@@ -634,7 +635,7 @@ typedef struct {
 
 typedef struct {
     unsigned char num_radios;
-    em_radio_id_t ruid;
+    mac_address_t ruid;
     unsigned char op_lass;
     unsigned char channel;
     unsigned char cas_method : 3;
@@ -650,7 +651,7 @@ typedef struct {
 typedef struct {
     em_long_string_t    net_id;
 	mac_address_t	dev_mac;
-	em_radio_id_t ruid;
+	mac_address_t ruid;
     unsigned char op_class;
     unsigned char channel;
 } em_scan_result_id_t;
@@ -678,7 +679,7 @@ typedef struct {
 } em_scan_result_t;
 
 typedef struct {
-    em_radio_id_t ruid;
+    mac_address_t ruid;
     unsigned char op_class;
     unsigned char channel;
     unsigned char scan_status;
@@ -687,7 +688,7 @@ typedef struct {
 }__attribute__((__packed__)) em_channel_scan_result_t;
 
 typedef struct {
-	em_radio_id_t ruid;	
+	mac_address_t ruid;	
 	unsigned int num_op_classes;
 	struct {
 		unsigned char op_class;
@@ -706,7 +707,7 @@ typedef struct {
     unsigned char perform_fresh_scan : 1;
     unsigned char reserved : 7;
     unsigned char num_radios;
-    em_radio_id_t ruid;
+    mac_address_t ruid;
     unsigned char num_op_classes;
 	em_channel_scan_req_op_class_t op_class[0];
 }__attribute__((__packed__)) em_channel_scan_req_t;
@@ -889,7 +890,7 @@ typedef struct {
 }__attribute__((__packed__)) em_ap_metrics_query_t;
 
 typedef struct {
-    em_radio_id_t   ruid;
+    mac_address_t   ruid;
 }__attribute__((__packed__)) em_ap_radio_id_t;
 
 typedef struct {
@@ -919,7 +920,7 @@ typedef struct {
 } __attribute__((__packed__)) em_ap_ext_metric_t;
 
 typedef struct {
-    em_radio_id_t ruid;
+    mac_address_t ruid;
     unsigned char noise;
     unsigned char transmit;
     unsigned char rece_self;
@@ -961,13 +962,13 @@ typedef struct {
 } __attribute__((__packed__)) em_op_class_ch_rprt_t;
 
 typedef struct {
-    em_radio_id_t  ruid;
+    mac_address_t  ruid;
     unsigned char  op_classes_num;
     em_op_class_ch_rprt_t  op_classes[0];
 } __attribute__((__packed__)) em_op_channel_rprt_t;
 
 typedef struct {
-    em_radio_id_t ruid;
+    mac_address_t ruid;
     unsigned char reserved1 : 1;
     unsigned char partial_bss_color : 2;
     unsigned char bss_color : 6;
@@ -1012,7 +1013,7 @@ typedef enum {
 } em_prof2_error_code_reason_code_type_t;
 
 typedef struct {
-    em_radio_id_t ruid;
+    mac_address_t ruid;
     unsigned char response_code;
 } __attribute__((__packed__)) em_channel_sel_rsp_t;
 
@@ -1027,18 +1028,18 @@ typedef struct {
 } __attribute__((__packed__)) em_channel_pref_op_class_t;
 
 typedef struct {
-    em_radio_id_t ruid;
+    mac_address_t ruid;
     unsigned char op_classes_num;
     em_channel_pref_op_class_t op_classes[0];
 } __attribute__((__packed__)) em_channel_pref_t;
 
 typedef struct {
-    em_radio_id_t ruid;
+    mac_address_t ruid;
     unsigned char tx_power_eirp;
 } __attribute__((__packed__)) em_tx_power_limit_t;
 
 typedef struct {
-    em_radio_id_t ruid;
+    mac_address_t ruid;
     unsigned char reserved1 : 2;
     unsigned char bss_color : 6;
     unsigned char reserved2 : 3;
@@ -1067,7 +1068,7 @@ typedef struct {
 } __attribute__((__packed__)) em_radio_op_restrict_op_class_t;
 
 typedef struct {
-    em_radio_id_t ruid;
+    mac_address_t ruid;
     unsigned char op_classes_num;
     em_radio_op_restrict_op_class_t op_classes[0];
 } __attribute__((__packed__)) em_radio_op_restriction_t;
@@ -1079,7 +1080,7 @@ typedef struct {
 } __attribute__((__packed__)) em_cac_comp_rprt_pair_t;
 
 typedef struct {
-    em_radio_id_t ruid;
+    mac_address_t ruid;
     unsigned char op_class;
     unsigned char channel;
     unsigned char status;
@@ -1189,7 +1190,7 @@ typedef struct {
 } __attribute__((__packed__)) em_ap_operational_bss_t;
 
 typedef struct {
-    em_radio_id_t ruid;
+    mac_address_t ruid;
     unsigned char     bss_num;
     em_ap_operational_bss_t  bss[0];
 } __attribute__((__packed__)) em_ap_op_bss_radio_t;
@@ -1269,7 +1270,7 @@ typedef struct {
 } __attribute__((__packed__)) em_akm_suite_info_t;
 
 typedef struct {
-    em_radio_id_t  ruid;
+    mac_address_t  ruid;
     unsigned char  bsta_mac_present : 1;
     unsigned char  reserved : 7;
     mac_address_t  bsta_addr;
@@ -1381,7 +1382,7 @@ typedef struct {
 } __attribute__((__packed__)) em_rx_link_metric_t;
 
 typedef struct {
-    em_radio_id_t   ruid;
+    mac_address_t   ruid;
     unsigned char   vendor_len;
     unsigned char   vendor[MAP_INVENTORY_ITEM_LEN];
 } __attribute__((__packed__)) em_radio_vendor_t;
@@ -1398,7 +1399,7 @@ typedef struct {
 } __attribute__((__packed__)) em_device_inventory_t;
 
 typedef struct {
-    em_radio_id_t  ruid;
+    mac_address_t  ruid;
     unsigned char  max_sprt_tx_streams : 2;
     unsigned char  max_sprt_rx_streams : 2;
     unsigned char  gi_sprt_20mhz : 1;
@@ -1408,7 +1409,7 @@ typedef struct {
 } __attribute__((__packed__)) em_ap_ht_cap_t;
 
 typedef struct {
-    em_radio_id_t  ruid;
+    mac_address_t  ruid;
     unsigned short sprt_tx_mcs;
     unsigned short sprt_rx_mcs;
     unsigned char  max_sprt_tx_streams : 3;
@@ -1423,7 +1424,7 @@ typedef struct {
 } __attribute__((__packed__)) em_ap_vht_cap_t;
 
 typedef struct {
-    em_radio_id_t  ruid;
+    mac_address_t  ruid;
     unsigned char  sprt_mcs_len;
     unsigned short sprt_tx_rx_mcs[MAX_MCS];
     unsigned char  max_sprt_tx_streams : 3;
@@ -1470,13 +1471,13 @@ typedef struct {
 } __attribute__((__packed__)) em_radio_wifi6_cap_data_t;
 
 typedef struct {
-    em_radio_id_t  ruid;
+    mac_address_t  ruid;
     unsigned char  roles_num;
     em_radio_wifi6_cap_data_t  cap_data[MAP_AP_ROLE_MAX];
 } __attribute__((__packed__))em_ap_wifi6_cap_t;
 
 typedef struct {
-    em_radio_id_t ruid;
+    mac_address_t ruid;
     unsigned char freq_sep : 5;
     unsigned char reserved : 3;
 } __attribute__((__packed__)) em_radio_wifi7_freq_record_t;
@@ -1496,7 +1497,7 @@ typedef struct {
 } __attribute__((__packed__)) em_radio_wifi7_cap_data_t;
 
 typedef struct {
-    em_radio_id_t ruid;
+    mac_address_t ruid;
     unsigned char reserved3[24];
     unsigned char ap_str_support : 1;
     unsigned char ap_nstr_support : 1;
@@ -1541,7 +1542,7 @@ typedef struct {
 } __attribute__((__packed__)) em_eht_operations_bss_t;
 
 typedef struct {
-    em_radio_id_t ruid;
+    mac_address_t ruid;
     unsigned char bss_num;
     em_eht_operations_bss_t bss[EM_MAX_BSS_PER_RADIO];
     unsigned char reserved[25];
@@ -1562,7 +1563,7 @@ typedef struct {
 } __attribute__((__packed__)) em_avail_spectrum_inquiry_rsp_t;
 
 typedef struct {
-    em_radio_id_t  ruid;
+    mac_address_t  ruid;
     unsigned char  boot_only : 1;
     unsigned char  scan_impact : 2;
     unsigned int   min_scan_interval;
@@ -1583,7 +1584,7 @@ typedef struct {
 } __attribute__((__packed__)) em_cac_cap_method_t;
 
 typedef struct {
-    em_radio_id_t   ruid;
+    mac_address_t   ruid;
     unsigned char   cac_methods_num;
     em_cac_cap_method_t  cac_methods[EM_MAX_CAC_METHODS];
 } __attribute__((__packed__))em_cac_cap_radio_t;
@@ -1604,14 +1605,14 @@ typedef struct {
 } __attribute__((__packed__))em_steering_policy_sta_t;
 
 typedef struct {
-    em_radio_id_t   ruid;
+    mac_address_t   ruid;
     unsigned char   steering_policy;
     unsigned char   channel_util_thresh;
     unsigned char   rssi_steering_thresh;
 } __attribute__((__packed__))em_steering_policy_radio_t;
 
 typedef struct {
-    em_radio_id_t   ruid;
+    mac_address_t   ruid;
     unsigned char   rcpi_thres;
     unsigned char   rcpi_hysteresis;
     unsigned char   util_thres;
@@ -1669,7 +1670,7 @@ typedef struct {
 
 
 typedef struct {
-    em_radio_id_t   ruid;
+    mac_address_t   ruid;
     unsigned char   comb_front_back : 1;
     unsigned char   comp_prof1_prof2 : 1;
     unsigned char   mscs : 1;
@@ -1680,6 +1681,7 @@ typedef struct {
 } __attribute__((__packed__)) em_ap_radio_advanced_cap_t;
 
 typedef enum {
+	em_media_type_ieee8023ab = 0x01,
     em_media_type_ieee80211b_24 = 0x0100,
     em_media_type_ieee80211g_24,
     em_media_type_ieee80211a_5,
@@ -1889,14 +1891,28 @@ typedef enum {
     em_event_type_max
 } em_event_type_t;
 
+typedef enum {
+	em_haul_type_fronthaul,
+	em_haul_type_backhaul,
+	em_haul_type_iot,
+	em_haul_type_configurator,
+	em_haul_type_max,
+} em_haul_type_t;
+
 typedef struct {
     unsigned int frame_len;
     unsigned char *frame;
 } __attribute__((__packed__)) em_frame_info_t;
 
 typedef struct {
+	em_short_string_t	platform;
+	em_media_type_t	media;
+} em_interface_preference_t;
+
+typedef struct {
     em_interface_name_t name;
     mac_address_t   mac;
+	em_media_type_t	media;
 } __attribute__((__packed__)) em_interface_t;
 
 typedef em_frame_info_t em_frame_event_t;
@@ -1911,6 +1927,7 @@ typedef struct {
     unsigned char    num_scs_disallowed_sta;
     em_string_t     scs_disallowed_sta[EM_SCS_DISALLOWED_STA];
     em_interface_t    colocated_agent_id; // Controller and Colocated Agent AL MAC
+	em_media_type_t	media;
 } em_network_info_t;
 
 typedef struct {
@@ -1921,8 +1938,14 @@ typedef struct {
 } ieee_1905_security_t;
 
 typedef struct {
-    em_interface_t   id;
-    em_long_string_t    net_id;
+	em_long_string_t    net_id;
+	mac_address_t	dev_mac;
+	em_media_type_t	media;	
+} em_device_id_t;
+
+typedef struct {
+	em_device_id_t	id;
+    em_interface_t	intf;
     em_profile_type_t   profile;
     em_long_string_t    multi_ap_cap;
     unsigned int   coll_interval;
@@ -1950,7 +1973,7 @@ typedef struct {
     em_interface_t   backhaul_mac;
     unsigned char    num_backhaul_down_mac;
     em_string_t      backhaul_down_mac[EM_BACKHAUL_DOWNMAC_ADDR];
-    wifi_ieee80211Variant_t backhaul_media_type;
+    wifi_ieee80211Variant_t  backhaul_media_type;
     unsigned int    backhaul_phyrate;
     em_interface_t   backhaul_alid;
     bool    traffic_sep_cap;
@@ -1983,14 +2006,6 @@ typedef struct {
     ssid_t  ssid;
     unsigned short vid;
 } em_ssid_2_vid_map_info_t;
-
-typedef enum {
-	em_haul_type_fronthaul,
-	em_haul_type_backhaul,
-	em_haul_type_iot,
-	em_haul_type_configurator,
-	em_haul_type_max,
-} em_haul_type_t;
 
 typedef struct {
     em_long_string_t    id;
@@ -2028,7 +2043,7 @@ typedef enum {
 } em_op_class_type_t;
 
 typedef struct {
-    em_radio_id_t  ruid;
+    mac_address_t  ruid;
     em_op_class_type_t  type;
     unsigned int 	op_class;
 } em_op_class_id_t;
@@ -2047,7 +2062,7 @@ typedef struct {
 } em_op_class_info_t;
 
 typedef struct {
-	em_radio_id_t	ruid;
+	mac_address_t	ruid;
 	unsigned char op_class;
     unsigned char channel;
     unsigned char status;
@@ -2113,6 +2128,7 @@ typedef struct {
 	mac_address_t	dev_mac;
     mac_address_t  ruid;
     mac_address_t  bssid;
+	em_haul_type_t	haul_type;
 } em_bss_id_t;
 
 typedef struct {
@@ -2224,9 +2240,14 @@ typedef struct {
 } em_tid_to_link_info_t;
 
 typedef struct {
-    em_interface_t  id;
-	mac_address_t dev_id;
-    em_long_string_t net_id;
+	em_long_string_t	net_id;
+	mac_address_t	dev_mac;
+	mac_address_t	ruid;
+} em_radio_id_t;
+
+typedef struct {
+    em_radio_id_t  id;
+	em_interface_t intf;
     bool    enabled;
     em_freq_band_t band;
     em_media_spec_data_t	media_data;
@@ -2291,7 +2312,7 @@ typedef struct {
 } __attribute__((__packed__)) em_bss_rprt_t;
 
  typedef struct {
-    em_radio_id_t ruid;
+    mac_address_t ruid;
     unsigned char num_bss;
 	em_bss_rprt_t	bss_rprt[0];
 } __attribute__((__packed__)) em_radio_rprt_t;
@@ -2310,7 +2331,7 @@ typedef struct {
     unsigned char affiliated_mac_addr_valid : 1;
     unsigned char link_id_valid : 1;
     unsigned char reseverd1 : 6;
-    em_radio_id_t ruid;
+    mac_address_t ruid;
     mac_addr_t affiliated_mac_addr;
     unsigned char link_id;
     unsigned char reserved2[18];
@@ -2339,7 +2360,7 @@ typedef struct {
 typedef struct {
     unsigned char affiliated_bsta_mac_addr_valid : 1;
     unsigned char reseverd1 : 7;
-    em_radio_id_t ruid;
+    mac_address_t ruid;
     mac_addr_t affiliated_bsta_mac_addr;
     unsigned char reserved2[19];
 } __attribute__((__packed__)) em_affiliated_bsta_mld_t;
@@ -2540,6 +2561,7 @@ typedef enum {
     dm_orch_type_topology_response,
     dm_orch_type_net_ssid_update,
     dm_orch_type_topo_sync,
+    dm_orch_type_topo_update,
     dm_orch_type_channel_pref,
     dm_orch_type_channel_sel,
     dm_orch_type_channel_cnf,
@@ -2896,7 +2918,7 @@ typedef enum {
 typedef struct {
     em_long_string_t    net_id;
 	mac_address_t	dev_mac;
-	em_radio_id_t	radio_mac;
+	mac_address_t	radio_mac;
 	em_policy_id_type_t	type;
 } em_policy_id_t;
 

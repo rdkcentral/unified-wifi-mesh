@@ -89,6 +89,16 @@ int dm_network_t::decode(const cJSON *obj, void *parent_id)
         dm_easy_mesh_t::string_to_macbytes(mac_str, m_net_info.colocated_agent_id.mac);
 	}
 
+    if ((tmp = cJSON_GetObjectItem(obj, "MediaType")) != NULL) {
+		if (strncmp(cJSON_GetStringValue(tmp), "Wireless", strlen("Wireless")) == 0) { 
+			m_net_info.media = em_media_type_ieee80211b_24;
+		} else if (strncmp(cJSON_GetStringValue(tmp), "Ethernet", strlen("Ethernet")) == 0) {
+			m_net_info.media = em_media_type_ieee8023ab;
+		} else {
+			m_net_info.media = em_media_type_ieee80211b_24;
+		}
+	}
+
     return 0;
 }
 
@@ -96,7 +106,7 @@ void dm_network_t::encode(cJSON *obj, bool summary)
 {
     mac_addr_str_t  mac_str;
     unsigned short i;
-
+	em_string_t	str;
 
     cJSON_AddStringToObject(obj, "ID", m_net_info.id);
 
@@ -125,6 +135,16 @@ void dm_network_t::encode(cJSON *obj, bool summary)
 
     dm_easy_mesh_t::macbytes_to_string(m_net_info.colocated_agent_id.mac, mac_str);
     cJSON_AddStringToObject(obj, "CollocatedAgentID", mac_str);
+	
+	if (m_net_info.media == em_media_type_ieee8023ab) {
+		strncpy(str, "Ethernet", strlen("Ethernet") + 1);
+	} else if (m_net_info.media == em_media_type_ieee80211b_24) {
+		strncpy(str, "Wireless", strlen("Wireless") + 1);
+	} else {
+		strncpy(str, "Unknown", strlen("Unknown") + 1);
+
+	}
+    cJSON_AddStringToObject(obj, "MediaType", str);
 }
 
 bool dm_network_t::operator == (const dm_network_t& obj)

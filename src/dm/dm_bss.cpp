@@ -163,18 +163,40 @@ void dm_bss_t::encode(cJSON *obj, bool summary)
 {
     mac_addr_str_t  mac_str;
     unsigned short i;
+	em_short_string_t	haul_type_str;
 
     dm_easy_mesh_t::macbytes_to_string(m_bss_info.bssid.mac, mac_str);
     cJSON_AddStringToObject(obj, "BSSID", mac_str);
 
-    if (summary == true) {
+	switch (m_bss_info.id.haul_type) {
+		case em_haul_type_fronthaul:
+			strncpy(haul_type_str, "Fronthaul", strlen("Fronthaul") + 1);
+			break;
+
+		case em_haul_type_backhaul:
+			strncpy(haul_type_str, "Backhaul", strlen("Backhaul") + 1);
+			break;
+
+		case em_haul_type_iot:
+			strncpy(haul_type_str, "IoT", strlen("IoT") + 1);
+			break;
+
+		case em_haul_type_configurator:
+			strncpy(haul_type_str, "Configurator", strlen("Configurator") + 1);
+			break;
+
+	}
+
+    cJSON_AddStringToObject(obj, "HaulType", haul_type_str);
+    cJSON_AddStringToObject(obj, "SSID", m_bss_info.ssid);
+    cJSON_AddBoolToObject(obj, "Enabled", m_bss_info.enabled);
+    cJSON_AddStringToObject(obj, "TimeStamp", m_bss_info.timestamp);
+    
+	if (summary == true) {
         return;
     }
 
-    cJSON_AddStringToObject(obj, "SSID", m_bss_info.ssid);
-    cJSON_AddBoolToObject(obj, "Enabled", m_bss_info.enabled);
     cJSON_AddNumberToObject(obj, "LastChange", m_bss_info.last_change);
-    cJSON_AddStringToObject(obj, "TimeStamp", m_bss_info.timestamp);
     cJSON_AddNumberToObject(obj, "UnicastBytesSent", m_bss_info.unicast_bytes_sent);
     cJSON_AddNumberToObject(obj, "UnicastBytesReceived", m_bss_info.unicast_bytes_rcvd);
     cJSON_AddNumberToObject(obj, "NumberOfSTA", m_bss_info.numberofsta );
@@ -212,11 +234,16 @@ void dm_bss_t::encode(cJSON *obj, bool summary)
 
 void dm_bss_t::operator = (const dm_bss_t& obj)
 {
-    memcpy(&this->m_bss_info.bssid.mac ,&obj.m_bss_info.bssid.mac,sizeof(mac_address_t));
-    memcpy(&this->m_bss_info.bssid.name,&obj.m_bss_info.bssid.name,sizeof(em_interface_name_t));
-    memcpy(&this->m_bss_info.ruid.mac ,&obj.m_bss_info.ruid.mac,sizeof(mac_address_t));
-    memcpy(&this->m_bss_info.ruid.name,&obj.m_bss_info.ruid.name,sizeof(em_interface_name_t));
-    memcpy(&this->m_bss_info.ssid,&obj.m_bss_info.ssid,sizeof(ssid_t));
+	strncpy(this->m_bss_info.id.net_id, obj.m_bss_info.id.net_id, strlen(obj.m_bss_info.id.net_id));
+	memcpy(this->m_bss_info.id.dev_mac, obj.m_bss_info.id.dev_mac, sizeof(mac_address_t));
+	memcpy(this->m_bss_info.id.ruid, obj.m_bss_info.id.ruid, sizeof(mac_address_t));
+	memcpy(this->m_bss_info.id.bssid, obj.m_bss_info.id.bssid, sizeof(mac_address_t));
+
+    memcpy(&this->m_bss_info.bssid.mac, &obj.m_bss_info.bssid.mac, sizeof(mac_address_t));
+    memcpy(&this->m_bss_info.bssid.name, &obj.m_bss_info.bssid.name, sizeof(em_interface_name_t));
+    memcpy(&this->m_bss_info.ruid.mac, &obj.m_bss_info.ruid.mac, sizeof(mac_address_t));
+    memcpy(&this->m_bss_info.ruid.name, &obj.m_bss_info.ruid.name, sizeof(em_interface_name_t));
+    memcpy(&this->m_bss_info.ssid,&obj.m_bss_info.ssid, sizeof(ssid_t));
     this->m_bss_info.enabled = obj.m_bss_info.enabled;
     memcpy(&this->m_bss_info.est_svc_params_be,&obj.m_bss_info.est_svc_params_be,sizeof(em_string_t));
     memcpy(&this->m_bss_info.est_svc_params_bk,&obj.m_bss_info.est_svc_params_bk,sizeof(em_string_t));
@@ -241,6 +268,12 @@ void dm_bss_t::operator = (const dm_bss_t& obj)
 bool dm_bss_t::operator == (const dm_bss_t& obj)
 {
 	int ret = 0;
+
+	ret += (strncmp(this->m_bss_info.id.net_id, obj.m_bss_info.id.net_id, strlen(obj.m_bss_info.id.net_id)) != 0);
+	ret += (memcmp(this->m_bss_info.id.dev_mac, obj.m_bss_info.id.dev_mac, sizeof(mac_address_t)) != 0);
+	ret += (memcmp(this->m_bss_info.id.ruid, obj.m_bss_info.id.ruid, sizeof(mac_address_t)) != 0);
+	ret += (memcmp(this->m_bss_info.id.bssid, obj.m_bss_info.id.bssid, sizeof(mac_address_t)) != 0);
+
     ret += (memcmp(&this->m_bss_info.bssid.mac ,&obj.m_bss_info.bssid.mac,sizeof(mac_address_t)) != 0);
     ret += (memcmp(&this->m_bss_info.bssid.name,&obj.m_bss_info.bssid.name,sizeof(em_interface_name_t)) != 0);
     ret += (memcmp(&this->m_bss_info.ruid.mac ,&obj.m_bss_info.ruid.mac,sizeof(mac_address_t)) != 0);
@@ -271,6 +304,25 @@ bool dm_bss_t::operator == (const dm_bss_t& obj)
         return true;
 }
 
+bool dm_bss_t::match_criteria(char *criteria)
+{
+	char *tmp;
+	mac_address_t radio_mac;
+
+	if ((tmp = strstr(criteria, "radio=")) != NULL) {
+		tmp += strlen("radio=");
+		dm_easy_mesh_t::string_to_macbytes(tmp, radio_mac);
+		if (memcmp(m_bss_info.id.ruid, radio_mac, sizeof(mac_address_t)) == 0) {
+			printf("%s:%d: Only deleting bss on radio: %s\n", __func__, __LINE__, tmp);
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	return true;	
+}
+
 int dm_bss_t::parse_bss_id_from_key(const char *key, em_bss_id_t *id)
 {
     em_long_string_t   str;
@@ -294,7 +346,12 @@ int dm_bss_t::parse_bss_id_from_key(const char *key, em_bss_id_t *id)
             *tmp = 0;
             dm_easy_mesh_t::string_to_macbytes(remain, id->ruid);
             tmp++;
-			dm_easy_mesh_t::string_to_macbytes(tmp, id->bssid);
+			remain = tmp;
+		} else if (i == 3) {
+            *tmp = 0;
+			dm_easy_mesh_t::string_to_macbytes(remain, id->bssid);
+            tmp++;
+			id->haul_type = (em_haul_type_t)atoi(tmp);
         }
         i++;
     }

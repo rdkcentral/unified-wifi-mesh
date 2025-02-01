@@ -606,7 +606,7 @@ dm_radio_t *em_t::get_radio_from_dm(bool command_dm)
 
 	for (i = 0; i < dm->get_num_radios(); i++) {
 		radio = &dm->m_radio[i];
-		if (memcmp(get_radio_interface_mac(), radio->m_radio_info.id.mac, sizeof(mac_address_t)) == 0) {
+		if (memcmp(get_radio_interface_mac(), radio->m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
 			match_found = true;
 			break;
 		}

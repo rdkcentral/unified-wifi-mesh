@@ -40,6 +40,7 @@ class em_agent_t : public em_mgr_t {
 
 	void start_complete();
     void io_run(char *buff);
+	void update_network_topology() { }
 
     void handle_5s_tick();
     void handle_2s_tick();

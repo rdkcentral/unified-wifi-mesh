@@ -299,7 +299,7 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 				}
 				break;
             case em_cmd_type_cfg_renew:
-                if (memcmp(pcmd->get_data_model()->get_radio(num)->get_radio_info()->id.mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
+                if (memcmp(pcmd->get_data_model()->get_radio(num)->get_radio_info()->intf.mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }

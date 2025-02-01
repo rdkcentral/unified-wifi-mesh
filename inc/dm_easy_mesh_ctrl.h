@@ -34,6 +34,7 @@
 #include "dm_dpp.h"
 #include "db_client.h"
 #include "dm_easy_mesh_list.h"
+#include "em_network_topo.h"
 
 class em_cmd_t;
 class dm_easy_mesh_t;
@@ -50,6 +51,7 @@ class dm_easy_mesh_ctrl_t :
     bool	m_initialized;
 
     dm_easy_mesh_list_t	m_data_model_list;
+	em_network_topo_t   *m_topology;
 
     int set_device_list(cJSON *dev_list_obj);
     int set_radio_list(cJSON *radio_list_obj, mac_address_t *dev_mac);
@@ -90,6 +92,7 @@ public:
     int analyze_client_metrics_req(em_cmd_t *cmd[]);
 
     int reset_config();
+
     int get_sta_config(cJSON *parent, char *key, em_get_sta_list_reason_t reason = em_get_sta_list_reason_none);
     int get_bss_config(cJSON *parent, char *key);
     int get_network_config(cJSON *parent, char *key);
@@ -167,6 +170,9 @@ public:
     dm_scan_result_t *get_scan_result(const char *key) { return m_data_model_list.get_scan_result(key); }
     void remove_scan_result(const char *key) { m_data_model_list.remove_scan_result(key); }
     void put_scan_result(const char *key, const dm_scan_result_t *scan_result) { m_data_model_list.put_scan_result(key, scan_result); }
+
+	void init_network_topology();
+    void update_network_topology();
 
     void handle_dirty_dm();
     void init_tables();

@@ -112,7 +112,7 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
         radio = dm.get_radio(mac);
         if (radio != NULL) {
             for (i = 0;i < m_num_radios; i++) {
-                if (memcmp(radio->get_radio_info()->id.mac, get_radio(i)->get_radio_info()->id.mac, sizeof(mac_address_t)) == 0) {
+                if (memcmp(radio->get_radio_info()->intf.mac, get_radio(i)->get_radio_info()->intf.mac, sizeof(mac_address_t)) == 0) {
                     m_radio[i] = *(radio);
                     printf("%s:%d Radio %s configuration updated \n", __func__, __LINE__,target.params);
                     break;
@@ -125,7 +125,7 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
             }
 			//Commit op class
 			for (i = 0; i<dm.m_num_opclass; i++) {
-				if (memcmp(radio->get_radio_info()->id.mac, dm.m_op_class[i].m_op_class_info.id.ruid, sizeof(mac_address_t)) == 0) {
+				if (memcmp(radio->get_radio_info()->intf.mac, dm.m_op_class[i].m_op_class_info.id.ruid, sizeof(mac_address_t)) == 0) {
 					found = 0;
 					for (j = 0; j<m_num_opclass;j++) {
 						if ((dm.m_op_class[i].m_op_class_info.op_class == m_op_class[j].m_op_class_info.op_class) &&
@@ -306,14 +306,18 @@ int dm_easy_mesh_t::encode_config(em_subdoc_info_t *subdoc, const char *str)
 
 int dm_easy_mesh_t::encode_config_reset(em_subdoc_info_t *subdoc, const char *key)
 {
-    cJSON *parent_obj, *net_obj, *ssid_obj, *ssid_arr_objs;
+    cJSON *parent_obj, *net_obj, *interfaces_obj, *interface_obj, *interface_arr_obj, *ssid_obj, *ssid_arr_objs;
 	char *formatted_json;
+	mac_addr_str_t	mac_str;
+	em_long_string_t	interface_str;
+	const char *preference[5] = {"First Preference", "Second Preference", "Third Preference", "Fourth Preference", "Fifth Preference"};
 	unsigned int i;
 
     if ((parent_obj = cJSON_CreateObject()) == NULL) {
         printf("%s:%d: Could not create parent object\n", __func__, __LINE__);
         return -1;
     }
+	
     if ((net_obj = cJSON_CreateObject()) == NULL) {
         printf("%s:%d: Could not create net object\n", __func__, __LINE__);
         cJSON_Delete(parent_obj);
@@ -324,7 +328,27 @@ int dm_easy_mesh_t::encode_config_reset(em_subdoc_info_t *subdoc, const char *ke
         cJSON_Delete(parent_obj);
         return -1;
     }
-    m_network.encode(net_obj);
+
+	if ((interfaces_obj = cJSON_AddObjectToObject(net_obj, "Interfaces")) == NULL) {
+		printf("%s:%d: Could not create interface object\n", __func__, __LINE__);
+        return -1;
+	}
+
+	if ((interface_arr_obj = cJSON_AddArrayToObject(interfaces_obj, "List")) == NULL) {
+        printf("%s:%d: Could not create interface array object\n", __func__, __LINE__);
+        return -1;
+    }
+
+	for (i = 0; i < m_num_interfaces; i++) {
+		interface_obj = cJSON_CreateObject();
+		cJSON_AddItemToArray(interface_arr_obj, interface_obj);
+		dm_easy_mesh_t::macbytes_to_string(m_interfaces[i].mac, mac_str);
+		snprintf(interface_str, sizeof(em_long_string_t), "%s (%s)", mac_str, m_interfaces[i].name);
+		cJSON_AddStringToObject(interface_obj, preference[i], interface_str);
+	}
+
+	m_network.encode(net_obj);
+
     if ((ssid_arr_objs = cJSON_CreateArray()) == NULL) {
         printf("%s:%d: Could not create NetworkSSIDList array object\n", __func__, __LINE__);
         cJSON_Delete(parent_obj);
@@ -470,7 +494,7 @@ int dm_easy_mesh_t::encode_config_test(em_subdoc_info_t *subdoc, const char *key
             return -1;
         }
 
-        if (encode_config_op_class_array(op_arr_objs, em_op_class_type_current, m_radio[i].m_radio_info.id.mac) != 0) {
+        if (encode_config_op_class_array(op_arr_objs, em_op_class_type_current, m_radio[i].m_radio_info.intf.mac) != 0) {
             printf("%s:%d: CurrentOperatingClasses Encoding failed \n", __func__, __LINE__);
             cJSON_Delete(parent_obj);
             return -1;
@@ -489,7 +513,7 @@ int dm_easy_mesh_t::encode_config_test(em_subdoc_info_t *subdoc, const char *key
         //printf("%s:%d: VAP object num of bss=%d\n", __func__, __LINE__,m_num_bss);
 
         for (j = 0; j < m_num_bss; j++) {
-			if (memcmp(m_bss[j].m_bss_info.ruid.mac, m_radio[i].m_radio_info.id.mac, sizeof(mac_address_t)) != 0) {
+			if (memcmp(m_bss[j].m_bss_info.ruid.mac, m_radio[i].m_radio_info.intf.mac, sizeof(mac_address_t)) != 0) {
 				continue;
 			}
 
@@ -534,7 +558,7 @@ int dm_easy_mesh_t::encode_config_test(em_subdoc_info_t *subdoc, const char *key
             return -1;
         }
 
-        if (encode_config_op_class_array(op_arr_objs, em_op_class_type_capability, m_radio[i].m_radio_info.id.mac) != 0) {
+        if (encode_config_op_class_array(op_arr_objs, em_op_class_type_capability, m_radio[i].m_radio_info.intf.mac) != 0) {
             printf("%s:%d: CurrentOperatingClasses Encoding failed \n", __func__, __LINE__);
             cJSON_Delete(parent_obj);
             return -1;
@@ -566,7 +590,7 @@ int dm_easy_mesh_t::encode_config_test(em_subdoc_info_t *subdoc, const char *key
        	return -1;
 	}
 
-  	if (encode_config_op_class_array(op_arr_objs, em_op_class_type_cac_available, m_device.m_device_info.id.mac) != 0) {
+  	if (encode_config_op_class_array(op_arr_objs, em_op_class_type_cac_available, m_device.m_device_info.intf.mac) != 0) {
         printf("%s:%d: AvailableChannelList Encoding failed \n", __func__, __LINE__);
         cJSON_Delete(parent_obj);
         return -1;
@@ -584,7 +608,7 @@ int dm_easy_mesh_t::encode_config_test(em_subdoc_info_t *subdoc, const char *key
        	return -1;
 	}
 
-  	if (encode_config_op_class_array(op_arr_objs, em_op_class_type_cac_non_occ, m_device.m_device_info.id.mac) != 0) {
+  	if (encode_config_op_class_array(op_arr_objs, em_op_class_type_cac_non_occ, m_device.m_device_info.intf.mac) != 0) {
         printf("%s:%d: NonOccupancyChannelList Encoding failed \n", __func__, __LINE__);
         cJSON_Delete(parent_obj);
         return -1;
@@ -602,7 +626,7 @@ int dm_easy_mesh_t::encode_config_test(em_subdoc_info_t *subdoc, const char *key
        	return -1;
 	}
 
-  	if (encode_config_op_class_array(op_arr_objs, em_op_class_type_cac_active, m_device.m_device_info.id.mac) != 0) {
+  	if (encode_config_op_class_array(op_arr_objs, em_op_class_type_cac_active, m_device.m_device_info.intf.mac) != 0) {
         printf("%s:%d: ActiveChannelList Encoding failed \n", __func__, __LINE__);
         cJSON_Delete(parent_obj);
         return -1;
@@ -684,8 +708,12 @@ int dm_easy_mesh_t::decode_config(em_subdoc_info_t *subdoc, const char *str, uns
 
 int dm_easy_mesh_t::decode_config_reset(em_subdoc_info_t *subdoc, const char *key)
 {
-    cJSON *parent_obj, *net_obj, *tmp, *ssid_obj, *ssid_arr_obj;
+    cJSON *parent_obj, *net_obj, *ssid_obj, *ssid_arr_obj, *interfaces_obj, *preference_list_obj, *preference_obj, *obj;
     unsigned int i;
+	unsigned int num_interfaces = EM_MAX_INTERFACES;
+
+	get_interfaces_list(m_interfaces, &num_interfaces);
+	m_num_interfaces = num_interfaces;
 
     //printf("%s\n", subdoc->buff);
     if ((parent_obj = cJSON_Parse(subdoc->buff)) == NULL) {
@@ -698,8 +726,38 @@ int dm_easy_mesh_t::decode_config_reset(em_subdoc_info_t *subdoc, const char *ke
         return -1;
     }
 
-    m_network.decode(net_obj, NULL);
-	
+	if ((interfaces_obj = cJSON_GetObjectItem(net_obj, "Interfaces")) == NULL) {
+        cJSON_Delete(parent_obj);
+        return -1;
+	}
+
+	if ((preference_list_obj = cJSON_GetObjectItem(interfaces_obj, "Preference")) != NULL) {
+		for (i = 0; i < cJSON_GetArraySize(preference_list_obj); i++) {
+			preference_obj = cJSON_GetArrayItem(preference_list_obj, i);
+
+			if ((obj = cJSON_GetObjectItem(preference_obj, "rpi")) != NULL) {
+				strncpy(m_preference[m_num_preferences].platform, "rpi", strlen("rpi") + 1);
+				if (strncmp(cJSON_GetStringValue(obj), "eth", strlen("eth")) == 0) {
+					m_preference[m_num_preferences].media = em_media_type_ieee8023ab;
+				} else if (strncmp(cJSON_GetStringValue(obj), "wlan", strlen("wlan")) == 0) {
+					m_preference[m_num_preferences].media = em_media_type_ieee80211b_24;
+				}
+				m_num_preferences++;
+			} 
+
+			if ((obj = cJSON_GetObjectItem(preference_obj, "sim")) != NULL) {
+				strncpy(m_preference[m_num_preferences].platform, "sim", strlen("sim") + 1);
+				if (strncmp(cJSON_GetStringValue(obj), "ens", strlen("ens")) == 0) {
+					m_preference[m_num_preferences].media = em_media_type_ieee8023ab;
+				}
+				m_num_preferences++;
+			}
+			
+		}
+	}
+
+	m_network.decode(net_obj, NULL);
+
 	if ((ssid_arr_obj = cJSON_GetObjectItem(net_obj, "NetworkSSIDList")) == NULL) {
         cJSON_Delete(parent_obj);
         printf("%s:%d: NetworkSSID List not present\n", __func__, __LINE__);
@@ -802,7 +860,7 @@ int dm_easy_mesh_t::decode_config_set_radio(em_subdoc_info_t *subdoc, const char
         return EM_PARSE_ERR_NET_ID;
     }
 
-    dm_easy_mesh_t::string_to_macbytes(dev_mac_str, m_device.m_device_info.id.mac);
+    dm_easy_mesh_t::string_to_macbytes(dev_mac_str, m_device.m_device_info.intf.mac);
 
 	if ((radio_arr_obj = cJSON_GetObjectItem(dev_obj, "RadioList")) == NULL) {
        	printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
@@ -900,7 +958,7 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
         return EM_PARSE_ERR_NET_ID;
 	}
 
-	dm_easy_mesh_t::string_to_macbytes(dev_mac_str, m_device.m_device_info.id.mac);
+	dm_easy_mesh_t::string_to_macbytes(dev_mac_str, m_device.m_device_info.intf.mac);
 
 	if ((policy_obj = cJSON_GetObjectItem(dev_obj, "Policy")) == NULL) {
         printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
@@ -1244,7 +1302,7 @@ int dm_easy_mesh_t::decode_config_test(em_subdoc_info_t *subdoc, const char *key
         }
 			
 		dm_easy_mesh_t::macbytes_to_string(m_device.get_dev_interface_mac(), mac_str);	
-		snprintf(parent_key, sizeof(parent_key), "%s@%s", mac_str, m_device.m_device_info.net_id);
+		snprintf(parent_key, sizeof(parent_key), "%s@%s", m_device.m_device_info.id.net_id, mac_str);
 
         m_radio[i].decode(radio_obj, parent_key);
 
@@ -1254,7 +1312,7 @@ int dm_easy_mesh_t::decode_config_test(em_subdoc_info_t *subdoc, const char *key
             return -1;
         }
 
-        if (decode_config_op_class_array(op_arr_objs, em_op_class_type_current, m_radio[i].m_radio_info.id.mac) != 0) {
+        if (decode_config_op_class_array(op_arr_objs, em_op_class_type_current, m_radio[i].m_radio_info.intf.mac) != 0) {
             cJSON_Delete(parent_obj);
             printf("%s:%d: CurrentOperatingClasses decode failed\n", __func__, __LINE__);
             return -1;
@@ -1273,7 +1331,7 @@ int dm_easy_mesh_t::decode_config_test(em_subdoc_info_t *subdoc, const char *key
             return -1;
 		}
 
-		if (decode_config_op_class_array(op_arr_objs, em_op_class_type_capability, m_radio[i].m_radio_info.id.mac) != 0) {
+		if (decode_config_op_class_array(op_arr_objs, em_op_class_type_capability, m_radio[i].m_radio_info.intf.mac) != 0) {
             cJSON_Delete(parent_obj);
             printf("%s:%d: OperatingClasses decode failed\n", __func__, __LINE__);
             return -1;
@@ -1301,7 +1359,7 @@ int dm_easy_mesh_t::decode_config_test(em_subdoc_info_t *subdoc, const char *key
                 return -1;
             }
 			printf("%s:%d: BSSID: %s\n", __func__, __LINE__, cJSON_GetStringValue(tmp));
-			dm_easy_mesh_t::macbytes_to_string(m_radio[i].m_radio_info.id.mac, mac_str);
+			dm_easy_mesh_t::macbytes_to_string(m_radio[i].m_radio_info.intf.mac, mac_str);
             m_bss[j + m_num_bss].decode(bss_obj, mac_str);
         }
 
@@ -1322,7 +1380,7 @@ int dm_easy_mesh_t::decode_config_test(em_subdoc_info_t *subdoc, const char *key
         return -1;
 	}	
 		
-	if (decode_config_op_class_array(op_arr_objs, em_op_class_type_cac_available, m_device.m_device_info.id.mac) != 0) {
+	if (decode_config_op_class_array(op_arr_objs, em_op_class_type_cac_available, m_device.m_device_info.intf.mac) != 0) {
         cJSON_Delete(parent_obj);
         printf("%s:%d: AvailableChannelList decode failed\n", __func__, __LINE__);
         return -1;
@@ -1334,7 +1392,7 @@ int dm_easy_mesh_t::decode_config_test(em_subdoc_info_t *subdoc, const char *key
         return -1;
 	}	
 
-	if (decode_config_op_class_array(op_arr_objs, em_op_class_type_cac_non_occ, m_device.m_device_info.id.mac) != 0) {
+	if (decode_config_op_class_array(op_arr_objs, em_op_class_type_cac_non_occ, m_device.m_device_info.intf.mac) != 0) {
         cJSON_Delete(parent_obj);
         printf("%s:%d: NonOccupancyChannelList decode failed\n", __func__, __LINE__);
         return -1;
@@ -1346,7 +1404,7 @@ int dm_easy_mesh_t::decode_config_test(em_subdoc_info_t *subdoc, const char *key
         return -1;
 	}	
 
-	if (decode_config_op_class_array(op_arr_objs, em_op_class_type_cac_active, m_device.m_device_info.id.mac) != 0) {
+	if (decode_config_op_class_array(op_arr_objs, em_op_class_type_cac_active, m_device.m_device_info.intf.mac) != 0) {
         cJSON_Delete(parent_obj);
         printf("%s:%d: ActiveChannelList decode failed\n", __func__, __LINE__);
         return -1;
@@ -1616,6 +1674,95 @@ void dm_easy_mesh_t::str_to_securitymode(unsigned short *mode, char *sec_mode_st
         *mode = EM_AUTH_SAE;
 }
 
+em_interface_t *dm_easy_mesh_t::get_prioritized_interface(const char *platform)
+{
+	bool swap = false;
+	em_interface_t intf;
+	unsigned int i;
+	bool found_match = false;
+
+	for (i = 0; i < m_num_preferences; i++) {
+		if (strncmp(platform, m_preference[i].platform, strlen(platform)) == 0) {
+			found_match = true;
+			break;
+		}
+	}	
+
+	if (found_match == false) {
+		return NULL;
+	}
+
+	found_match = false;
+
+	if (m_preference[i].media == em_media_type_ieee8023ab) {
+		for (i = 0; i < m_num_interfaces; i++) {
+			if ((strstr(m_interfaces[i].name, "eth") != NULL) || (strstr(m_interfaces[i].name, "ens") != NULL)) {
+				found_match = true;
+				break;
+			}
+		}
+	} else if (m_preference[i].media == em_media_type_ieee80211b_24) {
+		for (i = 0; i < m_num_interfaces; i++) {
+			if (strstr(m_interfaces[i].name, "wlan") != NULL) {
+				found_match = true;
+				break;
+			}
+		}
+
+	}
+
+	if (found_match == false) {
+		return NULL;
+	}
+
+	return &m_interfaces[i];	
+}
+
+int dm_easy_mesh_t::get_interfaces_list(em_interface_t interfaces[], unsigned int *num_interfaces)
+{
+    struct ifaddrs *ifaddr = NULL, *tmp = NULL;
+    struct sockaddr *addr;
+	struct sockaddr_ll *ll_addr;	
+	unsigned int num = 0;
+	mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+    if (getifaddrs(&ifaddr) != 0) {
+        printf("%s:%d: Failed to get interfae information\n", __func__, __LINE__);
+        return -1;
+    }
+
+    tmp = ifaddr;
+    while (tmp != NULL) {
+        addr = tmp->ifa_addr;
+		ll_addr = (struct sockaddr_ll*)tmp->ifa_addr;
+        if ((addr != NULL) && (addr->sa_family == AF_PACKET) && 
+				(strncmp(tmp->ifa_name, "lo", strlen("lo")) != 0) && (strncmp(tmp->ifa_name, "brlan", strlen("brlan")) != 0) &&
+				(memcmp(ll_addr->sll_addr, null_mac, sizeof(mac_address_t)) != 0)) {
+            strncpy(interfaces[num].name, tmp->ifa_name, strlen(tmp->ifa_name) + 1);
+			if (strstr(tmp->ifa_name, "eth") != NULL) {
+				interfaces[num].media = em_media_type_ieee8023ab;
+			} else if (strstr(tmp->ifa_name, "ens") != NULL) {
+				interfaces[num].media = em_media_type_ieee8023ab;
+			} else if (strstr(tmp->ifa_name, "wlan") != NULL) {
+				interfaces[num].media = em_media_type_ieee80211b_24;
+			}
+			memcpy(interfaces[num].mac, ll_addr->sll_addr, sizeof(mac_address_t));	
+			num++;
+			if (num >= *num_interfaces) {
+				break;
+			}
+        }
+
+        tmp = tmp->ifa_next;
+    }
+
+    freeifaddrs(ifaddr);
+
+	*num_interfaces = num;
+
+    return 0;
+}
+
 int dm_easy_mesh_t::mac_address_from_name(const char *ifname, mac_address_t mac)
 {
     int sock;
@@ -1699,7 +1846,7 @@ dm_radio_t *dm_easy_mesh_t::get_radio(mac_address_t mac)
 {
     int i = 0;
     for (i = 0; i < m_num_radios; i++) {
-        if (memcmp(m_radio[i].m_radio_info.id.mac, mac, sizeof(mac_address_t)) == 0) {
+        if (memcmp(m_radio[i].m_radio_info.intf.mac, mac, sizeof(mac_address_t)) == 0) {
             return &m_radio[i];
         }
     }
@@ -1721,7 +1868,7 @@ dm_radio_t *dm_easy_mesh_t::find_matching_radio(dm_radio_t *radio)
 {
     int i = 0;
     for (i = 0; i < m_num_radios; i++) {
-        if (memcmp(m_radio[i].m_radio_info.id.mac, radio->m_radio_info.id.mac, sizeof(mac_address_t)) == 0) {
+        if (memcmp(m_radio[i].m_radio_info.intf.mac, radio->m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
             return &m_radio[i];
         }
     }
@@ -1737,7 +1884,7 @@ dm_device_t *dm_easy_mesh_t::find_matching_device(dm_device_t *dev)
 {
     int i = 0;
 
-    if (memcmp(m_device.m_device_info.id.mac, dev->m_device_info.id.mac, sizeof(mac_address_t)) == 0) {
+    if (memcmp(m_device.m_device_info.intf.mac, dev->m_device_info.intf.mac, sizeof(mac_address_t)) == 0) {
         return &m_device;
     }
 
@@ -1780,7 +1927,7 @@ void dm_easy_mesh_t::print_config()
     }
 
     for (i = 0;i < m_num_radios; i++) {
-        dm_easy_mesh_t::macbytes_to_string(m_radio[i].get_radio_info()->id.mac, mac_str);
+        dm_easy_mesh_t::macbytes_to_string(m_radio[i].get_radio_info()->intf.mac, mac_str);
         transmit_power_limit = m_radio[i].get_radio_info()->transmit_power_limit;
         printf("%s:%d:Radio Mac: %s \n", __func__, __LINE__, mac_str);
         printf("%s:%d:Radio Band: %d \n", __func__, __LINE__, m_radio[i].get_radio_info()->band);
@@ -2298,7 +2445,7 @@ void dm_easy_mesh_t::set_policy(dm_policy_t policy)
 	}	
 
 	memcpy(&m_policy[i].m_policy, &policy.m_policy, sizeof(em_policy_t));
-	memcpy(m_policy[i].m_policy.id.dev_mac, m_device.m_device_info.id.mac, sizeof(mac_address_t));
+	memcpy(m_policy[i].m_policy.id.dev_mac, m_device.m_device_info.intf.mac, sizeof(mac_address_t));
 	if (found_match == false) {
 		m_num_policy++;
 	}	
@@ -2317,7 +2464,7 @@ void dm_easy_mesh_t::set_channels_list(dm_op_class_t op_class[], unsigned int nu
 		if (((oclass->m_op_class_info.id.type == em_op_class_type_anticipated) || 
 				((oclass->m_op_class_info.id.type == em_op_class_type_scan_param))) && 
 				(memcmp(oclass->m_op_class_info.id.ruid, null_mac, sizeof(mac_address_t)) == 0)) {
-			memcpy(oclass->m_op_class_info.id.ruid, m_device.m_device_info.id.mac, sizeof(mac_address_t));
+			memcpy(oclass->m_op_class_info.id.ruid, m_device.m_device_info.intf.mac, sizeof(mac_address_t));
 		}
 
 		for (j = 0; j < m_num_opclass; j++) {
@@ -2358,6 +2505,41 @@ void dm_easy_mesh_t::print_op_class_list(dm_easy_mesh_t *dm)
 	printf("\n\n");
 }
 
+void dm_easy_mesh_t::remove_bss_by_index(unsigned int index)
+{
+	unsigned int i;
+    
+    if (index >= m_num_bss) {
+        printf("%s:%d: Invalid Index: %d\n", __func__, __LINE__, index);
+        return;
+    }
+    
+    for (i = index; i < m_num_bss - 1; i++) {
+		m_bss[i] = m_bss[i + 1];
+    }
+    
+    m_num_bss--;
+}
+
+dm_bss_t *dm_easy_mesh_t::find_matching_bss(em_bss_id_t *id)
+{
+	unsigned int i;
+	dm_bss_t *bss;
+
+	for (i = 0; i < m_num_bss; i++) {
+		bss = &m_bss[i];
+
+		if ((strncmp(bss->m_bss_info.id.net_id, id->net_id, strlen(id->net_id)) == 0) &&
+				(memcmp(bss->m_bss_info.id.dev_mac, id->dev_mac, sizeof(mac_address_t)) == 0) &&
+				(memcmp(bss->m_bss_info.id.ruid, id->ruid, sizeof(mac_address_t)) == 0) &&
+				(memcmp(bss->m_bss_info.id.bssid, id->bssid, sizeof(mac_address_t)) == 0)) {
+			return bss;
+		}
+	}	
+
+	return NULL;
+}
+
 dm_scan_result_t *dm_easy_mesh_t::find_matching_scan_result(em_scan_result_id_t *id)
 {
     int index;
@@ -2379,26 +2561,57 @@ dm_scan_result_t *dm_easy_mesh_t::find_matching_scan_result(em_scan_result_id_t 
     return NULL;
 }
 
+void dm_easy_mesh_t::remove_scan_result_by_index(unsigned int index)
+{
+    unsigned int i;
+   
+    if (index >= m_num_scan_results) {
+        printf("%s:%d: Invalid Index: %d\n", __func__, __LINE__, index);
+        return;
+    }
+   
+    for (i = index; i < m_num_scan_results - 1; i++) {
+        m_scan_result[i] = m_scan_result[i + 1];
+    }
+   
+    m_num_scan_results--;
+}
+
 void dm_easy_mesh_t::reset_db_cfg_type(db_cfg_type_t type) 
 { 
 	strncpy(m_db_cfg_param.db_cfg_criteria[type - 1], "", strlen(""));
 	m_db_cfg_param.db_cfg_type &= ~type; 
 }   
 
-void dm_easy_mesh_t::set_db_cfg_param(db_cfg_type_t type, char *criteria)
+void dm_easy_mesh_t::set_db_cfg_param(db_cfg_type_t cfg_type, char *criteria)
 {
-	unsigned int num = type;
+	unsigned int num = cfg_type;
+	unsigned int index = 0;
 
 	while (num % 2 == 0) {
 		num /= 2;
+		index++;
 	}
 
 	if (num != 1) {
 		return;
 	}
 
-	m_db_cfg_param.db_cfg_type |= type;
-	strncpy(m_db_cfg_param.db_cfg_criteria[type - 1], criteria, strlen(criteria));
+	m_db_cfg_param.db_cfg_type |= cfg_type;
+	strncpy(m_db_cfg_param.db_cfg_criteria[index], criteria, strlen(criteria));
+}
+
+char *dm_easy_mesh_t::db_cfg_type_get_criteria(db_cfg_type_t cfg_type)
+{
+	unsigned int num = 0;
+	unsigned int type = (unsigned int)cfg_type;
+
+	while (type != 1) {
+		type = type >> 1;
+		num++;
+	}
+
+	return m_db_cfg_param.db_cfg_criteria[num];
 }
 
 int dm_easy_mesh_t::init()
@@ -2426,6 +2639,8 @@ int dm_easy_mesh_t::init()
 
 void dm_easy_mesh_t::reset()
 {
+	m_num_preferences = 0;
+	m_num_interfaces = 0;
     m_num_radios = 0;
 	m_num_opclass = 0;
 	m_num_policy = 0;
@@ -2446,13 +2661,15 @@ dm_easy_mesh_t::dm_easy_mesh_t(const dm_network_t& net)
     memcpy(&m_device.m_device_info.backhaul_alid, &net.m_net_info.ctrl_id, sizeof(em_interface_t));
     memcpy(&m_device.m_device_info.backhaul_mac, &net.m_net_info.ctrl_id, sizeof(em_interface_t));
 
-    name_from_mac_address(&m_device.m_device_info.id.mac, m_device.m_device_info.id.name);  
+    name_from_mac_address(&m_device.m_device_info.intf.mac, m_device.m_device_info.intf.name);  
     name_from_mac_address(&m_device.m_device_info.backhaul_alid.mac, m_device.m_device_info.backhaul_alid.name);    
     name_from_mac_address(&m_device.m_device_info.backhaul_mac.mac, m_device.m_device_info.backhaul_mac.name);  
 }
 
 dm_easy_mesh_t::dm_easy_mesh_t()
 {
+	m_num_preferences = 0;
+	m_num_interfaces = 0;
     m_num_radios = 0;
 	m_num_opclass = 0;
 	m_num_policy = 0;

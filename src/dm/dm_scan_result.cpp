@@ -159,7 +159,7 @@ bool dm_scan_result_t::operator == (const dm_scan_result_t& obj)
 
 void dm_scan_result_t::operator = (const dm_scan_result_t& obj)
 {
-
+	memcpy(&m_scan_result, &obj.m_scan_result, sizeof(em_scan_result_t));
 }
 
 int dm_scan_result_t::parse_scan_result_id_from_key(const char *key, em_scan_result_id_t *id, unsigned char *bssid)

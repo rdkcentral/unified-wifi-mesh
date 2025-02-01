@@ -47,8 +47,8 @@ int dm_network_list_t::get_config(cJSON *obj, void *net_id, bool summary)
 	
     pnet = get_network((char *)net_id);
     if (pnet == NULL) {
-	printf("%s:%d: Network Object not found for key: %s\n", __func__, __LINE__, (char *)net_id);
-	return -1;
+		printf("%s:%d: Network Object not found for key: %s\n", __func__, __LINE__, (char *)net_id);
+		return -1;
     }
 		
     pnet->encode(obj, summary);
@@ -166,13 +166,13 @@ int dm_network_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void
 		case dm_orch_type_db_insert:
 			ret = insert_row(db_client, info->id, 
             			dm_easy_mesh_t::macbytes_to_string(info->ctrl_id.mac, ctrl_str), 
-            			dm_easy_mesh_t::macbytes_to_string(info->colocated_agent_id.mac, agent_str));
+            			dm_easy_mesh_t::macbytes_to_string(info->colocated_agent_id.mac, agent_str), info->media);
 			break;
 
 		case dm_orch_type_db_update:
 			ret = update_row(db_client,
             			dm_easy_mesh_t::macbytes_to_string(info->ctrl_id.mac, ctrl_str), 
-            			dm_easy_mesh_t::macbytes_to_string(info->colocated_agent_id.mac, agent_str), info->id);
+            			dm_easy_mesh_t::macbytes_to_string(info->colocated_agent_id.mac, agent_str), info->media, info->id);
 			break;
 
 		case dm_orch_type_db_delete:
@@ -222,6 +222,8 @@ int dm_network_list_t::sync_db(db_client_t& db_client, void *ctx)
 		db_client.get_string(ctx, mac, 3);
 		dm_easy_mesh_t::string_to_macbytes(mac, info.colocated_agent_id.mac);
 
+		info.media = (em_media_type_t)db_client.get_number(ctx, 4);
+
 		update_list(dm_network_t(&info), dm_orch_type_db_insert);
     }
     return rc;
@@ -239,6 +241,7 @@ void dm_network_list_t::init_columns()
     m_columns[m_num_cols++] = db_column_t("ID", db_data_type_char, 64);
     m_columns[m_num_cols++] = db_column_t("ControllerID", db_data_type_char, 17);
     m_columns[m_num_cols++] = db_column_t("ColocatedAgentID", db_data_type_char, 17);
+    m_columns[m_num_cols++] = db_column_t("Media", db_data_type_int, 0);
 }
 
 int dm_network_list_t::init()

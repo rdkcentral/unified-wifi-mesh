@@ -384,7 +384,6 @@ int em_configuration_t::create_operational_bss_tlv(unsigned char *buff)
         	radio->bss_num++;
         	memcpy(bss->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
         	strncpy(bss->ssid, dm->m_bss[j].m_bss_info.ssid, strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
-        	printf("bss->ssid=%s\n",bss->ssid);
         	bss->ssid_len = strlen(dm->m_bss[j].m_bss_info.ssid) + 1;
         	all_bss_len += sizeof(em_ap_operational_bss_t) + bss->ssid_len;
         	bss = (em_ap_operational_bss_t *)((unsigned char *)bss + sizeof(em_ap_operational_bss_t) + bss->ssid_len);
@@ -954,6 +953,7 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
 	unsigned int i, j;
 	unsigned int all_bss_len = 0;
 	mac_addr_str_t radio_mac_str;
+	char time_date[EM_DATE_TIME_BUFF_SZ];
 
 	dm = get_data_model();
             
@@ -962,10 +962,12 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
     assert(ap->radios_num == dm->get_num_radios());
     radio = (em_ap_op_bss_radio_t *)ap->radios;
 
+	get_date_time_rfc3399(time_date, sizeof(time_date));
+
     for (i = 0; i < ap->radios_num; i++) {
 		dm_easy_mesh_t::macbytes_to_string(radio->ruid, radio_mac_str);
         for (j = 0; j < dm->get_num_radios(); j++) {
-            if (memcmp(radio->ruid, dm->m_radio[j].m_radio_info.id.mac, sizeof(mac_address_t)) == 0) {
+            if (memcmp(radio->ruid, dm->m_radio[j].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
                 found_radio = true;
                 break;
             }
@@ -977,8 +979,6 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
             return -1;
         }
 
-		// reset all bss for this radio
-
         found_radio = false;
         bss = radio->bss;
         all_bss_len = 0;
@@ -987,11 +987,24 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
 		
 			if (dm_bss == NULL) {
 				dm_bss = &dm->m_bss[dm->m_num_bss];
+
+				// fill up id first
+				strncpy(dm_bss->m_bss_info.id.net_id, dm->m_device.m_device_info.id.net_id, 
+							strlen(dm->m_device.m_device_info.id.net_id) + 1);
+				memcpy(dm_bss->m_bss_info.id.dev_mac, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
+				memcpy(dm_bss->m_bss_info.id.ruid, radio->ruid, sizeof(mac_address_t));
+				memcpy(dm_bss->m_bss_info.id.bssid, bss->bssid, sizeof(mac_address_t));
+				// hardcode the haul type to front haul for now, there has to be a proprietary tlv map
+				dm_bss->m_bss_info.id.haul_type = em_haul_type_fronthaul;
+	
                 memcpy(dm_bss->m_bss_info.bssid.mac, bss->bssid, sizeof(mac_address_t));
                 memcpy(dm_bss->m_bss_info.ruid.mac, radio->ruid, sizeof(mac_address_t));
                 dm->set_num_bss(dm->get_num_bss() + 1);
 			}
             strncpy(dm_bss->m_bss_info.ssid, bss->ssid, bss->ssid_len);
+			dm_bss->m_bss_info.enabled = true;
+			strncpy(dm_bss->m_bss_info.timestamp, time_date, strlen(time_date) + 1);
+
 			updated_at_least_one_bss = true;
 			
 			all_bss_len += sizeof(em_ap_operational_bss_t) + bss->ssid_len;
@@ -1237,6 +1250,7 @@ short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul
     unsigned char *tmp;
     tmp = buff;
     em_freq_band_t rf_band;
+	char *str;
  
     // version
     attr = (data_elem_attr_t *)tmp;
@@ -1329,37 +1343,47 @@ short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul
     // manufacturer 
     attr = (data_elem_attr_t *)tmp;
     attr->id = htons(attr_id_manufacturer);
-    size = sizeof(em_long_string_t);;
+	str = get_manufacturer();
+    size = strlen(str);;
     attr->len = htons(size);
-    memcpy(attr->val, get_manufacturer(), size);
+    memcpy(attr->val, str, size);
     
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
+
     // model name
     attr = (data_elem_attr_t *)tmp;
     attr->id = htons(attr_id_model_name);
-    size = sizeof(em_small_string_t);
+	str = get_manufacturer_model();
+    size = strlen(str);
     attr->len = htons(size);
-    memcpy(attr->val, get_manufacturer_model(), size);    
+    memcpy(attr->val, str, size);    
+
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
+
     // model_num
     attr = (data_elem_attr_t *)tmp;
     attr->id = htons(attr_id_model_number);
-    size = sizeof(em_small_string_t);
+	str = get_manufacturer_model();
+    size = strlen(str);
     attr->len = htons(size);
-    memcpy(attr->val, get_manufacturer_model(), size);
+    memcpy(attr->val, str, size);
     
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
+
     // serial number    
     attr = (data_elem_attr_t *)tmp;
     attr->id = htons(attr_id_serial_num);
-    size = sizeof(em_short_string_t);
+	str = get_serial_number();
+    size = strlen(str);
     attr->len = htons(size);
-    memcpy(attr->val, get_serial_number(), size);    
+    memcpy(attr->val, str, size);    
+
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
+
     // primary device type
     attr = (data_elem_attr_t *)tmp;
     attr->id = htons(attr_id_primary_device_type);
@@ -1369,16 +1393,19 @@ short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul
     
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
+
     // device name
     attr = (data_elem_attr_t *)tmp;
     attr->id = htons(attr_id_device_name);
-    size = sizeof(em_short_string_t);
+	str = get_manufacturer_model();
+    size = strlen(str);
     attr->len = htons(size);
-    memcpy(attr->val, get_manufacturer_model(), size);
+    memcpy(attr->val, str, size);
     
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
-    // rf bands
+    
+	// rf bands
     attr = (data_elem_attr_t *)tmp;
     attr->id = htons(attr_id_rf_bands);
     size = 1;
@@ -1388,6 +1415,7 @@ short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul
  
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
+
     // association state
     attr = (data_elem_attr_t *)tmp;
     attr->id = htons(attr_id_assoc_state);
@@ -1397,6 +1425,7 @@ short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul
     
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
+
     // config error
     attr = (data_elem_attr_t *)tmp;
     attr->id = htons(attr_id_cfg_error);
@@ -1406,6 +1435,7 @@ short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul
     
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
+
     // device password id
     attr = (data_elem_attr_t *)tmp;
     attr->id = htons(attr_id_device_password_id);
@@ -1452,6 +1482,7 @@ short em_configuration_t::create_m1_msg(unsigned char *buff)
     unsigned short size;
     unsigned char *tmp;
     em_freq_band_t rf_band;
+	char *str;
 
     tmp = buff;
 
@@ -1568,9 +1599,10 @@ short em_configuration_t::create_m1_msg(unsigned char *buff)
     // manufacturer 
     attr = (data_elem_attr_t *)tmp;
     attr->id = htons(attr_id_manufacturer);
-    size = sizeof(em_long_string_t);
+	str = get_current_cmd()->get_manufacturer();
+    size = strlen(str);
     attr->len = htons(size);
-    memcpy(attr->val, get_current_cmd()->get_manufacturer(), size);
+    memcpy(attr->val, str, size);
 
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -1578,9 +1610,10 @@ short em_configuration_t::create_m1_msg(unsigned char *buff)
     // model name
     attr = (data_elem_attr_t *)tmp;
     attr->id = htons(attr_id_model_name);
-    size = sizeof(em_short_string_t);
+	str = get_current_cmd()->get_manufacturer_model();
+    size = strlen(str);
     attr->len = htons(size);
-    memcpy(attr->val, get_current_cmd()->get_manufacturer_model(), size);
+    memcpy(attr->val, str, size);
 
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -1588,9 +1621,10 @@ short em_configuration_t::create_m1_msg(unsigned char *buff)
     // model_num
     attr = (data_elem_attr_t *)tmp;
     attr->id = htons(attr_id_model_number);
-    size = sizeof(em_short_string_t);
+	str = get_current_cmd()->get_manufacturer_model();
+    size = strlen(str);
     attr->len = htons(size);
-    memcpy(attr->val, get_current_cmd()->get_manufacturer_model(), size);
+    memcpy(attr->val, str, size);
 
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -1598,9 +1632,10 @@ short em_configuration_t::create_m1_msg(unsigned char *buff)
     // serial number    
     attr = (data_elem_attr_t *)tmp;
     attr->id = htons(attr_id_serial_num);
-    size = sizeof(em_short_string_t);
+	str = get_current_cmd()->get_serial_number();
+    size = strlen(str);
     attr->len = htons(size);
-    memcpy(attr->val, get_current_cmd()->get_serial_number(), size);
+    memcpy(attr->val, str, size);
 
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -1618,9 +1653,10 @@ short em_configuration_t::create_m1_msg(unsigned char *buff)
     // device name
     attr = (data_elem_attr_t *)tmp;
     attr->id = htons(attr_id_device_name);
-    size = sizeof(em_short_string_t);
+	str = get_current_cmd()->get_manufacturer_model();
+    size = strlen(str);
     attr->len = htons(size);
-    memcpy(attr->val, get_current_cmd()->get_manufacturer_model(), size);
+    memcpy(attr->val, str, size);
 
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -2227,6 +2263,7 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
     dm_easy_mesh_t *dm;
 
     dm = get_data_model();
+	memset(&dev_info, 0, sizeof(em_device_info_t));
     
     m_m1_length = len;
     memcpy(m_m1_msg, buff, m_m1_length);
@@ -2596,7 +2633,7 @@ int em_configuration_t::handle_ap_radio_advanced_cap(unsigned char *buff, unsign
 int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned int len)
 {
 	dm_radio_t * radio;
-	em_radio_id_t	ruid;
+	mac_address_t	ruid;
 	unsigned int i, j;
 	em_radio_info_t *radio_info;
 	bool radio_exists = false;
@@ -2609,11 +2646,11 @@ int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned 
 
 	dm_easy_mesh_t *dm = get_data_model();
 
-	memcpy(ruid, radio_basic_cap->ruid, sizeof(em_radio_id_t));
+	memcpy(ruid, radio_basic_cap->ruid, sizeof(mac_address_t));
 	dm_easy_mesh_t::macbytes_to_string(ruid, mac_str);
 	for (i = 0; i < dm->get_num_radios(); i++) {
 		radio = dm->get_radio(i);
-		if (memcmp(radio->m_radio_info.id.mac, ruid, sizeof(mac_address_t)) == 0) {
+		if (memcmp(radio->m_radio_info.intf.mac, ruid, sizeof(mac_address_t)) == 0) {
 			radio_exists = true;
 			break;
 		}
@@ -2621,11 +2658,12 @@ int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned 
 	if (radio_exists == false) {
 		printf("%s:%d: Radio does not exist, getting radio at index: %d\n", __func__, __LINE__, dm->get_num_radios());
 		radio = dm->get_radio(dm->get_num_radios());
+		memset(&radio->m_radio_info, 0, sizeof(em_radio_info_t));	
 		dm->set_num_radios(dm->get_num_radios() + 1);
 	}
 
 	radio_info = &radio->m_radio_info;
-	memcpy(radio_info->id.mac, ruid, sizeof(mac_address_t));
+	memcpy(radio_info->intf.mac, ruid, sizeof(mac_address_t));
 	radio_info->enabled = true;
 	radio_info->number_of_bss = radio_basic_cap->num_bss;
 	dm->set_db_cfg_param(db_cfg_type_radio_list_update, "");
@@ -2680,8 +2718,10 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
     int tlv_len;
     em_bus_event_type_m2_tx_params_t   raw;
     em_haul_type_t haul_type[1];
+	dm_easy_mesh_t *dm;
 
-    //dm = get_data_model();
+    dm = get_data_model();
+
     dm_easy_mesh_t::macbytes_to_string(get_peer_mac(), mac_str);
     printf("%s:%d: Device AL MAC: %s\n", __func__, __LINE__, mac_str);
 
