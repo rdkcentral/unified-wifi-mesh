@@ -62,10 +62,26 @@ short em_configuration_t::create_client_assoc_event_tlv(unsigned char *buff, mac
     short len = 0;
     unsigned char *tmp;
     unsigned char joined = (assoc == true)?0x80:0x00;
+    bool found_assoc_sta_mld = false;
+    unsigned int i;
 
     tmp = buff;
-    memcpy(tmp, sta, sizeof(mac_address_t));
-    memcpy(tmp + sizeof(mac_address_t), bssid, sizeof(bssid_t));
+
+    dm_easy_mesh_t *dm = get_data_model();
+
+    for (i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
+        em_assoc_sta_mld_info_t& assoc_sta_mld_info = dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
+        if (memcmp(assoc_sta_mld_info.mac_addr, sta, sizeof(mac_address_t) == 0)) {
+            found_assoc_sta_mld = true;
+            memcpy(tmp, assoc_sta_mld_info.mac_addr, sizeof(mac_address_t));
+            memcpy(tmp + sizeof(mac_address_t), assoc_sta_mld_info.ap_mld_mac_addr, sizeof(mac_address_t));
+        }
+    }
+
+    if (!found_assoc_sta_mld) {
+        memcpy(tmp, sta, sizeof(mac_address_t));
+        memcpy(tmp + sizeof(mac_address_t), bssid, sizeof(bssid_t));
+    }
     memcpy(tmp + 2*sizeof(mac_address_t), &joined, sizeof(unsigned char));
 
     len = 2*sizeof(mac_address_t) + sizeof(unsigned char);
@@ -567,9 +583,11 @@ int em_configuration_t::create_bsta_mld_config_tlv(unsigned char *buff)
     em_tlv_t *tlv;
     unsigned char *tmp = buff;
     em_bsta_mld_config_t *bsta_mld_conf;
+    em_bsta_mld_t *bsta_mld;
     em_affiliated_bsta_mld_t *affiliated_bsta_mld;
     dm_easy_mesh_t  *dm;
     unsigned int i;
+    unsigned short bsta_mld_len = 0;
     unsigned short affiliated_bsta_len = 0;
     unsigned short tlv_len = 0;
 
@@ -579,32 +597,41 @@ int em_configuration_t::create_bsta_mld_config_tlv(unsigned char *buff)
     tlv->type = em_tlv_type_bsta_mld_config;
 
     bsta_mld_conf = (em_bsta_mld_config_t *)tlv->value;
+    bsta_mld_conf->num_bsta_mld = dm->get_num_bsta_mld();
+
     tlv_len = sizeof(em_bsta_mld_config_t);
 
-    em_bsta_mld_info_t& bsta_mld_info = dm->m_bsta_mld.m_bsta_mld_info;
-    bsta_mld_conf->bsta_mld_mac_addr_valid = bsta_mld_info.mac_addr_valid;
-    bsta_mld_conf->ap_mld_mac_addr_valid = bsta_mld_info.ap_mld_mac_addr_valid;
-    memcpy(bsta_mld_conf->bsta_mld_mac_addr, bsta_mld_info.mac_addr, sizeof(mac_address_t));
-    memcpy(bsta_mld_conf->ap_mld_mac_addr, bsta_mld_info.ap_mld_mac_addr, sizeof(mac_address_t));
-    bsta_mld_conf->str = bsta_mld_info.str;
-    bsta_mld_conf->nstr = bsta_mld_info.nstr;
-    bsta_mld_conf->emlsr = bsta_mld_info.emlsr;
-    bsta_mld_conf->emlmr = bsta_mld_info.emlmr;
+    bsta_mld = bsta_mld_conf->bsta_mld;
 
-    bsta_mld_conf->num_affiliated_bsta = bsta_mld_info.num_affiliated_bsta;
-    affiliated_bsta_mld = bsta_mld_conf->affiliated_bsta_mld;
+    for (i = 0; i < dm->get_num_bsta_mld(); i++) {
+        em_bsta_mld_info_t& bsta_mld_info = dm->m_bsta_mld[i].m_bsta_mld_info;
+        bsta_mld->bsta_mld_mac_addr_valid = bsta_mld_info.mac_addr_valid;
+        bsta_mld->ap_mld_mac_addr_valid = bsta_mld_info.ap_mld_mac_addr_valid;
+        memcpy(bsta_mld->bsta_mld_mac_addr, bsta_mld_info.mac_addr, sizeof(mac_address_t));
+        memcpy(bsta_mld->ap_mld_mac_addr, bsta_mld_info.ap_mld_mac_addr, sizeof(mac_address_t));
+        bsta_mld->str = bsta_mld_info.str;
+        bsta_mld->nstr = bsta_mld_info.nstr;
+        bsta_mld->emlsr = bsta_mld_info.emlsr;
+        bsta_mld->emlmr = bsta_mld_info.emlmr;
 
-    for (i = 0; i < bsta_mld_conf->num_affiliated_bsta; i++) {
-        em_affiliated_bsta_info_t& affiliated_bsta_info = bsta_mld_info.affiliated_bsta[i];
-        affiliated_bsta_mld->affiliated_bsta_mac_addr_valid = affiliated_bsta_info.mac_addr_valid;
-        memcpy(affiliated_bsta_mld->ruid, affiliated_bsta_info.ruid.mac, sizeof(mac_address_t));
-        memcpy(affiliated_bsta_mld->affiliated_bsta_mac_addr, affiliated_bsta_info.mac_addr, sizeof(mac_address_t));
+        bsta_mld->num_affiliated_bsta = bsta_mld_info.num_affiliated_bsta;
+        affiliated_bsta_mld = bsta_mld->affiliated_bsta_mld;
 
-        affiliated_bsta_mld = (em_affiliated_bsta_mld_t *)((unsigned char *)affiliated_bsta_mld + sizeof(em_affiliated_bsta_mld_t));
-        affiliated_bsta_len += sizeof(em_affiliated_bsta_mld_t);
+        for (i = 0; i < bsta_mld->num_affiliated_bsta; i++) {
+            em_affiliated_bsta_info_t& affiliated_bsta_info = bsta_mld_info.affiliated_bsta[i];
+            affiliated_bsta_mld->affiliated_bsta_mac_addr_valid = affiliated_bsta_info.mac_addr_valid;
+            memcpy(affiliated_bsta_mld->ruid, affiliated_bsta_info.ruid.mac, sizeof(mac_address_t));
+            memcpy(affiliated_bsta_mld->affiliated_bsta_mac_addr, affiliated_bsta_info.mac_addr, sizeof(mac_address_t));
+
+            affiliated_bsta_mld = (em_affiliated_bsta_mld_t *)((unsigned char *)affiliated_bsta_mld + sizeof(em_affiliated_bsta_mld_t));
+            affiliated_bsta_len += sizeof(em_affiliated_bsta_mld_t);
+        }
+
+        bsta_mld = (em_bsta_mld_t *)((unsigned char *)bsta_mld + sizeof(em_bsta_mld_t) + affiliated_bsta_len);
+        bsta_mld_len += sizeof(em_bsta_mld_t) + affiliated_bsta_len;
     }
 
-    tlv_len += affiliated_bsta_len;
+    tlv_len += bsta_mld_len;
     tlv->len = htons(tlv_len);
 
     return tlv_len;
@@ -615,9 +642,11 @@ int em_configuration_t::create_assoc_sta_mld_config_report_tlv(unsigned char *bu
     em_tlv_t *tlv;
     unsigned char *tmp = buff;
     em_assoc_sta_mld_config_report_t *assoc_sta_mld_conf_report;
+    em_assoc_sta_mld_t *assoc_sta_mld;
     em_affiliated_sta_mld_t *affiliated_sta_mld;
     dm_easy_mesh_t  *dm;
     unsigned int i;
+    unsigned short assoc_sta_mld_len = 0;
     unsigned short affiliated_sta_len = 0;
     unsigned short tlv_len = 0;
 
@@ -627,29 +656,38 @@ int em_configuration_t::create_assoc_sta_mld_config_report_tlv(unsigned char *bu
     tlv->type = em_tlv_type_assoc_sta_mld_conf_rep;
 
     assoc_sta_mld_conf_report = (em_assoc_sta_mld_config_report_t *)tlv->value;
+    assoc_sta_mld_conf_report->num_assoc_sta_mld = dm->get_num_assoc_sta_mld();
+
     tlv_len = sizeof(em_assoc_sta_mld_config_report_t);
 
-    em_assoc_sta_mld_info_t& assoc_sta_mld_info = dm->m_assoc_sta_mld.m_assoc_sta_mld_info;
-    memcpy(assoc_sta_mld_conf_report->sta_mld_mac_addr, assoc_sta_mld_info.mac_addr, sizeof(mac_address_t));
-    memcpy(assoc_sta_mld_conf_report->ap_mld_mac_addr, assoc_sta_mld_info.ap_mld_mac_addr, sizeof(mac_address_t));
-    assoc_sta_mld_conf_report->str = assoc_sta_mld_info.str;
-    assoc_sta_mld_conf_report->nstr = assoc_sta_mld_info.nstr;
-    assoc_sta_mld_conf_report->emlsr = assoc_sta_mld_info.emlsr;
-    assoc_sta_mld_conf_report->emlmr = assoc_sta_mld_info.emlmr;
+    assoc_sta_mld = assoc_sta_mld_conf_report->assoc_sta_mld;
 
-    assoc_sta_mld_conf_report->num_affiliated_sta = assoc_sta_mld_info.num_affiliated_sta;
-    affiliated_sta_mld = assoc_sta_mld_conf_report->affiliated_sta_mld;
+    for (i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
+        em_assoc_sta_mld_info_t& assoc_sta_mld_info = dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
+        memcpy(assoc_sta_mld->sta_mld_mac_addr, assoc_sta_mld_info.mac_addr, sizeof(mac_address_t));
+        memcpy(assoc_sta_mld->ap_mld_mac_addr, assoc_sta_mld_info.ap_mld_mac_addr, sizeof(mac_address_t));
+        assoc_sta_mld->str = assoc_sta_mld_info.str;
+        assoc_sta_mld->nstr = assoc_sta_mld_info.nstr;
+        assoc_sta_mld->emlsr = assoc_sta_mld_info.emlsr;
+        assoc_sta_mld->emlmr = assoc_sta_mld_info.emlmr;
 
-    for (i = 0; i < assoc_sta_mld_conf_report->num_affiliated_sta; i++) {
-        em_affiliated_sta_info_t& affiliated_sta_info = assoc_sta_mld_info.affiliated_sta[i];
-        memcpy(affiliated_sta_mld->bssid, affiliated_sta_info.bssid, sizeof(mac_address_t));
-        memcpy(affiliated_sta_mld->affiliated_sta_mac_addr, affiliated_sta_info.mac_addr, sizeof(mac_address_t));
+        assoc_sta_mld->num_affiliated_sta = assoc_sta_mld_info.num_affiliated_sta;
+        affiliated_sta_mld = assoc_sta_mld->affiliated_sta_mld;
 
-        affiliated_sta_mld = (em_affiliated_sta_mld_t *)((unsigned char *)affiliated_sta_mld + sizeof(em_affiliated_sta_mld_t));
-        affiliated_sta_len += sizeof(em_affiliated_sta_mld_t);
+        for (i = 0; i < assoc_sta_mld->num_affiliated_sta; i++) {
+            em_affiliated_sta_info_t& affiliated_sta_info = assoc_sta_mld_info.affiliated_sta[i];
+            memcpy(affiliated_sta_mld->bssid, affiliated_sta_info.bssid, sizeof(mac_address_t));
+            memcpy(affiliated_sta_mld->affiliated_sta_mac_addr, affiliated_sta_info.mac_addr, sizeof(mac_address_t));
+
+            affiliated_sta_mld = (em_affiliated_sta_mld_t *)((unsigned char *)affiliated_sta_mld + sizeof(em_affiliated_sta_mld_t));
+            affiliated_sta_len += sizeof(em_affiliated_sta_mld_t);
+        }
+
+        assoc_sta_mld = (em_assoc_sta_mld_t *)((unsigned char *)assoc_sta_mld + sizeof(em_assoc_sta_mld_t) + affiliated_sta_len);
+        assoc_sta_mld_len += sizeof(em_assoc_sta_mld_t) + affiliated_sta_len;
     }
 
-    tlv_len += affiliated_sta_len;
+    tlv_len += assoc_sta_mld_len;
     tlv->len = htons(tlv_len);
 
     return tlv_len;
@@ -873,6 +911,16 @@ int em_configuration_t::send_ap_mld_config_resp_msg(unsigned char *buff)
     return tlv_len;
 }
 
+int em_configuration_t::send_bsta_mld_config_req_msg(unsigned char *buff)
+{
+    return create_bsta_mld_config_tlv(buff);
+}
+
+int em_configuration_t::send_bsta_mld_config_resp_msg(unsigned char *buff)
+{
+    return create_bsta_mld_config_tlv(buff);
+}
+
 void em_configuration_t::print_bss_configuration_report_tlv(unsigned char *value, unsigned int len)
 {
 	mac_addr_str_t	rd_mac_str, bss_mac_str;
@@ -939,6 +987,15 @@ int em_configuration_t::handle_bss_configuration_report(unsigned char *buff, uns
 	em_bss_config_rprt_t *rprt = (em_bss_config_rprt_t *)buff;
 
 
+	return 0;
+}
+
+int em_configuration_t::handle_bsta_mld_config_req(unsigned char *buff, unsigned int len)
+{
+    // TODO: 
+    // - send 1905 Ack message
+    // - apply ml requested (real/dummy data are needed for actual ml structure)
+    send_bsta_mld_config_resp_msg(buff);
 	return 0;
 }
 
@@ -2967,7 +3024,12 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                 send_ap_mld_config_resp_msg(data);
             }
             break;
-
+        
+        case em_msg_type_bsta_mld_config_req:
+            if ((get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_bsta_mld_config_pending)) {
+                handle_bsta_mld_config_req(data, len);
+            }
+            break;
 
         default:
             break;

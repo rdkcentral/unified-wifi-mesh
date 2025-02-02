@@ -635,6 +635,69 @@ uint8_t em_crypto_t::platform_compute_shared_secret(uint8_t **shared_secret, uin
     return 0;
 }
 
+char *em_crypto_t::base64_encode(const uint8_t *input, size_t length, size_t *output_length) {
+    BIO *bio, *b64;
+    BUF_MEM *bufferPtr;
+
+    // Create a base64 filter BIO and a memory BIO
+    b64 = BIO_new(BIO_f_base64());
+    bio = BIO_new(BIO_s_mem());
+    bio = BIO_push(b64, bio);  // Chain them together
+
+    // Disable newlines in the output
+    BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+    
+    // Write data through the BIO chain
+    BIO_write(bio, input, length);
+    BIO_flush(bio);
+
+    // Extract the encoded data
+
+    size_t temp_out_length = 0;
+    char* data_ptr = NULL;
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+    BIO_get_mem_ptr(bio, &bufferPtr);
+    temp_out_length = bufferPtr->length;
+    data_ptr = bufferPtr->data; 
+#elif OPENSSL_VERSION_NUMBER < 0x30000000L
+    const BUF_MEM *bptr;
+    BIO_get_mem_ptr(bio, &bptr);
+    temp_out_length = bptr->length;
+    data_ptr = bptr->data;
+#else
+    temp_out_length = BIO_get_mem_data(bio, &data_ptr);
+#endif
+
+    // Allocate and copy the encoded data
+    char* result = (char*)malloc(temp_out_length + 1);
+    memcpy(result, data_ptr, temp_out_length);
+    result[temp_out_length] = '\0';
+
+    if (output_length) {
+        *output_length = temp_out_length;
+    }
+    BIO_free_all(bio);
+    return result;
+}
+
+uint8_t* em_crypto_t::base64_decode(const char* input, size_t length, size_t* output_length) {
+    BIO *bio, *b64;
+    unsigned char* result;
+
+    result = (unsigned char*)malloc(length);
+    bio = BIO_new_mem_buf(input, -1);
+    b64 = BIO_new(BIO_f_base64());
+    bio = BIO_push(b64, bio);
+
+    BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
+    *output_length = BIO_read(bio, result, length);
+
+    // Free the BIO chain
+    BIO_free_all(bio);
+
+    return result;
+}
 
 void em_crypto_t::cleanup_bignums(BIGNUM *p, BIGNUM *g, BIGNUM *priv, BIGNUM *pub) {
     BN_clear_free(p);

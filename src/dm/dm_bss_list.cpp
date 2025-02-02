@@ -221,14 +221,11 @@ int dm_bss_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
         strncat(front_akms, info->fronthaul_akm[i], strlen(info->fronthaul_akm[i]));
         strncat(front_akms, ",", strlen(","));
     }
-    front_akms[strlen(front_akms) - 1] = 0;
-	
     memset(back_akms, 0, sizeof(em_long_string_t));
     for (i = 0; i < info->num_backhaul_akms; i++) {
         strncat(back_akms, info->backhaul_akm[i], strlen(info->backhaul_akm[i]));
         strncat(back_akms, ",", strlen(","));
     }
-    back_akms[strlen(back_akms) - 1] = 0;
 	
 	switch (op) {
 		case dm_orch_type_db_insert:
@@ -263,7 +260,7 @@ int dm_bss_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
 
 bool dm_bss_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
 {
-	em_long_string_t str;
+    em_long_string_t    str;
 
     while (db_client.next_result(ctx)) {
         db_client.get_string(ctx, str, 1);

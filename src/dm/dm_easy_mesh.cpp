@@ -378,7 +378,8 @@ int dm_easy_mesh_t::encode_config_reset(em_subdoc_info_t *subdoc, const char *ke
 	formatted_json = cJSON_Print(parent_obj);
 
     //printf("%s:%d: %s\n", __func__, __LINE__, formatted_json);
-    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", cJSON_Print(parent_obj));
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", formatted_json);
+    cJSON_free(formatted_json);
     cJSON_Delete(parent_obj);
 
     return 0;
@@ -633,7 +634,8 @@ int dm_easy_mesh_t::encode_config_test(em_subdoc_info_t *subdoc, const char *key
     }
 
 	formatted_json = cJSON_Print(parent_obj);
-    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", cJSON_Print(parent_obj));
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", formatted_json);
+    cJSON_free(formatted_json);
 
     cJSON_Delete(parent_obj);
     return 0;
@@ -1551,7 +1553,7 @@ unsigned char *dm_easy_mesh_t::unhex(unsigned int in_len, char *in, unsigned int
         return NULL;
     }
 
-    for (i = 0; i < in_len; i++) {
+    for (i = 0; i < in_len/2; i++) {
         if (in[2*i] <= '9') {
             tmp1 = (unsigned char)in[2*i] - 0x30;
         } else {
@@ -1654,6 +1656,12 @@ void dm_easy_mesh_t::securitymode_to_str(unsigned short mode, char *sec_mode_str
         snprintf(sec_mode_str, len, "%s", "WPA2-Personal");
     else if (mode == EM_AUTH_WPA2PSK)
         snprintf(sec_mode_str, len, "%s", "WPA-WPA2-Personal");
+    else if (mode == EM_AUTH_SAE_AKM8)
+        snprintf(sec_mode_str, len, "%s", "WPA-WPA3-Personal_AKM8"); //TODO Need to check what SAE_AKM8
+    else if (mode == EM_AUTH_DPP_AKM)
+        snprintf(sec_mode_str, len, "%s", "WPA-WPA3-Personal_DPP"); //TODO Need to check what DPP
+    else if (mode == EM_AUTH_SAE_AKM24)
+        snprintf(sec_mode_str, len, "%s", "WPA-WPA3-Personal_AKM24"); //TODO Need to check what SAE_AKM24
 }
 
 void dm_easy_mesh_t::str_to_securitymode(unsigned short *mode, char *sec_mode_str, int len)
@@ -1672,6 +1680,12 @@ void dm_easy_mesh_t::str_to_securitymode(unsigned short *mode, char *sec_mode_st
         *mode = EM_AUTH_WPA2;
     else if (strncmp(sec_mode_str,"WPA-WPA2-Personal",len) == 0) 
         *mode = EM_AUTH_SAE;
+    else if (strncmp(sec_mode_str,"WPA-WPA3-Personal",len) == 0) 
+        *mode = EM_AUTH_SAE_AKM8;
+    else if (strncmp(sec_mode_str,"WPA-WPA3-Personal_DPP",len) == 0) 
+        *mode = EM_AUTH_DPP_AKM;
+    else if (strncmp(sec_mode_str,"WPA-WPA3-Personal_AKM24",len) == 0) 
+        *mode = EM_AUTH_SAE_AKM24;
 }
 
 em_interface_t *dm_easy_mesh_t::get_prioritized_interface(const char *platform)
