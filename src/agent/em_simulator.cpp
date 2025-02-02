@@ -80,7 +80,7 @@ bool em_simulator_t::run(dm_easy_mesh_agent_t& dm)
 			}
 			
 			strncpy(res->m_scan_result.id.net_id, dm.m_network.m_net_info.id, strlen(dm.m_network.m_net_info.id) + 1);
-			memcpy(res->m_scan_result.id.dev_mac, dm.m_device.m_device_info.id.mac, sizeof(mac_address_t));
+			memcpy(res->m_scan_result.id.dev_mac, dm.m_device.m_device_info.intf.mac, sizeof(mac_address_t));
 			memcpy(res->m_scan_result.id.ruid, m_param.u.scan_params.ruid, sizeof(mac_address_t));
 			res->m_scan_result.id.op_class = m_param.u.scan_params.op_class[i].op_class;
 			res->m_scan_result.id.channel = m_param.u.scan_params.op_class[i].channels[j];

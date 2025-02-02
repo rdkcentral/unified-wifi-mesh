@@ -377,7 +377,7 @@ int db_easy_mesh_t::load_table(db_client_t& db_client)
         create_table(db_client);
     }
 
-    return (present == true) ? 0:-1;
+    return 0;
 }
 
 db_easy_mesh_t::db_easy_mesh_t()

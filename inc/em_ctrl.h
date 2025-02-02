@@ -76,6 +76,9 @@ public:
 
     void io(void *data, bool input = true);
 
+	void init_network_topology() { m_data_model.init_network_topology(); }
+	void update_network_topology() { m_data_model.update_network_topology(); }
+
     dm_easy_mesh_t *get_data_model(const char *net_id, const unsigned char *al_mac = NULL) { return m_data_model.get_data_model(net_id, al_mac); }
     dm_easy_mesh_t *create_data_model(const char *net_id, const unsigned char *al_mac, em_profile_type_t profile = em_profile_type_3) { return m_data_model.create_data_model(net_id, al_mac, profile); }
     void delete_data_model(const char *net_id, const unsigned char *al_mac) { m_data_model.delete_data_model(net_id, al_mac); }

@@ -252,6 +252,8 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
     dm_easy_mesh_t *mgr_dm;
     mac_addr_str_t	mac_str;
     em_commit_target_t config;
+	mac_address_t radio_mac, dev_mac;
+	em_short_string_t criteria;
 
     //printf("%s:%d: Orchestration operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
     switch (pcmd->get_orch_op()) {
@@ -303,7 +305,7 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
 
 		case dm_orch_type_dm_delete:
 			printf("%s:%d: Deleting data model\n", __func__, __LINE__);
-			m_mgr->delete_data_model((dm->get_device())->m_device_info.net_id, (dm->get_device())->m_device_info.id.mac);
+			m_mgr->delete_data_model((dm->get_device())->m_device_info.id.net_id, (dm->get_device())->m_device_info.id.dev_mac);
 			break;
 
 		case dm_orch_type_dm_delete_all:
@@ -320,6 +322,32 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
         case dm_orch_type_net_ssid_update:
             m_mgr->load_net_ssid_table();
             break;  
+
+		case dm_orch_type_bss_delete:
+			if (pcmd->get_type() != em_cmd_type_em_config) {
+				break;
+			}
+			if (pcmd->m_param.u.args.num_args != 2) {
+				break;
+			}	
+			dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.u.args.args[0], radio_mac);
+			dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.u.args.args[1], dev_mac);
+			
+			mgr_dm = m_mgr->get_data_model(global_netid, dev_mac);
+            if (mgr_dm == NULL) {
+                break;
+            }		
+			snprintf(criteria, sizeof(em_short_string_t), "radio=%s", pcmd->m_param.u.args.args[0]);
+			mgr_dm->set_db_cfg_param(db_cfg_type_bss_list_delete, criteria);
+			break;
+
+		case dm_orch_type_topo_update:
+			if (pcmd->get_type() != em_cmd_type_em_config) {
+				break;
+			}
+
+			m_mgr->update_network_topology();
+			break;
 
         default:
             break;
@@ -379,10 +407,10 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
             case em_cmd_type_cfg_renew:
 				// check if the radio is null mac
                 dm = pcmd->get_data_model();
-				if (memcmp(null_mac, dm->m_radio[0].m_radio_info.id.mac, sizeof(mac_address_t)) == 0) {
+				if (memcmp(null_mac, dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
 					queue_push(pcmd->m_em_candidates, em);
                     count++;
-				} else if (memcmp(em->get_radio_interface_mac(), dm->m_radio[0].m_radio_info.id.mac, sizeof(mac_address_t)) == 0) {
+				} else if (memcmp(em->get_radio_interface_mac(), dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }
@@ -441,7 +469,7 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
 			case em_cmd_type_set_radio:
 				dm = pcmd->get_data_model();
 				for (i = 0; i < dm->get_num_radios(); i++) {
-					if (memcmp(em->get_radio_interface_mac(), dm->m_radio[i].m_radio_info.id.mac, sizeof(mac_address_t)) == 0) {
+					if (memcmp(em->get_radio_interface_mac(), dm->m_radio[i].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
 						dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
 						//printf("%s:%d: em: %s pushed for command: em_cmd_type_set_policy\n", __func__, __LINE__, mac_str);
                         queue_push(pcmd->m_em_candidates, em);

@@ -51,10 +51,10 @@ int dm_device_t::decode(const cJSON *obj, void *parent_id)
     memset(&m_device_info, 0, sizeof(em_device_info_t));
     if ((tmp = cJSON_GetObjectItem(obj, "ID")) != NULL) {
         snprintf(mac_str, sizeof(mac_str), "%s", cJSON_GetStringValue(tmp));
-       	dm_easy_mesh_t::string_to_macbytes(mac_str, m_device_info.id.mac);
-	dm_easy_mesh_t::name_from_mac_address(&m_device_info.id.mac, m_device_info.id.name);
+       	dm_easy_mesh_t::string_to_macbytes(mac_str, m_device_info.intf.mac);
+	dm_easy_mesh_t::name_from_mac_address(&m_device_info.intf.mac, m_device_info.intf.name);
     }
-    snprintf(m_device_info.net_id, sizeof(m_device_info.net_id), "%s", net_id);
+    snprintf(m_device_info.id.net_id, sizeof(m_device_info.id.net_id), "%s", net_id);
     if ((tmp = cJSON_GetObjectItem(obj, "MultiAPCapabilities")) != NULL) {
         snprintf(m_device_info.multi_ap_cap, sizeof(m_device_info.multi_ap_cap), "%s", cJSON_GetStringValue(tmp));
     }
@@ -184,7 +184,7 @@ void dm_device_t::encode(cJSON *obj, bool summary)
     mac_addr_str_t  mac_str;
     unsigned int i;
 
-    dm_easy_mesh_t::macbytes_to_string(m_device_info.id.mac, mac_str);
+    dm_easy_mesh_t::macbytes_to_string(m_device_info.intf.mac, mac_str);
     cJSON_AddStringToObject(obj, "ID", mac_str);
 
     if (summary == true) {
@@ -252,9 +252,9 @@ dm_orch_type_t dm_device_t::get_dm_orch_type(const dm_device_t& device)
 
 void dm_device_t::operator = (const dm_device_t& obj) {
 
-    memcpy(&this->m_device_info.id.mac ,&obj.m_device_info.id.mac,sizeof(mac_address_t));
-    memcpy(&this->m_device_info.id.name,&obj.m_device_info.id.name,sizeof(em_interface_name_t));
-    memcpy(&this->m_device_info.net_id,&obj.m_device_info.net_id,sizeof(em_long_string_t));
+    memcpy(&this->m_device_info.intf.mac ,&obj.m_device_info.intf.mac,sizeof(mac_address_t));
+    memcpy(&this->m_device_info.intf.name,&obj.m_device_info.intf.name,sizeof(em_interface_name_t));
+    memcpy(&this->m_device_info.id.net_id,&obj.m_device_info.id.net_id,sizeof(em_long_string_t));
     memcpy(&this->m_device_info.multi_ap_cap,&obj.m_device_info.multi_ap_cap,sizeof(em_long_string_t));
     this->m_device_info.coll_interval = obj.m_device_info.coll_interval;
     this->m_device_info.report_unsuccess_assocs = obj.m_device_info.report_unsuccess_assocs;
@@ -289,9 +289,9 @@ void dm_device_t::operator = (const dm_device_t& obj) {
 bool dm_device_t::operator == (const dm_device_t& obj)
 {
     int ret = 0;
-    ret += (memcmp(&this->m_device_info.id.mac ,&obj.m_device_info.id.mac,sizeof(mac_address_t)) != 0);
-    ret += (memcmp(&this->m_device_info.id.name,&obj.m_device_info.id.name,sizeof(em_interface_name_t)) != 0);
-    ret += (memcmp(&this->m_device_info.net_id,&obj.m_device_info.net_id,sizeof(em_long_string_t)) != 0);
+    ret += (memcmp(&this->m_device_info.intf.mac ,&obj.m_device_info.intf.mac,sizeof(mac_address_t)) != 0);
+    ret += (memcmp(&this->m_device_info.intf.name,&obj.m_device_info.intf.name,sizeof(em_interface_name_t)) != 0);
+    ret += (memcmp(&this->m_device_info.id.net_id,&obj.m_device_info.id.net_id,sizeof(em_long_string_t)) != 0);
     ret += (memcmp(&this->m_device_info.multi_ap_cap,&obj.m_device_info.multi_ap_cap,sizeof(em_long_string_t)) != 0);
     ret += !(this->m_device_info.coll_interval == obj.m_device_info.coll_interval);
     ret += !(this->m_device_info.report_unsuccess_assocs == obj.m_device_info.report_unsuccess_assocs);
@@ -330,18 +330,31 @@ bool dm_device_t::operator == (const dm_device_t& obj)
         return true;
 }
 
-int dm_device_t::parse_device_params_from_key(const char *key, mac_address_t mac, char *net_id)
+int dm_device_t::parse_device_id_from_key(const char *key, em_device_id_t *id)
 {
-	em_long_string_t str;
-	char *tmp;
+	em_long_string_t   str;
+    char *tmp, *remain;
+    unsigned int i = 0;
+   
+    strncpy(str, key, strlen(key) + 1);
+    remain = str;
+    while ((tmp = strchr(remain, '@')) != NULL) {
+        if (i == 0) {
+            *tmp = 0;
+            strncpy(id->net_id, remain, strlen(remain) + 1);
+            tmp++;
+            remain = tmp;
+        } else if (i == 1) {
+            *tmp = 0;
+            dm_easy_mesh_t::string_to_macbytes(remain, id->dev_mac);
+            tmp++;
+            id->media = (em_media_type_t)atoi(tmp);
+        }  
+        i++;
+    }
 
-	strncpy(str, key, strlen(key) + 1);
-	if ((tmp = strchr(str, '@')) != NULL) {
-		*tmp = 0;
-		strncpy(net_id, str, strlen(str) + 1);
-		tmp++;
-		dm_easy_mesh_t::string_to_macbytes(tmp, mac);
-	}
+	return 0;
+
 }
 
 dm_device_t::dm_device_t(em_device_info_t *dev)

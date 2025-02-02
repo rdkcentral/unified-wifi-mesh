@@ -29,16 +29,19 @@ public:
     int init() { memset(&m_radio_info, 0, sizeof(em_radio_info_t)); return 0; }
     em_radio_info_t *get_radio_info() { return &m_radio_info; }
     
-    em_interface_t  *get_radio_interface() { return &m_radio_info.id; }
-    unsigned char   *get_radio_interface_mac() { return m_radio_info.id.mac; }
-    char *get_radio_interface_name() { return m_radio_info.id.name; }
-    unsigned char *get_radio_id() { return m_radio_info.id.mac; }
+    em_interface_t  *get_radio_interface() { return &m_radio_info.intf; }
+    unsigned char   *get_radio_interface_mac() { return m_radio_info.intf.mac; }
+    char *get_radio_interface_name() { return m_radio_info.intf.name; }
+    unsigned char *get_radio_id() { return m_radio_info.intf.mac; }
     int decode(const cJSON *obj, void *parent_id);
     void encode(cJSON *obj, em_get_radio_list_reason_t reason = em_get_radio_list_reason_none);
 
     bool operator == (const dm_radio_t& obj);
     void operator = (const dm_radio_t& obj);
     dm_orch_type_t get_dm_orch_type(const dm_radio_t& radio);
+	int parse_radio_id_from_key(const char *key, em_radio_id_t *id);
+
+	void dump_radio_info();
 
     dm_radio_t(em_radio_info_t *radio);
     dm_radio_t(const dm_radio_t& radio);

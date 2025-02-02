@@ -1,9 +1,18 @@
 {
     "wfa-dataelements:Reset": {
         "ID": "OneWifiMesh",
-        "NumberOfDevices": 1,
+		"NumberOfDevices": 1,
         "TimeStamp": "2019-02-11T06:23:43.743847-08:00",
         "ControllerID": "02:01:02:01:00:01",
+		"ColocatedAgentID" : "02:01:02:01:00:04",
+        "Interfaces": {
+			"Preference": [{
+					"rpi": "eth"
+				}, {
+					"sim": "ens"
+			}],
+			"List": []
+		},
         "NetworkSSIDList": [{
                 "SSID": "private_ssid",
                 "PassPhrase": "test-fronthaul",
@@ -48,10 +57,6 @@
                 "MobilityDomain":"00:01:02:03:04:05",
                 "HaulType": ["Backhaul"]
             }
-        ],
-        "PreferredBackhauls" : [
-            { "BackhaulMACAddress" : "02:01:02:01:04:01", "BackhaulStaMACAddress" : "02:01:02:02:04:03"}
-        ],
-        "ColocatedAgentID" : "02:01:02:01:00:04"
+        ]
     }
 }

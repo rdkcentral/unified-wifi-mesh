@@ -42,7 +42,7 @@ public:
     void init_table();
     void init_columns();
     int sync_db(db_client_t& db_client, void *ctx);
-    int update_db(db_client_t& db_client, dm_orch_type_t op, void *data = NULL);
+    int update_db(db_client_t& db_client, dm_orch_type_t op, void *data);
     bool search_db(db_client_t& db_client, void *ctx, void *key);
     bool operator == (const db_easy_mesh_t& obj);
     int set_config(db_client_t& db_client, dm_network_t& net, void *parent_id);

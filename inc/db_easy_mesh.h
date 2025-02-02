@@ -35,7 +35,7 @@ public:
     virtual void init_table() = 0;
     virtual void init_columns() = 0;
     virtual int sync_db(db_client_t& db_client, void *ctx) = 0;
-    virtual int update_db(db_client_t& db_client, dm_orch_type_t op, void *data = NULL) = 0;
+    virtual int update_db(db_client_t& db_client, dm_orch_type_t op, void *data) = 0;
     virtual bool search_db(db_client_t& db_client, void *ctx, void *key) = 0;
     virtual bool operator == (const db_easy_mesh_t& obj) = 0;
 

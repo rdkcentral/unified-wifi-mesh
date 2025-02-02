@@ -89,7 +89,8 @@ int dm_ieee_1905_security_list_t::set_config(db_client_t& db_client, const cJSON
 
 		ieee_1905_security.decode(obj);		
 
-		update_db(db_client, (op = get_dm_orch_type(db_client, ieee_1905_security)), ieee_1905_security.get_ieee_1905_security_info());
+		update_db(db_client, (op = get_dm_orch_type(db_client, ieee_1905_security)), 
+						ieee_1905_security.get_ieee_1905_security_info());
 		update_list(ieee_1905_security, op);
 	}
 
