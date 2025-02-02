@@ -16,31 +16,33 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef DM_BSS_H
-#define DM_BSS_H
+#ifndef EM_NETWORK_TOPO_H
+#define EM_NETWORK_TOPO_H
 
 #include "em_base.h"
+#include "dm_easy_mesh.h"
 
-class dm_bss_t {
+class em_network_topo_t {
+
+	dm_easy_mesh_t	*m_data_model;
+	unsigned int m_num_topologies;	
+	em_network_topo_t	*m_topology[EM_MAX_NETWORKS];
+
 public:
-    em_bss_info_t    m_bss_info;
+	em_network_topo_t *find_topology_by_bh_associated(mac_address_t sta);
+	em_network_topo_t *find_topology(dm_easy_mesh_t *dm);
+	dm_easy_mesh_t *get_data_model() { return m_data_model; }
+	
+	void add(dm_easy_mesh_t *dm);
+	void remove(dm_easy_mesh_t *dm);
 
-public:
-    int init() { memset(&m_bss_info, 0, sizeof(em_bss_info_t)); return 0; }
-    em_bss_info_t *get_bss_info() { return &m_bss_info; }
-    int decode(const cJSON *obj, void *parent_id);
-    void encode(cJSON *obj, bool summary = false);
+	void add_network_topo(dm_easy_mesh_t *dm);
 
-    bool operator == (const dm_bss_t& obj);
-    void operator = (const dm_bss_t& obj);
+	void encode(cJSON *obj);
 
-	bool match_criteria(char *criteria);
-	static int parse_bss_id_from_key(const char *key, em_bss_id_t *id);
-
-    dm_bss_t(em_bss_info_t *bss);
-    dm_bss_t(const dm_bss_t& bss);
-    dm_bss_t();
-    ~dm_bss_t();
+    em_network_topo_t(dm_easy_mesh_t *dm);
+    em_network_topo_t();
+    ~em_network_topo_t();
 };
 
 #endif

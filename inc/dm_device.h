@@ -32,11 +32,11 @@ public:
     int decode(const cJSON *obj, void *parent_id);
     void encode(cJSON *obj, bool summary = false);
 
-    em_interface_t *get_dev_interface() { return &m_device_info.id; }
-    unsigned char *get_dev_interface_mac() { return m_device_info.id.mac; }
-    char *get_dev_interface_name() { return m_device_info.id.name; }
-    void set_dev_interface_mac(unsigned char *mac) { memcpy(m_device_info.id.mac, mac, sizeof(mac_address_t)); }
-    void set_dev_interface_name(char *name) { snprintf(m_device_info.id.name, sizeof(m_device_info.id.name), "%s", name); }
+    em_interface_t *get_dev_interface() { return &m_device_info.intf; }
+    unsigned char *get_dev_interface_mac() { return m_device_info.intf.mac; }
+    char *get_dev_interface_name() { return m_device_info.intf.name; }
+    void set_dev_interface_mac(unsigned char *mac) { memcpy(m_device_info.intf.mac, mac, sizeof(mac_address_t)); }
+    void set_dev_interface_name(char *name) { strncpy(m_device_info.intf.name, name, strlen(name) + 1); }
 	
     em_interface_t *get_al_interface() { return &m_device_info.backhaul_alid; }
     unsigned char *get_al_interface_mac() { return m_device_info.backhaul_alid.mac; }
@@ -58,7 +58,7 @@ public:
     //void operator = (const dm_device_t& obj) { memcpy(&m_device_info, &obj.m_device_info, sizeof(em_device_info_t)); }
     dm_orch_type_t get_dm_orch_type(const dm_device_t& device);
 
-    static int parse_device_params_from_key(const char *key, mac_address_t mac, char *net_id);
+    static int parse_device_id_from_key(const char *key, em_device_id_t *id);
 
     dm_device_t(em_device_info_t *dev);
     dm_device_t(const dm_device_t& dev);

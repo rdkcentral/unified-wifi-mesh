@@ -510,7 +510,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
     em_freq_band_t band;
     dm_easy_mesh_t *dm;
     em_t *em = NULL;
-    em_radio_id_t ruid;
+    mac_address_t ruid;
     bssid_t	bssid;
     dm_bss_t *bss;
     em_profile_type_t profile;
@@ -690,13 +690,20 @@ void em_ctrl_t::start_complete()
 {
 	dm_easy_mesh_t *dm;
 
+	if (m_data_model.is_initialized() == false) {
+		printf("%s:%d: Database not initialized ... needs reset\n", __func__, __LINE__);
+		return;
+	}
+
+	// build initial network topology
+	init_network_topology();
+
     dm = m_data_model.get_first_dm();
     while (dm != NULL) {
 		dm->set_db_cfg_param(db_cfg_type_scan_result_list_delete, "");
 		dm->set_db_cfg_param(db_cfg_type_sta_list_delete, "");
 		dm->set_db_cfg_param(db_cfg_type_op_class_list_delete, "");
 		dm->set_db_cfg_param(db_cfg_type_bss_list_delete, "");
-		dm->set_db_cfg_param(db_cfg_type_radio_list_delete, "");
         dm = m_data_model.get_next_dm(dm);
     }
 

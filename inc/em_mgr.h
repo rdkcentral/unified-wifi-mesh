@@ -74,6 +74,7 @@ public:
     virtual void handle_500ms_tick() = 0;
 
     virtual void io(void *data, bool input = true) = 0;
+    virtual void update_network_topology() = 0;
     
     virtual dm_easy_mesh_t *get_data_model(const char *net_id, const unsigned char *al_mac = NULL) = 0;
     virtual dm_easy_mesh_t *create_data_model(const char *net_id, const unsigned char *al_mac, em_profile_type_t profile = em_profile_type_3) = 0;

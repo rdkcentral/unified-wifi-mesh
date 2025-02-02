@@ -161,7 +161,7 @@ int dm_easy_mesh_agent_t::analyze_autoconfig_renew(em_bus_event_t *evt, em_cmd_t
 
     raw = (em_bus_event_type_cfg_renew_params_t *)evt->u.raw_buff;
     memcpy(dm.get_controller_interface_mac(), raw->ctrl_src, sizeof(mac_address_t));
-    memcpy(dm.get_radio(index)->get_radio_info()->id.mac,raw->radio, sizeof(mac_address_t));
+    memcpy(dm.get_radio(index)->get_radio_info()->intf.mac, raw->radio, sizeof(mac_address_t));
     pcmd[num] = new em_cmd_cfg_renew_t(em_service_type_agent, evt->params, dm);
     tmp = pcmd[num];
     num++;
@@ -344,7 +344,7 @@ int dm_easy_mesh_agent_t::analyze_onewifi_radio_cb(em_bus_event_t *evt, em_cmd_t
         printf("%s:%d Radio subdoc decode fail\n",__func__, __LINE__);
     }
 
-	dm_easy_mesh_t::macbytes_to_string(dm.get_radio(index)->get_radio_info()->id.mac, mac_str);
+	dm_easy_mesh_t::macbytes_to_string(dm.get_radio(index)->get_radio_info()->intf.mac, mac_str);
 	cm_config.type = em_commit_target_radio;
 	snprintf((char *)cm_config.params,sizeof(cm_config.params),(char*)"%s",mac_str);
 	commit_config(dm, cm_config);
@@ -353,8 +353,8 @@ int dm_easy_mesh_agent_t::analyze_onewifi_radio_cb(em_bus_event_t *evt, em_cmd_t
 	num++;
 
 	while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
-	tmp = pcmd[num];
-	num++;
+		tmp = pcmd[num];
+		num++;
 	}
 	return num;
 }
@@ -404,7 +404,7 @@ int dm_easy_mesh_agent_t::analyze_channel_pref_query(em_bus_event_t *evt, em_cmd
     dm.set_num_radios(1);
     radio = dm.get_radio_info(0);
     if (radio != NULL) {
-        memcpy(&radio->id.mac, &params->mac, sizeof(mac_address_t));
+        memcpy(&radio->intf.mac, &params->mac, sizeof(mac_address_t));
     }
     dm.set_msg_id(params->msg_id);
     pcmd[num] = new em_cmd_channel_pref_query_t(em_service_type_agent, evt->params, dm);

@@ -190,12 +190,13 @@ dm_device_t *dm_easy_mesh_list_t::get_next_device(dm_device_t *dev)
 dm_device_t *dm_easy_mesh_list_t::get_device(const char *key)
 {   
     dm_easy_mesh_t *dm;
+	em_device_id_t	id;
+
+	dm_device_t::parse_device_id_from_key(key, &id);
 
     //printf("%s:%d: Getting device at key: %s\n", __func__, __LINE__, key);
 	
-    dm = (dm_easy_mesh_t *)hash_map_get(m_list, key);
-
-    if (dm != NULL) {
+    if ((dm = get_data_model(id.net_id, id.dev_mac)) != NULL) {
         return dm->get_device();
     }
 
@@ -215,24 +216,23 @@ void dm_easy_mesh_list_t::put_device(const char *key, const dm_device_t *dev)
 {
     dm_easy_mesh_t *dm;
     dm_device_t *pdev;
-    mac_address_t mac;
     mac_addr_str_t mac_str;
-	em_long_string_t net_id;
+	em_device_id_t	id;
 
-	dm_device_t::parse_device_params_from_key(key, mac, net_id);
-	dm_easy_mesh_t::macbytes_to_string(mac, mac_str);
+	dm_device_t::parse_device_id_from_key(key, &id);
+	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, mac_str);
 
     if ((pdev = get_device(key)) == NULL) {
         //printf("%s:%d: device at key: %s not found\n", __func__, __LINE__, key);
-	    dm = create_data_model(dev->m_device_info.net_id, dev->m_device_info.id.mac, dev->m_device_info.profile);
+	    dm = create_data_model(dev->m_device_info.id.net_id, dev->m_device_info.intf.mac, dev->m_device_info.profile);
         pdev = dm->get_device();
     }
     *pdev = *dev;
 	
-	if ((dm = get_data_model(net_id, mac)) == NULL) {
-		printf("%s:%d: Could not find data model for network: %s, mac: %s\n", __func__, __LINE__, net_id, mac_str);
+	if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
+		printf("%s:%d: Could not find data model for network: %s, mac: %s\n", __func__, __LINE__, id.net_id, mac_str);
 	} else {
-		printf("%s:%d: Device:%s inserted in network:%s\n", __func__, __LINE__, mac_str, net_id);
+		printf("%s:%d: Device:%s inserted in network:%s\n", __func__, __LINE__, mac_str, id.net_id);
 		dm->m_network.m_net_info.num_of_devices++;
 	}
 }
@@ -310,7 +310,7 @@ dm_radio_t *dm_easy_mesh_list_t::get_radio(const char *key)
 	while (dm != NULL) {
 		for (i = 0;  i < dm->get_num_radios(); i++) {
 			radio = dm->get_radio(i);
-			if (memcmp(radio->m_radio_info.id.mac, mac, sizeof(mac_address_t)) == 0) {
+			if (memcmp(radio->m_radio_info.intf.mac, mac, sizeof(mac_address_t)) == 0) {
 				found = true;
 				break;
 			}
@@ -340,8 +340,8 @@ void dm_easy_mesh_list_t::put_radio(const char *key, const dm_radio_t *radio)
     //printf("%s:%d: Radio: %s\n", __func__, __LINE__, key);
 
     if ((pradio = get_radio(key)) == NULL) {
-        dm = get_data_model(radio->m_radio_info.net_id, radio->m_radio_info.dev_id);
-        dm_easy_mesh_t::macbytes_to_string((unsigned char *)radio->m_radio_info.dev_id, dev_mac);
+        dm = get_data_model(radio->m_radio_info.id.net_id, radio->m_radio_info.id.dev_mac);
+        dm_easy_mesh_t::macbytes_to_string((unsigned char *)radio->m_radio_info.id.dev_mac, dev_mac);
 		//printf("%s:%d: dm: %p net: %s device: %s\n", __func__, __LINE__, dm, radio->m_radio_info.net_id, dev_mac);
         if (dm == NULL) {
             return;
@@ -353,13 +353,13 @@ void dm_easy_mesh_list_t::put_radio(const char *key, const dm_radio_t *radio)
     }
     *pradio = *radio;
 
-    if ((em = m_mgr->create_node(&pradio->m_radio_info.id, (em_freq_band_t)pradio->m_radio_info.media_data.band, dm, false,
+    if ((em = m_mgr->create_node(&pradio->m_radio_info.intf, (em_freq_band_t)pradio->m_radio_info.media_data.band, dm, false,
             em_profile_type_3, em_service_type_ctrl)) != NULL) {
         printf("%s:%d Node created successfully\n", __func__, __LINE__);
     }
 
-    dm_easy_mesh_t::macbytes_to_string(pradio->m_radio_info.id.mac, radio_mac);
-    dm_easy_mesh_t::macbytes_to_string(pradio->m_radio_info.dev_id, dev_mac);
+    dm_easy_mesh_t::macbytes_to_string(pradio->m_radio_info.intf.mac, radio_mac);
+    dm_easy_mesh_t::macbytes_to_string(pradio->m_radio_info.id.dev_mac, dev_mac);
 
 }
 
@@ -409,7 +409,6 @@ dm_bss_t *dm_easy_mesh_list_t::get_first_bss()
 
     dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
     while (dm != NULL) {
-        //printf("%s:%d: Here: Num BSS: %d\n", __func__, __LINE__, dm->get_num_bss());
         if (dm->get_num_bss() > 0) {
             bss = dm->get_bss((unsigned int)0);
 			found = true;
@@ -460,69 +459,69 @@ dm_bss_t *dm_easy_mesh_list_t::get_next_bss(dm_bss_t *bss)
 }
 
 dm_bss_t *dm_easy_mesh_list_t::get_bss(const char *key)
-{ 
-    dm_bss_t *bss = NULL;
-    dm_easy_mesh_t *dm;
-    unsigned int i;
-    bool found = false;
-    mac_address_t mac;
+{
+	em_bss_id_t id;
+	mac_addr_str_t dev_mac_str;
+	dm_easy_mesh_t *dm;
+	dm_bss_t *pbss;
 
-    dm_easy_mesh_t::string_to_macbytes((char *)key, mac);
+	dm_bss_t::parse_bss_id_from_key(key, &id);
+	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);	
+	
+	if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
+		printf("%s:%d: Could not find data model for Network: %s and dev: %s\n", __func__, __LINE__, id.net_id, dev_mac_str);
+		return NULL;
+	}
 
-    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
-    while (dm != NULL) {
-        for (i = 0;  i < dm->get_num_bss(); i++) {
-            bss = dm->get_bss(i);
-            if (memcmp(bss->m_bss_info.bssid.mac, mac, sizeof(mac_address_t)) == 0) {
-                found = true;
-                break;
-            }
-        }
-
-        if (found == true) {
-            break;
-        }
-        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
-    }
-
-    return (found == true) ? bss:NULL;   
+	return dm->find_matching_bss(&id);
 }
 
 void dm_easy_mesh_list_t::remove_bss(const char *key)
 {
+	em_bss_id_t id;
+	dm_easy_mesh_t *dm;
+	unsigned int i;
+	mac_addr_str_t  radio_mac_str, dev_mac_str;
+	
+	dm_bss_t::parse_bss_id_from_key(key, &id);
+	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);	
+	dm_easy_mesh_t::macbytes_to_string(id.ruid, radio_mac_str);	
+
+	if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
+		printf("%s:%d: Could not find data model for Network: %s and dev: %s\n", __func__, __LINE__, id.net_id, dev_mac_str);
+		return;
+	}
+
+	for (i = 0; i < dm->m_num_bss; i++) {
+		if (memcmp(dm->m_bss[i].m_bss_info.bssid.mac, id.bssid, sizeof(bssid_t)) == 0) {
+			return dm->remove_bss_by_index(i);
+		}
+	}
 }
 
 void dm_easy_mesh_list_t::put_bss(const char *key, const dm_bss_t *bss)
 {
-    dm_bss_t *pbss = NULL;
-	dm_radio_t *radio;
-    dm_easy_mesh_t  *dm = NULL;
-    mac_addr_str_t  radio_mac, dev_mac;
+	em_bss_id_t id;
+	mac_addr_str_t	dev_mac_str, radio_mac_str, bssid_str;
+	dm_easy_mesh_t *dm;
+	dm_bss_t *pbss;
 
-    //printf("%s:%d: Assigning BSS to radio: %s\n", __func__, __LINE__, key);
-    if ((pbss = get_bss(key)) == NULL) {
-        dm_easy_mesh_t::macbytes_to_string((unsigned char *)bss->m_bss_info.ruid.mac, radio_mac);
-        radio = get_radio(radio_mac);
-        if (radio != NULL) {
-            dm_easy_mesh_t::macbytes_to_string(radio->m_radio_info.dev_id, dev_mac);
-            //printf("%s:%d: Finding dm for radio: %s Device: %s in network: %s\n", __func__, __LINE__, 
-                    //radio_mac, dev_mac, radio->m_radio_info.net_id);
-            dm = get_data_model(radio->m_radio_info.net_id, radio->m_radio_info.dev_id);
-            if (dm == NULL) {
-                //printf("%s:%d: Could not find dm for radio: %s Device: %s in network: %s\n", __func__, __LINE__, 
-                    //radio_mac, dev_mac, radio->m_radio_info.net_id);
-                return;
-            }
-        } else {
-            //printf("%s:%d: Could not find radio: %s\n", __func__, __LINE__, radio_mac);
-            return;
-        }
+	dm_bss_t::parse_bss_id_from_key(key, &id);
+	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
+	dm_easy_mesh_t::macbytes_to_string(id.ruid, radio_mac_str);
+	dm_easy_mesh_t::macbytes_to_string(id.bssid, bssid_str);
 
-        dm->set_num_bss(dm->get_num_bss() + 1);
-        pbss = dm->get_bss(dm->get_num_bss() - 1);
-    }
-    *pbss = *bss;
+	if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
+		printf("%s:%d: Could not find data model for Network: %s and dev: %s\n", __func__, __LINE__, id.net_id, dev_mac_str);
+		return;
+	}
 
+	if ((pbss = dm->find_matching_bss(&id)) == NULL) {
+		pbss = &dm->m_bss[dm->m_num_bss];
+		dm->m_num_bss++;
+	}	
+
+	*pbss = *bss;
 }
 
 dm_sta_t *dm_easy_mesh_list_t::get_first_sta()
@@ -581,7 +580,7 @@ dm_sta_t *dm_easy_mesh_list_t::get_sta(const char *key)
     dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
     while (dm != NULL) {
         for (i = 0; i < dm->m_num_radios; i++) {
-            if (memcmp(dm->m_radio[i].m_radio_info.id.mac, ruid, sizeof(mac_address_t)) == 0) {
+            if (memcmp(dm->m_radio[i].m_radio_info.intf.mac, ruid, sizeof(mac_address_t)) == 0) {
                 found = true;
                 break;
             }
@@ -633,7 +632,7 @@ void dm_easy_mesh_list_t::put_sta(const char *key, const dm_sta_t *sta)
     dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
     while (dm != NULL) {
         for (i = 0; i < dm->m_num_radios; i++) {
-            if (memcmp(dm->m_radio[i].m_radio_info.id.mac, ruid, sizeof(mac_address_t)) == 0) {
+            if (memcmp(dm->m_radio[i].m_radio_info.intf.mac, ruid, sizeof(mac_address_t)) == 0) {
                 found = true;
                 break;
             }
@@ -916,13 +915,13 @@ dm_op_class_t *dm_easy_mesh_list_t::get_op_class(const char *key)
         if (id.type <= em_op_class_type_capability) {
 		    for (i = 0; i < dm->get_num_radios(); i++) {
 			    radio = dm->get_radio(i);
-			    if (memcmp(radio->m_radio_info.id.mac, id.ruid, sizeof(mac_address_t)) == 0) {
+			    if (memcmp(radio->m_radio_info.intf.mac, id.ruid, sizeof(mac_address_t)) == 0) {
 				    found_dm = true;
 			    	break;
 			    }
 		    }
         } else {
-			if (memcmp(dm->m_device.m_device_info.id.mac, id.ruid, sizeof(mac_address_t)) == 0) {
+			if (memcmp(dm->m_device.m_device_info.intf.mac, id.ruid, sizeof(mac_address_t)) == 0) {
             	found_dm = true;
            	}
 		}	
@@ -1032,22 +1031,22 @@ void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_
         if (id.type <= em_op_class_type_capability) {
             for (i = 0; i < dm->get_num_radios(); i++) {
                 radio = dm->get_radio(i);
-                dm_easy_mesh_t::macbytes_to_string(radio->m_radio_info.id.mac, mac_str);
+                dm_easy_mesh_t::macbytes_to_string(radio->m_radio_info.intf.mac, mac_str);
                 //printf("%s:%d: Comparing with radio: %s\n", __func__, __LINE__, mac_str);
-                if (memcmp(radio->m_radio_info.id.mac, id.ruid, sizeof(mac_address_t)) == 0) {
+                if (memcmp(radio->m_radio_info.intf.mac, id.ruid, sizeof(mac_address_t)) == 0) {
                     found_dm = true;
                     break;
                 }
             }
         } else {
-            if (memcmp(dm->m_device.m_device_info.id.mac, id.ruid, sizeof(mac_address_t)) == 0) {
+            if (memcmp(dm->m_device.m_device_info.intf.mac, id.ruid, sizeof(mac_address_t)) == 0) {
                 found_dm = true;
             }
         }
         if (found_dm == true) {
             break;
         } else {
-            if ((memcmp(dm->m_device.m_device_info.id.mac, id.ruid, sizeof(mac_address_t)) == 0) && (id.type >= em_op_class_type_cac_available)) {
+            if ((memcmp(dm->m_device.m_device_info.intf.mac, id.ruid, sizeof(mac_address_t)) && (id.type >= em_op_class_type_cac_available)) == 0) {
                 found_dm = true;
                 break;
             }
@@ -1258,6 +1257,30 @@ dm_scan_result_t *dm_easy_mesh_list_t::get_scan_result(const char *key)
 
 void dm_easy_mesh_list_t::remove_scan_result(const char *key)
 {
+	em_scan_result_id_t id;
+	mac_addr_str_t	dev_mac_str, ruid_str, bssid_str;
+	bssid_t bssid;
+	dm_easy_mesh_t *dm;
+    dm_scan_result_t *res;
+    unsigned int i;
+
+	dm_scan_result_t::parse_scan_result_id_from_key(key, &id, bssid);
+
+	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
+	dm_easy_mesh_t::macbytes_to_string(id.ruid, dev_mac_str);	
+	dm_easy_mesh_t::macbytes_to_string(bssid, bssid_str);	
+
+    if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
+        printf("%s:%d: Could not find data model for Network: %s and dev: %s\n", __func__, __LINE__, id.net_id, dev_mac_str);
+        return;
+    }  
+
+	for (i = 0; i < dm->m_num_scan_results; i++) {
+		res = &dm->m_scan_result[i];
+		if (res->has_same_id(&id) == true) {
+			return dm->remove_scan_result_by_index(i);
+		}
+	}
 
 }
 
@@ -1331,8 +1354,8 @@ void dm_easy_mesh_list_t::delete_all_data_models()
             continue;
         }
 		dev = tmp->get_device();	
-		dm_easy_mesh_t::macbytes_to_string(dev->m_device_info.id.mac, mac_str);
-		snprintf(key, sizeof(em_short_string_t), "%s@%s", dev->m_device_info.net_id, mac_str);
+		dm_easy_mesh_t::macbytes_to_string(dev->m_device_info.intf.mac, mac_str);
+		snprintf(key, sizeof(em_short_string_t), "%s@%s", dev->m_device_info.id.net_id, mac_str);
 
 		hash_map_remove(m_list, key);
 		delete tmp;
@@ -1412,8 +1435,13 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
     dm->set_colocated(colocated);
 
     dev = dm->get_device();
-    memcpy(dev->m_device_info.id.mac, al_mac, sizeof(mac_address_t));
-    strncpy(dev->m_device_info.net_id, net_id, strlen(net_id) + 1);
+    memcpy(dev->m_device_info.intf.mac, al_mac, sizeof(mac_address_t));
+    strncpy(dev->m_device_info.id.net_id, net_id, strlen(net_id) + 1);
+	if (colocated == true) {
+		dev->m_device_info.id.media = dm->m_network.m_net_info.media;
+		memcpy(dev->m_device_info.backhaul_mac.mac, al_mac, sizeof(mac_address_t));
+		dev->m_device_info.backhaul_mac.media = dm->m_network.m_net_info.media;
+	}
     dev->m_device_info.profile = profile;
 	dm->set_channels_list(op_class, EM_MAX_PRE_SET_CHANNELS);
 	
