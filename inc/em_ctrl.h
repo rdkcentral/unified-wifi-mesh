@@ -73,6 +73,7 @@ public:
     void handle_m2_tx(em_bus_event_t *evt);
     void handle_config_renew(em_bus_event_t *evt);
     void handle_sta_assoc_event(em_bus_event_t *evt);
+    void handle_mld_reconfig(em_bus_event_t *evt);
 
     void io(void *data, bool input = true);
 
