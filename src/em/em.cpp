@@ -166,6 +166,9 @@ void em_t::orch_execute(em_cmd_t *pcmd)
 		case em_cmd_type_scan_result:
             m_sm.set_state(em_state_agent_channel_scan_result_pending);
 			break;
+        
+        case em_cmd_type_mld_reconfig:
+            m_sm.set_state(em_state_ctrl_ap_mld_config_pending);
     }
 }
 
@@ -206,6 +209,8 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_topo_resp:
         case em_msg_type_topo_query:
         case em_msg_type_topo_notif:
+        case em_msg_type_ap_mld_config_req:
+        case em_msg_type_ap_mld_config_resp:
             em_configuration_t::process_msg(data, len);
             break;
 
@@ -245,8 +250,13 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_client_steering_req:
         case em_msg_type_client_steering_btm_rprt:
         case em_msg_type_1905_ack:
-            em_steering_t::process_msg(data, len);
-
+            if (m_sm.get_state() == em_state_ctrl_ap_mld_configured) {
+                em_configuration_t::process_msg(data, len);
+            } else {
+                em_steering_t::process_msg(data, len);
+            }
+            break;
+        
         default:
             break;  
     }
@@ -366,6 +376,10 @@ void em_t::handle_ctrl_state()
         
 		case em_cmd_type_set_policy:
             em_policy_cfg_t::process_ctrl_state();
+            break;
+        
+        case em_cmd_type_mld_reconfig:
+            em_configuration_t::process_ctrl_state();
             break;
     }
 }
@@ -942,6 +956,8 @@ const char *em_t::state_2_str(em_state_t state)
 		EM_STATE_2S(em_state_ctrl_sta_disassoc_pending)
 		EM_STATE_2S(em_state_ctrl_set_policy_pending)
 		EM_STATE_2S(em_state_agent_channel_scan_result_pending)
+        EM_STATE_2S(em_state_ctrl_ap_mld_config_pending)
+        EM_STATE_2S(em_state_ctrl_ap_mld_configured)
     }
 
     return "em_state_unknown";

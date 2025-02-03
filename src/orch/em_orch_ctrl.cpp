@@ -161,6 +161,13 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             if (em->get_state() == em_state_ctrl_configured) {
                 return true;
             }
+			break;
+
+        case em_cmd_type_mld_reconfig:
+            if (em->get_state() == em_state_ctrl_ap_mld_configured) {
+                em->set_state(em_state_ctrl_configured);
+                return true;
+            }
 
 			break;
     }
@@ -173,6 +180,7 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
     switch (pcmd->m_type) {
         case em_cmd_type_set_ssid:
         case em_cmd_type_set_radio:
+        case em_cmd_type_mld_reconfig:
             return true;
             break;
 
@@ -317,6 +325,7 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
         case dm_orch_type_em_test:
         case dm_orch_type_sta_cap:
         case dm_orch_type_sta_link_metrics:
+        case dm_orch_type_mld_reconfig:
             break;  
 
         case dm_orch_type_net_ssid_update:
@@ -478,6 +487,13 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
 					}
 				}
 				break;
+
+            case em_cmd_type_mld_reconfig:
+                if (em->is_al_interface_em()) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
+                }
+                break;
 
             default:
                 break;

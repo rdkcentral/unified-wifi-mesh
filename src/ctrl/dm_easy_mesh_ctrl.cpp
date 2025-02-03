@@ -55,6 +55,8 @@
 #include "em_cmd_sta_link_metrics.h"
 #include "em_cmd_sta_steer.h"
 #include "em_cmd_sta_disassoc.h"
+#include "em_cmd_get_mld_config.h"
+#include "em_cmd_mld_reconfig.h"
 
 extern char *global_netid;
 
@@ -919,6 +921,23 @@ int dm_easy_mesh_ctrl_t::analyze_remove_device(em_bus_event_t *evt, em_cmd_t *pc
     return num;
 }
 
+int dm_easy_mesh_ctrl_t::analyze_mld_reconfig(em_cmd_t *pcmd[])
+{
+    int num = 0;
+    em_cmd_t *tmp;
+
+    pcmd[num] = new em_cmd_mld_reconfig_t();
+    tmp = pcmd[num];
+    num++;
+
+    while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+        tmp = pcmd[num];
+        num++;
+    }
+
+    return num;
+}
+
 /*int dm_easy_mesh_ctrl_t::analyze_network_ssid_list(em_bus_event_t *evt, em_cmd_t *cmd[])
 {
     cJSON *obj, *netssid_list_obj;
@@ -1315,6 +1334,19 @@ int dm_easy_mesh_ctrl_t::get_network_config(cJSON *parent, char *key)
 	return 0;
 }
 
+int dm_easy_mesh_ctrl_t::get_mld_config(cJSON *parent, char *key)
+{
+    cJSON *net_obj, *dev_list_obj, *netssid_list_obj, *radio_list_obj;
+    cJSON *obj, *ap_mld_obj;
+    unsigned int i, num;
+    mac_address_t dev_mac;
+		
+    ap_mld_obj = cJSON_AddObjectToObject(parent, "AP MLD Config");
+    //dm_ap_mld_t::get_config(net_obj, key);
+
+	return 0;
+}
+
 int dm_easy_mesh_ctrl_t::get_config(em_long_string_t net_id, em_subdoc_info_t *subdoc)
 {
     cJSON *parent;
@@ -1357,6 +1389,8 @@ int dm_easy_mesh_ctrl_t::get_config(em_long_string_t net_id, em_subdoc_info_t *s
         get_scan_result(parent, net_id);
     } else if (strncmp(subdoc->name, "DevTest", strlen(subdoc->name)) == 0) {
         get_reference_config(parent, net_id);
+    } else if (strncmp(subdoc->name, "MLDConfig", strlen(subdoc->name)) == 0) {
+        get_mld_config(parent, net_id);
     }
 
     tmp = cJSON_Print(parent);

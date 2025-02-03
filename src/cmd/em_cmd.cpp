@@ -431,6 +431,17 @@ void em_cmd_t::init()
             strncpy(m_name, "set_policy", strlen("set_policy") + 1);
             m_svc = em_service_type_ctrl;
             break;
+
+        case em_cmd_type_get_mld_config:
+            snprintf(m_name, sizeof(m_name), "%s", "get_mld_config");
+            m_svc = em_service_type_ctrl;
+            break;
+
+        case em_cmd_type_mld_reconfig:
+            snprintf(m_name, sizeof(m_name), "%s", "mld_reconfig");
+            m_svc = em_service_type_ctrl;
+            break;
+
     }
 }
 
@@ -467,6 +478,8 @@ const char *em_cmd_t::get_bus_event_type_str(em_bus_event_type_t type)
     	BUS_EVENT_TYPE_2S(em_bus_event_type_topo_sync)
     	BUS_EVENT_TYPE_2S(em_bus_event_type_get_policy)
     	BUS_EVENT_TYPE_2S(em_bus_event_type_set_policy)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_get_mld_config)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_mld_reconfig)
     }
 }   
 
@@ -537,6 +550,7 @@ const char *em_cmd_t::get_orch_op_str(dm_orch_type_t type)
         ORCH_TYPE_2S(dm_orch_type_sta_steer_btm_report)
         ORCH_TYPE_2S(dm_orch_type_sta_disassoc)
         ORCH_TYPE_2S(dm_orch_type_policy_cfg)
+        ORCH_TYPE_2S(dm_orch_type_mld_reconfig)
     }
 
     return "dm_orch_type_unknown";
@@ -582,6 +596,8 @@ const char *em_cmd_t::get_cmd_type_str(em_cmd_type_t type)
         CMD_TYPE_2S(em_cmd_type_sta_disassoc)
         CMD_TYPE_2S(em_cmd_type_get_policy)
         CMD_TYPE_2S(em_cmd_type_set_policy)
+        CMD_TYPE_2S(em_cmd_type_get_mld_config)
+        CMD_TYPE_2S(em_cmd_type_mld_reconfig)
     }
 
     return "em_cmd_type_unknown";
@@ -696,6 +712,13 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
             type = em_cmd_type_em_config;
             break;
 
+        case em_bus_event_type_get_mld_config:
+            type = em_cmd_type_get_mld_config;
+            break;
+
+        case em_bus_event_type_mld_reconfig:
+            type = em_cmd_type_mld_reconfig;
+            break;
     }
 
     return type;
@@ -733,6 +756,14 @@ em_bus_event_type_t em_cmd_t::cmd_2_bus_event_type(em_cmd_type_t ctype)
         case em_cmd_type_sta_list:
             type = em_bus_event_type_sta_list;
             break;
+
+        case em_cmd_type_get_mld_config:
+            type = em_bus_event_type_get_mld_config;
+            break;
+
+        case em_cmd_type_mld_reconfig:
+            type = em_bus_event_type_mld_reconfig;
+            break;
     }
 
     return type;
@@ -756,6 +787,7 @@ void em_cmd_t::dump_bus_event(em_bus_event_t *evt)
         case em_bus_event_type_get_channel:
         case em_bus_event_type_get_bss:
         case em_bus_event_type_get_sta:
+        case em_bus_event_type_get_mld_config:
             info = &evt->u.subdoc;
             printf("Name: %s\n", info->name);
             break;
