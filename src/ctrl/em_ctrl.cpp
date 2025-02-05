@@ -318,6 +318,22 @@ void em_ctrl_t::handle_reset(em_bus_event_t *evt)
 
 }
 
+void em_ctrl_t::handle_mld_reconfig(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+
+    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+    } else if ((num = m_data_model.analyze_mld_reconfig(pcmd)) == 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if (m_orch->submit_commands(pcmd, num) > 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_success);
+    } else {
+        m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+    }
+}
+
 void em_ctrl_t::handle_radio_metrics_req()
 {
 
@@ -390,6 +406,7 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
         case em_bus_event_type_get_sta:
         case em_bus_event_type_get_policy:
         case em_bus_event_type_scan_result:
+        case em_bus_event_type_get_mld_config:
             handle_get_dm_data(evt);
             break;
 
@@ -448,6 +465,11 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
 		case em_bus_event_type_sta_assoc:
 			handle_sta_assoc_event(evt);
 			break;
+
+        case em_bus_event_type_mld_reconfig:
+			handle_mld_reconfig(evt);
+			break;
+	
 	
         default:
             break;
@@ -637,6 +659,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         case em_msg_type_client_assoc_ctrl_req:
         case em_msg_type_map_policy_config_req:
         case em_msg_type_channel_scan_req:
+        case em_msg_type_ap_mld_config_req:
 			break;
 
 		case em_msg_type_channel_scan_rprt:
@@ -664,10 +687,20 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             break;
 
         case em_msg_type_client_steering_btm_rprt:
-        case em_msg_type_1905_ack:
             em = (em_t *)hash_map_get_first(m_em_map);
             while(em != NULL) {
                 if ((em->is_al_interface_em() == false) && (em->has_at_least_one_associated_sta() == true)) {
+                    break;
+                }
+                em = (em_t *)hash_map_get_next(m_em_map, em);
+            }
+            break;
+
+        case em_msg_type_ap_mld_config_resp:
+        case em_msg_type_1905_ack:
+            em = (em_t *)hash_map_get_first(m_em_map);
+            while(em != NULL) {
+                if ((em->is_al_interface_em() == false)) {
                     break;
                 }
                 em = (em_t *)hash_map_get_next(m_em_map, em);

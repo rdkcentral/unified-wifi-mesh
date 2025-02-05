@@ -39,13 +39,15 @@ class em_configuration_t {
     int create_bsta_mld_config_tlv(unsigned char *buff);
     int create_assoc_sta_mld_config_report_tlv(unsigned char *buff);
     int create_tid_to_link_map_policy_tlv(unsigned char *buff);
+    short create_eht_operations_tlv(unsigned char *buff);
 
     int send_topology_response_msg(unsigned char *dst);
     int send_topology_notification_by_client(mac_address_t sta, bssid_t bssid, bool assoc);
-    int send_ap_mld_config_req_msg(unsigned char *buff);
-    int send_ap_mld_config_resp_msg(unsigned char *buff);
     int send_bsta_mld_config_req_msg(unsigned char *buff);
     int send_bsta_mld_config_resp_msg(unsigned char *buff);
+    int send_ap_mld_config_req_msg();
+    int send_ap_mld_config_resp_msg(unsigned char *dst);
+    int send_1905_ack_message(mac_addr_t sta_mac);
     
     int handle_autoconfig_resp(unsigned char *buff, unsigned int len);
     int handle_autoconfig_search(unsigned char *buff, unsigned int len);
@@ -61,10 +63,16 @@ class em_configuration_t {
 	int handle_ap_operational_bss(unsigned char *buff, unsigned int len);
     int handle_bss_configuration_report(unsigned char *buff, unsigned int len);
     int handle_bsta_mld_config_req(unsigned char *buff, unsigned int len);
+    int handle_ack_msg(unsigned char *buff, unsigned int len);
+    int handle_ap_mld_config_tlv(unsigned char *buff, unsigned int len);
+    int handle_eht_operations_tlv(unsigned char *buff);
+    int handle_ap_mld_config_req(unsigned char *buff, unsigned int len);
+    int handle_ap_mld_config_resp(unsigned char *buff, unsigned int len);
 
     short create_m1_msg(unsigned char *buff);
     short create_m2_msg(unsigned char *buff, em_haul_type_t haul_type);
     short create_traffic_separation_policy(unsigned char *buff);
+    short create_error_code_tlv(unsigned char *buff, int val, mac_addr_t sta_mac);
    
     // state handlers 
     void handle_state_config_none();

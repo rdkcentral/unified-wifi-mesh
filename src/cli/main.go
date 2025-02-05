@@ -43,6 +43,7 @@ const (
 	WiFiEventsCmd = "WiFi Events"
 	WiFiResetCmd = "WiFi Reset"
 	DebugCmd = "Debugging & Testing"
+	MLDReconfigurationCmd = "MLD Reconfiguration"
 
 	GET = 0
 	GETX = 1 
@@ -171,6 +172,7 @@ func newModel(platform string) model {
         WiFiEventsCmd:      {WiFiEventsCmd, 11, "", "", "", ""},
         WiFiResetCmd:       {WiFiResetCmd, 12, "get_network OneWifiMesh", "", "reset OneWifiMesh", ""},
         DebugCmd:       {DebugCmd, 13, "dev_test OneWifiMesh", "", "", ""},
+		MLDReconfigurationCmd:       {MLDReconfigurationCmd, 14, "get_mld_config OneWifiMesh", "", "mld_reconfig OneWifiMesh", ""},
     }
 	
 	var items []list.Item
@@ -416,6 +418,9 @@ func (m *model) execSelectedCommand(cmdStr string, cmdType int) {
 						}
 						spew.Fdump(m.dump, "Sending DPPURI JSON file")	
 						// Network nodes not needed for DPPURI
+						C.exec(C.CString(value.SetCommand), C.strlen(C.CString(value.SetCommand)), nil)
+						return
+					} else if value.Title == MLDReconfigurationCmd {
 						C.exec(C.CString(value.SetCommand), C.strlen(C.CString(value.SetCommand)), nil)
 						return
 					}

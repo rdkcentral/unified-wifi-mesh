@@ -125,6 +125,8 @@ public:
     void direct_encap_dpp();
     void reconfig_trigger();
     void cac_req();
+    void ap_mld_config_req();
+    void ap_mld_config_rsp();
     void i1905_ack();
     void set_m1(unsigned char *tlvs, unsigned int len);
     bool get_client_mac_info(mac_address_t *mac);
