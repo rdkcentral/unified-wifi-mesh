@@ -39,11 +39,16 @@ class em_metrics_t {
     int handle_assoc_sta_link_metrics_tlv(unsigned char *buff);
     int handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff);
     int handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff);
+    int handle_beacon_metrics_query(unsigned char *buff, unsigned int len);
 
     short create_assoc_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac, const dm_sta_t *const sta);
     short create_assoc_ext_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac, const dm_sta_t *const sta);
     short create_error_code_tlv(unsigned char *buff, mac_address_t sta, bool sta_found);
     short create_assoc_vendor_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac, const dm_sta_t *const sta);
+    short create_beacon_metrics_query_tlv(unsigned char *buff, mac_address_t sta_mac, bssid_t bssid);
+    short send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bssid);
+    int send_beacon_metrics_response(mac_address_t sta_mac);
+    short create_beacon_metrics_response_tlv(unsigned char *buff, mac_address_t sta_mac);
 
 public:
     void    process_msg(unsigned char *data, unsigned int len);

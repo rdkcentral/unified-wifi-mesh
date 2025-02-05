@@ -764,8 +764,10 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             printf("%s:%d: Sending Operating Channel report\n", __func__, __LINE__);
             break;
 
+        case em_msg_type_beacon_metrics_query:
+        break;
         case em_msg_type_assoc_sta_link_metrics_query:
-            printf("\n%s:%d: Rcvd Assoc STA Link Metrics Query\n", __func__, __LINE__);
+            printf("\n%s:%d: Rcvd STA Metrics Query\n", __func__, __LINE__);
 
             em = (em_t *)hash_map_get_first(m_em_map);
             while (em != NULL) {
@@ -809,9 +811,22 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 			
 			break;
 
-        case em_msg_type_1905_ack:
         case em_msg_type_map_policy_config_req:
+            printf(" rcvd em_msg_type_map_policy_config_req\n");
+        
+            em = (em_t *)hash_map_get_first(m_em_map);
+            while (em != NULL) {
+                if ((em->is_al_interface_em() == false)) {
+                    printf(" em found for policy cfg\n");
+                    break;
+                }
+                em = (em_t *)hash_map_get_next(m_em_map, em);
+            }
+            break;
+
+        case em_msg_type_1905_ack:
 		case em_msg_type_channel_scan_rprt:
+        case em_msg_type_beacon_metrics_rsp:
             break;
 
         default:

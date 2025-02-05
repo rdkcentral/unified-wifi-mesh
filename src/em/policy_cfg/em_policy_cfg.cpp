@@ -86,7 +86,7 @@ short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
 	
 	if (found_match == false) {
 		return 0;
-	}	
+	}
 
 	metric->radios_num = 1;
 	radio_metric = metric->radios;
@@ -157,6 +157,7 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
 	for (i = 0; i < dm->get_num_policy(); i++) {
 		policy = &dm->m_policy[i];
 		if (policy->m_policy.id.type == em_policy_id_type_steering_btm) {
+			//printf(" ====== steer policy val %d\n", i);
 			found_match = true;
 			break;
 		}
@@ -211,6 +212,45 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
 		len += sizeof(em_steering_policy_radio_t);
 	}
 
+	return len;
+}
+
+short em_policy_cfg_t::create_vendor_policy_cfg_tlv(unsigned char *buff)
+{
+	//printf(" ### vendr policy cgf added\n");
+	short len = 0;
+    dm_easy_mesh_t *dm;
+    int num_bssids = 0;
+    em_long_string_t	sta_marker;
+		//unsigned short len = 0;
+	//dm_easy_mesh_t *dm, *pdm;
+	dm_policy_t *policy;
+	bool found_match = false;
+	unsigned char *tmp = buff;
+	unsigned int i = 0;
+
+	//dm = get_data_model();
+	dm = get_current_cmd()->get_data_model();
+	
+	for (i = 0; i < dm->get_num_policy(); i++) {
+		policy = &dm->m_policy[i];
+		if (policy->m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
+			//printf(" $$$$$ in create vendor policy cfg, policy val %d\n", i);
+			printf(" ====== vendor policy cfg val %d\n", i);
+			found_match = true;
+			break;
+		}
+	}
+	if (found_match == false) {
+		printf(" ### vendr policy dm not found\n");
+		return 0;
+	}
+	printf(" ### vendr policy manged marker val: %s\n", policy->m_policy.managed_sta_marker);
+	strncpy((char *)tmp, policy->m_policy.managed_sta_marker, strlen(policy->m_policy.managed_sta_marker));
+
+	tmp += strlen(policy->m_policy.managed_sta_marker);
+	len += strlen(policy->m_policy.managed_sta_marker);
+printf(" ### vendr policy len %d\n", len);
 	return len;
 }
 
@@ -270,6 +310,16 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
     tmp += (sizeof(em_tlv_t) + sz);
     len += (sizeof(em_tlv_t) + sz);
 
+	//em_tlv_vendor_plolicy_cfg
+	tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_vendor_plolicy_cfg;
+    //strncpy(tlv->value, );
+	sz = create_vendor_policy_cfg_tlv(tlv->value);
+    tlv->len = htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += (sizeof(em_tlv_t) + sz);
+
     // End of message
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_eom;
@@ -295,11 +345,29 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
 
 int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len)
 {
+	printf(" #### Policy Cfg Request Msg rcvd \n");
     em_tlv_t    *tlv;
     int tlv_len;
 
     tlv = (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tlv_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    while ((tlv->type != em_tlv_type_eom) && (tlv_len > 0)) {
+        if (tlv->type == em_tlv_vendor_plolicy_cfg) {
+			//TODO : Indicate OneWifi of this marker policy
+            //handle_assoc_sta_link_metrics_tlv(tlv->value);
+			printf(" Rcv policy cfg for ap metrics of len %d\n", ntohs(tlv->len));
+			//dm_easy_mesh_t dm;
+			//em_long_string_t buff;
+			//memcpy(buff, tlv->value, ntohs(tlv->len));
+			printf(" Rcv policy cfg for ap metrics with marker value %s\n", tlv->value);
+        }
+        tlv_len -= (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+    //send_associated_link_metrics_response(sta);
+    //set_state(em_state_agent_configured);
 
     return 0;
 }
@@ -313,6 +381,9 @@ void em_policy_cfg_t::process_msg(unsigned char *data, unsigned int len)
     cmdu = (em_cmdu_t *)(data + sizeof(em_raw_hdr_t));
     
     switch (htons(cmdu->type)) {
+		case em_msg_type_map_policy_config_req:
+			handle_policy_cfg_req(data, len);
+			break;
         default:
             break;
     }

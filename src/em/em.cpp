@@ -228,6 +228,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
 
         case em_msg_type_assoc_sta_link_metrics_query:
         case em_msg_type_assoc_sta_link_metrics_rsp:
+        case em_msg_type_beacon_metrics_query:
             em_metrics_t::process_msg(data, len);
             break;
 
@@ -246,6 +247,11 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_client_steering_btm_rprt:
         case em_msg_type_1905_ack:
             em_steering_t::process_msg(data, len);
+            break;
+
+        case em_msg_type_map_policy_config_req:
+            em_policy_cfg_t::process_msg(data, len);
+            break;
 
         default:
             break;  

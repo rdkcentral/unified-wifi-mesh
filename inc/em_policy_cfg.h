@@ -37,6 +37,7 @@ public:
 
 	short create_steering_policy_tlv(unsigned char *buff);
 	short create_metrics_rep_policy_tlv(unsigned char *buff);
+    short create_vendor_policy_cfg_tlv(unsigned char *buff);
 
     int send_policy_cfg_request_msg();
 

@@ -565,6 +565,7 @@ typedef enum {
     em_tlv_type_avail_spectrum_inquiry_reg = 0xe8,
     em_tlv_type_avail_spectrum_inquiry_rsp = 0xe9,
     em_tlv_vendor_sta_metrics = 0xf1,
+    em_tlv_vendor_plolicy_cfg = 0xf2,
 
 	// RDK Proprietary TLV values
 	em_tlv_type_rdk_radio_enable = 0xfe,
@@ -813,6 +814,7 @@ typedef struct {
     unsigned char meas_reports[0];
 }__attribute__((__packed__)) em_beacon_metrics_resp_t;
 
+#if 0
 typedef struct {
     mac_address_t sta_mac_addr;
     unsigned char op_class;
@@ -828,6 +830,24 @@ typedef struct {
     unsigned char num_element_id;
     unsigned char element_list[0];
 }__attribute__((__packed__)) em_beacon_metrics_query_t;
+#else
+
+typedef struct {
+    mac_address_t sta_mac_addr;
+    unsigned char op_class;
+    unsigned char channel_num;
+    bssid_t bssid[6];
+    unsigned char rprt_detail;
+    unsigned char ssid_len;
+    unsigned char *ssid;
+    unsigned char num_ap_channel_rprt;
+    unsigned char ap_channel_rprt_len;
+    unsigned char ap_channel_op_class;
+    unsigned char *ap_channel_list;
+    unsigned char num_element_id;
+    unsigned char *element_list;
+}__attribute__((__packed__)) em_beacon_metrics_query_t;
+#endif
 
 typedef struct {
     unsigned char op_class;

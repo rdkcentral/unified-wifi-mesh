@@ -357,9 +357,8 @@ int em_cmd_cli_t::execute(char *result)
             break;
 
         case em_cmd_type_set_policy:
-			snprintf(in, sizeof(in), "get_policy %s", m_cmd.m_param.u.args.args[1]);
-			if ((node = m_cli.exec(in, strlen(in), NULL)) == NULL) {
-				return -1;
+			if ((node = m_cmd.m_param.net_node) == NULL) {
+            	return -1;
 			}
             bevt->type = em_bus_event_type_set_policy;
             info = &bevt->u.subdoc;
