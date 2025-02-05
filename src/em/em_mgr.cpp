@@ -45,8 +45,10 @@
 #include "em_msg.h"
 #include "em_cmd.h"
 #include "util.h"
+#include "al_service_access_point.hpp"
 
 extern char *global_netid;
+extern AlServiceAccessPoint* g_sap;
 
 void em_mgr_t::io_process(em_bus_event_type_t type, char *data, unsigned int len, em_cmd_params_t *params)
 {
@@ -313,6 +315,11 @@ void em_mgr_t::nodes_listener()
         em = (em_t *)hash_map_get_first(m_em_map);
         while (em != NULL) {
             if (em->is_al_interface_em() == true) {
+#ifdef AL_SAP
+                AlServiceDataUnit sdu = g_sap->serviceAccessPointDataIndication();
+                std::vector<unsigned char> payload = sdu.getPayload();
+                proto_process(payload.data(), payload.size(), em);
+#else
 				pthread_mutex_lock(&m_mutex);
 				ret = FD_ISSET(em->get_fd(), &m_rset);
 				pthread_mutex_unlock(&m_mutex);
@@ -325,6 +332,7 @@ void em_mgr_t::nodes_listener()
                         proto_process(buff, len, em);
                     }
                 }
+#endif
             }
             em = (em_t *)hash_map_get_next(m_em_map, em);
         }

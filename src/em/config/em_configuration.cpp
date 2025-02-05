@@ -2863,6 +2863,9 @@ int em_configuration_t::handle_autoconfig_resp(unsigned char *buff, unsigned int
     }
     em_printf("autoconfig wsc m1 send successful");
     printf("%s:%d: autoconfig wsc m1 send success\n", __func__, __LINE__);
+#ifdef AL_SAP
+    sleep(1);
+#endif
     set_state(em_state_agent_wsc_m2_pending);
 
     return 0;   
