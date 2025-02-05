@@ -41,11 +41,14 @@
 #include <cjson/cJSON.h>
 
 #include <vector>
+#include "al_service_access_point.hpp"
 
 #define RETRY_SLEEP_INTERVAL_IN_MS 1000
+#define SOCKET_PATH "/tmp/tunnel_1_in"
 
 em_agent_t g_agent;
 const char *global_netid = "OneWifiMesh";
+AlServiceAccessPoint* g_sap;
 
 void em_agent_t::handle_sta_list(em_bus_event_t *evt)
 {
@@ -1189,6 +1192,24 @@ em_agent_t::~em_agent_t()
 
 }
 
+AlServiceAccessPoint* em_agent_t::al_sap_register()
+{
+    AlServiceAccessPoint* sap = new AlServiceAccessPoint(SOCKET_PATH);
+
+    AlServiceRegistrationRequest registrationRequest(ServiceOperation::SO_ENABLE, ServiceType::SAP_TUNNEL_CLIENT);
+    sap->serviceAccessPointRegistrationRequest(registrationRequest);
+
+    AlServiceRegistrationResponse registrationResponse = sap->serviceAccessPointRegistrationResponse();
+
+    std::cout << "Registration completed with MAC Address: ";
+    for (auto byte : registrationResponse.getAlMacAddressLocal()) {
+        std::cout << std::hex << static_cast<int>(byte) << " ";
+    }
+    std::cout << std::dec << std::endl;
+
+    return sap;
+}
+
 int main(int argc, const char *argv[])
 {
 
@@ -1234,6 +1255,9 @@ int main(int argc, const char *argv[])
     }
 
     if (g_agent.init(data_model_path.empty() ? NULL : data_model_path.c_str()) == 0) {
+#ifdef AL_SAP
+    g_sap = g_agent.al_sap_register();
+#endif
         g_agent.start();
     }
 

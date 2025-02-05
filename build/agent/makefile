@@ -37,17 +37,21 @@ INCLUDEDIRS = \
     	-I$(ONEWIFI_HOME)/source/platform/common \
     	-I$(ONEWIFI_HOME)/source/platform/linux/he_bus/inc \
         -I$(ONEWIFI_EM_HOME)/src/util_crypto \
-        -I$(ONEWIFI_HOME)/source/ccsp
+        -I$(ONEWIFI_HOME)/source/ccsp \
+        -I$(AL_SAP_HOME)/include \
 
 $(info The value of VARIABLE is $(ONEWIFI_HAL_INTF_HOME))
 
 CXXFLAGS += $(INCLUDEDIRS) -g -DEASY_MESH_NODE -Wall -Wextra -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wconversion -Wsign-conversion -Weffc++ -Wno-unused-parameter -std=c++11 -fsanitize=address -fsanitize=undefined #-Werror -O2
+CXXFLAGS += -DAL_SAP
 LDFLAGS += $(LIBDIRS) $(LIBS) -fsanitize=address -fsanitize=undefined
+
 LIBDIRS = \
 	-L$(INSTALLDIR)/lib \
-    -L$(ONEWIFI_HOME)/install/lib/
+    -L$(ONEWIFI_HOME)/install/lib/ \
+    -L/usr/lib/ieee1905 \
 
-LIBS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwebconfig -lhebus
+LIBS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwebconfig -lhebus -lalsap
 
 GENERIC_SOURCES = $(ONEWIFI_HOME)/source/utils/collection.c \
     $(ONEWIFI_EM_SRC)/util_crypto/aes_siv.c \

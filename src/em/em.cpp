@@ -50,6 +50,9 @@
 #include "em_cmd.h"
 #include "em_cmd_exec.h"
 #include "util.h"
+#include "al_service_access_point.hpp"
+
+extern AlServiceAccessPoint* g_sap;
 
 void em_t::orch_execute(em_cmd_t *pcmd)
 {
@@ -536,6 +539,9 @@ int em_t::set_bp_filter()
 
 int em_t::start_al_interface()
 {
+#ifdef AL_SAP
+    m_fd = g_sap->getSocketDescriptor();
+#else
     int sock_fd;
     struct sockaddr_ll addr_ll;
     struct sockaddr *addr;
@@ -562,7 +568,7 @@ int em_t::start_al_interface()
     m_fd = sock_fd;
 
     set_bp_filter();
-
+#endif // AL_SAP
     return 0;
 }
 
@@ -573,9 +579,29 @@ int em_t::send_cmd(em_cmd_type_t type, em_service_type_t svc, unsigned char *buf
 
 int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
 {
+    int ret = 0;
+#ifdef AL_SAP
+    AlServiceDataUnit sdu;
+    if (m_service_type == em_service_type_agent) {
+        sdu.setSourceAlMacAddress({0x11, 0x11, 0x11, 0x11, 0x11, 0x11});
+        sdu.setDestinationAlMacAddress({0x22, 0x22, 0x22, 0x22, 0x22, 0x22});
+    } else if (m_service_type == em_service_type_ctrl) {
+        sdu.setSourceAlMacAddress({0x22, 0x22, 0x22, 0x22, 0x22, 0x22});
+        sdu.setDestinationAlMacAddress({0x11, 0x11, 0x11, 0x11, 0x11, 0x11});
+    }
+
+    std::vector<unsigned char> payload;
+    for (unsigned int i = 0; i < len; i++) {
+        payload.push_back(buff[i]);
+    }
+    sdu.setPayload(payload);
+
+    g_sap->serviceAccessPointDataRequest(sdu);
+#else
+    em_interface_t *al;
     em_short_string_t   ifname;
     struct sockaddr_ll sadr_ll;
-    int sock, ret;
+    int sock;
     mac_address_t   multi_addr = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x13};
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
 
@@ -594,7 +620,7 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     ret = static_cast<int>(sendto(sock, buff, len, 0, reinterpret_cast<const struct sockaddr*>(&sadr_ll), sizeof(struct sockaddr_ll)));
 
     close(sock);
-
+#endif
     return ret;
 }
 

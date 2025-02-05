@@ -44,10 +44,13 @@
 #include "dm_easy_mesh.h"
 #include "em_orch_ctrl.h"
 #include "util.h"
+#include "al_service_access_point.hpp"
 
 em_ctrl_t g_ctrl;
 const char *global_netid = "OneWifiMesh";
+AlServiceAccessPoint* g_sap;
 
+#define SOCKET_PATH "/tmp/tunnel_2_in"
 
 void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
 {
@@ -820,8 +823,30 @@ em_ctrl_t::~em_ctrl_t()
 
 }
 
+AlServiceAccessPoint* em_ctrl_t::al_sap_register()
+{
+    AlServiceAccessPoint* sap = new AlServiceAccessPoint(SOCKET_PATH);
+
+    AlServiceRegistrationRequest registrationRequest(ServiceOperation::SO_ENABLE, ServiceType::SAP_TUNNEL_CLIENT);
+    sap->serviceAccessPointRegistrationRequest(registrationRequest);
+
+    AlServiceRegistrationResponse registrationResponse = sap->serviceAccessPointRegistrationResponse();
+
+    std::cout << "Registration completed with MAC Address: ";
+    for (auto byte : registrationResponse.getAlMacAddressLocal()) {
+        std::cout << std::hex << static_cast<int>(byte) << " ";
+    }
+    std::cout << std::dec << std::endl;
+
+    return sap;
+}
+
 int main(int argc, const char *argv[])
 {
+#ifdef AL_SAP
+    g_sap = g_ctrl.al_sap_register();
+#endif
+
     if (g_ctrl.init(argv[1]) == 0) {
         g_ctrl.start();
     }
