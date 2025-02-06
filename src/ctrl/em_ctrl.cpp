@@ -49,6 +49,7 @@
 em_ctrl_t g_ctrl;
 const char *global_netid = "OneWifiMesh";
 AlServiceAccessPoint* g_sap;
+MacAddress g_al_mac_sap;
 
 #define SOCKET_PATH "/tmp/tunnel_2_in"
 
@@ -832,11 +833,17 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register()
 
     AlServiceRegistrationResponse registrationResponse = sap->serviceAccessPointRegistrationResponse();
 
-    std::cout << "Registration completed with MAC Address: ";
-    for (auto byte : registrationResponse.getAlMacAddressLocal()) {
-        std::cout << std::hex << static_cast<int>(byte) << " ";
+    RegistrationResult result = registrationResponse.getResult();
+    if (result == RegistrationResult::SUCCESS) {
+        g_al_mac_sap = registrationResponse.getAlMacAddressLocal();
+        std::cout << "Registration completed with MAC Address: ";
+        for (auto byte : g_al_mac_sap) {
+            std::cout << std::hex << static_cast<int>(byte) << " ";
+        }
+        std::cout << std::dec << std::endl;
+    } else {
+        std::cout << "Registration failed with error: " << (int)result << std::endl;
     }
-    std::cout << std::dec << std::endl;
 
     return sap;
 }
