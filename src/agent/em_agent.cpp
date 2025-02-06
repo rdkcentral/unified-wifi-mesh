@@ -46,6 +46,7 @@
 em_agent_t g_agent;
 const char *global_netid = "OneWifiMesh";
 AlServiceAccessPoint* g_sap;
+MacAddress g_al_mac_sap;
 
 void em_agent_t::handle_sta_list(em_bus_event_t *evt)
 {
@@ -882,11 +883,17 @@ AlServiceAccessPoint* em_agent_t::al_sap_register()
 
     AlServiceRegistrationResponse registrationResponse = sap->serviceAccessPointRegistrationResponse();
 
-    std::cout << "Registration completed with MAC Address: ";
-    for (auto byte : registrationResponse.getAlMacAddressLocal()) {
-        std::cout << std::hex << static_cast<int>(byte) << " ";
+    RegistrationResult result = registrationResponse.getResult();
+    if (result == RegistrationResult::SUCCESS) {
+        g_al_mac_sap = registrationResponse.getAlMacAddressLocal();
+        std::cout << "Registration completed with MAC Address: ";
+        for (auto byte : g_al_mac_sap) {
+            std::cout << std::hex << static_cast<int>(byte) << " ";
+        }
+        std::cout << std::dec << std::endl;
+    } else {
+        std::cout << "Registration failed with error: " << (int)result << std::endl;
     }
-    std::cout << std::dec << std::endl;
 
     return sap;
 }
