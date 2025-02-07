@@ -679,18 +679,19 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 			}
 			break;
 
-        case em_msg_type_autoconf_search:
-        case em_msg_type_topo_resp:
         case em_msg_type_topo_query:
-            em = (em_t *)hash_map_get_first(m_em_map);
+            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+                len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+                printf("%s:%d: Could not find radio_id for em_msg_type_topo_query\n", __func__, __LINE__);
+                return NULL;
+            }
 
-            while (em != NULL) {
-                if (!(em->is_al_interface_em())) {
-                    if (em->get_state() == em_state_agent_onewifi_bssconfig_ind) {
-                        break;
-                    }
-                }
-                em = (em_t *)hash_map_get_next(m_em_map, em);
+            dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
+            if (((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL)  && (em->get_state() == em_state_agent_onewifi_bssconfig_ind)) {
+                printf("%s:%d: Received topo query, found existing radio:%s\n", __func__, __LINE__, mac_str1);
+            } else {
+                printf("%s:%d: Could not find em for em_msg_type_topo_query\n", __func__, __LINE__);
+                return NULL;
             }
             break;
 
@@ -713,10 +714,6 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
         case em_msg_type_topo_notif:
             break;
 		
-        case em_msg_type_channel_pref_rprt:
-            printf("%s:%d:Received channel preference report\n",__func__, __LINE__);
-            break;
-
         case  em_msg_type_channel_sel_req:
             if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                 	len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
@@ -822,7 +819,10 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             }
 
             break;
-
+        
+        case em_msg_type_autoconf_search:
+        case em_msg_type_topo_resp:
+        case em_msg_type_channel_pref_rprt:
         case em_msg_type_1905_ack:
         case em_msg_type_map_policy_config_req:
 		case em_msg_type_channel_scan_rprt:
