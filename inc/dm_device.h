@@ -59,6 +59,7 @@ public:
     dm_orch_type_t get_dm_orch_type(const dm_device_t& device);
 
     static int parse_device_id_from_key(const char *key, em_device_id_t *id);
+    int update_easymesh_json_cfg(bool colocated_mode);
 
     dm_device_t(em_device_info_t *dev);
     dm_device_t(const dm_device_t& dev);
