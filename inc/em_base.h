@@ -166,6 +166,7 @@ extern "C"
 #define EM_AGENT_PATH   "agent"
 #define EM_CTRL_PATH    "ctrl"
 #define EM_CLI_PATH "cli"
+#define EM_CFG_FILE "/nvram/EasymeshCfg.json"
 
 #define EM_MAX_SSID_LEN                33 
 #define EM_MAX_WIFI_PASSWORD_LEN       65 
