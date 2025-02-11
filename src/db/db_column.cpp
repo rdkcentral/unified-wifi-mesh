@@ -26,6 +26,7 @@
 
 void db_column_t::operator = (const db_column_t& col)
 {
+    if (this == &col) { return; }
     snprintf(m_name, sizeof(m_name), "%s", col.m_name);
     m_type = col.m_type;
     m_type_args = col.m_type_args;

@@ -151,6 +151,7 @@ bool dm_dpp_t::operator == (const dm_dpp_t& obj)
 
 void dm_dpp_t::operator = (const dm_dpp_t& obj)
 {
+    if (this == &obj) { return; }
     this->m_dpp_info.version == obj.m_dpp_info.version;
     this->m_dpp_info.ec_data.type == obj.m_dpp_info.ec_data.type;
     memcpy(this->m_dpp_info.ec_data.iPubKey, obj.m_dpp_info.ec_data.iPubKey, sizeof(this->m_dpp_info.ec_data.iPubKey));

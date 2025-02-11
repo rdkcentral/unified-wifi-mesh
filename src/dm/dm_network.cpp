@@ -174,6 +174,7 @@ bool dm_network_t::operator == (const dm_network_t& obj)
 
 void dm_network_t::operator = (const dm_network_t& obj)
 {
+    if (this == &obj) { return; }
     memcpy(&this->m_net_info.id,&obj.m_net_info.id,sizeof(em_long_string_t));
     this->m_net_info.num_of_devices = obj.m_net_info.num_of_devices;
     strncpy(this->m_net_info.timestamp, obj.m_net_info.timestamp, strlen(obj.m_net_info.timestamp) + 1);
