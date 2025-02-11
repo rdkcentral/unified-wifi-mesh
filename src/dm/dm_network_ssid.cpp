@@ -184,6 +184,7 @@ bool dm_network_ssid_t::operator == (const dm_network_ssid_t& obj)
 
 void dm_network_ssid_t::operator = (const dm_network_ssid_t& obj)
 {
+    if (this == &obj) { return; }
     memcpy(&this->m_network_ssid_info.id ,&obj.m_network_ssid_info.id,sizeof(em_long_string_t));
     memcpy(&this->m_network_ssid_info.ssid, &obj.m_network_ssid_info.ssid, sizeof(ssid_t));
     memcpy(&this->m_network_ssid_info.pass_phrase, &obj.m_network_ssid_info.pass_phrase, sizeof(em_long_string_t));

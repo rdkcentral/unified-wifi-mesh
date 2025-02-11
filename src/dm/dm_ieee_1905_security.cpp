@@ -91,6 +91,7 @@ bool dm_ieee_1905_security_t::operator == (const dm_ieee_1905_security_t& obj)
 
 void dm_ieee_1905_security_t::operator = (const dm_ieee_1905_security_t& obj)
 {
+    if (this == &obj) { return; }
     memcpy(&this->m_ieee_1905_security_info.id ,&obj.m_ieee_1905_security_info.id ,sizeof(mac_address_t));
     this->m_ieee_1905_security_info.sec_cap.onboarding_proto = obj.m_ieee_1905_security_info.sec_cap.onboarding_proto;
     this->m_ieee_1905_security_info.sec_cap.integrity_algo = obj.m_ieee_1905_security_info.sec_cap.integrity_algo;
