@@ -179,11 +179,11 @@ void dm_network_t::operator = (const dm_network_t& obj)
     strncpy(this->m_net_info.timestamp, obj.m_net_info.timestamp, strlen(obj.m_net_info.timestamp) + 1);
     memcpy(&this->m_net_info.ctrl_id.mac ,&obj.m_net_info.ctrl_id.mac,sizeof(mac_address_t));
     memcpy(&this->m_net_info.ctrl_id.name,&obj.m_net_info.ctrl_id.name,sizeof(em_interface_name_t));
-    this->m_net_info.num_mscs_disallowed_sta == obj.m_net_info.num_mscs_disallowed_sta;
+    this->m_net_info.num_mscs_disallowed_sta = obj.m_net_info.num_mscs_disallowed_sta;
     for (int i = 0; i < this->m_net_info.num_mscs_disallowed_sta; i++) {
         memcpy(&this->m_net_info.mscs_disallowed_sta[i], &obj.m_net_info.mscs_disallowed_sta[i], sizeof(em_string_t));
     }
-    this->m_net_info.num_scs_disallowed_sta == obj.m_net_info.num_scs_disallowed_sta;
+    this->m_net_info.num_scs_disallowed_sta = obj.m_net_info.num_scs_disallowed_sta;
     for (int i = 0; i < this->m_net_info.num_scs_disallowed_sta; i++) {
         memcpy(&this->m_net_info.scs_disallowed_sta[i], &obj.m_net_info.scs_disallowed_sta[i], sizeof(em_string_t));
     }
