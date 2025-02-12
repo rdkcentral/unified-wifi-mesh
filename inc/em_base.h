@@ -978,7 +978,7 @@ typedef struct {
 typedef struct {
     mac_address_t ruid;
     unsigned char reserved1 : 1;
-    unsigned char partial_bss_color : 2;
+    unsigned char partial_bss_color : 1;
     unsigned char bss_color : 6;
     unsigned char reserved2 : 3;
     unsigned char hesiga_spatial_reuse_value15_allowed : 1;
