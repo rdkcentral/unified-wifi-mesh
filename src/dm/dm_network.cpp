@@ -215,7 +215,7 @@ dm_network_t::dm_network_t(const dm_network_t& net)
 
 dm_network_t::dm_network_t()
 {
-
+    memset(&m_net_info, 0, sizeof(em_network_info_t));
 }
 
 dm_network_t::~dm_network_t()
