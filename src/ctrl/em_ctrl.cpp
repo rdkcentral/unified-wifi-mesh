@@ -536,7 +536,10 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
     bssid_t	bssid;
     dm_bss_t *bss;
     em_profile_type_t profile;
-    mac_addr_str_t mac_str1, mac_str2;
+    em_long_string_t key;
+    unsigned int i;
+    bool found;
+    mac_addr_str_t mac_str1, mac_str2, dev_mac_str, radio_mac_str, bss_mac_str;
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
     if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
@@ -631,12 +634,29 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 return NULL;
             }
 
-            dm_easy_mesh_t::macbytes_to_string(bssid, mac_str1);
+            if ((dm = get_data_model((const char *)global_netid, (const unsigned char *)hdr->src)) == NULL) {
+                printf("%s:%d: Can not find data model\n", __func__, __LINE__);
+            }
+            for (i = 0; i < dm->get_num_radios(); i++) {
+                found = true;
+                dm_easy_mesh_t::macbytes_to_string((unsigned char *)dm->get_radio_info(i)->id.dev_mac, dev_mac_str);
+                dm_easy_mesh_t::macbytes_to_string((unsigned char *)dm->get_radio_info(i)->id.ruid, radio_mac_str);
+                dm_easy_mesh_t::macbytes_to_string(bssid, mac_str1);
+    
+                snprintf(key, sizeof (em_long_string_t), "%s@%s@%s@%s@", dm->get_radio_info(i)->id.net_id, dev_mac_str, radio_mac_str, mac_str1);
 
-            if ((bss = m_data_model.get_bss(mac_str1)) == NULL) {
+                if ((bss = m_data_model.get_bss(key)) == NULL) {
+                    found = false;
+                    continue;
+                }
+                break;
+            }
+
+            if (found == false) {
                 printf("%s:%d: Could not find bss:%s from data model\n", __func__, __LINE__, mac_str1);
                 return NULL;
             }
+              
             dm_easy_mesh_t::macbytes_to_string(bss->m_bss_info.ruid.mac, mac_str1);
             if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) == NULL) {
                 printf("%s:%d: Could not find radio:%s\n", __func__, __LINE__, mac_str1);
