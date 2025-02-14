@@ -69,5 +69,4 @@ int em_chan_to_freq(const std::string& country, uint8_t op_class, uint8_t chan);
 #define em_util_info_print(module, format, ...)  em_util_print(EM_LOG_LVL_INFO, module, __func__, __LINE__, format, ##__VA_ARGS__)
 #define em_util_error_print(module, format, ...)  em_util_print(EM_LOG_LVL_ERROR, module, __func__, __LINE__, format, ##__VA_ARGS__)
 
-
 #endif

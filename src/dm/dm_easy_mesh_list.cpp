@@ -138,7 +138,7 @@ void dm_easy_mesh_list_t::put_network(const char *key, const dm_network_t *net)
 			
     /* try to find any data model with this network, if exists, the colocated dm must be there, otherwise create one */
     if ((dm = get_data_model(key, net_info->colocated_agent_id.mac)) == NULL) {
-		dm = create_data_model(key, net_info->colocated_agent_id.mac, em_profile_type_3, true);
+		dm = create_data_model(key, &net_info->colocated_agent_id, em_profile_type_3, true);
 		pnet = dm->get_network();
 		*pnet = *net;	
 		strncpy(m_network_list[m_num_networks], key, strlen(key));
@@ -224,7 +224,7 @@ void dm_easy_mesh_list_t::put_device(const char *key, const dm_device_t *dev)
 
     if ((pdev = get_device(key)) == NULL) {
         //printf("%s:%d: device at key: %s not found\n", __func__, __LINE__, key);
-	    dm = create_data_model(dev->m_device_info.id.net_id, dev->m_device_info.intf.mac, dev->m_device_info.profile);
+	    dm = create_data_model(dev->m_device_info.id.net_id, &dev->m_device_info.intf, dev->m_device_info.profile);
         pdev = dm->get_device();
     }
     *pdev = *dev;
@@ -1380,7 +1380,7 @@ void dm_easy_mesh_list_t::delete_data_model(const char *net_id, const unsigned c
     delete dm;
 }
 
-dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const unsigned char *al_mac, em_profile_type_t profile, bool colocated)
+dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const em_interface_t *al_intf, em_profile_type_t profile, bool colocated)
 {
     dm_easy_mesh_t *dm = NULL, *ref_dm;
     mac_addr_str_t mac_str;
@@ -1426,7 +1426,7 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
 								dm_policy_t(em_policy[4]), dm_policy_t(em_policy[5])
 						};
 	
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)al_mac, mac_str);
+    dm_easy_mesh_t::macbytes_to_string((unsigned char *)al_intf->mac, mac_str);
     snprintf(key, sizeof(em_short_string_t), "%s@%s", net_id, mac_str);
 
     dm = new dm_easy_mesh_t();
@@ -1435,12 +1435,12 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
     dm->set_colocated(colocated);
 
     dev = dm->get_device();
-    memcpy(dev->m_device_info.intf.mac, al_mac, sizeof(mac_address_t));
+    memcpy(dev->m_device_info.intf.mac, al_intf->mac, sizeof(mac_address_t));
     strncpy(dev->m_device_info.id.net_id, net_id, strlen(net_id) + 1);
 	if (colocated == true) {
 		dev->m_device_info.id.media = dm->m_network.m_net_info.media;
-		memcpy(dev->m_device_info.backhaul_mac.mac, al_mac, sizeof(mac_address_t));
-		dev->m_device_info.backhaul_mac.media = dm->m_network.m_net_info.media;
+		memcpy(dev->m_device_info.backhaul_mac.mac, al_intf->mac, sizeof(mac_address_t));
+		dev->m_device_info.backhaul_mac.media = al_intf->media;
 	}
     dev->m_device_info.profile = profile;
 	dm->set_channels_list(op_class, EM_MAX_PRE_SET_CHANNELS);

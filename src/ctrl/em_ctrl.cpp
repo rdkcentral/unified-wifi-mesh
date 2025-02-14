@@ -545,7 +545,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_profile(&profile) == false) {
                     profile = em_profile_type_1;
                 }
-                dm = create_data_model((const char *)global_netid, (const unsigned char *)intf.mac, profile);
+                dm = create_data_model((const char *)global_netid, (const em_interface_t *)&intf, profile);
                 printf("%s:%d: Created data model for mac: %s net: %s\n", __func__, __LINE__, mac_str1, global_netid);
             } else {
                 dm_easy_mesh_t::macbytes_to_string(dm->get_agent_al_interface_mac(), mac_str1);
@@ -689,11 +689,40 @@ void em_ctrl_t::io(void *data, bool input)
 void em_ctrl_t::start_complete()
 {
 	dm_easy_mesh_t *dm;
+	wifi_bus_desc_t *desc;
+	raw_data_t raw;
+	em_interface_t	*intf;
+	mac_addr_str_t	al_mac_str;
 
 	if (m_data_model.is_initialized() == false) {
 		printf("%s:%d: Database not initialized ... needs reset\n", __func__, __LINE__);
 		return;
 	}
+
+    bus_init(&m_bus_hdl);
+        
+    if((desc = get_bus_descriptor()) == NULL) {
+        printf("%s:%d descriptor is null\n", __func__, __LINE__);
+    }
+
+    if (desc->bus_open_fn(&m_bus_hdl, "EasyMesh_Ctrl_Service") != 0) {
+        printf("%s:%d bus open failed\n",__func__, __LINE__);
+        return;
+    }
+
+	intf = m_data_model.get_ctrl_al_interface((char *)global_netid);
+	assert(intf != NULL);
+
+	dm_easy_mesh_t::macbytes_to_string(intf->mac, al_mac_str);
+	raw.data_type    = bus_data_type_string;
+   	raw.raw_data.bytes   = al_mac_str;
+   	raw.raw_data_len = strlen(al_mac_str);
+
+   	if (desc->bus_set_fn(&m_bus_hdl, "Device.WiFi.Ctrl.CollocateAgentID", &raw)== 0) {
+       	printf("%s:%d Collocated Agent ID: %s publish successfull\n",__func__, __LINE__, al_mac_str);
+   	} else {
+       	printf("%s:%d Collocated agent ID: %s publish  fail\n",__func__, __LINE__, al_mac_str);
+   	}
 
 	// build initial network topology
 	init_network_topology();
@@ -730,3 +759,7 @@ int main(int argc, const char *argv[])
     return 0;
 }
 
+void wifi_util_print(wifi_log_level_t level, wifi_dbg_type_t module, char *format, ...)
+{
+
+}

@@ -34,7 +34,7 @@ class dm_easy_mesh_list_t {
 public:
 
     dm_easy_mesh_t *get_data_model(const char *net_id, const unsigned char *al_mac);
-    dm_easy_mesh_t *create_data_model(const char *net_id, const unsigned char *al_mac, em_profile_type_t profile, bool colocated_dm = false);
+    dm_easy_mesh_t *create_data_model(const char *net_id, const em_interface_t *al_intf, em_profile_type_t profile, bool colocated_dm = false);
     void delete_data_model(const char *net_id, const unsigned char *al_mac);
     void delete_all_data_models();
 

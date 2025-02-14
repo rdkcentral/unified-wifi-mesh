@@ -263,8 +263,7 @@ int dm_easy_mesh_agent_t::analyze_m2ctrl_configuration(em_bus_event_t *evt, wifi
 
     if (desc->bus_set_fn(bus_hdl, "Device.WiFi.WebConfig.Data.Subdoc.South", &l_bus_data)== 0) {
         printf("%s:%d private subdoc send successfull\n",__func__, __LINE__);
-    }
-    else {
+    } else {
         printf("%s:%d private subdoc send fail\n",__func__, __LINE__);
         return -1;
     }

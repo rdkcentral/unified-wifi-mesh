@@ -1385,10 +1385,10 @@ int dm_easy_mesh_ctrl_t::set_config(dm_easy_mesh_t *dm)
     return update_tables(dm);
 }
 
-dm_easy_mesh_t *dm_easy_mesh_ctrl_t::create_data_model(const char *net_id, const unsigned char *al_mac, em_profile_type_t profile)
+dm_easy_mesh_t *dm_easy_mesh_ctrl_t::create_data_model(const char *net_id, const em_interface_t *al_intf, em_profile_type_t profile)
 {
     
-    return m_data_model_list.create_data_model(net_id, al_mac, profile);
+    return m_data_model_list.create_data_model(net_id, al_intf, profile);
 }
 
 void dm_easy_mesh_ctrl_t::handle_dirty_dm()
