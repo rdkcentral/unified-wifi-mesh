@@ -312,6 +312,7 @@ int dm_easy_mesh_t::encode_config_reset(em_subdoc_info_t *subdoc, const char *ke
 	em_long_string_t	interface_str;
 	const char *preference[5] = {"First Preference", "Second Preference", "Third Preference", "Fourth Preference", "Fifth Preference"};
 	unsigned int i;
+	m_num_interfaces = sizeof(preference)/sizeof(*preference);
 
     if ((parent_obj = cJSON_CreateObject()) == NULL) {
         printf("%s:%d: Could not create parent object\n", __func__, __LINE__);
