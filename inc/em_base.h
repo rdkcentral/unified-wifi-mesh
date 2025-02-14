@@ -978,7 +978,7 @@ typedef struct {
 typedef struct {
     mac_address_t ruid;
     unsigned char reserved1 : 1;
-    unsigned char partial_bss_color : 2;
+    unsigned char partial_bss_color : 1;
     unsigned char bss_color : 6;
     unsigned char reserved2 : 3;
     unsigned char hesiga_spatial_reuse_value15_allowed : 1;
@@ -1836,6 +1836,7 @@ typedef enum {
     em_state_ctrl_ap_mld_config_pending,
     em_state_ctrl_ap_mld_configured,
     em_state_ctrl_bsta_mld_config_pending,
+    em_state_ctrl_ap_mld_req_ack_rcvd,
     em_state_ctrl_avail_spectrum_inquiry_pending,
 
     em_state_max,
@@ -1881,6 +1882,8 @@ typedef enum {
     em_cmd_type_get_policy,
     em_cmd_type_set_policy,
     em_cmd_type_avail_spectrum_inquiry,
+    em_cmd_type_get_mld_config,
+    em_cmd_type_mld_reconfig,
     em_cmd_type_max,
 } em_cmd_type_t;
 
@@ -2511,7 +2514,9 @@ typedef enum {
     em_bus_event_type_set_radio,
     em_bus_event_type_bss_tm_req,
     em_bus_event_type_btm_response,
-	em_bus_event_type_channel_scan_params
+	em_bus_event_type_channel_scan_params,
+    em_bus_event_type_get_mld_config,
+    em_bus_event_type_mld_reconfig
 } em_bus_event_type_t;
 
 typedef struct {
@@ -2594,6 +2599,7 @@ typedef enum {
     dm_orch_type_sta_steer_btm_report,
     dm_orch_type_sta_disassoc,
     dm_orch_type_policy_cfg,
+    dm_orch_type_mld_reconfig,
 } dm_orch_type_t;
 
 typedef struct {
