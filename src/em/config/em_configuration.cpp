@@ -539,6 +539,10 @@ int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
 
     ap_mld = ap_mld_conf->ap_mld;
 
+    //dm->set_num_ap_mld(1);
+    //dm->m_ap_mld[0].m_ap_mld_info.num_affiliated_ap = 1;
+    //memcpy(dm->m_ap_mld[0].m_ap_mld_info.affiliated_ap[0].ruid.mac, get_radio_interface_mac(), sizeof(mac_address_t));
+
     for (i = 0; i < dm->get_num_ap_mld(); i++) {
         em_ap_mld_info_t& ap_mld_info = dm->m_ap_mld[i].m_ap_mld_info;
         ap_mld->ap_mld_mac_addr_valid = ap_mld_info.mac_addr_valid;
@@ -881,34 +885,276 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst)
     return len;
 }
 
-int em_configuration_t::send_ap_mld_config_req_msg(unsigned char *buff)
+short em_configuration_t::create_eht_operations_tlv(unsigned char *buff)
 {
-    int tlv_len = create_ap_mld_config_tlv(buff);
-    em_radio_cap_info_t* cap_info = get_data_model()->get_radio_cap(get_radio_interface_mac())->get_radio_cap_info();
-    em_eht_operations_t *eht_ops = (em_eht_operations_t *)buff;
+    short len = 0;
+    int i = 0, j = 0;
+    unsigned char *tmp = buff;
+    dm_easy_mesh_t  *dm;
+    em_eht_operations_bss_t  *eht_ops_bss;
 
-    if ((eht_ops == NULL) || (cap_info == NULL)) {
-        printf("%s:%d No data Found\n", __func__, __LINE__);
-        return 0;
+    dm = get_data_model();
+
+    unsigned char num_radios = dm->get_num_radios();
+    unsigned char num_bss;
+
+    memcpy(tmp, &num_radios, sizeof(unsigned char));
+    tmp += sizeof(unsigned char);
+    len += sizeof(unsigned char);
+
+    for (i = 0; i < num_radios; i++) {
+        memcpy(tmp, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t));
+        tmp += sizeof(mac_address_t);
+        len += sizeof(mac_address_t);
+
+        num_bss = dm->get_num_bss();
+
+        memcpy(tmp, &num_bss, sizeof(unsigned char));
+        tmp += sizeof(unsigned char);
+        len += sizeof(unsigned char);
+
+
+        for (j = 0; j < dm->get_num_bss(); j++) {
+        	if (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
+            	continue;
+        	}
+
+            memcpy(tmp, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
+            tmp += sizeof(mac_address_t);
+            len += sizeof(mac_address_t);
+
+            eht_ops_bss = &dm->m_bss[j].m_bss_info.eht_ops;
+            memcpy(tmp, eht_ops_bss, sizeof(em_eht_operations_bss_t));
+            tmp += sizeof(em_eht_operations_bss_t);
+            len += sizeof(em_eht_operations_bss_t);
+        }
     }
-    memcpy(&eht_ops,&cap_info->eht_ops,sizeof(em_eht_operations_t));
-    tlv_len += sizeof(em_eht_operations_t);
-    return tlv_len;
+
+    return len;
 }
 
-int em_configuration_t::send_ap_mld_config_resp_msg(unsigned char *buff)
+int em_configuration_t::send_ap_mld_config_req_msg()
 {
-    int tlv_len = create_ap_mld_config_tlv(buff);
-    em_radio_cap_info_t* cap_info = get_data_model()->get_radio_cap(get_radio_interface_mac())->get_radio_cap_info();
-    em_eht_operations_t *eht_ops = (em_eht_operations_t *)buff;
+    unsigned char buff[MAX_EM_BUFF_SZ];
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    unsigned short  msg_id = em_msg_type_ap_mld_config_req;
+    int len = 0;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    unsigned short tlv_len;
+    unsigned char *tmp = buff;
+    unsigned short type = htons(ETH_P_1905);
+	dm_easy_mesh_t *dm;
 
-    if ((eht_ops == NULL) || (cap_info == NULL)) {
-        printf("%s:%d No data Found\n", __func__, __LINE__);
+	dm = get_data_model();
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, (unsigned char *)&type, sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += sizeof(unsigned short);
+
+    cmdu = (em_cmdu_t *)tmp;
+
+    memset(tmp, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(msg_id);
+    cmdu->id = htons(msg_id);
+    cmdu->last_frag_ind = 1;
+    cmdu->relay_ind = 0;
+
+    tmp += sizeof(em_cmdu_t);
+    len += sizeof(em_cmdu_t);
+
+    // One AP MLD Configuration TLV
+    tlv_len = create_ap_mld_config_tlv(tmp);
+
+    tmp += (sizeof(em_tlv_t) + tlv_len);
+    len += (sizeof(em_tlv_t) + tlv_len);
+
+    // AP EHT Operations 17.2.103
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_eht_operations;
+    tlv_len = create_eht_operations_tlv(tlv->value);
+    tlv->len = htons(tlv_len);
+
+    tmp += (sizeof(em_tlv_t) + tlv_len);
+    len += (sizeof(em_tlv_t) + tlv_len);  
+
+    // End of message
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_eom;
+    tlv->len = 0;
+
+    tmp += (sizeof (em_tlv_t));
+    len += (sizeof (em_tlv_t));
+    if (em_msg_t(em_msg_type_ap_mld_config_req, em_profile_type_3, buff, len).validate(errors) == 0) {
+        printf("AP MLD config msg failed validation in tnx end\n");
+        return -1;
+    }
+
+    if (send_frame(buff, len)  < 0) {
+        printf("%s:%d: AP MLD config request send failed, error:%d\n", __func__, __LINE__, errno);
+        return -1;
+    }
+
+    printf("%s:%d: AP MLD config request Send Successful\n", __func__, __LINE__);
+
+    set_state(em_state_ctrl_ap_mld_configured);
+
+	return len;
+}
+
+int em_configuration_t::send_1905_ack_message(mac_addr_t sta_mac)
+{
+    unsigned char buff[MAX_EM_BUFF_SZ];
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    unsigned short  msg_type = em_msg_type_1905_ack;
+    int len = 0;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    unsigned char *tmp = buff;
+    unsigned short sz = 0;
+    unsigned short type = htons(ETH_P_1905);
+    short msg_id = em_msg_type_1905_ack;
+    dm_easy_mesh_t *dm = get_data_model();
+
+    em_cmd_t *pcmd = get_current_cmd();
+    em_cmd_params_t *evt_param = &pcmd->m_param;
+
+    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, (unsigned char *)&type, sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += sizeof(unsigned short);
+
+    cmdu = (em_cmdu_t *)tmp;
+
+    memset(tmp, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(msg_id);
+    cmdu->last_frag_ind = 1;
+
+    tmp += sizeof(em_cmdu_t);
+    len += sizeof(em_cmdu_t);
+
+    //17.2.36 Error Code TLV format
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_error_code;
+    sz = create_error_code_tlv(tlv->value, 0, sta_mac);
+    tlv->len = htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += (sizeof(em_tlv_t) + sz);
+
+    // End of message
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_eom;
+    tlv->len = 0;
+
+    tmp += (sizeof (em_tlv_t));
+    len += (sizeof (em_tlv_t));
+
+    if (em_msg_t(em_msg_type_1905_ack, em_profile_type_3, buff, len).validate(errors) == 0) {
+        printf("%s:%d: 1905 ACK validation failed\n", __func__, __LINE__);
         return 0;
     }
-    memcpy(&eht_ops,&cap_info->eht_ops,sizeof(em_eht_operations_t));
-    tlv_len += sizeof(em_eht_operations_t);
-    return tlv_len;
+
+    if (send_frame(buff, len)  < 0) {
+        printf("%s:%d: 1905 ACK send failed, error:%d\n", __func__, __LINE__, errno);
+        return 0;
+    }
+    printf("%s:%d: 1905 ACK send success\n", __func__, __LINE__);
+
+    return len;
+}
+
+int em_configuration_t::send_ap_mld_config_resp_msg(unsigned char *dst)
+{
+    unsigned char buff[MAX_EM_BUFF_SZ];
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    unsigned short  msg_id = em_msg_type_ap_mld_config_resp;
+    int len = 0;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    unsigned short tlv_len;
+    unsigned char *tmp = buff;
+    unsigned short type = htons(ETH_P_1905);
+	dm_easy_mesh_t *dm;
+
+    em_raw_hdr_t *hdr = (em_raw_hdr_t *)dst;
+
+	dm = get_data_model();
+
+    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, (unsigned char *)&type, sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += sizeof(unsigned short);
+
+    cmdu = (em_cmdu_t *)tmp;
+
+    memset(tmp, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(msg_id);
+    cmdu->id = htons(msg_id);
+    cmdu->last_frag_ind = 1;
+    cmdu->relay_ind = 0;
+
+    tmp += sizeof(em_cmdu_t);
+    len += sizeof(em_cmdu_t);
+
+    // One AP MLD Configuration TLV
+    tlv_len = create_ap_mld_config_tlv(tmp);
+
+    tmp += (sizeof(em_tlv_t) + tlv_len);
+    len += (sizeof(em_tlv_t) + tlv_len);
+
+    // AP EHT Operations 17.2.103
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_eht_operations;
+    tlv_len = create_eht_operations_tlv(tlv->value);
+    tlv->len = htons(tlv_len);
+
+    tmp += (sizeof(em_tlv_t) + tlv_len);
+    len += (sizeof(em_tlv_t) + tlv_len);  
+
+    // End of message
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_eom;
+    tlv->len = 0;
+
+    tmp += (sizeof (em_tlv_t));
+    len += (sizeof (em_tlv_t));
+    if (em_msg_t(em_msg_type_ap_mld_config_resp, em_profile_type_3, buff, len).validate(errors) == 0) {
+        printf("AP MLD config response failed validation in tnx end\n");
+        return -1;
+    }
+
+    if (send_frame(buff, len)  < 0) {
+        printf("%s:%d: AP MLD config response send failed, error:%d\n", __func__, __LINE__, errno);
+        return -1;
+    }
+
+    printf("%s:%d: AP MLD config response Send Successful\n", __func__, __LINE__);
+
+	return len;
 }
 
 int em_configuration_t::send_bsta_mld_config_req_msg(unsigned char *buff)
@@ -1270,6 +1516,170 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 	return ret;
 }
 
+int em_configuration_t::handle_ack_msg(unsigned char *buff, unsigned int len)
+{
+    set_state(em_state_ctrl_ap_mld_req_ack_rcvd);
+    return 0;
+}
+
+int em_configuration_t::handle_ap_mld_config_tlv(unsigned char *buff, unsigned int len)
+{
+    em_ap_mld_config_t *ap_mld_conf = (em_ap_mld_config_t *) buff;
+    em_ap_mld_t *ap_mld;
+    em_ap_mld_ssids_t *ap_mld_ssids;
+    em_affiliated_ap_mld_t *affiliated_ap_mld;
+    dm_easy_mesh_t  *dm;
+    unsigned int i, j;
+    unsigned short ap_mld_len = 0;
+    unsigned short affiliated_ap_len = 0;
+    unsigned short tlv_len = 0;
+
+    dm = get_data_model();
+
+    dm->set_num_ap_mld(ap_mld_conf->num_ap_mld);
+
+    ap_mld = ap_mld_conf->ap_mld;
+
+    for (i = 0; i < ap_mld_conf->num_ap_mld; i++) {
+        em_ap_mld_info_t* ap_mld_info = &dm->m_ap_mld[i].m_ap_mld_info;
+        ap_mld_info->mac_addr_valid = ap_mld->ap_mld_mac_addr_valid;
+
+        ap_mld_ssids = ap_mld->ssids;
+        strncpy(ap_mld_info->ssid, ap_mld_ssids->ssid, ap_mld_ssids->ssid_len);
+
+        memcpy(ap_mld_info->mac_addr, ap_mld->ap_mld_mac_addr, sizeof(mac_address_t));
+        ap_mld_info->str = ap_mld->str;
+        ap_mld_info->nstr = ap_mld->nstr;
+        ap_mld_info->emlsr = ap_mld->emlsr;
+        ap_mld_info->emlmr = ap_mld->emlmr;
+
+        ap_mld_info->num_affiliated_ap = ap_mld->num_affiliated_ap;
+        affiliated_ap_mld = ap_mld->affiliated_ap_mld;
+
+        for (j = 0; j < ap_mld->num_affiliated_ap; j++) {
+            em_affiliated_ap_info_t* affiliated_ap_info = &dm->m_ap_mld[i].m_ap_mld_info.affiliated_ap[j];
+            affiliated_ap_info->mac_addr_valid = affiliated_ap_mld->affiliated_mac_addr_valid;
+            affiliated_ap_info->link_id_valid = affiliated_ap_mld->link_id_valid;
+            memcpy(affiliated_ap_info->ruid.mac, affiliated_ap_mld->ruid, sizeof(mac_address_t));
+            memcpy(affiliated_ap_info->mac_addr, affiliated_ap_mld->affiliated_mac_addr, sizeof(mac_address_t));
+            memcpy(&affiliated_ap_info->link_id, &affiliated_ap_mld->link_id, sizeof(unsigned char));
+
+            affiliated_ap_mld = (em_affiliated_ap_mld_t *)((unsigned char *)affiliated_ap_mld + sizeof(em_affiliated_ap_mld_t));
+            affiliated_ap_len += sizeof(em_affiliated_ap_mld_t);
+        }
+
+        ap_mld = (em_ap_mld_t *)((unsigned char *)ap_mld + sizeof(em_ap_mld_t) + ap_mld_ssids->ssid_len + affiliated_ap_len);
+        ap_mld_len += sizeof(em_ap_mld_t) + ap_mld_ssids->ssid_len + affiliated_ap_len;
+    }
+
+    return 0;
+}
+
+int em_configuration_t::handle_eht_operations_tlv(unsigned char *buff)
+{
+    short len = 0;
+    int i = 0, j = 0, k = 0, l = 0;
+    unsigned char *tmp = buff;
+
+    unsigned char num_radios;
+    unsigned char num_bss;
+
+    em_eht_operations_t eht_ops;
+
+    dm_easy_mesh_t *dm;
+
+    dm = get_data_model();
+
+    memcpy(&num_radios, tmp, sizeof(unsigned char));
+    eht_ops.radios_num = num_radios;
+    tmp += sizeof(unsigned char);
+    len += sizeof(unsigned char);
+
+    for (i = 0; i < num_radios; i++) {
+        memcpy(&eht_ops.radios[i].ruid, tmp, sizeof(mac_address_t));
+        tmp += sizeof(mac_address_t);
+        len += sizeof(mac_address_t);
+
+        memcpy(&num_bss, tmp, sizeof(unsigned char));
+        eht_ops.radios[i].bss_num = num_bss;
+        tmp += sizeof(unsigned char);
+        len += sizeof(unsigned char);
+
+        for(j = 0; j < num_bss; j++) {
+            memcpy(&eht_ops.radios[i].bss[j], tmp, sizeof(em_eht_operations_bss_t));
+            tmp += sizeof(em_eht_operations_bss_t);
+            len += sizeof(em_eht_operations_bss_t);
+        }
+    }
+
+    bool found_radio = false;
+    bool found_bss = false;
+    for (i = 0; i < eht_ops.radios_num; i++) {
+        for (j = 0; j < dm->get_num_radios(); j++) {
+            if (memcmp(eht_ops.radios[i].ruid, dm->m_radio[j].m_radio_info.id.dev_mac, sizeof(mac_address_t)) == 0) {
+                found_radio = true;
+                break;
+            }
+            if (found_radio == false) {
+                // do not update anything and retrun error
+                return -1;
+            }
+        }
+        found_radio = false;
+
+        for(k = 0; k < eht_ops.radios[i].bss_num; k++) {
+            for(l = 0; l < dm->get_num_bss(); l++) {
+                if (memcmp(eht_ops.radios[i].bss, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t)) == 0) {
+                    found_bss = true;
+                    break;
+                }
+                if (found_bss == false) {
+                    // do not update anything and retrun error
+                    return -1;
+                }
+            }
+            found_bss = false;
+            memcpy(&dm->m_bss[j].get_bss_info()->eht_ops, &eht_ops.radios[i].bss[k], sizeof(em_eht_operations_bss_t));
+        }
+    }
+
+    return 0;
+}
+
+int em_configuration_t::handle_ap_mld_config_req(unsigned char *buff, unsigned int len)
+{
+    em_tlv_t    *tlv;
+    int tlv_len;
+    em_steering_req_t *steer_req;
+
+    tlv = (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tlv_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+        if (tlv->type == em_tlv_type_ap_mld_config) {
+            handle_ap_mld_config_tlv(tlv->value, sizeof(em_ap_mld_config_t));
+        }
+        if (tlv->type == em_tlv_eht_operations) {
+            handle_eht_operations_tlv(tlv->value);
+            break;
+        }
+
+        tlv_len -= (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+	printf("%s:%d Received AP MLD configuration request\n",__func__, __LINE__);
+
+    send_1905_ack_message(0);
+
+    return 0;
+}
+
+int em_configuration_t::handle_ap_mld_config_resp(unsigned char *buff, unsigned int len)
+{
+    printf("%s:%d Received AP MLD configuration response\n",__func__, __LINE__);
+    return 0;
+}
 
 short em_configuration_t::create_traffic_separation_policy(unsigned char *buff)
 {
@@ -1769,6 +2179,31 @@ short em_configuration_t::create_m1_msg(unsigned char *buff)
     len += (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
 
+
+    return len;
+}
+
+short em_configuration_t::create_error_code_tlv(unsigned char *buff, int val, mac_addr_t sta_mac)
+{
+    short len = 0;
+    unsigned char *tmp = buff;
+    unsigned char reason = 0;
+
+    em_cmd_t *pcmd = get_current_cmd();
+    em_cmd_btm_report_params_t *btm_param = &pcmd->m_param.u.btm_report_params;
+
+    memcpy(tmp, &val, sizeof(unsigned char));
+    tmp += sizeof(unsigned char);
+    len += sizeof(unsigned char);
+
+    if(sta_mac != NULL) {
+        memcpy(tmp, sta_mac, sizeof(mac_address_t));
+    } else {
+        memset(tmp, 0, sizeof(mac_address_t));
+    }
+    
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
 
     return len;
 }
@@ -3014,13 +3449,8 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
             break;
         
         case em_msg_type_ap_mld_config_req:
-            if ((get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_ap_mld_config_pending)) {
-                send_ap_mld_config_req_msg(data);
-            }
-            break;
-
-        case em_msg_type_ap_mld_config_resp:
-            if ((get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_ap_mld_configured)) {
+            if ((get_service_type() == em_service_type_agent)) {
+                handle_ap_mld_config_req(data, len);
                 send_ap_mld_config_resp_msg(data);
             }
             break;
@@ -3030,6 +3460,15 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                 handle_bsta_mld_config_req(data, len);
             }
             break;
+            
+        case em_msg_type_ap_mld_config_resp:
+            if ((get_service_type() == em_service_type_ctrl)) {
+                handle_ap_mld_config_resp(data, len);
+            }
+            break;
+
+        case em_msg_type_1905_ack:
+            handle_ack_msg(data, len);
 
         default:
             break;
@@ -3146,6 +3585,10 @@ void em_configuration_t::process_ctrl_state()
 
         case em_state_ctrl_topo_sync_pending:
             send_topology_query_msg();
+            break;
+
+        case em_state_ctrl_ap_mld_config_pending:
+            send_ap_mld_config_req_msg();
             break;
     }
 

@@ -55,6 +55,8 @@
 #include "em_cmd_sta_link_metrics.h"
 #include "em_cmd_sta_steer.h"
 #include "em_cmd_sta_disassoc.h"
+#include "em_cmd_get_mld_config.h"
+#include "em_cmd_mld_reconfig.h"
 
 extern char *global_netid;
 
@@ -108,7 +110,7 @@ int dm_easy_mesh_ctrl_t::analyze_config_renew(em_bus_event_t *evt, em_cmd_t *pcm
 
 int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
-    mac_addr_str_t  dev_mac_str, sta_mac_str, bss_mac_str, radio_mac_str;
+    mac_addr_str_t  dev_mac_str, sta_mac_str, bss_mac_str, radio_mac_str, ruid_str;
     em_bus_event_type_client_assoc_params_t *params;
     unsigned int num = 0, len, i;
     em_cmd_params_t *evt_param;
@@ -116,7 +118,7 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     em_cmd_t *tmp;
     em_string_t	assoc;
     dm_bss_t *pbss;
-    bool radio_matched = false;
+    bool radio_matched = false, found;
     em_sta_info_t sta_info;
     em_orch_desc_t desc;
     em_long_string_t	key;
@@ -143,8 +145,19 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
         return -1;
     }
 
-    pbss = get_bss(bss_mac_str);
-    if (pbss == NULL) {
+    for (i = 0; i < pdm->get_num_radios(); i++) {
+        found = true;
+        dm_easy_mesh_t::macbytes_to_string((unsigned char *)pdm->get_radio_info(i)->id.ruid, ruid_str);
+        snprintf(key, sizeof (em_long_string_t), "%s@%s@%s@%s@", pdm->get_radio_info(i)->id.net_id, dev_mac_str, ruid_str, bss_mac_str);    
+
+        pbss = get_bss(key);
+        if (pbss == NULL) {
+            found = false;
+            continue;
+        }
+        break;
+    }
+    if (found == false) {
         printf("%s:%d: Could not find bss: %s\n", __func__, __LINE__, bss_mac_str);
         return -1;
     }
@@ -919,6 +932,23 @@ int dm_easy_mesh_ctrl_t::analyze_remove_device(em_bus_event_t *evt, em_cmd_t *pc
     return num;
 }
 
+int dm_easy_mesh_ctrl_t::analyze_mld_reconfig(em_cmd_t *pcmd[])
+{
+    int num = 0;
+    em_cmd_t *tmp;
+
+    pcmd[num] = new em_cmd_mld_reconfig_t();
+    tmp = pcmd[num];
+    num++;
+
+    while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+        tmp = pcmd[num];
+        num++;
+    }
+
+    return num;
+}
+
 /*int dm_easy_mesh_ctrl_t::analyze_network_ssid_list(em_bus_event_t *evt, em_cmd_t *cmd[])
 {
     cJSON *obj, *netssid_list_obj;
@@ -1315,6 +1345,19 @@ int dm_easy_mesh_ctrl_t::get_network_config(cJSON *parent, char *key)
 	return 0;
 }
 
+int dm_easy_mesh_ctrl_t::get_mld_config(cJSON *parent, char *key)
+{
+    cJSON *net_obj, *dev_list_obj, *netssid_list_obj, *radio_list_obj;
+    cJSON *obj, *ap_mld_obj;
+    unsigned int i, num;
+    mac_address_t dev_mac;
+		
+    ap_mld_obj = cJSON_AddObjectToObject(parent, "AP MLD Config");
+    //dm_ap_mld_t::get_config(net_obj, key);
+
+	return 0;
+}
+
 int dm_easy_mesh_ctrl_t::get_config(em_long_string_t net_id, em_subdoc_info_t *subdoc)
 {
     cJSON *parent;
@@ -1357,6 +1400,8 @@ int dm_easy_mesh_ctrl_t::get_config(em_long_string_t net_id, em_subdoc_info_t *s
         get_scan_result(parent, net_id);
     } else if (strncmp(subdoc->name, "DevTest", strlen(subdoc->name)) == 0) {
         get_reference_config(parent, net_id);
+    } else if (strncmp(subdoc->name, "MLDConfig", strlen(subdoc->name)) == 0) {
+        get_mld_config(parent, net_id);
     }
 
     tmp = cJSON_Print(parent);

@@ -90,6 +90,7 @@ public:
     int analyze_radio_metrics_req(em_cmd_t *cmd[]);
     int analyze_ap_metrics_req(em_cmd_t *cmd[]);
     int analyze_client_metrics_req(em_cmd_t *cmd[]);
+    int analyze_mld_reconfig(em_cmd_t *pcmd[]);
 
     int reset_config();
 
@@ -102,6 +103,7 @@ public:
     int get_channel_config(cJSON *parent, char *key, em_get_channel_list_reason_t reason = em_get_channel_list_reason_none);
     int get_policy_config(cJSON *parent, char *key);
     int get_scan_result(cJSON *parent, char *key);
+    int get_mld_config(cJSON *parent, char *key);
     int get_reference_config(cJSON *parent, char *key);
     int get_config(em_long_string_t net_id, em_subdoc_info_t *subdoc);
     int set_config(dm_easy_mesh_t *dm);
