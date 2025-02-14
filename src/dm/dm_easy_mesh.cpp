@@ -976,7 +976,6 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
 	if ((ap_metrics_obj = cJSON_GetObjectItem(policy_obj, "AP Metrics Reporting Policy")) != NULL) {
 		snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
 					em_policy_id_type_ap_metrics_rep);
-		printf(" ### m_num_policy in ap metrics reporting pol is %d\n", m_num_policy);
         m_policy[m_num_policy].decode(ap_metrics_obj, parent, em_policy_id_type_ap_metrics_rep);
 		m_num_policy++;
     }
@@ -984,7 +983,6 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
 	if ((local_steer_obj = cJSON_GetObjectItem(policy_obj, "Local Steering Disallowed Policy")) != NULL) {
 		snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
 					em_policy_id_type_steering_local);
-                    printf(" ### m_num_policy in local steering is %d\n", m_num_policy);
 		m_policy[m_num_policy].decode(local_steer_obj, parent, em_policy_id_type_steering_local);
 		m_num_policy++;
     }

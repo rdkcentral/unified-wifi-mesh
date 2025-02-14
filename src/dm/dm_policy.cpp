@@ -41,7 +41,6 @@
 
 int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t type)
 {
-	printf(" ===== in dm_policy_t::decode for type %d\n", type);
     cJSON *tmp, *sta_arr_obj;
 	mac_addr_str_t	mac_str;
 	em_policy_id_t id;
@@ -77,13 +76,11 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
 			m_policy.rcpi_threshold = tmp->valuedouble;
 		}	
 	} else if (type == em_policy_id_type_ap_metrics_rep) {
-		printf(" ### em_policy_id_type_ap_metrics_rep\n");
     	if ((tmp = cJSON_GetObjectItem(obj, "Interval")) != NULL) {
         	m_policy.interval = tmp->valuedouble;
     	}
     	if ((tmp = cJSON_GetObjectItem(obj, "Managed Client Marker")) != NULL) {
 			strncpy(m_policy.managed_sta_marker, cJSON_GetStringValue(tmp), sizeof(em_long_string_t));
-			printf(" ### Managed Client Marker value %s\n", m_policy.managed_sta_marker);
     	}
 	} else if (type == em_policy_id_type_radio_metrics_rep) {
     	if ((tmp = cJSON_GetObjectItem(obj, "STA RCPI Threshold")) != NULL) {

@@ -776,7 +776,6 @@ beacon_metrics->element_list = buff + len;
         printf("%u ", beacon_metrics->element_list[i]);
     }
     printf("\n");
-    printf(" ### len %d\n", len);
     return len;
 }
 
@@ -836,7 +835,6 @@ short em_metrics_t::create_beacon_metrics_response_tlv(unsigned char *buff, mac_
         printf("%u ", response->meas_reports[i]);
     }
     printf("\n");
-    printf(" ### len %d\n", len);
     return len;
 }
 

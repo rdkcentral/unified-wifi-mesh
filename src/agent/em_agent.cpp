@@ -335,6 +335,24 @@ void em_agent_t::handle_channel_scan_params(em_bus_event_t *evt)
 #endif
 }
 
+void em_agent_t::handle_set_ow_policy(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+    wifi_bus_desc_t *desc;
+    raw_data_t l_bus_data;
+
+    if((desc = get_bus_descriptor()) == NULL) {
+       printf("descriptor is null");
+    }
+
+    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+        printf("set policy in progress\n");
+    } else if ((num = m_data_model.analyze_set_policy(evt, desc, &m_bus_hdl)) == 0) {
+        printf("set policy failed\n");
+    }
+}
+
 void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 {   
     
@@ -401,6 +419,10 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 			handle_channel_scan_result(evt);
 			break;
 
+        case em_bus_event_type_set_policy:
+            handle_set_policy(evt);
+            break;
+
         default:
             break;
     }    
@@ -450,6 +472,7 @@ void em_agent_t::handle_500ms_tick()
     m_orch->handle_timeout();
 }
 
+
 void em_agent_t::input_listener()
 {
     wifi_bus_desc_t *desc;
@@ -479,7 +502,7 @@ void em_agent_t::input_listener()
 		num_retry++;
 		printf("retrying %d\n", num_retry);
     }
-    printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data.raw_data.bytes);
+    //printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data.raw_data.bytes);
 
     g_agent.io_process(em_bus_event_type_dev_init, (unsigned char *)data.raw_data.bytes, data.raw_data_len);
 

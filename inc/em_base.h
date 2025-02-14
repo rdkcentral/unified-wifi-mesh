@@ -82,6 +82,7 @@ extern "C"
 #define EM_MAX_STA_PER_AGENT       (EM_MAX_RADIO_PER_AGENT * EM_MAX_STA_PER_BSS)
 #define EM_MAX_NEIGHORS		32
 #define EM_MAX_CHANNEL_SCAN_RPRT_MSG_LEN		768
+#define EM_MAX_CLIENT_MARKER    5
 
 #define   EM_MAX_EVENT_DATA_LEN   4096*100
 #define EM_MAX_CHANNELS_IN_LIST  64
@@ -1629,7 +1630,7 @@ typedef struct {
 
 typedef struct {
     unsigned char   num_sta;
-    mac_address_t   sta_mac[0];
+    mac_address_t   sta_mac[EM_MAX_STA_PER_STEER_POLICY];
 } __attribute__((__packed__))em_steering_policy_sta_t;
 
 typedef struct {
@@ -1638,6 +1639,13 @@ typedef struct {
     unsigned char   channel_util_thresh;
     unsigned char   rssi_steering_thresh;
 } __attribute__((__packed__))em_steering_policy_radio_t;
+
+typedef struct {
+    em_steering_policy_sta_t local_steer_policy;
+    em_steering_policy_sta_t btm_steer_policy;
+    unsigned char radio_num;
+    em_steering_policy_radio_t radio_steer_policy[EM_MAX_RADIO_PER_AGENT];
+} __attribute__((__packed__))em_steering_policy_t;
 
 typedef struct {
     mac_address_t   ruid;
@@ -1650,7 +1658,7 @@ typedef struct {
 typedef struct {
     unsigned char   interval;
     unsigned char   radios_num;
-    em_metric_rprt_policy_radio_t radios[0];
+    em_metric_rprt_policy_radio_t radios[EM_MAX_RADIO_PER_AGENT];
 } __attribute__((__packed__)) em_metric_rprt_policy_t;
 
 typedef struct {
@@ -1678,6 +1686,24 @@ typedef struct {
     em_assoc_sta_mac_addr_t  mac_addr_scs_disallowed[EM_MAX_STA_PER_AGENT];
     unsigned char  reserved[20];
 } __attribute__((__packed__)) em_qos_mgmt_policy_t;
+
+typedef struct {
+    //int num_markers;
+    //em_string_t managed_client_marker[EM_MAX_CLIENT_MARKER];
+    em_string_t managed_client_marker;
+}__attribute__((__packed__)) em_vendor_policy_t;
+
+typedef struct {
+    em_steering_policy_t steering_policy;
+    em_metric_rprt_policy_t metrics_policy;
+    em_8021q_settings_t def_8021q_settings;
+    em_traffic_sep_policy_ssid_t traffic_separation_policy;
+    em_channel_scan_rprt_policy_t channel_scan_policy;
+    em_unsuccessful_assoc_policy_t unsuccessful_assoc_policy;
+    em_bh_bss_config_t bh_bss_cfg_policy;
+    em_qos_mgmt_policy_t qos_mgmt_policy;
+    em_vendor_policy_t vendor_policy;
+} em_policy_cfg_params_t;
 
 typedef struct {
     unsigned char   num;
@@ -2125,6 +2151,7 @@ typedef struct {
     unsigned char	frame_body[EM_MAX_FRAME_BODY_LEN];
     unsigned int    num_vendor_infos;
     bool            multi_band_cap;
+    //em_beacon_report_t  beacon_reports[];//todo: Use struct from Jayanth's
 
     em_long_string_t    cap;
     em_long_string_t    ht_cap;
@@ -2980,7 +3007,8 @@ typedef struct {
 	bool	sta_traffic_stats;
 	bool	sta_link_metric;
 	bool	sta_status;
-	em_long_string_t	managed_sta_marker;	
+	//unsigned int num_markers;
+	em_long_string_t	managed_sta_marker;
 	bool	independent_scan_report;
 	bool	profile_1_sta_disallowed;
 	bool	profile_2_sta_disallowed;

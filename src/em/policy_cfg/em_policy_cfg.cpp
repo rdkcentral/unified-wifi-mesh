@@ -89,7 +89,7 @@ short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
 	}
 
 	metric->radios_num = 1;
-	radio_metric = metric->radios;
+	radio_metric = &metric->radios[0];
 
 	memcpy(radio_metric->ruid, get_radio_interface_mac(), sizeof(mac_address_t));
 	radio_metric->rcpi_thres = policy->m_policy.rcpi_threshold;
@@ -106,8 +106,8 @@ short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
 		radio_metric->sta_policy |= (1 << 5);	
 	}
 
-	tmp += sizeof(em_metric_rprt_policy_t) + metric->radios_num * sizeof(em_metric_rprt_policy_radio_t);
-	len += sizeof(em_metric_rprt_policy_t) + metric->radios_num * sizeof(em_metric_rprt_policy_radio_t);
+	tmp += 2*sizeof(unsigned char) + metric->radios_num * sizeof(em_metric_rprt_policy_radio_t);
+	len += 2*sizeof(unsigned char) + metric->radios_num * sizeof(em_metric_rprt_policy_radio_t);
 
 	return len;
 }
@@ -135,6 +135,7 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
 		}
 	}
 
+	//local
 	sta_policy = (em_steering_policy_sta_t *)tmp;
 	sta_policy->num_sta = 0;
 	if (found_match == true) {
@@ -151,18 +152,18 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
 		}
 	}
 
-	tmp += sizeof(em_steering_policy_sta_t) + sta_policy->num_sta*sizeof(mac_address_t);
-	len += sizeof(em_steering_policy_sta_t) + sta_policy->num_sta*sizeof(mac_address_t);
+	tmp += sizeof(unsigned char) + sta_policy->num_sta*sizeof(mac_address_t);
+	len += sizeof(unsigned char) + sta_policy->num_sta*sizeof(mac_address_t);
 
 	for (i = 0; i < dm->get_num_policy(); i++) {
 		policy = &dm->m_policy[i];
 		if (policy->m_policy.id.type == em_policy_id_type_steering_btm) {
-			//printf(" ====== steer policy val %d\n", i);
 			found_match = true;
 			break;
 		}
 	}
 
+	//btm
 	sta_policy = (em_steering_policy_sta_t *)tmp;
 	sta_policy->num_sta = 0;
 	if (found_match == true) {
@@ -179,8 +180,8 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
 		}
 	}
 
-	tmp += sizeof(em_steering_policy_sta_t) + sta_policy->num_sta*sizeof(mac_address_t);
-	len += sizeof(em_steering_policy_sta_t) + sta_policy->num_sta*sizeof(mac_address_t);
+	tmp += sizeof(unsigned char) + sta_policy->num_sta*sizeof(mac_address_t);
+	len += sizeof(unsigned char) + sta_policy->num_sta*sizeof(mac_address_t);
 
 	for (i = 0; i < dm->get_num_policy(); i++) {
 		policy = &dm->m_policy[i];
@@ -193,6 +194,7 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
 		}
 	}
 
+	//radio
 	if (found_match == false) {
 		*tmp = 0;
 		tmp += sizeof(unsigned char);
@@ -217,41 +219,34 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
 
 short em_policy_cfg_t::create_vendor_policy_cfg_tlv(unsigned char *buff)
 {
-	//printf(" ### vendr policy cgf added\n");
-	short len = 0;
+    short len = 0;
     dm_easy_mesh_t *dm;
     int num_bssids = 0;
     em_long_string_t	sta_marker;
-		//unsigned short len = 0;
-	//dm_easy_mesh_t *dm, *pdm;
-	dm_policy_t *policy;
-	bool found_match = false;
-	unsigned char *tmp = buff;
-	unsigned int i = 0;
+    dm_policy_t *policy;
+    bool found_match = false;
+    unsigned char *tmp = buff;
+    unsigned int i = 0;
 
-	//dm = get_data_model();
-	dm = get_current_cmd()->get_data_model();
-	
-	for (i = 0; i < dm->get_num_policy(); i++) {
-		policy = &dm->m_policy[i];
-		if (policy->m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
-			//printf(" $$$$$ in create vendor policy cfg, policy val %d\n", i);
-			printf(" ====== vendor policy cfg val %d\n", i);
-			found_match = true;
-			break;
-		}
-	}
-	if (found_match == false) {
-		printf(" ### vendr policy dm not found\n");
-		return 0;
-	}
-	printf(" ### vendr policy manged marker val: %s\n", policy->m_policy.managed_sta_marker);
-	strncpy((char *)tmp, policy->m_policy.managed_sta_marker, strlen(policy->m_policy.managed_sta_marker));
+    dm = get_current_cmd()->get_data_model();
 
-	tmp += strlen(policy->m_policy.managed_sta_marker);
-	len += strlen(policy->m_policy.managed_sta_marker);
-printf(" ### vendr policy len %d\n", len);
-	return len;
+    for (i = 0; i < dm->get_num_policy(); i++) {
+        policy = &dm->m_policy[i];
+        if (policy->m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
+            found_match = true;
+            break;
+        }
+    }
+    if (found_match == false) {
+        return 0;
+    }
+
+    strncpy((char *)tmp, policy->m_policy.managed_sta_marker, sizeof(policy->m_policy.managed_sta_marker));
+
+    tmp += strlen(policy->m_policy.managed_sta_marker);
+    len += strlen(policy->m_policy.managed_sta_marker);
+
+    return len;
 }
 
 int em_policy_cfg_t::send_policy_cfg_request_msg()
@@ -345,27 +340,69 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
 
 int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len)
 {
-	printf(" #### Policy Cfg Request Msg rcvd \n");
+    em_policy_cfg_params_t policy;
     em_tlv_t    *tlv;
     int tlv_len;
+    int data_len = 0;
+
+    memset(&policy, 0, sizeof(em_policy_cfg_t));
 
     tlv = (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tlv_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
     while ((tlv->type != em_tlv_type_eom) && (tlv_len > 0)) {
-        if (tlv->type == em_tlv_vendor_plolicy_cfg) {
-			//TODO : Indicate OneWifi of this marker policy
-            //handle_assoc_sta_link_metrics_tlv(tlv->value);
-			printf(" Rcv policy cfg for ap metrics of len %d\n", ntohs(tlv->len));
-			//dm_easy_mesh_t dm;
-			//em_long_string_t buff;
-			//memcpy(buff, tlv->value, ntohs(tlv->len));
-			printf(" Rcv policy cfg for ap metrics with marker value %s\n", tlv->value);
+        if (tlv->type == em_tlv_type_steering_policy) {
+            em_steering_policy_sta_t *steer_pol_sta = (em_steering_policy_sta_t *)(tlv->value);
+            policy.steering_policy.local_steer_policy.num_sta = steer_pol_sta->num_sta;
+            for(int i = 0; i < steer_pol_sta->num_sta; i++) {
+                memcpy(policy.steering_policy.local_steer_policy.sta_mac[i], steer_pol_sta->sta_mac, sizeof(mac_address_t));
+            }
+            data_len += sizeof(steer_pol_sta->num_sta) + (sizeof(mac_addr_t) * steer_pol_sta->num_sta);
+
+            em_steering_policy_sta_t *btm_steer_pol = (em_steering_policy_sta_t *)(tlv->value + data_len);
+            policy.steering_policy.btm_steer_policy.num_sta = btm_steer_pol->num_sta;
+            for(int i = 0; i < btm_steer_pol->num_sta; i++) {
+                memcpy(policy.steering_policy.btm_steer_policy.sta_mac[i], btm_steer_pol->sta_mac, sizeof(mac_address_t));
+            }
+            data_len += sizeof(btm_steer_pol->num_sta) + (sizeof(mac_addr_t) * btm_steer_pol->num_sta);
+
+            policy.steering_policy.radio_num = *(tlv->value + data_len);
+            data_len += sizeof(unsigned char);
+
+            em_steering_policy_radio_t *radio_steer_pol = (em_steering_policy_radio_t *)(tlv->value + data_len);
+            for(int i = 0; i < policy.steering_policy.radio_num; i++) {
+                memcpy(&policy.steering_policy.radio_steer_policy[i], radio_steer_pol, sizeof(em_steering_policy_radio_t));
+                radio_steer_pol = (em_steering_policy_radio_t *)(tlv->value + data_len);
+            }
+            data_len += policy.steering_policy.radio_num * sizeof(em_steering_policy_radio_t);
+        } else if (tlv->type == em_tlv_type_metric_reporting_policy) {
+            em_metric_rprt_policy_t *metrics = (em_metric_rprt_policy_t *)(tlv->value);
+            policy.metrics_policy.interval = metrics->interval;
+            policy.metrics_policy.radios_num = metrics->radios_num;
+            data_len += (2 * sizeof(unsigned char));
+
+            for(int i = 0; i < metrics->radios_num; i++) {
+                em_metric_rprt_policy_radio_t *radio = &metrics->radios[i];
+                memcpy(policy.metrics_policy.radios[i].ruid, radio, sizeof(em_metric_rprt_policy_radio_t));
+            }
+            data_len += metrics->radios_num * sizeof(em_metric_rprt_policy_radio_t);
+        } else if (tlv->type == em_tlv_type_dflt_8021q_settings) {
+        } else if (tlv->type == em_tlv_type_traffic_separation_policy) {
+        } else if (tlv->type == em_tlv_type_channel_scan_rprt_policy) {
+        } else if (tlv->type == em_tlv_type_unsucc_assoc_policy) {
+        } else if (tlv->type == em_tlv_type_backhaul_bss_conf) {
+        } else if (tlv->type == em_tlv_type_qos_mgmt_policy){
+        } else if (tlv->type == em_tlv_vendor_plolicy_cfg) {
+            em_vendor_policy_t *vendor = (em_vendor_policy_t *)(tlv->value);
+            strncpy(policy.vendor_policy.managed_client_marker, vendor->managed_client_marker, strlen(vendor->managed_client_marker)+1);
+            data_len += sizeof(em_vendor_policy_t);
         }
+
         tlv_len -= (sizeof(em_tlv_t) + htons(tlv->len));
         tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
+    get_mgr()->io_process(em_bus_event_type_set_policy, (unsigned char *)&policy, sizeof(policy));
     //send_associated_link_metrics_response(sta);
     //set_state(em_state_agent_configured);
 

@@ -55,6 +55,7 @@ class em_agent_t : public em_mgr_t {
     void handle_btm_response_action_frame(em_bus_event_t *evt);
     void handle_channel_scan_result(em_bus_event_t *evt);
     void handle_channel_scan_params(em_bus_event_t *evt);
+    void handle_set_policy(em_bus_event_t *evt);
 
 public:
 

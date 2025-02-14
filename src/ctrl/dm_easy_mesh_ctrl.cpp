@@ -577,7 +577,6 @@ int dm_easy_mesh_ctrl_t::analyze_dpp_start(em_bus_event_t *evt, em_cmd_t *cmd[])
 
 int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
-    printf(" ### in analyze_set_policy\n");
 	int ret;
 	unsigned int num = 0, num_devices = 0;
 	em_subdoc_info_t *subdoc;
@@ -605,7 +604,7 @@ int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[
 			dm.m_num_radios++;
 			radio = m_data_model_list.get_next_radio(dm.m_network.m_net_info.id, dm.m_device.m_device_info.intf.mac, radio);
 		}
-        printf("\n\n ====== after set policy in analyze, printing marker value: %s\n", dm.m_policy[0].m_policy.managed_sta_marker);
+
    		pcmd[num] = new em_cmd_set_policy_t(evt->params, dm);
    		tmp = pcmd[num];
    		num++;
@@ -617,7 +616,6 @@ int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[
 
 		i++;
 	} while (i < num_devices);
-printf("\n\n ====== num value %d\n", num);
 
 	return num;
 }

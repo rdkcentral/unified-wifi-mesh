@@ -27,6 +27,7 @@ class em_policy_cfg_t {
     virtual int send_frame(unsigned char *buff, unsigned int len, bool multicast = false) = 0;
 
 public:
+    virtual em_mgr_t *get_mgr() = 0;
     virtual dm_easy_mesh_t *get_data_model() = 0;
     virtual unsigned char *get_radio_interface_mac() = 0;
     virtual em_state_t get_state() = 0;
@@ -49,7 +50,6 @@ public:
 
     em_policy_cfg_t();
     ~em_policy_cfg_t();
-
 };
 
 #endif
