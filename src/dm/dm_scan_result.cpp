@@ -183,7 +183,7 @@ int dm_scan_result_t::parse_scan_result_id_from_key(const char *key, em_scan_res
             remain = tmp;
         } else if (i == 2) {
             *tmp = 0; 
-            dm_easy_mesh_t::string_to_macbytes(remain, id->ruid);
+            dm_easy_mesh_t::string_to_macbytes(remain, id->scanner_mac);
             tmp++;
             remain = tmp;
         } else if (i == 3) {
@@ -194,6 +194,11 @@ int dm_scan_result_t::parse_scan_result_id_from_key(const char *key, em_scan_res
 		} else if (i == 4) {
             *tmp = 0; 
 			id->channel = atoi(remain);
+            tmp++;
+			remain = tmp;
+		} else if (i == 5) {
+            *tmp = 0; 
+			id->scanner_type = (em_scanner_type_t)atoi(remain);
             tmp++;
 			if (bssid != NULL) {
             	dm_easy_mesh_t::string_to_macbytes(tmp, bssid);
@@ -216,7 +221,7 @@ bool dm_scan_result_t::has_same_id(em_scan_result_id_t *id)
 		return false;
 	}
 
-	if (memcmp(m_scan_result.id.ruid, id->ruid, sizeof(mac_address_t)) != 0) {
+	if (memcmp(m_scan_result.id.scanner_mac, id->scanner_mac, sizeof(mac_address_t)) != 0) {
 		return false;
 	}
 
@@ -225,6 +230,10 @@ bool dm_scan_result_t::has_same_id(em_scan_result_id_t *id)
 	}
 
 	if (m_scan_result.id.channel != id->channel) {
+		return false;
+	}
+
+	if (m_scan_result.id.scanner_type != id->scanner_type) {
 		return false;
 	}
 

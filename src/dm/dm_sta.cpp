@@ -155,6 +155,8 @@ void dm_sta_t::encode(cJSON *obj, em_get_sta_list_reason_t reason)
     cJSON_AddBoolToObject(obj, "Associated", m_sta_info.associated);
 
     if (reason == em_get_sta_list_reason_none) {
+		encode_beacon_report(obj);		
+	
         cJSON_AddNumberToObject(obj, "LastDataUplinkRate", m_sta_info.last_ul_rate);
         cJSON_AddStringToObject(obj, "TimeStamp", m_sta_info.timestamp);
         cJSON_AddNumberToObject(obj, "EstMACDataRateUplink", m_sta_info.est_ul_rate);
@@ -223,7 +225,30 @@ void dm_sta_t::encode(cJSON *obj, em_get_sta_list_reason_t reason)
         cJSON_AddNumberToObject(reason_obj, "ValidityInterval", 0);
         cJSON_AddNumberToObject(reason_obj, "SteeringTimer", 0);
         cJSON_AddStringToObject(reason_obj, "TargetBSS", "00:00:00:00:00:00");
-    }
+    } else if (reason == em_get_sta_list_reason_neighbors) {
+		encode_beacon_report(obj);
+	}
+}
+
+void dm_sta_t::encode_beacon_report(cJSON *obj)
+{
+	mac_addr_str_t mac_str;
+    cJSON *neighbors_arr_obj, *neighbor_obj;
+	unsigned int i;
+
+	neighbors_arr_obj = cJSON_AddArrayToObject(obj, "Neighbors");
+
+	for (i = 0; i < m_sta_info.num_beacon_reports; i++) {
+		neighbor_obj = cJSON_CreateObject();
+		dm_easy_mesh_t::macbytes_to_string(m_sta_info.beacon_report[i].bssid, mac_str);
+		cJSON_AddStringToObject(neighbor_obj, "BSSID", mac_str);
+		cJSON_AddNumberToObject(neighbor_obj, "OpClass", m_sta_info.beacon_report[i].opClass);	
+		cJSON_AddNumberToObject(neighbor_obj, "Channel", m_sta_info.beacon_report[i].channel);	
+		cJSON_AddNumberToObject(neighbor_obj, "RCPI", m_sta_info.beacon_report[i].rcpi);
+
+		cJSON_AddItemToArray(neighbor_obj, neighbors_arr_obj);
+	}
+		
 }
 
 bool dm_sta_t::operator == (const dm_sta_t& obj)

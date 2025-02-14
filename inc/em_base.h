@@ -57,7 +57,7 @@ extern "C"
 #define MAX_EM_BUFF_SZ  1024
 #define EM_MAX_FRAME_BODY_LEN	512
 #define MAX_VENDOR_INFO 5
-
+#define	EM_MAX_BEACON_REPORTS	16
 #define EM_TEST_IO_PERM 0666
 #define EM_IO_BUFF_SZ   4096
 #define EM_LONG_IO_BUFF_SZ   4096*4
@@ -71,7 +71,6 @@ extern "C"
 #define EM_MAX_TRAFFIC_SEP_SSID        8
 #define EM_MAX_FREQ_RECORDS_PER_RADIO  8
 #define EM_MAX_CHANNELS   30
-#define EM_MAX_SCAN_RESULTS	32
 #define MAP_INVENTORY_ITEM_LEN  64
 #define MAX_MCS  6
 #define MAP_AP_ROLE_MAX 2
@@ -655,12 +654,19 @@ typedef struct {
     unsigned char timestamp[0]; 
 }__attribute__((__packed__)) em_timestamp_t;
 
+
+typedef enum {
+	em_scanner_type_radio = 1,
+	em_scanner_type_sta,
+} em_scanner_type_t;
+
 typedef struct {
     em_long_string_t    net_id;
 	mac_address_t	dev_mac;
-	mac_address_t ruid;
+	mac_address_t scanner_mac;
     unsigned char op_class;
     unsigned char channel;
+	em_scanner_type_t	scanner_type;	
 } em_scan_result_id_t;
 
 typedef struct {
@@ -978,7 +984,7 @@ typedef struct {
 typedef struct {
     mac_address_t ruid;
     unsigned char reserved1 : 1;
-    unsigned char partial_bss_color : 2;
+    unsigned char partial_bss_color : 1;
     unsigned char bss_color : 6;
     unsigned char reserved2 : 3;
     unsigned char hesiga_spatial_reuse_value15_allowed : 1;
@@ -1836,6 +1842,7 @@ typedef enum {
     em_state_ctrl_ap_mld_config_pending,
     em_state_ctrl_ap_mld_configured,
     em_state_ctrl_bsta_mld_config_pending,
+    em_state_ctrl_ap_mld_req_ack_rcvd,
     em_state_ctrl_avail_spectrum_inquiry_pending,
 
     em_state_max,
@@ -1881,6 +1888,8 @@ typedef enum {
     em_cmd_type_get_policy,
     em_cmd_type_set_policy,
     em_cmd_type_avail_spectrum_inquiry,
+    em_cmd_type_get_mld_config,
+    em_cmd_type_mld_reconfig,
     em_cmd_type_max,
 } em_cmd_type_t;
 
@@ -2105,6 +2114,8 @@ typedef struct {
     unsigned char	frame_body[EM_MAX_FRAME_BODY_LEN];
     unsigned int    num_vendor_infos;
     bool            multi_band_cap;
+	unsigned int 	num_beacon_reports;
+	wifi_BeaconReport_t	beacon_report[EM_MAX_BEACON_REPORTS];
 
     em_long_string_t    cap;
     em_long_string_t    ht_cap;
@@ -2511,7 +2522,9 @@ typedef enum {
     em_bus_event_type_set_radio,
     em_bus_event_type_bss_tm_req,
     em_bus_event_type_btm_response,
-	em_bus_event_type_channel_scan_params
+	em_bus_event_type_channel_scan_params,
+    em_bus_event_type_get_mld_config,
+    em_bus_event_type_mld_reconfig
 } em_bus_event_type_t;
 
 typedef struct {
@@ -2594,6 +2607,7 @@ typedef enum {
     dm_orch_type_sta_steer_btm_report,
     dm_orch_type_sta_disassoc,
     dm_orch_type_policy_cfg,
+    dm_orch_type_mld_reconfig,
 } dm_orch_type_t;
 
 typedef struct {
@@ -2908,6 +2922,7 @@ typedef enum {
     em_get_sta_list_reason_steer,
     em_get_sta_list_reason_btm,
     em_get_sta_list_reason_disassoc,
+    em_get_sta_list_reason_neighbors,
 } em_get_sta_list_reason_t;
 
 typedef enum {

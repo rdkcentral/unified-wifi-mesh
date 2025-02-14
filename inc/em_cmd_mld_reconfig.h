@@ -16,24 +16,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef EM_SIMULATOR_H
-#define EM_SIMULATOR_H
+#ifndef EM_CMD_MLD_RECONFIG_H
+#define EM_CMD_MLD_RECONFIG_H
 
-#include "em_base.h"
-#include "dm_easy_mesh_agent.h"
+#include "em_cmd.h"
 
-class em_simulator_t {
-	em_cmd_params_t	m_param;
-	bool	m_can_run_scan_res;
+class em_cmd_mld_reconfig_t : public em_cmd_t {
 
 public:
-	em_cmd_params_t *get_cmd_param() { return &m_param; }
-	bool run(dm_easy_mesh_agent_t& dm);
-	void configure(dm_easy_mesh_agent_t& dm, em_scan_params_t *params);
-
-public:
-    em_simulator_t();
-    ~em_simulator_t();
+    em_cmd_mld_reconfig_t();
 };
 
 #endif

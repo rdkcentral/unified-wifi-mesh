@@ -1046,7 +1046,7 @@ void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_
         if (found_dm == true) {
             break;
         } else {
-            if ((memcmp(dm->m_device.m_device_info.intf.mac, id.ruid, sizeof(mac_address_t)) && (id.type >= em_op_class_type_cac_available)) == 0) {
+            if ((memcmp(dm->m_device.m_device_info.intf.mac, id.ruid, sizeof(mac_address_t)) == 0) && (id.type >= em_op_class_type_cac_available)) {
                 found_dm = true;
                 break;
             }
@@ -1183,12 +1183,14 @@ void dm_easy_mesh_list_t::put_policy(const char *key, const dm_policy_t *policy)
 dm_scan_result_t *dm_easy_mesh_list_t::get_first_scan_result()
 {
 	dm_easy_mesh_t *dm;
+	dm_scan_result_t *res;
 
     dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
     while (dm != NULL) {
-		if (dm->m_num_scan_results > 0) {
-			return &dm->m_scan_result[0];
-		}	
+		res = (dm_scan_result_t *)hash_map_get_first(dm->m_scan_result_map);
+		if (res != NULL) {
+			return res;
+		}
 		
 		dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
 	}
@@ -1199,31 +1201,23 @@ dm_scan_result_t *dm_easy_mesh_list_t::get_first_scan_result()
 dm_scan_result_t *dm_easy_mesh_list_t::get_next_scan_result(dm_scan_result_t *scan_result)
 {
     dm_easy_mesh_t *dm;
+	dm_scan_result_t *res;
     bool return_next = false;
     unsigned int i;
 
     dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
     while (dm != NULL) {
-        if (dm->m_num_scan_results == 0) {
-            dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
-            continue;
-        }
+		res = (dm_scan_result_t *)hash_map_get_first(dm->m_scan_result_map);
+		while (res != NULL) {
+			if (return_next == true) {
+				return res;
+			}
+			if (res == scan_result) {
+				return_next = true;
+			}
+			res = (dm_scan_result_t *)hash_map_get_next(dm->m_scan_result_map, res);
+		}
 
-        if (return_next == true) {
-            return &dm->m_scan_result[0];
-        }
-
-        for (i = 0; i < dm->m_num_scan_results; i++) {
-            if (scan_result == &dm->m_scan_result[i]) {
-                return_next = true;
-                break;
-            }
-        }
-
-        if ((return_next == true) && ((i + 1) < dm->m_num_scan_results)) {
-            return &dm->m_scan_result[i + 1];
-        }
-   
         dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
     }
     return NULL;
@@ -1234,90 +1228,139 @@ dm_scan_result_t *dm_easy_mesh_list_t::get_scan_result(const char *key)
 {
 	em_scan_result_id_t	id;
 	dm_easy_mesh_t	*dm;
-	mac_addr_str_t	dev_mac_str;
+	mac_addr_str_t	dev_mac_str, scanner_mac_str;
 	dm_scan_result_t *res;
-	unsigned int i;
+	em_long_string_t list_key;
 	
 	dm_scan_result_t::parse_scan_result_id_from_key(key, &id);
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
+	dm_easy_mesh_t::macbytes_to_string(id.scanner_mac, scanner_mac_str);	
+	
 	if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
 		printf("%s:%d: Could not find data model for Network: %s and dev: %s\n", __func__, __LINE__, id.net_id, dev_mac_str);
 		return NULL;
 	} 
 
-	for (i = 0; i < dm->m_num_scan_results; i++) {
-		res = &dm->m_scan_result[i];
-		if (res->has_same_id(&id) == true) {
-			return res;
-		}
-	}
+	snprintf(list_key, sizeof(em_long_string_t), "%s@%s@%s@%d@%d@%d", id.net_id, dev_mac_str, scanner_mac_str,
+		id.op_class, id.channel, id.scanner_type);	
 
-	return NULL;
+	res = (dm_scan_result_t *)hash_map_get(dm->m_scan_result_map, list_key);
+
+	return res;
 }
 
 void dm_easy_mesh_list_t::remove_scan_result(const char *key)
 {
 	em_scan_result_id_t id;
-	mac_addr_str_t	dev_mac_str, ruid_str, bssid_str;
+	mac_addr_str_t	dev_mac_str, scanner_mac_str, bssid_str;
 	bssid_t bssid;
 	dm_easy_mesh_t *dm;
     dm_scan_result_t *res;
+	dm_sta_t *sta;
     unsigned int i;
+	int index_to_remove = -1;
+	em_long_string_t list_key;
+	bool found_sta = false;
+	wifi_BeaconReport_t *rprt;
 
 	dm_scan_result_t::parse_scan_result_id_from_key(key, &id, bssid);
 
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
-	dm_easy_mesh_t::macbytes_to_string(id.ruid, dev_mac_str);	
+	dm_easy_mesh_t::macbytes_to_string(id.scanner_mac, scanner_mac_str);	
 	dm_easy_mesh_t::macbytes_to_string(bssid, bssid_str);	
 
     if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
         printf("%s:%d: Could not find data model for Network: %s and dev: %s\n", __func__, __LINE__, id.net_id, dev_mac_str);
         return;
-    }  
+    }
 
-	for (i = 0; i < dm->m_num_scan_results; i++) {
-		res = &dm->m_scan_result[i];
-		if (res->has_same_id(&id) == true) {
-			return dm->remove_scan_result_by_index(i);
+	snprintf(list_key, sizeof(em_long_string_t), "%s@%s@%s@%d@%d@%d", id.net_id, dev_mac_str, scanner_mac_str,
+		id.op_class, id.channel, id.scanner_type);	
+
+	if ((res = (dm_scan_result_t *)hash_map_remove(dm->m_scan_result_map, list_key)) != NULL) {
+		delete res;
+	}
+	
+	// now if the result is from sta beacon report, find the sta and populate the structure
+	if (id.scanner_type == em_scanner_type_radio) {
+		return;
+	} 
+
+	sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_map);
+	while (sta != NULL) {
+
+		if (memcmp(sta->m_sta_info.id, id.scanner_mac, sizeof(mac_address_t)) == 0) {
+			found_sta = true;
+			break;
+		}
+		sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_map, sta);
+	}		
+
+	if (found_sta == false) {
+		return;
+	}
+
+	for (i = 0; i < sta->m_sta_info.num_beacon_reports; i++) {
+		rprt = &sta->m_sta_info.beacon_report[i];
+
+		if (memcmp(rprt->bssid, bssid, sizeof(bssid_t)) == 0) {
+			index_to_remove = i;
+			break;
 		}
 	}
 
+	if (index_to_remove == -1) {
+		return;
+	}
+
+	for (i = index_to_remove; i < sta->m_sta_info.num_beacon_reports - 1; i++) {
+        memcpy(&sta->m_sta_info.beacon_report[i], &sta->m_sta_info.beacon_report[i + 1], sizeof(wifi_BeaconReport_t));
+    }
+    
+    sta->m_sta_info.num_beacon_reports--;
 }
 
 void dm_easy_mesh_list_t::put_scan_result(const char *key, const dm_scan_result_t *scan_result)
 {
 	em_scan_result_id_t	id;
 	dm_easy_mesh_t	*dm;
-	mac_addr_str_t	dev_mac_str, radio_mac_str;
+	mac_addr_str_t	dev_mac_str, scanner_mac_str;
 	dm_scan_result_t *res;
-	mac_address_t bssid;
-	bool found_neighbor = false;
+	dm_sta_t *sta;
+	bssid_t bssid;
+	bool found_neighbor = false, found_sta = false;
 	unsigned int i;
 	em_neighbor_t *nbr;
+	em_long_string_t list_key;
+	wifi_BeaconReport_t *rprt;
 	
-	dm_scan_result_t::parse_scan_result_id_from_key(key, &id);
+	dm_scan_result_t::parse_scan_result_id_from_key(key, &id, bssid);
 
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
-	dm_easy_mesh_t::macbytes_to_string(id.ruid, radio_mac_str);
-	printf("%s:%d: network: %s\tdevice: %s\tradio: %s\topclass: %d\tchannel: %d\n", __func__, __LINE__,
-					id.net_id, dev_mac_str, radio_mac_str, id.op_class, id.channel);	
+	dm_easy_mesh_t::macbytes_to_string(id.scanner_mac, scanner_mac_str);
+
 	if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
 		printf("%s:%d: Could not find data model for Network: %s and dev: %s\n", __func__, __LINE__, id.net_id, dev_mac_str);
 		return;
 	}
+		
+	snprintf(list_key, sizeof(em_long_string_t), "%s@%s@%s@%d@%d@%d", id.net_id, dev_mac_str, scanner_mac_str, 
+    							id.op_class, id.channel, id.scanner_type);
 
-	if ((res = dm->find_matching_scan_result(&id)) == NULL) {
-		if (dm->m_num_scan_results == EM_MAX_SCAN_RESULTS) {
-			return;
-		}
-		res = &dm->m_scan_result[dm->m_num_scan_results];
+	if ((res = (dm_scan_result_t *)hash_map_get(dm->m_scan_result_map, list_key)) == NULL) {
+		//printf("%s:%d: New Scan Result\tnetwork: %s\tdevice: %s\tradio: %s\topclass: %d\tchannel: %d\tScanner Type: %d\n", 
+				//__func__, __LINE__, id.net_id, dev_mac_str, scanner_mac_str, id.op_class, id.channel, id.scanner_type);	
+		res = new dm_scan_result_t();
+		
+		hash_map_put(dm->m_scan_result_map, strdup(list_key), res);
+
 		memcpy(&res->m_scan_result, &scan_result->m_scan_result, sizeof(em_scan_result_t));
+		
 		// increase the neighbors by 1
 		res->m_scan_result.num_neighbors++;		
-	
-		dm->m_num_scan_results++;
 	} else {
-		dm_scan_result_t::parse_scan_result_id_from_key(key, &id, bssid);
+		//printf("%s:%d: Existing Scan Result\tnetwork: %s\tdevice: %s\tradio: %s\topclass: %d\tchannel: %d\tScanner Type: %d\n", 
+				//__func__, __LINE__, id.net_id, dev_mac_str, scanner_mac_str, id.op_class, id.channel, id.scanner_type);	
 		for (i = 0; i < res->m_scan_result.num_neighbors; i++) {
 			nbr = &res->m_scan_result.neighbor[i];
 
@@ -1333,7 +1376,33 @@ void dm_easy_mesh_list_t::put_scan_result(const char *key, const dm_scan_result_
 			memcpy(nbr, &scan_result->m_scan_result.neighbor[0], sizeof(em_neighbor_t));
 			res->m_scan_result.num_neighbors++;
 		}
+	}
+
+	// now if the result is from sta beacon report, find the sta and populate the structure
+	if (id.scanner_type == em_scanner_type_radio) {
+		return;
 	} 
+
+	sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_map);
+	while (sta != NULL) {
+
+		if (memcmp(sta->m_sta_info.id, id.scanner_mac, sizeof(mac_address_t)) == 0) {
+			found_sta = true;
+			break;
+		}
+		sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_map, sta);
+	}		
+
+	if (found_sta == false) {
+		return;
+	}
+
+	rprt = &sta->m_sta_info.beacon_report[sta->m_sta_info.num_beacon_reports];
+	rprt->opClass = scan_result->m_scan_result.id.op_class;	
+	rprt->channel = scan_result->m_scan_result.id.channel;
+	memcpy(rprt->bssid, &bssid, sizeof(bssid_t));
+		
+	sta->m_sta_info.num_beacon_reports++;
 
 }
 
