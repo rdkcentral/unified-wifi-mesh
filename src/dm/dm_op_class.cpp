@@ -168,6 +168,7 @@ bool dm_op_class_t::operator == (const dm_op_class_t& obj)
 
 void dm_op_class_t::operator = (const dm_op_class_t& obj)
 {
+    if (this == &obj) { return; }
     memcpy(&this->m_op_class_info.id.ruid ,&obj.m_op_class_info.id.ruid,sizeof(mac_address_t));
     this->m_op_class_info.id.type = obj.m_op_class_info.id.type;
     this->m_op_class_info.id.op_class = obj.m_op_class_info.id.op_class;

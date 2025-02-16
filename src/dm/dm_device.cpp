@@ -252,6 +252,7 @@ dm_orch_type_t dm_device_t::get_dm_orch_type(const dm_device_t& device)
 
 void dm_device_t::operator = (const dm_device_t& obj) {
 
+    if (this == &obj) { return; }
     memcpy(&this->m_device_info.intf.mac ,&obj.m_device_info.intf.mac,sizeof(mac_address_t));
     memcpy(&this->m_device_info.intf.name,&obj.m_device_info.intf.name,sizeof(em_interface_name_t));
     memcpy(&this->m_device_info.id.net_id,&obj.m_device_info.id.net_id,sizeof(em_long_string_t));

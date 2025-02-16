@@ -110,7 +110,7 @@ int dm_easy_mesh_ctrl_t::analyze_config_renew(em_bus_event_t *evt, em_cmd_t *pcm
 
 int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
-    mac_addr_str_t  dev_mac_str, sta_mac_str, bss_mac_str, radio_mac_str;
+    mac_addr_str_t  dev_mac_str, sta_mac_str, bss_mac_str, radio_mac_str, ruid_str;
     em_bus_event_type_client_assoc_params_t *params;
     unsigned int num = 0, len, i;
     em_cmd_params_t *evt_param;
@@ -118,7 +118,7 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     em_cmd_t *tmp;
     em_string_t	assoc;
     dm_bss_t *pbss;
-    bool radio_matched = false;
+    bool radio_matched = false, found;
     em_sta_info_t sta_info;
     em_orch_desc_t desc;
     em_long_string_t	key;
@@ -145,8 +145,19 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
         return -1;
     }
 
-    pbss = get_bss(bss_mac_str);
-    if (pbss == NULL) {
+    for (i = 0; i < pdm->get_num_radios(); i++) {
+        found = true;
+        dm_easy_mesh_t::macbytes_to_string((unsigned char *)pdm->get_radio_info(i)->id.ruid, ruid_str);
+        snprintf(key, sizeof (em_long_string_t), "%s@%s@%s@%s@", pdm->get_radio_info(i)->id.net_id, dev_mac_str, ruid_str, bss_mac_str);    
+
+        pbss = get_bss(key);
+        if (pbss == NULL) {
+            found = false;
+            continue;
+        }
+        break;
+    }
+    if (found == false) {
         printf("%s:%d: Could not find bss: %s\n", __func__, __LINE__, bss_mac_str);
         return -1;
     }
@@ -556,23 +567,25 @@ int dm_easy_mesh_ctrl_t::analyze_dpp_start(em_bus_event_t *evt, em_cmd_t *cmd[])
     cJSON *obj, *dpp_obj;
     unsigned int num = 0;
     em_subdoc_info_t *subdoc;
+    dm_easy_mesh_t dm;
+    em_tiny_string_t country_code = "US";
 
     subdoc = &evt->u.subdoc;
 
-    obj = cJSON_Parse(subdoc->buff);
+    dpp_obj = cJSON_Parse(subdoc->buff);
     if (obj == NULL) {
         printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
         return 0;
     }
 
-    dpp_obj = cJSON_GetObjectItem(obj, "URI");
-    if (dpp_obj == NULL) {
-        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
-        return 0;
+    dm_device_t *dev = get_first_device();
+    if (dev != NULL && dev->m_device_info.country_code[0] != '\0') {
+        strncpy(country_code, dev->m_device_info.country_code, sizeof(em_tiny_string_t));
     }
+    
 
-    //num = m_dpp.analyze_config(dpp_obj, NULL, cmd, &evt->params);
-    cJSON_free(obj);
+    num = dm.get_dpp()->analyze_config(dpp_obj, NULL, cmd, &evt->params, (void*)country_code);
+    cJSON_free(dpp_obj);
 
     return num;
 }

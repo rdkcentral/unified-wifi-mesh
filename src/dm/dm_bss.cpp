@@ -234,6 +234,7 @@ void dm_bss_t::encode(cJSON *obj, bool summary)
 
 void dm_bss_t::operator = (const dm_bss_t& obj)
 {
+	if (this == &obj) { return; }
 	strncpy(this->m_bss_info.id.net_id, obj.m_bss_info.id.net_id, strlen(obj.m_bss_info.id.net_id));
 	memcpy(this->m_bss_info.id.dev_mac, obj.m_bss_info.id.dev_mac, sizeof(mac_address_t));
 	memcpy(this->m_bss_info.id.ruid, obj.m_bss_info.id.ruid, sizeof(mac_address_t));
