@@ -2594,9 +2594,20 @@ void dm_easy_mesh_t::remove_scan_result_by_index(unsigned int index)
 }
 
 void dm_easy_mesh_t::reset_db_cfg_type(db_cfg_type_t type) 
-{ 
-	strncpy(m_db_cfg_param.db_cfg_criteria[type - 1], "", strlen(""));
-	m_db_cfg_param.db_cfg_type &= ~type; 
+{
+    unsigned int num = type;
+    unsigned int index = 0;
+
+    while (num % 2 == 0) {
+        num /= 2;
+        index++;
+    }
+
+    if (num != 1) {
+        return;
+    }
+    strncpy(m_db_cfg_param.db_cfg_criteria[num], "", strlen(""));
+    m_db_cfg_param.db_cfg_type &= ~type; 
 }   
 
 void dm_easy_mesh_t::set_db_cfg_param(db_cfg_type_t cfg_type, char *criteria)

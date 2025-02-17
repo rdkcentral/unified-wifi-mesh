@@ -42,7 +42,7 @@ public:
     int set_config(db_client_t& db_client, const cJSON *obj, void *parent_id);
     int set_config(db_client_t& db_client, dm_op_class_t& op_class, void *parent_id);
     int get_config(cJSON *obj, void *parent_id, bool summary = false);
-    int get_config(cJSON *obj, em_op_class_type_t type);
+    void get_config(cJSON *obj, em_op_class_type_t type);
 
     virtual dm_op_class_t *get_first_op_class() = 0;
     virtual dm_op_class_t *get_next_op_class(dm_op_class_t *op_class) = 0;
