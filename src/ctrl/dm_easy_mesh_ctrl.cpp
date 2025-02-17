@@ -567,23 +567,25 @@ int dm_easy_mesh_ctrl_t::analyze_dpp_start(em_bus_event_t *evt, em_cmd_t *cmd[])
     cJSON *obj, *dpp_obj;
     unsigned int num = 0;
     em_subdoc_info_t *subdoc;
+    dm_easy_mesh_t dm;
+    em_tiny_string_t country_code = "US";
 
     subdoc = &evt->u.subdoc;
 
-    obj = cJSON_Parse(subdoc->buff);
+    dpp_obj = cJSON_Parse(subdoc->buff);
     if (obj == NULL) {
         printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
         return 0;
     }
 
-    dpp_obj = cJSON_GetObjectItem(obj, "URI");
-    if (dpp_obj == NULL) {
-        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
-        return 0;
+    dm_device_t *dev = get_first_device();
+    if (dev != NULL && dev->m_device_info.country_code[0] != '\0') {
+        strncpy(country_code, dev->m_device_info.country_code, sizeof(em_tiny_string_t));
     }
+    
 
-    //num = m_dpp.analyze_config(dpp_obj, NULL, cmd, &evt->params);
-    cJSON_free(obj);
+    num = dm.get_dpp()->analyze_config(dpp_obj, NULL, cmd, &evt->params, (void*)country_code);
+    cJSON_free(dpp_obj);
 
     return num;
 }

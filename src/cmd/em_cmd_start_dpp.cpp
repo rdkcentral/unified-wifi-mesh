@@ -50,6 +50,9 @@ em_cmd_start_dpp_t::em_cmd_start_dpp_t(em_cmd_params_t param)
     m_orch_op_idx = 0;
     m_num_orch_desc = 0;
 
+    get_orch_desc()->op = dm_orch_type_dpp_update;
+    get_orch_desc()->submit = true;
+
     snprintf(m_name, sizeof(m_name), "%s", "start_dpp");
     m_svc = em_service_type_ctrl;
 }

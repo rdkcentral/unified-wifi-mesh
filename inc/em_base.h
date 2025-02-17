@@ -166,6 +166,7 @@ extern "C"
 #define EM_AGENT_PATH   "agent"
 #define EM_CTRL_PATH    "ctrl"
 #define EM_CLI_PATH "cli"
+#define EM_CFG_FILE "/nvram/EasymeshCfg.json"
 
 #define EM_MAX_SSID_LEN                33 
 #define EM_MAX_WIFI_PASSWORD_LEN       65 
@@ -2039,7 +2040,8 @@ typedef struct {
 typedef struct {
     unsigned int    version;
     ec_data_t   ec_data;
-    wifi_channel_t  en_chans[DPP_MAX_EN_CHANNELS];
+    int  ec_freqs[DPP_MAX_EN_CHANNELS];
+    mac_address_t   mac_addr;
 } em_dpp_info_t;
 
 typedef enum {

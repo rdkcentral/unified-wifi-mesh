@@ -38,19 +38,21 @@
 #include "dm_dpp.h"
 #include "em_cmd_start_dpp.h"
 #include "dm_easy_mesh.h"
+#include "util.h"
 
-int dm_dpp_t::analyze_config(const cJSON *obj, void *parent, em_cmd_t *pcmd[], em_cmd_params_t *param)
+#include <string>
+#include <sstream>
+
+int dm_dpp_t::analyze_config(const cJSON *obj, void *parent, em_cmd_t *pcmd[], em_cmd_params_t *param, void* user_param)
 {
 	unsigned int num = 0;
-	dm_dpp_t dpp;
-	dm_orch_type_t op;
 	dm_easy_mesh_t	dm;
 
-	if (dpp.decode(obj, parent) != 0) {
+    // Decodes JSON `obj` into `m_dpp_info`
+	if (dm.get_dpp()->decode(obj, parent, user_param) != 0) {
 		return 0;
 	}
 
-	op = dm_orch_type_db_insert;
 	pcmd[num] = new em_cmd_start_dpp_t(*param);
     pcmd[num]->init(&dm);
     num++;	
@@ -58,7 +60,7 @@ int dm_dpp_t::analyze_config(const cJSON *obj, void *parent, em_cmd_t *pcmd[], e
 	return num;
 }
 
-int dm_dpp_t::decode(const cJSON *obj, void *parent_id)
+int dm_dpp_t::decode(const cJSON *obj, void *parent_id, void* user_info)
 {
     cJSON *tmp, *tmp_arr;
     mac_addr_str_t  mac_str;
@@ -67,10 +69,57 @@ int dm_dpp_t::decode(const cJSON *obj, void *parent_id)
     char *net_id = (char *)parent_id;
 
     memset(&m_dpp_info, 0, sizeof(em_dpp_info_t));
+
+    printf("%s:%d: Decoding DPP\n", __func__, __LINE__);
 		
+    // Get version
     if ((tmp = cJSON_GetObjectItem(obj, "V:")) != NULL) {
-	m_dpp_info.version = cJSON_GetNumberValue(tmp);
+	    m_dpp_info.version = cJSON_GetNumberValue(tmp);
     }
+    // Get MAC address
+    if ((tmp = cJSON_GetObjectItem(obj, "M:")) != NULL && cJSON_IsString(tmp)) {
+	    dm_easy_mesh_t::string_to_macbytes(tmp->valuestring, m_dpp_info.mac_addr);
+    }
+    // Get public key (DER of ASN.1 SubjectPublicKeyInfo encoded in “base64”)
+    if ((tmp = cJSON_GetObjectItem(obj, "K:")) != NULL && cJSON_IsString(tmp)) {
+        // Enrollee (Responder) is the one who sent the URI so that is the owner of the public key
+	    strcpy(m_dpp_info.ec_data.rPubKey, tmp->valuestring);
+    }
+
+    if ((tmp = cJSON_GetObjectItem(obj, "C:")) != NULL && cJSON_IsString(tmp)) {
+
+        em_tiny_string_t country_code = "US";
+        if (user_info != NULL) {
+            memcpy(&country_code, user_info, sizeof(em_tiny_string_t));
+        }
+
+        std::string op_channel_str(tmp->valuestring);
+	    std::stringstream ss(op_channel_str);
+        std::string pair;
+
+        int pair_idx = 0;
+        
+        while (std::getline(ss, pair, ',')) {
+            size_t slash_pos = pair.find('/');
+            if (slash_pos != std::string::npos) {
+                uint8_t op_class = std::stoi(pair.substr(0, slash_pos));
+                uint8_t channel = std::stoi(pair.substr(slash_pos + 1));
+                int freq = em_chan_to_freq(std::string(country_code), op_class, channel);
+                if (freq > 0) {
+                    m_dpp_info.ec_freqs[pair_idx] = freq;
+                    pair_idx++;
+                } else {
+                    printf("%s:%d: Failed to convert channel to frequency (op class: %d, channel: %d)\n", __func__, __LINE__, op_class, channel);
+                }
+                
+            }
+        }
+    }
+
+
+
+
+    
 		
     return 0;
 }
@@ -91,8 +140,7 @@ bool dm_dpp_t::operator == (const dm_dpp_t& obj)
     ret += memcmp(this->m_dpp_info.ec_data.tran_id, obj.m_dpp_info.ec_data.tran_id, sizeof(this->m_dpp_info.ec_data.tran_id)) != 0;
     ret += this->m_dpp_info.ec_data.match_tran_id != obj.m_dpp_info.ec_data.match_tran_id;
     for (int i = 0; i < DPP_MAX_EN_CHANNELS; i++) {
-	ret += this->m_dpp_info.en_chans[i].channel != obj.m_dpp_info.en_chans[i].channel;
-	ret += this->m_dpp_info.en_chans[i].band != obj.m_dpp_info.en_chans[i].band;
+	    ret += this->m_dpp_info.ec_freqs[i] != obj.m_dpp_info.ec_freqs[i];
     }
     if (ret > 0)
         return false;
@@ -103,6 +151,7 @@ bool dm_dpp_t::operator == (const dm_dpp_t& obj)
 
 void dm_dpp_t::operator = (const dm_dpp_t& obj)
 {
+    if (this == &obj) { return; }
     this->m_dpp_info.version == obj.m_dpp_info.version;
     this->m_dpp_info.ec_data.type == obj.m_dpp_info.ec_data.type;
     memcpy(this->m_dpp_info.ec_data.iPubKey, obj.m_dpp_info.ec_data.iPubKey, sizeof(this->m_dpp_info.ec_data.iPubKey));
@@ -110,8 +159,7 @@ void dm_dpp_t::operator = (const dm_dpp_t& obj)
     memcpy(this->m_dpp_info.ec_data.tran_id, obj.m_dpp_info.ec_data.tran_id, sizeof(this->m_dpp_info.ec_data.tran_id));
     this->m_dpp_info.ec_data.match_tran_id == obj.m_dpp_info.ec_data.match_tran_id;
     for (int i = 0; i < DPP_MAX_EN_CHANNELS; i++) {
-	this->m_dpp_info.en_chans[i].channel == obj.m_dpp_info.en_chans[i].channel; 
-        this->m_dpp_info.en_chans[i].band == obj.m_dpp_info.en_chans[i].band;
+	    this->m_dpp_info.ec_freqs[i] == obj.m_dpp_info.ec_freqs[i];
     }
 
 }
