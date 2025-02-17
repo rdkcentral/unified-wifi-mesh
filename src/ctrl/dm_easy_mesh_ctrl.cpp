@@ -1360,7 +1360,7 @@ int dm_easy_mesh_ctrl_t::get_mld_config(cJSON *parent, char *key)
 	return 0;
 }
 
-int dm_easy_mesh_ctrl_t::get_config(em_long_string_t net_id, em_subdoc_info_t *subdoc)
+void dm_easy_mesh_ctrl_t::get_config(em_long_string_t net_id, em_subdoc_info_t *subdoc)
 {
     cJSON *parent;
     char *tmp;
@@ -1578,7 +1578,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
         	dm_easy_mesh_t::macbytes_to_string((unsigned char *)radio.m_radio_info.intf.mac, radio_mac_str);
             snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s", device.m_device_info.id.net_id, dev_mac_str, radio_mac_str);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_radio_list_update);
-            if (dm_radio_list_t::set_config(m_db_client, dm->m_radio[i], parent) != 0) {
+            if (dm_radio_list_t::set_config(m_db_client, radio, parent) != 0) {
                 at_least_one_failed = true;;
             }
         }
@@ -1618,7 +1618,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
 			snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%s@%d", dm->m_network.m_net_info.id, 
 					dev_mac_str, radio_mac_str, bssid_str, bss.m_bss_info.id.haul_type);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_bss_list_update);
-            if (dm_bss_list_t::set_config(m_db_client, dm->get_bss_by_ref(i), parent) != 0) {
+            if (dm_bss_list_t::set_config(m_db_client, bss, parent) != 0) {
                 at_least_one_failed = true;
             }
         }
