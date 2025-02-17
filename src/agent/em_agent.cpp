@@ -335,7 +335,7 @@ void em_agent_t::handle_channel_scan_params(em_bus_event_t *evt)
 #endif
 }
 
-void em_agent_t::handle_set_ow_policy(em_bus_event_t *evt)
+void em_agent_t::handle_set_policy(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num;
@@ -862,7 +862,6 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             }
             break;
 
-        case em_msg_type_1905_ack:
 		case em_msg_type_channel_scan_rprt:
         case em_msg_type_beacon_metrics_rsp:
         case em_msg_type_ap_mld_config_resp:
