@@ -105,7 +105,7 @@ public:
     int get_scan_result(cJSON *parent, char *key);
     int get_mld_config(cJSON *parent, char *key);
     int get_reference_config(cJSON *parent, char *key);
-    int get_config(em_long_string_t net_id, em_subdoc_info_t *subdoc);
+    void get_config(em_long_string_t net_id, em_subdoc_info_t *subdoc);
     int set_config(dm_easy_mesh_t *dm);
     int copy_config(dm_easy_mesh_t *dm, em_long_string_t net_id);
 

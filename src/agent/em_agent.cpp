@@ -549,7 +549,7 @@ int em_agent_t::sta_cb(char *event_name, raw_data_t *data)
 
 }
 
-int em_agent_t::onewifi_cb(char *event_name, raw_data_t *data)
+void em_agent_t::onewifi_cb(char *event_name, raw_data_t *data)
 {
 	const char *json_data = (char *)data->raw_data.bytes;
 	cJSON *json = cJSON_Parse(json_data);
@@ -573,7 +573,7 @@ int em_agent_t::onewifi_cb(char *event_name, raw_data_t *data)
 
 			} else {
 				printf("%s:%d SubDocName not matching private or radio \n", __func__, __LINE__);
-				return 0;
+				return;
 			}
 		} else {
 			printf("%s:%d SubDocName not found\n", __func__, __LINE__);
