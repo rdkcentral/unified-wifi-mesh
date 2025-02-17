@@ -311,9 +311,8 @@ int dm_easy_mesh_t::encode_config_reset(em_subdoc_info_t *subdoc, const char *ke
 	char *formatted_json;
 	mac_addr_str_t	mac_str;
 	em_long_string_t	interface_str;
-	const char *preference[5] = {"First Preference", "Second Preference", "Third Preference", "Fourth Preference", "Fifth Preference"};
-	unsigned int i;
-	m_num_interfaces = sizeof(preference)/sizeof(*preference);
+	const char *preference[] = {"First Preference", "Second Preference", "Third Preference", "Fourth Preference", "Fifth Preference"};
+	unsigned int i, preference_arraysz = sizeof(preference)/sizeof(*preference);
 
     if ((parent_obj = cJSON_CreateObject()) == NULL) {
         printf("%s:%d: Could not create parent object\n", __func__, __LINE__);
@@ -341,7 +340,7 @@ int dm_easy_mesh_t::encode_config_reset(em_subdoc_info_t *subdoc, const char *ke
         return -1;
     }
 
-	for (i = 0; i < m_num_interfaces; i++) {
+	for (i = 0; i < m_num_interfaces && i < preference_arraysz; i++) {
 		interface_obj = cJSON_CreateObject();
 		cJSON_AddItemToArray(interface_arr_obj, interface_obj);
 		dm_easy_mesh_t::macbytes_to_string(m_interfaces[i].mac, mac_str);
