@@ -247,32 +247,44 @@ int em_metrics_t::handle_beacon_metrics_query(unsigned char *buff, unsigned int 
     printf("\n\n    STA MAC Address: %02x:%02x:%02x:%02x:%02x:%02x\n",
         beacon_metrics->sta_mac_addr[0], beacon_metrics->sta_mac_addr[1], beacon_metrics->sta_mac_addr[2],
         beacon_metrics->sta_mac_addr[3], beacon_metrics->sta_mac_addr[4], beacon_metrics->sta_mac_addr[5]);
- printf("   Operating Class: %u\n", beacon_metrics->op_class);
- printf("   Channel Number: %u\n", beacon_metrics->channel_num);
- printf("   BSSID: %02x:%02x:%02x:%02x:%02x:%02x\n",
-     beacon_metrics->bssid[0], beacon_metrics->bssid[1], beacon_metrics->bssid[2],
-     beacon_metrics->bssid[3], beacon_metrics->bssid[4], beacon_metrics->bssid[5]);
- printf("   Reporting Detail: %u\n", beacon_metrics->rprt_detail);
- printf("   SSID Length: %u\n", beacon_metrics->ssid_len);
- //printf("SSID: %s\n", beacon_metrics->ssid);
- printf("   Number of AP Channel Reports: %u\n", beacon_metrics->num_ap_channel_rprt);
- printf("   AP Channel Report Length: %u\n", beacon_metrics->ap_channel_rprt_len);
- printf("   AP Channel Operating Class: %u\n", beacon_metrics->ap_channel_op_class);
-/*  printf("   AP Channel List: ");
- for (size_t i = 0; i < ap_channel_list_len; ++i) {
-     printf("%u ", beacon_metrics->ap_channel_list[i]);
- }
- printf("\n Number of Element IDs: %u\n", beacon_metrics->num_element_id);
- printf("   Element List: ");
- for (size_t i = 0; i < element_list_len; ++i) {
-     printf("%u ", beacon_metrics->element_list[i]);
- } */
- printf("\n\n");
+     printf("   Operating Class: %u\n", beacon_metrics->op_class);
+     printf("   Channel Number: %u\n", beacon_metrics->channel_num);
+     printf("   BSSID: %02x:%02x:%02x:%02x:%02x:%02x\n",
+         beacon_metrics->bssid[0], beacon_metrics->bssid[1], beacon_metrics->bssid[2],
+         beacon_metrics->bssid[3], beacon_metrics->bssid[4], beacon_metrics->bssid[5]);
+     printf("   Reporting Detail: %u\n", beacon_metrics->rprt_detail);
+     printf("   SSID Length: %u\n", beacon_metrics->ssid_len);
+     printf("\n\n");
 
 
     memcpy(sta, tlv->value, sizeof(mac_address_t));
 
     send_beacon_metrics_response(sta);
+
+    return 0;
+}
+
+int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned int len)
+{
+    mac_address_t sta;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    em_raw_hdr_t *hdr = (em_raw_hdr_t *)buff;
+
+    if (em_msg_t(em_msg_type_beacon_metrics_query, em_profile_type_2, buff, len).validate(errors) == 0) {
+        printf("%s:%d:Beacon Metrics query message validation failed\n");
+        return -1;
+    }
+
+    cmdu = (em_cmdu_t *)(buff + sizeof(em_raw_hdr_t));
+    tlv = (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    printf("\n\n");
+
+    //save data to em_sta_info's beacon report
+
+    //send_ack(sta);
 
     return 0;
 }
@@ -777,7 +789,7 @@ short em_metrics_t::create_beacon_metrics_query_tlv(unsigned char *buff, mac_add
     dm_easy_mesh_t *dm;
     ssid_t ssid;
     unsigned char *tmp = buff;
-    em_beacon_metrics_query_t *beacon_metrics = (em_beacon_metrics_query_t*) buff;
+    //em_beacon_metrics_query_t *beacon_metrics = (em_beacon_metrics_query_t*) buff;
     dm_sta_t *sta;
 
     dm = get_data_model();
@@ -791,7 +803,6 @@ short em_metrics_t::create_beacon_metrics_query_tlv(unsigned char *buff, mac_add
         sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_map, sta);
     }
 
-
     for (int j = 0; j < dm->get_num_bss(); j++) {
         if (memcmp(&dm->m_bss[j].m_bss_info.bssid, sta->m_sta_info.bssid, sizeof(bssid_t)) != 0) {
             strncpy(ssid, dm->m_bss[j].m_bss_info.ssid, sizeof(ssid_t));
@@ -799,18 +810,19 @@ short em_metrics_t::create_beacon_metrics_query_tlv(unsigned char *buff, mac_add
         }
     }
 
-
-        // Example data
-    //size_t ssid_len = sizeof(ssid);
+    // Example data
     unsigned char ap_channel_list[] = {1, 6, 11};
     size_t ap_channel_list_len = sizeof(ap_channel_list);
     unsigned char element_list[] = {0, 1, 2, 3};
     size_t element_list_len = sizeof(element_list);
 
+    em_beacon_metrics_query_t *beacon_metrics = (em_beacon_metrics_query_t*) buff;
+
     if (sta == NULL) {
 
     }
     else {
+
         memcpy(beacon_metrics->sta_mac_addr, sta_mac, sizeof(mac_addr_t));
         len += sizeof(beacon_metrics->sta_mac_addr);
 
@@ -829,55 +841,65 @@ short em_metrics_t::create_beacon_metrics_query_tlv(unsigned char *buff, mac_add
         beacon_metrics->ssid_len = sizeof(ssid);
         len += sizeof(beacon_metrics->ssid_len);
 
-        //beacon_metrics->ssid = buff + len;
         memcpy(beacon_metrics->ssid, ssid, sizeof(ssid));
         len += sizeof(ssid);
 
         beacon_metrics->num_ap_channel_rprt = 2;
         len += sizeof(beacon_metrics->num_ap_channel_rprt);
 
-        beacon_metrics->ap_channel_rprt_len = 20;
-        len += sizeof(beacon_metrics->ap_channel_rprt_len);
+        em_beacon_ap_channel_rprt_t *ap_chann_rprt;// = buff + len;
 
-        beacon_metrics->ap_channel_op_class = 10;
-        len += sizeof(beacon_metrics->ap_channel_op_class);
+        for (int i = 0; i < beacon_metrics->num_ap_channel_rprt; i++) {
+            ap_chann_rprt = (em_beacon_ap_channel_rprt_t *)(buff + len);
+            ap_chann_rprt->ap_channel_rprt_len = 4;
+            len += sizeof(ap_chann_rprt->ap_channel_rprt_len);
 
-        /* beacon_metrics->ap_channel_list = buff + len;
-        memcpy(beacon_metrics->ap_channel_list, ap_channel_list, ap_channel_list_len);
-        len += sizeof(beacon_metrics->ap_channel_list) * ap_channel_list_len;
+            ap_chann_rprt->ap_channel_op_class = 10;
+            len += sizeof(ap_chann_rprt->ap_channel_op_class);
 
-        beacon_metrics->num_element_id = 4;
-        len += sizeof(beacon_metrics->num_element_id);
+            for(int j = 0; j < ap_chann_rprt->ap_channel_rprt_len - 1; j++) {
+                ap_chann_rprt->ap_channel_list[j] = ap_channel_list[j];
+                len += sizeof(unsigned char);
+            }
+        }
 
-        beacon_metrics->element_list = buff + len;
-        memcpy(beacon_metrics->element_list, element_list, element_list_len);
-        len += sizeof(beacon_metrics->element_list); */
+        /* em_beacon_element_list_t *elements = (em_beacon_element_list_t *)(buff + len);
+
+        elements->num_element_id = 4;
+        len += sizeof(elements->num_element_id);
+
+        memcpy(elements->element_list, element_list, element_list_len);
+        len += 4;//sizeof(unsigned char) * elements->num_element_id; */
     }
 
-        // Print the filled data
+    // Print the filled data
     printf("STA MAC Address: %02x:%02x:%02x:%02x:%02x:%02x\n",
            beacon_metrics->sta_mac_addr[0], beacon_metrics->sta_mac_addr[1], beacon_metrics->sta_mac_addr[2],
            beacon_metrics->sta_mac_addr[3], beacon_metrics->sta_mac_addr[4], beacon_metrics->sta_mac_addr[5]);
     printf("Operating Class: %u\n", beacon_metrics->op_class);
     printf("Channel Number: %u\n", beacon_metrics->channel_num);
-    printf("BSSID: %02x:%02x:%02x:%02x:%02x:%02x\n",
-        beacon_metrics->bssid[0], beacon_metrics->bssid[1], beacon_metrics->bssid[2],
-        beacon_metrics->bssid[3], beacon_metrics->bssid[4], beacon_metrics->bssid[5]);
+    mac_addr_str_t mac_str;
+    dm_easy_mesh_t::macbytes_to_string(beacon_metrics->bssid, mac_str);
+    printf("BSSID: %s\n", mac_str);
     printf("Reporting Detail: %u\n", beacon_metrics->rprt_detail);
     printf("SSID Length: %u\n", beacon_metrics->ssid_len);
-    //printf("SSID: %s\n", beacon_metrics->ssid);
+    printf("SSID: %s\n", beacon_metrics->ssid);
     printf("Number of AP Channel Reports: %u\n", beacon_metrics->num_ap_channel_rprt);
-    printf("AP Channel Report Length: %u\n", beacon_metrics->ap_channel_rprt_len);
-    printf("AP Channel Operating Class: %u\n", beacon_metrics->ap_channel_op_class);
-    printf("AP Channel List: ");
-    for (size_t i = 0; i < ap_channel_list_len; ++i) {
-        //printf("%u ", beacon_metrics->ap_channel_list[i]);
+    /* for (int i =0; i<beacon_metrics->num_ap_channel_rprt; i++){
+        printf("AP Channel Report Length: %u\n", beacon_metrics->ap_channel_rprt[i].ap_channel_rprt_len);
+        printf("AP Channel Operating Class: %u\n", beacon_metrics->ap_channel_rprt[i].ap_channel_op_class);
+        printf("AP Channel List: ");
+        for (size_t i = 0; i < ap_channel_list_len; ++i) {
+            printf("%u ", beacon_metrics->ap_channel_rprt[i].ap_channel_list[i]);
+        }
+        printf("\n");
     }
-    //printf("\nNumber of Element IDs: %u\n", beacon_metrics->num_element_id);
-    //printf("Element List: ");
+
+    printf("\nNumber of Element IDs: %u\n", beacon_metrics->num_element_id);
+    printf("Element List: ");
     for (size_t i = 0; i < element_list_len; ++i) {
-      //  printf("%u ", beacon_metrics->element_list[i]);
-    }
+       //printf("%u ", beacon_metrics->element_list[i]);
+    } */
     printf("\n\n");
     return len;
 }
@@ -986,6 +1008,10 @@ void em_metrics_t::process_msg(unsigned char *data, unsigned int len)
 
         case em_msg_type_beacon_metrics_query:
             handle_beacon_metrics_query(data, len);
+            break;
+
+        case em_msg_type_beacon_metrics_rsp:
+            handle_beacon_metrics_response(data, len);
             break;
 
         default:

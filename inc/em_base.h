@@ -816,20 +816,31 @@ typedef struct {
 }__attribute__((__packed__)) em_beacon_metrics_resp_t;
 
 #if 1
+
+typedef struct {
+    unsigned char ap_channel_rprt_len;
+    unsigned char ap_channel_op_class;
+    unsigned char ap_channel_list[6];
+}__attribute__((__packed__)) em_beacon_ap_channel_rprt_t;
+
+typedef struct {
+    unsigned char num_element_id;
+    unsigned char element_list[6];
+}__attribute__((__packed__)) em_beacon_element_list_t;
+
 typedef struct {
     mac_address_t sta_mac_addr;
     unsigned char op_class;
     unsigned char channel_num;
-    bssid_t bssid[6];
+    bssid_t bssid;
     unsigned char rprt_detail;
     unsigned char ssid_len;
     ssid_t ssid;
     unsigned char num_ap_channel_rprt;
-    unsigned char ap_channel_rprt_len;
-    unsigned char ap_channel_op_class;
-    unsigned char ap_channel_list[6];
+    em_beacon_ap_channel_rprt_t ap_channel_rprt[6];
     unsigned char num_element_id;
-    unsigned char element_list[6];
+    //unsigned char element_list[6];
+    em_beacon_element_list_t element_list;
 }__attribute__((__packed__)) em_beacon_metrics_query_t;
 #else
 

@@ -785,7 +785,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             break;
 
         case em_msg_type_beacon_metrics_query:
-        break;
+        //break;
         case em_msg_type_assoc_sta_link_metrics_query:
             printf("\n%s:%d: Rcvd STA Metrics Query\n", __func__, __LINE__);
 

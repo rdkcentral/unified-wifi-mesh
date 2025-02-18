@@ -234,7 +234,6 @@ dm_policy_t::dm_policy_t(const em_policy_t& policy)
 dm_policy_t::dm_policy_t()
 {
 	memset(&m_policy, 0, sizeof(em_policy_t));
-	memcpy(m_policy.managed_sta_marker, "Skyyyyy", sizeof(m_policy.managed_sta_marker));
 }
 
 dm_policy_t::~dm_policy_t()

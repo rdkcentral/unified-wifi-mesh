@@ -40,6 +40,7 @@ class em_metrics_t {
     int handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff);
     int handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff);
     int handle_beacon_metrics_query(unsigned char *buff, unsigned int len);
+    int handle_beacon_metrics_response(unsigned char *buff, unsigned int len);
 
     short create_assoc_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac, const dm_sta_t *const sta);
     short create_assoc_ext_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac, const dm_sta_t *const sta);
