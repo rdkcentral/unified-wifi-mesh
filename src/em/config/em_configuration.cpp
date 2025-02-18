@@ -97,7 +97,7 @@ int em_configuration_t::send_topology_notification_by_client(mac_address_t sta, 
     short sz;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
-    unsigned char buff[MAX_EM_BUFF_SZ];
+    unsigned char buff[MAX_EM_BUFF_SZ*MAX_EM_BUFF_SZ];
     unsigned char *tmp = buff;
     unsigned short type = htons(ETH_P_1905);
     mac_address_t   multi_addr = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x13};
@@ -208,7 +208,7 @@ int em_configuration_t::send_autoconfig_renew_msg()
     dm_easy_mesh_t *dm;
     unsigned char registrar = 0;
     em_freq_band_t freq_band;
-
+    mac_addr_str_t mac_str;
     dm = get_data_model();
 
     memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
@@ -282,7 +282,8 @@ int em_configuration_t::send_autoconfig_renew_msg()
     }
 
     m_renew_tx_cnt++;
-    printf("%s:%d: AutoConfig Renew (%d) Send Successful\n", __func__, __LINE__, m_renew_tx_cnt);
+    dm_easy_mesh_t::macbytes_to_string (get_radio_interface_mac(), mac_str);
+    printf("%s:%d: AutoConfig Renew (%d) Send Successful for %s freq band=%d\n", __func__, __LINE__, m_renew_tx_cnt, mac_str, get_band());
 
     return len;
 }
@@ -386,15 +387,16 @@ int em_configuration_t::create_operational_bss_tlv(unsigned char *buff)
     printf("first tlv_len in em_configuration_t::create_operational_bss_tlv = %d\n",tlv_len);
 
     ap = (em_ap_op_bss_t *)tlv->value;
-    ap->radios_num = dm->get_num_radios();
+    ap->radios_num = 1;
     radio = ap->radios;
 	for (i = 0; i < dm->get_num_radios(); i++) {
+	if ((dm->get_radio_by_ref(i).get_radio_interface_mac(), get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
 		memcpy(radio->ruid, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t));
     	radio->bss_num = 0;
     	bss = radio->bss;
     	all_bss_len = 0;
     	for (j = 0; j < dm->get_num_bss(); j++) {
-        	if (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
+        	if (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
             	continue;
         	}
         	radio->bss_num++;
@@ -407,6 +409,7 @@ int em_configuration_t::create_operational_bss_tlv(unsigned char *buff)
     	radio = (em_ap_op_bss_radio_t *)((unsigned char *)radio + sizeof(em_ap_op_bss_radio_t) + all_bss_len);
     	tlv_len += sizeof(em_ap_op_bss_radio_t) + all_bss_len;
 	}
+}
 
     tlv->len = htons(tlv_len);
     print_ap_operational_bss_tlv(tlv->value, tlv->len);
@@ -697,6 +700,111 @@ int em_configuration_t::create_assoc_sta_mld_config_report_tlv(unsigned char *bu
     return tlv_len;
 }
 
+int em_configuration_t::create_vendor_operational_bss_tlv(unsigned char *buff)
+{
+		em_tlv_t *tlv;
+		unsigned char *tmp = buff;
+		em_ap_vendor_op_bss_radio_t		   *radio;
+		em_ap_vendor_operational_bss_t *bss;
+		em_ap_vendor_op_bss_t *ap;
+		dm_easy_mesh_t	*dm;
+		unsigned int i, j, all_bss_len = 0;
+		unsigned short tlv_len = 0;
+
+		dm = get_data_model();
+
+		tlv = (em_tlv_t *)tmp;
+		tlv->type = em_tlv_type_vendor_operational_bss;
+		//tlv_len = sizeof(em_ap_vendor_op_bss_radio_t);
+		printf("first tlv_len in em_configuration_t::create_custom_operational_bss_tlv = %d\n",tlv_len);
+		ap = (em_ap_vendor_op_bss_t *)tlv->value;
+		ap->radios_num = 1;
+		radio = ap->radios;
+		for (i = 0; i < dm->get_num_radios(); i++) {
+			if (memcmp(dm->get_radio_by_ref(i).get_radio_interface_mac(), get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
+				memcpy(radio->ruid, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t));
+				radio->bss_num = 0;
+				bss = radio->bss;
+				for (j = 0; j < dm->get_num_bss(); j++) {
+						if (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
+								continue;
+						}
+						radio->bss_num++;
+						memcpy(bss->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
+						dm_easy_mesh_t::convert_vap_name_to_hault_type((em_haul_type_t*)&bss->haultype, dm->m_bss[j].m_bss_info.bssid.name);
+						printf("%s:%d haulttype%d vapname=%s\n", __func__, __LINE__,bss->haultype, dm->m_bss[j].m_bss_info.bssid.name);
+						bss = (em_ap_vendor_operational_bss_t *)((unsigned char *)bss + sizeof(em_ap_vendor_operational_bss_t));
+						all_bss_len += sizeof(em_ap_vendor_operational_bss_t);
+				}
+				radio = (em_ap_vendor_op_bss_radio_t *)((unsigned char *)radio + sizeof(em_ap_vendor_op_bss_radio_t) + all_bss_len);
+				tlv_len += sizeof(em_ap_vendor_op_bss_radio_t) + all_bss_len;
+				all_bss_len = 0;
+			}
+		}
+
+		tlv->len = htons(tlv_len);
+		print_ap_vendor_operational_bss_tlv(tlv->value, tlv->len);
+
+		return tlv_len;
+}
+
+void em_configuration_t::print_ap_vendor_operational_bss_tlv(unsigned char *value, unsigned int len)
+{
+	mac_addr_str_t	rd_mac_str, bss_mac_str;
+	em_ap_vendor_op_bss_radio_t		   *radio;
+	em_ap_vendor_operational_bss_t *bss;
+	unsigned char * tmp = value;
+	em_ap_vendor_op_bss_t *ap;
+	unsigned int i, j, all_bss_len = 0, ap_op_bss_tlv_len = 0;
+
+	ap = (em_ap_vendor_op_bss_t *)value;
+	radio = ap->radios;
+	printf("%s:%d Number of radios: %d\n", __func__, __LINE__, ap->radios_num);
+	for (i = 0; i < ap->radios_num; i++) {
+		dm_easy_mesh_t::macbytes_to_string(radio->ruid, rd_mac_str);
+		printf("%s:%d: Radio: %s\n", __func__, __LINE__, rd_mac_str);
+		bss = radio->bss;
+		printf("%s:%d Number of bss: %d\n", __func__, __LINE__, radio->bss_num);
+		for (j = 0; j < radio->bss_num; j++) {
+			dm_easy_mesh_t::macbytes_to_string(bss->bssid, bss_mac_str);
+			printf("%s:%d: BSSID=%s	 haul type=%d\n", __func__, __LINE__, bss_mac_str, bss->haultype);
+			bss = (em_ap_vendor_operational_bss_t *)((unsigned char *)bss + sizeof(em_ap_vendor_operational_bss_t));
+			all_bss_len += sizeof(em_ap_vendor_operational_bss_t);
+		}
+		radio = (em_ap_vendor_op_bss_radio_t *)((unsigned char *)radio + sizeof(em_ap_vendor_op_bss_radio_t) + all_bss_len);
+		all_bss_len = 0;
+	}
+}
+
+void em_configuration_t::handle_ap_vendor_operational_bss(unsigned char *value, unsigned int len)
+{
+	mac_addr_str_t	rd_mac_str, bss_mac_str;
+	em_ap_vendor_op_bss_radio_t		   *radio;
+	em_ap_vendor_operational_bss_t *bss;
+	unsigned char * tmp = value;
+	em_ap_vendor_op_bss_t *ap;
+	unsigned int i, j, all_bss_len = 0, ap_op_bss_tlv_len = 0;
+
+	ap = (em_ap_vendor_op_bss_t *)value;
+	radio = ap->radios;
+	printf("%s:%d Number of radios: %d\n", __func__, __LINE__, ap->radios_num);
+	for (i = 0; i < ap->radios_num; i++) {
+		dm_easy_mesh_t::macbytes_to_string(radio->ruid, rd_mac_str);
+		printf("%s:%d: Radio: %s\n", __func__, __LINE__, rd_mac_str);
+		bss = radio->bss;
+		printf("%s:%d Number of bss: %d\n", __func__, __LINE__, radio->bss_num);
+		for (j = 0; j < radio->bss_num; j++) {
+			dm_easy_mesh_t::macbytes_to_string(bss->bssid, bss_mac_str);
+			printf("%s:%d: BSSID=%s	 haul type=%d\n", __func__, __LINE__, bss_mac_str, bss->haultype);
+			bss = (em_ap_vendor_operational_bss_t *)((unsigned char *)bss + sizeof(em_ap_vendor_operational_bss_t));
+			all_bss_len += sizeof(em_ap_vendor_operational_bss_t);
+		}
+
+		radio = (em_ap_vendor_op_bss_radio_t *)((unsigned char *)radio + sizeof(em_ap_vendor_op_bss_radio_t) + all_bss_len);
+		all_bss_len = 0;
+	}
+}
+
 int em_configuration_t::create_tid_to_link_map_policy_tlv(unsigned char *buff)
 {
     em_tlv_t *tlv;
@@ -859,6 +967,11 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst)
 
     tmp += (sizeof(em_tlv_t) + tlv_len);
     len += (sizeof(em_tlv_t) + tlv_len);
+
+	// AP vendor operational BSS
+	tlv_len = create_vendor_operational_bss_tlv(tmp);
+	tmp += (sizeof(em_tlv_t) + tlv_len);
+	len += (sizeof(em_tlv_t) + tlv_len);
 
     // End of message
     tlv = (em_tlv_t *)tmp;
@@ -1262,7 +1375,6 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
             
     // first verify that dm has all the radios
     ap = (em_ap_op_bss_t *)buff;
-    assert(ap->radios_num == dm->get_num_radios());
     radio = (em_ap_op_bss_radio_t *)ap->radios;
 
 	get_date_time_rfc3399(time_date, sizeof(time_date));
@@ -1297,8 +1409,6 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
 				memcpy(dm_bss->m_bss_info.id.dev_mac, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
 				memcpy(dm_bss->m_bss_info.id.ruid, radio->ruid, sizeof(mac_address_t));
 				memcpy(dm_bss->m_bss_info.id.bssid, bss->bssid, sizeof(mac_address_t));
-				// hardcode the haul type to front haul for now, there has to be a proprietary tlv map
-				dm_bss->m_bss_info.id.haul_type = em_haul_type_fronthaul;
 	
                 memcpy(dm_bss->m_bss_info.bssid.mac, bss->bssid, sizeof(mac_address_t));
                 memcpy(dm_bss->m_bss_info.ruid.mac, radio->ruid, sizeof(mac_address_t));
@@ -1311,7 +1421,7 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
 			updated_at_least_one_bss = true;
 			
 			all_bss_len += sizeof(em_ap_operational_bss_t) + bss->ssid_len;
-            bss += sizeof(em_ap_operational_bss_t) + bss->ssid_len;
+			bss = (em_ap_operational_bss_t *)((unsigned char *)bss + sizeof(em_ap_operational_bss_t) + bss->ssid_len);
         }
 
         radio = (em_ap_op_bss_radio_t *)((unsigned char *)radio + sizeof(em_ap_op_bss_radio_t) + all_bss_len);
@@ -1509,6 +1619,17 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 	if (handle_bss_configuration_report(tlv->value, tlv->len) != 0) {
 		printf("%s:%d: BSS Configuration Report handling failed\n", __func__, __LINE__);
 		return -1;
+	}
+
+	while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+			if (tlv->type != em_tlv_type_vendor_operational_bss) {
+				tmp_len -= (sizeof(em_tlv_t) + htons(tlv->len));
+				tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));	
+				continue;
+			} else {
+				handle_ap_vendor_operational_bss(tlv->value, tlv->len);
+				break;
+			}
 	}
 
 	dm->set_db_cfg_param(db_cfg_type_policy_list_update, "");
@@ -2753,6 +2874,7 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
     mac_addr_str_t mac_str;
     em_device_info_t    dev_info;
     dm_easy_mesh_t *dm;
+	em_freq_band_t  band;
 
     dm = get_data_model();
 	memset(&dev_info, 0, sizeof(em_device_info_t));
@@ -2807,7 +2929,9 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
         } else if (id == attr_id_primary_device_type) {
         } else if (id == attr_id_device_name) {
         } else if (id == attr_id_rf_bands) {
-            set_band((em_freq_band_t)attr->val[0]);
+			band = (em_freq_band_t)((attr->val[0])>>1);
+			printf("%s:%d Freq band = %d \n", __func__, __LINE__,band);
+			set_band(band);
         } else if (id == attr_id_assoc_state) {
         } else if (id == attr_id_device_password_id) {
         } else if (id == attr_id_cfg_error) {
@@ -2912,10 +3036,12 @@ int em_configuration_t::handle_encrypted_settings()
     unsigned char *plain;
     unsigned short plain_len;
     unsigned short authtype;
-    unsigned int index = 0;
+    unsigned int index = -1;
     m2ctrl_vapconfig vapconfig;
     plain = m_m2_encrypted_settings + AES_BLOCK_SIZE;
     plain_len = m_m2_encrypted_settings_len - AES_BLOCK_SIZE;
+	vapconfig.noofbssconfig = 0;
+
     // first decrypt the encrypted m2 data
 
     if (em_crypto_t::platform_aes_128_cbc_decrypt(m_key_wrap_key, m_m2_encrypted_settings, plain, plain_len) != 1) {
@@ -2925,137 +3051,185 @@ int em_configuration_t::handle_encrypted_settings()
 
     attr = (data_elem_attr_t *)plain;
     tmp_len = plain_len;
-	memcpy(vapconfig.mac, get_radio_interface_mac(), sizeof(mac_address_t));
     vapconfig.freq = get_band();
 
-    while (tmp_len > 0) {
+	while (tmp_len > 0) {
 
-        id = htons(attr->id);
-
-        if (id == attr_id_ssid) {
-            memcpy(ssid, attr->val, htons(attr->len));
-            memcpy(vapconfig.ssid, attr->val, htons(attr->len));
-            vapconfig.enable = true;
-            printf("%s:%d: ssid attrib: %s\n", __func__, __LINE__, ssid);
-        } else if (id == attr_id_auth_type) {
-            printf("%s:%d: auth type attrib\n", __func__, __LINE__);
-            authtype = attr->val[0];
-            vapconfig.authtype = attr->val[0];
-        } else if (id == attr_id_encryption_type) {
-            printf("%s:%d: encr type attrib\n", __func__, __LINE__);
-        } else if (id == attr_id_network_key) {
-            memcpy(pass, attr->val, htons(attr->len));
-            memcpy(vapconfig.password, attr->val, htons(attr->len));
-            printf("%s:%d: network key attrib: %s\n", __func__, __LINE__, pass);
-        } else if (id == attr_id_mac_address) {
-            dm_easy_mesh_t::macbytes_to_string(attr->val, mac_str);
-            printf("%s:%d: mac address attrib: %s\n", __func__, __LINE__, mac_str);
-            memcpy(vapconfig.mac, attr->val, sizeof(mac_address_t));
-        } else if (id == attr_id_key_wrap_authenticator) {
-            printf("%s:%d: key wrap auth attrib\n", __func__, __LINE__);
-            vapconfig.key_wrap_authenticator = attr->val[0];
-        }
-
-        tmp_len -= (sizeof(data_elem_attr_t) + htons(attr->len));
-        attr = (data_elem_attr_t *)((unsigned char *)attr + sizeof(data_elem_attr_t) + htons(attr->len));
-    }
-
-    printf("%s:%d Recived new config ssid=%s mode=%d pass=%s \n", __func__, __LINE__,vapconfig.ssid,vapconfig.authtype,vapconfig.password);
+		id = htons(attr->id);
+		if (id == attr_id_no_of_haul_type) {
+				vapconfig.noofbssconfig	 = attr->val[0];
+				printf("%s:%d: noofbss configuration recv=%d\n", __func__, __LINE__,vapconfig.noofbssconfig);
+		} else if (id == attr_id_haul_type) {
+				index++;
+				vapconfig.haultype[index] = (em_haul_type_t) attr->val[0];
+		} else if (id == attr_id_ssid) {
+				//If controller does not support no of haultype parameter
+				if (index == -1) {
+					index = 0;
+				}
+				memcpy(vapconfig.ssid[index], attr->val, sizeof(vapconfig.ssid[index]));
+				vapconfig.enable[index] = true;
+				printf("%s:%d: ssid attrib: %s\n", __func__, __LINE__, vapconfig.ssid[index]);
+				memcpy(vapconfig.radio_mac[index], get_radio_interface_mac(), sizeof(mac_address_t));
+		} else if (id == attr_id_auth_type) {
+				authtype = attr->val[0];
+				vapconfig.authtype[index] = attr->val[0];
+		} else if (id == attr_id_encryption_type) {
+				printf("%s:%d: encr type attrib\n", __func__, __LINE__);
+		} else if (id == attr_id_network_key) {
+				memcpy(pass, attr->val, htons(attr->len));
+				memcpy(vapconfig.password[index], attr->val, htons(attr->len));
+				printf("%s:%d: network key attrib: %s\n", __func__, __LINE__, pass);
+		} else if (id == attr_id_mac_address) {
+				dm_easy_mesh_t::macbytes_to_string(attr->val, mac_str);
+				printf("%s:%d: mac address attrib: %s\n", __func__, __LINE__, mac_str);
+				memcpy(vapconfig.radio_mac[index], attr->val, sizeof(mac_address_t));
+		} else if (id == attr_id_key_wrap_authenticator) {
+				printf("%s:%d: key wrap auth attrib\n", __func__, __LINE__);
+				vapconfig.key_wrap_authenticator[index] = attr->val[0];
+		}
+		tmp_len -= (sizeof(data_elem_attr_t) + htons(attr->len));
+		attr = (data_elem_attr_t *)((unsigned char *)attr + sizeof(data_elem_attr_t) + htons(attr->len));
+	}
 
 	get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, (unsigned char *)&vapconfig, sizeof(vapconfig));
-
     set_state(em_state_agent_owconfig_pending);
     return ret;
 }
 
 unsigned int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_type_t haul_type)
 {
-    data_elem_attr_t *attr;
-    short len = 0;
-    unsigned char *tmp;
-    unsigned int size = 0, cipher_len, plain_len;
-    unsigned char iv[AES_BLOCK_SIZE];
-    unsigned char plain[MAX_EM_BUFF_SZ];
-    unsigned short auth_type = 0x0010;
-    em_network_ssid_info_t *net_ssid_info;
+	data_elem_attr_t *attr;
+	short len = 0;
+	unsigned char *tmp;
+	unsigned int size = 0, cipher_len, plain_len;
+	unsigned char iv[AES_BLOCK_SIZE];
+	unsigned char plain[MAX_EM_BUFF_SZ*MAX_EM_BUFF_SZ];
+	unsigned short auth_type = 0x0010;
+	em_network_ssid_info_t *net_ssid_info;
+	em_haul_type_t haultype_precedence[em_haul_type_max] = {em_haul_type_fronthaul,em_haul_type_backhaul, em_haul_type_iot, em_haul_type_configurator, em_haul_type_hotspot};
+	memset(plain, 0, MAX_EM_BUFF_SZ);
+	tmp = plain;
+	len = 0;
 
+	dm_easy_mesh_t *dm = get_data_model();
+	unsigned int no_of_haultype = 0, radio_exists, i;
+	dm_radio_t * radio;
 
-    if ((net_ssid_info = get_network_ssid_info_by_haul_type(haul_type)) == NULL) {
-        printf("%s:%d: Could not find network ssid information for haul type\n", __func__, __LINE__);
-        return -1;
-    }
-    printf("%s:%d: ssid: %s, passphrase: %s\n", __func__, __LINE__, net_ssid_info->ssid, net_ssid_info->pass_phrase);
+	for (i = 0; i < dm->get_num_radios(); i++) {
+		radio = dm->get_radio(i);
+		if (memcmp(radio->m_radio_info.id.ruid, get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
+			radio_exists = true;
+			break;
+		}
+	}
+	if (radio_exists == false) {
+		printf("%s:%d: Radio does not exist, getting radio at index: %d\n", __func__, __LINE__, dm->get_num_radios());
+		no_of_haultype = 1;
+	} else {
+		no_of_haultype = radio->m_radio_info.number_of_bss;
+		if (no_of_haultype >= em_haul_type_max) {
+			no_of_haultype = em_haul_type_max ;
+		}
+	}
 
-    memset(plain, 0, MAX_EM_BUFF_SZ);
-    tmp = plain;
-    len = 0;
+	printf("%s:%d No of haultype=%d radio no of bss=%d \n", __func__, __LINE__,no_of_haultype, radio->m_radio_info.number_of_bss);
 
-    // ssid
-    attr = (data_elem_attr_t *)tmp;
-    attr->id = htons(attr_id_ssid);
-    size = strlen(net_ssid_info->ssid) + 1;
-    attr->len = htons(size);
-    snprintf((char *)attr->val, size, "%s", net_ssid_info->ssid);
+	// haultype
+	attr = (data_elem_attr_t *)tmp;
+	attr->id = htons(attr_id_no_of_haul_type);
+	size = 1;
+	attr->len = htons(size);
+	attr->val[0] = no_of_haultype;
 
-    len += (sizeof(data_elem_attr_t) + size);
-    tmp += (sizeof(data_elem_attr_t) + size);
+	len += (sizeof(data_elem_attr_t) + size);
+	tmp += (sizeof(data_elem_attr_t) + size);
+	for (i = 0; i < no_of_haultype; i++) {
+		haul_type = (em_haul_type_t) haultype_precedence[i];
+		if ((net_ssid_info = get_network_ssid_info_by_haul_type(haul_type)) == NULL) {
+			printf("%s:%d: Could not find network ssid information for haul type %d\n", __func__, __LINE__, haul_type);
+			continue;
+		}
+		printf("%s:%d: ssid: %s, passphrase: %s\n", __func__, __LINE__, net_ssid_info->ssid, net_ssid_info->pass_phrase);
+	
+		// haultype
+		attr = (data_elem_attr_t *)tmp;
+		attr->id = htons(attr_id_haul_type);
+		size = sizeof(em_haul_type_t);
+		attr->len = htons(size);
+		attr->val[0] = haul_type;
+	
+		len += (sizeof(data_elem_attr_t) + size);
+		tmp += (sizeof(data_elem_attr_t) + size);
+	
+		// ssid
+		attr = (data_elem_attr_t *)tmp;
+		attr->id = htons(attr_id_ssid);
+		size = strlen(net_ssid_info->ssid) + 1;
+		attr->len = htons(size);
+		snprintf((char *)attr->val, size, "%s", net_ssid_info->ssid);
+	
+		len += (sizeof(data_elem_attr_t) + size);
+		tmp += (sizeof(data_elem_attr_t) + size);
+	
+		// auth type
+		attr = (data_elem_attr_t *)tmp;
+		attr->id = htons(attr_id_auth_type);
+		size = sizeof(auth_type);
+		attr->len = htons(size);
+		memcpy((char *)attr->val, (unsigned char *)&auth_type, size);
+	
+		len += (sizeof(data_elem_attr_t) + size);
+		tmp += (sizeof(data_elem_attr_t) + size);
+	
+		// network key
+		attr = (data_elem_attr_t *)tmp;
+		attr->id = htons(attr_id_network_key);
+		size = strlen(net_ssid_info->pass_phrase) + 1;
+		attr->len = htons(size);
+		snprintf((char *)attr->val, size, "%s", net_ssid_info->pass_phrase);
+	
+		len += (sizeof(data_elem_attr_t) + size);
+		tmp += (sizeof(data_elem_attr_t) + size);
 
-    // auth type
-    attr = (data_elem_attr_t *)tmp;
-    attr->id = htons(attr_id_auth_type);
-    size = sizeof(auth_type);
-    attr->len = htons(size);
-    memcpy((char *)attr->val, (unsigned char *)&auth_type, size);
+		// mac adress
+		attr = (data_elem_attr_t *)tmp;
+		attr->id = htons(attr_id_mac_address);
+		size = sizeof(mac_address_t);
+		attr->len = htons(size);
+		memcpy((char *)attr->val, (unsigned char *)get_radio_interface_mac(), size);
+	
+		len += (sizeof(data_elem_attr_t) + size);
+		tmp += (sizeof(data_elem_attr_t) + size);
+	
+		// key wrap
+		attr = (data_elem_attr_t *)tmp;
+		attr->id = htons(attr_id_key_wrap_authenticator);
+		size = 32;
+		attr->len = htons(size);
+		//mwmcpy((char *)attr->val, (unsigned char *)&auth_type, size);
 
-    len += (sizeof(data_elem_attr_t) + size);
-    tmp += (sizeof(data_elem_attr_t) + size);
+		len += (sizeof(data_elem_attr_t) + size);
+		tmp += (sizeof(data_elem_attr_t) + size);
 
-    // network key 
-    attr = (data_elem_attr_t *)tmp;
-    attr->id = htons(attr_id_network_key);
-    size = strlen(net_ssid_info->pass_phrase) + 1;
-    attr->len = htons(size);
-    snprintf((char *)attr->val, size, "%s", net_ssid_info->pass_phrase);
+	}
 
-    len += (sizeof(data_elem_attr_t) + size);
-    tmp += (sizeof(data_elem_attr_t) + size);
+	if (em_crypto_t::generate_iv(iv, AES_BLOCK_SIZE) != 1) {
+		printf("%s:%d: iv generate failed\n", __func__, __LINE__);
+		return 0;
+	}
 
-    // mac adress
-    attr = (data_elem_attr_t *)tmp;
-    attr->id = htons(attr_id_mac_address);
-    size = sizeof(mac_address_t);
-    attr->len = htons(size);
-    memcpy((char *)attr->val, (unsigned char *)get_radio_interface_mac(), size);
+	memcpy(buff, iv, AES_BLOCK_SIZE);
 
-    len += (sizeof(data_elem_attr_t) + size);
-    tmp += (sizeof(data_elem_attr_t) + size);
+	plain_len = len + (AES_BLOCK_SIZE - len%AES_BLOCK_SIZE);
 
-    // key wrap
-    attr = (data_elem_attr_t *)tmp;
-    attr->id = htons(attr_id_key_wrap_authenticator);
-    size = 32;
-    attr->len = htons(size);
-    //mwmcpy((char *)attr->val, (unsigned char *)&auth_type, size);
+	// encrypt the m2 data
+	if (em_crypto_t::platform_aes_128_cbc_encrypt(m_key_wrap_key, iv, plain, plain_len, buff + AES_BLOCK_SIZE, &cipher_len) != 1) {
+		printf("%s:%d: platform encrypt failed\n", __func__, __LINE__);
+		return 0;
+	}
 
-    len += (sizeof(data_elem_attr_t) + size);
-    tmp += (sizeof(data_elem_attr_t) + size);
-
-    if (em_crypto_t::generate_iv(iv, AES_BLOCK_SIZE) != 1) {
-        printf("%s:%d: iv generate failed\n", __func__, __LINE__);
-        return 0;
-    }
-
-    memcpy(buff, iv, AES_BLOCK_SIZE);
-
-    plain_len = len + (AES_BLOCK_SIZE - len%AES_BLOCK_SIZE);
-    
-    // encrypt the m2 data
-    if (em_crypto_t::platform_aes_128_cbc_encrypt(m_key_wrap_key, iv, plain, plain_len, buff + AES_BLOCK_SIZE, &cipher_len) != 1) {
-        printf("%s:%d: platform encrypt failed\n", __func__, __LINE__);
-        return 0;
-    }
-
-    return cipher_len + AES_BLOCK_SIZE;
+	return cipher_len + AES_BLOCK_SIZE;
 }
 
 unsigned int em_configuration_t::create_authenticator(unsigned char *buff)
@@ -3253,13 +3427,13 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
         printf("%s:%d: autoconfig wsc m2 send failed, error:%d\n", __func__, __LINE__, errno);
         return -1;
     }
-
+	set_state(em_state_ctrl_wsc_m2_sent);
+	printf("%s:%d: autoconfig wsc m2 send\n", __func__, __LINE__);
     memcpy(raw.al, (unsigned char *)get_peer_mac(), sizeof(mac_address_t));
     memcpy(raw.radio, get_radio_interface_mac(), sizeof(mac_address_t));
 
 	get_mgr()->io_process(em_bus_event_type_m2_tx, (unsigned char *)&raw, sizeof(em_bus_event_type_m2_tx_params_t));
 
-    set_state(em_state_ctrl_wsc_m2_sent);
 
     return 0;
 }

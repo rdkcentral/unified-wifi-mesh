@@ -35,7 +35,7 @@ extern "C"
 #include "ec_base.h"
 
 #define EM_MAX_NETWORKS	5
-#define EM_MAX_NET_SSIDS 4
+#define EM_MAX_NET_SSIDS 5
 #define EM_MAX_INTERFACES	8 
 #define EM_MAX_DEVICES 16
 #define EM_MAX_PLATFORMS	5
@@ -149,7 +149,7 @@ extern "C"
 #define EM_MAX_BANDS    3
 #define EM_MAX_BSSS     EM_MAX_BANDS*8  
 #define EM_MAX_AKMS     10
-#define EM_MAX_HAUL_TYPES   3
+#define EM_MAX_HAUL_TYPES   8
 #define EM_MAX_OPCLASS  64
 #define EM_MAX_AP_MLD   64
 #define EM_MAX_BSTA_MLD   64
@@ -565,7 +565,8 @@ typedef enum {
     em_tlv_eht_operations = 0xe7,
     em_tlv_type_avail_spectrum_inquiry_reg = 0xe8,
     em_tlv_type_avail_spectrum_inquiry_rsp = 0xe9,
-    em_tlv_vendor_sta_metrics = 0xf1,
+	em_tlv_type_vendor_sta_metrics = 0xf1,
+	em_tlv_type_vendor_operational_bss = 0xf2,
 
 	// RDK Proprietary TLV values
 	em_tlv_type_rdk_radio_enable = 0xfe,
@@ -1193,6 +1194,22 @@ typedef struct {
 } __attribute__((__packed__)) em_neigh_device_list_t;
 
 typedef struct {
+	   mac_address_t bssid;
+		  unsigned short haultype;
+} __attribute__((__packed__)) em_ap_vendor_operational_bss_t;
+
+typedef struct {
+	   mac_address_t ruid;
+	   unsigned char	 bss_num;
+	   em_ap_vendor_operational_bss_t  bss[0];
+} __attribute__((__packed__)) em_ap_vendor_op_bss_radio_t;
+
+typedef struct {
+	   unsigned char	radios_num;
+	   em_ap_vendor_op_bss_radio_t		 radios[0];
+} __attribute__((__packed__)) em_ap_vendor_op_bss_t;
+
+typedef struct {
     mac_address_t bssid;
     unsigned char  ssid_len;
     char  ssid[0];
@@ -1789,6 +1806,8 @@ typedef enum {
     attr_id_uuid_r, 
     attr_id_version,
     attr_id_primary_device_type = 0x1054,
+	attr_id_haul_type,
+	attr_id_no_of_haul_type,
 } data_elem_attr_id_t;
 
 typedef enum {
@@ -1909,6 +1928,7 @@ typedef enum {
 	em_haul_type_backhaul,
 	em_haul_type_iot,
 	em_haul_type_configurator,
+	em_haul_type_hotspot,
 	em_haul_type_max,
 } em_haul_type_t;
 
@@ -2642,13 +2662,16 @@ typedef struct {
 } em_db_cfg_param_t;
 
 typedef struct{
-    em_long_string_t ssid;
-    unsigned int authtype;
-    em_long_string_t password;
-    mac_address_t mac;
-    unsigned int key_wrap_authenticator;
-    bool enable;
+	em_long_string_t ssid[EM_MAX_BSS_PER_RADIO];
+	unsigned int authtype[EM_MAX_BSS_PER_RADIO];
+	em_long_string_t password[EM_MAX_BSS_PER_RADIO];
+	mac_address_t bssid_mac[EM_MAX_BSS_PER_RADIO];
+	unsigned int key_wrap_authenticator[EM_MAX_BSS_PER_RADIO];
+	bool enable[EM_MAX_BSS_PER_RADIO];
 	em_freq_band_t freq;
+	unsigned int noofbssconfig;
+	em_haul_type_t haultype[EM_MAX_BSS_PER_RADIO];
+	mac_address_t radio_mac[EM_MAX_BSS_PER_RADIO];
 } m2ctrl_vapconfig;
 
 typedef struct{

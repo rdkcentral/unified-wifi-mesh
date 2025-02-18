@@ -418,7 +418,7 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
             case em_cmd_type_cfg_renew:
 				// check if the radio is null mac
                 dm = pcmd->get_data_model();
-				if (memcmp(null_mac, dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
+				if ((memcmp(null_mac, dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) &&  (em->is_al_interface_em() == false)) {
 					queue_push(pcmd->m_em_candidates, em);
                     count++;
 				} else if (memcmp(em->get_radio_interface_mac(), dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {

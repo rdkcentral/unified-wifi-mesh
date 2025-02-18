@@ -482,6 +482,7 @@ void em_agent_t::input_listener()
     printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data.raw_data.bytes);
 
     g_agent.io_process(em_bus_event_type_dev_init, (unsigned char *)data.raw_data.bytes, data.raw_data_len);
+    free(data.raw_data.bytes);
 
     if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_WEBCONFIG_DOC_DATA_NORTH, (void *)&em_agent_t::onewifi_cb, NULL, 0) != 0) {
         printf("%s:%d bus get failed\n", __func__, __LINE__);
@@ -542,7 +543,7 @@ int em_agent_t::assoc_stats_cb(char *event_name, raw_data_t *data)
     return 1;
 }
 
-int em_agent_t::sta_cb(char *event_name, raw_data_t *data)
+void em_agent_t::sta_cb(char *event_name, raw_data_t *data)
 {
     //printf("%s:%d Recv data from onewifi:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
     g_agent.io_process(em_bus_event_type_sta_list, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
@@ -691,6 +692,9 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
                 printf("%s:%d: Received topo query, found existing radio:%s\n", __func__, __LINE__, mac_str1);
             } else {
                 printf("%s:%d: Could not find em for em_msg_type_topo_query\n", __func__, __LINE__);
+				if (em != NULL) {
+					printf("%s:%d em_msg_type_topo_query :em mac=%s is in incorrect state state=%d \n", __func__, __LINE__, mac_str1, em->get_state());
+				}
                 return NULL;
             }
             break;

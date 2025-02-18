@@ -173,6 +173,26 @@ int dm_easy_mesh_agent_t::analyze_autoconfig_renew(em_bus_event_t *evt, em_cmd_t
     return num;
 }
 
+void dm_easy_mesh_agent_t::convert_hault_type_to_mac(em_haul_type_t haultype, mac_address_t *bssid_mac, mac_address_t radio_mac)
+{
+	em_interface_name_t vapname;
+	dm_easy_mesh_agent_t	 dm = *this;
+	unsigned i = 0;
+	mac_addr_str_t mac_str;
+	
+	if (convert_haultype_to_vap_name(haultype, vapname) == 0) {
+		for (i = 0; i < dm.m_num_bss; i++) {
+			if ((strncmp(vapname, dm.get_bss(i)->get_bss_info()->bssid.name, strlen(vapname)) == 0)	&& 
+				(memcmp(radio_mac, dm.get_bss(i)->get_bss_info()->ruid.mac, sizeof(mac_address_t)) == 0)){
+				memcpy(bssid_mac, dm.get_bss(i)->get_bss_info()->bssid.mac, sizeof(mac_address_t));
+				printf("%s:%d haultype=%d vapname =%s bss name=%s\n", __func__, __LINE__, haultype, vapname,dm.get_bss(i)->get_bss_info()->bssid.name);
+				return;
+			}
+		}
+	}
+	return;
+
+}
 void dm_easy_mesh_agent_t::translate_onewifi_dml_data (char *str)
 {           
     webconfig_t config;
@@ -213,7 +233,7 @@ int dm_easy_mesh_agent_t::analyze_m2ctrl_configuration(em_bus_event_t *evt, wifi
     static char *webconfig_easymesh_raw_data_ptr;
     dm_easy_mesh_agent_t  dm = *this;
     raw_data_t l_bus_data;
-    unsigned int index = 0;
+    unsigned int index = 0, i = 0;
     m2ctrl_vapconfig *vapconfig;
     m2ctrl_vapconfig m2ctrl;
 	em_freq_band_t freq_band;
@@ -228,13 +248,17 @@ int dm_easy_mesh_agent_t::analyze_m2ctrl_configuration(em_bus_event_t *evt, wifi
 	} else {
 		type = webconfig_subdoc_type_vap_6G;
 	}
-    memcpy(m2ctrl.ssid, vapconfig->ssid, sizeof(m2ctrl.ssid));
-    m2ctrl.authtype = vapconfig->authtype;
-    memcpy(m2ctrl.password, vapconfig->password, sizeof(m2ctrl.password));
-    m2ctrl.enable = vapconfig->enable;
-	memcpy(m2ctrl.mac, vapconfig->mac, sizeof(mac_address_t));
-	printf("%s:%d New configuration SSID=%s Security mode=%d  passphrase=%s radiomac=%s\n",
-		__func__,__LINE__, m2ctrl.ssid, m2ctrl.authtype, m2ctrl.password, mac_str);
+	m2ctrl.noofbssconfig = vapconfig->noofbssconfig;
+	for (i = 0; i < vapconfig->noofbssconfig; i++) {
+		memcpy(m2ctrl.ssid[i], vapconfig->ssid[i], sizeof(m2ctrl.ssid[i]));
+		m2ctrl.authtype[i] = vapconfig->authtype[i];
+		memcpy(m2ctrl.password[i], vapconfig->password[i], sizeof(m2ctrl.password[i]));
+		m2ctrl.enable[i] = vapconfig->enable[i];
+		m2ctrl.haultype[i] = (em_haul_type_t)vapconfig->haultype[i];
+		dm_easy_mesh_t::macbytes_to_string(vapconfig->radio_mac[i],mac_str);
+		convert_hault_type_to_mac((em_haul_type_t)vapconfig->haultype[i], &m2ctrl.bssid_mac[i], vapconfig->radio_mac[i]);
+		printf("%s:%d New configuration SSID=%s  passphrase=%s haultype=%d radiomac=%s\n",__func__, __LINE__,m2ctrl.ssid[i], m2ctrl.password[i], m2ctrl.haultype[i],mac_str);
+	}
 
     webconfig_proto_easymesh_init(&dev_data, &dm, &m2ctrl, get_num_radios, set_num_radios,
                                 get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
@@ -282,6 +306,10 @@ int dm_easy_mesh_agent_t::analyze_onewifi_private_cb(em_bus_event_t *evt, em_cmd
     em_cmd_t *tmp;
 	mac_addr_str_t mac_str;
 	em_commit_target_t cm_config;
+        dm_radio_t *radio;
+        em_freq_band_t freq_band;
+	const char *json_data = (char *)evt->u.raw_buff;
+
     webconfig_proto_easymesh_init(&ext, &dm, NULL, get_num_radios, set_num_radios,
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, 
@@ -299,18 +327,44 @@ int dm_easy_mesh_agent_t::analyze_onewifi_private_cb(em_bus_event_t *evt, em_cmd
         printf("%s:%d Private subdoc decode fail\n",__func__, __LINE__);
     }
 
+	if (dm.get_num_bss() != 0) {
+		dm_easy_mesh_t::macbytes_to_string(dm.get_bss(index)->get_bss_info()->ruid.mac, mac_str);
+		snprintf((char *)cm_config.params,sizeof(cm_config.params),(char*)"%s",mac_str);
+		cm_config.type = em_commit_target_bss;
+		commit_config(dm, cm_config);
+	} else {
+		cJSON *json = cJSON_Parse(json_data);
+		if (json == NULL) {
+			printf("%s:%d Error parsing JSON\n", __func__, __LINE__);
+			return 0;
+		}
+		cJSON *subdoc_name = cJSON_GetObjectItemCaseSensitive(json, "SubDocName");
+		if (cJSON_IsString(subdoc_name) && (subdoc_name->valuestring != NULL)) {
+			if (strcmp(subdoc_name->valuestring, "Vap_5G") == 0) {
+				freq_band = em_freq_band_5 ;
+				printf("%s:%d Found SubDocName:Vap 5G recv\n", __func__, __LINE__);
+			} else if (strcmp(subdoc_name->valuestring, "Vap_2.4G") == 0) {
+				printf("%s:%d Found SubDocName:Vap 2.4G recv\n", __func__, __LINE__);
+				freq_band = em_freq_band_24;
+			}
+		}
+		for (j = 0; j < get_num_radios(); j++) {
+			radio = get_radio(j);
+			if (radio->get_radio_info()->band == freq_band) {
+				dm_easy_mesh_t::macbytes_to_string(radio->get_radio_interface_mac(), mac_str);
+				memcpy(dm.get_bss(index)->get_bss_info()->ruid.mac, radio->get_radio_interface_mac(), sizeof(mac_address_t));
+			}
+		}
+	}
 	dm_easy_mesh_t::macbytes_to_string(dm.get_bss(index)->get_bss_info()->ruid.mac, mac_str);
-	snprintf((char *)cm_config.params,sizeof(cm_config.params),(char*)"%s",mac_str);
-	cm_config.type = em_commit_target_bss;
-	commit_config(dm, cm_config);
+	printf("%s:%d %s in owconfig\n", __func__, __LINE__,mac_str);
 	pcmd[num] = new em_cmd_ow_cb_t(evt->params, dm);
 	tmp = pcmd[num];
 	num++;
 	while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
-			tmp = pcmd[num];
-			num++;
+		tmp = pcmd[num];
+		num++;
 	}
-
     return num;
 }
 

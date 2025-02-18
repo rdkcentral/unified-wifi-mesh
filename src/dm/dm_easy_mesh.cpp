@@ -55,7 +55,10 @@ dm_easy_mesh_t dm_easy_mesh_t::operator =(dm_easy_mesh_t const& obj)
     memcpy(&m_device, &obj.m_device, sizeof(dm_device_t));
     memcpy(&m_network, &obj.m_network, sizeof(dm_network_t));
     memcpy(&m_ieee_1905_security, &obj.m_ieee_1905_security, sizeof(dm_ieee_1905_security_t));
-    
+
+	if (m_num_radios >= EM_MAX_BANDS) {
+		m_num_radios = 0;
+	}
     this->m_num_radios = obj.m_num_radios;
     for (unsigned int i = 0; i < obj.m_num_radios; i++) {
         memcpy(&m_radio[i], &obj.m_radio[i], sizeof(dm_radio_t));
@@ -172,7 +175,7 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
 					m_bss[m_num_bss] = dm.m_bss[i];
 					m_num_bss = m_num_bss + 1;
 					macbytes_to_string(dm.get_bss(i)->get_bss_info()->bssid.mac,mac_str);
-					printf("%s:%d New BSS %s configuration updated  no of bss=%d\n", __func__, __LINE__,mac_str,m_num_bss);
+					printf("%s:%d New BSS %s configuration updated  no of bss=%d vapname=%s\n", __func__, __LINE__,mac_str,m_num_bss, dm.get_bss(i)->get_bss_info()->bssid.name);
 				}
 			}
 		}
@@ -311,7 +314,7 @@ int dm_easy_mesh_t::encode_config_reset(em_subdoc_info_t *subdoc, const char *ke
 	char *formatted_json;
 	mac_addr_str_t	mac_str;
 	em_long_string_t	interface_str;
-	const char *preference[5] = {"First Preference", "Second Preference", "Third Preference", "Fourth Preference", "Fifth Preference"};
+	const char *preference[8] = {"First Preference", "Second Preference", "Third Preference", "Fourth Preference", "Fifth Preference", "Sixth Preference", "Seventh Preference", "Eighth Preference"};
 	unsigned int i;
 	m_num_interfaces = sizeof(preference)/sizeof(*preference);
 
@@ -784,7 +787,7 @@ int dm_easy_mesh_t::decode_config_reset(em_subdoc_info_t *subdoc, const char *ke
 			
         m_network_ssid[i].decode(ssid_obj, m_network.m_net_info.id);
 	}
-
+	m_num_radios = 0;
     cJSON_Delete(parent_obj);
     //printf("%s:%d: End\n", __func__, __LINE__);
     return 0;
@@ -1833,6 +1836,45 @@ int dm_easy_mesh_t::name_from_mac_address(const mac_address_t *mac, char *ifname
     freeifaddrs(ifaddr);
 
     return (found == true) ? 0:-1;
+}
+
+int dm_easy_mesh_t::convert_haultype_to_vap_name(em_haul_type_t haultype, char *vapname)
+{
+	if (haultype == em_haul_type_fronthaul) {
+		snprintf(vapname, sizeof(em_interface_name_t), "%s", "private_ssid");
+		return 0;
+	} else if (haultype == em_haul_type_iot) {
+		snprintf(vapname, sizeof(em_interface_name_t), "%s", "iot_ssid");
+		return 0;
+	} else if (haultype == em_haul_type_configurator) {
+		snprintf(vapname, sizeof(em_interface_name_t), "%s", "lnf_psk");
+		return 0;
+	} else if (haultype == em_haul_type_backhaul) {
+		snprintf(vapname, sizeof(em_interface_name_t), "%s", "mesh_backhaul");
+		return 0;
+	} else if (haultype == em_haul_type_hotspot) {
+		snprintf(vapname, sizeof(em_interface_name_t), "%s", "hotspot");
+		return 0;
+	}
+	return -1;
+
+}
+
+void dm_easy_mesh_t::convert_vap_name_to_hault_type(em_haul_type_t *haultype, char *vapname)
+{
+
+	if (strncmp("private_ssid", vapname, strlen("private_ssid")) == 0) {
+		*haultype = em_haul_type_fronthaul;
+	} else if (strncmp("hotspot", vapname, strlen("hotspot")) == 0) {
+		*haultype = em_haul_type_hotspot;
+	} else if (strncmp("iot_ssid", vapname, strlen("iot_ssid")) == 0) {
+		*haultype = em_haul_type_iot;
+	} else if (strncmp("lnf_psk", vapname, strlen("lnf_psk")) == 0) {
+		*haultype = em_haul_type_configurator;
+	} else if (strncmp("mesh_backhaul", vapname, strlen("mesh_backhaul")) == 0) {
+		*haultype = em_haul_type_backhaul;
+	}
+
 }
 
 rdk_wifi_radio_t *dm_easy_mesh_t::get_radio_data(em_interface_t *interface)

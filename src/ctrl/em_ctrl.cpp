@@ -502,6 +502,10 @@ int em_ctrl_t::data_model_init(const char *data_model_path)
     }
 
     intf = m_data_model.get_ctrl_al_interface((char *)global_netid);
+	if (intf == NULL) {
+		printf("%s:%d: data model init failed could not find netid\n", __func__, __LINE__);
+		return 0;
+	}
     dm_easy_mesh_t::macbytes_to_string((unsigned char *)intf->mac, mac_str);
 
     if ((dm = get_data_model(global_netid, intf->mac)) == NULL) {

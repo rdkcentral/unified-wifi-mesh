@@ -184,7 +184,9 @@ void dm_bss_t::encode(cJSON *obj, bool summary)
 		case em_haul_type_configurator:
 			strncpy(haul_type_str, "Configurator", strlen("Configurator") + 1);
 			break;
-
+		case em_haul_type_hotspot:
+			strncpy(haul_type_str, "Hotspot", strlen("Hotspot") + 1);
+			break;
 	}
 
     cJSON_AddStringToObject(obj, "HaulType", haul_type_str);

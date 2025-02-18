@@ -49,6 +49,17 @@
                 "MFPConfig": "Required",
                 "MobilityDomain":"00:01:02:03:04:05",
                 "HaulType": ["Backhaul"]
+			},{
+				"SSID":	"mesh_backhaul_sta",
+				"PassPhrase":	"test-backhaul-sta",
+				"Band":	["2.4", "5", "6"],
+				"Enable":	true,
+				"AKMsAllowed":	["dpp", "sae", "SuiteSelector"],
+				"SuiteSelector":	"00010203",
+				"AdvertisementEnabled":	true,
+				"MFPConfig":	"Required",
+				"MobilityDomain":	"00:01:02:03:04:05",
+				"HaulType":	["Mesh_STA"]
             }
         ],
         "STABlock": [

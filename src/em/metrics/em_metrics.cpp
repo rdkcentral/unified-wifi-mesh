@@ -215,7 +215,7 @@ int em_metrics_t::handle_associated_sta_link_metrics_resp(unsigned char *buff, u
     tmp_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type == em_tlv_vendor_sta_metrics) {
+        if (tlv->type == em_tlv_type_vendor_sta_metrics) {
             handle_assoc_sta_vendor_link_metrics_tlv(tlv->value);
         }
 
@@ -296,7 +296,7 @@ int em_metrics_t::send_associated_sta_link_metrics_msg(mac_address_t sta_mac)
     return len;
 }
 
-int em_metrics_t::send_all_associated_sta_link_metrics_msg()
+void em_metrics_t::send_all_associated_sta_link_metrics_msg()
 {
     dm_easy_mesh_t *dm;
     dm_sta_t *sta;
@@ -396,7 +396,7 @@ int em_metrics_t::send_associated_link_metrics_response(mac_address_t sta_mac)
 
     //assoc vendor link metrics
     tlv = (em_tlv_t *)tmp;
-    tlv->type = em_tlv_vendor_sta_metrics;
+    tlv->type = em_tlv_type_vendor_sta_metrics;
     sz = create_assoc_vendor_sta_link_metrics_tlv(tlv->value, sta_mac, sta);
     tlv->len = htons(sz);
 

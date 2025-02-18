@@ -47,7 +47,7 @@ public:
     int analyze_scan_result(em_bus_event_t *evt, em_cmd_t *pcmd[]);
 
     static webconfig_error_t webconfig_dummy_apply(webconfig_subdoc_t *doc, webconfig_subdoc_data_t *data);
-
+	void convert_hault_type_to_mac(em_haul_type_t haultype, mac_address_t *bssid_mac, mac_address_t radio_mac);
     dm_easy_mesh_agent_t();
     ~dm_easy_mesh_agent_t();  
 };

@@ -276,7 +276,8 @@ public:
 	static int get_interfaces_list(em_interface_t interfaces[], unsigned int *num_interfaces);
     static void securitymode_to_str(unsigned short mode, char *sec_mode_str, int len);
 	static void str_to_securitymode(unsigned short *mode, char *sec_mode_str, int len);
-
+	static void convert_vap_name_to_hault_type(em_haul_type_t *haultype, char *vapname);
+	static int convert_haultype_to_vap_name(em_haul_type_t haultype, char *vapname);
 
     static void create_autoconfig_renew_json_cmd(char* src_mac_addr, char* agent_al_mac, em_freq_band_t freq_band, char* autoconfig_renew_json);
     static void create_client_cap_query_json_cmd(char* src_mac_addr, char* agent_al_mac, char* ap_query_json, short msg_id, char *mac);
