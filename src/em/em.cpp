@@ -85,7 +85,19 @@ void em_t::orch_execute(em_cmd_t *pcmd)
 
         case em_cmd_type_start_dpp: {
             em_dpp_info_t *dpp_info = pcmd->m_data_model.get_dpp()->get_dpp_info();
+            printf("ORCH: Start DPP\n");
+            printf("ORCH: DPP: \n");
+            printf("\tDPP: Version: %d\n", dpp_info->version);
+            dm_easy_mesh_t::macbytes_to_string(dpp_info->mac_addr, mac_str);
+            printf("\tDPP: MAC Address: %s\n", mac_str);
+            printf("\tDPP: Freqs: \n");
+            for (unsigned int i = 0; i < DPP_MAX_EN_CHANNELS; i++) {
+                if (dpp_info->ec_freqs[i] == 0) break;
+                printf("\t\tFreq: %d\n", dpp_info->ec_freqs[i]);
+            }
+
             m_ec_session->init_session(&dpp_info->ec_data);
+            
             break;
         }
 
@@ -292,6 +304,7 @@ void em_t::handle_agent_state()
             break;
 
         case em_cmd_type_start_dpp:
+            printf("%s:%d Handle Agent Start DPP\n", __func__, __LINE__);
             if ((m_sm.get_state() >= em_state_agent_unconfigured) && (m_sm.get_state() < em_state_agent_configured)) {
 				em_provisioning_t::process_agent_state();
             }

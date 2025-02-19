@@ -53,6 +53,7 @@ void dm_tid_to_link_t::encode(cJSON *obj)
 
 void dm_tid_to_link_t::operator = (const dm_tid_to_link_t& obj)
 {
+    if (this == &obj) { return; }
     this->m_tid_to_link_info.is_bsta_config = obj.m_tid_to_link_info.is_bsta_config;
     memcpy(&this->m_tid_to_link_info.mld_mac_addr,&obj.m_tid_to_link_info.mld_mac_addr,sizeof(mac_address_t));
     this->m_tid_to_link_info.tid_to_link_map_neg = obj.m_tid_to_link_info.tid_to_link_map_neg;

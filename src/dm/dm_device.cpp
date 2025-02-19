@@ -252,6 +252,7 @@ dm_orch_type_t dm_device_t::get_dm_orch_type(const dm_device_t& device)
 
 void dm_device_t::operator = (const dm_device_t& obj) {
 
+    if (this == &obj) { return; }
     memcpy(&this->m_device_info.intf.mac ,&obj.m_device_info.intf.mac,sizeof(mac_address_t));
     memcpy(&this->m_device_info.intf.name,&obj.m_device_info.intf.name,sizeof(em_interface_name_t));
     memcpy(&this->m_device_info.id.net_id,&obj.m_device_info.id.net_id,sizeof(em_long_string_t));
@@ -355,6 +356,40 @@ int dm_device_t::parse_device_id_from_key(const char *key, em_device_id_t *id)
 
 	return 0;
 
+}
+
+int dm_device_t::update_easymesh_json_cfg(bool colocated_mode)
+{
+	mac_addr_str_t mac_str;
+
+	// Create a JSON object
+	cJSON *root = cJSON_CreateObject();
+
+	dm_easy_mesh_t::macbytes_to_string((unsigned char *)m_device_info.backhaul_mac.mac, mac_str);
+	cJSON_AddStringToObject(root, "AL_MAC_ADDR", (char*)mac_str);
+	cJSON_AddNumberToObject(root, "Colocated_mode", (int)colocated_mode);
+	//Configuring Mesh Backhaul with default SSID and KeyPassphrase
+ 	//TBD: This file to be updated with the configuration used for mesh_backhaul
+	cJSON_AddStringToObject(root, "Backhaul_SSID", "mesh_backhaul");
+	cJSON_AddStringToObject(root, "Backhaul_KeyPassphrase", "test-backhaul");
+
+	// Convert the JSON object to a string
+	char *jsonString = cJSON_Print(root);
+
+	// Write the JSON string to a file
+	FILE *file = fopen(EM_CFG_FILE, "w");
+	if (file == NULL) {
+		printf("%s:%d Could not open file:%s for writing\n", __func__, __LINE__, EM_CFG_FILE);
+		cJSON_Delete(root);
+		free(jsonString);
+		return -1;
+	}
+
+	fprintf(file, "%s", jsonString);
+	fclose(file);
+	cJSON_Delete(root);
+	free(jsonString);
+	return 0;
 }
 
 dm_device_t::dm_device_t(em_device_info_t *dev)

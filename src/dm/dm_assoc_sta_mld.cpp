@@ -53,6 +53,7 @@ void dm_assoc_sta_mld_t::encode(cJSON *obj)
 
 void dm_assoc_sta_mld_t::operator = (const dm_assoc_sta_mld_t& obj)
 {
+    if (this == &obj) { return; }
     memcpy(&this->m_assoc_sta_mld_info.mac_addr ,&obj.m_assoc_sta_mld_info.mac_addr,sizeof(mac_address_t));
     memcpy(&this->m_assoc_sta_mld_info.ap_mld_mac_addr ,&obj.m_assoc_sta_mld_info.ap_mld_mac_addr,sizeof(mac_address_t));
     this->m_assoc_sta_mld_info.str = obj.m_assoc_sta_mld_info.str;

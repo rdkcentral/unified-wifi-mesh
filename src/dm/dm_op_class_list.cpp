@@ -88,7 +88,7 @@ int dm_op_class_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
     return 0;
 }
 
-int dm_op_class_list_t::get_config(cJSON *obj_arr, em_op_class_type_t type)
+void dm_op_class_list_t::get_config(cJSON *obj_arr, em_op_class_type_t type)
 {
 	dm_op_class_t *op_class;
 	cJSON *obj, *channel_arr;
@@ -98,7 +98,7 @@ int dm_op_class_list_t::get_config(cJSON *obj_arr, em_op_class_type_t type)
 	if ((type != em_op_class_type_anticipated) && (type != em_op_class_type_scan_param)) {
 		printf("%s:%d: Non anticipated category not imeplemented, type: %d\n", __func__, __LINE__, type);
 		assert(0);
-		return -1;
+		return;
 	}		
 
 	op_class = (dm_op_class_t *)get_first_pre_set_op_class_by_type(type);

@@ -31,13 +31,13 @@ public:
 public:
     int init();
     em_dpp_info_t *get_dpp_info() { return &m_dpp_info; }
-    int decode(const cJSON *obj, void *parent_id);
+    int decode(const cJSON *obj, void *parent_id, void* user_info);
     void encode(cJSON *obj);
 
     bool operator == (const dm_dpp_t& obj);
     void operator = (const dm_dpp_t& obj);
 
-    int analyze_config(const cJSON *obj, void *parent, em_cmd_t *cmd[], em_cmd_params_t *param);
+    int analyze_config(const cJSON *obj, void *parent, em_cmd_t *cmd[], em_cmd_params_t *param, void* user_param);
 
     dm_dpp_t(em_dpp_info_t *net_ssid);
     dm_dpp_t(const dm_dpp_t& net_ssid);
