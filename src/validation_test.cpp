@@ -760,7 +760,7 @@ int em_testValidation_t::test_proxied_encap_dpp(unsigned char *buff,int i,unsign
     if (i == 0) {
         //1905 Encap DPP TLV
         tlv = (em_tlv_t *)tmp;
-        tlv->type = em_tlv_type_encap_dpp;
+        tlv->type = em_tlv_type_1905_encap_dpp;
         tlv->len = htons(sizeof(em_encap_dpp_t));
 
         tmp += (sizeof(em_tlv_t) + sizeof(em_encap_dpp_t));
@@ -771,7 +771,8 @@ int em_testValidation_t::test_proxied_encap_dpp(unsigned char *buff,int i,unsign
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_dpp_chirp_value;
     tlv->len = htons(sizeof(em_dpp_chirp_value_t));
-    chirp.presence = 0;
+    chirp.hash_valid = 0;
+    chirp.mac_present = 0;
     // memcpy(tlv->value, &chirp, sizeof(em_dpp_chirp_value_t));
 
     tmp += (sizeof(em_tlv_t) + sizeof(em_dpp_chirp_value_t));

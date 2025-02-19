@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 Comcast Cable Communications Management, LLC
+ * Copyright 2025 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,10 +40,7 @@ int ec_session_t::create_auth_req(unsigned char *buff)
 
     attrib_len = 0;
 
-    frame->frame_type = ec_frame_type_auth_req; 
-
-    responder_boot_key = get_responder_boot_key();
-    initiator_boot_key = get_initiator_boot_key();
+    frame->frame_type = ec_frame_type_auth_req;
 
     if (init_session(NULL) != 0) {
         m_activation_status = ActStatus_Failed;
@@ -60,7 +57,7 @@ int ec_session_t::create_auth_req(unsigned char *buff)
     uint8_t* attribs = frame->attributes;
 
     // Responder Bootstrapping Key Hash
-    if (compute_key_hash(responder_boot_key, m_params.responder_keyhash) < 1) {
+    if (compute_key_hash(m_data.responder_boot_key, m_params.responder_keyhash) < 1) {
         m_activation_status = ActStatus_Failed;
         printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
         return -1;
@@ -70,7 +67,7 @@ int ec_session_t::create_auth_req(unsigned char *buff)
     attrib_len += get_ec_attr_size(SHA256_DIGEST_LENGTH);
 
     // Initiator Bootstrapping Key Hash
-    if (compute_key_hash(initiator_boot_key, m_params.initiator_keyhash) < 1) {
+    if (compute_key_hash(m_data.initiator_boot_key, m_params.initiator_keyhash) < 1) {
         m_activation_status = ActStatus_Failed;
         printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
         return -1;
@@ -125,11 +122,9 @@ int ec_session_t::create_pres_ann(unsigned char *buff)
     ec_frame_t *frame = (ec_frame_t *)buff;
     frame->frame_type = ec_frame_type_presence_announcement; 
 
-    EC_KEY * responder_boot_key = get_responder_boot_key();
-
     // Compute the hash of the responder boot key 
     unsigned char resp_boot_key_chirp_hash[SHA512_DIGEST_LENGTH];
-    if (compute_key_hash(responder_boot_key, resp_boot_key_chirp_hash, "chirp") < 1) {
+    if (compute_key_hash(m_data.responder_boot_key, resp_boot_key_chirp_hash, "chirp") < 1) {
         m_activation_status = ActStatus_Failed;
         printf("%s:%d unable to compute \"chirp\" responder bootstrapping key hash\n", __func__, __LINE__);
         return -1;
@@ -182,10 +177,6 @@ bool ec_session_t::validate_frame(ec_frame_t *frame, ec_frame_type_t type)
 
 int ec_session_t::init_session(ec_data_t* ec_data)
 {
-    unsigned char keyasn1[1024];
-    const unsigned char *key;
-    unsigned int asn1len;
-    EC_KEY *responder_key, *initiator_key;
     const EC_POINT *ipt, *rpt = NULL;
     const BIGNUM *proto_priv;
 
@@ -195,56 +186,17 @@ int ec_session_t::init_session(ec_data_t* ec_data)
     }
 
     if (m_data.type == ec_session_type_cfg) {
-        memset(keyasn1, 0, sizeof(keyasn1));
-        if ((asn1len = EVP_DecodeBlock(keyasn1, (unsigned char *)m_data.rPubKey, strlen(m_data.rPubKey))) < 0) {
-            printf("%s:%d Failed to decode base 64 initiator public key\n", __func__, __LINE__);
-            return -1;
-        }
+        // Set in DPP URI 
 
-        key = keyasn1;
-        responder_key = d2i_EC_PUBKEY(NULL, &key, asn1len);
-
-        EC_KEY_set_conv_form(responder_key, POINT_CONVERSION_COMPRESSED);
-        EC_KEY_set_asn1_flag(responder_key, OPENSSL_EC_NAMED_CURVE);
-
-        // get the group from responder's boot strap key information
-        if ((m_params.group = EC_KEY_get0_group(responder_key)) == NULL) {
-            printf("%s:%d Failed to get group from ec key\n", __func__, __LINE__);
-            return -1;
-        }
-
-        rpt = EC_KEY_get0_public_key(responder_key);
+        rpt = EC_KEY_get0_public_key(m_data.responder_boot_key);
         if (rpt == NULL) {
             printf("%s:%d Could not get responder bootstrap public key\n", __func__, __LINE__);
             return -1;
         }
 
-        memset(keyasn1, 0, sizeof(keyasn1));
-        if ((asn1len = EVP_DecodeBlock(keyasn1, (unsigned char *)m_data.iPubKey, strlen(m_data.iPubKey))) < 0) {
-            printf("%s:%d Failed to decode base 64 initiator public key\n", __func__, __LINE__);
-            return -1;
-        }
-
-        key = keyasn1;
-        initiator_key = d2i_EC_PUBKEY(NULL, &key, asn1len);
-
-        EC_KEY_set_conv_form(initiator_key, POINT_CONVERSION_COMPRESSED);
-        EC_KEY_set_asn1_flag(initiator_key, OPENSSL_EC_NAMED_CURVE);
-
     } else if (m_data.type == ec_session_type_recfg) {
-        memset(keyasn1, 0, sizeof(keyasn1));
-        if ((asn1len = EVP_DecodeBlock(keyasn1, (unsigned char *)m_data.iPubKey, strlen(m_data.iPubKey))) < 0) {
-            printf("%s:%d Failed to decode base 64 initiator public key\n", __func__, __LINE__);
-            return -1;
-        }
 
-        key = keyasn1;
-        initiator_key = d2i_EC_PUBKEY(NULL, &key, asn1len);
-
-        EC_KEY_set_conv_form(initiator_key, POINT_CONVERSION_COMPRESSED);
-        EC_KEY_set_asn1_flag(initiator_key, OPENSSL_EC_NAMED_CURVE);
-
-        m_params.group = EC_KEY_get0_group(initiator_key);
+        m_params.group = EC_KEY_get0_group(m_data.initiator_boot_key);
         m_params.responder_connector = EC_POINT_new(m_params.group);
     }
 
@@ -255,6 +207,18 @@ int ec_session_t::init_session(ec_data_t* ec_data)
     m_params.n = BN_new();
     m_params.prime = BN_new();
     m_params.bnctx = BN_CTX_new();
+
+    if (!m_params.x || !m_params.y || !m_params.m || !m_params.n || 
+        !m_params.prime || !m_params.bnctx) {
+        // error print
+        BN_free(m_params.x);
+        BN_free(m_params.y);
+        BN_free(m_params.m);
+        BN_free(m_params.n);
+        BN_free(m_params.prime);
+        BN_CTX_free(m_params.bnctx);
+        return -1;
+    }
 
     m_params.responder_proto_pt = EC_POINT_new(m_params.group);
     m_params.nid = EC_GROUP_get_curve_name(m_params.group);
@@ -367,7 +331,52 @@ int ec_session_t::init_session(ec_data_t* ec_data)
 
 }
 
+int ec_session_t::handle_chirp_notification(em_dpp_chirp_value_t *chirp_tlv, uint8_t **out_frame)
+{
 
+    // Parse TLV
+    bool mac_addr_present = chirp_tlv->mac_present;
+    bool hash_valid = chirp_tlv->hash_valid;
+
+    uint8_t *data_ptr = chirp_tlv->data;
+    mac_addr_t mac = {0};
+    if (mac_addr_present) {
+        memcpy(mac, data_ptr, sizeof(mac_addr_t));
+        data_ptr += sizeof(mac_addr_t);
+    }
+
+    if (!hash_valid) {
+        // Clear (Re)configuration state, agent side
+        return 0;
+    }
+
+    uint8_t hash[255] = {0}; // Max hash length to avoid dynamic allocation
+    uint8_t hash_len = 0;
+
+    hash_len = *data_ptr;
+    data_ptr++;
+    memcpy(hash, data_ptr, hash_len);
+
+    // Validate hash
+    if (compute_key_hash(m_data.responder_boot_key, m_params.responder_keyhash) < 1) {
+        m_activation_status = ActStatus_Failed;
+        printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (memcmp(hash, m_params.responder_keyhash, hash_len) != 0) {
+        // Hashes don't match, don't initiate DPP authentication
+        *out_frame = NULL;
+        printf("%s:%d: Chirp notification hash and DPP URI hash did not match! Stopping DPP!\n", __func__, __LINE__);
+        return -1;
+    }
+
+    // TODO: 
+    // create_auth_req(*out_frame);
+
+    return 0;
+
+}
 
 int ec_session_t::set_auth_frame_wrapped_data(ec_frame_t *frame, unsigned int non_wrapped_len, bool do_init_auth)
 {

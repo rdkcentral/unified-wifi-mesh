@@ -182,11 +182,11 @@ typedef struct {
 }__attribute__((packed)) ec_attribute_t;
 
 typedef struct {
-    uint8_t category = 0x04;
-    uint8_t action = 0x09;
-    uint8_t oui[3] = {0x50, 0x6F, 0x9A};
-    uint8_t oui_type = DPP_OUI_TYPE;
-    uint8_t crypto_suite = 0x01; // Section 3.3 (Currently only 0x01 is defined)
+    uint8_t category;
+    uint8_t action;
+    uint8_t oui[3];
+    uint8_t oui_type;
+    uint8_t crypto_suite;
     uint8_t frame_type;
     uint8_t attributes[0];
 } __attribute__((packed)) ec_frame_t;
@@ -233,10 +233,8 @@ typedef struct {
     ec_session_type_t   type;
 
     // Updated data
-    char            iPubKey[512];
-    char            rPubKey[512];   
-    unsigned char     tran_id[120];
-    unsigned char match_tran_id;
+    EC_KEY *initiator_boot_key; 
+    EC_KEY *responder_boot_key;
 } ec_data_t;
 
 #ifdef __cplusplus

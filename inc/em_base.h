@@ -538,7 +538,7 @@ typedef enum {
     em_tlv_type_reason_code = 0xca,
     em_tlv_type_bh_sta_radio_cap = 0xcb,
     em_tlv_type_akm_suite = 0xcc,
-    em_tlv_type_encap_dpp = 0xcd,
+    em_tlv_type_1905_encap_dpp = 0xcd,
     em_tlv_type_1905_encap_eapol = 0xce,
     em_tlv_type_dpp_bootstrap_uri_notification = 0xcf,
     em_tlv_type_backhaul_bss_conf = 0xd0,
@@ -1700,14 +1700,10 @@ typedef enum {
 } em_media_type_t;
 
 typedef struct {
-    unsigned char len;
-    unsigned char value[0];
-} em_hash_t;
-
-typedef struct {
-    unsigned char presence;
-    mac_address_t   enrollee[0];
-    em_hash_t   hash[0];
+    uint8_t mac_present : 1;  // Bit 7: Enrollee MAC Address Present
+    uint8_t hash_valid : 1;   // Bit 6: Hash Validity
+    uint8_t reserved : 6;     // Bits 5-0: Reserved
+    uint8_t data[0];           // Flexible array for MAC address (if present) + hash length + hash value
 } __attribute__((__packed__)) em_dpp_chirp_value_t;
 
 typedef struct {
@@ -2034,13 +2030,6 @@ typedef struct {
     unsigned char   num_hauls;
     em_haul_type_t haul_type[EM_MAX_HAUL_TYPES];   
 } em_network_ssid_info_t;
-
-typedef struct {
-    unsigned int    version;
-    ec_data_t   ec_data;
-    int  ec_freqs[DPP_MAX_EN_CHANNELS];
-    mac_address_t   mac_addr;
-} em_dpp_info_t;
 
 typedef enum {
     em_op_class_type_none,

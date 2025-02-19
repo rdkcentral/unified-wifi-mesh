@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 Comcast Cable Communications Management, LLC
+ * Copyright 2025 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -441,6 +441,39 @@ void em_provisioning_t::process_msg(unsigned char *data, unsigned int len)
     }
 }
 
+int em_provisioning_t::handle_dpp_chirp_notif(unsigned char *buff, unsigned int len)
+{
+    em_tlv_t    *tlv;
+    int tlv_len;
+
+    tlv = (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tlv_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+        // Can be one or more
+        if (tlv->type == em_tlv_type_dpp_chirp_value) {
+            // Parse out dest STA mac address and hash value then validate against the hash in the 
+            // ec_session dpp uri info public key. 
+            // Then construct an Auth request frame and send back in an Encap message
+            em_dpp_chirp_value_t* chirp_tlv = (em_dpp_chirp_value_t*)tlv->value;
+
+            uint8_t* out_frame = NULL;
+            if (m_ec_session->handle_chirp_notification(chirp_tlv, &out_frame) != 0){
+                //TODO: Fail
+            }
+
+            // Create 1905 Encap DPP Message with a 1905 Encap DPP TLV (out frame) and chirp TLV
+
+
+        }
+
+        tlv_len -= (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+	return 0;
+}
+
 void em_provisioning_t::handle_state_prov_none()
 {
     printf("%s:%d: Waiting for CCE indication interface: %s\n", __func__, __LINE__, (char *)get_radio_interface_name());
@@ -530,7 +563,7 @@ void em_provisioning_t::process_ctrl_state()
 
 em_provisioning_t::em_provisioning_t()
 {
-    m_ec_session = std::make_unique<ec_session_t>();
+    m_ec_session = std::unique_ptr<ec_session_t>(new ec_session_t());
 }
 
 em_provisioning_t::~em_provisioning_t()

@@ -84,7 +84,7 @@ void em_t::orch_execute(em_cmd_t *pcmd)
 			break;
 
         case em_cmd_type_start_dpp: {
-            em_dpp_info_t *dpp_info = pcmd->m_data_model.get_dpp()->get_dpp_info();
+            ec_data_t *dpp_info = pcmd->m_data_model.get_dpp()->get_dpp_info();
             printf("ORCH: Start DPP\n");
             printf("ORCH: DPP: \n");
             printf("\tDPP: Version: %d\n", dpp_info->version);
@@ -96,7 +96,7 @@ void em_t::orch_execute(em_cmd_t *pcmd)
                 printf("\t\tFreq: %d\n", dpp_info->ec_freqs[i]);
             }
 
-            m_ec_session->init_session(&dpp_info->ec_data);
+            m_ec_session->init_session(dpp_info);
             
             break;
         }

@@ -883,7 +883,7 @@ int dm_easy_mesh_t::decode_config_set_radio(em_subdoc_info_t *subdoc, const char
 		m_num_radios++;
 			
 	}
-
+    return 0;
 }
 
 int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const char *key, unsigned int index, unsigned int *num)

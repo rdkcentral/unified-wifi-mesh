@@ -3,6 +3,18 @@
 #include "ec_base.h"
 #include "ec_session.h"
 
+void ec_session_t::init_frame(ec_frame_t *frame)
+{
+    memset(frame, 0, sizeof(ec_frame_t));
+    frame->category = 0x04;
+    frame->action = 0x09;
+    frame->oui[0] = 0x50;
+    frame->oui[1] = 0x6f;
+    frame->oui[2] = 0x9a;
+    frame->oui_type = DPP_OUI_TYPE;
+    frame->crypto_suite = 0x01; // Section 3.3 (Currently only 0x01 is defined)
+}
+
 ec_attribute_t *ec_session_t::get_attrib(unsigned char *buff, unsigned short len, ec_attrib_id_t id)
 {
     unsigned int total_len = 0;

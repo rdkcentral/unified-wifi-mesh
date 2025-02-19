@@ -699,6 +699,38 @@ uint8_t* em_crypto_t::base64_decode(const char* input, size_t length, size_t* ou
     return result;
 }
 
+
+EC_KEY* em_crypto_t::create_ec_key_from_base64_der(const char* base64_der_pubkey) 
+{
+
+    if (!base64_der_pubkey) {
+        printf("%s:%d NULL parameter\n", __func__, __LINE__);
+        return NULL;
+    }
+    uint8_t key[1024];
+    int len = 1024;
+    
+    memset(key, 0, len);
+
+    if ((len = EVP_DecodeBlock(key, (unsigned char *)base64_der_pubkey, strlen(base64_der_pubkey))) < 0) {
+        printf("%s:%d Failed to decode base 64 public key\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    const unsigned char *ptr = key;
+    EC_KEY *ec_key = d2i_EC_PUBKEY(NULL, &ptr, len);
+
+    if (ec_key == NULL) {
+        printf("%s:%d Failed to create EC key from DER\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    EC_KEY_set_conv_form(ec_key, POINT_CONVERSION_COMPRESSED);
+    EC_KEY_set_asn1_flag(ec_key, OPENSSL_EC_NAMED_CURVE);
+
+    return ec_key;
+}
+
 void em_crypto_t::cleanup_bignums(BIGNUM *p, BIGNUM *g, BIGNUM *priv, BIGNUM *pub) {
     BN_clear_free(p);
     BN_clear_free(g);
