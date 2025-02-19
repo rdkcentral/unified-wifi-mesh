@@ -296,7 +296,7 @@ int em_metrics_t::send_associated_sta_link_metrics_msg(mac_address_t sta_mac)
     return len;
 }
 
-int em_metrics_t::send_all_associated_sta_link_metrics_msg()
+void em_metrics_t::send_all_associated_sta_link_metrics_msg()
 {
     dm_easy_mesh_t *dm;
     dm_sta_t *sta;
