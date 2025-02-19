@@ -240,6 +240,7 @@ void dm_bss_t::operator = (const dm_bss_t& obj)
 	memcpy(this->m_bss_info.id.ruid, obj.m_bss_info.id.ruid, sizeof(mac_address_t));
 	memcpy(this->m_bss_info.id.bssid, obj.m_bss_info.id.bssid, sizeof(mac_address_t));
 
+    memcpy(&this->m_bss_info.id.haul_type, &obj.m_bss_info.id.haul_type, sizeof(em_haul_type_t));
     memcpy(&this->m_bss_info.bssid.mac, &obj.m_bss_info.bssid.mac, sizeof(mac_address_t));
     memcpy(&this->m_bss_info.bssid.name, &obj.m_bss_info.bssid.name, sizeof(em_interface_name_t));
     memcpy(&this->m_bss_info.ruid.mac, &obj.m_bss_info.ruid.mac, sizeof(mac_address_t));
@@ -275,6 +276,7 @@ bool dm_bss_t::operator == (const dm_bss_t& obj)
 	ret += (memcmp(this->m_bss_info.id.ruid, obj.m_bss_info.id.ruid, sizeof(mac_address_t)) != 0);
 	ret += (memcmp(this->m_bss_info.id.bssid, obj.m_bss_info.id.bssid, sizeof(mac_address_t)) != 0);
 
+    ret += (memcmp(&this->m_bss_info.id.haul_type, &obj.m_bss_info.id.haul_type, sizeof(em_haul_type_t)) != 0);
     ret += (memcmp(&this->m_bss_info.bssid.mac ,&obj.m_bss_info.bssid.mac,sizeof(mac_address_t)) != 0);
     ret += (memcmp(&this->m_bss_info.bssid.name,&obj.m_bss_info.bssid.name,sizeof(em_interface_name_t)) != 0);
     ret += (memcmp(&this->m_bss_info.ruid.mac ,&obj.m_bss_info.ruid.mac,sizeof(mac_address_t)) != 0);

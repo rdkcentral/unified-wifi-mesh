@@ -2547,8 +2547,9 @@ dm_bss_t *dm_easy_mesh_t::find_matching_bss(em_bss_id_t *id)
 		if ((strncmp(bss->m_bss_info.id.net_id, id->net_id, strlen(id->net_id)) == 0) &&
 				(memcmp(bss->m_bss_info.id.dev_mac, id->dev_mac, sizeof(mac_address_t)) == 0) &&
 				(memcmp(bss->m_bss_info.id.ruid, id->ruid, sizeof(mac_address_t)) == 0) &&
-				(memcmp(bss->m_bss_info.id.bssid, id->bssid, sizeof(mac_address_t)) == 0)) {
-			return bss;
+			    (memcmp(bss->m_bss_info.id.bssid, id->bssid, sizeof(mac_address_t)) == 0) &&
+                (memcmp(&(bss->m_bss_info.id.haul_type), &(id->haul_type), sizeof(em_haul_type_t)) == 0)) {
+            return bss;
 		}
 	}	
 
