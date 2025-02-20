@@ -20,6 +20,8 @@
 #define EM_PROVISIONING_H
 
 #include "em_base.h"
+#include "ec_session.h"
+#include <memory>
 
 class em_cmd_t;
 class em_provisioning_t {
@@ -33,7 +35,7 @@ class em_provisioning_t {
     int create_dpp_direct_encap_msg(unsigned char *buff, unsigned char *frame, unsigned short len);
 
     int handle_cce_ind_msg(unsigned char *buff, unsigned int len);
-
+    int handle_dpp_chirp_notif(unsigned char *buff, unsigned int len);
     // states
     void handle_state_prov_none();
     void handle_state_prov();
@@ -59,6 +61,8 @@ public:
     void    process_msg(unsigned char *data, unsigned int len);
     void    process_agent_state();
     void    process_ctrl_state();
+
+    std::unique_ptr<ec_session_t> m_ec_session;
 
     em_provisioning_t();
     ~em_provisioning_t();

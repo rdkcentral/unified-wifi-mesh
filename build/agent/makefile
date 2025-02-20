@@ -57,6 +57,7 @@ GENERIC_SOURCES = $(ONEWIFI_HOME)/source/utils/collection.c \
 AGENT_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/em/config/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/em/prov/*.cpp) \
+	$(wildcard $(ONEWIFI_EM_SRC)/em/prov/easyconnect/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/em/disc/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/em/channel/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/em/capability/*.cpp) \

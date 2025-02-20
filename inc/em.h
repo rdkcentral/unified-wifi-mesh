@@ -32,6 +32,7 @@
 #include "em_policy_cfg.h"
 #include "dm_easy_mesh.h"
 #include "em_sm.h"
+#include "ec_session.h"
 
 class em_mgr_t;
 
