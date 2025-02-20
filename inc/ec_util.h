@@ -22,6 +22,7 @@
 #include <map>
 #include <string>
 
+namespace easyconnect {
 
  static const std::map<ec_status_code_t, std::string> status_code_map = {
     {DPP_STATUS_OK, "OK: No errors or abnormal behavior"},
@@ -40,6 +41,8 @@
     {DPP_STATUS_CSR_BAD, "CSR Bad: The Certificate Signing Request was invalid."},
     {DPP_STATUS_NEW_KEY_NEEDED, "New Key Needed: The Enrollee needs to generate a new Protocol key."}
 };
+
+}
 
 class ec_util {
 public:
@@ -103,14 +106,19 @@ public:
      * @param type The frame type that the frame should be
      * @return true The frame is valid, false otherwise
      */
-    static bool validate_frame(ec_frame_t *frame, ec_frame_type_t type);
+    static bool validate_frame(const ec_frame_t *frame, ec_frame_type_t type);
 
-    static uint16_t channel_to_frequency(unsigned int channel);
-
-    static uint16_t freq_to_channel(unsigned int freq);
+    /**
+     * @brief Converts a frequency to a WFA channel attribute format (opclass + channel)
+     * 
+     * @param freq The frequency to convert
+     * @return `uint16_t` with the MSB as the op class and the LSB as the channel.
+     * 
+     * @note Format is standardized as the "Channel Attribute" in Easy Connect 3.0 Section 8.1.1.17 
+     */
+    static uint16_t freq_to_channel_attr(unsigned int freq);
 
     static void print_hex_dump(unsigned int length, uint8_t *buffer);
-
     static void print_bignum (BIGNUM *bn);
     static void print_ec_point (const EC_GROUP *group, BN_CTX *bnctx, EC_POINT *point);
 
@@ -119,6 +127,6 @@ public:
     };
 
     static inline std::string status_code_to_string(ec_status_code_t status) {
-        return status_code_map.at(status);
+        return easyconnect::status_code_map.at(status);
     };
 };

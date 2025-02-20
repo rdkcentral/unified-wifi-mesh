@@ -1,6 +1,7 @@
 #include <ctype.h>
 
-#include "ec_util.h" 
+#include "ec_util.h"
+#include "util.h"
 
 void ec_util::init_frame(ec_frame_t *frame)
 {
@@ -49,129 +50,12 @@ uint8_t* ec_util::add_attrib(uint8_t *buff, ec_attrib_id_t id, uint16_t len, uin
     return buff + get_ec_attr_size(len);
 }
 
-
-uint16_t ec_util::channel_to_frequency(unsigned int channel)
+uint16_t ec_util::freq_to_channel_attr(unsigned int freq)
 {
-    uint16_t frequency = 0;
+    auto op_chan = em_freq_to_chan(freq);
 
-    if (channel <= 14) {
-        frequency = 2412 + 5*(channel - 1);
-    } else if ((channel >= 36) && (channel <= 64)) {
-        frequency = 5180 + 5*(channel - 36);
-    } else if ((channel >= 100) && (channel <= 140)) {
-        frequency = 5500 + 5*(channel - 100);
-    } else if ((channel >= 149) && (channel <= 165)) {
-        frequency = 5745 + 5*(channel - 149);
-    }
-
-    return frequency;
-}
-
-uint16_t ec_util::freq_to_channel(unsigned int freq)
-{
-    unsigned int temp = 0;
-    int sec_channel = -1;
-    unsigned int op_class = 0;
-    if (freq) {
-        if (freq >= 2412 && freq <= 2472){
-            if (sec_channel == 1)
-                op_class = 83;
-            else if (sec_channel == -1)
-                op_class = 84;
-            else
-                op_class = 81;
-
-            temp = ((freq - 2407) / 5);
-            return ((((short)temp) << 8) | (0x00ff & op_class));
-        }
-
-        /** In Japan, 100 MHz of spectrum from 4900 MHz to 5000 MHz
-          can be used for both indoor and outdoor connection
-         */
-        if (freq >= 4900 && freq < 5000) {
-            if ((freq - 4000) % 5)
-                return 0;
-            temp = (freq - 4000) / 5;
-            op_class = 0; /* TODO */
-            return ((((short)temp) << 8) | (0x00ff & op_class));
-        }
-        if (freq == 2484) {
-            op_class = 82; /* channel 14 */
-            temp = 14;
-            return ((((short)temp) << 8) | (0x00ff & op_class));
-        }
-        /* 5 GHz, channels 36..48 */
-        if (freq >= 5180 && freq <= 5240) {
-            if ((freq - 5000) % 5)
-                return 0;
-
-            if (sec_channel == 1)
-                op_class = 116;
-            else if (sec_channel == -1)
-                op_class = 117;
-            else
-                op_class = 115;
-
-            temp = (freq - 5000) / 5;
-            return ((((short)temp) << 8) | (0x00ff & op_class));
-        }
-        /* 5 GHz, channels 52..64 */
-        if (freq >= 5260 && freq <= 5320) {
-            if ((freq - 5000) % 5)
-                return 0;
-
-            if (sec_channel == 1)
-                op_class = 119;
-            else if (sec_channel == -1)
-                op_class = 120;
-            else
-                op_class = 118;
-
-            temp = (freq - 5000) / 5;
-            return ((((short)temp) << 8) | (0x00ff & op_class));
-        }
-        /* 5 GHz, channels 100..140 */
-        if (freq >= 5000 && freq <= 5700) {
-            if (sec_channel == 1)
-                op_class = 122;
-            else if (sec_channel == -1)
-                op_class = 123;
-            else
-                op_class = 121;
-
-            temp = (freq - 5000) / 5;
-            return ((((short)temp) << 8) | (0x00ff & op_class));
-        }
-        /* 5 GHz, channels 149..169 */
-        if (freq >= 5745 && freq <= 5845) {
-            if (sec_channel == 1)
-                op_class = 126;
-            else if (sec_channel == -1)
-                op_class = 127;
-            else if (freq <= 5805)
-                op_class = 124;
-            else
-                op_class = 125;
-
-            temp = (freq - 5000) / 5;
-            return ((((short)temp) << 8) | (0x00ff & op_class));
-        }
-
-#if HOSTAPD_VERSION >= 210 //2.10
-        if (is_6ghz_freq(freq)) {
-            if (freq == 5935) {
-                temp = 2;
-                op_class = 131;
-            } else {
-                temp = (freq - 5950) % 5;
-                op_class = 131 + center_idx_to_bw_6ghz((freq - 5950) / 5);
-            }
-            return ((((short)temp) << 8) | (0x00ff & op_class));
-        }
-#endif
-    }
-    printf("error: No case for given Freq\n");
-    return 0;
+    auto [op_class, channel] = op_chan;
+    return ((channel << 8) | (0x00ff & op_class));
 }
 
 void ec_util::print_hex_dump(unsigned int length, uint8_t *buffer)
@@ -209,7 +93,7 @@ void ec_util::print_hex_dump(unsigned int length, uint8_t *buffer)
     printf ("  %s\n", buff);
 }
 
-bool ec_util::validate_frame(ec_frame_t *frame, ec_frame_type_t type)
+bool ec_util::validate_frame(const ec_frame_t *frame, ec_frame_type_t type)
 {
     if ((frame->category != 0x04) 
             || (frame->action != 0x09)

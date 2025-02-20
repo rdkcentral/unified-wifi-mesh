@@ -32,8 +32,6 @@ int ec_session_t::create_auth_req(uint8_t *buff)
 
     uint16_t attrib_len, chann_attr;;
     uint8_t protocol_key_buff[1024];
-    ULONG hm_channel = 0;
-    ULONG ch_freq = 0;
 
     printf("%s:%d Enter\n", __func__, __LINE__);
 
@@ -92,10 +90,15 @@ int ec_session_t::create_auth_req(uint8_t *buff)
         attrib_len += ec_util::get_ec_attr_size(sizeof(m_cfgrtr_ver));
     }
 
-    // Channel Attribute
-    chann_attr = ec_util::freq_to_channel(ec_util::channel_to_frequency(hm_channel)); //channel attrib shall be home channel
-    attribs = ec_util::add_attrib(attribs, ec_attrib_id_channel, sizeof(uint16_t), (uint8_t *)&chann_attr);
-    attrib_len += ec_util::get_ec_attr_size(sizeof(uint16_t));
+    // Channel Attribute (optional)
+    //TODO: REVISIT THIS
+    if (m_data.ec_freqs[0] != 0){
+        int base_freq = m_data.ec_freqs[0]; 
+        chann_attr = ec_util::freq_to_channel_attr(base_freq);
+        attribs = ec_util::add_attrib(attribs, ec_attrib_id_channel, sizeof(uint16_t), (uint8_t *)&chann_attr);
+        attrib_len += ec_util::get_ec_attr_size(sizeof(uint16_t));
+    }
+
 
     // Wrapped Data (with Initiator Nonce and Initiator Capabilities)
     wrapped_len = set_auth_frame_wrapped_data(frame, attrib_len, true);
@@ -197,7 +200,7 @@ int ec_session_t::init_session(ec_data_t* ec_data)
 
     if (!m_params.x || !m_params.y || !m_params.m || !m_params.n || 
         !m_params.prime || !m_params.bnctx) {
-        // error print
+        printf("%s:%d Some BN NULL\n", __func__, __LINE__);
         BN_free(m_params.x);
         BN_free(m_params.y);
         BN_free(m_params.m);
@@ -245,7 +248,10 @@ int ec_session_t::init_session(ec_data_t* ec_data)
     m_params.noncelen = m_params.digestlen/2;
 
     //printf("%s:%d group_num:%d digestlen:%d\n", __func__, __LINE__, m_params.group_num, m_params.digestlen);
-
+    if (m_params.initiator_proto_key != NULL){
+        EC_KEY_free(m_params.initiator_proto_key);
+        m_params.initiator_proto_key = NULL;
+    }
     m_params.initiator_proto_key = EC_KEY_new_by_curve_name(m_params.nid);
     if (m_params.initiator_proto_key == NULL) {
         printf("%s:%d Could not create protocol key\n", __func__, __LINE__);
