@@ -173,6 +173,7 @@ bool dm_policy_t::operator == (const dm_policy_t& obj)
 
 void dm_policy_t::operator = (const dm_policy_t& obj)
 {
+    if (this == &obj) { return; }
     memcpy(&this->m_policy.id.dev_mac, &obj.m_policy.id.dev_mac, sizeof(mac_address_t));
     memcpy(&this->m_policy.id.radio_mac, &obj.m_policy.id.radio_mac, sizeof(mac_address_t));
     this->m_policy.interval = obj.m_policy.interval;

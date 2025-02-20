@@ -315,35 +315,64 @@ const std::unordered_map<uint8_t, freq_range> global_freq_map = {
 };
 
 const std::unordered_map<uint8_t, freq_range>* get_region_map(const std::string& country) {
-    if (country.length() != 2) return nullptr;
+    static std::unordered_map<std::string, std::unordered_map<uint8_t, freq_range>> merged_maps;
+    
+    // Return cached merged map if it exists
+    if (merged_maps.find(country) != merged_maps.end()) {
+        return &merged_maps[country];
+    }
 
-    if (std::find(us_region.begin(), us_region.end(), country) != us_region.end())
-        return &us_freq_map;
+    // Start with a copy of the global map
+    std::unordered_map<uint8_t, freq_range> merged = global_freq_map;
+    
+    // Add region-specific entries (they will override global entries if they exist)
+    if (country.length() == 2) {
+        const std::unordered_map<uint8_t, freq_range>* region_map = nullptr;
         
-    if (std::find(eu_region.begin(), eu_region.end(), country) != eu_region.end())
-        return &eu_freq_map;
-        
-    if (std::find(jp_region.begin(), jp_region.end(), country) != jp_region.end())
-        return &jp_freq_map;
-        
-    if (std::find(cn_region.begin(), cn_region.end(), country) != cn_region.end())
-        return &cn_freq_map;
-        
-    return &global_freq_map;
+        if (std::find(us_region.begin(), us_region.end(), country) != us_region.end())
+            region_map = &us_freq_map;
+        else if (std::find(eu_region.begin(), eu_region.end(), country) != eu_region.end())
+            region_map = &eu_freq_map;
+        else if (std::find(jp_region.begin(), jp_region.end(), country) != jp_region.end())
+            region_map = &jp_freq_map;
+        else if (std::find(cn_region.begin(), cn_region.end(), country) != cn_region.end())
+            region_map = &cn_freq_map;
+            
+        if (region_map) {
+            // Merge region-specific entries
+            for (const auto& [op_class, range] : *region_map) {
+                merged[op_class] = range;  // Overwrites global entry if it exists
+            }
+        }
+    }
+    
+    // Cache the merged map
+    merged_maps[country] = std::move(merged);
+    
+    return &merged_maps[country];
 }
 
 int em_chan_to_freq(const std::string& country, uint8_t op_class, uint8_t chan) {
     // Get region-specific frequency map
     const auto* freq_map = get_region_map(country);
-    if (!freq_map) return -1;
+    if (!freq_map){
+        printf("%s:%d Failed to find frequency map\n", __func__, __LINE__);
+        return -1;
+    }
 
     // Look up frequency range for operating class
     auto range_it = freq_map->find(op_class);
-    if (range_it == freq_map->end()) return -1;
+    if (range_it == freq_map->end()){
+        printf("%s:%d Failed to lookup frequency range\n", __func__, __LINE__);
+        return -1;
+    }
 
     // Check channel range and calculate frequency
     const auto& range = range_it->second;
-    if (chan < range.min_chan || chan > range.max_chan) return -1;
+    if (chan < range.min_chan || chan > range.max_chan) {
+        printf("%s:%d Channel range check failed\n", __func__, __LINE__);
+        return -1;
+    }
 
     return range.base_freq + chan * range.spacing;
 }

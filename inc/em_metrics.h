@@ -31,7 +31,7 @@ class em_metrics_t {
     virtual em_profile_type_t get_profile_type() = 0;
     virtual em_cmd_t *get_current_cmd() = 0;
 
-    int send_all_associated_sta_link_metrics_msg();
+    void send_all_associated_sta_link_metrics_msg();
     int send_associated_sta_link_metrics_msg(mac_address_t sta_mac);
     int send_associated_link_metrics_response(mac_address_t sta_mac);
 

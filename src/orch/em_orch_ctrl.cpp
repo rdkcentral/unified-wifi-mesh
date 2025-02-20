@@ -170,6 +170,8 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             }
 
 			break;
+        case em_cmd_type_start_dpp:
+            return true;
     }
 
     return false;
@@ -181,8 +183,8 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
         case em_cmd_type_set_ssid:
         case em_cmd_type_set_radio:
         case em_cmd_type_mld_reconfig:
+        case em_cmd_type_start_dpp:
             return true;
-            break;
 
         case em_cmd_type_em_config:
         case em_cmd_type_cfg_renew:
@@ -490,6 +492,13 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
 
             case em_cmd_type_mld_reconfig:
                 if (em->is_al_interface_em()) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
+                }
+                break;
+            case em_cmd_type_start_dpp:
+                if (em->is_al_interface_em()) {
+                    // TODO: Add additional checks for provisioning state or more if needed 
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }

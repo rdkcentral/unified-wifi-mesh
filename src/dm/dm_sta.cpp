@@ -259,6 +259,7 @@ bool dm_sta_t::operator == (const dm_sta_t& obj)
 
 void dm_sta_t::operator = (const dm_sta_t& obj)
 {
+    if (this == &obj) { return; }
     memcpy(&this->m_sta_info.id, &obj.m_sta_info.id, sizeof(mac_address_t));
     memcpy(&this->m_sta_info.bssid, &obj.m_sta_info.bssid, sizeof(mac_address_t));
     memcpy(&this->m_sta_info.radiomac, &obj.m_sta_info.radiomac, sizeof(mac_address_t));

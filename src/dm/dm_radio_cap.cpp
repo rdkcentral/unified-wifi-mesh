@@ -110,6 +110,7 @@ bool dm_radio_cap_t::operator == (const dm_radio_cap_t& obj)
 
 void dm_radio_cap_t::operator = (const dm_radio_cap_t& obj)
 {
+    if (this == &obj) { return; }
     memcpy(&this->m_radio_cap_info.ruid.mac ,&obj.m_radio_cap_info.ruid.mac,sizeof(mac_address_t));
     memcpy(&this->m_radio_cap_info.ruid.name,&obj.m_radio_cap_info.ruid.name,sizeof(em_interface_name_t));
     memcpy(&this->m_radio_cap_info.ht_cap,&obj.m_radio_cap_info.ht_cap,sizeof(m_radio_cap_info.ht_cap));

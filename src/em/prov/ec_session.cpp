@@ -230,7 +230,7 @@ int ec_session_t::init_session()
     if (m_data.type == ec_session_type_cfg) {
         memset(keyasn1, 0, sizeof(keyasn1));
         if ((asn1len = EVP_DecodeBlock(keyasn1, (unsigned char *)m_data.rPubKey, strlen(m_data.rPubKey))) < 0) {
-            printf("%s:%d Failed to decode base 64 initiator public key\n", __func__, __LINE__);
+            printf("%s:%d Failed to decode base 64 responder public key\n", __func__, __LINE__);
             return -1;
         }
 
