@@ -68,7 +68,7 @@ int dm_dpp_t::decode(const cJSON *obj, void *parent_id, void* user_info)
 
     char *net_id = (char *)parent_id;
 
-    memset(&m_dpp_info, 0, sizeof(em_dpp_info_t));
+    memset(&m_dpp_info, 0, sizeof(ec_data_t));
 
     printf("%s:%d: Decoding DPP\n", __func__, __LINE__);
 		
@@ -83,7 +83,12 @@ int dm_dpp_t::decode(const cJSON *obj, void *parent_id, void* user_info)
     // Get public key (DER of ASN.1 SubjectPublicKeyInfo encoded in “base64”)
     if ((tmp = cJSON_GetObjectItem(obj, "K:")) != NULL && cJSON_IsString(tmp)) {
         // Enrollee (Responder) is the one who sent the URI so that is the owner of the public key
-	    strcpy(m_dpp_info.ec_data.rPubKey, tmp->valuestring);
+
+        m_dpp_info.responder_boot_key = em_crypto_t::create_ec_key_from_base64_der(tmp->valuestring);
+	    if (m_dpp_info.responder_boot_key == NULL) {
+            printf("%s:%d: Failed to convert public key to EC_KEY\n", __func__, __LINE__);
+            return -1;
+        }
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "C:")) != NULL && cJSON_IsString(tmp)) {
@@ -130,49 +135,58 @@ void dm_dpp_t::encode(cJSON *obj)
 }
 
 
+bool ec_pub_keys_equal(const EC_KEY* key1, const EC_KEY* key2) {
+    if (!key1 || !key2) return false;
+    
+    const EC_POINT* point1 = EC_KEY_get0_public_key(key1);
+    const EC_POINT* point2 = EC_KEY_get0_public_key(key2);
+    
+    if (!point1 || !point2) return false;
+    
+    // Compare just the public points
+    const EC_GROUP* group = EC_KEY_get0_group(key1);
+    return (EC_POINT_cmp(group, point1, point2, NULL) == 0);
+}
+
 bool dm_dpp_t::operator == (const dm_dpp_t& obj)
 {
     int ret = 0;
     ret += !(this->m_dpp_info.version == obj.m_dpp_info.version);
-    ret += this->m_dpp_info.ec_data.type != obj.m_dpp_info.ec_data.type;
-    ret += memcmp(this->m_dpp_info.ec_data.iPubKey, obj.m_dpp_info.ec_data.iPubKey, sizeof(this->m_dpp_info.ec_data.iPubKey)) != 0;
-    ret += memcmp(this->m_dpp_info.ec_data.rPubKey, obj.m_dpp_info.ec_data.rPubKey, sizeof(this->m_dpp_info.ec_data.rPubKey)) != 0;
-    ret += memcmp(this->m_dpp_info.ec_data.tran_id, obj.m_dpp_info.ec_data.tran_id, sizeof(this->m_dpp_info.ec_data.tran_id)) != 0;
-    ret += this->m_dpp_info.ec_data.match_tran_id != obj.m_dpp_info.ec_data.match_tran_id;
-    for (int i = 0; i < DPP_MAX_EN_CHANNELS; i++) {
-	    ret += this->m_dpp_info.ec_freqs[i] != obj.m_dpp_info.ec_freqs[i];
-    }
-    if (ret > 0)
-        return false;
-    else
-        return true;
+    ret += this->m_dpp_info.type != obj.m_dpp_info.type;
+    ret += !(ec_pub_keys_equal(this->m_dpp_info.initiator_boot_key, obj.m_dpp_info.initiator_boot_key));
+    ret += !(ec_pub_keys_equal(this->m_dpp_info.responder_boot_key, obj.m_dpp_info.responder_boot_key));
+    ret += memcmp(this->m_dpp_info.mac_addr, obj.m_dpp_info.mac_addr, sizeof(this->m_dpp_info.mac_addr));
+    ret += memcmp(this->m_dpp_info.ec_freqs, obj.m_dpp_info.ec_freqs, DPP_MAX_EN_CHANNELS * sizeof(int));
+
+    if (ret > 0) return false;
+    
+    return true;
 
 }
 
 void dm_dpp_t::operator = (const dm_dpp_t& obj)
 {
     if (this == &obj) { return; }
-    this->m_dpp_info.version == obj.m_dpp_info.version;
-    this->m_dpp_info.ec_data.type == obj.m_dpp_info.ec_data.type;
-    memcpy(this->m_dpp_info.ec_data.iPubKey, obj.m_dpp_info.ec_data.iPubKey, sizeof(this->m_dpp_info.ec_data.iPubKey));
-    memcpy(this->m_dpp_info.ec_data.rPubKey, obj.m_dpp_info.ec_data.rPubKey, sizeof(this->m_dpp_info.ec_data.rPubKey));
-    memcpy(this->m_dpp_info.ec_data.tran_id, obj.m_dpp_info.ec_data.tran_id, sizeof(this->m_dpp_info.ec_data.tran_id));
-    this->m_dpp_info.ec_data.match_tran_id == obj.m_dpp_info.ec_data.match_tran_id;
-    for (int i = 0; i < DPP_MAX_EN_CHANNELS; i++) {
-	    this->m_dpp_info.ec_freqs[i] == obj.m_dpp_info.ec_freqs[i];
-    }
+    this->m_dpp_info.version = obj.m_dpp_info.version;
+    this->m_dpp_info.type = obj.m_dpp_info.type;
+    this->m_dpp_info.initiator_boot_key = obj.m_dpp_info.initiator_boot_key;
+    this->m_dpp_info.responder_boot_key = obj.m_dpp_info.responder_boot_key;
+
+    memcpy(this->m_dpp_info.mac_addr, obj.m_dpp_info.mac_addr, sizeof(this->m_dpp_info.mac_addr));
+    memcpy(this->m_dpp_info.ec_freqs, obj.m_dpp_info.ec_freqs, DPP_MAX_EN_CHANNELS * sizeof(int));
+
 
 }
 
 
-dm_dpp_t::dm_dpp_t(em_dpp_info_t *dpp)
+dm_dpp_t::dm_dpp_t(ec_data_t *dpp)
 {
-    memcpy(&m_dpp_info, dpp, sizeof(em_dpp_info_t));
+    memcpy(&m_dpp_info, dpp, sizeof(ec_data_t));
 }
 
 dm_dpp_t::dm_dpp_t(const dm_dpp_t& dpp)
 {
-	memcpy(&m_dpp_info, &dpp.m_dpp_info, sizeof(em_dpp_info_t));
+	memcpy(&m_dpp_info, &dpp.m_dpp_info, sizeof(ec_data_t));
 }
 
 dm_dpp_t::dm_dpp_t()
