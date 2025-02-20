@@ -36,8 +36,8 @@ public:
     virtual em_device_info_t *get_device_info() = 0;
     virtual em_cmd_t *get_current_cmd() = 0;
 
-	short create_steering_policy_tlv(unsigned char *buff);
-	short create_metrics_rep_policy_tlv(unsigned char *buff);
+    short create_steering_policy_tlv(unsigned char *buff);
+    short create_metrics_rep_policy_tlv(unsigned char *buff);
     short create_vendor_policy_cfg_tlv(unsigned char *buff);
 
     int send_policy_cfg_request_msg();

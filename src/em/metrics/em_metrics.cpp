@@ -287,8 +287,9 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
     printf("Reserved: %u\n", response->reserved);
     printf("Measurement Report Count: %u\n", response->meas_rprt_count);
     printf("Measurement Reports: ");
+
+    em_beacon_measurement_t *meas = (em_beacon_measurement_t *)&response->meas_reports[0];
     for (size_t i = 0; i < response->meas_rprt_count; ++i) {
-        em_beacon_measurement_t *meas = (em_beacon_measurement_t *)&response->meas_reports[i];
         printf("\n  op class: %d\n", meas->br_op_class);
         printf("  br_channel: %d\n", meas->br_channel);
         printf("  br_rcpi: %d\n", meas->br_rcpi);
@@ -296,6 +297,7 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
         mac_addr_str_t mac_str;
         dm_easy_mesh_t::macbytes_to_string(meas->br_bssid, mac_str);
         printf("  br_bssid: %s\n", mac_str);
+        meas = (em_beacon_measurement_t *)(&response->meas_reports[i] + sizeof(em_beacon_measurement_t));
     }
 
     //save data to em_sta_info's beacon report
@@ -642,15 +644,14 @@ int em_metrics_t::send_beacon_metrics_response()
     len += (sizeof (em_tlv_t));
 
     if (em_msg_t(em_msg_type_beacon_metrics_rsp, em_profile_type_2, buff, len).validate(errors) == 0) {
-        printf("%s:%d: Beacon Metrics Query validation failed for %s\n", __func__, __LINE__, mac_str);
+        printf("%s:%d: Beacon Metrics Response validation failed for %s\n", __func__, __LINE__, mac_str);
         return -1;
     }
 
     if (send_frame(buff, len)  < 0) {
-        printf("%s:%d: Beacon Metrics Query send failed, error:%d\n", __func__, __LINE__, errno);
+        printf("%s:%d: Beacon Metrics Response send failed, error:%d\n", __func__, __LINE__, errno);
         return -1;
     }
-    printf("%s:%d: Beacon Metrics Query for sta %s sent successfully\n", __func__, __LINE__, mac_str);
 
     return len;
 }

@@ -361,16 +361,16 @@ int em_cmd_cli_t::execute(char *result)
             break;
 
         case em_cmd_type_set_policy:
-			if ((node = m_cmd.m_param.net_node) == NULL) {
-            	return -1;
-			}
+            if ((node = m_cmd.m_param.net_node) == NULL) {
+                return -1;
+            }
             bevt->type = em_bus_event_type_set_policy;
             info = &bevt->u.subdoc;
             strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
-			if ((bevt->data_len = get_edited_node(node, "SetPolicy", info->buff)) < 0) {
+            if ((bevt->data_len = get_edited_node(node, "SetPolicy", info->buff)) < 0) {
                 printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
-                return -1;
-			}	
+            return -1;
+            }	
             break;
 
         case em_cmd_type_get_bss:

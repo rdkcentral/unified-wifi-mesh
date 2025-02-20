@@ -46,7 +46,7 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
 	em_policy_id_t id;
 	unsigned int i;
 
-	printf("%s:%d: Key: %s\tType: %d\n", __func__, __LINE__, (char *)parent_id, type);
+	//printf("%s:%d: Key: %s\tType: %d\n", __func__, __LINE__, (char *)parent_id, type);
 
     memset(&m_policy, 0, sizeof(em_policy_t));
 	parse_dev_radio_mac_from_key((char *)parent_id, &id);
