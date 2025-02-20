@@ -57,6 +57,7 @@ extern "C"
 #define MAX_EM_BUFF_SZ  1024
 #define EM_MAX_FRAME_BODY_LEN	512
 #define MAX_VENDOR_INFO 5
+#define EM_MAX_BEACON_MEASUREMENT_LEN	30
 
 #define EM_TEST_IO_PERM 0666
 #define EM_IO_BUFF_SZ   4096
@@ -1867,6 +1868,7 @@ typedef enum {
     em_state_agent_channel_pref_query,
     em_state_agent_sta_link_metrics,
     em_state_agent_steer_btm_res_pending,
+    em_state_agent_beacon_report_pending,
 
     em_state_ctrl_unconfigured = 0x100,
     em_state_ctrl_wsc_m1_pending,
@@ -1941,6 +1943,7 @@ typedef enum {
     em_cmd_type_avail_spectrum_inquiry,
     em_cmd_type_get_mld_config,
     em_cmd_type_mld_reconfig,
+    em_cmd_type_beacon_report,
     em_cmd_type_max,
 } em_cmd_type_t;
 
@@ -2140,6 +2143,21 @@ typedef struct {
 } em_cac_comp_info_t;
 
 typedef struct {
+    //Beacon Report Data
+    unsigned char br_op_class;
+    unsigned char br_channel;
+    //unsigned char br_meas_start_time;
+    //unsigned char br_meas_duration;
+    //unsigned char br_reported_frame_info;
+    unsigned char br_rcpi;
+    unsigned char br_rsni;
+    bssid_t br_bssid;
+    //unsigned char br_antenna_id;
+    //unsigned char br_tsf;
+    //unsigned char br_subelems[0];
+} em_beacon_measurement_t;
+
+typedef struct {
     mac_address_t   id;
     mac_address_t   bssid;
     mac_address_t radiomac;
@@ -2165,7 +2183,8 @@ typedef struct {
     unsigned char	frame_body[EM_MAX_FRAME_BODY_LEN];
     unsigned int    num_vendor_infos;
     bool            multi_band_cap;
-    //em_beacon_report_t  beacon_reports[];//todo: Use struct from Jayanth's
+    unsigned int    num_beacon_meas_report;
+    em_beacon_measurement_t beacon_report[EM_MAX_BEACON_MEASUREMENT_LEN];
 
     em_long_string_t    cap;
     em_long_string_t    ht_cap;
@@ -2574,7 +2593,8 @@ typedef enum {
     em_bus_event_type_btm_response,
 	em_bus_event_type_channel_scan_params,
     em_bus_event_type_get_mld_config,
-    em_bus_event_type_mld_reconfig
+    em_bus_event_type_mld_reconfig,
+    em_bus_event_type_beacon_report
 } em_bus_event_type_t;
 
 typedef struct {
@@ -2658,6 +2678,7 @@ typedef enum {
     dm_orch_type_sta_disassoc,
     dm_orch_type_policy_cfg,
     dm_orch_type_mld_reconfig,
+    dm_orch_type_beacon_report
 } dm_orch_type_t;
 
 typedef struct {

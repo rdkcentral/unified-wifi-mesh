@@ -677,7 +677,6 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         case em_msg_type_client_assoc_ctrl_req:
         case em_msg_type_map_policy_config_req:
         case em_msg_type_channel_scan_req:
-        case em_msg_type_beacon_metrics_rsp:
         case em_msg_type_ap_mld_config_req:
 			break;
 
@@ -720,6 +719,16 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             em = (em_t *)hash_map_get_first(m_em_map);
             while(em != NULL) {
                 if ((em->is_al_interface_em() == false)) {
+                    break;
+                }
+                em = (em_t *)hash_map_get_next(m_em_map, em);
+            }
+            break;
+
+        case em_msg_type_beacon_metrics_rsp:
+            em = (em_t *)hash_map_get_first(m_em_map);
+            while(em != NULL) {
+                if ((em->is_al_interface_em() == false) && (em->has_at_least_one_associated_sta() == true)) {
                     break;
                 }
                 em = (em_t *)hash_map_get_next(m_em_map, em);
