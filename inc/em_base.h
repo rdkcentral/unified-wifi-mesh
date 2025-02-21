@@ -1678,8 +1678,6 @@ typedef struct {
 } __attribute__((__packed__)) em_qos_mgmt_policy_t;
 
 typedef struct {
-    //int num_markers;
-    //em_string_t managed_client_marker[EM_MAX_CLIENT_MARKER];
     em_string_t managed_client_marker;
 }__attribute__((__packed__)) em_vendor_policy_t;
 
@@ -3013,7 +3011,6 @@ typedef struct {
 	bool	sta_traffic_stats;
 	bool	sta_link_metric;
 	bool	sta_status;
-	//unsigned int num_markers;
 	em_long_string_t	managed_sta_marker;
 	bool	independent_scan_report;
 	bool	profile_1_sta_disallowed;

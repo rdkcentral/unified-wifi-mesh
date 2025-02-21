@@ -520,7 +520,7 @@ void em_agent_t::input_listener()
 		num_retry++;
 		printf("retrying %d\n", num_retry);
     }
-    //printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data.raw_data.bytes);
+    printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data.raw_data.bytes);
 
     g_agent.io_process(em_bus_event_type_dev_init, (unsigned char *)data.raw_data.bytes, data.raw_data_len);
 
@@ -817,7 +817,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             break;
 
         case em_msg_type_assoc_sta_link_metrics_query:
-            printf("\n%s:%d: Rcvd STA Metrics Query\n", __func__, __LINE__);
+            printf("\n%s:%d: Rcvd Assoc STA Link Metrics Query\n", __func__, __LINE__);
 
             em = (em_t *)hash_map_get_first(m_em_map);
             while (em != NULL) {

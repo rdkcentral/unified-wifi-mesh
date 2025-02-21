@@ -308,7 +308,6 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
     //em_tlv_vendor_plolicy_cfg
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_vendor_plolicy_cfg;
-    //strncpy(tlv->value, );
     sz = create_vendor_policy_cfg_tlv(tlv->value);
     tlv->len = htons(sz);
 

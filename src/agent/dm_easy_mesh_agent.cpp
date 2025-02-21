@@ -251,7 +251,7 @@ int dm_easy_mesh_agent_t::analyze_m2ctrl_configuration(em_bus_event_t *evt, wifi
     }
 
     if ((webconfig_easymesh_encode(&config, &dev_data, type, &webconfig_easymesh_raw_data_ptr )) == webconfig_error_none) {
-        //printf("%s:%d Private subdoc encode success %s\n",__func__, __LINE__,webconfig_easymesh_raw_data_ptr);
+        printf("%s:%d Private subdoc encode success %s\n",__func__, __LINE__,webconfig_easymesh_raw_data_ptr);
     } else {
         printf("%s:%d Private subdoc encode fail\n",__func__, __LINE__);
         return 0;
@@ -533,7 +533,7 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
 	}
 
 	if ((webconfig_easymesh_encode(&config, &dev_data, type, &webconfig_easymesh_raw_data_ptr )) == webconfig_error_none) {
-		//printf("%s:%d Radio subdoc encode success %s\n",__func__, __LINE__,webconfig_easymesh_raw_data_ptr);
+		printf("%s:%d Radio subdoc encode success %s\n",__func__, __LINE__,webconfig_easymesh_raw_data_ptr);
 	} else {
 		printf("%s:%d Radio subdoc encode fail\n",__func__, __LINE__);
 		return 0;
