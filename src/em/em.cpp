@@ -184,6 +184,11 @@ void em_t::orch_execute(em_cmd_t *pcmd)
         
         case em_cmd_type_mld_reconfig:
             m_sm.set_state(em_state_ctrl_ap_mld_config_pending);
+            break;
+
+        case em_cmd_type_beacon_report:
+            m_sm.set_state(em_state_agent_beacon_report_pending);
+            break;
     }
 }
 
@@ -248,6 +253,8 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
 
         case em_msg_type_assoc_sta_link_metrics_query:
         case em_msg_type_assoc_sta_link_metrics_rsp:
+        case em_msg_type_beacon_metrics_query:
+        case em_msg_type_beacon_metrics_rsp:
             em_metrics_t::process_msg(data, len);
             break;
 
@@ -270,6 +277,10 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
             } else {
                 em_steering_t::process_msg(data, len);
             }
+            break;
+
+        case em_msg_type_map_policy_config_req:
+            em_policy_cfg_t::process_msg(data, len);
             break;
         
         default:
@@ -331,6 +342,12 @@ void em_t::handle_agent_state()
 				em_channel_t::process_state();
 			}
 			break;
+
+        case em_cmd_type_beacon_report:
+            if (m_sm.get_state() == em_state_agent_beacon_report_pending) {
+                em_metrics_t::process_agent_state();
+            }
+            break;
 
         default:
             break;
@@ -974,6 +991,7 @@ const char *em_t::state_2_str(em_state_t state)
 		EM_STATE_2S(em_state_agent_channel_scan_result_pending)
         EM_STATE_2S(em_state_ctrl_ap_mld_config_pending)
         EM_STATE_2S(em_state_ctrl_ap_mld_configured)
+        EM_STATE_2S(em_state_agent_beacon_report_pending)
     }
 
     return "em_state_unknown";

@@ -79,6 +79,11 @@ dm_easy_mesh_t dm_easy_mesh_t::operator =(dm_easy_mesh_t const& obj)
 
     memcpy(&m_db_cfg_param, &obj.m_db_cfg_param, sizeof(em_db_cfg_param_t));
 
+    m_num_policy = obj.m_num_policy;
+    for (unsigned int i = 0; i < EM_MAX_POLICIES; i++) {
+        memcpy(&m_policy[i], &obj.m_policy[i], sizeof(dm_policy_t));
+    }
+
     sta = (dm_sta_t *)hash_map_get_first(obj.m_sta_map);
     while (sta != NULL) {
         dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
