@@ -555,7 +555,6 @@ void em_agent_t::input_listener()
 int em_agent_t::beacon_report_cb(char *event_name, raw_data_t *data)
 {
     //printf("%s:%d Received Frame data for event [%s] and data :\n%s\n", __func__, __LINE__, event_name, data->raw_data.bytes);
-    sta_beacon_report_reponse_t *temp_data_t = (sta_beacon_report_reponse_t *)data->raw_data.bytes;
 
     g_agent.io_process(em_bus_event_type_beacon_report, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
