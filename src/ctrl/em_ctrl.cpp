@@ -51,7 +51,7 @@ const char *global_netid = "OneWifiMesh";
 AlServiceAccessPoint* g_sap;
 MacAddress g_al_mac_sap;
 
-#define SOCKET_PATH "/tmp/tunnel_2_in"
+#define SOCKET_PATH "/tmp/ieee1905_tunnel"
 
 void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
 {
