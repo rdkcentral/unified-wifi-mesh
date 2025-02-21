@@ -52,6 +52,7 @@
 #include "al_service_access_point.hpp"
 
 extern AlServiceAccessPoint* g_sap;
+extern MacAddress g_al_mac_sap;
 
 void em_t::orch_execute(em_cmd_t *pcmd)
 {
@@ -545,12 +546,11 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     int ret = 0;
 #ifdef AL_SAP
     AlServiceDataUnit sdu;
+    sdu.setSourceAlMacAddress(g_al_mac_sap);
     if (m_service_type == em_service_type_agent) {
-        sdu.setSourceAlMacAddress({0x11, 0x11, 0x11, 0x11, 0x11, 0x11});
-        sdu.setDestinationAlMacAddress({0x22, 0x22, 0x22, 0x22, 0x22, 0x22});
+        sdu.setDestinationAlMacAddress({0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
     } else if (m_service_type == em_service_type_ctrl) {
-        sdu.setSourceAlMacAddress({0x22, 0x22, 0x22, 0x22, 0x22, 0x22});
-        sdu.setDestinationAlMacAddress({0x11, 0x11, 0x11, 0x11, 0x11, 0x11});
+        sdu.setDestinationAlMacAddress({0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
     }
 
     std::vector<unsigned char> payload;
@@ -560,6 +560,12 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     sdu.setPayload(payload);
 
     g_sap->serviceAccessPointDataRequest(sdu);
+
+    std::cout << "Sent frame sap:" << std::endl;
+    for (auto byte : payload) {
+        std::cout << std::hex << static_cast<int>(byte) << " ";
+    }
+    std::cout << std::dec << std::endl;
 #else
     em_interface_t *al;
     em_short_string_t   ifname;
@@ -582,6 +588,12 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
 
     ret = sendto(sock, buff, len, 0, (const struct sockaddr*)&sadr_ll, sizeof(struct sockaddr_ll));   
 
+    std::cout << "Sent frame no sap:" << std::endl;
+    for (int i = 0; i < len; i++) {
+        std::cout << std::hex << static_cast<int>(buff[i]) << " ";
+    }
+    std::cout << std::dec << std::endl;
+    
     close(sock);
 #endif
     return ret;

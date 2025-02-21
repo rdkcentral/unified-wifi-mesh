@@ -41,7 +41,7 @@
 #include "al_service_access_point.hpp"
 
 #define RETRY_SLEEP_INTERVAL_IN_MS 1000
-#define SOCKET_PATH "/tmp/tunnel_1_in"
+#define SOCKET_PATH "/tmp/ieee1905_tunnel"
 
 em_agent_t g_agent;
 const char *global_netid = "OneWifiMesh";
