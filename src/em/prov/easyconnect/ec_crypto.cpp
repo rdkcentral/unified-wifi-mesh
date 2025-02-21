@@ -1,5 +1,6 @@
 #include "ec_session.h"
 #include "em_crypto.h"
+#include "ec_util.h"
 
 int ec_session_t::compute_intermediate_key(bool is_first)
 {       
@@ -10,33 +11,33 @@ int ec_session_t::compute_intermediate_key(bool is_first)
     const char *info = is_first ? "first intermediate key" : "second intermediate key";
 
     // The key to store
-    unsigned char *key = is_first ? m_params.k1 : m_params.k2;
+    uint8_t *key = is_first ? m_params.k1 : m_params.k2;
 
     primelen = BN_num_bytes(m_params.prime);
 
-    unsigned char m[2048];
+    uint8_t m[2048];
     memset(m, 0, primelen);
 
     offset = primelen - BN_num_bytes(x);
 
     BN_bn2bin(x, m + offset);
     if ((keylen = hkdf(m_params.hashfcn, 0, m, primelen, NULL, 0, 
-                    (unsigned char *)info, strlen(info),
+                    (uint8_t *)info, strlen(info),
                     key, m_params.digestlen)) == 0) {
         printf("%s:%d: Failed in hashing\n", __func__, __LINE__);
         return -1;
     }
 
     printf("Key:\n"); 
-    print_hex_dump(m_params.digestlen, key);
+    ec_util::print_hex_dump(m_params.digestlen, key);
 
     return 0;
 }       
 
-int ec_session_t::compute_key_hash(EC_KEY *key, unsigned char *digest, const char *prefix)
+int ec_session_t::compute_key_hash(EC_KEY *key, uint8_t *digest, const char *prefix)
 {
     BIO *bio;
-    unsigned char *asn1;
+    uint8_t *asn1;
     int asn1len;
     uint8_t *addr[2];      // Array of addresses for our two elements
     uint32_t len[2];       // Array of lengths for our two elements
@@ -69,60 +70,11 @@ int ec_session_t::compute_key_hash(EC_KEY *key, unsigned char *digest, const cha
     return SHA256_DIGEST_LENGTH;
 }
 
-
-
-void ec_session_t::print_bignum (BIGNUM *bn)
+int ec_session_t::hkdf (const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen,
+        uint8_t *salt, int saltlen, uint8_t *info, int infolen,
+        uint8_t *okm, int okmlen)
 {
-    unsigned char *buf;
-    int len;
-
-    len = BN_num_bytes(bn);
-    if ((buf = (unsigned char *)malloc(len)) == NULL) {
-        printf("Could not print bignum\n");
-        return;
-    }
-    BN_bn2bin(bn, buf);
-    print_hex_dump(len, buf);
-    free(buf);
-}
-
-void ec_session_t::print_ec_point (const EC_GROUP *group, BN_CTX *bnctx, EC_POINT *point)
-{
-    BIGNUM *x = NULL, *y = NULL;
-
-    if ((x = BN_new()) == NULL) {
-        printf("%s:%d:Could not print ec_point\n", __func__, __LINE__);
-        return;
-    }
-
-    if ((y = BN_new()) == NULL) {
-        BN_free(x);
-        printf("%s:%d:Could not print ec_point\n", __func__, __LINE__);
-        return;
-    }
-
-    if (EC_POINT_get_affine_coordinates_GFp(group, point, x, y, bnctx) == 0) {
-        BN_free(y);
-        BN_free(x);
-        printf("%s:%d:Could not print ec_point\n", __func__, __LINE__);
-        return;
-
-    }
-
-    printf("POINT.x:\n");
-    print_bignum(x);
-    printf("POINT.y:\n");
-    print_bignum(y);
-
-    BN_free(y);
-    BN_free(x);
-}
-
-int ec_session_t::hkdf (const EVP_MD *h, int skip, unsigned char *ikm, int ikmlen,
-        unsigned char *salt, int saltlen, unsigned char *info, int infolen,
-        unsigned char *okm, int okmlen)
-{
-    unsigned char *prk, *tweak, ctr, *digest;
+    uint8_t *prk, *tweak, ctr, *digest;
     int len;
     unsigned int digestlen, prklen, tweaklen;
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
@@ -132,7 +84,7 @@ int ec_session_t::hkdf (const EVP_MD *h, int skip, unsigned char *ikm, int ikmle
 #endif
 
     digestlen = prklen = EVP_MD_size(h);
-    if ((digest = (unsigned char *)malloc(digestlen)) == NULL) {
+    if ((digest = (uint8_t *)malloc(digestlen)) == NULL) {
         perror("malloc");
         return 0;
     }
@@ -146,7 +98,7 @@ int ec_session_t::hkdf (const EVP_MD *h, int skip, unsigned char *ikm, int ikmle
         /*
          * if !skip then do HKDF-extract
          */
-        if ((prk = (unsigned char *)malloc(digestlen)) == NULL) {
+        if ((prk = (uint8_t *)malloc(digestlen)) == NULL) {
             free(digest);
             perror("malloc");
             return 0;
@@ -155,7 +107,7 @@ int ec_session_t::hkdf (const EVP_MD *h, int skip, unsigned char *ikm, int ikmle
          * if there's no salt then use all zeros
          */
         if (!salt || (saltlen == 0)) {
-            if ((tweak = (unsigned char *)malloc(digestlen)) == NULL) {
+            if ((tweak = (uint8_t *)malloc(digestlen)) == NULL) {
                 free(digest);
                 free(prk);
                 perror("malloc");
@@ -201,10 +153,10 @@ int ec_session_t::hkdf (const EVP_MD *h, int skip, unsigned char *ikm, int ikmle
 #endif
         }
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
-        HMAC_Update(&ctx, &ctr, sizeof(unsigned char));
+        HMAC_Update(&ctx, &ctr, sizeof(uint8_t));
         HMAC_Final(&ctx, digest, &digestlen);
 #else
-        HMAC_Update(ctx, &ctr, sizeof(unsigned char));
+        HMAC_Update(ctx, &ctr, sizeof(uint8_t));
         HMAC_Final(ctx, digest, &digestlen);
 #endif
         if ((len + digestlen) > okmlen) {

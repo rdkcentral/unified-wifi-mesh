@@ -109,7 +109,7 @@ int dm_dpp_t::decode(const cJSON *obj, void *parent_id, void* user_info)
             if (slash_pos != std::string::npos) {
                 uint8_t op_class = std::stoi(pair.substr(0, slash_pos));
                 uint8_t channel = std::stoi(pair.substr(slash_pos + 1));
-                int freq = em_chan_to_freq(std::string(country_code), op_class, channel);
+                int freq = em_chan_to_freq(op_class, channel, std::string(country_code));
                 if (freq > 0) {
                     m_dpp_info.ec_freqs[pair_idx] = freq;
                     pair_idx++;
