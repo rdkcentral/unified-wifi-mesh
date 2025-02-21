@@ -329,10 +329,20 @@ void em_agent_t::handle_channel_scan_result(em_bus_event_t *evt)
 
 void em_agent_t::handle_channel_scan_params(em_bus_event_t *evt)
 {
+    printf("%s:%d: Scan Parameters received\n", __func__, __LINE__);
 #ifdef SCAN_RESULT_TEST
-	printf("%s:%d: Scan Parameters received\n", __func__, __LINE__);
 	m_simulator.configure(m_data_model, (em_scan_params_t *)evt->u.raw_buff);
 #endif
+    unsigned int num;
+    wifi_bus_desc_t *desc;
+
+    if((desc = get_bus_descriptor()) == NULL) {
+       printf("descriptor is null");
+    }
+
+    if ((num = m_data_model.analyze_scan_request(evt, desc, &m_bus_hdl)) == 0) {
+	    printf("analyze scan request failed\n");
+    }
 }
 
 void em_agent_t::handle_bus_event(em_bus_event_t *evt)
@@ -503,7 +513,34 @@ void em_agent_t::input_listener()
         return;
     }
 
+    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.ChannelScanReport", (void *)&em_agent_t::channel_scan_cb, NULL, 0) != 0) {
+        printf("%s:%d bus get failed\n", __func__, __LINE__);
+        return;
+    }
+
     io(NULL);
+}
+
+int em_agent_t::channel_scan_cb(char *event_name, raw_data_t *data)
+{
+    cJSON *json, *channel_stats_arr;
+    printf("%s:%d: Scan Results received\n", __func__, __LINE__);
+    //printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
+
+    json = cJSON_Parse((const char *)data->raw_data.bytes);
+    if (json != NULL) {
+        channel_stats_arr = cJSON_GetObjectItem(json, "ChannelScanResponse");
+        if ((channel_stats_arr == NULL) && (cJSON_IsObject(channel_stats_arr) == false)) {
+            return -1;
+        }
+        if (cJSON_IsArray(channel_stats_arr) && cJSON_GetArraySize(channel_stats_arr) == 0) {
+            return -1;
+        }
+    }
+
+    g_agent.io_process(em_bus_event_type_scan_result, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
+
+    return 1;
 }
 
 int em_agent_t::mgmt_action_frame_cb(char *event_name, raw_data_t *data)

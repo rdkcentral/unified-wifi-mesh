@@ -174,7 +174,7 @@ func CreateEasyMeshCommands() map[string]EasyMeshCmd {
 		NeighborsListCmd: {
 			Title:                NeighborsListCmd,
 			LoadOrder:            5,
-			GetCommand:           "get_channel OneWifiMesh",
+			GetCommand:           "scan_result OneWifiMesh",
 			GetCommandEx:         "get_channel OneWifiMesh 2",
 			SetCommand:           "scan_channel OneWifiMesh",
 			Help:                 "",

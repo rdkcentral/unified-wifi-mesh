@@ -91,6 +91,11 @@ dm_easy_mesh_t dm_easy_mesh_t::operator =(dm_easy_mesh_t const& obj)
 
     m_em = obj.m_em;
 
+    this->m_num_scan_results = obj.m_num_scan_results;
+    for (unsigned int i = 0; i < obj.m_num_scan_results; i++) {
+        memcpy(&m_scan_result[i], &obj.m_scan_result[i], sizeof(dm_scan_result_t));
+    }
+
     return *this;
 }
 

@@ -285,7 +285,7 @@ short em_channel_t::create_channel_scan_res_tlv(unsigned char *buff, unsigned in
 	unsigned short param;
 	em_channel_scan_result_t *res = (em_channel_scan_result_t *)buff;
 
-    dm = get_data_model();
+    dm = get_current_cmd()->get_data_model();
 	scan_res = &dm->m_scan_result[index];
 
 	memcpy(res->ruid, get_radio_interface_mac(), sizeof(mac_address_t));	
@@ -438,13 +438,18 @@ int em_channel_t::send_channel_scan_report_msg(unsigned int *last_index)
 	unsigned int i, start_idx = *last_index;
 	unsigned char time_len;
 
-    dm = get_data_model();
-
-    memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
+    if (get_current_cmd() == NULL) {
+        return -1;
+    }
+    dm = get_current_cmd()->get_data_model();
+    if (dm == NULL) {
+        return -1;
+    }
+    memcpy(tmp, get_data_model()->get_ctl_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
-    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    memcpy(tmp, get_data_model()->get_agent_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
@@ -2010,7 +2015,13 @@ void em_channel_t::process_state()
 
 		case em_state_agent_channel_scan_result_pending:
             if (get_service_type() == em_service_type_agent) {
-				dm = get_data_model();
+                if (get_current_cmd() == NULL) {
+                    break;
+                }
+                dm = get_current_cmd()->get_data_model();
+                if (dm == NULL) {
+                    break;
+                }
 				while (last_index < dm->m_num_scan_results) {
                 	send_channel_scan_report_msg(&last_index);
 				}
