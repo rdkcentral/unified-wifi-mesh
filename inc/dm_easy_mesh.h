@@ -194,16 +194,16 @@ public:
 	dm_policy_t *get_policy(unsigned int index) { return &m_policy[index]; }
     dm_policy_t& get_policy_by_ref(unsigned int index) { return m_policy[index]; }
 
-	unsigned int get_num_scan_results() { return m_num_scan_results; }
+    unsigned int get_num_scan_results() { return m_num_scan_results; }
     static unsigned int get_num_scan_results(void *dm) { return ((dm_easy_mesh_t *)dm)->get_num_scan_results(); }
-	void set_num_scan_results(unsigned int num) { m_num_scan_results = num; }
+    void set_num_scan_results(unsigned int num) { m_num_scan_results = num; }
     static void set_num_scan_results(void *dm, unsigned int num) { return ((dm_easy_mesh_t *)dm)->set_num_scan_results(num); }
-	dm_scan_result_t *get_scan_result(unsigned int index) { return &m_scan_result[index]; }
+    dm_scan_result_t *get_scan_result(unsigned int index) { return &m_scan_result[index]; }
     em_scan_result_t *get_scan_result_info(unsigned int index) { return m_scan_result[index].get_scan_result(); }
     static em_scan_result_t *get_scan_result_info(void *dm, unsigned int index) { return ((dm_easy_mesh_t *)dm)->get_scan_result_info(index); }
     dm_scan_result_t& get_scan_result_by_ref(unsigned int index) { return m_scan_result[index]; }
-	dm_scan_result_t *find_matching_scan_result(em_scan_result_id_t *id);
-	void remove_scan_result_by_index(unsigned int index);
+    dm_scan_result_t *find_matching_scan_result(em_scan_result_id_t *id);
+    void remove_scan_result_by_index(unsigned int index);
 
     unsigned int get_num_ap_mld() { return m_num_ap_mld; }
     static unsigned int get_num_ap_mld(void *dm) { return ((dm_easy_mesh_t *)dm)->get_num_ap_mld(); }
