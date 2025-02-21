@@ -1875,6 +1875,7 @@ void dm_easy_mesh_ctrl_t::init_network_topology()
     while (dm != NULL) {
         if (dm->get_colocated() == true) {
             m_topology = new em_network_topo_t(dm);
+            set_network_initialized();
             dm_easy_mesh_t::macbytes_to_string(dm->m_device.m_device_info.intf.mac, dev_mac_str);
             printf("%s:%d: Root: %s  added to network topology\n", __func__, __LINE__, dev_mac_str);
             break;
