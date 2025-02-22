@@ -34,7 +34,11 @@
 
 #include "util.h"
 
-char *get_date_time_rfc3399(char *buff, unsigned int len)
+extern "C" {
+    extern char *__progname;
+}
+
+char *util::get_date_time_rfc3399(char *buff, unsigned int len)
 {
 	time_t now;
     struct tm *timeinfo;
@@ -48,7 +52,7 @@ char *get_date_time_rfc3399(char *buff, unsigned int len)
 	return buff;
 }
 
-void add_milliseconds(struct timespec *ts, long milliseconds)
+void util::add_milliseconds(struct timespec *ts, long milliseconds)
 {
 	long seconds = milliseconds / 1000;
     long nanoseconds = (milliseconds % 1000) * 1000000;
@@ -64,7 +68,7 @@ void add_milliseconds(struct timespec *ts, long milliseconds)
 
 }
 
-void delay(int seconds) {
+void util::delay(int seconds) {
     time_t start_time, current_time;
 
     // Get current time
@@ -91,71 +95,119 @@ char *get_formatted_time_em(char *time)
     return time;
 }
 
-void em_util_print(easymesh_log_level_t level, easymesh_dbg_type_t module, const char *func, int line, const char *format, ...)
+std::pair<FILE*, std::string> get_module_log_fd_name(easymesh_dbg_type_t module, easymesh_log_level_t level) {
+    std::string filename_dbg_enable = std::string(LOG_PATH_PREFIX);
+    std::string module_filename;
+
+    switch (module) {
+        case EM_AGENT:
+            filename_dbg_enable += "emAgentDbg";
+            module_filename = "emAgent";
+            break;
+        case EM_CTRL:
+            filename_dbg_enable += "emCtrlDbg";
+            module_filename = "emCtrl";
+            break;
+        case EM_MGR:
+            filename_dbg_enable += "emMgrDbg";
+            module_filename = "emMgr";
+            break;
+        case EM_DB:
+            filename_dbg_enable += "emDbDbg";
+            module_filename = "emDb";
+            break;
+        case EM_PROV:
+            filename_dbg_enable += "emProvDbg";
+            module_filename = "emProv";
+            break;
+        case EM_CONF:
+            filename_dbg_enable += "emConfDbg";
+            module_filename = "emConf";
+            break;
+        case EM_STDOUT:
+            return std::make_pair(stdout, "");
+    }
+
+    bool debug_enabled = ((access(filename_dbg_enable.c_str(), R_OK)) == 0);
+    
+    if (debug_enabled) {
+        std::string filename = "/tmp/" + module_filename;
+        return std::make_pair(fopen(filename.c_str(), "a+"), module_filename);
+    }
+
+    switch (level) {
+        case EM_LOG_LVL_INFO:
+        case EM_LOG_LVL_ERROR: {
+            std::string filename = "/rdklogs/logs/" + module_filename + ".txt";
+            return std::make_pair(fopen(filename.c_str(), "a+"), module_filename);
+        }
+        case EM_LOG_LVL_DEBUG:
+        default:
+            break;
+    }
+
+    return std::make_pair(nullptr, std::string());
+}
+
+void util::print_hex_dump(unsigned int length, uint8_t *buffer, easymesh_dbg_type_t module)
+{
+    int i;
+    uint8_t buff[512] = {};
+    const uint8_t * pc = (const uint8_t *)buffer;
+
+    auto [fp, module_filename] = get_module_log_fd_name(module, EM_LOG_LVL_DEBUG);
+    if (fp == NULL) {
+        return;
+    }
+
+    if ((pc == NULL) || (length <= 0)) {
+        fprintf(fp,"buffer NULL or BAD LENGTH = %d :\n", length);
+        if (fp != stdout) fclose (fp);
+        return;
+    }
+
+    for (i = 0; i < length; i++) {
+        if ((i % 16) == 0) {
+            if (i != 0)
+                fprintf(fp,"  %s\n", buff);
+            fprintf(fp,"  %04x ", i);
+        }
+
+        fprintf(fp," %02x", pc[i]);
+
+        if (!isprint(pc[i]))
+            buff[i % 16] = '.';
+        else
+            buff[i % 16] = pc[i];
+        buff[(i % 16) + 1] = '\0';
+    }
+
+    while ((i % 16) != 0) {
+        fprintf(fp,"   ");
+        i++;
+    }
+
+    fprintf(fp,"  %s\n", buff);
+    if (fp != stdout) fclose (fp);
+}
+
+
+
+void util::em_util_print(easymesh_log_level_t level, easymesh_dbg_type_t module, const char *func, int line, const char *format, ...)
 {
     char buff[256] = {0};
     char time_buff[128] = {0};
     va_list list;
-    FILE *fpg = NULL;
 #if defined(__ENABLE_PID__) && (__ENABLE_PID__)
     pid_t pid;
 #endif
-    extern char *__progname;
-    char filename_dbg_enable[64];
-    char module_filename[32];
-    char filename[100];
+    
     const char *severity;
 
-    switch (module) {
-        case EM_AGENT:
-            snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emAgentDbg");
-            snprintf(module_filename, sizeof(module_filename), "emAgent");
-            break;
-        case EM_CTRL:
-            snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emCtrlDbg");
-            snprintf(module_filename, sizeof(module_filename), "emCtrl");
-            break;
-        case EM_MGR:
-            snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emMgrDbg");
-            snprintf(module_filename, sizeof(module_filename), "emMgr");
-            break;
-        case EM_DB:
-            snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emDbDbg");
-            snprintf(module_filename, sizeof(module_filename), "emDb");
-            break;
-        case EM_PROV:
-            snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emProvDbg");
-            snprintf(module_filename, sizeof(module_filename), "emProv");
-            break;
-        case EM_CONF:
-            snprintf(filename_dbg_enable, sizeof(filename_dbg_enable), LOG_PATH_PREFIX "emConfDbg");
-            snprintf(module_filename, sizeof(module_filename), "emConf");
-            break;
-        default:
-            return;
-    }
+    auto [fp, module_filename] = get_module_log_fd_name(module, level);
+    if (fp == NULL) return; 
 
-    if ((access(filename_dbg_enable, R_OK)) == 0) {
-        snprintf(filename, sizeof(filename), "/tmp/%s", module_filename);
-        fpg = fopen(filename, "a+");
-        if (fpg == NULL) {
-            return;
-        }
-    } else {
-        switch (level) {
-            case EM_LOG_LVL_INFO:
-            case EM_LOG_LVL_ERROR:
-                snprintf(filename, sizeof(filename), "/rdklogs/logs/%s.txt", module_filename);
-                fpg = fopen(filename, "a+");
-                if (fpg == NULL) {
-                    return;
-                }
-                break;
-            case EM_LOG_LVL_DEBUG:
-            default:
-                return;
-        }
-    }
+
 
     switch (level) {
         case EM_LOG_LVL_INFO:
@@ -174,14 +226,14 @@ void em_util_print(easymesh_log_level_t level, easymesh_dbg_type_t module, const
 
     get_formatted_time_em(time_buff);
     snprintf(buff, sizeof(buff), "\n[%s] %s %s:%s:%d: %s: ", __progname ? __progname : "", time_buff, module_filename, func, line, severity);
-    fprintf(fpg, "%s", buff);
+    fprintf(fp, "%s", buff);
 
     va_start(list, format);
-    vfprintf(fpg, format, list);
+    vfprintf(fp, format, list);
     va_end(list);
 
-    fflush(fpg);
-    fclose(fpg);
+    fflush(fp);
+    if (fp != stdout) fclose (fp);
 }
 
 
@@ -281,7 +333,7 @@ const std::vector<freq_range> frequency_ranges = {
     {6, 149, 157, 5000, 5, "CN"}     // 5 GHz 40MHz channels 149,157
 };
 
-int em_chan_to_freq(uint8_t op_class, uint8_t channel, const std::string& region) {
+int util::em_chan_to_freq(uint8_t op_class, uint8_t channel, const std::string& region) {
     for (const auto& range : frequency_ranges) {
         if ((range.region.empty() || range.region == region) && 
             range.op_class == op_class &&
@@ -293,7 +345,7 @@ int em_chan_to_freq(uint8_t op_class, uint8_t channel, const std::string& region
     return -1;
 }
 
-std::pair<uint8_t, uint8_t> em_freq_to_chan(int frequency, const std::string& region) {
+std::pair<uint8_t, uint8_t> util::em_freq_to_chan(int frequency, const std::string& region) {
     std::pair<uint8_t, uint8_t> global_result;
     
     for (const auto& range : frequency_ranges) {

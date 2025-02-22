@@ -1582,42 +1582,6 @@ unsigned char *dm_easy_mesh_t::unhex(unsigned int in_len, char *in, unsigned int
     return out;
 }
 
-
-void dm_easy_mesh_t::print_hex_dump(unsigned int length, unsigned char *buffer)
-{
-    int i;
-    unsigned char buff[512] = {};
-    const unsigned char * pc = (const unsigned char *)buffer;
-
-    if ((pc == NULL) || (length <= 0)) {
-        printf ("buffer NULL or BAD LENGTH = %d :\n", length);
-        return;
-    }
-
-    for (i = 0; i < length; i++) {
-        if ((i % 16) == 0) {
-            if (i != 0)
-                printf ("  %s\n", buff);
-            printf ("  %04x ", i);
-        }
-
-        printf (" %02x", pc[i]);
-
-        if (!isprint(pc[i]))
-            buff[i % 16] = '.';
-        else
-            buff[i % 16] = pc[i];
-        buff[(i % 16) + 1] = '\0';
-    }
-
-    while ((i % 16) != 0) {
-        printf ("   ");
-        i++;
-    }
-
-    printf ("  %s\n", buff);
-}
-
 char *dm_easy_mesh_t::macbytes_to_string(mac_address_t mac, char* string)
 {
     if( mac != NULL) {

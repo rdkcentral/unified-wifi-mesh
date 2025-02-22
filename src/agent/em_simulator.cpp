@@ -86,7 +86,7 @@ bool em_simulator_t::run(dm_easy_mesh_agent_t& dm)
 			res->m_scan_result.id.channel = m_param.u.scan_params.op_class[i].channels[j];
 			res->m_scan_result.scan_status = 0;
 
-			get_date_time_rfc3399(time_date, sizeof(time_date));
+			util::get_date_time_rfc3399(time_date, sizeof(time_date));
 
 			strncpy(res->m_scan_result.timestamp, time_date, strlen(time_date) + 1);
 			res->m_scan_result.util = 20;

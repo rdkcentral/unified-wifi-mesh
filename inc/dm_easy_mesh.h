@@ -270,7 +270,6 @@ public:
     bool has_at_least_one_associated_sta();
     int get_num_bss_for_associated_sta(mac_address_t sta_mac);
     
-    static void print_hex_dump(unsigned int length, unsigned char *buffer);
     static char *hex(unsigned int in_len, unsigned char *in, unsigned int out_len, char *out);
     static unsigned char *unhex(unsigned int in_len, char *in, unsigned int out_len, unsigned char *out);
     static char *macbytes_to_string(mac_address_t mac, char* string);

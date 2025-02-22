@@ -292,7 +292,7 @@ short em_channel_t::create_channel_scan_res_tlv(unsigned char *buff, unsigned in
 	memcpy(&res->op_class, &scan_res->m_scan_result.id.op_class, sizeof(unsigned char));
 	memcpy(&res->channel, &scan_res->m_scan_result.id.channel, sizeof(unsigned char));
 	res->scan_status = scan_res->m_scan_result.scan_status;
-	get_date_time_rfc3399(date_time, sizeof(date_time));
+	util::get_date_time_rfc3399(date_time, sizeof(date_time));
 	memcpy(res->timestamp, date_time, strlen(date_time) + 1);
 	res->timestamp_len = strlen(date_time);	
 	
@@ -466,7 +466,7 @@ int em_channel_t::send_channel_scan_report_msg(unsigned int *last_index)
     // One Timestamp TLV (see section 17.2.41).
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_timestamp;
-	get_date_time_rfc3399(date_time, sizeof(date_time));
+	util::get_date_time_rfc3399(date_time, sizeof(date_time));
 	sz = strlen(date_time) + 1;
 	time_len = strlen(date_time);
 	memcpy(tlv->value, &time_len, sizeof(unsigned char));

@@ -1,6 +1,6 @@
 #include "ec_session.h"
 #include "em_crypto.h"
-#include "ec_util.h"
+#include "util.h"
 
 int ec_session_t::compute_intermediate_key(bool is_first)
 {       
@@ -29,7 +29,7 @@ int ec_session_t::compute_intermediate_key(bool is_first)
     }
 
     printf("Key:\n"); 
-    ec_util::print_hex_dump(m_params.digestlen, key);
+    util::print_hex_dump(m_params.digestlen, key);
 
     return 0;
 }       

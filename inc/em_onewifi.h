@@ -30,7 +30,6 @@ public:
     em_onewifi_t();
     ~em_onewifi_t();
 
-    static void print_hex_dump(unsigned int length, unsigned char *buffer);
     static char *macbytes_to_string(mac_address_t mac, char* string);
     static void string_to_macbytes (char *key, mac_address_t bmac);
     static int mac_address_from_name(const char *ifname, mac_address_t mac);
