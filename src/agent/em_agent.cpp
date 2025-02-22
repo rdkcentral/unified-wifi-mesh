@@ -38,7 +38,6 @@
 #include "em_cmd_agent.h"
 #include "em_orch_agent.h"
 #include "util.h"
-#include "ec_util.h"
 
 #define RETRY_SLEEP_INTERVAL_IN_MS 1000
 
@@ -619,7 +618,7 @@ int em_agent_t::mgmt_action_frame_cb(char *event_name, raw_data_t *data)
     struct ieee80211_mgmt *mgmt_frame = (struct ieee80211_mgmt *)data->raw_data.bytes;
     printf("%s:%d Received Frame data for event [%s] and data of len:\n%d\n", __func__, __LINE__, event_name, data->raw_data_len);
 
-    ec_util::print_hex_dump(data->raw_data_len, (uint8_t*)data->raw_data.bytes);
+   util::print_hex_dump(data->raw_data_len, (uint8_t*)data->raw_data.bytes);
 
     //printf("Received Frame data for event %s \n", event_name);
     if (mgmt_frame->u.action.u.bss_tm_resp.action == WLAN_WNM_BTM_RESPONSE) {

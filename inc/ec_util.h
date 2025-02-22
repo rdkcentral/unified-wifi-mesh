@@ -128,7 +128,6 @@ public:
      */
     static uint16_t freq_to_channel_attr(unsigned int freq);
 
-    static void print_hex_dump(unsigned int length, uint8_t *buffer);
     static void print_bignum (BIGNUM *bn);
     static void print_ec_point (const EC_GROUP *group, BN_CTX *bnctx, EC_POINT *point);
 

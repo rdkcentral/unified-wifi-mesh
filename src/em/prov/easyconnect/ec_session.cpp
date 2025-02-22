@@ -427,7 +427,7 @@ int ec_session_t::set_auth_frame_wrapped_data(ec_frame_t *frame, unsigned int no
             frame->attributes, non_wrapped_len); // Used for SIV (authentication)
 
     //printf("%s:%d: Plain text:\n", __func__, __LINE__);
-    //print_hex_dump(noncelen, plain);
+    //util::print_hex_dump(noncelen, plain);
 
     return wrapped_len + AES_BLOCK_SIZE;
 }

@@ -52,45 +52,10 @@ uint8_t* ec_util::add_attrib(uint8_t *buff, ec_attrib_id_t id, uint16_t len, uin
 
 uint16_t ec_util::freq_to_channel_attr(unsigned int freq)
 {
-    auto op_chan = em_freq_to_chan(freq);
+    auto op_chan = util::em_freq_to_chan(freq);
 
     auto [op_class, channel] = op_chan;
     return ((channel << 8) | (0x00ff & op_class));
-}
-
-void ec_util::print_hex_dump(unsigned int length, uint8_t *buffer)
-{
-    int i;
-    uint8_t buff[512] = {};
-    const uint8_t * pc = (const uint8_t *)buffer;
-
-    if ((pc == NULL) || (length <= 0)) {
-        printf ("buffer NULL or BAD LENGTH = %d :\n", length);
-        return;
-    }
-
-    for (i = 0; i < length; i++) {
-        if ((i % 16) == 0) {
-            if (i != 0)
-                printf ("  %s\n", buff);
-            printf ("  %04x ", i);
-        }
-
-        printf (" %02x", pc[i]);
-
-        if (!isprint(pc[i]))
-            buff[i % 16] = '.';
-        else
-            buff[i % 16] = pc[i];
-        buff[(i % 16) + 1] = '\0';
-    }
-
-    while ((i % 16) != 0) {
-        printf ("   ");
-        i++;
-    }
-
-    printf ("  %s\n", buff);
 }
 
 bool ec_util::validate_frame(const ec_frame_t *frame)
@@ -119,7 +84,7 @@ void ec_util::print_bignum (BIGNUM *bn)
         return;
     }
     BN_bn2bin(bn, buf);
-    print_hex_dump(len, buf);
+    util::print_hex_dump(len, buf);
     free(buf);
 }
 
