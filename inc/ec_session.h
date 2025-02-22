@@ -107,6 +107,9 @@ public:
      */
     int handle_pres_ann(uint8_t *buff, unsigned int len);
 
+
+    int handle_recv_ec_action_frame(ec_frame_t* frame, size_t len);
+
     ec_session_t();
     ~ec_session_t();
 };
