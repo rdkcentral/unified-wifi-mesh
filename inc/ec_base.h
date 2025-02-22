@@ -41,6 +41,8 @@ extern "C"
 #include "wifi_webconfig.h"
 
 #define DPP_OUI_TYPE 0x1A
+#define CCE_OUI_TYPE 0x1E
+
 #define DPP_MAX_EN_CHANNELS 4
 
 // As defined by EasyConnect 8.2.1 Table 35

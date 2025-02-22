@@ -93,7 +93,7 @@ void ec_util::print_hex_dump(unsigned int length, uint8_t *buffer)
     printf ("  %s\n", buff);
 }
 
-bool ec_util::validate_frame(const ec_frame_t *frame, ec_frame_type_t type)
+bool ec_util::validate_frame(const ec_frame_t *frame)
 {
     if ((frame->category != 0x04) 
             || (frame->action != 0x09)
@@ -101,8 +101,7 @@ bool ec_util::validate_frame(const ec_frame_t *frame, ec_frame_type_t type)
             || (frame->oui[1] != 0x6f)
             || (frame->oui[2] != 0x9a)
             || (frame->oui_type != DPP_OUI_TYPE)
-            || (frame->crypto_suite != 0x01)
-            || (frame->frame_type != type)) {
+            || (frame->crypto_suite != 0x01) ) {
         return false;
     }
 
