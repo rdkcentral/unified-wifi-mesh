@@ -1261,7 +1261,7 @@ void dm_easy_mesh_list_t::remove_scan_result(const char *key)
 	int index_to_remove = -1;
 	em_long_string_t list_key;
 	bool found_sta = false;
-	wifi_BeaconReport_t *rprt;
+	em_beacon_measurement_t *rprt;
 
 	dm_scan_result_t::parse_scan_result_id_from_key(key, &id, bssid);
 
@@ -1300,10 +1300,10 @@ void dm_easy_mesh_list_t::remove_scan_result(const char *key)
 		return;
 	}
 
-	for (i = 0; i < sta->m_sta_info.num_beacon_reports; i++) {
+	for (i = 0; i < sta->m_sta_info.num_beacon_meas_report; i++) {
 		rprt = &sta->m_sta_info.beacon_report[i];
 
-		if (memcmp(rprt->bssid, bssid, sizeof(bssid_t)) == 0) {
+		if (memcmp(rprt->br_bssid, bssid, sizeof(bssid_t)) == 0) {
 			index_to_remove = i;
 			break;
 		}
@@ -1313,11 +1313,11 @@ void dm_easy_mesh_list_t::remove_scan_result(const char *key)
 		return;
 	}
 
-	for (i = index_to_remove; i < sta->m_sta_info.num_beacon_reports - 1; i++) {
+	for (i = index_to_remove; i < sta->m_sta_info.num_beacon_meas_report - 1; i++) {
         memcpy(&sta->m_sta_info.beacon_report[i], &sta->m_sta_info.beacon_report[i + 1], sizeof(wifi_BeaconReport_t));
     }
     
-    sta->m_sta_info.num_beacon_reports--;
+    sta->m_sta_info.num_beacon_meas_report--;
 }
 
 void dm_easy_mesh_list_t::put_scan_result(const char *key, const dm_scan_result_t *scan_result)
@@ -1332,7 +1332,7 @@ void dm_easy_mesh_list_t::put_scan_result(const char *key, const dm_scan_result_
 	unsigned int i;
 	em_neighbor_t *nbr;
 	em_long_string_t list_key;
-	wifi_BeaconReport_t *rprt;
+	em_beacon_measurement_t *rprt;
 	
 	dm_scan_result_t::parse_scan_result_id_from_key(key, &id, bssid);
 
@@ -1397,12 +1397,12 @@ void dm_easy_mesh_list_t::put_scan_result(const char *key, const dm_scan_result_
 		return;
 	}
 
-	rprt = &sta->m_sta_info.beacon_report[sta->m_sta_info.num_beacon_reports];
-	rprt->opClass = scan_result->m_scan_result.id.op_class;	
-	rprt->channel = scan_result->m_scan_result.id.channel;
-	memcpy(rprt->bssid, &bssid, sizeof(bssid_t));
+	rprt = &sta->m_sta_info.beacon_report[sta->m_sta_info.num_beacon_meas_report];
+	rprt->br_op_class = scan_result->m_scan_result.id.op_class;	
+	rprt->br_channel = scan_result->m_scan_result.id.channel;
+	memcpy(rprt->br_bssid, &bssid, sizeof(bssid_t));
 		
-	sta->m_sta_info.num_beacon_reports++;
+	sta->m_sta_info.num_beacon_meas_report++;
 
 }
 
@@ -1508,7 +1508,7 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
     strncpy(dev->m_device_info.id.net_id, net_id, strlen(net_id) + 1);
 	if (colocated == true) {
 		dev->m_device_info.id.media = dm->m_network.m_net_info.media;
-		memcpy(dev->m_device_info.backhaul_mac.mac, al_mac, sizeof(mac_address_t));
+		memcpy(dev->m_device_info.backhaul_mac.mac, al_intf->mac, sizeof(mac_address_t));
 		dev->m_device_info.backhaul_mac.media = dm->m_network.m_net_info.media;
 		//Update the easymesh configuration file
 		dev->update_easymesh_json_cfg(colocated);
