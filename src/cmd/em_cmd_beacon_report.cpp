@@ -38,22 +38,28 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <cjson/cJSON.h>
-#include "em_cmd_start_dpp.h"
+#include "em_cmd_beacon_report.h"
 
-em_cmd_start_dpp_t::em_cmd_start_dpp_t(em_cmd_params_t param)
+em_cmd_beacon_report_t::em_cmd_beacon_report_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
 {
-    m_type = em_cmd_type_start_dpp;
-    memcpy(&m_param, &param, sizeof(em_cmd_params_t));
+    em_cmd_ctx_t ctx;
 
+    m_type = em_cmd_type_beacon_report;
+    memcpy(&m_param, &param, sizeof(em_cmd_params_t));
+    
     memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
 
     m_orch_op_idx = 0;
-    m_num_orch_desc = 0;
+    m_num_orch_desc = 1;
+    m_orch_desc[0].op = dm_orch_type_beacon_report;
+    m_orch_desc[0].submit = true;
 
-    get_orch_desc()->op = dm_orch_type_dpp_update;
-    get_orch_desc()->submit = true;
-
-    snprintf(m_name, sizeof(m_name), "%s", "start_dpp");
+    strncpy(m_name, "beacon_report", strlen("beacon_report") + 1);
     m_svc = em_service_type_ctrl;
+    init(&dm);
+
+    memset(&ctx, 0, sizeof(em_cmd_ctx_t));
+    ctx.type = m_orch_desc[0].op;
+    m_data_model.set_cmd_ctx(&ctx);
 }
 

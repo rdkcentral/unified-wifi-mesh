@@ -45,12 +45,13 @@ LDFLAGS = $(LIBDIRS) $(LIBS)
 LIBDIRS = \
 	-L$(INSTALLDIR)/lib \
 
-LIBS = -lemcli -lm -lpthread -ldl -lcjson -lreadline
+LIBS = -lemcli -lm -lpthread -ldl -lcjson -lreadline -lssl -lcrypto
 
 GENERIC_SOURCES = $(ONEWIFI_HOME)/source/utils/collection.c	\
 
 CLI_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/cli/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/cmd/*.cpp) \
+    $(wildcard $(ONEWIFI_EM_SRC)/em/crypto/*.cpp) \
     $(ONEWIFI_EM_SRC)/dm/dm_device.cpp \
     $(ONEWIFI_EM_SRC)/dm/dm_ieee_1905_security.cpp \
     $(ONEWIFI_EM_SRC)/dm/dm_easy_mesh.cpp \
@@ -94,7 +95,7 @@ $(MAIN_OBJECT): %.o: %.c
 	$(CXX) $(CFLAGS) -o $@ -c $<
 
 $(PROGRAM):
-	go build -o $(PROGRAM) $(ONEWIFI_EM_SRC)/cli/*.go
+	go build -ldflags="-extldflags '-L$(INSTALLDIR)/lib -lcrypto -lssl -luuid'" -o $(PROGRAM) $(ONEWIFI_EM_SRC)/cli/*.go
 
 # Clean target: "make -f Makefile.Linux clean" to remove unwanted objects and executables.
 #

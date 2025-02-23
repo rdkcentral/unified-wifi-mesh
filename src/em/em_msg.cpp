@@ -727,7 +727,7 @@ void em_msg_t::bh_sta_cap_rprt()
 }
 void em_msg_t::proxied_encap_dpp()
 {
-    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_encap_dpp, (m_profile > em_profile_type_2) ? mandatory:bad, "17.2.79 of Wi-Fi Easy Mesh 5.0", 12);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_1905_encap_dpp, (m_profile > em_profile_type_2) ? mandatory:bad, "17.2.79 of Wi-Fi Easy Mesh 5.0", 12);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_dpp_chirp_value, (m_profile > em_profile_type_2) ? optional:bad, "17.2.83 of Wi-Fi Easy Mesh 5.0", 4);
 }
 void em_msg_t::direct_encap_dpp()

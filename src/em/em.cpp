@@ -83,8 +83,23 @@ void em_t::orch_execute(em_cmd_t *pcmd)
 							em_state_agent_autoconfig_renew_pending:em_state_ctrl_misconfigured);
 			break;
 
-        case em_cmd_type_start_dpp:
+        case em_cmd_type_start_dpp: {
+            ec_data_t *dpp_info = pcmd->m_data_model.get_dpp()->get_dpp_info();
+            printf("ORCH: Start DPP\n");
+            printf("ORCH: DPP: \n");
+            printf("\tDPP: Version: %d\n", dpp_info->version);
+            dm_easy_mesh_t::macbytes_to_string(dpp_info->mac_addr, mac_str);
+            printf("\tDPP: MAC Address: %s\n", mac_str);
+            printf("\tDPP: Freqs: \n");
+            for (unsigned int i = 0; i < DPP_MAX_EN_CHANNELS; i++) {
+                if (dpp_info->ec_freqs[i] == 0) break;
+                printf("\t\tFreq: %d\n", dpp_info->ec_freqs[i]);
+            }
+
+            m_ec_session->init_session(dpp_info);
+            
             break;
+        }
 
         case em_cmd_type_ap_cap_query:
             m_sm.set_state(em_state_agent_ap_cap_report);
@@ -169,6 +184,11 @@ void em_t::orch_execute(em_cmd_t *pcmd)
         
         case em_cmd_type_mld_reconfig:
             m_sm.set_state(em_state_ctrl_ap_mld_config_pending);
+            break;
+
+        case em_cmd_type_beacon_report:
+            m_sm.set_state(em_state_agent_beacon_report_pending);
+            break;
     }
 }
 
@@ -233,6 +253,8 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
 
         case em_msg_type_assoc_sta_link_metrics_query:
         case em_msg_type_assoc_sta_link_metrics_rsp:
+        case em_msg_type_beacon_metrics_query:
+        case em_msg_type_beacon_metrics_rsp:
             em_metrics_t::process_msg(data, len);
             break;
 
@@ -255,6 +277,10 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
             } else {
                 em_steering_t::process_msg(data, len);
             }
+            break;
+
+        case em_msg_type_map_policy_config_req:
+            em_policy_cfg_t::process_msg(data, len);
             break;
         
         default:
@@ -289,6 +315,7 @@ void em_t::handle_agent_state()
             break;
 
         case em_cmd_type_start_dpp:
+            printf("%s:%d Handle Agent Start DPP\n", __func__, __LINE__);
             if ((m_sm.get_state() >= em_state_agent_unconfigured) && (m_sm.get_state() < em_state_agent_configured)) {
 				em_provisioning_t::process_agent_state();
             }
@@ -315,6 +342,12 @@ void em_t::handle_agent_state()
 				em_channel_t::process_state();
 			}
 			break;
+
+        case em_cmd_type_beacon_report:
+            if (m_sm.get_state() == em_state_agent_beacon_report_pending) {
+                em_metrics_t::process_agent_state();
+            }
+            break;
 
         default:
             break;
@@ -958,6 +991,7 @@ const char *em_t::state_2_str(em_state_t state)
 		EM_STATE_2S(em_state_agent_channel_scan_result_pending)
         EM_STATE_2S(em_state_ctrl_ap_mld_config_pending)
         EM_STATE_2S(em_state_ctrl_ap_mld_configured)
+        EM_STATE_2S(em_state_agent_beacon_report_pending)
     }
 
     return "em_state_unknown";

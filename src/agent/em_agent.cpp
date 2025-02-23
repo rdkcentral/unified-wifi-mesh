@@ -335,6 +335,38 @@ void em_agent_t::handle_channel_scan_params(em_bus_event_t *evt)
 #endif
 }
 
+void em_agent_t::handle_set_policy(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+    wifi_bus_desc_t *desc;
+    raw_data_t l_bus_data;
+
+    if((desc = get_bus_descriptor()) == NULL) {
+       printf("descriptor is null");
+    }
+
+    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+        printf("set policy in progress\n");
+    } else if ((num = m_data_model.analyze_set_policy(evt, desc, &m_bus_hdl)) == 0) {
+        printf("set policy failed\n");
+    }
+}
+
+void em_agent_t::handle_beacon_report(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+
+    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+        printf("analyze_beacon_report in progress\n");
+    } else if ((num = m_data_model.analyze_beacon_report(evt, pcmd)) == 0) {
+        printf("analyze_beacon_report failed\n");
+    } else if (m_orch->submit_commands(pcmd, num) > 0) {
+        printf("submitted beacon report cmd for orch\n");
+    }
+}
+
 void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 {   
     
@@ -401,6 +433,14 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 			handle_channel_scan_result(evt);
 			break;
 
+        case em_bus_event_type_set_policy:
+            handle_set_policy(evt);
+            break;
+
+        case em_bus_event_type_beacon_report:
+            handle_beacon_report(evt);
+            break;
+
         default:
             break;
     }    
@@ -449,6 +489,7 @@ void em_agent_t::handle_500ms_tick()
 {
     m_orch->handle_timeout();
 }
+
 
 void em_agent_t::input_listener()
 {
@@ -503,7 +544,21 @@ void em_agent_t::input_listener()
         return;
     }
 
+    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.BeaconReport", (void *)&em_agent_t::beacon_report_cb, NULL, 0) != 0) {
+        printf("%s:%d bus get failed\n", __func__, __LINE__);
+        return;
+    }
+
     io(NULL);
+}
+
+int em_agent_t::beacon_report_cb(char *event_name, raw_data_t *data)
+{
+    //printf("%s:%d Received Frame data for event [%s] and data :\n%s\n", __func__, __LINE__, event_name, data->raw_data.bytes);
+
+    g_agent.io_process(em_bus_event_type_beacon_report, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
+
+    return 0;
 }
 
 int em_agent_t::mgmt_action_frame_cb(char *event_name, raw_data_t *data)
@@ -542,14 +597,14 @@ int em_agent_t::assoc_stats_cb(char *event_name, raw_data_t *data)
     return 1;
 }
 
-int em_agent_t::sta_cb(char *event_name, raw_data_t *data)
+void em_agent_t::sta_cb(char *event_name, raw_data_t *data)
 {
     //printf("%s:%d Recv data from onewifi:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
     g_agent.io_process(em_bus_event_type_sta_list, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
 }
 
-int em_agent_t::onewifi_cb(char *event_name, raw_data_t *data)
+void em_agent_t::onewifi_cb(char *event_name, raw_data_t *data)
 {
 	const char *json_data = (char *)data->raw_data.bytes;
 	cJSON *json = cJSON_Parse(json_data);
@@ -573,7 +628,7 @@ int em_agent_t::onewifi_cb(char *event_name, raw_data_t *data)
 
 			} else {
 				printf("%s:%d SubDocName not matching private or radio \n", __func__, __LINE__);
-				return 0;
+				return;
 			}
 		} else {
 			printf("%s:%d SubDocName not found\n", __func__, __LINE__);
@@ -825,8 +880,22 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
         case em_msg_type_channel_pref_rprt:
         case em_msg_type_1905_ack:
         case em_msg_type_map_policy_config_req:
+            printf(" rcvd em_msg_type_map_policy_config_req\n");
+        
+            em = (em_t *)hash_map_get_first(m_em_map);
+            while (em != NULL) {
+                if ((em->is_al_interface_em() == false)) {
+                    printf(" em found for policy cfg\n");
+                    break;
+                }
+                em = (em_t *)hash_map_get_next(m_em_map, em);
+            }
+            break;
+
 		case em_msg_type_channel_scan_rprt:
+        case em_msg_type_beacon_metrics_rsp:
         case em_msg_type_ap_mld_config_resp:
+        case em_msg_type_beacon_metrics_query:
             break;
 
         default:

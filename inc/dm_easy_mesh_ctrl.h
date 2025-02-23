@@ -49,6 +49,7 @@ class dm_easy_mesh_ctrl_t :
 
     db_client_t m_db_client;
     bool	m_initialized;
+    bool	m_network_initialized;
 
     dm_easy_mesh_list_t	m_data_model_list;
 	em_network_topo_t   *m_topology;
@@ -64,6 +65,8 @@ public:
 
     bool    is_initialized() { return m_initialized; }
     void	set_initialized() { m_initialized = true; }
+    bool    is_network_initialized() { return m_network_initialized; }
+    void	set_network_initialized() { m_network_initialized = true; }
 
     //int analyze_network_ssid_list(em_bus_event_t *evt, em_cmd_t *cmd[]);
     int analyze_sta_link_metrics(em_cmd_t *pcmd[]);
@@ -105,7 +108,7 @@ public:
     int get_scan_result(cJSON *parent, char *key);
     int get_mld_config(cJSON *parent, char *key);
     int get_reference_config(cJSON *parent, char *key);
-    int get_config(em_long_string_t net_id, em_subdoc_info_t *subdoc);
+    void get_config(em_long_string_t net_id, em_subdoc_info_t *subdoc);
     int set_config(dm_easy_mesh_t *dm);
     int copy_config(dm_easy_mesh_t *dm, em_long_string_t net_id);
 

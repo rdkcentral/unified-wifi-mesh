@@ -42,6 +42,7 @@ public:
 
     int data_model_init(const char *data_model_path);
     bool	is_data_model_initialized() { return m_data_model.is_initialized(); }
+    bool	is_network_topology_initialized() { return m_data_model.is_network_initialized(); }
 
 	void	start_complete();
     int orch_init();

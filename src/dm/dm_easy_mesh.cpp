@@ -79,6 +79,11 @@ dm_easy_mesh_t dm_easy_mesh_t::operator =(dm_easy_mesh_t const& obj)
 
     memcpy(&m_db_cfg_param, &obj.m_db_cfg_param, sizeof(em_db_cfg_param_t));
 
+    m_num_policy = obj.m_num_policy;
+    for (unsigned int i = 0; i < EM_MAX_POLICIES; i++) {
+        memcpy(&m_policy[i], &obj.m_policy[i], sizeof(dm_policy_t));
+    }
+
     sta = (dm_sta_t *)hash_map_get_first(obj.m_sta_map);
     while (sta != NULL) {
         dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
@@ -216,6 +221,7 @@ int dm_easy_mesh_t::commit_config(em_cmd_t  *cmd)
             break;
         case em_cmd_type_start_dpp:
             //To be Implemented
+            printf("COMMIT DPP\n");
             break;
         case em_cmd_type_dev_init: {
                 switch (cmd->get_orch_op()) {
@@ -310,8 +316,8 @@ int dm_easy_mesh_t::encode_config_reset(em_subdoc_info_t *subdoc, const char *ke
 	char *formatted_json;
 	mac_addr_str_t	mac_str;
 	em_long_string_t	interface_str;
-	const char *preference[5] = {"First Preference", "Second Preference", "Third Preference", "Fourth Preference", "Fifth Preference"};
-	unsigned int i;
+	const char *preference[] = {"First Preference", "Second Preference", "Third Preference", "Fourth Preference", "Fifth Preference"};
+	unsigned int i, preference_arraysz = sizeof(preference)/sizeof(*preference);
 
     if ((parent_obj = cJSON_CreateObject()) == NULL) {
         printf("%s:%d: Could not create parent object\n", __func__, __LINE__);
@@ -339,7 +345,7 @@ int dm_easy_mesh_t::encode_config_reset(em_subdoc_info_t *subdoc, const char *ke
         return -1;
     }
 
-	for (i = 0; i < m_num_interfaces; i++) {
+	for (i = 0; i < m_num_interfaces && i < preference_arraysz; i++) {
 		interface_obj = cJSON_CreateObject();
 		cJSON_AddItemToArray(interface_arr_obj, interface_obj);
 		dm_easy_mesh_t::macbytes_to_string(m_interfaces[i].mac, mac_str);
@@ -882,7 +888,7 @@ int dm_easy_mesh_t::decode_config_set_radio(em_subdoc_info_t *subdoc, const char
 		m_num_radios++;
 			
 	}
-
+    return 0;
 }
 
 int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const char *key, unsigned int index, unsigned int *num)
@@ -2563,8 +2569,9 @@ dm_bss_t *dm_easy_mesh_t::find_matching_bss(em_bss_id_t *id)
 		if ((strncmp(bss->m_bss_info.id.net_id, id->net_id, strlen(id->net_id)) == 0) &&
 				(memcmp(bss->m_bss_info.id.dev_mac, id->dev_mac, sizeof(mac_address_t)) == 0) &&
 				(memcmp(bss->m_bss_info.id.ruid, id->ruid, sizeof(mac_address_t)) == 0) &&
-				(memcmp(bss->m_bss_info.id.bssid, id->bssid, sizeof(mac_address_t)) == 0)) {
-			return bss;
+			    (memcmp(bss->m_bss_info.id.bssid, id->bssid, sizeof(mac_address_t)) == 0) &&
+                (memcmp(&(bss->m_bss_info.id.haul_type), &(id->haul_type), sizeof(em_haul_type_t)) == 0)) {
+            return bss;
 		}
 	}	
 
@@ -2633,9 +2640,20 @@ dm_scan_result_t *dm_easy_mesh_t::find_matching_scan_result(em_scan_result_id_t 
 }
 
 void dm_easy_mesh_t::reset_db_cfg_type(db_cfg_type_t type) 
-{ 
-	strncpy(m_db_cfg_param.db_cfg_criteria[type - 1], "", strlen(""));
-	m_db_cfg_param.db_cfg_type &= ~type; 
+{
+    unsigned int num = type;
+    unsigned int index = 0;
+
+    while (num % 2 == 0) {
+        num /= 2;
+        index++;
+    }
+
+    if (num != 1) {
+        return;
+    }
+    strncpy(m_db_cfg_param.db_cfg_criteria[num], "", strlen(""));
+    m_db_cfg_param.db_cfg_type &= ~type; 
 }   
 
 void dm_easy_mesh_t::set_db_cfg_param(db_cfg_type_t cfg_type, char *criteria)

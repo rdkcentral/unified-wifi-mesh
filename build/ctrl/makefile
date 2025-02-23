@@ -39,8 +39,8 @@ INCLUDEDIRS = \
 	-I$(ONEWIFI_HOME)/source/ccsp \
 	-I$(WIFI_CJSON) \
 
-CXXFLAGS = $(INCLUDEDIRS) -g -DUNIT_TEST
-LDFLAGS = $(LIBDIRS) $(LIBS)
+CXXFLAGS += $(INCLUDEDIRS) -g -DUNIT_TEST -Wall -Wextra -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wconversion -Wsign-conversion -Weffc++ -Wno-unused-parameter -std=c++11 -fsanitize=address -fsanitize=undefined #-Werror -O2
+LDFLAGS += $(LIBDIRS) $(LIBS) -fsanitize=address -fsanitize=undefined
 LIBDIRS = \
 	-L$(INSTALLDIR)/lib \
 	-L$(ONEWIFI_HOME)/install/lib/
@@ -56,6 +56,7 @@ GENERIC_SOURCES = $(ONEWIFI_HOME)/source/utils/collection.c \
 CTRL_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
     	$(wildcard $(ONEWIFI_EM_SRC)/em/config/*.cpp) \
     	$(wildcard $(ONEWIFI_EM_SRC)/em/prov/*.cpp) \
+    	$(wildcard $(ONEWIFI_EM_SRC)/em/prov/easyconnect/*.cpp) \
     	$(wildcard $(ONEWIFI_EM_SRC)/em/disc/*.cpp) \
     	$(wildcard $(ONEWIFI_EM_SRC)/em/channel/*.cpp) \
     	$(wildcard $(ONEWIFI_EM_SRC)/em/capability/*.cpp) \

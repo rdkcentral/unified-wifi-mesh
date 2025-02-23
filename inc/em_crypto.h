@@ -288,6 +288,17 @@ public:
      */
     static uint8_t* base64_decode(const char* input, size_t length, size_t* output_length);
 
+    /**
+     * Creates an OpenSSL EC_KEY from a base64-encoded DER public key
+     *
+     * @param base64_der_pubkey Null-terminated string containing the base64-encoded DER public key
+     * @return EC_KEY* on success, NULL on failure
+     *
+     * @note The returned EC_KEY must be freed by the caller using EC_KEY_free()
+     * @note This function assumes the input is a valid base64-encoded DER format EC public key
+     */
+    static EC_KEY* create_ec_key_from_base64_der(const char* base64_der_pubkey);
+
 
     static inline uint8_t generate_iv(unsigned char *iv, unsigned int len) { if (!RAND_bytes(iv, len)) { return 0; } else { return 1; } }
     static inline uint8_t generate_nonce(em_nonce_t nonce) { if (!RAND_bytes(nonce, sizeof(em_nonce_t))) { return 0; } else { return 1; } }

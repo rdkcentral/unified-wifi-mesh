@@ -230,7 +230,7 @@ func CreateEasyMeshCommands() map[string]EasyMeshCmd {
 			LoadOrder:            11,
 			GetCommand:           "",
 			GetCommandEx:         "",
-			SetCommand:           "",
+			SetCommand:           "start_dpp",
 			Help:                 "",
 			AllowUnmodifiedApply: true,
 		},

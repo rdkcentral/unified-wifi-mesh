@@ -159,6 +159,7 @@ bool dm_scan_result_t::operator == (const dm_scan_result_t& obj)
 
 void dm_scan_result_t::operator = (const dm_scan_result_t& obj)
 {
+	if (this == &obj) { return; }
 	memcpy(&m_scan_result, &obj.m_scan_result, sizeof(em_scan_result_t));
 }
 

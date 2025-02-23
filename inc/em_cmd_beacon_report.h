@@ -16,35 +16,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <assert.h>
-#include <signal.h>
-#include "db_column.h"
+#ifndef EM_CMD_BTM_REPORT_H
+#define EM_CMD_BTM_REPORT_H
 
-void db_column_t::operator = (const db_column_t& col)
-{
-    if (this == &col) { return; }
-    snprintf(m_name, sizeof(m_name), "%s", col.m_name);
-    m_type = col.m_type;
-    m_type_args = col.m_type_args;
-}
+#include "em_cmd.h"
 
-db_column_t::db_column_t(const db_column_name_t name, const db_data_type_t type, const db_data_type_args_t args)
-{
-    snprintf(m_name, sizeof(m_name), "%s", name);
-    m_type = type;
-    m_type_args = args;
-}
+class em_cmd_beacon_report_t : public em_cmd_t {
 
-db_column_t::db_column_t()
-{
+public:
+    em_cmd_beacon_report_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+};
 
-}
-
-db_column_t::~db_column_t()
-{
-
-}
+#endif

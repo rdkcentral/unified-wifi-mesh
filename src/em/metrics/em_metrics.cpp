@@ -128,7 +128,6 @@ int em_metrics_t::handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff)
     return 0;
 }
 
-
 int em_metrics_t::handle_associated_sta_link_metrics_query(unsigned char *buff, unsigned int len)
 {
     mac_address_t sta;
@@ -228,6 +227,86 @@ int em_metrics_t::handle_associated_sta_link_metrics_resp(unsigned char *buff, u
     return 0;
 }
 
+int em_metrics_t::handle_beacon_metrics_query(unsigned char *buff, unsigned int len)
+{
+    mac_address_t sta;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    em_raw_hdr_t *hdr = (em_raw_hdr_t *)buff;
+
+    if (em_msg_t(em_msg_type_beacon_metrics_query, em_profile_type_2, buff, len).validate(errors) == 0) {
+        printf("%s:%d:Beacon Metrics query message validation failed\n");
+        return -1;
+    }
+
+    cmdu = (em_cmdu_t *)(buff + sizeof(em_raw_hdr_t));
+    tlv = (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    em_beacon_metrics_query_t *beacon_metrics = (em_beacon_metrics_query_t*) tlv->value;
+    printf("\n\n    STA MAC Address: %02x:%02x:%02x:%02x:%02x:%02x\n",
+        beacon_metrics->sta_mac_addr[0], beacon_metrics->sta_mac_addr[1], beacon_metrics->sta_mac_addr[2],
+        beacon_metrics->sta_mac_addr[3], beacon_metrics->sta_mac_addr[4], beacon_metrics->sta_mac_addr[5]);
+    printf("   Operating Class: %u\n", beacon_metrics->op_class);
+    printf("   Channel Number: %u\n", beacon_metrics->channel_num);
+    printf("   BSSID: %02x:%02x:%02x:%02x:%02x:%02x\n",
+        beacon_metrics->bssid[0], beacon_metrics->bssid[1], beacon_metrics->bssid[2],
+        beacon_metrics->bssid[3], beacon_metrics->bssid[4], beacon_metrics->bssid[5]);
+    printf("   Reporting Detail: %u\n", beacon_metrics->rprt_detail);
+    printf("   SSID Length: %u\n", beacon_metrics->ssid_len);
+    printf("\n\n");
+
+
+    memcpy(sta, tlv->value, sizeof(mac_address_t));
+
+    return 0;
+}
+
+int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned int len)
+{
+    mac_address_t sta;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    em_raw_hdr_t *hdr = (em_raw_hdr_t *)buff;
+
+    if (em_msg_t(em_msg_type_beacon_metrics_rsp, em_profile_type_2, buff, len).validate(errors) == 0) {
+        printf("%s:%d: Beacon Metrics Response message validation failed\n");
+        return -1;
+    }
+
+    cmdu = (em_cmdu_t *)(buff + sizeof(em_raw_hdr_t));
+    tlv = (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    em_beacon_metrics_resp_t *response = (em_beacon_metrics_resp_t *)tlv->value;
+
+    // Print the response data
+    printf("STA MAC Address: %02x:%02x:%02x:%02x:%02x:%02x\n",
+        response->sta_mac_addr[0], response->sta_mac_addr[1], response->sta_mac_addr[2],
+        response->sta_mac_addr[3], response->sta_mac_addr[4], response->sta_mac_addr[5]);
+    printf("Reserved: %u\n", response->reserved);
+    printf("Measurement Report Count: %u\n", response->meas_rprt_count);
+    printf("Measurement Reports: ");
+
+    em_beacon_measurement_t *meas = (em_beacon_measurement_t *)&response->meas_reports[0];
+    for (size_t i = 0; i < response->meas_rprt_count; ++i) {
+        printf("\n  op class: %d\n", meas->br_op_class);
+        printf("  br_channel: %d\n", meas->br_channel);
+        printf("  br_rcpi: %d\n", meas->br_rcpi);
+        printf("  rsni: %d\n", meas->br_rsni);
+        mac_addr_str_t mac_str;
+        dm_easy_mesh_t::macbytes_to_string(meas->br_bssid, mac_str);
+        printf("  br_bssid: %s\n", mac_str);
+        meas = (em_beacon_measurement_t *)(&response->meas_reports[i] + sizeof(em_beacon_measurement_t));
+    }
+
+    //save data to em_sta_info's beacon report
+
+    //send_ack(sta);
+
+    return 0;
+}
+
 int em_metrics_t::send_associated_sta_link_metrics_msg(mac_address_t sta_mac)
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
@@ -296,7 +375,7 @@ int em_metrics_t::send_associated_sta_link_metrics_msg(mac_address_t sta_mac)
     return len;
 }
 
-int em_metrics_t::send_all_associated_sta_link_metrics_msg()
+void em_metrics_t::send_all_associated_sta_link_metrics_msg()
 {
     dm_easy_mesh_t *dm;
     dm_sta_t *sta;
@@ -309,6 +388,8 @@ int em_metrics_t::send_all_associated_sta_link_metrics_msg()
         }
         sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_map, sta);
     }
+
+
 }
 
 int em_metrics_t::send_associated_link_metrics_response(mac_address_t sta_mac)
@@ -421,6 +502,155 @@ int em_metrics_t::send_associated_link_metrics_response(mac_address_t sta_mac)
         return -1;
     }
     printf("%s:%d: Associated STA Link Metrics for sta %s sent successfully\n", __func__, __LINE__, mac_str);
+
+    return len;
+}
+
+short em_metrics_t::send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bssid)
+{
+    unsigned char buff[MAX_EM_BUFF_SZ];
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    unsigned short  msg_id = em_msg_type_beacon_metrics_query;
+    int len = 0, sz = 0;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    dm_easy_mesh_t *dm;
+    unsigned char *tmp = buff;
+    unsigned short type = htons(ETH_P_1905);
+
+    dm = get_data_model();
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, (unsigned char *)&type, sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += sizeof(unsigned short);
+
+    cmdu = (em_cmdu_t *)tmp;
+
+    memset(tmp, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(msg_id);
+    cmdu->id = htons(msg_id);
+    cmdu->last_frag_ind = 1;
+    cmdu->relay_ind = 0;
+
+    tmp += sizeof(em_cmdu_t);
+    len += sizeof(em_cmdu_t);
+
+    //Beacon Metrics Query TLV (see section 17.2.27).
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_bcon_metric_query;
+    sz = create_beacon_metrics_query_tlv(tlv->value, sta_mac, bssid);
+    tlv->len = htons(sz);
+
+    tmp += (sizeof (em_tlv_t) + sz);
+    len += (sizeof (em_tlv_t) + sz);
+
+    // End of message
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_eom;
+    tlv->len = 0;
+
+    tmp += (sizeof (em_tlv_t));
+    len += (sizeof (em_tlv_t));
+
+    if (em_msg_t(em_msg_type_beacon_metrics_query, em_profile_type_2, buff, len).validate(errors) == 0) {
+        printf("Beacon Metrics Query msg validation failed\n");
+        return -1;
+    }
+
+    if (send_frame(buff, len)  < 0) {
+        printf("%s:%d: Beacon Metrics Query send failed, error:%d\n", __func__, __LINE__, errno);
+        return -1;
+    }
+
+    printf("%s:%d: Beacon Metrics Query send success\n", __func__, __LINE__);
+    return len;
+}
+
+int em_metrics_t::send_beacon_metrics_response()
+{
+    unsigned char buff[MAX_EM_BUFF_SZ];
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    unsigned short  msg_type = em_msg_type_beacon_metrics_rsp;
+    int len = 0;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    unsigned char *tmp = buff;
+    unsigned short sz = 0;
+    unsigned short type = htons(ETH_P_1905);
+    dm_easy_mesh_t *dm = get_data_model();
+    mac_addr_str_t mac_str;
+    bool sta_found = false;
+    dm_sta_t *sta;
+
+    sta = (dm_sta_t *)hash_map_get_first(get_current_cmd()->get_data_model()->m_sta_map);
+
+    short msg_id = em_msg_type_beacon_metrics_rsp;
+
+    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, (unsigned char *)&type, sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += sizeof(unsigned short);
+
+    cmdu = (em_cmdu_t *)tmp;
+
+    memset(tmp, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(msg_id);
+    cmdu->last_frag_ind = 1;
+
+    tmp += sizeof(em_cmdu_t);
+    len += sizeof(em_cmdu_t);
+
+    //Beacon Metrics Response 17.1.23
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_bcon_metric_rsp;
+    sz = create_beacon_metrics_response_tlv(tlv->value);
+    tlv->len =  htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += (sizeof(em_tlv_t) + sz);
+
+    //Error code  TLV 17.2.36
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_error_code;
+    sz = create_error_code_tlv(tlv->value, sta->m_sta_info.id, sta_found);
+    tlv->len = htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += (sizeof(em_tlv_t) + sz);
+
+    // End of message
+    tlv = (em_tlv_t *)tmp;
+    tlv->type = em_tlv_type_eom;
+    tlv->len = 0;
+
+    tmp += (sizeof (em_tlv_t));
+    len += (sizeof (em_tlv_t));
+
+    if (em_msg_t(em_msg_type_beacon_metrics_rsp, em_profile_type_2, buff, len).validate(errors) == 0) {
+        printf("%s:%d: Beacon Metrics Response validation failed for %s\n", __func__, __LINE__, mac_str);
+        return -1;
+    }
+
+    if (send_frame(buff, len)  < 0) {
+        printf("%s:%d: Beacon Metrics Response send failed, error:%d\n", __func__, __LINE__, errno);
+        return -1;
+    }
 
     return len;
 }
@@ -568,6 +798,155 @@ short em_metrics_t::create_assoc_vendor_sta_link_metrics_tlv(unsigned char *buff
     return len;
 }
 
+short em_metrics_t::create_beacon_metrics_query_tlv(unsigned char *buff, mac_address_t sta_mac, bssid_t bssid)
+{
+    short len = 0;
+    dm_easy_mesh_t *dm;
+    ssid_t ssid;
+    unsigned char *tmp = buff;
+    //em_beacon_metrics_query_t *beacon_metrics = (em_beacon_metrics_query_t*) buff;
+    dm_sta_t *sta;
+
+    dm = get_data_model();
+
+    sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_map);
+    while(sta != NULL) {
+        if (memcmp(sta->m_sta_info.id, sta_mac, sizeof(mac_address_t)) == 0) {
+           // sta_found = true;
+            break;
+        }
+        sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_map, sta);
+    }
+
+    for (int j = 0; j < dm->get_num_bss(); j++) {
+        if (memcmp(&dm->m_bss[j].m_bss_info.bssid, sta->m_sta_info.bssid, sizeof(bssid_t)) != 0) {
+            strncpy(ssid, dm->m_bss[j].m_bss_info.ssid, sizeof(ssid_t));
+            break;
+        }
+    }
+
+    // Example data
+    unsigned char ap_channel_list[] = {1, 6, 11};
+    size_t ap_channel_list_len = sizeof(ap_channel_list);
+    unsigned char element_list[] = {0, 1, 2, 3};
+    size_t element_list_len = sizeof(element_list);
+
+    em_beacon_metrics_query_t *beacon_metrics = (em_beacon_metrics_query_t*) buff;
+
+    if (sta == NULL) {
+
+    }
+    else {
+
+        memcpy(beacon_metrics->sta_mac_addr, sta_mac, sizeof(mac_addr_t));
+        len += sizeof(beacon_metrics->sta_mac_addr);
+
+        beacon_metrics->op_class = 10;
+        len += sizeof(beacon_metrics->op_class);
+
+        beacon_metrics->channel_num = 6;
+        len += sizeof(beacon_metrics->channel_num);
+
+        memcpy(beacon_metrics->bssid, bssid, sizeof(bssid_t));
+        len += sizeof(beacon_metrics->bssid);
+
+        beacon_metrics-> rprt_detail = 1;
+        len += sizeof(beacon_metrics-> rprt_detail);
+
+        beacon_metrics->ssid_len = sizeof(ssid);
+        len += sizeof(beacon_metrics->ssid_len);
+
+        memcpy(beacon_metrics->ssid, ssid, sizeof(ssid));
+        len += sizeof(ssid);
+
+        beacon_metrics->num_ap_channel_rprt = 2;
+        len += sizeof(beacon_metrics->num_ap_channel_rprt);
+
+        em_beacon_ap_channel_rprt_t *ap_chann_rprt;// = buff + len;
+
+        for (int i = 0; i < beacon_metrics->num_ap_channel_rprt; i++) {
+            ap_chann_rprt = (em_beacon_ap_channel_rprt_t *)(buff + len);
+            ap_chann_rprt->ap_channel_rprt_len = 4;
+            len += sizeof(ap_chann_rprt->ap_channel_rprt_len);
+
+            ap_chann_rprt->ap_channel_op_class = 10;
+            len += sizeof(ap_chann_rprt->ap_channel_op_class);
+
+            for(int j = 0; j < ap_chann_rprt->ap_channel_rprt_len - 1; j++) {
+                ap_chann_rprt->ap_channel_list[j] = ap_channel_list[j];
+                len += sizeof(unsigned char);
+            }
+        }
+    }
+
+    // Print the filled data
+    printf("STA MAC Address: %02x:%02x:%02x:%02x:%02x:%02x\n",
+           beacon_metrics->sta_mac_addr[0], beacon_metrics->sta_mac_addr[1], beacon_metrics->sta_mac_addr[2],
+           beacon_metrics->sta_mac_addr[3], beacon_metrics->sta_mac_addr[4], beacon_metrics->sta_mac_addr[5]);
+    printf("Operating Class: %u\n", beacon_metrics->op_class);
+    printf("Channel Number: %u\n", beacon_metrics->channel_num);
+    mac_addr_str_t mac_str;
+    dm_easy_mesh_t::macbytes_to_string(beacon_metrics->bssid, mac_str);
+    printf("BSSID: %s\n", mac_str);
+    printf("Reporting Detail: %u\n", beacon_metrics->rprt_detail);
+    printf("SSID Length: %u\n", beacon_metrics->ssid_len);
+    printf("SSID: %s\n", beacon_metrics->ssid);
+    printf("Number of AP Channel Reports: %u\n", beacon_metrics->num_ap_channel_rprt);
+
+    return len;
+}
+
+short em_metrics_t::create_beacon_metrics_response_tlv(unsigned char *buff)
+{
+    short len = 0;
+    dm_easy_mesh_t *dm;
+    unsigned char *tmp;
+    mac_addr_str_t mac_str;
+    em_beacon_metrics_resp_t *response = (em_beacon_metrics_resp_t *)buff;
+
+    dm = get_current_cmd()->get_data_model();
+    dm_sta_t *sta;
+    sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_map);
+    if (sta != NULL) {
+        memcpy(response->sta_mac_addr, sta->m_sta_info.id, sizeof(mac_addr_t));
+        len += sizeof(response->sta_mac_addr);
+
+        response->reserved = 0;
+        len += sizeof(response->reserved);
+
+        response->meas_rprt_count = sta->m_sta_info.num_beacon_meas_report;
+        len += sizeof(response->meas_rprt_count);
+
+        tmp = buff + len;
+        for (int i = 0; i < response->meas_rprt_count; i++) {
+            memcpy(tmp, &sta->m_sta_info.beacon_report[i], sizeof(em_beacon_measurement_t));
+
+            tmp += sizeof(em_beacon_measurement_t);
+            len += sizeof(em_beacon_measurement_t);
+        }
+    }
+
+    // Print the response data, todo: remove later
+    printf("STA MAC Address: %02x:%02x:%02x:%02x:%02x:%02x\n",
+           response->sta_mac_addr[0], response->sta_mac_addr[1], response->sta_mac_addr[2],
+           response->sta_mac_addr[3], response->sta_mac_addr[4], response->sta_mac_addr[5]);
+    printf("Reserved: %u\n", response->reserved);
+    printf("Measurement Report Count: %u\n", response->meas_rprt_count);
+    printf("Measurement Reports: ");
+    for (size_t i = 0; i < response->meas_rprt_count; ++i) {
+        em_beacon_measurement_t *meas = (em_beacon_measurement_t *)&response->meas_reports[i];
+        printf("\n  op class: %d\n", meas->br_op_class);
+        printf("  br_channel: %d\n", meas->br_channel);
+        printf("  br_rcpi: %d\n", meas->br_rcpi);
+        printf("  rsni: %d\n", meas->br_rsni);
+        dm_easy_mesh_t::macbytes_to_string(meas->br_bssid, mac_str);
+        printf("  br_bssid: %s\n", mac_str);
+    }
+    printf("\n");
+
+    return len;
+}
+
 short em_metrics_t::create_error_code_tlv(unsigned char *buff, mac_address_t sta, bool sta_found)
 {
     short len = 0;
@@ -612,6 +991,14 @@ void em_metrics_t::process_msg(unsigned char *data, unsigned int len)
             handle_associated_sta_link_metrics_query(data, len);
             break;
 
+        case em_msg_type_beacon_metrics_query:
+            handle_beacon_metrics_query(data, len);
+            break;
+
+        case em_msg_type_beacon_metrics_rsp:
+            handle_beacon_metrics_response(data, len);
+            break;
+
         default:
             break;
     }
@@ -622,6 +1009,18 @@ void em_metrics_t::process_ctrl_state()
     switch (get_state()) {
         case em_state_ctrl_sta_link_metrics_pending:
             send_all_associated_sta_link_metrics_msg();
+            break;
+    }
+}
+
+void em_metrics_t::process_agent_state()
+{
+    switch (get_state()) {
+        case em_state_agent_beacon_report_pending:
+            send_beacon_metrics_response();
+            break;
+
+        default:
             break;
     }
 }

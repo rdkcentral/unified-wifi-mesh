@@ -41,8 +41,8 @@ INCLUDEDIRS = \
 
 $(info The value of VARIABLE is $(ONEWIFI_HAL_INTF_HOME))
 
-CXXFLAGS = $(INCLUDEDIRS) -g -DEASY_MESH_NODE -DSCAN_RESULT_TEST
-LDFLAGS = $(LIBDIRS) $(LIBS) 
+CXXFLAGS += $(INCLUDEDIRS) -g -DEASY_MESH_NODE -Wall -Wextra -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wconversion -Wsign-conversion -Weffc++ -Wno-unused-parameter -std=c++11 -fsanitize=address -fsanitize=undefined #-Werror -O2
+LDFLAGS += $(LIBDIRS) $(LIBS) -fsanitize=address -fsanitize=undefined
 LIBDIRS = \
 	-L$(INSTALLDIR)/lib \
     -L$(ONEWIFI_HOME)/install/lib/
@@ -57,6 +57,7 @@ GENERIC_SOURCES = $(ONEWIFI_HOME)/source/utils/collection.c \
 AGENT_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/em/config/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/em/prov/*.cpp) \
+	$(wildcard $(ONEWIFI_EM_SRC)/em/prov/easyconnect/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/em/disc/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/em/channel/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/em/capability/*.cpp) \

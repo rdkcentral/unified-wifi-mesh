@@ -27,6 +27,7 @@ class em_policy_cfg_t {
     virtual int send_frame(unsigned char *buff, unsigned int len, bool multicast = false) = 0;
 
 public:
+    virtual em_mgr_t *get_mgr() = 0;
     virtual dm_easy_mesh_t *get_data_model() = 0;
     virtual unsigned char *get_radio_interface_mac() = 0;
     virtual em_state_t get_state() = 0;
@@ -35,8 +36,9 @@ public:
     virtual em_device_info_t *get_device_info() = 0;
     virtual em_cmd_t *get_current_cmd() = 0;
 
-	short create_steering_policy_tlv(unsigned char *buff);
-	short create_metrics_rep_policy_tlv(unsigned char *buff);
+    short create_steering_policy_tlv(unsigned char *buff);
+    short create_metrics_rep_policy_tlv(unsigned char *buff);
+    short create_vendor_policy_cfg_tlv(unsigned char *buff);
 
     int send_policy_cfg_request_msg();
 
@@ -48,7 +50,6 @@ public:
 
     em_policy_cfg_t();
     ~em_policy_cfg_t();
-
 };
 
 #endif

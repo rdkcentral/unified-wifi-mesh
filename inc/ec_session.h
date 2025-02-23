@@ -22,49 +22,92 @@
 #include "em_base.h"
 #include "ec_base.h"
 
+#include <type_traits>
+#include <map>
+#include <string>
+
+#define EC_FRAME_BASE_SIZE (offsetof(ec_frame_t, attributes))
+
 class ec_session_t {
     mac_address_t   m_enrollee_mac;
     unsigned char m_cfgrtr_ver;
     unsigned char m_enrollee_ver;
-    ec_params_t    m_params;
-    ec_data_t   m_data;
+    ec_params_t    m_params; 
     wifi_activation_status_t    m_activation_status;
+    ec_data_t   m_data;
 
-    int compute_key_hash(EC_KEY *key, unsigned char *digest);
-    int compute_intermediate_key(bool first);
-    int set_auth_frame_wrapped_data(ec_frame_body_t *frame, unsigned int non_wrapped_len, bool auth_init);
-    EC_KEY  *get_responder_boot_key(unsigned char *key, unsigned int len);
-    EC_KEY  *get_initiator_boot_key(unsigned char *key, unsigned int len);  
+    /**
+     * @brief Compute the hash of the provided key with an optional prefix
+     * 
+     * @param key The key to hash
+     * @param digest The buffer to store the hash
+     * @param prefix The optional prefix to add to the key before hashing (NULL by default)
+     * @return int The length of the hash
+     */
+    int compute_key_hash(EC_KEY *key, uint8_t *digest, const char *prefix = NULL);
+
+
+    int compute_intermediate_key(bool is_first);
+    int set_auth_frame_wrapped_data(ec_frame_t *frame, unsigned int non_wrapped_len, bool do_init_auth);
     
-    unsigned short channel_to_frequency(unsigned int channel);
-    unsigned short freq_to_channel(unsigned int freq);  
-    
-    ec_tlv_t *get_tlv(unsigned char *buff, ec_attrib_id_t id, unsigned short len);
-    ec_tlv_t *set_tlv(unsigned char *buff, ec_attrib_id_t id, unsigned short len, unsigned char *val);
-    
-    int hkdf(const EVP_MD *h, int skip, unsigned char *ikm, int ikmlen, 
-            unsigned char *salt, int saltlen, unsigned char *info, int infolen, 
-            unsigned char *okm, int okmlen);
-
-    void prepare_frame(ec_frame_t *frame, ec_frame_type_t type);
-    bool validate_frame(ec_frame_t *frame, ec_frame_type_t type);
-
-
-    void print_bignum (BIGNUM *bn);
-    void print_ec_point (const EC_GROUP *group, BN_CTX *bnctx, EC_POINT *point);
-    void print_hex_dump(unsigned int length, unsigned char *buffer);
+    int hkdf(const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen, 
+            uint8_t *salt, int saltlen, uint8_t *info, int infolen, 
+            uint8_t *okm, int okmlen);
 
 public:
-    int init_session();
+    int init_session(ec_data_t* ec_data);
 
-    int create_auth_req(unsigned char *buff);
-    int create_auth_rsp(unsigned char *buff);
-    int create_auth_cnf(unsigned char *buff);
-    int create_pres_ann(unsigned char *buff);
+    /**
+     * @brief Create an authentication request frame in a pre-allocated buffer
+     * 
+     * @param buff The buffer to store the frame
+     * @return int The length of the frame
+     */
+    int create_auth_req(uint8_t *buff);
 
-    int handle_pres_ann(unsigned char *buff, unsigned int len);
+    /**
+     * @brief Handle a chirp notification TLV and output the authentication request frame (if necessary)
+     * 
+     * @param chirp_tlv The chirp TLV to parse and handle
+     * @param out_frame The buffer to store the output frame (NULL if no frame is needed)
+     * @return int 0 if successful, -1 otherwise
+     */
+    int handle_chirp_notification(em_dpp_chirp_value_t* chirp_tlv, uint8_t **out_frame);
+    
+    /**
+     * @brief Create an authentication response frame in a pre-allocated buffer
+     * 
+     * @param buff The buffer to store the frame
+     * @return int The length of the frame
+     */
+    int create_auth_rsp(uint8_t *buff);
+    
+    /**
+     * @brief Create an authentication confirmation frame in a pre-allocated buffer
+     * 
+     * @param buff The buffer to store the frame
+     * @return int The length of the frame
+     */
+    int create_auth_cnf(uint8_t *buff);
 
-    ec_session_t(ec_data_t *data);
+    /**
+     * @brief Create a presence announcement frame in a pre-allocated buffer
+     * 
+     * @param buff The buffer to store the frame
+     * @return int The length of the frame
+     */
+    int create_pres_ann(uint8_t *buff);
+
+    /**
+     * @brief Handle a presence announcement frame
+     * 
+     * @param buff The frame to handle
+     * @param len The length of the frame
+     * @return int 0 if successful, -1 otherwise
+     */
+    int handle_pres_ann(uint8_t *buff, unsigned int len);
+
+    ec_session_t();
     ~ec_session_t();
 };
 

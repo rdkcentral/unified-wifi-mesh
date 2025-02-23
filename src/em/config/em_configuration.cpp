@@ -3217,7 +3217,7 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
     dm_easy_mesh_t::macbytes_to_string(get_peer_mac(), mac_str);
     printf("%s:%d: Device AL MAC: %s\n", __func__, __LINE__, mac_str);
 
-    if (em_msg_t(em_msg_type_autoconf_wsc, m_peer_profile, buff, len).validate(errors) == 0) {
+    if (em_msg_t(em_msg_type_autoconf_wsc, em_profile_type_3, buff, len).validate(errors) == 0) {
         printf("%s:%d: received autoconfig wsc m1 msg failed validation\n", __func__, __LINE__);
 
         //return -1;

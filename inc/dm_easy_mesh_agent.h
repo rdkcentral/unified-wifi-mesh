@@ -45,6 +45,8 @@ public:
     int analyze_btm_request_action_frame(em_bus_event_t *evt, wifi_bus_desc_t *desc,bus_handle_t *bus_hdl);
     int analyze_btm_response_action_frame(em_bus_event_t *evt, em_cmd_t *pcmd[]);
     int analyze_scan_result(em_bus_event_t *evt, em_cmd_t *pcmd[]);
+    int analyze_set_policy(em_bus_event_t *evt, wifi_bus_desc_t *desc, bus_handle_t *bus_hdl);
+    int analyze_beacon_report(em_bus_event_t *evt, em_cmd_t *pcmd[]);
 
     static webconfig_error_t webconfig_dummy_apply(webconfig_subdoc_t *doc, webconfig_subdoc_data_t *data);
 
