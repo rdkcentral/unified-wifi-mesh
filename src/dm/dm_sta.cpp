@@ -238,13 +238,13 @@ void dm_sta_t::encode_beacon_report(cJSON *obj)
 
 	neighbors_arr_obj = cJSON_AddArrayToObject(obj, "Neighbors");
 
-	for (i = 0; i < m_sta_info.num_beacon_reports; i++) {
+	for (i = 0; i < m_sta_info.num_beacon_meas_report; i++) {
 		neighbor_obj = cJSON_CreateObject();
-		dm_easy_mesh_t::macbytes_to_string(m_sta_info.beacon_report[i].bssid, mac_str);
+		dm_easy_mesh_t::macbytes_to_string(m_sta_info.beacon_report[i].br_bssid, mac_str);
 		cJSON_AddStringToObject(neighbor_obj, "BSSID", mac_str);
-		cJSON_AddNumberToObject(neighbor_obj, "OpClass", m_sta_info.beacon_report[i].opClass);	
-		cJSON_AddNumberToObject(neighbor_obj, "Channel", m_sta_info.beacon_report[i].channel);	
-		cJSON_AddNumberToObject(neighbor_obj, "RCPI", m_sta_info.beacon_report[i].rcpi);
+		cJSON_AddNumberToObject(neighbor_obj, "OpClass", m_sta_info.beacon_report[i].br_op_class);	
+		cJSON_AddNumberToObject(neighbor_obj, "Channel", m_sta_info.beacon_report[i].br_channel);	
+		cJSON_AddNumberToObject(neighbor_obj, "RCPI", m_sta_info.beacon_report[i].br_rcpi);
 
 		cJSON_AddItemToArray(neighbor_obj, neighbors_arr_obj);
 	}
