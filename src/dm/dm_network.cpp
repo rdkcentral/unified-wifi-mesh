@@ -196,7 +196,7 @@ int dm_network_t::init()
 {
 	char date_time[EM_DATE_TIME_BUFF_SZ];
 
-	get_date_time_rfc3399(date_time, EM_DATE_TIME_BUFF_SZ);
+	util::get_date_time_rfc3399(date_time, EM_DATE_TIME_BUFF_SZ);
 
 	memset(&m_net_info, 0, sizeof(em_network_info_t)); 
 	strncpy(m_net_info.timestamp, date_time, strlen(date_time) + 1);

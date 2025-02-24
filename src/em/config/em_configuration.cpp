@@ -1265,7 +1265,7 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
     assert(ap->radios_num == dm->get_num_radios());
     radio = (em_ap_op_bss_radio_t *)ap->radios;
 
-	get_date_time_rfc3399(time_date, sizeof(time_date));
+	util::get_date_time_rfc3399(time_date, sizeof(time_date));
 
     for (i = 0; i < ap->radios_num; i++) {
 		dm_easy_mesh_t::macbytes_to_string(radio->ruid, radio_mac_str);
@@ -2226,7 +2226,7 @@ int em_configuration_t::compute_keys(unsigned char *remote_pub, unsigned short p
     }
 
     //printf("%s:%d: Secret Key:\n", __func__, __LINE__);
-    //dm_easy_mesh_t::print_hex_dump(secret_len, secret);
+    //util::print_hex_dump(secret_len, secret);
 
     addr[0] = secret;
     length[0] = secret_len;
@@ -2245,13 +2245,13 @@ int em_configuration_t::compute_keys(unsigned char *remote_pub, unsigned short p
     length[2] = sizeof(em_nonce_t);
 
     //printf("%s:%d: e-nonce:\n", __func__, __LINE__);
-    //dm_easy_mesh_t::print_hex_dump(length[0], addr[0]);
+    //util::print_hex_dump(length[0], addr[0]);
     
     //printf("%s:%d: e-mac:\n", __func__, __LINE__);
-    //dm_easy_mesh_t::print_hex_dump(length[1], addr[1]);
+    //util::print_hex_dump(length[1], addr[1]);
     
     //printf("%s:%d: r-nonce:\n", __func__, __LINE__);
-    //dm_easy_mesh_t::print_hex_dump(length[2], addr[2]);
+    //util::print_hex_dump(length[2], addr[2]);
     
     if (compute_kdk(dhkey, SHA256_MAC_LEN, 3, addr, length, kdk) != 1) {
         free(secret);
@@ -2260,7 +2260,7 @@ int em_configuration_t::compute_keys(unsigned char *remote_pub, unsigned short p
     }
 
     //printf("%s:%d: kdk:\n", __func__, __LINE__);
-    //dm_easy_mesh_t::print_hex_dump(SHA256_MAC_LEN, kdk);
+    //util::print_hex_dump(SHA256_MAC_LEN, kdk);
     if (derive_key(kdk, NULL, 0, str, keys, sizeof(keys)) != 1) {
         free(secret);
         printf("%s:%d: key derivation failed\n", __func__, __LINE__);
@@ -2272,7 +2272,7 @@ int em_configuration_t::compute_keys(unsigned char *remote_pub, unsigned short p
     memcpy(m_emsk, keys + WPS_AUTHKEY_LEN + WPS_KEYWRAPKEY_LEN, WPS_EMSK_LEN);
 
     //printf("%s:%d: Encrypt/Decrypt Key:\n", __func__, __LINE__);
-    //dm_easy_mesh_t::print_hex_dump(WPS_EMSK_LEN, m_emsk);
+    //util::print_hex_dump(WPS_EMSK_LEN, m_emsk);
 
     return 1;
 }
@@ -3070,9 +3070,9 @@ unsigned int em_configuration_t::create_authenticator(unsigned char *buff)
     length[1] = m_m2_length;
 
     //printf( "%s:%d m1 addr:%s::length:%d,\n", __func__, __LINE__, addr[0], length[0]);
-    //dm_easy_mesh_t::print_hex_dump(length[0], addr[0]);
+    //util::print_hex_dump(length[0], addr[0]);
     //printf( "%s:%d m2 addr:%s::length:%d,\n", __func__, __LINE__, addr[1], length[1]);
-    //dm_easy_mesh_t::print_hex_dump(length[1], addr[1]);
+    //util::print_hex_dump(length[1], addr[1]);
 
     if (em_crypto_t::platform_hmac_SHA256(m_auth_key, WPS_AUTHKEY_LEN, 2, addr, length, hash) != 1) {
         printf("%s:%d: Authenticator create failed\n", __func__, __LINE__);

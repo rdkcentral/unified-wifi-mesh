@@ -396,7 +396,7 @@ int em_mgr_t::start()
         gettimeofday(&tm, NULL);
         time_to_wait.tv_sec = tm.tv_sec;
        	time_to_wait.tv_nsec = tm.tv_usec * 1000;
-		add_milliseconds(&time_to_wait, m_queue.timeout);		
+		util::add_milliseconds(&time_to_wait, m_queue.timeout);		
 
         if (queue_count(m_queue.queue) == 0) {
             rc = pthread_cond_timedwait(&m_queue.cond, &m_queue.lock, &time_to_wait);

@@ -46,6 +46,15 @@ class ec_session_t {
      */
     int compute_key_hash(EC_KEY *key, uint8_t *digest, const char *prefix = NULL);
 
+    /**
+     * @brief Handle a presence announcement frame
+     * 
+     * @param buff The frame to handle
+     * @param len The length of the frame
+     * @return int 0 if successful, -1 otherwise
+     */
+    int handle_pres_ann(uint8_t *buff, unsigned int len);
+
 
     int compute_intermediate_key(bool is_first);
     int set_auth_frame_wrapped_data(ec_frame_t *frame, unsigned int non_wrapped_len, bool do_init_auth);
@@ -99,13 +108,13 @@ public:
     int create_pres_ann(uint8_t *buff);
 
     /**
-     * @brief Handle a presence announcement frame
+     * @brief Handles DPP action frames directed at this nodes ec_session
      * 
-     * @param buff The frame to handle
+     * @param frame The frame recieved to handle
      * @param len The length of the frame
      * @return int 0 if successful, -1 otherwise
      */
-    int handle_pres_ann(uint8_t *buff, unsigned int len);
+    int handle_recv_ec_action_frame(ec_frame_t* frame, size_t len);
 
     ec_session_t();
     ~ec_session_t();
