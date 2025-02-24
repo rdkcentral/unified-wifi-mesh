@@ -44,6 +44,17 @@
 				"MFPConfig":	"Required",
 				"MobilityDomain":	"00:01:02:03:04:05",
 				"HaulType":	["Backhaul"]
+		},{
+				"SSID":	"hotspot",
+				"PassPhrase":	"test-hotspot",
+				"Band":	["2.4", "5", "6"],
+				"Enable":	true,
+				"AKMsAllowed":	["dpp", "sae", "SuiteSelector"],
+				"SuiteSelector":	"00010203",
+				"AdvertisementEnabled":	true,
+				"MFPConfig":	"Required",
+				"MobilityDomain":	"00:01:02:03:04:05",
+				"HaulType":	["Hotspot"]
 			}],
 		"ID":	"OneWifiMesh"
 	}

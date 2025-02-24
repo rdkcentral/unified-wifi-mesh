@@ -671,9 +671,15 @@ short em_t::create_ap_radio_basic_cap(unsigned char *buff) {
 
     memcpy(&cap->ruid, get_radio_interface_mac(), sizeof(mac_address_t));
 
-    cap->num_bss = static_cast<unsigned char>(get_current_cmd()->get_data_model()->get_num_bss());
+    cap->num_bss = 0;
     cap->op_class_num = 0;
     op_class = cap->op_classes;
+
+	for (i = 0; i < get_current_cmd()->get_data_model()->get_num_bss(); i++) {
+		if (memcmp(get_radio_interface_mac(), get_current_cmd()->get_data_model()->get_bss(i)->get_bss_info()->ruid.mac, sizeof(mac_address_t)) == 0) {
+			cap->num_bss = static_cast<unsigned char>(cap->num_bss +1);
+		}
+	}
     for (i = 0; i < get_current_cmd()->get_data_model()->get_num_op_class(); i++) {
         if (memcmp(get_radio_interface_mac(), get_current_cmd()->get_data_model()->get_op_class_info(i)->id.ruid, sizeof(mac_address_t)) == 0) {
             em_op_class_info_t *op_class_info = get_current_cmd()->get_data_model()->get_op_class_info(i);

@@ -198,8 +198,8 @@ void em_agent_t::handle_onewifi_private_cb(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_onewifi_private_cb(evt, pcmd)) == 0) {
-        printf("analyze_onewifi_private_cb completed\n");
+    } else if ((num = m_data_model.analyze_onewifi_vap_cb(evt, pcmd)) == 0) {
+        printf("analyze_onewifi_vap_cb completed\n");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
         printf("submitted command for orchestration\n");
     }
@@ -575,6 +575,7 @@ void em_agent_t::input_listener()
     printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data.raw_data.bytes);
 
     g_agent.io_process(em_bus_event_type_dev_init, (unsigned char *)data.raw_data.bytes, data.raw_data_len);
+    free(data.raw_data.bytes);
 
     if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_WEBCONFIG_DOC_DATA_NORTH, (void *)&em_agent_t::onewifi_cb, NULL, 0) != 0) {
         printf("%s:%d bus get failed\n", __func__, __LINE__);
@@ -813,6 +814,9 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
                 printf("%s:%d: Received topo query, found existing radio:%s\n", __func__, __LINE__, mac_str1);
             } else {
                 printf("%s:%d: Could not find em for em_msg_type_topo_query\n", __func__, __LINE__);
+				if (em != NULL) {
+					printf("%s:%d em_msg_type_topo_query :em mac=%s is in incorrect state state=%d \n", __func__, __LINE__, mac_str1, em->get_state());
+				}
                 return NULL;
             }
             break;
