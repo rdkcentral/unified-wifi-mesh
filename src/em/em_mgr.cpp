@@ -178,7 +178,7 @@ void em_mgr_t::delete_node(em_interface_t *ruid)
 em_t *em_mgr_t::create_node(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, bool is_al_mac,em_profile_type_t profile, em_service_type_t type)
 {
     em_t *em = NULL;
-    mac_addr_str_t  mac_str;
+    char mac_str[32];
 
     if (ruid == NULL) {
         printf("%s:%d: Invalid ruid\n", __func__, __LINE__);
@@ -190,6 +190,10 @@ em_t *em_mgr_t::create_node(em_interface_t *ruid, em_freq_band_t band, dm_easy_m
     }
 
     dm_easy_mesh_t::macbytes_to_string(ruid->mac, mac_str);
+	if (is_al_mac) {
+		strcat(mac_str, "_al");
+	}
+	printf("%s:%d key value used:%s\n", __func__, __LINE__, mac_str);
     em = (em_t *)hash_map_get(m_em_map, mac_str);
 
     if (em != NULL) {

@@ -93,10 +93,11 @@ int dm_easy_mesh_ctrl_t::analyze_config_renew(em_bus_event_t *evt, em_cmd_t *pcm
 
     evt_param = &evt->params;
 
+    printf("%s:%d: Radio: %s\n", __func__, __LINE__, radio_str);
     evt_param->u.args.num_args = 1;
     strncpy(evt_param->u.args.args[0], radio_str, strlen(radio_str) + 1);
-    memcpy(&dm.m_radio[0].m_radio_info.intf.mac, params->radio, sizeof(mac_address_t));
     pcmd[num] = new em_cmd_cfg_renew_t(em_service_type_ctrl, evt->params, dm);
+
     tmp = pcmd[num];
     num++;
 

@@ -55,7 +55,10 @@ dm_easy_mesh_t dm_easy_mesh_t::operator =(dm_easy_mesh_t const& obj)
     memcpy(&m_device, &obj.m_device, sizeof(dm_device_t));
     memcpy(&m_network, &obj.m_network, sizeof(dm_network_t));
     memcpy(&m_ieee_1905_security, &obj.m_ieee_1905_security, sizeof(dm_ieee_1905_security_t));
-    
+
+	if (m_num_radios >= EM_MAX_BANDS) {
+		m_num_radios = 0;
+	}
     this->m_num_radios = obj.m_num_radios;
     for (unsigned int i = 0; i < obj.m_num_radios; i++) {
         memcpy(&m_radio[i], &obj.m_radio[i], sizeof(dm_radio_t));
@@ -177,7 +180,7 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
 					m_bss[m_num_bss] = dm.m_bss[i];
 					m_num_bss = m_num_bss + 1;
 					macbytes_to_string(dm.get_bss(i)->get_bss_info()->bssid.mac,mac_str);
-					printf("%s:%d New BSS %s configuration updated  no of bss=%d\n", __func__, __LINE__,mac_str,m_num_bss);
+					printf("%s:%d New BSS %s configuration updated  no of bss=%d vapname=%s\n", __func__, __LINE__,mac_str,m_num_bss, dm.get_bss(i)->get_bss_info()->bssid.name);
 				}
 			}
 		}
@@ -788,7 +791,7 @@ int dm_easy_mesh_t::decode_config_reset(em_subdoc_info_t *subdoc, const char *ke
 			
         m_network_ssid[i].decode(ssid_obj, m_network.m_net_info.id);
 	}
-
+	m_num_radios = 0;
     cJSON_Delete(parent_obj);
     //printf("%s:%d: End\n", __func__, __LINE__);
     return 0;
@@ -1822,8 +1825,11 @@ rdk_wifi_radio_t *dm_easy_mesh_t::get_radio_data(em_interface_t *interface)
 
 dm_radio_t *dm_easy_mesh_t::get_radio(unsigned int index)
 {
-
-	return &m_radio[index];
+	if (index < EM_MAX_BANDS) {
+		return &m_radio[index];
+	} else {
+		return NULL;
+	}
 }
 
 dm_radio_t *dm_easy_mesh_t::get_radio(mac_address_t mac)
