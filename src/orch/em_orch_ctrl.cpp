@@ -236,7 +236,6 @@ void em_orch_ctrl_t::pre_process_cancel(em_cmd_t *pcmd, em_t *em)
            	em->set_state(em_state_ctrl_misconfigured);
             em->set_topo_query_tx_count(0);
             em->set_channel_pref_query_tx_count(0);
-
 			// send cfg renew so that controller can orchestrate renew
 			ev.type = em_event_type_bus;
     		bev = &ev.u.bevt;
@@ -416,14 +415,19 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 break;
 
             case em_cmd_type_cfg_renew:
-				// check if the radio is null mac
+		dm = pcmd->get_data_model();
+                dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.u.args.args[0], dm->m_radio[0].m_radio_info.intf.mac);
+		// check if the radio is null mac
                 dm = pcmd->get_data_model();
-				if (memcmp(null_mac, dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
-					queue_push(pcmd->m_em_candidates, em);
-                    count++;
-				} else if (memcmp(em->get_radio_interface_mac(), dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
-                    queue_push(pcmd->m_em_candidates, em);
-                    count++;
+		if ((memcmp(null_mac, dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) &&  (em->is_al_interface_em() == false)) {
+			printf("%s:%d push to queue since null mac \n", __func__, __LINE__);	
+			queue_push(pcmd->m_em_candidates, em);
+                	count++;
+		} else if (memcmp(em->get_radio_interface_mac(), dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
+			dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
+			printf("%s:%d Auto config renew %s push to queue since mac matches\n", __func__, __LINE__,mac_str);
+			queue_push(pcmd->m_em_candidates, em);
+			count++;
                 }
                 break;
 

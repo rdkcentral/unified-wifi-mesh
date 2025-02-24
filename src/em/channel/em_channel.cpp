@@ -1210,7 +1210,7 @@ int em_channel_t::send_channel_pref_report_msg()
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
-    memcpy(tmp, get_radio_interface_mac(), sizeof(mac_address_t));
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
@@ -1931,7 +1931,6 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
     
     hdr = (em_raw_hdr_t *)data;
     cmdu = (em_cmdu_t *)(data + sizeof(em_raw_hdr_t));
-    
     switch (htons(cmdu->type)) {
         case em_msg_type_channel_pref_query:
 	        if (get_service_type() == em_service_type_agent) {
