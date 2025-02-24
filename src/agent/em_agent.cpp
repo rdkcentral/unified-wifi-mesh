@@ -524,8 +524,6 @@ void em_agent_t::input_listener()
 int em_agent_t::channel_scan_cb(char *event_name, raw_data_t *data)
 {
     cJSON *json, *channel_stats_arr;
-    printf("%s:%d: Scan Results received\n", __func__, __LINE__);
-    //printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
 
     json = cJSON_Parse((const char *)data->raw_data.bytes);
     if (json != NULL) {

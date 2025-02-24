@@ -677,12 +677,10 @@ int dm_easy_mesh_agent_t::analyze_scan_request(em_bus_event_t *evt, wifi_bus_des
     dm_easy_mesh_t::macbytes_to_string(scan_req->ruid, radio_mac_str);
     printf("%s:%d: Radio: %s Num of Op Classes: %d\n", __func__, __LINE__, radio_mac_str, scan_req->num_op_classes);
 
-    scan_data.perform_fresh_scan = 1;
+    scan_data.perform_fresh_scan = true;
     scan_data.num_radios = 1;
 
-    for (int i = 0; i < 6; ++i) {
-        scan_data.ruid[i] = scan_req->ruid[i];
-    }
+    memcpy(scan_data.ruid, scan_req->ruid, sizeof(mac_address_t));
 
     scan_data.num_operating_classes = scan_req->num_op_classes;
     for (i = 0; i < scan_req->num_op_classes; i++) {
