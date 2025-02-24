@@ -72,7 +72,6 @@ extern "C"
 #define EM_MAX_TRAFFIC_SEP_SSID        8
 #define EM_MAX_FREQ_RECORDS_PER_RADIO  8
 #define EM_MAX_CHANNELS   30
-#define EM_MAX_SCAN_RESULTS	32
 #define MAP_INVENTORY_ITEM_LEN  64
 #define MAX_MCS  6
 #define MAP_AP_ROLE_MAX 2
@@ -658,12 +657,19 @@ typedef struct {
     unsigned char timestamp[0]; 
 }__attribute__((__packed__)) em_timestamp_t;
 
+
+typedef enum {
+	em_scanner_type_radio = 1,
+	em_scanner_type_sta,
+} em_scanner_type_t;
+
 typedef struct {
     em_long_string_t    net_id;
 	mac_address_t	dev_mac;
-	mac_address_t ruid;
+	mac_address_t scanner_mac;
     unsigned char op_class;
     unsigned char channel;
+	em_scanner_type_t	scanner_type;	
 } em_scan_result_id_t;
 
 typedef struct {
@@ -2983,6 +2989,7 @@ typedef enum {
     em_get_sta_list_reason_steer,
     em_get_sta_list_reason_btm,
     em_get_sta_list_reason_disassoc,
+    em_get_sta_list_reason_neighbors,
 } em_get_sta_list_reason_t;
 
 typedef enum {

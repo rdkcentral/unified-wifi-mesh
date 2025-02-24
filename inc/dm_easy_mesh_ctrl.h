@@ -115,7 +115,7 @@ public:
     em_interface_t *get_ctrl_al_interface(em_long_string_t net_id) { return dm_network_list_t::get_ctrl_al_interface(net_id); }
 
     dm_easy_mesh_t	*get_data_model(const char *net_id, const unsigned char *al_mac);   
-    dm_easy_mesh_t	*create_data_model(const char *net_id, const unsigned char *al_mac, em_profile_type_t profile);    
+    dm_easy_mesh_t	*create_data_model(const char *net_id, const em_interface_t *al_intf, em_profile_type_t profile);    
 
 	dm_easy_mesh_t *get_first_dm() { return m_data_model_list.get_first_dm(); }
 	dm_easy_mesh_t *get_next_dm(dm_easy_mesh_t *dm) { return m_data_model_list.get_next_dm(dm); }

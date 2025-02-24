@@ -224,6 +224,9 @@ int dm_network_list_t::sync_db(db_client_t& db_client, void *ctx)
 
 		info.media = (em_media_type_t)db_client.get_number(ctx, 4);
 
+		info.ctrl_id.media = info.media;
+		info.colocated_agent_id.media = info.media;
+
 		update_list(dm_network_t(&info), dm_orch_type_db_insert);
     }
     return rc;

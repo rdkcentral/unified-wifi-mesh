@@ -188,7 +188,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
 
             intf = pcmd->get_agent_al_interface();
             if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
-                dm = m_mgr->create_data_model(global_netid, intf->mac);
+                dm = m_mgr->create_data_model(global_netid, intf);
             }
             config.type = em_commit_target_al;
             //commit basic configuration before orchestrate
@@ -203,7 +203,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
             for (unsigned int i = 0; i < pcmd->get_data_model()->get_num_radios(); i++) {
                 intf = pcmd->get_radio_interface(i);
                 if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
-                    dm = m_mgr->create_data_model(global_netid, intf->mac);
+                    dm = m_mgr->create_data_model(global_netid, intf);
                 }    
                 dm_easy_mesh_t::macbytes_to_string(intf->mac, mac_str);
                 config.type = em_commit_target_radio;
@@ -224,7 +224,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
         case dm_orch_type_sta_aggregate:
             intf = pcmd->get_radio_interface(ctx->arr_index);
             if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
-                dm = m_mgr->create_data_model(global_netid, intf->mac);
+                dm = m_mgr->create_data_model(global_netid, intf);
             }
 
             sta = (dm_sta_t *)hash_map_get_first(pcmd->get_data_model()->m_sta_assoc_map);

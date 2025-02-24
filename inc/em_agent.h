@@ -93,7 +93,7 @@ public:
     em_cmd_t& get_command(char *in);
     
     dm_easy_mesh_t *get_data_model(const char *net_id, const unsigned char *al_mac = NULL) { return &m_data_model; }
-    dm_easy_mesh_t *create_data_model(const char *net_id, const unsigned char *al_mac, em_profile_type_t profile = em_profile_type_3) { return &m_data_model; }
+    dm_easy_mesh_t *create_data_model(const char *net_id, const em_interface_t *al_intf, em_profile_type_t profile = em_profile_type_3) { return &m_data_model; }
     void delete_data_model(const char *net_id, const unsigned char *al_mac) { }
     void delete_all_data_models() { }
     int update_tables(dm_easy_mesh_t *dm) { return 0; }

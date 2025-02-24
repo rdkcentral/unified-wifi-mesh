@@ -27,7 +27,7 @@
 
 void em_network_topo_t::encode(cJSON *parent)
 {
-	cJSON *dev_obj, *child_obj, *radio_list_obj, *radio_obj, *bss_list_obj, *bss_obj;
+	cJSON *dev_obj, *child_obj, *radio_list_obj, *radio_obj, *bss_list_obj, *bss_obj, *bh_obj;
 	unsigned int i, j;
 	char *tmp;
 
@@ -51,8 +51,10 @@ void em_network_topo_t::encode(cJSON *parent)
 		
 	}
 
+	bh_obj = cJSON_GetObjectItem(dev_obj, "Backhaul");
+
 	for (i = 0; i < m_num_topologies; i++) {
-		child_obj = cJSON_AddObjectToObject(dev_obj, "Device");
+		child_obj = cJSON_AddObjectToObject(bh_obj, "Device");
 		m_topology[i]->encode(child_obj);
 	}	
 }

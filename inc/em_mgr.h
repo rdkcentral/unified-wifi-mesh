@@ -77,7 +77,7 @@ public:
     virtual void update_network_topology() = 0;
     
     virtual dm_easy_mesh_t *get_data_model(const char *net_id, const unsigned char *al_mac = NULL) = 0;
-    virtual dm_easy_mesh_t *create_data_model(const char *net_id, const unsigned char *al_mac, em_profile_type_t profile = em_profile_type_3) = 0;
+    virtual dm_easy_mesh_t *create_data_model(const char *net_id, const em_interface_t *al_intf, em_profile_type_t profile = em_profile_type_3) = 0;
     virtual void delete_data_model(const char *net_id, const unsigned char *al_mac) = 0;
     virtual void delete_all_data_models() = 0;
     virtual int update_tables(dm_easy_mesh_t *dm) = 0;

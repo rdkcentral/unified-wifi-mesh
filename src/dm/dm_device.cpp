@@ -181,11 +181,27 @@ int dm_device_t::decode(const cJSON *obj, void *parent_id)
 }
 void dm_device_t::encode(cJSON *obj, bool summary)
 {
+	cJSON *bh_obj;
     mac_addr_str_t  mac_str;
     unsigned int i;
+	em_string_t	media_str;
 
     dm_easy_mesh_t::macbytes_to_string(m_device_info.intf.mac, mac_str);
     cJSON_AddStringToObject(obj, "ID", mac_str);
+
+	bh_obj = cJSON_AddObjectToObject(obj, "Backhaul");
+    dm_easy_mesh_t::macbytes_to_string(m_device_info.backhaul_mac.mac, mac_str);
+    cJSON_AddStringToObject(bh_obj, "MACAddress", mac_str);
+	switch (m_device_info.backhaul_mac.media) {
+		case em_media_type_ieee8023ab:
+			strncpy(media_str, "Ethernet", strlen("Ethernet") + 1);
+			break;
+
+		default:
+			strncpy(media_str, "Wireless LAN", strlen("Wireless LAN") + 1);
+			break;
+	}
+    cJSON_AddStringToObject(bh_obj, "MediaType", media_str);
 
     if (summary == true) {
         return;
@@ -214,8 +230,6 @@ void dm_device_t::encode(cJSON *obj, bool summary)
     cJSON_AddBoolToObject(obj, "STASteeringState", m_device_info.sta_steer_state);
     cJSON_AddBoolToObject(obj, "CoordinatedCACAllowed", m_device_info.coord_cac_allowed);
     cJSON_AddStringToObject(obj, "ControllerOperationMode", m_device_info.ctrl_operation_mode);
-    dm_easy_mesh_t::macbytes_to_string(m_device_info.backhaul_mac.mac, mac_str);
-    cJSON_AddStringToObject(obj, "BackhaulMACAddress", mac_str);
 
     cJSON *backhaul_downmacArray = cJSON_CreateArray();
     for (i = 0; i < m_device_info.num_backhaul_down_mac; i++) {

@@ -30,6 +30,7 @@ public:
     em_sta_info_t *get_sta_info() { return &m_sta_info; }
     int decode(const cJSON *obj, void *parent_id);
     void encode(cJSON *obj, em_get_sta_list_reason_t reson = em_get_sta_list_reason_none);
+	void encode_beacon_report(cJSON *obj);
 
     bool operator == (const dm_sta_t& obj);
     void operator = (const dm_sta_t& obj);
