@@ -52,6 +52,7 @@ class em_agent_t : public em_mgr_t {
     void handle_public_action_frame(struct ieee80211_mgmt *frame);
     void handle_vendor_public_action_frame(struct ieee80211_mgmt *frame);
     void handle_btm_request_action_frame(em_bus_event_t *evt);
+    void handle_recv_wfa_action_frame(em_bus_event_t *evt);
     void handle_btm_response_action_frame(em_bus_event_t *evt);
     void handle_channel_scan_result(em_bus_event_t *evt);
     void handle_channel_scan_params(em_bus_event_t *evt);

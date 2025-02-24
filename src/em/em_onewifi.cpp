@@ -56,57 +56,6 @@ em_onewifi_t::~em_onewifi_t()
 
 }
 
-void em_onewifi_t::print_hex_dump(unsigned int length, unsigned char *buffer)
-{
-    int i;
-    FILE *file = fopen("/rdklogs/logs/emConf.txt", "a+");
-    if (!file) {
-        perror("Error opening file");
-        return;
-    }
-    for (i = 0; i < length; i++) {
-        // Print each byte as hexadecimal (%02x) followed by a space
-        fprintf(file, "%02x ", buffer[i]);
-
-        // Start a new line after printing 20 values
-        if ((i + 1) % 20 == 0)
-            fprintf(file, "\n");
-    }
-    fclose(file);
-#if 0
-    unsigned char buff[512] = {};
-    const unsigned char * pc = (const unsigned char *)buffer;
-
-    if ((pc == NULL) || (length <= 0)) {
-        em_util_info_print(EM_CONF,"buffer NULL or BAD LENGTH = %d :\n", length);
-        return;
-    }
-
-    for (i = 0; i < length; i++) {
-        if ((i % 16) == 0) {
-            if (i != 0)
-                em_util_info_print(EM_CONF,"  %s\n", buff);
-            em_util_info_print(EM_CONF,"  %04x ", i);
-        }
-
-        em_util_info_print(EM_CONF," %02x", pc[i]);
-
-        if (!isprint(pc[i]))
-            buff[i % 16] = '.';
-        else
-            buff[i % 16] = pc[i];
-        buff[(i % 16) + 1] = '\0';
-    }
-
-    while ((i % 16) != 0) {
-        em_util_info_print(EM_CONF,"   ");
-        i++;
-    }
-
-    em_util_info_print(EM_CONF,"  %s\n", buff);
-#endif
-}
-
 char *em_onewifi_t::macbytes_to_string(mac_address_t mac, char* string)
 {
 	sprintf((char *)string, "%02x:%02x:%02x:%02x:%02x:%02x",

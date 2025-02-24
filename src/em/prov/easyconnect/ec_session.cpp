@@ -427,12 +427,28 @@ int ec_session_t::set_auth_frame_wrapped_data(ec_frame_t *frame, unsigned int no
             frame->attributes, non_wrapped_len); // Used for SIV (authentication)
 
     //printf("%s:%d: Plain text:\n", __func__, __LINE__);
-    //print_hex_dump(noncelen, plain);
+    //util::print_hex_dump(noncelen, plain);
 
     return wrapped_len + AES_BLOCK_SIZE;
 }
 
-ec_session_t::ec_session_t() 
+int ec_session_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len)
+{
+    if (!ec_util::validate_frame(frame)) {
+        printf("%s:%d: frame validation failed\n", __func__, __LINE__);
+        return -1;
+    }
+    switch (frame->frame_type) {
+        case ec_frame_type_presence_announcement:
+            return handle_pres_ann((uint8_t *)frame, len);
+        default:
+            printf("%s:%d: frame type (%d) not handled\n", __func__, __LINE__, frame->frame_type);
+            break;
+    }
+    return 0;
+}
+
+ec_session_t::ec_session_t()
 {
     // Initialize member variables
     m_cfgrtr_ver = 0;

@@ -100,13 +100,23 @@ public:
     }
 
     /**
+     * @brief Validate an EC frame based on the WFA parameters
+     * 
+     * @param frame The frame to validate
+     * @return true The frame is valid, false otherwise
+     */
+    static bool validate_frame(const ec_frame_t *frame);
+
+    /**
      * @brief Validate an EC frame based on the WFA parameters and type
      * 
      * @param frame The frame to validate
      * @param type The frame type that the frame should be
      * @return true The frame is valid, false otherwise
      */
-    static bool validate_frame(const ec_frame_t *frame, ec_frame_type_t type);
+    static inline bool validate_frame(const ec_frame_t *frame, ec_frame_type_t type) {
+        return validate_frame(frame) && frame->frame_type == type;
+    }
 
     /**
      * @brief Converts a frequency to a WFA channel attribute format (opclass + channel)
@@ -118,7 +128,6 @@ public:
      */
     static uint16_t freq_to_channel_attr(unsigned int freq);
 
-    static void print_hex_dump(unsigned int length, uint8_t *buffer);
     static void print_bignum (BIGNUM *bn);
     static void print_ec_point (const EC_GROUP *group, BN_CTX *bnctx, EC_POINT *point);
 

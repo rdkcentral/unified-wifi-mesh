@@ -28,12 +28,14 @@
 #include <pthread.h>
 #include <sys/prctl.h>
 #include <string>
+#include <memory>
 
 #ifndef LOG_PATH_PREFIX
 #define LOG_PATH_PREFIX "/nvram/"
 #endif // LOG_PATH_PREFIX
 
 typedef enum {
+    EM_STDOUT,
     EM_AGENT,
     EM_CTRL,
     EM_MGR,
@@ -48,10 +50,13 @@ typedef enum {
     EM_LOG_LVL_ERROR
 }easymesh_log_level_t;
 
+namespace util {
+
 void em_util_print(easymesh_log_level_t level, easymesh_dbg_type_t module, const char *func, int line, const char *format, ...);
 void delay(int );
 void add_milliseconds(struct timespec *ts, long milliseconds);
 char *get_date_time_rfc3399(char *buff, unsigned int len);
+void print_hex_dump(unsigned int length, uint8_t *buffer, easymesh_dbg_type_t module=EM_STDOUT);
 
 /**
  * em_chan_to_freq - Convert channel info to frequency
@@ -74,10 +79,10 @@ int em_chan_to_freq(uint8_t op_class, uint8_t chan, const std::string& country="
  */
 std::pair<uint8_t, uint8_t> em_freq_to_chan(int frequency, const std::string& region="");
 
-#define em_printf(format, ...)  em_util_print(EM_LOG_LVL_INFO, EM_AGENT, __func__, __LINE__, format, ##__VA_ARGS__)// general log
-#define em_util_dbg_print(module, format, ...)  em_util_print(EM_LOG_LVL_DEBUG, module, __func__, __LINE__, format, ##__VA_ARGS__)
-#define em_util_info_print(module, format, ...)  em_util_print(EM_LOG_LVL_INFO, module, __func__, __LINE__, format, ##__VA_ARGS__)
-#define em_util_error_print(module, format, ...)  em_util_print(EM_LOG_LVL_ERROR, module, __func__, __LINE__, format, ##__VA_ARGS__)
+} // namespace util
 
-
+#define em_printf(format, ...)  util::em_util_print(EM_LOG_LVL_INFO, EM_AGENT, __func__, __LINE__, format, ##__VA_ARGS__)// general log
+#define em_util_dbg_print(module, format, ...)  util::em_util_print(EM_LOG_LVL_DEBUG, module, __func__, __LINE__, format, ##__VA_ARGS__)
+#define em_util_info_print(module, format, ...)  util::em_util_print(EM_LOG_LVL_INFO, module, __func__, __LINE__, format, ##__VA_ARGS__)
+#define em_util_error_print(module, format, ...)  util::em_util_print(EM_LOG_LVL_ERROR, module, __func__, __LINE__, format, ##__VA_ARGS__)
 #endif
