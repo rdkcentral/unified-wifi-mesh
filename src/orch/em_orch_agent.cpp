@@ -109,6 +109,12 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             }
             break;
 
+        case em_cmd_type_beacon_report:
+            if (em->get_state() == em_state_agent_configured) {
+                return true;
+            }
+            break;
+
         default:
             if ((em->get_state() == em_state_agent_unconfigured) ||
                     (em->get_state() == em_state_agent_configured)) {
@@ -144,7 +150,11 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 		if (em->get_state() == em_state_agent_configured) {
 			return true;
 		}
-	}
+	} else if (pcmd->m_type == em_cmd_type_beacon_report) {
+        if (em->get_state() == em_state_agent_configured) {
+            return true;
+        }
+    }
 
     return false;
 }
@@ -178,7 +188,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
 
             intf = pcmd->get_agent_al_interface();
             if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
-                dm = m_mgr->create_data_model(global_netid, intf->mac);
+                dm = m_mgr->create_data_model(global_netid, intf);
             }
             config.type = em_commit_target_al;
             //commit basic configuration before orchestrate
@@ -193,7 +203,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
             for (unsigned int i = 0; i < pcmd->get_data_model()->get_num_radios(); i++) {
                 intf = pcmd->get_radio_interface(i);
                 if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
-                    dm = m_mgr->create_data_model(global_netid, intf->mac);
+                    dm = m_mgr->create_data_model(global_netid, intf);
                 }    
                 dm_easy_mesh_t::macbytes_to_string(intf->mac, mac_str);
                 config.type = em_commit_target_radio;
@@ -214,7 +224,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
         case dm_orch_type_sta_aggregate:
             intf = pcmd->get_radio_interface(ctx->arr_index);
             if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
-                dm = m_mgr->create_data_model(global_netid, intf->mac);
+                dm = m_mgr->create_data_model(global_netid, intf);
             }
 
             sta = (dm_sta_t *)hash_map_get_first(pcmd->get_data_model()->m_sta_assoc_map);
@@ -261,6 +271,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
         case dm_orch_type_tx_cfg_renew:
         case dm_orch_type_channel_pref:
         case dm_orch_type_op_channel_report:
+        case dm_orch_type_beacon_report:
             break;
         default:
             break;
@@ -279,7 +290,7 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
     em_freq_band_t freq_band, em_freq_band;
     int build_autoconf_renew = 0;
     dm_easy_mesh_t dm;
-    mac_address_t	radio_mac;
+    mac_address_t	radio_mac, mac1, mac2;
     dm_sta_t *sta;
 
     ctx = pcmd->m_data_model.get_cmd_ctx();
@@ -403,6 +414,17 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 					}
 				}
 				break;
+
+            case em_cmd_type_beacon_report:
+                dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.u.args.args[0], mac1);
+                dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.u.args.args[1], mac2);
+
+                sta = em->find_sta(mac1, mac2);
+                if (sta != NULL) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
+                }
+                break;
 
 			default:
                 break;

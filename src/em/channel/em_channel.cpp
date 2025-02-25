@@ -285,14 +285,14 @@ short em_channel_t::create_channel_scan_res_tlv(unsigned char *buff, unsigned in
 	unsigned short param;
 	em_channel_scan_result_t *res = (em_channel_scan_result_t *)buff;
 
-    dm = get_current_cmd()->get_data_model();
-	scan_res = &dm->m_scan_result[index];
+    dm = get_data_model();
+	scan_res = dm->get_scan_result(index);
 
 	memcpy(res->ruid, get_radio_interface_mac(), sizeof(mac_address_t));	
 	memcpy(&res->op_class, &scan_res->m_scan_result.id.op_class, sizeof(unsigned char));
 	memcpy(&res->channel, &scan_res->m_scan_result.id.channel, sizeof(unsigned char));
 	res->scan_status = scan_res->m_scan_result.scan_status;
-	get_date_time_rfc3399(date_time, sizeof(date_time));
+	util::get_date_time_rfc3399(date_time, sizeof(date_time));
 	memcpy(res->timestamp, date_time, strlen(date_time) + 1);
 	res->timestamp_len = strlen(date_time);	
 	
@@ -471,7 +471,7 @@ int em_channel_t::send_channel_scan_report_msg(unsigned int *last_index)
     // One Timestamp TLV (see section 17.2.41).
     tlv = (em_tlv_t *)tmp;
     tlv->type = em_tlv_type_timestamp;
-	get_date_time_rfc3399(date_time, sizeof(date_time));
+	util::get_date_time_rfc3399(date_time, sizeof(date_time));
 	sz = strlen(date_time) + 1;
 	time_len = strlen(date_time);
 	memcpy(tlv->value, &time_len, sizeof(unsigned char));
@@ -482,7 +482,7 @@ int em_channel_t::send_channel_scan_report_msg(unsigned int *last_index)
     len += (sizeof(em_tlv_t) + sz);
 
     // One or more Channel Scan Result TLVs (see section 17.2.40).
-	for (i = start_idx; i < dm->m_num_scan_results; i++) {
+	for (i = start_idx; i < dm->get_num_scan_results(); i++) {
     	tlv = (em_tlv_t *)tmp;
     	tlv->type = em_tlv_type_channel_scan_rslt;
     	sz = create_channel_scan_res_tlv(tlv->value, i);
@@ -1215,7 +1215,7 @@ int em_channel_t::send_channel_pref_report_msg()
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
-    memcpy(tmp, get_radio_interface_mac(), sizeof(mac_address_t));
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
@@ -1904,14 +1904,13 @@ int em_channel_t::handle_channel_scan_rprt(unsigned char *buff, unsigned int len
 			
 			strncpy(id.net_id, dm->m_network.m_net_info.id, strlen(dm->m_network.m_net_info.id) + 1);	
 			memcpy(id.dev_mac, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
-            memcpy(id.ruid, res->ruid, sizeof(mac_address_t));
+            memcpy(id.scanner_mac, res->ruid, sizeof(mac_address_t));
             id.op_class = res->op_class;
             id.channel = res->channel;
+			id.scanner_type = em_scanner_type_radio;
 
 			if ((scan_res = dm->find_matching_scan_result(&id)) == NULL) {
-				scan_res = &dm->m_scan_result[dm->m_num_scan_results];
-				memcpy(&scan_res->m_scan_result.id, &id, sizeof(em_scan_result_id_t));
-				dm->m_num_scan_results++;	
+				scan_res = dm->create_new_scan_result(&id);
 			}
 
 			fill_scan_result(scan_res, res);
@@ -1938,7 +1937,6 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
     
     hdr = (em_raw_hdr_t *)data;
     cmdu = (em_cmdu_t *)(data + sizeof(em_raw_hdr_t));
-    
     switch (htons(cmdu->type)) {
         case em_msg_type_channel_pref_query:
 	        if (get_service_type() == em_service_type_agent) {
@@ -2016,14 +2014,8 @@ void em_channel_t::process_state()
 
 		case em_state_agent_channel_scan_result_pending:
             if (get_service_type() == em_service_type_agent) {
-                if (get_current_cmd() == NULL) {
-                    break;
-                }
-                dm = get_current_cmd()->get_data_model();
-                if (dm == NULL) {
-                    break;
-                }
-				while (last_index < dm->m_num_scan_results) {
+				dm = get_data_model();
+				while (last_index < dm->get_num_scan_results()) {
                 	send_channel_scan_report_msg(&last_index);
 				}
                 set_state(em_state_agent_configured);

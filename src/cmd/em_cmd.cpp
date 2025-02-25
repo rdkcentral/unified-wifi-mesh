@@ -442,6 +442,11 @@ void em_cmd_t::init()
             m_svc = em_service_type_ctrl;
             break;
 
+        case em_cmd_type_beacon_report:
+            snprintf(m_name, sizeof(m_name), "%s", "beacon_report");
+            m_svc = em_service_type_ctrl;
+            break;
+
     }
 }
 
@@ -598,6 +603,7 @@ const char *em_cmd_t::get_cmd_type_str(em_cmd_type_t type)
         CMD_TYPE_2S(em_cmd_type_set_policy)
         CMD_TYPE_2S(em_cmd_type_get_mld_config)
         CMD_TYPE_2S(em_cmd_type_mld_reconfig)
+        CMD_TYPE_2S(em_cmd_type_beacon_report)
     }
 
     return "em_cmd_type_unknown";
@@ -718,6 +724,10 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
 
         case em_bus_event_type_mld_reconfig:
             type = em_cmd_type_mld_reconfig;
+            break;
+
+        case em_bus_event_type_beacon_report:
+            type = em_cmd_type_beacon_report;
             break;
     }
 

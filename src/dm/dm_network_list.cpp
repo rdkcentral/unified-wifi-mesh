@@ -210,7 +210,7 @@ int dm_network_list_t::sync_db(db_client_t& db_client, void *ctx)
 	char date_time[EM_DATE_TIME_BUFF_SZ];
 
 	memset(&info, 0, sizeof(em_network_info_t));
-	get_date_time_rfc3399(date_time, EM_DATE_TIME_BUFF_SZ);
+	util::get_date_time_rfc3399(date_time, EM_DATE_TIME_BUFF_SZ);
 	strncpy(info.timestamp, date_time, strlen(date_time) + 1);
 
     // there is only one row in network
@@ -223,6 +223,9 @@ int dm_network_list_t::sync_db(db_client_t& db_client, void *ctx)
 		dm_easy_mesh_t::string_to_macbytes(mac, info.colocated_agent_id.mac);
 
 		info.media = (em_media_type_t)db_client.get_number(ctx, 4);
+
+		info.ctrl_id.media = info.media;
+		info.colocated_agent_id.media = info.media;
 
 		update_list(dm_network_t(&info), dm_orch_type_db_insert);
     }

@@ -33,6 +33,7 @@ const (
 	NetworkSSIDListCmd    = "SSID List"
 	RadioListCmd          = "WiFi Radios"
 	ChannelsListCmd       = "WiFi Channels"
+	MLDReconfigurationCmd = "Multi Link Operations"
 	ClientDevicesCmd      = "Client Connections"
 	NetworkPolicyCmd      = "Network Policy"
 	NeighborsListCmd      = "WiFi Neighbors"
@@ -43,7 +44,6 @@ const (
 	WiFiEventsCmd         = "WiFi Events"
 	WiFiResetCmd          = "WiFi Reset"
 	DebugCmd              = "Debugging & Testing"
-	MLDReconfigurationCmd = "MLD Reconfiguration"
 
 	GET  = 0
 	GETX = 1
@@ -171,9 +171,18 @@ func CreateEasyMeshCommands() map[string]EasyMeshCmd {
 			Help:                 "",
 			AllowUnmodifiedApply: false,
 		},
+		MLDReconfigurationCmd: {
+			Title:                MLDReconfigurationCmd,
+			LoadOrder:            5,
+			GetCommand:           "get_mld_config OneWifiMesh",
+			GetCommandEx:         "",
+			SetCommand:           "mld_reconfig OneWifiMesh",
+			Help:                 "",
+			AllowUnmodifiedApply: false,
+		},
 		NeighborsListCmd: {
 			Title:                NeighborsListCmd,
-			LoadOrder:            5,
+			LoadOrder:            6,
 			GetCommand:           "scan_result OneWifiMesh",
 			GetCommandEx:         "get_channel OneWifiMesh 2",
 			SetCommand:           "scan_channel OneWifiMesh",
@@ -182,7 +191,7 @@ func CreateEasyMeshCommands() map[string]EasyMeshCmd {
 		},
 		ClientDevicesCmd: {
 			Title:                ClientDevicesCmd,
-			LoadOrder:            6,
+			LoadOrder:            7,
 			GetCommand:           "get_sta OneWifiMesh",
 			GetCommandEx:         "",
 			SetCommand:           "",
@@ -191,7 +200,7 @@ func CreateEasyMeshCommands() map[string]EasyMeshCmd {
 		},
 		SteerDevicesCmd: {
 			Title:                SteerDevicesCmd,
-			LoadOrder:            7,
+			LoadOrder:            8,
 			GetCommand:           "get_sta OneWifiMesh",
 			GetCommandEx:         "get_sta OneWifiMesh 1",
 			SetCommand:           "steer_sta OneWifiMesh",
@@ -200,7 +209,7 @@ func CreateEasyMeshCommands() map[string]EasyMeshCmd {
 		},
 		BackhaulOptimizeCmd: {
 			Title:                BackhaulOptimizeCmd,
-			LoadOrder:            8,
+			LoadOrder:            9,
 			GetCommand:           "get_sta OneWifiMesh",
 			GetCommandEx:         "get_sta OneWifiMesh 1",
 			SetCommand:           "steer_sta OneWifiMesh",
@@ -209,7 +218,7 @@ func CreateEasyMeshCommands() map[string]EasyMeshCmd {
 		},
 		NetworkMetricsCmd: {
 			Title:                NetworkMetricsCmd,
-			LoadOrder:            9,
+			LoadOrder:            10,
 			GetCommand:           "",
 			GetCommandEx:         "",
 			SetCommand:           "",
@@ -218,7 +227,7 @@ func CreateEasyMeshCommands() map[string]EasyMeshCmd {
 		},
 		DeviceOnboardingCmd: {
 			Title:                DeviceOnboardingCmd,
-			LoadOrder:            10,
+			LoadOrder:            11,
 			GetCommand:           "",
 			GetCommandEx:         "",
 			SetCommand:           "start_dpp",
@@ -227,7 +236,7 @@ func CreateEasyMeshCommands() map[string]EasyMeshCmd {
 		},
 		WiFiEventsCmd: {
 			Title:                WiFiEventsCmd,
-			LoadOrder:            11,
+			LoadOrder:            12,
 			GetCommand:           "",
 			GetCommandEx:         "",
 			SetCommand:           "",
@@ -236,7 +245,7 @@ func CreateEasyMeshCommands() map[string]EasyMeshCmd {
 		},
 		WiFiResetCmd: {
 			Title:                WiFiResetCmd,
-			LoadOrder:            12,
+			LoadOrder:            13,
 			GetCommand:           "get_network OneWifiMesh",
 			GetCommandEx:         "",
 			SetCommand:           "reset OneWifiMesh",
@@ -245,19 +254,10 @@ func CreateEasyMeshCommands() map[string]EasyMeshCmd {
 		},
 		DebugCmd: {
 			Title:                DebugCmd,
-			LoadOrder:            13,
+			LoadOrder:            14,
 			GetCommand:           "dev_test OneWifiMesh",
 			GetCommandEx:         "",
 			SetCommand:           "",
-			Help:                 "",
-			AllowUnmodifiedApply: false,
-		},
-		MLDReconfigurationCmd: {
-			Title:                MLDReconfigurationCmd,
-			LoadOrder:            14,
-			GetCommand:           "get_mld_config OneWifiMesh",
-			GetCommandEx:         "",
-			SetCommand:           "mld_reconfig OneWifiMesh",
 			Help:                 "",
 			AllowUnmodifiedApply: false,
 		},
@@ -338,6 +338,7 @@ func newModel(platform string) model {
 
 	return model{
 		platform:               platform,
+		scrollIndex:			0,
 		menuWidth:              35,
 		menuInstructionsHeight: 3,
 		bottomSpace:            10,
@@ -556,7 +557,6 @@ func (m *model) execSelectedCommand(cmdStr string, cmdType int) {
 		C.exec(C.CString(value.SetCommand), C.strlen(C.CString(value.SetCommand)), m.treeToNodes(&root[0]))
 	}
 
-	m.scrollIndex = 0
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -730,11 +730,11 @@ func (m model) View() string {
 	}
 
 	end := len(m.scrollContent) - 1
-	if end > start+m.viewHeight {
+	if end > start + m.viewHeight {
 		end = start + m.viewHeight
 	}
 
-	//spew.Fprintf(m.dump, "start: %d end: %d\n", start, end)
+	//spew.Fprintf(m.dump, "Scroll Index: %d View Height: %d start: %d end: %d\n", m.scrollIndex, m.viewHeight, start, end)
 
 	styledContent := jsonStyle.Width(m.viewWidth).Height(m.viewHeight).Render(strings.Join(m.scrollContent[start:end], "\n"))
 	statusView = styledContent + m.currentOperatingInstructions

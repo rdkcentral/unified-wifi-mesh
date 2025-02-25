@@ -16,23 +16,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef EM_ONEWIFI_H
-#define EM_ONEWIFI_H
+#ifndef EM_CMD_BTM_REPORT_H
+#define EM_CMD_BTM_REPORT_H
 
-#include "em_base.h"
+#include "em_cmd.h"
 
-class em_onewifi_t {
-public:
-    webconfig_subdoc_data_t m_wifi_data;
+class em_cmd_beacon_report_t : public em_cmd_t {
 
 public:
-
-    em_onewifi_t();
-    ~em_onewifi_t();
-
-    static char *macbytes_to_string(mac_address_t mac, char* string);
-    static void string_to_macbytes (char *key, mac_address_t bmac);
-    static int mac_address_from_name(const char *ifname, mac_address_t mac);
+    em_cmd_beacon_report_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif

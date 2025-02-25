@@ -157,7 +157,7 @@ bool dm_network_ssid_t::operator == (const dm_network_ssid_t& obj)
     ret += (memcmp(&this->m_network_ssid_info.pass_phrase, &obj.m_network_ssid_info.pass_phrase, sizeof(em_long_string_t)) != 0);
     ret += (this->m_network_ssid_info.num_bands != obj.m_network_ssid_info.num_bands);
     for (i = 0; i < this->m_network_ssid_info.num_bands; i++) {
-    ret += (memcmp(&this->m_network_ssid_info.band[i], &obj.m_network_ssid_info.band[i], sizeof(em_tiny_string_t)) != 0);
+    ret += (memcmp(&this->m_network_ssid_info.band[i], &obj.m_network_ssid_info.band[i], sizeof(em_short_string_t)) != 0);
     }
     ret += (this->m_network_ssid_info.enable != obj.m_network_ssid_info.enable);
     ret += (this->m_network_ssid_info.num_akms != obj.m_network_ssid_info.num_akms);
@@ -227,6 +227,10 @@ char *dm_network_ssid_t::haul_type_to_string(em_haul_type_t type, em_string_t   
 			strncpy(str, "Configurator", strlen("Configurator") + 1);
 			break;
 
+		case em_haul_type_hotspot:
+			strncpy(str, "Hotspot", strlen("Hotspot") + 1);
+			break;
+
 		case em_haul_type_max:
 			strncpy(str, "Unknown", strlen("Unknown") + 1);
 			break;
@@ -247,6 +251,8 @@ em_haul_type_t dm_network_ssid_t::haul_type_from_string(em_string_t str)
         type = em_haul_type_iot;
     } else if (strncmp(str, "Configurator", strlen(str)) == 0) {
         type = em_haul_type_configurator;
+	} else if (strncmp(str, "Hotspot", strlen(str)) == 0) {
+		type = em_haul_type_hotspot;
     } else {
         type = em_haul_type_max;
     }

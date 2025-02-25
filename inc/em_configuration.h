@@ -32,6 +32,7 @@ class em_configuration_t {
     int create_autoconfig_wsc_m1_msg(unsigned char *buff, unsigned char *dst);
     int create_autoconfig_wsc_m2_msg(unsigned char *buff, em_haul_type_t haul_type[], unsigned int num_hauls);
     int	create_operational_bss_tlv(unsigned char *buff);
+    int create_operational_bss_tlv_topology(unsigned char *buff);
     int	create_bss_config_rprt_tlv(unsigned char *buff);
     int create_device_info_type_tlv(unsigned char *buff);
     short create_client_assoc_event_tlv(unsigned char *buff, mac_address_t sta, bssid_t bssid, bool assoc);
@@ -68,12 +69,14 @@ class em_configuration_t {
     int handle_eht_operations_tlv(unsigned char *buff);
     int handle_ap_mld_config_req(unsigned char *buff, unsigned int len);
     int handle_ap_mld_config_resp(unsigned char *buff, unsigned int len);
+	void handle_ap_vendor_operational_bss(unsigned char *value, unsigned int len);
 
     short create_m1_msg(unsigned char *buff);
     short create_m2_msg(unsigned char *buff, em_haul_type_t haul_type);
     short create_traffic_separation_policy(unsigned char *buff);
     short create_error_code_tlv(unsigned char *buff, int val, mac_addr_t sta_mac);
-   
+  	int create_vendor_operational_bss_tlv(unsigned char *buff);
+ 
     // state handlers 
     void handle_state_config_none();
     void handle_state_autoconfig_rsp_pending();
@@ -204,6 +207,7 @@ public:
     //void test_topology_response_msg() { send_topology_response_msg(); }
     void print_ap_operational_bss_tlv(unsigned char *value, unsigned int len);
 	void print_bss_configuration_report_tlv(unsigned char *value, unsigned int len);
+	void print_ap_vendor_operational_bss_tlv(unsigned char *value, unsigned int len);
     int get_renew_tx_count() { return m_renew_tx_cnt; }
     void set_renew_tx_count(unsigned int cnt) { m_renew_tx_cnt = cnt; }
     int get_topo_query_tx_count() { return m_topo_query_tx_cnt; }

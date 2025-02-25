@@ -26,8 +26,6 @@ class em_simulator_t {
 	em_cmd_params_t	m_param;
 	bool	m_can_run_scan_res;
 
-	int find_matching_scan_result_index(dm_easy_mesh_agent_t& dm, unsigned char *mac, unsigned int op_class, unsigned int channel);
-
 public:
 	em_cmd_params_t *get_cmd_param() { return &m_param; }
 	bool run(dm_easy_mesh_agent_t& dm);

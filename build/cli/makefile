@@ -32,6 +32,10 @@ INCLUDEDIRS = \
 	-I$(ONEWIFI_HAL_INTF_HOME) \
 	-I$(ONEWIFI_HOME)/source/utils \
 	-I$(ONEWIFI_HOME)/include \
+	-I$(ONEWIFI_HOME)/source/platform/linux \
+	-I$(ONEWIFI_HOME)/source/platform/common \
+    -I$(ONEWIFI_HOME)/source/platform/linux/he_bus/inc \
+	-I$(ONEWIFI_HOME)/source/ccsp \
     -I$(RBUS_HOME)/include \
 	-I$(WIFI_CJSON) \
 

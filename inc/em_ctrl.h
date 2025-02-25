@@ -23,6 +23,7 @@
 #include "em_mgr.h"
 #include "dm_easy_mesh_ctrl.h"
 #include "em_orch_ctrl.h"
+#include "bus.h"
 
 class em_cmd_ctrl_t;
 
@@ -31,6 +32,7 @@ class em_ctrl_t : public em_mgr_t {
     dm_easy_mesh_ctrl_t m_data_model;
     em_cmd_ctrl_t   *m_ctrl_cmd;
     em_orch_ctrl_t *m_orch;
+	bus_handle_t m_bus_hdl;
 
     void handle_bus_event(em_bus_event_t *evt);
 
@@ -40,6 +42,7 @@ public:
 
     int data_model_init(const char *data_model_path);
     bool	is_data_model_initialized() { return m_data_model.is_initialized(); }
+    bool	is_network_topology_initialized() { return m_data_model.is_network_initialized(); }
 
 	void	start_complete();
     int orch_init();
@@ -81,7 +84,7 @@ public:
 	void update_network_topology() { m_data_model.update_network_topology(); }
 
     dm_easy_mesh_t *get_data_model(const char *net_id, const unsigned char *al_mac = NULL) { return m_data_model.get_data_model(net_id, al_mac); }
-    dm_easy_mesh_t *create_data_model(const char *net_id, const unsigned char *al_mac, em_profile_type_t profile = em_profile_type_3) { return m_data_model.create_data_model(net_id, al_mac, profile); }
+    dm_easy_mesh_t *create_data_model(const char *net_id, const em_interface_t *al_intf, em_profile_type_t profile = em_profile_type_3) { return m_data_model.create_data_model(net_id, al_intf, profile); }
     void delete_data_model(const char *net_id, const unsigned char *al_mac) { m_data_model.delete_data_model(net_id, al_mac); }
     void delete_all_data_models() { m_data_model.delete_all_data_models(); }
     int update_tables(dm_easy_mesh_t *dm) { return m_data_model.update_tables(dm); }

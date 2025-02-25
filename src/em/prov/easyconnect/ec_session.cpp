@@ -20,19 +20,18 @@
 #include <string.h>
 #include "ec_base.h"
 #include "ec_session.h"
+#include "ec_util.h"
 #include "em.h"
 #include "aes_siv.h"
 
-int ec_session_t::create_auth_req(unsigned char *buff)
+int ec_session_t::create_auth_req(uint8_t *buff)
 {
 
     EC_KEY *responder_boot_key, *initiator_boot_key;
     unsigned int wrapped_len;
 
-    unsigned short attrib_len, chann_attr;;
-    unsigned char protocol_key_buff[1024];
-    ULONG hm_channel = 0;
-    ULONG ch_freq = 0;
+    uint16_t attrib_len, chann_attr;;
+    uint8_t protocol_key_buff[1024];
 
     printf("%s:%d Enter\n", __func__, __LINE__);
 
@@ -63,8 +62,8 @@ int ec_session_t::create_auth_req(unsigned char *buff)
         return -1;
     }
 
-    attribs = add_attrib(attribs, ec_attrib_id_resp_bootstrap_key_hash, SHA256_DIGEST_LENGTH, m_params.responder_keyhash);
-    attrib_len += get_ec_attr_size(SHA256_DIGEST_LENGTH);
+    attribs = ec_util::add_attrib(attribs, ec_attrib_id_resp_bootstrap_key_hash, SHA256_DIGEST_LENGTH, m_params.responder_keyhash);
+    attrib_len += ec_util::get_ec_attr_size(SHA256_DIGEST_LENGTH);
 
     // Initiator Bootstrapping Key Hash
     if (compute_key_hash(m_data.initiator_boot_key, m_params.initiator_keyhash) < 1) {
@@ -73,8 +72,8 @@ int ec_session_t::create_auth_req(unsigned char *buff)
         return -1;
     }
 
-    attribs = add_attrib(attribs, ec_attrib_id_init_bootstrap_key_hash, SHA256_DIGEST_LENGTH, m_params.initiator_keyhash);
-    attrib_len += get_ec_attr_size(SHA256_DIGEST_LENGTH);
+    attribs = ec_util::add_attrib(attribs, ec_attrib_id_init_bootstrap_key_hash, SHA256_DIGEST_LENGTH, m_params.initiator_keyhash);
+    attrib_len += ec_util::get_ec_attr_size(SHA256_DIGEST_LENGTH);
 
     // Initiator Protocol Key
     BN_bn2bin((const BIGNUM *)m_params.x,
@@ -82,23 +81,28 @@ int ec_session_t::create_auth_req(unsigned char *buff)
     BN_bn2bin((const BIGNUM *)m_params.y,
             &protocol_key_buff[2*BN_num_bytes(m_params.prime) - BN_num_bytes(m_params.x)]);
 
-    attribs = add_attrib(attribs, ec_attrib_id_init_proto_key, 2*BN_num_bytes(m_params.prime), protocol_key_buff);
-    attrib_len += get_ec_attr_size(2*BN_num_bytes(m_params.prime));
+    attribs = ec_util::add_attrib(attribs, ec_attrib_id_init_proto_key, 2*BN_num_bytes(m_params.prime), protocol_key_buff);
+    attrib_len += ec_util::get_ec_attr_size(2*BN_num_bytes(m_params.prime));
 
     // Protocol Version
     if (m_cfgrtr_ver > 1) {
-        attribs = add_attrib(attribs, ec_attrib_id_proto_version, m_cfgrtr_ver);
-        attrib_len += get_ec_attr_size(sizeof(m_cfgrtr_ver));
+        attribs = ec_util::add_attrib(attribs, ec_attrib_id_proto_version, m_cfgrtr_ver);
+        attrib_len += ec_util::get_ec_attr_size(sizeof(m_cfgrtr_ver));
     }
 
-    // Channel Attribute
-    chann_attr = freq_to_channel(channel_to_frequency(hm_channel)); //channel attrib shall be home channel
-    attribs = add_attrib(attribs, ec_attrib_id_channel, sizeof(unsigned short), (unsigned char *)&chann_attr);
-    attrib_len += get_ec_attr_size(sizeof(unsigned short));
+    // Channel Attribute (optional)
+    //TODO: REVISIT THIS
+    if (m_data.ec_freqs[0] != 0){
+        int base_freq = m_data.ec_freqs[0]; 
+        chann_attr = ec_util::freq_to_channel_attr(base_freq);
+        attribs = ec_util::add_attrib(attribs, ec_attrib_id_channel, sizeof(uint16_t), (uint8_t *)&chann_attr);
+        attrib_len += ec_util::get_ec_attr_size(sizeof(uint16_t));
+    }
+
 
     // Wrapped Data (with Initiator Nonce and Initiator Capabilities)
     wrapped_len = set_auth_frame_wrapped_data(frame, attrib_len, true);
-    attrib_len += get_ec_attr_size(wrapped_len);
+    attrib_len += ec_util::get_ec_attr_size(wrapped_len);
 
     printf("%s:%d Exit\n", __func__, __LINE__);
 
@@ -106,24 +110,24 @@ int ec_session_t::create_auth_req(unsigned char *buff)
 
 }
 
-int ec_session_t::create_auth_rsp(unsigned char *buff)
+int ec_session_t::create_auth_rsp(uint8_t *buff)
 {
     return -1;
 }
 
-int ec_session_t::create_auth_cnf(unsigned char *buff)
+int ec_session_t::create_auth_cnf(uint8_t *buff)
 {
     return -1;
 }
 
-int ec_session_t::create_pres_ann(unsigned char *buff)
+int ec_session_t::create_pres_ann(uint8_t *buff)
 {
 
     ec_frame_t *frame = (ec_frame_t *)buff;
     frame->frame_type = ec_frame_type_presence_announcement; 
 
     // Compute the hash of the responder boot key 
-    unsigned char resp_boot_key_chirp_hash[SHA512_DIGEST_LENGTH];
+    uint8_t resp_boot_key_chirp_hash[SHA512_DIGEST_LENGTH];
     if (compute_key_hash(m_data.responder_boot_key, resp_boot_key_chirp_hash, "chirp") < 1) {
         m_activation_status = ActStatus_Failed;
         printf("%s:%d unable to compute \"chirp\" responder bootstrapping key hash\n", __func__, __LINE__);
@@ -131,24 +135,24 @@ int ec_session_t::create_pres_ann(unsigned char *buff)
     }
 
     uint8_t* attribs = frame->attributes;
-    unsigned short attrib_len = 0;
+    uint16_t attrib_len = 0;
 
-    attribs = add_attrib(attribs, ec_attrib_id_resp_bootstrap_key_hash, SHA256_DIGEST_LENGTH, resp_boot_key_chirp_hash);
-    attrib_len += get_ec_attr_size(SHA256_DIGEST_LENGTH); 
+    attribs = ec_util::add_attrib(attribs, ec_attrib_id_resp_bootstrap_key_hash, SHA256_DIGEST_LENGTH, resp_boot_key_chirp_hash);
+    attrib_len += ec_util::get_ec_attr_size(SHA256_DIGEST_LENGTH); 
 
     return attrib_len;
 }
 
-int ec_session_t::handle_pres_ann(unsigned char *buff, unsigned int len)
+int ec_session_t::handle_pres_ann(uint8_t *buff, unsigned int len)
 {
     ec_frame_t *frame = (ec_frame_t *)buff;
 
-    if (validate_frame(frame, ec_frame_type_presence_announcement) == false) {
+    if (ec_util::validate_frame(frame, ec_frame_type_presence_announcement) == false) {
         printf("%s:%d: frame validation failed\n", __func__, __LINE__);
         return -1;
     }
 
-    ec_attribute_t *attrib = get_attrib(frame->attributes, len-EC_FRAME_BASE_SIZE, ec_attrib_id_resp_bootstrap_key_hash);
+    ec_attribute_t *attrib = ec_util::get_attrib(frame->attributes, len-EC_FRAME_BASE_SIZE, ec_attrib_id_resp_bootstrap_key_hash);
     if (!attrib) {
         return -1;
     }
@@ -159,21 +163,7 @@ int ec_session_t::handle_pres_ann(unsigned char *buff, unsigned int len)
     return 0;	
 }
 
-bool ec_session_t::validate_frame(ec_frame_t *frame, ec_frame_type_t type)
-{
-    if ((frame->category != 0x04) 
-            || (frame->action != 0x09)
-            || (frame->oui[0] != 0x50)
-            || (frame->oui[1] != 0x6f)
-            || (frame->oui[2] != 0x9a)
-            || (frame->oui_type != DPP_OUI_TYPE)
-            || (frame->crypto_suite != 0x01)
-            || (frame->frame_type != type)) {
-        return false;
-    }
 
-    return true;
-}
 
 int ec_session_t::init_session(ec_data_t* ec_data)
 {
@@ -210,7 +200,7 @@ int ec_session_t::init_session(ec_data_t* ec_data)
 
     if (!m_params.x || !m_params.y || !m_params.m || !m_params.n || 
         !m_params.prime || !m_params.bnctx) {
-        // error print
+        printf("%s:%d Some BN NULL\n", __func__, __LINE__);
         BN_free(m_params.x);
         BN_free(m_params.y);
         BN_free(m_params.m);
@@ -258,7 +248,10 @@ int ec_session_t::init_session(ec_data_t* ec_data)
     m_params.noncelen = m_params.digestlen/2;
 
     //printf("%s:%d group_num:%d digestlen:%d\n", __func__, __LINE__, m_params.group_num, m_params.digestlen);
-
+    if (m_params.initiator_proto_key != NULL){
+        EC_KEY_free(m_params.initiator_proto_key);
+        m_params.initiator_proto_key = NULL;
+    }
     m_params.initiator_proto_key = EC_KEY_new_by_curve_name(m_params.nid);
     if (m_params.initiator_proto_key == NULL) {
         printf("%s:%d Could not create protocol key\n", __func__, __LINE__);
@@ -309,7 +302,7 @@ int ec_session_t::init_session(ec_data_t* ec_data)
 
 
         printf("Point M:\n");
-        print_ec_point(m_params.group, m_params.bnctx, m_params.M);
+        ec_util::print_ec_point(m_params.group, m_params.bnctx, m_params.M);
 
         if (EC_POINT_get_affine_coordinates_GFp(m_params.group, m_params.M,
                     m_params.m, NULL, m_params.bnctx) == 0) {
@@ -390,7 +383,7 @@ int ec_session_t::set_auth_frame_wrapped_data(ec_frame_t *frame, unsigned int no
     unsigned int wrapped_len = 0;
     ec_attribute_t *wrapped_attrib;
 
-    unsigned char *key = do_init_auth ? m_params.k1 : m_params.ke;
+    uint8_t *key = do_init_auth ? m_params.k1 : m_params.ke;
 
     // Initialize AES-SIV context
     switch(m_params.digestlen) {
@@ -408,18 +401,18 @@ int ec_session_t::set_auth_frame_wrapped_data(ec_frame_t *frame, unsigned int no
             return -1;
     }
 
-    unsigned char plain[512];
+    uint8_t plain[512];
     uint8_t* attribs = plain;
 
     if (do_init_auth) {
-        attribs = add_attrib(attribs, ec_attrib_id_init_nonce, m_params.noncelen, m_params.initiator_nonce);
-        wrapped_len += get_ec_attr_size(m_params.noncelen); 
+        attribs = ec_util::add_attrib(attribs, ec_attrib_id_init_nonce, m_params.noncelen, m_params.initiator_nonce);
+        wrapped_len += ec_util::get_ec_attr_size(m_params.noncelen); 
 
-        attribs = add_attrib(attribs, ec_attrib_id_init_caps, caps.byte);
-        wrapped_len += get_ec_attr_size(1);
+        attribs = ec_util::add_attrib(attribs, ec_attrib_id_init_caps, caps.byte);
+        wrapped_len += ec_util::get_ec_attr_size(1);
     } else {
-        attribs = add_attrib(attribs, ec_attrib_id_init_auth_tag, m_params.digestlen, m_params.iauth);
-        wrapped_len += get_ec_attr_size(m_params.digestlen);
+        attribs = ec_util::add_attrib(attribs, ec_attrib_id_init_auth_tag, m_params.digestlen, m_params.iauth);
+        wrapped_len += ec_util::get_ec_attr_size(m_params.digestlen);
 
     }
 
@@ -434,12 +427,28 @@ int ec_session_t::set_auth_frame_wrapped_data(ec_frame_t *frame, unsigned int no
             frame->attributes, non_wrapped_len); // Used for SIV (authentication)
 
     //printf("%s:%d: Plain text:\n", __func__, __LINE__);
-    //print_hex_dump(noncelen, plain);
+    //util::print_hex_dump(noncelen, plain);
 
     return wrapped_len + AES_BLOCK_SIZE;
 }
 
-ec_session_t::ec_session_t() 
+int ec_session_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len)
+{
+    if (!ec_util::validate_frame(frame)) {
+        printf("%s:%d: frame validation failed\n", __func__, __LINE__);
+        return -1;
+    }
+    switch (frame->frame_type) {
+        case ec_frame_type_presence_announcement:
+            return handle_pres_ann((uint8_t *)frame, len);
+        default:
+            printf("%s:%d: frame type (%d) not handled\n", __func__, __LINE__, frame->frame_type);
+            break;
+    }
+    return 0;
+}
+
+ec_session_t::ec_session_t()
 {
     // Initialize member variables
     m_cfgrtr_ver = 0;

@@ -93,10 +93,11 @@ int dm_easy_mesh_ctrl_t::analyze_config_renew(em_bus_event_t *evt, em_cmd_t *pcm
 
     evt_param = &evt->params;
 
+    printf("%s:%d: Radio: %s\n", __func__, __LINE__, radio_str);
     evt_param->u.args.num_args = 1;
     strncpy(evt_param->u.args.args[0], radio_str, strlen(radio_str) + 1);
-    memcpy(&dm.m_radio[0].m_radio_info.intf.mac, params->radio, sizeof(mac_address_t));
     pcmd[num] = new em_cmd_cfg_renew_t(em_service_type_ctrl, evt->params, dm);
+
     tmp = pcmd[num];
     num++;
 
@@ -1150,9 +1151,10 @@ int dm_easy_mesh_ctrl_t::get_reference_config(cJSON *parent, char *net_id)
 int dm_easy_mesh_ctrl_t::get_scan_result(cJSON *parent, char *key)
 {
     cJSON *net_obj, *dev_list_obj, *dev_obj, *radio_list_obj, *radio_obj;
-	unsigned int i, j;
+	cJSON *bss_obj, *bss_list_obj, *sta_list_obj;
+	unsigned int i, j, k;
 	em_long_string_t	scan_parent;
-	char *dev_id, *radio_id;
+	char *dev_id, *radio_id, *bss_id;
 	mac_addr_str_t	null_mac_str;
 	mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
@@ -1174,9 +1176,20 @@ int dm_easy_mesh_ctrl_t::get_scan_result(cJSON *parent, char *key)
 			radio_obj = cJSON_GetArrayItem(radio_list_obj, j);
 			radio_id = cJSON_GetStringValue(cJSON_GetObjectItem(radio_obj, "ID"));
 
-			snprintf(scan_parent, sizeof(em_long_string_t), "%s@%s@%s@0@0@%s", key, dev_id, radio_id, null_mac_str);
+			snprintf(scan_parent, sizeof(em_long_string_t), "%s@%s@%s@0@0@1@%s", key, dev_id, radio_id, null_mac_str);
 			//printf("%s:%d: Scan Parent ID: %s\n", __func__, __LINE__, scan_parent);
 			dm_scan_result_list_t::get_config(radio_obj, scan_parent);
+
+			bss_list_obj = cJSON_AddArrayToObject(radio_obj, "BSSList");
+			dm_bss_list_t::get_config(bss_list_obj, radio_id, true);
+
+			for (k = 0; k < cJSON_GetArraySize(bss_list_obj); k++) {
+				bss_obj = cJSON_GetArrayItem(bss_list_obj, k);
+				bss_id = cJSON_GetStringValue(cJSON_GetObjectItem(bss_obj, "BSSID"));
+
+				sta_list_obj = cJSON_AddArrayToObject(bss_obj, "STAList");	
+				dm_sta_list_t::get_config(sta_list_obj, bss_id, em_get_sta_list_reason_neighbors);
+			}
 		} 
 	}
 
@@ -1432,10 +1445,10 @@ int dm_easy_mesh_ctrl_t::set_config(dm_easy_mesh_t *dm)
     return update_tables(dm);
 }
 
-dm_easy_mesh_t *dm_easy_mesh_ctrl_t::create_data_model(const char *net_id, const unsigned char *al_mac, em_profile_type_t profile)
+dm_easy_mesh_t *dm_easy_mesh_ctrl_t::create_data_model(const char *net_id, const em_interface_t *al_intf, em_profile_type_t profile)
 {
     
-    return m_data_model_list.create_data_model(net_id, al_mac, profile);
+    return m_data_model_list.create_data_model(net_id, al_intf, profile);
 }
 
 void dm_easy_mesh_ctrl_t::handle_dirty_dm()
@@ -1525,12 +1538,12 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
     dm_radio_t radio;
     dm_op_class_t op_class;
 	dm_policy_t	policy;
-	dm_scan_result_t	scan_result;
+	dm_scan_result_t	*scan_result;
 	db_update_scan_result_t res;
     dm_bss_t bss;
     dm_sta_t *sta, *tmp;
     dm_network_ssid_t net_ssid;
-    mac_addr_str_t	sta_mac_str, bssid_str, radio_mac_str, dev_mac_str;
+    mac_addr_str_t	sta_mac_str, bssid_str, radio_mac_str, dev_mac_str, scanner_mac_str;
     unsigned int i, j;
     em_long_string_t	parent, key;
     em_string_t haul_str;
@@ -1800,15 +1813,15 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
 
 	if (dm->db_cfg_type_is_set(db_cfg_type_scan_result_list_update)) {
         for (i = 0; i < dm->get_num_scan_results(); i++) {
-            scan_result = dm->get_scan_result_by_ref(i);
-			dm_easy_mesh_t::macbytes_to_string(scan_result.m_scan_result.id.dev_mac, dev_mac_str);
-			dm_easy_mesh_t::macbytes_to_string(scan_result.m_scan_result.id.ruid, radio_mac_str);
-            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d@%d",
-                    scan_result.m_scan_result.id.net_id, dev_mac_str, radio_mac_str, 
-					scan_result.m_scan_result.id.op_class, scan_result.m_scan_result.id.channel);
+            scan_result = dm->get_scan_result(i);
+			dm_easy_mesh_t::macbytes_to_string(scan_result->m_scan_result.id.dev_mac, dev_mac_str);
+			dm_easy_mesh_t::macbytes_to_string(scan_result->m_scan_result.id.scanner_mac, scanner_mac_str);
+            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d@%d@d",
+                    scan_result->m_scan_result.id.net_id, dev_mac_str, scanner_mac_str, scan_result->m_scan_result.id.op_class, 
+					scan_result->m_scan_result.id.channel, scan_result->m_scan_result.id.scanner_type);
             //printf("%s:%d: Key: %s\n", __func__, __LINE__, parent);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_scan_result_list_update);
-            if (dm_scan_result_list_t::set_config(m_db_client, dm->get_scan_result_by_ref(i), parent) != 0) {
+            if (dm_scan_result_list_t::set_config(m_db_client, *scan_result, parent) != 0) {
                 at_least_one_failed = true;
             }
         }
@@ -1821,22 +1834,22 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
 
 	if (dm->db_cfg_type_is_set(db_cfg_type_scan_result_list_delete)) {
         for (i = 0; i < dm->get_num_scan_results(); i++) {
-            scan_result = dm->get_scan_result_by_ref(i);
+            scan_result = dm->get_scan_result(i);
             criteria = dm->db_cfg_type_get_criteria(db_cfg_type_scan_result_list_delete);
 			// first delect self
-			res.result = scan_result.get_scan_result();
+			res.result = scan_result->get_scan_result();
         	res.index = scan_result_self_index;		
             if (dm_scan_result_list_t::update_db(m_db_client, dm_orch_type_db_delete, &res) != 0) {
                 at_least_one_failed = true;
             }
-			dm_scan_result_list_t::update_list(scan_result, scan_result_self_index, dm_orch_type_db_delete);
-			for (j = 0; j < scan_result.m_scan_result.num_neighbors; j++) {
-				res.result = scan_result.get_scan_result();
+			dm_scan_result_list_t::update_list(*scan_result, scan_result_self_index, dm_orch_type_db_delete);
+			for (j = 0; j < scan_result->m_scan_result.num_neighbors; j++) {
+				res.result = scan_result->get_scan_result();
         		res.index = j;		
             	if (dm_scan_result_list_t::update_db(m_db_client, dm_orch_type_db_delete, &res) != 0) {
                 	at_least_one_failed = true;
             	}
-				dm_scan_result_list_t::update_list(scan_result, j, dm_orch_type_db_delete);
+				dm_scan_result_list_t::update_list(*scan_result, j, dm_orch_type_db_delete);
 			}
         }
         if (at_least_one_failed == true) {
@@ -1875,6 +1888,7 @@ void dm_easy_mesh_ctrl_t::init_network_topology()
     while (dm != NULL) {
         if (dm->get_colocated() == true) {
             m_topology = new em_network_topo_t(dm);
+            set_network_initialized();
             dm_easy_mesh_t::macbytes_to_string(dm->m_device.m_device_info.intf.mac, dev_mac_str);
             printf("%s:%d: Root: %s  added to network topology\n", __func__, __LINE__, dev_mac_str);
             break;

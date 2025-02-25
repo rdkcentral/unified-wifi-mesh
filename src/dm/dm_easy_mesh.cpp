@@ -55,7 +55,10 @@ dm_easy_mesh_t dm_easy_mesh_t::operator =(dm_easy_mesh_t const& obj)
     memcpy(&m_device, &obj.m_device, sizeof(dm_device_t));
     memcpy(&m_network, &obj.m_network, sizeof(dm_network_t));
     memcpy(&m_ieee_1905_security, &obj.m_ieee_1905_security, sizeof(dm_ieee_1905_security_t));
-    
+
+	if (m_num_radios >= EM_MAX_BANDS) {
+		m_num_radios = 0;
+	}
     this->m_num_radios = obj.m_num_radios;
     for (unsigned int i = 0; i < obj.m_num_radios; i++) {
         memcpy(&m_radio[i], &obj.m_radio[i], sizeof(dm_radio_t));
@@ -78,6 +81,11 @@ dm_easy_mesh_t dm_easy_mesh_t::operator =(dm_easy_mesh_t const& obj)
     }
 
     memcpy(&m_db_cfg_param, &obj.m_db_cfg_param, sizeof(em_db_cfg_param_t));
+
+    m_num_policy = obj.m_num_policy;
+    for (unsigned int i = 0; i < EM_MAX_POLICIES; i++) {
+        memcpy(&m_policy[i], &obj.m_policy[i], sizeof(dm_policy_t));
+    }
 
     sta = (dm_sta_t *)hash_map_get_first(obj.m_sta_map);
     while (sta != NULL) {
@@ -177,7 +185,7 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
 					m_bss[m_num_bss] = dm.m_bss[i];
 					m_num_bss = m_num_bss + 1;
 					macbytes_to_string(dm.get_bss(i)->get_bss_info()->bssid.mac,mac_str);
-					printf("%s:%d New BSS %s configuration updated  no of bss=%d\n", __func__, __LINE__,mac_str,m_num_bss);
+					printf("%s:%d New BSS %s configuration updated  no of bss=%d vapname=%s\n", __func__, __LINE__,mac_str,m_num_bss, dm.get_bss(i)->get_bss_info()->bssid.name);
 				}
 			}
 		}
@@ -788,7 +796,7 @@ int dm_easy_mesh_t::decode_config_reset(em_subdoc_info_t *subdoc, const char *ke
 			
         m_network_ssid[i].decode(ssid_obj, m_network.m_net_info.id);
 	}
-
+	m_num_radios = 0;
     cJSON_Delete(parent_obj);
     //printf("%s:%d: End\n", __func__, __LINE__);
     return 0;
@@ -1582,42 +1590,6 @@ unsigned char *dm_easy_mesh_t::unhex(unsigned int in_len, char *in, unsigned int
     return out;
 }
 
-
-void dm_easy_mesh_t::print_hex_dump(unsigned int length, unsigned char *buffer)
-{
-    int i;
-    unsigned char buff[512] = {};
-    const unsigned char * pc = (const unsigned char *)buffer;
-
-    if ((pc == NULL) || (length <= 0)) {
-        printf ("buffer NULL or BAD LENGTH = %d :\n", length);
-        return;
-    }
-
-    for (i = 0; i < length; i++) {
-        if ((i % 16) == 0) {
-            if (i != 0)
-                printf ("  %s\n", buff);
-            printf ("  %04x ", i);
-        }
-
-        printf (" %02x", pc[i]);
-
-        if (!isprint(pc[i]))
-            buff[i % 16] = '.';
-        else
-            buff[i % 16] = pc[i];
-        buff[(i % 16) + 1] = '\0';
-    }
-
-    while ((i % 16) != 0) {
-        printf ("   ");
-        i++;
-    }
-
-    printf ("  %s\n", buff);
-}
-
 char *dm_easy_mesh_t::macbytes_to_string(mac_address_t mac, char* string)
 {
     if( mac != NULL) {
@@ -1858,8 +1830,11 @@ rdk_wifi_radio_t *dm_easy_mesh_t::get_radio_data(em_interface_t *interface)
 
 dm_radio_t *dm_easy_mesh_t::get_radio(unsigned int index)
 {
-
-	return &m_radio[index];
+	if (index < EM_MAX_BANDS) {
+		return &m_radio[index];
+	} else {
+		return NULL;
+	}
 }
 
 dm_radio_t *dm_easy_mesh_t::get_radio(mac_address_t mac)
@@ -2395,20 +2370,37 @@ void dm_easy_mesh_t::clone_hash_maps(dm_easy_mesh_t& obj)
 void dm_easy_mesh_t::deinit()
 {
     dm_sta_t *sta = NULL;
-    dm_sta_t *tmp = NULL;
+    dm_sta_t *tmp_sta = NULL;
+	dm_scan_result_t	*res = NULL;
+	dm_scan_result_t	*tmp_res = NULL;
     em_long_string_t key;
-    mac_addr_str_t radio_mac_str, bss_mac_str, sta_mac_str;
+    mac_addr_str_t dev_mac_str, radio_mac_str, bss_mac_str, sta_mac_str, scanner_mac_str;
+
+    //destroy elements of m_scan_result_map
+	res = (dm_scan_result_t *)hash_map_get_first(m_scan_result_map);
+	while (res != NULL) {
+		tmp_res = res;
+        res = (dm_scan_result_t *)hash_map_get_next(m_scan_result_map, res);
+	
+		dm_easy_mesh_t::macbytes_to_string(tmp_res->m_scan_result.id.dev_mac, dev_mac_str);
+		dm_easy_mesh_t::macbytes_to_string(tmp_res->m_scan_result.id.scanner_mac, scanner_mac_str);
+
+		snprintf(key, sizeof(em_long_string_t), "%s@%s@%s@%d@%d@%d", res->m_scan_result.id.net_id, dev_mac_str, scanner_mac_str, 
+					tmp_res->m_scan_result.id.op_class, tmp_res->m_scan_result.id.channel, tmp_res->m_scan_result.id.scanner_type);
+		hash_map_remove(m_scan_result_map, key);
+	}
+
+	hash_map_destroy(m_scan_result_map);	
 
     //destroy elements of m_sta_map
     sta = (dm_sta_t *)hash_map_get_first(m_sta_map);
-    while (sta != NULL)
-    {
-        tmp = sta;
+    while (sta != NULL) {
+        tmp_sta = sta;
         sta = (dm_sta_t *)hash_map_get_next(m_sta_map, sta);
 
-        dm_easy_mesh_t::macbytes_to_string(tmp->m_sta_info.id, sta_mac_str);
-        dm_easy_mesh_t::macbytes_to_string(tmp->m_sta_info.bssid, bss_mac_str);
-        dm_easy_mesh_t::macbytes_to_string(tmp->m_sta_info.radiomac, radio_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(tmp_sta->m_sta_info.id, sta_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(tmp_sta->m_sta_info.bssid, bss_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(tmp_sta->m_sta_info.radiomac, radio_mac_str);
         snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
 
         hash_map_remove(m_sta_map, key);
@@ -2419,11 +2411,11 @@ void dm_easy_mesh_t::deinit()
     sta = (dm_sta_t *)hash_map_get_first(m_sta_assoc_map);
     while (sta != NULL)
     {
-        tmp = sta;
+        tmp_sta = sta;
         sta = (dm_sta_t *)hash_map_get_next(m_sta_assoc_map, sta);
-        dm_easy_mesh_t::macbytes_to_string(tmp->m_sta_info.id, sta_mac_str);
-        dm_easy_mesh_t::macbytes_to_string(tmp->m_sta_info.bssid, bss_mac_str);
-        dm_easy_mesh_t::macbytes_to_string(tmp->m_sta_info.radiomac, radio_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(tmp_sta->m_sta_info.id, sta_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(tmp_sta->m_sta_info.bssid, bss_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(tmp_sta->m_sta_info.radiomac, radio_mac_str);
         snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
 
         hash_map_remove(m_sta_assoc_map, key);
@@ -2434,12 +2426,12 @@ void dm_easy_mesh_t::deinit()
     sta = (dm_sta_t *)hash_map_get_first(m_sta_dassoc_map);
     while (sta != NULL)
     {
-        tmp = sta;
+        tmp_sta = sta;
         sta = (dm_sta_t *)hash_map_get_next(m_sta_dassoc_map, sta);
 
-        dm_easy_mesh_t::macbytes_to_string(tmp->m_sta_info.id, sta_mac_str);
-        dm_easy_mesh_t::macbytes_to_string(tmp->m_sta_info.bssid, bss_mac_str);
-        dm_easy_mesh_t::macbytes_to_string(tmp->m_sta_info.radiomac, radio_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(tmp_sta->m_sta_info.id, sta_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(tmp_sta->m_sta_info.bssid, bss_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(tmp_sta->m_sta_info.radiomac, radio_mac_str);
         snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
 
         hash_map_remove(m_sta_dassoc_map, key);
@@ -2561,41 +2553,65 @@ dm_bss_t *dm_easy_mesh_t::find_matching_bss(em_bss_id_t *id)
 	return NULL;
 }
 
+dm_scan_result_t *dm_easy_mesh_t::create_new_scan_result(em_scan_result_id_t *id)
+{
+	dm_scan_result_t *res, scan_result;
+	em_long_string_t key;
+	mac_addr_str_t  dev_mac_str, scanner_mac_str;
+
+	memcpy(&scan_result.m_scan_result.id, id, sizeof(em_scan_result_id_t));
+
+	res = new dm_scan_result_t(scan_result);
+
+    dm_easy_mesh_t::macbytes_to_string(id->dev_mac, dev_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(id->scanner_mac, scanner_mac_str);
+
+	snprintf(key, sizeof(em_long_string_t), "%s@%s@%s@%d@%d@%d", res->m_scan_result.id.net_id, dev_mac_str, scanner_mac_str,
+                    res->m_scan_result.id.op_class, res->m_scan_result.id.channel, res->m_scan_result.id.scanner_type);
+
+	hash_map_put(m_scan_result_map, strdup(key), res);
+
+	return res;
+}
+
+dm_scan_result_t *dm_easy_mesh_t::get_scan_result(unsigned int index)
+{
+	dm_scan_result_t *res;
+	unsigned int i = 0;
+
+	res = (dm_scan_result_t *)hash_map_get_first(m_scan_result_map);
+	while (res != NULL) {
+		if (i == index) {
+			return res;
+		}
+		i++;
+		res = (dm_scan_result_t *)hash_map_get_next(m_scan_result_map, res);
+	}
+
+	return NULL;
+}
+
 dm_scan_result_t *dm_easy_mesh_t::find_matching_scan_result(em_scan_result_id_t *id)
 {
     int index;
     unsigned int i;
     dm_scan_result_t *res;
-    
-    for (i = 0; i < m_num_scan_results; i++) {
-        res = &m_scan_result[i];
-    
+
+	res = (dm_scan_result_t *)hash_map_get_first(m_scan_result_map);
+	while (res != NULL) {
         if ((strncmp(res->m_scan_result.id.net_id, id->net_id, strlen(id->net_id)) == 0) &&
                 (memcmp(res->m_scan_result.id.dev_mac, id->dev_mac, sizeof(mac_address_t)) == 0) &&
-                (memcmp(res->m_scan_result.id.ruid, id->ruid, sizeof(mac_address_t)) == 0) &&
+                (memcmp(res->m_scan_result.id.scanner_mac, id->scanner_mac, sizeof(mac_address_t)) == 0) &&
                 (res->m_scan_result.id.op_class == id->op_class) &&
-                (res->m_scan_result.id.channel == id->channel)) {
+                (res->m_scan_result.id.channel == id->channel) &&
+                (res->m_scan_result.id.scanner_type == id->scanner_type)) {
             return res;
         }
-    }   
-        
-    return NULL;
-}
 
-void dm_easy_mesh_t::remove_scan_result_by_index(unsigned int index)
-{
-    unsigned int i;
-   
-    if (index >= m_num_scan_results) {
-        printf("%s:%d: Invalid Index: %d\n", __func__, __LINE__, index);
-        return;
-    }
-   
-    for (i = index; i < m_num_scan_results - 1; i++) {
-        m_scan_result[i] = m_scan_result[i + 1];
-    }
-   
-    m_num_scan_results--;
+		res = (dm_scan_result_t *)hash_map_get_next(m_scan_result_map, res);
+	}    
+
+    return NULL;
 }
 
 void dm_easy_mesh_t::reset_db_cfg_type(db_cfg_type_t type) 
@@ -2661,6 +2677,7 @@ int dm_easy_mesh_t::init()
 	    m_network_ssid[i].init();
     }
 
+    m_scan_result_map = hash_map_create();
     m_sta_map = hash_map_create();
     m_sta_assoc_map = hash_map_create();
     m_sta_dassoc_map = hash_map_create();
@@ -2677,7 +2694,6 @@ void dm_easy_mesh_t::reset()
 	m_num_opclass = 0;
 	m_num_policy = 0;
 	m_num_bss = 0;
-	m_num_scan_results = 0;
     m_num_ap_mld = 0;
 	m_db_cfg_param.db_cfg_type = db_cfg_type_none;
     m_colocated = false;
@@ -2707,7 +2723,6 @@ dm_easy_mesh_t::dm_easy_mesh_t()
 	m_num_policy = 0;
 	m_num_bss = 0;
     m_num_ap_mld = 0;
-	m_num_scan_results = 0;
 	m_db_cfg_param.db_cfg_type = db_cfg_type_none;
     m_colocated = false;
 }

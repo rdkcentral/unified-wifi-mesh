@@ -52,9 +52,12 @@ class em_agent_t : public em_mgr_t {
     void handle_public_action_frame(struct ieee80211_mgmt *frame);
     void handle_vendor_public_action_frame(struct ieee80211_mgmt *frame);
     void handle_btm_request_action_frame(em_bus_event_t *evt);
+    void handle_recv_wfa_action_frame(em_bus_event_t *evt);
     void handle_btm_response_action_frame(em_bus_event_t *evt);
     void handle_channel_scan_result(em_bus_event_t *evt);
     void handle_channel_scan_params(em_bus_event_t *evt);
+    void handle_set_policy(em_bus_event_t *evt);
+    void handle_beacon_report(em_bus_event_t *evt);
 
 public:
 
@@ -90,7 +93,7 @@ public:
     em_cmd_t& get_command(char *in);
     
     dm_easy_mesh_t *get_data_model(const char *net_id, const unsigned char *al_mac = NULL) { return &m_data_model; }
-    dm_easy_mesh_t *create_data_model(const char *net_id, const unsigned char *al_mac, em_profile_type_t profile = em_profile_type_3) { return &m_data_model; }
+    dm_easy_mesh_t *create_data_model(const char *net_id, const em_interface_t *al_intf, em_profile_type_t profile = em_profile_type_3) { return &m_data_model; }
     void delete_data_model(const char *net_id, const unsigned char *al_mac) { }
     void delete_all_data_models() { }
     int update_tables(dm_easy_mesh_t *dm) { return 0; }
@@ -105,6 +108,7 @@ public:
     static int assoc_stats_cb(char *event_name, raw_data_t *data);
     static int mgmt_action_frame_cb(char *event_name, raw_data_t *data);
     static int channel_scan_cb(char *event_name, raw_data_t *data);
+    static int beacon_report_cb(char *event_name, raw_data_t *data);
     void *get_assoc(void*);
     void io(void *data, bool input = true);
     bool agent_output(void *data);
