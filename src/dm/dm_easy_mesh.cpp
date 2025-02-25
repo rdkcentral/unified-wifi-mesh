@@ -99,11 +99,6 @@ dm_easy_mesh_t dm_easy_mesh_t::operator =(dm_easy_mesh_t const& obj)
 
     m_em = obj.m_em;
 
-    this->m_num_scan_results = obj.m_num_scan_results;
-    for (unsigned int i = 0; i < obj.m_num_scan_results; i++) {
-        memcpy(&m_scan_result[i], &obj.m_scan_result[i], sizeof(dm_scan_result_t));
-    }
-
     return *this;
 }
 
@@ -2612,6 +2607,29 @@ dm_scan_result_t *dm_easy_mesh_t::find_matching_scan_result(em_scan_result_id_t 
 	}    
 
     return NULL;
+}
+
+void dm_easy_mesh_t::update_scan_results(em_scan_result_t *scan_result)
+{
+    const char *netid = "OneWifiMesh";
+    mac_addr_str_t mac_str, radio_str;
+
+    em_scan_result_id_t *id = &scan_result->id;
+
+    strncpy(id->net_id, netid, strlen(netid) + 1);
+	memcpy(id->dev_mac, get_agent_al_interface_mac(), sizeof(mac_address_t));
+	memcpy(id->scanner_mac, get_radio_by_ref(0).get_radio_interface_mac(), sizeof(mac_address_t));
+    id->scanner_type = em_scanner_type_radio;
+
+    dm_scan_result_t *res = find_matching_scan_result(id);
+
+    if (res) {
+        *res->get_scan_result() = *scan_result;
+    } else {
+        printf("%s:%d creating new scan result\n", __func__, __LINE__);
+        res = create_new_scan_result(id);
+        *res->get_scan_result() = *scan_result;
+    }
 }
 
 void dm_easy_mesh_t::reset_db_cfg_type(db_cfg_type_t type) 

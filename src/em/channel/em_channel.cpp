@@ -438,18 +438,13 @@ int em_channel_t::send_channel_scan_report_msg(unsigned int *last_index)
 	unsigned int i, start_idx = *last_index;
 	unsigned char time_len;
 
-    if (get_current_cmd() == NULL) {
-        return -1;
-    }
-    dm = get_current_cmd()->get_data_model();
-    if (dm == NULL) {
-        return -1;
-    }
-    memcpy(tmp, get_data_model()->get_ctl_mac(), sizeof(mac_address_t));
+    dm = get_data_model();
+
+    memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
-    memcpy(tmp, get_data_model()->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
