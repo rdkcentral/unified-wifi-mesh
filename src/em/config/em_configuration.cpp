@@ -549,8 +549,8 @@ int em_configuration_t::create_device_info_type_tlv(unsigned char *buff)
 			no_of_bss++;
 			memcpy(local_intf->mac_addr, dm->m_bss[i].m_bss_info.bssid.mac, sizeof(mac_address_t));
 			// fill test data
-			fill_media_data(&dm->m_radio[j].m_radio_info.media_data);
-			memcpy(&local_intf->media_data, &dm->m_radio[j].m_radio_info.media_data, sizeof(em_media_spec_data_t));
+			fill_media_data(&dm->m_radio[i].m_radio_info.media_data);
+			memcpy(&local_intf->media_data, &dm->m_radio[i].m_radio_info.media_data, sizeof(em_media_spec_data_t));
 
 			local_intf = (em_local_interface_t *)((unsigned char *)local_intf + sizeof(em_local_interface_t));
 			tlv_len = tlv_len + sizeof(em_local_interface_t);
@@ -3417,7 +3417,7 @@ int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned 
 
 int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned int len)
 {
-    unsigned char msg[MAX_EM_BUFF_SZ];
+    unsigned char msg[MAX_EM_BUFF_SZ*EM_MAX_BANDS];
     unsigned int sz;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     mac_addr_str_t  mac_str;

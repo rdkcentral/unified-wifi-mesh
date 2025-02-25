@@ -825,8 +825,6 @@ int dm_easy_mesh_agent_t::analyze_set_policy(em_bus_event_t *evt, wifi_bus_desc_
 
     type = webconfig_subdoc_type_em_config;
 
-    //TODO: Commenting to avoid runtime issue, until OneWifi changes are merged
-#if 0
     webconfig_proto_easymesh_init(&ext_data, NULL, NULL, policy_cfg, get_num_radios, set_num_radios,
         get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
         get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
@@ -860,7 +858,7 @@ int dm_easy_mesh_agent_t::analyze_set_policy(em_bus_event_t *evt, wifi_bus_desc_
         printf("%s:%d Policy subdoc send fail\n", __func__, __LINE__);
         return -1;
     }
-#endif
+
     return 1;
 }
 

@@ -919,7 +919,6 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             break;
 
         case em_msg_type_op_channel_rprt:
-            printf("%s:%d: Sending Operating Channel report\n", __func__, __LINE__);
             break;
 
         case em_msg_type_assoc_sta_link_metrics_query:
