@@ -40,7 +40,7 @@ public:
     dm_policy_t(const dm_policy_t& policy);
     dm_policy_t(const em_policy_t& policy);
     dm_policy_t();
-    ~dm_policy_t();
+    virtual ~dm_policy_t();
 };
 
 #endif

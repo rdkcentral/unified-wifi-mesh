@@ -184,7 +184,7 @@ public:
     int compute_secret(unsigned char **secret, unsigned short *secret_len, 
         unsigned char *remote_pub, unsigned short pub_len, 
         unsigned char *local_priv, unsigned short priv_len) { 
-            return em_crypto_t::platform_compute_shared_secret(secret, secret_len, remote_pub, pub_len, local_priv, priv_len); 
+            return em_crypto_t::platform_compute_shared_secret(secret, secret_len, remote_pub, pub_len, local_priv, static_cast<uint8_t>(priv_len));
     }
 
     int compute_digest(unsigned char num, unsigned char **addr, unsigned int *len, unsigned char *digest) {
@@ -208,9 +208,9 @@ public:
     void print_ap_operational_bss_tlv(unsigned char *value, unsigned int len);
 	void print_bss_configuration_report_tlv(unsigned char *value, unsigned int len);
 	void print_ap_vendor_operational_bss_tlv(unsigned char *value, unsigned int len);
-    int get_renew_tx_count() { return m_renew_tx_cnt; }
+    int get_renew_tx_count() { return static_cast<int>(m_renew_tx_cnt); }
     void set_renew_tx_count(unsigned int cnt) { m_renew_tx_cnt = cnt; }
-    int get_topo_query_tx_count() { return m_topo_query_tx_cnt; }
+    int get_topo_query_tx_count() { return static_cast<int>(m_topo_query_tx_cnt); }
     void set_topo_query_tx_count(unsigned int cnt) { m_topo_query_tx_cnt = cnt; }
     static unsigned short msg_id;
 
@@ -222,7 +222,7 @@ public:
     unsigned int m_topo_query_tx_cnt;
 
     em_configuration_t();
-    ~em_configuration_t();
+    virtual ~em_configuration_t();
 
 };
 

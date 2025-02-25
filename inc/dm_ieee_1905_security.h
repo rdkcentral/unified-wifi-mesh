@@ -40,7 +40,7 @@ public:
     dm_ieee_1905_security_t(em_ieee_1905_security_info_t *net_ssid);
     dm_ieee_1905_security_t(const dm_ieee_1905_security_t& net_ssid);
     dm_ieee_1905_security_t();
-    ~dm_ieee_1905_security_t();
+    virtual ~dm_ieee_1905_security_t();
 };
 
 #endif

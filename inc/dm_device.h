@@ -64,7 +64,7 @@ public:
     dm_device_t(em_device_info_t *dev);
     dm_device_t(const dm_device_t& dev);
     dm_device_t();
-    ~dm_device_t();
+    virtual ~dm_device_t();
 };
 
 #endif

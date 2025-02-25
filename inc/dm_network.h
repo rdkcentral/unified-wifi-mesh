@@ -52,7 +52,7 @@ public:
     dm_network_t(em_network_info_t *net);
     dm_network_t(const dm_network_t& net);
     dm_network_t();
-    ~dm_network_t();    
+    virtual ~dm_network_t();
 };
 
 #endif

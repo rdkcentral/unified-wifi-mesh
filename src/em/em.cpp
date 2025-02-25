@@ -189,6 +189,28 @@ void em_t::orch_execute(em_cmd_t *pcmd)
         case em_cmd_type_beacon_report:
             m_sm.set_state(em_state_agent_beacon_report_pending);
             break;
+
+        case em_cmd_type_none:
+        case em_cmd_type_reset:
+        case em_cmd_type_get_network:
+        case em_cmd_type_get_device:
+        case em_cmd_type_remove_device:
+        case em_cmd_type_get_radio:
+        case em_cmd_type_get_ssid:
+        case em_cmd_type_get_channel:
+        case em_cmd_type_get_bss:
+        case em_cmd_type_get_sta:
+        case em_cmd_type_steer_sta:
+        case em_cmd_type_disassoc_sta:
+        case em_cmd_type_btm_sta:
+        case em_cmd_type_vap_config:
+        case em_cmd_type_topo_sync:
+        case em_cmd_type_get_policy:
+        case em_cmd_type_get_mld_config:
+        case em_cmd_type_max:
+            break;
+
+        
     }
 }
 
@@ -211,14 +233,10 @@ void em_t::handle_timeout()
 
 void em_t::proto_process(unsigned char *data, unsigned int len)
 {
-    em_raw_hdr_t *hdr;
     em_cmdu_t *cmdu;
-    unsigned char *tlvs;
-    unsigned int tlvs_len;
     mac_addr_str_t mac_str;
 
-    hdr = (em_raw_hdr_t *)data;
-    cmdu = (em_cmdu_t *)(data + sizeof(em_raw_hdr_t));
+    cmdu = reinterpret_cast<em_cmdu_t *>(data + sizeof(em_raw_hdr_t));
 
     dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(), mac_str);
     switch (htons(cmdu->type)) {
@@ -414,6 +432,37 @@ void em_t::handle_ctrl_state()
         case em_cmd_type_mld_reconfig:
             em_configuration_t::process_ctrl_state();
             break;
+
+        case em_cmd_type_none:
+        case em_cmd_type_reset:
+        case em_cmd_type_get_network:
+        case em_cmd_type_get_device:
+        case em_cmd_type_remove_device:
+        case em_cmd_type_get_radio:
+        case em_cmd_type_get_ssid:
+        case em_cmd_type_get_channel:
+        case em_cmd_type_scan_result:
+        case em_cmd_type_get_bss:
+        case em_cmd_type_get_sta:
+        case em_cmd_type_steer_sta:
+        case em_cmd_type_disassoc_sta:
+        case em_cmd_type_btm_sta:
+        case em_cmd_type_dev_init:
+        case em_cmd_type_vap_config:
+        case em_cmd_type_sta_list:
+        case em_cmd_type_start_dpp:
+        case em_cmd_type_ap_cap_query:
+        case em_cmd_type_client_cap_query:
+        case em_cmd_type_topo_sync:
+        case em_cmd_type_onewifi_cb:
+        case em_cmd_type_channel_pref_query:
+        case em_cmd_type_op_channel_report:
+        case em_cmd_type_btm_report:
+        case em_cmd_type_get_policy:
+        case em_cmd_type_avail_spectrum_inquiry:
+        case em_cmd_type_get_mld_config:
+        case em_cmd_type_max:
+            break;
     }
 }
 
@@ -520,7 +569,7 @@ int em_t::set_bp_filter()
 
     memset(&mreq, 0, sizeof(mreq));
     mreq.mr_type = PACKET_MR_PROMISC;
-    mreq.mr_ifindex = if_nametoindex(m_ruid.name);
+    mreq.mr_ifindex = static_cast<int>(if_nametoindex(m_ruid.name));
     if (setsockopt(m_fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, reinterpret_cast<char *>(&mreq), sizeof(mreq))) {
         printf("%s:%d: Error setting promisuous for interface:%s, err:%d\n", __func__, __LINE__, m_ruid.name, errno);
         close(m_fd);
@@ -532,16 +581,15 @@ int em_t::set_bp_filter()
 
 int em_t::start_al_interface()
 {
-    int optval = 1, sock_fd;
+    int sock_fd;
     struct sockaddr_ll addr_ll;
-    struct sockaddr_un addr_un;
     struct sockaddr *addr;
     socklen_t   slen;
 
     memset(&addr_ll, 0, sizeof(struct sockaddr_ll));
     addr_ll.sll_family   = AF_PACKET;
     addr_ll.sll_protocol = htons(ETH_P_ALL);
-    addr_ll.sll_ifindex  = if_nametoindex(m_ruid.name);
+    addr_ll.sll_ifindex  = static_cast<int>(if_nametoindex(m_ruid.name));
     addr = reinterpret_cast<struct sockaddr *>(&addr_ll);
     slen = sizeof(struct sockaddr_ll);
 
@@ -583,12 +631,12 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
         return -1;
     }
 
-    sadr_ll.sll_ifindex = if_nametoindex(ifname);
+    sadr_ll.sll_ifindex = static_cast<int>(if_nametoindex(ifname));
     sadr_ll.sll_halen = ETH_ALEN; // length of destination mac address
     sadr_ll.sll_protocol = htons(ETH_P_ALL);
     memcpy(sadr_ll.sll_addr, (multicast == true) ? multi_addr:hdr->dst, sizeof(mac_address_t));
 
-    ret = sendto(sock, buff, len, 0, reinterpret_cast<const struct sockaddr*>(&sadr_ll), sizeof(struct sockaddr_ll));
+    ret = static_cast<int>(sendto(sock, buff, len, 0, reinterpret_cast<const struct sockaddr*>(&sadr_ll), sizeof(struct sockaddr_ll)));
 
     close(sock);
 
@@ -741,7 +789,7 @@ short em_t::create_ht_tlv(unsigned char *buff)
         return 0;
     }
 
-    memcpy(&ht_cap,&cap_info->ht_cap,sizeof(em_ap_ht_cap_t));
+    memcpy(&ht_cap, &cap_info->ht_cap, sizeof(em_ap_ht_cap_t));
     len = sizeof(em_ap_ht_cap_t);
     return len;
 }

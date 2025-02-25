@@ -41,7 +41,7 @@ public:
     dm_scan_result_t(const dm_scan_result_t& scan_result);
     dm_scan_result_t(const em_scan_result_t& scan_result);
     dm_scan_result_t();
-    ~dm_scan_result_t();
+    virtual ~dm_scan_result_t();
 };
 
 #endif
