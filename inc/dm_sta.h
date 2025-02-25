@@ -42,7 +42,7 @@ public:
     dm_sta_t(em_sta_info_t *sta);
     dm_sta_t(const dm_sta_t& sta);
     dm_sta_t();
-    ~dm_sta_t();
+    virtual ~dm_sta_t();
 };
 
 #endif

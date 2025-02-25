@@ -79,13 +79,13 @@ public:
     void    process_msg(unsigned char *data, unsigned int len);
     void    process_agent_state();
 
-    int get_cap_query_tx_count() { return m_cap_query_tx_cnt; }
+    int get_cap_query_tx_count() { return static_cast<int>(m_cap_query_tx_cnt); }
     void set_cap_query_tx_count(unsigned int cnt) { m_cap_query_tx_cnt = cnt; }
 
     unsigned int m_cap_query_tx_cnt;
 
     em_capability_t();
-    ~em_capability_t();
+    virtual ~em_capability_t();
 
 };
 

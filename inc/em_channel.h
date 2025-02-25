@@ -74,9 +74,9 @@ public:
     int handle_eht_operations_tlv(unsigned char *buff, em_eht_operations_t *eht_ops);
     int handle_eht_operations_tlv_ctrl(unsigned char *buff, unsigned int len);
 
-    int get_channel_pref_query_tx_count() { return m_channel_pref_query_tx_cnt; }
+    int get_channel_pref_query_tx_count() { return static_cast<int>(m_channel_pref_query_tx_cnt); }
     void set_channel_pref_query_tx_count(unsigned int cnt) { m_channel_pref_query_tx_cnt = cnt; }
-    int get_channel_sel_req_tx_count() { return m_channel_sel_req_tx_cnt; }
+    int get_channel_sel_req_tx_count() { return static_cast<int>(m_channel_sel_req_tx_cnt); }
     void set_channel_sel_req_tx_count(unsigned int cnt) { m_channel_sel_req_tx_cnt = cnt; }
 
 	void fill_scan_result(dm_scan_result_t *scan_res, em_channel_scan_result_t *res);
@@ -90,7 +90,7 @@ public:
 	virtual em_freq_band_t get_band() = 0;
 
     em_channel_t();
-    ~em_channel_t();
+    virtual ~em_channel_t();
 
 };
 

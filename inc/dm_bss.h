@@ -40,7 +40,7 @@ public:
     dm_bss_t(em_bss_info_t *bss);
     dm_bss_t(const dm_bss_t& bss);
     dm_bss_t();
-    ~dm_bss_t();
+    virtual ~dm_bss_t();
 };
 
 #endif

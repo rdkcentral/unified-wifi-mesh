@@ -59,7 +59,7 @@ public:
     int delete_row(db_client_t& db_client, ...);
     
     db_easy_mesh_t();
-    ~db_easy_mesh_t();
+    virtual ~db_easy_mesh_t();
 };
 
 #endif

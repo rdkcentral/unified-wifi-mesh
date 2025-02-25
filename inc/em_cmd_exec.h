@@ -59,7 +59,7 @@ public:
 
 public:
     em_cmd_exec_t();
-    ~em_cmd_exec_t();
+    virtual ~em_cmd_exec_t();
 };
 
 #endif

@@ -39,7 +39,7 @@ public:
     dm_network_ssid_t(em_network_ssid_info_t *net_ssid);
     dm_network_ssid_t(const dm_network_ssid_t& net_ssid);
     dm_network_ssid_t();
-    ~dm_network_ssid_t();
+    virtual ~dm_network_ssid_t();
 };
 
 #endif
