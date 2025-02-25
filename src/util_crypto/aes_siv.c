@@ -44,25 +44,30 @@
 #include "aes_siv.h"
 
 /*
- * this is an implementation of SIV and S2V as defined in
- * "Deterministic Authenticated Encryption, A Provable-Security
- * Treatment of the Key-Wrap Problem" by Phil Rogaway and Tom
- * Shrimpton.
+ * This is an implementation of Synthetic Initialization Vector (SIV) mode
+ * and the S2V operation as defined in "Deterministic Authenticated Encryption,
+ * A Provable-Security Treatment of the Key-Wrap Problem" by Phil Rogaway and 
+ * Tom Shrimpton.
  *
- * http://www.cs.ucdavis.edu/~rogaway/papers/keywrap.pdf
+ * SIV provides deterministic authenticated encryption with associated data.
+ * It uses the S2V construction as a PRF to derive an initialization vector
+ * which serves both as a MAC tag and as a synthetic IV for CTR mode encryption.
+ *
+ * Reference: http://www.cs.ucdavis.edu/~rogaway/papers/keywrap.pdf
  */
 
-#define Rb        0x87
+#define Rb        0x87  /* Constant for doubling operation - x^128 + x^7 + x^2 + x + 1 */
 
 #define AES_BLOCKS      4
 
-#define AES_128_BYTES    16
-#define AES_192_BYTES    24
-#define AES_256_BYTES    32
-#define SIV_256         256
-#define SIV_384         384
-#define SIV_512         512
+#define AES_128_BYTES    16  /* Size of 128-bit AES key in bytes */
+#define AES_192_BYTES    24  /* Size of 192-bit AES key in bytes */
+#define AES_256_BYTES    32  /* Size of 256-bit AES key in bytes */
+#define SIV_256         256  /* SIV with a pair of 128-bit keys (256 bits total) */
+#define SIV_384         384  /* SIV with a pair of 192-bit keys (384 bits total) */
+#define SIV_512         512  /* SIV with a pair of 256-bit keys (512 bits total) */
 
+/* Zero block used for initialization and padding operations */
 unsigned char zero[AES_BLOCK_SIZE] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
@@ -70,7 +75,10 @@ unsigned char zero[AES_BLOCK_SIZE] = {
 
 /*
  * xor()
- *    output ^= input
+ *    Performs an XOR operation on two blocks of AES_BLOCK_SIZE bytes.
+ *    
+ *    @param output  Pointer to the output block, which is XORed in-place
+ *    @param input   Pointer to the input block to XOR with the output
  */
 static void
 xor (unsigned char *output, const unsigned char *input)
@@ -87,8 +95,12 @@ xor (unsigned char *output, const unsigned char *input)
 
 /*
  * times_two()
- *    compute the product of 2 and "input" as a polynomial multiplication
- *    modulo the prime polynomial x^128 + x^7 + x^2 + x + 1
+ *    Computes the product of 2 and "input" as a polynomial multiplication
+ *    modulo the prime polynomial x^128 + x^7 + x^2 + x + 1.
+ *    This is the doubling operation used in various CMAC and S2V operations.
+ *
+ *    @param output  Pointer to store the doubled value result
+ *    @param input   Pointer to the input value to be doubled
  */
 static void
 times_two (unsigned char *output, unsigned char *input)
@@ -112,7 +124,11 @@ times_two (unsigned char *output, unsigned char *input)
 
 /*
  * pad()
- *    add 10^* onto a buffer to pad it out to AES_BLOCK_SIZE len
+ *    Pads a buffer to AES_BLOCK_SIZE bytes using the 10^* padding scheme.
+ *    Adds a 1 bit followed by as many 0 bits as needed to reach block size.
+ *
+ *    @param buf  Buffer to be padded (must have space for AES_BLOCK_SIZE bytes)
+ *    @param len  Current length of data in the buffer
  */
 static void
 pad (unsigned char *buf, int len)
@@ -128,7 +144,13 @@ pad (unsigned char *buf, int len)
 
 /*
  * aes_cmac()
- *    CMAC mode of AES per NIST SP 800-38B
+ *    Performs the CMAC mode of AES operation per NIST SP 800-38B.
+ *    Computes a secure message authentication code using AES.
+ *
+ *    @param ctx   Pointer to the SIV context containing keys and schedules
+ *    @param msg   Pointer to the message to authenticate
+ *    @param mlen  Length of the message in bytes
+ *    @param C     Output buffer for the computed CMAC (must be AES_BLOCK_SIZE bytes)
  */
 void
 aes_cmac (siv_ctx *ctx, const unsigned char *msg, int mlen, unsigned char *C)
@@ -181,7 +203,14 @@ aes_cmac (siv_ctx *ctx, const unsigned char *msg, int mlen, unsigned char *C)
 
 /*
  * s2v_final()
- *    input the last chunk into the s2v, output the digest
+ *    Processes the final input block into the S2V construction and outputs the digest.
+ *    This completes the S2V operation after all associated data has been processed.
+ *
+ *    @param ctx      Pointer to the SIV context
+ *    @param X        Pointer to the final data block
+ *    @param xlen     Length of the final data block in bytes
+ *    @param digest   Output buffer for the S2V digest result (must be AES_BLOCK_SIZE bytes)
+ *    @return         0 on success, negative value on failure
  */
 int
 s2v_final (siv_ctx *ctx, const unsigned char *X, int xlen, unsigned char *digest)
@@ -284,7 +313,11 @@ s2v_final (siv_ctx *ctx, const unsigned char *X, int xlen, unsigned char *digest
 
 /*
  * s2v_add()
- *    add an sPRF'd string to s2v
+ *    Adds a preprocessed block to the current S2V state.
+ *    Used to incorporate already-processed (via AES-CMAC) data into the S2V construction.
+ *
+ *    @param ctx  Pointer to the SIV context
+ *    @param Y    Pointer to the preprocessed block (must be AES_BLOCK_SIZE bytes)
  */
 void
 s2v_add (siv_ctx *ctx, const unsigned char *Y)
@@ -298,7 +331,12 @@ s2v_add (siv_ctx *ctx, const unsigned char *Y)
 
 /*
  * s2v_update()
- *    add a raw string to the s2v
+ *    Adds a raw data string to the S2V construction.
+ *    Computes the AES-CMAC of the input data and adds it to the S2V state.
+ *
+ *    @param ctx   Pointer to the SIV context
+ *    @param X     Pointer to the input data
+ *    @param xlen  Length of the input data in bytes
  */
 void
 s2v_update (siv_ctx *ctx, const unsigned char *X, int xlen)
@@ -311,7 +349,13 @@ s2v_update (siv_ctx *ctx, const unsigned char *X, int xlen)
 
 /*
  * siv_init()
- *    initiate an siv context
+ *    Initializes a SIV context with the provided key material.
+ *    Sets up the AES key schedules and CMAC subkeys required for SIV operations.
+ *
+ *    @param ctx     Pointer to the SIV context to initialize
+ *    @param key     Pointer to the key material
+ *    @param keylen  Length of the key material in bits (must be SIV_256, SIV_384, or SIV_512)
+ *    @return        1 on success, -1 on invalid key length
  */
 int
 siv_init (siv_ctx *ctx, const unsigned char *key, int keylen)
@@ -350,8 +394,10 @@ siv_init (siv_ctx *ctx, const unsigned char *key, int keylen)
 
 /*
  * siv_restart()
- *    restart a siv context, same as siv_init but leaves the
- *    keying material alone
+ *    Resets a SIV context to its initial state while preserving key material.
+ *    Used to prepare the context for a new encryption/decryption operation.
+ *
+ *    @param ctx  Pointer to the SIV context to restart
  */
 void
 siv_restart (siv_ctx *ctx)
@@ -363,7 +409,10 @@ siv_restart (siv_ctx *ctx)
 
 /*
  * s2v_benchmark()
- *    save intermediate T state for optimization
+ *    Saves the current state of S2V for later reuse.
+ *    Used to optimize processing of similar inputs.
+ *
+ *    @param ctx  Pointer to the SIV context
  */ 
 void
 s2v_benchmark (siv_ctx *ctx)
@@ -373,7 +422,10 @@ s2v_benchmark (siv_ctx *ctx)
 
 /*
  * s2v_reset()
- *    copy the benchmarked state back to T
+ *    Restores the S2V state from a saved benchmark.
+ *    Used in conjunction with s2v_benchmark to resume from a saved state.
+ *
+ *    @param ctx  Pointer to the SIV context
  */
 void
 s2v_reset (siv_ctx *ctx)
@@ -383,7 +435,14 @@ s2v_reset (siv_ctx *ctx)
 
 /*
  * siv_aes_ctr()
- *      aes in CTR mode for SIV
+ *    Performs AES encryption in counter mode using the provided IV.
+ *    Used internally by SIV for the encryption/decryption operations.
+ *
+ *    @param ctx  Pointer to the SIV context
+ *    @param p    Pointer to the plaintext input
+ *    @param lenp Length of the plaintext in bytes
+ *    @param c    Pointer to the output buffer (must be at least lenp bytes)
+ *    @param iv   Pointer to the initialization vector (must be AES_BLOCK_SIZE bytes)
  */
 void
 siv_aes_ctr (siv_ctx *ctx, const unsigned char *p, const int lenp,
@@ -418,11 +477,17 @@ siv_aes_ctr (siv_ctx *ctx, const unsigned char *p, const int lenp,
 
 /*
  * siv_encrypt()
- *      perform S2V and CTR on plaintext. Output is c, the
- *      ciphertext, and counter, the CTR. One passes "nad"
- *      associated data pairs, each pair being an unsigned
- *      char pointing to a buffer of data and an integer length
- *      representing the length in bytes of that data.
+ *    Performs SIV encryption on plaintext with associated data.
+ *    Generates a synthetic IV that serves as both MAC tag and counter IV.
+ *
+ *    @param ctx        Pointer to the SIV context
+ *    @param p          Pointer to the plaintext
+ *    @param c          Pointer to the ciphertext output buffer (must be at least len bytes)
+ *    @param len        Length of the plaintext/ciphertext in bytes
+ *    @param counter    Output buffer for the synthetic IV (must be AES_BLOCK_SIZE bytes)
+ *    @param nad        Number of associated data items
+ *    @param ...        Variable arguments: pairs of (data_ptr, data_len) for each AD item
+ *    @return           1 on success, negative on failure
  */
 int
 siv_encrypt (siv_ctx *ctx, const unsigned char *p, unsigned char *c,
@@ -457,11 +522,17 @@ siv_encrypt (siv_ctx *ctx, const unsigned char *p, unsigned char *c,
 
 /*
  * siv_decrypt()
- *      do CTR to decrypt an SIV-encrypted ciphertext and then
- *      verify the given counter is the output of S2V. One passes
- *      "nad" associated data pairs, each pair being an unsigned
- *      char pointing to a buffer of data and an integer length
- *      representing the length in bytes of that data.
+ *    Performs SIV decryption on ciphertext and verifies the synthetic IV.
+ *    Decrypts the ciphertext and validates the authentication tag.
+ *
+ *    @param ctx        Pointer to the SIV context
+ *    @param c          Pointer to the ciphertext
+ *    @param p          Pointer to the plaintext output buffer (must be at least len bytes)
+ *    @param len        Length of the plaintext/ciphertext in bytes
+ *    @param counter    Pointer to the synthetic IV for verification (must be AES_BLOCK_SIZE bytes)
+ *    @param nad        Number of associated data items
+ *    @param ...        Variable arguments: pairs of (data_ptr, data_len) for each AD item
+ *    @return           1 on successful decryption and authentication, -1 on verification failure
  */
 int
 siv_decrypt (siv_ctx *ctx, const unsigned char *c, unsigned char *p,
@@ -499,4 +570,3 @@ siv_decrypt (siv_ctx *ctx, const unsigned char *c, unsigned char *p,
         return 1;
     }
 }
-
