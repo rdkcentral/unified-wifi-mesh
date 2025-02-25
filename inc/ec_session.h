@@ -25,6 +25,8 @@
 #include <type_traits>
 #include <map>
 #include <string>
+#include <functional>
+#include <vector>
 
 #define EC_FRAME_BASE_SIZE (offsetof(ec_frame_t, attributes))
 
@@ -35,6 +37,26 @@ class ec_session_t {
     ec_params_t    m_params; 
     wifi_activation_status_t    m_activation_status;
     ec_data_t   m_data;
+
+    /**
+     * @brief Send a chirp notification to the peer
+     * 
+     * @param chirp_tlv The chirp TLV to send
+     * @param len The length of the chirp TLV
+     * @return int 0 if successful, -1 otherwise
+     */
+    std::function<int(em_dpp_chirp_value_t*, size_t)> m_send_chirp_notification;
+
+    /**
+     * @brief Send a proxied encapsulated DPP message
+     * 
+     * @param encap_dpp_tlv The 1905 Encap DPP TLV to include in the message
+     * @param encap_dpp_len The length of the 1905 Encap DPP TLV
+     * @param chirp_tlv The chirp value to include in the message. If NULL, the message will not include a chirp value
+     * @param chirp_len The length of the chirp value
+     * @return int 0 if successful, -1 otherwise
+     */
+    std::function<int(em_encap_dpp_t*, size_t, em_dpp_chirp_value_t*, size_t)> m_send_prox_encap_dpp_msg;
 
     /**
      * @brief Compute the hash of the provided key with an optional prefix
@@ -82,6 +104,15 @@ public:
      * @return int 0 if successful, -1 otherwise
      */
     int handle_chirp_notification(em_dpp_chirp_value_t* chirp_tlv, uint8_t **out_frame);
+
+    /**
+     * @brief Handle a proxied encapsulated DPP TLV and output the correct frame to send (if necessary)
+     * 
+     * @param encap_tlv The 1905 Encap DPP TLV to parse and handle
+     * @param out_frame The buffer to store the output frame (NULL if no frame is needed)
+     * @return int 0 if successful, -1 otherwise
+     */
+    int handle_proxy_encap_dpp_tlv(em_encap_dpp_t *encap_tlv, uint8_t **out_frame);
     
     /**
      * @brief Create an authentication response frame in a pre-allocated buffer
@@ -116,7 +147,8 @@ public:
      */
     int handle_recv_ec_action_frame(ec_frame_t* frame, size_t len);
 
-    ec_session_t();
+    ec_session_t( std::function<int(em_dpp_chirp_value_t*, size_t)> send_chirp_notification,
+                   std::function<int(em_encap_dpp_t*, size_t, em_dpp_chirp_value_t*, size_t)> send_prox_encap_dpp_msg);
     ~ec_session_t();
 };
 

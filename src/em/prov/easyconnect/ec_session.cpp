@@ -371,6 +371,10 @@ int ec_session_t::handle_chirp_notification(em_dpp_chirp_value_t *chirp_tlv, uin
 
 }
 
+int ec_session_t::handle_proxy_encap_dpp_tlv(em_encap_dpp_t *encap_tlv, uint8_t **out_frame) {
+
+}
+
 int ec_session_t::set_auth_frame_wrapped_data(ec_frame_t *frame, unsigned int non_wrapped_len, bool do_init_auth)
 {
     siv_ctx ctx;
@@ -448,7 +452,9 @@ int ec_session_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len)
     return 0;
 }
 
-ec_session_t::ec_session_t()
+ec_session_t::ec_session_t(std::function<int(em_dpp_chirp_value_t*, size_t)> send_chirp_notification,
+                            std::function<int(em_encap_dpp_t*, size_t, em_dpp_chirp_value_t*, size_t)> send_prox_encap_dpp_msg)
+                            : m_send_chirp_notification(send_chirp_notification), m_send_prox_encap_dpp_msg(send_prox_encap_dpp_msg)
 {
     // Initialize member variables
     m_cfgrtr_ver = 0;

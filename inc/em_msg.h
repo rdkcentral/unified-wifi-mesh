@@ -50,6 +50,53 @@ class em_msg_t {
     unsigned char *m_buff;
     unsigned int m_len;
 public:
+
+    /**
+     * @brief Add a value to the message
+     * 
+     * @param buff The buffer to add the item to
+     * @param len In/Out. The current length of the buffer. Updated with the new length
+     * @param element The element to add
+     * @param element_len The length of the element
+     * @return unsigned char* The new buffer pointer
+     */
+    static unsigned char* add_buff_element(unsigned char *buff, unsigned int *len, unsigned char *element, unsigned int element_len);
+
+    /**
+     * @brief Add a TLV to the message
+     * 
+     * @param buff The buffer to add the TLV to
+     * @param len In/Out. The current length of the buffer. Updated with the new length
+     * @param tlv_type The type of the TLV
+     * @param value The value of the TLV
+     * @param value_len The length of the value
+     * @return unsigned char* The new buffer pointer
+     */
+    static unsigned char* add_tlv(unsigned char *buff, unsigned int *len, em_tlv_type_t tlv_type, unsigned char *value, unsigned int value_len);
+
+    /**
+     * @brief Add an EOM TLV to the message
+     * 
+     * @param buff The buffer to add the TLV to
+     * @param len In/Out. The current length of the buffer. Updated with the new length
+     * @return unsigned char* The new buffer pointer
+     */
+    inline static unsigned char* add_eom_tlv(unsigned char *buff, unsigned int *len) {
+        return add_tlv(buff, len, em_tlv_type_eom, NULL, 0);
+    }
+
+    /**
+     * @brief Add a 1905 header to the message
+     * 
+     * @param buff The buffer to add the header to
+     * @param len In/Out. The current length of the buffer. Updated with the new length
+     * @param dst The destination MAC address
+     * @param src The source MAC address
+     * @param msg_type The message type
+     * @return unsigned char* The new buffer pointer
+     */
+    static unsigned char* add_1905_header(unsigned char *buff, unsigned int *len, mac_addr_t dst, mac_addr_t src, em_msg_type_t msg_type);
+
     unsigned int validate(char *errors[]);
     bool get_radio_id(mac_address_t *mac);
     bool get_bss_id(mac_address_t *mac);
