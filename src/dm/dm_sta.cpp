@@ -150,12 +150,13 @@ void dm_sta_t::encode(cJSON *obj, em_get_sta_list_reason_t reason)
     cJSON *reason_obj, *request_obj;
 
     dm_sta_t::decode_sta_capability(this);
+    dm_sta_t::decode_beacon_report(this);
     dm_easy_mesh_t::macbytes_to_string(m_sta_info.id, mac_str);
     cJSON_AddStringToObject(obj, "MACAddress", mac_str);
     cJSON_AddBoolToObject(obj, "Associated", m_sta_info.associated);
 
     if (reason == em_get_sta_list_reason_none) {
-		encode_beacon_report(obj);		
+		encode_beacon_report(obj);
 	
         cJSON_AddNumberToObject(obj, "LastDataUplinkRate", m_sta_info.last_ul_rate);
         cJSON_AddStringToObject(obj, "TimeStamp", m_sta_info.timestamp);
@@ -237,16 +238,15 @@ void dm_sta_t::encode_beacon_report(cJSON *obj)
 	unsigned int i;
 
 	neighbors_arr_obj = cJSON_AddArrayToObject(obj, "Neighbors");
-
 	for (i = 0; i < m_sta_info.num_beacon_meas_report; i++) {
 		neighbor_obj = cJSON_CreateObject();
-		dm_easy_mesh_t::macbytes_to_string(m_sta_info.beacon_report[i].br_bssid, mac_str);
+		dm_easy_mesh_t::macbytes_to_string(m_sta_info.beacon_reports[i].bssid, mac_str);
 		cJSON_AddStringToObject(neighbor_obj, "BSSID", mac_str);
-		cJSON_AddNumberToObject(neighbor_obj, "OpClass", m_sta_info.beacon_report[i].br_op_class);	
-		cJSON_AddNumberToObject(neighbor_obj, "Channel", m_sta_info.beacon_report[i].br_channel);	
-		cJSON_AddNumberToObject(neighbor_obj, "RCPI", m_sta_info.beacon_report[i].br_rcpi);
+		cJSON_AddNumberToObject(neighbor_obj, "OpClass", m_sta_info.beacon_reports[i].opClass);
+		cJSON_AddNumberToObject(neighbor_obj, "Channel", m_sta_info.beacon_reports[i].channel);
+		cJSON_AddNumberToObject(neighbor_obj, "RCPI", m_sta_info.beacon_reports[i].rcpi);
 
-		cJSON_AddItemToArray(neighbor_obj, neighbors_arr_obj);
+		cJSON_AddItemToArray(neighbors_arr_obj, neighbor_obj);
 	}
 		
 }
@@ -448,6 +448,31 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
     free(tag);
     }
 
+}
+
+void dm_sta_t::decode_beacon_report(dm_sta_t *sta)
+{
+    size_t offset = 0;
+    int report_count = 0, i =0;
+    unsigned char *ie;
+    int current_pkt_len = 0;
+
+    em_sta_info_t *sta_info = &sta->m_sta_info;
+    ie = (unsigned char *)sta->m_sta_info.beacon_report_elem;
+
+    for (i = 0; i < sta_info->num_beacon_meas_report; i++) {
+        current_pkt_len = ie[1];
+        ie += 2;
+
+        sta_info->beacon_reports[i].opClass       = ie[3];
+        sta_info->beacon_reports[i].channel       = ie[4];
+        sta_info->beacon_reports[i].rcpi          = ie[16];
+        sta_info->beacon_reports[i].rsni          = ie[17];
+        memcpy(sta_info->beacon_reports[i].bssid, &ie[18], sizeof(bssid_t));
+        sta_info->beacon_reports[i].antenna       = ie[24];
+
+       ie += current_pkt_len;
+   }
 }
 
 dm_sta_t::dm_sta_t(em_sta_info_t *sta)

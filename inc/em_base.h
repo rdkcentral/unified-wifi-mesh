@@ -57,7 +57,8 @@ extern "C"
 #define MAX_EM_BUFF_SZ  1024
 #define EM_MAX_FRAME_BODY_LEN	512
 #define MAX_VENDOR_INFO 5
-#define EM_MAX_BEACON_MEASUREMENT_LEN	30
+#define EM_MAX_BEACON_MEASUREMENT_LEN  400
+#define EM_MAX_BEACON_REPORTS_PER_SCAN 10
 
 #define EM_TEST_IO_PERM 0666
 #define EM_IO_BUFF_SZ   4096
@@ -2135,21 +2136,6 @@ typedef struct {
 } em_cac_comp_info_t;
 
 typedef struct {
-    //Beacon Report Data
-    unsigned char br_op_class;
-    unsigned char br_channel;
-    //unsigned char br_meas_start_time;
-    //unsigned char br_meas_duration;
-    //unsigned char br_reported_frame_info;
-    unsigned char br_rcpi;
-    unsigned char br_rsni;
-    bssid_t br_bssid;
-    //unsigned char br_antenna_id;
-    //unsigned char br_tsf;
-    //unsigned char br_subelems[0];
-} em_beacon_measurement_t;
-
-typedef struct {
     mac_address_t   id;
     mac_address_t   bssid;
     mac_address_t radiomac;
@@ -2176,7 +2162,8 @@ typedef struct {
     unsigned int    num_vendor_infos;
     bool            multi_band_cap;
     unsigned int    num_beacon_meas_report;
-    em_beacon_measurement_t beacon_report[EM_MAX_BEACON_MEASUREMENT_LEN];
+    unsigned int    beacon_report_len;
+    unsigned char   beacon_report_elem[EM_MAX_BEACON_MEASUREMENT_LEN];
 
     em_long_string_t    cap;
     em_long_string_t    ht_cap;
@@ -2196,6 +2183,8 @@ typedef struct {
     em_long_string_t    ext_cap;
     em_long_string_t    rm_cap;
     em_long_string_t    vendor_info[MAX_VENDOR_INFO];
+
+    wifi_BeaconReport_t beacon_reports[EM_MAX_BEACON_REPORTS_PER_SCAN];
 } em_sta_info_t;
 
 typedef enum {

@@ -1251,72 +1251,72 @@ dm_scan_result_t *dm_easy_mesh_list_t::get_scan_result(const char *key)
 
 void dm_easy_mesh_list_t::remove_scan_result(const char *key)
 {
-	em_scan_result_id_t id;
-	mac_addr_str_t	dev_mac_str, scanner_mac_str, bssid_str;
-	bssid_t bssid;
-	dm_easy_mesh_t *dm;
+    em_scan_result_id_t id;
+    mac_addr_str_t	dev_mac_str, scanner_mac_str, bssid_str;
+    bssid_t bssid;
+    dm_easy_mesh_t *dm;
     dm_scan_result_t *res;
-	dm_sta_t *sta;
+    dm_sta_t *sta;
     unsigned int i;
-	int index_to_remove = -1;
-	em_long_string_t list_key;
-	bool found_sta = false;
-	em_beacon_measurement_t *rprt;
+    int index_to_remove = -1;
+    em_long_string_t list_key;
+    bool found_sta = false;
+    wifi_BeaconReport_t *rprt;
 
-	dm_scan_result_t::parse_scan_result_id_from_key(key, &id, bssid);
+    dm_scan_result_t::parse_scan_result_id_from_key(key, &id, bssid);
 
-	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
-	dm_easy_mesh_t::macbytes_to_string(id.scanner_mac, scanner_mac_str);	
-	dm_easy_mesh_t::macbytes_to_string(bssid, bssid_str);	
+    dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(id.scanner_mac, scanner_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(bssid, bssid_str);
 
     if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
         printf("%s:%d: Could not find data model for Network: %s and dev: %s\n", __func__, __LINE__, id.net_id, dev_mac_str);
         return;
     }
 
-	snprintf(list_key, sizeof(em_long_string_t), "%s@%s@%s@%d@%d@%d", id.net_id, dev_mac_str, scanner_mac_str,
-		id.op_class, id.channel, id.scanner_type);	
+    snprintf(list_key, sizeof(em_long_string_t), "%s@%s@%s@%d@%d@%d", id.net_id, dev_mac_str, scanner_mac_str,
+        id.op_class, id.channel, id.scanner_type);
 
-	if ((res = (dm_scan_result_t *)hash_map_remove(dm->m_scan_result_map, list_key)) != NULL) {
-		delete res;
-	}
-	
-	// now if the result is from sta beacon report, find the sta and populate the structure
-	if (id.scanner_type == em_scanner_type_radio) {
-		return;
-	} 
-
-	sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_map);
-	while (sta != NULL) {
-
-		if (memcmp(sta->m_sta_info.id, id.scanner_mac, sizeof(mac_address_t)) == 0) {
-			found_sta = true;
-			break;
-		}
-		sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_map, sta);
-	}		
-
-	if (found_sta == false) {
-		return;
-	}
-
-	for (i = 0; i < sta->m_sta_info.num_beacon_meas_report; i++) {
-		rprt = &sta->m_sta_info.beacon_report[i];
-
-		if (memcmp(rprt->br_bssid, bssid, sizeof(bssid_t)) == 0) {
-			index_to_remove = i;
-			break;
-		}
-	}
-
-	if (index_to_remove == -1) {
-		return;
-	}
-
-	for (i = index_to_remove; i < sta->m_sta_info.num_beacon_meas_report - 1; i++) {
-        memcpy(&sta->m_sta_info.beacon_report[i], &sta->m_sta_info.beacon_report[i + 1], sizeof(wifi_BeaconReport_t));
+    if ((res = (dm_scan_result_t *)hash_map_remove(dm->m_scan_result_map, list_key)) != NULL) {
+        delete res;
     }
-    
+
+    // now if the result is from sta beacon report, find the sta and populate the structure
+    if (id.scanner_type == em_scanner_type_radio) {
+        return;
+    }
+
+    sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_map);
+        while (sta != NULL) {
+            if (memcmp(sta->m_sta_info.id, id.scanner_mac, sizeof(mac_address_t)) == 0) {
+                found_sta = true;
+                break;
+            }
+        sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_map, sta);
+    }
+
+    if (found_sta == false) {
+        return;
+    }
+
+    for (i = 0; i < sta->m_sta_info.num_beacon_meas_report; i++) {
+        dm_sta_t::decode_beacon_report(sta);
+        rprt = &sta->m_sta_info.beacon_reports[i];
+
+        if (memcmp(rprt->bssid, bssid, sizeof(bssid_t)) == 0) {
+            index_to_remove = i;
+            break;
+        }
+    }
+
+    if (index_to_remove == -1) {
+        return;
+    }
+
+    for (i = index_to_remove; i < sta->m_sta_info.num_beacon_meas_report - 1; i++) {
+        memcpy(&sta->m_sta_info.beacon_report_elem[i], &sta->m_sta_info.beacon_report_elem[i + 1], sta->m_sta_info.beacon_report_len);
+    }
+
     sta->m_sta_info.num_beacon_meas_report--;
 }
 
@@ -1332,7 +1332,7 @@ void dm_easy_mesh_list_t::put_scan_result(const char *key, const dm_scan_result_
 	unsigned int i;
 	em_neighbor_t *nbr;
 	em_long_string_t list_key;
-	em_beacon_measurement_t *rprt;
+	wifi_BeaconReport_t *rprt;
 	
 	dm_scan_result_t::parse_scan_result_id_from_key(key, &id, bssid);
 
@@ -1397,10 +1397,10 @@ void dm_easy_mesh_list_t::put_scan_result(const char *key, const dm_scan_result_
 		return;
 	}
 
-	rprt = &sta->m_sta_info.beacon_report[sta->m_sta_info.num_beacon_meas_report];
-	rprt->br_op_class = scan_result->m_scan_result.id.op_class;	
-	rprt->br_channel = scan_result->m_scan_result.id.channel;
-	memcpy(rprt->br_bssid, &bssid, sizeof(bssid_t));
+	rprt = &sta->m_sta_info.beacon_reports[sta->m_sta_info.num_beacon_meas_report];
+	rprt->opClass = scan_result->m_scan_result.id.op_class;
+	rprt->channel = scan_result->m_scan_result.id.channel;
+	memcpy(rprt->bssid, &bssid, sizeof(bssid_t));
 		
 	sta->m_sta_info.num_beacon_meas_report++;
 
