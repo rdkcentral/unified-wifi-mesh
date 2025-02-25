@@ -65,38 +65,45 @@ public:
     static ec_attribute_t *get_attrib(uint8_t *buff, uint16_t len, ec_attrib_id_t id);
 
     /**
-     * @brief Add an attribute to the buffer
+     * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary
      * 
      * @param buff The buffer to add the attribute to
+     * @param buff_len The length of the buffer (in/out)
      * @param id The attribute ID
      * @param len The length of the data
      * @param data The attribute data
      * @return uint8_t* The buffer offset by the length of the attribute
+     * 
+     * @warning The buffer must be freed by the caller
      */
-    static uint8_t *add_attrib(uint8_t *buff, ec_attrib_id_t id, uint16_t len, uint8_t *data);
+    static uint8_t *add_attrib(uint8_t *buff, uint16_t* buff_len, ec_attrib_id_t id, uint16_t len, uint8_t *data);
 
     /**
-     * @brief Add an attribute to the buffer
+     * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary
      * 
      * @param buff The buffer to add the attribute to
      * @param id The attribute ID
      * @param val The uint8_t attribute value
      * @return uint8_t* The buffer offset by the length of the attribute
+     * 
+     * @warning The buffer must be freed by the caller
      */
-    static inline uint8_t* add_attrib(uint8_t *buff, ec_attrib_id_t id, uint8_t val) {
-        return add_attrib(buff, id, sizeof(uint8_t), (uint8_t *)&val);
+    static inline uint8_t* add_attrib(uint8_t *buff, uint16_t* buff_len, ec_attrib_id_t id, uint8_t val) {
+        return add_attrib(buff, buff_len, id, sizeof(uint8_t), (uint8_t *)&val);
     }
 
     /**
-     * @brief Add an attribute to the buffer
+     * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary
      * 
      * @param buff The buffer to add the attribute to
      * @param id The attribute ID
      * @param val The uint16_t attribute value
      * @return uint8_t* The buffer offset by the length of the attribute
+     * 
+     * @warning The buffer must be freed by the caller
      */
-    static inline uint8_t* add_attrib(uint8_t *buff, ec_attrib_id_t id, uint16_t val) {
-        return add_attrib(buff, id, sizeof(uint16_t), (uint8_t *)&val);
+    static inline uint8_t* add_attrib(uint8_t *buff, uint16_t* buff_len, ec_attrib_id_t id, uint16_t val) {
+        return add_attrib(buff, buff_len, id, sizeof(uint16_t), (uint8_t *)&val);
     }
 
     /**
