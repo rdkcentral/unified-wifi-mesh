@@ -1835,6 +1835,7 @@ void em_channel_t::fill_scan_result(dm_scan_result_t *scan_res, em_channel_scan_
         tmp += sizeof(unsigned char);
 
         strncpy(nbr->ssid, (char *)tmp, ssid_len + 1);
+        nbr->ssid[ssid_len] = '\0';
         tmp += ssid_len;
 
         memcpy(&nbr->signal_strength, tmp, sizeof(unsigned char));
