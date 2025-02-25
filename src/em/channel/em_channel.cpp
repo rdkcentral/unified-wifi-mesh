@@ -866,6 +866,7 @@ int em_channel_t::send_operating_channel_report_msg()
     unsigned char *tmp = buff;
     dm_easy_mesh_t *dm;
     unsigned short type = htons(ETH_P_1905);
+    mac_addr_str_t mac_str;
 
     dm = get_data_model();
 
@@ -935,7 +936,8 @@ int em_channel_t::send_operating_channel_report_msg()
         printf("%s:%d:  Operating Channel Report msg failed, error:%d\n", __func__, __LINE__, errno);
         return -1;
     }
-
+    dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(), mac_str);
+    printf("%s:%d Operating Channel Report msg send for %s \n", __func__, __LINE__,mac_str);
     return len;
 
 }
@@ -1514,7 +1516,8 @@ int em_channel_t::handle_eht_operations_tlv_ctrl(unsigned char *buff, unsigned i
     tmp_len += sizeof(unsigned char);
 
     dm = get_data_model();
-    assert(num_radios == dm->get_num_radios());
+//  Remove assert since channnel report is per radio
+//  assert(num_radios == dm->get_num_radios());
 
     for (i = 0; i < num_radios; i++) {
         memcpy(&ruid, tmp, sizeof(mac_address_t));
