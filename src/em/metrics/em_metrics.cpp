@@ -277,6 +277,7 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
     dm_easy_mesh_t  *dm;
     int current_pkt_len = 0;
     bssid_t bssid;
+    int report_len = 0;
 
     dm = get_data_model();
 
@@ -288,9 +289,9 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
     cmdu = (em_cmdu_t *)(buff + sizeof(em_raw_hdr_t));
     tlv = (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-    int report_len = 0;
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_bcon_metric_rsp) {
+            report_len = ntohs(tlv->len) - 8;
             response = (em_beacon_metrics_resp_t *)tlv->value;
             ie = response->meas_reports;
 
@@ -316,6 +317,10 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
     sta->m_sta_info.num_beacon_meas_report = response->meas_rprt_count;
     sta->m_sta_info.beacon_report_len = report_len;
     memcpy(sta->m_sta_info.beacon_report_elem, response->meas_reports, report_len);
+
+    printf("%s:%d Beacon Metrics Response rcvd\n", __func__, __LINE__);
+    printf("%s:%d No of reports %d\n", __func__, __LINE__, sta->m_sta_info.num_beacon_meas_report);
+    printf("%s:%d Report len %d\n", __func__, __LINE__, sta->m_sta_info.beacon_report_len);
 
     //get_data_model()->set_db_cfg_param(db_cfg_type_sta_list_update, "");
 
@@ -467,7 +472,7 @@ int em_metrics_t::send_associated_link_metrics_response(mac_address_t sta_mac)
 
     //Assoc sta link metrics 17.2.24
     tlv = (em_tlv_t *)tmp;
-    tlv->type = em_tlv_type_vendor_sta_metrics;
+    tlv->type = em_tlv_type_assoc_sta_link_metric;
     sz = create_assoc_sta_link_metrics_tlv(tlv->value, sta_mac, sta);
     tlv->len =  htons(sz);
 
