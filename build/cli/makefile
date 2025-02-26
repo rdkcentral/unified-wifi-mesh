@@ -105,10 +105,10 @@ clean:
 
 #
 # Run target: "make -f Makefile.Linux run" to execute the application
-#             You will need to add $(VARIABLE_NAME) for any command line parameters 
+#             You will need to add $(RUNARGS) for any command line parameters
 #             that you defined earlier in this file.
 # 
 
 run:
-	./$(PROGRAM) 
+	LD_LIBRARY_PATH=$(INSTALLDIR)/lib $(PROGRAM) $(RUNARGS)
 
