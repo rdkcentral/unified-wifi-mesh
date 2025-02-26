@@ -472,7 +472,7 @@ int em_metrics_t::send_associated_link_metrics_response(mac_address_t sta_mac)
 
     //Assoc sta link metrics 17.2.24
     tlv = (em_tlv_t *)tmp;
-    tlv->type = em_tlv_type_assoc_sta_link_metric;
+    tlv->type = em_tlv_type_vendor_sta_metrics;
     sz = create_assoc_sta_link_metrics_tlv(tlv->value, sta_mac, sta);
     tlv->len =  htons(sz);
 

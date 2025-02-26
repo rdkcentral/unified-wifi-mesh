@@ -185,7 +185,7 @@ void dm_easy_mesh_agent_t::translate_onewifi_dml_data (char *str)
     webconfig_proto_easymesh_init(&ext, this, NULL, NULL, get_num_radios, set_num_radios,
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info, 
-            get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac);
+            get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results);
     
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -243,7 +243,7 @@ int dm_easy_mesh_agent_t::analyze_m2ctrl_configuration(em_bus_event_t *evt, wifi
     webconfig_proto_easymesh_init(&dev_data, &dm, &m2ctrl, NULL, get_num_radios, set_num_radios,
                                 get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
                                 get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
-                                get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac);
+                                get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results);
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -293,7 +293,8 @@ int dm_easy_mesh_agent_t::analyze_onewifi_vap_cb(em_bus_event_t *evt, em_cmd_t *
     webconfig_proto_easymesh_init(&ext, &dm, NULL, NULL, get_num_radios, set_num_radios,
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, 
-            get_op_class_info, get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac);
+            get_op_class_info, get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac,
+            update_scan_results);
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
     if (webconfig_init(&config) != webconfig_error_none) {
@@ -363,7 +364,7 @@ int dm_easy_mesh_agent_t::analyze_onewifi_radio_cb(em_bus_event_t *evt, em_cmd_t
     webconfig_proto_easymesh_init(&ext, &dm, NULL, NULL, get_num_radios, set_num_radios,
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info, 
-            get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac);
+            get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results);
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -409,7 +410,7 @@ void dm_easy_mesh_agent_t::translate_onewifi_stats_data(char *str)
     webconfig_proto_easymesh_init(&extdata, this, NULL, NULL, get_num_radios, set_num_radios,
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
-            get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac);
+            get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results);
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -554,7 +555,7 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
     webconfig_proto_easymesh_init(&dev_data, &dm, NULL, NULL, get_num_radios, set_num_radios,
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
-            get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac);
+            get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results);
 
 	config.initializer = webconfig_initializer_onewifi;
 	config.apply_data =	 webconfig_dummy_apply;
@@ -604,7 +605,7 @@ int dm_easy_mesh_agent_t::analyze_sta_link_metrics(em_bus_event_t *evt, em_cmd_t
     webconfig_proto_easymesh_init(&extdata, this, NULL, NULL, get_num_radios, set_num_radios,
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
-            get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac);
+            get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results);
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -693,6 +694,49 @@ int dm_easy_mesh_agent_t::analyze_btm_request_action_frame(em_bus_event_t *evt, 
     return 1;
 }
 
+int dm_easy_mesh_agent_t::analyze_scan_request(em_bus_event_t *evt, wifi_bus_desc_t *desc, bus_handle_t *bus_hdl)
+{
+    unsigned i, j;
+    mac_addr_str_t radio_mac_str;
+    raw_data_t l_bus_data;
+    channel_scan_request_t scan_data;
+    em_scan_params_t *scan_req = (em_scan_params_t *)&evt->u.raw_buff;
+
+    dm_easy_mesh_t::macbytes_to_string(scan_req->ruid, radio_mac_str);
+    printf("%s:%d: Radio: %s Num of Op Classes: %d\n", __func__, __LINE__, radio_mac_str, scan_req->num_op_classes);
+
+    scan_data.perform_fresh_scan = true;
+    scan_data.num_radios = 1;
+
+    memcpy(scan_data.ruid, scan_req->ruid, sizeof(mac_address_t));
+
+    scan_data.num_operating_classes = scan_req->num_op_classes;
+    for (i = 0; i < scan_req->num_op_classes; i++) {
+        scan_data.operating_classes[i].operating_class = scan_req->op_class[i].op_class;
+        scan_data.operating_classes[i].num_channels = scan_req->op_class[i].num_channels;
+        printf("Op Class: %d ", scan_req->op_class[i].op_class);
+        printf("Channels: ");
+        for (j = 0; j < scan_req->op_class[i].num_channels; j++) {
+            scan_data.operating_classes[i].channels[j] = scan_req->op_class[i].channels[j];
+            printf("%d ", scan_req->op_class[i].channels[j]);
+        }
+        printf("\n");
+    }
+
+    l_bus_data.data_type = bus_data_type_bytes;
+    l_bus_data.raw_data.bytes = (void *)&scan_data;
+    l_bus_data.raw_data_len = sizeof(channel_scan_request_t);
+
+    if (desc->bus_set_fn(bus_hdl, "Device.WiFi.EM.ChannelScanRequest", &l_bus_data)== 0) {
+        printf("%s:%d Scan Req send successfull\n",__func__, __LINE__);
+    }
+    else {
+        printf("%s:%d Scan Req send failed\n",__func__, __LINE__);
+        return -1;
+    }
+    return 1;
+}
+
 int dm_easy_mesh_agent_t::analyze_btm_response_action_frame(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     //TODO: if callback would give for multiple entries or one by one
@@ -725,9 +769,36 @@ int dm_easy_mesh_agent_t::analyze_btm_response_action_frame(em_bus_event_t *evt,
 int dm_easy_mesh_agent_t::analyze_scan_result(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     unsigned int num = 0;
-    dm_easy_mesh_agent_t  dm;
+    dm_easy_mesh_agent_t  dm = *this;
     em_cmd_t *tmp;
-    
+
+    webconfig_t config;
+    webconfig_external_easymesh_t ext;
+    webconfig_subdoc_type_t type = webconfig_subdoc_type_em_channel_stats;
+
+    webconfig_proto_easymesh_init(&ext, &dm, NULL, NULL, get_num_radios, set_num_radios,
+            get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
+            get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
+            get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results);
+
+    config.initializer = webconfig_initializer_onewifi;
+    config.apply_data =  webconfig_dummy_apply;
+
+    if (webconfig_init(&config) != webconfig_error_none) {
+        printf( "[%s]:%d Init WiFi Web Config  fail\n",__func__,__LINE__);
+        return 0;
+    }
+
+    if ((webconfig_easymesh_decode(&config, (char *)evt->u.raw_buff, &ext, &type)) == webconfig_error_none) {
+        printf("%s:%d analyze_scan_result subdoc decode success\n",__func__, __LINE__);
+    } else {
+        printf("%s:%d analyze_scan_result subdoc decode fail\n",__func__, __LINE__);
+    }
+
+    em_cmd_params_t *evt_param = NULL;
+    evt_param = &evt->params;
+    memcpy(evt_param->u.scan_params.ruid, get_radio_info(0)->intf.mac, sizeof(mac_address_t));
+
     pcmd[num] = new em_cmd_scan_result_t(evt->params, dm);
     tmp = pcmd[num];
     num++;
@@ -757,7 +828,7 @@ int dm_easy_mesh_agent_t::analyze_set_policy(em_bus_event_t *evt, wifi_bus_desc_
     webconfig_proto_easymesh_init(&ext_data, NULL, NULL, policy_cfg, get_num_radios, set_num_radios,
         get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
         get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
-        get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac);
+        get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results);
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -820,7 +891,7 @@ int dm_easy_mesh_agent_t::analyze_beacon_report(em_bus_event_t *evt, em_cmd_t *p
     webconfig_proto_easymesh_init(&extdata, &dm, NULL, NULL, NULL, NULL,
         NULL, NULL, NULL, NULL,
         NULL, NULL, get_radio_info, NULL, get_bss_info, NULL,
-        NULL, NULL, get_sta_info, put_sta_info, NULL);
+        NULL, NULL, get_sta_info, put_sta_info, NULL, NULL);
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;

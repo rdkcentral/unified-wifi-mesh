@@ -761,6 +761,8 @@ void em_ctrl_t::start_complete()
 	raw_data_t raw;
 	em_interface_t	*intf;
 	mac_addr_str_t	al_mac_str;
+	em_bus_event_type_cfg_renew_params_t ac_config_raw;
+	mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 	if (m_data_model.is_initialized() == false) {
 		printf("%s:%d: Database not initialized ... needs reset\n", __func__, __LINE__);
@@ -803,8 +805,8 @@ void em_ctrl_t::start_complete()
 		dm->set_db_cfg_param(db_cfg_type_bss_list_delete, "");
         dm = m_data_model.get_next_dm(dm);
     }
-
-	io_process(em_bus_event_type_cfg_renew, (unsigned char *)NULL, 0);	
+	memcpy(&ac_config_raw.radio, &null_mac, sizeof(mac_address_t));
+	io_process(em_bus_event_type_cfg_renew, (unsigned char *)&ac_config_raw, sizeof(em_bus_event_type_cfg_renew_params_t));
 }
 
 
