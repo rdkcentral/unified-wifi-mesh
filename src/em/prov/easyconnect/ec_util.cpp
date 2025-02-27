@@ -33,21 +33,37 @@ ec_attribute_t *ec_util::get_attrib(uint8_t *buff, uint16_t len, ec_attrib_id_t 
 }
 
 
-uint8_t* ec_util::add_attrib(uint8_t *buff, ec_attrib_id_t id, uint16_t len, uint8_t *data)
+uint8_t* ec_util::add_attrib(uint8_t *buff, uint16_t* buff_len, ec_attrib_id_t id, uint16_t len, uint8_t *data)
 {
-    if (buff == NULL || data == NULL || len == 0) {
+    if (data == NULL || len == 0) {
         fprintf(stderr, "Invalid input\n");
         return NULL;
     }
-    memset(buff, 0, get_ec_attr_size(len));
-    ec_attribute_t *attr = (ec_attribute_t *)buff;
+
+    
+    // Add extra space for the new attribute
+    uint16_t new_len = *buff_len + get_ec_attr_size(len);
+    // Original start pointer to use for realloc
+    uint8_t* base_ptr = NULL;
+    if (buff != NULL) base_ptr = buff - *buff_len;
+    if ((base_ptr = (uint8_t*)realloc(base_ptr, new_len)) == NULL) {
+        fprintf(stderr, "Failed to realloc\n");
+        return NULL;
+    }
+
+    // Get the start of the new section based on the re-allocated pointer
+    uint8_t* tmp = base_ptr + *buff_len;
+
+    memset(tmp, 0, get_ec_attr_size(len));
+    ec_attribute_t *attr = (ec_attribute_t *)tmp;
     // EC attribute id and length are in host byte order according to the spec (8.1)
     attr->attr_id = id;
     attr->length = len;
     memcpy(attr->data, data, len);
 
+    *buff_len += get_ec_attr_size(len);
     // Return the next attribute in the buffer
-    return buff + get_ec_attr_size(len);
+    return tmp + get_ec_attr_size(len);
 }
 
 uint16_t ec_util::freq_to_channel_attr(unsigned int freq)
