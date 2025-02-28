@@ -293,25 +293,24 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
         if (tlv->type == em_tlv_type_bcon_metric_rsp) {
             report_len = ntohs(tlv->len) - 8;
             response = (em_beacon_metrics_resp_t *)tlv->value;
-            ie = response->meas_reports;
-
-            for (i = 0; i < response->meas_rprt_count; i++) {
-                current_pkt_len = ie[1];
-                ie += 2;
-
-                memcpy(bssid, &ie[18], sizeof(bssid_t));
-
-                sta = dm->find_sta(response->sta_mac_addr, bssid);
-                if (sta == NULL) {
-                    ie += current_pkt_len;
-                    continue;
-                }
-                ie += current_pkt_len;
-                break;
-            }
+            break;
         }
         tmp_len -= (sizeof(em_tlv_t) + htons(tlv->len));
         tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+    sta = dm->get_first_sta(response->sta_mac_addr);
+    while (sta != NULL) {
+        if (memcmp(sta->m_sta_info.id, response->sta_mac_addr, sizeof(mac_address_t)) == 0) {
+            break;
+        }
+        sta = dm->get_next_sta(response->sta_mac_addr, sta);
+    }
+
+    if(sta == NULL)
+    {
+        //printf("%s:%d: sta not found\n", __func__, __LINE__);
+        return 0;
     }
 
     sta->m_sta_info.num_beacon_meas_report = response->meas_rprt_count;
@@ -410,8 +409,6 @@ void em_metrics_t::send_all_associated_sta_link_metrics_msg()
         }
         sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_map, sta);
     }
-
-
 }
 
 int em_metrics_t::send_associated_link_metrics_response(mac_address_t sta_mac)
@@ -448,7 +445,7 @@ int em_metrics_t::send_associated_link_metrics_response(mac_address_t sta_mac)
 
     dm_easy_mesh_t::macbytes_to_string(sta_mac, mac_str);
 
-    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
@@ -616,7 +613,7 @@ int em_metrics_t::send_beacon_metrics_response()
 
     short msg_id = em_msg_type_beacon_metrics_rsp;
 
-    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 

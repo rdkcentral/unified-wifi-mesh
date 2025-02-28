@@ -49,9 +49,7 @@ void em_agent_t::handle_sta_list(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num;
 
-    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
-        printf("analyze_sta_list in progress\n");
-    } else if ((num = m_data_model.analyze_sta_list(evt, pcmd)) == 0) {
+    if ((num = m_data_model.analyze_sta_list(evt, pcmd)) == 0) {
         printf("analyze_sta_list failed\n");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
         printf("analyze_sta_list submit complete\n");
