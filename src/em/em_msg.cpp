@@ -258,6 +258,46 @@ em_tlv_t *em_msg_t::get_tlv(em_tlv_type_t type)
     return NULL;
 }
 
+unsigned char* em_msg_t::add_buff_element(unsigned char *buff, unsigned int *len, unsigned char *element, unsigned int element_len)
+{
+    memcpy(buff, element, element_len);
+    *len += element_len;
+    return buff + element_len;
+}
+
+unsigned char* em_msg_t::add_tlv(unsigned char *buff, unsigned int *len, em_tlv_type_t tlv_type, 
+                                            unsigned char *value, unsigned int value_len)
+{
+    em_tlv_t* tlv = (em_tlv_t *)buff;
+    tlv->type = tlv_type;
+    tlv->len = htons(value_len);
+    if (value_len > 0) {
+        memcpy(tlv->value, value, value_len);
+    }
+
+    *len += (sizeof(em_tlv_t) + value_len);
+    return buff + (sizeof(em_tlv_t) + value_len);
+    
+}
+unsigned char* em_msg_t::add_1905_header(unsigned char *buff, unsigned int *len, mac_addr_t dst, mac_addr_t src, em_msg_type_t msg_type)
+{
+
+    uint16_t type = htons(ETH_P_1905);
+    uint16_t  msg_id = msg_type;
+
+    unsigned char* tmp = buff;
+    tmp = em_msg_t::add_buff_element(tmp, len, (uint8_t *)dst, sizeof(mac_address_t));
+    tmp = em_msg_t::add_buff_element(tmp, len, (uint8_t *)src, sizeof(mac_address_t));
+    tmp = em_msg_t::add_buff_element(tmp, len, (uint8_t *)&type, sizeof(uint16_t));
+
+    em_cmdu_t cmdu = {
+        .type = htons(msg_id),
+        .id = htons(msg_id),
+        .last_frag_ind = 1
+    };
+
+    return em_msg_t::add_buff_element(tmp, len, (uint8_t *)&cmdu, sizeof(em_cmdu_t));    
+}
 unsigned int em_msg_t::validate(char *errors[])
 {
     em_tlv_t *tlv;

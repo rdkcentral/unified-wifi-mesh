@@ -565,7 +565,7 @@ int dm_easy_mesh_ctrl_t::analyze_command_btm(em_bus_event_t *evt, em_cmd_t *cmd[
 
 int dm_easy_mesh_ctrl_t::analyze_dpp_start(em_bus_event_t *evt, em_cmd_t *cmd[])
 {
-    cJSON *obj, *dpp_obj;
+    cJSON *dpp_obj;
     unsigned int num = 0;
     em_subdoc_info_t *subdoc;
     dm_easy_mesh_t dm;
@@ -574,7 +574,7 @@ int dm_easy_mesh_ctrl_t::analyze_dpp_start(em_bus_event_t *evt, em_cmd_t *cmd[])
     subdoc = &evt->u.subdoc;
 
     dpp_obj = cJSON_Parse(subdoc->buff);
-    if (obj == NULL) {
+    if (dpp_obj == NULL) {
         printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
         return 0;
     }

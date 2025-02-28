@@ -302,13 +302,6 @@ typedef enum {
 } em_freq_band_t;
 
 typedef struct {
-    unsigned int    bit_map;
-    mac_address_t   enrollee_mac;
-    unsigned char   hash_len;
-    unsigned char   hash_val[0];
-} __attribute__((__packed__)) em_chirp_t;
-
-typedef struct {
     unsigned char   channel[0];
 } __attribute__((__packed__)) em_channels_list_t;
 
@@ -612,13 +605,13 @@ typedef struct {
 }__attribute__((__packed__)) em_dpp_bootstrap_uri_t;
 
 typedef struct {
-    unsigned char frame_type;
-    unsigned short encap_frame_len;
-    mac_address_t dest_mac_addr[6];
     unsigned char enrollee_mac_addr_present : 1;
     unsigned char reserved : 1;
     unsigned char dpp_frame_indicator : 1;
     unsigned char content_type : 5;
+    mac_address_t dest_mac_addr;
+    unsigned char frame_type;
+    unsigned short encap_frame_len;
     unsigned char encap_frame[0];
 }__attribute__((__packed__)) em_encap_dpp_t;
 

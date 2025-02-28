@@ -636,6 +636,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "c":
 			netNode := C.get_node_from_node_ctr(m.displayedNetNode, C.uint(m.tree.Cursor()))
+			if netNode == nil {
+				break
+			}
 			if uint(C.can_collapse_node(netNode)) == 1 {
 
 				tmp := m.displayedNetNode
@@ -652,6 +655,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "e":
 			netNode := C.get_node_from_node_ctr(m.displayedNetNode, C.uint(m.tree.Cursor()))
+			if netNode == nil {
+				break
+			}
 			if (uint(C.can_expand_node(netNode))) == 1 {
 
 				tmp := m.displayedNetNode
