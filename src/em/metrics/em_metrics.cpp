@@ -309,8 +309,8 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
 
     if(sta == NULL)
     {
-        //printf("%s:%d: sta not found\n", __func__, __LINE__);
-        return 0;
+        printf("%s:%d: sta not found\n", __func__, __LINE__);
+        return -1;
     }
 
     sta->m_sta_info.num_beacon_meas_report = response->meas_rprt_count;
