@@ -24,89 +24,103 @@
 #include "em.h"
 #include "aes_siv.h"
 
-int ec_session_t::create_auth_req(uint8_t *buff)
+std::pair<uint8_t*, uint16_t> ec_session_t::create_auth_request()
 {
 
     EC_KEY *responder_boot_key, *initiator_boot_key;
-    unsigned int wrapped_len;
 
-    uint16_t attrib_len, chann_attr;;
-    uint8_t protocol_key_buff[1024];
+    ec_dpp_capabilities_t caps = {{
+        .enrollee = 0,
+        .configurator = 1
+    }};
 
     printf("%s:%d Enter\n", __func__, __LINE__);
 
+    uint8_t* buff = (uint8_t*) calloc(EC_FRAME_BASE_SIZE, 1);
+
     ec_frame_t    *frame = (ec_frame_t *)buff;
-
-    attrib_len = 0;
-
     frame->frame_type = ec_frame_type_auth_req;
 
     if (init_session(NULL) != 0) {
         m_activation_status = ActStatus_Failed;
         printf("%s:%d Failed to initialize session parameters\n", __func__, __LINE__);
-        return -1;
+        return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
     }
 
     if (compute_intermediate_key(true) != 0) {
         m_activation_status = ActStatus_Failed;
         printf("%s:%d failed to generate key\n", __func__, __LINE__);
-        return -1;
+        return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
     }
 
-    uint8_t* attribs = frame->attributes;
+    uint8_t* attribs = NULL;
+    uint16_t attrib_len = 0;
 
     // Responder Bootstrapping Key Hash
     if (compute_key_hash(m_data.responder_boot_key, m_params.responder_keyhash) < 1) {
         m_activation_status = ActStatus_Failed;
         printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
-        return -1;
+        return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
     }
 
-    attribs = ec_util::add_attrib(attribs, ec_attrib_id_resp_bootstrap_key_hash, SHA256_DIGEST_LENGTH, m_params.responder_keyhash);
-    attrib_len += ec_util::get_ec_attr_size(SHA256_DIGEST_LENGTH);
+    attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_resp_bootstrap_key_hash, SHA256_DIGEST_LENGTH, m_params.responder_keyhash);
 
     // Initiator Bootstrapping Key Hash
     if (compute_key_hash(m_data.initiator_boot_key, m_params.initiator_keyhash) < 1) {
         m_activation_status = ActStatus_Failed;
         printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
-        return -1;
+        return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
     }
 
-    attribs = ec_util::add_attrib(attribs, ec_attrib_id_init_bootstrap_key_hash, SHA256_DIGEST_LENGTH, m_params.initiator_keyhash);
-    attrib_len += ec_util::get_ec_attr_size(SHA256_DIGEST_LENGTH);
+    attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_init_bootstrap_key_hash, SHA256_DIGEST_LENGTH, m_params.initiator_keyhash);
 
     // Initiator Protocol Key
+    uint8_t protocol_key_buff[1024];
     BN_bn2bin((const BIGNUM *)m_params.x,
             &protocol_key_buff[BN_num_bytes(m_params.prime) - BN_num_bytes(m_params.x)]);
     BN_bn2bin((const BIGNUM *)m_params.y,
             &protocol_key_buff[2*BN_num_bytes(m_params.prime) - BN_num_bytes(m_params.x)]);
 
-    attribs = ec_util::add_attrib(attribs, ec_attrib_id_init_proto_key, 2*BN_num_bytes(m_params.prime), protocol_key_buff);
-    attrib_len += ec_util::get_ec_attr_size(2*BN_num_bytes(m_params.prime));
+    attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_init_proto_key, 2*BN_num_bytes(m_params.prime), protocol_key_buff);
 
     // Protocol Version
     if (m_cfgrtr_ver > 1) {
-        attribs = ec_util::add_attrib(attribs, ec_attrib_id_proto_version, m_cfgrtr_ver);
-        attrib_len += ec_util::get_ec_attr_size(sizeof(m_cfgrtr_ver));
+        attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_proto_version, m_cfgrtr_ver);
     }
 
     // Channel Attribute (optional)
     //TODO: REVISIT THIS
     if (m_data.ec_freqs[0] != 0){
         int base_freq = m_data.ec_freqs[0]; 
-        chann_attr = ec_util::freq_to_channel_attr(base_freq);
-        attribs = ec_util::add_attrib(attribs, ec_attrib_id_channel, sizeof(uint16_t), (uint8_t *)&chann_attr);
-        attrib_len += ec_util::get_ec_attr_size(sizeof(uint16_t));
+        uint16_t chann_attr = ec_util::freq_to_channel_attr(base_freq);
+        attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_channel, sizeof(uint16_t), (uint8_t *)&chann_attr);
     }
 
 
     // Wrapped Data (with Initiator Nonce and Initiator Capabilities)
-    wrapped_len = set_auth_frame_wrapped_data(frame, attrib_len, true);
-    attrib_len += ec_util::get_ec_attr_size(wrapped_len);
+    // EasyMesh 8.2.2 Table 36
+    attribs = add_wrapped_data_attr(frame, attribs, &attrib_len, true, m_params.k1, [&](){
+        uint8_t* wrap_attribs = NULL;
+        uint16_t wrapped_len = 0;
+        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_init_nonce, m_params.noncelen, m_params.initiator_nonce);
+        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_init_caps, caps.byte);
+        return std::make_pair(wrap_attribs, wrapped_len);
+    });
 
-    printf("%s:%d Exit\n", __func__, __LINE__);
+    // Add attributes to the frame
+    uint16_t new_len = EC_FRAME_BASE_SIZE + attrib_len;
+    buff = (uint8_t*) realloc(buff, new_len);
+    if (buff == NULL) {
+        m_activation_status = ActStatus_Failed;
+        printf("%s:%d unable to realloc memory\n", __func__, __LINE__);
+        return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
+    }
+    frame = (ec_frame_t *)buff;
+    memcpy(frame->attributes, attribs, attrib_len);
 
-    return attrib_len;
+    free(attribs);
+
+    return std::make_pair(buff, new_len);
 
 }
 
@@ -137,7 +151,7 @@ int ec_session_t::create_pres_ann(uint8_t *buff)
     uint8_t* attribs = frame->attributes;
     uint16_t attrib_len = 0;
 
-    attribs = ec_util::add_attrib(attribs, ec_attrib_id_resp_bootstrap_key_hash, SHA256_DIGEST_LENGTH, resp_boot_key_chirp_hash);
+    attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_resp_bootstrap_key_hash, SHA256_DIGEST_LENGTH, resp_boot_key_chirp_hash);
     attrib_len += ec_util::get_ec_attr_size(SHA256_DIGEST_LENGTH); 
 
     return attrib_len;
@@ -326,6 +340,7 @@ int ec_session_t::init_session(ec_data_t* ec_data)
 
 int ec_session_t::handle_chirp_notification(em_dpp_chirp_value_t *chirp_tlv, uint8_t **out_frame)
 {
+    // TODO: Currently only handling controller side
 
     // Parse TLV
     bool mac_addr_present = chirp_tlv->mac_present;
@@ -351,39 +366,80 @@ int ec_session_t::handle_chirp_notification(em_dpp_chirp_value_t *chirp_tlv, uin
     memcpy(hash, data_ptr, hash_len);
 
     // Validate hash
-    if (compute_key_hash(m_data.responder_boot_key, m_params.responder_keyhash) < 1) {
+    // Compute the hash of the responder boot key 
+    uint8_t resp_boot_key_chirp_hash[SHA512_DIGEST_LENGTH];
+    if (compute_key_hash(m_data.responder_boot_key, resp_boot_key_chirp_hash, "chirp") < 1) {
         m_activation_status = ActStatus_Failed;
-        printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
+        printf("%s:%d unable to compute \"chirp\" responder bootstrapping key hash\n", __func__, __LINE__);
         return -1;
     }
 
-    if (memcmp(hash, m_params.responder_keyhash, hash_len) != 0) {
+    if (memcmp(hash, resp_boot_key_chirp_hash, hash_len) != 0) {
         // Hashes don't match, don't initiate DPP authentication
         *out_frame = NULL;
         printf("%s:%d: Chirp notification hash and DPP URI hash did not match! Stopping DPP!\n", __func__, __LINE__);
         return -1;
     }
 
-    // TODO: 
-    // create_auth_req(*out_frame);
+    auto [auth_frame, auth_frame_len] = create_auth_request();
+    if (auth_frame == NULL || auth_frame_len == 0) {
+        printf("%s:%d: Failed to create authentication request frame\n", __func__, __LINE__);
+        return -1;
+    }
 
+    // Create Auth Request Encap TLV: EasyMesh 5.3.4
+    em_encap_dpp_t* encap_dpp_tlv = (em_encap_dpp_t*)calloc(sizeof(em_encap_dpp_t) + auth_frame_len , 1);
+    if (encap_dpp_tlv == NULL) {
+        printf("%s:%d: Failed to allocate memory for Encap DPP TLV\n", __func__, __LINE__);
+        return -1;
+    }
+    encap_dpp_tlv->dpp_frame_indicator = 0;
+    encap_dpp_tlv->frame_type = 0; // DPP Authentication Request Frame
+    encap_dpp_tlv->enrollee_mac_addr_present = 1;
+
+    memcpy(encap_dpp_tlv->dest_mac_addr, mac, sizeof(mac_addr_t));
+    encap_dpp_tlv->encap_frame_len = auth_frame_len;
+    memcpy(encap_dpp_tlv->encap_frame, auth_frame, auth_frame_len);
+
+    free(auth_frame);
+
+    // Create Auth Request Chirp TLV: EasyMesh 5.3.4
+    size_t data_size = sizeof(mac_addr_t) + hash_len + sizeof(uint8_t);
+    em_dpp_chirp_value_t* chirp = (em_dpp_chirp_value_t*)calloc(sizeof(em_dpp_chirp_value_t) + data_size, 1);
+    if (chirp == NULL) {
+        printf("%s:%d: Failed to allocate memory for chirp TLV\n", __func__, __LINE__);
+        free(encap_dpp_tlv);
+        return -1;
+    }
+    chirp->mac_present = 1;
+    chirp->hash_valid = 1;
+
+    uint8_t* tmp = chirp->data;
+    memcpy(tmp, mac, sizeof(mac_addr_t));
+    tmp += sizeof(mac_addr_t);
+
+    *tmp = hash_len;
+    tmp++;
+
+    memcpy(tmp, hash, hash_len); 
+
+    // Send the encapsulated DPP message (with Encap TLV and Chirp TLV)
+    this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, sizeof(em_encap_dpp_t) + auth_frame_len, chirp, sizeof(em_dpp_chirp_value_t) + data_size);
+
+    free(encap_dpp_tlv);
+    free(chirp);
+    
     return 0;
 
 }
 
-int ec_session_t::set_auth_frame_wrapped_data(ec_frame_t *frame, unsigned int non_wrapped_len, bool do_init_auth)
+int ec_session_t::handle_proxy_encap_dpp_tlv(em_encap_dpp_t *encap_tlv, uint8_t **out_frame) {
+
+}
+
+uint8_t* ec_session_t::add_wrapped_data_attr(ec_frame_t *frame, uint8_t* frame_attribs, uint16_t* non_wrapped_len, bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> create_wrap_attribs)
 {
     siv_ctx ctx;
-    
-    ec_attribute_t *attrib;
-    ec_dpp_capabilities_t caps = {{
-        .enrollee = 0,
-        .configurator = 1
-    }};
-    unsigned int wrapped_len = 0;
-    ec_attribute_t *wrapped_attrib;
-
-    uint8_t *key = do_init_auth ? m_params.k1 : m_params.ke;
 
     // Initialize AES-SIV context
     switch(m_params.digestlen) {
@@ -398,38 +454,43 @@ int ec_session_t::set_auth_frame_wrapped_data(ec_frame_t *frame, unsigned int no
             break;
         default:
             printf("%s:%d Unknown digest length\n", __func__, __LINE__);
-            return -1;
+            return NULL;
     }
 
-    uint8_t plain[512];
-    uint8_t* attribs = plain;
-
-    if (do_init_auth) {
-        attribs = ec_util::add_attrib(attribs, ec_attrib_id_init_nonce, m_params.noncelen, m_params.initiator_nonce);
-        wrapped_len += ec_util::get_ec_attr_size(m_params.noncelen); 
-
-        attribs = ec_util::add_attrib(attribs, ec_attrib_id_init_caps, caps.byte);
-        wrapped_len += ec_util::get_ec_attr_size(1);
-    } else {
-        attribs = ec_util::add_attrib(attribs, ec_attrib_id_init_auth_tag, m_params.digestlen, m_params.iauth);
-        wrapped_len += ec_util::get_ec_attr_size(m_params.digestlen);
-
-    }
+    // Use the provided function to create wrap_attribs and wrapped_len
+    auto [wrap_attribs, wrapped_len] = create_wrap_attribs();
 
     // Encapsulate the attributes in a wrapped data attribute
-    wrapped_attrib = (ec_attribute_t *)(frame->attributes + non_wrapped_len);
+    uint16_t wrapped_attrib_len = wrapped_len + AES_BLOCK_SIZE;
+    ec_attribute_t *wrapped_attrib = (ec_attribute_t *)calloc(sizeof(ec_attribute_t) + wrapped_attrib_len, 1); 
     wrapped_attrib->attr_id = ec_attrib_id_wrapped_data;
-    wrapped_attrib->length = wrapped_len + AES_BLOCK_SIZE;
+    wrapped_attrib->length = wrapped_attrib_len;
+    memset(wrapped_attrib->data, 0, wrapped_attrib_len);
 
-    // Encrypt the attributes
-    siv_encrypt(&ctx, plain, &wrapped_attrib->data[AES_BLOCK_SIZE], wrapped_len, wrapped_attrib->data, 2,
-            frame, sizeof(ec_frame_t), // Used for SIV (authentication)
-            frame->attributes, non_wrapped_len); // Used for SIV (authentication)
+    /**
+    * Encrypt attributes using SIV mode with two additional authenticated data (AAD) inputs:
+    * 1. The frame structure and 2. Non-wrapped attributes (per EasyMesh 6.3.1.4)
+    * The synthetic IV/tag is stored in the first AES_BLOCK_SIZE bytes of wrapped_attrib->data
+    */
+   if (use_aad) {
+        if (frame == NULL || frame_attribs == NULL || non_wrapped_len == NULL) {
+            printf("%s:%d: AAD input is NULL, AAD encryption failed!\n", __func__, __LINE__);
+            return NULL;
+        }
+        siv_encrypt(&ctx, wrap_attribs, &wrapped_attrib->data[AES_BLOCK_SIZE], wrapped_len, wrapped_attrib->data, 2,
+            frame, sizeof(ec_frame_t),
+            frame_attribs, *non_wrapped_len);
+    } else {
+        siv_encrypt(&ctx, wrap_attribs, &wrapped_attrib->data[AES_BLOCK_SIZE], wrapped_len, wrapped_attrib->data, 0);
+    }
 
-    //printf("%s:%d: Plain text:\n", __func__, __LINE__);
-    //util::print_hex_dump(noncelen, plain);
+    // Add the wrapped data attribute to the frame
+    uint8_t* ret_frame_attribs = ec_util::add_attrib(frame_attribs, non_wrapped_len, ec_attrib_id_wrapped_data, wrapped_attrib_len, (uint8_t *)wrapped_attrib);
 
-    return wrapped_len + AES_BLOCK_SIZE;
+
+    free(wrap_attribs);
+
+    return ret_frame_attribs;
 }
 
 int ec_session_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len)
@@ -448,7 +509,9 @@ int ec_session_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len)
     return 0;
 }
 
-ec_session_t::ec_session_t()
+ec_session_t::ec_session_t(std::function<int(em_dpp_chirp_value_t*, size_t)> send_chirp_notification,
+                            std::function<int(em_encap_dpp_t*, size_t, em_dpp_chirp_value_t*, size_t)> send_prox_encap_dpp_msg)
+                            : m_send_chirp_notification(send_chirp_notification), m_send_prox_encap_dpp_msg(send_prox_encap_dpp_msg)
 {
     // Initialize member variables
     m_cfgrtr_ver = 0;

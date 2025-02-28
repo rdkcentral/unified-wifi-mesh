@@ -524,6 +524,8 @@ em_network_node_t *em_net_node_t::get_node_from_node_ctr(em_network_node_t *tree
     bool found_match = false;
     unsigned int i;
 
+    if (tree == NULL) return NULL;
+
     if (tree->display_info.node_ctr == node_display_ctr) {
         return tree;
     } else {
