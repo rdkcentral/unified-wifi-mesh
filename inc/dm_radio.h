@@ -46,7 +46,7 @@ public:
     dm_radio_t(em_radio_info_t *radio);
     dm_radio_t(const dm_radio_t& radio);
     dm_radio_t();
-    ~dm_radio_t();
+    virtual ~dm_radio_t();
 };
 
 #endif

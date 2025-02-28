@@ -31,9 +31,8 @@ public:
     int init();
 
     em_ieee_1905_security_info_t *get_ieee_1905_security_info() { return &m_ieee_1905_security_info; }
-    dm_ieee_1905_security_t *get_first() { return (dm_ieee_1905_security_t *)hash_map_get_first(m_list); }
-    dm_ieee_1905_security_t *get_next(dm_ieee_1905_security_t *net_ssid) { return (dm_ieee_1905_security_t *)hash_map_get_next(m_list, net_ssid); }
-    
+    dm_ieee_1905_security_t *get_first() { return static_cast<dm_ieee_1905_security_t *>(hash_map_get_first(m_list)); }
+    dm_ieee_1905_security_t *get_next(dm_ieee_1905_security_t *net_ssid) { return static_cast<dm_ieee_1905_security_t *>(hash_map_get_next(m_list, net_ssid)); }
     dm_orch_type_t get_dm_orch_type(db_client_t& db_client, const dm_ieee_1905_security_t& security);
     void update_list(const dm_ieee_1905_security_t& security, dm_orch_type_t op);
     void delete_list();

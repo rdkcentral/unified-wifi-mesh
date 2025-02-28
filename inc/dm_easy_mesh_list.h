@@ -42,8 +42,8 @@ public:
 
     void init(em_mgr_t *mgr);
 
-    dm_easy_mesh_t *get_first_dm() { return (dm_easy_mesh_t *)hash_map_get_first(m_list); }
-    dm_easy_mesh_t *get_next_dm(dm_easy_mesh_t *dm) { return (dm_easy_mesh_t *)hash_map_get_next(m_list, dm); }
+    dm_easy_mesh_t *get_first_dm() { return static_cast<dm_easy_mesh_t *>(hash_map_get_first(m_list)); }
+    dm_easy_mesh_t *get_next_dm(dm_easy_mesh_t *dm) { return static_cast<dm_easy_mesh_t *>(hash_map_get_next(m_list, dm)); }
 
     dm_network_t *get_first_network();
     dm_network_t *get_next_network(dm_network_t *net);

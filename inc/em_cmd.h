@@ -114,7 +114,7 @@ public:
     em_cmd_t(em_cmd_type_t type, em_cmd_params_t param, dm_easy_mesh_t& dm);
     em_cmd_t(em_cmd_type_t type, em_cmd_params_t param);
     em_cmd_t();
-    ~em_cmd_t();
+    virtual ~em_cmd_t();
 };
 
 #endif

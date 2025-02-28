@@ -97,6 +97,9 @@ public:
 
     int reset_config();
 
+    using dm_scan_result_list_t::set_config;
+    using dm_scan_result_list_t::get_config;
+
     int get_sta_config(cJSON *parent, char *key, em_get_sta_list_reason_t reason = em_get_sta_list_reason_none);
     int get_bss_config(cJSON *parent, char *key);
     int get_network_config(cJSON *parent, char *key);

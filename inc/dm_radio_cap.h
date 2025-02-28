@@ -37,7 +37,7 @@ public:
     dm_radio_cap_t(em_radio_cap_info_t *radio_cap);
     dm_radio_cap_t(const dm_radio_cap_t& radio_cap);
     dm_radio_cap_t();
-    ~dm_radio_cap_t();
+    virtual ~dm_radio_cap_t();
 };
 
 #endif
