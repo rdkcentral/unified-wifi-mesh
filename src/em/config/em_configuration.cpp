@@ -1541,6 +1541,8 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
                 // During an association if map data has empty frame for an existing entry, request cap report to update Frame body
                 if ((assoc_evt_tlv->assoc_event == true)) {
                     eligible_to_req_cap = true;
+                    //In case ctrl is in em_state_ctrl_sta_link_metrics_pending state bcause of previous assoc state
+                    set_state(em_state_ctrl_configured);
                 }
             }
 
