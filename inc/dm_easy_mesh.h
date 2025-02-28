@@ -52,7 +52,7 @@ public:
     dm_network_t    m_network;
     dm_device_t     m_device;
     dm_ieee_1905_security_t m_ieee_1905_security;
-    unsigned int	m_num_net_ssids;
+    unsigned int	m_num_net_ssids = 0;
     dm_network_ssid_t   m_network_ssid[EM_MAX_NET_SSIDS];
     unsigned int    m_num_radios;
     dm_radio_t  m_radio[EM_MAX_BANDS];
