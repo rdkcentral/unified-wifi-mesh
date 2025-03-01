@@ -3807,6 +3807,9 @@ void em_configuration_t::process_ctrl_state()
         case em_state_ctrl_ap_mld_config_pending:
             send_ap_mld_config_req_msg();
             break;
+        default:
+            printf("%s:%d: unhandled case %d\n", __func__, __LINE__, get_state());
+            break;
     }
 
 }
