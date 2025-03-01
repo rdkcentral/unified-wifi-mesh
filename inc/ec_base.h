@@ -42,6 +42,7 @@ extern "C"
 
 #define DPP_OUI_TYPE 0x1A
 #define DPP_MAX_EN_CHANNELS 4
+static const uint8_t WFA_DPP_OUI[3] = {0x50, 0x6F, 0x9A};
 
 // As defined by EasyConnect 8.2.1 Table 35
 typedef enum  {

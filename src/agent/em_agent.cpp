@@ -299,6 +299,50 @@ void em_agent_t::handle_btm_request_action_frame(em_bus_event_t *evt)
     }
 }
 
+void em_agent_t::handle_gas_public_action_frame(em_bus_event_t *evt)
+{
+    if (evt == NULL) {
+        printf("%s:%d: NULL bus event in HAS action frame handler!\n", __func__, __LINE__);
+        return;
+    }
+    const size_t mgmt_hdr_len = offsetof(ieee80211_mgmt, u);
+    ieee80211_mgmt *management_frame = reinterpret_cast<ieee80211_mgmt *>(evt->u.raw_buff);
+    mac_addr_str_t dest_mac;
+    dm_easy_mesh_t::macbytes_to_string(management_frame->da, dest_mac);
+    const em_t *dest_radio = (const em_t *)hash_map_get(g_agent.m_em_map, dest_mac);
+
+    if (dest_radio == NULL) {
+        printf("%s:%d: could not resolve a radio from action frame for MAC '%s'\n", __func__,
+               __LINE__, dest_mac);
+        return;
+    }
+
+    // ensure this is a DPP GAS frame
+    size_t full_frame_len            = evt->data_len;
+    uint8_t *frame_body              = (uint8_t *)&management_frame->u.action.u.public_action.variable;
+    size_t frame_body_len            = full_frame_len - mgmt_hdr_len;
+    bool is_dpp_gas_frame            = false;
+
+    for (size_t i = 0; i < frame_body_len - 3; i++) {
+        if (frame_body[i] == WFA_DPP_OUI[0] && frame_body[i + 1] == WFA_DPP_OUI[1] &&
+            frame_body[i + 2] == WFA_DPP_OUI[2]) {
+            is_dpp_gas_frame = true;
+            break;
+        }
+    }
+
+    if (!is_dpp_gas_frame) {
+        printf("%s:%d: Got a GAS frame, but doesn't seem relevant for DPP (doesn't "
+               "contain DPP OUI), ignoring...\n",
+               __func__, __LINE__);
+        return;
+    }
+    // forward to ec_session for handling
+    if (dest_radio->m_ec_session->handle_recv_gas_action_frame(management_frame, full_frame_len) < 0) {
+        printf("%s:%d: EC session failed to handle GAS frame!\n", __func__, __LINE__);
+    }
+}
+
 void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
 {
     size_t frame_len = evt->data_len;
@@ -501,6 +545,11 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
         case em_bus_event_type_recv_wfa_action_frame:
             handle_recv_wfa_action_frame(evt);
             break;
+ 
+        case em_bus_even_type_recv_gas_action_frame:
+            handle_gas_public_action_frame(evt);
+            break;
+
         default:
             break;
     }    
@@ -663,13 +712,18 @@ int em_agent_t::mgmt_action_frame_cb(char *event_name, raw_data_t *data)
 
     if (mgmt_frame->u.action.u.vs_public_action.action == WLAN_PA_VENDOR_SPECIFIC) {
         // printf("Received Vendor Specific Public Action Frame\n");
-        uint8_t wfa_oui[3] = {0x50, 0x6F, 0x9A};
-        if (!memcmp(mgmt_frame->u.action.u.vs_public_action.oui, wfa_oui, sizeof(wfa_oui))){
+        if (!memcmp(mgmt_frame->u.action.u.vs_public_action.oui, WFA_DPP_OUI, sizeof(WFA_DPP_OUI))){
             // Push WFA action frame back to main thread
             g_agent.io_process(em_bus_event_type_recv_wfa_action_frame, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
         }
     }
 
+    if (mgmt_frame->u.action.u.public_action.action >= WLAN_PA_GAS_INITIAL_REQ &&
+        mgmt_frame->u.action.u.public_action.action <= WLAN_PA_GAS_COMEBACK_RESP) {
+        printf("%s:%d: Received GAS action frame, event name=%s\n", __func__, __LINE__, event_name);
+        g_agent.io_process(em_bus_even_type_recv_gas_action_frame,
+                           (unsigned char *)data->raw_data.bytes, data->raw_data_len);
+    }
 
     return 0;
 }

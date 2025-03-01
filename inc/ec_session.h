@@ -28,6 +28,9 @@
 #include <functional>
 #include <vector>
 
+// forward decl
+struct ieee80211_mgmt;
+
 #define EC_FRAME_BASE_SIZE (offsetof(ec_frame_t, attributes))
 
 class ec_session_t {
@@ -161,6 +164,20 @@ public:
      * @return int 0 if successful, -1 otherwise
      */
     int handle_recv_ec_action_frame(ec_frame_t* frame, size_t len);
+
+    /**
+     * @brief Handles a GAS DPP frame.
+     *
+     * @param frame The full GAS frame
+     * @param frame_len The length in bytes of `frame`
+     * @return 0 if OK, -1 otherwise
+     */
+    int handle_recv_gas_action_frame(ieee80211_mgmt *frame, size_t frame_len);
+
+    int handle_gas_initial_req(ieee80211_mgmt *, size_t);
+    int handle_gas_initial_resp(ieee80211_mgmt *, size_t);
+    int handle_gas_comeback_req(ieee80211_mgmt *, size_t);
+    int handle_gas_comeback_resp(ieee80211_mgmt *, size_t);
 
     /**
      * @brief Construct an EC session

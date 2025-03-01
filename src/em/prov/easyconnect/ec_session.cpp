@@ -23,6 +23,7 @@
 #include "ec_util.h"
 #include "em.h"
 #include "aes_siv.h"
+#include "ieee80211.h"
 
 std::pair<uint8_t*, uint16_t> ec_session_t::create_auth_request()
 {
@@ -507,6 +508,62 @@ int ec_session_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len)
             break;
     }
     return 0;
+}
+
+int ec_session_t::handle_gas_initial_req(ieee80211_mgmt *frame, size_t frame_len)
+{
+    // TODO: implement from Configurator POV
+    (void)frame;
+    (void)frame_len;
+    printf("%s:%d: called!\n", __func__, __LINE__);
+    return -1;
+}
+
+int ec_session_t::handle_gas_initial_resp(ieee80211_mgmt *frame, size_t frame_len)
+{
+    // TODO implement from Enrollee POV
+    (void)frame;
+    (void)frame_len;
+    printf("%s:%d: called!\n", __func__, __LINE__);
+    return -1;
+}
+
+int ec_session_t::handle_gas_comeback_req(ieee80211_mgmt *frame, size_t frame_len)
+{
+    // TODO implement from Configurator POV
+    (void)frame;
+    (void)frame_len;
+    printf("%s:%d: called!\n", __func__, __LINE__);
+    return -1;
+}
+
+int ec_session_t::handle_gas_comeback_resp(ieee80211_mgmt *frame, size_t frame_len)
+{
+    // TODO implement from Enrollee POV
+    (void)frame;
+    (void)frame_len;
+    printf("%s:%d: called!\n", __func__, __LINE__);
+    return -1;
+}
+
+int ec_session_t::handle_recv_gas_action_frame(ieee80211_mgmt *frame, size_t frame_len)
+{
+    const auto &action_type = frame->u.action.u.public_action.action;
+    switch (action_type) {
+    case WLAN_PA_GAS_INITIAL_REQ:
+        return handle_gas_initial_req(frame, frame_len);
+    case WLAN_PA_GAS_INITIAL_RESP:
+        return handle_gas_initial_resp(frame, frame_len);
+    case WLAN_PA_GAS_COMEBACK_REQ:
+        return handle_gas_comeback_req(frame, frame_len);
+    case WLAN_PA_GAS_COMEBACK_RESP:
+        return handle_gas_comeback_resp(frame, frame_len);
+    default:
+        printf("%s:%d: unknown GAS frame action type=%d\n", action_type);
+        break;
+    }
+    // not handled -- unknown type
+    return -1;
 }
 
 ec_session_t::ec_session_t(std::function<int(em_dpp_chirp_value_t*, size_t)> send_chirp_notification,
