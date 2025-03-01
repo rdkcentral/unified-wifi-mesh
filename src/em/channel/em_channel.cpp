@@ -2019,6 +2019,9 @@ void em_channel_t::process_state()
                 set_state(em_state_agent_configured);
             }
 			break;
+        default:
+            printf("%s:%d: unhandled case %d\n", __func__, __LINE__, get_state());
+            break;
 
     }
 }
@@ -2043,6 +2046,9 @@ void em_channel_t::process_ctrl_state()
 		case em_state_ctrl_channel_scan_pending:
 			send_channel_scan_request_msg();
             break; 
+        default:
+            printf("%s:%d: unhandled case %d\n", __func__, __LINE__, get_state());
+            break;
     }
 }
 
