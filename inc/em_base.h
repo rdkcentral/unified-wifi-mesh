@@ -2569,7 +2569,8 @@ typedef enum {
     em_bus_event_type_get_mld_config,
     em_bus_event_type_mld_reconfig,
     em_bus_event_type_beacon_report,
-    em_bus_event_type_recv_wfa_action_frame
+    em_bus_event_type_recv_wfa_action_frame,
+    em_bus_even_type_recv_gas_action_frame
 } em_bus_event_type_t;
 
 typedef struct {
