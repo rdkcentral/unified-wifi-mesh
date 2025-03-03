@@ -236,6 +236,9 @@ int dm_easy_mesh_t::commit_config(em_cmd_t  *cmd)
                         m_num_radios++;
 
                         break;
+                    default:
+                        printf("%s:%d: unhandled case %d\n", __func__, __LINE__, cmd->get_orch_op());
+                        break;
                 }
             }
             break;
