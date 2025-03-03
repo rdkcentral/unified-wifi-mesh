@@ -53,7 +53,7 @@ void em_mgr_t::io_process(em_bus_event_type_t type, char *data, unsigned int len
     em_event_t *evt;
     em_bus_event_t *bevt;
 
-    evt = (em_event_t *)malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN);
+    evt = static_cast<em_event_t *>(malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN));
     evt->type = em_event_type_bus;
     bevt = &evt->u.bevt;
     bevt->type = type;
@@ -75,7 +75,7 @@ void em_mgr_t::io_process(em_bus_event_type_t type, unsigned char *data, unsigne
     em_event_t *evt;
     em_bus_event_t *bevt;
     
-    evt = (em_event_t *)malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN);
+    evt = static_cast<em_event_t *>(malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN));
     evt->type = em_event_type_bus;
     bevt = &evt->u.bevt; 
     bevt->type = type;
@@ -101,8 +101,8 @@ bool em_mgr_t::io_process(em_event_t *evt)
     bevt = &evt->u.bevt;
     //em_cmd_t::dump_bus_event(bevt);
 
-    e = (em_event_t *)malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN);
-    memcpy((unsigned char *)e, (unsigned char *)evt, sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN);
+    e = static_cast<em_event_t *>(malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN));
+    memcpy(reinterpret_cast<unsigned char *>(e), reinterpret_cast<unsigned char *>(evt), sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN);
 
     push_to_queue(e);
 
@@ -115,6 +115,12 @@ bool em_mgr_t::io_process(em_event_t *evt)
             if (bevt->type != em_bus_event_type_dm_commit) {
                 should_wait = true;
             }
+            break;
+    
+        case em_event_type_frame:
+        case em_event_type_device:
+        case em_event_type_node:
+        case em_event_type_max:
             break;
     }
 
@@ -131,9 +137,9 @@ void em_mgr_t::proto_process(unsigned char *data, unsigned int len, em_t *al_em)
 		return;
 	}
 
-    evt = (em_event_t *)malloc(sizeof(em_event_t));
+    evt = static_cast<em_event_t *>(malloc(sizeof(em_event_t)));
     evt->type = em_event_type_frame;
-    evt->u.fevt.frame = (unsigned char *)malloc(len);
+    evt->u.fevt.frame = static_cast<unsigned char *>(malloc(len));
     memcpy(evt->u.fevt.frame, data, len);
     evt->u.fevt.frame_len = len;
     em->push_to_queue(evt);
@@ -143,10 +149,10 @@ void em_mgr_t::delete_nodes()
 {
     em_t *em = NULL, *tmp;
 
-    em = (em_t *)hash_map_get_first(m_em_map);
+    em = static_cast<em_t *>(hash_map_get_first(m_em_map));
     while (em != NULL) {
         tmp = em;
-        em = (em_t *)hash_map_get_next(m_em_map, em);
+        em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
         if (tmp->is_al_interface_em() == false) {
             delete_node(tmp->get_radio_interface());
         }
@@ -161,7 +167,7 @@ void em_mgr_t::delete_node(em_interface_t *ruid)
 
     dm_easy_mesh_t::macbytes_to_string(ruid->mac, mac_str);
 
-    if ((em = (em_t *)hash_map_get(m_em_map, mac_str)) == NULL) {
+    if ((em = static_cast<em_t *>(hash_map_get(m_em_map, mac_str))) == NULL) {
         printf("%s:%d: Can not find node with key:%s\n", __func__, __LINE__, mac_str);
         return;
     }
@@ -194,7 +200,7 @@ em_t *em_mgr_t::create_node(em_interface_t *ruid, em_freq_band_t band, dm_easy_m
 		strcat(mac_str, "_al");
 	}
 	printf("%s:%d key value used:%s\n", __func__, __LINE__, mac_str);
-    em = (em_t *)hash_map_get(m_em_map, mac_str);
+    em = static_cast<em_t *>(hash_map_get(m_em_map, mac_str));
 
     if (em != NULL) {
         // update the em
@@ -224,13 +230,13 @@ em_t *em_mgr_t::get_node_by_freq_band(em_freq_band_t *band)
     em_t *em = NULL;
     bool found = false;
 
-    em = (em_t *)hash_map_get_first(m_em_map);
+    em = static_cast<em_t *>(hash_map_get_first(m_em_map));
     while (em != NULL) {
         if (em->is_matching_freq_band(band) == true) {
             found = true;
             break;
         }
-        em = (em_t *)hash_map_get_next(m_em_map, em);
+        em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
     }
 
     return (found == true) ? em:NULL;
@@ -241,13 +247,13 @@ em_t *em_mgr_t::get_al_node()
     em_t *em;
     bool found = false;
 
-    em = (em_t *)hash_map_get_first(m_em_map);
+    em = static_cast<em_t *>(hash_map_get_first(m_em_map));
     while (em != NULL) {
         if (em->is_al_interface_em() == true) {
             found = true;
             break;
         }
-        em = (em_t *)hash_map_get_next(m_em_map, em);
+        em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
     }
 
     return (found == true) ? em:NULL;	
@@ -255,7 +261,7 @@ em_t *em_mgr_t::get_al_node()
 
 void *em_mgr_t::mgr_input_listen(void *arg)
 {
-    em_mgr_t *mgr = (em_mgr_t *)arg;
+    em_mgr_t *mgr = static_cast<em_mgr_t *>(arg);
 
     mgr->input_listener();
     return NULL;
@@ -279,14 +285,14 @@ int em_mgr_t::reset_listeners()
     FD_ZERO(&m_rset);
 
 	pthread_mutex_lock(&m_mutex);
-    em = (em_t *)hash_map_get_first(m_em_map);
+    em = static_cast<em_t *>(hash_map_get_first(m_em_map));
     while (em != NULL) {
         if (em->is_al_interface_em() == true) {
             FD_SET(em->get_fd(), &m_rset);
             num++;
             highest_fd = (em->get_fd() > highest_fd) ? em->get_fd():highest_fd;
         }
-        em = (em_t *)hash_map_get_next(m_em_map, em);
+        em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
     }
 	pthread_mutex_unlock(&m_mutex);
     return highest_fd;
@@ -297,9 +303,9 @@ void em_mgr_t::nodes_listener()
 {
     em_t *em = NULL;
     struct timeval tm;
-    int rc, len, highest_fd = 0, ret = 0;
+    int rc, highest_fd = 0, ret = 0;
+    ssize_t len;
     unsigned char buff[MAX_EM_BUFF_SZ];
-    em_raw_hdr_t *hdr;
 
     tm.tv_sec = 0;
     tm.tv_usec = m_timeout * 1000;
@@ -314,7 +320,7 @@ void em_mgr_t::nodes_listener()
             continue;
         }
 
-        em = (em_t *)hash_map_get_first(m_em_map);
+        em = static_cast<em_t *>(hash_map_get_first(m_em_map));
         while (em != NULL) {
             if (em->is_al_interface_em() == true) {
 				pthread_mutex_lock(&m_mutex);
@@ -325,12 +331,11 @@ void em_mgr_t::nodes_listener()
                     memset(buff, 0, MAX_EM_BUFF_SZ);
                     len = read(em->get_fd(), buff, MAX_EM_BUFF_SZ);
                     if (len) {
-                        hdr = (em_raw_hdr_t *)buff;
-                        proto_process(buff, len, em);
+                        proto_process(buff, static_cast<unsigned int>(len), em);
                     }
                 }
             }
-            em = (em_t *)hash_map_get_next(m_em_map, em);
+            em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
         }
 
         tm.tv_sec = 0;
@@ -345,7 +350,7 @@ void em_mgr_t::nodes_listener()
 
 void *em_mgr_t::mgr_nodes_listen(void *arg)
 {
-    em_mgr_t *mgr = (em_mgr_t *)arg;
+    em_mgr_t *mgr = static_cast<em_mgr_t *>(arg);
 
     mgr->nodes_listener();
     return NULL;
@@ -408,7 +413,7 @@ int em_mgr_t::start()
         if ((rc == 0) || (queue_count(m_queue.queue) != 0)) {
             // dequeue data
             while (queue_count(m_queue.queue)) {
-                evt = (em_event_t *)queue_pop(m_queue.queue);
+                evt = static_cast<em_event_t *>(queue_pop(m_queue.queue));
                 if (evt == NULL) {
                     continue;
                 }
@@ -453,7 +458,7 @@ void em_mgr_t::push_to_queue(em_event_t *evt)
 
 em_event_t *em_mgr_t::pop_from_queue()
 {
-    return (em_event_t *)queue_pop(m_queue.queue);
+    return static_cast<em_event_t *>(queue_pop(m_queue.queue));
 }
 
 int em_mgr_t::init(const char *data_model_path)
