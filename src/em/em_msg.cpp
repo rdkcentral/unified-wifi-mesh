@@ -33,16 +33,16 @@
 bool em_msg_t::get_tlv(em_tlv_t *itlv)
 {
     em_tlv_t    *tlv;
-    int len;
+    unsigned int len;
 
-    tlv = (em_tlv_t *)m_buff; len = m_len;
+    tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if (tlv->type == itlv->type) {
             memcpy(itlv->value, tlv->value, htons(tlv->len));
             return true;
         }
-        len -= (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
     return false;
@@ -50,34 +50,34 @@ bool em_msg_t::get_tlv(em_tlv_t *itlv)
 
 bool em_msg_t::get_client_mac_info(mac_address_t *mac)
 {
-        em_tlv_t    *tlv;
-        int len;
-       em_client_info_t *cltinfo;
+    em_tlv_t    *tlv;
+    unsigned int len;
+    em_client_info_t *cltinfo;
 
-        tlv = (em_tlv_t *)m_buff; len = m_len;
-        while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
-                if (tlv->type == em_tlv_type_client_info) {
-                       cltinfo = (em_client_info_t *)tlv->value;
-                        memcpy(mac, &cltinfo->client_mac_addr, sizeof(mac_address_t));
-                        return true;
-               }
-       }
-       return false;
+    tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
+    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+        if (tlv->type == em_tlv_type_client_info) {
+            cltinfo = (em_client_info_t *)tlv->value;
+            memcpy(mac, &cltinfo->client_mac_addr, sizeof(mac_address_t));
+            return true;
+        }
+    }
+    return false;
 }
 
 bool em_msg_t::get_al_mac_address(unsigned char *mac)
 {
     em_tlv_t    *tlv;
-    int len;
+    unsigned int len;
 
-    tlv = (em_tlv_t *)m_buff; len = m_len;
+    tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if (tlv->type == em_tlv_type_al_mac_address) {
             memcpy(mac, tlv->value, htons(tlv->len));
             return true;
         }
-        len -= (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
     return false;
@@ -86,17 +86,17 @@ bool em_msg_t::get_al_mac_address(unsigned char *mac)
 bool em_msg_t::get_profile(em_profile_type_t *profile)
 {
     em_tlv_t    *tlv;
-    int len;
+    unsigned int len;
 
-    tlv = (em_tlv_t *)m_buff; len = m_len;
+    tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if (tlv->type == em_tlv_type_profile) {
             memcpy(profile, tlv->value, htons(tlv->len));
             return true;
         }
 
-        len -= (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
     return false;
@@ -105,9 +105,9 @@ bool em_msg_t::get_profile(em_profile_type_t *profile)
 bool em_msg_t::get_bss_id(mac_address_t *mac)
 {
     em_tlv_t    *tlv;
-    int len;
+    unsigned int len;
 
-    tlv = (em_tlv_t *)m_buff; len = m_len;
+    tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if (tlv->type == em_tlv_type_client_info) {
             memcpy(mac, tlv->value, sizeof(mac_address_t));
@@ -120,8 +120,8 @@ bool em_msg_t::get_bss_id(mac_address_t *mac)
             return true;
         }
 
-        len -= (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
     return false;
@@ -130,7 +130,7 @@ bool em_msg_t::get_bss_id(mac_address_t *mac)
 bool em_msg_t::get_radio_id(mac_address_t *mac)
 {
     em_tlv_t    *tlv;
-    int len;
+    unsigned int len;
 	unsigned int num_radios = 0;
     em_ap_radio_basic_cap_t *rd_basic_cap;
     em_ap_radio_advanced_cap_t  *rd_adv_cap;
@@ -141,34 +141,34 @@ bool em_msg_t::get_radio_id(mac_address_t *mac)
     
 	em_ap_op_bss_radio_t    *radio;
 
-    tlv = (em_tlv_t *)m_buff; len = m_len;
+    tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if (tlv->type == em_tlv_type_radio_id) {
             memcpy(mac, tlv->value, sizeof(mac_address_t));
             return true;    
         } else if (tlv->type == em_tlv_type_ap_radio_basic_cap) {
-            rd_basic_cap = (em_ap_radio_basic_cap_t *)tlv->value;
+            rd_basic_cap = reinterpret_cast<em_ap_radio_basic_cap_t *> (tlv->value);
             memcpy(mac, &rd_basic_cap->ruid, sizeof(mac_address_t));
             return true;    
         } else if (tlv->type == em_tlv_type_ap_radio_advanced_cap) {
-            rd_adv_cap = (em_ap_radio_advanced_cap_t *)tlv->value;
+            rd_adv_cap = reinterpret_cast<em_ap_radio_advanced_cap_t *> (tlv->value);
             memcpy(mac, &rd_adv_cap->ruid, sizeof(mac_address_t));
             return true;    
 
         } else if (tlv->type == em_tlv_type_ht_cap) {
-            rd_ht_cap = (em_ap_ht_cap_t *)tlv->value;
+            rd_ht_cap = reinterpret_cast<em_ap_ht_cap_t *> (tlv->value);
             memcpy(mac, &rd_ht_cap->ruid, sizeof(mac_address_t));
             return true;
         } else if (tlv->type == em_tlv_type_vht_cap) {
-            rd_vht_cap = (em_ap_vht_cap_t *)tlv->value;
+            rd_vht_cap = reinterpret_cast<em_ap_vht_cap_t *>(tlv->value);
             memcpy(mac, &rd_vht_cap->ruid, sizeof(mac_address_t));
             return true;
         } else if (tlv->type == em_tlv_type_he_cap) {
-            rd_he_cap = (em_ap_he_cap_t *)tlv->value;
+            rd_he_cap = reinterpret_cast<em_ap_he_cap_t *> (tlv->value);
             memcpy(mac, &rd_he_cap->ruid, sizeof(mac_address_t));
             return true;
         } else if (tlv->type == em_tlv_type_operational_bss) {
-			ap = (em_ap_op_bss_t *)tlv->value;
+			ap = reinterpret_cast<em_ap_op_bss_t *> (tlv->value);
 			if (ap->radios_num >= 1) {
 				radio = ap->radios;
 				memcpy(mac, &radio->ruid, sizeof(mac_address_t));
@@ -196,8 +196,8 @@ bool em_msg_t::get_radio_id(mac_address_t *mac)
             return true;
 		}
 
-        len -= (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
     return false;
@@ -206,16 +206,16 @@ bool em_msg_t::get_radio_id(mac_address_t *mac)
 bool em_msg_t::get_freq_band(em_freq_band_t *band)
 {
     em_tlv_t    *tlv;
-    int len;
+    unsigned int len;
 
-    tlv = (em_tlv_t *)m_buff; len = m_len;
+    tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if ((tlv->type == em_tlv_type_supported_freq_band) || (tlv->type == em_tlv_type_autoconf_freq_band)) {
-            memcpy((unsigned char *)band, tlv->value, sizeof(unsigned char));
+            memcpy(reinterpret_cast<unsigned char *> (band), tlv->value, sizeof(unsigned char));
             return true;
         }
-        len -= (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
     return false;
@@ -225,17 +225,17 @@ bool em_msg_t::get_freq_band(em_freq_band_t *band)
 bool em_msg_t::get_profile_type(em_profile_type_t *profile)
 {
     em_tlv_t    *tlv;
-    int len;
+    unsigned int len;
 
     *profile = em_profile_type_reserved;
-    tlv = (em_tlv_t *)m_buff; len = m_len;
+    tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if (tlv->type == em_tlv_type_profile) {
-            memcpy((unsigned char *)profile, tlv->value, htons(tlv->len));
+            memcpy(reinterpret_cast<unsigned char *> (profile), tlv->value, htons(tlv->len));
             return true;
         }
-        len -= (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
     return false;
@@ -244,15 +244,15 @@ bool em_msg_t::get_profile_type(em_profile_type_t *profile)
 em_tlv_t *em_msg_t::get_tlv(em_tlv_type_t type)
 {
     em_tlv_t    *tlv;
-    int len;
+    unsigned int len;
 
-    tlv = (em_tlv_t *)m_buff; len = m_len;
+    tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if (tlv->type == type) {
             return tlv; 
         }
-        len -= (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
     return NULL;
@@ -301,24 +301,23 @@ unsigned char* em_msg_t::add_1905_header(unsigned char *buff, unsigned int *len,
 unsigned int em_msg_t::validate(char *errors[])
 {
     em_tlv_t *tlv;
-    int len;
-    unsigned int i;
+    unsigned int i, len;
     bool validation = true;
 
     for (i = 0; i < m_num_tlv; i++) {
-        tlv =  (em_tlv_t *)(m_buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-        len = m_len-(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+        tlv =  reinterpret_cast<em_tlv_t *> (m_buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+        len = m_len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
         while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
             if (tlv->type == m_tlv_member[i].m_type) {
                 m_tlv_member[i].m_present = true;
                 break;
             }
-            len -= (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+            len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+            tlv = reinterpret_cast<em_tlv_t *> ((reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + htons(tlv->len)));
         }
 
-        if ((m_tlv_member[i].m_requirement == mandatory) &&((m_tlv_member[i].m_present == false)||((sizeof(em_tlv_t) + htons(tlv->len)) < (m_tlv_member[i].m_tlv_length)))) {
+        if ((m_tlv_member[i].m_requirement == mandatory) &&((m_tlv_member[i].m_present == false)||((sizeof(em_tlv_t) + htons(tlv->len)) < static_cast<size_t> (m_tlv_member[i].m_tlv_length)))) {
             snprintf(m_errors[m_num_errors], sizeof(m_errors[m_num_errors]), "%s", m_tlv_member[i].m_spec);
             m_num_errors++;
             errors[m_num_errors - 1] = m_errors[m_num_errors - 1];
@@ -327,7 +326,7 @@ unsigned int em_msg_t::validate(char *errors[])
                 //printf("%s:%d; TLV not present\n", __func__, __LINE__);
             }   
 
-            if (((sizeof(em_tlv_t) + htons(tlv->len)) < (m_tlv_member[i].m_tlv_length))) {
+            if (((sizeof(em_tlv_t) + htons(tlv->len)) < static_cast<size_t> (m_tlv_member[i].m_tlv_length))) {
                 //printf("%s:%d; TLV type: 0x%04x Length: %d, length validation error\n", __func__, __LINE__, tlv->type, htons(tlv->len));
             }
         }
@@ -343,7 +342,7 @@ unsigned int em_msg_t::validate(char *errors[])
     }
 
     if (validation == false) {
-        for (int i = 0; i < EM_MAX_TLV_MEMBERS; i++) {
+        for (i = 0; i < EM_MAX_TLV_MEMBERS; i++) {
             if (errors[i] != NULL) {
                 printf("Failed TLV [%d]: %s\n",(i+1),errors[i]);
             }
@@ -819,7 +818,7 @@ em_msg_t::em_msg_t(em_msg_type_t type, em_profile_type_t profile, unsigned char 
 
         case em_msg_type_autoconf_wsc:
             tlvs = tlvs + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
-            len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+            len = static_cast<unsigned int>(len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
             if(em_configuration_t::get_wsc_msg_type(tlvs,len) == em_wsc_msg_type_m1) {
                 autoconfig_wsc_m1();
             } else if (em_configuration_t::get_wsc_msg_type(tlvs, len) == em_wsc_msg_type_m2) {

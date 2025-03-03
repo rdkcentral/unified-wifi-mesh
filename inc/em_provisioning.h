@@ -69,7 +69,7 @@ public:
     std::unique_ptr<ec_session_t> m_ec_session;
 
     em_provisioning_t();
-    ~em_provisioning_t();
+    virtual ~em_provisioning_t();
 
 };
 

@@ -44,7 +44,7 @@ public:
     void    process_state();
 
     em_discovery_t();
-    ~em_discovery_t();
+    virtual ~em_discovery_t();
 
 };
 
