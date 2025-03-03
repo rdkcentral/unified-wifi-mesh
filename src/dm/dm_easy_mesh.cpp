@@ -2741,6 +2741,7 @@ dm_easy_mesh_t::dm_easy_mesh_t()
 	m_num_policy = 0;
 	m_num_bss = 0;
     m_num_ap_mld = 0;
+        m_num_net_ssids = 0;
 	m_db_cfg_param.db_cfg_type = db_cfg_type_none;
     m_colocated = false;
 }
