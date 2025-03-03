@@ -49,9 +49,9 @@ public:
 
 public:
 
-    int get_client_steering_req_tx_count() { return m_client_steering_req_tx_cnt; }
+    int get_client_steering_req_tx_count() { return static_cast<int>(m_client_steering_req_tx_cnt); }
     void set_client_steering_req_tx_count(unsigned int cnt) { m_client_steering_req_tx_cnt = cnt; }
-    int get_client_assoc_ctrl_req_tx_count() { return m_client_assoc_ctrl_req_tx_cnt; }
+    int get_client_assoc_ctrl_req_tx_count() { return static_cast<int>(m_client_assoc_ctrl_req_tx_cnt); }
     void set_client_assoc_ctrl_req_tx_count(unsigned int cnt) { m_client_assoc_ctrl_req_tx_cnt = cnt; }
 
     void    process_msg(unsigned char *data, unsigned int len);
@@ -59,7 +59,7 @@ public:
     void    process_ctrl_state();
 
     em_steering_t();
-    ~em_steering_t();
+    virtual ~em_steering_t();
 
 };
 

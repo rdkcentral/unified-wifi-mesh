@@ -91,7 +91,7 @@ public:
 	void io_process(em_bus_event_type_t type, unsigned char *data, unsigned int len, em_cmd_params_t *params = NULL);
 
     em_mgr_t();
-    ~em_mgr_t();
+    virtual ~em_mgr_t();
 };
 
 #endif

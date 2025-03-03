@@ -56,7 +56,7 @@ public:
     bool orchestrate(em_cmd_t *pcmd, em_t *em);
 
     em_orch_t();
-    ~em_orch_t();
+    virtual ~em_orch_t();
 };
 
 #endif

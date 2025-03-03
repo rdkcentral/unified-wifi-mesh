@@ -58,7 +58,7 @@ public:
     void    process_agent_state();
 
     em_metrics_t();
-    ~em_metrics_t();
+    virtual ~em_metrics_t();
 };
 
 #endif

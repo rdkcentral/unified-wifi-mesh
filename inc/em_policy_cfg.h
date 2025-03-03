@@ -49,7 +49,7 @@ public:
     void    process_state();
 
     em_policy_cfg_t();
-    ~em_policy_cfg_t();
+    virtual ~em_policy_cfg_t();
 };
 
 #endif
