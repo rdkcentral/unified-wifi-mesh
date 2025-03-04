@@ -1639,46 +1639,46 @@ int em_channel_t::handle_channel_pref_tlv(unsigned char *buff, op_class_channel_
 
 int em_channel_t::handle_eht_operations_tlv(unsigned char *buff, em_eht_operations_t *eht_ops)
 {
-    short len = 0;
-    int i = 0, j = 0, k = 0, l = 0;
-    unsigned char *tmp = buff;
+	short len = 0;
+	int i = 0, j = 0, k = 0, l = 0;
+	unsigned char *tmp = buff;
 
-    unsigned char num_radios;
-    unsigned char num_bss;
+	unsigned char num_radios;
+	unsigned char num_bss;
 
-    memcpy(&num_radios, tmp, sizeof(unsigned char));
-    eht_ops->radios_num = num_radios;
-    tmp += sizeof(unsigned char);
-    len += sizeof(unsigned char);
+	memcpy(&num_radios, tmp, sizeof(unsigned char));
+	eht_ops->radios_num = num_radios;
+	tmp += sizeof(unsigned char);
+	len += sizeof(unsigned char);
 
 	if (num_radios > EM_MAX_RADIO_PER_AGENT) {
 		printf("%s:%d Invalid radios count \n", __func__, __LINE__);
 		return -1;
 	}
 
-    for (i = 0; i < num_radios; i++) {
-        memcpy(&eht_ops->radios[i].ruid, tmp, sizeof(mac_address_t));
-        tmp += sizeof(mac_address_t);
-        len += sizeof(mac_address_t);
+	for (i = 0; i < num_radios; i++) {
+		memcpy(&eht_ops->radios[i].ruid, tmp, sizeof(mac_address_t));
+		tmp += sizeof(mac_address_t);
+		len += sizeof(mac_address_t);
 
-        memcpy(&num_bss, tmp, sizeof(unsigned char));
-        eht_ops->radios[i].bss_num = num_bss;
-        tmp += sizeof(unsigned char);
-        len += sizeof(unsigned char);
+		memcpy(&num_bss, tmp, sizeof(unsigned char));
+		eht_ops->radios[i].bss_num = num_bss;
+		tmp += sizeof(unsigned char);
+		len += sizeof(unsigned char);
 
 		if (num_bss > EM_MAX_BSS_PER_RADIO) {
 			printf("%s:%d Invalid bss count \n", __func__, __LINE__);
 			continue;
 		}
 
-        for(j = 0; j < num_bss; j++) {
-            memcpy(&eht_ops->radios[i].bss[j], tmp, sizeof(em_eht_operations_bss_t));
-            tmp += sizeof(em_eht_operations_bss_t);
-            len += sizeof(em_eht_operations_bss_t);
-        }
-    }
+		for(j = 0; j < num_bss; j++) {
+			memcpy(&eht_ops->radios[i].bss[j], tmp, sizeof(em_eht_operations_bss_t));
+			tmp += sizeof(em_eht_operations_bss_t);
+			len += sizeof(em_eht_operations_bss_t);
+		}
+	}
 
-    return 0;
+	return 0;
 }
 
 int em_channel_t::handle_channel_pref_query(unsigned char *buff, unsigned int len)
