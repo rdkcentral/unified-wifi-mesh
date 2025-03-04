@@ -49,7 +49,7 @@ LDFLAGS += $(LIBDIRS) $(LIBS) -fsanitize=address -fsanitize=undefined
 LIBDIRS = \
 	-L$(INSTALLDIR)/lib \
     -L$(ONEWIFI_HOME)/install/lib/ \
-    -L/usr/lib/ieee1905 \
+    -L$(AL_SAP_HOME)/build/lib \
 
 LIBS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwebconfig -lhebus -lalsap
 
