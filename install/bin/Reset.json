@@ -10,7 +10,9 @@
 					"rpi": "eth"
 				}, {
 					"sim": "ens"
-			}],
+				}, {
+					"bpi": "erouter"
+				}],
 			"List": []
 		},
         "NetworkSSIDList": [{
