@@ -424,7 +424,7 @@ short em_channel_t::create_channel_scan_res_tlv(unsigned char *buff, unsigned in
 
 int em_channel_t::send_channel_scan_report_msg(unsigned int *last_index)
 {
-    unsigned char buff[MAX_EM_BUFF_SZ];
+    unsigned char buff[MAX_EM_BUFF_SZ*3]; //Increased size to accommodate if max number of neighbor are present in the message
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned short  msg_id = em_msg_type_channel_scan_rprt;
     int len = 0;
@@ -2019,6 +2019,9 @@ void em_channel_t::process_state()
                 set_state(em_state_agent_configured);
             }
 			break;
+        default:
+            printf("%s:%d: unhandled case %d\n", __func__, __LINE__, get_state());
+            break;
 
     }
 }
@@ -2043,6 +2046,9 @@ void em_channel_t::process_ctrl_state()
 		case em_state_ctrl_channel_scan_pending:
 			send_channel_scan_request_msg();
             break; 
+        default:
+            printf("%s:%d: unhandled case %d\n", __func__, __LINE__, get_state());
+            break;
     }
 }
 
