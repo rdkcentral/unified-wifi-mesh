@@ -1816,7 +1816,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
             scan_result = dm->get_scan_result(i);
 			dm_easy_mesh_t::macbytes_to_string(scan_result->m_scan_result.id.dev_mac, dev_mac_str);
 			dm_easy_mesh_t::macbytes_to_string(scan_result->m_scan_result.id.scanner_mac, scanner_mac_str);
-            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d@%d@d",
+            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d@%d@%d",
                     scan_result->m_scan_result.id.net_id, dev_mac_str, scanner_mac_str, scan_result->m_scan_result.id.op_class, 
 					scan_result->m_scan_result.id.channel, scan_result->m_scan_result.id.scanner_type);
             //printf("%s:%d: Key: %s\n", __func__, __LINE__, parent);
@@ -1842,15 +1842,14 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
             if (dm_scan_result_list_t::update_db(m_db_client, dm_orch_type_db_delete, &res) != 0) {
                 at_least_one_failed = true;
             }
-			dm_scan_result_list_t::update_list(*scan_result, scan_result_self_index, dm_orch_type_db_delete);
 			for (j = 0; j < scan_result->m_scan_result.num_neighbors; j++) {
 				res.result = scan_result->get_scan_result();
         		res.index = j;		
             	if (dm_scan_result_list_t::update_db(m_db_client, dm_orch_type_db_delete, &res) != 0) {
                 	at_least_one_failed = true;
             	}
-				dm_scan_result_list_t::update_list(*scan_result, j, dm_orch_type_db_delete);
 			}
+			dm_scan_result_list_t::update_list(*scan_result, scan_result_self_index, dm_orch_type_db_delete);
         }
         if (at_least_one_failed == true) {
             at_least_one_failed = false;
