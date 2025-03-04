@@ -117,10 +117,7 @@ bool em_mgr_t::io_process(em_event_t *evt)
             }
             break;
     
-        case em_event_type_frame:
-        case em_event_type_device:
-        case em_event_type_node:
-        case em_event_type_max:
+        default:
             break;
     }
 
