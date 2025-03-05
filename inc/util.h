@@ -59,6 +59,21 @@ char *get_date_time_rfc3399(char *buff, unsigned int len);
 void print_hex_dump(unsigned int length, uint8_t *buffer, easymesh_dbg_type_t module=EM_STDOUT);
 
 /**
+ * Converts a MAC address to its string representation
+ * 
+ * @param mac The MAC address as an array of 6 bytes
+ * @param delim The delimiter between bytes (default: ":")
+ * @return The MAC address as a string in the format "XX:XX:XX:XX:XX:XX"
+ */
+inline std::string mac_to_string(const uint8_t mac[6], const std::string& delim = ":") {
+    char mac_str[18]; // Max size: 6 bytes * 2 hex chars + 5 delimiters + null terminator
+    snprintf(mac_str, sizeof(mac_str), "%02x%s%02x%s%02x%s%02x%s%02x%s%02x", 
+             mac[0], delim.c_str(), mac[1], delim.c_str(), mac[2], delim.c_str(),
+             mac[3], delim.c_str(), mac[4], delim.c_str(), mac[5]);
+    return std::string(mac_str);
+}
+
+/**
  * em_chan_to_freq - Convert channel info to frequency
  * @param op_class: Operating class
  * @param chan: Channel number
