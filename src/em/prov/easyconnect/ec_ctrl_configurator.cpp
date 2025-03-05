@@ -1,103 +1,141 @@
 #include "ec_ctrl_configurator.h"
 
 #include "ec_base.h"
+#include "ec_util.h"
 
-int ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *chirp_tlv, uint8_t **out_frame)
+int ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *chirp_tlv, uint16_t tlv_len)
 {
+    // TODO: Currently only handling controller side
 
+    mac_addr_t mac = {0};
+    uint8_t hash[255] = {0}; // Max hash length to avoid dynamic allocation
+    uint8_t hash_len = 0;
 
-//     // Parse TLV
-//     bool mac_addr_present = chirp_tlv->mac_present;
-//     bool hash_valid = chirp_tlv->hash_valid;
+    if (ec_util::parse_dpp_chirp_tlv(chirp_tlv, tlv_len, &mac, (uint8_t**)&hash, &hash_len) < 0) {
+        printf("%s:%d: Failed to parse DPP Chirp TLV\n", __func__, __LINE__);
+        return -1;
+    }
 
-//     uint8_t *data_ptr = chirp_tlv->data;
-//     mac_addr_t mac = {0};
-//     if (mac_addr_present) {
-//         memcpy(mac, data_ptr, sizeof(mac_addr_t));
-//         data_ptr += sizeof(mac_addr_t);
-//     }
+    // Validate hash
+    // Compute the hash of the responder boot key 
+    uint8_t resp_boot_key_chirp_hash[SHA512_DIGEST_LENGTH];
+    if (ec_crypto::compute_key_hash(m_boot_data.responder_boot_key, resp_boot_key_chirp_hash, "chirp") < 1) {
+        printf("%s:%d unable to compute \"chirp\" responder bootstrapping key hash\n", __func__, __LINE__);
+        return -1;
+    }
 
-//     if (!hash_valid) {
-//         // Clear (Re)configuration state, agent side
-//         return 0;
-//     }
+    if (memcmp(hash, resp_boot_key_chirp_hash, hash_len) != 0) {
+        // Hashes don't match, don't initiate DPP authentication
+        printf("%s:%d: Chirp notification hash and DPP URI hash did not match! Stopping DPP!\n", __func__, __LINE__);
+        return -1;
+    }
 
-//     uint8_t hash[255] = {0}; // Max hash length to avoid dynamic allocation
-//     uint8_t hash_len = 0;
+    auto [auth_frame, auth_frame_len] = create_auth_request();
+    if (auth_frame == NULL || auth_frame_len == 0) {
+        printf("%s:%d: Failed to create authentication request frame\n", __func__, __LINE__);
+        return -1;
+    }
 
-//     hash_len = *data_ptr;
-//     data_ptr++;
-//     memcpy(hash, data_ptr, hash_len);
+    // Create Auth Request Encap TLV: EasyMesh 5.3.4
+    em_encap_dpp_t* encap_dpp_tlv = ec_util::create_encap_dpp_tlv(0, 0, &mac, 0, auth_frame, auth_frame_len);
+    if (encap_dpp_tlv == NULL) {
+        printf("%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
+        return -1;
+    }
 
-//     // Validate hash
-//     // Compute the hash of the responder boot key 
-//     uint8_t resp_boot_key_chirp_hash[SHA512_DIGEST_LENGTH];
-//     if (compute_key_hash(m_boot_data.responder_boot_key, resp_boot_key_chirp_hash, "chirp") < 1) {
-// printf("%s:%d unable to compute \"chirp\" responder bootstrapping key hash\n", __func__, __LINE__);
-//         return -1;
-//     }
+    free(auth_frame);
 
-//     if (memcmp(hash, resp_boot_key_chirp_hash, hash_len) != 0) {
-//         // Hashes don't match, don't initiate DPP authentication
-//         *out_frame = NULL;
-//         printf("%s:%d: Chirp notification hash and DPP URI hash did not match! Stopping DPP!\n", __func__, __LINE__);
-//         return -1;
-//     }
+    // Create Auth Request Chirp TLV: EasyMesh 5.3.4
+    size_t data_size = sizeof(mac_addr_t) + hash_len + sizeof(uint8_t);
+    em_dpp_chirp_value_t* chirp = (em_dpp_chirp_value_t*)calloc(sizeof(em_dpp_chirp_value_t) + data_size, 1);
+    if (chirp == NULL) {
+        printf("%s:%d: Failed to allocate memory for chirp TLV\n", __func__, __LINE__);
+        free(encap_dpp_tlv);
+        return -1;
+    }
+    chirp->mac_present = 1;
+    chirp->hash_valid = 1;
 
-//     auto [auth_frame, auth_frame_len] = create_auth_request();
-//     if (auth_frame == NULL || auth_frame_len == 0) {
-//         printf("%s:%d: Failed to create authentication request frame\n", __func__, __LINE__);
-//         return -1;
-//     }
+    uint8_t* tmp = chirp->data;
+    memcpy(tmp, mac, sizeof(mac_addr_t));
+    tmp += sizeof(mac_addr_t);
 
-//     // Create Auth Request Encap TLV: EasyMesh 5.3.4
-//     em_encap_dpp_t* encap_dpp_tlv = (em_encap_dpp_t*)calloc(sizeof(em_encap_dpp_t) + auth_frame_len , 1);
-//     if (encap_dpp_tlv == NULL) {
-//         printf("%s:%d: Failed to allocate memory for Encap DPP TLV\n", __func__, __LINE__);
-//         return -1;
-//     }
-//     encap_dpp_tlv->dpp_frame_indicator = 0;
-//     encap_dpp_tlv->frame_type = 0; // DPP Authentication Request Frame
-//     encap_dpp_tlv->enrollee_mac_addr_present = 1;
+    *tmp = hash_len;
+    tmp++;
 
-//     memcpy(encap_dpp_tlv->dest_mac_addr, mac, sizeof(mac_addr_t));
-//     encap_dpp_tlv->encap_frame_len = auth_frame_len;
-//     memcpy(encap_dpp_tlv->encap_frame, auth_frame, auth_frame_len);
+    memcpy(tmp, hash, hash_len); 
 
-//     free(auth_frame);
+    // Send the encapsulated DPP message (with Encap TLV and Chirp TLV)
+    this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, sizeof(em_encap_dpp_t) + auth_frame_len, chirp, sizeof(em_dpp_chirp_value_t) + data_size);
 
-//     // Create Auth Request Chirp TLV: EasyMesh 5.3.4
-//     size_t data_size = sizeof(mac_addr_t) + hash_len + sizeof(uint8_t);
-//     em_dpp_chirp_value_t* chirp = (em_dpp_chirp_value_t*)calloc(sizeof(em_dpp_chirp_value_t) + data_size, 1);
-//     if (chirp == NULL) {
-//         printf("%s:%d: Failed to allocate memory for chirp TLV\n", __func__, __LINE__);
-//         free(encap_dpp_tlv);
-//         return -1;
-//     }
-//     chirp->mac_present = 1;
-//     chirp->hash_valid = 1;
-
-//     uint8_t* tmp = chirp->data;
-//     memcpy(tmp, mac, sizeof(mac_addr_t));
-//     tmp += sizeof(mac_addr_t);
-
-//     *tmp = hash_len;
-//     tmp++;
-
-//     memcpy(tmp, hash, hash_len); 
-
-//     // Send the encapsulated DPP message (with Encap TLV and Chirp TLV)
-//     this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, sizeof(em_encap_dpp_t) + auth_frame_len, chirp, sizeof(em_dpp_chirp_value_t) + data_size);
-
-//     free(encap_dpp_tlv);
-//     free(chirp);
+    free(encap_dpp_tlv);
+    free(chirp);
     
-//     return 0;
+    return 0;
 }
 
-int ec_ctrl_configurator_t::process_proxy_encap_dpp_tlv(em_encap_dpp_t *encap_tlv, uint8_t **out_frame)
+int ec_ctrl_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len)
 {
-    return 0;
+    if (encap_tlv == NULL || encap_tlv_len == 0) {
+        printf("%s:%d: Encap DPP TLV is empty\n", __func__, __LINE__);
+        return -1;
+    }
+
+    
+    mac_addr_t dest_mac = {0};
+    uint8_t frame_type = 0;
+    uint8_t* encap_frame = NULL;
+    uint8_t encap_frame_len = 0;
+
+    if (ec_util::parse_encap_dpp_tlv(encap_tlv, encap_tlv_len, &dest_mac, &frame_type, &encap_frame, &encap_frame_len) < 0) {
+        printf("%s:%d: Failed to parse Encap DPP TLV\n", __func__, __LINE__);
+        return -1;
+    }
+
+    mac_addr_t chirp_mac = {0};
+    uint8_t chirp_hash[255] = {0}; // Max hash length to avoid dynamic allocation
+    uint8_t chirp_hash_len = 0;
+
+    ec_frame_type_t ec_frame_type = (ec_frame_type_t)frame_type;
+    switch (ec_frame_type) {
+        case ec_frame_type_recfg_announcement: {
+            auto [recfg_auth_frame, recfg_auth_frame_len] = create_recfg_auth_request();
+            if (recfg_auth_frame == NULL || recfg_auth_frame_len == 0) {
+                printf("%s:%d: Failed to create reconfiguration authentication request frame\n", __func__, __LINE__);
+                return -1;
+            }
+            em_encap_dpp_t* encap_dpp_tlv = ec_util::create_encap_dpp_tlv(0, 0, &dest_mac, ec_frame_type_recfg_auth_req, recfg_auth_frame, recfg_auth_frame_len);
+            if (encap_dpp_tlv == NULL) {
+                printf("%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
+                free(recfg_auth_frame);
+                return -1;
+            }
+            free(recfg_auth_frame);
+            // Send the encapsulated ReCfg Auth Request message (with Encap TLV)
+            // TODO: SEND TO ALL AGENTS
+            this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, sizeof(em_encap_dpp_t) + recfg_auth_frame_len, NULL, 0);
+            free(encap_dpp_tlv);
+            break;
+        }
+        case ec_frame_type_auth_rsp: {
+            break;
+        }
+        case ec_frame_type_recfg_auth_rsp: {
+
+            break;
+        }
+        case ec_frame_type_auth_cnf:
+        case ec_frame_type_recfg_auth_cnf: {
+            break;
+        }
+            
+        default:
+            printf("%s:%d: Encap DPP frame type (%d) not handled\n", __func__, __LINE__, ec_frame_type);
+            break;
+    }
+    // Parse out dest STA mac address and hash value then validate against the hash in the 
+    // ec_session dpp uri info public key. 
+    // Then construct an Auth request frame and send back in an Encap message
 }
 
 std::pair<uint8_t*, uint16_t> ec_ctrl_configurator_t::create_auth_request()
@@ -195,9 +233,96 @@ std::pair<uint8_t*, uint16_t> ec_ctrl_configurator_t::create_auth_request()
 
 }
 
-std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_auth_confirm()
+std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_recfg_auth_request()
 {
     return std::pair<uint8_t *, uint16_t>();
+}
+
+std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_auth_confirm()
+{
+    uint8_t* buff = (uint8_t*) calloc(EC_FRAME_BASE_SIZE, 1);
+
+    ec_frame_t    *frame = (ec_frame_t *)buff;
+    frame->frame_type = ec_frame_type_auth_cnf; 
+
+    uint8_t* attribs = NULL;
+    uint16_t attrib_len = 0;
+
+    // TODO: Move DPP status outside
+    ec_status_code_t dpp_status = DPP_STATUS_OK; // TODO
+
+    // uint8_t* key = (dpp_status == DPP_STATUS_OK ? m_params.k2 : m_params.ke);
+
+    // attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_dpp_status, (uint8_t)dpp_status);
+    // attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_resp_bootstrap_key_hash, sizeof(m_params.responder_keyhash), m_params.responder_keyhash);
+    // // Conditional (Only included for mutual authentication)
+    // if (m_params.mutual) {
+    //     attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_init_bootstrap_key_hash, sizeof(m_params.initiator_keyhash), m_params.initiator_keyhash);
+    // }
+
+    // attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attrib_len, true, key, [&](){
+    //     uint8_t* wrap_attribs = NULL;
+    //     uint16_t wrapped_len = 0;
+    //     if (dpp_status == DPP_STATUS_OK) {
+    //         wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_init_auth_tag, sizeof(m_params.iauth), m_params.iauth);
+    //     } else {
+    //         wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_resp_nonce, m_params.noncelen, m_params.responder_nonce);
+    //     }
+    //     return std::make_pair(wrap_attribs, wrapped_len);
+    // });
+
+    if (!(frame = ec_util::copy_attrs_to_frame(frame, attribs, attrib_len))) {
+        printf("%s:%d unable to copy attributes to frame\n", __func__, __LINE__);
+        free(attribs);
+        return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
+    }
+    free(attribs);
+
+    return std::make_pair((uint8_t*)frame, EC_FRAME_BASE_SIZE + attrib_len);
+}
+
+std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_recfg_auth_confirm()
+{
+    uint8_t* buff = (uint8_t*) calloc(EC_FRAME_BASE_SIZE, 1);
+
+    ec_frame_t    *frame = (ec_frame_t *)buff;
+    frame->frame_type = ec_frame_type_auth_cnf; 
+
+    uint8_t* attribs = NULL;
+    uint16_t attrib_len = 0;
+
+    // TODO: Move DPP status outside
+    ec_status_code_t dpp_status = DPP_STATUS_OK; // TODO
+
+    // TODO: Add transaction ID outside this function
+    uint8_t trans_id = 0;
+    ec_dpp_reconfig_flags_t reconfig_flags = {
+        .connector_key = 1, // DONT REUSE
+    };
+
+    attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_dpp_status, (uint8_t)dpp_status);
+
+    // attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attrib_len, false, m_params.ke, [&](){
+    //     uint8_t* wrap_attribs = NULL;
+    //     uint16_t wrapped_len = 0;
+
+    //     wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_trans_id, trans_id);
+    //     wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_proto_version, (uint8_t)m_boot_data.version);
+    //     wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_config_nonce, m_params.noncelen, m_params.initiator_nonce);
+    //     wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_enrollee_nonce, m_params.noncelen, m_params.enrollee_nonce);
+    //     wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_reconfig_flags, sizeof(reconfig_flags), (uint8_t*)&reconfig_flags);
+
+    //     return std::make_pair(wrap_attribs, wrapped_len);
+    // });
+
+    if (!(frame = ec_util::copy_attrs_to_frame(frame, attribs, attrib_len))) {
+        printf("%s:%d unable to copy attributes to frame\n", __func__, __LINE__);
+        free(attribs);
+        return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
+    }
+    free(attribs);
+
+    return std::make_pair((uint8_t*)frame, EC_FRAME_BASE_SIZE + attrib_len);
 }
 
 std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_config_response()

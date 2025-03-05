@@ -18,6 +18,8 @@
 
 #include "em_base.h"
 #include "ec_base.h"
+#include <stdint.h>
+#include <stddef.h>
 
 #include <map>
 #include <string>
@@ -45,7 +47,7 @@ namespace easyconnect {
     {DPP_STATUS_NEW_KEY_NEEDED, "New Key Needed: The Enrollee needs to generate a new Protocol key."}
 };
 
-}
+};
 
 class ec_util {
 public:
@@ -110,6 +112,18 @@ public:
     }
 
     /**
+     * @brief Copy (overrride) attributes to a frame
+     * 
+     * @param frame The frame to copy the attributes to
+     * @param attrs The attributes to copy
+     * @param attrs_len The length of the attributes
+     * @return ec_frame_t* The frame with the copied attributes (returned due to realloc)
+     * 
+     * @warning The frame must be freed by the caller
+     */
+    static ec_frame_t* copy_attrs_to_frame(ec_frame_t *frame, uint8_t *attrs, uint16_t attrs_len);
+
+    /**
      * @brief Validate an EC frame based on the WFA parameters
      * 
      * @param frame The frame to validate
@@ -128,6 +142,46 @@ public:
         return validate_frame(frame) && frame->frame_type == type;
     }
 
+        /**
+     * @brief Parse a DPP Chirp TLV
+     * 
+     * @param buff [in] The buffer containing the chirp TLV
+     * @param chirp_tlv_len [in] The length of the chirp TLV
+     * @param mac [out] The MAC address to store in the chirp TLV
+     * @param hash [out] The hash to store in the chirp TLV
+     * @param hash_len [out] The length of the hash
+     * @return int 0 if successful, -1 otherwise
+     */
+    static int parse_dpp_chirp_tlv(em_dpp_chirp_value_t* chirp_tlv,  uint16_t chirp_tlv_len, mac_addr_t *mac, uint8_t **hash, uint8_t *hash_len);
+
+    /**
+     * @brief Parse an Encap DPP TLV
+     * 
+     * @param encap_tlv [in] The buffer containing the Encap DPP TLV
+     * @param encap_tlv_len [in] The length of the Encap DPP TLV
+     * @param dest_mac [out] The destination MAC address (0 if not present)
+     * @param frame_type [out] The frame type
+     * @param encap_frame [out] The encapsulated frame
+     * @param encap_frame_len [out] The length of the encapsulated frame
+     * @return int 0 if successful, -1 otherwise
+     */
+    static int parse_encap_dpp_tlv(em_encap_dpp_t* encap_tlv,  uint16_t encap_tlv_len, mac_addr_t *dest_mac, uint8_t *frame_type, uint8_t** encap_frame, uint8_t *encap_frame_len);
+
+    /**
+     * @brief Creates and allocates an Encap DPP TLV
+     * 
+     * @param dpp_frame_indicator [in] The DPP frame indicator (0 = DPP Public Action frame, 1 = GAS Frame)
+     * @param content_type [in] The content type
+     * @param dest_mac [in] The destination MAC address (0 if not present)
+     * @param frame_type [in] The frame type
+     * @param encap_frame [in] The encapsulated frame
+     * @param encap_frame_len [in] The length of the encapsulated frame
+     * @return em_encap_dpp_t* The heap allocated Encap DPP TLV, NULL if failed 
+     */
+    static em_encap_dpp_t * create_encap_dpp_tlv(bool dpp_frame_indicator, uint8_t content_type, 
+        mac_addr_t *dest_mac, uint8_t frame_type, uint8_t *encap_frame, uint8_t encap_frame_len);
+
+
     /**
      * @brief Converts a frequency to a WFA channel attribute format (opclass + channel)
      * 
@@ -138,8 +192,6 @@ public:
      */
     static uint16_t freq_to_channel_attr(unsigned int freq);
 
-    static void print_bignum (BIGNUM *bn);
-    static void print_ec_point (const EC_GROUP *group, BN_CTX *bnctx, EC_POINT *point);
 
     static inline size_t get_ec_attr_size(size_t data_len) {
         return offsetof(ec_attribute_t, data) + data_len;
@@ -149,22 +201,7 @@ public:
         return easyconnect::status_code_map.at(status);
     };
 
-    static int hkdf(const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen, 
-        uint8_t *salt, int saltlen, uint8_t *info, int infolen, 
-        uint8_t *okm, int okmlen);
 
-
-    // static int compute_intermediate_key(ec_params_t& params, bool is_first);
-
-    // /**
-    //  * @brief Compute the hash of the provided key with an optional prefix
-    //  * 
-    //  * @param key The key to hash
-    //  * @param digest The buffer to store the hash
-    //  * @param prefix The optional prefix to add to the key before hashing (NULL by default)
-    //  * @return int The length of the hash
-    //  */
-    // static int compute_key_hash(ec_params_t& params, EC_KEY *key, uint8_t *digest, const char *prefix = NULL);
 
     /**
      * @brief Add a wrapped data attribute to a frame
@@ -183,33 +220,20 @@ public:
     static uint8_t* add_wrapped_data_attr(ec_frame_t *frame, uint8_t* frame_attribs, uint16_t* non_wrapped_len, 
         bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> create_wrap_attribs);
 
-    static inline void rand_zero_free(uint8_t *buff, size_t len) {
-        if (buff == NULL) return;
-        RAND_bytes(buff, len);
-        memset(buff, 0, len);
-        free(buff);
-    }
 
     /**
-     * @brief Free an ephemeral context by randomizing, zeroing, and freeing all memory
+     * @brief Unwrap a wrapped data attribute
      * 
-     * @param ctx The ephemeral context to free
-     * @param nonce_len The length of the nonces in the context
-     * @param digest_len The length of the digests/keys in the context
+     * @param wrapped_attrib The wrapped attribute to unwrap (retreieved using `get_attribute`)
+     * @param frame The frame to use as AAD. Can be NULL if no AAD is needed
+     * @param uses_aad Whether the wrapped attribute uses AAD
+     * @param key The key to use for decryption
+     * @return std::pair<uint8_t*, size_t> A heap allocated buffer of unwrapped attributes on success which can then be fetched via `get_attribute`,
+     *         along with the length of that buffer. The buffer is NULL and the size is 0 on failure.
+     * 
+     * @warning The caller is responsible for freeing the memory returned by this function
      */
-    static inline void free_ephemeral_context(ec_ephemeral_context_t* ctx, int nonce_len, int digest_len) {
+    static std::pair<uint8_t*, size_t> unwrap_wrapped_attrib(ec_attribute_t* wrapped_attrib, ec_frame_t *frame, bool uses_aad, uint8_t* key);
 
-        if (ctx->protocol_key) EC_KEY_free(ctx->protocol_key);
-        if (ctx->E_Id) EC_POINT_free(ctx->E_Id);
-        if (ctx->i_nonce) rand_zero_free(ctx->i_nonce, nonce_len);
-        if (ctx->r_nonce) rand_zero_free(ctx->r_nonce, nonce_len);
-        if (ctx->e_nonce) rand_zero_free(ctx->e_nonce, nonce_len);
-        if (ctx->c_nonce) rand_zero_free(ctx->c_nonce, nonce_len);
-        if (ctx->k1) rand_zero_free(ctx->k1, digest_len);
-        if (ctx->k2) rand_zero_free(ctx->k2, digest_len);
-        if (ctx->ke) rand_zero_free(ctx->ke, digest_len);
-        if (ctx->bk) rand_zero_free(ctx->bk, digest_len);
-
-        rand_zero_free((uint8_t *)ctx, sizeof(ec_ephemeral_context_t));
-    }
+    static std::string hash_to_hex_string(const uint8_t *hash, size_t hash_len);
 };

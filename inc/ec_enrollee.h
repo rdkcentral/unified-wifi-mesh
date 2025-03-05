@@ -32,9 +32,18 @@ private:
 
     // TODO: Send GAS Frame
 
+    /**
+     * @brief Called when recieving a Authentication Request,
+     *         this function checks that the "Responder" (self) is capable of 
+     *         supporting the role indicated by the Initiator's capabilities.
+     * 
+     */
+    bool check_supports_init_caps(ec_dpp_capabilities_t caps);
+
     std::pair<uint8_t*, uint16_t> create_presence_announcement();
     std::pair<uint8_t*, uint16_t> create_recfg_presence_announcement();
-    std::pair<uint8_t*, uint16_t> create_auth_response();
+    std::pair<uint8_t*, uint16_t> create_auth_response(ec_status_code_t dpp_status);
+    std::pair<uint8_t*, uint16_t> create_recfg_auth_response(ec_status_code_t dpp_status);
     std::pair<uint8_t*, uint16_t> create_config_request();
     std::pair<uint8_t*, uint16_t> create_config_result(); 
 

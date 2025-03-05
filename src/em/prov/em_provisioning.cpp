@@ -490,18 +490,14 @@ int em_provisioning_t::handle_dpp_chirp_notif(uint8_t *buff, unsigned int len)
         // Can be one or more
         if (tlv->type == em_tlv_type_dpp_chirp_value) {
             // Parse out dest STA mac address and hash value then validate against the hash in the 
-            // ec_manager_t dpp uri info public key. 
+            // ec_session dpp uri info public key. 
             // Then construct an Auth request frame and send back in an Encap message
             em_dpp_chirp_value_t* chirp_tlv = (em_dpp_chirp_value_t*)tlv->value;
 
             uint8_t* out_frame = NULL;
-            if (m_ec_manager->process_chirp_notification(chirp_tlv, &out_frame) != 0){
+            if (m_ec_manager->process_chirp_notification(chirp_tlv, htons(tlv->len)) != 0){
                 //TODO: Fail
             }
-
-            // Create 1905 Encap DPP Message with a 1905 Encap DPP TLV (out frame) and chirp TLV
-
-
         }
 
         tlv_len -= (sizeof(em_tlv_t) + htons(tlv->len));
@@ -519,43 +515,33 @@ int em_provisioning_t::handle_proxy_encap_dpp(uint8_t *buff, unsigned int len)
     tlv = (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tlv_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
+    uint16_t encap_tlv_len, chirp_tlv_len = 0;
+    em_encap_dpp_t* encap_tlv = NULL;
+    em_dpp_chirp_value_t* chirp_tlv = NULL;
+
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
 
         if (tlv->type == em_tlv_type_1905_encap_dpp) {
             // Parse out dest STA mac address and hash value then validate against the hash in the 
-            // m_ec_manager dpp uri info public key. 
+            // ec_session dpp uri info public key. 
             // Then construct an Auth request frame and send back in an Encap message
-            em_encap_dpp_t* chirp_tlv = (em_encap_dpp_t*)tlv->value;
-
-            uint8_t* out_frame = NULL;
-            if (m_ec_manager->process_proxy_encap_dpp_tlv(chirp_tlv, &out_frame) != 0){
-                //TODO: Fail
-            }
-            // TODO: Send out_frame in an Encap message
-
-
+            encap_tlv = (em_encap_dpp_t*)tlv->value;
+            encap_tlv_len = htons(tlv->len);
         }
 
-
-        // Can be 0 or 1
+        // Optional: Can be 0 or 1
         if (tlv->type == em_tlv_type_dpp_chirp_value) {
-            // Parse out dest STA mac address and hash value then validate against the hash in the 
-            // m_ec_manager dpp uri info public key. 
-            // Then construct an Auth request frame and send back in an Encap message
-            em_dpp_chirp_value_t* chirp_tlv = (em_dpp_chirp_value_t*)tlv->value;
-
-            uint8_t* out_frame = NULL;
-            if (m_ec_manager->process_chirp_notification(chirp_tlv, &out_frame) != 0){
-                //TODO: Fail
-            }
-
-            // Create 1905 Encap DPP Message with a 1905 Encap DPP TLV (out frame) and chirp TLV
-
-
+            chirp_tlv = (em_dpp_chirp_value_t*)tlv->value;
+            chirp_tlv_len = htons(tlv->len);
         }
 
         tlv_len -= (sizeof(em_tlv_t) + htons(tlv->len));
         tlv = (em_tlv_t *)((uint8_t *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+    if (m_ec_manager->process_proxy_encap_dpp_msg(encap_tlv, encap_tlv_len, chirp_tlv, chirp_tlv_len) != 0){
+        //TODO: Fail
+        return -1;
     }
 
 	return 0;

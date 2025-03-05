@@ -611,10 +611,15 @@ typedef struct {
     unsigned char reserved : 1;
     unsigned char dpp_frame_indicator : 1;
     unsigned char content_type : 5;
-    mac_address_t dest_mac_addr;
-    unsigned char frame_type;
-    unsigned short encap_frame_len;
-    unsigned char encap_frame[0];
+/*
+    Contains:
+        - dest_mac_addr (6 bytes, if enrollee_mac_addr_present)
+        - frame_type (1 byte)
+        - encap_frame_len (2 bytes)
+        - encap_frame (encap_frame_len bytes)
+*/
+    unsigned char data[0];
+
 }__attribute__((__packed__)) em_encap_dpp_t;
 
 typedef struct {

@@ -1,5 +1,6 @@
 #include <ctype.h>
 #include <functional>
+#include <arpa/inet.h>
 
 #include "ec_util.h"
 #include "util.h"
@@ -92,52 +93,7 @@ bool ec_util::validate_frame(const ec_frame_t *frame)
     return true;
 }
 
-void ec_util::print_bignum (BIGNUM *bn)
-{
-    unsigned char *buf;
-    int len;
 
-    len = BN_num_bytes(bn);
-    if ((buf = (unsigned char *)malloc(len)) == NULL) {
-        printf("Could not print bignum\n");
-        return;
-    }
-    BN_bn2bin(bn, buf);
-    util::print_hex_dump(len, buf);
-    free(buf);
-}
-
-void ec_util::print_ec_point (const EC_GROUP *group, BN_CTX *bnctx, EC_POINT *point)
-{
-    BIGNUM *x = NULL, *y = NULL;
-
-    if ((x = BN_new()) == NULL) {
-        printf("%s:%d:Could not print ec_point\n", __func__, __LINE__);
-        return;
-    }
-
-    if ((y = BN_new()) == NULL) {
-        BN_free(x);
-        printf("%s:%d:Could not print ec_point\n", __func__, __LINE__);
-        return;
-    }
-
-    if (EC_POINT_get_affine_coordinates_GFp(group, point, x, y, bnctx) == 0) {
-        BN_free(y);
-        BN_free(x);
-        printf("%s:%d:Could not print ec_point\n", __func__, __LINE__);
-        return;
-
-    }
-
-    printf("POINT.x:\n");
-    print_bignum(x);
-    printf("POINT.y:\n");
-    print_bignum(y);
-
-    BN_free(y);
-    BN_free(x);
-}
 
 uint8_t* ec_util::add_wrapped_data_attr(ec_frame_t *frame, uint8_t* frame_attribs, uint16_t* non_wrapped_len, bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> create_wrap_attribs)
 {
@@ -196,188 +152,185 @@ uint8_t* ec_util::add_wrapped_data_attr(ec_frame_t *frame, uint8_t* frame_attrib
     return ret_frame_attribs;
 }
 
-int ec_util::hkdf (const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen,
-    uint8_t *salt, int saltlen, uint8_t *info, int infolen,
-    uint8_t *okm, int okmlen)
+std::pair<uint8_t*, size_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t* wrapped_attrib, ec_frame_t *frame, bool uses_aad, uint8_t* key)
 {
-    uint8_t *prk, *tweak, ctr, *digest;
-    int len;
-    unsigned int digestlen, prklen, tweaklen;
-    #if OPENSSL_VERSION_NUMBER < 0x10100000L
-    HMAC_CTX ctx;
-    #else
-    HMAC_CTX *ctx = HMAC_CTX_new();
-    #endif
+    siv_ctx ctx;
 
-    digestlen = prklen = EVP_MD_size(h);
-    if ((digest = (uint8_t *)malloc(digestlen)) == NULL) {
-        perror("malloc");
-        return 0;
-    }
-    #if OPENSSL_VERSION_NUMBER < 0x10100000L
-    HMAC_CTX_init(&ctx);
-    #else
-    HMAC_CTX_reset(ctx);
-    #endif
+    // Initialize AES-SIV context
+    // switch(m_params.digestlen) {
+    //     case SHA256_DIGEST_LENGTH:
+    //         siv_init(&ctx, key, SIV_256);
+    //         break;
+    //     case SHA384_DIGEST_LENGTH:
+    //         siv_init(&ctx, key, SIV_384);
+    //         break;
+    //     case SHA512_DIGEST_LENGTH:
+    //         siv_init(&ctx, key, SIV_512);
+    //         break;
+    //     default:
+    //         printf("%s:%d Unknown digest length\n", __func__, __LINE__);
+    //         return std::pair<uint8_t*, size_t>(NULL, 0);
+    // }
 
-    if (!skip) {
-        /*
-        * if !skip then do HKDF-extract
-        */
-        if ((prk = (uint8_t *)malloc(digestlen)) == NULL) {
-            free(digest);
-            perror("malloc");
-            return 0;
+    uint8_t* wrapped_ciphertext = wrapped_attrib->data + AES_BLOCK_SIZE;
+    size_t wrapped_len = wrapped_attrib->length - AES_BLOCK_SIZE;
+
+    uint8_t* unwrap_attribs = (uint8_t*)calloc(wrapped_len, 1);
+    int result = -1;
+    if (uses_aad) {
+        if (frame == NULL) {
+            printf("%s:%d: AAD input is NULL, AAD decryption failed!\n", __func__, __LINE__);
+            return std::pair<uint8_t*, size_t>(NULL, 0);
         }
-        /*
-        * if there's no salt then use all zeros
-        */
-        if (!salt || (saltlen == 0)) {
-            if ((tweak = (uint8_t *)malloc(digestlen)) == NULL) {
-                free(digest);
-                free(prk);
-                perror("malloc");
-                return 0;
-            }
-            memset(tweak, 0, digestlen);
-            tweaklen = saltlen;
-        } else {
-            tweak = salt;
-            tweaklen = saltlen;
-        }
-        (void)HMAC(h, tweak, tweaklen, ikm, ikmlen, prk, &prklen);
-        if (!salt || (saltlen == 0)) {
-            free(tweak);
-        }
+        result = siv_decrypt(&ctx, wrapped_ciphertext, unwrap_attribs, wrapped_len, wrapped_attrib->data, 2,
+            frame, sizeof(ec_frame_t),
+            frame->attributes, ((uint8_t*)wrapped_attrib) - frame->attributes); // Non-wrapped attributes
     } else {
-        prk = ikm;
-        prklen = ikmlen;
+        result = siv_decrypt(&ctx, wrapped_ciphertext, unwrap_attribs, wrapped_len, wrapped_attrib->data, 0);
     }
-    memset(digest, 0, digestlen);
-    digestlen = 0;
-    ctr = 0;
-    len = 0;
-    while (len < okmlen) {
-        /*
-        * T(0) = all zeros
-        * T(n) = HMAC(prk, T(n-1) | info | counter)
-        * okm = T(0) | ... | T(n)
-        */
-        ctr++;
-    #if OPENSSL_VERSION_NUMBER < 0x10100000L
-        HMAC_Init_ex(&ctx, prk, prklen, h, NULL);
-        HMAC_Update(&ctx, digest, digestlen);
-    #else
-        HMAC_Init_ex(ctx, prk, prklen, h, NULL);
-        HMAC_Update(ctx, digest, digestlen);
-    #endif
-        if (info && (infolen != 0)) {
-    #if OPENSSL_VERSION_NUMBER < 0x10100000L
-            HMAC_Update(&ctx, info, infolen);
-    #else
-            HMAC_Update(ctx, info, infolen);
-    #endif
-        }
-    #if OPENSSL_VERSION_NUMBER < 0x10100000L
-        HMAC_Update(&ctx, &ctr, sizeof(uint8_t));
-        HMAC_Final(&ctx, digest, &digestlen);
-    #else
-        HMAC_Update(ctx, &ctr, sizeof(uint8_t));
-        HMAC_Final(ctx, digest, &digestlen);
-    #endif
-        if ((len + digestlen) > okmlen) {
-            memcpy(okm + len, digest, okmlen - len);
-        } else {
-            memcpy(okm + len, digest, digestlen);
-        }
-    #if OPENSSL_VERSION_NUMBER < 0x10100000L
-        HMAC_CTX_cleanup(&ctx);
-    #else
-        HMAC_CTX_free(ctx);
-    #endif
-        len += digestlen;
-    }
-    if (!skip) {
-        free(prk);
-    }
-    free(digest);
-    #if OPENSSL_VERSION_NUMBER < 0x10100000L
-    HMAC_CTX_cleanup(&ctx);
-    #else
-    HMAC_CTX_free(ctx);
-    #endif
 
-    return okmlen;
+    if (result < 0) {
+        printf("%s:%d: Failed to decrypt and authenticate wrapped data\n", __func__, __LINE__);
+        free(unwrap_attribs);
+        return std::pair<uint8_t*, size_t>(NULL, 0);
+    }
+
+    return std::pair<uint8_t*, size_t>(unwrap_attribs, wrapped_len);
 }
 
-/* Commenting out to put back in in some form with the new architecture (given the change in params)
-int ec_util::compute_intermediate_key(ec_persistent_context_t& per_ctx, bool is_first)
-{       
-    unsigned int primelen, offset, keylen;
-    
-
-    BIGNUM *x = is_first ? params.m : params.n;
-    const char *info = is_first ? "first intermediate key" : "second intermediate key";
-
-    // The key to store
-    uint8_t *key = is_first ? params.k1 : params.k2;
-
-    primelen = BN_num_bytes(per_ctx.prime);
-
-    uint8_t m[2048];
-    memset(m, 0, primelen);
-
-    offset = primelen - BN_num_bytes(x);
-
-    BN_bn2bin(x, m + offset);
-    if ((keylen = hkdf(per_ctx.hash_fcn, 0, m, primelen, NULL, 0, 
-                    (uint8_t *)info, strlen(info),
-                    key, per_ctx.digest_len)) == 0) {
-        printf("%s:%d: Failed in hashing\n", __func__, __LINE__);
+int ec_util::parse_dpp_chirp_tlv(em_dpp_chirp_value_t* chirp_tlv, uint16_t chirp_tlv_len, mac_addr_t *mac, uint8_t **hash, uint8_t *hash_len)
+{
+    if (chirp_tlv == NULL || chirp_tlv_len == 0) {
+        fprintf(stderr, "Invalid input\n");
         return -1;
     }
 
-    printf("Key:\n"); 
-    util::print_hex_dump(per_ctx.digest_len, key);
+    uint16_t data_len = chirp_tlv_len - sizeof(em_dpp_chirp_value_t);
+    // Parse TLV
+    bool mac_addr_present = chirp_tlv->mac_present;
+    bool hash_valid = chirp_tlv->hash_valid;
+
+    uint8_t *data_ptr = chirp_tlv->data;
+    if (mac_addr_present && data_len >= sizeof(mac_addr_t)) {
+        memcpy(*mac, data_ptr, sizeof(mac_addr_t));
+        data_ptr += sizeof(mac_addr_t);
+        data_len -= sizeof(mac_addr_t);
+    }
+
+    if (!hash_valid || data_len <= 0) {
+        // Clear (Re)configuration state, agent side
+        return 0;
+    }
+
+    *hash_len = *data_ptr;
+    data_ptr++;
+    if (data_len < *hash_len) {
+        fprintf(stderr, "Invalid chirp tlv\n");
+        return NULL;
+    }
+    memcpy(*hash, data_ptr, *hash_len);
 
     return 0;
 }
-*/     
 
-/*
-int ec_util::compute_key_hash(ec_persistent_context_t& per_ctx, EC_KEY *key, uint8_t *digest, const char *prefix)
+int ec_util::parse_encap_dpp_tlv(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, mac_addr_t *dest_mac, uint8_t *frame_type, uint8_t **encap_frame, uint8_t *encap_frame_len)
 {
-    BIO *bio;
-    uint8_t *asn1;
-    int asn1len;
-    uint8_t *addr[2];      // Array of addresses for our two elements
-    uint32_t len[2];       // Array of lengths for our two elements
-    
-    // Setup the BIO for key conversion
-    if ((bio = BIO_new(BIO_s_mem())) == NULL) {
+    if (encap_tlv == NULL || encap_tlv_len == 0) {
+        fprintf(stderr, "Invalid input\n");
         return -1;
     }
 
-    // Convert key to DER format
-    i2d_EC_PUBKEY_bio(bio, key);
-    (void)BIO_flush(bio);
-    asn1len = BIO_get_mem_data(bio, &asn1);
+    uint16_t data_len = encap_tlv_len - sizeof(em_encap_dpp_t);
+    // Parse TLV
+    bool mac_addr_present = encap_tlv->enrollee_mac_addr_present;
 
-    // Set up our data elements for hashing
-    addr[0] = (uint8_t *)prefix;
-    len[0] = strlen(prefix);
-    addr[1] = asn1;
-    len[1] = asn1len;
+    // Copy mac address if present
+    uint8_t *data_ptr = encap_tlv->data;
+    if (mac_addr_present && data_len >= sizeof(mac_addr_t)) {
+        memcpy(*dest_mac, data_ptr, sizeof(mac_addr_t));
+        data_ptr += sizeof(mac_addr_t);
+        data_len -= sizeof(mac_addr_t);
+    } else {
+        memset(*dest_mac, 0, sizeof(mac_addr_t));
+    }
 
-    // Call platform_SHA256 with our two elements
-    uint8_t result = em_crypto_t::platform_SHA256(2, addr, len, digest);
-
-    BIO_free(bio);
-    
-    if (result == 0) {
+    if (data_len < sizeof(uint8_t) + sizeof(uint16_t)) {
+        fprintf(stderr, "Invalid encap tlv\n");
         return -1;
     }
-    
-    return SHA256_DIGEST_LENGTH;
+
+    // Get frame type
+    *frame_type = *data_ptr;
+    data_ptr++;
+
+    // Get frame length
+    *encap_frame_len = htons(*((uint16_t *)data_ptr));
+    data_ptr += sizeof(uint16_t);
+
+    if (data_len < *encap_frame_len) {
+        fprintf(stderr, "Invalid encap tlv\n");
+        return -1;
+    }
+
+    // Copy frame
+    memcpy(*encap_frame, data_ptr, *encap_frame_len);
+
+    return 0;
 }
-*/
+
+em_encap_dpp_t * ec_util::create_encap_dpp_tlv(bool dpp_frame_indicator, uint8_t content_type, mac_addr_t *dest_mac, uint8_t frame_type, uint8_t *encap_frame, uint8_t encap_frame_len)
+{
+    size_t data_size = sizeof(em_encap_dpp_t) + sizeof(uint8_t) + sizeof(uint16_t) + encap_frame_len;
+    if (dest_mac != NULL) {
+        data_size += sizeof(mac_addr_t);
+    }
+    em_encap_dpp_t *encap_tlv = NULL;
+
+    if ((encap_tlv = (em_encap_dpp_t *)calloc(data_size, 1)) == NULL){
+        fprintf(stderr, "Failed to allocate memory\n");
+        return NULL;
+    }
+    (encap_tlv)->dpp_frame_indicator = dpp_frame_indicator;
+    (encap_tlv)->content_type = content_type;
+    (encap_tlv)->enrollee_mac_addr_present = (dest_mac != NULL) ? 1 : 0;
+
+    uint8_t *data_ptr = (encap_tlv)->data;
+    if (dest_mac != NULL) {
+        memcpy(data_ptr, dest_mac, sizeof(mac_addr_t));
+        data_ptr += sizeof(mac_addr_t);
+    }
+
+    *data_ptr = frame_type;
+    data_ptr++;
+
+    *((uint16_t *)data_ptr) = htons(encap_frame_len);
+    data_ptr += sizeof(uint16_t);
+
+    memcpy(data_ptr, encap_frame, encap_frame_len);
+
+    return encap_tlv;
+}
+
+ec_frame_t *ec_util::copy_attrs_to_frame(ec_frame_t *frame, uint8_t *attrs, uint16_t attrs_len)
+{
+    uint16_t new_len = EC_FRAME_BASE_SIZE + attrs_len;
+    ec_frame_t* new_frame = (ec_frame_t *) realloc((uint8_t*)frame, new_len);
+    if (new_frame == NULL) {
+        printf("%s:%d unable to realloc memory\n", __func__, __LINE__);
+        return NULL; 
+    }
+    memcpy(new_frame->attributes, attrs, attrs_len);
+
+    return new_frame;
+
+}
+
+std::string ec_util::hash_to_hex_string(const uint8_t *hash, size_t hash_len) {
+    char output[hash_len * 2 + 1];
+    for (size_t i = 0; i < hash_len; i++) {
+        sprintf(output + (i * 2), "%02x", hash[i]);
+    }
+    output[hash_len * 2] = '\0'; // Null-terminate the string
+    return std::string(output);
+}
+
