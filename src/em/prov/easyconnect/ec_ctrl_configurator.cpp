@@ -2,10 +2,10 @@
 
 #include "ec_base.h"
 #include "ec_util.h"
+#include "util.h"
 
 int ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *chirp_tlv, uint16_t tlv_len)
 {
-    // TODO: Currently only handling controller side
 
     mac_addr_t mac = {0};
     uint8_t hash[255] = {0}; // Max hash length to avoid dynamic allocation
@@ -18,8 +18,8 @@ int ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *chi
 
     // Validate hash
     // Compute the hash of the responder boot key 
-    uint8_t resp_boot_key_chirp_hash[SHA512_DIGEST_LENGTH];
-    if (ec_crypto::compute_key_hash(m_boot_data.responder_boot_key, resp_boot_key_chirp_hash, "chirp") < 1) {
+    uint8_t *resp_boot_key_chirp_hash = ec_crypto::compute_key_hash(m_boot_data.responder_boot_key, "chirp");
+    if (resp_boot_key_chirp_hash == NULL) {
         printf("%s:%d unable to compute \"chirp\" responder bootstrapping key hash\n", __func__, __LINE__);
         return -1;
     }
@@ -30,7 +30,14 @@ int ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *chi
         return -1;
     }
 
-    auto [auth_frame, auth_frame_len] = create_auth_request();
+    free(resp_boot_key_chirp_hash);
+    std::string mac_str = util::mac_to_string(mac);
+    if (m_connections.find(mac_str) == m_connections.end()) {
+        // New connection context
+        ec_connection_context_t conn_ctx;
+        m_connections[mac_str] = conn_ctx;
+    }
+    auto [auth_frame, auth_frame_len] = create_auth_request(mac_str);
     if (auth_frame == NULL || auth_frame_len == 0) {
         printf("%s:%d: Failed to create authentication request frame\n", __func__, __LINE__);
         return -1;
@@ -138,98 +145,130 @@ int ec_ctrl_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tl
     // Then construct an Auth request frame and send back in an Encap message
 }
 
-std::pair<uint8_t*, uint16_t> ec_ctrl_configurator_t::create_auth_request()
+std::pair<uint8_t*, uint16_t> ec_ctrl_configurator_t::create_auth_request(std::string enrollee_mac)
 {
 
-    // EC_KEY *responder_boot_key, *initiator_boot_key;
+    EC_KEY *responder_boot_key, *initiator_boot_key;
 
-    // ec_dpp_capabilities_t caps = {{
-    //     .enrollee = 0,
-    //     .configurator = 1
-    // }};
+    ec_dpp_capabilities_t caps = {{
+        .enrollee = 0,
+        .configurator = 1
+    }};
 
-    // printf("%s:%d Enter\n", __func__, __LINE__);
+    printf("%s:%d Enter\n", __func__, __LINE__);
 
-    // uint8_t* buff = (uint8_t*) calloc(EC_FRAME_BASE_SIZE, 1);
+    uint8_t* buff = (uint8_t*) calloc(EC_FRAME_BASE_SIZE, 1);
+    if (buff == NULL) {
+        printf("%s:%d unable to allocate memory\n", __func__, __LINE__);
+        return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
+    }
 
-    // ec_frame_t    *frame = (ec_frame_t *)buff;
-    // frame->frame_type = ec_frame_type_auth_req;
+    ec_frame_t    *frame = (ec_frame_t *)buff;
+    frame->frame_type = ec_frame_type_auth_req;
 
-    // if (init_session(NULL) != 0) {
-    //     printf("%s:%d Failed to initialize session parameters\n", __func__, __LINE__);
-    //     return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
-    // }
+    auto e_ctx = get_conn_ctx(enrollee_mac).eph_ctx;
+    // Start EasyConnect 6.3.2
 
-    // if (ec_util::compute_intermediate_key(m_params, true) != 0) {
-    //     printf("%s:%d failed to generate key\n", __func__, __LINE__);
-    //     return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
-    // }
+    // Generate initiator nonce
+    RAND_bytes(e_ctx.i_nonce, m_p_ctx.nonce_len);
 
-    // uint8_t* attribs = NULL;
-    // uint16_t attrib_len = 0;
+    // Generate initiator protocol key pair (p_i/P_I)
+    auto [priv_init_proto_key, pub_init_proto_key] = ec_crypto::generate_proto_keypair(m_p_ctx);
+    if (priv_init_proto_key == NULL || pub_init_proto_key == NULL) {
+        printf("%s:%d failed to generate initiator protocol key pair\n", __func__, __LINE__);
+        return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
+    }
+    e_ctx.priv_init_proto_key = (BIGNUM*)priv_init_proto_key;
+    e_ctx.public_init_proto_key = (EC_POINT*)pub_init_proto_key;
 
-    // // Responder Bootstrapping Key Hash
-    // if (ec_util::compute_key_hash(m_boot_data.responder_boot_key, m_params.responder_keyhash) < 1) {
-    //     printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
-    //     return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
-    // }
+    // Compute the M.x
+    const EC_POINT *pub_resp_boot_key = EC_KEY_get0_public_key(m_boot_data.responder_boot_key);
+    if (pub_resp_boot_key == NULL) {
+        printf("%s:%d failed to get responder bootstrapping public key\n", __func__, __LINE__);
+        return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
+    }
+    e_ctx.m = ec_crypto::compute_ec_ss_x(m_p_ctx, e_ctx.priv_init_proto_key, pub_resp_boot_key);
+    const BIGNUM *bn_inputs[1] = { e_ctx.m };
+    // Compute the "first intermediate key" (k1)
+    if (ec_crypto::compute_hkdf_key(m_p_ctx, e_ctx.k1, m_p_ctx.digest_len, "first intermediate key", bn_inputs, 1, NULL, 0) == 0) {
+        printf("%s:%d: Failed to compute k1\n", __func__, __LINE__); 
+        return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
+    }
 
-    // attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_resp_bootstrap_key_hash, SHA256_DIGEST_LENGTH, m_params.responder_keyhash);
+    printf("Key K_1:\n");
+    util::print_hex_dump(m_p_ctx.digest_len, e_ctx.k1);
 
-    // // Initiator Bootstrapping Key Hash
-    // if (compute_key_hash(m_boot_data.initiator_boot_key, m_params.initiator_keyhash) < 1) {
-    //     printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
-    //     return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
-    // }
 
-    // attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_init_bootstrap_key_hash, SHA256_DIGEST_LENGTH, m_params.initiator_keyhash);
+    
+    uint8_t* attribs = NULL;
+    uint16_t attrib_len = 0;
 
-    // // Initiator Protocol Key
-    // uint8_t protocol_key_buff[1024];
-    // BN_bn2bin((const BIGNUM *)m_params.x,
-    //         &protocol_key_buff[BN_num_bytes(m_params.prime) - BN_num_bytes(m_params.x)]);
-    // BN_bn2bin((const BIGNUM *)m_params.y,
-    //         &protocol_key_buff[2*BN_num_bytes(m_params.prime) - BN_num_bytes(m_params.x)]);
+    // Responder Bootstrapping Key Hash: SHA-256(B_R)
+    uint8_t* responder_keyhash = ec_crypto::compute_key_hash(m_boot_data.responder_boot_key);
+    if (responder_keyhash == NULL) {
+        printf("%s:%d failed to compute responder bootstrapping key hash\n", __func__, __LINE__);
+        return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
+    }
 
-    // attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_init_proto_key, 2*BN_num_bytes(m_params.prime), protocol_key_buff);
+    attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_resp_bootstrap_key_hash, SHA256_DIGEST_LENGTH, responder_keyhash);
+    free(responder_keyhash);
 
-    // // Protocol Version
+    // Initiator Bootstrapping Key Hash: SHA-256(B_I)
+    uint8_t* initiator_keyhash = ec_crypto::compute_key_hash(m_boot_data.initiator_boot_key);
+    if (initiator_keyhash == NULL) {
+        printf("%s:%d failed to compute initiator bootstrapping key hash\n", __func__, __LINE__);
+        return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
+    }
+
+    attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_init_bootstrap_key_hash, SHA256_DIGEST_LENGTH, initiator_keyhash);
+    free(initiator_keyhash);
+
+    // Public Initiator Protocol Key: P_I
+    uint8_t* protocol_key_buff = ec_crypto::encode_proto_key(m_p_ctx, e_ctx.public_init_proto_key);
+    if (protocol_key_buff == NULL) {
+        printf("%s:%d failed to encode initiator protocol key\n", __func__, __LINE__);
+        return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
+    }
+    attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_init_proto_key, 2*BN_num_bytes(m_p_ctx.prime), protocol_key_buff);
+    free(protocol_key_buff);
+
+    // Protocol Version
     // if (m_cfgrtr_ver > 1) {
     //     attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_proto_version, m_cfgrtr_ver);
     // }
 
-    // // Channel Attribute (optional)
-    // //TODO: REVISIT THIS
-    // if (m_boot_data.ec_freqs[0] != 0){
-    //     int base_freq = m_boot_data.ec_freqs[0]; 
-    //     uint16_t chann_attr = ec_util::freq_to_channel_attr(base_freq);
-    //     attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_channel, sizeof(uint16_t), (uint8_t *)&chann_attr);
-    // }
+    // Channel Attribute (optional)
+    //TODO: REVISIT THIS
+    if (m_boot_data.ec_freqs[0] != 0){
+        int base_freq = m_boot_data.ec_freqs[0]; 
+        uint16_t chann_attr = ec_util::freq_to_channel_attr(base_freq);
+        attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_channel, sizeof(uint16_t), (uint8_t *)&chann_attr);
+    }
 
 
-    // // Wrapped Data (with Initiator Nonce and Initiator Capabilities)
-    // // EasyMesh 8.2.2 Table 36
-    // attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attrib_len, true, m_params.k1, [&](){
-    //     uint8_t* wrap_attribs = NULL;
-    //     uint16_t wrapped_len = 0;
-    //     wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_init_nonce, m_params.noncelen, m_params.initiator_nonce);
-    //     wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_init_caps, caps.byte);
-    //     return std::make_pair(wrap_attribs, wrapped_len);
-    // });
+    // Wrapped Data (with Initiator Nonce and Initiator Capabilities)
+    // EasyMesh 8.2.2 Table 36
+    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attrib_len, true, e_ctx.k1, [&](){
+        uint8_t* wrap_attribs = NULL;
+        uint16_t wrapped_len = 0;
+        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_init_nonce, m_p_ctx.nonce_len, e_ctx.i_nonce);
+        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_init_caps, caps.byte);
+        return std::make_pair(wrap_attribs, wrapped_len);
+    });
 
-    // // Add attributes to the frame
-    // uint16_t new_len = EC_FRAME_BASE_SIZE + attrib_len;
-    // buff = (uint8_t*) realloc(buff, new_len);
-    // if (buff == NULL) {
-    //     printf("%s:%d unable to realloc memory\n", __func__, __LINE__);
-    //     return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
-    // }
-    // frame = (ec_frame_t *)buff;
-    // memcpy(frame->attributes, attribs, attrib_len);
+    // Add attributes to the frame
+    uint16_t new_len = EC_FRAME_BASE_SIZE + attrib_len;
+    buff = (uint8_t*) realloc(buff, new_len);
+    if (buff == NULL) {
+        printf("%s:%d unable to realloc memory\n", __func__, __LINE__);
+        return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
+    }
+    frame = (ec_frame_t *)buff;
+    memcpy(frame->attributes, attribs, attrib_len);
 
-    // free(attribs);
+    free(attribs);
 
-    // return std::make_pair(buff, new_len);
+    return std::make_pair(buff, new_len);
 
 }
 

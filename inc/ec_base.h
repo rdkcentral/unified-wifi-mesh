@@ -224,16 +224,23 @@ typedef struct {
     uint8_t *i_nonce, *r_nonce, *e_nonce, *c_nonce;
 
     /**
-     * The currently generated protocol key. Whos key is is depends on the context it is assigned/used in.
+     * The protocol key pairs for the initiator and responder. These are are exchanged/generated during the auth/cfg process.
      * This must be freed after the auth/cfg process is complete.
      */
-    EC_KEY *protocol_key;
+    EC_POINT *public_init_proto_key, *public_resp_proto_key;
+    BIGNUM *priv_init_proto_key, *priv_resp_proto_key;
 
     /**
      * The generated intermediate keys. These are used multiple times during the auth/cfg process.
      * These are heap allocated but freed after the auth/cfg process is complete.
      */
     uint8_t *k1, *k2, *ke, *bk;
+
+    /**
+     * The EC x coordinate values for the M, N, and (optional) L points.
+     * Once generated, these are used multiple times during the auth/cfg process.
+     */
+    BIGNUM *m, *n, *l;
 
     /**
      * A random point on the curve for reconfiguration. The same point is used throughout reconfiguration.
@@ -289,9 +296,18 @@ typedef struct {
     mac_address_t   mac_addr;
     ec_session_type_t   type;
 
-    // Updated data
-    EC_KEY *initiator_boot_key; 
-    EC_KEY *responder_boot_key;
+    /*
+    Initiator/Configurator bootstrapping key. (ALWAYS REQUIRED on controller, OPTIONAL on enrollee)
+        - If this is the Controller, then this key is stored on the Controller. 
+        - If this is the Enrollee, then this key is required for "mutual authentication" and must be recieved via an out-of-band mechanism from the controller.
+    */
+    const EC_KEY *initiator_boot_key; 
+    /*
+    Responder/Enrollee bootstrapping key. (REQUIRED)
+        - If this is the Controller, then this key was recieved out-of-band from the Enrollee in the DPP URI
+        - If this is the Enrollee, then this key is stored locally.
+    */
+    const EC_KEY *responder_boot_key;
 } ec_data_t;
 
 #ifdef __cplusplus

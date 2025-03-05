@@ -644,7 +644,10 @@ em_provisioning_t::em_provisioning_t()
             printf("Toggle CCE: %s\n", enable ? "true" : "false");
             return 0;  // Added return value
         },
-        get_service_type() == em_service_type_ctrl
+        true
+        // TODO: For some reason the below code causes a linker error...
+        // It seems that it's because it's called from the constructor...
+        //get_service_type() == em_service_type_ctrl
     ));
 }
 

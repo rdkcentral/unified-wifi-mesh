@@ -7,7 +7,7 @@
 
 class ec_enrollee_t {
 public:
-    // TODO: Add Send Action Frame
+    // TODO: Add Send Action Frame, Send GAS Frame
     ec_enrollee_t();
     
     // Destructor
@@ -51,6 +51,8 @@ private:
 
     // Randomized and cleared at the end of the authentication/configuration process
     ec_ephemeral_context_t m_eph_ctx;
+
+    ec_data_t m_boot_data;
 
 
 };

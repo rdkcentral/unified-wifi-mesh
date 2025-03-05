@@ -2,6 +2,7 @@
 
 #include "ec_util.h"
 #include "ec_crypto.h"
+#include "util.h"
 
 ec_enrollee_t::ec_enrollee_t()
 {
@@ -25,29 +26,34 @@ int ec_enrollee_t::handle_auth_request(uint8_t *buff, unsigned int len)
     ec_attribute_t *B_r_hash_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_resp_bootstrap_key_hash);
     if (!B_r_hash_attr) return -1;
 
-    //TODO: !!!!!!!!!!!!!!!!!!!!
-    // if (memcmp(B_r_hash_attr->data, m_params.responder_keyhash, B_r_hash_attr->length) != 0) {
-    //     printf("%s:%d Responder key hash mismatch\n", __func__, __LINE__);
-    //     return -1;
-    // }
+    uint8_t* responder_keyhash = ec_crypto::compute_key_hash(m_boot_data.responder_boot_key);
 
-    // ec_attribute_t *B_i_hash_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_init_bootstrap_key_hash);
-    // if (!B_i_hash_attr) return -1;
+    if (memcmp(B_r_hash_attr->data, responder_keyhash, B_r_hash_attr->length) != 0) {
+        printf("%s:%d Responder key hash mismatch\n", __func__, __LINE__);
+        return -1;
+    }
+    free(responder_keyhash);
+    
+    ec_attribute_t *B_i_hash_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_init_bootstrap_key_hash);
+    if (!B_i_hash_attr) return -1;
 
-    // if (memcmp(B_i_hash_attr->data, m_params.initiator_keyhash, B_i_hash_attr->length) == 0) {
-    //     printf("%s:%d Initiator key hash matched, mutual authentication can now occur\n", __func__, __LINE__);
-    //     // Mutual authentication can now occur
-    //     m_params.mutual = true;
-    //     // TODO: UNKNOWN:
-    //     /*
-    //     Specifically, the Responder shall request mutual authentication when the hash of the Responder
-    // bootstrapping key in the authentication request indexes an entry in the bootstrapping table corresponding to a
-    // bidirectional bootstrapping method, for example, PKEX or BTLE.
-    //     */
-    // }
-
-
-
+    if (m_boot_data.initiator_boot_key != NULL){
+        // Initiator bootstrapping key is present on enrollee, mutual authentication is possible
+        uint8_t* initiator_keyhash = ec_crypto::compute_key_hash(m_boot_data.initiator_boot_key);
+        if (initiator_keyhash != NULL) {
+            if (memcmp(B_i_hash_attr->data, initiator_keyhash, B_i_hash_attr->length) == 0) {
+                printf("%s:%d Initiator key hash matched, mutual authentication can now occur\n", __func__, __LINE__);
+                // Hashes match, mutual authentication can occur
+                m_eph_ctx.is_mutual_auth = true;
+                /*
+                Specifically, the Responder shall request mutual authentication when the hash of the Responder
+            bootstrapping key in the authentication request indexes an entry in the bootstrapping table corresponding to a
+            bidirectional bootstrapping method, for example, PKEX or BTLE.
+                */
+            }
+            free(initiator_keyhash);
+        }     
+    }
 
    ec_attribute_t *channel_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_channel);
     if (channel_attr && channel_attr->length == sizeof(uint16_t)) {
@@ -66,10 +72,38 @@ Authentication Request frame without replying to it.
         // Maybe just attempt to send it on the channel
     }
 
-    if (ec_crypto::compute_intermediate_key(true) != 0) {
-        printf("%s:%d failed to generate k1 to attempt unwrap\n", __func__, __LINE__);
+    ec_attribute_t *pub_init_proto_key_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_init_proto_key);
+    if (!pub_init_proto_key_attr) {
+        printf("%s:%d No public initiator protocol key attribute found\n", __func__, __LINE__);
         return -1;
     }
+    if (pub_init_proto_key_attr->length != BN_num_bytes(m_p_ctx.prime) * 2){
+        printf("%s:%d Invalid public initiator protocol key length\n", __func__, __LINE__);
+        return -1;
+    }
+    if (m_eph_ctx.public_init_proto_key) {
+        EC_POINT_free(m_eph_ctx.public_init_proto_key);
+    }
+
+    m_eph_ctx.public_init_proto_key = ec_crypto::decode_proto_key(m_p_ctx, pub_init_proto_key_attr->data);
+
+    // START Crypto in EasyConnect 6.3.3
+    // Compute the M.x
+    const BIGNUM *priv_resp_boot_key = EC_KEY_get0_private_key(m_boot_data.responder_boot_key);
+    if (priv_resp_boot_key == NULL) {
+        printf("%s:%d failed to get responder bootstrapping private key\n", __func__, __LINE__);
+        return -1;
+    }
+    m_eph_ctx.m = ec_crypto::compute_ec_ss_x(m_p_ctx, priv_resp_boot_key, m_eph_ctx.public_init_proto_key);
+    const BIGNUM *bn_inputs[1] = { m_eph_ctx.m };
+    // Compute the "first intermediate key" (k1)
+    if (ec_crypto::compute_hkdf_key(m_p_ctx, m_eph_ctx.k1, m_p_ctx.digest_len, "first intermediate key", bn_inputs, 1, NULL, 0) == 0) {
+        printf("%s:%d: Failed to compute k1\n", __func__, __LINE__); 
+        return -1;
+    }
+
+    printf("Key K_1:\n");
+    util::print_hex_dump(m_p_ctx.digest_len, m_eph_ctx.k1);
 
     ec_attribute_t *wrapped_data_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_wrapped_data);
     if (!wrapped_data_attr) {
@@ -77,39 +111,40 @@ Authentication Request frame without replying to it.
         return -1;
     }
 
-    //TODO: !!!!!!!!!!!!!!!!!!!!!!!!
-//     auto [wrapped_data, wrapped_len] = ec_util::unwrap_wrapped_attrib(wrapped_data_attr, frame, false, m_params.k1); 
-//     if (wrapped_data == NULL || wrapped_len == 0) {
-//         printf("%s:%d failed to unwrap wrapped data\n", __func__, __LINE__);
-//         return -1;
-//     }
+    // Attempt to unwrap the wrapped data with generated k1 (from sent keys)
+    auto [wrapped_data, wrapped_len] = ec_util::unwrap_wrapped_attrib(wrapped_data_attr, frame, false, m_eph_ctx.k1); 
+    if (wrapped_data == NULL || wrapped_len == 0) {
+        printf("%s:%d failed to unwrap wrapped data\n", __func__, __LINE__);
+        // "Abondon the exchange"
+        return -1;
+    }
 
-//     ec_attribute_t *init_caps_attr = ec_util::get_attrib(wrapped_data, wrapped_len, ec_attrib_id_init_caps);
-//     if (!init_caps_attr) {
-//         printf("%s:%d No initiator capabilities attribute found\n", __func__, __LINE__);
-//         return -1;
-//     }
-//     ec_dpp_capabilities_t init_caps = {
-//         .byte = init_caps_attr->data[0]
-//     };
+    ec_attribute_t *init_caps_attr = ec_util::get_attrib(wrapped_data, wrapped_len, ec_attrib_id_init_caps);
+    if (!init_caps_attr) {
+        printf("%s:%d No initiator capabilities attribute found\n", __func__, __LINE__);
+        return -1;
+    }
+    ec_dpp_capabilities_t init_caps = {
+        .byte = init_caps_attr->data[0]
+    };
 
-//     if (!check_supports_init_caps(init_caps)) {
-//         printf("%s:%d Initiator capabilities not supported\n", __func__, __LINE__);
+    if (!check_supports_init_caps(init_caps)) {
+        printf("%s:%d Initiator capabilities not supported\n", __func__, __LINE__);
 
-//         auto [resp_frame, resp_len] = create_auth_response(DPP_STATUS_NOT_COMPATIBLE);
-//         if (resp_frame == NULL || resp_len == 0) {
-//             printf("%s:%d failed to create response frame\n", __func__, __LINE__);
-//             return -1;
-//         }
-// /*
-// it shall respond with a DPP Authentication
-// Response frame indicating failure by adding the DPP Status field set to STATUS_NOT_COMPATIBLE, a hash of its
-// public bootstrapping key, a hash of the Initiator’s public bootstrapping key if it is doing mutual authentication, Protocol
-// Version attribute if it was sent in the DPP Authentication Request frame and is version 2 or higher, and Wrapped Data
-// element consisting of the Initiator’s nonce and the Responder’s desired capabilities wrapped with k1:
-// */
-//         return -1;
-//     }
+        auto [resp_frame, resp_len] = create_auth_response(DPP_STATUS_NOT_COMPATIBLE);
+        if (resp_frame == NULL || resp_len == 0) {
+            printf("%s:%d failed to create response frame\n", __func__, __LINE__);
+            return -1;
+        }
+/*
+it shall respond with a DPP Authentication
+Response frame indicating failure by adding the DPP Status field set to STATUS_NOT_COMPATIBLE, a hash of its
+public bootstrapping key, a hash of the Initiator’s public bootstrapping key if it is doing mutual authentication, Protocol
+Version attribute if it was sent in the DPP Authentication Request frame and is version 2 or higher, and Wrapped Data
+element consisting of the Initiator’s nonce and the Responder’s desired capabilities wrapped with k1:
+*/
+        return -1;
+    }
 
     //TODO/NOTE: Unknown: If need more time to process, respond `STATUS_RESPONSE_PENDING` (EasyConnect 6.3.3)
     // If the Responder needs more time to respond, e.g., to complete bootstrapping of the Initiator’s bootstrapping key

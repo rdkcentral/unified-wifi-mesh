@@ -31,7 +31,7 @@ public:
 private:
     // Private member variables can be added here
 
-    std::pair<uint8_t*, uint16_t> create_auth_request();
+    std::pair<uint8_t*, uint16_t> create_auth_request(std::string enrollee_mac);
     std::pair<uint8_t*, uint16_t> create_recfg_auth_request();
     std::pair<uint8_t*, uint16_t> create_auth_confirm();
     std::pair<uint8_t*, uint16_t> create_recfg_auth_confirm();
