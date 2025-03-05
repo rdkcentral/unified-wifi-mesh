@@ -189,27 +189,9 @@ void em_t::orch_execute(em_cmd_t *pcmd)
         case em_cmd_type_beacon_report:
             m_sm.set_state(em_state_agent_beacon_report_pending);
             break;
-
-        case em_cmd_type_none:
-        case em_cmd_type_reset:
-        case em_cmd_type_get_network:
-        case em_cmd_type_get_device:
-        case em_cmd_type_remove_device:
-        case em_cmd_type_get_radio:
-        case em_cmd_type_get_ssid:
-        case em_cmd_type_get_channel:
-        case em_cmd_type_get_bss:
-        case em_cmd_type_get_sta:
-        case em_cmd_type_steer_sta:
-        case em_cmd_type_disassoc_sta:
-        case em_cmd_type_btm_sta:
-        case em_cmd_type_vap_config:
-        case em_cmd_type_topo_sync:
-        case em_cmd_type_get_policy:
-        case em_cmd_type_get_mld_config:
-        case em_cmd_type_max:
+    
+        default:
             break;
-
         
     }
 }
@@ -433,35 +415,7 @@ void em_t::handle_ctrl_state()
             em_configuration_t::process_ctrl_state();
             break;
 
-        case em_cmd_type_none:
-        case em_cmd_type_reset:
-        case em_cmd_type_get_network:
-        case em_cmd_type_get_device:
-        case em_cmd_type_remove_device:
-        case em_cmd_type_get_radio:
-        case em_cmd_type_get_ssid:
-        case em_cmd_type_get_channel:
-        case em_cmd_type_scan_result:
-        case em_cmd_type_get_bss:
-        case em_cmd_type_get_sta:
-        case em_cmd_type_steer_sta:
-        case em_cmd_type_disassoc_sta:
-        case em_cmd_type_btm_sta:
-        case em_cmd_type_dev_init:
-        case em_cmd_type_vap_config:
-        case em_cmd_type_sta_list:
-        case em_cmd_type_start_dpp:
-        case em_cmd_type_ap_cap_query:
-        case em_cmd_type_client_cap_query:
-        case em_cmd_type_topo_sync:
-        case em_cmd_type_onewifi_cb:
-        case em_cmd_type_channel_pref_query:
-        case em_cmd_type_op_channel_report:
-        case em_cmd_type_btm_report:
-        case em_cmd_type_get_policy:
-        case em_cmd_type_avail_spectrum_inquiry:
-        case em_cmd_type_get_mld_config:
-        case em_cmd_type_max:
+        default:
             break;
     }
 }

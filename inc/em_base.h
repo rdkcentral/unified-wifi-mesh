@@ -214,6 +214,8 @@ typedef unsigned char em_nonce_t[16];
 typedef unsigned char em_dh5_key_t[192];    // because this is DH group 5 (1536 bits)
 typedef char    em_short_string_t[64];
 typedef char    em_long_string_t[128];
+typedef char    em_2xlong_string_t[256];
+typedef char    em_3xlong_string_t[512];
 typedef char    em_string_t[32];
 typedef char    em_small_string_t[16];
 typedef char    em_tiny_string_t[4];

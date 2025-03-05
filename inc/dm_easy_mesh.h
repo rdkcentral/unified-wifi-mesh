@@ -281,7 +281,7 @@ public:
     static void create_ap_cap_query_json_cmd(char* src_mac_addr, char* agent_al_mac, char* ap_query_json, short msg_id);
     void print_config();
 
-    void set_db_cfg_param(db_cfg_type_t type, char *param);
+    void set_db_cfg_param(db_cfg_type_t type, const char *param);
 	void reset_db_cfg_type(db_cfg_type_t type);
 	bool db_cfg_type_is_set(db_cfg_type_t type) { return m_db_cfg_param.db_cfg_type & static_cast<unsigned int>(type); }
 	char *db_cfg_type_get_criteria(db_cfg_type_t type);

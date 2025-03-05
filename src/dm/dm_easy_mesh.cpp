@@ -2670,7 +2670,7 @@ void dm_easy_mesh_t::reset_db_cfg_type(db_cfg_type_t type)
     m_db_cfg_param.db_cfg_type &= ~type; 
 }   
 
-void dm_easy_mesh_t::set_db_cfg_param(db_cfg_type_t cfg_type, char *criteria)
+void dm_easy_mesh_t::set_db_cfg_param(db_cfg_type_t cfg_type, const char *criteria)
 {
 	unsigned int num = cfg_type;
 	unsigned int index = 0;
