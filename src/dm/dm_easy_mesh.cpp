@@ -1823,8 +1823,13 @@ rdk_wifi_radio_t *dm_easy_mesh_t::get_radio_data(em_interface_t *interface)
 	unsigned int i;
 	rdk_wifi_radio_t *radio;
 
-	for (i = 0; i < m_wifi_data.u.decoded.num_radios; i++) {
-		radio = &m_wifi_data.u.decoded.radios[i];
+	if ( m_wifi_data == NULL )
+        {
+              printf("%s:%d: m_wifi_data is not initialized \n",__func__,__LINE__);
+              return NULL;
+        }
+	for (i = 0; i < m_wifi_data->u.decoded.num_radios; i++) {
+		radio = &m_wifi_data->u.decoded.radios[i];
 
 		if (strncmp(radio->name, interface->name, strlen(radio->name)) == 0) {
 			return radio;
