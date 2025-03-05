@@ -27,6 +27,7 @@ bool ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *ch
     if (memcmp(hash, resp_boot_key_chirp_hash, hash_len) != 0) {
         // Hashes don't match, don't initiate DPP authentication
         printf("%s:%d: Chirp notification hash and DPP URI hash did not match! Stopping DPP!\n", __func__, __LINE__);
+        free(resp_boot_key_chirp_hash);
         return false;
     }
 
@@ -164,11 +165,12 @@ std::pair<uint8_t*, uint16_t> ec_ctrl_configurator_t::create_auth_request(std::s
         return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
     }
 
-    auto e_ctx = get_conn_ctx(enrollee_mac).eph_ctx;
+    auto e_ctx = get_eph_ctx(enrollee_mac);
+    if (!e_ctx) return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
     // Start EasyConnect 6.3.2
 
     // Generate initiator nonce
-    RAND_bytes(e_ctx.i_nonce, m_p_ctx.nonce_len);
+    RAND_bytes(e_ctx->i_nonce, m_p_ctx.nonce_len);
 
     // Generate initiator protocol key pair (p_i/P_I)
     auto [priv_init_proto_key, pub_init_proto_key] = ec_crypto::generate_proto_keypair(m_p_ctx);
@@ -176,8 +178,8 @@ std::pair<uint8_t*, uint16_t> ec_ctrl_configurator_t::create_auth_request(std::s
         printf("%s:%d failed to generate initiator protocol key pair\n", __func__, __LINE__);
         return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
     }
-    e_ctx.priv_init_proto_key = (BIGNUM*)priv_init_proto_key;
-    e_ctx.public_init_proto_key = (EC_POINT*)pub_init_proto_key;
+    e_ctx->priv_init_proto_key = (BIGNUM*)priv_init_proto_key;
+    e_ctx->public_init_proto_key = (EC_POINT*)pub_init_proto_key;
 
     // Compute the M.x
     const EC_POINT *pub_resp_boot_key = EC_KEY_get0_public_key(m_boot_data.responder_boot_key);
@@ -185,16 +187,16 @@ std::pair<uint8_t*, uint16_t> ec_ctrl_configurator_t::create_auth_request(std::s
         printf("%s:%d failed to get responder bootstrapping public key\n", __func__, __LINE__);
         return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
     }
-    e_ctx.m = ec_crypto::compute_ec_ss_x(m_p_ctx, e_ctx.priv_init_proto_key, pub_resp_boot_key);
-    const BIGNUM *bn_inputs[1] = { e_ctx.m };
+    e_ctx->m = ec_crypto::compute_ec_ss_x(m_p_ctx, e_ctx->priv_init_proto_key, pub_resp_boot_key);
+    const BIGNUM *bn_inputs[1] = { e_ctx->m };
     // Compute the "first intermediate key" (k1)
-    if (ec_crypto::compute_hkdf_key(m_p_ctx, e_ctx.k1, m_p_ctx.digest_len, "first intermediate key", bn_inputs, 1, NULL, 0) == 0) {
+    if (ec_crypto::compute_hkdf_key(m_p_ctx, e_ctx->k1, m_p_ctx.digest_len, "first intermediate key", bn_inputs, 1, NULL, 0) == 0) {
         printf("%s:%d: Failed to compute k1\n", __func__, __LINE__); 
         return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
     }
 
     printf("Key K_1:\n");
-    util::print_hex_dump(m_p_ctx.digest_len, e_ctx.k1);
+    util::print_hex_dump(m_p_ctx.digest_len, e_ctx->k1);
 
 
     
@@ -222,7 +224,7 @@ std::pair<uint8_t*, uint16_t> ec_ctrl_configurator_t::create_auth_request(std::s
     free(initiator_keyhash);
 
     // Public Initiator Protocol Key: P_I
-    uint8_t* protocol_key_buff = ec_crypto::encode_proto_key(m_p_ctx, e_ctx.public_init_proto_key);
+    uint8_t* protocol_key_buff = ec_crypto::encode_proto_key(m_p_ctx, e_ctx->public_init_proto_key);
     if (protocol_key_buff == NULL) {
         printf("%s:%d failed to encode initiator protocol key\n", __func__, __LINE__);
         return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
@@ -246,10 +248,10 @@ std::pair<uint8_t*, uint16_t> ec_ctrl_configurator_t::create_auth_request(std::s
 
     // Wrapped Data (with Initiator Nonce and Initiator Capabilities)
     // EasyMesh 8.2.2 Table 36
-    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attrib_len, true, e_ctx.k1, [&](){
+    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attrib_len, true, e_ctx->k1, [&](){
         uint8_t* wrap_attribs = NULL;
         uint16_t wrapped_len = 0;
-        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_init_nonce, m_p_ctx.nonce_len, e_ctx.i_nonce);
+        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_init_nonce, m_p_ctx.nonce_len, e_ctx->i_nonce);
         wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_init_caps, caps.byte);
         return std::make_pair(wrap_attribs, wrapped_len);
     });
@@ -336,18 +338,19 @@ std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_recfg_auth_confirm
         .connector_key = 1, // DONT REUSE
     };
 
-    auto e_ctx = get_conn_ctx(enrollee_mac).eph_ctx;
+    auto e_ctx = get_eph_ctx(enrollee_mac);
+    if (!e_ctx) return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
 
     attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_dpp_status, (uint8_t)dpp_status);
 
-    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attrib_len, false, e_ctx.ke, [&](){
+    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attrib_len, false, e_ctx->ke, [&](){
         uint8_t* wrap_attribs = NULL;
         uint16_t wrapped_len = 0;
 
         wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_trans_id, trans_id);
         wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_proto_version, (uint8_t)m_boot_data.version);
-        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_config_nonce, m_p_ctx.nonce_len, e_ctx.i_nonce);
-        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_enrollee_nonce, m_p_ctx.nonce_len, e_ctx.e_nonce);
+        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_config_nonce, m_p_ctx.nonce_len, e_ctx->i_nonce);
+        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_enrollee_nonce, m_p_ctx.nonce_len, e_ctx->e_nonce);
         wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_reconfig_flags, sizeof(reconfig_flags), (uint8_t*)&reconfig_flags);
 
         return std::make_pair(wrap_attribs, wrapped_len);

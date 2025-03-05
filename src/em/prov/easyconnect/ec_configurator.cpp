@@ -73,5 +73,13 @@ bool ec_configurator_t::start(ec_data_t *ec_data)
         return false;
     }
 
+    printf("Successfully started configurator with params:\n");
+    printf("\tMAC: %s\n", m_mac_addr.c_str());
+    printf("\tNID: %d\n", m_p_ctx.nid);
+    printf("\tDigest Length: %d\n", m_p_ctx.digest_len);
+    printf("\tNonce Length: %d\n", m_p_ctx.nonce_len);
+    printf("\tPrime (Length: %d):\n", BN_num_bytes(m_p_ctx.prime));
+    ec_crypto::print_bignum(m_p_ctx.prime);
+
     return true;
 }

@@ -162,9 +162,21 @@ protected:
     // The connections to the Enrollees/Agents
     std::map<std::string, ec_connection_context_t> m_connections;
 
-    inline ec_connection_context_t& get_conn_ctx(const std::string& mac) {
-        // TODO: Add a check for the connection
-        return m_connections[mac];    
+    inline ec_connection_context_t* get_conn_ctx(const std::string& mac) {
+        if (m_connections.find(mac) == m_connections.end()) {
+            return NULL;
+        }
+        return &m_connections[mac];    
+    }
+
+    inline ec_ephemeral_context_t* get_eph_ctx(const std::string& mac) {
+        static ec_ephemeral_context_t empty_ctx;  // Static fallback for error cases
+        auto conn_ctx = get_conn_ctx(mac);
+        if (!conn_ctx) {
+            printf("%s:%d: Connection context not found for enrollee MAC %s\n", __func__, __LINE__, mac.c_str());
+            return NULL;  // Return reference to static empty context
+        }
+        return &conn_ctx->eph_ctx;
     }
 
     inline void clear_conn_eph_ctx(const std::string& mac) {

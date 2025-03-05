@@ -16,7 +16,7 @@ public:
      * @param tlv_len The length of the chirp TLV
      * @return bool true if successful, false otherwise
      */
-    bool process_chirp_notification(em_dpp_chirp_value_t* chirp_tlv, uint16_t tlv_len);
+    bool process_chirp_notification(em_dpp_chirp_value_t* chirp_tlv, uint16_t tlv_len) override;
 
     /**
      * @brief Handle a proxied encapsulated DPP message TLVs (including chirp value) and direct to 1905 agent
@@ -27,7 +27,7 @@ public:
      * @param chirp_tlv_len The length of the DPP Chirp Value TLV (0 if not present)
      * @return bool true if successful, false otherwise
      */
-    bool process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len);
+    bool process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) override;
 
 private:
     // Private member variables can be added here

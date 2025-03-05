@@ -32,7 +32,7 @@ public:
      * @note Optional to implement because the controller+configurator does not handle 802.11,
      *      but the proxy agent + configurator does.
      */
-    bool handle_presence_announcement(uint8_t *buff, unsigned int len);
+    bool handle_presence_announcement(uint8_t *buff, unsigned int len) override;
 
     /**
      * @brief Handles an authentication request 802.11 frame, performing the necessary actions and possibly passing to 1905
@@ -44,7 +44,7 @@ public:
      * @note Optional to implement because the controller+configurator does not handle 802.11,
      *     but the proxy agent + configurator does.
      */
-    bool handle_auth_response(uint8_t *buff, unsigned int len);
+    bool handle_auth_response(uint8_t *buff, unsigned int len) override;
 
     /**
      * @brief Handles an configuration request 802.11+GAS frame, performing the necessary actions and possibly passing to 1905
@@ -56,7 +56,7 @@ public:
      * @note Optional to implement because the controller+configurator does not handle 802.11,
      *     but the proxy agent + configurator does.
      */
-    bool handle_cfg_request(uint8_t *buff, unsigned int len);
+    bool handle_cfg_request(uint8_t *buff, unsigned int len) override;
 
     /**
      * @brief Handles an configuration result 802.11+GAS frame, performing the necessary actions and possibly passing to 1905
@@ -68,7 +68,7 @@ public:
      * @note Optional to implement because the controller+configurator does not handle 802.11,
      *     but the proxy agent + configurator does.
      */
-    bool handle_cfg_result(uint8_t *buff, unsigned int len);
+    bool handle_cfg_result(uint8_t *buff, unsigned int len) override;
 
     /**
      * @brief Handle a chirp notification TLV and direct to the correct place (802.11 or 1905)
@@ -77,7 +77,7 @@ public:
      * @param tlv_len The length of the chirp TLV
      * @return bool true if successful, false otherwise
      */
-    bool process_chirp_notification(em_dpp_chirp_value_t* chirp_tlv, uint16_t tlv_len);
+    bool process_chirp_notification(em_dpp_chirp_value_t* chirp_tlv, uint16_t tlv_len) override;
 
     /**
      * @brief Handle a proxied encapsulated DPP message TLVs (including chirp value) and direct to the correct place (802.11 or 1905)
@@ -88,7 +88,7 @@ public:
      * @param chirp_tlv_len The length of the DPP Chirp Value TLV (0 if not present)
      * @return bool true if successful, false otherwise
      */
-    bool process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len);
+    bool process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) override;
 
 private:
     // Private member variables go here
