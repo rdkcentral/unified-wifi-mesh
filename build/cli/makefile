@@ -95,7 +95,7 @@ $(MAIN_OBJECT): %.o: %.c
 	$(CXX) $(CFLAGS) -o $@ -c $<
 
 $(PROGRAM):
-	go build -ldflags="-extldflags '-L$(INSTALLDIR)/lib -lcrypto -lssl -luuid'" -o $(PROGRAM) $(ONEWIFI_EM_SRC)/cli/*.go
+	CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -extldflags '-L$(INSTALLDIR)/lib -lcrypto -lssl -luuid'" -o $(PROGRAM) $(ONEWIFI_EM_SRC)/cli/*.go
 
 # Clean target: "make -f Makefile.Linux clean" to remove unwanted objects and executables.
 #

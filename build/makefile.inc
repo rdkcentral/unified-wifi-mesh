@@ -33,5 +33,5 @@ AL_SAP_HOME = $(BASE)/../../../rdkb-ieee1905.1-service-access
 OBJDIR = obj
 CXX ?= g++
 CC ?= gcc
-AR= ar cr
+AR ?= ar cr
 RM = -rm -rf
