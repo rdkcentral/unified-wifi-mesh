@@ -339,7 +339,7 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
     switch (oui_type) {
     case DPP_OUI_TYPE:
         // TODO: Implement DPP
-        dest_radio_node->m_ec_session->handle_recv_ec_action_frame(ec_frame, full_action_frame_len);
+        dest_radio_node->m_ec_manager->handle_recv_ec_action_frame(ec_frame, full_action_frame_len);
         break;
     default:
         break;

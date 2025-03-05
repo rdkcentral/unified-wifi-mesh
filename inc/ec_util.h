@@ -21,6 +21,9 @@
 
 #include <map>
 #include <string>
+#include <functional>
+
+#define EC_FRAME_BASE_SIZE (offsetof(ec_frame_t, attributes))
 
 namespace easyconnect {
 
@@ -145,4 +148,68 @@ public:
     static inline std::string status_code_to_string(ec_status_code_t status) {
         return easyconnect::status_code_map.at(status);
     };
+
+    static int hkdf(const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen, 
+        uint8_t *salt, int saltlen, uint8_t *info, int infolen, 
+        uint8_t *okm, int okmlen);
+
+
+    // static int compute_intermediate_key(ec_params_t& params, bool is_first);
+
+    // /**
+    //  * @brief Compute the hash of the provided key with an optional prefix
+    //  * 
+    //  * @param key The key to hash
+    //  * @param digest The buffer to store the hash
+    //  * @param prefix The optional prefix to add to the key before hashing (NULL by default)
+    //  * @return int The length of the hash
+    //  */
+    // static int compute_key_hash(ec_params_t& params, EC_KEY *key, uint8_t *digest, const char *prefix = NULL);
+
+    /**
+     * @brief Add a wrapped data attribute to a frame
+     * 
+     * @param frame The frame to use as AAD. Can be NULL if no AAD is needed
+     * @param frame_attribs The attributes to add the wrapped data attribute to and to use as AAD
+     * @param non_wrapped_len The length of the non-wrapped attributes (`frame_attribs`, In/Out)
+     * @param use_aad Whether to use AAD in the encryption
+     * @param key The key to use for encryption
+     * @param create_wrap_attribs A function to create the attributes to wrap and their length. Memory is handled by function (see note)
+     * @return uint8_t* The new frame attributes with the wrapped data attribute added
+     * 
+     * @note The `create_wrap_attribs` function will allocate heap-memory which is freed inside the `add_wrapped_data_attr` function.
+     *     **The caller should not use statically allocated memory in `create_wrap_attribs` or free the memory returned by `create_wrap_attribs`.**
+     */
+    static uint8_t* add_wrapped_data_attr(ec_frame_t *frame, uint8_t* frame_attribs, uint16_t* non_wrapped_len, 
+        bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> create_wrap_attribs);
+
+    static inline void rand_zero_free(uint8_t *buff, size_t len) {
+        if (buff == NULL) return;
+        RAND_bytes(buff, len);
+        memset(buff, 0, len);
+        free(buff);
+    }
+
+    /**
+     * @brief Free an ephemeral context by randomizing, zeroing, and freeing all memory
+     * 
+     * @param ctx The ephemeral context to free
+     * @param nonce_len The length of the nonces in the context
+     * @param digest_len The length of the digests/keys in the context
+     */
+    static inline void free_ephemeral_context(ec_ephemeral_context_t* ctx, int nonce_len, int digest_len) {
+
+        if (ctx->protocol_key) EC_KEY_free(ctx->protocol_key);
+        if (ctx->E_Id) EC_POINT_free(ctx->E_Id);
+        if (ctx->i_nonce) rand_zero_free(ctx->i_nonce, nonce_len);
+        if (ctx->r_nonce) rand_zero_free(ctx->r_nonce, nonce_len);
+        if (ctx->e_nonce) rand_zero_free(ctx->e_nonce, nonce_len);
+        if (ctx->c_nonce) rand_zero_free(ctx->c_nonce, nonce_len);
+        if (ctx->k1) rand_zero_free(ctx->k1, digest_len);
+        if (ctx->k2) rand_zero_free(ctx->k2, digest_len);
+        if (ctx->ke) rand_zero_free(ctx->ke, digest_len);
+        if (ctx->bk) rand_zero_free(ctx->bk, digest_len);
+
+        rand_zero_free((uint8_t *)ctx, sizeof(ec_ephemeral_context_t));
+    }
 };

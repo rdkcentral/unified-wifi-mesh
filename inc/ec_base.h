@@ -196,33 +196,90 @@ typedef enum {
     ec_session_type_recfg,
 } ec_session_type_t;
 
+/**
+ * @brief The consistent parameters used for all connections between a Configurator and all Enrollees/Agents
+ */
 typedef struct {
     const EC_GROUP *group;
-    const EVP_MD *hashfcn;
-    BIGNUM *x, *y, *prime;
-    BIGNUM *m, *n, *l;
-    EC_POINT *M, *N;
-    BN_CTX *bnctx;
-    EC_KEY *initiator_proto_key;
-    EC_KEY *responder_proto_key;
-    EC_POINT     *responder_proto_pt;
-    EC_POINT     *responder_connector;
-    int group_num;
-    int digestlen;
-    int noncelen;
+    const EVP_MD *hash_fcn;
+    BIGNUM *prime;
+    BN_CTX *bn_ctx;
+    int digest_len;
+    int nonce_len;
     int nid;
-    bool mutual;
-    unsigned char initiator_keyhash[SHA512_DIGEST_LENGTH];
-    unsigned char responder_keyhash[SHA512_DIGEST_LENGTH];
-    unsigned char initiator_nonce[SHA512_DIGEST_LENGTH/2];
-    unsigned char responder_nonce[SHA512_DIGEST_LENGTH/2];
+
+
+} ec_persistent_context_t;
+
+/**
+ * @brief The parameters used only during the creation of a connection between a Configurator and a specific Enrollee/Agent
+ */
+typedef struct {
+
+    /**
+     * Initiator, Responder, Enrollee, and Configurator Nonces.
+     * Multiple nonces need to be accounted for at one time.
+     * These are heap allocated but freed after the auth/cfg process is complete.
+     */
+    uint8_t *i_nonce, *r_nonce, *e_nonce, *c_nonce;
+
+    /**
+     * The currently generated protocol key. Whos key is is depends on the context it is assigned/used in.
+     * This must be freed after the auth/cfg process is complete.
+     */
+    EC_KEY *protocol_key;
+
+    /**
+     * The generated intermediate keys. These are used multiple times during the auth/cfg process.
+     * These are heap allocated but freed after the auth/cfg process is complete.
+     */
+    uint8_t *k1, *k2, *ke, *bk;
+
+    /**
+     * A random point on the curve for reconfiguration. The same point is used throughout reconfiguration.
+     * Used from the configurator/controller end as short term memory of which enrollee's it's seen before.
+     * Used by the enrollee to provide that short term memory to the controller.
+     * This must be freed after the reconfiguration process is complete.
+     */
+    EC_POINT *E_Id;
+
+    uint8_t transaction_id;
+
+    /**
+     * Only needs to be known during the auth process to decide wether or not to generate the L key.
+     */
+    bool is_mutual_auth;
+
+} ec_ephemeral_context_t;
+
+/**
+ * @brief The parameters used for a specific connection between a Configurator and a specific Enrollee/Agent
+ */
+typedef struct {
+    /*
+        The protocol key of the Enrollee is used as Network Access key (netAccessKey) later in the DPP Configuration and DPP Introduction protocol
+    */  
+    EC_KEY *net_access_key;
+
+    /* TODO: 
+    Add (if needed):
+        - C-connector
+        - c-sign-key
+        - privacy-protection-key (ppk)
+
+    */
+
+    ec_ephemeral_context_t eph_ctx;
+} ec_connection_context_t;
+
+
+
+/*
+REMOVED:
+    -k1, k2, ke. These are only generated once per device per authentication session (and it should be that way)
+        unsigned char responder_nonce[SHA512_DIGEST_LENGTH/2];
     unsigned char enrollee_nonce[SHA512_DIGEST_LENGTH/2];
-    unsigned char k1[SHA512_DIGEST_LENGTH];
-    unsigned char k2[SHA512_DIGEST_LENGTH];
-    unsigned char ke[SHA512_DIGEST_LENGTH];
-    unsigned char rauth[SHA512_DIGEST_LENGTH];
-    unsigned char iauth[SHA512_DIGEST_LENGTH];
-} ec_params_t;
+*/
 
 typedef struct {
 

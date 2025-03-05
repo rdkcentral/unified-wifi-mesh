@@ -95,8 +95,7 @@ void em_t::orch_execute(em_cmd_t *pcmd)
                 if (dpp_info->ec_freqs[i] == 0) break;
                 printf("\t\tFreq: %d\n", dpp_info->ec_freqs[i]);
             }
-
-            m_ec_session->init_session(dpp_info);
+            m_ec_manager->cfg_start(dpp_info);
             
             break;
         }

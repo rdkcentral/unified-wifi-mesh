@@ -490,12 +490,12 @@ int em_provisioning_t::handle_dpp_chirp_notif(uint8_t *buff, unsigned int len)
         // Can be one or more
         if (tlv->type == em_tlv_type_dpp_chirp_value) {
             // Parse out dest STA mac address and hash value then validate against the hash in the 
-            // ec_session dpp uri info public key. 
+            // ec_manager_t dpp uri info public key. 
             // Then construct an Auth request frame and send back in an Encap message
             em_dpp_chirp_value_t* chirp_tlv = (em_dpp_chirp_value_t*)tlv->value;
 
             uint8_t* out_frame = NULL;
-            if (m_ec_session->handle_chirp_notification(chirp_tlv, &out_frame) != 0){
+            if (m_ec_manager->process_chirp_notification(chirp_tlv, &out_frame) != 0){
                 //TODO: Fail
             }
 
@@ -523,12 +523,12 @@ int em_provisioning_t::handle_proxy_encap_dpp(uint8_t *buff, unsigned int len)
 
         if (tlv->type == em_tlv_type_1905_encap_dpp) {
             // Parse out dest STA mac address and hash value then validate against the hash in the 
-            // ec_session dpp uri info public key. 
+            // m_ec_manager dpp uri info public key. 
             // Then construct an Auth request frame and send back in an Encap message
             em_encap_dpp_t* chirp_tlv = (em_encap_dpp_t*)tlv->value;
 
             uint8_t* out_frame = NULL;
-            if (m_ec_session->handle_proxy_encap_dpp_tlv(chirp_tlv, &out_frame) != 0){
+            if (m_ec_manager->process_proxy_encap_dpp_tlv(chirp_tlv, &out_frame) != 0){
                 //TODO: Fail
             }
             // TODO: Send out_frame in an Encap message
@@ -540,12 +540,12 @@ int em_provisioning_t::handle_proxy_encap_dpp(uint8_t *buff, unsigned int len)
         // Can be 0 or 1
         if (tlv->type == em_tlv_type_dpp_chirp_value) {
             // Parse out dest STA mac address and hash value then validate against the hash in the 
-            // ec_session dpp uri info public key. 
+            // m_ec_manager dpp uri info public key. 
             // Then construct an Auth request frame and send back in an Encap message
             em_dpp_chirp_value_t* chirp_tlv = (em_dpp_chirp_value_t*)tlv->value;
 
             uint8_t* out_frame = NULL;
-            if (m_ec_session->handle_chirp_notification(chirp_tlv, &out_frame) != 0){
+            if (m_ec_manager->process_chirp_notification(chirp_tlv, &out_frame) != 0){
                 //TODO: Fail
             }
 
@@ -650,9 +650,15 @@ void em_provisioning_t::process_ctrl_state()
 
 em_provisioning_t::em_provisioning_t()
 {
-    m_ec_session = std::unique_ptr<ec_session_t>(new ec_session_t(
+    m_ec_manager = std::unique_ptr<ec_manager_t>(new ec_manager_t(
         std::bind(&em_provisioning_t::send_chirp_notif_msg, this, std::placeholders::_1, std::placeholders::_2),
-        std::bind(&em_provisioning_t::send_prox_encap_dpp_msg, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4)
+        std::bind(&em_provisioning_t::send_prox_encap_dpp_msg, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4),
+        //TODO: Placeholder Lambda function for toggle cce
+        [this](bool enable) {
+            printf("Toggle CCE: %s\n", enable ? "true" : "false");
+            return 0;  // Added return value
+        },
+        get_service_type() == em_service_type_ctrl
     ));
 }
 

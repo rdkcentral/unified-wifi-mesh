@@ -20,7 +20,7 @@
 #define EM_PROVISIONING_H
 
 #include "em_base.h"
-#include "ec_session.h"
+#include "ec_manager.h"
 #include <memory>
 
 class em_cmd_t;
@@ -66,7 +66,7 @@ public:
     void    process_agent_state();
     void    process_ctrl_state();
 
-    std::unique_ptr<ec_session_t> m_ec_session;
+    std::unique_ptr<ec_manager_t> m_ec_manager;
 
     em_provisioning_t();
     virtual ~em_provisioning_t();
