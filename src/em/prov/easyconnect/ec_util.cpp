@@ -198,11 +198,11 @@ std::pair<uint8_t*, size_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t* wrapp
     return std::pair<uint8_t*, size_t>(unwrap_attribs, wrapped_len);
 }
 
-int ec_util::parse_dpp_chirp_tlv(em_dpp_chirp_value_t* chirp_tlv, uint16_t chirp_tlv_len, mac_addr_t *mac, uint8_t **hash, uint8_t *hash_len)
+bool ec_util::parse_dpp_chirp_tlv(em_dpp_chirp_value_t* chirp_tlv, uint16_t chirp_tlv_len, mac_addr_t *mac, uint8_t **hash, uint8_t *hash_len)
 {
     if (chirp_tlv == NULL || chirp_tlv_len == 0) {
         fprintf(stderr, "Invalid input\n");
-        return -1;
+        return false;
     }
 
     uint16_t data_len = chirp_tlv_len - sizeof(em_dpp_chirp_value_t);
@@ -219,7 +219,7 @@ int ec_util::parse_dpp_chirp_tlv(em_dpp_chirp_value_t* chirp_tlv, uint16_t chirp
 
     if (!hash_valid || data_len <= 0) {
         // Clear (Re)configuration state, agent side
-        return 0;
+        return true;
     }
 
     *hash_len = *data_ptr;
@@ -230,14 +230,14 @@ int ec_util::parse_dpp_chirp_tlv(em_dpp_chirp_value_t* chirp_tlv, uint16_t chirp
     }
     memcpy(*hash, data_ptr, *hash_len);
 
-    return 0;
+    return true;
 }
 
-int ec_util::parse_encap_dpp_tlv(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, mac_addr_t *dest_mac, uint8_t *frame_type, uint8_t **encap_frame, uint8_t *encap_frame_len)
+bool ec_util::parse_encap_dpp_tlv(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, mac_addr_t *dest_mac, uint8_t *frame_type, uint8_t **encap_frame, uint8_t *encap_frame_len)
 {
     if (encap_tlv == NULL || encap_tlv_len == 0) {
         fprintf(stderr, "Invalid input\n");
-        return -1;
+        return false;
     }
 
     uint16_t data_len = encap_tlv_len - sizeof(em_encap_dpp_t);
@@ -256,7 +256,7 @@ int ec_util::parse_encap_dpp_tlv(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_l
 
     if (data_len < sizeof(uint8_t) + sizeof(uint16_t)) {
         fprintf(stderr, "Invalid encap tlv\n");
-        return -1;
+        return false;
     }
 
     // Get frame type
@@ -269,13 +269,13 @@ int ec_util::parse_encap_dpp_tlv(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_l
 
     if (data_len < *encap_frame_len) {
         fprintf(stderr, "Invalid encap tlv\n");
-        return -1;
+        return false;
     }
 
     // Copy frame
     memcpy(*encap_frame, data_ptr, *encap_frame_len);
 
-    return 0;
+    return true;
 }
 
 em_encap_dpp_t * ec_util::create_encap_dpp_tlv(bool dpp_frame_indicator, uint8_t content_type, mac_addr_t *dest_mac, uint8_t frame_type, uint8_t *encap_frame, uint8_t encap_frame_len)

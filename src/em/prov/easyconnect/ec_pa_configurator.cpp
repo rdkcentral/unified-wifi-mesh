@@ -2,7 +2,7 @@
 
 #include "ec_util.h"
 
-int ec_pa_configurator_t::handle_presence_announcement(uint8_t *buff, unsigned int len)
+bool ec_pa_configurator_t::handle_presence_announcement(uint8_t *buff, unsigned int len)
 {
     ec_frame_t *frame = (ec_frame_t *)buff;
 
@@ -16,30 +16,30 @@ int ec_pa_configurator_t::handle_presence_announcement(uint8_t *buff, unsigned i
         return -1;
     }
 
-    return 0;	
+    return true;	
 }
 
-int ec_pa_configurator_t::handle_auth_response(uint8_t *buff, unsigned int len)
+bool ec_pa_configurator_t::handle_auth_response(uint8_t *buff, unsigned int len)
 {
-    return 0;
+    return true;
 }
 
-int ec_pa_configurator_t::handle_cfg_request(uint8_t *buff, unsigned int len)
+bool ec_pa_configurator_t::handle_cfg_request(uint8_t *buff, unsigned int len)
 {
-    return 0;
+    return true;
 }
 
-int ec_pa_configurator_t::handle_cfg_result(uint8_t *buff, unsigned int len)
+bool ec_pa_configurator_t::handle_cfg_result(uint8_t *buff, unsigned int len)
 {
-    return 0;
+    return true;
 }
 
-int ec_pa_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *chirp_tlv, uint16_t tlv_len)
+bool ec_pa_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *chirp_tlv, uint16_t tlv_len)
 {
-    return 0;
+    return true;
 }
 
-int ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len)
+bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len)
 {
     if (encap_tlv == NULL || encap_tlv_len == 0) {
         printf("%s:%d: Encap DPP TLV is empty\n", __func__, __LINE__);

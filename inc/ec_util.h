@@ -112,6 +112,26 @@ public:
     }
 
     /**
+     * @brief Heap allocate an EC frame with the default WFA parameters + type
+     * 
+     * @param type The frame type
+     * @return ec_frame_t* The heap allocated frame, NULL if failed
+     * 
+     * @warning The frame must be freed by the caller
+     */
+    static inline ec_frame_t* alloc_frame(ec_frame_type_t type) {
+        uint8_t* buff = (uint8_t*) calloc(EC_FRAME_BASE_SIZE, 1);
+        if (buff == NULL) {
+            printf("%s:%d unable to allocate memory\n", __func__, __LINE__);
+            return NULL;
+        }
+        ec_frame_t    *frame = (ec_frame_t *)buff;
+        init_frame(frame);
+        frame->frame_type = type;
+        return frame;
+    }
+
+    /**
      * @brief Copy (overrride) attributes to a frame
      * 
      * @param frame The frame to copy the attributes to
@@ -150,9 +170,9 @@ public:
      * @param mac [out] The MAC address to store in the chirp TLV
      * @param hash [out] The hash to store in the chirp TLV
      * @param hash_len [out] The length of the hash
-     * @return int 0 if successful, -1 otherwise
+     * @return bool true if successful, false otherwise
      */
-    static int parse_dpp_chirp_tlv(em_dpp_chirp_value_t* chirp_tlv,  uint16_t chirp_tlv_len, mac_addr_t *mac, uint8_t **hash, uint8_t *hash_len);
+    static bool parse_dpp_chirp_tlv(em_dpp_chirp_value_t* chirp_tlv,  uint16_t chirp_tlv_len, mac_addr_t *mac, uint8_t **hash, uint8_t *hash_len);
 
     /**
      * @brief Parse an Encap DPP TLV
@@ -163,9 +183,9 @@ public:
      * @param frame_type [out] The frame type
      * @param encap_frame [out] The encapsulated frame
      * @param encap_frame_len [out] The length of the encapsulated frame
-     * @return int 0 if successful, -1 otherwise
+     * @return bool true if successful, false otherwise
      */
-    static int parse_encap_dpp_tlv(em_encap_dpp_t* encap_tlv,  uint16_t encap_tlv_len, mac_addr_t *dest_mac, uint8_t *frame_type, uint8_t** encap_frame, uint8_t *encap_frame_len);
+    static bool parse_encap_dpp_tlv(em_encap_dpp_t* encap_tlv,  uint16_t encap_tlv_len, mac_addr_t *dest_mac, uint8_t *frame_type, uint8_t** encap_frame, uint8_t *encap_frame_len);
 
     /**
      * @brief Creates and allocates an Encap DPP TLV
@@ -192,16 +212,26 @@ public:
      */
     static uint16_t freq_to_channel_attr(unsigned int freq);
 
-
+    
+    /**
+     * @brief Get the size of an EC attribute
+     * 
+     * @param data_len The length of the data in the attribute
+     * @return size_t The size of the attribute
+     */
     static inline size_t get_ec_attr_size(size_t data_len) {
         return offsetof(ec_attribute_t, data) + data_len;
     };
 
+    /**
+     * @brief Get the string representation of a status code
+     * 
+     * @param status The status code to convert
+     * @return std::string The string representation of the status code
+     */
     static inline std::string status_code_to_string(ec_status_code_t status) {
         return easyconnect::status_code_map.at(status);
     };
-
-
 
     /**
      * @brief Add a wrapped data attribute to a frame
@@ -235,5 +265,12 @@ public:
      */
     static std::pair<uint8_t*, size_t> unwrap_wrapped_attrib(ec_attribute_t* wrapped_attrib, ec_frame_t *frame, bool uses_aad, uint8_t* key);
 
+    /**
+     * @brief Convert a hash to a hex string
+     * 
+     * @param hash The hash to convert
+     * @param hash_len The length of the hash
+     * @return std::string The hex string representation of the hash
+     */
     static std::string hash_to_hex_string(const uint8_t *hash, size_t hash_len);
 };

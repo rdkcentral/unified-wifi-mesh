@@ -1,6 +1,7 @@
 #include "ec_configurator.h"
 
-ec_configurator_t::ec_configurator_t(send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg)
+ec_configurator_t::ec_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg)
+    : m_mac_addr(mac_addr), m_send_chirp_notification(send_chirp_notification), m_send_prox_encap_dpp_msg(send_prox_encap_dpp_msg)
 {
 }
 

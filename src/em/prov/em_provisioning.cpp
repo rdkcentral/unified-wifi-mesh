@@ -636,19 +636,6 @@ void em_provisioning_t::process_ctrl_state()
 
 em_provisioning_t::em_provisioning_t()
 {
-    m_ec_manager = std::unique_ptr<ec_manager_t>(new ec_manager_t(
-        std::bind(&em_provisioning_t::send_chirp_notif_msg, this, std::placeholders::_1, std::placeholders::_2),
-        std::bind(&em_provisioning_t::send_prox_encap_dpp_msg, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4),
-        //TODO: Placeholder Lambda function for toggle cce
-        [this](bool enable) {
-            printf("Toggle CCE: %s\n", enable ? "true" : "false");
-            return 0;  // Added return value
-        },
-        true
-        // TODO: For some reason the below code causes a linker error...
-        // It seems that it's because it's called from the constructor...
-        //get_service_type() == em_service_type_ctrl
-    ));
 }
 
 em_provisioning_t::~em_provisioning_t()

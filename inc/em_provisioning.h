@@ -38,8 +38,6 @@ class em_provisioning_t {
     int handle_dpp_chirp_notif(uint8_t *buff, unsigned int len);
     int handle_proxy_encap_dpp(uint8_t *buff, unsigned int len);
 
-    int send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t chirp_len);
-    int send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, size_t encap_dpp_len, em_dpp_chirp_value_t *chirp, size_t chirp_len);
     // states
     void handle_state_prov_none();
     void handle_state_prov();
@@ -60,6 +58,10 @@ class em_provisioning_t {
     virtual int send_frame(uint8_t *buff, unsigned int len, bool multicast = false) = 0;
     virtual int send_cmd(em_cmd_type_t type, em_service_type_t svc, uint8_t *buff, unsigned int len) = 0;
     virtual em_cmd_t *get_current_cmd() = 0;
+
+protected:
+    int send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t chirp_len);
+    int send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, size_t encap_dpp_len, em_dpp_chirp_value_t *chirp, size_t chirp_len);
 
 public:
     void    process_msg(uint8_t *data, unsigned int len);

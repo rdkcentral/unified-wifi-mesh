@@ -14,9 +14,9 @@
  * 
  * @param chirp_tlv The chirp TLV to send
  * @param len The length of the chirp TLV
- * @return int 0 if successful, -1 otherwise
+ * @return bool true if successful, false otherwise
  */
-using send_chirp_func = std::function<int(em_dpp_chirp_value_t*, size_t)>;
+using send_chirp_func = std::function<bool(em_dpp_chirp_value_t*, size_t)>;
 
 /**
  * @brief Sends a proxied encapsulated DPP message
@@ -25,17 +25,17 @@ using send_chirp_func = std::function<int(em_dpp_chirp_value_t*, size_t)>;
  * @param encap_dpp_len The length of the 1905 Encap DPP TLV
  * @param chirp_tlv The chirp value to include in the message. If NULL, the message will not include a chirp value
  * @param chirp_len The length of the chirp value
- * @return int 0 if successful, -1 otherwise
+ * @return bool true if successful, false otherwise
  */
-using send_encap_dpp_func = std::function<int(em_encap_dpp_t*, size_t, em_dpp_chirp_value_t*, size_t)>;
+using send_encap_dpp_func = std::function<bool(em_encap_dpp_t*, size_t, em_dpp_chirp_value_t*, size_t)>;
 
 /**
 * @brief Set the CCE IEs in the beacon and probe response frames
 * 
 * @param bool Whether to enable or disable the inclusion of CCE IEs in the beacon and probe response frames
-* @return int 0 if successful, -1 otherwise
+* @return bool true if successful, false otherwise
 */
-using toggle_cce_func = std::function<int(bool)>;
+using toggle_cce_func = std::function<bool(bool)>;
 
 class ec_configurator_t {
 public:
@@ -46,14 +46,14 @@ public:
      * @param send_prox_encap_dpp_msg The function to send a proxied encapsulated DPP message
      */
     // TODO: Add send_action_frame and send_gas_frame functions
-    ec_configurator_t(send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg);
+    ec_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg);
     ~ec_configurator_t(); // Destructor
 
     /**
      * @brief Set the CCE IEs in the beacon and probe response frames
      * 
      * @param bool Whether to enable or disable the inclusion of CCE IEs in the beacon and probe response frames
-     * @return int 0 if successful, -1 otherwise
+     * @return bool true if successful, false otherwise
      */
     toggle_cce_func m_toggle_cce;
 
@@ -70,11 +70,12 @@ public:
      * 
      * @param buff The frame to handle
      * @param len The length of the frame
+     * @return bool true if successful, false otherwise
      * 
      * @note Optional to implement because the controller+configurator does not handle 802.11,
      *      but the proxy agent + configurator does.
      */
-    virtual int handle_presence_announcement(uint8_t *buff, unsigned int len) {
+    virtual bool handle_presence_announcement(uint8_t *buff, unsigned int len) {
         return 0; // Optional to implement
     }
 
@@ -83,13 +84,13 @@ public:
      * 
      * @param buff The frame to handle
      * @param len The length of the frame
-     * @return int 0 if successful, -1 otherwise
+     * @return bool true if successful, false otherwise
      * 
      * @note Optional to implement because the controller+configurator does not handle 802.11,
      *     but the proxy agent + configurator does.
      */
-    virtual int handle_auth_response(uint8_t *buff, unsigned int len) {
-        return 0; // Optional to implement
+    virtual bool handle_auth_response(uint8_t *buff, unsigned int len) {
+        return true; // Optional to implement
     }
 
     /**
@@ -97,13 +98,13 @@ public:
      * 
      * @param buff The frame to handle
      * @param len The length of the frame
-     * @return int 0 if successful, -1 otherwise
+     * @return bool true if successful, false otherwise
      * 
      * @note Optional to implement because the controller+configurator does not handle 802.11,
      *     but the proxy agent + configurator does.
      */
-    virtual int handle_cfg_request(uint8_t *buff, unsigned int len) {
-        return 0; // Optional to implement
+    virtual bool handle_cfg_request(uint8_t *buff, unsigned int len) {
+        return true; // Optional to implement
     }
 
     /**
@@ -111,13 +112,13 @@ public:
      * 
      * @param buff The frame to handle
      * @param len The length of the frame
-     * @return int 0 if successful, -1 otherwise
+     * @return bool true if successful, false otherwise
      * 
      * @note Optional to implement because the controller+configurator does not handle 802.11,
      *     but the proxy agent + configurator does.
      */
-    virtual int handle_cfg_result(uint8_t *buff, unsigned int len) {
-        return 0; // Optional to implement
+    virtual bool handle_cfg_result(uint8_t *buff, unsigned int len) {
+        return true; // Optional to implement
     }
 
     /**
@@ -125,9 +126,9 @@ public:
      * 
      * @param chirp_tlv The chirp TLV to parse and handle
      * @param tlv_len The length of the chirp TLV
-     * @return int 0 if successful, -1 otherwise
+     * @return bool true if successful, false otherwise
      */
-    virtual int  process_chirp_notification(em_dpp_chirp_value_t* chirp_tlv, uint16_t tlv_len) = 0;
+    virtual bool process_chirp_notification(em_dpp_chirp_value_t* chirp_tlv, uint16_t tlv_len) = 0;
 
     /**
      * @brief Handle a proxied encapsulated DPP message TLVs (including chirp value) and direct to the correct place (802.11 or 1905)
@@ -136,9 +137,11 @@ public:
      * @param encap_tlv_len The length of the 1905 Encap DPP TLV
      * @param chirp_tlv The DPP Chirp Value TLV to parse and handle (NULL if not present)
      * @param chirp_tlv_len The length of the DPP Chirp Value TLV (0 if not present)
-     * @return int 0 if successful, -1 otherwise
+     * @return bool true if successful, false otherwise
      */
-    virtual int  process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) = 0;
+    virtual bool  process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) = 0;
+
+    inline std::string get_mac_addr() { return m_mac_addr; };
 
     // Disable copy construction and assignment
     // Requires use of references or pointers when working with instances of this class
@@ -153,6 +156,8 @@ protected:
     send_chirp_func m_send_chirp_notification;
 
     send_encap_dpp_func m_send_prox_encap_dpp_msg;
+
+    std::string m_mac_addr;
 
     // The connections to the Enrollees/Agents
     std::map<std::string, ec_connection_context_t> m_connections;
