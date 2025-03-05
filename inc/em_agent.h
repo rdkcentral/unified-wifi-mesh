@@ -51,6 +51,7 @@ class em_agent_t : public em_mgr_t {
     void handle_action_frame(struct ieee80211_mgmt *frame);
     void handle_public_action_frame(struct ieee80211_mgmt *frame);
     void handle_vendor_public_action_frame(struct ieee80211_mgmt *frame);
+    void handle_gas_public_action_frame(em_bus_event_t *evt);
     void handle_btm_request_action_frame(em_bus_event_t *evt);
     void handle_recv_wfa_action_frame(em_bus_event_t *evt);
     void handle_btm_response_action_frame(em_bus_event_t *evt);
