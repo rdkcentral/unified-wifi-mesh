@@ -766,7 +766,14 @@ int dm_easy_mesh_t::decode_config_reset(em_subdoc_info_t *subdoc, const char *ke
 				}
 				m_num_preferences++;
 			}
-			
+
+			if ((obj = cJSON_GetObjectItem(preference_obj, "bpi")) != NULL) {
+                                strncpy(m_preference[m_num_preferences].platform, "bpi", strlen("bpi") + 1);
+                                if (strncmp(cJSON_GetStringValue(obj), "erouter", strlen("erouter")) == 0) {
+                                        m_preference[m_num_preferences].media = em_media_type_ieee8023ab;
+                                }
+                                m_num_preferences++;
+                        }
 		}
 	}
 
@@ -1686,7 +1693,7 @@ em_interface_t *dm_easy_mesh_t::get_prioritized_interface(const char *platform)
 
 	if (m_preference[i].media == em_media_type_ieee8023ab) {
 		for (i = 0; i < m_num_interfaces; i++) {
-			if ((strstr(m_interfaces[i].name, "eth") != NULL) || (strstr(m_interfaces[i].name, "ens") != NULL)) {
+			if ((strstr(m_interfaces[i].name, "eth") != NULL) || (strstr(m_interfaces[i].name, "ens") != NULL) || (strstr(m_interfaces[i].name, "erouter") != NULL)) {
 				found_match = true;
 				break;
 			}
@@ -1731,6 +1738,8 @@ int dm_easy_mesh_t::get_interfaces_list(em_interface_t interfaces[], unsigned in
             strncpy(interfaces[num].name, tmp->ifa_name, strlen(tmp->ifa_name) + 1);
 			if (strstr(tmp->ifa_name, "eth") != NULL) {
 				interfaces[num].media = em_media_type_ieee8023ab;
+			} else if (strstr(tmp->ifa_name, "erouter") != NULL) {
+                                interfaces[num].media = em_media_type_ieee8023ab;	
 			} else if (strstr(tmp->ifa_name, "ens") != NULL) {
 				interfaces[num].media = em_media_type_ieee8023ab;
 			} else if (strstr(tmp->ifa_name, "wlan") != NULL) {
@@ -1814,8 +1823,13 @@ rdk_wifi_radio_t *dm_easy_mesh_t::get_radio_data(em_interface_t *interface)
 	unsigned int i;
 	rdk_wifi_radio_t *radio;
 
-	for (i = 0; i < m_wifi_data.u.decoded.num_radios; i++) {
-		radio = &m_wifi_data.u.decoded.radios[i];
+	if ( m_wifi_data == NULL )
+        {
+              printf("%s:%d: m_wifi_data is not initialized \n",__func__,__LINE__);
+              return NULL;
+        }
+	for (i = 0; i < m_wifi_data->u.decoded.num_radios; i++) {
+		radio = &m_wifi_data->u.decoded.radios[i];
 
 		if (strncmp(radio->name, interface->name, strlen(radio->name)) == 0) {
 			return radio;
