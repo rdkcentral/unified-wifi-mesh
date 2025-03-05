@@ -44,14 +44,20 @@
 #include "dm_easy_mesh.h"
 #include "em_orch_ctrl.h"
 #include "util.h"
+
+#ifdef AL_SAP
 #include "al_service_access_point.hpp"
+#endif
 
 em_ctrl_t g_ctrl;
 const char *global_netid = "OneWifiMesh";
+
+#ifdef AL_SAP
 AlServiceAccessPoint* g_sap;
 MacAddress g_al_mac_sap;
 
 #define SOCKET_PATH "/tmp/ieee1905_tunnel"
+#endif
 
 void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
 {
@@ -824,6 +830,7 @@ em_ctrl_t::~em_ctrl_t()
 
 }
 
+#ifdef AL_SAP
 AlServiceAccessPoint* em_ctrl_t::al_sap_register()
 {
     AlServiceAccessPoint* sap = new AlServiceAccessPoint(SOCKET_PATH);
@@ -847,6 +854,7 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register()
 
     return sap;
 }
+#endif
 
 int main(int argc, const char *argv[])
 {

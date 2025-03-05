@@ -1192,7 +1192,7 @@ em_agent_t::~em_agent_t()
 {
 
 }
-
+#ifdef AL_SAP
 AlServiceAccessPoint* em_agent_t::al_sap_register()
 {
     AlServiceAccessPoint* sap = new AlServiceAccessPoint(SOCKET_PATH);
@@ -1216,6 +1216,7 @@ AlServiceAccessPoint* em_agent_t::al_sap_register()
 
     return sap;
 }
+#endif
 
 int main(int argc, const char *argv[])
 {

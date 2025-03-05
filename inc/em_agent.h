@@ -138,8 +138,10 @@ public:
     void io(void *data, bool input = true);
     bool agent_output(void *data);
 
+#ifdef AL_SAP
     AlServiceAccessPoint* al_sap_register();
-    
+#endif
+
     em_agent_t();
     ~em_agent_t();
 

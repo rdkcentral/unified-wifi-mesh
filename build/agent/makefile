@@ -38,20 +38,30 @@ INCLUDEDIRS = \
     	-I$(ONEWIFI_HOME)/source/platform/linux/he_bus/inc \
         -I$(ONEWIFI_EM_HOME)/src/util_crypto \
         -I$(ONEWIFI_HOME)/source/ccsp \
-        -I$(AL_SAP_HOME)/include \
+        -I$(AL_SAP_HOME)/include
+ifeq ($(WITH_SAP), 1)
+INCLUDEDIRS += -I$(AL_SAP_HOME)/include
+endif
 
 $(info The value of VARIABLE is $(ONEWIFI_HAL_INTF_HOME))
 
 CXXFLAGS += $(INCLUDEDIRS) -g -DEASY_MESH_NODE -Wall -Wextra -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wconversion -Wsign-conversion -Weffc++ -Wno-unused-parameter -std=c++11 -fsanitize=address -fsanitize=undefined #-Werror -O2
+ifeq ($(WITH_SAP), 1)
 CXXFLAGS += -DAL_SAP
+endif
 LDFLAGS += $(LIBDIRS) $(LIBS) -fsanitize=address -fsanitize=undefined
 
 LIBDIRS = \
 	-L$(INSTALLDIR)/lib \
-    -L$(ONEWIFI_HOME)/install/lib/ \
-    -L$(AL_SAP_HOME)/build/lib \
+    -L$(ONEWIFI_HOME)/install/lib/
+ifeq ($(WITH_SAP), 1)
+LIBDIRS += -L$(AL_SAP_HOME)/build/lib
+endif
 
-LIBS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwebconfig -lhebus -lalsap
+LIBS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwebconfig -lhebus
+ifeq ($(WITH_SAP), 1)
+LIBS += -lalsap
+endif
 
 GENERIC_SOURCES = $(ONEWIFI_HOME)/source/utils/collection.c \
     $(ONEWIFI_EM_SRC)/util_crypto/aes_siv.c \

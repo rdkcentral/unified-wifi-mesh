@@ -50,10 +50,13 @@
 #include "em_cmd.h"
 #include "em_cmd_exec.h"
 #include "util.h"
+
+#ifdef AL_SAP
 #include "al_service_access_point.hpp"
 
 extern AlServiceAccessPoint* g_sap;
 extern MacAddress g_al_mac_sap;
+#endif
 
 void em_t::orch_execute(em_cmd_t *pcmd)
 {
@@ -624,12 +627,6 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     memcpy(sadr_ll.sll_addr, (multicast == true) ? multi_addr:hdr->dst, sizeof(mac_address_t));
 
     ret = static_cast<int>(sendto(sock, buff, len, 0, reinterpret_cast<const struct sockaddr*>(&sadr_ll), sizeof(struct sockaddr_ll)));
-
-    std::cout << "Sent frame no sap:" << std::endl;
-    for (int i = 0; i < len; i++) {
-        std::cout << std::hex << static_cast<int>(buff[i]) << " ";
-    }
-    std::cout << std::dec << std::endl;
     
     close(sock);
 #endif

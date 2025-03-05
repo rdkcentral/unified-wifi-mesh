@@ -19,6 +19,7 @@
 OS = $(shell uname)
 PLATFORM = $(shell uname -a)
 
+WITH_SAP=0
 
 BASE = $(shell pwd)
 

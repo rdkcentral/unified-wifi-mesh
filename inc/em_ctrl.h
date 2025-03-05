@@ -95,7 +95,9 @@ public:
     em_service_type_t get_service_type() { return em_service_type_ctrl; }
     em_t *find_em_for_msg_type(unsigned char *data, unsigned int len, em_t *al_em);
 
+#ifdef AL_SAP
     AlServiceAccessPoint* al_sap_register();
+#endif
 
     em_ctrl_t();
     ~em_ctrl_t();

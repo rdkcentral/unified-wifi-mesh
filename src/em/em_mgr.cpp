@@ -45,10 +45,13 @@
 #include "em_msg.h"
 #include "em_cmd.h"
 #include "util.h"
+
+#ifdef AL_SAP
 #include "al_service_access_point.hpp"
 
 extern char *global_netid;
 extern AlServiceAccessPoint* g_sap;
+#endif
 
 void em_mgr_t::io_process(em_bus_event_type_t type, char *data, unsigned int len, em_cmd_params_t *params)
 {
@@ -342,11 +345,6 @@ void em_mgr_t::nodes_listener()
                     if (len) {
                         em_raw_hdr_t *hdr;
                         hdr = (em_raw_hdr_t *)buff;
-                        std::cout << "Received payload no sap:" << std::endl;
-                        for (int i = 0; i < len; i++) {
-                            std::cout << std::hex << static_cast<int>(buff[i]) << " ";
-                        }
-                        std::cout << std::dec << std::endl;
                         proto_process(buff, static_cast<unsigned int>(len), em);
                     }
                 }
