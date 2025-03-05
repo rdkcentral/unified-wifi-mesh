@@ -1828,6 +1828,7 @@ rdk_wifi_radio_t *dm_easy_mesh_t::get_radio_data(em_interface_t *interface)
               printf("%s:%d: m_wifi_data is not initialized \n",__func__,__LINE__);
               return NULL;
         }
+
 	for (i = 0; i < m_wifi_data->u.decoded.num_radios; i++) {
 		radio = &m_wifi_data->u.decoded.radios[i];
 
@@ -2449,6 +2450,9 @@ void dm_easy_mesh_t::deinit()
         hash_map_remove(m_sta_dassoc_map, key);
     }
 	hash_map_destroy(m_sta_dassoc_map);
+	if (m_wifi_data != NULL)
+		free(m_wifi_data);
+
 }
 
 void dm_easy_mesh_t::set_policy(dm_policy_t policy)
@@ -2716,7 +2720,7 @@ int dm_easy_mesh_t::init()
     m_sta_map = hash_map_create();
     m_sta_assoc_map = hash_map_create();
     m_sta_dassoc_map = hash_map_create();
-
+    m_wifi_data = (webconfig_subdoc_data_t*)malloc(sizeof(webconfig_subdoc_data_t));
 	memset(&m_db_cfg_param, 0, sizeof(em_db_cfg_param_t));
     return 0;
 }

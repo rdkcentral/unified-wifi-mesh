@@ -44,7 +44,7 @@ class em_t;
 
 class dm_easy_mesh_t {
 public:
-    webconfig_subdoc_data_t *m_wifi_data = NULL;
+    webconfig_subdoc_data_t *m_wifi_data;
 	unsigned int m_num_preferences;
 	em_interface_preference_t	m_preference[EM_MAX_PLATFORMS];
 	unsigned int	m_num_interfaces;
