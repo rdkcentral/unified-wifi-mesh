@@ -22,14 +22,16 @@
 #include <stddef.h>
 
 #include <map>
+#include <vector>
 #include <string>
 #include <functional>
+#include <memory>
 
 #define EC_FRAME_BASE_SIZE (offsetof(ec_frame_t, attributes))
 
 namespace easyconnect {
 
- static const std::map<ec_status_code_t, std::string> status_code_map = {
+static const std::map<ec_status_code_t, std::string> status_code_map = {
     {DPP_STATUS_OK, "OK: No errors or abnormal behavior"},
     {DPP_STATUS_NOT_COMPATIBLE, "Not Compatible: The DPP Initiator and Responder have incompatible capabilities"},
     {DPP_STATUS_AUTH_FAILURE, "Authentication Failure: Authentication failed"},
@@ -181,25 +183,25 @@ public:
      * @param encap_tlv_len [in] The length of the Encap DPP TLV
      * @param dest_mac [out] The destination MAC address (0 if not present)
      * @param frame_type [out] The frame type
-     * @param encap_frame [out] The encapsulated frame
+     * @param encap_frame [out] The encapsulated frame, allocated on the heap
      * @param encap_frame_len [out] The length of the encapsulated frame
      * @return bool true if successful, false otherwise
+     * 
+     * @warning The `encap_frame` must be freed by the caller
      */
-    static bool parse_encap_dpp_tlv(em_encap_dpp_t* encap_tlv,  uint16_t encap_tlv_len, mac_addr_t *dest_mac, uint8_t *frame_type, uint8_t** encap_frame, uint8_t *encap_frame_len);
+    static bool parse_encap_dpp_tlv(em_encap_dpp_t* encap_tlv, uint16_t encap_tlv_len, mac_addr_t *dest_mac, uint8_t *frame_type, uint8_t** encap_frame, uint8_t *encap_frame_len);
 
     /**
      * @brief Creates and allocates an Encap DPP TLV
      * 
      * @param dpp_frame_indicator [in] The DPP frame indicator (0 = DPP Public Action frame, 1 = GAS Frame)
-     * @param content_type [in] The content type
      * @param dest_mac [in] The destination MAC address (0 if not present)
      * @param frame_type [in] The frame type
      * @param encap_frame [in] The encapsulated frame
      * @param encap_frame_len [in] The length of the encapsulated frame
      * @return em_encap_dpp_t* The heap allocated Encap DPP TLV, NULL if failed 
      */
-    static em_encap_dpp_t * create_encap_dpp_tlv(bool dpp_frame_indicator, uint8_t content_type, 
-        mac_addr_t *dest_mac, uint8_t frame_type, uint8_t *encap_frame, uint8_t encap_frame_len);
+    static std::pair<em_encap_dpp_t*, size_t> create_encap_dpp_tlv(bool dpp_frame_indicator, mac_addr_t dest_mac, ec_frame_type_t frame_type, uint8_t *encap_frame, uint8_t encap_frame_len);
 
 
     /**
@@ -273,4 +275,13 @@ public:
      * @return std::string The hex string representation of the hash
      */
     static std::string hash_to_hex_string(const uint8_t *hash, size_t hash_len);
+
+    /**
+     * @brief Check if the capabilities of the initiator and responder are compatible
+     * 
+     * @param init_caps The capabilities of the initiator
+     * @param resp_caps The capabilities of the responder
+     * @return true The capabilities are compatible (DPP_STATUS_OK), false otherwise (DPP_STATUS_NOT_COMPATIBLE)
+     */
+    static bool check_caps_compatible(const ec_dpp_capabilities_t& init_caps, const ec_dpp_capabilities_t& resp_caps);
 };

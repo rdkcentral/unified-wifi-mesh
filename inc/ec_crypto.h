@@ -5,6 +5,24 @@
 #include "ec_base.h"
 
 #include <utility>
+#include <memory>
+#include <vector>
+
+namespace easyconnect {
+
+
+    // Custom deleter for uint8_t arrays
+    struct byte_arr_deleter {
+        void operator()(uint8_t* p) const { delete[] p; }
+    };
+    
+    // Define a smart pointer type for buffers
+    using buff_ptr = ::std::unique_ptr<uint8_t[], byte_arr_deleter>;
+    
+    // Define easyconnect::hash_buffer_t as a vector of smart pointer/length pairs
+    using hash_buffer_t = std::vector<std::pair<buff_ptr, uint32_t>>;
+
+}
 
 class ec_crypto {
 public:
@@ -23,9 +41,26 @@ public:
      * @return int The length of the hash
      */
     static uint8_t* compute_key_hash(const EC_KEY *key, const char *prefix = NULL);
+    
+    /**
+     * @brief Initialize the persistent context params with the bootstrapping key's group as a basis
+     * 
+     * @param p_ctx The persistent context to initialize
+     * @param boot_key The bootstrapping key to use as a basis
+     * @return bool true if successful, false otherwise
+     */
+    static bool init_persistent_ctx(ec_persistent_context_t& p_ctx, const EC_KEY* boot_key);
+
+    /**
+     * @brief Compute the hash of the provided buffer
+     * 
+     * @param buffer The buffer to hash
+     * @return uint8_t* The hash of the buffer
+     */
+    static uint8_t* compute_hash(ec_persistent_context_t& p_ctx, const easyconnect::hash_buffer_t& hashing_elements_buffer);
 
 
-    static int compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t e_ctx, uint8_t *ke_buffer);
+    static int compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t* e_ctx, uint8_t *ke_buffer);
 
     /**
      * @brief Abstracted HKDF computation that handles both simple and complex inputs
@@ -78,37 +113,7 @@ public:
      * @return uint8_t* The encoded protocol key buffer, or NULL on failure. Caller must free with free()
      * 
      */
-    static inline uint8_t* encode_proto_key(ec_persistent_context_t& p_ctx, const EC_POINT *point) {
-        
-        BIGNUM *x = BN_new();
-        BIGNUM *y = BN_new();
-
-        if (EC_POINT_get_affine_coordinates_GFp(p_ctx.group, point,
-            x, y, p_ctx.bn_ctx) == 0) {
-            printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
-            BN_free(x);
-            BN_free(y);
-            return NULL;
-        }
-
-        int prime_len = BN_num_bytes(p_ctx.prime);
-
-        uint8_t* protocol_key_buff = (uint8_t *)calloc(2*prime_len, 1);
-        if (protocol_key_buff == NULL) {
-            printf("%s:%d unable to allocate memory\n", __func__, __LINE__);
-            BN_free(x);
-            BN_free(y);
-            return NULL;
-        }
-        BN_bn2bin((const BIGNUM *)x, &protocol_key_buff[prime_len - BN_num_bytes(x)]);
-        BN_bn2bin((const BIGNUM *)y, &protocol_key_buff[2*prime_len - BN_num_bytes(y)]);
-
-        BN_free(x);
-        BN_free(y);
-
-        return protocol_key_buff;
-    }
-
+    static uint8_t* encode_proto_key(ec_persistent_context_t& p_ctx, const EC_POINT *point);
     /**
      * @brief Decode a protocol key buffer into an EC point
      * 
@@ -116,49 +121,7 @@ public:
      * @param protocol_key_buff The encoded protocol key buffer
      * @return EC_POINT* The decoded EC point, or NULL on failure. Caller must free with EC_POINT_free()
      */
-    static inline EC_POINT* decode_proto_key(ec_persistent_context_t& p_ctx, const uint8_t* protocol_key_buff) {
-        if (protocol_key_buff == NULL) {
-            printf("%s:%d null protocol key buffer\n", __func__, __LINE__);
-            return NULL;
-        }
-
-        int prime_len = BN_num_bytes(p_ctx.prime);
-        BIGNUM *x = BN_bin2bn(protocol_key_buff, prime_len, NULL);
-        BIGNUM *y = BN_bin2bn(protocol_key_buff + prime_len, prime_len, NULL);
-        EC_POINT *point = EC_POINT_new(p_ctx.group);
-        
-        if (x == NULL || y == NULL) {
-            printf("%s:%d unable to convert buffer to BIGNUMs\n", __func__, __LINE__);
-            goto err;
-        }
-        
-        if (point == NULL) {
-            printf("%s:%d unable to create EC_POINT\n", __func__, __LINE__);
-            goto err;
-        }
-
-        if (EC_POINT_set_affine_coordinates_GFp(p_ctx.group, point, x, y, p_ctx.bn_ctx) == 0) {
-            printf("%s:%d unable to set coordinates for the point\n", __func__, __LINE__);
-            goto err;
-        }
-
-        // Verify the point is on the curve
-        if (EC_POINT_is_on_curve(p_ctx.group, point, p_ctx.bn_ctx) == 0) {
-            printf("%s:%d point is not on the curve\n", __func__, __LINE__);
-            goto err;
-        }
-
-        BN_free(x);
-        BN_free(y);
-        
-        return point;
-
-    err:
-        if (x) BN_free(x);
-        if (y) BN_free(y);
-        if (point) EC_POINT_free(point);
-        return NULL;
-    }
+    static EC_POINT* decode_proto_key(ec_persistent_context_t& p_ctx, const uint8_t* protocol_key_buff);
     /**
      * @brief Compute the shared secret X coordinate for an EC key pair
      *  (for example M.x, N.x)
@@ -185,31 +148,45 @@ public:
      * 
      * @warning The caller must free the BIGNUM and EC_POINT with BN_free() and EC_POINT_free() respectively
      */
-    static inline std::pair<const BIGNUM*, const EC_POINT*> generate_proto_keypair(ec_persistent_context_t& p_ctx) {
-        EC_KEY* proto_key = EC_KEY_new_by_curve_name(p_ctx.nid);
-        if (proto_key == NULL) {
-            printf("%s:%d Could not create protocol key\n", __func__, __LINE__);
-            return std::pair<BIGNUM*, EC_POINT*>(NULL, NULL);
-        }
-    
-        if (EC_KEY_generate_key(proto_key) == 0) {
-            printf("%s:%d Could not generate protocol key\n", __func__, __LINE__);
-            return std::pair<BIGNUM*, EC_POINT*>(NULL, NULL);
-        }
-    
-        const EC_POINT* proto_pub = EC_KEY_get0_public_key(proto_key);
-        if (proto_pub == NULL) {
-            printf("%s:%d Could not get protocol public key\n", __func__, __LINE__);
-            return std::pair<BIGNUM*, EC_POINT*>(NULL, NULL);
-        }
-    
-        const BIGNUM* proto_priv = EC_KEY_get0_private_key(proto_key);
-        if (proto_priv == NULL) {
-            printf("%s:%d Could not get protocol private key\n", __func__, __LINE__);
-            return std::pair<BIGNUM*, EC_POINT*>(NULL, NULL);
-        }
+    static std::pair<const BIGNUM*, const EC_POINT*> generate_proto_keypair(ec_persistent_context_t& p_ctx);
 
-        return std::pair<const BIGNUM*, const EC_POINT*>(proto_priv, proto_pub);
+        /**
+     * Add a buffer to the hash elements
+     * 
+     * @note Copies data given into new temporary buffer. Modifications to the original data will not affect the hash elements.
+     */
+    static inline void add_to_hash(easyconnect::hash_buffer_t& buffer, const uint8_t* data, uint32_t len) {
+        if (data != nullptr) {
+            // Create a copy of the data with the correct deleter
+            easyconnect::buff_ptr data_copy(new uint8_t[len]);
+            memcpy(data_copy.get(), data, len);
+            buffer.emplace_back(std::move(data_copy), len);
+        }
+    }
+
+    /**
+     * Add a BIGNUM to the hash elements
+     */
+    static inline void add_to_hash(easyconnect::hash_buffer_t& buffer, const BIGNUM* bn) {
+        if (bn != nullptr) {
+            // Allocate memory for BIGNUM data
+            int bn_size = BN_num_bytes(bn);
+            easyconnect::buff_ptr bn_buf(new uint8_t[bn_size]);
+            int bn_len = BN_bn2bin(bn, bn_buf.get());
+            
+            // Add to hash elements
+            buffer.emplace_back(std::move(bn_buf), bn_len);
+        }
+    }
+
+    /**
+     * Add a single octet to the hash elements
+     */
+    static inline void add_to_hash(easyconnect::hash_buffer_t& buffer, uint8_t octet) {
+        easyconnect::buff_ptr octet_buf(new uint8_t[1]);
+        octet_buf[0] = octet;
+        
+        buffer.emplace_back(std::move(octet_buf), 1);
     }
 
 
@@ -217,10 +194,10 @@ public:
     static void print_bignum (BIGNUM *bn);
     static void print_ec_point (const EC_GROUP *group, BN_CTX *bnctx, EC_POINT *point);
 
-    static inline void rand_zero_free(uint8_t *buff, size_t len) {
+    static inline void rand_zero_free(uint8_t *buff, int len) {
         if (buff == NULL) return;
         RAND_bytes(buff, len);
-        memset(buff, 0, len);
+        memset(buff, 0, (size_t) len);
         free(buff);
     };
 

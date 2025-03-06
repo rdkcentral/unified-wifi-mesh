@@ -2,13 +2,14 @@
 #define EC_ENROLLEE_H
 
 #include "em_base.h"
+#include "ec_configurator.h"
 
 #include <map>
 #include <string>
 
 class ec_enrollee_t {
 public:
-    // TODO: Add Send Action Frame, Send GAS Frame
+    // TODO: Add Send GAS Frame
     /**
      * @brief The EasyConnect Enrollee
      * 
@@ -19,7 +20,7 @@ public:
      * @note The default state of an enrollee is non-onboarding. All non-controller devices are started as (non-onboarding) enrollees 
      *      until they are told that they are on the network at which point they can be upgraded to a proxy agent.
      */
-    ec_enrollee_t(std::string mac_addr);
+    ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame);
     
     // Destructor
     ~ec_enrollee_t();
@@ -30,7 +31,7 @@ public:
      * @param do_reconfig Whether to reconfigure/reauth the enrollee
      * @return bool true if successful, false otherwise
      */
-    bool start(bool do_reconfig);
+    bool start(bool do_reconfig, ec_data_t* boot_data);
 
     /**
      * @brief Handle an authentication request 802.11 frame, performing the necessary actions and responding with an authentication response via 802.11
@@ -39,7 +40,7 @@ public:
      * @param len The length of the frame
      * @return bool true if successful, false otherwise
      */
-    bool handle_auth_request(uint8_t *buff, unsigned int len);
+    bool handle_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]);
 
     /**
      * @brief Handle an authentication confirmation 802.11 frame, performing the necessary actions
@@ -48,7 +49,7 @@ public:
      * @param len The length of the frame
      * @return bool true if successful, false otherwise
      */
-    bool handle_auth_confirm(uint8_t *buff, unsigned int len);
+    bool handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]);
 
     /**
      * @brief Handle a configuration request 802.11+GAS frame, performing the necessary actions and responding with a configuration result via 802.11
@@ -69,23 +70,19 @@ public:
 
 private:
 
-    // TODO: Send Action Frame
+    send_act_frame_func m_send_action_frame;
 
     // TODO: Send GAS Frame
 
-    /**
-     * @brief Called when recieving a Authentication Request,
-     *         this function checks that the "Responder" (self) is capable of 
-     *         supporting the role indicated by the Initiator's capabilities.
-     *
-     * @param caps The capabilities of the Initiator
-     * @return bool true if the Responder supports the Initiator's capabilities, false otherwise 
-     */
-    bool check_supports_init_caps(ec_dpp_capabilities_t caps);
+    const ec_dpp_capabilities_t m_dpp_caps = {{
+        .enrollee = 1,
+        .configurator = 0,
+        .reserved = 0
+    }};
 
     std::pair<uint8_t*, uint16_t> create_presence_announcement();
     std::pair<uint8_t*, uint16_t> create_recfg_presence_announcement();
-    std::pair<uint8_t*, uint16_t> create_auth_response(ec_status_code_t dpp_status);
+    std::pair<uint8_t*, uint16_t> create_auth_response(ec_status_code_t dpp_status, uint8_t init_proto_version);
     std::pair<uint8_t*, uint16_t> create_recfg_auth_response(ec_status_code_t dpp_status);
     std::pair<uint8_t*, uint16_t> create_config_request();
     std::pair<uint8_t*, uint16_t> create_config_result(); 
