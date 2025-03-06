@@ -30,7 +30,7 @@ public:
      * @param do_reconfig Whether to reconfigure/reauth the enrollee
      * @return bool true if successful, false otherwise
      */
-    bool start(bool do_reconfig);
+    bool start(bool do_reconfig, ec_data_t* boot_data);
 
     /**
      * @brief Handle an authentication request 802.11 frame, performing the necessary actions and responding with an authentication response via 802.11

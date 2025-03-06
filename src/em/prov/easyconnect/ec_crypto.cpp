@@ -382,3 +382,61 @@ uint8_t* ec_crypto::compute_hash(ec_persistent_context_t& p_ctx, const easyconne
     }
     return hash;
 }
+
+bool ec_crypto::init_persistent_ctx(ec_persistent_context_t& p_ctx, const EC_KEY* boot_key){
+    p_ctx.group = EC_KEY_get0_group(boot_key);
+
+    p_ctx.prime = BN_new();
+    p_ctx.bn_ctx = BN_CTX_new();
+
+    if (!p_ctx.prime || !p_ctx.bn_ctx) {
+        printf("%s:%d Some BN NULL\n", __func__, __LINE__);
+        BN_free(p_ctx.prime);
+        BN_CTX_free(p_ctx.bn_ctx);
+        return false;
+    }
+
+    p_ctx.nid = EC_GROUP_get_curve_name(p_ctx.group);
+
+    //printf("%s:%d nid: %d\n", __func__, __LINE__, p_ctx.nid);
+    switch (p_ctx.nid) {
+        case NID_X9_62_prime256v1:
+            p_ctx.digest_len = SHA256_DIGEST_LENGTH;
+            p_ctx.hash_fcn = EVP_sha256();
+            break;
+        case NID_secp384r1:
+            p_ctx.digest_len = SHA384_DIGEST_LENGTH;
+            p_ctx.hash_fcn = EVP_sha384();
+            break;
+        case NID_secp521r1:
+            p_ctx.digest_len = SHA512_DIGEST_LENGTH;
+            p_ctx.hash_fcn = EVP_sha512();
+            break;
+        case NID_X9_62_prime192v1:
+            p_ctx.digest_len = SHA256_DIGEST_LENGTH;
+            p_ctx.hash_fcn = EVP_sha256();
+            break;
+        case NID_secp224r1:
+            p_ctx.digest_len = SHA256_DIGEST_LENGTH;
+            p_ctx.hash_fcn = EVP_sha256();
+            break;
+        default:
+            printf("%s:%d nid:%d not handled\n", __func__, __LINE__, p_ctx.nid);
+            return false;
+    }
+
+    p_ctx.nonce_len = p_ctx.digest_len*4;
+
+    // Fetch prime
+    if (EC_GROUP_get_curve_GFp(p_ctx.group, p_ctx.prime, NULL, NULL, p_ctx.bn_ctx) == 0) {
+        printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
+        return false;
+    }
+
+    printf("Successfully initialized persistent context with params:\n");
+    printf("\tNID: %d\n", p_ctx.nid);
+    printf("\tDigest Length: %d\n", p_ctx.digest_len);
+    printf("\tNonce Length: %d\n", p_ctx.nonce_len);
+    printf("\tPrime (Length: %d):\n", BN_num_bytes(p_ctx.prime));
+    ec_crypto::print_bignum(p_ctx.prime);
+}

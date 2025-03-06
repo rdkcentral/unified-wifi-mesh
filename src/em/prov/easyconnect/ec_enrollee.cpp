@@ -12,8 +12,26 @@ ec_enrollee_t::~ec_enrollee_t()
 {
 }
 
-bool ec_enrollee_t::start(bool do_reconfig)
+bool ec_enrollee_t::start(bool do_reconfig, ec_data_t* boot_data)
 {
+    memset(&m_boot_data, 0, sizeof(ec_data_t));
+    memcpy(&m_boot_data, boot_data, sizeof(ec_data_t));
+
+    // Baseline test to ensure the bootstrapping key is present
+    if (EC_KEY_get0_public_key(m_boot_data.responder_boot_key) == NULL) {
+        printf("%s:%d Could not get responder bootstrap public key\n", __func__, __LINE__);
+        return false;
+    }
+
+    printf("Configurator MAC: %s\n", m_mac_addr.c_str());
+    if (!ec_crypto::init_persistent_ctx(m_p_ctx, m_boot_data.responder_boot_key)){
+        printf("%s:%d failed to initialize persistent context\n", __func__, __LINE__);
+        return false;
+    }
+
+    if (do_reconfig) {
+        return true;
+    }
     return true;
 }
 

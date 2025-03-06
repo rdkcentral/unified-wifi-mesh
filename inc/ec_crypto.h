@@ -23,6 +23,15 @@ public:
      * @return int The length of the hash
      */
     static uint8_t* compute_key_hash(const EC_KEY *key, const char *prefix = NULL);
+    
+    /**
+     * @brief Initialize the persistent context params with the bootstrapping key's group as a basis
+     * 
+     * @param p_ctx The persistent context to initialize
+     * @param boot_key The bootstrapping key to use as a basis
+     * @return bool true if successful, false otherwise
+     */
+    static bool init_persistent_ctx(ec_persistent_context_t& p_ctx, const EC_KEY* boot_key);
 
     /**
      * @brief Compute the hash of the provided buffer
