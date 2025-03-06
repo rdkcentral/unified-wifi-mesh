@@ -98,12 +98,13 @@ public:
      * 
      * @param buff The frame to handle
      * @param len The length of the frame
+     * @param sa The 802.11 source address of the frame (from Enrollee).
      * @return bool true if successful, false otherwise
      * 
      * @note Optional to implement because the controller+configurator does not handle 802.11,
      *     but the proxy agent + configurator does.
      */
-    virtual bool handle_cfg_request(uint8_t *buff, unsigned int len) {
+    virtual bool handle_cfg_request(uint8_t *buff, unsigned int len, uint8_t sa[ETH_ALEN]) {
         return true; // Optional to implement
     }
 

@@ -38,6 +38,9 @@ public:
      */
     bool handle_recv_ec_action_frame(ec_frame_t* frame, size_t len);
 
+
+    bool handle_recv_gas_pub_action_frame(ec_gas_frame_base_t *, size_t, uint8_t[ETH_ALEN]);
+
     /**
      * @brief Start the EC configurator onboarding
      * 

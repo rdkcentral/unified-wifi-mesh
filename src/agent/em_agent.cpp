@@ -299,6 +299,29 @@ void em_agent_t::handle_btm_request_action_frame(em_bus_event_t *evt)
     }
 }
 
+void em_agent_t::handle_recv_gas_frame(em_bus_event_t *evt)
+{
+    if (!evt) {
+        printf("%s:%d: NULL bus event!\n", __func__, __LINE__);
+        return;
+    }
+    const size_t full_frame_length = evt->data_len;
+    const size_t mgmt_hdr_len      = offsetof(struct ieee80211_mgmt, u);
+    ieee80211_mgmt *mgmt_frame     = (ieee80211_mgmt *)evt->u.raw_buff;
+    mac_addr_str_t dest_mac;
+    dm_easy_mesh_t::macbytes_to_string(mgmt_frame->da, dest_mac);
+    em_t *dest_node = (em_t *)hash_map_get(g_agent.m_em_map, dest_mac);
+    if (!dest_node) {
+        printf("%s:%d: no node found for MAC '%s'\n", __func__, __LINE__, dest_mac);
+        return;
+    }
+    auto gas_frame_base = (ec_gas_frame_base_t *)evt->u.raw_buff + mgmt_hdr_len;
+    if (!dest_node->m_ec_manager->handle_recv_gas_pub_action_frame(
+            gas_frame_base, full_frame_length - mgmt_hdr_len, mgmt_frame->sa)) {
+        printf("%s:%d: EC manager failed to handle GAS frame!\n", __func__, __LINE__);
+    }
+}
+
 void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
 {
     size_t frame_len = evt->data_len;
@@ -500,6 +523,11 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
         case em_bus_event_type_recv_wfa_action_frame:
             handle_recv_wfa_action_frame(evt);
             break;
+
+        case em_bus_event_type_recv_gas_frame:
+            handle_recv_gas_frame(evt);
+            break;
+
         default:
             break;
     }    
@@ -669,6 +697,12 @@ int em_agent_t::mgmt_action_frame_cb(char *event_name, raw_data_t *data)
         }
     }
 
+    if (mgmt_frame->u.action.u.public_action.action >= WLAN_PA_GAS_INITIAL_REQ &&
+        mgmt_frame->u.action.u.public_action.action <= WLAN_PA_GAS_COMEBACK_RESP) {
+        printf("%s:%d: GAS frame rx'd\n", __func__, __LINE__);
+        g_agent.io_process(em_bus_event_type_recv_gas_frame, (uint8_t *)data->raw_data.bytes,
+                           data->raw_data_len);
+    }
 
     return 0;
 }
