@@ -3784,7 +3784,7 @@ void em_configuration_t::process_ctrl_state()
             send_ap_mld_config_req_msg();
             break;
         default:
-            printf("%s:%d: unhandled case %d\n", __func__, __LINE__, get_state());
+            printf("%s:%d: unhandled case %s\n", __func__, __LINE__, em_t::state_2_str(get_state()));
             break;
     }
 

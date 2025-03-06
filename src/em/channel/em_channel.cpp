@@ -2032,7 +2032,7 @@ void em_channel_t::process_state()
             }
 			break;
         default:
-            printf("%s:%d: unhandled case %d\n", __func__, __LINE__, get_state());
+            printf("%s:%d: unhandled case %s\n", __func__, __LINE__, em_t::state_2_str(get_state()));
             break;
 
     }
@@ -2059,7 +2059,7 @@ void em_channel_t::process_ctrl_state()
 			send_channel_scan_request_msg();
             break; 
         default:
-            printf("%s:%d: unhandled case %d\n", __func__, __LINE__, get_state());
+            printf("%s:%d: unhandled case %s\n", __func__, __LINE__, em_t::state_2_str(get_state()));
             break;
     }
 }
