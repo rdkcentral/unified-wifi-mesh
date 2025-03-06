@@ -10,7 +10,7 @@
 
 class ec_manager_t {
 public:
-    // TODO: Add send_action_frame and send_gas_frame functions
+    // TODO: Add send_gas_frame functions
     /**
      * @brief The Manager (unified dispatcher of sorts) for the EasyConnect Configurator or Enrollee
      * 
@@ -20,13 +20,14 @@ public:
      * @param mac_addr The MAC address of the device
      * @param send_chirp The function to send a chirp notification via 1905
      * @param send_encap_dpp The function to send a proxied encapsulated DPP message via 1905
+     * @param send_action_frame The function to send an 802.11 action frame
      * @param m_is_controller Whether the node holding this manager is a controller or not
      * 
      * @note Some method calls are only valid for the controller, proxy agent, or the enrollee, and will return fail if called on the wrong object.
      * If the EasyMesh code is correctly implemented this should not be an issue.
      * 
      */
-    ec_manager_t(std::string mac_addr, send_chirp_func send_chirp, send_encap_dpp_func send_encap_dpp, bool m_is_controller);
+    ec_manager_t(std::string mac_addr, send_chirp_func send_chirp, send_encap_dpp_func send_encap_dpp, send_act_frame_func send_action_frame, bool m_is_controller);
     ~ec_manager_t();
 
     /**
@@ -34,9 +35,10 @@ public:
      * 
      * @param frame The frame recieved to handle
      * @param len The length of the frame
+     * @param src_mac The MAC address of the source of the frame
      * @return bool true if successful, false otherwise
      */
-    bool handle_recv_ec_action_frame(ec_frame_t* frame, size_t len);
+    bool handle_recv_ec_action_frame(ec_frame_t* frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]);
 
 
     bool handle_recv_gas_pub_action_frame(ec_gas_frame_base_t *, size_t, uint8_t[ETH_ALEN]);
@@ -58,13 +60,14 @@ public:
      * @brief Start the EC enrollee onboarding
      * 
      * @param do_reconfig Whether to reconfigure/reauth the enrollee
+     * @param boot_data The bootstrapping data to use for onboarding
      * @return bool true if successful, false otherwise
      */
-    inline bool enrollee_start(bool do_reconfig) {
+    inline bool enrollee_start(bool do_reconfig, ec_data_t* boot_data) {
         if (m_is_controller || m_enrollee == nullptr) {
             return -1;
         }
-        return m_enrollee->start(do_reconfig);
+        return m_enrollee->start(do_reconfig, boot_data);
     }
 
     /**
@@ -134,6 +137,7 @@ private:
     // Used to store the function pointers to instantiate objects again
     send_chirp_func m_stored_chirp_fn;
     send_encap_dpp_func m_stored_encap_dpp_fn;
+    send_act_frame_func m_stored_action_frame_fn;
     toggle_cce_func m_stored_toggle_cce_fn;
     std::string m_stored_mac_addr;
 };

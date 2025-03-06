@@ -614,7 +614,7 @@ typedef struct {
     unsigned char enrollee_mac_addr_present : 1;
     unsigned char reserved : 1;
     unsigned char dpp_frame_indicator : 1;
-    unsigned char content_type : 5;
+    unsigned char reserved2 : 5;
 /*
     Contains:
         - dest_mac_addr (6 bytes, if enrollee_mac_addr_present)

@@ -361,7 +361,7 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
 
     switch (oui_type) {
     case DPP_OUI_TYPE:
-        dest_radio_node->m_ec_manager->handle_recv_ec_action_frame(ec_frame, full_action_frame_len);
+        dest_radio_node->m_ec_manager->handle_recv_ec_action_frame(ec_frame, full_action_frame_len, mgmt_frame->sa);
         break;
     default:
         break;
@@ -575,6 +575,40 @@ void em_agent_t::handle_1s_tick()
 void em_agent_t::handle_500ms_tick()
 {
     m_orch->handle_timeout();
+}
+
+bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency) {
+
+    wifi_bus_desc_t *desc = get_bus_descriptor();
+    ASSERT_NOT_NULL(desc, false, "%s:%d descriptor is null\n", __func__, __LINE__);
+
+    // Allocate memory for the action frame parameters, ieee80211 header and action frame body
+    action_frame_params_t *act_frame_params = (action_frame_params_t*) calloc(sizeof(action_frame_params_t) + action_frame_len, 1);
+    ASSERT_NOT_NULL(act_frame_params, false, "%s:%d calloc failed\n", __func__, __LINE__);
+
+    // Hardcoded to 0 just the same as the other bus calls
+    // NOTE: AccessPoint.1 = ap_index 0. One is the data model indexing, one is NL80211/hal indexing
+    act_frame_params->ap_index = 0;
+    memcpy(act_frame_params->dest_addr, dest_mac, ETH_ALEN);
+    act_frame_params->frequency = frequency;
+    act_frame_params->frame_len = action_frame_len;
+    memcpy(act_frame_params->frame_data, action_frame, action_frame_len);
+
+    raw_data_t raw_act_frame;
+    memset(&raw_act_frame, 0, sizeof(raw_data_t));
+    raw_act_frame.raw_data.bytes = (uint8_t *)act_frame_params;
+    raw_act_frame.raw_data_len = sizeof(action_frame_params_t) + action_frame_len;
+    raw_act_frame.data_type = bus_data_type_bytes;
+
+    // Send the action frame
+    if (desc->bus_set_fn(&m_bus_hdl, "Device.WiFi.AccessPoint.1.RawFrame.Mgmt.Action.Tx", &raw_act_frame) != 0) {
+        printf("%s:%d bus set failed\n", __func__, __LINE__);
+        free(act_frame_params);
+        return false;
+    }
+
+    free(act_frame_params);
+    return true;
 }
 
 

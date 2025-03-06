@@ -22,6 +22,7 @@
 #include "em_base.h"
 #include "em_crypto.h"
 #include "dm_easy_mesh.h"
+#include "ec_manager.h"
 
 class em_cmd_t;
 class em_mgr_t;
@@ -89,6 +90,7 @@ class em_configuration_t {
     void fill_media_data(em_media_spec_data_t *spec);
 
 	virtual em_mgr_t *get_mgr() = 0;
+    virtual ec_manager_t& get_ec_mgr() = 0;
     virtual dm_easy_mesh_t *get_data_model() = 0;
     virtual em_state_t get_state() = 0;
     virtual void set_state(em_state_t state) = 0;

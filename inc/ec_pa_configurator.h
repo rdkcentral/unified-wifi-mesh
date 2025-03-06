@@ -17,9 +17,19 @@ public:
      * @param mac_addr The MAC address of the device
      * @param send_chirp_notification The function to send a chirp notification via 1905
      * @param send_prox_encap_dpp_msg The function to send a proxied encapsulated DPP message via 1905
+     * @param send_action_frame The function to send an 802.11 action frame
      */
-    ec_pa_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg) :
-        ec_configurator_t(mac_addr, send_chirp_notification, send_prox_encap_dpp_msg) {};
+    ec_pa_configurator_t(
+        std::string mac_addr,
+        send_chirp_func send_chirp_notification,
+        send_encap_dpp_func send_prox_encap_dpp_msg,
+        send_act_frame_func send_action_frame
+    ) : ec_configurator_t(
+            mac_addr,
+            send_chirp_notification,
+            send_prox_encap_dpp_msg,
+            send_action_frame
+        ) { }
 
 
     /**
@@ -32,7 +42,7 @@ public:
      * @note Optional to implement because the controller+configurator does not handle 802.11,
      *      but the proxy agent + configurator does.
      */
-    bool handle_presence_announcement(uint8_t *buff, unsigned int len) override;
+    bool handle_presence_announcement(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]) override;
 
     /**
      * @brief Handles an authentication request 802.11 frame, performing the necessary actions and possibly passing to 1905
@@ -44,7 +54,7 @@ public:
      * @note Optional to implement because the controller+configurator does not handle 802.11,
      *     but the proxy agent + configurator does.
      */
-    bool handle_auth_response(uint8_t *buff, unsigned int len) override;
+    bool handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]) override;
 
     /**
      * @brief Handles an configuration request 802.11+GAS frame, performing the necessary actions and possibly passing to 1905
@@ -96,12 +106,12 @@ private:
     /*
      * Map from Chirp Hash to DPP Authentication Request
      */
-    std::map<std::string, std::vector<uint8_t>> m_chirp_hash_frame_map;
+    std::map<std::string, std::vector<uint8_t>> m_chirp_hash_frame_map = {};
     /*
      * Vector of all cached DPP Reconfiguration Authentication Requests.
      * Hash does not matter since it is compared against the Controllers C-sign key
      */
-    std::vector<std::vector<uint8_t>> m_stored_recfg_auth_frames;
+    std::vector<std::vector<uint8_t>> m_stored_recfg_auth_frames = {};
 protected:
     // Protected member variables and methods go here
 };

@@ -1051,18 +1051,12 @@ em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr
     m_data_model = dm;
 	m_mgr = mgr;
 
-    /*
-            //TODO: Placeholder Lambda function for toggle cce
-            [this](bool enable) {
-                printf("Toggle CCE: %s\n", enable ? "true" : "false");
-                return 0;  // Added return value
-            },
-    */
     std::string mac_address = util::mac_to_string(get_peer_mac());
     m_ec_manager = std::unique_ptr<ec_manager_t>(new ec_manager_t(
-        mac_address, //TODO: Revisit
+        mac_address,
         std::bind(&em_t::send_chirp_notif_msg, this, std::placeholders::_1, std::placeholders::_2),
         std::bind(&em_t::send_prox_encap_dpp_msg, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4),
+        std::bind(&em_mgr_t::send_action_frame, mgr, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 
         get_service_type() == em_service_type_ctrl
     ));
 }

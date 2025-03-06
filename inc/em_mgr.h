@@ -21,6 +21,7 @@
 
 #include "em.h"
 #include "em_orch.h"
+#include "ieee80211.h"
 
 class em_mgr_t {
    
@@ -59,6 +60,20 @@ public:
 
     static void *mgr_nodes_listen(void *arg);
     static void *mgr_input_listen(void *arg);
+
+    /**
+     * @brief Send an action frame. Optional to implement.
+     * 
+     * @param dest_mac The destination MAC address
+     * @param action_frame The action frame to send
+     * @param action_frame_len The length of the action frame
+     * @param frequency The frequency to send the frame on (0 for current frequency)
+     * @return true if successful, false otherwise
+     */
+    virtual bool send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency=0) {
+        printf("send_action_frame not implemented\n");
+        return false;
+    }
 
     virtual em_t *find_em_for_msg_type(unsigned char *data, unsigned int len, em_t *al_em) = 0;
     virtual int data_model_init(const char *data_model_path) = 0;

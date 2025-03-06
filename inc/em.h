@@ -92,6 +92,7 @@ public:
     void set_al_type(bool is_al_mac) {m_is_al_em = is_al_mac;}
 
 	em_mgr_t *get_mgr() { return m_mgr; }
+    ec_manager_t& get_ec_mgr() { return *m_ec_manager; }
 
     void orch_execute(em_cmd_t *pcmd);
     em_orch_state_t get_orch_state() { return m_orch_state; }

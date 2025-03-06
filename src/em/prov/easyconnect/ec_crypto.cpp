@@ -1,9 +1,9 @@
 #include "ec_crypto.h"
 #include "em_crypto.h"
 #include "util.h"
+#include "ec_util.h"
 
-// TODO: "might" need to switch over to using hash_len instead of SHA256_DIGEST_LENGTH 
-//      although SHA_256 might be standardized for some operations
+
 uint8_t* ec_crypto::compute_key_hash(const EC_KEY *key, const char *prefix)
 {
     BIO *bio;
@@ -143,7 +143,7 @@ cleanup:
 
 // TODO: Might remove, might keep, unsure
 /**
- * @brief Compute ke using nonces and coordinate values
+ * @brief Compute ke using nonces and coordinate values. Requires, m, n, and (optionally) l to be set before calling.
  * 
  * @param ke_buffer Buffer to store ke (must be pre-allocated)
  * @param I_nonce Initiator nonce
@@ -153,7 +153,7 @@ cleanup:
  * @param include_L Whether to include L.x for mutual authentication
  * @return Length of ke on success, 0 on failure
  */
-int ec_crypto::compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t e_ctx, uint8_t *ke_buffer)
+int ec_crypto::compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t* e_ctx, uint8_t *ke_buffer)
 {
     // Create concatenated nonces buffer (Initiator Nonce | Responder Nonce)
     int total_nonce_len = p_ctx.nonce_len * 2;
@@ -164,11 +164,11 @@ int ec_crypto::compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t
     }
     
     // Copy nonces
-    memcpy(nonces, e_ctx.i_nonce, p_ctx.nonce_len);
-    memcpy(nonces + p_ctx.nonce_len, e_ctx.r_nonce, p_ctx.nonce_len);
+    memcpy(nonces, e_ctx->i_nonce, p_ctx.nonce_len);
+    memcpy(nonces + p_ctx.nonce_len, e_ctx->r_nonce, p_ctx.nonce_len);
     
     // Set up BIGNUM array of X values (M, N, and possibly L if mutual auth)
-    int x_count = e_ctx.is_mutual_auth ? 3 : 2;
+    int x_count = e_ctx->is_mutual_auth ? 3 : 2;
     const BIGNUM **x_val_array = (const BIGNUM **)calloc(x_count, sizeof(BIGNUM *));
     if (x_val_array == NULL) {
         free(nonces);
@@ -176,10 +176,10 @@ int ec_crypto::compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t
         return 0;
     }
     
-    x_val_array[0] = e_ctx.m;  // M.x
-    x_val_array[1] = e_ctx.n;  // N.x
-    if (e_ctx.is_mutual_auth) {
-        x_val_array[2] = e_ctx.l;  // L.x if doing mutual auth
+    x_val_array[0] = e_ctx->m;  // M.x
+    x_val_array[1] = e_ctx->n;  // N.x
+    if (e_ctx->is_mutual_auth) {
+        x_val_array[2] = e_ctx->l;  // L.x if doing mutual auth
     }
     
     // Compute the key
@@ -360,4 +360,189 @@ void ec_crypto::print_ec_point (const EC_GROUP *group, BN_CTX *bnctx, EC_POINT *
 
     BN_free(y);
     BN_free(x);
+}
+
+
+uint8_t* ec_crypto::compute_hash(ec_persistent_context_t& p_ctx, const easyconnect::hash_buffer_t& hashing_elements_buffer) {
+    // Create arrays for platform_hash
+    std::vector<uint8_t*> addr(hashing_elements_buffer.size());
+    std::vector<uint32_t> len(hashing_elements_buffer.size());
+    
+    for (size_t i = 0; i < hashing_elements_buffer.size(); i++) {
+        // Get raw pointer from unique_ptr
+        addr[i] = hashing_elements_buffer[i].first.get();
+        len[i] = hashing_elements_buffer[i].second;
+    }
+
+    uint8_t *hash = (uint8_t*)calloc(p_ctx.digest_len, 1);
+    if (!em_crypto_t::platform_hash(p_ctx.hash_fcn, hashing_elements_buffer.size(), addr.data(), len.data(), hash)) {
+        free(hash);
+        return NULL;
+    }
+    return hash;
+}
+
+bool ec_crypto::init_persistent_ctx(ec_persistent_context_t& p_ctx, const EC_KEY* boot_key){
+    p_ctx.group = EC_KEY_get0_group(boot_key);
+
+    p_ctx.prime = BN_new();
+    p_ctx.bn_ctx = BN_CTX_new();
+
+    if (!p_ctx.prime || !p_ctx.bn_ctx) {
+        printf("%s:%d Some BN NULL\n", __func__, __LINE__);
+        BN_free(p_ctx.prime);
+        BN_CTX_free(p_ctx.bn_ctx);
+        return false;
+    }
+
+    p_ctx.nid = EC_GROUP_get_curve_name(p_ctx.group);
+
+    //printf("%s:%d nid: %d\n", __func__, __LINE__, p_ctx.nid);
+    switch (p_ctx.nid) {
+        case NID_X9_62_prime256v1:
+            p_ctx.digest_len = SHA256_DIGEST_LENGTH;
+            p_ctx.hash_fcn = EVP_sha256();
+            break;
+        case NID_secp384r1:
+            p_ctx.digest_len = SHA384_DIGEST_LENGTH;
+            p_ctx.hash_fcn = EVP_sha384();
+            break;
+        case NID_secp521r1:
+            p_ctx.digest_len = SHA512_DIGEST_LENGTH;
+            p_ctx.hash_fcn = EVP_sha512();
+            break;
+        case NID_X9_62_prime192v1:
+            p_ctx.digest_len = SHA256_DIGEST_LENGTH;
+            p_ctx.hash_fcn = EVP_sha256();
+            break;
+        case NID_secp224r1:
+            p_ctx.digest_len = SHA256_DIGEST_LENGTH;
+            p_ctx.hash_fcn = EVP_sha256();
+            break;
+        default:
+            printf("%s:%d nid:%d not handled\n", __func__, __LINE__, p_ctx.nid);
+            return false;
+    }
+
+    p_ctx.nonce_len = p_ctx.digest_len*4;
+
+    // Fetch prime
+    if (EC_GROUP_get_curve_GFp(p_ctx.group, p_ctx.prime, NULL, NULL, p_ctx.bn_ctx) == 0) {
+        printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
+        return false;
+    }
+
+    printf("Successfully initialized persistent context with params:\n");
+    printf("\tNID: %d\n", p_ctx.nid);
+    printf("\tDigest Length: %d\n", p_ctx.digest_len);
+    printf("\tNonce Length: %d\n", p_ctx.nonce_len);
+    printf("\tPrime (Length: %d):\n", BN_num_bytes(p_ctx.prime));
+    ec_crypto::print_bignum(p_ctx.prime);
+    return true;
+}
+
+uint8_t *ec_crypto::encode_proto_key(ec_persistent_context_t &p_ctx, const EC_POINT *point)
+{
+        
+    BIGNUM *x = BN_new();
+    BIGNUM *y = BN_new();
+
+    if (EC_POINT_get_affine_coordinates_GFp(p_ctx.group, point,
+        x, y, p_ctx.bn_ctx) == 0) {
+        printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
+        BN_free(x);
+        BN_free(y);
+        return NULL;
+    }
+
+    int prime_len = BN_num_bytes(p_ctx.prime);
+
+    uint8_t* protocol_key_buff = (uint8_t *)calloc(2*prime_len, 1);
+    if (protocol_key_buff == NULL) {
+        printf("%s:%d unable to allocate memory\n", __func__, __LINE__);
+        BN_free(x);
+        BN_free(y);
+        return NULL;
+    }
+    BN_bn2bin((const BIGNUM *)x, &protocol_key_buff[prime_len - BN_num_bytes(x)]);
+    BN_bn2bin((const BIGNUM *)y, &protocol_key_buff[2*prime_len - BN_num_bytes(y)]);
+
+    BN_free(x);
+    BN_free(y);
+
+    return protocol_key_buff;
+}
+
+
+EC_POINT *ec_crypto::decode_proto_key(ec_persistent_context_t &p_ctx, const uint8_t *protocol_key_buff)
+{
+    if (protocol_key_buff == NULL) {
+        printf("%s:%d null protocol key buffer\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    int prime_len = BN_num_bytes(p_ctx.prime);
+    BIGNUM *x = BN_bin2bn(protocol_key_buff, prime_len, NULL);
+    BIGNUM *y = BN_bin2bn(protocol_key_buff + prime_len, prime_len, NULL);
+    EC_POINT *point = EC_POINT_new(p_ctx.group);
+    
+    if (x == NULL || y == NULL) {
+        printf("%s:%d unable to convert buffer to BIGNUMs\n", __func__, __LINE__);
+        goto err;
+    }
+    
+    if (point == NULL) {
+        printf("%s:%d unable to create EC_POINT\n", __func__, __LINE__);
+        goto err;
+    }
+
+    if (EC_POINT_set_affine_coordinates_GFp(p_ctx.group, point, x, y, p_ctx.bn_ctx) == 0) {
+        printf("%s:%d unable to set coordinates for the point\n", __func__, __LINE__);
+        goto err;
+    }
+
+    // Verify the point is on the curve
+    if (EC_POINT_is_on_curve(p_ctx.group, point, p_ctx.bn_ctx) == 0) {
+        printf("%s:%d point is not on the curve\n", __func__, __LINE__);
+        goto err;
+    }
+
+    BN_free(x);
+    BN_free(y);
+    
+    return point;
+
+err:
+    if (x) BN_free(x);
+    if (y) BN_free(y);
+    if (point) EC_POINT_free(point);
+    return NULL;
+}
+
+std::pair<const BIGNUM *, const EC_POINT *> ec_crypto::generate_proto_keypair(ec_persistent_context_t &p_ctx)
+{
+    EC_KEY* proto_key = EC_KEY_new_by_curve_name(p_ctx.nid);
+    if (proto_key == NULL) {
+        printf("%s:%d Could not create protocol key\n", __func__, __LINE__);
+        return std::pair<BIGNUM*, EC_POINT*>(NULL, NULL);
+    }
+
+    if (EC_KEY_generate_key(proto_key) == 0) {
+        printf("%s:%d Could not generate protocol key\n", __func__, __LINE__);
+        return std::pair<BIGNUM*, EC_POINT*>(NULL, NULL);
+    }
+
+    const EC_POINT* proto_pub = EC_KEY_get0_public_key(proto_key);
+    if (proto_pub == NULL) {
+        printf("%s:%d Could not get protocol public key\n", __func__, __LINE__);
+        return std::pair<BIGNUM*, EC_POINT*>(NULL, NULL);
+    }
+
+    const BIGNUM* proto_priv = EC_KEY_get0_private_key(proto_key);
+    if (proto_priv == NULL) {
+        printf("%s:%d Could not get protocol private key\n", __func__, __LINE__);
+        return std::pair<BIGNUM*, EC_POINT*>(NULL, NULL);
+    }
+
+    return std::pair<const BIGNUM*, const EC_POINT*>(proto_priv, proto_pub);
 }

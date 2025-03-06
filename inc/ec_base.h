@@ -234,6 +234,54 @@ typedef struct {
     uint8_t resp[];
 } ec_gas_initial_response_frame_t;
 
+// Used to avoid many many if-not-null checks
+#define ASSERT_FALSE(x, ret, errMsg, ...) \
+    if(x) { \
+        fprintf(stderr, errMsg, ## __VA_ARGS__); \
+        return ret; \
+    }
+
+#define ASSERT_TRUE(x, ret, errMsg, ...) ASSERT_FALSE(!(x), ret, errMsg, ## __VA_ARGS__)
+#define ASSERT_NOT_NULL(x, ret, errMsg, ...) ASSERT_FALSE(x == NULL, ret, errMsg, ## __VA_ARGS__)
+
+/**
+ * @brief Asserts that a pointer is not NULL, and if it is, frees up to 3 pointers and returns a value
+ * @param x The pointer to check for NULL
+ * @param ret The value to return if x is NULL
+ * @param ptr1 First pointer to free (can be NULL)
+ * @param ptr2 Second pointer to free (can be NULL) 
+ * @param ptr3 Third pointer to free (can be NULL)
+ * @param errMsg Format string for error message
+ * @param ... Additional arguments for the format string
+ */
+#define ASSERT_NOT_NULL_FREE3(x, ret, ptr1, ptr2, ptr3, errMsg, ...) \
+    if(x == NULL) { \
+        fprintf(stderr, errMsg, ## __VA_ARGS__); \
+        if (ptr1) free(ptr1); \
+        if (ptr2) free(ptr2); \
+        if (ptr3) free(ptr3); \
+        return ret; \
+    }
+
+/**
+ * @brief Asserts that a pointer is not NULL, and if it is, frees up to 2 pointers and returns a value
+ */
+#define ASSERT_NOT_NULL_FREE2(x, ret, ptr1, ptr2, errMsg, ...) \
+    ASSERT_NOT_NULL_FREE3(x, ret, ptr1, ptr2, NULL, errMsg, ## __VA_ARGS__)
+
+/**
+ * @brief Asserts that a pointer is not NULL, and if it is, frees one pointer and returns a value
+ */
+#define ASSERT_NOT_NULL_FREE(x, ret, ptr1, errMsg, ...) \
+    ASSERT_NOT_NULL_FREE2(x, ret, ptr1, NULL, errMsg, ## __VA_ARGS__)
+
+
+#define ASSERT_NULL(x, ret, errMsg, ...) ASSERT_TRUE(x == 0, ret, errMsg, ## __VA_ARGS__)
+#define ASSERT_EQUALS(x, y, ret, errMsg, ...) ASSERT_TRUE(x == y, ret, errMsg, ## __VA_ARGS__)
+#define ASSERT_NOT_EQUALS(x, y, ret, errMsg, ...) ASSERT_FALSE(x == y, ret, errMsg, ## __VA_ARGS__)
+
+
+
 typedef enum {
     ec_session_type_cfg,
     ec_session_type_recfg,
@@ -269,8 +317,17 @@ typedef struct {
     /**
      * The protocol key pairs for the initiator and responder. These are are exchanged/generated during the auth/cfg process.
      * This must be freed after the auth/cfg process is complete.
+     * 
+     * P_I, P_R
      */
     EC_POINT *public_init_proto_key, *public_resp_proto_key;
+
+    /**
+     * The private protocol keys for the initiator and responder. These are used to generate the shared secret.
+     * These are heap allocated but freed after the auth/cfg process is complete.
+     * 
+     * p_I, p_R
+     */
     BIGNUM *priv_init_proto_key, *priv_resp_proto_key;
 
     /**
