@@ -849,7 +849,9 @@ int dm_easy_mesh_agent_t::analyze_set_policy(em_bus_event_t *evt, wifi_bus_desc_
 
     l_bus_data.data_type    = bus_data_type_string;
     l_bus_data.raw_data.bytes   = webconfig_easymesh_raw_data_ptr;
-    l_bus_data.raw_data_len = strlen(webconfig_easymesh_raw_data_ptr);
+    if (webconfig_easymesh_raw_data_ptr != NULL) {
+        l_bus_data.raw_data_len = strlen(webconfig_easymesh_raw_data_ptr);
+    }
 
     if (desc->bus_set_fn(bus_hdl, "Device.WiFi.WebConfig.Data.Subdoc.South", &l_bus_data)== 0) {
         printf("%s:%d Policy subdoc send successfull\n", __func__, __LINE__);
