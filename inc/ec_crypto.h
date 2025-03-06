@@ -24,8 +24,16 @@ public:
      */
     static uint8_t* compute_key_hash(const EC_KEY *key, const char *prefix = NULL);
 
+    /**
+     * @brief Compute the hash of the provided buffer
+     * 
+     * @param buffer The buffer to hash
+     * @return uint8_t* The hash of the buffer
+     */
+    static uint8_t* compute_hash(ec_persistent_context_t& p_ctx, const easyconnect::hash_buffer_t& hashing_elements_buffer);
 
-    static int compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t e_ctx, uint8_t *ke_buffer);
+
+    static int compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t* e_ctx, uint8_t *ke_buffer);
 
     /**
      * @brief Abstracted HKDF computation that handles both simple and complex inputs

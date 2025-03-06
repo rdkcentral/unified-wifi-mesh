@@ -29,13 +29,30 @@ public:
      */
     bool process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) override;
 
+    /**
+     * @brief Handles an authentication request 802.11 frame (unwrapped from the Proxy Encap DPP), performing the necessary actions and possibly passing to 1905
+     * 
+     * @param buff The frame to handle
+     * @param len The length of the frame
+     * @return bool true if successful, false otherwise
+     * 
+     * @note Optional to implement because the controller+configurator does not handle 802.11,
+     *     but the proxy agent + configurator does.
+     */
+    bool handle_auth_response(uint8_t *buff, unsigned int len) override;
+
 private:
     // Private member variables can be added here
 
+    const ec_dpp_capabilities_t m_dpp_caps = {{
+        .enrollee = 0,
+        .configurator = 1
+    }};
+
     std::pair<uint8_t*, uint16_t> create_auth_request(std::string enrollee_mac);
     std::pair<uint8_t*, uint16_t> create_recfg_auth_request();
-    std::pair<uint8_t*, uint16_t> create_auth_confirm();
-    std::pair<uint8_t*, uint16_t> create_recfg_auth_confirm(std::string enrollee_mac);
+    std::pair<uint8_t*, uint16_t> create_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status, uint8_t* i_auth_tag);
+    std::pair<uint8_t*, uint16_t> create_recfg_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status);
     std::pair<uint8_t*, uint16_t> create_config_response();
 };
 

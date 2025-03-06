@@ -1,6 +1,7 @@
 #include "ec_crypto.h"
 #include "em_crypto.h"
 #include "util.h"
+#include "ec_util.h"
 
 // TODO: "might" need to switch over to using hash_len instead of SHA256_DIGEST_LENGTH 
 //      although SHA_256 might be standardized for some operations
@@ -143,7 +144,7 @@ cleanup:
 
 // TODO: Might remove, might keep, unsure
 /**
- * @brief Compute ke using nonces and coordinate values
+ * @brief Compute ke using nonces and coordinate values. Requires, m, n, and (optionally) l to be set before calling.
  * 
  * @param ke_buffer Buffer to store ke (must be pre-allocated)
  * @param I_nonce Initiator nonce
@@ -153,7 +154,7 @@ cleanup:
  * @param include_L Whether to include L.x for mutual authentication
  * @return Length of ke on success, 0 on failure
  */
-int ec_crypto::compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t e_ctx, uint8_t *ke_buffer)
+int ec_crypto::compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t* e_ctx, uint8_t *ke_buffer)
 {
     // Create concatenated nonces buffer (Initiator Nonce | Responder Nonce)
     int total_nonce_len = p_ctx.nonce_len * 2;
@@ -164,11 +165,11 @@ int ec_crypto::compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t
     }
     
     // Copy nonces
-    memcpy(nonces, e_ctx.i_nonce, p_ctx.nonce_len);
-    memcpy(nonces + p_ctx.nonce_len, e_ctx.r_nonce, p_ctx.nonce_len);
+    memcpy(nonces, e_ctx->i_nonce, p_ctx.nonce_len);
+    memcpy(nonces + p_ctx.nonce_len, e_ctx->r_nonce, p_ctx.nonce_len);
     
     // Set up BIGNUM array of X values (M, N, and possibly L if mutual auth)
-    int x_count = e_ctx.is_mutual_auth ? 3 : 2;
+    int x_count = e_ctx->is_mutual_auth ? 3 : 2;
     const BIGNUM **x_val_array = (const BIGNUM **)calloc(x_count, sizeof(BIGNUM *));
     if (x_val_array == NULL) {
         free(nonces);
@@ -176,10 +177,10 @@ int ec_crypto::compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t
         return 0;
     }
     
-    x_val_array[0] = e_ctx.m;  // M.x
-    x_val_array[1] = e_ctx.n;  // N.x
-    if (e_ctx.is_mutual_auth) {
-        x_val_array[2] = e_ctx.l;  // L.x if doing mutual auth
+    x_val_array[0] = e_ctx->m;  // M.x
+    x_val_array[1] = e_ctx->n;  // N.x
+    if (e_ctx->is_mutual_auth) {
+        x_val_array[2] = e_ctx->l;  // L.x if doing mutual auth
     }
     
     // Compute the key
@@ -360,4 +361,24 @@ void ec_crypto::print_ec_point (const EC_GROUP *group, BN_CTX *bnctx, EC_POINT *
 
     BN_free(y);
     BN_free(x);
+}
+
+
+uint8_t* ec_crypto::compute_hash(ec_persistent_context_t& p_ctx, const easyconnect::hash_buffer_t& hashing_elements_buffer) {
+    // Create arrays for platform_hash
+    std::vector<uint8_t*> addr(hashing_elements_buffer.size());
+    std::vector<uint32_t> len(hashing_elements_buffer.size());
+    
+    for (size_t i = 0; i < hashing_elements_buffer.size(); i++) {
+        // Get raw pointer from unique_ptr
+        addr[i] = hashing_elements_buffer[i].first.get();
+        len[i] = hashing_elements_buffer[i].second;
+    }
+
+    uint8_t *hash = (uint8_t*)calloc(p_ctx.digest_len, 1);
+    if (!em_crypto_t::platform_hash(p_ctx.hash_fcn, hashing_elements_buffer.size(), addr.data(), len.data(), hash)) {
+        free(hash);
+        return NULL;
+    }
+    return hash;
 }

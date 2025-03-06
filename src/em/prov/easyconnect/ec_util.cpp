@@ -334,3 +334,35 @@ std::string ec_util::hash_to_hex_string(const uint8_t *hash, size_t hash_len) {
     return std::string(output);
 }
 
+
+bool ec_util::check_caps_compatible(const ec_dpp_capabilities_t& init_caps, const ec_dpp_capabilities_t& resp_caps)
+{
+
+/*
+ EasyConnect 6.3.1.5
++--------------------------+-------------------------+------------------------+
+|        Initiator         |        Responder        |       DPP Status       |
++--------------------------+-------------------------+------------------------+
+| Configurator             | Configurator            | STATUS_NOT_COMPATIBLE  |
+| Configurator             | Enrollee                | STATUS_OK              |
+| Enrollee                 | Configurator            | STATUS_OK              |
+| Enrollee                 | Enrollee                | STATUS_NOT_COMPATIBLE  |
+| Configurator or Enrollee | Configurator            | STATUS_OK              |
+| Configurator or Enrollee | Enrollee                | STATUS_OK              |
++--------------------------+-------------------------+------------------------+
+*/
+    bool resp_cfg_enrollee = resp_caps.configurator && resp_caps.enrollee;
+
+    // The responder cannot be both (but the initiator can)
+    if (resp_cfg_enrollee) {
+        return false;
+    }
+
+    if (init_caps.enrollee && resp_caps.enrollee) {
+        return false;
+    }
+    if (init_caps.configurator && resp_caps.configurator) {
+        return false;
+    }
+    return true;
+}

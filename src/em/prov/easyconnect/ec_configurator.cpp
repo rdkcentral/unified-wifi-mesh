@@ -41,23 +41,23 @@ bool ec_configurator_t::start(ec_data_t *ec_data)
     //printf("%s:%d nid: %d\n", __func__, __LINE__, m_p_ctx.nid);
     switch (m_p_ctx.nid) {
         case NID_X9_62_prime256v1:
-            m_p_ctx.digest_len = 32;
+            m_p_ctx.digest_len = SHA256_DIGEST_LENGTH;
             m_p_ctx.hash_fcn = EVP_sha256();
             break;
         case NID_secp384r1:
-            m_p_ctx.digest_len = 48;
+            m_p_ctx.digest_len = SHA384_DIGEST_LENGTH;
             m_p_ctx.hash_fcn = EVP_sha384();
             break;
         case NID_secp521r1:
-            m_p_ctx.digest_len = 64;
+            m_p_ctx.digest_len = SHA512_DIGEST_LENGTH;
             m_p_ctx.hash_fcn = EVP_sha512();
             break;
         case NID_X9_62_prime192v1:
-            m_p_ctx.digest_len = 32;
+            m_p_ctx.digest_len = SHA256_DIGEST_LENGTH;
             m_p_ctx.hash_fcn = EVP_sha256();
             break;
         case NID_secp224r1:
-            m_p_ctx.digest_len = 32;
+            m_p_ctx.digest_len = SHA256_DIGEST_LENGTH;
             m_p_ctx.hash_fcn = EVP_sha256();
             break;
         default:
