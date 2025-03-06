@@ -1008,6 +1008,9 @@ void em_metrics_t::process_ctrl_state()
         case em_state_ctrl_sta_link_metrics_pending:
             send_all_associated_sta_link_metrics_msg();
             break;
+        default:
+            printf("%s:%d: unhandled case %s\n", __func__, __LINE__, em_t::state_2_str(get_state()));
+            break;
     }
 }
 

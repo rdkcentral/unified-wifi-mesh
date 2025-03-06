@@ -35,12 +35,12 @@ class em_configuration_t {
     int create_operational_bss_tlv_topology(unsigned char *buff);
     int	create_bss_config_rprt_tlv(unsigned char *buff);
     int create_device_info_type_tlv(unsigned char *buff);
-    short create_client_assoc_event_tlv(unsigned char *buff, mac_address_t sta, bssid_t bssid, bool assoc);
+    unsigned short create_client_assoc_event_tlv(unsigned char *buff, mac_address_t sta, bssid_t bssid, bool assoc);
     int create_ap_mld_config_tlv(unsigned char *buff);
     int create_bsta_mld_config_tlv(unsigned char *buff);
     int create_assoc_sta_mld_config_report_tlv(unsigned char *buff);
     int create_tid_to_link_map_policy_tlv(unsigned char *buff);
-    short create_eht_operations_tlv(unsigned char *buff);
+    unsigned short create_eht_operations_tlv(unsigned char *buff);
 
     int send_topology_response_msg(unsigned char *dst);
     int send_topology_notification_by_client(mac_address_t sta, bssid_t bssid, bool assoc);
@@ -71,10 +71,10 @@ class em_configuration_t {
     int handle_ap_mld_config_resp(unsigned char *buff, unsigned int len);
 	void handle_ap_vendor_operational_bss(unsigned char *value, unsigned int len);
 
-    short create_m1_msg(unsigned char *buff);
-    short create_m2_msg(unsigned char *buff, em_haul_type_t haul_type);
-    short create_traffic_separation_policy(unsigned char *buff);
-    short create_error_code_tlv(unsigned char *buff, int val, mac_addr_t sta_mac);
+    unsigned short create_m1_msg(unsigned char *buff);
+    unsigned short create_m2_msg(unsigned char *buff, em_haul_type_t haul_type);
+    unsigned short create_traffic_separation_policy(unsigned char *buff);
+    unsigned short create_error_code_tlv(unsigned char *buff, int val, mac_addr_t sta_mac);
   	int create_vendor_operational_bss_tlv(unsigned char *buff);
  
     // state handlers 
@@ -147,8 +147,8 @@ public:
     int send_topology_query_msg();
     int send_autoconfig_renew_msg();
     int handle_encrypted_settings();
-    unsigned int create_encrypted_settings(unsigned char *buff, em_haul_type_t haul_type);
-    unsigned int create_authenticator(unsigned char *buff);
+    int create_encrypted_settings(unsigned char *buff, em_haul_type_t haul_type);
+    int create_authenticator(unsigned char *buff);
 
     unsigned int get_e_uuid(unsigned char *uuid) { return m_crypto.get_e_uuid(uuid); }
     unsigned int get_r_uuid(unsigned char *uuid) { return m_crypto.get_r_uuid(uuid); }

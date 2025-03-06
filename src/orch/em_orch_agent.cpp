@@ -386,7 +386,7 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                         printf("%s:%d channel sel radio cannot be found.\n", __func__, __LINE__);
                         break;
                     }
-                    if (memcmp(radio->get_radio_interface_mac(),em->get_radio_interface_mac(),sizeof(mac_address_t)) == 0) {
+                    if ((memcmp(radio->get_radio_interface_mac(),em->get_radio_interface_mac(),sizeof(mac_address_t)) == 0) && (em->get_state() == em_state_agent_channel_selection_pending)) {
                         queue_push(pcmd->m_em_candidates, em);
                         count++;
                         dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), dst_mac_str);

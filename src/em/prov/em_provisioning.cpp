@@ -244,25 +244,25 @@ int em_provisioning_t::create_bss_config_req_msg(uint8_t *buff)
 int em_provisioning_t::create_bss_config_rsp_msg(uint8_t *buff)
 {
     uint16_t  msg_id = em_msg_type_bss_config_rsp;
-    int len = 0;
+    unsigned int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     uint8_t *tmp = buff;
     uint16_t type = htons(ETH_P_1905);
 
-    memcpy(tmp, (uint8_t *)get_peer_mac(), sizeof(mac_address_t));
+    memcpy(tmp, reinterpret_cast<uint8_t *> (get_peer_mac()), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
     memcpy(tmp, get_current_cmd()->get_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
-    memcpy(tmp, (uint8_t *)&type, sizeof(uint16_t));
+    memcpy(tmp, reinterpret_cast<uint8_t *> (&type), sizeof(uint16_t));
     tmp += sizeof(uint16_t);
-    len += sizeof(uint16_t);
+    len += static_cast<unsigned int> (sizeof(uint16_t));
 
-    cmdu = (em_cmdu_t *)tmp;
+    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_id);
@@ -270,21 +270,21 @@ int em_provisioning_t::create_bss_config_rsp_msg(uint8_t *buff)
     cmdu->last_frag_ind = 1;
 
     tmp += sizeof(em_cmdu_t);
-    len += sizeof(em_cmdu_t);
+    len += static_cast<unsigned int> (sizeof(em_cmdu_t));
 
     // One or more BSS config response tlv 17.2.85
     // Zero or One deafult 802,1Q settings tlv 17.2.49
     // Zero or One traffic separation policy tlv 17.2.50
 
     // End of message
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_eom;
     tlv->len = 0;
 
     tmp += (sizeof (em_tlv_t));
-    len += (sizeof (em_tlv_t));
+    len += static_cast<unsigned int> (sizeof (em_tlv_t));
 
-    return len;
+    return static_cast<int> (len);
 
 }
 
@@ -339,25 +339,25 @@ int em_provisioning_t::create_bss_config_res_msg(uint8_t *buff)
 int em_provisioning_t::create_dpp_direct_encap_msg(uint8_t *buff, uint8_t *frame, uint16_t frame_len)
 {
     uint16_t  msg_id = em_msg_type_direct_encap_dpp;
-    int len = 0;
+    unsigned int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     uint8_t *tmp = buff;
     uint16_t type = htons(ETH_P_1905);
 
-    memcpy(tmp, (uint8_t *)get_peer_mac(), sizeof(mac_address_t));
+    memcpy(tmp, reinterpret_cast<uint8_t *> (get_peer_mac()), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
     memcpy(tmp, get_current_cmd()->get_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
-    memcpy(tmp, (uint8_t *)&type, sizeof(uint16_t));
+    memcpy(tmp, reinterpret_cast<uint8_t *> (&type), sizeof(uint16_t));
     tmp += sizeof(uint16_t);
-    len += sizeof(uint16_t);
+    len += static_cast<unsigned int> (sizeof(uint16_t));
 
-    cmdu = (em_cmdu_t *)tmp;
+    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_id);
@@ -365,42 +365,43 @@ int em_provisioning_t::create_dpp_direct_encap_msg(uint8_t *buff, uint8_t *frame
     cmdu->last_frag_ind = 1;
 
     tmp += sizeof(em_cmdu_t);
-    len += sizeof(em_cmdu_t);
+    len += static_cast<unsigned int> (sizeof(em_cmdu_t));
 
     // One DPP Message tlv 17.2.86
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_dpp_msg;
     tlv->len = htons(frame_len);
     memcpy(tlv->value, frame, frame_len);
 
     tmp += (sizeof(em_tlv_t) + frame_len);
-    len += (sizeof(em_tlv_t) + frame_len);
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + frame_len);
 
     // End of message
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_eom;
     tlv->len = 0;
 
     tmp += (sizeof (em_tlv_t));
-    len += (sizeof (em_tlv_t));
+    len += static_cast<unsigned int> (sizeof (em_tlv_t));
 
-    return len;
+    return static_cast<int> (len);
 }
 
 int em_provisioning_t::handle_cce_ind_msg(uint8_t *buff, unsigned int len)
 {
     em_tlv_t    *tlv;
-    int tmp_len, ret = 0;
+    unsigned int tmp_len;
+    int ret = 0;
     unsigned int rq_ctr = 0, rx_ctr = 0;
-    uint8_t msg[MAX_EM_BUFF_SZ];
-    unsigned int sz;
+    //uint8_t msg[MAX_EM_BUFF_SZ]; commented since not used
+    //unsigned int sz;  commented since sz not used
 
     // mandatory need 17.2.82
     rq_ctr = 1;
 
     printf("%s:%d: Parsing cce ind message\n", __func__, __LINE__);
 
-    tlv = (em_tlv_t *)buff; tmp_len = len;
+    tlv = reinterpret_cast<em_tlv_t *> (buff); tmp_len = len;
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if ((tlv->type == em_tlv_type_dpp_cce_indication) && (htons(tlv->len) == sizeof(uint16_t))) {
@@ -408,8 +409,8 @@ int em_provisioning_t::handle_cce_ind_msg(uint8_t *buff, unsigned int len)
             rx_ctr++;
         }
 
-        tmp_len -= (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = (em_tlv_t *)((uint8_t *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+        tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<uint8_t *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
     if (rx_ctr != rq_ctr) {
@@ -419,7 +420,7 @@ int em_provisioning_t::handle_cce_ind_msg(uint8_t *buff, unsigned int len)
 
     // if this is a proxy agent (must be provisioned) , ask onewifi to beacon cce otherwise send presence announcement
     if (get_state() > em_state_agent_configured) {
-        sz = create_cce_ind_cmd(msg);
+        //sz = static_cast<unsigned int> (create_cce_ind_cmd(msg)); commented since sz not used
         //ret = send_cmd(msg, sz); // Modify send_cmd
         if (ret > 0) {
             printf("%s:%d: cmd send success\n", __func__, __LINE__);
@@ -435,13 +436,9 @@ int em_provisioning_t::handle_cce_ind_msg(uint8_t *buff, unsigned int len)
 
 void em_provisioning_t::process_msg(uint8_t *data, unsigned int len)
 {
-    em_raw_hdr_t *hdr;
     em_cmdu_t *cmdu;
-    uint8_t *tlvs;
-    unsigned int tlvs_len;
 
-    hdr = (em_raw_hdr_t *)data;
-    cmdu = (em_cmdu_t *)(data + sizeof(em_raw_hdr_t));
+    cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
 
     switch (htons(cmdu->type)) {
         case em_msg_type_dpp_cce_ind:
@@ -481,10 +478,10 @@ void em_provisioning_t::process_msg(uint8_t *data, unsigned int len)
 int em_provisioning_t::handle_dpp_chirp_notif(uint8_t *buff, unsigned int len)
 {
     em_tlv_t    *tlv;
-    int tlv_len;
+    unsigned int tlv_len;
 
-    tlv = (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-    tlv_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tlv_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         // Can be one or more
@@ -492,20 +489,16 @@ int em_provisioning_t::handle_dpp_chirp_notif(uint8_t *buff, unsigned int len)
             // Parse out dest STA mac address and hash value then validate against the hash in the 
             // ec_session dpp uri info public key. 
             // Then construct an Auth request frame and send back in an Encap message
-            em_dpp_chirp_value_t* chirp_tlv = (em_dpp_chirp_value_t*)tlv->value;
+            em_dpp_chirp_value_t* chirp_tlv = reinterpret_cast<em_dpp_chirp_value_t*> (tlv->value);
 
             uint8_t* out_frame = NULL;
-            if (m_ec_session->handle_chirp_notification(chirp_tlv, &out_frame) != 0){
+            if (m_ec_manager->process_chirp_notification(chirp_tlv, htons(tlv->len)) != 0){
                 //TODO: Fail
             }
-
-            // Create 1905 Encap DPP Message with a 1905 Encap DPP TLV (out frame) and chirp TLV
-
-
         }
 
-        tlv_len -= (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = (em_tlv_t *)((uint8_t *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+        tlv_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<uint8_t *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
 	return 0;
@@ -514,10 +507,14 @@ int em_provisioning_t::handle_dpp_chirp_notif(uint8_t *buff, unsigned int len)
 int em_provisioning_t::handle_proxy_encap_dpp(uint8_t *buff, unsigned int len)
 {
     em_tlv_t    *tlv;
-    int tlv_len;
+    unsigned int tlv_len;
 
-    tlv = (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-    tlv_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tlv_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    uint16_t encap_tlv_len, chirp_tlv_len = 0;
+    em_encap_dpp_t* encap_tlv = NULL;
+    em_dpp_chirp_value_t* chirp_tlv = NULL;
 
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
 
@@ -525,37 +522,23 @@ int em_provisioning_t::handle_proxy_encap_dpp(uint8_t *buff, unsigned int len)
             // Parse out dest STA mac address and hash value then validate against the hash in the 
             // ec_session dpp uri info public key. 
             // Then construct an Auth request frame and send back in an Encap message
-            em_encap_dpp_t* chirp_tlv = (em_encap_dpp_t*)tlv->value;
-
-            uint8_t* out_frame = NULL;
-            if (m_ec_session->handle_proxy_encap_dpp_tlv(chirp_tlv, &out_frame) != 0){
-                //TODO: Fail
-            }
-            // TODO: Send out_frame in an Encap message
-
-
+            encap_tlv = reinterpret_cast<em_encap_dpp_t*> (tlv->value);
+            encap_tlv_len = htons(tlv->len);
         }
 
-
-        // Can be 0 or 1
+        // Optional: Can be 0 or 1
         if (tlv->type == em_tlv_type_dpp_chirp_value) {
-            // Parse out dest STA mac address and hash value then validate against the hash in the 
-            // ec_session dpp uri info public key. 
-            // Then construct an Auth request frame and send back in an Encap message
-            em_dpp_chirp_value_t* chirp_tlv = (em_dpp_chirp_value_t*)tlv->value;
-
-            uint8_t* out_frame = NULL;
-            if (m_ec_session->handle_chirp_notification(chirp_tlv, &out_frame) != 0){
-                //TODO: Fail
-            }
-
-            // Create 1905 Encap DPP Message with a 1905 Encap DPP TLV (out frame) and chirp TLV
-
-
+            chirp_tlv = reinterpret_cast<em_dpp_chirp_value_t*> (tlv->value);
+            chirp_tlv_len = htons(tlv->len);
         }
 
-        tlv_len -= (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = (em_tlv_t *)((uint8_t *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+        tlv_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<uint8_t *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+    if (m_ec_manager->process_proxy_encap_dpp_msg(encap_tlv, encap_tlv_len, chirp_tlv, chirp_tlv_len) != 0){
+        //TODO: Fail
+        return -1;
     }
 
 	return 0;
@@ -563,7 +546,7 @@ int em_provisioning_t::handle_proxy_encap_dpp(uint8_t *buff, unsigned int len)
 
 void em_provisioning_t::handle_state_prov_none()
 {
-    printf("%s:%d: Waiting for CCE indication interface: %s\n", __func__, __LINE__, (char *)get_radio_interface_name());
+    printf("%s:%d: Waiting for CCE indication interface: %s\n", __func__, __LINE__, const_cast<char *> (get_radio_interface_name()));
 }
 
 void em_provisioning_t::handle_state_prov()
@@ -650,10 +633,6 @@ void em_provisioning_t::process_ctrl_state()
 
 em_provisioning_t::em_provisioning_t()
 {
-    m_ec_session = std::unique_ptr<ec_session_t>(new ec_session_t(
-        std::bind(&em_provisioning_t::send_chirp_notif_msg, this, std::placeholders::_1, std::placeholders::_2),
-        std::bind(&em_provisioning_t::send_prox_encap_dpp_msg, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4)
-    ));
 }
 
 em_provisioning_t::~em_provisioning_t()

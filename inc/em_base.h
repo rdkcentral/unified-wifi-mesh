@@ -214,6 +214,8 @@ typedef unsigned char em_nonce_t[16];
 typedef unsigned char em_dh5_key_t[192];    // because this is DH group 5 (1536 bits)
 typedef char    em_short_string_t[64];
 typedef char    em_long_string_t[128];
+typedef char    em_2xlong_string_t[256];
+typedef char    em_3xlong_string_t[512];
 typedef char    em_string_t[32];
 typedef char    em_small_string_t[16];
 typedef char    em_tiny_string_t[4];
@@ -609,10 +611,15 @@ typedef struct {
     unsigned char reserved : 1;
     unsigned char dpp_frame_indicator : 1;
     unsigned char content_type : 5;
-    mac_address_t dest_mac_addr;
-    unsigned char frame_type;
-    unsigned short encap_frame_len;
-    unsigned char encap_frame[0];
+/*
+    Contains:
+        - dest_mac_addr (6 bytes, if enrollee_mac_addr_present)
+        - frame_type (1 byte)
+        - encap_frame_len (2 bytes)
+        - encap_frame (encap_frame_len bytes)
+*/
+    unsigned char data[0];
+
 }__attribute__((__packed__)) em_encap_dpp_t;
 
 typedef struct {

@@ -236,6 +236,9 @@ int dm_easy_mesh_t::commit_config(em_cmd_t  *cmd)
                         m_num_radios++;
 
                         break;
+                    default:
+                        printf("%s:%d: unhandled case %d\n", __func__, __LINE__, cmd->get_orch_op());
+                        break;
                 }
             }
             break;
@@ -763,7 +766,14 @@ int dm_easy_mesh_t::decode_config_reset(em_subdoc_info_t *subdoc, const char *ke
 				}
 				m_num_preferences++;
 			}
-			
+
+			if ((obj = cJSON_GetObjectItem(preference_obj, "bpi")) != NULL) {
+                                strncpy(m_preference[m_num_preferences].platform, "bpi", strlen("bpi") + 1);
+                                if (strncmp(cJSON_GetStringValue(obj), "erouter", strlen("erouter")) == 0) {
+                                        m_preference[m_num_preferences].media = em_media_type_ieee8023ab;
+                                }
+                                m_num_preferences++;
+                        }
 		}
 	}
 
@@ -1683,7 +1693,7 @@ em_interface_t *dm_easy_mesh_t::get_prioritized_interface(const char *platform)
 
 	if (m_preference[i].media == em_media_type_ieee8023ab) {
 		for (i = 0; i < m_num_interfaces; i++) {
-			if ((strstr(m_interfaces[i].name, "eth") != NULL) || (strstr(m_interfaces[i].name, "ens") != NULL)) {
+			if ((strstr(m_interfaces[i].name, "eth") != NULL) || (strstr(m_interfaces[i].name, "ens") != NULL) || (strstr(m_interfaces[i].name, "erouter") != NULL)) {
 				found_match = true;
 				break;
 			}
@@ -1728,6 +1738,8 @@ int dm_easy_mesh_t::get_interfaces_list(em_interface_t interfaces[], unsigned in
             strncpy(interfaces[num].name, tmp->ifa_name, strlen(tmp->ifa_name) + 1);
 			if (strstr(tmp->ifa_name, "eth") != NULL) {
 				interfaces[num].media = em_media_type_ieee8023ab;
+			} else if (strstr(tmp->ifa_name, "erouter") != NULL) {
+                                interfaces[num].media = em_media_type_ieee8023ab;	
 			} else if (strstr(tmp->ifa_name, "ens") != NULL) {
 				interfaces[num].media = em_media_type_ieee8023ab;
 			} else if (strstr(tmp->ifa_name, "wlan") != NULL) {
@@ -1811,8 +1823,14 @@ rdk_wifi_radio_t *dm_easy_mesh_t::get_radio_data(em_interface_t *interface)
 	unsigned int i;
 	rdk_wifi_radio_t *radio;
 
-	for (i = 0; i < m_wifi_data.u.decoded.num_radios; i++) {
-		radio = &m_wifi_data.u.decoded.radios[i];
+	if ( m_wifi_data == NULL )
+        {
+              printf("%s:%d: m_wifi_data is not initialized \n",__func__,__LINE__);
+              return NULL;
+        }
+
+	for (i = 0; i < m_wifi_data->u.decoded.num_radios; i++) {
+		radio = &m_wifi_data->u.decoded.radios[i];
 
 		if (strncmp(radio->name, interface->name, strlen(radio->name)) == 0) {
 			return radio;
@@ -2432,6 +2450,9 @@ void dm_easy_mesh_t::deinit()
         hash_map_remove(m_sta_dassoc_map, key);
     }
 	hash_map_destroy(m_sta_dassoc_map);
+	if (m_wifi_data != NULL)
+		free(m_wifi_data);
+
 }
 
 void dm_easy_mesh_t::set_policy(dm_policy_t policy)
@@ -2649,7 +2670,7 @@ void dm_easy_mesh_t::reset_db_cfg_type(db_cfg_type_t type)
     m_db_cfg_param.db_cfg_type &= ~type; 
 }   
 
-void dm_easy_mesh_t::set_db_cfg_param(db_cfg_type_t cfg_type, char *criteria)
+void dm_easy_mesh_t::set_db_cfg_param(db_cfg_type_t cfg_type, const char *criteria)
 {
 	unsigned int num = cfg_type;
 	unsigned int index = 0;
@@ -2699,7 +2720,7 @@ int dm_easy_mesh_t::init()
     m_sta_map = hash_map_create();
     m_sta_assoc_map = hash_map_create();
     m_sta_dassoc_map = hash_map_create();
-
+    m_wifi_data = (webconfig_subdoc_data_t*)malloc(sizeof(webconfig_subdoc_data_t));
 	memset(&m_db_cfg_param, 0, sizeof(em_db_cfg_param_t));
     return 0;
 }
@@ -2741,6 +2762,7 @@ dm_easy_mesh_t::dm_easy_mesh_t()
 	m_num_policy = 0;
 	m_num_bss = 0;
     m_num_ap_mld = 0;
+        m_num_net_ssids = 0;
 	m_db_cfg_param.db_cfg_type = db_cfg_type_none;
     m_colocated = false;
 }

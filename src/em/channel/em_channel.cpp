@@ -424,7 +424,7 @@ short em_channel_t::create_channel_scan_res_tlv(unsigned char *buff, unsigned in
 
 int em_channel_t::send_channel_scan_report_msg(unsigned int *last_index)
 {
-    unsigned char buff[MAX_EM_BUFF_SZ];
+    unsigned char buff[MAX_EM_BUFF_SZ*3]; //Increased size to accommodate if max number of neighbor are present in the message
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned short  msg_id = em_msg_type_channel_scan_rprt;
     int len = 0;
@@ -1639,36 +1639,46 @@ int em_channel_t::handle_channel_pref_tlv(unsigned char *buff, op_class_channel_
 
 int em_channel_t::handle_eht_operations_tlv(unsigned char *buff, em_eht_operations_t *eht_ops)
 {
-    short len = 0;
-    int i = 0, j = 0, k = 0, l = 0;
-    unsigned char *tmp = buff;
+	short len = 0;
+	int i = 0, j = 0, k = 0, l = 0;
+	unsigned char *tmp = buff;
 
-    unsigned char num_radios;
-    unsigned char num_bss;
+	unsigned char num_radios;
+	unsigned char num_bss;
 
-    memcpy(&num_radios, tmp, sizeof(unsigned char));
-    eht_ops->radios_num = num_radios;
-    tmp += sizeof(unsigned char);
-    len += sizeof(unsigned char);
+	memcpy(&num_radios, tmp, sizeof(unsigned char));
+	eht_ops->radios_num = num_radios;
+	tmp += sizeof(unsigned char);
+	len += sizeof(unsigned char);
 
-    for (i = 0; i < num_radios; i++) {
-        memcpy(&eht_ops->radios[i].ruid, tmp, sizeof(mac_address_t));
-        tmp += sizeof(mac_address_t);
-        len += sizeof(mac_address_t);
+	if (num_radios > EM_MAX_RADIO_PER_AGENT) {
+		printf("%s:%d Invalid radios count \n", __func__, __LINE__);
+		return -1;
+	}
 
-        memcpy(&num_bss, tmp, sizeof(unsigned char));
-        eht_ops->radios[i].bss_num = num_bss;
-        tmp += sizeof(unsigned char);
-        len += sizeof(unsigned char);
+	for (i = 0; i < num_radios; i++) {
+		memcpy(&eht_ops->radios[i].ruid, tmp, sizeof(mac_address_t));
+		tmp += sizeof(mac_address_t);
+		len += sizeof(mac_address_t);
 
-        for(j = 0; j < num_bss; j++) {
-            memcpy(&eht_ops->radios[i].bss[j], tmp, sizeof(em_eht_operations_bss_t));
-            tmp += sizeof(em_eht_operations_bss_t);
-            len += sizeof(em_eht_operations_bss_t);
-        }
-    }
+		memcpy(&num_bss, tmp, sizeof(unsigned char));
+		eht_ops->radios[i].bss_num = num_bss;
+		tmp += sizeof(unsigned char);
+		len += sizeof(unsigned char);
 
-    return 0;
+		if (num_bss > EM_MAX_BSS_PER_RADIO) {
+			printf("%s:%d Invalid bss count \n", __func__, __LINE__);
+			continue;
+		}
+
+		for(j = 0; j < num_bss; j++) {
+			memcpy(&eht_ops->radios[i].bss[j], tmp, sizeof(em_eht_operations_bss_t));
+			tmp += sizeof(em_eht_operations_bss_t);
+			len += sizeof(em_eht_operations_bss_t);
+		}
+	}
+
+	return 0;
 }
 
 int em_channel_t::handle_channel_pref_query(unsigned char *buff, unsigned int len)
@@ -1943,7 +1953,9 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
             break; 
     
         case em_msg_type_channel_pref_rprt:
-            handle_channel_pref_rprt(data, len);
+		if (get_service_type() == em_service_type_ctrl) {
+			handle_channel_pref_rprt(data, len);
+		}
             break;
 
         case em_msg_type_channel_sel_rsp:
@@ -2019,6 +2031,9 @@ void em_channel_t::process_state()
                 set_state(em_state_agent_configured);
             }
 			break;
+        default:
+            printf("%s:%d: unhandled case %s\n", __func__, __LINE__, em_t::state_2_str(get_state()));
+            break;
 
     }
 }
@@ -2043,6 +2058,9 @@ void em_channel_t::process_ctrl_state()
 		case em_state_ctrl_channel_scan_pending:
 			send_channel_scan_request_msg();
             break; 
+        default:
+            printf("%s:%d: unhandled case %s\n", __func__, __LINE__, em_t::state_2_str(get_state()));
+            break;
     }
 }
 
