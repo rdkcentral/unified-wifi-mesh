@@ -57,7 +57,7 @@ bool em_msg_t::get_client_mac_info(mac_address_t *mac)
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if (tlv->type == em_tlv_type_client_info) {
-            cltinfo = (em_client_info_t *)tlv->value;
+            cltinfo = reinterpret_cast<em_client_info_t *> (tlv->value);
             memcpy(mac, &cltinfo->client_mac_addr, sizeof(mac_address_t));
             return true;
         }
@@ -268,14 +268,14 @@ unsigned char* em_msg_t::add_buff_element(unsigned char *buff, unsigned int *len
 unsigned char* em_msg_t::add_tlv(unsigned char *buff, unsigned int *len, em_tlv_type_t tlv_type, 
                                             unsigned char *value, unsigned int value_len)
 {
-    em_tlv_t* tlv = (em_tlv_t *)buff;
+    em_tlv_t* tlv = reinterpret_cast<em_tlv_t *> (buff);
     tlv->type = tlv_type;
-    tlv->len = htons(value_len);
+    tlv->len = (htons(static_cast<short unsigned int>(value_len)));
     if (value_len > 0) {
         memcpy(tlv->value, value, value_len);
     }
 
-    *len += (sizeof(em_tlv_t) + value_len);
+    *len += static_cast<unsigned int> (sizeof(em_tlv_t) + value_len);
     return buff + (sizeof(em_tlv_t) + value_len);
     
 }
@@ -286,17 +286,22 @@ unsigned char* em_msg_t::add_1905_header(unsigned char *buff, unsigned int *len,
     uint16_t  msg_id = msg_type;
 
     unsigned char* tmp = buff;
-    tmp = em_msg_t::add_buff_element(tmp, len, (uint8_t *)dst, sizeof(mac_address_t));
-    tmp = em_msg_t::add_buff_element(tmp, len, (uint8_t *)src, sizeof(mac_address_t));
-    tmp = em_msg_t::add_buff_element(tmp, len, (uint8_t *)&type, sizeof(uint16_t));
+    tmp = em_msg_t::add_buff_element(tmp, len, reinterpret_cast<uint8_t *>(dst), sizeof(mac_address_t));
+    tmp = em_msg_t::add_buff_element(tmp, len, reinterpret_cast<uint8_t *>(src), sizeof(mac_address_t));
+    tmp = em_msg_t::add_buff_element(tmp, len, reinterpret_cast<uint8_t *> (&type), sizeof(uint16_t));
 
     em_cmdu_t cmdu = {
+        .ver = 0,
+        .reserved = 0,
         .type = htons(msg_id),
         .id = htons(msg_id),
+        .frag_id = 0,
+        .reserved_field = 0,
+        .relay_ind = 0,
         .last_frag_ind = 1
     };
 
-    return em_msg_t::add_buff_element(tmp, len, (uint8_t *)&cmdu, sizeof(em_cmdu_t));    
+    return em_msg_t::add_buff_element(tmp, len, reinterpret_cast<uint8_t *> (&cmdu), sizeof(em_cmdu_t));
 }
 unsigned int em_msg_t::validate(char *errors[])
 {

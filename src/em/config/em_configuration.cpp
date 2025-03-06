@@ -93,8 +93,8 @@ int em_configuration_t::send_topology_notification_by_client(mac_address_t sta, 
 {
     unsigned short  msg_id = em_msg_type_topo_notif;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    int len = 0;
-    short sz;
+    unsigned int len = 0;
+    unsigned short sz;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     unsigned char buff[MAX_EM_BUFF_SZ];
@@ -106,19 +106,19 @@ int em_configuration_t::send_topology_notification_by_client(mac_address_t sta, 
 
     dm = get_data_model();
 
-    memcpy(tmp, (unsigned char *)multi_addr, sizeof(mac_address_t));
+    memcpy(tmp, reinterpret_cast<unsigned char *> (multi_addr), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
     memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
-    memcpy(tmp, (unsigned char *)&type, sizeof(unsigned short));
+    memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
     tmp += sizeof(unsigned short);
-    len += sizeof(unsigned short);
+    len += static_cast<unsigned int> (sizeof(unsigned short));
 
-    cmdu = (em_cmdu_t *)tmp;
+    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_id);
@@ -127,33 +127,33 @@ int em_configuration_t::send_topology_notification_by_client(mac_address_t sta, 
     cmdu->relay_ind = 1;
 
     tmp += sizeof(em_cmdu_t);
-    len += sizeof(em_cmdu_t);
+    len += static_cast<unsigned int> (sizeof(em_cmdu_t));
 
     // AL MAC Address type TLV
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_al_mac_address;
     tlv->len = htons(sizeof(mac_address_t));
     memcpy(tlv->value, get_al_interface_mac(), sizeof(mac_address_t));
 
     tmp += (sizeof (em_tlv_t) + sizeof(mac_address_t));
-    len += (sizeof (em_tlv_t) + sizeof(mac_address_t));
+    len += static_cast<unsigned int> (sizeof (em_tlv_t) + sizeof(mac_address_t));
 
     // Client Association Event  17.2.20
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_client_assoc_event;
     sz = create_client_assoc_event_tlv(tlv->value, sta, bssid, joined);
     tlv->len =  htons(sz);
 
     tmp += (sizeof(em_tlv_t) + sz);
-    len += (sizeof(em_tlv_t) + sz);
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + sz);
 
     // End of message
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_eom;
     tlv->len = 0;
 
     tmp += (sizeof (em_tlv_t));
-    len += (sizeof (em_tlv_t));
+    len += static_cast<unsigned int> (sizeof (em_tlv_t));
 
     printf("%s:%d Create topology notification msg successfull\n", __func__, __LINE__);
 
@@ -170,7 +170,7 @@ int em_configuration_t::send_topology_notification_by_client(mac_address_t sta, 
 
     printf("%s:%d: Topology notification Send Successful\n", __func__, __LINE__);
 
-    return len;
+    return static_cast<int> (len);
 }
 
 void em_configuration_t::handle_state_topology_notify()
@@ -180,16 +180,16 @@ void em_configuration_t::handle_state_topology_notify()
 
     dm = get_current_cmd()->get_data_model();
 
-    sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_assoc_map);
+    sta = static_cast<dm_sta_t *>(hash_map_get_first(dm->m_sta_assoc_map));
     while (sta != NULL) {
         send_topology_notification_by_client(sta->m_sta_info.id, sta->m_sta_info.bssid, true);
-        sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_assoc_map, sta);
+        sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_assoc_map, sta));
     }
 
-    sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_dassoc_map);
+    sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_dassoc_map));
     while (sta != NULL) {
         send_topology_notification_by_client(sta->m_sta_info.id, sta->m_sta_info.bssid, false);
-        sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_dassoc_map, sta);
+        sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_dassoc_map, sta));
     }
     set_state(em_state_agent_configured);
 }
@@ -199,10 +199,9 @@ int em_configuration_t::send_autoconfig_renew_msg()
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned short  msg_id = em_msg_type_autoconf_renew;
-    int len = 0;
+    unsigned int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
-    em_enum_type_t profile;
     unsigned char *tmp = buff;
     unsigned short type = htons(ETH_P_1905);
     dm_easy_mesh_t *dm;
@@ -213,17 +212,17 @@ int em_configuration_t::send_autoconfig_renew_msg()
 
     memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
     memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
-    memcpy(tmp, (unsigned char *)&type, sizeof(unsigned short));
+    memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
     tmp += sizeof(unsigned short);
-    len += sizeof(unsigned short);
+    len += static_cast<unsigned int> (sizeof(unsigned short));
 
-    cmdu = (em_cmdu_t *)tmp;
+    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_id);
@@ -232,43 +231,43 @@ int em_configuration_t::send_autoconfig_renew_msg()
     cmdu->relay_ind = 0;
 
     tmp += sizeof(em_cmdu_t);
-    len += sizeof(em_cmdu_t);
+    len += static_cast<unsigned int> (sizeof(em_cmdu_t));
 
     // AL MAC Address type TLV
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_al_mac_address;
     tlv->len = htons(sizeof(mac_address_t));
     memcpy(tlv->value,get_current_cmd()->get_al_interface_mac(), sizeof(mac_address_t));
 
     tmp += (sizeof (em_tlv_t) + sizeof(mac_address_t));
-    len += (sizeof (em_tlv_t) + sizeof(mac_address_t));
+    len += static_cast<unsigned int> (sizeof (em_tlv_t) + sizeof(mac_address_t));
 
     //6-24—SupportedRole TLV
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_supported_role;
     tlv->len = htons(sizeof(unsigned char));
     memcpy(&tlv->value, &registrar, sizeof(unsigned char));
 
     tmp += (sizeof (em_tlv_t) + 1);
-    len += (sizeof (em_tlv_t) + 1);
+    len += static_cast<unsigned int> (sizeof (em_tlv_t) + 1);
 
     //6-25—supported freq_band TLV
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_supported_freq_band;
     tlv->len = htons(sizeof(unsigned char));
-    freq_band = (em_freq_band_t)(get_band() >> 1);
+    freq_band = static_cast<em_freq_band_t> (get_band() >> 1);
     memcpy(&tlv->value, &freq_band, sizeof(unsigned char));
 
     tmp += (sizeof (em_tlv_t) + 1);
-    len += (sizeof (em_tlv_t) + 1);
+    len += static_cast<unsigned int> (sizeof (em_tlv_t) + 1);
 
     // End of message
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_eom;
     tlv->len = 0;
 
     tmp += (sizeof (em_tlv_t));
-    len += (sizeof (em_tlv_t));
+    len += static_cast<unsigned int> (sizeof (em_tlv_t));
     
     if (em_msg_t(em_msg_type_autoconf_renew, em_profile_type_3, buff, len).validate(errors) == 0) {
         printf("Autoconfig Renew msg validation failed\n");
@@ -285,7 +284,7 @@ int em_configuration_t::send_autoconfig_renew_msg()
     dm_easy_mesh_t::macbytes_to_string (get_radio_interface_mac(), mac_str);
     printf("%s:%d: AutoConfig Renew (%d) Send Successful for %s freq band=%d\n", __func__, __LINE__, m_renew_tx_cnt, mac_str, get_band());
 
-    return len;
+    return static_cast<int> (len);
 }
 
 int em_configuration_t::send_topology_query_msg()
@@ -293,7 +292,7 @@ int em_configuration_t::send_topology_query_msg()
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned short  msg_id = em_msg_type_topo_query;
-    int len = 0;
+    unsigned int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
 	em_enum_type_t profile;	
@@ -305,17 +304,17 @@ int em_configuration_t::send_topology_query_msg()
 
     memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
     memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
-    memcpy(tmp, (unsigned char *)&type, sizeof(unsigned short));
+    memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
     tmp += sizeof(unsigned short);
-    len += sizeof(unsigned short);
+    len += static_cast<unsigned int> (sizeof(unsigned short));
 
-    cmdu = (em_cmdu_t *)tmp;
+    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_id);
@@ -324,34 +323,35 @@ int em_configuration_t::send_topology_query_msg()
     cmdu->relay_ind = 0;
 
     tmp += sizeof(em_cmdu_t);
-    len += sizeof(em_cmdu_t);
+    len += static_cast<unsigned int> (sizeof(em_cmdu_t));
 
     // One AP Radio Identifier tlv 17.2.3
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_radio_id;
     memcpy(tlv->value, get_radio_interface_mac(), sizeof(mac_address_t));
     tlv->len = htons(sizeof(mac_address_t));
 
     tmp += (sizeof(em_tlv_t) + sizeof(mac_address_t));
-    len += (sizeof(em_tlv_t) + sizeof(mac_address_t));
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + sizeof(mac_address_t));
 
     // One multiAP profile tlv 17.2.47
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_profile;
     tlv->len = htons(sizeof(em_enum_type_t));
     profile = em_profile_type_3;
     memcpy(tlv->value, &profile, sizeof(em_enum_type_t));
 
     tmp += (sizeof(em_tlv_t) + sizeof(em_enum_type_t));
-    len += (sizeof(em_tlv_t) + sizeof(em_enum_type_t));
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + sizeof(em_enum_type_t));
 
     // End of message
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_eom;
     tlv->len = 0;
 
     tmp += (sizeof (em_tlv_t));
-    len += (sizeof (em_tlv_t));
+    len += static_cast<unsigned int> (sizeof (em_tlv_t));
+
     if (em_msg_t(em_msg_type_topo_query, em_profile_type_3, buff, len).validate(errors) == 0) {
         printf("Topology Query msg failed validation in tnx end\n");
         return -1;
@@ -365,7 +365,7 @@ int em_configuration_t::send_topology_query_msg()
     m_topo_query_tx_cnt++;
     printf("%s:%d: Topology Query (%d) Send Successful\n", __func__, __LINE__, m_topo_query_tx_cnt);
 
-	return len;
+	return static_cast<int> (len);
 }
 
 int em_configuration_t::create_operational_bss_tlv(unsigned char *buff)
@@ -381,14 +381,14 @@ int em_configuration_t::create_operational_bss_tlv(unsigned char *buff)
 
     dm = get_data_model();
 
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_operational_bss;
     tlv_len = sizeof(em_ap_op_bss_t);
     printf("first tlv_len in em_configuration_t::create_operational_bss_tlv = %d\n",tlv_len);
 
-    ap = (em_ap_op_bss_t *)tlv->value;
+    ap = reinterpret_cast<em_ap_op_bss_t *> (tlv->value);
     assert(ap->radios_num == dm->get_num_radios());
-    ap->radios_num = dm->get_num_radios();
+    ap->radios_num = static_cast<unsigned char> (dm->get_num_radios());
     radio = ap->radios;
 	for (i = 0; i < dm->get_num_radios(); i++) {
 		memcpy(radio->ruid, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t));
@@ -402,12 +402,12 @@ int em_configuration_t::create_operational_bss_tlv(unsigned char *buff)
         	radio->bss_num++;
         	memcpy(bss->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
         	strncpy(bss->ssid, dm->m_bss[j].m_bss_info.ssid, strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
-        	bss->ssid_len = strlen(dm->m_bss[j].m_bss_info.ssid) + 1;
-        	all_bss_len += sizeof(em_ap_operational_bss_t) + bss->ssid_len;
-        	bss = (em_ap_operational_bss_t *)((unsigned char *)bss + sizeof(em_ap_operational_bss_t) + bss->ssid_len);
+        	bss->ssid_len = static_cast<unsigned char> (strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
+        	all_bss_len += static_cast<unsigned int> (sizeof(em_ap_operational_bss_t) + bss->ssid_len);
+        	bss = reinterpret_cast<em_ap_operational_bss_t *>(reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_operational_bss_t) + bss->ssid_len);
 		}
-    	radio = (em_ap_op_bss_radio_t *)((unsigned char *)radio + sizeof(em_ap_op_bss_radio_t) + all_bss_len);
-    	tlv_len += sizeof(em_ap_op_bss_radio_t) + all_bss_len;
+    	radio = reinterpret_cast<em_ap_op_bss_radio_t *>(reinterpret_cast<unsigned char *> (radio) + sizeof(em_ap_op_bss_radio_t) + all_bss_len);
+    	tlv_len += static_cast<short unsigned int> (sizeof(em_ap_op_bss_radio_t) + all_bss_len);
 	}
 
     tlv->len = htons(tlv_len);
@@ -429,12 +429,12 @@ int em_configuration_t::create_operational_bss_tlv_topology(unsigned char *buff)
 
 	dm = get_data_model();
 
-	tlv = (em_tlv_t *)tmp;
+	tlv = reinterpret_cast<em_tlv_t *> (tmp);
 	tlv->type = em_tlv_type_operational_bss;
 	tlv_len = sizeof(em_ap_op_bss_t);
 	printf("first tlv_len in em_configuration_t::create_operational_bss_tlv = %d\n",tlv_len);
 
-	ap = (em_ap_op_bss_t *)tlv->value;
+	ap = reinterpret_cast<em_ap_op_bss_t *> (tlv->value);
 	ap->radios_num = 1;  //Hard-Coding since topology response is per radio
 	radio = ap->radios;
 	for (i = 0; i < dm->get_num_radios(); i++) {
@@ -450,12 +450,12 @@ int em_configuration_t::create_operational_bss_tlv_topology(unsigned char *buff)
 				radio->bss_num++;
 				memcpy(bss->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
 				strncpy(bss->ssid, dm->m_bss[j].m_bss_info.ssid, strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
-				bss->ssid_len = strlen(dm->m_bss[j].m_bss_info.ssid) + 1;
-				all_bss_len += sizeof(em_ap_operational_bss_t) + bss->ssid_len;
-				bss = (em_ap_operational_bss_t *)((unsigned char *)bss + sizeof(em_ap_operational_bss_t) + bss->ssid_len);
+				bss->ssid_len = static_cast<unsigned char> (strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
+				all_bss_len += static_cast<unsigned int> (sizeof(em_ap_operational_bss_t) + bss->ssid_len);
+				bss = reinterpret_cast<em_ap_operational_bss_t *>(reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_operational_bss_t) + bss->ssid_len);
 			}
-			radio = (em_ap_op_bss_radio_t *)((unsigned char *)radio + sizeof(em_ap_op_bss_radio_t) + all_bss_len);
-			tlv_len += sizeof(em_ap_op_bss_radio_t) + all_bss_len;
+			radio = reinterpret_cast<em_ap_op_bss_radio_t *>(reinterpret_cast<unsigned char *> (radio) + sizeof(em_ap_op_bss_radio_t) + all_bss_len);
+			tlv_len += static_cast<short unsigned int> (sizeof(em_ap_op_bss_radio_t) + all_bss_len);
 		}
 	}
 
@@ -479,11 +479,11 @@ int em_configuration_t::create_bss_config_rprt_tlv(unsigned char *buff)
 
     dm = get_data_model();
 
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_bss_conf_rep;
 
-    rprt = (em_bss_config_rprt_t *)tlv->value;
-    rprt->num_radios = dm->get_num_radios();
+    rprt = reinterpret_cast<em_bss_config_rprt_t *> (tlv->value);
+    rprt->num_radios = static_cast<unsigned char> (dm->get_num_radios());
 
     tlv_len = sizeof(em_bss_config_rprt_t);
 
@@ -500,18 +500,18 @@ int em_configuration_t::create_bss_config_rprt_tlv(unsigned char *buff)
         	}
         	bss_rprt_len += sizeof(em_bss_rprt_t);
         	memcpy(bss_rprt->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(bssid_t));
-        	bss_rprt->ssid_len = strlen(dm->m_bss[j].m_bss_info.ssid) + 1;
+        	bss_rprt->ssid_len = static_cast<unsigned char> (strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
         	strncpy(bss_rprt->ssid, dm->m_bss[j].m_bss_info.ssid, strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
 	
     	    bss_rprt_len += bss_rprt->ssid_len;
 
-        	bss_rprt = (em_bss_rprt_t *)((unsigned char *)bss_rprt + sizeof(em_bss_rprt_t) + strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
+        	bss_rprt = reinterpret_cast<em_bss_rprt_t *> (reinterpret_cast<unsigned char *> (bss_rprt) + sizeof(em_bss_rprt_t) + strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
 
         	rd_rprt->num_bss++;
     	}
 
-    	rd_rprt = (em_radio_rprt_t *)((unsigned char *)rd_rprt + sizeof(em_radio_rprt_t) + bss_rprt_len);
-    	tlv_len += sizeof(em_radio_rprt_t) + bss_rprt_len;
+    	rd_rprt = reinterpret_cast<em_radio_rprt_t *>(reinterpret_cast<unsigned char *> (rd_rprt) + sizeof(em_radio_rprt_t) + bss_rprt_len);
+    	tlv_len += static_cast<short unsigned int> (sizeof(em_radio_rprt_t) + bss_rprt_len);
     	bss_rprt_len = 0;
 	}
 
@@ -533,12 +533,12 @@ int em_configuration_t::create_device_info_type_tlv(unsigned char *buff)
 
     dm = get_data_model();
 
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_device_info;
-    dev_info = (em_device_info_type_t *)tlv->value;
+    dev_info = reinterpret_cast<em_device_info_type_t *> (tlv->value);
 
     memcpy(dev_info->al_mac_addr, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
-    dev_info->local_interface_num = dm->get_num_bss();
+    dev_info->local_interface_num = static_cast<unsigned char> (dm->get_num_bss());
     local_intf = dev_info->local_interface;
     tlv_len = sizeof(em_device_info_type_t);
 	for (i = 0; i < dm->get_num_radios(); i++) {
@@ -552,12 +552,12 @@ int em_configuration_t::create_device_info_type_tlv(unsigned char *buff)
 			fill_media_data(&dm->m_radio[i].m_radio_info.media_data);
 			memcpy(&local_intf->media_data, &dm->m_radio[i].m_radio_info.media_data, sizeof(em_media_spec_data_t));
 
-			local_intf = (em_local_interface_t *)((unsigned char *)local_intf + sizeof(em_local_interface_t));
+			local_intf = reinterpret_cast<em_local_interface_t *>(reinterpret_cast<unsigned char *> (local_intf) + sizeof(em_local_interface_t));
 			tlv_len = tlv_len + sizeof(em_local_interface_t);
 		}
 	}
 
-	dev_info->local_interface_num = no_of_bss;
+	dev_info->local_interface_num = static_cast<unsigned char> (no_of_bss);
     tlv->len = htons(tlv_len);
 
     return tlv_len;
@@ -579,13 +579,13 @@ int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
 
     dm = get_data_model();
 
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_ap_mld_config;
 
-    ap_mld_conf = (em_ap_mld_config_t *)tlv->value;
-    ap_mld_conf->num_ap_mld = dm->get_num_ap_mld();
+    ap_mld_conf = reinterpret_cast<em_ap_mld_config_t *> (tlv->value);
+    ap_mld_conf->num_ap_mld = static_cast<unsigned char> (dm->get_num_ap_mld());
 
-    tlv_len = sizeof(em_ap_mld_config_t);
+    tlv_len = static_cast<short unsigned int> (sizeof(em_ap_mld_config_t));
 
     ap_mld = ap_mld_conf->ap_mld;
 
@@ -598,7 +598,7 @@ int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
         ap_mld->ap_mld_mac_addr_valid = ap_mld_info.mac_addr_valid;
 
         ap_mld_ssids = ap_mld->ssids;
-        ap_mld_ssids->ssid_len = strlen(ap_mld_info.ssid) + 1;
+        ap_mld_ssids->ssid_len = static_cast<unsigned char> (strlen(ap_mld_info.ssid) + 1);
         strncpy(ap_mld_ssids->ssid, ap_mld_info.ssid, ap_mld_ssids->ssid_len);
 
         memcpy(ap_mld->ap_mld_mac_addr, ap_mld_info.mac_addr, sizeof(mac_address_t));
@@ -618,12 +618,12 @@ int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
             memcpy(affiliated_ap_mld->affiliated_mac_addr, affiliated_ap_info.mac_addr, sizeof(mac_address_t));
             memcpy(&affiliated_ap_mld->link_id, &affiliated_ap_info.link_id, sizeof(unsigned char));
 
-            affiliated_ap_mld = (em_affiliated_ap_mld_t *)((unsigned char *)affiliated_ap_mld + sizeof(em_affiliated_ap_mld_t));
-            affiliated_ap_len += sizeof(em_affiliated_ap_mld_t);
+            affiliated_ap_mld = reinterpret_cast<em_affiliated_ap_mld_t *> (reinterpret_cast<unsigned char *> (affiliated_ap_mld) + sizeof(em_affiliated_ap_mld_t));
+            affiliated_ap_len += static_cast<short unsigned int> (sizeof(em_affiliated_ap_mld_t));
         }
 
-        ap_mld = (em_ap_mld_t *)((unsigned char *)ap_mld + sizeof(em_ap_mld_t) + ap_mld_ssids->ssid_len + affiliated_ap_len);
-        ap_mld_len += sizeof(em_ap_mld_t) + ap_mld_ssids->ssid_len + affiliated_ap_len;
+        ap_mld = reinterpret_cast<em_ap_mld_t *>(reinterpret_cast<unsigned char *> (ap_mld) + sizeof(em_ap_mld_t) + ap_mld_ssids->ssid_len + affiliated_ap_len);
+        ap_mld_len += static_cast<short unsigned int> (sizeof(em_ap_mld_t) + ap_mld_ssids->ssid_len + affiliated_ap_len);
     }
 
     tlv_len += ap_mld_len;
@@ -647,11 +647,11 @@ int em_configuration_t::create_bsta_mld_config_tlv(unsigned char *buff)
 
     dm = get_data_model();
 
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);
     tlv->type = em_tlv_type_bsta_mld_config;
 
-    bsta_mld_conf = (em_bsta_mld_config_t *)tlv->value;
-    bsta_mld_conf->num_bsta_mld = dm->get_num_bsta_mld();
+    bsta_mld_conf = reinterpret_cast<em_bsta_mld_config_t *> (tlv->value);
+    bsta_mld_conf->num_bsta_mld = static_cast<unsigned char> (dm->get_num_bsta_mld());
 
     tlv_len = sizeof(em_bsta_mld_config_t);
 
@@ -677,12 +677,12 @@ int em_configuration_t::create_bsta_mld_config_tlv(unsigned char *buff)
             memcpy(affiliated_bsta_mld->ruid, affiliated_bsta_info.ruid.mac, sizeof(mac_address_t));
             memcpy(affiliated_bsta_mld->affiliated_bsta_mac_addr, affiliated_bsta_info.mac_addr, sizeof(mac_address_t));
 
-            affiliated_bsta_mld = (em_affiliated_bsta_mld_t *)((unsigned char *)affiliated_bsta_mld + sizeof(em_affiliated_bsta_mld_t));
-            affiliated_bsta_len += sizeof(em_affiliated_bsta_mld_t);
+            affiliated_bsta_mld = reinterpret_cast<em_affiliated_bsta_mld_t *>(reinterpret_cast<unsigned char *> (affiliated_bsta_mld) + sizeof(em_affiliated_bsta_mld_t));
+            affiliated_bsta_len += static_cast<short unsigned int> (sizeof(em_affiliated_bsta_mld_t));
         }
 
-        bsta_mld = (em_bsta_mld_t *)((unsigned char *)bsta_mld + sizeof(em_bsta_mld_t) + affiliated_bsta_len);
-        bsta_mld_len += sizeof(em_bsta_mld_t) + affiliated_bsta_len;
+        bsta_mld = reinterpret_cast<em_bsta_mld_t *>(reinterpret_cast<unsigned char *> (bsta_mld) + sizeof(em_bsta_mld_t) + affiliated_bsta_len);
+        bsta_mld_len += static_cast<short unsigned int> (sizeof(em_bsta_mld_t) + affiliated_bsta_len);
     }
 
     tlv_len += bsta_mld_len;
@@ -706,11 +706,11 @@ int em_configuration_t::create_assoc_sta_mld_config_report_tlv(unsigned char *bu
 
     dm = get_data_model();
 
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_assoc_sta_mld_conf_rep;
 
-    assoc_sta_mld_conf_report = (em_assoc_sta_mld_config_report_t *)tlv->value;
-    assoc_sta_mld_conf_report->num_assoc_sta_mld = dm->get_num_assoc_sta_mld();
+    assoc_sta_mld_conf_report = reinterpret_cast<em_assoc_sta_mld_config_report_t *> (tlv->value);
+    assoc_sta_mld_conf_report->num_assoc_sta_mld = static_cast<unsigned char> (dm->get_num_assoc_sta_mld());
 
     tlv_len = sizeof(em_assoc_sta_mld_config_report_t);
 
@@ -733,12 +733,12 @@ int em_configuration_t::create_assoc_sta_mld_config_report_tlv(unsigned char *bu
             memcpy(affiliated_sta_mld->bssid, affiliated_sta_info.bssid, sizeof(mac_address_t));
             memcpy(affiliated_sta_mld->affiliated_sta_mac_addr, affiliated_sta_info.mac_addr, sizeof(mac_address_t));
 
-            affiliated_sta_mld = (em_affiliated_sta_mld_t *)((unsigned char *)affiliated_sta_mld + sizeof(em_affiliated_sta_mld_t));
-            affiliated_sta_len += sizeof(em_affiliated_sta_mld_t);
+            affiliated_sta_mld = reinterpret_cast<em_affiliated_sta_mld_t *>(reinterpret_cast<unsigned char *> (affiliated_sta_mld) + sizeof(em_affiliated_sta_mld_t));
+            affiliated_sta_len += static_cast<short unsigned int> (sizeof(em_affiliated_sta_mld_t));
         }
 
-        assoc_sta_mld = (em_assoc_sta_mld_t *)((unsigned char *)assoc_sta_mld + sizeof(em_assoc_sta_mld_t) + affiliated_sta_len);
-        assoc_sta_mld_len += sizeof(em_assoc_sta_mld_t) + affiliated_sta_len;
+        assoc_sta_mld = reinterpret_cast<em_assoc_sta_mld_t *>(reinterpret_cast<unsigned char *> (assoc_sta_mld) + sizeof(em_assoc_sta_mld_t) + affiliated_sta_len);
+        assoc_sta_mld_len += static_cast<short unsigned int> (sizeof(em_assoc_sta_mld_t) + affiliated_sta_len);
     }
 
     tlv_len += assoc_sta_mld_len;
@@ -760,11 +760,11 @@ int em_configuration_t::create_vendor_operational_bss_tlv(unsigned char *buff)
 
 	dm = get_data_model();
 
-	tlv = (em_tlv_t *)tmp;
+	tlv = reinterpret_cast<em_tlv_t *> (tmp);
 	tlv->type = em_tlv_type_vendor_operational_bss;
 	//tlv_len = sizeof(em_ap_vendor_op_bss_radio_t);
 	printf("first tlv_len in em_configuration_t::create_custom_operational_bss_tlv = %d\n",tlv_len);
-	ap = (em_ap_vendor_op_bss_t *)tlv->value;
+	ap = reinterpret_cast<em_ap_vendor_op_bss_t *> (tlv->value);
 	ap->radios_num = 1;
 	radio = ap->radios;
 	for (i = 0; i < dm->get_num_radios(); i++) {
@@ -778,12 +778,12 @@ int em_configuration_t::create_vendor_operational_bss_tlv(unsigned char *buff)
 					}
 					radio->bss_num++;
 					memcpy(bss->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
-					bss->haultype = (short) dm->m_bss[j].m_bss_info.id.haul_type;
-					bss = (em_ap_vendor_operational_bss_t *)((unsigned char *)bss + sizeof(em_ap_vendor_operational_bss_t));
+					bss->haultype = static_cast<short unsigned int> (dm->m_bss[j].m_bss_info.id.haul_type);
+					bss = reinterpret_cast<em_ap_vendor_operational_bss_t *> (reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_vendor_operational_bss_t));
 					all_bss_len += sizeof(em_ap_vendor_operational_bss_t);
 			}
-			radio = (em_ap_vendor_op_bss_radio_t *)((unsigned char *)radio + sizeof(em_ap_vendor_op_bss_radio_t) + all_bss_len);
-			tlv_len += sizeof(em_ap_vendor_op_bss_radio_t) + all_bss_len;
+			radio = reinterpret_cast<em_ap_vendor_op_bss_radio_t *>(reinterpret_cast<unsigned char *> (radio) + sizeof(em_ap_vendor_op_bss_radio_t) + all_bss_len);
+			tlv_len += static_cast<short unsigned int> (sizeof(em_ap_vendor_op_bss_radio_t) + all_bss_len);
 			all_bss_len = 0;
 		}
 	}
@@ -797,11 +797,10 @@ void em_configuration_t::print_ap_vendor_operational_bss_tlv(unsigned char *valu
 	mac_addr_str_t	rd_mac_str, bss_mac_str;
 	em_ap_vendor_op_bss_radio_t		   *radio;
 	em_ap_vendor_operational_bss_t *bss;
-	unsigned char * tmp = value;
 	em_ap_vendor_op_bss_t *ap;
-	unsigned int i, j, all_bss_len = 0, ap_op_bss_tlv_len = 0;
+	unsigned int i, j, all_bss_len = 0;
 
-	ap = (em_ap_vendor_op_bss_t *)value;
+	ap = reinterpret_cast<em_ap_vendor_op_bss_t *> (value);
 	radio = ap->radios;
 	printf("%s:%d Number of radios: %d\n", __func__, __LINE__, ap->radios_num);
 	for (i = 0; i < ap->radios_num; i++) {
@@ -812,10 +811,10 @@ void em_configuration_t::print_ap_vendor_operational_bss_tlv(unsigned char *valu
 		for (j = 0; j < radio->bss_num; j++) {
 			dm_easy_mesh_t::macbytes_to_string(bss->bssid, bss_mac_str);
 			printf("%s:%d: BSSID=%s	 haul type=%d\n", __func__, __LINE__, bss_mac_str, bss->haultype);
-			bss = (em_ap_vendor_operational_bss_t *)((unsigned char *)bss + sizeof(em_ap_vendor_operational_bss_t));
+			bss = reinterpret_cast<em_ap_vendor_operational_bss_t *> (reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_vendor_operational_bss_t));
 			all_bss_len += sizeof(em_ap_vendor_operational_bss_t);
 		}
-		radio = (em_ap_vendor_op_bss_radio_t *)((unsigned char *)radio + sizeof(em_ap_vendor_op_bss_radio_t) + all_bss_len);
+		radio = reinterpret_cast<em_ap_vendor_op_bss_radio_t *> (reinterpret_cast<unsigned char *> (radio) + sizeof(em_ap_vendor_op_bss_radio_t) + all_bss_len);
 		all_bss_len = 0;
 	}
 }
@@ -825,11 +824,10 @@ void em_configuration_t::handle_ap_vendor_operational_bss(unsigned char *value, 
 	mac_addr_str_t	rd_mac_str, bss_mac_str;
 	em_ap_vendor_op_bss_radio_t		   *radio;
 	em_ap_vendor_operational_bss_t *bss;
-	unsigned char * tmp = value;
 	em_ap_vendor_op_bss_t *ap;
-	unsigned int i, j, all_bss_len = 0, ap_op_bss_tlv_len = 0;
+	unsigned int i, j, all_bss_len = 0;
 
-	ap = (em_ap_vendor_op_bss_t *)value;
+	ap = reinterpret_cast<em_ap_vendor_op_bss_t *> (value);
 	radio = ap->radios;
 	printf("%s:%d Number of radios: %d\n", __func__, __LINE__, ap->radios_num);
 	for (i = 0; i < ap->radios_num; i++) {
@@ -840,11 +838,11 @@ void em_configuration_t::handle_ap_vendor_operational_bss(unsigned char *value, 
 		for (j = 0; j < radio->bss_num; j++) {
 			dm_easy_mesh_t::macbytes_to_string(bss->bssid, bss_mac_str);
 			printf("%s:%d: BSSID=%s	 haul type=%d\n", __func__, __LINE__, bss_mac_str, bss->haultype);
-			bss = (em_ap_vendor_operational_bss_t *)((unsigned char *)bss + sizeof(em_ap_vendor_operational_bss_t));
+			bss = reinterpret_cast<em_ap_vendor_operational_bss_t *>(reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_vendor_operational_bss_t));
 			all_bss_len += sizeof(em_ap_vendor_operational_bss_t);
 		}
 
-		radio = (em_ap_vendor_op_bss_radio_t *)((unsigned char *)radio + sizeof(em_ap_vendor_op_bss_radio_t) + all_bss_len);
+		radio = reinterpret_cast<em_ap_vendor_op_bss_radio_t *>(reinterpret_cast<unsigned char *> (radio) + sizeof(em_ap_vendor_op_bss_radio_t) + all_bss_len);
 		all_bss_len = 0;
 	}
 }
@@ -862,10 +860,10 @@ int em_configuration_t::create_tid_to_link_map_policy_tlv(unsigned char *buff)
 
     dm = get_data_model();
 
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_tid_to_link_map_policy;
 
-    tid_to_link_map_policy = (em_tid_to_link_map_policy_t *)tlv->value;
+    tid_to_link_map_policy = reinterpret_cast<em_tid_to_link_map_policy_t *> (tlv->value);
     tlv_len = sizeof(em_tid_to_link_map_policy_t);
 
     em_tid_to_link_info_t& tid_to_link_info = dm->m_tid_to_link.m_tid_to_link_info;
@@ -888,7 +886,7 @@ int em_configuration_t::create_tid_to_link_map_policy_tlv(unsigned char *buff)
         memcpy(tid_to_link_mapping->expected_duration, tid_to_link_map_info.expected_dur, 3 * sizeof(unsigned char));
         //TODO: tid_to_link_map
 
-        tid_to_link_mapping = (em_tid_to_link_mapping_t *)((unsigned char *)tid_to_link_mapping + sizeof(em_tid_to_link_mapping_t));
+        tid_to_link_mapping = reinterpret_cast<em_tid_to_link_mapping_t *> (reinterpret_cast<unsigned char *> (tid_to_link_mapping) + sizeof(em_tid_to_link_mapping_t));
         tid_to_link_map_len += sizeof(em_tid_to_link_mapping_t);
     }
 
@@ -903,7 +901,7 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst)
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned short  msg_id = em_msg_type_topo_resp;
-    int len = 0;
+    unsigned int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     unsigned short tlv_len;
@@ -913,25 +911,25 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst)
     dm_easy_mesh_t  *dm;
     em_enum_type_t profile;
 
-    em_raw_hdr_t *hdr = (em_raw_hdr_t *)dst;
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *> (dst);
 
     dm = get_data_model();
     printf("%s:%d: Testing topo, number of radios: %d, bss: %d\n", __func__, __LINE__,
                         dm->get_num_radios(), dm->get_num_bss());
 
-    memcpy(tmp, (unsigned char *)hdr->src, sizeof(mac_address_t));
+    memcpy(tmp, reinterpret_cast<unsigned char *> (hdr->src), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
     memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
-    memcpy(tmp, (unsigned char *)&type, sizeof(unsigned short));
+    memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
     tmp += sizeof(unsigned short);
-    len += sizeof(unsigned short);
+    len += static_cast<unsigned int> (sizeof(unsigned short));
 
-    cmdu = (em_cmdu_t *)tmp;
+    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_id);
     cmdu->id = htons(msg_id);
@@ -939,91 +937,91 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst)
     cmdu->relay_ind = 0;
 
     tmp += sizeof(em_cmdu_t);
-    len += sizeof(em_cmdu_t);
+    len += static_cast<unsigned int> (sizeof(em_cmdu_t));
 
     // Device Info type TLV 1905.1 6.4.5
-    tlv_len = create_device_info_type_tlv(tmp);
+    tlv_len = static_cast<short unsigned int> (create_device_info_type_tlv(tmp));
 
     tmp += (sizeof (em_tlv_t) + tlv_len);
-    len += (sizeof (em_tlv_t) + tlv_len);
+    len += static_cast<unsigned int> (sizeof (em_tlv_t) + tlv_len);
 
     // supported service tlv 17.2.1
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_supported_service;
     tlv->len = htons(sizeof(em_enum_type_t) + 1);
     tlv->value[0] = 1;
     memcpy(&tlv->value[1], &service_type, sizeof(em_enum_type_t));
 
     tmp += (sizeof(em_tlv_t) + sizeof(em_enum_type_t) + 1);
-    len += (sizeof(em_tlv_t) + sizeof(em_enum_type_t) + 1);
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + sizeof(em_enum_type_t) + 1);
 
     // One AP Radio Identifier tlv 17.2.3
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_radio_id;
     memcpy(tlv->value, get_radio_interface_mac(), sizeof(mac_address_t));
     tlv->len = htons(sizeof(mac_address_t));
 
     tmp += (sizeof(em_tlv_t) + sizeof(mac_address_t));
-    len += (sizeof(em_tlv_t) + sizeof(mac_address_t));
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + sizeof(mac_address_t));
 
     // AP operational BSS
-    tlv_len = create_operational_bss_tlv_topology(tmp);
+    tlv_len = static_cast<short unsigned int> (create_operational_bss_tlv_topology(tmp));
 
     tmp += (sizeof(em_tlv_t) + tlv_len);
-    len += (sizeof(em_tlv_t) + tlv_len);
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
 
     // One multiAP profile tlv 17.2.47
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_profile;
     tlv->len = htons(sizeof(em_enum_type_t));
     profile = em_profile_type_3;
     memcpy(tlv->value, &profile, sizeof(em_enum_type_t));
 
     tmp += (sizeof(em_tlv_t) + sizeof(em_enum_type_t));
-    len += (sizeof(em_tlv_t) + sizeof(em_enum_type_t));
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + sizeof(em_enum_type_t));
 
     // One BSS Configuration Report 17.2.75
-    tlv_len = create_bss_config_rprt_tlv(tmp);
+    tlv_len = static_cast<short unsigned int> (create_bss_config_rprt_tlv(tmp));
 
     tmp += (sizeof(em_tlv_t) + tlv_len);
-    len += (sizeof(em_tlv_t) + tlv_len);
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
 
     // One AP MLD Configuration TLV
-    tlv_len = create_ap_mld_config_tlv(tmp);
+    tlv_len = static_cast<short unsigned int> (create_ap_mld_config_tlv(tmp));
 
     tmp += (sizeof(em_tlv_t) + tlv_len);
-    len += (sizeof(em_tlv_t) + tlv_len);
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
 
     // One Backhaul STA MLD Configuration TLV
-    tlv_len = create_bsta_mld_config_tlv(tmp);
+    tlv_len = static_cast<short unsigned int> (create_bsta_mld_config_tlv(tmp));
 
     tmp += (sizeof(em_tlv_t) + tlv_len);
-    len += (sizeof(em_tlv_t) + tlv_len);
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
 
     // One Associated STA MLD Configuration Report TLV
-    tlv_len = create_assoc_sta_mld_config_report_tlv(tmp);
+    tlv_len = static_cast<short unsigned int> (create_assoc_sta_mld_config_report_tlv(tmp));
 
     tmp += (sizeof(em_tlv_t) + tlv_len);
-    len += (sizeof(em_tlv_t) + tlv_len);
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
 
     // One TID-to-Link Mapping Policy TLV
-    tlv_len = create_tid_to_link_map_policy_tlv(tmp);
+    tlv_len = static_cast<short unsigned int> (create_tid_to_link_map_policy_tlv(tmp));
 
     tmp += (sizeof(em_tlv_t) + tlv_len);
-    len += (sizeof(em_tlv_t) + tlv_len);
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
 
 	// AP vendor operational BSS
-	tlv_len = create_vendor_operational_bss_tlv(tmp);
+	tlv_len = static_cast<short unsigned int> (create_vendor_operational_bss_tlv(tmp));
 	tmp += (sizeof(em_tlv_t) + tlv_len);
-	len += (sizeof(em_tlv_t) + tlv_len);
+	len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
 
     // End of message
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_eom;
     tlv->len = 0;
 
     tmp += (sizeof (em_tlv_t));
-    len += (sizeof (em_tlv_t));
+    len += static_cast<unsigned int> (sizeof (em_tlv_t));
 
     // Validate the frame
     if (em_msg_t(em_msg_type_topo_resp, em_profile_type_3, buff, len).validate(errors) == 0) {
@@ -1039,20 +1037,20 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst)
     }
     printf("setting state to em_state_agent_topo_synchronized\n");
     set_state(em_state_agent_topo_synchronized);
-    return len;
+    return static_cast<int> (len);
 }
 
 unsigned short em_configuration_t::create_eht_operations_tlv(unsigned char *buff)
 {
     unsigned short len = 0;
-    int i = 0, j = 0;
+    unsigned int i = 0, j = 0;
     unsigned char *tmp = buff;
     dm_easy_mesh_t  *dm;
     em_eht_operations_bss_t  *eht_ops_bss;
 
     dm = get_data_model();
 
-    unsigned char num_radios = dm->get_num_radios();
+    unsigned char num_radios = static_cast<unsigned char> (dm->get_num_radios());
     unsigned char num_bss;
 
     memcpy(tmp, &num_radios, sizeof(unsigned char));
@@ -1064,7 +1062,7 @@ unsigned short em_configuration_t::create_eht_operations_tlv(unsigned char *buff
         tmp += sizeof(mac_address_t);
         len += sizeof(mac_address_t);
 
-        num_bss = dm->get_num_bss();
+        num_bss = static_cast<unsigned char> (dm->get_num_bss());
 
         memcpy(tmp, &num_bss, sizeof(unsigned char));
         tmp += sizeof(unsigned char);
@@ -1095,7 +1093,7 @@ int em_configuration_t::send_ap_mld_config_req_msg()
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned short  msg_id = em_msg_type_ap_mld_config_req;
-    int len = 0;
+    unsigned int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     unsigned short tlv_len;
@@ -1107,17 +1105,17 @@ int em_configuration_t::send_ap_mld_config_req_msg()
 
     memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
     memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
-    memcpy(tmp, (unsigned char *)&type, sizeof(unsigned short));
+    memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
     tmp += sizeof(unsigned short);
-    len += sizeof(unsigned short);
+    len += static_cast<unsigned int> (sizeof(unsigned short));
 
-    cmdu = (em_cmdu_t *)tmp;
+    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_id);
@@ -1126,30 +1124,30 @@ int em_configuration_t::send_ap_mld_config_req_msg()
     cmdu->relay_ind = 0;
 
     tmp += sizeof(em_cmdu_t);
-    len += sizeof(em_cmdu_t);
+    len += static_cast<unsigned int> (sizeof(em_cmdu_t));
 
     // One AP MLD Configuration TLV
-    tlv_len = create_ap_mld_config_tlv(tmp);
+    tlv_len = static_cast<short unsigned int> (create_ap_mld_config_tlv(tmp));
 
     tmp += (sizeof(em_tlv_t) + tlv_len);
-    len += (sizeof(em_tlv_t) + tlv_len);
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
 
     // AP EHT Operations 17.2.103
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_eht_operations;
     tlv_len = create_eht_operations_tlv(tlv->value);
     tlv->len = htons(tlv_len);
 
     tmp += (sizeof(em_tlv_t) + tlv_len);
-    len += (sizeof(em_tlv_t) + tlv_len);  
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
 
     // End of message
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_eom;
     tlv->len = 0;
 
     tmp += (sizeof (em_tlv_t));
-    len += (sizeof (em_tlv_t));
+    len += static_cast<unsigned int> (sizeof (em_tlv_t));
     if (em_msg_t(em_msg_type_ap_mld_config_req, em_profile_type_3, buff, len).validate(errors) == 0) {
         printf("AP MLD config msg failed validation in tnx end\n");
         return -1;
@@ -1164,7 +1162,7 @@ int em_configuration_t::send_ap_mld_config_req_msg()
 
     set_state(em_state_ctrl_ap_mld_configured);
 
-	return len;
+	return static_cast<int> (len);
 }
 
 int em_configuration_t::send_1905_ack_message(mac_addr_t sta_mac)
@@ -1172,31 +1170,28 @@ int em_configuration_t::send_1905_ack_message(mac_addr_t sta_mac)
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned short  msg_type = em_msg_type_1905_ack;
-    int len = 0;
+    unsigned int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     unsigned char *tmp = buff;
     unsigned short sz = 0;
     unsigned short type = htons(ETH_P_1905);
-    short msg_id = em_msg_type_1905_ack;
+    unsigned short msg_id = em_msg_type_1905_ack;
     dm_easy_mesh_t *dm = get_data_model();
-
-    em_cmd_t *pcmd = get_current_cmd();
-    em_cmd_params_t *evt_param = &pcmd->m_param;
 
     memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
     memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
-    memcpy(tmp, (unsigned char *)&type, sizeof(unsigned short));
+    memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
     tmp += sizeof(unsigned short);
-    len += sizeof(unsigned short);
+    len += static_cast<unsigned int> (sizeof(unsigned short));
 
-    cmdu = (em_cmdu_t *)tmp;
+    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_type);
@@ -1204,24 +1199,24 @@ int em_configuration_t::send_1905_ack_message(mac_addr_t sta_mac)
     cmdu->last_frag_ind = 1;
 
     tmp += sizeof(em_cmdu_t);
-    len += sizeof(em_cmdu_t);
+    len += static_cast<unsigned int> (sizeof(em_cmdu_t));
 
     //17.2.36 Error Code TLV format
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_error_code;
     sz = create_error_code_tlv(tlv->value, 0, sta_mac);
     tlv->len = htons(sz);
 
     tmp += (sizeof(em_tlv_t) + sz);
-    len += (sizeof(em_tlv_t) + sz);
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + sz);
 
     // End of message
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_eom;
     tlv->len = 0;
 
     tmp += (sizeof (em_tlv_t));
-    len += (sizeof (em_tlv_t));
+    len += static_cast<unsigned int> (sizeof (em_tlv_t));
 
     if (em_msg_t(em_msg_type_1905_ack, em_profile_type_3, buff, len).validate(errors) == 0) {
         printf("%s:%d: 1905 ACK validation failed\n", __func__, __LINE__);
@@ -1234,7 +1229,7 @@ int em_configuration_t::send_1905_ack_message(mac_addr_t sta_mac)
     }
     printf("%s:%d: 1905 ACK send success\n", __func__, __LINE__);
 
-    return len;
+    return static_cast<int> (len);
 }
 
 int em_configuration_t::send_ap_mld_config_resp_msg(unsigned char *dst)
@@ -1242,7 +1237,7 @@ int em_configuration_t::send_ap_mld_config_resp_msg(unsigned char *dst)
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned short  msg_id = em_msg_type_ap_mld_config_resp;
-    int len = 0;
+    unsigned int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     unsigned short tlv_len;
@@ -1250,23 +1245,21 @@ int em_configuration_t::send_ap_mld_config_resp_msg(unsigned char *dst)
     unsigned short type = htons(ETH_P_1905);
 	dm_easy_mesh_t *dm;
 
-    em_raw_hdr_t *hdr = (em_raw_hdr_t *)dst;
-
 	dm = get_data_model();
 
     memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
     memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
-    memcpy(tmp, (unsigned char *)&type, sizeof(unsigned short));
+    memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
     tmp += sizeof(unsigned short);
-    len += sizeof(unsigned short);
+    len += static_cast<unsigned int> (sizeof(unsigned short));
 
-    cmdu = (em_cmdu_t *)tmp;
+    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_id);
@@ -1275,30 +1268,30 @@ int em_configuration_t::send_ap_mld_config_resp_msg(unsigned char *dst)
     cmdu->relay_ind = 0;
 
     tmp += sizeof(em_cmdu_t);
-    len += sizeof(em_cmdu_t);
+    len += static_cast<unsigned int> (sizeof(em_cmdu_t));
 
     // One AP MLD Configuration TLV
-    tlv_len = create_ap_mld_config_tlv(tmp);
+    tlv_len = static_cast<short unsigned int> (create_ap_mld_config_tlv(tmp));
 
     tmp += (sizeof(em_tlv_t) + tlv_len);
-    len += (sizeof(em_tlv_t) + tlv_len);
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
 
     // AP EHT Operations 17.2.103
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_eht_operations;
     tlv_len = create_eht_operations_tlv(tlv->value);
     tlv->len = htons(tlv_len);
 
     tmp += (sizeof(em_tlv_t) + tlv_len);
-    len += (sizeof(em_tlv_t) + tlv_len);  
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
 
     // End of message
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_eom;
     tlv->len = 0;
 
     tmp += (sizeof (em_tlv_t));
-    len += (sizeof (em_tlv_t));
+    len += static_cast<unsigned int> (sizeof (em_tlv_t));
     if (em_msg_t(em_msg_type_ap_mld_config_resp, em_profile_type_3, buff, len).validate(errors) == 0) {
         printf("AP MLD config response failed validation in tnx end\n");
         return -1;
@@ -1311,7 +1304,7 @@ int em_configuration_t::send_ap_mld_config_resp_msg(unsigned char *dst)
 
     printf("%s:%d: AP MLD config response Send Successful\n", __func__, __LINE__);
 
-	return len;
+	return static_cast<int> (len);
 }
 
 int em_configuration_t::send_bsta_mld_config_req_msg(unsigned char *buff)
@@ -1333,7 +1326,7 @@ void em_configuration_t::print_bss_configuration_report_tlv(unsigned char *value
 	unsigned int i, j;
 	unsigned int all_bss_len = 0;
 
-	rprt = (em_bss_config_rprt_t *)value;
+	rprt = reinterpret_cast<em_bss_config_rprt_t *> (value);
 	rd_rprt = rprt->radio_rprt;
 
 	printf("%s:%d: Number of radios: %d\n", __func__, __LINE__, rprt->num_radios);
@@ -1345,10 +1338,10 @@ void em_configuration_t::print_bss_configuration_report_tlv(unsigned char *value
 			dm_easy_mesh_t::macbytes_to_string(bss_rprt->bssid, bss_mac_str);
 			printf("%s:%d: BSSID: %s SSID: %s\n", __func__, __LINE__, bss_mac_str, bss_rprt->ssid);
 			
-			all_bss_len = all_bss_len + sizeof(em_bss_rprt_t) + strlen(bss_rprt->ssid) + 1;
-			bss_rprt = (em_bss_rprt_t *)((unsigned char *)bss_rprt + sizeof(em_bss_rprt_t) + strlen(bss_rprt->ssid) + 1);
+			all_bss_len = all_bss_len + static_cast<unsigned int> (sizeof(em_bss_rprt_t) + strlen(bss_rprt->ssid) + 1);
+			bss_rprt = reinterpret_cast<em_bss_rprt_t *> (reinterpret_cast<unsigned char *> (bss_rprt) + sizeof(em_bss_rprt_t) + strlen(bss_rprt->ssid) + 1);
 		}
-		rd_rprt = (em_radio_rprt_t *)((unsigned char *)rd_rprt + sizeof(em_radio_rprt_t) + all_bss_len);
+		rd_rprt = reinterpret_cast<em_radio_rprt_t *> (reinterpret_cast<unsigned char *> (rd_rprt) + sizeof(em_radio_rprt_t) + all_bss_len);
 		all_bss_len = 0;
 		
 	}		
@@ -1360,10 +1353,9 @@ void em_configuration_t::print_ap_operational_bss_tlv(unsigned char *value, unsi
 	em_ap_op_bss_t	*ap;
 	em_ap_op_bss_radio_t	*radio;
 	em_ap_operational_bss_t	*bss;
-	unsigned char * tmp = value;
-	unsigned int i, j, all_bss_len = 0, ap_op_bss_tlv_len = 0;
+	unsigned int i, j, all_bss_len = 0;
 	
-	ap = (em_ap_op_bss_t *)value;
+	ap = reinterpret_cast<em_ap_op_bss_t *> (value);
 	radio = ap->radios;
 	printf("%s:%d Number of radios: %d\n", __func__, __LINE__, ap->radios_num);
 	for (i = 0; i < ap->radios_num; i++) {
@@ -1376,20 +1368,17 @@ void em_configuration_t::print_ap_operational_bss_tlv(unsigned char *value, unsi
 			dm_easy_mesh_t::macbytes_to_string(bss->bssid, bss_mac_str);
 			printf("%s:%d: BSS:%s SSID:%s, SSID Length: %d\n", __func__, __LINE__, bss_mac_str, bss->ssid, bss->ssid_len);
 
-			all_bss_len += sizeof(em_ap_operational_bss_t) + bss->ssid_len;
+			all_bss_len += static_cast<unsigned int> (sizeof(em_ap_operational_bss_t) + bss->ssid_len);
 			//printf("%s:%d: All BSS Len: %d\n", __func__, __LINE__, all_bss_len);
-			bss = (em_ap_operational_bss_t *)((unsigned char *)bss + sizeof(em_ap_operational_bss_t) + bss->ssid_len);
+			bss = reinterpret_cast<em_ap_operational_bss_t *> (reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_operational_bss_t) + bss->ssid_len);
 		}		
 
-		radio = (em_ap_op_bss_radio_t *)((unsigned char *)radio + sizeof(em_ap_op_bss_radio_t) + all_bss_len);
+		radio = reinterpret_cast<em_ap_op_bss_radio_t *> (reinterpret_cast<unsigned char *> (radio) + sizeof(em_ap_op_bss_radio_t) + all_bss_len);
 	}
 }
 
 int em_configuration_t::handle_bss_configuration_report(unsigned char *buff, unsigned int len)
 {
-	em_bss_config_rprt_t *rprt = (em_bss_config_rprt_t *)buff;
-
-
 	return 0;
 }
 
@@ -1418,8 +1407,8 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
 	dm = get_data_model();
             
     // first verify that dm has all the radios
-    ap = (em_ap_op_bss_t *)buff;
-    radio = (em_ap_op_bss_radio_t *)ap->radios;
+    ap = reinterpret_cast<em_ap_op_bss_t *> (buff);
+    radio = const_cast<em_ap_op_bss_radio_t *> (ap->radios);
 
 	util::get_date_time_rfc3399(time_date, sizeof(time_date));
 
@@ -1464,11 +1453,11 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
 
 			updated_at_least_one_bss = true;
 			
-			all_bss_len += sizeof(em_ap_operational_bss_t) + bss->ssid_len;
-			bss = (em_ap_operational_bss_t *)((unsigned char *)bss + sizeof(em_ap_operational_bss_t) + bss->ssid_len);
+			all_bss_len += static_cast<unsigned int> (sizeof(em_ap_operational_bss_t) + bss->ssid_len);
+			bss = reinterpret_cast<em_ap_operational_bss_t *> (reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_operational_bss_t) + bss->ssid_len);
         }
 
-        radio = (em_ap_op_bss_radio_t *)((unsigned char *)radio + sizeof(em_ap_op_bss_radio_t) + all_bss_len);
+        radio = reinterpret_cast<em_ap_op_bss_radio_t *> (reinterpret_cast<unsigned char *> (radio) + sizeof(em_ap_op_bss_radio_t) + all_bss_len);
 
     }
 
@@ -1483,7 +1472,7 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
 int em_configuration_t::handle_topology_notification(unsigned char *buff, unsigned int len)
 {
     em_tlv_t *tlv;
-    int tmp_len, ret = 0;
+    unsigned int tmp_len;
     mac_address_t dev_mac;
     mac_addr_str_t sta_mac_str, bssid_str, radio_mac_str;
     em_long_string_t    key;
@@ -1504,8 +1493,8 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
         //return -1;
     }       
         
-    tlv =  (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-    tmp_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
         
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_al_mac_address) {
@@ -1514,8 +1503,8 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
 			break;
         }
             
-		tmp_len -= (sizeof(em_tlv_t) + htons(tlv->len));
-		tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+		tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+		tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
 	if (found_dev_mac == false) {
@@ -1525,7 +1514,7 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_client_assoc_event) {
-            assoc_evt_tlv = (em_client_assoc_event_t *)tlv->value;
+            assoc_evt_tlv = reinterpret_cast<em_client_assoc_event_t *> (tlv->value);
             dm_easy_mesh_t::macbytes_to_string(assoc_evt_tlv->cli_mac_address, sta_mac_str);
             dm_easy_mesh_t::macbytes_to_string(assoc_evt_tlv->bssid, bssid_str);
             dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(), radio_mac_str);
@@ -1534,10 +1523,10 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
             //printf("%s:%d: Client Device:%s %s\n", __func__, __LINE__, sta_mac_str,
                     //(assoc_evt_tlv->assoc_event == 1)?"associated":"disassociated");
 
-            if ((sta = (dm_sta_t *)hash_map_get(dm->m_sta_map, key)) == NULL) {
+            if ((sta = static_cast<dm_sta_t *> (hash_map_get(dm->m_sta_map, key))) == NULL) {
                 eligible_to_req_cap = true;
             } else {
-                sta = (dm_sta_t *)hash_map_get(dm->m_sta_map, key);
+                sta = static_cast<dm_sta_t *> (hash_map_get(dm->m_sta_map, key));
                 // During an association if map data has empty frame for an existing entry, request cap report to update Frame body
                 if ((assoc_evt_tlv->assoc_event == true)) {
                     eligible_to_req_cap = true;
@@ -1549,9 +1538,9 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
             // if associated for first time, orchestrate a client capability query/response
             if(eligible_to_req_cap == true) {
                 memcpy(raw.dev, dev_mac, sizeof(mac_address_t));
-                memcpy((unsigned char *)&raw.assoc, (unsigned char *)assoc_evt_tlv, sizeof(em_client_assoc_event_t));
+                memcpy(reinterpret_cast<unsigned char *> (&raw.assoc), reinterpret_cast<unsigned char *> (assoc_evt_tlv), sizeof(em_client_assoc_event_t));
 
-				get_mgr()->io_process(em_bus_event_type_sta_assoc, (unsigned char *)&raw, sizeof(em_bus_event_type_client_assoc_params_t));
+				get_mgr()->io_process(em_bus_event_type_sta_assoc, reinterpret_cast<unsigned char *> (&raw), sizeof(em_bus_event_type_client_assoc_params_t));
 
             } else {
                 memset(&sta_info, 0, sizeof(em_sta_info_t));
@@ -1567,8 +1556,8 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
             break;
         }
             
-		tmp_len -= (sizeof(em_tlv_t) + htons(tlv->len));
-		tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+		tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+		tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
 	return 0;
@@ -1577,8 +1566,8 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
 int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned int len)
 {
     em_tlv_t *tlv;
-    int tmp_len, ret = 0;
-    unsigned int sz, i, j;
+    unsigned int tmp_len;
+    int ret = 0;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     bool found_op_bss = false;
     bool found_profile = false;
@@ -1588,13 +1577,13 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     
 	dm = get_data_model();
 
-    tlv =  (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-    tmp_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
         
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type != em_tlv_type_profile) {
-            tmp_len -= (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
 
             continue;
 
@@ -1618,13 +1607,13 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         //return -1;
     }       
         
-    tlv =  (em_tlv_t *)(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-    tmp_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
         
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type != em_tlv_type_operational_bss) {
-            tmp_len -= (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
 
             continue;
 
@@ -1646,8 +1635,8 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type != em_tlv_type_bss_conf_rep) {
-            tmp_len -= (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+            tlv = reinterpret_cast <em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
 
             continue;
 
@@ -1669,8 +1658,8 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 
 	while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
 			if (tlv->type != em_tlv_type_vendor_operational_bss) {
-				tmp_len -= (sizeof(em_tlv_t) + htons(tlv->len));
-				tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));	
+				tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+				tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
 				continue;
 			} else {
 				handle_ap_vendor_operational_bss(tlv->value, tlv->len);
@@ -1690,7 +1679,7 @@ int em_configuration_t::handle_ack_msg(unsigned char *buff, unsigned int len)
 
 int em_configuration_t::handle_ap_mld_config_tlv(unsigned char *buff, unsigned int len)
 {
-    em_ap_mld_config_t *ap_mld_conf = (em_ap_mld_config_t *) buff;
+    em_ap_mld_config_t *ap_mld_conf = reinterpret_cast<em_ap_mld_config_t *> (buff);
     em_ap_mld_t *ap_mld;
     em_ap_mld_ssids_t *ap_mld_ssids;
     em_affiliated_ap_mld_t *affiliated_ap_mld;
@@ -3164,12 +3153,12 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 	attr->id = htons(attr_id_no_of_haul_type);
 	size = 1;
 	attr->len = htons(static_cast<short unsigned int> (size));
-	attr->val[0] = no_of_haultype;
+	attr->val[0] = static_cast<unsigned char> (no_of_haultype);
 
 	len += static_cast<short> (sizeof(data_elem_attr_t) + size);
 	tmp += (sizeof(data_elem_attr_t) + size);
 	for (i = 0; i < no_of_haultype; i++) {
-		haul_type = (em_haul_type_t) haultype_precedence[i];
+		haul_type = static_cast<em_haul_type_t> (haultype_precedence[i]);
 		if ((net_ssid_info = get_network_ssid_info_by_haul_type(haul_type)) == NULL) {
 			printf("%s:%d: Could not find network ssid information for haul type %d\n", __func__, __LINE__, haul_type);
 			continue;
@@ -3304,8 +3293,8 @@ em_wsc_msg_type_t em_configuration_t::get_wsc_msg_type(unsigned char *buff, unsi
             }
         }
 
-        tmp_len_tlvs -= (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
+        tmp_len_tlvs -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
 
     }
 
