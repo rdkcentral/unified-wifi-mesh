@@ -2227,6 +2227,16 @@ typedef struct {
 } em_bss_info_t;
 
 typedef struct {
+    mac_address_t   nbr;
+    float   pos_x;
+    float   pos_y;
+    float   pos_z;
+    mac_address_t   next_hop;
+    unsigned int num_hops;
+    int path_loss; 
+} em_neighbor_info_t;
+
+typedef struct {
     bool  mac_addr_valid;
     bool  link_id_valid;
     em_interface_t  ruid;
