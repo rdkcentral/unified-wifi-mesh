@@ -198,7 +198,7 @@ public:
 	unsigned int	get_num_scan_results() { return hash_map_count(m_scan_result_map); }
 	dm_scan_result_t *get_scan_result(unsigned int index);
     void update_scan_results(em_scan_result_t *scan_result);
-    static void update_scan_results(void *dm, em_scan_result_t *scan_result) { ((dm_easy_mesh_t *)dm)->update_scan_results(scan_result); }
+    static void update_scan_results(void *dm, em_scan_result_t *scan_result) { (static_cast<dm_easy_mesh_t *> (dm))->update_scan_results(scan_result); }
 
     unsigned int get_num_ap_mld() { return m_num_ap_mld; }
     static unsigned int get_num_ap_mld(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->get_num_ap_mld(); }

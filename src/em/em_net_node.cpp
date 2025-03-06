@@ -411,7 +411,7 @@ cJSON *em_net_node_t::network_tree_node_to_json(em_network_node_t *node, cJSON *
     }
 
     if (obj == NULL) {
-        printf("%s:%d: Failed to allocate JSON object\n");
+        printf("%s:%d: Failed to allocate JSON object\n",__func__,__LINE__);
         return NULL;
     }
 
@@ -432,7 +432,7 @@ void *em_net_node_t::network_tree_to_json(em_network_node_t *root)
 
     obj = cJSON_CreateObject();
     if (obj == NULL) {
-        printf("%s:%d: Failed to allocate JSON object\n");
+        printf("%s:%d: Failed to allocate JSON object\n",__func__,__LINE__);
         return NULL;
     }
 
