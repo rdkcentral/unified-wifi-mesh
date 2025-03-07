@@ -439,4 +439,111 @@ bool ec_crypto::init_persistent_ctx(ec_persistent_context_t& p_ctx, const EC_KEY
     printf("\tNonce Length: %d\n", p_ctx.nonce_len);
     printf("\tPrime (Length: %d):\n", BN_num_bytes(p_ctx.prime));
     ec_crypto::print_bignum(p_ctx.prime);
+    return true;
+}
+
+uint8_t *ec_crypto::encode_proto_key(ec_persistent_context_t &p_ctx, const EC_POINT *point)
+{
+        
+    BIGNUM *x = BN_new();
+    BIGNUM *y = BN_new();
+
+    if (EC_POINT_get_affine_coordinates_GFp(p_ctx.group, point,
+        x, y, p_ctx.bn_ctx) == 0) {
+        printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
+        BN_free(x);
+        BN_free(y);
+        return NULL;
+    }
+
+    int prime_len = BN_num_bytes(p_ctx.prime);
+
+    uint8_t* protocol_key_buff = (uint8_t *)calloc(2*prime_len, 1);
+    if (protocol_key_buff == NULL) {
+        printf("%s:%d unable to allocate memory\n", __func__, __LINE__);
+        BN_free(x);
+        BN_free(y);
+        return NULL;
+    }
+    BN_bn2bin((const BIGNUM *)x, &protocol_key_buff[prime_len - BN_num_bytes(x)]);
+    BN_bn2bin((const BIGNUM *)y, &protocol_key_buff[2*prime_len - BN_num_bytes(y)]);
+
+    BN_free(x);
+    BN_free(y);
+
+    return protocol_key_buff;
+}
+
+
+EC_POINT *ec_crypto::decode_proto_key(ec_persistent_context_t &p_ctx, const uint8_t *protocol_key_buff)
+{
+    if (protocol_key_buff == NULL) {
+        printf("%s:%d null protocol key buffer\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    int prime_len = BN_num_bytes(p_ctx.prime);
+    BIGNUM *x = BN_bin2bn(protocol_key_buff, prime_len, NULL);
+    BIGNUM *y = BN_bin2bn(protocol_key_buff + prime_len, prime_len, NULL);
+    EC_POINT *point = EC_POINT_new(p_ctx.group);
+    
+    if (x == NULL || y == NULL) {
+        printf("%s:%d unable to convert buffer to BIGNUMs\n", __func__, __LINE__);
+        goto err;
+    }
+    
+    if (point == NULL) {
+        printf("%s:%d unable to create EC_POINT\n", __func__, __LINE__);
+        goto err;
+    }
+
+    if (EC_POINT_set_affine_coordinates_GFp(p_ctx.group, point, x, y, p_ctx.bn_ctx) == 0) {
+        printf("%s:%d unable to set coordinates for the point\n", __func__, __LINE__);
+        goto err;
+    }
+
+    // Verify the point is on the curve
+    if (EC_POINT_is_on_curve(p_ctx.group, point, p_ctx.bn_ctx) == 0) {
+        printf("%s:%d point is not on the curve\n", __func__, __LINE__);
+        goto err;
+    }
+
+    BN_free(x);
+    BN_free(y);
+    
+    return point;
+
+err:
+    if (x) BN_free(x);
+    if (y) BN_free(y);
+    if (point) EC_POINT_free(point);
+    return NULL;
+}
+
+std::pair<const BIGNUM *, const EC_POINT *> ec_crypto::generate_proto_keypair(ec_persistent_context_t &p_ctx)
+{
+    EC_KEY* proto_key = EC_KEY_new_by_curve_name(p_ctx.nid);
+    if (proto_key == NULL) {
+        printf("%s:%d Could not create protocol key\n", __func__, __LINE__);
+        return std::pair<BIGNUM*, EC_POINT*>(NULL, NULL);
+    }
+
+    if (EC_KEY_generate_key(proto_key) == 0) {
+        printf("%s:%d Could not generate protocol key\n", __func__, __LINE__);
+        return std::pair<BIGNUM*, EC_POINT*>(NULL, NULL);
+    }
+
+    const EC_POINT* proto_pub = EC_KEY_get0_public_key(proto_key);
+    if (proto_pub == NULL) {
+        printf("%s:%d Could not get protocol public key\n", __func__, __LINE__);
+        return std::pair<BIGNUM*, EC_POINT*>(NULL, NULL);
+    }
+
+    const BIGNUM* proto_priv = EC_KEY_get0_private_key(proto_key);
+    if (proto_priv == NULL) {
+        printf("%s:%d Could not get protocol private key\n", __func__, __LINE__);
+        return std::pair<BIGNUM*, EC_POINT*>(NULL, NULL);
+    }
+
+    return std::pair<const BIGNUM*, const EC_POINT*>(proto_priv, proto_pub);
 }

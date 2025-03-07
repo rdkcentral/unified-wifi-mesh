@@ -21,6 +21,7 @@
 
 #include "em.h"
 #include "em_orch.h"
+#include "ieee80211.h"
 
 class em_mgr_t {
    

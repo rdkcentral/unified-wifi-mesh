@@ -25,22 +25,11 @@
 #include <vector>
 #include <string>
 #include <functional>
+#include <memory>
 
 #define EC_FRAME_BASE_SIZE (offsetof(ec_frame_t, attributes))
 
 namespace easyconnect {
-
-
-// Custom deleter for uint8_t arrays
-struct byte_arr_deleter {
-    void operator()(uint8_t* p) const { delete[] p; }
-};
-
-// Define a smart pointer type for buffers
-using buff_ptr = ::std::unique_ptr<uint8_t[], byte_arr_deleter>;
-
-// Define easyconnect::hash_buffer_t as a vector of smart pointer/length pairs
-using hash_buffer_t = std::vector<std::pair<buff_ptr, uint32_t>>;
 
 static const std::map<ec_status_code_t, std::string> status_code_map = {
     {DPP_STATUS_OK, "OK: No errors or abnormal behavior"},
@@ -295,42 +284,4 @@ public:
      * @return true The capabilities are compatible (DPP_STATUS_OK), false otherwise (DPP_STATUS_NOT_COMPATIBLE)
      */
     static bool check_caps_compatible(const ec_dpp_capabilities_t& init_caps, const ec_dpp_capabilities_t& resp_caps);
-
-    /**
-     * Add a buffer to the hash elements
-     */
-    static inline void add_to_hash(easyconnect::hash_buffer_t& buffer, const uint8_t* data, uint32_t len) {
-        if (data != nullptr) {
-            // For raw buffers that we don't own, create a null smart pointer but store the address
-            // This is safe because we extract raw pointers before hashing
-            buffer.emplace_back(easyconnect::buff_ptr(nullptr), len);
-            // Store the raw pointer in the first element - we won't delete this
-            buffer.back().first.get() = const_cast<uint8_t*>(data);
-        }
-    }
-
-    /**
-     * Add a BIGNUM to the hash elements
-     */
-    static inline void add_to_hash(easyconnect::hash_buffer_t& buffer, const BIGNUM* bn) {
-        if (bn != nullptr) {
-            // Allocate memory for BIGNUM data
-            int bn_size = BN_num_bytes(bn);
-            easyconnect::buff_ptr bn_buf(new uint8_t[bn_size]);
-            int bn_len = BN_bn2bin(bn, bn_buf.get());
-            
-            // Add to hash elements
-            buffer.emplace_back(std::move(bn_buf), bn_len);
-        }
-    }
-
-    /**
-     * Add a single octet to the hash elements
-     */
-    static inline void add_to_hash(easyconnect::hash_buffer_t& buffer, uint8_t octet) {
-        easyconnect::buff_ptr octet_buf(new uint8_t[1]);
-        octet_buf[0] = octet;
-        
-        buffer.emplace_back(std::move(octet_buf), 1);
-    }
 };

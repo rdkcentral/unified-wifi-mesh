@@ -36,10 +36,8 @@ bool ec_enrollee_t::start(bool do_reconfig, ec_data_t* boot_data)
     return true;
 }
 
-bool ec_enrollee_t::handle_auth_request(uint8_t *buff, unsigned int len)
+bool ec_enrollee_t::handle_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
-    ec_frame_t *frame = (ec_frame_t *)buff;
-
     size_t attrs_len = len - EC_FRAME_BASE_SIZE;
 
     ec_attribute_t *B_r_hash_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_resp_bootstrap_key_hash);
@@ -192,10 +190,8 @@ Authentication Request frame without replying to it.
     // TODO: Send the response frame
 }
 
-bool ec_enrollee_t::handle_auth_confirm(uint8_t *buff, unsigned int len)
+bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
-    ec_frame_t *frame = (ec_frame_t *)buff;
-
     size_t attrs_len = len - EC_FRAME_BASE_SIZE;
 
     ec_attribute_t *status_attrib = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_dpp_status);
@@ -263,13 +259,13 @@ bool ec_enrollee_t::handle_auth_confirm(uint8_t *buff, unsigned int len)
     }
 
     easyconnect::hash_buffer_t i_auth_hb;
-    ec_util::add_to_hash(i_auth_hb, m_eph_ctx.r_nonce, m_p_ctx.nonce_len);
-    ec_util::add_to_hash(i_auth_hb, m_eph_ctx.i_nonce, m_p_ctx.nonce_len);
-    ec_util::add_to_hash(i_auth_hb, P_R_x); //P_R
-    ec_util::add_to_hash(i_auth_hb, P_I_x); //P_I
-    ec_util::add_to_hash(i_auth_hb, B_R_x); //B_R
-    if (m_eph_ctx.is_mutual_auth) ec_util::add_to_hash(i_auth_hb, B_I_x); //B_I
-    ec_util::add_to_hash(i_auth_hb, (uint8_t)1); // 1 octet
+    ec_crypto::add_to_hash(i_auth_hb, m_eph_ctx.r_nonce, m_p_ctx.nonce_len);
+    ec_crypto::add_to_hash(i_auth_hb, m_eph_ctx.i_nonce, m_p_ctx.nonce_len);
+    ec_crypto::add_to_hash(i_auth_hb, P_R_x); //P_R
+    ec_crypto::add_to_hash(i_auth_hb, P_I_x); //P_I
+    ec_crypto::add_to_hash(i_auth_hb, B_R_x); //B_R
+    if (m_eph_ctx.is_mutual_auth) ec_crypto::add_to_hash(i_auth_hb, B_I_x); //B_I
+    ec_crypto::add_to_hash(i_auth_hb, (uint8_t)1); // 1 octet
 
     uint8_t* i_auth_prime = ec_crypto::compute_hash(m_p_ctx, i_auth_hb);
 
@@ -480,13 +476,13 @@ std::pair<uint8_t *, uint16_t> ec_enrollee_t::create_auth_response(ec_status_cod
     }
 
     easyconnect::hash_buffer_t r_auth_hb;
-    ec_util::add_to_hash(r_auth_hb, m_eph_ctx.i_nonce, m_p_ctx.nonce_len);
-    ec_util::add_to_hash(r_auth_hb, m_eph_ctx.r_nonce, m_p_ctx.nonce_len);
-    ec_util::add_to_hash(r_auth_hb, P_I_x); //P_I
-    ec_util::add_to_hash(r_auth_hb, P_R_x); //P_R
-    if (m_eph_ctx.is_mutual_auth) ec_util::add_to_hash(r_auth_hb, B_I_x); //B_I
-    ec_util::add_to_hash(r_auth_hb, B_R_x); //B_R
-    ec_util::add_to_hash(r_auth_hb, (uint8_t)0); // 1 octet
+    ec_crypto::add_to_hash(r_auth_hb, m_eph_ctx.i_nonce, m_p_ctx.nonce_len);
+    ec_crypto::add_to_hash(r_auth_hb, m_eph_ctx.r_nonce, m_p_ctx.nonce_len);
+    ec_crypto::add_to_hash(r_auth_hb, P_I_x); //P_I
+    ec_crypto::add_to_hash(r_auth_hb, P_R_x); //P_R
+    if (m_eph_ctx.is_mutual_auth) ec_crypto::add_to_hash(r_auth_hb, B_I_x); //B_I
+    ec_crypto::add_to_hash(r_auth_hb, B_R_x); //B_R
+    ec_crypto::add_to_hash(r_auth_hb, (uint8_t)0); // 1 octet
 
     uint8_t* r_auth = ec_crypto::compute_hash(m_p_ctx, r_auth_hb);
     if (P_I_x) BN_free(P_I_x);

@@ -76,7 +76,7 @@ bool ec_manager_t::upgrade_to_onboarded_proxy_agent(toggle_cce_func toggle_cce)
     m_enrollee.reset();
     
     // Create a new proxy agent configurator
-    m_configurator = std::unique_ptr<ec_pa_configurator_t>(new ec_pa_configurator_t(enrollee_mac, m_stored_chirp_fn, m_stored_encap_dpp_fn));
+    m_configurator = std::unique_ptr<ec_pa_configurator_t>(new ec_pa_configurator_t(enrollee_mac, m_stored_chirp_fn, m_stored_encap_dpp_fn, m_stored_action_frame_fn));
     m_configurator->m_toggle_cce = toggle_cce;
     return true;
 }

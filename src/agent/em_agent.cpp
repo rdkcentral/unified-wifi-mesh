@@ -555,16 +555,16 @@ bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_f
     ASSERT_NOT_NULL(desc, false, "%s:%d descriptor is null\n", __func__, __LINE__);
 
     // Allocate memory for the action frame parameters, ieee80211 header and action frame body
-    action_frame_params_t act_frame_params = calloc(sizeof(action_frame_params_t) + action_frame_len, 1);
+    action_frame_params_t *act_frame_params = (action_frame_params_t*) calloc(sizeof(action_frame_params_t) + action_frame_len, 1);
     ASSERT_NOT_NULL(act_frame_params, false, "%s:%d calloc failed\n", __func__, __LINE__);
 
     // Hardcoded to 0 just the same as the other bus calls
     // NOTE: AccessPoint.1 = ap_index 0. One is the data model indexing, one is NL80211/hal indexing
-    act_frame_params.ap_index = 0;
-    memcpy(act_frame_params.dest_addr, dest_mac, ETH_ALEN);
-    act_frame_params.frequency = frequency;
-    act_frame_params.frame_len = action_frame_len;
-    memcpy(act_frame_params.frame, action_frame, action_frame_len);
+    act_frame_params->ap_index = 0;
+    memcpy(act_frame_params->dest_addr, dest_mac, ETH_ALEN);
+    act_frame_params->frequency = frequency;
+    act_frame_params->frame_len = action_frame_len;
+    memcpy(act_frame_params->frame_data, action_frame, action_frame_len);
 
     raw_data_t raw_act_frame;
     memset(&raw_act_frame, 0, sizeof(raw_data_t));

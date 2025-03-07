@@ -368,13 +368,13 @@ Initiator → Responder: DPP Status, SHA-256(BR), [ SHA-256(BI), ] { R-nonce }k2
     }
 
     easyconnect::hash_buffer_t r_auth_hb;
-    ec_util::add_to_hash(r_auth_hb, e_ctx->i_nonce, m_p_ctx.nonce_len);
-    ec_util::add_to_hash(r_auth_hb, e_ctx->r_nonce, m_p_ctx.nonce_len);
-    ec_util::add_to_hash(r_auth_hb, P_I_x); //P_I
-    ec_util::add_to_hash(r_auth_hb, P_R_x); //P_R
-    if (e_ctx->is_mutual_auth) ec_util::add_to_hash(r_auth_hb, B_I_x); //B_I
-    ec_util::add_to_hash(r_auth_hb, B_R_x); //B_R
-    ec_util::add_to_hash(r_auth_hb, (uint8_t)0); // 0 octet
+    ec_crypto::add_to_hash(r_auth_hb, e_ctx->i_nonce, m_p_ctx.nonce_len);
+    ec_crypto::add_to_hash(r_auth_hb, e_ctx->r_nonce, m_p_ctx.nonce_len);
+    ec_crypto::add_to_hash(r_auth_hb, P_I_x); //P_I
+    ec_crypto::add_to_hash(r_auth_hb, P_R_x); //P_R
+    if (e_ctx->is_mutual_auth) ec_crypto::add_to_hash(r_auth_hb, B_I_x); //B_I
+    ec_crypto::add_to_hash(r_auth_hb, B_R_x); //B_R
+    ec_crypto::add_to_hash(r_auth_hb, (uint8_t)0); // 0 octet
 
     uint8_t* r_auth_prime = ec_crypto::compute_hash(m_p_ctx, r_auth_hb);
 
@@ -404,13 +404,13 @@ exchange.
 
     // Generate I-auth = H(R-nonce | I-nonce | PR.x | PI.x | BR.x | [ BI.x | ] 1)
     easyconnect::hash_buffer_t i_auth_hb;
-    ec_util::add_to_hash(i_auth_hb, e_ctx->r_nonce, m_p_ctx.nonce_len);
-    ec_util::add_to_hash(i_auth_hb, e_ctx->i_nonce, m_p_ctx.nonce_len);
-    ec_util::add_to_hash(i_auth_hb, P_R_x); //P_R
-    ec_util::add_to_hash(i_auth_hb, P_I_x); //P_I
-    ec_util::add_to_hash(i_auth_hb, B_R_x); //B_R
-    if (e_ctx->is_mutual_auth) ec_util::add_to_hash(i_auth_hb, B_I_x); //B_I
-    ec_util::add_to_hash(i_auth_hb, (uint8_t)1); // 1 octet
+    ec_crypto::add_to_hash(i_auth_hb, e_ctx->r_nonce, m_p_ctx.nonce_len);
+    ec_crypto::add_to_hash(i_auth_hb, e_ctx->i_nonce, m_p_ctx.nonce_len);
+    ec_crypto::add_to_hash(i_auth_hb, P_R_x); //P_R
+    ec_crypto::add_to_hash(i_auth_hb, P_I_x); //P_I
+    ec_crypto::add_to_hash(i_auth_hb, B_R_x); //B_R
+    if (e_ctx->is_mutual_auth) ec_crypto::add_to_hash(i_auth_hb, B_I_x); //B_I
+    ec_crypto::add_to_hash(i_auth_hb, (uint8_t)1); // 1 octet
 
     uint8_t* i_auth = ec_crypto::compute_hash(m_p_ctx, i_auth_hb);
     ASSERT_NOT_NULL(i_auth, false, "%s:%d: Failed to compute I-auth\n", __func__, __LINE__);
