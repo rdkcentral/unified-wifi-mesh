@@ -273,12 +273,14 @@ bool ec_util::parse_encap_dpp_tlv(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_
     }
 
     // Copy frame
+    *encap_frame = (uint8_t *)calloc(*encap_frame_len, 1);
+    ASSERT_NOT_NULL(*encap_frame, false, "Failed to allocate memory\n");
     memcpy(*encap_frame, data_ptr, *encap_frame_len);
 
     return true;
 }
 
-em_encap_dpp_t * ec_util::create_encap_dpp_tlv(bool dpp_frame_indicator, uint8_t content_type, mac_addr_t *dest_mac, uint8_t frame_type, uint8_t *encap_frame, uint8_t encap_frame_len)
+std::pair<em_encap_dpp_t*, size_t> ec_util::create_encap_dpp_tlv(bool dpp_frame_indicator, mac_addr_t dest_mac, ec_frame_type_t frame_type, uint8_t *encap_frame, uint8_t encap_frame_len)
 {
     size_t data_size = sizeof(em_encap_dpp_t) + sizeof(uint8_t) + sizeof(uint16_t) + encap_frame_len;
     if (dest_mac != NULL) {
@@ -288,10 +290,9 @@ em_encap_dpp_t * ec_util::create_encap_dpp_tlv(bool dpp_frame_indicator, uint8_t
 
     if ((encap_tlv = (em_encap_dpp_t *)calloc(data_size, 1)) == NULL){
         fprintf(stderr, "Failed to allocate memory\n");
-        return NULL;
+        return {};
     }
     (encap_tlv)->dpp_frame_indicator = dpp_frame_indicator;
-    (encap_tlv)->content_type = content_type;
     (encap_tlv)->enrollee_mac_addr_present = (dest_mac != NULL) ? 1 : 0;
 
     uint8_t *data_ptr = (encap_tlv)->data;
@@ -308,7 +309,7 @@ em_encap_dpp_t * ec_util::create_encap_dpp_tlv(bool dpp_frame_indicator, uint8_t
 
     memcpy(data_ptr, encap_frame, encap_frame_len);
 
-    return encap_tlv;
+    return std::pair<em_encap_dpp_t*, size_t>(encap_tlv, data_size);
 }
 
 ec_frame_t *ec_util::copy_attrs_to_frame(ec_frame_t *frame, uint8_t *attrs, uint16_t attrs_len)
@@ -334,3 +335,35 @@ std::string ec_util::hash_to_hex_string(const uint8_t *hash, size_t hash_len) {
     return std::string(output);
 }
 
+
+bool ec_util::check_caps_compatible(const ec_dpp_capabilities_t& init_caps, const ec_dpp_capabilities_t& resp_caps)
+{
+
+/*
+ EasyConnect 6.3.1.5
++--------------------------+-------------------------+------------------------+
+|        Initiator         |        Responder        |       DPP Status       |
++--------------------------+-------------------------+------------------------+
+| Configurator             | Configurator            | STATUS_NOT_COMPATIBLE  |
+| Configurator             | Enrollee                | STATUS_OK              |
+| Enrollee                 | Configurator            | STATUS_OK              |
+| Enrollee                 | Enrollee                | STATUS_NOT_COMPATIBLE  |
+| Configurator or Enrollee | Configurator            | STATUS_OK              |
+| Configurator or Enrollee | Enrollee                | STATUS_OK              |
++--------------------------+-------------------------+------------------------+
+*/
+    bool resp_cfg_enrollee = resp_caps.configurator && resp_caps.enrollee;
+
+    // The responder cannot be both (but the initiator can)
+    if (resp_cfg_enrollee) {
+        return false;
+    }
+
+    if (init_caps.enrollee && resp_caps.enrollee) {
+        return false;
+    }
+    if (init_caps.configurator && resp_caps.configurator) {
+        return false;
+    }
+    return true;
+}
