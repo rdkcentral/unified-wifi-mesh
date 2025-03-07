@@ -55,9 +55,10 @@ public:
      * 
      * @param buff The frame to handle
      * @param len The length of the frame
+     * @param sa The 802.11 source address of this frame.
      * @return bool true if successful, false otherwise
      */
-    bool handle_config_response(uint8_t *buff, unsigned int len);
+    bool handle_config_response(uint8_t *buff, unsigned int len, uint8_t sa[ETH_ALEN]);
 
     inline std::string get_mac_addr() { return m_mac_addr; };
 

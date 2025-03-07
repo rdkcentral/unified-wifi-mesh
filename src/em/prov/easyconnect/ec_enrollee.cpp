@@ -164,8 +164,20 @@ bool ec_enrollee_t::handle_auth_confirm(uint8_t *buff, unsigned int len)
     return true;
 }
 
-bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len)
+bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint8_t sa[ETH_ALEN])
 {
+    printf("%s:%d: Got a DPP Configuration Response from " MACSTRFMT "\n", __func__, __LINE__, MAC2STR(sa));
+    uint8_t *p = buff;
+
+    ec_gas_frame_base_t *gas_base_frame = (ec_gas_frame_base_t *)p;
+    p += sizeof(ec_gas_frame_base_t);
+    ec_gas_initial_response_frame_t *gas_initial_response = (ec_gas_initial_response_frame_t *)p;
+    printf(
+        "%s:%d: Got a DPP config response! category=%02x action=%02x dialog_token=%02x ape=" APEFMT
+        " ape_id=" APEIDFMT " resp_len=%d\n",
+        __func__, __LINE__, gas_base_frame->category, gas_base_frame->action,
+        gas_base_frame->dialog_token, APE2STR(gas_initial_response->ape),
+        APEID2STR(gas_initial_response->ape_id), gas_initial_response->resp_len);
     return true;
 }
 

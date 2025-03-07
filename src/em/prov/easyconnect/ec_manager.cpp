@@ -41,6 +41,27 @@ bool ec_manager_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len)
     return true;
 }
 
+bool ec_manager_t::handle_recv_gas_pub_action_frame(ec_gas_frame_base_t *frame, size_t len, uint8_t source_addr[ETH_ALEN]) {
+    if (!frame) {
+        printf("%s:%d: EC manager given a NULL DPP GAS frame!\n", __func__, __LINE__);
+        return false;
+    }
+    printf("%s:%d: Got a GAS frame with %02x action!\n", __func__, __LINE__, frame->action);
+    switch (static_cast<dpp_gas_action_type_t>(frame->action)) {
+        case dpp_gas_initial_req:
+            return m_configurator->handle_cfg_request((uint8_t *)frame, len, source_addr);
+        case dpp_gas_initial_resp:
+            return m_enrollee->handle_config_response((uint8_t *)frame, len, source_addr);
+        case dpp_gas_comeback_req:
+        case dpp_gas_comeback_resp:
+        default:
+            // XXX: handle comeback frames
+            printf("%s:%d: unhandled DPP GAS action type=%02x\n", __func__, __LINE__, frame->action);
+            break;
+    }
+    return false;
+}
+
 bool ec_manager_t::upgrade_to_onboarded_proxy_agent(toggle_cce_func toggle_cce)
 {
     if (m_is_controller) {

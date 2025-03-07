@@ -24,8 +24,20 @@ bool ec_pa_configurator_t::handle_auth_response(uint8_t *buff, unsigned int len)
     return true;
 }
 
-bool ec_pa_configurator_t::handle_cfg_request(uint8_t *buff, unsigned int len)
+bool ec_pa_configurator_t::handle_cfg_request(uint8_t *buff, unsigned int len, uint8_t sa[ETH_ALEN])
 {
+    printf("%s:%d: Rx'd a DPP Configuration Request from " MACSTRFMT "\n", __func__, __LINE__, MAC2STR(sa));
+    uint8_t *p = buff;
+    ec_gas_frame_base_t *gas_frame_base = (ec_gas_frame_base_t *)p;
+    p += sizeof(ec_gas_frame_base_t);
+    ec_gas_initial_request_frame_t *gas_initial_request = (ec_gas_initial_request_frame_t *)p;
+    printf(
+        "%s:%d: Got a DPP config request! category=%02x action=%02x dialog_token=%02x ape=" APEFMT
+        " ape_id=" APEIDFMT " query_len=%d\n",
+        __func__, __LINE__, gas_frame_base->action, gas_frame_base->category,
+        gas_frame_base->dialog_token, APE2STR(gas_initial_request->ape),
+        APEID2STR(gas_initial_request->ape_id), gas_initial_request->query_len);
+    printf("%s:%d: IMPLEMENT ME!\n", __func__, __LINE__);
     return true;
 }
 

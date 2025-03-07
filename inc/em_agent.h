@@ -58,6 +58,7 @@ class em_agent_t : public em_mgr_t {
     void handle_channel_scan_params(em_bus_event_t *evt);
     void handle_set_policy(em_bus_event_t *evt);
     void handle_beacon_report(em_bus_event_t *evt);
+    void handle_recv_gas_frame(em_bus_event_t *evt);
 
 public:
 

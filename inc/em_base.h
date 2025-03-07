@@ -209,6 +209,10 @@ extern "C"
 #define 	EM_PARSE_ERR_CONFIG		EM_PARSE_NO_ERR	- 3	
 #define 	EM_PARSE_ERR_NO_CHANGE	EM_PARSE_NO_ERR	- 4	
 
+#ifndef ETH_ALEN
+#define ETH_ALEN (6UL)
+#endif // ETH_ALEN
+
 typedef char em_interface_name_t[32];
 typedef unsigned char em_nonce_t[16];
 typedef unsigned char em_dh5_key_t[192];    // because this is DH group 5 (1536 bits)
@@ -2576,7 +2580,8 @@ typedef enum {
     em_bus_event_type_get_mld_config,
     em_bus_event_type_mld_reconfig,
     em_bus_event_type_beacon_report,
-    em_bus_event_type_recv_wfa_action_frame
+    em_bus_event_type_recv_wfa_action_frame,
+    em_bus_event_type_recv_gas_frame,
 } em_bus_event_type_t;
 
 typedef struct {

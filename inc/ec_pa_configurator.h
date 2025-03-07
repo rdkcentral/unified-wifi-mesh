@@ -51,12 +51,13 @@ public:
      * 
      * @param buff The frame to handle
      * @param len The length of the frame
+     * @param sa The 802.11 source address of the frame (from Enrollee).
      * @return bool true if successful, false otherwise
      * 
      * @note Optional to implement because the controller+configurator does not handle 802.11,
      *     but the proxy agent + configurator does.
      */
-    bool handle_cfg_request(uint8_t *buff, unsigned int len) override;
+    bool handle_cfg_request(uint8_t *buff, unsigned int len, uint8_t sa[ETH_ALEN]) override;
 
     /**
      * @brief Handles an configuration result 802.11+GAS frame, performing the necessary actions and possibly passing to 1905
