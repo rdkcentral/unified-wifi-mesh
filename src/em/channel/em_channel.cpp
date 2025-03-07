@@ -424,7 +424,7 @@ short em_channel_t::create_channel_scan_res_tlv(unsigned char *buff, unsigned in
 
 int em_channel_t::send_channel_scan_report_msg(unsigned int *last_index)
 {
-    unsigned char buff[MAX_EM_BUFF_SZ*3]; //Increased size to accommodate if max number of neighbor are present in the message
+    unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned short  msg_id = em_msg_type_channel_scan_rprt;
     int len = 0;
@@ -491,7 +491,7 @@ int em_channel_t::send_channel_scan_report_msg(unsigned int *last_index)
 		}
 	}
 	
-	*last_index = i;
+	*last_index = i + 1;
 
     // Zero or more MLD Structure TLV (see section 17.2.99)
 
