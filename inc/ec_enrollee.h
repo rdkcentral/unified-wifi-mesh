@@ -2,6 +2,7 @@
 #define EC_ENROLLEE_H
 
 #include "em_base.h"
+#include "ec_configurator.h"
 
 #include <map>
 #include <string>
@@ -19,7 +20,7 @@ public:
      * @note The default state of an enrollee is non-onboarding. All non-controller devices are started as (non-onboarding) enrollees 
      *      until they are told that they are on the network at which point they can be upgraded to a proxy agent.
      */
-    ec_enrollee_t(std::string mac_addr);
+    ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame);
     
     // Destructor
     ~ec_enrollee_t();
@@ -68,7 +69,7 @@ public:
 
 private:
 
-    // TODO: Send Action Frame
+    send_act_frame_func m_send_action_frame;
 
     // TODO: Send GAS Frame
 

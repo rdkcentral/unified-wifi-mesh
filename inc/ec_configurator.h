@@ -30,6 +30,17 @@ using send_chirp_func = std::function<bool(em_dpp_chirp_value_t*, size_t)>;
 using send_encap_dpp_func = std::function<bool(em_encap_dpp_t*, size_t, em_dpp_chirp_value_t*, size_t)>;
 
 /**
+ * @brief Send an action frame. Optional to implement.
+ * 
+ * @param dest_mac The destination MAC address
+ * @param action_frame The action frame to send
+ * @param action_frame_len The length of the action frame
+ * @param frequency The frequency to send the frame on (0 for current frequency)
+ * @return true if successful, false otherwise
+ */
+using send_act_frame_func = std::function<bool(uint8_t*, uint8_t *, size_t, unsigned int)>;
+
+/**
 * @brief Set the CCE IEs in the beacon and probe response frames
 * 
 * @param bool Whether to enable or disable the inclusion of CCE IEs in the beacon and probe response frames
@@ -46,7 +57,8 @@ public:
      * @param send_prox_encap_dpp_msg The function to send a proxied encapsulated DPP message
      */
     // TODO: Add send_action_frame and send_gas_frame functions
-    ec_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg);
+    ec_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg, 
+                        send_act_frame_func send_action_frame);
     ~ec_configurator_t(); // Destructor
 
     /**
@@ -156,6 +168,8 @@ protected:
     send_chirp_func m_send_chirp_notification;
 
     send_encap_dpp_func m_send_prox_encap_dpp_msg;
+
+    send_act_frame_func m_send_action_frame;
 
     std::string m_mac_addr;
 

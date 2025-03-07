@@ -4,7 +4,8 @@
 #include "ec_crypto.h"
 #include "util.h"
 
-ec_enrollee_t::ec_enrollee_t(std::string mac_addr) : m_mac_addr(mac_addr)
+ec_enrollee_t::ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame)
+                            : m_mac_addr(mac_addr), m_send_action_frame(send_action_frame)
 {
 }
 

@@ -5,12 +5,26 @@
 
 #include <memory>
 
-ec_manager_t::ec_manager_t(std::string mac_addr, send_chirp_func send_chirp, send_encap_dpp_func send_encap_dpp, bool m_is_controller) 
-                            : m_is_controller(m_is_controller), m_stored_chirp_fn(send_chirp), m_stored_encap_dpp_fn(send_encap_dpp), m_stored_mac_addr(mac_addr){
+ec_manager_t::ec_manager_t(
+    std::string mac_addr,
+    send_chirp_func send_chirp,
+    send_encap_dpp_func send_encap_dpp,
+    send_act_frame_func send_action_frame,
+    bool m_is_controller
+) : m_is_controller(m_is_controller),
+    m_stored_chirp_fn(send_chirp),
+    m_stored_encap_dpp_fn(send_encap_dpp),
+    m_stored_action_frame_fn(send_action_frame),
+    m_stored_mac_addr(mac_addr) {
+    
     if (m_is_controller) {
-        m_configurator = std::unique_ptr<ec_configurator_t>(new ec_ctrl_configurator_t(mac_addr, send_chirp, send_encap_dpp));
+        m_configurator = std::unique_ptr<ec_configurator_t>(
+            new ec_ctrl_configurator_t(mac_addr, send_chirp, send_encap_dpp)
+        );
     } else {
-        m_enrollee = std::unique_ptr<ec_enrollee_t>(new ec_enrollee_t(mac_addr));
+        m_enrollee = std::unique_ptr<ec_enrollee_t>(
+            new ec_enrollee_t(mac_addr, send_action_frame)
+        );
     }
 }
 

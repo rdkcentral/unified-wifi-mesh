@@ -74,7 +74,7 @@ public:
      * @param frequency The frequency to send the frame on (0 for current frequency)
      * @return true if successful, false otherwise
      */
-    bool send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency=0);
+    bool send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency=0) override;
 
     int data_model_init(const char *data_model_path);
     bool is_data_model_initialized() { return true; }

@@ -6,7 +6,7 @@
 class ec_ctrl_configurator_t : public ec_configurator_t {
 public:
     ec_ctrl_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg) :
-        ec_configurator_t(mac_addr, send_chirp_notification, send_prox_encap_dpp_msg) {};
+        ec_configurator_t(mac_addr, send_chirp_notification, send_prox_encap_dpp_msg, {}) {};
         // No MAC address needed for controller configurator
 
     /**
