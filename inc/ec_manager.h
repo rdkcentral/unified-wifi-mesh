@@ -34,9 +34,10 @@ public:
      * 
      * @param frame The frame recieved to handle
      * @param len The length of the frame
+     * @param src_mac The MAC address of the source of the frame
      * @return bool true if successful, false otherwise
      */
-    bool handle_recv_ec_action_frame(ec_frame_t* frame, size_t len);
+    bool handle_recv_ec_action_frame(ec_frame_t* frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]);
 
     /**
      * @brief Start the EC configurator onboarding
@@ -55,13 +56,14 @@ public:
      * @brief Start the EC enrollee onboarding
      * 
      * @param do_reconfig Whether to reconfigure/reauth the enrollee
+     * @param boot_data The bootstrapping data to use for onboarding
      * @return bool true if successful, false otherwise
      */
-    inline bool enrollee_start(bool do_reconfig) {
+    inline bool enrollee_start(bool do_reconfig, ec_data_t* boot_data) {
         if (m_is_controller || m_enrollee == nullptr) {
             return -1;
         }
-        return m_enrollee->start(do_reconfig);
+        return m_enrollee->start(do_reconfig, boot_data);
     }
 
     /**

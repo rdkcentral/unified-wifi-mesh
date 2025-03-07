@@ -2,15 +2,8 @@
 
 #include "ec_util.h"
 
-bool ec_pa_configurator_t::handle_presence_announcement(uint8_t *buff, unsigned int len)
+bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
-    ec_frame_t *frame = (ec_frame_t *)buff;
-
-    if (ec_util::validate_frame(frame, ec_frame_type_presence_announcement) == false) {
-        printf("%s:%d: frame validation failed\n", __func__, __LINE__);
-        return -1;
-    }
-
     ec_attribute_t *attrib = ec_util::get_attrib(frame->attributes, len-EC_FRAME_BASE_SIZE, ec_attrib_id_resp_bootstrap_key_hash);
     if (!attrib) {
         return -1;
@@ -19,7 +12,7 @@ bool ec_pa_configurator_t::handle_presence_announcement(uint8_t *buff, unsigned 
     return true;	
 }
 
-bool ec_pa_configurator_t::handle_auth_response(uint8_t *buff, unsigned int len)
+bool ec_pa_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
     return true;
 }

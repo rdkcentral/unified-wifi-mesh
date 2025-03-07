@@ -32,7 +32,7 @@ public:
      * @note Optional to implement because the controller+configurator does not handle 802.11,
      *      but the proxy agent + configurator does.
      */
-    bool handle_presence_announcement(uint8_t *buff, unsigned int len) override;
+    bool handle_presence_announcement(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]) override;
 
     /**
      * @brief Handles an authentication request 802.11 frame, performing the necessary actions and possibly passing to 1905
@@ -44,7 +44,7 @@ public:
      * @note Optional to implement because the controller+configurator does not handle 802.11,
      *     but the proxy agent + configurator does.
      */
-    bool handle_auth_response(uint8_t *buff, unsigned int len) override;
+    bool handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]n) override;
 
     /**
      * @brief Handles an configuration request 802.11+GAS frame, performing the necessary actions and possibly passing to 1905

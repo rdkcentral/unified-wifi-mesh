@@ -39,7 +39,7 @@ public:
      * @param len The length of the frame
      * @return bool true if successful, false otherwise
      */
-    bool handle_auth_request(uint8_t *buff, unsigned int len);
+    bool handle_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]);
 
     /**
      * @brief Handle an authentication confirmation 802.11 frame, performing the necessary actions
@@ -48,7 +48,7 @@ public:
      * @param len The length of the frame
      * @return bool true if successful, false otherwise
      */
-    bool handle_auth_confirm(uint8_t *buff, unsigned int len);
+    bool handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]);
 
     /**
      * @brief Handle a configuration request 802.11+GAS frame, performing the necessary actions and responding with a configuration result via 802.11

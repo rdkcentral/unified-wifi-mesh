@@ -18,7 +18,7 @@ ec_manager_t::~ec_manager_t()
 {
 }
 
-bool ec_manager_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len)
+bool ec_manager_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
     if (!ec_util::validate_frame(frame)) {
         printf("%s:%d: frame validation failed\n", __func__, __LINE__);
@@ -26,13 +26,13 @@ bool ec_manager_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len)
     }
     switch (frame->frame_type) {
         case ec_frame_type_presence_announcement:
-            return m_configurator->handle_presence_announcement((uint8_t *)frame, len);
+            return m_configurator->handle_presence_announcement(frame, len, src_mac);
         case ec_frame_type_auth_req:
-            return m_enrollee->handle_auth_request((uint8_t *)frame, len);
+            return m_enrollee->handle_auth_request(frame, len, src_mac);
         case ec_frame_type_auth_rsp:
-            return m_configurator->handle_auth_response((uint8_t *)frame, len);
+            return m_configurator->handle_auth_response(frame, len, src_mac);
         case ec_frame_type_auth_cnf:
-            return m_enrollee->handle_auth_confirm((uint8_t *)frame, len);
+            return m_enrollee->handle_auth_confirm(frame, len, src_mac);
 
         default:
             printf("%s:%d: frame type (%d) not handled\n", __func__, __LINE__, frame->frame_type);

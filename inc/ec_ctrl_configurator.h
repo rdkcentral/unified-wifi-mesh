@@ -39,7 +39,7 @@ public:
      * @note Optional to implement because the controller+configurator does not handle 802.11,
      *     but the proxy agent + configurator does.
      */
-    bool handle_auth_response(uint8_t *buff, unsigned int len) override;
+    bool handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]) override;
 
 private:
     // Private member variables can be added here

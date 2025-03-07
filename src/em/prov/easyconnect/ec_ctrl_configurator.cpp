@@ -147,15 +147,13 @@ bool ec_ctrl_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_t
     return true;
 }
 
-bool ec_ctrl_configurator_t::handle_auth_response(uint8_t *buff, unsigned int len)
+bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
 
-    std::string enrollee_mac = frame->sta_mac;
+    std::string enrollee_mac = util::mac_to_string(src_mac);
 
     auto e_ctx = get_eph_ctx(enrollee_mac);
     ASSERT_NOT_NULL(e_ctx, false, "%s:%d: Ephemeral context not found for enrollee MAC %s\n", __func__, __LINE__, enrollee_mac.c_str());
-
-    ec_frame_t *frame = (ec_frame_t *)buff;
 
     if (ec_util::validate_frame(frame, ec_frame_type_auth_rsp) == false) {
         printf("%s:%d: frame validation failed\n", __func__, __LINE__);

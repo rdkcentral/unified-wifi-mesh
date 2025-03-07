@@ -75,7 +75,7 @@ public:
      * @note Optional to implement because the controller+configurator does not handle 802.11,
      *      but the proxy agent + configurator does.
      */
-    virtual bool handle_presence_announcement(uint8_t *buff, unsigned int len) {
+    virtual bool handle_presence_announcement(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]) {
         return 0; // Optional to implement
     }
 
@@ -89,7 +89,7 @@ public:
      * @note Optional to implement because the controller+configurator does not handle 802.11,
      *     but the proxy agent + configurator does.
      */
-    virtual bool handle_auth_response(uint8_t *buff, unsigned int len) {
+    virtual bool handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]) {
         return true; // Optional to implement
     }
 
