@@ -45,7 +45,7 @@ bool ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *ch
     }
 
     // Create Auth Request Encap TLV: EasyMesh 5.3.4
-    em_encap_dpp_t* encap_dpp_tlv = ec_util::create_encap_dpp_tlv(0, 0, &mac, 0, auth_frame, auth_frame_len);
+    auto [encap_dpp_tlv, encap_dpp_size] = ec_util::create_encap_dpp_tlv(0, mac, ec_frame_type_auth_req, auth_frame, auth_frame_len);
     if (encap_dpp_tlv == NULL) {
         printf("%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
         return false;
@@ -74,7 +74,7 @@ bool ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *ch
     memcpy(tmp, hash, hash_len); 
 
     // Send the encapsulated DPP message (with Encap TLV and Chirp TLV)
-    this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, sizeof(em_encap_dpp_t) + auth_frame_len, chirp, sizeof(em_dpp_chirp_value_t) + data_size);
+    this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, chirp, sizeof(em_dpp_chirp_value_t) + data_size);
 
     free(encap_dpp_tlv);
     free(chirp);
@@ -104,39 +104,34 @@ bool ec_ctrl_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_t
     uint8_t chirp_hash[255] = {0}; // Max hash length to avoid dynamic allocation
     uint8_t chirp_hash_len = 0;
 
+    bool did_finish = false;
+
     ec_frame_type_t ec_frame_type = (ec_frame_type_t)frame_type;
     switch (ec_frame_type) {
         case ec_frame_type_recfg_announcement: {
             auto [recfg_auth_frame, recfg_auth_frame_len] = create_recfg_auth_request();
             if (recfg_auth_frame == NULL || recfg_auth_frame_len == 0) {
                 printf("%s:%d: Failed to create reconfiguration authentication request frame\n", __func__, __LINE__);
-                return false;
+                break;
             }
-            em_encap_dpp_t* encap_dpp_tlv = ec_util::create_encap_dpp_tlv(0, 0, &dest_mac, ec_frame_type_recfg_auth_req, recfg_auth_frame, recfg_auth_frame_len);
+            auto [encap_dpp_tlv, encap_dpp_size] = ec_util::create_encap_dpp_tlv(0, dest_mac, ec_frame_type_recfg_auth_req, recfg_auth_frame, recfg_auth_frame_len);
             if (encap_dpp_tlv == NULL) {
                 printf("%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
                 free(recfg_auth_frame);
-                return false;
+                break;
             }
             free(recfg_auth_frame);
             // Send the encapsulated ReCfg Auth Request message (with Encap TLV)
             // TODO: SEND TO ALL AGENTS
-            this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, sizeof(em_encap_dpp_t) + recfg_auth_frame_len, NULL, 0);
+            this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, NULL, 0);
+            did_finish = true;
             free(encap_dpp_tlv);
             break;
         }
         case ec_frame_type_auth_rsp: {
+            did_finish = handle_auth_response((ec_frame_t*)encap_frame, encap_frame_len, dest_mac);
             break;
         }
-        case ec_frame_type_recfg_auth_rsp: {
-
-            break;
-        }
-        case ec_frame_type_auth_cnf:
-        case ec_frame_type_recfg_auth_cnf: {
-            break;
-        }
-            
         default:
             printf("%s:%d: Encap DPP frame type (%d) not handled\n", __func__, __LINE__, ec_frame_type);
             break;
@@ -144,7 +139,8 @@ bool ec_ctrl_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_t
     // Parse out dest STA mac address and hash value then validate against the hash in the 
     // ec_session dpp uri info public key. 
     // Then construct an Auth request frame and send back in an Encap message
-    return true;
+    free(encap_frame);
+    return did_finish;
 }
 
 bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
@@ -262,16 +258,22 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
     // Verify Responder Capabilities
     if (!ec_util::check_caps_compatible(m_dpp_caps, resp_caps)) {
         printf("%s:%d: Responder capabilities not supported\n", __func__, __LINE__);
+        free(prim_unwrapped_data);
 
         auto [resp_frame, resp_len] = create_auth_confirm(enrollee_mac, DPP_STATUS_NOT_COMPATIBLE, NULL);
-        ASSERT_NOT_NULL_FREE(resp_frame, false, prim_unwrapped_data, "%s:%d: Failed to create response frame\n", __func__, __LINE__);
-        /*
-Initiator → Responder: DPP Status, SHA-256(BR), [ SHA-256(BI), ] { R-nonce }k2
-        */
+        ASSERT_NOT_NULL(resp_frame, false, "%s:%d: Failed to create response frame\n", __func__, __LINE__);
 
-        //TODO:  Send the response frame
-        free(prim_unwrapped_data);
-        return true;
+        auto [encap_dpp_tlv, encap_dpp_size] = ec_util::create_encap_dpp_tlv(0, src_mac, ec_frame_type_auth_cnf, resp_frame, resp_len);
+        free(resp_frame);
+        ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
+
+        // Send the encapsulated DPP message (with Encap TLV)
+        if (!this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, NULL, 0)){
+            printf("%s:%d: Failed to send Encap DPP TLV\n", __func__, __LINE__);
+        }
+        free(encap_dpp_tlv);
+
+        return false;
     }
 
     // b_I
@@ -388,15 +390,23 @@ Initiator → Responder: DPP Status, SHA-256(BR), [ SHA-256(BI), ] { R-nonce }k2
     if (memcmp(r_auth_prime, resp_auth_tag, sizeof(resp_auth_tag) != 0)) {
         printf("%s:%d: R-auth' does not match Responder Auth Tag\n", __func__, __LINE__);
         free(r_auth_prime);
-
+        /*
+        The Initiator should generate an alert indicating its inability to authenticate the Responder. The Initiator then aborts the
+        exchange.
+        */
         auto [resp_frame, resp_len] = create_auth_confirm(enrollee_mac, DPP_STATUS_AUTH_FAILURE, NULL);
         ASSERT_NOT_NULL(resp_frame, false, "%s:%d: Failed to create response frame\n", __func__, __LINE__);
-/*
-Initiator → Responder: DPP Status, SHA-256(BR), [ SHA-256(BI), ] { R-nonce }k2
 
-The Initiator should generate an alert indicating its inability to authenticate the Responder. The Initiator then aborts the
-exchange.
-*/
+        auto [encap_dpp_tlv, encap_dpp_size] = ec_util::create_encap_dpp_tlv(0, src_mac, ec_frame_type_auth_cnf, resp_frame, resp_len);
+        free(resp_frame);
+        ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
+
+        // Send the encapsulated DPP message (with Encap TLV)
+        if (!this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, NULL, 0)){
+            printf("%s:%d: Failed to send encapsulated DPP message\n", __func__, __LINE__);
+        }
+
+        free(encap_dpp_tlv);
         return false;
     }
 
@@ -420,10 +430,17 @@ exchange.
     ASSERT_NOT_NULL_FREE(resp_frame, false, sec_unwrapped_data, "%s:%d: Failed to create response frame\n", __func__, __LINE__);
 
     // TODO: Send frame
+    auto [encap_dpp_tlv, encap_dpp_size] = ec_util::create_encap_dpp_tlv(0, src_mac, ec_frame_type_auth_cnf, resp_frame, resp_len);
+    free(resp_frame);
+    ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
 
+    // Send the encapsulated DPP message (with Encap TLV)
+    if (!this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, NULL, 0)){
+        printf("%s:%d: Failed to send encapsulated DPP message\n", __func__, __LINE__);
+    }
 
-
-    return false;
+    free(encap_dpp_tlv);
+    return true;
 }
 
 std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_auth_request(std::string enrollee_mac)

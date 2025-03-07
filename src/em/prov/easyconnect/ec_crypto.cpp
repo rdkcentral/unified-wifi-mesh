@@ -3,8 +3,7 @@
 #include "util.h"
 #include "ec_util.h"
 
-// TODO: "might" need to switch over to using hash_len instead of SHA256_DIGEST_LENGTH 
-//      although SHA_256 might be standardized for some operations
+
 uint8_t* ec_crypto::compute_key_hash(const EC_KEY *key, const char *prefix)
 {
     BIO *bio;

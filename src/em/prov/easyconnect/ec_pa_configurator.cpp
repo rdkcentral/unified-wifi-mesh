@@ -14,7 +14,14 @@ bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_
 
 bool ec_pa_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
-    return true;
+    // Encapsulate 802.11 frame into 1905 Encap DPP TLV and send to controller
+    auto [encap_dpp_tlv, encap_dpp_size] = ec_util::create_encap_dpp_tlv(false, src_mac, ec_frame_type_auth_rsp, (uint8_t*)frame, len);
+    ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d Failed to create Encap DPP TLV\n", __func__, __LINE__);
+
+    // Only create and forward an Encap TLV
+    bool did_succeed = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, NULL, 0);
+    free(encap_dpp_tlv);
+    return did_succeed;
 }
 
 bool ec_pa_configurator_t::handle_cfg_request(uint8_t *buff, unsigned int len)
@@ -47,7 +54,7 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
 
     if (ec_util::parse_encap_dpp_tlv(encap_tlv, encap_tlv_len, &dest_mac, &frame_type, &encap_frame, &encap_frame_len) < 0) {
         printf("%s:%d: Failed to parse Encap DPP TLV\n", __func__, __LINE__);
-        return -1;
+        return false;
     }
 
     mac_addr_t chirp_mac = {0};
@@ -55,15 +62,18 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
     uint8_t chirp_hash_len = 0;
 
     ec_frame_type_t ec_frame_type = (ec_frame_type_t)frame_type;
+
+    bool did_finish = false;
+
     switch (ec_frame_type) {
         case ec_frame_type_auth_req: {
             if (chirp_tlv == NULL || chirp_tlv_len == 0) {
                 printf("%s:%d: Chirp TLV is empty\n", __func__, __LINE__);
-                return -1;
+                break;
             }
             if (ec_util::parse_dpp_chirp_tlv(chirp_tlv, chirp_tlv_len, &chirp_mac, (uint8_t**)&chirp_hash, &chirp_hash_len) < 0) {
                 printf("%s:%d: Failed to parse DPP Chirp TLV\n", __func__, __LINE__);
-                return -1;
+                break;
             }
             std::string chirp_hash_str = ec_util::hash_to_hex_string(chirp_hash, chirp_hash_len);
             printf("%s:%d: Chirp TLV Hash: %s\n", __func__, __LINE__, chirp_hash_str.c_str());
@@ -71,6 +81,7 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
             // Store the encap frame keyed by the chirp hash in the map
             std::vector<uint8_t> encap_frame_vec(encap_frame, encap_frame + encap_frame_len);
             m_chirp_hash_frame_map[chirp_hash_str] = encap_frame_vec;
+            did_finish = true;
             break;
         }
         case ec_frame_type_recfg_auth_req: {
@@ -78,10 +89,13 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
             std::vector<uint8_t> encap_frame_vec(encap_frame, encap_frame + encap_frame_len);
             // Will be compared against incoming presence announcement hash and mac-addr
             m_stored_recfg_auth_frames.push_back(encap_frame_vec); 
+            did_finish = true;
             break;
         }
         case ec_frame_type_auth_cnf:
         case ec_frame_type_recfg_auth_cnf: {
+            // Send the recevied frame to the enrollee agent
+            did_finish = m_send_action_frame(dest_mac, encap_frame, encap_frame_len, 0);
             break;
         }
         default:
@@ -91,4 +105,7 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
     // Parse out dest STA mac address and hash value then validate against the hash in the 
     // ec_session dpp uri info public key. 
     // Then construct an Auth request frame and send back in an Encap message
+
+    free(encap_frame);
+    return did_finish;
 }

@@ -9,7 +9,7 @@
 
 class ec_enrollee_t {
 public:
-    // TODO: Add Send Action Frame, Send GAS Frame
+    // TODO: Add Send GAS Frame
     /**
      * @brief The EasyConnect Enrollee
      * 

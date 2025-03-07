@@ -10,7 +10,7 @@
 
 class ec_manager_t {
 public:
-    // TODO: Add send_action_frame and send_gas_frame functions
+    // TODO: Add send_gas_frame functions
     /**
      * @brief The Manager (unified dispatcher of sorts) for the EasyConnect Configurator or Enrollee
      * 
