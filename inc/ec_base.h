@@ -43,6 +43,20 @@ extern "C"
 #define DPP_OUI_TYPE 0x1A
 #define DPP_MAX_EN_CHANNELS 4
 
+#define DPP_GAS_INITIAL_REQ 0x0A
+#define DPP_GAS_INITIAL_RESP 0x0B
+
+#define APEFMT "%02x,%02x,%02x"
+#define APE2STR(x) (x[0], x[1], x[2])
+#define APEIDFMT "%02x,%02x,%02x,%02x,%02x,%02x,%02x"
+#define APEID2STR(x) (x[0], x[1], x[2], x[3], x[4], x[5], x[6])
+#define MACSTRFMT "%02x:%02x:%02x:%02x:%02x"
+#define MAC2STR(x) (x[0], x[1], x[2], x[3], x[4], x[5])
+
+// EasyConnect 8.3.2
+static const uint8_t DPP_GAS_CONFIG_REQ_APE[3] = {0x6c, 0x08, 0x00};
+static const uint8_t DPP_GAS_CONFIG_REQ_PROTO_ID[7] = {0xDD, 0x05, 0x50, 0x6F, 0x9A ,0x1A, 0x01};
+
 // As defined by EasyConnect 8.2.1 Table 35
 typedef enum  {
     ec_frame_type_auth_req = 0,
@@ -131,6 +145,13 @@ typedef enum {
     DPP_STATUS_NEW_KEY_NEEDED,
 } ec_status_code_t;
 
+typedef enum {
+   dpp_gas_initial_req = 0x0A,
+   dpp_gas_initial_resp = 0x0B,
+   dpp_gas_comeback_req = 0x0C,
+   dpp_gas_comeback_resp = 0x0D,
+} dpp_gas_action_type_t;
+
 // Used to concisely represent the capabilities of a device while allowing for easy access to the uint8_t value
 typedef union {
     struct {
@@ -190,6 +211,28 @@ typedef struct {
     uint8_t frame_type;
     uint8_t attributes[0];
 } __attribute__((packed)) ec_frame_t;
+
+typedef struct {
+    uint8_t category;
+    uint8_t action;
+    uint8_t dialog_token;
+} __attribute__((packed)) ec_gas_frame_base_t;
+
+typedef struct {
+    uint8_t ape[3];
+    uint8_t ape_id[7];
+    uint16_t query_len;
+    uint8_t query[];
+} ec_gas_initial_request_frame_t;
+
+typedef struct {
+    uint16_t status_code;
+    uint16_t gas_comeback_delay;
+    uint8_t ape[3];
+    uint8_t ape_id[7];
+    uint16_t resp_len;
+    uint8_t resp[];
+} ec_gas_initial_response_frame_t;
 
 typedef enum {
     ec_session_type_cfg,
