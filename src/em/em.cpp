@@ -600,12 +600,6 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     sdu.setPayload(payload);
 
     g_sap->serviceAccessPointDataRequest(sdu);
-
-    std::cout << "Sent frame sap:" << std::endl;
-    for (auto byte : payload) {
-        std::cout << std::hex << static_cast<int>(byte) << " ";
-    }
-    std::cout << std::dec << std::endl;
 #else
     em_interface_t *al;
     em_short_string_t   ifname;

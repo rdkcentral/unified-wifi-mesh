@@ -328,11 +328,6 @@ void em_mgr_t::nodes_listener()
 #ifdef AL_SAP
                 AlServiceDataUnit sdu = g_sap->serviceAccessPointDataIndication();
                 std::vector<unsigned char> payload = sdu.getPayload();
-                std::cout << "Received frame sap:" << std::endl;
-                for (auto byte : payload) {
-                    std::cout << std::hex << static_cast<int>(byte) << " ";
-                }
-                std::cout << std::dec << std::endl;
                 proto_process(payload.data(), payload.size(), em);
 #else
 				pthread_mutex_lock(&m_mutex);
