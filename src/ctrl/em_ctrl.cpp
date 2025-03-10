@@ -603,7 +603,10 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         
             if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
                 printf("%s:%d: Found existing radio:%s\n", __func__, __LINE__, mac_str1);
-                em->set_state(em_state_ctrl_wsc_m1_pending);
+                if(em->get_state() != em_state_ctrl_wsc_m2_sent)
+                    em->set_state(em_state_ctrl_wsc_m1_pending);
+                else
+                    printf("%s:%d: Autoconf wsc msg sent already. Incorrect state = (%d)\n", __func__, __LINE__, em->get_state());
             } else {
                 if ((dm = get_data_model((const char *)global_netid, (const unsigned char *)hdr->src)) == NULL) {
                     printf("%s:%d: Can not find data model\n", __func__, __LINE__);

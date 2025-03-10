@@ -338,8 +338,6 @@ void em_mgr_t::nodes_listener()
                     memset(buff, 0, MAX_EM_BUFF_SZ);
                     len = read(em->get_fd(), buff, MAX_EM_BUFF_SZ);
                     if (len) {
-                        em_raw_hdr_t *hdr;
-                        hdr = (em_raw_hdr_t *)buff;
                         proto_process(buff, static_cast<unsigned int>(len), em);
                     }
                 }
