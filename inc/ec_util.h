@@ -69,7 +69,7 @@ public:
      * @param id The attribute ID
      * @return ec_attribute_t* The attribute if found, NULL otherwise
      */
-    static ec_attribute_t *get_attrib(uint8_t *buff, uint16_t len, ec_attrib_id_t id);
+    static ec_attribute_t *get_attrib(uint8_t *buff, size_t len, ec_attrib_id_t id);
 
     /**
      * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary
@@ -83,7 +83,7 @@ public:
      * 
      * @warning The buffer must be freed by the caller
      */
-    static uint8_t *add_attrib(uint8_t *buff, uint16_t* buff_len, ec_attrib_id_t id, uint16_t len, uint8_t *data);
+    static uint8_t *add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, uint16_t len, uint8_t *data);
 
     /**
      * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary
@@ -95,8 +95,8 @@ public:
      * 
      * @warning The buffer must be freed by the caller
      */
-    static inline uint8_t* add_attrib(uint8_t *buff, uint16_t* buff_len, ec_attrib_id_t id, uint8_t val) {
-        return add_attrib(buff, buff_len, id, sizeof(uint8_t), const_cast<uint8_t *> (&val));
+    static inline uint8_t* add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, uint8_t val) {
+        return add_attrib(buff, buff_len, id, sizeof(uint8_t), const_cast<uint8_t*>(&val));
     }
 
     /**
@@ -109,8 +109,8 @@ public:
      * 
      * @warning The buffer must be freed by the caller
      */
-    static inline uint8_t* add_attrib(uint8_t *buff, uint16_t* buff_len, ec_attrib_id_t id, uint16_t val) {
-        return add_attrib(buff, buff_len, id, sizeof(uint16_t), reinterpret_cast<uint8_t *> (&val));
+    static inline uint8_t* add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, uint16_t val) {
+        return add_attrib(buff, buff_len, id, sizeof(uint16_t), const_cast<uint8_t*>(reinterpret_cast<uint8_t*>(&val)));
     }
 
     /**
@@ -127,7 +127,7 @@ public:
             printf("%s:%d unable to allocate memory\n", __func__, __LINE__);
             return NULL;
         }
-        ec_frame_t    *frame = reinterpret_cast<ec_frame_t *> (buff);
+        ec_frame_t    *frame = reinterpret_cast<ec_frame_t*>(buff);
         init_frame(frame);
         frame->frame_type = type;
         return frame;
@@ -143,7 +143,7 @@ public:
      * 
      * @warning The frame must be freed by the caller
      */
-    static ec_frame_t* copy_attrs_to_frame(ec_frame_t *frame, uint8_t *attrs, uint16_t attrs_len);
+    static ec_frame_t* copy_attrs_to_frame(ec_frame_t *frame, uint8_t *attrs, size_t attrs_len);
 
     /**
      * @brief Validate an EC frame based on the WFA parameters
@@ -189,7 +189,7 @@ public:
      * 
      * @warning The `encap_frame` must be freed by the caller
      */
-    static bool parse_encap_dpp_tlv(em_encap_dpp_t* encap_tlv, uint16_t encap_tlv_len, mac_addr_t *dest_mac, uint8_t *frame_type, uint8_t** encap_frame, uint8_t *encap_frame_len);
+    static bool parse_encap_dpp_tlv(em_encap_dpp_t* encap_tlv, uint16_t encap_tlv_len, mac_addr_t *dest_mac, uint8_t *frame_type, uint8_t** encap_frame, uint16_t *encap_frame_len);
 
     /**
      * @brief Creates and allocates an Encap DPP TLV
@@ -201,7 +201,7 @@ public:
      * @param encap_frame_len [in] The length of the encapsulated frame
      * @return em_encap_dpp_t* The heap allocated Encap DPP TLV, NULL if failed 
      */
-    static std::pair<em_encap_dpp_t*, size_t> create_encap_dpp_tlv(bool dpp_frame_indicator, mac_addr_t dest_mac, ec_frame_type_t frame_type, uint8_t *encap_frame, uint8_t encap_frame_len);
+    static std::pair<em_encap_dpp_t*, uint16_t> create_encap_dpp_tlv(bool dpp_frame_indicator, mac_addr_t dest_mac, ec_frame_type_t frame_type, uint8_t *encap_frame, size_t encap_frame_len);
 
 
     /**
@@ -221,7 +221,7 @@ public:
      * @param data_len The length of the data in the attribute
      * @return size_t The size of the attribute
      */
-    static inline size_t get_ec_attr_size(size_t data_len) {
+    static inline size_t get_ec_attr_size(uint16_t data_len) {
         return offsetof(ec_attribute_t, data) + data_len;
     };
 
@@ -249,7 +249,7 @@ public:
      * @note The `create_wrap_attribs` function will allocate heap-memory which is freed inside the `add_wrapped_data_attr` function.
      *     **The caller should not use statically allocated memory in `create_wrap_attribs` or free the memory returned by `create_wrap_attribs`.**
      */
-    static uint8_t* add_wrapped_data_attr(ec_frame_t *frame, uint8_t* frame_attribs, uint16_t* non_wrapped_len, 
+    static uint8_t* add_wrapped_data_attr(ec_frame_t *frame, uint8_t* frame_attribs, size_t* non_wrapped_len, 
         bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> create_wrap_attribs);
 
 
@@ -265,7 +265,7 @@ public:
      * 
      * @warning The caller is responsible for freeing the memory returned by this function
      */
-    static std::pair<uint8_t*, size_t> unwrap_wrapped_attrib(ec_attribute_t* wrapped_attrib, ec_frame_t *frame, bool uses_aad, uint8_t* key);
+    static std::pair<uint8_t*, uint16_t> unwrap_wrapped_attrib(ec_attribute_t* wrapped_attrib, ec_frame_t *frame, bool uses_aad, uint8_t* key);
 
     /**
      * @brief Convert a hash to a hex string

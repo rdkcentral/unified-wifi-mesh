@@ -11,7 +11,7 @@ bool ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *ch
     uint8_t hash[255] = {0}; // Max hash length to avoid dynamic allocation
     uint8_t hash_len = 0;
 
-    if (ec_util::parse_dpp_chirp_tlv(chirp_tlv, tlv_len, &mac, reinterpret_cast<uint8_t**> (&hash), &hash_len) == false) {
+    if (!ec_util::parse_dpp_chirp_tlv(chirp_tlv, tlv_len, &mac, reinterpret_cast<uint8_t**>(&hash), &hash_len)) {
         printf("%s:%d: Failed to parse DPP Chirp TLV\n", __func__, __LINE__);
         return false;
     }
@@ -55,7 +55,7 @@ bool ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *ch
 
     // Create Auth Request Chirp TLV: EasyMesh 5.3.4
     size_t data_size = sizeof(mac_addr_t) + hash_len + sizeof(uint8_t);
-    em_dpp_chirp_value_t* chirp = static_cast<em_dpp_chirp_value_t*> (calloc(sizeof(em_dpp_chirp_value_t) + data_size, 1));
+    em_dpp_chirp_value_t* chirp = reinterpret_cast<em_dpp_chirp_value_t*>(calloc(sizeof(em_dpp_chirp_value_t) + data_size, 1));
     if (chirp == NULL) {
         printf("%s:%d: Failed to allocate memory for chirp TLV\n", __func__, __LINE__);
         free(encap_dpp_tlv);
@@ -93,16 +93,16 @@ bool ec_ctrl_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_t
     mac_addr_t dest_mac = {0};
     uint8_t frame_type = 0;
     uint8_t* encap_frame = NULL;
-    uint8_t encap_frame_len = 0;
+    uint16_t encap_frame_len = 0;
 
-    if (ec_util::parse_encap_dpp_tlv(encap_tlv, encap_tlv_len, &dest_mac, &frame_type, &encap_frame, &encap_frame_len) == false) {
+    if (!ec_util::parse_encap_dpp_tlv(encap_tlv, encap_tlv_len, &dest_mac, &frame_type, &encap_frame, &encap_frame_len)) {
         printf("%s:%d: Failed to parse Encap DPP TLV\n", __func__, __LINE__);
         return false;
     }
 
     bool did_finish = false;
 
-    ec_frame_type_t ec_frame_type = static_cast<ec_frame_type_t> (frame_type);
+    ec_frame_type_t ec_frame_type = static_cast<ec_frame_type_t>(frame_type);
     switch (ec_frame_type) {
         case ec_frame_type_recfg_announcement: {
             auto [recfg_auth_frame, recfg_auth_frame_len] = create_recfg_auth_request();
@@ -125,7 +125,7 @@ bool ec_ctrl_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_t
             break;
         }
         case ec_frame_type_auth_rsp: {
-            did_finish = handle_auth_response((ec_frame_t*)encap_frame, encap_frame_len, dest_mac);
+            did_finish = handle_auth_response(reinterpret_cast<ec_frame_t*>(encap_frame), encap_frame_len, dest_mac);
             break;
         }
         default:
@@ -157,7 +157,7 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
     ec_attribute_t* status_attrib = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_dpp_status);
     ASSERT_NOT_NULL(status_attrib, false, "%s:%d: No DPP status attribute found\n", __func__, __LINE__);
     
-    ec_status_code_t dpp_status = (ec_status_code_t)status_attrib->data[0];
+    ec_status_code_t dpp_status = static_cast<ec_status_code_t>(status_attrib->data[0]);
 
     ec_attribute_t *prim_wrapped_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_wrapped_data);
     ASSERT_NOT_NULL(prim_wrapped_attr, false, "%s:%d: No wrapped data attribute found\n", __func__, __LINE__);
@@ -240,7 +240,7 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
     ASSERT_NOT_NULL_FREE(r_nonce_attr, false, prim_unwrapped_data, "%s:%d: No Responder Nonce attribute found\n", __func__, __LINE__);
 
     // Set the Responder Nonce
-    e_ctx->r_nonce = (uint8_t*)calloc(r_nonce_attr->length, 1);
+    e_ctx->r_nonce = new uint8_t[r_nonce_attr->length]();
     ASSERT_NOT_NULL_FREE(e_ctx->r_nonce, false, prim_unwrapped_data, "%s:%d: Failed to allocate memory for Responder Nonce\n", __func__, __LINE__);
     memcpy(e_ctx->r_nonce, r_nonce_attr->data, r_nonce_attr->length);
 
@@ -372,7 +372,7 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
     ec_crypto::add_to_hash(r_auth_hb, P_R_x); //P_R
     if (e_ctx->is_mutual_auth) ec_crypto::add_to_hash(r_auth_hb, B_I_x); //B_I
     ec_crypto::add_to_hash(r_auth_hb, B_R_x); //B_R
-    ec_crypto::add_to_hash(r_auth_hb, (uint8_t)0); // 0 octet
+    ec_crypto::add_to_hash(r_auth_hb, static_cast<uint8_t>(0)); // 0 octet
 
     uint8_t* r_auth_prime = ec_crypto::compute_hash(m_p_ctx, r_auth_hb);
 
@@ -416,14 +416,14 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
     ec_crypto::add_to_hash(i_auth_hb, P_I_x); //P_I
     ec_crypto::add_to_hash(i_auth_hb, B_R_x); //B_R
     if (e_ctx->is_mutual_auth) ec_crypto::add_to_hash(i_auth_hb, B_I_x); //B_I
-    ec_crypto::add_to_hash(i_auth_hb, (uint8_t)1); // 1 octet
+    ec_crypto::add_to_hash(i_auth_hb, static_cast<uint8_t> (1)); // 1 octet
 
     uint8_t* i_auth = ec_crypto::compute_hash(m_p_ctx, i_auth_hb);
     ASSERT_NOT_NULL(i_auth, false, "%s:%d: Failed to compute I-auth\n", __func__, __LINE__);
 
     auto [resp_frame, resp_len] = create_auth_confirm(enrollee_mac, DPP_STATUS_OK, i_auth);
     free(i_auth);
-    ASSERT_NOT_NULL_FREE(resp_frame, false, sec_unwrapped_data, "%s:%d: Failed to create response frame\n", __func__, __LINE__);
+    ASSERT_NOT_NULL(resp_frame, false, "%s:%d: Failed to create response frame\n", __func__, __LINE__);
 
     // TODO: Send frame
     auto [encap_dpp_tlv, encap_dpp_size] = ec_util::create_encap_dpp_tlv(0, src_mac, ec_frame_type_auth_cnf, resp_frame, resp_len);
@@ -441,17 +441,15 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
     return true;
 }
 
-std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_auth_request(std::string enrollee_mac)
+std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_auth_request(std::string enrollee_mac)
 {
-
-    auto err_pair = std::make_pair<uint8_t*, uint16_t>(NULL, 0);
 
     printf("%s:%d Enter\n", __func__, __LINE__);
     auto e_ctx = get_eph_ctx(enrollee_mac);
-    ASSERT_NOT_NULL(e_ctx, err_pair, "%s:%d: Ephemeral context not found for enrollee MAC %s\n", __func__, __LINE__, enrollee_mac.c_str());
+    ASSERT_NOT_NULL(e_ctx, {}, "%s:%d: Ephemeral context not found for enrollee MAC %s\n", __func__, __LINE__, enrollee_mac.c_str());
 
     ec_frame_t *frame =  ec_util::alloc_frame(ec_frame_type_auth_req);
-    ASSERT_NOT_NULL(frame, err_pair, "%s:%d failed to allocate memory for frame\n", __func__, __LINE__);
+    ASSERT_NOT_NULL(frame, {}, "%s:%d failed to allocate memory for frame\n", __func__, __LINE__);
 
     // Start EasyConnect 6.3.2
 
@@ -462,89 +460,89 @@ std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_auth_request(std::
     auto [priv_init_proto_key, pub_init_proto_key] = ec_crypto::generate_proto_keypair(m_p_ctx);
     if (priv_init_proto_key == NULL || pub_init_proto_key == NULL) {
         printf("%s:%d failed to generate initiator protocol key pair\n", __func__, __LINE__);
-        return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
+        return {};
     }
-    e_ctx->priv_init_proto_key = const_cast<BIGNUM*> (priv_init_proto_key);
-    e_ctx->public_init_proto_key = const_cast<EC_POINT*> (pub_init_proto_key);
+    e_ctx->priv_init_proto_key = const_cast<BIGNUM*>(priv_init_proto_key);
+    e_ctx->public_init_proto_key = const_cast<EC_POINT*>(pub_init_proto_key);
 
     // Compute the M.x
     const EC_POINT *pub_resp_boot_key = EC_KEY_get0_public_key(m_boot_data.responder_boot_key);
-    ASSERT_NOT_NULL_FREE(pub_resp_boot_key, err_pair, frame, "%s:%d failed to get responder bootstrapping public key\n", __func__, __LINE__);
+    ASSERT_NOT_NULL_FREE(pub_resp_boot_key, {}, frame, "%s:%d failed to get responder bootstrapping public key\n", __func__, __LINE__);
 
     e_ctx->m = ec_crypto::compute_ec_ss_x(m_p_ctx, e_ctx->priv_init_proto_key, pub_resp_boot_key);
     const BIGNUM *bn_inputs[1] = { e_ctx->m };
     // Compute the "first intermediate key" (k1)
     if (ec_crypto::compute_hkdf_key(m_p_ctx, e_ctx->k1, m_p_ctx.digest_len, "first intermediate key", bn_inputs, 1, NULL, 0) == 0) {
         printf("%s:%d: Failed to compute k1\n", __func__, __LINE__); 
-        return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
+        return {};
     }
 
     printf("Key K_1:\n");
     util::print_hex_dump(static_cast<unsigned int> (m_p_ctx.digest_len), e_ctx->k1);
     
     uint8_t* attribs = NULL;
-    uint16_t attrib_len = 0;
+    size_t attribs_len = 0;
 
     // Responder Bootstrapping Key Hash: SHA-256(B_R)
     uint8_t* responder_keyhash = ec_crypto::compute_key_hash(m_boot_data.responder_boot_key);
-    ASSERT_NOT_NULL_FREE2(responder_keyhash, err_pair, frame, attribs, "%s:%d failed to compute responder bootstrapping key hash\n", __func__, __LINE__);
+    ASSERT_NOT_NULL_FREE2(responder_keyhash, {}, frame, attribs, "%s:%d failed to compute responder bootstrapping key hash\n", __func__, __LINE__);
 
-    attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_resp_bootstrap_key_hash, SHA256_DIGEST_LENGTH, responder_keyhash);
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_resp_bootstrap_key_hash, SHA256_DIGEST_LENGTH, responder_keyhash);
     free(responder_keyhash);
 
     // Initiator Bootstrapping Key Hash: SHA-256(B_I)
     uint8_t* initiator_keyhash = ec_crypto::compute_key_hash(m_boot_data.initiator_boot_key);
-    ASSERT_NOT_NULL_FREE2(initiator_keyhash, err_pair, frame, attribs, "%s:%d failed to compute initiator bootstrapping key hash\n", __func__, __LINE__); 
+    ASSERT_NOT_NULL_FREE2(initiator_keyhash, {}, frame, attribs, "%s:%d failed to compute initiator bootstrapping key hash\n", __func__, __LINE__); 
 
-    attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_init_bootstrap_key_hash, SHA256_DIGEST_LENGTH, initiator_keyhash);
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_init_bootstrap_key_hash, SHA256_DIGEST_LENGTH, initiator_keyhash);
     free(initiator_keyhash);
 
     // Public Initiator Protocol Key: P_I
     uint8_t* protocol_key_buff = ec_crypto::encode_proto_key(m_p_ctx, e_ctx->public_init_proto_key);
-    ASSERT_NOT_NULL_FREE2(protocol_key_buff, err_pair, frame, attribs, "%s:%d failed to encode public initiator protocol key\n", __func__, __LINE__);
+    ASSERT_NOT_NULL_FREE2(protocol_key_buff, {}, frame, attribs, "%s:%d failed to encode public initiator protocol key\n", __func__, __LINE__);
 
-    attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_init_proto_key, static_cast<uint16_t> (2*BN_num_bytes(m_p_ctx.prime)), protocol_key_buff);
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_init_proto_key, static_cast<uint16_t>(2*BN_num_bytes(m_p_ctx.prime)), protocol_key_buff);
     free(protocol_key_buff);
 
     // Protocol Version
     // if (m_cfgrtr_ver > 1) {
-    //     attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_proto_version, m_cfgrtr_ver);
+    //     attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_proto_version, m_cfgrtr_ver);
     // }
 
     // Channel Attribute (optional)
     //TODO: REVISIT THIS
     if (m_boot_data.ec_freqs[0] != 0){
-        int base_freq = m_boot_data.ec_freqs[0]; 
-        uint16_t chann_attr = ec_util::freq_to_channel_attr(static_cast<unsigned int> (base_freq));
-        attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_channel, sizeof(uint16_t), reinterpret_cast<uint8_t *> (&chann_attr));
+        unsigned int base_freq = m_boot_data.ec_freqs[0]; 
+        uint16_t chann_attr = ec_util::freq_to_channel_attr(base_freq);
+        attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_channel, sizeof(uint16_t), reinterpret_cast<uint8_t*>(&chann_attr));
     }
 
 
     // Wrapped Data (with Initiator Nonce and Initiator Capabilities)
     // EasyMesh 8.2.2 Table 36
-    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attrib_len, true, e_ctx->k1, [&](){
+    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attribs_len, true, e_ctx->k1, [&](){
         uint8_t* wrap_attribs = NULL;
-        uint16_t wrapped_len = 0;
-        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_init_nonce, static_cast<uint16_t> (m_p_ctx.nonce_len), e_ctx->i_nonce);
+        size_t wrapped_len = 0;
+        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_init_nonce, static_cast<uint16_t>(m_p_ctx.nonce_len), e_ctx->i_nonce);
         wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_init_caps, m_dpp_caps.byte);
         return std::make_pair(wrap_attribs, wrapped_len);
     });
 
     // Add attributes to the frame
-    if (!(frame = ec_util::copy_attrs_to_frame(frame, attribs, attrib_len))) {
+    if (!(frame = ec_util::copy_attrs_to_frame(frame, attribs, attribs_len))) {
         printf("%s:%d unable to copy attributes to frame\n", __func__, __LINE__);
         free(frame);
         free(attribs);
-        return err_pair;
+        return {};
     }
 
     free(attribs);
 
-    return std::make_pair(reinterpret_cast<uint8_t*> (frame), EC_FRAME_BASE_SIZE + attrib_len);
+    return std::make_pair(reinterpret_cast<uint8_t*>(frame), EC_FRAME_BASE_SIZE + attribs_len);
 
 }
 
-std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status, uint8_t* i_auth_tag)
+std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status, uint8_t* i_auth_tag)
 {
 
 /*
@@ -557,47 +555,45 @@ STATUS_OK:
 
 */
 
-    auto err_pair = std::make_pair<uint8_t*, uint16_t>(NULL, 0);
-
     auto e_ctx = get_eph_ctx(enrollee_mac);
-    ASSERT_NOT_NULL(e_ctx, err_pair, "%s:%d: Ephemeral context not found for enrollee MAC %s\n", __func__, __LINE__, enrollee_mac.c_str());
+    ASSERT_NOT_NULL(e_ctx, {}, "%s:%d: Ephemeral context not found for enrollee MAC %s\n", __func__, __LINE__, enrollee_mac.c_str());
 
     if (dpp_status == DPP_STATUS_OK && i_auth_tag == NULL) {
         printf("%s:%d: I-auth tag is NULL\n", __func__, __LINE__);
-        return err_pair;
+        return {};
     }
 
     ec_frame_t *frame =  ec_util::alloc_frame(ec_frame_type_auth_cnf);
-    ASSERT_NOT_NULL(frame, err_pair, "%s:%d failed to allocate memory for frame\n", __func__, __LINE__);
+    ASSERT_NOT_NULL(frame, {}, "%s:%d failed to allocate memory for frame\n", __func__, __LINE__);
 
     uint8_t* attribs = NULL;
-    uint16_t attrib_len = 0;
+    size_t attribs_len = 0;
     
-    attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_dpp_status, (uint8_t)dpp_status);
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_dpp_status, static_cast<uint8_t>(dpp_status));
 
     // Add Responder Bootstrapping Key Hash (SHA-256(B_R))
     uint8_t* responder_keyhash = ec_crypto::compute_key_hash(m_boot_data.responder_boot_key);
-    ASSERT_NOT_NULL_FREE2(responder_keyhash, err_pair, frame, attribs, "%s:%d failed to compute responder bootstrapping key hash\n", __func__, __LINE__);
+    ASSERT_NOT_NULL_FREE2(responder_keyhash, {}, frame, attribs, "%s:%d failed to compute responder bootstrapping key hash\n", __func__, __LINE__);
 
-    attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_resp_bootstrap_key_hash, SHA256_DIGEST_LENGTH, responder_keyhash);
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_resp_bootstrap_key_hash, SHA256_DIGEST_LENGTH, responder_keyhash);
     free(responder_keyhash);
     // Conditional (Only included for mutual authentication) (SHA-256(B_I))
     if (e_ctx->is_mutual_auth) {
         uint8_t* initiator_keyhash = ec_crypto::compute_key_hash(m_boot_data.initiator_boot_key);
         if (initiator_keyhash != NULL) {
-            attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_init_bootstrap_key_hash, SHA256_DIGEST_LENGTH, initiator_keyhash);
+            attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_init_bootstrap_key_hash, SHA256_DIGEST_LENGTH, initiator_keyhash);
             free(initiator_keyhash);
         }
 
     }
 
     uint8_t* key = (dpp_status == DPP_STATUS_OK) ? e_ctx->ke : e_ctx->k2;
-    ASSERT_NOT_NULL_FREE2(key, err_pair, frame, attribs, "%s:%d: k_e or k_2 was not created!\n", __func__, __LINE__);
+    ASSERT_NOT_NULL_FREE2(key, {}, frame, attribs, "%s:%d: k_e or k_2 was not created!\n", __func__, __LINE__);
 
     // If DPP Status is OK, wrap the I-auth with the KE key, otherwise wrap the Responder Nonce with the K2 key
-    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attrib_len, true, key, [&](){
+    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attribs_len, true, key, [&](){
         uint8_t* wrap_attribs = NULL;
-        uint16_t wrapped_len = 0;
+        size_t wrapped_len = 0;
         if (dpp_status == DPP_STATUS_OK) {
             wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_init_auth_tag, m_p_ctx.digest_len, i_auth_tag);
         } else {
@@ -606,71 +602,70 @@ STATUS_OK:
         return std::make_pair(wrap_attribs, wrapped_len);
     });
 
-    if (!(frame = ec_util::copy_attrs_to_frame(frame, attribs, attrib_len))) {
+    if (!(frame = ec_util::copy_attrs_to_frame(frame, attribs, attribs_len))) {
         printf("%s:%d unable to copy attributes to frame\n", __func__, __LINE__);
         free(frame);
         free(attribs);
-        return err_pair;
+        return {};
     }
     free(attribs);
 
-    return std::make_pair(reinterpret_cast<uint8_t*> (frame), EC_FRAME_BASE_SIZE + attrib_len);
+    return std::make_pair(reinterpret_cast<uint8_t*>(frame), EC_FRAME_BASE_SIZE + attribs_len);
 }
 
-std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_recfg_auth_request()
+std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_recfg_auth_request()
 {
-    return std::pair<uint8_t *, uint16_t>();
+    return {};
 }
 
-std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_recfg_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status)
+std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_recfg_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status)
 {
-    auto err_pair = std::make_pair<uint8_t*, uint16_t>(NULL, 0);
 
     auto e_ctx = get_eph_ctx(enrollee_mac);
-    ASSERT_NOT_NULL(e_ctx, err_pair, "%s:%d: Ephemeral context not found for enrollee MAC %s\n", __func__, __LINE__, enrollee_mac.c_str());
+    ASSERT_NOT_NULL(e_ctx, {}, "%s:%d: Ephemeral context not found for enrollee MAC %s\n", __func__, __LINE__, enrollee_mac.c_str());
 
     ec_frame_t *frame =  ec_util::alloc_frame(ec_frame_type_recfg_auth_cnf);
-    ASSERT_NOT_NULL(frame, err_pair, "%s:%d failed to allocate memory for frame\n", __func__, __LINE__);
+    ASSERT_NOT_NULL(frame, {}, "%s:%d failed to allocate memory for frame\n", __func__, __LINE__);
 
     uint8_t* attribs = NULL;
-    uint16_t attrib_len = 0;
+    size_t attribs_len = 0;
 
     // TODO: Add transaction ID outside this function
     uint8_t trans_id = 0;
     ec_dpp_reconfig_flags_t reconfig_flags = {
         .connector_key = 1, // DONT REUSE
-        .reserved = 7
+        .reserved = 0
     };
 
 
 
-    attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_dpp_status, static_cast<uint8_t> (dpp_status));
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_dpp_status, static_cast<uint8_t>(dpp_status));
 
-    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attrib_len, false, e_ctx->ke, [&](){
+    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attribs_len, false, e_ctx->ke, [&](){
         uint8_t* wrap_attribs = NULL;
-        uint16_t wrapped_len = 0;
+        size_t wrapped_len = 0;
 
         wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_trans_id, trans_id);
-        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_proto_version, static_cast<uint8_t> (m_boot_data.version));
-        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_config_nonce, static_cast<uint16_t> (m_p_ctx.nonce_len), e_ctx->i_nonce);
-        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_enrollee_nonce, static_cast<uint16_t> (m_p_ctx.nonce_len), e_ctx->e_nonce);
-        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_reconfig_flags, sizeof(reconfig_flags), reinterpret_cast<uint8_t*> (&reconfig_flags));
+        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_proto_version, static_cast<uint8_t>(m_boot_data.version));
+        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_config_nonce, m_p_ctx.nonce_len, e_ctx->i_nonce);
+        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_enrollee_nonce, m_p_ctx.nonce_len, e_ctx->e_nonce);
+        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_reconfig_flags, sizeof(reconfig_flags), reinterpret_cast<uint8_t*>(&reconfig_flags));
 
         return std::make_pair(wrap_attribs, wrapped_len);
     });
 
-    if (!(frame = ec_util::copy_attrs_to_frame(frame, attribs, attrib_len))) {
+    if (!(frame = ec_util::copy_attrs_to_frame(frame, attribs, attribs_len))) {
         printf("%s:%d unable to copy attributes to frame\n", __func__, __LINE__);
         free(frame);
         free(attribs);
-        return err_pair;
+        return {};
     }
     free(attribs);
 
-    return std::make_pair(reinterpret_cast<uint8_t*> (frame), EC_FRAME_BASE_SIZE + attrib_len);
+    return std::make_pair(reinterpret_cast<uint8_t*>(frame), EC_FRAME_BASE_SIZE + attribs_len);
 }
 
-std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_config_response()
+std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response()
 {
-    return std::pair<uint8_t *, uint16_t>();
+    return {};
 }

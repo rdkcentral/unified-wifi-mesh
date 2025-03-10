@@ -50,11 +50,11 @@ private:
         .reserved = 0
     }};
 
-    std::pair<uint8_t*, uint16_t> create_auth_request(std::string enrollee_mac);
-    std::pair<uint8_t*, uint16_t> create_recfg_auth_request();
-    std::pair<uint8_t*, uint16_t> create_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status, uint8_t* i_auth_tag);
-    std::pair<uint8_t*, uint16_t> create_recfg_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status);
-    std::pair<uint8_t*, uint16_t> create_config_response();
+    std::pair<uint8_t*, size_t> create_auth_request(std::string enrollee_mac);
+    std::pair<uint8_t*, size_t> create_recfg_auth_request();
+    std::pair<uint8_t*, size_t> create_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status, uint8_t* i_auth_tag);
+    std::pair<uint8_t*, size_t> create_recfg_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status);
+    std::pair<uint8_t*, size_t> create_config_response();
 };
 
 #endif // EC_CTRL_CONFIGURATOR_H

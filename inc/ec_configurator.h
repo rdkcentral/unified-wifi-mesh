@@ -67,7 +67,9 @@ public:
      * @param bool Whether to enable or disable the inclusion of CCE IEs in the beacon and probe response frames
      * @return bool true if successful, false otherwise
      */
-    toggle_cce_func m_toggle_cce;
+    toggle_cce_func m_toggle_cce = {
+        [](bool enable) -> bool { return false; }
+    };
 
     /**
      * @brief Start the EC configurator onboarding
@@ -162,9 +164,11 @@ public:
     ec_configurator_t& operator=(const ec_configurator_t&) = delete;
 
 protected:
-    ec_persistent_context_t m_p_ctx;
+    ec_persistent_context_t m_p_ctx = {};
 
-    ec_data_t m_boot_data;
+    ec_data_t m_boot_data = {};
+
+    std::string m_mac_addr;
 
     send_chirp_func m_send_chirp_notification;
 
@@ -172,10 +176,8 @@ protected:
 
     send_act_frame_func m_send_action_frame;
 
-    std::string m_mac_addr;
-
     // The connections to the Enrollees/Agents
-    std::map<std::string, ec_connection_context_t> m_connections;
+    std::map<std::string, ec_connection_context_t> m_connections = {};
 
     inline ec_connection_context_t* get_conn_ctx(const std::string& mac) {
         if (m_connections.find(mac) == m_connections.end()) {

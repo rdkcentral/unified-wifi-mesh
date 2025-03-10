@@ -111,7 +111,7 @@ int dm_dpp_t::decode(const cJSON *obj, void *parent_id, void* user_info)
                 uint8_t channel = std::stoi(pair.substr(slash_pos + 1));
                 int freq = util::em_chan_to_freq(op_class, channel, std::string(country_code));
                 if (freq > 0) {
-                    m_dpp_info.ec_freqs[pair_idx] = freq;
+                    m_dpp_info.ec_freqs[pair_idx] = static_cast<unsigned int>(freq);
                     pair_idx++;
                 } else {
                     printf("%s:%d: Failed to convert channel to frequency (op class: %d, channel: %d)\n", __func__, __LINE__, op_class, channel);

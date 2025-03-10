@@ -92,7 +92,7 @@ int em_chan_to_freq(uint8_t op_class, uint8_t chan, const std::string& country="
  * @param region Two-letter region code (e.g., "US", "EU", "JP", "CN"). Empty string for global ranges only.
  * @return Returns pair of {operating_class, channel}. 
  */
-std::pair<uint8_t, uint8_t> em_freq_to_chan(int frequency, const std::string& region="");
+std::pair<uint8_t, uint8_t> em_freq_to_chan(unsigned int frequency, const std::string& region="");
 
 } // namespace util
 

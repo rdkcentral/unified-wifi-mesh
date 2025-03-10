@@ -210,7 +210,7 @@ extern "C"
 #define 	EM_PARSE_ERR_NO_CHANGE	EM_PARSE_NO_ERR	- 4	
 
 #ifndef ETH_ALEN
-#define ETH_ALEN (6UL)
+#define ETH_ALEN 6
 #endif // ETH_ALEN
 
 typedef char em_interface_name_t[32];

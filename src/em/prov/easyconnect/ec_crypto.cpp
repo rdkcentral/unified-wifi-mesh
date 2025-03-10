@@ -8,9 +8,9 @@ uint8_t* ec_crypto::compute_key_hash(const EC_KEY *key, const char *prefix)
 {
     BIO *bio;
     uint8_t *asn1;
-    int asn1len;
+    size_t asn1len;
     uint8_t *addr[2];      // Array of addresses for our two elements
-    uint32_t len[2];       // Array of lengths for our two elements
+    size_t len[2];       // Array of lengths for our two elements
     
     // Setup the BIO for key conversion
     if ((bio = BIO_new(BIO_s_mem())) == NULL) {
@@ -20,22 +20,22 @@ uint8_t* ec_crypto::compute_key_hash(const EC_KEY *key, const char *prefix)
     // Convert key to DER format
     i2d_EC_PUBKEY_bio(bio, key);
     (void)BIO_flush(bio);
-    asn1len = static_cast<int> (BIO_get_mem_data(bio, &asn1));
+    asn1len = static_cast<size_t>(BIO_get_mem_data(bio, &asn1));
 
     // Set up our data elements for hashing
-    addr[0] = reinterpret_cast<uint8_t *>(const_cast<char*> (prefix));
-    len[0] = static_cast<uint32_t> (strlen(prefix));
+    addr[0] = reinterpret_cast<uint8_t *>(const_cast<char *>(prefix));
+    len[0] = strlen(prefix);
     addr[1] = asn1;
     len[1] = static_cast<uint32_t> (asn1len);
 
     // Call platform_SHA256 with our two elements
-    uint8_t *digest = static_cast<uint8_t *> (calloc(SHA256_DIGEST_LENGTH, 1));
+    uint8_t *digest = new uint8_t[SHA256_DIGEST_LENGTH]();  // () initializes to zero
     uint8_t result = em_crypto_t::platform_SHA256(2, addr, len, digest);
 
     BIO_free(bio);
     
     if (result == 0) {
-        free(digest);
+        delete[] digest;
         return NULL;
     }
     
@@ -63,41 +63,41 @@ int ec_crypto::compute_hkdf_key(ec_persistent_context_t& p_ctx, uint8_t *key_out
                      const BIGNUM **x_val_inputs, int x_val_count, 
                      uint8_t *raw_salt, int raw_salt_len)
 {
-    unsigned int primelen = 0;
+    
     uint8_t *bn_buffer = NULL;
     uint8_t *ikm = NULL;
     int ikm_len = 0;
     int result = 0, offset = 0;
     
     // Calculate prime length for padding and format BIGNUMs
-    primelen = BN_num_bytes(p_ctx.prime);
-    bn_buffer = static_cast<uint8_t *> (malloc(static_cast<size_t> (primelen * x_val_count)));
+    // Safely convert int to size_t, should always be positive
+    int primelen = BN_num_bytes(p_ctx.prime);
+    ikm_len = primelen * x_val_count;
+    bn_buffer = new uint8_t[ikm_len];
     if (bn_buffer == NULL) {
         perror("malloc");
         return 0;
     }
-    memset(bn_buffer, 0, static_cast<size_t> (primelen * x_val_count));
+    memset(bn_buffer, 0, static_cast<size_t>(ikm_len));
+
+    ikm = bn_buffer;
     
     // Format each X Val BIGNUM with proper padding
     for (int i = 0; i < x_val_count; i++) {
         if (x_val_inputs[i] != NULL) {
-            offset = primelen - BN_num_bytes(x_val_inputs[i]);
+            int offset = (primelen - BN_num_bytes(x_val_inputs[i]));
             BN_bn2bin(x_val_inputs[i], bn_buffer + (i * primelen) + offset);
         }
     }
     
-    // Use formatted BIGNUMs as IKM
-    ikm = bn_buffer;
-    ikm_len = primelen * x_val_count;
-    
     // Call the hkdf function
     result = hkdf(p_ctx.hash_fcn, 0, ikm, ikm_len, raw_salt, raw_salt_len, 
-                 reinterpret_cast<uint8_t *>(const_cast<char*> (info_str)), static_cast<int> (strlen(info_str)), 
+                 reinterpret_cast<uint8_t*>(const_cast<char*>(info_str)), strlen(info_str), 
                  key_out, key_out_len);
     
     // Free allocated memory
     if (bn_buffer != NULL) {
-        free(bn_buffer);
+        delete[] bn_buffer;
     }
     
     return result;
@@ -157,7 +157,7 @@ int ec_crypto::compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t
 {
     // Create concatenated nonces buffer (Initiator Nonce | Responder Nonce)
     int total_nonce_len = p_ctx.nonce_len * 2;
-    uint8_t *nonces = static_cast<uint8_t *> (calloc(static_cast<size_t> (total_nonce_len), 1));
+    uint8_t *nonces = new uint8_t[total_nonce_len]();
     if (nonces == NULL) {
         printf("%s:%d: Failed to allocate memory for nonces\n", __func__, __LINE__);
         return 0;
@@ -169,9 +169,9 @@ int ec_crypto::compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t
     
     // Set up BIGNUM array of X values (M, N, and possibly L if mutual auth)
     int x_count = e_ctx->is_mutual_auth ? 3 : 2;
-    const BIGNUM **x_val_array = static_cast<const BIGNUM **>(calloc(static_cast<size_t> (x_count), sizeof(BIGNUM *)));
+    const BIGNUM **x_val_array = new const BIGNUM*[x_count]();
     if (x_val_array == NULL) {
-        free(nonces);
+        delete[] nonces;
         printf("%s:%d: Failed to allocate memory for X values\n", __func__, __LINE__);
         return 0;
     }
@@ -195,27 +195,27 @@ int ec_crypto::compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t
     );
     
     // Free allocated memory
-    free(nonces);
-    free(x_val_array);
+    delete[] nonces;
+    delete[] x_val_array;
     
     return result;
 }
 
 int ec_crypto::hkdf (const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen,
-        uint8_t *salt, int saltlen, uint8_t *info, int infolen,
+        uint8_t *salt, int saltlen, uint8_t *info, size_t infolen,
         uint8_t *okm, int okmlen)
 {
     uint8_t *prk, *tweak, ctr, *digest;
-    unsigned int len;
-    unsigned int digest_len, prklen, tweaklen;
+    int len;
+    int digest_len, prklen, tweaklen;
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     HMAC_CTX ctx;
 #else
     HMAC_CTX *ctx = HMAC_CTX_new();
 #endif
 
-    digest_len = prklen = static_cast<unsigned int> (EVP_MD_size(h));
-    if ((digest = static_cast<uint8_t *> (malloc(digest_len))) == NULL) {
+    digest_len = prklen = EVP_MD_size(h);
+    if ((digest = new uint8_t[digest_len]) == NULL) {
         perror("malloc");
         return 0;
     }
@@ -229,8 +229,8 @@ int ec_crypto::hkdf (const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen,
         /*
          * if !skip then do HKDF-extract
          */
-        if ((prk = static_cast<uint8_t *> (malloc(digest_len))) == NULL) {
-            free(digest);
+        if ((prk = new uint8_t[digest_len]) == NULL) {
+            delete[] digest;
             perror("malloc");
             return 0;
         }
@@ -238,27 +238,27 @@ int ec_crypto::hkdf (const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen,
          * if there's no salt then use all zeros
          */
         if (!salt || (saltlen == 0)) {
-            if ((tweak = static_cast<uint8_t *> (malloc(digest_len))) == NULL) {
-                free(digest);
-                free(prk);
+            if ((tweak = new uint8_t[digest_len]) == NULL) {
+                delete[] digest;
+                delete[] prk;
                 perror("malloc");
                 return 0;
             }
-            memset(tweak, 0, digest_len);
-            tweaklen = static_cast<unsigned int> (saltlen);
+            memset(tweak, 0, static_cast<size_t>(digest_len));
+            tweaklen = saltlen;
         } else {
             tweak = salt;
             tweaklen = static_cast<unsigned int> (saltlen);
         }
-        (void)HMAC(h, tweak, tweaklen, ikm, ikmlen, prk, &prklen);
+        (void)HMAC(h, tweak, tweaklen, ikm, static_cast<size_t>(ikmlen), prk, reinterpret_cast<unsigned int*>(&prklen));
         if (!salt || (saltlen == 0)) {
-            free(tweak);
+            delete[] tweak;
         }
     } else {
         prk = ikm;
         prklen = static_cast<unsigned int> (ikmlen);
     }
-    memset(digest, 0, digest_len);
+    memset(digest, 0, static_cast<size_t>(digest_len));
     digest_len = 0;
     ctr = 0;
     len = 0;
@@ -270,11 +270,11 @@ int ec_crypto::hkdf (const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen,
          */
         ctr++;
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
-        HMAC_Init_ex(&ctx, prk, static_cast<int> (prklen), h, NULL);
-        HMAC_Update(&ctx, digest, digest_len);
+        HMAC_Init_ex(&ctx, prk, prklen, h, NULL);
+        HMAC_Update(&ctx, digest, static_cast<size_t>(digest_len));
 #else
-        HMAC_Init_ex(ctx, prk, static_cast<int> (prklen), h, NULL);
-        HMAC_Update(ctx, digest, digest_len);
+        HMAC_Init_ex(ctx, prk, prklen, h, NULL);
+        HMAC_Update(ctx, digest, static_cast<size_t>(digest_len));
 #endif
         if (info && (infolen != 0)) {
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
@@ -285,15 +285,15 @@ int ec_crypto::hkdf (const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen,
         }
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
         HMAC_Update(&ctx, &ctr, sizeof(uint8_t));
-        HMAC_Final(&ctx, digest, &digest_len);
+        HMAC_Final(&ctx, digest, reinterpret_cast<unsigned int*>(&digest_len));
 #else
         HMAC_Update(ctx, &ctr, sizeof(uint8_t));
-        HMAC_Final(ctx, digest, &digest_len);
+        HMAC_Final(ctx, digest, reinterpret_cast<unsigned int*>(&digest_len));
 #endif
-        if ((len + digest_len) > static_cast<unsigned int> (okmlen)) {
-            memcpy(okm + len, digest, static_cast<unsigned int> (okmlen) - len);
+        if ((len + static_cast<int>(digest_len)) > okmlen) {
+            memcpy(okm + len, digest, static_cast<size_t>(okmlen - len));
         } else {
-            memcpy(okm + len, digest, digest_len);
+            memcpy(okm + len, digest, static_cast<size_t>(digest_len));
         }
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
         HMAC_CTX_cleanup(&ctx);
@@ -303,9 +303,9 @@ int ec_crypto::hkdf (const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen,
         len += digest_len;
     }
     if (!skip) {
-        free(prk);
+        delete[] prk;
     }
-    free(digest);
+    delete[] digest;
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     HMAC_CTX_cleanup(&ctx);
 #else
@@ -318,16 +318,14 @@ int ec_crypto::hkdf (const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen,
 void ec_crypto::print_bignum (BIGNUM *bn)
 {
     unsigned char *buf;
-    unsigned int len;
-
-    len = static_cast<unsigned int> (BN_num_bytes(bn));
-    if ((buf = static_cast<unsigned char *> (malloc(static_cast<size_t> (len)))) == NULL) {
+    int len = BN_num_bytes(bn);
+    if ((buf = new unsigned char[len]) == NULL) {
         printf("Could not print bignum\n");
         return;
     }
     BN_bn2bin(bn, buf);
-    util::print_hex_dump(len, buf);
-    free(buf);
+    util::print_hex_dump(static_cast<unsigned int>(len), buf);
+    delete[] buf;
 }
 
 void ec_crypto::print_ec_point (const EC_GROUP *group, BN_CTX *bnctx, EC_POINT *point)
@@ -365,18 +363,19 @@ void ec_crypto::print_ec_point (const EC_GROUP *group, BN_CTX *bnctx, EC_POINT *
 
 uint8_t* ec_crypto::compute_hash(ec_persistent_context_t& p_ctx, const easyconnect::hash_buffer_t& hashing_elements_buffer) {
     // Create arrays for platform_hash
-    std::vector<uint8_t*> addr(hashing_elements_buffer.size());
-    std::vector<uint32_t> len(hashing_elements_buffer.size());
+    uint8_t hash_buf_size = static_cast<uint8_t>(hashing_elements_buffer.size());
+    std::vector<uint8_t*> addr(hash_buf_size);
+    std::vector<size_t> len(hash_buf_size);
     
-    for (size_t i = 0; i < hashing_elements_buffer.size(); i++) {
+    for (size_t i = 0; i < hash_buf_size; i++) {
         // Get raw pointer from unique_ptr
         addr[i] = hashing_elements_buffer[i].first.get();
         len[i] = hashing_elements_buffer[i].second;
     }
 
-    uint8_t *hash = (uint8_t*)calloc(p_ctx.digest_len, 1);
-    if (!em_crypto_t::platform_hash(p_ctx.hash_fcn, hashing_elements_buffer.size(), addr.data(), len.data(), hash)) {
-        free(hash);
+    uint8_t *hash = new uint8_t[p_ctx.digest_len]();
+    if (!em_crypto_t::platform_hash(p_ctx.hash_fcn, hash_buf_size, addr.data(), len.data(), hash)) {
+        delete[] hash;
         return NULL;
     }
     return hash;
@@ -457,15 +456,15 @@ uint8_t *ec_crypto::encode_proto_key(ec_persistent_context_t &p_ctx, const EC_PO
 
     int prime_len = BN_num_bytes(p_ctx.prime);
 
-    uint8_t* protocol_key_buff = (uint8_t *)calloc(2*prime_len, 1);
+    uint8_t* protocol_key_buff = new uint8_t[2*prime_len]();
     if (protocol_key_buff == NULL) {
         printf("%s:%d unable to allocate memory\n", __func__, __LINE__);
         BN_free(x);
         BN_free(y);
         return NULL;
     }
-    BN_bn2bin((const BIGNUM *)x, &protocol_key_buff[prime_len - BN_num_bytes(x)]);
-    BN_bn2bin((const BIGNUM *)y, &protocol_key_buff[2*prime_len - BN_num_bytes(y)]);
+    BN_bn2bin(const_cast<const BIGNUM *>(x), &protocol_key_buff[prime_len - BN_num_bytes(x)]);
+    BN_bn2bin(const_cast<const BIGNUM *>(y), &protocol_key_buff[2*prime_len - BN_num_bytes(y)]);
 
     BN_free(x);
     BN_free(y);

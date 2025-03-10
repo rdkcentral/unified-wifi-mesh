@@ -238,7 +238,7 @@ bail:
     return -1;
 }
 
-uint8_t em_crypto_t::platform_hash(const EVP_MD * hashing_algo, uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *digest)
+uint8_t em_crypto_t::platform_hash(const EVP_MD * hashing_algo, uint8_t num_elem, uint8_t **addr, size_t *len, uint8_t *digest)
 {  
     EVP_MD_CTX   *ctx;
     unsigned int  mac_len;
@@ -283,7 +283,7 @@ uint8_t em_crypto_t::platform_hash(const EVP_MD * hashing_algo, uint8_t num_elem
 
     return res;
 }
-uint8_t em_crypto_t::platform_hmac_hash(const EVP_MD * hashing_algo, uint8_t *key, uint32_t keylen, uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *hmac)
+uint8_t em_crypto_t::platform_hmac_hash(const EVP_MD * hashing_algo, uint8_t *key, uint32_t keylen, uint8_t num_elem, uint8_t **addr, size_t *len, uint8_t *hmac)
 {
     //em_util_info_print(EM_CONF," %s:%d\n",__func__,__LINE__);
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
@@ -382,13 +382,13 @@ void em_crypto_t:: append_u32_net(const uint32_t *memory_pointer, uint8_t **pack
 #endif
 }
 
-uint8_t em_crypto_t:: wps_key_derivation_function(uint8_t *key, uint8_t *label_prefix, uint32_t label_prefix_len, char *label, uint8_t *res, uint32_t res_len)
+uint8_t em_crypto_t:: wps_key_derivation_function(uint8_t *key, uint8_t *label_prefix, size_t label_prefix_len, char *label, uint8_t *res, uint32_t res_len)
 {
     uint8_t i_buf[4];
     uint8_t key_bits[4];
 
     uint8_t   *addr[4];
-    uint32_t   len[4];
+    size_t   len[4];
 
     uint32_t i, iter;
 
