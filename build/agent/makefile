@@ -37,8 +37,7 @@ INCLUDEDIRS = \
     	-I$(ONEWIFI_HOME)/source/platform/common \
     	-I$(ONEWIFI_HOME)/source/platform/linux/he_bus/inc \
         -I$(ONEWIFI_EM_HOME)/src/util_crypto \
-        -I$(ONEWIFI_HOME)/source/ccsp \
-        -I$(AL_SAP_HOME)/include
+        -I$(ONEWIFI_HOME)/source/ccsp
 ifeq ($(WITH_SAP), 1)
 INCLUDEDIRS += -I$(AL_SAP_HOME)/include
 endif

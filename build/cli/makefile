@@ -97,9 +97,9 @@ $(MAIN_OBJECT): %.o: %.c
 $(PROGRAM):
 # use go 1.19 or above to build
 ifeq ($(CC), aarch64-linux-gnu-gcc-11)
-	CGO_ENABLED=1 GOOS=linux GOARCH=arm64 /usr/local/go/bin/go build -ldflags="-s -w -extldflags '-L$(INSTALLDIR)/lib -lcrypto -lssl -luuid'" -o $(PROGRAM) $(ONEWIFI_EM_SRC)/cli/*.go
+	CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -extldflags '-L$(INSTALLDIR)/lib -lcrypto -lssl -luuid'" -o $(PROGRAM) $(ONEWIFI_EM_SRC)/cli/*.go
 else
-    go build -ldflags="-s -w -extldflags '-L$(INSTALLDIR)/lib -lcrypto -lssl -luuid'" -o $(PROGRAM) $(ONEWIFI_EM_SRC)/cli/*.go
+	go build -ldflags="-extldflags '-L$(INSTALLDIR)/lib -lcrypto -lssl -luuid'" -o $(PROGRAM) $(ONEWIFI_EM_SRC)/cli/*.go
 endif
 # Clean target: "make -f Makefile.Linux clean" to remove unwanted objects and executables.
 #
