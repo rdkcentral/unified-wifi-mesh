@@ -47,11 +47,14 @@ extern "C"
 #define DPP_GAS_INITIAL_RESP 0x0B
 
 #define APEFMT "%02x,%02x,%02x"
-#define APE2STR(x) x[0], x[1], x[2]
+#define APE2STR(x) static_cast<unsigned int>((x)[0]), static_cast<unsigned int>((x)[1]), static_cast<unsigned int>((x)[2])
 #define APEIDFMT "%02x,%02x,%02x,%02x,%02x,%02x,%02x"
-#define APEID2STR(x) x[0], x[1], x[2], x[3], x[4], x[5], x[6]
+#define APEID2STR(x) static_cast<unsigned int>((x)[0]), static_cast<unsigned int>((x)[1]), static_cast<unsigned int>((x)[2]), \
+                     static_cast<unsigned int>((x)[3]), static_cast<unsigned int>((x)[4]), static_cast<unsigned int>((x)[5]), \
+                     static_cast<unsigned int>((x)[6])
 #define MACSTRFMT "%02x:%02x:%02x:%02x:%02x:%02x"
-#define MAC2STR(x) x[0], x[1], x[2], x[3], x[4], x[5]
+#define MAC2STR(x) static_cast<unsigned int>((x)[0]), static_cast<unsigned int>((x)[1]), static_cast<unsigned int>((x)[2]), \
+                   static_cast<unsigned int>((x)[3]), static_cast<unsigned int>((x)[4]), static_cast<unsigned int>((x)[5])
 
 // EasyConnect 8.3.2
 static const uint8_t DPP_GAS_CONFIG_REQ_APE[3] = {0x6c, 0x08, 0x00};
@@ -255,13 +258,24 @@ typedef struct {
  * @param ... Additional arguments for the format string
  */
 #define ASSERT_NOT_NULL_FREE3(x, ret, ptr1, ptr2, ptr3, errMsg, ...) \
-    if(x == NULL) { \
-        fprintf(stderr, errMsg, ## __VA_ARGS__); \
-        if (ptr1) free(ptr1); \
-        if (ptr2) free(ptr2); \
-        if (ptr3) free(ptr3); \
-        return ret; \
-    }
+    do { \
+        if(x == NULL) { \
+            fprintf(stderr, errMsg, ## __VA_ARGS__); \
+            void *_tmp1 = (ptr1); \
+            void *_tmp2 = (ptr2); \
+            void *_tmp3 = (ptr3); \
+            if (_tmp1) { \
+                free(_tmp1); \
+            } \
+            if (_tmp2) { \
+                free(_tmp2); \
+            } \
+            if (_tmp3) { \
+                free(_tmp3); \
+            } \
+            return ret; \
+        } \
+    } while (0)
 
 /**
  * @brief Asserts that a pointer is not NULL, and if it is, frees up to 2 pointers and returns a value
@@ -295,8 +309,8 @@ typedef struct {
     const EVP_MD *hash_fcn;
     BIGNUM *prime;
     BN_CTX *bn_ctx;
-    int digest_len;
-    int nonce_len;
+    uint16_t digest_len;
+    uint16_t nonce_len;
     int nid;
 
 
@@ -392,7 +406,7 @@ typedef struct {
 
     // Baseline static, DPP URI data
     unsigned int version;
-    int  ec_freqs[DPP_MAX_EN_CHANNELS];
+    unsigned int  ec_freqs[DPP_MAX_EN_CHANNELS];
     mac_address_t   mac_addr;
     ec_session_type_t   type;
 

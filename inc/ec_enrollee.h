@@ -70,6 +70,17 @@ public:
 
 private:
 
+    std::string m_mac_addr;
+
+    /**
+     * @brief Send an action frame. Optional to implement.
+     * 
+     * @param dest_mac The destination MAC address
+     * @param action_frame The action frame to send
+     * @param action_frame_len The length of the action frame
+     * @param frequency The frequency to send the frame on (0 for current frequency)
+     * @return true if successful, false otherwise
+     */
     send_act_frame_func m_send_action_frame;
 
     // TODO: Send GAS Frame
@@ -80,21 +91,21 @@ private:
         .reserved = 0
     }};
 
-    std::pair<uint8_t*, uint16_t> create_presence_announcement();
-    std::pair<uint8_t*, uint16_t> create_recfg_presence_announcement();
-    std::pair<uint8_t*, uint16_t> create_auth_response(ec_status_code_t dpp_status, uint8_t init_proto_version);
-    std::pair<uint8_t*, uint16_t> create_recfg_auth_response(ec_status_code_t dpp_status);
-    std::pair<uint8_t*, uint16_t> create_config_request();
-    std::pair<uint8_t*, uint16_t> create_config_result(); 
+    std::pair<uint8_t*, size_t> create_presence_announcement();
+    std::pair<uint8_t*, size_t> create_recfg_presence_announcement();
+    std::pair<uint8_t*, size_t> create_auth_response(ec_status_code_t dpp_status, uint8_t init_proto_version);
+    std::pair<uint8_t*, size_t> create_recfg_auth_response(ec_status_code_t dpp_status);
+    std::pair<uint8_t*, size_t> create_config_request();
+    std::pair<uint8_t*, size_t> create_config_result(); 
 
-    ec_persistent_context_t m_p_ctx;
+    ec_persistent_context_t m_p_ctx = {};
 
     // Randomized and cleared at the end of the authentication/configuration process
-    ec_ephemeral_context_t m_eph_ctx;
+    ec_ephemeral_context_t m_eph_ctx = {};
 
-    ec_data_t m_boot_data;
+    ec_data_t m_boot_data = {};
 
-    std::string m_mac_addr;
+
 
 
 };

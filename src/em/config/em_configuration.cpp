@@ -2362,7 +2362,7 @@ int em_configuration_t::compute_keys(unsigned char *remote_pub, unsigned short p
     unsigned char *secret;
     unsigned short secret_len;
     unsigned char  *addr[3];
-    unsigned int length[3];
+    size_t length[3];
     unsigned char  dhkey[SHA256_MAC_LEN];
     unsigned char  kdk  [SHA256_MAC_LEN];
     unsigned char keys[WPS_AUTHKEY_LEN + WPS_KEYWRAPKEY_LEN + WPS_EMSK_LEN];
@@ -2378,7 +2378,7 @@ int em_configuration_t::compute_keys(unsigned char *remote_pub, unsigned short p
     //util::print_hex_dump(secret_len, secret);
 
     addr[0] = secret;
-    length[0] = secret_len;
+    length[0] = (size_t) secret_len;
 
     if (compute_digest(1, addr, length, dhkey) != 1) {
         free(secret);
@@ -3252,13 +3252,13 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 int em_configuration_t::create_authenticator(unsigned char *buff)
 {
     unsigned char *addr[2];
-    unsigned int length[2];
+    size_t length[2];
     unsigned char hash[SHA256_MAC_LEN];
 
     addr[0] = m_m1_msg;
     addr[1] = m_m2_msg;
-    length[0] = static_cast<unsigned int> (m_m1_length);
-    length[1] = static_cast<unsigned int> (m_m2_length);
+    length[0] = m_m1_length;
+    length[1] = m_m2_length;
 
     //printf( "%s:%d m1 addr:%s::length:%d,\n", __func__, __LINE__, addr[0], length[0]);
     //util::print_hex_dump(length[0], addr[0]);

@@ -345,7 +345,7 @@ int util::em_chan_to_freq(uint8_t op_class, uint8_t channel, const std::string& 
     return -1;
 }
 
-std::pair<uint8_t, uint8_t> util::em_freq_to_chan(int frequency, const std::string& region) {
+std::pair<uint8_t, uint8_t> util::em_freq_to_chan(unsigned int frequency, const std::string& region) {
     std::pair<uint8_t, uint8_t> global_result;
     
     for (const auto& range : frequency_ranges) {

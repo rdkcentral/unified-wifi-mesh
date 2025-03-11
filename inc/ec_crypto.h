@@ -20,7 +20,7 @@ namespace easyconnect {
     using buff_ptr = ::std::unique_ptr<uint8_t[], byte_arr_deleter>;
     
     // Define easyconnect::hash_buffer_t as a vector of smart pointer/length pairs
-    using hash_buffer_t = std::vector<std::pair<buff_ptr, uint32_t>>;
+    using hash_buffer_t = std::vector<std::pair<buff_ptr, size_t>>;
 
 }
 
@@ -28,7 +28,7 @@ class ec_crypto {
 public:
 
     static int hkdf(const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen, 
-        uint8_t *salt, int saltlen, uint8_t *info, int infolen, 
+        uint8_t *salt, int saltlen, uint8_t *info, size_t infolen, 
         uint8_t *okm, int okmlen);
 
 
@@ -155,13 +155,17 @@ public:
      * 
      * @note Copies data given into new temporary buffer. Modifications to the original data will not affect the hash elements.
      */
-    static inline void add_to_hash(easyconnect::hash_buffer_t& buffer, const uint8_t* data, uint32_t len) {
+    static inline void add_to_hash(easyconnect::hash_buffer_t& buffer, const uint8_t* data, size_t len) {
         if (data != nullptr) {
             // Create a copy of the data with the correct deleter
             easyconnect::buff_ptr data_copy(new uint8_t[len]);
             memcpy(data_copy.get(), data, len);
             buffer.emplace_back(std::move(data_copy), len);
         }
+    }
+
+    static inline void add_to_hash(easyconnect::hash_buffer_t& buffer, const uint8_t* data, uint16_t len) {
+        add_to_hash(buffer, data, static_cast<size_t>(len));
     }
 
     /**
@@ -194,10 +198,10 @@ public:
     static void print_bignum (BIGNUM *bn);
     static void print_ec_point (const EC_GROUP *group, BN_CTX *bnctx, EC_POINT *point);
 
-    static inline void rand_zero_free(uint8_t *buff, int len) {
+    static inline void rand_zero_free(uint8_t *buff, size_t len) {
         if (buff == NULL) return;
-        RAND_bytes(buff, static_cast<int> (len));
-        memset(buff, 0, (size_t) len);
+        RAND_bytes(buff, static_cast<int>(len));
+        memset(buff, 0, len);
         free(buff);
     };
 
@@ -208,7 +212,7 @@ public:
      * @param nonce_len The length of the nonces in the context
      * @param digest_len The length of the digests/keys in the context
      */
-    static inline void free_ephemeral_context(ec_ephemeral_context_t* ctx, int nonce_len, int digest_len) {
+    static inline void free_ephemeral_context(ec_ephemeral_context_t* ctx, uint16_t nonce_len, uint16_t digest_len) {
 
         if (ctx->public_init_proto_key) EC_POINT_free(ctx->public_init_proto_key);
         if (ctx->public_resp_proto_key) EC_POINT_free(ctx->public_resp_proto_key);
@@ -227,7 +231,7 @@ public:
         if (ctx->ke) rand_zero_free(ctx->ke, static_cast<size_t> (digest_len));
         if (ctx->bk) rand_zero_free(ctx->bk, static_cast<size_t> (digest_len));
 
-        rand_zero_free(reinterpret_cast<uint8_t *> (ctx), sizeof(ec_ephemeral_context_t));
+        rand_zero_free(reinterpret_cast<uint8_t*>(ctx), sizeof(ec_ephemeral_context_t));
     }
 
 };

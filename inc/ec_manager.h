@@ -130,16 +130,17 @@ public:
 
 
 private:
-    std::unique_ptr<ec_configurator_t> m_configurator;
-    std::unique_ptr<ec_enrollee_t> m_enrollee;
     bool m_is_controller;
-
+    
     // Used to store the function pointers to instantiate objects again
     send_chirp_func m_stored_chirp_fn;
     send_encap_dpp_func m_stored_encap_dpp_fn;
     send_act_frame_func m_stored_action_frame_fn;
-    toggle_cce_func m_stored_toggle_cce_fn;
     std::string m_stored_mac_addr;
+    
+    std::unique_ptr<ec_configurator_t> m_configurator;
+    std::unique_ptr<ec_enrollee_t> m_enrollee;
+    toggle_cce_func m_stored_toggle_cce_fn;
 };
 
 #endif // EC_MANAGER_H

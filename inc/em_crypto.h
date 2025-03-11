@@ -91,7 +91,7 @@ public:
      * @note The hmac buffer must be pre-allocated with sufficient space for the output
      *       (32 bytes for SHA-256)
      */
-    static uint8_t platform_hmac_hash(const EVP_MD * hashing_algo, uint8_t *key, uint32_t keylen, uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *hmac);
+    static uint8_t platform_hmac_hash(const EVP_MD * hashing_algo, uint8_t *key, uint32_t keylen, uint8_t num_elem, uint8_t **addr, size_t *len, uint8_t *hmac);
 
     /**
     * @brief Convenience wrapper to compute HMAC-SHA256 hash for multiple input elements
@@ -105,7 +105,7 @@ public:
     *
     * @return 1 on success, 0 on failure
     */
-    inline static uint8_t platform_hmac_SHA256(uint8_t *key, uint32_t keylen, uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *hmac){
+    inline static uint8_t platform_hmac_SHA256(uint8_t *key, uint32_t keylen, uint8_t num_elem, uint8_t **addr, size_t *len, uint8_t *hmac){
         return platform_hmac_hash(EVP_sha256(), key, keylen, num_elem, addr, len, hmac);
     }
     
@@ -120,7 +120,7 @@ public:
     *
     * @return 1 on success, 0 on failure
     */
-    static uint8_t platform_hash(const EVP_MD * hashing_algo, uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *digest);
+    static uint8_t platform_hash(const EVP_MD * hashing_algo, uint8_t num_elem, uint8_t **addr, size_t *len, uint8_t *digest);
 
     /**
     * @brief Convenience wrapper to compute SHA-256 hash for multiple input elements
@@ -132,7 +132,7 @@ public:
     * 
     * @return 1 on success, 0 on failure
     */
-    inline static uint8_t platform_SHA256(uint8_t num_elem, uint8_t **addr, uint32_t *len, uint8_t *digest){
+    inline static uint8_t platform_SHA256(uint8_t num_elem, uint8_t **addr, size_t *len, uint8_t *digest){
         return platform_hash(EVP_sha256(), num_elem, addr, len, digest);
     }
     
@@ -157,7 +157,7 @@ public:
     * 
     * @return 1 on success, 0 on HMAC failure
     */
-    static uint8_t wps_key_derivation_function(uint8_t *key, uint8_t *label_prefix, uint32_t label_prefix_len, char *label, uint8_t *res, uint32_t res_len);
+    static uint8_t wps_key_derivation_function(uint8_t *key, uint8_t *label_prefix, size_t label_prefix_len, char *label, uint8_t *res, uint32_t res_len);
 
     /**
     * @brief Decrypts data using OpenSSL cipher in place
