@@ -196,7 +196,7 @@ public:
 
     static inline void rand_zero_free(uint8_t *buff, int len) {
         if (buff == NULL) return;
-        RAND_bytes(buff, len);
+        RAND_bytes(buff, static_cast<int> (len));
         memset(buff, 0, (size_t) len);
         free(buff);
     };
@@ -218,16 +218,16 @@ public:
         if (ctx->m) BN_free(ctx->m);
         if (ctx->n) BN_free(ctx->n);
         if (ctx->l) BN_free(ctx->l);
-        if (ctx->i_nonce) rand_zero_free(ctx->i_nonce, nonce_len);
-        if (ctx->r_nonce) rand_zero_free(ctx->r_nonce, nonce_len);
-        if (ctx->e_nonce) rand_zero_free(ctx->e_nonce, nonce_len);
-        if (ctx->c_nonce) rand_zero_free(ctx->c_nonce, nonce_len);
-        if (ctx->k1) rand_zero_free(ctx->k1, digest_len);
-        if (ctx->k2) rand_zero_free(ctx->k2, digest_len);
-        if (ctx->ke) rand_zero_free(ctx->ke, digest_len);
-        if (ctx->bk) rand_zero_free(ctx->bk, digest_len);
+        if (ctx->i_nonce) rand_zero_free(ctx->i_nonce, static_cast<size_t> (nonce_len));
+        if (ctx->r_nonce) rand_zero_free(ctx->r_nonce, static_cast<size_t> (nonce_len));
+        if (ctx->e_nonce) rand_zero_free(ctx->e_nonce, static_cast<size_t> (nonce_len));
+        if (ctx->c_nonce) rand_zero_free(ctx->c_nonce, static_cast<size_t> (nonce_len));
+        if (ctx->k1) rand_zero_free(ctx->k1, static_cast<size_t> (digest_len));
+        if (ctx->k2) rand_zero_free(ctx->k2, static_cast<size_t> (digest_len));
+        if (ctx->ke) rand_zero_free(ctx->ke, static_cast<size_t> (digest_len));
+        if (ctx->bk) rand_zero_free(ctx->bk, static_cast<size_t> (digest_len));
 
-        rand_zero_free((uint8_t *)ctx, sizeof(ec_ephemeral_context_t));
+        rand_zero_free(reinterpret_cast<uint8_t *> (ctx), sizeof(ec_ephemeral_context_t));
     }
 
 };

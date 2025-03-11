@@ -3043,16 +3043,14 @@ int em_configuration_t::handle_encrypted_settings()
     data_elem_attr_t    *attr;
     int tmp_len, ret = 0;
     unsigned short id;
-    char ssid[32] = {0};
     char pass[64] = {0};
     mac_addr_str_t mac_str;
     unsigned char *plain;
     unsigned short plain_len;
-    unsigned short authtype;
-    unsigned int index = -1;
+    int index = -1;
     m2ctrl_radioconfig radioconfig;
     plain = m_m2_encrypted_settings + AES_BLOCK_SIZE;
-    plain_len = m_m2_encrypted_settings_len - AES_BLOCK_SIZE;
+    plain_len = static_cast<short unsigned int> (m_m2_encrypted_settings_len - AES_BLOCK_SIZE);
     radioconfig.noofbssconfig = 0;
 
     // first decrypt the encrypted m2 data
@@ -3062,7 +3060,7 @@ int em_configuration_t::handle_encrypted_settings()
         return 0;
     }
 
-    attr = (data_elem_attr_t *)plain;
+    attr = reinterpret_cast<data_elem_attr_t *> (plain);
     tmp_len = plain_len;
     radioconfig.freq = get_band();
 
@@ -3074,7 +3072,7 @@ int em_configuration_t::handle_encrypted_settings()
             printf("%s:%d: noofbss configuration recv=%d\n", __func__, __LINE__,radioconfig.noofbssconfig);
         } else if (id == attr_id_haul_type) {
             index++;
-            radioconfig.haultype[index] = (em_haul_type_t) attr->val[0];
+            radioconfig.haultype[index] = static_cast<em_haul_type_t> (attr->val[0]);
         } else if (id == attr_id_ssid) {
         //If controller does not support no of haultype parameter
             if (index == -1) {
@@ -3085,7 +3083,6 @@ int em_configuration_t::handle_encrypted_settings()
             printf("%s:%d: ssid attrib: %s\n", __func__, __LINE__, radioconfig.ssid[index]);
             memcpy(radioconfig.radio_mac[index], get_radio_interface_mac(), sizeof(mac_address_t));
         } else if (id == attr_id_auth_type) {
-            authtype = attr->val[0];
             radioconfig.authtype[index] = attr->val[0];
         } else if (id == attr_id_encryption_type) {
             printf("%s:%d: encr type attrib\n", __func__, __LINE__);
@@ -3101,11 +3098,11 @@ int em_configuration_t::handle_encrypted_settings()
             printf("%s:%d: key wrap auth attrib\n", __func__, __LINE__);
             radioconfig.key_wrap_authenticator[index] = attr->val[0];
         }
-        tmp_len -= (sizeof(data_elem_attr_t) + htons(attr->len));
-        attr = (data_elem_attr_t *)((unsigned char *)attr + sizeof(data_elem_attr_t) + htons(attr->len));
+        tmp_len -= static_cast<int> (sizeof(data_elem_attr_t) + htons(attr->len));
+        attr = reinterpret_cast<data_elem_attr_t *> (reinterpret_cast<unsigned char *>(attr) + sizeof(data_elem_attr_t) + htons(attr->len));
     }
 
-    get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, (unsigned char *)&radioconfig, sizeof(radioconfig));
+    get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (&radioconfig), sizeof(radioconfig));
     set_state(em_state_agent_owconfig_pending);
     if (get_service_type() == em_service_type_agent) {
         get_ec_mgr().upgrade_to_onboarded_proxy_agent(

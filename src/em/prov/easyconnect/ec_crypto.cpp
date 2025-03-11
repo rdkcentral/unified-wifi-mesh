@@ -20,16 +20,16 @@ uint8_t* ec_crypto::compute_key_hash(const EC_KEY *key, const char *prefix)
     // Convert key to DER format
     i2d_EC_PUBKEY_bio(bio, key);
     (void)BIO_flush(bio);
-    asn1len = BIO_get_mem_data(bio, &asn1);
+    asn1len = static_cast<int> (BIO_get_mem_data(bio, &asn1));
 
     // Set up our data elements for hashing
-    addr[0] = (uint8_t *)prefix;
-    len[0] = strlen(prefix);
+    addr[0] = reinterpret_cast<uint8_t *>(const_cast<char*> (prefix));
+    len[0] = static_cast<uint32_t> (strlen(prefix));
     addr[1] = asn1;
-    len[1] = asn1len;
+    len[1] = static_cast<uint32_t> (asn1len);
 
     // Call platform_SHA256 with our two elements
-    uint8_t *digest = (uint8_t *)calloc(SHA256_DIGEST_LENGTH, 1);
+    uint8_t *digest = static_cast<uint8_t *> (calloc(SHA256_DIGEST_LENGTH, 1));
     uint8_t result = em_crypto_t::platform_SHA256(2, addr, len, digest);
 
     BIO_free(bio);
@@ -67,21 +67,21 @@ int ec_crypto::compute_hkdf_key(ec_persistent_context_t& p_ctx, uint8_t *key_out
     uint8_t *bn_buffer = NULL;
     uint8_t *ikm = NULL;
     int ikm_len = 0;
-    int result = 0;
+    int result = 0, offset = 0;
     
     // Calculate prime length for padding and format BIGNUMs
     primelen = BN_num_bytes(p_ctx.prime);
-    bn_buffer = (uint8_t *)malloc(primelen * x_val_count);
+    bn_buffer = static_cast<uint8_t *> (malloc(static_cast<size_t> (primelen * x_val_count)));
     if (bn_buffer == NULL) {
         perror("malloc");
         return 0;
     }
-    memset(bn_buffer, 0, primelen * x_val_count);
+    memset(bn_buffer, 0, static_cast<size_t> (primelen * x_val_count));
     
     // Format each X Val BIGNUM with proper padding
     for (int i = 0; i < x_val_count; i++) {
         if (x_val_inputs[i] != NULL) {
-            unsigned int offset = primelen - BN_num_bytes(x_val_inputs[i]);
+            offset = primelen - BN_num_bytes(x_val_inputs[i]);
             BN_bn2bin(x_val_inputs[i], bn_buffer + (i * primelen) + offset);
         }
     }
@@ -92,7 +92,7 @@ int ec_crypto::compute_hkdf_key(ec_persistent_context_t& p_ctx, uint8_t *key_out
     
     // Call the hkdf function
     result = hkdf(p_ctx.hash_fcn, 0, ikm, ikm_len, raw_salt, raw_salt_len, 
-                 (uint8_t *)info_str, strlen(info_str), 
+                 reinterpret_cast<uint8_t *>(const_cast<char*> (info_str)), static_cast<int> (strlen(info_str)), 
                  key_out, key_out_len);
     
     // Free allocated memory
@@ -157,19 +157,19 @@ int ec_crypto::compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t
 {
     // Create concatenated nonces buffer (Initiator Nonce | Responder Nonce)
     int total_nonce_len = p_ctx.nonce_len * 2;
-    uint8_t *nonces = (uint8_t *)calloc(total_nonce_len, 1);
+    uint8_t *nonces = static_cast<uint8_t *> (calloc(static_cast<size_t> (total_nonce_len), 1));
     if (nonces == NULL) {
         printf("%s:%d: Failed to allocate memory for nonces\n", __func__, __LINE__);
         return 0;
     }
     
     // Copy nonces
-    memcpy(nonces, e_ctx->i_nonce, p_ctx.nonce_len);
-    memcpy(nonces + p_ctx.nonce_len, e_ctx->r_nonce, p_ctx.nonce_len);
+    memcpy(nonces, e_ctx->i_nonce, static_cast<size_t> (p_ctx.nonce_len));
+    memcpy(nonces + p_ctx.nonce_len, e_ctx->r_nonce, static_cast<size_t> (p_ctx.nonce_len));
     
     // Set up BIGNUM array of X values (M, N, and possibly L if mutual auth)
     int x_count = e_ctx->is_mutual_auth ? 3 : 2;
-    const BIGNUM **x_val_array = (const BIGNUM **)calloc(x_count, sizeof(BIGNUM *));
+    const BIGNUM **x_val_array = static_cast<const BIGNUM **>(calloc(static_cast<size_t> (x_count), sizeof(BIGNUM *)));
     if (x_val_array == NULL) {
         free(nonces);
         printf("%s:%d: Failed to allocate memory for X values\n", __func__, __LINE__);
@@ -206,7 +206,7 @@ int ec_crypto::hkdf (const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen,
         uint8_t *okm, int okmlen)
 {
     uint8_t *prk, *tweak, ctr, *digest;
-    int len;
+    unsigned int len;
     unsigned int digest_len, prklen, tweaklen;
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     HMAC_CTX ctx;
@@ -214,8 +214,8 @@ int ec_crypto::hkdf (const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen,
     HMAC_CTX *ctx = HMAC_CTX_new();
 #endif
 
-    digest_len = prklen = EVP_MD_size(h);
-    if ((digest = (uint8_t *)malloc(digest_len)) == NULL) {
+    digest_len = prklen = static_cast<unsigned int> (EVP_MD_size(h));
+    if ((digest = static_cast<uint8_t *> (malloc(digest_len))) == NULL) {
         perror("malloc");
         return 0;
     }
@@ -229,7 +229,7 @@ int ec_crypto::hkdf (const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen,
         /*
          * if !skip then do HKDF-extract
          */
-        if ((prk = (uint8_t *)malloc(digest_len)) == NULL) {
+        if ((prk = static_cast<uint8_t *> (malloc(digest_len))) == NULL) {
             free(digest);
             perror("malloc");
             return 0;
@@ -238,17 +238,17 @@ int ec_crypto::hkdf (const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen,
          * if there's no salt then use all zeros
          */
         if (!salt || (saltlen == 0)) {
-            if ((tweak = (uint8_t *)malloc(digest_len)) == NULL) {
+            if ((tweak = static_cast<uint8_t *> (malloc(digest_len))) == NULL) {
                 free(digest);
                 free(prk);
                 perror("malloc");
                 return 0;
             }
             memset(tweak, 0, digest_len);
-            tweaklen = saltlen;
+            tweaklen = static_cast<unsigned int> (saltlen);
         } else {
             tweak = salt;
-            tweaklen = saltlen;
+            tweaklen = static_cast<unsigned int> (saltlen);
         }
         (void)HMAC(h, tweak, tweaklen, ikm, ikmlen, prk, &prklen);
         if (!salt || (saltlen == 0)) {
@@ -256,13 +256,13 @@ int ec_crypto::hkdf (const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen,
         }
     } else {
         prk = ikm;
-        prklen = ikmlen;
+        prklen = static_cast<unsigned int> (ikmlen);
     }
     memset(digest, 0, digest_len);
     digest_len = 0;
     ctr = 0;
     len = 0;
-    while (len < okmlen) {
+    while (len < static_cast<unsigned int> (okmlen)) {
         /*
          * T(0) = all zeros
          * T(n) = HMAC(prk, T(n-1) | info | counter)
@@ -270,17 +270,17 @@ int ec_crypto::hkdf (const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen,
          */
         ctr++;
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
-        HMAC_Init_ex(&ctx, prk, prklen, h, NULL);
+        HMAC_Init_ex(&ctx, prk, static_cast<int> (prklen), h, NULL);
         HMAC_Update(&ctx, digest, digest_len);
 #else
-        HMAC_Init_ex(ctx, prk, prklen, h, NULL);
+        HMAC_Init_ex(ctx, prk, static_cast<int> (prklen), h, NULL);
         HMAC_Update(ctx, digest, digest_len);
 #endif
         if (info && (infolen != 0)) {
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
             HMAC_Update(&ctx, info, infolen);
 #else
-            HMAC_Update(ctx, info, infolen);
+            HMAC_Update(ctx, info, static_cast<size_t> (infolen));
 #endif
         }
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
@@ -290,8 +290,8 @@ int ec_crypto::hkdf (const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen,
         HMAC_Update(ctx, &ctr, sizeof(uint8_t));
         HMAC_Final(ctx, digest, &digest_len);
 #endif
-        if ((len + digest_len) > okmlen) {
-            memcpy(okm + len, digest, okmlen - len);
+        if ((len + digest_len) > static_cast<unsigned int> (okmlen)) {
+            memcpy(okm + len, digest, static_cast<unsigned int> (okmlen) - len);
         } else {
             memcpy(okm + len, digest, digest_len);
         }
@@ -318,10 +318,10 @@ int ec_crypto::hkdf (const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen,
 void ec_crypto::print_bignum (BIGNUM *bn)
 {
     unsigned char *buf;
-    int len;
+    unsigned int len;
 
-    len = BN_num_bytes(bn);
-    if ((buf = (unsigned char *)malloc(len)) == NULL) {
+    len = static_cast<unsigned int> (BN_num_bytes(bn));
+    if ((buf = static_cast<unsigned char *> (malloc(static_cast<size_t> (len)))) == NULL) {
         printf("Could not print bignum\n");
         return;
     }

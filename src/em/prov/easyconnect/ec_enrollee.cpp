@@ -40,7 +40,7 @@ bool ec_enrollee_t::handle_auth_request(ec_frame_t *frame, size_t len, uint8_t s
 {
     size_t attrs_len = len - EC_FRAME_BASE_SIZE;
 
-    ec_attribute_t *B_r_hash_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_resp_bootstrap_key_hash);
+    ec_attribute_t *B_r_hash_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_resp_bootstrap_key_hash);
     ASSERT_NOT_NULL(B_r_hash_attr, false, "%s:%d No responder bootstrapping key hash attribute found\n", __func__, __LINE__);
 
     uint8_t* responder_keyhash = ec_crypto::compute_key_hash(m_boot_data.responder_boot_key);
@@ -53,7 +53,7 @@ bool ec_enrollee_t::handle_auth_request(ec_frame_t *frame, size_t len, uint8_t s
     }
     free(responder_keyhash);
     
-    ec_attribute_t *B_i_hash_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_init_bootstrap_key_hash);
+    ec_attribute_t *B_i_hash_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_init_bootstrap_key_hash);
     ASSERT_NOT_NULL(B_i_hash_attr, false, "%s:%d No initiator bootstrapping key hash attribute found\n", __func__, __LINE__);
 
     if (m_boot_data.initiator_boot_key != NULL){
@@ -74,24 +74,24 @@ bool ec_enrollee_t::handle_auth_request(ec_frame_t *frame, size_t len, uint8_t s
         }     
     }
 
-   ec_attribute_t *channel_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_channel);
+   ec_attribute_t *channel_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_channel);
     if (channel_attr && channel_attr->length == sizeof(uint16_t)) {
         /*
         the Responder determines whether it can use the requested channel for the
 following exchanges. If so, it sends the DPP Authentication Response frame on that channel. If not, it discards the DPP
 Authentication Request frame without replying to it.
         */
-        uint16_t op_chan = *(uint16_t*)channel_attr->data;
+        uint16_t op_chan = *reinterpret_cast<uint16_t*> (channel_attr->data);
         printf("%s:%d Channel attribute: %d\n", __func__, __LINE__, op_chan);
 
-        uint8_t op_class = (uint8_t)(op_chan >> 8);
-        uint8_t channel = (uint8_t)(op_chan & 0x00ff);
+        uint8_t op_class = static_cast<uint8_t> (op_chan >> 8);
+        uint8_t channel = static_cast<uint8_t> (op_chan & 0x00ff);
         printf("%s:%d op_class: %d channel %d\n", __func__, __LINE__, op_class, channel);
         //TODO: Check One-Wifi for channel selection if possible
         // Maybe just attempt to send it on the channel
     }
 
-    ec_attribute_t *pub_init_proto_key_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_init_proto_key);
+    ec_attribute_t *pub_init_proto_key_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_init_proto_key);
 
     ASSERT_NOT_NULL(pub_init_proto_key_attr, false, "%s:%d No public initiator protocol key attribute found\n", __func__, __LINE__);
     ASSERT_EQUALS(pub_init_proto_key_attr->length, BN_num_bytes(m_p_ctx.prime) * 2, false, "%s:%d Invalid public initiator protocol key length\n", __func__, __LINE__);
@@ -117,9 +117,9 @@ Authentication Request frame without replying to it.
     }
 
     printf("Key K_1:\n");
-    util::print_hex_dump(m_p_ctx.digest_len, m_eph_ctx.k1);
+    util::print_hex_dump(static_cast<unsigned int> (m_p_ctx.digest_len), m_eph_ctx.k1);
 
-    ec_attribute_t *wrapped_data_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_wrapped_data);
+    ec_attribute_t *wrapped_data_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_wrapped_data);
     ASSERT_NOT_NULL(wrapped_data_attr, false, "%s:%d No wrapped data attribute found\n", __func__, __LINE__);
 
     // Attempt to unwrap the wrapped data with generated k1 (from sent keys)
@@ -130,7 +130,7 @@ Authentication Request frame without replying to it.
         return false;
     }
 
-    ec_attribute_t *init_caps_attr = ec_util::get_attrib(wrapped_data, wrapped_len, ec_attrib_id_init_caps);
+    ec_attribute_t *init_caps_attr = ec_util::get_attrib(wrapped_data, static_cast<uint16_t> (wrapped_len), ec_attrib_id_init_caps);
     ASSERT_NOT_NULL_FREE(init_caps_attr, false, wrapped_data, "%s:%d No initiator capabilities attribute found\n", __func__, __LINE__);
 
     const ec_dpp_capabilities_t init_caps = {
@@ -188,6 +188,7 @@ Authentication Request frame without replying to it.
         return false;
     }
     // TODO: Send the response frame
+    return true; //returns true since non void func
 }
 
 bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
@@ -294,11 +295,10 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
     printf("%s:%d: Got a DPP Configuration Response from " MACSTRFMT "\n", __func__, __LINE__, MAC2STR(sa));
     uint8_t *p = buff;
 
-    ec_gas_frame_base_t *gas_base_frame = (ec_gas_frame_base_t *)p;
+    ec_gas_frame_base_t *gas_base_frame = reinterpret_cast<ec_gas_frame_base_t *> (p);
     p += sizeof(ec_gas_frame_base_t);
-    ec_gas_initial_response_frame_t *gas_initial_response = (ec_gas_initial_response_frame_t *)p;
-    printf(
-        "%s:%d: Got a DPP config response! category=%02x action=%02x dialog_token=%02x ape=" APEFMT
+    ec_gas_initial_response_frame_t *gas_initial_response = reinterpret_cast<ec_gas_initial_response_frame_t *> (p);
+    printf("%s:%d: Got a DPP config response! category=%02x action=%02x dialog_token=%02x ape=" APEFMT
         " ape_id=" APEIDFMT " resp_len=%d\n",
         __func__, __LINE__, gas_base_frame->category, gas_base_frame->action,
         gas_base_frame->dialog_token, APE2STR(gas_initial_response->ape),
