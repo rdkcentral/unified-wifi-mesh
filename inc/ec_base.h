@@ -47,11 +47,11 @@ extern "C"
 #define DPP_GAS_INITIAL_RESP 0x0B
 
 #define APEFMT "%02x,%02x,%02x"
-#define APE2STR(x) (x[0], x[1], x[2])
+#define APE2STR(x) x[0], x[1], x[2]
 #define APEIDFMT "%02x,%02x,%02x,%02x,%02x,%02x,%02x"
-#define APEID2STR(x) (x[0], x[1], x[2], x[3], x[4], x[5], x[6])
-#define MACSTRFMT "%02x:%02x:%02x:%02x:%02x"
-#define MAC2STR(x) (x[0], x[1], x[2], x[3], x[4], x[5])
+#define APEID2STR(x) x[0], x[1], x[2], x[3], x[4], x[5], x[6]
+#define MACSTRFMT "%02x:%02x:%02x:%02x:%02x:%02x"
+#define MAC2STR(x) x[0], x[1], x[2], x[3], x[4], x[5]
 
 // EasyConnect 8.3.2
 static const uint8_t DPP_GAS_CONFIG_REQ_APE[3] = {0x6c, 0x08, 0x00};

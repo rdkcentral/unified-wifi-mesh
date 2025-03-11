@@ -63,9 +63,9 @@ bool ec_manager_t::handle_recv_gas_pub_action_frame(ec_gas_frame_base_t *frame, 
     printf("%s:%d: Got a GAS frame with %02x action!\n", __func__, __LINE__, frame->action);
     switch (static_cast<dpp_gas_action_type_t>(frame->action)) {
         case dpp_gas_initial_req:
-            return m_configurator->handle_cfg_request((uint8_t *)frame, len, source_addr);
+            return m_configurator->handle_cfg_request(reinterpret_cast<uint8_t *> (frame), static_cast<unsigned> (len), source_addr);
         case dpp_gas_initial_resp:
-            return m_enrollee->handle_config_response((uint8_t *)frame, len, source_addr);
+            return m_enrollee->handle_config_response(reinterpret_cast<uint8_t *> (frame), static_cast<unsigned> (len), source_addr);
         case dpp_gas_comeback_req:
         case dpp_gas_comeback_resp:
         default:

@@ -11,7 +11,7 @@ bool ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *ch
     uint8_t hash[255] = {0}; // Max hash length to avoid dynamic allocation
     uint8_t hash_len = 0;
 
-    if (ec_util::parse_dpp_chirp_tlv(chirp_tlv, tlv_len, &mac, (uint8_t**)&hash, &hash_len) < 0) {
+    if (ec_util::parse_dpp_chirp_tlv(chirp_tlv, tlv_len, &mac, reinterpret_cast<uint8_t**> (&hash), &hash_len) == false) {
         printf("%s:%d: Failed to parse DPP Chirp TLV\n", __func__, __LINE__);
         return false;
     }
@@ -45,7 +45,7 @@ bool ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *ch
     }
 
     // Create Auth Request Encap TLV: EasyMesh 5.3.4
-    auto [encap_dpp_tlv, encap_dpp_size] = ec_util::create_encap_dpp_tlv(0, mac, ec_frame_type_auth_req, auth_frame, auth_frame_len);
+    auto [encap_dpp_tlv, encap_dpp_size] = ec_util::create_encap_dpp_tlv(0, mac, ec_frame_type_auth_req, auth_frame, static_cast<uint8_t> (auth_frame_len));
     if (encap_dpp_tlv == NULL) {
         printf("%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
         return false;
@@ -55,7 +55,7 @@ bool ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *ch
 
     // Create Auth Request Chirp TLV: EasyMesh 5.3.4
     size_t data_size = sizeof(mac_addr_t) + hash_len + sizeof(uint8_t);
-    em_dpp_chirp_value_t* chirp = (em_dpp_chirp_value_t*)calloc(sizeof(em_dpp_chirp_value_t) + data_size, 1);
+    em_dpp_chirp_value_t* chirp = static_cast<em_dpp_chirp_value_t*> (calloc(sizeof(em_dpp_chirp_value_t) + data_size, 1));
     if (chirp == NULL) {
         printf("%s:%d: Failed to allocate memory for chirp TLV\n", __func__, __LINE__);
         free(encap_dpp_tlv);
@@ -95,18 +95,14 @@ bool ec_ctrl_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_t
     uint8_t* encap_frame = NULL;
     uint8_t encap_frame_len = 0;
 
-    if (ec_util::parse_encap_dpp_tlv(encap_tlv, encap_tlv_len, &dest_mac, &frame_type, &encap_frame, &encap_frame_len) < 0) {
+    if (ec_util::parse_encap_dpp_tlv(encap_tlv, encap_tlv_len, &dest_mac, &frame_type, &encap_frame, &encap_frame_len) == false) {
         printf("%s:%d: Failed to parse Encap DPP TLV\n", __func__, __LINE__);
         return false;
     }
 
-    mac_addr_t chirp_mac = {0};
-    uint8_t chirp_hash[255] = {0}; // Max hash length to avoid dynamic allocation
-    uint8_t chirp_hash_len = 0;
-
     bool did_finish = false;
 
-    ec_frame_type_t ec_frame_type = (ec_frame_type_t)frame_type;
+    ec_frame_type_t ec_frame_type = static_cast<ec_frame_type_t> (frame_type);
     switch (ec_frame_type) {
         case ec_frame_type_recfg_announcement: {
             auto [recfg_auth_frame, recfg_auth_frame_len] = create_recfg_auth_request();
@@ -114,7 +110,7 @@ bool ec_ctrl_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_t
                 printf("%s:%d: Failed to create reconfiguration authentication request frame\n", __func__, __LINE__);
                 break;
             }
-            auto [encap_dpp_tlv, encap_dpp_size] = ec_util::create_encap_dpp_tlv(0, dest_mac, ec_frame_type_recfg_auth_req, recfg_auth_frame, recfg_auth_frame_len);
+            auto [encap_dpp_tlv, encap_dpp_size] = ec_util::create_encap_dpp_tlv(0, dest_mac, ec_frame_type_recfg_auth_req, recfg_auth_frame, static_cast<uint8_t> (recfg_auth_frame_len));
             if (encap_dpp_tlv == NULL) {
                 printf("%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
                 free(recfg_auth_frame);
@@ -448,8 +444,6 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
 std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_auth_request(std::string enrollee_mac)
 {
 
-    EC_KEY *responder_boot_key, *initiator_boot_key;
-
     auto err_pair = std::make_pair<uint8_t*, uint16_t>(NULL, 0);
 
     printf("%s:%d Enter\n", __func__, __LINE__);
@@ -470,8 +464,8 @@ std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_auth_request(std::
         printf("%s:%d failed to generate initiator protocol key pair\n", __func__, __LINE__);
         return std::make_pair<uint8_t*, uint16_t>(NULL, 0);
     }
-    e_ctx->priv_init_proto_key = (BIGNUM*)priv_init_proto_key;
-    e_ctx->public_init_proto_key = (EC_POINT*)pub_init_proto_key;
+    e_ctx->priv_init_proto_key = const_cast<BIGNUM*> (priv_init_proto_key);
+    e_ctx->public_init_proto_key = const_cast<EC_POINT*> (pub_init_proto_key);
 
     // Compute the M.x
     const EC_POINT *pub_resp_boot_key = EC_KEY_get0_public_key(m_boot_data.responder_boot_key);
@@ -486,7 +480,7 @@ std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_auth_request(std::
     }
 
     printf("Key K_1:\n");
-    util::print_hex_dump(m_p_ctx.digest_len, e_ctx->k1);
+    util::print_hex_dump(static_cast<unsigned int> (m_p_ctx.digest_len), e_ctx->k1);
     
     uint8_t* attribs = NULL;
     uint16_t attrib_len = 0;
@@ -509,7 +503,7 @@ std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_auth_request(std::
     uint8_t* protocol_key_buff = ec_crypto::encode_proto_key(m_p_ctx, e_ctx->public_init_proto_key);
     ASSERT_NOT_NULL_FREE2(protocol_key_buff, err_pair, frame, attribs, "%s:%d failed to encode public initiator protocol key\n", __func__, __LINE__);
 
-    attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_init_proto_key, 2*BN_num_bytes(m_p_ctx.prime), protocol_key_buff);
+    attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_init_proto_key, static_cast<uint16_t> (2*BN_num_bytes(m_p_ctx.prime)), protocol_key_buff);
     free(protocol_key_buff);
 
     // Protocol Version
@@ -521,8 +515,8 @@ std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_auth_request(std::
     //TODO: REVISIT THIS
     if (m_boot_data.ec_freqs[0] != 0){
         int base_freq = m_boot_data.ec_freqs[0]; 
-        uint16_t chann_attr = ec_util::freq_to_channel_attr(base_freq);
-        attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_channel, sizeof(uint16_t), (uint8_t *)&chann_attr);
+        uint16_t chann_attr = ec_util::freq_to_channel_attr(static_cast<unsigned int> (base_freq));
+        attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_channel, sizeof(uint16_t), reinterpret_cast<uint8_t *> (&chann_attr));
     }
 
 
@@ -531,7 +525,7 @@ std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_auth_request(std::
     attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attrib_len, true, e_ctx->k1, [&](){
         uint8_t* wrap_attribs = NULL;
         uint16_t wrapped_len = 0;
-        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_init_nonce, m_p_ctx.nonce_len, e_ctx->i_nonce);
+        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_init_nonce, static_cast<uint16_t> (m_p_ctx.nonce_len), e_ctx->i_nonce);
         wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_init_caps, m_dpp_caps.byte);
         return std::make_pair(wrap_attribs, wrapped_len);
     });
@@ -546,7 +540,7 @@ std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_auth_request(std::
 
     free(attribs);
 
-    return std::make_pair((uint8_t*)frame, EC_FRAME_BASE_SIZE + attrib_len);
+    return std::make_pair(reinterpret_cast<uint8_t*> (frame), EC_FRAME_BASE_SIZE + attrib_len);
 
 }
 
@@ -620,7 +614,7 @@ STATUS_OK:
     }
     free(attribs);
 
-    return std::make_pair((uint8_t*)frame, EC_FRAME_BASE_SIZE + attrib_len);
+    return std::make_pair(reinterpret_cast<uint8_t*> (frame), EC_FRAME_BASE_SIZE + attrib_len);
 }
 
 std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_recfg_auth_request()
@@ -645,21 +639,22 @@ std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_recfg_auth_confirm
     uint8_t trans_id = 0;
     ec_dpp_reconfig_flags_t reconfig_flags = {
         .connector_key = 1, // DONT REUSE
+        .reserved = 7
     };
 
 
 
-    attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_dpp_status, (uint8_t)dpp_status);
+    attribs = ec_util::add_attrib(attribs, &attrib_len, ec_attrib_id_dpp_status, static_cast<uint8_t> (dpp_status));
 
     attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attrib_len, false, e_ctx->ke, [&](){
         uint8_t* wrap_attribs = NULL;
         uint16_t wrapped_len = 0;
 
         wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_trans_id, trans_id);
-        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_proto_version, (uint8_t)m_boot_data.version);
-        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_config_nonce, m_p_ctx.nonce_len, e_ctx->i_nonce);
-        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_enrollee_nonce, m_p_ctx.nonce_len, e_ctx->e_nonce);
-        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_reconfig_flags, sizeof(reconfig_flags), (uint8_t*)&reconfig_flags);
+        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_proto_version, static_cast<uint8_t> (m_boot_data.version));
+        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_config_nonce, static_cast<uint16_t> (m_p_ctx.nonce_len), e_ctx->i_nonce);
+        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_enrollee_nonce, static_cast<uint16_t> (m_p_ctx.nonce_len), e_ctx->e_nonce);
+        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_reconfig_flags, sizeof(reconfig_flags), reinterpret_cast<uint8_t*> (&reconfig_flags));
 
         return std::make_pair(wrap_attribs, wrapped_len);
     });
@@ -672,7 +667,7 @@ std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_recfg_auth_confirm
     }
     free(attribs);
 
-    return std::make_pair((uint8_t*)frame, EC_FRAME_BASE_SIZE + attrib_len);
+    return std::make_pair(reinterpret_cast<uint8_t*> (frame), EC_FRAME_BASE_SIZE + attrib_len);
 }
 
 std::pair<uint8_t *, uint16_t> ec_ctrl_configurator_t::create_config_response()

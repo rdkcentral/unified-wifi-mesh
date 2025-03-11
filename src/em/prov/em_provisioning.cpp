@@ -57,19 +57,19 @@ int em_provisioning_t::create_cce_ind_msg(uint8_t *buff)
     uint16_t enable = 0;
     uint16_t type = htons(ETH_P_1905);
 
-    memcpy(tmp, (uint8_t *)get_peer_mac(), sizeof(mac_address_t));
+    memcpy(tmp, reinterpret_cast<uint8_t *> (get_peer_mac()), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
     memcpy(tmp, get_current_cmd()->get_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
-    memcpy(tmp, (uint8_t *)&type, sizeof(uint16_t));
+    memcpy(tmp, reinterpret_cast<uint8_t *> (&type), sizeof(uint16_t));
     tmp += sizeof(uint16_t);
-    len += sizeof(uint16_t);
+    len += static_cast<unsigned int> (sizeof(uint16_t));
 
-    cmdu = (em_cmdu_t *)tmp;
+    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_id);
@@ -77,10 +77,10 @@ int em_provisioning_t::create_cce_ind_msg(uint8_t *buff)
     cmdu->last_frag_ind = 1;
 
     tmp += sizeof(em_cmdu_t);
-    len += sizeof(em_cmdu_t);
+    len += static_cast<unsigned int> (sizeof(em_cmdu_t));
 
     // One DPP CCE Indication tlv 17.2.82
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_dpp_cce_indication;
     //enable = (get_state() == em_state_agent_prov) ? 1:0;
 	enable = (get_state() == em_state_agent_configured) ? 1:0;
@@ -88,17 +88,17 @@ int em_provisioning_t::create_cce_ind_msg(uint8_t *buff)
     tlv->len = htons(sizeof(uint16_t));
 
     tmp += (sizeof(em_tlv_t) + sizeof(uint16_t));
-    len += (sizeof(em_tlv_t) + sizeof(uint16_t));
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + sizeof(uint16_t));
 
     // End of message
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_eom;
     tlv->len = 0;
 
     tmp += (sizeof (em_tlv_t));
-    len += (sizeof (em_tlv_t));
+    len += static_cast<unsigned int> (sizeof (em_tlv_t));
 
-    return len;
+    return static_cast<int> (len);
 }
 
 int em_provisioning_t::send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, size_t encap_dpp_len, em_dpp_chirp_value_t *chirp, size_t chirp_len)
@@ -116,14 +116,14 @@ int em_provisioning_t::send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, si
 
     //TODO: Decide on addressing.
     //tmp = em_msg_t::add_1905_header(tmp, &len, dm->get_agent_al_interface_mac(), dm->get_ctrl_al_interface_mac(), em_msg_type_proxied_encap_dpp);
-    tmp = em_msg_t::add_1905_header(tmp, &len, (uint8_t *)get_peer_mac(), get_current_cmd()->get_al_interface_mac(), em_msg_type_proxied_encap_dpp);
+    tmp = em_msg_t::add_1905_header(tmp, &len, const_cast<uint8_t *> (get_peer_mac()), get_current_cmd()->get_al_interface_mac(), em_msg_type_proxied_encap_dpp);
 
     // One 1905 Encap DPP TLV 17.2.79
-    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_1905_encap_dpp, (uint8_t *)encap_dpp_tlv, encap_dpp_len);
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_1905_encap_dpp, reinterpret_cast<uint8_t *> (encap_dpp_tlv), static_cast<unsigned int> (encap_dpp_len));
 
     // Zero or One DPP Chirp value tlv 17.2.83
     if (chirp != NULL && chirp_len > 0) {
-        tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_dpp_chirp_value, (uint8_t *)chirp, chirp_len);
+        tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_dpp_chirp_value, reinterpret_cast<uint8_t *> (chirp), static_cast<unsigned int> (chirp_len));
     }
 
 
@@ -144,7 +144,7 @@ int em_provisioning_t::send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, si
     // TODO: If needed, likely not
 	//set_state(em_state_ctrl_configured);
 
-    return len;
+    return static_cast<int> (len);
 }
 
 int em_provisioning_t::send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t chirp_len)
@@ -163,10 +163,10 @@ int em_provisioning_t::send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t 
 
     //TODO: Decide on addressing.
     //tmp = em_msg_t::add_1905_header(tmp, &len, (uint8_t*)dm->get_agent_al_interface_mac(), (uint8_t*)dm->get_ctrl_al_interface_mac(), em_msg_type_chirp_notif);
-    tmp = em_msg_t::add_1905_header(tmp, &len, (uint8_t *)get_peer_mac(), get_current_cmd()->get_al_interface_mac(), em_msg_type_chirp_notif);
+    tmp = em_msg_t::add_1905_header(tmp, &len, const_cast<uint8_t *> (get_peer_mac()), get_current_cmd()->get_al_interface_mac(), em_msg_type_chirp_notif);
 
     // One DPP Chirp value tlv 17.2.83
-    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_dpp_chirp_value, (uint8_t *)chirp, chirp_len);
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_dpp_chirp_value, reinterpret_cast<uint8_t *> (chirp), static_cast<unsigned int> (chirp_len));
 
     tmp = em_msg_t::add_eom_tlv(tmp, &len);
 
@@ -185,32 +185,32 @@ int em_provisioning_t::send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t 
     // TODO: If needed, likely not
 	//set_state(em_state_ctrl_configured);
 
-    return len;
+    return static_cast<int> (len);
 
 }
 
 int em_provisioning_t::create_bss_config_req_msg(uint8_t *buff)
 {
     uint16_t  msg_id = em_msg_type_bss_config_req;
-    int len = 0;
+    unsigned int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     uint8_t *tmp = buff;
     uint16_t type = htons(ETH_P_1905);
 
-    memcpy(tmp, (uint8_t *)get_peer_mac(), sizeof(mac_address_t));
+    memcpy(tmp, reinterpret_cast<uint8_t *> (get_peer_mac()), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
     memcpy(tmp, get_current_cmd()->get_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
-    memcpy(tmp, (uint8_t *)&type, sizeof(uint16_t));
+    memcpy(tmp, reinterpret_cast<uint8_t *> (&type), sizeof(uint16_t));
     tmp += sizeof(uint16_t);
-    len += sizeof(uint16_t);
+    len += static_cast<unsigned int> (sizeof(uint16_t));
 
-    cmdu = (em_cmdu_t *)tmp;
+    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_id);
@@ -218,7 +218,7 @@ int em_provisioning_t::create_bss_config_req_msg(uint8_t *buff)
     cmdu->last_frag_ind = 1;
 
     tmp += sizeof(em_cmdu_t);
-    len += sizeof(em_cmdu_t);
+    len += static_cast<unsigned int> (sizeof(em_cmdu_t));
 
     // One miltiap profile tlv 17.2.47
     // One supported service tlv 17.2.1
@@ -230,14 +230,14 @@ int em_provisioning_t::create_bss_config_req_msg(uint8_t *buff)
     // One BSS configuration request tlv 17.2.84
 
     // End of message
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_eom;
     tlv->len = 0;
 
     tmp += (sizeof (em_tlv_t));
-    len += (sizeof (em_tlv_t));
+    len += static_cast<unsigned int> (sizeof(em_tlv_t));
 
-    return len;
+    return static_cast<int> (len);
 
 }
 
@@ -291,25 +291,25 @@ int em_provisioning_t::create_bss_config_rsp_msg(uint8_t *buff)
 int em_provisioning_t::create_bss_config_res_msg(uint8_t *buff)
 {
     uint16_t  msg_id = em_msg_type_bss_config_res;
-    int len = 0;
+    unsigned int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     uint8_t *tmp = buff;
     uint16_t type = htons(ETH_P_1905);
 
-    memcpy(tmp, (uint8_t *)get_peer_mac(), sizeof(mac_address_t));
+    memcpy(tmp, reinterpret_cast<uint8_t *> (get_peer_mac()), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
     memcpy(tmp, get_current_cmd()->get_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
 
-    memcpy(tmp, (uint8_t *)&type, sizeof(uint16_t));
+    memcpy(tmp, reinterpret_cast<uint8_t *> (&type), sizeof(uint16_t)); 
     tmp += sizeof(uint16_t);
-    len += sizeof(uint16_t);
+    len += static_cast<unsigned int> (sizeof(uint16_t));
 
-    cmdu = (em_cmdu_t *)tmp;
+    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_id);
@@ -317,22 +317,22 @@ int em_provisioning_t::create_bss_config_res_msg(uint8_t *buff)
     cmdu->last_frag_ind = 1;
 
     tmp += sizeof(em_cmdu_t);
-    len += sizeof(em_cmdu_t);
+    len += static_cast<unsigned int> (sizeof(em_cmdu_t));
 
     // One BSS configuration report tlv 17.2.75
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_dpp_chirp_value;
 
 
     // End of message
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_eom;
     tlv->len = 0;
 
     tmp += (sizeof (em_tlv_t));
-    len += (sizeof (em_tlv_t));
+    len += static_cast<unsigned int> (sizeof (em_tlv_t));
 
-    return len;
+    return static_cast<int> (len);
 
 }
 
@@ -491,7 +491,6 @@ int em_provisioning_t::handle_dpp_chirp_notif(uint8_t *buff, unsigned int len)
             // Then construct an Auth request frame and send back in an Encap message
             em_dpp_chirp_value_t* chirp_tlv = reinterpret_cast<em_dpp_chirp_value_t*> (tlv->value);
 
-            uint8_t* out_frame = NULL;
             if (m_ec_manager->process_chirp_notification(chirp_tlv, htons(tlv->len)) != 0){
                 //TODO: Fail
             }

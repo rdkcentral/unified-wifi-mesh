@@ -96,7 +96,7 @@ public:
      * @warning The buffer must be freed by the caller
      */
     static inline uint8_t* add_attrib(uint8_t *buff, uint16_t* buff_len, ec_attrib_id_t id, uint8_t val) {
-        return add_attrib(buff, buff_len, id, sizeof(uint8_t), (uint8_t *)&val);
+        return add_attrib(buff, buff_len, id, sizeof(uint8_t), const_cast<uint8_t *> (&val));
     }
 
     /**
@@ -110,7 +110,7 @@ public:
      * @warning The buffer must be freed by the caller
      */
     static inline uint8_t* add_attrib(uint8_t *buff, uint16_t* buff_len, ec_attrib_id_t id, uint16_t val) {
-        return add_attrib(buff, buff_len, id, sizeof(uint16_t), (uint8_t *)&val);
+        return add_attrib(buff, buff_len, id, sizeof(uint16_t), reinterpret_cast<uint8_t *> (&val));
     }
 
     /**
@@ -122,12 +122,12 @@ public:
      * @warning The frame must be freed by the caller
      */
     static inline ec_frame_t* alloc_frame(ec_frame_type_t type) {
-        uint8_t* buff = (uint8_t*) calloc(EC_FRAME_BASE_SIZE, 1);
+        uint8_t* buff = static_cast<uint8_t*>(calloc(EC_FRAME_BASE_SIZE, 1));
         if (buff == NULL) {
             printf("%s:%d unable to allocate memory\n", __func__, __LINE__);
             return NULL;
         }
-        ec_frame_t    *frame = (ec_frame_t *)buff;
+        ec_frame_t    *frame = reinterpret_cast<ec_frame_t *> (buff);
         init_frame(frame);
         frame->frame_type = type;
         return frame;

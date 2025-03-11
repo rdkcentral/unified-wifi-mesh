@@ -4,7 +4,7 @@
 
 bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
-    ec_attribute_t *attrib = ec_util::get_attrib(frame->attributes, len-EC_FRAME_BASE_SIZE, ec_attrib_id_resp_bootstrap_key_hash);
+    ec_attribute_t *attrib = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (len - EC_FRAME_BASE_SIZE), ec_attrib_id_resp_bootstrap_key_hash);
     if (!attrib) {
         return -1;
     }
@@ -28,9 +28,9 @@ bool ec_pa_configurator_t::handle_cfg_request(uint8_t *buff, unsigned int len, u
 {
     printf("%s:%d: Rx'd a DPP Configuration Request from " MACSTRFMT "\n", __func__, __LINE__, MAC2STR(sa));
     uint8_t *p = buff;
-    ec_gas_frame_base_t *gas_frame_base = (ec_gas_frame_base_t *)p;
+    ec_gas_frame_base_t *gas_frame_base = reinterpret_cast<ec_gas_frame_base_t *> (p);
     p += sizeof(ec_gas_frame_base_t);
-    ec_gas_initial_request_frame_t *gas_initial_request = (ec_gas_initial_request_frame_t *)p;
+    ec_gas_initial_request_frame_t *gas_initial_request = reinterpret_cast<ec_gas_initial_request_frame_t *> (p);
     printf(
         "%s:%d: Got a DPP config request! category=%02x action=%02x dialog_token=%02x ape=" APEFMT
         " ape_id=" APEIDFMT " query_len=%d\n",
@@ -64,7 +64,7 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
     uint8_t* encap_frame = NULL;
     uint8_t encap_frame_len = 0;
 
-    if (ec_util::parse_encap_dpp_tlv(encap_tlv, encap_tlv_len, &dest_mac, &frame_type, &encap_frame, &encap_frame_len) < 0) {
+    if (ec_util::parse_encap_dpp_tlv(encap_tlv, encap_tlv_len, &dest_mac, &frame_type, &encap_frame, &encap_frame_len) == false) {
         printf("%s:%d: Failed to parse Encap DPP TLV\n", __func__, __LINE__);
         return false;
     }
@@ -73,7 +73,7 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
     uint8_t chirp_hash[255] = {0}; // Max hash length to avoid dynamic allocation
     uint8_t chirp_hash_len = 0;
 
-    ec_frame_type_t ec_frame_type = (ec_frame_type_t)frame_type;
+    ec_frame_type_t ec_frame_type = static_cast<ec_frame_type_t> (frame_type);
 
     bool did_finish = false;
 
@@ -83,7 +83,7 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
                 printf("%s:%d: Chirp TLV is empty\n", __func__, __LINE__);
                 break;
             }
-            if (ec_util::parse_dpp_chirp_tlv(chirp_tlv, chirp_tlv_len, &chirp_mac, (uint8_t**)&chirp_hash, &chirp_hash_len) < 0) {
+            if (ec_util::parse_dpp_chirp_tlv(chirp_tlv, chirp_tlv_len, &chirp_mac, reinterpret_cast<uint8_t**> (&chirp_hash), &chirp_hash_len) == false) {
                 printf("%s:%d: Failed to parse DPP Chirp TLV\n", __func__, __LINE__);
                 break;
             }
