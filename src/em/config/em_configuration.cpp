@@ -2378,7 +2378,7 @@ int em_configuration_t::compute_keys(unsigned char *remote_pub, unsigned short p
     //util::print_hex_dump(secret_len, secret);
 
     addr[0] = secret;
-    length[0] = (size_t) secret_len;
+    length[0] = static_cast<size_t> (secret_len);
 
     if (compute_digest(1, addr, length, dhkey) != 1) {
         free(secret);
