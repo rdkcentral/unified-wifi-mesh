@@ -67,7 +67,7 @@ int ec_crypto::compute_hkdf_key(ec_persistent_context_t& p_ctx, uint8_t *key_out
     uint8_t *bn_buffer = NULL;
     uint8_t *ikm = NULL;
     int ikm_len = 0;
-    int result = 0, offset = 0;
+    int result = 0;
     
     // Calculate prime length for padding and format BIGNUMs
     // Safely convert int to size_t, should always be positive
@@ -248,7 +248,7 @@ int ec_crypto::hkdf (const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen,
             tweaklen = saltlen;
         } else {
             tweak = salt;
-            tweaklen = static_cast<unsigned int> (saltlen);
+            tweaklen = saltlen;
         }
         (void)HMAC(h, tweak, tweaklen, ikm, static_cast<size_t>(ikmlen), prk, reinterpret_cast<unsigned int*>(&prklen));
         if (!salt || (saltlen == 0)) {
@@ -256,13 +256,13 @@ int ec_crypto::hkdf (const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen,
         }
     } else {
         prk = ikm;
-        prklen = static_cast<unsigned int> (ikmlen);
+        prklen = ikmlen;
     }
     memset(digest, 0, static_cast<size_t>(digest_len));
     digest_len = 0;
     ctr = 0;
     len = 0;
-    while (len < static_cast<unsigned int> (okmlen)) {
+    while (len < okmlen) {
         /*
          * T(0) = all zeros
          * T(n) = HMAC(prk, T(n-1) | info | counter)
