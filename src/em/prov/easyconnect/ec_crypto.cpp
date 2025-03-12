@@ -468,6 +468,15 @@ bool ec_crypto::init_persistent_ctx(ec_persistent_context_t& p_ctx, const SSL_KE
         return false;
     }
 
+    p_ctx.order = BN_new();
+
+    if (!EC_GROUP_get_order(p_ctx.group, p_ctx.order, p_ctx.bn_ctx)) {
+        BN_free(p_ctx.order);
+        BN_free(p_ctx.prime);
+        BN_CTX_free(p_ctx.bn_ctx);
+        return false;
+    }
+
     p_ctx.nid = EC_GROUP_get_curve_name(p_ctx.group);
 
     //printf("%s:%d nid: %d\n", __func__, __LINE__, p_ctx.nid);
@@ -494,6 +503,9 @@ bool ec_crypto::init_persistent_ctx(ec_persistent_context_t& p_ctx, const SSL_KE
             break;
         default:
             printf("%s:%d nid:%d not handled\n", __func__, __LINE__, p_ctx.nid);
+            BN_free(p_ctx.order);
+            BN_free(p_ctx.prime);
+            BN_CTX_free(p_ctx.bn_ctx);
             return false;
     }
 
@@ -502,6 +514,9 @@ bool ec_crypto::init_persistent_ctx(ec_persistent_context_t& p_ctx, const SSL_KE
     // Fetch prime
     if (EC_GROUP_get_curve(p_ctx.group, p_ctx.prime, NULL, NULL, p_ctx.bn_ctx) == 0) {
         printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
+        BN_free(p_ctx.order);
+        BN_free(p_ctx.prime);
+        BN_CTX_free(p_ctx.bn_ctx);
         return false;
     }
 
@@ -612,4 +627,107 @@ std::pair<const BIGNUM *, const EC_POINT *> ec_crypto::generate_proto_keypair(ec
     }
 
     return std::pair<const BIGNUM*, const EC_POINT*>(proto_priv, proto_pub);
+}
+
+std::optional<std::vector<cJSON*>> ec_crypto::split_decode_connector(const char* conn) {
+    if (conn == NULL) {
+        printf("%s:%d: Connector is NULL\n", __func__, __LINE__);
+        return std::nullopt;
+    }
+    std::string connector(conn);
+    // Split connector by '.'
+    std::vector<std::string> parts = util::split_by_delim(connector, '.');
+    if (parts.size() != 3) {
+        printf("%s:%d: Connector does not have 3 parts\n", __func__, __LINE__);
+        if (parts.size() == 2){
+            printf("%s:%d: Connector is missing signature (len=2)\n", __func__, __LINE__);
+        }
+        return std::nullopt;
+    }
+
+    bool did_succeed = true;
+    
+    // Base 64 URL + JSON decode each part
+    std::vector<cJSON*> decoded_parts;
+    for (size_t i = 0; i < parts.size(); i++) {
+        auto part = parts[i];
+        auto decoded = em_crypto_t::base64url_decode(part);
+        if (decoded == std::nullopt) {
+            printf("%s:%d: Failed to decode part %ld, exiting\n", __func__, __LINE__, i);
+            did_succeed = false;
+            break;
+        }
+        std::string decoded_str(decoded->begin(), decoded->end());
+        
+        // Test if JSON decodes properly
+        cJSON *json = cJSON_Parse(decoded_str.c_str());
+        
+        if (json == NULL) {
+            cJSON_Delete(json);
+            printf("%s:%d: Failed to parse JSON part %ld, exiting\n", __func__, __LINE__, i);
+            did_succeed = false;
+            break;
+        }
+        decoded_parts.push_back(json);
+        
+    }
+
+    if (!did_succeed) {
+        printf("%s:%d: Full validation/decoding failed\n", __func__, __LINE__);
+        for (size_t i = 0; i < decoded_parts.size(); i++) {
+            printf("%s:%d: Cleaning up part %ld\n", __func__, __LINE__, i);
+            cJSON_Delete(decoded_parts[i]);
+        }
+        return std::nullopt;
+    }
+    return decoded_parts;
+}
+
+const char * ec_crypto::generate_connector(const cJSON * jws_header, const cJSON * jws_payload, EVP_PKEY * sign_key)
+{
+    if (jws_header == NULL || jws_payload == NULL || sign_key == NULL) {
+        printf("%s:%d: Invalid input\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    char* jws_header_cstr = cJSON_PrintUnformatted(jws_header);
+    char* jws_payload_cstr = cJSON_PrintUnformatted(jws_payload);
+    if (jws_header_cstr == NULL || jws_payload_cstr == NULL) {
+        printf("%s:%d: Failed to convert cJSON to string\n", __func__, __LINE__);
+        if (jws_header_cstr) free(jws_header_cstr);
+        if (jws_payload_cstr) free(jws_payload_cstr);
+        return NULL;
+    }
+    std::string jws_header_str(jws_header_cstr);
+    std::string jws_payload_str(jws_payload_cstr);
+    free(jws_header_cstr);
+    free(jws_payload_cstr);
+
+    // NOTE: Currently assuming it's always UTF-8 already.
+    std::string base64_jws_header = em_crypto_t::base64url_encode(jws_header_str);
+    std::string base64_jws_payload = em_crypto_t::base64url_encode(jws_payload_str);
+
+    std::string sig_data = base64_jws_header + "." + base64_jws_payload;
+    std::vector<uint8_t> sig_data_vec(sig_data.begin(), sig_data.end());
+    std::optional<std::vector<uint8_t>> signature = em_crypto_t::sign_data_ecdsa(sig_data_vec, sign_key);
+    if (!signature.has_value()) {
+        printf("%s:%d: Failed to sign data\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    std::string base64_signature = em_crypto_t::base64url_encode(signature.value());
+    if (base64_signature.empty()) {
+        printf("%s:%d: Failed to encode signature\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    std::string connector = base64_jws_header + "." + base64_jws_payload + "." + base64_signature;
+
+    char* connector_cstring = strdup(connector.c_str());
+    if (connector_cstring == NULL) {
+        printf("%s:%d: Failed to convert connector to a malloced c string\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    return connector_cstring;
 }
