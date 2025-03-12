@@ -133,6 +133,48 @@ public:
         return frame;
     }
 
+    static std::pair<void *, size_t> alloc_gas_frame(dpp_gas_action_type_t action, uint8_t dialog_token) {
+        void *frame = nullptr;
+        size_t created_frame_size = 0UL;
+        switch(action) {
+            case dpp_gas_action_type_t::dpp_gas_initial_req: {
+                frame = calloc(1, sizeof(ec_gas_initial_request_frame_t));
+                if (!frame) {
+                    printf("%s:%d: Failed to allocate GAS frame!\n", __func__, __LINE__);
+                    break;
+                }
+                auto *req_frame = static_cast<ec_gas_initial_request_frame_t *>(frame);
+                memcpy(req_frame->ape, DPP_GAS_CONFIG_REQ_APE, sizeof(req_frame->ape));
+                memcpy(req_frame->ape_id, DPP_GAS_CONFIG_REQ_PROTO_ID, sizeof(req_frame->ape_id));
+                created_frame_size = sizeof(ec_gas_initial_request_frame_t);
+            }
+            break;
+            case dpp_gas_action_type_t::dpp_gas_initial_resp: {
+                frame = calloc(1, sizeof(ec_gas_initial_response_frame_t));
+                if (!frame) {
+                    printf("%s:%d: Failed to allocate GAS frame!\n", __func__, __LINE__);
+                    break;
+                }
+                auto *resp_frame = static_cast<ec_gas_initial_response_frame_t *>(frame);
+                memcpy(resp_frame->ape, DPP_GAS_CONFIG_REQ_APE, sizeof(resp_frame->ape));
+                memcpy(resp_frame->ape_id, DPP_GAS_CONFIG_REQ_PROTO_ID, sizeof(resp_frame->ape_id));
+                created_frame_size = sizeof(ec_gas_initial_response_frame_t);
+            }
+            break;
+            default:
+                printf("%s:%d: unhandled GAS frame type=%02x\n", __func__, __LINE__, action);
+                break;
+        }
+        // Shared fields
+        if (frame) {
+            ec_gas_frame_base_t *base = static_cast<ec_gas_frame_base_t *>(frame);
+            base->category = 0x04;
+            base->action = static_cast<uint8_t>(action);
+            base->dialog_token = dialog_token;
+        }
+        return std::make_pair(frame, created_frame_size);
+    }
+
     /**
      * @brief Copy (overrride) attributes to a frame
      * 
@@ -144,6 +186,17 @@ public:
      * @warning The frame must be freed by the caller
      */
     static ec_frame_t* copy_attrs_to_frame(ec_frame_t *frame, uint8_t *attrs, size_t attrs_len);
+
+    /**
+     * @brief Copy (over-write) attributes to a frame
+     * 
+     * @param frame The frame to copy the attribues to
+     * @param frame_base_size The offset at which to copy attributes to
+     * @param attrs The attributes to copy
+     * @param attrs_len The length of the attributes
+     * @return uint8_t *, base of the frame with newly copied attributes, or nullptr on failure
+     */
+    static uint8_t* copy_attrs_to_frame(uint8_t *frame, size_t frame_base_size, uint8_t *attrs, size_t attrs_len);
 
     /**
      * @brief Validate an EC frame based on the WFA parameters
@@ -252,6 +305,8 @@ public:
     static uint8_t* add_wrapped_data_attr(ec_frame_t *frame, uint8_t* frame_attribs, size_t* non_wrapped_len, 
         bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> create_wrap_attribs);
 
+    static uint8_t* add_wrapped_data_attr(uint8_t *frame, size_t frame_len, uint8_t* frame_attribs, size_t* non_wrapped_len, 
+        bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> create_wrap_attribs);
 
     /**
      * @brief Unwrap a wrapped data attribute

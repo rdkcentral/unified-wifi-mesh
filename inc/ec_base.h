@@ -222,20 +222,22 @@ typedef struct {
 } __attribute__((packed)) ec_gas_frame_base_t;
 
 typedef struct {
+    ec_gas_frame_base_t base;
     uint8_t ape[3];
     uint8_t ape_id[7];
     uint16_t query_len;
     uint8_t query[];
-} ec_gas_initial_request_frame_t;
+} __attribute__((packed)) ec_gas_initial_request_frame_t;
 
 typedef struct {
+    ec_gas_frame_base_t base;
     uint16_t status_code;
     uint16_t gas_comeback_delay;
     uint8_t ape[3];
     uint8_t ape_id[7];
     uint16_t resp_len;
     uint8_t resp[];
-} ec_gas_initial_response_frame_t;
+} __attribute__((packed)) ec_gas_initial_response_frame_t;
 
 // Used to avoid many many if-not-null checks
 #define ASSERT_FALSE(x, ret, errMsg, ...) \
