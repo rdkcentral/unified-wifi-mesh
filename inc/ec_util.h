@@ -131,6 +131,48 @@ public:
         return frame;
     }
 
+    static std::pair<void *, size_t> alloc_gas_frame(dpp_gas_action_type_t action, uint8_t dialog_token) {
+        void *frame = nullptr;
+        size_t created_frame_size = 0UL;
+        switch(action) {
+            case dpp_gas_action_type_t::dpp_gas_initial_req: {
+                frame = calloc(1, sizeof(ec_gas_initial_request_frame_t));
+                if (!frame) {
+                    printf("%s:%d: Failed to allocate GAS frame!\n", __func__, __LINE__);
+                    break;
+                }
+                auto *req_frame = (ec_gas_initial_request_frame_t *)frame;
+                memcpy(req_frame->ape, DPP_GAS_CONFIG_REQ_APE, sizeof(req_frame->ape));
+                memcpy(req_frame->ape_id, DPP_GAS_CONFIG_REQ_PROTO_ID, sizeof(req_frame->ape_id));
+                created_frame_size = sizeof(ec_gas_initial_request_frame_t);
+            }
+            break;
+            case dpp_gas_action_type_t::dpp_gas_initial_resp: {
+                frame = calloc(1, sizeof(ec_gas_initial_response_frame_t));
+                if (!frame) {
+                    printf("%s:%d: Failed to allocate GAS frame!\n", __func__, __LINE__);
+                    break;
+                }
+                auto *resp_frame = (ec_gas_initial_response_frame_t *) frame;
+                memcpy(resp_frame->ape, DPP_GAS_CONFIG_REQ_APE, sizeof(resp_frame->ape));
+                memcpy(resp_frame->ape_id, DPP_GAS_CONFIG_REQ_PROTO_ID, sizeof(resp_frame->ape_id));
+                created_frame_size = sizeof(ec_gas_initial_response_frame_t);
+            }
+            break;
+            default:
+                printf("%s:%d: unhandled GAS frame type=%02x\n", __func__, __LINE__, action);
+                break;
+        }
+        // Shared fields
+        if (frame) {
+            ec_gas_frame_base_t *base = (ec_gas_frame_base_t *)frame;
+            base->category = 0x04;
+            base->action = static_cast<uint8_t>(action);
+            base->dialog_token = dialog_token;
+        }
+        return std::make_pair(frame, created_frame_size);
+    }
+
     /**
      * @brief Copy (overrride) attributes to a frame
      * 

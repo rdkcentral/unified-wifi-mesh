@@ -3,6 +3,26 @@
 #include "ec_util.h"
 #include "ec_crypto.h"
 #include "util.h"
+#include "cjson/cJSON.h"
+
+// TODO: Hard-coded! This should maybe be a func ptr
+// Needs to know all about Enrollee's Wi-Fi caps
+// Radios, supported AKM suites, etc.
+// See: EasyMesh 5.3.2 Table 5
+static cJSON *gen_config_obj() {
+    cJSON *obj = cJSON_CreateObject();
+    if (!obj) return nullptr;
+    cJSON *name = cJSON_CreateString("EasyMesh Agent");
+    if (!name) return nullptr;
+    cJSON_AddItemToObject(obj, "name", name);
+    cJSON *tech = cJSON_CreateString("map");
+    if (!tech) return nullptr;
+    cJSON_AddItemToObject(obj, "wi-fi_tech", tech);
+    cJSON *role = cJSON_CreateString("mapAgent");
+    if (!role) return nullptr;
+    cJSON_AddItemToObject(obj, "netRole", role);
+    return obj;
+}
 
 ec_enrollee_t::ec_enrollee_t(std::string mac_addr) : m_mac_addr(mac_addr)
 {
@@ -161,6 +181,13 @@ element consisting of the Initiator’s nonce and the Responder’s desired capa
 
 bool ec_enrollee_t::handle_auth_confirm(uint8_t *buff, unsigned int len)
 {
+
+    const auto [frame, frame_len] = create_config_request();
+    if (frame == nullptr || frame_len == 0) {
+        printf("%s:%d: Could not create DPP Configuration Request!\n", __func__, __LINE__);
+        return false;
+    }
+
     return true;
 }
 
@@ -237,6 +264,62 @@ std::pair<uint8_t *, uint16_t> ec_enrollee_t::create_recfg_auth_response(ec_stat
 
 std::pair<uint8_t *, uint16_t> ec_enrollee_t::create_config_request()
 {
+    // EasyConnect 6.4.2 DPP Configuration Request
+    // Regardless of whether the Initiator or Responder took the role of Configurator, the DPP Configuration protocol is always
+    // initiated by the Enrollee. To start, the Enrollee generates one or more DPP Configuration Request objects (see section
+    // 4.4) and generates a new nonce, E-nonce, whose length is determined according to Table 4. When the Configurator has
+    // not indicated support for protocol version number 2 or higher, no more than one DPP Configuration Request object shall
+    // be included. The E-nonce attribute and the DPP Configuration Request object attribute(s) are wrapped with ke. The
+    // wrapped attributes are then placed in a DPP Configuration Request frame, and sent to the Configurator.
+    // Enrollee → Configurator: { E-nonce, configRequest }ke
+
+    if ((m_eph_ctx.e_nonce = (uint8_t *)malloc(m_p_ctx.nonce_len)) == NULL) {
+        printf("%s:%d: Could not malloc for E-nonce!\n", __func__, __LINE__);
+        return {};
+    }
+    if (RAND_bytes(m_eph_ctx.e_nonce, m_p_ctx.nonce_len) != 1) {
+        printf("%s:%d: Could not generate E-nonce!\n", __func__, __LINE__);
+        return {};
+    }
+    cJSON *config_obj = nullptr;
+    size_t config_obj_len = 0UL;
+
+    // XXX: EasyMesh R >= 5 mandates all entities to support _at least_ DPP version 2, but this check is here to align with EasyConnect spec
+    if (m_boot_data.version >= 2) {
+        // XXX: multiple request objects
+    } else {
+        // XXX: single request object
+        config_obj = gen_config_obj();
+    }
+
+    if (!config_obj) {
+        printf("%s:%d: Failed to create DPP Configuration Request object(s)!\n", __func__, __LINE__);
+        return {};
+    }
+
+    // XXX: Dialog token can be thought of as a session key between Enrollee and Configurator regarding configuration
+    // From specs (EasyMesh, EasyConnect, 802.11), it seems this is just arbitrarily chosen (1 byte), but
+    // must be unique per GAS frame "session" exchange.
+    // See: 802.11-2020 9.4.1.12 Dialog Token field
+    int dialog_token = 1;
+    auto [frame, frame_len] = ec_util::alloc_gas_frame(dpp_gas_initial_req, dialog_token);
+    if (frame == nullptr || frame_len == 0) {
+        printf("%s:%d: Could not create DPP Configuration Request GAS frame!\n", __func__, __LINE__);
+        return {};
+    }
+    {
+        // cJSON doesn't provide an API for getting length of an obj, so we gotta do this
+        char *s = cJSON_Print(config_obj);
+        if (s) {
+            config_obj_len = strlen(s);
+            cJSON_Delete(s);
+        }
+    }
+    ec_gas_initial_request_frame_t *initial_req_frame = (ec_gas_initial_request_frame_t *)frame;
+    memcpy(initial_req_frame->query, (void *)config_obj, config_obj_len);
+    initial_req_frame->query_len = (sizeof(ec_gas_initial_request_frame_t) + config_obj_len);
+    // XXX: TODO: Wrap with ke, requires refactor of ec_util::add_wrapped_data_attr since it currently takes an ec_frame *
+
     return std::pair<uint8_t *, uint16_t>();
 }
 
