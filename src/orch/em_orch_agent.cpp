@@ -311,7 +311,7 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 				}
 				break;
             case em_cmd_type_cfg_renew:
-                if (memcmp(pcmd->get_data_model()->get_radio(num)->get_radio_info()->intf.mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
+                if ((memcmp(pcmd->get_data_model()->get_radio(num)->get_radio_info()->intf.mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) && (!(em->is_al_interface_em()))) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }
@@ -369,6 +369,7 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 						printf("%s:%d em_cmd_type_channel_pref_query radio cannot be found.\n", __func__, __LINE__);
 						break;
 					}
+
 					if ((memcmp(radio->get_radio_interface_mac(),em->get_radio_interface_mac(),sizeof(mac_address_t)) == 0)
 							&& (em->get_state() >= em_state_agent_topo_synchronized)
 							&& (em->get_state() < em_state_agent_configured)) {
@@ -386,7 +387,7 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                         printf("%s:%d channel sel radio cannot be found.\n", __func__, __LINE__);
                         break;
                     }
-                    if ((memcmp(radio->get_radio_interface_mac(),em->get_radio_interface_mac(),sizeof(mac_address_t)) == 0) && (em->get_state() == em_state_agent_channel_selection_pending)) {
+                    if ((memcmp(radio->get_radio_interface_mac(),em->get_radio_interface_mac(),sizeof(mac_address_t)) == 0) && (em->get_state() == em_state_agent_channel_select_configuration_pending)) {
                         queue_push(pcmd->m_em_candidates, em);
                         count++;
                         dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), dst_mac_str);

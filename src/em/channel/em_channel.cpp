@@ -1730,12 +1730,13 @@ int em_channel_t::handle_channel_sel_req(unsigned char *buff, unsigned int len)
 	get_mgr()->io_process(em_bus_event_type_channel_sel_req, (unsigned char *)&op_class, sizeof(op_class_channel_sel)); 
     
 	printf("%s:%d Received channel selection request \n",__func__, __LINE__);
-
+	set_state(em_state_agent_channel_select_configuration_pending);
     return 0;
 }
 
 int em_channel_t::handle_channel_sel_rsp(unsigned char *buff, unsigned int len)
 {
+	printf("%s:%d Received channel selection response \n",__func__, __LINE__);
     set_state(em_state_ctrl_channel_selected);
     return 0;
 }
@@ -1763,6 +1764,7 @@ int em_channel_t::handle_operating_channel_rprt(unsigned char *buff, unsigned in
         tlv_len -= (sizeof(em_tlv_t) + htons(tlv->len));
         tlv = (em_tlv_t *)((unsigned char *)tlv + sizeof(em_tlv_t) + htons(tlv->len));
     }
+	printf("%s:%d Operating channel report recv\n", __func__, __LINE__);
     set_state(em_state_ctrl_configured);
 
 	return 0;
@@ -1959,7 +1961,9 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
             break;
 
         case em_msg_type_channel_sel_rsp:
-            handle_channel_sel_rsp(data, len);
+		if (get_service_type() == em_service_type_ctrl) {
+	            handle_channel_sel_rsp(data, len);	
+		}
             break;
 
         case em_msg_type_op_channel_rprt:

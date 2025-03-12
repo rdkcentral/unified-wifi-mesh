@@ -75,7 +75,6 @@ void em_orch_ctrl_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
 {
     // if the command is SetSSID and 5 renews have been sent transition to fini
-
     switch (pcmd->m_type) {
         case em_cmd_type_set_ssid:
         case em_cmd_type_cfg_renew:
@@ -110,6 +109,10 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             break;
         
         case em_cmd_type_set_channel:
+	    if ((em->get_state() == em_state_ctrl_channel_selected) || (em->get_state() == em_state_ctrl_configured)) {
+		return true;
+             }
+	    break;
         case em_cmd_type_scan_channel:
             if (em->get_state() == em_state_ctrl_configured) {                               
 				return true;
@@ -211,10 +214,18 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
             }
             break;
 
+	case em_cmd_type_set_channel:
+	   if (em->get_state() == em_state_ctrl_configured) {
+                return true;
+            } else if (em->get_state() == em_state_ctrl_misconfigured) {
+                return true;
+            } else if( em->get_state() == em_state_ctrl_channel_selected) {
+		return true;
+	    }
+	break;
         case em_cmd_type_sta_steer:
         case em_cmd_type_sta_disassoc:
         case em_cmd_type_sta_link_metrics:
-        case em_cmd_type_set_channel:
         case em_cmd_type_scan_channel:
         case em_cmd_type_set_policy:
             if (em->get_state() == em_state_ctrl_configured) {
@@ -392,11 +403,11 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
     while (em != NULL) {
         switch (pcmd->m_type) {
             case em_cmd_type_set_ssid:
-                for (i = 0; i < pcmd->get_num_network_ssid(); i++) {
-                    if (em->is_set_ssid_candidate(pcmd->get_network_ssid(i))) {
-                        queue_push(pcmd->m_em_candidates, em);
-                        count++;
-                    }
+		if (em->is_al_interface_em() == false) {
+			dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
+			printf("%s:%d Set SSID : %s push to queue \n", __func__, __LINE__,mac_str);
+			queue_push(pcmd->m_em_candidates, em);
+			count++;
                 }
                 break;
 
@@ -416,14 +427,13 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
 
             case em_cmd_type_cfg_renew:
 		dm = pcmd->get_data_model();
-                dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.u.args.args[0], dm->m_radio[0].m_radio_info.intf.mac);
+		dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.u.args.args[0], dm->m_radio[0].m_radio_info.intf.mac);
 		// check if the radio is null mac
-                dm = pcmd->get_data_model();
 		if ((memcmp(null_mac, dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) &&  (em->is_al_interface_em() == false)) {
 			printf("%s:%d push to queue since null mac \n", __func__, __LINE__);	
 			queue_push(pcmd->m_em_candidates, em);
                 	count++;
-		} else if (memcmp(em->get_radio_interface_mac(), dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
+		} else if ((memcmp(em->get_radio_interface_mac(), dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) && (em->is_al_interface_em() == false)) {
 			dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
 			printf("%s:%d Auto config renew %s push to queue since mac matches\n", __func__, __LINE__,mac_str);
 			queue_push(pcmd->m_em_candidates, em);
@@ -455,6 +465,13 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 break;
             
             case em_cmd_type_set_channel:
+		if (em->is_al_interface_em() == false) {
+                        dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
+                        printf("%s:%d Set Channel : %s push to queue \n", __func__, __LINE__,mac_str);
+                        queue_push(pcmd->m_em_candidates, em);
+                        count++;
+                }
+                break;
             case em_cmd_type_scan_channel:
                 if (em->is_al_interface_em() == false) {
                     queue_push(pcmd->m_em_candidates, em);
