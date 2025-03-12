@@ -46,6 +46,11 @@ CXXFLAGS += $(INCLUDEDIRS) -g -DUNIT_TEST -Wall -Wextra -Wpointer-arith -Wcast-q
 ifeq ($(WITH_SAP), 1)
 CXXFLAGS += -DAL_SAP
 endif
+
+ifdef TESTING
+CXXFLAGS += -DTESTING
+endif
+
 LDFLAGS += $(LIBDIRS) $(LIBS) -fsanitize=address -fsanitize=undefined
 LIBDIRS = \
 	-L$(INSTALLDIR)/lib \
@@ -99,19 +104,51 @@ $(GENERIC_OBJECTS): %.o: %.c
 $(CTRL_OBJECTS): %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -o $@ -c $< 
 
-
-# Clean target: "make -f Makefile.Linux clean" to remove unwanted objects and executables.
-#
-
+# Clean everything
 clean:
 	$(RM) $(ALLOBJECTS) $(PROGRAM)
+	$(MAKE) clean_tests
 
-#
-# Run target: "make -f Makefile.Linux run" to execute the application
-#             You will need to add $(VARIABLE_NAME) for any command line parameters 
-#             that you defined earlier in this file.
-# 
 
+# Google Test integration
+TEST_DIR = $(ONEWIFI_EM_HOME)/tests
+TEST_EXEC = $(INSTALLDIR)/bin/onewifi_em_test
+TEST_SOURCES = $(wildcard $(TEST_DIR)/*.cpp)
+TEST_OBJECTS = $(TEST_SOURCES:.cpp=.o)
+TEST_CXXFLAGS = $(CXXFLAGS) -I/usr/include -I/usr/local/include -DTESTING
+
+# Test target
+test: check_test_files install_gtest $(TEST_OBJECTS)
+	@$(MAKE) $(ALLOBJECTS) TESTING=1
+	@echo "Building test executable with same link order as main build..."
+	$(CXX) -o $(TEST_EXEC) $(TEST_OBJECTS) $(ALLOBJECTS) $(LIBDIRS) $(LIBS) -lgtest -lgtest_main -pthread -fsanitize=address -fsanitize=undefined
+	@echo "Running tests..."
+	@$(TEST_EXEC)
+
+# Compile test source files
+$(TEST_DIR)/%.o: $(TEST_DIR)/%.cpp
+	@echo "Compiling test file $<..."
+	$(CXX) $(TEST_CXXFLAGS) -o $@ -c $<
+
+# Check if any test files exist
+check_test_files:
+	@if [ -z "$(TEST_SOURCES)" ]; then \
+		echo "Error: No test files found in $(TEST_DIR)/"; \
+		exit 1; \
+	fi
+
+# Install GTest if needed
+install_gtest:
+	@echo "Checking and installing Google Test if needed..."
+	@chmod +x $(ONEWIFI_EM_HOME)/build/install-gtest.sh
+	@$(ONEWIFI_EM_HOME)/build/install-gtest.sh
+
+# Run the program
 run:
-	./$(PROGRAM) 
+	./$(PROGRAM)
 
+# Clean test files only
+clean_tests:
+	$(RM) $(TEST_OBJECTS) $(TEST_EXEC)
+
+.PHONY: all test install_gtest check_test_files clean_tests compile_test_objects clean run

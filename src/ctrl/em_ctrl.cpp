@@ -859,6 +859,8 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register()
 }
 #endif
 
+
+#ifndef TESTING
 int main(int argc, const char *argv[])
 {
 #ifdef AL_SAP
@@ -871,6 +873,8 @@ int main(int argc, const char *argv[])
 
     return 0;
 }
+
+#endif // TESTING
 
 void wifi_util_print(wifi_log_level_t level, wifi_dbg_type_t module, char *format, ...)
 {

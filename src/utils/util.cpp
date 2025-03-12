@@ -388,3 +388,9 @@ std::vector<std::string> util::split_by_delim(const std::string& s, char delimit
     
     return tokens;
 }
+
+std::string util::remove_whitespace(std::string str)
+{
+    str.erase(std::remove_if(str.begin(), str.end(), ::isspace), str.end());
+    return str;
+}
