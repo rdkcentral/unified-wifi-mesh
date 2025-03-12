@@ -121,7 +121,7 @@ dm_orch_type_t dm_bss_list_t::get_dm_orch_type(db_client_t& db_client, const dm_
     pbss = get_bss(key);
 
     if (pbss != NULL) {
-        if (entry_exists_in_table(db_client, bss_mac_str) == false) {
+        if (entry_exists_in_table(db_client, key) == false) {
             return dm_orch_type_db_insert;
         }
 
