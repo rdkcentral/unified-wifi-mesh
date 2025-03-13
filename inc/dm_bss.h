@@ -20,6 +20,7 @@
 #define DM_BSS_H
 
 #include "em_base.h"
+#include "ieee80211.h"
 
 class dm_bss_t {
 public:
@@ -36,6 +37,21 @@ public:
 
 	bool match_criteria(char *criteria);
 	static int parse_bss_id_from_key(const char *key, em_bss_id_t *id);
+
+    /**
+     * @brief Add a vendor specific IE to the BSS
+     * 
+     * @param vs_ie Vendor specific IE to add
+     * @return true if the IE was added successfully, false if out of bounds
+     */
+    bool add_vendor_ie(struct ieee80211_vs_ie *vs_ie);
+
+    /**
+     * @brief Remove a vendor specific IE from the BSS. If the IE is not present, this function will return without error.
+     * 
+     * @param vs_ie Vendor specific IE to remove
+     */
+    void remove_vendor_ie(struct ieee80211_vs_ie *vs_ie);
 
     dm_bss_t(em_bss_info_t *bss);
     dm_bss_t(const dm_bss_t& bss);
