@@ -45,9 +45,19 @@
 #include "em_orch_ctrl.h"
 #include "util.h"
 
+#ifdef AL_SAP
+#include "al_service_access_point.hpp"
+#endif
+
 em_ctrl_t g_ctrl;
 const char *global_netid = "OneWifiMesh";
 
+#ifdef AL_SAP
+AlServiceAccessPoint* g_sap;
+MacAddress g_al_mac_sap;
+
+#define SOCKET_PATH "/tmp/ieee1905_tunnel"
+#endif
 
 void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
 {
@@ -593,7 +603,10 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         
             if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
                 printf("%s:%d: Found existing radio:%s\n", __func__, __LINE__, mac_str1);
-                em->set_state(em_state_ctrl_wsc_m1_pending);
+                if(em->get_state() != em_state_ctrl_wsc_m2_sent)
+                    em->set_state(em_state_ctrl_wsc_m1_pending);
+                else
+                    printf("%s:%d: Autoconf wsc msg sent already. Incorrect state = (%d)\n", __func__, __LINE__, em->get_state());
             } else {
                 if ((dm = get_data_model((const char *)global_netid, (const unsigned char *)hdr->src)) == NULL) {
                     printf("%s:%d: Can not find data model\n", __func__, __LINE__);
@@ -820,8 +833,38 @@ em_ctrl_t::~em_ctrl_t()
 
 }
 
+#ifdef AL_SAP
+AlServiceAccessPoint* em_ctrl_t::al_sap_register()
+{
+    AlServiceAccessPoint* sap = new AlServiceAccessPoint(SOCKET_PATH);
+
+    AlServiceRegistrationRequest registrationRequest(ServiceOperation::SO_ENABLE, ServiceType::SAP_TUNNEL_CLIENT);
+    sap->serviceAccessPointRegistrationRequest(registrationRequest);
+
+    AlServiceRegistrationResponse registrationResponse = sap->serviceAccessPointRegistrationResponse();
+
+    RegistrationResult result = registrationResponse.getResult();
+    if (result == RegistrationResult::SUCCESS) {
+        g_al_mac_sap = registrationResponse.getAlMacAddressLocal();
+        std::cout << "Registration completed with MAC Address: ";
+        for (auto byte : g_al_mac_sap) {
+            std::cout << std::hex << static_cast<int>(byte) << " ";
+        }
+        std::cout << std::dec << std::endl;
+    } else {
+        std::cout << "Registration failed with error: " << (int)result << std::endl;
+    }
+
+    return sap;
+}
+#endif
+
 int main(int argc, const char *argv[])
 {
+#ifdef AL_SAP
+    g_sap = g_ctrl.al_sap_register();
+#endif
+
     if (g_ctrl.init(argv[1]) == 0) {
         g_ctrl.start();
     }

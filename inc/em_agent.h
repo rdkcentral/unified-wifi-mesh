@@ -31,6 +31,7 @@
 #include <string>
 
 class em_cmd_agent_t;
+class AlServiceAccessPoint;
 
 class em_agent_t : public em_mgr_t {
 
@@ -136,7 +137,11 @@ public:
     void *get_assoc(void*);
     void io(void *data, bool input = true);
     bool agent_output(void *data);
-    
+
+#ifdef AL_SAP
+    AlServiceAccessPoint* al_sap_register();
+#endif
+
     em_agent_t();
     ~em_agent_t();
 
