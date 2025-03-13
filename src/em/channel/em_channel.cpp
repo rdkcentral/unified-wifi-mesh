@@ -1092,8 +1092,8 @@ short em_channel_t::create_cac_status_report_tlv(unsigned char *buff)
 			active->op_class = static_cast<unsigned char> (op_class->m_op_class_info.op_class);
 			active->channel = static_cast<unsigned char> (op_class->m_op_class_info.channel);
 			active->countdown_cac_comp[2] = static_cast<unsigned char> (op_class->m_op_class_info.countdown_cac_comp) & 0xFF;
-            active->countdown_cac_comp[1] = (static_cast<unsigned char> (op_class->m_op_class_info.countdown_cac_comp) & 0x0000FF00) >> 8;
-            active->countdown_cac_comp[0] = (static_cast<unsigned char> (op_class->m_op_class_info.countdown_cac_comp) & 0x00FF0000) >> 16;
+            active->countdown_cac_comp[1] = static_cast<unsigned char> ((op_class->m_op_class_info.countdown_cac_comp & 0x0000FF00) >> 8);
+            active->countdown_cac_comp[0] = static_cast<unsigned char> ((op_class->m_op_class_info.countdown_cac_comp & 0x00FF0000) >> 16);
 
 			len += static_cast<short unsigned int> (sizeof(em_cac_active_t));
 			tmp += sizeof(em_cac_active_t);
@@ -1414,7 +1414,6 @@ int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len
 int em_channel_t::handle_spatial_reuse_report(unsigned char *buff, unsigned int len)
 {
     dm_easy_mesh_t *dm;
-    unsigned int i = 0, found = 0;
     em_spatial_reuse_rprt_t *rpt = reinterpret_cast<em_spatial_reuse_rprt_t *> (buff);
     dm = get_data_model();
 
