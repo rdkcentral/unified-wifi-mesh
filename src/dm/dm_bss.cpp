@@ -251,11 +251,14 @@ void dm_bss_t::encode(cJSON *obj, bool summary)
     // Add the array to the object
     cJSON_AddItemToObject(obj, "BackhaulAKMsAllowed", backhaul_akmsArray);
 
+    printf("Encoding %d vendor elements\n", m_bss_info.vendor_elements_len);
     // Add vendor elements (ExtraVendorIEs) as hex string
-    char vendor_ies[2 * m_bss_info.vendor_elements_len + 1] = "";
+    char vendor_ies[2 * m_bss_info.vendor_elements_len + 1] = {0};
     if (m_bss_info.vendor_elements_len > 0) {
+        memset(vendor_ies, 0, sizeof(vendor_ies));
         for (unsigned int i = 0; i < m_bss_info.vendor_elements_len; i++) {
-            snprintf(vendor_ies + 2 * i, 3, "%02x", m_bss_info.vendor_elements[i]);
+            unsigned int offset = i * 2;
+            snprintf(vendor_ies + offset, sizeof(vendor_ies) - offset, "%02x", m_bss_info.vendor_elements[i]);
         }
     }
     cJSON_AddStringToObject(obj, "ExtraVendorIEs", vendor_ies);
@@ -419,6 +422,7 @@ void dm_bss_t::remove_vendor_ie(struct ieee80211_vs_ie *vs_ie)
     size_t vs_ie_len = offsetof(struct ieee80211_vs_ie, vs_oui) + vs_ie->vs_len;
     if (m_bss_info.vendor_elements_len < vs_ie_len) {
         // The IE is not present in the BSS, return true since it's technically removed
+        printf("%s:%d: Vendor IE not found in BSS\n", __func__, __LINE__);
         return;
     }
 
@@ -430,7 +434,7 @@ void dm_bss_t::remove_vendor_ie(struct ieee80211_vs_ie *vs_ie)
         size_t curr_ie_len = offsetof(struct ieee80211_vs_ie, vs_oui) + curr_ie->vs_len;
 
         // If the current IE is not the same length as the IE we're looking for, skip it
-        if (vs_ie_len != vs_ie_len) {
+        if (curr_ie_len != vs_ie_len) {
             curr_ie_head += curr_ie_len;
             continue;
         }

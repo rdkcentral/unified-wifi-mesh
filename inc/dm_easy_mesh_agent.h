@@ -49,6 +49,21 @@ public:
     int analyze_set_policy(em_bus_event_t *evt, wifi_bus_desc_t *desc, bus_handle_t *bus_hdl);
     int analyze_beacon_report(em_bus_event_t *evt, em_cmd_t *pcmd[]);
 
+    /**
+     * @brief Refresh the OneWifi subdoc with current information + provided data and send to OneWifi
+     * 
+     * @param desc The wifi bus descriptor
+     * @param bus_hdl The bus handle
+     * @param logname The string to use when logging
+     * @param type The subdoc type
+     * @param m2_cfg The m2ctrl radio config (optional/NULLable)
+     * @param policy_config The policy config (optional/NULLable)
+     * @return int 0 if encode fails, -1 if send fails, 1 if both succeed.
+     */
+    int refresh_onewifi_subdoc(wifi_bus_desc_t *desc, bus_handle_t *bus_hdl, const char* logname,
+                               webconfig_subdoc_type_t type, m2ctrl_radioconfig *m2_cfg=NULL, 
+                               em_policy_cfg_params_t *policy_config=NULL);
+
     static webconfig_error_t webconfig_dummy_apply(webconfig_subdoc_t *doc, webconfig_subdoc_data_t *data);
     dm_easy_mesh_agent_t();
     ~dm_easy_mesh_agent_t();  
