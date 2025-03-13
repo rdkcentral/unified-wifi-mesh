@@ -2235,6 +2235,11 @@ typedef struct {
     bool    multi_bssid;
     bool    transmitted_bssid;
     em_eht_operations_bss_t eht_ops;
+
+    // Extra vendor information elements for the BSS
+    // @note Don't manually allocate, use the helper functions to add/remove elements 
+    unsigned char vendor_elements[WIFI_AP_MAX_VENDOR_IE_LEN];
+    size_t vendor_elements_len;
 } em_bss_info_t;
 
 typedef struct {

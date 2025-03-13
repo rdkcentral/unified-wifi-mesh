@@ -1132,6 +1132,15 @@ struct ieee80211_csa_ie {
     uint8_t         csa_count;              /* Channel Switch Count */
 } __attribute__((packed));
 
+struct ieee80211_vs_ie{
+    uint8_t         vs_ie;         /* IEEE80211_ELEMID_VENDOR */
+    uint8_t         vs_len;
+    uint8_t         vs_oui[3];     /* Vendor OUI */
+    uint8_t         vs_type;       /* Vendor Specific type */
+    uint8_t         vs_subtype;    /* Vendor Specific sub-type (required for some devices, can be 0) */
+    uint8_t         payload[0];    /* Vendor Specific Payload */
+} __attribute__((packed));
+
 /*
  * Note the min acceptable CSA count is used to guard against
  * malicious CSA injection in station mode.  Defining this value
