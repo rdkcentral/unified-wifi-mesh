@@ -187,13 +187,13 @@ int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
     len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
     // Metric collection Interval capability tlv 17.2.59
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_metric_cltn_interval;
     sz = create_metric_col_int_tlv(tlv->value);
-    tlv->len = htons(sz);
+    tlv->len = htons(static_cast<uint16_t> (sz));
 
-    tmp += (sizeof(em_tlv_t) + sz);
-    len += (sizeof(em_tlv_t) + sz);
+    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += static_cast<unsigned int>  (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
     // Device Inventory tlv 17.2.76
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
