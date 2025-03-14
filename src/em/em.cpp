@@ -601,7 +601,6 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
 
     g_sap->serviceAccessPointDataRequest(sdu);
 #else
-    em_interface_t *al;
     em_short_string_t   ifname;
     struct sockaddr_ll sadr_ll;
     int sock;
