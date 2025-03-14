@@ -33,7 +33,7 @@ em_cmd_cfg_renew_t::em_cmd_cfg_renew_t(em_service_type_t service, em_cmd_params_
     m_type = em_cmd_type_cfg_renew;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
 
-    memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
+    memset(reinterpret_cast<unsigned char *> (&m_orch_desc[0]), 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
 
     m_svc = service;    
     m_orch_op_idx = 0;
