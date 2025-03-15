@@ -196,7 +196,7 @@ int dm_radio_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *
     switch (op) {
 		case dm_orch_type_db_insert:
 			ret = insert_row(db_client, key, radio_mac_str, info->enabled,
-						info->media_data.media_type, info->media_data.band, info->media_data.center_freq_index_1, info->media_data.center_freq_index_1,
+						info->media_data.media_type, info->band, info->media_data.center_freq_index_1, info->media_data.center_freq_index_1,
             			info->number_of_bss, info->number_of_unassoc_sta, info->noise, info->utilization, 
 						info->traffic_sep_combined_fronthaul, 
 						info->traffic_sep_combined_backhaul, info->steering_policy, info->channel_util_threshold, info->rcpi_steering_threshold, 
@@ -207,7 +207,7 @@ int dm_radio_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *
 
 		case dm_orch_type_db_update:
 			ret = update_row(db_client, radio_mac_str, info->enabled,
-                        info->media_data.media_type, info->media_data.band, info->media_data.center_freq_index_1, info->media_data.center_freq_index_1,
+                        info->media_data.media_type, info->band, info->media_data.center_freq_index_1, info->media_data.center_freq_index_1,
                         info->number_of_bss, info->number_of_unassoc_sta, info->noise, info->utilization,
                         info->traffic_sep_combined_fronthaul,
                         info->traffic_sep_combined_backhaul, info->steering_policy, info->channel_util_threshold, info->rcpi_steering_threshold,
@@ -261,6 +261,7 @@ int dm_radio_list_t::sync_db(db_client_t& db_client, void *ctx)
         info.enabled = db_client.get_number(ctx, 3);
         info.media_data.media_type = db_client.get_number(ctx, 4);
         info.media_data.band = db_client.get_number(ctx, 5);
+	info.band = (em_freq_band_t) db_client.get_number(ctx, 5);
         info.media_data.center_freq_index_1 = db_client.get_number(ctx, 6);
         info.media_data.center_freq_index_2 = db_client.get_number(ctx, 7);
         info.number_of_bss = db_client.get_number(ctx, 8);

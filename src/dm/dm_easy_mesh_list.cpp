@@ -353,7 +353,7 @@ void dm_easy_mesh_list_t::put_radio(const char *key, const dm_radio_t *radio)
     }
     *pradio = *radio;
 
-    if ((em = m_mgr->create_node(&pradio->m_radio_info.intf, (em_freq_band_t)pradio->m_radio_info.media_data.band, dm, false,
+    if ((em = m_mgr->create_node(&pradio->m_radio_info.intf, (em_freq_band_t)pradio->m_radio_info.band, dm, false,
             em_profile_type_3, em_service_type_ctrl)) != NULL) {
         printf("%s:%d Node created successfully\n", __func__, __LINE__);
     }

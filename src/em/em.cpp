@@ -159,7 +159,11 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 
         case em_cmd_type_set_channel:
-            m_sm.set_state(em_state_ctrl_channel_select_pending);
+	    if (pcmd->get_orch_op() == dm_orch_type_channel_sel) {
+            	m_sm.set_state(em_state_ctrl_channel_select_pending);
+	    } else if ((pcmd->get_orch_op() == dm_orch_type_channel_cnf) && (m_sm.get_state() == em_state_ctrl_channel_selected)) {
+		 m_sm.set_state(em_state_ctrl_channel_cnf_pending);
+	    }
             break;
 
         case em_cmd_type_scan_channel:
