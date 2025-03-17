@@ -300,7 +300,13 @@ typedef struct {
 #define ASSERT_EQUALS(x, y, ret, errMsg, ...) ASSERT_TRUE(x == y, ret, errMsg, ## __VA_ARGS__)
 #define ASSERT_NOT_EQUALS(x, y, ret, errMsg, ...) ASSERT_FALSE(x == y, ret, errMsg, ## __VA_ARGS__)
 
-
+#ifndef SSL_KEY
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+#define SSL_KEY EC_KEY
+#else
+#define SSL_KEY EVP_PKEY
+#endif
+#endif
 
 typedef enum {
     ec_session_type_cfg,
@@ -386,7 +392,7 @@ typedef struct {
     /*
         The protocol key of the Enrollee is used as Network Access key (netAccessKey) later in the DPP Configuration and DPP Introduction protocol
     */  
-    EC_KEY *net_access_key;
+   SSL_KEY *net_access_key;
 
     /* TODO: 
     Add (if needed):
@@ -398,15 +404,6 @@ typedef struct {
 
     ec_ephemeral_context_t eph_ctx;
 } ec_connection_context_t;
-
-
-
-/*
-REMOVED:
-    -k1, k2, ke. These are only generated once per device per authentication session (and it should be that way)
-        unsigned char responder_nonce[SHA512_DIGEST_LENGTH/2];
-    unsigned char enrollee_nonce[SHA512_DIGEST_LENGTH/2];
-*/
 
 typedef struct {
 
@@ -421,13 +418,18 @@ typedef struct {
         - If this is the Controller, then this key is stored on the Controller. 
         - If this is the Enrollee, then this key is required for "mutual authentication" and must be recieved via an out-of-band mechanism from the controller.
     */
-    const EC_KEY *initiator_boot_key; 
+    const SSL_KEY *initiator_boot_key; 
     /*
     Responder/Enrollee bootstrapping key. (REQUIRED)
         - If this is the Controller, then this key was recieved out-of-band from the Enrollee in the DPP URI
         - If this is the Enrollee, then this key is stored locally.
     */
-    const EC_KEY *responder_boot_key;
+    const SSL_KEY *responder_boot_key;
+    
+    // B_I, B_R
+    EC_POINT *init_pub_boot_key, *resp_pub_boot_key;
+    // b_I, b_R
+    BIGNUM *init_priv_boot_key, *resp_priv_boot_key;
 } ec_data_t;
 
 #ifdef __cplusplus

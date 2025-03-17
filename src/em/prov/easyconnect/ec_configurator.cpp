@@ -1,4 +1,5 @@
 #include "ec_configurator.h"
+#include "em_crypto.h"
 
 ec_configurator_t::ec_configurator_t(
     std::string mac_addr,
@@ -14,6 +15,22 @@ ec_configurator_t::ec_configurator_t(
 
 ec_configurator_t::~ec_configurator_t()
 {
+    if (m_boot_data.resp_priv_boot_key) {
+        BN_free(m_boot_data.resp_priv_boot_key);
+    }
+    if (m_boot_data.resp_pub_boot_key) {
+        EC_POINT_free(m_boot_data.resp_pub_boot_key);
+    }
+    if (m_boot_data.init_priv_boot_key) {
+        BN_free(m_boot_data.init_priv_boot_key);
+    }
+    if (m_boot_data.init_pub_boot_key) {
+        EC_POINT_free(m_boot_data.init_pub_boot_key);
+    }
+    
+    for (auto& conn : m_connections) {
+        ec_crypto::free_ephemeral_context(&conn.second.eph_ctx, m_p_ctx.nonce_len, m_p_ctx.digest_len);
+    }
 }
 
 // TODO: Maybe move to controller
@@ -22,7 +39,15 @@ bool ec_configurator_t::start(ec_data_t *ec_data)
     memset(&m_boot_data, 0, sizeof(ec_data_t));
     memcpy(&m_boot_data, ec_data, sizeof(ec_data_t));
 
-    if (EC_KEY_get0_public_key(m_boot_data.responder_boot_key) == NULL) {
+    // Not all of these will be present but it is better to compute them now.
+    m_boot_data.resp_priv_boot_key = em_crypto_t::get_priv_key_bn(m_boot_data.responder_boot_key);
+    m_boot_data.resp_pub_boot_key = em_crypto_t::get_pub_key_point(m_boot_data.responder_boot_key);
+
+    m_boot_data.init_priv_boot_key = em_crypto_t::get_priv_key_bn(m_boot_data.initiator_boot_key);    
+    m_boot_data.init_pub_boot_key = em_crypto_t::get_pub_key_point(m_boot_data.initiator_boot_key);
+
+
+    if (m_boot_data.resp_priv_boot_key == NULL) {
         printf("%s:%d Could not get responder bootstrap public key\n", __func__, __LINE__);
         return false;
     }

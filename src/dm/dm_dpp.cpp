@@ -135,17 +135,20 @@ void dm_dpp_t::encode(cJSON *obj)
 }
 
 
-bool ec_pub_keys_equal(const EC_KEY* key1, const EC_KEY* key2) {
+bool ec_pub_keys_equal(const SSL_KEY* key1, const SSL_KEY* key2) {
     if (!key1 || !key2) return false;
     
-    const EC_POINT* point1 = EC_KEY_get0_public_key(key1);
-    const EC_POINT* point2 = EC_KEY_get0_public_key(key2);
+    const EC_POINT* point1 = em_crypto_t::get_pub_key_point(key1);
+    const EC_POINT* point2 = em_crypto_t::get_pub_key_point(key2);
     
     if (!point1 || !point2) return false;
     
-    // Compare just the public points
-    const EC_GROUP* group = EC_KEY_get0_group(key1);
-    return (EC_POINT_cmp(group, point1, point2, NULL) == 0);
+    const EC_GROUP* group1 = em_crypto_t::get_key_group(key1);
+    const EC_GROUP* group2 = em_crypto_t::get_key_group(key2);
+
+    if (EC_GROUP_cmp(group1, group2, NULL) != 0) return false;
+
+    return (EC_POINT_cmp(group1, point1, point2, NULL) == 0);
 }
 
 bool dm_dpp_t::operator == (const dm_dpp_t& obj)
