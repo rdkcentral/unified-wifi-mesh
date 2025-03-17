@@ -48,7 +48,7 @@
 int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
 {
     unsigned short  msg_type = em_msg_type_ap_cap_rprt;
-    unsigned int len = 0;
+    size_t len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     unsigned char *tmp = buff;
@@ -58,15 +58,15 @@ int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
 
     memcpy(tmp, reinterpret_cast<unsigned char *> (get_peer_mac()), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += static_cast<unsigned int> (sizeof(mac_address_t));
+    len += sizeof(mac_address_t);
 
     memcpy(tmp, get_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += static_cast<unsigned int> (sizeof(mac_address_t));
+    len += sizeof(mac_address_t);
 
     memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
     tmp += sizeof(unsigned short);
-    len += static_cast<unsigned int> (sizeof(unsigned short));
+    len += sizeof(unsigned short);
 
     cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
@@ -85,7 +85,7 @@ int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
     tlv->len = htons(static_cast<uint16_t> (sz));
 
     tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
     // AP radio basic capabilities 17.2.7
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -94,7 +94,7 @@ int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
     tlv->len = htons(static_cast<uint16_t> (sz));
 
     tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
     // AP HT capabilities 17.2.8
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -103,7 +103,7 @@ int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
     tlv->len = htons(static_cast<uint16_t> (sz));
 
     tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
     // AP VHT capabilities 17.2.9
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -112,7 +112,7 @@ int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
     tlv->len = htons(static_cast<uint16_t> (sz));
 
     tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
     // AP HE capabilities 17.2.10
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -121,7 +121,7 @@ int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
     tlv->len = htons(static_cast<uint16_t> (sz));
 
     tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
     // AP WiFi6 capabilities 17.2.72
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -130,7 +130,7 @@ int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
     tlv->len = htons(static_cast<uint16_t> (sz));
 
     tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
     // AP WiFi7 capabilities 17.2.95
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -139,7 +139,7 @@ int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
     tlv->len = htons(static_cast<uint16_t> (sz));
 
     tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
     // AP EHT Operations 17.2.103
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -148,7 +148,7 @@ int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
     tlv->len = htons(static_cast<uint16_t> (sz));
 
     tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
     // AP Channel Scan capabilities 17.2.38
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -157,7 +157,7 @@ int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
     tlv->len = htons(static_cast<uint16_t> (sz));
 
     tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 /*
     // 1905 layer security capability tlv 17.2.67
     tlv = (em_tlv_t *)tmp;
@@ -175,7 +175,7 @@ int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
     tlv->len = htons(static_cast<uint16_t> (sz));
 
     tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
     // AP profile 2 capabilities 17.2.48
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -184,16 +184,16 @@ int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
     tlv->len = htons(static_cast<uint16_t> (sz));
 
     tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
     // Metric collection Interval capability tlv 17.2.59
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_metric_cltn_interval;
     sz = create_metric_col_int_tlv(tlv->value);
-    tlv->len = htons(sz);
+    tlv->len = htons(static_cast<uint16_t> (sz));
 
-    tmp += (sizeof(em_tlv_t) + sz);
-    len += (sizeof(em_tlv_t) + sz);
+    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
     // Device Inventory tlv 17.2.76
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -202,7 +202,7 @@ int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
     tlv->len = htons(static_cast<uint16_t> (sz));
 
     tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
     // One AP radio advanced capability tlv 17.2.52
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -211,7 +211,7 @@ int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
     tlv->len = htons(static_cast<uint16_t> (sz));
 
     tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -219,7 +219,7 @@ int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
     tlv->len = 0;
 
     tmp += (sizeof(em_tlv_t));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t));
+    len += (sizeof(em_tlv_t));
 
     return static_cast<int> (len);
 }
@@ -230,7 +230,7 @@ int em_capability_t::send_client_cap_query()
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned short  msg_id = em_msg_type_client_cap_query;
-    unsigned int len = 0;
+    size_t len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     unsigned char *tmp = buff;
@@ -243,15 +243,15 @@ int em_capability_t::send_client_cap_query()
 
     memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += static_cast<unsigned int> (sizeof(mac_address_t));
+    len += sizeof(mac_address_t);
 
     memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += static_cast<unsigned int> (sizeof(mac_address_t));
+    len += sizeof(mac_address_t);
 
     memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
     tmp += sizeof(unsigned short);
-    len += static_cast<unsigned int> (sizeof(unsigned short));
+    len += sizeof(unsigned short);
 
     cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
@@ -281,12 +281,12 @@ int em_capability_t::send_client_cap_query()
 
     tmp += (sizeof (em_tlv_t));
     len += (sizeof (em_tlv_t));
-    if (em_msg_t(em_msg_type_client_cap_query, em_profile_type_3, buff, len).validate(errors) == 0) {
+    if (em_msg_t(em_msg_type_client_cap_query, em_profile_type_3, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
         printf("Channel Selection Request msg failed validation in tnx end\n");
         return -1;
     }
 
-    if (send_frame(buff, len)  < 0) {
+    if (send_frame(buff, static_cast<unsigned int> (len))  < 0) {
         printf("%s:%d: Channel Selection Request msg failed, error:%d\n", __func__, __LINE__, errno);
         return -1;
     }
@@ -370,7 +370,7 @@ int em_capability_t::send_client_cap_report_msg(mac_address_t sta, bssid_t bss)
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned short  msg_type = em_msg_type_client_cap_rprt;
-    unsigned int len = 0;
+    size_t len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     unsigned char *tmp = buff;
@@ -383,15 +383,15 @@ int em_capability_t::send_client_cap_report_msg(mac_address_t sta, bssid_t bss)
     //memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t)); 
     memcpy(tmp, ctrl_mac, sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += static_cast<unsigned int> (sizeof(mac_address_t));
+    len += sizeof(mac_address_t);
 
     memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += static_cast<unsigned int> (sizeof(mac_address_t));
+    len += sizeof(mac_address_t);
 
     memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
     tmp += sizeof(unsigned short);
-    len += static_cast<unsigned int> (sizeof(unsigned short));
+    len += sizeof(unsigned short);
 
     cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
@@ -410,7 +410,7 @@ int em_capability_t::send_client_cap_report_msg(mac_address_t sta, bssid_t bss)
     tlv->len = htons(static_cast<uint16_t> (sz));
 
     tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
     //Client Capability Report TLV 17.2.19
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -419,7 +419,7 @@ int em_capability_t::send_client_cap_report_msg(mac_address_t sta, bssid_t bss)
     tlv->len = htons(static_cast<uint16_t> (sz));
 
     tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
     //Error code  TLV 17.2.36
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -428,7 +428,7 @@ int em_capability_t::send_client_cap_report_msg(mac_address_t sta, bssid_t bss)
     tlv->len = htons(static_cast<uint16_t> (sz));
 
     tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -438,12 +438,12 @@ int em_capability_t::send_client_cap_report_msg(mac_address_t sta, bssid_t bss)
     tmp += (sizeof (em_tlv_t));
     len += (sizeof (em_tlv_t));
 
-    if (em_msg_t(em_msg_type_client_cap_rprt, em_profile_type_3, buff, len).validate(errors) == 0) {
+    if (em_msg_t(em_msg_type_client_cap_rprt, em_profile_type_3, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
         printf("%s:%d: Client capability report validation failed\n", __func__, __LINE__);
         return -1;
     }
 
-    if (send_frame(buff, len)  < 0) {
+    if (send_frame(buff, static_cast<unsigned int> (len))  < 0) {
         printf("%s:%d: CLient Capablity report send failed, error:%d\n", __func__, __LINE__, errno);
         return -1;
     }

@@ -46,9 +46,9 @@ em_cmd_btm_report_t::em_cmd_btm_report_t(em_cmd_btm_report_params_t params)
     dm_easy_mesh_t dm;
 
     m_type = em_cmd_type_btm_report;
-    memcpy(&m_param.u.btm_report_params, &params, sizeof(em_cmd_steer_params_t));
+    memcpy(&m_param.u.btm_report_params, &params, sizeof(em_cmd_btm_report_params_t));
 
-    memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
+    memset(reinterpret_cast<unsigned char *> (&m_orch_desc[0]), 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
 
     m_orch_op_idx = 0;
     m_num_orch_desc = 1;

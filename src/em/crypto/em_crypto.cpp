@@ -66,8 +66,9 @@
  *            of unified-wifi-mesh. The OpenSSL support that exists here is valid, however when enabled,
  *            certain race conditions appear that are not present prior to version 3.0.
  */
+#ifndef OPENSSL_VERSION_NUMBER
 #define OPENSSL_VERSION_NUMBER 0x10100000L
-
+#endif
 
 // Initialize the static member variables
 // From RFC 3526
@@ -110,19 +111,19 @@ em_crypto_t::em_crypto_t() {
     m_crypto_info.dh = DH_new();
 }
 
-static void print_key(const char* label, const uint8_t* key, uint16_t len) {
+/*static void print_key(const char* label, const uint8_t* key, uint16_t len) {
     printf("%s (%d bytes): ", label, len);
     for(int i = 0; i < len; i++) {
         printf("%02X", key[i]);
     }
     printf("\n");
-}
+}*/ //unused function
 
 int em_crypto_t::init()
 {
 
     BIGNUM *priv_key = NULL, *pub_key = NULL;
-    DH *dh = NULL;
+	//DH *dh = NULL;
 
     RAND_bytes(m_crypto_info.e_nonce, sizeof(em_nonce_t));
     uuid_generate(m_crypto_info.e_uuid);
@@ -163,8 +164,8 @@ int em_crypto_t::init()
     }
 
     // Get private and public keys (pre 3.0)
-    DH_get0_key(dh, (const BIGNUM**)&pub_key, (const BIGNUM**)&priv_key);
-    DH_get0_key(dh, (const BIGNUM**)&pub_key, (const BIGNUM**)&priv_key);
+    DH_get0_key(dh, const_cast<const BIGNUM**> (&pub_key), const_cast<const BIGNUM**> (&priv_key));
+    DH_get0_key(dh, const_cast<const BIGNUM**> (&pub_key), const_cast<const BIGNUM**> (&priv_key));
 #else
 
     if (NULL == (param_pkey = create_dh_pkey(p, g, NULL, NULL))){
@@ -205,13 +206,13 @@ int em_crypto_t::init()
     // now generate the keys
     BN_bn2bin(pub_key, m_crypto_info.e_pub);
     BN_bn2bin(priv_key, m_crypto_info.e_priv);
-    m_crypto_info.e_pub_len = BN_num_bytes(pub_key);
-    m_crypto_info.e_priv_len = BN_num_bytes(priv_key);
+    m_crypto_info.e_pub_len = static_cast<unsigned int> (BN_num_bytes(pub_key));
+    m_crypto_info.e_priv_len = static_cast<unsigned int> (BN_num_bytes(priv_key));
     
     BN_bn2bin(pub_key, m_crypto_info.r_pub);
     BN_bn2bin(priv_key, m_crypto_info.r_priv);
-    m_crypto_info.r_pub_len = BN_num_bytes(pub_key);
-    m_crypto_info.r_priv_len = BN_num_bytes(priv_key);
+    m_crypto_info.r_pub_len = static_cast<unsigned int> (BN_num_bytes(pub_key));
+    m_crypto_info.r_priv_len = static_cast<unsigned int> (BN_num_bytes(priv_key));
     
     return 0;
 bail:
@@ -327,7 +328,7 @@ uint8_t em_crypto_t::platform_hmac_hash(const EVP_MD * hashing_algo, uint8_t *ke
         goto bail;
     }
 #else
-    if (HMAC_Init_ex(ctx, key, keylen, hashing_algo, NULL) != 1) {
+    if (HMAC_Init_ex(ctx, key, static_cast<int> (keylen), hashing_algo, NULL) != 1) {
         goto bail;
     }
 
@@ -373,10 +374,10 @@ void em_crypto_t:: append_u32_net(const uint32_t *memory_pointer, uint8_t **pack
     **packet_ppointer = *(((uint8_t *)memory_pointer)+2); (*packet_ppointer)++;
     **packet_ppointer = *(((uint8_t *)memory_pointer)+3); (*packet_ppointer)++;
 #elif __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    **packet_ppointer = *(((uint8_t *)memory_pointer)+3); (*packet_ppointer)++;
-    **packet_ppointer = *(((uint8_t *)memory_pointer)+2); (*packet_ppointer)++;
-    **packet_ppointer = *(((uint8_t *)memory_pointer)+1); (*packet_ppointer)++;
-    **packet_ppointer = *(((uint8_t *)memory_pointer)+0); (*packet_ppointer)++;
+    **packet_ppointer = *((reinterpret_cast<uint8_t *> (const_cast<uint32_t*>(memory_pointer))+3)); (*packet_ppointer)++;
+    **packet_ppointer = *((reinterpret_cast<uint8_t *> (const_cast<uint32_t*>(memory_pointer))+2)); (*packet_ppointer)++;
+    **packet_ppointer = *((reinterpret_cast<uint8_t *> (const_cast<uint32_t*>(memory_pointer))+1)); (*packet_ppointer)++;
+    **packet_ppointer = *((reinterpret_cast<uint8_t *> (const_cast<uint32_t*>(memory_pointer))+0)); (*packet_ppointer)++;
 #else
 #error You must specify your architecture endianess
 #endif
@@ -407,7 +408,7 @@ uint8_t em_crypto_t:: wps_key_derivation_function(uint8_t *key, uint8_t *label_p
 
     addr[0] = i_buf;
     addr[1] = label_prefix;
-    addr[2] = (uint8_t *) label;
+    addr[2] = reinterpret_cast<uint8_t *> (label);
     addr[3] = key_bits;
     len[0]  = sizeof(i_buf);
     len[1]  = label_prefix_len;
@@ -443,7 +444,7 @@ uint8_t em_crypto_t::platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint
     EVP_CIPHER_CTX _ctx;
 #endif
     EVP_CIPHER_CTX *ctx;
-    int             len = plain_len + AES_BLOCK_SIZE - 1, final_len = 0;
+    int             len = static_cast<int> (plain_len + AES_BLOCK_SIZE - 1), final_len = 0;
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX_init(&_ctx);
@@ -461,7 +462,7 @@ uint8_t em_crypto_t::platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint
     EVP_CIPHER_CTX_set_padding(ctx, 0);
 
     
-    if (EVP_EncryptUpdate(ctx, cipher_text, &len, plain, plain_len) != 1) {
+    if (EVP_EncryptUpdate(ctx, cipher_text, &len, plain, static_cast<int> (plain_len)) != 1) {
         return 0;
     }
 
@@ -470,7 +471,7 @@ uint8_t em_crypto_t::platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint
         return 0;
     }
 
-    *cipher_len = len;
+    *cipher_len = static_cast<uint32_t> (len);
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX_cleanup(ctx);
@@ -504,8 +505,8 @@ uint8_t em_crypto_t::platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint
 
     EVP_CIPHER_CTX_set_padding(ctx, 0);
 
-    plen = data_len;
-    if (EVP_DecryptUpdate(ctx, data, &plen, data, data_len) != 1 || plen != (int) data_len) {
+    plen = static_cast<int> (data_len);
+    if (EVP_DecryptUpdate(ctx, data, &plen, data, static_cast<int> (data_len)) != 1 || plen != static_cast<int> (data_len)) {
         return 0;
     }
 
@@ -624,7 +625,7 @@ uint8_t em_crypto_t::platform_compute_shared_secret(uint8_t **shared_secret, uin
                                            shared_secret, &secret_len);
     
     if (did_succeed) {
-        *shared_secret_len = secret_len;
+        *shared_secret_len = static_cast<uint16_t> (secret_len);
         return 1;
     }
 
@@ -637,7 +638,7 @@ uint8_t em_crypto_t::platform_compute_shared_secret(uint8_t **shared_secret, uin
 
 char *em_crypto_t::base64_encode(const uint8_t *input, size_t length, size_t *output_length) {
     BIO *bio, *b64;
-    BUF_MEM *bufferPtr;
+	//BUF_MEM *bufferPtr;
 
     // Create a base64 filter BIO and a memory BIO
     b64 = BIO_new(BIO_f_base64());
@@ -648,7 +649,7 @@ char *em_crypto_t::base64_encode(const uint8_t *input, size_t length, size_t *ou
     BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
     
     // Write data through the BIO chain
-    BIO_write(bio, input, length);
+    BIO_write(bio, input, static_cast<int> (length));
     BIO_flush(bio);
 
     // Extract the encoded data
@@ -666,11 +667,11 @@ char *em_crypto_t::base64_encode(const uint8_t *input, size_t length, size_t *ou
     temp_out_length = bptr->length;
     data_ptr = bptr->data;
 #else
-    temp_out_length = BIO_get_mem_data(bio, &data_ptr);
+    temp_out_length = static_cast<size_t> (BIO_get_mem_data(bio, &data_ptr));
 #endif
 
     // Allocate and copy the encoded data
-    char* result = (char*)malloc(temp_out_length + 1);
+    char* result = static_cast<char*> (malloc(temp_out_length + 1));
     memcpy(result, data_ptr, temp_out_length);
     result[temp_out_length] = '\0';
 
@@ -685,13 +686,13 @@ uint8_t* em_crypto_t::base64_decode(const char* input, size_t length, size_t* ou
     BIO *bio, *b64;
     unsigned char* result;
 
-    result = (unsigned char*)malloc(length);
+    result = static_cast<unsigned char*> (malloc(length));
     bio = BIO_new_mem_buf(input, -1);
     b64 = BIO_new(BIO_f_base64());
     bio = BIO_push(b64, bio);
 
     BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
-    *output_length = BIO_read(bio, result, length);
+    *output_length = static_cast<size_t> (BIO_read(bio, result, static_cast<int> (length)));
 
     // Free the BIO chain
     BIO_free_all(bio);
@@ -710,9 +711,9 @@ EC_KEY* em_crypto_t::create_ec_key_from_base64_der(const char* base64_der_pubkey
     uint8_t key[1024];
     int len = 1024;
     
-    memset(key, 0, len);
+    memset(key, 0, static_cast<size_t> (len));
 
-    if ((len = EVP_DecodeBlock(key, (unsigned char *)base64_der_pubkey, strlen(base64_der_pubkey))) < 0) {
+    if ((len = EVP_DecodeBlock(key, const_cast<unsigned char*>(reinterpret_cast<const unsigned char*>(base64_der_pubkey)), static_cast<int> (strlen(base64_der_pubkey)))) < 0) {
         printf("%s:%d Failed to decode base 64 public key\n", __func__, __LINE__);
         return NULL;
     }
@@ -817,7 +818,7 @@ cleanup:
     EVP_PKEY_free(dh_pub);
 
     cleanup_bignums(p, g, bn_priv, bn_pub);
-    return ret;
+    return static_cast<uint8_t> (ret);
 }
 #else
 uint8_t em_crypto_t::compute_secret_internal(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv,
@@ -847,14 +848,14 @@ uint8_t em_crypto_t::compute_secret_internal(BIGNUM *p, BIGNUM *g, BIGNUM *bn_pr
         BN_clear_free(bn_pub);
         return 0;
     }
-    *shared_secret = (uint8_t*)calloc(size, sizeof(uint8_t));
+    *shared_secret = static_cast<uint8_t*> (calloc(static_cast<size_t> (size), sizeof(uint8_t)));
     if (!*shared_secret) {
         // Memory allocation failed
         DH_free(dh);
         BN_clear_free(bn_pub);
         return 0;
     }
-    *secret_len = DH_compute_key(*shared_secret, bn_pub, dh);
+    *secret_len = static_cast<size_t> (DH_compute_key(*shared_secret, bn_pub, dh));
     
     DH_free(dh);
     BN_clear_free(bn_pub);
