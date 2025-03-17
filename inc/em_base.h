@@ -3061,6 +3061,14 @@ typedef struct {
 	em_cli_type_t	cli_type;
 } em_cli_params_t;
 
+#ifndef SSL_KEY
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+#define SSL_KEY EC_KEY
+#else
+#define SSL_KEY EVP_PKEY
+#endif
+#endif
+
 #ifdef __cplusplus
 }
 #endif

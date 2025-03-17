@@ -59,16 +59,6 @@
 #include <sstream>
 #include <string>
 
-/**
- * @paragraph Versions of OpenSSL greater than 1.1 are currently not supported.
- *            This is due to the fact that OpenSSL made significant changes with thread-safety 
- *            in version 3.0+ which does not work well with the current multi-threaded nature
- *            of unified-wifi-mesh. The OpenSSL support that exists here is valid, however when enabled,
- *            certain race conditions appear that are not present prior to version 3.0.
- */
-#ifndef OPENSSL_VERSION_NUMBER
-#define OPENSSL_VERSION_NUMBER 0x10100000L
-#endif
 
 // Initialize the static member variables
 // From RFC 3526
@@ -108,22 +98,12 @@ em_crypto_t::em_crypto_t() {
             exit(1);
         }
     });
-    m_crypto_info.dh = DH_new();
 }
-
-/*static void print_key(const char* label, const uint8_t* key, uint16_t len) {
-    printf("%s (%d bytes): ", label, len);
-    for(int i = 0; i < len; i++) {
-        printf("%02X", key[i]);
-    }
-    printf("\n");
-}*/ //unused function
 
 int em_crypto_t::init()
 {
 
     BIGNUM *priv_key = NULL, *pub_key = NULL;
-	//DH *dh = NULL;
 
     RAND_bytes(m_crypto_info.e_nonce, sizeof(em_nonce_t));
     uuid_generate(m_crypto_info.e_uuid);
@@ -142,6 +122,7 @@ int em_crypto_t::init()
     if (!g) { goto bail; }
 
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
+    DH *dh = NULL;
     if (NULL == (dh = DH_new())) {
         goto bail;
     }
@@ -444,7 +425,7 @@ uint8_t em_crypto_t::platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint
     EVP_CIPHER_CTX _ctx;
 #endif
     EVP_CIPHER_CTX *ctx;
-    int             len = static_cast<int> (plain_len + AES_BLOCK_SIZE - 1), final_len = 0;
+    int len = static_cast<int> (plain_len + AES_BLOCK_SIZE - 1), final_len = 0;
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX_init(&_ctx);
@@ -603,6 +584,9 @@ uint8_t em_crypto_t::platform_compute_shared_secret(uint8_t **shared_secret, uin
         return 0;
     }
 
+    *shared_secret = NULL;
+    *shared_secret_len = 0;
+
     if (remote_pub_len == 0 || local_priv_len == 0) {
         printf("%s:%d Invalid key lengths: remote_pub_len=%d, local_priv_len=%d\n", __func__, __LINE__,
                remote_pub_len, local_priv_len);
@@ -629,108 +613,13 @@ uint8_t em_crypto_t::platform_compute_shared_secret(uint8_t **shared_secret, uin
         return 1;
     }
 
-    free(*shared_secret);
+    if (*shared_secret != NULL) OPENSSL_free(*shared_secret);
     *shared_secret = NULL;
     *shared_secret_len = 0;
     printf("%s:%d Internal failed\n", __func__, __LINE__);
     return 0;
 }
 
-char *em_crypto_t::base64_encode(const uint8_t *input, size_t length, size_t *output_length) {
-    BIO *bio, *b64;
-	//BUF_MEM *bufferPtr;
-
-    // Create a base64 filter BIO and a memory BIO
-    b64 = BIO_new(BIO_f_base64());
-    bio = BIO_new(BIO_s_mem());
-    bio = BIO_push(b64, bio);  // Chain them together
-
-    // Disable newlines in the output
-    BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
-    
-    // Write data through the BIO chain
-    BIO_write(bio, input, static_cast<int> (length));
-    BIO_flush(bio);
-
-    // Extract the encoded data
-
-    size_t temp_out_length = 0;
-    char* data_ptr = NULL;
-
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    BIO_get_mem_ptr(bio, &bufferPtr);
-    temp_out_length = bufferPtr->length;
-    data_ptr = bufferPtr->data; 
-#elif OPENSSL_VERSION_NUMBER < 0x30000000L
-    const BUF_MEM *bptr;
-    BIO_get_mem_ptr(bio, &bptr);
-    temp_out_length = bptr->length;
-    data_ptr = bptr->data;
-#else
-    temp_out_length = static_cast<size_t> (BIO_get_mem_data(bio, &data_ptr));
-#endif
-
-    // Allocate and copy the encoded data
-    char* result = static_cast<char*> (malloc(temp_out_length + 1));
-    memcpy(result, data_ptr, temp_out_length);
-    result[temp_out_length] = '\0';
-
-    if (output_length) {
-        *output_length = temp_out_length;
-    }
-    BIO_free_all(bio);
-    return result;
-}
-
-uint8_t* em_crypto_t::base64_decode(const char* input, size_t length, size_t* output_length) {
-    BIO *bio, *b64;
-    unsigned char* result;
-
-    result = static_cast<unsigned char*> (malloc(length));
-    bio = BIO_new_mem_buf(input, -1);
-    b64 = BIO_new(BIO_f_base64());
-    bio = BIO_push(b64, bio);
-
-    BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
-    *output_length = static_cast<size_t> (BIO_read(bio, result, static_cast<int> (length)));
-
-    // Free the BIO chain
-    BIO_free_all(bio);
-
-    return result;
-}
-
-
-EC_KEY* em_crypto_t::create_ec_key_from_base64_der(const char* base64_der_pubkey) 
-{
-
-    if (!base64_der_pubkey) {
-        printf("%s:%d NULL parameter\n", __func__, __LINE__);
-        return NULL;
-    }
-    uint8_t key[1024];
-    int len = 1024;
-    
-    memset(key, 0, static_cast<size_t> (len));
-
-    if ((len = EVP_DecodeBlock(key, const_cast<unsigned char*>(reinterpret_cast<const unsigned char*>(base64_der_pubkey)), static_cast<int> (strlen(base64_der_pubkey)))) < 0) {
-        printf("%s:%d Failed to decode base 64 public key\n", __func__, __LINE__);
-        return NULL;
-    }
-
-    const unsigned char *ptr = key;
-    EC_KEY *ec_key = d2i_EC_PUBKEY(NULL, &ptr, len);
-
-    if (ec_key == NULL) {
-        printf("%s:%d Failed to create EC key from DER\n", __func__, __LINE__);
-        return NULL;
-    }
-
-    EC_KEY_set_conv_form(ec_key, POINT_CONVERSION_COMPRESSED);
-    EC_KEY_set_asn1_flag(ec_key, OPENSSL_EC_NAMED_CURVE);
-
-    return ec_key;
-}
 
 void em_crypto_t::cleanup_bignums(BIGNUM *p, BIGNUM *g, BIGNUM *priv, BIGNUM *pub) {
     BN_clear_free(p);
@@ -864,3 +753,283 @@ uint8_t em_crypto_t::compute_secret_internal(BIGNUM *p, BIGNUM *g, BIGNUM *bn_pr
 }
 #endif
 
+char *em_crypto_t::base64_encode(const uint8_t *input, size_t length, size_t *output_length) {
+    BIO *bio, *b64;
+
+    // Create a base64 filter BIO and a memory BIO
+    b64 = BIO_new(BIO_f_base64());
+    bio = BIO_new(BIO_s_mem());
+    bio = BIO_push(b64, bio);  // Chain them together
+
+    // Disable newlines in the output
+    BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+    
+    // Write data through the BIO chain
+    BIO_write(bio, input, static_cast<int> (length));
+    BIO_flush(bio);
+
+    // Extract the encoded data
+
+    size_t temp_out_length = 0;
+    char* data_ptr = NULL;
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+    BUF_MEM *bufferPtr;
+    BIO_get_mem_ptr(bio, &bufferPtr);
+    temp_out_length = bufferPtr->length;
+    data_ptr = bufferPtr->data; 
+#elif OPENSSL_VERSION_NUMBER < 0x30000000L
+    const BUF_MEM *bptr;
+    BIO_get_mem_ptr(bio, &bptr);
+    temp_out_length = bptr->length;
+    data_ptr = bptr->data;
+#else
+    temp_out_length = static_cast<size_t> (BIO_get_mem_data(bio, &data_ptr));
+#endif
+
+    // Allocate and copy the encoded data
+    char* result = static_cast<char*> (malloc(temp_out_length + 1));
+    memcpy(result, data_ptr, temp_out_length);
+    result[temp_out_length] = '\0';
+
+    if (output_length) {
+        *output_length = temp_out_length;
+    }
+    BIO_free_all(bio);
+    return result;
+}
+
+uint8_t* em_crypto_t::base64_decode(const char* input, size_t length, size_t* output_length) {
+    BIO *bio, *b64;
+    unsigned char* result;
+
+    result = static_cast<unsigned char*> (malloc(length));
+    bio = BIO_new_mem_buf(input, -1);
+    b64 = BIO_new(BIO_f_base64());
+    bio = BIO_push(b64, bio);
+
+    BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
+    *output_length = static_cast<size_t> (BIO_read(bio, result, static_cast<int> (length)));
+
+    // Free the BIO chain
+    BIO_free_all(bio);
+
+    return result;
+}
+
+SSL_KEY* em_crypto_t::create_ec_key_from_base64_der(const char* base64_der_pubkey) 
+{
+
+    if (!base64_der_pubkey) {
+        printf("%s:%d NULL parameter\n", __func__, __LINE__);
+        return NULL;
+    }
+    uint8_t key[1024];
+    int len = 1024;
+    
+    memset(key, 0, static_cast<size_t> (len));
+
+    if ((len = EVP_DecodeBlock(key, const_cast<unsigned char*>(reinterpret_cast<const unsigned char*>(base64_der_pubkey)), static_cast<int> (strlen(base64_der_pubkey)))) < 0) {
+        printf("%s:%d Failed to decode base 64 public key\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    const unsigned char *ptr = key;
+#if OPENSSL_VERSION_NUMBER < 0x30000000L 
+    EC_KEY *ec_key = d2i_EC_PUBKEY(NULL, &ptr, len);
+    if (ec_key == NULL) {
+        printf("%s:%d Failed to create EC key from DER\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    EC_KEY_set_conv_form(ec_key, POINT_CONVERSION_COMPRESSED);
+    EC_KEY_set_asn1_flag(ec_key, OPENSSL_EC_NAMED_CURVE);
+
+    return ec_key;
+#else
+    EVP_PKEY* pkey = d2i_PUBKEY(NULL, &ptr, len);
+
+    if (!pkey) {
+        printf("%s:%d Failed to create EVP_PKEY from DER\n", __func__, __LINE__);
+        return NULL;
+    }
+    return pkey;
+#endif
+
+}
+
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+EC_GROUP *em_crypto_t::get_key_group(const SSL_KEY *key)
+{
+    // key = EVP_PKEY
+    if (EVP_PKEY_get_id(key) != EVP_PKEY_EC) {
+        return NULL;
+    }
+
+    EC_GROUP* group = NULL;
+    
+    // Get the EC group from the key
+    if (EVP_PKEY_get_group_name(key, NULL, 0, NULL) <= 0) return NULL;
+    
+    char group_name[64];
+    size_t group_name_len = 0;
+    if (EVP_PKEY_get_group_name(key, group_name, sizeof(group_name), &group_name_len) <= 0) return NULL;
+    
+    // Create a group from the name
+    group = EC_GROUP_new_by_curve_name(OBJ_txt2nid(group_name));
+    if (!group) return NULL;
+
+    return group;
+}
+
+BIGNUM *em_crypto_t::get_priv_key_bn(const SSL_KEY *key)
+{
+    // Check if the key is an EC key
+    if (EVP_PKEY_get_id(key) != EVP_PKEY_EC) {
+        return NULL;
+    }
+    BIGNUM *priv = NULL;
+    
+    if (!EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_PRIV_KEY, &priv)) {
+        return NULL;
+    }
+
+    return priv;
+}
+
+EC_POINT *em_crypto_t::get_pub_key_point(const SSL_KEY *key, EC_GROUP* key_group)
+{
+    // Check if the key is an EC key
+    if (EVP_PKEY_get_id(key) != EVP_PKEY_EC) {
+        return NULL;
+    }
+
+    // Use the existing method to get the group
+    EC_GROUP* group = key_group;
+    bool free_group = false;
+    if (group == NULL){
+        group = get_key_group(key);
+        free_group = true;
+    }
+    if (!group) return NULL;
+    
+    EC_POINT* point = NULL;
+    BIGNUM *x = BN_new(), *y = BN_new();
+    
+    if (!x || !y) {
+        goto cleanup;
+    }
+    
+    // Extract the X and Y coordinates
+    if (!EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_X, &x) ||
+        !EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_Y, &y)) {
+        goto cleanup;
+    }
+    
+    // Create an EC_POINT from the coordinates
+    point = EC_POINT_new(group);
+    if (!point) goto cleanup;
+    
+    if (!EC_POINT_set_affine_coordinates(group, point, x, y, NULL)) {
+        EC_POINT_free(point);
+        point = NULL;
+    }
+    
+cleanup:
+
+    if (x) BN_free(x);
+    if (y) BN_free(y);
+    if (group && free_group) EC_GROUP_free(group);
+    
+    return point;
+}
+
+SSL_KEY *em_crypto_t::generate_ec_key(int nid)
+{
+    EVP_PKEY *pkey = NULL;
+    EVP_PKEY_CTX *param_ctx = NULL;
+
+    // Create a parameter generation context for the curve
+    param_ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL);
+    if (!param_ctx) return NULL;
+
+    // Initialize the parameter generation
+    if (EVP_PKEY_paramgen_init(param_ctx) <= 0) {
+        EVP_PKEY_CTX_free(param_ctx);
+        return NULL;
+    }
+
+    // Set the curve name parameter
+    if (EVP_PKEY_CTX_set_ec_paramgen_curve_nid(param_ctx, nid) <= 0) {
+        EVP_PKEY_CTX_free(param_ctx);
+        return NULL;
+    }
+
+    // Generate the parameters
+    if (EVP_PKEY_paramgen(param_ctx, &pkey) <= 0) {
+        EVP_PKEY_CTX_free(param_ctx);
+        return NULL;
+    }
+    EVP_PKEY_CTX_free(param_ctx);
+
+    // Generate the key pair
+    EVP_PKEY_CTX *key_ctx = EVP_PKEY_CTX_new(pkey, NULL);
+    if (!key_ctx) {
+        EVP_PKEY_free(pkey);
+        return NULL;
+    }
+    
+    if (EVP_PKEY_keygen_init(key_ctx) <= 0) {
+        EVP_PKEY_CTX_free(key_ctx);
+        EVP_PKEY_free(pkey);
+        return NULL;
+    }
+    
+    EVP_PKEY *key = NULL;
+    if (EVP_PKEY_keygen(key_ctx, &key) <= 0) {
+        EVP_PKEY_CTX_free(key_ctx);
+        EVP_PKEY_free(pkey);
+        return NULL;
+    }
+    
+    EVP_PKEY_CTX_free(key_ctx);
+    EVP_PKEY_free(pkey);
+    
+    return key;
+}
+void em_crypto_t::free_key(SSL_KEY *key)
+{
+    EVP_PKEY_free(key);
+}
+#else
+EC_GROUP *em_crypto_t::get_key_group(const SSL_KEY *key)
+{
+    // key = EC_KEY
+    return const_cast<EC_GROUP*>(EC_KEY_get0_group(key));
+}
+BIGNUM *em_crypto_t::get_priv_key_bn(const SSL_KEY *key)
+{
+    return const_cast<BIGNUM*>(EC_KEY_get0_private_key(key));
+}
+
+EC_POINT *em_crypto_t::get_pub_key_point(const SSL_KEY *key, __attribute__((unused)) EC_GROUP* key_group)
+{
+    return const_cast<EC_POINT*>(EC_KEY_get0_public_key(key));
+}
+SSL_KEY *em_crypto_t::generate_ec_key(int nid)
+{
+    SSL_KEY *proto_key = EC_KEY_new_by_curve_name(nid);
+    if (proto_key == NULL) return NULL;
+
+    if (EC_KEY_generate_key(proto_key) == 0) {
+        EC_KEY_free(proto_key);
+        return NULL;
+    }
+    return proto_key;
+}
+
+void em_crypto_t::free_key(SSL_KEY *key)
+{
+    EC_KEY_free(key);
+}
+#endif

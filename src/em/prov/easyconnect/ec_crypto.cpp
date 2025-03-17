@@ -3,8 +3,12 @@
 #include "util.h"
 #include "ec_util.h"
 
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#include <openssl/kdf.h>
+#endif
 
-uint8_t* ec_crypto::compute_key_hash(const EC_KEY *key, const char *prefix)
+
+uint8_t* ec_crypto::compute_key_hash(const SSL_KEY *key, const char *prefix)
 {
     BIO *bio;
     uint8_t *asn1;
@@ -18,7 +22,11 @@ uint8_t* ec_crypto::compute_key_hash(const EC_KEY *key, const char *prefix)
     }
 
     // Convert key to DER format
-    i2d_EC_PUBKEY_bio(bio, key);
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    i2d_PUBKEY_bio(bio, key); // EVP_PKEY
+#else
+    i2d_EC_PUBKEY_bio(bio, key); // EC_KEY
+#endif
     (void)BIO_flush(bio);
     asn1len = static_cast<size_t>(BIO_get_mem_data(bio, &asn1));
 
@@ -42,32 +50,15 @@ uint8_t* ec_crypto::compute_key_hash(const EC_KEY *key, const char *prefix)
     return digest;
 }
 
-/**
- * @brief Abstracted HKDF computation that handles both simple and complex inputs
- * 
- * This function provides a unified interface for HKDF computations, handling both
- * simple single-input operations and more complex operations with multiple inputs.
- * It properly formats BIGNUMs with appropriate padding based on prime length.
- *
- * @param key_out Buffer to store the output key (must be pre-allocated)
- * @param key_out_len Length of the output key
- * @param info_str Information string for HKDF
- * @param x_val_inputs Array of BIGNUMs to use as IKM (Concatenated if > 1)
- * @param x_val_count Number of BIGNUMs in the array
- * @param raw_salt Raw salt buffer (can be NULL)
- * @param raw_salt_len Length of raw salt buffer
- * 
- * @return Length of the output key on success, 0 on failure
- */
-int ec_crypto::compute_hkdf_key(ec_persistent_context_t& p_ctx, uint8_t *key_out, int key_out_len, const char *info_str,
+size_t ec_crypto::compute_hkdf_key(ec_persistent_context_t& p_ctx, uint8_t *key_out, size_t key_out_len, const char *info_str,
                      const BIGNUM **x_val_inputs, int x_val_count, 
-                     uint8_t *raw_salt, int raw_salt_len)
+                     uint8_t *raw_salt, size_t raw_salt_len)
 {
     
     uint8_t *bn_buffer = NULL;
     uint8_t *ikm = NULL;
     int ikm_len = 0;
-    int result = 0;
+    size_t result = 0;
     
     // Calculate prime length for padding and format BIGNUMs
     // Safely convert int to size_t, should always be positive
@@ -91,7 +82,7 @@ int ec_crypto::compute_hkdf_key(ec_persistent_context_t& p_ctx, uint8_t *key_out
     }
     
     // Call the hkdf function
-    result = hkdf(p_ctx.hash_fcn, 0, ikm, ikm_len, raw_salt, raw_salt_len, 
+    result = hkdf(p_ctx.hash_fcn, false, ikm, static_cast<size_t>(ikm_len), raw_salt, raw_salt_len, 
                  reinterpret_cast<uint8_t*>(const_cast<char*>(info_str)), strlen(info_str), 
                  key_out, key_out_len);
     
@@ -126,7 +117,7 @@ BIGNUM* ec_crypto::calculate_Lx(ec_persistent_context_t& p_ctx, const BIGNUM* bR
     if (!EC_POINT_mul(p_ctx.group, L, NULL, BI, sum, p_ctx.bn_ctx))
         goto cleanup;
     
-    if (EC_POINT_get_affine_coordinates_GFp(p_ctx.group, L, L_x, NULL, p_ctx.bn_ctx) == 0)
+    if (EC_POINT_get_affine_coordinates(p_ctx.group, L, L_x, NULL, p_ctx.bn_ctx) == 0)
     success = 1;
     
 cleanup:
@@ -153,10 +144,10 @@ cleanup:
  * @param include_L Whether to include L.x for mutual authentication
  * @return Length of ke on success, 0 on failure
  */
-int ec_crypto::compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t* e_ctx, uint8_t *ke_buffer)
+size_t ec_crypto::compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t* e_ctx, uint8_t *ke_buffer)
 {
     // Create concatenated nonces buffer (Initiator Nonce | Responder Nonce)
-    int total_nonce_len = p_ctx.nonce_len * 2;
+    size_t total_nonce_len = p_ctx.nonce_len * 2;
     uint8_t *nonces = new uint8_t[total_nonce_len]();
     if (nonces == NULL) {
         printf("%s:%d: Failed to allocate memory for nonces\n", __func__, __LINE__);
@@ -183,7 +174,7 @@ int ec_crypto::compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t
     }
     
     // Compute the key
-    int result = compute_hkdf_key(
+    size_t result = compute_hkdf_key(
         p_ctx,
         ke_buffer,
         p_ctx.digest_len,
@@ -201,42 +192,100 @@ int ec_crypto::compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t
     return result;
 }
 
-int ec_crypto::hkdf (const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen,
-        uint8_t *salt, int saltlen, uint8_t *info, size_t infolen,
-        uint8_t *okm, int okmlen)
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+// HKDF implementation using OpenSSL 3.0 APIs
+size_t ec_crypto::hkdf(const EVP_MD *h, bool skip_extract, uint8_t *ikm, size_t ikmlen,
+    uint8_t *salt, size_t saltlen, uint8_t *info, size_t infolen,
+    uint8_t *okm, size_t okmlen)
 {
-    uint8_t *prk, *tweak, ctr, *digest;
+    size_t ret = 0;
+    EVP_KDF *kdf = NULL;
+    EVP_KDF_CTX *kctx = NULL;
+    OSSL_PARAM params[6], *p = params;
+    char *md_name = const_cast<char *>(EVP_MD_name(h));
+    if (md_name == NULL) return 0;
+    // Set the mode parameter (extract_only, expand_only, or extract_and_expand)
+    int mode = EVP_KDF_HKDF_MODE_EXTRACT_AND_EXPAND;
+    if (skip_extract) {
+        mode = EVP_KDF_HKDF_MODE_EXPAND_ONLY;
+    }
+
+    // Fetch the HKDF implementation
+    kdf = EVP_KDF_fetch(NULL, "HKDF", NULL);
+    if (kdf == NULL) {
+        goto cleanup;
+    }
+
+    // Create a context for the HKDF operation
+    kctx = EVP_KDF_CTX_new(kdf);
+    if (kctx == NULL) {
+        goto cleanup;
+    }
+
+    // Set the digest algorithm parameter
+    *p++ = OSSL_PARAM_construct_utf8_string(OSSL_KDF_PARAM_DIGEST, md_name, strlen(md_name));
+
+    // Set the key material (IKM) parameter
+    *p++ = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_KEY, ikm, ikmlen);
+
+    // Set the salt parameter if provided
+    if (salt != NULL && saltlen > 0) {
+        *p++ = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SALT, salt, saltlen);
+    }
+
+    // Set the info parameter if provided
+    if (info != NULL && infolen > 0) {
+        *p++ = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_INFO, info, infolen);
+    }
+
+    *p++ = OSSL_PARAM_construct_int(OSSL_KDF_PARAM_MODE, &mode);
+
+    // Terminate the parameter list
+    *p = OSSL_PARAM_construct_end();
+
+    // Perform the HKDF operation
+    if (EVP_KDF_derive(kctx, okm, okmlen, params) <= 0) {
+        goto cleanup;
+    }
+
+    ret = okmlen;
+
+cleanup:
+    if (kctx != NULL) EVP_KDF_CTX_free(kctx);
+    if (kdf != NULL) EVP_KDF_free(kdf);
+    return ret;
+}
+#else
+// HKDF implementation using < OpenSSL 3.0 APIs
+size_t ec_crypto::hkdf(const EVP_MD *h, bool skip_extract, uint8_t *ikm, size_t ikmlen,
+    uint8_t *salt, size_t saltlen, uint8_t *info, size_t infolen,
+    uint8_t *okm, size_t okmlen)
+{
+    uint8_t *prk, *tweak;
+    uint8_t ctr;
+    uint8_t *digest;
     int len;
     int digest_len, prklen, tweaklen;
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    HMAC_CTX ctx;
-#else
-    HMAC_CTX *ctx = HMAC_CTX_new();
-#endif
 
     digest_len = prklen = EVP_MD_size(h);
     if ((digest = new uint8_t[digest_len]) == NULL) {
         perror("malloc");
         return 0;
     }
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    HMAC_CTX_init(&ctx);
-#else
-    HMAC_CTX_reset(ctx);
-#endif
 
-    if (!skip) {
+    if (!skip_extract) {
         /*
-         * if !skip then do HKDF-extract
-         */
+        * If !skip_extract then perform HKDF-extract phase
+        * (normally done unless PRK is already provided)
+        */
         if ((prk = new uint8_t[digest_len]) == NULL) {
             delete[] digest;
             perror("malloc");
             return 0;
         }
         /*
-         * if there's no salt then use all zeros
-         */
+        * if there's no salt then use all zeros
+        */
         if (!salt || (saltlen == 0)) {
             if ((tweak = new uint8_t[digest_len]) == NULL) {
                 delete[] digest;
@@ -245,76 +294,101 @@ int ec_crypto::hkdf (const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen,
                 return 0;
             }
             memset(tweak, 0, static_cast<size_t>(digest_len));
-            tweaklen = saltlen;
+            tweaklen = digest_len;
         } else {
             tweak = salt;
             tweaklen = saltlen;
         }
-        (void)HMAC(h, tweak, tweaklen, ikm, static_cast<size_t>(ikmlen), prk, reinterpret_cast<unsigned int*>(&prklen));
+        
+        // Extract phase: PRK = HMAC-Hash(salt, IKM)
+        uint8_t *addr[1] = {ikm};
+        size_t lengths[1] = {static_cast<size_t>(ikmlen)};
+        if (!em_crypto_t::platform_hmac_hash(h, tweak, tweaklen, 1, addr, lengths, prk)) {
+            if (!salt || (saltlen == 0)) {
+                delete[] tweak;
+            }
+            delete[] digest;
+            delete[] prk;
+            return 0;
+        }
+        
         if (!salt || (saltlen == 0)) {
             delete[] tweak;
         }
     } else {
+        // Skip extract phase, use IKM directly as PRK
         prk = ikm;
         prklen = ikmlen;
     }
+
+    // Initialize T(0) as empty
     memset(digest, 0, static_cast<size_t>(digest_len));
     digest_len = 0;
     ctr = 0;
     len = 0;
+
+    // Expansion phase
     while (len < okmlen) {
         /*
-         * T(0) = all zeros
-         * T(n) = HMAC(prk, T(n-1) | info | counter)
-         * okm = T(0) | ... | T(n)
-         */
+        * T(0) = empty string (zero length)
+        * T(n) = HMAC(PRK, T(n-1) | info | counter)
+        * OKM = T(1) | T(2) | ... | T(n)
+        */
         ctr++;
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-        HMAC_Init_ex(&ctx, prk, prklen, h, NULL);
-        HMAC_Update(&ctx, digest, static_cast<size_t>(digest_len));
-#else
-        HMAC_Init_ex(ctx, prk, prklen, h, NULL);
-        HMAC_Update(ctx, digest, static_cast<size_t>(digest_len));
-#endif
-        if (info && (infolen != 0)) {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-            HMAC_Update(&ctx, info, infolen);
-#else
-            HMAC_Update(ctx, info, static_cast<size_t> (infolen));
-#endif
+        
+        uint8_t *addr[3];  // Maximum possible elements
+        size_t lengths[3];
+        uint8_t num_elem = 0;
+        
+        // T(n-1)
+        if (digest_len > 0) {
+            addr[num_elem] = digest;
+            lengths[num_elem] = static_cast<size_t>(digest_len);
+            num_elem++;
         }
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-        HMAC_Update(&ctx, &ctr, sizeof(uint8_t));
-        HMAC_Final(&ctx, digest, reinterpret_cast<unsigned int*>(&digest_len));
-#else
-        HMAC_Update(ctx, &ctr, sizeof(uint8_t));
-        HMAC_Final(ctx, digest, reinterpret_cast<unsigned int*>(&digest_len));
-#endif
-        if ((len + static_cast<int>(digest_len)) > okmlen) {
+        
+        // info
+        if (info && (infolen > 0)) {
+            addr[num_elem] = info;
+            lengths[num_elem] = infolen;
+            num_elem++;
+        }
+        
+        // counter
+        addr[num_elem] = &ctr;
+        lengths[num_elem] = sizeof(uint8_t);
+        num_elem++;
+        
+        // Calculate T(n) = HMAC(PRK, T(n-1) | info | counter)
+        if (!em_crypto_t::platform_hmac_hash(h, prk, prklen, num_elem, addr, lengths, digest)) {
+            if (!skip_extract) {
+                delete[] prk;
+            }
+            delete[] digest;
+            return 0;
+        }
+        
+        // Set the correct digest length for the next iteration
+        digest_len = EVP_MD_size(h);
+        
+        // Copy the appropriate amount to the output key material
+        if ((len + digest_len) > okmlen) {
             memcpy(okm + len, digest, static_cast<size_t>(okmlen - len));
         } else {
             memcpy(okm + len, digest, static_cast<size_t>(digest_len));
         }
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-        HMAC_CTX_cleanup(&ctx);
-#else
-        HMAC_CTX_free(ctx);
-#endif
+        
         len += digest_len;
     }
-    if (!skip) {
+
+    if (!skip_extract) {
         delete[] prk;
     }
     delete[] digest;
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    HMAC_CTX_cleanup(&ctx);
-#else
-    HMAC_CTX_free(ctx);
-#endif
 
     return okmlen;
 }
-
+#endif
 void ec_crypto::print_bignum (BIGNUM *bn)
 {
     unsigned char *buf;
@@ -343,7 +417,7 @@ void ec_crypto::print_ec_point (const EC_GROUP *group, BN_CTX *bnctx, EC_POINT *
         return;
     }
 
-    if (EC_POINT_get_affine_coordinates_GFp(group, point, x, y, bnctx) == 0) {
+    if (EC_POINT_get_affine_coordinates(group, point, x, y, bnctx) == 0) {
         BN_free(y);
         BN_free(x);
         printf("%s:%d:Could not print ec_point\n", __func__, __LINE__);
@@ -381,8 +455,8 @@ uint8_t* ec_crypto::compute_hash(ec_persistent_context_t& p_ctx, const easyconne
     return hash;
 }
 
-bool ec_crypto::init_persistent_ctx(ec_persistent_context_t& p_ctx, const EC_KEY* boot_key){
-    p_ctx.group = EC_KEY_get0_group(boot_key);
+bool ec_crypto::init_persistent_ctx(ec_persistent_context_t& p_ctx, const SSL_KEY *boot_key){
+    p_ctx.group = em_crypto_t::get_key_group(boot_key); 
 
     p_ctx.prime = BN_new();
     p_ctx.bn_ctx = BN_CTX_new();
@@ -426,7 +500,7 @@ bool ec_crypto::init_persistent_ctx(ec_persistent_context_t& p_ctx, const EC_KEY
     p_ctx.nonce_len = p_ctx.digest_len*4;
 
     // Fetch prime
-    if (EC_GROUP_get_curve_GFp(p_ctx.group, p_ctx.prime, NULL, NULL, p_ctx.bn_ctx) == 0) {
+    if (EC_GROUP_get_curve(p_ctx.group, p_ctx.prime, NULL, NULL, p_ctx.bn_ctx) == 0) {
         printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
         return false;
     }
@@ -446,7 +520,7 @@ uint8_t *ec_crypto::encode_proto_key(ec_persistent_context_t &p_ctx, const EC_PO
     BIGNUM *x = BN_new();
     BIGNUM *y = BN_new();
 
-    if (EC_POINT_get_affine_coordinates_GFp(p_ctx.group, point,
+    if (EC_POINT_get_affine_coordinates(p_ctx.group, point,
         x, y, p_ctx.bn_ctx) == 0) {
         printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
         BN_free(x);
@@ -495,7 +569,7 @@ EC_POINT *ec_crypto::decode_proto_key(ec_persistent_context_t &p_ctx, const uint
         goto err;
     }
 
-    if (EC_POINT_set_affine_coordinates_GFp(p_ctx.group, point, x, y, p_ctx.bn_ctx) == 0) {
+    if (EC_POINT_set_affine_coordinates(p_ctx.group, point, x, y, p_ctx.bn_ctx) == 0) {
         printf("%s:%d unable to set coordinates for the point\n", __func__, __LINE__);
         goto err;
     }
@@ -518,26 +592,20 @@ err:
     return NULL;
 }
 
+
+
+
 std::pair<const BIGNUM *, const EC_POINT *> ec_crypto::generate_proto_keypair(ec_persistent_context_t &p_ctx)
 {
-    EC_KEY* proto_key = EC_KEY_new_by_curve_name(p_ctx.nid);
-    if (proto_key == NULL) {
-        printf("%s:%d Could not create protocol key\n", __func__, __LINE__);
-        return std::pair<BIGNUM*, EC_POINT*>(NULL, NULL);
-    }
+    SSL_KEY *proto_key = em_crypto_t::generate_ec_key(p_ctx.nid);
 
-    if (EC_KEY_generate_key(proto_key) == 0) {
-        printf("%s:%d Could not generate protocol key\n", __func__, __LINE__);
-        return std::pair<BIGNUM*, EC_POINT*>(NULL, NULL);
-    }
-
-    const EC_POINT* proto_pub = EC_KEY_get0_public_key(proto_key);
+    const EC_POINT* proto_pub = em_crypto_t::get_pub_key_point(proto_key);
     if (proto_pub == NULL) {
         printf("%s:%d Could not get protocol public key\n", __func__, __LINE__);
         return std::pair<BIGNUM*, EC_POINT*>(NULL, NULL);
     }
 
-    const BIGNUM* proto_priv = EC_KEY_get0_private_key(proto_key);
+    const BIGNUM* proto_priv = em_crypto_t::get_priv_key_bn(proto_key);
     if (proto_priv == NULL) {
         printf("%s:%d Could not get protocol private key\n", __func__, __LINE__);
         return std::pair<BIGNUM*, EC_POINT*>(NULL, NULL);

@@ -292,12 +292,19 @@ public:
      * Creates an OpenSSL EC_KEY from a base64-encoded DER public key
      *
      * @param base64_der_pubkey Null-terminated string containing the base64-encoded DER public key
-     * @return EC_KEY* on success, NULL on failure
+     * @return SSL_KEY* on success, NULL on failure
      *
      * @note The returned EC_KEY must be freed by the caller using EC_KEY_free()
      * @note This function assumes the input is a valid base64-encoded DER format EC public key
      */
-    static EC_KEY* create_ec_key_from_base64_der(const char* base64_der_pubkey);
+    static SSL_KEY* create_ec_key_from_base64_der(const char* base64_der_pubkey);
+
+
+    static EC_GROUP* get_key_group(const SSL_KEY* key);
+    static BIGNUM* get_priv_key_bn(const SSL_KEY* key);
+    static EC_POINT* get_pub_key_point(const SSL_KEY* key, EC_GROUP* key_group=NULL);
+    static SSL_KEY* generate_ec_key(int nid);
+    static void free_key(SSL_KEY* key);
 
 
     static inline uint8_t generate_iv(unsigned char *iv, unsigned int len) { if (!RAND_bytes(iv, static_cast<int>(len))) { return 0; } else { return 1; } }

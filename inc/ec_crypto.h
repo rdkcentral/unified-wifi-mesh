@@ -27,9 +27,9 @@ namespace easyconnect {
 class ec_crypto {
 public:
 
-    static int hkdf(const EVP_MD *h, int skip, uint8_t *ikm, int ikmlen, 
-        uint8_t *salt, int saltlen, uint8_t *info, size_t infolen, 
-        uint8_t *okm, int okmlen);
+    static size_t hkdf(const EVP_MD *h, bool skip_extract, uint8_t *ikm, size_t ikmlen, 
+        uint8_t *salt, size_t saltlen, uint8_t *info, size_t infolen, 
+        uint8_t *okm, size_t okmlen);
 
 
     /**
@@ -40,7 +40,7 @@ public:
      * @param prefix The optional prefix to add to the key before hashing (NULL by default)
      * @return int The length of the hash
      */
-    static uint8_t* compute_key_hash(const EC_KEY *key, const char *prefix = NULL);
+    static uint8_t* compute_key_hash(const SSL_KEY *key, const char *prefix = NULL);
     
     /**
      * @brief Initialize the persistent context params with the bootstrapping key's group as a basis
@@ -49,7 +49,7 @@ public:
      * @param boot_key The bootstrapping key to use as a basis
      * @return bool true if successful, false otherwise
      */
-    static bool init_persistent_ctx(ec_persistent_context_t& p_ctx, const EC_KEY* boot_key);
+    static bool init_persistent_ctx(ec_persistent_context_t& p_ctx, const SSL_KEY *boot_key);
 
     /**
      * @brief Compute the hash of the provided buffer
@@ -60,7 +60,7 @@ public:
     static uint8_t* compute_hash(ec_persistent_context_t& p_ctx, const easyconnect::hash_buffer_t& hashing_elements_buffer);
 
 
-    static int compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t* e_ctx, uint8_t *ke_buffer);
+    static size_t compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t* e_ctx, uint8_t *ke_buffer);
 
     /**
      * @brief Abstracted HKDF computation that handles both simple and complex inputs
@@ -79,9 +79,9 @@ public:
      * 
      * @return Length of the output key on success, 0 on failure
      */
-    static int compute_hkdf_key(ec_persistent_context_t& p_ctx, uint8_t *key_out, int key_out_len, const char *info_str,
+    static size_t compute_hkdf_key(ec_persistent_context_t& p_ctx, uint8_t *key_out, size_t key_out_len, const char *info_str,
         const BIGNUM **x_val_inputs, int x_val_count, 
-        uint8_t *raw_salt, int raw_salt_len);
+        uint8_t *raw_salt, size_t raw_salt_len);
 
     /**
      * Calculates L = ((b_R + p_R) modulo q) * B_I then gets the x-coordinate of the result
@@ -96,10 +96,13 @@ public:
 
 
     static inline BIGNUM* get_ec_x(ec_persistent_context_t& p_ctx, const EC_POINT *point) {
+        if (point == NULL) return NULL;
+
         BIGNUM *x = BN_new();
-        if (EC_POINT_get_affine_coordinates_GFp(p_ctx.group, point,
+        if (EC_POINT_get_affine_coordinates(p_ctx.group, point,
                     x, NULL, p_ctx.bn_ctx) == 0) {
             printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
+            BN_free(x);
             return NULL;
         }
         return x;
