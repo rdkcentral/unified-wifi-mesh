@@ -874,7 +874,7 @@ int dm_easy_mesh_agent_t::analyze_beacon_report(em_bus_event_t *evt, em_cmd_t *p
     mac_addr_str_t macstr;
     webconfig_t config;
     webconfig_external_easymesh_t extdata = {0};
-    webconfig_subdoc_type_t type = webconfig_subdoc_type_sta_manager;
+    webconfig_subdoc_type_t type = webconfig_subdoc_type_beacon_report;
 
     dm.init();
 
