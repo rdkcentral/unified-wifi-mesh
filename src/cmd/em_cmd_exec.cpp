@@ -61,17 +61,17 @@ int em_cmd_exec_t::load_params_file(const char *filename, char *buff)
 {
     FILE *fp;
     char tmp[1024];
-    unsigned int sz = 0;
+    int sz = 0;
 
     if ((fp = fopen(filename, "r")) == NULL) {
         printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, filename, errno);
         return -1;
     } else {
 
-        memset(buff, 0, sizeof(buff));
+        memset(buff, 0, sizeof(buff)); //size of buff is unknown
         while (fgets(tmp, sizeof(tmp), fp) != NULL) {
-            strncat(buff, tmp, sizeof(tmp));
-            sz += strlen(tmp);
+            strncat(buff, tmp, strlen(tmp));
+            sz += static_cast<int> (strlen(tmp));
         }
 
         fclose(fp);
@@ -90,7 +90,7 @@ int em_cmd_exec_t::execute(em_cmd_type_t type, em_service_type_t to_svc, unsigne
     bevt->type = em_cmd_t::cmd_2_bus_event_type(type);
     info = &bevt->u.subdoc;
     memcpy(info->buff, in, len);
-    return send_cmd(to_svc, (unsigned char *)&ev, sizeof(em_event_t));;
+    return send_cmd(to_svc, reinterpret_cast<unsigned char *> (&ev), sizeof(em_event_t));;
 }
 
 char *em_cmd_exec_t::get_path_from_dst_service(em_service_type_t to_svc, em_long_string_t sock_path)
@@ -119,12 +119,13 @@ char *em_cmd_exec_t::get_path_from_dst_service(em_service_type_t to_svc, em_long
 int em_cmd_exec_t::send_cmd(em_service_type_t to_svc, unsigned char *in, unsigned int in_len, char *out, unsigned int out_len)
 {
     struct sockaddr_un addr;
-    int dsock, ret;
+    int dsock;
+    ssize_t ret;
     em_long_string_t sock_path;
     unsigned int sz = sizeof(em_event_t);
 
     if (get_path_from_dst_service(to_svc, sock_path) == NULL) {
-        printf("%s:%d: Could not find path from destination service: %d\n", to_svc);
+        printf("%s:%d: Could not find path from destination service: %d\n",__func__,__LINE__, to_svc);
         return -1;
     }
     if ((dsock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
@@ -137,7 +138,7 @@ int em_cmd_exec_t::send_cmd(em_service_type_t to_svc, unsigned char *in, unsigne
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, sock_path, sizeof(addr.sun_path));    
     //snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", sock_path);
-    if ((ret = connect(dsock, (const struct sockaddr *) &addr, sizeof(struct sockaddr_un))) != 0) {
+    if ((ret = connect(dsock, reinterpret_cast<const struct sockaddr *> (&addr), sizeof(struct sockaddr_un))) != 0) {
         snprintf(out, out_len, "%s:%d: connect error on socket, err:%d\n", __func__, __LINE__, errno);
         return -1;
     }
@@ -150,7 +151,7 @@ int em_cmd_exec_t::send_cmd(em_service_type_t to_svc, unsigned char *in, unsigne
         return 0;
     }
     /* Receive result. */
-    if ((ret = recv(dsock, (unsigned char *)out, out_len, 0)) <= 0) {
+    if ((ret = recv(dsock, reinterpret_cast<unsigned char *> (out), out_len, 0)) <= 0) {
         snprintf(out, out_len, "%s:%d: result read error on socket, err:%d\n", __func__, __LINE__, errno);
         close(dsock);
         return -1;

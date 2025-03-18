@@ -648,26 +648,26 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     // From specs (EasyMesh, EasyConnect, 802.11), it seems this is just arbitrarily chosen (1 byte), but
     // must be unique per GAS frame "session" exchange.
     // See: 802.11-2020 9.4.1.12 Dialog Token field
-    int dialog_token = 1;
+    unsigned char dialog_token = 1;
     auto [frame, frame_len] = ec_util::alloc_gas_frame(dpp_gas_initial_req, dialog_token);
     if (frame == nullptr || frame_len == 0) {
         printf("%s:%d: Could not create DPP Configuration Request GAS frame!\n", __func__, __LINE__);
         return {};
     }
 
-    ec_gas_initial_request_frame_t *initial_req_frame = (ec_gas_initial_request_frame_t *)frame;
+    ec_gas_initial_request_frame_t *initial_req_frame = static_cast<ec_gas_initial_request_frame_t *> (frame);
     uint8_t *attribs = nullptr;
     size_t attribs_len = 0;
     // Wrap e-nonce and config req obj(s) with k_e
-    attribs = ec_util::add_wrapped_data_attr((uint8_t *)initial_req_frame, sizeof(ec_gas_initial_request_frame_t), attribs, &attribs_len, true, m_eph_ctx.ke, [&](){
+    attribs = ec_util::add_wrapped_data_attr(reinterpret_cast<uint8_t *> (initial_req_frame), sizeof(ec_gas_initial_request_frame_t), attribs, &attribs_len, true, m_eph_ctx.ke, [&](){
         size_t wrapped_len = 0;
         uint8_t* wrapped_attribs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, m_p_ctx.nonce_len, m_eph_ctx.e_nonce);
-        wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_req_obj, config_obj_len, (uint8_t *)dpp_config_request_obj);
+        wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_req_obj, static_cast<uint16_t> (config_obj_len), reinterpret_cast<uint8_t *> (dpp_config_request_obj));
         return std::make_pair(wrapped_attribs, wrapped_len);
     });
 
     if ((initial_req_frame = reinterpret_cast<ec_gas_initial_request_frame_t*>(
-        ec_util::copy_attrs_to_frame((uint8_t*)initial_req_frame, sizeof(ec_gas_initial_request_frame_t), attribs, attribs_len))) == nullptr) {
+        ec_util::copy_attrs_to_frame(reinterpret_cast<uint8_t*> (initial_req_frame), sizeof(ec_gas_initial_request_frame_t), attribs, attribs_len))) == nullptr) {
         printf("%s:%d: unable to copy attribs to GAS frame\n", __func__, __LINE__);
         free(attribs);
         free(frame);

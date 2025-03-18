@@ -630,6 +630,7 @@ void em_agent_t::input_listener()
     raw_data_t data;
     int num_retry = 0;
     bus_error_t bus_error_val;
+    char service_name[] = "EasyMesh_service";
 
     bus_init(&m_bus_hdl);
 
@@ -637,7 +638,7 @@ void em_agent_t::input_listener()
         printf("%s:%d descriptor is null\n", __func__, __LINE__);
     }
 
-    if (desc->bus_open_fn(&m_bus_hdl, "EasyMesh_service") != 0) {
+    if (desc->bus_open_fn(&m_bus_hdl, service_name) != 0) {
         printf("%s:%d bus open failed\n",__func__, __LINE__);
         return;
     }

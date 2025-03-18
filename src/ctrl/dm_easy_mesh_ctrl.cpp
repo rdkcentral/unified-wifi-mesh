@@ -82,20 +82,20 @@ int dm_easy_mesh_ctrl_t::analyze_config_renew(em_bus_event_t *evt, em_cmd_t *pcm
 {
     mac_addr_str_t  radio_str;
     em_bus_event_type_cfg_renew_params_t *params;
-    unsigned int num = 0;
-    em_cmd_params_t *evt_param;
+    int num = 0;
+    em_cmd_params_t evt_param;
     dm_easy_mesh_t  dm;
     em_cmd_t *tmp;
 
-    params = (em_bus_event_type_cfg_renew_params_t *)evt->u.raw_buff;
+    params = reinterpret_cast<em_bus_event_type_cfg_renew_params_t *> (evt->u.raw_buff);
     dm_easy_mesh_t::macbytes_to_string(params->radio, radio_str);
     printf("%s:%d: Radio: %s\n", __func__, __LINE__, radio_str);
 
-    evt_param = &evt->params;
+    evt_param = evt->params;
 
     printf("%s:%d: Radio: %s\n", __func__, __LINE__, radio_str);
-    evt_param->u.args.num_args = 1;
-    strncpy(evt_param->u.args.args[0], radio_str, strlen(radio_str) + 1);
+    evt_param.u.args.num_args = 1;
+    strncpy(evt_param.u.args.args[0], radio_str, strlen(radio_str) + 1);
     pcmd[num] = new em_cmd_cfg_renew_t(em_service_type_ctrl, evt->params, dm);
 
     tmp = pcmd[num];
@@ -113,18 +113,19 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
 {
     mac_addr_str_t  dev_mac_str, sta_mac_str, bss_mac_str, radio_mac_str, ruid_str;
     em_bus_event_type_client_assoc_params_t *params;
-    unsigned int num = 0, len, i;
-    em_cmd_params_t *evt_param;
+    int num = 0;
+    size_t len;
+    unsigned int i;
+    em_cmd_params_t evt_param;
     dm_easy_mesh_t  dm, *pdm;
     em_cmd_t *tmp;
-    em_string_t	assoc;
     dm_bss_t *pbss;
     bool radio_matched = false, found;
     em_sta_info_t sta_info;
     em_orch_desc_t desc;
-    em_long_string_t	key;
+    em_2xlong_string_t	key;
 
-    params = (em_bus_event_type_client_assoc_params_t *)evt->u.raw_buff;
+    params = reinterpret_cast<em_bus_event_type_client_assoc_params_t *> (evt->u.raw_buff);
     dm_easy_mesh_t::macbytes_to_string(params->dev, dev_mac_str);
     dm_easy_mesh_t::macbytes_to_string(params->assoc.cli_mac_address, sta_mac_str);
     dm_easy_mesh_t::macbytes_to_string(params->assoc.bssid, bss_mac_str);
@@ -132,14 +133,14 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     //printf("%s:%d: Client:%s %s BSS: %s of Device: %s\n", __func__, __LINE__,
         //sta_mac_str, (params->assoc.assoc_event == 1)?"associated with":"disassociated from", bss_mac_str, dev_mac_str);
 
-    evt_param = &evt->params;
+    evt_param = evt->params;
 
-    evt_param->u.args.num_args = 4;
-    strncpy(evt_param->u.args.args[0], dev_mac_str, strlen(dev_mac_str) + 1);
-    strncpy(evt_param->u.args.args[1], bss_mac_str, strlen(bss_mac_str) + 1);
-    strncpy(evt_param->u.args.args[2], sta_mac_str, strlen(sta_mac_str) + 1);
+    evt_param.u.args.num_args = 4;
+    strncpy(evt_param.u.args.args[0], dev_mac_str, strlen(dev_mac_str) + 1);
+    strncpy(evt_param.u.args.args[1], bss_mac_str, strlen(bss_mac_str) + 1);
+    strncpy(evt_param.u.args.args[2], sta_mac_str, strlen(sta_mac_str) + 1);
     len = (params->assoc.assoc_event == 1)?strlen("Assoc") + 1:strlen("Disassoc") + 1;
-    strncpy(evt_param->u.args.args[3], (params->assoc.assoc_event == 1)?"Assoc":"Disassoc", len);
+    strncpy(evt_param.u.args.args[3], (params->assoc.assoc_event == 1)?"Assoc":"Disassoc", len);
     pdm = get_data_model(global_netid, params->dev);
     if (pdm == NULL) {
         printf("%s:%d: Could not find data model for dev: %s\n", __func__, __LINE__, dev_mac_str);
@@ -148,8 +149,8 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
 
     for (i = 0; i < pdm->get_num_radios(); i++) {
         found = true;
-        dm_easy_mesh_t::macbytes_to_string((unsigned char *)pdm->get_radio_info(i)->id.ruid, ruid_str);
-        snprintf(key, sizeof (em_long_string_t), "%s@%s@%s@%s@", pdm->get_radio_info(i)->id.net_id, dev_mac_str, ruid_str, bss_mac_str);    
+        dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (pdm->get_radio_info(i)->id.ruid), ruid_str);
+        snprintf(key, sizeof (em_2xlong_string_t), "%s@%s@%s@%s@", pdm->get_radio_info(i)->id.net_id, dev_mac_str, ruid_str, bss_mac_str);    
 
         pbss = get_bss(key);
         if (pbss == NULL) {
@@ -205,22 +206,22 @@ int dm_easy_mesh_ctrl_t::analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     mac_addr_str_t  radio_str, al_str;
     em_bus_event_type_m2_tx_params_t *params;
-    unsigned int num = 0;
-    em_cmd_params_t *evt_param;
+    int num = 0;
+    em_cmd_params_t evt_param;
     dm_easy_mesh_t  dm;
     em_cmd_t *tmp;
 
-    params = (em_bus_event_type_m2_tx_params_t *)evt->u.raw_buff;
+    params = reinterpret_cast<em_bus_event_type_m2_tx_params_t *> (evt->u.raw_buff);
     dm_easy_mesh_t::macbytes_to_string(params->al, al_str);
     dm_easy_mesh_t::macbytes_to_string(params->radio, radio_str);
     printf("%s:%d: Radio: %s AL MAC: %s\n", __func__, __LINE__, radio_str, al_str);
 
-    evt_param = &evt->params;
+    evt_param = evt->params;
 
-    evt_param->u.args.num_args = 2;
-    strncpy(evt_param->u.args.args[0], radio_str, strlen(radio_str) + 1);
-    strncpy(evt_param->u.args.args[1], al_str, strlen(al_str) + 1);
-    pcmd[num] = new em_cmd_em_config_t(evt->params, dm);
+    evt_param.u.args.num_args = 2;
+    strncpy(evt_param.u.args.args[0], radio_str, strlen(radio_str) + 1);
+    strncpy(evt_param.u.args.args[1], al_str, strlen(al_str) + 1);
+    pcmd[num] = new em_cmd_em_config_t(evt_param, dm);
     tmp = pcmd[num];
     num++;
 
@@ -234,7 +235,7 @@ int dm_easy_mesh_ctrl_t::analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *pcmd[])
 
 int dm_easy_mesh_ctrl_t::analyze_dev_test(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
-    unsigned int num = 0;
+    int num = 0;
     em_subdoc_info_t *subdoc;
     dm_easy_mesh_t  dm;
     em_cmd_t *tmp;
@@ -265,7 +266,7 @@ int dm_easy_mesh_ctrl_t::analyze_dev_test(em_bus_event_t *evt, em_cmd_t *pcmd[])
 
 int dm_easy_mesh_ctrl_t::analyze_reset(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
-    unsigned int num = 0;
+    int num = 0;
     em_subdoc_info_t *subdoc;
     dm_easy_mesh_t  dm;
     em_cmd_t *tmp;
@@ -315,9 +316,9 @@ int dm_easy_mesh_ctrl_t::analyze_command_steer(em_bus_event_t *evt, em_cmd_t *cm
     cJSON *sta_list_obj, *sta_obj, *sta_mac_obj, *assoc_obj, *steer_obj;
     cJSON *target_obj, *request_mode_obj, *imminent_obj, *bridged_obj;
     cJSON *link_obj, *opportunity_obj, *timer_obj, *op_class_obj, *channel_obj;
-    unsigned int num = 0;
+    int num = 0;
     em_subdoc_info_t *subdoc;
-    unsigned int i, j, k, l;
+    int i, j, k, l;
     em_long_string_t wfa;
     em_cmd_steer_params_t	steer_param;
 
@@ -392,12 +393,12 @@ int dm_easy_mesh_ctrl_t::analyze_command_steer(em_bus_event_t *evt, em_cmd_t *cm
                     // Check for "Steering_Opportunity"
                     if (cJSON_GetObjectItem(request_mode_obj, "Steering_Opportunity") != NULL) {
                         cJSON *steer_opp = cJSON_GetObjectItem(request_mode_obj, "Steering_Opportunity");
-                        steer_param.request_mode = cJSON_GetNumberValue(steer_opp);
+                        steer_param.request_mode = static_cast<unsigned int> (cJSON_GetNumberValue(steer_opp));
                     }
                     // Check for "Steering_Mandate"
                     else if (cJSON_GetObjectItem(request_mode_obj, "Steering_Mandate") != NULL) {
                         cJSON *steer_mandate = cJSON_GetObjectItem(request_mode_obj, "Steering_Mandate");
-                        steer_param.request_mode = cJSON_GetNumberValue(steer_mandate);
+                        steer_param.request_mode = static_cast<unsigned int> (cJSON_GetNumberValue(steer_mandate));
                     }
 
                     imminent_obj = cJSON_GetObjectItem(steer_obj, "BTMDisassociationImminent");
@@ -407,13 +408,13 @@ int dm_easy_mesh_ctrl_t::analyze_command_steer(em_bus_event_t *evt, em_cmd_t *cm
                     link_obj = cJSON_GetObjectItem(steer_obj, "LinkRemovalImminent");
                     steer_param.link_removal_imminent = (cJSON_IsTrue(link_obj) == true) ? true:false;
                     opportunity_obj = cJSON_GetObjectItem(steer_obj, "SteeringOpportunityWindow");
-                    steer_param.steer_opportunity_win = cJSON_GetNumberValue(opportunity_obj);
+                    steer_param.steer_opportunity_win = static_cast<unsigned int> (cJSON_GetNumberValue(opportunity_obj));
                     timer_obj = cJSON_GetObjectItem(steer_obj, "BTMDisassociationTimer");
-                    steer_param.btm_disassociation_timer = cJSON_GetNumberValue(timer_obj);
+                    steer_param.btm_disassociation_timer = static_cast<unsigned int> (cJSON_GetNumberValue(timer_obj));
                     op_class_obj = cJSON_GetObjectItem(steer_obj, "TargetBSSOperatingClass");
-                    steer_param.target_op_class = cJSON_GetNumberValue(op_class_obj);
+                    steer_param.target_op_class = static_cast<unsigned int> (cJSON_GetNumberValue(op_class_obj));
                     channel_obj = cJSON_GetObjectItem(steer_obj, "TargetBSSChannel");
-                    steer_param.target_channel = cJSON_GetNumberValue(channel_obj);
+                    steer_param.target_channel = static_cast<unsigned int> (cJSON_GetNumberValue(channel_obj));
 
                     num += analyze_sta_steer(steer_param, cmd);
                 }
@@ -448,9 +449,9 @@ int dm_easy_mesh_ctrl_t::analyze_command_disassoc(em_bus_event_t *evt, em_cmd_t 
     cJSON *radio_list_obj, *radio_obj, *bss_list_obj, *bss_obj, *bss_id_obj;
     cJSON *sta_list_obj, *sta_obj, *sta_mac_obj, *assoc_obj, *disassoc_obj;
     cJSON *timer_obj, *reason_obj, *silent_obj;
-    unsigned int num = 0;
+    int num = 0;
     em_subdoc_info_t *subdoc;
-    unsigned int i, j, k, l;
+    int i, j, k, l;
     em_long_string_t wfa;
     em_cmd_disassoc_params_t	disassoc_param;
 
@@ -524,10 +525,10 @@ int dm_easy_mesh_ctrl_t::analyze_command_disassoc(em_bus_event_t *evt, em_cmd_t 
                         disassoc_param.params[disassoc_param.num].bssid);
 
                     timer_obj = cJSON_GetObjectItem(disassoc_obj, "DisassociationTimer");
-                    disassoc_param.params[disassoc_param.num].disassoc_time = cJSON_GetNumberValue(timer_obj);
+                    disassoc_param.params[disassoc_param.num].disassoc_time = static_cast<unsigned int> (cJSON_GetNumberValue(timer_obj));
 
                     reason_obj = cJSON_GetObjectItem(disassoc_obj, "ReasonCode");
-                    disassoc_param.params[disassoc_param.num].reason = cJSON_GetNumberValue(reason_obj);
+                    disassoc_param.params[disassoc_param.num].reason = static_cast<unsigned int> (cJSON_GetNumberValue(reason_obj));
 
                     silent_obj = cJSON_GetObjectItem(disassoc_obj, "Silent");
                     disassoc_param.params[disassoc_param.num].silent = (cJSON_IsTrue(silent_obj) == true) ? true:false;
@@ -560,16 +561,17 @@ int dm_easy_mesh_ctrl_t::analyze_command_btm(em_bus_event_t *evt, em_cmd_t *cmd[
 
     cJSON_free(obj);
 
-    return num;
+    return static_cast<int> (num);
 }
 
 int dm_easy_mesh_ctrl_t::analyze_dpp_start(em_bus_event_t *evt, em_cmd_t *cmd[])
 {
     cJSON *dpp_obj;
-    unsigned int num = 0;
+    int num = 0;
     em_subdoc_info_t *subdoc;
     dm_easy_mesh_t dm;
     em_tiny_string_t country_code = "US";
+	em_cmd_params_t params = evt->params;
 
     subdoc = &evt->u.subdoc;
 
@@ -585,7 +587,7 @@ int dm_easy_mesh_ctrl_t::analyze_dpp_start(em_bus_event_t *evt, em_cmd_t *cmd[])
     }
     
 
-    num = dm.get_dpp()->analyze_config(dpp_obj, NULL, cmd, &evt->params, (void*)country_code);
+    num = dm.get_dpp()->analyze_config(dpp_obj, NULL, cmd, &params, static_cast<void*> (country_code));
     cJSON_free(dpp_obj);
 
     return num;
@@ -633,7 +635,7 @@ int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[
 		i++;
 	} while (i < num_devices);
 
-	return num;
+	return static_cast<int> (num);
 }
 
 int dm_easy_mesh_ctrl_t::analyze_scan_channel(em_bus_event_t *evt, em_cmd_t *pcmd[])
@@ -643,7 +645,6 @@ int dm_easy_mesh_ctrl_t::analyze_scan_channel(em_bus_event_t *evt, em_cmd_t *pcm
     dm_easy_mesh_t dm, *pdm;
     em_cmd_t *tmp;
     unsigned int num = 0, num_devices = 0, i = 0;
-    unsigned int db_cfg_type = 0;
         
     subdoc = &evt->u.subdoc;
         
@@ -671,7 +672,7 @@ int dm_easy_mesh_ctrl_t::analyze_scan_channel(em_bus_event_t *evt, em_cmd_t *pcm
         num++;
     }
 
-    return num;
+    return static_cast<int> (num);
 
 }
 
@@ -712,7 +713,7 @@ int dm_easy_mesh_ctrl_t::analyze_set_channel(em_bus_event_t *evt, em_cmd_t *pcmd
        	num++;
    	}
 
-	return num;
+	return static_cast<int> (num);
 }
 
 int dm_easy_mesh_ctrl_t::analyze_set_radio(em_bus_event_t *evt, em_cmd_t *pcmd[])
@@ -784,7 +785,7 @@ int dm_easy_mesh_ctrl_t::analyze_set_radio(em_bus_event_t *evt, em_cmd_t *pcmd[]
         i++;
     } while (i < num_devices);
 
-    return num;
+    return static_cast<int> (num);
 
 }
 
@@ -795,8 +796,8 @@ int dm_easy_mesh_ctrl_t::analyze_set_ssid(em_bus_event_t *evt, em_cmd_t *pcmd[])
 	dm_easy_mesh_t dm, *pdm;;
 	dm_network_ssid_t *tgt, *src;
     em_cmd_t *tmp;
-	unsigned int i, j, num = 0;
-	unsigned int bit_mask = 0;
+	int i, j, num = 0;
+	int bit_mask = 0;
 
     subdoc = &evt->u.subdoc;
 	if ((ret = dm.decode_config(subdoc, "SetSSID")) < 0) {
@@ -845,13 +846,12 @@ int dm_easy_mesh_ctrl_t::analyze_set_ssid(em_bus_event_t *evt, em_cmd_t *pcmd[])
 int dm_easy_mesh_ctrl_t::analyze_remove_device(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     cJSON *obj, *wfa_obj, *net_obj, *dev_list_obj, *id_obj;
-    unsigned int num = 0;
+    int i, num = 0;
     em_subdoc_info_t *subdoc;
 	mac_address_t dev_mac_to_keep[32];
-	unsigned int num_devs_to_keep = 0;
+	int num_devs_to_keep = 0;
 	dm_device_t *devices_to_delete[32];
-	unsigned int num_devs_to_delete = 0;
-	unsigned int i;
+	int num_devs_to_delete = 0;
 	char *tmp;
 	bool keep = false;
 	dm_device_t *device;
@@ -998,7 +998,7 @@ int dm_easy_mesh_ctrl_t::set_bss_list(cJSON *bss_list_obj, mac_address_t *radio_
 
 int dm_easy_mesh_ctrl_t::set_radio_list(cJSON *radio_list_obj, mac_address_t *dev_mac)
 {
-    unsigned int i, num;
+    int i, num;
     cJSON *obj, *radio_obj, *bss_list_obj, *op_class_list_obj, *radio_cap_list_obj;
     mac_address_t radio_mac;
 
@@ -1033,11 +1033,11 @@ int dm_easy_mesh_ctrl_t::set_radio_list(cJSON *radio_list_obj, mac_address_t *de
 
 int dm_easy_mesh_ctrl_t::set_device_list(cJSON *dev_list_obj)
 {
-    unsigned int i, num;
+    int i, num;
     cJSON *obj, *dev_obj, *radio_list_obj;
     mac_address_t dev_mac;
 
-    dm_device_list_t::set_config(m_db_client, dev_list_obj, (void *)global_netid);
+    dm_device_list_t::set_config(m_db_client, dev_list_obj, static_cast<void *> (global_netid));
 
     num = cJSON_GetArraySize(dev_list_obj);
     //printf("%s:%d: Number of devices: %d\n", __func__, __LINE__, num);
@@ -1097,7 +1097,7 @@ int dm_easy_mesh_ctrl_t::reset_config()
 int dm_easy_mesh_ctrl_t::get_bss_config(cJSON *parent, char *key)
 {
     cJSON *net_obj, *dev_list_obj, *dev_obj, *radio_list_obj, *radio_obj, *bss_list_obj;
-    unsigned int i, j;
+    int i, j;
     char *tmp;
 
     net_obj = cJSON_AddObjectToObject(parent, "Network");
@@ -1127,7 +1127,7 @@ int dm_easy_mesh_ctrl_t::get_reference_config(cJSON *parent, char *net_id)
 	char *buff;
 	cJSON *obj;
 
-	buff = (char *)malloc(EM_MAX_EVENT_DATA_LEN);
+	buff = static_cast<char *> (malloc(EM_MAX_EVENT_DATA_LEN));
 
 	if (em_cmd_exec_t::load_params_file("DevTest.json", buff) < 0) {
 		printf("%s:%d: Failed to load test file\n", __func__, __LINE__);
@@ -1152,7 +1152,7 @@ int dm_easy_mesh_ctrl_t::get_scan_result(cJSON *parent, char *key)
 {
     cJSON *net_obj, *dev_list_obj, *dev_obj, *radio_list_obj, *radio_obj;
 	cJSON *bss_obj, *bss_list_obj, *sta_list_obj;
-	unsigned int i, j, k;
+	int i, j, k;
 	em_long_string_t	scan_parent;
 	char *dev_id, *radio_id, *bss_id;
 	mac_addr_str_t	null_mac_str;
@@ -1199,7 +1199,7 @@ int dm_easy_mesh_ctrl_t::get_scan_result(cJSON *parent, char *key)
 int dm_easy_mesh_ctrl_t::get_policy_config(cJSON *parent, char *net_id)
 {
     cJSON *net_obj, *dev_list_obj, *dev_obj, *policy_obj;
-    unsigned int i;
+    int i;
 	char *tmp;
 
     net_obj = cJSON_AddObjectToObject(parent, "Network");
@@ -1223,7 +1223,7 @@ int dm_easy_mesh_ctrl_t::get_sta_config(cJSON *parent, char *key, em_get_sta_lis
 {
     cJSON *net_obj, *dev_list_obj, *dev_obj, *radio_list_obj, *radio_obj, *bss_list_obj;
     cJSON *bss_obj, *sta_list_obj;
-    unsigned int i, j, k;
+    int i, j, k;
     char *tmp;
 
     net_obj = cJSON_AddObjectToObject(parent, "Network");
@@ -1269,7 +1269,7 @@ int dm_easy_mesh_ctrl_t::get_channel_config(cJSON *parent, char *key, em_get_cha
 {
     cJSON *net_obj, *dev_list_obj, *dev_obj, *radio_list_obj, *radio_obj, *op_class_list_obj;
 	cJSON *preferred_channels_list_obj, *channel_list_obj;
-    unsigned int i, j;
+    int i, j;
     char *tmp;
     em_long_string_t op_key;
 
@@ -1296,12 +1296,12 @@ int dm_easy_mesh_ctrl_t::get_channel_config(cJSON *parent, char *key, em_get_cha
             radio_obj = cJSON_GetArrayItem(radio_list_obj, j);
             tmp = cJSON_GetStringValue(cJSON_GetObjectItem(radio_obj, "ID"));
             op_class_list_obj = cJSON_AddArrayToObject(radio_obj, "CurrentOperatingClasses");
-            snprintf(op_key, sizeof(op_key), "%s@%d@&d", tmp, em_op_class_type_current, 0);
+            snprintf(op_key, sizeof(op_key), "%s@%d@%d", tmp, em_op_class_type_current, 0);
             dm_op_class_list_t::get_config(op_class_list_obj, op_key);
         }
         preferred_channels_list_obj = cJSON_AddArrayToObject(dev_obj, "PreferredChannels");
         tmp = cJSON_GetStringValue(cJSON_GetObjectItem(dev_obj, "ID"));
-        snprintf(op_key, sizeof(op_key), "%s@%d@&d", tmp, em_op_class_type_preference, 0);
+        snprintf(op_key, sizeof(op_key), "%s@%d@%d", tmp, em_op_class_type_preference, 0);
         dm_op_class_list_t::get_config(preferred_channels_list_obj, op_key);
     }
 
@@ -1312,7 +1312,7 @@ int dm_easy_mesh_ctrl_t::get_radio_config(cJSON *parent, char *key, em_get_radio
 {
     cJSON *net_obj, *dev_list_obj, *dev_obj, *radio_list_obj, *radio_obj, *op_class_list_obj;
 	cJSON *bss_list_obj;
-	unsigned int i, j;
+	int i, j;
     em_long_string_t op_key;
 	char *tmp;
 		
@@ -1330,7 +1330,7 @@ int dm_easy_mesh_ctrl_t::get_radio_config(cJSON *parent, char *key, em_get_radio
             radio_obj = cJSON_GetArrayItem(radio_list_obj, j);
             tmp = cJSON_GetStringValue(cJSON_GetObjectItem(radio_obj, "ID"));
 			op_class_list_obj = cJSON_AddArrayToObject(radio_obj, "CurrentOperatingClasses");
-            snprintf(op_key, sizeof(op_key), "%s@%d@&d", tmp, em_op_class_type_current, 0);
+            snprintf(op_key, sizeof(op_key), "%s@%d@%d", tmp, em_op_class_type_current, 0);
             dm_op_class_list_t::get_config(op_class_list_obj, op_key);
             bss_list_obj = cJSON_AddArrayToObject(radio_obj, "BSSList");
             dm_bss_list_t::get_config(bss_list_obj, tmp, true);
@@ -1362,14 +1362,6 @@ int dm_easy_mesh_ctrl_t::get_network_config(cJSON *parent, char *key)
 
 int dm_easy_mesh_ctrl_t::get_mld_config(cJSON *parent, char *key)
 {
-    cJSON *net_obj, *dev_list_obj, *netssid_list_obj, *radio_list_obj;
-    cJSON *obj, *ap_mld_obj;
-    unsigned int i, num;
-    mac_address_t dev_mac;
-		
-    ap_mld_obj = cJSON_AddObjectToObject(parent, "AP MLD Config");
-    //dm_ap_mld_t::get_config(net_obj, key);
-
 	return 0;
 }
 
@@ -1431,7 +1423,7 @@ int dm_easy_mesh_ctrl_t::copy_config(dm_easy_mesh_t *dm, em_long_string_t net_id
 
     network = m_data_model_list.get_network(net_id);
     if (network == NULL) {
-        printf("%s%%d: Network with id:%d not found\n", __func__, __LINE__, net_id);
+        printf("%s:%d: Network with id:%s not found\n", __func__, __LINE__, net_id);
         return -1;
     }
 
@@ -1467,7 +1459,7 @@ void dm_easy_mesh_ctrl_t::handle_dirty_dm()
 dm_easy_mesh_t  *dm_easy_mesh_ctrl_t::get_data_model(const char *net_id, const unsigned char *al_mac) 
 {
     if (al_mac == NULL) {
-        return (dm_easy_mesh_t *)this;
+        return reinterpret_cast<dm_easy_mesh_t *> (this);
     } else {
         return m_data_model_list.get_data_model(net_id, al_mac);
     }
@@ -1545,7 +1537,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
     dm_network_ssid_t net_ssid;
     mac_addr_str_t	sta_mac_str, bssid_str, radio_mac_str, dev_mac_str, scanner_mac_str;
     unsigned int i, j;
-    em_long_string_t	parent, key;
+    em_2xlong_string_t parent, key;
     em_string_t haul_str;
     bool at_least_one_failed = false;
 	char *criteria;
@@ -1568,8 +1560,8 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
 
     if (dm->db_cfg_type_is_set(db_cfg_type_device_list_update)) {
 		criteria = dm->db_cfg_type_get_criteria(db_cfg_type_device_list_update);
-		dm_easy_mesh_t::macbytes_to_string((unsigned char *)dm->m_device.m_device_info.intf.mac, dev_mac_str);
-    	snprintf(key, sizeof(em_long_string_t), "%s@%s@%d", dm->m_network.m_net_info.id, 
+		dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (dm->m_device.m_device_info.intf.mac), dev_mac_str);
+    	snprintf(key, sizeof(em_2xlong_string_t), "%s@%s@%d", dm->m_network.m_net_info.id, 
 					dev_mac_str, dm->m_device.m_device_info.id.media);
         if (dm_device_list_t::set_config(m_db_client, dm->get_device_by_ref(), key) == 0) {
             dm->reset_db_cfg_type(db_cfg_type_device_list_update);
@@ -1585,11 +1577,11 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
 
     if (dm->db_cfg_type_is_set(db_cfg_type_radio_list_update)) {
         device = dm->get_device_by_ref();
-        dm_easy_mesh_t::macbytes_to_string((unsigned char *)device.m_device_info.intf.mac, dev_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (device.m_device_info.intf.mac), dev_mac_str);
         for (i = 0; i < dm->get_num_radios(); i++) {
             radio = dm->get_radio_by_ref(i);
-        	dm_easy_mesh_t::macbytes_to_string((unsigned char *)radio.m_radio_info.intf.mac, radio_mac_str);
-            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s", device.m_device_info.id.net_id, dev_mac_str, radio_mac_str);
+        	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (radio.m_radio_info.intf.mac), radio_mac_str);
+            snprintf(parent, sizeof(em_2xlong_string_t), "%s@%s@%s", device.m_device_info.id.net_id, dev_mac_str, radio_mac_str);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_radio_list_update);
             if (dm_radio_list_t::set_config(m_db_client, radio, parent) != 0) {
                 at_least_one_failed = true;;
@@ -1604,11 +1596,11 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
 
     if (dm->db_cfg_type_is_set(db_cfg_type_radio_list_delete)) {
         device = dm->get_device_by_ref();
-        dm_easy_mesh_t::macbytes_to_string((unsigned char *)device.m_device_info.intf.mac, dev_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (device.m_device_info.intf.mac), dev_mac_str);
         for (i = 0; i < dm->get_num_radios(); i++) {
             radio = dm->get_radio_by_ref(i);
-        	dm_easy_mesh_t::macbytes_to_string((unsigned char *)radio.m_radio_info.intf.mac, radio_mac_str);
-            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s", device.m_device_info.id.net_id, dev_mac_str, radio_mac_str);
+        	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (radio.m_radio_info.intf.mac), radio_mac_str);
+            snprintf(parent, sizeof(em_2xlong_string_t), "%s@%s@%s", device.m_device_info.id.net_id, dev_mac_str, radio_mac_str);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_radio_list_delete);
             if (dm_radio_list_t::update_db(m_db_client, dm_orch_type_db_delete, dm->get_radio(i)) != 0) {
                 at_least_one_failed = true;
@@ -1628,7 +1620,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
     		dm_easy_mesh_t::macbytes_to_string(dm->m_device.m_device_info.intf.mac, dev_mac_str);
     		dm_easy_mesh_t::macbytes_to_string(bss.m_bss_info.ruid.mac, radio_mac_str);
 			dm_easy_mesh_t::macbytes_to_string(bss.m_bss_info.bssid.mac, bssid_str);
-			snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%s@%d", dm->m_network.m_net_info.id, 
+			snprintf(parent, sizeof(em_2xlong_string_t), "%s@%s@%s@%s@%d", dm->m_network.m_net_info.id, 
 					dev_mac_str, radio_mac_str, bssid_str, bss.m_bss_info.id.haul_type);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_bss_list_update);
             if (dm_bss_list_t::set_config(m_db_client, bss, parent) != 0) {
@@ -1666,8 +1658,8 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
             printf("%s:%d: Op Class[%d] ruid: %s\tType: %d\tClass: %d\tClass: %d\n", __func__, __LINE__, i,
             	radio_mac_str, dm->m_op_class[i].m_op_class_info.id.type, dm->m_op_class[i].m_op_class_info.id.op_class,
 				dm->m_op_class[i].m_op_class_info.op_class);
-            snprintf(parent, sizeof(em_long_string_t), "%s@%d@%d", radio_mac_str, dm->m_op_class[i].m_op_class_info.id.type, 
-					dm->m_op_class[i].m_op_class_info.id.op_class, dm->m_op_class[i].m_op_class_info.op_class);
+            snprintf(parent, sizeof(em_2xlong_string_t), "%s@%d@%d", radio_mac_str, dm->m_op_class[i].m_op_class_info.id.type, 
+					dm->m_op_class[i].m_op_class_info.id.op_class);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_op_class_list_update);
             if (dm_op_class_list_t::set_config(m_db_client, dm->m_op_class[i], parent) != 0) {
                 at_least_one_failed = true;
@@ -1687,7 +1679,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
             dm_easy_mesh_t::macbytes_to_string(op_class.m_op_class_info.id.ruid, radio_mac_str);
             printf("%s:%d: Op Class[%d] ruid: %s\tType: %d\tClass: %d\n", __func__, __LINE__, i,
             	radio_mac_str, op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.op_class);
-            snprintf(parent, sizeof(em_long_string_t), "%s@%d@%d", radio_mac_str, op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.op_class);
+            snprintf(parent, sizeof(em_2xlong_string_t), "%s@%d@%d", radio_mac_str, op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.op_class);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_op_class_list_delete);
             if (dm_op_class_list_t::update_db(m_db_client, dm_orch_type_db_delete, dm->get_op_class(i)) != 0) {
                 at_least_one_failed = true;
@@ -1703,16 +1695,16 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
     } 
 
     if (dm->db_cfg_type_is_set(db_cfg_type_sta_list_update)) {
-        sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_assoc_map);
+        sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_assoc_map));
         while (sta != NULL) {
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_sta_list_update);
             if (dm_sta_list_t::set_config(m_db_client, *sta, NULL) == 0) {
                 dm->reset_db_cfg_type(db_cfg_type_sta_list_update);
             }
-            sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_assoc_map, sta);
+            sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_assoc_map, sta));
         }
 
-        sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_assoc_map);
+        sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_assoc_map));
         while (sta != NULL) {
             tmp = sta;
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_sta_list_update);
@@ -1723,8 +1715,8 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
             dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
             dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bssid_str);
             dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
-            snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bssid_str, radio_mac_str);
-            sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_assoc_map, sta);
+            snprintf(key, sizeof(em_2xlong_string_t), "%s@%s@%s", sta_mac_str, bssid_str, radio_mac_str);
+            sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_assoc_map, sta));
             hash_map_remove(dm->m_sta_assoc_map, key);
             delete tmp;
         }
@@ -1733,16 +1725,16 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
     }
 
     if (dm->db_cfg_type_is_set(db_cfg_type_sta_list_delete)) {
-        sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_dassoc_map);
+        sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_dassoc_map));
         while (sta != NULL) {
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_sta_list_delete);
             if (dm_sta_list_t::update_db(m_db_client, dm_orch_type_db_delete, sta) != 0) {
                 dm->reset_db_cfg_type(db_cfg_type_sta_list_delete);
             }
-            sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_dassoc_map, sta);
+            sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_dassoc_map, sta));
         }
 
-        sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_dassoc_map);
+        sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_dassoc_map));
         while (sta != NULL) {
             tmp = sta;
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_sta_list_delete);
@@ -1752,8 +1744,8 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
             dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
             dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bssid_str);
             dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
-            snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bssid_str, radio_mac_str);
-            sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_dassoc_map, sta);
+            snprintf(key, sizeof(em_2xlong_string_t), "%s@%s@%s", sta_mac_str, bssid_str, radio_mac_str);
+            sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_dassoc_map, sta));
 
             hash_map_remove(dm->m_sta_dassoc_map, key);
             delete tmp;
@@ -1763,13 +1755,13 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
     }
 
     if (dm->db_cfg_type_is_set(db_cfg_type_sta_metrics_update)) {
-        sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_map);
+        sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
         while (sta != NULL) {
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_sta_metrics_update);
             if (dm_sta_list_t::set_config(m_db_client, *sta, NULL) == 0) {
                 dm->reset_db_cfg_type(db_cfg_type_sta_metrics_update);
             }
-            sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_map, sta);
+            sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
         }
 		dm->reset_db_cfg_type(db_cfg_type_sta_metrics_update);
     }
@@ -1777,7 +1769,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
     if (dm->db_cfg_type_is_set(db_cfg_type_network_ssid_list_update)) {
         for (i = 0; i < dm->get_num_network_ssid(); i++) {
             net_ssid = dm->get_network_ssid_by_ref(i);
-            snprintf(parent, sizeof(em_long_string_t), "%s@%s",
+            snprintf(parent, sizeof(em_2xlong_string_t), "%s@%s",
                     global_netid, dm_network_ssid_t::haul_type_to_string(net_ssid.m_network_ssid_info.haul_type[0], haul_str));
             //printf("%s:%d: Key: %s\n", __func__, __LINE__, parent);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_network_ssid_list_update);
@@ -1797,7 +1789,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
 			policy = dm->get_policy_by_ref(i);
 			dm_easy_mesh_t::macbytes_to_string(policy.m_policy.id.dev_mac, dev_mac_str);
 			dm_easy_mesh_t::macbytes_to_string(policy.m_policy.id.radio_mac, radio_mac_str);
-            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d", global_netid, dev_mac_str, radio_mac_str, policy.m_policy.id.type);
+            snprintf(parent, sizeof(em_2xlong_string_t), "%s@%s@%s@%d", global_netid, dev_mac_str, radio_mac_str, policy.m_policy.id.type);
             //printf("%s:%d: Key: %s\n", __func__, __LINE__, parent);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_policy_list_update);
             if (dm_policy_list_t::set_config(m_db_client, dm->get_policy_by_ref(i), parent) != 0) {
@@ -1816,7 +1808,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
             scan_result = dm->get_scan_result(i);
 			dm_easy_mesh_t::macbytes_to_string(scan_result->m_scan_result.id.dev_mac, dev_mac_str);
 			dm_easy_mesh_t::macbytes_to_string(scan_result->m_scan_result.id.scanner_mac, scanner_mac_str);
-            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d@%d@%d",
+            snprintf(parent, sizeof(em_2xlong_string_t), "%s@%s@%s@%d@%d@%d",
                     scan_result->m_scan_result.id.net_id, dev_mac_str, scanner_mac_str, scan_result->m_scan_result.id.op_class, 
 					scan_result->m_scan_result.id.channel, scan_result->m_scan_result.id.scanner_type);
             //printf("%s:%d: Key: %s\n", __func__, __LINE__, parent);
@@ -1911,8 +1903,6 @@ void dm_easy_mesh_ctrl_t::init_network_topology()
 
 int dm_easy_mesh_ctrl_t::init(const char *data_model_path, em_mgr_t *mgr)
 {
-    dm_device_t *dev;
-    void *res;
     int rc;
 
     m_data_model_list.init(mgr);
@@ -1924,7 +1914,7 @@ int dm_easy_mesh_ctrl_t::init(const char *data_model_path, em_mgr_t *mgr)
     }
 
     if ((rc = load_tables()) != 0) {
-        printf("%s:%d: Load operation failed, err: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str((dm_orch_type_t)rc));
+        printf("%s:%d: Load operation failed, err: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(static_cast<dm_orch_type_t> (rc)));
         return -1;
     }
     return 0;

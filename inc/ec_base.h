@@ -87,6 +87,7 @@ typedef enum  {
     ec_frame_type_private_peer_intro_notify,
     ec_frame_type_private_peer_intro_update,
     // 24-255 : Reserved
+    ec_frame_type_reserved = 0xFF, // work around 
 } ec_frame_type_t;
 
 // As defined by EasyConnect 8.1 Table 29
