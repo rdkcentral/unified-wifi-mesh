@@ -3,6 +3,8 @@
 #include "ec_util.h"
 #include "ec_crypto.h"
 #include "util.h"
+#include "cjson/cJSON.h"
+#include "cjson_util.h"
 
 ec_enrollee_t::ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame)
                             : m_mac_addr(mac_addr), m_send_action_frame(send_action_frame)
@@ -301,7 +303,33 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
         return false;
     }
 
-    return true;
+    const auto [config_req, config_req_len] = create_config_request();
+    if (config_req == nullptr || config_req_len == 0) {
+        printf("%s:%d: Could not create DPP Configuration Request!\n", __func__, __LINE__);
+        return false;
+    }
+
+    // EasyMesh R6 5.3.1:
+    // The DPP onboarding process begins when the Multi-AP Controller receives the bootstrapping information of the Enrollee
+    // Multi-AP Agent in the form of a DPP URI. Upon receipt of the DPP URI, the Multi-AP Controller instructs one or more
+    // existing Multi-AP Agents to advertise the CCE IE in their Beacon and Probe Response frames, if they are not doing so
+    // already, and listen to the Enrollee's DPP Presence Announcement frame. Once the Multi-AP Controller receives a DPP
+    // Presence Announcement frame from an Enrollee Multi-AP Agent, it initiates the DPP Authentication procedure by
+    // generating a DPP Authentication Request frame. A Multi-AP Agent, acting as a proxy, relays the DPP Authentication
+    // messages received from the Multi-AP Controller to the Enrollee when the DPP Presence Announcement frame with the
+    // correct hash is received from the Enrollee. The proxy performs a bi-directional conversation between a DPP frame carried
+    // in an 802.11 frame to a DPP frame encapsulated in a Multi-AP CMDU message. **Upon successful authentication**, the
+    // Enrollee Multi-AP Agent requests configuration by exchanging DPP Configuration Protocol messages (see 6.6 of [18])
+    // with the Multi-AP Controller.
+    bool sent_dpp_config_gas_frame = m_send_action_frame(src_mac, config_req, config_req_len, 0);
+    if (sent_dpp_config_gas_frame) {
+        printf("%s:%d: Sent DPP Configuration Request 802.11 frame to Proxy Agent!\n", __func__, __LINE__);
+    } else {
+        printf("%s:%d: Failed to send DPP Configuration Request GAS frame\n", __func__, __LINE__);
+    }
+    free(config_req);
+
+    return sent_dpp_config_gas_frame;
 }
 
 bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint8_t sa[ETH_ALEN])
@@ -571,7 +599,83 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_recfg_auth_response(ec_status
 
 std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
 {
-    return std::pair<uint8_t *, size_t>();
+    // EasyConnect 6.4.2 DPP Configuration Request
+    // Regardless of whether the Initiator or Responder took the role of Configurator, the DPP Configuration protocol is always
+    // initiated by the Enrollee. To start, the Enrollee generates one or more DPP Configuration Request objects (see section
+    // 4.4) and generates a new nonce, E-nonce, whose length is determined according to Table 4. When the Configurator has
+    // not indicated support for protocol version number 2 or higher, no more than one DPP Configuration Request object shall
+    // be included. The E-nonce attribute and the DPP Configuration Request object attribute(s) are wrapped with ke. The
+    // wrapped attributes are then placed in a DPP Configuration Request frame, and sent to the Configurator.
+    // Enrollee → Configurator: { E-nonce, configRequest }ke
+    if ((m_eph_ctx.e_nonce = static_cast<uint8_t *>(malloc(m_p_ctx.nonce_len))) == NULL) {
+        printf("%s:%d: Could not malloc for E-nonce!\n", __func__, __LINE__);
+        return {};
+    }
+
+    if (RAND_bytes(m_eph_ctx.e_nonce, m_p_ctx.nonce_len) != 1) {
+        printf("%s:%d: Could not generate E-nonce!\n", __func__, __LINE__);
+        free(m_eph_ctx.e_nonce);
+        return {};
+    }
+
+    if (m_boot_data.version <= 1) {
+        printf("%s:%d: EasyMesh R >= 5 mandates DPP version >= 2, current version is %d, bailing.\n", __func__, __LINE__, m_boot_data.version);
+        return {};
+    }
+
+    // EasyMesh R6 5.3.3
+    // If an Enrollee Multi-AP Agent sends a DPP Configuration Request frame (see section 6.4.2 of [18] and Table 5), it shall:
+    // - Include one DPP Configuration Request Object (see Table 5)
+    // - set the netRole to "mapAgent"
+    // - set wi-fi_tech to "map"
+    // - include the akm parameter, and
+    // - set the akm parameter value to the supported akm of its backhaul STA.
+    cJSON *dpp_config_request_obj = cJSON_CreateObject();
+    cJSON *netRole = cJSON_CreateString("mapAgent");
+    cJSON *wifi_tech = cJSON_CreateString("map");
+    // XXX: TODO:!!!! Hard-coded AKM, data model doesn't know about bSTA / selected AKM, only list of _possible_ AKMs for a bSTA
+    cJSON *akm = cJSON_CreateString("psk2");
+    if (!dpp_config_request_obj || !netRole || !wifi_tech || !akm) {
+        printf("%s:%d: Failed to create DPP Configuration Request Object!\n", __func__, __LINE__);
+        return {};
+    }
+    cJSON_AddItemToObject(dpp_config_request_obj, "netRole", netRole);
+    cJSON_AddItemToObject(dpp_config_request_obj, "wi-fi_tech", wifi_tech);
+    cJSON_AddItemToObject(dpp_config_request_obj, "akm", akm);
+    size_t config_obj_len = cjson_utils::get_cjson_blob_size(dpp_config_request_obj);
+
+    // XXX: Dialog token can be thought of as a session key between Enrollee and Configurator regarding configuration
+    // From specs (EasyMesh, EasyConnect, 802.11), it seems this is just arbitrarily chosen (1 byte), but
+    // must be unique per GAS frame "session" exchange.
+    // See: 802.11-2020 9.4.1.12 Dialog Token field
+    int dialog_token = 1;
+    auto [frame, frame_len] = ec_util::alloc_gas_frame(dpp_gas_initial_req, dialog_token);
+    if (frame == nullptr || frame_len == 0) {
+        printf("%s:%d: Could not create DPP Configuration Request GAS frame!\n", __func__, __LINE__);
+        return {};
+    }
+
+    ec_gas_initial_request_frame_t *initial_req_frame = (ec_gas_initial_request_frame_t *)frame;
+    uint8_t *attribs = nullptr;
+    size_t attribs_len = 0;
+    // Wrap e-nonce and config req obj(s) with k_e
+    attribs = ec_util::add_wrapped_data_attr((uint8_t *)initial_req_frame, sizeof(ec_gas_initial_request_frame_t), attribs, &attribs_len, true, m_eph_ctx.ke, [&](){
+        size_t wrapped_len = 0;
+        uint8_t* wrapped_attribs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, m_p_ctx.nonce_len, m_eph_ctx.e_nonce);
+        wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_req_obj, config_obj_len, (uint8_t *)dpp_config_request_obj);
+        return std::make_pair(wrapped_attribs, wrapped_len);
+    });
+
+    if ((initial_req_frame = reinterpret_cast<ec_gas_initial_request_frame_t*>(
+        ec_util::copy_attrs_to_frame((uint8_t*)initial_req_frame, sizeof(ec_gas_initial_request_frame_t), attribs, attribs_len))) == nullptr) {
+        printf("%s:%d: unable to copy attribs to GAS frame\n", __func__, __LINE__);
+        free(attribs);
+        free(frame);
+        return {};
+    }
+    initial_req_frame->query_len = static_cast<uint16_t>(attribs_len);
+    
+    return std::make_pair(reinterpret_cast<uint8_t*>(initial_req_frame), sizeof(ec_gas_initial_request_frame_t) + attribs_len);
 }
 
 std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_result()
