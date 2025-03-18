@@ -33,7 +33,7 @@ bool ec_pa_configurator_t::handle_cfg_request(uint8_t *buff, unsigned int len, u
     // Configuration Request frame and shall set the Enrollee MAC Address Present field to one, include the Enrollee's MAC
     // address in the Destination STA MAC Address field, set the DPP Frame Indicator field to one and the Frame Type field to
     // 255, and send the message to the Multi-AP Controller.
-    auto [encap_dpp_tlv, encap_dpp_tlv_len] = ec_util::create_encap_dpp_tlv(true, sa, static_cast<ec_frame_type_t>(ec_frame_type_reserved), buff, len);
+    auto [encap_dpp_tlv, encap_dpp_tlv_len] = ec_util::create_encap_dpp_tlv(true, sa, static_cast<ec_frame_type_t>(ec_frame_type_easymesh), buff, len);
     ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d: Could not create Encap DPP TLV!\n", __func__, __LINE__);
     bool sent = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_tlv_len, nullptr, 0);
     if (!sent) {
