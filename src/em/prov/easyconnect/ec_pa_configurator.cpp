@@ -27,18 +27,20 @@ bool ec_pa_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, u
 bool ec_pa_configurator_t::handle_cfg_request(uint8_t *buff, unsigned int len, uint8_t sa[ETH_ALEN])
 {
     printf("%s:%d: Rx'd a DPP Configuration Request from " MACSTRFMT "\n", __func__, __LINE__, MAC2STR(sa));
-    uint8_t *p = buff;
-    ec_gas_frame_base_t *gas_frame_base = reinterpret_cast<ec_gas_frame_base_t *>(p);
-    p += sizeof(ec_gas_frame_base_t);
-    ec_gas_initial_request_frame_t *gas_initial_request = reinterpret_cast<ec_gas_initial_request_frame_t *>(p);
-    printf(
-        "%s:%d: Got a DPP config request! category=%02x action=%02x dialog_token=%02x ape=" APEFMT
-        " ape_id=" APEIDFMT " query_len=%u\n",
-        __func__, __LINE__, gas_frame_base->action, gas_frame_base->category,
-        gas_frame_base->dialog_token, APE2STR(gas_initial_request->ape),
-        APEID2STR(gas_initial_request->ape_id), gas_initial_request->query_len);
-    printf("%s:%d: IMPLEMENT ME!\n", __func__, __LINE__);
-    return true;
+    // EasyMesh R6 5.3.4
+    // If a Proxy Agent receives a DPP Configuration Request frame in a GAS frame from an Enrollee Multi-AP Agent, it shall
+    // generate a Proxied Encap DPP message that includes a 1905 Encap DPP TLV that encapsulates the received DPP
+    // Configuration Request frame and shall set the Enrollee MAC Address Present field to one, include the Enrollee's MAC
+    // address in the Destination STA MAC Address field, set the DPP Frame Indicator field to one and the Frame Type field to
+    // 255, and send the message to the Multi-AP Controller.
+    auto [encap_dpp_tlv, encap_dpp_tlv_len] = ec_util::create_encap_dpp_tlv(true, sa, static_cast<ec_frame_type_t>(255), buff, len);
+    ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d: Could not create Encap DPP TLV!\n", __func__, __LINE__);
+    bool sent = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_tlv_len, nullptr, 0);
+    if (!sent) {
+        printf("%s:%d: Failed to send Proxied Encap DPP message!\n", __func__, __LINE__);
+    }
+    free(encap_dpp_tlv);
+    return sent;
 }
 
 bool ec_pa_configurator_t::handle_cfg_result(uint8_t *buff, unsigned int len)
