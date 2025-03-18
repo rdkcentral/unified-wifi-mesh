@@ -56,6 +56,8 @@ extern "C"
 #define MAC2STR(x) static_cast<unsigned int>((x)[0]), static_cast<unsigned int>((x)[1]), static_cast<unsigned int>((x)[2]), \
                    static_cast<unsigned int>((x)[3]), static_cast<unsigned int>((x)[4]), static_cast<unsigned int>((x)[5])
 
+static const uint8_t BROADCAST_MAC_ADDR[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+
 // EasyConnect 8.3.2
 static const uint8_t DPP_GAS_CONFIG_REQ_APE[3] = {0x6c, 0x08, 0x00};
 static const uint8_t DPP_GAS_CONFIG_REQ_PROTO_ID[7] = {0xDD, 0x05, 0x50, 0x6F, 0x9A ,0x1A, 0x01};
