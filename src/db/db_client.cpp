@@ -30,6 +30,7 @@ int db_client_t::recreate_db()
 {
 	execute("drop database OneWifiMesh");
 	execute("create database OneWifiMesh");
+	return 0;
 }
 
 void *db_client_t::execute(const char *query)
@@ -41,7 +42,7 @@ void *db_client_t::execute(const char *query)
         sql::ResultSet *res;
 
         if (m_con) {
-            stmt = ((sql::Connection *)m_con)->createStatement();
+            stmt = static_cast<sql::Connection *> (m_con)->createStatement();
         } else {
             printf("%s:%d: Query: %s m_con is NULL, exciting\n", __func__, __LINE__, query);
             return tmp;
@@ -72,7 +73,7 @@ bool db_client_t::next_result(void *ctx)
     }
 
     try {
-        sql::ResultSet *res = (sql::ResultSet *)ctx;
+        sql::ResultSet *res = static_cast<sql::ResultSet *> (ctx);
         ret = res->next();
         if (ret == false) {
             //printf("%s:%d: result set deleted\n", __func__, __LINE__);
@@ -93,7 +94,7 @@ char *db_client_t::get_string(void *ctx, char *str, unsigned int col)
     }
 
     try {
-        sql::ResultSet *res = (sql::ResultSet *)ctx;
+        sql::ResultSet *res = static_cast<sql::ResultSet *> (ctx);
         snprintf(str, strlen(res->getString(col).c_str()) + 1, "%s", res->getString(col).c_str());
         //printf("%s:%d: str:%s\n", __func__, __LINE__, str);
     } catch (sql::SQLException &e) {
@@ -110,7 +111,7 @@ int db_client_t::get_number(void *ctx, unsigned int col)
     assert(ctx != NULL);
 
     try {
-        sql::ResultSet *res = (sql::ResultSet *)ctx;
+        sql::ResultSet *res = static_cast<sql::ResultSet *> (ctx);
         n = res->getInt(col);
 
     } catch (sql::SQLException &e) {
@@ -127,7 +128,7 @@ int db_client_t::connect(const char *path)
 
     if (path == NULL || strlen(path) <= 0) return -1;
 
-    if ((tmp = strchr((char *)path, '@')) == NULL) {
+    if ((tmp = strchr( const_cast<char *> (path), '@')) == NULL) {
         printf("%s:%d: invalid path: %s\n", __func__, __LINE__, path);
         return -1;
     }
@@ -137,9 +138,9 @@ int db_client_t::connect(const char *path)
     printf("%s:%d: user:%s pass:%s\n", __func__, __LINE__, path, tmp); 
     try {
         m_driver = get_driver_instance();
-        m_con = ((sql::Driver *)m_driver)->connect("tcp://127.0.0.1:3306", path, tmp);
+        m_con = static_cast<sql::Driver *> (m_driver)->connect("tcp://127.0.0.1:3306", path, tmp);
 
-        ((sql::Connection *)m_con)->setSchema("OneWifiMesh");
+        static_cast<sql::Connection*> (m_con)->setSchema("OneWifiMesh");
 
 
     } catch (sql::SQLException &e) {
