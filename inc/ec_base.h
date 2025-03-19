@@ -56,6 +56,20 @@ extern "C"
 #define MAC2STR(x) static_cast<unsigned int>((x)[0]), static_cast<unsigned int>((x)[1]), static_cast<unsigned int>((x)[2]), \
                    static_cast<unsigned int>((x)[3]), static_cast<unsigned int>((x)[4]), static_cast<unsigned int>((x)[5])
 
+
+// For self-documenting code/runtime
+#define SPEC_TODO_NOT_FATAL(SPEC, VERSION, SECTION, TEXT) \
+    do { \
+        fprintf(stderr, "[TODO] Spec: %s v%s, Section: %s\nText: %s\n", SPEC, VERSION, SECTION, TEXT); \
+    } while (0)
+
+
+#define SPEC_TODO_FATAL(SPEC, VERSION, SECTION, TEXT) \
+    do { \
+        fprintf(stderr, "[TODO - FATAL] Spec: %s v%s, Section: %s\nText: %s\n", SPEC, VERSION, SECTION, TEXT); \
+        assert(false); \
+    } while (0)
+
 static const uint8_t BROADCAST_MAC_ADDR[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
 // EasyConnect 8.3.2
