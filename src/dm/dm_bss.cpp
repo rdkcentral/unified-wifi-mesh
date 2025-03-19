@@ -43,10 +43,10 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
 {
     cJSON *tmp, *tmp_arr;
     mac_addr_str_t  mac_str;
-    unsigned int i;
+    int i;
 
     memset(&m_bss_info, 0, sizeof(em_bss_info_t));
-    dm_easy_mesh_t::string_to_macbytes((char *)parent_id, m_bss_info.ruid.mac);
+    dm_easy_mesh_t::string_to_macbytes(static_cast<char *> (parent_id), m_bss_info.ruid.mac);
 
     if ((tmp = cJSON_GetObjectItem(obj, "BSSID")) != NULL) {
         snprintf(mac_str, sizeof(mac_str), "%s", cJSON_GetStringValue(tmp));
@@ -55,7 +55,7 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "UnicastBytesSent")) != NULL) {
-        m_bss_info.unicast_bytes_sent = tmp->valuedouble;
+        m_bss_info.unicast_bytes_sent = static_cast<unsigned int> (tmp->valuedouble);
     }
 
 
@@ -68,7 +68,7 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "LastChange")) != NULL) {
-        m_bss_info.last_change = tmp->valuedouble;
+        m_bss_info.last_change = static_cast<unsigned int> (tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "TimeStamp")) != NULL) {    
@@ -76,11 +76,11 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "UnicastBytesReceived")) != NULL) {
-        m_bss_info.unicast_bytes_rcvd = tmp->valuedouble;
+        m_bss_info.unicast_bytes_rcvd = static_cast<unsigned int> (tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "NumberOfSTA")) != NULL) {
-        m_bss_info.numberofsta = tmp->valuedouble;
+        m_bss_info.numberofsta = static_cast<unsigned int> (tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "EstServiceParametersBE")) != NULL) {
@@ -100,11 +100,11 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "ByteCounterUnits")) != NULL) {
-        m_bss_info.byte_counter_units = tmp->valuedouble;
+        m_bss_info.byte_counter_units = static_cast<unsigned int> (tmp->valuedouble);
     }
 
     if ((tmp_arr = cJSON_GetObjectItem(obj, "FronthaulAKMsAllowed")) != NULL) {
-        m_bss_info.num_fronthaul_akms = cJSON_GetArraySize(tmp_arr);
+        m_bss_info.num_fronthaul_akms = static_cast<unsigned char> (cJSON_GetArraySize(tmp_arr));
         for (i = 0; i < m_bss_info.num_fronthaul_akms; i++) {
             tmp = cJSON_GetArrayItem(tmp_arr, i);
             snprintf(m_bss_info.fronthaul_akm[i], sizeof(m_bss_info.fronthaul_akm[i]), "%s", cJSON_GetStringValue(tmp));
@@ -112,7 +112,7 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp_arr = cJSON_GetObjectItem(obj, "BackhaulAKMsAllowed")) != NULL) {
-        m_bss_info.num_backhaul_akms = cJSON_GetArraySize(tmp_arr);
+        m_bss_info.num_backhaul_akms = static_cast<unsigned char> (cJSON_GetArraySize(tmp_arr));
         for (i = 0; i < m_bss_info.num_backhaul_akms; i++) {
             tmp = cJSON_GetArrayItem(tmp_arr, i);
             snprintf(m_bss_info.backhaul_akm[i], sizeof(m_bss_info.backhaul_akm[i]), "%s", cJSON_GetStringValue(tmp));
@@ -128,7 +128,7 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "AssociationAllowanceStatus")) != NULL) {
-        m_bss_info.assoc_allowed_status = tmp->valuedouble;
+        m_bss_info.assoc_allowed_status = static_cast<unsigned int> (tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "FronthaulUse")) != NULL) {
@@ -166,7 +166,7 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
             if (2 * i + 2 > m_bss_info.vendor_elements_len)
                 break;
             if (sscanf(vendor_ies + 2 * i, "%02x", &element) == 1) {
-                m_bss_info.vendor_elements[i] = (unsigned char)element;
+                m_bss_info.vendor_elements[i] = static_cast<unsigned char> (element);
             } else {
                 break;
             }
@@ -203,8 +203,12 @@ void dm_bss_t::encode(cJSON *obj, bool summary)
 		case em_haul_type_configurator:
 			strncpy(haul_type_str, "Configurator", strlen("Configurator") + 1);
 			break;
+
 		case em_haul_type_hotspot:
 			strncpy(haul_type_str, "Hotspot", strlen("Hotspot") + 1);
+			break;
+
+		default:
 			break;
 	}
 
@@ -251,7 +255,7 @@ void dm_bss_t::encode(cJSON *obj, bool summary)
     // Add the array to the object
     cJSON_AddItemToObject(obj, "BackhaulAKMsAllowed", backhaul_akmsArray);
 
-    printf("Encoding %d vendor elements\n", m_bss_info.vendor_elements_len);
+    printf("Encoding %ld vendor elements\n", m_bss_info.vendor_elements_len);
     // Add vendor elements (ExtraVendorIEs) as hex string
     char vendor_ies[2 * m_bss_info.vendor_elements_len + 1] = {0};
     if (m_bss_info.vendor_elements_len > 0) {
@@ -391,7 +395,7 @@ int dm_bss_t::parse_bss_id_from_key(const char *key, em_bss_id_t *id)
             *tmp = 0;
 			dm_easy_mesh_t::string_to_macbytes(remain, id->bssid);
             tmp++;
-			id->haul_type = (em_haul_type_t)atoi(tmp);
+			id->haul_type = static_cast<em_haul_type_t> (atoi(tmp));
         }
         i++;
     }
