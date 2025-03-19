@@ -1871,6 +1871,7 @@ typedef enum {
     em_state_agent_sta_link_metrics,
     em_state_agent_steer_btm_res_pending,
     em_state_agent_beacon_report_pending,
+    em_state_agent_ap_metrics_pending,
 
     em_state_ctrl_unconfigured = 0x100,
     em_state_ctrl_wsc_m1_pending,
