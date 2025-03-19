@@ -319,8 +319,22 @@ public:
      *         along with the length of that buffer. The buffer is NULL and the size is 0 on failure.
      * 
      * @warning The caller is responsible for freeing the memory returned by this function
+     * @note Forwards to `unwrap_wrapped_attrib(ec_attribute_t *wrapped_attrib, uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, bool uses_aad, uint8_t *key);`
      */
     static std::pair<uint8_t*, uint16_t> unwrap_wrapped_attrib(ec_attribute_t* wrapped_attrib, ec_frame_t *frame, bool uses_aad, uint8_t* key);
+
+    /**
+     * @brief Unwrap a wrapped data attribute.
+     *
+     * @param wrapped_attrib The wrapped attribute to unwrap (retrieved using `get_attribute`)
+     * @param frame The frame to use as AAD. Can be nullptr if `uses_aad` is false.
+     * @param frame_len The length of the frame.
+     * @param frame_attribs Pointer to the attributes to unwrap.
+     * @param uses_aad Whether the wrapped attribute uses AAD.
+     * @param key The key to use for decryption.
+     * @return std::pair<uint8_t*, uint16_t> The unwrapped attributes / size on success, nullptr & 0 otherwise.
+     */
+    static std::pair<uint8_t*, uint16_t> unwrap_wrapped_attrib(ec_attribute_t *wrapped_attrib, uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, bool uses_aad, uint8_t *key);
 
     /**
      * @brief Convert a hash to a hex string
