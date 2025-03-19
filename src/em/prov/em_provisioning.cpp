@@ -41,6 +41,8 @@
 #include "em.h"
 #include "em_cmd.h"
 #include "em_msg.h"
+#include "cjson/cJSON.h"
+#include "util.h"
 
 int em_provisioning_t::create_cce_ind_cmd(uint8_t *buff)
 {
@@ -541,6 +543,121 @@ int em_provisioning_t::handle_proxy_encap_dpp(uint8_t *buff, unsigned int len)
     }
 
 	return 0;
+}
+
+cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *conn_ctx)
+{
+    dm_easy_mesh_t *dm = get_data_model();
+    if (dm == nullptr) {
+        printf("%s:%d: Could not get data model handle!\n", __func__, __LINE__);
+        return nullptr;
+    }
+
+    std::string channelList;
+    cJSON *bsta_list_obj = cJSON_CreateObject();
+    if (!bsta_list_obj) {
+        printf("%s:%d: Failed to allocate for bSTAList object!\n", __func__, __LINE__);
+        return nullptr;
+    }
+
+    cJSON *b_sta_list_arr = cJSON_CreateArray();
+    if (!b_sta_list_arr) {
+        printf("%s:%d: Could not allocate for bSTAList array!\n", __func__, __LINE__);
+        cJSON_Delete(bsta_list_obj);
+        return nullptr;
+    }
+
+    if (!cJSON_AddStringToObject(bsta_list_obj, "netRole", "mapBackhaulSta")) {
+        printf("%s:%d: Could not add netRole to bSTAList object!\n", __func__, __LINE__);
+        cJSON_Delete(b_sta_list_arr);
+        return nullptr;
+    }
+
+    // XXX: TODO: akm is hard-coded. Should come from em_akm_suite_info_t or equivalent, but
+    // not currently populated anywhere in the data model.
+    std::string akm = "psk";
+    if (!cJSON_AddStringToObject(bsta_list_obj, "akm", akm.c_str())) {
+        printf("%s:%d: Could not add AKM to bSTAList object!\n", __func__, __LINE__);
+        cJSON_Delete(b_sta_list_arr);
+        return nullptr;
+    }
+
+    if (!cJSON_AddNumberToObject(bsta_list_obj, "bSTA_Maximum_Links", 1)) {
+        printf("%s:%d: Could not add bSTA_Maximum_Links to bSTAList object!\n", __func__, __LINE__);
+        cJSON_Delete(b_sta_list_arr);
+        return nullptr;
+    }
+
+    if (!cJSON_AddItemToArray(b_sta_list_arr, bsta_list_obj)) {
+        printf("%s:%d: Could not add bSTAList object to bSTAList array!\n", __func__, __LINE__);
+        cJSON_Delete(b_sta_list_arr);
+        return nullptr;
+    }
+
+    cJSON *radio_list_arr = cJSON_AddArrayToObject(bsta_list_obj, "RadioList");
+    if (!radio_list_arr) {
+        printf("%s:%d: Could not add RadioList array to bSTAList object!\n", __func__, __LINE__);
+        cJSON_Delete(bsta_list_obj);
+        return nullptr;
+    }
+
+    for (unsigned int i = 0; i < dm->get_num_radios(); i++) {
+        const dm_radio_t *radio = dm->get_radio(i);
+        if (!radio)
+            continue;
+
+        cJSON *radioListObj = cJSON_CreateObject();
+        if (!radioListObj) {
+            printf("%s:%d: Failed to create RadioList object!\n", __func__, __LINE__);
+            cJSON_Delete(bsta_list_obj);
+            return nullptr;
+        }
+
+        if (!cJSON_AddStringToObject(
+                radioListObj, "RUID",
+                util::mac_to_string(radio->m_radio_info.id.ruid, "").c_str())) {
+            printf("%s:%d: Could not add RUID to RadioList object!\n", __func__, __LINE__);
+            cJSON_Delete(bsta_list_obj);
+            return nullptr;
+        }
+
+        std::string radio_channel_list;
+        for (unsigned int j = 0; j < dm->get_num_op_class(); j++) {
+            const dm_op_class_t *opclass = dm->get_op_class(j);
+            if (opclass == nullptr) continue;
+            if (memcmp(opclass->m_op_class_info.id.ruid, radio->m_radio_info.id.ruid, ETH_ALEN) == 0) {
+                radio_channel_list += std::to_string(opclass->m_op_class_info.op_class) + "/" +
+                                      std::to_string(opclass->m_op_class_info.channel);
+                if (j != dm->get_num_op_class() - 1)
+                    radio_channel_list += ",";
+            }
+        }
+        channelList += radio_channel_list;
+
+        if (!cJSON_AddStringToObject(radioListObj, "RadioChannelList",
+                                     radio_channel_list.c_str())) {
+            printf("%s:%d: Could not add RadioChannelList to RadioList object!\n", __func__,
+                   __LINE__);
+            cJSON_Delete(radioListObj);
+            cJSON_Delete(bsta_list_obj);
+            return nullptr;
+        }
+
+        if (!cJSON_AddItemToArray(radio_list_arr, radioListObj)) {
+            printf("%s:%d: Could not add RadioList object to RadioList array!\n", __func__,
+                   __LINE__);
+            cJSON_Delete(radioListObj);
+            cJSON_Delete(bsta_list_obj);
+            return nullptr;
+        }
+    }
+
+    if (!cJSON_AddStringToObject(bsta_list_obj, "channelList", channelList.c_str())) {
+        printf("%s:%d: Could not add channelList to bSTAList object!\n", __func__, __LINE__);
+        cJSON_Delete(bsta_list_obj);
+        return nullptr;
+    }
+    return b_sta_list_arr;
 }
 
 void em_provisioning_t::handle_state_prov_none()

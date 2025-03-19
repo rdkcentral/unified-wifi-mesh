@@ -6,9 +6,10 @@
 #include "util.h"
 #include "cjson/cJSON.h"
 #include "cjson_util.h"
+#include <unistd.h>
 
-ec_enrollee_t::ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame)
-                            : m_mac_addr(mac_addr), m_send_action_frame(send_action_frame)
+ec_enrollee_t::ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame, get_backhaul_sta_info_func get_bsta_info)
+                            : m_mac_addr(mac_addr), m_send_action_frame(send_action_frame), m_get_bsta_info(get_bsta_info)
 {
 }
 
@@ -649,15 +650,29 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     cJSON *dpp_config_request_obj = cJSON_CreateObject();
     cJSON *netRole = cJSON_CreateString("mapAgent");
     cJSON *wifi_tech = cJSON_CreateString("map");
-    // XXX: TODO:!!!! Hard-coded AKM, data model doesn't know about bSTA / selected AKM, only list of _possible_ AKMs for a bSTA
-    cJSON *akm = cJSON_CreateString("psk2");
-    if (!dpp_config_request_obj || !netRole || !wifi_tech || !akm) {
+    char hostname[256] = {0};
+    if (gethostname(hostname, sizeof(hostname)) != 0) {
+        printf("%s:%d: `gethostname` failed, defaulting DPP Configuration Request object key \"name\" to \"Enrollee\"", __func__, __LINE__);
+        static const char *default_name = "Enrollee";
+        strncpy(hostname, default_name, strlen(default_name));
+    }
+    cJSON *name = cJSON_CreateString(hostname);
+    if (!dpp_config_request_obj || !netRole || !wifi_tech) {
         printf("%s:%d: Failed to create DPP Configuration Request Object!\n", __func__, __LINE__);
+        free(m_eph_ctx.e_nonce);
         return {};
     }
     cJSON_AddItemToObject(dpp_config_request_obj, "netRole", netRole);
     cJSON_AddItemToObject(dpp_config_request_obj, "wi-fi_tech", wifi_tech);
-    cJSON_AddItemToObject(dpp_config_request_obj, "akm", akm);
+    cJSON_AddItemToObject(dpp_config_request_obj, "name", name);
+    if (m_get_bsta_info == nullptr) {
+        printf("%s:%d: Get bSTA info callback is nullptr! Cannot create DPP Configuration Request Object, bailing.\n", __func__, __LINE__);
+        free(m_eph_ctx.e_nonce);
+        return {};
+    }
+    cJSON *bsta_info = m_get_bsta_info(nullptr);
+    ASSERT_NOT_NULL_FREE(bsta_info, {}, m_eph_ctx.e_nonce, "%s:%d: bSTA info is nullptr!\n", __func__, __LINE__);
+    cJSON_AddItemToObject(dpp_config_request_obj, "bSTAList", bsta_info);
     size_t config_obj_len = cjson_utils::get_cjson_blob_size(dpp_config_request_obj);
 
     // XXX: Dialog token can be thought of as a session key between Enrollee and Configurator regarding configuration
@@ -668,6 +683,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     auto [frame, frame_len] = ec_util::alloc_gas_frame(dpp_gas_initial_req, dialog_token);
     if (frame == nullptr || frame_len == 0) {
         printf("%s:%d: Could not create DPP Configuration Request GAS frame!\n", __func__, __LINE__);
+        free(m_eph_ctx.e_nonce);
         return {};
     }
 
@@ -687,6 +703,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
         printf("%s:%d: unable to copy attribs to GAS frame\n", __func__, __LINE__);
         free(attribs);
         free(frame);
+        free(m_eph_ctx.e_nonce);
         return {};
     }
     initial_req_frame->query_len = static_cast<uint16_t>(attribs_len);
