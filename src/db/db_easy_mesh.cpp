@@ -73,7 +73,7 @@ bool db_easy_mesh_t::is_table_empty(db_client_t& db_client)
 
 int db_easy_mesh_t::get_strings_by_token(char *parent, int token, unsigned int argc, char *argv[])
 {
-    unsigned int num = 0, i;
+    unsigned int num = 0;/* i;
     em_long_string_t str_copy;
     char *tmp, *orig;
 
@@ -101,8 +101,8 @@ int db_easy_mesh_t::get_strings_by_token(char *parent, int token, unsigned int a
 
     snprintf(argv[num], sizeof(argv[num]), "%s", orig);
     num++;
-
-    return num;
+*/
+    return static_cast<int> (num);
 }
 
 int db_easy_mesh_t::insert_row(db_client_t& db_client, ...)

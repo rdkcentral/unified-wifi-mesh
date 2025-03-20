@@ -83,19 +83,20 @@ int dm_easy_mesh_ctrl_t::analyze_config_renew(em_bus_event_t *evt, em_cmd_t *pcm
     mac_addr_str_t  radio_str;
     em_bus_event_type_cfg_renew_params_t *params;
     int num = 0;
-    em_cmd_params_t evt_param;
     dm_easy_mesh_t  dm;
     em_cmd_t *tmp;
+
+    if (evt == NULL) {
+        printf("%s:%d: NULL event\n", __func__, __LINE__);
+        return -1;
+    }
 
     params = reinterpret_cast<em_bus_event_type_cfg_renew_params_t *> (evt->u.raw_buff);
     dm_easy_mesh_t::macbytes_to_string(params->radio, radio_str);
     printf("%s:%d: Radio: %s\n", __func__, __LINE__, radio_str);
 
-    evt_param = evt->params;
-
-    printf("%s:%d: Radio: %s\n", __func__, __LINE__, radio_str);
-    evt_param.u.args.num_args = 1;
-    strncpy(evt_param.u.args.args[0], radio_str, strlen(radio_str) + 1);
+    evt->params.u.args.num_args = 1;
+    strncpy(evt->params.u.args.args[0], radio_str, strlen(radio_str) + 1);
     pcmd[num] = new em_cmd_cfg_renew_t(em_service_type_ctrl, evt->params, dm);
 
     tmp = pcmd[num];
@@ -116,7 +117,6 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     int num = 0;
     size_t len;
     unsigned int i;
-    em_cmd_params_t evt_param;
     dm_easy_mesh_t  dm, *pdm;
     em_cmd_t *tmp;
     dm_bss_t *pbss;
@@ -124,6 +124,11 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     em_sta_info_t sta_info;
     em_orch_desc_t desc;
     em_2xlong_string_t	key;
+
+    if (evt == NULL) {
+        printf("%s:%d: NULL event\n", __func__, __LINE__);
+        return -1;
+    }
 
     params = reinterpret_cast<em_bus_event_type_client_assoc_params_t *> (evt->u.raw_buff);
     dm_easy_mesh_t::macbytes_to_string(params->dev, dev_mac_str);
@@ -133,14 +138,12 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     //printf("%s:%d: Client:%s %s BSS: %s of Device: %s\n", __func__, __LINE__,
         //sta_mac_str, (params->assoc.assoc_event == 1)?"associated with":"disassociated from", bss_mac_str, dev_mac_str);
 
-    evt_param = evt->params;
-
-    evt_param.u.args.num_args = 4;
-    strncpy(evt_param.u.args.args[0], dev_mac_str, strlen(dev_mac_str) + 1);
-    strncpy(evt_param.u.args.args[1], bss_mac_str, strlen(bss_mac_str) + 1);
-    strncpy(evt_param.u.args.args[2], sta_mac_str, strlen(sta_mac_str) + 1);
+    evt->params.u.args.num_args = 4;;
+    strncpy(evt->params.u.args.args[0], dev_mac_str, strlen(dev_mac_str) + 1);
+    strncpy(evt->params.u.args.args[1], bss_mac_str, strlen(bss_mac_str) + 1);
+    strncpy(evt->params.u.args.args[2], sta_mac_str, strlen(sta_mac_str) + 1);
     len = (params->assoc.assoc_event == 1)?strlen("Assoc") + 1:strlen("Disassoc") + 1;
-    strncpy(evt_param.u.args.args[3], (params->assoc.assoc_event == 1)?"Assoc":"Disassoc", len);
+    strncpy(evt->params.u.args.args[3], (params->assoc.assoc_event == 1)?"Assoc":"Disassoc", len);
     pdm = get_data_model(global_netid, params->dev);
     if (pdm == NULL) {
         printf("%s:%d: Could not find data model for dev: %s\n", __func__, __LINE__, dev_mac_str);
@@ -207,21 +210,23 @@ int dm_easy_mesh_ctrl_t::analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *pcmd[])
     mac_addr_str_t  radio_str, al_str;
     em_bus_event_type_m2_tx_params_t *params;
     int num = 0;
-    em_cmd_params_t evt_param;
     dm_easy_mesh_t  dm;
     em_cmd_t *tmp;
+
+    if (evt == NULL) {
+        printf("%s:%d: NULL event\n", __func__, __LINE__);
+        return -1;
+    }
 
     params = reinterpret_cast<em_bus_event_type_m2_tx_params_t *> (evt->u.raw_buff);
     dm_easy_mesh_t::macbytes_to_string(params->al, al_str);
     dm_easy_mesh_t::macbytes_to_string(params->radio, radio_str);
     printf("%s:%d: Radio: %s AL MAC: %s\n", __func__, __LINE__, radio_str, al_str);
 
-    evt_param = evt->params;
-
-    evt_param.u.args.num_args = 2;
-    strncpy(evt_param.u.args.args[0], radio_str, strlen(radio_str) + 1);
-    strncpy(evt_param.u.args.args[1], al_str, strlen(al_str) + 1);
-    pcmd[num] = new em_cmd_em_config_t(evt_param, dm);
+    evt->params.u.args.num_args = 2;
+    strncpy(evt->params.u.args.args[0], radio_str, strlen(radio_str) + 1);
+    strncpy(evt->params.u.args.args[1], al_str, strlen(al_str) + 1);
+    pcmd[num] = new em_cmd_em_config_t(evt->params, dm);
     tmp = pcmd[num];
     num++;
 
