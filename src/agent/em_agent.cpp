@@ -38,11 +38,22 @@
 #include "em_cmd_agent.h"
 #include "em_orch_agent.h"
 #include "util.h"
+#include <cjson/cJSON.h>
+
+#include <vector>
+#ifdef AL_SAP
+#include "al_service_access_point.hpp"
+#endif
 
 #define RETRY_SLEEP_INTERVAL_IN_MS 1000
+#define SOCKET_PATH "/tmp/ieee1905_tunnel"
 
 em_agent_t g_agent;
 const char *global_netid = "OneWifiMesh";
+#ifdef AL_SAP
+AlServiceAccessPoint* g_sap;
+MacAddress g_al_mac_sap;
+#endif
 
 void em_agent_t::handle_sta_list(em_bus_event_t *evt)
 {
@@ -619,6 +630,7 @@ void em_agent_t::input_listener()
     raw_data_t data;
     int num_retry = 0;
     bus_error_t bus_error_val;
+    char service_name[] = "EasyMesh_service";
 
     bus_init(&m_bus_hdl);
 
@@ -626,7 +638,7 @@ void em_agent_t::input_listener()
         printf("%s:%d descriptor is null\n", __func__, __LINE__);
     }
 
-    if (desc->bus_open_fn(&m_bus_hdl, "EasyMesh_service") != 0) {
+    if (desc->bus_open_fn(&m_bus_hdl, service_name) != 0) {
         printf("%s:%d bus open failed\n",__func__, __LINE__);
         return;
     }
@@ -640,6 +652,14 @@ void em_agent_t::input_listener()
 		usleep(RETRY_SLEEP_INTERVAL_IN_MS * 1000);
 		num_retry++;
 		printf("retrying %d\n", num_retry);
+
+        if (num_retry % 5 == 0) {
+            if (access(EM_CFG_FILE, F_OK) != -1) {
+                printf("Check that OneWifi is running.\n");
+            } else {
+                printf("EasymeshCfg.json does not exist. Generate via the unified-wifi-mesh CLI/TUI (if co-located) or by adding the `--interface` flag to the agent (if not)\n");
+            }
+        }
     }
     printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data.raw_data.bytes);
 
@@ -1138,6 +1158,75 @@ void em_agent_t::start_complete()
 
 }
 
+bool em_agent_t::try_create_default_em_cfg(std::string interface)
+{
+
+    std::string em_cfg_file_path = EM_CFG_FILE;
+
+    
+    if (access(em_cfg_file_path.c_str(), F_OK) == 0) {
+        // EM_CFG_FILE already exists
+        printf("%s:%d: EasymeshCfg.json already exists, not overriding.\n", __func__, __LINE__);
+        return true;
+    }
+
+    printf("%s:%d: Creating default EasymeshCfg.json for interface: %s\n", __func__, __LINE__, interface.c_str());
+    mac_address_t if_mac = {0};
+    if (dm_easy_mesh_t::mac_address_from_name(interface.c_str(), if_mac) < 0){
+        printf("%s:%d: Failed to get MAC address for interface: %s\n", __func__, __LINE__, interface.c_str());
+        return false;
+    }
+
+    mac_addr_str_t mac_str;
+    if (!dm_easy_mesh_t::macbytes_to_string(if_mac, mac_str)){
+        printf("%s:%d: Failed to convert MAC address to string\n", __func__, __LINE__);
+        return false;
+    }
+    printf("%s:%d: Interface MAC address: %s\n", __func__, __LINE__, mac_str);
+
+    FILE *fp = fopen(em_cfg_file_path.c_str(), "w");
+    if (fp == NULL) {
+        printf("%s:%d: Failed to create default EasymeshCfg.json\n", __func__, __LINE__);
+        return false;
+    }
+
+    cJSON *root = cJSON_CreateObject();
+    if (root == NULL) {
+        printf("%s:%d: Failed to create root JSON object\n", __func__, __LINE__);
+        fclose(fp);
+        return false;
+    }
+    cJSON *al_mac = cJSON_CreateString(mac_str);
+    if (al_mac == NULL) {
+        printf("%s:%d: Failed to create AL_MAC_ADDR JSON object\n", __func__, __LINE__);
+        fclose(fp);
+        cJSON_Delete(root);
+        return false;
+    }
+    cJSON *colocated_mode = cJSON_CreateNumber(0);
+    if (colocated_mode == NULL) {
+        printf("%s:%d: Failed to create Colocated_mode JSON object\n", __func__, __LINE__);
+        fclose(fp);
+        cJSON_Delete(root);
+        return false;
+    }
+
+    cJSON_AddItemToObject(root, "AL_MAC_ADDR", al_mac);
+    cJSON_AddItemToObject(root, "Colocated_mode", colocated_mode);
+
+    char *json_str = cJSON_Print(root);
+    fprintf(fp, "%s", json_str);
+    fclose(fp);
+    cJSON_Delete(root);
+
+    printf("%s:%d: Created default EasymeshCfg.json for interface: %s\n", __func__, __LINE__, interface.c_str());
+    printf("%s\n", json_str);
+
+    free(json_str);
+
+    return true;
+}
+
 em_agent_t::em_agent_t()
 {
 
@@ -1147,10 +1236,80 @@ em_agent_t::~em_agent_t()
 {
 
 }
+#ifdef AL_SAP
+AlServiceAccessPoint* em_agent_t::al_sap_register()
+{
+    AlServiceAccessPoint* sap = new AlServiceAccessPoint(SOCKET_PATH);
+
+    AlServiceRegistrationRequest registrationRequest(ServiceOperation::SO_ENABLE, ServiceType::SAP_TUNNEL_CLIENT);
+    sap->serviceAccessPointRegistrationRequest(registrationRequest);
+
+    AlServiceRegistrationResponse registrationResponse = sap->serviceAccessPointRegistrationResponse();
+
+    RegistrationResult result = registrationResponse.getResult();
+    if (result == RegistrationResult::SUCCESS) {
+        g_al_mac_sap = registrationResponse.getAlMacAddressLocal();
+        std::cout << "Registration completed with MAC Address: ";
+        for (auto byte : g_al_mac_sap) {
+            std::cout << std::hex << static_cast<int>(byte) << " ";
+        }
+        std::cout << std::dec << std::endl;
+    } else {
+        std::cout << "Registration failed with error: " << (int)result << std::endl;
+    }
+
+    return sap;
+}
+#endif
 
 int main(int argc, const char *argv[])
 {
-    if (g_agent.init(argv[1]) == 0) {
+
+    std::vector<std::string> args;
+    // Skip the first argument which is the program name
+    for (int i = 1; i < argc; i++) {
+        args.push_back(argv[i]);
+    }
+
+    if ((args.size() == 1) && (args[0] == "--help" || args[0] == "-h")) {
+        printf("Usage: %s [data-model-path] [--interface=iface]\n", argv[0]);
+        return 0;
+    }
+
+    std::string data_model_path = "";
+
+    bool interface_found = false;
+
+    for (auto arg : args) {
+        if (arg.find("--interface=") != std::string::npos && !interface_found) {
+            std::string interface = arg.substr(strlen("--interface="));
+            if (interface.empty()) {
+                printf("Invalid interface name\n");
+                return -1;
+            }
+            if (!g_agent.try_create_default_em_cfg(interface)) {
+                printf("Failed to create default EasymeshCfg.json\n");
+                return -1;
+            }
+            interface_found = true;
+            continue;
+        }
+        if (data_model_path.empty()) {
+            data_model_path = arg;
+            continue;
+        }
+        printf("Invalid argument: %s\n", arg.c_str());
+        return -1;
+    }
+
+    if (!data_model_path.empty()) {
+        printf("Using data model path: %s\n", data_model_path.c_str());
+    }
+
+    if (g_agent.init(data_model_path.empty() ? NULL : data_model_path.c_str()) == 0) {
+#ifdef AL_SAP
+    g_sap = g_agent.al_sap_register();
+#endif
         g_agent.start();
     }
 

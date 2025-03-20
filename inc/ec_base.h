@@ -56,6 +56,8 @@ extern "C"
 #define MAC2STR(x) static_cast<unsigned int>((x)[0]), static_cast<unsigned int>((x)[1]), static_cast<unsigned int>((x)[2]), \
                    static_cast<unsigned int>((x)[3]), static_cast<unsigned int>((x)[4]), static_cast<unsigned int>((x)[5])
 
+static const uint8_t BROADCAST_MAC_ADDR[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+
 // EasyConnect 8.3.2
 static const uint8_t DPP_GAS_CONFIG_REQ_APE[3] = {0x6c, 0x08, 0x00};
 static const uint8_t DPP_GAS_CONFIG_REQ_PROTO_ID[7] = {0xDD, 0x05, 0x50, 0x6F, 0x9A ,0x1A, 0x01};
@@ -87,6 +89,8 @@ typedef enum  {
     ec_frame_type_private_peer_intro_notify,
     ec_frame_type_private_peer_intro_update,
     // 24-255 : Reserved
+    // XXX: Note: 255 is "reserved" in EasyConnect spec, but used by EasyMesh
+    ec_frame_type_easymesh = 255,
 } ec_frame_type_t;
 
 // As defined by EasyConnect 8.1 Table 29
@@ -222,20 +226,22 @@ typedef struct {
 } __attribute__((packed)) ec_gas_frame_base_t;
 
 typedef struct {
+    ec_gas_frame_base_t base;
     uint8_t ape[3];
     uint8_t ape_id[7];
     uint16_t query_len;
     uint8_t query[];
-} ec_gas_initial_request_frame_t;
+} __attribute__((packed)) ec_gas_initial_request_frame_t;
 
 typedef struct {
+    ec_gas_frame_base_t base;
     uint16_t status_code;
     uint16_t gas_comeback_delay;
     uint8_t ape[3];
     uint8_t ape_id[7];
     uint16_t resp_len;
     uint8_t resp[];
-} ec_gas_initial_response_frame_t;
+} __attribute__((packed)) ec_gas_initial_response_frame_t;
 
 // Used to avoid many many if-not-null checks
 #define ASSERT_FALSE(x, ret, errMsg, ...) \
@@ -294,7 +300,13 @@ typedef struct {
 #define ASSERT_EQUALS(x, y, ret, errMsg, ...) ASSERT_TRUE(x == y, ret, errMsg, ## __VA_ARGS__)
 #define ASSERT_NOT_EQUALS(x, y, ret, errMsg, ...) ASSERT_FALSE(x == y, ret, errMsg, ## __VA_ARGS__)
 
-
+#ifndef SSL_KEY
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+#define SSL_KEY EC_KEY
+#else
+#define SSL_KEY EVP_PKEY
+#endif
+#endif
 
 typedef enum {
     ec_session_type_cfg,
@@ -380,7 +392,7 @@ typedef struct {
     /*
         The protocol key of the Enrollee is used as Network Access key (netAccessKey) later in the DPP Configuration and DPP Introduction protocol
     */  
-    EC_KEY *net_access_key;
+   SSL_KEY *net_access_key;
 
     /* TODO: 
     Add (if needed):
@@ -392,15 +404,6 @@ typedef struct {
 
     ec_ephemeral_context_t eph_ctx;
 } ec_connection_context_t;
-
-
-
-/*
-REMOVED:
-    -k1, k2, ke. These are only generated once per device per authentication session (and it should be that way)
-        unsigned char responder_nonce[SHA512_DIGEST_LENGTH/2];
-    unsigned char enrollee_nonce[SHA512_DIGEST_LENGTH/2];
-*/
 
 typedef struct {
 
@@ -415,13 +418,18 @@ typedef struct {
         - If this is the Controller, then this key is stored on the Controller. 
         - If this is the Enrollee, then this key is required for "mutual authentication" and must be recieved via an out-of-band mechanism from the controller.
     */
-    const EC_KEY *initiator_boot_key; 
+    const SSL_KEY *initiator_boot_key; 
     /*
     Responder/Enrollee bootstrapping key. (REQUIRED)
         - If this is the Controller, then this key was recieved out-of-band from the Enrollee in the DPP URI
         - If this is the Enrollee, then this key is stored locally.
     */
-    const EC_KEY *responder_boot_key;
+    const SSL_KEY *responder_boot_key;
+    
+    // B_I, B_R
+    EC_POINT *init_pub_boot_key, *resp_pub_boot_key;
+    // b_I, b_R
+    BIGNUM *init_priv_boot_key, *resp_priv_boot_key;
 } ec_data_t;
 
 #ifdef __cplusplus

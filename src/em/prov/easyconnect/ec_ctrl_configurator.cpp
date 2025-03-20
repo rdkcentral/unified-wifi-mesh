@@ -273,11 +273,9 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
     }
 
     // b_I
-    const BIGNUM* priv_init_boot_key = EC_KEY_get0_private_key(m_boot_data.initiator_boot_key);
-    ASSERT_NOT_NULL(priv_init_boot_key, false, "%s:%d: failed to get initiator bootstrapping private key\n", __func__, __LINE__);
+    ASSERT_NOT_NULL(m_boot_data.init_priv_boot_key, false, "%s:%d: failed to get initiator bootstrapping private key\n", __func__, __LINE__);
     // B_R
-    const EC_POINT* pub_resp_boot_key = EC_KEY_get0_public_key(m_boot_data.responder_boot_key);
-    ASSERT_NOT_NULL(pub_resp_boot_key, false, "%s:%d: failed to get responder bootstrapping public key\n", __func__, __LINE__);
+    ASSERT_NOT_NULL(m_boot_data.resp_pub_boot_key, false, "%s:%d: failed to get responder bootstrapping public key\n", __func__, __LINE__);
     // P_R
     ASSERT_NOT_NULL(e_ctx->public_resp_proto_key, false, "%s:%d: Responder Public Protocol Key was not recieved/set\n", __func__, __LINE__);
 
@@ -286,7 +284,7 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
 
         EC_POINT* sum = EC_POINT_new(m_p_ctx.group);
         // Calculate (B_R + P_R)
-        if (!EC_POINT_add(m_p_ctx.group, sum, pub_resp_boot_key, e_ctx->public_resp_proto_key, m_p_ctx.bn_ctx)){
+        if (!EC_POINT_add(m_p_ctx.group, sum, m_boot_data.resp_pub_boot_key, e_ctx->public_resp_proto_key, m_p_ctx.bn_ctx)){
             EC_POINT_free(sum);
             free(prim_unwrapped_data);
             printf("%s:%d: failed to add public responder boot key and public responder protocol key\n", __func__, __LINE__);
@@ -294,7 +292,7 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
         }
         // Calculate b_I * (B_R + P_R)
         EC_POINT* L = EC_POINT_new(m_p_ctx.group);
-        if (!EC_POINT_mul(m_p_ctx.group, L, NULL, sum, priv_init_boot_key, m_p_ctx.bn_ctx)){
+        if (!EC_POINT_mul(m_p_ctx.group, L, NULL, sum, m_boot_data.init_priv_boot_key, m_p_ctx.bn_ctx)){
             EC_POINT_free(sum);
             EC_POINT_free(L);
             free(prim_unwrapped_data);
@@ -344,8 +342,8 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
     // Get P_I.x, P_R.x, B_I.x, and B_R.x
     BIGNUM* P_I_x = ec_crypto::get_ec_x(m_p_ctx, e_ctx->public_init_proto_key);
     BIGNUM* P_R_x = ec_crypto::get_ec_x(m_p_ctx, e_ctx->public_resp_proto_key);
-    BIGNUM* B_I_x = ec_crypto::get_ec_x(m_p_ctx, EC_KEY_get0_public_key(m_boot_data.initiator_boot_key));
-    BIGNUM* B_R_x = ec_crypto::get_ec_x(m_p_ctx, EC_KEY_get0_public_key(m_boot_data.responder_boot_key));
+    BIGNUM* B_I_x = ec_crypto::get_ec_x(m_p_ctx, m_boot_data.init_pub_boot_key);
+    BIGNUM* B_R_x = ec_crypto::get_ec_x(m_p_ctx, m_boot_data.resp_pub_boot_key);
 
     if (P_I_x == NULL || P_R_x == NULL || B_R_x == NULL) {
         printf("%s:%d: Failed to get x-coordinates of P_I, P_R, and B_R\n", __func__, __LINE__);
@@ -466,10 +464,9 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_auth_request(std::st
     e_ctx->public_init_proto_key = const_cast<EC_POINT*>(pub_init_proto_key);
 
     // Compute the M.x
-    const EC_POINT *pub_resp_boot_key = EC_KEY_get0_public_key(m_boot_data.responder_boot_key);
-    ASSERT_NOT_NULL_FREE(pub_resp_boot_key, {}, frame, "%s:%d failed to get responder bootstrapping public key\n", __func__, __LINE__);
+    ASSERT_NOT_NULL_FREE(m_boot_data.resp_pub_boot_key, {}, frame, "%s:%d failed to get responder bootstrapping public key\n", __func__, __LINE__);
 
-    e_ctx->m = ec_crypto::compute_ec_ss_x(m_p_ctx, e_ctx->priv_init_proto_key, pub_resp_boot_key);
+    e_ctx->m = ec_crypto::compute_ec_ss_x(m_p_ctx, e_ctx->priv_init_proto_key, m_boot_data.resp_pub_boot_key);
     const BIGNUM *bn_inputs[1] = { e_ctx->m };
     // Compute the "first intermediate key" (k1)
     if (ec_crypto::compute_hkdf_key(m_p_ctx, e_ctx->k1, m_p_ctx.digest_len, "first intermediate key", bn_inputs, 1, NULL, 0) == 0) {

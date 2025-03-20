@@ -43,10 +43,10 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
 {
     cJSON *tmp, *tmp_arr;
     mac_addr_str_t  mac_str;
-    unsigned int i;
+    int i;
 
     memset(&m_bss_info, 0, sizeof(em_bss_info_t));
-    dm_easy_mesh_t::string_to_macbytes((char *)parent_id, m_bss_info.ruid.mac);
+    dm_easy_mesh_t::string_to_macbytes(static_cast<char *> (parent_id), m_bss_info.ruid.mac);
 
     if ((tmp = cJSON_GetObjectItem(obj, "BSSID")) != NULL) {
         snprintf(mac_str, sizeof(mac_str), "%s", cJSON_GetStringValue(tmp));
@@ -55,7 +55,7 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "UnicastBytesSent")) != NULL) {
-        m_bss_info.unicast_bytes_sent = tmp->valuedouble;
+        m_bss_info.unicast_bytes_sent = static_cast<unsigned int> (tmp->valuedouble);
     }
 
 
@@ -68,7 +68,7 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "LastChange")) != NULL) {
-        m_bss_info.last_change = tmp->valuedouble;
+        m_bss_info.last_change = static_cast<unsigned int> (tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "TimeStamp")) != NULL) {    
@@ -76,11 +76,11 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "UnicastBytesReceived")) != NULL) {
-        m_bss_info.unicast_bytes_rcvd = tmp->valuedouble;
+        m_bss_info.unicast_bytes_rcvd = static_cast<unsigned int> (tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "NumberOfSTA")) != NULL) {
-        m_bss_info.numberofsta = tmp->valuedouble;
+        m_bss_info.numberofsta = static_cast<unsigned int> (tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "EstServiceParametersBE")) != NULL) {
@@ -100,11 +100,11 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "ByteCounterUnits")) != NULL) {
-        m_bss_info.byte_counter_units = tmp->valuedouble;
+        m_bss_info.byte_counter_units = static_cast<unsigned int> (tmp->valuedouble);
     }
 
     if ((tmp_arr = cJSON_GetObjectItem(obj, "FronthaulAKMsAllowed")) != NULL) {
-        m_bss_info.num_fronthaul_akms = cJSON_GetArraySize(tmp_arr);
+        m_bss_info.num_fronthaul_akms = static_cast<unsigned char> (cJSON_GetArraySize(tmp_arr));
         for (i = 0; i < m_bss_info.num_fronthaul_akms; i++) {
             tmp = cJSON_GetArrayItem(tmp_arr, i);
             snprintf(m_bss_info.fronthaul_akm[i], sizeof(m_bss_info.fronthaul_akm[i]), "%s", cJSON_GetStringValue(tmp));
@@ -112,7 +112,7 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp_arr = cJSON_GetObjectItem(obj, "BackhaulAKMsAllowed")) != NULL) {
-        m_bss_info.num_backhaul_akms = cJSON_GetArraySize(tmp_arr);
+        m_bss_info.num_backhaul_akms = static_cast<unsigned char> (cJSON_GetArraySize(tmp_arr));
         for (i = 0; i < m_bss_info.num_backhaul_akms; i++) {
             tmp = cJSON_GetArrayItem(tmp_arr, i);
             snprintf(m_bss_info.backhaul_akm[i], sizeof(m_bss_info.backhaul_akm[i]), "%s", cJSON_GetStringValue(tmp));
@@ -128,7 +128,7 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "AssociationAllowanceStatus")) != NULL) {
-        m_bss_info.assoc_allowed_status = tmp->valuedouble;
+        m_bss_info.assoc_allowed_status = static_cast<unsigned int> (tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "FronthaulUse")) != NULL) {
@@ -153,6 +153,25 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
 
     if ((tmp = cJSON_GetObjectItem(obj, "TransmittedBSSID")) != NULL) {
         m_bss_info.transmitted_bssid = cJSON_IsTrue(tmp);
+    }
+    
+    const char* vendor_ies = NULL;
+    if ((tmp = cJSON_GetObjectItem(obj, "ExtraVendorIEs")) != NULL && (vendor_ies = cJSON_GetStringValue(tmp)) != NULL) {
+        m_bss_info.vendor_elements_len = strlen(vendor_ies);
+
+        unsigned int element;
+        unsigned int i;
+        for (i = 0; i < sizeof(m_bss_info.vendor_elements); i++) {
+            // Make sure we have two characters for a valid hex number.
+            if (2 * i + 2 > m_bss_info.vendor_elements_len)
+                break;
+            if (sscanf(vendor_ies + 2 * i, "%02x", &element) == 1) {
+                m_bss_info.vendor_elements[i] = static_cast<unsigned char> (element);
+            } else {
+                break;
+            }
+        }
+        m_bss_info.vendor_elements_len = i;
     }
 
     return 0;
@@ -184,8 +203,12 @@ void dm_bss_t::encode(cJSON *obj, bool summary)
 		case em_haul_type_configurator:
 			strncpy(haul_type_str, "Configurator", strlen("Configurator") + 1);
 			break;
+
 		case em_haul_type_hotspot:
 			strncpy(haul_type_str, "Hotspot", strlen("Hotspot") + 1);
+			break;
+
+		default:
 			break;
 	}
 
@@ -232,6 +255,18 @@ void dm_bss_t::encode(cJSON *obj, bool summary)
     // Add the array to the object
     cJSON_AddItemToObject(obj, "BackhaulAKMsAllowed", backhaul_akmsArray);
 
+    printf("Encoding %ld vendor elements\n", m_bss_info.vendor_elements_len);
+    // Add vendor elements (ExtraVendorIEs) as hex string
+    char vendor_ies[2 * m_bss_info.vendor_elements_len + 1] = {0};
+    if (m_bss_info.vendor_elements_len > 0) {
+        memset(vendor_ies, 0, sizeof(vendor_ies));
+        for (unsigned int i = 0; i < m_bss_info.vendor_elements_len; i++) {
+            unsigned int offset = i * 2;
+            snprintf(vendor_ies + offset, sizeof(vendor_ies) - offset, "%02x", m_bss_info.vendor_elements[i]);
+        }
+    }
+    cJSON_AddStringToObject(obj, "ExtraVendorIEs", vendor_ies);
+
 }
 
 void dm_bss_t::operator = (const dm_bss_t& obj)
@@ -266,6 +301,8 @@ void dm_bss_t::operator = (const dm_bss_t& obj)
     this->m_bss_info.r2_disallowed = obj.m_bss_info.r2_disallowed;
     this->m_bss_info.multi_bssid = obj.m_bss_info.multi_bssid;
     this->m_bss_info.transmitted_bssid = obj.m_bss_info.transmitted_bssid;
+    memcpy(this->m_bss_info.vendor_elements, obj.m_bss_info.vendor_elements, sizeof(this->m_bss_info.vendor_elements));
+    this->m_bss_info.vendor_elements_len = obj.m_bss_info.vendor_elements_len;
 }
 
 
@@ -302,6 +339,8 @@ bool dm_bss_t::operator == (const dm_bss_t& obj)
     ret += !(this->m_bss_info.r2_disallowed == obj.m_bss_info.r2_disallowed);
     ret += !(this->m_bss_info.multi_bssid == obj.m_bss_info.multi_bssid);
     ret += !(this->m_bss_info.transmitted_bssid == obj.m_bss_info.transmitted_bssid);
+    ret += (memcmp(this->m_bss_info.vendor_elements, obj.m_bss_info.vendor_elements, sizeof(this->m_bss_info.vendor_elements)) != 0);
+    ret += !(this->m_bss_info.vendor_elements_len == obj.m_bss_info.vendor_elements_len);
 
     if (ret > 0)
         return false;
@@ -356,13 +395,75 @@ int dm_bss_t::parse_bss_id_from_key(const char *key, em_bss_id_t *id)
             *tmp = 0;
 			dm_easy_mesh_t::string_to_macbytes(remain, id->bssid);
             tmp++;
-			id->haul_type = (em_haul_type_t)atoi(tmp);
+			id->haul_type = static_cast<em_haul_type_t> (atoi(tmp));
         }
         i++;
     }
    
 
     return 0;
+}
+
+bool dm_bss_t::add_vendor_ie(struct ieee80211_vs_ie *vs_ie)
+{
+    // Fetch full length from the IE
+    unsigned int vs_ie_len = offsetof(struct ieee80211_vs_ie, vs_oui) + vs_ie->vs_len;
+
+    if ((m_bss_info.vendor_elements_len + vs_ie_len) > sizeof(m_bss_info.vendor_elements)) {
+        printf("%s:%d: Vendor IE length exceeds the maximum limit\n", __func__, __LINE__);
+        return false;
+    }
+
+    // Copy the IE to the BSS
+    memcpy(m_bss_info.vendor_elements + m_bss_info.vendor_elements_len, vs_ie, vs_ie_len);
+    m_bss_info.vendor_elements_len += vs_ie_len;
+    printf("Successfully added Vendor IE of length %d to BSS\n", vs_ie_len);
+    return true;
+}
+
+void dm_bss_t::remove_vendor_ie(struct ieee80211_vs_ie *vs_ie)
+{
+    size_t vs_ie_len = offsetof(struct ieee80211_vs_ie, vs_oui) + vs_ie->vs_len;
+    if (m_bss_info.vendor_elements_len < vs_ie_len) {
+        // The IE is not present in the BSS, return true since it's technically removed
+        printf("%s:%d: Vendor IE not found in BSS\n", __func__, __LINE__);
+        return;
+    }
+
+    // Find the IE in the BSS
+    uint8_t* curr_ie_head = m_bss_info.vendor_elements;
+    uint8_t* end = m_bss_info.vendor_elements + m_bss_info.vendor_elements_len;
+    while (curr_ie_head < end) {
+        struct ieee80211_vs_ie* curr_ie = reinterpret_cast<struct ieee80211_vs_ie*>(curr_ie_head);
+        size_t curr_ie_len = offsetof(struct ieee80211_vs_ie, vs_oui) + curr_ie->vs_len;
+
+        // If the current IE is not the same length as the IE we're looking for, skip it
+        if (curr_ie_len != vs_ie_len) {
+            curr_ie_head += curr_ie_len;
+            continue;
+        }
+        if (memcmp(curr_ie_head, reinterpret_cast<uint8_t*>(vs_ie), curr_ie_len) != 0) {
+            // Didn't find the IE, skip 
+            curr_ie_head += curr_ie_len;
+            continue;
+        }
+
+        // Found the IE, remove it by shifting the rest of the IEs back
+
+        // Clear the current IE that is being removed
+        memset(curr_ie_head, 0, curr_ie_len);
+
+        // Shift the rest of the IEs back
+        uint8_t* next_ie_head = curr_ie_head + curr_ie_len;
+        long int remaining_len = end - next_ie_head;
+        memmove(curr_ie_head, next_ie_head, static_cast<size_t>(remaining_len));
+        m_bss_info.vendor_elements_len -= curr_ie_len;
+
+        // Make sure to clear the rest of the buffer after the last IE
+        uint8_t* last_byte = m_bss_info.vendor_elements + m_bss_info.vendor_elements_len;
+        memset(last_byte, 0, static_cast<size_t>(end - last_byte));
+        return;
+    }
 }
 
 dm_bss_t::dm_bss_t(em_bss_info_t *bss)

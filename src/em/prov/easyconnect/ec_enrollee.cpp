@@ -2,7 +2,10 @@
 
 #include "ec_util.h"
 #include "ec_crypto.h"
+#include "em_crypto.h"
 #include "util.h"
+#include "cjson/cJSON.h"
+#include "cjson_util.h"
 
 ec_enrollee_t::ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame)
                             : m_mac_addr(mac_addr), m_send_action_frame(send_action_frame)
@@ -11,6 +14,19 @@ ec_enrollee_t::ec_enrollee_t(std::string mac_addr, send_act_frame_func send_acti
 
 ec_enrollee_t::~ec_enrollee_t()
 {
+    if (m_boot_data.resp_priv_boot_key) {
+        BN_free(m_boot_data.resp_priv_boot_key);
+    }
+    if (m_boot_data.resp_pub_boot_key) {
+        EC_POINT_free(m_boot_data.resp_pub_boot_key);
+    }
+    if (m_boot_data.init_priv_boot_key) {
+        BN_free(m_boot_data.init_priv_boot_key);
+    }
+    if (m_boot_data.init_pub_boot_key) {
+        EC_POINT_free(m_boot_data.init_pub_boot_key);
+    }
+    ec_crypto::free_ephemeral_context(&m_eph_ctx, m_p_ctx.nonce_len, m_p_ctx.digest_len);
 }
 
 bool ec_enrollee_t::start(bool do_reconfig, ec_data_t* boot_data)
@@ -18,8 +34,15 @@ bool ec_enrollee_t::start(bool do_reconfig, ec_data_t* boot_data)
     memset(&m_boot_data, 0, sizeof(ec_data_t));
     memcpy(&m_boot_data, boot_data, sizeof(ec_data_t));
 
+    // Not all of these will be present but it is better to compute them now.
+    m_boot_data.resp_priv_boot_key = em_crypto_t::get_priv_key_bn(m_boot_data.responder_boot_key);
+    m_boot_data.resp_pub_boot_key = em_crypto_t::get_pub_key_point(m_boot_data.responder_boot_key);
+
+    m_boot_data.init_priv_boot_key= em_crypto_t::get_priv_key_bn(m_boot_data.initiator_boot_key);    
+    m_boot_data.init_pub_boot_key = em_crypto_t::get_pub_key_point(m_boot_data.initiator_boot_key);
+
     // Baseline test to ensure the bootstrapping key is present
-    if (EC_KEY_get0_public_key(m_boot_data.responder_boot_key) == NULL) {
+    if (m_boot_data.resp_pub_boot_key == NULL) {
         printf("%s:%d Could not get responder bootstrap public key\n", __func__, __LINE__);
         return false;
     }
@@ -105,10 +128,9 @@ Authentication Request frame without replying to it.
 
     // START Crypto in EasyConnect 6.3.3
     // Compute the M.x
-    const BIGNUM *priv_resp_boot_key = EC_KEY_get0_private_key(m_boot_data.responder_boot_key);
-    ASSERT_NOT_NULL(priv_resp_boot_key, false, "%s:%d failed to get responder bootstrapping private key\n", __func__, __LINE__);
+    ASSERT_NOT_NULL(m_boot_data.resp_priv_boot_key, false, "%s:%d failed to get responder bootstrapping private key\n", __func__, __LINE__);
 
-    m_eph_ctx.m = ec_crypto::compute_ec_ss_x(m_p_ctx, priv_resp_boot_key, m_eph_ctx.public_init_proto_key);
+    m_eph_ctx.m = ec_crypto::compute_ec_ss_x(m_p_ctx, m_boot_data.resp_priv_boot_key, m_eph_ctx.public_init_proto_key);
     const BIGNUM *bn_inputs[1] = { m_eph_ctx.m };
     // Compute the "first intermediate key" (k1)
     if (ec_crypto::compute_hkdf_key(m_p_ctx, m_eph_ctx.k1, m_p_ctx.digest_len, "first intermediate key", bn_inputs, 1, NULL, 0) == 0) {
@@ -252,8 +274,8 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
     // Get P_I.x, P_R.x, B_I.x, and B_R.x
     BIGNUM* P_I_x = ec_crypto::get_ec_x(m_p_ctx, m_eph_ctx.public_init_proto_key);
     BIGNUM* P_R_x = ec_crypto::get_ec_x(m_p_ctx, m_eph_ctx.public_resp_proto_key);
-    BIGNUM* B_I_x = ec_crypto::get_ec_x(m_p_ctx, EC_KEY_get0_public_key(m_boot_data.initiator_boot_key));
-    BIGNUM* B_R_x = ec_crypto::get_ec_x(m_p_ctx, EC_KEY_get0_public_key(m_boot_data.responder_boot_key));
+    BIGNUM* B_I_x = ec_crypto::get_ec_x(m_p_ctx, m_boot_data.resp_pub_boot_key);
+    BIGNUM* B_R_x = ec_crypto::get_ec_x(m_p_ctx, m_boot_data.init_pub_boot_key);
 
     if (P_I_x == NULL || P_R_x == NULL || B_R_x == NULL) {
         printf("%s:%d: Failed to get x-coordinates of P_I, P_R, and B_R\n", __func__, __LINE__);
@@ -301,7 +323,33 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
         return false;
     }
 
-    return true;
+    const auto [config_req, config_req_len] = create_config_request();
+    if (config_req == nullptr || config_req_len == 0) {
+        printf("%s:%d: Could not create DPP Configuration Request!\n", __func__, __LINE__);
+        return false;
+    }
+
+    // EasyMesh R6 5.3.1:
+    // The DPP onboarding process begins when the Multi-AP Controller receives the bootstrapping information of the Enrollee
+    // Multi-AP Agent in the form of a DPP URI. Upon receipt of the DPP URI, the Multi-AP Controller instructs one or more
+    // existing Multi-AP Agents to advertise the CCE IE in their Beacon and Probe Response frames, if they are not doing so
+    // already, and listen to the Enrollee's DPP Presence Announcement frame. Once the Multi-AP Controller receives a DPP
+    // Presence Announcement frame from an Enrollee Multi-AP Agent, it initiates the DPP Authentication procedure by
+    // generating a DPP Authentication Request frame. A Multi-AP Agent, acting as a proxy, relays the DPP Authentication
+    // messages received from the Multi-AP Controller to the Enrollee when the DPP Presence Announcement frame with the
+    // correct hash is received from the Enrollee. The proxy performs a bi-directional conversation between a DPP frame carried
+    // in an 802.11 frame to a DPP frame encapsulated in a Multi-AP CMDU message. **Upon successful authentication**, the
+    // Enrollee Multi-AP Agent requests configuration by exchanging DPP Configuration Protocol messages (see 6.6 of [18])
+    // with the Multi-AP Controller.
+    bool sent_dpp_config_gas_frame = m_send_action_frame(src_mac, config_req, config_req_len, 0);
+    if (sent_dpp_config_gas_frame) {
+        printf("%s:%d: Sent DPP Configuration Request 802.11 frame to Proxy Agent!\n", __func__, __LINE__);
+    } else {
+        printf("%s:%d: Failed to send DPP Configuration Request GAS frame\n", __func__, __LINE__);
+    }
+    free(config_req);
+
+    return sent_dpp_config_gas_frame;
 }
 
 bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint8_t sa[ETH_ALEN])
@@ -447,15 +495,12 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
     printf("Key K_2:\n");
     util::print_hex_dump(m_p_ctx.digest_len, m_eph_ctx.k2);
 
-    const BIGNUM* b_R = EC_KEY_get0_private_key(m_boot_data.responder_boot_key);
-    ASSERT_NOT_NULL_FREE2(b_R, {}, frame, attribs, "%s:%d failed to get responder bootstrapping private key\n", __func__, __LINE__);
+    ASSERT_NOT_NULL_FREE2(m_boot_data.resp_priv_boot_key, {}, frame, attribs, "%s:%d failed to get responder bootstrapping private key\n", __func__, __LINE__);
 
     // Compute L.x
     if (m_eph_ctx.is_mutual_auth){
-        const EC_POINT* B_I = EC_KEY_get0_public_key(m_boot_data.initiator_boot_key);
-        if (B_I != NULL){
-            m_eph_ctx.l = ec_crypto::calculate_Lx(m_p_ctx, b_R, m_eph_ctx.priv_resp_proto_key, B_I);
-            EC_POINT_free(const_cast<EC_POINT*>(B_I));
+        if (m_boot_data.init_pub_boot_key != NULL){
+            m_eph_ctx.l = ec_crypto::calculate_Lx(m_p_ctx, m_boot_data.resp_priv_boot_key, m_eph_ctx.priv_resp_proto_key, m_boot_data.init_pub_boot_key);
         }
     }
 
@@ -463,7 +508,6 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
         printf("%s:%d failed to compute L.x\n", __func__, __LINE__);
         free(attribs);
         free(frame);
-        if (b_R) BN_free(const_cast<BIGNUM*>(b_R));
         return {};
     }
     
@@ -479,8 +523,8 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
     // Compute R-auth = H(I-nonce | R-nonce | PI.x | PR.x | [ BI.x | ] BR.x | 0)
     BIGNUM* P_I_x = ec_crypto::get_ec_x(m_p_ctx, m_eph_ctx.public_init_proto_key);
     BIGNUM* P_R_x = ec_crypto::get_ec_x(m_p_ctx, m_eph_ctx.public_resp_proto_key);
-    BIGNUM* B_I_x = ec_crypto::get_ec_x(m_p_ctx, EC_KEY_get0_public_key(m_boot_data.initiator_boot_key));
-    BIGNUM* B_R_x = ec_crypto::get_ec_x(m_p_ctx, EC_KEY_get0_public_key(m_boot_data.responder_boot_key));
+    BIGNUM* B_I_x = ec_crypto::get_ec_x(m_p_ctx, m_boot_data.init_pub_boot_key);
+    BIGNUM* B_R_x = ec_crypto::get_ec_x(m_p_ctx, m_boot_data.resp_pub_boot_key);
 
     if (P_I_x == NULL || P_R_x == NULL || B_R_x == NULL) {
         printf("%s:%d: Failed to get x-coordinates of P_I, P_R, and B_R\n", __func__, __LINE__);
@@ -571,7 +615,83 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_recfg_auth_response(ec_status
 
 std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
 {
-    return std::pair<uint8_t *, size_t>();
+    // EasyConnect 6.4.2 DPP Configuration Request
+    // Regardless of whether the Initiator or Responder took the role of Configurator, the DPP Configuration protocol is always
+    // initiated by the Enrollee. To start, the Enrollee generates one or more DPP Configuration Request objects (see section
+    // 4.4) and generates a new nonce, E-nonce, whose length is determined according to Table 4. When the Configurator has
+    // not indicated support for protocol version number 2 or higher, no more than one DPP Configuration Request object shall
+    // be included. The E-nonce attribute and the DPP Configuration Request object attribute(s) are wrapped with ke. The
+    // wrapped attributes are then placed in a DPP Configuration Request frame, and sent to the Configurator.
+    // Enrollee → Configurator: { E-nonce, configRequest }ke
+    if ((m_eph_ctx.e_nonce = static_cast<uint8_t *>(malloc(m_p_ctx.nonce_len))) == NULL) {
+        printf("%s:%d: Could not malloc for E-nonce!\n", __func__, __LINE__);
+        return {};
+    }
+
+    if (RAND_bytes(m_eph_ctx.e_nonce, m_p_ctx.nonce_len) != 1) {
+        printf("%s:%d: Could not generate E-nonce!\n", __func__, __LINE__);
+        free(m_eph_ctx.e_nonce);
+        return {};
+    }
+
+    if (m_boot_data.version <= 1) {
+        printf("%s:%d: EasyMesh R >= 5 mandates DPP version >= 2, current version is %d, bailing.\n", __func__, __LINE__, m_boot_data.version);
+        return {};
+    }
+
+    // EasyMesh R6 5.3.3
+    // If an Enrollee Multi-AP Agent sends a DPP Configuration Request frame (see section 6.4.2 of [18] and Table 5), it shall:
+    // - Include one DPP Configuration Request Object (see Table 5)
+    // - set the netRole to "mapAgent"
+    // - set wi-fi_tech to "map"
+    // - include the akm parameter, and
+    // - set the akm parameter value to the supported akm of its backhaul STA.
+    cJSON *dpp_config_request_obj = cJSON_CreateObject();
+    cJSON *netRole = cJSON_CreateString("mapAgent");
+    cJSON *wifi_tech = cJSON_CreateString("map");
+    // XXX: TODO:!!!! Hard-coded AKM, data model doesn't know about bSTA / selected AKM, only list of _possible_ AKMs for a bSTA
+    cJSON *akm = cJSON_CreateString("psk2");
+    if (!dpp_config_request_obj || !netRole || !wifi_tech || !akm) {
+        printf("%s:%d: Failed to create DPP Configuration Request Object!\n", __func__, __LINE__);
+        return {};
+    }
+    cJSON_AddItemToObject(dpp_config_request_obj, "netRole", netRole);
+    cJSON_AddItemToObject(dpp_config_request_obj, "wi-fi_tech", wifi_tech);
+    cJSON_AddItemToObject(dpp_config_request_obj, "akm", akm);
+    size_t config_obj_len = cjson_utils::get_cjson_blob_size(dpp_config_request_obj);
+
+    // XXX: Dialog token can be thought of as a session key between Enrollee and Configurator regarding configuration
+    // From specs (EasyMesh, EasyConnect, 802.11), it seems this is just arbitrarily chosen (1 byte), but
+    // must be unique per GAS frame "session" exchange.
+    // See: 802.11-2020 9.4.1.12 Dialog Token field
+    unsigned char dialog_token = 1;
+    auto [frame, frame_len] = ec_util::alloc_gas_frame(dpp_gas_initial_req, dialog_token);
+    if (frame == nullptr || frame_len == 0) {
+        printf("%s:%d: Could not create DPP Configuration Request GAS frame!\n", __func__, __LINE__);
+        return {};
+    }
+
+    ec_gas_initial_request_frame_t *initial_req_frame = static_cast<ec_gas_initial_request_frame_t *> (frame);
+    uint8_t *attribs = nullptr;
+    size_t attribs_len = 0;
+    // Wrap e-nonce and config req obj(s) with k_e
+    attribs = ec_util::add_wrapped_data_attr(reinterpret_cast<uint8_t *> (initial_req_frame), sizeof(ec_gas_initial_request_frame_t), attribs, &attribs_len, true, m_eph_ctx.ke, [&](){
+        size_t wrapped_len = 0;
+        uint8_t* wrapped_attribs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, m_p_ctx.nonce_len, m_eph_ctx.e_nonce);
+        wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_req_obj, static_cast<uint16_t> (config_obj_len), reinterpret_cast<uint8_t *> (dpp_config_request_obj));
+        return std::make_pair(wrapped_attribs, wrapped_len);
+    });
+
+    if ((initial_req_frame = reinterpret_cast<ec_gas_initial_request_frame_t*>(
+        ec_util::copy_attrs_to_frame(reinterpret_cast<uint8_t*> (initial_req_frame), sizeof(ec_gas_initial_request_frame_t), attribs, attribs_len))) == nullptr) {
+        printf("%s:%d: unable to copy attribs to GAS frame\n", __func__, __LINE__);
+        free(attribs);
+        free(frame);
+        return {};
+    }
+    initial_req_frame->query_len = static_cast<uint16_t>(attribs_len);
+    
+    return std::make_pair(reinterpret_cast<uint8_t*>(initial_req_frame), sizeof(ec_gas_initial_request_frame_t) + attribs_len);
 }
 
 std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_result()

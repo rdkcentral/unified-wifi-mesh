@@ -35,7 +35,7 @@ char *db_easy_mesh_t::get_column_format(db_fmt_t fmt, unsigned int pos)
         case db_data_type_binary:
         case db_data_type_varbinary:
         case db_data_type_text:
-            snprintf(fmt, sizeof(fmt), "%s", "'%s', ");
+            snprintf(fmt, sizeof(db_fmt_t), "%s", "'%s', ");
             break;
 
         case db_data_type_integer:
@@ -44,7 +44,9 @@ char *db_easy_mesh_t::get_column_format(db_fmt_t fmt, unsigned int pos)
         case db_data_type_tinyint:
         case db_data_type_mediumint:
         case db_data_type_bigint:
-            snprintf(fmt, sizeof(fmt), "%s", "%d, ");
+            snprintf(fmt, sizeof(db_fmt_t), "%s", "%d, ");
+            break;
+        default:
             break;
     }
 
@@ -128,7 +130,7 @@ int db_easy_mesh_t::insert_row(db_client_t& db_client, ...)
     format[strlen(format) - 1] = 0;
 
 
-    va_start(list, format);
+    va_start(list, db_client);
     (void) vsnprintf(query, sizeof(db_query_t), format, list);
     va_end(list);
 
@@ -164,7 +166,7 @@ int db_easy_mesh_t::update_row(db_client_t& db_client, ...)
     snprintf(format + strlen(format), sizeof(format) - strlen(format), "%s", get_column_format(col_fmt, 0));
     format[strlen(format) - 2] = 0;
 
-    va_start(list, format);
+    va_start(list, db_client);
     (void) vsnprintf(query, sizeof(db_query_t), format, list);
     va_end(list);
 
@@ -180,7 +182,6 @@ int db_easy_mesh_t::compare_row(db_client_t& db_client, ...)
 {
     unsigned int i;
     db_query_t tmp, format, query;
-    va_list list;
     db_fmt_t col_fmt;
     void *ctx;
 
@@ -222,7 +223,7 @@ int db_easy_mesh_t::delete_row(db_client_t& db_client, ...)
     snprintf(format + strlen(format), sizeof(format) - strlen(format), "%s", get_column_format(col_fmt, 0));
     format[strlen(format) - 2] = 0;
     
-    va_start(list, format);
+    va_start(list, db_client);
     (void) vsnprintf(query, sizeof(db_query_t), format, list);
     va_end(list);
 
@@ -238,7 +239,6 @@ int db_easy_mesh_t::delete_row(db_client_t& db_client, ...)
 int db_easy_mesh_t::sync_table(db_client_t& db_client)
 {
     db_query_t    query;
-    db_result_t   result;
     void *ctx;
 
     memset(query, 0, sizeof(db_query_t));
@@ -253,7 +253,6 @@ int db_easy_mesh_t::sync_table(db_client_t& db_client)
 bool db_easy_mesh_t::entry_exists_in_table(db_client_t& db_client, void *key)
 {
     db_query_t    query;
-    db_result_t   result;
     void *ctx;
     
     memset(query, 0, sizeof(db_query_t));
@@ -267,17 +266,14 @@ bool db_easy_mesh_t::entry_exists_in_table(db_client_t& db_client, void *key)
 void db_easy_mesh_t::delete_table(db_client_t& db_client)
 {
     db_query_t    query;
-    void *ctx;
 
     memset(query, 0, sizeof(db_query_t));
     snprintf(query, sizeof(db_query_t), "drop table %s", m_table_name);
-    ctx = db_client.execute(query);
 }
 
 int db_easy_mesh_t::create_table(db_client_t& db_client)
 {
     db_query_t    query;
-    void *ctx;
     unsigned int i;
     char type_str[64];
 
@@ -345,7 +341,6 @@ int db_easy_mesh_t::create_table(db_client_t& db_client)
     query[strlen(query) - 1] = 0;
 
     //printf("%s:%d: Query: %s\n", __func__, __LINE__, query);
-    ctx = db_client.execute(query);
 
     return 0;
 }

@@ -51,6 +51,13 @@
 #include "em_cmd_exec.h"
 #include "util.h"
 
+#ifdef AL_SAP
+#include "al_service_access_point.hpp"
+
+extern AlServiceAccessPoint* g_sap;
+extern MacAddress g_al_mac_sap;
+#endif
+
 void em_t::orch_execute(em_cmd_t *pcmd)
 {
     em_cmd_type_t cmd_type;
@@ -540,6 +547,9 @@ int em_t::set_bp_filter()
 
 int em_t::start_al_interface()
 {
+#ifdef AL_SAP
+    m_fd = g_sap->getSocketDescriptor();
+#else
     int sock_fd;
     struct sockaddr_ll addr_ll;
     struct sockaddr *addr;
@@ -566,7 +576,7 @@ int em_t::start_al_interface()
     m_fd = sock_fd;
 
     set_bp_filter();
-
+#endif // AL_SAP
     return 0;
 }
 
@@ -577,9 +587,27 @@ int em_t::send_cmd(em_cmd_type_t type, em_service_type_t svc, unsigned char *buf
 
 int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
 {
+    int ret = 0;
+#ifdef AL_SAP
+    AlServiceDataUnit sdu;
+    sdu.setSourceAlMacAddress(g_al_mac_sap);
+    if (m_service_type == em_service_type_agent) {
+        sdu.setDestinationAlMacAddress({0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
+    } else if (m_service_type == em_service_type_ctrl) {
+        sdu.setDestinationAlMacAddress({0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
+    }
+
+    std::vector<unsigned char> payload;
+    for (unsigned int i = 0; i < len; i++) {
+        payload.push_back(buff[i]);
+    }
+    sdu.setPayload(payload);
+
+    g_sap->serviceAccessPointDataRequest(sdu);
+#else
     em_short_string_t   ifname;
     struct sockaddr_ll sadr_ll;
-    int sock, ret;
+    int sock;
     mac_address_t   multi_addr = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x13};
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
 
@@ -596,9 +624,9 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     memcpy(sadr_ll.sll_addr, (multicast == true) ? multi_addr:hdr->dst, sizeof(mac_address_t));
 
     ret = static_cast<int>(sendto(sock, buff, len, 0, reinterpret_cast<const struct sockaddr*>(&sadr_ll), sizeof(struct sockaddr_ll)));
-
+    
     close(sock);
-
+#endif
     return ret;
 }
 

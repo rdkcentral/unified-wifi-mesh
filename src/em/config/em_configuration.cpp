@@ -2395,7 +2395,7 @@ int em_configuration_t::compute_keys(unsigned char *remote_pub, unsigned short p
     //util::print_hex_dump(secret_len, secret);
 
     addr[0] = secret;
-    length[0] = (size_t) secret_len;
+    length[0] = static_cast<size_t> (secret_len);
 
     if (compute_digest(1, addr, length, dhkey) != 1) {
         free(secret);
@@ -2918,7 +2918,7 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
 	for (i = 0; i < dm->m_num_radios; i++) {
 		radio = dm->get_radio(i);
 		if (memcmp(radio->get_radio_interface_mac(), get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
-				continue;
+			continue;
 		}
 		found++;
 		break;

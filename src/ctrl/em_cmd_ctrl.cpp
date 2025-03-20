@@ -43,7 +43,8 @@
 int em_cmd_ctrl_t::execute(char *result)
 {
     struct sockaddr_un addr;
-    int ret, lsock, dsock;
+    int lsock;
+    ssize_t ret;
     unsigned int sz = sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN;
     unsigned char *tmp;
     bool wait = false;
@@ -63,7 +64,7 @@ int em_cmd_ctrl_t::execute(char *result)
     addr.sun_family = AF_UNIX;
     snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", get_path());
 
-    if ((ret = bind(lsock, (const struct sockaddr *)&addr, sizeof(struct sockaddr_un))) == -1) {
+    if ((ret = bind(lsock, reinterpret_cast<const struct sockaddr *> (&addr), sizeof(struct sockaddr_un))) == -1) {
         printf("%s:%d: bind error on socket: %d, err:%d\n", __func__, __LINE__, lsock, errno);
         return -1;
     }
@@ -86,7 +87,7 @@ int em_cmd_ctrl_t::execute(char *result)
 
         //printf("%s:%d: Connection accepted from client\n", __func__, __LINE__);
 
-        tmp = (unsigned char *)get_event();
+        tmp = reinterpret_cast<unsigned char *> (get_event());
 
 		if ((ret = recv(m_dsock, tmp, sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN, 0)) <= 0) {
 			printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
@@ -130,14 +131,14 @@ int em_cmd_ctrl_t::execute(char *result)
 
 int em_cmd_ctrl_t::send_result(em_cmd_out_status_t status)
 {
-    int ret;
+    ssize_t ret;
     char *str; 
     unsigned char *tmp;
 
-	str = (char *)malloc(EM_MAX_EVENT_DATA_LEN);
+	str = static_cast<char *> (malloc(EM_MAX_EVENT_DATA_LEN));
 	memset(str, 0, EM_MAX_EVENT_DATA_LEN);
 
-    tmp = (unsigned char *)m_cmd.status_to_string(status, str);
+    tmp = reinterpret_cast<unsigned char *> (m_cmd.status_to_string(status, str));
 
     if ((ret = send(m_dsock, tmp, strlen(str) + 1, 0)) <= 0) {
         printf("%s:%d: write error on socket, err:%d\n", __func__, __LINE__, errno);

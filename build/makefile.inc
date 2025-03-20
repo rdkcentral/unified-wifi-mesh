@@ -19,6 +19,7 @@
 OS = $(shell uname)
 PLATFORM = $(shell uname -a)
 
+WITH_SAP ?= 0
 
 BASE = $(shell pwd)
 
@@ -28,8 +29,9 @@ ONEWIFI_HAL_INTF_HOME = $(BASE)/../../../halinterface/include
 ONEWIFI_BUS_LIB_HOME = $(ONEWIFI_HOME)/lib/bus
 ONEWIFI_EM_SRC = $(ONEWIFI_EM_HOME)/src
 INSTALLDIR = $(ONEWIFI_EM_HOME)/install
+AL_SAP_HOME = $(BASE)/../../../rdkb-ieee1905.1-service-access
 OBJDIR = obj
-CXX = g++
-CC = gcc
-AR= ar cr
+CXX ?= g++
+CC ?= gcc
+AR ?= ar cr
 RM = -rm -rf

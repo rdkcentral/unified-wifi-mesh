@@ -102,20 +102,22 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                 return true;
             } else if (em->get_state() == em_state_ctrl_configured) {
                 return true;
-			}
+            }
 			//printf("%s:%d: em not ready orchestration:%s(%s) because of incorrect state, state:%s\n", __func__, __LINE__,
                     //em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
 					//em_t::state_2_str(em->get_state()));
             break;
         
         case em_cmd_type_set_channel:
-	    if ((em->get_state() == em_state_ctrl_channel_selected) || (em->get_state() == em_state_ctrl_configured)) {
+	    if (em->get_state() == em_state_ctrl_channel_selected) {
+                return true;
+            } else if (em->get_state() == em_state_ctrl_configured) {
 		return true;
-             }
+            }
 	    break;
         case em_cmd_type_scan_channel:
             if (em->get_state() == em_state_ctrl_configured) {                               
-				return true;
+                return true;
             }
             break;
 

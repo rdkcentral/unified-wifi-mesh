@@ -39,7 +39,7 @@ INCLUDEDIRS = \
     -I$(RBUS_HOME)/include \
 	-I$(WIFI_CJSON) \
 
-CXXFLAGS = $(INCLUDEDIRS) -g -fPIC
+CXXFLAGS = $(INCLUDEDIRS) -g -std=c++17 -fPIC
 CFLAGS = $(INCLUDEDIRS) -g
 LDFLAGS = $(LIBDIRS) $(LIBS)
 LIBDIRS = \
@@ -95,8 +95,12 @@ $(MAIN_OBJECT): %.o: %.c
 	$(CXX) $(CFLAGS) -o $@ -c $<
 
 $(PROGRAM):
+# use go 1.19 or above to build
+ifeq ($(CC), aarch64-linux-gnu-gcc-11)
+	CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -extldflags '-L$(INSTALLDIR)/lib -lcrypto -lssl -luuid'" -o $(PROGRAM) $(ONEWIFI_EM_SRC)/cli/*.go
+else
 	go build -ldflags="-extldflags '-L$(INSTALLDIR)/lib -lcrypto -lssl -luuid'" -o $(PROGRAM) $(ONEWIFI_EM_SRC)/cli/*.go
-
+endif
 # Clean target: "make -f Makefile.Linux clean" to remove unwanted objects and executables.
 #
 
