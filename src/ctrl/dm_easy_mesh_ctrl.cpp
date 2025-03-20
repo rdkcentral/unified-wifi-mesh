@@ -138,7 +138,7 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     //printf("%s:%d: Client:%s %s BSS: %s of Device: %s\n", __func__, __LINE__,
         //sta_mac_str, (params->assoc.assoc_event == 1)?"associated with":"disassociated from", bss_mac_str, dev_mac_str);
 
-    evt->params.u.args.num_args = 4;;
+    evt->params.u.args.num_args = 4;
     strncpy(evt->params.u.args.args[0], dev_mac_str, strlen(dev_mac_str) + 1);
     strncpy(evt->params.u.args.args[1], bss_mac_str, strlen(bss_mac_str) + 1);
     strncpy(evt->params.u.args.args[2], sta_mac_str, strlen(sta_mac_str) + 1);

@@ -42,10 +42,10 @@ int dm_network_ssid_t::decode(const cJSON *obj, void *parent_id)
 {
     cJSON *tmp, *tmp_arr;
     mac_addr_str_t  mac_str;
-    unsigned int j;
+    int j;
     em_string_t haul_str;
 
-    char *net_id = (char *)parent_id;
+    char *net_id = static_cast<char *> (parent_id);
 
     memset(&m_network_ssid_info, 0, sizeof(em_network_ssid_info_t));
     if ((tmp = cJSON_GetObjectItem(obj, "SSID")) != NULL) {
@@ -58,7 +58,7 @@ int dm_network_ssid_t::decode(const cJSON *obj, void *parent_id)
 		
 
     if ((tmp_arr = cJSON_GetObjectItem(obj, "Band")) != NULL) {
-		m_network_ssid_info.num_bands = cJSON_GetArraySize(tmp_arr);
+		m_network_ssid_info.num_bands = static_cast<unsigned char> (cJSON_GetArraySize(tmp_arr));
 		for (j = 0; j < m_network_ssid_info.num_bands; j++) {	
 			tmp = cJSON_GetArrayItem(tmp_arr, j);
 		    snprintf(m_network_ssid_info.band[j], sizeof(m_network_ssid_info.band[j]), "%s", cJSON_GetStringValue(tmp));
@@ -70,7 +70,7 @@ int dm_network_ssid_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp_arr = cJSON_GetObjectItem(obj, "AKMsAllowed")) != NULL) {
-		m_network_ssid_info.num_akms = cJSON_GetArraySize(tmp_arr);
+		m_network_ssid_info.num_akms = static_cast<unsigned char> (cJSON_GetArraySize(tmp_arr));
 		for (j = 0; j < m_network_ssid_info.num_akms; j++) {	
 			tmp = cJSON_GetArrayItem(tmp_arr, j);
 		    snprintf(m_network_ssid_info.akm[j], sizeof(m_network_ssid_info.akm[j]), "%s", cJSON_GetStringValue(tmp));
@@ -95,12 +95,12 @@ int dm_network_ssid_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp_arr = cJSON_GetObjectItem(obj, "HaulType")) != NULL) {
-        m_network_ssid_info.num_hauls = cJSON_GetArraySize(tmp_arr);
+        m_network_ssid_info.num_hauls = static_cast<unsigned char> (cJSON_GetArraySize(tmp_arr));
         for (j = 0; j < m_network_ssid_info.num_hauls; j++) {	
             tmp = cJSON_GetArrayItem(tmp_arr, j);
             m_network_ssid_info.haul_type[j] = dm_network_ssid_t::haul_type_from_string(cJSON_GetStringValue(tmp));
         }
-        m_network_ssid_info.num_hauls = j;
+        m_network_ssid_info.num_hauls = static_cast<unsigned char> (j);
     }
     snprintf(m_network_ssid_info.id, sizeof(em_long_string_t), "%s@%s", dm_network_ssid_t::haul_type_to_string(m_network_ssid_info.haul_type[0], haul_str), net_id);
     return 0;
@@ -109,7 +109,6 @@ int dm_network_ssid_t::decode(const cJSON *obj, void *parent_id)
 void dm_network_ssid_t::encode(cJSON *obj)
 {
   
-    cJSON *tmp;
     unsigned int i;
     mac_addr_str_t  mac_str;
     em_string_t	haul_str;

@@ -1,6 +1,7 @@
 #include <ctype.h>
 #include <functional>
 #include <arpa/inet.h>
+#include <cstddef>
 
 #include "ec_util.h"
 #include "util.h"
@@ -160,6 +161,11 @@ uint8_t* ec_util::add_wrapped_data_attr(ec_frame_t *frame, uint8_t* frame_attrib
 
 std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t* wrapped_attrib, ec_frame_t *frame, bool uses_aad, uint8_t* key)
 {
+    return unwrap_wrapped_attrib(wrapped_attrib, reinterpret_cast<uint8_t*>(frame), sizeof(ec_frame_t), frame->attributes, uses_aad, key);
+}
+
+std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t *wrapped_attrib, uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, bool uses_aad, uint8_t *key)
+{
     siv_ctx ctx;
 
     // Initialize AES-SIV context
@@ -175,33 +181,42 @@ std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t* wra
     //         break;
     //     default:
     //         printf("%s:%d Unknown digest length\n", __func__, __LINE__);
-    //         return std::pair<uint8_t*, size_t>(NULL, 0);
+    //         return {nullptr, 0};
     // }
 
     uint8_t* wrapped_ciphertext = wrapped_attrib->data + AES_BLOCK_SIZE;
     uint16_t wrapped_len = wrapped_attrib->length - AES_BLOCK_SIZE;
+    size_t pre_wrapped_attribs_size;
 
     uint8_t* unwrap_attribs = new uint8_t[wrapped_len]();
     int result = -1;
     if (uses_aad) {
         if (frame == NULL) {
             printf("%s:%d: AAD input is NULL, AAD decryption failed!\n", __func__, __LINE__);
-            return std::pair<uint8_t*, uint16_t>(NULL, 0);
+            return {nullptr, 0};
         }
-        result = siv_decrypt(&ctx, wrapped_ciphertext, unwrap_attribs, wrapped_len, wrapped_attrib->data, 2,
-            frame, sizeof(ec_frame_t),
-            frame->attributes, (reinterpret_cast<uint8_t*>(wrapped_attrib) - frame->attributes)); // Non-wrapped attributes
+        ptrdiff_t diff = reinterpret_cast<uint8_t*>(wrapped_attrib) - frame_attribs;
+        if (diff >= 0) {
+            pre_wrapped_attribs_size = static_cast<size_t>(diff);
+        } else {
+            pre_wrapped_attribs_size = 0; // or handle appropriately
+        }
+        result = siv_decrypt(&ctx, wrapped_ciphertext, unwrap_attribs, wrapped_len,
+                             wrapped_attrib->data, 2,
+                             frame, frame_len,
+                             frame_attribs, pre_wrapped_attribs_size);
     } else {
-        result = siv_decrypt(&ctx, wrapped_ciphertext, unwrap_attribs, wrapped_len, wrapped_attrib->data, 0);
+        result = siv_decrypt(&ctx, wrapped_ciphertext, unwrap_attribs, wrapped_len,
+                             wrapped_attrib->data, 0);
     }
 
     if (result < 0) {
         printf("%s:%d: Failed to decrypt and authenticate wrapped data\n", __func__, __LINE__);
         delete[] unwrap_attribs;
-        return std::pair<uint8_t*, uint16_t>(NULL, 0);
+        return {nullptr, 0};
     }
 
-    return std::pair<uint8_t*, uint16_t>(unwrap_attribs, wrapped_len);
+    return {unwrap_attribs, wrapped_len};
 }
 
 bool ec_util::parse_dpp_chirp_tlv(em_dpp_chirp_value_t* chirp_tlv, uint16_t chirp_tlv_len, mac_addr_t *mac, uint8_t **hash, uint8_t *hash_len)

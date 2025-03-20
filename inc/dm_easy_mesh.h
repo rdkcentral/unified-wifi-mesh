@@ -314,7 +314,7 @@ public:
 
     dm_easy_mesh_t();
     dm_easy_mesh_t(const dm_network_t& net);
-    ~dm_easy_mesh_t();  
+    virtual ~dm_easy_mesh_t();  
 };
 
 #endif

@@ -2,6 +2,7 @@
 
 #include "ec_util.h"
 #include "ec_crypto.h"
+#include "em_crypto.h"
 #include "util.h"
 #include "cjson/cJSON.h"
 #include "cjson_util.h"
@@ -13,6 +14,19 @@ ec_enrollee_t::ec_enrollee_t(std::string mac_addr, send_act_frame_func send_acti
 
 ec_enrollee_t::~ec_enrollee_t()
 {
+    if (m_boot_data.resp_priv_boot_key) {
+        BN_free(m_boot_data.resp_priv_boot_key);
+    }
+    if (m_boot_data.resp_pub_boot_key) {
+        EC_POINT_free(m_boot_data.resp_pub_boot_key);
+    }
+    if (m_boot_data.init_priv_boot_key) {
+        BN_free(m_boot_data.init_priv_boot_key);
+    }
+    if (m_boot_data.init_pub_boot_key) {
+        EC_POINT_free(m_boot_data.init_pub_boot_key);
+    }
+    ec_crypto::free_ephemeral_context(&m_eph_ctx, m_p_ctx.nonce_len, m_p_ctx.digest_len);
 }
 
 bool ec_enrollee_t::start(bool do_reconfig, ec_data_t* boot_data)
@@ -20,8 +34,15 @@ bool ec_enrollee_t::start(bool do_reconfig, ec_data_t* boot_data)
     memset(&m_boot_data, 0, sizeof(ec_data_t));
     memcpy(&m_boot_data, boot_data, sizeof(ec_data_t));
 
+    // Not all of these will be present but it is better to compute them now.
+    m_boot_data.resp_priv_boot_key = em_crypto_t::get_priv_key_bn(m_boot_data.responder_boot_key);
+    m_boot_data.resp_pub_boot_key = em_crypto_t::get_pub_key_point(m_boot_data.responder_boot_key);
+
+    m_boot_data.init_priv_boot_key= em_crypto_t::get_priv_key_bn(m_boot_data.initiator_boot_key);    
+    m_boot_data.init_pub_boot_key = em_crypto_t::get_pub_key_point(m_boot_data.initiator_boot_key);
+
     // Baseline test to ensure the bootstrapping key is present
-    if (EC_KEY_get0_public_key(m_boot_data.responder_boot_key) == NULL) {
+    if (m_boot_data.resp_pub_boot_key == NULL) {
         printf("%s:%d Could not get responder bootstrap public key\n", __func__, __LINE__);
         return false;
     }
@@ -107,10 +128,9 @@ Authentication Request frame without replying to it.
 
     // START Crypto in EasyConnect 6.3.3
     // Compute the M.x
-    const BIGNUM *priv_resp_boot_key = EC_KEY_get0_private_key(m_boot_data.responder_boot_key);
-    ASSERT_NOT_NULL(priv_resp_boot_key, false, "%s:%d failed to get responder bootstrapping private key\n", __func__, __LINE__);
+    ASSERT_NOT_NULL(m_boot_data.resp_priv_boot_key, false, "%s:%d failed to get responder bootstrapping private key\n", __func__, __LINE__);
 
-    m_eph_ctx.m = ec_crypto::compute_ec_ss_x(m_p_ctx, priv_resp_boot_key, m_eph_ctx.public_init_proto_key);
+    m_eph_ctx.m = ec_crypto::compute_ec_ss_x(m_p_ctx, m_boot_data.resp_priv_boot_key, m_eph_ctx.public_init_proto_key);
     const BIGNUM *bn_inputs[1] = { m_eph_ctx.m };
     // Compute the "first intermediate key" (k1)
     if (ec_crypto::compute_hkdf_key(m_p_ctx, m_eph_ctx.k1, m_p_ctx.digest_len, "first intermediate key", bn_inputs, 1, NULL, 0) == 0) {
@@ -254,8 +274,8 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
     // Get P_I.x, P_R.x, B_I.x, and B_R.x
     BIGNUM* P_I_x = ec_crypto::get_ec_x(m_p_ctx, m_eph_ctx.public_init_proto_key);
     BIGNUM* P_R_x = ec_crypto::get_ec_x(m_p_ctx, m_eph_ctx.public_resp_proto_key);
-    BIGNUM* B_I_x = ec_crypto::get_ec_x(m_p_ctx, EC_KEY_get0_public_key(m_boot_data.initiator_boot_key));
-    BIGNUM* B_R_x = ec_crypto::get_ec_x(m_p_ctx, EC_KEY_get0_public_key(m_boot_data.responder_boot_key));
+    BIGNUM* B_I_x = ec_crypto::get_ec_x(m_p_ctx, m_boot_data.resp_pub_boot_key);
+    BIGNUM* B_R_x = ec_crypto::get_ec_x(m_p_ctx, m_boot_data.init_pub_boot_key);
 
     if (P_I_x == NULL || P_R_x == NULL || B_R_x == NULL) {
         printf("%s:%d: Failed to get x-coordinates of P_I, P_R, and B_R\n", __func__, __LINE__);
@@ -475,15 +495,12 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
     printf("Key K_2:\n");
     util::print_hex_dump(m_p_ctx.digest_len, m_eph_ctx.k2);
 
-    const BIGNUM* b_R = EC_KEY_get0_private_key(m_boot_data.responder_boot_key);
-    ASSERT_NOT_NULL_FREE2(b_R, {}, frame, attribs, "%s:%d failed to get responder bootstrapping private key\n", __func__, __LINE__);
+    ASSERT_NOT_NULL_FREE2(m_boot_data.resp_priv_boot_key, {}, frame, attribs, "%s:%d failed to get responder bootstrapping private key\n", __func__, __LINE__);
 
     // Compute L.x
     if (m_eph_ctx.is_mutual_auth){
-        const EC_POINT* B_I = EC_KEY_get0_public_key(m_boot_data.initiator_boot_key);
-        if (B_I != NULL){
-            m_eph_ctx.l = ec_crypto::calculate_Lx(m_p_ctx, b_R, m_eph_ctx.priv_resp_proto_key, B_I);
-            EC_POINT_free(const_cast<EC_POINT*>(B_I));
+        if (m_boot_data.init_pub_boot_key != NULL){
+            m_eph_ctx.l = ec_crypto::calculate_Lx(m_p_ctx, m_boot_data.resp_priv_boot_key, m_eph_ctx.priv_resp_proto_key, m_boot_data.init_pub_boot_key);
         }
     }
 
@@ -491,7 +508,6 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
         printf("%s:%d failed to compute L.x\n", __func__, __LINE__);
         free(attribs);
         free(frame);
-        if (b_R) BN_free(const_cast<BIGNUM*>(b_R));
         return {};
     }
     
@@ -507,8 +523,8 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
     // Compute R-auth = H(I-nonce | R-nonce | PI.x | PR.x | [ BI.x | ] BR.x | 0)
     BIGNUM* P_I_x = ec_crypto::get_ec_x(m_p_ctx, m_eph_ctx.public_init_proto_key);
     BIGNUM* P_R_x = ec_crypto::get_ec_x(m_p_ctx, m_eph_ctx.public_resp_proto_key);
-    BIGNUM* B_I_x = ec_crypto::get_ec_x(m_p_ctx, EC_KEY_get0_public_key(m_boot_data.initiator_boot_key));
-    BIGNUM* B_R_x = ec_crypto::get_ec_x(m_p_ctx, EC_KEY_get0_public_key(m_boot_data.responder_boot_key));
+    BIGNUM* B_I_x = ec_crypto::get_ec_x(m_p_ctx, m_boot_data.init_pub_boot_key);
+    BIGNUM* B_R_x = ec_crypto::get_ec_x(m_p_ctx, m_boot_data.resp_pub_boot_key);
 
     if (P_I_x == NULL || P_R_x == NULL || B_R_x == NULL) {
         printf("%s:%d: Failed to get x-coordinates of P_I, P_R, and B_R\n", __func__, __LINE__);

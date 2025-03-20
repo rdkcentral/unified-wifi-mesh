@@ -73,7 +73,7 @@ bool db_easy_mesh_t::is_table_empty(db_client_t& db_client)
 
 int db_easy_mesh_t::get_strings_by_token(char *parent, int token, unsigned int argc, char *argv[])
 {
-    unsigned int num = 0;/* i;
+    unsigned int num = 0, i;
     em_long_string_t str_copy;
     char *tmp, *orig;
 
@@ -101,7 +101,7 @@ int db_easy_mesh_t::get_strings_by_token(char *parent, int token, unsigned int a
 
     snprintf(argv[num], sizeof(argv[num]), "%s", orig);
     num++;
-*/
+
     return static_cast<int> (num);
 }
 
@@ -269,6 +269,7 @@ void db_easy_mesh_t::delete_table(db_client_t& db_client)
 
     memset(query, 0, sizeof(db_query_t));
     snprintf(query, sizeof(db_query_t), "drop table %s", m_table_name);
+    db_client.execute(query);
 }
 
 int db_easy_mesh_t::create_table(db_client_t& db_client)
@@ -339,7 +340,7 @@ int db_easy_mesh_t::create_table(db_client_t& db_client)
 
     query[strlen(query) - 2] = ')';
     query[strlen(query) - 1] = 0;
-
+    db_client.execute(query);
     //printf("%s:%d: Query: %s\n", __func__, __LINE__, query);
 
     return 0;

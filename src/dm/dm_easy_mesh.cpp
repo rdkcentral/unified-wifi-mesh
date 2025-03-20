@@ -907,7 +907,7 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
 	cJSON *ap_metrics_obj, *scan_obj, *radio_metrics_arr_obj, *radio_steer_arr_obj, *local_steer_obj, *btm_steer_obj;
 	cJSON *backhaul_obj, *radio_id_obj, *radio_metrics_obj, *radio_steer_obj;
 	unsigned int num_devices = 0;
-    int i;
+	int i;
 	char *dev_mac_str, *net_id;
 	em_long_string_t parent;
 
@@ -1051,7 +1051,7 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
 {
     cJSON *parent_obj, *net_obj, *net_obj_id; 
 	cJSON *target_arr_obj, *target_obj, *channel_arr_obj;
-    unsigned int i, j, arr_size;
+    int i, j, arr_size;
     char *net_id;
 	em_long_string_t	target_key;	
 	em_op_class_type_t	type = em_op_class_type_none;
@@ -1102,9 +1102,9 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
 	}	
 
 	m_num_opclass = 0;
-	arr_size = static_cast<unsigned int> (cJSON_GetArraySize(target_arr_obj));
+	arr_size = cJSON_GetArraySize(target_arr_obj);
 	for (i = 0; i < arr_size; i++) {
-		if ((target_obj = cJSON_GetArrayItem(target_arr_obj, static_cast<int> (i))) == NULL) {
+		if ((target_obj = cJSON_GetArrayItem(target_arr_obj, i)) == NULL) {
 			cJSON_Delete(parent_obj);
         	printf("%s:%d: %s not present\n", __func__, __LINE__, target_key);
         	return -1;
@@ -1124,8 +1124,8 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
 
 		m_op_class[m_num_opclass].m_op_class_info.num_channels = 0;
 
-		for (j = 0; j < static_cast<unsigned int> (cJSON_GetArraySize(channel_arr_obj)); j++) {
-			m_op_class[m_num_opclass].m_op_class_info.channels[m_op_class[m_num_opclass].m_op_class_info.num_channels] = static_cast<unsigned int> (cJSON_GetNumberValue(cJSON_GetArrayItem(channel_arr_obj, static_cast<int> (j))));
+		for (j = 0; j < cJSON_GetArraySize(channel_arr_obj); j++) {
+			m_op_class[m_num_opclass].m_op_class_info.channels[m_op_class[m_num_opclass].m_op_class_info.num_channels] = static_cast<unsigned int> (cJSON_GetNumberValue(cJSON_GetArrayItem(channel_arr_obj, j)));
 			m_op_class[m_num_opclass].m_op_class_info.num_channels++;
 		}	
 
@@ -1214,15 +1214,15 @@ int dm_easy_mesh_t::decode_config_set_ssid(em_subdoc_info_t *subdoc, const char 
 int dm_easy_mesh_t::decode_config_op_class_array(cJSON *arr_obj, em_op_class_type_t type, unsigned char *mac)
 {
 	cJSON *op_obj;
-	unsigned int i, num_objs;
+	int i, num_objs;
 	mac_addr_str_t	mac_str;
 	em_long_string_t key;
 
-	num_objs = static_cast<unsigned int> (cJSON_GetArraySize(arr_obj));
+	num_objs = cJSON_GetArraySize(arr_obj);
 	//printf("%s:%d: Operating Classes for type: %d are: %d\n", __func__, __LINE__, type, num_objs);
 
 	for (i = 0; i < num_objs; i++) {
-		if ((op_obj = cJSON_GetArrayItem(arr_obj, static_cast<int> (i))) == NULL) {
+		if ((op_obj = cJSON_GetArrayItem(arr_obj, i)) == NULL) {
 			printf("%s:%d: Type: %d has no memebers\n", __func__, __LINE__, type);
 			return -1;
 		}
@@ -1231,10 +1231,10 @@ int dm_easy_mesh_t::decode_config_op_class_array(cJSON *arr_obj, em_op_class_typ
 		snprintf(key, sizeof(em_long_string_t), "%s@%d@%d", mac_str, type, i);
 
 		//printf("%s:%d: Data at m_op_class[%d]\n", __func__, __LINE__, i + m_num_opclass);
-		m_op_class[i + m_num_opclass].decode(op_obj, key);
+		m_op_class[static_cast<unsigned int> (i) + m_num_opclass].decode(op_obj, key);
 	}
 
-	m_num_opclass += num_objs;
+	m_num_opclass += static_cast<unsigned int> (num_objs);
 
 	return 0;
 }
@@ -1438,6 +1438,7 @@ int dm_easy_mesh_t::decode_ap_cap_config(em_subdoc_info_t *subdoc, const char *s
     cJSON *parent_obj, *net_obj, *dev_arr_objs, *dev_obj;
     em_long_string_t parent_key;
     cJSON *id;
+    int size;
 
     printf("%s:%d: test Received Subdoc\n", __func__, __LINE__);
     printf("%s\n", subdoc->buff);
@@ -1458,12 +1459,13 @@ int dm_easy_mesh_t::decode_ap_cap_config(em_subdoc_info_t *subdoc, const char *s
         printf("%s:%d: DeviceList not present\n", __func__, __LINE__);
         return -1;
     }
-    // size not initialized
-    /* if (size == 0) {
+    size = cJSON_GetArraySize(dev_arr_objs);
+    if (size == 0) {
         cJSON_Delete(parent_obj);
         printf("%s:%d: DeviceList has no memebers not present\n", __func__, __LINE__);
         return -1;
-    }*/
+    }
+
     if ((dev_obj = cJSON_GetArrayItem(dev_arr_objs, 0)) != NULL) {
         id = cJSON_GetObjectItem(dev_obj, "MsgID");
 	if ( id == NULL) {
@@ -1481,6 +1483,7 @@ int dm_easy_mesh_t::decode_client_cap_config(em_subdoc_info_t *subdoc, const cha
     cJSON *parent_obj, *net_obj, *dev_arr_objs, *dev_obj;
     em_long_string_t parent_key;
     cJSON *id, *cltmac, *rmac;
+    int size;
 	
     printf("%s:%d: test Received Subdoc\n", __func__, __LINE__);
     printf("%s\n", subdoc->buff);
@@ -1502,12 +1505,12 @@ int dm_easy_mesh_t::decode_client_cap_config(em_subdoc_info_t *subdoc, const cha
         printf("%s:%d: DeviceList not present\n", __func__, __LINE__);
 	return -1;
     }
-    // size not initialized
-    /*if (size == 0) {
+    size = cJSON_GetArraySize(dev_arr_objs);
+    if (size == 0) {
         cJSON_Delete(parent_obj);
         printf("%s:%d: DeviceList has no memebers not present\n", __func__, __LINE__);
         return -1;
-    }*/
+    }
     if ((dev_obj = cJSON_GetArrayItem(dev_arr_objs, 0)) != NULL) {
         id = cJSON_GetObjectItem(dev_obj, "MsgID");
         cltmac = cJSON_GetObjectItem(dev_obj, "ClientMac");
@@ -1595,7 +1598,7 @@ unsigned char *dm_easy_mesh_t::unhex(unsigned int in_len, char *in, unsigned int
 char *dm_easy_mesh_t::macbytes_to_string(mac_address_t mac, char* string)
 {
     if( mac != NULL) {
-        sprintf((char *)string, "%02x:%02x:%02x:%02x:%02x:%02x",
+        sprintf(const_cast<char *> (string), "%02x:%02x:%02x:%02x:%02x:%02x",
             mac[0] & 0xff,
             mac[1] & 0xff,
             mac[2] & 0xff,
@@ -1603,7 +1606,7 @@ char *dm_easy_mesh_t::macbytes_to_string(mac_address_t mac, char* string)
             mac[4] & 0xff,
             mac[5] & 0xff);
     }
-    return (char *)string;
+    return const_cast<char *> (string);
 }
 
 void dm_easy_mesh_t::string_to_macbytes(char *key, mac_address_t bmac)
