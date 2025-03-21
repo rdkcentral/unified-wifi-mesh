@@ -3,6 +3,7 @@
 #include "ec_base.h"
 #include "ec_util.h"
 #include "util.h"
+#include "cjson/cJSON.h"
 
 bool ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *chirp_tlv, uint16_t tlv_len)
 {
@@ -128,6 +129,10 @@ bool ec_ctrl_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_t
             did_finish = handle_auth_response(reinterpret_cast<ec_frame_t*>(encap_frame), encap_frame_len, dest_mac);
             break;
         }
+        case ec_frame_type_easymesh: {
+            did_finish = handle_proxied_dpp_configuration_request(encap_frame, encap_frame_len, dest_mac);
+            break;
+        }
         default:
             printf("%s:%d: Encap DPP frame type (%d) not handled\n", __func__, __LINE__, ec_frame_type);
             break;
@@ -137,6 +142,183 @@ bool ec_ctrl_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_t
     // Then construct an Auth request frame and send back in an Encap message
     free(encap_frame);
     return did_finish;
+}
+
+bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t src_mac[ETH_ALEN])
+{
+    // EasyConnect 6.4.3.1 DPP Configuration Response Configurator Handling
+    if (!encap_frame || encap_frame_len == 0) {
+        printf("%s:%d: Invalid encapsulated frame!\n", __func__, __LINE__);
+        return false;
+    }
+    std::string e_mac = util::mac_to_string(src_mac);
+    auto conn_ctx = get_conn_ctx(e_mac);
+    auto e_ctx = get_eph_ctx(e_mac);
+    ASSERT_NOT_NULL(conn_ctx, false, "%s:%d: No Configurator connection context for Enrollee '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(src_mac));
+    ASSERT_NOT_NULL(conn_ctx->net_access_key, false, "%s:%d: Enrollee '" MACSTRFMT "' netAccessKey is NULL!\n", __func__, __LINE__, MAC2STR(src_mac));
+    ASSERT_NOT_NULL(e_ctx, false, "%s:%d: No ephemeral context found for Enrollee '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(src_mac));
+    ec_gas_initial_request_frame_t *initial_request_frame = reinterpret_cast<ec_gas_initial_request_frame_t *>(encap_frame);
+
+    uint8_t session_dialog_token = initial_request_frame->base.dialog_token;
+    ec_attribute_t *wrapped_attrs = ec_util::get_attrib(initial_request_frame->query, initial_request_frame->query_len, ec_attrib_id_wrapped_data);
+    ASSERT_NOT_NULL(wrapped_attrs, false, "%s:%d: No wrapped data attribute found!\n", __func__, __LINE__);
+    
+    ASSERT_NOT_NULL(e_ctx->ke, false, "%s:%d: Ephemeral context for Enrollee '" MACSTRFMT "' does not count key 'ke'!\n", __func__, __LINE__, MAC2STR(src_mac));
+    auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(wrapped_attrs, reinterpret_cast<uint8_t*>(initial_request_frame), encap_frame_len, initial_request_frame->query, true, e_ctx->ke);
+    if (unwrapped_attrs == nullptr || unwrapped_attrs_len == 0) {
+        printf("%s:%d: Failed to unwraped wrapped data, aborting!\n", __func__, __LINE__);
+        return false;
+    }
+    auto e_nonce_attr = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_enrollee_nonce);
+    ASSERT_NOT_NULL(e_nonce_attr, false, "%s:%d: No Enrollee nonce attribute found!\n", __func__, __LINE__);
+    uint16_t e_nonce_len = e_nonce_attr->length;
+
+    auto dpp_config_request_obj_attr = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_dpp_config_req_obj);
+    ASSERT_NOT_NULL(dpp_config_request_obj_attr, false, "%s:%d: No DPP Configuration Request Object found in DPP Configuration Request frame!\n", __func__, __LINE__);
+
+    // If the Configurator does not want to configure the Enrollee, for example if the Enrollee wishes to be enrolled as an AP and
+    // there are already enough APs in the network, the Configurator shall respond with a DPP Configuration Response
+    // indicating failure by adding the DPP Status field set to STATUS_CONFIGURE_FAILURE and wrapped data consisting of
+    // the Enrollee’s nonce wrapped in ke:
+    // Configurator → Enrollee: DPP Status, { E-nonce }ke
+
+    // If the Configurator is not able to proceed immediately with the DPP Configuration protocol and the delay would be too long
+    // to handle using the GAS Comeback mechanism specified below, e.g. because a user decision is required, the
+    // Configurator shall respond with a DPP Configuration Response by adding the DPP Status field set to
+    // STATUS_CONFIGURE_PENDING and wrapped data consisting of the Enrollee’s nonce wrapped in ke:
+    // Configurator → Enrollee: DPP Status, { E-nonce }ke
+    bool cannot_onboard_more = (m_can_onboard_additional_aps == nullptr || !m_can_onboard_additional_aps());
+    if (cannot_onboard_more) {
+        printf("%s:%d: DPP Configuration Request frame received, but we cannot onboard any more APs! Rejecting with status %s\n", __func__, __LINE__, ec_util::status_code_to_string(DPP_STATUS_CONFIGURATION_FAILURE).c_str());
+        auto [frame, frame_len] = ec_util::alloc_gas_frame(dpp_gas_action_type_t::dpp_gas_comeback_resp, session_dialog_token);
+        if (frame == nullptr || frame_len == 0) {
+            printf("%s:%d: Failed to create DPP Configuration Response frame!\n", __func__, __LINE__);
+            return false;
+        }
+        ec_gas_initial_response_frame_t *response_frame = reinterpret_cast<ec_gas_initial_response_frame_t *>(frame);
+        // XXX: Note: for GAS comeback case, all logic in this scope remains, but status code becomes STATUS_CONFIGURE_PENDING
+        response_frame->status_code = DPP_STATUS_CONFIGURATION_FAILURE;
+        uint8_t *attribs = nullptr;
+        size_t attribs_len = 0;
+        attribs = ec_util::add_wrapped_data_attr(reinterpret_cast<uint8_t *>(response_frame), sizeof(ec_gas_initial_response_frame_t), attribs, &attribs_len, true, e_ctx->ke, [&](){
+            size_t wrapped_len = 0;
+            uint8_t *wrapped_attribs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, e_nonce_len, e_ctx->e_nonce);
+            return std::make_pair(wrapped_attribs, wrapped_len);
+        });
+        if ((response_frame = reinterpret_cast<ec_gas_initial_response_frame_t*>(ec_util::copy_attrs_to_frame(reinterpret_cast<uint8_t*>(response_frame), sizeof(ec_gas_initial_response_frame_t), attribs, attribs_len))) == nullptr) {
+            printf("%s:%d: Failed to copy attribs to DPP Configuration Response frame!\n", __func__, __LINE__);
+            free(attribs);
+            free(response_frame);
+            return false;
+        }
+        response_frame->resp_len = static_cast<uint16_t>(attribs_len);
+        auto [proxy_encap_frame, proxy_encap_frame_len] = ec_util::create_encap_dpp_tlv(true, src_mac, ec_frame_type_easymesh, reinterpret_cast<uint8_t*>(response_frame), sizeof(*response_frame) + attribs_len);
+        if (proxy_encap_frame == nullptr || proxy_encap_frame_len == 0) {
+            printf("%s:%d: Could not create Proxied Encap DPP TLV!\n", __func__, __LINE__);
+            free(response_frame);
+            free(attribs);
+            return false;
+        }
+        printf("%s:%d: Sending DPP Configuration Response frame for Enrollee '" MACSTRFMT "' over 1905 with DPP status code %s\n", __func__, __LINE__, MAC2STR(src_mac), ec_util::status_code_to_string(static_cast<ec_status_code_t>(response_frame->status_code)).c_str());
+        bool sent = m_send_prox_encap_dpp_msg(proxy_encap_frame, proxy_encap_frame_len, nullptr, proxy_encap_frame_len);
+        if (!sent) {
+            printf("%s:%d: Failed to send DPP Configuration Response for Enrollee '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(src_mac));
+        }
+        free(response_frame);
+        free(attribs);
+        return sent;
+    }
+
+    // GAS frame fragmentation / comeback delay / MUD URL
+    SPEC_TODO_NOT_FATAL("EasyConnect", "v3.0", "6.4.3.1",
+        "If the Enrollee included a new protocol key in the DPP Configuration Request frame but the Configurator did not request "
+        "one, the Configurator shall fail provisioning. If the Enrollee included a new protocol key in the DPP Configuration Request "
+        "frame and the Configurator requested a new protocol key with a previous STATUS_NEW_KEY_NEEDED response, the "
+        "Configurator extracts the Enrollee's new protocol key, Pe, and the Enrollee's Proof-of-Possession (POP) tag, Auth-I. It "
+        "then verifies that Pe is a valid point on the curve, and generates shared secrets and a provisional POP tag, Auth-I', as "
+        "follows:\n"
+        "    S = pc * Pe\n"
+        "    k = HKDF(bk, \"New DPP Protocol Key\", S.x)\n"
+        "    Auth-I' = HMAC (k, E-nonce | Pc.x | Pe.x)\n"
+        "where bk is the base key generated in section 6.3. The underlying hash function used with both HKDF and HMAC shall "
+        "be the one used to generate bk in the DPP Authentication protocol and Reconfiguration Authentication protocol. If Auth-I "
+        "differs from Auth-I', the Configurator shall terminate the DPP Configuration exchange. Otherwise, it generates (a) DPP "
+        "Configuration object(s) containing the Enrollee's new protocol key and replies indicating success.\n"
+        "If the Configurator is provisioning for an 802.1X/EAP network using certificates to authenticate and the configRequest did "
+        "not contain a Certification Request, the Configurator responds with a DPP Configuration Response frame with the DPP "
+        "Status field set to STATUS_CSR_NEEDED and wrapped data consisting of the Enrollee's nonce and a base64-encoded "
+        "CSR Attributes Request attribute, encoded according to the ASN.1 type definition of \"CsrAttrs\" in section 4.5.2 of RFC "
+        "7030 [47], wrapped in ke:\n"
+        "Configurator → Enrollee: DPP Status, { E-nonce, CSR Attributes Request }ke"
+    );
+
+
+    // Re-keying
+    SPEC_TODO_NOT_FATAL("EasyConnect", "v3.0", "6.4.3.1",
+        "If the Enrollee included a new protocol key in the DPP Configuration Request frame but the Configurator did not request "
+        "one, the Configurator shall fail provisioning. If the Enrollee included a new protocol key in the DPP Configuration Request "
+        "frame and the Configurator requested a new protocol key with a previous STATUS_NEW_KEY_NEEDED response, the "
+        "Configurator extracts the Enrollee's new protocol key, Pe, and the Enrollee's Proof-of-Possession (POP) tag, Auth-I. It "
+        "then verifies that Pe is a valid point on the curve, and generates shared secrets and a provisional POP tag, Auth-I', as "
+        "follows:\n"
+        "    S = pc * Pe\n"
+        "    k = HKDF(bk, \"New DPP Protocol Key\", S.x)\n"
+        "    Auth-I' = HMAC (k, E-nonce | Pc.x | Pe.x)\n"
+        "where bk is the base key generated in section 6.3. The underlying hash function used with both HKDF and HMAC shall "
+        "be the one used to generate bk in the DPP Authentication protocol and Reconfiguration Authentication protocol. If Auth-I "
+        "differs from Auth-I', the Configurator shall terminate the DPP Configuration exchange. Otherwise, it generates (a) DPP "
+        "Configuration object(s) containing the Enrollee's new protocol key and replies indicating success.\n"
+        "If the Configurator is provisioning for an 802.1X/EAP network using certificates to authenticate and the configRequest did "
+        "not contain a Certification Request, the Configurator responds with a DPP Configuration Response frame with the DPP "
+        "Status field set to STATUS_CSR_NEEDED and wrapped data consisting of the Enrollee's nonce and a base64-encoded "
+        "CSR Attributes Request attribute, encoded according to the ASN.1 type definition of \"CsrAttrs\" in section 4.5.2 of RFC "
+        "7030 [47], wrapped in ke:\n"
+        "Configurator → Enrollee: DPP Status, { E-nonce, CSR Attributes Request }ke"
+    );
+    
+
+    // Enterprise provisioning
+    SPEC_TODO_NOT_FATAL("EasyConnect", "v3.0", "6.4.3.1",
+        "If the Configurator is provisioning for a network that requires 802.1X/EAP using certificate authentication and the "
+        "configRequest contains a Certification Signing Request, the Configurator validates the Certification Signing Request by "
+        "checking that the signature in the CSR is valid and that the challengePassword string in the CSR is correct (see below). If "
+        "the CSR is invalid, the Configurator shall respond with a DPP Configuration Response frame with DPP Status field set to "
+        "STATUS_CSR_BAD with the Enrollee's nonce wrapped in ke. It shall then terminate DPP. If the CSR is valid, the "
+        "Configurator forwards the Certification Signing Request on to the CA/RA for certification and responds with a DPP "
+        "Configuration Response frame with the GAS Comeback Delay set to how long the Enrollee should wait.\n"
+        "The Configurator will respond to subsequent DPP Configuration Request frames (using a GAS Comeback Request frame) "
+        "with a DPP Configuration Response frame (using a GAS Comeback Response frame) with a GAS Comeback Delay set to "
+        "how long the Enrollee should wait. When a certificate is received, the Configurator shall place the CA's signature "
+        "certificate in the CA Certificate parameter and the Enrollee's certificate, and any intermediate certificates, in the Certificate "
+        "Bag parameter in the configurationPayload. The next time the Enrollee sends a GAS Comeback Request frame, the full "
+        "response is sent.\n"
+        "For an example of the enterprise configuration message flow, see Appendix A.1 Using DPP to Configure Enterprise "
+        "Credentials."
+    );
+
+    // EasyMesh R6 5.4.3
+    // If a Multi-AP Controller receives a Proxied Encap DPP message from an Enrollee Multi-AP Agent carrying a DPP
+    // Configuration Request frame, it shall generate a DPP Configuration Response frame and include one DPP Configuration
+    // Object for the 1905-layer and one DPP Configuration Object for the backhaul STA of the Enrollee, encapsulate them into
+    // a 1905 Encap DPP TLV, set the DPP Frame Indicator bit to one, set the Enrollee MAC Address Present bit to one, set the
+    // Frame Type field to 255 and include the Enrollee MAC Address into the Destination STA MAC Address field. If a Multi-AP
+    // Controller onboards a Multi-AP Agent over Wi-Fi, the Multi-AP Controller may include a ‘sendConnStatus’ attribute in the
+    // DPP Configuration Response frame. If the DPP Configuration Request object contains a bSTA_Maximum_Links object
+    // within the bSTAList Object, the Multi-AP Controller should include a Backhaul_STA_MLD_Config Object in the DPP
+    // Configuration Object, otherwise it shall not include a Backhaul_STA_MLD_Config object in the DPP Configuration Object.
+    // The 1905 Encap DPP TLV shall be included into a Proxied Encap DPP message and sent to the Multi-AP Agent from
+    // which the previous Proxied Encap DPP message carrying the DPP Configuration Request frame was received.
+    auto [response_frame, response_frame_len] = ec_util::alloc_gas_frame(dpp_gas_action_type_t::dpp_gas_initial_resp, session_dialog_token);
+    ASSERT_NOT_NULL(response_frame, false, "%s:%d: Could not allocate DPP Configuration Result frame!\n", __func__, __LINE__);
+
+    // Parse attributes to determine which DPP Configuration Request Object(s) we need to create and reply with.
+    cJSON *configuration_request_object = cJSON_ParseWithLength(reinterpret_cast<const char *>(dpp_config_request_obj_attr->data), dpp_config_request_obj_attr->length);
+    ASSERT_NOT_NULL(configuration_request_object, false, "%s:%d: Failed to parse DPP Configuration Request object!\n", __func__, __LINE__);
+    printf("%s:%d: Received JSON configuration request object:\n%s\n", __func__, __LINE__, cJSON_Print(configuration_request_object));
+
+
+    // TODO continue here.
+    return false;
 }
 
 bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
