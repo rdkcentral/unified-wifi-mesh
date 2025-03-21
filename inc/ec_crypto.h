@@ -208,14 +208,23 @@ public:
         free(buff);
     };
 
+    static inline void rand_zero(uint8_t *buff, size_t len) {
+        if (buff == NULL) return;
+        RAND_bytes(buff, static_cast<int>(len));
+        memset(buff, 0, len);
+    };
+
     /**
-     * @brief Free an ephemeral context by randomizing, zeroing, and freeing all memory
+     * @brief Free an ephemeral context by randomizing, zeroing, and freeing all memory 
+     * Does not attempt to free the `ctx` pointer which may be statically allocated.
      * 
      * @param ctx The ephemeral context to free
      * @param nonce_len The length of the nonces in the context
      * @param digest_len The length of the digests/keys in the context
      */
     static inline void free_ephemeral_context(ec_ephemeral_context_t* ctx, uint16_t nonce_len, uint16_t digest_len) {
+
+        if (!ctx) return;
 
         if (ctx->public_init_proto_key) EC_POINT_free(ctx->public_init_proto_key);
         if (ctx->public_resp_proto_key) EC_POINT_free(ctx->public_resp_proto_key);
@@ -234,7 +243,7 @@ public:
         if (ctx->ke) rand_zero_free(ctx->ke, static_cast<size_t> (digest_len));
         if (ctx->bk) rand_zero_free(ctx->bk, static_cast<size_t> (digest_len));
 
-        rand_zero_free(reinterpret_cast<uint8_t*>(ctx), sizeof(ec_ephemeral_context_t));
+        rand_zero(reinterpret_cast<uint8_t*>(ctx), sizeof(ec_ephemeral_context_t));
     }
 
 };
