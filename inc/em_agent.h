@@ -128,12 +128,12 @@ public:
     em_service_type_t get_service_type() { return em_service_type_agent; }
     em_t *find_em_for_msg_type(unsigned char *data, unsigned int len, em_t *al_em);
 
-    static void sta_cb(char *event_name, raw_data_t *data);
-    static void onewifi_cb(char *event_name, raw_data_t *data);
-    static int assoc_stats_cb(char *event_name, raw_data_t *data);
-    static int mgmt_action_frame_cb(char *event_name, raw_data_t *data);
-    static int channel_scan_cb(char *event_name, raw_data_t *data);
-    static int beacon_report_cb(char *event_name, raw_data_t *data);
+    static void sta_cb(char *event_name, raw_data_t *data, void *userData);
+    static void onewifi_cb(char *event_name, raw_data_t *data, void *userData);
+    static int assoc_stats_cb(char *event_name, raw_data_t *data, void *userData);
+    static int mgmt_action_frame_cb(char *event_name, raw_data_t *data, void *userData);
+    static int channel_scan_cb(char *event_name, raw_data_t *data, void *userData);
+    static int beacon_report_cb(char *event_name, raw_data_t *data, void *userData);
     void *get_assoc(void*);
     void io(void *data, bool input = true);
     bool agent_output(void *data);
