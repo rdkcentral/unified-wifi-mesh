@@ -1368,6 +1368,9 @@ void dm_easy_mesh_list_t::put_scan_result(const char *key, const dm_scan_result_
 		}
 
 		if (found_neighbor == false) {
+			if (res->m_scan_result.num_neighbors >= EM_MAX_NEIGHORS) {
+				return;
+			}
 			nbr = &res->m_scan_result.neighbor[res->m_scan_result.num_neighbors];
 			memcpy(nbr, &scan_result->m_scan_result.neighbor[0], sizeof(em_neighbor_t));
 			res->m_scan_result.num_neighbors++;
