@@ -699,8 +699,9 @@ void em_agent_t::input_listener()
     io(NULL);
 }
 
-int em_agent_t::channel_scan_cb(char *event_name, raw_data_t *data)
+int em_agent_t::channel_scan_cb(char *event_name, raw_data_t *data, void *userData)
 {
+    (void)userData;
     cJSON *json, *channel_stats_arr;
 
     json = cJSON_Parse((const char *)data->raw_data.bytes);
@@ -719,17 +720,19 @@ int em_agent_t::channel_scan_cb(char *event_name, raw_data_t *data)
     return 1;
 }
 
-int em_agent_t::beacon_report_cb(char *event_name, raw_data_t *data)
+int em_agent_t::beacon_report_cb(char *event_name, raw_data_t *data, void *userData)
 {
     //printf("%s:%d Received Frame data for event [%s] and data :\n%s\n", __func__, __LINE__, event_name, data->raw_data.bytes);
+    (void)userData;
 
     g_agent.io_process(em_bus_event_type_beacon_report, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
     return 0;
 }
 
-int em_agent_t::mgmt_action_frame_cb(char *event_name, raw_data_t *data)
+int em_agent_t::mgmt_action_frame_cb(char *event_name, raw_data_t *data, void *userData)
 {
+    (void)userData;
     struct ieee80211_mgmt *mgmt_frame = (struct ieee80211_mgmt *)data->raw_data.bytes;
     printf("%s:%d Received Frame data for event [%s] and data of len:\n%d\n", __func__, __LINE__, event_name, data->raw_data_len);
 
@@ -761,8 +764,9 @@ int em_agent_t::mgmt_action_frame_cb(char *event_name, raw_data_t *data)
     return 0;
 }
 
-int em_agent_t::assoc_stats_cb(char *event_name, raw_data_t *data)
+int em_agent_t::assoc_stats_cb(char *event_name, raw_data_t *data, void *userData)
 {
+    (void)userData;
     //printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
     cJSON *json, *assoc_stats_arr;
 
@@ -783,15 +787,17 @@ int em_agent_t::assoc_stats_cb(char *event_name, raw_data_t *data)
     return 1;
 }
 
-void em_agent_t::sta_cb(char *event_name, raw_data_t *data)
+void em_agent_t::sta_cb(char *event_name, raw_data_t *data, void *userData)
 {
+    (void)userData;
     //printf("%s:%d Recv data from onewifi:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
     g_agent.io_process(em_bus_event_type_sta_list, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
 }
 
-void em_agent_t::onewifi_cb(char *event_name, raw_data_t *data)
+void em_agent_t::onewifi_cb(char *event_name, raw_data_t *data, void *userData)
 {
+        (void)userData;
 	const char *json_data = (char *)data->raw_data.bytes;
 	cJSON *json = cJSON_Parse(json_data);
 
