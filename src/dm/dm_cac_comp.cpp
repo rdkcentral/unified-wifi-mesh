@@ -53,7 +53,7 @@ void dm_cac_comp_t::encode(cJSON *obj)
 dm_orch_type_t dm_cac_comp_t::get_dm_orch_type(const dm_cac_comp_t& cac_comp)
 {
     if ( this == &cac_comp) {
-         dm_orch_type_none;
+        return dm_orch_type_none;
     } else {
         return dm_orch_type_db_update;
     }

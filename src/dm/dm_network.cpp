@@ -41,9 +41,8 @@
 
 int dm_network_t::decode(const cJSON *obj, void *parent_id)
 {
-    cJSON *tmp, *tmp_arr;
+    cJSON *tmp;
     mac_addr_str_t  mac_str;
-    unsigned short i;
 
     memset(&m_net_info, 0, sizeof(em_network_info_t));
 
@@ -52,7 +51,7 @@ int dm_network_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "NumberOfDevices")) != NULL) {
-       m_net_info.num_of_devices = cJSON_IsTrue(tmp);
+       m_net_info.num_of_devices = static_cast<short unsigned int> (cJSON_IsTrue(tmp));
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "TimeStamp")) != NULL) {
@@ -67,6 +66,7 @@ int dm_network_t::decode(const cJSON *obj, void *parent_id)
     }
 
 #ifdef STA_ENGANCEMENT
+    cJSON *tmp_arr;
     if ((tmp_arr = cJSON_GetObjectItem(obj, "MSCSDisallowedStaList")) != NULL) {
         m_net_info.num_mscs_disallowed_sta = cJSON_GetArraySize(tmp_arr);
         for (i = 0; i < m_net_info.num_mscs_disallowed_sta; i++) {
@@ -105,7 +105,6 @@ int dm_network_t::decode(const cJSON *obj, void *parent_id)
 void dm_network_t::encode(cJSON *obj, bool summary)
 {
     mac_addr_str_t  mac_str;
-    unsigned short i;
 	em_string_t	str;
 
     cJSON_AddStringToObject(obj, "ID", m_net_info.id);

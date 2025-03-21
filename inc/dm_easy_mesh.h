@@ -109,7 +109,7 @@ public:
     int encode_config_op_class_array(cJSON *arr_obj, em_op_class_type_t type, unsigned char *mac);
 
     int decode_sta_config(em_subdoc_info_t *subdoc, unsigned int dev_index);
-    unsigned int decode_num_devices(em_subdoc_info_t *subdoc);
+    int decode_num_devices(em_subdoc_info_t *subdoc);
     int decode_client_cap_config(em_subdoc_info_t *subdoc, const char *key, char *clientmac, char *radio_mac);
     int decode_ap_cap_config(em_subdoc_info_t *subdoc, const char *key);
 
@@ -272,8 +272,8 @@ public:
     static int mac_address_from_name(const char *ifname, mac_address_t mac);
     static int name_from_mac_address(const mac_address_t *mac, char *ifname);
 	static int get_interfaces_list(em_interface_t interfaces[], unsigned int *num_interfaces);
-    static void securitymode_to_str(unsigned short mode, char *sec_mode_str, int len);
-	static void str_to_securitymode(unsigned short *mode, char *sec_mode_str, int len);
+    static void securitymode_to_str(unsigned short mode, char *sec_mode_str, size_t len);
+	static void str_to_securitymode(unsigned short *mode, char *sec_mode_str, size_t len);
 
 
     static void create_autoconfig_renew_json_cmd(char* src_mac_addr, char* agent_al_mac, em_freq_band_t freq_band, char* autoconfig_renew_json);
@@ -314,7 +314,7 @@ public:
 
     dm_easy_mesh_t();
     dm_easy_mesh_t(const dm_network_t& net);
-    ~dm_easy_mesh_t();  
+    virtual ~dm_easy_mesh_t();  
 };
 
 #endif

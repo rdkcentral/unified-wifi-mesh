@@ -803,14 +803,17 @@ em_bus_event_type_t em_cmd_t::cmd_2_bus_event_type(em_cmd_type_t ctype)
     return type;
 }
 
-void em_cmd_t::dump_bus_event(em_bus_event_t *evt)
+int em_cmd_t::dump_bus_event(em_bus_event_t *evt)
 {
-    em_cmd_params_t params;
     unsigned int i;
     em_subdoc_info_t *info;
 
+    if (evt == NULL) {
+        printf("%s:%d: NULL event\n", __func__, __LINE__);
+        return -1;
+    }
+
     printf("Bus Event\n");
-    memcpy(&params, &evt->params, sizeof(em_cmd_params_t));
 
     switch (evt->type) {
         case em_bus_event_type_get_network:
@@ -829,10 +832,11 @@ void em_cmd_t::dump_bus_event(em_bus_event_t *evt)
             break;
     }
 
-    printf("Type: %s\tNumber of Command Parameters: %d\n", get_bus_event_type_str(evt->type), params.u.args.num_args);
-    for (i = 0; i < params.u.args.num_args; i++) {
-        printf("Arg[%d]: %s\n", i, params.u.args.args[i]);
+    printf("Type: %s\tNumber of Command Parameters: %d\n", get_bus_event_type_str(evt->type), evt->params.u.args.num_args);
+    for (i = 0; i < evt->params.u.args.num_args; i++) {
+        printf("Arg[%d]: %s\n", i, evt->params.u.args.args[i]);
     }   
+	return 0;
 }   
 
 em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param, dm_easy_mesh_t& dm) : m_evt(NULL)

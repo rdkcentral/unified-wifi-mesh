@@ -109,7 +109,7 @@ public:
     static const char *get_orch_op_str(dm_orch_type_t type);
     static const char *get_bus_event_type_str(em_bus_event_type_t type);
     static const char *get_cmd_type_str(em_cmd_type_t type);    
-    static void dump_bus_event(em_bus_event_t *evt);
+    static int dump_bus_event(em_bus_event_t *evt);
     
     em_cmd_t(em_cmd_type_t type, em_cmd_params_t param, dm_easy_mesh_t& dm);
     em_cmd_t(em_cmd_type_t type, em_cmd_params_t param);

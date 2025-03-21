@@ -1,6 +1,7 @@
 #include <ctype.h>
 #include <functional>
 #include <arpa/inet.h>
+#include <cstddef>
 
 #include "ec_util.h"
 #include "util.h"
@@ -185,6 +186,7 @@ std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t *wra
 
     uint8_t* wrapped_ciphertext = wrapped_attrib->data + AES_BLOCK_SIZE;
     uint16_t wrapped_len = wrapped_attrib->length - AES_BLOCK_SIZE;
+    size_t pre_wrapped_attribs_size;
 
     uint8_t* unwrap_attribs = new uint8_t[wrapped_len]();
     int result = -1;
@@ -193,7 +195,12 @@ std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t *wra
             printf("%s:%d: AAD input is NULL, AAD decryption failed!\n", __func__, __LINE__);
             return {nullptr, 0};
         }
-        size_t pre_wrapped_attribs_size = reinterpret_cast<uint8_t*>(wrapped_attrib) - frame_attribs;
+        ptrdiff_t diff = reinterpret_cast<uint8_t*>(wrapped_attrib) - frame_attribs;
+        if (diff >= 0) {
+            pre_wrapped_attribs_size = static_cast<size_t>(diff);
+        } else {
+            pre_wrapped_attribs_size = 0; // or handle appropriately
+        }
         result = siv_decrypt(&ctx, wrapped_ciphertext, unwrap_attribs, wrapped_len,
                              wrapped_attrib->data, 2,
                              frame, frame_len,

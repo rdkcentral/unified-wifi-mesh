@@ -42,15 +42,15 @@ int dm_ieee_1905_security_t::decode(const cJSON *obj)
     cJSON *tmp;
 
     if ((tmp = cJSON_GetObjectItem(obj, "OnboardingProtocol")) != NULL) {
-       	m_ieee_1905_security_info.sec_cap.onboarding_proto = tmp->valuedouble;
+       	m_ieee_1905_security_info.sec_cap.onboarding_proto = static_cast<unsigned char> (tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "IntegrityAlgorithm")) != NULL) {
-       	m_ieee_1905_security_info.sec_cap.integrity_algo = tmp->valuedouble;
+       	m_ieee_1905_security_info.sec_cap.integrity_algo = static_cast<unsigned char> (tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "EncryptionAlgorithm")) != NULL) {
-       	m_ieee_1905_security_info.sec_cap.encryption_algo = tmp->valuedouble;
+       	m_ieee_1905_security_info.sec_cap.encryption_algo = static_cast<unsigned char> (tmp->valuedouble);
     }
 
     return 0;

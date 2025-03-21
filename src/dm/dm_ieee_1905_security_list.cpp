@@ -41,16 +41,16 @@
 int dm_ieee_1905_security_list_t::get_config(cJSON *obj, void *parent_id, bool summary)
 {
 	dm_ieee_1905_security_t *pieee_1905_security;
-	mac_address_t *mac = (mac_address_t *)parent_id;
+	mac_address_t *mac = static_cast<mac_address_t *> (parent_id);
 	bool found = false;
 
-	pieee_1905_security = (dm_ieee_1905_security_t *)hash_map_get_first(m_list);
+	pieee_1905_security = static_cast<dm_ieee_1905_security_t *> (hash_map_get_first(m_list));
 	while (pieee_1905_security != NULL) {
 		if (memcmp(mac, &pieee_1905_security->m_ieee_1905_security_info.id, sizeof(mac_address_t)) == 0) {
 			found = true;
 			break;
 		}	
-		pieee_1905_security = (dm_ieee_1905_security_t *)hash_map_get_next(m_list, pieee_1905_security);
+		pieee_1905_security = static_cast<dm_ieee_1905_security_t *> (hash_map_get_next(m_list, pieee_1905_security));
 	}
 
 	if (found == false) {
@@ -69,7 +69,7 @@ int dm_ieee_1905_security_list_t::set_config(db_client_t& db_client, const cJSON
 	cJSON *tmp, *obj;
 	mac_address_t dev_mac;
 	mac_addr_str_t  mac_str;
-    unsigned int i, size;
+    int i, size;
     dm_ieee_1905_security_t ieee_1905_security;
 	dm_orch_type_t op;
 
@@ -104,9 +104,9 @@ dm_orch_type_t dm_ieee_1905_security_list_t::get_dm_orch_type(db_client_t& db_cl
     dm_ieee_1905_security_t *pieee_1905_security;
     mac_addr_str_t  mac_str;
 
-	dm_easy_mesh_t::macbytes_to_string((unsigned char *)ieee_1905_security.m_ieee_1905_security_info.id, mac_str);
+	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (ieee_1905_security.m_ieee_1905_security_info.id), mac_str);
 
-    pieee_1905_security = (dm_ieee_1905_security_t *)hash_map_get(m_list, mac_str);
+    pieee_1905_security = static_cast<dm_ieee_1905_security_t *> (hash_map_get(m_list, mac_str));
     if (pieee_1905_security != NULL) {
         if (*pieee_1905_security == ieee_1905_security) {
             printf("%s:%d: Network SSID: %s already in list\n", __func__, __LINE__, pieee_1905_security->m_ieee_1905_security_info.id);
@@ -127,7 +127,7 @@ void dm_ieee_1905_security_list_t::update_list(const dm_ieee_1905_security_t& ie
 	dm_ieee_1905_security_t *pieee_1905_security;
     mac_addr_str_t  mac_str;
     
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)ieee_1905_security.m_ieee_1905_security_info.id, mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (ieee_1905_security.m_ieee_1905_security_info.id), mac_str);
 
     switch (op) {
         case dm_orch_type_db_insert:
@@ -135,13 +135,16 @@ void dm_ieee_1905_security_list_t::update_list(const dm_ieee_1905_security_t& ie
             break;
 
         case dm_orch_type_db_update:
-    		pieee_1905_security = (dm_ieee_1905_security_t *)hash_map_get(m_list, mac_str);
+    		pieee_1905_security = static_cast<dm_ieee_1905_security_t *> (hash_map_get(m_list, mac_str));
             memcpy(&pieee_1905_security->m_ieee_1905_security_info, &ieee_1905_security.m_ieee_1905_security_info, sizeof(em_ieee_1905_security_info_t));
             break;
     
         case dm_orch_type_db_delete:
-    		pieee_1905_security = (dm_ieee_1905_security_t *)hash_map_remove(m_list, mac_str);
+    		pieee_1905_security = static_cast<dm_ieee_1905_security_t *> (hash_map_remove(m_list, mac_str));
             delete(pieee_1905_security);
+            break;
+
+        default:
             break;
     }   
 
@@ -153,11 +156,11 @@ void dm_ieee_1905_security_list_t::delete_list()
     dm_ieee_1905_security_t *pieee_1905_security, *tmp;
     mac_addr_str_t  mac_str;
     
-    pieee_1905_security = (dm_ieee_1905_security_t *)hash_map_get_first(m_list);
+    pieee_1905_security = static_cast<dm_ieee_1905_security_t *> (hash_map_get_first(m_list));
     while (pieee_1905_security != NULL) {
         tmp = pieee_1905_security;
-        pieee_1905_security = (dm_ieee_1905_security_t *)hash_map_get_next(m_list, pieee_1905_security);       
-    	dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_ieee_1905_security_info.id, mac_str);
+        pieee_1905_security = static_cast<dm_ieee_1905_security_t *> (hash_map_get_next(m_list, pieee_1905_security));       
+    	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (tmp->m_ieee_1905_security_info.id), mac_str);
         hash_map_remove(m_list, mac_str);
         delete(tmp);
     }
@@ -173,7 +176,7 @@ bool dm_ieee_1905_security_list_t::operator == (const db_easy_mesh_t& obj)
 int dm_ieee_1905_security_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *data)
 {
     mac_addr_str_t mac_str;
-    em_ieee_1905_security_info_t *info = (em_ieee_1905_security_info_t *)data;
+    em_ieee_1905_security_info_t *info = static_cast<em_ieee_1905_security_info_t *> (data);
 	int ret = 0;
 
 	//printf("%s:%d: Opeartion:%d\n", __func__, __LINE__, op);
@@ -209,9 +212,6 @@ int dm_ieee_1905_security_list_t::sync_db(db_client_t& db_client, void *ctx)
 {
 	em_ieee_1905_security_info_t info;
 	mac_addr_str_t	mac;
-    em_long_string_t   str;
-	char *tmp;
-	unsigned int i;
     int rc = 0;
 
     while (db_client.next_result(ctx)) {
@@ -220,9 +220,9 @@ int dm_ieee_1905_security_list_t::sync_db(db_client_t& db_client, void *ctx)
 		db_client.get_string(ctx, mac, 1);
         dm_easy_mesh_t::string_to_macbytes(mac, info.id);
 
-        info.sec_cap.onboarding_proto = db_client.get_number(ctx, 2);
-        info.sec_cap.integrity_algo = db_client.get_number(ctx, 3);
-        info.sec_cap.encryption_algo = db_client.get_number(ctx, 4);
+        info.sec_cap.onboarding_proto = static_cast<unsigned char> (db_client.get_number(ctx, 2));
+        info.sec_cap.integrity_algo = static_cast<unsigned char> (db_client.get_number(ctx, 3));
+        info.sec_cap.encryption_algo = static_cast<unsigned char> (db_client.get_number(ctx, 4));
         
 		update_list(dm_ieee_1905_security_t(&info), dm_orch_type_db_insert);
     }
