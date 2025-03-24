@@ -186,7 +186,6 @@ std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t *wra
 
     uint8_t* wrapped_ciphertext = wrapped_attrib->data + AES_BLOCK_SIZE;
     uint16_t wrapped_len = wrapped_attrib->length - AES_BLOCK_SIZE;
-    size_t pre_wrapped_attribs_size;
 
     uint8_t* unwrap_attribs = new uint8_t[wrapped_len]();
     int result = -1;

@@ -2,3 +2,4 @@ install/bin/
 *.o
 *.so
 .vscode/
+.clang-format
