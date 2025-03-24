@@ -18,13 +18,13 @@ ec_manager_t::ec_manager_t(
     m_stored_chirp_fn(send_chirp),
     m_stored_encap_dpp_fn(send_encap_dpp),
     m_stored_action_frame_fn(send_action_frame),
+    m_get_bsta_info_fn(get_bsta_info),
+    m_get_1905_info_fn(get_1905_info),
+    m_can_onboard_fn(can_onboard),
     m_stored_mac_addr(mac_addr),
     m_configurator(nullptr),
     m_enrollee(nullptr),
-    m_stored_toggle_cce_fn(nullptr), 
-    m_get_bsta_info_fn(get_bsta_info),
-    m_get_1905_info_fn(get_1905_info),
-    m_can_onboard_fn(can_onboard) {
+    m_stored_toggle_cce_fn(nullptr) {
     
     if (m_is_controller) {
         m_configurator = std::unique_ptr<ec_configurator_t>(
