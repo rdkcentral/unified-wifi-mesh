@@ -1,12 +1,16 @@
 #ifndef EC_CTRL_CONFIGURATOR_H
 #define EC_CTRL_CONFIGURATOR_H
 
-#include "ec_configurator.h" 
+#include "ec_configurator.h"
+
+// forward decl
+struct cJSON;
 
 class ec_ctrl_configurator_t : public ec_configurator_t {
 public:
-    ec_ctrl_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg) :
-        ec_configurator_t(mac_addr, send_chirp_notification, send_prox_encap_dpp_msg, {}) {};
+    ec_ctrl_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg,
+        get_backhaul_sta_info_func backhaul_sta_info_func, get_1905_info_func ieee1905_info_func, can_onboard_additional_aps_func can_onboard_func) :
+        ec_configurator_t(mac_addr, send_chirp_notification, send_prox_encap_dpp_msg, {}, backhaul_sta_info_func, ieee1905_info_func, can_onboard_func) {};
         // No MAC address needed for controller configurator
 
     /**
@@ -40,6 +44,18 @@ public:
      *     but the proxy agent + configurator does.
      */
     bool handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]) override;
+
+    /**
+     * @brief Handle a proxied encapsulated DPP Configuration Request frame.
+     * 
+     * @param encap_frame The DPP Configuration Request frame from an Enrollee.
+     * @param encap_frame_len The length of the DPP Configuration Request frame.
+     * @param dest_mac The source MAC of this DPP Configuration Request frame (Enrollee).
+     * @return true on success, otherwise false.
+     * 
+     * @note: overrides parent impl.
+     */
+    bool handle_proxied_dpp_configuration_request(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) override;
 
 private:
     // Private member variables can be added here

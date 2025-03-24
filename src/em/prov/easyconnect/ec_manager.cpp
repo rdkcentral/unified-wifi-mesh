@@ -10,6 +10,9 @@ ec_manager_t::ec_manager_t(
     send_chirp_func send_chirp,
     send_encap_dpp_func send_encap_dpp,
     send_act_frame_func send_action_frame,
+    get_backhaul_sta_info_func get_bsta_info,
+    get_1905_info_func get_1905_info,
+    can_onboard_additional_aps_func can_onboard,
     bool m_is_controller
 ) : m_is_controller(m_is_controller),
     m_stored_chirp_fn(send_chirp),
@@ -18,15 +21,18 @@ ec_manager_t::ec_manager_t(
     m_stored_mac_addr(mac_addr),
     m_configurator(nullptr),
     m_enrollee(nullptr),
-    m_stored_toggle_cce_fn(nullptr) {
+    m_stored_toggle_cce_fn(nullptr), 
+    m_get_bsta_info_fn(get_bsta_info),
+    m_get_1905_info_fn(get_1905_info),
+    m_can_onboard_fn(can_onboard) {
     
     if (m_is_controller) {
         m_configurator = std::unique_ptr<ec_configurator_t>(
-            new ec_ctrl_configurator_t(mac_addr, send_chirp, send_encap_dpp)
+            new ec_ctrl_configurator_t(mac_addr, send_chirp, send_encap_dpp, get_bsta_info, get_1905_info, can_onboard)
         );
     } else {
         m_enrollee = std::unique_ptr<ec_enrollee_t>(
-            new ec_enrollee_t(mac_addr, send_action_frame)
+            new ec_enrollee_t(mac_addr, send_action_frame, get_bsta_info)
         );
     }
 }
@@ -103,7 +109,7 @@ bool ec_manager_t::upgrade_to_onboarded_proxy_agent(toggle_cce_func toggle_cce)
     m_enrollee.reset();
     
     // Create a new proxy agent configurator
-    m_configurator = std::unique_ptr<ec_pa_configurator_t>(new ec_pa_configurator_t(enrollee_mac, m_stored_chirp_fn, m_stored_encap_dpp_fn, m_stored_action_frame_fn));
+    m_configurator = std::unique_ptr<ec_pa_configurator_t>(new ec_pa_configurator_t(enrollee_mac, m_stored_chirp_fn, m_stored_encap_dpp_fn, m_stored_action_frame_fn, m_get_bsta_info_fn, m_get_1905_info_fn));
     m_configurator->m_toggle_cce = toggle_cce;
     printf("%s:%d: Upgraded enrollee agent to proxy agent\n", __func__, __LINE__);
     return true;

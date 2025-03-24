@@ -16,11 +16,13 @@ public:
      * Broadcasts 802.11 presence announcements, handles 802.11 frames from Proxy Agents and sends 802.11 responses to Proxy Agents.
      * 
      * @param mac_addr The MAC address of the device
+     * @param send_action_frame Callback for sending 802.11 action frames
+     * @param get_bsta_info Callback for getting backhaul STA info, used for building DPP Configuration Request JSON objects.
      * 
      * @note The default state of an enrollee is non-onboarding. All non-controller devices are started as (non-onboarding) enrollees 
      *      until they are told that they are on the network at which point they can be upgraded to a proxy agent.
      */
-    ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame);
+    ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame, get_backhaul_sta_info_func get_bsta_info);
     
     // Destructor
     ~ec_enrollee_t();
@@ -82,6 +84,13 @@ private:
      * @return true if successful, false otherwise
      */
     send_act_frame_func m_send_action_frame;
+
+    /**
+     * @brief Get backhaul station information to be JSON encoded and added to DPP Configuration Request frame.
+     *
+     * @return cJSON * on success, nullptr otherwise.
+     */
+    get_backhaul_sta_info_func m_get_bsta_info;
 
     // TODO: Send GAS Frame
 

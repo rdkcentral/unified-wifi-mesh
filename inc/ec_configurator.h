@@ -48,6 +48,25 @@ using send_act_frame_func = std::function<bool(uint8_t*, uint8_t *, size_t, unsi
 */
 using toggle_cce_func = std::function<bool(bool)>;
 
+/**
+ * @brief Creates a DPP Configuration Response object for the backhaul STA interface.
+ * @param conn_ctx Optional connection context (not needed for Enrollee, needed for Configurator) -- pass nullptr if not needed.
+ * @return cJSON * on success, nullptr otherwise
+ */
+using get_backhaul_sta_info_func = std::function<cJSON*(ec_connection_context_t *)>;
+
+/**
+ * @brief Creates a DPP Configuration Response object for the 1905.1 interface.
+ * @return cJSON * on success, nullptr otherwise.
+ */
+using get_1905_info_func = std::function<cJSON*(ec_connection_context_t *)>;
+
+/**
+ * @brief Used to determine if an additional AP can be on-boarded or not.
+ * @return True if additional APs can be on-boraded into the mesh, false otherwise.
+ */
+using can_onboard_additional_aps_func = std::function<bool(void)>;
+
 class ec_configurator_t {
 public:
     /**
@@ -58,7 +77,8 @@ public:
      */
     // TODO: Add send_gas_frame functions
     ec_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg, 
-                        send_act_frame_func send_action_frame);
+                        send_act_frame_func send_action_frame, get_backhaul_sta_info_func backhaul_sta_info_func, get_1905_info_func ieee1905_info_func,
+                        can_onboard_additional_aps_func can_onboard_func);
     virtual ~ec_configurator_t(); // Destructor
 
     /**
@@ -156,6 +176,20 @@ public:
      */
     virtual bool  process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) = 0;
 
+    /**
+     * @brief Handle a proxied encapsulated DPP Configuration Request frame.
+     * 
+     * @param encap_frame The DPP Configuration Request frame from an Enrollee.
+     * @param encap_frame_len The length of the DPP Configuration Request frame.
+     * @param dest_mac The source MAC of this DPP Configuration Request frame (Enrollee).
+     * @return true on success, otherwise false.
+     * 
+     * @note: overridden by subclass.
+     */
+    virtual bool handle_proxied_dpp_configuration_request(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) {
+        return true;
+    }
+
     inline std::string get_mac_addr() { return m_mac_addr; };
 
     // Disable copy construction and assignment
@@ -175,6 +209,12 @@ protected:
     send_encap_dpp_func m_send_prox_encap_dpp_msg;
 
     send_act_frame_func m_send_action_frame;
+
+    get_backhaul_sta_info_func m_get_backhaul_sta_info;
+
+    get_1905_info_func m_get_1905_info;
+
+    can_onboard_additional_aps_func m_can_onboard_additional_aps;
 
     // The connections to the Enrollees/Agents
     std::map<std::string, ec_connection_context_t> m_connections = {};
