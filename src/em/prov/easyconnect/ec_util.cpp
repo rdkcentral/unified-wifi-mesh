@@ -195,12 +195,7 @@ std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t *wra
             printf("%s:%d: AAD input is NULL, AAD decryption failed!\n", __func__, __LINE__);
             return {nullptr, 0};
         }
-        ptrdiff_t diff = reinterpret_cast<uint8_t*>(wrapped_attrib) - frame_attribs;
-        if (diff >= 0) {
-            pre_wrapped_attribs_size = static_cast<size_t>(diff);
-        } else {
-            pre_wrapped_attribs_size = 0; // or handle appropriately
-        }
+        size_t pre_wrapped_attribs_size = static_cast<size_t>(reinterpret_cast<uint8_t*>(wrapped_attrib) - frame_attribs);
         result = siv_decrypt(&ctx, wrapped_ciphertext, unwrap_attribs, wrapped_len,
                              wrapped_attrib->data, 2,
                              frame, frame_len,
