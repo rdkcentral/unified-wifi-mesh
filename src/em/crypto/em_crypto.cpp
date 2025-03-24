@@ -620,6 +620,232 @@ uint8_t em_crypto_t::platform_compute_shared_secret(uint8_t **shared_secret, uin
     return 0;
 }
 
+/**
+ * Encodes binary data using standard Base64 encoding.
+ * 
+ * @param input Binary data to encode
+ * @param length Length of the input data
+ * @return Base64 encoded string or empty string on failure
+ */
+std::string em_crypto_t::base64_encode(const uint8_t *input, size_t length) {
+    if (!input || length == 0) {
+        return "";
+    }
+
+    BIO *bio, *b64;
+    
+    // Create a base64 filter BIO and a memory BIO
+    b64 = BIO_new(BIO_f_base64());
+    bio = BIO_new(BIO_s_mem());
+    bio = BIO_push(b64, bio);  // Chain them together
+
+    // Disable newlines in the output
+    BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+    
+    // Write data through the BIO chain
+    BIO_write(bio, input, static_cast<int>(length));
+    BIO_flush(bio);
+
+    // Extract the encoded data
+    size_t data_length = 0;
+    char* data_ptr = nullptr;
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+    BUF_MEM *bufferPtr;
+    BIO_get_mem_ptr(bio, &bufferPtr);
+    data_length = bufferPtr->length;
+    data_ptr = bufferPtr->data; 
+#elif OPENSSL_VERSION_NUMBER < 0x30000000L
+    const BUF_MEM *bptr;
+    BIO_get_mem_ptr(bio, &bptr);
+    data_length = bptr->length;
+    data_ptr = bptr->data;
+#else
+    data_length = static_cast<size_t>(BIO_get_mem_data(bio, &data_ptr));
+#endif
+    
+    // Create string from the encoded data
+    std::string result(data_ptr, data_length);
+    
+    // Clean up
+    BIO_free_all(bio);
+    
+    return result;
+}
+
+/**
+ * Encodes binary data using Base64URL encoding (URL-safe variant).
+ * 
+ * Replaces '+' with '-', '/' with '_', and removes padding '=' characters.
+ * 
+ * @param input Binary data to encode
+ * @param length Length of the input data
+ * @return Base64URL encoded string or empty string on failure
+ */
+std::string em_crypto_t::base64url_encode(const uint8_t *input, size_t length) {
+    // First encode using standard Base64
+    std::string base64 = base64_encode(input, length);
+    
+    if (base64.empty()) {
+        return "";
+    }
+    
+    // Convert to Base64URL format
+    for (char& c : base64) {
+        if (c == '+') c = '-';
+        else if (c == '/') c = '_';
+    }
+    
+    // Remove padding characters
+    size_t pos = base64.find_last_not_of('=');
+    if (pos != std::string::npos) {
+        base64.erase(pos + 1);
+    }
+    
+    return base64;
+}
+
+
+std::optional<std::vector<uint8_t>> em_crypto_t::base64url_decode(const std::string& input) {
+    // Convert Base64URL to standard Base64
+    std::string base64_input = input;
+    
+    // Replace URL-safe characters with standard Base64 characters
+    for (char& c : base64_input) {
+        if (c == '-') c = '+';
+        else if (c == '_') c = '/';
+    }
+    
+    // Add padding if necessary
+    size_t mod4 = base64_input.length() % 4;
+    if (mod4) {
+        base64_input.append(4 - mod4, '=');
+    }
+    
+    // Now delegate to the existing base64_decode function
+    return base64_decode(base64_input);
+}
+
+std::optional<std::vector<uint8_t>> em_crypto_t::sign_data_ecdsa(const std::vector<uint8_t>& data_to_sign, EVP_PKEY * private_key, const EVP_MD * md)
+{
+    // Create signature context
+    #if OPENSSL_VERSION_NUMBER < 0x10100000L
+    EVP_MD_CTX md_ctx_obj;
+    EVP_MD_CTX_init(&md_ctx_obj);
+    EVP_MD_CTX* md_ctx = &md_ctx_obj;
+    #else
+    EVP_MD_CTX* md_ctx = EVP_MD_CTX_new();
+    if (!md_ctx) {
+        std::cerr << "Failed to create signature context" << std::endl;
+        return std::nullopt;
+    }
+    #endif
+    
+    // Initialize the signature operation with provided digest
+    if (EVP_DigestSignInit(md_ctx, nullptr, md, nullptr, private_key) != 1) {
+        auto err = ERR_get_error();
+        std::cerr << "Failed to initialize signature operation: " << ERR_error_string(err, nullptr) << std::endl;
+        #if OPENSSL_VERSION_NUMBER < 0x10100000L
+        EVP_MD_CTX_cleanup(md_ctx);
+        #else
+        EVP_MD_CTX_free(md_ctx);
+        #endif
+        return std::nullopt;
+    }
+    
+    // Provide the data to be signed
+    if (EVP_DigestSignUpdate(md_ctx, data_to_sign.data(), data_to_sign.size()) != 1) {
+        auto err = ERR_get_error();
+        std::cerr << "Failed to provide data to be signed: " << ERR_error_string(err, nullptr) << std::endl;
+        #if OPENSSL_VERSION_NUMBER < 0x10100000L
+        EVP_MD_CTX_cleanup(md_ctx);
+        #else
+        EVP_MD_CTX_free(md_ctx);
+        #endif
+        return std::nullopt;
+    }
+    
+    // Determine the signature length
+    size_t sig_len = 0;
+    if (EVP_DigestSignFinal(md_ctx, nullptr, &sig_len) != 1) {
+        auto err = ERR_get_error();
+        std::cerr << "Failed to determine signature length: " << ERR_error_string(err, nullptr) << std::endl;
+        #if OPENSSL_VERSION_NUMBER < 0x10100000L
+        EVP_MD_CTX_cleanup(md_ctx);
+        #else
+        EVP_MD_CTX_free(md_ctx);
+        #endif
+        return std::nullopt;
+    }
+    
+    // Get the signature
+    std::vector<uint8_t> signature(sig_len);
+    if (EVP_DigestSignFinal(md_ctx, signature.data(), &sig_len) != 1) {
+        auto err = ERR_get_error();
+        std::cerr << "Failed to create signature: " << ERR_error_string(err, nullptr) << std::endl;
+        #if OPENSSL_VERSION_NUMBER < 0x10100000L
+        EVP_MD_CTX_cleanup(md_ctx);
+        #else
+        EVP_MD_CTX_free(md_ctx);
+        #endif
+        return std::nullopt;
+    }
+    
+    // Resize in case the actual signature is smaller than the buffer
+    signature.resize(sig_len);
+    
+    // Clean up
+    #if OPENSSL_VERSION_NUMBER < 0x10100000L
+    EVP_MD_CTX_cleanup(md_ctx);
+    #else
+    EVP_MD_CTX_free(md_ctx);
+    #endif
+    
+    return signature;
+}
+
+std::optional<std::vector<uint8_t>> em_crypto_t::base64_decode(const std::string& input) {
+    BIO *bio, *b64;
+
+    // Create a vector to hold the decoded data
+    std::vector<uint8_t> output;
+    
+    if (input.empty()) {
+        return output;
+    }
+    
+    // Calculate maximum possible decoded length (3/4 of input size)
+    size_t max_decoded_len = (input.length() * 3) / 4 + 1;
+    
+    output.resize(max_decoded_len);
+    
+    bio = BIO_new_mem_buf(input.c_str(), -1);
+    if (!bio) {
+        return std::nullopt;
+    }
+    
+    b64 = BIO_new(BIO_f_base64());
+    if (!b64) {
+        BIO_free(bio);
+        return std::nullopt;
+    }
+    
+    bio = BIO_push(b64, bio);
+    BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
+    
+    int output_length = BIO_read(bio, output.data(), static_cast<int>(max_decoded_len));
+    
+    BIO_free_all(bio);
+    
+    if (output_length <= 0) {
+        return std::nullopt;
+    }
+    
+    // Resize the vector to the actual decoded size
+    output.resize(static_cast<size_t>(output_length));
+    
+    return output;
+}
 
 void em_crypto_t::cleanup_bignums(BIGNUM *p, BIGNUM *g, BIGNUM *priv, BIGNUM *pub) {
     BN_clear_free(p);
@@ -752,70 +978,6 @@ uint8_t em_crypto_t::compute_secret_internal(BIGNUM *p, BIGNUM *g, BIGNUM *bn_pr
     return (*secret_len > 0) ? 1 : 0;
 }
 #endif
-
-char *em_crypto_t::base64_encode(const uint8_t *input, size_t length, size_t *output_length) {
-    BIO *bio, *b64;
-
-    // Create a base64 filter BIO and a memory BIO
-    b64 = BIO_new(BIO_f_base64());
-    bio = BIO_new(BIO_s_mem());
-    bio = BIO_push(b64, bio);  // Chain them together
-
-    // Disable newlines in the output
-    BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
-    
-    // Write data through the BIO chain
-    BIO_write(bio, input, static_cast<int> (length));
-    BIO_flush(bio);
-
-    // Extract the encoded data
-
-    size_t temp_out_length = 0;
-    char* data_ptr = NULL;
-
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    BUF_MEM *bufferPtr;
-    BIO_get_mem_ptr(bio, &bufferPtr);
-    temp_out_length = bufferPtr->length;
-    data_ptr = bufferPtr->data; 
-#elif OPENSSL_VERSION_NUMBER < 0x30000000L
-    const BUF_MEM *bptr;
-    BIO_get_mem_ptr(bio, &bptr);
-    temp_out_length = bptr->length;
-    data_ptr = bptr->data;
-#else
-    temp_out_length = static_cast<size_t> (BIO_get_mem_data(bio, &data_ptr));
-#endif
-
-    // Allocate and copy the encoded data
-    char* result = static_cast<char*> (malloc(temp_out_length + 1));
-    memcpy(result, data_ptr, temp_out_length);
-    result[temp_out_length] = '\0';
-
-    if (output_length) {
-        *output_length = temp_out_length;
-    }
-    BIO_free_all(bio);
-    return result;
-}
-
-uint8_t* em_crypto_t::base64_decode(const char* input, size_t length, size_t* output_length) {
-    BIO *bio, *b64;
-    unsigned char* result;
-
-    result = static_cast<unsigned char*> (malloc(length));
-    bio = BIO_new_mem_buf(input, -1);
-    b64 = BIO_new(BIO_f_base64());
-    bio = BIO_push(b64, bio);
-
-    BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
-    *output_length = static_cast<size_t> (BIO_read(bio, result, static_cast<int> (length)));
-
-    // Free the BIO chain
-    BIO_free_all(bio);
-
-    return result;
-}
 
 SSL_KEY* em_crypto_t::create_ec_key_from_base64_der(const char* base64_der_pubkey) 
 {
@@ -1031,5 +1193,228 @@ SSL_KEY *em_crypto_t::generate_ec_key(int nid)
 void em_crypto_t::free_key(SSL_KEY *key)
 {
     EC_KEY_free(key);
+}
+#endif
+
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+SSL_KEY *em_crypto_t::create_ec_key_from_coordinates(
+    const std::vector<uint8_t> &x_bin, const std::vector<uint8_t> &y_bin,
+    const std::optional<std::vector<uint8_t>> &priv_key_bytes, const std::string &group_name)
+{
+    EVP_PKEY *pkey = nullptr;
+    OSSL_PARAM_BLD *param_bld = nullptr;
+    OSSL_PARAM *params = nullptr;
+    EVP_PKEY_CTX *ctx = nullptr;
+    BIGNUM *x = nullptr, *y = nullptr, *priv_key_bn = nullptr;
+    uint8_t *buf = nullptr;
+    size_t buf_len = 0;
+
+    // Create BIGNUMs for coordinates
+    x = BN_bin2bn(x_bin.data(), static_cast<int>(x_bin.size()), nullptr);
+    y = BN_bin2bn(y_bin.data(), static_cast<int>(y_bin.size()), nullptr);
+    if (!x || !y) {
+        printf("Failed to convert X or Y coordinates to BIGNUM\n");
+        goto err;
+    }
+
+    if ((param_bld = OSSL_PARAM_BLD_new()) == NULL) goto err;
+
+    // Set the EC group name
+    if (!OSSL_PARAM_BLD_push_utf8_string(param_bld, OSSL_PKEY_PARAM_GROUP_NAME, group_name.c_str(),
+                                         0))
+        goto err;
+
+    // Create a properly formatted uncompressed EC point from X and Y
+    // Format: 0x04 || X || Y (where 0x04 indicates uncompressed point)
+    // Reference: https://mta.openssl.org/pipermail/openssl-users/2021-October/014494.html
+    buf_len = 1 + x_bin.size() + y_bin.size();
+    buf = reinterpret_cast<uint8_t *>(OPENSSL_malloc(buf_len));
+    if (!buf) {
+        printf("Failed to allocate memory for EC point\n");
+        goto err;
+    }
+
+    buf[0] = 0x04;                                              // Uncompressed point format
+    memcpy(buf + 1, x_bin.data(), x_bin.size());                // Copy X coordinate
+    memcpy(buf + 1 + x_bin.size(), y_bin.data(), y_bin.size()); // Copy Y coordinate after X
+
+    // Set the Public Key as Uncompressed EC Point byte buffer
+    if (!OSSL_PARAM_BLD_push_octet_string(param_bld, OSSL_PKEY_PARAM_PUB_KEY, buf, buf_len)) {
+        printf("Failed to set public key\n");
+        goto err;
+    }
+
+    // Add private key if provided
+    if (priv_key_bytes.has_value()) {
+        priv_key_bn =
+            BN_bin2bn(priv_key_bytes->data(), static_cast<int>(priv_key_bytes->size()), nullptr);
+        if (!priv_key_bn) {
+            printf("Failed to convert private key to BIGNUM\n");
+            goto err;
+        }
+
+        if (!OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_PRIV_KEY, priv_key_bn)) {
+            printf("Failed to set private key\n");
+            goto err;
+        }
+    }
+
+    if ((params = OSSL_PARAM_BLD_to_param(param_bld)) == NULL) goto err;
+    if ((ctx = EVP_PKEY_CTX_new_from_name(NULL, "EC", NULL)) == NULL) goto err;
+    if (EVP_PKEY_fromdata_init(ctx) <= 0) goto err;
+
+    // Create the key with the appropriate type
+    if (priv_key_bytes.has_value()) {
+        if (EVP_PKEY_fromdata(ctx, &pkey, EVP_PKEY_KEYPAIR, params) <= 0) {
+            printf("Failed to create keypair from parameters\n");
+            goto err;
+        }
+    } else {
+        if (EVP_PKEY_fromdata(ctx, &pkey, EVP_PKEY_PUBLIC_KEY, params) <= 0) {
+            printf("Failed to create public key from parameters\n");
+            goto err;
+        }
+    }
+
+    goto cleanup;
+
+err:
+    if (pkey) {
+        EVP_PKEY_free(pkey);
+        pkey = nullptr;
+    }
+
+cleanup:
+    if (buf) OPENSSL_free(buf);
+    if (ctx) EVP_PKEY_CTX_free(ctx);
+    if (param_bld) OSSL_PARAM_BLD_free(param_bld);
+    if (params) OSSL_PARAM_free(params);
+    if (priv_key_bn) BN_free(priv_key_bn);
+    if (x) BN_free(x);
+    if (y) BN_free(y);
+
+    return pkey;
+}
+#else
+
+SSL_KEY *em_crypto_t::create_ec_key_from_coordinates(
+    const std::vector<uint8_t> &x_bin, const std::vector<uint8_t> &y_bin,
+    const std::optional<std::vector<uint8_t>> &priv_key_bytes, const std::string &group_name)
+{
+    EC_KEY *ec_key = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
+    if (!ec_key) return nullptr;
+
+    BIGNUM *x = BN_bin2bn(x_bin.data(), x_bin.size(), nullptr);
+    BIGNUM *y = BN_bin2bn(y_bin.data(), y_bin.size(), nullptr);
+    if (!x || !y) {
+        EC_KEY_free(ec_key);
+        if (x) BN_free(x);
+        if (y) BN_free(y);
+        return nullptr;
+    }
+
+    if (!EC_KEY_set_public_key_affine_coordinates(ec_key, x, y)) {
+        printf("Failed to set public key coordinates\n");
+        EC_KEY_free(ec_key);
+        BN_free(x);
+        BN_free(y);
+        return nullptr;
+    }
+
+    if (priv_key_bytes.has_value()) {
+        BIGNUM *priv = BN_bin2bn(priv_key_bytes->data(), priv_key_bytes->size(), nullptr);
+        if (!priv || !EC_KEY_set_private_key(ec_key, priv)) {
+            printf("Failed to set private key\n");
+            if (priv) BN_free(priv);
+            EC_KEY_free(ec_key);
+            BN_free(x);
+            BN_free(y);
+            return nullptr;
+        }
+        BN_free(priv);
+    }
+
+    // Verify that the key is valid
+    if (!EC_KEY_check_key(ec_key)) {
+        printf("EC_KEY_check_key failed\n");
+        EC_KEY_free(ec_key);
+        BN_free(x);
+        BN_free(y);
+        return nullptr;
+    }
+
+    BN_free(x);
+    BN_free(y);
+    return ec_key;
+}
+#endif
+
+bool em_crypto_t::verify_signature(const std::vector<uint8_t> &message,
+                                   const std::vector<uint8_t> &signature, EVP_PKEY *pkey,
+                                   const EVP_MD *hash_function)
+{
+    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+    if (!ctx) {
+        fprintf(stderr, "Failed to create verification context\n");
+        return false;
+    }
+
+    // Initialize the verification context with provided key and hash function
+    if (EVP_DigestVerifyInit(ctx, nullptr, hash_function, nullptr, pkey) != 1) {
+        fprintf(stderr, "Failed to initialize verification context\n");
+        EVP_MD_CTX_free(ctx);
+        return false;
+    }
+
+    // Update the context with the message
+    if (EVP_DigestVerifyUpdate(ctx, message.data(), message.size()) != 1) {
+        fprintf(stderr, "Failed to update verification context\n");
+        EVP_MD_CTX_free(ctx);
+        return false;
+    }
+
+    // Verify the signature
+    int verify_result = EVP_DigestVerifyFinal(ctx, signature.data(), signature.size());
+    if (verify_result == 1) {
+        // Signature is valid
+        EVP_MD_CTX_free(ctx);
+        return true;
+    }
+    if (verify_result == 0) {
+        // Signature is invalid
+        fprintf(stderr, "Signature verification failed\n");
+        EVP_MD_CTX_free(ctx);
+        return false;
+    }
+    fprintf(stderr, "Error during signature verification: %s\n",
+            ERR_error_string(ERR_get_error(), nullptr));
+
+    // Clean up
+    EVP_MD_CTX_free(ctx);
+
+    return false;
+}
+
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+bool em_crypto_t::verify_signature(const std::vector<uint8_t> &message,
+                                   const std::vector<uint8_t> &signature, EC_KEY *ec_key,
+                                   const EVP_MD *hash_function)
+{
+    EVP_PKEY *pkey = EVP_PKEY_new();
+    if (!pkey) {
+        fprintf(stderr, "Failed to create EVP_PKEY\n");
+        return false;
+    }
+
+    if (EVP_PKEY_assign_EC_KEY(pkey, EC_KEY_dup(ec_key)) != 1) {
+        fprintf(stderr, "Failed to assign EC_KEY to EVP_PKEY\n");
+        EVP_PKEY_free(pkey);
+        return false;
+    }
+
+    bool result = verify_signature(message, signature, pkey, hash_function);
+
+    EVP_PKEY_free(pkey);
+    return result;
 }
 #endif
