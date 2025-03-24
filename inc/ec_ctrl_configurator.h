@@ -45,6 +45,16 @@ public:
      */
     bool handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]) override;
 
+    /**
+     * @brief Handle a proxied encapsulated DPP Configuration Request frame.
+     * 
+     * @param encap_frame The DPP Configuration Request frame from an Enrollee.
+     * @param encap_frame_len The length of the DPP Configuration Request frame.
+     * @param dest_mac The source MAC of this DPP Configuration Request frame (Enrollee).
+     * @return true on success, otherwise false.
+     * 
+     * @note: overrides parent impl.
+     */
     bool handle_proxied_dpp_configuration_request(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) override;
 
 private:

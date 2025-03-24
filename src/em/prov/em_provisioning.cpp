@@ -617,6 +617,7 @@ cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *con
                 radioListObj, "RUID",
                 util::mac_to_string(radio->m_radio_info.id.ruid, "").c_str())) {
             printf("%s:%d: Could not add RUID to RadioList object!\n", __func__, __LINE__);
+            cJSON_Delete(radioListObj);
             cJSON_Delete(bsta_list_obj);
             return nullptr;
         }
@@ -654,7 +655,7 @@ cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *con
 
     if (!cJSON_AddStringToObject(bsta_list_obj, "channelList", channelList.c_str())) {
         printf("%s:%d: Could not add channelList to bSTAList object!\n", __func__, __LINE__);
-        cJSON_Delete(bsta_list_obj);
+        cJSON_Delete(b_sta_list_arr);
         return nullptr;
     }
     return b_sta_list_arr;

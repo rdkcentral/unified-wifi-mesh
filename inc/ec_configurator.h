@@ -57,13 +57,13 @@ using get_backhaul_sta_info_func = std::function<cJSON*(ec_connection_context_t 
 
 /**
  * @brief Creates a DPP Configuration Response object for the 1905.1 interface.
- *
+ * @return cJSON * on success, nullptr otherwise.
  */
 using get_1905_info_func = std::function<cJSON*(ec_connection_context_t *)>;
 
 /**
  * @brief Used to determine if an additional AP can be on-boarded or not.
- *
+ * @return True if additional APs can be on-boraded into the mesh, false otherwise.
  */
 using can_onboard_additional_aps_func = std::function<bool(void)>;
 
@@ -176,6 +176,16 @@ public:
      */
     virtual bool  process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) = 0;
 
+    /**
+     * @brief Handle a proxied encapsulated DPP Configuration Request frame.
+     * 
+     * @param encap_frame The DPP Configuration Request frame from an Enrollee.
+     * @param encap_frame_len The length of the DPP Configuration Request frame.
+     * @param dest_mac The source MAC of this DPP Configuration Request frame (Enrollee).
+     * @return true on success, otherwise false.
+     * 
+     * @note: overridden by subclass.
+     */
     virtual bool handle_proxied_dpp_configuration_request(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) {
         return true;
     }

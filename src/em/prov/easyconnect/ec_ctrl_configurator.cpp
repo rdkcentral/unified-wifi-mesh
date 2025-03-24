@@ -163,18 +163,18 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
     ec_attribute_t *wrapped_attrs = ec_util::get_attrib(initial_request_frame->query, initial_request_frame->query_len, ec_attrib_id_wrapped_data);
     ASSERT_NOT_NULL(wrapped_attrs, false, "%s:%d: No wrapped data attribute found!\n", __func__, __LINE__);
     
-    ASSERT_NOT_NULL(e_ctx->ke, false, "%s:%d: Ephemeral context for Enrollee '" MACSTRFMT "' does not count key 'ke'!\n", __func__, __LINE__, MAC2STR(src_mac));
+    ASSERT_NOT_NULL(e_ctx->ke, false, "%s:%d: Ephemeral context for Enrollee '" MACSTRFMT "' does not contain valid key 'ke'!\n", __func__, __LINE__, MAC2STR(src_mac));
     auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(wrapped_attrs, reinterpret_cast<uint8_t*>(initial_request_frame), encap_frame_len, initial_request_frame->query, true, e_ctx->ke);
     if (unwrapped_attrs == nullptr || unwrapped_attrs_len == 0) {
         printf("%s:%d: Failed to unwraped wrapped data, aborting!\n", __func__, __LINE__);
         return false;
     }
     auto e_nonce_attr = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_enrollee_nonce);
-    ASSERT_NOT_NULL(e_nonce_attr, false, "%s:%d: No Enrollee nonce attribute found!\n", __func__, __LINE__);
+    ASSERT_NOT_NULL_FREE(e_nonce_attr, false, unwrapped_attrs, "%s:%d: No Enrollee nonce attribute found!\n", __func__, __LINE__);
     uint16_t e_nonce_len = e_nonce_attr->length;
 
     auto dpp_config_request_obj_attr = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_dpp_config_req_obj);
-    ASSERT_NOT_NULL(dpp_config_request_obj_attr, false, "%s:%d: No DPP Configuration Request Object found in DPP Configuration Request frame!\n", __func__, __LINE__);
+    ASSERT_NOT_NULL_FREE(dpp_config_request_obj_attr, false, unwrapped_attrs, "%s:%d: No DPP Configuration Request Object found in DPP Configuration Request frame!\n", __func__, __LINE__);
 
     // If the Configurator does not want to configure the Enrollee, for example if the Enrollee wishes to be enrolled as an AP and
     // there are already enough APs in the network, the Configurator shall respond with a DPP Configuration Response
@@ -309,11 +309,11 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
     // The 1905 Encap DPP TLV shall be included into a Proxied Encap DPP message and sent to the Multi-AP Agent from
     // which the previous Proxied Encap DPP message carrying the DPP Configuration Request frame was received.
     auto [response_frame, response_frame_len] = ec_util::alloc_gas_frame(dpp_gas_action_type_t::dpp_gas_initial_resp, session_dialog_token);
-    ASSERT_NOT_NULL(response_frame, false, "%s:%d: Could not allocate DPP Configuration Result frame!\n", __func__, __LINE__);
+    ASSERT_NOT_NULL_FREE(response_frame, false, unwrapped_attrs, "%s:%d: Could not allocate DPP Configuration Result frame!\n", __func__, __LINE__);
 
     // Parse attributes to determine which DPP Configuration Request Object(s) we need to create and reply with.
     cJSON *configuration_request_object = cJSON_ParseWithLength(reinterpret_cast<const char *>(dpp_config_request_obj_attr->data), dpp_config_request_obj_attr->length);
-    ASSERT_NOT_NULL(configuration_request_object, false, "%s:%d: Failed to parse DPP Configuration Request object!\n", __func__, __LINE__);
+    ASSERT_NOT_NULL_FREE(configuration_request_object, false, unwrapped_attrs, "%s:%d: Failed to parse DPP Configuration Request object!\n", __func__, __LINE__);
     printf("%s:%d: Received JSON configuration request object:\n%s\n", __func__, __LINE__, cJSON_Print(configuration_request_object));
 
 
