@@ -85,6 +85,14 @@ inline std::string mac_to_string(const uint8_t mac[6], const std::string& delim 
 std::vector<std::string> split_by_delim(const std::string& s, char delimiter);
 
 /**
+ * Remove whitespace from a string
+ * 
+ * @param str The string to remove whitespace from
+ * @return The string with all whitespace removed
+ */
+std::string remove_whitespace(std::string str);
+
+/**
  * em_chan_to_freq - Convert channel info to frequency
  * @param op_class: Operating class
  * @param chan: Channel number
