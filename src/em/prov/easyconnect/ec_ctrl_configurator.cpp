@@ -4,6 +4,8 @@
 #include "ec_util.h"
 #include "util.h"
 #include "cjson/cJSON.h"
+#include "cjson_util.h"
+#include "em_crypto.h"
 
 bool ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *chirp_tlv, uint16_t tlv_len)
 {
@@ -296,29 +298,211 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
         "Credentials."
     );
 
-    // EasyMesh R6 5.4.3
-    // If a Multi-AP Controller receives a Proxied Encap DPP message from an Enrollee Multi-AP Agent carrying a DPP
-    // Configuration Request frame, it shall generate a DPP Configuration Response frame and include one DPP Configuration
-    // Object for the 1905-layer and one DPP Configuration Object for the backhaul STA of the Enrollee, encapsulate them into
-    // a 1905 Encap DPP TLV, set the DPP Frame Indicator bit to one, set the Enrollee MAC Address Present bit to one, set the
-    // Frame Type field to 255 and include the Enrollee MAC Address into the Destination STA MAC Address field. If a Multi-AP
-    // Controller onboards a Multi-AP Agent over Wi-Fi, the Multi-AP Controller may include a ‘sendConnStatus’ attribute in the
-    // DPP Configuration Response frame. If the DPP Configuration Request object contains a bSTA_Maximum_Links object
-    // within the bSTAList Object, the Multi-AP Controller should include a Backhaul_STA_MLD_Config Object in the DPP
-    // Configuration Object, otherwise it shall not include a Backhaul_STA_MLD_Config object in the DPP Configuration Object.
-    // The 1905 Encap DPP TLV shall be included into a Proxied Encap DPP message and sent to the Multi-AP Agent from
-    // which the previous Proxied Encap DPP message carrying the DPP Configuration Request frame was received.
-    auto [response_frame, response_frame_len] = ec_util::alloc_gas_frame(dpp_gas_action_type_t::dpp_gas_initial_resp, session_dialog_token);
-    ASSERT_NOT_NULL_FREE(response_frame, false, unwrapped_attrs, "%s:%d: Could not allocate DPP Configuration Result frame!\n", __func__, __LINE__);
-
     // Parse attributes to determine which DPP Configuration Request Object(s) we need to create and reply with.
     cJSON *configuration_request_object = cJSON_ParseWithLength(reinterpret_cast<const char *>(dpp_config_request_obj_attr->data), dpp_config_request_obj_attr->length);
     ASSERT_NOT_NULL_FREE(configuration_request_object, false, unwrapped_attrs, "%s:%d: Failed to parse DPP Configuration Request object!\n", __func__, __LINE__);
     printf("%s:%d: Received JSON configuration request object:\n%s\n", __func__, __LINE__, cJSON_Print(configuration_request_object));
+    
+    // Create 1905.1 Configuration Object
+    cJSON *ieee1905_config_obj = nullptr;
+    ASSERT_NOT_NULL_FREE(m_get_1905_info, false, wrapped_attrs, "%s:%d: Cannot generate 1905 Configuration Object, no callback!\n", __func__, __LINE__);
+    {
+        // EasyMesh 5.3.3
+        // If a Multi-AP Controller sends a DPP Configuration Object for the 1905-layer, it shall set the fields described in Table 6 as
+        // follows:
+        // - DPP Configuration Object
+        // - wi-fi_tech = "map"
+        // - Decryption Failure Counter threshold
+        // - Credential Object
+        // o akm = dpp
+        // o DPP Connector with netRole = "mapAgent"
+        // o C-sign-key
+        cJSON *ieee1905_config = m_get_1905_info(conn_ctx);
+        ASSERT_NOT_NULL_FREE(ieee1905_config, false, wrapped_attrs, "%s:%d: Get 1905 info callback returned nullptr!\n", __func__, __LINE__);
+    }
 
+    bool needs_bsta_config_response = true;
+    cJSON *bsta_config_object = nullptr;
+    if (needs_bsta_config_response) {
+        // Ensure callback exists.
+        ASSERT_NOT_NULL_FREE(m_get_backhaul_sta_info, false, unwrapped_attrs, "%s:%d: Enrollee '" MACSTRFMT "' requests bSTA config, but bSTA config callback is nullptr!\n", __func__, __LINE__, MAC2STR(src_mac));
+        bsta_config_object = m_get_backhaul_sta_info(conn_ctx);
+        ASSERT_NOT_NULL_FREE(bsta_config_object, false, unwrapped_attrs, "%s:%d: Could not create bSTA configuration object.\n", __func__, __LINE__);
+        // If a Multi-AP Controller sends a DPP Configuration Object for the backhaul STA, it shall set the fields described in Table 6
+        // as follows:
+        // - DPP Configuration Object
+        // - wi-fi_tech = "map"
+        // - Discovery Object
+        // - SSID
+        // - Credential Object
+        // - akm = AKM suite selectors configured for the backhaul BSS and supported by the backhaul STA
+        // as indicated in the DPP Configuration Request object.
+        // - DPP Connector with netRole = "mapBackhaulSta"
+        // - C-sign-key
+        // - Pre-shared key
+        // - WPA2 Passphrase and/or SAE password
 
-    // TODO continue here.
-    return false;
+        cJSON *cred = cJSON_GetObjectItem(bsta_config_object, "cred");
+
+        // Create / add Connector.
+
+        // Header
+
+        // Header example (EasyConnect 4.2.2)
+        // {
+        //     "typ":"dppCon",
+        //     "kid":"kMcegDBPmNZVakAsBZOzOoCsvQjkr_nEAp9uF-EDmVE",
+        //     "alg":"ES256"
+        // }
+        cJSON *jwsHeaderObj = cJSON_CreateObject();
+        cJSON_AddStringToObject(jwsHeaderObj, "typ", "dppCon");
+        uint8_t *hashed_c_sign_key = ec_crypto::compute_key_hash(m_p_ctx.C_signing_key);
+        std::string base64_c_sign_key_hash = em_crypto_t::base64_encode(hashed_c_sign_key, SHA256_DIGEST_LENGTH);
+        free(hashed_c_sign_key);
+        cJSON_AddStringToObject(jwsHeaderObj, "kid", base64_c_sign_key_hash.c_str());
+        cJSON_AddStringToObject(jwsHeaderObj, "alg", "ES256");
+
+        
+        // Payload
+
+        // Payload example (EasyConnect 4.2.2):
+        // Expiry is optional.
+        // {
+        //     "groups":
+        //     [
+        //         {"groupId":"home","netRole":"sta"},
+        //         {"groupId":"cottage","netRole":"sta"}
+        //     ],
+        //     "netAccessKey":
+        //     {
+        //         "kty":"EC",
+        //         "crv":"P-256",
+        //         "x":"Xj-zV2iEiH8XwyA9ijpsL6xyLvDiIBthrHO8ZVxwmpA",
+        //         "y":"LUsDBmn7nv-LCnn6fBoXKsKpLGJiVpY_knTckGgsgeU"
+        //     },
+        //     "expiry":"2019-01-31T22:00:00+02:00"
+        // }
+        cJSON *dppCon = cJSON_CreateObject();
+        cJSON *groupsArr = cJSON_CreateArray();
+        cJSON_AddItemToObject(dppCon, "groups", groupsArr);
+        cJSON *groupObj = cJSON_CreateObject();
+        cJSON_AddStringToObject(groupObj, "groupID", "mapNW");
+        cJSON_AddStringToObject(groupObj, "netRole", "mapBackhaulSta");
+        cJSON *netAccessKeyObj = cJSON_CreateObject();
+        cJSON_AddItemToObject(dppCon, "netAccessKey", netAccessKeyObj);
+        cJSON_AddStringToObject(netAccessKeyObj, "kty", "EC");
+        cJSON_AddStringToObject(netAccessKeyObj, "crv", "P-256");
+        // X,Y coods of netAccessKey
+        EC_GROUP *key_group = em_crypto_t::get_key_group(conn_ctx->net_access_key);
+        EC_POINT *key_point = em_crypto_t::get_pub_key_point(conn_ctx->net_access_key, key_group);
+        auto [netAccessKeyX, netAccessKeyY] = ec_crypto::get_ec_x_y(m_p_ctx, key_point);
+        cJSON_AddStringToObject(netAccessKeyObj, "x", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(netAccessKeyX)).c_str());
+        cJSON_AddStringToObject(netAccessKeyObj, "y", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(netAccessKeyY)).c_str());
+        const char *connector = ec_crypto::generate_connector(jwsHeaderObj, dppCon, m_p_ctx.C_signing_key);
+
+        cJSON_AddStringToObject(cred, "signedConnector", connector);
+
+        // Add csign.
+
+        // csign example, as part of "cred" object, EasyConnect 4.5.3
+        // "csign":
+        // {
+        //     "kty":"EC",
+        //     "crv":"P-256",
+        //     "x":"MKBCTNIcKUSDii11ySs3526iDZ8AiTo7Tu6KPAqv7D4",
+        //     "y":"4Etl6SRW2YiLUrN5vfvVHuhp7x8PxltmWWlbbM4IFyM",
+        //     "kid":"kMcegDBPmNZVakAsBZOzOoCsvQjkr_nEAp9uF-EDmVE"
+        // },
+
+        cJSON* csignObj = cJSON_CreateObject();
+        cJSON_AddStringToObject(csignObj, "kty", "EC");
+        cJSON_AddStringToObject(csignObj, "crv", "P-256");
+        cJSON_AddStringToObject(csignObj, "kid", base64_c_sign_key_hash.c_str());
+        // X,Y coords of C-Signing-Key
+        key_group = em_crypto_t::get_key_group(m_p_ctx.C_signing_key);
+        key_point = em_crypto_t::get_pub_key_point(m_p_ctx.C_signing_key, key_group);
+        auto [cSignKeyX, cSignKeyY] = ec_crypto::get_ec_x_y(m_p_ctx, key_point);
+        cJSON_AddStringToObject(csignObj, "x", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(cSignKeyX)).c_str());
+        cJSON_AddStringToObject(csignObj, "y", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(cSignKeyY)).c_str());
+
+        cJSON_AddItemToObject(cred, "csign", csignObj);
+
+        // Gen / add ppKey
+
+        // ppKey derivation: EasyConnect 6.5.2
+        // ppKey example, as part of "cred" object:
+
+        // "ppKey":
+        // {
+        //     "kty":"EC",
+        //     "crv":"P-256",
+        //     "x":"XX_ZuJR9nMDSb54C_okhGiJ7OjCZOlWOU9m8zAxgUrU",
+        //     "y":"Fekm5hyGii80amM_REV5sTOG3-sl1H6MDpZ8TSKnb7c"
+        // }
+
+        SSL_KEY *ppKey = em_crypto_t::generate_ec_key(key_group);
+        // Only keep public key.
+        m_p_ctx.ppk = em_crypto_t::get_pub_key_point(ppKey, const_cast<EC_GROUP*>(key_group));
+        cJSON *ppKeyObj = cJSON_CreateObject();
+        cJSON_AddStringToObject(ppKeyObj, "kty", "EC");
+        cJSON_AddStringToObject(ppKeyObj, "crv", "P-256");
+        // X, Y coords of ppKey
+        auto [ppkX, ppkY] = ec_crypto::get_ec_x_y(m_p_ctx, m_p_ctx.ppk);
+        cJSON_AddStringToObject(ppKeyObj, "x", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(ppkX)).c_str());
+        cJSON_AddStringToObject(ppKeyObj, "y", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(ppkY)).c_str());
+        em_crypto_t::free_key(ppKey);
+
+        cJSON_AddItemToObject(cred, "ppKey", ppKeyObj);
+    }
+
+    size_t ieee1905_config_obj_len = cjson_utils::get_cjson_blob_size(ieee1905_config_obj);
+    size_t bsta_config_object_len = cjson_utils::get_cjson_blob_size(bsta_config_object);
+
+    // Create DPP Configuration frame.
+    auto [frame, frame_len] = ec_util::alloc_gas_frame(dpp_gas_action_type_t::dpp_gas_initial_resp, session_dialog_token);
+    ASSERT_NOT_NULL_FREE(frame, false, wrapped_attrs, "%s:%d: Could not allocate DPP Configuration Response frame!\n", __func__, __LINE__);
+    ec_gas_initial_response_frame_t *response_frame = reinterpret_cast<ec_gas_initial_response_frame_t *>(frame);
+
+    uint8_t *attribs = nullptr;
+    size_t attribs_len = 0;
+    attribs = ec_util::add_wrapped_data_attr(reinterpret_cast<uint8_t *>(response_frame), sizeof(ec_gas_initial_response_frame_t), attribs, &attribs_len, true, e_ctx->ke, [&]() {
+        size_t wrapped_len = 0;
+        uint8_t *wrapped_attribs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, e_nonce_len, e_ctx->e_nonce);
+        wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_obj, static_cast<uint16_t>(ieee1905_config_obj_len), reinterpret_cast<uint8_t*>(ieee1905_config_obj));
+        wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_obj, static_cast<uint16_t>(bsta_config_object_len), reinterpret_cast<uint8_t*>(bsta_config_object));
+        return std::make_pair(wrapped_attribs, wrapped_len);
+    });
+
+    response_frame = reinterpret_cast<ec_gas_initial_response_frame_t*>(ec_util::copy_attrs_to_frame(reinterpret_cast<uint8_t*>(response_frame), sizeof(ec_gas_initial_response_frame_t), attribs, attribs_len));
+    if (response_frame == nullptr) {
+        printf("%s:%d: Failed to copy attributes to DPP Configuration frame!\n", __func__, __LINE__);
+        free(attribs);
+        free(wrapped_attrs);
+        free(response_frame);
+        free(ieee1905_config_obj);
+        free(bsta_config_object);
+    }
+    response_frame->resp_len = static_cast<uint16_t>(attribs_len);
+
+    // If a Multi-AP Controller receives a Proxied Encap DPP message from an Enrollee Multi-AP Agent carrying a DPP
+    // Configuration Request frame, it shall generate a DPP Configuration Response frame and include one DPP Configuration
+    // Object for the 1905-layer and one DPP Configuration Object for the backhaul STA of the Enrollee, encapsulate them into
+    // a 1905 Encap DPP TLV, set the DPP Frame Indicator bit to one, set the Enrollee MAC Address Present bit to one, set the
+    // Frame Type field to 255 and include the Enrollee MAC Address into the Destination STA MAC Address field. 
+    auto [encap_response_frame, encap_response_frame_len] = ec_util::create_encap_dpp_tlv(true, src_mac, ec_frame_type_easymesh, reinterpret_cast<uint8_t*>(response_frame), frame_len + attribs_len);
+    ASSERT_NOT_NULL_FREE(encap_response_frame, false, wrapped_attrs, "%s:%d: Failed to alloc DPP Configuration frame!\n", __func__, __LINE__);
+    bool sent = m_send_prox_encap_dpp_msg(encap_response_frame, encap_response_frame_len, nullptr, 0);
+    if (!sent) {
+        printf("%s:%d: Failed to send Proxied Encap DPP message containing DPP Configuration frame to '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(src_mac));
+        free(encap_response_frame);
+        free(response_frame);
+        free(attribs);
+        free(wrapped_attrs);
+        free(ieee1905_config_obj);
+        free(bsta_config_object);
+        return false;
+    }
+    return true;
 }
 
 bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])

@@ -40,6 +40,8 @@ public:
      * @param digest The buffer to store the hash
      * @param prefix The optional prefix to add to the key before hashing (NULL by default)
      * @return int The length of the hash
+     * 
+     * @note: Caller must free returned hash.
      */
     static uint8_t* compute_key_hash(const SSL_KEY *key, const char *prefix = NULL);
     
@@ -95,6 +97,31 @@ public:
      */
     static BIGNUM* calculate_Lx(ec_persistent_context_t& p_ctx, const BIGNUM* bR, const BIGNUM* pR, const EC_POINT* BI);
 
+    static std::pair<BIGNUM *, BIGNUM *> get_ec_x_y(ec_persistent_context_t& p_ctx, const EC_POINT *point) {
+        return std::make_pair(get_ec_x(p_ctx, point), get_ec_y(p_ctx, point));
+    }
+
+    static inline BIGNUM* get_ec_y(ec_persistent_context_t& p_ctx, const EC_POINT *point) {
+        if (!point) return nullptr;
+        BIGNUM *y = BN_new();
+        if (EC_POINT_get_affine_coordinates(p_ctx.group, point,
+            NULL, y, p_ctx.bn_ctx) == 0) {
+            printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
+            BN_free(y);
+            return NULL;
+        }
+        return y;
+    }
+
+    static std::vector<uint8_t> BN_to_vec(const BIGNUM *bn) {
+        if (!bn) return {};
+
+        int num_bytes = BN_num_bytes(bn);
+        std::vector<uint8_t> buffer(static_cast<size_t>(num_bytes));
+    
+        BN_bn2bin(bn, buffer.data()); // Convert BIGNUM to big-endian byte array
+        return buffer;
+    }
 
     static inline BIGNUM* get_ec_x(ec_persistent_context_t& p_ctx, const EC_POINT *point) {
         if (point == NULL) return NULL;
@@ -376,7 +403,19 @@ public:
         return parts.value()[2]; // JWS signature is the third part
     }
 
-
+    /**
+     * @brief Generate a PSK from SSID, passphrase
+     * 
+     * @param pass Passphrase
+     * @param pass_len Length of passphrase
+     * @param ssid SSID
+     * @param ssid_len Length of SSID
+     * @param iters Number of iterations
+     * @param[out] buff_out Contains PSK on success, garbage otherwise
+     * @param buff_out_len Length of `buff_out` on success, garbage otherwise
+     * @return int 0 on success, -1 otherwise.
+     */
+    static int gen_psk(const char *pass, size_t pass_len, const uint8_t *ssid, size_t ssid_len, int iters, uint8_t *buff_out, size_t buff_out_len);
 
 };
 

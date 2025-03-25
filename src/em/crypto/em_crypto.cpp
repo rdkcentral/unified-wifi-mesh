@@ -1106,6 +1106,11 @@ cleanup:
     return point;
 }
 
+SSL_KEY *em_crypto_t::generate_ec_key(EC_GROUP *group)
+{
+    return generate_ec_key(EC_GROUP_get_curve_name(group));
+}
+
 SSL_KEY *em_crypto_t::generate_ec_key(int nid)
 {
     EVP_PKEY *pkey = NULL;
@@ -1178,6 +1183,12 @@ EC_POINT *em_crypto_t::get_pub_key_point(const SSL_KEY *key, __attribute__((unus
 {
     return const_cast<EC_POINT*>(EC_KEY_get0_public_key(key));
 }
+
+SSL_KEY *em_crypto_t::generate_ec_key(EC_GROUP *group)
+{
+    return generate_ec_key(EC_GROUP_get_curve_name(group));
+}
+
 SSL_KEY *em_crypto_t::generate_ec_key(int nid)
 {
     SSL_KEY *proto_key = EC_KEY_new_by_curve_name(nid);

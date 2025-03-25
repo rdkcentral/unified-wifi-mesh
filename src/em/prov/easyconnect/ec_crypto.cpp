@@ -731,3 +731,9 @@ const char * ec_crypto::generate_connector(const cJSON * jws_header, const cJSON
 
     return connector_cstring;
 }
+
+int ec_crypto::gen_psk(const char *pass, size_t pass_len, const uint8_t *ssid, size_t ssid_len, int iters, uint8_t *buff_out, size_t buff_out_len)
+{
+    if (PKCS5_PBKDF2_HMAC_SHA1(pass, static_cast<int>(pass_len), ssid, static_cast<int>(ssid_len), iters, static_cast<int>(buff_out_len), buff_out) != 1) return -1;
+    return 0;
+}

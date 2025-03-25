@@ -43,6 +43,7 @@
 #include "em_msg.h"
 #include "cjson/cJSON.h"
 #include "util.h"
+#include "ec_util.h"
 
 int em_provisioning_t::create_cce_ind_cmd(uint8_t *buff)
 {
@@ -576,7 +577,7 @@ cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *con
     // XXX: TODO: akm is hard-coded. Should come from em_akm_suite_info_t or equivalent, but
     // not currently populated anywhere in the data model.
     std::string akm = "psk";
-    if (!cJSON_AddStringToObject(bsta_list_obj, "akm", akm.c_str())) {
+    if (!cJSON_AddStringToObject(bsta_list_obj, "akm", util::akm_to_oui(akm).c_str())) {
         printf("%s:%d: Could not add AKM to bSTAList object!\n", __func__, __LINE__);
         cJSON_Delete(b_sta_list_arr);
         return nullptr;
@@ -659,6 +660,156 @@ cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *con
         return nullptr;
     }
     return b_sta_list_arr;
+}
+
+cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_context_t *conn_ctx)
+{
+    dm_easy_mesh_t *dm = get_data_model();
+    ASSERT_NOT_NULL(dm, nullptr, "%s:%d: Failed to get data model handle.\n", __func__, __LINE__);
+
+    cJSON *bsta_configuration_object = cJSON_CreateObject();
+    ASSERT_NOT_NULL(bsta_configuration_object, nullptr, "%s:%d: Could not create bSTA Configuration Object\n", __func__, __LINE__);
+
+    if (!cJSON_AddStringToObject(bsta_configuration_object, "wi-fi_tech", "map")) {
+        printf("%s:%d: Failed to add \"wi-fi_tech\" to Configuration Object\n", __func__, __LINE__);
+        cJSON_Delete(bsta_configuration_object);
+    }
+
+    cJSON *discovery_object = cJSON_CreateObject();
+    if (discovery_object == nullptr) {
+        printf("%s:%d: Failed to create Discovery Object for DPP Configuration Object\n", __func__, __LINE__);
+        cJSON_Delete(bsta_configuration_object);
+    }
+    const em_network_ssid_info_t* network_ssid_info = dm->get_network_ssid_info_by_haul_type(em_haul_type_backhaul);
+    ASSERT_NOT_NULL(network_ssid_info, nullptr, "%s:%d: No backhaul BSS found, cannot create bSTA Configuration Object\n", __func__, __LINE__);
+    if (!cJSON_AddStringToObject(discovery_object, "SSID", network_ssid_info->ssid)) {
+        printf("%s:%d: Could not add \"SSID\" to bSTA Configuration Object\n", __func__, __LINE__);
+        cJSON_Delete(bsta_configuration_object);
+        cJSON_Delete(discovery_object);
+        return nullptr;
+    }
+    // Find "BSSID" and "RUID" since not contained in `em_network_ssid_info_t`
+    for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
+        const dm_bss_t *bss = dm->get_bss(i);
+        if (!bss) continue;
+        if (bss->m_bss_info.backhaul_use && strncmp(bss->m_bss_info.ssid, network_ssid_info->ssid, strlen(network_ssid_info->ssid)) == 0) {
+            if (!cJSON_AddStringToObject(discovery_object, "BSSID", reinterpret_cast<const char *>(bss->m_bss_info.id.bssid))) {
+                printf("%s:%d: Failed to add \"BSSID\" to bSTA Configuration Object\n", __func__, __LINE__);
+                cJSON_Delete(bsta_configuration_object);
+                cJSON_Delete(discovery_object);
+                return nullptr;
+            }
+            if (!cJSON_AddStringToObject(discovery_object, "RUID", reinterpret_cast<const char *>(bss->m_bss_info.id.ruid))) {
+                printf("%s:%d: Failed to add \"RUID\" to bSTA Configuration Object\n", __func__, __LINE__);
+                cJSON_Delete(bsta_configuration_object);
+                cJSON_Delete(discovery_object);
+                return nullptr;
+            }
+        }
+    }
+
+    cJSON *credential_object = cJSON_CreateObject();
+    if (credential_object == nullptr) {
+        printf("%s:%d: Failed to create credential object for DPP Configuration object.\n", __func__, __LINE__);
+        cJSON_Delete(discovery_object);
+        cJSON_Delete(bsta_configuration_object);
+        return nullptr;
+    }
+
+    std::string akm_suites = {};
+    bool needs_psk_hex = false;
+    for (unsigned int i = 0; i < network_ssid_info->num_akms; i++) {
+        if (!akm_suites.empty()) akm_suites += "+";
+        akm_suites += util::akm_to_oui(network_ssid_info->akm[i]);
+
+    }
+    // "psk_hex" is a conditional field,
+    // present only if PSK or AKM or SAE is a selected AKM
+    const auto check_needs_psk_hex = [](std::string akm) -> bool {
+        // psk || sae
+        return akm == "000FAC02"
+        || akm == "000FAC08";
+    };
+
+    std::vector<std::string> akms = util::split_by_delim(akm_suites, '+');
+    for (const auto& akm : akms) {
+        if (check_needs_psk_hex(akm)) needs_psk_hex = true;
+    }
+
+    if (!cJSON_AddStringToObject(credential_object, "akm", akm_suites.c_str())) {
+        printf("%s:%d: Failed to add \"akm\" to bSTA DPP Configuration Object\n", __func__, __LINE__);
+        cJSON_Delete(discovery_object);
+        cJSON_Delete(bsta_configuration_object);
+        cJSON_Delete(credential_object);
+        return nullptr;
+    }
+
+    if (needs_psk_hex) {
+        uint8_t psk_buff[32];
+        if (ec_crypto::gen_psk(network_ssid_info->pass_phrase, strlen(network_ssid_info->pass_phrase), reinterpret_cast<const uint8_t *>(network_ssid_info->ssid), strlen(network_ssid_info->ssid), 4096, psk_buff, sizeof(psk_buff)) != 1) {
+            printf("%s:%d: Failed to generate PSK\n", __func__, __LINE__);
+            cJSON_Delete(discovery_object);
+            cJSON_Delete(bsta_configuration_object);
+            cJSON_Delete(credential_object);
+            return nullptr;
+        }
+        cJSON_AddStringToObject(credential_object, "psk_hex", ec_util::hash_to_hex_string(psk_buff, sizeof(psk_buff)).c_str());
+    }
+
+    if (!cJSON_AddStringToObject(credential_object, "pass", network_ssid_info->pass_phrase)) {
+        printf("%s:%d: Failed to add \"pass\" to bSTA DPP Configuration Object", __func__, __LINE__);
+        cJSON_Delete(discovery_object);
+        cJSON_Delete(credential_object);
+        cJSON_Delete(bsta_configuration_object);
+        return nullptr;
+    }
+
+    if (!cJSON_AddItemToObject(bsta_configuration_object, "discovery", discovery_object)) {
+        printf("%s:%d: Failed to add \"discovery\" to bSTA DPP Configuration Object\n", __func__, __LINE__);
+        cJSON_Delete(credential_object);
+        cJSON_Delete(discovery_object);
+        cJSON_Delete(bsta_configuration_object);
+    }
+
+    if (!cJSON_AddItemToObject(bsta_configuration_object, "cred", credential_object)) {
+        printf("%s:%d: Failed to add \"cred\" to bSTA DPP Configuration Object\n", __func__, __LINE__);
+        cJSON_Delete(credential_object);
+        cJSON_Delete(bsta_configuration_object);
+    }
+    return bsta_configuration_object;
+}
+
+cJSON *em_provisioning_t::create_ieee1905_response_obj(ec_connection_context_t *conn_ctx)
+{
+    cJSON* dpp_configuration_object = cJSON_CreateObject();
+    ASSERT_NOT_NULL(dpp_configuration_object, nullptr, "%s:%d: Failed to create 1905 DPP Configuration Object.\n", __func__, __LINE__);
+    if (!cJSON_AddStringToObject(dpp_configuration_object, "wi-fi_tech", "dpp")) {
+        printf("%s:%d: Failed to add \"wi-fi_tech\" to 1905 DPP Configuration Object.\n", __func__, __LINE__);
+        cJSON_Delete(dpp_configuration_object);
+        return nullptr;
+    }
+
+    if (!cJSON_AddNumberToObject(dpp_configuration_object, "dfCounterThreshold", 42)) {
+        printf("%s:%d: Failed to add \"dfCounterThreshold\" to 1905 DPP Configuration Object.\n", __func__, __LINE__);
+        cJSON_Delete(dpp_configuration_object);
+        return nullptr;
+    }
+
+    cJSON *credential_object = cJSON_CreateObject();
+    if (!credential_object) {
+        printf("%s:%d: Failed to create Credential object for 1905 DPP Configuration Object.\n", __func__, __LINE__);
+        cJSON_Delete(dpp_configuration_object);
+        return nullptr;
+    }
+    if (!cJSON_AddStringToObject(credential_object, "akm", "dpp")) {
+        printf("%s:%d: Failed to add \"akm\" to 1905 DPP Configuration Object.\n", __func__, __LINE__);
+        cJSON_Delete(credential_object);
+        cJSON_Delete(dpp_configuration_object);
+        return nullptr;
+    }
+    // TODO: add JWK C-sign
+
+    return dpp_configuration_object;
 }
 
 void em_provisioning_t::handle_state_prov_none()
