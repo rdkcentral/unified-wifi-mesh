@@ -8,6 +8,11 @@
 #include <memory>
 #include <vector>
 #include <optional>
+#include <string>
+#include <unordered_map>
+
+// forward decl
+struct cJSON;
 
 namespace easyconnect {
 
@@ -407,16 +412,107 @@ public:
      * @brief Generate a PSK from SSID, passphrase
      * 
      * @param pass Passphrase
-     * @param pass_len Length of passphrase
      * @param ssid SSID
-     * @param ssid_len Length of SSID
-     * @param iters Number of iterations
-     * @param[out] buff_out Contains PSK on success, garbage otherwise
-     * @param buff_out_len Length of `buff_out` on success, garbage otherwise
-     * @return int 0 on success, -1 otherwise.
+     * @return std::vector<uint8_t> Contains PSK on success, empty otherwise.
      */
-    static int gen_psk(const char *pass, size_t pass_len, const uint8_t *ssid, size_t ssid_len, int iters, uint8_t *buff_out, size_t buff_out_len);
+    static std::vector<uint8_t> gen_psk(const std::string& pass, const std::string& ssid);
 
+    /**
+     * @brief Create a JWS header
+     * 
+     * @param type "typ" key
+     * @param c_signing_key Configurator Signing Key from which "kid" is derived.
+     * @return cJSON* cJSON Object on success, nullptr otherwise.
+     * @note: Caller must free.
+     * 
+     * Example return (EasyConnect 4.2.2):
+     * 
+     *
+     *    {
+     *        "typ":"dppCon",
+     *        "kid":"kMcegDBPmNZVakAsBZOzOoCsvQjkr_nEAp9uF-EDmVE",
+     *        "alg":"ES256"
+     *    }
+     * 
+     */
+    static cJSON* create_jws_header(const std::string& type, const SSL_KEY *c_signing_key);
+
+    /**
+     * @brief Create a JWS Payload
+     * 
+     * @param ctx Persistent context
+     * @param groups List of "key":"value" pairs to be included in "groups" array.
+     * Only possible keys are "groupID" and "netRole"
+     * @param net_access_key The netAccessKey
+     * @return cJSON* on success, nullptr otherwise
+     * @note: Caller must free
+     * 
+     * Example return (EasyConnect 4.2.2): 
+     * Expiry is optional.
+     *    {
+     *        "groups":
+     *        [
+     *            {"groupId":"home","netRole":"sta"},
+     *            {"groupId":"cottage","netRole":"sta"}
+     *        ],
+     *        "netAccessKey":
+     *        {
+     *            "kty":"EC",
+     *            "crv":"P-256",
+     *            "x":"Xj-zV2iEiH8XwyA9ijpsL6xyLvDiIBthrHO8ZVxwmpA",
+     *            "y":"LUsDBmn7nv-LCnn6fBoXKsKpLGJiVpY_knTckGgsgeU"
+     *        },
+     *        "expiry":"2019-01-31T22:00:00+02:00"
+     *   }
+     */
+    static cJSON* create_jws_payload(ec_persistent_context_t& ctx, const std::vector<std::unordered_map<std::string, std::string>>& groups, SSL_KEY* net_access_key, std::optional<std::string> expiry = std::nullopt);
+
+    /**
+     * @brief Create a csign object object
+     * 
+     * @param c_signing_key Configurator Signing Key
+     * @param ctx Persistent context
+     * @return cJSON* on success, nullptr otherwise
+     * 
+     * csign object, example, as part of "cred" object, EasyConnect 4.5.3
+     *   "csign":
+     *   {
+     *       "kty":"EC",
+     *       "crv":"P-256",
+     *       "x":"MKBCTNIcKUSDii11ySs3526iDZ8AiTo7Tu6KPAqv7D4",
+     *       "y":"4Etl6SRW2YiLUrN5vfvVHuhp7x8PxltmWWlbbM4IFyM",
+     *       "kid":"kMcegDBPmNZVakAsBZOzOoCsvQjkr_nEAp9uF-EDmVE"
+     *   },
+     */
+    static cJSON* create_csign_object(ec_persistent_context_t& ctx, SSL_KEY *c_signing_key);
+
+    /**
+     * @brief Derive public ppKey from Configurator Signing Key (must share the same key group)
+     * 
+     * @param c_signing_key Configurator Signing Key
+     * @param ctx Persistent context
+     * @return True and writes to `ec_persistent_context::ppk` on success, false otherwise
+     * 
+     */
+    static bool create_ppkey_public(ec_persistent_context_t& ctx, SSL_KEY *c_signing_key);
+
+    /**
+     * @brief Create a ppkey object object
+     * 
+     * @param ctx Persistent context.
+     * @return cJSON* ppKey object on succcess, otherwise nullptr.
+     * 
+     * EasyConnect 6.5.2
+     * ppKey object example: 
+     *      "ppKey":
+     *      {
+     *       "kty":"EC",
+     *       "crv":"P-256",
+     *       "x":"XX_ZuJR9nMDSb54C_okhGiJ7OjCZOlWOU9m8zAxgUrU",
+     *       "y":"Fekm5hyGii80amM_REV5sTOG3-sl1H6MDpZ8TSKnb7c"
+     *      },
+     */
+    static cJSON *create_ppkey_object(ec_persistent_context_t& ctx);
 };
 
 #endif // EC_CRYPTO_H

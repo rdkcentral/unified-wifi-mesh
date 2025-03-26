@@ -117,7 +117,7 @@ std::pair<uint8_t, uint8_t> em_freq_to_chan(unsigned int frequency, const std::s
  * @brief Translate an AKM literal to it's OUI representation case-insensitively
  * 
  * @param akm The AKM string literal, for example, "psk"
- * @return std::string The OUI representation, or empty string otherwise.
+ * @return std::string The OUI representation, such as "000FAC02" for "psk", or empty string otherwise.
  */
 std::string akm_to_oui(std::string akm);
 

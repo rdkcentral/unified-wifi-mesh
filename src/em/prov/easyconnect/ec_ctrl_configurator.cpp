@@ -302,6 +302,13 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
     cJSON *configuration_request_object = cJSON_ParseWithLength(reinterpret_cast<const char *>(dpp_config_request_obj_attr->data), dpp_config_request_obj_attr->length);
     ASSERT_NOT_NULL_FREE(configuration_request_object, false, unwrapped_attrs, "%s:%d: Failed to parse DPP Configuration Request object!\n", __func__, __LINE__);
     printf("%s:%d: Received JSON configuration request object:\n%s\n", __func__, __LINE__, cJSON_Print(configuration_request_object));
+
+    // Gen ppKey (public)
+    if (!ec_crypto::create_ppkey_public(m_p_ctx, m_p_ctx.C_signing_key)) {
+        printf("%s:%d: Failed to generate ppk\n", __func__, __LINE__);
+        free(wrapped_attrs);
+        return false;
+    }
     
     // Create 1905.1 Configuration Object
     cJSON *ieee1905_config_obj = nullptr;
@@ -317,9 +324,35 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
         // o akm = dpp
         // o DPP Connector with netRole = "mapAgent"
         // o C-sign-key
-        cJSON *ieee1905_config = m_get_1905_info(conn_ctx);
-        ASSERT_NOT_NULL_FREE(ieee1905_config, false, wrapped_attrs, "%s:%d: Get 1905 info callback returned nullptr!\n", __func__, __LINE__);
+        ieee1905_config_obj = m_get_1905_info(conn_ctx);
+        ASSERT_NOT_NULL_FREE(ieee1905_config_obj, false, wrapped_attrs, "%s:%d: Get 1905 info callback returned nullptr!\n", __func__, __LINE__);
+        cJSON *cred = cJSON_GetObjectItem(ieee1905_config_obj, "cred");
+        ASSERT_NOT_NULL_FREE2(cred, false, wrapped_attrs, ieee1905_config_obj, "%s:%d: Could not get \"cred\" from IEEE1905 DPP Configuration Object\n", __func__, __LINE__);
+        // Create / add Connector.
+
+        // Header
+        cJSON *jwsHeaderObj = ec_crypto::create_jws_header("dppCon", m_p_ctx.C_signing_key);
+
+        // Payload
+        std::vector<std::unordered_map<std::string, std::string>> groups = {
+            {{"groupID", "mapNW"}, {"netRole", "mapAgent"}}
+        };
+        
+        cJSON *jwsPayloadObj = ec_crypto::create_jws_payload(m_p_ctx, groups, conn_ctx->net_access_key);
+        // Create / add connector
+        const char *connector = ec_crypto::generate_connector(jwsHeaderObj, jwsPayloadObj, m_p_ctx.C_signing_key);
+        cJSON_AddStringToObject(cred, "signedConnector", connector);
+
+        // Add csign
+        cJSON *cSignObj = ec_crypto::create_csign_object(m_p_ctx, m_p_ctx.C_signing_key);
+        cJSON_AddItemToObject(cred, "csign", cSignObj);
+
+        // Add ppKey
+        cJSON *ppKeyObj = ec_crypto::create_ppkey_object(m_p_ctx);
+        cJSON_AddItemToObject(cred, "ppKey", ppKeyObj);
     }
+
+
 
     bool needs_bsta_config_response = true;
     cJSON *bsta_config_object = nullptr;
@@ -343,118 +376,44 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
         // - WPA2 Passphrase and/or SAE password
 
         cJSON *cred = cJSON_GetObjectItem(bsta_config_object, "cred");
+        ASSERT_NOT_NULL_FREE2(cred, false, wrapped_attrs, bsta_config_object, "%s:%d: Could not get \"cred\" from IEEE1905 DPP Configuration Object\n", __func__, __LINE__);
 
         // Create / add Connector.
 
         // Header
 
-        // Header example (EasyConnect 4.2.2)
-        // {
-        //     "typ":"dppCon",
-        //     "kid":"kMcegDBPmNZVakAsBZOzOoCsvQjkr_nEAp9uF-EDmVE",
-        //     "alg":"ES256"
-        // }
-        cJSON *jwsHeaderObj = cJSON_CreateObject();
-        cJSON_AddStringToObject(jwsHeaderObj, "typ", "dppCon");
-        uint8_t *hashed_c_sign_key = ec_crypto::compute_key_hash(m_p_ctx.C_signing_key);
-        std::string base64_c_sign_key_hash = em_crypto_t::base64_encode(hashed_c_sign_key, SHA256_DIGEST_LENGTH);
-        free(hashed_c_sign_key);
-        cJSON_AddStringToObject(jwsHeaderObj, "kid", base64_c_sign_key_hash.c_str());
-        cJSON_AddStringToObject(jwsHeaderObj, "alg", "ES256");
+        cJSON *jwsHeaderObj = ec_crypto::create_jws_header("dppCon", m_p_ctx.C_signing_key);
 
-        
+        std::vector<std::unordered_map<std::string, std::string>> groups = {
+            {{"groupID", "mapNW"}, {"netRole", "mapBackhaulSta"}}
+        };
+
         // Payload
 
-        // Payload example (EasyConnect 4.2.2):
-        // Expiry is optional.
-        // {
-        //     "groups":
-        //     [
-        //         {"groupId":"home","netRole":"sta"},
-        //         {"groupId":"cottage","netRole":"sta"}
-        //     ],
-        //     "netAccessKey":
-        //     {
-        //         "kty":"EC",
-        //         "crv":"P-256",
-        //         "x":"Xj-zV2iEiH8XwyA9ijpsL6xyLvDiIBthrHO8ZVxwmpA",
-        //         "y":"LUsDBmn7nv-LCnn6fBoXKsKpLGJiVpY_knTckGgsgeU"
-        //     },
-        //     "expiry":"2019-01-31T22:00:00+02:00"
-        // }
-        cJSON *dppCon = cJSON_CreateObject();
-        cJSON *groupsArr = cJSON_CreateArray();
-        cJSON_AddItemToObject(dppCon, "groups", groupsArr);
-        cJSON *groupObj = cJSON_CreateObject();
-        cJSON_AddStringToObject(groupObj, "groupID", "mapNW");
-        cJSON_AddStringToObject(groupObj, "netRole", "mapBackhaulSta");
-        cJSON *netAccessKeyObj = cJSON_CreateObject();
-        cJSON_AddItemToObject(dppCon, "netAccessKey", netAccessKeyObj);
-        cJSON_AddStringToObject(netAccessKeyObj, "kty", "EC");
-        cJSON_AddStringToObject(netAccessKeyObj, "crv", "P-256");
-        // X,Y coods of netAccessKey
-        EC_GROUP *key_group = em_crypto_t::get_key_group(conn_ctx->net_access_key);
-        EC_POINT *key_point = em_crypto_t::get_pub_key_point(conn_ctx->net_access_key, key_group);
-        auto [netAccessKeyX, netAccessKeyY] = ec_crypto::get_ec_x_y(m_p_ctx, key_point);
-        cJSON_AddStringToObject(netAccessKeyObj, "x", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(netAccessKeyX)).c_str());
-        cJSON_AddStringToObject(netAccessKeyObj, "y", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(netAccessKeyY)).c_str());
-        const char *connector = ec_crypto::generate_connector(jwsHeaderObj, dppCon, m_p_ctx.C_signing_key);
+        cJSON *jwsPayloadObj = ec_crypto::create_jws_payload(m_p_ctx, groups, conn_ctx->net_access_key);
+
+        // Create connector
+        const char *connector = ec_crypto::generate_connector(jwsHeaderObj, jwsPayloadObj, m_p_ctx.C_signing_key);
 
         cJSON_AddStringToObject(cred, "signedConnector", connector);
 
         // Add csign.
 
-        // csign example, as part of "cred" object, EasyConnect 4.5.3
-        // "csign":
-        // {
-        //     "kty":"EC",
-        //     "crv":"P-256",
-        //     "x":"MKBCTNIcKUSDii11ySs3526iDZ8AiTo7Tu6KPAqv7D4",
-        //     "y":"4Etl6SRW2YiLUrN5vfvVHuhp7x8PxltmWWlbbM4IFyM",
-        //     "kid":"kMcegDBPmNZVakAsBZOzOoCsvQjkr_nEAp9uF-EDmVE"
-        // },
+        cJSON *cSignObj = ec_crypto::create_csign_object(m_p_ctx, m_p_ctx.C_signing_key);
 
-        cJSON* csignObj = cJSON_CreateObject();
-        cJSON_AddStringToObject(csignObj, "kty", "EC");
-        cJSON_AddStringToObject(csignObj, "crv", "P-256");
-        cJSON_AddStringToObject(csignObj, "kid", base64_c_sign_key_hash.c_str());
-        // X,Y coords of C-Signing-Key
-        key_group = em_crypto_t::get_key_group(m_p_ctx.C_signing_key);
-        key_point = em_crypto_t::get_pub_key_point(m_p_ctx.C_signing_key, key_group);
-        auto [cSignKeyX, cSignKeyY] = ec_crypto::get_ec_x_y(m_p_ctx, key_point);
-        cJSON_AddStringToObject(csignObj, "x", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(cSignKeyX)).c_str());
-        cJSON_AddStringToObject(csignObj, "y", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(cSignKeyY)).c_str());
+        cJSON_AddItemToObject(cred, "csign", cSignObj);
 
-        cJSON_AddItemToObject(cred, "csign", csignObj);
+        // Add ppKey
 
-        // Gen / add ppKey
-
-        // ppKey derivation: EasyConnect 6.5.2
-        // ppKey example, as part of "cred" object:
-
-        // "ppKey":
-        // {
-        //     "kty":"EC",
-        //     "crv":"P-256",
-        //     "x":"XX_ZuJR9nMDSb54C_okhGiJ7OjCZOlWOU9m8zAxgUrU",
-        //     "y":"Fekm5hyGii80amM_REV5sTOG3-sl1H6MDpZ8TSKnb7c"
-        // }
-
-        SSL_KEY *ppKey = em_crypto_t::generate_ec_key(key_group);
-        // Only keep public key.
-        m_p_ctx.ppk = em_crypto_t::get_pub_key_point(ppKey, const_cast<EC_GROUP*>(key_group));
-        cJSON *ppKeyObj = cJSON_CreateObject();
-        cJSON_AddStringToObject(ppKeyObj, "kty", "EC");
-        cJSON_AddStringToObject(ppKeyObj, "crv", "P-256");
-        // X, Y coords of ppKey
-        auto [ppkX, ppkY] = ec_crypto::get_ec_x_y(m_p_ctx, m_p_ctx.ppk);
-        cJSON_AddStringToObject(ppKeyObj, "x", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(ppkX)).c_str());
-        cJSON_AddStringToObject(ppKeyObj, "y", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(ppkY)).c_str());
-        em_crypto_t::free_key(ppKey);
-
+        cJSON *ppKeyObj = ec_crypto::create_ppkey_object(m_p_ctx);
         cJSON_AddItemToObject(cred, "ppKey", ppKeyObj);
-    }
 
+    }
+    // For debugging
+    {
+        printf("%s:%d: IEEE1905 Configuration Object:\n%s\n", __func__, __LINE__, cJSON_Print(ieee1905_config_obj));
+        printf("%s:%d: bSTA Configuration Object:\n%s\n", __func__, __LINE__, cJSON_Print(bsta_config_object));
+    }
     size_t ieee1905_config_obj_len = cjson_utils::get_cjson_blob_size(ieee1905_config_obj);
     size_t bsta_config_object_len = cjson_utils::get_cjson_blob_size(bsta_config_object);
 

@@ -358,6 +358,17 @@ std::string ec_util::hash_to_hex_string(const uint8_t *hash, size_t hash_len) {
     return std::string(output);
 }
 
+std::string ec_util::hash_to_hex_string(const std::vector<uint8_t>& hash)
+{
+    size_t hash_len = hash.size();
+    char output[hash_len * 2 + 1];
+    for (size_t i = 0; i < hash_len; i++) {
+        sprintf(output + (i * 2), "%02x", hash[i]);
+    }
+    output[hash_len * 2] = '\0'; // Null-terminate the string
+    return std::string(output); 
+}
+
 
 bool ec_util::check_caps_compatible(const ec_dpp_capabilities_t& init_caps, const ec_dpp_capabilities_t& resp_caps)
 {

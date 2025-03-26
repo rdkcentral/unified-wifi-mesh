@@ -689,6 +689,7 @@ cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_co
         return nullptr;
     }
     // Find "BSSID" and "RUID" since not contained in `em_network_ssid_info_t`
+    // XXX: Note: R5 only - R6 introduces MLDs.
     for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
         const dm_bss_t *bss = dm->get_bss(i);
         if (!bss) continue;
@@ -727,8 +728,8 @@ cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_co
     // present only if PSK or AKM or SAE is a selected AKM
     const auto check_needs_psk_hex = [](std::string akm) -> bool {
         // psk || sae
-        return akm == "000FAC02"
-        || akm == "000FAC08";
+        return akm == util::akm_to_oui("psk")
+        || akm == util::akm_to_oui("sae");
     };
 
     std::vector<std::string> akms = util::split_by_delim(akm_suites, '+');
@@ -745,15 +746,16 @@ cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_co
     }
 
     if (needs_psk_hex) {
-        uint8_t psk_buff[32];
-        if (ec_crypto::gen_psk(network_ssid_info->pass_phrase, strlen(network_ssid_info->pass_phrase), reinterpret_cast<const uint8_t *>(network_ssid_info->ssid), strlen(network_ssid_info->ssid), 4096, psk_buff, sizeof(psk_buff)) != 1) {
+        std::vector<uint8_t> psk = ec_crypto::gen_psk(std::string(network_ssid_info->pass_phrase), std::string(network_ssid_info->ssid));
+        if (psk.empty()) {
             printf("%s:%d: Failed to generate PSK\n", __func__, __LINE__);
             cJSON_Delete(discovery_object);
             cJSON_Delete(bsta_configuration_object);
             cJSON_Delete(credential_object);
             return nullptr;
         }
-        cJSON_AddStringToObject(credential_object, "psk_hex", ec_util::hash_to_hex_string(psk_buff, sizeof(psk_buff)).c_str());
+
+        cJSON_AddStringToObject(credential_object, "psk_hex", ec_util::hash_to_hex_string(psk).c_str());
     }
 
     if (!cJSON_AddStringToObject(credential_object, "pass", network_ssid_info->pass_phrase)) {
@@ -801,13 +803,12 @@ cJSON *em_provisioning_t::create_ieee1905_response_obj(ec_connection_context_t *
         cJSON_Delete(dpp_configuration_object);
         return nullptr;
     }
-    if (!cJSON_AddStringToObject(credential_object, "akm", "dpp")) {
+    if (!cJSON_AddStringToObject(credential_object, "akm", util::akm_to_oui("dpp").c_str())) {
         printf("%s:%d: Failed to add \"akm\" to 1905 DPP Configuration Object.\n", __func__, __LINE__);
         cJSON_Delete(credential_object);
         cJSON_Delete(dpp_configuration_object);
         return nullptr;
     }
-    // TODO: add JWK C-sign
 
     return dpp_configuration_object;
 }
