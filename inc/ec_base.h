@@ -332,6 +332,8 @@ typedef enum {
  */
 typedef struct {
 // BEGIN: Variables that are configured once and persist throughout the lifetime of the program
+
+// These variables are either based on the responder bootstrapping key or the C-signing-key based on wether it's a reconfiguration or not
     const EC_GROUP *group;
     const EVP_MD *hash_fcn;
     BIGNUM *order;
@@ -354,6 +356,11 @@ typedef struct {
      * Both the Configurator and Enrollee have a copy of this key after configuration.
      */
     SSL_KEY* C_signing_key;
+
+    /*
+        The protocol key of the Enrollee is used as Network Access key (netAccessKey) later in the DPP Configuration and DPP Introduction protocol
+    */  
+    SSL_KEY *net_access_key;
 
     /**
      * @brief Can be the Configurator's Connector or the Enroller's connector based on context.
@@ -460,19 +467,6 @@ typedef struct {
  * @brief The parameters used for a specific connection between a Configurator and a specific Enrollee/Agent
  */
 typedef struct {
-    /*
-        The protocol key of the Enrollee is used as Network Access key (netAccessKey) later in the DPP Configuration and DPP Introduction protocol
-    */  
-   SSL_KEY *net_access_key;
-
-    /* TODO: 
-    Add (if needed):
-        - C-connector
-        - c-sign-key
-        - privacy-protection-key (ppk)
-
-    */
-
     ec_ephemeral_context_t eph_ctx;
 } ec_connection_context_t;
 

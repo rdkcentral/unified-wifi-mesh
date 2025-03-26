@@ -149,7 +149,7 @@ public:
      * @return uint8_t* The encoded protocol key buffer, or NULL on failure. Caller must free with free()
      * 
      */
-    static uint8_t* encode_proto_key(ec_persistent_context_t& p_ctx, const EC_POINT *point);
+    static uint8_t* encode_ec_point(ec_persistent_context_t& p_ctx, const EC_POINT *point);
     /**
      * @brief Decode a protocol key buffer into an EC point
      * 
@@ -157,7 +157,7 @@ public:
      * @param protocol_key_buff The encoded protocol key buffer
      * @return EC_POINT* The decoded EC point, or NULL on failure. Caller must free with EC_POINT_free()
      */
-    static EC_POINT* decode_proto_key(ec_persistent_context_t& p_ctx, const uint8_t* protocol_key_buff);
+    static EC_POINT* decode_ec_point(ec_persistent_context_t& p_ctx, const uint8_t* protocol_key_buff);
     /**
      * @brief Compute the shared secret X coordinate for an EC key pair
      *  (for example M.x, N.x)

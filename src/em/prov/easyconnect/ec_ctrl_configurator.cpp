@@ -157,7 +157,7 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
     auto conn_ctx = get_conn_ctx(e_mac);
     auto e_ctx = get_eph_ctx(e_mac);
     ASSERT_NOT_NULL(conn_ctx, false, "%s:%d: No Configurator connection context for Enrollee '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(src_mac));
-    ASSERT_NOT_NULL(conn_ctx->net_access_key, false, "%s:%d: Enrollee '" MACSTRFMT "' netAccessKey is NULL!\n", __func__, __LINE__, MAC2STR(src_mac));
+    ASSERT_NOT_NULL(m_p_ctx.net_access_key, false, "%s:%d: Enrollee '" MACSTRFMT "' netAccessKey is NULL!\n", __func__, __LINE__, MAC2STR(src_mac));
     ASSERT_NOT_NULL(e_ctx, false, "%s:%d: No ephemeral context found for Enrollee '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(src_mac));
     ec_gas_initial_request_frame_t *initial_request_frame = reinterpret_cast<ec_gas_initial_request_frame_t *>(encap_frame);
 
@@ -527,7 +527,7 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
     ASSERT_NOT_NULL(P_r_attr, false, "%s:%d: No Responder Public Protocol Key attribute found\n", __func__, __LINE__);
 
     // Decode the Responder Public Protocol Key
-    e_ctx->public_resp_proto_key = ec_crypto::decode_proto_key(m_p_ctx, P_r_attr->data);
+    e_ctx->public_resp_proto_key = ec_crypto::decode_ec_point(m_p_ctx, P_r_attr->data);
     ASSERT_NOT_NULL(e_ctx->public_resp_proto_key, false, "%s:%d: Failed to decode Responder Public Protocol Key\n", __func__, __LINE__);
 
     // Compute the N.x
@@ -820,7 +820,7 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_auth_request(std::st
     free(initiator_keyhash);
 
     // Public Initiator Protocol Key: P_I
-    uint8_t* protocol_key_buff = ec_crypto::encode_proto_key(m_p_ctx, e_ctx->public_init_proto_key);
+    uint8_t* protocol_key_buff = ec_crypto::encode_ec_point(m_p_ctx, e_ctx->public_init_proto_key);
     ASSERT_NOT_NULL_FREE2(protocol_key_buff, {}, frame, attribs, "%s:%d failed to encode public initiator protocol key\n", __func__, __LINE__);
 
     attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_init_proto_key, static_cast<uint16_t>(2*BN_num_bytes(m_p_ctx.prime)), protocol_key_buff);
