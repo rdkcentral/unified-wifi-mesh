@@ -35,9 +35,17 @@ bool ec_enrollee_t::start(bool do_reconfig, ec_data_t* boot_data)
     memset(&m_boot_data, 0, sizeof(ec_data_t));
     memcpy(&m_boot_data, boot_data, sizeof(ec_data_t));
 
+
+    printf("Configurator MAC: %s\n", m_mac_addr.c_str());
+
+    const SSL_KEY* resp_key = do_reconfig ? m_p_ctx.C_signing_key : m_boot_data.responder_boot_key;
+    if (resp_key == NULL) {
+        printf("%s:%d No bootstrapping key found\n", __func__, __LINE__);
+        return false;
+    }
     // Not all of these will be present but it is better to compute them now.
-    m_boot_data.resp_priv_boot_key = em_crypto_t::get_priv_key_bn(m_boot_data.responder_boot_key);
-    m_boot_data.resp_pub_boot_key = em_crypto_t::get_pub_key_point(m_boot_data.responder_boot_key);
+    m_boot_data.resp_priv_boot_key = em_crypto_t::get_priv_key_bn(resp_key);
+    m_boot_data.resp_pub_boot_key = em_crypto_t::get_pub_key_point(resp_key);
 
     m_boot_data.init_priv_boot_key= em_crypto_t::get_priv_key_bn(m_boot_data.initiator_boot_key);    
     m_boot_data.init_pub_boot_key = em_crypto_t::get_pub_key_point(m_boot_data.initiator_boot_key);
@@ -47,16 +55,12 @@ bool ec_enrollee_t::start(bool do_reconfig, ec_data_t* boot_data)
         printf("%s:%d Could not get responder bootstrap public key\n", __func__, __LINE__);
         return false;
     }
-
-    printf("Configurator MAC: %s\n", m_mac_addr.c_str());
-    if (!ec_crypto::init_persistent_ctx(m_p_ctx, m_boot_data.responder_boot_key)){
+    
+    if (!ec_crypto::init_persistent_ctx(m_p_ctx, resp_key)){
         printf("%s:%d failed to initialize persistent context\n", __func__, __LINE__);
         return false;
     }
 
-    if (do_reconfig) {
-        return true;
-    }
     return true;
 }
 
@@ -124,7 +128,7 @@ Authentication Request frame without replying to it.
         EC_POINT_free(m_eph_ctx.public_init_proto_key);
     }
 
-    m_eph_ctx.public_init_proto_key = ec_crypto::decode_proto_key(m_p_ctx, pub_init_proto_key_attr->data);
+    m_eph_ctx.public_init_proto_key = ec_crypto::decode_ec_point(m_p_ctx, pub_init_proto_key_attr->data);
     ASSERT_NOT_NULL(m_eph_ctx.public_init_proto_key, false, "%s:%d failed to decode public initiator protocol key\n", __func__, __LINE__);
 
     // START Crypto in EasyConnect 6.3.3
@@ -562,7 +566,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
     ASSERT_NOT_NULL_FREE2(r_auth, {}, frame, attribs, "%s:%d: Failed to compute R-auth\n", __func__, __LINE__);
 
     // Add P_R
-    uint8_t* encoded_P_R = ec_crypto::encode_proto_key(m_p_ctx, m_eph_ctx.public_resp_proto_key);
+    uint8_t* encoded_P_R = ec_crypto::encode_ec_point(m_p_ctx, m_eph_ctx.public_resp_proto_key);
     ASSERT_NOT_NULL_FREE2(encoded_P_R, {}, frame, attribs, "%s:%d failed to encode responder protocol key\n", __func__, __LINE__);
 
     attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_resp_proto_key, static_cast<uint16_t>(BN_num_bytes(m_p_ctx.prime) * 2), encoded_P_R);
@@ -606,7 +610,133 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
 
 std::pair<uint8_t *, size_t> ec_enrollee_t::create_recfg_presence_announcement()
 {
-    return std::pair<uint8_t *, size_t>();
+    /*
+    EasyConnect 6.5.2
+    Before every transmission of a DPP Reconfiguration Announcement frame, 
+    the Enrollee generates a random nonce a-nonce, with 0 ≤ a-nonce < q, 
+    where q is the order of the elliptic curve group of the Configurator signing key, 
+    and the corresponding ECC point A-NONCE
+        A-NONCE = a-nonce * G
+    where G is the generator of the elliptic curve group of the Configurator signing key.
+    */
+    
+    if (m_p_ctx.group == NULL || m_p_ctx.order == NULL || m_p_ctx.bn_ctx == NULL) {
+        printf("%s:%d: Pre-initialized EC parameters not initialized!\n", __func__, __LINE__);
+        return {};
+    }
+
+    uint8_t a_nonce_buf[m_p_ctx.nonce_len];
+    if (!RAND_bytes(a_nonce_buf, m_p_ctx.nonce_len)) {
+        printf("%s:%d: Failed to generate A-nonce\n", __func__, __LINE__);
+        return {};
+    }
+
+    managed_bn a_nonce(BN_new());
+    managed_ec_point A_NONCE(EC_POINT_new(m_p_ctx.group));
+    // a-nonce * Ppk
+    managed_ec_point a_nonce_ppk(EC_POINT_new(m_p_ctx.group));
+    managed_ec_point E_prime_Id(EC_POINT_new(m_p_ctx.group));
+
+    if (a_nonce == NULL || A_NONCE == NULL || a_nonce_ppk == NULL || E_prime_Id == NULL) {
+        printf("%s:%d: Failed to allocate memory for a-nonce, A-NONCE, a-nonce * Ppk temp, and E'-id\n", __func__, __LINE__);
+        return {};
+    }
+
+    // Convert the random bytes to a BIGNUM
+    if (!BN_bin2bn(a_nonce_buf, m_p_ctx.nonce_len, a_nonce.get())) {
+        printf("%s:%d: Failed to convert a-nonce to BIGNUM\n", __func__, __LINE__);
+        return {};
+    }
+
+    // modulo to ensure the value is less than the order
+    if (!BN_mod(a_nonce.get(), a_nonce.get(), m_p_ctx.order, m_p_ctx.bn_ctx)) {
+        printf("%s:%d: Failed to modulo a-nonce\n", __func__, __LINE__);
+        return {};
+    }
+    
+    // Compute A-NONCE = a-nonce * G
+    if (!EC_POINT_mul(m_p_ctx.group, A_NONCE.get(), a_nonce.get(), NULL, NULL, m_p_ctx.bn_ctx)) {
+        printf("%s:%d: Failed to compute A-NONCE\n", __func__, __LINE__);
+        return {};
+    }
+    
+    // Calculate a-nonce * Ppk
+    if (!EC_POINT_mul(m_p_ctx.group, a_nonce_ppk.get(), NULL, m_p_ctx.ppk, a_nonce.get(), m_p_ctx.bn_ctx)){
+        printf("%s:%d: Failed to compute a-nonce * Ppk\n", __func__, __LINE__);
+        return {};
+    }
+    
+    // Calculate E'-id = E-id + (a-nonce * Ppk)
+    if (!EC_POINT_add(m_p_ctx.group, E_prime_Id.get(), m_eph_ctx.E_Id, a_nonce_ppk.get(), m_p_ctx.bn_ctx)){
+        printf("%s:%d: Failed to compute E'-id\n", __func__, __LINE__);
+        return {};
+    }
+
+    /**
+     * Reconfiguration Announcement frame (EasyConnect 8.2.15)
+     * -------------------------------------------------------
+     *   The Reconfiguration Announcement frame uses the DPP Action frame format and is transmitted 
+     *   by a DPP Enrollee to signal the DPP Configurator that it wishes to perform a reconfiguration 
+     *   exchange with the Configurator.
+     * 
+     * Frame Attributes:
+     *   - Configurator C-sign-key Hash (Required)
+     *      - SHA-256 hash of the uncompressed form of the Configurator's public C-sign-key
+     *      - This is the base64url decoded value of the "kid" from the JWS Protected Header 
+     *        of the Enrollee's Connector
+     * 
+     *   - Finite Cyclic Group (Required)
+     *      - The group from which the Enrollee NAK is drawn
+     * 
+     *   - A-NONCE (Required)
+     *      - The ECC point representing the a-nonce
+     * 
+     *   - E'-id (Required)
+     *      - The ECC point representing the randomly encrypted E-id
+     */
+
+    // Create the DPP Reconfiguration Presence Announcement frame
+    ec_frame_t *frame =  ec_util::alloc_frame(ec_frame_type_recfg_announcement);
+    ASSERT_NOT_NULL(frame, {}, "%s:%d failed to allocate memory for frame\n", __func__, __LINE__);
+
+    size_t attribs_len = 0;
+
+    // C-sign-key hash attribute
+    // Might need to replace with "kid"
+    uint8_t* c_sign_hash = ec_crypto::compute_key_hash(m_p_ctx.C_signing_key);
+    uint8_t* attribs = ec_util::add_attrib(NULL, &attribs_len, ec_attrib_id_C_sign_key_hash, SHA256_DIGEST_LENGTH, c_sign_hash);
+    free(c_sign_hash);
+    ASSERT_NOT_NULL_FREE2(attribs, {}, frame, attribs, "%s:%d: Failed to add C-signing key hash attribute\n", __func__, __LINE__);
+
+    // Finite Cyclic Group attribute
+    managed_ec_group group(em_crypto_t::get_key_group(m_p_ctx.net_access_key));
+    ASSERT_NOT_NULL_FREE2(group.get(), {}, frame, attribs, "%s:%d: Failed to get elliptic curve group from network access key\n", __func__, __LINE__);
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_finite_cyclic_group, ec_crypto::get_tls_group_id_from_ec_group(group.get()));
+    ASSERT_NOT_NULL_FREE2(attribs, {}, frame, attribs, "%s:%d: Failed to add finite cyclic group attribute\n", __func__, __LINE__);
+
+    // A-NONCE attribute
+    uint8_t* encoded_A_NONCE = ec_crypto::encode_ec_point(m_p_ctx, A_NONCE.get());
+    ASSERT_NOT_NULL_FREE2(encoded_A_NONCE, {}, frame, attribs, "%s:%d: Failed to encode A-NONCE\n", __func__, __LINE__);
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_a_nonce, static_cast<uint16_t>(BN_num_bytes(m_p_ctx.prime) * 2), encoded_A_NONCE);
+    free(encoded_A_NONCE);
+    ASSERT_NOT_NULL_FREE2(attribs, {}, frame, attribs, "%s:%d: Failed to add A-NONCE attribute\n", __func__, __LINE__);
+
+    // E'-id attribute
+    uint8_t* encoded_E_prime_Id = ec_crypto::encode_ec_point(m_p_ctx, E_prime_Id.get());
+    ASSERT_NOT_NULL_FREE2(encoded_E_prime_Id, {}, frame, attribs, "%s:%d: Failed to encode E'-id\n", __func__, __LINE__);
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_e_prime_id, static_cast<uint16_t>(BN_num_bytes(m_p_ctx.prime) * 2), encoded_E_prime_Id);
+    free(encoded_E_prime_Id);
+    ASSERT_NOT_NULL_FREE2(attribs, {}, frame, attribs, "%s:%d: Failed to add E'-id attribute\n", __func__, __LINE__);
+
+    if (!(frame = ec_util::copy_attrs_to_frame(frame, attribs, attribs_len))) {
+        printf("%s:%d unable to copy attributes to frame\n", __func__, __LINE__);
+        free(frame);
+        free(attribs);
+        return {};
+    }
+    free(attribs);
+
+    return std::make_pair(reinterpret_cast<uint8_t*>(frame), EC_FRAME_BASE_SIZE + attribs_len);
 }
 
 std::pair<uint8_t *, size_t> ec_enrollee_t::create_recfg_auth_response(ec_status_code_t dpp_status)
