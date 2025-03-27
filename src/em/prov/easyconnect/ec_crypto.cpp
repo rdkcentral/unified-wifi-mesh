@@ -736,6 +736,9 @@ const char * ec_crypto::generate_connector(const cJSON * jws_header, const cJSON
 
 std::vector<uint8_t> ec_crypto::gen_psk(const std::string& pass, const std::string& ssid)
 {
+    // 4096 -- number of iterations
+    // 256 / 8 -- hash size
+    // both from 802.11-2020 J.4.1
     std::vector<uint8_t> ret(256/8);
     int ssid_len = static_cast<int>(ssid.length());
     int pass_len = static_cast<int>(pass.length());
@@ -756,7 +759,7 @@ cJSON* ec_crypto::create_jws_header(const std::string& type, const SSL_KEY *c_si
     return jwsHeaderObj;
 }
 
-cJSON* ec_crypto::create_jws_payload(ec_persistent_context_t& ctx, const std::vector<std::unordered_map<std::string, std::string>>& groups, SSL_KEY* net_access_key, std::optional<std::string> expiry)
+cJSON* ec_crypto::create_jws_payload(ec_persistent_context_t& p_ctx, const std::vector<std::unordered_map<std::string, std::string>>& groups, SSL_KEY* net_access_key, std::optional<std::string> expiry)
 {
     if (net_access_key == nullptr) return nullptr;
     
@@ -779,7 +782,7 @@ cJSON* ec_crypto::create_jws_payload(ec_persistent_context_t& ctx, const std::ve
     cJSON_AddStringToObject(netAccessKeyObj, "crv", "P-256");
     EC_GROUP *key_group = em_crypto_t::get_key_group(net_access_key);
     EC_POINT *key_point = em_crypto_t::get_pub_key_point(net_access_key, key_group);
-    auto [x, y] = get_ec_x_y(ctx, key_point);
+    auto [x, y] = get_ec_x_y(p_ctx, key_point);
     cJSON_AddStringToObject(netAccessKeyObj, "x", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(x)).c_str());
     cJSON_AddStringToObject(netAccessKeyObj, "y", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(y)).c_str());
     if (expiry.has_value()) {
@@ -792,7 +795,7 @@ cJSON* ec_crypto::create_jws_payload(ec_persistent_context_t& ctx, const std::ve
     return jwsPayloadObj;
 }
 
-cJSON *ec_crypto::create_csign_object(ec_persistent_context_t& ctx, SSL_KEY *c_signing_key)
+cJSON *ec_crypto::create_csign_object(ec_persistent_context_t& p_ctx, SSL_KEY *c_signing_key)
 {
     if (c_signing_key == nullptr) return nullptr;
     cJSON *cSignObj = cJSON_CreateObject();
@@ -804,7 +807,7 @@ cJSON *ec_crypto::create_csign_object(ec_persistent_context_t& ctx, SSL_KEY *c_s
     cJSON_AddStringToObject(cSignObj, "kid", base64_c_sign_key_hash.c_str());
     EC_GROUP *key_group = em_crypto_t::get_key_group(c_signing_key);
     EC_POINT *key_point = em_crypto_t::get_pub_key_point(c_signing_key, key_group);
-    auto [x, y] = ec_crypto::get_ec_x_y(ctx, key_point);
+    auto [x, y] = ec_crypto::get_ec_x_y(p_ctx, key_point);
     cJSON_AddStringToObject(cSignObj, "x", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(x)).c_str());
     cJSON_AddStringToObject(cSignObj, "y", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(y)).c_str());
     EC_GROUP_free(key_group);
@@ -814,23 +817,23 @@ cJSON *ec_crypto::create_csign_object(ec_persistent_context_t& ctx, SSL_KEY *c_s
     return cSignObj;
 }
 
-bool ec_crypto::create_ppkey_public(ec_persistent_context_t& ctx, SSL_KEY *c_signing_key)
+EC_POINT* ec_crypto::create_ppkey_public(SSL_KEY *c_signing_key)
 {
-    if (c_signing_key == nullptr) return false;
+    if (c_signing_key == nullptr) return nullptr;
     EC_GROUP *key_group = em_crypto_t::get_key_group(c_signing_key);
     SSL_KEY *ppKey = em_crypto_t::generate_ec_key(key_group);
-    ctx.ppk = em_crypto_t::get_pub_key_point(ppKey, const_cast<EC_GROUP *>(key_group));
+    EC_POINT *ret = em_crypto_t::get_pub_key_point(ppKey, const_cast<EC_GROUP*>(key_group));
     EC_GROUP_free(key_group);
     em_crypto_t::free_key(ppKey);
-    return true;
+    return ret;
 }
 
-cJSON *ec_crypto::create_ppkey_object(ec_persistent_context_t& ctx)
+cJSON *ec_crypto::create_ppkey_object(ec_persistent_context_t& p_ctx)
 {
     cJSON *ppKeyObj = cJSON_CreateObject();
     cJSON_AddStringToObject(ppKeyObj, "kty", "EC");
     cJSON_AddStringToObject(ppKeyObj, "crv", "P-256");
-    auto [x, y] = ec_crypto::get_ec_x_y(ctx, ctx.ppk);
+    auto [x, y] = ec_crypto::get_ec_x_y(p_ctx, p_ctx.ppk);
     cJSON_AddStringToObject(ppKeyObj, "x", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(x)).c_str());
     cJSON_AddStringToObject(ppKeyObj, "y", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(y)).c_str());
     BN_free(x);

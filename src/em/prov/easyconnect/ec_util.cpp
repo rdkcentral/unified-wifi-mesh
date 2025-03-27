@@ -360,13 +360,7 @@ std::string ec_util::hash_to_hex_string(const uint8_t *hash, size_t hash_len) {
 
 std::string ec_util::hash_to_hex_string(const std::vector<uint8_t>& hash)
 {
-    size_t hash_len = hash.size();
-    char output[hash_len * 2 + 1];
-    for (size_t i = 0; i < hash_len; i++) {
-        sprintf(output + (i * 2), "%02x", hash[i]);
-    }
-    output[hash_len * 2] = '\0'; // Null-terminate the string
-    return std::string(output); 
+    return hash_to_hex_string(hash.data(), hash.size());
 }
 
 

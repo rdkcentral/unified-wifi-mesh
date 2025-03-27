@@ -440,7 +440,7 @@ public:
     /**
      * @brief Create a JWS Payload
      * 
-     * @param ctx Persistent context
+     * @param p_ctx Persistent context
      * @param groups List of "key":"value" pairs to be included in "groups" array.
      * Only possible keys are "groupID" and "netRole"
      * @param net_access_key The netAccessKey
@@ -465,13 +465,13 @@ public:
      *        "expiry":"2019-01-31T22:00:00+02:00"
      *   }
      */
-    static cJSON* create_jws_payload(ec_persistent_context_t& ctx, const std::vector<std::unordered_map<std::string, std::string>>& groups, SSL_KEY* net_access_key, std::optional<std::string> expiry = std::nullopt);
+    static cJSON* create_jws_payload(ec_persistent_context_t& p_ctx, const std::vector<std::unordered_map<std::string, std::string>>& groups, SSL_KEY* net_access_key, std::optional<std::string> expiry = std::nullopt);
 
     /**
      * @brief Create a csign object object
      * 
      * @param c_signing_key Configurator Signing Key
-     * @param ctx Persistent context
+     * @param p_ctx Persistent context
      * @return cJSON* on success, nullptr otherwise
      * 
      * csign object, example, as part of "cred" object, EasyConnect 4.5.3
@@ -484,22 +484,21 @@ public:
      *       "kid":"kMcegDBPmNZVakAsBZOzOoCsvQjkr_nEAp9uF-EDmVE"
      *   },
      */
-    static cJSON* create_csign_object(ec_persistent_context_t& ctx, SSL_KEY *c_signing_key);
+    static cJSON* create_csign_object(ec_persistent_context_t& p_ctx, SSL_KEY *c_signing_key);
 
     /**
      * @brief Derive public ppKey from Configurator Signing Key (must share the same key group)
      * 
      * @param c_signing_key Configurator Signing Key
-     * @param ctx Persistent context
-     * @return True and writes to `ec_persistent_context::ppk` on success, false otherwise
+     * @return EC_POINT *on success, nullptr otherwise.
      * 
      */
-    static bool create_ppkey_public(ec_persistent_context_t& ctx, SSL_KEY *c_signing_key);
+    static EC_POINT* create_ppkey_public(SSL_KEY *c_signing_key);
 
     /**
      * @brief Create a ppkey object object
      * 
-     * @param ctx Persistent context.
+     * @param p_ctx Persistent context.
      * @return cJSON* ppKey object on succcess, otherwise nullptr.
      * 
      * EasyConnect 6.5.2
@@ -512,7 +511,7 @@ public:
      *       "y":"Fekm5hyGii80amM_REV5sTOG3-sl1H6MDpZ8TSKnb7c"
      *      },
      */
-    static cJSON *create_ppkey_object(ec_persistent_context_t& ctx);
+    static cJSON *create_ppkey_object(ec_persistent_context_t& p_ctx);
 };
 
 #endif // EC_CRYPTO_H
