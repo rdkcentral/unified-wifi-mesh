@@ -33,6 +33,7 @@
 #include <vector>
 #include <utility>
 #include <string>
+#include <memory>
 
 #define SHA256_MAC_LEN 32
 #define AES_BLOCK_SIZE 16
@@ -473,4 +474,42 @@ public:
     em_crypto_t();
     ~em_crypto_t() {}
 };
+
+
+// Custom deleters for OpenSSL objects to use with std::unique_ptr
+struct BIODeleter {
+    void operator()(BIO* bio) const { if (bio) BIO_free(bio); }
+};
+
+struct BNDeleter {
+    void operator()(BIGNUM* bn) const { if (bn) BN_free(bn); }
+};
+
+struct ECPointDeleter {
+    void operator()(EC_POINT* point) const { if (point) EC_POINT_free(point); }
+};
+
+struct ECGroupDeleter {
+    void operator()(EC_GROUP* group) const { 
+        #if !defined(FORCE_OPENSSL_1_1) && OPENSSL_VERSION_NUMBER >= 0x30000000L
+        if (group) EC_GROUP_free(group); 
+        #endif
+    }
+};
+
+struct SSLKeyDeleter {
+    void operator()(SSL_KEY* key) const { if (key) em_crypto_t::free_key(key); }
+};
+
+struct BuffDeleter {
+    void operator()(uint8_t* buff) const { if (buff) OPENSSL_free(buff); }
+};
+
+
+using scoped_ssl_key = std::unique_ptr<SSL_KEY, SSLKeyDeleter>;
+using scoped_bio = std::unique_ptr<BIO, BIODeleter>;
+using scoped_bn = std::unique_ptr<BIGNUM, BNDeleter>;
+using scoped_ec_point = std::unique_ptr<EC_POINT, ECPointDeleter>;
+using scoped_ec_group = std::unique_ptr<EC_GROUP, ECGroupDeleter>;
+using scoped_buff = std::unique_ptr<uint8_t, BuffDeleter>;
 #endif

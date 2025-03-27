@@ -18,6 +18,7 @@
 
 #include "em_base.h"
 #include "ec_base.h"
+#include "em_crypto.h"
 #include <stdint.h>
 #include <stddef.h>
 
@@ -84,6 +85,23 @@ public:
      * @warning The buffer must be freed by the caller
      */
     static uint8_t *add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, uint16_t len, uint8_t *data);
+
+
+    /**
+     * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary
+     * 
+     * @param buff The buffer to add the attribute to
+     * @param buff_len The length of the buffer (in/out)
+     * @param id The attribute ID
+     * @param len The length of the data
+     * @param data The attribute data
+     * @return uint8_t* The buffer offset by the length of the attribute
+     * 
+     * @warning The buffer must be freed by the caller
+     */
+    static inline uint8_t *add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, uint16_t len, const scoped_buff& data) {
+        return add_attrib(buff, buff_len, id, len, data.get());
+    }
 
     /**
      * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary

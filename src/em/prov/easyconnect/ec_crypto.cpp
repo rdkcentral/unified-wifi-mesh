@@ -531,49 +531,43 @@ bool ec_crypto::init_persistent_ctx(ec_persistent_context_t& p_ctx, const SSL_KE
     return true;
 }
 
-uint8_t *ec_crypto::encode_proto_key(ec_persistent_context_t &p_ctx, const EC_POINT *point)
+scoped_buff ec_crypto::encode_ec_point(ec_persistent_context_t &p_ctx, const EC_POINT *point)
 {
-        
-    BIGNUM *x = BN_new();
-    BIGNUM *y = BN_new();
+    scoped_bn x(BN_new());
+    scoped_bn y(BN_new());
 
-    if (EC_POINT_get_affine_coordinates(p_ctx.group, point,
-        x, y, p_ctx.bn_ctx) == 0) {
+    if (EC_POINT_get_affine_coordinates(p_ctx.group, point, x.get(), y.get(), p_ctx.bn_ctx) == 0) {
         printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
-        BN_free(x);
-        BN_free(y);
-        return NULL;
+        return nullptr;
     }
 
     int prime_len = BN_num_bytes(p_ctx.prime);
 
-    uint8_t* protocol_key_buff = new uint8_t[2*prime_len]();
-    if (protocol_key_buff == NULL) {
+    uint8_t *key_buff = reinterpret_cast<uint8_t *>(calloc(static_cast<size_t>(2 * prime_len), 1));
+    if (key_buff == NULL) {
         printf("%s:%d unable to allocate memory\n", __func__, __LINE__);
-        BN_free(x);
-        BN_free(y);
-        return NULL;
+        return nullptr;
     }
-    BN_bn2bin(const_cast<const BIGNUM *>(x), &protocol_key_buff[prime_len - BN_num_bytes(x)]);
-    BN_bn2bin(const_cast<const BIGNUM *>(y), &protocol_key_buff[2*prime_len - BN_num_bytes(y)]);
+    
+    BN_bn2bin(const_cast<const BIGNUM *>(x.get()), &key_buff[prime_len - BN_num_bytes(x.get())]);
+    BN_bn2bin(const_cast<const BIGNUM *>(y.get()),
+              &key_buff[2 * prime_len - BN_num_bytes(y.get())]);
 
-    BN_free(x);
-    BN_free(y);
+    scoped_buff key_buff_ptr(key_buff);
 
-    return protocol_key_buff;
+    return key_buff_ptr;
 }
 
-
-EC_POINT *ec_crypto::decode_proto_key(ec_persistent_context_t &p_ctx, const uint8_t *protocol_key_buff)
+EC_POINT *ec_crypto::decode_ec_point(ec_persistent_context_t &p_ctx, const uint8_t *key_buff)
 {
-    if (protocol_key_buff == NULL) {
+    if (key_buff == NULL) {
         printf("%s:%d null protocol key buffer\n", __func__, __LINE__);
         return NULL;
     }
 
     int prime_len = BN_num_bytes(p_ctx.prime);
-    BIGNUM *x = BN_bin2bn(protocol_key_buff, prime_len, NULL);
-    BIGNUM *y = BN_bin2bn(protocol_key_buff + prime_len, prime_len, NULL);
+    BIGNUM *x = BN_bin2bn(key_buff, prime_len, NULL);
+    BIGNUM *y = BN_bin2bn(key_buff + prime_len, prime_len, NULL);
     EC_POINT *point = EC_POINT_new(p_ctx.group);
     
     if (x == NULL || y == NULL) {

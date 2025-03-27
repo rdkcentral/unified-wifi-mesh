@@ -3,6 +3,7 @@
 
 #include "em_base.h"
 #include "ec_base.h"
+#include "em_crypto.h"
 
 #include <utility>
 #include <memory>
@@ -103,18 +104,28 @@ public:
     static BIGNUM* calculate_Lx(ec_persistent_context_t& p_ctx, const BIGNUM* bR, const BIGNUM* pR, const EC_POINT* BI);
 
     static std::pair<BIGNUM *, BIGNUM *> get_ec_x_y(ec_persistent_context_t& p_ctx, const EC_POINT *point) {
-        return std::make_pair(get_ec_x(p_ctx, point), get_ec_y(p_ctx, point));
+        if (!point) return {};
+
+        BIGNUM *x = BN_new(), *y = BN_new();
+        if (EC_POINT_get_affine_coordinates(p_ctx.group, point,
+            x, y, p_ctx.bn_ctx) == 0) {
+            printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
+            BN_free(x);
+            BN_free(y);
+            return {};
+        }
+        return {x, y};
+    }
+
+    static inline BIGNUM* get_ec_x(ec_persistent_context_t& p_ctx, const EC_POINT *point) {
+        auto [x, y] = get_ec_x_y(p_ctx, point);
+        BN_free(y);
+        return x;
     }
 
     static inline BIGNUM* get_ec_y(ec_persistent_context_t& p_ctx, const EC_POINT *point) {
-        if (!point) return nullptr;
-        BIGNUM *y = BN_new();
-        if (EC_POINT_get_affine_coordinates(p_ctx.group, point,
-            NULL, y, p_ctx.bn_ctx) == 0) {
-            printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
-            BN_free(y);
-            return NULL;
-        }
+        auto [x, y] = get_ec_x_y(p_ctx, point);
+        BN_free(x);
         return y;
     }
 
@@ -127,29 +138,15 @@ public:
         BN_bn2bin(bn, buffer.data()); // Convert BIGNUM to big-endian byte array
         return buffer;
     }
-
-    static inline BIGNUM* get_ec_x(ec_persistent_context_t& p_ctx, const EC_POINT *point) {
-        if (point == NULL) return NULL;
-
-        BIGNUM *x = BN_new();
-        if (EC_POINT_get_affine_coordinates(p_ctx.group, point,
-                    x, NULL, p_ctx.bn_ctx) == 0) {
-            printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
-            BN_free(x);
-            return NULL;
-        }
-        return x;
-    }
-
     /**
      * @brief Encode an EC point into a protocol key buffer
      * 
      * @param p_ctx The persistent context containing the EC group
      * @param point The EC point to encode
-     * @return uint8_t* The encoded protocol key buffer, or NULL on failure. Caller must free with free()
+     * @return scoped_buff The encoded protocol key buffer, or NULL on failure. Caller must free with free()
      * 
      */
-    static uint8_t* encode_proto_key(ec_persistent_context_t& p_ctx, const EC_POINT *point);
+    static scoped_buff encode_ec_point(ec_persistent_context_t& p_ctx, const EC_POINT *point);
     /**
      * @brief Decode a protocol key buffer into an EC point
      * 
@@ -157,7 +154,7 @@ public:
      * @param protocol_key_buff The encoded protocol key buffer
      * @return EC_POINT* The decoded EC point, or NULL on failure. Caller must free with EC_POINT_free()
      */
-    static EC_POINT* decode_proto_key(ec_persistent_context_t& p_ctx, const uint8_t* protocol_key_buff);
+    static EC_POINT* decode_ec_point(ec_persistent_context_t& p_ctx, const uint8_t* protocol_key_buff);
     /**
      * @brief Compute the shared secret X coordinate for an EC key pair
      *  (for example M.x, N.x)
