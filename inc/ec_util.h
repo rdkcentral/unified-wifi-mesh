@@ -108,6 +108,21 @@ public:
      * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary
      * 
      * @param buff The buffer to add the attribute to
+     * @param buff_len The length of the buffer (in/out)
+     * @param id The attribute ID
+     * @param str The attribute as a string
+     * @return uint8_t* The buffer offset by the length of the attribute
+     * 
+     * @warning The buffer must be freed by the caller
+     */
+    static inline uint8_t *add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, std::string str) {
+        return add_attrib(buff, buff_len, id, static_cast<uint16_t>(str.length()), const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(str.c_str())));
+    }
+
+    /**
+     * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary
+     * 
+     * @param buff The buffer to add the attribute to
      * @param id The attribute ID
      * @param val The uint8_t attribute value
      * @return uint8_t* The buffer offset by the length of the attribute
@@ -177,6 +192,8 @@ public:
                 auto *resp_frame = static_cast<ec_gas_initial_response_frame_t *>(frame);
                 memcpy(resp_frame->ape, DPP_GAS_CONFIG_REQ_APE, sizeof(resp_frame->ape));
                 memcpy(resp_frame->ape_id, DPP_GAS_CONFIG_REQ_PROTO_ID, sizeof(resp_frame->ape_id));
+                // NOTE: Hardcoded since we are not implementing the full GAS protocol
+                resp_frame->status_code = 0; // SUCCESS
                 created_frame_size = sizeof(ec_gas_initial_response_frame_t);
             }
             break;

@@ -134,7 +134,6 @@ cleanup:
     return L_x;
 }
 
-// TODO: Might remove, might keep, unsure
 /**
  * @brief Compute ke using nonces and coordinate values. Requires, m, n, and (optionally) l to be set before calling.
  * 

@@ -249,7 +249,7 @@ typedef struct {
 
 typedef struct {
     ec_gas_frame_base_t base;
-    uint16_t status_code;
+    uint16_t status_code; // 802.11 Management Frame Status Code Field (IEEE 802.11 9.4.1.9 <- 9.6.7.46)
     uint16_t gas_comeback_delay;
     uint8_t ape[3];
     uint8_t ape_id[7];
