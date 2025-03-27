@@ -105,7 +105,7 @@ private:
     std::pair<uint8_t*, size_t> create_auth_response(ec_status_code_t dpp_status, uint8_t init_proto_version);
     std::pair<uint8_t*, size_t> create_recfg_auth_response(ec_status_code_t dpp_status);
     std::pair<uint8_t*, size_t> create_config_request();
-    std::pair<uint8_t*, size_t> create_config_result(); 
+    std::pair<uint8_t*, size_t> create_config_result(ec_status_code_t dpp_status);
 
     ec_persistent_context_t m_p_ctx = {};
 
