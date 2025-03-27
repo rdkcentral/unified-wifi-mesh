@@ -403,6 +403,21 @@ public:
      */
     static std::string hash_to_hex_string(const std::vector<uint8_t>& hash);
 
+    // Used for storing channels / op-classes searched when looking for a given SSID.
+    struct scanned_channels_t {
+        uint32_t chan;
+        uint32_t opclass;
+    };
+
+    /**
+     * @brief Generate an EasyConnect `channel-list-2` formatted channel list from a map of scanned (EasyConnect 6.4.5.2)
+     * 
+     * @param ssid The SSID to build the searched channel list for.
+     * @param scanned_channels_map SSID searched for -> channels / op-classes searched.
+     * @return std::string Channel list as a string, example: "81/1,6,11,117/40,115/48"
+     */
+    static std::string generate_channel_list(const std::string& ssid, std::unordered_map<std::string, std::vector<scanned_channels_t>> scanned_channels_map);
+
     /**
      * @brief Check if the capabilities of the initiator and responder are compatible
      * 
