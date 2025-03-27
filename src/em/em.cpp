@@ -1092,13 +1092,14 @@ em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr
         std::bind(&em_mgr_t::send_action_frame, mgr, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 
         service_type == em_service_type_agent
             ? std::bind(&em_t::create_enrollee_bsta_list, this, std::placeholders::_1)
-            : static_cast<get_backhaul_sta_info_func>(nullptr),
+            : std::bind(&em_t::create_configurator_bsta_response_obj, this, std::placeholders::_1),
         // XXX: Bind these callbacks when implemented
-        // See: ec_configurator.h `get_1905_info_func` and `can_onboard_additional_aps_func`
+        // See: ec_configurator.h `can_onboard_additional_aps_func`
         // Depending on service type, will remain as nullptr,
         // for instance, `ec_pa_configurator` will remain nullptr, so
         // callsites should check for validity of the std::functions before calling.
-        nullptr,
+        service_type == em_service_type_ctrl
+            ? std::bind(&em_t::create_ieee1905_response_obj, this, std::placeholders::_1) : static_cast<get_1905_info_func>(nullptr),
         nullptr,
         service_type == em_service_type_ctrl
     ));

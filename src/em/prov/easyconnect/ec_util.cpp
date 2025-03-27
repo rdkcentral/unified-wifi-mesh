@@ -358,6 +358,11 @@ std::string ec_util::hash_to_hex_string(const uint8_t *hash, size_t hash_len) {
     return std::string(output);
 }
 
+std::string ec_util::hash_to_hex_string(const std::vector<uint8_t>& hash)
+{
+    return hash_to_hex_string(hash.data(), hash.size());
+}
+
 
 bool ec_util::check_caps_compatible(const ec_dpp_capabilities_t& init_caps, const ec_dpp_capabilities_t& resp_caps)
 {

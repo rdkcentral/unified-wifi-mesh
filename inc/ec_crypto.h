@@ -8,6 +8,11 @@
 #include <memory>
 #include <vector>
 #include <optional>
+#include <string>
+#include <unordered_map>
+
+// forward decl
+struct cJSON;
 
 namespace easyconnect {
 
@@ -40,6 +45,8 @@ public:
      * @param digest The buffer to store the hash
      * @param prefix The optional prefix to add to the key before hashing (NULL by default)
      * @return int The length of the hash
+     * 
+     * @note: Caller must free returned hash.
      */
     static uint8_t* compute_key_hash(const SSL_KEY *key, const char *prefix = NULL);
     
@@ -95,6 +102,31 @@ public:
      */
     static BIGNUM* calculate_Lx(ec_persistent_context_t& p_ctx, const BIGNUM* bR, const BIGNUM* pR, const EC_POINT* BI);
 
+    static std::pair<BIGNUM *, BIGNUM *> get_ec_x_y(ec_persistent_context_t& p_ctx, const EC_POINT *point) {
+        return std::make_pair(get_ec_x(p_ctx, point), get_ec_y(p_ctx, point));
+    }
+
+    static inline BIGNUM* get_ec_y(ec_persistent_context_t& p_ctx, const EC_POINT *point) {
+        if (!point) return nullptr;
+        BIGNUM *y = BN_new();
+        if (EC_POINT_get_affine_coordinates(p_ctx.group, point,
+            NULL, y, p_ctx.bn_ctx) == 0) {
+            printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
+            BN_free(y);
+            return NULL;
+        }
+        return y;
+    }
+
+    static std::vector<uint8_t> BN_to_vec(const BIGNUM *bn) {
+        if (!bn) return {};
+
+        int num_bytes = BN_num_bytes(bn);
+        std::vector<uint8_t> buffer(static_cast<size_t>(num_bytes));
+    
+        BN_bn2bin(bn, buffer.data()); // Convert BIGNUM to big-endian byte array
+        return buffer;
+    }
 
     static inline BIGNUM* get_ec_x(ec_persistent_context_t& p_ctx, const EC_POINT *point) {
         if (point == NULL) return NULL;
@@ -376,8 +408,110 @@ public:
         return parts.value()[2]; // JWS signature is the third part
     }
 
+    /**
+     * @brief Generate a PSK from SSID, passphrase
+     * 
+     * @param pass Passphrase
+     * @param ssid SSID
+     * @return std::vector<uint8_t> Contains PSK on success, empty otherwise.
+     */
+    static std::vector<uint8_t> gen_psk(const std::string& pass, const std::string& ssid);
 
+    /**
+     * @brief Create a JWS header
+     * 
+     * @param type "typ" key
+     * @param c_signing_key Configurator Signing Key from which "kid" is derived.
+     * @return cJSON* cJSON Object on success, nullptr otherwise.
+     * @note: Caller must free.
+     * 
+     * Example return (EasyConnect 4.2.2):
+     * 
+     *
+     *    {
+     *        "typ":"dppCon",
+     *        "kid":"kMcegDBPmNZVakAsBZOzOoCsvQjkr_nEAp9uF-EDmVE",
+     *        "alg":"ES256"
+     *    }
+     * 
+     */
+    static cJSON* create_jws_header(const std::string& type, const SSL_KEY *c_signing_key);
 
+    /**
+     * @brief Create a JWS Payload
+     * 
+     * @param p_ctx Persistent context
+     * @param groups List of "key":"value" pairs to be included in "groups" array.
+     * Only possible keys are "groupID" and "netRole"
+     * @param net_access_key The netAccessKey
+     * @return cJSON* on success, nullptr otherwise
+     * @note: Caller must free
+     * 
+     * Example return (EasyConnect 4.2.2): 
+     * Expiry is optional.
+     *    {
+     *        "groups":
+     *        [
+     *            {"groupId":"home","netRole":"sta"},
+     *            {"groupId":"cottage","netRole":"sta"}
+     *        ],
+     *        "netAccessKey":
+     *        {
+     *            "kty":"EC",
+     *            "crv":"P-256",
+     *            "x":"Xj-zV2iEiH8XwyA9ijpsL6xyLvDiIBthrHO8ZVxwmpA",
+     *            "y":"LUsDBmn7nv-LCnn6fBoXKsKpLGJiVpY_knTckGgsgeU"
+     *        },
+     *        "expiry":"2019-01-31T22:00:00+02:00"
+     *   }
+     */
+    static cJSON* create_jws_payload(ec_persistent_context_t& p_ctx, const std::vector<std::unordered_map<std::string, std::string>>& groups, SSL_KEY* net_access_key, std::optional<std::string> expiry = std::nullopt);
+
+    /**
+     * @brief Create a csign object object
+     * 
+     * @param c_signing_key Configurator Signing Key
+     * @param p_ctx Persistent context
+     * @return cJSON* on success, nullptr otherwise
+     * 
+     * csign object, example, as part of "cred" object, EasyConnect 4.5.3
+     *   "csign":
+     *   {
+     *       "kty":"EC",
+     *       "crv":"P-256",
+     *       "x":"MKBCTNIcKUSDii11ySs3526iDZ8AiTo7Tu6KPAqv7D4",
+     *       "y":"4Etl6SRW2YiLUrN5vfvVHuhp7x8PxltmWWlbbM4IFyM",
+     *       "kid":"kMcegDBPmNZVakAsBZOzOoCsvQjkr_nEAp9uF-EDmVE"
+     *   },
+     */
+    static cJSON* create_csign_object(ec_persistent_context_t& p_ctx, SSL_KEY *c_signing_key);
+
+    /**
+     * @brief Derive public ppKey from Configurator Signing Key (must share the same key group)
+     * 
+     * @param c_signing_key Configurator Signing Key
+     * @return EC_POINT *on success, nullptr otherwise.
+     * 
+     */
+    static EC_POINT* create_ppkey_public(SSL_KEY *c_signing_key);
+
+    /**
+     * @brief Create a ppkey object object
+     * 
+     * @param p_ctx Persistent context.
+     * @return cJSON* ppKey object on succcess, otherwise nullptr.
+     * 
+     * EasyConnect 6.5.2
+     * ppKey object example: 
+     *      "ppKey":
+     *      {
+     *       "kty":"EC",
+     *       "crv":"P-256",
+     *       "x":"XX_ZuJR9nMDSb54C_okhGiJ7OjCZOlWOU9m8zAxgUrU",
+     *       "y":"Fekm5hyGii80amM_REV5sTOG3-sl1H6MDpZ8TSKnb7c"
+     *      },
+     */
+    static cJSON *create_ppkey_object(ec_persistent_context_t& p_ctx);
 };
 
 #endif // EC_CRYPTO_H

@@ -428,6 +428,7 @@ public:
     static EC_GROUP* get_key_group(const SSL_KEY* key);
     static BIGNUM* get_priv_key_bn(const SSL_KEY* key);
     static EC_POINT* get_pub_key_point(const SSL_KEY* key, EC_GROUP* key_group=NULL);
+    static SSL_KEY* generate_ec_key(EC_GROUP *group);
     static SSL_KEY* generate_ec_key(int nid);
     static void free_key(SSL_KEY* key);
 

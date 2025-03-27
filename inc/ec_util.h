@@ -346,6 +346,14 @@ public:
     static std::string hash_to_hex_string(const uint8_t *hash, size_t hash_len);
 
     /**
+     * @brief Convert a hash to a hex string
+     * 
+     * @param hash Vector containing the hash to convert.
+     * @return std::string  The hex string representation of the hash
+     */
+    static std::string hash_to_hex_string(const std::vector<uint8_t>& hash);
+
+    /**
      * @brief Check if the capabilities of the initiator and responder are compatible
      * 
      * @param init_caps The capabilities of the initiator
