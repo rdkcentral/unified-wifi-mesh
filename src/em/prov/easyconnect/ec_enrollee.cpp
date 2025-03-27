@@ -711,7 +711,34 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     return std::make_pair(reinterpret_cast<uint8_t*>(initial_req_frame), sizeof(ec_gas_initial_request_frame_t) + attribs_len);
 }
 
-std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_result()
+std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_result(ec_status_code_t dpp_status)
 {
-    return std::pair<uint8_t *, size_t>();
+    // EasyConnect 6.4.4 DPP Configuration Result
+    // When both the Enrollee and the Configurator indicate their protocol version numbers to be 2 or higher, the Enrollee
+    // reports the result of configuration processing to the Configurator to allow clear indication of the results on the
+    // Configurator's user interface. The result is indicated in the DPP Configuration Result frame sent on the same channel
+    // immediately after the final DPP Configuration Response frame. The DPP Status field value indicates the result of the
+    // configuration: STATUS_OK indicates success and STATUS_CONFIG_REJECTED indicates failure.
+    // Enrollee → Configurator: { DPP Status, E-nonce }ke
+
+    ec_frame_t *frame = ec_util::alloc_frame(ec_frame_type_cfg_result);
+    ASSERT_NOT_NULL(frame, {}, "%s:%d: Failed to allocate DPP Configuration Result frame\n", __func__, __LINE__);
+
+    uint8_t *attribs = nullptr;
+    size_t attribs_len = 0;
+
+    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attribs_len, true, m_eph_ctx.ke, [&]() {
+        size_t wrapped_len = 0;
+        uint8_t *wrapped_attrs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_dpp_status, static_cast<uint8_t>(dpp_status));
+        wrapped_attrs = ec_util::add_attrib(wrapped_attrs, &wrapped_len, ec_attrib_id_enrollee_nonce, m_p_ctx.nonce_len, m_eph_ctx.e_nonce);
+        return std::make_pair(wrapped_attrs, wrapped_len);
+    });
+
+    if (!(frame = ec_util::copy_attrs_to_frame(frame, attribs, attribs_len))) {
+        printf("%s:%d: Failed to copy attributes to DPP Configuration Result frame\n", __func__, __LINE__);
+        free(attribs);
+        free(frame);
+        return {};
+    }
+    return std::make_pair(reinterpret_cast<uint8_t*>(frame), EC_FRAME_BASE_SIZE + attribs_len);
 }
