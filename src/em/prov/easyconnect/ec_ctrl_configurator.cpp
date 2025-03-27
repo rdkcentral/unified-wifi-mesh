@@ -338,7 +338,7 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
             {{"groupID", "mapNW"}, {"netRole", "mapAgent"}}
         };
         
-        cJSON *jwsPayloadObj = ec_crypto::create_jws_payload(m_p_ctx, groups, conn_ctx->net_access_key);
+        cJSON *jwsPayloadObj = ec_crypto::create_jws_payload(m_p_ctx, groups, m_p_ctx.net_access_key);
         // Create / add connector
         const char *connector = ec_crypto::generate_connector(jwsHeaderObj, jwsPayloadObj, m_p_ctx.C_signing_key);
         cJSON_AddStringToObject(cred, "signedConnector", connector);
@@ -390,7 +390,7 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
 
         // Payload
 
-        cJSON *jwsPayloadObj = ec_crypto::create_jws_payload(m_p_ctx, groups, conn_ctx->net_access_key);
+        cJSON *jwsPayloadObj = ec_crypto::create_jws_payload(m_p_ctx, groups, m_p_ctx.net_access_key);
 
         // Create connector
         const char *connector = ec_crypto::generate_connector(jwsHeaderObj, jwsPayloadObj, m_p_ctx.C_signing_key);
@@ -820,11 +820,10 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_auth_request(std::st
     free(initiator_keyhash);
 
     // Public Initiator Protocol Key: P_I
-    uint8_t* protocol_key_buff = ec_crypto::encode_ec_point(m_p_ctx, e_ctx->public_init_proto_key);
+    auto protocol_key_buff = ec_crypto::encode_ec_point(m_p_ctx, e_ctx->public_init_proto_key);
     ASSERT_NOT_NULL_FREE2(protocol_key_buff, {}, frame, attribs, "%s:%d failed to encode public initiator protocol key\n", __func__, __LINE__);
 
     attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_init_proto_key, static_cast<uint16_t>(2*BN_num_bytes(m_p_ctx.prime)), protocol_key_buff);
-    free(protocol_key_buff);
 
     // Protocol Version
     // if (m_cfgrtr_ver > 1) {

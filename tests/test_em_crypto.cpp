@@ -232,22 +232,22 @@ TEST_F(EmCryptoTests, GenerateEcKeyWithDifferentCurves)
 
     for (int i = 0; i < 3; i++) {
         // Generate key
-        managed_ssl_key key(em_crypto_t::generate_ec_key(curves[i]));
+        scoped_ssl_key key(em_crypto_t::generate_ec_key(curves[i]));
         ASSERT_NE(key.get(), nullptr) << "Could not generate key for " << curve_names[i];
 
         // Get key group
-        managed_ec_group group(em_crypto_t::get_key_group(key.get()));
+        scoped_ec_group group(em_crypto_t::get_key_group(key.get()));
         ASSERT_NE(group.get(), nullptr) << "Could not get key group for " << curve_names[i];
 
         int curve_nid = EC_GROUP_get_curve_name(group.get());
         EXPECT_EQ(curve_nid, curves[i]) << "Generated key has wrong curve for " << curve_names[i];
 
         // Get private key
-        managed_bn priv(em_crypto_t::get_priv_key_bn(key.get()));
+        scoped_bn priv(em_crypto_t::get_priv_key_bn(key.get()));
         ASSERT_NE(priv.get(), nullptr) << "Could not get private key for " << curve_names[i];
 
         // Get public key point
-        managed_ec_point pub(em_crypto_t::get_pub_key_point(key.get(), group.get()));
+        scoped_ec_point pub(em_crypto_t::get_pub_key_point(key.get(), group.get()));
         ASSERT_NE(pub.get(), nullptr) << "Could not get public key point for " << curve_names[i];
     }
 }
@@ -256,21 +256,21 @@ TEST_F(EmCryptoTests, GenerateEcKeyWithDifferentCurves)
 TEST_F(EmCryptoTests, KeyComponentsConsistency)
 {
     // Generate a key for testing
-    managed_ssl_key key(em_crypto_t::generate_ec_key(NID_secp256k1));
+    scoped_ssl_key key(em_crypto_t::generate_ec_key(NID_secp256k1));
     ASSERT_NE(key.get(), nullptr) << "Could not generate key";
 
     // Get components
-    managed_ec_group group(em_crypto_t::get_key_group(key.get()));
+    scoped_ec_group group(em_crypto_t::get_key_group(key.get()));
     ASSERT_NE(group.get(), nullptr) << "Could not get key group";
 
-    managed_bn priv(em_crypto_t::get_priv_key_bn(key.get()));
+    scoped_bn priv(em_crypto_t::get_priv_key_bn(key.get()));
     ASSERT_NE(priv.get(), nullptr) << "Could not get private key";
 
-    managed_ec_point pub(em_crypto_t::get_pub_key_point(key.get(), group.get()));
+    scoped_ec_point pub(em_crypto_t::get_pub_key_point(key.get(), group.get()));
     ASSERT_NE(pub.get(), nullptr) << "Could not get public key point";
 
     // Verify private key can generate the same public key point
-    managed_ec_point computed_pub(EC_POINT_new(group.get()));
+    scoped_ec_point computed_pub(EC_POINT_new(group.get()));
     ASSERT_NE(computed_pub.get(), nullptr) << "Could not create new EC_POINT";
 
     ASSERT_TRUE(
@@ -286,11 +286,11 @@ TEST_F(EmCryptoTests, KeyComponentsConsistency)
 TEST_F(EmCryptoTests, KeySerialization)
 {
     // Generate a key for testing
-    managed_ssl_key key(em_crypto_t::generate_ec_key(NID_secp256k1));
+    scoped_ssl_key key(em_crypto_t::generate_ec_key(NID_secp256k1));
     ASSERT_NE(key.get(), nullptr) << "Could not generate key";
 
     // Serialize the key to PEM format
-    managed_bio bio(BIO_new(BIO_s_mem()));
+    scoped_bio bio(BIO_new(BIO_s_mem()));
     ASSERT_NE(bio.get(), nullptr) << "Could not create BIO";
 
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
@@ -302,11 +302,11 @@ TEST_F(EmCryptoTests, KeySerialization)
 #endif
 
     // Get the private key as a BIGNUM for comparison
-    managed_bn orig_priv(em_crypto_t::get_priv_key_bn(key.get()));
+    scoped_bn orig_priv(em_crypto_t::get_priv_key_bn(key.get()));
     ASSERT_NE(orig_priv.get(), nullptr) << "Could not get original private key";
 
     // Convert BIGNUM to hex string
-    managed_buff orig_priv_hex(reinterpret_cast<uint8_t *>(BN_bn2hex(orig_priv.get())));
+    scoped_buff orig_priv_hex(reinterpret_cast<uint8_t *>(BN_bn2hex(orig_priv.get())));
     ASSERT_NE(orig_priv_hex.get(), nullptr) << "Could not convert original private key to hex";
 
     // Get the serialized data
@@ -331,10 +331,10 @@ TEST_F(EmCryptoTests, KeySerialization)
     ASSERT_NE(key.get(), nullptr) << "Could not read key from PEM";
 
     // Get the private key and convert to hex for comparison
-    managed_bn new_priv(em_crypto_t::get_priv_key_bn(key.get()));
+    scoped_bn new_priv(em_crypto_t::get_priv_key_bn(key.get()));
     ASSERT_NE(new_priv.get(), nullptr) << "Could not get deserialized private key";
 
-    managed_buff new_priv_hex(reinterpret_cast<uint8_t *>(BN_bn2hex(new_priv.get())));
+    scoped_buff new_priv_hex(reinterpret_cast<uint8_t *>(BN_bn2hex(new_priv.get())));
     ASSERT_NE(new_priv_hex.get(), nullptr) << "Could not convert deserialized private key to hex";
 
     // Compare the private keys

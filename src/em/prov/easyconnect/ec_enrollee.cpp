@@ -566,11 +566,10 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
     ASSERT_NOT_NULL_FREE2(r_auth, {}, frame, attribs, "%s:%d: Failed to compute R-auth\n", __func__, __LINE__);
 
     // Add P_R
-    uint8_t* encoded_P_R = ec_crypto::encode_ec_point(m_p_ctx, m_eph_ctx.public_resp_proto_key);
+    auto encoded_P_R = ec_crypto::encode_ec_point(m_p_ctx, m_eph_ctx.public_resp_proto_key);
     ASSERT_NOT_NULL_FREE2(encoded_P_R, {}, frame, attribs, "%s:%d failed to encode responder protocol key\n", __func__, __LINE__);
 
     attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_resp_proto_key, static_cast<uint16_t>(BN_num_bytes(m_p_ctx.prime) * 2), encoded_P_R);
-    free(encoded_P_R);
 
     // Add Protocol Version
     if (init_proto_version >= 2) {
@@ -619,7 +618,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_recfg_presence_announcement()
         A-NONCE = a-nonce * G
     where G is the generator of the elliptic curve group of the Configurator signing key.
     */
-    
+
     if (m_p_ctx.group == NULL || m_p_ctx.order == NULL || m_p_ctx.bn_ctx == NULL) {
         printf("%s:%d: Pre-initialized EC parameters not initialized!\n", __func__, __LINE__);
         return {};
@@ -631,14 +630,16 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_recfg_presence_announcement()
         return {};
     }
 
-    managed_bn a_nonce(BN_new());
-    managed_ec_point A_NONCE(EC_POINT_new(m_p_ctx.group));
+    scoped_bn a_nonce(BN_new());
+    scoped_ec_point A_NONCE(EC_POINT_new(m_p_ctx.group));
     // a-nonce * Ppk
-    managed_ec_point a_nonce_ppk(EC_POINT_new(m_p_ctx.group));
-    managed_ec_point E_prime_Id(EC_POINT_new(m_p_ctx.group));
+    scoped_ec_point a_nonce_ppk(EC_POINT_new(m_p_ctx.group));
+    scoped_ec_point E_prime_Id(EC_POINT_new(m_p_ctx.group));
 
     if (a_nonce == NULL || A_NONCE == NULL || a_nonce_ppk == NULL || E_prime_Id == NULL) {
-        printf("%s:%d: Failed to allocate memory for a-nonce, A-NONCE, a-nonce * Ppk temp, and E'-id\n", __func__, __LINE__);
+        printf("%s:%d: Failed to allocate memory for a-nonce, A-NONCE, a-nonce * Ppk temp, and "
+               "E'-id\n",
+               __func__, __LINE__);
         return {};
     }
 
@@ -653,21 +654,23 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_recfg_presence_announcement()
         printf("%s:%d: Failed to modulo a-nonce\n", __func__, __LINE__);
         return {};
     }
-    
+
     // Compute A-NONCE = a-nonce * G
     if (!EC_POINT_mul(m_p_ctx.group, A_NONCE.get(), a_nonce.get(), NULL, NULL, m_p_ctx.bn_ctx)) {
         printf("%s:%d: Failed to compute A-NONCE\n", __func__, __LINE__);
         return {};
     }
-    
+
     // Calculate a-nonce * Ppk
-    if (!EC_POINT_mul(m_p_ctx.group, a_nonce_ppk.get(), NULL, m_p_ctx.ppk, a_nonce.get(), m_p_ctx.bn_ctx)){
+    if (!EC_POINT_mul(m_p_ctx.group, a_nonce_ppk.get(), NULL, m_p_ctx.ppk, a_nonce.get(),
+                      m_p_ctx.bn_ctx)) {
         printf("%s:%d: Failed to compute a-nonce * Ppk\n", __func__, __LINE__);
         return {};
     }
-    
+
     // Calculate E'-id = E-id + (a-nonce * Ppk)
-    if (!EC_POINT_add(m_p_ctx.group, E_prime_Id.get(), m_eph_ctx.E_Id, a_nonce_ppk.get(), m_p_ctx.bn_ctx)){
+    if (!EC_POINT_add(m_p_ctx.group, E_prime_Id.get(), m_eph_ctx.E_Id, a_nonce_ppk.get(),
+                      m_p_ctx.bn_ctx)) {
         printf("%s:%d: Failed to compute E'-id\n", __func__, __LINE__);
         return {};
     }
@@ -696,37 +699,50 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_recfg_presence_announcement()
      */
 
     // Create the DPP Reconfiguration Presence Announcement frame
-    ec_frame_t *frame =  ec_util::alloc_frame(ec_frame_type_recfg_announcement);
+    ec_frame_t *frame = ec_util::alloc_frame(ec_frame_type_recfg_announcement);
     ASSERT_NOT_NULL(frame, {}, "%s:%d failed to allocate memory for frame\n", __func__, __LINE__);
 
     size_t attribs_len = 0;
 
     // C-sign-key hash attribute
     // Might need to replace with "kid"
-    uint8_t* c_sign_hash = ec_crypto::compute_key_hash(m_p_ctx.C_signing_key);
-    uint8_t* attribs = ec_util::add_attrib(NULL, &attribs_len, ec_attrib_id_C_sign_key_hash, SHA256_DIGEST_LENGTH, c_sign_hash);
+    uint8_t *c_sign_hash = ec_crypto::compute_key_hash(m_p_ctx.C_signing_key);
+    uint8_t *attribs = ec_util::add_attrib(NULL, &attribs_len, ec_attrib_id_C_sign_key_hash,
+                                           SHA256_DIGEST_LENGTH, c_sign_hash);
     free(c_sign_hash);
-    ASSERT_NOT_NULL_FREE2(attribs, {}, frame, attribs, "%s:%d: Failed to add C-signing key hash attribute\n", __func__, __LINE__);
+    ASSERT_NOT_NULL_FREE2(attribs, {}, frame, attribs,
+                          "%s:%d: Failed to add C-signing key hash attribute\n", __func__,
+                          __LINE__);
 
     // Finite Cyclic Group attribute
-    managed_ec_group group(em_crypto_t::get_key_group(m_p_ctx.net_access_key));
-    ASSERT_NOT_NULL_FREE2(group.get(), {}, frame, attribs, "%s:%d: Failed to get elliptic curve group from network access key\n", __func__, __LINE__);
-    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_finite_cyclic_group, ec_crypto::get_tls_group_id_from_ec_group(group.get()));
-    ASSERT_NOT_NULL_FREE2(attribs, {}, frame, attribs, "%s:%d: Failed to add finite cyclic group attribute\n", __func__, __LINE__);
+    scoped_ec_group group(em_crypto_t::get_key_group(m_p_ctx.net_access_key));
+    ASSERT_NOT_NULL_FREE2(group.get(), {}, frame, attribs,
+                          "%s:%d: Failed to get elliptic curve group from network access key\n",
+                          __func__, __LINE__);
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_finite_cyclic_group,
+                                  ec_crypto::get_tls_group_id_from_ec_group(group.get()));
+    ASSERT_NOT_NULL_FREE2(attribs, {}, frame, attribs,
+                          "%s:%d: Failed to add finite cyclic group attribute\n", __func__,
+                          __LINE__);
 
+    uint16_t encoded_len = static_cast<uint16_t>(BN_num_bytes(m_p_ctx.prime) * 2);
     // A-NONCE attribute
-    uint8_t* encoded_A_NONCE = ec_crypto::encode_ec_point(m_p_ctx, A_NONCE.get());
-    ASSERT_NOT_NULL_FREE2(encoded_A_NONCE, {}, frame, attribs, "%s:%d: Failed to encode A-NONCE\n", __func__, __LINE__);
-    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_a_nonce, static_cast<uint16_t>(BN_num_bytes(m_p_ctx.prime) * 2), encoded_A_NONCE);
-    free(encoded_A_NONCE);
-    ASSERT_NOT_NULL_FREE2(attribs, {}, frame, attribs, "%s:%d: Failed to add A-NONCE attribute\n", __func__, __LINE__);
+    auto encoded_A_NONCE = ec_crypto::encode_ec_point(m_p_ctx, A_NONCE.get());
+    ASSERT_NOT_NULL_FREE2(encoded_A_NONCE, {}, frame, attribs, "%s:%d: Failed to encode A-NONCE\n",
+                          __func__, __LINE__);
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_a_nonce, encoded_len,
+                                  encoded_A_NONCE);
+    ASSERT_NOT_NULL_FREE2(attribs, {}, frame, attribs, "%s:%d: Failed to add A-NONCE attribute\n",
+                          __func__, __LINE__);
 
     // E'-id attribute
-    uint8_t* encoded_E_prime_Id = ec_crypto::encode_ec_point(m_p_ctx, E_prime_Id.get());
-    ASSERT_NOT_NULL_FREE2(encoded_E_prime_Id, {}, frame, attribs, "%s:%d: Failed to encode E'-id\n", __func__, __LINE__);
-    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_e_prime_id, static_cast<uint16_t>(BN_num_bytes(m_p_ctx.prime) * 2), encoded_E_prime_Id);
-    free(encoded_E_prime_Id);
-    ASSERT_NOT_NULL_FREE2(attribs, {}, frame, attribs, "%s:%d: Failed to add E'-id attribute\n", __func__, __LINE__);
+    auto encoded_E_prime_Id = ec_crypto::encode_ec_point(m_p_ctx, E_prime_Id.get());
+    ASSERT_NOT_NULL_FREE2(encoded_E_prime_Id, {}, frame, attribs, "%s:%d: Failed to encode E'-id\n",
+                          __func__, __LINE__);
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_e_prime_id, encoded_len,
+                                  encoded_E_prime_Id);
+    ASSERT_NOT_NULL_FREE2(attribs, {}, frame, attribs, "%s:%d: Failed to add E'-id attribute\n",
+                          __func__, __LINE__);
 
     if (!(frame = ec_util::copy_attrs_to_frame(frame, attribs, attribs_len))) {
         printf("%s:%d unable to copy attributes to frame\n", __func__, __LINE__);
@@ -736,7 +752,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_recfg_presence_announcement()
     }
     free(attribs);
 
-    return std::make_pair(reinterpret_cast<uint8_t*>(frame), EC_FRAME_BASE_SIZE + attribs_len);
+    return std::make_pair(reinterpret_cast<uint8_t *>(frame), EC_FRAME_BASE_SIZE + attribs_len);
 }
 
 std::pair<uint8_t *, size_t> ec_enrollee_t::create_recfg_auth_response(ec_status_code_t dpp_status)

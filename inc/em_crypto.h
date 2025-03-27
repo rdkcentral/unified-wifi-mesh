@@ -505,10 +505,11 @@ struct BuffDeleter {
     void operator()(uint8_t* buff) const { if (buff) OPENSSL_free(buff); }
 };
 
-using managed_ssl_key = std::unique_ptr<SSL_KEY, SSLKeyDeleter>;
-using managed_bio = std::unique_ptr<BIO, BIODeleter>;
-using managed_bn = std::unique_ptr<BIGNUM, BNDeleter>;
-using managed_ec_point = std::unique_ptr<EC_POINT, ECPointDeleter>;
-using managed_ec_group = std::unique_ptr<EC_GROUP, ECGroupDeleter>;
-using managed_buff = std::unique_ptr<uint8_t, BuffDeleter>;
+
+using scoped_ssl_key = std::unique_ptr<SSL_KEY, SSLKeyDeleter>;
+using scoped_bio = std::unique_ptr<BIO, BIODeleter>;
+using scoped_bn = std::unique_ptr<BIGNUM, BNDeleter>;
+using scoped_ec_point = std::unique_ptr<EC_POINT, ECPointDeleter>;
+using scoped_ec_group = std::unique_ptr<EC_GROUP, ECGroupDeleter>;
+using scoped_buff = std::unique_ptr<uint8_t, BuffDeleter>;
 #endif
