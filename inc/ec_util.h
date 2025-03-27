@@ -398,7 +398,7 @@ public:
     static inline void free_connection_ctx(ec_connection_context_t& c_ctx) {
         ec_crypto::free_ephemeral_context(&c_ctx.eph_ctx, c_ctx.nonce_len, c_ctx.digest_len);
 
-        auto boot_data = &c_ctx.m_boot_data;
+        auto boot_data = &c_ctx.boot_data;
         if (boot_data->resp_priv_boot_key) {
             BN_free(boot_data->resp_priv_boot_key);
         }

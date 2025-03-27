@@ -33,7 +33,7 @@ public:
      * @param do_reconfig Whether to reconfigure/reauth the enrollee
      * @return bool true if successful, false otherwise
      */
-    bool start(bool do_reconfig, ec_data_t* boot_data);
+    bool start_onboarding(bool do_reconfig, ec_data_t* boot_data);
 
     /**
      * @brief Handle an authentication request 802.11 frame, performing the necessary actions and responding with an authentication response via 802.11
@@ -107,15 +107,20 @@ private:
     std::pair<uint8_t*, size_t> create_config_request();
     std::pair<uint8_t*, size_t> create_config_result(ec_status_code_t dpp_status);
 
-    ec_connection_context_t m_p_ctx = {};
+    ec_connection_context_t m_c_ctx = {};
 
-    // Randomized and cleared at the end of the authentication/configuration process
-    ec_ephemeral_context_t m_eph_ctx = {};
-
-    ec_data_t m_boot_data = {};
-
-
-
+    /**
+     * @brief Connection's bootstrapping data
+     */
+    inline ec_data_t& m_boot_data(){
+        return m_c_ctx.boot_data;
+    }
+    /**
+     * @brief Connection's ephemeral context
+     */
+    inline ec_ephemeral_context_t& m_eph_ctx(){
+        return m_c_ctx.eph_ctx;
+    }
 
 };
 

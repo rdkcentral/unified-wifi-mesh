@@ -68,7 +68,7 @@ public:
         if (m_is_controller || m_enrollee == nullptr) {
             return -1;
         }
-        return m_enrollee->start(do_reconfig, boot_data);
+        return m_enrollee->start_onboarding(do_reconfig, boot_data);
     }
 
     /**

@@ -418,7 +418,7 @@ typedef struct {
 typedef struct {
     // BEGIN: Variables that are configured once and persist throughout the lifetime of the program
 
-    ec_data_t m_boot_data; // The bootstrapping data for the Configurator/Enrollee
+    ec_data_t boot_data; // The bootstrapping data for the Configurator/Enrollee
 
     // These variables are either based on the responder bootstrapping key or the C-signing-key based on wether it's a reconfiguration or not
     const EC_GROUP *group;

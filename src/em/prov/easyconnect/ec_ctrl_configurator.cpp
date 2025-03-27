@@ -25,7 +25,7 @@ bool ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *ch
 
     // Validate hash
     // Compute the hash of the responder boot key 
-    uint8_t *resp_boot_key_chirp_hash = ec_crypto::compute_key_hash(c_ctx->m_boot_data.responder_boot_key, "chirp");
+    uint8_t *resp_boot_key_chirp_hash = ec_crypto::compute_key_hash(c_ctx->boot_data.responder_boot_key, "chirp");
     if (resp_boot_key_chirp_hash == NULL) {
         printf("%s:%d unable to compute \"chirp\" responder bootstrapping key hash\n", __func__, __LINE__);
         return false;
@@ -595,9 +595,9 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
     }
 
     // b_I
-    ASSERT_NOT_NULL(conn_ctx->m_boot_data.init_priv_boot_key, false, "%s:%d: failed to get initiator bootstrapping private key\n", __func__, __LINE__);
+    ASSERT_NOT_NULL(conn_ctx->boot_data.init_priv_boot_key, false, "%s:%d: failed to get initiator bootstrapping private key\n", __func__, __LINE__);
     // B_R
-    ASSERT_NOT_NULL(conn_ctx->m_boot_data.resp_pub_boot_key, false, "%s:%d: failed to get responder bootstrapping public key\n", __func__, __LINE__);
+    ASSERT_NOT_NULL(conn_ctx->boot_data.resp_pub_boot_key, false, "%s:%d: failed to get responder bootstrapping public key\n", __func__, __LINE__);
     // P_R
     ASSERT_NOT_NULL(e_ctx->public_resp_proto_key, false, "%s:%d: Responder Public Protocol Key was not recieved/set\n", __func__, __LINE__);
 
@@ -606,7 +606,7 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
 
         EC_POINT* sum = EC_POINT_new(conn_ctx->group);
         // Calculate (B_R + P_R)
-        if (!EC_POINT_add(conn_ctx->group, sum, conn_ctx->m_boot_data.resp_pub_boot_key, e_ctx->public_resp_proto_key, conn_ctx->bn_ctx)){
+        if (!EC_POINT_add(conn_ctx->group, sum, conn_ctx->boot_data.resp_pub_boot_key, e_ctx->public_resp_proto_key, conn_ctx->bn_ctx)){
             EC_POINT_free(sum);
             free(prim_unwrapped_data);
             printf("%s:%d: failed to add public responder boot key and public responder protocol key\n", __func__, __LINE__);
@@ -614,7 +614,7 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
         }
         // Calculate b_I * (B_R + P_R)
         EC_POINT* L = EC_POINT_new(conn_ctx->group);
-        if (!EC_POINT_mul(conn_ctx->group, L, NULL, sum, conn_ctx->m_boot_data.init_priv_boot_key, conn_ctx->bn_ctx)){
+        if (!EC_POINT_mul(conn_ctx->group, L, NULL, sum, conn_ctx->boot_data.init_priv_boot_key, conn_ctx->bn_ctx)){
             EC_POINT_free(sum);
             EC_POINT_free(L);
             free(prim_unwrapped_data);
@@ -664,8 +664,8 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
     // Get P_I.x, P_R.x, B_I.x, and B_R.x
     BIGNUM* P_I_x = ec_crypto::get_ec_x(*conn_ctx, e_ctx->public_init_proto_key);
     BIGNUM* P_R_x = ec_crypto::get_ec_x(*conn_ctx, e_ctx->public_resp_proto_key);
-    BIGNUM* B_I_x = ec_crypto::get_ec_x(*conn_ctx, conn_ctx->m_boot_data.init_pub_boot_key);
-    BIGNUM* B_R_x = ec_crypto::get_ec_x(*conn_ctx, conn_ctx->m_boot_data.resp_pub_boot_key);
+    BIGNUM* B_I_x = ec_crypto::get_ec_x(*conn_ctx, conn_ctx->boot_data.init_pub_boot_key);
+    BIGNUM* B_R_x = ec_crypto::get_ec_x(*conn_ctx, conn_ctx->boot_data.resp_pub_boot_key);
 
     if (P_I_x == NULL || P_R_x == NULL || B_R_x == NULL) {
         printf("%s:%d: Failed to get x-coordinates of P_I, P_R, and B_R\n", __func__, __LINE__);
@@ -788,9 +788,9 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_auth_request(std::st
     e_ctx->public_init_proto_key = const_cast<EC_POINT*>(pub_init_proto_key);
 
     // Compute the M.x
-    ASSERT_NOT_NULL_FREE(conn_ctx->m_boot_data.resp_pub_boot_key, {}, frame, "%s:%d failed to get responder bootstrapping public key\n", __func__, __LINE__);
+    ASSERT_NOT_NULL_FREE(conn_ctx->boot_data.resp_pub_boot_key, {}, frame, "%s:%d failed to get responder bootstrapping public key\n", __func__, __LINE__);
 
-    e_ctx->m = ec_crypto::compute_ec_ss_x(*conn_ctx, e_ctx->priv_init_proto_key, conn_ctx->m_boot_data.resp_pub_boot_key);
+    e_ctx->m = ec_crypto::compute_ec_ss_x(*conn_ctx, e_ctx->priv_init_proto_key, conn_ctx->boot_data.resp_pub_boot_key);
     const BIGNUM *bn_inputs[1] = { e_ctx->m };
     // Compute the "first intermediate key" (k1)
     if (ec_crypto::compute_hkdf_key(*conn_ctx, e_ctx->k1, conn_ctx->digest_len, "first intermediate key", bn_inputs, 1, NULL, 0) == 0) {
@@ -805,14 +805,14 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_auth_request(std::st
     size_t attribs_len = 0;
 
     // Responder Bootstrapping Key Hash: SHA-256(B_R)
-    uint8_t* responder_keyhash = ec_crypto::compute_key_hash(conn_ctx->m_boot_data.responder_boot_key);
+    uint8_t* responder_keyhash = ec_crypto::compute_key_hash(conn_ctx->boot_data.responder_boot_key);
     ASSERT_NOT_NULL_FREE2(responder_keyhash, {}, frame, attribs, "%s:%d failed to compute responder bootstrapping key hash\n", __func__, __LINE__);
 
     attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_resp_bootstrap_key_hash, SHA256_DIGEST_LENGTH, responder_keyhash);
     free(responder_keyhash);
 
     // Initiator Bootstrapping Key Hash: SHA-256(B_I)
-    uint8_t* initiator_keyhash = ec_crypto::compute_key_hash(conn_ctx->m_boot_data.initiator_boot_key);
+    uint8_t* initiator_keyhash = ec_crypto::compute_key_hash(conn_ctx->boot_data.initiator_boot_key);
     ASSERT_NOT_NULL_FREE2(initiator_keyhash, {}, frame, attribs, "%s:%d failed to compute initiator bootstrapping key hash\n", __func__, __LINE__); 
 
     attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_init_bootstrap_key_hash, SHA256_DIGEST_LENGTH, initiator_keyhash);
@@ -831,8 +831,8 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_auth_request(std::st
 
     // Channel Attribute (optional)
     //TODO: REVISIT THIS
-    if (conn_ctx->m_boot_data.ec_freqs[0] != 0){
-        unsigned int base_freq = conn_ctx->m_boot_data.ec_freqs[0]; 
+    if (conn_ctx->boot_data.ec_freqs[0] != 0){
+        unsigned int base_freq = conn_ctx->boot_data.ec_freqs[0]; 
         uint16_t chann_attr = ec_util::freq_to_channel_attr(base_freq);
         attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_channel, sizeof(uint16_t), reinterpret_cast<uint8_t*>(&chann_attr));
     }
@@ -894,14 +894,14 @@ STATUS_OK:
     attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_dpp_status, static_cast<uint8_t>(dpp_status));
 
     // Add Responder Bootstrapping Key Hash (SHA-256(B_R))
-    uint8_t* responder_keyhash = ec_crypto::compute_key_hash(conn_ctx->m_boot_data.responder_boot_key);
+    uint8_t* responder_keyhash = ec_crypto::compute_key_hash(conn_ctx->boot_data.responder_boot_key);
     ASSERT_NOT_NULL_FREE2(responder_keyhash, {}, frame, attribs, "%s:%d failed to compute responder bootstrapping key hash\n", __func__, __LINE__);
 
     attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_resp_bootstrap_key_hash, SHA256_DIGEST_LENGTH, responder_keyhash);
     free(responder_keyhash);
     // Conditional (Only included for mutual authentication) (SHA-256(B_I))
     if (e_ctx->is_mutual_auth) {
-        uint8_t* initiator_keyhash = ec_crypto::compute_key_hash(conn_ctx->m_boot_data.initiator_boot_key);
+        uint8_t* initiator_keyhash = ec_crypto::compute_key_hash(conn_ctx->boot_data.initiator_boot_key);
         if (initiator_keyhash != NULL) {
             attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_init_bootstrap_key_hash, SHA256_DIGEST_LENGTH, initiator_keyhash);
             free(initiator_keyhash);
@@ -970,7 +970,7 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_recfg_auth_confirm(s
         size_t wrapped_len = 0;
 
         wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_trans_id, trans_id);
-        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_proto_version, static_cast<uint8_t>(conn_ctx->m_boot_data.version));
+        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_proto_version, static_cast<uint8_t>(conn_ctx->boot_data.version));
         wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_config_nonce, conn_ctx->nonce_len, e_ctx->i_nonce);
         wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_enrollee_nonce, conn_ctx->nonce_len, e_ctx->e_nonce);
         wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_reconfig_flags, sizeof(reconfig_flags), reinterpret_cast<uint8_t*>(&reconfig_flags));

@@ -238,7 +238,7 @@ protected:
             printf("%s:%d: Connection context not found for enrollee MAC %s\n", __func__, __LINE__, mac.c_str());
             return NULL;  // Return reference to static empty context
         }
-        return &conn->second.m_boot_data;
+        return &conn->second.boot_data;
     }
 
     inline void clear_conn_eph_ctx(const std::string& mac) {
