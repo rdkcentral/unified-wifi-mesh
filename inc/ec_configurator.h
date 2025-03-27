@@ -92,12 +92,12 @@ public:
     };
 
     /**
-     * @brief Start the EC configurator onboarding
+     * @brief Start the EC configurator onboarding process for an enrollee
      * 
-     * @param ec_data The data to use for onboarding (Parsed DPP URI Data)
+     * @param bootstrapping_data The data to use for onboarding (Parsed DPP URI Data)
      * @return bool true if successful, false otherwise
      */
-    bool start(ec_data_t* ec_data);
+    bool onboard_enrollee(ec_data_t* bootstrapping_data);
 
     /**
      * @brief Handles a presence announcement 802.11 frame, performing the necessary actions
@@ -198,9 +198,6 @@ public:
     ec_configurator_t& operator=(const ec_configurator_t&) = delete;
 
 protected:
-    ec_persistent_context_t m_p_ctx = {};
-
-    ec_data_t m_boot_data = {};
 
     std::string m_mac_addr;
 
@@ -235,11 +232,20 @@ protected:
         return &conn_ctx->eph_ctx;
     }
 
+    inline ec_data_t* get_boot_data(const std::string& mac) {
+        auto conn = m_connections.find(mac);
+        if (conn == m_connections.end()) {
+            printf("%s:%d: Connection context not found for enrollee MAC %s\n", __func__, __LINE__, mac.c_str());
+            return NULL;  // Return reference to static empty context
+        }
+        return &conn->second.m_boot_data;
+    }
+
     inline void clear_conn_eph_ctx(const std::string& mac) {
         auto conn = m_connections.find(mac);
         if (conn == m_connections.end()) return;
-        auto &eph_ctx = conn->second.eph_ctx;
-        ec_crypto::free_ephemeral_context(&eph_ctx, m_p_ctx.nonce_len, m_p_ctx.digest_len);
+        auto &c_ctx = conn->second;
+        ec_crypto::free_ephemeral_context(&c_ctx.eph_ctx, c_ctx.nonce_len, c_ctx.digest_len);
     }
 
 };

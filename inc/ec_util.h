@@ -19,6 +19,7 @@
 #include "em_base.h"
 #include "ec_base.h"
 #include "em_crypto.h"
+#include "ec_crypto.h"
 #include <stdint.h>
 #include <stddef.h>
 
@@ -393,4 +394,35 @@ public:
      * @return true The capabilities are compatible (DPP_STATUS_OK), false otherwise (DPP_STATUS_NOT_COMPATIBLE)
      */
     static bool check_caps_compatible(const ec_dpp_capabilities_t& init_caps, const ec_dpp_capabilities_t& resp_caps);
+
+    static inline void free_connection_ctx(ec_connection_context_t& c_ctx) {
+        ec_crypto::free_ephemeral_context(&c_ctx.eph_ctx, c_ctx.nonce_len, c_ctx.digest_len);
+
+        auto boot_data = &c_ctx.m_boot_data;
+        if (boot_data->resp_priv_boot_key) {
+            BN_free(boot_data->resp_priv_boot_key);
+        }
+        if (boot_data->resp_pub_boot_key) {
+            EC_POINT_free(boot_data->resp_pub_boot_key);
+        }
+        if (boot_data->init_priv_boot_key) {
+            BN_free(boot_data->init_priv_boot_key);
+        }
+        if (boot_data->init_pub_boot_key) {
+            EC_POINT_free(boot_data->init_pub_boot_key);
+        }
+        if (boot_data->initiator_boot_key) {
+            em_crypto_t::free_key(const_cast<SSL_KEY*>(boot_data->initiator_boot_key));
+        }
+        if (boot_data->responder_boot_key) {
+            em_crypto_t::free_key(const_cast<SSL_KEY*>(boot_data->responder_boot_key));
+        }
+
+        boot_data->resp_priv_boot_key = nullptr;
+        boot_data->resp_pub_boot_key = nullptr;
+        boot_data->init_priv_boot_key = nullptr;
+        boot_data->init_pub_boot_key = nullptr;
+        boot_data->initiator_boot_key = nullptr;
+        boot_data->responder_boot_key = nullptr;
+    }
 };

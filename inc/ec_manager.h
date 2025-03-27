@@ -54,7 +54,7 @@ public:
         if (!m_is_controller || m_configurator == nullptr) {
             return -1;
         }
-        return m_configurator->start(data);
+        return m_configurator->onboard_enrollee(data);
     }
 
     /**

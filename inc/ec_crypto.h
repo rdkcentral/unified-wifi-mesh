@@ -54,11 +54,11 @@ public:
     /**
      * @brief Initialize the persistent context params with the bootstrapping key's group as a basis
      * 
-     * @param p_ctx The persistent context to initialize
+     * @param c_ctx The persistent context to initialize
      * @param boot_key The bootstrapping key to use as a basis
      * @return bool true if successful, false otherwise
      */
-    static bool init_persistent_ctx(ec_persistent_context_t& p_ctx, const SSL_KEY *boot_key);
+    static bool init_persistent_ctx(ec_connection_context_t& c_ctx, const SSL_KEY *boot_key);
 
     /**
      * @brief Compute the hash of the provided buffer
@@ -66,10 +66,10 @@ public:
      * @param buffer The buffer to hash
      * @return uint8_t* The hash of the buffer
      */
-    static uint8_t* compute_hash(ec_persistent_context_t& p_ctx, const easyconnect::hash_buffer_t& hashing_elements_buffer);
+    static uint8_t* compute_hash(ec_connection_context_t& c_ctx, const easyconnect::hash_buffer_t& hashing_elements_buffer);
 
 
-    static size_t compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t* e_ctx, uint8_t *ke_buffer);
+    static size_t compute_ke(ec_connection_context_t& c_ctx, ec_ephemeral_context_t* e_ctx, uint8_t *ke_buffer);
 
     /**
      * @brief Abstracted HKDF computation that handles both simple and complex inputs
@@ -88,7 +88,7 @@ public:
      * 
      * @return Length of the output key on success, 0 on failure
      */
-    static size_t compute_hkdf_key(ec_persistent_context_t& p_ctx, uint8_t *key_out, size_t key_out_len, const char *info_str,
+    static size_t compute_hkdf_key(ec_connection_context_t& c_ctx, uint8_t *key_out, size_t key_out_len, const char *info_str,
         const BIGNUM **x_val_inputs, int x_val_count, 
         uint8_t *raw_salt, size_t raw_salt_len);
 
@@ -101,14 +101,14 @@ public:
      * @param BI Public Initiator Bootstrapping Key
      * @return EC_POINT* The calculated L point X value, or NULL on failure. Caller must free with BN_free()
      */
-    static BIGNUM* calculate_Lx(ec_persistent_context_t& p_ctx, const BIGNUM* bR, const BIGNUM* pR, const EC_POINT* BI);
+    static BIGNUM* calculate_Lx(ec_connection_context_t& c_ctx, const BIGNUM* bR, const BIGNUM* pR, const EC_POINT* BI);
 
-    static std::pair<BIGNUM *, BIGNUM *> get_ec_x_y(ec_persistent_context_t& p_ctx, const EC_POINT *point) {
+    static std::pair<BIGNUM *, BIGNUM *> get_ec_x_y(ec_connection_context_t& c_ctx, const EC_POINT *point) {
         if (!point) return {};
 
         BIGNUM *x = BN_new(), *y = BN_new();
-        if (EC_POINT_get_affine_coordinates(p_ctx.group, point,
-            x, y, p_ctx.bn_ctx) == 0) {
+        if (EC_POINT_get_affine_coordinates(c_ctx.group, point,
+            x, y, c_ctx.bn_ctx) == 0) {
             printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
             BN_free(x);
             BN_free(y);
@@ -117,14 +117,14 @@ public:
         return {x, y};
     }
 
-    static inline BIGNUM* get_ec_x(ec_persistent_context_t& p_ctx, const EC_POINT *point) {
-        auto [x, y] = get_ec_x_y(p_ctx, point);
+    static inline BIGNUM* get_ec_x(ec_connection_context_t& c_ctx, const EC_POINT *point) {
+        auto [x, y] = get_ec_x_y(c_ctx, point);
         BN_free(y);
         return x;
     }
 
-    static inline BIGNUM* get_ec_y(ec_persistent_context_t& p_ctx, const EC_POINT *point) {
-        auto [x, y] = get_ec_x_y(p_ctx, point);
+    static inline BIGNUM* get_ec_y(ec_connection_context_t& c_ctx, const EC_POINT *point) {
+        auto [x, y] = get_ec_x_y(c_ctx, point);
         BN_free(x);
         return y;
     }
@@ -141,20 +141,20 @@ public:
     /**
      * @brief Encode an EC point into a protocol key buffer
      * 
-     * @param p_ctx The persistent context containing the EC group
+     * @param c_ctx The persistent context containing the EC group
      * @param point The EC point to encode
      * @return scoped_buff The encoded protocol key buffer, or NULL on failure. Caller must free with free()
      * 
      */
-    static scoped_buff encode_ec_point(ec_persistent_context_t& p_ctx, const EC_POINT *point);
+    static scoped_buff encode_ec_point(ec_connection_context_t& c_ctx, const EC_POINT *point);
     /**
      * @brief Decode a protocol key buffer into an EC point
      * 
-     * @param p_ctx The persistent context containing the EC group
+     * @param c_ctx The persistent context containing the EC group
      * @param protocol_key_buff The encoded protocol key buffer
      * @return EC_POINT* The decoded EC point, or NULL on failure. Caller must free with EC_POINT_free()
      */
-    static EC_POINT* decode_ec_point(ec_persistent_context_t& p_ctx, const uint8_t* protocol_key_buff);
+    static EC_POINT* decode_ec_point(ec_connection_context_t& c_ctx, const uint8_t* protocol_key_buff);
     /**
      * @brief Compute the shared secret X coordinate for an EC key pair
      *  (for example M.x, N.x)
@@ -163,25 +163,25 @@ public:
      * @param pub The public key (for example P_I, B_R, or P_R)
      * @return BIGNUM* The X coordinate of the shared secret, or NULL on failure. Caller must free with BN_free()
      */
-    static inline BIGNUM* compute_ec_ss_x(ec_persistent_context_t& p_ctx, const BIGNUM* priv, const EC_POINT* pub) {
+    static inline BIGNUM* compute_ec_ss_x(ec_connection_context_t& c_ctx, const BIGNUM* priv, const EC_POINT* pub) {
         // TODO: May have to adjust to get the group from the public key
-        EC_POINT *ss = EC_POINT_new(p_ctx.group);
-        if (EC_POINT_mul(p_ctx.group, ss, NULL, pub, priv, p_ctx.bn_ctx) == 0) {
+        EC_POINT *ss = EC_POINT_new(c_ctx.group);
+        if (EC_POINT_mul(c_ctx.group, ss, NULL, pub, priv, c_ctx.bn_ctx) == 0) {
             printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
             return NULL;
         }
-        return get_ec_x(p_ctx, ss);
+        return get_ec_x(c_ctx, ss);
     }
 
     /**
      * @brief Generate a protocol key pair for the given EC curve
      * 
-     * @param p_ctx The persistent context containing the EC curve
+     * @param c_ctx The persistent context containing the EC curve
      * @return std::pair<const BIGNUM*, const EC_POINT*> Both the private and public keys, or NULL on failure
      * 
      * @warning The caller must free the BIGNUM and EC_POINT with BN_free() and EC_POINT_free() respectively
      */
-    static std::pair<const BIGNUM*, const EC_POINT*> generate_proto_keypair(ec_persistent_context_t& p_ctx);
+    static std::pair<const BIGNUM*, const EC_POINT*> generate_proto_keypair(ec_connection_context_t& c_ctx);
 
         /**
      * Add a buffer to the hash elements
@@ -437,7 +437,7 @@ public:
     /**
      * @brief Create a JWS Payload
      * 
-     * @param p_ctx Persistent context
+     * @param c_ctx Persistent context
      * @param groups List of "key":"value" pairs to be included in "groups" array.
      * Only possible keys are "groupID" and "netRole"
      * @param net_access_key The netAccessKey
@@ -462,13 +462,13 @@ public:
      *        "expiry":"2019-01-31T22:00:00+02:00"
      *   }
      */
-    static cJSON* create_jws_payload(ec_persistent_context_t& p_ctx, const std::vector<std::unordered_map<std::string, std::string>>& groups, SSL_KEY* net_access_key, std::optional<std::string> expiry = std::nullopt);
+    static cJSON* create_jws_payload(ec_connection_context_t& c_ctx, const std::vector<std::unordered_map<std::string, std::string>>& groups, SSL_KEY* net_access_key, std::optional<std::string> expiry = std::nullopt);
 
     /**
      * @brief Create a csign object object
      * 
      * @param c_signing_key Configurator Signing Key
-     * @param p_ctx Persistent context
+     * @param c_ctx Persistent context
      * @return cJSON* on success, nullptr otherwise
      * 
      * csign object, example, as part of "cred" object, EasyConnect 4.5.3
@@ -481,7 +481,7 @@ public:
      *       "kid":"kMcegDBPmNZVakAsBZOzOoCsvQjkr_nEAp9uF-EDmVE"
      *   },
      */
-    static cJSON* create_csign_object(ec_persistent_context_t& p_ctx, SSL_KEY *c_signing_key);
+    static cJSON* create_csign_object(ec_connection_context_t& c_ctx, SSL_KEY *c_signing_key);
 
     /**
      * @brief Derive public ppKey from Configurator Signing Key (must share the same key group)
@@ -495,7 +495,7 @@ public:
     /**
      * @brief Create a ppkey object object
      * 
-     * @param p_ctx Persistent context.
+     * @param c_ctx Persistent context.
      * @return cJSON* ppKey object on succcess, otherwise nullptr.
      * 
      * EasyConnect 6.5.2
@@ -508,7 +508,7 @@ public:
      *       "y":"Fekm5hyGii80amM_REV5sTOG3-sl1H6MDpZ8TSKnb7c"
      *      },
      */
-    static cJSON *create_ppkey_object(ec_persistent_context_t& p_ctx);
+    static cJSON *create_ppkey_object(ec_connection_context_t& c_ctx);
 };
 
 #endif // EC_CRYPTO_H

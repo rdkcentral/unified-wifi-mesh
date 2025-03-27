@@ -107,7 +107,7 @@ private:
     std::pair<uint8_t*, size_t> create_config_request();
     std::pair<uint8_t*, size_t> create_config_result(ec_status_code_t dpp_status);
 
-    ec_persistent_context_t m_p_ctx = {};
+    ec_connection_context_t m_p_ctx = {};
 
     // Randomized and cleared at the end of the authentication/configuration process
     ec_ephemeral_context_t m_eph_ctx = {};
