@@ -9,7 +9,7 @@
 
 class ec_enrollee_t {
 public:
-    // TODO: Add Send GAS Frame
+
     /**
      * @brief The EasyConnect Enrollee
      * 
@@ -91,8 +91,6 @@ private:
      * @return cJSON * on success, nullptr otherwise.
      */
     get_backhaul_sta_info_func m_get_bsta_info;
-
-    // TODO: Send GAS Frame
 
     const ec_dpp_capabilities_t m_dpp_caps = {{
         .enrollee = 1,

@@ -75,7 +75,7 @@ public:
      * @param send_chirp_notification The function to send a chirp notification
      * @param send_prox_encap_dpp_msg The function to send a proxied encapsulated DPP message
      */
-    // TODO: Add send_gas_frame functions
+
     ec_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg, 
                         send_act_frame_func send_action_frame, get_backhaul_sta_info_func backhaul_sta_info_func, get_1905_info_func ieee1905_info_func,
                         can_onboard_additional_aps_func can_onboard_func);
