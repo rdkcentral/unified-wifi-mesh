@@ -2622,7 +2622,6 @@ void dm_easy_mesh_t::update_scan_results(em_scan_result_t *scan_result)
 
     strncpy(id->net_id, netid, strlen(netid) + 1);
 	memcpy(id->dev_mac, get_agent_al_interface_mac(), sizeof(mac_address_t));
-	memcpy(id->scanner_mac, get_radio_by_ref(0).get_radio_interface_mac(), sizeof(mac_address_t));
     id->scanner_type = em_scanner_type_radio;
 
     dm_scan_result_t *res = find_matching_scan_result(id);
