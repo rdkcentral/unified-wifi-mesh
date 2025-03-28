@@ -235,8 +235,8 @@ public:
         return validate_frame(frame) && frame->frame_type == type;
     }
 
-        /**
-     * @brief Parse a DPP Chirp TLV
+    /**
+     * @brief Parse a DPP Chirp Value TLV
      * 
      * @param buff [in] The buffer containing the chirp TLV
      * @param chirp_tlv_len [in] The length of the chirp TLV
@@ -246,6 +246,20 @@ public:
      * @return bool true if successful, false otherwise
      */
     static bool parse_dpp_chirp_tlv(em_dpp_chirp_value_t* chirp_tlv,  uint16_t chirp_tlv_len, mac_addr_t *mac, uint8_t **hash, uint8_t *hash_len);
+
+    /**
+     * @brief Creates and allocates a DPP Chirp Value TLV
+     * 
+     * EasyMesh R6, Section 17.2.83, Table 105
+     * 
+     * @param mac_present [in] The address of the Enrollee Multi-AP Agent 
+     * @param hash_validity [in] Establish/purge any DPP authentication state pertaining to the hash value in this TLV (0 = purge, 1 = establish)
+     * @param dest_mac [in] The destination mac address (0 if not present)
+     * @return em_dpp_chirp_value_t* The heap allocated DPP Chirp Value TLV, NULL if failed
+     * 
+     * @warning The `em_dpp_chirp_value_t` must be freed by the caller
+     */
+    static std::pair<em_dpp_chirp_value_t*, uint16_t> create_dpp_chirp_tlv(bool mac_present, bool hash_validity, mac_addr_t dest_mac);
 
     /**
      * @brief Parse an Encap DPP TLV

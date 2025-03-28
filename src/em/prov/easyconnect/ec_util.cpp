@@ -248,6 +248,33 @@ bool ec_util::parse_dpp_chirp_tlv(em_dpp_chirp_value_t* chirp_tlv, uint16_t chir
     return true;
 }
 
+std::pair<em_dpp_chirp_value_t*, uint16_t> ec_util::create_dpp_chirp_tlv(bool mac_present, bool hash_validity, mac_addr_t dest_mac)
+{
+    if (dest_mac == NULL && mac_present) {
+        printf("%s:%d: mac_present argument is true, but dest_mac was not provided\n", __func__, __LINE__);
+        return {};
+    }
+
+    size_t data_size = sizeof(em_dpp_chirp_value_t);
+    if (dest_mac != NULL) {
+        data_size += sizeof(mac_addr_t);
+    }
+    em_dpp_chirp_value_t *chirp_tlv = NULL;
+    if ((chirp_tlv = static_cast<em_dpp_chirp_value_t *>(calloc(data_size, 1))) == NULL){
+        fprintf(stderr, "Failed to allocate memory\n");
+        return {};
+    }
+
+    (chirp_tlv)->mac_present = mac_present;
+    (chirp_tlv)->hash_valid = hash_validity;
+
+    if (dest_mac != NULL) {
+        memcpy((chirp_tlv)->data, dest_mac, sizeof(mac_addr_t));
+    }
+
+    return std::pair<em_dpp_chirp_value_t*, uint16_t>(chirp_tlv, static_cast<uint16_t>(data_size));
+}
+
 bool ec_util::parse_encap_dpp_tlv(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, mac_addr_t *dest_mac, uint8_t *frame_type, uint8_t **encap_frame, uint16_t *encap_frame_len)
 {
     if (encap_tlv == NULL || encap_tlv_len == 0) {
