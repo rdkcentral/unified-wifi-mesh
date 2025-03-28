@@ -16,6 +16,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#ifndef _EC_UTIL_H_
+#define _EC_UTIL_H_
+
 #include "em_base.h"
 #include "ec_base.h"
 #include "em_crypto.h"
@@ -458,3 +461,5 @@ public:
         boot_data->responder_boot_key = nullptr;
     }
 };
+
+#endif // _EC_UTIL_H_
