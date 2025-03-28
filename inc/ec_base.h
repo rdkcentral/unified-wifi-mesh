@@ -40,6 +40,16 @@ extern "C"
 
 #include "wifi_webconfig.h"
 
+
+// START: Hardcoded EasyConnect values
+#define DPP_VERSION 0x02
+#define DPP_URI_JSON_PATH "/nvram/DPPURI.json"
+
+// The NID for generating the local responder keypair
+#define DPP_KEY_NID NID_X9_62_prime256v1
+
+
+
 #define DPP_OUI_TYPE 0x1A
 #define DPP_MAX_EN_CHANNELS 4
 
