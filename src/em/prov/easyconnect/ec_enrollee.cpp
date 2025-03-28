@@ -821,7 +821,6 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     cJSON *bsta_info = m_get_bsta_info(nullptr);
     ASSERT_NOT_NULL_FREE(bsta_info, {}, m_eph_ctx().e_nonce, "%s:%d: bSTA info is nullptr!\n", __func__, __LINE__);
     cJSON_AddItemToObject(dpp_config_request_obj, "bSTAList", bsta_info);
-    size_t config_obj_len = cjson_utils::get_cjson_blob_size(dpp_config_request_obj);
 
     // XXX: Dialog token can be thought of as a session key between Enrollee and Configurator regarding configuration
     // From specs (EasyMesh, EasyConnect, 802.11), it seems this is just arbitrarily chosen (1 byte), but
@@ -842,9 +841,11 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     attribs = ec_util::add_wrapped_data_attr(reinterpret_cast<uint8_t *> (initial_req_frame), sizeof(ec_gas_initial_request_frame_t), attribs, &attribs_len, true, m_eph_ctx().ke, [&](){
         size_t wrapped_len = 0;
         uint8_t* wrapped_attribs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, m_c_ctx.nonce_len, m_eph_ctx().e_nonce);
-        wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_req_obj, static_cast<uint16_t> (config_obj_len), reinterpret_cast<uint8_t *> (dpp_config_request_obj));
+        wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_req_obj, cjson_utils::stringify(dpp_config_request_obj));
         return std::make_pair(wrapped_attribs, wrapped_len);
     });
+
+    cJSON_Delete(dpp_config_request_obj);
 
     if ((initial_req_frame = reinterpret_cast<ec_gas_initial_request_frame_t*>(
         ec_util::copy_attrs_to_frame(reinterpret_cast<uint8_t*> (initial_req_frame), sizeof(ec_gas_initial_request_frame_t), attribs, attribs_len))) == nullptr) {
