@@ -403,6 +403,42 @@ std::string ec_util::hash_to_hex_string(const std::vector<uint8_t>& hash)
     return hash_to_hex_string(hash.data(), hash.size());
 }
 
+std::string ec_util::generate_channel_list(const std::string& ssid, std::unordered_map<std::string, std::vector<scanned_channels_t>> scanned_channels_map)
+{
+    // channelList ABNF:
+    // channel-list2 = class-and-channels *(“,” class-and-channels)
+    // class-and-channels = class “/” channel *(“,” channel)
+    // class = 1*3DIGIT
+    // channel = 1*3DIGIT
+    auto it = scanned_channels_map.find(ssid);
+    if (it == scanned_channels_map.end()) return std::string();
+
+    const std::vector<scanned_channels_t> &scanned_channels = it->second;
+    std::map<uint32_t, std::vector<uint32_t>> grouped_channels;
+
+    for (const auto &entry : scanned_channels) {
+        grouped_channels[entry.opclass].push_back(entry.chan);
+    }
+
+    std::string channel_list;
+    bool first_group = true;
+
+    for (const auto &[opclass, channels] : grouped_channels) {
+        if (!first_group)
+            channel_list += ",";
+        first_group = false;
+
+        channel_list += std::to_string(opclass) + "/";
+
+        for (size_t i = 0; i < channels.size(); i++) {
+            if (i > 0)
+                channel_list += ",";
+            channel_list += std::to_string(channels[i]);
+        }
+    }
+    return channel_list;
+}
+
 
 bool ec_util::check_caps_compatible(const ec_dpp_capabilities_t& init_caps, const ec_dpp_capabilities_t& resp_caps)
 {
