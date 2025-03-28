@@ -1732,6 +1732,10 @@ int dm_easy_mesh_t::get_interfaces_list(em_interface_t interfaces[], unsigned in
 		ll_addr = reinterpret_cast<struct sockaddr_ll*> (tmp->ifa_addr);
         if ((addr != NULL) && (addr->sa_family == AF_PACKET) && 
 				(strncmp(tmp->ifa_name, "lo", strlen("lo")) != 0) && (strncmp(tmp->ifa_name, "brlan", strlen("brlan")) != 0) &&
+				(strncmp(tmp->ifa_name, "lan", strlen("lan")) != 0) &&
+				(strncmp(tmp->ifa_name, "eth2", strlen("eth2")) != 0) &&
+				(strncmp(tmp->ifa_name, "eth3", strlen("eth3")) != 0) &&
+				(strncmp(tmp->ifa_name, "br", strlen("br")) != 0) &&
 				(memcmp(ll_addr->sll_addr, null_mac, sizeof(mac_address_t)) != 0)) {
             strncpy(interfaces[num].name, tmp->ifa_name, strlen(tmp->ifa_name) + 1);
 			if (strstr(tmp->ifa_name, "eth") != NULL) {
