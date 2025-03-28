@@ -100,22 +100,28 @@ uint8_t *ec_util::add_wrapped_data_attr(uint8_t *frame, size_t frame_len, uint8_
 bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> create_wrap_attribs) {
     siv_ctx ctx;
 
-    // Initialize AES-SIV context
-// TODO: Come back to
-    // switch(params.digestlen) {
-    //     case SHA256_DIGEST_LENGTH:
-    //         siv_init(&ctx, key, SIV_256);
-    //         break;
-    //     case SHA384_DIGEST_LENGTH:
-    //         siv_init(&ctx, key, SIV_384);
-    //         break;
-    //     case SHA512_DIGEST_LENGTH:
-    //         siv_init(&ctx, key, SIV_512);
-    //         break;
-    //     default:
-    //         printf("%s:%d Unknown digest length\n", __func__, __LINE__);
-    //         return NULL;
-    // }
+    // NOTE: HARDCODING AS SIV_256 FOR NOW
+    //  The spec technically only specifies P-256 so technically this is all that's allowed but for future proofing it's better to add more 
+    //  I just want to avoid adding the digest_len as a parameter...
+    siv_init(&ctx, key, SIV_256);
+
+    /*
+    Initialize AES-SIV context
+    switch(m_params.digestlen) {
+        case SHA256_DIGEST_LENGTH:
+            siv_init(&ctx, key, SIV_256);
+            break;
+        case SHA384_DIGEST_LENGTH:
+            siv_init(&ctx, key, SIV_384);
+            break;
+        case SHA512_DIGEST_LENGTH:
+            siv_init(&ctx, key, SIV_512);
+            break;
+        default:
+            printf("%s:%d Unknown digest length\n", __func__, __LINE__);
+            return {nullptr, 0};
+    }
+    */
 
     // Use the provided function to create wrap_attribs and wrapped_len
     auto [wrap_attribs, wrapped_len] = create_wrap_attribs();
@@ -168,21 +174,28 @@ std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t *wra
 {
     siv_ctx ctx;
 
-    // Initialize AES-SIV context
-    // switch(m_params.digestlen) {
-    //     case SHA256_DIGEST_LENGTH:
-    //         siv_init(&ctx, key, SIV_256);
-    //         break;
-    //     case SHA384_DIGEST_LENGTH:
-    //         siv_init(&ctx, key, SIV_384);
-    //         break;
-    //     case SHA512_DIGEST_LENGTH:
-    //         siv_init(&ctx, key, SIV_512);
-    //         break;
-    //     default:
-    //         printf("%s:%d Unknown digest length\n", __func__, __LINE__);
-    //         return {nullptr, 0};
-    // }
+    // NOTE: HARDCODING AS SIV_256 FOR NOW
+    //  The spec technically only specifies P-256 so technically this is all that's allowed but for future proofing it's better to add more 
+    //  I just want to avoid adding the digest_len as a parameter...
+    siv_init(&ctx, key, SIV_256);
+
+    /*
+    Initialize AES-SIV context
+    switch(m_params.digestlen) {
+        case SHA256_DIGEST_LENGTH:
+            siv_init(&ctx, key, SIV_256);
+            break;
+        case SHA384_DIGEST_LENGTH:
+            siv_init(&ctx, key, SIV_384);
+            break;
+        case SHA512_DIGEST_LENGTH:
+            siv_init(&ctx, key, SIV_512);
+            break;
+        default:
+            printf("%s:%d Unknown digest length\n", __func__, __LINE__);
+            return {nullptr, 0};
+    }
+    */
 
     uint8_t* wrapped_ciphertext = wrapped_attrib->data + AES_BLOCK_SIZE;
     uint16_t wrapped_len = wrapped_attrib->length - AES_BLOCK_SIZE;

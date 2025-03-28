@@ -19,6 +19,7 @@
 #include "em_base.h"
 #include "ec_base.h"
 #include "em_crypto.h"
+#include "ec_crypto.h"
 #include <stdint.h>
 #include <stddef.h>
 
@@ -107,6 +108,21 @@ public:
      * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary
      * 
      * @param buff The buffer to add the attribute to
+     * @param buff_len The length of the buffer (in/out)
+     * @param id The attribute ID
+     * @param str The attribute as a string
+     * @return uint8_t* The buffer offset by the length of the attribute
+     * 
+     * @warning The buffer must be freed by the caller
+     */
+    static inline uint8_t *add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, std::string str) {
+        return add_attrib(buff, buff_len, id, static_cast<uint16_t>(str.length()), const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(str.c_str())));
+    }
+
+    /**
+     * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary
+     * 
+     * @param buff The buffer to add the attribute to
      * @param id The attribute ID
      * @param val The uint8_t attribute value
      * @return uint8_t* The buffer offset by the length of the attribute
@@ -176,6 +192,8 @@ public:
                 auto *resp_frame = static_cast<ec_gas_initial_response_frame_t *>(frame);
                 memcpy(resp_frame->ape, DPP_GAS_CONFIG_REQ_APE, sizeof(resp_frame->ape));
                 memcpy(resp_frame->ape_id, DPP_GAS_CONFIG_REQ_PROTO_ID, sizeof(resp_frame->ape_id));
+                // NOTE: Hardcoded since we are not implementing the full GAS protocol
+                resp_frame->status_code = 0; // SUCCESS
                 created_frame_size = sizeof(ec_gas_initial_response_frame_t);
             }
             break;
@@ -393,4 +411,35 @@ public:
      * @return true The capabilities are compatible (DPP_STATUS_OK), false otherwise (DPP_STATUS_NOT_COMPATIBLE)
      */
     static bool check_caps_compatible(const ec_dpp_capabilities_t& init_caps, const ec_dpp_capabilities_t& resp_caps);
+
+    static inline void free_connection_ctx(ec_connection_context_t& c_ctx) {
+        ec_crypto::free_ephemeral_context(&c_ctx.eph_ctx, c_ctx.nonce_len, c_ctx.digest_len);
+
+        auto boot_data = &c_ctx.boot_data;
+        if (boot_data->resp_priv_boot_key) {
+            BN_free(boot_data->resp_priv_boot_key);
+        }
+        if (boot_data->resp_pub_boot_key) {
+            EC_POINT_free(boot_data->resp_pub_boot_key);
+        }
+        if (boot_data->init_priv_boot_key) {
+            BN_free(boot_data->init_priv_boot_key);
+        }
+        if (boot_data->init_pub_boot_key) {
+            EC_POINT_free(boot_data->init_pub_boot_key);
+        }
+        if (boot_data->initiator_boot_key) {
+            em_crypto_t::free_key(const_cast<SSL_KEY*>(boot_data->initiator_boot_key));
+        }
+        if (boot_data->responder_boot_key) {
+            em_crypto_t::free_key(const_cast<SSL_KEY*>(boot_data->responder_boot_key));
+        }
+
+        boot_data->resp_priv_boot_key = nullptr;
+        boot_data->resp_pub_boot_key = nullptr;
+        boot_data->init_priv_boot_key = nullptr;
+        boot_data->init_pub_boot_key = nullptr;
+        boot_data->initiator_boot_key = nullptr;
+        boot_data->responder_boot_key = nullptr;
+    }
 };

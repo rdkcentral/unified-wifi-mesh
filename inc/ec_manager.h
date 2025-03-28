@@ -10,7 +10,6 @@
 
 class ec_manager_t {
 public:
-    // TODO: Add send_gas_frame functions
     /**
      * @brief The Manager (unified dispatcher of sorts) for the EasyConnect Configurator or Enrollee
      * 
@@ -54,7 +53,7 @@ public:
         if (!m_is_controller || m_configurator == nullptr) {
             return -1;
         }
-        return m_configurator->start(data);
+        return m_configurator->onboard_enrollee(data);
     }
 
     /**
@@ -68,7 +67,7 @@ public:
         if (m_is_controller || m_enrollee == nullptr) {
             return -1;
         }
-        return m_enrollee->start(do_reconfig, boot_data);
+        return m_enrollee->start_onboarding(do_reconfig, boot_data);
     }
 
     /**
