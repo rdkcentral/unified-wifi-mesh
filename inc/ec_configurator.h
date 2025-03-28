@@ -147,13 +147,26 @@ public:
      * 
      * @param buff The frame to handle
      * @param len The length of the frame
+     * @param sa The source address of the frame.
      * @return bool true if successful, false otherwise
      * 
      * @note Optional to implement because the controller+configurator does not handle 802.11,
      *     but the proxy agent + configurator does.
      */
-    virtual bool handle_cfg_result(uint8_t *buff, unsigned int len) {
+    virtual bool handle_cfg_result(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) {
         return true; // Optional to implement
+    }
+
+    /**
+     * @brief Handles Connection Status Result frame.
+     * 
+     * @param buff The frame.
+     * @param len The frame length.
+     * @param sa The source address of the frame.
+     * @return true on success, otherwise false.
+     */
+    virtual bool handle_connection_status_result(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) {
+        return true;
     }
 
     /**
@@ -187,6 +200,30 @@ public:
      * @note: overridden by subclass.
      */
     virtual bool handle_proxied_dpp_configuration_request(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) {
+        return true;
+    }
+
+    /**
+     * @brief Handle a proxied encapsulated DPP Configuration Result frame.
+     * 
+     * @param encap_frame The DPP Configuration Result frame.
+     * @param encap_frame_len Length of the frame.
+     * @param dest_mac The source MAC of this DPP Configuration Result frame (Enrollee).
+     * @return true on success, otherwise false.
+     */
+    virtual bool handle_proxied_config_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) {
+        return true;
+    }
+
+    /**
+     * @brief Handle a proxied encapsulated DPP Connection Status Result frame.
+     * 
+     * @param encap_frame The DPP Connection Status Result frame.
+     * @param encap_frame_len Length of the frame.
+     * @param dest_mac The source MAC of this DPP Connection Status Result frame (Enrollee).
+     * @return true on success, otherwise false.
+     */
+    virtual bool handle_proxied_conn_status_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) {
         return true;
     }
 

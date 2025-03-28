@@ -67,9 +67,44 @@ bool ec_pa_configurator_t::handle_cfg_request(uint8_t *buff, unsigned int len, u
     return sent;
 }
 
-bool ec_pa_configurator_t::handle_cfg_result(uint8_t *buff, unsigned int len)
+bool ec_pa_configurator_t::handle_cfg_result(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN])
 {
-    return true;
+    printf("%s:%d: Received a Configuration Result frame from '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(sa));
+    // EasyMesh 5.3.4
+    // If a Proxy Agent receives a DPP Configuration Result frame from an Enrollee Multi-AP Agent, it shall encapsulate the
+    // frame into a 1905 Encap DPP TLV, set the Enrollee MAC Address Present field to one, set the Destination STA MAC
+    // Address field to the MAC address of the Enrollee, set the DPP Frame Indicator field to 0 and the Frame Type field to 11,
+    // and send the Proxied Encap DPP message to the Multi-AP Controller.
+
+    auto [encap_dpp_tlv, encap_dpp_tlv_len] = ec_util::create_encap_dpp_tlv(false, sa, ec_frame_type_cfg_result, reinterpret_cast<uint8_t*>(frame), len);
+    ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
+    bool sent = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_tlv_len, nullptr, 0);
+    if (!sent) {
+        printf("%s:%d: Failed to send Encap DPP TLV\n", __func__, __LINE__);
+    }
+    printf("%s:%d: Sent Encap DPP TLV\n", __func__, __LINE__);
+    free(encap_dpp_tlv);
+    return sent;
+}
+
+bool ec_pa_configurator_t::handle_connection_status_result(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN])
+{
+    printf("%s:%d: Received a Connection Status Result frame from '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(sa));
+    // EasyMesh 5.3.4
+    // If a Proxy Agent receives a DPP Connection Status Result frame from an Enrollee Multi-AP Agent, it shall encapsulate the
+    // frame into a 1905 Encap DPP TLV, set the Enrollee MAC Address Present field to one, set the Destination STA MAC
+    // Address field to the MAC address of the Enrollee, set the DPP Frame Indicator field to 0 and the Frame Type field to 12,
+    // and send the Proxied Encap DPP message to the Multi-AP Controller
+
+    auto [encap_dpp_tlv, encap_dpp_tlv_len] = ec_util::create_encap_dpp_tlv(false, sa, ec_frame_type_conn_status_result, reinterpret_cast<uint8_t*>(frame), len);
+    ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
+    bool sent = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_tlv_len, nullptr, 0);
+    if (!sent) {
+        printf("%s:%d: Failed to send Encap DPP TLV\n", __func__, __LINE__);
+    }
+    printf("%s:%d: Sent Encap DPP TLV\n", __func__, __LINE__);
+    free(encap_dpp_tlv);
+    return sent;
 }
 
 bool ec_pa_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *chirp_tlv, uint16_t tlv_len)
