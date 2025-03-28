@@ -134,6 +134,14 @@ bool ec_ctrl_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_t
             did_finish = handle_proxied_dpp_configuration_request(encap_frame, encap_frame_len, dest_mac);
             break;
         }
+        case ec_frame_type_cfg_result: {
+            did_finish = handle_proxied_config_result_frame(encap_frame, encap_frame_len, dest_mac);
+            break;
+        }
+        case ec_frame_type_conn_status_result: {
+            did_finish = handle_proxied_conn_status_result_frame(encap_frame, encap_frame_len, dest_mac);
+            break;
+        }
         default:
             printf("%s:%d: Encap DPP frame type (%d) not handled\n", __func__, __LINE__, ec_frame_type);
             break;
@@ -143,6 +151,118 @@ bool ec_ctrl_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_t
     // Then construct an Auth request frame and send back in an Encap message
     free(encap_frame);
     return did_finish;
+}
+
+bool ec_ctrl_configurator_t::handle_proxied_config_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t src_mac[ETH_ALEN])
+{
+    if (!encap_frame || encap_frame_len == 0) {
+        printf("%s:%d: Invalid encapsulated frame\n", __func__, __LINE__);
+        return false;
+    }
+
+    std::string enrollee_mac = util::mac_to_string(src_mac);
+
+    auto conn_ctx = get_conn_ctx(enrollee_mac);
+    ASSERT_NOT_NULL(conn_ctx, false, "%s:%d: No connection context for Enrollee '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(src_mac));
+    auto e_ctx = get_eph_ctx(enrollee_mac);
+    ASSERT_NOT_NULL(e_ctx, false, "%s:%d: Ephemeral context not found for enrollee MAC %s\n", __func__, __LINE__, enrollee_mac.c_str());
+
+    // EasyMesh 5.3.4
+    // If the Multi-AP Controller receives the DPP Configuration Result frame encapsulated in a Proxied Encap DPP message
+    // with DPP Status field set to STATUS_OK, the Multi-AP Controller shall retain the information that it successfully
+    // onboarded and configured the newly onboarded Multi-AP Agent using the AL MAC Address of the Enrollee Multi-AP
+    // Agent.
+    size_t attrs_len = encap_frame_len - EC_FRAME_BASE_SIZE;
+
+    ec_frame_t *frame = reinterpret_cast<ec_frame_t *>(encap_frame);
+    
+    ec_attribute_t *wrapped_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_wrapped_data);
+    ASSERT_NOT_NULL(wrapped_attr, false, "%s:%d: No wrapped data in Proxied DPP Configuration Result frame\n", __func__, __LINE__);
+
+    // Unwrap with k_e
+    auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(wrapped_attr, frame, true, e_ctx->ke);
+    if (unwrapped_attrs == nullptr || unwrapped_attrs_len == 0) {
+        printf("%s:%d: Failed to unwrap attributes.\n", __func__, __LINE__);
+        return false;
+    }
+
+    ec_attribute_t *e_nonce_attr = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_enrollee_nonce);
+    ASSERT_NOT_NULL_FREE(e_nonce_attr, false, unwrapped_attrs, "%s:%d: DPP Configuration Result frame did not contain E-nonce\n", __func__, __LINE__);
+
+    if (conn_ctx->nonce_len != e_nonce_attr->length || memcmp(e_ctx->e_nonce, e_nonce_attr->data, e_nonce_attr->length) != 0) {
+        printf("%s:%d: E-nonce contained in DPP Configuration Result frame for '%s' does not match E-nonce in stored connection context.\n", __func__, __LINE__, enrollee_mac.c_str());
+        free(unwrapped_attrs);
+        return false;
+    }
+
+    ec_attribute_t *status_attr = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_dpp_status);
+    ASSERT_NOT_NULL_FREE(status_attr, false, unwrapped_attrs, "%s:%d: DPP Configuration Result frame did not contain DPP Status\n", __func__, __LINE__);
+
+    ec_status_code_t dpp_status = static_cast<ec_status_code_t>(status_attr->data[0]);
+    if (dpp_status == DPP_STATUS_OK) {
+        m_enrollee_successfully_onboarded[enrollee_mac] = true;
+    } else if (dpp_status == DPP_STATUS_CONFIG_REJECTED) {
+        m_enrollee_successfully_onboarded[enrollee_mac] = false;
+    } else {
+        printf("%s:%d: Invalid DPP Status %d (%s)\n", __func__, __LINE__, static_cast<int>(dpp_status), ec_util::status_code_to_string(dpp_status).c_str());
+        free(unwrapped_attrs);
+        return false;
+    }
+
+    free(unwrapped_attrs);
+    return true;
+}
+
+bool ec_ctrl_configurator_t::handle_proxied_conn_status_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t src_mac[ETH_ALEN])
+{
+    if (!encap_frame || encap_frame_len == 0) {
+        printf("%s:%d: Invalid encapsulated frame\n", __func__, __LINE__);
+        return false;
+    }
+
+    // Neither EasyMesh nor EasyConnect specify what to do with the information in this frame ...
+
+    std::string enrollee_mac = util::mac_to_string(src_mac);
+
+    auto conn_ctx = get_conn_ctx(enrollee_mac);
+    ASSERT_NOT_NULL(conn_ctx, false, "%s:%d: No connection context for Enrollee '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(src_mac));
+    auto e_ctx = get_eph_ctx(enrollee_mac);
+    ASSERT_NOT_NULL(e_ctx, false, "%s:%d: Ephemeral context not found for enrollee MAC %s\n", __func__, __LINE__, enrollee_mac.c_str());
+
+    size_t attrs_len = encap_frame_len - EC_FRAME_BASE_SIZE;
+
+    ec_frame_t *frame = reinterpret_cast<ec_frame_t *>(encap_frame);
+    
+    ec_attribute_t *wrapped_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_wrapped_data);
+    ASSERT_NOT_NULL(wrapped_attr, false, "%s:%d: No wrapped data in Proxied DPP Configuration Result frame\n", __func__, __LINE__);
+
+    // Unwrap with k_e
+    auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(wrapped_attr, frame, true, e_ctx->ke);
+    if (unwrapped_attrs == nullptr || unwrapped_attrs_len == 0) {
+        printf("%s:%d: Failed to unwrap attributes.\n", __func__, __LINE__);
+        return false;
+    }
+
+    ec_attribute_t *e_nonce_attr = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_enrollee_nonce);
+    ASSERT_NOT_NULL_FREE(e_nonce_attr, false, unwrapped_attrs, "%s:%d: DPP Connection Status Result frame did not contain E-nonce\n", __func__, __LINE__);
+
+    if (conn_ctx->nonce_len != e_nonce_attr->length || memcmp(e_ctx->e_nonce, e_nonce_attr->data, e_nonce_attr->length) != 0) {
+        printf("%s:%d: E-nonce contained in DPP Connection Status Result frame for '%s' does not match E-nonce in stored connection context.\n", __func__, __LINE__, enrollee_mac.c_str());
+        free(unwrapped_attrs);
+        return false;
+    }
+
+    ec_attribute_t *conn_status_attr = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_conn_status);
+    ASSERT_NOT_NULL_FREE(conn_status_attr, false, unwrapped_attrs, "%s:%d: DPP Connection Status frame did not contain a Connection Status attribute\n", __func__, __LINE__);
+
+    cJSON *conn_status_obj = cJSON_ParseWithLength(reinterpret_cast<const char *>(conn_status_attr->data), conn_status_attr->length);
+
+    std::string connection_status_str = cjson_utils::stringify(conn_status_obj);
+    printf("%s:%d: Received Connection Status object from Enrollee '" MACSTRFMT "':\n%s\n", __func__, __LINE__, MAC2STR(src_mac), connection_status_str.c_str());
+
+    cJSON_Delete(conn_status_obj);
+    free(unwrapped_attrs);
+    return true;
 }
 
 bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t src_mac[ETH_ALEN])
