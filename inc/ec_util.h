@@ -537,7 +537,7 @@ public:
     /**
      * @brief Decode the bootstrapping data from a JSON format
      * 
-     * @param json [in] The JSON string to decode
+     * @param json_obj [in] The JSON object to decode
      * @param boot_data [out] The DPP data to decode into
      * @param country_code [in] The country code to use for channel decoding
      * @return true The DPP boot data was decoded successfully, false otherwise

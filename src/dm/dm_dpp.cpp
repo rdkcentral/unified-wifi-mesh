@@ -38,6 +38,7 @@
 #include "dm_dpp.h"
 #include "em_cmd_start_dpp.h"
 #include "dm_easy_mesh.h"
+#include "ec_util.h"
 #include "util.h"
 
 #include <string>
@@ -62,65 +63,17 @@ int dm_dpp_t::analyze_config(const cJSON *obj, void *parent, em_cmd_t *pcmd[], e
 
 int dm_dpp_t::decode(const cJSON *obj, void *parent_id, void* user_info)
 {
-    cJSON *tmp;
-
-    memset(&m_dpp_info, 0, sizeof(ec_data_t));
-
     printf("%s:%d: Decoding DPP\n", __func__, __LINE__);
+
+    std::string country_code = "US";
+    if (user_info != NULL) {
+        country_code = std::string(static_cast<char*>(user_info));
+    }
 		
-    // Get version
-    if ((tmp = cJSON_GetObjectItem(obj, "V:")) != NULL) {
-	    m_dpp_info.version = static_cast<unsigned int> (cJSON_GetNumberValue(tmp));
+    if (!ec_util::decode_bootstrap_data_json(obj, &m_dpp_info, country_code)){
+        printf("%s:%d: Failed to decode DPP data\n", __func__, __LINE__);
+        return -1;
     }
-    // Get MAC address
-    if ((tmp = cJSON_GetObjectItem(obj, "M:")) != NULL && cJSON_IsString(tmp)) {
-	    dm_easy_mesh_t::string_to_macbytes(tmp->valuestring, m_dpp_info.mac_addr);
-    }
-    // Get public key (DER of ASN.1 SubjectPublicKeyInfo encoded in “base64”)
-    if ((tmp = cJSON_GetObjectItem(obj, "K:")) != NULL && cJSON_IsString(tmp)) {
-        // Enrollee (Responder) is the one who sent the URI so that is the owner of the public key
-
-        m_dpp_info.responder_boot_key = em_crypto_t::create_ec_key_from_base64_der(tmp->valuestring);
-	    if (m_dpp_info.responder_boot_key == NULL) {
-            printf("%s:%d: Failed to convert public key to EC_KEY\n", __func__, __LINE__);
-            return -1;
-        }
-    }
-
-    if ((tmp = cJSON_GetObjectItem(obj, "C:")) != NULL && cJSON_IsString(tmp)) {
-
-        em_tiny_string_t country_code = "US";
-        if (user_info != NULL) {
-            memcpy(&country_code, user_info, sizeof(em_tiny_string_t));
-        }
-
-        std::string op_channel_str(tmp->valuestring);
-	    std::stringstream ss(op_channel_str);
-        std::string pair;
-
-        int pair_idx = 0;
-        
-        while (std::getline(ss, pair, ',')) {
-            size_t slash_pos = pair.find('/');
-            if (slash_pos != std::string::npos) {
-                int op_class = std::stoi(pair.substr(0, slash_pos));
-                int channel = std::stoi(pair.substr(slash_pos + 1));
-                int freq = util::em_chan_to_freq(static_cast<uint8_t> (op_class),static_cast<uint8_t> (channel), std::string(country_code));
-                if (freq > 0) {
-                    m_dpp_info.ec_freqs[pair_idx] = static_cast<unsigned int>(freq);
-                    pair_idx++;
-                } else {
-                    printf("%s:%d: Failed to convert channel to frequency (op class: %d, channel: %d)\n", __func__, __LINE__, op_class, channel);
-                }
-                
-            }
-        }
-    }
-
-
-
-
-    
 		
     return 0;
 }

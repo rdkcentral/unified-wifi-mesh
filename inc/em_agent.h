@@ -66,6 +66,7 @@ class em_agent_t : public em_mgr_t {
 public:
 
     bus_handle_t m_bus_hdl;
+    bool do_start_dpp_onboarding = false;
 
     void input_listener();
 
@@ -89,6 +90,8 @@ public:
      * @return true if successful or if the file already exists, false otherwise
      */
     bool try_create_default_em_cfg(std::string interface);
+
+    bool try_start_dpp_onboarding();
 
     int data_model_init(const char *data_model_path);
     bool is_data_model_initialized() { return true; }
