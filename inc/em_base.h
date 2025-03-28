@@ -1925,6 +1925,7 @@ typedef enum {
     em_cmd_type_btm_sta,
     em_cmd_type_dev_init,
     em_cmd_type_dev_test,
+    em_cmd_type_set_dev_test,
     em_cmd_type_cfg_renew,
     em_cmd_type_vap_config,
     em_cmd_type_sta_list,
@@ -2543,6 +2544,7 @@ typedef enum {
     em_bus_event_type_chirp,
     em_bus_event_type_reset,
     em_bus_event_type_dev_test,
+    em_bus_event_type_set_dev_test,
     em_bus_event_type_get_network,
     em_bus_event_type_get_device,
     em_bus_event_type_remove_device,
@@ -3061,6 +3063,29 @@ typedef struct {
 	em_editor_callback_t	cb_func;
 	em_cli_type_t	cli_type;
 } em_cli_params_t;
+
+typedef enum {
+	em_dev_test_type_ssid,
+	em_dev_test_type_channel,
+	em_dev_test_type_max
+} em_dev_test_type;
+
+typedef enum {
+        em_dev_test_status_inprogess,
+        em_dev_test_status_ideal,
+        em_dev_test_status_max
+} em_dev_test_status;
+
+typedef struct{
+	int num_iteration[em_dev_test_type_max];
+	em_dev_test_type test_type[em_dev_test_type_max];
+	int enabled[em_dev_test_type_max];
+	int num_of_iteration_completed[em_dev_test_type_max];
+	int test_inprogress[em_dev_test_type_max];
+	em_dev_test_status test_status[em_dev_test_type_max];
+        em_haul_type_t haul_type;
+        em_freq_band_t freq_band;
+}em_dev_test_info;
 
 #ifndef SSL_KEY
 #if OPENSSL_VERSION_NUMBER < 0x30000000L

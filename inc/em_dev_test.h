@@ -16,35 +16,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef EM_CLI_H
-#define EM_CLI_H
+#ifndef EMDEVTEST_H
+#define EMDEVTEST_H
 
-#include "em_base.h"
-#include "em_cmd_exec.h"
-
-class em_cli_t {
-    em_cmd_t& get_command(char *in, size_t in_len, em_network_node_t *node = NULL);
-    em_long_string_t	m_lib_dbg_file_name;
-
+class em_dev_test_t {
 public:
+    em_dev_test_info dev_test_info;
+    void encode(em_subdoc_info_t *subdoc, hash_map_t *m_em_map, bool update);
+    void analyze_set_dev_test(em_bus_event_t *evt);
+    void decode(em_subdoc_info_t *subdoc, const char *str);
+    em_dev_test_t();
+    ~em_dev_test_t();
 
-	em_cli_params_t	m_params;
-
-    em_network_node_t *exec(char *in, size_t in_len, em_network_node_t *node);
-    int init(em_cli_params_t *params);
-	const char *get_first_cmd_str();
-	const char *get_next_cmd_str(const char *cmd);
-	em_network_node_t *get_reset_tree(char *platform);
-	void dev_test_exec();
-	
-    void init_lib_dbg(char *file_name);
-    void dump_lib_dbg(char *str);
-
-    em_cli_t();
-    ~em_cli_t();
 };
 
-em_cli_t *get_cli();
-
 #endif
-

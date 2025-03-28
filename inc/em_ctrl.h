@@ -24,6 +24,7 @@
 #include "dm_easy_mesh_ctrl.h"
 #include "em_orch_ctrl.h"
 #include "bus.h"
+#include "em_dev_test.h"
 
 class em_cmd_ctrl_t;
 class AlServiceAccessPoint;
@@ -34,9 +35,8 @@ class em_ctrl_t : public em_mgr_t {
     em_cmd_ctrl_t   *m_ctrl_cmd;
     em_orch_ctrl_t *m_orch;
 	bus_handle_t m_bus_hdl;
-
     void handle_bus_event(em_bus_event_t *evt);
-
+	em_dev_test_t dev_test;
 public:
 
     void input_listener();
@@ -66,7 +66,8 @@ public:
     void handle_scan_channel_list(em_bus_event_t *evt);
     void handle_set_policy(em_bus_event_t *evt);
     void handle_reset(em_bus_event_t *evt);
-    void handle_dev_test(em_bus_event_t *evt);
+    void handle_get_dev_test(em_bus_event_t *evt);
+    void handle_set_dev_test(em_bus_event_t *evt);
     void handle_getdb(em_bus_event_t *evt);
     void handle_topology_req();
     void handle_radio_metrics_req();
@@ -78,7 +79,6 @@ public:
     void handle_config_renew(em_bus_event_t *evt);
     void handle_sta_assoc_event(em_bus_event_t *evt);
     void handle_mld_reconfig(em_bus_event_t *evt);
-
     void io(void *data, bool input = true);
 
 	void init_network_topology() { m_data_model.init_network_topology(); }
