@@ -2,6 +2,7 @@
 #define EC_CTRL_CONFIGURATOR_H
 
 #include "ec_configurator.h"
+#include <unordered_map>
 
 // forward decl
 struct cJSON;
@@ -10,7 +11,8 @@ class ec_ctrl_configurator_t : public ec_configurator_t {
 public:
     ec_ctrl_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg,
         get_backhaul_sta_info_func backhaul_sta_info_func, get_1905_info_func ieee1905_info_func, can_onboard_additional_aps_func can_onboard_func) :
-        ec_configurator_t(mac_addr, send_chirp_notification, send_prox_encap_dpp_msg, {}, backhaul_sta_info_func, ieee1905_info_func, can_onboard_func) {};
+        ec_configurator_t(mac_addr, send_chirp_notification, send_prox_encap_dpp_msg, {}, backhaul_sta_info_func, ieee1905_info_func, can_onboard_func), m_enrollee_successfully_onboarded{}
+        {};
         // No MAC address needed for controller configurator
 
     /**
@@ -57,6 +59,26 @@ public:
      */
     bool handle_proxied_dpp_configuration_request(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) override;
 
+    /**
+     * @brief Handle a proxied encapsulated DPP Configuration Result frame.
+     * 
+     * @param encap_frame The DPP Configuration Result frame.
+     * @param encap_frame_len Length of the frame.
+     * @param dest_mac The source MAC of this DPP Configuration Result frame (Enrollee).
+     * @return true on success, otherwise false.
+     */
+    virtual bool handle_proxied_config_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) override;
+
+    /**
+     * @brief Handle a proxied encapsulated DPP Connection Status Result frame.
+     * 
+     * @param encap_frame The DPP Connection Status Result frame.
+     * @param encap_frame_len Length of the frame.
+     * @param dest_mac The source MAC of this DPP Connection Status Result frame (Enrollee).
+     * @return true on success, otherwise false.
+     */
+    virtual bool handle_proxied_conn_status_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) override;
+
 private:
     // Private member variables can be added here
 
@@ -71,6 +93,12 @@ private:
     std::pair<uint8_t*, size_t> create_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status, uint8_t* i_auth_tag);
     std::pair<uint8_t*, size_t> create_recfg_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status);
     std::pair<uint8_t*, size_t> create_config_response();
+
+    /**
+     * @brief Maps Enrollee MAC (as string) to onboarded status. True if onboarded (now a Proxy Agent), false if still onboarding / onboarding failed.
+     * 
+     */
+    std::unordered_map<std::string, bool> m_enrollee_successfully_onboarded;
 };
 
 #endif // EC_CTRL_CONFIGURATOR_H
