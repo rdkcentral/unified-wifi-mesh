@@ -361,19 +361,166 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
 
 bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint8_t sa[ETH_ALEN])
 {
-    printf("%s:%d: Got a DPP Configuration Response from " MACSTRFMT "\n", __func__, __LINE__, MAC2STR(sa));
-    uint8_t *p = buff;
+    // EasyMesh 5.4.3
+    // If an Enrollee Multi-AP Agent receives a DPP Configuration Response frame, it shall send a DPP Configuration Result
+    // frame as per [18], configure its 1905 and backhaul STA interfaces with the parameters received in the DPP Configuration
+    // Object and:
+    //  If the AKM for the backhaul STA in the DPP Configuration Object includes dpp and the backhaul BSS is configured to
+    // support the DPP AKM, then the Enrollee Multi-AP Agent shall initiate the DPP Network Introduction protocol in Public
+    // Action frames as per [18] to associate to the backhaul BSS
+    //  If the AKM for the backhaul STA in the DPP Configuration Object includes PSK or SAE password, then the Enrollee
+    // Multi-AP Agent shall scan for and associate with a backhaul BSS with the SSID indicated in DPP Configuration Object
+    // as per [18].
 
-    ec_gas_frame_base_t *gas_base_frame = reinterpret_cast<ec_gas_frame_base_t *>(p);
-    p += sizeof(ec_gas_frame_base_t);
-    ec_gas_initial_response_frame_t *gas_initial_response = reinterpret_cast<ec_gas_initial_response_frame_t *>(p);
-    printf(
-        "%s:%d: Got a DPP config response! category=%02x action=%02x dialog_token=%02x ape=" APEFMT
-        " ape_id=" APEIDFMT " resp_len=%u\n",
-        __func__, __LINE__, gas_base_frame->category, gas_base_frame->action,
-        gas_base_frame->dialog_token, APE2STR(gas_initial_response->ape),
-        APEID2STR(gas_initial_response->ape_id), gas_initial_response->resp_len);
-    return true;
+    // EasyConnect 6.4.3.2 Enrollee Handling
+    printf("%s:%d: Got a DPP Configuration Response from " MACSTRFMT "\n", __func__, __LINE__, MAC2STR(sa));
+    ec_gas_initial_response_frame_t *config_response_frame = reinterpret_cast<ec_gas_initial_response_frame_t*>(buff);
+
+
+    ec_attribute_t *status_attrib = ec_util::get_attrib(reinterpret_cast<uint8_t*>(config_response_frame->resp), static_cast<size_t>(config_response_frame->resp_len), ec_attrib_id_dpp_status);
+    ASSERT_NOT_NULL(status_attrib, false, "%s:%d: No DPP status attribute found\n", __func__, __LINE__);
+
+    ec_status_code_t config_response_status_code = static_cast<ec_status_code_t>(status_attrib->data[0]);
+
+    ec_status_code_t valid_status_codes[4] = {DPP_STATUS_OK, DPP_STATUS_CONFIGURE_PENDING, DPP_STATUS_NEW_KEY_NEEDED, DPP_STATUS_CSR_BAD};
+    bool config_response_status_code_valid = false;
+    for (int i = 0; i < static_cast<int>(std::size(valid_status_codes)); i++) {
+        if (config_response_status_code == valid_status_codes[i]) config_response_status_code_valid = true;
+    }
+
+    if (!config_response_status_code_valid) {
+        // If invalid status code, may either re-send Configuration Request, or abort.
+        printf("%s:%d: Invalid DPP Status code %d (%s) for Configuration response, aborting configuration\n", __func__, __LINE__, static_cast<int>(config_response_status_code), ec_util::status_code_to_string(config_response_status_code).c_str());
+        return false;
+    }
+
+    // Currently un-handled status codes. 
+    if (config_response_status_code == DPP_STATUS_CONFIGURE_PENDING || config_response_status_code == DPP_STATUS_NEW_KEY_NEEDED || config_response_status_code == DPP_STATUS_CSR_BAD) {
+        // TODO: EasyConnect 6.4.3.2
+        printf("%s:%d: DPP status is %d (%s), not handled!\n", __func__, __LINE__, config_response_status_code, ec_util::status_code_to_string(config_response_status_code).c_str());
+        return false;
+    }
+
+    ec_attribute_t *wrapped_attrs = ec_util::get_attrib(config_response_frame->resp, static_cast<size_t>(config_response_frame->resp_len), ec_attrib_id_wrapped_data);
+    ASSERT_NOT_NULL(wrapped_attrs, false, "%s:%d: Failed to get wrapped data attribute!\n", __func__, __LINE__);
+
+    auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(wrapped_attrs, reinterpret_cast<uint8_t*>(config_response_frame), sizeof(*config_response_frame), config_response_frame->resp, true, m_eph_ctx().ke);
+    if (unwrapped_attrs == nullptr || unwrapped_attrs_len == 0) {
+        printf("%s:%d: Failed to unwrap wrapped attributes.\n", __func__, __LINE__);
+        return false;
+    }
+    ec_attribute_t* e_nonce_attr = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_enrollee_nonce);
+    ASSERT_NOT_NULL_FREE(e_nonce_attr, false, unwrapped_attrs, "%s:%d: No e-nonce in attributes!\n", __func__, __LINE__);
+
+    ec_attribute_t* dpp_config_obj_1905 = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_dpp_config_obj);
+    ASSERT_NOT_NULL_FREE(dpp_config_obj_1905, false, unwrapped_attrs, "%s:%d: No IEEE1905 Configuration object attribute found\n", __func__, __LINE__);
+
+    ec_attribute_t* dpp_config_obj_bsta = ec_util::get_attrib(reinterpret_cast<uint8_t*>(dpp_config_obj_1905) + dpp_config_obj_1905->length, unwrapped_attrs_len, ec_attrib_id_dpp_config_obj);
+    ASSERT_NOT_NULL_FREE(dpp_config_obj_bsta, false, unwrapped_attrs, "%s:%d: No bSTA Configuration object attribute found\n", __func__, __LINE__);
+
+    // This is optional, so can be nullptr.
+    ec_attribute_t* send_connection_status_attr = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_send_conn_status);
+
+    // Parse JSON objects
+    cJSON *ieee1905_configuration_object = cJSON_ParseWithLength(reinterpret_cast<const char *>(dpp_config_obj_1905), static_cast<size_t>(dpp_config_obj_1905->length));
+    ASSERT_NOT_NULL_FREE(ieee1905_configuration_object, false, wrapped_attrs, "%s:%d: Could not parse IEEE1905 Configuration object, invalid JSON?\n", __func__, __LINE__);
+
+    cJSON *bsta_configuration_object = cJSON_ParseWithLength(reinterpret_cast<const char *>(dpp_config_obj_bsta), static_cast<size_t>(dpp_config_obj_bsta->length));
+    ASSERT_NOT_NULL_FREE(bsta_configuration_object, false, wrapped_attrs, "%s:%d: Could not parse bSTA Configuration object, invalid JSON?\n", __func__, __LINE__);
+
+    cJSON *bsta_cred_obj = cJSON_GetObjectItem(bsta_configuration_object, "cred");
+    cJSON *bsta_discovery_obj = cJSON_GetObjectItem(bsta_configuration_object, "discovery");
+    if (bsta_cred_obj == nullptr || bsta_discovery_obj == nullptr) {
+        printf("%s:%d: Incomplete bSTA Configuration object received\n", __func__, __LINE__);
+        free(wrapped_attrs);
+        cJSON_Delete(bsta_configuration_object);
+        cJSON_Delete(ieee1905_configuration_object);
+        return false;
+    }
+
+    cJSON *bsta_ssid = cJSON_GetObjectItem(bsta_discovery_obj, "SSID");
+    if (bsta_ssid == nullptr) {
+        printf("%s:%d: Could not get \"SSID\" from bSTA Configuration object.\n", __func__, __LINE__);
+        free(wrapped_attrs);
+        cJSON_Delete(bsta_configuration_object);
+        cJSON_Delete(ieee1905_configuration_object);
+        return false;
+    }
+    cJSON *bsta_pass = cJSON_GetObjectItem(bsta_cred_obj, "pass");
+    if (bsta_pass == nullptr) {
+        printf("%s:%d: Could not get \"pass\" from bSTA Configuration object.\n", __func__, __LINE__);
+        free(wrapped_attrs);
+        cJSON_Delete(bsta_configuration_object);
+        cJSON_Delete(ieee1905_configuration_object);
+        return false;
+    }
+
+    // First, we need to scan and ensure that the Configurator's requested BSS is
+    // within range for us / exists.
+
+    // TODO: scan!
+
+
+    // TODO: associate with bSTA config information from Configurator!
+
+    ec_status_code_t connection_status = DPP_STATUS_CONFIG_REJECTED;
+
+
+    // Only necessary if Configurator includes "sendConnStatus" in Configuration response.
+    bool needs_connection_status = (send_connection_status_attr != nullptr);
+
+    // Mandatory Configuration Result frame indicating configuration status.
+    auto [config_result_frame, config_result_frame_len] = create_config_result(connection_status);
+    if (config_result_frame == nullptr || config_result_frame_len == 0) {
+        printf("%s:%d: Failed to create DPP Configuration Result frame\n", __func__, __LINE__);
+        free(wrapped_attrs);
+        cJSON_Delete(ieee1905_configuration_object);
+        cJSON_Delete(bsta_configuration_object);
+        return false;
+    }
+
+    bool ok = m_send_action_frame(sa, config_result_frame, config_result_frame_len, 0);
+    if (!ok) {
+        printf("%s:%d: Failed to send DPP Configuration Result frame\n", __func__, __LINE__);
+    } else {
+        printf("%s:%d: Sent Configuration Result frame to '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(sa));
+    }
+
+    // No Conn Status frame needed.
+    if (!needs_connection_status) {
+        free(config_result_frame);
+        free(wrapped_attrs);
+        cJSON_Delete(bsta_configuration_object);
+        cJSON_Delete(ieee1905_configuration_object);
+        return ok;
+    }
+    
+    auto [conn_status_result_frame, conn_status_result_frame_len] = create_connection_status_result(connection_status, std::string(bsta_ssid->valuestring, strlen(bsta_ssid->valuestring)));
+    
+    if (!conn_status_result_frame || conn_status_result_frame_len == 0) {
+        printf("%s:%d: Configurator required a Connection Status Result frame, but could not create one\n", __func__, __LINE__);
+        free(wrapped_attrs);
+        cJSON_Delete(ieee1905_configuration_object);
+        cJSON_Delete(bsta_configuration_object);
+        return false;
+    }
+    
+    if (!m_send_action_frame(sa, conn_status_result_frame, conn_status_result_frame_len, 0)) {
+        printf("%s:%d: Failed to send Connection Status Result frame to Configurator!\n", __func__, __LINE__);
+        free(conn_status_result_frame);
+        free(wrapped_attrs);
+        cJSON_Delete(ieee1905_configuration_object);
+        cJSON_Delete(bsta_configuration_object);
+        return false;
+    }
+    
+    printf("%s:%d: Sent a Connection Status Result frame to Configurator\n", __func__, __LINE__);
+
+    free(conn_status_result_frame);
+    free(wrapped_attrs);
+    cJSON_Delete(bsta_configuration_object);
+    cJSON_Delete(ieee1905_configuration_object);
+    return true;    
 }
 
 std::pair<uint8_t *, size_t> ec_enrollee_t::create_presence_announcement()
