@@ -40,6 +40,29 @@
         }
         return len;
     }
+
+    /**
+     * @brief Convert a cJSON blob to a string.
+     * 
+     * @param blob The cJSON blob to convert.
+     * @param unformatted Whether to include whitespace (newlines and tabs) in the string.
+     * @return std::string The string representation of the cJSON blob.
+     */
+    static inline std::string stringify(cJSON *blob, bool unformatted = false) {
+        if (blob == NULL) {
+            return std::string();
+        }
+        char *s = NULL;
+        if (unformatted) {
+            s = cJSON_PrintUnformatted(blob);
+        } else {
+            s = cJSON_Print(blob);
+        }
+        std::string str(s);
+        free(s);
+        return str;
+    }
+
  }
 
 

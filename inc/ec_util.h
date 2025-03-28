@@ -18,6 +18,8 @@
 
 #include "em_base.h"
 #include "ec_base.h"
+#include "em_crypto.h"
+#include "ec_crypto.h"
 #include <stdint.h>
 #include <stddef.h>
 
@@ -84,6 +86,38 @@ public:
      * @warning The buffer must be freed by the caller
      */
     static uint8_t *add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, uint16_t len, uint8_t *data);
+
+
+    /**
+     * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary
+     * 
+     * @param buff The buffer to add the attribute to
+     * @param buff_len The length of the buffer (in/out)
+     * @param id The attribute ID
+     * @param len The length of the data
+     * @param data The attribute data
+     * @return uint8_t* The buffer offset by the length of the attribute
+     * 
+     * @warning The buffer must be freed by the caller
+     */
+    static inline uint8_t *add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, uint16_t len, const scoped_buff& data) {
+        return add_attrib(buff, buff_len, id, len, data.get());
+    }
+
+    /**
+     * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary
+     * 
+     * @param buff The buffer to add the attribute to
+     * @param buff_len The length of the buffer (in/out)
+     * @param id The attribute ID
+     * @param str The attribute as a string
+     * @return uint8_t* The buffer offset by the length of the attribute
+     * 
+     * @warning The buffer must be freed by the caller
+     */
+    static inline uint8_t *add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, std::string str) {
+        return add_attrib(buff, buff_len, id, static_cast<uint16_t>(str.length()), const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(str.c_str())));
+    }
 
     /**
      * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary
@@ -158,6 +192,8 @@ public:
                 auto *resp_frame = static_cast<ec_gas_initial_response_frame_t *>(frame);
                 memcpy(resp_frame->ape, DPP_GAS_CONFIG_REQ_APE, sizeof(resp_frame->ape));
                 memcpy(resp_frame->ape_id, DPP_GAS_CONFIG_REQ_PROTO_ID, sizeof(resp_frame->ape_id));
+                // NOTE: Hardcoded since we are not implementing the full GAS protocol
+                resp_frame->status_code = 0; // SUCCESS
                 created_frame_size = sizeof(ec_gas_initial_response_frame_t);
             }
             break;
@@ -217,8 +253,8 @@ public:
         return validate_frame(frame) && frame->frame_type == type;
     }
 
-        /**
-     * @brief Parse a DPP Chirp TLV
+    /**
+     * @brief Parse a DPP Chirp Value TLV
      * 
      * @param buff [in] The buffer containing the chirp TLV
      * @param chirp_tlv_len [in] The length of the chirp TLV
@@ -228,6 +264,20 @@ public:
      * @return bool true if successful, false otherwise
      */
     static bool parse_dpp_chirp_tlv(em_dpp_chirp_value_t* chirp_tlv,  uint16_t chirp_tlv_len, mac_addr_t *mac, uint8_t **hash, uint8_t *hash_len);
+
+    /**
+     * @brief Creates and allocates a DPP Chirp Value TLV
+     * 
+     * EasyMesh R6, Section 17.2.83, Table 105
+     * 
+     * @param mac_present [in] The address of the Enrollee Multi-AP Agent 
+     * @param hash_validity [in] Establish/purge any DPP authentication state pertaining to the hash value in this TLV (0 = purge, 1 = establish)
+     * @param dest_mac [in] The destination mac address (0 if not present)
+     * @return em_dpp_chirp_value_t* The heap allocated DPP Chirp Value TLV, NULL if failed
+     * 
+     * @warning The `em_dpp_chirp_value_t` must be freed by the caller
+     */
+    static std::pair<em_dpp_chirp_value_t*, uint16_t> create_dpp_chirp_tlv(bool mac_present, bool hash_validity, mac_addr_t dest_mac);
 
     /**
      * @brief Parse an Encap DPP TLV
@@ -346,6 +396,14 @@ public:
     static std::string hash_to_hex_string(const uint8_t *hash, size_t hash_len);
 
     /**
+     * @brief Convert a hash to a hex string
+     * 
+     * @param hash Vector containing the hash to convert.
+     * @return std::string  The hex string representation of the hash
+     */
+    static std::string hash_to_hex_string(const std::vector<uint8_t>& hash);
+
+    /**
      * @brief Check if the capabilities of the initiator and responder are compatible
      * 
      * @param init_caps The capabilities of the initiator
@@ -353,4 +411,35 @@ public:
      * @return true The capabilities are compatible (DPP_STATUS_OK), false otherwise (DPP_STATUS_NOT_COMPATIBLE)
      */
     static bool check_caps_compatible(const ec_dpp_capabilities_t& init_caps, const ec_dpp_capabilities_t& resp_caps);
+
+    static inline void free_connection_ctx(ec_connection_context_t& c_ctx) {
+        ec_crypto::free_ephemeral_context(&c_ctx.eph_ctx, c_ctx.nonce_len, c_ctx.digest_len);
+
+        auto boot_data = &c_ctx.boot_data;
+        if (boot_data->resp_priv_boot_key) {
+            BN_free(boot_data->resp_priv_boot_key);
+        }
+        if (boot_data->resp_pub_boot_key) {
+            EC_POINT_free(boot_data->resp_pub_boot_key);
+        }
+        if (boot_data->init_priv_boot_key) {
+            BN_free(boot_data->init_priv_boot_key);
+        }
+        if (boot_data->init_pub_boot_key) {
+            EC_POINT_free(boot_data->init_pub_boot_key);
+        }
+        if (boot_data->initiator_boot_key) {
+            em_crypto_t::free_key(const_cast<SSL_KEY*>(boot_data->initiator_boot_key));
+        }
+        if (boot_data->responder_boot_key) {
+            em_crypto_t::free_key(const_cast<SSL_KEY*>(boot_data->responder_boot_key));
+        }
+
+        boot_data->resp_priv_boot_key = nullptr;
+        boot_data->resp_pub_boot_key = nullptr;
+        boot_data->init_priv_boot_key = nullptr;
+        boot_data->init_pub_boot_key = nullptr;
+        boot_data->initiator_boot_key = nullptr;
+        boot_data->responder_boot_key = nullptr;
+    }
 };

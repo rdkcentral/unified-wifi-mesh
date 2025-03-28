@@ -30,6 +30,7 @@
 #include <vector>
 #include <unordered_map>
 #include <algorithm>
+#include <sstream>
 
 
 #include "util.h"
@@ -374,4 +375,33 @@ std::pair<uint8_t, uint8_t> util::em_freq_to_chan(unsigned int frequency, const 
     
     // No region-specific match was found, return global result if available
     return global_result;
+}
+
+std::vector<std::string> util::split_by_delim(const std::string& s, char delimiter) {
+    std::vector<std::string> tokens;
+    std::string token;
+    std::istringstream tokenStream(s);
+    
+    while (std::getline(tokenStream, token, delimiter)) {
+        tokens.push_back(token);
+    }
+    
+    return tokens;
+}
+
+std::string util::remove_whitespace(std::string str)
+{
+    str.erase(std::remove_if(str.begin(), str.end(), ::isspace), str.end());
+    return str;
+}
+std::string util::akm_to_oui(std::string akm) {
+    std::transform(akm.begin(), akm.end(), akm.begin(), [](unsigned char c){ return std::tolower(c); });
+    static const std::unordered_map<std::string, std::string> akm_map = {
+        {"psk", "000FAC02"},
+        {"sae", "000FAC08"},
+        {"dpp", "506F9A02"},
+    };
+    const auto it = akm_map.find(akm);
+    if (it == akm_map.end()) return std::string();
+    return it->second;
 }

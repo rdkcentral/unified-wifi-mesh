@@ -10,7 +10,6 @@
 
 class ec_manager_t {
 public:
-    // TODO: Add send_gas_frame functions
     /**
      * @brief The Manager (unified dispatcher of sorts) for the EasyConnect Configurator or Enrollee
      * 
@@ -27,7 +26,8 @@ public:
      * If the EasyMesh code is correctly implemented this should not be an issue.
      * 
      */
-    ec_manager_t(std::string mac_addr, send_chirp_func send_chirp, send_encap_dpp_func send_encap_dpp, send_act_frame_func send_action_frame, bool m_is_controller);
+    ec_manager_t(std::string mac_addr, send_chirp_func send_chirp, send_encap_dpp_func send_encap_dpp, send_act_frame_func send_action_frame, 
+        get_backhaul_sta_info_func get_bsta_info, get_1905_info_func get_1905_info, can_onboard_additional_aps_func can_onboard, bool m_is_controller);
     ~ec_manager_t();
 
     /**
@@ -53,7 +53,7 @@ public:
         if (!m_is_controller || m_configurator == nullptr) {
             return -1;
         }
-        return m_configurator->start(data);
+        return m_configurator->onboard_enrollee(data);
     }
 
     /**
@@ -67,7 +67,7 @@ public:
         if (m_is_controller || m_enrollee == nullptr) {
             return -1;
         }
-        return m_enrollee->start(do_reconfig, boot_data);
+        return m_enrollee->start_onboarding(do_reconfig, boot_data);
     }
 
     /**
@@ -136,6 +136,9 @@ private:
     send_chirp_func m_stored_chirp_fn;
     send_encap_dpp_func m_stored_encap_dpp_fn;
     send_act_frame_func m_stored_action_frame_fn;
+    get_backhaul_sta_info_func m_get_bsta_info_fn;
+    get_1905_info_func m_get_1905_info_fn;
+    can_onboard_additional_aps_func m_can_onboard_fn;
     std::string m_stored_mac_addr;
     
     std::unique_ptr<ec_configurator_t> m_configurator;

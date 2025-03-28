@@ -23,6 +23,7 @@
 #include "ec_manager.h"
 #include <memory>
 
+struct cJSON;
 class em_cmd_t;
 class em_provisioning_t {
 
@@ -58,11 +59,14 @@ class em_provisioning_t {
     virtual int send_frame(uint8_t *buff, unsigned int len, bool multicast = false) = 0;
     virtual int send_cmd(em_cmd_type_t type, em_service_type_t svc, uint8_t *buff, unsigned int len) = 0;
     virtual em_cmd_t *get_current_cmd() = 0;
+    virtual dm_easy_mesh_t *get_data_model() = 0;
 
 protected:
     int send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t chirp_len);
     int send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, size_t encap_dpp_len, em_dpp_chirp_value_t *chirp, size_t chirp_len);
-
+    cJSON *create_enrollee_bsta_list(ec_connection_context_t *conn_ctx);
+    cJSON *create_configurator_bsta_response_obj(ec_connection_context_t *conn_ctx);
+    cJSON *create_ieee1905_response_obj(ec_connection_context_t *conn_ctx);
 public:
     void    process_msg(uint8_t *data, unsigned int len);
     void    process_agent_state();

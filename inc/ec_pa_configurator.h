@@ -23,12 +23,17 @@ public:
         std::string mac_addr,
         send_chirp_func send_chirp_notification,
         send_encap_dpp_func send_prox_encap_dpp_msg,
-        send_act_frame_func send_action_frame
+        send_act_frame_func send_action_frame,
+        get_backhaul_sta_info_func get_sta_info_func,
+        get_1905_info_func ieee1905_info_func
     ) : ec_configurator_t(
             mac_addr,
             send_chirp_notification,
             send_prox_encap_dpp_msg,
-            send_action_frame
+            send_action_frame,
+            get_sta_info_func,
+            ieee1905_info_func,
+            {}
         ) { }
 
 

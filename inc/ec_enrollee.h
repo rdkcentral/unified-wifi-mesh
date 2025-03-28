@@ -9,18 +9,20 @@
 
 class ec_enrollee_t {
 public:
-    // TODO: Add Send GAS Frame
+
     /**
      * @brief The EasyConnect Enrollee
      * 
      * Broadcasts 802.11 presence announcements, handles 802.11 frames from Proxy Agents and sends 802.11 responses to Proxy Agents.
      * 
      * @param mac_addr The MAC address of the device
+     * @param send_action_frame Callback for sending 802.11 action frames
+     * @param get_bsta_info Callback for getting backhaul STA info, used for building DPP Configuration Request JSON objects.
      * 
      * @note The default state of an enrollee is non-onboarding. All non-controller devices are started as (non-onboarding) enrollees 
      *      until they are told that they are on the network at which point they can be upgraded to a proxy agent.
      */
-    ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame);
+    ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame, get_backhaul_sta_info_func get_bsta_info);
     
     // Destructor
     ~ec_enrollee_t();
@@ -31,7 +33,7 @@ public:
      * @param do_reconfig Whether to reconfigure/reauth the enrollee
      * @return bool true if successful, false otherwise
      */
-    bool start(bool do_reconfig, ec_data_t* boot_data);
+    bool start_onboarding(bool do_reconfig, ec_data_t* boot_data);
 
     /**
      * @brief Handle an authentication request 802.11 frame, performing the necessary actions and responding with an authentication response via 802.11
@@ -83,7 +85,12 @@ private:
      */
     send_act_frame_func m_send_action_frame;
 
-    // TODO: Send GAS Frame
+    /**
+     * @brief Get backhaul station information to be JSON encoded and added to DPP Configuration Request frame.
+     *
+     * @return cJSON * on success, nullptr otherwise.
+     */
+    get_backhaul_sta_info_func m_get_bsta_info;
 
     const ec_dpp_capabilities_t m_dpp_caps = {{
         .enrollee = 1,
@@ -96,17 +103,22 @@ private:
     std::pair<uint8_t*, size_t> create_auth_response(ec_status_code_t dpp_status, uint8_t init_proto_version);
     std::pair<uint8_t*, size_t> create_recfg_auth_response(ec_status_code_t dpp_status);
     std::pair<uint8_t*, size_t> create_config_request();
-    std::pair<uint8_t*, size_t> create_config_result(); 
+    std::pair<uint8_t*, size_t> create_config_result(ec_status_code_t dpp_status);
 
-    ec_persistent_context_t m_p_ctx = {};
+    ec_connection_context_t m_c_ctx = {};
 
-    // Randomized and cleared at the end of the authentication/configuration process
-    ec_ephemeral_context_t m_eph_ctx = {};
-
-    ec_data_t m_boot_data = {};
-
-
-
+    /**
+     * @brief Connection's bootstrapping data
+     */
+    inline ec_data_t& m_boot_data(){
+        return m_c_ctx.boot_data;
+    }
+    /**
+     * @brief Connection's ephemeral context
+     */
+    inline ec_ephemeral_context_t& m_eph_ctx(){
+        return m_c_ctx.eph_ctx;
+    }
 
 };
 

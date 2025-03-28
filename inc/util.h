@@ -27,8 +27,10 @@
 #include "wifi_hal.h"
 #include <pthread.h>
 #include <sys/prctl.h>
+
 #include <string>
 #include <memory>
+#include <vector>
 
 #ifndef LOG_PATH_PREFIX
 #define LOG_PATH_PREFIX "/nvram/"
@@ -74,6 +76,23 @@ inline std::string mac_to_string(const uint8_t mac[6], const std::string& delim 
 }
 
 /**
+ * Split a string by a delimiter
+ * 
+ * @param s The string to split
+ * @param delimiter The delimiter character
+ * @return A vector of strings containing the split parts
+ */
+std::vector<std::string> split_by_delim(const std::string& s, char delimiter);
+
+/**
+ * Remove whitespace from a string
+ * 
+ * @param str The string to remove whitespace from
+ * @return The string with all whitespace removed
+ */
+std::string remove_whitespace(std::string str);
+
+/**
  * em_chan_to_freq - Convert channel info to frequency
  * @param op_class: Operating class
  * @param chan: Channel number
@@ -93,6 +112,14 @@ int em_chan_to_freq(uint8_t op_class, uint8_t chan, const std::string& country="
  * @return Returns pair of {operating_class, channel}. 
  */
 std::pair<uint8_t, uint8_t> em_freq_to_chan(unsigned int frequency, const std::string& region="");
+
+/**
+ * @brief Translate an AKM literal to it's OUI representation case-insensitively
+ * 
+ * @param akm The AKM string literal, for example, "psk"
+ * @return std::string The OUI representation, such as "000FAC02" for "psk", or empty string otherwise.
+ */
+std::string akm_to_oui(std::string akm);
 
 } // namespace util
 

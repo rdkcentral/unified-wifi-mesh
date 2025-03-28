@@ -48,6 +48,25 @@ using send_act_frame_func = std::function<bool(uint8_t*, uint8_t *, size_t, unsi
 */
 using toggle_cce_func = std::function<bool(bool)>;
 
+/**
+ * @brief Creates a DPP Configuration Response object for the backhaul STA interface.
+ * @param conn_ctx Optional connection context (not needed for Enrollee, needed for Configurator) -- pass nullptr if not needed.
+ * @return cJSON * on success, nullptr otherwise
+ */
+using get_backhaul_sta_info_func = std::function<cJSON*(ec_connection_context_t *)>;
+
+/**
+ * @brief Creates a DPP Configuration Response object for the 1905.1 interface.
+ * @return cJSON * on success, nullptr otherwise.
+ */
+using get_1905_info_func = std::function<cJSON*(ec_connection_context_t *)>;
+
+/**
+ * @brief Used to determine if an additional AP can be on-boarded or not.
+ * @return True if additional APs can be on-boraded into the mesh, false otherwise.
+ */
+using can_onboard_additional_aps_func = std::function<bool(void)>;
+
 class ec_configurator_t {
 public:
     /**
@@ -56,9 +75,10 @@ public:
      * @param send_chirp_notification The function to send a chirp notification
      * @param send_prox_encap_dpp_msg The function to send a proxied encapsulated DPP message
      */
-    // TODO: Add send_gas_frame functions
+
     ec_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg, 
-                        send_act_frame_func send_action_frame);
+                        send_act_frame_func send_action_frame, get_backhaul_sta_info_func backhaul_sta_info_func, get_1905_info_func ieee1905_info_func,
+                        can_onboard_additional_aps_func can_onboard_func);
     virtual ~ec_configurator_t(); // Destructor
 
     /**
@@ -72,12 +92,12 @@ public:
     };
 
     /**
-     * @brief Start the EC configurator onboarding
+     * @brief Start the EC configurator onboarding process for an enrollee
      * 
-     * @param ec_data The data to use for onboarding (Parsed DPP URI Data)
+     * @param bootstrapping_data The data to use for onboarding (Parsed DPP URI Data)
      * @return bool true if successful, false otherwise
      */
-    bool start(ec_data_t* ec_data);
+    bool onboard_enrollee(ec_data_t* bootstrapping_data);
 
     /**
      * @brief Handles a presence announcement 802.11 frame, performing the necessary actions
@@ -156,6 +176,20 @@ public:
      */
     virtual bool  process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) = 0;
 
+    /**
+     * @brief Handle a proxied encapsulated DPP Configuration Request frame.
+     * 
+     * @param encap_frame The DPP Configuration Request frame from an Enrollee.
+     * @param encap_frame_len The length of the DPP Configuration Request frame.
+     * @param dest_mac The source MAC of this DPP Configuration Request frame (Enrollee).
+     * @return true on success, otherwise false.
+     * 
+     * @note: overridden by subclass.
+     */
+    virtual bool handle_proxied_dpp_configuration_request(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) {
+        return true;
+    }
+
     inline std::string get_mac_addr() { return m_mac_addr; };
 
     // Disable copy construction and assignment
@@ -164,9 +198,6 @@ public:
     ec_configurator_t& operator=(const ec_configurator_t&) = delete;
 
 protected:
-    ec_persistent_context_t m_p_ctx = {};
-
-    ec_data_t m_boot_data = {};
 
     std::string m_mac_addr;
 
@@ -175,6 +206,12 @@ protected:
     send_encap_dpp_func m_send_prox_encap_dpp_msg;
 
     send_act_frame_func m_send_action_frame;
+
+    get_backhaul_sta_info_func m_get_backhaul_sta_info;
+
+    get_1905_info_func m_get_1905_info;
+
+    can_onboard_additional_aps_func m_can_onboard_additional_aps;
 
     // The connections to the Enrollees/Agents
     std::map<std::string, ec_connection_context_t> m_connections = {};
@@ -195,11 +232,20 @@ protected:
         return &conn_ctx->eph_ctx;
     }
 
+    inline ec_data_t* get_boot_data(const std::string& mac) {
+        auto conn = m_connections.find(mac);
+        if (conn == m_connections.end()) {
+            printf("%s:%d: Connection context not found for enrollee MAC %s\n", __func__, __LINE__, mac.c_str());
+            return NULL;  // Return reference to static empty context
+        }
+        return &conn->second.boot_data;
+    }
+
     inline void clear_conn_eph_ctx(const std::string& mac) {
         auto conn = m_connections.find(mac);
         if (conn == m_connections.end()) return;
-        auto &eph_ctx = conn->second.eph_ctx;
-        ec_crypto::free_ephemeral_context(&eph_ctx, m_p_ctx.nonce_len, m_p_ctx.digest_len);
+        auto &c_ctx = conn->second;
+        ec_crypto::free_ephemeral_context(&c_ctx.eph_ctx, c_ctx.nonce_len, c_ctx.digest_len);
     }
 
 };

@@ -29,6 +29,12 @@
 #include <openssl/types.h>
 #include <openssl/core_names.h>
 
+#include <optional>
+#include <vector>
+#include <utility>
+#include <string>
+#include <memory>
+
 #define SHA256_MAC_LEN 32
 #define AES_BLOCK_SIZE 16
  /* Keys sizes */
@@ -261,33 +267,148 @@ public:
         uint8_t *local_priv, uint8_t local_priv_len);
 
     /**
-     * Encodes binary data using base64 encoding.
-     *
-     * @param input          The binary data to encode
-     * @param length         Length of the input data in bytes
-     * @param output_length  Pointer to store the length of the encoded output string
-     *
-     * @return A null-terminated string containing the base64 encoded data.
-     *         Returns NULL on memory allocation failure.
+     * Encodes binary data using standard Base64 encoding.
      * 
-     * @note The caller is responsible for freeing the returned memory
+     * @param input Binary data to encode
+     * @param length Length of the input data
+     * @return Base64 encoded string or empty string on failure
      */
-    static char* base64_encode(const uint8_t* input, size_t length, size_t* output_length);
+    static std::string base64_encode(const uint8_t *input, size_t length);
 
     /**
-     * Decodes base64 encoded string back to binary data.
-     *
-     * @param input          The base64 encoded string to decode
-     * @param length         Length of the input string
-     * @param output_length  Pointer to store the length of the decoded binary data
-     *
-     * @return A buffer containing the decoded binary data.
-     *         Returns NULL on memory allocation failure or invalid input.
+     * Encodes binary data using Base64URL encoding (URL-safe variant).
+     * 
+     * Replaces '+' with '-', '/' with '_', and removes padding '=' characters.
+     * 
+     * @param input Binary data to encode
+     * @param length Length of the input data
+     * @return Base64URL encoded string or empty string on failure
+     */
+    static std::string base64url_encode(const uint8_t *input, size_t length);
+
+    /**
+     * Encodes string data using standard Base64 encoding.
+     * 
+     * @param input String data to encode
+     * @return Base64 encoded string or empty string on failure
+     */
+    static inline std::string base64_encode(const std::string &input)
+    {
+        return base64_encode(reinterpret_cast<const uint8_t *>(input.data()), input.length());
+    }
+
+    /**
+     * Encodes string data using Base64URL encoding (URL-safe variant).
+     * 
+     * @param input String data to encode
+     * @return Base64URL encoded string or empty string on failure
+     */
+    static inline std::string base64url_encode(const std::string &input)
+    {
+        return base64url_encode(reinterpret_cast<const uint8_t *>(input.data()), input.length());
+    }
+
+    /**
+     * Encodes string data using standard Base64 encoding.
+     * 
+     * @param input Byte data to encode
+     * @return Base64 encoded string or empty string on failure
+     */
+    static inline std::string base64_encode(const std::vector<uint8_t> &input)
+    {
+        return base64_encode(input.data(), input.size());
+    }
+
+    /**
+     * Encodes string data using Base64URL encoding (URL-safe variant).
+     * 
+     * @param input Byte data to encode
+     * @return Base64URL encoded string or empty string on failure
+     */
+    static inline std::string base64url_encode(const std::vector<uint8_t> &input)
+    {
+        return base64url_encode(input.data(), input.size());
+    }
+
+    /**
+     * Decodes standard Base64 encoded data.
+     * 
+     * @param input Base64 encoded string
+     * @return Pair containing decoded data pointer and length. Caller must free the pointer.
+     *         Returns {NULL, 0} on failure.
      * 
      * @note The caller is responsible for freeing the returned memory
      */
-    static uint8_t* base64_decode(const char* input, size_t length, size_t* output_length);
+    static std::optional<std::vector<uint8_t>> base64_decode(const std::string &input);
 
+    /**
+     * Decodes Base64URL encoded data (URL-safe variant).
+     * 
+     * Handles '-' instead of '+', '_' instead of '/', and missing padding.
+     * 
+     * @param input Base64URL encoded string
+     * @return Pair containing decoded data pointer and length. Caller must free the pointer.
+     *         Returns {NULL, 0} on failure.
+     * 
+     * @note The caller is responsible for freeing the returned memory
+     */
+    static std::optional<std::vector<uint8_t>> base64url_decode(const std::string &input);
+
+    /**
+    * Signs data using the provided private key and hashing algorithm with ECDSA
+    * 
+    * @param data_to_sign The data string to be signed
+    * @param private_key OpenSSL EVP_PKEY pointer containing the private key
+    * @param md Digest method to use (defaults to SHA-256)
+    * @return Signature as vector of bytes or nullopt on failure
+    */
+    static std::optional<std::vector<uint8_t>>
+    sign_data_ecdsa(const std::vector<uint8_t>& data_to_sign, EVP_PKEY *private_key,
+                    const EVP_MD *md = EVP_sha256());
+
+    /**
+     * @brief Verifies a digital signature using OpenSSL's EVP API
+     * 
+     * This function verifies that the provided signature was created from the given message
+     * using the private key corresponding to the provided public key.
+     * 
+     * @param message The original message data that was signed
+     * @param signature The signature to verify
+     * @param pkey The public key (EVP_PKEY*) to use for verification
+     * @param hash_function The hash function (e.g., EVP_sha256()) used during signing
+     * 
+     * @return true if the signature is valid, false otherwise
+     * 
+     * @note This function uses OpenSSL's high-level EVP interface which works with
+     *       OpenSSL 1.1.x and 3.0+
+     */
+    static bool verify_signature(const std::vector<uint8_t> &message,
+                                 const std::vector<uint8_t> &signature, EVP_PKEY *pkey,
+                                 const EVP_MD *hash_function);
+
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+    /**
+     * @brief Verifies a digital signature using an EC_KEY (for pre-OpenSSL 3.0 compatibility)
+     * 
+     * This overloaded function provides a convenient interface for verifying signatures
+     * with EC_KEY objects, which is useful for code that needs to work with 
+     * pre-OpenSSL 3.0 versions. It internally converts the EC_KEY to an EVP_PKEY
+     * and delegates to the primary verification function.
+     * 
+     * @param message The original message data that was signed
+     * @param signature The signature to verify
+     * @param ec_key The elliptic curve public key (EC_KEY*) to use for verification
+     * @param hash_function The hash function (e.g., EVP_sha256()) used during signing
+     * 
+     * @return true if the signature is valid, false otherwise
+     * 
+     * @note This function is intended for backward compatibility with code using the
+     *       EC_KEY interface directly. For new code, the EVP_PKEY version is preferred.
+     */
+    static bool verify_signature(const std::vector<uint8_t> &message,
+                                 const std::vector<uint8_t> &signature, EC_KEY *ec_key,
+                                 const EVP_MD *hash_function);
+#endif
     /**
      * Creates an OpenSSL EC_KEY from a base64-encoded DER public key
      *
@@ -299,10 +420,16 @@ public:
      */
     static SSL_KEY* create_ec_key_from_base64_der(const char* base64_der_pubkey);
 
+    static SSL_KEY* create_ec_key_from_coordinates(const std::vector<uint8_t>& x_bin, 
+                                                   const std::vector<uint8_t>& y_bin, 
+                                                   const std::optional<std::vector<uint8_t>>& priv_key_bytes = std::nullopt,
+                                                   const std::string& group_name = "P-256");
+
 
     static EC_GROUP* get_key_group(const SSL_KEY* key);
     static BIGNUM* get_priv_key_bn(const SSL_KEY* key);
     static EC_POINT* get_pub_key_point(const SSL_KEY* key, EC_GROUP* key_group=NULL);
+    static SSL_KEY* generate_ec_key(EC_GROUP *group);
     static SSL_KEY* generate_ec_key(int nid);
     static void free_key(SSL_KEY* key);
 
@@ -347,4 +474,42 @@ public:
     em_crypto_t();
     ~em_crypto_t() {}
 };
+
+
+// Custom deleters for OpenSSL objects to use with std::unique_ptr
+struct BIODeleter {
+    void operator()(BIO* bio) const { if (bio) BIO_free(bio); }
+};
+
+struct BNDeleter {
+    void operator()(BIGNUM* bn) const { if (bn) BN_free(bn); }
+};
+
+struct ECPointDeleter {
+    void operator()(EC_POINT* point) const { if (point) EC_POINT_free(point); }
+};
+
+struct ECGroupDeleter {
+    void operator()(EC_GROUP* group) const { 
+        #if !defined(FORCE_OPENSSL_1_1) && OPENSSL_VERSION_NUMBER >= 0x30000000L
+        if (group) EC_GROUP_free(group); 
+        #endif
+    }
+};
+
+struct SSLKeyDeleter {
+    void operator()(SSL_KEY* key) const { if (key) em_crypto_t::free_key(key); }
+};
+
+struct BuffDeleter {
+    void operator()(uint8_t* buff) const { if (buff) OPENSSL_free(buff); }
+};
+
+
+using scoped_ssl_key = std::unique_ptr<SSL_KEY, SSLKeyDeleter>;
+using scoped_bio = std::unique_ptr<BIO, BIODeleter>;
+using scoped_bn = std::unique_ptr<BIGNUM, BNDeleter>;
+using scoped_ec_point = std::unique_ptr<EC_POINT, ECPointDeleter>;
+using scoped_ec_group = std::unique_ptr<EC_GROUP, ECGroupDeleter>;
+using scoped_buff = std::unique_ptr<uint8_t, BuffDeleter>;
 #endif

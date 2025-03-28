@@ -45,9 +45,9 @@ int dm_network_list_t::get_config(cJSON *obj, void *net_id, bool summary)
 {
     dm_network_t *pnet = NULL;
 	
-    pnet = get_network((char *)net_id);
+    pnet = get_network(static_cast<char *> (net_id));
     if (pnet == NULL) {
-		printf("%s:%d: Network Object not found for key: %s\n", __func__, __LINE__, (char *)net_id);
+		printf("%s:%d: Network Object not found for key: %s\n", __func__, __LINE__, static_cast<char *> (net_id));
 		return -1;
     }
 		
@@ -61,7 +61,7 @@ int dm_network_list_t::set_config(db_client_t& db_client, dm_network_t& net, voi
     dm_orch_type_t op;
     mac_addr_str_t  mac_str;	
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)net.m_net_info.ctrl_id.mac, mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (net.m_net_info.ctrl_id.mac), mac_str);
 
     //printf("%s:%d: Enter: networl: %s controller id:%s\n", __func__, __LINE__, net.m_net_info.id, mac_str);
 
@@ -74,7 +74,7 @@ int dm_network_list_t::set_config(db_client_t& db_client, dm_network_t& net, voi
 int dm_network_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void *parent_id)
 {
     cJSON *obj;
-    unsigned int i, size;
+    int i, size;
     dm_network_t net;
     dm_orch_type_t op;
 
@@ -98,7 +98,7 @@ dm_orch_type_t dm_network_list_t::get_dm_orch_type(db_client_t& db_client, const
     pnet = get_network(net.m_net_info.id);
 
     if (pnet != NULL) {
-        if (entry_exists_in_table(db_client, (char *)net.m_net_info.id) == false) {
+        if (entry_exists_in_table(db_client, const_cast<char *> (net.m_net_info.id)) == false) {
             return dm_orch_type_db_insert;
         }
         if (*pnet == net) {
@@ -120,7 +120,7 @@ void dm_network_list_t::update_list(const dm_network_t& net, dm_orch_type_t op)
     dm_network_t *pnet;
     mac_addr_str_t  mac_str;
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)net.m_net_info.colocated_agent_id.mac, mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (net.m_net_info.colocated_agent_id.mac), mac_str);
 
     switch (op) {
         case dm_orch_type_db_insert:
@@ -134,6 +134,9 @@ void dm_network_list_t::update_list(const dm_network_t& net, dm_orch_type_t op)
 
         case dm_orch_type_db_delete:
             remove_network(net.m_net_info.id);
+            break;
+
+        default:
             break;
     }
 }
@@ -159,7 +162,7 @@ int dm_network_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void
 {
     int ret = 0;
     mac_addr_str_t agent_str, ctrl_str;
-    em_network_info_t *info = (em_network_info_t *)data;
+    em_network_info_t *info = static_cast<em_network_info_t *> (data);
 
     printf("dm_network_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
 	switch (op) {
@@ -194,7 +197,7 @@ bool dm_network_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
     while (db_client.next_result(ctx)) {
         db_client.get_string(ctx, net_id, 1);
 
-        if (strncmp(net_id, (char *)key, strlen((char *)key)) == 0) {
+        if (strncmp(net_id, static_cast<char *> (key), strlen(static_cast<char *> (key))) == 0) {
             return true;
         }
     }
@@ -222,7 +225,7 @@ int dm_network_list_t::sync_db(db_client_t& db_client, void *ctx)
 		db_client.get_string(ctx, mac, 3);
 		dm_easy_mesh_t::string_to_macbytes(mac, info.colocated_agent_id.mac);
 
-		info.media = (em_media_type_t)db_client.get_number(ctx, 4);
+		info.media = static_cast<em_media_type_t> (db_client.get_number(ctx, 4));
 
 		info.ctrl_id.media = info.media;
 		info.colocated_agent_id.media = info.media;
