@@ -102,7 +102,7 @@ void em_t::orch_execute(em_cmd_t *pcmd)
                 if (dpp_info->ec_freqs[i] == 0) break;
                 printf("\t\tFreq: %d\n", dpp_info->ec_freqs[i]);
             }
-            if (!m_ec_manager->cfg_start(dpp_info)){
+            if (!m_ec_manager->cfg_onboard_enrollee(dpp_info)){
                 printf("Failed to start DPP\n");
             }
             
