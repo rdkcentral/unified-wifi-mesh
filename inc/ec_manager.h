@@ -49,7 +49,7 @@ public:
      * @param data The data to use for onboarding (Parsed DPP URI Data)
      * @return bool true if successful, false otherwise
      */
-    inline bool cfg_start(ec_data_t* data) {
+    inline bool cfg_onboard_enrollee(ec_data_t* data) {
         if (!m_is_controller || m_configurator == nullptr) {
             return -1;
         }
@@ -63,7 +63,7 @@ public:
      * @param boot_data The bootstrapping data to use for onboarding
      * @return bool true if successful, false otherwise
      */
-    inline bool enrollee_start(bool do_reconfig, ec_data_t* boot_data) {
+    inline bool enrollee_start_onboarding(bool do_reconfig, ec_data_t* boot_data) {
         if (m_is_controller || m_enrollee == nullptr) {
             return -1;
         }

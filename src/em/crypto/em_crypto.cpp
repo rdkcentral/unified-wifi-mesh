@@ -979,24 +979,20 @@ uint8_t em_crypto_t::compute_secret_internal(BIGNUM *p, BIGNUM *g, BIGNUM *bn_pr
 }
 #endif
 
-SSL_KEY* em_crypto_t::create_ec_key_from_base64_der(const char* base64_der_pubkey) 
+SSL_KEY* em_crypto_t::ec_key_from_base64_der(const std::string& base64_der_pubkey) 
 {
 
-    if (!base64_der_pubkey) {
-        printf("%s:%d NULL parameter\n", __func__, __LINE__);
-        return NULL;
-    }
     uint8_t key[1024];
-    int len = 1024;
     
-    memset(key, 0, static_cast<size_t> (len));
+    memset(key, 0, sizeof(key));
 
-    if ((len = EVP_DecodeBlock(key, const_cast<unsigned char*>(reinterpret_cast<const unsigned char*>(base64_der_pubkey)), static_cast<int> (strlen(base64_der_pubkey)))) < 0) {
+    int len = EVP_DecodeBlock(key, reinterpret_cast<const uint8_t*>(base64_der_pubkey.c_str()), static_cast<int> (base64_der_pubkey.length()));
+    if (len < 0) {
         printf("%s:%d Failed to decode base 64 public key\n", __func__, __LINE__);
         return NULL;
     }
 
-    const unsigned char *ptr = key;
+    const uint8_t *ptr = key;
 #if OPENSSL_VERSION_NUMBER < 0x30000000L 
     EC_KEY *ec_key = d2i_EC_PUBKEY(NULL, &ptr, len);
     if (ec_key == NULL) {
@@ -1018,6 +1014,36 @@ SSL_KEY* em_crypto_t::create_ec_key_from_base64_der(const char* base64_der_pubke
     return pkey;
 #endif
 
+}
+
+std::string em_crypto_t::ec_key_to_base64_der(const SSL_KEY *key) { 
+    if (!key) {
+        printf("%s:%d Invalid key parameter\n", __func__, __LINE__);
+        return "";
+    }
+
+    unsigned char *der_buffer = NULL;
+    int der_length = 0;
+
+    // Convert the key to DER format
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+    der_length = i2d_EC_PUBKEY(key, &der_buffer);
+#else
+    der_length = i2d_PUBKEY(key, &der_buffer);
+#endif
+
+    if (der_length <= 0 || !der_buffer) {
+        printf("%s:%d Failed to convert key to DER format\n", __func__, __LINE__);
+        return "";
+    }
+
+    // Base64 encode the DER data
+    std::string base64_der = base64_encode(der_buffer, static_cast<size_t>(der_length));
+    
+    // Clean up
+    OPENSSL_free(der_buffer);
+    
+    return base64_der;
 }
 
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
@@ -1046,6 +1072,7 @@ EC_GROUP *em_crypto_t::get_key_group(const SSL_KEY *key)
 
 BIGNUM *em_crypto_t::get_priv_key_bn(const SSL_KEY *key)
 {
+    if (!key) return NULL;
     // Check if the key is an EC key
     if (EVP_PKEY_get_id(key) != EVP_PKEY_EC) {
         return NULL;
@@ -1061,6 +1088,8 @@ BIGNUM *em_crypto_t::get_priv_key_bn(const SSL_KEY *key)
 
 EC_POINT *em_crypto_t::get_pub_key_point(const SSL_KEY *key, EC_GROUP* key_group)
 {
+
+    if (!key) return NULL;
     // Check if the key is an EC key
     if (EVP_PKEY_get_id(key) != EVP_PKEY_EC) {
         return NULL;
@@ -1108,6 +1137,7 @@ cleanup:
 
 SSL_KEY *em_crypto_t::generate_ec_key(EC_GROUP *group)
 {
+    if (!group) return NULL;
     return generate_ec_key(EC_GROUP_get_curve_name(group));
 }
 
@@ -1172,20 +1202,24 @@ void em_crypto_t::free_key(SSL_KEY *key)
 EC_GROUP *em_crypto_t::get_key_group(const SSL_KEY *key)
 {
     // key = EC_KEY
+    if (!key) return NULL;
     return const_cast<EC_GROUP*>(EC_KEY_get0_group(key));
 }
 BIGNUM *em_crypto_t::get_priv_key_bn(const SSL_KEY *key)
 {
+    if (!key) return NULL;
     return const_cast<BIGNUM*>(EC_KEY_get0_private_key(key));
 }
 
 EC_POINT *em_crypto_t::get_pub_key_point(const SSL_KEY *key, __attribute__((unused)) EC_GROUP* key_group)
 {
+    if (!key) return NULL;
     return const_cast<EC_POINT*>(EC_KEY_get0_public_key(key));
 }
 
 SSL_KEY *em_crypto_t::generate_ec_key(EC_GROUP *group)
 {
+    if (!group) return NULL;
     return generate_ec_key(EC_GROUP_get_curve_name(group));
 }
 
