@@ -513,16 +513,12 @@ std::map<dpp_uri_field, std::string> ec_util::encode_bootstrap_data(ec_data_t *b
             value = em_crypto_t::ec_key_to_base64_der(boot_data->responder_boot_key);
             break;
         case DPP_URI_INFORMATION:
-            printf("Found information DPP URI field but not parsing\n");
             break;
         case DPP_URI_HOST:
-            printf("Found host DPP URI field but not parsing\n");
             break;
         case DPP_URI_SUPPORTED_CURVES:
-            printf("Found supported curves DPP URI field but not parsing\n");
             break;
         case DPP_URI_MAX: // This should never happen
-            printf("Found max DPP URI field but not parsing\n");
             break;
             // Leaving off default so that compile error will be thrown if new field is added and not handled
         }
