@@ -418,7 +418,9 @@ public:
      * @note The returned EC_KEY must be freed by the caller using EC_KEY_free()
      * @note This function assumes the input is a valid base64-encoded DER format EC public key
      */
-    static SSL_KEY* create_ec_key_from_base64_der(const char* base64_der_pubkey);
+    static SSL_KEY* ec_key_from_base64_der(const std::string& base64_der_pubkey);
+
+    static std::string ec_key_to_base64_der(const SSL_KEY* key);
 
     static SSL_KEY* create_ec_key_from_coordinates(const std::vector<uint8_t>& x_bin, 
                                                    const std::vector<uint8_t>& y_bin, 

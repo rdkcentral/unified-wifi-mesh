@@ -2,11 +2,15 @@
 #include <functional>
 #include <arpa/inet.h>
 #include <cstddef>
+#include <fstream>
+#include <sstream>
 
 #include "ec_util.h"
 #include "util.h"
 #include "aes_siv.h"
 #include "em_crypto.h"
+#include "dm_easy_mesh.h"
+#include "cjson_util.h"
 
 void ec_util::init_frame(ec_frame_t *frame)
 {
@@ -469,5 +473,390 @@ bool ec_util::check_caps_compatible(const ec_dpp_capabilities_t& init_caps, cons
     if (init_caps.configurator && resp_caps.configurator) {
         return false;
     }
+    return true;
+}
+
+std::map<dpp_uri_field, std::string> ec_util::encode_bootstrap_data(ec_data_t *boot_data)
+{
+    std::map<dpp_uri_field, std::string> uri_map;
+
+    char mac_str[EM_MAC_STR_LEN + 1] = {0};
+
+    for (size_t idx = 0; idx < dpp_uri_field::DPP_URI_MAX; idx++) {
+        dpp_uri_field field = static_cast<dpp_uri_field>(idx);
+        std::string value;
+        switch (field) {
+        case DPP_URI_VERSION:
+            value = std::to_string(boot_data->version);
+            break;
+        case DPP_URI_MAC: {
+            dm_easy_mesh_t::macbytes_to_string(boot_data->mac_addr, mac_str);
+            value = std::string(mac_str);
+            break;
+        }
+        case DPP_URI_CHANNEL_LIST:
+            for (size_t i = 0; i < DPP_MAX_EN_CHANNELS; i++) {
+                unsigned int freq = boot_data->ec_freqs[i];
+                if (freq == 0) continue;
+
+                auto [op_class, channel] = util::em_freq_to_chan(freq);
+                value += std::to_string(static_cast<int>(op_class)) + "/" +
+                         std::to_string(static_cast<int>(channel));
+                value += ",";
+            }
+            //Remove the last comma
+            if (!value.empty()) {
+                value.pop_back();
+            }
+            break;
+        case DPP_URI_PUBLIC_KEY:
+            value = em_crypto_t::ec_key_to_base64_der(boot_data->responder_boot_key);
+            break;
+        case DPP_URI_INFORMATION:
+            printf("Found information DPP URI field but not parsing\n");
+            break;
+        case DPP_URI_HOST:
+            printf("Found host DPP URI field but not parsing\n");
+            break;
+        case DPP_URI_SUPPORTED_CURVES:
+            printf("Found supported curves DPP URI field but not parsing\n");
+            break;
+        case DPP_URI_MAX: // This should never happen
+            printf("Found max DPP URI field but not parsing\n");
+            break;
+            // Leaving off default so that compile error will be thrown if new field is added and not handled
+        }
+        if (!value.empty()) {
+            uri_map[field] = value;
+        }
+    }
+
+    return uri_map;
+}
+
+std::optional<std::string> ec_util::encode_bootstrap_data_uri(ec_data_t *boot_data)
+{
+    auto uri_map = ec_util::encode_bootstrap_data(boot_data);
+    std::string uri = "DPP:";
+    for (const auto &[uri_type, value] : uri_map) {
+        auto field_char = get_dpp_uri_field_char(uri_type);
+        if (!field_char) {
+            printf("Found unknown DPP URI field but not encoding\n");
+            return {};
+        }
+        uri += (*field_char + ":" + value + ";");
+    }
+    // Only need to add one semi colon instead of two since there is already a trailing semicolon
+    uri += ";";
+    return uri;
+}
+
+std::optional<std::string> ec_util::encode_bootstrap_data_json(ec_data_t *boot_data)
+{
+    auto uri_map = ec_util::encode_bootstrap_data(boot_data);
+
+    cJSON *json = cJSON_CreateObject();
+    ASSERT_NOT_NULL(json, {}, "Failed to create JSON object\n");
+
+    for (const auto &[uri_type, value] : uri_map) {
+        auto field_char = get_dpp_uri_field_char(uri_type);
+        if (!field_char) {
+            printf("Found unknown DPP URI field but not encoding\n");
+            cJSON_Delete(json);
+            return {};
+        }
+        switch (uri_type) {
+        case DPP_URI_VERSION:
+            cJSON_AddNumberToObject(json, "V", std::stoi(value));
+            break;
+        case DPP_URI_MAC:
+        case DPP_URI_CHANNEL_LIST:
+        case DPP_URI_PUBLIC_KEY:
+        case DPP_URI_INFORMATION:
+        case DPP_URI_HOST:
+        case DPP_URI_SUPPORTED_CURVES:
+            cJSON_AddStringToObject(json, field_char->c_str(), value.c_str());
+            break;
+        case DPP_URI_MAX: // This should never happen
+            printf("Found max DPP URI field but not encoding\n");
+            cJSON_Delete(json);
+            return {};
+            // Leaving off default so that compile error will be thrown if new field is added and not handled
+        }
+    }
+    return cjson_utils::stringify(json);
+}
+
+bool ec_util::decode_bootstrap_data(std::map<dpp_uri_field, std::string> uri_map,
+                                    ec_data_t *boot_data, std::string country_code)
+{
+    for (const auto &[uri_type, value] : uri_map) {
+        switch (uri_type) {
+        case DPP_URI_VERSION: {
+            auto version = strtol(value.c_str(), nullptr, 10);
+            ASSERT_MSG_TRUE(version > 0 && version != LONG_MAX, false,
+                            "%s:%d: Version is not valid\n", __func__, __LINE__);
+            boot_data->version = static_cast<unsigned int>(version);
+            break;
+        }
+        case DPP_URI_MAC: {
+            ASSERT_MSG_TRUE(value.length() == EM_MAC_STR_LEN, false,
+                            "%s:%d: MAC address is not valid\n", __func__, __LINE__);
+            dm_easy_mesh_t::string_to_macbytes(const_cast<char *>(value.c_str()),
+                                               boot_data->mac_addr);
+            ASSERT_MSG_TRUE(memcmp(boot_data->mac_addr, ZERO_MAC_ADDR, ETH_ALEN) != 0, false,
+                            "%s:%d: MAC address is zero\n", __func__, __LINE__);
+            break;
+        }
+        case DPP_URI_CHANNEL_LIST: {
+            auto class_channel_pairs = ec_util::parse_dpp_uri_channel_list(value);
+            ASSERT_MSG_FALSE(class_channel_pairs.empty(), false,
+                             "%s:%d: Failed to parse channel list\n", __func__, __LINE__);
+            for (size_t idx = 0; idx < class_channel_pairs.size(); idx++) {
+                auto [op_class, channel] = class_channel_pairs[idx];
+                int freq = util::em_chan_to_freq(static_cast<uint8_t>(op_class),
+                                                 static_cast<uint8_t>(channel), country_code);
+                if (freq <= 0) {
+                    printf("Failed to convert channel to frequency (op class: %d, channel: %d)\n",
+                           op_class, channel);
+                    continue;
+                }
+                boot_data->ec_freqs[idx] = static_cast<unsigned int>(freq);
+            }
+            break;
+        }
+        case DPP_URI_PUBLIC_KEY: {
+            // Enrollee (Responder) is the one who sent the URI so that is the owner of the public key
+            boot_data->responder_boot_key = em_crypto_t::ec_key_from_base64_der(value);
+            ASSERT_NOT_NULL(boot_data->responder_boot_key, false,
+                            "%s:%d: Failed to create EC_KEY from public key\n", __func__, __LINE__);
+            break;
+        }
+        case DPP_URI_INFORMATION: {
+            printf("Found information DPP URI field but not parsing\n");
+            // Information is not used in the current implementation
+            break;
+        }
+        case DPP_URI_HOST: {
+            printf("Found host DPP URI field but not parsing\n");
+            // Host is not used in the current implementation
+            break;
+        }
+        case DPP_URI_SUPPORTED_CURVES: {
+            printf("Found supported curves DPP URI field but not parsing\n");
+            // Supported curves is not used in the current implementation
+            break;
+        }
+        case DPP_URI_MAX: // This should never happen
+            printf("Found max DPP URI field but not parsing\n");
+            break;
+            // Leaving off default so that compile error will be thrown if new field is added and not handled
+        }
+    }
+    return true;
+}
+
+bool ec_util::decode_bootstrap_data_uri(const std::string &uri, ec_data_t *boot_data,
+                                        std::string country_code)
+{
+    // Example input: DPP:V:2;C:81/1,115/36;K:MDkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDIgADM2206avxHJaHXgLMkq/24e0rsrfMP9K1Tm8gx+ovP0I=;;
+    ASSERT_MSG_FALSE(uri.empty(), false, "%s:%d: URI is empty\n", __func__, __LINE__);
+    ASSERT_MSG_TRUE(uri.find("DPP:") == 0, false, "%s:%d: URI does not start with 'DPP:'\n",
+                    __func__, __LINE__);
+    // Check if the string ends with ;;
+    ASSERT_MSG_TRUE(uri.find(";;") == uri.length() - 2, false,
+                    "%s:%d: URI does not end with ';;'\n", __func__, __LINE__);
+    // Remove the 'DPP:' prefix and ';;' suffix
+    std::string uri_str = uri.substr(4, uri.length() - 2 - 4);
+    // Split the string by ';'
+    auto uri_parts = util::split_by_delim(uri_str, ';');
+    ASSERT_MSG_TRUE(uri_parts.size() > 0, false, "%s:%d: URI must have at least the key present\n",
+                    __func__, __LINE__);
+
+    // Convert the vector of strings to a map between uri types and values
+    std::map<dpp_uri_field, std::string> uri_map;
+    for (const auto &part : uri_parts) {
+        // Split the string by ':'
+        auto key_value = util::split_by_delim(part, ':');
+        ASSERT_MSG_TRUE(key_value.size() == 2, false, "%s:%d: URI part '%s' is not valid\n",
+                        __func__, __LINE__, part.c_str());
+
+        auto uri_type = get_dpp_uri_field(key_value[0]);
+        ASSERT_MSG_TRUE(uri_type != std::nullopt, false,
+                        "%s:%d: URI part '%s' is not valid. Key (%s) not valid \n", __func__,
+                        __LINE__, part.c_str(), key_value[0].c_str());
+        if (uri_map.find(*uri_type) != uri_map.end()) {
+            printf("%s:%d: URI part '%s' is duplicated\n", __func__, __LINE__, part.c_str());
+            return false;
+        }
+        uri_map[*uri_type] = key_value[1];
+    }
+
+    return decode_bootstrap_data(uri_map, boot_data, country_code);
+}
+
+bool ec_util::decode_bootstrap_data_json(const cJSON *json_obj, ec_data_t *boot_data,
+                                         std::string country_code)
+{
+    memset(boot_data, 0, sizeof(ec_data_t));
+
+    const cJSON *object_item = NULL;
+
+    std::map<dpp_uri_field, std::string> uri_map;
+
+    // According to cJSON, cJSON_ArrayForEach can be used for iterating both object types and array types
+    cJSON_ArrayForEach(object_item, json_obj)
+    {
+        char *key = object_item->string;
+
+        auto uri_type = get_dpp_uri_field(key);
+        ASSERT_MSG_TRUE(uri_type != std::nullopt, false, "%s:%d: Key (%s) not valid \n", __func__,
+                        __LINE__, key);
+        if (uri_map.find(*uri_type) != uri_map.end()) {
+            printf("%s:%d: Key '%s' is duplicated\n", __func__, __LINE__, key);
+            return false;
+        }
+        if (cJSON_IsString(object_item)) {
+            uri_map[*uri_type] = std::string(cJSON_GetStringValue(object_item));
+        } else if (cJSON_IsNumber(object_item)) {
+            uri_map[*uri_type] = std::to_string(cJSON_GetNumberValue(object_item));
+        } else {
+            printf("%s:%d: Key '%s' is not a string or number\n", __func__, __LINE__, key);
+            return false;
+        }
+    }
+
+    return decode_bootstrap_data(uri_map, boot_data, country_code);
+}
+
+bool ec_util::read_bootstrap_data_from_file(ec_data_t *boot_data, const std::string &file_path)
+{
+    std::ifstream dpp_uri_json_fp(DPP_URI_JSON_PATH);
+    if (!dpp_uri_json_fp.is_open()) {
+        printf("%s:%d: Failed to open DPP URI JSON file at path '%s'\n", __func__, __LINE__,
+               DPP_URI_JSON_PATH);
+        return false;
+    }
+
+    std::stringstream json_buff;
+    json_buff << dpp_uri_json_fp.rdbuf();
+    std::string dpp_uri_json_str = json_buff.str();
+    dpp_uri_json_fp.close();
+    printf("%s:%d: DPP URI JSON: %s\n", __func__, __LINE__, dpp_uri_json_str.c_str());
+
+    cJSON *json = cJSON_Parse(dpp_uri_json_str.c_str());
+    if (json == NULL) {
+        printf("%s:%d: Failed to parse JSON at path '%s'\n", __func__, __LINE__, DPP_URI_JSON_PATH);
+        return false;
+    }
+
+    if (!ec_util::decode_bootstrap_data_json(json, boot_data)) {
+        printf("%s:%d: Failed to decode DPP URI JSON at path '%s'\n", __func__, __LINE__,
+               DPP_URI_JSON_PATH);
+        cJSON_Delete(json);
+        return false;
+    }
+
+    cJSON_Delete(json);
+    printf("%s:%d: Successfully read DPP URI JSON from file\n", __func__, __LINE__);
+    return true;
+}
+
+bool ec_util::write_bootstrap_data_to_file(ec_data_t *boot_data, const std::string &file_path)
+{
+
+    // Encode the DPP URI JSON
+    auto json_str = encode_bootstrap_data_json(boot_data);
+    if (json_str == std::nullopt) {
+        printf("%s:%d: Failed to encode DPP URI JSON\n", __func__, __LINE__);
+        return false;
+    }
+    printf("%s:%d: DPP URI JSON: %s\n", __func__, __LINE__, json_str->c_str());
+
+    std::ofstream out_file(file_path);
+    if (!out_file.is_open()) {
+        std::error_code ec(errno, std::generic_category());
+        printf("%s:%d: Failed to open DPP URI JSON file at path '%s' - %s\n", __func__, __LINE__,
+               file_path.c_str(), ec.message().c_str());
+        return false;
+    }
+
+    out_file << *json_str;
+
+    if (!out_file.good()) {
+        std::error_code ec(errno, std::generic_category());
+        printf("%s:%d: Failed to write DPP URI JSON to file at path '%s' - %s\n", __func__,
+               __LINE__, file_path.c_str(), ec.message().c_str());
+        out_file.close();
+        return false;
+    }
+    out_file.close();
+    printf("%s:%d: DPP URI JSON written to %s\n", __func__, __LINE__, file_path.c_str());
+    return true;
+}
+
+bool ec_util::generate_dpp_boot_data(ec_data_t *boot_data, mac_addr_t al_mac,
+                                     em_op_class_info_t *op_class_info)
+{
+    memset(boot_data, 0, sizeof(ec_data_t));
+    boot_data->version = DPP_VERSION;              // DPP URI Version
+    memcpy(boot_data->mac_addr, al_mac, ETH_ALEN); // AL MAC address
+
+    boot_data->responder_boot_key = em_crypto_t::generate_ec_key(DPP_KEY_NID);
+    if (boot_data->responder_boot_key == NULL) {
+        printf("%s:%d: Failed to generate EC key\n", __func__, __LINE__);
+        memset(boot_data, 0, sizeof(ec_data_t));
+        return false;
+    }
+
+    // Set the channel list to the op class/channel given
+    if (op_class_info != NULL) {
+        uint8_t op_class = static_cast<uint8_t>(op_class_info->op_class);
+        uint8_t channel = static_cast<uint8_t>(op_class_info->channels[0]);
+        int freq = util::em_chan_to_freq(op_class, channel, "US");
+        ASSERT_MSG_TRUE(
+            freq > 0, false,
+            "%s:%d: Failed to convert channel to frequency (op class: %d, channel: %d)\n", __func__,
+            __LINE__, op_class, channel);
+        boot_data->ec_freqs[0] = static_cast<unsigned int>(freq);
+    }
+    return true;
+}
+
+bool ec_util::get_dpp_boot_data(ec_data_t *boot_data, mac_addr_t al_mac, bool do_recfg,
+                                em_op_class_info_t *op_class_info)
+{
+
+    memset(boot_data, 0, sizeof(ec_data_t));
+
+    bool should_recfg = do_recfg;
+    if (do_recfg) {
+        should_recfg = ec_util::read_bootstrap_data_from_file(boot_data, DPP_URI_JSON_PATH);
+        if (should_recfg) {
+            // Successsfully read the DPP URI JSON from the file so the parameters should be the same for reconfiguration.
+            // Successfully fetched the bootstrapping data, return true.
+            return true;
+        } else {
+            // Failed to read the DPP URI JSON from the file, so even though the user said to `do_recfg`, originally, we can't do it.
+            // This is because the parameters could be different (e.g. MAC address, public key, etc.)
+            // Instead, we must generate new DPP bootstrapping data and write it to the file.
+            printf("%s:%d: Failed to read DPP URI JSON from file, not reconfiguring since "
+                   "parameters will be different\n",
+                   __func__, __LINE__);
+        }
+    }
+
+    // Generate new DPP bootstrapping data to ensure correct MAC address is used
+    if (!ec_util::generate_dpp_boot_data(boot_data, al_mac, op_class_info)) {
+        printf("%s:%d: Failed to generate DPP boot data\n", __func__, __LINE__);
+        return false;
+    }
+
+    // Write the DPP URI JSON to the file
+    if (!ec_util::write_bootstrap_data_to_file(boot_data, DPP_URI_JSON_PATH)) {
+        printf("%s:%d: Failed to write DPP URI JSON to file\n", __func__, __LINE__);
+        return false;
+    }
+
     return true;
 }

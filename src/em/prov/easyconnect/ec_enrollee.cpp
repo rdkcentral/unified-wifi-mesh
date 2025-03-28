@@ -38,7 +38,7 @@ bool ec_enrollee_t::start_onboarding(bool do_reconfig, ec_data_t* boot_data)
     memcpy(&m_boot_data(), boot_data, sizeof(ec_data_t));
 
 
-    printf("Configurator MAC: %s\n", m_mac_addr.c_str());
+    printf("Enrollee MAC: %s\n", m_mac_addr.c_str());
 
     const SSL_KEY* resp_key = do_reconfig ? m_c_ctx.C_signing_key : m_boot_data().responder_boot_key;
     if (resp_key == NULL) {
