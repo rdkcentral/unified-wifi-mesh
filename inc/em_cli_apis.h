@@ -54,6 +54,7 @@ unsigned int can_expand_node(em_network_node_t *node);
 void free_network_tree_string(char *str);
 void init_lib_dbg(char *file_name);
 void dump_lib_dbg(char *fmt);
+void dev_test_exec();
 
 #ifdef __cplusplus
 }  // extern "C"

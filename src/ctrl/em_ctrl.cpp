@@ -275,6 +275,40 @@ void em_ctrl_t::handle_remove_device(em_bus_event_t *evt)
 
 }
 
+void em_ctrl_t::handle_get_dev_test(em_bus_event_t *evt)
+{
+    em_cmd_params_t params = evt->params;
+    char *temp = NULL;
+    if (params.u.args.num_args < 1) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_invalid_input);
+        return;
+    }
+
+	printf("%s:%d ASH %s\n", __func__, __LINE__, evt->u.subdoc.name);
+    if ((temp = strstr(evt->u.subdoc.name, "update")) != NULL) {
+	dev_test.encode(&evt->u.subdoc, m_em_map, true);
+    } else {
+	    dev_test.encode(&evt->u.subdoc, m_em_map, false);
+    }
+    evt->data_len = static_cast<unsigned int> (strlen(evt->u.subdoc.buff)) + 1;
+    m_ctrl_cmd->copy_bus_event(evt);
+    m_ctrl_cmd->send_result(em_cmd_out_status_success);
+}
+
+void em_ctrl_t::handle_set_dev_test(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    int num, ret;
+
+    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+    } else {
+	dev_test.analyze_set_dev_test(evt);
+        m_ctrl_cmd->send_result(em_cmd_out_status_success);
+    }
+
+}
+
 void em_ctrl_t::handle_get_dm_data(em_bus_event_t *evt)
 {           
     em_cmd_params_t params = evt->params;
@@ -290,8 +324,8 @@ void em_ctrl_t::handle_get_dm_data(em_bus_event_t *evt)
     m_ctrl_cmd->copy_bus_event(evt);
     m_ctrl_cmd->send_result(em_cmd_out_status_success);
 }        
-
-void em_ctrl_t::handle_dev_test(em_bus_event_t *evt)
+/*
+void em_ctrl_t::handle_get_dev_test(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num = 0;
@@ -306,7 +340,7 @@ void em_ctrl_t::handle_dev_test(em_bus_event_t *evt)
         m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
     }
 }
-
+*/
 void em_ctrl_t::handle_reset(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
@@ -403,6 +437,13 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
             break;
 
         case em_bus_event_type_dev_test:
+	    handle_get_dev_test(evt);
+	    break;
+
+	case em_bus_event_type_set_dev_test:
+	    handle_set_dev_test(evt);
+	    break;
+
         case em_bus_event_type_get_network:
         case em_bus_event_type_get_ssid:
         case em_bus_event_type_get_channel:
@@ -776,6 +817,7 @@ void em_ctrl_t::start_complete()
 	em_bus_event_type_cfg_renew_params_t ac_config_raw;
 	mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 	char service_name[] = "EasyMesh_Ctrl_Service";
+	int i = 0;
 
 	if (m_data_model.is_initialized() == false) {
 		printf("%s:%d: Database not initialized ... needs reset\n", __func__, __LINE__);
@@ -820,6 +862,17 @@ void em_ctrl_t::start_complete()
     }
 	memcpy(&ac_config_raw.radio, &null_mac, sizeof(mac_address_t));
 	io_process(em_bus_event_type_cfg_renew, reinterpret_cast<unsigned char *> (&ac_config_raw), sizeof(em_bus_event_type_cfg_renew_params_t));
+	//Initialze cli devtest
+	for (i = 0; i < em_dev_test_type_max; i++) {
+		dev_test.dev_test_info.num_iteration[i] = 50;
+		dev_test.dev_test_info.test_type[i] = (em_dev_test_type) i;
+		dev_test.dev_test_info.enabled[i] = 0;
+		dev_test.dev_test_info.num_of_iteration_completed[i] = 0;
+		dev_test.dev_test_info.test_inprogress[i] = 0;
+		dev_test.dev_test_info.test_status[i] = em_dev_test_status_ideal;
+		dev_test.dev_test_info.haul_type = em_haul_type_iot;
+		dev_test.dev_test_info.freq_band = em_freq_band_24;
+	}
 }
 
 
