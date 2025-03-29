@@ -598,6 +598,14 @@ void em_agent_t::handle_500ms_tick()
     m_orch->handle_timeout();
 }
 
+int em_agent_t::refresh_onewifi_subdoc(const char * log_name, const webconfig_subdoc_type_t type)
+{
+    wifi_bus_desc_t *desc = get_bus_descriptor();
+    ASSERT_NOT_NULL(desc, false, "%s:%d descriptor is null\n", __func__, __LINE__);
+    
+    return m_data_model.refresh_onewifi_subdoc(desc, &m_bus_hdl, log_name, type);
+}
+
 bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency) {
 
     wifi_bus_desc_t *desc = get_bus_descriptor();
