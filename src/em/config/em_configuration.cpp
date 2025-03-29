@@ -3139,12 +3139,9 @@ int em_configuration_t::handle_encrypted_settings()
     get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (&radioconfig), sizeof(radioconfig));
     set_state(em_state_agent_owconfig_pending);
     if (get_service_type() == em_service_type_agent) {
-        get_ec_mgr().upgrade_to_onboarded_proxy_agent(
-            [this](bool enable) {
-                printf("Toggle CCE: %s\n", enable ? "true" : "false");
-                return 0;  // Added return value
-            }
-        );
+        em_t *em = get_data_model()->m_em;
+        toggle_cce_func toggle_cce = std::bind(&em_t::toggle_cce, em, std::placeholders::_1);
+        get_ec_mgr().upgrade_to_onboarded_proxy_agent(toggle_cce);
     }
     return ret;
 }

@@ -75,6 +75,7 @@ public:
      * 
      * @param enable Whether to enable or disable CCE presence
      * @return bool true if successful, false otherwise
+     * @note If the operation fails, all CCE IEs are removed before the function exits
      */
     inline bool pa_cfg_toggle_cce(bool enable) {
         if (!m_is_controller || m_configurator == nullptr) {
@@ -94,10 +95,11 @@ public:
      * 
      * @param toggle_cce The function to call to toggle CCE presence
      * @return bool true if successful, false otherwise
+     * @note If the operation fails, all CCE IEs are removed before the function exits
      */
     bool upgrade_to_onboarded_proxy_agent(toggle_cce_func toggle_cce);
 
-        /**
+    /**
      * @brief Handle a chirp notification TLV and direct to the correct place (802.11 or 1905)
      * 
      * @param chirp_tlv The chirp TLV to parse and handle

@@ -44,14 +44,25 @@ public:
      * @param vs_ie Vendor specific IE to add
      * @return true if the IE was added successfully, false if out of bounds
      */
-    bool add_vendor_ie(struct ieee80211_vs_ie *vs_ie);
+    bool add_vendor_ie(const struct ieee80211_vs_ie *vs_ie);
 
     /**
      * @brief Remove a vendor specific IE from the BSS. If the IE is not present, this function will return without error.
      * 
      * @param vs_ie Vendor specific IE to remove
      */
-    void remove_vendor_ie(struct ieee80211_vs_ie *vs_ie);
+    void remove_vendor_ie(const struct ieee80211_vs_ie *vs_ie);
+
+    /**
+     * @brief Configurator Connectivity Element IE, EasyConnect v3.0 section 8.5.2
+     */
+    static constexpr struct ieee80211_vs_ie CCE_IE = {
+        .vs_ie = IEEE80211_ELEMID_VENDOR,
+        .vs_len = sizeof(struct ieee80211_vs_ie) - offsetof(struct ieee80211_vs_ie, vs_oui),
+        .vs_oui = {0x50, 0x6f, 0x9a},
+        .vs_type = 0x1e,
+        .vs_subtype = 0x00
+    };
 
     dm_bss_t(em_bss_info_t *bss);
     dm_bss_t(const dm_bss_t& bss);
