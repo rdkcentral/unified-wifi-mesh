@@ -404,7 +404,7 @@ int dm_bss_t::parse_bss_id_from_key(const char *key, em_bss_id_t *id)
     return 0;
 }
 
-bool dm_bss_t::add_vendor_ie(struct ieee80211_vs_ie *vs_ie)
+bool dm_bss_t::add_vendor_ie(const struct ieee80211_vs_ie *vs_ie)
 {
     // Fetch full length from the IE
     unsigned int vs_ie_len = offsetof(struct ieee80211_vs_ie, vs_oui) + vs_ie->vs_len;
@@ -421,7 +421,7 @@ bool dm_bss_t::add_vendor_ie(struct ieee80211_vs_ie *vs_ie)
     return true;
 }
 
-void dm_bss_t::remove_vendor_ie(struct ieee80211_vs_ie *vs_ie)
+void dm_bss_t::remove_vendor_ie(const struct ieee80211_vs_ie *vs_ie)
 {
     size_t vs_ie_len = offsetof(struct ieee80211_vs_ie, vs_oui) + vs_ie->vs_len;
     if (m_bss_info.vendor_elements_len < vs_ie_len) {
@@ -442,7 +442,7 @@ void dm_bss_t::remove_vendor_ie(struct ieee80211_vs_ie *vs_ie)
             curr_ie_head += curr_ie_len;
             continue;
         }
-        if (memcmp(curr_ie_head, reinterpret_cast<uint8_t*>(vs_ie), curr_ie_len) != 0) {
+        if (memcmp(curr_ie_head, reinterpret_cast<const uint8_t*>(vs_ie), curr_ie_len) != 0) {
             // Didn't find the IE, skip 
             curr_ie_head += curr_ie_len;
             continue;

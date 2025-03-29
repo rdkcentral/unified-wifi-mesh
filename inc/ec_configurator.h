@@ -41,11 +41,12 @@ using send_encap_dpp_func = std::function<bool(em_encap_dpp_t*, size_t, em_dpp_c
 using send_act_frame_func = std::function<bool(uint8_t*, uint8_t *, size_t, unsigned int)>;
 
 /**
-* @brief Set the CCE IEs in the beacon and probe response frames
-* 
-* @param bool Whether to enable or disable the inclusion of CCE IEs in the beacon and probe response frames
-* @return bool true if successful, false otherwise
-*/
+ * @brief Set the CCE IEs in the beacon and probe response frames
+ * 
+ * @param bool Whether to enable or disable the inclusion of CCE IEs in the beacon and probe response frames
+ * @return bool true if successful, false otherwise
+ * @note If the operation fails, all CCE IEs are removed before the function exits
+ */
 using toggle_cce_func = std::function<bool(bool)>;
 
 /**
@@ -86,6 +87,7 @@ public:
      * 
      * @param bool Whether to enable or disable the inclusion of CCE IEs in the beacon and probe response frames
      * @return bool true if successful, false otherwise
+     * @note If the operation fails, all CCE IEs are removed before the function exits
      */
     toggle_cce_func m_toggle_cce = {
         [](bool enable) -> bool { return false; }
