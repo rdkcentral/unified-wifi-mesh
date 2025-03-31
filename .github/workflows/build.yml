@@ -62,7 +62,7 @@ jobs:
     - name: Build OneWiFi
       working-directory: easymesh_project/OneWifi
       run: |
-        make -j -f build/linux/makefile all
+        make -f build/linux/makefile all
 
     - name: Build unified-wifi-mesh controller
       working-directory: easymesh_project/unified-wifi-mesh/build/ctrl
