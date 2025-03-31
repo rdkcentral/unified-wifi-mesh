@@ -56,7 +56,12 @@ bool ec_manager_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len, ui
             return m_configurator->handle_auth_response(frame, len, src_mac);
         case ec_frame_type_auth_cnf:
             return m_enrollee->handle_auth_confirm(frame, len, src_mac);
-
+        case ec_frame_type_cfg_result:
+            return m_configurator->handle_cfg_result(frame, len, src_mac);
+            break;
+        case ec_frame_type_conn_status_result:
+            return m_configurator->handle_connection_status_result(frame, len, src_mac);
+            break;
         default:
             printf("%s:%d: frame type (%d) not handled\n", __func__, __LINE__, frame->frame_type);
             break;
