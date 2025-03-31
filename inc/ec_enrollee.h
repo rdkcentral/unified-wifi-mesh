@@ -9,6 +9,9 @@
 #include <unordered_map>
 #include <string>
 #include <vector>
+#include <unordered_set>
+#include <atomic>
+#include <thread>
 
 struct cJSON;
 
@@ -76,6 +79,13 @@ public:
     ec_enrollee_t& operator=(const ec_enrollee_t&) = delete;
 
 private:
+
+    /**
+     * @brief Sends presence announcement frames until a DPP Authentication Frame is received.
+     * 
+     * See: EasyConnect 6.2 DPP Presence Announcement 
+     */
+    void send_presence_announcement_frames();
 
     std::string m_mac_addr;
 
@@ -157,6 +167,37 @@ private:
         return m_c_ctx.eph_ctx;
     }
 
+    /**
+     * @brief Set of frequencies to send presence announcement frames on
+     * 
+     * This list should be extended as follows (EasyConnect 6.2.2): 
+     *  1. opclass/chan pairs in DPP URI, ("channel-list"), if present
+     *  2. Default channel per-band
+     *  3. Channels where a CCE IE was heard.
+     * 
+     * Should exclude channels by regional regulation (i.e. DFS channels).
+     */
+    std::unordered_set<uint32_t> m_pres_announcement_freqs = {2437, 5220};
+
+    /**
+     * @brief True if we've received DPP Authentication Frame
+     * 
+     * Signals that this Enrollee should stop sending presence announcement frames.
+     * 
+     */
+    std::atomic<bool> m_received_auth_frame{false};
+
+    /**
+     * @brief Thread for sending DPP Presence Announcement frames upon onboarding start
+     * 
+     * Need to send DPP Presence Announcement frames periodically, until 
+     * a DPP Authentication Frame is received.
+     * 
+     * Since DPP Authentication Frames will come in asynchronously, this must be
+     * on it's own thread, otherwise we'll block forever, never receive
+     * our DPP Authentication Frame, and keep Presence Announcing forever
+     */
+    std::thread m_send_pres_announcement_thread;
 };
 
 #endif // EC_ENROLLEE_H
