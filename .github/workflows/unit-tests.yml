@@ -60,7 +60,7 @@ jobs:
     - name: Build OneWiFi
       working-directory: easymesh_project/OneWifi
       run: |
-       make -j -f build/linux/makefile all
+       make -f build/linux/makefile all
 
     - name: Install GTest
       working-directory: easymesh_project/unified-wifi-mesh/
