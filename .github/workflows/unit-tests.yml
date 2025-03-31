@@ -60,17 +60,17 @@ jobs:
     - name: Build OneWiFi
       working-directory: easymesh_project/OneWifi
       run: |
-       make -f build/linux/makefile all
+       make -j -f build/linux/makefile all
 
     - name: Install GTest
       working-directory: easymesh_project/unified-wifi-mesh/
       timeout-minutes: 5 
       run: |
-        make -j2 -C build/ctrl install_gtest
+        make -C build/ctrl install_gtest
 
     - name: Make test
       working-directory: easymesh_project/unified-wifi-mesh/
       timeout-minutes: 5 
       run: |
-        make -j2 -C build/ctrl test
+        make -j -C build/ctrl test
 
