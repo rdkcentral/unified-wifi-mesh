@@ -433,8 +433,8 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
 
     // For debugging
     {
-        printf("%s:%d: IEEE1905 Configuration Object:\n%s\n", __func__, __LINE__, ieee1905_config_obj_str);
-        printf("%s:%d: bSTA Configuration Object:\n%s\n", __func__, __LINE__, bsta_config_object_str);
+        printf("%s:%d: IEEE1905 Configuration Object:\n%s\n", __func__, __LINE__, ieee1905_config_obj_str.c_str());
+        printf("%s:%d: bSTA Configuration Object:\n%s\n", __func__, __LINE__, bsta_config_object_str.c_str());
     }
 
     cJSON_Delete(ieee1905_config_obj);

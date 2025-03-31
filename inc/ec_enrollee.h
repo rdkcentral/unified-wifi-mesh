@@ -3,9 +3,14 @@
 
 #include "em_base.h"
 #include "ec_configurator.h"
+#include "ec_util.h"
 
 #include <map>
+#include <unordered_map>
 #include <string>
+#include <vector>
+
+struct cJSON;
 
 class ec_enrollee_t {
 public:
@@ -103,7 +108,39 @@ private:
     std::pair<uint8_t*, size_t> create_auth_response(ec_status_code_t dpp_status, uint8_t init_proto_version);
     std::pair<uint8_t*, size_t> create_recfg_auth_response(ec_status_code_t dpp_status);
     std::pair<uint8_t*, size_t> create_config_request();
+
+    /**
+     * @brief Create a Configuration Result frame (EasyConnect 8.2.12)
+     * 
+     * @param dpp_status The status (Enrollee) of the configuration.
+     * @return std::pair<uint8_t*, size_t> Pair, pair.first is frame (nullptr on failure), pair.second is the length of the frame (0 on failure).
+     */
     std::pair<uint8_t*, size_t> create_config_result(ec_status_code_t dpp_status);
+
+    /**
+     * @brief Create a connection status result frame (EasyConnect 8.2.13)
+     * 
+     * @param dpp_status The status (Enrollee) of Configuration
+     * @param ssid The SSID the Enrollee attempted to find / associate to.
+     * 
+     * @return std::pair<uint8_t*, size_t> Pair, pair.first is frame (nullptr on failure), pair.second is the length of the frame (0 on failure).
+     */
+    std::pair<uint8_t*, size_t> create_connection_status_result(ec_status_code_t dpp_status, const std::string& ssid);
+
+    /**
+     * @brief Create a DPP Connection Status object (EasyConnect 6.5.4.2)
+     * @param dpp_status The DPP status code. Can be one of: STATUS_OK, STATUS_AUTH_FAILURE,
+     * STATUS_INVALID CONNECTOR, STATUS_NO_MATCH, STATUS_NO_AP. See EasyConnect table 23.
+     * @param ssid The SSID the Enrollee attempted to associate to.
+     * 
+     * @return cJSON* The DPP Connection Status object on success, nullptr otherwise.
+     * @note: Heap allocates, caller must free.
+     */
+    cJSON *create_dpp_connection_status_obj(ec_status_code_t dpp_status, const std::string& ssid);
+
+    // Maps SSID that this Enrollee has attempted to find to the
+    // list of channels/op-classes that were scanned.
+    std::unordered_map<std::string, std::vector<ec_util::scanned_channels_t>> m_scanned_channels_map;
 
     ec_connection_context_t m_c_ctx = {};
 

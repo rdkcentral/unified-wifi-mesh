@@ -1,6 +1,5 @@
 #include "ec_enrollee.h"
 
-#include "ec_util.h"
 #include "ec_crypto.h"
 #include "em_crypto.h"
 #include "util.h"
@@ -9,7 +8,7 @@
 #include <unistd.h>
 
 ec_enrollee_t::ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame, get_backhaul_sta_info_func get_bsta_info)
-                            : m_mac_addr(mac_addr), m_send_action_frame(send_action_frame), m_get_bsta_info(get_bsta_info)
+                            : m_mac_addr(mac_addr), m_send_action_frame(send_action_frame), m_get_bsta_info(get_bsta_info), m_scanned_channels_map{}
 {
 }
 
@@ -822,7 +821,6 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     cJSON *bsta_info = m_get_bsta_info(nullptr);
     ASSERT_NOT_NULL_FREE(bsta_info, {}, m_eph_ctx().e_nonce, "%s:%d: bSTA info is nullptr!\n", __func__, __LINE__);
     cJSON_AddItemToObject(dpp_config_request_obj, "bSTAList", bsta_info);
-    size_t config_obj_len = cjson_utils::get_cjson_blob_size(dpp_config_request_obj);
 
     // XXX: Dialog token can be thought of as a session key between Enrollee and Configurator regarding configuration
     // From specs (EasyMesh, EasyConnect, 802.11), it seems this is just arbitrarily chosen (1 byte), but
@@ -843,9 +841,11 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     attribs = ec_util::add_wrapped_data_attr(reinterpret_cast<uint8_t *> (initial_req_frame), sizeof(ec_gas_initial_request_frame_t), attribs, &attribs_len, true, m_eph_ctx().ke, [&](){
         size_t wrapped_len = 0;
         uint8_t* wrapped_attribs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, m_c_ctx.nonce_len, m_eph_ctx().e_nonce);
-        wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_req_obj, static_cast<uint16_t> (config_obj_len), reinterpret_cast<uint8_t *> (dpp_config_request_obj));
+        wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_req_obj, cjson_utils::stringify(dpp_config_request_obj));
         return std::make_pair(wrapped_attribs, wrapped_len);
     });
+
+    cJSON_Delete(dpp_config_request_obj);
 
     if ((initial_req_frame = reinterpret_cast<ec_gas_initial_request_frame_t*>(
         ec_util::copy_attrs_to_frame(reinterpret_cast<uint8_t*> (initial_req_frame), sizeof(ec_gas_initial_request_frame_t), attribs, attribs_len))) == nullptr) {
@@ -890,4 +890,49 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_result(ec_status_code_
         return {};
     }
     return std::make_pair(reinterpret_cast<uint8_t*>(frame), EC_FRAME_BASE_SIZE + attribs_len);
+}
+
+std::pair<uint8_t *, size_t> ec_enrollee_t::create_connection_status_result(ec_status_code_t dpp_status, const std::string &ssid)
+{
+    ec_frame_t *frame = ec_util::alloc_frame(ec_frame_type_conn_status_result);
+    ASSERT_NOT_NULL(frame, {}, "%s:%d: Failed to allocate DPP Connection Status Result frame\n", __func__, __LINE__);
+
+    cJSON *connection_status_object = create_dpp_connection_status_obj(dpp_status, ssid);
+    ASSERT_NOT_NULL_FREE(connection_status_object, {}, frame, "%s:%d: Failed to create DPP Connection Status object!\n", __func__, __LINE__);
+
+    uint8_t *attribs   = nullptr;
+    size_t attribs_len = 0;
+
+    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attribs_len, true, m_eph_ctx().ke, [&]() {
+        size_t wrapped_len = 0;
+        uint8_t *wrapped_attrs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, m_c_ctx.nonce_len, m_eph_ctx().e_nonce);
+        wrapped_attrs = ec_util::add_attrib(wrapped_attrs, &wrapped_len, ec_attrib_id_conn_status, cjson_utils::stringify(connection_status_object));
+        return std::make_pair(wrapped_attrs, wrapped_len);
+    });
+
+    cJSON_Delete(connection_status_object);
+
+    frame = ec_util::copy_attrs_to_frame(frame, attribs, attribs_len);
+    ASSERT_NOT_NULL_FREE2(frame, {}, attribs, frame, "%s:%d: Failed to copy attributes to DPP Connection Status Result frame\n", __func__, __LINE__);
+
+    free(attribs);
+    return std::make_pair(reinterpret_cast<uint8_t *>(frame), EC_FRAME_BASE_SIZE + attribs_len);
+}
+
+cJSON *ec_enrollee_t::create_dpp_connection_status_obj(ec_status_code_t dpp_status, const std::string &ssid)
+{
+    cJSON *connStatusObj = cJSON_CreateObject();
+    if (connStatusObj == nullptr)
+        return nullptr;
+
+    cJSON_AddNumberToObject(connStatusObj, "result", static_cast<uint8_t>(dpp_status));
+    cJSON_AddStringToObject(connStatusObj, "ssid64", em_crypto_t::base64url_encode(ssid).c_str());
+
+    if (dpp_status == DPP_STATUS_NO_AP_DISCOVERED) {
+        // channelList is conditionally included if DPP Status == NO_AP
+        // We include the list of channels (grouped by opclass) that we scanned on
+        // when searching for the BSS to connect to, according to bSTA Configuration Response object.
+        cJSON_AddStringToObject(connStatusObj, "channelList", ec_util::generate_channel_list(ssid, m_scanned_channels_map).c_str());
+    }
+    return connStatusObj;
 }
