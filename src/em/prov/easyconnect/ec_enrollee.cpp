@@ -63,11 +63,76 @@ bool ec_enrollee_t::start_onboarding(bool do_reconfig, ec_data_t* boot_data)
         return false;
     }
 
+    for (size_t i = 0; i < std::size(boot_data->ec_freqs); i++) {
+        if (boot_data->ec_freqs[i] == 0) continue;
+        m_pres_announcement_freqs.insert(boot_data->ec_freqs[i]);
+    }
+
+    // Begin send presence announcements thread.
+    m_send_pres_announcement_thread = std::thread(&ec_enrollee_t::send_presence_announcement_frames, this);
     return true;
+}
+
+void ec_enrollee_t::send_presence_announcement_frames()
+{
+    uint32_t attempts = 0;
+    uint32_t dwell = 2000;
+
+    auto [frame, frame_len] = create_presence_announcement();
+    if (frame == nullptr || frame_len == 0) {
+        printf("%s:%d: Failed to create DPP Presence Announcement frame\n", __func__, __LINE__);
+        return;
+    }
+
+    while (!m_received_auth_frame.load()) {
+        if (attempts >= 4) {
+            // EasyConnect 6.2.3
+            // If the device has cycled through the procedure (Steps 1 & 2) four times without receipt of a valid DPP
+            // Authentication Request frame, the Enrollee may wait some amount of time before resuming the procedure. Prior
+            // to resuming the presence announcement procedure, however, it shall generate a new channel list using the steps
+            // specified in Section 6.2.2.
+            attempts = 0;
+            dwell = 2000;
+            std::this_thread::sleep_for(std::chrono::seconds(5));
+        }
+
+        for (const auto& freq : m_pres_announcement_freqs) {
+            // EasyConnect 6.2.3
+            // For each channel in the channel list generated as per Section 6.2.2, the Enrollee, shall send a DPP Presence
+            // Announcement frame and listen for 2 seconds to receive a DPP Authentication Request frame. If a valid DPP
+            // Authentication Request frame is not received, it shall repeat the presence announcement for the next channel in
+            // the channel list.
+
+            // Send frame
+            if (!m_send_action_frame(const_cast<uint8_t *>(BROADCAST_MAC_ADDR), frame, frame_len, freq)) {
+                printf("%s:%d: Failed to send DPP Presence Announcement frame (broadcast) on freq %d\n", __func__, __LINE__, freq);
+            }
+
+            // Wait `dwell` before moving to next channel.
+            std::this_thread::sleep_for(std::chrono::milliseconds(dwell));
+
+            // Break if we've already received a response
+            if (m_received_auth_frame.load()) break;
+        }
+        // EasyConnect 6.2.3
+        // When all channels in the channel list have been exhausted, the Enrollee shall pause for at least 30 seconds
+        // before repeating the procedure in step 1 above. If the Enrollee's DPP URI includes a "channel-list" (Section 5.2.1)
+        // then the Enrollee should dwell on the channels from that list; otherwise, it should dwell on the preferred Presence
+        // Announcement channels as specified in Section 6.2.2. The Enrollee should increase the wait time on channels in
+        // the channel list each time the procedure in step 1 is repeated
+        attempts++;
+        dwell *= 2;
+        std::this_thread::sleep_for(std::chrono::seconds(30));
+    }
+
+    free(frame);
 }
 
 bool ec_enrollee_t::handle_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
+    // Halt presence announcement once DPP Authentication frame is received.
+    m_received_auth_frame.store(true);
+    if (m_send_pres_announcement_thread.joinable()) m_send_pres_announcement_thread.join();
     size_t attrs_len = len - EC_FRAME_BASE_SIZE;
 
     ec_attribute_t *B_r_hash_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_resp_bootstrap_key_hash);
@@ -548,7 +613,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_presence_announcement()
     }
     free(attribs);
 
-    return {};
+    return std::make_pair(reinterpret_cast<uint8_t*>(frame), EC_FRAME_BASE_SIZE + attribs_len);
 }
 
 
