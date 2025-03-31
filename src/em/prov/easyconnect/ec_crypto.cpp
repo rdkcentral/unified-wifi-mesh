@@ -39,7 +39,7 @@ uint8_t* ec_crypto::compute_key_hash(const SSL_KEY *key, const char *prefix)
     len[1] = static_cast<uint32_t> (asn1len);
 
     // Call platform_SHA256 with our two elements
-    uint8_t *digest = new uint8_t[SHA256_DIGEST_LENGTH]();  // () initializes to zero
+    uint8_t *digest = reinterpret_cast<uint8_t*>(calloc(SHA256_DIGEST_LENGTH, 1));
     uint8_t result = em_crypto_t::platform_SHA256(2, addr, len, digest);
 
     BIO_free(bio);
@@ -66,7 +66,7 @@ size_t ec_crypto::compute_hkdf_key(ec_connection_context_t& c_ctx, uint8_t *key_
     // Safely convert int to size_t, should always be positive
     int primelen = BN_num_bytes(c_ctx.prime);
     ikm_len = primelen * x_val_count;
-    bn_buffer = new uint8_t[ikm_len];
+    bn_buffer = reinterpret_cast<uint8_t*>(calloc(ikm_len, 1));
     if (bn_buffer == NULL) {
         perror("malloc");
         return 0;
@@ -269,7 +269,7 @@ size_t ec_crypto::hkdf(const EVP_MD *h, bool skip_extract, uint8_t *ikm, size_t 
     int digest_len, prklen, tweaklen;
 
     digest_len = prklen = EVP_MD_size(h);
-    if ((digest = new uint8_t[digest_len]) == NULL) {
+    if ((digest = reinterpret_cast<uint8_t*>(calloc(digest_len, 1))) == NULL) {
         perror("malloc");
         return 0;
     }
@@ -279,7 +279,7 @@ size_t ec_crypto::hkdf(const EVP_MD *h, bool skip_extract, uint8_t *ikm, size_t 
         * If !skip_extract then perform HKDF-extract phase
         * (normally done unless PRK is already provided)
         */
-        if ((prk = new uint8_t[digest_len]) == NULL) {
+        if ((prk = reinterpret_cast<uint8_t*>(calloc(digest_len, 1))) == NULL) {
             delete[] digest;
             perror("malloc");
             return 0;
@@ -288,7 +288,7 @@ size_t ec_crypto::hkdf(const EVP_MD *h, bool skip_extract, uint8_t *ikm, size_t 
         * if there's no salt then use all zeros
         */
         if (!salt || (saltlen == 0)) {
-            if ((tweak = new uint8_t[digest_len]) == NULL) {
+            if ((tweak = reinterpret_cast<uint8_t*>(calloc(digest_len, 1))) == NULL) {
                 delete[] digest;
                 delete[] prk;
                 perror("malloc");
@@ -394,13 +394,13 @@ void ec_crypto::print_bignum (BIGNUM *bn)
 {
     unsigned char *buf;
     int len = BN_num_bytes(bn);
-    if ((buf = new unsigned char[len]) == NULL) {
+    if ((buf = reinterpret_cast<uint8_t*>(calloc(len, 1))) == NULL) {
         printf("Could not print bignum\n");
         return;
     }
     BN_bn2bin(bn, buf);
     util::print_hex_dump(static_cast<unsigned int>(len), buf);
-    delete[] buf;
+    free(buf);
 }
 
 void ec_crypto::print_ec_point (const EC_GROUP *group, BN_CTX *bnctx, EC_POINT *point)
@@ -448,7 +448,7 @@ uint8_t* ec_crypto::compute_hash(ec_connection_context_t& c_ctx, const easyconne
         len[i] = hashing_elements_buffer[i].second;
     }
 
-    uint8_t *hash = new uint8_t[c_ctx.digest_len]();
+    uint8_t *hash = reinterpret_cast<uint8_t*>(calloc(c_ctx.digest_len, 1));
     if (!em_crypto_t::platform_hash(c_ctx.hash_fcn, hash_buf_size, addr.data(), len.data(), hash)) {
         delete[] hash;
         return NULL;

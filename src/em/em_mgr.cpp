@@ -210,8 +210,7 @@ em_t *em_mgr_t::create_node(em_interface_t *ruid, em_freq_band_t band, dm_easy_m
         return em;
     }
 
-    em = new em_t(ruid, band, dm, this, profile, type);
-    em->set_al_type(is_al_mac);
+    em = new em_t(ruid, band, dm, this, profile, type, is_al_mac);
     if (em->init() != 0) {
         delete em;
 
@@ -259,6 +258,25 @@ em_t *em_mgr_t::get_al_node()
     }
 
     return (found == true) ? em:NULL;	
+}
+
+em_t *em_mgr_t::get_phy_al_em()
+{
+    // al_node is the fake ("_al") node
+    em_t* al_node = get_al_node();
+    if (al_node == NULL) return NULL;
+    uint8_t* al_mac = al_node->get_radio_interface_mac();
+
+    // al_mac_str is the real MAC (no "_al" suffix)
+    // al_mac_str will be the key for the real `em_t` in the `m_em_map`
+    char al_mac_str[EM_MAC_STR_LEN+1] = {0};
+    dm_easy_mesh_t::macbytes_to_string(al_mac, al_mac_str);
+    em_t *phy_al_em = reinterpret_cast<em_t *>(hash_map_get(m_em_map, al_mac_str));
+    if (phy_al_em == NULL) {
+        printf("%s:%d: Can not find phy al node with key:%s\n", __func__, __LINE__, al_mac_str);
+        return NULL;
+    }
+    return phy_al_em;
 }
 
 void *em_mgr_t::mgr_input_listen(void *arg)

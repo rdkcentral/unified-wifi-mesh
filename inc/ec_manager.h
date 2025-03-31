@@ -51,7 +51,7 @@ public:
      */
     inline bool cfg_onboard_enrollee(ec_data_t* data) {
         if (!m_is_controller || m_configurator == nullptr) {
-            return -1;
+            return false;
         }
         return m_configurator->onboard_enrollee(data);
     }
@@ -65,9 +65,10 @@ public:
      */
     inline bool enrollee_start_onboarding(bool do_reconfig, ec_data_t* boot_data) {
         if (m_is_controller || m_enrollee == nullptr) {
-            return -1;
+            return false;
         }
-        return m_enrollee->start_onboarding(do_reconfig, boot_data);
+        m_is_e_onboarding = m_enrollee->start_onboarding(do_reconfig, boot_data);
+        return m_is_e_onboarding;
     }
 
     /**
@@ -83,7 +84,7 @@ public:
         auto pa_cfg = dynamic_cast<ec_pa_configurator_t*>(m_configurator.get());
         if (!pa_cfg) {
             // Only a proxy agent configurator can toggle CCE
-            return -1;
+            return false;
         }
         return pa_cfg->m_toggle_cce(enable);
     }
@@ -106,7 +107,7 @@ public:
      */
     inline bool process_chirp_notification(em_dpp_chirp_value_t* chirp_tlv, uint16_t tlv_len) {
         if (!m_configurator) {
-            return -1;
+            return false;
         }
         return m_configurator->process_chirp_notification(chirp_tlv, tlv_len);
     }
@@ -122,15 +123,25 @@ public:
      */
     inline bool process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) {
         if (!m_configurator) {
-            return -1;
+            return false;
         }
         return m_configurator->process_proxy_encap_dpp_msg(encap_tlv, encap_tlv_len, chirp_tlv, chirp_tlv_len);
     }
 
+    /**
+     * @brief Whether the enrollee node is **actively** onboarding or not.
+     * 
+     * If the node is a controller, this will always return false.
+     * 
+     * @return bool true if the node is onboarding, false otherwise
+     */
+    inline bool is_enrollee_onboarding() { return m_is_e_onboarding; }
 
 
 private:
     bool m_is_controller;
+
+    bool m_is_e_onboarding = false;
     
     // Used to store the function pointers to instantiate objects again
     send_chirp_func m_stored_chirp_fn;

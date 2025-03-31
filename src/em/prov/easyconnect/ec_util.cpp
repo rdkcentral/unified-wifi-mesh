@@ -52,9 +52,8 @@ uint8_t* ec_util::add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id,
     
     // Add extra space for the new attribute
     size_t new_len = *buff_len + get_ec_attr_size(len);
-    // Original start pointer to use for realloc
-    uint8_t* base_ptr = NULL;
-    if (buff != NULL) base_ptr = buff - *buff_len;
+    uint8_t* base_ptr = buff;
+    // If the buffer is NULL, `realloc` will allocate a new buffer
     if ((base_ptr = reinterpret_cast<uint8_t*>(realloc(base_ptr, new_len))) == NULL) {
         fprintf(stderr, "Failed to realloc\n");
         return NULL;
@@ -71,8 +70,8 @@ uint8_t* ec_util::add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id,
     memcpy(attr->data, data, len);
 
     *buff_len += get_ec_attr_size(len);
-    // Return the next attribute in the buffer
-    return tmp + get_ec_attr_size(len);
+    // Return the start of the next attribute in the buffer
+    return base_ptr;
 }
 
 uint16_t ec_util::freq_to_channel_attr(unsigned int freq)
@@ -204,7 +203,7 @@ std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t *wra
     uint8_t* wrapped_ciphertext = wrapped_attrib->data + AES_BLOCK_SIZE;
     uint16_t wrapped_len = wrapped_attrib->length - AES_BLOCK_SIZE;
 
-    uint8_t* unwrap_attribs = new uint8_t[wrapped_len]();
+    uint8_t* unwrap_attribs = reinterpret_cast<uint8_t*>(calloc(wrapped_len, 1));
     int result = -1;
     if (uses_aad) {
         if (frame == NULL) {
@@ -332,7 +331,7 @@ bool ec_util::parse_encap_dpp_tlv(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_
     }
 
     // Copy frame
-    *encap_frame = new uint8_t[*encap_frame_len]();
+    *encap_frame = reinterpret_cast<uint8_t*>(calloc(*encap_frame_len, 1));
     ASSERT_NOT_NULL(*encap_frame, false, "Failed to allocate memory\n");
     memcpy(*encap_frame, data_ptr, *encap_frame_len);
 
@@ -389,6 +388,7 @@ uint8_t *ec_util::copy_attrs_to_frame(uint8_t *frame, size_t frame_base_size, ui
         printf("%s:%d: unable to realloc\n", __func__, __LINE__);
         return nullptr;
     }
+
     memcpy(new_frame + frame_base_size, attrs, attrs_len);
     return new_frame;
 }

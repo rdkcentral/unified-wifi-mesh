@@ -54,6 +54,14 @@ public:
     em_t *get_node_by_freq_band(em_freq_band_t *band);
     em_t *get_al_node();
 
+    /**
+     * @brief Get the physical AL node.
+     * In other words, the actual `em_t` node that is being used to perform EasyMesh operations.
+     * 
+     * @return Pointer to the physical AL node.
+     */
+    em_t *get_phy_al_em();
+
     void nodes_listener();
     int reset_listeners();
     void handle_timeout();
