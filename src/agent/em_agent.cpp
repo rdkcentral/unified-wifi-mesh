@@ -1253,10 +1253,10 @@ bool em_agent_t::try_start_dpp_onboarding()  {
         return false;
     }
 
-    em_t* al_node = get_al_node();
+    em_t* al_node = get_phy_al_em();
     ASSERT_NOT_NULL(al_node, false, "%s:%d: al_node is null\n", __func__, __LINE__);
 
-    uint8_t* al_mac = m_data_model.get_agent_al_interface_mac();
+    uint8_t* al_mac = al_node->get_radio_interface_mac();
     ASSERT_NOT_NULL(al_mac, false, "%s:%d: al_mac is null\n", __func__, __LINE__);
 
     //TODO: Just getting the first op-class info for now since AL is not a Wi-Fi interface

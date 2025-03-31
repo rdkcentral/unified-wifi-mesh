@@ -702,7 +702,7 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
     ASSERT_NOT_NULL_FREE(r_nonce_attr, false, prim_unwrapped_data, "%s:%d: No Responder Nonce attribute found\n", __func__, __LINE__);
 
     // Set the Responder Nonce
-    e_ctx->r_nonce = new uint8_t[r_nonce_attr->length]();
+    e_ctx->r_nonce = reinterpret_cast<uint8_t*>(calloc(r_nonce_attr->length, 1));
     ASSERT_NOT_NULL_FREE(e_ctx->r_nonce, false, prim_unwrapped_data, "%s:%d: Failed to allocate memory for Responder Nonce\n", __func__, __LINE__);
     memcpy(e_ctx->r_nonce, r_nonce_attr->data, r_nonce_attr->length);
 
