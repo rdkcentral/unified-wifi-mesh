@@ -45,7 +45,7 @@ int dm_op_class_t::decode(const cJSON *obj, void *parent_id)
     unsigned int i;
 
     memset(&m_op_class_info, 0, sizeof(em_op_class_info_t));
-    dm_op_class_t::parse_op_class_id_from_key((char *)parent_id, &m_op_class_info.id);
+    dm_op_class_t::parse_op_class_id_from_key(static_cast<char*>(parent_id), &m_op_class_info.id);
 	
     if ((tmp = cJSON_GetObjectItem(obj, "Class")) != NULL) {
         m_op_class_info.op_class = tmp->valuedouble;
