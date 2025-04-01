@@ -4,6 +4,7 @@
 #include "ec_configurator.h"
 #include "ec_pa_configurator.h"
 #include "ec_enrollee.h"
+#include "ieee80211.h"
 
 #include <memory>
 #include <functional>
@@ -27,7 +28,7 @@ public:
      * 
      */
     ec_manager_t(std::string mac_addr, send_chirp_func send_chirp, send_encap_dpp_func send_encap_dpp, send_act_frame_func send_action_frame, 
-        get_backhaul_sta_info_func get_bsta_info, get_1905_info_func get_1905_info, can_onboard_additional_aps_func can_onboard, bool m_is_controller);
+        get_backhaul_sta_info_func get_bsta_info, get_1905_info_func get_1905_info, can_onboard_additional_aps_func can_onboard, toggle_cce_func toggle_cce, bool m_is_controller);
     ~ec_manager_t();
 
     /**
@@ -76,6 +77,7 @@ public:
      * 
      * @param enable Whether to enable or disable CCE presence
      * @return bool true if successful, false otherwise
+     * @note If the operation fails, all CCE IEs are removed before the function exits
      */
     inline bool pa_cfg_toggle_cce(bool enable) {
         if (!m_is_controller || m_configurator == nullptr) {
@@ -93,12 +95,12 @@ public:
      * @brief Upgrade an enrollee to an onboarded proxy agent.
      * Called once m1/m2 exchange verifies the enrollee agent is on the network.
      * 
-     * @param toggle_cce The function to call to toggle CCE presence
      * @return bool true if successful, false otherwise
+     * @note If the operation fails, all CCE IEs are removed before the function exits
      */
-    bool upgrade_to_onboarded_proxy_agent(toggle_cce_func toggle_cce);
+    bool upgrade_to_onboarded_proxy_agent();
 
-        /**
+    /**
      * @brief Handle a chirp notification TLV and direct to the correct place (802.11 or 1905)
      * 
      * @param chirp_tlv The chirp TLV to parse and handle
@@ -129,6 +131,17 @@ public:
     }
 
     /**
+     * @brief Configurator Connectivity Element IE, EasyConnect v3.0 section 8.5.2
+     */
+    static constexpr struct ieee80211_vs_ie CCE_IE = {
+        .vs_ie = IEEE80211_ELEMID_VENDOR,
+        .vs_len = sizeof(struct ieee80211_vs_ie) - offsetof(struct ieee80211_vs_ie, vs_oui),
+        .vs_oui = {0x50, 0x6f, 0x9a},
+        .vs_type = 0x1e,
+        .vs_subtype = 0x00
+    };
+
+    /**
      * @brief Whether the enrollee node is **actively** onboarding or not.
      * 
      * If the node is a controller, this will always return false.
@@ -154,7 +167,7 @@ private:
     
     std::unique_ptr<ec_configurator_t> m_configurator;
     std::unique_ptr<ec_enrollee_t> m_enrollee;
-    toggle_cce_func m_stored_toggle_cce_fn;
+    toggle_cce_func m_toggle_cce_fn;
 };
 
 #endif // EC_MANAGER_H

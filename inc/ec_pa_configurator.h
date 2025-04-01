@@ -25,7 +25,8 @@ public:
         send_encap_dpp_func send_prox_encap_dpp_msg,
         send_act_frame_func send_action_frame,
         get_backhaul_sta_info_func get_sta_info_func,
-        get_1905_info_func ieee1905_info_func
+        get_1905_info_func ieee1905_info_func,
+        toggle_cce_func toggle_cce_fn
     ) : ec_configurator_t(
             mac_addr,
             send_chirp_notification,
@@ -34,7 +35,8 @@ public:
             get_sta_info_func,
             ieee1905_info_func,
             {}
-        ) { }
+        ),
+        m_toggle_cce(toggle_cce_fn) { }
 
 
     /**
@@ -116,6 +118,15 @@ public:
      * @return bool true if successful, false otherwise
      */
     bool process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) override;
+
+    /**
+     * @brief Set the CCE IEs in the beacon and probe response frames
+     * 
+     * @param bool Whether to enable or disable the inclusion of CCE IEs in the beacon and probe response frames
+     * @return bool true if successful, false otherwise
+     * @note If the operation fails, all CCE IEs are removed before the function exits
+     */
+    toggle_cce_func m_toggle_cce;
 
 private:
     // Private member variables go here

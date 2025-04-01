@@ -71,6 +71,15 @@ public:
     void input_listener();
 
     /**
+     * @brief Refresh the OneWifi subdoc with current information + provided data and send to OneWifi
+     * 
+     * @param log_name [in] The string to use when logging
+     * @param type [in] The subdoc type
+     * @return int 1 if successful, 0 if encode fails, -1 if send fails, -2 if unimplemented
+     */
+    int refresh_onewifi_subdoc(const char *log_name, const webconfig_subdoc_type_t type) override;
+
+    /**
      * @brief Send an action frame
      * 
      * @param dest_mac The destination MAC address
