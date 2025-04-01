@@ -74,11 +74,11 @@ public:
      * 
      * @param log_name [in] The string to use when logging
      * @param type [in] The subdoc type
-     * @return int 0 if encode fails, -1 if send fails, 1 if both succeed.
+     * @return int 1 if successful, 0 if encode fails, -1 if send fails, -2 if unimplemented
      */
     virtual int refresh_onewifi_subdoc(const char *log_name, const webconfig_subdoc_type_t type) {
         printf("refresh_onewifi_subdoc not implemented\n");
-        return 0;
+        return -2;
     }
 
     /**

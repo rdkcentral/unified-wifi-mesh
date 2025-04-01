@@ -41,11 +41,12 @@ using send_encap_dpp_func = std::function<bool(em_encap_dpp_t*, size_t, em_dpp_c
 using send_act_frame_func = std::function<bool(uint8_t*, uint8_t *, size_t, unsigned int)>;
 
 /**
-* @brief Set the CCE IEs in the beacon and probe response frames
-* 
-* @param bool Whether to enable or disable the inclusion of CCE IEs in the beacon and probe response frames
-* @return bool true if successful, false otherwise
-*/
+ * @brief Set the CCE IEs in the beacon and probe response frames
+ * 
+ * @param bool Whether to enable or disable the inclusion of CCE IEs in the beacon and probe response frames
+ * @return bool true if successful, false otherwise
+ * @note If the operation fails, all CCE IEs are removed before the function exits
+ */
 using toggle_cce_func = std::function<bool(bool)>;
 
 /**
@@ -80,16 +81,6 @@ public:
                         send_act_frame_func send_action_frame, get_backhaul_sta_info_func backhaul_sta_info_func, get_1905_info_func ieee1905_info_func,
                         can_onboard_additional_aps_func can_onboard_func);
     virtual ~ec_configurator_t(); // Destructor
-
-    /**
-     * @brief Set the CCE IEs in the beacon and probe response frames
-     * 
-     * @param bool Whether to enable or disable the inclusion of CCE IEs in the beacon and probe response frames
-     * @return bool true if successful, false otherwise
-     */
-    toggle_cce_func m_toggle_cce = {
-        [](bool enable) -> bool { return false; }
-    };
 
     /**
      * @brief Start the EC configurator onboarding process for an enrollee
