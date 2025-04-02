@@ -264,10 +264,15 @@ bool ec_util::parse_dpp_chirp_tlv(em_dpp_chirp_value_t* chirp_tlv, uint16_t chir
     return true;
 }
 
-std::pair<em_dpp_chirp_value_t*, uint16_t> ec_util::create_dpp_chirp_tlv(bool mac_present, bool hash_validity, mac_addr_t dest_mac)
+std::pair<em_dpp_chirp_value_t*, uint16_t> ec_util::create_dpp_chirp_tlv(bool mac_present, bool hash_validity, uint8_t *hash, size_t hash_len, mac_addr_t dest_mac)
 {
     if (dest_mac == NULL && mac_present) {
         printf("%s:%d: mac_present argument is true, but dest_mac was not provided\n", __func__, __LINE__);
+        return {};
+    }
+
+    if (hash == nullptr || hash_len == 0) {
+        printf("%s:%d: Invalid hash\n", __func__, __LINE__);
         return {};
     }
 
@@ -275,6 +280,8 @@ std::pair<em_dpp_chirp_value_t*, uint16_t> ec_util::create_dpp_chirp_tlv(bool ma
     if (dest_mac != NULL) {
         data_size += sizeof(mac_addr_t);
     }
+    data_size += hash_len;
+
     em_dpp_chirp_value_t *chirp_tlv = NULL;
     if ((chirp_tlv = static_cast<em_dpp_chirp_value_t *>(calloc(data_size, 1))) == NULL){
         fprintf(stderr, "Failed to allocate memory\n");
@@ -284,9 +291,14 @@ std::pair<em_dpp_chirp_value_t*, uint16_t> ec_util::create_dpp_chirp_tlv(bool ma
     (chirp_tlv)->mac_present = mac_present;
     (chirp_tlv)->hash_valid = hash_validity;
 
+    uint8_t *data_ptr = chirp_tlv->data;
+
     if (dest_mac != NULL) {
-        memcpy((chirp_tlv)->data, dest_mac, sizeof(mac_addr_t));
+        memcpy(data_ptr, dest_mac, sizeof(mac_addr_t));
+        data_ptr += sizeof(mac_addr_t);
     }
+
+    memcpy(data_ptr, hash, hash_len);
 
     return std::pair<em_dpp_chirp_value_t*, uint16_t>(chirp_tlv, static_cast<uint16_t>(data_size));
 }

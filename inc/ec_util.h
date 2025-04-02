@@ -289,11 +289,13 @@ public:
      * @param mac_present [in] The address of the Enrollee Multi-AP Agent 
      * @param hash_validity [in] Establish/purge any DPP authentication state pertaining to the hash value in this TLV (0 = purge, 1 = establish)
      * @param dest_mac [in] The destination mac address (0 if not present)
+     * @param hash The bootstrapping key hash from the DPP URI
+     * @param hash_len The length of the hash, in bytes
      * @return em_dpp_chirp_value_t* The heap allocated DPP Chirp Value TLV, NULL if failed
      * 
      * @warning The `em_dpp_chirp_value_t` must be freed by the caller
      */
-    static std::pair<em_dpp_chirp_value_t*, uint16_t> create_dpp_chirp_tlv(bool mac_present, bool hash_validity, mac_addr_t dest_mac);
+    static std::pair<em_dpp_chirp_value_t*, uint16_t> create_dpp_chirp_tlv(bool mac_present, bool hash_validity, uint8_t *hash, size_t hash_len, mac_addr_t dest_mac);
 
     /**
      * @brief Parse an Encap DPP TLV

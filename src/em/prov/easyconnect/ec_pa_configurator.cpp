@@ -19,7 +19,7 @@ bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_
     if (hash_frame_iter == m_chirp_hash_frame_map.end()) {
         // If no matching hash value is found, the Proxy Agent shall send a Chirp Notification message to the 
         // Controller with a DPP Chirp Value TLV
-        const auto [chirp_tlv, chirp_tlv_len] = ec_util::create_dpp_chirp_tlv(true, true, src_mac);
+        const auto [chirp_tlv, chirp_tlv_len] = ec_util::create_dpp_chirp_tlv(true, true, B_r_hash_attr->data, static_cast<size_t>(B_r_hash_attr->length), src_mac);
         ASSERT_NOT_NULL(chirp_tlv, false, "%s:%d Failed to create DPP Chirp Value TLV\n", __func__, __LINE__);
         sent = m_send_chirp_notification(chirp_tlv, chirp_tlv_len);
         free(chirp_tlv);
