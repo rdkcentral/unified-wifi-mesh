@@ -113,6 +113,14 @@ int em_chan_to_freq(uint8_t op_class, uint8_t chan, const std::string& country="
  */
 std::pair<uint8_t, uint8_t> em_freq_to_chan(unsigned int frequency, const std::string& region="");
 
+/**
+ * @brief Translate an AKM literal to it's OUI representation case-insensitively
+ * 
+ * @param akm The AKM string literal, for example, "psk"
+ * @return std::string The OUI representation, such as "000FAC02" for "psk", or empty string otherwise.
+ */
+std::string akm_to_oui(std::string akm);
+
 } // namespace util
 
 #define em_printf(format, ...)  util::em_util_print(EM_LOG_LVL_INFO, EM_AGENT, __func__, __LINE__, format, ##__VA_ARGS__)// general log

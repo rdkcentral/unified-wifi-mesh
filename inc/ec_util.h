@@ -16,8 +16,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#ifndef _EC_UTIL_H_
+#define _EC_UTIL_H_
+
 #include "em_base.h"
 #include "ec_base.h"
+#include "em_crypto.h"
+#include "ec_crypto.h"
 #include <stdint.h>
 #include <stddef.h>
 
@@ -26,8 +31,21 @@
 #include <string>
 #include <functional>
 #include <memory>
+#include <optional>
+#include <sstream>
 
 #define EC_FRAME_BASE_SIZE (offsetof(ec_frame_t, attributes))
+
+typedef enum {
+    DPP_URI_VERSION = 0,
+    DPP_URI_MAC,
+    DPP_URI_CHANNEL_LIST,
+    DPP_URI_INFORMATION,
+    DPP_URI_HOST,
+    DPP_URI_SUPPORTED_CURVES,
+    DPP_URI_PUBLIC_KEY,
+    DPP_URI_MAX // End of ENUM - used for iteration
+} dpp_uri_field;
 
 namespace easyconnect {
 
@@ -84,6 +102,38 @@ public:
      * @warning The buffer must be freed by the caller
      */
     static uint8_t *add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, uint16_t len, uint8_t *data);
+
+
+    /**
+     * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary
+     * 
+     * @param buff The buffer to add the attribute to
+     * @param buff_len The length of the buffer (in/out)
+     * @param id The attribute ID
+     * @param len The length of the data
+     * @param data The attribute data
+     * @return uint8_t* The buffer offset by the length of the attribute
+     * 
+     * @warning The buffer must be freed by the caller
+     */
+    static inline uint8_t *add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, uint16_t len, const scoped_buff& data) {
+        return add_attrib(buff, buff_len, id, len, data.get());
+    }
+
+    /**
+     * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary
+     * 
+     * @param buff The buffer to add the attribute to
+     * @param buff_len The length of the buffer (in/out)
+     * @param id The attribute ID
+     * @param str The attribute as a string
+     * @return uint8_t* The buffer offset by the length of the attribute
+     * 
+     * @warning The buffer must be freed by the caller
+     */
+    static inline uint8_t *add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, std::string str) {
+        return add_attrib(buff, buff_len, id, static_cast<uint16_t>(str.length()), const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(str.c_str())));
+    }
 
     /**
      * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary
@@ -158,6 +208,8 @@ public:
                 auto *resp_frame = static_cast<ec_gas_initial_response_frame_t *>(frame);
                 memcpy(resp_frame->ape, DPP_GAS_CONFIG_REQ_APE, sizeof(resp_frame->ape));
                 memcpy(resp_frame->ape_id, DPP_GAS_CONFIG_REQ_PROTO_ID, sizeof(resp_frame->ape_id));
+                // NOTE: Hardcoded since we are not implementing the full GAS protocol
+                resp_frame->status_code = 0; // SUCCESS
                 created_frame_size = sizeof(ec_gas_initial_response_frame_t);
             }
             break;
@@ -217,8 +269,8 @@ public:
         return validate_frame(frame) && frame->frame_type == type;
     }
 
-        /**
-     * @brief Parse a DPP Chirp TLV
+    /**
+     * @brief Parse a DPP Chirp Value TLV
      * 
      * @param buff [in] The buffer containing the chirp TLV
      * @param chirp_tlv_len [in] The length of the chirp TLV
@@ -228,6 +280,20 @@ public:
      * @return bool true if successful, false otherwise
      */
     static bool parse_dpp_chirp_tlv(em_dpp_chirp_value_t* chirp_tlv,  uint16_t chirp_tlv_len, mac_addr_t *mac, uint8_t **hash, uint8_t *hash_len);
+
+    /**
+     * @brief Creates and allocates a DPP Chirp Value TLV
+     * 
+     * EasyMesh R6, Section 17.2.83, Table 105
+     * 
+     * @param mac_present [in] The address of the Enrollee Multi-AP Agent 
+     * @param hash_validity [in] Establish/purge any DPP authentication state pertaining to the hash value in this TLV (0 = purge, 1 = establish)
+     * @param dest_mac [in] The destination mac address (0 if not present)
+     * @return em_dpp_chirp_value_t* The heap allocated DPP Chirp Value TLV, NULL if failed
+     * 
+     * @warning The `em_dpp_chirp_value_t` must be freed by the caller
+     */
+    static std::pair<em_dpp_chirp_value_t*, uint16_t> create_dpp_chirp_tlv(bool mac_present, bool hash_validity, mac_addr_t dest_mac);
 
     /**
      * @brief Parse an Encap DPP TLV
@@ -346,6 +412,29 @@ public:
     static std::string hash_to_hex_string(const uint8_t *hash, size_t hash_len);
 
     /**
+     * @brief Convert a hash to a hex string
+     * 
+     * @param hash Vector containing the hash to convert.
+     * @return std::string  The hex string representation of the hash
+     */
+    static std::string hash_to_hex_string(const std::vector<uint8_t>& hash);
+
+    // Used for storing channels / op-classes searched when looking for a given SSID.
+    struct scanned_channels_t {
+        uint32_t chan;
+        uint32_t opclass;
+    };
+
+    /**
+     * @brief Generate an EasyConnect `channel-list-2` formatted channel list from a map of scanned (EasyConnect 6.4.5.2)
+     * 
+     * @param ssid The SSID to build the searched channel list for.
+     * @param scanned_channels_map SSID searched for -> channels / op-classes searched.
+     * @return std::string Channel list as a string, example: "81/1,6,11,117/40,115/48"
+     */
+    static std::string generate_channel_list(const std::string& ssid, std::unordered_map<std::string, std::vector<scanned_channels_t>> scanned_channels_map);
+
+    /**
      * @brief Check if the capabilities of the initiator and responder are compatible
      * 
      * @param init_caps The capabilities of the initiator
@@ -353,4 +442,296 @@ public:
      * @return true The capabilities are compatible (DPP_STATUS_OK), false otherwise (DPP_STATUS_NOT_COMPATIBLE)
      */
     static bool check_caps_compatible(const ec_dpp_capabilities_t& init_caps, const ec_dpp_capabilities_t& resp_caps);
+
+    static inline void free_connection_ctx(ec_connection_context_t& c_ctx) {
+        ec_crypto::free_ephemeral_context(&c_ctx.eph_ctx, c_ctx.nonce_len, c_ctx.digest_len);
+
+        auto boot_data = &c_ctx.boot_data;
+        if (boot_data->resp_priv_boot_key) {
+            BN_free(boot_data->resp_priv_boot_key);
+        }
+        if (boot_data->resp_pub_boot_key) {
+            EC_POINT_free(boot_data->resp_pub_boot_key);
+        }
+        if (boot_data->init_priv_boot_key) {
+            BN_free(boot_data->init_priv_boot_key);
+        }
+        if (boot_data->init_pub_boot_key) {
+            EC_POINT_free(boot_data->init_pub_boot_key);
+        }
+        if (boot_data->initiator_boot_key) {
+            em_crypto_t::free_key(const_cast<SSL_KEY*>(boot_data->initiator_boot_key));
+        }
+        if (boot_data->responder_boot_key) {
+            em_crypto_t::free_key(const_cast<SSL_KEY*>(boot_data->responder_boot_key));
+        }
+
+        boot_data->resp_priv_boot_key = nullptr;
+        boot_data->resp_pub_boot_key = nullptr;
+        boot_data->init_priv_boot_key = nullptr;
+        boot_data->init_pub_boot_key = nullptr;
+        boot_data->initiator_boot_key = nullptr;
+        boot_data->responder_boot_key = nullptr;
+    }
+
+    /**
+     * @brief Decode a DPP URI channel-list string
+     * 
+     * EasyConnect 5.2.1
+     *      **channel-list** = “C:” class-and-channels *(“,” class-and-channels)
+     *      class-and-channels = class “/” channel *(“,” channel)
+     *      class = 1*3DIGIT
+     *      channel = 1*3DIGIT
+     * 
+     * Example: "C:81/1,115/36"
+     * 
+     * @param class_channel_str The channel list string to decode
+     * @return std::vector<std::pair<uint32_t, uint32_t>> A vector of pairs containing the op-class and channel parsed
+     */
+    static inline std::vector<std::pair<uint32_t, uint32_t>>
+    parse_dpp_uri_channel_list(std::string class_channel_str)
+    {
+        std::stringstream ss(class_channel_str);
+        std::string pair;
+
+        std::vector<std::pair<uint32_t, uint32_t>> class_channel_pairs;
+
+        while (std::getline(ss, pair, ',')) {
+            size_t slash_pos = pair.find('/');
+            if (slash_pos != std::string::npos) {
+                int op_class = std::stoi(pair.substr(0, slash_pos));
+                int channel = std::stoi(pair.substr(slash_pos + 1));
+
+                class_channel_pairs.emplace_back(static_cast<uint32_t>(op_class),
+                                                 static_cast<uint32_t>(channel));
+            }
+        }
+        return class_channel_pairs;
+    }
+
+    /**
+     * @brief Encode the bootstrapping data into a JSON format (same information as the DPP URI) 
+     * 
+     * @param boot_data The DPP data to encode
+     * @return std::optional<std::string> The encoded bootstrapping data in JSON format, or std::nullopt on failure
+     */
+    static std::optional<std::string> encode_bootstrap_data_json(ec_data_t *boot_data);
+
+    /**
+     * @brief Encode the bootstrapping data into a URI format (DPP URI)
+     * 
+     * @param boot_data The DPP data to encode
+     * @return std::optional<std::string> The encoded bootstrapping data in DPP URI format, or std::nullopt on failure
+     */
+    static std::optional<std::string> encode_bootstrap_data_uri(ec_data_t *boot_data);
+
+    /**
+     * @brief Decode the bootstrapping data from a URI format (DPP URI)
+     * 
+     * @param uri [in] The DPP URI to decode
+     * @param boot_data [out] The DPP data to decode into
+     * @return true The DPP boot data was decoded successfully, false otherwise
+     */
+    static bool decode_bootstrap_data_uri(const std::string &uri, ec_data_t *boot_data,
+                                          std::string country_code = "US");
+    /**
+     * @brief Decode the bootstrapping data from a JSON format
+     * 
+     * @param json_obj [in] The JSON object to decode
+     * @param boot_data [out] The DPP data to decode into
+     * @param country_code [in] The country code to use for channel decoding
+     * @return true The DPP boot data was decoded successfully, false otherwise
+     */
+    static bool decode_bootstrap_data_json(const cJSON *json_obj, ec_data_t *boot_data,
+                                           std::string country_code = "US");
+
+    /**
+     * @brief Read the bootstrapping data from a file
+     * 
+     * @param boot_data [out] The DPP data to read into
+     * @param file_path [in] The path to the file to read from
+     * @return true The DPP boot data was read successfully, false otherwise
+     */
+    static bool read_bootstrap_data_from_file(ec_data_t *boot_data, const std::string &file_path);
+
+    /**
+     * @brief Write the bootstrapping data to a file
+     * 
+     * @param boot_data [in] The DPP data to write
+     * @param file_path [in] The path to the file to write to
+     * @return true The DPP boot data was written successfully, false otherwise
+     */
+    static bool write_bootstrap_data_to_file(ec_data_t *boot_data, const std::string &file_path);
+
+    /**
+     * @brief Generate DPP bootstrapping data
+     * 
+     * @param boot_data [out] The DPP bootstrapping data to generate
+     * @param al_mac [in] The MAC address of the AL interface
+     * @param op_class_info [in] The operating class information to use for the DPP bootstrapping data.
+     *      Optional. If not given then channel information will not be present in newly generated bootstrapping data.
+     * @return true The DPP boot data was generated successfully, false otherwise
+     */
+    static bool generate_dpp_boot_data(ec_data_t *boot_data, mac_addr_t al_mac,
+                                       em_op_class_info_t *op_class_info = NULL);
+
+    /**
+     * @brief Get the DPP bootstrapping data from "somewhere".
+     * 
+     * In the current "demo" implementation, this function will:
+     * - When `do_recfg` is false:
+     *      - Generate a new DPP bootstrapping data, store it in `boot_data`, and write it to the file system
+     *      - Write the newly generated responder bootstrapping keypair to a PEM file
+     * - When `do_recfg` is true:
+     *     - Read the DPP bootstrapping data from the file system and store it in `boot_data`
+     *     - Read the responder bootstrapping keypair from the PEM file and store it in `boot_data`
+     *     - If those are not present, it will re-generate everything and switch back to non-reconfiguration mode (since that information is no longer valid)
+     * 
+     * @param boot_data [out] The newly filled DPP bootstrapping data
+     * @param al_mac [in] The MAC address of the AL interface
+     * @param do_recfg [in] Whether to fetch the DPP bootstrapping data for DPP reconfig/reauth or not
+     * @param op_class_info [in] The operating class information to use for the DPP bootstrapping data. 
+     *      Optional. If not given then channel information will not be present in newly generated bootstrapping data.
+     * @return true The DPP boot data was fetched successfully, false otherwise
+     * 
+     * @note This function can change as out-of-band mechanisms change. This is **NOT** a constant
+     */
+    static bool get_dpp_boot_data(ec_data_t *boot_data, mac_addr_t al_mac, bool do_recfg,
+                                  em_op_class_info_t *op_class_info = NULL);
+
+private:
+    /**
+     * @brief Decode the bootstrapping data from a URI format (DPP URI)
+     * 
+     * @param uri_map [in] The itermediate map of the DPP URI fields and their string values
+     * @param boot_data [out] The DPP data to decode into
+     * @return true The DPP boot data was decoded successfully, false otherwise
+     * 
+     * @details
+     * EasyConnect 5.2.1 Bootstrapping Information Format
+     *    dpp-qr = “DPP:” *optional-fields public-key “;;”  
+     *    pkex-bootstrap-info = information
+     *    optional-fields = reserved-field / unreserved-field
+     *    reserved-field = ( channel-list / mac / information / version / host / supported-curves) ";" ; specified in this spec
+     *    channel-list = “C:” class-and-channels *(“,” class-and-channels)
+     *    class-and-channels = class “/” channel *(“,” channel)
+     *    class = 1*3DIGIT
+     *    channel = 1*3DIGIT
+     *    mac = “M:” 6hex-octet ; MAC address
+     *    hex-octet = 2HEXDIG
+     *    information = “I:” *(%x20-3A / %x3C-7E) ; semicolon not allowed
+     *    version = "V:" 1*ALPHANUMERIC ; supported DPP version with value from Table 31 in Section 8.1.1.18
+     *    host = "H:" 1*255(DIGIT / ALPHA / "." / "-" / ":") ; semicolon not allowed
+     *    supported-curves = "B:" 1*HEXDIG ; supported curves as bitmap of Figure 18
+     *    ALPHANUMERIC = ALPHA / DIGIT
+     *    unreserved-field = dpp-token-pair ";"
+     *    dpp-token-pair = unreserved-token “:” *(%x20-3A / %x3C-7E) ; semicolon not allowed
+     *    unreserved-token = 1*ALPHA; “M”, “C”, “K”, “I”, "H", "B" are not allowed token names for extensions
+     *    public-key = “K:” *PKCHAR ; DER of ASN.1 SubjectPublicKeyInfo encoded in “base64” as per [13]
+     *    PKCHAR = ALPHANUMERIC / %x2b / %x2f / %x3d
+     *    DIGIT = %x30-39 HEXDIG = DIGIT / "A" / "B" / "C" / "D" / "E" / "F" ALPHA
+     */
+    static bool decode_bootstrap_data(std::map<dpp_uri_field, std::string> uri_map,
+                                      ec_data_t *boot_data, std::string country_code = "US");
+
+    /**
+     * @brief Encode the bootstrapping data into a URI format (DPP URI)
+     * 
+     * @param boot_data The DPP data to encode
+     * @return std::map<dpp_uri_field, std::string> The encoded bootstrapping data in DPP URI string format
+     * 
+     * @details
+     * EasyConnect 5.2.1 Bootstrapping Information Format
+     *    dpp-qr = “DPP:” *optional-fields public-key “;;”  
+     *    pkex-bootstrap-info = information
+     *    optional-fields = reserved-field / unreserved-field
+     *    reserved-field = ( channel-list / mac / information / version / host / supported-curves) ";" ; specified in this spec
+     *    channel-list = “C:” class-and-channels *(“,” class-and-channels)
+     *    class-and-channels = class “/” channel *(“,” channel)
+     *    class = 1*3DIGIT
+     *    channel = 1*3DIGIT
+     *    mac = “M:” 6hex-octet ; MAC address
+     *    hex-octet = 2HEXDIG
+     *    information = “I:” *(%x20-3A / %x3C-7E) ; semicolon not allowed
+     *    version = "V:" 1*ALPHANUMERIC ; supported DPP version with value from Table 31 in Section 8.1.1.18
+     *    host = "H:" 1*255(DIGIT / ALPHA / "." / "-" / ":") ; semicolon not allowed
+     *    supported-curves = "B:" 1*HEXDIG ; supported curves as bitmap of Figure 18
+     *    ALPHANUMERIC = ALPHA / DIGIT
+     *    unreserved-field = dpp-token-pair ";"
+     *    dpp-token-pair = unreserved-token “:” *(%x20-3A / %x3C-7E) ; semicolon not allowed
+     *    unreserved-token = 1*ALPHA; “M”, “C”, “K”, “I”, "H", "B" are not allowed token names for extensions
+     *    public-key = “K:” *PKCHAR ; DER of ASN.1 SubjectPublicKeyInfo encoded in “base64” as per [13]
+     *    PKCHAR = ALPHANUMERIC / %x2b / %x2f / %x3d
+     *    DIGIT = %x30-39 HEXDIG = DIGIT / "A" / "B" / "C" / "D" / "E" / "F" ALPHA
+     */
+    static std::map<dpp_uri_field, std::string> encode_bootstrap_data(ec_data_t *boot_data);
+
+    /**
+     * @brief Get the DPP URI field enum from a string
+     * 
+     * @param field_str The string to convert
+     * @return std::optional<dpp_uri_field> The DPP URI field enum, or std::nullopt if invalid
+     * 
+     * @note Using method instead of map to require mapping for new fields
+     */
+    static inline std::optional<dpp_uri_field> get_dpp_uri_field(const std::string &field_str)
+    {
+        ASSERT_MSG_TRUE(field_str.length() == 1, std::nullopt, "Invalid DPP URI field string");
+        char field = static_cast<char>(std::toupper(field_str[0]));
+        if (field < 'A' || field > 'Z') {
+            return std::nullopt;
+        }
+        switch (field) {
+        case 'V':
+            return dpp_uri_field::DPP_URI_VERSION;
+        case 'M':
+            return dpp_uri_field::DPP_URI_MAC;
+        case 'C':
+            return dpp_uri_field::DPP_URI_CHANNEL_LIST;
+        case 'I':
+            return dpp_uri_field::DPP_URI_INFORMATION;
+        case 'H':
+            return dpp_uri_field::DPP_URI_HOST;
+        case 'B':
+            return dpp_uri_field::DPP_URI_SUPPORTED_CURVES;
+        case 'K':
+            return dpp_uri_field::DPP_URI_PUBLIC_KEY;
+            // Leaving off `default` case so compile error will be thrown if new field is added and not handled
+        }
+        return std::nullopt;
+    }
+
+    /**
+     * @brief Get the DPP URI field character from a field enum
+     * 
+     * @param field The field to convert
+     * @return std::optional<std::string> The DPP URI field character, or std::nullopt if invalid
+     * 
+     * @note Using method instead of map to require mapping for new fields
+     */
+    static inline std::optional<std::string> get_dpp_uri_field_char(dpp_uri_field field)
+    {
+        switch (field) {
+        case dpp_uri_field::DPP_URI_VERSION:
+            return "V";
+        case dpp_uri_field::DPP_URI_MAC:
+            return "M";
+        case dpp_uri_field::DPP_URI_CHANNEL_LIST:
+            return "C";
+        case dpp_uri_field::DPP_URI_INFORMATION:
+            return "I";
+        case dpp_uri_field::DPP_URI_HOST:
+            return "H";
+        case dpp_uri_field::DPP_URI_SUPPORTED_CURVES:
+            return "B";
+        case dpp_uri_field::DPP_URI_PUBLIC_KEY:
+            return "K";
+        case dpp_uri_field::DPP_URI_MAX:
+            return std::nullopt;
+            // Leaving off `default` case so compile error will be thrown if new field is added and not handled
+        }
+        return std::nullopt;
+    }
 };
+
+#endif // _EC_UTIL_H_

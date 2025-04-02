@@ -33,6 +33,7 @@
 #include <vector>
 #include <utility>
 #include <string>
+#include <memory>
 
 #define SHA256_MAC_LEN 32
 #define AES_BLOCK_SIZE 16
@@ -417,7 +418,9 @@ public:
      * @note The returned EC_KEY must be freed by the caller using EC_KEY_free()
      * @note This function assumes the input is a valid base64-encoded DER format EC public key
      */
-    static SSL_KEY* create_ec_key_from_base64_der(const char* base64_der_pubkey);
+    static SSL_KEY* ec_key_from_base64_der(const std::string& base64_der_pubkey);
+
+    static std::string ec_key_to_base64_der(const SSL_KEY* key);
 
     static SSL_KEY* create_ec_key_from_coordinates(const std::vector<uint8_t>& x_bin, 
                                                    const std::vector<uint8_t>& y_bin, 
@@ -428,6 +431,7 @@ public:
     static EC_GROUP* get_key_group(const SSL_KEY* key);
     static BIGNUM* get_priv_key_bn(const SSL_KEY* key);
     static EC_POINT* get_pub_key_point(const SSL_KEY* key, EC_GROUP* key_group=NULL);
+    static SSL_KEY* generate_ec_key(EC_GROUP *group);
     static SSL_KEY* generate_ec_key(int nid);
     static void free_key(SSL_KEY* key);
 
@@ -472,4 +476,42 @@ public:
     em_crypto_t();
     ~em_crypto_t() {}
 };
+
+
+// Custom deleters for OpenSSL objects to use with std::unique_ptr
+struct BIODeleter {
+    void operator()(BIO* bio) const { if (bio) BIO_free(bio); }
+};
+
+struct BNDeleter {
+    void operator()(BIGNUM* bn) const { if (bn) BN_free(bn); }
+};
+
+struct ECPointDeleter {
+    void operator()(EC_POINT* point) const { if (point) EC_POINT_free(point); }
+};
+
+struct ECGroupDeleter {
+    void operator()(EC_GROUP* group) const { 
+        #if !defined(FORCE_OPENSSL_1_1) && OPENSSL_VERSION_NUMBER >= 0x30000000L
+        if (group) EC_GROUP_free(group); 
+        #endif
+    }
+};
+
+struct SSLKeyDeleter {
+    void operator()(SSL_KEY* key) const { if (key) em_crypto_t::free_key(key); }
+};
+
+struct BuffDeleter {
+    void operator()(uint8_t* buff) const { if (buff) OPENSSL_free(buff); }
+};
+
+
+using scoped_ssl_key = std::unique_ptr<SSL_KEY, SSLKeyDeleter>;
+using scoped_bio = std::unique_ptr<BIO, BIODeleter>;
+using scoped_bn = std::unique_ptr<BIGNUM, BNDeleter>;
+using scoped_ec_point = std::unique_ptr<EC_POINT, ECPointDeleter>;
+using scoped_ec_group = std::unique_ptr<EC_GROUP, ECGroupDeleter>;
+using scoped_buff = std::unique_ptr<uint8_t, BuffDeleter>;
 #endif

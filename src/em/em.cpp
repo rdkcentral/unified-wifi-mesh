@@ -102,7 +102,7 @@ void em_t::orch_execute(em_cmd_t *pcmd)
                 if (dpp_info->ec_freqs[i] == 0) break;
                 printf("\t\tFreq: %d\n", dpp_info->ec_freqs[i]);
             }
-            if (!m_ec_manager->cfg_start(dpp_info)){
+            if (!m_ec_manager->cfg_onboard_enrollee(dpp_info)){
                 printf("Failed to start DPP\n");
             }
             
@@ -635,6 +635,54 @@ bool em_t::is_matching_freq_band(em_freq_band_t *band)
     return (get_band() == *band);
 }
 
+bool em_t::toggle_cce(bool enable)
+{
+    const unsigned int num_bss = m_data_model->get_num_bss();
+
+    bool success = false;
+    if (enable) {
+        printf("Adding DPP IE to %d BSSs\n", num_bss);
+        for (int i = 0; i < num_bss; i++) {
+            dm_bss_t* bss = m_data_model->get_bss(i);
+            em_bss_info_t* bss_info = bss->get_bss_info();
+            em_interface_t* bssid = &bss_info->bssid;
+
+            success = bss->add_vendor_ie(&ec_manager_t::CCE_IE);
+            if (!success) {
+                printf("Failed to add DPP IE to BSS '" MACSTRFMT "'\n", MAC2STR(bssid->mac));
+                break;
+            }
+
+            printf("Added DPP IE to BSS '" MACSTRFMT "'\n", MAC2STR(bssid->mac));
+        }
+    }
+
+    // Remove DPP IEs if enable is false or if adding DPP IEs failed
+    // (prevents a state where only some BSSs have DPP IEs)
+    if (!enable || !success) {
+        printf("Removing DPP IE from %d BSSs\n", num_bss);
+        for (int i = 0; i < num_bss; i++) {
+            dm_bss_t* bss = m_data_model->get_bss(i);
+            em_bss_info_t* bss_info = bss->get_bss_info();
+            em_interface_t* bssid = &bss_info->bssid;
+
+            bss->remove_vendor_ie(&ec_manager_t::CCE_IE);
+            printf("Removed DPP IE from BSS '" MACSTRFMT "'\n", MAC2STR(bssid->mac));
+        }
+    }
+
+    // Refresh OneWifi
+    webconfig_subdoc_type_t vap_type = dm_easy_mesh_t::get_subdoc_vap_type_for_freq(get_band());
+    int refresh_outcome = m_mgr->refresh_onewifi_subdoc("'Vendor IE Refresh'", vap_type);
+    if (refresh_outcome != 1) {
+        printf("Error occurred on Vendor IE Refresh: return value %d\n", refresh_outcome);
+        return false;
+    }
+
+    // Disabling CCEs always succeeds, and enabling succeeds if `success` is set to true
+    return !enable || success;
+}
+
 void em_t::push_to_queue(em_event_t *evt)
 {
     pthread_mutex_lock(&m_iq.lock);
@@ -1068,7 +1116,7 @@ const char *em_t::get_band_type_str(em_freq_band_t band)
     return "band_type_unknown";
 }
 
-em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr_t *mgr, em_profile_type_t profile, em_service_type_t type): m_data_model(), m_mgr(mgr), m_orch_state(), m_cmd(), m_sm(), m_service_type(), m_fd(0), m_ruid(*ruid), m_band(band), m_profile_type(profile), m_iq(), m_tid(), m_exit(), m_is_al_em(false)
+em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr_t *mgr, em_profile_type_t profile, em_service_type_t type, bool is_al_em): m_data_model(), m_mgr(mgr), m_orch_state(), m_cmd(), m_sm(), m_service_type(), m_fd(0), m_ruid(*ruid), m_band(band), m_profile_type(profile), m_iq(), m_tid(), m_exit(), m_is_al_em(is_al_em)
 {
     memcpy(&m_ruid, ruid, sizeof(em_interface_t));
     m_band = band;  
@@ -1084,24 +1132,30 @@ em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr
 	m_mgr = mgr;
     em_service_type_t service_type = get_service_type();
 
-    std::string mac_address = util::mac_to_string(get_peer_mac());
-    m_ec_manager = std::unique_ptr<ec_manager_t>(new ec_manager_t(
-        mac_address,
-        std::bind(&em_t::send_chirp_notif_msg, this, std::placeholders::_1, std::placeholders::_2),
-        std::bind(&em_t::send_prox_encap_dpp_msg, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4),
-        std::bind(&em_mgr_t::send_action_frame, mgr, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 
-        service_type == em_service_type_agent
-            ? std::bind(&em_t::create_enrollee_bsta_list, this, std::placeholders::_1)
-            : static_cast<get_backhaul_sta_info_func>(nullptr),
-        // XXX: Bind these callbacks when implemented
-        // See: ec_configurator.h `get_1905_info_func` and `can_onboard_additional_aps_func`
-        // Depending on service type, will remain as nullptr,
-        // for instance, `ec_pa_configurator` will remain nullptr, so
-        // callsites should check for validity of the std::functions before calling.
-        nullptr,
-        nullptr,
-        service_type == em_service_type_ctrl
-    ));
+    if (!is_al_em){
+        // A "{mac_address}_al" em_t is created along with a normal "{mac_address}" em_t instance where EasyMesh operations are performed (such as setting of states)..
+        // We only care about the normal "{mac_address}" em_t instance so we should only create an ec_manager_t instance for that one.
+        std::string mac_address = util::mac_to_string(get_peer_mac());
+        m_ec_manager = std::unique_ptr<ec_manager_t>(new ec_manager_t(
+            mac_address,
+            std::bind(&em_t::send_chirp_notif_msg, this, std::placeholders::_1, std::placeholders::_2),
+            std::bind(&em_t::send_prox_encap_dpp_msg, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4),
+            std::bind(&em_mgr_t::send_action_frame, mgr, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 
+            service_type == em_service_type_agent
+                ? std::bind(&em_t::create_enrollee_bsta_list, this, std::placeholders::_1)
+                : std::bind(&em_t::create_configurator_bsta_response_obj, this, std::placeholders::_1),
+            // XXX: Bind these callbacks when implemented
+            // See: ec_configurator.h `can_onboard_additional_aps_func`
+            // Depending on service type, will remain as nullptr,
+            // for instance, `ec_pa_configurator` will remain nullptr, so
+            // callsites should check for validity of the std::functions before calling.
+            service_type == em_service_type_ctrl
+                ? std::bind(&em_t::create_ieee1905_response_obj, this, std::placeholders::_1) : static_cast<get_1905_info_func>(nullptr),
+            nullptr,
+        std::bind(&em_t::toggle_cce, this, std::placeholders::_1),
+            service_type == em_service_type_ctrl
+        ));
+    }
 }
 
 em_t::~em_t()

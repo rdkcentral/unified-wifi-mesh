@@ -4,12 +4,36 @@
 
 bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
-    ec_attribute_t *attrib = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (len - EC_FRAME_BASE_SIZE), ec_attrib_id_resp_bootstrap_key_hash);
-    if (!attrib) {
-        return -1;
+    size_t attrs_len = len - EC_FRAME_BASE_SIZE;
+
+    ec_attribute_t *B_r_hash_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_resp_bootstrap_key_hash);
+    ASSERT_NOT_NULL(B_r_hash_attr, false, "%s:%d No responder bootstrapping key hash attribute found\n", __func__, __LINE__);
+    std::string B_r_hash_str = ec_util::hash_to_hex_string(B_r_hash_attr->data, B_r_hash_attr->length);
+
+    // EasyMesh R6 5.3.4
+    // If a Proxy Agent receives a DPP Presence Announcement frame, the Proxy Agent shall check if the bootstrapping
+    // key hash in the DPP Presence Announcement frame matches any values of bootstrapping key hash of a stored DPP 
+    // Authentication Request frame received from the Multi-AP Controller. 
+    bool sent = false;
+    auto hash_frame_iter = m_chirp_hash_frame_map.find(B_r_hash_str);
+    if (hash_frame_iter == m_chirp_hash_frame_map.end()) {
+        // If no matching hash value is found, the Proxy Agent shall send a Chirp Notification message to the 
+        // Controller with a DPP Chirp Value TLV
+        const auto [chirp_tlv, chirp_tlv_len] = ec_util::create_dpp_chirp_tlv(true, true, src_mac);
+        ASSERT_NOT_NULL(chirp_tlv, false, "%s:%d Failed to create DPP Chirp Value TLV\n", __func__, __LINE__);
+        sent = m_send_chirp_notification(chirp_tlv, chirp_tlv_len);
+        free(chirp_tlv);
+    } else {
+        // If a Proxy Agent receives a Presence Announcement frame (chirp) with bootstrapping key hash from the
+        // Enrollee MultiAP Agent that matches the Hash Value field of the DPP Chirp Value TLV received from the
+        // Multi-AP Controller, the Proxy Agent shall send the DPP Authentication Request frame to the Enrollee within
+        // 1 second of receiving the Presence Announcement frame from that Enrollee, using a DPP Public Action frame to
+        // the MAC address from where the Presence Announcement frame was received.
+        std::vector<uint8_t> encap_frame_vec  = hash_frame_iter->second;
+        sent = m_send_action_frame(src_mac, encap_frame_vec.data(), encap_frame_vec.size(), 0);
     }
 
-    return true;	
+    return sent;	
 }
 
 bool ec_pa_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
@@ -43,9 +67,44 @@ bool ec_pa_configurator_t::handle_cfg_request(uint8_t *buff, unsigned int len, u
     return sent;
 }
 
-bool ec_pa_configurator_t::handle_cfg_result(uint8_t *buff, unsigned int len)
+bool ec_pa_configurator_t::handle_cfg_result(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN])
 {
-    return true;
+    printf("%s:%d: Received a Configuration Result frame from '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(sa));
+    // EasyMesh 5.3.4
+    // If a Proxy Agent receives a DPP Configuration Result frame from an Enrollee Multi-AP Agent, it shall encapsulate the
+    // frame into a 1905 Encap DPP TLV, set the Enrollee MAC Address Present field to one, set the Destination STA MAC
+    // Address field to the MAC address of the Enrollee, set the DPP Frame Indicator field to 0 and the Frame Type field to 11,
+    // and send the Proxied Encap DPP message to the Multi-AP Controller.
+
+    auto [encap_dpp_tlv, encap_dpp_tlv_len] = ec_util::create_encap_dpp_tlv(false, sa, ec_frame_type_cfg_result, reinterpret_cast<uint8_t*>(frame), len);
+    ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
+    bool sent = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_tlv_len, nullptr, 0);
+    if (!sent) {
+        printf("%s:%d: Failed to send Encap DPP TLV\n", __func__, __LINE__);
+    }
+    printf("%s:%d: Sent Encap DPP TLV\n", __func__, __LINE__);
+    free(encap_dpp_tlv);
+    return sent;
+}
+
+bool ec_pa_configurator_t::handle_connection_status_result(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN])
+{
+    printf("%s:%d: Received a Connection Status Result frame from '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(sa));
+    // EasyMesh 5.3.4
+    // If a Proxy Agent receives a DPP Connection Status Result frame from an Enrollee Multi-AP Agent, it shall encapsulate the
+    // frame into a 1905 Encap DPP TLV, set the Enrollee MAC Address Present field to one, set the Destination STA MAC
+    // Address field to the MAC address of the Enrollee, set the DPP Frame Indicator field to 0 and the Frame Type field to 12,
+    // and send the Proxied Encap DPP message to the Multi-AP Controller
+
+    auto [encap_dpp_tlv, encap_dpp_tlv_len] = ec_util::create_encap_dpp_tlv(false, sa, ec_frame_type_conn_status_result, reinterpret_cast<uint8_t*>(frame), len);
+    ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
+    bool sent = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_tlv_len, nullptr, 0);
+    if (!sent) {
+        printf("%s:%d: Failed to send Encap DPP TLV\n", __func__, __LINE__);
+    }
+    printf("%s:%d: Sent Encap DPP TLV\n", __func__, __LINE__);
+    free(encap_dpp_tlv);
+    return sent;
 }
 
 bool ec_pa_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *chirp_tlv, uint16_t tlv_len)

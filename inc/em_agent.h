@@ -66,8 +66,18 @@ class em_agent_t : public em_mgr_t {
 public:
 
     bus_handle_t m_bus_hdl;
+    bool do_start_dpp_onboarding = false;
 
     void input_listener();
+
+    /**
+     * @brief Refresh the OneWifi subdoc with current information + provided data and send to OneWifi
+     * 
+     * @param log_name [in] The string to use when logging
+     * @param type [in] The subdoc type
+     * @return int 1 if successful, 0 if encode fails, -1 if send fails, -2 if unimplemented
+     */
+    int refresh_onewifi_subdoc(const char *log_name, const webconfig_subdoc_type_t type) override;
 
     /**
      * @brief Send an action frame
@@ -89,6 +99,8 @@ public:
      * @return true if successful or if the file already exists, false otherwise
      */
     bool try_create_default_em_cfg(std::string interface);
+
+    bool try_start_dpp_onboarding();
 
     int data_model_init(const char *data_model_path);
     bool is_data_model_initialized() { return true; }
@@ -128,12 +140,12 @@ public:
     em_service_type_t get_service_type() { return em_service_type_agent; }
     em_t *find_em_for_msg_type(unsigned char *data, unsigned int len, em_t *al_em);
 
-    static void sta_cb(char *event_name, raw_data_t *data);
-    static void onewifi_cb(char *event_name, raw_data_t *data);
-    static int assoc_stats_cb(char *event_name, raw_data_t *data);
-    static int mgmt_action_frame_cb(char *event_name, raw_data_t *data);
-    static int channel_scan_cb(char *event_name, raw_data_t *data);
-    static int beacon_report_cb(char *event_name, raw_data_t *data);
+    static void sta_cb(char *event_name, raw_data_t *data, void *userData);
+    static void onewifi_cb(char *event_name, raw_data_t *data, void *userData);
+    static int assoc_stats_cb(char *event_name, raw_data_t *data, void *userData);
+    static int mgmt_action_frame_cb(char *event_name, raw_data_t *data, void *userData);
+    static int channel_scan_cb(char *event_name, raw_data_t *data, void *userData);
+    static int beacon_report_cb(char *event_name, raw_data_t *data, void *userData);
     void *get_assoc(void*);
     void io(void *data, bool input = true);
     bool agent_output(void *data);

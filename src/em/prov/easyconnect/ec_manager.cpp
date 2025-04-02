@@ -13,6 +13,7 @@ ec_manager_t::ec_manager_t(
     get_backhaul_sta_info_func get_bsta_info,
     get_1905_info_func get_1905_info,
     can_onboard_additional_aps_func can_onboard,
+    toggle_cce_func toggle_cce, 
     bool m_is_controller
 ) : m_is_controller(m_is_controller),
     m_stored_chirp_fn(send_chirp),
@@ -24,7 +25,7 @@ ec_manager_t::ec_manager_t(
     m_stored_mac_addr(mac_addr),
     m_configurator(nullptr),
     m_enrollee(nullptr),
-    m_stored_toggle_cce_fn(nullptr) {
+    m_toggle_cce_fn(toggle_cce) {
     
     if (m_is_controller) {
         m_configurator = std::unique_ptr<ec_configurator_t>(
@@ -56,7 +57,12 @@ bool ec_manager_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len, ui
             return m_configurator->handle_auth_response(frame, len, src_mac);
         case ec_frame_type_auth_cnf:
             return m_enrollee->handle_auth_confirm(frame, len, src_mac);
-
+        case ec_frame_type_cfg_result:
+            return m_configurator->handle_cfg_result(frame, len, src_mac);
+            break;
+        case ec_frame_type_conn_status_result:
+            return m_configurator->handle_connection_status_result(frame, len, src_mac);
+            break;
         default:
             printf("%s:%d: frame type (%d) not handled\n", __func__, __LINE__, frame->frame_type);
             break;
@@ -85,7 +91,7 @@ bool ec_manager_t::handle_recv_gas_pub_action_frame(ec_gas_frame_base_t *frame, 
     return false;
 }
 
-bool ec_manager_t::upgrade_to_onboarded_proxy_agent(toggle_cce_func toggle_cce)
+bool ec_manager_t::upgrade_to_onboarded_proxy_agent()
 {
     if (m_is_controller) {
         // Only an enrollee agent can be upgraded to a proxy agent
@@ -109,8 +115,7 @@ bool ec_manager_t::upgrade_to_onboarded_proxy_agent(toggle_cce_func toggle_cce)
     m_enrollee.reset();
     
     // Create a new proxy agent configurator
-    m_configurator = std::unique_ptr<ec_pa_configurator_t>(new ec_pa_configurator_t(enrollee_mac, m_stored_chirp_fn, m_stored_encap_dpp_fn, m_stored_action_frame_fn, m_get_bsta_info_fn, m_get_1905_info_fn));
-    m_configurator->m_toggle_cce = toggle_cce;
+    m_configurator = std::unique_ptr<ec_pa_configurator_t>(new ec_pa_configurator_t(enrollee_mac, m_stored_chirp_fn, m_stored_encap_dpp_fn, m_stored_action_frame_fn, m_get_bsta_info_fn, m_get_1905_info_fn, m_toggle_cce_fn));
     printf("%s:%d: Upgraded enrollee agent to proxy agent\n", __func__, __LINE__);
     return true;
 }

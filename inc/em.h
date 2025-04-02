@@ -91,6 +91,15 @@ public:
     bool is_matching_freq_band(em_freq_band_t *band);
     void set_al_type(bool is_al_mac) {m_is_al_em = is_al_mac;}
 
+    /**
+     * @brief Set the CCE IEs in the beacon and probe response frames
+     * 
+     * @param bool Whether to enable or disable the inclusion of CCE IEs in the beacon and probe response frames
+     * @return bool true if successful, false otherwise
+     * @note If the operation fails, all CCE IEs are removed before the function exits
+     */
+    bool toggle_cce(bool enable);
+
 	em_mgr_t *get_mgr() { return m_mgr; }
     ec_manager_t& get_ec_mgr() { return *m_ec_manager; }
 
@@ -172,7 +181,7 @@ public:
     static const char *get_band_type_str(em_freq_band_t band);
     static const char *state_2_str(em_state_t state);
 
-    em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr_t *mgr, em_profile_type_t profile, em_service_type_t type);
+    em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr_t *mgr, em_profile_type_t profile, em_service_type_t type, bool is_al_em = false);
     ~em_t();
 
 };

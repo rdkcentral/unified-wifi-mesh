@@ -54,12 +54,32 @@ public:
     em_t *get_node_by_freq_band(em_freq_band_t *band);
     em_t *get_al_node();
 
+    /**
+     * @brief Get the physical AL node.
+     * In other words, the actual `em_t` node that is being used to perform EasyMesh operations.
+     * 
+     * @return Pointer to the physical AL node.
+     */
+    em_t *get_phy_al_em();
+
     void nodes_listener();
     int reset_listeners();
     void handle_timeout();
 
     static void *mgr_nodes_listen(void *arg);
     static void *mgr_input_listen(void *arg);
+
+    /**
+     * @brief Refresh the OneWifi subdoc with current information + provided data and send to OneWifi
+     * 
+     * @param log_name [in] The string to use when logging
+     * @param type [in] The subdoc type
+     * @return int 1 if successful, 0 if encode fails, -1 if send fails, -2 if unimplemented
+     */
+    virtual int refresh_onewifi_subdoc(const char *log_name, const webconfig_subdoc_type_t type) {
+        printf("refresh_onewifi_subdoc not implemented\n");
+        return -2;
+    }
 
     /**
      * @brief Send an action frame. Optional to implement.

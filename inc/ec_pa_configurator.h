@@ -25,7 +25,8 @@ public:
         send_encap_dpp_func send_prox_encap_dpp_msg,
         send_act_frame_func send_action_frame,
         get_backhaul_sta_info_func get_sta_info_func,
-        get_1905_info_func ieee1905_info_func
+        get_1905_info_func ieee1905_info_func,
+        toggle_cce_func toggle_cce_fn
     ) : ec_configurator_t(
             mac_addr,
             send_chirp_notification,
@@ -34,7 +35,8 @@ public:
             get_sta_info_func,
             ieee1905_info_func,
             {}
-        ) { }
+        ),
+        m_toggle_cce(toggle_cce_fn) { }
 
 
     /**
@@ -77,14 +79,25 @@ public:
     /**
      * @brief Handles an configuration result 802.11+GAS frame, performing the necessary actions and possibly passing to 1905
      * 
-     * @param buff The frame to handle
+     * @param frame The frame to handle
      * @param len The length of the frame
+     * @param sa The source address of the frame.
      * @return bool true if successful, false otherwise
      * 
      * @note Optional to implement because the controller+configurator does not handle 802.11,
      *     but the proxy agent + configurator does.
      */
-    bool handle_cfg_result(uint8_t *buff, unsigned int len) override;
+    bool handle_cfg_result(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) override;
+
+    /**
+     * @brief Handles Connection Status Result frame.
+     * 
+     * @param frame The frame.
+     * @param len The frame length.
+     * @param sa The source address of the frame.
+     * @return true on success, otherwise false.
+     */
+    virtual bool handle_connection_status_result(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) override;
 
     /**
      * @brief Handle a chirp notification TLV and direct to the correct place (802.11 or 1905)
@@ -105,6 +118,15 @@ public:
      * @return bool true if successful, false otherwise
      */
     bool process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) override;
+
+    /**
+     * @brief Set the CCE IEs in the beacon and probe response frames
+     * 
+     * @param bool Whether to enable or disable the inclusion of CCE IEs in the beacon and probe response frames
+     * @return bool true if successful, false otherwise
+     * @note If the operation fails, all CCE IEs are removed before the function exits
+     */
+    toggle_cce_func m_toggle_cce;
 
 private:
     // Private member variables go here

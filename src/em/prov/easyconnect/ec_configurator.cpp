@@ -1,5 +1,7 @@
 #include "ec_configurator.h"
 #include "em_crypto.h"
+#include "ec_util.h"
+#include "util.h"
 
 ec_configurator_t::ec_configurator_t(
     std::string mac_addr,
@@ -20,43 +22,63 @@ ec_configurator_t::ec_configurator_t(
 
 ec_configurator_t::~ec_configurator_t()
 {
-    if (m_boot_data.resp_priv_boot_key) {
-        BN_free(m_boot_data.resp_priv_boot_key);
-    }
-    if (m_boot_data.resp_pub_boot_key) {
-        EC_POINT_free(m_boot_data.resp_pub_boot_key);
-    }
-    if (m_boot_data.init_priv_boot_key) {
-        BN_free(m_boot_data.init_priv_boot_key);
-    }
-    if (m_boot_data.init_pub_boot_key) {
-        EC_POINT_free(m_boot_data.init_pub_boot_key);
-    }
-    
-    for (auto& conn : m_connections) {
-        ec_crypto::free_ephemeral_context(&conn.second.eph_ctx, m_p_ctx.nonce_len, m_p_ctx.digest_len);
+
+    for (auto& [_, c_ctx] : m_connections) {
+        ec_util::free_connection_ctx(c_ctx);
     }
 }
 
 // TODO: Maybe move to controller
-bool ec_configurator_t::start(ec_data_t *ec_data)
+bool ec_configurator_t::onboard_enrollee(ec_data_t *bootstrapping_data)
 {
-    memset(&m_boot_data, 0, sizeof(ec_data_t));
-    memcpy(&m_boot_data, ec_data, sizeof(ec_data_t));
+
+    if (bootstrapping_data == NULL) {
+        printf("%s:%d: Bootstrapping data is NULL\n", __func__, __LINE__);
+        return false;
+    }
+    if (bootstrapping_data->version < 2) {
+        printf("%s:%d: Bootstrapping Version '%d' not supported!\n", __func__, __LINE__, bootstrapping_data->version);
+        return false;
+    }
+    if (memcmp(bootstrapping_data->mac_addr, ZERO_MAC_ADDR, ETHER_ADDR_LEN) == 0) {
+        printf("%s:%d: Bootstrapping data MAC address is 0 \n", __func__, __LINE__);
+        return false;
+    }
+    if (bootstrapping_data->responder_boot_key == NULL) {
+        printf("%s:%d: Bootstrapping data initiator key is NULL\n", __func__, __LINE__);
+        return false;
+    }
+
+    // Check if the MAC address is already in use
+    // TODO: Not sure what to do if the MAC address is already in use
+    std::string mac_str = util::mac_to_string(bootstrapping_data->mac_addr);
+    if (m_connections.find(mac_str) != m_connections.end()) {
+        printf("%s:%d: Bootstrapping data MAC address already in use\n", __func__, __LINE__);
+        return false;
+    }
+    // Create a new connection context
+    ec_connection_context_t conn_ctx;
+    m_connections[mac_str] = conn_ctx;
+    auto& c_ctx = m_connections[mac_str];
+    
+
+    // Initialize bootstrapping data
+    memset(&c_ctx.boot_data, 0, sizeof(ec_data_t));
+    memcpy(&c_ctx.boot_data, bootstrapping_data, sizeof(ec_data_t));
 
     // Not all of these will be present but it is better to compute them now.
-    m_boot_data.resp_priv_boot_key = em_crypto_t::get_priv_key_bn(m_boot_data.responder_boot_key);
-    m_boot_data.resp_pub_boot_key = em_crypto_t::get_pub_key_point(m_boot_data.responder_boot_key);
+    c_ctx.boot_data.resp_priv_boot_key = em_crypto_t::get_priv_key_bn(c_ctx.boot_data.responder_boot_key);
+    c_ctx.boot_data.resp_pub_boot_key = em_crypto_t::get_pub_key_point(c_ctx.boot_data.responder_boot_key);
 
-    m_boot_data.init_priv_boot_key = em_crypto_t::get_priv_key_bn(m_boot_data.initiator_boot_key);    
-    m_boot_data.init_pub_boot_key = em_crypto_t::get_pub_key_point(m_boot_data.initiator_boot_key);
+    c_ctx.boot_data.init_priv_boot_key = em_crypto_t::get_priv_key_bn(c_ctx.boot_data.initiator_boot_key);    
+    c_ctx.boot_data.init_pub_boot_key = em_crypto_t::get_pub_key_point(c_ctx.boot_data.initiator_boot_key);
 
 
-    if (m_boot_data.resp_priv_boot_key == NULL) {
+    if (c_ctx.boot_data.resp_priv_boot_key == NULL) {
         printf("%s:%d Could not get responder bootstrap public key\n", __func__, __LINE__);
         return false;
     }
 
     printf("Configurator MAC: %s\n", m_mac_addr.c_str());
-    return ec_crypto::init_persistent_ctx(m_p_ctx, m_boot_data.responder_boot_key);
+    return ec_crypto::init_persistent_ctx(c_ctx, c_ctx.boot_data.responder_boot_key);
 }

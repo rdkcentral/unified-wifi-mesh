@@ -41,11 +41,12 @@ using send_encap_dpp_func = std::function<bool(em_encap_dpp_t*, size_t, em_dpp_c
 using send_act_frame_func = std::function<bool(uint8_t*, uint8_t *, size_t, unsigned int)>;
 
 /**
-* @brief Set the CCE IEs in the beacon and probe response frames
-* 
-* @param bool Whether to enable or disable the inclusion of CCE IEs in the beacon and probe response frames
-* @return bool true if successful, false otherwise
-*/
+ * @brief Set the CCE IEs in the beacon and probe response frames
+ * 
+ * @param bool Whether to enable or disable the inclusion of CCE IEs in the beacon and probe response frames
+ * @return bool true if successful, false otherwise
+ * @note If the operation fails, all CCE IEs are removed before the function exits
+ */
 using toggle_cce_func = std::function<bool(bool)>;
 
 /**
@@ -75,29 +76,19 @@ public:
      * @param send_chirp_notification The function to send a chirp notification
      * @param send_prox_encap_dpp_msg The function to send a proxied encapsulated DPP message
      */
-    // TODO: Add send_gas_frame functions
+
     ec_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg, 
                         send_act_frame_func send_action_frame, get_backhaul_sta_info_func backhaul_sta_info_func, get_1905_info_func ieee1905_info_func,
                         can_onboard_additional_aps_func can_onboard_func);
     virtual ~ec_configurator_t(); // Destructor
 
     /**
-     * @brief Set the CCE IEs in the beacon and probe response frames
+     * @brief Start the EC configurator onboarding process for an enrollee
      * 
-     * @param bool Whether to enable or disable the inclusion of CCE IEs in the beacon and probe response frames
+     * @param bootstrapping_data The data to use for onboarding (Parsed DPP URI Data)
      * @return bool true if successful, false otherwise
      */
-    toggle_cce_func m_toggle_cce = {
-        [](bool enable) -> bool { return false; }
-    };
-
-    /**
-     * @brief Start the EC configurator onboarding
-     * 
-     * @param ec_data The data to use for onboarding (Parsed DPP URI Data)
-     * @return bool true if successful, false otherwise
-     */
-    bool start(ec_data_t* ec_data);
+    bool onboard_enrollee(ec_data_t* bootstrapping_data);
 
     /**
      * @brief Handles a presence announcement 802.11 frame, performing the necessary actions
@@ -147,13 +138,26 @@ public:
      * 
      * @param buff The frame to handle
      * @param len The length of the frame
+     * @param sa The source address of the frame.
      * @return bool true if successful, false otherwise
      * 
      * @note Optional to implement because the controller+configurator does not handle 802.11,
      *     but the proxy agent + configurator does.
      */
-    virtual bool handle_cfg_result(uint8_t *buff, unsigned int len) {
+    virtual bool handle_cfg_result(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) {
         return true; // Optional to implement
+    }
+
+    /**
+     * @brief Handles Connection Status Result frame.
+     * 
+     * @param buff The frame.
+     * @param len The frame length.
+     * @param sa The source address of the frame.
+     * @return true on success, otherwise false.
+     */
+    virtual bool handle_connection_status_result(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) {
+        return true;
     }
 
     /**
@@ -190,6 +194,30 @@ public:
         return true;
     }
 
+    /**
+     * @brief Handle a proxied encapsulated DPP Configuration Result frame.
+     * 
+     * @param encap_frame The DPP Configuration Result frame.
+     * @param encap_frame_len Length of the frame.
+     * @param dest_mac The source MAC of this DPP Configuration Result frame (Enrollee).
+     * @return true on success, otherwise false.
+     */
+    virtual bool handle_proxied_config_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) {
+        return true;
+    }
+
+    /**
+     * @brief Handle a proxied encapsulated DPP Connection Status Result frame.
+     * 
+     * @param encap_frame The DPP Connection Status Result frame.
+     * @param encap_frame_len Length of the frame.
+     * @param dest_mac The source MAC of this DPP Connection Status Result frame (Enrollee).
+     * @return true on success, otherwise false.
+     */
+    virtual bool handle_proxied_conn_status_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) {
+        return true;
+    }
+
     inline std::string get_mac_addr() { return m_mac_addr; };
 
     // Disable copy construction and assignment
@@ -198,9 +226,6 @@ public:
     ec_configurator_t& operator=(const ec_configurator_t&) = delete;
 
 protected:
-    ec_persistent_context_t m_p_ctx = {};
-
-    ec_data_t m_boot_data = {};
 
     std::string m_mac_addr;
 
@@ -235,11 +260,20 @@ protected:
         return &conn_ctx->eph_ctx;
     }
 
+    inline ec_data_t* get_boot_data(const std::string& mac) {
+        auto conn = m_connections.find(mac);
+        if (conn == m_connections.end()) {
+            printf("%s:%d: Connection context not found for enrollee MAC %s\n", __func__, __LINE__, mac.c_str());
+            return NULL;  // Return reference to static empty context
+        }
+        return &conn->second.boot_data;
+    }
+
     inline void clear_conn_eph_ctx(const std::string& mac) {
         auto conn = m_connections.find(mac);
         if (conn == m_connections.end()) return;
-        auto &eph_ctx = conn->second.eph_ctx;
-        ec_crypto::free_ephemeral_context(&eph_ctx, m_p_ctx.nonce_len, m_p_ctx.digest_len);
+        auto &c_ctx = conn->second;
+        ec_crypto::free_ephemeral_context(&c_ctx.eph_ctx, c_ctx.nonce_len, c_ctx.digest_len);
     }
 
 };

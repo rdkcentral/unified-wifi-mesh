@@ -288,7 +288,7 @@ short em_channel_t::create_channel_scan_res_tlv(unsigned char *buff, unsigned in
     dm = get_data_model();
 	scan_res = dm->get_scan_result(index);
 
-	memcpy(res->ruid, get_radio_interface_mac(), sizeof(mac_address_t));	
+	memcpy(res->ruid, scan_res->m_scan_result.id.scanner_mac, sizeof(mac_address_t));
 	memcpy(&res->op_class, &scan_res->m_scan_result.id.op_class, sizeof(unsigned char));
 	memcpy(&res->channel, &scan_res->m_scan_result.id.channel, sizeof(unsigned char));
 	res->scan_status = scan_res->m_scan_result.scan_status;

@@ -37,6 +37,7 @@
 #include "ieee80211.h"
 #include "em_cmd_agent.h"
 #include "em_orch_agent.h"
+#include "ec_util.h"
 #include "util.h"
 #include <cjson/cJSON.h>
 
@@ -135,16 +136,25 @@ void em_agent_t::handle_dev_init(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num;
 
-    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+    if (m_orch->is_cmd_type_in_progress(evt->type)) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_dev_init(evt, pcmd)) == 0) {
+        return;
+    }
+    if ((num = m_data_model.analyze_dev_init(evt, pcmd)) == 0) {
         m_agent_cmd->send_result(em_cmd_out_status_no_change);
-    } else if (m_orch->submit_commands(pcmd, num) > 0) {
-        m_agent_cmd->send_result(em_cmd_out_status_success);
-    } else {
+        return;
+    }
+    if (m_orch->submit_commands(pcmd, num) == 0) {
         m_agent_cmd->send_result(em_cmd_out_status_not_ready);
+        return;
     }
 
+    if (do_start_dpp_onboarding) {
+        try_start_dpp_onboarding();
+        // TODO: check if dpp onboarding is successful and manage result
+    }
+    
+    m_agent_cmd->send_result(em_cmd_out_status_success);
 }
 
 void em_agent_t::handle_channel_pref_query(em_bus_event_t *evt)
@@ -588,6 +598,14 @@ void em_agent_t::handle_500ms_tick()
     m_orch->handle_timeout();
 }
 
+int em_agent_t::refresh_onewifi_subdoc(const char * log_name, const webconfig_subdoc_type_t type)
+{
+    wifi_bus_desc_t *desc = get_bus_descriptor();
+    ASSERT_NOT_NULL(desc, false, "%s:%d descriptor is null\n", __func__, __LINE__);
+    
+    return m_data_model.refresh_onewifi_subdoc(desc, &m_bus_hdl, log_name, type);
+}
+
 bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency) {
 
     wifi_bus_desc_t *desc = get_bus_descriptor();
@@ -699,8 +717,9 @@ void em_agent_t::input_listener()
     io(NULL);
 }
 
-int em_agent_t::channel_scan_cb(char *event_name, raw_data_t *data)
+int em_agent_t::channel_scan_cb(char *event_name, raw_data_t *data, void *userData)
 {
+    (void)userData;
     cJSON *json, *channel_stats_arr;
 
     json = cJSON_Parse((const char *)data->raw_data.bytes);
@@ -719,17 +738,19 @@ int em_agent_t::channel_scan_cb(char *event_name, raw_data_t *data)
     return 1;
 }
 
-int em_agent_t::beacon_report_cb(char *event_name, raw_data_t *data)
+int em_agent_t::beacon_report_cb(char *event_name, raw_data_t *data, void *userData)
 {
     //printf("%s:%d Received Frame data for event [%s] and data :\n%s\n", __func__, __LINE__, event_name, data->raw_data.bytes);
+    (void)userData;
 
     g_agent.io_process(em_bus_event_type_beacon_report, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
     return 0;
 }
 
-int em_agent_t::mgmt_action_frame_cb(char *event_name, raw_data_t *data)
+int em_agent_t::mgmt_action_frame_cb(char *event_name, raw_data_t *data, void *userData)
 {
+    (void)userData;
     struct ieee80211_mgmt *mgmt_frame = (struct ieee80211_mgmt *)data->raw_data.bytes;
     printf("%s:%d Received Frame data for event [%s] and data of len:\n%d\n", __func__, __LINE__, event_name, data->raw_data_len);
 
@@ -761,8 +782,9 @@ int em_agent_t::mgmt_action_frame_cb(char *event_name, raw_data_t *data)
     return 0;
 }
 
-int em_agent_t::assoc_stats_cb(char *event_name, raw_data_t *data)
+int em_agent_t::assoc_stats_cb(char *event_name, raw_data_t *data, void *userData)
 {
+    (void)userData;
     //printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
     cJSON *json, *assoc_stats_arr;
 
@@ -783,15 +805,17 @@ int em_agent_t::assoc_stats_cb(char *event_name, raw_data_t *data)
     return 1;
 }
 
-void em_agent_t::sta_cb(char *event_name, raw_data_t *data)
+void em_agent_t::sta_cb(char *event_name, raw_data_t *data, void *userData)
 {
+    (void)userData;
     //printf("%s:%d Recv data from onewifi:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
     g_agent.io_process(em_bus_event_type_sta_list, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
 }
 
-void em_agent_t::onewifi_cb(char *event_name, raw_data_t *data)
+void em_agent_t::onewifi_cb(char *event_name, raw_data_t *data, void *userData)
 {
+        (void)userData;
 	const char *json_data = (char *)data->raw_data.bytes;
 	cJSON *json = cJSON_Parse(json_data);
 
@@ -1227,6 +1251,41 @@ bool em_agent_t::try_create_default_em_cfg(std::string interface)
     return true;
 }
 
+bool em_agent_t::try_start_dpp_onboarding()  {
+    // Trying to do a cold start, no onboarding at all
+    if (!do_start_dpp_onboarding) {
+        return false;
+    }
+    if (m_data_model.get_colocated()){
+        printf("%s:%d: Colocated mode is enabled, not starting DPP onboarding\n", __func__, __LINE__);
+        return false;
+    }
+
+    em_t* al_node = get_phy_al_em();
+    ASSERT_NOT_NULL(al_node, false, "%s:%d: al_node is null\n", __func__, __LINE__);
+
+    uint8_t* al_mac = al_node->get_radio_interface_mac();
+    ASSERT_NOT_NULL(al_mac, false, "%s:%d: al_mac is null\n", __func__, __LINE__);
+
+    //TODO: Just getting the first op-class info for now since AL is not a Wi-Fi interface
+    auto op_chan_data = m_data_model.get_op_class_info(0);
+    ASSERT_NOT_NULL(op_chan_data, false, "%s:%d: Could not get current op class/channel from AL radio\n", __func__, __LINE__);
+
+    // Generate new DPP bootstrapping data to ensure correct MAC address is used
+    ec_data_t ec_data;
+    if (!ec_util::get_dpp_boot_data(&ec_data, al_mac, false, op_chan_data)) {
+        printf("%s:%d: Failed to get DPP bootstrapping data\n", __func__, __LINE__);
+        return false;
+    }
+    printf("%s:%d: DPP bootstrapping data generated successfully\n", __func__, __LINE__);
+    if (!al_node->get_ec_mgr().enrollee_start_onboarding(false, &ec_data)){
+        printf("%s:%d: DPP onboarding failed to start\n", __func__, __LINE__);
+        return false;
+    }
+    printf("%s:%d: DPP onboarding started successfully\n", __func__, __LINE__);
+    return true;
+}
+
 em_agent_t::em_agent_t()
 {
 
@@ -1272,7 +1331,7 @@ int main(int argc, const char *argv[])
     }
 
     if ((args.size() == 1) && (args[0] == "--help" || args[0] == "-h")) {
-        printf("Usage: %s [data-model-path] [--interface=iface]\n", argv[0]);
+        printf("Usage: %s [data-model-path] [--interface=al_mac_iface] [--start-dpp-onboard]\n", argv[0]);
         return 0;
     }
 
@@ -1292,6 +1351,10 @@ int main(int argc, const char *argv[])
                 return -1;
             }
             interface_found = true;
+            continue;
+        }
+        if (arg == "--start-dpp-onboard") {
+            g_agent.do_start_dpp_onboarding = true;
             continue;
         }
         if (data_model_path.empty()) {

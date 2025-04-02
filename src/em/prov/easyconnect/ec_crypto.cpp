@@ -3,6 +3,8 @@
 #include "util.h"
 #include "ec_util.h"
 
+#include "cjson/cJSON.h"
+
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
 #include <openssl/kdf.h>
 #endif
@@ -37,7 +39,7 @@ uint8_t* ec_crypto::compute_key_hash(const SSL_KEY *key, const char *prefix)
     len[1] = static_cast<uint32_t> (asn1len);
 
     // Call platform_SHA256 with our two elements
-    uint8_t *digest = new uint8_t[SHA256_DIGEST_LENGTH]();  // () initializes to zero
+    uint8_t *digest = reinterpret_cast<uint8_t*>(calloc(SHA256_DIGEST_LENGTH, 1));
     uint8_t result = em_crypto_t::platform_SHA256(2, addr, len, digest);
 
     BIO_free(bio);
@@ -50,7 +52,7 @@ uint8_t* ec_crypto::compute_key_hash(const SSL_KEY *key, const char *prefix)
     return digest;
 }
 
-size_t ec_crypto::compute_hkdf_key(ec_persistent_context_t& p_ctx, uint8_t *key_out, size_t key_out_len, const char *info_str,
+size_t ec_crypto::compute_hkdf_key(ec_connection_context_t& c_ctx, uint8_t *key_out, size_t key_out_len, const char *info_str,
                      const BIGNUM **x_val_inputs, int x_val_count, 
                      uint8_t *raw_salt, size_t raw_salt_len)
 {
@@ -62,9 +64,9 @@ size_t ec_crypto::compute_hkdf_key(ec_persistent_context_t& p_ctx, uint8_t *key_
     
     // Calculate prime length for padding and format BIGNUMs
     // Safely convert int to size_t, should always be positive
-    int primelen = BN_num_bytes(p_ctx.prime);
+    int primelen = BN_num_bytes(c_ctx.prime);
     ikm_len = primelen * x_val_count;
-    bn_buffer = new uint8_t[ikm_len];
+    bn_buffer = reinterpret_cast<uint8_t*>(calloc(ikm_len, 1));
     if (bn_buffer == NULL) {
         perror("malloc");
         return 0;
@@ -82,7 +84,7 @@ size_t ec_crypto::compute_hkdf_key(ec_persistent_context_t& p_ctx, uint8_t *key_
     }
     
     // Call the hkdf function
-    result = hkdf(p_ctx.hash_fcn, false, ikm, static_cast<size_t>(ikm_len), raw_salt, raw_salt_len, 
+    result = hkdf(c_ctx.hash_fcn, false, ikm, static_cast<size_t>(ikm_len), raw_salt, raw_salt_len, 
                  reinterpret_cast<uint8_t*>(const_cast<char*>(info_str)), strlen(info_str), 
                  key_out, key_out_len);
     
@@ -95,29 +97,29 @@ size_t ec_crypto::compute_hkdf_key(ec_persistent_context_t& p_ctx, uint8_t *key_
 }
 
 
-BIGNUM* ec_crypto::calculate_Lx(ec_persistent_context_t& p_ctx, const BIGNUM* bR, const BIGNUM* pR, const EC_POINT* BI)
+BIGNUM* ec_crypto::calculate_Lx(ec_connection_context_t& c_ctx, const BIGNUM* bR, const BIGNUM* pR, const EC_POINT* BI)
 {
     EC_POINT* L = NULL;
     BIGNUM *sum, *order, *L_x = NULL;
     int success = 0;
     
     // Get the order of the curve (q)
-    if (!(order = BN_new()) || !EC_GROUP_get_order(p_ctx.group, order, p_ctx.bn_ctx))
+    if (!(order = BN_new()) || !EC_GROUP_get_order(c_ctx.group, order, c_ctx.bn_ctx))
         goto cleanup;
     
     // Calculate (bR + pR) mod q
-    if (!(sum = BN_new()) || !BN_mod_add(sum, bR, pR, order, p_ctx.bn_ctx))
+    if (!(sum = BN_new()) || !BN_mod_add(sum, bR, pR, order, c_ctx.bn_ctx))
         goto cleanup;
     
     // Create result point L
-    if (!(L = EC_POINT_new(p_ctx.group)))
+    if (!(L = EC_POINT_new(c_ctx.group)))
         goto cleanup;
     
     // Calculate L = sum * BI (point multiplication)
-    if (!EC_POINT_mul(p_ctx.group, L, NULL, BI, sum, p_ctx.bn_ctx))
+    if (!EC_POINT_mul(c_ctx.group, L, NULL, BI, sum, c_ctx.bn_ctx))
         goto cleanup;
     
-    if (EC_POINT_get_affine_coordinates(p_ctx.group, L, L_x, NULL, p_ctx.bn_ctx) == 0)
+    if (EC_POINT_get_affine_coordinates(c_ctx.group, L, L_x, NULL, c_ctx.bn_ctx) == 0)
     success = 1;
     
 cleanup:
@@ -132,7 +134,6 @@ cleanup:
     return L_x;
 }
 
-// TODO: Might remove, might keep, unsure
 /**
  * @brief Compute ke using nonces and coordinate values. Requires, m, n, and (optionally) l to be set before calling.
  * 
@@ -144,10 +145,10 @@ cleanup:
  * @param include_L Whether to include L.x for mutual authentication
  * @return Length of ke on success, 0 on failure
  */
-size_t ec_crypto::compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_context_t* e_ctx, uint8_t *ke_buffer)
+size_t ec_crypto::compute_ke(ec_connection_context_t& c_ctx, ec_ephemeral_context_t* e_ctx, uint8_t *ke_buffer)
 {
     // Create concatenated nonces buffer (Initiator Nonce | Responder Nonce)
-    size_t total_nonce_len = p_ctx.nonce_len * 2;
+    size_t total_nonce_len = c_ctx.nonce_len * 2;
     uint8_t *nonces = new uint8_t[total_nonce_len]();
     if (nonces == NULL) {
         printf("%s:%d: Failed to allocate memory for nonces\n", __func__, __LINE__);
@@ -155,8 +156,8 @@ size_t ec_crypto::compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_contex
     }
     
     // Copy nonces
-    memcpy(nonces, e_ctx->i_nonce, static_cast<size_t> (p_ctx.nonce_len));
-    memcpy(nonces + p_ctx.nonce_len, e_ctx->r_nonce, static_cast<size_t> (p_ctx.nonce_len));
+    memcpy(nonces, e_ctx->i_nonce, static_cast<size_t> (c_ctx.nonce_len));
+    memcpy(nonces + c_ctx.nonce_len, e_ctx->r_nonce, static_cast<size_t> (c_ctx.nonce_len));
     
     // Set up BIGNUM array of X values (M, N, and possibly L if mutual auth)
     int x_count = e_ctx->is_mutual_auth ? 3 : 2;
@@ -175,9 +176,9 @@ size_t ec_crypto::compute_ke(ec_persistent_context_t& p_ctx, ec_ephemeral_contex
     
     // Compute the key
     size_t result = compute_hkdf_key(
-        p_ctx,
+        c_ctx,
         ke_buffer,
-        p_ctx.digest_len,
+        c_ctx.digest_len,
         "DPP Key",
         x_val_array,        // Concatenated X Vals for IKM
         x_count,
@@ -268,7 +269,7 @@ size_t ec_crypto::hkdf(const EVP_MD *h, bool skip_extract, uint8_t *ikm, size_t 
     int digest_len, prklen, tweaklen;
 
     digest_len = prklen = EVP_MD_size(h);
-    if ((digest = new uint8_t[digest_len]) == NULL) {
+    if ((digest = reinterpret_cast<uint8_t*>(calloc(digest_len, 1))) == NULL) {
         perror("malloc");
         return 0;
     }
@@ -278,7 +279,7 @@ size_t ec_crypto::hkdf(const EVP_MD *h, bool skip_extract, uint8_t *ikm, size_t 
         * If !skip_extract then perform HKDF-extract phase
         * (normally done unless PRK is already provided)
         */
-        if ((prk = new uint8_t[digest_len]) == NULL) {
+        if ((prk = reinterpret_cast<uint8_t*>(calloc(digest_len, 1))) == NULL) {
             delete[] digest;
             perror("malloc");
             return 0;
@@ -287,7 +288,7 @@ size_t ec_crypto::hkdf(const EVP_MD *h, bool skip_extract, uint8_t *ikm, size_t 
         * if there's no salt then use all zeros
         */
         if (!salt || (saltlen == 0)) {
-            if ((tweak = new uint8_t[digest_len]) == NULL) {
+            if ((tweak = reinterpret_cast<uint8_t*>(calloc(digest_len, 1))) == NULL) {
                 delete[] digest;
                 delete[] prk;
                 perror("malloc");
@@ -393,13 +394,13 @@ void ec_crypto::print_bignum (BIGNUM *bn)
 {
     unsigned char *buf;
     int len = BN_num_bytes(bn);
-    if ((buf = new unsigned char[len]) == NULL) {
+    if ((buf = reinterpret_cast<uint8_t*>(calloc(len, 1))) == NULL) {
         printf("Could not print bignum\n");
         return;
     }
     BN_bn2bin(bn, buf);
     util::print_hex_dump(static_cast<unsigned int>(len), buf);
-    delete[] buf;
+    free(buf);
 }
 
 void ec_crypto::print_ec_point (const EC_GROUP *group, BN_CTX *bnctx, EC_POINT *point)
@@ -435,7 +436,7 @@ void ec_crypto::print_ec_point (const EC_GROUP *group, BN_CTX *bnctx, EC_POINT *
 }
 
 
-uint8_t* ec_crypto::compute_hash(ec_persistent_context_t& p_ctx, const easyconnect::hash_buffer_t& hashing_elements_buffer) {
+uint8_t* ec_crypto::compute_hash(ec_connection_context_t& c_ctx, const easyconnect::hash_buffer_t& hashing_elements_buffer) {
     // Create arrays for platform_hash
     uint8_t hash_buf_size = static_cast<uint8_t>(hashing_elements_buffer.size());
     std::vector<uint8_t*> addr(hash_buf_size);
@@ -447,132 +448,126 @@ uint8_t* ec_crypto::compute_hash(ec_persistent_context_t& p_ctx, const easyconne
         len[i] = hashing_elements_buffer[i].second;
     }
 
-    uint8_t *hash = new uint8_t[p_ctx.digest_len]();
-    if (!em_crypto_t::platform_hash(p_ctx.hash_fcn, hash_buf_size, addr.data(), len.data(), hash)) {
+    uint8_t *hash = reinterpret_cast<uint8_t*>(calloc(c_ctx.digest_len, 1));
+    if (!em_crypto_t::platform_hash(c_ctx.hash_fcn, hash_buf_size, addr.data(), len.data(), hash)) {
         delete[] hash;
         return NULL;
     }
     return hash;
 }
 
-bool ec_crypto::init_persistent_ctx(ec_persistent_context_t& p_ctx, const SSL_KEY *boot_key){
-    p_ctx.group = em_crypto_t::get_key_group(boot_key); 
+bool ec_crypto::init_persistent_ctx(ec_connection_context_t& c_ctx, const SSL_KEY *boot_key){
+    c_ctx.group = em_crypto_t::get_key_group(boot_key); 
 
-    p_ctx.prime = BN_new();
-    p_ctx.bn_ctx = BN_CTX_new();
+    c_ctx.prime = BN_new();
+    c_ctx.bn_ctx = BN_CTX_new();
 
-    if (!p_ctx.prime || !p_ctx.bn_ctx) {
+    if (!c_ctx.prime || !c_ctx.bn_ctx) {
         printf("%s:%d Some BN NULL\n", __func__, __LINE__);
-        BN_free(p_ctx.prime);
-        BN_CTX_free(p_ctx.bn_ctx);
+        BN_free(c_ctx.prime);
+        BN_CTX_free(c_ctx.bn_ctx);
         return false;
     }
 
-    p_ctx.order = BN_new();
+    c_ctx.order = BN_new();
 
-    if (!EC_GROUP_get_order(p_ctx.group, p_ctx.order, p_ctx.bn_ctx)) {
-        BN_free(p_ctx.order);
-        BN_free(p_ctx.prime);
-        BN_CTX_free(p_ctx.bn_ctx);
+    if (!EC_GROUP_get_order(c_ctx.group, c_ctx.order, c_ctx.bn_ctx)) {
+        BN_free(c_ctx.order);
+        BN_free(c_ctx.prime);
+        BN_CTX_free(c_ctx.bn_ctx);
         return false;
     }
 
-    p_ctx.nid = EC_GROUP_get_curve_name(p_ctx.group);
+    c_ctx.nid = EC_GROUP_get_curve_name(c_ctx.group);
 
-    //printf("%s:%d nid: %d\n", __func__, __LINE__, p_ctx.nid);
-    switch (p_ctx.nid) {
+    //printf("%s:%d nid: %d\n", __func__, __LINE__, c_ctx.nid);
+    switch (c_ctx.nid) {
         case NID_X9_62_prime256v1:
-            p_ctx.digest_len = SHA256_DIGEST_LENGTH;
-            p_ctx.hash_fcn = EVP_sha256();
+            c_ctx.digest_len = SHA256_DIGEST_LENGTH;
+            c_ctx.hash_fcn = EVP_sha256();
             break;
         case NID_secp384r1:
-            p_ctx.digest_len = SHA384_DIGEST_LENGTH;
-            p_ctx.hash_fcn = EVP_sha384();
+            c_ctx.digest_len = SHA384_DIGEST_LENGTH;
+            c_ctx.hash_fcn = EVP_sha384();
             break;
         case NID_secp521r1:
-            p_ctx.digest_len = SHA512_DIGEST_LENGTH;
-            p_ctx.hash_fcn = EVP_sha512();
+            c_ctx.digest_len = SHA512_DIGEST_LENGTH;
+            c_ctx.hash_fcn = EVP_sha512();
             break;
         case NID_X9_62_prime192v1:
-            p_ctx.digest_len = SHA256_DIGEST_LENGTH;
-            p_ctx.hash_fcn = EVP_sha256();
+            c_ctx.digest_len = SHA256_DIGEST_LENGTH;
+            c_ctx.hash_fcn = EVP_sha256();
             break;
         case NID_secp224r1:
-            p_ctx.digest_len = SHA256_DIGEST_LENGTH;
-            p_ctx.hash_fcn = EVP_sha256();
+            c_ctx.digest_len = SHA256_DIGEST_LENGTH;
+            c_ctx.hash_fcn = EVP_sha256();
             break;
         default:
-            printf("%s:%d nid:%d not handled\n", __func__, __LINE__, p_ctx.nid);
-            BN_free(p_ctx.order);
-            BN_free(p_ctx.prime);
-            BN_CTX_free(p_ctx.bn_ctx);
+            printf("%s:%d nid:%d not handled\n", __func__, __LINE__, c_ctx.nid);
+            BN_free(c_ctx.order);
+            BN_free(c_ctx.prime);
+            BN_CTX_free(c_ctx.bn_ctx);
             return false;
     }
 
-    p_ctx.nonce_len = p_ctx.digest_len*4;
+    c_ctx.nonce_len = c_ctx.digest_len*4;
 
     // Fetch prime
-    if (EC_GROUP_get_curve(p_ctx.group, p_ctx.prime, NULL, NULL, p_ctx.bn_ctx) == 0) {
+    if (EC_GROUP_get_curve(c_ctx.group, c_ctx.prime, NULL, NULL, c_ctx.bn_ctx) == 0) {
         printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
-        BN_free(p_ctx.order);
-        BN_free(p_ctx.prime);
-        BN_CTX_free(p_ctx.bn_ctx);
+        BN_free(c_ctx.order);
+        BN_free(c_ctx.prime);
+        BN_CTX_free(c_ctx.bn_ctx);
         return false;
     }
 
     printf("Successfully initialized persistent context with params:\n");
-    printf("\tNID: %d\n", p_ctx.nid);
-    printf("\tDigest Length: %d\n", p_ctx.digest_len);
-    printf("\tNonce Length: %d\n", p_ctx.nonce_len);
-    printf("\tPrime (Length: %d):\n", BN_num_bytes(p_ctx.prime));
-    ec_crypto::print_bignum(p_ctx.prime);
+    printf("\tNID: %d\n", c_ctx.nid);
+    printf("\tDigest Length: %d\n", c_ctx.digest_len);
+    printf("\tNonce Length: %d\n", c_ctx.nonce_len);
+    printf("\tPrime (Length: %d):\n", BN_num_bytes(c_ctx.prime));
+    ec_crypto::print_bignum(c_ctx.prime);
     return true;
 }
 
-uint8_t *ec_crypto::encode_proto_key(ec_persistent_context_t &p_ctx, const EC_POINT *point)
+scoped_buff ec_crypto::encode_ec_point(ec_connection_context_t &c_ctx, const EC_POINT *point)
 {
-        
-    BIGNUM *x = BN_new();
-    BIGNUM *y = BN_new();
+    scoped_bn x(BN_new());
+    scoped_bn y(BN_new());
 
-    if (EC_POINT_get_affine_coordinates(p_ctx.group, point,
-        x, y, p_ctx.bn_ctx) == 0) {
+    if (EC_POINT_get_affine_coordinates(c_ctx.group, point, x.get(), y.get(), c_ctx.bn_ctx) == 0) {
         printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
-        BN_free(x);
-        BN_free(y);
-        return NULL;
+        return nullptr;
     }
 
-    int prime_len = BN_num_bytes(p_ctx.prime);
+    int prime_len = BN_num_bytes(c_ctx.prime);
 
-    uint8_t* protocol_key_buff = new uint8_t[2*prime_len]();
-    if (protocol_key_buff == NULL) {
+    uint8_t *key_buff = reinterpret_cast<uint8_t *>(calloc(static_cast<size_t>(2 * prime_len), 1));
+    if (key_buff == NULL) {
         printf("%s:%d unable to allocate memory\n", __func__, __LINE__);
-        BN_free(x);
-        BN_free(y);
-        return NULL;
+        return nullptr;
     }
-    BN_bn2bin(const_cast<const BIGNUM *>(x), &protocol_key_buff[prime_len - BN_num_bytes(x)]);
-    BN_bn2bin(const_cast<const BIGNUM *>(y), &protocol_key_buff[2*prime_len - BN_num_bytes(y)]);
+    
+    BN_bn2bin(const_cast<const BIGNUM *>(x.get()), &key_buff[prime_len - BN_num_bytes(x.get())]);
+    BN_bn2bin(const_cast<const BIGNUM *>(y.get()),
+              &key_buff[2 * prime_len - BN_num_bytes(y.get())]);
 
-    BN_free(x);
-    BN_free(y);
+    scoped_buff key_buff_ptr(key_buff);
 
-    return protocol_key_buff;
+    return key_buff_ptr;
 }
 
-
-EC_POINT *ec_crypto::decode_proto_key(ec_persistent_context_t &p_ctx, const uint8_t *protocol_key_buff)
+EC_POINT *ec_crypto::decode_ec_point(ec_connection_context_t &c_ctx, const uint8_t *key_buff)
 {
-    if (protocol_key_buff == NULL) {
+    if (key_buff == NULL) {
         printf("%s:%d null protocol key buffer\n", __func__, __LINE__);
         return NULL;
     }
 
-    int prime_len = BN_num_bytes(p_ctx.prime);
-    BIGNUM *x = BN_bin2bn(protocol_key_buff, prime_len, NULL);
-    BIGNUM *y = BN_bin2bn(protocol_key_buff + prime_len, prime_len, NULL);
-    EC_POINT *point = EC_POINT_new(p_ctx.group);
+    int prime_len = BN_num_bytes(c_ctx.prime);
+    BIGNUM *x = BN_bin2bn(key_buff, prime_len, NULL);
+    BIGNUM *y = BN_bin2bn(key_buff + prime_len, prime_len, NULL);
+    EC_POINT *point = EC_POINT_new(c_ctx.group);
     
     if (x == NULL || y == NULL) {
         printf("%s:%d unable to convert buffer to BIGNUMs\n", __func__, __LINE__);
@@ -584,13 +579,13 @@ EC_POINT *ec_crypto::decode_proto_key(ec_persistent_context_t &p_ctx, const uint
         goto err;
     }
 
-    if (EC_POINT_set_affine_coordinates(p_ctx.group, point, x, y, p_ctx.bn_ctx) == 0) {
+    if (EC_POINT_set_affine_coordinates(c_ctx.group, point, x, y, c_ctx.bn_ctx) == 0) {
         printf("%s:%d unable to set coordinates for the point\n", __func__, __LINE__);
         goto err;
     }
 
     // Verify the point is on the curve
-    if (EC_POINT_is_on_curve(p_ctx.group, point, p_ctx.bn_ctx) == 0) {
+    if (EC_POINT_is_on_curve(c_ctx.group, point, c_ctx.bn_ctx) == 0) {
         printf("%s:%d point is not on the curve\n", __func__, __LINE__);
         goto err;
     }
@@ -610,9 +605,9 @@ err:
 
 
 
-std::pair<const BIGNUM *, const EC_POINT *> ec_crypto::generate_proto_keypair(ec_persistent_context_t &p_ctx)
+std::pair<const BIGNUM *, const EC_POINT *> ec_crypto::generate_proto_keypair(ec_connection_context_t &c_ctx)
 {
-    SSL_KEY *proto_key = em_crypto_t::generate_ec_key(p_ctx.nid);
+    SSL_KEY *proto_key = em_crypto_t::generate_ec_key(c_ctx.nid);
 
     const EC_POINT* proto_pub = em_crypto_t::get_pub_key_point(proto_key);
     if (proto_pub == NULL) {
@@ -730,4 +725,111 @@ const char * ec_crypto::generate_connector(const cJSON * jws_header, const cJSON
     }
 
     return connector_cstring;
+}
+
+std::vector<uint8_t> ec_crypto::gen_psk(const std::string& pass, const std::string& ssid)
+{
+    // 4096 -- number of iterations
+    // 256 / 8 -- hash size
+    // both from 802.11-2020 J.4.1
+    std::vector<uint8_t> ret(256/8);
+    int ssid_len = static_cast<int>(ssid.length());
+    int pass_len = static_cast<int>(pass.length());
+    if (PKCS5_PBKDF2_HMAC_SHA1(pass.data(), pass_len, reinterpret_cast<const unsigned char *>(ssid.data()), ssid_len, 4096, static_cast<int>(ret.size()), ret.data()) != 1) return {};
+    return ret;
+}
+
+cJSON* ec_crypto::create_jws_header(const std::string& type, const SSL_KEY *c_signing_key)
+{
+    if (c_signing_key == nullptr) return nullptr;
+    cJSON *jwsHeaderObj = cJSON_CreateObject();
+    uint8_t *hashed_c_sign_key = compute_key_hash(c_signing_key);
+    std::string base64_c_sign_key_hash = em_crypto_t::base64_encode(hashed_c_sign_key, SHA256_DIGEST_LENGTH);
+    free(hashed_c_sign_key);
+    cJSON_AddStringToObject(jwsHeaderObj, "typ", type.c_str());
+    cJSON_AddStringToObject(jwsHeaderObj, "kid", base64_c_sign_key_hash.c_str());
+    cJSON_AddStringToObject(jwsHeaderObj, "alg", "ES256");
+    return jwsHeaderObj;
+}
+
+cJSON* ec_crypto::create_jws_payload(ec_connection_context_t& c_ctx, const std::vector<std::unordered_map<std::string, std::string>>& groups, SSL_KEY* net_access_key, std::optional<std::string> expiry)
+{
+    if (net_access_key == nullptr) return nullptr;
+    
+    cJSON* jwsPayloadObj = cJSON_CreateObject();
+    cJSON* groupsArr = cJSON_CreateArray();
+    cJSON_AddItemToObject(jwsPayloadObj, "groups", groupsArr);
+
+    for (const auto& group : groups) {  
+        cJSON* groupObj = cJSON_CreateObject();
+        for (const auto& [key, val] : group) {
+            cJSON_AddStringToObject(groupObj, key.c_str(), val.c_str());  
+        }
+
+        cJSON_AddItemToArray(groupsArr, groupObj);
+    }
+
+    cJSON *netAccessKeyObj = cJSON_CreateObject();
+    cJSON_AddItemToObject(jwsPayloadObj, "netAccessKey", netAccessKeyObj);
+    cJSON_AddStringToObject(netAccessKeyObj, "kty", "EC");
+    cJSON_AddStringToObject(netAccessKeyObj, "crv", "P-256");
+    EC_GROUP *key_group = em_crypto_t::get_key_group(net_access_key);
+    EC_POINT *key_point = em_crypto_t::get_pub_key_point(net_access_key, key_group);
+    auto [x, y] = get_ec_x_y(c_ctx, key_point);
+    cJSON_AddStringToObject(netAccessKeyObj, "x", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(x)).c_str());
+    cJSON_AddStringToObject(netAccessKeyObj, "y", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(y)).c_str());
+    if (expiry.has_value()) {
+        cJSON_AddStringToObject(jwsPayloadObj, "expiry", expiry.value().c_str());
+    }
+    EC_GROUP_free(key_group);
+    EC_POINT_free(key_point);
+    BN_free(x);
+    BN_free(y);
+    return jwsPayloadObj;
+}
+
+cJSON *ec_crypto::create_csign_object(ec_connection_context_t& c_ctx, SSL_KEY *c_signing_key)
+{
+    if (c_signing_key == nullptr) return nullptr;
+    cJSON *cSignObj = cJSON_CreateObject();
+    cJSON_AddStringToObject(cSignObj, "kty", "EC");
+    cJSON_AddStringToObject(cSignObj, "crv", "P-256");
+    uint8_t *hashed_c_sign_key = compute_key_hash(c_signing_key);
+    std::string base64_c_sign_key_hash = em_crypto_t::base64_encode(hashed_c_sign_key, SHA256_DIGEST_LENGTH);
+    free(hashed_c_sign_key);
+    cJSON_AddStringToObject(cSignObj, "kid", base64_c_sign_key_hash.c_str());
+    EC_GROUP *key_group = em_crypto_t::get_key_group(c_signing_key);
+    EC_POINT *key_point = em_crypto_t::get_pub_key_point(c_signing_key, key_group);
+    auto [x, y] = ec_crypto::get_ec_x_y(c_ctx, key_point);
+    cJSON_AddStringToObject(cSignObj, "x", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(x)).c_str());
+    cJSON_AddStringToObject(cSignObj, "y", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(y)).c_str());
+    EC_GROUP_free(key_group);
+    EC_POINT_free(key_point);
+    BN_free(x);
+    BN_free(y);
+    return cSignObj;
+}
+
+EC_POINT* ec_crypto::create_ppkey_public(SSL_KEY *c_signing_key)
+{
+    if (c_signing_key == nullptr) return nullptr;
+    EC_GROUP *key_group = em_crypto_t::get_key_group(c_signing_key);
+    SSL_KEY *ppKey = em_crypto_t::generate_ec_key(key_group);
+    EC_POINT *ret = em_crypto_t::get_pub_key_point(ppKey, const_cast<EC_GROUP*>(key_group));
+    EC_GROUP_free(key_group);
+    em_crypto_t::free_key(ppKey);
+    return ret;
+}
+
+cJSON *ec_crypto::create_ppkey_object(ec_connection_context_t& c_ctx)
+{
+    cJSON *ppKeyObj = cJSON_CreateObject();
+    cJSON_AddStringToObject(ppKeyObj, "kty", "EC");
+    cJSON_AddStringToObject(ppKeyObj, "crv", "P-256");
+    auto [x, y] = ec_crypto::get_ec_x_y(c_ctx, c_ctx.ppk);
+    cJSON_AddStringToObject(ppKeyObj, "x", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(x)).c_str());
+    cJSON_AddStringToObject(ppKeyObj, "y", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(y)).c_str());
+    BN_free(x);
+    BN_free(y);
+    return ppKeyObj;
 }

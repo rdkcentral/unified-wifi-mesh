@@ -3139,12 +3139,7 @@ int em_configuration_t::handle_encrypted_settings()
     get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (&radioconfig), sizeof(radioconfig));
     set_state(em_state_agent_owconfig_pending);
     if (get_service_type() == em_service_type_agent) {
-        get_ec_mgr().upgrade_to_onboarded_proxy_agent(
-            [this](bool enable) {
-                printf("Toggle CCE: %s\n", enable ? "true" : "false");
-                return 0;  // Added return value
-            }
-        );
+        get_ec_mgr().upgrade_to_onboarded_proxy_agent();
     }
     return ret;
 }
@@ -3698,6 +3693,12 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
 
 void em_configuration_t::handle_state_config_none()
 {
+    bool is_dpp_onboarding = get_ec_mgr().is_enrollee_onboarding();
+    if (is_dpp_onboarding) {
+        // Enrollee is in onboarding state, so we should not send autoconfig search message
+        return;
+    }
+
     unsigned char buff[MAX_EM_BUFF_SZ];
     unsigned int sz;
     char* errors[EM_MAX_TLV_MEMBERS] = {0};
