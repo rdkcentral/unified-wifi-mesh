@@ -635,6 +635,54 @@ bool em_t::is_matching_freq_band(em_freq_band_t *band)
     return (get_band() == *band);
 }
 
+bool em_t::toggle_cce(bool enable)
+{
+    const unsigned int num_bss = m_data_model->get_num_bss();
+
+    bool success = false;
+    if (enable) {
+        printf("Adding DPP IE to %d BSSs\n", num_bss);
+        for (int i = 0; i < num_bss; i++) {
+            dm_bss_t* bss = m_data_model->get_bss(i);
+            em_bss_info_t* bss_info = bss->get_bss_info();
+            em_interface_t* bssid = &bss_info->bssid;
+
+            success = bss->add_vendor_ie(&ec_manager_t::CCE_IE);
+            if (!success) {
+                printf("Failed to add DPP IE to BSS '" MACSTRFMT "'\n", MAC2STR(bssid->mac));
+                break;
+            }
+
+            printf("Added DPP IE to BSS '" MACSTRFMT "'\n", MAC2STR(bssid->mac));
+        }
+    }
+
+    // Remove DPP IEs if enable is false or if adding DPP IEs failed
+    // (prevents a state where only some BSSs have DPP IEs)
+    if (!enable || !success) {
+        printf("Removing DPP IE from %d BSSs\n", num_bss);
+        for (int i = 0; i < num_bss; i++) {
+            dm_bss_t* bss = m_data_model->get_bss(i);
+            em_bss_info_t* bss_info = bss->get_bss_info();
+            em_interface_t* bssid = &bss_info->bssid;
+
+            bss->remove_vendor_ie(&ec_manager_t::CCE_IE);
+            printf("Removed DPP IE from BSS '" MACSTRFMT "'\n", MAC2STR(bssid->mac));
+        }
+    }
+
+    // Refresh OneWifi
+    webconfig_subdoc_type_t vap_type = dm_easy_mesh_t::get_subdoc_vap_type_for_freq(get_band());
+    int refresh_outcome = m_mgr->refresh_onewifi_subdoc("'Vendor IE Refresh'", vap_type);
+    if (refresh_outcome != 1) {
+        printf("Error occurred on Vendor IE Refresh: return value %d\n", refresh_outcome);
+        return false;
+    }
+
+    // Disabling CCEs always succeeds, and enabling succeeds if `success` is set to true
+    return !enable || success;
+}
+
 void em_t::push_to_queue(em_event_t *evt)
 {
     pthread_mutex_lock(&m_iq.lock);
@@ -1104,6 +1152,7 @@ em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr
             service_type == em_service_type_ctrl
                 ? std::bind(&em_t::create_ieee1905_response_obj, this, std::placeholders::_1) : static_cast<get_1905_info_func>(nullptr),
             nullptr,
+        std::bind(&em_t::toggle_cce, this, std::placeholders::_1),
             service_type == em_service_type_ctrl
         ));
     }
