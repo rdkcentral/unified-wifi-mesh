@@ -168,6 +168,9 @@ void dm_sta_list_t::update_list(const dm_sta_t& sta, dm_orch_type_t op)
         case dm_orch_type_db_delete:
             remove_sta(key);            
             break;
+
+        default:
+            break;
     }
 
 }

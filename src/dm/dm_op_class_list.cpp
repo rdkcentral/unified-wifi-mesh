@@ -202,6 +202,9 @@ void dm_op_class_list_t::update_list(const dm_op_class_t& op_class, dm_orch_type
         case dm_orch_type_db_delete:
             remove_op_class(key);
             break;
+
+        default:
+            break;
     }
 }
 

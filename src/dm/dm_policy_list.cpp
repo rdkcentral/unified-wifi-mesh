@@ -205,6 +205,9 @@ void dm_policy_list_t::update_list(const dm_policy_t& policy, dm_orch_type_t op)
         case dm_orch_type_db_delete:
             remove_policy(key);
             break;
+
+        default:
+            break;
     }
 }
 
