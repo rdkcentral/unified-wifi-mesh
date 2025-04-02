@@ -1316,7 +1316,7 @@ void dm_easy_mesh_list_t::remove_scan_result(const char *key)
     sta->m_sta_info.num_beacon_meas_report--;
 }
 
-void dm_easy_mesh_list_t::put_scan_result(const char *key, const dm_scan_result_t *scan_result)
+void dm_easy_mesh_list_t::put_scan_result(const char *key, const dm_scan_result_t *scan_result, unsigned int index)
 {
 	em_scan_result_id_t	id;
 	dm_easy_mesh_t	*dm;
@@ -1362,17 +1362,17 @@ void dm_easy_mesh_list_t::put_scan_result(const char *key, const dm_scan_result_
 
 			if (memcmp(nbr->bssid, bssid, sizeof(mac_address_t)) == 0) {
 				found_neighbor = true;
-				memcpy(nbr, &scan_result->m_scan_result.neighbor[0], sizeof(em_neighbor_t));
+				memcpy(nbr, &scan_result->m_scan_result.neighbor[index], sizeof(em_neighbor_t));
 				break;
 			}
 		}
 
 		if (found_neighbor == false) {
-			if (res->m_scan_result.num_neighbors >= EM_MAX_NEIGHORS) {
+			if (res->m_scan_result.num_neighbors >= EM_MAX_NEIGHBORS) {
 				return;
 			}
 			nbr = &res->m_scan_result.neighbor[res->m_scan_result.num_neighbors];
-			memcpy(nbr, &scan_result->m_scan_result.neighbor[0], sizeof(em_neighbor_t));
+			memcpy(nbr, &scan_result->m_scan_result.neighbor[index], sizeof(em_neighbor_t));
 			res->m_scan_result.num_neighbors++;
 		}
 	}

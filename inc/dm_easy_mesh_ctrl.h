@@ -177,7 +177,7 @@ public:
     dm_scan_result_t *get_next_scan_result(dm_scan_result_t *scan_result) { return m_data_model_list.get_next_scan_result(scan_result); }
     dm_scan_result_t *get_scan_result(const char *key) { return m_data_model_list.get_scan_result(key); }
     void remove_scan_result(const char *key) { m_data_model_list.remove_scan_result(key); }
-    void put_scan_result(const char *key, const dm_scan_result_t *scan_result) { m_data_model_list.put_scan_result(key, scan_result); }
+    void put_scan_result(const char *key, const dm_scan_result_t *scan_result, unsigned int index) { m_data_model_list.put_scan_result(key, scan_result, index); }
 
 	void init_network_topology();
     void update_network_topology();

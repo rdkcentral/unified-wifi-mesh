@@ -1830,8 +1830,8 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
     }
 
 	if (dm->db_cfg_type_is_set(db_cfg_type_scan_result_list_delete)) {
-        for (i = 0; i < dm->get_num_scan_results(); i++) {
-            scan_result = dm->get_scan_result(i);
+        while (dm->get_num_scan_results() > 0) {
+            scan_result = dm->get_scan_result(0);
             criteria = dm->db_cfg_type_get_criteria(db_cfg_type_scan_result_list_delete);
 			// first delect self
 			res.result = scan_result->get_scan_result();
