@@ -548,22 +548,24 @@ public:
                                            std::string country_code = "US");
 
     /**
-     * @brief Read the bootstrapping data from a file
+     * @brief Read the bootstrapping data from a JSON file
      * 
      * @param boot_data [out] The DPP data to read into
-     * @param file_path [in] The path to the file to read from
+     * @param json_file_path [in] The path to the JSON file to read from
+     * @param pem_file_path [in] The path to the PEM file (for the private key) to read from. NULL if not needed (e.g. for initiator)
      * @return true The DPP boot data was read successfully, false otherwise
      */
-    static bool read_bootstrap_data_from_file(ec_data_t *boot_data, const std::string &file_path);
+    static bool read_bootstrap_data_from_files(ec_data_t *boot_data, const std::string &json_file_path, const std::optional<std::string> &pem_file_path = std::nullopt);
 
     /**
      * @brief Write the bootstrapping data to a file
      * 
      * @param boot_data [in] The DPP data to write
      * @param file_path [in] The path to the file to write to
+     * @param pem_file_path [in] The path to the PEM file (for the private key) to write to
      * @return true The DPP boot data was written successfully, false otherwise
      */
-    static bool write_bootstrap_data_to_file(ec_data_t *boot_data, const std::string &file_path);
+    static bool write_bootstrap_data_to_files(ec_data_t *boot_data, const std::string &file_path, const std::string &pem_file_path);
 
     /**
      * @brief Generate DPP bootstrapping data

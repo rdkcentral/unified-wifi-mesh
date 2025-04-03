@@ -44,6 +44,7 @@ extern "C"
 // START: Hardcoded EasyConnect values
 #define DPP_VERSION 0x02
 #define DPP_URI_JSON_PATH "/nvram/DPPURI.json"
+#define DPP_BOOT_PEM_PATH "/nvram/DPPURI.pem"
 
 // The NID for generating the local responder keypair
 #define DPP_KEY_NID NID_X9_62_prime256v1
