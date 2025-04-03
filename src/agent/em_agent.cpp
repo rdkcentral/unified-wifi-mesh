@@ -693,7 +693,8 @@ bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_f
 
     // Hardcoded to 0 just the same as the other bus calls
     // NOTE: AccessPoint.1 = ap_index 0. One is the data model indexing, one is NL80211/hal indexing
-    act_frame_params->ap_index = 0;
+    static int test_idx = 0;
+    act_frame_params->ap_index = test_idx;
     memcpy(act_frame_params->dest_addr, dest_mac, ETH_ALEN);
     act_frame_params->frequency = frequency;
 
@@ -709,15 +710,16 @@ bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_f
     raw_act_frame.raw_data_len = sizeof(action_frame_params_t) + action_frame_len;
     raw_act_frame.data_type = bus_data_type_bytes;
 
-    static int test_idx = act_frame_params->ap_index+1;
+    
     char path[100] = {0};
-    snprintf(path, sizeof(path), "Device.WiFi.AccessPoint.%d.RawFrame.Mgmt.Action.Tx", test_idx);
+    snprintf(path, sizeof(path), "Device.WiFi.AccessPoint.%d.RawFrame.Mgmt.Action.Tx", test_idx+1);
     
     printf("%s:%d Sending Action frame to path: %s\n", __func__, __LINE__, path);
     // Send the action frame
     bus_error_t rc;
     if ((rc = desc->bus_set_fn(&m_bus_hdl, path,  &raw_act_frame)) != 0) {
-        if (rc == bus_error_destination_not_found) test_idx--;
+        if (rc == bus_error_destination_not_found) test_idx++;
+        if (test_idx > 255) test_idx = 0;
         printf("%s:%d bus set failed (%d)\n", __func__, __LINE__, rc);
         free(act_frame_params);
         return false;

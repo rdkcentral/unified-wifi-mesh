@@ -36,6 +36,7 @@ using send_encap_dpp_func = std::function<bool(em_encap_dpp_t*, size_t, em_dpp_c
  * @param action_frame The action frame to send
  * @param action_frame_len The length of the action frame
  * @param frequency The frequency to send the frame on (0 for current frequency)
+ * @param wait The time to wait on the channel after sending the frame (0 for no wait)
  * @return true if successful, false otherwise
  */
 using send_act_frame_func = std::function<bool(uint8_t*, uint8_t *, size_t, unsigned int, unsigned int)>;
