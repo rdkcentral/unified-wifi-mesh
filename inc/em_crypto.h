@@ -427,13 +427,69 @@ public:
                                                    const std::optional<std::vector<uint8_t>>& priv_key_bytes = std::nullopt,
                                                    const std::string& group_name = "P-256");
 
-
+    
+    /**
+     * @brief Get the group of the key
+     * 
+     * @param key The SSL_KEY object containing the key
+     * @return Pointer to the EC_GROUP object representing the key group
+     */
     static EC_GROUP* get_key_group(const SSL_KEY* key);
+
+    /**
+     * @brief Get the private key as a BIGNUM object
+     * 
+     * @param key The SSL_KEY object containing the key
+     * @return Pointer to the BIGNUM object representing the private key
+     */
     static BIGNUM* get_priv_key_bn(const SSL_KEY* key);
+
+    /**
+     * @brief Get the public key as an EC_POINT object
+     * 
+     * @param key The SSL_KEY object containing the key
+     * @param key_group Optional EC_GROUP object representing the key group (can be NULL)
+     * @return Pointer to the EC_POINT object representing the public key
+     */
     static EC_POINT* get_pub_key_point(const SSL_KEY* key, EC_GROUP* key_group=NULL);
+
+    /**
+     * @brief Generate an SSL_KEY using a specified EC_GROUP
+     * 
+     * @param group The EC_GROUP to use for key generation
+     * @return Pointer to the generated SSL_KEY object
+     */
     static SSL_KEY* generate_ec_key(EC_GROUP *group);
+
+    /**
+     * @brief Generate an SSL_KEY with a specified NID (curve type)
+     * 
+     * @param nid The NID of the curve to use
+     * @return Pointer to the generated SSL_KEY object
+     */
     static SSL_KEY* generate_ec_key(int nid);
+
+    /**
+     * @brief Free an SSL_KEY object
+     */
     static void free_key(SSL_KEY* key);
+
+    /**
+     * @brief Write an SSL_KEY to a PEM file
+     * 
+     * @param key The SSL_KEY object to write
+     * @param file_path The path to the PEM file
+     * @return true on success, false on failure
+     */
+    static bool write_keypair_to_pem(const SSL_KEY* key, const std::string& file_path);
+
+    /**
+     * @brief Read an SSL_KEY from a PEM file
+     * 
+     * @param file_path The path to the PEM file
+     * @return Pointer to the read SSL_KEY object, or NULL on failure
+     */
+    static SSL_KEY* read_keypair_from_pem(const std::string& file_path);
 
 
     static inline uint8_t generate_iv(unsigned char *iv, unsigned int len) { if (!RAND_bytes(iv, static_cast<int>(len))) { return 0; } else { return 1; } }

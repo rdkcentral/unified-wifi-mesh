@@ -762,12 +762,12 @@ bool ec_util::decode_bootstrap_data_json(const cJSON *json_obj, ec_data_t *boot_
     return decode_bootstrap_data(uri_map, boot_data, country_code);
 }
 
-bool ec_util::read_bootstrap_data_from_file(ec_data_t *boot_data, const std::string &file_path)
+bool ec_util::read_bootstrap_data_from_files(ec_data_t *boot_data, const std::string &file_path, const std::optional<std::string> &pem_file_path)
 {
-    std::ifstream dpp_uri_json_fp(DPP_URI_JSON_PATH);
+    std::ifstream dpp_uri_json_fp(file_path);
     if (!dpp_uri_json_fp.is_open()) {
         printf("%s:%d: Failed to open DPP URI JSON file at path '%s'\n", __func__, __LINE__,
-               DPP_URI_JSON_PATH);
+            file_path.c_str());
         return false;
     }
 
@@ -779,31 +779,55 @@ bool ec_util::read_bootstrap_data_from_file(ec_data_t *boot_data, const std::str
 
     cJSON *json = cJSON_Parse(dpp_uri_json_str.c_str());
     if (json == NULL) {
-        printf("%s:%d: Failed to parse JSON at path '%s'\n", __func__, __LINE__, DPP_URI_JSON_PATH);
+        printf("%s:%d: Failed to parse JSON at path '%s'\n", __func__, __LINE__, file_path.c_str());
+        const char *error_ptr = cJSON_GetErrorPtr();
+        if (error_ptr != NULL) {
+            printf("%s:%d: JSON parse error at %s\n", __func__, __LINE__, error_ptr);
+        }
         return false;
     }
 
     cJSON* uri_obj = cJSON_GetObjectItemCaseSensitive(json, "URI");
     if (uri_obj == NULL) {
         printf("%s:%d: Failed to get URI object from JSON at path '%s'\n", __func__, __LINE__,
-               DPP_URI_JSON_PATH);
+            file_path.c_str());
         cJSON_Delete(json);
         return false;
     }
 
     if (!ec_util::decode_bootstrap_data_json(uri_obj, boot_data)) {
         printf("%s:%d: Failed to decode DPP URI JSON at path '%s'\n", __func__, __LINE__,
-               DPP_URI_JSON_PATH);
+            file_path.c_str());
         cJSON_Delete(json);
         return false;
     }
 
     cJSON_Delete(json);
-    printf("%s:%d: Successfully read DPP URI JSON from file\n", __func__, __LINE__);
+    printf("%s:%d: Successfully read DPP URI JSON from path '%s'\n", __func__, __LINE__,
+        file_path.c_str());
+
+    // Read the PEM file if it is provided
+    if (pem_file_path.has_value()) {
+        SSL_KEY* pem_key = em_crypto_t::read_keypair_from_pem(*pem_file_path);
+        if (pem_key == NULL) {
+            printf("%s:%d: Failed to read PEM file at path '%s'\n", __func__, __LINE__,
+                pem_file_path.value().c_str());
+            return false;
+        }
+        // Set the responder boot key to the PEM key
+        
+        // Free the public key that was read from the JSON
+        em_crypto_t::free_key(const_cast<SSL_KEY*>(boot_data->responder_boot_key));
+        // Set the responder boot key to the PEM key
+        boot_data->responder_boot_key = pem_key;
+        printf("%s:%d: Successfully read PEM file from path '%s'\n", __func__, __LINE__,
+            pem_file_path.value().c_str());
+    }
+
     return true;
 }
 
-bool ec_util::write_bootstrap_data_to_file(ec_data_t *boot_data, const std::string &file_path)
+bool ec_util::write_bootstrap_data_to_files(ec_data_t *boot_data, const std::string &file_path, const std::string &pem_file_path)
 {
 
     // Encode the DPP URI JSON
@@ -833,7 +857,9 @@ bool ec_util::write_bootstrap_data_to_file(ec_data_t *boot_data, const std::stri
     }
     out_file.close();
     printf("%s:%d: DPP URI JSON written to %s\n", __func__, __LINE__, file_path.c_str());
-    return true;
+
+    // Write the PEM file and return
+    return em_crypto_t::write_keypair_to_pem(boot_data->responder_boot_key, pem_file_path);;
 }
 
 bool ec_util::generate_dpp_boot_data(ec_data_t *boot_data, mac_addr_t al_mac,
@@ -881,7 +907,7 @@ bool ec_util::get_dpp_boot_data(ec_data_t *boot_data, mac_addr_t al_mac, bool do
                    "bootstrapping data \n",
                    __func__, __LINE__);
         } else {
-            should_recfg = ec_util::read_bootstrap_data_from_file(boot_data, DPP_URI_JSON_PATH);
+            should_recfg = ec_util::read_bootstrap_data_from_files(boot_data, DPP_URI_JSON_PATH, DPP_BOOT_PEM_PATH);
             if (should_recfg) {
                 // Successsfully read the DPP URI JSON from the file so the parameters should be the same for reconfiguration.
                 // Successfully fetched the bootstrapping data, return true.
@@ -898,7 +924,7 @@ bool ec_util::get_dpp_boot_data(ec_data_t *boot_data, mac_addr_t al_mac, bool do
     }
 
     if (!force_regen)  {
-        bool read_successful = ec_util::read_bootstrap_data_from_file(boot_data, DPP_URI_JSON_PATH);
+        bool read_successful = ec_util::read_bootstrap_data_from_files(boot_data, DPP_URI_JSON_PATH, DPP_BOOT_PEM_PATH);
         if (read_successful) {
             // Successfully fetched the bootstrapping data, return true.
             return true;
@@ -919,7 +945,7 @@ bool ec_util::get_dpp_boot_data(ec_data_t *boot_data, mac_addr_t al_mac, bool do
     }
 
     // Write the DPP URI JSON to the file
-    if (!ec_util::write_bootstrap_data_to_file(boot_data, DPP_URI_JSON_PATH)) {
+    if (!ec_util::write_bootstrap_data_to_files(boot_data, DPP_URI_JSON_PATH, DPP_BOOT_PEM_PATH)) {
         printf("%s:%d: Failed to write DPP URI JSON to file\n", __func__, __LINE__);
         return false;
     }

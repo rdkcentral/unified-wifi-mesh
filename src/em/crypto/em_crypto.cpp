@@ -1198,6 +1198,73 @@ void em_crypto_t::free_key(SSL_KEY *key)
 {
     EVP_PKEY_free(key);
 }
+bool em_crypto_t::write_keypair_to_pem(const SSL_KEY *key, const std::string &file_path) { 
+    
+    FILE *fp = NULL;
+    bool ret = false;
+    
+    ASSERT_NOT_NULL(key, false, "%s:%d NULL key parameter", __func__, __LINE__);
+    ASSERT_MSG_TRUE(file_path.length() > 0, false, "%s:%d Invalid file path", __func__, __LINE__);
+    ASSERT_MSG_TRUE(file_path.length() < 1024, false, "%s:%d File path too long", __func__, __LINE__);
+    
+    fp = fopen(file_path.c_str(), "wb");
+    ASSERT_NOT_NULL(fp, false, "%s:%d Failed to open file (%s)", __func__, __LINE__, file_path.c_str());
+    
+    // Write private key to PEM file
+    if (!PEM_write_PrivateKey(fp, key, NULL, NULL, 0, NULL, NULL)) {
+        printf("%s:%d Failed to write private key to PEM file\n", __func__, __LINE__);
+        goto err;
+    }
+    
+    // Write public key to the same PEM file
+    if (!PEM_write_PUBKEY(fp, key)) {
+        printf("%s:%d Failed to write public key to PEM file\n", __func__, __LINE__);
+        goto err;
+    }
+    
+    ret = true;
+    printf("%s:%d Successfully wrote keypair to %s\n", __func__, __LINE__, file_path.c_str());
+
+err:
+    if (fp) fclose(fp);
+    return ret;
+
+}
+SSL_KEY *em_crypto_t::read_keypair_from_pem(const std::string &file_path) { 
+    FILE *fp = NULL;
+    SSL_KEY *pkey = NULL;
+    
+    fp = fopen(file_path.c_str(), "rb");
+    ASSERT_NOT_NULL(fp, NULL, "%s:%d Failed to open file (%s)", __func__, __LINE__, file_path.c_str());
+    
+    // Read private key first
+    pkey = PEM_read_PrivateKey(fp, NULL, NULL, NULL);
+    if (!pkey) {
+        printf("%s:%d Failed to read private key from PEM file\n", __func__, __LINE__);
+        goto err;
+    }
+    
+    // Rewind file to read the public key
+    rewind(fp);
+    
+    // Read the public key into the same EVP_PKEY structure
+    if (!(pkey = PEM_read_PUBKEY(fp, &pkey, NULL, NULL))) {
+        printf("%s:%d Failed to read public key from PEM file\n", __func__, __LINE__);
+        goto err;
+    }
+
+    // Successfully read the key, return it
+    fclose(fp);
+    return pkey;
+
+err:
+    if (pkey) {
+        EVP_PKEY_free(pkey);
+        pkey = NULL;
+    }
+    if (fp) fclose(fp);
+    return pkey;
+}
 #else
 EC_GROUP *em_crypto_t::get_key_group(const SSL_KEY *key)
 {
@@ -1238,6 +1305,73 @@ SSL_KEY *em_crypto_t::generate_ec_key(int nid)
 void em_crypto_t::free_key(SSL_KEY *key)
 {
     EC_KEY_free(key);
+}
+
+bool em_crypto_t::write_keypair_to_pem(const SSL_KEY *key, const std::string &file_path) { 
+    
+    FILE *fp = NULL;
+    bool ret = false;
+    
+    ASSERT_NOT_NULL(key, false, "%s:%d NULL key parameter", __func__, __LINE__);
+    ASSERT_MSG_TRUE(file_path.length() > 0, false, "%s:%d Invalid file path", __func__, __LINE__);
+    ASSERT_MSG_TRUE(file_path.length() < 1024, false, "%s:%d File path too long", __func__, __LINE__);
+    
+    fp = fopen(file_path.c_str(), "wb");
+    ASSERT_NOT_NULL(fp, false, "%s:%d Failed to open file (%s)", __func__, __LINE__, file_path.c_str());
+    
+    // Write private key to PEM file
+    if (!PEM_write_ECPrivateKey(fp, key, NULL, NULL, 0, NULL, NULL)) {
+        printf("%s:%d Failed to write private key to PEM file\n", __func__, __LINE__);
+        goto err;
+    }
+    
+    // Write public key to the same PEM file
+    if (!PEM_write_EC_PUBKEY(fp, key)) {
+        printf("%s:%d Failed to write public key to PEM file\n", __func__, __LINE__);
+        goto err;
+    }
+    
+    ret = true;
+
+err:
+    if (fp) fclose(fp);
+    return ret;
+
+}
+SSL_KEY *em_crypto_t::read_keypair_from_pem(const std::string &file_path) { 
+    FILE *fp = NULL;
+    SSL_KEY *ec_key = NULL;
+    
+    fp = fopen(file_path.c_str(), "rb");
+    ASSERT_NOT_NULL(fp, NULL, "%s:%d Failed to open file (%s)", __func__, __LINE__, file_path.c_str());
+    
+    // Read private key first
+    ec_key = PEM_read_ECPrivateKey(fp, NULL, NULL, NULL);
+    if (!ec_key) {
+        printf("%s:%d Failed to read private key from PEM file\n", __func__, __LINE__);
+        goto err;
+    }
+    
+    // Rewind file to read the public key
+    rewind(fp);
+    
+    // Read the public key into the same EC_KEY structure
+    if (!(ec_key = PEM_read_EC_PUBKEY(fp, &ec_key, NULL, NULL))) {
+        printf("%s:%d Failed to read public key from PEM file\n", __func__, __LINE__);
+        goto err;
+    }
+
+    // Successfully read the key, return it
+    fclose(fp);
+    return ec_key;
+
+err:
+    if (ec_key) {
+        free_key(ec_key);
+        ec_key = NULL;
+    }
+    if (fp) fclose(fp);
+    return ec_key;
 }
 #endif
 
