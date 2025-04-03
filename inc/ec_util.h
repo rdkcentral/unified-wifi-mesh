@@ -592,6 +592,7 @@ public:
      * @param boot_data [out] The newly filled DPP bootstrapping data
      * @param al_mac [in] The MAC address of the AL interface
      * @param do_recfg [in] Whether to fetch the DPP bootstrapping data for DPP reconfig/reauth or not
+     * @param force_regen [in] Whether to force the generation of new DPP bootstrapping data or not
      * @param op_class_info [in] The operating class information to use for the DPP bootstrapping data. 
      *      Optional. If not given then channel information will not be present in newly generated bootstrapping data.
      * @return true The DPP boot data was fetched successfully, false otherwise
@@ -599,7 +600,7 @@ public:
      * @note This function can change as out-of-band mechanisms change. This is **NOT** a constant
      */
     static bool get_dpp_boot_data(ec_data_t *boot_data, mac_addr_t al_mac, bool do_recfg,
-                                  em_op_class_info_t *op_class_info = NULL);
+                                  bool force_regen = false, em_op_class_info_t *op_class_info = NULL);
 
 private:
     /**

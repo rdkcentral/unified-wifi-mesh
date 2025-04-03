@@ -67,6 +67,7 @@ public:
 
     bus_handle_t m_bus_hdl;
     bool do_start_dpp_onboarding = false;
+    bool do_regen_dpp_uri = false;
 
     void input_listener();
 

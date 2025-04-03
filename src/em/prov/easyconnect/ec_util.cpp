@@ -865,27 +865,52 @@ bool ec_util::generate_dpp_boot_data(ec_data_t *boot_data, mac_addr_t al_mac,
 }
 
 bool ec_util::get_dpp_boot_data(ec_data_t *boot_data, mac_addr_t al_mac, bool do_recfg,
-                                em_op_class_info_t *op_class_info)
+                                bool force_regen, em_op_class_info_t *op_class_info)
 {
 
     memset(boot_data, 0, sizeof(ec_data_t));
+    
+
 
     bool should_recfg = do_recfg;
+
     if (do_recfg) {
-        should_recfg = ec_util::read_bootstrap_data_from_file(boot_data, DPP_URI_JSON_PATH);
-        if (should_recfg) {
-            // Successsfully read the DPP URI JSON from the file so the parameters should be the same for reconfiguration.
+        if (force_regen) {
+            printf("%s:%d: Force regenerating DPP bootstrapping data while reconfiguration is "
+                   "requested. Reconfiguration will not occur since this is not possible with new DPP "
+                   "bootstrapping data \n",
+                   __func__, __LINE__);
+        } else {
+            should_recfg = ec_util::read_bootstrap_data_from_file(boot_data, DPP_URI_JSON_PATH);
+            if (should_recfg) {
+                // Successsfully read the DPP URI JSON from the file so the parameters should be the same for reconfiguration.
+                // Successfully fetched the bootstrapping data, return true.
+                return true;
+            } else {
+                // Failed to read the DPP URI JSON from the file, so even though the user said to `do_recfg`, originally, we can't do it.
+                // This is because the parameters could be different (e.g. MAC address, public key, etc.)
+                // Instead, we must generate new DPP bootstrapping data and write it to the file.
+                printf("%s:%d: Failed to read DPP URI JSON from file, not reconfiguring since "
+                       "parameters will be different\n",
+                       __func__, __LINE__);
+            }
+        }
+    }
+
+    if (!force_regen)  {
+        bool read_successful = ec_util::read_bootstrap_data_from_file(boot_data, DPP_URI_JSON_PATH);
+        if (read_successful) {
             // Successfully fetched the bootstrapping data, return true.
             return true;
         } else {
-            // Failed to read the DPP URI JSON from the file, so even though the user said to `do_recfg`, originally, we can't do it.
-            // This is because the parameters could be different (e.g. MAC address, public key, etc.)
-            // Instead, we must generate new DPP bootstrapping data and write it to the file.
-            printf("%s:%d: Failed to read DPP URI JSON from file, not reconfiguring since "
-                   "parameters will be different\n",
+            // Failed to read the DPP URI JSON from the file, so we need to generate new DPP bootstrapping data.
+            printf("%s:%d: Failed to read DPP URI JSON from file, generating new DPP bootstrapping "
+                   "data\n",
                    __func__, __LINE__);
         }
     }
+
+    printf("%s:%d: Force regenerating DPP bootstrapping data\n", __func__, __LINE__);
 
     // Generate new DPP bootstrapping data to ensure correct MAC address is used
     if (!ec_util::generate_dpp_boot_data(boot_data, al_mac, op_class_info)) {

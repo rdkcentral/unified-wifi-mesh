@@ -1364,7 +1364,7 @@ bool em_agent_t::try_start_dpp_onboarding()  {
 
     // Generate new DPP bootstrapping data to ensure correct MAC address is used
     ec_data_t ec_data;
-    if (!ec_util::get_dpp_boot_data(&ec_data, al_mac, false, op_chan_data)) {
+    if (!ec_util::get_dpp_boot_data(&ec_data, al_mac, false, do_regen_dpp_uri, op_chan_data)) {
         printf("%s:%d: Failed to get DPP bootstrapping data\n", __func__, __LINE__);
         return false;
     }
@@ -1422,7 +1422,7 @@ int main(int argc, const char *argv[])
     }
 
     if ((args.size() == 1) && (args[0] == "--help" || args[0] == "-h")) {
-        printf("Usage: %s [data-model-path] [--interface=al_mac_iface] [--start-dpp-onboard]\n", argv[0]);
+        printf("Usage: %s [data-model-path] [--interface=al_mac_iface] [--start-dpp-onboard] [--regen-dpp-uri]\n", argv[0]);
         return 0;
     }
 
@@ -1446,6 +1446,10 @@ int main(int argc, const char *argv[])
         }
         if (arg == "--start-dpp-onboard") {
             g_agent.do_start_dpp_onboarding = true;
+            continue;
+        }
+        if (arg == "--regen-dpp-uri") {
+            g_agent.do_regen_dpp_uri = true;
             continue;
         }
         if (data_model_path.empty()) {
