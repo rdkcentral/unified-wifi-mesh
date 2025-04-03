@@ -6,13 +6,14 @@
 #include "cjson/cJSON.h"
 #include "cjson_util.h"
 #include "em_crypto.h"
+#include <netinet/in.h>
 
 bool ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *chirp_tlv, uint16_t tlv_len)
 {
 
     mac_addr_t mac = {0};
-    uint8_t hash[255] = {0}; // Max hash length to avoid dynamic allocation
-    uint8_t hash_len = 0;
+    uint8_t* hash = NULL; // Max hash length to avoid dynamic allocation
+    uint16_t hash_len = 0;
 
     if (!ec_util::parse_dpp_chirp_tlv(chirp_tlv, tlv_len, &mac, reinterpret_cast<uint8_t**>(&hash), &hash_len)) {
         printf("%s:%d: Failed to parse DPP Chirp TLV\n", __func__, __LINE__);
@@ -21,62 +22,49 @@ bool ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *ch
 
     std::string mac_str = util::mac_to_string(mac);
     auto c_ctx = get_conn_ctx(mac_str);
-    ASSERT_NOT_NULL(c_ctx, false, "%s:%d: Connection context not found for enrollee MAC %s\n", __func__, __LINE__, mac_str.c_str());
+    ASSERT_NOT_NULL_FREE(c_ctx, false, hash, "%s:%d: Connection context not found for enrollee MAC %s. Has the DPP URI been given?\n", __func__, __LINE__, mac_str.c_str());
 
     // Validate hash
     // Compute the hash of the responder boot key 
     uint8_t *resp_boot_key_chirp_hash = ec_crypto::compute_key_hash(c_ctx->boot_data.responder_boot_key, "chirp");
-    if (resp_boot_key_chirp_hash == NULL) {
-        printf("%s:%d unable to compute \"chirp\" responder bootstrapping key hash\n", __func__, __LINE__);
-        return false;
-    }
+    ASSERT_NOT_NULL_FREE(resp_boot_key_chirp_hash, false, hash, "%s:%d: unable to compute \"chirp\" responder bootstrapping key hash\n", __func__, __LINE__);
 
     if (memcmp(hash, resp_boot_key_chirp_hash, hash_len) != 0) {
         // Hashes don't match, don't initiate DPP authentication
         printf("%s:%d: Chirp notification hash and DPP URI hash did not match! Stopping DPP!\n", __func__, __LINE__);
+        printf("%s:%d: Expected hash: \n", __func__, __LINE__);
+        util::print_hex_dump(hash_len, resp_boot_key_chirp_hash);
+        printf("\n%s:%d: Received hash: \n", __func__, __LINE__);
+        util::print_hex_dump(hash_len, hash);
         free(resp_boot_key_chirp_hash);
+        free(hash);
         return false;
     }
 
     free(resp_boot_key_chirp_hash);
 
+
     auto [auth_frame, auth_frame_len] = create_auth_request(mac_str);
     if (auth_frame == NULL || auth_frame_len == 0) {
         printf("%s:%d: Failed to create authentication request frame\n", __func__, __LINE__);
+        free(hash);
         return false;
     }
 
     // Create Auth Request Encap TLV: EasyMesh 5.3.4
     auto [encap_dpp_tlv, encap_dpp_size] = ec_util::create_encap_dpp_tlv(0, mac, ec_frame_type_auth_req, auth_frame, static_cast<uint8_t> (auth_frame_len));
-    if (encap_dpp_tlv == NULL) {
-        printf("%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
-        return false;
-    }
+    ASSERT_NOT_NULL_FREE2(encap_dpp_tlv, false, auth_frame, hash, "%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
 
     free(auth_frame);
 
     // Create Auth Request Chirp TLV: EasyMesh 5.3.4
-    size_t data_size = sizeof(mac_addr_t) + hash_len + sizeof(uint8_t);
-    em_dpp_chirp_value_t* chirp = reinterpret_cast<em_dpp_chirp_value_t*>(calloc(sizeof(em_dpp_chirp_value_t) + data_size, 1));
-    if (chirp == NULL) {
-        printf("%s:%d: Failed to allocate memory for chirp TLV\n", __func__, __LINE__);
-        free(encap_dpp_tlv);
-        return false;
-    }
-    chirp->mac_present = 1;
-    chirp->hash_valid = 1;
 
-    uint8_t* tmp = chirp->data;
-    memcpy(tmp, mac, sizeof(mac_addr_t));
-    tmp += sizeof(mac_addr_t);
-
-    *tmp = hash_len;
-    tmp++;
-
-    memcpy(tmp, hash, hash_len); 
+    auto [chirp, chirp_tlv_size] = ec_util::create_dpp_chirp_tlv(true, true, mac, hash, hash_len);
+    ASSERT_NOT_NULL_FREE2(chirp, false, encap_dpp_tlv, hash, "%s:%d: Failed to create Chirp TLV\n", __func__, __LINE__);
+    free(hash);
 
     // Send the encapsulated DPP message (with Encap TLV and Chirp TLV)
-    this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, chirp, sizeof(em_dpp_chirp_value_t) + data_size);
+    this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, chirp, chirp_tlv_size);
 
     free(encap_dpp_tlv);
     free(chirp);
