@@ -229,7 +229,7 @@ std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t *wra
     return {unwrap_attribs, wrapped_len};
 }
 
-bool ec_util::parse_dpp_chirp_tlv(em_dpp_chirp_value_t* chirp_tlv, uint16_t chirp_tlv_len, mac_addr_t *mac, uint8_t **hash, uint8_t *hash_len)
+bool ec_util::parse_dpp_chirp_tlv(em_dpp_chirp_value_t* chirp_tlv, uint16_t chirp_tlv_len, mac_addr_t *mac, uint8_t **hash, uint16_t *hash_len)
 {
     if (chirp_tlv == NULL || chirp_tlv_len == 0) {
         fprintf(stderr, "Invalid input\n");
@@ -253,30 +253,52 @@ bool ec_util::parse_dpp_chirp_tlv(em_dpp_chirp_value_t* chirp_tlv, uint16_t chir
         return true;
     }
 
-    *hash_len = *data_ptr;
-    data_ptr++;
-    if (data_len < *hash_len) {
-        fprintf(stderr, "Invalid chirp tlv\n");
+    uint16_t h_len;
+    memcpy(&h_len, data_ptr, sizeof(uint16_t));
+    *hash_len = ntohs(h_len);
+    data_ptr += sizeof(uint16_t);
+    data_len -= static_cast<uint16_t>(sizeof(uint16_t));
+    if (*hash_len == 0) {
+        *hash = NULL;
+        fprintf(stderr, "%s:%d: Invalid chirp tlv, hash length is 0 when hash_valid flag is set\n", __func__, __LINE__);
         return false;
     }
-    memcpy(*hash, data_ptr, *hash_len);
+
+    if (data_len < *hash_len) {
+        fprintf(stderr, "%s:%d: Invalid chirp tlv, %d bytes of data remaining, %d bytes of hash requested\n", __func__, __LINE__, data_len, *hash_len);
+        fprintf(stderr, "%s:%d: %d < %d\n", __func__, __LINE__, data_len, *hash_len);
+        return false;
+    }
+    if (*hash_len > 0) {
+        *hash = reinterpret_cast<uint8_t*>(calloc(*hash_len, 1));
+        if (*hash == NULL) {
+            fprintf(stderr, "Failed to allocate memory\n");
+            return false;
+        }
+        memcpy(*hash, data_ptr, *hash_len);
+    } else {
+        *hash = NULL;
+    }
 
     return true;
 }
 
-std::pair<em_dpp_chirp_value_t*, uint16_t> ec_util::create_dpp_chirp_tlv(bool mac_present, bool hash_validity, mac_addr_t dest_mac)
+std::pair<em_dpp_chirp_value_t*, uint16_t> ec_util::create_dpp_chirp_tlv(bool mac_present, bool hash_validity, mac_addr_t dest_mac, uint8_t* hash, uint16_t hash_len)
 {
     if (dest_mac == NULL && mac_present) {
         printf("%s:%d: mac_present argument is true, but dest_mac was not provided\n", __func__, __LINE__);
         return {};
     }
 
-    size_t data_size = sizeof(em_dpp_chirp_value_t);
-    if (dest_mac != NULL) {
-        data_size += sizeof(mac_addr_t);
+    size_t full_tlv_size = sizeof(em_dpp_chirp_value_t);
+    if (dest_mac != NULL) full_tlv_size += sizeof(mac_addr_t);
+    if (hash_validity) full_tlv_size += (sizeof(uint16_t) + hash_len);
+    if (hash_validity && !hash) {
+        fprintf(stderr, "Hash is NULL but hash_validity is true\n");
+        return {};
     }
     em_dpp_chirp_value_t *chirp_tlv = NULL;
-    if ((chirp_tlv = static_cast<em_dpp_chirp_value_t *>(calloc(data_size, 1))) == NULL){
+    if ((chirp_tlv = static_cast<em_dpp_chirp_value_t *>(calloc(full_tlv_size, 1))) == NULL){
         fprintf(stderr, "Failed to allocate memory\n");
         return {};
     }
@@ -284,11 +306,22 @@ std::pair<em_dpp_chirp_value_t*, uint16_t> ec_util::create_dpp_chirp_tlv(bool ma
     (chirp_tlv)->mac_present = mac_present;
     (chirp_tlv)->hash_valid = hash_validity;
 
-    if (dest_mac != NULL) {
-        memcpy((chirp_tlv)->data, dest_mac, sizeof(mac_addr_t));
+    uint8_t *data_ptr = (chirp_tlv)->data;
+    if (mac_present) {
+        memcpy(data_ptr, dest_mac, sizeof(mac_addr_t));
+        data_ptr += sizeof(mac_addr_t);
+    }
+    if (hash_validity) {
+        uint16_t net_hashlen = htons(hash_len);
+        memcpy(data_ptr, &net_hashlen, sizeof(uint16_t));
+        data_ptr += sizeof(uint16_t); 
+    }
+    if (hash_len > 0 && hash_validity) {
+        memcpy(data_ptr, hash, hash_len);
+        data_ptr += hash_len;
     }
 
-    return std::pair<em_dpp_chirp_value_t*, uint16_t>(chirp_tlv, static_cast<uint16_t>(data_size));
+    return std::pair<em_dpp_chirp_value_t*, uint16_t>(chirp_tlv, static_cast<uint16_t>(full_tlv_size));
 }
 
 bool ec_util::parse_encap_dpp_tlv(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, mac_addr_t *dest_mac, uint8_t *frame_type, uint8_t **encap_frame, uint16_t *encap_frame_len)
@@ -321,8 +354,10 @@ bool ec_util::parse_encap_dpp_tlv(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_
     *frame_type = *data_ptr;
     data_ptr++;
 
-    // Get frame length
-    *encap_frame_len = htons(*reinterpret_cast<uint16_t *>(data_ptr));
+    // Get frame length - Fix for alignment issue
+    uint16_t frame_len;
+    memcpy(&frame_len, data_ptr, sizeof(uint16_t));
+    *encap_frame_len = ntohs(frame_len);
     data_ptr += sizeof(uint16_t);
 
     if (data_len < *encap_frame_len) {
@@ -554,6 +589,8 @@ std::optional<std::string> ec_util::encode_bootstrap_data_json(ec_data_t *boot_d
     cJSON *json = cJSON_CreateObject();
     ASSERT_NOT_NULL(json, {}, "Failed to create JSON object\n");
 
+    cJSON* uri_obj = cJSON_AddObjectToObject(json, "URI");
+
     for (const auto &[uri_type, value] : uri_map) {
         auto field_char = get_dpp_uri_field_char(uri_type);
         if (!field_char) {
@@ -563,7 +600,7 @@ std::optional<std::string> ec_util::encode_bootstrap_data_json(ec_data_t *boot_d
         }
         switch (uri_type) {
         case DPP_URI_VERSION:
-            cJSON_AddNumberToObject(json, "V", std::stoi(value));
+            cJSON_AddNumberToObject(uri_obj, "V", std::stoi(value));
             break;
         case DPP_URI_MAC:
         case DPP_URI_CHANNEL_LIST:
@@ -571,7 +608,7 @@ std::optional<std::string> ec_util::encode_bootstrap_data_json(ec_data_t *boot_d
         case DPP_URI_INFORMATION:
         case DPP_URI_HOST:
         case DPP_URI_SUPPORTED_CURVES:
-            cJSON_AddStringToObject(json, field_char->c_str(), value.c_str());
+            cJSON_AddStringToObject(uri_obj, field_char->c_str(), value.c_str());
             break;
         case DPP_URI_MAX: // This should never happen
             printf("Found max DPP URI field but not encoding\n");
@@ -746,7 +783,15 @@ bool ec_util::read_bootstrap_data_from_file(ec_data_t *boot_data, const std::str
         return false;
     }
 
-    if (!ec_util::decode_bootstrap_data_json(json, boot_data)) {
+    cJSON* uri_obj = cJSON_GetObjectItemCaseSensitive(json, "URI");
+    if (uri_obj == NULL) {
+        printf("%s:%d: Failed to get URI object from JSON at path '%s'\n", __func__, __LINE__,
+               DPP_URI_JSON_PATH);
+        cJSON_Delete(json);
+        return false;
+    }
+
+    if (!ec_util::decode_bootstrap_data_json(uri_obj, boot_data)) {
         printf("%s:%d: Failed to decode DPP URI JSON at path '%s'\n", __func__, __LINE__,
                DPP_URI_JSON_PATH);
         cJSON_Delete(json);

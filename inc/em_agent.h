@@ -86,9 +86,10 @@ public:
      * @param action_frame The action frame to send
      * @param action_frame_len The length of the action frame
      * @param frequency The frequency to send the frame on (0 for current frequency)
+     * @param wait_time_ms The time to dwell on the frequency before switching back to the original frequency (0 for no wait)
      * @return true if successful, false otherwise
      */
-    bool send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency=0) override;
+    bool send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency=0, unsigned int wait_time_ms=0) override;
 
     /**
      * @brief Try to create a default EasymeshCfg.json file if one does not exist.
