@@ -327,8 +327,9 @@ void em_agent_t::handle_recv_gas_frame(em_bus_event_t *evt)
         return;
     }
     const size_t full_frame_length = evt->data_len;
-    const size_t mgmt_hdr_len      = offsetof(struct ieee80211_mgmt, u);
-    ieee80211_mgmt *mgmt_frame     = (ieee80211_mgmt *)evt->u.raw_buff;
+    const size_t mgmt_hdr_len = offsetof(struct ieee80211_mgmt, u);
+    ieee80211_mgmt *mgmt_frame = (ieee80211_mgmt *)evt->u.raw_buff;
+
     mac_addr_str_t dest_mac;
     dm_easy_mesh_t::macbytes_to_string(mgmt_frame->da, dest_mac);
     em_t *dest_node = (em_t *)hash_map_get(g_agent.m_em_map, dest_mac);
@@ -336,10 +337,76 @@ void em_agent_t::handle_recv_gas_frame(em_bus_event_t *evt)
         printf("%s:%d: no node found for MAC '%s'\n", __func__, __LINE__, dest_mac);
         return;
     }
+    em_t *al_node = get_al_node();
+    if (!al_node) {
+        printf("%s:%d: no AL node present\n", __func__, __LINE__);
+        return;
+    }
+
     auto gas_frame_base = (ec_gas_frame_base_t *)evt->u.raw_buff + mgmt_hdr_len;
-    if (!dest_node->m_ec_manager->handle_recv_gas_pub_action_frame(
-            gas_frame_base, full_frame_length - mgmt_hdr_len, mgmt_frame->sa)) {
-        printf("%s:%d: EC manager failed to handle GAS frame!\n", __func__, __LINE__);
+
+    bool is_wfa_ec_gas = false;
+
+    switch (gas_frame_base->action) {
+    case dpp_gas_action_type_t::dpp_gas_initial_req: {
+        printf("%s:%d: Received GAS Initial Request\n", __func__, __LINE__);
+        ec_gas_initial_request_frame_t *gas_initial_req_frame =
+            (ec_gas_initial_request_frame_t *)gas_frame_base;
+        uint8_t *ap_proto_id = gas_initial_req_frame->ape_id;
+        if (ap_proto_id[0] == 0xDD) {
+            // Vendor specific GAS frame
+            if (memcmp(ap_proto_id, DPP_GAS_CONFIG_REQ_PROTO_ID,
+                       sizeof(DPP_GAS_CONFIG_REQ_PROTO_ID)) == 0) {
+                // DPP GAS frame
+                is_wfa_ec_gas = true;
+            }
+        }
+        break;
+    }
+    case dpp_gas_action_type_t::dpp_gas_initial_resp: {
+        printf("%s:%d: Received GAS Initial Response\n", __func__, __LINE__);
+        ec_gas_initial_response_frame_t *gas_initial_resp_frame =
+            (ec_gas_initial_response_frame_t *)gas_frame_base;
+        uint8_t *ap_proto_id = gas_initial_resp_frame->ape_id;
+        if (ap_proto_id[0] == 0xDD) {
+            // Vendor specific GAS frame
+            if (memcmp(ap_proto_id, DPP_GAS_CONFIG_REQ_PROTO_ID,
+                       sizeof(DPP_GAS_CONFIG_REQ_PROTO_ID)) == 0) {
+                // DPP GAS frame
+                is_wfa_ec_gas = true;
+            }
+        }
+        break;
+    }
+    case dpp_gas_action_type_t::dpp_gas_comeback_req:
+        printf("%s:%d: Received GAS Comeback Request\n", __func__, __LINE__);
+        // TODO: handle comeback request
+        break;
+    case dpp_gas_action_type_t::dpp_gas_comeback_resp:
+        printf("%s:%d: Received GAS Comeback Response\n", __func__, __LINE__);
+        // TODO: handle comeback response
+        break;
+    default:
+        printf("%s:%d: Received unknown GAS action type '0x%x'\n", __func__, __LINE__,
+               gas_frame_base->action);
+        return;
+    }
+
+    if (is_wfa_ec_gas) {
+        printf("%s:%d: Received WFA EC GAS frame\n", __func__, __LINE__);
+        bool dest_al_same = (memcmp(dest_node->get_radio_interface_mac(),
+                                    get_al_node()->get_radio_interface_mac(), ETH_ALEN) != 0);
+
+        if (!dest_al_same && !(m_data_model.get_colocated())) {
+            // DPP GAS Frame not sent to same radio as AL node, let's ignore it.
+            // We don't ignore it if this co-located since the AL-node will be the same as the controller (eth0)
+            // so if we ignore it, no packets will ever get through
+            return;
+        }
+        if (!dest_node->m_ec_manager->handle_recv_gas_pub_action_frame(
+                gas_frame_base, full_frame_length - mgmt_hdr_len, mgmt_frame->sa)) {
+            printf("%s:%d: EC manager failed to handle GAS frame!\n", __func__, __LINE__);
+        }
     }
 }
 
@@ -367,7 +434,7 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
 
     mac_addr_str_t dest_mac_str;
     dm_easy_mesh_t::macbytes_to_string(mgmt_frame->da, dest_mac_str);
-
+    printf("Dest Mac Str: %s\n", dest_mac_str);
     em_t* dest_radio_node = static_cast<em_t*>(hash_map_get(g_agent.m_em_map, dest_mac_str));
     if (dest_radio_node == NULL) {
         // printf("No radio node found for dest mac %s\n", dest_mac_str);
@@ -381,9 +448,18 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
     auto ec_frame = reinterpret_cast<ec_frame_t*>(evt->u.raw_buff + mgmt_hdr_len);
 
     switch (oui_type) {
-    case DPP_OUI_TYPE:
-        dest_radio_node->m_ec_manager->handle_recv_ec_action_frame(ec_frame, full_action_frame_len, mgmt_frame->sa);
+    case DPP_OUI_TYPE: {
+	em_t* al_node = get_al_node();
+	bool dest_al_same = (memcmp(dest_radio_node->get_radio_interface_mac(), get_al_node()->get_radio_interface_mac(), ETH_ALEN) != 0);
+
+	if (!dest_al_same && !(m_data_model.get_colocated()))
+		// DPP Action Frame not sent to same radio as AL node, let's ignore it.
+		// We don't ignore it if this co-located since the AL-node will be the same as the controller (eth0) 
+		// so if we ignore it, no packets will ever get through
+		break;
+        al_node->get_ec_mgr().handle_recv_ec_action_frame(ec_frame, full_action_frame_len, mgmt_frame->sa);
         break;
+    }
     default:
         break;
     }
@@ -606,7 +682,7 @@ int em_agent_t::refresh_onewifi_subdoc(const char * log_name, const webconfig_su
     return m_data_model.refresh_onewifi_subdoc(desc, &m_bus_hdl, log_name, type);
 }
 
-bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency) {
+bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency, unsigned int wait_time_ms) {
 
     wifi_bus_desc_t *desc = get_bus_descriptor();
     ASSERT_NOT_NULL(desc, false, "%s:%d descriptor is null\n", __func__, __LINE__);
@@ -617,9 +693,14 @@ bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_f
 
     // Hardcoded to 0 just the same as the other bus calls
     // NOTE: AccessPoint.1 = ap_index 0. One is the data model indexing, one is NL80211/hal indexing
-    act_frame_params->ap_index = 0;
+    static int test_idx = 0;
+    act_frame_params->ap_index = test_idx;
     memcpy(act_frame_params->dest_addr, dest_mac, ETH_ALEN);
     act_frame_params->frequency = frequency;
+
+    //TODO: Disabled until halinterace, rdk-wifi-hal, OneWifi PRs are merged
+    //act_frame_params->wait_time_ms = wait_time_ms;
+
     act_frame_params->frame_len = action_frame_len;
     memcpy(act_frame_params->frame_data, action_frame, action_frame_len);
 
@@ -629,9 +710,17 @@ bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_f
     raw_act_frame.raw_data_len = sizeof(action_frame_params_t) + action_frame_len;
     raw_act_frame.data_type = bus_data_type_bytes;
 
+    
+    char path[100] = {0};
+    snprintf(path, sizeof(path), "Device.WiFi.AccessPoint.%d.RawFrame.Mgmt.Action.Tx", test_idx+1);
+    
+    printf("%s:%d Sending Action frame to path: %s\n", __func__, __LINE__, path);
     // Send the action frame
-    if (desc->bus_set_fn(&m_bus_hdl, "Device.WiFi.AccessPoint.1.RawFrame.Mgmt.Action.Tx", &raw_act_frame) != 0) {
-        printf("%s:%d bus set failed\n", __func__, __LINE__);
+    bus_error_t rc;
+    if ((rc = desc->bus_set_fn(&m_bus_hdl, path,  &raw_act_frame)) != 0) {
+        if (rc == bus_error_destination_not_found) test_idx++;
+        if (test_idx > 255) test_idx = 0;
+        printf("%s:%d bus set failed (%d)\n", __func__, __LINE__, rc);
         free(act_frame_params);
         return false;
     }
@@ -969,8 +1058,6 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 			return NULL;
 		}
 		break;
-        case em_msg_type_chirp_notif:
-
 		case em_msg_type_autoconf_wsc:
 			if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                 	len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
@@ -1151,6 +1238,10 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
         case em_msg_type_beacon_metrics_query:
             break;
 
+        case em_msg_type_proxied_encap_dpp:
+        case em_msg_type_chirp_notif:
+            em = al_em;
+            break;
         default:
             printf("%s:%d: Frame: %d not handled in agent\n", __func__, __LINE__, htons(cmdu->type));
             assert(0);
@@ -1261,7 +1352,7 @@ bool em_agent_t::try_start_dpp_onboarding()  {
         return false;
     }
 
-    em_t* al_node = get_phy_al_em();
+    em_t* al_node = get_al_node();
     ASSERT_NOT_NULL(al_node, false, "%s:%d: al_node is null\n", __func__, __LINE__);
 
     uint8_t* al_mac = al_node->get_radio_interface_mac();

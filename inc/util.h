@@ -60,6 +60,23 @@ void add_milliseconds(struct timespec *ts, long milliseconds);
 char *get_date_time_rfc3399(char *buff, unsigned int len);
 void print_hex_dump(unsigned int length, uint8_t *buffer, easymesh_dbg_type_t module=EM_STDOUT);
 
+
+/**
+ * @brief Captures and prints the current call stack to stderr
+ * 
+ * This function uses backtrace() to capture the current execution stack frames
+ * and backtrace_symbols() to convert the addresses to human-readable strings.
+ * The stack trace is printed to stderr with each frame on a separate line.
+ * 
+ * @note This implementation is Unix/Linux-specific and relies on execinfo.h,
+ *       which is not part of the C++ standard library. On other platforms,
+ *       alternative implementations would be required.
+ * 
+ * @note The stack trace information may be limited depending on compilation
+ *       flags. For best results, compile with debugging information (-g).
+ */
+void print_stacktrace();
+
 /**
  * Converts a MAC address to its string representation
  * 

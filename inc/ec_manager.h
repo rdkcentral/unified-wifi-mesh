@@ -42,7 +42,7 @@ public:
     bool handle_recv_ec_action_frame(ec_frame_t* frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]);
 
 
-    bool handle_recv_gas_pub_action_frame(ec_gas_frame_base_t *, size_t, uint8_t[ETH_ALEN]);
+    bool handle_recv_gas_pub_action_frame(ec_gas_frame_base_t * frame, size_t len, uint8_t src_mac[ETH_ALEN]);
 
     /**
      * @brief Start the EC configurator onboarding

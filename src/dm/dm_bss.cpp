@@ -255,7 +255,6 @@ void dm_bss_t::encode(cJSON *obj, bool summary)
     // Add the array to the object
     cJSON_AddItemToObject(obj, "BackhaulAKMsAllowed", backhaul_akmsArray);
 
-    printf("Encoding %ld vendor elements\n", m_bss_info.vendor_elements_len);
     // Add vendor elements (ExtraVendorIEs) as hex string
     char vendor_ies[2 * m_bss_info.vendor_elements_len + 1] = {0};
     if (m_bss_info.vendor_elements_len > 0) {

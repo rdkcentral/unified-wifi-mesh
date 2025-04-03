@@ -71,6 +71,11 @@ public:
      */
     bool handle_config_response(uint8_t *buff, unsigned int len, uint8_t sa[ETH_ALEN]);
 
+    inline void teardown_connection() {
+        ec_crypto::free_connection_ctx(&m_c_ctx);
+        ec_crypto::free_ephemeral_context(&m_c_ctx.eph_ctx, m_c_ctx.nonce_len, m_c_ctx.digest_len);
+    }
+
     inline std::string get_mac_addr() { return m_mac_addr; };
 
     // Disable copy construction and assignment

@@ -33,6 +33,8 @@
 #include "dm_easy_mesh.h"
 #include "em_sm.h"
 
+#include "util.h"
+
 class em_mgr_t;
 
 class em_t : 
@@ -101,7 +103,8 @@ public:
     bool toggle_cce(bool enable);
 
 	em_mgr_t *get_mgr() { return m_mgr; }
-    ec_manager_t& get_ec_mgr() { return *m_ec_manager; }
+
+    ec_manager_t& get_ec_mgr();
 
     void orch_execute(em_cmd_t *pcmd);
     em_orch_state_t get_orch_state() { return m_orch_state; }
@@ -135,7 +138,7 @@ public:
     em_ieee_1905_security_cap_t *get_ieee_1905_security_cap() { return m_data_model->get_ieee_1905_security_cap(); }
     em_device_info_t    *get_device_info() { return m_data_model->get_device_info(); }
 
-    unsigned char *get_peer_mac() { return (m_service_type == em_service_type_ctrl) ? m_data_model->get_agent_al_interface_mac():m_data_model->get_ctrl_al_interface_mac(); }
+    unsigned char *get_peer_mac() { return (m_service_type == em_service_type_ctrl) ? m_data_model->get_agent_al_interface_mac():m_data_model->get_controller_interface_mac(); }
 
     bool has_at_least_one_associated_sta() { return get_data_model()->has_at_least_one_associated_sta(); }
     dm_sta_t *find_sta(mac_address_t sta_mac, bssid_t bssid);

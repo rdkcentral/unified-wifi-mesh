@@ -11,7 +11,7 @@ class ec_ctrl_configurator_t : public ec_configurator_t {
 public:
     ec_ctrl_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg,
         get_backhaul_sta_info_func backhaul_sta_info_func, get_1905_info_func ieee1905_info_func, can_onboard_additional_aps_func can_onboard_func) :
-        ec_configurator_t(mac_addr, send_chirp_notification, send_prox_encap_dpp_msg, {}, backhaul_sta_info_func, ieee1905_info_func, can_onboard_func), m_enrollee_successfully_onboarded{}
+        ec_configurator_t(mac_addr, send_chirp_notification, send_prox_encap_dpp_msg, {}, backhaul_sta_info_func, ieee1905_info_func, can_onboard_func)
         {};
         // No MAC address needed for controller configurator
 
@@ -98,7 +98,7 @@ private:
      * @brief Maps Enrollee MAC (as string) to onboarded status. True if onboarded (now a Proxy Agent), false if still onboarding / onboarding failed.
      * 
      */
-    std::unordered_map<std::string, bool> m_enrollee_successfully_onboarded;
+    std::unordered_map<std::string, bool> m_enrollee_successfully_onboarded = {};
 };
 
 #endif // EC_CTRL_CONFIGURATOR_H

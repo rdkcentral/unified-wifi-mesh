@@ -19,7 +19,7 @@ bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_
     if (hash_frame_iter == m_chirp_hash_frame_map.end()) {
         // If no matching hash value is found, the Proxy Agent shall send a Chirp Notification message to the 
         // Controller with a DPP Chirp Value TLV
-        const auto [chirp_tlv, chirp_tlv_len] = ec_util::create_dpp_chirp_tlv(true, true, src_mac);
+        const auto [chirp_tlv, chirp_tlv_len] = ec_util::create_dpp_chirp_tlv(true, true, src_mac, B_r_hash_attr->data, B_r_hash_attr->length);
         ASSERT_NOT_NULL(chirp_tlv, false, "%s:%d Failed to create DPP Chirp Value TLV\n", __func__, __LINE__);
         sent = m_send_chirp_notification(chirp_tlv, chirp_tlv_len);
         free(chirp_tlv);
@@ -30,7 +30,7 @@ bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_
         // 1 second of receiving the Presence Announcement frame from that Enrollee, using a DPP Public Action frame to
         // the MAC address from where the Presence Announcement frame was received.
         std::vector<uint8_t> encap_frame_vec  = hash_frame_iter->second;
-        sent = m_send_action_frame(src_mac, encap_frame_vec.data(), encap_frame_vec.size(), 0);
+        sent = m_send_action_frame(src_mac, encap_frame_vec.data(), encap_frame_vec.size(), 0, 0);
     }
 
     return sent;	
@@ -130,10 +130,6 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
         return false;
     }
 
-    mac_addr_t chirp_mac = {0};
-    uint8_t chirp_hash[255] = {0}; // Max hash length to avoid dynamic allocation
-    uint8_t chirp_hash_len = 0;
-
     ec_frame_type_t ec_frame_type = static_cast<ec_frame_type_t>(frame_type);
 
     bool did_finish = false;
@@ -150,7 +146,7 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
             printf("%s:%d: Cannot forward DPP Configuration Result to Enrollee, MAC addr not present!\n", __func__, __LINE__);
             return false;
         }
-        bool sent = m_send_action_frame(dest_mac, encap_frame, encap_frame_len, 0);
+        bool sent = m_send_action_frame(dest_mac, encap_frame, encap_frame_len, 0, 0);
         if (!sent) {
             printf("%s:%d: Failed to forward DPP Configuration Result to Enrollee '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(dest_mac));
         }
@@ -181,7 +177,7 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
         // bit is set to one, then the Proxy Agent shall send the frame as a unicast Public Action frame to the Enrollee MAC
         // address
         if (!encap_tlv->dpp_frame_indicator && encap_tlv->enrollee_mac_addr_present) {
-            bool sent = m_send_action_frame(dest_mac, encap_frame, encap_frame_len, 0);
+            bool sent = m_send_action_frame(dest_mac, encap_frame, encap_frame_len, 0, 0);
             if (!sent) {
                 printf("%s:%d: Failed to send non-DPP unicast action frame to '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(dest_mac));
             }
@@ -191,7 +187,7 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
         // 2. If the DPP Frame Indicator bit field in the 1905 Encap DPP TLV is set to zero and the Enrollee MAC Address Present
         // bit is set to zero, then the Proxy Agent shall send the frame as a broadcast Public Action frame
         else if (!encap_tlv->dpp_frame_indicator && !encap_tlv->enrollee_mac_addr_present) {
-            bool sent = m_send_action_frame(const_cast<uint8_t *>(BROADCAST_MAC_ADDR), encap_frame, encap_frame_len, 0);
+            bool sent = m_send_action_frame(const_cast<uint8_t *>(BROADCAST_MAC_ADDR), encap_frame, encap_frame_len, 0, 0);
             if (!sent) {
                 printf("%s:%d: Failed to sent non-DPP broadcast action frame!\n", __func__, __LINE__);
             }
@@ -201,7 +197,7 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
         // 3. If the DPP Frame Indicator bit field in the 1905 Encap DPP TLV is set to one and the Enrollee MAC Address Present
         // bit is set to one, then the Proxy Agent shall send the frame as a unicast GAS frame to the Enrollee MAC address
         else if (encap_tlv->dpp_frame_indicator && encap_tlv->enrollee_mac_addr_present) {
-            bool sent = m_send_action_frame(dest_mac, encap_frame, encap_frame_len, 0);
+            bool sent = m_send_action_frame(dest_mac, encap_frame, encap_frame_len, 0, 0);
             if (!sent) {
                 printf("%s:%d: Sent DPP unicast GAS frame to '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(dest_mac));
             }
@@ -224,12 +220,17 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
                 printf("%s:%d: Chirp TLV is empty\n", __func__, __LINE__);
                 break;
             }
-            if (!ec_util::parse_dpp_chirp_tlv(chirp_tlv, chirp_tlv_len, &chirp_mac, reinterpret_cast<uint8_t**>(&chirp_hash), &chirp_hash_len)) {
+            mac_addr_t chirp_mac = {0};
+            uint8_t* chirp_hash = NULL;
+            uint16_t chirp_hash_len = 0;
+            if (!ec_util::parse_dpp_chirp_tlv(chirp_tlv, chirp_tlv_len, &chirp_mac, &chirp_hash, &chirp_hash_len)) {
                 printf("%s:%d: Failed to parse DPP Chirp TLV\n", __func__, __LINE__);
                 break;
             }
             std::string chirp_hash_str = ec_util::hash_to_hex_string(chirp_hash, chirp_hash_len);
             printf("%s:%d: Chirp TLV Hash: %s\n", __func__, __LINE__, chirp_hash_str.c_str());
+
+            free(chirp_hash);
             
             // Store the encap frame keyed by the chirp hash in the map
             std::vector<uint8_t> encap_frame_vec(encap_frame, encap_frame + encap_frame_len);

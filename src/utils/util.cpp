@@ -32,11 +32,30 @@
 #include <algorithm>
 #include <sstream>
 
+#include <cstdlib>
+#include <execinfo.h>
+
 
 #include "util.h"
 
 extern "C" {
     extern char *__progname;
+}
+
+void util::print_stacktrace() {
+    // Get the stack trace (Unix/Linux implementation)
+    const int max_frames = 100;
+    void* callstack[max_frames];
+    int frames = backtrace(callstack, max_frames);
+    char** symbols = backtrace_symbols(callstack, frames);
+    
+    // Print the stack trace
+    fprintf(stderr, "Stack trace:\n");
+    for (int i = 0; i < frames; i++) {
+        fprintf(stderr, "%s\n", symbols[i]);
+    }
+    
+    free(symbols);
 }
 
 char *util::get_date_time_rfc3399(char *buff, unsigned int len)
