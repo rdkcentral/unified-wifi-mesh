@@ -58,7 +58,7 @@ public:
      * @param boot_key The bootstrapping key to use as a basis
      * @return bool true if successful, false otherwise
      */
-    static bool init_persistent_ctx(ec_connection_context_t& c_ctx, const SSL_KEY *boot_key);
+    static bool init_connection_ctx(ec_connection_context_t& c_ctx, const SSL_KEY *boot_key);
 
     /**
      * @brief Compute the hash of the provided buffer
@@ -323,6 +323,28 @@ public:
         if (ctx->bk) rand_zero_free(ctx->bk, static_cast<size_t> (digest_len));
 
         rand_zero(reinterpret_cast<uint8_t*>(ctx), sizeof(ec_ephemeral_context_t));
+    }
+
+    static inline void free_connection_ctx(ec_connection_context_t* ctx) {
+        if (!ctx) return;
+
+        if (ctx->boot_data.resp_pub_boot_key) EC_POINT_free(ctx->boot_data.resp_pub_boot_key);
+        if (ctx->boot_data.init_pub_boot_key) EC_POINT_free(ctx->boot_data.init_pub_boot_key);
+        if (ctx->boot_data.resp_priv_boot_key) BN_free(ctx->boot_data.resp_priv_boot_key);
+        if (ctx->boot_data.init_priv_boot_key) BN_free(ctx->boot_data.init_priv_boot_key);
+        if (ctx->boot_data.responder_boot_key) em_crypto_t::free_key(const_cast<SSL_KEY*>(ctx->boot_data.responder_boot_key));
+        if (ctx->boot_data.initiator_boot_key) em_crypto_t::free_key(const_cast<SSL_KEY*>(ctx->boot_data.initiator_boot_key));
+
+        if (ctx->group) EC_GROUP_free(const_cast<EC_GROUP*>(ctx->group));
+        if (ctx->order) BN_free(ctx->order);
+        if (ctx->prime) BN_free(ctx->prime);
+        if (ctx->bn_ctx) BN_CTX_free(ctx->bn_ctx);
+        if (ctx->C_signing_key) em_crypto_t::free_key(ctx->C_signing_key);
+        if (ctx->ppk) EC_POINT_free(ctx->ppk);
+        if (ctx->net_access_key) em_crypto_t::free_key(ctx->net_access_key);
+        if (ctx->connector) rand_zero_free(const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(ctx->connector)), strlen(ctx->connector));
+
+        rand_zero(reinterpret_cast<uint8_t*>(ctx), sizeof(ec_connection_context_t));
     }
 
 // START: Connector methods

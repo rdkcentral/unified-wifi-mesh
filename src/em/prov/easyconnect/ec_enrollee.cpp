@@ -58,7 +58,7 @@ bool ec_enrollee_t::start_onboarding(bool do_reconfig, ec_data_t* boot_data)
         return false;
     }
     
-    if (!ec_crypto::init_persistent_ctx(m_c_ctx, resp_key)){
+    if (!ec_crypto::init_connection_ctx(m_c_ctx, resp_key)){
         printf("%s:%d failed to initialize persistent context\n", __func__, __LINE__);
         return false;
     }
@@ -104,7 +104,7 @@ void ec_enrollee_t::send_presence_announcement_frames()
             // the channel list.
 
             // Send frame
-            if (!m_send_action_frame(const_cast<uint8_t *>(BROADCAST_MAC_ADDR), frame, frame_len, freq)) {
+            if (!m_send_action_frame(const_cast<uint8_t *>(BROADCAST_MAC_ADDR), frame, frame_len, freq, dwell)) {
                 printf("%s:%d: Failed to send DPP Presence Announcement frame (broadcast) on freq %d\n", __func__, __LINE__, freq);
             }
 
@@ -252,7 +252,7 @@ Authentication Request frame without replying to it.
             printf("%s:%d failed to create response frame\n", __func__, __LINE__);
             return false;
         }
-        if (m_send_action_frame(src_mac, resp_frame, resp_len, 0)){
+        if (m_send_action_frame(src_mac, resp_frame, resp_len, 0, 0)){
             printf("%s:%d Successfully sent DPP Status Not Compatible response frame\n", __func__, __LINE__);
         } else {
             printf("%s:%d Failed to send DPP Status Not Compatible response frame\n", __func__, __LINE__);
@@ -272,7 +272,7 @@ Authentication Request frame without replying to it.
             printf("%s:%d failed to create response frame\n", __func__, __LINE__);
             return false;
         }
-        if (m_send_action_frame(src_mac, resp_frame, resp_len, 0)){
+        if (m_send_action_frame(src_mac, resp_frame, resp_len, 0, 0)){
             printf("%s:%d Successfully sent DPP Status Response Pending response frame\n", __func__, __LINE__);
         } else {
             printf("%s:%d Failed to send DPP Status Response Pending response frame\n", __func__, __LINE__);
@@ -289,7 +289,7 @@ Authentication Request frame without replying to it.
         printf("%s:%d failed to create response frame\n", __func__, __LINE__);
         return false;
     }
-    bool did_succeed = m_send_action_frame(src_mac, resp_frame, resp_len, 0);
+    bool did_succeed = m_send_action_frame(src_mac, resp_frame, resp_len, 0, 0);
     if (did_succeed){
         printf("%s:%d Successfully sent DPP Status OK response frame\n", __func__, __LINE__);
     } else {
@@ -413,7 +413,7 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
     // in an 802.11 frame to a DPP frame encapsulated in a Multi-AP CMDU message. **Upon successful authentication**, the
     // Enrollee Multi-AP Agent requests configuration by exchanging DPP Configuration Protocol messages (see 6.6 of [18])
     // with the Multi-AP Controller.
-    bool sent_dpp_config_gas_frame = m_send_action_frame(src_mac, config_req, config_req_len, 0);
+    bool sent_dpp_config_gas_frame = m_send_action_frame(src_mac, config_req, config_req_len, 0, 0);
     if (sent_dpp_config_gas_frame) {
         printf("%s:%d: Sent DPP Configuration Request 802.11 frame to Proxy Agent!\n", __func__, __LINE__);
     } else {
@@ -544,7 +544,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
         return false;
     }
 
-    bool ok = m_send_action_frame(sa, config_result_frame, config_result_frame_len, 0);
+    bool ok = m_send_action_frame(sa, config_result_frame, config_result_frame_len, 0, 0);
     if (!ok) {
         printf("%s:%d: Failed to send DPP Configuration Result frame\n", __func__, __LINE__);
     } else {
@@ -570,7 +570,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
         return false;
     }
     
-    if (!m_send_action_frame(sa, conn_status_result_frame, conn_status_result_frame_len, 0)) {
+    if (!m_send_action_frame(sa, conn_status_result_frame, conn_status_result_frame_len, 0, 0)) {
         printf("%s:%d: Failed to send Connection Status Result frame to Configurator!\n", __func__, __LINE__);
         free(conn_status_result_frame);
         free(wrapped_attrs);
@@ -984,14 +984,9 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     // be included. The E-nonce attribute and the DPP Configuration Request object attribute(s) are wrapped with ke. The
     // wrapped attributes are then placed in a DPP Configuration Request frame, and sent to the Configurator.
     // Enrollee → Configurator: { E-nonce, configRequest }ke
-    if ((m_eph_ctx().e_nonce = static_cast<uint8_t *>(malloc(m_c_ctx.nonce_len))) == NULL) {
-        printf("%s:%d: Could not malloc for E-nonce!\n", __func__, __LINE__);
-        return {};
-    }
 
     if (RAND_bytes(m_eph_ctx().e_nonce, m_c_ctx.nonce_len) != 1) {
         printf("%s:%d: Could not generate E-nonce!\n", __func__, __LINE__);
-        free(m_eph_ctx().e_nonce);
         return {};
     }
 
@@ -1019,7 +1014,6 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     cJSON *name = cJSON_CreateString(hostname);
     if (!dpp_config_request_obj || !netRole || !wifi_tech) {
         printf("%s:%d: Failed to create DPP Configuration Request Object!\n", __func__, __LINE__);
-        free(m_eph_ctx().e_nonce);
         return {};
     }
     cJSON_AddItemToObject(dpp_config_request_obj, "netRole", netRole);
@@ -1027,7 +1021,6 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     cJSON_AddItemToObject(dpp_config_request_obj, "name", name);
     if (m_get_bsta_info == nullptr) {
         printf("%s:%d: Get bSTA info callback is nullptr! Cannot create DPP Configuration Request Object, bailing.\n", __func__, __LINE__);
-        free(m_eph_ctx().e_nonce);
         return {};
     }
     cJSON *bsta_info = m_get_bsta_info(nullptr);
@@ -1042,7 +1035,6 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     auto [frame, frame_len] = ec_util::alloc_gas_frame(dpp_gas_initial_req, dialog_token);
     if (frame == nullptr || frame_len == 0) {
         printf("%s:%d: Could not create DPP Configuration Request GAS frame!\n", __func__, __LINE__);
-        free(m_eph_ctx().e_nonce);
         return {};
     }
 
@@ -1064,7 +1056,6 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
         printf("%s:%d: unable to copy attribs to GAS frame\n", __func__, __LINE__);
         free(attribs);
         free(frame);
-        free(m_eph_ctx().e_nonce);
         return {};
     }
     initial_req_frame->query_len = static_cast<uint16_t>(attribs_len);

@@ -1138,7 +1138,7 @@ struct ieee80211_vs_ie{
     uint8_t         vs_oui[3];     /* Vendor OUI */
     uint8_t         vs_type;       /* Vendor Specific type */
     uint8_t         vs_subtype;    /* Vendor Specific sub-type (required for some devices, can be 0) */
-    uint8_t         payload[0];    /* Vendor Specific Payload */
+    uint8_t         payload[];    /* Vendor Specific Payload */
 } __attribute__((packed));
 
 /*

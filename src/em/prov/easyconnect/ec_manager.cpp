@@ -2,6 +2,7 @@
 #include "ec_ctrl_configurator.h"
 
 #include "ec_util.h"
+#include "util.h"
 
 #include <memory>
 
@@ -14,8 +15,8 @@ ec_manager_t::ec_manager_t(
     get_1905_info_func get_1905_info,
     can_onboard_additional_aps_func can_onboard,
     toggle_cce_func toggle_cce, 
-    bool m_is_controller
-) : m_is_controller(m_is_controller),
+    bool is_controller
+) : m_is_controller(is_controller),
     m_stored_chirp_fn(send_chirp),
     m_stored_encap_dpp_fn(send_encap_dpp),
     m_stored_action_frame_fn(send_action_frame),
@@ -26,9 +27,10 @@ ec_manager_t::ec_manager_t(
     m_configurator(nullptr),
     m_enrollee(nullptr),
     m_toggle_cce_fn(toggle_cce) {
-    
+	
+    printf("EC Manager created with MAC: %s\n", mac_addr.c_str());  
     if (m_is_controller) {
-        m_configurator = std::unique_ptr<ec_configurator_t>(
+        m_configurator = std::unique_ptr<ec_ctrl_configurator_t>(
             new ec_ctrl_configurator_t(mac_addr, send_chirp, send_encap_dpp, get_bsta_info, get_1905_info, can_onboard)
         );
     } else {
@@ -48,26 +50,41 @@ bool ec_manager_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len, ui
         printf("%s:%d: frame validation failed\n", __func__, __LINE__);
         return false;
     }
+    bool did_succeed = false;
     switch (frame->frame_type) {
         case ec_frame_type_presence_announcement:
-            return m_configurator->handle_presence_announcement(frame, len, src_mac);
+            did_succeed = m_configurator->handle_presence_announcement(frame, len, src_mac);
+            break;
         case ec_frame_type_auth_req:
-            return m_enrollee->handle_auth_request(frame, len, src_mac);
+            did_succeed = m_enrollee->handle_auth_request(frame, len, src_mac);
+            break;
         case ec_frame_type_auth_rsp:
-            return m_configurator->handle_auth_response(frame, len, src_mac);
+            did_succeed = m_configurator->handle_auth_response(frame, len, src_mac);
+            break;
         case ec_frame_type_auth_cnf:
-            return m_enrollee->handle_auth_confirm(frame, len, src_mac);
+            did_succeed = m_enrollee->handle_auth_confirm(frame, len, src_mac);
+            break;
         case ec_frame_type_cfg_result:
-            return m_configurator->handle_cfg_result(frame, len, src_mac);
+            did_succeed = m_configurator->handle_cfg_result(frame, len, src_mac);
             break;
         case ec_frame_type_conn_status_result:
-            return m_configurator->handle_connection_status_result(frame, len, src_mac);
+            did_succeed = m_configurator->handle_connection_status_result(frame, len, src_mac);
             break;
         default:
             printf("%s:%d: frame type (%d) not handled\n", __func__, __LINE__, frame->frame_type);
             break;
     }
-    return true;
+    if (!did_succeed) {
+        // Teardown connection because of failure
+        if (m_configurator) {
+            std::string mac = util::mac_to_string(src_mac);
+            m_configurator->teardown_connection(mac);
+        }
+        if (m_enrollee) {
+            m_enrollee->teardown_connection();
+        }
+    }
+    return did_succeed;
 }
 
 bool ec_manager_t::handle_recv_gas_pub_action_frame(ec_gas_frame_base_t *frame, size_t len, uint8_t source_addr[ETH_ALEN]) {
@@ -76,11 +93,14 @@ bool ec_manager_t::handle_recv_gas_pub_action_frame(ec_gas_frame_base_t *frame, 
         return false;
     }
     printf("%s:%d: Got a GAS frame with %02x action!\n", __func__, __LINE__, frame->action);
+    bool did_succeed = false;
     switch (static_cast<dpp_gas_action_type_t>(frame->action)) {
         case dpp_gas_initial_req:
-            return m_configurator->handle_cfg_request(reinterpret_cast<uint8_t*>(frame), static_cast<unsigned int>(len), source_addr);
+            did_succeed = m_configurator->handle_cfg_request(reinterpret_cast<uint8_t*>(frame), static_cast<unsigned int>(len), source_addr);
+            break;
         case dpp_gas_initial_resp:
-            return m_enrollee->handle_config_response(reinterpret_cast<uint8_t*>(frame), static_cast<unsigned int>(len), source_addr);
+            did_succeed = m_enrollee->handle_config_response(reinterpret_cast<uint8_t*>(frame), static_cast<unsigned int>(len), source_addr);
+            break;
         case dpp_gas_comeback_req:
         case dpp_gas_comeback_resp:
         default:
@@ -88,7 +108,17 @@ bool ec_manager_t::handle_recv_gas_pub_action_frame(ec_gas_frame_base_t *frame, 
             printf("%s:%d: unhandled DPP GAS action type=%02x\n", __func__, __LINE__, frame->action);
             break;
     }
-    return false;
+    if (!did_succeed) {
+        // Teardown connection because of failure
+        if (m_configurator) {
+            std::string mac = util::mac_to_string(source_addr);
+            m_configurator->teardown_connection(mac);
+        }
+        if (m_enrollee) {
+            m_enrollee->teardown_connection();
+        }
+    }
+    return did_succeed;
 }
 
 bool ec_manager_t::upgrade_to_onboarded_proxy_agent()

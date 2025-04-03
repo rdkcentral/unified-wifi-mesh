@@ -74,11 +74,11 @@ bool ec_configurator_t::onboard_enrollee(ec_data_t *bootstrapping_data)
     c_ctx.boot_data.init_pub_boot_key = em_crypto_t::get_pub_key_point(c_ctx.boot_data.initiator_boot_key);
 
 
-    if (c_ctx.boot_data.resp_priv_boot_key == NULL) {
+    if (c_ctx.boot_data.resp_pub_boot_key == NULL) {
         printf("%s:%d Could not get responder bootstrap public key\n", __func__, __LINE__);
         return false;
     }
 
     printf("Configurator MAC: %s\n", m_mac_addr.c_str());
-    return ec_crypto::init_persistent_ctx(c_ctx, c_ctx.boot_data.responder_boot_key);
+    return ec_crypto::init_connection_ctx(c_ctx, c_ctx.boot_data.responder_boot_key);
 }

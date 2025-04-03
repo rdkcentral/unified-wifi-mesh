@@ -191,7 +191,7 @@ typedef union {
         uint8_t reserved : 6;   // Bits 2-7
     } __attribute__((packed));  // Anonymous struct
     uint8_t byte;
-} ec_dpp_capabilities_t;
+} __attribute__((packed)) ec_dpp_capabilities_t;
 
 typedef union {
     struct {
@@ -204,7 +204,7 @@ typedef union {
         uint8_t reserved : 7;   // Bits 1-7
     } __attribute__((packed));
     uint8_t byte; // Used to access the entire byte
-}  ec_dpp_reconfig_flags_t;
+}  __attribute__((packed)) ec_dpp_reconfig_flags_t;
 
 
 typedef enum {

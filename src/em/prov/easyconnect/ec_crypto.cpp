@@ -33,19 +33,24 @@ uint8_t* ec_crypto::compute_key_hash(const SSL_KEY *key, const char *prefix)
     asn1len = static_cast<size_t>(BIO_get_mem_data(bio, &asn1));
 
     // Set up our data elements for hashing
-    addr[0] = reinterpret_cast<uint8_t *>(const_cast<char *>(prefix));
-    len[0] = strlen(prefix);
-    addr[1] = asn1;
-    len[1] = static_cast<uint32_t> (asn1len);
+    uint8_t hash_elem_idx = 0;
+    if (prefix != NULL) {
+        addr[hash_elem_idx] = reinterpret_cast<uint8_t *>(const_cast<char *>(prefix));
+        len[hash_elem_idx] = strlen(prefix);
+        hash_elem_idx++;
+    }
+
+    addr[hash_elem_idx] = asn1;
+    len[hash_elem_idx] = static_cast<uint32_t> (asn1len);
 
     // Call platform_SHA256 with our two elements
     uint8_t *digest = reinterpret_cast<uint8_t*>(calloc(SHA256_DIGEST_LENGTH, 1));
-    uint8_t result = em_crypto_t::platform_SHA256(2, addr, len, digest);
+    uint8_t result = em_crypto_t::platform_SHA256(hash_elem_idx+1, addr, len, digest);
 
     BIO_free(bio);
     
     if (result == 0) {
-        delete[] digest;
+        free(digest);
         return NULL;
     }
     
@@ -66,7 +71,7 @@ size_t ec_crypto::compute_hkdf_key(ec_connection_context_t& c_ctx, uint8_t *key_
     // Safely convert int to size_t, should always be positive
     int primelen = BN_num_bytes(c_ctx.prime);
     ikm_len = primelen * x_val_count;
-    bn_buffer = reinterpret_cast<uint8_t*>(calloc(ikm_len, 1));
+    bn_buffer = new uint8_t[static_cast<size_t>(ikm_len)];
     if (bn_buffer == NULL) {
         perror("malloc");
         return 0;
@@ -394,7 +399,7 @@ void ec_crypto::print_bignum (BIGNUM *bn)
 {
     unsigned char *buf;
     int len = BN_num_bytes(bn);
-    if ((buf = reinterpret_cast<uint8_t*>(calloc(len, 1))) == NULL) {
+    if ((buf = reinterpret_cast<uint8_t*>(calloc(static_cast<size_t>(len), 1))) == NULL) {
         printf("Could not print bignum\n");
         return;
     }
@@ -450,13 +455,13 @@ uint8_t* ec_crypto::compute_hash(ec_connection_context_t& c_ctx, const easyconne
 
     uint8_t *hash = reinterpret_cast<uint8_t*>(calloc(c_ctx.digest_len, 1));
     if (!em_crypto_t::platform_hash(c_ctx.hash_fcn, hash_buf_size, addr.data(), len.data(), hash)) {
-        delete[] hash;
+        free(hash);
         return NULL;
     }
     return hash;
 }
 
-bool ec_crypto::init_persistent_ctx(ec_connection_context_t& c_ctx, const SSL_KEY *boot_key){
+bool ec_crypto::init_connection_ctx(ec_connection_context_t& c_ctx, const SSL_KEY *boot_key){
     c_ctx.group = em_crypto_t::get_key_group(boot_key); 
 
     c_ctx.prime = BN_new();
@@ -527,6 +532,13 @@ bool ec_crypto::init_persistent_ctx(ec_connection_context_t& c_ctx, const SSL_KE
     printf("\tNonce Length: %d\n", c_ctx.nonce_len);
     printf("\tPrime (Length: %d):\n", BN_num_bytes(c_ctx.prime));
     ec_crypto::print_bignum(c_ctx.prime);
+
+    // Allocate nonces
+    c_ctx.eph_ctx.i_nonce = reinterpret_cast<uint8_t*>(calloc(static_cast<size_t>(c_ctx.nonce_len), 1));
+    c_ctx.eph_ctx.r_nonce = reinterpret_cast<uint8_t*>(calloc(static_cast<size_t>(c_ctx.nonce_len), 1));
+    c_ctx.eph_ctx.e_nonce = reinterpret_cast<uint8_t*>(calloc(static_cast<size_t>(c_ctx.nonce_len), 1));
+    c_ctx.eph_ctx.c_nonce = reinterpret_cast<uint8_t*>(calloc(static_cast<size_t>(c_ctx.nonce_len), 1));
+    
     return true;
 }
 
