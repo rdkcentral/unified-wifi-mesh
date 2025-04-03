@@ -58,6 +58,18 @@ extern AlServiceAccessPoint* g_sap;
 extern MacAddress g_al_mac_sap;
 #endif
 
+ec_manager_t &em_t::get_ec_mgr()
+{
+    if (m_ec_manager == nullptr) {
+        if (!m_is_al_em) {
+            return get_mgr()->get_al_node()->get_ec_mgr();
+        }
+        util::print_stacktrace();
+        throw std::runtime_error("ec_manager_t is not initialized");
+    }
+    return *m_ec_manager; 
+}
+
 void em_t::orch_execute(em_cmd_t *pcmd)
 {
     em_cmd_type_t cmd_type;
@@ -642,7 +654,7 @@ bool em_t::toggle_cce(bool enable)
     bool success = false;
     if (enable) {
         printf("Adding DPP IE to %d BSSs\n", num_bss);
-        for (int i = 0; i < num_bss; i++) {
+        for (unsigned int i = 0; i < num_bss; i++) {
             dm_bss_t* bss = m_data_model->get_bss(i);
             em_bss_info_t* bss_info = bss->get_bss_info();
             em_interface_t* bssid = &bss_info->bssid;
@@ -661,7 +673,7 @@ bool em_t::toggle_cce(bool enable)
     // (prevents a state where only some BSSs have DPP IEs)
     if (!enable || !success) {
         printf("Removing DPP IE from %d BSSs\n", num_bss);
-        for (int i = 0; i < num_bss; i++) {
+        for (unsigned int i = 0; i < num_bss; i++) {
             dm_bss_t* bss = m_data_model->get_bss(i);
             em_bss_info_t* bss_info = bss->get_bss_info();
             em_interface_t* bssid = &bss_info->bssid;
@@ -1132,15 +1144,14 @@ em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr
 	m_mgr = mgr;
     em_service_type_t service_type = get_service_type();
 
-    if (!is_al_em){
-        // A "{mac_address}_al" em_t is created along with a normal "{mac_address}" em_t instance where EasyMesh operations are performed (such as setting of states)..
-        // We only care about the normal "{mac_address}" em_t instance so we should only create an ec_manager_t instance for that one.
-        std::string mac_address = util::mac_to_string(get_peer_mac());
+    // We'll only create the EC manager on the AL node 
+    if (is_al_em){
+        std::string mac_address = util::mac_to_string(get_al_interface_mac());
         m_ec_manager = std::unique_ptr<ec_manager_t>(new ec_manager_t(
             mac_address,
             std::bind(&em_t::send_chirp_notif_msg, this, std::placeholders::_1, std::placeholders::_2),
             std::bind(&em_t::send_prox_encap_dpp_msg, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4),
-            std::bind(&em_mgr_t::send_action_frame, mgr, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), 
+            std::bind(&em_mgr_t::send_action_frame, mgr, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5), 
             service_type == em_service_type_agent
                 ? std::bind(&em_t::create_enrollee_bsta_list, this, std::placeholders::_1)
                 : std::bind(&em_t::create_configurator_bsta_response_obj, this, std::placeholders::_1),

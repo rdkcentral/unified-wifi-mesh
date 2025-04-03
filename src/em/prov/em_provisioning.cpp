@@ -119,7 +119,7 @@ int em_provisioning_t::send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, si
 
     //TODO: Decide on addressing.
     //tmp = em_msg_t::add_1905_header(tmp, &len, dm->get_agent_al_interface_mac(), dm->get_ctrl_al_interface_mac(), em_msg_type_proxied_encap_dpp);
-    tmp = em_msg_t::add_1905_header(tmp, &len, const_cast<uint8_t *> (get_peer_mac()), get_current_cmd()->get_al_interface_mac(), em_msg_type_proxied_encap_dpp);
+    tmp = em_msg_t::add_1905_header(tmp, &len, const_cast<uint8_t *> (get_peer_mac()), get_al_interface_mac(), em_msg_type_proxied_encap_dpp);
 
     // One 1905 Encap DPP TLV 17.2.79
     tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_1905_encap_dpp, reinterpret_cast<uint8_t *> (encap_dpp_tlv), static_cast<unsigned int> (encap_dpp_len));
@@ -164,9 +164,15 @@ int em_provisioning_t::send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t 
 
     //dm_easy_mesh_t *dm = get_data_model();
 
+    // NOTE: `get_ctrl_al_interface_mac` is really only for co-located so `get_peer_mac` does not work.
+
     //TODO: Decide on addressing.
-    //tmp = em_msg_t::add_1905_header(tmp, &len, (uint8_t*)dm->get_agent_al_interface_mac(), (uint8_t*)dm->get_ctrl_al_interface_mac(), em_msg_type_chirp_notif);
-    tmp = em_msg_t::add_1905_header(tmp, &len, const_cast<uint8_t *> (get_peer_mac()), get_current_cmd()->get_al_interface_mac(), em_msg_type_chirp_notif);
+    printf("%s:%d: Sending CHIRP NOTIFICATION\n", __func__, __LINE__);
+    mac_addr_str_t peer_mac_str = {0}, al_mac_str = {0};
+    dm_easy_mesh_t::macbytes_to_string(get_peer_mac(), peer_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(get_al_interface_mac(), al_mac_str);
+    printf("%s:%d: Peer MAC: %s, AL MAC: %s\n", __func__, __LINE__, peer_mac_str, al_mac_str);
+    tmp = em_msg_t::add_1905_header(tmp, &len, get_peer_mac(), get_al_interface_mac(), em_msg_type_chirp_notif);
 
     // One DPP Chirp value tlv 17.2.83
     tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_dpp_chirp_value, reinterpret_cast<uint8_t *> (chirp), static_cast<unsigned int> (chirp_len));
@@ -448,6 +454,7 @@ void em_provisioning_t::process_msg(uint8_t *data, unsigned int len)
             break;
 
         case em_msg_type_proxied_encap_dpp:
+            handle_proxy_encap_dpp(data, len);
             break;
 
         case em_msg_type_direct_encap_dpp:
@@ -494,13 +501,14 @@ int em_provisioning_t::handle_dpp_chirp_notif(uint8_t *buff, unsigned int len)
             // Then construct an Auth request frame and send back in an Encap message
             em_dpp_chirp_value_t* chirp_tlv = reinterpret_cast<em_dpp_chirp_value_t*> (tlv->value);
 
-            if (m_ec_manager->process_chirp_notification(chirp_tlv, htons(tlv->len)) != 0){
+            if (!m_ec_manager->process_chirp_notification(chirp_tlv, ntohs(tlv->len))){
                 //TODO: Fail
+                printf("%s:%d: Failed to process chirp notification\n", __func__, __LINE__);
             }
         }
 
-        tlv_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<uint8_t *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        tlv_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + ntohs(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<uint8_t *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
     }
 
 	return 0;
@@ -525,17 +533,17 @@ int em_provisioning_t::handle_proxy_encap_dpp(uint8_t *buff, unsigned int len)
             // ec_session dpp uri info public key. 
             // Then construct an Auth request frame and send back in an Encap message
             encap_tlv = reinterpret_cast<em_encap_dpp_t*> (tlv->value);
-            encap_tlv_len = htons(tlv->len);
+            encap_tlv_len = ntohs(tlv->len);
         }
 
         // Optional: Can be 0 or 1
         if (tlv->type == em_tlv_type_dpp_chirp_value) {
             chirp_tlv = reinterpret_cast<em_dpp_chirp_value_t*> (tlv->value);
-            chirp_tlv_len = htons(tlv->len);
+            chirp_tlv_len = ntohs(tlv->len);
         }
 
-        tlv_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<uint8_t *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        tlv_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + ntohs(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<uint8_t *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
     }
 
     if (m_ec_manager->process_proxy_encap_dpp_msg(encap_tlv, encap_tlv_len, chirp_tlv, chirp_tlv_len) != 0){

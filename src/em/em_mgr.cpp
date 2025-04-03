@@ -260,7 +260,7 @@ em_t *em_mgr_t::get_al_node()
     return (found == true) ? em:NULL;	
 }
 
-em_t *em_mgr_t::get_phy_al_em()
+em_t *em_mgr_t::get_phy_al_node()
 {
     // al_node is the fake ("_al") node
     em_t* al_node = get_al_node();

@@ -750,7 +750,11 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
             }
             break;
-
+        case em_msg_type_chirp_notif:
+        case em_msg_type_proxied_encap_dpp:
+            // TODO: Add more types and might have to work on addressing more
+	        em = al_em;
+	        break;
         default:
             printf("%s:%d: Frame: 0x%04x not handled in controller\n", __func__, __LINE__, htons(cmdu->type));
             assert(0);
