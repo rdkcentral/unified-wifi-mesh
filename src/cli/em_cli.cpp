@@ -191,7 +191,16 @@ em_cmd_t& em_cli_t::get_command(char *in, size_t in_len, em_network_node_t *node
                                 strlen("Summary@RadioEnable"));
                     }
                     break;
-
+		case em_cmd_type_dev_test:
+                    if ((tmp = strstr(cmd->m_param.u.args.fixed_args, "DevTest")) != NULL) {
+                        *tmp = 0;
+                    }
+		if (strncmp(args[num_args - 1], "1", strlen("1")) == 0) {
+			strncat(cmd->m_param.u.args.fixed_args, "DevTest@update", strlen("DevTest@update"));
+		} else {
+			strncat(cmd->m_param.u.args.fixed_args, "DevTest", strlen("DevTest"));
+		}
+		break;
                 default:
                     break;
             }
@@ -209,7 +218,6 @@ em_cmd_t& em_cli_t::get_command(char *in, size_t in_len, em_network_node_t *node
     }
 
 	em_cmd_cli_t::m_client_cmd_spec[idx].m_param.net_node = node;
-
 
     return em_cmd_cli_t::m_client_cmd_spec[idx];
 }
@@ -272,6 +280,54 @@ void em_cli_t::dump_lib_dbg(char *str)
     fclose(fp);
 }
 
+void em_cli_t::dev_test_exec() 
+{
+    em_long_string_t cmd;
+    char *result;
+        em_network_node_t *new_node;
+    em_cmd_cli_t *cli_cmd;
+
+	g_cli.dump_lib_dbg("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+    snprintf(cmd, sizeof(cmd),  "%s", "get_ssid OneWifiMesh");
+    cli_cmd = new em_cmd_cli_t(get_command(cmd, sizeof(cmd), NULL));
+
+    cli_cmd->init();
+
+        result = (char *)malloc(EM_MAX_EVENT_DATA_LEN);
+        memset(result, 0, EM_MAX_EVENT_DATA_LEN);
+    if (cli_cmd->validate() == false) {
+        cli_cmd->m_cmd.status_to_string(em_cmd_out_status_invalid_input, result);
+    } else {
+        if (cli_cmd->execute(result) != 0) {
+            cli_cmd->m_cmd.status_to_string(em_cmd_out_status_invalid_input, result);
+
+        }
+    }
+
+        g_cli.dump_lib_dbg("@@@@@@@@@@@@START@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+        g_cli.dump_lib_dbg(result);
+       g_cli.dump_lib_dbg("@@@@@@@@@@@@@@@@@@END@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+
+    delete cli_cmd;/*
+   new_node = em_net_node_t::get_network_tree(result);
+   snprintf(cmd, sizeof(cmd),  "%s", "set_ssid OneWifiMesh");
+    cli_cmd = new em_cmd_cli_t(get_command(cmd, sizeof(cmd), new_node));
+
+    cli_cmd->init();
+    if (cli_cmd->validate() == false) {
+        cli_cmd->m_cmd.status_to_string(em_cmd_out_status_invalid_input, result);
+    } else {
+        if (cli_cmd->execute(result) != 0) {
+            cli_cmd->m_cmd.status_to_string(em_cmd_out_status_invalid_input, result);
+
+        }
+    }
+	cli_cmd->execute(result) ;
+        g_cli.dump_lib_dbg(result);
+	delete cli_cmd;*/
+    free(result);
+//	printf("%s:%d #################################ASH \n", __func__, __LINE__);
+}
 
 int em_cli_t::init(em_cli_params_t	*params)
 {
@@ -354,4 +410,9 @@ extern "C" unsigned int can_expand_node(em_network_node_t *node)
 extern "C" em_network_node_t *get_reset_tree(char *platform)
 {
 	return g_cli.get_reset_tree(platform);
+}
+
+extern "C" void dev_test_exec()
+{
+	g_cli.dev_test_exec();
 }
