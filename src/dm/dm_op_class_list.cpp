@@ -119,7 +119,7 @@ void dm_op_class_list_t::get_config(cJSON *obj_arr, em_op_class_type_t type)
 int dm_op_class_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void *parent_id)
 {
     cJSON *obj;
-    unsigned int i, size;
+    int i, size;
     dm_op_class_t op_class;
     dm_orch_type_t op;
 

@@ -52,39 +52,39 @@ dm_easy_mesh_t dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
     em_long_string_t key;
     mac_addr_str_t radio_mac_str, bss_mac_str, sta_mac_str;
 
-    memcpy(&m_device, &obj.m_device, sizeof(dm_device_t));
-    memcpy(&m_network, &obj.m_network, sizeof(dm_network_t));
-    memcpy(&m_ieee_1905_security, &obj.m_ieee_1905_security, sizeof(dm_ieee_1905_security_t));
+    m_device = obj.m_device;
+    m_network = obj.m_network;
+    m_ieee_1905_security = obj.m_ieee_1905_security;
 
 	if (m_num_radios >= EM_MAX_BANDS) {
 		m_num_radios = 0;
 	}
     this->m_num_radios = obj.m_num_radios;
     for (unsigned int i = 0; i < obj.m_num_radios; i++) {
-        memcpy(&m_radio[i], &obj.m_radio[i], sizeof(dm_radio_t));
+        m_radio[i] = obj.m_radio[i];
     }
 
     this->m_num_bss = obj.m_num_bss;
     for (unsigned int i = 0; i < EM_MAX_BSSS; i++) {
-        memcpy(&m_bss[i], &obj.m_bss[i], sizeof(dm_bss_t));
+        m_bss[i] = obj.m_bss[i];
     }
-    memcpy(&m_dpp, &obj.m_dpp, sizeof(dm_dpp_t));
+    m_dpp = obj.m_dpp;
 
     m_num_opclass = obj.m_num_opclass;
     for (unsigned int i = 0; i < EM_MAX_OPCLASS; i++) {
-        memcpy(&m_op_class[i], &obj.m_op_class[i], sizeof(dm_op_class_t));
+        m_op_class[i] = obj.m_op_class[i];
     }
 
     this->m_num_net_ssids = obj.m_num_net_ssids;
     for (unsigned int i = 0; i < EM_MAX_NET_SSIDS; i++) {
-        memcpy(&m_network_ssid[i], &obj.m_network_ssid[i], sizeof(dm_network_ssid_t));
+        m_network_ssid[i] = obj.m_network_ssid[i];
     }
 
-    memcpy(&m_db_cfg_param, &obj.m_db_cfg_param, sizeof(em_db_cfg_param_t));
+    m_db_cfg_param = obj.m_db_cfg_param;
 
     m_num_policy = obj.m_num_policy;
     for (unsigned int i = 0; i < EM_MAX_POLICIES; i++) {
-        memcpy(&m_policy[i], &obj.m_policy[i], sizeof(dm_policy_t));
+        m_policy[i] = obj.m_policy[i];
     }
 
     sta = static_cast<dm_sta_t *> (hash_map_get_first(obj.m_sta_map));
@@ -1521,10 +1521,10 @@ int dm_easy_mesh_t::decode_client_cap_config(em_subdoc_info_t *subdoc, const cha
         if (id != NULL)
 	msg_id = static_cast<short unsigned int> (id->valuedouble);
         if (cltmac != NULL) {
-            snprintf(const_cast<char *> (clientmac), sizeof(clientmac), "%s", cJSON_GetStringValue(cltmac));
+            snprintf(const_cast<char *> (clientmac), sizeof(mac_addr_str_t), "%s", cJSON_GetStringValue(cltmac));
         }
         if (rmac != NULL) {
-	        snprintf(const_cast<char *> (radiomac), sizeof(radiomac), "%s", cJSON_GetStringValue(rmac));
+	        snprintf(const_cast<char *> (radiomac), sizeof(mac_addr_str_t), "%s", cJSON_GetStringValue(rmac));
         }
 	//printf("%s:%d: msg id %d rmac=%s\n", __func__, __LINE__,msg_id,radiomac);
 
@@ -1807,7 +1807,7 @@ int dm_easy_mesh_t::name_from_mac_address(const mac_address_t *mac, char *ifname
         addr = tmp->ifa_addr;
         ll_addr = reinterpret_cast<struct sockaddr_ll*> (tmp->ifa_addr);
         if ((addr != NULL) && (addr->sa_family == AF_PACKET) && (memcmp(ll_addr->sll_addr, mac, sizeof(mac_address_t)) == 0)) {
-            snprintf(ifname, sizeof(ifname), "%s", tmp->ifa_name);
+            snprintf(ifname, IFNAMSIZ, "%s", tmp->ifa_name);
             found = true;
             break;
         }
@@ -2044,7 +2044,8 @@ void dm_easy_mesh_t::create_autoconfig_renew_json_cmd(char* src_mac_addr, char* 
     cJSON_AddItemToObject(renew, "DeviceList", device_list);
     cJSON_AddItemToObject(root, "wfa-dataelements:Renew", renew);
     char* tmp = cJSON_Print(root);
-    snprintf(autoconfig_renew_json, sizeof(autoconfig_renew_json), "%s", tmp);
+    size_t tmp_length = strlen(tmp) + 1;
+    snprintf(autoconfig_renew_json, tmp_length, "%s", tmp);
     cJSON_Delete(root);
 }
 
@@ -2065,7 +2066,8 @@ void dm_easy_mesh_t::create_ap_cap_query_json_cmd(char* src_mac_addr, char* agen
     cJSON_AddItemToObject(query_info, "DeviceList", device_list);
     cJSON_AddItemToObject(root, "wfa-dataelements:Radiocap", query_info);
     char* tmp = cJSON_Print(root);
-    snprintf(ap_query_json, sizeof(ap_query_json), "%s", tmp);
+    size_t tmp_length = strlen(tmp) + 1;
+    snprintf(ap_query_json, tmp_length, "%s", tmp);
     cJSON_Delete(root);
 }
 
@@ -2087,7 +2089,8 @@ void dm_easy_mesh_t::create_client_cap_query_json_cmd(char* src_mac_addr, char* 
     cJSON_AddItemToObject(query_info, "DeviceList", device_list);
     cJSON_AddItemToObject(root, "wfa-dataelements:Clientcap", query_info);
     char* tmp = cJSON_Print(root);
-    snprintf(ap_query_json, sizeof(ap_query_json), "%s", tmp);
+    size_t tmp_length = strlen(tmp) + 1;
+    snprintf(ap_query_json, tmp_length, "%s", tmp);
     cJSON_Delete(root);
 }
 
