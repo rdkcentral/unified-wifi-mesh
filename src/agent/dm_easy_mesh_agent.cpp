@@ -746,6 +746,11 @@ int dm_easy_mesh_agent_t::refresh_onewifi_subdoc(wifi_bus_desc_t *desc, bus_hand
         printf("%s:%d %s subdoc encode failure\n", __func__, __LINE__, logname);
         return 0;
     }
+ 
+    if (webconfig_easymesh_raw_data_ptr == NULL) {
+        printf("%s:%d webconfig_easymesh_raw_data_ptr is NULL \n", __func__, __LINE__);
+        return 0;
+    }
 
     raw_data_t l_bus_data;
 
