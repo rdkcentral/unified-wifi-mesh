@@ -190,6 +190,9 @@ void dm_scan_result_list_t::update_list(const dm_scan_result_t& scan_result, uns
         case dm_orch_type_db_delete:
             remove_scan_result(key);
             break;
+
+		default:
+		    break;
     }
 }
 
