@@ -101,7 +101,7 @@ public:
     dm_scan_result_t *get_next_scan_result(dm_scan_result_t *scan_result);
     dm_scan_result_t *get_scan_result(const char *key);
     void remove_scan_result(const char *key);
-    void put_scan_result(const char *key, const dm_scan_result_t *scan_result);
+    void put_scan_result(const char *key, const dm_scan_result_t *scan_result, unsigned int index);
 
     dm_easy_mesh_list_t();
     ~dm_easy_mesh_list_t();

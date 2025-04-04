@@ -311,7 +311,11 @@ short em_channel_t::create_channel_scan_res_tlv(unsigned char *buff, unsigned in
 	memcpy(tmp, reinterpret_cast<unsigned char *> (&param), sizeof(unsigned short));
 	len += static_cast<short unsigned int> (sizeof(unsigned short));
 	tmp += sizeof(unsigned short);
-	
+
+	if (scan_res->m_scan_result.num_neighbors > EM_MAX_NEIGHBORS) {
+		scan_res->m_scan_result.num_neighbors = EM_MAX_NEIGHBORS;
+	}
+
 	for (i = 0; i < scan_res->m_scan_result.num_neighbors; i++) {
 		nbr = &scan_res->m_scan_result.neighbor[i];
 
@@ -1829,6 +1833,10 @@ void em_channel_t::fill_scan_result(dm_scan_result_t *scan_res, em_channel_scan_
 	memcpy(&scan_res->m_scan_result.num_neighbors, tmp, sizeof(unsigned short));
 	scan_res->m_scan_result.num_neighbors = htons(scan_res->m_scan_result.num_neighbors);	
 	tmp += sizeof(unsigned short);		
+
+	if (scan_res->m_scan_result.num_neighbors > EM_MAX_NEIGHBORS) {
+		scan_res->m_scan_result.num_neighbors = EM_MAX_NEIGHBORS;
+	}
 
     for (i = 0; i < scan_res->m_scan_result.num_neighbors; i++) {
         nbr = &scan_res->m_scan_result.neighbor[i];

@@ -54,7 +54,7 @@ public:
     virtual dm_scan_result_t *get_next_scan_result(dm_scan_result_t *scan_result) = 0;
     virtual dm_scan_result_t *get_scan_result(const char *key) = 0;
     virtual void remove_scan_result(const char *key) = 0;
-    virtual void put_scan_result(const char *key, const dm_scan_result_t *scan_result) = 0;
+    virtual void put_scan_result(const char *key, const dm_scan_result_t *scan_result, unsigned int index) = 0;
 };
 
 #endif

@@ -485,9 +485,7 @@ void em_agent_t::handle_channel_scan_result(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num;
 
-    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
-        printf("scan results in progress\n");
-    } else if ((num = m_data_model.analyze_scan_result(evt, pcmd)) == 0) {
+    if ((num = m_data_model.analyze_scan_result(evt, pcmd)) == 0) {
         printf("scan results failed\n");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
 		;
