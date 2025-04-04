@@ -158,6 +158,9 @@ void dm_radio_list_t::update_list(const dm_radio_t& radio, dm_orch_type_t op)
         case dm_orch_type_db_delete:
             remove_radio(mac_str);
             break;
+
+        default:
+            break;
     }
 
 }
