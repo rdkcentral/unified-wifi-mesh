@@ -7,6 +7,11 @@
 // forward decl
 struct cJSON;
 
+typedef enum {
+    dpp_config_obj_bsta,
+    dpp_config_obj_ieee1905,
+} dpp_config_obj_type_e;
+
 class ec_ctrl_configurator_t : public ec_configurator_t {
 public:
     ec_ctrl_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg,
@@ -92,7 +97,20 @@ private:
     std::pair<uint8_t*, size_t> create_recfg_auth_request();
     std::pair<uint8_t*, size_t> create_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status, uint8_t* i_auth_tag);
     std::pair<uint8_t*, size_t> create_recfg_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status);
-    std::pair<uint8_t*, size_t> create_config_response();
+    std::pair<uint8_t*, size_t> create_config_response(uint8_t dest_mac[ETH_ALEN], const uint8_t dialog_token, ec_status_code_t dpp_status);
+
+    /**
+     * @brief "Completes" a base DPP Configuration object
+     * 
+     * A base configuration object has all mandatory base fields filled out, including keys
+     * "wi-fi_tech", "discovery", and "credential"
+     * 
+     * @param base The base JSON object.
+     * @param conn_ctx The EC connection context.
+     * @param config_obj_type The type of DPP Configuration object we're filling out
+     * @return cJSON* DPP Configuration object on success, nullptr otherwise.
+     */
+    cJSON *complete_config_obj(cJSON *base, ec_connection_context_t& conn_ctx, dpp_config_obj_type_e config_obj_type);
 
     /**
      * @brief Maps Enrollee MAC (as string) to onboarded status. True if onboarded (now a Proxy Agent), false if still onboarding / onboarding failed.
