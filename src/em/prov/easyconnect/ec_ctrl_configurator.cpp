@@ -315,7 +315,7 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
     bool cannot_onboard_more = (m_can_onboard_additional_aps == nullptr || !m_can_onboard_additional_aps());
     if (cannot_onboard_more) {
         printf("%s:%d: DPP Configuration Request frame received, but we cannot onboard any more APs! Rejecting with status %s\n", __func__, __LINE__, ec_util::status_code_to_string(DPP_STATUS_CONFIGURATION_FAILURE).c_str());
-        auto [config_response_frame, config_response_frame_len] = create_config_response(src_mac, session_dialog_token, DPP_STATUS_CONFIGURATION_FAILURE);
+        auto [config_response_frame, config_response_frame_len] = create_config_response_frame(src_mac, session_dialog_token, DPP_STATUS_CONFIGURATION_FAILURE);
         std::string status_code_str =  ec_util::status_code_to_string(DPP_STATUS_CONFIGURATION_FAILURE);
 
         printf("%s:%d: Sending DPP Configuration Response frame for Enrollee '" MACSTRFMT "' over 1905 with DPP status code %s\n", __func__, __LINE__, MAC2STR(src_mac), status_code_str.c_str());
@@ -394,7 +394,7 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
         "Credentials."
     );
 
-    auto [config_response_frame, config_response_frame_len] = create_config_response(src_mac, session_dialog_token, DPP_STATUS_OK);
+    auto [config_response_frame, config_response_frame_len] = create_config_response_frame(src_mac, session_dialog_token, DPP_STATUS_OK);
     if (config_response_frame == nullptr || config_response_frame_len == 0) {
         printf("%s:%d: Failed to create Configuration Respone frame\n", __func__, __LINE__);
         return false;
@@ -937,73 +937,26 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_recfg_auth_confirm(s
     return std::make_pair(reinterpret_cast<uint8_t*>(frame), EC_FRAME_BASE_SIZE + attribs_len);
 }
 
-cJSON *ec_ctrl_configurator_t::complete_config_obj(cJSON *base, ec_connection_context_t& conn_ctx, dpp_config_obj_type_e config_obj_type)
+cJSON *ec_ctrl_configurator_t::finalize_config_obj(cJSON *base, ec_connection_context_t& conn_ctx, dpp_config_obj_type_e config_obj_type)
 {
     if (base == nullptr) {
         printf("%s:%d: Based a nullptr base Configuration object\n", __func__, __LINE__);
         return nullptr;
     }
+
+    std::vector<std::unordered_map<std::string, std::string>> groups;
+
     switch(config_obj_type) {
         case dpp_config_obj_type_e::dpp_config_obj_bsta: {
-            cJSON *cred = cJSON_GetObjectItem(base, "cred");
-            ASSERT_NOT_NULL_FREE(cred, nullptr, base, "%s:%d: Could not get \"cred\" from bSTA DPP Configuration Object\n", __func__, __LINE__);
-    
-            // Create / add Connector.
-    
-            // Header
-    
-            cJSON *jwsHeaderObj = ec_crypto::create_jws_header("dppCon", conn_ctx.C_signing_key);
-    
-            std::vector<std::unordered_map<std::string, std::string>> groups = {
+            groups = {
                 {{"groupID", "mapNW"}, {"netRole", "mapBackhaulSta"}}
             };
-    
-            // Payload
-    
-            cJSON *jwsPayloadObj = ec_crypto::create_jws_payload(conn_ctx, groups, conn_ctx.net_access_key);
-    
-            // Create connector
-            const char *connector = ec_crypto::generate_connector(jwsHeaderObj, jwsPayloadObj, conn_ctx.C_signing_key);
-    
-            cJSON_AddStringToObject(cred, "signedConnector", connector);
-    
-            // Add csign.
-    
-            cJSON *cSignObj = ec_crypto::create_csign_object(conn_ctx, conn_ctx.C_signing_key);
-    
-            cJSON_AddItemToObject(cred, "csign", cSignObj);
-    
-            // Add ppKey
-    
-            cJSON *ppKeyObj = ec_crypto::create_ppkey_object(conn_ctx);
-            cJSON_AddItemToObject(cred, "ppKey", ppKeyObj);
             break;
         }
         case dpp_config_obj_type_e::dpp_config_obj_ieee1905: {
-            cJSON *cred = cJSON_GetObjectItem(base, "cred");
-            ASSERT_NOT_NULL_FREE(cred, nullptr, base, "%s:%d: Could not get \"cred\" from IEEE1905 DPP Configuration Object\n", __func__, __LINE__);
-            // Create / add Connector.
-    
-            // Header
-            cJSON *jwsHeaderObj = ec_crypto::create_jws_header("dppCon", conn_ctx.C_signing_key);
-    
-            // Payload
-            std::vector<std::unordered_map<std::string, std::string>> groups = {
+            groups = {
                 {{"groupID", "mapNW"}, {"netRole", "mapAgent"}}
             };
-            
-            cJSON *jwsPayloadObj = ec_crypto::create_jws_payload(conn_ctx, groups, conn_ctx.net_access_key);
-            // Create / add connector
-            const char *connector = ec_crypto::generate_connector(jwsHeaderObj, jwsPayloadObj, conn_ctx.C_signing_key);
-            cJSON_AddStringToObject(cred, "signedConnector", connector);
-    
-            // Add csign
-            cJSON *cSignObj = ec_crypto::create_csign_object(conn_ctx, conn_ctx.C_signing_key);
-            cJSON_AddItemToObject(cred, "csign", cSignObj);
-    
-            // Add ppKey
-            cJSON *ppKeyObj = ec_crypto::create_ppkey_object(conn_ctx);
-            cJSON_AddItemToObject(cred, "ppKey", ppKeyObj);
             break;
         }
         default: {
@@ -1011,10 +964,30 @@ cJSON *ec_ctrl_configurator_t::complete_config_obj(cJSON *base, ec_connection_co
             return nullptr;
         }
     }
+
+    cJSON *cred = cJSON_GetObjectItem(base, "cred");
+    ASSERT_NOT_NULL_FREE(cred, nullptr, base, "%s:%d: Could not get \"cred\" from IEEE1905 DPP Configuration Object\n", __func__, __LINE__);
+    // Create / add Connector.
+
+    // Header
+    cJSON *jwsHeaderObj = ec_crypto::create_jws_header("dppCon", conn_ctx.C_signing_key);
+
+    cJSON *jwsPayloadObj = ec_crypto::create_jws_payload(conn_ctx, groups, conn_ctx.net_access_key);
+    // Create / add connector
+    const char *connector = ec_crypto::generate_connector(jwsHeaderObj, jwsPayloadObj, conn_ctx.C_signing_key);
+    cJSON_AddStringToObject(cred, "signedConnector", connector);
+
+    // Add csign
+    cJSON *cSignObj = ec_crypto::create_csign_object(conn_ctx, conn_ctx.C_signing_key);
+    cJSON_AddItemToObject(cred, "csign", cSignObj);
+
+    // Add ppKey
+    cJSON *ppKeyObj = ec_crypto::create_ppkey_object(conn_ctx);
+    cJSON_AddItemToObject(cred, "ppKey", ppKeyObj);
     return base;
 }
 
-std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response(uint8_t dest_mac[ETH_ALEN], const uint8_t dialog_token, ec_status_code_t dpp_status)
+std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_frame(uint8_t dest_mac[ETH_ALEN], const uint8_t dialog_token, ec_status_code_t dpp_status)
 {
     const std::string enrollee_mac = util::mac_to_string(dest_mac);
     auto conn_ctx = get_conn_ctx(enrollee_mac);
@@ -1023,7 +996,7 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response(uint
     ASSERT_NOT_NULL(e_ctx, {}, "%s:%d: No ephemeral context found for Enrollee '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(enrollee_mac.c_str()));
 
     if (dpp_status != DPP_STATUS_OK) {
-        auto [frame, frame_len] = ec_util::alloc_gas_frame(dpp_gas_action_type_t::dpp_gas_comeback_resp, dialog_token);
+        auto [frame, frame_len] = ec_util::alloc_gas_frame(dpp_gas_action_type_t::dpp_gas_initial_resp, dialog_token);
         if (frame == nullptr || frame_len == 0) {
             printf("%s:%d: Failed to create DPP Configuration Response frame!\n", __func__, __LINE__);
             return {};
@@ -1072,14 +1045,14 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response(uint
         return {};
     }
 
-    if ((ieee1905_config_obj = complete_config_obj(ieee1905_config_obj, *conn_ctx, dpp_config_obj_ieee1905)) == nullptr) {
+    if ((ieee1905_config_obj = finalize_config_obj(ieee1905_config_obj, *conn_ctx, dpp_config_obj_ieee1905)) == nullptr) {
         printf("%s:%d: Failed to create IEEE1905 Configuration object\n", __func__, __LINE__);
         cJSON_Delete(ieee1905_config_obj);
         cJSON_Delete(bsta_config_obj);
         return {};
     }
 
-    if ((bsta_config_obj = complete_config_obj(bsta_config_obj, *conn_ctx, dpp_config_obj_bsta)) == nullptr) {
+    if ((bsta_config_obj = finalize_config_obj(bsta_config_obj, *conn_ctx, dpp_config_obj_bsta)) == nullptr) {
         printf("%s:%d: Failed to create bSTA Configuration object", __func__, __LINE__);
         cJSON_Delete(ieee1905_config_obj);
         cJSON_Delete(bsta_config_obj);

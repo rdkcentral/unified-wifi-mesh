@@ -97,20 +97,29 @@ private:
     std::pair<uint8_t*, size_t> create_recfg_auth_request();
     std::pair<uint8_t*, size_t> create_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status, uint8_t* i_auth_tag);
     std::pair<uint8_t*, size_t> create_recfg_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status);
-    std::pair<uint8_t*, size_t> create_config_response(uint8_t dest_mac[ETH_ALEN], const uint8_t dialog_token, ec_status_code_t dpp_status);
 
     /**
-     * @brief "Completes" a base DPP Configuration object
+     * @brief Creates a DPP Configuration Response frame, wrapped as an Encap DPP TLV
+     * 
+     * @param dest_mac The destination MAC (Enrollee).
+     * @param dialog_token The Enrollee session dialog token.
+     * @param dpp_status The status of the DPP Configuration (DPP_STATUS_OK if OK, otherwise DPP_STATUS_CONFIGURATION_FAILURE should be passed).
+     * @return std::pair<uint8_t*, size_t> The frame and length of frame on success, nullptr and 0 otherwise.
+     */
+    std::pair<uint8_t*, size_t> create_config_response_frame(uint8_t dest_mac[ETH_ALEN], const uint8_t dialog_token, ec_status_code_t dpp_status);
+
+    /**
+     * @brief Finalizes a base DPP Configuration object
      * 
      * A base configuration object has all mandatory base fields filled out, including keys
-     * "wi-fi_tech", "discovery", and "credential"
+     * "wi-fi_tech", "discovery", and "cred"
      * 
      * @param base The base JSON object.
      * @param conn_ctx The EC connection context.
      * @param config_obj_type The type of DPP Configuration object we're filling out
      * @return cJSON* DPP Configuration object on success, nullptr otherwise.
      */
-    cJSON *complete_config_obj(cJSON *base, ec_connection_context_t& conn_ctx, dpp_config_obj_type_e config_obj_type);
+    cJSON *finalize_config_obj(cJSON *base, ec_connection_context_t& conn_ctx, dpp_config_obj_type_e config_obj_type);
 
     /**
      * @brief Maps Enrollee MAC (as string) to onboarded status. True if onboarded (now a Proxy Agent), false if still onboarding / onboarding failed.
