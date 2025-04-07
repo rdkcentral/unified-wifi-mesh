@@ -652,7 +652,6 @@ public:
 	 * @note Ensure that the op_class pointer is valid before calling this function.
 	 */
 	dm_op_class_t *get_next_pre_set_op_class_by_type(em_op_class_type_t type, dm_op_class_t *op_class);
-
 	
 	/**!
 	 * @brief Retrieves the first policy from the list.
@@ -777,10 +776,11 @@ public:
 	 *
 	 * @param[in] key The key associated with the scan result.
 	 * @param[in] scan_result Pointer to the scan result structure to be stored.
+   * @param[in] index An unsigned integer where scan result needs to be stored.
 	 *
 	 * @note Ensure that the key and scan_result are valid and properly initialized before calling this function.
 	 */
-	void put_scan_result(const char *key, const dm_scan_result_t *scan_result);
+	void put_scan_result(const char *key, const dm_scan_result_t *scan_result, unsigned int index);
 
     
 	/**!

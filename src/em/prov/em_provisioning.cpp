@@ -818,6 +818,8 @@ cJSON *em_provisioning_t::create_ieee1905_response_obj(ec_connection_context_t *
         return nullptr;
     }
 
+    cJSON_AddItemToObject(dpp_configuration_object, "cred", credential_object);
+
     return dpp_configuration_object;
 }
 

@@ -72,7 +72,6 @@ extern "C"
 #define EM_MAX_RADIO_PER_AGENT         4
 #define EM_MAX_TRAFFIC_SEP_SSID        8
 #define EM_MAX_FREQ_RECORDS_PER_RADIO  8
-#define EM_MAX_CHANNELS   30
 #define MAP_INVENTORY_ITEM_LEN  64
 #define MAX_MCS  6
 #define MAP_AP_ROLE_MAX 2
@@ -81,7 +80,7 @@ extern "C"
 #define EM_MAX_STA_PER_BSS         128
 #define EM_MAX_STA_PER_STEER_POLICY        16 
 #define EM_MAX_STA_PER_AGENT       (EM_MAX_RADIO_PER_AGENT * EM_MAX_STA_PER_BSS)
-#define EM_MAX_NEIGHORS		16
+#define EM_MAX_NEIGHBORS	16
 #define EM_MAX_CHANNEL_SCAN_RPRT_MSG_LEN		166
 #define EM_MAX_CLIENT_MARKER    5
 
@@ -694,7 +693,7 @@ typedef struct {
     unsigned char util;
     unsigned char noise;
 	unsigned short num_neighbors;
-	em_neighbor_t	neighbor[EM_MAX_NEIGHORS];
+	em_neighbor_t	neighbor[EM_MAX_NEIGHBORS];
     unsigned int  aggr_scan_duration;
     unsigned char scan_type;
 } em_scan_result_t;

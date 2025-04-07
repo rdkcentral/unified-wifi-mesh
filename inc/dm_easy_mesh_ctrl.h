@@ -1509,10 +1509,11 @@ public:
 	 *
 	 * @param[in] key A constant character pointer representing the key associated with the scan result.
 	 * @param[in] scan_result A pointer to a dm_scan_result_t structure containing the scan result data to be inserted.
+   * @param[in] index An unsigned integer where the scan result data is to be inserted.
 	 *
 	 * @note Ensure that the key and scan_result are valid and properly initialized before calling this function.
 	 */
-	void put_scan_result(const char *key, const dm_scan_result_t *scan_result) { m_data_model_list.put_scan_result(key, scan_result); }
+	void put_scan_result(const char *key, const dm_scan_result_t *scan_result, unsigned int index) { m_data_model_list.put_scan_result(key, scan_result, index); }
 
 	
 	/**!
