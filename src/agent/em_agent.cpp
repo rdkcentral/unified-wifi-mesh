@@ -1442,7 +1442,6 @@ AlServiceAccessPoint* em_agent_t::al_sap_register()
 
 int main(int argc, const char *argv[])
 {
-
     std::vector<std::string> args;
     // Skip the first argument which is the program name
     for (int i = 1; i < argc; i++) {
