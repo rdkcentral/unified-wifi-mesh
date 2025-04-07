@@ -125,7 +125,7 @@ public:
 	 *
 	 * @note Ensure that the vs_ie pointer is valid and points to a properly initialized structure before calling this function.
 	 */
-	bool add_vendor_ie(struct ieee80211_vs_ie *vs_ie);
+	bool add_vendor_ie(const struct ieee80211_vs_ie *vs_ie);
 
     
 	/**!
@@ -139,7 +139,7 @@ public:
 	 * @note Ensure that the pointer provided is valid and points to a properly
 	 * initialized ieee80211_vs_ie structure.
 	 */
-	void remove_vendor_ie(struct ieee80211_vs_ie *vs_ie);
+	void remove_vendor_ie(const struct ieee80211_vs_ie *vs_ie);
 
     
 	/**!
