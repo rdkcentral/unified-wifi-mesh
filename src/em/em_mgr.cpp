@@ -281,6 +281,13 @@ em_t *em_mgr_t::get_phy_al_node()
 
 void *em_mgr_t::mgr_input_listen(void *arg)
 {
+    size_t stack_size2;
+    pthread_attr_t attr;
+
+    pthread_attr_init(&attr);
+    pthread_attr_getstacksize(&attr, &stack_size2);
+    pthread_attr_destroy(&attr);
+    printf("%s:%d Thread stack size = %ld bytes \n", __func__, __LINE__, stack_size2);
     em_mgr_t *mgr = static_cast<em_mgr_t *>(arg);
 
     mgr->input_listener();
@@ -289,7 +296,20 @@ void *em_mgr_t::mgr_input_listen(void *arg)
 
 int em_mgr_t::input_listen()
 {
-    if (pthread_create(&m_tid, NULL, em_mgr_t::mgr_input_listen, this) != 0) {
+    ssize_t stack_size = 0x800000; /* 8MB */
+    pthread_attr_t attr;
+    pthread_attr_t *attrp = NULL;
+    int ret = 0;
+    attrp = &attr;
+    pthread_attr_init(&attr);
+    ret = pthread_attr_setstacksize(&attr, stack_size);
+    if (ret != 0) {
+        printf("%s:%d pthread_attr_setstacksize failed for size:%ld ret:%d\n",
+                __func__, __LINE__, stack_size, ret);
+    }
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
+    if (pthread_create(&m_tid, attrp, em_mgr_t::mgr_input_listen, this) != 0) {
         printf("%s:%d: Failed to start em mgr thread\n", __func__, __LINE__);
         return -1;
     }
@@ -376,6 +396,13 @@ void em_mgr_t::nodes_listener()
 
 void *em_mgr_t::mgr_nodes_listen(void *arg)
 {
+    size_t stack_size2;
+    pthread_attr_t attr;
+
+    pthread_attr_init(&attr);
+    pthread_attr_getstacksize(&attr, &stack_size2);
+    printf("%s:%d Thread stack size = %ld bytes \n", __func__, __LINE__, stack_size2);
+    pthread_attr_destroy(&attr);
     em_mgr_t *mgr = static_cast<em_mgr_t *>(arg);
 
     mgr->nodes_listener();
@@ -384,10 +411,25 @@ void *em_mgr_t::mgr_nodes_listen(void *arg)
 
 int em_mgr_t::nodes_listen()
 {
-    if (pthread_create(&m_tid, NULL, em_mgr_t::mgr_nodes_listen, this) != 0) {
+    ssize_t stack_size = 0x800000; /* 8MB */
+    pthread_attr_t attr;
+    pthread_attr_t *attrp = NULL;
+    int ret = 0;
+    attrp = &attr;
+    pthread_attr_init(&attr);
+    ret = pthread_attr_setstacksize(&attr, stack_size);
+    if (ret != 0) {
+        printf("%s:%d pthread_attr_setstacksize failed for size:%ld ret:%d\n",
+                __func__, __LINE__, stack_size, ret);
+    }
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
+    if (pthread_create(&m_tid, attrp, em_mgr_t::mgr_nodes_listen, this) != 0) {
         printf("%s:%d: Failed to start em mgr thread\n", __func__, __LINE__);
         return -1;
     }
+    if(attrp != NULL)
+        pthread_attr_destroy(attrp);
 
     return 0;
 }

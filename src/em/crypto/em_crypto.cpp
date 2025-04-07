@@ -44,7 +44,9 @@
 #include <openssl/rand.h>
 #include <openssl/evp.h>
 #include <openssl/dh.h>
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
 #include <openssl/provider.h>
+#endif
 #include <sys/types.h>
 #include <ifaddrs.h>
 #include "em.h"
@@ -93,10 +95,12 @@ em_crypto_t::em_crypto_t() {
             exit(1);
         }
 
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
         if (OSSL_PROVIDER_load(NULL, "default") == NULL) {
             fprintf(stderr, "Failed to load default provider\n");
             exit(1);
         }
+#endif
     });
 }
 
