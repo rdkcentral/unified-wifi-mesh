@@ -119,5 +119,7 @@ clean:
 # 
 
 run:
-	LD_LIBRARY_PATH=$(INSTALLDIR)/lib $(PROGRAM) $(RUNARGS)
+	@cd $(INSTALLDIR)/bin && \
+	LD_LIBRARY_PATH=$(INSTALLDIR)/lib ./onewifi_em_cli $(RUNARGS)
 
+.PHONY: run
