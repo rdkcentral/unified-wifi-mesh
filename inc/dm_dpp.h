@@ -44,11 +44,11 @@ public:
 	int init();
     
 	/**!
-	 * @brief Retrieves the DPP information.
+	 * @brief Retrieves the DPP Bootstrapping information.
 	 *
-	 * This function returns a pointer to the DPP information structure.
+	 * This function returns a pointer to the DPP Bootstrapping information structure.
 	 *
-	 * @returns A pointer to the `ec_data_t` structure containing DPP information.
+	 * @returns A pointer to the `ec_data_t` structure containing DPP Bootstrapping information.
 	 *
 	 * @note Ensure that the returned pointer is not modified directly.
 	 */
