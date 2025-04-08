@@ -481,6 +481,7 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
     e_ctx->n = ec_crypto::compute_ec_ss_x(*conn_ctx, e_ctx->priv_init_proto_key, e_ctx->public_resp_proto_key);
     const BIGNUM *bn_inputs[1] = { e_ctx->n };
     // Compute the "second intermediate key" (k2)
+    e_ctx->k2 = static_cast<uint8_t *>(calloc(conn_ctx->digest_len, 1));
     if (ec_crypto::compute_hkdf_key(*conn_ctx, e_ctx->k2, conn_ctx->digest_len, "second intermediate key", bn_inputs, 1, NULL, 0) == 0) {
         printf("%s:%d: Failed to compute k2\n", __func__, __LINE__); 
         return false;
@@ -581,6 +582,7 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
         e_ctx->l = L_x;
     }
 
+    e_ctx->k1 = static_cast<uint8_t *>(calloc(conn_ctx->digest_len, 1));
     if (ec_crypto::compute_ke(*conn_ctx, e_ctx, e_ctx->ke) == 0) {
         printf("%s:%d: Failed to compute ke\n", __func__, __LINE__);
         free(prim_unwrapped_data);
@@ -730,6 +732,7 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_auth_request(std::st
     auto [priv_init_proto_key, pub_init_proto_key] = ec_crypto::generate_proto_keypair(*conn_ctx);
     if (priv_init_proto_key == NULL || pub_init_proto_key == NULL) {
         printf("%s:%d failed to generate initiator protocol key pair\n", __func__, __LINE__);
+        free(frame);
         return {};
     }
     e_ctx->priv_init_proto_key = const_cast<BIGNUM*>(priv_init_proto_key);
@@ -741,8 +744,10 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_auth_request(std::st
     e_ctx->m = ec_crypto::compute_ec_ss_x(*conn_ctx, e_ctx->priv_init_proto_key, conn_ctx->boot_data.resp_pub_boot_key);
     const BIGNUM *bn_inputs[1] = { e_ctx->m };
     // Compute the "first intermediate key" (k1)
+    e_ctx->k1 = static_cast<uint8_t *>(calloc(conn_ctx->digest_len, 1));
     if (ec_crypto::compute_hkdf_key(*conn_ctx, e_ctx->k1, conn_ctx->digest_len, "first intermediate key", bn_inputs, 1, NULL, 0) == 0) {
-        printf("%s:%d: Failed to compute k1\n", __func__, __LINE__); 
+        printf("%s:%d: Failed to compute k1\n", __func__, __LINE__);
+        free(frame);
         return {};
     }
 

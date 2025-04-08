@@ -3,3 +3,5 @@ install/bin/
 *.so
 .vscode/
 .clang-format
+*.log
+DPPURI_sendable.json
