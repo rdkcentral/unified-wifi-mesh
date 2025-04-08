@@ -193,7 +193,7 @@ public:
         return em_crypto_t::platform_SHA256(num, addr, len, digest); 
     }
 
-    int compute_kdk(unsigned char *key, unsigned short keylen, 
+    int compute_kdk(unsigned char *key, size_t keylen, 
         unsigned char num_elem, unsigned char **addr, 
         size_t *len, unsigned char *hmac) {
             return em_crypto_t::platform_hmac_SHA256(key, keylen, num_elem, addr, len, hmac);
