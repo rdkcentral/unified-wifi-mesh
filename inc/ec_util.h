@@ -72,106 +72,149 @@ static const std::map<ec_status_code_t, std::string> status_code_map = {
 class ec_util {
 public:
 
-    /**
-     * @brief Initialize an EC frame with the default WFA parameters
-     * 
-     * @param frame The frame to initialize
-     */
-    static void init_frame(ec_frame_t *frame);
+    
+	/**
+	 * @brief Initialize an EC frame with the default WFA parameters.
+	 *
+	 * This function sets up the given EC frame with standard Wireless Fidelity Alliance (WFA) parameters, ensuring it is ready for use in subsequent operations.
+	 *
+	 * @param[in,out] frame The frame to initialize. This parameter is both an input and output as it is modified in place.
+	 *
+	 * @note Ensure that the frame is properly allocated before calling this function.
+	 */
+	static void init_frame(ec_frame_t *frame);
 
-    /**
-     * @brief Get an attribute from the buffer
-     * 
-     * @param buff The buffer to get the attribute from
-     * @param len The length of the buffer to get the attribute from
-     * @param id The attribute ID
-     * @return ec_attribute_t* The attribute if found, NULL otherwise
-     */
-    static ec_attribute_t *get_attrib(uint8_t *buff, size_t len, ec_attrib_id_t id);
+    
+	/**
+	 * @brief Get an attribute from the buffer.
+	 *
+	 * This function retrieves an attribute from the specified buffer using the given attribute ID.
+	 *
+	 * @param[in] buff The buffer to get the attribute from.
+	 * @param[in] len The length of the buffer.
+	 * @param[in] id The attribute ID.
+	 *
+	 * @return ec_attribute_t* The attribute if found, NULL otherwise.
+	 */
+	static ec_attribute_t *get_attrib(uint8_t *buff, size_t len, ec_attrib_id_t id);
 
-    /**
-     * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary
-     * 
-     * @param buff The buffer to add the attribute to
-     * @param buff_len The length of the buffer (in/out)
-     * @param id The attribute ID
-     * @param len The length of the data
-     * @param data The attribute data
-     * @return uint8_t* The buffer offset by the length of the attribute
-     * 
-     * @warning The buffer must be freed by the caller
-     */
-    static uint8_t *add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, uint16_t len, uint8_t *data);
+    
+	/**
+	 * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary.
+	 *
+	 * This function adds an attribute to the specified buffer. If the buffer is not large enough
+	 * to accommodate the new attribute, it will be reallocated to a larger size.
+	 *
+	 * @param[out] buff The buffer to which the attribute will be added. The buffer may be reallocated
+	 *                  if it is not large enough to hold the new attribute.
+	 * @param[in,out] buff_len The current length of the buffer. This will be updated to reflect the
+	 *                         new length after the attribute is added.
+	 * @param[in] id The identifier for the attribute to be added.
+	 * @param[in] len The length of the attribute data.
+	 * @param[in] data A pointer to the attribute data to be added to the buffer.
+	 *
+	 * @return uint8_t* A pointer to the buffer offset by the length of the attribute.
+	 *
+	 * @warning The buffer must be freed by the caller after use to prevent memory leaks.
+	 */
+	static uint8_t *add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, uint16_t len, uint8_t *data);
 
 
-    /**
-     * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary
-     * 
-     * @param buff The buffer to add the attribute to
-     * @param buff_len The length of the buffer (in/out)
-     * @param id The attribute ID
-     * @param len The length of the data
-     * @param data The attribute data
-     * @return uint8_t* The buffer offset by the length of the attribute
-     * 
-     * @warning The buffer must be freed by the caller
-     */
-    static inline uint8_t *add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, uint16_t len, const scoped_buff& data) {
+    
+	/**
+	 * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary.
+	 *
+	 * This function adds an attribute to the specified buffer. If the buffer is not large enough,
+	 * it will be reallocated to accommodate the new attribute.
+	 *
+	 * @param[out] buff The buffer to which the attribute will be added.
+	 * @param[in,out] buff_len The length of the buffer. This will be updated to reflect the new size.
+	 * @param[in] id The attribute ID that identifies the type of attribute being added.
+	 * @param[in] len The length of the attribute data.
+	 * @param[in] data The attribute data to be added to the buffer.
+	 *
+	 * @return uint8_t* A pointer to the buffer offset by the length of the attribute.
+	 *
+	 * @warning The buffer must be freed by the caller to avoid memory leaks.
+	 */
+	static inline uint8_t *add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, uint16_t len, const scoped_buff& data) {
         return add_attrib(buff, buff_len, id, len, data.get());
     }
 
-    /**
-     * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary
-     * 
-     * @param buff The buffer to add the attribute to
-     * @param buff_len The length of the buffer (in/out)
-     * @param id The attribute ID
-     * @param str The attribute as a string
-     * @return uint8_t* The buffer offset by the length of the attribute
-     * 
-     * @warning The buffer must be freed by the caller
-     */
-    static inline uint8_t *add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, std::string str) {
+    
+	/**
+	 * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary.
+	 *
+	 * This function adds an attribute to the specified buffer and adjusts the buffer length accordingly.
+	 *
+	 * @param[in,out] buff The buffer to add the attribute to.
+	 * @param[in,out] buff_len The length of the buffer, which will be updated after adding the attribute.
+	 * @param[in] id The attribute ID.
+	 * @param[in] str The attribute as a string.
+	 *
+	 * @return uint8_t* Pointer to the buffer offset by the length of the attribute.
+	 *
+	 * @warning The buffer must be freed by the caller.
+	 */
+	static inline uint8_t *add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, std::string str) {
         return add_attrib(buff, buff_len, id, static_cast<uint16_t>(str.length()), const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(str.c_str())));
     }
 
-    /**
-     * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary
-     * 
-     * @param buff The buffer to add the attribute to
-     * @param id The attribute ID
-     * @param val The uint8_t attribute value
-     * @return uint8_t* The buffer offset by the length of the attribute
-     * 
-     * @warning The buffer must be freed by the caller
-     */
-    static inline uint8_t* add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, uint8_t val) {
+    
+	/**
+	 * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary.
+	 *
+	 * This function adds an attribute to the specified buffer and reallocates the buffer if needed.
+	 *
+	 * @param[out] buff The buffer to add the attribute to.
+	 * @param[in,out] buff_len The current length of the buffer, which may be updated if reallocation occurs.
+	 * @param[in] id The attribute ID.
+	 * @param[in] val The uint8_t attribute value.
+	 *
+	 * @return uint8_t* The buffer offset by the length of the attribute.
+	 *
+	 * @warning The buffer must be freed by the caller.
+	 */
+	static inline uint8_t* add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, uint8_t val) {
         return add_attrib(buff, buff_len, id, sizeof(uint8_t), const_cast<uint8_t*>(&val));
     }
 
-    /**
-     * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary
-     * 
-     * @param buff The buffer to add the attribute to
-     * @param id The attribute ID
-     * @param val The uint16_t attribute value
-     * @return uint8_t* The buffer offset by the length of the attribute
-     * 
-     * @warning The buffer must be freed by the caller
-     */
-    static inline uint8_t* add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, uint16_t val) {
+    
+	/**
+	 * @brief Add an attribute to the buffer, (re)allocating the buffer if necessary.
+	 *
+	 * This function adds an attribute to the specified buffer. If the buffer
+	 * is not large enough to accommodate the new attribute, it will be
+	 * reallocated to ensure sufficient space.
+	 *
+	 * @param[out] buff The buffer to which the attribute will be added.
+	 * @param[in,out] buff_len A pointer to the size of the buffer. It will be
+	 * updated if the buffer is reallocated.
+	 * @param[in] id The attribute ID to be added.
+	 * @param[in] val The uint16_t attribute value to be added.
+	 *
+	 * @return uint8_t* A pointer to the buffer offset by the length of the
+	 * attribute.
+	 *
+	 * @warning The buffer must be freed by the caller after use.
+	 */
+	static inline uint8_t* add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, uint16_t val) {
         return add_attrib(buff, buff_len, id, sizeof(uint16_t), const_cast<uint8_t*>(reinterpret_cast<uint8_t*>(&val)));
     }
 
-    /**
-     * @brief Heap allocate an EC frame with the default WFA parameters + type
-     * 
-     * @param type The frame type
-     * @return ec_frame_t* The heap allocated frame, NULL if failed
-     * 
-     * @warning The frame must be freed by the caller
-     */
-    static inline ec_frame_t* alloc_frame(ec_frame_type_t type) {
+    
+	/**
+	 * @brief Heap allocate an EC frame with the default WFA parameters + type.
+	 *
+	 * This function allocates memory for an EC frame and initializes it with the specified frame type.
+	 *
+	 * @param[in] type The frame type to be assigned to the allocated frame.
+	 *
+	 * @return ec_frame_t* Pointer to the heap allocated frame. Returns NULL if memory allocation fails.
+	 *
+	 * @warning The allocated frame must be freed by the caller to avoid memory leaks.
+	 */
+	static inline ec_frame_t* alloc_frame(ec_frame_type_t type) {
         uint8_t* buff = static_cast<uint8_t*>(calloc(EC_FRAME_BASE_SIZE, 1));
         if (buff == NULL) {
             printf("%s:%d unable to allocate memory\n", __func__, __LINE__);
@@ -183,7 +226,21 @@ public:
         return frame;
     }
 
-    static std::pair<void *, size_t> alloc_gas_frame(dpp_gas_action_type_t action, uint8_t dialog_token) {
+    
+	/**!
+	 * @brief Allocates a GAS frame based on the specified action type.
+	 *
+	 * This function allocates memory for a GAS frame and initializes it based on the action type provided.
+	 *
+	 * @param[in] action The type of GAS action to perform. Determines the frame structure to allocate.
+	 * @param[in] dialog_token The dialog token to be used in the GAS frame.
+	 *
+	 * @returns A pair containing a pointer to the allocated frame and the size of the frame.
+	 * @retval std::pair<void *, size_t> A pair where the first element is a pointer to the allocated frame and the second element is the size of the frame.
+	 *
+	 * @note If the allocation fails, the function returns a pair with a nullptr and size 0.
+	 */
+	static std::pair<void *, size_t> alloc_gas_frame(dpp_gas_action_type_t action, uint8_t dialog_token) {
         void *frame = nullptr;
         size_t created_frame_size = 0UL;
         switch(action) {
@@ -227,199 +284,301 @@ public:
         return std::make_pair(frame, created_frame_size);
     }
 
-    /**
-     * @brief Copy (overrride) attributes to a frame
-     * 
-     * @param frame The frame to copy the attributes to
-     * @param attrs The attributes to copy
-     * @param attrs_len The length of the attributes
-     * @return ec_frame_t* The frame with the copied attributes (returned due to realloc)
-     * 
-     * @warning The frame must be freed by the caller
-     */
-    static ec_frame_t* copy_attrs_to_frame(ec_frame_t *frame, uint8_t *attrs, size_t attrs_len);
+    
+	/**
+	 * @brief Copy (override) attributes to a frame.
+	 *
+	 * This function copies the specified attributes to the given frame. If the frame
+	 * needs to be reallocated to accommodate the new attributes, the reallocated
+	 * frame is returned.
+	 *
+	 * @param[in,out] frame The frame to which the attributes will be copied. This
+	 * frame may be reallocated if necessary.
+	 * @param[in] attrs The attributes to copy to the frame.
+	 * @param[in] attrs_len The length of the attributes array.
+	 *
+	 * @return ec_frame_t* A pointer to the frame with the copied attributes. If the
+	 * frame was reallocated, the new pointer is returned.
+	 *
+	 * @warning The frame must be freed by the caller after use to prevent memory leaks.
+	 */
+	static ec_frame_t* copy_attrs_to_frame(ec_frame_t *frame, uint8_t *attrs, size_t attrs_len);
 
-    /**
-     * @brief Copy (over-write) attributes to a frame
-     * 
-     * @param frame The frame to copy the attribues to
-     * @param frame_base_size The offset at which to copy attributes to
-     * @param attrs The attributes to copy
-     * @param attrs_len The length of the attributes
-     * @return uint8_t *, base of the frame with newly copied attributes, or nullptr on failure
-     */
-    static uint8_t* copy_attrs_to_frame(uint8_t *frame, size_t frame_base_size, uint8_t *attrs, size_t attrs_len);
+    
+	/**
+	 * @brief Copy (over-write) attributes to a frame.
+	 *
+	 * This function copies the specified attributes to a given frame starting at a specified offset.
+	 *
+	 * @param[out] frame The frame to which the attributes will be copied.
+	 * @param[in] frame_base_size The offset at which to copy attributes to.
+	 * @param[in] attrs The attributes to copy.
+	 * @param[in] attrs_len The length of the attributes.
+	 *
+	 * @return uint8_t* Pointer to the base of the frame with newly copied attributes, or nullptr on failure.
+	 *
+	 * @note Ensure that the frame has enough space to accommodate the attributes starting from the specified offset.
+	 */
+	static uint8_t* copy_attrs_to_frame(uint8_t *frame, size_t frame_base_size, uint8_t *attrs, size_t attrs_len);
 
-    /**
-     * @brief Validate an EC frame based on the WFA parameters
-     * 
-     * @param frame The frame to validate
-     * @return true The frame is valid, false otherwise
-     */
-    static bool validate_frame(const ec_frame_t *frame);
+    
+	/**
+	 * @brief Validate an EC frame based on the WFA parameters.
+	 *
+	 * This function checks the given EC frame against predefined WFA parameters
+	 * to determine its validity.
+	 *
+	 * @param[in] frame The frame to validate.
+	 *
+	 * @returns true if the frame is valid, false otherwise.
+	 */
+	static bool validate_frame(const ec_frame_t *frame);
 
-    /**
-     * @brief Validate an EC frame based on the WFA parameters and type
-     * 
-     * @param frame The frame to validate
-     * @param type The frame type that the frame should be
-     * @return true The frame is valid, false otherwise
-     */
-    static inline bool validate_frame(const ec_frame_t *frame, ec_frame_type_t type) {
+    
+	/**
+	* @brief Validate an EC frame based on the WFA parameters and type.
+	*
+	* This function checks if the given EC frame matches the specified frame type.
+	*
+	* @param[in] frame The frame to validate.
+	* @param[in] type The expected frame type.
+	*
+	* @return true if the frame is valid and matches the type, false otherwise.
+	*/
+	static inline bool validate_frame(const ec_frame_t *frame, ec_frame_type_t type) {
         return validate_frame(frame) && frame->frame_type == type;
     }
 
-    /**
-     * @brief Parse a DPP Chirp Value TLV
-     * 
-     * @param buff [in] The buffer containing the chirp TLV
-     * @param chirp_tlv_len [in] The length of the chirp TLV
-     * @param mac [out] The MAC address to store in the chirp TLV
-     * @param hash [out] The hash to store in the chirp TLV
-     * @param hash_len [out] The length of the hash
-     * @return bool true if successful, false otherwise
-     */
-    static bool parse_dpp_chirp_tlv(em_dpp_chirp_value_t* chirp_tlv,  uint16_t chirp_tlv_len, mac_addr_t *mac, uint8_t **hash, uint16_t *hash_len);
-
-    /**
-     * @brief Creates and allocates a DPP Chirp Value TLV
-     * 
-     * EasyMesh R6, Section 17.2.83, Table 105
-     * 
-     * @param mac_present [in] The address of the Enrollee Multi-AP Agent 
-     * @param hash_validity [in] Establish/purge any DPP authentication state pertaining to the hash value in this TLV (0 = purge, 1 = establish)
-     * @param dest_mac [in] The destination mac address (0 if not present)
-     * @param hash [in] The hash value (NULL if not present)
-     * @param hash_len [in] The length of the hash value (0 if not present)
-     * @return em_dpp_chirp_value_t* The heap allocated DPP Chirp Value TLV, NULL if failed
-     * 
-     * @warning The `em_dpp_chirp_value_t` must be freed by the caller
-     */
-    static std::pair<em_dpp_chirp_value_t*, uint16_t> create_dpp_chirp_tlv(bool mac_present, bool hash_validity, mac_addr_t dest_mac = NULL, uint8_t* hash = NULL, uint16_t hash_len = 0);
-
-    /**
-     * @brief Parse an Encap DPP TLV
-     * 
-     * @param encap_tlv [in] The buffer containing the Encap DPP TLV
-     * @param encap_tlv_len [in] The length of the Encap DPP TLV
-     * @param dest_mac [out] The destination MAC address (0 if not present)
-     * @param frame_type [out] The frame type
-     * @param encap_frame [out] The encapsulated frame, allocated on the heap
-     * @param encap_frame_len [out] The length of the encapsulated frame
-     * @return bool true if successful, false otherwise
-     * 
-     * @warning The `encap_frame` must be freed by the caller
-     */
-    static bool parse_encap_dpp_tlv(em_encap_dpp_t* encap_tlv, uint16_t encap_tlv_len, mac_addr_t *dest_mac, uint8_t *frame_type, uint8_t** encap_frame, uint16_t *encap_frame_len);
-
-    /**
-     * @brief Creates and allocates an Encap DPP TLV
-     * 
-     * @param dpp_frame_indicator [in] The DPP frame indicator (0 = DPP Public Action frame, 1 = GAS Frame)
-     * @param dest_mac [in] The destination MAC address (0 if not present)
-     * @param frame_type [in] The frame type
-     * @param encap_frame [in] The encapsulated frame
-     * @param encap_frame_len [in] The length of the encapsulated frame
-     * @return em_encap_dpp_t* The heap allocated Encap DPP TLV, NULL if failed 
-     */
-    static std::pair<em_encap_dpp_t*, uint16_t> create_encap_dpp_tlv(bool dpp_frame_indicator, mac_addr_t dest_mac, ec_frame_type_t frame_type, uint8_t *encap_frame, size_t encap_frame_len);
-
-
-    /**
-     * @brief Converts a frequency to a WFA channel attribute format (opclass + channel)
-     * 
-     * @param freq The frequency to convert
-     * @return `uint16_t` with the MSB as the op class and the LSB as the channel.
-     * 
-     * @note Format is standardized as the "Channel Attribute" in Easy Connect 3.0 Section 8.1.1.17 
-     */
-    static uint16_t freq_to_channel_attr(unsigned int freq);
+    
+	/**
+	 * @brief Parse a DPP Chirp Value TLV
+	 *
+	 * This function parses a DPP Chirp Value TLV from the provided buffer.
+	 *
+	 * @param[in] chirp_tlv The buffer containing the chirp TLV.
+	 * @param[in] chirp_tlv_len The length of the chirp TLV.
+	 * @param[out] mac The MAC address to store in the chirp TLV.
+	 * @param[out] hash The hash to store in the chirp TLV.
+	 * @param[out] hash_len The length of the hash.
+	 *
+	 * @return true if the parsing is successful, false otherwise.
+	 */
+	static bool parse_dpp_chirp_tlv(em_dpp_chirp_value_t* chirp_tlv,  uint16_t chirp_tlv_len, mac_addr_t *mac, uint8_t **hash, uint16_t *hash_len);
 
     
-    /**
-     * @brief Get the size of an EC attribute
-     * 
-     * @param data_len The length of the data in the attribute
-     * @return size_t The size of the attribute
-     */
-    static inline size_t get_ec_attr_size(uint16_t data_len) {
+	/**
+	 * @brief Creates and allocates a DPP Chirp Value TLV
+	 *
+	 * EasyMesh R6, Section 17.2.83, Table 105
+	 *
+	 * @param[in] mac_present The address of the Enrollee Multi-AP Agent
+	 * @param[in] hash_validity Establish/purge any DPP authentication state pertaining to the hash value in this TLV (0 = purge, 1 = establish)
+	 * @param[in] dest_mac The destination mac address (NULL if not present)
+	 * @param[in] hash The hash value (NULL if not present)
+	 * @param[in] hash_len The length of the hash value (0 if not present)
+	 * @return std::pair<em_dpp_chirp_value_t*, uint16_t> The heap allocated DPP Chirp Value TLV and its length, NULL if failed
+	 *
+	 * @warning The `em_dpp_chirp_value_t` must be freed by the caller
+	 */
+	static std::pair<em_dpp_chirp_value_t*, uint16_t> create_dpp_chirp_tlv(bool mac_present, bool hash_validity, mac_addr_t dest_mac = NULL, uint8_t* hash = NULL, uint16_t hash_len = 0);
+
+    
+	/**
+	 * @brief Parse an Encap DPP TLV
+	 *
+	 * This function parses the given Encap DPP TLV buffer and extracts the destination MAC address,
+	 * frame type, and encapsulated frame.
+	 *
+	 * @param[in] encap_tlv The buffer containing the Encap DPP TLV.
+	 * @param[in] encap_tlv_len The length of the Encap DPP TLV.
+	 * @param[out] dest_mac The destination MAC address (0 if not present).
+	 * @param[out] frame_type The frame type.
+	 * @param[out] encap_frame The encapsulated frame, allocated on the heap.
+	 * @param[out] encap_frame_len The length of the encapsulated frame.
+	 *
+	 * @return bool True if successful, false otherwise.
+	 *
+	 * @warning The `encap_frame` must be freed by the caller.
+	 */
+	static bool parse_encap_dpp_tlv(em_encap_dpp_t* encap_tlv, uint16_t encap_tlv_len, mac_addr_t *dest_mac, uint8_t *frame_type, uint8_t** encap_frame, uint16_t *encap_frame_len);
+
+    
+	/**
+	 * @brief Creates and allocates an Encap DPP TLV.
+	 *
+	 * This function is responsible for creating and allocating a DPP TLV based on the provided parameters.
+	 *
+	 * @param[in] dpp_frame_indicator The DPP frame indicator. Use 0 for DPP Public Action frame and 1 for GAS Frame.
+	 * @param[in] dest_mac The destination MAC address. Use 0 if not present.
+	 * @param[in] frame_type The type of the frame.
+	 * @param[in] encap_frame Pointer to the encapsulated frame.
+	 * @param[in] encap_frame_len The length of the encapsulated frame.
+	 *
+	 * @return std::pair<em_encap_dpp_t*, uint16_t> A pair containing the heap allocated Encap DPP TLV and its length. Returns NULL if allocation fails.
+	 *
+	 * @note Ensure that the returned Encap DPP TLV is properly deallocated to avoid memory leaks.
+	 */
+	static std::pair<em_encap_dpp_t*, uint16_t> create_encap_dpp_tlv(bool dpp_frame_indicator, mac_addr_t dest_mac, ec_frame_type_t frame_type, uint8_t *encap_frame, size_t encap_frame_len);
+
+
+    
+	/**
+	 * @brief Converts a frequency to a WFA channel attribute format (opclass + channel).
+	 *
+	 * This function takes a frequency value and converts it into a standardized
+	 * channel attribute format used in wireless communication.
+	 *
+	 * @param[in] freq The frequency to convert.
+	 *
+	 * @returns `uint16_t` with the MSB as the op class and the LSB as the channel.
+	 *
+	 * @note Format is standardized as the "Channel Attribute" in Easy Connect 3.0 Section 8.1.1.17.
+	 */
+	static uint16_t freq_to_channel_attr(unsigned int freq);
+
+    
+    
+	/**
+	* @brief Get the size of an EC attribute\n 
+	*
+	* This function calculates the total size of an EC attribute based on the
+	* length of the data it contains.
+	*
+	* @param[in] data_len The length of the data in the attribute.
+	*
+	* @returns The total size of the EC attribute, including the data.
+	*/
+	static inline size_t get_ec_attr_size(uint16_t data_len) {
         return offsetof(ec_attribute_t, data) + data_len;
     };
 
-    /**
-     * @brief Get the string representation of a status code
-     * 
-     * @param status The status code to convert
-     * @return std::string The string representation of the status code
-     */
-    static inline std::string status_code_to_string(ec_status_code_t status) {
+    
+	/**
+	 * @brief Get the string representation of a status code
+	 *
+	 * This function converts a given status code into its corresponding
+	 * string representation using a predefined mapping.
+	 *
+	 * @param[in] status The status code to convert
+	 *
+	 * @return std::string The string representation of the status code
+	 *
+	 * @note Ensure that the status code provided exists in the status_code_map
+	 * to avoid exceptions.
+	 */
+	static inline std::string status_code_to_string(ec_status_code_t status) {
         return easyconnect::status_code_map.at(status);
     };
 
-    /**
-     * @brief Add a wrapped data attribute to a frame
-     * 
-     * @param frame The frame to use as AAD. Can be NULL if no AAD is needed
-     * @param frame_attribs The attributes to add the wrapped data attribute to and to use as AAD
-     * @param non_wrapped_len The length of the non-wrapped attributes (`frame_attribs`, In/Out)
-     * @param use_aad Whether to use AAD in the encryption
-     * @param key The key to use for encryption
-     * @param create_wrap_attribs A function to create the attributes to wrap and their length. Memory is handled by function (see note)
-     * @return uint8_t* The new frame attributes with the wrapped data attribute added
-     * 
-     * @note The `create_wrap_attribs` function will allocate heap-memory which is freed inside the `add_wrapped_data_attr` function.
-     *     **The caller should not use statically allocated memory in `create_wrap_attribs` or free the memory returned by `create_wrap_attribs`.**
-     */
-    static uint8_t* add_wrapped_data_attr(ec_frame_t *frame, uint8_t* frame_attribs, size_t* non_wrapped_len, 
+    
+	/**
+	 * @brief Add a wrapped data attribute to a frame
+	 *
+	 * This function adds a wrapped data attribute to the specified frame attributes.
+	 *
+	 * @param[in] frame The frame to use as Additional Authenticated Data (AAD). Can be NULL if no AAD is needed.
+	 * @param[in,out] frame_attribs The attributes to add the wrapped data attribute to and to use as AAD.
+	 * @param[in,out] non_wrapped_len The length of the non-wrapped attributes (`frame_attribs`).
+	 * @param[in] use_aad Whether to use AAD in the encryption.
+	 * @param[in] key The key to use for encryption.
+	 * @param[in] create_wrap_attribs A function to create the attributes to wrap and their length. Memory is handled by the function (see note).
+	 *
+	 * @return uint8_t* The new frame attributes with the wrapped data attribute added.
+	 *
+	 * @note The `create_wrap_attribs` function will allocate heap-memory which is freed inside the `add_wrapped_data_attr` function.
+	 *       **The caller should not use statically allocated memory in `create_wrap_attribs` or free the memory returned by `create_wrap_attribs`.**
+	 */
+	static uint8_t* add_wrapped_data_attr(ec_frame_t *frame, uint8_t* frame_attribs, size_t* non_wrapped_len, 
         bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> create_wrap_attribs);
 
-    static uint8_t* add_wrapped_data_attr(uint8_t *frame, size_t frame_len, uint8_t* frame_attribs, size_t* non_wrapped_len, 
+    
+	/**!
+	 * @brief Adds wrapped data attributes to a frame.
+	 *
+	 * This function processes the given frame and adds wrapped data attributes
+	 * based on the provided parameters.
+	 *
+	 * @param[in] frame Pointer to the frame data to be processed.
+	 * @param[in] frame_len Length of the frame data.
+	 * @param[in] frame_attribs Pointer to the frame attributes.
+	 * @param[out] non_wrapped_len Pointer to store the length of non-wrapped data.
+	 * @param[in] use_aad Boolean flag indicating whether to use AAD.
+	 * @param[in] key Pointer to the key used for wrapping.
+	 * @param[in] create_wrap_attribs Function to create wrap attributes.
+	 *
+	 * @returns Pointer to the processed frame with wrapped data attributes.
+	 *
+	 * @note Ensure that the frame and key pointers are valid before calling this function.
+	 */
+	static uint8_t* add_wrapped_data_attr(uint8_t *frame, size_t frame_len, uint8_t* frame_attribs, size_t* non_wrapped_len, 
         bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> create_wrap_attribs);
 
-    /**
-     * @brief Unwrap a wrapped data attribute
-     * 
-     * @param wrapped_attrib The wrapped attribute to unwrap (retreieved using `get_attribute`)
-     * @param frame The frame to use as AAD. Can be NULL if no AAD is needed
-     * @param uses_aad Whether the wrapped attribute uses AAD
-     * @param key The key to use for decryption
-     * @return std::pair<uint8_t*, size_t> A heap allocated buffer of unwrapped attributes on success which can then be fetched via `get_attribute`,
-     *         along with the length of that buffer. The buffer is NULL and the size is 0 on failure.
-     * 
-     * @warning The caller is responsible for freeing the memory returned by this function
-     * @note Forwards to `unwrap_wrapped_attrib(ec_attribute_t *wrapped_attrib, uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, bool uses_aad, uint8_t *key);`
-     */
-    static std::pair<uint8_t*, uint16_t> unwrap_wrapped_attrib(ec_attribute_t* wrapped_attrib, ec_frame_t *frame, bool uses_aad, uint8_t* key);
+    
+	/**
+	 * @brief Unwrap a wrapped data attribute
+	 *
+	 * This function unwraps a wrapped attribute using the provided key and
+	 * optional additional authenticated data (AAD) from the frame.
+	 *
+	 * @param[in] wrapped_attrib The wrapped attribute to unwrap (retrieved using `get_attribute`).
+	 * @param[in] frame The frame to use as AAD. Can be NULL if no AAD is needed.
+	 * @param[in] uses_aad Whether the wrapped attribute uses AAD.
+	 * @param[in] key The key to use for decryption.
+	 *
+	 * @return std::pair<uint8_t*, uint16_t> A heap allocated buffer of unwrapped attributes on success,
+	 *         which can then be fetched via `get_attribute`, along with the length of that buffer.
+	 *         The buffer is NULL and the size is 0 on failure.
+	 *
+	 * @warning The caller is responsible for freeing the memory returned by this function.
+	 *
+	 * @note Forwards to `unwrap_wrapped_attrib(ec_attribute_t *wrapped_attrib, uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, bool uses_aad, uint8_t *key);`
+	 */
+	static std::pair<uint8_t*, uint16_t> unwrap_wrapped_attrib(ec_attribute_t* wrapped_attrib, ec_frame_t *frame, bool uses_aad, uint8_t* key);
 
-    /**
-     * @brief Unwrap a wrapped data attribute.
-     *
-     * @param wrapped_attrib The wrapped attribute to unwrap (retrieved using `get_attribute`)
-     * @param frame The frame to use as AAD. Can be nullptr if `uses_aad` is false.
-     * @param frame_len The length of the frame.
-     * @param frame_attribs Pointer to the attributes to unwrap.
-     * @param uses_aad Whether the wrapped attribute uses AAD.
-     * @param key The key to use for decryption.
-     * @return std::pair<uint8_t*, uint16_t> The unwrapped attributes / size on success, nullptr & 0 otherwise.
-     */
-    static std::pair<uint8_t*, uint16_t> unwrap_wrapped_attrib(ec_attribute_t *wrapped_attrib, uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, bool uses_aad, uint8_t *key);
+    
+	/**
+	 * @brief Unwrap a wrapped data attribute.
+	 *
+	 * This function attempts to unwrap a given wrapped attribute using the provided frame and key.
+	 *
+	 * @param[in] wrapped_attrib The wrapped attribute to unwrap (retrieved using `get_attribute`).
+	 * @param[in] frame The frame to use as AAD. Can be nullptr if `uses_aad` is false.
+	 * @param[in] frame_len The length of the frame.
+	 * @param[out] frame_attribs Pointer to the attributes to unwrap.
+	 * @param[in] uses_aad Whether the wrapped attribute uses AAD.
+	 * @param[in] key The key to use for decryption.
+	 *
+	 * @return std::pair<uint8_t*, uint16_t> The unwrapped attributes and their size on success, nullptr & 0 otherwise.
+	 *
+	 * @note Ensure that the key is valid and the frame is correctly set up before calling this function.
+	 */
+	static std::pair<uint8_t*, uint16_t> unwrap_wrapped_attrib(ec_attribute_t *wrapped_attrib, uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, bool uses_aad, uint8_t *key);
 
-    /**
-     * @brief Convert a hash to a hex string
-     * 
-     * @param hash The hash to convert
-     * @param hash_len The length of the hash
-     * @return std::string The hex string representation of the hash
-     */
-    static std::string hash_to_hex_string(const uint8_t *hash, size_t hash_len);
+    
+	/**
+	 * @brief Convert a hash to a hex string
+	 *
+	 * This function takes a hash and its length, converting it into a
+	 * hexadecimal string representation.
+	 *
+	 * @param[in] hash The hash to convert
+	 * @param[in] hash_len The length of the hash
+	 * @return std::string The hex string representation of the hash
+	 */
+	static std::string hash_to_hex_string(const uint8_t *hash, size_t hash_len);
 
-    /**
-     * @brief Convert a hash to a hex string
-     * 
-     * @param hash Vector containing the hash to convert.
-     * @return std::string  The hex string representation of the hash
-     */
-    static std::string hash_to_hex_string(const std::vector<uint8_t>& hash);
+    
+	/**
+	 * @brief Convert a hash to a hex string.
+	 *
+	 * This function takes a vector of bytes representing a hash and converts it
+	 * into a hexadecimal string representation.
+	 *
+	 * @param[in] hash Vector containing the hash to convert.
+	 *
+	 * @returns std::string The hex string representation of the hash.
+	 */
+	static std::string hash_to_hex_string(const std::vector<uint8_t>& hash);
 
     // Used for storing channels / op-classes searched when looking for a given SSID.
     struct scanned_channels_t {
@@ -427,25 +586,49 @@ public:
         uint32_t opclass;
     };
 
-    /**
-     * @brief Generate an EasyConnect `channel-list-2` formatted channel list from a map of scanned (EasyConnect 6.4.5.2)
-     * 
-     * @param ssid The SSID to build the searched channel list for.
-     * @param scanned_channels_map SSID searched for -> channels / op-classes searched.
-     * @return std::string Channel list as a string, example: "81/1,6,11,117/40,115/48"
-     */
-    static std::string generate_channel_list(const std::string& ssid, std::unordered_map<std::string, std::vector<scanned_channels_t>> scanned_channels_map);
+    
+	/**
+	 * @brief Generate an EasyConnect `channel-list-2` formatted channel list from a map of scanned channels.
+	 *
+	 * This function constructs a channel list string based on the provided SSID and a map of scanned channels.
+	 *
+	 * @param[in] ssid The SSID to build the searched channel list for.
+	 * @param[in] scanned_channels_map A map where each key is an SSID and the value is a vector of scanned channels.
+	 * @return std::string A formatted channel list as a string, example: "81/1,6,11,117/40,115/48".
+	 *
+	 * @note This function is based on EasyConnect version 6.4.5.2.
+	 */
+	static std::string generate_channel_list(const std::string& ssid, std::unordered_map<std::string, std::vector<scanned_channels_t>> scanned_channels_map);
 
-    /**
-     * @brief Check if the capabilities of the initiator and responder are compatible
-     * 
-     * @param init_caps The capabilities of the initiator
-     * @param resp_caps The capabilities of the responder
-     * @return true The capabilities are compatible (DPP_STATUS_OK), false otherwise (DPP_STATUS_NOT_COMPATIBLE)
-     */
-    static bool check_caps_compatible(const ec_dpp_capabilities_t& init_caps, const ec_dpp_capabilities_t& resp_caps);
+    
+	/**
+	 * @brief Check if the capabilities of the initiator and responder are compatible.
+	 *
+	 * This function evaluates the capabilities of both the initiator and the responder
+	 * to determine if they are compatible with each other.
+	 *
+	 * @param[in] init_caps The capabilities of the initiator.
+	 * @param[in] resp_caps The capabilities of the responder.
+	 *
+	 * @return true if the capabilities are compatible (DPP_STATUS_OK),
+	 *         false otherwise (DPP_STATUS_NOT_COMPATIBLE).
+	 */
+	static bool check_caps_compatible(const ec_dpp_capabilities_t& init_caps, const ec_dpp_capabilities_t& resp_caps);
 
-    static inline void free_connection_ctx(ec_connection_context_t& c_ctx) {
+    
+	/**!
+	 * @brief Frees the resources associated with the given connection context.
+	 *
+	 * This function releases all cryptographic keys and ephemeral contexts
+	 * associated with the provided connection context, ensuring that all
+	 * allocated resources are properly deallocated.
+	 *
+	 * @param[in,out] c_ctx The connection context whose resources are to be freed.
+	 *
+	 * @note After calling this function, the keys within the connection context
+	 *       will be set to nullptr to prevent accidental use of freed memory.
+	 */
+	static inline void free_connection_ctx(ec_connection_context_t& c_ctx) {
         ec_crypto::free_ephemeral_context(&c_ctx.eph_ctx, c_ctx.nonce_len, c_ctx.digest_len);
 
         auto boot_data = &c_ctx.boot_data;
@@ -476,24 +659,22 @@ public:
         boot_data->responder_boot_key = nullptr;
     }
 
-    /**
-     * @brief Decode a DPP URI channel-list string
-     * 
-     * EasyConnect 5.2.1
-     *      **channel-list** = “C:” class-and-channels *(“,” class-and-channels)
-     *      class-and-channels = class “/” channel *(“,” channel)
-     *      class = 1*3DIGIT
-     *      channel = 1*3DIGIT
-     * 
-     * Example: "C:81/1,115/36"
-     * 
-     * @param class_channel_str The channel list string to decode
-     * @return std::vector<std::pair<uint32_t, uint32_t>> A vector of pairs containing the op-class and channel parsed
-     */
-    static inline std::vector<std::pair<uint32_t, uint32_t>>
+    
+	/**
+	 * @brief Decode a DPP URI channel-list string.
+	 *
+	 * This function parses a channel-list string formatted as per EasyConnect 5.2.1 specifications.
+	 * The format is "C:" followed by class-and-channels, where class-and-channels is class "/" channel, and class and channel are 1 to 3 digit numbers.
+	 *
+	 * Example: "C:81/1,115/36"
+	 *
+	 * @param[in] class_channel_str The channel list string to decode.
+	 * @return std::vector<std::pair<uint32_t, uint32_t>> A vector of pairs containing the op-class and channel parsed.
+	 */
+	static inline std::vector<std::pair<uint32_t, uint32_t>>
     parse_dpp_uri_channel_list(std::string class_channel_str)
-    {
-        std::stringstream ss(class_channel_str);
+    { 
+		std::stringstream ss(class_channel_str);
         std::string pair;
 
         std::vector<std::pair<uint32_t, uint32_t>> class_channel_pairs;
@@ -511,175 +692,220 @@ public:
         return class_channel_pairs;
     }
 
-    /**
-     * @brief Encode the bootstrapping data into a JSON format (same information as the DPP URI) 
-     * 
-     * @param boot_data The DPP data to encode
-     * @return std::optional<std::string> The encoded bootstrapping data in JSON format, or std::nullopt on failure
-     */
-    static std::optional<std::string> encode_bootstrap_data_json(ec_data_t *boot_data);
+    
+	/**
+	 * @brief Encode the bootstrapping data into a JSON format (same information as the DPP URI)
+	 *
+	 * This function takes the DPP data provided in `boot_data` and encodes it into a JSON format.
+	 *
+	 * @param[in] boot_data The DPP data to encode
+	 *
+	 * @return std::optional<std::string> The encoded bootstrapping data in JSON format, or std::nullopt on failure
+	 */
+	static std::optional<std::string> encode_bootstrap_data_json(ec_data_t *boot_data);
 
-    /**
-     * @brief Encode the bootstrapping data into a URI format (DPP URI)
-     * 
-     * @param boot_data The DPP data to encode
-     * @return std::optional<std::string> The encoded bootstrapping data in DPP URI format, or std::nullopt on failure
-     */
-    static std::optional<std::string> encode_bootstrap_data_uri(ec_data_t *boot_data);
+    
+	/**
+	 * @brief Encode the bootstrapping data into a URI format (DPP URI)
+	 *
+	 * This function takes the provided bootstrapping data and encodes it into
+	 * a URI format that is compliant with the DPP (Device Provisioning Protocol).
+	 *
+	 * @param[in] boot_data The DPP data to encode. This parameter is a pointer
+	 *                      to the ec_data_t structure containing the data.
+	 *
+	 * @return std::optional<std::string> The encoded bootstrapping data in DPP URI
+	 *                                     format, or std::nullopt on failure.
+	 *
+	 * @note Ensure that the boot_data is properly initialized before calling
+	 *       this function to avoid unexpected behavior.
+	 */
+	static std::optional<std::string> encode_bootstrap_data_uri(ec_data_t *boot_data);
 
-    /**
-     * @brief Decode the bootstrapping data from a URI format (DPP URI)
-     * 
-     * @param uri [in] The DPP URI to decode
-     * @param boot_data [out] The DPP data to decode into
-     * @return true The DPP boot data was decoded successfully, false otherwise
-     */
-    static bool decode_bootstrap_data_uri(const std::string &uri, ec_data_t *boot_data,
+    
+	/**
+	 * @brief Decode the bootstrapping data from a URI format (DPP URI).
+	 *
+	 * This function takes a DPP URI and decodes it into bootstrapping data.
+	 *
+	 * @param[in] uri The DPP URI to decode.
+	 * @param[out] boot_data The DPP data to decode into.
+	 * @param[in] country_code The country code used for decoding, default is "US".
+	 *
+	 * @return true if the DPP boot data was decoded successfully, false otherwise.
+	 */
+	static bool decode_bootstrap_data_uri(const std::string &uri, ec_data_t *boot_data,
                                           std::string country_code = "US");
-    /**
-     * @brief Decode the bootstrapping data from a JSON format
-     * 
-     * @param json_obj [in] The JSON object to decode
-     * @param boot_data [out] The DPP data to decode into
-     * @param country_code [in] The country code to use for channel decoding
-     * @return true The DPP boot data was decoded successfully, false otherwise
-     */
-    static bool decode_bootstrap_data_json(const cJSON *json_obj, ec_data_t *boot_data,
+    
+	/**
+	 * @brief Decode the bootstrapping data from a JSON format.
+	 *
+	 * This function decodes the given JSON object into DPP boot data, using the specified country code for channel decoding.
+	 *
+	 * @param[in] json_obj The JSON object to decode.
+	 * @param[out] boot_data The DPP data to decode into.
+	 * @param[in] country_code The country code to use for channel decoding. Defaults to "US".
+	 *
+	 * @return true if the DPP boot data was decoded successfully, false otherwise.
+	 */
+	static bool decode_bootstrap_data_json(const cJSON *json_obj, ec_data_t *boot_data,
                                            std::string country_code = "US");
 
-    /**
-     * @brief Read the bootstrapping data from a JSON file
-     * 
-     * @param boot_data [out] The DPP data to read into
-     * @param json_file_path [in] The path to the JSON file to read from
-     * @param pem_file_path [in] The path to the PEM file (for the private key) to read from. NULL if not needed (e.g. for initiator)
-     * @return true The DPP boot data was read successfully, false otherwise
-     */
-    static bool read_bootstrap_data_from_files(ec_data_t *boot_data, const std::string &json_file_path, const std::optional<std::string> &pem_file_path = std::nullopt);
+    
+	/**
+	 * @brief Read the bootstrapping data from a JSON file.
+	 *
+	 * This function reads the DPP bootstrapping data from a specified JSON file and optionally from a PEM file.
+	 *
+	 * @param[out] boot_data The DPP data structure to populate with the read data.
+	 * @param[in] json_file_path The path to the JSON file to read from.
+	 * @param[in] pem_file_path The path to the PEM file for the private key to read from. Pass NULL if not needed (e.g., for initiator).
+	 *
+	 * @return true if the DPP boot data was read successfully, false otherwise.
+	 */
+	static bool read_bootstrap_data_from_files(ec_data_t *boot_data, const std::string &json_file_path, const std::optional<std::string> &pem_file_path = std::nullopt);
 
-    /**
-     * @brief Write the bootstrapping data to a file
-     * 
-     * @param boot_data [in] The DPP data to write
-     * @param file_path [in] The path to the file to write to
-     * @param pem_file_path [in] The path to the PEM file (for the private key) to write to
-     * @return true The DPP boot data was written successfully, false otherwise
-     */
-    static bool write_bootstrap_data_to_files(ec_data_t *boot_data, const std::string &file_path, const std::string &pem_file_path);
+    
+	/**
+	 * @brief Write the bootstrapping data to a file.
+	 *
+	 * This function writes the provided DPP bootstrapping data to the specified file paths.
+	 *
+	 * @param[in] boot_data The DPP data to write.
+	 * @param[in] file_path The path to the file to write the boot data to.
+	 * @param[in] pem_file_path The path to the PEM file (for the private key) to write to.
+	 *
+	 * @return true if the DPP boot data was written successfully, false otherwise.
+	 */
+	static bool write_bootstrap_data_to_files(ec_data_t *boot_data, const std::string &file_path, const std::string &pem_file_path);
 
-    /**
-     * @brief Generate DPP bootstrapping data
-     * 
-     * @param boot_data [out] The DPP bootstrapping data to generate
-     * @param al_mac [in] The MAC address of the AL interface
-     * @param op_class_info [in] The operating class information to use for the DPP bootstrapping data.
-     *      Optional. If not given then channel information will not be present in newly generated bootstrapping data.
-     * @return true The DPP boot data was generated successfully, false otherwise
-     */
-    static bool generate_dpp_boot_data(ec_data_t *boot_data, mac_addr_t al_mac,
+    
+	/**
+	 * @brief Generate DPP bootstrapping data
+	 *
+	 * This function generates the DPP bootstrapping data using the provided AL MAC address and optional operating class information.
+	 *
+	 * @param[out] boot_data The DPP bootstrapping data to generate.
+	 * @param[in] al_mac The MAC address of the AL interface.
+	 * @param[in] op_class_info The operating class information to use for the DPP bootstrapping data. Optional. If not given, then channel information will not be present in the newly generated bootstrapping data.
+	 *
+	 * @return true if the DPP boot data was generated successfully, false otherwise.
+	 */
+	static bool generate_dpp_boot_data(ec_data_t *boot_data, mac_addr_t al_mac,
                                        em_op_class_info_t *op_class_info = NULL);
 
-    /**
-     * @brief Get the DPP bootstrapping data from "somewhere".
-     * 
-     * In the current "demo" implementation, this function will:
-     * - When `do_recfg` is false:
-     *      - Generate a new DPP bootstrapping data, store it in `boot_data`, and write it to the file system
-     *      - Write the newly generated responder bootstrapping keypair to a PEM file
-     * - When `do_recfg` is true:
-     *     - Read the DPP bootstrapping data from the file system and store it in `boot_data`
-     *     - Read the responder bootstrapping keypair from the PEM file and store it in `boot_data`
-     *     - If those are not present, it will re-generate everything and switch back to non-reconfiguration mode (since that information is no longer valid)
-     * 
-     * @param boot_data [out] The newly filled DPP bootstrapping data
-     * @param al_mac [in] The MAC address of the AL interface
-     * @param do_recfg [in] Whether to fetch the DPP bootstrapping data for DPP reconfig/reauth or not
-     * @param force_regen [in] Whether to force the generation of new DPP bootstrapping data or not
-     * @param op_class_info [in] The operating class information to use for the DPP bootstrapping data. 
-     *      Optional. If not given then channel information will not be present in newly generated bootstrapping data.
-     * @return true The DPP boot data was fetched successfully, false otherwise
-     * 
-     * @note This function can change as out-of-band mechanisms change. This is **NOT** a constant
-     */
-    static bool get_dpp_boot_data(ec_data_t *boot_data, mac_addr_t al_mac, bool do_recfg,
+    
+	/**
+	 * @brief Get the DPP bootstrapping data from "somewhere".
+	 *
+	 * In the current "demo" implementation, this function will:
+	 * - When `do_recfg` is false:
+	 * - Generate a new DPP bootstrapping data, store it in `boot_data`, and write it to the file system
+	 * - Write the newly generated responder bootstrapping keypair to a PEM file
+	 * - When `do_recfg` is true:
+	 * - Read the DPP bootstrapping data from the file system and store it in `boot_data`
+	 * - Read the responder bootstrapping keypair from the PEM file and store it in `boot_data`
+	 * - If those are not present, it will re-generate everything and switch back to non-reconfiguration mode (since that information is no longer valid)
+	 *
+	 * @param[out] boot_data The newly filled DPP bootstrapping data
+	 * @param[in] al_mac The MAC address of the AL interface
+	 * @param[in] do_recfg Whether to fetch the DPP bootstrapping data for DPP reconfig/reauth or not
+	 * @param[in] force_regen Whether to force the generation of new DPP bootstrapping data or not
+	 * @param[in] op_class_info The operating class information to use for the DPP bootstrapping data. 
+	 * Optional. If not given then channel information will not be present in newly generated bootstrapping data.
+	 * @return true The DPP boot data was fetched successfully, false otherwise
+	 *
+	 * @note This function can change as out-of-band mechanisms change. This is **NOT** a constant
+	 */
+	static bool get_dpp_boot_data(ec_data_t *boot_data, mac_addr_t al_mac, bool do_recfg,
                                   bool force_regen = false, em_op_class_info_t *op_class_info = NULL);
 
 private:
-    /**
-     * @brief Decode the bootstrapping data from a URI format (DPP URI)
-     * 
-     * @param uri_map [in] The itermediate map of the DPP URI fields and their string values
-     * @param boot_data [out] The DPP data to decode into
-     * @return true The DPP boot data was decoded successfully, false otherwise
-     * 
-     * @details
-     * EasyConnect 5.2.1 Bootstrapping Information Format
-     *    dpp-qr = “DPP:” *optional-fields public-key “;;”  
-     *    pkex-bootstrap-info = information
-     *    optional-fields = reserved-field / unreserved-field
-     *    reserved-field = ( channel-list / mac / information / version / host / supported-curves) ";" ; specified in this spec
-     *    channel-list = “C:” class-and-channels *(“,” class-and-channels)
-     *    class-and-channels = class “/” channel *(“,” channel)
-     *    class = 1*3DIGIT
-     *    channel = 1*3DIGIT
-     *    mac = “M:” 6hex-octet ; MAC address
-     *    hex-octet = 2HEXDIG
-     *    information = “I:” *(%x20-3A / %x3C-7E) ; semicolon not allowed
-     *    version = "V:" 1*ALPHANUMERIC ; supported DPP version with value from Table 31 in Section 8.1.1.18
-     *    host = "H:" 1*255(DIGIT / ALPHA / "." / "-" / ":") ; semicolon not allowed
-     *    supported-curves = "B:" 1*HEXDIG ; supported curves as bitmap of Figure 18
-     *    ALPHANUMERIC = ALPHA / DIGIT
-     *    unreserved-field = dpp-token-pair ";"
-     *    dpp-token-pair = unreserved-token “:” *(%x20-3A / %x3C-7E) ; semicolon not allowed
-     *    unreserved-token = 1*ALPHA; “M”, “C”, “K”, “I”, "H", "B" are not allowed token names for extensions
-     *    public-key = “K:” *PKCHAR ; DER of ASN.1 SubjectPublicKeyInfo encoded in “base64” as per [13]
-     *    PKCHAR = ALPHANUMERIC / %x2b / %x2f / %x3d
-     *    DIGIT = %x30-39 HEXDIG = DIGIT / "A" / "B" / "C" / "D" / "E" / "F" ALPHA
-     */
-    static bool decode_bootstrap_data(std::map<dpp_uri_field, std::string> uri_map,
+    
+	/**
+	 * @brief Decode the bootstrapping data from a URI format (DPP URI)
+	 *
+	 * @param[in] uri_map The intermediate map of the DPP URI fields and their string values
+	 * @param[out] boot_data The DPP data to decode into
+	 * @param[in] country_code The country code for the operation, default is "US"
+	 * @return true if the DPP boot data was decoded successfully, false otherwise
+	 *
+	 * @details
+	 * EasyConnect 5.2.1 Bootstrapping Information Format
+	 * dpp-qr = “DPP:” *optional-fields public-key “;;”
+	 * pkex-bootstrap-info = information
+	 * optional-fields = reserved-field / unreserved-field
+	 * reserved-field = ( channel-list / mac / information / version / host / supported-curves) ";" ; specified in this spec
+	 * channel-list = “C:” class-and-channels *(“,” class-and-channels)
+	 * class-and-channels = class “/” channel *(“,” channel)
+	 * class = 1*3DIGIT
+	 * channel = 1*3DIGIT
+	 * mac = “M:” 6hex-octet ; MAC address
+	 * hex-octet = 2HEXDIG
+	 * information = “I:” *(%x20-3A / %x3C-7E) ; semicolon not allowed
+	 * version = "V:" 1*ALPHANUMERIC ; supported DPP version with value from Table 31 in Section 8.1.1.18
+	 * host = "H:" 1*255(DIGIT / ALPHA / "." / "-" / ":") ; semicolon not allowed
+	 * supported-curves = "B:" 1*HEXDIG ; supported curves as bitmap of Figure 18
+	 * ALPHANUMERIC = ALPHA / DIGIT
+	 * unreserved-field = dpp-token-pair ";"
+	 * dpp-token-pair = unreserved-token “:” *(%x20-3A / %x3C-7E) ; semicolon not allowed
+	 * unreserved-token = 1*ALPHA; “M”, “C”, “K”, “I”, "H", "B" are not allowed token names for extensions
+	 * public-key = “K:” *PKCHAR ; DER of ASN.1 SubjectPublicKeyInfo encoded in “base64” as per [13]
+	 * PKCHAR = ALPHANUMERIC / %x2b / %x2f / %x3d
+	 * DIGIT = %x30-39 HEXDIG = DIGIT / "A" / "B" / "C" / "D" / "E" / "F" ALPHA
+	 */
+	static bool decode_bootstrap_data(std::map<dpp_uri_field, std::string> uri_map,
                                       ec_data_t *boot_data, std::string country_code = "US");
 
-    /**
-     * @brief Encode the bootstrapping data into a URI format (DPP URI)
-     * 
-     * @param boot_data The DPP data to encode
-     * @return std::map<dpp_uri_field, std::string> The encoded bootstrapping data in DPP URI string format
-     * 
-     * @details
-     * EasyConnect 5.2.1 Bootstrapping Information Format
-     *    dpp-qr = “DPP:” *optional-fields public-key “;;”  
-     *    pkex-bootstrap-info = information
-     *    optional-fields = reserved-field / unreserved-field
-     *    reserved-field = ( channel-list / mac / information / version / host / supported-curves) ";" ; specified in this spec
-     *    channel-list = “C:” class-and-channels *(“,” class-and-channels)
-     *    class-and-channels = class “/” channel *(“,” channel)
-     *    class = 1*3DIGIT
-     *    channel = 1*3DIGIT
-     *    mac = “M:” 6hex-octet ; MAC address
-     *    hex-octet = 2HEXDIG
-     *    information = “I:” *(%x20-3A / %x3C-7E) ; semicolon not allowed
-     *    version = "V:" 1*ALPHANUMERIC ; supported DPP version with value from Table 31 in Section 8.1.1.18
-     *    host = "H:" 1*255(DIGIT / ALPHA / "." / "-" / ":") ; semicolon not allowed
-     *    supported-curves = "B:" 1*HEXDIG ; supported curves as bitmap of Figure 18
-     *    ALPHANUMERIC = ALPHA / DIGIT
-     *    unreserved-field = dpp-token-pair ";"
-     *    dpp-token-pair = unreserved-token “:” *(%x20-3A / %x3C-7E) ; semicolon not allowed
-     *    unreserved-token = 1*ALPHA; “M”, “C”, “K”, “I”, "H", "B" are not allowed token names for extensions
-     *    public-key = “K:” *PKCHAR ; DER of ASN.1 SubjectPublicKeyInfo encoded in “base64” as per [13]
-     *    PKCHAR = ALPHANUMERIC / %x2b / %x2f / %x3d
-     *    DIGIT = %x30-39 HEXDIG = DIGIT / "A" / "B" / "C" / "D" / "E" / "F" ALPHA
-     */
-    static std::map<dpp_uri_field, std::string> encode_bootstrap_data(ec_data_t *boot_data);
+    
+	/**
+	 * @brief Encode the bootstrapping data into a URI format (DPP URI)
+	 *
+	 * @param[in] boot_data The DPP data to encode
+	 * @return std::map<dpp_uri_field, std::string> The encoded bootstrapping data in DPP URI string format
+	 *
+	 * @details
+	 * EasyConnect 5.2.1 Bootstrapping Information Format
+	 * dpp-qr = “DPP:” *optional-fields public-key “;;”
+	 * pkex-bootstrap-info = information
+	 * optional-fields = reserved-field / unreserved-field
+	 * reserved-field = ( channel-list / mac / information / version / host / supported-curves) ";" ; specified in this spec
+	 * channel-list = “C:” class-and-channels *(“,” class-and-channels)
+	 * class-and-channels = class “/” channel *(“,” channel)
+	 * class = 1*3DIGIT
+	 * channel = 1*3DIGIT
+	 * mac = “M:” 6hex-octet ; MAC address
+	 * hex-octet = 2HEXDIG
+	 * information = “I:” *(%x20-3A / %x3C-7E) ; semicolon not allowed
+	 * version = "V:" 1*ALPHANUMERIC ; supported DPP version with value from Table 31 in Section 8.1.1.18
+	 * host = "H:" 1*255(DIGIT / ALPHA / "." / "-" / ":") ; semicolon not allowed
+	 * supported-curves = "B:" 1*HEXDIG ; supported curves as bitmap of Figure 18
+	 * ALPHANUMERIC = ALPHA / DIGIT
+	 * unreserved-field = dpp-token-pair ";"
+	 * dpp-token-pair = unreserved-token “:” *(%x20-3A / %x3C-7E) ; semicolon not allowed
+	 * unreserved-token = 1*ALPHA; “M”, “C”, “K”, “I", "H", "B" are not allowed token names for extensions
+	 * public-key = “K:” *PKCHAR ; DER of ASN.1 SubjectPublicKeyInfo encoded in “base64” as per [13]
+	 * PKCHAR = ALPHANUMERIC / %x2b / %x2f / %x3d
+	 * DIGIT = %x30-39 HEXDIG = DIGIT / "A" / "B" / "C" / "D" / "E" / "F" ALPHA
+	 */
+	static std::map<dpp_uri_field, std::string> encode_bootstrap_data(ec_data_t *boot_data);
 
-    /**
-     * @brief Get the DPP URI field enum from a string
-     * 
-     * @param field_str The string to convert
-     * @return std::optional<dpp_uri_field> The DPP URI field enum, or std::nullopt if invalid
-     * 
-     * @note Using method instead of map to require mapping for new fields
-     */
-    static inline std::optional<dpp_uri_field> get_dpp_uri_field(const std::string &field_str)
+    
+	/**
+	 * @brief Get the DPP URI field enum from a string.
+	 *
+	 * This function converts a single-character string into a corresponding
+	 * DPP URI field enum. If the string does not represent a valid field,
+	 * the function returns std::nullopt.
+	 *
+	 * @param[in] field_str The string to convert. Must be a single character.
+	 *
+	 * @return std::optional<dpp_uri_field> The DPP URI field enum, or std::nullopt if invalid.
+	 *
+	 * @note This method is used instead of a map to ensure that new fields
+	 * require explicit mapping, thus preventing unnoticed errors.
+	 */
+	static inline std::optional<dpp_uri_field> get_dpp_uri_field(const std::string &field_str)
     {
         ASSERT_MSG_TRUE(field_str.length() == 1, std::nullopt, "Invalid DPP URI field string");
         char field = static_cast<char>(std::toupper(field_str[0]));
@@ -706,15 +932,20 @@ private:
         return std::nullopt;
     }
 
-    /**
-     * @brief Get the DPP URI field character from a field enum
-     * 
-     * @param field The field to convert
-     * @return std::optional<std::string> The DPP URI field character, or std::nullopt if invalid
-     * 
-     * @note Using method instead of map to require mapping for new fields
-     */
-    static inline std::optional<std::string> get_dpp_uri_field_char(dpp_uri_field field)
+    
+	/**
+	 * @brief Get the DPP URI field character from a field enum.
+	 *
+	 * This function maps a given DPP URI field enum to its corresponding
+	 * character representation. If the field is invalid, it returns std::nullopt.
+	 *
+	 * @param[in] field The field to convert.
+	 * @return std::optional<std::string> The DPP URI field character, or std::nullopt if invalid.
+	 *
+	 * @note This method is used instead of a map to ensure that new fields
+	 * require explicit mapping, thus preventing unnoticed errors.
+	 */
+	static inline std::optional<std::string> get_dpp_uri_field_char(dpp_uri_field field)
     {
         switch (field) {
         case dpp_uri_field::DPP_URI_VERSION:
