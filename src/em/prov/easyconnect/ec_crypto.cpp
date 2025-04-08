@@ -207,9 +207,32 @@ size_t ec_crypto::hkdf(const EVP_MD *h, bool skip_extract, uint8_t *ikm, size_t 
     size_t ret = 0;
     EVP_KDF *kdf = NULL;
     EVP_KDF_CTX *kctx = NULL;
-    OSSL_PARAM params[6], *p = params;
+    OSSL_PARAM params[6];
+    OSSL_PARAM *p = params;
     char *md_name = const_cast<char *>(EVP_MD_name(h));
     if (md_name == NULL) return 0;
+
+    if (okmlen == 0 || okm == NULL) {
+        printf("%s:%d: Invalid output key material length or buffer\n", __func__, __LINE__);
+        return 0;
+    }
+    if (h == NULL) {
+        printf("%s:%d: Invalid hash function\n", __func__, __LINE__);
+        return 0;
+    }
+    if (ikmlen == 0 || ikm == NULL) {
+        printf("%s:%d: Invalid input key material length or buffer\n", __func__, __LINE__);
+        return 0;
+    }
+    if (saltlen > 0 && salt == NULL) {
+        printf("%s:%d: Invalid salt\n", __func__, __LINE__);
+        return 0;
+    }
+    if (infolen > 0 && info == NULL) {
+        printf("%s:%d: Invalid info\n", __func__, __LINE__);
+        return 0;
+    }
+
     // Set the mode parameter (extract_only, expand_only, or extract_and_expand)
     int mode = EVP_KDF_HKDF_MODE_EXTRACT_AND_EXPAND;
     if (skip_extract) {
@@ -272,6 +295,27 @@ size_t ec_crypto::hkdf(const EVP_MD *h, bool skip_extract, uint8_t *ikm, size_t 
     uint8_t *digest;
     int len;
     int digest_len, prklen, tweaklen;
+
+    if (okmlen == 0 || okm == NULL) {
+        printf("%s:%d: Invalid output key material length or buffer\n", __func__, __LINE__);
+        return 0;
+    }
+    if (h == NULL) {
+        printf("%s:%d: Invalid hash function\n", __func__, __LINE__);
+        return 0;
+    }
+    if (ikmlen == 0 || ikm == NULL) {
+        printf("%s:%d: Invalid input key material length or buffer\n", __func__, __LINE__);
+        return 0;
+    }
+    if (saltlen > 0 && salt == NULL) {
+        printf("%s:%d: Invalid salt\n", __func__, __LINE__);
+        return 0;
+    }
+    if (infolen > 0 && info == NULL) {
+        printf("%s:%d: Invalid info\n", __func__, __LINE__);
+        return 0;
+    }
 
     digest_len = prklen = EVP_MD_size(h);
     if ((digest = reinterpret_cast<uint8_t*>(calloc(digest_len, 1))) == NULL) {
