@@ -93,6 +93,15 @@ public:
     bool send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency=0, unsigned int wait_time_ms=0) override;
 
     /**
+     * @brief Callback to determine if the mesh is capable of supporting additional onboarded APs.
+     * 
+     * Spec does not determine what the threshold for onboarding more APs is, so this is vendor/deployment specific.
+     * 
+     * @return true if the mesh can support an additional AP, otherwise false.
+     */
+    bool can_onboard_additional_aps();
+
+    /**
      * @brief Try to create a default EasymeshCfg.json file if one does not exist.
      * 
      * A default EasymeshCfg.json file only contains the `AL_MAC_ADDR` and `Colocated_mode` fields.

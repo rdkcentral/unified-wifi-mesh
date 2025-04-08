@@ -727,6 +727,12 @@ bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_f
     return true;
 }
 
+bool em_agent_t::can_onboard_additional_aps()
+{
+    // XXX: TODO: Real business logic!
+    return true;
+}
+
 
 void em_agent_t::input_listener()
 {
