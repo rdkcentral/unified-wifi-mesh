@@ -1556,7 +1556,7 @@ public:
 
     
 	/**!
-	 * @brief Retrieves the DPP object.
+	 * @brief Retrieves the Data Model DPP object.
 	 *
 	 * @returns A pointer to the dm_dpp_t object.
 	 */
