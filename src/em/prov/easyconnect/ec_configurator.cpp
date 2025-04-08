@@ -33,19 +33,19 @@ bool ec_configurator_t::onboard_enrollee(ec_data_t *bootstrapping_data)
 {
 
     if (bootstrapping_data == NULL) {
-        printf("%s:%d: Bootstrapping data is NULL\n", __func__, __LINE__);
+        em_printfout("Bootstrapping data is NULL");
         return false;
     }
     if (bootstrapping_data->version < 2) {
-        printf("%s:%d: Bootstrapping Version '%d' not supported!\n", __func__, __LINE__, bootstrapping_data->version);
+        em_printfout("Bootstrapping Version '%d' not supported!", bootstrapping_data->version);
         return false;
     }
     if (memcmp(bootstrapping_data->mac_addr, ZERO_MAC_ADDR, ETHER_ADDR_LEN) == 0) {
-        printf("%s:%d: Bootstrapping data MAC address is 0 \n", __func__, __LINE__);
+        em_printfout("Bootstrapping data MAC address is 0 ");
         return false;
     }
     if (bootstrapping_data->responder_boot_key == NULL) {
-        printf("%s:%d: Bootstrapping data initiator key is NULL\n", __func__, __LINE__);
+        em_printfout("Bootstrapping data initiator key is NULL");
         return false;
     }
 
@@ -53,7 +53,7 @@ bool ec_configurator_t::onboard_enrollee(ec_data_t *bootstrapping_data)
     // TODO: Not sure what to do if the MAC address is already in use
     std::string mac_str = util::mac_to_string(bootstrapping_data->mac_addr);
     if (m_connections.find(mac_str) != m_connections.end()) {
-        printf("%s:%d: Bootstrapping data MAC address already in use\n", __func__, __LINE__);
+        em_printfout("Bootstrapping data MAC address already in use");
         return false;
     }
     // Create a new connection context
@@ -75,7 +75,7 @@ bool ec_configurator_t::onboard_enrollee(ec_data_t *bootstrapping_data)
 
 
     if (c_ctx.boot_data.resp_pub_boot_key == NULL) {
-        printf("%s:%d Could not get responder bootstrap public key\n", __func__, __LINE__);
+        em_printfout("Could not get responder bootstrap public key");
         return false;
     }
 

@@ -245,12 +245,14 @@ void util::em_util_print(easymesh_log_level_t level, easymesh_dbg_type_t module,
     }
 
     get_formatted_time_em(time_buff);
-    snprintf(buff, sizeof(buff), "\n[%s] %s %s:%s:%d: %s: ", __progname ? __progname : "", time_buff, module_filename, func, line, severity);
+    snprintf(buff, sizeof(buff), "[%s] %s %s:%s:%d: %s: ", __progname ? __progname : "", time_buff, module_filename.c_str(), func, line, severity);
     fprintf(fp, "%s", buff);
 
     va_start(list, format);
     vfprintf(fp, format, list);
     va_end(list);
+
+    fprintf(fp, "\n");
 
     fflush(fp);
     if (fp != stdout) fclose (fp);
