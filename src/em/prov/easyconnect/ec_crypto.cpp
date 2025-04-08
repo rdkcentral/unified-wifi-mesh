@@ -734,7 +734,7 @@ std::optional<std::vector<cJSON*>> ec_crypto::split_decode_connector(const char*
     return decoded_parts;
 }
 
-const char * ec_crypto::generate_connector(const cJSON * jws_header, const cJSON * jws_payload, EVP_PKEY * sign_key)
+const char * ec_crypto::generate_connector(const cJSON * jws_header, const cJSON * jws_payload,  SSL_KEY* sign_key)
 {
     if (jws_header == NULL || jws_payload == NULL || sign_key == NULL) {
         em_printfout("Invalid input");

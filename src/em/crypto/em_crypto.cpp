@@ -730,7 +730,7 @@ std::optional<std::vector<uint8_t>> em_crypto_t::base64url_decode(const std::str
     return base64_decode(base64_input);
 }
 
-std::optional<std::vector<uint8_t>> em_crypto_t::sign_data_ecdsa(const std::vector<uint8_t>& data_to_sign, EVP_PKEY * private_key, const EVP_MD * md)
+std::optional<std::vector<uint8_t>> em_crypto_t::sign_data_ecdsa(const std::vector<uint8_t>& data_to_sign, EVP_PKEY* private_key, const EVP_MD * md)
 {
     // Create signature context
     #if OPENSSL_VERSION_NUMBER < 0x10100000L
@@ -1596,6 +1596,26 @@ bool em_crypto_t::verify_signature(const std::vector<uint8_t> &message,
     }
 
     bool result = verify_signature(message, signature, pkey, hash_function);
+
+    EVP_PKEY_free(pkey);
+    return result;
+}
+
+static std::optional<std::vector<uint8_t>> em_crypto_t::sign_data_ecdsa(const std::vector<uint8_t> &data_to_sign, EC_KEY *private_key, const EVP_MD *md = EVP_sha256())
+{
+    EVP_PKEY *pkey = EVP_PKEY_new();
+    if (!pkey) {
+        fprintf(stderr, "Failed to create EVP_PKEY\n");
+        return false;
+    }
+
+    if (EVP_PKEY_assign_EC_KEY(pkey, EC_KEY_dup(ec_key)) != 1) {
+        fprintf(stderr, "Failed to assign EC_KEY to EVP_PKEY\n");
+        EVP_PKEY_free(pkey);
+        return false;
+    }
+
+    auto result = sign_data_ecdsa(data_to_sign, pkey, md);
 
     EVP_PKEY_free(pkey);
     return result;
