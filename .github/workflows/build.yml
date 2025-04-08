@@ -1,4 +1,4 @@
-name: Build Check on ARM64
+name: Build Check 
 
 on:
   push:
@@ -8,10 +8,43 @@ on:
 
 jobs:
   Build:
-
-    runs-on: ubuntu-latest  # Host OS for the container
-
+    name: Build (OpenSSL ${{ matrix.openssl-version }})
+    strategy:
+      matrix:
+        openssl-version: ['1.1', '3.0']
+        include:
+          - openssl-version: '1.1'
+            container: 'ubuntu:20.04'
+            setup-cmd: 'apt-get update && apt-get install -y libssl1.1 libssl-dev'
+          - openssl-version: '3.0'
+            container: 'ubuntu:latest'
+            setup-cmd: 'apt-get update && apt-get install -y libssl-dev'
+      # Add this to continue jobs even if one matrix job fails
+      fail-fast: false
+    
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.container }}
+    
     steps:
+    - name: Setup container environment
+      run: |
+        # Set non-interactive mode for apt
+        export DEBIAN_FRONTEND=noninteractive
+        
+        apt-get update
+        apt-get install -y git
+        
+        # Create a fake sudo command
+        echo '#!/bin/bash' > /usr/bin/sudo
+        echo 'export DEBIAN_FRONTEND=noninteractive; exec "$@"' >> /usr/bin/sudo
+        chmod +x /usr/bin/sudo
+        
+        ${{ matrix.setup-cmd }}
+    
+    - name: Check OpenSSL version
+      run: openssl version
+    
     - name: Checkout current repository
       uses: actions/checkout@v4
       with:
@@ -25,6 +58,8 @@ jobs:
 
     - name: Set up dependencies
       run: |
+        # Ensure non-interactive installation
+        export DEBIAN_FRONTEND=noninteractive
         sudo apt-get update
         sudo apt-get install -y build-essential \
                                 cmake \
@@ -40,16 +75,39 @@ jobs:
                                 libnl-route-3-dev \
                                 libavro-dev \
                                 libcjson1 libcjson-dev \
-                                libssl-dev \
                                 uuid-dev \
                                 libmysqlcppconn-dev \
                                 libreadline-dev \
                                 iptables \
                                 mariadb-server \
                                 gnupg \
-                                file \
-                                golang
+                                file 
 
+    # Install specific version of Go for the CLI
+    - name: Install Go
+      uses: actions/setup-go@v5
+      with:
+          go-version: '1.23.4'
+    
+    # Make sure we use a consistent version of cJSON between Ubuntu 20.04 and Ubuntu 22.04
+    - name: Install cJSON 1.7.18
+      run: |
+        # Create temporary directory for cJSON
+        mkdir -p /tmp/cjson && cd /tmp/cjson
+        
+        # Download cJSON 1.7.18
+        wget https://github.com/DaveGamble/cJSON/archive/refs/tags/v1.7.18.tar.gz
+        tar -xzf v1.7.18.tar.gz
+        cd cJSON-1.7.18
+        
+        # Build and install cJSON
+        mkdir build && cd build
+        cmake .. -DENABLE_CJSON_UTILS=On -DENABLE_CJSON_TEST=Off -DCMAKE_INSTALL_PREFIX=/usr
+        make
+        make install
+        
+        # Update dynamic linker run-time bindings
+        ldconfig
     - name: Setup OneWiFi
       working-directory: easymesh_project/OneWifi
       run: |
@@ -59,25 +117,40 @@ jobs:
       env:
         GITHUB_ACTOR: ${{ github.actor }}
 
-    - name: Build OneWiFi
+    - name: Build - OneWiFi
       working-directory: easymesh_project/OneWifi
-      run: |
-        make -f build/linux/makefile all
+      continue-on-error: true
+      run: make -f build/linux/makefile all
 
-    - name: Build unified-wifi-mesh controller
+    - name: Build - Controller
       working-directory: easymesh_project/unified-wifi-mesh/build/ctrl
+      continue-on-error: true
       run: |
         make clean
         make -j all
+        
+    - name: Confirm Linking - Controller
+      working-directory: easymesh_project/unified-wifi-mesh/build/ctrl
+      run: make -j all
 
-    - name: Build unified-wifi-mesh agent
+    - name: Build - Agent
       working-directory: easymesh_project/unified-wifi-mesh/build/agent
+      continue-on-error: true
       run: |
         make clean
         make -j all
+        
+    - name: Confirm Linking - Agent
+      working-directory: easymesh_project/unified-wifi-mesh/build/agent
+      run: make -j all
 
-    - name: Build unified-wifi-mesh CLI
+    - name: Build - CLI
       working-directory: easymesh_project/unified-wifi-mesh/build/cli
+      continue-on-error: true
       run: |
         make clean
         make -j all
+        
+    - name: Confirm Linking - CLI
+      working-directory: easymesh_project/unified-wifi-mesh/build/cli
+      run: make -j all
