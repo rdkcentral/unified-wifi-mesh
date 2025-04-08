@@ -383,7 +383,7 @@ public:
      *   If “sig” is the result of the signature, the Connector is then:
      *   base64url(UTF8(JWS Protected Header)) | ‘.’ | base64url(JWS Payload) | ‘.’ | base64url(sig)
      */
-    static const char* generate_connector(const cJSON* jws_header, const cJSON* jws_payload, EVP_PKEY* sign_key);
+    static const char* generate_connector(const cJSON* jws_header, const cJSON* jws_payload, SSL_KEY* sign_key);
 
     /**
      * @brief Get the JWS Protected Header from a connector
