@@ -1602,13 +1602,13 @@ static std::optional<std::vector<uint8_t>> em_crypto_t::sign_data_ecdsa(const st
     EVP_PKEY *pkey = EVP_PKEY_new();
     if (!pkey) {
         fprintf(stderr, "Failed to create EVP_PKEY\n");
-        return false;
+        return std::nullopt;
     }
 
-    if (EVP_PKEY_assign_EC_KEY(pkey, EC_KEY_dup(ec_key)) != 1) {
+    if (EVP_PKEY_assign_EC_KEY(pkey, EC_KEY_dup(private_key)) != 1) {
         fprintf(stderr, "Failed to assign EC_KEY to EVP_PKEY\n");
         EVP_PKEY_free(pkey);
-        return false;
+        return std::nullopt;
     }
 
     auto result = sign_data_ecdsa(data_to_sign, pkey, md);
