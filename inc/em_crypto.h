@@ -387,6 +387,24 @@ public:
                                  const EVP_MD *hash_function);
 
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
+
+    /**
+    * Signs data using the provided private key and hashing algorithm with ECDSA
+    * 
+    * This overloaded function provides a convenient interface for verifying signatures
+    * with EC_KEY objects, which is useful for code that needs to work with 
+    * pre-OpenSSL 3.0 versions. It internally converts the EC_KEY to an EVP_PKEY
+    * and delegates to the primary verification function. 
+    * 
+    * @param data_to_sign The data string to be signed
+    * @param private_key OpenSSL EVP_PKEY pointer containing the private key
+    * @param md Digest method to use (defaults to SHA-256)
+    * @return Signature as vector of bytes or nullopt on failure
+    */
+    static std::optional<std::vector<uint8_t>> sign_data_ecdsa(const std::vector<uint8_t> &data_to_sign, 
+                                                               EC_KEY *private_key, 
+                                                               const EVP_MD *md = EVP_sha256());
+
     /**
      * @brief Verifies a digital signature using an EC_KEY (for pre-OpenSSL 3.0 compatibility)
      * 
@@ -402,8 +420,6 @@ public:
      * 
      * @return true if the signature is valid, false otherwise
      * 
-     * @note This function is intended for backward compatibility with code using the
-     *       EC_KEY interface directly. For new code, the EVP_PKEY version is preferred.
      */
     static bool verify_signature(const std::vector<uint8_t> &message,
                                  const std::vector<uint8_t> &signature, EC_KEY *ec_key,
