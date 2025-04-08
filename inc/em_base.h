@@ -2145,6 +2145,7 @@ typedef struct {
     mac_address_t   bssid;
     mac_address_t radiomac;
     bool associated;
+    em_string_t sta_client_type;
     em_long_string_t    timestamp;
     unsigned int    last_ul_rate;
     unsigned int    last_dl_rate;
