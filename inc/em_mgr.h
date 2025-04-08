@@ -96,6 +96,18 @@ public:
         return false;
     }
 
+    /**
+     * @brief Callback to determine if the mesh is capable of supporting additional onboarded APs.
+     * 
+     * Spec does not determine what the threshold for onboarding more APs is, so this is vendor/deployment specific.
+     * 
+     * @return true if the mesh can support an additional AP, otherwise false.
+     */
+    virtual bool can_onboard_additional_aps() {
+        printf("%s not implemented\n", __func__);
+        return true;
+    }
+
     virtual em_t *find_em_for_msg_type(unsigned char *data, unsigned int len, em_t *al_em) = 0;
     virtual int data_model_init(const char *data_model_path) = 0;
     virtual int orch_init() = 0;

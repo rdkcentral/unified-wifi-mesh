@@ -253,7 +253,6 @@ public:
     bool do_start_dpp_onboarding = false;
     bool do_regen_dpp_uri = false;
 
-    
 	/**!
 	 * @brief Listens for input events and processes them accordingly.
 	 *

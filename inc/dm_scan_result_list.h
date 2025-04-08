@@ -186,6 +186,7 @@ public:
 	 * client is initialized before calling this function.
 	 */
 	int set_config(db_client_t& db_client, const cJSON *obj, void *parent_id);
+  
     
 	/**!
 	 * @brief Sets the configuration for a scan result.

@@ -205,6 +205,7 @@ Authentication Request frame without replying to it.
     m_eph_ctx().m = ec_crypto::compute_ec_ss_x(m_c_ctx, m_boot_data().resp_priv_boot_key, m_eph_ctx().public_init_proto_key);
     const BIGNUM *bn_inputs[1] = { m_eph_ctx().m };
     // Compute the "first intermediate key" (k1)
+    m_eph_ctx().k1 = static_cast<uint8_t *>(calloc(m_c_ctx.digest_len, 1));
     if (ec_crypto::compute_hkdf_key(m_c_ctx, m_eph_ctx().k1, m_c_ctx.digest_len, "first intermediate key", bn_inputs, 1, NULL, 0) == 0) {
         printf("%s:%d: Failed to compute k1\n", __func__, __LINE__); 
         return false;
@@ -704,6 +705,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
     m_eph_ctx().n = ec_crypto::compute_ec_ss_x(m_c_ctx, m_eph_ctx().priv_resp_proto_key, m_eph_ctx().public_init_proto_key);
     const BIGNUM *bn_inputs[1] = { m_eph_ctx().n };
     // Compute the "second intermediate key" (k2)
+    m_eph_ctx().k2 = static_cast<uint8_t *>(calloc(m_c_ctx.digest_len, 1));
     if (ec_crypto::compute_hkdf_key(m_c_ctx, m_eph_ctx().k2, m_c_ctx.digest_len, "second intermediate key", bn_inputs, 1, NULL, 0) == 0) {
         printf("%s:%d: Failed to compute k2\n", __func__, __LINE__); 
         free(attribs);
@@ -732,6 +734,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
     
 
     // Compute k_e
+    m_eph_ctx().ke = static_cast<uint8_t *>(calloc(m_c_ctx.digest_len, 1));
     if (ec_crypto::compute_ke(m_c_ctx, &m_eph_ctx(), m_eph_ctx().ke) == 0){
         printf("%s:%d: Failed to compute ke\n", __func__, __LINE__);
         free(attribs);

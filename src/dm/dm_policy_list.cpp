@@ -128,7 +128,7 @@ int dm_policy_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, v
     cJSON *obj;
     dm_policy_t policy;
     dm_orch_type_t op;
-	unsigned int i, size;
+	int i, size;
 
     size = cJSON_GetArraySize(obj_arr);
 

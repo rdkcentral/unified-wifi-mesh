@@ -493,10 +493,15 @@ func (m *model) execSelectedCommand(cmdStr string, cmdType int) {
 	switch cmdType {
 	case GET:
 		if value.Title == DeviceOnboardingCmd {
-			nodes, err := readJSONFile("DPPURI.json")
+			nodes, err := readJSONFile("/tmp/DPPURI.json")
 			if err != nil {
-				spew.Fprintf(m.dump, "Error reading JSON file: %v\n", err)
-				return
+				// fallback
+				spew.Fprintf(m.dump, "Error reading /tmp/DPPURI.json, trying current working directory: %v\n", err)
+				nodes, err = readJSONFile("DPPURI.json")
+				if err != nil {
+					spew.Fprintf(m.dump, "Error reading fallback DPPURI.json: %v\n", err)
+					return
+				}
 			}
 			m.tree.SetNodes(nodes)
 			return

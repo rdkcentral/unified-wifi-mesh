@@ -672,6 +672,7 @@ int dm_easy_mesh_agent_t::analyze_scan_result(em_bus_event_t *evt, em_cmd_t *pcm
     unsigned int num = 0;
     dm_easy_mesh_agent_t  dm = *this;
     em_cmd_t *tmp;
+    cJSON *json, *scanner_mac_obj;
 
     webconfig_t config;
     webconfig_external_easymesh_t ext;
@@ -690,15 +691,22 @@ int dm_easy_mesh_agent_t::analyze_scan_result(em_bus_event_t *evt, em_cmd_t *pcm
         return 0;
     }
 
+    json = cJSON_Parse((const char *)evt->u.raw_buff);
+    scanner_mac_obj = cJSON_GetObjectItemCaseSensitive(json, "ScannerMac");
+    if ((scanner_mac_obj == NULL) || (cJSON_IsString(scanner_mac_obj) == false) || (scanner_mac_obj->valuestring == NULL) ) {
+        printf("%s:%d Unable to find scanner mac\n", __func__, __LINE__);
+        return 0;
+    }
+
     if ((webconfig_easymesh_decode(&config, (char *)evt->u.raw_buff, &ext, &type)) == webconfig_error_none) {
-        printf("%s:%d analyze_scan_result subdoc decode success\n",__func__, __LINE__);
+        printf("%s:%d scanner mac: %s - analyze_scan_result subdoc decode success\n",__func__, __LINE__, scanner_mac_obj->valuestring);
     } else {
-        printf("%s:%d analyze_scan_result subdoc decode fail\n",__func__, __LINE__);
+        printf("%s:%d scanner mac: %s - analyze_scan_result subdoc decode fail\n",__func__, __LINE__, scanner_mac_obj->valuestring);
     }
 
     em_cmd_params_t *evt_param = NULL;
     evt_param = &evt->params;
-    memcpy(evt_param->u.scan_params.ruid, get_radio_info(0)->intf.mac, sizeof(mac_address_t));
+    dm_easy_mesh_t::string_to_macbytes(scanner_mac_obj->valuestring, evt_param->u.scan_params.ruid);
 
     pcmd[num] = new em_cmd_scan_result_t(evt->params, dm);
     tmp = pcmd[num];

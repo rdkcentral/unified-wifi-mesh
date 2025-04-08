@@ -137,7 +137,6 @@ private:
         .configurator = 1,
         .reserved = 0
     }};
-
     
 	/**!
 	 * @brief Creates an authentication request for a given enrollee MAC address.

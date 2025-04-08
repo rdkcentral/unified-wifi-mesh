@@ -111,7 +111,6 @@ int dm_scan_result_list_t::set_config(db_client_t& db_client, dm_scan_result_t& 
 	res.result = scan_result.get_scan_result();
 	res.index = scan_result_self_index;
 	update_db(db_client, (op = get_dm_orch_type(db_client, scan_result, scan_result_self_index)), &res);
-	update_list(scan_result, scan_result_self_index, op);
 
 	for (i = 0; i < scan_result.m_scan_result.num_neighbors; i++) {
 		res.result = scan_result.get_scan_result();
@@ -180,7 +179,7 @@ void dm_scan_result_list_t::update_list(const dm_scan_result_t& scan_result, uns
 
     switch (op) {
         case dm_orch_type_db_insert:
-            put_scan_result(key, &scan_result);
+            put_scan_result(key, &scan_result, index);
             break;
 
         case dm_orch_type_db_update:
@@ -191,6 +190,9 @@ void dm_scan_result_list_t::update_list(const dm_scan_result_t& scan_result, uns
         case dm_orch_type_db_delete:
             remove_scan_result(key);
             break;
+
+		default:
+		    break;
     }
 }
 

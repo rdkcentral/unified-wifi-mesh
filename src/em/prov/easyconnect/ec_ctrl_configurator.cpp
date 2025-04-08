@@ -315,49 +315,15 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
     bool cannot_onboard_more = (m_can_onboard_additional_aps == nullptr || !m_can_onboard_additional_aps());
     if (cannot_onboard_more) {
         printf("%s:%d: DPP Configuration Request frame received, but we cannot onboard any more APs! Rejecting with status %s\n", __func__, __LINE__, ec_util::status_code_to_string(DPP_STATUS_CONFIGURATION_FAILURE).c_str());
-        auto [frame, frame_len] = ec_util::alloc_gas_frame(dpp_gas_action_type_t::dpp_gas_comeback_resp, session_dialog_token);
-        if (frame == nullptr || frame_len == 0) {
-            printf("%s:%d: Failed to create DPP Configuration Response frame!\n", __func__, __LINE__);
-            return false;
-        }
-        ec_gas_initial_response_frame_t *response_frame = reinterpret_cast<ec_gas_initial_response_frame_t *>(frame);
-        // XXX: Note: for GAS comeback case, all logic in this scope remains, but status code becomes STATUS_CONFIGURE_PENDING
-        ec_status_code_t dpp_status = DPP_STATUS_CONFIGURATION_FAILURE; // Seperate variable due to comeback case described above
-        
-        uint8_t *attribs = nullptr;
-        size_t attribs_len = 0;
-
-        // Configurator → Enrollee: DPP Status, { E-nonce }ke
-        attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_dpp_status, static_cast<uint8_t>(dpp_status));
-        attribs = ec_util::add_wrapped_data_attr(reinterpret_cast<uint8_t *>(response_frame), sizeof(ec_gas_initial_response_frame_t), attribs, &attribs_len, true, e_ctx->ke, [&](){
-            size_t wrapped_len = 0;
-            uint8_t *wrapped_attribs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, e_nonce_len, e_ctx->e_nonce);
-            return std::make_pair(wrapped_attribs, wrapped_len);
-        });
-        if ((response_frame = reinterpret_cast<ec_gas_initial_response_frame_t*>(ec_util::copy_attrs_to_frame(reinterpret_cast<uint8_t*>(response_frame), sizeof(ec_gas_initial_response_frame_t), attribs, attribs_len))) == nullptr) {
-            printf("%s:%d: Failed to copy attribs to DPP Configuration Response frame!\n", __func__, __LINE__);
-            free(attribs);
-            free(response_frame);
-            return false;
-        }
-        free(attribs);
-
-        response_frame->resp_len = static_cast<uint16_t>(attribs_len);
-        auto [proxy_encap_frame, proxy_encap_frame_len] = ec_util::create_encap_dpp_tlv(true, src_mac, ec_frame_type_easymesh, reinterpret_cast<uint8_t*>(response_frame), sizeof(*response_frame) + attribs_len);
-        if (proxy_encap_frame == nullptr || proxy_encap_frame_len == 0) {
-            printf("%s:%d: Could not create Proxied Encap DPP TLV!\n", __func__, __LINE__);
-            free(response_frame);
-            return false;
-        }
-        std::string status_code_str =  ec_util::status_code_to_string(dpp_status);
-        free(response_frame);
+        auto [config_response_frame, config_response_frame_len] = create_config_response_frame(src_mac, session_dialog_token, DPP_STATUS_CONFIGURATION_FAILURE);
+        std::string status_code_str =  ec_util::status_code_to_string(DPP_STATUS_CONFIGURATION_FAILURE);
 
         printf("%s:%d: Sending DPP Configuration Response frame for Enrollee '" MACSTRFMT "' over 1905 with DPP status code %s\n", __func__, __LINE__, MAC2STR(src_mac), status_code_str.c_str());
-        bool sent = m_send_prox_encap_dpp_msg(proxy_encap_frame, proxy_encap_frame_len, nullptr, proxy_encap_frame_len);
+        bool sent = m_send_prox_encap_dpp_msg(reinterpret_cast<em_encap_dpp_t*>(config_response_frame), config_response_frame_len, nullptr, config_response_frame_len);
         if (!sent) {
             printf("%s:%d: Failed to send DPP Configuration Response for Enrollee '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(src_mac));
         }
-        free(proxy_encap_frame);
+        free(config_response_frame);
         return sent;
     }
 
@@ -428,160 +394,15 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
         "Credentials."
     );
 
-    // Parse attributes to determine which DPP Configuration Request Object(s) we need to create and reply with.
-    cJSON *configuration_request_object = cJSON_ParseWithLength(dpp_config_request_obj_str.c_str(), dpp_config_request_obj_str.length());
-    ASSERT_NOT_NULL(configuration_request_object, false, "%s:%d: Failed to parse DPP Configuration Request object!\n", __func__, __LINE__);
-    printf("%s:%d: Received JSON configuration request object:\n%s\n", __func__, __LINE__, cJSON_Print(configuration_request_object));
-
-    conn_ctx->ppk = ec_crypto::create_ppkey_public(conn_ctx->C_signing_key);
-    ASSERT_NOT_NULL(conn_ctx->ppk, false, "%s:%d: Failed to generate ppK!\n", __func__, __LINE__);
-    
-    // Create 1905.1 Configuration Object
-    cJSON *ieee1905_config_obj = nullptr;
-    ASSERT_NOT_NULL(m_get_1905_info, false, "%s:%d: Cannot generate 1905 Configuration Object, no callback!\n", __func__, __LINE__);
-    {
-        // EasyMesh 5.3.3
-        // If a Multi-AP Controller sends a DPP Configuration Object for the 1905-layer, it shall set the fields described in Table 6 as
-        // follows:
-        // - DPP Configuration Object
-        // - wi-fi_tech = "map"
-        // - Decryption Failure Counter threshold
-        // - Credential Object
-        // o akm = dpp
-        // o DPP Connector with netRole = "mapAgent"
-        // o C-sign-key
-        ieee1905_config_obj = m_get_1905_info(conn_ctx);
-        ASSERT_NOT_NULL(ieee1905_config_obj, false, "%s:%d: Get 1905 info callback returned nullptr!\n", __func__, __LINE__);
-        cJSON *cred = cJSON_GetObjectItem(ieee1905_config_obj, "cred");
-        ASSERT_NOT_NULL_FREE(cred, false, ieee1905_config_obj, "%s:%d: Could not get \"cred\" from IEEE1905 DPP Configuration Object\n", __func__, __LINE__);
-        // Create / add Connector.
-
-        // Header
-        cJSON *jwsHeaderObj = ec_crypto::create_jws_header("dppCon", conn_ctx->C_signing_key);
-
-        // Payload
-        std::vector<std::unordered_map<std::string, std::string>> groups = {
-            {{"groupID", "mapNW"}, {"netRole", "mapAgent"}}
-        };
-        
-        cJSON *jwsPayloadObj = ec_crypto::create_jws_payload(*conn_ctx, groups, conn_ctx->net_access_key);
-        // Create / add connector
-        const char *connector = ec_crypto::generate_connector(jwsHeaderObj, jwsPayloadObj, conn_ctx->C_signing_key);
-        cJSON_AddStringToObject(cred, "signedConnector", connector);
-
-        // Add csign
-        cJSON *cSignObj = ec_crypto::create_csign_object(*conn_ctx, conn_ctx->C_signing_key);
-        cJSON_AddItemToObject(cred, "csign", cSignObj);
-
-        // Add ppKey
-        cJSON *ppKeyObj = ec_crypto::create_ppkey_object(*conn_ctx);
-        cJSON_AddItemToObject(cred, "ppKey", ppKeyObj);
+    auto [config_response_frame, config_response_frame_len] = create_config_response_frame(src_mac, session_dialog_token, DPP_STATUS_OK);
+    if (config_response_frame == nullptr || config_response_frame_len == 0) {
+        printf("%s:%d: Failed to create Configuration Respone frame\n", __func__, __LINE__);
+        return false;
     }
-
-
-
-    bool needs_bsta_config_response = true;
-    cJSON *bsta_config_object = nullptr;
-    if (needs_bsta_config_response) {
-        // Ensure callback exists.
-        ASSERT_NOT_NULL(m_get_backhaul_sta_info, false, "%s:%d: Enrollee '" MACSTRFMT "' requests bSTA config, but bSTA config callback is nullptr!\n", __func__, __LINE__, MAC2STR(src_mac));
-        bsta_config_object = m_get_backhaul_sta_info(conn_ctx);
-        ASSERT_NOT_NULL(bsta_config_object, false, "%s:%d: Could not create bSTA configuration object.\n", __func__, __LINE__);
-        // If a Multi-AP Controller sends a DPP Configuration Object for the backhaul STA, it shall set the fields described in Table 6
-        // as follows:
-        // - DPP Configuration Object
-        // - wi-fi_tech = "map"
-        // - Discovery Object
-        // - SSID
-        // - Credential Object
-        // - akm = AKM suite selectors configured for the backhaul BSS and supported by the backhaul STA
-        // as indicated in the DPP Configuration Request object.
-        // - DPP Connector with netRole = "mapBackhaulSta"
-        // - C-sign-key
-        // - Pre-shared key
-        // - WPA2 Passphrase and/or SAE password
-
-        cJSON *cred = cJSON_GetObjectItem(bsta_config_object, "cred");
-        ASSERT_NOT_NULL_FREE(cred, false, bsta_config_object, "%s:%d: Could not get \"cred\" from IEEE1905 DPP Configuration Object\n", __func__, __LINE__);
-
-        // Create / add Connector.
-
-        // Header
-
-        cJSON *jwsHeaderObj = ec_crypto::create_jws_header("dppCon", conn_ctx->C_signing_key);
-
-        std::vector<std::unordered_map<std::string, std::string>> groups = {
-            {{"groupID", "mapNW"}, {"netRole", "mapBackhaulSta"}}
-        };
-
-        // Payload
-
-        cJSON *jwsPayloadObj = ec_crypto::create_jws_payload(*conn_ctx, groups, conn_ctx->net_access_key);
-
-        // Create connector
-        const char *connector = ec_crypto::generate_connector(jwsHeaderObj, jwsPayloadObj, conn_ctx->C_signing_key);
-
-        cJSON_AddStringToObject(cred, "signedConnector", connector);
-
-        // Add csign.
-
-        cJSON *cSignObj = ec_crypto::create_csign_object(*conn_ctx, conn_ctx->C_signing_key);
-
-        cJSON_AddItemToObject(cred, "csign", cSignObj);
-
-        // Add ppKey
-
-        cJSON *ppKeyObj = ec_crypto::create_ppkey_object(*conn_ctx);
-        cJSON_AddItemToObject(cred, "ppKey", ppKeyObj);
-
-    }
-
-    std::string ieee1905_config_obj_str =  cjson_utils::stringify(ieee1905_config_obj);
-    std::string bsta_config_object_str = cjson_utils::stringify(bsta_config_object);
-
-    // For debugging
-    {
-        printf("%s:%d: IEEE1905 Configuration Object:\n%s\n", __func__, __LINE__, ieee1905_config_obj_str.c_str());
-        printf("%s:%d: bSTA Configuration Object:\n%s\n", __func__, __LINE__, bsta_config_object_str.c_str());
-    }
-
-    cJSON_Delete(ieee1905_config_obj);
-    cJSON_Delete(bsta_config_object);
-
-    // Create DPP Configuration frame.
-    auto [frame, frame_len] = ec_util::alloc_gas_frame(dpp_gas_action_type_t::dpp_gas_initial_resp, session_dialog_token);
-    ASSERT_NOT_NULL(frame, false, "%s:%d: Could not allocate DPP Configuration Response frame!\n", __func__, __LINE__);
-    ec_gas_initial_response_frame_t *response_frame = reinterpret_cast<ec_gas_initial_response_frame_t *>(frame);
-
-    uint8_t *attribs = nullptr;
-    size_t attribs_len = 0;
-    // Configurator → Enrollee: DPP Status, { E-nonce, configurationPayload [, sendConnStatus]}ke
-    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_dpp_status, static_cast<uint8_t>(DPP_STATUS_OK));
-    attribs = ec_util::add_wrapped_data_attr(reinterpret_cast<uint8_t *>(response_frame), sizeof(ec_gas_initial_response_frame_t), attribs, &attribs_len, true, e_ctx->ke, [&]() {
-        size_t wrapped_len = 0;
-        uint8_t *wrapped_attribs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, e_nonce_len, e_ctx->e_nonce);
-        wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_obj, ieee1905_config_obj_str);
-        wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_obj, bsta_config_object_str);
-        return std::make_pair(wrapped_attribs, wrapped_len);
-    });
-
-    response_frame = reinterpret_cast<ec_gas_initial_response_frame_t*>(ec_util::copy_attrs_to_frame(reinterpret_cast<uint8_t*>(response_frame), sizeof(ec_gas_initial_response_frame_t), attribs, attribs_len));
-    free(attribs);
-    ASSERT_NOT_NULL(response_frame, false, "%s:%d: Failed to copy attributes to DPP Configuration frame!\n", __func__, __LINE__);
-    response_frame->resp_len = static_cast<uint16_t>(attribs_len);
-
-    // If a Multi-AP Controller receives a Proxied Encap DPP message from an Enrollee Multi-AP Agent carrying a DPP
-    // Configuration Request frame, it shall generate a DPP Configuration Response frame and include one DPP Configuration
-    // Object for the 1905-layer and one DPP Configuration Object for the backhaul STA of the Enrollee, encapsulate them into
-    // a 1905 Encap DPP TLV, set the DPP Frame Indicator bit to one, set the Enrollee MAC Address Present bit to one, set the
-    // Frame Type field to 255 and include the Enrollee MAC Address into the Destination STA MAC Address field. 
-    auto [encap_response_frame, encap_response_frame_len] = ec_util::create_encap_dpp_tlv(true, src_mac, ec_frame_type_easymesh, reinterpret_cast<uint8_t*>(response_frame), frame_len + attribs_len);
-    ASSERT_NOT_NULL(encap_response_frame, false, "%s:%d: Failed to alloc DPP Configuration frame!\n", __func__, __LINE__);
-    bool sent = m_send_prox_encap_dpp_msg(encap_response_frame, encap_response_frame_len, nullptr, 0);
+    bool sent = m_send_prox_encap_dpp_msg(reinterpret_cast<em_encap_dpp_t*>(config_response_frame), config_response_frame_len, nullptr, 0);
     if (!sent) {
         printf("%s:%d: Failed to send Proxied Encap DPP message containing DPP Configuration frame to '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(src_mac));
-        free(encap_response_frame);
-        free(response_frame);
+        free(config_response_frame);
         return false;
     }
     return true;
@@ -660,6 +481,7 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
     e_ctx->n = ec_crypto::compute_ec_ss_x(*conn_ctx, e_ctx->priv_init_proto_key, e_ctx->public_resp_proto_key);
     const BIGNUM *bn_inputs[1] = { e_ctx->n };
     // Compute the "second intermediate key" (k2)
+    e_ctx->k2 = static_cast<uint8_t *>(calloc(conn_ctx->digest_len, 1));
     if (ec_crypto::compute_hkdf_key(*conn_ctx, e_ctx->k2, conn_ctx->digest_len, "second intermediate key", bn_inputs, 1, NULL, 0) == 0) {
         printf("%s:%d: Failed to compute k2\n", __func__, __LINE__); 
         return false;
@@ -760,6 +582,7 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
         e_ctx->l = L_x;
     }
 
+    e_ctx->k1 = static_cast<uint8_t *>(calloc(conn_ctx->digest_len, 1));
     if (ec_crypto::compute_ke(*conn_ctx, e_ctx, e_ctx->ke) == 0) {
         printf("%s:%d: Failed to compute ke\n", __func__, __LINE__);
         free(prim_unwrapped_data);
@@ -909,6 +732,7 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_auth_request(std::st
     auto [priv_init_proto_key, pub_init_proto_key] = ec_crypto::generate_proto_keypair(*conn_ctx);
     if (priv_init_proto_key == NULL || pub_init_proto_key == NULL) {
         printf("%s:%d failed to generate initiator protocol key pair\n", __func__, __LINE__);
+        free(frame);
         return {};
     }
     e_ctx->priv_init_proto_key = const_cast<BIGNUM*>(priv_init_proto_key);
@@ -920,8 +744,10 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_auth_request(std::st
     e_ctx->m = ec_crypto::compute_ec_ss_x(*conn_ctx, e_ctx->priv_init_proto_key, conn_ctx->boot_data.resp_pub_boot_key);
     const BIGNUM *bn_inputs[1] = { e_ctx->m };
     // Compute the "first intermediate key" (k1)
+    e_ctx->k1 = static_cast<uint8_t *>(calloc(conn_ctx->digest_len, 1));
     if (ec_crypto::compute_hkdf_key(*conn_ctx, e_ctx->k1, conn_ctx->digest_len, "first intermediate key", bn_inputs, 1, NULL, 0) == 0) {
-        printf("%s:%d: Failed to compute k1\n", __func__, __LINE__); 
+        printf("%s:%d: Failed to compute k1\n", __func__, __LINE__);
+        free(frame);
         return {};
     }
 
@@ -1116,7 +942,160 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_recfg_auth_confirm(s
     return std::make_pair(reinterpret_cast<uint8_t*>(frame), EC_FRAME_BASE_SIZE + attribs_len);
 }
 
-std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response()
+cJSON *ec_ctrl_configurator_t::finalize_config_obj(cJSON *base, ec_connection_context_t& conn_ctx, dpp_config_obj_type_e config_obj_type)
 {
-    return {};
+    if (base == nullptr) {
+        printf("%s:%d: Based a nullptr base Configuration object\n", __func__, __LINE__);
+        return nullptr;
+    }
+
+    std::vector<std::unordered_map<std::string, std::string>> groups;
+
+    switch(config_obj_type) {
+        case dpp_config_obj_type_e::dpp_config_obj_bsta: {
+            groups = {
+                {{"groupID", "mapNW"}, {"netRole", "mapBackhaulSta"}}
+            };
+            break;
+        }
+        case dpp_config_obj_type_e::dpp_config_obj_ieee1905: {
+            groups = {
+                {{"groupID", "mapNW"}, {"netRole", "mapAgent"}}
+            };
+            break;
+        }
+        default: {
+            printf("%s:%d: Unknown DPP Configuration object type %d\n", __func__, __LINE__, static_cast<int>(config_obj_type));
+            return nullptr;
+        }
+    }
+
+    cJSON *cred = cJSON_GetObjectItem(base, "cred");
+    ASSERT_NOT_NULL_FREE(cred, nullptr, base, "%s:%d: Could not get \"cred\" from IEEE1905 DPP Configuration Object\n", __func__, __LINE__);
+    // Create / add Connector.
+
+    // Header
+    cJSON *jwsHeaderObj = ec_crypto::create_jws_header("dppCon", conn_ctx.C_signing_key);
+
+    cJSON *jwsPayloadObj = ec_crypto::create_jws_payload(conn_ctx, groups, conn_ctx.net_access_key);
+    // Create / add connector
+    const char *connector = ec_crypto::generate_connector(jwsHeaderObj, jwsPayloadObj, conn_ctx.C_signing_key);
+    cJSON_AddStringToObject(cred, "signedConnector", connector);
+
+    // Add csign
+    cJSON *cSignObj = ec_crypto::create_csign_object(conn_ctx, conn_ctx.C_signing_key);
+    cJSON_AddItemToObject(cred, "csign", cSignObj);
+
+    // Add ppKey
+    cJSON *ppKeyObj = ec_crypto::create_ppkey_object(conn_ctx);
+    cJSON_AddItemToObject(cred, "ppKey", ppKeyObj);
+    return base;
+}
+
+std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_frame(uint8_t dest_mac[ETH_ALEN], const uint8_t dialog_token, ec_status_code_t dpp_status)
+{
+    const std::string enrollee_mac = util::mac_to_string(dest_mac);
+    auto conn_ctx = get_conn_ctx(enrollee_mac);
+    auto e_ctx = get_eph_ctx(enrollee_mac);
+    ASSERT_NOT_NULL(conn_ctx, {}, "%s:%d: No connection context for Enrollee '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(enrollee_mac.c_str()));
+    ASSERT_NOT_NULL(e_ctx, {}, "%s:%d: No ephemeral context found for Enrollee '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(enrollee_mac.c_str()));
+
+    if (dpp_status != DPP_STATUS_OK) {
+        auto [frame, frame_len] = ec_util::alloc_gas_frame(dpp_gas_action_type_t::dpp_gas_initial_resp, dialog_token);
+        if (frame == nullptr || frame_len == 0) {
+            printf("%s:%d: Failed to create DPP Configuration Response frame!\n", __func__, __LINE__);
+            return {};
+        }
+        ec_gas_initial_response_frame_t *response_frame = reinterpret_cast<ec_gas_initial_response_frame_t *>(frame);
+
+        uint8_t *attribs = nullptr;
+        size_t attribs_len = 0;
+
+        // Configurator → Enrollee: DPP Status, { E-nonce }ke
+        attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_dpp_status, static_cast<uint8_t>(dpp_status));
+        attribs = ec_util::add_wrapped_data_attr(reinterpret_cast<uint8_t *>(response_frame), sizeof(ec_gas_initial_response_frame_t), attribs, &attribs_len, true, e_ctx->ke, [&](){
+            size_t wrapped_len = 0;
+            uint8_t *wrapped_attribs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, conn_ctx->nonce_len, e_ctx->e_nonce);
+            return std::make_pair(wrapped_attribs, wrapped_len);
+        });
+        if ((response_frame = reinterpret_cast<ec_gas_initial_response_frame_t*>(ec_util::copy_attrs_to_frame(reinterpret_cast<uint8_t*>(response_frame), sizeof(ec_gas_initial_response_frame_t), attribs, attribs_len))) == nullptr) {
+            printf("%s:%d: Failed to copy attribs to DPP Configuration Response frame!\n", __func__, __LINE__);
+            free(response_frame);
+            return {};
+        }
+        free(attribs);
+
+        response_frame->resp_len = static_cast<uint16_t>(attribs_len);
+
+        auto [proxy_encap_frame, proxy_encap_frame_len] = ec_util::create_encap_dpp_tlv(true, dest_mac, ec_frame_type_easymesh, reinterpret_cast<uint8_t*>(response_frame), sizeof(*response_frame) + attribs_len);
+        if (proxy_encap_frame == nullptr || proxy_encap_frame_len == 0) {
+            printf("%s:%d: Could not create Proxied Encap DPP TLV!\n", __func__, __LINE__);
+            free(response_frame);
+            return {};
+        }
+        return std::make_pair(reinterpret_cast<uint8_t*>(proxy_encap_frame), proxy_encap_frame_len);
+    }
+
+    // DPP_STATUS_OK case.
+
+    // Construct Configuration objects for bSTA and 1905.
+    conn_ctx->ppk = ec_crypto::create_ppkey_public(conn_ctx->C_signing_key);
+    ASSERT_NOT_NULL(conn_ctx->ppk, {}, "%s:%d: Failed to generate ppK!\n", __func__, __LINE__);
+    ASSERT_NOT_NULL(m_get_1905_info, {}, "%s:%d: Cannot generate 1905 Configuration Object, no callback!\n", __func__, __LINE__);
+    ASSERT_NOT_NULL(m_get_backhaul_sta_info, {}, "%s:%d: Enrollee '" MACSTRFMT "' requests bSTA config, but bSTA config callback is nullptr!\n", __func__, __LINE__, MAC2STR(dest_mac));
+    cJSON *ieee1905_config_obj = m_get_1905_info(conn_ctx);
+    cJSON *bsta_config_obj = m_get_backhaul_sta_info(conn_ctx);
+    if (ieee1905_config_obj == nullptr || bsta_config_obj == nullptr) {
+        printf("%s:%d: Failed to create bSTA and/or IEEE1905 Configuration object(s)\n", __func__, __LINE__);
+        return {};
+    }
+
+    if ((ieee1905_config_obj = finalize_config_obj(ieee1905_config_obj, *conn_ctx, dpp_config_obj_ieee1905)) == nullptr) {
+        printf("%s:%d: Failed to create IEEE1905 Configuration object\n", __func__, __LINE__);
+        cJSON_Delete(ieee1905_config_obj);
+        cJSON_Delete(bsta_config_obj);
+        return {};
+    }
+
+    if ((bsta_config_obj = finalize_config_obj(bsta_config_obj, *conn_ctx, dpp_config_obj_bsta)) == nullptr) {
+        printf("%s:%d: Failed to create bSTA Configuration object", __func__, __LINE__);
+        cJSON_Delete(ieee1905_config_obj);
+        cJSON_Delete(bsta_config_obj);
+        return {};
+    }
+
+    std::string ieee1905_config_obj_str = cjson_utils::stringify(ieee1905_config_obj);
+    std::string bsta_config_obj_str = cjson_utils::stringify(bsta_config_obj);
+    cJSON_Delete(ieee1905_config_obj);
+    cJSON_Delete(bsta_config_obj);
+    // For debugging
+    printf("%s:%d: IEEE1905 Configuration object:\n%s\n", __func__, __LINE__, ieee1905_config_obj_str.c_str());
+    printf("%s:%d: bSTA Configuration object:\n%s\n", __func__, __LINE__, bsta_config_obj_str.c_str());
+
+    // Create DPP Configuration frame.
+    auto [frame, frame_len] = ec_util::alloc_gas_frame(dpp_gas_action_type_t::dpp_gas_initial_resp, dialog_token);
+    ASSERT_NOT_NULL(frame, {}, "%s:%d: Could not allocate DPP Configuration Response frame!\n", __func__, __LINE__);
+    ec_gas_initial_response_frame_t *response_frame = reinterpret_cast<ec_gas_initial_response_frame_t *>(frame);
+
+    uint8_t *attribs = nullptr;
+    size_t attribs_len = 0;
+    // Configurator → Enrollee: DPP Status, { E-nonce, configurationPayload [, sendConnStatus]}ke
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_dpp_status, static_cast<uint8_t>(DPP_STATUS_OK));
+    attribs = ec_util::add_wrapped_data_attr(reinterpret_cast<uint8_t *>(response_frame), sizeof(ec_gas_initial_response_frame_t), attribs, &attribs_len, true, e_ctx->ke, [&]() {
+        size_t wrapped_len = 0;
+        uint8_t *wrapped_attribs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, conn_ctx->nonce_len, e_ctx->e_nonce);
+        wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_obj, ieee1905_config_obj_str);
+        wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_obj, bsta_config_obj_str);
+        return std::make_pair(wrapped_attribs, wrapped_len);
+    });
+
+    response_frame = reinterpret_cast<ec_gas_initial_response_frame_t*>(ec_util::copy_attrs_to_frame(reinterpret_cast<uint8_t*>(response_frame), sizeof(ec_gas_initial_response_frame_t), attribs, attribs_len));
+    free(attribs);
+    ASSERT_NOT_NULL(response_frame, {}, "%s:%d: Failed to copy attributes to DPP Configuration frame!\n", __func__, __LINE__);
+    response_frame->resp_len = static_cast<uint16_t>(attribs_len);
+    auto [encap_response_frame, encap_response_frame_len] = ec_util::create_encap_dpp_tlv(true, dest_mac, ec_frame_type_easymesh, reinterpret_cast<uint8_t*>(response_frame), frame_len + attribs_len);
+    ASSERT_NOT_NULL(encap_response_frame, {}, "%s:%d: Failed to alloc DPP Configuration frame!\n", __func__, __LINE__);
+
+
+    return std::make_pair(reinterpret_cast<uint8_t*>(encap_response_frame), encap_response_frame_len);
 }
