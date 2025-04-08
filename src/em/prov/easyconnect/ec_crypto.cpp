@@ -156,7 +156,7 @@ size_t ec_crypto::compute_ke(ec_connection_context_t& c_ctx, ec_ephemeral_contex
     size_t total_nonce_len = c_ctx.nonce_len * 2;
     uint8_t *nonces = new uint8_t[total_nonce_len]();
     if (nonces == NULL) {
-        printf("%s:%d: Failed to allocate memory for nonces\n", __func__, __LINE__);
+        em_printfout("Failed to allocate memory for nonces");
         return 0;
     }
     
@@ -169,7 +169,7 @@ size_t ec_crypto::compute_ke(ec_connection_context_t& c_ctx, ec_ephemeral_contex
     const BIGNUM **x_val_array = new const BIGNUM*[x_count]();
     if (x_val_array == NULL) {
         delete[] nonces;
-        printf("%s:%d: Failed to allocate memory for X values\n", __func__, __LINE__);
+        em_printfout("Failed to allocate memory for X values");
         return 0;
     }
     
@@ -213,23 +213,23 @@ size_t ec_crypto::hkdf(const EVP_MD *h, bool skip_extract, uint8_t *ikm, size_t 
     if (md_name == NULL) return 0;
 
     if (okmlen == 0 || okm == NULL) {
-        printf("%s:%d: Invalid output key material length or buffer\n", __func__, __LINE__);
+        em_printfout("Invalid output key material length or buffer");
         return 0;
     }
     if (h == NULL) {
-        printf("%s:%d: Invalid hash function\n", __func__, __LINE__);
+        em_printfout("Invalid hash function");
         return 0;
     }
     if (ikmlen == 0 || ikm == NULL) {
-        printf("%s:%d: Invalid input key material length or buffer\n", __func__, __LINE__);
+        em_printfout("Invalid input key material length or buffer");
         return 0;
     }
     if (saltlen > 0 && salt == NULL) {
-        printf("%s:%d: Invalid salt\n", __func__, __LINE__);
+        em_printfout("Invalid salt");
         return 0;
     }
     if (infolen > 0 && info == NULL) {
-        printf("%s:%d: Invalid info\n", __func__, __LINE__);
+        em_printfout("Invalid info");
         return 0;
     }
 
@@ -297,23 +297,23 @@ size_t ec_crypto::hkdf(const EVP_MD *h, bool skip_extract, uint8_t *ikm, size_t 
     int digest_len, prklen, tweaklen;
 
     if (okmlen == 0 || okm == NULL) {
-        printf("%s:%d: Invalid output key material length or buffer\n", __func__, __LINE__);
+        em_printfout("Invalid output key material length or buffer");
         return 0;
     }
     if (h == NULL) {
-        printf("%s:%d: Invalid hash function\n", __func__, __LINE__);
+        em_printfout("Invalid hash function");
         return 0;
     }
     if (ikmlen == 0 || ikm == NULL) {
-        printf("%s:%d: Invalid input key material length or buffer\n", __func__, __LINE__);
+        em_printfout("Invalid input key material length or buffer");
         return 0;
     }
     if (saltlen > 0 && salt == NULL) {
-        printf("%s:%d: Invalid salt\n", __func__, __LINE__);
+        em_printfout("Invalid salt");
         return 0;
     }
     if (infolen > 0 && info == NULL) {
-        printf("%s:%d: Invalid info\n", __func__, __LINE__);
+        em_printfout("Invalid info");
         return 0;
     }
 
@@ -512,7 +512,7 @@ bool ec_crypto::init_connection_ctx(ec_connection_context_t& c_ctx, const SSL_KE
     c_ctx.bn_ctx = BN_CTX_new();
 
     if (!c_ctx.prime || !c_ctx.bn_ctx) {
-        printf("%s:%d Some BN NULL\n", __func__, __LINE__);
+        em_printfout("Some BN NULL");
         BN_free(c_ctx.prime);
         BN_CTX_free(c_ctx.bn_ctx);
         return false;
@@ -529,7 +529,7 @@ bool ec_crypto::init_connection_ctx(ec_connection_context_t& c_ctx, const SSL_KE
 
     c_ctx.nid = EC_GROUP_get_curve_name(c_ctx.group);
 
-    //printf("%s:%d nid: %d\n", __func__, __LINE__, c_ctx.nid);
+    //em_printfout("nid: %d", c_ctx.nid);
     switch (c_ctx.nid) {
         case NID_X9_62_prime256v1:
             c_ctx.digest_len = SHA256_DIGEST_LENGTH;
@@ -552,7 +552,7 @@ bool ec_crypto::init_connection_ctx(ec_connection_context_t& c_ctx, const SSL_KE
             c_ctx.hash_fcn = EVP_sha256();
             break;
         default:
-            printf("%s:%d nid:%d not handled\n", __func__, __LINE__, c_ctx.nid);
+            em_printfout("nid:%d not handled", c_ctx.nid);
             BN_free(c_ctx.order);
             BN_free(c_ctx.prime);
             BN_CTX_free(c_ctx.bn_ctx);
@@ -563,7 +563,7 @@ bool ec_crypto::init_connection_ctx(ec_connection_context_t& c_ctx, const SSL_KE
 
     // Fetch prime
     if (EC_GROUP_get_curve(c_ctx.group, c_ctx.prime, NULL, NULL, c_ctx.bn_ctx) == 0) {
-        printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
+        em_printfout("unable to get x, y of the curve");
         BN_free(c_ctx.order);
         BN_free(c_ctx.prime);
         BN_CTX_free(c_ctx.bn_ctx);
@@ -592,7 +592,7 @@ scoped_buff ec_crypto::encode_ec_point(ec_connection_context_t &c_ctx, const EC_
     scoped_bn y(BN_new());
 
     if (EC_POINT_get_affine_coordinates(c_ctx.group, point, x.get(), y.get(), c_ctx.bn_ctx) == 0) {
-        printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
+        em_printfout("unable to get x, y of the curve");
         return nullptr;
     }
 
@@ -600,7 +600,7 @@ scoped_buff ec_crypto::encode_ec_point(ec_connection_context_t &c_ctx, const EC_
 
     uint8_t *key_buff = reinterpret_cast<uint8_t *>(calloc(static_cast<size_t>(2 * prime_len), 1));
     if (key_buff == NULL) {
-        printf("%s:%d unable to allocate memory\n", __func__, __LINE__);
+        em_printfout("unable to allocate memory");
         return nullptr;
     }
     
@@ -616,7 +616,7 @@ scoped_buff ec_crypto::encode_ec_point(ec_connection_context_t &c_ctx, const EC_
 EC_POINT *ec_crypto::decode_ec_point(ec_connection_context_t &c_ctx, const uint8_t *key_buff)
 {
     if (key_buff == NULL) {
-        printf("%s:%d null protocol key buffer\n", __func__, __LINE__);
+        em_printfout("null protocol key buffer");
         return NULL;
     }
 
@@ -626,23 +626,23 @@ EC_POINT *ec_crypto::decode_ec_point(ec_connection_context_t &c_ctx, const uint8
     EC_POINT *point = EC_POINT_new(c_ctx.group);
     
     if (x == NULL || y == NULL) {
-        printf("%s:%d unable to convert buffer to BIGNUMs\n", __func__, __LINE__);
+        em_printfout("unable to convert buffer to BIGNUMs");
         goto err;
     }
     
     if (point == NULL) {
-        printf("%s:%d unable to create EC_POINT\n", __func__, __LINE__);
+        em_printfout("unable to create EC_POINT");
         goto err;
     }
 
     if (EC_POINT_set_affine_coordinates(c_ctx.group, point, x, y, c_ctx.bn_ctx) == 0) {
-        printf("%s:%d unable to set coordinates for the point\n", __func__, __LINE__);
+        em_printfout("unable to set coordinates for the point");
         goto err;
     }
 
     // Verify the point is on the curve
     if (EC_POINT_is_on_curve(c_ctx.group, point, c_ctx.bn_ctx) == 0) {
-        printf("%s:%d point is not on the curve\n", __func__, __LINE__);
+        em_printfout("point is not on the curve");
         goto err;
     }
 
@@ -667,13 +667,13 @@ std::pair<const BIGNUM *, const EC_POINT *> ec_crypto::generate_proto_keypair(ec
 
     const EC_POINT* proto_pub = em_crypto_t::get_pub_key_point(proto_key);
     if (proto_pub == NULL) {
-        printf("%s:%d Could not get protocol public key\n", __func__, __LINE__);
+        em_printfout("Could not get protocol public key");
         return std::pair<BIGNUM*, EC_POINT*>(NULL, NULL);
     }
 
     const BIGNUM* proto_priv = em_crypto_t::get_priv_key_bn(proto_key);
     if (proto_priv == NULL) {
-        printf("%s:%d Could not get protocol private key\n", __func__, __LINE__);
+        em_printfout("Could not get protocol private key");
         return std::pair<BIGNUM*, EC_POINT*>(NULL, NULL);
     }
 
@@ -682,16 +682,16 @@ std::pair<const BIGNUM *, const EC_POINT *> ec_crypto::generate_proto_keypair(ec
 
 std::optional<std::vector<cJSON*>> ec_crypto::split_decode_connector(const char* conn) {
     if (conn == NULL) {
-        printf("%s:%d: Connector is NULL\n", __func__, __LINE__);
+        em_printfout("Connector is NULL");
         return std::nullopt;
     }
     std::string connector(conn);
     // Split connector by '.'
     std::vector<std::string> parts = util::split_by_delim(connector, '.');
     if (parts.size() != 3) {
-        printf("%s:%d: Connector does not have 3 parts\n", __func__, __LINE__);
+        em_printfout("Connector does not have 3 parts");
         if (parts.size() == 2){
-            printf("%s:%d: Connector is missing signature (len=2)\n", __func__, __LINE__);
+            em_printfout("Connector is missing signature (len=2)");
         }
         return std::nullopt;
     }
@@ -704,7 +704,7 @@ std::optional<std::vector<cJSON*>> ec_crypto::split_decode_connector(const char*
         auto part = parts[i];
         auto decoded = em_crypto_t::base64url_decode(part);
         if (decoded == std::nullopt) {
-            printf("%s:%d: Failed to decode part %ld, exiting\n", __func__, __LINE__, i);
+            em_printfout("Failed to decode part %ld, exiting", i);
             did_succeed = false;
             break;
         }
@@ -715,7 +715,7 @@ std::optional<std::vector<cJSON*>> ec_crypto::split_decode_connector(const char*
         
         if (json == NULL) {
             cJSON_Delete(json);
-            printf("%s:%d: Failed to parse JSON part %ld, exiting\n", __func__, __LINE__, i);
+            em_printfout("Failed to parse JSON part %ld, exiting", i);
             did_succeed = false;
             break;
         }
@@ -724,9 +724,9 @@ std::optional<std::vector<cJSON*>> ec_crypto::split_decode_connector(const char*
     }
 
     if (!did_succeed) {
-        printf("%s:%d: Full validation/decoding failed\n", __func__, __LINE__);
+        em_printfout("Full validation/decoding failed");
         for (size_t i = 0; i < decoded_parts.size(); i++) {
-            printf("%s:%d: Cleaning up part %ld\n", __func__, __LINE__, i);
+            em_printfout("Cleaning up part %ld", i);
             cJSON_Delete(decoded_parts[i]);
         }
         return std::nullopt;
@@ -737,14 +737,14 @@ std::optional<std::vector<cJSON*>> ec_crypto::split_decode_connector(const char*
 const char * ec_crypto::generate_connector(const cJSON * jws_header, const cJSON * jws_payload, EVP_PKEY * sign_key)
 {
     if (jws_header == NULL || jws_payload == NULL || sign_key == NULL) {
-        printf("%s:%d: Invalid input\n", __func__, __LINE__);
+        em_printfout("Invalid input");
         return NULL;
     }
 
     char* jws_header_cstr = cJSON_PrintUnformatted(jws_header);
     char* jws_payload_cstr = cJSON_PrintUnformatted(jws_payload);
     if (jws_header_cstr == NULL || jws_payload_cstr == NULL) {
-        printf("%s:%d: Failed to convert cJSON to string\n", __func__, __LINE__);
+        em_printfout("Failed to convert cJSON to string");
         if (jws_header_cstr) free(jws_header_cstr);
         if (jws_payload_cstr) free(jws_payload_cstr);
         return NULL;
@@ -762,13 +762,13 @@ const char * ec_crypto::generate_connector(const cJSON * jws_header, const cJSON
     std::vector<uint8_t> sig_data_vec(sig_data.begin(), sig_data.end());
     std::optional<std::vector<uint8_t>> signature = em_crypto_t::sign_data_ecdsa(sig_data_vec, sign_key);
     if (!signature.has_value()) {
-        printf("%s:%d: Failed to sign data\n", __func__, __LINE__);
+        em_printfout("Failed to sign data");
         return NULL;
     }
 
     std::string base64_signature = em_crypto_t::base64url_encode(signature.value());
     if (base64_signature.empty()) {
-        printf("%s:%d: Failed to encode signature\n", __func__, __LINE__);
+        em_printfout("Failed to encode signature");
         return NULL;
     }
 
@@ -776,7 +776,7 @@ const char * ec_crypto::generate_connector(const cJSON * jws_header, const cJSON
 
     char* connector_cstring = strdup(connector.c_str());
     if (connector_cstring == NULL) {
-        printf("%s:%d: Failed to convert connector to a malloced c string\n", __func__, __LINE__);
+        em_printfout("Failed to convert connector to a malloced c string");
         return NULL;
     }
 

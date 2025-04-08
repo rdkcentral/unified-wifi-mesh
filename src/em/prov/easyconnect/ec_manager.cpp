@@ -47,7 +47,7 @@ ec_manager_t::~ec_manager_t()
 bool ec_manager_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
     if (!ec_util::validate_frame(frame)) {
-        printf("%s:%d: frame validation failed\n", __func__, __LINE__);
+        em_printfout("frame validation failed");
         return false;
     }
     bool did_succeed = false;
@@ -71,7 +71,7 @@ bool ec_manager_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len, ui
             did_succeed = m_configurator->handle_connection_status_result(frame, len, src_mac);
             break;
         default:
-            printf("%s:%d: frame type (%d) not handled\n", __func__, __LINE__, frame->frame_type);
+            em_printfout("frame type (%d) not handled", frame->frame_type);
             break;
     }
     if (!did_succeed) {
@@ -89,10 +89,10 @@ bool ec_manager_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len, ui
 
 bool ec_manager_t::handle_recv_gas_pub_action_frame(ec_gas_frame_base_t *frame, size_t len, uint8_t source_addr[ETH_ALEN]) {
     if (!frame) {
-        printf("%s:%d: EC manager given a NULL DPP GAS frame!\n", __func__, __LINE__);
+        em_printfout("EC manager given a NULL DPP GAS frame!");
         return false;
     }
-    printf("%s:%d: Got a GAS frame with %02x action!\n", __func__, __LINE__, frame->action);
+    em_printfout("Got a GAS frame with %02x action!", frame->action);
     bool did_succeed = false;
     switch (static_cast<dpp_gas_action_type_t>(frame->action)) {
         case dpp_gas_initial_req:
@@ -105,7 +105,7 @@ bool ec_manager_t::handle_recv_gas_pub_action_frame(ec_gas_frame_base_t *frame, 
         case dpp_gas_comeback_resp:
         default:
             // XXX: handle comeback frames
-            printf("%s:%d: unhandled DPP GAS action type=%02x\n", __func__, __LINE__, frame->action);
+            em_printfout("unhandled DPP GAS action type=%02x", frame->action);
             break;
     }
     if (!did_succeed) {
@@ -125,19 +125,19 @@ bool ec_manager_t::upgrade_to_onboarded_proxy_agent()
 {
     if (m_is_controller) {
         // Only an enrollee agent can be upgraded to a proxy agent
-        printf("%s:%d: Can't upgrade a controller to a proxy agent\n", __func__, __LINE__);
+        em_printfout("Can't upgrade a controller to a proxy agent");
         return false;
     }
 
     // If a configurator is already defined (i.e. the enrollee agent is already upgraded) or somehow it's a controller
     //      return an error
     if (m_configurator && dynamic_cast<ec_ctrl_configurator_t*>(m_configurator.get()) == nullptr) {
-        printf("%s:%d: Can't upgrade an already upgraded agent\n", __func__, __LINE__);
+        em_printfout("Can't upgrade an already upgraded agent");
         return false;
     }
     if (!m_enrollee) {
         // Can't upgrade an enrollee if it's not defined
-        printf("%s:%d: Can't upgrade an enrollee that doesn't exist\n", __func__, __LINE__);
+        em_printfout("Can't upgrade an enrollee that doesn't exist");
         return false;
     }
     std::string enrollee_mac = m_enrollee->get_mac_addr();
@@ -146,6 +146,6 @@ bool ec_manager_t::upgrade_to_onboarded_proxy_agent()
     
     // Create a new proxy agent configurator
     m_configurator = std::unique_ptr<ec_pa_configurator_t>(new ec_pa_configurator_t(enrollee_mac, m_stored_chirp_fn, m_stored_encap_dpp_fn, m_stored_action_frame_fn, m_get_bsta_info_fn, m_get_1905_info_fn, m_toggle_cce_fn));
-    printf("%s:%d: Upgraded enrollee agent to proxy agent\n", __func__, __LINE__);
+    em_printfout("Upgraded enrollee agent to proxy agent");
     return true;
 }

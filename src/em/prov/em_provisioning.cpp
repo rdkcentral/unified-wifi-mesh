@@ -135,15 +135,16 @@ int em_provisioning_t::send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, si
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
 
     if (em_msg_t(em_msg_type_proxied_encap_dpp, em_profile_type_3, buff, len).validate(errors) == 0) {
-        printf("Channel Selection Request msg failed validation in tnx end\n");
+        em_printfout("Proxied Encap DPP msg failed validation in tnx end");
         //return -1;
     }
 
     if (send_frame(buff, len)  < 0) {
-        printf("%s:%d: Channel Selection Request msg failed, error:%d\n", __func__, __LINE__, errno);
+        em_printfout("Proxied Encap DPP msg failed, error:%d", errno);
         return -1;
     }
 
+    em_printfout("Sent Proxied Encap DPP msg");
     // TODO: If needed, likely not
 	//set_state(em_state_ctrl_configured);
 
@@ -167,11 +168,11 @@ int em_provisioning_t::send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t 
     // NOTE: `get_ctrl_al_interface_mac` is really only for co-located so `get_peer_mac` does not work.
 
     //TODO: Decide on addressing.
-    printf("%s:%d: Sending CHIRP NOTIFICATION\n", __func__, __LINE__);
+    em_printfout("Sending CHIRP NOTIFICATION");
     mac_addr_str_t peer_mac_str = {0}, al_mac_str = {0};
     dm_easy_mesh_t::macbytes_to_string(get_peer_mac(), peer_mac_str);
     dm_easy_mesh_t::macbytes_to_string(get_al_interface_mac(), al_mac_str);
-    printf("%s:%d: Peer MAC: %s, AL MAC: %s\n", __func__, __LINE__, peer_mac_str, al_mac_str);
+    em_printfout("Peer MAC: %s, AL MAC: %s", peer_mac_str, al_mac_str);
     tmp = em_msg_t::add_1905_header(tmp, &len, get_peer_mac(), get_al_interface_mac(), em_msg_type_chirp_notif);
 
     // One DPP Chirp value tlv 17.2.83
@@ -187,7 +188,7 @@ int em_provisioning_t::send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t 
     }
 
     if (send_frame(buff, len)  < 0) {
-        printf("%s:%d: Channel Selection Request msg failed, error:%d\n", __func__, __LINE__, errno);
+        em_printfout("Channel Selection Request msg failed, error:%d", errno);
         return -1;
     }
 
@@ -408,13 +409,13 @@ int em_provisioning_t::handle_cce_ind_msg(uint8_t *buff, unsigned int len)
     // mandatory need 17.2.82
     rq_ctr = 1;
 
-    printf("%s:%d: Parsing cce ind message\n", __func__, __LINE__);
+    em_printfout("Parsing cce ind message");
 
     tlv = reinterpret_cast<em_tlv_t *> (buff); tmp_len = len;
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if ((tlv->type == em_tlv_type_dpp_cce_indication) && (htons(tlv->len) == sizeof(uint16_t))) {
-            printf("%s:%d: validated cce ind tlv\n", __func__, __LINE__);
+            em_printfout("validated cce ind tlv");
             rx_ctr++;
         }
 
@@ -423,7 +424,7 @@ int em_provisioning_t::handle_cce_ind_msg(uint8_t *buff, unsigned int len)
     }
 
     if (rx_ctr != rq_ctr) {
-        printf("%s:%d: cce ind message parsing failed\n", __func__, __LINE__);
+        em_printfout("cce ind message parsing failed");
         return -1;
     }
 
@@ -432,10 +433,10 @@ int em_provisioning_t::handle_cce_ind_msg(uint8_t *buff, unsigned int len)
         //sz = static_cast<unsigned int> (create_cce_ind_cmd(msg)); commented since sz not used
         //ret = send_cmd(msg, sz); // Modify send_cmd
         if (ret > 0) {
-            printf("%s:%d: cmd send success\n", __func__, __LINE__);
+            em_printfout("cmd send success");
             //set_state(em_state_agent_auth_req_pending);
         } else {
-            printf("%s:%d: cmd send failed, error:%d\n", __func__, __LINE__, errno);
+            em_printfout("cmd send failed, error:%d", errno);
         }
     }
 
@@ -480,7 +481,7 @@ void em_provisioning_t::process_msg(uint8_t *data, unsigned int len)
             break;
 
         default:
-            printf("%s:%d: unhandled message type %u\n", __func__, __LINE__, htons(cmdu->type));
+            em_printfout("unhandled message type %u", htons(cmdu->type));
             break;
     }
 }
@@ -503,7 +504,7 @@ int em_provisioning_t::handle_dpp_chirp_notif(uint8_t *buff, unsigned int len)
 
             if (!m_ec_manager->process_chirp_notification(chirp_tlv, ntohs(tlv->len))){
                 //TODO: Fail
-                printf("%s:%d: Failed to process chirp notification\n", __func__, __LINE__);
+                em_printfout("Failed to process chirp notification");
             }
         }
 
@@ -558,26 +559,26 @@ cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *con
 {
     dm_easy_mesh_t *dm = get_data_model();
     if (dm == nullptr) {
-        printf("%s:%d: Could not get data model handle!\n", __func__, __LINE__);
+        em_printfout("Could not get data model handle!");
         return nullptr;
     }
 
     std::string channelList;
     cJSON *bsta_list_obj = cJSON_CreateObject();
     if (!bsta_list_obj) {
-        printf("%s:%d: Failed to allocate for bSTAList object!\n", __func__, __LINE__);
+        em_printfout("Failed to allocate for bSTAList object!");
         return nullptr;
     }
 
     cJSON *b_sta_list_arr = cJSON_CreateArray();
     if (!b_sta_list_arr) {
-        printf("%s:%d: Could not allocate for bSTAList array!\n", __func__, __LINE__);
+        em_printfout("Could not allocate for bSTAList array!");
         cJSON_Delete(bsta_list_obj);
         return nullptr;
     }
 
     if (!cJSON_AddStringToObject(bsta_list_obj, "netRole", "mapBackhaulSta")) {
-        printf("%s:%d: Could not add netRole to bSTAList object!\n", __func__, __LINE__);
+        em_printfout("Could not add netRole to bSTAList object!");
         cJSON_Delete(b_sta_list_arr);
         return nullptr;
     }
@@ -586,26 +587,26 @@ cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *con
     // not currently populated anywhere in the data model.
     std::string akm = "psk";
     if (!cJSON_AddStringToObject(bsta_list_obj, "akm", util::akm_to_oui(akm).c_str())) {
-        printf("%s:%d: Could not add AKM to bSTAList object!\n", __func__, __LINE__);
+        em_printfout("Could not add AKM to bSTAList object!");
         cJSON_Delete(b_sta_list_arr);
         return nullptr;
     }
 
     if (!cJSON_AddNumberToObject(bsta_list_obj, "bSTA_Maximum_Links", 1)) {
-        printf("%s:%d: Could not add bSTA_Maximum_Links to bSTAList object!\n", __func__, __LINE__);
+        em_printfout("Could not add bSTA_Maximum_Links to bSTAList object!");
         cJSON_Delete(b_sta_list_arr);
         return nullptr;
     }
 
     if (!cJSON_AddItemToArray(b_sta_list_arr, bsta_list_obj)) {
-        printf("%s:%d: Could not add bSTAList object to bSTAList array!\n", __func__, __LINE__);
+        em_printfout("Could not add bSTAList object to bSTAList array!");
         cJSON_Delete(b_sta_list_arr);
         return nullptr;
     }
 
     cJSON *radio_list_arr = cJSON_AddArrayToObject(bsta_list_obj, "RadioList");
     if (!radio_list_arr) {
-        printf("%s:%d: Could not add RadioList array to bSTAList object!\n", __func__, __LINE__);
+        em_printfout("Could not add RadioList array to bSTAList object!");
         cJSON_Delete(bsta_list_obj);
         return nullptr;
     }
@@ -617,7 +618,7 @@ cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *con
 
         cJSON *radioListObj = cJSON_CreateObject();
         if (!radioListObj) {
-            printf("%s:%d: Failed to create RadioList object!\n", __func__, __LINE__);
+            em_printfout("Failed to create RadioList object!");
             cJSON_Delete(bsta_list_obj);
             return nullptr;
         }
@@ -625,7 +626,7 @@ cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *con
         if (!cJSON_AddStringToObject(
                 radioListObj, "RUID",
                 util::mac_to_string(radio->m_radio_info.id.ruid, "").c_str())) {
-            printf("%s:%d: Could not add RUID to RadioList object!\n", __func__, __LINE__);
+            em_printfout("Could not add RUID to RadioList object!");
             cJSON_Delete(radioListObj);
             cJSON_Delete(bsta_list_obj);
             return nullptr;
@@ -663,7 +664,7 @@ cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *con
     }
 
     if (!cJSON_AddStringToObject(bsta_list_obj, "channelList", channelList.c_str())) {
-        printf("%s:%d: Could not add channelList to bSTAList object!\n", __func__, __LINE__);
+        em_printfout("Could not add channelList to bSTAList object!");
         cJSON_Delete(b_sta_list_arr);
         return nullptr;
     }
@@ -679,19 +680,19 @@ cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_co
     ASSERT_NOT_NULL(bsta_configuration_object, nullptr, "%s:%d: Could not create bSTA Configuration Object\n", __func__, __LINE__);
 
     if (!cJSON_AddStringToObject(bsta_configuration_object, "wi-fi_tech", "map")) {
-        printf("%s:%d: Failed to add \"wi-fi_tech\" to Configuration Object\n", __func__, __LINE__);
+        em_printfout("Failed to add \"wi-fi_tech\" to Configuration Object");
         cJSON_Delete(bsta_configuration_object);
     }
 
     cJSON *discovery_object = cJSON_CreateObject();
     if (discovery_object == nullptr) {
-        printf("%s:%d: Failed to create Discovery Object for DPP Configuration Object\n", __func__, __LINE__);
+        em_printfout("Failed to create Discovery Object for DPP Configuration Object");
         cJSON_Delete(bsta_configuration_object);
     }
     const em_network_ssid_info_t* network_ssid_info = dm->get_network_ssid_info_by_haul_type(em_haul_type_backhaul);
     ASSERT_NOT_NULL(network_ssid_info, nullptr, "%s:%d: No backhaul BSS found, cannot create bSTA Configuration Object\n", __func__, __LINE__);
     if (!cJSON_AddStringToObject(discovery_object, "SSID", network_ssid_info->ssid)) {
-        printf("%s:%d: Could not add \"SSID\" to bSTA Configuration Object\n", __func__, __LINE__);
+        em_printfout("Could not add \"SSID\" to bSTA Configuration Object");
         cJSON_Delete(bsta_configuration_object);
         cJSON_Delete(discovery_object);
         return nullptr;
@@ -703,13 +704,13 @@ cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_co
         if (!bss) continue;
         if (bss->m_bss_info.backhaul_use && strncmp(bss->m_bss_info.ssid, network_ssid_info->ssid, strlen(network_ssid_info->ssid)) == 0) {
             if (!cJSON_AddStringToObject(discovery_object, "BSSID", reinterpret_cast<const char *>(bss->m_bss_info.id.bssid))) {
-                printf("%s:%d: Failed to add \"BSSID\" to bSTA Configuration Object\n", __func__, __LINE__);
+                em_printfout("Failed to add \"BSSID\" to bSTA Configuration Object");
                 cJSON_Delete(bsta_configuration_object);
                 cJSON_Delete(discovery_object);
                 return nullptr;
             }
             if (!cJSON_AddStringToObject(discovery_object, "RUID", reinterpret_cast<const char *>(bss->m_bss_info.id.ruid))) {
-                printf("%s:%d: Failed to add \"RUID\" to bSTA Configuration Object\n", __func__, __LINE__);
+                em_printfout("Failed to add \"RUID\" to bSTA Configuration Object");
                 cJSON_Delete(bsta_configuration_object);
                 cJSON_Delete(discovery_object);
                 return nullptr;
@@ -719,7 +720,7 @@ cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_co
 
     cJSON *credential_object = cJSON_CreateObject();
     if (credential_object == nullptr) {
-        printf("%s:%d: Failed to create credential object for DPP Configuration object.\n", __func__, __LINE__);
+        em_printfout("Failed to create credential object for DPP Configuration object.");
         cJSON_Delete(discovery_object);
         cJSON_Delete(bsta_configuration_object);
         return nullptr;
@@ -746,7 +747,7 @@ cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_co
     }
 
     if (!cJSON_AddStringToObject(credential_object, "akm", akm_suites.c_str())) {
-        printf("%s:%d: Failed to add \"akm\" to bSTA DPP Configuration Object\n", __func__, __LINE__);
+        em_printfout("Failed to add \"akm\" to bSTA DPP Configuration Object");
         cJSON_Delete(discovery_object);
         cJSON_Delete(bsta_configuration_object);
         cJSON_Delete(credential_object);
@@ -756,7 +757,7 @@ cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_co
     if (needs_psk_hex) {
         std::vector<uint8_t> psk = ec_crypto::gen_psk(std::string(network_ssid_info->pass_phrase), std::string(network_ssid_info->ssid));
         if (psk.empty()) {
-            printf("%s:%d: Failed to generate PSK\n", __func__, __LINE__);
+            em_printfout("Failed to generate PSK");
             cJSON_Delete(discovery_object);
             cJSON_Delete(bsta_configuration_object);
             cJSON_Delete(credential_object);
@@ -767,7 +768,7 @@ cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_co
     }
 
     if (!cJSON_AddStringToObject(credential_object, "pass", network_ssid_info->pass_phrase)) {
-        printf("%s:%d: Failed to add \"pass\" to bSTA DPP Configuration Object", __func__, __LINE__);
+        em_printfout("Failed to add \"pass\" to bSTA DPP Configuration Object");
         cJSON_Delete(discovery_object);
         cJSON_Delete(credential_object);
         cJSON_Delete(bsta_configuration_object);
@@ -775,14 +776,14 @@ cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_co
     }
 
     if (!cJSON_AddItemToObject(bsta_configuration_object, "discovery", discovery_object)) {
-        printf("%s:%d: Failed to add \"discovery\" to bSTA DPP Configuration Object\n", __func__, __LINE__);
+        em_printfout("Failed to add \"discovery\" to bSTA DPP Configuration Object");
         cJSON_Delete(credential_object);
         cJSON_Delete(discovery_object);
         cJSON_Delete(bsta_configuration_object);
     }
 
     if (!cJSON_AddItemToObject(bsta_configuration_object, "cred", credential_object)) {
-        printf("%s:%d: Failed to add \"cred\" to bSTA DPP Configuration Object\n", __func__, __LINE__);
+        em_printfout("Failed to add \"cred\" to bSTA DPP Configuration Object");
         cJSON_Delete(credential_object);
         cJSON_Delete(bsta_configuration_object);
     }
@@ -794,25 +795,25 @@ cJSON *em_provisioning_t::create_ieee1905_response_obj(ec_connection_context_t *
     cJSON* dpp_configuration_object = cJSON_CreateObject();
     ASSERT_NOT_NULL(dpp_configuration_object, nullptr, "%s:%d: Failed to create 1905 DPP Configuration Object.\n", __func__, __LINE__);
     if (!cJSON_AddStringToObject(dpp_configuration_object, "wi-fi_tech", "dpp")) {
-        printf("%s:%d: Failed to add \"wi-fi_tech\" to 1905 DPP Configuration Object.\n", __func__, __LINE__);
+        em_printfout("Failed to add \"wi-fi_tech\" to 1905 DPP Configuration Object.");
         cJSON_Delete(dpp_configuration_object);
         return nullptr;
     }
 
     if (!cJSON_AddNumberToObject(dpp_configuration_object, "dfCounterThreshold", 42)) {
-        printf("%s:%d: Failed to add \"dfCounterThreshold\" to 1905 DPP Configuration Object.\n", __func__, __LINE__);
+        em_printfout("Failed to add \"dfCounterThreshold\" to 1905 DPP Configuration Object.");
         cJSON_Delete(dpp_configuration_object);
         return nullptr;
     }
 
     cJSON *credential_object = cJSON_CreateObject();
     if (!credential_object) {
-        printf("%s:%d: Failed to create Credential object for 1905 DPP Configuration Object.\n", __func__, __LINE__);
+        em_printfout("Failed to create Credential object for 1905 DPP Configuration Object.");
         cJSON_Delete(dpp_configuration_object);
         return nullptr;
     }
     if (!cJSON_AddStringToObject(credential_object, "akm", util::akm_to_oui("dpp").c_str())) {
-        printf("%s:%d: Failed to add \"akm\" to 1905 DPP Configuration Object.\n", __func__, __LINE__);
+        em_printfout("Failed to add \"akm\" to 1905 DPP Configuration Object.");
         cJSON_Delete(credential_object);
         cJSON_Delete(dpp_configuration_object);
         return nullptr;
@@ -825,7 +826,7 @@ cJSON *em_provisioning_t::create_ieee1905_response_obj(ec_connection_context_t *
 
 void em_provisioning_t::handle_state_prov_none()
 {
-    printf("%s:%d: Waiting for CCE indication interface: %s\n", __func__, __LINE__, const_cast<char *> (get_radio_interface_name()));
+    em_printfout("Waiting for CCE indication interface: %s", const_cast<char *> (get_radio_interface_name()));
 }
 
 void em_provisioning_t::handle_state_prov()
