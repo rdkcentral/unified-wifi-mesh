@@ -27,7 +27,7 @@ uint8_t* ec_crypto::compute_key_hash(const SSL_KEY *key, const char *prefix)
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     i2d_PUBKEY_bio(bio, key); // EVP_PKEY
 #else
-    i2d_EC_PUBKEY_bio(bio, key); // EC_KEY
+    i2d_EC_PUBKEY_bio(bio, const_cast<SSL_KEY*>(key)); // EC_KEY
 #endif
     (void)BIO_flush(bio);
     asn1len = static_cast<size_t>(BIO_get_mem_data(bio, &asn1));
@@ -43,9 +43,11 @@ uint8_t* ec_crypto::compute_key_hash(const SSL_KEY *key, const char *prefix)
     addr[hash_elem_idx] = asn1;
     len[hash_elem_idx] = static_cast<uint32_t> (asn1len);
 
+    uint8_t hash_elem_count = static_cast<uint8_t>(hash_elem_idx + 1);
+
     // Call platform_SHA256 with our two elements
     uint8_t *digest = reinterpret_cast<uint8_t*>(calloc(SHA256_DIGEST_LENGTH, 1));
-    uint8_t result = em_crypto_t::platform_SHA256(hash_elem_idx+1, addr, len, digest);
+    uint8_t result = em_crypto_t::platform_SHA256(hash_elem_count, addr, len, digest);
 
     BIO_free(bio);
     
@@ -153,7 +155,7 @@ cleanup:
 size_t ec_crypto::compute_ke(ec_connection_context_t& c_ctx, ec_ephemeral_context_t* e_ctx, uint8_t *ke_buffer)
 {
     // Create concatenated nonces buffer (Initiator Nonce | Responder Nonce)
-    size_t total_nonce_len = c_ctx.nonce_len * 2;
+    size_t total_nonce_len = static_cast<size_t>(c_ctx.nonce_len * 2);
     uint8_t *nonces = new uint8_t[total_nonce_len]();
     if (nonces == NULL) {
         em_printfout("Failed to allocate memory for nonces");
@@ -293,8 +295,8 @@ size_t ec_crypto::hkdf(const EVP_MD *h, bool skip_extract, uint8_t *ikm, size_t 
     uint8_t *prk, *tweak;
     uint8_t ctr;
     uint8_t *digest;
-    int len;
-    int digest_len, prklen, tweaklen;
+    size_t len;
+    size_t digest_len, prklen, tweaklen;
 
     if (okmlen == 0 || okm == NULL) {
         em_printfout("Invalid output key material length or buffer");
@@ -317,7 +319,7 @@ size_t ec_crypto::hkdf(const EVP_MD *h, bool skip_extract, uint8_t *ikm, size_t 
         return 0;
     }
 
-    digest_len = prklen = EVP_MD_size(h);
+    digest_len = prklen = static_cast<size_t>(EVP_MD_size(h));
     if ((digest = reinterpret_cast<uint8_t*>(calloc(digest_len, 1))) == NULL) {
         perror("malloc");
         return 0;
@@ -343,7 +345,7 @@ size_t ec_crypto::hkdf(const EVP_MD *h, bool skip_extract, uint8_t *ikm, size_t 
                 perror("malloc");
                 return 0;
             }
-            memset(tweak, 0, static_cast<size_t>(digest_len));
+            memset(tweak, 0, digest_len);
             tweaklen = digest_len;
         } else {
             tweak = salt;
@@ -352,7 +354,7 @@ size_t ec_crypto::hkdf(const EVP_MD *h, bool skip_extract, uint8_t *ikm, size_t 
         
         // Extract phase: PRK = HMAC-Hash(salt, IKM)
         uint8_t *addr[1] = {ikm};
-        size_t lengths[1] = {static_cast<size_t>(ikmlen)};
+        size_t lengths[1] = {ikmlen};
         if (!em_crypto_t::platform_hmac_hash(h, tweak, tweaklen, 1, addr, lengths, prk)) {
             if (!salt || (saltlen == 0)) {
                 delete[] tweak;
@@ -372,7 +374,7 @@ size_t ec_crypto::hkdf(const EVP_MD *h, bool skip_extract, uint8_t *ikm, size_t 
     }
 
     // Initialize T(0) as empty
-    memset(digest, 0, static_cast<size_t>(digest_len));
+    memset(digest, 0, digest_len);
     digest_len = 0;
     ctr = 0;
     len = 0;
@@ -393,7 +395,7 @@ size_t ec_crypto::hkdf(const EVP_MD *h, bool skip_extract, uint8_t *ikm, size_t 
         // T(n-1)
         if (digest_len > 0) {
             addr[num_elem] = digest;
-            lengths[num_elem] = static_cast<size_t>(digest_len);
+            lengths[num_elem] = digest_len;
             num_elem++;
         }
         
@@ -419,13 +421,13 @@ size_t ec_crypto::hkdf(const EVP_MD *h, bool skip_extract, uint8_t *ikm, size_t 
         }
         
         // Set the correct digest length for the next iteration
-        digest_len = EVP_MD_size(h);
+        digest_len = static_cast<size_t>(EVP_MD_size(h));
         
         // Copy the appropriate amount to the output key material
         if ((len + digest_len) > okmlen) {
-            memcpy(okm + len, digest, static_cast<size_t>(okmlen - len));
+            memcpy(okm + len, digest, okmlen - len);
         } else {
-            memcpy(okm + len, digest, static_cast<size_t>(digest_len));
+            memcpy(okm + len, digest, digest_len);
         }
         
         len += digest_len;
@@ -559,7 +561,7 @@ bool ec_crypto::init_connection_ctx(ec_connection_context_t& c_ctx, const SSL_KE
             return false;
     }
 
-    c_ctx.nonce_len = c_ctx.digest_len*4;
+    c_ctx.nonce_len = static_cast<uint16_t>(c_ctx.digest_len*4);
 
     // Fetch prime
     if (EC_GROUP_get_curve(c_ctx.group, c_ctx.prime, NULL, NULL, c_ctx.bn_ctx) == 0) {

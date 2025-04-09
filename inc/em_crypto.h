@@ -25,15 +25,22 @@
 #include <openssl/dh.h>
 #include "em_base.h"
 #include <openssl/evp.h>
+
+
+
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
 #include <openssl/param_build.h>
 #include <openssl/types.h>
 #include <openssl/core_names.h>
+#endif
 
 #include <optional>
 #include <vector>
 #include <utility>
 #include <string>
 #include <memory>
+
+#include <string.h>
 
 #define SHA256_MAC_LEN 32
 #define AES_BLOCK_SIZE 16
@@ -97,7 +104,7 @@ public:
      * @note The hmac buffer must be pre-allocated with sufficient space for the output
      *       (32 bytes for SHA-256)
      */
-    static uint8_t platform_hmac_hash(const EVP_MD * hashing_algo, uint8_t *key, uint32_t keylen, uint8_t num_elem, uint8_t **addr, size_t *len, uint8_t *hmac);
+    static uint8_t platform_hmac_hash(const EVP_MD * hashing_algo, uint8_t *key, size_t keylen, uint8_t num_elem, uint8_t **addr, size_t *len, uint8_t *hmac);
 
     /**
     * @brief Convenience wrapper to compute HMAC-SHA256 hash for multiple input elements
@@ -111,7 +118,7 @@ public:
     *
     * @return 1 on success, 0 on failure
     */
-    inline static uint8_t platform_hmac_SHA256(uint8_t *key, uint32_t keylen, uint8_t num_elem, uint8_t **addr, size_t *len, uint8_t *hmac){
+    inline static uint8_t platform_hmac_SHA256(uint8_t *key, size_t keylen, uint8_t num_elem, uint8_t **addr, size_t *len, uint8_t *hmac){
         return platform_hmac_hash(EVP_sha256(), key, keylen, num_elem, addr, len, hmac);
     }
     
