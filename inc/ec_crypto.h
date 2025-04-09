@@ -595,8 +595,7 @@ public:
     }
 
 // START: Connector methods
-
-    
+  
 	/**
 	 * @brief Split and decode a connector into its constituent parts.
 	 *
@@ -610,7 +609,6 @@ public:
 	 * @note The caller is responsible for freeing the cJSON objects.
 	 */
 	static std::optional<std::vector<cJSON*>> split_decode_connector(const char* conn);
-
 
     
 	/**

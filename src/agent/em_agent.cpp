@@ -435,8 +435,13 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
     mac_addr_str_t dest_mac_str;
     dm_easy_mesh_t::macbytes_to_string(mgmt_frame->da, dest_mac_str);
     printf("Dest Mac Str: %s\n", dest_mac_str);
+    bool is_bcast = (memcmp(mgmt_frame->da, BROADCAST_MAC_ADDR, ETH_ALEN) == 0);
+    if (is_bcast) {
+        printf("Received WFA action frame with broadcast destination MAC address\n");
+    }
     em_t* dest_radio_node = static_cast<em_t*>(hash_map_get(g_agent.m_em_map, dest_mac_str));
-    if (dest_radio_node == NULL) {
+    if (dest_radio_node == NULL &&  !is_bcast) {
+        // If the destination MAC is a broadcast address, we don't need to find the node
         // printf("No radio node found for dest mac %s\n", dest_mac_str);
         return;
     }
@@ -449,16 +454,27 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
 
     switch (oui_type) {
     case DPP_OUI_TYPE: {
-	em_t* al_node = get_al_node();
-	bool dest_al_same = (memcmp(dest_radio_node->get_radio_interface_mac(), get_al_node()->get_radio_interface_mac(), ETH_ALEN) != 0);
+        em_t* al_node = get_al_node();
+        bool dest_al_same = false;
+        if (dest_radio_node != NULL && al_node != NULL) {
+            dest_al_same = (memcmp(dest_radio_node->get_radio_interface_mac(), al_node->get_radio_interface_mac(), ETH_ALEN) != 0);
+        }
 
-	if (!dest_al_same && !(m_data_model.get_colocated()))
-		// DPP Action Frame not sent to same radio as AL node, let's ignore it.
-		// We don't ignore it if this co-located since the AL-node will be the same as the controller (eth0) 
-		// so if we ignore it, no packets will ever get through
-		break;
-        al_node->get_ec_mgr().handle_recv_ec_action_frame(ec_frame, full_action_frame_len, mgmt_frame->sa);
-        break;
+        /*
+        If any of the following conditions are satisfied:
+            - The destination MAC is a broadcast address
+            - The destination MAC is the same as the AL node (mac address)
+            - The colocated flag is set
+        Then the `ec_manager` of the AL node will handle the action frame
+        
+        We don't ignore it if this co-located since the AL-node will be the same as the controller (eth0) 
+        so if we ignore it, no packets will ever get through
+        */
+        if (is_bcast || dest_al_same || (m_data_model.get_colocated())) {
+
+            al_node->get_ec_mgr().handle_recv_ec_action_frame(ec_frame, full_action_frame_len, mgmt_frame->sa);
+            break;
+        }
     }
     default:
         break;
