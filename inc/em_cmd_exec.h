@@ -34,32 +34,259 @@ public:
 
 public:
     //char *get_result() { return m_cmd.get_result(); }
-    bool validate() { return m_cmd.validate(); }
-    em_event_t *get_event() { return m_cmd.get_event(); }
-    unsigned int get_event_length() { return m_cmd.get_event_length(); }
-    unsigned int get_event_data_length() { return m_cmd.get_event_data_length(); }
+    
+	/**!
+	 * @brief Validates the command.
+	 *
+	 * This function calls the validate method on the command object to check its validity.
+	 *
+	 * @returns True if the command is valid, false otherwise.
+	 */
+	bool validate() { return m_cmd.validate(); }
+    
+	/**!
+	 * @brief Retrieves the current event from the command.
+	 *
+	 * This function returns a pointer to the current event associated with the command.
+	 *
+	 * @returns A pointer to the current event.
+	 * @retval nullptr If no event is associated with the command.
+	 *
+	 * @note Ensure that the returned event pointer is valid before use.
+	 */
+	em_event_t *get_event() { return m_cmd.get_event(); }
+    
+	/**!
+	 * @brief Retrieves the length of the event.
+	 *
+	 * This function returns the length of the event as an unsigned integer.
+	 *
+	 * @returns The length of the event.
+	 */
+	unsigned int get_event_length() { return m_cmd.get_event_length(); }
+    
+	/**!
+	 * @brief Retrieves the length of the event data.
+	 *
+	 * This function returns the length of the event data associated with the command.
+	 *
+	 * @returns The length of the event data as an unsigned integer.
+	 */
+	unsigned int get_event_data_length() { return m_cmd.get_event_data_length(); }
+	
+	/**!
+	 * @brief Sets the event data length.
+	 *
+	 * This function sets the length of the event data by calling the
+	 * corresponding method on the command object.
+	 *
+	 * @param[in] len The length of the event data to be set.
+	 */
 	void set_event_data_length(unsigned int len) { m_cmd.set_event_data_length(len); }
-    em_cmd_t *get_cmd() { return &m_cmd; }
-    em_cmd_params_t *get_param() { return m_cmd.get_param(); }
-    em_cmd_type_t get_type() { return m_cmd.m_type; }
-    em_service_type_t get_svc() { return m_cmd.get_svc(); }
-    char *get_path() { return m_sock_path; }
+    
+	/**!
+	 * @brief Retrieves the command object.
+	 *
+	 * This function returns a pointer to the command object stored in the
+	 * private member variable `m_cmd`.
+	 *
+	 * @returns A pointer to the `em_cmd_t` command object.
+	 */
+	em_cmd_t *get_cmd() { return &m_cmd; }
+    
+	/**!
+	 * @brief Retrieves the command parameters.
+	 *
+	 * This function returns a pointer to the command parameters
+	 * associated with the current command execution context.
+	 *
+	 * @returns A pointer to the command parameters.
+	 * @retval em_cmd_params_t* Pointer to the command parameters.
+	 *
+	 * @note Ensure that the returned pointer is not null before
+	 * accessing the parameters.
+	 */
+	em_cmd_params_t *get_param() { return m_cmd.get_param(); }
+    
+	/**!
+	 * @brief Retrieves the command type.
+	 *
+	 * This function returns the type of the command encapsulated in the object.
+	 *
+	 * @returns The type of the command as an em_cmd_type_t.
+	 */
+	em_cmd_type_t get_type() { return m_cmd.m_type; }
+    
+	/**!
+	 * @brief Retrieves the service type.
+	 *
+	 * This function returns the service type associated with the command.
+	 *
+	 * @returns The service type of the command.
+	 */
+	em_service_type_t get_svc() { return m_cmd.get_svc(); }
+    
+	/**!
+	 * @brief Retrieves the socket path.
+	 *
+	 * @returns A pointer to the socket path string.
+	 */
+	char *get_path() { return m_sock_path; }
 
-    void copy_bus_event(em_bus_event_t *evt) { m_cmd.copy_bus_event(evt); }
+    
+	/**!
+	 * @brief Copies a bus event to the command module.
+	 *
+	 * This function takes a bus event and copies it to the command module for further processing.
+	 *
+	 * @param[in] evt Pointer to the bus event to be copied.
+	 *
+	 * @note Ensure that the event pointer is valid before calling this function.
+	 */
+	void copy_bus_event(em_bus_event_t *evt) { m_cmd.copy_bus_event(evt); }
 
-    void init();
-    static int send_cmd(em_service_type_t to_svc, unsigned char *in, unsigned int in_len, char *out = NULL, unsigned int out_len = 0);
-    static int execute(em_cmd_type_t type, em_service_type_t to_svc, unsigned char *in, unsigned int in_len);
-    static char *get_path_from_dst_service(em_service_type_t to_svc, em_long_string_t sock_path);
+    
+	/**!
+	 * @brief Initializes the command execution environment.
+	 *
+	 * This function sets up necessary resources and configurations
+	 * required for command execution.
+	 *
+	 * @note This function should be called before any command execution.
+	 */
+	void init();
+    
+	/**!
+	 * @brief Sends a command to a specified service.
+	 *
+	 * This function sends a command to the specified service type with the given input data.
+	 * Optionally, it can also receive output data.
+	 *
+	 * @param[in] to_svc The service type to which the command is sent.
+	 * @param[in] in Pointer to the input data buffer.
+	 * @param[in] in_len Length of the input data.
+	 * @param[out] out Optional pointer to the output data buffer.
+	 * @param[in] out_len Length of the output data buffer.
+	 *
+	 * @returns int Status of the command execution.
+	 * @retval 0 on success.
+	 * @retval Non-zero error code on failure.
+	 *
+	 * @note Ensure that the input and output buffers are properly allocated before calling this function.
+	 */
+	static int send_cmd(em_service_type_t to_svc, unsigned char *in, unsigned int in_len, char *out = NULL, unsigned int out_len = 0);
+    
+	/**!
+	 * @brief Executes a command of a specified type to a given service.
+	 *
+	 * This function sends a command of the specified type to the designated service
+	 * and processes the input data accordingly.
+	 *
+	 * @param[in] type The type of command to execute.
+	 * @param[in] to_svc The service to which the command is sent.
+	 * @param[in] in Pointer to the input data buffer.
+	 * @param[in] in_len Length of the input data buffer.
+	 *
+	 * @returns int Status code indicating success or failure of the command execution.
+	 * @retval 0 on success.
+	 * @retval Non-zero error code on failure.
+	 *
+	 * @note Ensure that the input data buffer is valid and the length is correctly specified.
+	 */
+	static int execute(em_cmd_type_t type, em_service_type_t to_svc, unsigned char *in, unsigned int in_len);
+    
+	/**!
+	 * @brief Retrieves the socket path from the destination service.
+	 *
+	 * This function constructs the socket path based on the destination service type provided.
+	 *
+	 * @param[in] to_svc The destination service type for which the socket path is required.
+	 * @param[out] sock_path The buffer where the constructed socket path will be stored.
+	 *
+	 * @returns A pointer to the socket path string.
+	 * @retval NULL if the path could not be constructed.
+	 *
+	 * @note Ensure that the buffer provided for sock_path is large enough to hold the resulting path.
+	 */
+	static char *get_path_from_dst_service(em_service_type_t to_svc, em_long_string_t sock_path);
+	
+	/**!
+	 * @brief Loads parameters from a file into a buffer.
+	 *
+	 * This function reads the contents of the specified file and loads it into the provided buffer.
+	 *
+	 * @param[in] filename The name of the file to be loaded.
+	 * @param[out] buff The buffer where the file contents will be stored.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure that the buffer is large enough to hold the file contents.
+	 */
 	static int     load_params_file(const char *filename, char *buff);
 
-    virtual int execute(char *result) = 0;
-    void release_wait();
-    void wait(struct timespec *time_to_wait);
+    
+	/**!
+	 * @brief Executes a command and stores the result.
+	 *
+	 * This function is a pure virtual function that must be implemented by derived classes.
+	 *
+	 * @param[out] result A pointer to a character array where the result of the command execution will be stored.
+	 *
+	 * @returns An integer indicating the success or failure of the command execution.
+	 * @retval 0 on success.
+	 * @retval Non-zero error code on failure.
+	 *
+	 * @note The caller must ensure that the `result` buffer is large enough to hold the command output.
+	 */
+	virtual int execute(char *result) = 0;
+    
+	/**!
+	 * @brief Releases the wait state.
+	 *
+	 * This function is used to release any wait state that might be
+	 * holding up the execution flow.
+	 *
+	 * @note Ensure that the system is in a state where releasing the wait
+	 * is safe and will not disrupt ongoing processes.
+	 */
+	void release_wait();
+    
+	/**!
+	 * @brief Waits for the specified amount of time.
+	 *
+	 * This function causes the calling thread to sleep until the time specified in
+	 * the `time_to_wait` parameter has elapsed.
+	 *
+	 * @param[in] time_to_wait A pointer to a `timespec` structure that specifies
+	 * the amount of time to wait. The `timespec` structure should be properly
+	 * initialized with the desired wait time.
+	 *
+	 * @note The function will block the calling thread until the specified time
+	 * has passed.
+	 */
+	void wait(struct timespec *time_to_wait);
 
 public:
-    em_cmd_exec_t();
-    virtual ~em_cmd_exec_t();
+    
+	/**!
+	 * @brief Default constructor for the em_cmd_exec_t class.
+	 *
+	 * This constructor initializes an instance of the em_cmd_exec_t class.
+	 *
+	 * @note This constructor does not take any parameters and does not return any values.
+	 */
+	em_cmd_exec_t();
+    
+	/**!
+	 * @brief Destructor for the em_cmd_exec_t class.
+	 *
+	 * This function cleans up any resources used by the em_cmd_exec_t instance.
+	 *
+	 * @note This is a virtual destructor, allowing for proper cleanup of derived class objects.
+	 */
+	virtual ~em_cmd_exec_t();
 };
 
 #endif

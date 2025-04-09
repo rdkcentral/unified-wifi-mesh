@@ -23,13 +23,21 @@
 
  namespace cjson_utils {
 
-    /**
-     * @brief Get the size, in bytes, of a cJSON JSON string.
-     * 
-     * @param json The JSON instance to get the size of.
-     * @return size_t The size / length of the JSON instance, in bytes.
-     */
-    static inline size_t get_cjson_blob_size(const cJSON *const json) {
+    
+	/**
+	 * @brief Get the size, in bytes, of a cJSON JSON string.
+	 *
+	 * This function calculates the size of a JSON string by converting
+	 * the cJSON object to a string and measuring its length.
+	 *
+	 * @param[in] json The JSON instance to get the size of. Must not be NULL.
+	 *
+	 * @return size_t The size / length of the JSON instance, in bytes.
+	 *
+	 * @note The function returns 0 if the input JSON is NULL or if the
+	 * conversion to a string fails.
+	 */
+	static inline size_t get_cjson_blob_size(const cJSON *const json) {
         size_t len = 0UL;
         if (json != NULL) {
             char *s = cJSON_Print(json);
@@ -41,14 +49,19 @@
         return len;
     }
 
-    /**
-     * @brief Convert a cJSON blob to a string.
-     * 
-     * @param blob The cJSON blob to convert.
-     * @param unformatted Whether to include whitespace (newlines and tabs) in the string.
-     * @return std::string The string representation of the cJSON blob.
-     */
-    static inline std::string stringify(cJSON *blob, bool unformatted = false) {
+    
+	/**
+	 * @brief Convert a cJSON blob to a string.
+	 *
+	 * This function converts a given cJSON blob into its string representation.
+	 *
+	 * @param[in] blob The cJSON blob to convert. Must not be NULL.
+	 * @param[in] unformatted A boolean flag indicating whether to include whitespace (newlines and tabs) in the string.
+	 * @return std::string The string representation of the cJSON blob. Returns an empty string if the blob is NULL.
+	 *
+	 * @note The caller is responsible for ensuring the blob is valid and properly initialized.
+	 */
+	static inline std::string stringify(cJSON *blob, bool unformatted = false) {
         if (blob == NULL) {
             return std::string();
         }

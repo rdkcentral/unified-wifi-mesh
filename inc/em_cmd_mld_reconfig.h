@@ -24,7 +24,15 @@
 class em_cmd_mld_reconfig_t : public em_cmd_t {
 
 public:
-    em_cmd_mld_reconfig_t();
+    
+	/**!
+	 * @brief Constructor for em_cmd_mld_reconfig_t.
+	 *
+	 * Initializes the em_cmd_mld_reconfig_t object.
+	 *
+	 * @note This constructor does not take any parameters.
+	 */
+	em_cmd_mld_reconfig_t();
 };
 
 #endif
