@@ -166,11 +166,10 @@ bool ec_enrollee_t::handle_auth_request(ec_frame_t *frame, size_t len, uint8_t s
     }
     free(responder_keyhash);
     
-    ec_attribute_t *B_i_hash_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_init_bootstrap_key_hash);
-    ASSERT_NOT_NULL(B_i_hash_attr, false, "%s:%d No initiator bootstrapping key hash attribute found\n", __func__, __LINE__);
-
     if (m_boot_data().initiator_boot_key != NULL){
         // Initiator bootstrapping key is present on enrollee, mutual authentication is possible
+        ec_attribute_t *B_i_hash_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_init_bootstrap_key_hash);
+        ASSERT_NOT_NULL(B_i_hash_attr, false, "%s:%d No initiator bootstrapping key hash attribute found\n", __func__, __LINE__);
         uint8_t* initiator_keyhash = ec_crypto::compute_key_hash(m_boot_data().initiator_boot_key);
         if (initiator_keyhash != NULL) {
             if (memcmp(B_i_hash_attr->data, initiator_keyhash, B_i_hash_attr->length) == 0) {
