@@ -49,7 +49,7 @@ bool ec_enrollee_t::start_onboarding(bool do_reconfig, ec_data_t* boot_data)
     m_boot_data().resp_priv_boot_key = em_crypto_t::get_priv_key_bn(resp_key);
     m_boot_data().resp_pub_boot_key = em_crypto_t::get_pub_key_point(resp_key);
 
-    m_boot_data().init_priv_boot_key= em_crypto_t::get_priv_key_bn(m_boot_data().initiator_boot_key);    
+    m_boot_data().init_priv_boot_key = em_crypto_t::get_priv_key_bn(m_boot_data().initiator_boot_key);    
     m_boot_data().init_pub_boot_key = em_crypto_t::get_pub_key_point(m_boot_data().initiator_boot_key);
 
     // Baseline test to ensure the bootstrapping key is present
