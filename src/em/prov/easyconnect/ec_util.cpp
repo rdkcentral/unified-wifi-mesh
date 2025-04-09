@@ -222,7 +222,7 @@ std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t *wra
 
     if (result < 0) {
         em_printfout("Failed to decrypt and authenticate wrapped data");
-        delete[] unwrap_attribs;
+        free(unwrap_attribs);
         return {nullptr, 0};
     }
 
