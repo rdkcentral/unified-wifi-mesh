@@ -1110,6 +1110,7 @@ const char *em_t::state_2_str(em_state_t state)
         EM_STATE_2S(em_state_agent_sta_link_metrics)
         EM_STATE_2S(em_state_max)
         EM_STATE_2S(em_state_agent_beacon_report_pending)
+        EM_STATE_2S(em_state_agent_channel_select_configuration_pending)
     }
 
     return "em_state_unknown";

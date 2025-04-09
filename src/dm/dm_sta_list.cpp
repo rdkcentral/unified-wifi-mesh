@@ -53,7 +53,7 @@ int dm_sta_list_t::get_config(cJSON *obj_arr, void *parent, em_get_sta_list_reas
     bssid_t	bssid;
     unsigned int i;
 
-    dm_easy_mesh_t::string_to_macbytes((char *)parent, bssid);
+    dm_easy_mesh_t::string_to_macbytes(static_cast<char *>(parent), bssid);
 
     sta = get_first_sta();
     while (sta != NULL) {
@@ -100,7 +100,7 @@ int dm_sta_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void
 int dm_sta_list_t::set_config(db_client_t& db_client, dm_sta_t& sta, void *parent_id)
 {
     dm_orch_type_t op;
-    char *tmp = (char *)parent_id;
+    char *tmp = static_cast<char *>(parent_id);
 
     //printf("dm_op_class_list_t::%s:%d: id: %s\n", __func__, __LINE__, (char *)parent_id);
     update_db(db_client, (op = get_dm_orch_type(db_client, sta)), sta.get_sta_info());
@@ -115,9 +115,9 @@ dm_orch_type_t dm_sta_list_t::get_dm_orch_type(db_client_t& db_client, const dm_
     mac_addr_str_t  sta_mac_str, bssid_mac_str, radio_mac_str;
     em_long_string_t key;
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)sta.m_sta_info.id, sta_mac_str);
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)sta.m_sta_info.bssid, bssid_mac_str);
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)sta.m_sta_info.radiomac, radio_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(sta.m_sta_info.id), sta_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(sta.m_sta_info.bssid), bssid_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(sta.m_sta_info.radiomac), radio_mac_str);
     snprintf(key, sizeof (em_long_string_t), "%s@%s@%s", sta_mac_str, bssid_mac_str, radio_mac_str);
 
     psta = get_sta(key);
@@ -150,9 +150,9 @@ void dm_sta_list_t::update_list(const dm_sta_t& sta, dm_orch_type_t op)
     mac_addr_str_t	sta_mac_str, bssid_mac_str, radio_mac_str;
     em_long_string_t key;
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)sta.m_sta_info.id, sta_mac_str);
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)sta.m_sta_info.bssid, bssid_mac_str);
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)sta.m_sta_info.radiomac, radio_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(sta.m_sta_info.id), sta_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(sta.m_sta_info.bssid), bssid_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(sta.m_sta_info.radiomac), radio_mac_str);
     snprintf(key, sizeof (em_long_string_t), "%s@%s@%s", sta_mac_str, bssid_mac_str, radio_mac_str);
 
     switch (op) {
@@ -186,8 +186,8 @@ void dm_sta_list_t::delete_list()
         tmp = psta;
         psta = get_next_sta(psta);       
     
-   	dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_sta_info.id, sta_mac_str);
-    	dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_sta_info.bssid, bssid_mac_str);
+   	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(tmp->m_sta_info.id), sta_mac_str);
+    	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(tmp->m_sta_info.bssid), bssid_mac_str);
     	snprintf(key, sizeof (em_long_string_t), "%s@%s", sta_mac_str, bssid_mac_str);
         remove_sta(key);    
     }
@@ -201,7 +201,7 @@ bool dm_sta_list_t::operator == (const db_easy_mesh_t& obj)
 int dm_sta_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *data)
 {
     mac_addr_str_t sta_mac_str, bssid_mac_str, radio_mac_str;
-    em_sta_info_t *info = (em_sta_info_t *)data;
+    em_sta_info_t *info = static_cast<em_sta_info_t *>(data);
     int ret = 0;
     char frame_body[EM_MAX_FRAME_BODY_LEN*2];
 
@@ -251,7 +251,7 @@ bool dm_sta_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
     while (db_client.next_result(ctx)) {
         db_client.get_string(ctx, mac, 1);
 
-        if (strncmp(mac, (char *)key, strlen((char *)key)) == 0) {
+        if (strncmp(mac, static_cast<char *>(key), strlen(static_cast<char *>(key))) == 0) {
             return true;
         }
     }
@@ -307,7 +307,7 @@ bool dm_sta_list_t::compare_db(db_client_t& db_client, const dm_sta_t& sta)
         db_client.get_string(ctx, frame_body, 21);
         dm_easy_mesh_t::unhex(strlen(frame_body), frame_body, EM_MAX_FRAME_BODY_LEN, info.frame_body);
 
-        if (memcmp((const void*)&sta.m_sta_info, (const void*)&info, sizeof(em_sta_info_t)) == 0) {
+        if (memcmp(static_cast<const void*>(&sta.m_sta_info), static_cast<const void*>(&info), sizeof(em_sta_info_t)) == 0) {
             return true;
         }
     }

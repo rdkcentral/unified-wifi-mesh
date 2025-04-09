@@ -49,7 +49,7 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
 	//printf("%s:%d: Key: %s\tType: %d\n", __func__, __LINE__, (char *)parent_id, type);
 
     memset(&m_policy, 0, sizeof(em_policy_t));
-	parse_dev_radio_mac_from_key((char *)parent_id, &id);
+	parse_dev_radio_mac_from_key(static_cast<char *>(parent_id), &id);
 	strncpy(m_policy.id.net_id, id.net_id, strlen(id.net_id));
 	memcpy(m_policy.id.dev_mac, id.dev_mac, sizeof(mac_address_t));
 	memcpy(m_policy.id.radio_mac, id.radio_mac, sizeof(mac_address_t));
@@ -67,7 +67,7 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
 		}
 	} else if (type == em_policy_id_type_steering_param) {
 		if ((tmp = cJSON_GetObjectItem(obj, "Steering Policy")) != NULL) {
-			m_policy.policy = (em_steering_policy_type_t)tmp->valuedouble;
+			m_policy.policy = static_cast<em_steering_policy_type_t>(tmp->valuedouble);
 		}	
 		if ((tmp = cJSON_GetObjectItem(obj, "Utilization Threshold")) != NULL) {
 			m_policy.util_threshold = tmp->valuedouble;
@@ -130,7 +130,7 @@ void dm_policy_t::encode(cJSON *obj, em_policy_id_type_t id)
 		}
 
 	} else if (id == em_policy_id_type_steering_param) {
-    	cJSON_AddNumberToObject(obj, "Steering Policy", (unsigned int)m_policy.policy);
+		cJSON_AddNumberToObject(obj, "Steering Policy", static_cast<unsigned int>(m_policy.policy));
     	cJSON_AddNumberToObject(obj, "Utilization Threshold", m_policy.util_threshold);
     	cJSON_AddNumberToObject(obj, "RCPI Threshold", m_policy.rcpi_threshold);
 	} else if (id == em_policy_id_type_ap_metrics_rep) {
@@ -209,7 +209,7 @@ int dm_policy_t::parse_dev_radio_mac_from_key(const char *key, em_policy_id_t *i
             *tmp = 0;
 			dm_easy_mesh_t::string_to_macbytes(remain, id->radio_mac);
             tmp++;
-			id->type = (em_policy_id_type_t)atoi(tmp);
+			id->type = static_cast<em_policy_id_type_t>(atoi(tmp));
 		}
         i++;
     }

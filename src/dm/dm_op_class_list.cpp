@@ -48,9 +48,9 @@ int dm_op_class_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
     em_op_class_info_t *info;
     mac_addr_str_t mac_str;
 
-    dm_op_class_t::parse_op_class_id_from_key((char *)parent, &id);
+    dm_op_class_t::parse_op_class_id_from_key(static_cast<char *>(parent), &id);
 	
-    pop_class = (dm_op_class_t *)get_first_op_class();
+    pop_class = static_cast<dm_op_class_t *>(get_first_op_class());
     while (pop_class != NULL) {
         info = pop_class->get_op_class_info();
 		dm_easy_mesh_t::macbytes_to_string(info->id.ruid, mac_str);
@@ -101,7 +101,7 @@ void dm_op_class_list_t::get_config(cJSON *obj_arr, em_op_class_type_t type)
 		return;
 	}		
 
-	op_class = (dm_op_class_t *)get_first_pre_set_op_class_by_type(type);
+	op_class = static_cast<dm_op_class_t *>(get_first_pre_set_op_class_by_type(type));
 	while (op_class) {
        	obj = cJSON_CreateObject(); 
 
@@ -112,7 +112,7 @@ void dm_op_class_list_t::get_config(cJSON *obj_arr, em_op_class_type_t type)
        	}
 
 		cJSON_AddItemToArray(obj_arr, obj);
-		op_class = (dm_op_class_t *)get_next_pre_set_op_class_by_type(type, op_class);
+		op_class = static_cast<dm_op_class_t *>(get_next_pre_set_op_class_by_type(type, op_class));
 	}
 }
 
@@ -139,7 +139,6 @@ int dm_op_class_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr,
 int dm_op_class_list_t::set_config(db_client_t& db_client, dm_op_class_t& op_class, void *parent_id)
 {
     dm_orch_type_t op;
-    char *tmp = (char *)parent_id;
 
     //printf("dm_op_class_list_t::%s:%d: id: %s\n", __func__, __LINE__, (char *)parent_id);
     update_db(db_client, (op = get_dm_orch_type(db_client, op_class)), op_class.get_op_class_info());
@@ -154,7 +153,7 @@ dm_orch_type_t dm_op_class_list_t::get_dm_orch_type(db_client_t& db_client, cons
     mac_addr_str_t  mac_str;
     em_short_string_t   key;
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)op_class.m_op_class_info.id.ruid, mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(op_class.m_op_class_info.id.ruid), mac_str);
 	//printf("%s:%d: MAC: %s\tType: %d\tClass: %d\n", __func__, __LINE__, mac_str,
 			//op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.op_class);
     snprintf(key, sizeof(key), "%s@%d@%d", mac_str, op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.op_class);
@@ -186,7 +185,7 @@ void dm_op_class_list_t::update_list(const dm_op_class_t& op_class, dm_orch_type
     mac_addr_str_t	mac_str;
     em_long_string_t	key;
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)op_class.m_op_class_info.id.ruid, mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(op_class.m_op_class_info.id.ruid), mac_str);
     snprintf(key, sizeof(key), "%s@%d@%d", mac_str, op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.op_class);
 
     switch (op) {
@@ -218,7 +217,7 @@ void dm_op_class_list_t::delete_list()
     while (pop_class != NULL) {
         tmp = pop_class;
         pop_class = get_next_op_class(pop_class);
-    	dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_op_class_info.id.ruid, mac_str);
+        dm_easy_mesh_t::macbytes_to_string(static_cast<unsigned char *>(tmp->m_op_class_info.id.ruid), mac_str);
     	snprintf(key, sizeof(key), "%s@%d@%d", mac_str, tmp->m_op_class_info.id.type, tmp->m_op_class_info.id.op_class);
   
         remove_op_class(key);
@@ -235,7 +234,7 @@ int dm_op_class_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, voi
     mac_addr_str_t mac_str;
     em_long_string_t channels_str = {0}, id;
     char tmp[8];
-    em_op_class_info_t *info = (em_op_class_info_t *)data;
+    em_op_class_info_t *info = static_cast<em_op_class_info_t *>(data);
     int ret = 0;
     unsigned int i;
 
@@ -280,7 +279,7 @@ bool dm_op_class_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
         db_client.get_string(ctx, str, 1);
 		//printf("%s:%d: Comparing source: %s target: %s\n", __func__, __LINE__, str, (char *)key);
 
-        if (strncmp(str, (char *)key, strlen((char *)key)) == 0) {
+        if (strncmp(str, static_cast<char *>(key), strlen(static_cast<char *>(key))) == 0) {
             return true;
         }
     }
