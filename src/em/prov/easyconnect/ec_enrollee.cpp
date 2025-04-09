@@ -85,6 +85,18 @@ void ec_enrollee_t::send_presence_announcement_frames()
         return;
     }
 
+    /**
+     * Sleep every 100ms until we receive a DPP Authentication Request frame or the duration expires.
+     */
+    auto interruptible_sleep = [this](auto duration) {
+        auto start = std::chrono::steady_clock::now();
+        while (!m_received_auth_frame.load() && 
+              std::chrono::steady_clock::now() - start < duration) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        return !m_received_auth_frame.load();
+    };
+
     while (!m_received_auth_frame.load()) {
         if (attempts >= 4) {
             // EasyConnect 6.2.3
@@ -94,7 +106,9 @@ void ec_enrollee_t::send_presence_announcement_frames()
             // specified in Section 6.2.2.
             attempts = 0;
             dwell = 2000;
-            std::this_thread::sleep_for(std::chrono::seconds(5));
+            if (!interruptible_sleep(std::chrono::seconds(5))) {
+                break;
+            }
         }
 
         for (const auto& freq : m_pres_announcement_freqs) {
@@ -110,10 +124,9 @@ void ec_enrollee_t::send_presence_announcement_frames()
             }
 
             // Wait `dwell` before moving to next channel.
-            std::this_thread::sleep_for(std::chrono::milliseconds(dwell));
-
-            // Break if we've already received a response
-            if (m_received_auth_frame.load()) break;
+            if (!interruptible_sleep(std::chrono::milliseconds(dwell))) {
+                break;
+            }
         }
         // EasyConnect 6.2.3
         // When all channels in the channel list have been exhausted, the Enrollee shall pause for at least 30 seconds
@@ -123,7 +136,10 @@ void ec_enrollee_t::send_presence_announcement_frames()
         // the channel list each time the procedure in step 1 is repeated
         attempts++;
         dwell *= 2;
-        std::this_thread::sleep_for(std::chrono::seconds(30));
+        
+        if (!interruptible_sleep(std::chrono::seconds(30))) {
+            break;
+        }
     }
 
     free(frame);
