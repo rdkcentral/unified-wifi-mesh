@@ -85,6 +85,18 @@ void ec_enrollee_t::send_presence_announcement_frames()
         return;
     }
 
+    /**
+     * Sleep every 100ms until we receive a DPP Authentication Request frame or the duration expires.
+     */
+    auto interruptible_sleep = [this](auto duration) {
+        auto start = std::chrono::steady_clock::now();
+        while (!m_received_auth_frame.load() && 
+              std::chrono::steady_clock::now() - start < duration) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        return !m_received_auth_frame.load();
+    };
+
     while (!m_received_auth_frame.load()) {
         if (attempts >= 4) {
             // EasyConnect 6.2.3
@@ -94,7 +106,9 @@ void ec_enrollee_t::send_presence_announcement_frames()
             // specified in Section 6.2.2.
             attempts = 0;
             dwell = 2000;
-            std::this_thread::sleep_for(std::chrono::seconds(5));
+            if (!interruptible_sleep(std::chrono::seconds(5))) {
+                break;
+            }
         }
 
         for (const auto& freq : m_pres_announcement_freqs) {
@@ -110,10 +124,9 @@ void ec_enrollee_t::send_presence_announcement_frames()
             }
 
             // Wait `dwell` before moving to next channel.
-            std::this_thread::sleep_for(std::chrono::milliseconds(dwell));
-
-            // Break if we've already received a response
-            if (m_received_auth_frame.load()) break;
+            if (!interruptible_sleep(std::chrono::milliseconds(dwell))) {
+                break;
+            }
         }
         // EasyConnect 6.2.3
         // When all channels in the channel list have been exhausted, the Enrollee shall pause for at least 30 seconds
@@ -123,7 +136,10 @@ void ec_enrollee_t::send_presence_announcement_frames()
         // the channel list each time the procedure in step 1 is repeated
         attempts++;
         dwell *= 2;
-        std::this_thread::sleep_for(std::chrono::seconds(30));
+        
+        if (!interruptible_sleep(std::chrono::seconds(30))) {
+            break;
+        }
     }
 
     free(frame);
@@ -150,11 +166,10 @@ bool ec_enrollee_t::handle_auth_request(ec_frame_t *frame, size_t len, uint8_t s
     }
     free(responder_keyhash);
     
-    ec_attribute_t *B_i_hash_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_init_bootstrap_key_hash);
-    ASSERT_NOT_NULL(B_i_hash_attr, false, "%s:%d No initiator bootstrapping key hash attribute found\n", __func__, __LINE__);
-
     if (m_boot_data().initiator_boot_key != NULL){
         // Initiator bootstrapping key is present on enrollee, mutual authentication is possible
+        ec_attribute_t *B_i_hash_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_init_bootstrap_key_hash);
+        ASSERT_NOT_NULL(B_i_hash_attr, false, "%s:%d No initiator bootstrapping key hash attribute found\n", __func__, __LINE__);
         uint8_t* initiator_keyhash = ec_crypto::compute_key_hash(m_boot_data().initiator_boot_key);
         if (initiator_keyhash != NULL) {
             if (memcmp(B_i_hash_attr->data, initiator_keyhash, B_i_hash_attr->length) == 0) {
