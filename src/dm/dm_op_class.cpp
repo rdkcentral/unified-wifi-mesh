@@ -201,7 +201,7 @@ int dm_op_class_t::parse_op_class_id_from_key(const char *key, em_op_class_id_t 
             remain = tmp;
         } else if (i == 1) {
             *tmp = 0;
-            id->type = (em_op_class_type_t)atoi(remain);
+            id->type = static_cast<em_op_class_type_t>(atoi(remain));
             tmp++;
             id->op_class = atoi(tmp);
         }

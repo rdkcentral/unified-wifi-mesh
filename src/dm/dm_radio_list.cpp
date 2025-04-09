@@ -48,9 +48,9 @@ int dm_radio_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 int dm_radio_list_t::get_config(cJSON *obj_arr, void *parent, em_get_radio_list_reason_t reason)
 {
     dm_radio_t *pradio;
-    cJSON *obj, *sec_obj;
+    cJSON *obj;
     mac_addr_str_t  mac_str;
-    char *dev_mac_str = (char *)parent;
+    char *dev_mac_str = static_cast<char *>(parent);
     mac_address_t	dev_mac;
 
     dm_easy_mesh_t::string_to_macbytes(dev_mac_str, dev_mac);
@@ -76,7 +76,7 @@ int dm_radio_list_t::set_config(db_client_t& db_client, dm_radio_t& radio, void 
 {
     dm_orch_type_t op;
     
-	dm_radio_t::parse_radio_id_from_key((char *)parent_id, &radio.m_radio_info.id);
+    dm_radio_t::parse_radio_id_from_key(static_cast<char *>(parent_id), &radio.m_radio_info.id);
     
     update_db(db_client, (op = get_dm_orch_type(db_client, radio)), radio.get_radio_info());
     update_list(radio, op);
@@ -110,11 +110,11 @@ dm_orch_type_t dm_radio_list_t::get_dm_orch_type(db_client_t& db_client, const d
     mac_addr_str_t radio_mac_str, dev_mac_str;
     em_long_string_t key;
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)radio.m_radio_info.id.dev_mac, dev_mac_str);
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)radio.m_radio_info.id.ruid, radio_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(radio.m_radio_info.id.dev_mac), dev_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(radio.m_radio_info.id.ruid), radio_mac_str);
     snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", radio.m_radio_info.id.net_id, dev_mac_str, radio_mac_str);
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)radio.m_radio_info.intf.mac, mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(radio.m_radio_info.intf.mac), mac_str);
     pradio = get_radio(mac_str);
     if (pradio != NULL) {
         if (entry_exists_in_table(db_client, key) == false) {
@@ -141,9 +141,8 @@ void dm_radio_list_t::update_list(const dm_radio_t& radio, dm_orch_type_t op)
 {
     dm_radio_t *pradio;
     mac_addr_str_t	mac_str = {0};
-	em_long_string_t	key;
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)radio.m_radio_info.intf.mac, mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(radio.m_radio_info.intf.mac), mac_str);
 
     switch (op) {
         case dm_orch_type_db_insert:
@@ -174,7 +173,7 @@ void dm_radio_list_t::delete_list()
     while (pradio != NULL) {
         tmp = pradio;
         pradio = get_next_radio(pradio);       
-		dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_radio_info.intf.mac, mac_str);
+        dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(tmp->m_radio_info.intf.mac), mac_str);
         remove_radio(mac_str);    
     }
 }   
@@ -188,12 +187,12 @@ bool dm_radio_list_t::operator == (const db_easy_mesh_t& obj)
 int dm_radio_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *data)
 {
     mac_addr_str_t radio_mac_str, dev_mac_str;
-    em_radio_info_t *info = (em_radio_info_t *)data;
+    em_radio_info_t *info = static_cast<em_radio_info_t *>(data);
     int ret = 0;
 	em_long_string_t key;
 
-	dm_easy_mesh_t::macbytes_to_string((unsigned char *)info->id.dev_mac, dev_mac_str);
-	dm_easy_mesh_t::macbytes_to_string((unsigned char *)info->id.ruid, radio_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(info->id.dev_mac), dev_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(info->id.ruid), radio_mac_str);
 	snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", info->id.net_id, dev_mac_str, radio_mac_str);
 
     switch (op) {
@@ -237,7 +236,7 @@ bool dm_radio_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
     while (db_client.next_result(ctx)) {
         db_client.get_string(ctx, str, 1);
 
-        if (strncmp(str, (char *)key, strlen((char *)key)) == 0) {
+        if (strncmp(str, static_cast<char *>(key), strlen(static_cast<char *>(key))) == 0) {
             return true;
         }
     }
@@ -264,7 +263,7 @@ int dm_radio_list_t::sync_db(db_client_t& db_client, void *ctx)
         info.enabled = db_client.get_number(ctx, 3);
         info.media_data.media_type = db_client.get_number(ctx, 4);
         info.media_data.band = db_client.get_number(ctx, 5);
-	info.band = (em_freq_band_t) db_client.get_number(ctx, 5);
+        info.band = static_cast<em_freq_band_t> (db_client.get_number(ctx, 5));
         info.media_data.center_freq_index_1 = db_client.get_number(ctx, 6);
         info.media_data.center_freq_index_2 = db_client.get_number(ctx, 7);
         info.number_of_bss = db_client.get_number(ctx, 8);
