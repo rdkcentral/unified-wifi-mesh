@@ -33,7 +33,9 @@
 #include <sstream>
 
 #include <cstdlib>
+#ifdef __GLIBC__
 #include <execinfo.h>
+#endif
 
 
 #include "util.h"
@@ -43,6 +45,7 @@ extern "C" {
 }
 
 void util::print_stacktrace() {
+#ifdef __GLIBC__
     // Get the stack trace (Unix/Linux implementation)
     const int max_frames = 100;
     void* callstack[max_frames];
@@ -56,6 +59,7 @@ void util::print_stacktrace() {
     }
     
     free(symbols);
+#endif
 }
 
 char *util::get_date_time_rfc3399(char *buff, unsigned int len)

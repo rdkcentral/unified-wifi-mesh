@@ -20,6 +20,7 @@
 #define DM_DEVICE_H
 
 #include "em_base.h"
+#include <cstring>
 
 class dm_device_t {
 public:

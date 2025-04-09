@@ -10,6 +10,7 @@
 #include <vector>
 #include <optional>
 #include <string>
+#include <cstring>
 #include <unordered_map>
 
 // forward decl

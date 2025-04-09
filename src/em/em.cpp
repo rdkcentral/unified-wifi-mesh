@@ -508,6 +508,13 @@ void em_t::proto_run()
 
 void *em_t::em_func(void *arg)
 {
+    size_t stack_size2;
+    pthread_attr_t attr;
+
+    pthread_attr_init(&attr);
+    pthread_attr_getstacksize(&attr, &stack_size2);
+    printf("%s:%d Thread stack size = %ld bytes \n", __func__, __LINE__, stack_size2);
+    pthread_attr_destroy(&attr);
     em_t *m = static_cast<em_t *>(arg);
 
     m->proto_run();
@@ -1048,14 +1055,35 @@ int em_t::init()
     // initialize the crypto
     m_crypto.init();
 
-    if (pthread_create(&m_tid, NULL, em_t::em_func, this) != 0) {
+    ssize_t stack_size = 0x800000; /* 8MB */
+    pthread_attr_t attr;
+    pthread_attr_t *attrp = NULL;
+    int ret = 0;
+    attrp = &attr;
+    pthread_attr_init(&attr);
+    // Setting explicitly stacksize as in few platforms(e.g. openwrt) if not called, the
+    // new thread will inherit the default stack size which is significantly less
+    // leading to stack overflow.
+    ret = pthread_attr_setstacksize(&attr, stack_size);
+    if (ret != 0) {
+        printf("%s:%d pthread_attr_setstacksize failed for size:%ld ret:%d\n",
+                __func__, __LINE__, stack_size, ret);
+    }
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
+    if (pthread_create(&m_tid, attrp, em_t::em_func, this) != 0) {
         printf("%s:%d: Failed to start em thread\n", __func__, __LINE__);
         close(m_fd);
         pthread_mutex_destroy(&m_iq.lock);
         pthread_cond_destroy(&m_iq.cond);
+        if(attrp != NULL) {
+            pthread_attr_destroy(attrp);
+        }
         return -1; 
     }
-
+    if(attrp != NULL) {
+        pthread_attr_destroy(attrp);
+    }
     return 0;
 
 }
