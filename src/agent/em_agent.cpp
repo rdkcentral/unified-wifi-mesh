@@ -713,7 +713,7 @@ bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_f
     act_frame_params->frequency = frequency;
 
     //TODO: Disabled until halinterace, rdk-wifi-hal, OneWifi PRs are merged
-    //act_frame_params->wait_time_ms = wait_time_ms;
+    act_frame_params->wait_time_ms = wait_time_ms;
 
     act_frame_params->frame_len = action_frame_len;
     memcpy(act_frame_params->frame_data, action_frame, action_frame_len);
@@ -728,7 +728,7 @@ bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_f
     char path[100] = {0};
     snprintf(path, sizeof(path), "Device.WiFi.AccessPoint.%d.RawFrame.Mgmt.Action.Tx", test_idx+1);
     
-    printf("%s:%d Sending Action frame to path: %s\n", __func__, __LINE__, path);
+    em_printfout("Sending action frame: VAP Idx (%d), Dest ("MACSTRFMT"), Frequency (%d), Dwell Time (%d)", test_idx, MAC2STR(dest_mac), frequency, wait_time_ms);
     // Send the action frame
     bus_error_t rc;
     if ((rc = desc->bus_set_fn(&m_bus_hdl, path,  &raw_act_frame)) != 0) {
