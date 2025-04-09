@@ -130,6 +130,7 @@ void ec_enrollee_t::send_presence_announcement_frames()
 
 bool ec_enrollee_t::handle_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
+    em_printfout("Recieved a DPP Authentication Request from '" MACSTRFMT "', stopping Presence Announcement\n", MAC2STR(src_mac));
     // Halt presence announcement once DPP Authentication frame is received.
     m_received_auth_frame.store(true);
     if (m_send_pres_announcement_thread.joinable()) m_send_pres_announcement_thread.join();
