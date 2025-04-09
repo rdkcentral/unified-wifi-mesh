@@ -442,7 +442,7 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
     em_t* dest_radio_node = static_cast<em_t*>(hash_map_get(g_agent.m_em_map, dest_mac_str));
     if (dest_radio_node == NULL &&  !is_bcast) {
         // If the destination MAC is a broadcast address, we don't need to find the node
-        // printf("No radio node found for dest mac %s\n", dest_mac_str);
+        em_printfout("No radio node found for dest mac %s\n", dest_mac_str);
         return;
     }
 
@@ -452,13 +452,17 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
     size_t full_action_frame_len = frame_len - mgmt_hdr_len;
     auto ec_frame = reinterpret_cast<ec_frame_t*>(evt->u.raw_buff + mgmt_hdr_len);
 
+    bool found_em = false;
+
     switch (oui_type) {
     case DPP_OUI_TYPE: {
         em_t* al_node = get_al_node();
         bool dest_al_same = false;
         if (dest_radio_node != NULL && al_node != NULL) {
-            dest_al_same = (memcmp(dest_radio_node->get_radio_interface_mac(), al_node->get_radio_interface_mac(), ETH_ALEN) != 0);
+            em_printfout("Dest radio node MAC '" MACSTRFMT "', al_node radio MAC '" MACSTRFMT"'\n", MAC2STR(dest_radio_node->get_radio_interface_mac()), MAC2STR(al_node->get_radio_interface_mac()));
+            dest_al_same = (memcmp(dest_radio_node->get_radio_interface_mac(), al_node->get_radio_interface_mac(), ETH_ALEN) == 0);
         }
+        em_printfout("Dest MAC '%s', dest_al_same=%d, is_bcast=%d\n", dest_mac_str, dest_al_same, is_bcast);
 
         /*
         If any of the following conditions are satisfied:
@@ -473,6 +477,7 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
         if (is_bcast || dest_al_same || (m_data_model.get_colocated())) {
 
             al_node->get_ec_mgr().handle_recv_ec_action_frame(ec_frame, full_action_frame_len, mgmt_frame->sa);
+            found_em = true;
             break;
         }
     }
@@ -480,6 +485,9 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
         break;
     }
 
+    if (!found_em) {
+        em_printfout("Did not find an EM node for action frame!\n");
+    }
 }
 
 void em_agent_t::handle_btm_response_action_frame(em_bus_event_t *evt)
