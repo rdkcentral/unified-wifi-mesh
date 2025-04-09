@@ -199,7 +199,7 @@ void dm_network_ssid_list_t::delete_list()
 
 bool dm_network_ssid_list_t::operator == (const db_easy_mesh_t& obj)
 {
-	dm_network_ssid_t *pnet_ssid = (dm_network_ssid_t*)&obj;
+	dm_network_ssid_t *pnet_ssid = const_cast<dm_network_ssid_t*>(reinterpret_cast<const dm_network_ssid_t*>(&obj));
 	unsigned int i, j;
 	bool matched = false;
 

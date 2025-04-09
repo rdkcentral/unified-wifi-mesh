@@ -44,7 +44,7 @@ int dm_radio_cap_t::decode(const cJSON *obj, void *parent_id)
 {
     cJSON *tmp;
     unsigned int i;
-    em_interface_t	*id = (em_interface_t *)parent_id;
+    em_interface_t	*id = static_cast<em_interface_t *>(parent_id);
     
     memset(&m_radio_cap_info, 0, sizeof(em_radio_cap_info_t));
 

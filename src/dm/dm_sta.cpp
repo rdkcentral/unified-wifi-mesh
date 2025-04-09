@@ -42,11 +42,10 @@
 
 int dm_sta_t::decode(const cJSON *obj, void *parent_id)
 {
-    cJSON *tmp, *tmp_arr;
+    cJSON *tmp;
     mac_addr_str_t  mac_str;
-    unsigned int i;
 
-    mac_address_t *bssid = (mac_address_t *)parent_id;
+    mac_address_t *bssid = static_cast<mac_address_t *>(parent_id);
 
     memset(&m_sta_info, 0, sizeof(em_sta_info_t));
     memcpy(&m_sta_info.bssid,bssid,sizeof(mac_address_t));
@@ -361,7 +360,7 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
             return;
         }
 
-        tag_id = (tag_type_t)sta->m_sta_info.frame_body[offset];
+        tag_id = static_cast<tag_type_t>(sta->m_sta_info.frame_body[offset]);
         length = sta->m_sta_info.frame_body[offset + 1];
 
         if (offset + 2 + length > sta->m_sta_info.frame_body_len) {
@@ -369,7 +368,7 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
             return;
         }
 
-        ieee80211_tagvalue_t *tag = (ieee80211_tagvalue_t *) malloc(sizeof(ieee80211_tagvalue_t) + length);
+        ieee80211_tagvalue_t *tag = static_cast<ieee80211_tagvalue_t *> (malloc(sizeof(ieee80211_tagvalue_t) + length));
         if (!tag) {
             printf("%s:%d: Memory allocation failed\n", __func__, __LINE__);
             return;
@@ -458,7 +457,7 @@ void dm_sta_t::decode_beacon_report(dm_sta_t *sta)
     int current_pkt_len = 0;
 
     em_sta_info_t *sta_info = &sta->m_sta_info;
-    ie = (unsigned char *)sta->m_sta_info.beacon_report_elem;
+    ie = static_cast<unsigned char *>(sta->m_sta_info.beacon_report_elem);
 
     for (i = 0; i < sta_info->num_beacon_meas_report; i++) {
         current_pkt_len = ie[1];

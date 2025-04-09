@@ -54,7 +54,7 @@ int dm_radio_t::decode(const cJSON *obj, void *parent_id)
         dm_easy_mesh_t::name_from_mac_address(&m_radio_info.intf.mac, m_radio_info.intf.name);
     }
 
-    dm_radio_t::parse_radio_id_from_key((char *)parent_id, &m_radio_info.id);
+    dm_radio_t::parse_radio_id_from_key(static_cast<char *>(parent_id), &m_radio_info.id);
     dm_easy_mesh_t::macbytes_to_string(m_radio_info.id.ruid, mac_str);
     dm_easy_mesh_t::macbytes_to_string(m_radio_info.id.dev_mac, dev_mac);
 
