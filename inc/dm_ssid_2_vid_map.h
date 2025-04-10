@@ -30,8 +30,8 @@ public:
     int init();
 
     em_ssid_2_vid_map_info_t *get_ssid_2_vid_map_info() { return &m_ssid_2_vid_map_info; }
-    dm_ssid_2_vid_map_t *get_first() { return (dm_ssid_2_vid_map_t *)hash_map_get_first(m_list); }
-    dm_ssid_2_vid_map_t *get_next(dm_ssid_2_vid_map_t *ssid_2_vid) { return (dm_ssid_2_vid_map_t *)hash_map_get_next(m_list, ssid_2_vid); }
+    dm_ssid_2_vid_map_t *get_first() { return static_cast<dm_ssid_2_vid_map_t *>(hash_map_get_first(m_list)); }
+    dm_ssid_2_vid_map_t *get_next(dm_ssid_2_vid_map_t *ssid_2_vid) { return static_cast<dm_ssid_2_vid_map_t *>(hash_map_get_next(m_list, ssid_2_vid)); }
     dm_orch_type_t update_list(const dm_ssid_2_vid_map_t& ssid_2_vid);
 
     void init_table();

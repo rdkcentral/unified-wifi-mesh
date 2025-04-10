@@ -15,6 +15,7 @@ ec_enrollee_t::ec_enrollee_t(std::string mac_addr, send_act_frame_func send_acti
 ec_enrollee_t::~ec_enrollee_t()
 {
     ec_util::free_connection_ctx(m_c_ctx);
+    if (m_send_pres_announcement_thread.joinable()) m_send_pres_announcement_thread.join();
 }
 
 bool ec_enrollee_t::start_onboarding(bool do_reconfig, ec_data_t* boot_data)
@@ -22,15 +23,15 @@ bool ec_enrollee_t::start_onboarding(bool do_reconfig, ec_data_t* boot_data)
 
     ASSERT_NOT_NULL(boot_data, false, "%s:%d Bootstrapping data is NULL\n", __func__, __LINE__);
     if (boot_data->version < 2) {
-        printf("%s:%d Bootstrapping Version '%d' not supported!\n", __func__, __LINE__, boot_data->version);
+        em_printfout("Bootstrapping Version '%d' not supported!", boot_data->version);
         return false;
     }
     if (memcmp(boot_data->mac_addr, ZERO_MAC_ADDR, ETHER_ADDR_LEN) == 0) {
-        printf("%s:%d Bootstrapping data MAC address is 0 \n", __func__, __LINE__);
+        em_printfout("Bootstrapping data MAC address is 0 ");
         return false;
     }
     if (boot_data->responder_boot_key == NULL) {
-        printf("%s:%d Bootstrapping data responder key is NULL\n", __func__, __LINE__);
+        em_printfout("Bootstrapping data responder key is NULL");
         return false;
     }
 
@@ -42,24 +43,24 @@ bool ec_enrollee_t::start_onboarding(bool do_reconfig, ec_data_t* boot_data)
 
     const SSL_KEY* resp_key = do_reconfig ? m_c_ctx.C_signing_key : m_boot_data().responder_boot_key;
     if (resp_key == NULL) {
-        printf("%s:%d No bootstrapping key found\n", __func__, __LINE__);
+        em_printfout("No bootstrapping key found");
         return false;
     }
     // Not all of these will be present but it is better to compute them now.
     m_boot_data().resp_priv_boot_key = em_crypto_t::get_priv_key_bn(resp_key);
     m_boot_data().resp_pub_boot_key = em_crypto_t::get_pub_key_point(resp_key);
 
-    m_boot_data().init_priv_boot_key= em_crypto_t::get_priv_key_bn(m_boot_data().initiator_boot_key);    
+    m_boot_data().init_priv_boot_key = em_crypto_t::get_priv_key_bn(m_boot_data().initiator_boot_key);    
     m_boot_data().init_pub_boot_key = em_crypto_t::get_pub_key_point(m_boot_data().initiator_boot_key);
 
     // Baseline test to ensure the bootstrapping key is present
     if (m_boot_data().resp_pub_boot_key == NULL) {
-        printf("%s:%d Could not get responder bootstrap public key\n", __func__, __LINE__);
+        em_printfout("Could not get responder bootstrap public key");
         return false;
     }
     
     if (!ec_crypto::init_connection_ctx(m_c_ctx, resp_key)){
-        printf("%s:%d failed to initialize persistent context\n", __func__, __LINE__);
+        em_printfout("failed to initialize persistent context");
         return false;
     }
 
@@ -80,9 +81,21 @@ void ec_enrollee_t::send_presence_announcement_frames()
 
     auto [frame, frame_len] = create_presence_announcement();
     if (frame == nullptr || frame_len == 0) {
-        printf("%s:%d: Failed to create DPP Presence Announcement frame\n", __func__, __LINE__);
+        em_printfout("Failed to create DPP Presence Announcement frame");
         return;
     }
+
+    /**
+     * Sleep every 100ms until we receive a DPP Authentication Request frame or the duration expires.
+     */
+    auto interruptible_sleep = [this](auto duration) {
+        auto start = std::chrono::steady_clock::now();
+        while (!m_received_auth_frame.load() && 
+              std::chrono::steady_clock::now() - start < duration) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        return !m_received_auth_frame.load();
+    };
 
     while (!m_received_auth_frame.load()) {
         if (attempts >= 4) {
@@ -93,7 +106,9 @@ void ec_enrollee_t::send_presence_announcement_frames()
             // specified in Section 6.2.2.
             attempts = 0;
             dwell = 2000;
-            std::this_thread::sleep_for(std::chrono::seconds(5));
+            if (!interruptible_sleep(std::chrono::seconds(5))) {
+                break;
+            }
         }
 
         for (const auto& freq : m_pres_announcement_freqs) {
@@ -105,14 +120,13 @@ void ec_enrollee_t::send_presence_announcement_frames()
 
             // Send frame
             if (!m_send_action_frame(const_cast<uint8_t *>(BROADCAST_MAC_ADDR), frame, frame_len, freq, dwell)) {
-                printf("%s:%d: Failed to send DPP Presence Announcement frame (broadcast) on freq %d\n", __func__, __LINE__, freq);
+                em_printfout("Failed to send DPP Presence Announcement frame (broadcast) on freq %d", freq);
             }
 
             // Wait `dwell` before moving to next channel.
-            std::this_thread::sleep_for(std::chrono::milliseconds(dwell));
-
-            // Break if we've already received a response
-            if (m_received_auth_frame.load()) break;
+            if (!interruptible_sleep(std::chrono::milliseconds(dwell))) {
+                break;
+            }
         }
         // EasyConnect 6.2.3
         // When all channels in the channel list have been exhausted, the Enrollee shall pause for at least 30 seconds
@@ -122,7 +136,10 @@ void ec_enrollee_t::send_presence_announcement_frames()
         // the channel list each time the procedure in step 1 is repeated
         attempts++;
         dwell *= 2;
-        std::this_thread::sleep_for(std::chrono::seconds(30));
+        
+        if (!interruptible_sleep(std::chrono::seconds(30))) {
+            break;
+        }
     }
 
     free(frame);
@@ -130,6 +147,7 @@ void ec_enrollee_t::send_presence_announcement_frames()
 
 bool ec_enrollee_t::handle_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
+    em_printfout("Recieved a DPP Authentication Request from '" MACSTRFMT "', stopping Presence Announcement\n", MAC2STR(src_mac));
     // Halt presence announcement once DPP Authentication frame is received.
     m_received_auth_frame.store(true);
     if (m_send_pres_announcement_thread.joinable()) m_send_pres_announcement_thread.join();
@@ -142,21 +160,20 @@ bool ec_enrollee_t::handle_auth_request(ec_frame_t *frame, size_t len, uint8_t s
     ASSERT_NOT_NULL(responder_keyhash, false, "%s:%d failed to compute responder bootstrapping key hash\n", __func__, __LINE__);
 
     if (memcmp(B_r_hash_attr->data, responder_keyhash, B_r_hash_attr->length) != 0) {
-        printf("%s:%d Responder key hash mismatch\n", __func__, __LINE__);
+        em_printfout("Responder key hash mismatch");
         free(responder_keyhash);
         return false;
     }
     free(responder_keyhash);
     
-    ec_attribute_t *B_i_hash_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_init_bootstrap_key_hash);
-    ASSERT_NOT_NULL(B_i_hash_attr, false, "%s:%d No initiator bootstrapping key hash attribute found\n", __func__, __LINE__);
-
     if (m_boot_data().initiator_boot_key != NULL){
         // Initiator bootstrapping key is present on enrollee, mutual authentication is possible
+        ec_attribute_t *B_i_hash_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_init_bootstrap_key_hash);
+        ASSERT_NOT_NULL(B_i_hash_attr, false, "%s:%d No initiator bootstrapping key hash attribute found\n", __func__, __LINE__);
         uint8_t* initiator_keyhash = ec_crypto::compute_key_hash(m_boot_data().initiator_boot_key);
         if (initiator_keyhash != NULL) {
             if (memcmp(B_i_hash_attr->data, initiator_keyhash, B_i_hash_attr->length) == 0) {
-                printf("%s:%d Initiator key hash matched, mutual authentication can now occur\n", __func__, __LINE__);
+                em_printfout("Initiator key hash matched, mutual authentication can now occur");
                 // Hashes match, mutual authentication can occur
                 m_eph_ctx().is_mutual_auth = true;
                 /*
@@ -177,11 +194,11 @@ following exchanges. If so, it sends the DPP Authentication Response frame on th
 Authentication Request frame without replying to it.
         */
         uint16_t op_chan = *reinterpret_cast<uint16_t*>(channel_attr->data);
-        printf("%s:%d Channel attribute: %d\n", __func__, __LINE__, op_chan);
+        em_printfout("Channel attribute: %d", op_chan);
 
         uint8_t op_class = static_cast<uint8_t>(op_chan >> 8);
         uint8_t channel = static_cast<uint8_t>(op_chan & 0x00ff);
-        printf("%s:%d op_class: %d channel %d\n", __func__, __LINE__, op_class, channel);
+        em_printfout("op_class: %d channel %d", op_class, channel);
         //TODO: Check One-Wifi for channel selection if possible
         // Maybe just attempt to send it on the channel
     }
@@ -207,7 +224,7 @@ Authentication Request frame without replying to it.
     // Compute the "first intermediate key" (k1)
     m_eph_ctx().k1 = static_cast<uint8_t *>(calloc(m_c_ctx.digest_len, 1));
     if (ec_crypto::compute_hkdf_key(m_c_ctx, m_eph_ctx().k1, m_c_ctx.digest_len, "first intermediate key", bn_inputs, 1, NULL, 0) == 0) {
-        printf("%s:%d: Failed to compute k1\n", __func__, __LINE__); 
+        em_printfout("Failed to compute k1"); 
         return false;
     }
 
@@ -220,7 +237,7 @@ Authentication Request frame without replying to it.
     // Attempt to unwrap the wrapped data with generated k1 (from sent keys)
     auto [wrapped_data, wrapped_len] = ec_util::unwrap_wrapped_attrib(wrapped_data_attr, frame, false, m_eph_ctx().k1); 
     if (wrapped_data == NULL || wrapped_len == 0) {
-        printf("%s:%d failed to unwrap wrapped data\n", __func__, __LINE__);
+        em_printfout("failed to unwrap wrapped data");
         // "Abondon the exchange"
         return false;
     }
@@ -242,7 +259,7 @@ Authentication Request frame without replying to it.
     }
 
     if (!ec_util::check_caps_compatible(init_caps, m_dpp_caps)) {
-        printf("%s:%d Initiator capabilities not supported\n", __func__, __LINE__);
+        em_printfout("Initiator capabilities not supported");
 
         /*
         STATUS_NOT_COMPATIBLE:
@@ -250,13 +267,13 @@ Authentication Request frame without replying to it.
         */
         auto [resp_frame, resp_len] = create_auth_response(DPP_STATUS_NOT_COMPATIBLE, init_proto_version);
         if (resp_frame == NULL || resp_len == 0) {
-            printf("%s:%d failed to create response frame\n", __func__, __LINE__);
+            em_printfout("failed to create response frame");
             return false;
         }
         if (m_send_action_frame(src_mac, resp_frame, resp_len, 0, 0)){
-            printf("%s:%d Successfully sent DPP Status Not Compatible response frame\n", __func__, __LINE__);
+            em_printfout("Successfully sent DPP Status Not Compatible response frame");
         } else {
-            printf("%s:%d Failed to send DPP Status Not Compatible response frame\n", __func__, __LINE__);
+            em_printfout("Failed to send DPP Status Not Compatible response frame");
         }
         return false;
     }
@@ -270,13 +287,13 @@ Authentication Request frame without replying to it.
         */
         auto [resp_frame, resp_len] = create_auth_response(DPP_STATUS_RESPONSE_PENDING, init_proto_version);
         if (resp_frame == NULL || resp_len == 0) {
-            printf("%s:%d failed to create response frame\n", __func__, __LINE__);
+            em_printfout("failed to create response frame");
             return false;
         }
         if (m_send_action_frame(src_mac, resp_frame, resp_len, 0, 0)){
-            printf("%s:%d Successfully sent DPP Status Response Pending response frame\n", __func__, __LINE__);
+            em_printfout("Successfully sent DPP Status Response Pending response frame");
         } else {
-            printf("%s:%d Failed to send DPP Status Response Pending response frame\n", __func__, __LINE__);
+            em_printfout("Failed to send DPP Status Response Pending response frame");
         }
         return true;
     }
@@ -287,14 +304,14 @@ Authentication Request frame without replying to it.
     */
     auto [resp_frame, resp_len] = create_auth_response(DPP_STATUS_OK, init_proto_version);
     if (resp_frame == NULL || resp_len == 0) {
-        printf("%s:%d failed to create response frame\n", __func__, __LINE__);
+        em_printfout("failed to create response frame");
         return false;
     }
     bool did_succeed = m_send_action_frame(src_mac, resp_frame, resp_len, 0, 0);
     if (did_succeed){
-        printf("%s:%d Successfully sent DPP Status OK response frame\n", __func__, __LINE__);
+        em_printfout("Successfully sent DPP Status OK response frame");
     } else {
-        printf("%s:%d Failed to send DPP Status OK response frame\n", __func__, __LINE__);
+        em_printfout("Failed to send DPP Status OK response frame");
     }
 
     return did_succeed;
@@ -310,7 +327,7 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
     ec_status_code_t dpp_status = static_cast<ec_status_code_t>(status_attrib->data[0]);
 
     if (dpp_status != DPP_STATUS_OK && dpp_status != DPP_STATUS_AUTH_FAILURE && dpp_status != DPP_STATUS_NOT_COMPATIBLE) {
-        printf("%s:%d: Recieved Improper DPP Status: \"%s\"\n", __func__, __LINE__, ec_util::status_code_to_string(dpp_status).c_str());
+        em_printfout("Recieved Improper DPP Status: \"%s\"", ec_util::status_code_to_string(dpp_status).c_str());
         return false;
     }
 
@@ -323,7 +340,7 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
     // If DPP Status is OK, wrap the I-auth with the KE key, otherwise wrap the Responder Nonce with the K2 key
     auto [unwrapped_data, unwrapped_data_len] = ec_util::unwrap_wrapped_attrib(wrapped_attr, frame, true, key);
     if (unwrapped_data == NULL || unwrapped_data_len == 0) {
-        printf("%s:%d: Failed to unwrap wrapped data, aborting exchange\n", __func__, __LINE__);
+        em_printfout("Failed to unwrap wrapped data, aborting exchange");
         // Aborts exchange
         return false;
     }
@@ -331,7 +348,7 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
         // Unwrapping successfully occured but there is an error, "generate an alert"
         free(unwrapped_data);
         std::string status_str = ec_util::status_code_to_string(dpp_status);
-        printf("%s:%d: Authentication Failed with DPP Status: %s\n", __func__, __LINE__, status_str.c_str());
+        em_printfout("Authentication Failed with DPP Status: %s", status_str.c_str());
         return false;
     }
 
@@ -351,7 +368,7 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
     BIGNUM* B_R_x = ec_crypto::get_ec_x(m_c_ctx, m_boot_data().init_pub_boot_key);
 
     if (P_I_x == NULL || P_R_x == NULL || B_R_x == NULL) {
-        printf("%s:%d: Failed to get x-coordinates of P_I, P_R, and B_R\n", __func__, __LINE__);
+        em_printfout("Failed to get x-coordinates of P_I, P_R, and B_R");
         if (P_I_x) BN_free(P_I_x);
         if (P_R_x) BN_free(P_R_x);
         if (B_R_x) BN_free(B_R_x);
@@ -361,7 +378,7 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
 
     // B_I.x is not needed (can be null) if mutual authentication is not supported
     if (m_eph_ctx().is_mutual_auth && B_I_x == NULL) {
-        printf("%s:%d: Failed to get x-coordinate of B_I\n", __func__, __LINE__);
+        em_printfout("Failed to get x-coordinate of B_I");
         BN_free(P_I_x);
         BN_free(P_R_x);
         BN_free(B_R_x);
@@ -385,12 +402,12 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
     if (B_I_x) BN_free(B_I_x);
 
     if (i_auth_prime == NULL) {
-        printf("%s:%d: Failed to compute I-auth'\n", __func__, __LINE__);
+        em_printfout("Failed to compute I-auth'");
         return false;
     }
 
     if (memcmp(i_auth_prime, i_auth_tag, sizeof(i_auth_tag)) != 0) {
-        printf("%s:%d: I-auth' does not match Initiator Auth Tag, authentication failed!\n", __func__, __LINE__);
+        em_printfout("I-auth' does not match Initiator Auth Tag, authentication failed!");
         // TODO: "ALERT" The user that authentication failed
         free(i_auth_prime);
         return false;
@@ -398,7 +415,7 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
 
     const auto [config_req, config_req_len] = create_config_request();
     if (config_req == nullptr || config_req_len == 0) {
-        printf("%s:%d: Could not create DPP Configuration Request!\n", __func__, __LINE__);
+        em_printfout("Could not create DPP Configuration Request!");
         return false;
     }
 
@@ -416,9 +433,9 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
     // with the Multi-AP Controller.
     bool sent_dpp_config_gas_frame = m_send_action_frame(src_mac, config_req, config_req_len, 0, 0);
     if (sent_dpp_config_gas_frame) {
-        printf("%s:%d: Sent DPP Configuration Request 802.11 frame to Proxy Agent!\n", __func__, __LINE__);
+        em_printfout("Sent DPP Configuration Request 802.11 frame to Proxy Agent!");
     } else {
-        printf("%s:%d: Failed to send DPP Configuration Request GAS frame\n", __func__, __LINE__);
+        em_printfout("Failed to send DPP Configuration Request GAS frame");
     }
     free(config_req);
 
@@ -439,7 +456,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
     // as per [18].
 
     // EasyConnect 6.4.3.2 Enrollee Handling
-    printf("%s:%d: Got a DPP Configuration Response from " MACSTRFMT "\n", __func__, __LINE__, MAC2STR(sa));
+    em_printfout("Got a DPP Configuration Response from " MACSTRFMT "", MAC2STR(sa));
     ec_gas_initial_response_frame_t *config_response_frame = reinterpret_cast<ec_gas_initial_response_frame_t*>(buff);
 
 
@@ -456,14 +473,14 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
 
     if (!config_response_status_code_valid) {
         // If invalid status code, may either re-send Configuration Request, or abort.
-        printf("%s:%d: Invalid DPP Status code %d (%s) for Configuration response, aborting configuration\n", __func__, __LINE__, static_cast<int>(config_response_status_code), ec_util::status_code_to_string(config_response_status_code).c_str());
+        em_printfout("Invalid DPP Status code %d (%s) for Configuration response, aborting configuration", static_cast<int>(config_response_status_code), ec_util::status_code_to_string(config_response_status_code).c_str());
         return false;
     }
 
     // Currently un-handled status codes. 
     if (config_response_status_code == DPP_STATUS_CONFIGURE_PENDING || config_response_status_code == DPP_STATUS_NEW_KEY_NEEDED || config_response_status_code == DPP_STATUS_CSR_BAD) {
         // TODO: EasyConnect 6.4.3.2
-        printf("%s:%d: DPP status is %d (%s), not handled!\n", __func__, __LINE__, config_response_status_code, ec_util::status_code_to_string(config_response_status_code).c_str());
+        em_printfout("DPP status is %d (%s), not handled!", config_response_status_code, ec_util::status_code_to_string(config_response_status_code).c_str());
         return false;
     }
 
@@ -472,7 +489,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
 
     auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(wrapped_attrs, reinterpret_cast<uint8_t*>(config_response_frame), sizeof(*config_response_frame), config_response_frame->resp, true, m_eph_ctx().ke);
     if (unwrapped_attrs == nullptr || unwrapped_attrs_len == 0) {
-        printf("%s:%d: Failed to unwrap wrapped attributes.\n", __func__, __LINE__);
+        em_printfout("Failed to unwrap wrapped attributes.");
         return false;
     }
     ec_attribute_t* e_nonce_attr = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_enrollee_nonce);
@@ -497,7 +514,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
     cJSON *bsta_cred_obj = cJSON_GetObjectItem(bsta_configuration_object, "cred");
     cJSON *bsta_discovery_obj = cJSON_GetObjectItem(bsta_configuration_object, "discovery");
     if (bsta_cred_obj == nullptr || bsta_discovery_obj == nullptr) {
-        printf("%s:%d: Incomplete bSTA Configuration object received\n", __func__, __LINE__);
+        em_printfout("Incomplete bSTA Configuration object received");
         free(wrapped_attrs);
         cJSON_Delete(bsta_configuration_object);
         cJSON_Delete(ieee1905_configuration_object);
@@ -506,7 +523,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
 
     cJSON *bsta_ssid = cJSON_GetObjectItem(bsta_discovery_obj, "SSID");
     if (bsta_ssid == nullptr) {
-        printf("%s:%d: Could not get \"SSID\" from bSTA Configuration object.\n", __func__, __LINE__);
+        em_printfout("Could not get \"SSID\" from bSTA Configuration object.");
         free(wrapped_attrs);
         cJSON_Delete(bsta_configuration_object);
         cJSON_Delete(ieee1905_configuration_object);
@@ -514,7 +531,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
     }
     cJSON *bsta_pass = cJSON_GetObjectItem(bsta_cred_obj, "pass");
     if (bsta_pass == nullptr) {
-        printf("%s:%d: Could not get \"pass\" from bSTA Configuration object.\n", __func__, __LINE__);
+        em_printfout("Could not get \"pass\" from bSTA Configuration object.");
         free(wrapped_attrs);
         cJSON_Delete(bsta_configuration_object);
         cJSON_Delete(ieee1905_configuration_object);
@@ -538,7 +555,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
     // Mandatory Configuration Result frame indicating configuration status.
     auto [config_result_frame, config_result_frame_len] = create_config_result(connection_status);
     if (config_result_frame == nullptr || config_result_frame_len == 0) {
-        printf("%s:%d: Failed to create DPP Configuration Result frame\n", __func__, __LINE__);
+        em_printfout("Failed to create DPP Configuration Result frame");
         free(wrapped_attrs);
         cJSON_Delete(ieee1905_configuration_object);
         cJSON_Delete(bsta_configuration_object);
@@ -547,9 +564,9 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
 
     bool ok = m_send_action_frame(sa, config_result_frame, config_result_frame_len, 0, 0);
     if (!ok) {
-        printf("%s:%d: Failed to send DPP Configuration Result frame\n", __func__, __LINE__);
+        em_printfout("Failed to send DPP Configuration Result frame");
     } else {
-        printf("%s:%d: Sent Configuration Result frame to '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(sa));
+        em_printfout("Sent Configuration Result frame to '" MACSTRFMT "'", MAC2STR(sa));
     }
 
     // No Conn Status frame needed.
@@ -564,7 +581,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
     auto [conn_status_result_frame, conn_status_result_frame_len] = create_connection_status_result(connection_status, std::string(bsta_ssid->valuestring, strlen(bsta_ssid->valuestring)));
     
     if (!conn_status_result_frame || conn_status_result_frame_len == 0) {
-        printf("%s:%d: Configurator required a Connection Status Result frame, but could not create one\n", __func__, __LINE__);
+        em_printfout("Configurator required a Connection Status Result frame, but could not create one");
         free(wrapped_attrs);
         cJSON_Delete(ieee1905_configuration_object);
         cJSON_Delete(bsta_configuration_object);
@@ -572,7 +589,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
     }
     
     if (!m_send_action_frame(sa, conn_status_result_frame, conn_status_result_frame_len, 0, 0)) {
-        printf("%s:%d: Failed to send Connection Status Result frame to Configurator!\n", __func__, __LINE__);
+        em_printfout("Failed to send Connection Status Result frame to Configurator!");
         free(conn_status_result_frame);
         free(wrapped_attrs);
         cJSON_Delete(ieee1905_configuration_object);
@@ -580,7 +597,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
         return false;
     }
     
-    printf("%s:%d: Sent a Connection Status Result frame to Configurator\n", __func__, __LINE__);
+    em_printfout("Sent a Connection Status Result frame to Configurator");
 
     free(conn_status_result_frame);
     free(wrapped_attrs);
@@ -591,7 +608,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
 
 std::pair<uint8_t *, size_t> ec_enrollee_t::create_presence_announcement()
 {
-    printf("%s:%d Enter\n", __func__, __LINE__);
+    em_printfout("Enter");
 
     ec_frame_t *frame =  ec_util::alloc_frame(ec_frame_type_presence_announcement);
     ASSERT_NOT_NULL(frame, {}, "%s:%d failed to allocate memory for frame\n", __func__, __LINE__);
@@ -607,7 +624,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_presence_announcement()
     free(resp_boot_key_chirp_hash);
 
     if (!(frame = ec_util::copy_attrs_to_frame(frame, attribs, attribs_len))) {
-        printf("%s:%d unable to copy attributes to frame\n", __func__, __LINE__);
+        em_printfout("unable to copy attributes to frame");
         free(attribs);
         free(frame);
         return {};
@@ -669,7 +686,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
         });
         
         if (!(frame = ec_util::copy_attrs_to_frame(frame, attribs, attribs_len))) {
-            printf("%s:%d unable to copy attributes to frame\n", __func__, __LINE__);
+            em_printfout("unable to copy attributes to frame");
             free(frame);
             free(attribs);
             return {};
@@ -682,7 +699,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
 
     // Generate R-nonce
     if (!RAND_bytes(m_eph_ctx().r_nonce, m_c_ctx.nonce_len)) {
-        printf("%s:%d failed to generate R-nonce\n", __func__, __LINE__);
+        em_printfout("failed to generate R-nonce");
         free(attribs);
         free(frame);
         return {};
@@ -691,7 +708,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
     // Generate initiator protocol key pair (p_i/P_I)
     auto [priv_resp_proto_key, pub_resp_proto_key] = ec_crypto::generate_proto_keypair(m_c_ctx);
     if (priv_resp_proto_key == NULL || pub_resp_proto_key == NULL) {
-        printf("%s:%d failed to generate responder protocol keypair\n", __func__, __LINE__);
+        em_printfout("failed to generate responder protocol keypair");
         free(attribs);
         free(frame);
         return {};
@@ -707,7 +724,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
     // Compute the "second intermediate key" (k2)
     m_eph_ctx().k2 = static_cast<uint8_t *>(calloc(m_c_ctx.digest_len, 1));
     if (ec_crypto::compute_hkdf_key(m_c_ctx, m_eph_ctx().k2, m_c_ctx.digest_len, "second intermediate key", bn_inputs, 1, NULL, 0) == 0) {
-        printf("%s:%d: Failed to compute k2\n", __func__, __LINE__); 
+        em_printfout("Failed to compute k2"); 
         free(attribs);
         free(frame);
         return {};
@@ -726,7 +743,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
     }
 
     if (m_eph_ctx().is_mutual_auth && m_eph_ctx().l == NULL) {
-        printf("%s:%d failed to compute L.x\n", __func__, __LINE__);
+        em_printfout("failed to compute L.x");
         free(attribs);
         free(frame);
         return {};
@@ -736,7 +753,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
     // Compute k_e
     m_eph_ctx().ke = static_cast<uint8_t *>(calloc(m_c_ctx.digest_len, 1));
     if (ec_crypto::compute_ke(m_c_ctx, &m_eph_ctx(), m_eph_ctx().ke) == 0){
-        printf("%s:%d: Failed to compute ke\n", __func__, __LINE__);
+        em_printfout("Failed to compute ke");
         free(attribs);
         free(frame);
         return {};
@@ -749,7 +766,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
     BIGNUM* B_R_x = ec_crypto::get_ec_x(m_c_ctx, m_boot_data().resp_pub_boot_key);
 
     if (P_I_x == NULL || P_R_x == NULL || B_R_x == NULL) {
-        printf("%s:%d: Failed to get x-coordinates of P_I, P_R, and B_R\n", __func__, __LINE__);
+        em_printfout("Failed to get x-coordinates of P_I, P_R, and B_R");
         if (P_I_x) BN_free(P_I_x);
         if (P_R_x) BN_free(P_R_x);
         if (B_R_x) BN_free(B_R_x);
@@ -759,7 +776,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
 
     // B_I.x is not needed (can be null) if mutual authentication is not supported
     if (m_eph_ctx().is_mutual_auth && B_I_x == NULL) {
-        printf("%s:%d: Failed to get x-coordinate of B_I when mutal authentication is occuring\n", __func__, __LINE__);
+        em_printfout("Failed to get x-coordinate of B_I when mutal authentication is occuring");
         BN_free(P_I_x);
         BN_free(P_R_x);
         BN_free(B_R_x);
@@ -813,7 +830,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
     free(r_auth);
 
     if (!(frame = ec_util::copy_attrs_to_frame(frame, attribs, attribs_len))) {
-        printf("%s:%d unable to copy attributes to frame\n", __func__, __LINE__);
+        em_printfout("unable to copy attributes to frame");
         free(frame);
         free(attribs);
         return {};
@@ -837,13 +854,13 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_recfg_presence_announcement()
     */
 
     if (m_c_ctx.group == NULL || m_c_ctx.order == NULL || m_c_ctx.bn_ctx == NULL) {
-        printf("%s:%d: Pre-initialized EC parameters not initialized!\n", __func__, __LINE__);
+        em_printfout("Pre-initialized EC parameters not initialized!");
         return {};
     }
 
     uint8_t a_nonce_buf[m_c_ctx.nonce_len];
     if (!RAND_bytes(a_nonce_buf, m_c_ctx.nonce_len)) {
-        printf("%s:%d: Failed to generate A-nonce\n", __func__, __LINE__);
+        em_printfout("Failed to generate A-nonce");
         return {};
     }
 
@@ -862,33 +879,33 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_recfg_presence_announcement()
 
     // Convert the random bytes to a BIGNUM
     if (!BN_bin2bn(a_nonce_buf, m_c_ctx.nonce_len, a_nonce.get())) {
-        printf("%s:%d: Failed to convert a-nonce to BIGNUM\n", __func__, __LINE__);
+        em_printfout("Failed to convert a-nonce to BIGNUM");
         return {};
     }
 
     // modulo to ensure the value is less than the order
     if (!BN_mod(a_nonce.get(), a_nonce.get(), m_c_ctx.order, m_c_ctx.bn_ctx)) {
-        printf("%s:%d: Failed to modulo a-nonce\n", __func__, __LINE__);
+        em_printfout("Failed to modulo a-nonce");
         return {};
     }
 
     // Compute A-NONCE = a-nonce * G
     if (!EC_POINT_mul(m_c_ctx.group, A_NONCE.get(), a_nonce.get(), NULL, NULL, m_c_ctx.bn_ctx)) {
-        printf("%s:%d: Failed to compute A-NONCE\n", __func__, __LINE__);
+        em_printfout("Failed to compute A-NONCE");
         return {};
     }
 
     // Calculate a-nonce * Ppk
     if (!EC_POINT_mul(m_c_ctx.group, a_nonce_ppk.get(), NULL, m_c_ctx.ppk, a_nonce.get(),
                       m_c_ctx.bn_ctx)) {
-        printf("%s:%d: Failed to compute a-nonce * Ppk\n", __func__, __LINE__);
+        em_printfout("Failed to compute a-nonce * Ppk");
         return {};
     }
 
     // Calculate E'-id = E-id + (a-nonce * Ppk)
     if (!EC_POINT_add(m_c_ctx.group, E_prime_Id.get(), m_eph_ctx().E_Id, a_nonce_ppk.get(),
                       m_c_ctx.bn_ctx)) {
-        printf("%s:%d: Failed to compute E'-id\n", __func__, __LINE__);
+        em_printfout("Failed to compute E'-id");
         return {};
     }
 
@@ -962,7 +979,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_recfg_presence_announcement()
                           __func__, __LINE__);
 
     if (!(frame = ec_util::copy_attrs_to_frame(frame, attribs, attribs_len))) {
-        printf("%s:%d unable to copy attributes to frame\n", __func__, __LINE__);
+        em_printfout("unable to copy attributes to frame");
         free(frame);
         free(attribs);
         return {};
@@ -989,12 +1006,12 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     // Enrollee → Configurator: { E-nonce, configRequest }ke
 
     if (RAND_bytes(m_eph_ctx().e_nonce, m_c_ctx.nonce_len) != 1) {
-        printf("%s:%d: Could not generate E-nonce!\n", __func__, __LINE__);
+        em_printfout("Could not generate E-nonce!");
         return {};
     }
 
     if (m_boot_data().version <= 1) {
-        printf("%s:%d: EasyMesh R >= 5 mandates DPP version >= 2, current version is %d, bailing.\n", __func__, __LINE__, m_boot_data().version);
+        em_printfout("EasyMesh R >= 5 mandates DPP version >= 2, current version is %d, bailing.", m_boot_data().version);
         return {};
     }
 
@@ -1010,20 +1027,20 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     cJSON *wifi_tech = cJSON_CreateString("map");
     char hostname[256] = {0};
     if (gethostname(hostname, sizeof(hostname)) != 0) {
-        printf("%s:%d: `gethostname` failed, defaulting DPP Configuration Request object key \"name\" to \"Enrollee\"", __func__, __LINE__);
+        em_printfout("`gethostname` failed, defaulting DPP Configuration Request object key \"name\" to \"Enrollee\"");
         static const char *default_name = "Enrollee";
         strncpy(hostname, default_name, strlen(default_name));
     }
     cJSON *name = cJSON_CreateString(hostname);
     if (!dpp_config_request_obj || !netRole || !wifi_tech) {
-        printf("%s:%d: Failed to create DPP Configuration Request Object!\n", __func__, __LINE__);
+        em_printfout("Failed to create DPP Configuration Request Object!");
         return {};
     }
     cJSON_AddItemToObject(dpp_config_request_obj, "netRole", netRole);
     cJSON_AddItemToObject(dpp_config_request_obj, "wi-fi_tech", wifi_tech);
     cJSON_AddItemToObject(dpp_config_request_obj, "name", name);
     if (m_get_bsta_info == nullptr) {
-        printf("%s:%d: Get bSTA info callback is nullptr! Cannot create DPP Configuration Request Object, bailing.\n", __func__, __LINE__);
+        em_printfout("Get bSTA info callback is nullptr! Cannot create DPP Configuration Request Object, bailing.");
         return {};
     }
     cJSON *bsta_info = m_get_bsta_info(nullptr);
@@ -1037,7 +1054,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     unsigned char dialog_token = 1;
     auto [frame, frame_len] = ec_util::alloc_gas_frame(dpp_gas_initial_req, dialog_token);
     if (frame == nullptr || frame_len == 0) {
-        printf("%s:%d: Could not create DPP Configuration Request GAS frame!\n", __func__, __LINE__);
+        em_printfout("Could not create DPP Configuration Request GAS frame!");
         return {};
     }
 
@@ -1056,7 +1073,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
 
     if ((initial_req_frame = reinterpret_cast<ec_gas_initial_request_frame_t*>(
         ec_util::copy_attrs_to_frame(reinterpret_cast<uint8_t*> (initial_req_frame), sizeof(ec_gas_initial_request_frame_t), attribs, attribs_len))) == nullptr) {
-        printf("%s:%d: unable to copy attribs to GAS frame\n", __func__, __LINE__);
+        em_printfout("unable to copy attribs to GAS frame");
         free(attribs);
         free(frame);
         return {};
@@ -1090,7 +1107,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_result(ec_status_code_
     });
 
     if (!(frame = ec_util::copy_attrs_to_frame(frame, attribs, attribs_len))) {
-        printf("%s:%d: Failed to copy attributes to DPP Configuration Result frame\n", __func__, __LINE__);
+        em_printfout("Failed to copy attributes to DPP Configuration Result frame");
         free(attribs);
         free(frame);
         return {};

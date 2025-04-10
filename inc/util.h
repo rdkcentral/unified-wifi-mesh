@@ -140,7 +140,10 @@ std::string akm_to_oui(std::string akm);
 
 } // namespace util
 
+#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+
 #define em_printf(format, ...)  util::em_util_print(EM_LOG_LVL_INFO, EM_AGENT, __func__, __LINE__, format, ##__VA_ARGS__)// general log
+#define em_printfout(format, ...)  util::em_util_print(EM_LOG_LVL_INFO, EM_STDOUT, __FILENAME__, __LINE__, format, ##__VA_ARGS__)// general log
 #define em_util_dbg_print(module, format, ...)  util::em_util_print(EM_LOG_LVL_DEBUG, module, __func__, __LINE__, format, ##__VA_ARGS__)
 #define em_util_info_print(module, format, ...)  util::em_util_print(EM_LOG_LVL_INFO, module, __func__, __LINE__, format, ##__VA_ARGS__)
 #define em_util_error_print(module, format, ...)  util::em_util_print(EM_LOG_LVL_ERROR, module, __func__, __LINE__, format, ##__VA_ARGS__)

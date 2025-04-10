@@ -22,6 +22,7 @@ include ../makefile.inc
 # program
 #
 
+
 PROGRAM = $(INSTALLDIR)/bin/onewifi_em_ctrl
 
 INCLUDEDIRS = \
@@ -36,13 +37,21 @@ INCLUDEDIRS = \
 	-I$(ONEWIFI_HOME)/source/platform/linux \
 	-I$(ONEWIFI_HOME)/source/platform/common \
 	-I$(ONEWIFI_HOME)/source/platform/linux/he_bus/inc \
-	-I$(ONEWIFI_HOME)/source/ccsp
+	-I$(ONEWIFI_HOME)/source/ccsp \
+	-I$(STAGING_DIR)/ \
+
 ifeq ($(WITH_SAP), 1)
 INCLUDEDIRS += -I$(AL_SAP_HOME)/include
 endif
-INDLUDEDIRS += -I$(WIFI_CJSON)
 
-CXXFLAGS += $(INCLUDEDIRS) -g -DUNIT_TEST -Wall -Wextra -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wconversion -Wsign-conversion -Wno-unused-parameter -std=c++17 -fsanitize=address -fsanitize=undefined #-Werror -O2 -Weffc++
+ifneq ($(OS), Darwin)
+CFLAGS += -DPLATFORM_LINUX
+else
+CFLAGS += -DPLATFORM_OSX
+endif
+
+CXXFLAGS += $(INCLUDEDIRS) -g -DUNIT_TEST -Wall -Wextra -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wconversion -Wsign-conversion -Wno-unused-parameter -std=c++17 -fsanitize=address -fsanitize=undefined -fpermissive #-Werror -O2 -Weffc++
+
 ifeq ($(WITH_SAP), 1)
 CXXFLAGS += -DAL_SAP
 endif
@@ -51,15 +60,27 @@ ifdef TESTING
 CXXFLAGS += -DTESTING
 endif
 
-LDFLAGS += $(LIBDIRS) $(LIBS) -fsanitize=address -fsanitize=undefined
+LDFLAGS += $(LIBDIRS) $(LIBS)
+#LDFLAGS += $(LIBDIRS) $(LIBS) -fsanitize=address -fsanitize=undefined
+
 LIBDIRS = \
 	-L$(INSTALLDIR)/lib \
-	-L$(ONEWIFI_HOME)/install/lib/
+	-L$(ONEWIFI_HOME)/install/lib/ \
+	-L/usr/local/lib    \
+	-L/usr/local/ssl/lib/ \
+
 ifeq ($(WITH_SAP), 1)
 LIBDIRS += -L$(AL_SAP_HOME)/build/lib
 endif
 
-LIBS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lmysqlcppconn -lhebus
+ifneq ($(OS), Darwin)
+LIBDIRS += -L$(INSTALLDIR)/lib/platform/x86-64
+else
+LIBDIRS += -L$(INSTALLDIR)/lib/platform/darwin
+endif
+
+LIBS = -lm -pthread -ldl -luuid -lcjson -lssl -lcrypto -lmysqlcppconn -lhebus
+
 ifeq ($(WITH_SAP), 1)
 LIBS += -lalsap
 endif
@@ -99,10 +120,10 @@ $(PROGRAM): $(ALLOBJECTS)
 	$(CXX) -o $@ $(ALLOBJECTS) $(LDFLAGS)
 
 $(GENERIC_OBJECTS): %.o: %.c
-	$(CC) $(CXXFLAGS) -o $@ -c $< 
+	$(CC) $(CXXFLAGS) -o $@ -c $<
 
 $(CTRL_OBJECTS): %.o: %.cpp
-	$(CXX) $(CXXFLAGS) -o $@ -c $< 
+	$(CXX) $(CXXFLAGS) -o $@ -c $<
 
 # Clean everything
 clean:
@@ -123,8 +144,7 @@ test: check_test_files install_gtest $(TEST_OBJECTS)
 	@echo "Building test executable with same link order as main build..."
 	$(CXX) -o $(TEST_EXEC) $(TEST_OBJECTS) $(ALLOBJECTS) $(LIBDIRS) $(LIBS) -lgtest -lgtest_main -pthread -fsanitize=address -fsanitize=undefined
 	@echo "Running tests..."
-	@cd $(TEST_DIR) && \
-	$(TEST_EXEC)
+	@$(TEST_EXEC)
 
 # Compile test source files
 $(TEST_DIR)/%.o: $(TEST_DIR)/%.cpp

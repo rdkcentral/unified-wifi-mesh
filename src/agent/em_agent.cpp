@@ -435,9 +435,14 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
     mac_addr_str_t dest_mac_str;
     dm_easy_mesh_t::macbytes_to_string(mgmt_frame->da, dest_mac_str);
     printf("Dest Mac Str: %s\n", dest_mac_str);
+    bool is_bcast = (memcmp(mgmt_frame->da, BROADCAST_MAC_ADDR, ETH_ALEN) == 0);
+    if (is_bcast) {
+        printf("Received WFA action frame with broadcast destination MAC address\n");
+    }
     em_t* dest_radio_node = static_cast<em_t*>(hash_map_get(g_agent.m_em_map, dest_mac_str));
-    if (dest_radio_node == NULL) {
-        // printf("No radio node found for dest mac %s\n", dest_mac_str);
+    if (dest_radio_node == NULL &&  !is_bcast) {
+        // If the destination MAC is a broadcast address, we don't need to find the node
+        em_printfout("No radio node found for dest mac %s\n", dest_mac_str);
         return;
     }
 
@@ -447,23 +452,42 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
     size_t full_action_frame_len = frame_len - mgmt_hdr_len;
     auto ec_frame = reinterpret_cast<ec_frame_t*>(evt->u.raw_buff + mgmt_hdr_len);
 
+    bool found_em = false;
+
     switch (oui_type) {
     case DPP_OUI_TYPE: {
-	em_t* al_node = get_al_node();
-	bool dest_al_same = (memcmp(dest_radio_node->get_radio_interface_mac(), get_al_node()->get_radio_interface_mac(), ETH_ALEN) != 0);
+        em_t* al_node = get_al_node();
+        bool dest_al_same = false;
+        if (dest_radio_node != NULL && al_node != NULL) {
+            em_printfout("Dest radio node MAC '" MACSTRFMT "', al_node radio MAC '" MACSTRFMT"'\n", MAC2STR(dest_radio_node->get_radio_interface_mac()), MAC2STR(al_node->get_radio_interface_mac()));
+            dest_al_same = (memcmp(dest_radio_node->get_radio_interface_mac(), al_node->get_radio_interface_mac(), ETH_ALEN) == 0);
+        }
+        em_printfout("Dest MAC '%s', dest_al_same=%d, is_bcast=%d\n", dest_mac_str, dest_al_same, is_bcast);
 
-	if (!dest_al_same && !(m_data_model.get_colocated()))
-		// DPP Action Frame not sent to same radio as AL node, let's ignore it.
-		// We don't ignore it if this co-located since the AL-node will be the same as the controller (eth0) 
-		// so if we ignore it, no packets will ever get through
-		break;
-        al_node->get_ec_mgr().handle_recv_ec_action_frame(ec_frame, full_action_frame_len, mgmt_frame->sa);
-        break;
+        /*
+        If any of the following conditions are satisfied:
+            - The destination MAC is a broadcast address
+            - The destination MAC is the same as the AL node (mac address)
+            - The colocated flag is set
+        Then the `ec_manager` of the AL node will handle the action frame
+        
+        We don't ignore it if this co-located since the AL-node will be the same as the controller (eth0) 
+        so if we ignore it, no packets will ever get through
+        */
+        if (is_bcast || dest_al_same || (m_data_model.get_colocated())) {
+
+            al_node->get_ec_mgr().handle_recv_ec_action_frame(ec_frame, full_action_frame_len, mgmt_frame->sa);
+            found_em = true;
+            break;
+        }
     }
     default:
         break;
     }
 
+    if (!found_em) {
+        em_printfout("Did not find an EM node for action frame!\n");
+    }
 }
 
 void em_agent_t::handle_btm_response_action_frame(em_bus_event_t *evt)
@@ -697,7 +721,7 @@ bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_f
     act_frame_params->frequency = frequency;
 
     //TODO: Disabled until halinterace, rdk-wifi-hal, OneWifi PRs are merged
-    //act_frame_params->wait_time_ms = wait_time_ms;
+    act_frame_params->wait_time_ms = wait_time_ms;
 
     act_frame_params->frame_len = action_frame_len;
     memcpy(act_frame_params->frame_data, action_frame, action_frame_len);
@@ -712,7 +736,7 @@ bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_f
     char path[100] = {0};
     snprintf(path, sizeof(path), "Device.WiFi.AccessPoint.%d.RawFrame.Mgmt.Action.Tx", test_idx+1);
     
-    printf("%s:%d Sending Action frame to path: %s\n", __func__, __LINE__, path);
+    em_printfout("Sending action frame: VAP Idx (%d), Dest ("MACSTRFMT"), Frequency (%d), Dwell Time (%d)", test_idx, MAC2STR(dest_mac), frequency, wait_time_ms);
     // Send the action frame
     bus_error_t rc;
     if ((rc = desc->bus_set_fn(&m_bus_hdl, path,  &raw_act_frame)) != 0) {
@@ -1418,7 +1442,6 @@ AlServiceAccessPoint* em_agent_t::al_sap_register()
 
 int main(int argc, const char *argv[])
 {
-
     std::vector<std::string> args;
     // Skip the first argument which is the program name
     for (int i = 1; i < argc; i++) {

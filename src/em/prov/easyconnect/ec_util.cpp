@@ -26,6 +26,10 @@ void ec_util::init_frame(ec_frame_t *frame)
 
 ec_attribute_t *ec_util::get_attrib(uint8_t *buff, size_t len, ec_attrib_id_t id)
 {
+    if (buff == NULL || len == 0) {
+        fprintf(stderr, "Invalid input\n");
+        return NULL;
+    }
     size_t total_len = 0;
     ec_attribute_t *attrib = reinterpret_cast<ec_attribute_t *>(buff);
 
@@ -101,6 +105,9 @@ bool ec_util::validate_frame(const ec_frame_t *frame)
 
 uint8_t *ec_util::add_wrapped_data_attr(uint8_t *frame, size_t frame_len, uint8_t* frame_attribs, size_t* non_wrapped_len, 
 bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> create_wrap_attribs) {
+
+    ASSERT_NOT_NULL(non_wrapped_len, NULL, "Non-wrapped length cannot be NULL");
+
     siv_ctx ctx;
 
     // NOTE: HARDCODING AS SIV_256 FOR NOW
@@ -121,7 +128,7 @@ bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> creat
             siv_init(&ctx, key, SIV_512);
             break;
         default:
-            printf("%s:%d Unknown digest length\n", __func__, __LINE__);
+            em_printfout("Unknown digest length");
             return {nullptr, 0};
     }
     */
@@ -132,6 +139,8 @@ bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> creat
     // Encapsulate the attributes in a wrapped data attribute
     uint16_t wrapped_attrib_len = wrapped_len + AES_BLOCK_SIZE;
     ec_attribute_t *wrapped_attrib = static_cast<ec_attribute_t *>(calloc(sizeof(ec_attribute_t) + wrapped_attrib_len, 1));
+    ASSERT_NOT_NULL_FREE(wrapped_attrib, NULL, wrapped_attrib, "Failed to allocate wrapped attribute");
+
     wrapped_attrib->attr_id = ec_attrib_id_wrapped_data;
     wrapped_attrib->length = wrapped_attrib_len;
     memset(wrapped_attrib->data, 0, wrapped_attrib_len);
@@ -141,22 +150,29 @@ bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> creat
     * 1. The frame structure and 2. Non-wrapped attributes (per EasyMesh 6.3.1.4)
     * The synthetic IV/tag is stored in the first AES_BLOCK_SIZE bytes of wrapped_attrib->data
     */
+   int siv_result = 0;
    if (use_aad) {
-        if (frame == NULL || frame_attribs == NULL || non_wrapped_len == NULL) {
-            printf("%s:%d: AAD input is NULL, AAD encryption failed!\n", __func__, __LINE__);
-            return NULL;
-        }
-        siv_encrypt(&ctx, wrap_attribs, &wrapped_attrib->data[AES_BLOCK_SIZE], wrapped_len, wrapped_attrib->data, 2,
+
+        ASSERT_NOT_NULL_FREE2(frame_attribs, NULL, wrapped_attrib, wrap_attribs, "Frame attributes cannot be NULL for AAD encryption");
+        ASSERT_NOT_NULL_FREE2(frame, NULL, wrapped_attrib, wrap_attribs, "Frame cannot be NULL for AAD encryption");
+        
+        siv_result = siv_encrypt(&ctx, wrap_attribs, &wrapped_attrib->data[AES_BLOCK_SIZE], wrapped_len, wrapped_attrib->data, 2,
             frame, frame_len,
             frame_attribs, *non_wrapped_len);
     } else {
-        siv_encrypt(&ctx, wrap_attribs, &wrapped_attrib->data[AES_BLOCK_SIZE], wrapped_len, wrapped_attrib->data, 0);
+        siv_result = siv_encrypt(&ctx, wrap_attribs, &wrapped_attrib->data[AES_BLOCK_SIZE], wrapped_len, wrapped_attrib->data, 0);
+    }
+    if (siv_result < 0) {
+        em_printfout("Failed to encrypt and authenticate wrapped data");
+        free(wrap_attribs);
+        free(wrapped_attrib);
+        return NULL;
     }
 
     // Add the wrapped data attribute to the frame
-    uint8_t* ret_frame_attribs = ec_util::add_attrib(frame_attribs, non_wrapped_len, ec_attrib_id_wrapped_data, wrapped_attrib_len, reinterpret_cast<uint8_t *>(wrapped_attrib));
+    uint8_t* ret_frame_attribs = ec_util::add_attrib(frame_attribs, non_wrapped_len, ec_attrib_id_wrapped_data, wrapped_attrib_len, wrapped_attrib->data);
 
-
+    free(wrapped_attrib);
     free(wrap_attribs);
 
     return ret_frame_attribs;
@@ -195,7 +211,7 @@ std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t *wra
             siv_init(&ctx, key, SIV_512);
             break;
         default:
-            printf("%s:%d Unknown digest length\n", __func__, __LINE__);
+            em_printfout("Unknown digest length");
             return {nullptr, 0};
     }
     */
@@ -207,7 +223,7 @@ std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t *wra
     int result = -1;
     if (uses_aad) {
         if (frame == NULL) {
-            printf("%s:%d: AAD input is NULL, AAD decryption failed!\n", __func__, __LINE__);
+            em_printfout("AAD input is NULL, AAD decryption failed!");
             return {nullptr, 0};
         }
         size_t pre_wrapped_attribs_size = static_cast<size_t>(reinterpret_cast<uint8_t*>(wrapped_attrib) - frame_attribs);
@@ -221,8 +237,8 @@ std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t *wra
     }
 
     if (result < 0) {
-        printf("%s:%d: Failed to decrypt and authenticate wrapped data\n", __func__, __LINE__);
-        delete[] unwrap_attribs;
+        em_printfout("Failed to decrypt and authenticate wrapped data");
+        free(unwrap_attribs);
         return {nullptr, 0};
     }
 
@@ -286,7 +302,7 @@ bool ec_util::parse_dpp_chirp_tlv(em_dpp_chirp_value_t* chirp_tlv, uint16_t chir
 std::pair<em_dpp_chirp_value_t*, uint16_t> ec_util::create_dpp_chirp_tlv(bool mac_present, bool hash_validity, mac_addr_t dest_mac, uint8_t* hash, uint16_t hash_len)
 {
     if (dest_mac == NULL && mac_present) {
-        printf("%s:%d: mac_present argument is true, but dest_mac was not provided\n", __func__, __LINE__);
+        em_printfout("mac_present argument is true, but dest_mac was not provided");
         return {};
     }
 
@@ -420,7 +436,7 @@ uint8_t *ec_util::copy_attrs_to_frame(uint8_t *frame, size_t frame_base_size, ui
     size_t new_len = frame_base_size + attrs_len;
     uint8_t *new_frame = reinterpret_cast<uint8_t *>(realloc(frame, new_len));
     if (new_frame == nullptr) {
-        printf("%s:%d: unable to realloc\n", __func__, __LINE__);
+        em_printfout("unable to realloc");
         return nullptr;
     }
 
@@ -719,7 +735,7 @@ bool ec_util::decode_bootstrap_data_uri(const std::string &uri, ec_data_t *boot_
                         "%s:%d: URI part '%s' is not valid. Key (%s) not valid \n", __func__,
                         __LINE__, part.c_str(), key_value[0].c_str());
         if (uri_map.find(*uri_type) != uri_map.end()) {
-            printf("%s:%d: URI part '%s' is duplicated\n", __func__, __LINE__, part.c_str());
+            em_printfout("URI part '%s' is duplicated", part.c_str());
             return false;
         }
         uri_map[*uri_type] = key_value[1];
@@ -746,7 +762,7 @@ bool ec_util::decode_bootstrap_data_json(const cJSON *json_obj, ec_data_t *boot_
         ASSERT_MSG_TRUE(uri_type != std::nullopt, false, "%s:%d: Key (%s) not valid \n", __func__,
                         __LINE__, key);
         if (uri_map.find(*uri_type) != uri_map.end()) {
-            printf("%s:%d: Key '%s' is duplicated\n", __func__, __LINE__, key);
+            em_printfout("Key '%s' is duplicated", key);
             return false;
         }
         if (cJSON_IsString(object_item)) {
@@ -754,7 +770,7 @@ bool ec_util::decode_bootstrap_data_json(const cJSON *json_obj, ec_data_t *boot_
         } else if (cJSON_IsNumber(object_item)) {
             uri_map[*uri_type] = std::to_string(cJSON_GetNumberValue(object_item));
         } else {
-            printf("%s:%d: Key '%s' is not a string or number\n", __func__, __LINE__, key);
+            em_printfout("Key '%s' is not a string or number", key);
             return false;
         }
     }
@@ -775,14 +791,14 @@ bool ec_util::read_bootstrap_data_from_files(ec_data_t *boot_data, const std::st
     json_buff << dpp_uri_json_fp.rdbuf();
     std::string dpp_uri_json_str = json_buff.str();
     dpp_uri_json_fp.close();
-    printf("%s:%d: DPP URI JSON: %s\n", __func__, __LINE__, dpp_uri_json_str.c_str());
+    em_printfout("DPP URI JSON: %s", dpp_uri_json_str.c_str());
 
     cJSON *json = cJSON_Parse(dpp_uri_json_str.c_str());
     if (json == NULL) {
-        printf("%s:%d: Failed to parse JSON at path '%s'\n", __func__, __LINE__, file_path.c_str());
+        em_printfout("Failed to parse JSON at path '%s'", file_path.c_str());
         const char *error_ptr = cJSON_GetErrorPtr();
         if (error_ptr != NULL) {
-            printf("%s:%d: JSON parse error at %s\n", __func__, __LINE__, error_ptr);
+            em_printfout("JSON parse error at %s", error_ptr);
         }
         return false;
     }
@@ -833,10 +849,10 @@ bool ec_util::write_bootstrap_data_to_files(ec_data_t *boot_data, const std::str
     // Encode the DPP URI JSON
     auto json_str = encode_bootstrap_data_json(boot_data);
     if (json_str == std::nullopt) {
-        printf("%s:%d: Failed to encode DPP URI JSON\n", __func__, __LINE__);
+        em_printfout("Failed to encode DPP URI JSON");
         return false;
     }
-    printf("%s:%d: DPP URI JSON: %s\n", __func__, __LINE__, json_str->c_str());
+    em_printfout("DPP URI JSON: %s", json_str->c_str());
 
     std::ofstream out_file(file_path);
     if (!out_file.is_open()) {
@@ -856,7 +872,7 @@ bool ec_util::write_bootstrap_data_to_files(ec_data_t *boot_data, const std::str
         return false;
     }
     out_file.close();
-    printf("%s:%d: DPP URI JSON written to %s\n", __func__, __LINE__, file_path.c_str());
+    em_printfout("DPP URI JSON written to %s", file_path.c_str());
 
     // Write the PEM file and return
     return em_crypto_t::write_keypair_to_pem(boot_data->responder_boot_key, pem_file_path);;
@@ -871,7 +887,7 @@ bool ec_util::generate_dpp_boot_data(ec_data_t *boot_data, mac_addr_t al_mac,
 
     boot_data->responder_boot_key = em_crypto_t::generate_ec_key(DPP_KEY_NID);
     if (boot_data->responder_boot_key == NULL) {
-        printf("%s:%d: Failed to generate EC key\n", __func__, __LINE__);
+        em_printfout("Failed to generate EC key");
         memset(boot_data, 0, sizeof(ec_data_t));
         return false;
     }
@@ -936,17 +952,17 @@ bool ec_util::get_dpp_boot_data(ec_data_t *boot_data, mac_addr_t al_mac, bool do
         }
     }
 
-    printf("%s:%d: Force regenerating DPP bootstrapping data\n", __func__, __LINE__);
+    em_printfout("Force regenerating DPP bootstrapping data");
 
     // Generate new DPP bootstrapping data to ensure correct MAC address is used
     if (!ec_util::generate_dpp_boot_data(boot_data, al_mac, op_class_info)) {
-        printf("%s:%d: Failed to generate DPP boot data\n", __func__, __LINE__);
+        em_printfout("Failed to generate DPP boot data");
         return false;
     }
 
     // Write the DPP URI JSON to the file
     if (!ec_util::write_bootstrap_data_to_files(boot_data, DPP_URI_JSON_PATH, DPP_BOOT_PEM_PATH)) {
-        printf("%s:%d: Failed to write DPP URI JSON to file\n", __func__, __LINE__);
+        em_printfout("Failed to write DPP URI JSON to file");
         return false;
     }
 

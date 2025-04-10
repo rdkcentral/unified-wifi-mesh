@@ -29,7 +29,6 @@ INCLUDEDIRS = \
 	-I$(ONEWIFI_EM_HOME)/inc \
 	-I$(ONEWIFI_EM_HOME)/src/utils \
 	-I$(ONEWIFI_EM_HOME)/src/util/ \
-	-I$(ONEWIFI_EM_HOME)/src/util_crypto/ \
 	-I$(ONEWIFI_HAL_INTF_HOME) \
 	-I$(ONEWIFI_HOME)/source/utils \
 	-I$(ONEWIFI_HOME)/include \
@@ -40,17 +39,15 @@ INCLUDEDIRS = \
     -I$(RBUS_HOME)/include \
 	-I$(WIFI_CJSON) \
 
-
-CXXFLAGS = $(INCLUDEDIRS) -g -std=c++17 -fPIC
+CXXFLAGS = $(INCLUDEDIRS) -g -std=c++17 -fPIC -fpermissive
 CFLAGS = $(INCLUDEDIRS) -g
 LDFLAGS = $(LIBDIRS) $(LIBS)
 LIBDIRS = \
 	-L$(INSTALLDIR)/lib \
 
-LIBS = -lemcli -lm -lpthread -ldl -lcjson -lreadline -lssl -lcrypto
+LIBS = -lemcli -lm -pthread -ldl -lcjson -lreadline -lssl -lcrypto
 
 GENERIC_SOURCES = $(ONEWIFI_HOME)/source/utils/collection.c	\
-                  $(ONEWIFI_EM_SRC)/util_crypto/aes_siv.c \
 
 CLI_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/cli/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/cmd/*.cpp) \
@@ -75,8 +72,6 @@ CLI_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/cli/*.cpp) \
     $(ONEWIFI_EM_SRC)/dm/dm_tid_to_link.cpp \
     $(ONEWIFI_EM_SRC)/em/em_net_node.cpp \
     $(ONEWIFI_EM_SRC)/utils/util.cpp \
-    $(ONEWIFI_EM_SRC)/em/prov/easyconnect/ec_util.cpp \
-
 
 MAIN_SOURCE = $(ONEWIFI_EM_SRC)/cli/main.c
 
@@ -119,7 +114,5 @@ clean:
 # 
 
 run:
-	@cd $(INSTALLDIR)/bin && \
-	LD_LIBRARY_PATH=$(INSTALLDIR)/lib ./onewifi_em_cli $(RUNARGS)
+	LD_LIBRARY_PATH=$(INSTALLDIR)/lib $(PROGRAM) $(RUNARGS)
 
-.PHONY: run

@@ -86,7 +86,7 @@ int dm_scan_result_t::decode(const cJSON *obj, void *parent_id)
 		}
 
 		if ((tmp = cJSON_GetObjectItem(arr_item, "Bandwidth")) != NULL) {
-			m_scan_result.neighbor[m_scan_result.num_neighbors].bandwidth = (wifi_channelBandwidth_t)cJSON_GetNumberValue(tmp);
+			m_scan_result.neighbor[m_scan_result.num_neighbors].bandwidth = static_cast<wifi_channelBandwidth_t>(cJSON_GetNumberValue(tmp));
 		}
 
 		if ((tmp = cJSON_GetObjectItem(arr_item, "BSSColor")) != NULL) {
@@ -199,7 +199,7 @@ int dm_scan_result_t::parse_scan_result_id_from_key(const char *key, em_scan_res
 			remain = tmp;
 		} else if (i == 5) {
             *tmp = 0; 
-			id->scanner_type = (em_scanner_type_t)atoi(remain);
+			id->scanner_type = static_cast<em_scanner_type_t>(atoi(remain));
             tmp++;
 			if (bssid != NULL) {
             	dm_easy_mesh_t::string_to_macbytes(tmp, bssid);
