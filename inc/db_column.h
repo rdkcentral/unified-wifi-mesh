@@ -30,9 +30,37 @@ public:
 public:
     void operator = (const db_column_t& col); 
     
-    db_column_t(const db_column_name_t name, const db_data_type_t type, const db_data_type_args_t args);
-    db_column_t();
-    ~db_column_t();
+    
+	/**!
+	 * @brief Constructor for db_column_t.
+	 *
+	 * Initializes a database column with the specified name, data type, and type arguments.
+	 *
+	 * @param[in] name The name of the database column.
+	 * @param[in] type The data type of the database column.
+	 * @param[in] args Additional arguments for the data type.
+	 *
+	 * @note Ensure that the name and type are valid and supported by the database system.
+	 */
+	db_column_t(const db_column_name_t name, const db_data_type_t type, const db_data_type_args_t args);
+    
+	/**!
+	 * @brief Constructor for db_column_t.
+	 *
+	 * Initializes a new instance of the db_column_t class.
+	 *
+	 * @note This constructor does not take any parameters.
+	 */
+	db_column_t();
+    
+	/**!
+	 * @brief Destructor for the db_column_t class.
+	 *
+	 * This function is responsible for cleaning up resources used by the db_column_t instance.
+	 *
+	 * @note Ensure that all resources are properly released before the destructor is called.
+	 */
+	~db_column_t();
 };
 
 #endif
