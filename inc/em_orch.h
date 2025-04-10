@@ -247,19 +247,30 @@ public:
 	 * structure before calling this function.
 	 */
 	void update_stats(em_cmd_t *pcmd);
-    
+   
 	/**!
 	 * @brief Checks if a command type is currently in progress.
 	 *
 	 * This function determines whether a specific command type, identified by the
 	 * parameter `type`, is currently being processed or is in progress.
 	 *
-	 * @param[in] type The type of the event to check.
+	 * @param[in] type type of	event.
 	 *
 	 * @returns True if the command type is in progress, false otherwise.
 	 */
-	bool is_cmd_type_in_progress(em_bus_event_type_t type);
-    
+	bool is_cmd_type_in_progress(em_bus_event_t *evt);
+ 
+	/**!
+	 * @brief Checks if a command type is currently in progress.
+	 *
+	 * This function determines whether a specific command type, identified by the
+	 * parameter `type`, is currently being processed or is in progress.
+	 *
+	 * @param[in] evt  event information .
+	 *
+	 * @returns True if the command type is in progress, false otherwise.
+	 */
+        bool is_cmd_type_renew_in_progress(em_bus_event_t *evt); 
 	/**!
 	 * @brief Orchestrates the execution of a command within the em context.
 	 *
