@@ -47,7 +47,7 @@ void em_orch_ctrl_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 
     snprintf(key, sizeof(em_short_string_t), "%d", pcmd->get_type());
 
-    stats = (em_cmd_stats_t *)hash_map_get(m_cmd_map, key);
+    stats = static_cast<em_cmd_stats_t *>(hash_map_get(m_cmd_map, key));
     assert(stats != NULL);
 	
 	//printf("%s:%d: Orchestration:%s(%s) state:%s, time in transient:%d\n", __func__, __LINE__, 
@@ -177,6 +177,9 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
 			break;
         case em_cmd_type_start_dpp:
             return true;
+
+        default:
+            break;
     }
 
     return false;
@@ -234,6 +237,8 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
                 return true;
             }
             break;
+        default:
+            break;
     }
     return false;
 }
@@ -253,23 +258,26 @@ void em_orch_ctrl_t::pre_process_cancel(em_cmd_t *pcmd, em_t *em)
 			ev.type = em_event_type_bus;
     		bev = &ev.u.bevt;
     		bev->type = em_bus_event_type_cfg_renew;
-    		raw = (em_bus_event_type_cfg_renew_params_t *)bev->u.raw_buff;
+            raw = reinterpret_cast<em_bus_event_type_cfg_renew_params_t *>(bev->u.raw_buff);
     		memcpy(raw->radio, em->get_radio_interface_mac(), sizeof(mac_address_t));
-    		em_cmd_exec_t::send_cmd(em_service_type_ctrl, (unsigned char *)&ev, sizeof(em_event_t));
+            em_cmd_exec_t::send_cmd(em_service_type_ctrl, reinterpret_cast<unsigned char *>(&ev), sizeof(em_event_t));
 			break;
 		
 		case em_cmd_type_cfg_renew:
            	em->set_state(em_state_ctrl_misconfigured);
             em->set_renew_tx_count(0);
 			break;
+
+        default:
+            break;
 	}
 }
 
 bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
 {
     em_t *em;
-    em_ctrl_t *ctrl = (em_ctrl_t *)m_mgr;
-    dm_easy_mesh_ctrl_t *dm_ctrl = (dm_easy_mesh_ctrl_t *)ctrl->get_data_model(global_netid);
+    em_ctrl_t *ctrl = static_cast<em_ctrl_t *>(m_mgr);
+    dm_easy_mesh_ctrl_t *dm_ctrl = reinterpret_cast<dm_easy_mesh_ctrl_t *>(ctrl->get_data_model(global_netid));
     dm_easy_mesh_t *dm = &pcmd->m_data_model;
     dm_easy_mesh_t *mgr_dm;
     mac_addr_str_t	mac_str;
@@ -392,7 +400,7 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
 	mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
     if (pcmd->m_type == em_cmd_type_em_config) {
-        em = (em_t *)hash_map_get(m_mgr->m_em_map, pcmd->m_param.u.args.args[0]);
+        em = static_cast<em_t *>(hash_map_get(m_mgr->m_em_map, pcmd->m_param.u.args.args[0]));
         if (em != NULL) {
             queue_push(pcmd->m_em_candidates, em);
             count++;
@@ -401,7 +409,7 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
     }
 
 	pthread_mutex_lock(&m_mgr->m_mutex);
-    em = (em_t *)hash_map_get_first(m_mgr->m_em_map);	
+    em = static_cast<em_t *>(hash_map_get_first(m_mgr->m_em_map));
     while (em != NULL) {
         switch (pcmd->m_type) {
             case em_cmd_type_set_ssid:
@@ -530,7 +538,7 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
             default:
                 break;
         }			
-        em = (em_t *)hash_map_get_next(m_mgr->m_em_map, em);	
+        em = static_cast<em_t *>(hash_map_get_next(m_mgr->m_em_map, em));
     }
 	pthread_mutex_unlock(&m_mgr->m_mutex);
 

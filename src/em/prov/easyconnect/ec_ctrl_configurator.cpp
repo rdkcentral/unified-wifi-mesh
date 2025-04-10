@@ -52,7 +52,7 @@ bool ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *ch
     }
 
     // Create Auth Request Encap TLV: EasyMesh 5.3.4
-    auto [encap_dpp_tlv, encap_dpp_size] = ec_util::create_encap_dpp_tlv(0, mac, ec_frame_type_auth_req, auth_frame, static_cast<uint8_t> (auth_frame_len));
+    auto [encap_dpp_tlv, encap_dpp_size] = ec_util::create_encap_dpp_tlv(0, mac, ec_frame_type_auth_req, auth_frame, auth_frame_len);
     ASSERT_NOT_NULL_FREE2(encap_dpp_tlv, false, auth_frame, hash, "%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
 
     free(auth_frame);
@@ -100,7 +100,7 @@ bool ec_ctrl_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_t
                 em_printfout("Failed to create reconfiguration authentication request frame");
                 break;
             }
-            auto [encap_dpp_tlv, encap_dpp_size] = ec_util::create_encap_dpp_tlv(0, dest_mac, ec_frame_type_recfg_auth_req, recfg_auth_frame, static_cast<uint8_t> (recfg_auth_frame_len));
+            auto [encap_dpp_tlv, encap_dpp_size] = ec_util::create_encap_dpp_tlv(0, dest_mac, ec_frame_type_recfg_auth_req, recfg_auth_frame, recfg_auth_frame_len);
             if (encap_dpp_tlv == NULL) {
                 em_printfout("Failed to create Encap DPP TLV");
                 free(recfg_auth_frame);
@@ -765,11 +765,15 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_auth_request(std::st
     free(responder_keyhash);
 
     // Initiator Bootstrapping Key Hash: SHA-256(B_I)
-    uint8_t* initiator_keyhash = ec_crypto::compute_key_hash(conn_ctx->boot_data.initiator_boot_key);
-    ASSERT_NOT_NULL_FREE2(initiator_keyhash, {}, frame, attribs, "%s:%d failed to compute initiator bootstrapping key hash\n", __func__, __LINE__); 
+    if (conn_ctx->boot_data.initiator_boot_key != NULL){
+        // If != NULL, mutual authentication can be performed.
+        uint8_t* initiator_keyhash = ec_crypto::compute_key_hash(conn_ctx->boot_data.initiator_boot_key);
+        ASSERT_NOT_NULL_FREE2(initiator_keyhash, {}, frame, attribs, "%s:%d failed to compute initiator bootstrapping key hash\n", __func__, __LINE__); 
+    
+        attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_init_bootstrap_key_hash, SHA256_DIGEST_LENGTH, initiator_keyhash);
+        free(initiator_keyhash);
+    }
 
-    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_init_bootstrap_key_hash, SHA256_DIGEST_LENGTH, initiator_keyhash);
-    free(initiator_keyhash);
 
     // Public Initiator Protocol Key: P_I
     auto protocol_key_buff = ec_crypto::encode_ec_point(*conn_ctx, e_ctx->public_init_proto_key);
@@ -911,7 +915,6 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_recfg_auth_confirm(s
     uint8_t trans_id = 0;
     ec_dpp_reconfig_flags_t reconfig_flags = {
         .connector_key = 1, // DONT REUSE
-        .reserved = 0
     };
 
 

@@ -1871,6 +1871,7 @@ typedef enum {
     em_state_agent_sta_link_metrics,
     em_state_agent_steer_btm_res_pending,
     em_state_agent_beacon_report_pending,
+    em_state_agent_ap_metrics_pending,
 
     em_state_ctrl_unconfigured = 0x100,
     em_state_ctrl_wsc_m1_pending,
@@ -2144,6 +2145,7 @@ typedef struct {
     mac_address_t   bssid;
     mac_address_t radiomac;
     bool associated;
+    em_string_t sta_client_type;
     em_long_string_t    timestamp;
     unsigned int    last_ul_rate;
     unsigned int    last_dl_rate;

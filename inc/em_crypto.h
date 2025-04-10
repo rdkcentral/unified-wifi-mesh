@@ -25,9 +25,11 @@
 #include <openssl/dh.h>
 #include "em_base.h"
 #include <openssl/evp.h>
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
 #include <openssl/param_build.h>
 #include <openssl/types.h>
 #include <openssl/core_names.h>
+#endif
 
 #include <optional>
 #include <vector>

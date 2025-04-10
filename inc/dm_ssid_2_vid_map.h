@@ -66,8 +66,8 @@ public:
 	 *
 	 * @note Ensure that the hash map is not empty before calling this function to avoid null pointer dereference.
 	 */
-	dm_ssid_2_vid_map_t *get_first() { return (dm_ssid_2_vid_map_t *)hash_map_get_first(m_list); }
-    
+  dm_ssid_2_vid_map_t *get_first() { return static_cast<dm_ssid_2_vid_map_t *>(hash_map_get_first(m_list)); }
+
 	/**!
 	 * @brief Retrieves the next element in the SSID to VID map.
 	 *
@@ -80,9 +80,9 @@ public:
 	 *
 	 * @note Ensure that the map is not modified during iteration.
 	 */
-	dm_ssid_2_vid_map_t *get_next(dm_ssid_2_vid_map_t *ssid_2_vid) { return (dm_ssid_2_vid_map_t *)hash_map_get_next(m_list, ssid_2_vid); }
-    
-	/**!
+  dm_ssid_2_vid_map_t *get_next(dm_ssid_2_vid_map_t *ssid_2_vid) { return static_cast<dm_ssid_2_vid_map_t *>(hash_map_get_next(m_list, ssid_2_vid)); }
+	
+  /**!
 	 * @brief Updates the list with the given SSID to VID mapping.
 	 *
 	 * This function takes a mapping of SSID to VID and updates the internal list
@@ -169,7 +169,7 @@ public:
 	 * @note Ensure that the database client is properly initialized before calling this function.
 	 */
 	bool search_db(db_client_t& db_client, void *ctx, void *key);
-    bool operator == (const db_easy_mesh_t& obj);
+  bool operator == (const db_easy_mesh_t& obj);
     
 	/**!
 	 * @brief Sets the configuration using the provided JSON object.

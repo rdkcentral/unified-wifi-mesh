@@ -95,7 +95,6 @@ class em_metrics_t {
 	 * @note This is a pure virtual function and must be implemented by derived classes.
 	 */
 	virtual em_cmd_t *get_current_cmd() = 0;
-
     
 	/**!
 	 * @brief Sends link metrics message to all associated stations.
@@ -254,7 +253,36 @@ class em_metrics_t {
 	 */
 	int handle_beacon_metrics_response(unsigned char *buff, unsigned int len);
 
+  	/**!
+	 * @brief Handles the associated station traffic statistics.
+	 *
+	 * This function processes the traffic statistics for a given associated station.
+	 *
+	 * @param[in] buff Pointer to the buffer containing traffic data.
+	 * @param[in] bssid The BSSID of the associated station.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 *
+	 * @note Ensure that the buffer is properly allocated and the BSSID is valid before calling this function.
+	 */
+	int handle_assoc_sta_traffic_stats(unsigned char *buff, bssid_t bssid);
     
+	/**!
+	 * @brief Handles the access point metrics response.
+	 *
+	 * This function processes the metrics response received from the access point.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the response data.
+	 * @param[in] len Length of the data in the buffer.
+	 *
+	 * @returns int Status code indicating success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the buffer is properly allocated and the length is correctly specified.
+	 */
+	int handle_ap_metrics_response(unsigned char *buff, unsigned int len);
+  
 	/**!
 	 * @brief Creates an association station link metrics TLV.
 	 *
@@ -382,6 +410,80 @@ class em_metrics_t {
 	 * @note Ensure that the buffer is allocated with sufficient size before calling this function.
 	 */
 	short create_beacon_metrics_response_tlv(unsigned char *buff);
+  
+	/**!
+	 * @brief Creates an AP metrics TLV.
+	 *
+	 * This function generates an AP metrics TLV and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns short The length of the created TLV.
+	 *
+	 * @note Ensure the buffer is large enough to hold the TLV.
+	 */
+	short create_ap_metrics_tlv(unsigned char *buff);
+    
+	/**!
+	 * @brief Creates an AP extension metrics TLV.
+	 *
+	 * This function initializes and creates a TLV (Type-Length-Value) for AP extension metrics.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns A short integer indicating the success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure the buffer is allocated with sufficient space before calling this function.
+	 */
+	short create_ap_ext_metrics_tlv(unsigned char *buff);
+    
+	/**!
+	 * @brief Creates a radio metrics TLV.
+	 *
+	 * This function generates a radio metrics TLV (Type-Length-Value) and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns short The size of the TLV created.
+	 *
+	 * @note Ensure that the buffer is large enough to hold the TLV.
+	 */
+	short create_radio_metrics_tlv(unsigned char *buff);
+    
+	/**!
+	 * @brief Creates an associated station traffic statistics TLV.
+	 *
+	 * This function generates a TLV (Type-Length-Value) structure for the traffic statistics
+	 * of an associated station and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 * @param[in] sta Constant pointer to the station data structure containing the statistics.
+	 *
+	 * @returns short The length of the TLV created.
+	 *
+	 * @note Ensure that the buffer is large enough to hold the TLV data.
+	 */
+	short create_assoc_sta_traffic_stats_tlv(unsigned char *buff, const dm_sta_t *const sta);
+    
+	/**!
+	 * @brief Creates an association report TLV for a WiFi 6 station.
+	 *
+	 * This function generates a TLV (Type-Length-Value) report for a WiFi 6 station
+	 * and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV report will be stored.
+	 * @param[in] sta Constant pointer to the station data structure containing
+	 *                information about the WiFi 6 station.
+	 *
+	 * @returns A short integer indicating the success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the buffer is adequately sized to hold the TLV report.
+	 */
+	short create_assoc_wifi6_sta_sta_report_tlv(unsigned char *buff, const dm_sta_t *const sta);
 
 public:
     

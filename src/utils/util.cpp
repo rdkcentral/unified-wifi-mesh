@@ -33,7 +33,9 @@
 #include <sstream>
 
 #include <cstdlib>
+#ifdef __GLIBC__
 #include <execinfo.h>
+#endif
 
 
 #include "util.h"
@@ -43,6 +45,7 @@ extern "C" {
 }
 
 void util::print_stacktrace() {
+#ifdef __GLIBC__
     // Get the stack trace (Unix/Linux implementation)
     const int max_frames = 100;
     void* callstack[max_frames];
@@ -56,6 +59,7 @@ void util::print_stacktrace() {
     }
     
     free(symbols);
+#endif
 }
 
 char *util::get_date_time_rfc3399(char *buff, unsigned int len)
@@ -107,11 +111,11 @@ char *get_formatted_time_em(char *time)
     char tmp[128];
 
     gettimeofday(&tv_now, NULL);
-    tm_info = (struct tm *)localtime(&tv_now.tv_sec);
+    tm_info = const_cast<struct tm *>(localtime(&tv_now.tv_sec));
 
     strftime(tmp, 128, "%m/%d/%y - %T", tm_info);
 
-    snprintf(time, 128, "%s.%06lld", tmp, (long long)tv_now.tv_usec);
+    snprintf(time, 128, "%s.%06lld", tmp, static_cast<long long>(tv_now.tv_usec));
     return time;
 }
 
@@ -173,7 +177,7 @@ void util::print_hex_dump(unsigned int length, uint8_t *buffer, easymesh_dbg_typ
 {
     int i;
     uint8_t buff[512] = {};
-    const uint8_t * pc = (const uint8_t *)buffer;
+    const uint8_t * pc = const_cast<const uint8_t *>(buffer);
 
     auto [fp, module_filename] = get_module_log_fd_name(module, EM_LOG_LVL_DEBUG);
     if (fp == NULL) {

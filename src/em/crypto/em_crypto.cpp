@@ -44,7 +44,9 @@
 #include <openssl/rand.h>
 #include <openssl/evp.h>
 #include <openssl/dh.h>
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
 #include <openssl/provider.h>
+#endif
 #include <sys/types.h>
 #include <ifaddrs.h>
 #include "em.h"
@@ -93,10 +95,12 @@ em_crypto_t::em_crypto_t() {
             exit(1);
         }
 
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
         if (OSSL_PROVIDER_load(NULL, "default") == NULL) {
             fprintf(stderr, "Failed to load default provider\n");
             exit(1);
         }
+#endif
     });
 }
 
@@ -1080,6 +1084,7 @@ BIGNUM *em_crypto_t::get_priv_key_bn(const SSL_KEY *key)
     BIGNUM *priv = NULL;
     
     if (!EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_PRIV_KEY, &priv)) {
+        em_printfout("Failed to get private key BIGNUM");
         return NULL;
     }
 
@@ -1114,6 +1119,7 @@ EC_POINT *em_crypto_t::get_pub_key_point(const SSL_KEY *key, EC_GROUP* key_group
     // Extract the X and Y coordinates
     if (!EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_X, &x) ||
         !EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_Y, &y)) {
+        em_printfout("Failed to get public key coordinates");
         goto cleanup;
     }
     
@@ -1237,23 +1243,13 @@ SSL_KEY *em_crypto_t::read_keypair_from_pem(const std::string &file_path) {
     fp = fopen(file_path.c_str(), "rb");
     ASSERT_NOT_NULL(fp, NULL, "%s:%d Failed to open file (%s)", __func__, __LINE__, file_path.c_str());
     
-    // Read private key first
+    // Read private key - this will contain both private and public key information
     pkey = PEM_read_PrivateKey(fp, NULL, NULL, NULL);
     if (!pkey) {
         printf("%s:%d Failed to read private key from PEM file\n", __func__, __LINE__);
         goto err;
     }
     
-    // Rewind file to read the public key
-    rewind(fp);
-    
-    // Read the public key into the same EVP_PKEY structure
-    if (!(pkey = PEM_read_PUBKEY(fp, &pkey, NULL, NULL))) {
-        printf("%s:%d Failed to read public key from PEM file\n", __func__, __LINE__);
-        goto err;
-    }
-
-    // Successfully read the key, return it
     fclose(fp);
     return pkey;
 
@@ -1345,22 +1341,13 @@ SSL_KEY *em_crypto_t::read_keypair_from_pem(const std::string &file_path) {
     fp = fopen(file_path.c_str(), "rb");
     ASSERT_NOT_NULL(fp, NULL, "%s:%d Failed to open file (%s)", __func__, __LINE__, file_path.c_str());
     
-    // Read private key first
+    // Read private key - this will contain both private and public key information 
     ec_key = PEM_read_ECPrivateKey(fp, NULL, NULL, NULL);
     if (!ec_key) {
         printf("%s:%d Failed to read private key from PEM file\n", __func__, __LINE__);
         goto err;
     }
     
-    // Rewind file to read the public key
-    rewind(fp);
-    
-    // Read the public key into the same EC_KEY structure
-    if (!(ec_key = PEM_read_EC_PUBKEY(fp, &ec_key, NULL, NULL))) {
-        printf("%s:%d Failed to read public key from PEM file\n", __func__, __LINE__);
-        goto err;
-    }
-
     // Successfully read the key, return it
     fclose(fp);
     return ec_key;

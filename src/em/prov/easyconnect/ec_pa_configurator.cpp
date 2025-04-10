@@ -5,6 +5,7 @@
 
 bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
+    em_printfout("Recieved a DPP Presence Announcement Frame from '" MACSTRFMT "'\n", MAC2STR(src_mac));
     size_t attrs_len = len - EC_FRAME_BASE_SIZE;
 
     ec_attribute_t *B_r_hash_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_resp_bootstrap_key_hash);
@@ -42,6 +43,7 @@ bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_
 
 bool ec_pa_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
+    em_printfout("Received a DPP Authentication Response frame from '" MACSTRFMT "'\n", MAC2STR(src_mac));
     // Encapsulate 802.11 frame into 1905 Encap DPP TLV and send to controller
     auto [encap_dpp_tlv, encap_dpp_size] = ec_util::create_encap_dpp_tlv(false, src_mac, ec_frame_type_auth_rsp, reinterpret_cast<uint8_t*>(frame), len);
     ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d Failed to create Encap DPP TLV\n", __func__, __LINE__);

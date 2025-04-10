@@ -512,7 +512,6 @@ public:
 	 */
 	static uint8_t* add_wrapped_data_attr(uint8_t *frame, size_t frame_len, uint8_t* frame_attribs, size_t* non_wrapped_len, 
         bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> create_wrap_attribs);
-
     
 	/**
 	 * @brief Unwrap a wrapped data attribute
