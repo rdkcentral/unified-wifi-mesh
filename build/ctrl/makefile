@@ -123,7 +123,8 @@ test: check_test_files install_gtest $(TEST_OBJECTS)
 	@echo "Building test executable with same link order as main build..."
 	$(CXX) -o $(TEST_EXEC) $(TEST_OBJECTS) $(ALLOBJECTS) $(LIBDIRS) $(LIBS) -lgtest -lgtest_main -pthread -fsanitize=address -fsanitize=undefined
 	@echo "Running tests..."
-	@$(TEST_EXEC)
+	@cd $(TEST_DIR) && \
+	$(TEST_EXEC)
 
 # Compile test source files
 $(TEST_DIR)/%.o: $(TEST_DIR)/%.cpp
