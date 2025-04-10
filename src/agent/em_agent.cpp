@@ -462,7 +462,12 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
             em_printfout("Dest radio node MAC '" MACSTRFMT "', al_node radio MAC '" MACSTRFMT"'\n", MAC2STR(dest_radio_node->get_radio_interface_mac()), MAC2STR(al_node->get_radio_interface_mac()));
             dest_al_same = (memcmp(dest_radio_node->get_radio_interface_mac(), al_node->get_radio_interface_mac(), ETH_ALEN) == 0);
         }
-        em_printfout("Dest MAC '%s', dest_al_same=%d, is_bcast=%d\n", dest_mac_str, dest_al_same, is_bcast);
+
+        auto ctrl_al = m_data_model.get_controller_interface_mac();
+        auto agent_al = m_data_model.get_agent_al_interface_mac();
+        bool is_colocated = (memcmp(ctrl_al, agent_al, ETH_ALEN) == 0);
+
+        em_printfout("Dest MAC '%s', dest_al_same=%d, is_bcast=%d, is_colocated=%d", dest_mac_str, dest_al_same, is_bcast, is_colocated);
 
         /*
         If any of the following conditions are satisfied:
@@ -474,19 +479,14 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
         We don't ignore it if this co-located since the AL-node will be the same as the controller (eth0) 
         so if we ignore it, no packets will ever get through
         */
-        if (is_bcast || dest_al_same || (m_data_model.get_colocated())) {
 
-            al_node->get_ec_mgr().handle_recv_ec_action_frame(ec_frame, full_action_frame_len, mgmt_frame->sa);
-            found_em = true;
-            break;
+        if (is_bcast || dest_al_same || is_colocated) {
+            return al_node->get_ec_mgr().handle_recv_ec_action_frame(ec_frame, full_action_frame_len, mgmt_frame->sa);
         }
+        em_printfout("Did not find an EM node for action frame!");
     }
     default:
         break;
-    }
-
-    if (!found_em) {
-        em_printfout("Did not find an EM node for action frame!\n");
     }
 }
 
