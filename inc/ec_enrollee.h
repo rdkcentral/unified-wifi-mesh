@@ -167,6 +167,7 @@ private:
      * @param action_frame The action frame to send
      * @param action_frame_len The length of the action frame
      * @param frequency The frequency to send the frame on (0 for current frequency)
+     * @param wait The time to wait on the channel after sending the frame (0 for no wait)
      * @return true if successful, false otherwise
      */
     send_act_frame_func m_send_action_frame;
