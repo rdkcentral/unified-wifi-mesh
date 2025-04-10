@@ -35,6 +35,9 @@
 
 #include "util.h"
 
+#include <set>
+#include <string>
+
 class em_mgr_t;
 
 class em_t : 
@@ -58,6 +61,23 @@ class em_t :
     pthread_t   m_tid;
     bool    m_exit;
     bool m_is_al_em;
+	
+	/**
+	 * @brief Set of hashed messages that have been sent in co-located systems
+	 * 
+	 * This set is used to track the messages that have been sent 
+	 * to avoid recieving the same message that was sent by another co-located 1905 object.
+	 * 
+	 * For example: {Controller} -> {Controller, Co-located Agent}, or 
+	 * 				{Co-located Agent} -> {Controller, Co-located Agent})
+	 * 
+	 * This occurs because both the Controller and the Co-located Agent have the same AL-mac, 
+	 * resulting in them both recieving the messages they sent each other when infact, it should be:
+	 * 
+	 * {Controller} -> {Co-located Agent} and
+	 * {Co-located Agent} -> {Controller}
+	 */
+	std::set<std::string> m_coloc_sent_hashed_msgs;
 
     
 	/**!

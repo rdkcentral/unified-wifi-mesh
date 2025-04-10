@@ -1604,3 +1604,17 @@ static std::optional<std::vector<uint8_t>> em_crypto_t::sign_data_ecdsa(const st
     return result;
 }
 #endif
+
+std::string em_crypto_t::hash_to_hex_string(const uint8_t *hash, size_t hash_len) {
+    char output[hash_len * 2 + 1];
+    for (size_t i = 0; i < hash_len; i++) {
+        sprintf(output + (i * 2), "%02x", hash[i]);
+    }
+    output[hash_len * 2] = '\0'; // Null-terminate the string
+    return std::string(output);
+}
+
+std::string em_crypto_t::hash_to_hex_string(const std::vector<uint8_t>& hash)
+{
+    return hash_to_hex_string(hash.data(), hash.size());
+}

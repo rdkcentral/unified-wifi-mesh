@@ -482,6 +482,7 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
             if (!al_node->get_ec_mgr().handle_recv_ec_action_frame(ec_frame, full_action_frame_len, mgmt_frame->sa)){
                 em_printfout("EC manager failed to handle action frame!");
             }
+            return;
         }
         em_printfout("Did not find an EM node for action frame!");
     }
