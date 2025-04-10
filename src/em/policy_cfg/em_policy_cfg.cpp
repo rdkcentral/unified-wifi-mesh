@@ -53,9 +53,13 @@ short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
 	em_metric_rprt_policy_radio_t *radio_metric;
 	mac_address_t broadcast_mac = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
-	dm = get_data_model();
-	metric = reinterpret_cast<em_metric_rprt_policy_t *> (tmp);
+	if (get_current_cmd()->get_type() == em_cmd_type_em_config) {
+        dm = get_data_model();
+	} else if (get_current_cmd()->get_type() == em_cmd_type_set_policy) {
+        dm = get_current_cmd()->get_data_model();
+	}
 
+	metric = reinterpret_cast<em_metric_rprt_policy_t *> (tmp);
 	for (i = 0; i < dm->get_num_policy(); i++) {
         policy = &dm->m_policy[i];
         if (policy->m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
@@ -380,7 +384,7 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
 
             for(i = 0; i < metrics->radios_num; i++) {
                 em_metric_rprt_policy_radio_t *radio = &metrics->radios[i];
-                memcpy(policy.metrics_policy.radios[i].ruid, radio, sizeof(em_metric_rprt_policy_radio_t));
+                memcpy(&policy.metrics_policy.radios[i], radio, sizeof(em_metric_rprt_policy_radio_t));
             }
             data_len += (metrics->radios_num * sizeof(em_metric_rprt_policy_radio_t));
         } else if (tlv->type == em_tlv_type_dflt_8021q_settings) {

@@ -102,19 +102,21 @@ public:
 	 */
 	void translate_onewifi_sta_data(char *); //translate when we receive the assoc client subdoc
     
-	/**!
-	 * @brief Translates the OneWiFi statistics data.
-	 *
-	 * This function processes the given data and translates it into a format
-	 * suitable for further analysis or reporting.
-	 *
-	 * @param[in] data Pointer to the OneWiFi statistics data to be translated.
-	 *
-	 * @note Ensure that the data pointer is valid and points to a properly
-	 * formatted statistics data structure.
-	 */
-	void translate_onewifi_stats_data(char *);// translate when we receive ap , radio, client stats
-	
+    /**!
+     * @brief Translates the OneWiFi statistics data.
+     *
+     * This function processes the given data and translates it into a format
+     * suitable for further analysis or reporting.
+     *
+     * @param[in] data Pointer to the OneWiFi statistics data to be translated.
+     * @param[in] type Type of the webconfig subdocument.
+     * @param[in] logname Name of the log file.
+     *
+     * @note Ensure that the data pointer is valid and points to a properly
+     * formatted statistics data structure.
+     */
+    void translate_and_decode_onewifi_subdoc(char *, webconfig_subdoc_type_t type, const char* logname);// translate when we receive ap , radio, client stats
+
 	/**!
 	 * @brief Analyzes the OneWiFi VAP callback event.
 	 *

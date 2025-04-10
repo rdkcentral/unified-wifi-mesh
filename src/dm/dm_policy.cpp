@@ -176,6 +176,7 @@ void dm_policy_t::operator = (const dm_policy_t& obj)
     if (this == &obj) { return; }
     memcpy(&this->m_policy.id.dev_mac, &obj.m_policy.id.dev_mac, sizeof(mac_address_t));
     memcpy(&this->m_policy.id.radio_mac, &obj.m_policy.id.radio_mac, sizeof(mac_address_t));
+    this->m_policy.id.type = obj.m_policy.id.type;
     this->m_policy.interval = obj.m_policy.interval;
     this->m_policy.rcpi_threshold = obj.m_policy.rcpi_threshold;
     this->m_policy.rcpi_hysteresis = obj.m_policy.rcpi_hysteresis;
