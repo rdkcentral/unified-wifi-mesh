@@ -653,7 +653,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
         Responder → Initiator: DPP Status, SHA-256(BR), [ SHA-256(BI), ] PR, [Protocol Version], { R-nonce, I-nonce, R-capabilities, { R-auth }ke }k2
     */
 
-    ec_frame_t *frame =  ec_util::alloc_frame(ec_frame_type_auth_cnf);
+    ec_frame_t *frame =  ec_util::alloc_frame(ec_frame_type_auth_rsp);
     ASSERT_NOT_NULL(frame, {}, "%s:%d failed to allocate memory for frame\n", __func__, __LINE__);
 
     uint8_t* attribs = NULL;
