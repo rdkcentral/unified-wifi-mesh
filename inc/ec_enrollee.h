@@ -340,6 +340,13 @@ private:
     std::unordered_set<uint32_t> m_pres_announcement_freqs = {2437, 5220};
 
     /**
+     * @brief The frequency to send action frames on
+     * 
+     * This is determined based on the channel in which the authentication request is recieved
+     */
+    uint32_t m_selected_freq = 0;
+
+    /**
      * @brief True if we've received DPP Authentication Frame
      * 
      * Signals that this Enrollee should stop sending presence announcement frames.

@@ -97,6 +97,8 @@ void ec_enrollee_t::send_presence_announcement_frames()
         return !m_received_auth_frame.load();
     };
 
+    uint32_t current_freq = 0;
+
     while (!m_received_auth_frame.load()) {
         if (attempts >= 4) {
             // EasyConnect 6.2.3
@@ -123,6 +125,8 @@ void ec_enrollee_t::send_presence_announcement_frames()
                 em_printfout("Failed to send DPP Presence Announcement frame (broadcast) on freq %d", freq);
             }
 
+            current_freq = freq;
+
             // Wait `dwell` before moving to next channel.
             if (!interruptible_sleep(std::chrono::milliseconds(dwell))) {
                 break;
@@ -141,6 +145,8 @@ void ec_enrollee_t::send_presence_announcement_frames()
             break;
         }
     }
+
+    m_selected_freq = current_freq;
 
     free(frame);
 }
@@ -235,7 +241,7 @@ Authentication Request frame without replying to it.
     ASSERT_NOT_NULL(wrapped_data_attr, false, "%s:%d No wrapped data attribute found\n", __func__, __LINE__);
 
     // Attempt to unwrap the wrapped data with generated k1 (from sent keys)
-    auto [wrapped_data, wrapped_len] = ec_util::unwrap_wrapped_attrib(wrapped_data_attr, frame, false, m_eph_ctx().k1); 
+    auto [wrapped_data, wrapped_len] = ec_util::unwrap_wrapped_attrib(wrapped_data_attr, frame, true, m_eph_ctx().k1); 
     if (wrapped_data == NULL || wrapped_len == 0) {
         em_printfout("failed to unwrap wrapped data");
         // "Abondon the exchange"
@@ -270,7 +276,7 @@ Authentication Request frame without replying to it.
             em_printfout("failed to create response frame");
             return false;
         }
-        if (m_send_action_frame(src_mac, resp_frame, resp_len, 0, 0)){
+        if (m_send_action_frame(src_mac, resp_frame, resp_len, 0, m_selected_freq)){
             em_printfout("Successfully sent DPP Status Not Compatible response frame");
         } else {
             em_printfout("Failed to send DPP Status Not Compatible response frame");
@@ -290,7 +296,7 @@ Authentication Request frame without replying to it.
             em_printfout("failed to create response frame");
             return false;
         }
-        if (m_send_action_frame(src_mac, resp_frame, resp_len, 0, 0)){
+        if (m_send_action_frame(src_mac, resp_frame, resp_len, 0, m_selected_freq)){
             em_printfout("Successfully sent DPP Status Response Pending response frame");
         } else {
             em_printfout("Failed to send DPP Status Response Pending response frame");
@@ -307,7 +313,7 @@ Authentication Request frame without replying to it.
         em_printfout("failed to create response frame");
         return false;
     }
-    bool did_succeed = m_send_action_frame(src_mac, resp_frame, resp_len, 0, 0);
+    bool did_succeed = m_send_action_frame(src_mac, resp_frame, resp_len, 0, m_selected_freq);
     if (did_succeed){
         em_printfout("Successfully sent DPP Status OK response frame");
     } else {
@@ -431,7 +437,7 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
     // in an 802.11 frame to a DPP frame encapsulated in a Multi-AP CMDU message. **Upon successful authentication**, the
     // Enrollee Multi-AP Agent requests configuration by exchanging DPP Configuration Protocol messages (see 6.6 of [18])
     // with the Multi-AP Controller.
-    bool sent_dpp_config_gas_frame = m_send_action_frame(src_mac, config_req, config_req_len, 0, 0);
+    bool sent_dpp_config_gas_frame = m_send_action_frame(src_mac, config_req, config_req_len, 0, m_selected_freq);
     if (sent_dpp_config_gas_frame) {
         em_printfout("Sent DPP Configuration Request 802.11 frame to Proxy Agent!");
     } else {
@@ -562,7 +568,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
         return false;
     }
 
-    bool ok = m_send_action_frame(sa, config_result_frame, config_result_frame_len, 0, 0);
+    bool ok = m_send_action_frame(sa, config_result_frame, config_result_frame_len, 0, m_selected_freq);
     if (!ok) {
         em_printfout("Failed to send DPP Configuration Result frame");
     } else {
@@ -588,7 +594,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
         return false;
     }
     
-    if (!m_send_action_frame(sa, conn_status_result_frame, conn_status_result_frame_len, 0, 0)) {
+    if (!m_send_action_frame(sa, conn_status_result_frame, conn_status_result_frame_len, 0, m_selected_freq)) {
         em_printfout("Failed to send Connection Status Result frame to Configurator!");
         free(conn_status_result_frame);
         free(wrapped_attrs);
