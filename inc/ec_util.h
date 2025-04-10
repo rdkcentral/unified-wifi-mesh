@@ -388,6 +388,8 @@ public:
      * 
      * @warning The caller is responsible for freeing the memory returned by this function
      * @note Forwards to `unwrap_wrapped_attrib(ec_attribute_t *wrapped_attrib, uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, bool uses_aad, uint8_t *key);`
+     * @note The frame_attribs pointer must be relative to the frame pointer. For example: 
+     * `frame_attribs = frame->attributes;`
      */
     static std::pair<uint8_t*, uint16_t> unwrap_wrapped_attrib(ec_attribute_t* wrapped_attrib, ec_frame_t *frame, bool uses_aad, uint8_t* key);
 
@@ -401,6 +403,9 @@ public:
      * @param uses_aad Whether the wrapped attribute uses AAD.
      * @param key The key to use for decryption.
      * @return std::pair<uint8_t*, uint16_t> The unwrapped attributes / size on success, nullptr & 0 otherwise.
+     * 
+     * @note The frame_attribs pointer must be relative to the frame pointer. For example: 
+     * `frame_attribs = frame->attributes;`
      */
     static std::pair<uint8_t*, uint16_t> unwrap_wrapped_attrib(ec_attribute_t *wrapped_attrib, uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, bool uses_aad, uint8_t *key);
 
