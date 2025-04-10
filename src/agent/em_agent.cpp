@@ -452,8 +452,6 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
     size_t full_action_frame_len = frame_len - mgmt_hdr_len;
     auto ec_frame = reinterpret_cast<ec_frame_t*>(evt->u.raw_buff + mgmt_hdr_len);
 
-    bool found_em = false;
-
     switch (oui_type) {
     case DPP_OUI_TYPE: {
         em_t* al_node = get_al_node();
@@ -481,7 +479,9 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
         */
 
         if (is_bcast || dest_al_same || is_colocated) {
-            return al_node->get_ec_mgr().handle_recv_ec_action_frame(ec_frame, full_action_frame_len, mgmt_frame->sa);
+            if (!al_node->get_ec_mgr().handle_recv_ec_action_frame(ec_frame, full_action_frame_len, mgmt_frame->sa)){
+                em_printfout("EC manager failed to handle action frame!");
+            }
         }
         em_printfout("Did not find an EM node for action frame!");
     }
