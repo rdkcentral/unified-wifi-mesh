@@ -910,6 +910,7 @@ typedef struct {
 
 typedef struct {
     mac_address_t sta_mac;
+    em_string_t sta_client_type;
     unsigned char num_bssids;
     em_assoc_vendor_link_metrics_t assoc_vendor_link_metrics[0];
 }__attribute__((__packed__)) em_assoc_sta_vendor_link_metrics_t;
@@ -924,7 +925,7 @@ typedef struct {
 }__attribute__((__packed__)) em_ap_radio_id_t;
 
 typedef struct {
-    unsigned char bssid[6];
+    bssid_t bssid;
     unsigned char channel_util;
     unsigned short num_sta;
     unsigned char est_service_params_BE_bit : 1;
@@ -1868,7 +1869,7 @@ typedef enum {
     em_state_agent_topology_notify,
     em_state_agent_ap_cap_report,
     em_state_agent_client_cap_report,
-    em_state_agent_sta_link_metrics,
+    em_state_agent_sta_link_metrics_pending,
     em_state_agent_steer_btm_res_pending,
     em_state_agent_beacon_report_pending,
     em_state_agent_ap_metrics_pending,
@@ -2589,6 +2590,9 @@ typedef enum {
     em_bus_event_type_beacon_report,
     em_bus_event_type_recv_wfa_action_frame,
     em_bus_event_type_recv_gas_frame,
+    em_bus_event_type_get_sta_client_type,
+
+    em_bus_event_type_max
 } em_bus_event_type_t;
 
 typedef struct {

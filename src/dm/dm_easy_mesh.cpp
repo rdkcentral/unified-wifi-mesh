@@ -2277,13 +2277,14 @@ em_sta_info_t *dm_easy_mesh_t::get_sta_info(mac_address_t sta_mac, bssid_t bssid
     dm_easy_mesh_t::macbytes_to_string(ruid, radio_str);
 
     snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_str, bss_str, radio_str);
-    printf("\n%s:%d: key=%s\n", __func__, __LINE__,key);
+    printf("%s:%d: key=%s\n", __func__, __LINE__,key);
     sta = static_cast<dm_sta_t *> (hash_map_get(map, key));
     if (sta == NULL) {
         printf("%s:%d: sta: %s not found in %s\n", __func__, __LINE__, sta_str, map_str);
         return NULL;
     }
 
+    printf("%s:%d: sta: %s found in %s\n", __func__, __LINE__, sta_str, map_str);
     return &sta->m_sta_info;
 }
 
@@ -2315,7 +2316,7 @@ void dm_easy_mesh_t::put_sta_info(em_sta_info_t *sta_info, em_target_sta_map_t t
     dm_easy_mesh_t::macbytes_to_string(sta_info->radiomac, radio_str);
 
     snprintf(key, sizeof(em_2xlong_string_t), "%s@%s@%s", sta_str, bss_str, radio_str);
-    printf("\n%s:%d: key=%s\n", __func__, __LINE__,key);
+    printf("%s:%d: Put sta key=%s\n", __func__, __LINE__,key);
 
     hash_map_put(map, strdup(key), new dm_sta_t(sta_info));
 }

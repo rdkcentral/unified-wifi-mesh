@@ -65,7 +65,9 @@ int dm_easy_mesh_ctrl_t::analyze_sta_link_metrics(em_cmd_t *pcmd[])
     int num = 0;
     em_cmd_t *tmp;
 
-    pcmd[num] = new em_cmd_sta_link_metrics_t();
+    dm_easy_mesh_t dm = *this;
+
+    pcmd[num] = new em_cmd_sta_link_metrics_t(dm);
     tmp = pcmd[num];
     num++;
 

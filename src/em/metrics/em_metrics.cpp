@@ -111,7 +111,6 @@ int em_metrics_t::handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff)
     dm = get_data_model();
 
     sta_metrics = reinterpret_cast<em_assoc_sta_vendor_link_metrics_t *> (buff);
-
     for (i = 0; i < sta_metrics->num_bssids; i++) {
         metrics = &sta_metrics->assoc_vendor_link_metrics[i];
         sta = dm->find_sta(sta_metrics->sta_mac, metrics->bssid);
@@ -123,6 +122,10 @@ int em_metrics_t::handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff)
         sta->m_sta_info.pkts_tx = metrics->packets_sent;
         sta->m_sta_info.bytes_rx = metrics->bytes_received;
         sta->m_sta_info.bytes_tx = metrics->bytes_sent;
+    }
+
+    if (sta != NULL) {
+        strncpy(sta->m_sta_info.sta_client_type, sta_metrics->sta_client_type, sizeof(sta->m_sta_info.sta_client_type));
     }
 
     return 0;
@@ -314,6 +317,15 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
     return 0;
 }
 
+int em_metrics_t::handle_ap_metrics_tlv(unsigned char *buff, bssid_t bssid)
+{
+    em_ap_metric_t *ap_metrics = reinterpret_cast<em_ap_metric_t *> (buff);
+
+    memcpy(bssid, ap_metrics->bssid, sizeof(mac_addr_t));
+
+    return 0;
+}
+
 int em_metrics_t::handle_assoc_sta_traffic_stats(unsigned char *buff, bssid_t bssid)
 {
     em_assoc_sta_traffic_stats_t	*sta_metrics;
@@ -352,7 +364,7 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
     dm = get_data_model();
 
     if (em_msg_t(em_msg_type_ap_metrics_rsp, get_profile_type(), buff, len).validate(errors) == 0) {
-        printf("%s:%d: associated sta link metrics response msg validation failed\n", __func__, __LINE__);
+        printf("%s:%d: AP Metrics metrics response msg validation failed\n", __func__, __LINE__);
         //return -1;
     }
 
@@ -364,6 +376,7 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_ap_metrics) {
+            handle_ap_metrics_tlv(tlv->value, bssid);
         }
         tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
@@ -432,7 +445,6 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
-    //Need to check how the update happens
     dm->set_db_cfg_param(db_cfg_type_sta_metrics_update, "");
     set_state(em_state_ctrl_configured);
 
@@ -520,6 +532,20 @@ void em_metrics_t::send_all_associated_sta_link_metrics_msg()
         }
         sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
     }
+}
+
+void em_metrics_t::send_associated_sta_link_metrics_resp_msg()
+{
+    dm_easy_mesh_t *dm;
+    dm_sta_t *sta;
+
+    dm = get_current_cmd()->get_data_model();
+    sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_assoc_map));
+    while (sta != NULL) {
+        send_associated_link_metrics_response(sta->m_sta_info.id);
+        sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_assoc_map, sta));
+    }
+    set_state(em_state_agent_configured);
 }
 
 int em_metrics_t::send_associated_link_metrics_response(mac_address_t sta_mac)
@@ -905,7 +931,7 @@ int em_metrics_t::send_ap_metrics_response()
 
     if (em_msg_t(em_msg_type_ap_metrics_rsp, em_profile_type_2, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
         printf("%s:%d: AP Metrics Response validation failed for %s\n", __func__, __LINE__, mac_str);
-        return -1;
+        //return -1;
     }
 
     if (send_frame(buff, static_cast<unsigned int> (len))  < 0) {
@@ -1032,6 +1058,9 @@ short em_metrics_t::create_assoc_vendor_sta_link_metrics_tlv(unsigned char *buff
         if ((memcmp(sta->m_sta_info.id, sta_mac, sizeof(mac_address_t)) == 0)) {
             memcpy(assoc_sta_metrics->sta_mac, sta->m_sta_info.id, sizeof(assoc_sta_metrics->sta_mac));
             len += sizeof(assoc_sta_metrics->sta_mac);
+
+            strncpy(assoc_sta_metrics->sta_client_type, sta->m_sta_info.sta_client_type, sizeof(assoc_sta_metrics->sta_client_type));
+            len += sizeof(assoc_sta_metrics->sta_client_type);
 
             assoc_sta_metrics->num_bssids = static_cast<unsigned char> (dm->get_num_bss_for_associated_sta(sta_mac));
             len += sizeof(assoc_sta_metrics->num_bssids);
@@ -1176,6 +1205,20 @@ short em_metrics_t::create_beacon_metrics_response_tlv(unsigned char *buff)
 short em_metrics_t::create_ap_metrics_tlv(unsigned char *buff)
 {
     size_t len = 0;
+    dm_easy_mesh_t *dm;
+    dm = get_current_cmd()->get_data_model();
+    dm_sta_t *sta;
+
+    em_ap_metric_t *ap_metrics = reinterpret_cast<em_ap_metric_t *> (buff);
+
+    sta = reinterpret_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
+    if (sta != NULL) {
+        memcpy(ap_metrics->bssid, sta->m_sta_info.bssid, sizeof(mac_addr_t));
+        len += sizeof(mac_addr_t);
+
+        ap_metrics->channel_util = 100;
+        len += sizeof(ap_metrics->channel_util);
+    }
 
     return static_cast<short> (len);
 }
@@ -1303,6 +1346,10 @@ void em_metrics_t::process_ctrl_state()
 void em_metrics_t::process_agent_state()
 {
     switch (get_state()) {
+        case em_state_agent_sta_link_metrics_pending:
+            send_associated_sta_link_metrics_resp_msg();
+            break;
+
         case em_state_agent_beacon_report_pending:
             send_beacon_metrics_response();
             break;
