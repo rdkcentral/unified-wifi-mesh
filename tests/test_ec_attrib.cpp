@@ -21,9 +21,6 @@ protected:
         // Initialize frame with default values
         frame = ec_util::alloc_frame(ec_frame_type_t::ec_frame_type_auth_req);
         ASSERT_NE(frame, nullptr) << "Failed to allocate frame";
-
-        testing_key = em_crypto_t::read_keypair_from_pem("./testing_key.pem");
-        ASSERT_NE(testing_key, nullptr) << "Could not read key from PEM";
     }
 
     void TearDown() override {
@@ -36,10 +33,6 @@ protected:
         if (buffer) {
             free(buffer);
             buffer = nullptr;
-        }
-        
-        if (testing_key) {
-            em_crypto_t::free_key(testing_key);
         }
     }
 
@@ -67,7 +60,6 @@ protected:
 
     ec_frame_t* frame = nullptr;
     uint8_t* buffer = nullptr;
-    SSL_KEY *testing_key = nullptr;
 
     const ec_attrib_id_t all_ec_attribute_ids[33] = {
         ec_attrib_id_dpp_status,

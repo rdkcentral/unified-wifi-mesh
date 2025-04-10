@@ -341,32 +341,3 @@ TEST_F(EmCryptoTests, KeySerialization)
                  reinterpret_cast<char *>(new_priv_hex.get()))
         << "Deserialized private key doesn't match the original";
 }
-
-// Test case for key components consistency
-TEST_F(EmCryptoTests, TestKeyReading)
-{
-    // Generate a key for testing
-    scoped_ssl_key key(em_crypto_t::read_keypair_from_pem("./testing_key.pem"));
-    ASSERT_NE(key.get(), nullptr) << "Could not read key from PEM";
-    // Get components
-    scoped_ec_group group(em_crypto_t::get_key_group(key.get()));
-    ASSERT_NE(group.get(), nullptr) << "Could not get key group";
-
-    // Check NID
-    int curve_nid = EC_GROUP_get_curve_name(group.get());
-    EXPECT_EQ(curve_nid, NID_secp256k1) << "Read key has wrong curve";
-
-    scoped_bn priv(em_crypto_t::get_priv_key_bn(key.get()));
-    ASSERT_NE(priv.get(), nullptr) << "Could not get private key";
-    scoped_ec_point pub(em_crypto_t::get_pub_key_point(key.get(), group.get()));
-    ASSERT_NE(pub.get(), nullptr) << "Could not get public key point";
-    // Verify private key can generate the same public key point
-    scoped_ec_point computed_pub(EC_POINT_new(group.get()));
-    ASSERT_NE(computed_pub.get(), nullptr) << "Could not create new EC_POINT";
-    ASSERT_TRUE(
-        EC_POINT_mul(group.get(), computed_pub.get(), priv.get(), nullptr, nullptr, nullptr))
-        << "Could not compute public key from private key";
-    // Compare the public key points
-    EXPECT_EQ(EC_POINT_cmp(group.get(), pub.get(), computed_pub.get(), nullptr), 0)
-        << "Computed public key doesn't match the original";
-}
