@@ -395,6 +395,19 @@ class em_metrics_t {
 	 * @note Ensure that the beacon metrics are correctly formatted before calling this function.
 	 */
 	int send_beacon_metrics_response();
+
+        /**!
+	 * @brief Sends the AP metrics response.
+	 *
+	 * This function is responsible for sending the metrics response for the access point.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure that the network connection is established before calling this function.
+	 */
+	int send_ap_metrics_response();
     
 	/**!
 	 * @brief Creates a beacon metrics response TLV.
