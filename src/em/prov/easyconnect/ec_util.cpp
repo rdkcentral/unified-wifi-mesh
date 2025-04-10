@@ -26,10 +26,6 @@ void ec_util::init_frame(ec_frame_t *frame)
 
 ec_attribute_t *ec_util::get_attrib(uint8_t *buff, size_t len, ec_attrib_id_t id)
 {
-    if (buff == NULL || len == 0) {
-        fprintf(stderr, "Invalid input\n");
-        return NULL;
-    }
     size_t total_len = 0;
     ec_attribute_t *attrib = reinterpret_cast<ec_attribute_t *>(buff);
 
@@ -105,9 +101,6 @@ bool ec_util::validate_frame(const ec_frame_t *frame)
 
 uint8_t *ec_util::add_wrapped_data_attr(uint8_t *frame, size_t frame_len, uint8_t* frame_attribs, size_t* non_wrapped_len, 
 bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> create_wrap_attribs) {
-
-    ASSERT_NOT_NULL(non_wrapped_len, NULL, "Non-wrapped length cannot be NULL");
-
     siv_ctx ctx;
 
     // NOTE: HARDCODING AS SIV_256 FOR NOW
@@ -139,8 +132,6 @@ bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> creat
     // Encapsulate the attributes in a wrapped data attribute
     uint16_t wrapped_attrib_len = wrapped_len + AES_BLOCK_SIZE;
     ec_attribute_t *wrapped_attrib = static_cast<ec_attribute_t *>(calloc(sizeof(ec_attribute_t) + wrapped_attrib_len, 1));
-    ASSERT_NOT_NULL_FREE(wrapped_attrib, NULL, wrapped_attrib, "Failed to allocate wrapped attribute");
-
     wrapped_attrib->attr_id = ec_attrib_id_wrapped_data;
     wrapped_attrib->length = wrapped_attrib_len;
     memset(wrapped_attrib->data, 0, wrapped_attrib_len);
@@ -150,29 +141,22 @@ bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> creat
     * 1. The frame structure and 2. Non-wrapped attributes (per EasyMesh 6.3.1.4)
     * The synthetic IV/tag is stored in the first AES_BLOCK_SIZE bytes of wrapped_attrib->data
     */
-   int siv_result = 0;
    if (use_aad) {
-
-        ASSERT_NOT_NULL_FREE2(frame_attribs, NULL, wrapped_attrib, wrap_attribs, "Frame attributes cannot be NULL for AAD encryption");
-        ASSERT_NOT_NULL_FREE2(frame, NULL, wrapped_attrib, wrap_attribs, "Frame cannot be NULL for AAD encryption");
-        
-        siv_result = siv_encrypt(&ctx, wrap_attribs, &wrapped_attrib->data[AES_BLOCK_SIZE], wrapped_len, wrapped_attrib->data, 2,
+        if (frame == NULL || frame_attribs == NULL || non_wrapped_len == NULL) {
+            em_printfout("AAD input is NULL, AAD encryption failed!");
+            return NULL;
+        }
+        siv_encrypt(&ctx, wrap_attribs, &wrapped_attrib->data[AES_BLOCK_SIZE], wrapped_len, wrapped_attrib->data, 2,
             frame, frame_len,
             frame_attribs, *non_wrapped_len);
     } else {
-        siv_result = siv_encrypt(&ctx, wrap_attribs, &wrapped_attrib->data[AES_BLOCK_SIZE], wrapped_len, wrapped_attrib->data, 0);
-    }
-    if (siv_result < 0) {
-        em_printfout("Failed to encrypt and authenticate wrapped data");
-        free(wrap_attribs);
-        free(wrapped_attrib);
-        return NULL;
+        siv_encrypt(&ctx, wrap_attribs, &wrapped_attrib->data[AES_BLOCK_SIZE], wrapped_len, wrapped_attrib->data, 0);
     }
 
     // Add the wrapped data attribute to the frame
-    uint8_t* ret_frame_attribs = ec_util::add_attrib(frame_attribs, non_wrapped_len, ec_attrib_id_wrapped_data, wrapped_attrib_len, wrapped_attrib->data);
+    uint8_t* ret_frame_attribs = ec_util::add_attrib(frame_attribs, non_wrapped_len, ec_attrib_id_wrapped_data, wrapped_attrib_len, reinterpret_cast<uint8_t *>(wrapped_attrib));
 
-    free(wrapped_attrib);
+
     free(wrap_attribs);
 
     return ret_frame_attribs;

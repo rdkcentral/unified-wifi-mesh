@@ -38,6 +38,7 @@ protected:
 
     void TearDown() override
     {
+        printf("Tearing Down\n");
         if (signing_key) {
             em_crypto_t::free_key(signing_key);
         }
