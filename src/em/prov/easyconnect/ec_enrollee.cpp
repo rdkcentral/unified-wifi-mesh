@@ -276,7 +276,7 @@ Authentication Request frame without replying to it.
             em_printfout("failed to create response frame");
             return false;
         }
-        if (m_send_action_frame(src_mac, resp_frame, resp_len, 0, m_selected_freq)){
+        if (m_send_action_frame(src_mac, resp_frame, resp_len, m_selected_freq, 0)){
             em_printfout("Successfully sent DPP Status Not Compatible response frame");
         } else {
             em_printfout("Failed to send DPP Status Not Compatible response frame");
@@ -296,7 +296,7 @@ Authentication Request frame without replying to it.
             em_printfout("failed to create response frame");
             return false;
         }
-        if (m_send_action_frame(src_mac, resp_frame, resp_len, 0, m_selected_freq)){
+        if (m_send_action_frame(src_mac, resp_frame, resp_len, m_selected_freq, 0)){
             em_printfout("Successfully sent DPP Status Response Pending response frame");
         } else {
             em_printfout("Failed to send DPP Status Response Pending response frame");
@@ -313,7 +313,7 @@ Authentication Request frame without replying to it.
         em_printfout("failed to create response frame");
         return false;
     }
-    bool did_succeed = m_send_action_frame(src_mac, resp_frame, resp_len, 0, m_selected_freq);
+    bool did_succeed = m_send_action_frame(src_mac, resp_frame, resp_len, m_selected_freq, 0);
     if (did_succeed){
         em_printfout("Successfully sent DPP Status OK response frame");
     } else {
@@ -437,7 +437,7 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
     // in an 802.11 frame to a DPP frame encapsulated in a Multi-AP CMDU message. **Upon successful authentication**, the
     // Enrollee Multi-AP Agent requests configuration by exchanging DPP Configuration Protocol messages (see 6.6 of [18])
     // with the Multi-AP Controller.
-    bool sent_dpp_config_gas_frame = m_send_action_frame(src_mac, config_req, config_req_len, 0, m_selected_freq);
+    bool sent_dpp_config_gas_frame = m_send_action_frame(src_mac, config_req, config_req_len, m_selected_freq, 0);
     if (sent_dpp_config_gas_frame) {
         em_printfout("Sent DPP Configuration Request 802.11 frame to Proxy Agent!");
     } else {
@@ -568,7 +568,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
         return false;
     }
 
-    bool ok = m_send_action_frame(sa, config_result_frame, config_result_frame_len, 0, m_selected_freq);
+    bool ok = m_send_action_frame(sa, config_result_frame, config_result_frame_len, m_selected_freq, 0);
     if (!ok) {
         em_printfout("Failed to send DPP Configuration Result frame");
     } else {
@@ -594,7 +594,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
         return false;
     }
     
-    if (!m_send_action_frame(sa, conn_status_result_frame, conn_status_result_frame_len, 0, m_selected_freq)) {
+    if (!m_send_action_frame(sa, conn_status_result_frame, conn_status_result_frame_len, m_selected_freq, 0)) {
         em_printfout("Failed to send Connection Status Result frame to Configurator!");
         free(conn_status_result_frame);
         free(wrapped_attrs);
