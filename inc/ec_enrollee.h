@@ -18,79 +18,145 @@ struct cJSON;
 class ec_enrollee_t {
 public:
 
-    /**
-     * @brief The EasyConnect Enrollee
-     * 
-     * Broadcasts 802.11 presence announcements, handles 802.11 frames from Proxy Agents and sends 802.11 responses to Proxy Agents.
-     * 
-     * @param mac_addr The MAC address of the device
-     * @param send_action_frame Callback for sending 802.11 action frames
-     * @param get_bsta_info Callback for getting backhaul STA info, used for building DPP Configuration Request JSON objects.
-     * 
-     * @note The default state of an enrollee is non-onboarding. All non-controller devices are started as (non-onboarding) enrollees 
-     *      until they are told that they are on the network at which point they can be upgraded to a proxy agent.
-     */
-    ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame, get_backhaul_sta_info_func get_bsta_info);
+    
+	/**
+	 * @brief The EasyConnect Enrollee
+	 *
+	 * Broadcasts 802.11 presence announcements, handles 802.11 frames from Proxy Agents and sends 802.11 responses to Proxy Agents.
+	 *
+	 * @param[in] mac_addr The MAC address of the device.
+	 * @param[in] send_action_frame Callback for sending 802.11 action frames.
+	 * @param[in] get_bsta_info Callback for getting backhaul STA info, used for building DPP Configuration Request JSON objects.
+	 *
+	 * @note The default state of an enrollee is non-onboarding. All non-controller devices are started as (non-onboarding) enrollees
+	 *       until they are told that they are on the network at which point they can be upgraded to a proxy agent.
+	 */
+	ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame, get_backhaul_sta_info_func get_bsta_info);
     
     // Destructor
-    ~ec_enrollee_t();
+    
+	/**!
+	 * @brief Destructor for the ec_enrollee_t class.
+	 *
+	 * This destructor is responsible for cleaning up resources used by the ec_enrollee_t instance.
+	 *
+	 * @note Ensure that all resources are properly released before the object is destroyed.
+	 */
+	~ec_enrollee_t();
 
-    /**
-     * @brief Start the EC enrollee onboarding
-     * 
-     * @param do_reconfig Whether to reconfigure/reauth the enrollee
-     * @return bool true if successful, false otherwise
-     */
-    bool start_onboarding(bool do_reconfig, ec_data_t* boot_data);
+    
+	/**
+	 * @brief Start the EC enrollee onboarding process.
+	 *
+	 * This function initiates the onboarding process for the EC enrollee. It can optionally
+	 * reconfigure or reauthenticate the enrollee based on the input parameter.
+	 *
+	 * @param[in] do_reconfig A boolean flag indicating whether to reconfigure/reauthenticate
+	 * the enrollee. If true, the enrollee will be reconfigured.
+	 * @param[out] boot_data A pointer to an ec_data_t structure where the boot data will be stored.
+	 *
+	 * @return bool Returns true if the onboarding process is successful, false otherwise.
+	 *
+	 * @note Ensure that the enrollee is in a state ready for onboarding before calling this function.
+	 */
+	bool start_onboarding(bool do_reconfig, ec_data_t* boot_data);
 
-    /**
-     * @brief Handle an authentication request 802.11 frame, performing the necessary actions and responding with an authentication response via 802.11
-     * 
-     * @param buff The frame to handle
-     * @param len The length of the frame
-     * @return bool true if successful, false otherwise
-     */
-    bool handle_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]);
+    
+	/**
+	 * @brief Handle an authentication request 802.11 frame, performing the necessary actions and responding with an authentication response via 802.11.
+	 *
+	 * This function processes the incoming authentication request frame and generates an appropriate response.
+	 *
+	 * @param[in] frame Pointer to the frame to handle.
+	 * @param[in] len The length of the frame.
+	 * @param[in] src_mac Source MAC address of the frame.
+	 *
+	 * @return true if the authentication request was handled successfully, false otherwise.
+	 *
+	 * @note Ensure that the frame and MAC address are valid before calling this function.
+	 */
+	bool handle_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]);
 
-    /**
-     * @brief Handle an authentication confirmation 802.11 frame, performing the necessary actions
-     * 
-     * @param buff The frame to handle
-     * @param len The length of the frame
-     * @return bool true if successful, false otherwise
-     */
-    bool handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]);
+    
+	/**
+	 * @brief Handle an authentication confirmation 802.11 frame, performing the necessary actions.
+	 *
+	 * This function processes the given 802.11 authentication confirmation frame and executes
+	 * the required operations based on the frame's content.
+	 *
+	 * @param[in] frame Pointer to the frame to handle.
+	 * @param[in] len The length of the frame.
+	 * @param[in] src_mac Source MAC address of the frame.
+	 *
+	 * @return true if the frame was handled successfully, false otherwise.
+	 */
+	bool handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]);
 
-    /**
-     * @brief Handle a configuration request 802.11+GAS frame, performing the necessary actions and responding with a configuration result via 802.11
-     * 
-     * @param buff The frame to handle
-     * @param len The length of the frame
-     * @param sa The 802.11 source address of this frame.
-     * @return bool true if successful, false otherwise
-     */
-    bool handle_config_response(uint8_t *buff, unsigned int len, uint8_t sa[ETH_ALEN]);
+    
+	/**
+	 * @brief Handle a configuration request 802.11+GAS frame, performing the necessary actions and responding with a configuration result via 802.11.
+	 *
+	 * This function processes the incoming configuration request frame and generates a response based on the configuration result.
+	 *
+	 * @param[in] buff The frame to handle.
+	 * @param[in] len The length of the frame.
+	 * @param[in] sa The 802.11 source address of this frame.
+	 *
+	 * @return bool True if the configuration response was handled successfully, false otherwise.
+	 */
+	bool handle_config_response(uint8_t *buff, unsigned int len, uint8_t sa[ETH_ALEN]);
 
-    inline void teardown_connection() {
+    
+	/**!
+	 * @brief Tears down the existing connection by freeing associated resources.
+	 *
+	 * This function releases the connection context and ephemeral context resources
+	 * associated with the current connection.
+	 *
+	 * @note Ensure that the connection is no longer needed before calling this function
+	 * to avoid any unintended behavior.
+	 */
+	inline void teardown_connection() {
         ec_crypto::free_connection_ctx(&m_c_ctx);
         ec_crypto::free_ephemeral_context(&m_c_ctx.eph_ctx, m_c_ctx.nonce_len, m_c_ctx.digest_len);
     }
 
-    inline std::string get_mac_addr() { return m_mac_addr; };
+    
+	/**!
+	 * @brief Retrieves the MAC address.
+	 *
+	 * This function returns the MAC address stored in the object.
+	 *
+	 * @returns The MAC address as a string.
+	 */
+	inline std::string get_mac_addr() { return m_mac_addr; };
 
     // Disable copy construction and assignment
     // Requires use of references or pointers when working with instances of this class
-    ec_enrollee_t(const ec_enrollee_t&) = delete;
+    
+	/**!
+	 * @brief Deleted copy constructor for ec_enrollee_t.
+	 *
+	 * This constructor is deleted to prevent copying of ec_enrollee_t instances.
+	 *
+	 * @note Copying of ec_enrollee_t is not allowed to ensure unique ownership or to prevent resource duplication.
+	 */
+	ec_enrollee_t(const ec_enrollee_t&) = delete;
     ec_enrollee_t& operator=(const ec_enrollee_t&) = delete;
 
 private:
 
-    /**
-     * @brief Sends presence announcement frames until a DPP Authentication Frame is received.
-     * 
-     * See: EasyConnect 6.2 DPP Presence Announcement 
-     */
-    void send_presence_announcement_frames();
+    
+	/**
+	 * @brief Sends presence announcement frames until a DPP Authentication Frame is received.
+	 *
+	 * This function initiates the process of sending presence announcement frames, which
+	 * continue until a DPP Authentication Frame is detected. This is part of the DPP
+	 * (Device Provisioning Protocol) process.
+	 *
+	 * @note See: EasyConnect 6.2 DPP Presence Announcement
+	 */
+	void send_presence_announcement_frames();
 
     std::string m_mac_addr;
 
@@ -118,40 +184,119 @@ private:
         .reserved = 0
     }};
 
-    std::pair<uint8_t*, size_t> create_presence_announcement();
-    std::pair<uint8_t*, size_t> create_recfg_presence_announcement();
-    std::pair<uint8_t*, size_t> create_auth_response(ec_status_code_t dpp_status, uint8_t init_proto_version);
-    std::pair<uint8_t*, size_t> create_recfg_auth_response(ec_status_code_t dpp_status);
-    std::pair<uint8_t*, size_t> create_config_request();
+    
+	/**!
+	 * @brief Creates a presence announcement.
+	 *
+	 * This function generates a presence announcement and returns it as a pair.
+	 *
+	 * @returns A pair consisting of a pointer to the announcement data and its size.
+	 */
+	std::pair<uint8_t*, size_t> create_presence_announcement();
+    
+	/**!
+	 * @brief Creates a reconfiguration presence announcement.
+	 *
+	 * This function generates a presence announcement for reconfiguration purposes.
+	 *
+	 * @returns A pair consisting of a pointer to the announcement data and its size.
+	 */
+	std::pair<uint8_t*, size_t> create_recfg_presence_announcement();
+    
+	/**!
+	 * @brief Creates an authentication response based on the given DPP status and protocol version.
+	 *
+	 * @param[in] dpp_status The DPP status code used to determine the response.
+	 * @param[in] init_proto_version The initial protocol version for the response.
+	 *
+	 * @returns A pair consisting of a pointer to the response data and its size.
+	 *
+	 * @note Ensure that the response data is properly managed to avoid memory leaks.
+	 */
+	std::pair<uint8_t*, size_t> create_auth_response(ec_status_code_t dpp_status, uint8_t init_proto_version);
+    
+	/**!
+	 * @brief Creates a reconfiguration authentication response.
+	 *
+	 * This function generates a response for reconfiguration authentication based on the provided DPP status code.
+	 *
+	 * @param[in] dpp_status The DPP status code used to determine the response.
+	 *
+	 * @returns A pair consisting of a pointer to the response data and its size.
+	 * @retval std::pair<uint8_t*, size_t> A pair where the first element is a pointer to the response data and the second element is the size of the data.
+	 *
+	 * @note Ensure that the response data is properly managed and freed after use to avoid memory leaks.
+	 */
+	std::pair<uint8_t*, size_t> create_recfg_auth_response(ec_status_code_t dpp_status);
+    
+	/**!
+	 * @brief Creates a configuration request.
+	 *
+	 * This function generates a configuration request and returns it as a pair consisting of a pointer to the data and its size.
+	 *
+	 * @returns A pair containing a pointer to the configuration request data and its size.
+	 * @retval std::pair<uint8_t*, size_t> A pair where the first element is a pointer to the data and the second element is the size of the data.
+	 *
+	 * @note Ensure that the returned pointer is managed properly to avoid memory leaks.
+	 */
+	std::pair<uint8_t*, size_t> create_config_request();
 
-    /**
-     * @brief Create a Configuration Result frame (EasyConnect 8.2.12)
-     * 
-     * @param dpp_status The status (Enrollee) of the configuration.
-     * @return std::pair<uint8_t*, size_t> Pair, pair.first is frame (nullptr on failure), pair.second is the length of the frame (0 on failure).
-     */
-    std::pair<uint8_t*, size_t> create_config_result(ec_status_code_t dpp_status);
+    
+	/**
+	 * @brief Create a Configuration Result frame (EasyConnect 8.2.12)
+	 *
+	 * This function generates a configuration result frame based on the provided
+	 * status code. The frame is used in the EasyConnect protocol to communicate
+	 * the result of a configuration attempt.
+	 *
+	 * @param[in] dpp_status The status code representing the result of the
+	 * configuration process. It indicates whether the enrollee was successful
+	 * or encountered an error.
+	 *
+	 * @return std::pair<uint8_t*, size_t> A pair where:
+	 * - pair.first is a pointer to the generated frame. It will be nullptr if
+	 *   the frame creation fails.
+	 * - pair.second is the length of the frame. It will be 0 if the frame
+	 *   creation fails.
+	 *
+	 * @note Ensure that the status code provided is valid and corresponds to
+	 * the expected values in the EasyConnect protocol.
+	 */
+	std::pair<uint8_t*, size_t> create_config_result(ec_status_code_t dpp_status);
 
-    /**
-     * @brief Create a connection status result frame (EasyConnect 8.2.13)
-     * 
-     * @param dpp_status The status (Enrollee) of Configuration
-     * @param ssid The SSID the Enrollee attempted to find / associate to.
-     * 
-     * @return std::pair<uint8_t*, size_t> Pair, pair.first is frame (nullptr on failure), pair.second is the length of the frame (0 on failure).
-     */
-    std::pair<uint8_t*, size_t> create_connection_status_result(ec_status_code_t dpp_status, const std::string& ssid);
+    
+	/**
+	 * @brief Create a connection status result frame (EasyConnect 8.2.13)
+	 *
+	 * This function generates a frame representing the connection status
+	 * based on the provided status code and SSID.
+	 *
+	 * @param[in] dpp_status The status code representing the enrollee's
+	 * configuration status.
+	 * @param[in] ssid The SSID the enrollee attempted to find or associate with.
+	 *
+	 * @return std::pair<uint8_t*, size_t> A pair where the first element is
+	 * a pointer to the frame (nullptr on failure) and the second element is
+	 * the length of the frame (0 on failure).
+	 */
+	std::pair<uint8_t*, size_t> create_connection_status_result(ec_status_code_t dpp_status, const std::string& ssid);
 
-    /**
-     * @brief Create a DPP Connection Status object (EasyConnect 6.5.4.2)
-     * @param dpp_status The DPP status code. Can be one of: STATUS_OK, STATUS_AUTH_FAILURE,
-     * STATUS_INVALID CONNECTOR, STATUS_NO_MATCH, STATUS_NO_AP. See EasyConnect table 23.
-     * @param ssid The SSID the Enrollee attempted to associate to.
-     * 
-     * @return cJSON* The DPP Connection Status object on success, nullptr otherwise.
-     * @note: Heap allocates, caller must free.
-     */
-    cJSON *create_dpp_connection_status_obj(ec_status_code_t dpp_status, const std::string& ssid);
+    
+	/**
+	 * @brief Create a DPP Connection Status object (EasyConnect 6.5.4.2)
+	 *
+	 * This function creates a DPP Connection Status object based on the provided
+	 * DPP status code and SSID.
+	 *
+	 * @param[in] dpp_status The DPP status code. Can be one of: STATUS_OK, STATUS_AUTH_FAILURE,
+	 * STATUS_INVALID_CONNECTOR, STATUS_NO_MATCH, STATUS_NO_AP. See EasyConnect table 23.
+	 * @param[in] ssid The SSID the Enrollee attempted to associate to.
+	 *
+	 * @return cJSON* The DPP Connection Status object on success, nullptr otherwise.
+	 *
+	 * @note Heap allocates, caller must free.
+	 */
+	cJSON *create_dpp_connection_status_obj(ec_status_code_t dpp_status, const std::string& ssid);
 
     // Maps SSID that this Enrollee has attempted to find to the
     // list of channels/op-classes that were scanned.
@@ -159,16 +304,26 @@ private:
 
     ec_connection_context_t m_c_ctx = {};
 
-    /**
-     * @brief Connection's bootstrapping data
-     */
-    inline ec_data_t& m_boot_data(){
+    
+	/**
+	 * @brief Retrieves the connection's bootstrapping data.
+	 *
+	 * This function provides access to the bootstrapping data used in the connection context.
+	 *
+	 * @returns A reference to the bootstrapping data of type `ec_data_t`.
+	 */
+	inline ec_data_t& m_boot_data(){
         return m_c_ctx.boot_data;
     }
-    /**
-     * @brief Connection's ephemeral context
-     */
-    inline ec_ephemeral_context_t& m_eph_ctx(){
+    
+	/**
+	 * @brief Retrieves the connection's ephemeral context.
+	 *
+	 * This function returns a reference to the ephemeral context associated with the connection.
+	 *
+	 * @returns A reference to the ephemeral context.
+	 */
+	inline ec_ephemeral_context_t& m_eph_ctx(){
         return m_c_ctx.eph_ctx;
     }
 

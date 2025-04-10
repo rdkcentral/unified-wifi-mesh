@@ -24,7 +24,19 @@
 class em_cmd_ow_cb_t : public em_cmd_t {
 
 public:
-    em_cmd_ow_cb_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+    
+	/**!
+	 * @brief 
+	 * This function is responsible for handling the callback for the OneWiFi command.
+	 *
+	 * @param[in] param The parameters required for the OneWiFi command.
+	 * @param[in,out] dm A reference to the dm_easy_mesh_t object that will be modified.
+	 *
+	 * @returns em_cmd_ow_cb_t The result of the OneWiFi command callback execution.
+	 *
+	 * @note Ensure that the dm_easy_mesh_t object is properly initialized before calling this function.
+	 */
+	em_cmd_ow_cb_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif

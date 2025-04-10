@@ -24,7 +24,20 @@
 class em_cmd_dev_test_t : public em_cmd_t {
 
 public:
-    em_cmd_dev_test_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+    
+	/**!
+	 * @brief Executes device test command
+	 *
+	 * This function is responsible for executing a device test command.
+	 *
+	 * @param[in] param The parameters required to execute the command.
+	 * @param[in,out] dm A reference to the easy mesh data structure that will be modified.
+	 *
+	 * @returns em_cmd_dev_test_t The result of the device test command execution.
+	 *
+	 * @note Ensure that the dm structure is properly initialized before calling this function.
+	 */
+	em_cmd_dev_test_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif

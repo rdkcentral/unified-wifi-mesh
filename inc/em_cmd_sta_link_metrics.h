@@ -24,7 +24,15 @@
 class em_cmd_sta_link_metrics_t : public em_cmd_t {
 
 public:
-    em_cmd_sta_link_metrics_t();
+    
+	/**!
+	 * @brief Constructor for the em_cmd_sta_link_metrics_t class.
+	 *
+	 * This constructor initializes the em_cmd_sta_link_metrics_t object.
+	 *
+	 * @note This is a default constructor and does not take any parameters.
+	 */
+	em_cmd_sta_link_metrics_t();
 };
 
 #endif

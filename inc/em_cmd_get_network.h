@@ -24,7 +24,22 @@
 class em_cmd_get_network_t : public em_cmd_t {
 
 public:
-    em_cmd_get_network_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+    
+	/**!
+	 * @brief Retrieves the network configuration based on the provided parameters.
+	 *
+	 * This function is responsible for obtaining the network settings using the
+	 * specified command parameters and updating the easy mesh structure.
+	 *
+	 * @param[in] param The command parameters used to specify the network settings.
+	 * @param[out] dm The easy mesh structure that will be updated with the network configuration.
+	 *
+	 * @returns em_cmd_get_network_t The result of the network retrieval operation.
+	 *
+	 * @note Ensure that the command parameters are correctly initialized before
+	 * calling this function to avoid unexpected behavior.
+	 */
+	em_cmd_get_network_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif

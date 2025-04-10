@@ -24,7 +24,21 @@
 class em_cmd_channel_pref_query_t : public em_cmd_t {
 
 public:
-    em_cmd_channel_pref_query_t(em_service_type_t service, em_cmd_params_t param, dm_easy_mesh_t& dm);
+    
+	/**!
+	 * @brief Queries the channel preference for a given service type and command parameters.
+	 *
+	 * This function interacts with the EasyMesh data model to retrieve channel preferences.
+	 *
+	 * @param[in] service The type of service for which the channel preference is queried.
+	 * @param[in] param The command parameters associated with the query.
+	 * @param[out] dm The EasyMesh data model reference where the channel preference will be stored.
+	 *
+	 * @returns em_cmd_channel_pref_query_t The result of the channel preference query.
+	 *
+	 * @note Ensure that the EasyMesh data model is properly initialized before calling this function.
+	 */
+	em_cmd_channel_pref_query_t(em_service_type_t service, em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif

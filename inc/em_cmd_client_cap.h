@@ -24,6 +24,20 @@
 class em_cmd_client_cap_report_t : public em_cmd_t {
 
 public:
+	
+	/**!
+	 * @brief Reports the client capabilities based on the provided parameters.
+	 *
+	 * This function processes the given command parameters and updates the
+	 * easy mesh data structure with the client capabilities.
+	 *
+	 * @param[in] param The command parameters used for reporting client capabilities.
+	 * @param[in,out] dm The easy mesh data structure to be updated with the client capabilities.
+	 *
+	 * @returns The client capability report as an em_cmd_client_cap_report_t structure.
+	 *
+	 * @note Ensure that the dm structure is properly initialized before calling this function.
+	 */
 	em_cmd_client_cap_report_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
