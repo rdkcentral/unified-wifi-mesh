@@ -502,9 +502,19 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
     auto i_nonce_attr = ec_util::get_attrib(prim_unwrapped_data, prim_unwrapped_len, ec_attrib_id_init_nonce);
     ASSERT_NOT_NULL_FREE(i_nonce_attr, false, prim_unwrapped_data, "%s:%d: No Initiator Nonce attribute found\n", __func__, __LINE__);
 
-    if (!e_ctx->i_nonce || memcmp(e_ctx->i_nonce, i_nonce_attr->data, i_nonce_attr->length) != 0) {
-        em_printfout("Initiator Nonce does not match, aborting exchange");
-        // Abort the exchange
+    if (e_ctx->i_nonce == nullptr) {
+        em_printfout("Initiator Nonce is nullptr! Aborting.");
+        free(prim_unwrapped_data);
+        return false;
+    }
+
+    if (memcmp(e_ctx->i_nonce, i_nonce_attr->data, i_nonce_attr->length) != 0) {
+        em_printfout("Initiator Nonce does not match ephemeral context's initiator nonce! Aborting.");
+        em_printfout("Ephemeral context i-nonce:");
+        util::print_hex_dump(conn_ctx->nonce_len, e_ctx->i_nonce);
+        em_printfout("Received i-nonce:");
+        util::print_hex_dump(i_nonce_attr->length, i_nonce_attr->data);
+        free(prim_unwrapped_data);
         return false;
     }
 
@@ -726,7 +736,14 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_auth_request(std::st
     // Start EasyConnect 6.3.2
 
     // Generate initiator nonce
-    RAND_bytes(e_ctx->i_nonce, conn_ctx->nonce_len);
+    if (RAND_bytes(e_ctx->i_nonce, conn_ctx->nonce_len) != 1) {
+        em_printfout("Failed to generate i-nonce!");
+        free(frame);
+        return {};
+    }
+
+    em_printfout("i-nonce");
+    util::print_hex_dump(conn_ctx->nonce_len, e_ctx->i_nonce);
 
     // Generate initiator protocol key pair (p_i/P_I)
     auto [priv_init_proto_key, pub_init_proto_key] = ec_crypto::generate_proto_keypair(*conn_ctx);
