@@ -255,6 +255,12 @@ Authentication Request frame without replying to it.
         .byte = init_caps_attr->data[0]
     };
 
+    ec_attribute_t *i_nonce_attr = ec_util::get_attrib(wrapped_data, static_cast<uint16_t>(wrapped_len), ec_attrib_id_init_nonce);
+    ASSERT_NOT_NULL_FREE(init_caps_attr, false, wrapped_data, "%s:%d: No initiator nonce attribute found\n", __func__, __LINE__);
+    memcpy(m_eph_ctx().i_nonce, i_nonce_attr->data, i_nonce_attr->length);
+    em_printfout("i-nonce (Configurator is initiator)");
+    util::print_hex_dump(i_nonce_attr->length, m_eph_ctx().i_nonce);
+
     // Fetched all of the wrapped data attributes (init caps), free the wrapped data
     free(wrapped_data);
 
