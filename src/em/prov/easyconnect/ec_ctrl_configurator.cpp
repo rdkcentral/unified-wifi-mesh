@@ -607,7 +607,7 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
     ASSERT_NOT_NULL_FREE(sec_wrapped_attr, false, prim_unwrapped_data, "%s:%d: No secondary wrapped data attribute found\n", __func__, __LINE__);
 
     // Unwrap the secondary wrapped data with the KE key
-    auto [sec_unwrapped_data, sec_unwrapped_len] =  ec_util::unwrap_wrapped_attrib(sec_wrapped_attr, frame, true, e_ctx->ke);
+    auto [sec_unwrapped_data, sec_unwrapped_len] =  ec_util::unwrap_wrapped_attrib(sec_wrapped_attr, frame, false, e_ctx->ke);
     ASSERT_NOT_NULL_FREE(sec_unwrapped_data, false, prim_unwrapped_data, "%s:%d: Failed to unwrap secondary wrapped data\n", __func__, __LINE__);
 
     // Free the primary unwrapped data since it is no longer needed (secondary unwrapped data is heap allocated)
@@ -658,11 +658,6 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
 
     uint8_t* r_auth_prime = ec_crypto::compute_hash(*conn_ctx, r_auth_hb);
 
-    BN_free(P_I_x);
-    BN_free(P_R_x);
-    BN_free(B_R_x);
-    if (B_I_x) BN_free(B_I_x);
-
     ASSERT_NOT_NULL(r_auth_prime, false, "%s:%d: Failed to compute R-auth'\n", __func__, __LINE__);
 
     if (memcmp(r_auth_prime, resp_auth_tag, sizeof(resp_auth_tag) != 0)) {
@@ -699,6 +694,12 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
     ec_crypto::add_to_hash(i_auth_hb, B_R_x); //B_R
     if (e_ctx->is_mutual_auth) ec_crypto::add_to_hash(i_auth_hb, B_I_x); //B_I
     ec_crypto::add_to_hash(i_auth_hb, static_cast<uint8_t> (1)); // 1 octet
+
+
+    BN_free(P_I_x);
+    BN_free(P_R_x);
+    BN_free(B_R_x);
+    if (B_I_x) BN_free(B_I_x);
 
     uint8_t* i_auth = ec_crypto::compute_hash(*conn_ctx, i_auth_hb);
     ASSERT_NOT_NULL(i_auth, false, "%s:%d: Failed to compute I-auth\n", __func__, __LINE__);

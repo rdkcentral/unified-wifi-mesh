@@ -831,7 +831,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
         wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_resp_caps, m_dpp_caps.byte);
 
         // R-auth is wrapped in an additional wrapped data attribute (k_e) inside the main wrapped data attribute (k_2)
-        wrap_attribs = ec_util::add_wrapped_data_attr(frame, wrap_attribs, &wrapped_len, true, m_eph_ctx().ke, [&](){
+        wrap_attribs = ec_util::add_wrapped_data_attr(frame, wrap_attribs, &wrapped_len, false, m_eph_ctx().ke, [&](){
             size_t int_wrapped_len = 0;
             uint8_t* int_wrapped_attrs = ec_util::add_attrib(NULL, &int_wrapped_len, ec_attrib_id_resp_auth_tag, m_c_ctx.digest_len, r_auth);
             return std::make_pair(int_wrapped_attrs, int_wrapped_len);
