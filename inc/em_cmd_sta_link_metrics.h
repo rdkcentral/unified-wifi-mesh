@@ -32,7 +32,7 @@ public:
 	 *
 	 * @note This is a default constructor and does not take any parameters.
 	 */
-	em_cmd_sta_link_metrics_t();
+	em_cmd_sta_link_metrics_t(dm_easy_mesh_t& dm);
 };
 
 #endif

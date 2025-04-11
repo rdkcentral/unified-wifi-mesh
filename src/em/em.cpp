@@ -170,7 +170,8 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 
         case em_cmd_type_sta_link_metrics:
-            m_sm.set_state(em_state_ctrl_sta_link_metrics_pending);
+            m_sm.set_state((m_service_type == em_service_type_agent) ? 
+                em_state_agent_sta_link_metrics_pending:em_state_ctrl_sta_link_metrics_pending);
             break;
 
         case em_cmd_type_set_channel:
@@ -303,6 +304,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_assoc_sta_link_metrics_rsp:
         case em_msg_type_beacon_metrics_query:
         case em_msg_type_beacon_metrics_rsp:
+        case em_msg_type_ap_metrics_rsp:
             em_metrics_t::process_msg(data, len);
             break;
 
@@ -360,6 +362,12 @@ void em_t::handle_agent_state()
 
         case em_cmd_type_sta_list:
             em_configuration_t::process_agent_state();
+            break;
+
+        case em_cmd_type_sta_link_metrics:
+            if (m_sm.get_state() == em_state_agent_sta_link_metrics_pending) {
+                em_metrics_t::process_agent_state();
+            }
             break;
 
         case em_cmd_type_start_dpp:
@@ -1171,7 +1179,7 @@ const char *em_t::state_2_str(em_state_t state)
         EM_STATE_2S(em_state_agent_ap_cap_report)
         EM_STATE_2S(em_state_agent_client_cap_report)
         EM_STATE_2S(em_state_agent_channel_pref_query)
-        EM_STATE_2S(em_state_agent_sta_link_metrics)
+        EM_STATE_2S(em_state_agent_sta_link_metrics_pending)
         EM_STATE_2S(em_state_max)
         EM_STATE_2S(em_state_agent_beacon_report_pending)
         EM_STATE_2S(em_state_agent_channel_select_configuration_pending)
