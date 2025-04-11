@@ -228,11 +228,74 @@ typedef struct {
       } creds;
 } ec_credential_object_t;
 
+/**
+ * @brief A DPP attribute as defined in EasyConnect 8.1. Can be sent/received over the network.
+ * 
+ * @paragraph DPP attributes' ID and length fields are required to be little 
+ *            endian when transferred over the network. In general, data 
+ *            transmitted over the network is big endian ("network byte 
+ *            order"), so DPP attributes must be treated as a different case.
+ *            Users of this struct MUST maintain the invariant that the 
+ *            `attr_id` and `length` are little endian. If anything needs to be
+ *            done with these values on the host, use an `ec_attribute_t`
+ *            instead.
+ * 
+ * @warning When doing any network operations involving DPP attributes, use `ec_net_attribute_t`, not `ec_attribute_t`. 
+ * @warning When executing logic on the host related to `attr_id` and `length`, use `ec_attribute_t`, not `ec_net_attribute_t`. 
+ */
 typedef struct {
+    /**
+     * @brief Identifies the type of the DPP attribute. Assumed to be little endian, as described in EasyConnect 8.1.
+     */
     uint16_t attr_id;
+    /**
+     * @brief Length of the following fields in the attribute. Assumed to be little endian, as described in EasyConnect 8.1.
+     */
     uint16_t length;
+    /**
+     * @brief Attribute-specific information fields. Endianness varies according to the specific DPP attribute type.
+     */
     uint8_t data[0];
-}__attribute__((packed)) ec_attribute_t;
+}__attribute__((packed)) ec_net_attribute_t;
+
+/**
+ * @brief Represents a DPP attribute that has been converted to host byte ordering. Not intended to be sent over the network. 
+ * 
+ * @paragraph This struct is intended to be used in any operations on DPP
+ *            attributes that occur entirely on the host. For example, after an
+ *            `ec_net_attribute_t` is read from a frame received from
+ *            the network, it must be converted to an `ec_attribute_t` to
+ *            ensure that the `attr_id` and `length` use host byte ordering. 
+ * 
+ * @paragraph Note that this struct includes a pointer, 
+ *            `ec_net_attribute_t *original`. This MUST ALWAYS point to the
+ *            `ec_net_attribute_t` instance that was used to derive this
+ *            `ec_attribute_t` instance. `original` is used in pointer
+ *            arithmetic based on its position in a frame. 
+ * 
+ * @note `ec_net_attribute_t *original` points to the `ec_attribute_t` instance this was derived from.
+ * 
+ * @warning When doing any network operations involving DPP attributes, use `ec_net_attribute_t`, not `ec_attribute_t`. 
+ * @warning When executing logic on the host related to `attr_id` and `length`, use `ec_attribute_t`, not `ec_net_attribute_t`. 
+ */
+typedef struct {
+    /**
+     * @brief Identifies the type of the DPP attribute. Assumed to be stored with host byte ordering.
+     */
+    uint16_t attr_id;
+    /**
+     * @brief Length of the following fields in the attribute. Assumed to be stored with host byte ordering.
+     */
+    uint16_t length;
+    /**
+     * @brief Points to the `ec_net_attribute_t` instance this `ec_net_attribute_t` instance was derived from.
+     */
+    ec_net_attribute_t *original;
+    /**
+     * @brief Shorthand for `this.original->data`. Must always equate to `this.original->data`. 
+     */
+    uint8_t *data;
+} ec_attribute_t;
 
 typedef struct {
     uint8_t category;
@@ -324,6 +387,68 @@ typedef struct {
 #define ASSERT_NULL(x, ret, errMsg, ...) ASSERT_MSG_TRUE(x == 0, ret, errMsg, ## __VA_ARGS__)
 #define ASSERT_EQUALS(x, y, ret, errMsg, ...) ASSERT_MSG_TRUE(x == y, ret, errMsg, ## __VA_ARGS__)
 #define ASSERT_NOT_EQUALS(x, y, ret, errMsg, ...) ASSERT_MSG_FALSE(x == y, ret, errMsg, ## __VA_ARGS__)
+
+/**
+ * @brief Asserts that a std::optional has a value, and if it doesn't, frees up to 3 pointers and returns a value
+ * @param x The std::optional to check for a value
+ * @param ret The value to return if x is nullopt
+ * @param ptr1 First pointer to free (can be NULL)
+ * @param ptr2 Second pointer to free (can be NULL) 
+ * @param ptr3 Third pointer to free (can be NULL)
+ * @param errMsg Format string for error message
+ * @param ... Additional arguments for the format string
+ */
+#define ASSERT_OPT_HAS_VALUE_FREE3(x, ret, ptr1, ptr2, ptr3, errMsg, ...) \
+    do { \
+        if(!x.has_value()) { \
+            fprintf(stderr, errMsg, ## __VA_ARGS__); \
+            void *_tmp1 = (ptr1); \
+            void *_tmp2 = (ptr2); \
+            void *_tmp3 = (ptr3); \
+            if (_tmp1) { \
+                free(_tmp1); \
+            } \
+            if (_tmp2) { \
+                free(_tmp2); \
+            } \
+            if (_tmp3) { \
+                free(_tmp3); \
+            } \
+            return ret; \
+        } \
+    } while (0)
+
+/**
+ * @brief Asserts that a std::optional has a value, and if it doesn't, frees up to 2 pointers and returns a value
+ * @param x The std::optional to check for a value
+ * @param ret The value to return if x is nullopt
+ * @param ptr1 First pointer to free (can be NULL)
+ * @param ptr2 Second pointer to free (can be NULL) 
+ * @param errMsg Format string for error message
+ * @param ... Additional arguments for the format string
+ */
+#define ASSERT_OPT_HAS_VALUE_FREE2(x, ret, ptr1, ptr2, errMsg, ...) \
+    ASSERT_OPT_HAS_VALUE_FREE3(x, ret, ptr1, ptr2, NULL, errMsg, ## __VA_ARGS__)
+
+/**
+ * @brief Asserts that a std::optional has a value, and if it doesn't, frees a pointer and returns a value
+ * @param x The std::optional to check for a value
+ * @param ret The value to return if x is nullopt
+ * @param ptr1 First pointer to free (can be NULL)
+ * @param errMsg Format string for error message
+ * @param ... Additional arguments for the format string
+ */
+#define ASSERT_OPT_HAS_VALUE_FREE(x, ret, ptr1, errMsg, ...) \
+    ASSERT_OPT_HAS_VALUE_FREE2(x, ret, ptr1, NULL, errMsg, ## __VA_ARGS__)
+
+/**
+ * @brief Asserts that a std::optional has a value, and returns a value if it doesn't
+ * @param x The std::optional to check for a value
+ * @param ret The value to return if x is nullopt
+ * @param errMsg Format string for error message
+ * @param ... Additional arguments for the format string
+ */
+#define ASSERT_OPT_HAS_VALUE(x, ret, errMsg, ...) ASSERT_MSG_TRUE(x.has_value(), ret, errMsg, ## __VA_ARGS__)
 
 #ifndef SSL_KEY
 #if OPENSSL_VERSION_NUMBER < 0x30000000L

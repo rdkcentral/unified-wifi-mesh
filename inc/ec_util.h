@@ -84,19 +84,18 @@ public:
 	 */
 	static void init_frame(ec_frame_t *frame);
 
-    
-	/**
-	 * @brief Get an attribute from the buffer.
-	 *
+    /**
+     * @brief Get a host-byte-ordered attribute from the buffer
+     * 
 	 * This function retrieves an attribute from the specified buffer using the given attribute ID.
 	 *
 	 * @param[in] buff The buffer to get the attribute from.
 	 * @param[in] len The length of the buffer.
 	 * @param[in] id The attribute ID.
-	 *
-	 * @return ec_attribute_t* The attribute if found, NULL otherwise.
-	 */
-	static ec_attribute_t *get_attrib(uint8_t *buff, size_t len, ec_attrib_id_t id);
+     * 
+     * @return const std::optional<ec_attribute_t> The attribute if found, NULL otherwise
+     */
+    static std::optional<const ec_attribute_t> get_attrib(uint8_t *buff, size_t len, ec_attrib_id_t id);
 
     
 	/**
@@ -109,8 +108,8 @@ public:
 	 *                  if it is not large enough to hold the new attribute.
 	 * @param[in,out] buff_len The current length of the buffer. This will be updated to reflect the
 	 *                         new length after the attribute is added.
-	 * @param[in] id The identifier for the attribute to be added.
-	 * @param[in] len The length of the attribute data.
+	 * @param[in] id The identifier for the attribute to be added, in host byte ordering.
+	 * @param[in] len The length of the attribute data, in host byte ordering.
 	 * @param[in] data A pointer to the attribute data to be added to the buffer.
 	 *
 	 * @return uint8_t* A pointer to the buffer offset by the length of the attribute.
@@ -129,8 +128,8 @@ public:
 	 *
 	 * @param[out] buff The buffer to which the attribute will be added.
 	 * @param[in,out] buff_len The length of the buffer. This will be updated to reflect the new size.
-	 * @param[in] id The attribute ID that identifies the type of attribute being added.
-	 * @param[in] len The length of the attribute data.
+	 * @param[in] id The attribute ID that identifies the type of attribute being added, in host byte ordering.
+	 * @param[in] len The length of the attribute data, in host byte ordering.
 	 * @param[in] data The attribute data to be added to the buffer.
 	 *
 	 * @return uint8_t* A pointer to the buffer offset by the length of the attribute.
@@ -149,8 +148,8 @@ public:
 	 *
 	 * @param[in,out] buff The buffer to add the attribute to.
 	 * @param[in,out] buff_len The length of the buffer, which will be updated after adding the attribute.
-	 * @param[in] id The attribute ID.
-	 * @param[in] str The attribute as a string.
+	 * @param[in] id The attribute ID, in host byte ordering.
+	 * @param[in] str The attribute as a string, in host byte ordering.
 	 *
 	 * @return uint8_t* Pointer to the buffer offset by the length of the attribute.
 	 *
@@ -168,7 +167,7 @@ public:
 	 *
 	 * @param[out] buff The buffer to add the attribute to.
 	 * @param[in,out] buff_len The current length of the buffer, which may be updated if reallocation occurs.
-	 * @param[in] id The attribute ID.
+	 * @param[in] id The attribute ID, in host byte ordering.
 	 * @param[in] val The uint8_t attribute value.
 	 *
 	 * @return uint8_t* The buffer offset by the length of the attribute.
@@ -190,8 +189,8 @@ public:
 	 * @param[out] buff The buffer to which the attribute will be added.
 	 * @param[in,out] buff_len A pointer to the size of the buffer. It will be
 	 * updated if the buffer is reallocated.
-	 * @param[in] id The attribute ID to be added.
-	 * @param[in] val The uint16_t attribute value to be added.
+	 * @param[in] id The attribute ID to be added, in host byte ordering.
+	 * @param[in] val The uint16_t attribute value to be added, in host byte ordering.
 	 *
 	 * @return uint8_t* A pointer to the buffer offset by the length of the
 	 * attribute.
@@ -449,7 +448,7 @@ public:
 	* @returns The total size of the EC attribute, including the data.
 	*/
 	static inline size_t get_ec_attr_size(uint16_t data_len) {
-        return offsetof(ec_attribute_t, data) + data_len;
+        return offsetof(ec_net_attribute_t, data) + data_len;
     };
 
     
@@ -519,20 +518,20 @@ public:
 	 * This function unwraps a wrapped attribute using the provided key and
 	 * optional additional authenticated data (AAD) from the frame.
 	 *
-	 * @param[in] wrapped_attrib The wrapped attribute to unwrap (retrieved using `get_attribute`).
+	 * @param[in] wrapped_attrib The wrapped attribute to unwrap (retrieved using `get_attrib`).
 	 * @param[in] frame The frame to use as AAD. Can be NULL if no AAD is needed.
 	 * @param[in] uses_aad Whether the wrapped attribute uses AAD.
 	 * @param[in] key The key to use for decryption.
 	 *
 	 * @return std::pair<uint8_t*, uint16_t> A heap allocated buffer of unwrapped attributes on success,
-	 *         which can then be fetched via `get_attribute`, along with the length of that buffer.
+	 *         which can then be fetched via `get_attrib`, along with the length of that buffer.
 	 *         The buffer is NULL and the size is 0 on failure.
 	 *
 	 * @warning The caller is responsible for freeing the memory returned by this function.
 	 *
-	 * @note Forwards to `unwrap_wrapped_attrib(ec_attribute_t *wrapped_attrib, uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, bool uses_aad, uint8_t *key);`
+	 * @note Forwards to `unwrap_wrapped_attrib(ec_attribute_t wrapped_attrib, uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, bool uses_aad, uint8_t *key);`
 	 */
-	static std::pair<uint8_t*, uint16_t> unwrap_wrapped_attrib(ec_attribute_t* wrapped_attrib, ec_frame_t *frame, bool uses_aad, uint8_t* key);
+	static std::pair<uint8_t*, uint16_t> unwrap_wrapped_attrib(const ec_attribute_t& wrapped_attrib, ec_frame_t *frame, bool uses_aad, uint8_t* key);
 
     
 	/**
@@ -551,7 +550,7 @@ public:
 	 *
 	 * @note Ensure that the key is valid and the frame is correctly set up before calling this function.
 	 */
-	static std::pair<uint8_t*, uint16_t> unwrap_wrapped_attrib(ec_attribute_t *wrapped_attrib, uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, bool uses_aad, uint8_t *key);
+	static std::pair<uint8_t*, uint16_t> unwrap_wrapped_attrib(const ec_attribute_t& wrapped_attrib, uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, bool uses_aad, uint8_t *key);
 
     // Used for storing channels / op-classes searched when looking for a given SSID.
     struct scanned_channels_t {
