@@ -452,8 +452,6 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
     size_t full_action_frame_len = frame_len - mgmt_hdr_len;
     auto ec_frame = reinterpret_cast<ec_frame_t*>(evt->u.raw_buff + mgmt_hdr_len);
 
-    bool found_em = false;
-
     switch (oui_type) {
     case DPP_OUI_TYPE: {
         em_t* al_node = get_al_node();
@@ -462,7 +460,12 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
             em_printfout("Dest radio node MAC '" MACSTRFMT "', al_node radio MAC '" MACSTRFMT"'\n", MAC2STR(dest_radio_node->get_radio_interface_mac()), MAC2STR(al_node->get_radio_interface_mac()));
             dest_al_same = (memcmp(dest_radio_node->get_radio_interface_mac(), al_node->get_radio_interface_mac(), ETH_ALEN) == 0);
         }
-        em_printfout("Dest MAC '%s', dest_al_same=%d, is_bcast=%d\n", dest_mac_str, dest_al_same, is_bcast);
+
+        auto ctrl_al = m_data_model.get_controller_interface_mac();
+        auto agent_al = m_data_model.get_agent_al_interface_mac();
+        bool is_colocated = (memcmp(ctrl_al, agent_al, ETH_ALEN) == 0);
+
+        em_printfout("Dest MAC '%s', dest_al_same=%d, is_bcast=%d, is_colocated=%d", dest_mac_str, dest_al_same, is_bcast, is_colocated);
 
         /*
         If any of the following conditions are satisfied:
@@ -474,19 +477,17 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
         We don't ignore it if this co-located since the AL-node will be the same as the controller (eth0) 
         so if we ignore it, no packets will ever get through
         */
-        if (is_bcast || dest_al_same || (m_data_model.get_colocated())) {
 
-            al_node->get_ec_mgr().handle_recv_ec_action_frame(ec_frame, full_action_frame_len, mgmt_frame->sa);
-            found_em = true;
-            break;
+        if (is_bcast || dest_al_same || is_colocated) {
+            if (!al_node->get_ec_mgr().handle_recv_ec_action_frame(ec_frame, full_action_frame_len, mgmt_frame->sa)){
+                em_printfout("EC manager failed to handle action frame!");
+            }
+            return;
         }
+        em_printfout("Did not find an EM node for action frame!");
     }
     default:
         break;
-    }
-
-    if (!found_em) {
-        em_printfout("Did not find an EM node for action frame!\n");
     }
 }
 
@@ -736,7 +737,7 @@ bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_f
     char path[100] = {0};
     snprintf(path, sizeof(path), "Device.WiFi.AccessPoint.%d.RawFrame.Mgmt.Action.Tx", test_idx+1);
     
-    em_printfout("Sending action frame: VAP Idx (%d), Dest ("MACSTRFMT"), Frequency (%d), Dwell Time (%d)", test_idx, MAC2STR(dest_mac), frequency, wait_time_ms);
+    em_printfout("Sending action frame: VAP Idx (%d), Dest (" MACSTRFMT "), Frequency (%d), Dwell Time (%d)", test_idx, MAC2STR(dest_mac), frequency, wait_time_ms);
     // Send the action frame
     bus_error_t rc;
     if ((rc = desc->bus_set_fn(&m_bus_hdl, path,  &raw_act_frame)) != 0) {

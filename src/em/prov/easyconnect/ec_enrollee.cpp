@@ -97,6 +97,8 @@ void ec_enrollee_t::send_presence_announcement_frames()
         return !m_received_auth_frame.load();
     };
 
+    uint32_t current_freq = 0;
+
     while (!m_received_auth_frame.load()) {
         if (attempts >= 4) {
             // EasyConnect 6.2.3
@@ -123,6 +125,8 @@ void ec_enrollee_t::send_presence_announcement_frames()
                 em_printfout("Failed to send DPP Presence Announcement frame (broadcast) on freq %d", freq);
             }
 
+            current_freq = freq;
+
             // Wait `dwell` before moving to next channel.
             if (!interruptible_sleep(std::chrono::milliseconds(dwell))) {
                 break;
@@ -141,6 +145,8 @@ void ec_enrollee_t::send_presence_announcement_frames()
             break;
         }
     }
+
+    m_selected_freq = current_freq;
 
     free(frame);
 }
@@ -235,7 +241,7 @@ Authentication Request frame without replying to it.
     ASSERT_NOT_NULL(wrapped_data_attr, false, "%s:%d No wrapped data attribute found\n", __func__, __LINE__);
 
     // Attempt to unwrap the wrapped data with generated k1 (from sent keys)
-    auto [wrapped_data, wrapped_len] = ec_util::unwrap_wrapped_attrib(wrapped_data_attr, frame, false, m_eph_ctx().k1); 
+    auto [wrapped_data, wrapped_len] = ec_util::unwrap_wrapped_attrib(wrapped_data_attr, frame, true, m_eph_ctx().k1); 
     if (wrapped_data == NULL || wrapped_len == 0) {
         em_printfout("failed to unwrap wrapped data");
         // "Abondon the exchange"
@@ -248,6 +254,12 @@ Authentication Request frame without replying to it.
     const ec_dpp_capabilities_t init_caps = {
         .byte = init_caps_attr->data[0]
     };
+
+    ec_attribute_t *i_nonce_attr = ec_util::get_attrib(wrapped_data, static_cast<uint16_t>(wrapped_len), ec_attrib_id_init_nonce);
+    ASSERT_NOT_NULL_FREE(init_caps_attr, false, wrapped_data, "%s:%d: No initiator nonce attribute found\n", __func__, __LINE__);
+    memcpy(m_eph_ctx().i_nonce, i_nonce_attr->data, i_nonce_attr->length);
+    em_printfout("i-nonce (Configurator is initiator)");
+    util::print_hex_dump(i_nonce_attr->length, m_eph_ctx().i_nonce);
 
     // Fetched all of the wrapped data attributes (init caps), free the wrapped data
     free(wrapped_data);
@@ -270,10 +282,10 @@ Authentication Request frame without replying to it.
             em_printfout("failed to create response frame");
             return false;
         }
-        if (m_send_action_frame(src_mac, resp_frame, resp_len, 0, 0)){
-            em_printfout("Successfully sent DPP Status Not Compatible response frame");
+        if (m_send_action_frame(src_mac, resp_frame, resp_len, m_selected_freq, 0)){
+            em_printfout("Successfully sent DPP Status Not Compatible response frame to '" MACSTRFMT "'", MAC2STR(src_mac));
         } else {
-            em_printfout("Failed to send DPP Status Not Compatible response frame");
+            em_printfout("Failed to send DPP Status Not Compatible response frame to " MACSTRFMT "'", MAC2STR(src_mac));
         }
         return false;
     }
@@ -290,10 +302,10 @@ Authentication Request frame without replying to it.
             em_printfout("failed to create response frame");
             return false;
         }
-        if (m_send_action_frame(src_mac, resp_frame, resp_len, 0, 0)){
-            em_printfout("Successfully sent DPP Status Response Pending response frame");
+        if (m_send_action_frame(src_mac, resp_frame, resp_len, m_selected_freq, 0)){
+            em_printfout("Successfully sent DPP Status Response Pending response frame to '" MACSTRFMT "'", MAC2STR(src_mac));
         } else {
-            em_printfout("Failed to send DPP Status Response Pending response frame");
+            em_printfout("Failed to send DPP Status Response Pending response frame to '" MACSTRFMT "'", MAC2STR(src_mac));
         }
         return true;
     }
@@ -307,11 +319,11 @@ Authentication Request frame without replying to it.
         em_printfout("failed to create response frame");
         return false;
     }
-    bool did_succeed = m_send_action_frame(src_mac, resp_frame, resp_len, 0, 0);
+    bool did_succeed = m_send_action_frame(src_mac, resp_frame, resp_len, m_selected_freq, 0);
     if (did_succeed){
-        em_printfout("Successfully sent DPP Status OK response frame");
+        em_printfout("Successfully sent DPP Status OK response frame to '" MACSTRFMT "'", MAC2STR(src_mac));
     } else {
-        em_printfout("Failed to send DPP Status OK response frame");
+        em_printfout("Failed to send DPP Status OK response frame to '" MACSTRFMT "'", MAC2STR(src_mac));
     }
 
     return did_succeed;
@@ -431,7 +443,7 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
     // in an 802.11 frame to a DPP frame encapsulated in a Multi-AP CMDU message. **Upon successful authentication**, the
     // Enrollee Multi-AP Agent requests configuration by exchanging DPP Configuration Protocol messages (see 6.6 of [18])
     // with the Multi-AP Controller.
-    bool sent_dpp_config_gas_frame = m_send_action_frame(src_mac, config_req, config_req_len, 0, 0);
+    bool sent_dpp_config_gas_frame = m_send_action_frame(src_mac, config_req, config_req_len, m_selected_freq, 0);
     if (sent_dpp_config_gas_frame) {
         em_printfout("Sent DPP Configuration Request 802.11 frame to Proxy Agent!");
     } else {
@@ -562,7 +574,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
         return false;
     }
 
-    bool ok = m_send_action_frame(sa, config_result_frame, config_result_frame_len, 0, 0);
+    bool ok = m_send_action_frame(sa, config_result_frame, config_result_frame_len, m_selected_freq, 0);
     if (!ok) {
         em_printfout("Failed to send DPP Configuration Result frame");
     } else {
@@ -588,7 +600,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
         return false;
     }
     
-    if (!m_send_action_frame(sa, conn_status_result_frame, conn_status_result_frame_len, 0, 0)) {
+    if (!m_send_action_frame(sa, conn_status_result_frame, conn_status_result_frame_len, m_selected_freq, 0)) {
         em_printfout("Failed to send Connection Status Result frame to Configurator!");
         free(conn_status_result_frame);
         free(wrapped_attrs);
@@ -647,7 +659,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
         Responder → Initiator: DPP Status, SHA-256(BR), [ SHA-256(BI), ] PR, [Protocol Version], { R-nonce, I-nonce, R-capabilities, { R-auth }ke }k2
     */
 
-    ec_frame_t *frame =  ec_util::alloc_frame(ec_frame_type_auth_cnf);
+    ec_frame_t *frame =  ec_util::alloc_frame(ec_frame_type_auth_rsp);
     ASSERT_NOT_NULL(frame, {}, "%s:%d failed to allocate memory for frame\n", __func__, __LINE__);
 
     uint8_t* attribs = NULL;

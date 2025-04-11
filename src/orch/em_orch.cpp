@@ -271,7 +271,6 @@ bool em_orch_t::is_cmd_type_renew_in_progress(em_bus_event_t *evt)
 				for (j = queue_count(pcmd->m_em_candidates) - 1; j >= 0; j--) {
 					em = (em_t *)queue_peek(pcmd->m_em_candidates, j);
 					dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
-					printf("%s:%d: ASH %s radio config renew\n", __func__, __LINE__, mac_str);
 					if (memcmp(mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
 						dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
 						printf("%s:%d: Command of type: %d actively executing for %s\n", __func__, __LINE__, type, mac_str);
@@ -287,7 +286,6 @@ bool em_orch_t::is_cmd_type_renew_in_progress(em_bus_event_t *evt)
 				for (j = queue_count(pcmd->m_em_candidates) - 1; j >= 0; j--) {
 					em = (em_t *)queue_peek(pcmd->m_em_candidates, j);
 					dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
-					printf("%s:%d: ASH %s radio config renew\n", __func__, __LINE__, mac_str);
 					if (memcmp(mac, em->get_radio_interface_mac(), sizeof(mac_addr_t)) == 0) {
 						dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
 						printf("%s:%d: Command of type: %d actively executing for %s\n", __func__, __LINE__, type, mac_str);
@@ -312,7 +310,7 @@ bool em_orch_t::is_cmd_type_in_progress(em_bus_event_t *evt)
     snprintf(key, sizeof(em_short_string_t), "%d", type);
 
     if (type == em_cmd_type_cfg_renew ) {
-        is_cmd_type_renew_in_progress(evt);
+        return is_cmd_type_renew_in_progress(evt);
     }
     if ((stats = static_cast<em_cmd_stats_t *>(hash_map_get(m_cmd_map, key))) != NULL) {
         //printf("%s:%d: Command of type: %d actively executing\n", __func__, __LINE__, type);

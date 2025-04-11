@@ -1,4 +1,4 @@
-#include "../../inc/al_service_exception.h"
+#include "al_service_exception.h"
 
 // Constructor definition
 AlServiceException::AlServiceException(const std::string& message, PrimitiveError error)

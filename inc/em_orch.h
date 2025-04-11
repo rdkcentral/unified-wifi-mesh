@@ -254,7 +254,7 @@ public:
 	 * This function determines whether a specific command type, identified by the
 	 * parameter `type`, is currently being processed or is in progress.
 	 *
-	 * @param[in] type type of	event.
+	 * @param[in] evt bus event.
 	 *
 	 * @returns True if the command type is in progress, false otherwise.
 	 */

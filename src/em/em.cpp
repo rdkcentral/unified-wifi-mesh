@@ -245,7 +245,28 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
     em_cmdu_t *cmdu;
     mac_addr_str_t mac_str;
 
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(data);
     cmdu = reinterpret_cast<em_cmdu_t *>(data + sizeof(em_raw_hdr_t));
+
+
+    if (memcmp(hdr->src, hdr->dst, sizeof(mac_address_t)) == 0 &&
+        memcmp(hdr->src, m_ruid.mac, sizeof(mac_address_t)) == 0 &&
+        memcmp(hdr->dst, m_ruid.mac, sizeof(mac_address_t)) == 0) {
+
+        // This is a message that was sent to the same address it was sent from, 
+        // check if I infact sent it to myself
+        auto hash = em_crypto_t::platform_SHA256(data, len);
+        auto hash_str = em_crypto_t::hash_to_hex_string(hash);
+
+        if (m_coloc_sent_hashed_msgs.find(hash_str) != m_coloc_sent_hashed_msgs.end()) {
+            // I sent this same message type, I am likely the sender receiving it back
+            // since both the controller and colocated agent have the same AL-mac
+            // so, I should not process it
+            free(data);
+            m_coloc_sent_hashed_msgs.erase(hash_str);
+            return;
+        }
+    }
 
     dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(), mac_str);
     switch (htons(cmdu->type)) {
@@ -610,6 +631,18 @@ int em_t::send_cmd(em_cmd_type_t type, em_service_type_t svc, unsigned char *buf
 int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
 {
     int ret = 0;
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+
+    if (memcmp(hdr->src, hdr->dst, sizeof(mac_address_t)) == 0 &&
+        memcmp(hdr->src, m_ruid.mac, sizeof(mac_address_t)) == 0 &&
+        memcmp(hdr->dst, m_ruid.mac, sizeof(mac_address_t)) == 0) {
+        // I am sending this message to a node with the same MAC address,
+        // store the message for later comparison
+        auto hash = em_crypto_t::platform_SHA256(buff, len);
+        if (hash.size() == SHA256_MAC_LEN) {
+            m_coloc_sent_hashed_msgs.insert(em_crypto_t::hash_to_hex_string(hash));
+        }
+    }
 #ifdef AL_SAP
     AlServiceDataUnit sdu;
     sdu.setSourceAlMacAddress(g_al_mac_sap);
@@ -631,7 +664,7 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     struct sockaddr_ll sadr_ll;
     int sock;
     mac_address_t   multi_addr = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x13};
-    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+
 
     dm_easy_mesh_t::name_from_mac_address(reinterpret_cast<mac_address_t *>(get_al_interface_mac()), ifname);
 
