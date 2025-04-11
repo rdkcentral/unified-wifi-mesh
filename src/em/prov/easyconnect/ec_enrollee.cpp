@@ -372,12 +372,27 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
 
     free(unwrapped_data);
 
+    if (m_eph_ctx().public_init_proto_key == nullptr) {
+        em_printfout("eph ctx public init proto key null");
+        return false;
+    }
+
+    if (m_eph_ctx().public_resp_proto_key == nullptr) {
+        em_printfout("eph ctx resp proto key nullptr");
+        return false;
+    }
+
+    if (m_boot_data().resp_pub_boot_key == nullptr) {
+        em_printfout("Boot data resp pub boot key is nullptr!");
+        return false;
+    }
+
     // Generate I-auth’ = H(R-nonce | I-nonce | PR.x | PI.x | BR.x | [ BI.x | ] 1)
     // Get P_I.x, P_R.x, B_I.x, and B_R.x
     BIGNUM* P_I_x = ec_crypto::get_ec_x(m_c_ctx, m_eph_ctx().public_init_proto_key);
     BIGNUM* P_R_x = ec_crypto::get_ec_x(m_c_ctx, m_eph_ctx().public_resp_proto_key);
-    BIGNUM* B_I_x = ec_crypto::get_ec_x(m_c_ctx, m_boot_data().resp_pub_boot_key);
-    BIGNUM* B_R_x = ec_crypto::get_ec_x(m_c_ctx, m_boot_data().init_pub_boot_key);
+    BIGNUM* B_I_x = ec_crypto::get_ec_x(m_c_ctx, m_boot_data().init_pub_boot_key);
+    BIGNUM* B_R_x = ec_crypto::get_ec_x(m_c_ctx, m_boot_data().resp_pub_boot_key);
 
     if (P_I_x == NULL || P_R_x == NULL || B_R_x == NULL) {
         em_printfout("Failed to get x-coordinates of P_I, P_R, and B_R");
@@ -1026,6 +1041,9 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
         return {};
     }
 
+    em_printfout("E-nonce:");
+    util::print_hex_dump(m_c_ctx.nonce_len, m_eph_ctx().e_nonce);
+
     if (m_boot_data().version <= 1) {
         em_printfout("EasyMesh R >= 5 mandates DPP version >= 2, current version is %d, bailing.", m_boot_data().version);
         return {};
@@ -1062,6 +1080,9 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     cJSON *bsta_info = m_get_bsta_info(nullptr);
     ASSERT_NOT_NULL_FREE(bsta_info, {}, m_eph_ctx().e_nonce, "%s:%d: bSTA info is nullptr!\n", __func__, __LINE__);
     cJSON_AddItemToObject(dpp_config_request_obj, "bSTAList", bsta_info);
+
+    // For debugging
+    em_printfout("Enrollee bSTA Configuration Request object:\n%s", cjson_utils::stringify(dpp_config_request_obj).c_str());
 
     // XXX: Dialog token can be thought of as a session key between Enrollee and Configurator regarding configuration
     // From specs (EasyMesh, EasyConnect, 802.11), it seems this is just arbitrarily chosen (1 byte), but
