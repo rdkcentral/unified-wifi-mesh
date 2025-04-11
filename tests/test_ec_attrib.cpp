@@ -34,6 +34,10 @@ protected:
             free(buffer);
             buffer = nullptr;
         }
+
+        test_attrib_1 = nullptr;
+        test_attrib_2 = nullptr;
+        test_attrib_3 = nullptr;
     }
 
     // Helper to create a buffer with attributes
@@ -45,21 +49,34 @@ protected:
         }
         
         // Add a few test attributes
-        uint8_t test_val_1 = 0x42;
+        const size_t test_attrib_1_offset = buffer_len;
         buffer = ec_util::add_attrib(buffer, &buffer_len, ec_attrib_id_dpp_status, test_val_1);
         EXPECT_NE(buffer, nullptr) << "Failed to add first attribute";
         
-        uint16_t test_val_2 = 0x1234;
+        const size_t test_attrib_2_offset = buffer_len;
         buffer = ec_util::add_attrib(buffer, &buffer_len, ec_attrib_id_init_bootstrap_key_hash, test_val_2);
         EXPECT_NE(buffer, nullptr) << "Failed to add second attribute";
         
-        std::string test_val_3 = "test_string";
+        const size_t test_attrib_3_offset = buffer_len;
         buffer = ec_util::add_attrib(buffer, &buffer_len, ec_attrib_id_channel, test_val_3);
         EXPECT_NE(buffer, nullptr) << "Failed to add third attribute";
+
+        // Save the address of each attribute
+        test_attrib_1 = buffer + test_attrib_1_offset;
+        test_attrib_2 = buffer + test_attrib_2_offset;
+        test_attrib_3 = buffer + test_attrib_3_offset;
     }
 
     ec_frame_t* frame = nullptr;
     uint8_t* buffer = nullptr;
+
+    const uint8_t test_val_1 = 0x42;
+    const uint16_t test_val_2 = 0x1234;
+    const std::string test_val_3 = "test_string";
+
+    uint8_t *test_attrib_1 = nullptr;
+    uint8_t *test_attrib_2 = nullptr;
+    uint8_t *test_attrib_3 = nullptr;
 
     const ec_attrib_id_t all_ec_attribute_ids[33] = {
         ec_attrib_id_dpp_status,
@@ -109,22 +126,25 @@ TEST_F(ECUtilAttributeTest, GetAttribute) {
     ASSERT_NE(attr1, std::nullopt);
     EXPECT_EQ(attr1->attr_id, ec_attrib_id_dpp_status);
     EXPECT_EQ(attr1->length, sizeof(uint8_t));
-    EXPECT_EQ(attr1->data[0], 0x42);
+    EXPECT_EQ(attr1->original, reinterpret_cast<ec_net_attribute_t*>(test_attrib_1));
+    EXPECT_EQ(attr1->data[0], test_val_1);
 
     auto attr2 = ec_util::get_attrib(buffer, buffer_len, ec_attrib_id_init_bootstrap_key_hash);
     ASSERT_NE(attr2, std::nullopt);
     EXPECT_EQ(attr2->attr_id, ec_attrib_id_init_bootstrap_key_hash);
     EXPECT_EQ(attr2->length, sizeof(uint16_t));
+    EXPECT_EQ(attr2->original, reinterpret_cast<ec_net_attribute_t*>(test_attrib_2));
 
     uint16_t data = 0;
     memcpy(&data, attr2->data, sizeof(uint16_t));
-    EXPECT_EQ(data, 0x1234);
+    EXPECT_EQ(data, test_val_2);
 
     auto attr3 = ec_util::get_attrib(buffer, buffer_len, ec_attrib_id_channel);
     ASSERT_NE(attr3, std::nullopt);
     EXPECT_EQ(attr3->attr_id, ec_attrib_id_channel);
-    EXPECT_EQ(attr3->length, 11); // Length of "test_string"
-    EXPECT_EQ(std::string(reinterpret_cast<char*>(attr3->data), attr3->length), "test_string");
+    EXPECT_EQ(attr3->length, test_val_3.size()); // Length of "test_string"
+    EXPECT_EQ(attr3->original, reinterpret_cast<ec_net_attribute_t*>(test_attrib_3));
+    EXPECT_EQ(std::string(reinterpret_cast<char*>(attr3->data), attr3->length), test_val_3);
 
     // Test retrieving non-existent attribute
     auto attr4 = ec_util::get_attrib(buffer, buffer_len, ec_attrib_id_wrapped_data);
@@ -137,31 +157,44 @@ TEST_F(ECUtilAttributeTest, AddAttributeDifferentTypes) {
     
     // Test adding uint8_t
     uint8_t u8_val = 0x42;
+    const size_t u8_attrib_offset = buffer_len;
     buffer = ec_util::add_attrib(buffer, &buffer_len, ec_attrib_id_dpp_status, u8_val);
     ASSERT_NE(buffer, nullptr);
     
     // Test adding uint16_t
     uint16_t u16_val = 0x1234;
+    const size_t u16_attrib_offset = buffer_len;
     buffer = ec_util::add_attrib(buffer, &buffer_len, ec_attrib_id_init_bootstrap_key_hash, u16_val);
     ASSERT_NE(buffer, nullptr);
     
     // Test adding string
     std::string str_val = "test_string";
+    const size_t str_attrib_offset = buffer_len;
     buffer = ec_util::add_attrib(buffer, &buffer_len, ec_attrib_id_channel, str_val);
     ASSERT_NE(buffer, nullptr);
     
     // Test adding raw buffer
     uint8_t raw_data[] = {0x01, 0x02, 0x03, 0x04, 0x05};
+    const size_t raw_attrib_offset = buffer_len;
     buffer = ec_util::add_attrib(buffer, &buffer_len, ec_attrib_id_proto_version, 
                               sizeof(raw_data), raw_data);
     ASSERT_NE(buffer, nullptr);
+
+    // Compute the address of each added attribute
+    uint8_t *u8_attrib = buffer + u8_attrib_offset;
+    uint8_t *u16_attrib = buffer + u16_attrib_offset;
+    uint8_t *str_attrib = buffer + str_attrib_offset;
+    uint8_t *raw_attrib = buffer + raw_attrib_offset;
     
     // Verify all attributes were added correctly
     auto attr1 = ec_util::get_attrib(buffer, buffer_len, ec_attrib_id_dpp_status);
     ASSERT_NE(attr1, std::nullopt);
+    EXPECT_EQ(attr1->original, reinterpret_cast<ec_net_attribute_t*>(u8_attrib));
     EXPECT_EQ(attr1->data[0], u8_val);
     
     auto attr2 = ec_util::get_attrib(buffer, buffer_len, ec_attrib_id_init_bootstrap_key_hash);
+    ASSERT_NE(attr2, std::nullopt);
+    EXPECT_EQ(attr2->original, reinterpret_cast<ec_net_attribute_t*>(u16_attrib));
 
     uint16_t data = 0;
     memcpy(&data, attr2->data, sizeof(uint16_t));
@@ -169,10 +202,12 @@ TEST_F(ECUtilAttributeTest, AddAttributeDifferentTypes) {
     
     auto attr3 = ec_util::get_attrib(buffer, buffer_len, ec_attrib_id_channel);
     ASSERT_NE(attr3, std::nullopt);
+    EXPECT_EQ(attr3->original, reinterpret_cast<ec_net_attribute_t*>(str_attrib));
     EXPECT_EQ(std::string(reinterpret_cast<char*>(attr3->data), attr3->length), str_val);
     
     auto attr4 = ec_util::get_attrib(buffer, buffer_len, ec_attrib_id_proto_version);
     ASSERT_NE(attr4, std::nullopt);
+    EXPECT_EQ(attr4->original, reinterpret_cast<ec_net_attribute_t*>(raw_attrib));
     EXPECT_EQ(attr4->length, sizeof(raw_data));
     EXPECT_EQ(memcmp(attr4->data, raw_data, sizeof(raw_data)), 0);
 }
@@ -225,8 +260,8 @@ TEST_F(ECUtilAttributeTest, MultipleAttributes) {
 // Test behavior with null buffer
 TEST_F(ECUtilAttributeTest, NullBuffer) {
     // Test get_attrib with null buffer
-    auto attr = ec_util::get_attrib(nullptr, 10, ec_attrib_id_dpp_status);
-    EXPECT_EQ(attr, std::nullopt);
+    auto null_attr = ec_util::get_attrib(nullptr, 10, ec_attrib_id_dpp_status);
+    EXPECT_EQ(null_attr, std::nullopt);
     
     // Test add_attrib with valid data but null buffer
     size_t buffer_len = 0;
@@ -235,9 +270,9 @@ TEST_F(ECUtilAttributeTest, NullBuffer) {
     ASSERT_NE(buffer, nullptr) << "add_attrib should allocate a new buffer when buffer is null";
     
     // Verify the attribute was added correctly
-    attr = ec_util::get_attrib(buffer, buffer_len, ec_attrib_id_dpp_status);
-    ASSERT_NE(attr, std::nullopt);
-    EXPECT_EQ(attr->data[0], test_val);
+    auto new_attr = ec_util::get_attrib(buffer, buffer_len, ec_attrib_id_dpp_status);
+    ASSERT_NE(new_attr, std::nullopt);
+    EXPECT_EQ(new_attr->data[0], test_val);
 }
 
 // Test copy attributes to frame

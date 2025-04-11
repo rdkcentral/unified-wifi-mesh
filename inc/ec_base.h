@@ -229,7 +229,7 @@ typedef struct {
 } ec_credential_object_t;
 
 /**
- * @brief A DPP attribute as defined in EC 8.1. Can be sent/received over the network.
+ * @brief A DPP attribute as defined in EasyConnect 8.1. Can be sent/received over the network.
  * 
  * @paragraph DPP attributes' ID and length fields are required to be little 
  *            endian when transferred over the network. In general, data 
@@ -245,11 +245,11 @@ typedef struct {
  */
 typedef struct {
     /**
-     * @brief Identifies the type of the DPP attribute. Assumed to be little endian, as described in EC 8.1.
+     * @brief Identifies the type of the DPP attribute. Assumed to be little endian, as described in EasyConnect 8.1.
      */
     uint16_t attr_id;
     /**
-     * @brief Length of the following fields in the attribute. Assumed to be little endian, as described in EC 8.1.
+     * @brief Length of the following fields in the attribute. Assumed to be little endian, as described in EasyConnect 8.1.
      */
     uint16_t length;
     /**
@@ -288,7 +288,7 @@ typedef struct {
      */
     uint16_t length;
     /**
-     * @brief Points to the `ec_attribute_t` instance this `ec_attribute_t` instance was derived from.
+     * @brief Points to the `ec_net_attribute_t` instance this `ec_net_attribute_t` instance was derived from.
      */
     ec_net_attribute_t *original;
     /**
@@ -400,7 +400,7 @@ typedef struct {
  */
 #define ASSERT_OPT_HAS_VALUE_FREE3(x, ret, ptr1, ptr2, ptr3, errMsg, ...) \
     do { \
-        if(x.has_value()) { \
+        if(!x.has_value()) { \
             fprintf(stderr, errMsg, ## __VA_ARGS__); \
             void *_tmp1 = (ptr1); \
             void *_tmp2 = (ptr2); \
@@ -448,7 +448,7 @@ typedef struct {
  * @param errMsg Format string for error message
  * @param ... Additional arguments for the format string
  */
-#define ASSERT_OPT_HAS_VALUE(x, ret, errMsg, ...) ASSERT_MSG_FALSE(x.has_value(), ret, errMsg, ## __VA_ARGS__)
+#define ASSERT_OPT_HAS_VALUE(x, ret, errMsg, ...) ASSERT_MSG_TRUE(x.has_value(), ret, errMsg, ## __VA_ARGS__)
 
 #ifndef SSL_KEY
 #if OPENSSL_VERSION_NUMBER < 0x30000000L

@@ -93,9 +93,9 @@ public:
 	 * @param[in] len The length of the buffer.
 	 * @param[in] id The attribute ID.
      * 
-     * @return std::optional<ec_attribute_t> The attribute if found, NULL otherwise
+     * @return const std::optional<ec_attribute_t> The attribute if found, NULL otherwise
      */
-    static std::optional<ec_attribute_t> get_attrib(uint8_t *buff, size_t len, ec_attrib_id_t id);
+    static std::optional<const ec_attribute_t> get_attrib(uint8_t *buff, size_t len, ec_attrib_id_t id);
 
     
 	/**
@@ -531,7 +531,7 @@ public:
 	 *
 	 * @note Forwards to `unwrap_wrapped_attrib(ec_attribute_t wrapped_attrib, uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, bool uses_aad, uint8_t *key);`
 	 */
-	static std::pair<uint8_t*, uint16_t> unwrap_wrapped_attrib(ec_attribute_t wrapped_attrib, ec_frame_t *frame, bool uses_aad, uint8_t* key);
+	static std::pair<uint8_t*, uint16_t> unwrap_wrapped_attrib(const ec_attribute_t& wrapped_attrib, ec_frame_t *frame, bool uses_aad, uint8_t* key);
 
     
 	/**
@@ -550,7 +550,7 @@ public:
 	 *
 	 * @note Ensure that the key is valid and the frame is correctly set up before calling this function.
 	 */
-	static std::pair<uint8_t*, uint16_t> unwrap_wrapped_attrib(ec_attribute_t wrapped_attrib, uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, bool uses_aad, uint8_t *key);
+	static std::pair<uint8_t*, uint16_t> unwrap_wrapped_attrib(const ec_attribute_t& wrapped_attrib, uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, bool uses_aad, uint8_t *key);
 
     // Used for storing channels / op-classes searched when looking for a given SSID.
     struct scanned_channels_t {
