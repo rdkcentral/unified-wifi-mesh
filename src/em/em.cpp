@@ -90,6 +90,9 @@ void em_t::orch_execute(em_cmd_t *pcmd)
 
         case em_cmd_type_set_ssid:
         case em_cmd_type_set_radio:
+	    if (m_service_type == em_service_type_ctrl) {
+	        set_renew_tx_count(0);
+	    }
             m_sm.set_state(em_state_ctrl_misconfigured);
 			break;
 
@@ -643,7 +646,6 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     memcpy(sadr_ll.sll_addr, (multicast == true) ? multi_addr:hdr->dst, sizeof(mac_address_t));
 
     ret = static_cast<int>(sendto(sock, buff, len, 0, reinterpret_cast<const struct sockaddr*>(&sadr_ll), sizeof(struct sockaddr_ll)));
-    
     close(sock);
 #endif
     return ret;

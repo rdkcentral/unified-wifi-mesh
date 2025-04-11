@@ -47,8 +47,8 @@ public:
 	 *
 	 * @note Ensure that the node and buff are properly initialized before calling this function.
 	 */
-	int     get_edited_node(em_network_node_t *node, const char *header, char *buff);
-    
+   	static int     get_edited_node(em_network_node_t *node, const char *header, char *buff);
+ 
 	/**!
 	 * @brief Executes a command and stores the result.
 	 *
@@ -64,7 +64,6 @@ public:
 	 */
 	int execute(char *result);
 
-    
 	/**!
 	 * @brief Constructor for the em_cmd_cli_t class.
 	 *

@@ -44,7 +44,6 @@ unsigned int em_orch_t::submit_commands(em_cmd_t *pcmd[], unsigned int num)
     unsigned int submitted = 0;
     bool submit = true;
     em_t *em;
-
     for (i = 0; i < num; i++) {
         if ((submit = pre_process_orch_op(pcmd[i])) == false) {
             // complete the command
@@ -120,7 +119,6 @@ void em_orch_t::push_stats(em_cmd_t *pcmd)
 bool em_orch_t::submit_command(em_cmd_t *pcmd)
 {
     bool submitted = false;
-
     // build em candidates in cmd;
     if (build_candidates(pcmd) == 0) {
         // if there are no candidates, complete the command
@@ -142,6 +140,9 @@ void em_orch_t::destroy_command(em_cmd_t *pcmd)
     // remove candidates from queue
     while (count = queue_count(pcmd->m_em_candidates)) {
         em = static_cast<em_t *>(queue_remove(pcmd->m_em_candidates, count - 1));
+	if (pcmd->m_type == em_cmd_type_cfg_renew) {
+		em->set_renew_tx_count(0);
+	}
 		em->clear_cmd();	
     }	
 
@@ -198,14 +199,14 @@ bool em_orch_t::orchestrate(em_cmd_t *pcmd, em_t *em)
     if (orch_state == em_orch_state_pending) {
         if (is_em_ready_for_orch_exec(pcmd, em) == true) {
             // ask em to execute the command
-            //printf("%s:%d: Start orchestartion:%s(%s), em state:%s\n", __func__, __LINE__, 
-					//em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
-					//em_t::state_2_str(em->get_state()));
+            printf("%s:%d: Start orchestartion:%s(%s), em state:%s\n", __func__, __LINE__, 
+					em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
+					em_t::state_2_str(em->get_state()));
             em->orch_execute(pcmd);
         } else {
-            //printf("%s:%d: skipping orchestration:%s(%s) because of incorrect state, state:%s\n", __func__, __LINE__, 
-					//em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
-					//em_t::state_2_str(em->get_state()));
+            printf("%s:%d: skipping orchestration:%s(%s) because of incorrect state, state:%s\n", __func__, __LINE__, 
+					em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
+					em_t::state_2_str(em->get_state()));
             update_stats(pcmd);
             orch_transient(pcmd, em);
         }
@@ -219,7 +220,7 @@ bool em_orch_t::orchestrate(em_cmd_t *pcmd, em_t *em)
         }
 
     } else if (orch_state == em_orch_state_fini) {
-        //printf("%s:%d: em:%s Detected in fini state\n", __func__, __LINE__, mac_str);
+        printf("%s:%d: em:%s Detected in fini state\n", __func__, __LINE__, mac_str);
         done = true;
     }
 
@@ -241,6 +242,64 @@ bool em_orch_t::eligible_for_active(em_cmd_t *pcmd)
     }
 
     return eligible;
+}
+
+bool em_orch_t::is_cmd_type_renew_in_progress(em_bus_event_t *evt)
+{
+    em_cmd_stats_t *stats;
+    em_short_string_t key;
+    em_cmd_type_t       type;
+    em_bus_event_type_cfg_renew_params_t *raw;
+    mac_address_t mac;
+    mac_addr_str_t mac_str, radio_mac;
+    em_cmd_t *pcmd;
+    em_t *em;
+    signed int i, j;
+
+    type = em_cmd_t::bus_2_cmd_type(evt->type);
+
+    snprintf(key, sizeof(em_short_string_t), "%d", type);
+
+    raw = (em_bus_event_type_cfg_renew_params_t *)evt->u.raw_buff;
+    memcpy(mac, raw->radio, sizeof(mac_address_t));
+    dm_easy_mesh_t::macbytes_to_string(mac, radio_mac);
+
+    if ((stats = (em_cmd_stats_t *)hash_map_get(m_cmd_map, key)) != NULL) {
+       printf("%s:%d: Command of type: %d actively executing\n", __func__, __LINE__, type); 
+        // Go through the pending queue and check if radio mac match
+        for (i = queue_count(m_pending) - 1; i >= 0; i--) {
+            pcmd = (em_cmd_t *)queue_peek(m_pending, i);
+            if (pcmd->m_type == type) {
+                for (j = queue_count(pcmd->m_em_candidates) - 1; j >= 0; j--) {
+                    em = (em_t *)queue_peek(pcmd->m_em_candidates, j);
+                    dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
+                    if (memcmp(mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
+                        dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
+                        printf("%s:%d: Command of type: %d actively executing for %s\n", __func__, __LINE__, type, mac_str);
+                        return true;
+                    }
+                }
+	    
+            }
+        }
+        // go though active queue and check if radio mac match
+        for (i = queue_count(m_active) - 1; i >= 0; i--) {
+            pcmd = (em_cmd_t *)queue_peek(m_active, i);
+            if (pcmd->m_type == type) {
+                for (j = queue_count(pcmd->m_em_candidates) - 1; j >= 0; j--) {
+                    em = (em_t *)queue_peek(pcmd->m_em_candidates, j);
+                    dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
+                    if (memcmp(mac, em->get_radio_interface_mac(), sizeof(mac_addr_t)) == 0) {
+                        dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
+                        printf("%s:%d: Command of type: %d actively executing for %s\n", __func__, __LINE__, type, mac_str);
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    return false;
 }
 
 bool em_orch_t::is_cmd_type_in_progress(em_bus_event_type_t etype)
@@ -275,8 +334,8 @@ void em_orch_t::handle_timeout()
         pcmd = static_cast<em_cmd_t *>(queue_peek(m_pending, i));
         if (eligible_for_active(pcmd) == true) {
             queue_remove(m_pending, i);
-            //printf("%s:%d: Cmd: %s Orch Type: %s eligible for active\n", __func__, __LINE__, 
-                    //pcmd->get_cmd_name(), em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
+            printf("%s:%d: Cmd: %s Orch Type: %s eligible for active\n", __func__, __LINE__, 
+                    pcmd->get_cmd_name(), em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
             eligible_to_move = true;
             break;			
         }

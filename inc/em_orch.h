@@ -259,7 +259,8 @@ public:
 	 * @returns True if the command type is in progress, false otherwise.
 	 */
 	bool is_cmd_type_in_progress(em_bus_event_type_t type);
-    
+   	bool is_cmd_type_renew_in_progress(em_bus_event_t *evt);
+ 
 	/**!
 	 * @brief Orchestrates the execution of a command within the em context.
 	 *

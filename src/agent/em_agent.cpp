@@ -297,7 +297,7 @@ void em_agent_t::handle_autoconfig_renew(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num;
 
-    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+    if (m_orch->is_cmd_type_renew_in_progress(evt) == true) {
 	printf("handle_autoconfig_renew in progress\n");
     }  else if ((num = m_data_model.analyze_autoconfig_renew(evt, pcmd)) == 0) {
         printf("handle_autoconfig_renew cmd creation failed\n");
@@ -1001,6 +1001,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
     mac_address_t ruid;
     em_profile_type_t profile;
     mac_addr_str_t mac_str1, mac_str2;
+    em_string_t al_mac_str;
     bssid_t bss_mac;
     mac_address_t client_mac;
     bool found = false;
@@ -1060,9 +1061,11 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 			printf("%s:%d: Could not find radio_id for em_msg_type_topo_query\n", __func__, __LINE__);
 			return NULL;
 		}
-		dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
-		if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
-			printf("%s:%d: Found existing AL MAC:%s\n", __func__, __LINE__, mac_str1);
+
+		dm_easy_mesh_t::macbytes_to_string(ruid, al_mac_str);
+		strcat(al_mac_str, "_al");
+		if ((em = (em_t *)hash_map_get(m_em_map, al_mac_str)) != NULL) {
+			printf("%s:%d: Found existing AL MAC:%s\n", __func__, __LINE__, al_mac_str);
 		} else {
 			return NULL;
 		}
@@ -1157,7 +1160,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 
         case em_msg_type_channel_sel_rsp:
             printf("%s:%d: Received em_msg_type_channel_sel_resp\n", __func__, __LINE__);
-            break;
+            return NULL;
 
         case  em_msg_type_client_cap_query:
             printf("%s:%d: Received client cap query\n", __func__, __LINE__);
