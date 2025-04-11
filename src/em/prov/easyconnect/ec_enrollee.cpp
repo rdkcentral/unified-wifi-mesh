@@ -1041,6 +1041,9 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
         return {};
     }
 
+    em_printfout("E-nonce:");
+    util::print_hex_dump(m_c_ctx.nonce_len, m_eph_ctx().e_nonce);
+
     if (m_boot_data().version <= 1) {
         em_printfout("EasyMesh R >= 5 mandates DPP version >= 2, current version is %d, bailing.", m_boot_data().version);
         return {};
@@ -1077,6 +1080,9 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     cJSON *bsta_info = m_get_bsta_info(nullptr);
     ASSERT_NOT_NULL_FREE(bsta_info, {}, m_eph_ctx().e_nonce, "%s:%d: bSTA info is nullptr!\n", __func__, __LINE__);
     cJSON_AddItemToObject(dpp_config_request_obj, "bSTAList", bsta_info);
+
+    // For debugging
+    em_printfout("Enrollee bSTA Configuration Request object:\n%s", cjson_utils::stringify(dpp_config_request_obj).c_str());
 
     // XXX: Dialog token can be thought of as a session key between Enrollee and Configurator regarding configuration
     // From specs (EasyMesh, EasyConnect, 802.11), it seems this is just arbitrarily chosen (1 byte), but
