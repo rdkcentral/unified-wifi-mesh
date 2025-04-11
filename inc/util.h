@@ -27,6 +27,7 @@
 #include "wifi_hal.h"
 #include <pthread.h>
 #include <sys/prctl.h>
+#include <byteswap.h>
 
 #include <string>
 #include <memory>
@@ -35,6 +36,19 @@
 #ifndef LOG_PATH_PREFIX
 #define LOG_PATH_PREFIX "/nvram/"
 #endif // LOG_PATH_PREFIX
+
+/**
+ * @brief Perform a byte swap if needed to convert little endian to/from host byte ordering
+ * @param x Unsigned 16 bit integer
+ * @return uint16_t x, byte-swapped if host is big endian, otherwise unchanged
+ */
+static inline uint16_t SWAP_LITTLE_ENDIAN(uint16_t x) {
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+    return x;
+#else
+    return __bswap_16(x);
+#endif
+}
 
 typedef enum {
     EM_STDOUT,
@@ -229,6 +243,28 @@ namespace util {
 	 * @return std::string The OUI representation, such as "000FAC02" for "psk", or an empty string if the AKM is not recognized.
 	 */
 	std::string akm_to_oui(std::string akm);
+
+/**
+ * @brief Retrieve a network byte ordered uint16_t from an address and convert to host byte ordering
+ * 
+ * @param[in] ptr Pointer to an address containing an unsigned 16 bit integer
+ * @return uint16_t The integer at *ptr, converted to host byte ordering, or 0 if ptr is NULL.
+ * 
+ * @note `ptr` is `void*` because this is typically invoked on data that must be reinterpreted from its assigned type.
+ * @note Byte reordering is achieved using `ntohs`. 
+ */
+uint16_t deref_net_uint16_to_host(const void* const ptr);
+
+/**
+ * @brief Set a network byte ordered uint16_t at an address, using a host byte ordered uint16_t as input
+ * 
+ * @param[in] host_val Unsigned 16 bit integer with host byte ordering
+ * @return bool true if successful, false otherwise. Only fails if `ptr` is NULL.
+ * 
+ * @note `ptr` is `void*` because this is typically invoked on data that must be reinterpreted from its assigned type.
+ * @note Byte reordering is achieved using `htons`. 
+ */
+bool set_net_uint16_from_host(const uint16_t host_val, void* const ptr);
 
 } // namespace util
 

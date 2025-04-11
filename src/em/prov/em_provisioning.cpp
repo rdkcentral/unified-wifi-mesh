@@ -148,6 +148,7 @@ int em_provisioning_t::send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, si
         return -1;
     }
 
+    em_printfout("Sent Proxied Encap DPP msg");
     // TODO: If needed, likely not
 	//set_state(em_state_ctrl_configured);
 

@@ -8,8 +8,8 @@ bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_
     em_printfout("Recieved a DPP Presence Announcement Frame from '" MACSTRFMT "'\n", MAC2STR(src_mac));
     size_t attrs_len = len - EC_FRAME_BASE_SIZE;
 
-    ec_attribute_t *B_r_hash_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_resp_bootstrap_key_hash);
-    ASSERT_NOT_NULL(B_r_hash_attr, false, "%s:%d No responder bootstrapping key hash attribute found\n", __func__, __LINE__);
+    auto B_r_hash_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_resp_bootstrap_key_hash);
+    ASSERT_OPT_HAS_VALUE(B_r_hash_attr, false, "%s:%d No responder bootstrapping key hash attribute found\n", __func__, __LINE__);
     std::string B_r_hash_str = em_crypto_t::hash_to_hex_string(B_r_hash_attr->data, B_r_hash_attr->length);
 
     // EasyMesh R6 5.3.4
