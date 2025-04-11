@@ -42,11 +42,11 @@
 int dm_radio_cap_list_t::get_config(cJSON *obj_parent, void *parent, bool summary)
 {
     dm_radio_cap_t *pradio_cap;
-    cJSON *obj;
+    //cJSON *obj;
 	
     pradio_cap = static_cast<dm_radio_cap_t *>(hash_map_get_first(m_list));
     while (pradio_cap != NULL) {
-       	obj = cJSON_CreateObject(); 
+        //obj = cJSON_CreateObject();
 
 	//cJSON_AddStringToObject(obj, "HTCapabilities", pradio_cap->m_radio_cap_info.ht_cap);
 	//cJSON_AddStringToObject(obj, "VHTCapabilities", pradio_cap->m_radio_cap_info.vht_cap);
@@ -64,7 +64,7 @@ int dm_radio_cap_list_t::get_config(cJSON *obj_parent, void *parent, bool summar
 int dm_radio_cap_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void *parent_id)
 {
     cJSON *obj;
-    unsigned int i, size;
+    int i, size;
     dm_radio_cap_t radio_cap;
     dm_orch_type_t	op;
 
@@ -140,6 +140,7 @@ void dm_radio_cap_list_t::delete_list()
     mac_addr_str_t  mac_str = {0};
    
     pradio_cap = static_cast<dm_radio_cap_t *>(hash_map_get_first(m_list));
+
     while (pradio_cap != NULL) {
         tmp = pradio_cap;
         pradio_cap = static_cast<dm_radio_cap_t *>(hash_map_get_next(m_list, pradio_cap));
