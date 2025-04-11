@@ -87,7 +87,7 @@ int dm_radio_list_t::set_config(db_client_t& db_client, dm_radio_t& radio, void 
 int dm_radio_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void *parent_id)
 {
     cJSON *obj;
-    unsigned int i, size;
+    int i, size;
     dm_radio_t radio;
     dm_orch_type_t op;
 
@@ -108,11 +108,11 @@ dm_orch_type_t dm_radio_list_t::get_dm_orch_type(db_client_t& db_client, const d
     dm_radio_t *pradio;
     mac_addr_str_t  mac_str = {0};
     mac_addr_str_t radio_mac_str, dev_mac_str;
-    em_long_string_t key;
+    em_2xlong_string_t key;
 
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(radio.m_radio_info.id.dev_mac), dev_mac_str);
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(radio.m_radio_info.id.ruid), radio_mac_str);
-    snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", radio.m_radio_info.id.net_id, dev_mac_str, radio_mac_str);
+    snprintf(key, sizeof(key), "%s@%s@%s", radio.m_radio_info.id.net_id, dev_mac_str, radio_mac_str);
 
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(radio.m_radio_info.intf.mac), mac_str);
     pradio = get_radio(mac_str);
@@ -189,11 +189,11 @@ int dm_radio_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *
     mac_addr_str_t radio_mac_str, dev_mac_str;
     em_radio_info_t *info = static_cast<em_radio_info_t *>(data);
     int ret = 0;
-	em_long_string_t key;
+	em_2xlong_string_t key;
 
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(info->id.dev_mac), dev_mac_str);
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(info->id.ruid), radio_mac_str);
-	snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", info->id.net_id, dev_mac_str, radio_mac_str);
+	snprintf(key, sizeof(key), "%s@%s@%s", info->id.net_id, dev_mac_str, radio_mac_str);
 
     switch (op) {
 		case dm_orch_type_db_insert:
@@ -261,23 +261,23 @@ int dm_radio_list_t::sync_db(db_client_t& db_client, void *ctx)
         dm_easy_mesh_t::string_to_macbytes(mac, info.intf.mac);
 
         info.enabled = db_client.get_number(ctx, 3);
-        info.media_data.media_type = db_client.get_number(ctx, 4);
-        info.media_data.band = db_client.get_number(ctx, 5);
+        info.media_data.media_type = static_cast<short unsigned int>(db_client.get_number(ctx, 4));
+        info.media_data.band = static_cast<unsigned char>(db_client.get_number(ctx, 5));
         info.band = static_cast<em_freq_band_t> (db_client.get_number(ctx, 5));
-        info.media_data.center_freq_index_1 = db_client.get_number(ctx, 6);
-        info.media_data.center_freq_index_2 = db_client.get_number(ctx, 7);
-        info.number_of_bss = db_client.get_number(ctx, 8);
-        info.number_of_unassoc_sta = db_client.get_number(ctx, 9);
+        info.media_data.center_freq_index_1 = static_cast<unsigned char>(db_client.get_number(ctx, 6));
+        info.media_data.center_freq_index_2 = static_cast<unsigned char>(db_client.get_number(ctx, 7));
+        info.number_of_bss = static_cast<unsigned int>(db_client.get_number(ctx, 8));
+        info.number_of_unassoc_sta = static_cast<unsigned int>(db_client.get_number(ctx, 9));
         info.noise = db_client.get_number(ctx, 10);
-        info.utilization = db_client.get_number(ctx, 11);
+        info.utilization = static_cast<short unsigned int>(db_client.get_number(ctx, 11));
         info.traffic_sep_combined_fronthaul = db_client.get_number(ctx, 12);
         info.traffic_sep_combined_backhaul = db_client.get_number(ctx, 13);
-        info.steering_policy = db_client.get_number(ctx, 14);
-        info.channel_util_threshold = db_client.get_number(ctx, 15);
-        info.rcpi_steering_threshold = db_client.get_number(ctx, 16);
-        info.sta_reporting_rcpi_threshold = db_client.get_number(ctx, 17);
-        info.sta_reporting_hysteresis_margin_override = db_client.get_number(ctx, 18);
-        info.channel_utilization_reporting_threshold = db_client.get_number(ctx, 19);
+        info.steering_policy = static_cast<unsigned int>(db_client.get_number(ctx, 14));
+        info.channel_util_threshold = static_cast<unsigned int>(db_client.get_number(ctx, 15));
+        info.rcpi_steering_threshold = static_cast<unsigned int>(db_client.get_number(ctx, 16));
+        info.sta_reporting_rcpi_threshold = static_cast<unsigned int>(db_client.get_number(ctx, 17));
+        info.sta_reporting_hysteresis_margin_override = static_cast<unsigned int>(db_client.get_number(ctx, 18));
+        info.channel_utilization_reporting_threshold = static_cast<unsigned int>(db_client.get_number(ctx, 19));
         info.associated_sta_traffic_stats_inclusion_policy = db_client.get_number(ctx, 20);
         info.associated_sta_link_mterics_inclusion_policy = db_client.get_number(ctx, 21);
 

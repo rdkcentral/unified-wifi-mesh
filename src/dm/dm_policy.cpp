@@ -42,9 +42,8 @@
 int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t type)
 {
     cJSON *tmp, *sta_arr_obj;
-	mac_addr_str_t	mac_str;
 	em_policy_id_t id;
-	unsigned int i;
+	int i;
 
 	//printf("%s:%d: Key: %s\tType: %d\n", __func__, __LINE__, (char *)parent_id, type);
 
@@ -70,27 +69,27 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
 			m_policy.policy = static_cast<em_steering_policy_type_t>(tmp->valuedouble);
 		}	
 		if ((tmp = cJSON_GetObjectItem(obj, "Utilization Threshold")) != NULL) {
-			m_policy.util_threshold = tmp->valuedouble;
+			m_policy.util_threshold = static_cast<short unsigned int>(tmp->valuedouble);
 		}	
 		if ((tmp = cJSON_GetObjectItem(obj, "RCPI Thresold")) != NULL) {
-			m_policy.rcpi_threshold = tmp->valuedouble;
+			m_policy.rcpi_threshold = static_cast<short unsigned int>(tmp->valuedouble);
 		}	
 	} else if (type == em_policy_id_type_ap_metrics_rep) {
     	if ((tmp = cJSON_GetObjectItem(obj, "Interval")) != NULL) {
-        	m_policy.interval = tmp->valuedouble;
+			m_policy.interval = static_cast<short unsigned int>(tmp->valuedouble);
     	}
     	if ((tmp = cJSON_GetObjectItem(obj, "Managed Client Marker")) != NULL) {
 			strncpy(m_policy.managed_sta_marker, cJSON_GetStringValue(tmp), sizeof(em_long_string_t));
     	}
 	} else if (type == em_policy_id_type_radio_metrics_rep) {
     	if ((tmp = cJSON_GetObjectItem(obj, "STA RCPI Threshold")) != NULL) {
-        	m_policy.rcpi_threshold = tmp->valuedouble;
+			m_policy.rcpi_threshold = static_cast<short unsigned int>(tmp->valuedouble);
     	}
     	if ((tmp = cJSON_GetObjectItem(obj, "STA RCPI Hysteresis")) != NULL) {
-        	m_policy.rcpi_hysteresis = tmp->valuedouble;
+			m_policy.rcpi_hysteresis = static_cast<short unsigned int>(tmp->valuedouble);
     	}
     	if ((tmp = cJSON_GetObjectItem(obj, "AP Utilization Thresold")) != NULL) {
-       		m_policy.util_threshold = tmp->valuedouble;
+			m_policy.util_threshold = static_cast<short unsigned int>(tmp->valuedouble);
     	}
     	if ((tmp = cJSON_GetObjectItem(obj, "STA Traffic Stats")) != NULL) {
        		m_policy.sta_traffic_stats = tmp->valuedouble;

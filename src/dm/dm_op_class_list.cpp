@@ -290,9 +290,8 @@ int dm_op_class_list_t::sync_db(db_client_t& db_client, void *ctx)
 {
     em_op_class_info_t info;
     em_long_string_t   str, id;
-    mac_addr_str_t	mac_str;
     em_short_string_t	ch_str[EM_MAX_CHANNELS_IN_LIST];
-    char   *token_parts[EM_MAX_CHANNELS_IN_LIST], *tmp;
+    char   *token_parts[EM_MAX_CHANNELS_IN_LIST];
     unsigned int i = 0;
     int rc = 0;
 
@@ -301,8 +300,8 @@ int dm_op_class_list_t::sync_db(db_client_t& db_client, void *ctx)
 
         db_client.get_string(ctx, id, 1);
         dm_op_class_t::parse_op_class_id_from_key(id, &info.id);
-        info.op_class = db_client.get_number(ctx, 2);
-        info.channel = db_client.get_number(ctx, 3);
+        info.op_class = static_cast<short unsigned int>(db_client.get_number(ctx, 2));
+        info.channel = static_cast<short unsigned int>(db_client.get_number(ctx, 3));
         
 		db_client.get_string(ctx, str, 4);
 		for (i = 0; i < EM_MAX_CHANNELS_IN_LIST; i++) {
@@ -310,18 +309,18 @@ int dm_op_class_list_t::sync_db(db_client_t& db_client, void *ctx)
         }
 
 		if ((str != NULL) && (*str != 0)) {	
-			info.num_channels = get_strings_by_token(str, ',', EM_MAX_CHANNELS_IN_LIST, token_parts);
+			info.num_channels = static_cast<unsigned int>(get_strings_by_token(str, ',', EM_MAX_CHANNELS_IN_LIST, token_parts));
 			for (i = 0; i < info.num_channels; i++) {
-				info.channels[i] = atoi(token_parts[i]);
+				info.channels[i] = static_cast<unsigned int>(atoi(token_parts[i]));
 			}
 		}
 
         info.tx_power = db_client.get_number(ctx, 5);
         info.max_tx_power = db_client.get_number(ctx, 6);
 
-        info.mins_since_cac_comp = db_client.get_number(ctx, 7);
-        info.sec_remain_non_occ_dur = db_client.get_number(ctx, 8);
-        info.countdown_cac_comp = db_client.get_number(ctx, 9);
+        info.mins_since_cac_comp = static_cast<short unsigned int>(db_client.get_number(ctx, 7));
+        info.sec_remain_non_occ_dur = static_cast<short unsigned int>(db_client.get_number(ctx, 8));
+        info.countdown_cac_comp = static_cast<unsigned int>(db_client.get_number(ctx, 9));
 
         update_list(dm_op_class_t(&info), dm_orch_type_db_insert);
     }

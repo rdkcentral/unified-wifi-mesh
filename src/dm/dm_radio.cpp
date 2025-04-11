@@ -65,19 +65,19 @@ int dm_radio_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "NumberOfBSS")) != NULL) {
-        m_radio_info.number_of_bss = tmp->valuedouble;
+        m_radio_info.number_of_bss = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "NumberOfUnassocSta")) != NULL) {
-        m_radio_info.number_of_unassoc_sta = tmp->valuedouble;
+        m_radio_info.number_of_unassoc_sta = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "Noise")) != NULL) {
-        m_radio_info.noise = tmp->valuedouble;
+        m_radio_info.noise = static_cast<int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "Utilization")) != NULL) {
-        m_radio_info.utilization = tmp->valuedouble;
+        m_radio_info.utilization = static_cast<short unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "TrafficSeparationCombinedFronthaul")) != NULL) {
@@ -89,27 +89,27 @@ int dm_radio_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "SteeringPolicy")) != NULL) {
-        m_radio_info.steering_policy = tmp->valuedouble;
+        m_radio_info.steering_policy = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "ChannelUtilizationThreshold")) != NULL) {
-        m_radio_info.channel_util_threshold = tmp->valuedouble;
+        m_radio_info.channel_util_threshold = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "RCPISteeringThreshold")) != NULL) {
-        m_radio_info.rcpi_steering_threshold = tmp->valuedouble;
+        m_radio_info.rcpi_steering_threshold = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "STAReportingRCPIThreshold")) != NULL) {
-        m_radio_info.sta_reporting_rcpi_threshold = tmp->valuedouble;
+        m_radio_info.sta_reporting_rcpi_threshold = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "STAReportingRCPIHysteresisMarginOverride")) != NULL) {
-        m_radio_info.sta_reporting_hysteresis_margin_override = tmp->valuedouble;
+        m_radio_info.sta_reporting_hysteresis_margin_override = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "ChannelUtilizationReportingThreshold")) != NULL) {
-        m_radio_info.channel_utilization_reporting_threshold = tmp->valuedouble;
+        m_radio_info.channel_utilization_reporting_threshold = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "AssociatedSTATrafficStatsInclusionPolicy")) != NULL) {
@@ -129,7 +129,7 @@ int dm_radio_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "TransmitPowerLimit")) != NULL) {
-        m_radio_info.transmit_power_limit = tmp->valuedouble;;
+        m_radio_info.transmit_power_limit = static_cast<int>(tmp->valuedouble);
     }
 
     return 0;
@@ -174,7 +174,7 @@ void dm_radio_t::encode(cJSON *obj, em_get_radio_list_reason_t reason)
 dm_orch_type_t dm_radio_t::get_dm_orch_type(const dm_radio_t& radio)
 {
     if ( this == &radio) {
-        dm_orch_type_none;
+        return dm_orch_type_none;
     } else {
         return dm_orch_type_db_update;
     }

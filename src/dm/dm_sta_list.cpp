@@ -48,10 +48,8 @@ int dm_sta_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 int dm_sta_list_t::get_config(cJSON *obj_arr, void *parent, em_get_sta_list_reason_t reason)
 {
     dm_sta_t *sta;
-    cJSON *obj, *akms_arr;
-    mac_addr_str_t  mac_str;
+    cJSON *obj;
     bssid_t	bssid;
-    unsigned int i;
 
     dm_easy_mesh_t::string_to_macbytes(static_cast<char *>(parent), bssid);
 
@@ -81,7 +79,7 @@ int dm_sta_list_t::analyze_config(const cJSON *obj_arr, void *parent_id, em_cmd_
 int dm_sta_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void *parent_id)
 {
     cJSON *obj;
-    unsigned int i, size;
+    int i, size;
     dm_sta_t sta;
     dm_orch_type_t op;
 
@@ -100,7 +98,6 @@ int dm_sta_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void
 int dm_sta_list_t::set_config(db_client_t& db_client, dm_sta_t& sta, void *parent_id)
 {
     dm_orch_type_t op;
-    char *tmp = static_cast<char *>(parent_id);
 
     //printf("dm_op_class_list_t::%s:%d: id: %s\n", __func__, __LINE__, (char *)parent_id);
     update_db(db_client, (op = get_dm_orch_type(db_client, sta)), sta.get_sta_info());
@@ -266,7 +263,6 @@ bool dm_sta_list_t::compare_db(db_client_t& db_client, const dm_sta_t& sta)
     char frame_body[EM_MAX_FRAME_BODY_LEN*2];
 
     db_query_t    query;
-    db_result_t   result;
     void *ctx;
 
     memset(query, 0, sizeof(db_query_t));
@@ -287,25 +283,25 @@ bool dm_sta_list_t::compare_db(db_client_t& db_client, const dm_sta_t& sta)
         dm_easy_mesh_t::string_to_macbytes(mac, info.radiomac);
 
         info.associated = db_client.get_number(ctx, 4);
-        info.last_ul_rate = db_client.get_number(ctx, 5);
-        info.last_dl_rate = db_client.get_number(ctx, 6);
-        info.est_ul_rate = db_client.get_number(ctx, 7);
-        info.est_dl_rate = db_client.get_number(ctx, 8);
-        info.last_conn_time = db_client.get_number(ctx, 9);
-        info.retrans_count = db_client.get_number(ctx, 10);
+        info.last_ul_rate = static_cast<unsigned int>(db_client.get_number(ctx, 5));
+        info.last_dl_rate = static_cast<unsigned int>(db_client.get_number(ctx, 6));
+        info.est_ul_rate = static_cast<unsigned int>(db_client.get_number(ctx, 7));
+        info.est_dl_rate = static_cast<unsigned int>(db_client.get_number(ctx, 8));
+        info.last_conn_time = static_cast<unsigned int>(db_client.get_number(ctx, 9));
+        info.retrans_count = static_cast<unsigned int>(db_client.get_number(ctx, 10));
         info.signal_strength = db_client.get_number(ctx, 11);
-        info.util_tx = db_client.get_number(ctx, 12);
-        info.util_rx = db_client.get_number(ctx, 13);
-        info.pkts_tx = db_client.get_number(ctx, 14);
-        info.pkts_rx = db_client.get_number(ctx, 15);
-        info.bytes_tx = db_client.get_number(ctx, 16);
-        info.bytes_rx = db_client.get_number(ctx, 17);
-        info.errors_tx = db_client.get_number(ctx, 18);
-        info.errors_rx = db_client.get_number(ctx, 19);
-        info.frame_body_len = db_client.get_number(ctx, 20);
+        info.util_tx = static_cast<unsigned int>(db_client.get_number(ctx, 12));
+        info.util_rx = static_cast<unsigned int>(db_client.get_number(ctx, 13));
+        info.pkts_tx = static_cast<unsigned int>(db_client.get_number(ctx, 14));
+        info.pkts_rx = static_cast<unsigned int>(db_client.get_number(ctx, 15));
+        info.bytes_tx = static_cast<unsigned int>(db_client.get_number(ctx, 16));
+        info.bytes_rx = static_cast<unsigned int>(db_client.get_number(ctx, 17));
+        info.errors_tx = static_cast<unsigned int>(db_client.get_number(ctx, 18));
+        info.errors_rx = static_cast<unsigned int>(db_client.get_number(ctx, 19));
+        info.frame_body_len = static_cast<unsigned int>(db_client.get_number(ctx, 20));
 
         db_client.get_string(ctx, frame_body, 21);
-        dm_easy_mesh_t::unhex(strlen(frame_body), frame_body, EM_MAX_FRAME_BODY_LEN, info.frame_body);
+        dm_easy_mesh_t::unhex(static_cast<unsigned int>(strlen(frame_body)), frame_body, EM_MAX_FRAME_BODY_LEN, info.frame_body);
 
         if (memcmp(static_cast<const void*>(&sta.m_sta_info), static_cast<const void*>(&info), sizeof(em_sta_info_t)) == 0) {
             return true;
@@ -319,8 +315,6 @@ int dm_sta_list_t::sync_db(db_client_t& db_client, void *ctx)
 {
     em_sta_info_t info;
     mac_addr_str_t	mac;
-    em_long_string_t   str;
-    unsigned int i;
     int rc = 0;
     char frame_body[EM_MAX_FRAME_BODY_LEN*2];
 
@@ -337,25 +331,25 @@ int dm_sta_list_t::sync_db(db_client_t& db_client, void *ctx)
         dm_easy_mesh_t::string_to_macbytes(mac, info.radiomac);
 
         info.associated = db_client.get_number(ctx, 4);
-        info.last_ul_rate = db_client.get_number(ctx, 5);
-        info.last_dl_rate = db_client.get_number(ctx, 6);
-        info.est_ul_rate = db_client.get_number(ctx, 7);
-        info.est_dl_rate = db_client.get_number(ctx, 8);
-        info.last_conn_time = db_client.get_number(ctx, 9);
-        info.retrans_count = db_client.get_number(ctx, 10);
+        info.last_ul_rate = static_cast<unsigned int>(db_client.get_number(ctx, 5));
+        info.last_dl_rate = static_cast<unsigned int>(db_client.get_number(ctx, 6));
+        info.est_ul_rate = static_cast<unsigned int>(db_client.get_number(ctx, 7));
+        info.est_dl_rate = static_cast<unsigned int>(db_client.get_number(ctx, 8));
+        info.last_conn_time = static_cast<unsigned int>(db_client.get_number(ctx, 9));
+        info.retrans_count = static_cast<unsigned int>(db_client.get_number(ctx, 10));
         info.signal_strength = db_client.get_number(ctx, 11);
-        info.util_tx = db_client.get_number(ctx, 12);
-        info.util_rx = db_client.get_number(ctx, 13);
-        info.pkts_tx = db_client.get_number(ctx, 14);
-        info.pkts_rx = db_client.get_number(ctx, 15);
-        info.bytes_tx = db_client.get_number(ctx, 16);
-        info.bytes_rx = db_client.get_number(ctx, 17);
-        info.errors_tx = db_client.get_number(ctx, 18);
-        info.errors_rx = db_client.get_number(ctx, 19);
-        info.frame_body_len = db_client.get_number(ctx, 20);
+        info.util_tx = static_cast<unsigned int>(db_client.get_number(ctx, 12));
+        info.util_rx = static_cast<unsigned int>(db_client.get_number(ctx, 13));
+        info.pkts_tx = static_cast<unsigned int>(db_client.get_number(ctx, 14));
+        info.pkts_rx = static_cast<unsigned int>(db_client.get_number(ctx, 15));
+        info.bytes_tx = static_cast<unsigned int>(db_client.get_number(ctx, 16));
+        info.bytes_rx = static_cast<unsigned int>(db_client.get_number(ctx, 17));
+        info.errors_tx = static_cast<unsigned int>(db_client.get_number(ctx, 18));
+        info.errors_rx = static_cast<unsigned int>(db_client.get_number(ctx, 19));
+        info.frame_body_len = static_cast<unsigned int>(db_client.get_number(ctx, 20));
 
         db_client.get_string(ctx, frame_body, 21);
-        dm_easy_mesh_t::unhex(strlen(frame_body), frame_body, EM_MAX_FRAME_BODY_LEN, info.frame_body);
+        dm_easy_mesh_t::unhex(static_cast<unsigned int>(strlen(frame_body)), frame_body, EM_MAX_FRAME_BODY_LEN, info.frame_body);
 
         update_list(dm_sta_t(&info), dm_orch_type_db_insert);
     }
