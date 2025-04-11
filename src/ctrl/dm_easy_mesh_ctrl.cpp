@@ -687,7 +687,9 @@ int dm_easy_mesh_ctrl_t::analyze_set_channel(em_bus_event_t *evt, em_cmd_t *pcmd
     em_subdoc_info_t *subdoc;
 	dm_easy_mesh_t dm, *pdm;
     em_cmd_t *tmp;
-	unsigned int num = 0, num_devices = 0, i = 0;
+	unsigned int num = 0, num_devices = 0, i = 0, j = 0, k = 0;
+	dm_op_class_t *updated_oclass, *current_oclass;
+	unsigned int band, already_added;
     
 	subdoc = &evt->u.subdoc;
 
@@ -697,10 +699,42 @@ int dm_easy_mesh_ctrl_t::analyze_set_channel(em_bus_event_t *evt, em_cmd_t *pcmd
 
 	assert(dm.get_num_op_class() == EM_MAX_BANDS);
 
+	evt->params.u.args.num_args = 0;
 	pdm = m_data_model_list.get_first_dm();
 	while (pdm != NULL) {
         for (i = 0; i < dm.get_num_op_class(); i++) {
-            memcpy(&dm.m_op_class[i].m_op_class_info.id.ruid, pdm->get_device_info()->intf.mac, sizeof(mac_addr_t));
+			updated_oclass = &dm.m_op_class[i];
+			memcpy(updated_oclass->m_op_class_info.id.ruid, pdm->get_device_info()->intf.mac, sizeof(mac_addr_t));
+
+			for (j = 0; j < pdm->get_num_op_class(); j++) {
+				current_oclass = &pdm->m_op_class[j];
+
+				if ((memcmp(updated_oclass->m_op_class_info.id.ruid, current_oclass->m_op_class_info.id.ruid, sizeof(mac_address_t)) == 0) &&
+					(updated_oclass->m_op_class_info.id.type == current_oclass->m_op_class_info.id.type) &&
+					(updated_oclass->m_op_class_info.id.op_class == current_oclass->m_op_class_info.id.op_class)) {
+
+					// Check if the channel has changed or not
+					if (updated_oclass->m_op_class_info.channels[0] != current_oclass->m_op_class_info.channels[0]) {
+						already_added = 0;
+						band = dm_easy_mesh_t::get_freq_band_by_op_class(updated_oclass->m_op_class_info.id.op_class);
+
+						// Check if the band is already added to event parameters
+						for (k = 0; k < evt->params.u.args.num_args; k++) {
+							if (atoi(evt->params.u.args.args[k]) == band) {
+								already_added = 1;
+								break;
+							}
+						}
+
+						// If the band is not already added, add it to the event parameters
+						if (!already_added) {
+							snprintf(evt->params.u.args.args[evt->params.u.args.num_args], sizeof(em_long_string_t), "%u", band);
+							evt->params.u.args.num_args++;
+						}
+					}
+					break;
+				}
+			}
         }
 		pdm->set_channels_list(dm.m_op_class, dm.get_num_op_class());
 
