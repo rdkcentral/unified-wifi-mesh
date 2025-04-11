@@ -24,25 +24,35 @@ void ec_util::init_frame(ec_frame_t *frame)
     frame->crypto_suite = 0x01; // Section 3.3 (Currently only 0x01 is defined)
 }
 
-ec_attribute_t *ec_util::get_attrib(uint8_t *buff, size_t len, ec_attrib_id_t id)
+std::optional<ec_attribute_t> ec_util::get_attrib(uint8_t *buff, size_t len, ec_attrib_id_t id)
 {
     if (buff == NULL || len == 0) {
         fprintf(stderr, "Invalid input\n");
-        return NULL;
+        return std::nullopt;
     }
     size_t total_len = 0;
-    ec_attribute_t *attrib = reinterpret_cast<ec_attribute_t *>(buff);
+    ec_net_attribute_t *attrib = reinterpret_cast<ec_net_attribute_t *>(buff);
 
     while (total_len < len) {
-        if (attrib->attr_id == id) {
-            return attrib;
+        const uint16_t curr_id = SWAP_LITTLE_ENDIAN(attrib->attr_id);
+        const uint16_t curr_data_len = SWAP_LITTLE_ENDIAN(attrib->length);
+        const size_t attr_len = get_ec_attr_size(curr_data_len);
+        if (curr_id == id) {
+            // Create a copy of the found attrib, but with host byte ordering
+            ec_attribute_t host_attr = {
+                .attr_id = curr_id,
+                .length = curr_data_len,
+                .original = attrib,
+                .data = attrib->data
+            };
+            return host_attr;
         }
 
-        total_len += (get_ec_attr_size(attrib->length));
-        attrib = reinterpret_cast<ec_attribute_t *>(reinterpret_cast<uint8_t*>(attrib) + get_ec_attr_size(attrib->length));
+        total_len += attr_len;
+        attrib = reinterpret_cast<ec_net_attribute_t *>(reinterpret_cast<uint8_t*>(attrib) + attr_len);
     }
 
-    return NULL;
+    return std::nullopt;
 }
 
 
@@ -67,10 +77,10 @@ uint8_t* ec_util::add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id,
     uint8_t* tmp = base_ptr + *buff_len;
 
     memset(tmp, 0, get_ec_attr_size(len));
-    ec_attribute_t *attr = reinterpret_cast<ec_attribute_t *>(tmp);
-    // EC attribute id and length are in host byte order according to the spec (8.1)
-    attr->attr_id = id;
-    attr->length = len;
+    ec_net_attribute_t *attr = reinterpret_cast<ec_net_attribute_t *>(tmp);
+    // EC attribute id and length are little endian according to the spec (8.1)
+    attr->attr_id = SWAP_LITTLE_ENDIAN(id);
+    attr->length = SWAP_LITTLE_ENDIAN(len);
     memcpy(attr->data, data, len);
 
     *buff_len += get_ec_attr_size(len);
@@ -138,11 +148,11 @@ bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> creat
 
     // Encapsulate the attributes in a wrapped data attribute
     uint16_t wrapped_attrib_len = wrapped_len + AES_BLOCK_SIZE;
-    ec_attribute_t *wrapped_attrib = static_cast<ec_attribute_t *>(calloc(sizeof(ec_attribute_t) + wrapped_attrib_len, 1));
-    ASSERT_NOT_NULL_FREE(wrapped_attrib, NULL, wrapped_attrib, "Failed to allocate wrapped attribute");
-
-    wrapped_attrib->attr_id = ec_attrib_id_wrapped_data;
-    wrapped_attrib->length = wrapped_attrib_len;
+    ec_net_attribute_t *wrapped_attrib = static_cast<ec_net_attribute_t *>(calloc(sizeof(ec_net_attribute_t) + wrapped_attrib_len, 1));
+    ASSERT_NOT_NULL_FREE(wrapped_attrib, NULL, wrap_attribs, "Failed to allocate wrapped attribute");
+    // EC attribute id and length are little endian according to the spec (8.1)
+    wrapped_attrib->attr_id = SWAP_LITTLE_ENDIAN(ec_attrib_id_wrapped_data);
+    wrapped_attrib->length = SWAP_LITTLE_ENDIAN(wrapped_attrib_len);
     memset(wrapped_attrib->data, 0, wrapped_attrib_len);
 
     /**
@@ -184,12 +194,12 @@ uint8_t* ec_util::add_wrapped_data_attr(ec_frame_t *frame, uint8_t* frame_attrib
     return add_wrapped_data_attr(reinterpret_cast<uint8_t*>(frame), sizeof(ec_frame_t), frame_attribs, non_wrapped_len, use_aad, key, create_wrap_attribs);
 }
 
-std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t* wrapped_attrib, ec_frame_t *frame, bool uses_aad, uint8_t* key)
+std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t wrapped_attrib, ec_frame_t *frame, bool uses_aad, uint8_t* key)
 {
     return unwrap_wrapped_attrib(wrapped_attrib, reinterpret_cast<uint8_t*>(frame), sizeof(ec_frame_t), frame->attributes, uses_aad, key);
 }
 
-std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t *wrapped_attrib, uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, bool uses_aad, uint8_t *key)
+std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t wrapped_attrib, uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, bool uses_aad, uint8_t *key)
 {
     siv_ctx ctx;
 
@@ -216,8 +226,9 @@ std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t *wra
     }
     */
 
-    uint8_t* wrapped_ciphertext = wrapped_attrib->data + AES_BLOCK_SIZE;
-    uint16_t wrapped_len = wrapped_attrib->length - AES_BLOCK_SIZE;
+    uint8_t* wrapped_ciphertext = wrapped_attrib.data + AES_BLOCK_SIZE;
+    // wrapped_len is host byte ordered as long as wrapped_attrib was gotten by `ec_util::get_attrib`
+    uint16_t wrapped_len = wrapped_attrib.length - AES_BLOCK_SIZE;
 
     uint8_t* unwrap_attribs = reinterpret_cast<uint8_t*>(calloc(wrapped_len, 1));
     int result = -1;
@@ -226,14 +237,14 @@ std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t *wra
             em_printfout("AAD input is NULL, AAD decryption failed!");
             return {nullptr, 0};
         }
-        size_t pre_wrapped_attribs_size = static_cast<size_t>(reinterpret_cast<uint8_t*>(wrapped_attrib) - frame_attribs);
+        size_t pre_wrapped_attribs_size = static_cast<size_t>(reinterpret_cast<uint8_t*>(wrapped_attrib.original) - frame_attribs);
         result = siv_decrypt(&ctx, wrapped_ciphertext, unwrap_attribs, wrapped_len,
-                             wrapped_attrib->data, 2,
+                             wrapped_attrib.data, 2,
                              frame, frame_len,
                              frame_attribs, pre_wrapped_attribs_size);
     } else {
         result = siv_decrypt(&ctx, wrapped_ciphertext, unwrap_attribs, wrapped_len,
-                             wrapped_attrib->data, 0);
+                             wrapped_attrib.data, 0);
     }
 
     if (result < 0) {
@@ -269,9 +280,7 @@ bool ec_util::parse_dpp_chirp_tlv(em_dpp_chirp_value_t* chirp_tlv, uint16_t chir
         return true;
     }
 
-    uint16_t h_len;
-    memcpy(&h_len, data_ptr, sizeof(uint16_t));
-    *hash_len = ntohs(h_len);
+    *hash_len = util::deref_net_uint16_to_host(data_ptr);
     data_ptr += sizeof(uint16_t);
     data_len -= static_cast<uint16_t>(sizeof(uint16_t));
     if (*hash_len == 0) {
@@ -328,8 +337,7 @@ std::pair<em_dpp_chirp_value_t*, uint16_t> ec_util::create_dpp_chirp_tlv(bool ma
         data_ptr += sizeof(mac_addr_t);
     }
     if (hash_validity) {
-        uint16_t net_hashlen = htons(hash_len);
-        memcpy(data_ptr, &net_hashlen, sizeof(uint16_t));
+        util::set_net_uint16_from_host(hash_len, data_ptr);
         data_ptr += sizeof(uint16_t); 
     }
     if (hash_len > 0 && hash_validity) {
@@ -371,9 +379,7 @@ bool ec_util::parse_encap_dpp_tlv(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_
     data_ptr++;
 
     // Get frame length - Fix for alignment issue
-    uint16_t frame_len;
-    memcpy(&frame_len, data_ptr, sizeof(uint16_t));
-    *encap_frame_len = ntohs(frame_len);
+    *encap_frame_len = util::deref_net_uint16_to_host(data_ptr);
     data_ptr += sizeof(uint16_t);
 
     if (data_len < *encap_frame_len) {
@@ -417,7 +423,7 @@ std::pair<em_encap_dpp_t*, uint16_t> ec_util::create_encap_dpp_tlv(bool dpp_fram
     *data_ptr = frame_type;
     data_ptr++;
 
-    *reinterpret_cast<uint16_t *>(data_ptr) = htons(static_cast<uint16_t>(encap_frame_len));
+    util::set_net_uint16_from_host(static_cast<uint16_t>(encap_frame_len), data_ptr);
     data_ptr += sizeof(uint16_t);
 
     memcpy(data_ptr, encap_frame, encap_frame_len);

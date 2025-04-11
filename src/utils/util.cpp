@@ -39,6 +39,7 @@
 
 
 #include "util.h"
+#include <netinet/in.h>
 
 extern "C" {
     extern char *__progname;
@@ -429,4 +430,22 @@ std::string util::akm_to_oui(std::string akm) {
     const auto it = akm_map.find(akm);
     if (it == akm_map.end()) return std::string();
     return it->second;
+}
+
+uint16_t util::deref_net_uint16_to_host(const void* const ptr) {
+    if (ptr == nullptr) {
+        return 0;
+    }
+    uint16_t net_val;
+    memcpy(&net_val, ptr, sizeof(uint16_t));
+    return ntohs(net_val);
+}
+
+bool util::set_net_uint16_from_host(const uint16_t host_val, void* const ptr) {
+    if (ptr == nullptr) {
+        return false;
+    }
+    uint16_t net_val = htons(host_val);
+    memcpy(ptr, &net_val, sizeof(uint16_t));
+    return true;
 }
