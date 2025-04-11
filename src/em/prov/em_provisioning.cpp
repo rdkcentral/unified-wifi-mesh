@@ -139,7 +139,10 @@ int em_provisioning_t::send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, si
         //return -1;
     }
 
-    em_printfout("Sending Proxied Encap DPP msg");
+    {
+        em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+        em_printfout("Sending Proxied Encap DPP msg from '" MACSTRFMT "' to '" MACSTRFMT "'\n", MAC2STR(hdr->src), MAC2STR(hdr->dst));
+    }
     if (send_frame(buff, len)  < 0) {
         em_printfout("Proxied Encap DPP msg failed, error:%d", errno);
         return -1;

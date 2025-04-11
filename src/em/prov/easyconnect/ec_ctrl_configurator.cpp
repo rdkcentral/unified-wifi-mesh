@@ -554,14 +554,15 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
         return false;
     }
 
-    // b_I
-    ASSERT_NOT_NULL(conn_ctx->boot_data.init_priv_boot_key, false, "%s:%d: failed to get initiator bootstrapping private key\n", __func__, __LINE__);
     // B_R
     ASSERT_NOT_NULL(conn_ctx->boot_data.resp_pub_boot_key, false, "%s:%d: failed to get responder bootstrapping public key\n", __func__, __LINE__);
     // P_R
     ASSERT_NOT_NULL(e_ctx->public_resp_proto_key, false, "%s:%d: Responder Public Protocol Key was not recieved/set\n", __func__, __LINE__);
 
     if (e_ctx->is_mutual_auth){
+        // b_I
+        ASSERT_NOT_NULL(conn_ctx->boot_data.init_priv_boot_key, false, "%s:%d: failed to get initiator bootstrapping private key\n", __func__, __LINE__);
+
         // Perform **Initiator** L.x calculation (L = bI * (BR + PR))
 
         EC_POINT* sum = EC_POINT_new(conn_ctx->group);
