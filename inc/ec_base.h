@@ -229,7 +229,7 @@ typedef struct {
 } ec_credential_object_t;
 
 /**
- * @brief A DPP attribute as defined in EC 8.1. Can be sent/received over the network.
+ * @brief A DPP attribute as defined in EasyConnect 8.1. Can be sent/received over the network.
  * 
  * @paragraph DPP attributes' ID and length fields are required to be little 
  *            endian when transferred over the network. In general, data 
@@ -245,11 +245,11 @@ typedef struct {
  */
 typedef struct {
     /**
-     * @brief Identifies the type of the DPP attribute. Assumed to be little endian, as described in EC 8.1.
+     * @brief Identifies the type of the DPP attribute. Assumed to be little endian, as described in EasyConnect 8.1.
      */
     uint16_t attr_id;
     /**
-     * @brief Length of the following fields in the attribute. Assumed to be little endian, as described in EC 8.1.
+     * @brief Length of the following fields in the attribute. Assumed to be little endian, as described in EasyConnect 8.1.
      */
     uint16_t length;
     /**
@@ -288,7 +288,7 @@ typedef struct {
      */
     uint16_t length;
     /**
-     * @brief Points to the `ec_attribute_t` instance this `ec_attribute_t` instance was derived from.
+     * @brief Points to the `ec_net_attribute_t` instance this `ec_net_attribute_t` instance was derived from.
      */
     ec_net_attribute_t *original;
     /**

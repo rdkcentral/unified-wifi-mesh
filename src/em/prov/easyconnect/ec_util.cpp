@@ -24,7 +24,7 @@ void ec_util::init_frame(ec_frame_t *frame)
     frame->crypto_suite = 0x01; // Section 3.3 (Currently only 0x01 is defined)
 }
 
-std::optional<ec_attribute_t> ec_util::get_attrib(uint8_t *buff, size_t len, ec_attrib_id_t id)
+std::optional<const ec_attribute_t> ec_util::get_attrib(uint8_t *buff, size_t len, ec_attrib_id_t id)
 {
     if (buff == NULL || len == 0) {
         fprintf(stderr, "Invalid input\n");
@@ -194,12 +194,12 @@ uint8_t* ec_util::add_wrapped_data_attr(ec_frame_t *frame, uint8_t* frame_attrib
     return add_wrapped_data_attr(reinterpret_cast<uint8_t*>(frame), sizeof(ec_frame_t), frame_attribs, non_wrapped_len, use_aad, key, create_wrap_attribs);
 }
 
-std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t wrapped_attrib, ec_frame_t *frame, bool uses_aad, uint8_t* key)
+std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(const ec_attribute_t& wrapped_attrib, ec_frame_t *frame, bool uses_aad, uint8_t* key)
 {
     return unwrap_wrapped_attrib(wrapped_attrib, reinterpret_cast<uint8_t*>(frame), sizeof(ec_frame_t), frame->attributes, uses_aad, key);
 }
 
-std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(ec_attribute_t wrapped_attrib, uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, bool uses_aad, uint8_t *key)
+std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(const ec_attribute_t& wrapped_attrib, uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, bool uses_aad, uint8_t *key)
 {
     siv_ctx ctx;
 
