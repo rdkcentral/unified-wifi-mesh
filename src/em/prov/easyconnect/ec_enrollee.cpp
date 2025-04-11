@@ -283,9 +283,9 @@ Authentication Request frame without replying to it.
             return false;
         }
         if (m_send_action_frame(src_mac, resp_frame, resp_len, m_selected_freq, 0)){
-            em_printfout("Successfully sent DPP Status Not Compatible response frame");
+            em_printfout("Successfully sent DPP Status Not Compatible response frame to '" MACSTRFMT "'", MAC2STR(src_mac));
         } else {
-            em_printfout("Failed to send DPP Status Not Compatible response frame");
+            em_printfout("Failed to send DPP Status Not Compatible response frame to " MACSTRFMT "'", MAC2STR(src_mac));
         }
         return false;
     }
@@ -303,9 +303,9 @@ Authentication Request frame without replying to it.
             return false;
         }
         if (m_send_action_frame(src_mac, resp_frame, resp_len, m_selected_freq, 0)){
-            em_printfout("Successfully sent DPP Status Response Pending response frame");
+            em_printfout("Successfully sent DPP Status Response Pending response frame to '" MACSTRFMT "'", MAC2STR(src_mac));
         } else {
-            em_printfout("Failed to send DPP Status Response Pending response frame");
+            em_printfout("Failed to send DPP Status Response Pending response frame to '" MACSTRFMT "'", MAC2STR(src_mac));
         }
         return true;
     }
@@ -321,9 +321,9 @@ Authentication Request frame without replying to it.
     }
     bool did_succeed = m_send_action_frame(src_mac, resp_frame, resp_len, m_selected_freq, 0);
     if (did_succeed){
-        em_printfout("Successfully sent DPP Status OK response frame");
+        em_printfout("Successfully sent DPP Status OK response frame to '" MACSTRFMT "'", MAC2STR(src_mac));
     } else {
-        em_printfout("Failed to send DPP Status OK response frame");
+        em_printfout("Failed to send DPP Status OK response frame to '" MACSTRFMT "'", MAC2STR(src_mac));
     }
 
     return did_succeed;
