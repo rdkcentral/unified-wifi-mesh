@@ -484,6 +484,7 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
             if (!al_node->get_ec_mgr().handle_recv_ec_action_frame(ec_frame, full_action_frame_len, mgmt_frame->sa)){
                 em_printfout("EC manager failed to handle action frame!");
             }
+            return;
         }
         em_printfout("Did not find an EM node for action frame!");
     }
@@ -738,7 +739,7 @@ bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_f
     char path[100] = {0};
     snprintf(path, sizeof(path), "Device.WiFi.AccessPoint.%d.RawFrame.Mgmt.Action.Tx", test_idx+1);
     
-    em_printfout("Sending action frame: VAP Idx (%d), Dest ("MACSTRFMT"), Frequency (%d), Dwell Time (%d)", test_idx, MAC2STR(dest_mac), frequency, wait_time_ms);
+    em_printfout("Sending action frame: VAP Idx (%d), Dest (" MACSTRFMT "), Frequency (%d), Dwell Time (%d)", test_idx, MAC2STR(dest_mac), frequency, wait_time_ms);
     // Send the action frame
     bus_error_t rc;
     if ((rc = desc->bus_set_fn(&m_bus_hdl, path,  &raw_act_frame)) != 0) {

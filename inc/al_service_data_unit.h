@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <vector>
 #include <array>
+#include <cstdint>
 
 //Used to store MacAddress as array
 using MacAddress = std::array<uint8_t, 6>;

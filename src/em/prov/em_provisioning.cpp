@@ -139,12 +139,15 @@ int em_provisioning_t::send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, si
         //return -1;
     }
 
+    {
+        em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+        em_printfout("Sending Proxied Encap DPP msg from '" MACSTRFMT "' to '" MACSTRFMT "'\n", MAC2STR(hdr->src), MAC2STR(hdr->dst));
+    }
     if (send_frame(buff, len)  < 0) {
         em_printfout("Proxied Encap DPP msg failed, error:%d", errno);
         return -1;
     }
 
-    em_printfout("Sent Proxied Encap DPP msg");
     // TODO: If needed, likely not
 	//set_state(em_state_ctrl_configured);
 
@@ -168,11 +171,10 @@ int em_provisioning_t::send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t 
     // NOTE: `get_ctrl_al_interface_mac` is really only for co-located so `get_peer_mac` does not work.
 
     //TODO: Decide on addressing.
-    em_printfout("Sending CHIRP NOTIFICATION");
     mac_addr_str_t peer_mac_str = {0}, al_mac_str = {0};
     dm_easy_mesh_t::macbytes_to_string(get_peer_mac(), peer_mac_str);
     dm_easy_mesh_t::macbytes_to_string(get_al_interface_mac(), al_mac_str);
-    em_printfout("Peer MAC: %s, AL MAC: %s", peer_mac_str, al_mac_str);
+    
     tmp = em_msg_t::add_1905_header(tmp, &len, get_peer_mac(), get_al_interface_mac(), em_msg_type_chirp_notif);
 
     // One DPP Chirp value tlv 17.2.83
@@ -187,6 +189,7 @@ int em_provisioning_t::send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t 
         //return -1;
     }
 
+    em_printfout("Sending CHIRP NOTIFICATION");
     if (send_frame(buff, len)  < 0) {
         em_printfout("Channel Selection Request msg failed, error:%d", errno);
         return -1;
@@ -764,7 +767,7 @@ cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_co
             return nullptr;
         }
 
-        cJSON_AddStringToObject(credential_object, "psk_hex", ec_util::hash_to_hex_string(psk).c_str());
+        cJSON_AddStringToObject(credential_object, "psk_hex", em_crypto_t::hash_to_hex_string(psk).c_str());
     }
 
     if (!cJSON_AddStringToObject(credential_object, "pass", network_ssid_info->pass_phrase)) {

@@ -1,5 +1,6 @@
-#include "../../inc/al_service_registration_enums.h"
-#include "../../inc/al_service_registration_response.h"
+#include "al_service_registration_enums.h"
+#include "al_service_registration_response.h"
+#include <stdexcept>
 
 AlServiceRegistrationResponse::AlServiceRegistrationResponse()
     : alMacAddressLocal{0, 0, 0, 0, 0, 0}, messageIdRange{0, 0}, result(RegistrationResult::UNKNOWN) {}

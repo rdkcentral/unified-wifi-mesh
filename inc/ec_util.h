@@ -553,32 +553,6 @@ public:
 	 */
 	static std::pair<uint8_t*, uint16_t> unwrap_wrapped_attrib(ec_attribute_t *wrapped_attrib, uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, bool uses_aad, uint8_t *key);
 
-    
-	/**
-	 * @brief Convert a hash to a hex string
-	 *
-	 * This function takes a hash and its length, converting it into a
-	 * hexadecimal string representation.
-	 *
-	 * @param[in] hash The hash to convert
-	 * @param[in] hash_len The length of the hash
-	 * @return std::string The hex string representation of the hash
-	 */
-	static std::string hash_to_hex_string(const uint8_t *hash, size_t hash_len);
-
-    
-	/**
-	 * @brief Convert a hash to a hex string.
-	 *
-	 * This function takes a vector of bytes representing a hash and converts it
-	 * into a hexadecimal string representation.
-	 *
-	 * @param[in] hash Vector containing the hash to convert.
-	 *
-	 * @returns std::string The hex string representation of the hash.
-	 */
-	static std::string hash_to_hex_string(const std::vector<uint8_t>& hash);
-
     // Used for storing channels / op-classes searched when looking for a given SSID.
     struct scanned_channels_t {
         uint32_t chan;

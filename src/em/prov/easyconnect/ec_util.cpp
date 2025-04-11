@@ -444,20 +444,6 @@ uint8_t *ec_util::copy_attrs_to_frame(uint8_t *frame, size_t frame_base_size, ui
     return new_frame;
 }
 
-std::string ec_util::hash_to_hex_string(const uint8_t *hash, size_t hash_len) {
-    char output[hash_len * 2 + 1];
-    for (size_t i = 0; i < hash_len; i++) {
-        sprintf(output + (i * 2), "%02x", hash[i]);
-    }
-    output[hash_len * 2] = '\0'; // Null-terminate the string
-    return std::string(output);
-}
-
-std::string ec_util::hash_to_hex_string(const std::vector<uint8_t>& hash)
-{
-    return hash_to_hex_string(hash.data(), hash.size());
-}
-
 std::string ec_util::generate_channel_list(const std::string& ssid, std::unordered_map<std::string, std::vector<scanned_channels_t>> scanned_channels_map)
 {
     // channelList ABNF:

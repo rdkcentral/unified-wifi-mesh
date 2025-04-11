@@ -1,5 +1,5 @@
-#include "../../inc/al_service_registration_enums.h"
-#include "../../inc/al_service_registration_request.h"
+#include "al_service_registration_enums.h"
+#include "al_service_registration_request.h"
 
 
 // Constructor

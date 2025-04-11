@@ -1,5 +1,5 @@
-#include "../../inc/al_service_data_unit.h"
-#include "../../inc/al_service_exception.h"
+#include "al_service_data_unit.h"
+#include "al_service_exception.h"
 
 AlServiceDataUnit::AlServiceDataUnit() {
     sourceAlMacAddress.fill(0);

@@ -255,6 +255,12 @@ Authentication Request frame without replying to it.
         .byte = init_caps_attr->data[0]
     };
 
+    ec_attribute_t *i_nonce_attr = ec_util::get_attrib(wrapped_data, static_cast<uint16_t>(wrapped_len), ec_attrib_id_init_nonce);
+    ASSERT_NOT_NULL_FREE(init_caps_attr, false, wrapped_data, "%s:%d: No initiator nonce attribute found\n", __func__, __LINE__);
+    memcpy(m_eph_ctx().i_nonce, i_nonce_attr->data, i_nonce_attr->length);
+    em_printfout("i-nonce (Configurator is initiator)");
+    util::print_hex_dump(i_nonce_attr->length, m_eph_ctx().i_nonce);
+
     // Fetched all of the wrapped data attributes (init caps), free the wrapped data
     free(wrapped_data);
 
@@ -277,9 +283,9 @@ Authentication Request frame without replying to it.
             return false;
         }
         if (m_send_action_frame(src_mac, resp_frame, resp_len, m_selected_freq, 0)){
-            em_printfout("Successfully sent DPP Status Not Compatible response frame");
+            em_printfout("Successfully sent DPP Status Not Compatible response frame to '" MACSTRFMT "'", MAC2STR(src_mac));
         } else {
-            em_printfout("Failed to send DPP Status Not Compatible response frame");
+            em_printfout("Failed to send DPP Status Not Compatible response frame to " MACSTRFMT "'", MAC2STR(src_mac));
         }
         return false;
     }
@@ -297,9 +303,9 @@ Authentication Request frame without replying to it.
             return false;
         }
         if (m_send_action_frame(src_mac, resp_frame, resp_len, m_selected_freq, 0)){
-            em_printfout("Successfully sent DPP Status Response Pending response frame");
+            em_printfout("Successfully sent DPP Status Response Pending response frame to '" MACSTRFMT "'", MAC2STR(src_mac));
         } else {
-            em_printfout("Failed to send DPP Status Response Pending response frame");
+            em_printfout("Failed to send DPP Status Response Pending response frame to '" MACSTRFMT "'", MAC2STR(src_mac));
         }
         return true;
     }
@@ -315,9 +321,9 @@ Authentication Request frame without replying to it.
     }
     bool did_succeed = m_send_action_frame(src_mac, resp_frame, resp_len, m_selected_freq, 0);
     if (did_succeed){
-        em_printfout("Successfully sent DPP Status OK response frame");
+        em_printfout("Successfully sent DPP Status OK response frame to '" MACSTRFMT "'", MAC2STR(src_mac));
     } else {
-        em_printfout("Failed to send DPP Status OK response frame");
+        em_printfout("Failed to send DPP Status OK response frame to '" MACSTRFMT "'", MAC2STR(src_mac));
     }
 
     return did_succeed;

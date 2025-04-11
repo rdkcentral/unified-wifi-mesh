@@ -180,6 +180,44 @@ public:
 	inline static uint8_t platform_SHA256(uint8_t num_elem, uint8_t **addr, size_t *len, uint8_t *digest){
         return platform_hash(EVP_sha256(), num_elem, addr, len, digest);
     }
+
+	/**
+	 * @brief Convenience wrapper to compute SHA-256 hash for a single input element.
+	 *
+	 * @param[in] secret Pointer to the input data element.
+	 * @param[in] secret_len Length of the input data element.
+	 * @param[out] digest Output buffer for computed hash.
+	 *
+	 * @return 1 on success, 0 on failure.
+	 */
+	inline static uint8_t platform_SHA256(uint8_t *secret, size_t secret_len, uint8_t *digest){
+		uint8_t *addr[1];
+		size_t length[1];
+		addr[0] = secret;
+    	length[0] = secret_len;
+        return platform_hash(EVP_sha256(), 1, addr, length, digest);
+    }
+
+	/**
+	 * @brief Convenience wrapper to compute SHA-256 hash for a single input element.
+	 *
+	 * @param[in] secret Pointer to the input data element.
+	 * @param[in] secret_len Length of the input data element.
+	 *
+	 * @return std::vector<uint8_t> A vector containing the computed SHA-256 hash.
+	 */
+	inline static std::vector<uint8_t> platform_SHA256(uint8_t *secret, size_t secret_len){
+		uint8_t *addr[1];
+		size_t length[1];
+		addr[0] = secret;
+    	length[0] = secret_len;
+
+		std::vector<uint8_t> digest(SHA256_MAC_LEN);
+		if (platform_hash(EVP_sha256(), 1, addr, length, digest.data()) == 0) {
+			return {};
+		}
+		return digest;
+    }
     
 
     
@@ -1021,6 +1059,30 @@ public:
 	 */
 	inline void set_r_mac(unsigned char *mac) { memcpy(m_crypto_info.r_mac, mac, sizeof(mac_address_t)); }
 
+	/**
+	 * @brief Convert a hash to a hex string
+	 *
+	 * This function takes a hash and its length, converting it into a
+	 * hexadecimal string representation.
+	 *
+	 * @param[in] hash The hash to convert
+	 * @param[in] hash_len The length of the hash
+	 * @return std::string The hex string representation of the hash
+	 */
+	static std::string hash_to_hex_string(const uint8_t *hash, size_t hash_len);
+
+    
+	/**
+	 * @brief Convert a hash to a hex string.
+	 *
+	 * This function takes a vector of bytes representing a hash and converts it
+	 * into a hexadecimal string representation.
+	 *
+	 * @param[in] hash Vector containing the hash to convert.
+	 *
+	 * @returns std::string The hex string representation of the hash.
+	 */
+	static std::string hash_to_hex_string(const std::vector<uint8_t>& hash);
     
 	/**!
 	 * @brief Constructor for the em_crypto_t class.
