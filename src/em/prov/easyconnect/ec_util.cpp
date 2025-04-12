@@ -112,11 +112,26 @@ bool ec_util::validate_frame(const ec_frame_t *frame)
     return true;
 }
 
+uint8_t *ec_util::add_wrapped_data_attr(ec_frame_t *frame, uint8_t *frame_attribs, size_t *non_wrapped_len, bool use_aad, uint8_t *key, std::function<std::pair<uint8_t *, uint16_t>()> create_wrap_attribs)
+{
+    return add_wrapped_data_attr(reinterpret_cast<uint8_t*>(frame), sizeof(ec_frame_t), frame_attribs, non_wrapped_len, use_aad, key, create_wrap_attribs);
+}
 
-uint8_t *ec_util::add_wrapped_data_attr(uint8_t *frame, size_t frame_len, uint8_t* frame_attribs, size_t* non_wrapped_len, 
-bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> create_wrap_attribs) {
+uint8_t *ec_util::add_wrapped_data_attr(ec_gas_initial_request_frame_t *frame, uint8_t *frame_attribs, size_t *non_wrapped_len, bool use_aad, uint8_t *key, std::function<std::pair<uint8_t *, uint16_t>()> create_wrap_attribs)
+{
+    return add_wrapped_data_attr(reinterpret_cast<uint8_t*>(frame), sizeof(ec_gas_initial_request_frame_t), frame_attribs, non_wrapped_len, use_aad, key, create_wrap_attribs);
+}
 
-    ASSERT_NOT_NULL(non_wrapped_len, NULL, "Non-wrapped length cannot be NULL");
+uint8_t *ec_util::add_wrapped_data_attr(ec_gas_initial_response_frame_t *frame, uint8_t *frame_attribs, size_t *non_wrapped_len, bool use_aad, uint8_t *key, std::function<std::pair<uint8_t *, uint16_t>()> create_wrap_attribs)
+{
+    return add_wrapped_data_attr(reinterpret_cast<uint8_t*>(frame), sizeof(ec_gas_initial_response_frame_t), frame_attribs, non_wrapped_len, use_aad, key, create_wrap_attribs);
+}
+
+uint8_t *ec_util::add_wrapped_data_attr(uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, size_t *non_wrapped_len,
+                                        bool use_aad, uint8_t *key, std::function<std::pair<uint8_t *, uint16_t>()> create_wrap_attribs)
+{
+
+    ASSERT_NOT_NULL(non_wrapped_len, NULL, "Non-wrapped length cannot be NULL\n");
 
     siv_ctx ctx;
 
@@ -149,7 +164,7 @@ bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> creat
     // Encapsulate the attributes in a wrapped data attribute
     uint16_t wrapped_attrib_len = wrapped_len + AES_BLOCK_SIZE;
     ec_net_attribute_t *wrapped_attrib = static_cast<ec_net_attribute_t *>(calloc(sizeof(ec_net_attribute_t) + wrapped_attrib_len, 1));
-    ASSERT_NOT_NULL_FREE(wrapped_attrib, NULL, wrap_attribs, "Failed to allocate wrapped attribute");
+    ASSERT_NOT_NULL_FREE(wrapped_attrib, NULL, wrap_attribs, "Failed to allocate wrapped attribute\n");
     // EC attribute id and length are little endian according to the spec (8.1)
     wrapped_attrib->attr_id = SWAP_LITTLE_ENDIAN(ec_attrib_id_wrapped_data);
     wrapped_attrib->length = SWAP_LITTLE_ENDIAN(wrapped_attrib_len);
@@ -163,8 +178,8 @@ bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> creat
    int siv_result = 0;
    if (use_aad) {
 
-        ASSERT_NOT_NULL_FREE2(frame_attribs, NULL, wrapped_attrib, wrap_attribs, "Frame attributes cannot be NULL for AAD encryption");
-        ASSERT_NOT_NULL_FREE2(frame, NULL, wrapped_attrib, wrap_attribs, "Frame cannot be NULL for AAD encryption");
+        ASSERT_NOT_NULL_FREE2(frame_attribs, NULL, wrapped_attrib, wrap_attribs, "Frame attributes cannot be NULL for AAD encryption\n");
+        ASSERT_NOT_NULL_FREE2(frame, NULL, wrapped_attrib, wrap_attribs, "Frame cannot be NULL for AAD encryption\n");
         
         siv_result = siv_encrypt(&ctx, wrap_attribs, &wrapped_attrib->data[AES_BLOCK_SIZE], wrapped_len, wrapped_attrib->data, 2,
             frame, frame_len,
@@ -186,12 +201,6 @@ bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> creat
     free(wrap_attribs);
 
     return ret_frame_attribs;
-
-}
-
-uint8_t* ec_util::add_wrapped_data_attr(ec_frame_t *frame, uint8_t* frame_attribs, size_t* non_wrapped_len, bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> create_wrap_attribs)
-{
-    return add_wrapped_data_attr(reinterpret_cast<uint8_t*>(frame), sizeof(ec_frame_t), frame_attribs, non_wrapped_len, use_aad, key, create_wrap_attribs);
 }
 
 std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(const ec_attribute_t& wrapped_attrib, ec_frame_t *frame, bool uses_aad, uint8_t* key)
@@ -438,7 +447,22 @@ ec_frame_t *ec_util::copy_attrs_to_frame(ec_frame_t *frame, uint8_t *attrs, size
     ));
 }
 
-uint8_t *ec_util::copy_attrs_to_frame(uint8_t *frame, size_t frame_base_size, uint8_t *attrs, size_t attrs_len) {
+ec_gas_initial_request_frame_t *ec_util::copy_attrs_to_frame(ec_gas_initial_request_frame_t *frame, uint8_t *attrs, size_t attrs_len)
+{
+    return reinterpret_cast<ec_gas_initial_request_frame_t*>(copy_attrs_to_frame(
+        reinterpret_cast<uint8_t*>(frame), sizeof(ec_gas_initial_request_frame_t), attrs, attrs_len
+    ));
+}
+
+ec_gas_initial_response_frame_t *ec_util::copy_attrs_to_frame(ec_gas_initial_response_frame_t *frame, uint8_t *attrs, size_t attrs_len)
+{
+    return reinterpret_cast<ec_gas_initial_response_frame_t*>(copy_attrs_to_frame(
+        reinterpret_cast<uint8_t*>(frame), sizeof(ec_gas_initial_response_frame_t), attrs, attrs_len
+    ));
+}
+
+uint8_t *ec_util::copy_attrs_to_frame(uint8_t *frame, size_t frame_base_size, uint8_t *attrs, size_t attrs_len)
+{
     size_t new_len = frame_base_size + attrs_len;
     uint8_t *new_frame = reinterpret_cast<uint8_t *>(realloc(frame, new_len));
     if (new_frame == nullptr) {

@@ -514,7 +514,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
     auto wrapped_attrs = ec_util::get_attrib(config_response_frame->resp, static_cast<size_t>(config_response_frame->resp_len), ec_attrib_id_wrapped_data);
     ASSERT_OPT_HAS_VALUE(wrapped_attrs, false, "%s:%d: Failed to get wrapped data attribute!\n", __func__, __LINE__);
 
-    auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(*wrapped_attrs, reinterpret_cast<uint8_t*>(config_response_frame), sizeof(*config_response_frame), config_response_frame->resp, true, m_eph_ctx().ke);
+    auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(*wrapped_attrs, reinterpret_cast<uint8_t*>(config_response_frame), sizeof(*config_response_frame), config_response_frame->resp, false, m_eph_ctx().ke);
     if (unwrapped_attrs == nullptr || unwrapped_attrs_len == 0) {
         em_printfout("Failed to unwrap wrapped attributes.");
         return false;
@@ -1099,7 +1099,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     uint8_t *attribs = nullptr;
     size_t attribs_len = 0;
     // Wrap e-nonce and config req obj(s) with k_e
-    attribs = ec_util::add_wrapped_data_attr(reinterpret_cast<uint8_t *> (initial_req_frame), sizeof(ec_gas_initial_request_frame_t), attribs, &attribs_len, true, m_eph_ctx().ke, [&](){
+    attribs = ec_util::add_wrapped_data_attr(initial_req_frame, attribs, &attribs_len, false, m_eph_ctx().ke, [&](){
         size_t wrapped_len = 0;
         uint8_t* wrapped_attribs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, m_c_ctx.nonce_len, m_eph_ctx().e_nonce);
         wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_req_obj, cjson_utils::stringify(dpp_config_request_obj));
@@ -1108,8 +1108,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
 
     cJSON_Delete(dpp_config_request_obj);
 
-    if ((initial_req_frame = reinterpret_cast<ec_gas_initial_request_frame_t*>(
-        ec_util::copy_attrs_to_frame(reinterpret_cast<uint8_t*> (initial_req_frame), sizeof(ec_gas_initial_request_frame_t), attribs, attribs_len))) == nullptr) {
+    if ((initial_req_frame = ec_util::copy_attrs_to_frame(initial_req_frame, attribs, attribs_len)) == nullptr) {
         em_printfout("unable to copy attribs to GAS frame");
         free(attribs);
         free(frame);
@@ -1136,7 +1135,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_result(ec_status_code_
     uint8_t *attribs = nullptr;
     size_t attribs_len = 0;
 
-    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attribs_len, true, m_eph_ctx().ke, [&]() {
+    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attribs_len, false, m_eph_ctx().ke, [&]() {
         size_t wrapped_len = 0;
         uint8_t *wrapped_attrs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_dpp_status, static_cast<uint8_t>(dpp_status));
         wrapped_attrs = ec_util::add_attrib(wrapped_attrs, &wrapped_len, ec_attrib_id_enrollee_nonce, m_c_ctx.nonce_len, m_eph_ctx().e_nonce);
@@ -1163,7 +1162,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_connection_status_result(ec_s
     uint8_t *attribs   = nullptr;
     size_t attribs_len = 0;
 
-    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attribs_len, true, m_eph_ctx().ke, [&]() {
+    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attribs_len, false, m_eph_ctx().ke, [&]() {
         size_t wrapped_len = 0;
         uint8_t *wrapped_attrs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, m_c_ctx.nonce_len, m_eph_ctx().e_nonce);
         wrapped_attrs = ec_util::add_attrib(wrapped_attrs, &wrapped_len, ec_attrib_id_conn_status, cjson_utils::stringify(connection_status_object));
