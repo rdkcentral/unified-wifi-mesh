@@ -1099,7 +1099,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     uint8_t *attribs = nullptr;
     size_t attribs_len = 0;
     // Wrap e-nonce and config req obj(s) with k_e
-    attribs = ec_util::add_wrapped_data_attr(reinterpret_cast<uint8_t *> (initial_req_frame), sizeof(ec_gas_initial_request_frame_t), attribs, &attribs_len, true, m_eph_ctx().ke, [&](){
+    attribs = ec_util::add_wrapped_data_attr(reinterpret_cast<uint8_t *> (initial_req_frame), sizeof(ec_gas_initial_request_frame_t), attribs, &attribs_len, false, m_eph_ctx().ke, [&](){
         size_t wrapped_len = 0;
         uint8_t* wrapped_attribs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, m_c_ctx.nonce_len, m_eph_ctx().e_nonce);
         wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_req_obj, cjson_utils::stringify(dpp_config_request_obj));
@@ -1136,7 +1136,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_result(ec_status_code_
     uint8_t *attribs = nullptr;
     size_t attribs_len = 0;
 
-    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attribs_len, true, m_eph_ctx().ke, [&]() {
+    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attribs_len, false, m_eph_ctx().ke, [&]() {
         size_t wrapped_len = 0;
         uint8_t *wrapped_attrs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_dpp_status, static_cast<uint8_t>(dpp_status));
         wrapped_attrs = ec_util::add_attrib(wrapped_attrs, &wrapped_len, ec_attrib_id_enrollee_nonce, m_c_ctx.nonce_len, m_eph_ctx().e_nonce);
@@ -1163,7 +1163,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_connection_status_result(ec_s
     uint8_t *attribs   = nullptr;
     size_t attribs_len = 0;
 
-    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attribs_len, true, m_eph_ctx().ke, [&]() {
+    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attribs_len, false, m_eph_ctx().ke, [&]() {
         size_t wrapped_len = 0;
         uint8_t *wrapped_attrs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, m_c_ctx.nonce_len, m_eph_ctx().e_nonce);
         wrapped_attrs = ec_util::add_attrib(wrapped_attrs, &wrapped_len, ec_attrib_id_conn_status, cjson_utils::stringify(connection_status_object));
