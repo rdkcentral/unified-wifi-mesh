@@ -343,7 +343,7 @@ void em_agent_t::handle_recv_gas_frame(em_bus_event_t *evt)
         return;
     }
 
-    auto gas_frame_base = (ec_gas_frame_base_t *)evt->u.raw_buff + mgmt_hdr_len;
+    auto gas_frame_base = (ec_gas_frame_base_t *)(evt->u.raw_buff + mgmt_hdr_len);
 
     bool is_wfa_ec_gas = false;
 
