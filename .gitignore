@@ -5,3 +5,4 @@ install/bin/
 .clang-format
 *.log
 DPPURI_sendable.json
+*.a
