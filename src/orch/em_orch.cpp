@@ -40,10 +40,9 @@
 
 unsigned int em_orch_t::submit_commands(em_cmd_t *pcmd[], unsigned int num)
 {
-    unsigned int i,j;	
+    unsigned int i;
     unsigned int submitted = 0;
     bool submit = true;
-    em_t *em;
 
     for (i = 0; i < num; i++) {
         if ((submit = pre_process_orch_op(pcmd[i])) == false) {
