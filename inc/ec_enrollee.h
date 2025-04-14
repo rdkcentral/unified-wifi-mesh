@@ -106,6 +106,29 @@ public:
 	 */
 	bool handle_config_response(uint8_t *buff, unsigned int len, uint8_t sa[ETH_ALEN]);
 
+	/**
+	 * @brief Handles a GAS Comeback Request containing fragmented chunks of a frame
+	 * 
+	 * @param frame The GAS Comeback Frame
+	 * @param len Length of the frame. 
+	 * @param src_mac Where the frame came from
+	 * @return true on success, otherwise false.
+	 */
+	bool handle_gas_comeback_response(ec_gas_comeback_response_frame_t *frame, size_t len, uint8_t src_mac[ETH_ALEN]);
+
+	/**
+	 * @brief Handles a GAS Initial Response frame.
+	 * 
+	 * @param frame The GAS Initial Response frame.
+	 * @param len The length of the frame.
+	 * @param src_mac Where the frame came from
+	 * @return true on success, otherwise false
+	 * @note: If this is a "dummy" GAS Initial Response frame, Enrollee responds with a GAS Comeback Request frame to initial frame fragmentation
+	 * 
+	 * Is this is otherwise a "real" GAS Initial Response frame, it's forwarded to `handle_config_response`
+	 */
+	bool handle_gas_initial_response(ec_gas_initial_response_frame_t *frame, size_t len, uint8_t src_mac[ETH_ALEN]);
+
     
 	/**!
 	 * @brief Tears down the existing connection by freeing associated resources.
@@ -282,6 +305,13 @@ private:
 	 */
 	std::pair<uint8_t*, size_t> create_connection_status_result(ec_status_code_t dpp_status, const std::string& ssid);
 
+	/**
+	 * @brief Create a GAS Comeback Request frame with default fields to be sent to a Peer indicating we're ready to receive more GAS Comeback Response frames
+	 * 
+	 * @param dialog_token The dialog token of the GAS session
+	 * @return ec_gas_comeback_request_frame_t* The GAS Comeback Frame on success, otherwise nullptr
+	 */
+	ec_gas_comeback_request_frame_t *create_comeback_request(uint8_t dialog_token);
     
 	/**
 	 * @brief Create a DPP Connection Status object (EasyConnect 6.5.4.2)
@@ -366,6 +396,21 @@ private:
      * our DPP Authentication Frame, and keep Presence Announcing forever
      */
     std::thread m_send_pres_announcement_thread;
+
+	/**
+	 * @brief Metadata about a fragmented GAS response frame
+	 * 
+	 */
+	struct gas_fragment_buffer_t {
+		uint8_t dialog_token = 0;
+		std::vector<uint8_t> reassembled_payload = {};
+		uint8_t expected_fragment_id = 0;
+		bool complete = false;
+		std::chrono::steady_clock::time_point last_seen = std::chrono::steady_clock::now();
+	};
+
+	// Key -> sender's MAC + dialog_token (example: aabbcceeddff_42) as a string, value -> GAS frame fragments
+	std::unordered_map<std::string, gas_fragment_buffer_t> m_gas_fragments;
 };
 
 #endif // EC_ENROLLEE_H

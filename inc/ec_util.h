@@ -36,6 +36,9 @@
 
 #define EC_FRAME_BASE_SIZE (offsetof(ec_frame_t, attributes))
 
+// -100 buffer is for frame overhead (management header, etc).
+#define WIFI_MTU_SIZE (1500UL - 100UL)
+
 typedef enum {
     DPP_URI_VERSION = 0,
     DPP_URI_MAC,
@@ -255,6 +258,7 @@ public:
                 created_frame_size = sizeof(ec_gas_initial_request_frame_t);
             }
             break;
+
             case dpp_gas_action_type_t::dpp_gas_initial_resp: {
                 frame = calloc(1, sizeof(ec_gas_initial_response_frame_t));
                 if (!frame) {
@@ -269,6 +273,34 @@ public:
                 created_frame_size = sizeof(ec_gas_initial_response_frame_t);
             }
             break;
+
+			case dpp_gas_action_type_t::dpp_gas_comeback_req: {
+				frame = calloc(1, sizeof(ec_gas_comeback_request_frame_t));
+				if (!frame) {
+					printf("%s:%d: Failed to allocate GAS Comeback Request frame!\n", __func__, __LINE__);
+					break;
+				}
+				created_frame_size = sizeof(ec_gas_comeback_request_frame_t);
+			}
+			break;
+	
+			case dpp_gas_action_type_t::dpp_gas_comeback_resp: {
+				frame = calloc(1, sizeof(ec_gas_comeback_response_frame_t));
+				if (!frame) {
+					printf("%s:%d: Failed to allocate GAS Comeback Response frame!\n", __func__, __LINE__);
+					break;
+				}
+				auto *cb_resp_frame = static_cast<ec_gas_comeback_response_frame_t *>(frame);
+				memcpy(cb_resp_frame->ape, DPP_GAS_CONFIG_REQ_APE, sizeof(cb_resp_frame->ape));
+				memcpy(cb_resp_frame->ape_id, DPP_GAS_CONFIG_REQ_PROTO_ID, sizeof(cb_resp_frame->ape_id));
+				cb_resp_frame->status_code = 0;           // SUCCESS
+				cb_resp_frame->gas_comeback_delay = 0;    // No delay for now
+				cb_resp_frame->fragment_id = 0;
+				cb_resp_frame->more_fragments = 0;
+				created_frame_size = sizeof(ec_gas_comeback_response_frame_t);
+			}
+			break;
+
             default:
                 printf("%s:%d: unhandled GAS frame type=%02x\n", __func__, __LINE__, action);
                 break;

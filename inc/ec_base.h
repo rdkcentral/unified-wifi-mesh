@@ -331,6 +331,22 @@ typedef struct {
     uint8_t resp[];
 } __attribute__((packed)) ec_gas_initial_response_frame_t;
 
+typedef struct {
+    ec_gas_frame_base_t base;
+} __attribute__((packed)) ec_gas_comeback_request_frame_t;
+
+typedef struct {
+    ec_gas_frame_base_t base;
+    uint16_t status_code;            // Same field as initial response
+    uint16_t gas_comeback_delay;     // 0 if this is the final response
+    uint8_t fragment_id;             // Fragment ID (0–255)
+    uint8_t more_fragments;          // 1 = more to come, 0 = this is the last frag
+    uint8_t ape[3];
+    uint8_t ape_id[7];
+    uint16_t comeback_resp_len;
+    uint8_t comeback_resp[];
+} __attribute__((packed)) ec_gas_comeback_response_frame_t;
+
 // Used to avoid many many if-not-null checks
 #define ASSERT_MSG_FALSE(x, ret, errMsg, ...) \
     if(x) { \

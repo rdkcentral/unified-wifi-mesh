@@ -3,6 +3,9 @@
 #include "ec_util.h"
 #include "util.h"
 
+#include <thread>
+#include <chrono>
+
 bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
     em_printfout("Recieved a DPP Presence Announcement Frame from '" MACSTRFMT "'\n", MAC2STR(src_mac));
@@ -57,6 +60,9 @@ bool ec_pa_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, u
 bool ec_pa_configurator_t::handle_cfg_request(uint8_t *buff, unsigned int len, uint8_t sa[ETH_ALEN])
 {
     em_printfout("Rx'd a DPP Configuration Request from " MACSTRFMT "", MAC2STR(sa));
+    ec_gas_initial_request_frame_t *req_frame = reinterpret_cast<ec_gas_initial_request_frame_t *>(buff);
+    m_gas_session_dialog_tokens[util::mac_to_string(sa)] = req_frame->base.dialog_token;
+
     // EasyMesh R6 5.3.4
     // If a Proxy Agent receives a DPP Configuration Request frame in a GAS frame from an Enrollee Multi-AP Agent, it shall
     // generate a Proxied Encap DPP message that includes a 1905 Encap DPP TLV that encapsulates the received DPP
@@ -139,6 +145,24 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
     ec_frame_type_t ec_frame_type = static_cast<ec_frame_type_t>(frame_type);
 
     bool did_finish = false;
+
+    std::string dest_mac_str = util::mac_to_string(dest_mac);
+
+    bool needs_fragmentation = (encap_frame_len > WIFI_MTU_SIZE);
+    if (needs_fragmentation) {
+        auto it = m_gas_session_dialog_tokens.find(dest_mac_str);
+        if (it == m_gas_session_dialog_tokens.end()) {
+            em_printfout("No GAS session dialog token found for '" MACSTRFMT "', not sending 802.11 frame.", MAC2STR(dest_mac));
+            return false;
+        }
+        uint8_t dialog_token = it->second;
+        // If peer is not ready to receive GAS Comeback Frames, we must first send a "dummy" GAS Initial Response frame inidicating to the 
+        // peer that GAS Comeback Response frames will be coming.
+        // Fragment the frame and store the fragments and wait for a GAS Comeback Request prior to sending.
+        em_printfout("Sending fragmentation prepare GAS Initial Response frame to '" MACSTRFMT "'", MAC2STR(dest_mac));
+        m_gas_frames_to_be_sent[dest_mac_str] = fragment_large_frame(encap_frame, encap_frame_len, dialog_token);
+        return send_prepare_for_fragmented_frames_frame(dest_mac);
+    }
 
     // Pre-processing according to EM spec 5.4.3 Page 43
     // If a Proxy Agent receives a Proxied Encap DPP message from the Multi-AP Controller, it shall extract the DPP frame from
@@ -262,4 +286,105 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
 
     free(encap_frame);
     return did_finish;
+}
+
+bool ec_pa_configurator_t::handle_gas_comeback_request([[maybe_unused]] uint8_t *buff, [[maybe_unused]] unsigned int len, uint8_t sa[ETH_ALEN])
+{
+    em_printfout("Received a GAS Comeback Request frame from '" MACSTRFMT "'", MAC2STR(sa));
+    m_peer_ready_for_frag_frame[util::mac_to_string(sa)] = true;
+    auto frame_it = m_gas_frames_to_be_sent.find(util::mac_to_string(sa));
+    if (frame_it == m_gas_frames_to_be_sent.end()) {
+        // Nothing to do
+        em_printfout("Received potentially spurious GAS Comeback Request frame from '" MACSTRFMT "', not doing anything with it", MAC2STR(sa));
+        return true;
+    }
+
+    // Ensure we already have a GAS session with this peer
+    auto dialog_it = m_gas_session_dialog_tokens.find(util::mac_to_string(sa));
+    if (dialog_it == m_gas_session_dialog_tokens.end()) {
+        em_printfout("Received GAS Comeback Request from '" MACSTRFMT "', we have a frame waiting for them, but no dialog token known!", MAC2STR(sa));
+        return false;
+    }
+
+    // Get the fragments to send
+    std::vector<ec_gas_comeback_response_frame_t*> fragments = frame_it->second;
+
+    if (fragments.empty()) {
+        em_printfout("Received GAS Comeback Request, but we have no more fragments to send to '" MACSTRFMT "'", MAC2STR(sa));
+        return false;
+    }
+
+    // This code assumes that m_gas_frames_to_be_sent stores fragments with linearly increasing frag ID
+    // Grab 0th, send it, delete it
+    ec_gas_comeback_response_frame_t *fragment = fragments.front();
+    fragments.erase(fragments.begin());
+
+    bool sent = m_send_action_frame(sa, reinterpret_cast<uint8_t*>(fragment), sizeof(ec_gas_comeback_response_frame_t) + fragment->comeback_resp_len, 0, 0);
+    
+    if (!sent) {
+        em_printfout("Failed to send fragment #%d to '" MACSTRFMT "'", fragment->fragment_id, MAC2STR(sa));
+    }
+
+    em_printfout("Sent fragment #%d (more frags = %d) to '" MACSTRFMT "'", fragment->fragment_id, fragment->more_fragments, MAC2STR(sa));
+    free(fragment);
+    return sent;
+}
+
+bool ec_pa_configurator_t::send_prepare_for_fragmented_frames_frame(uint8_t dest_mac[ETH_ALEN])
+{
+    auto it = m_gas_session_dialog_tokens.find(util::mac_to_string(dest_mac));
+    if (it == m_gas_session_dialog_tokens.end()) {
+        em_printfout("No GAS session dialog token found for '" MACSTRFMT "', cannot send fragmented frame!",  MAC2STR(dest_mac));
+        return false;
+    }
+    uint8_t dialog_token = it->second;
+
+    // Inform GAS peer that we're going to be sending them a fragmented frame via the 
+    // GAS Comeback mechanism by first sending a GAS Initial Response with resp_len = 0  and / or delay > 0
+    auto [gas_initial_resp_frame, gas_initial_resp_frame_len] = ec_util::alloc_gas_frame(dpp_gas_initial_resp, dialog_token);
+    if (gas_initial_resp_frame == nullptr) {
+        em_printfout("Could not allocate GAS Initial Response frame");
+        return false;
+    }
+    ec_gas_initial_response_frame_t *frame = reinterpret_cast<ec_gas_initial_response_frame_t*>(gas_initial_resp_frame);
+    frame->resp_len = 0;
+    frame->gas_comeback_delay = 1;
+    em_printfout("Sending GAS Comeback Response preparation GAS Initial Response frame to '" MACSTRFMT "'", MAC2STR(dest_mac));
+    return m_send_action_frame(dest_mac, reinterpret_cast<uint8_t*>(frame), gas_initial_resp_frame_len, 0, 0);
+}
+
+std::vector<ec_gas_comeback_response_frame_t *> ec_pa_configurator_t::fragment_large_frame(const uint8_t *payload, size_t len, uint8_t dialog_token)
+{
+    // Fragments will be stored by increasing frag ID
+    std::vector<ec_gas_comeback_response_frame_t *> fragments;
+    size_t offset = 0;
+    uint8_t frag_id = 0;
+
+    while (offset < len) {
+        size_t chunk_size = std::min(WIFI_MTU_SIZE, len - offset);
+
+        auto [base_frame, base_len] = ec_util::alloc_gas_frame(dpp_gas_comeback_resp, dialog_token);
+        if (!base_frame) {
+            em_printfout("Failed to allocate GAS Comeback Response frame for frag #%d", frag_id);
+            for (auto *f : fragments) {
+                free(f);
+            }
+            return {};
+        }
+
+        ec_gas_comeback_response_frame_t *frame = static_cast<ec_gas_comeback_response_frame_t *>(base_frame);
+        frame->comeback_resp_len = static_cast<uint16_t>(chunk_size);
+
+        frame->fragment_id = frag_id;
+        frame->more_fragments = ((offset + chunk_size) < len) ? 1 : 0;
+
+        // Copy the actual chunk of the payload into the frame
+        memcpy(frame->comeback_resp, payload + offset, chunk_size);
+        fragments.push_back(frame);
+
+        offset += chunk_size;
+        frag_id++;
+    }
+
+    return fragments;
 }

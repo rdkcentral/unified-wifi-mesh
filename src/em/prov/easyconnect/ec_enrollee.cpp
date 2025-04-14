@@ -1195,3 +1195,92 @@ cJSON *ec_enrollee_t::create_dpp_connection_status_obj(ec_status_code_t dpp_stat
     }
     return connStatusObj;
 }
+
+bool ec_enrollee_t::handle_gas_comeback_response(ec_gas_comeback_response_frame_t *frame, size_t len, uint8_t src_mac[ETH_ALEN])
+{
+    if (frame == nullptr) {
+        em_printfout("NULL GAS comeback response frame");
+        return false;
+    }
+    const std::string source_mac_key = util::mac_to_string(src_mac) + "_" + std::to_string(frame->base.dialog_token);
+    if (frame->fragment_id != m_gas_fragments[source_mac_key].expected_fragment_id) {
+        em_printfout("Fragment ID mismatch for dialog=%d from %s", frame->base.dialog_token, source_mac_key.c_str());
+        return false;
+    }
+
+    bool more_frags_coming = (frame->more_fragments > 0);
+
+    m_gas_fragments[source_mac_key].reassembled_payload.insert(
+        m_gas_fragments[source_mac_key].reassembled_payload.end(),
+        frame->comeback_resp,
+        frame->comeback_resp + frame->comeback_resp_len
+    );
+
+    m_gas_fragments[source_mac_key].expected_fragment_id++;
+    m_gas_fragments[source_mac_key].last_seen = std::chrono::steady_clock::now();
+
+    if (!more_frags_coming) {
+        // No more data coming, we've got a complete frame
+        bool did_succeed = handle_config_response(
+            m_gas_fragments[source_mac_key].reassembled_payload.data(),
+            static_cast<unsigned int>(m_gas_fragments[source_mac_key].reassembled_payload.size()),
+            src_mac
+        );
+        if (!did_succeed) {
+            em_printfout("Failed to handle Configuration Response");
+            return false;
+        }
+        m_gas_fragments.erase(source_mac_key);
+    }
+
+    if (more_frags_coming) {
+        // If there's more frags coming, send a Comeback Request to enable sending of next Comeback Response
+        ec_gas_comeback_request_frame_t *cb_frame = create_comeback_request(frame->base.dialog_token);
+        ASSERT_NOT_NULL(cb_frame, false, "%s:%d: Failed to allocate a GAS Comeback Request frame\n", __func__, __LINE__);
+        bool sent = m_send_action_frame(src_mac, reinterpret_cast<uint8_t*>(cb_frame), sizeof(ec_gas_comeback_request_frame_t), m_selected_freq, 0);
+        if (!sent) {
+            em_printfout("Failed to send GAS Comeback Request to '" MACSTRFMT "', we made it to frag #%d", MAC2STR(src_mac), frame->fragment_id);
+        }
+        free(cb_frame);
+        return sent;
+    }
+
+    // Regardless of if we're still awaiting fragments or if we marshalled a full frame, we've succeeded.
+    return true;
+}
+
+bool ec_enrollee_t::handle_gas_initial_response(ec_gas_initial_response_frame_t *resp_frame, size_t len, uint8_t src_mac[ETH_ALEN])
+{
+    if (resp_frame == nullptr) {
+        em_printfout("Invalid GAS initial response frame");
+        return false;
+    }
+    bool is_fragmentation_signal_frame = (resp_frame->gas_comeback_delay > 0 || resp_frame->resp_len == 0);
+
+    if (is_fragmentation_signal_frame) {
+        em_printfout("Received a fragmentation preperation GAS Initial Response frame from '" MACSTRFMT "'", MAC2STR(src_mac));
+
+        ec_gas_comeback_request_frame_t *cb_frame = create_comeback_request(resp_frame->base.dialog_token);
+        ASSERT_NOT_NULL(cb_frame, false, "%s:%d: Failed to allocate GAS Initial Request frame\n", __func__, __LINE__);
+        bool sent = m_send_action_frame(src_mac, reinterpret_cast<uint8_t*>(cb_frame), sizeof(ec_gas_comeback_request_frame_t), m_selected_freq, 0);
+        free(cb_frame);
+        if (!sent) {
+            em_printfout("Failed to send GAS Comeback Request to '" MACSTRFMT "'", MAC2STR(src_mac));
+            return false;
+        }
+
+        em_printfout("Sent GAS Comeback Request for dialog_token=%u to '" MACSTRFMT "'",
+                     resp_frame->base.dialog_token, MAC2STR(src_mac));
+        return sent;
+    }
+
+    // Not a fragmentation prep signal, just a complete response frame.
+    return handle_config_response(reinterpret_cast<uint8_t*>(resp_frame), static_cast<unsigned int>(len), src_mac);
+}
+
+ec_gas_comeback_request_frame_t *ec_enrollee_t::create_comeback_request(uint8_t dialog_token)
+{
+    auto [frame, len] = ec_util::alloc_gas_frame(dpp_gas_comeback_req, dialog_token);
+    if (frame == nullptr || len == 0) return nullptr;
+    return reinterpret_cast<ec_gas_comeback_request_frame_t*>(frame);
+}
