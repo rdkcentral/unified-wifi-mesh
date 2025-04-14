@@ -289,20 +289,20 @@ bool dm_sta_list_t::compare_db(db_client_t& db_client, const dm_sta_t& sta)
         info.est_dl_rate = static_cast<unsigned int>(db_client.get_number(ctx, 8));
         info.last_conn_time = static_cast<unsigned int>(db_client.get_number(ctx, 9));
         info.retrans_count = static_cast<unsigned int>(db_client.get_number(ctx, 10));
-        info.signal_strength = db_client.get_number(ctx, 11);
+        info.signal_strength = (db_client.get_number(ctx, 11));
         info.rcpi = static_cast<unsigned char> (db_client.get_number(ctx, 12));
-        info.util_tx = db_client.get_number(ctx, 13);
-        info.util_rx = db_client.get_number(ctx, 14);
-        info.pkts_tx = db_client.get_number(ctx, 15);
-        info.pkts_rx = db_client.get_number(ctx, 16);
-        info.bytes_tx = db_client.get_number(ctx, 17);
-        info.bytes_rx = db_client.get_number(ctx, 18);
-        info.errors_tx = db_client.get_number(ctx, 19);
-        info.errors_rx = db_client.get_number(ctx, 20);
-        info.frame_body_len = db_client.get_number(ctx, 21);
+        info.util_tx = static_cast<unsigned char> (db_client.get_number(ctx, 13));
+        info.util_rx = static_cast<unsigned char> (db_client.get_number(ctx, 14));
+        info.pkts_tx = static_cast<unsigned char> (db_client.get_number(ctx, 15));
+        info.pkts_rx = static_cast<unsigned char> (db_client.get_number(ctx, 16));
+        info.bytes_tx = static_cast<unsigned char> (db_client.get_number(ctx, 17));
+        info.bytes_rx = static_cast<unsigned char> (db_client.get_number(ctx, 18));
+        info.errors_tx = static_cast<unsigned char> (db_client.get_number(ctx, 19));
+        info.errors_rx = static_cast<unsigned char> (db_client.get_number(ctx, 20));
+        info.frame_body_len = static_cast<unsigned char> (db_client.get_number(ctx, 21));
 
         db_client.get_string(ctx, frame_body, 22);
-        dm_easy_mesh_t::unhex(strlen(frame_body), frame_body, EM_MAX_FRAME_BODY_LEN, info.frame_body);
+        dm_easy_mesh_t::unhex(static_cast<unsigned int>(strlen(frame_body)), frame_body, EM_MAX_FRAME_BODY_LEN, info.frame_body);
 
         if (memcmp(static_cast<const void*>(&sta.m_sta_info), static_cast<const void*>(&info), sizeof(em_sta_info_t)) == 0) {
             return true;
@@ -338,17 +338,17 @@ int dm_sta_list_t::sync_db(db_client_t& db_client, void *ctx)
         info.est_dl_rate = static_cast<unsigned int>(db_client.get_number(ctx, 8));
         info.last_conn_time = static_cast<unsigned int>(db_client.get_number(ctx, 9));
         info.retrans_count = static_cast<unsigned int>(db_client.get_number(ctx, 10));
-        info.signal_strength = db_client.get_number(ctx, 11);
+        info.signal_strength = static_cast<signed int> (db_client.get_number(ctx, 11));
         info.rcpi = static_cast<unsigned char> (db_client.get_number(ctx, 12));
-        info.util_tx = db_client.get_number(ctx, 13);
-        info.util_rx = db_client.get_number(ctx, 14);
-        info.pkts_tx = db_client.get_number(ctx, 15);
-        info.pkts_rx = db_client.get_number(ctx, 16);
-        info.bytes_tx = db_client.get_number(ctx, 17);
-        info.bytes_rx = db_client.get_number(ctx, 18);
-        info.errors_tx = db_client.get_number(ctx, 19);
-        info.errors_rx = db_client.get_number(ctx, 20);
-        info.frame_body_len = db_client.get_number(ctx, 21);
+        info.util_tx = static_cast<unsigned int> (db_client.get_number(ctx, 13));
+        info.util_rx = static_cast<unsigned int> (db_client.get_number(ctx, 14));
+        info.pkts_tx = static_cast<unsigned int> (db_client.get_number(ctx, 15));
+        info.pkts_rx = static_cast<unsigned int> (db_client.get_number(ctx, 16));
+        info.bytes_tx = static_cast<unsigned int> (db_client.get_number(ctx, 17));
+        info.bytes_rx = static_cast<unsigned int> (db_client.get_number(ctx, 18));
+        info.errors_tx = static_cast<unsigned int> (db_client.get_number(ctx, 19));
+        info.errors_rx = static_cast<unsigned int> (db_client.get_number(ctx, 20));
+        info.frame_body_len = static_cast<unsigned int> (db_client.get_number(ctx, 21));
 
         db_client.get_string(ctx, frame_body, 22);
         dm_easy_mesh_t::unhex(strlen(frame_body), frame_body, EM_MAX_FRAME_BODY_LEN, info.frame_body);
