@@ -111,7 +111,8 @@ int em_provisioning_t::send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, si
         return -1;
     }
 
-    uint8_t buff[MAX_EM_BUFF_SZ];
+    // Make sure there is enough room for the TLV, the 1905 layer will deal with fragmentation.
+    uint8_t buff[MAX_EM_BUFF_SZ+encap_dpp_len];
     unsigned int len = 0;
     uint8_t *tmp = buff;
 
@@ -143,11 +144,15 @@ int em_provisioning_t::send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, si
         em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
         em_printfout("Sending Proxied Encap DPP msg from '" MACSTRFMT "' to '" MACSTRFMT "'\n", MAC2STR(hdr->src), MAC2STR(hdr->dst));
     }
+
+    em_printfout("Sending Proxied Encap DPP msg of length %d", len);
     if (send_frame(buff, len)  < 0) {
-        em_printfout("Proxied Encap DPP msg failed, error:%d", errno);
+        em_printfout("Proxied Encap DPP msg failed");
+        perror("send_frame");
         return -1;
     }
 
+    
     // TODO: If needed, likely not
 	//set_state(em_state_ctrl_configured);
 

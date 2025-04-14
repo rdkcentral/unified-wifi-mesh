@@ -73,7 +73,7 @@ void em_agent_t::handle_sta_link_metrics(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num;
 
-    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
         printf("analyze_sta_link_metrics in progress\n");
     } else if ((num = m_data_model.analyze_sta_link_metrics(evt, pcmd)) == 0) {
         printf("analyze_sta_link_metrics failed\n");
@@ -85,7 +85,7 @@ void em_agent_t::handle_ap_cap_query(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num;
 
-    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
     } else if ((num = m_data_model.analyze_ap_cap_query(evt, pcmd)) == 0) {
         m_agent_cmd->send_result(em_cmd_out_status_no_change);
@@ -102,7 +102,7 @@ void em_agent_t::handle_radio_config(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num;
 
-    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
     } else if ((num = m_data_model.analyze_radio_config(evt, pcmd)) == 0) {
         m_agent_cmd->send_result(em_cmd_out_status_no_change);
@@ -119,7 +119,7 @@ void em_agent_t::handle_vap_config(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num;
 
-    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
     } else if ((num = m_data_model.analyze_vap_config(evt, pcmd)) == 0) {
         m_agent_cmd->send_result(em_cmd_out_status_no_change);
@@ -136,7 +136,7 @@ void em_agent_t::handle_dev_init(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num;
 
-    if (m_orch->is_cmd_type_in_progress(evt->type)) {
+    if (m_orch->is_cmd_type_in_progress(evt)) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
         return;
     }
@@ -162,7 +162,7 @@ void em_agent_t::handle_channel_pref_query(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num;
 
-    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
     } else if ((num = m_data_model.analyze_channel_pref_query(evt, pcmd)) == 0) {
         printf("%s:%d query send fail \n", __func__, __LINE__);
@@ -181,7 +181,7 @@ void em_agent_t::handle_channel_sel_req(em_bus_event_t *evt)
        printf("descriptor is null");
     }
 
-    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
     } else if ((num = m_data_model.analyze_channel_sel_req(evt, desc, &m_bus_hdl)) == 0) {
             printf("handle_channel_sel_req complete");
@@ -198,7 +198,7 @@ void em_agent_t::handle_m2ctrl_configuration(em_bus_event_t *evt)
        printf("descriptor is null");
     }
 
-    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
     } else if ((num = m_data_model.analyze_m2ctrl_configuration(evt, desc, &m_bus_hdl)) == 0) {
 	    printf("analyze_onewifi_private_subdoc complete");
@@ -215,7 +215,7 @@ void em_agent_t::handle_onewifi_private_cb(em_bus_event_t *evt)
         printf("descriptor is null");
     }
 
-    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
     } else if ((num = m_data_model.analyze_onewifi_vap_cb(evt, pcmd)) == 0) {
         printf("analyze_onewifi_vap_cb completed\n");
@@ -234,7 +234,7 @@ void em_agent_t::handle_onewifi_radio_cb(em_bus_event_t *evt)
         printf("descriptor is null");
     }
 
-    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
     } else if ((num = m_data_model.analyze_onewifi_radio_cb(evt, pcmd)) == 0) {
         printf("analyze_onewifi_radio_cb completed\n");
@@ -297,7 +297,7 @@ void em_agent_t::handle_autoconfig_renew(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num;
 
-    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
 	printf("handle_autoconfig_renew in progress\n");
     }  else if ((num = m_data_model.analyze_autoconfig_renew(evt, pcmd)) == 0) {
         printf("handle_autoconfig_renew cmd creation failed\n");
@@ -337,13 +337,10 @@ void em_agent_t::handle_recv_gas_frame(em_bus_event_t *evt)
         printf("%s:%d: no node found for MAC '%s'\n", __func__, __LINE__, dest_mac);
         return;
     }
-    em_t *al_node = get_al_node();
-    if (!al_node) {
-        printf("%s:%d: no AL node present\n", __func__, __LINE__);
-        return;
-    }
 
-    auto gas_frame_base = (ec_gas_frame_base_t *)evt->u.raw_buff + mgmt_hdr_len;
+    em_t* al_node = get_al_node();
+
+    auto gas_frame_base = (ec_gas_frame_base_t *)(evt->u.raw_buff + mgmt_hdr_len);
 
     bool is_wfa_ec_gas = false;
 
@@ -394,19 +391,35 @@ void em_agent_t::handle_recv_gas_frame(em_bus_event_t *evt)
 
     if (is_wfa_ec_gas) {
         printf("%s:%d: Received WFA EC GAS frame\n", __func__, __LINE__);
-        bool dest_al_same = (memcmp(dest_node->get_radio_interface_mac(),
-                                    get_al_node()->get_radio_interface_mac(), ETH_ALEN) != 0);
-
-        if (!dest_al_same && !(m_data_model.get_colocated())) {
-            // DPP GAS Frame not sent to same radio as AL node, let's ignore it.
-            // We don't ignore it if this co-located since the AL-node will be the same as the controller (eth0)
-            // so if we ignore it, no packets will ever get through
+        bool dest_al_same = false;
+        if (dest_node != NULL && al_node != NULL) {
+            em_printfout("Dest radio node MAC '" MACSTRFMT "', al_node radio MAC '" MACSTRFMT"'\n", MAC2STR(dest_node->get_radio_interface_mac()), MAC2STR(al_node->get_radio_interface_mac()));
+            dest_al_same = (memcmp(dest_node->get_radio_interface_mac(), al_node->get_radio_interface_mac(), ETH_ALEN) == 0);
+        }
+    
+        auto ctrl_al = m_data_model.get_controller_interface_mac();
+        auto agent_al = m_data_model.get_agent_al_interface_mac();
+        bool is_colocated = (memcmp(ctrl_al, agent_al, ETH_ALEN) == 0);
+    
+        em_printfout("Dest MAC '" MACSTRFMT "', dest_al_same=%d, is_colocated=%d", MAC2STR(dest_node->get_radio_interface_mac()), dest_al_same, is_colocated);
+                                
+        /*
+        If any of the following conditions are satisfied:
+            - The destination MAC is the same as the AL node (mac address)
+            - The colocated flag is set
+        Then the `ec_manager` of the AL node will handle the action frame
+        
+        We don't ignore it if this co-located since the AL-node will be the same as the controller (eth0) 
+        so if we ignore it, no packets will ever get through
+        */
+        if (dest_al_same || is_colocated) {
+            if (!al_node->get_ec_mgr().handle_recv_gas_pub_action_frame(
+                gas_frame_base, full_frame_length - mgmt_hdr_len, mgmt_frame->sa)) {
+                printf("%s:%d: EC manager failed to handle GAS frame!\n", __func__, __LINE__);
+            }
             return;
         }
-        if (!dest_node->m_ec_manager->handle_recv_gas_pub_action_frame(
-                gas_frame_base, full_frame_length - mgmt_hdr_len, mgmt_frame->sa)) {
-            printf("%s:%d: EC manager failed to handle GAS frame!\n", __func__, __LINE__);
-        }
+
     }
 }
 
@@ -496,7 +509,7 @@ void em_agent_t::handle_btm_response_action_frame(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num;
 
-    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
         printf("analyze_btm_response_action_frame in progress\n");
     } else if ((num = m_data_model.analyze_btm_response_action_frame(evt, pcmd)) == 0) {
         printf("analyze_btm_response_action_frame failed\n");
@@ -546,7 +559,7 @@ void em_agent_t::handle_set_policy(em_bus_event_t *evt)
        printf("descriptor is null");
     }
 
-    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
         printf("set policy in progress\n");
     } else if ((num = m_data_model.analyze_set_policy(evt, desc, &m_bus_hdl)) == 0) {
         printf("set policy failed\n");
@@ -558,7 +571,7 @@ void em_agent_t::handle_beacon_report(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num;
 
-    if (m_orch->is_cmd_type_in_progress(evt->type) == true) {
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
         printf("analyze_beacon_report in progress\n");
     } else if ((num = m_data_model.analyze_beacon_report(evt, pcmd)) == 0) {
         printf("analyze_beacon_report failed\n");
@@ -1005,6 +1018,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
     bssid_t bss_mac;
     mac_address_t client_mac;
     bool found = false;
+    em_string_t al_mac_str;
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
     if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
@@ -1061,9 +1075,10 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 			printf("%s:%d: Could not find radio_id for em_msg_type_topo_query\n", __func__, __LINE__);
 			return NULL;
 		}
-		dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
-		if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
-			printf("%s:%d: Found existing AL MAC:%s\n", __func__, __LINE__, mac_str1);
+		dm_easy_mesh_t::macbytes_to_string(ruid, al_mac_str);
+		strcat(al_mac_str, "_al");
+		if ((em = (em_t *)hash_map_get(m_em_map, al_mac_str)) != NULL) {
+			printf("%s:%d: Found existing AL MAC:%s\n", __func__, __LINE__, al_mac_str);
 		} else {
 			return NULL;
 		}

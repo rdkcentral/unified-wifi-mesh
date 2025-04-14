@@ -159,8 +159,8 @@ bool ec_enrollee_t::handle_auth_request(ec_frame_t *frame, size_t len, uint8_t s
     if (m_send_pres_announcement_thread.joinable()) m_send_pres_announcement_thread.join();
     size_t attrs_len = len - EC_FRAME_BASE_SIZE;
 
-    ec_attribute_t *B_r_hash_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_resp_bootstrap_key_hash);
-    ASSERT_NOT_NULL(B_r_hash_attr, false, "%s:%d No responder bootstrapping key hash attribute found\n", __func__, __LINE__);
+    auto B_r_hash_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_resp_bootstrap_key_hash);
+    ASSERT_OPT_HAS_VALUE(B_r_hash_attr, false, "%s:%d No responder bootstrapping key hash attribute found\n", __func__, __LINE__);
 
     uint8_t* responder_keyhash = ec_crypto::compute_key_hash(m_boot_data().responder_boot_key);
     ASSERT_NOT_NULL(responder_keyhash, false, "%s:%d failed to compute responder bootstrapping key hash\n", __func__, __LINE__);
@@ -174,8 +174,8 @@ bool ec_enrollee_t::handle_auth_request(ec_frame_t *frame, size_t len, uint8_t s
     
     if (m_boot_data().initiator_boot_key != NULL){
         // Initiator bootstrapping key is present on enrollee, mutual authentication is possible
-        ec_attribute_t *B_i_hash_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_init_bootstrap_key_hash);
-        ASSERT_NOT_NULL(B_i_hash_attr, false, "%s:%d No initiator bootstrapping key hash attribute found\n", __func__, __LINE__);
+        auto B_i_hash_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_init_bootstrap_key_hash);
+        ASSERT_OPT_HAS_VALUE(B_i_hash_attr, false, "%s:%d No initiator bootstrapping key hash attribute found\n", __func__, __LINE__);
         uint8_t* initiator_keyhash = ec_crypto::compute_key_hash(m_boot_data().initiator_boot_key);
         if (initiator_keyhash != NULL) {
             if (memcmp(B_i_hash_attr->data, initiator_keyhash, B_i_hash_attr->length) == 0) {
@@ -192,7 +192,7 @@ bool ec_enrollee_t::handle_auth_request(ec_frame_t *frame, size_t len, uint8_t s
         }     
     }
 
-   ec_attribute_t *channel_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_channel);
+   auto channel_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_channel);
     if (channel_attr && channel_attr->length == sizeof(uint16_t)) {
         /*
         the Responder determines whether it can use the requested channel for the
@@ -209,9 +209,9 @@ Authentication Request frame without replying to it.
         // Maybe just attempt to send it on the channel
     }
 
-    ec_attribute_t *pub_init_proto_key_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_init_proto_key);
+    auto pub_init_proto_key_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_init_proto_key);
 
-    ASSERT_NOT_NULL(pub_init_proto_key_attr, false, "%s:%d No public initiator protocol key attribute found\n", __func__, __LINE__);
+    ASSERT_OPT_HAS_VALUE(pub_init_proto_key_attr, false, "%s:%d No public initiator protocol key attribute found\n", __func__, __LINE__);
     ASSERT_EQUALS(pub_init_proto_key_attr->length, BN_num_bytes(m_c_ctx.prime) * 2, false, "%s:%d Invalid public initiator protocol key length\n", __func__, __LINE__);
 
     if (m_eph_ctx().public_init_proto_key) {
@@ -237,26 +237,26 @@ Authentication Request frame without replying to it.
     printf("Key K_1:\n");
     util::print_hex_dump(static_cast<unsigned int> (m_c_ctx.digest_len), m_eph_ctx().k1);
 
-    ec_attribute_t *wrapped_data_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_wrapped_data);
-    ASSERT_NOT_NULL(wrapped_data_attr, false, "%s:%d No wrapped data attribute found\n", __func__, __LINE__);
+    auto wrapped_data_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_wrapped_data);
+    ASSERT_OPT_HAS_VALUE(wrapped_data_attr, false, "%s:%d No wrapped data attribute found\n", __func__, __LINE__);
 
     // Attempt to unwrap the wrapped data with generated k1 (from sent keys)
-    auto [wrapped_data, wrapped_len] = ec_util::unwrap_wrapped_attrib(wrapped_data_attr, frame, true, m_eph_ctx().k1); 
+    auto [wrapped_data, wrapped_len] = ec_util::unwrap_wrapped_attrib(*wrapped_data_attr, frame, true, m_eph_ctx().k1); 
     if (wrapped_data == NULL || wrapped_len == 0) {
         em_printfout("failed to unwrap wrapped data");
         // "Abondon the exchange"
         return false;
     }
 
-    ec_attribute_t *init_caps_attr = ec_util::get_attrib(wrapped_data, static_cast<uint16_t> (wrapped_len), ec_attrib_id_init_caps);
-    ASSERT_NOT_NULL_FREE(init_caps_attr, false, wrapped_data, "%s:%d No initiator capabilities attribute found\n", __func__, __LINE__);
+    auto init_caps_attr = ec_util::get_attrib(wrapped_data, static_cast<uint16_t> (wrapped_len), ec_attrib_id_init_caps);
+    ASSERT_OPT_HAS_VALUE_FREE(init_caps_attr, false, wrapped_data, "%s:%d No initiator capabilities attribute found\n", __func__, __LINE__);
 
     const ec_dpp_capabilities_t init_caps = {
         .byte = init_caps_attr->data[0]
     };
 
-    ec_attribute_t *i_nonce_attr = ec_util::get_attrib(wrapped_data, static_cast<uint16_t>(wrapped_len), ec_attrib_id_init_nonce);
-    ASSERT_NOT_NULL_FREE(init_caps_attr, false, wrapped_data, "%s:%d: No initiator nonce attribute found\n", __func__, __LINE__);
+    auto i_nonce_attr = ec_util::get_attrib(wrapped_data, static_cast<uint16_t>(wrapped_len), ec_attrib_id_init_nonce);
+    ASSERT_OPT_HAS_VALUE_FREE(init_caps_attr, false, wrapped_data, "%s:%d: No initiator nonce attribute found\n", __func__, __LINE__);
     memcpy(m_eph_ctx().i_nonce, i_nonce_attr->data, i_nonce_attr->length);
     em_printfout("i-nonce (Configurator is initiator)");
     util::print_hex_dump(i_nonce_attr->length, m_eph_ctx().i_nonce);
@@ -265,7 +265,7 @@ Authentication Request frame without replying to it.
     free(wrapped_data);
 
     uint8_t init_proto_version = 0; // Undefined
-    ec_attribute_t *proto_version_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_proto_version);
+    auto proto_version_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_proto_version);
     if (proto_version_attr && proto_version_attr->length == 1) {
         init_proto_version = proto_version_attr->data[0];
     }
@@ -333,8 +333,8 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
 {
     size_t attrs_len = len - EC_FRAME_BASE_SIZE;
 
-    ec_attribute_t *status_attrib = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_dpp_status);
-    ASSERT_NOT_NULL(status_attrib, false, "%s:%d: No DPP status attribute found\n", __func__, __LINE__);
+    auto status_attrib = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_dpp_status);
+    ASSERT_OPT_HAS_VALUE(status_attrib, false, "%s:%d: No DPP status attribute found\n", __func__, __LINE__);
 
     ec_status_code_t dpp_status = static_cast<ec_status_code_t>(status_attrib->data[0]);
 
@@ -343,14 +343,14 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
         return false;
     }
 
-    ec_attribute_t *wrapped_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_wrapped_data);
-    ASSERT_NOT_NULL(wrapped_attr, false, "%s:%d: No wrapped data attribute found\n", __func__, __LINE__);
+    auto wrapped_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_wrapped_data);
+    ASSERT_OPT_HAS_VALUE(wrapped_attr, false, "%s:%d: No wrapped data attribute found\n", __func__, __LINE__);
 
     uint8_t* key = (dpp_status == DPP_STATUS_OK) ? m_eph_ctx().ke : m_eph_ctx().k2;
     ASSERT_NOT_NULL(key, false, "%s:%d: k_e or k_2 is NULL!\n", __func__, __LINE__);
 
     // If DPP Status is OK, wrap the I-auth with the KE key, otherwise wrap the Responder Nonce with the K2 key
-    auto [unwrapped_data, unwrapped_data_len] = ec_util::unwrap_wrapped_attrib(wrapped_attr, frame, true, key);
+    auto [unwrapped_data, unwrapped_data_len] = ec_util::unwrap_wrapped_attrib(*wrapped_attr, frame, true, key);
     if (unwrapped_data == NULL || unwrapped_data_len == 0) {
         em_printfout("Failed to unwrap wrapped data, aborting exchange");
         // Aborts exchange
@@ -365,19 +365,34 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
     }
 
     auto i_auth_tag_attr = ec_util::get_attrib(unwrapped_data, unwrapped_data_len, ec_attrib_id_init_auth_tag);
-    ASSERT_NOT_NULL_FREE(i_auth_tag_attr, false, unwrapped_data, "%s:%d: No initiator authentication tag attribute found\n", __func__, __LINE__);
+    ASSERT_OPT_HAS_VALUE_FREE(i_auth_tag_attr, false, unwrapped_data, "%s:%d: No initiator authentication tag attribute found\n", __func__, __LINE__);
     
     uint8_t i_auth_tag[i_auth_tag_attr->length] = {0};
     memcpy(i_auth_tag, i_auth_tag_attr->data, i_auth_tag_attr->length);
 
     free(unwrapped_data);
 
+    if (m_eph_ctx().public_init_proto_key == nullptr) {
+        em_printfout("eph ctx public init proto key null");
+        return false;
+    }
+
+    if (m_eph_ctx().public_resp_proto_key == nullptr) {
+        em_printfout("eph ctx resp proto key nullptr");
+        return false;
+    }
+
+    if (m_boot_data().resp_pub_boot_key == nullptr) {
+        em_printfout("Boot data resp pub boot key is nullptr!");
+        return false;
+    }
+
     // Generate I-auth’ = H(R-nonce | I-nonce | PR.x | PI.x | BR.x | [ BI.x | ] 1)
     // Get P_I.x, P_R.x, B_I.x, and B_R.x
     BIGNUM* P_I_x = ec_crypto::get_ec_x(m_c_ctx, m_eph_ctx().public_init_proto_key);
     BIGNUM* P_R_x = ec_crypto::get_ec_x(m_c_ctx, m_eph_ctx().public_resp_proto_key);
-    BIGNUM* B_I_x = ec_crypto::get_ec_x(m_c_ctx, m_boot_data().resp_pub_boot_key);
-    BIGNUM* B_R_x = ec_crypto::get_ec_x(m_c_ctx, m_boot_data().init_pub_boot_key);
+    BIGNUM* B_I_x = ec_crypto::get_ec_x(m_c_ctx, m_boot_data().init_pub_boot_key);
+    BIGNUM* B_R_x = ec_crypto::get_ec_x(m_c_ctx, m_boot_data().resp_pub_boot_key);
 
     if (P_I_x == NULL || P_R_x == NULL || B_R_x == NULL) {
         em_printfout("Failed to get x-coordinates of P_I, P_R, and B_R");
@@ -472,8 +487,8 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
     ec_gas_initial_response_frame_t *config_response_frame = reinterpret_cast<ec_gas_initial_response_frame_t*>(buff);
 
 
-    ec_attribute_t *status_attrib = ec_util::get_attrib(reinterpret_cast<uint8_t*>(config_response_frame->resp), static_cast<size_t>(config_response_frame->resp_len), ec_attrib_id_dpp_status);
-    ASSERT_NOT_NULL(status_attrib, false, "%s:%d: No DPP status attribute found\n", __func__, __LINE__);
+    auto status_attrib = ec_util::get_attrib(reinterpret_cast<uint8_t*>(config_response_frame->resp), static_cast<size_t>(config_response_frame->resp_len), ec_attrib_id_dpp_status);
+    ASSERT_OPT_HAS_VALUE(status_attrib, false, "%s:%d: No DPP status attribute found\n", __func__, __LINE__);
 
     ec_status_code_t config_response_status_code = static_cast<ec_status_code_t>(status_attrib->data[0]);
 
@@ -496,38 +511,38 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
         return false;
     }
 
-    ec_attribute_t *wrapped_attrs = ec_util::get_attrib(config_response_frame->resp, static_cast<size_t>(config_response_frame->resp_len), ec_attrib_id_wrapped_data);
-    ASSERT_NOT_NULL(wrapped_attrs, false, "%s:%d: Failed to get wrapped data attribute!\n", __func__, __LINE__);
+    auto wrapped_attrs = ec_util::get_attrib(config_response_frame->resp, static_cast<size_t>(config_response_frame->resp_len), ec_attrib_id_wrapped_data);
+    ASSERT_OPT_HAS_VALUE(wrapped_attrs, false, "%s:%d: Failed to get wrapped data attribute!\n", __func__, __LINE__);
 
-    auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(wrapped_attrs, reinterpret_cast<uint8_t*>(config_response_frame), sizeof(*config_response_frame), config_response_frame->resp, true, m_eph_ctx().ke);
+    auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(*wrapped_attrs, reinterpret_cast<uint8_t*>(config_response_frame), sizeof(*config_response_frame), config_response_frame->resp, false, m_eph_ctx().ke);
     if (unwrapped_attrs == nullptr || unwrapped_attrs_len == 0) {
         em_printfout("Failed to unwrap wrapped attributes.");
         return false;
     }
-    ec_attribute_t* e_nonce_attr = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_enrollee_nonce);
-    ASSERT_NOT_NULL_FREE(e_nonce_attr, false, unwrapped_attrs, "%s:%d: No e-nonce in attributes!\n", __func__, __LINE__);
+    auto e_nonce_attr = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_enrollee_nonce);
+    ASSERT_OPT_HAS_VALUE_FREE(e_nonce_attr, false, unwrapped_attrs, "%s:%d: No e-nonce in attributes!\n", __func__, __LINE__);
 
-    ec_attribute_t* dpp_config_obj_1905 = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_dpp_config_obj);
-    ASSERT_NOT_NULL_FREE(dpp_config_obj_1905, false, unwrapped_attrs, "%s:%d: No IEEE1905 Configuration object attribute found\n", __func__, __LINE__);
+    auto dpp_config_obj_1905 = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_dpp_config_obj);
+    ASSERT_OPT_HAS_VALUE_FREE(dpp_config_obj_1905, false, unwrapped_attrs, "%s:%d: No IEEE1905 Configuration object attribute found\n", __func__, __LINE__);
 
-    ec_attribute_t* dpp_config_obj_bsta = ec_util::get_attrib(reinterpret_cast<uint8_t*>(dpp_config_obj_1905) + dpp_config_obj_1905->length, unwrapped_attrs_len, ec_attrib_id_dpp_config_obj);
-    ASSERT_NOT_NULL_FREE(dpp_config_obj_bsta, false, unwrapped_attrs, "%s:%d: No bSTA Configuration object attribute found\n", __func__, __LINE__);
+    auto dpp_config_obj_bsta = ec_util::get_attrib(reinterpret_cast<uint8_t*>(dpp_config_obj_1905->original) + dpp_config_obj_1905->length, unwrapped_attrs_len, ec_attrib_id_dpp_config_obj);
+    ASSERT_OPT_HAS_VALUE_FREE(dpp_config_obj_bsta, false, unwrapped_attrs, "%s:%d: No bSTA Configuration object attribute found\n", __func__, __LINE__);
 
     // This is optional, so can be nullptr.
-    ec_attribute_t* send_connection_status_attr = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_send_conn_status);
+    auto send_connection_status_attr = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_send_conn_status);
 
     // Parse JSON objects
-    cJSON *ieee1905_configuration_object = cJSON_ParseWithLength(reinterpret_cast<const char *>(dpp_config_obj_1905), static_cast<size_t>(dpp_config_obj_1905->length));
-    ASSERT_NOT_NULL_FREE(ieee1905_configuration_object, false, wrapped_attrs, "%s:%d: Could not parse IEEE1905 Configuration object, invalid JSON?\n", __func__, __LINE__);
+    cJSON *ieee1905_configuration_object = cJSON_ParseWithLength(reinterpret_cast<const char *>(dpp_config_obj_1905->original), static_cast<size_t>(dpp_config_obj_1905->length));
+    ASSERT_NOT_NULL(ieee1905_configuration_object, false, "%s:%d: Could not parse IEEE1905 Configuration object, invalid JSON?\n", __func__, __LINE__);
 
-    cJSON *bsta_configuration_object = cJSON_ParseWithLength(reinterpret_cast<const char *>(dpp_config_obj_bsta), static_cast<size_t>(dpp_config_obj_bsta->length));
-    ASSERT_NOT_NULL_FREE(bsta_configuration_object, false, wrapped_attrs, "%s:%d: Could not parse bSTA Configuration object, invalid JSON?\n", __func__, __LINE__);
+    cJSON *bsta_configuration_object = cJSON_ParseWithLength(reinterpret_cast<const char *>(dpp_config_obj_bsta->original), static_cast<size_t>(dpp_config_obj_bsta->length));
+    ASSERT_NOT_NULL(bsta_configuration_object, false, "%s:%d: Could not parse bSTA Configuration object, invalid JSON?\n", __func__, __LINE__);
 
     cJSON *bsta_cred_obj = cJSON_GetObjectItem(bsta_configuration_object, "cred");
     cJSON *bsta_discovery_obj = cJSON_GetObjectItem(bsta_configuration_object, "discovery");
     if (bsta_cred_obj == nullptr || bsta_discovery_obj == nullptr) {
         em_printfout("Incomplete bSTA Configuration object received");
-        free(wrapped_attrs);
+        free(unwrapped_attrs);
         cJSON_Delete(bsta_configuration_object);
         cJSON_Delete(ieee1905_configuration_object);
         return false;
@@ -536,7 +551,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
     cJSON *bsta_ssid = cJSON_GetObjectItem(bsta_discovery_obj, "SSID");
     if (bsta_ssid == nullptr) {
         em_printfout("Could not get \"SSID\" from bSTA Configuration object.");
-        free(wrapped_attrs);
+        free(unwrapped_attrs);
         cJSON_Delete(bsta_configuration_object);
         cJSON_Delete(ieee1905_configuration_object);
         return false;
@@ -544,7 +559,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
     cJSON *bsta_pass = cJSON_GetObjectItem(bsta_cred_obj, "pass");
     if (bsta_pass == nullptr) {
         em_printfout("Could not get \"pass\" from bSTA Configuration object.");
-        free(wrapped_attrs);
+        free(unwrapped_attrs);
         cJSON_Delete(bsta_configuration_object);
         cJSON_Delete(ieee1905_configuration_object);
         return false;
@@ -562,13 +577,13 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
 
 
     // Only necessary if Configurator includes "sendConnStatus" in Configuration response.
-    bool needs_connection_status = (send_connection_status_attr != nullptr);
+    bool needs_connection_status = (send_connection_status_attr.has_value());
 
     // Mandatory Configuration Result frame indicating configuration status.
     auto [config_result_frame, config_result_frame_len] = create_config_result(connection_status);
     if (config_result_frame == nullptr || config_result_frame_len == 0) {
         em_printfout("Failed to create DPP Configuration Result frame");
-        free(wrapped_attrs);
+        free(unwrapped_attrs);
         cJSON_Delete(ieee1905_configuration_object);
         cJSON_Delete(bsta_configuration_object);
         return false;
@@ -584,7 +599,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
     // No Conn Status frame needed.
     if (!needs_connection_status) {
         free(config_result_frame);
-        free(wrapped_attrs);
+        free(unwrapped_attrs);
         cJSON_Delete(bsta_configuration_object);
         cJSON_Delete(ieee1905_configuration_object);
         return ok;
@@ -594,16 +609,18 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
     
     if (!conn_status_result_frame || conn_status_result_frame_len == 0) {
         em_printfout("Configurator required a Connection Status Result frame, but could not create one");
-        free(wrapped_attrs);
+        free(config_result_frame);
+        free(unwrapped_attrs);
         cJSON_Delete(ieee1905_configuration_object);
         cJSON_Delete(bsta_configuration_object);
         return false;
     }
     
-    if (!m_send_action_frame(sa, conn_status_result_frame, conn_status_result_frame_len, m_selected_freq, 0)) {
+    if (!m_send_action_frame(sa, conn_status_result_frame, conn_status_result_frame_len, 0, 0)) {
         em_printfout("Failed to send Connection Status Result frame to Configurator!");
+        free(config_result_frame);
+        free(unwrapped_attrs);
         free(conn_status_result_frame);
-        free(wrapped_attrs);
         cJSON_Delete(ieee1905_configuration_object);
         cJSON_Delete(bsta_configuration_object);
         return false;
@@ -611,8 +628,9 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
     
     em_printfout("Sent a Connection Status Result frame to Configurator");
 
+    free(config_result_frame);
+    free(unwrapped_attrs);
     free(conn_status_result_frame);
-    free(wrapped_attrs);
     cJSON_Delete(bsta_configuration_object);
     cJSON_Delete(ieee1905_configuration_object);
     return true;    
@@ -831,7 +849,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_auth_response(ec_status_code_
         wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_resp_caps, m_dpp_caps.byte);
 
         // R-auth is wrapped in an additional wrapped data attribute (k_e) inside the main wrapped data attribute (k_2)
-        wrap_attribs = ec_util::add_wrapped_data_attr(frame, wrap_attribs, &wrapped_len, true, m_eph_ctx().ke, [&](){
+        wrap_attribs = ec_util::add_wrapped_data_attr(frame, wrap_attribs, &wrapped_len, false, m_eph_ctx().ke, [&](){
             size_t int_wrapped_len = 0;
             uint8_t* int_wrapped_attrs = ec_util::add_attrib(NULL, &int_wrapped_len, ec_attrib_id_resp_auth_tag, m_c_ctx.digest_len, r_auth);
             return std::make_pair(int_wrapped_attrs, int_wrapped_len);
@@ -961,12 +979,13 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_recfg_presence_announcement()
                           __LINE__);
 
     // Finite Cyclic Group attribute
+    // Must be little endian according to EC 8.1.1.12
     scoped_ec_group group(em_crypto_t::get_key_group(m_c_ctx.net_access_key));
     ASSERT_NOT_NULL_FREE2(group.get(), {}, frame, attribs,
                           "%s:%d: Failed to get elliptic curve group from network access key\n",
                           __func__, __LINE__);
     attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_finite_cyclic_group,
-                                  ec_crypto::get_tls_group_id_from_ec_group(group.get()));
+                                  SWAP_LITTLE_ENDIAN(ec_crypto::get_tls_group_id_from_ec_group(group.get())));
     ASSERT_NOT_NULL_FREE2(attribs, {}, frame, attribs,
                           "%s:%d: Failed to add finite cyclic group attribute\n", __func__,
                           __LINE__);
@@ -1022,6 +1041,9 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
         return {};
     }
 
+    em_printfout("E-nonce:");
+    util::print_hex_dump(m_c_ctx.nonce_len, m_eph_ctx().e_nonce);
+
     if (m_boot_data().version <= 1) {
         em_printfout("EasyMesh R >= 5 mandates DPP version >= 2, current version is %d, bailing.", m_boot_data().version);
         return {};
@@ -1059,6 +1081,9 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     ASSERT_NOT_NULL_FREE(bsta_info, {}, m_eph_ctx().e_nonce, "%s:%d: bSTA info is nullptr!\n", __func__, __LINE__);
     cJSON_AddItemToObject(dpp_config_request_obj, "bSTAList", bsta_info);
 
+    // For debugging
+    em_printfout("Enrollee bSTA Configuration Request object:\n%s", cjson_utils::stringify(dpp_config_request_obj).c_str());
+
     // XXX: Dialog token can be thought of as a session key between Enrollee and Configurator regarding configuration
     // From specs (EasyMesh, EasyConnect, 802.11), it seems this is just arbitrarily chosen (1 byte), but
     // must be unique per GAS frame "session" exchange.
@@ -1074,7 +1099,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     uint8_t *attribs = nullptr;
     size_t attribs_len = 0;
     // Wrap e-nonce and config req obj(s) with k_e
-    attribs = ec_util::add_wrapped_data_attr(reinterpret_cast<uint8_t *> (initial_req_frame), sizeof(ec_gas_initial_request_frame_t), attribs, &attribs_len, true, m_eph_ctx().ke, [&](){
+    attribs = ec_util::add_wrapped_data_attr(initial_req_frame, attribs, &attribs_len, false, m_eph_ctx().ke, [&](){
         size_t wrapped_len = 0;
         uint8_t* wrapped_attribs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, m_c_ctx.nonce_len, m_eph_ctx().e_nonce);
         wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_req_obj, cjson_utils::stringify(dpp_config_request_obj));
@@ -1083,8 +1108,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
 
     cJSON_Delete(dpp_config_request_obj);
 
-    if ((initial_req_frame = reinterpret_cast<ec_gas_initial_request_frame_t*>(
-        ec_util::copy_attrs_to_frame(reinterpret_cast<uint8_t*> (initial_req_frame), sizeof(ec_gas_initial_request_frame_t), attribs, attribs_len))) == nullptr) {
+    if ((initial_req_frame = ec_util::copy_attrs_to_frame(initial_req_frame, attribs, attribs_len)) == nullptr) {
         em_printfout("unable to copy attribs to GAS frame");
         free(attribs);
         free(frame);
@@ -1111,7 +1135,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_result(ec_status_code_
     uint8_t *attribs = nullptr;
     size_t attribs_len = 0;
 
-    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attribs_len, true, m_eph_ctx().ke, [&]() {
+    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attribs_len, false, m_eph_ctx().ke, [&]() {
         size_t wrapped_len = 0;
         uint8_t *wrapped_attrs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_dpp_status, static_cast<uint8_t>(dpp_status));
         wrapped_attrs = ec_util::add_attrib(wrapped_attrs, &wrapped_len, ec_attrib_id_enrollee_nonce, m_c_ctx.nonce_len, m_eph_ctx().e_nonce);
@@ -1138,7 +1162,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_connection_status_result(ec_s
     uint8_t *attribs   = nullptr;
     size_t attribs_len = 0;
 
-    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attribs_len, true, m_eph_ctx().ke, [&]() {
+    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attribs_len, false, m_eph_ctx().ke, [&]() {
         size_t wrapped_len = 0;
         uint8_t *wrapped_attrs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, m_c_ctx.nonce_len, m_eph_ctx().e_nonce);
         wrapped_attrs = ec_util::add_attrib(wrapped_attrs, &wrapped_len, ec_attrib_id_conn_status, cjson_utils::stringify(connection_status_object));
