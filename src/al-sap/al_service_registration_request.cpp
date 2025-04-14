@@ -9,7 +9,7 @@ AlServiceRegistrationRequest::AlServiceRegistrationRequest(ServiceOperation oper
 
 // Default constructor
 AlServiceRegistrationRequest::AlServiceRegistrationRequest()
-    : serviceOperation(ServiceOperation::ENABLE), serviceType(ServiceType::SAP_TUNNEL_CLIENT) {}
+    : serviceOperation(ServiceOperation::SOP_ENABLE), serviceType(ServiceType::SAP_TUNNEL_CLIENT) {}
 
 // Setter for service operation
 void AlServiceRegistrationRequest::setServiceOperation(ServiceOperation service) {
