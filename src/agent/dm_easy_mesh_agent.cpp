@@ -735,11 +735,6 @@ int dm_easy_mesh_agent_t::analyze_beacon_report(em_bus_event_t *evt, em_cmd_t *p
     return num;
 }
 
-void dm_easy_mesh_agent_t::translate_onewifi_sta_data(char *str)
-{
-
-}
-
 void dm_easy_mesh_agent_t::translate_and_decode_onewifi_subdoc(char *str, webconfig_subdoc_type_t type, const char* logname)
 {
     printf("%s:%d: Enter\n", __func__, __LINE__);

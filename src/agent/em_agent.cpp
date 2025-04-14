@@ -827,11 +827,6 @@ void em_agent_t::input_listener()
         return;
     }
 
-    /* if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.CollectStats.AccessPoint.1.AssociatedDeviceStats", (void *)&em_agent_t::assoc_stats_cb, NULL, 0) != 0) {
-        printf("%s:%d bus get failed\n", __func__, __LINE__);
-        return;
-    } */
-
     if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.STALinkMetricsReport", (void *)&em_agent_t::assoc_stats_cb, NULL, 0) != 0) {
         printf("%s:%d bus get failed\n", __func__, __LINE__);
         return;

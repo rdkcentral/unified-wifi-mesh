@@ -91,17 +91,6 @@ public:
 	 */
 	void translate_onewifi_dml_data(char *);
     
-	/**!
-	 * @brief Translates the data for a single WiFi station.
-	 *
-	 * This function processes the data related to a single WiFi station and performs necessary translations.
-	 *
-	 * @param[in] data A pointer to the character data that needs to be translated.
-	 *
-	 * @note Ensure that the data is properly formatted before passing to this function.
-	 */
-	void translate_onewifi_sta_data(char *); //translate when we receive the assoc client subdoc
-    
     /**!
      * @brief Translates the OneWiFi statistics data.
      *
