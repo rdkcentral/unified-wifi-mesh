@@ -56,7 +56,7 @@ LIBDIRS = \
 	-L$(INSTALLDIR)/lib \
 	-L$(ONEWIFI_HOME)/install/lib/
 ifeq ($(WITH_SAP), 1)
-LIBDIRS += -L$(AL_SAP_HOME)/build/lib
+LIBDIRS += -L$(AL_SAP_HOME)/
 endif
 
 LIBS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lmysqlcppconn -lhebus
