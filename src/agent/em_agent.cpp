@@ -339,13 +339,10 @@ void em_agent_t::handle_recv_gas_frame(em_bus_event_t *evt)
         printf("%s:%d: no node found for MAC '%s'\n", __func__, __LINE__, dest_mac);
         return;
     }
-    em_t *al_node = get_al_node();
-    if (!al_node) {
-        printf("%s:%d: no AL node present\n", __func__, __LINE__);
-        return;
-    }
 
-    auto gas_frame_base = (ec_gas_frame_base_t *)evt->u.raw_buff + mgmt_hdr_len;
+    em_t* al_node = get_al_node();
+
+    auto gas_frame_base = (ec_gas_frame_base_t *)(evt->u.raw_buff + mgmt_hdr_len);
 
     bool is_wfa_ec_gas = false;
 
@@ -396,19 +393,35 @@ void em_agent_t::handle_recv_gas_frame(em_bus_event_t *evt)
 
     if (is_wfa_ec_gas) {
         printf("%s:%d: Received WFA EC GAS frame\n", __func__, __LINE__);
-        bool dest_al_same = (memcmp(dest_node->get_radio_interface_mac(),
-                                    get_al_node()->get_radio_interface_mac(), ETH_ALEN) != 0);
-
-        if (!dest_al_same && !(m_data_model.get_colocated())) {
-            // DPP GAS Frame not sent to same radio as AL node, let's ignore it.
-            // We don't ignore it if this co-located since the AL-node will be the same as the controller (eth0)
-            // so if we ignore it, no packets will ever get through
+        bool dest_al_same = false;
+        if (dest_node != NULL && al_node != NULL) {
+            em_printfout("Dest radio node MAC '" MACSTRFMT "', al_node radio MAC '" MACSTRFMT"'\n", MAC2STR(dest_node->get_radio_interface_mac()), MAC2STR(al_node->get_radio_interface_mac()));
+            dest_al_same = (memcmp(dest_node->get_radio_interface_mac(), al_node->get_radio_interface_mac(), ETH_ALEN) == 0);
+        }
+    
+        auto ctrl_al = m_data_model.get_controller_interface_mac();
+        auto agent_al = m_data_model.get_agent_al_interface_mac();
+        bool is_colocated = (memcmp(ctrl_al, agent_al, ETH_ALEN) == 0);
+    
+        em_printfout("Dest MAC '" MACSTRFMT "', dest_al_same=%d, is_colocated=%d", MAC2STR(dest_node->get_radio_interface_mac()), dest_al_same, is_colocated);
+                                
+        /*
+        If any of the following conditions are satisfied:
+            - The destination MAC is the same as the AL node (mac address)
+            - The colocated flag is set
+        Then the `ec_manager` of the AL node will handle the action frame
+        
+        We don't ignore it if this co-located since the AL-node will be the same as the controller (eth0) 
+        so if we ignore it, no packets will ever get through
+        */
+        if (dest_al_same || is_colocated) {
+            if (!al_node->get_ec_mgr().handle_recv_gas_pub_action_frame(
+                gas_frame_base, full_frame_length - mgmt_hdr_len, mgmt_frame->sa)) {
+                printf("%s:%d: EC manager failed to handle GAS frame!\n", __func__, __LINE__);
+            }
             return;
         }
-        if (!dest_node->m_ec_manager->handle_recv_gas_pub_action_frame(
-                gas_frame_base, full_frame_length - mgmt_hdr_len, mgmt_frame->sa)) {
-            printf("%s:%d: EC manager failed to handle GAS frame!\n", __func__, __LINE__);
-        }
+
     }
 }
 

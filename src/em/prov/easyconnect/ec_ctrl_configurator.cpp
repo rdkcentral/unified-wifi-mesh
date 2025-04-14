@@ -168,7 +168,7 @@ bool ec_ctrl_configurator_t::handle_proxied_config_result_frame(uint8_t *encap_f
     ASSERT_OPT_HAS_VALUE(wrapped_attr, false, "%s:%d: No wrapped data in Proxied DPP Configuration Result frame\n", __func__, __LINE__);
 
     // Unwrap with k_e
-    auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(*wrapped_attr, frame, true, e_ctx->ke);
+    auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(*wrapped_attr, frame, false, e_ctx->ke);
     if (unwrapped_attrs == nullptr || unwrapped_attrs_len == 0) {
         em_printfout("Failed to unwrap attributes.");
         return false;
@@ -225,7 +225,7 @@ bool ec_ctrl_configurator_t::handle_proxied_conn_status_result_frame(uint8_t *en
     ASSERT_OPT_HAS_VALUE(wrapped_attr, false, "%s:%d: No wrapped data in Proxied DPP Configuration Result frame\n", __func__, __LINE__);
 
     // Unwrap with k_e
-    auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(*wrapped_attr, frame, true, e_ctx->ke);
+    auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(*wrapped_attr, frame, false, e_ctx->ke);
     if (unwrapped_attrs == nullptr || unwrapped_attrs_len == 0) {
         em_printfout("Failed to unwrap attributes.");
         return false;
@@ -273,7 +273,7 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
     ASSERT_OPT_HAS_VALUE(wrapped_attrs, false, "%s:%d: No wrapped data attribute found!\n", __func__, __LINE__);
     
     ASSERT_NOT_NULL(e_ctx->ke, false, "%s:%d: Ephemeral context for Enrollee '" MACSTRFMT "' does not contain valid key 'ke'!\n", __func__, __LINE__, MAC2STR(src_mac));
-    auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(*wrapped_attrs, reinterpret_cast<uint8_t*>(initial_request_frame), encap_frame_len, initial_request_frame->query, true, e_ctx->ke);
+    auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(*wrapped_attrs, reinterpret_cast<uint8_t*>(initial_request_frame), encap_frame_len, initial_request_frame->query, false, e_ctx->ke);
     if (unwrapped_attrs == nullptr || unwrapped_attrs_len == 0) {
         em_printfout("Failed to unwraped wrapped data, aborting!");
         return false;
@@ -327,6 +327,14 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
         return sent;
     }
 
+    /*
+    EasyConnect 7.5
+    When a device is set-up as a Configurator, it generates the key pair (c-sign-key, C-sign-key), to sign and verify Connectors, respectively.
+    */
+    conn_ctx->C_signing_key = em_crypto_t::generate_ec_key(conn_ctx->nid);
+
+
+    /*
     // GAS frame fragmentation / comeback delay / MUD URL
     SPEC_TODO_NOT_FATAL("EasyConnect", "v3.0", "6.4.3.1",
         "If the Enrollee included a new protocol key in the DPP Configuration Request frame but the Configurator did not request "
@@ -393,7 +401,7 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
         "For an example of the enterprise configuration message flow, see Appendix A.1 Using DPP to Configure Enterprise "
         "Credentials."
     );
-
+    */
     auto [config_response_frame, config_response_frame_len] = create_config_response_frame(src_mac, session_dialog_token, DPP_STATUS_OK);
     if (config_response_frame == nullptr || config_response_frame_len == 0) {
         em_printfout("Failed to create Configuration Respone frame");
@@ -1035,12 +1043,12 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_fram
 
         // Configurator → Enrollee: DPP Status, { E-nonce }ke
         attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_dpp_status, static_cast<uint8_t>(dpp_status));
-        attribs = ec_util::add_wrapped_data_attr(reinterpret_cast<uint8_t *>(response_frame), sizeof(ec_gas_initial_response_frame_t), attribs, &attribs_len, true, e_ctx->ke, [&](){
+        attribs = ec_util::add_wrapped_data_attr(response_frame, attribs, &attribs_len, true, e_ctx->ke, [&](){
             size_t wrapped_len = 0;
             uint8_t *wrapped_attribs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, conn_ctx->nonce_len, e_ctx->e_nonce);
             return std::make_pair(wrapped_attribs, wrapped_len);
         });
-        if ((response_frame = reinterpret_cast<ec_gas_initial_response_frame_t*>(ec_util::copy_attrs_to_frame(reinterpret_cast<uint8_t*>(response_frame), sizeof(ec_gas_initial_response_frame_t), attribs, attribs_len))) == nullptr) {
+        if ((response_frame = ec_util::copy_attrs_to_frame(response_frame, attribs, attribs_len)) == nullptr) {
             em_printfout("Failed to copy attribs to DPP Configuration Response frame!");
             free(response_frame);
             return {};
@@ -1103,7 +1111,7 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_fram
     size_t attribs_len = 0;
     // Configurator → Enrollee: DPP Status, { E-nonce, configurationPayload [, sendConnStatus]}ke
     attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_dpp_status, static_cast<uint8_t>(DPP_STATUS_OK));
-    attribs = ec_util::add_wrapped_data_attr(reinterpret_cast<uint8_t *>(response_frame), sizeof(ec_gas_initial_response_frame_t), attribs, &attribs_len, true, e_ctx->ke, [&]() {
+    attribs = ec_util::add_wrapped_data_attr(response_frame, attribs, &attribs_len, true, e_ctx->ke, [&]() {
         size_t wrapped_len = 0;
         uint8_t *wrapped_attribs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, conn_ctx->nonce_len, e_ctx->e_nonce);
         wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_obj, ieee1905_config_obj_str);
@@ -1111,7 +1119,7 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_fram
         return std::make_pair(wrapped_attribs, wrapped_len);
     });
 
-    response_frame = reinterpret_cast<ec_gas_initial_response_frame_t*>(ec_util::copy_attrs_to_frame(reinterpret_cast<uint8_t*>(response_frame), sizeof(ec_gas_initial_response_frame_t), attribs, attribs_len));
+    response_frame = ec_util::copy_attrs_to_frame(response_frame, attribs, attribs_len);
     free(attribs);
     ASSERT_NOT_NULL(response_frame, {}, "%s:%d: Failed to copy attributes to DPP Configuration frame!\n", __func__, __LINE__);
     response_frame->resp_len = static_cast<uint16_t>(attribs_len);

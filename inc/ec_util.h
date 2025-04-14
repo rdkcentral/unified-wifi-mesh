@@ -303,9 +303,47 @@ public:
 	 */
 	static ec_frame_t* copy_attrs_to_frame(ec_frame_t *frame, uint8_t *attrs, size_t attrs_len);
 
+	/**
+	 * @brief Copy (override) attributes to a frame.
+	 *
+	 * This function copies the specified attributes to the given frame. If the frame
+	 * needs to be reallocated to accommodate the new attributes, the reallocated
+	 * frame is returned.
+	 *
+	 * @param[in,out] frame The frame to which the attributes will be copied. This
+	 * frame may be reallocated if necessary.
+	 * @param[in] attrs The attributes to copy to the frame.
+	 * @param[in] attrs_len The length of the attributes array.
+	 *
+	 * @return ec_gas_initial_request_frame_t* A pointer to the frame with the copied attributes. If the
+	 * frame was reallocated, the new pointer is returned.
+	 *
+	 * @warning The frame must be freed by the caller after use to prevent memory leaks.
+	 */
+	static ec_gas_initial_request_frame_t* copy_attrs_to_frame(ec_gas_initial_request_frame_t *frame, uint8_t *attrs, size_t attrs_len);
+
+	/**
+	 * @brief Copy (override) attributes to a frame.
+	 *
+	 * This function copies the specified attributes to the given frame. If the frame
+	 * needs to be reallocated to accommodate the new attributes, the reallocated
+	 * frame is returned.
+	 *
+	 * @param[in,out] frame The frame to which the attributes will be copied. This
+	 * frame may be reallocated if necessary.
+	 * @param[in] attrs The attributes to copy to the frame.
+	 * @param[in] attrs_len The length of the attributes array.
+	 *
+	 * @return ec_gas_initial_response_frame_t* A pointer to the frame with the copied attributes. If the
+	 * frame was reallocated, the new pointer is returned.
+	 *
+	 * @warning The frame must be freed by the caller after use to prevent memory leaks.
+	 */
+	static ec_gas_initial_response_frame_t* copy_attrs_to_frame(ec_gas_initial_response_frame_t *frame, uint8_t *attrs, size_t attrs_len);
+
     
 	/**
-	 * @brief Copy (over-write) attributes to a frame.
+	 * @brief Copy attributes to a frame.
 	 *
 	 * This function copies the specified attributes to a given frame starting at a specified offset.
 	 *
@@ -489,6 +527,46 @@ public:
 	 */
 	static uint8_t* add_wrapped_data_attr(ec_frame_t *frame, uint8_t* frame_attribs, size_t* non_wrapped_len, 
         bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> create_wrap_attribs);
+
+	/**
+	 * @brief Add a wrapped data attribute to a frame
+	 *
+	 * This function adds a wrapped data attribute to the specified frame attributes.
+	 *
+	 * @param[in] frame The frame to use as Additional Authenticated Data (AAD). Can be NULL if no AAD is needed.
+	 * @param[in,out] frame_attribs The attributes to add the wrapped data attribute to and to use as AAD.
+	 * @param[in,out] non_wrapped_len The length of the non-wrapped attributes (`frame_attribs`).
+	 * @param[in] use_aad Whether to use AAD in the encryption.
+	 * @param[in] key The key to use for encryption.
+	 * @param[in] create_wrap_attribs A function to create the attributes to wrap and their length. Memory is handled by the function (see note).
+	 *
+	 * @return uint8_t* The new frame attributes with the wrapped data attribute added.
+	 *
+	 * @note The `create_wrap_attribs` function will allocate heap-memory which is freed inside the `add_wrapped_data_attr` function.
+	 *       **The caller should not use statically allocated memory in `create_wrap_attribs` or free the memory returned by `create_wrap_attribs`.**
+	 */
+	static uint8_t* add_wrapped_data_attr(ec_gas_initial_request_frame_t *frame, uint8_t* frame_attribs, size_t* non_wrapped_len, 
+        bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> create_wrap_attribs);
+
+	/**
+	 * @brief Add a wrapped data attribute to a frame
+	 *
+	 * This function adds a wrapped data attribute to the specified frame attributes.
+	 *
+	 * @param[in] frame The frame to use as Additional Authenticated Data (AAD). Can be NULL if no AAD is needed.
+	 * @param[in,out] frame_attribs The attributes to add the wrapped data attribute to and to use as AAD.
+	 * @param[in,out] non_wrapped_len The length of the non-wrapped attributes (`frame_attribs`).
+	 * @param[in] use_aad Whether to use AAD in the encryption.
+	 * @param[in] key The key to use for encryption.
+	 * @param[in] create_wrap_attribs A function to create the attributes to wrap and their length. Memory is handled by the function (see note).
+	 *
+	 * @return uint8_t* The new frame attributes with the wrapped data attribute added.
+	 *
+	 * @note The `create_wrap_attribs` function will allocate heap-memory which is freed inside the `add_wrapped_data_attr` function.
+	 *       **The caller should not use statically allocated memory in `create_wrap_attribs` or free the memory returned by `create_wrap_attribs`.**
+	 */
+	static uint8_t* add_wrapped_data_attr(ec_gas_initial_response_frame_t *frame, uint8_t* frame_attribs, size_t* non_wrapped_len, 
+		bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> create_wrap_attribs);
 
     
 	/**!
