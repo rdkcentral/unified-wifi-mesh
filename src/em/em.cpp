@@ -52,7 +52,7 @@
 #include "util.h"
 
 #ifdef AL_SAP
-#include "al_service_access_point.hpp"
+#include "al_service_access_point.h"
 
 extern AlServiceAccessPoint* g_sap;
 extern MacAddress g_al_mac_sap;

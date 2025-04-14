@@ -43,7 +43,7 @@
 
 #include <vector>
 #ifdef AL_SAP
-#include "al_service_access_point.hpp"
+#include "al_service_access_point.h"
 #endif
 
 #define RETRY_SLEEP_INTERVAL_IN_MS 1000
@@ -1435,7 +1435,7 @@ AlServiceAccessPoint* em_agent_t::al_sap_register()
 {
     AlServiceAccessPoint* sap = new AlServiceAccessPoint(SOCKET_PATH);
 
-    AlServiceRegistrationRequest registrationRequest(ServiceOperation::SO_ENABLE, ServiceType::SAP_TUNNEL_CLIENT);
+    AlServiceRegistrationRequest registrationRequest(ServiceOperation::SOP_ENABLE, ServiceType::SAP_TUNNEL_CLIENT);
     sap->serviceAccessPointRegistrationRequest(registrationRequest);
 
     AlServiceRegistrationResponse registrationResponse = sap->serviceAccessPointRegistrationResponse();
