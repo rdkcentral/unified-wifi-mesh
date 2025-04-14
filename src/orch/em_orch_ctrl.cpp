@@ -283,7 +283,7 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
     mac_addr_str_t	mac_str;
     em_commit_target_t config;
 	mac_address_t radio_mac, dev_mac;
-	em_short_string_t criteria;
+	em_2xlong_string_t criteria;
 
     //printf("%s:%d: Orchestration operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
     switch (pcmd->get_orch_op()) {
@@ -368,7 +368,7 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
             if (mgr_dm == NULL) {
                 break;
             }		
-			snprintf(criteria, sizeof(em_short_string_t), "radio=%s", pcmd->m_param.u.args.args[0]);
+			snprintf(criteria, sizeof(em_2xlong_string_t), "radio=%s", pcmd->m_param.u.args.args[0]);
 			mgr_dm->set_db_cfg_param(db_cfg_type_bss_list_delete, criteria);
 			break;
 
@@ -393,7 +393,6 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
     dm_easy_mesh_t *dm;
     mac_address_t	bss_mac;
     unsigned int count = 0, i;
-    em_device_info_t *device ;
     mac_addr_str_t mac_str;
     em_disassoc_params_t *disassoc_param;
     dm_sta_t *sta;

@@ -56,7 +56,7 @@ int dm_sta_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "LastDataUplinkRate")) != NULL) {
-        m_sta_info.last_ul_rate = tmp->valuedouble;
+        m_sta_info.last_ul_rate = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "TimeStamp")) != NULL) {
@@ -64,27 +64,27 @@ int dm_sta_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "LastDataDownlinkRate")) != NULL) {
-        m_sta_info.last_dl_rate = tmp->valuedouble;
+        m_sta_info.last_dl_rate = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "EstMACDataRateUplink")) != NULL) {
-        m_sta_info.est_ul_rate = tmp->valuedouble;
+        m_sta_info.est_ul_rate = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "EstMACDataRateDownlink")) != NULL) {
-        m_sta_info.est_dl_rate = tmp->valuedouble;
+        m_sta_info.est_dl_rate = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "LastConnectTime")) != NULL) {
-        m_sta_info.last_conn_time = tmp->valuedouble;
+        m_sta_info.last_conn_time = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "RetransCount")) != NULL) {
-        m_sta_info.retrans_count = tmp->valuedouble;
+        m_sta_info.retrans_count = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "SignalStrength")) != NULL) {
-        m_sta_info.signal_strength = tmp->valuedouble;
+        m_sta_info.signal_strength = static_cast<int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "RCPI")) != NULL) {
@@ -92,35 +92,35 @@ int dm_sta_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "UtilizationTransmit")) != NULL) {
-        m_sta_info.util_tx = tmp->valuedouble;
+        m_sta_info.util_tx = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "UtilizationReceive")) != NULL) {
-        m_sta_info.util_rx = tmp->valuedouble;
+        m_sta_info.util_rx = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "PacketsSent")) != NULL) {
-        m_sta_info.pkts_tx = tmp->valuedouble;
+        m_sta_info.pkts_tx = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "PacketsReceived")) != NULL) {
-        m_sta_info.pkts_rx = tmp->valuedouble;
+        m_sta_info.pkts_rx = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "BytesSent")) != NULL) {
-        m_sta_info.bytes_tx = tmp->valuedouble;
+        m_sta_info.bytes_tx = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "BytesReceived")) != NULL) {
-        m_sta_info.bytes_rx = tmp->valuedouble;
+        m_sta_info.bytes_rx = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "ErrorsSent")) != NULL) {
-        m_sta_info.errors_tx = tmp->valuedouble;
+        m_sta_info.errors_tx = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "ErrorsReceived")) != NULL) {
-        m_sta_info.errors_rx = tmp->valuedouble;
+        m_sta_info.errors_rx = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "ClientCapabilities")) != NULL) {
@@ -200,7 +200,7 @@ void dm_sta_t::encode(cJSON *obj, em_get_sta_list_reason_t reason)
         cJSON_AddStringToObject(obj, "ExtendedCapabilities", m_sta_info.ext_cap);
         cJSON_AddStringToObject(obj, "RMEnabledCapabilities", m_sta_info.rm_cap);
         cJSON *vendor_info = cJSON_CreateArray();
-        for (int i = 0; i < m_sta_info.num_vendor_infos; i++) {
+        for (unsigned int i = 0; i < m_sta_info.num_vendor_infos; i++) {
             cJSON *vendor = cJSON_CreateObject();
             cJSON_AddStringToObject(vendor, "VendorInfo", m_sta_info.vendor_info[i]);
             cJSON_AddItemToArray(vendor_info, vendor);
@@ -466,8 +466,7 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
 
 void dm_sta_t::decode_beacon_report(dm_sta_t *sta)
 {
-    size_t offset = 0;
-    int report_count = 0, i =0;
+    unsigned int i =0;
     unsigned char *ie;
     int current_pkt_len = 0;
 

@@ -156,11 +156,11 @@ dm_orch_type_t dm_policy_list_t::get_dm_orch_type(db_client_t& db_client, const 
 {
     dm_policy_t *ppolicy;
     mac_addr_str_t	dev_mac_str, radio_mac_str;
-	em_long_string_t key;
+	em_2xlong_string_t key;
 
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(policy.m_policy.id.dev_mac), dev_mac_str);
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(policy.m_policy.id.radio_mac), radio_mac_str);
-    snprintf(key, sizeof(em_long_string_t), "%s@%s@%s@%d", policy.m_policy.id.net_id, dev_mac_str, radio_mac_str, policy.m_policy.id.type);
+    snprintf(key, sizeof(key), "%s@%s@%s@%d", policy.m_policy.id.net_id, dev_mac_str, radio_mac_str, policy.m_policy.id.type);
 
     ppolicy = get_policy(key);
     if (ppolicy != NULL) {
@@ -183,11 +183,11 @@ void dm_policy_list_t::update_list(const dm_policy_t& policy, dm_orch_type_t op)
 {
     dm_policy_t *ppolicy;
     mac_addr_str_t	dev_mac_str, radio_mac_str;
-	em_long_string_t key;
+	em_2xlong_string_t key;
 
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(policy.m_policy.id.dev_mac), dev_mac_str);
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(policy.m_policy.id.radio_mac), radio_mac_str);
-    snprintf(key, sizeof(em_long_string_t), "%s@%s@%s@%d", policy.m_policy.id.net_id, dev_mac_str, radio_mac_str, policy.m_policy.id.type);
+    snprintf(key, sizeof(key), "%s@%s@%s@%d", policy.m_policy.id.net_id, dev_mac_str, radio_mac_str, policy.m_policy.id.type);
 
 	//printf("%s:%d: Operation: %d for key: %s\n", __func__, __LINE__, op, key);
 
@@ -214,7 +214,7 @@ void dm_policy_list_t::delete_list()
 {   
     dm_policy_t *policy, *tmp;
 	mac_addr_str_t dev_mac_str, radio_mac_str;
-    em_long_string_t key;
+    em_2xlong_string_t key;
   
     policy = get_first_policy();
     while (policy != NULL) {
@@ -224,7 +224,7 @@ void dm_policy_list_t::delete_list()
 		dm_easy_mesh_t::macbytes_to_string(tmp->m_policy.id.dev_mac, dev_mac_str);
     	dm_easy_mesh_t::macbytes_to_string(tmp->m_policy.id.radio_mac, radio_mac_str);
 
-    	snprintf(key, sizeof(em_long_string_t), "%s@%s@%s@%d", tmp->m_policy.id.net_id, dev_mac_str, radio_mac_str, tmp->m_policy.id.type);
+        snprintf(key, sizeof(key), "%s@%s@%s@%d", tmp->m_policy.id.net_id, dev_mac_str, radio_mac_str, tmp->m_policy.id.type);
   
         remove_policy(key);
     }
@@ -238,22 +238,23 @@ bool dm_policy_list_t::operator == (const db_easy_mesh_t& obj)
 int dm_policy_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *data)
 {
     mac_addr_str_t dev_mac_str, radio_mac_str;
-	em_long_string_t key;
+	em_2xlong_string_t key;
     em_policy_t *policy = static_cast<em_policy_t *>(data);
-    int ret = 0, i = 0;
+    int ret = 0;
+    unsigned int i = 0;
 	mac_addr_str_t	sta_mac_str;
 	char sta_mac_list_str[1024];
 
     dm_easy_mesh_t::macbytes_to_string(policy->id.dev_mac, dev_mac_str);
     dm_easy_mesh_t::macbytes_to_string(policy->id.radio_mac, radio_mac_str);
 
-	snprintf(key, sizeof(em_long_string_t), "%s@%s@%s@%d", policy->id.net_id, dev_mac_str, radio_mac_str, policy->id.type);
+	snprintf(key, sizeof(key), "%s@%s@%s@%d", policy->id.net_id, dev_mac_str, radio_mac_str, policy->id.type);
 
 	memset(sta_mac_list_str, 0, sizeof(sta_mac_list_str));
     for (i = 0; i < policy->num_sta; i++) {
 		dm_easy_mesh_t::macbytes_to_string(policy->sta_mac[i], sta_mac_str);
         strncat(sta_mac_list_str, sta_mac_str, strlen(sta_mac_str));
-        strncat(sta_mac_list_str, ",", strlen(","));
+        strncat(sta_mac_list_str, ",", 2);
     }
 
 	if (strlen(sta_mac_list_str) > 0)
@@ -308,7 +309,6 @@ int dm_policy_list_t::sync_db(db_client_t& db_client, void *ctx)
     em_policy_t policy;
 	em_policy_id_t	id;
     em_long_string_t   str;
-    mac_addr_str_t	mac_str;
 	char sta_mac_list_str[1024] = {0};
 	char   *token_parts[EM_MAX_STA_PER_STEER_POLICY];
 	em_short_string_t	sta_mac_str[EM_MAX_STA_PER_STEER_POLICY];	
@@ -329,16 +329,16 @@ int dm_policy_list_t::sync_db(db_client_t& db_client, void *ctx)
             token_parts[i] = sta_mac_str[i];
         }
 
-        policy.num_sta = get_strings_by_token(sta_mac_list_str, ',', EM_MAX_STA_PER_STEER_POLICY, token_parts);
+        policy.num_sta = static_cast<unsigned int>(get_strings_by_token(sta_mac_list_str, ',', EM_MAX_STA_PER_STEER_POLICY, token_parts));
 		for (i = 0; i < policy.num_sta; i++) {
 			dm_easy_mesh_t::string_to_macbytes(sta_mac_str[i], policy.sta_mac[i]);
 		}		
 
 		policy.policy = static_cast<em_steering_policy_type_t>(db_client.get_number(ctx, 3));
-		policy.interval = db_client.get_number(ctx, 4);
-		policy.rcpi_threshold = db_client.get_number(ctx, 5);
-		policy.rcpi_hysteresis = db_client.get_number(ctx, 6);
-		policy.util_threshold = db_client.get_number(ctx, 7);
+		policy.interval = static_cast<short unsigned int>(db_client.get_number(ctx, 4));
+		policy.rcpi_threshold = static_cast<short unsigned int>(db_client.get_number(ctx, 5));
+		policy.rcpi_hysteresis = static_cast<short unsigned int>(db_client.get_number(ctx, 6));
+		policy.util_threshold = static_cast<short unsigned int>(db_client.get_number(ctx, 7));
 		policy.sta_traffic_stats = db_client.get_number(ctx, 8);
 		policy.sta_link_metric = db_client.get_number(ctx, 9);
 		policy.sta_status = db_client.get_number(ctx, 10);
