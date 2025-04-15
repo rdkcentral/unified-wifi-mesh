@@ -390,6 +390,39 @@ public:
 	 */
 	static uint8_t* copy_attrs_to_frame(uint8_t *frame, size_t frame_base_size, uint8_t *attrs, size_t attrs_len);
 
+	/**
+	 * @brief Copy a payload to a GAS Initial Response or GAS Comeback Response frame
+	 * 
+	 * @param frame The frame to copy to
+	 * @param frame_base_size The offset where the payload will be copied to
+	 * @param payload The payload to add to the frame
+	 * @param payload_len The size of the payload.
+	 * @return uint8_t* Pointer to base of the frame with newly added payload on success, otherwise nullptr
+	 */
+	static uint8_t *copy_payload_to_gas_resp(uint8_t *frame, size_t frame_base_size, uint8_t *payload, size_t payload_len);
+
+	/**
+	 * @brief Copy a payload to a GAS Initial Response frame
+	 * 
+	 * @param frame The frame to copy to
+	 * @param frame_base_size The offset where the payload will be copied to
+	 * @param payload The payload to add to the frame
+	 * @param payload_len The size of the payload.
+	 * @return uint8_t* Pointer to base of the frame with newly added payload on success, otherwise nullptr
+	 */
+	static ec_gas_initial_response_frame_t *copy_payload_to_gas_resp(ec_gas_initial_response_frame_t *frame, uint8_t *payload, size_t payload_len);
+
+	/**
+	 * @brief Copy a payload to a GAS Comeback Response frame
+	 * 
+	 * @param frame The frame to copy to
+	 * @param frame_base_size The offset where the payload will be copied to
+	 * @param payload The payload to add to the frame
+	 * @param payload_len The size of the payload.
+	 * @return uint8_t* Pointer to base of the frame with newly added payload on success, otherwise nullptr
+	 */
+	static ec_gas_comeback_response_frame_t *copy_payload_to_gas_resp(ec_gas_comeback_response_frame_t *frame, uint8_t *payload, size_t payload_len);
+
     
 	/**
 	 * @brief Validate an EC frame based on the WFA parameters.

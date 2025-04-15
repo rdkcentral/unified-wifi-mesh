@@ -379,8 +379,16 @@ std::vector<ec_gas_comeback_response_frame_t *> ec_pa_configurator_t::fragment_l
         frame->more_fragments = ((offset + chunk_size) < len) ? 1 : 0;
 
         // Copy the actual chunk of the payload into the frame
-        memcpy(frame->comeback_resp, payload + offset, chunk_size);
+        frame = ec_util::copy_payload_to_gas_resp(frame, const_cast<uint8_t *>(payload + offset), chunk_size);
+        if (!frame) {
+            em_printfout("Failed to copy payload into Comeback Response frame for frag #%d", frag_id);
+            for (auto *f : fragments) {
+                free(f);
+            }
+            return {};
+        }
         fragments.push_back(frame);
+
 
         offset += chunk_size;
         frag_id++;

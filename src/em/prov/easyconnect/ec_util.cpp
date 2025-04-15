@@ -474,6 +474,33 @@ uint8_t *ec_util::copy_attrs_to_frame(uint8_t *frame, size_t frame_base_size, ui
     return new_frame;
 }
 
+uint8_t *ec_util::copy_payload_to_gas_resp(uint8_t *frame, size_t frame_base_size, uint8_t *payload, size_t payload_len)
+{
+    size_t new_len = frame_base_size + payload_len;
+    uint8_t *new_frame = reinterpret_cast<uint8_t*>(realloc(frame, new_len));
+    if (new_frame == nullptr) {
+        em_printfout("Unable to realloc");
+        return nullptr;
+    }
+
+    memcpy(new_frame + frame_base_size, payload, payload_len);
+    return new_frame;
+}
+
+ec_gas_initial_response_frame_t *ec_util::copy_payload_to_gas_resp(ec_gas_initial_response_frame_t *frame, uint8_t *payload, size_t payload_len)
+{
+    return reinterpret_cast<ec_gas_initial_response_frame_t *>(copy_payload_to_gas_resp(
+        reinterpret_cast<uint8_t*>(frame), sizeof(ec_gas_initial_response_frame_t), payload, payload_len
+    ));
+}
+
+ec_gas_comeback_response_frame_t *ec_util::copy_payload_to_gas_resp(ec_gas_comeback_response_frame_t *frame, uint8_t *payload, size_t payload_len)
+{
+    return reinterpret_cast<ec_gas_comeback_response_frame_t*>(copy_payload_to_gas_resp(
+        reinterpret_cast<uint8_t*>(frame), sizeof(ec_gas_comeback_response_frame_t), payload, payload_len
+    ));
+}
+
 std::string ec_util::generate_channel_list(const std::string& ssid, std::unordered_map<std::string, std::vector<scanned_channels_t>> scanned_channels_map)
 {
     // channelList ABNF:
