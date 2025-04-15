@@ -49,6 +49,7 @@
 #include "em_cmd_btm_report.h"
 #include "em_cmd_scan_result.h"
 #include "em_cmd_beacon_report.h"
+#include "em_cmd_sta_link_metrics.h"
 
 int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
@@ -99,7 +100,7 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
         memcpy(&dm.m_bss[i], &m_bss[i], sizeof(dm_bss_t));
     }
 
-    dm.translate_onewifi_stats_data((char *)evt->u.raw_buff);
+    dm.translate_and_decode_onewifi_subdoc((char *)evt->u.raw_buff, webconfig_subdoc_type_associated_clients, "Assoc clients");
 
     for ( i = 0; i < num_radios; i++) {
         evt_param->u.args.num_args = 1;
@@ -345,40 +346,6 @@ int dm_easy_mesh_agent_t::analyze_onewifi_radio_cb(em_bus_event_t *evt, em_cmd_t
 	return num;
 }
         
-void dm_easy_mesh_agent_t::translate_onewifi_sta_data(char *str)
-{               
-                
-}               
-                    
-void dm_easy_mesh_agent_t::translate_onewifi_stats_data(char *str)
-{
-    printf("%s:%d: Enter\n", __func__, __LINE__);
-
-    webconfig_t config;
-    webconfig_external_easymesh_t extdata = {0};
-    webconfig_subdoc_type_t type = webconfig_subdoc_type_associated_clients;
-
-    webconfig_proto_easymesh_init(&extdata, this, NULL, NULL, get_num_radios, set_num_radios,
-            get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
-            get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
-            get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results);
-
-    config.initializer = webconfig_initializer_onewifi;
-    config.apply_data =  webconfig_dummy_apply;
-
-    if (webconfig_init(&config) != webconfig_error_none) {
-        printf( "[%s]:%d Init WiFi Web Config  fail\n",__func__,__LINE__);
-        return ;
-
-    }
-
-    if ((webconfig_easymesh_decode(&config, str, &extdata, &type)) == webconfig_error_none) {
-        printf("%s:%d Assoc clients decode success\n",__func__, __LINE__);
-    } else {
-        printf("%s:%d Assoc clients decode fail\n",__func__, __LINE__);
-    }
-}
-
 int dm_easy_mesh_agent_t::analyze_channel_pref_query(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     int num = 0;
@@ -491,38 +458,27 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
 
 int dm_easy_mesh_agent_t::analyze_sta_link_metrics(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
-    dm_sta_t *sta = NULL;
     em_cmd_t *tmp = NULL;
-    em_sta_info_t *em_sta = NULL;
-    em_long_string_t key;
-    mac_addr_str_t radio_str;
-    em_cmd_params_t *evt_param = NULL;
-    mac_addr_str_t  sta_mac_str, bss_mac_str, radio_mac_str;
+    dm_easy_mesh_agent_t  dm;
+    int num = 0;
 
-    webconfig_t config;
-    webconfig_external_easymesh_t extdata = {0};
-    webconfig_subdoc_type_t type = webconfig_subdoc_type_assocdev_stats;
+    dm.init();
+    dm = *this;
 
-    webconfig_proto_easymesh_init(&extdata, this, NULL, NULL, get_num_radios, set_num_radios,
-            get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
-            get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
-            get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results);
+    pcmd[num] = new em_cmd_sta_link_metrics_t(dm);
+    dm.translate_and_decode_onewifi_subdoc((char *)evt->u.raw_buff, webconfig_subdoc_type_em_sta_link_metrics, "Link Metrics");
+    pcmd[num]->m_svc = em_service_type_agent;
+    dm.clone_hash_maps(pcmd[num]->m_data_model);
 
-    config.initializer = webconfig_initializer_onewifi;
-    config.apply_data =  webconfig_dummy_apply;
+    tmp = pcmd[num];
+    num++;
 
-    if (webconfig_init(&config) != webconfig_error_none) {
-        printf( "[%s]:%d Init WiFi Web Config  fail\n",__func__,__LINE__);
-        return 0;
+    while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+        tmp = pcmd[num];
+        num++;
     }
 
-    if ((webconfig_easymesh_decode(&config, (char *)evt->u.raw_buff, &extdata, &type)) == webconfig_error_none) {
-        printf("%s:%d assoc sta Link metrics decode success\n",__func__, __LINE__);
-    } else {
-        printf("%s:%d assoc sta link metrics decode fail\n",__func__, __LINE__);
-    }
-
-    return 1;
+    return num;
 }
 
 int dm_easy_mesh_agent_t::analyze_btm_request_action_frame(em_bus_event_t *evt, wifi_bus_desc_t *desc, bus_handle_t *bus_hdl)
@@ -727,11 +683,89 @@ int dm_easy_mesh_agent_t::analyze_set_policy(em_bus_event_t *evt, wifi_bus_desc_
     return refresh_onewifi_subdoc(desc, bus_hdl, "Policy", webconfig_subdoc_type_em_config, NULL, policy_cfg);
 }
 
+int dm_easy_mesh_agent_t::analyze_beacon_report(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    dm_sta_t *sta = NULL;
+    em_cmd_t *tmp = NULL;
+    em_cmd_params_t *evt_param = NULL;
+    dm_easy_mesh_agent_t  dm;
+    unsigned int num = 0, num_radios = 0;
+    mac_addr_str_t macstr;
+    webconfig_t config;
+    webconfig_external_easymesh_t extdata = {0};
+    webconfig_subdoc_type_t type = webconfig_subdoc_type_beacon_report;
+
+    dm.init();
+
+    evt_param = &evt->params;
+
+    num_radios = m_num_radios;
+    for (unsigned int i = 0; i < m_num_radios; i++) {
+        memcpy(&dm.m_radio[i], &m_radio[i], sizeof(dm_radio_t));
+    }
+
+    dm.m_num_bss = m_num_bss;
+    for (unsigned int i = 0; i < EM_MAX_BSSS; i++) {
+        memcpy(&dm.m_bss[i], &m_bss[i], sizeof(dm_bss_t));
+    }
+
+    translate_and_decode_onewifi_subdoc((char *)evt->u.raw_buff, webconfig_subdoc_type_beacon_report, "Beacon Report");
+
+    sta = (dm_sta_t *)hash_map_get_first((hash_map_t *)dm.m_sta_map);
+    if (sta != NULL) {
+        evt_param->u.args.num_args = 2;
+
+        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, macstr);
+        strncpy(evt_param->u.args.args[0], macstr, strlen(macstr) + 1);
+
+        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, macstr);
+        strncpy(evt_param->u.args.args[1], macstr, strlen(macstr) + 1);
+    }
+
+    pcmd[num] = new em_cmd_beacon_report_t(evt->params, dm);
+
+    tmp = pcmd[num];
+    num++;
+
+    while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+        tmp = pcmd[num];
+        num++;
+    }
+
+    return num;
+}
+
+void dm_easy_mesh_agent_t::translate_and_decode_onewifi_subdoc(char *str, webconfig_subdoc_type_t type, const char* logname)
+{
+    printf("%s:%d: Enter\n", __func__, __LINE__);
+
+    webconfig_t config;
+    webconfig_external_easymesh_t extdata = {0};
+
+    webconfig_proto_easymesh_init(&extdata, this, NULL, NULL, get_num_radios, set_num_radios,
+        get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
+        get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
+        get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results);
+
+    config.initializer = webconfig_initializer_onewifi;
+    config.apply_data =  webconfig_dummy_apply;
+
+    if (webconfig_init(&config) != webconfig_error_none) {
+        printf( "[%s]:%d Init WiFi Web Config  fail\n",__func__,__LINE__);
+        return;
+    }
+
+    if ((webconfig_easymesh_decode(&config, str, &extdata, &type)) == webconfig_error_none) {
+        printf("%s:%d %s decode success\n",__func__, __LINE__, logname);
+    } else {
+        printf("%s:%d %s decode fail\n",__func__, __LINE__, logname);
+    }
+}
+
 int dm_easy_mesh_agent_t::refresh_onewifi_subdoc(wifi_bus_desc_t *desc, bus_handle_t *bus_hdl, const char* logname, webconfig_subdoc_type_t type, m2ctrl_radioconfig *m2_cfg, em_policy_cfg_params_t *policy_config)
 {
-
     webconfig_external_easymesh_t ext_data;
-    
+
     webconfig_proto_easymesh_init(&ext_data, this, m2_cfg, policy_config, get_num_radios, set_num_radios,
         get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
         get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
@@ -774,75 +808,6 @@ int dm_easy_mesh_agent_t::refresh_onewifi_subdoc(wifi_bus_desc_t *desc, bus_hand
     }
 
     return 1;
-}
-
-int dm_easy_mesh_agent_t::analyze_beacon_report(em_bus_event_t *evt, em_cmd_t *pcmd[])
-{
-    dm_sta_t *sta = NULL;
-    em_cmd_t *tmp = NULL;
-    em_cmd_params_t *evt_param = NULL;
-    dm_easy_mesh_agent_t  dm;
-    unsigned int num = 0, num_radios = 0;
-    mac_addr_str_t macstr;
-    webconfig_t config;
-    webconfig_external_easymesh_t extdata = {0};
-    webconfig_subdoc_type_t type = webconfig_subdoc_type_beacon_report;
-
-    dm.init();
-
-    evt_param = &evt->params;
-
-    num_radios = m_num_radios;
-    for (unsigned int i = 0; i < m_num_radios; i++) {
-        memcpy(&dm.m_radio[i], &m_radio[i], sizeof(dm_radio_t));
-    }
-
-    dm.m_num_bss = m_num_bss;
-    for (unsigned int i = 0; i < EM_MAX_BSSS; i++) {
-        memcpy(&dm.m_bss[i], &m_bss[i], sizeof(dm_bss_t));
-    }
-
-    webconfig_proto_easymesh_init(&extdata, &dm, NULL, NULL, NULL, NULL,
-        NULL, NULL, NULL, NULL,
-        NULL, NULL, get_radio_info, NULL, get_bss_info, NULL,
-        NULL, NULL, get_sta_info, put_sta_info, NULL, NULL);
-
-    config.initializer = webconfig_initializer_onewifi;
-    config.apply_data =  webconfig_dummy_apply;
-
-    if (webconfig_init(&config) != webconfig_error_none) {
-        printf( "[%s]:%d Init WiFi Web Config  fail\n",__func__,__LINE__);
-        return 0;
-    }
-
-    if ((webconfig_easymesh_decode(&config, (char *)evt->u.raw_buff, &extdata, &type)) == webconfig_error_none) {
-        printf("%s:%d beacon report decode success\n",__func__, __LINE__);
-    } else {
-        printf("%s:%d beacon report decode fail\n",__func__, __LINE__);
-    }
-
-    sta = (dm_sta_t *)hash_map_get_first((hash_map_t *)dm.m_sta_map);
-    if (sta != NULL) {
-        evt_param->u.args.num_args = 2;
-
-        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, macstr);
-        strncpy(evt_param->u.args.args[0], macstr, strlen(macstr) + 1);
-
-        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, macstr);
-        strncpy(evt_param->u.args.args[1], macstr, strlen(macstr) + 1);
-    }
-
-    pcmd[num] = new em_cmd_beacon_report_t(evt->params, dm);
-
-    tmp = pcmd[num];
-    num++;
-
-    while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
-        tmp = pcmd[num];
-        num++;
-    }
-
-    return num;
 }
 
 webconfig_error_t dm_easy_mesh_agent_t::webconfig_dummy_apply(webconfig_subdoc_t *doc, webconfig_subdoc_data_t *data)
