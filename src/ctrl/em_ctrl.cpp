@@ -44,6 +44,7 @@
 #include "dm_easy_mesh.h"
 #include "em_orch_ctrl.h"
 #include "util.h"
+#include "wifi_util.h"
 
 #ifdef AL_SAP
 #include "al_service_access_point.h"
