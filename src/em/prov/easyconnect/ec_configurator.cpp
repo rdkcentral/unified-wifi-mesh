@@ -24,7 +24,7 @@ ec_configurator_t::~ec_configurator_t()
 {
 
     for (auto& [_, c_ctx] : m_connections) {
-        ec_util::free_connection_ctx(c_ctx);
+        ec_crypto::free_connection_ctx(&c_ctx);
     }
 }
 
