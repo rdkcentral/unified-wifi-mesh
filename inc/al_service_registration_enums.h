@@ -5,8 +5,8 @@
 
 //keeps operation state
 enum class ServiceOperation : uint8_t {
-    ENABLE = 0x01, 
-    DISABLE = 0x02
+    SOP_ENABLE = 0x01, 
+    SOP_DISABLE = 0x02
 };
 //keeps the service type requested to the IEEE1905 layer
 enum class ServiceType : uint8_t {
