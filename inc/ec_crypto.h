@@ -576,6 +576,8 @@ public:
 	static inline void free_connection_ctx(ec_connection_context_t* ctx) {
         if (!ctx) return;
 
+		free_ephemeral_context(&ctx->eph_ctx, ctx->nonce_len, ctx->digest_len);
+
         if (ctx->boot_data.resp_pub_boot_key) EC_POINT_free(ctx->boot_data.resp_pub_boot_key);
         if (ctx->boot_data.init_pub_boot_key) EC_POINT_free(ctx->boot_data.init_pub_boot_key);
         if (ctx->boot_data.resp_priv_boot_key) BN_free(ctx->boot_data.resp_priv_boot_key);
@@ -592,7 +594,7 @@ public:
         if (ctx->net_access_key) em_crypto_t::free_key(ctx->net_access_key);
         if (ctx->connector) rand_zero_free(const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(ctx->connector)), strlen(ctx->connector));
 
-        rand_zero(reinterpret_cast<uint8_t*>(ctx), sizeof(ec_connection_context_t));
+		rand_zero(reinterpret_cast<uint8_t*>(ctx), sizeof(ec_connection_context_t));
     }
 
 // START: Connector methods

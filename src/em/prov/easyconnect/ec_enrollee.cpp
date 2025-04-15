@@ -14,7 +14,7 @@ ec_enrollee_t::ec_enrollee_t(std::string mac_addr, send_act_frame_func send_acti
 
 ec_enrollee_t::~ec_enrollee_t()
 {
-    ec_util::free_connection_ctx(m_c_ctx);
+    teardown_connection();
     if (m_send_pres_announcement_thread.joinable()) m_send_pres_announcement_thread.join();
 }
 

@@ -665,51 +665,6 @@ public:
 	 */
 	static bool check_caps_compatible(const ec_dpp_capabilities_t& init_caps, const ec_dpp_capabilities_t& resp_caps);
 
-    
-	/**!
-	 * @brief Frees the resources associated with the given connection context.
-	 *
-	 * This function releases all cryptographic keys and ephemeral contexts
-	 * associated with the provided connection context, ensuring that all
-	 * allocated resources are properly deallocated.
-	 *
-	 * @param[in,out] c_ctx The connection context whose resources are to be freed.
-	 *
-	 * @note After calling this function, the keys within the connection context
-	 *       will be set to nullptr to prevent accidental use of freed memory.
-	 */
-	static inline void free_connection_ctx(ec_connection_context_t& c_ctx) {
-        ec_crypto::free_ephemeral_context(&c_ctx.eph_ctx, c_ctx.nonce_len, c_ctx.digest_len);
-
-        auto boot_data = &c_ctx.boot_data;
-        if (boot_data->resp_priv_boot_key) {
-            BN_free(boot_data->resp_priv_boot_key);
-        }
-        if (boot_data->resp_pub_boot_key) {
-            EC_POINT_free(boot_data->resp_pub_boot_key);
-        }
-        if (boot_data->init_priv_boot_key) {
-            BN_free(boot_data->init_priv_boot_key);
-        }
-        if (boot_data->init_pub_boot_key) {
-            EC_POINT_free(boot_data->init_pub_boot_key);
-        }
-        if (boot_data->initiator_boot_key) {
-            em_crypto_t::free_key(const_cast<SSL_KEY*>(boot_data->initiator_boot_key));
-        }
-        if (boot_data->responder_boot_key) {
-            em_crypto_t::free_key(const_cast<SSL_KEY*>(boot_data->responder_boot_key));
-        }
-
-        boot_data->resp_priv_boot_key = nullptr;
-        boot_data->resp_pub_boot_key = nullptr;
-        boot_data->init_priv_boot_key = nullptr;
-        boot_data->init_pub_boot_key = nullptr;
-        boot_data->initiator_boot_key = nullptr;
-        boot_data->responder_boot_key = nullptr;
-    }
-
-    
 	/**
 	 * @brief Decode a DPP URI channel-list string.
 	 *
