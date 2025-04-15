@@ -90,6 +90,12 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                 return true;
             }
             break;
+
+        case em_cmd_type_sta_link_metrics:
+            if (em->get_state() == em_state_agent_configured) {
+                return true;
+            }
+            break;
 		
         case em_cmd_type_op_channel_report:
             if (em->get_state() == em_state_agent_configured) {
@@ -143,6 +149,10 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 			return true;
 		}
     } else if (pcmd->m_type == em_cmd_type_sta_list) {
+		if (em->get_state() == em_state_agent_configured) {
+			return true;
+		}
+    } else if (pcmd->m_type == em_cmd_type_sta_link_metrics) {
 		if (em->get_state() == em_state_agent_configured) {
 			return true;
 		}
@@ -274,6 +284,23 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
         case dm_orch_type_op_channel_report:
         case dm_orch_type_beacon_report:
             break;
+
+        case dm_orch_type_sta_link_metrics:
+            intf = pcmd->get_radio_interface(ctx->arr_index);
+            if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
+                dm = m_mgr->create_data_model(global_netid, intf);
+            }
+
+            sta = (dm_sta_t *)hash_map_get_first(pcmd->get_data_model()->m_sta_assoc_map);
+            while(sta != NULL) {
+                em_sta_info_t *em_sta = dm->get_sta_info(sta->get_sta_info()->id, sta->get_sta_info()->bssid, sta->get_sta_info()->radiomac, em_target_sta_map_consolidated);
+                if (em_sta != NULL) {
+                    memcpy(em_sta, &sta->m_sta_info, sizeof(em_sta_info_t));
+                }
+                sta = (dm_sta_t *)hash_map_get_next(pcmd->get_data_model()->m_sta_assoc_map, sta);
+            }
+            break;
+
         default:
             break;
     }
@@ -327,7 +354,16 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }
-                break;	
+                break;
+
+            case em_cmd_type_sta_link_metrics:
+                if ((em->is_al_interface_em() == false) && \
+                    (em->has_at_least_one_associated_sta() == true)) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
+                }
+                break;
+
 	        case em_cmd_type_ap_cap_query:
                 if (!(em->is_al_interface_em())) {
                     dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), dst_mac_str);

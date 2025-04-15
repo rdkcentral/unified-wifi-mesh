@@ -141,6 +141,15 @@ class em_metrics_t {
 	 */
 	int send_associated_link_metrics_response(mac_address_t sta_mac);
 
+	/**!
+	 * @brief Sends link metrics message for associated stations.
+	 *
+	 * This function is responsible for sending link metrics messages for all stations that are received
+	 * from onewifi as per policy configuration.
+	 *
+	 * @note Ensure that the station list is up-to-date before calling this function.
+	 */
+	void send_associated_sta_link_metrics_resp_msg();
     
 	/**!
 	 * @brief Handles the query for associated station link metrics.
@@ -282,7 +291,21 @@ class em_metrics_t {
 	 * @note Ensure that the buffer is properly allocated and the length is correctly specified.
 	 */
 	int handle_ap_metrics_response(unsigned char *buff, unsigned int len);
-  
+
+  	/**!
+	 * @brief Handles the AP metrics tlv.
+	 *
+	 * This function processes the AP Metrics for one or more BSSIDs.
+	 *
+	 * @param[in] buff Pointer to the buffer containing AP metrics.
+	 * @param[in] bssid The extracted BSSID recieved in the message.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 *
+	 * @note Ensure that the buffer is properly allocated.
+	 */
+	int handle_ap_metrics_tlv(unsigned char *buff, bssid_t bssid);
+
 	/**!
 	 * @brief Creates an association station link metrics TLV.
 	 *

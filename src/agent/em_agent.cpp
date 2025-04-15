@@ -77,6 +77,8 @@ void em_agent_t::handle_sta_link_metrics(em_bus_event_t *evt)
         printf("analyze_sta_link_metrics in progress\n");
     } else if ((num = m_data_model.analyze_sta_link_metrics(evt, pcmd)) == 0) {
         printf("analyze_sta_link_metrics failed\n");
+    } else if (m_orch->submit_commands(pcmd, num) > 0) {
+        printf("analyze_sta_link_metrics submit complete\n");
     }
 }
 
@@ -825,7 +827,7 @@ void em_agent_t::input_listener()
         return;
     }
 
-    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.CollectStats.AccessPoint.1.AssociatedDeviceStats", (void *)&em_agent_t::assoc_stats_cb, NULL, 0) != 0) {
+    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.STALinkMetricsReport", (void *)&em_agent_t::assoc_stats_cb, NULL, 0) != 0) {
         printf("%s:%d bus get failed\n", __func__, __LINE__);
         return;
     }
@@ -885,7 +887,7 @@ int em_agent_t::mgmt_action_frame_cb(char *event_name, raw_data_t *data, void *u
     struct ieee80211_mgmt *mgmt_frame = (struct ieee80211_mgmt *)data->raw_data.bytes;
     printf("%s:%d Received Frame data for event [%s] and data of len:\n%d\n", __func__, __LINE__, event_name, data->raw_data_len);
 
-   util::print_hex_dump(data->raw_data_len, (uint8_t*)data->raw_data.bytes);
+    //util::print_hex_dump(data->raw_data_len, (uint8_t*)data->raw_data.bytes);
 
     //printf("Received Frame data for event %s \n", event_name);
     if (mgmt_frame->u.action.u.bss_tm_resp.action == WLAN_WNM_BTM_RESPONSE) {
@@ -921,17 +923,24 @@ int em_agent_t::assoc_stats_cb(char *event_name, raw_data_t *data, void *userDat
 
     json = cJSON_Parse((const char *)data->raw_data.bytes);
     if (json != NULL) {
-        assoc_stats_arr = cJSON_GetObjectItem(json, "AssociatedDeviceStats");
-        if ((assoc_stats_arr == NULL) && (cJSON_IsObject(assoc_stats_arr) == false)) {
-            return -1;
-        }
-        if (cJSON_IsArray(assoc_stats_arr) && cJSON_GetArraySize(assoc_stats_arr) == 0) {
-            //printf("%s:%d AssociatedDeviceStats is NULL\n", __func__, __LINE__);
-            return -1;
+        cJSON *subdoc_name = cJSON_GetObjectItemCaseSensitive(json, "SubDocName");
+        if ((strcmp(subdoc_name->valuestring, "Easymesh STA link metrics") == 0)) {
+            printf("%s:%d Found SubDocName: Easymesh STA link metrics\n", __func__, __LINE__);
+        } else if ((strcmp(subdoc_name->valuestring, "AssociatedDeviceStats") == 0)) {
+            printf("%s:%d Found SubDocName: AssociatedDeviceStats\n", __func__, __LINE__);
+            assoc_stats_arr = cJSON_GetObjectItem(json, "AssociatedDeviceStats");
+            if ((assoc_stats_arr == NULL) && (cJSON_IsObject(assoc_stats_arr) == false)) {
+                return -1;
+            }
+            if (cJSON_IsArray(assoc_stats_arr) && cJSON_GetArraySize(assoc_stats_arr) == 0) {
+                printf("%s:%d AssociatedDeviceStats is NULL\n", __func__, __LINE__);
+                return -1;
+            }
         }
     }
 
     g_agent.io_process(em_bus_event_type_sta_link_metrics, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
+    cJSON_Delete(json);
 
     return 1;
 }
@@ -1280,6 +1289,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
         case em_msg_type_beacon_metrics_rsp:
         case em_msg_type_ap_mld_config_resp:
         case em_msg_type_beacon_metrics_query:
+        case em_msg_type_ap_metrics_rsp:
             break;
 
         case em_msg_type_proxied_encap_dpp:
