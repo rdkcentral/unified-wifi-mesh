@@ -61,6 +61,7 @@ class em_t :
     pthread_t   m_tid;
     bool    m_exit;
     bool m_is_al_em;
+    bool dev_test_enable;
 	
 	/**
 	 * @brief Set of hashed messages that have been sent in co-located systems
@@ -1149,7 +1150,9 @@ public:
 	 */
 	static const char *state_2_str(em_state_t state);
 
-    
+
+	bool get_devteststatus(){return dev_test_enable;}
+	void set_devteststatus(bool enable ) { dev_test_enable = enable;} 
 	/**!
 	 * @brief Initializes the EasyMesh interface with the specified parameters.
 	 *

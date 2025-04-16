@@ -40,7 +40,6 @@ class em_cli_t {
 	 */
 	em_cmd_t& get_command(char *in, size_t in_len, em_network_node_t *node = NULL);
     em_long_string_t	m_lib_dbg_file_name;
-
 public:
 
 	em_cli_params_t	m_params;
@@ -141,7 +140,6 @@ public:
 	 */
 	void dump_lib_dbg(char *str);
 
-    
 	/**!
 	 * @brief Constructor for the em_cli_t class.
 	 *

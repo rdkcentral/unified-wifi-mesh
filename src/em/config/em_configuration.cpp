@@ -275,13 +275,13 @@ int em_configuration_t::send_autoconfig_renew_msg()
         return -1;
     }
 
+    dm_easy_mesh_t::macbytes_to_string (get_radio_interface_mac(), mac_str);
     if (send_frame(buff, len)  < 0) {
-        printf("%s:%d: Autoconfig Renew send failed, error:%d\n", __func__, __LINE__, errno);
+        printf("%s:%d: Autoconfig Renew send failed, error:%d for %s\n", __func__, __LINE__, errno, mac_str);
         return -1;
     }
 
     m_renew_tx_cnt++;
-    dm_easy_mesh_t::macbytes_to_string (get_radio_interface_mac(), mac_str);
     printf("%s:%d: AutoConfig Renew (%d) Send Successful for %s freq band=%d\n", __func__, __LINE__, m_renew_tx_cnt, mac_str, get_band());
 
     return static_cast<int> (len);

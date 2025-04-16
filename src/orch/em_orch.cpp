@@ -37,6 +37,7 @@
 #include "em_cmd.h"
 #include "em_orch.h"
 #include "util.h"
+#define MAX_CMD_DEV_TEST 2
 
 unsigned int em_orch_t::submit_commands(em_cmd_t *pcmd[], unsigned int num)
 {
@@ -297,6 +298,27 @@ bool em_orch_t::is_cmd_type_renew_in_progress(em_bus_event_t *evt)
 
 	return false;
 }
+
+bool em_orch_t::get_dev_test_status()
+{
+    em_cmd_stats_t *stats;
+    em_short_string_t key;
+    em_cmd_type_t type[MAX_CMD_DEV_TEST] = {em_cmd_type_cfg_renew, em_cmd_type_set_radio};
+    int i = 0;
+
+    for (i = 0; i < MAX_CMD_DEV_TEST; i++) {
+        snprintf(key, sizeof(em_short_string_t), "%d", type[i]);
+
+        if ((stats = static_cast<em_cmd_stats_t *>(hash_map_get(m_cmd_map, key))) != NULL) {
+            //printf("%s:%d: Command of type: %d actively executing\n", __func__, __LINE__, type);
+            return true;
+        }
+
+    }
+
+    return false;
+}
+
 
 bool em_orch_t::is_cmd_type_in_progress(em_bus_event_t *evt)
 {

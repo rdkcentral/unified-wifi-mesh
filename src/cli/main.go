@@ -16,6 +16,8 @@ import (
 	"strings"
 	"time"
 	"unsafe"
+	"strconv"
+	"regexp"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -255,11 +257,11 @@ func CreateEasyMeshCommands() map[string]EasyMeshCmd {
 		DebugCmd: {
 			Title:                DebugCmd,
 			LoadOrder:            14,
-			GetCommand:           "dev_test OneWifiMesh",
-			GetCommandEx:         "",
-			SetCommand:           "",
+			GetCommand:           "dev_test OneWifiMesh 0",
+			GetCommandEx:         "dev_test OneWifiMesh 1",
+			SetCommand:           "set_dev_test OneWifiMesh",
 			Help:                 "",
-			AllowUnmodifiedApply: false,
+			AllowUnmodifiedApply: true,
 		},
 	}
 }
@@ -287,6 +289,7 @@ type model struct {
 	quit                         chan bool
 	ticker                       *time.Ticker
 	timer                        *time.Timer
+	dev_test_ticker	             *time.Ticker
 	easyMeshCommands             map[string]EasyMeshCmd
 	updateButtonClicked          bool
 	dump                         *os.File
@@ -295,6 +298,24 @@ type model struct {
 type refreshUIMsg struct {
 	index int
 }
+
+type DebugTest struct {
+	num_iteration              [5]int 
+	test_type                  [5]int
+	enabled                    [5]int
+	num_of_iteration_completed [5]int
+	current_iteration_inprogress [5]int
+	test_status                [5]string
+	configure_em               [5]int
+	haul_type                  string
+	freq_band                  int
+	num_of_test                int
+	index                      int
+	num_of_em_test_enabled     int
+	num_online_em              int
+	num_failed_em              int
+}
+var debug_test DebugTest
 
 func newModel(platform string) model {
 
@@ -365,6 +386,7 @@ func (m model) Init() tea.Cmd {
 
 	m.timer = time.NewTimer(1 * time.Second)
 	m.ticker = time.NewTicker(5 * time.Second)
+	m.dev_test_ticker = time.NewTicker(5 * time.Second)
 	m.quit = make(chan bool)
 
 	m.list.Select(0)
@@ -372,6 +394,315 @@ func (m model) Init() tea.Cmd {
 
 	return textinput.Blink
 }
+
+func (m model) nodestraverse_to_getdevconfig(netNode *C.em_network_node_t) {
+		var str *C.char
+		nodeType := C.get_node_type(netNode)
+		if nodeType == C.em_network_node_data_type_array_obj {
+				if int(netNode.num_children) > 0 {
+						childNetNode := C.get_child_node_at_index(netNode, 0)
+						childNodeType := C.get_node_type(childNetNode)
+						if (childNodeType == C.em_network_node_data_type_string) || (childNodeType == C.em_network_node_data_type_number) ||
+								(childNodeType == C.em_network_node_data_type_false) || (childNodeType == C.em_network_node_data_type_true) {
+								var arrNodeType C.em_network_node_data_type_t
+								str = C.get_node_array_value(netNode, &arrNodeType)
+								if C.GoString(&netNode.key[0]) == "em" {
+										temp := C.GoString(str)
+										var em_temp = strings.Split(temp, ",")
+										if em_temp[2] == " Test_Enabled:1" {
+												debug_test.num_of_em_test_enabled = debug_test.num_of_em_test_enabled+1
+										}
+										if em_temp[3] == " Online] " {
+												debug_test.num_online_em = debug_test.num_online_em + 1
+										}
+										if em_temp[3] == "Config-failed" {
+												debug_test.num_failed_em = debug_test.num_failed_em + 1
+										}
+								}
+								C.free_node_value(str)
+						} else {
+								if C.GoString(&netNode.key[0]) == "dev_test" {
+										debug_test.num_of_test = int(netNode.num_children)
+										for i := 0; i < int(netNode.num_children); i++ {
+												childNetNode := C.get_child_node_at_index(netNode, C.uint(i))
+												 m.nodestraverse_to_getdevconfig(childNetNode)
+										}
+								}
+						}
+				}
+
+		} else if (nodeType == C.em_network_node_data_type_string) || (nodeType == C.em_network_node_data_type_number) ||
+				(nodeType == C.em_network_node_data_type_false) || (nodeType == C.em_network_node_data_type_true) {
+				str = C.get_node_scalar_value(netNode)
+				if C.GoString(&netNode.key[0]) == "Test_type" {
+						if C.GoString(str) == "ssid_change" {
+								debug_test.index = 0;
+						} else if  C.GoString(str) == "channel_change" {
+								debug_test.index = 1;
+						}
+				}
+				if C.GoString(&netNode.key[0])	== "No_of_iteration" {
+						debug_test.num_iteration[debug_test.index] = int(netNode.value_int)
+				}
+				if C.GoString(&netNode.key[0])	== "Test_enabled" {
+						debug_test.enabled[debug_test.index] = int(netNode.value_int)
+				}
+				if C.GoString(&netNode.key[0]) == "Num_of_iteration_completed" {
+						debug_test.num_of_iteration_completed[debug_test.index] = int(netNode.value_int)
+				}
+				if C.GoString(&netNode.key[0]) == "Current_iteration_inprogress" {
+						debug_test.current_iteration_inprogress[debug_test.index] = int(netNode.value_int)
+				}
+				if C.GoString(&netNode.key[0]) == "Test_status" {
+						debug_test.test_status[debug_test.index] = C.GoString(&netNode.value_str[0])
+				}
+				if C.GoString(&netNode.key[0]) == "Configure_active_em" {
+						debug_test.configure_em[debug_test.index] = int(netNode.value_int)
+				}
+				if C.GoString(&netNode.key[0]) == "HaulType" {
+						debug_test.haul_type = C.GoString(&netNode.value_str[0])
+						C.dump_lib_dbg(&netNode.value_str[0])
+				}
+				//C.dump_lib_dbg(str)
+				C.free_node_value(str)
+		} else {
+				for i := 0; i < int(netNode.num_children); i++ {
+						childNetNode := C.get_child_node_at_index(netNode, C.uint(i))
+						m.nodestraverse_to_getdevconfig(childNetNode)
+				}
+		}
+}
+
+func (m model) nodetraverse_to_enable_test(netNode *C.em_network_node_t) {
+		var str *C.char
+		nodeType := C.get_node_type(netNode)
+		if nodeType == C.em_network_node_data_type_array_obj {
+				if int(netNode.num_children) > 0 {
+						childNetNode := C.get_child_node_at_index(netNode, 0)
+						childNodeType := C.get_node_type(childNetNode)
+						if (childNodeType == C.em_network_node_data_type_string) || (childNodeType == C.em_network_node_data_type_number) ||
+								(childNodeType == C.em_network_node_data_type_false) || (childNodeType == C.em_network_node_data_type_true) {
+								var arrNodeType C.em_network_node_data_type_t
+								str = C.get_node_array_value(netNode, &arrNodeType)
+								C.free_node_value(str)
+						} else {
+								if C.GoString(&netNode.key[0]) == "dev_test" {
+										debug_test.num_of_test = int(netNode.num_children)
+										//fmt.Printf("debug_test\t %s - %d\n", C.GoString(&netNode.key[0]), debug_test.num_of_test )
+										for i := 0; i < int(netNode.num_children); i++ {
+												childNetNode := C.get_child_node_at_index(netNode, C.uint(i))
+												 m.nodetraverse_to_enable_test(childNetNode)
+										}
+								}
+						}
+				}
+
+		} else if (nodeType == C.em_network_node_data_type_string) || (nodeType == C.em_network_node_data_type_number) ||
+				(nodeType == C.em_network_node_data_type_false) || (nodeType == C.em_network_node_data_type_true) {
+				str = C.get_node_scalar_value(netNode)
+				if C.GoString(&netNode.key[0]) == "Configure_active_em" {
+						netNode.value_int = 1
+				}
+				//C.dump_lib_dbg(str)
+				C.free_node_value(str)
+		} else {
+				for i := 0; i < int(netNode.num_children); i++ {
+						childNetNode := C.get_child_node_at_index(netNode, C.uint(i))
+						m.nodetraverse_to_enable_test(childNetNode)
+				}
+		}
+}
+
+func(m model) nodetraverse_to_update_dev_testconfigs(netNode *C.em_network_node_t) {
+		var str *C.char
+		nodeType := C.get_node_type(netNode)
+		if nodeType == C.em_network_node_data_type_array_obj {
+				if int(netNode.num_children) > 0 {
+						childNetNode := C.get_child_node_at_index(netNode, 0)
+						childNodeType := C.get_node_type(childNetNode)
+						if (childNodeType == C.em_network_node_data_type_string) || (childNodeType == C.em_network_node_data_type_number) ||
+								(childNodeType == C.em_network_node_data_type_false) || (childNodeType == C.em_network_node_data_type_true) {
+								var arrNodeType C.em_network_node_data_type_t
+								str = C.get_node_array_value(netNode, &arrNodeType)
+								//C.dump_lib_dbg(str)
+								C.free_node_value(str)
+						} else {
+								if C.GoString(&netNode.key[0]) == "dev_test" {
+										debug_test.num_of_test = int(netNode.num_children)
+										for i := 0; i < int(netNode.num_children); i++ {
+												childNetNode := C.get_child_node_at_index(netNode, C.uint(i))
+												 m.nodetraverse_to_update_dev_testconfigs(childNetNode)
+										}
+								}
+						}
+				}
+
+		} else if (nodeType == C.em_network_node_data_type_string) || (nodeType == C.em_network_node_data_type_number) ||
+				(nodeType == C.em_network_node_data_type_false) || (nodeType == C.em_network_node_data_type_true) {
+				str = C.get_node_scalar_value(netNode)
+				if C.GoString(&netNode.key[0]) == "Test_type" {
+						if C.GoString(str) == "ssid_change" {
+								debug_test.index = 0;
+						} else if  C.GoString(str) == "channel_change" {
+								debug_test.index = 1;
+						}
+				}
+				if C.GoString(&netNode.key[0])	== "No_of_iteration" {
+						netNode.value_int = C.uint(debug_test.num_iteration[debug_test.index])
+				}
+				if C.GoString(&netNode.key[0])	== "Test_enabled" {
+						netNode.value_int = C.uint(debug_test.enabled[debug_test.index])
+				}
+				if C.GoString(&netNode.key[0]) == "Num_of_iteration_completed" {
+						netNode.value_int = C.uint(debug_test.num_of_iteration_completed[debug_test.index])
+				}
+				if C.GoString(&netNode.key[0]) == "Current_iteration_inprogress" {
+						netNode.value_int = C.uint(debug_test.current_iteration_inprogress[debug_test.index])
+				}
+				if C.GoString(&netNode.key[0]) == "Test_status" {
+						var len = len(debug_test.test_status[debug_test.index])
+						C.strncpy(&netNode.value_str[0], C.CString(debug_test.test_status[debug_test.index]), C.ulong(len))
+						netNode.value_str[len] = C.char('\000')
+				}
+				if C.GoString(&netNode.key[0]) == "Configure_active_em" {
+						netNode.value_int = 0;
+				}
+				//C.dump_lib_dbg(str)
+				C.free_node_value(str)
+		} else {
+				for i := 0; i < int(netNode.num_children); i++ {
+						childNetNode := C.get_child_node_at_index(netNode, C.uint(i))
+						m.nodetraverse_to_update_dev_testconfigs(childNetNode)
+				}
+		}
+
+}
+
+var parent *C.em_network_node_t
+func (m model) nodetraverse_to_update_ssidconfigs(netNode *C.em_network_node_t) {
+		var str *C.char
+		nodeType := C.get_node_type(netNode)
+		if C.GoString(&netNode.key[0]) == "SSID" {
+				parent = netNode
+		}
+		if nodeType == C.em_network_node_data_type_array_obj {
+				if int(netNode.num_children) > 0 {
+						childNetNode := C.get_child_node_at_index(netNode, 0)
+						childNodeType := C.get_node_type(childNetNode)
+						if (childNodeType == C.em_network_node_data_type_string) || (childNodeType == C.em_network_node_data_type_number) ||
+								(childNodeType == C.em_network_node_data_type_false) || (childNodeType == C.em_network_node_data_type_true) {
+								var arrNodeType C.em_network_node_data_type_t
+								str = C.get_node_array_value(netNode, &arrNodeType)
+						if C.GoString(&netNode.key[0]) == "HaulType" {
+								haultype := strings.ReplaceAll(C.GoString(str), " ", "")
+								if debug_test.haul_type == haultype {
+								updateNetNode := parent
+								reg, _ := regexp.Compile("[^a-zA-Z0-9]+")
+								haultype := reg.ReplaceAllString(haultype, "")
+								temp := haultype + strconv.Itoa(debug_test.current_iteration_inprogress[0] + 1) + string('\x00')
+								var len = len(temp)
+								C.strncpy(&updateNetNode.value_str[0], C.CString(temp), C.ulong(len))
+								updateNetNode.value_str[len] = C.char('\000')
+								//C.dump_lib_dbg(&updateNetNode.value_str[0]);
+								}
+						}
+								//C.dump_lib_dbg(str)
+								C.free_node_value(str)
+						} else {
+								for i := 0; i < int(netNode.num_children); i++ {
+										childNetNode := C.get_child_node_at_index(netNode, C.uint(i))
+										if C.GoString(&childNetNode.key[0]) == "SSID" {
+												parent= netNode
+										}
+										m.nodetraverse_to_update_ssidconfigs(childNetNode)
+								}
+						}
+				}
+		} else if (nodeType == C.em_network_node_data_type_string) || (nodeType == C.em_network_node_data_type_number) ||
+				(nodeType == C.em_network_node_data_type_false) || (nodeType == C.em_network_node_data_type_true) {
+				str = C.get_node_scalar_value(netNode)
+				C.free_node_value(str)
+		} else {
+				for i := 0; i < int(netNode.num_children); i++ {
+						childNetNode := C.get_child_node_at_index(netNode, C.uint(i))
+						if C.GoString(&netNode.key[0]) == "SSID" {
+								parent = childNetNode
+						}
+						m.nodetraverse_to_update_ssidconfigs(childNetNode)
+				}
+		}
+}
+
+func (m model) dev_test_handler() {
+		var currentNetNode *C.em_network_node_t
+		var displayedNetNode *C.em_network_node_t
+		var updateNetNode *C.em_network_node_t
+		var update_ssidNode *C.em_network_node_t
+
+		value := m.getEMCommand(DebugCmd)
+		currentNetNode = C.exec(C.CString(value.GetCommand), C.strlen(C.CString(value.GetCommand)), nil)
+		displayedNetNode = C.clone_network_tree_for_display(currentNetNode, nil, 0xffff, false)
+		debug_test.num_of_em_test_enabled = 0
+		debug_test.num_online_em = 0
+		debug_test.num_failed_em = 0
+		m.nodestraverse_to_getdevconfig(displayedNetNode)
+		//str := C.get_network_tree_string(displayedNetNode)
+		//C.dump_lib_dbg(str)
+		C.free_network_tree(currentNetNode)
+		for i := 0; i < int(debug_test.num_of_test); i++ {
+				//fmt.Printf("no of test=%d status=%d comp=%d inpr=%d sta=@%s@", debug_test.num_iteration[i], debug_test.enabled[i], debug_test.num_of_iteration_completed[i], debug_test.current_iteration_inprogress[i], debug_test.test_status[i])
+				if debug_test.enabled[i] == 1 {
+						if debug_test.test_status[i] != "In-Progress" {
+								updateNetNode = C.exec(C.CString(value.GetCommandEx), C.strlen(C.CString(value.GetCommandEx)), nil)
+								displayedNetNode = C.clone_network_tree_for_display(updateNetNode, nil, 0xffff, false)
+								m.nodetraverse_to_enable_test(displayedNetNode)
+								C.exec(C.CString(value.SetCommand), C.strlen(C.CString(value.SetCommand)), displayedNetNode)
+								return
+						} else if debug_test.test_status[i] == "In-Progress"{
+								if ((debug_test.num_failed_em > 0) || (debug_test.num_of_em_test_enabled == 0)){
+								
+										//Test Failed - Disable the test enable, set Status to fail and set current iteration to zero /no em is in configured state
+										debug_test.enabled[i] = 0
+										debug_test.test_status[i] = "Failed"
+										debug_test.current_iteration_inprogress[i] = 0;
+								} else if debug_test.num_of_iteration_completed[i] == debug_test.num_iteration[i] {
+
+										//Test Complete
+										debug_test.enabled[i] = 0
+										debug_test.test_status[i] = "Complete"
+								} else if (debug_test.num_online_em == debug_test.num_of_em_test_enabled) && (debug_test.num_online_em > 0) && (debug_test.current_iteration_inprogress[i] > 0) && (debug_test.enabled[i] == 1) {
+
+										//EM configured for all the EM - Update current iteration complete
+										debug_test.num_of_iteration_completed[i] = debug_test.num_of_iteration_completed[i] + 1
+								}
+								if (debug_test.current_iteration_inprogress[i] == debug_test.num_of_iteration_completed[i]) && (debug_test.enabled[i] == 1) && (debug_test.num_of_iteration_completed[i] != debug_test.num_iteration[i]) {
+
+										// Test Complete - Start next iteration of set SSID
+										value := m.getEMCommand(NetworkSSIDListCmd)
+										updateNetNode = C.exec(C.CString(value.GetCommandEx), C.strlen(C.CString(value.GetCommandEx)), nil)
+										update_ssidNode = C.clone_network_tree_for_display(updateNetNode, nil, 0xffff, false)
+										m.nodetraverse_to_update_ssidconfigs(update_ssidNode)
+										//str := C.get_network_tree_string(update_ssidNode)
+										//C.dump_lib_dbg(str)
+										//C.free(str)
+										C.exec(C.CString(value.SetCommand), C.strlen(C.CString(value.SetCommand)), update_ssidNode)
+										debug_test.current_iteration_inprogress[i] = debug_test.current_iteration_inprogress[i] + 1
+										time.Sleep(8*time.Second)
+								}
+								value := m.getEMCommand(DebugCmd)
+								currentNetNode = C.exec(C.CString(value.GetCommand), C.strlen(C.CString(value.GetCommand)), nil)
+								displayedNetNode = C.clone_network_tree_for_display(currentNetNode, nil, 0xffff, false)
+								//fmt.Printf("no of test=%d status=%d comp=%d inpr=%d sta=%s", debug_test.num_iteration[i], debug_test.enabled[i], debug_test.num_of_iteration_completed[i], debug_test.current_iteration_inprogress[i], debug_test.test_status[i])
+								//fmt.Printf("Onile=%d failed=%d", debug_test.num_online_em, debug_test.num_failed_em);
+								m.nodetraverse_to_update_dev_testconfigs(displayedNetNode)
+								C.exec(C.CString(value.SetCommand), C.strlen(C.CString(value.SetCommand)), displayedNetNode)
+						}
+						break;
+				}
+		}
+}
+
+
 
 func (m *model) timerHandler() {
 	for {
@@ -385,6 +716,11 @@ func (m *model) timerHandler() {
 		case <-m.ticker.C:
 			if program != nil {
 				program.Send(refreshUIMsg{index: m.list.Index()})
+			}
+
+		case <-m.dev_test_ticker.C:
+			if program != nil {
+				program.Send(DebugTest{})
 			}
 
 		case <-m.quit:
@@ -429,7 +765,7 @@ func (m model) nodesToTree(netNode *C.em_network_node_t, treeNode *etree.Node) {
 	//treeNode.Value = C.GoString(&netNode.key[0]) + "." + fmt.Sprintf("%d", uint(netNode.display_info.node_ctr)) + "." + fmt.Sprintf("%d", uint(netNode.display_info.orig_node_ctr))
 	treeNode.Key = C.GoString(&netNode.key[0])
 	nodeType := C.get_node_type(netNode)
-
+	//fmt.Printf("new %s \n",C.GoString(&netNode.key[0]))
 	if nodeType == C.em_network_node_data_type_array_obj {
 		if int(netNode.num_children) > 0 {
 			childNetNode := C.get_child_node_at_index(netNode, 0)
@@ -524,7 +860,7 @@ func (m *model) execSelectedCommand(cmdStr string, cmdType int) {
 	case GETX:
 		if value.GetCommandEx != "" {
 			m.currentNetNode = C.exec(C.CString(value.GetCommandEx), C.strlen(C.CString(value.GetCommandEx)), nil)
-			//spew.Fdump(m.dump, value.GetCommandEx)
+			spew.Fdump(m.dump, value.GetCommandEx)
 			treeNode := make([]etree.Node, 1)
 			m.displayedNetNode = C.clone_network_tree_for_display(m.currentNetNode, nil, 0xffff, false)
 			m.nodesToTree(m.displayedNetNode, &treeNode[0])
@@ -697,7 +1033,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.list = newListModel
 			cmds = append(cmds, cmd)
 			if selectedItem, ok := m.list.SelectedItem().(item); ok {
-				m.execSelectedCommand(selectedItem.title, GET)
+				value := m.getEMCommand(selectedItem.title)
+				if value.Title != DebugCmd {
+					m.execSelectedCommand(selectedItem.title, GET)
+				}
+			}
+		}
+
+	case DebugTest:
+		newListModel, cmd := m.list.Update(msg)
+		m.list = newListModel
+		cmds = append(cmds, cmd)
+		if selectedItem, ok := m.list.SelectedItem().(item); ok {
+			value := m.getEMCommand(selectedItem.title)
+			if value.Title == DebugCmd {
+				if m.activeButton != BTN_UPDATE {
+					m.execSelectedCommand(selectedItem.title, GET)
+				}
+				m.dev_test_handler();
 			}
 		}
 	}
@@ -796,4 +1149,5 @@ func main() {
 		fmt.Println("Error running program:", err)
 		os.Exit(1)
 	}
+
 }
