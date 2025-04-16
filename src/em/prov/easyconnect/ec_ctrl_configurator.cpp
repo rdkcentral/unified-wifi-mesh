@@ -273,7 +273,7 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
     ASSERT_OPT_HAS_VALUE(wrapped_attrs, false, "%s:%d: No wrapped data attribute found!\n", __func__, __LINE__);
     
     ASSERT_NOT_NULL(e_ctx->ke, false, "%s:%d: Ephemeral context for Enrollee '" MACSTRFMT "' does not contain valid key 'ke'!\n", __func__, __LINE__, MAC2STR(src_mac));
-    auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(*wrapped_attrs, reinterpret_cast<uint8_t*>(initial_request_frame), encap_frame_len, initial_request_frame->query, false, e_ctx->ke);
+    auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(*wrapped_attrs, initial_request_frame->query, false, e_ctx->ke);
     if (unwrapped_attrs == nullptr || unwrapped_attrs_len == 0) {
         em_printfout("Failed to unwraped wrapped data, aborting!");
         return false;
@@ -1043,7 +1043,7 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_fram
 
         // Configurator → Enrollee: DPP Status, { E-nonce }ke
         attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_dpp_status, static_cast<uint8_t>(dpp_status));
-        attribs = ec_util::add_wrapped_data_attr(response_frame, attribs, &attribs_len, true, e_ctx->ke, [&](){
+        attribs = ec_util::add_cfg_wrapped_data_attr(attribs, &attribs_len, true, e_ctx->ke, [&](){
             size_t wrapped_len = 0;
             uint8_t *wrapped_attribs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, conn_ctx->nonce_len, e_ctx->e_nonce);
             return std::make_pair(wrapped_attribs, wrapped_len);
@@ -1111,7 +1111,7 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_fram
     size_t attribs_len = 0;
     // Configurator → Enrollee: DPP Status, { E-nonce, configurationPayload [, sendConnStatus]}ke
     attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_dpp_status, static_cast<uint8_t>(DPP_STATUS_OK));
-    attribs = ec_util::add_wrapped_data_attr(response_frame, attribs, &attribs_len, true, e_ctx->ke, [&]() {
+    attribs = ec_util::add_cfg_wrapped_data_attr(attribs, &attribs_len, true, e_ctx->ke, [&]() {
         size_t wrapped_len = 0;
         uint8_t *wrapped_attribs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, conn_ctx->nonce_len, e_ctx->e_nonce);
         wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_obj, ieee1905_config_obj_str);

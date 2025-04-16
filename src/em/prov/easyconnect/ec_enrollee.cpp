@@ -469,7 +469,7 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
     return sent_dpp_config_gas_frame;
 }
 
-bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint8_t sa[ETH_ALEN])
+bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa[ETH_ALEN])
 {
     // EasyMesh 5.4.3
     // If an Enrollee Multi-AP Agent receives a DPP Configuration Response frame, it shall send a DPP Configuration Result
@@ -491,6 +491,8 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
     ASSERT_OPT_HAS_VALUE(status_attrib, false, "%s:%d: No DPP status attribute found\n", __func__, __LINE__);
 
     ec_status_code_t config_response_status_code = static_cast<ec_status_code_t>(status_attrib->data[0]);
+
+    em_printfout("Configuration response status=%d (%s)", static_cast<int>(config_response_status_code), ec_util::status_code_to_string(config_response_status_code).c_str());
 
     ec_status_code_t valid_status_codes[4] = {DPP_STATUS_OK, DPP_STATUS_CONFIGURE_PENDING, DPP_STATUS_NEW_KEY_NEEDED, DPP_STATUS_CSR_BAD};
     bool config_response_status_code_valid = false;
@@ -514,7 +516,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
     auto wrapped_attrs = ec_util::get_attrib(config_response_frame->resp, static_cast<size_t>(config_response_frame->resp_len), ec_attrib_id_wrapped_data);
     ASSERT_OPT_HAS_VALUE(wrapped_attrs, false, "%s:%d: Failed to get wrapped data attribute!\n", __func__, __LINE__);
 
-    auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(*wrapped_attrs, reinterpret_cast<uint8_t*>(config_response_frame), sizeof(*config_response_frame), config_response_frame->resp, false, m_eph_ctx().ke);
+    auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(*wrapped_attrs, config_response_frame->resp, true, m_eph_ctx().ke);
     if (unwrapped_attrs == nullptr || unwrapped_attrs_len == 0) {
         em_printfout("Failed to unwrap wrapped attributes.");
         return false;
@@ -1099,7 +1101,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     uint8_t *attribs = nullptr;
     size_t attribs_len = 0;
     // Wrap e-nonce and config req obj(s) with k_e
-    attribs = ec_util::add_wrapped_data_attr(initial_req_frame, attribs, &attribs_len, false, m_eph_ctx().ke, [&](){
+    attribs = ec_util::add_cfg_wrapped_data_attr(attribs, &attribs_len, false, m_eph_ctx().ke, [&](){
         size_t wrapped_len = 0;
         uint8_t* wrapped_attribs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, m_c_ctx.nonce_len, m_eph_ctx().e_nonce);
         wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_req_obj, cjson_utils::stringify(dpp_config_request_obj));
@@ -1194,4 +1196,95 @@ cJSON *ec_enrollee_t::create_dpp_connection_status_obj(ec_status_code_t dpp_stat
         cJSON_AddStringToObject(connStatusObj, "channelList", ec_util::generate_channel_list(ssid, m_scanned_channels_map).c_str());
     }
     return connStatusObj;
+}
+
+bool ec_enrollee_t::handle_gas_comeback_response(ec_gas_comeback_response_frame_t *frame, size_t len, uint8_t src_mac[ETH_ALEN])
+{
+    if (frame == nullptr) {
+        em_printfout("NULL GAS comeback response frame");
+        return false;
+    }
+    const std::string source_mac_key = util::mac_to_string(src_mac) + "_" + std::to_string(frame->base.dialog_token);
+    if (frame->fragment_id != m_gas_fragments[source_mac_key].expected_fragment_id) {
+        em_printfout("Fragment ID mismatch for dialog=%d from %s", frame->base.dialog_token, source_mac_key.c_str());
+        return false;
+    }
+
+    bool more_frags_coming = (frame->more_fragments > 0);
+
+    m_gas_fragments[source_mac_key].reassembled_payload.insert(
+        m_gas_fragments[source_mac_key].reassembled_payload.end(),
+        frame->comeback_resp,
+        frame->comeback_resp + frame->comeback_resp_len
+    );
+
+    m_gas_fragments[source_mac_key].expected_fragment_id++;
+    m_gas_fragments[source_mac_key].last_seen = std::chrono::steady_clock::now();
+
+    if (!more_frags_coming) {
+        // No more data coming, we've got a complete frame
+        em_printfout("Full fragmented frame reassembled:\n");
+        util::print_hex_dump(m_gas_fragments[source_mac_key].reassembled_payload);
+        bool did_succeed = handle_config_response(
+            m_gas_fragments[source_mac_key].reassembled_payload.data(),
+            m_gas_fragments[source_mac_key].reassembled_payload.size(),
+            src_mac
+        );
+        if (!did_succeed) {
+            em_printfout("Failed to handle Configuration Response");
+            return false;
+        }
+        m_gas_fragments.erase(source_mac_key);
+    }
+
+    if (more_frags_coming) {
+        // If there's more frags coming, send a Comeback Request to enable sending of next Comeback Response
+        ec_gas_comeback_request_frame_t *cb_frame = create_comeback_request(frame->base.dialog_token);
+        ASSERT_NOT_NULL(cb_frame, false, "%s:%d: Failed to allocate a GAS Comeback Request frame\n", __func__, __LINE__);
+        bool sent = m_send_action_frame(src_mac, reinterpret_cast<uint8_t*>(cb_frame), sizeof(ec_gas_comeback_request_frame_t), m_selected_freq, 0);
+        if (!sent) {
+            em_printfout("Failed to send GAS Comeback Request to '" MACSTRFMT "', we made it to frag #%d", MAC2STR(src_mac), frame->fragment_id);
+        }
+        free(cb_frame);
+        return sent;
+    }
+
+    // Regardless of if we're still awaiting fragments or if we marshalled a full frame, we've succeeded.
+    return true;
+}
+
+bool ec_enrollee_t::handle_gas_initial_response(ec_gas_initial_response_frame_t *resp_frame, size_t len, uint8_t src_mac[ETH_ALEN])
+{
+    if (resp_frame == nullptr) {
+        em_printfout("Invalid GAS initial response frame");
+        return false;
+    }
+    bool is_fragmentation_signal_frame = (resp_frame->gas_comeback_delay > 0 || resp_frame->resp_len == 0);
+
+    if (is_fragmentation_signal_frame) {
+        em_printfout("Received a fragmentation preperation GAS Initial Response frame from '" MACSTRFMT "'", MAC2STR(src_mac));
+
+        ec_gas_comeback_request_frame_t *cb_frame = create_comeback_request(resp_frame->base.dialog_token);
+        ASSERT_NOT_NULL(cb_frame, false, "%s:%d: Failed to allocate GAS Initial Request frame\n", __func__, __LINE__);
+        bool sent = m_send_action_frame(src_mac, reinterpret_cast<uint8_t*>(cb_frame), sizeof(ec_gas_comeback_request_frame_t), m_selected_freq, 0);
+        free(cb_frame);
+        if (!sent) {
+            em_printfout("Failed to send GAS Comeback Request to '" MACSTRFMT "'", MAC2STR(src_mac));
+            return false;
+        }
+
+        em_printfout("Sent GAS Comeback Request for dialog_token=%u to '" MACSTRFMT "'",
+                     resp_frame->base.dialog_token, MAC2STR(src_mac));
+        return sent;
+    }
+
+    // Not a fragmentation prep signal, just a complete response frame.
+    return handle_config_response(reinterpret_cast<uint8_t*>(resp_frame), len, src_mac);
+}
+
+ec_gas_comeback_request_frame_t *ec_enrollee_t::create_comeback_request(uint8_t dialog_token)
+{
+    auto [frame, len] = ec_util::alloc_gas_frame(dpp_gas_comeback_req, dialog_token);
+    if (frame == nullptr || len == 0) return nullptr;
+    return reinterpret_cast<ec_gas_comeback_request_frame_t*>(frame);
 }

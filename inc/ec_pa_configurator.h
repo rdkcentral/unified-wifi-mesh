@@ -156,6 +156,18 @@ public:
 	 */
 	bool process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) override;
 
+	/**
+	 * @brief Handles a GAS Comeback Request frame
+	 * A GAS Comeback Request frame (in the context of DPP) indicates that a peer is ready the to receive the next fragmented frame via GAS Comeback Response frame.
+	 * 
+	 * For each Comeback Request frame received, we will sent the next fragment (if any) to the requesting peer.
+	 * @param buff The frame
+	 * @param len The length of the frame
+	 * @param sa The source addr of the frame (Enrollee)
+	 * @return true on success, otherwise false
+	 */
+	bool handle_gas_comeback_request(uint8_t *buff, unsigned int len, uint8_t sa[ETH_ALEN]) override;
+
     /**
      * @brief Set the CCE IEs in the beacon and probe response frames
      * 
@@ -176,6 +188,40 @@ private:
      * Hash does not matter since it is compared against the Controllers C-sign key
      */
     std::vector<std::vector<uint8_t>> m_stored_recfg_auth_frames = {};
+
+	/**
+	 * @brief Stored GAS frame session dialog tokens with peers.
+	 * 
+	 * Key -> Peer MAC, as a string
+	 * Value -> GAS session dialog token for the peer.
+	 */
+	std::unordered_map<std::string, uint8_t> m_gas_session_dialog_tokens = {};
+
+	/**
+	 * @brief Sends a "dummy" GAS Initial Response frame indicating to the Peer that we have fragmented data for it
+	 * 
+	 * The peer must respond to this frame with a GAS Comeback Request in order for GAS Comeback Responses to follow
+	 * @param dest_mac The destination MAC
+	 * @return true on success, otherwise false
+	 */
+	bool send_prepare_for_fragmented_frames_frame(uint8_t dest_mac[ETH_ALEN]);
+
+	/**
+	 * @brief Fragments a frame whose size exceeds the MTU size
+	 * 
+	 * @param payload The total payload
+	 * @param len The full length
+	 * @param dialog_token The GAS peer session dialog token
+	 * @return std::vector<ec_gas_comeback_response_frame_t *> Vector of frame fragments encapsulated in GAS Comeback Response frames, otherwise empty
+	 */
+	std::vector<ec_gas_comeback_response_frame_t *> fragment_large_frame(const uint8_t *payload, size_t len, uint8_t dialog_token);
+
+	/**
+	 * @brief Queue'd fragments to be sent to a peer once they indicate (via a GAS Comeback Request frame) that they are ready to receive more fragments
+	 * 
+	 */
+	std::unordered_map<std::string, std::vector<ec_gas_comeback_response_frame_t*>> m_gas_frames_to_be_sent = {};
+
 protected:
     // Protected member variables and methods go here
 };
