@@ -104,10 +104,10 @@ public:
 	 *
 	 * @return bool True if the configuration response was handled successfully, false otherwise.
 	 */
-	bool handle_config_response(uint8_t *buff, unsigned int len, uint8_t sa[ETH_ALEN]);
+	bool handle_config_response(uint8_t *buff, size_t len, uint8_t sa[ETH_ALEN]);
 
 	/**
-	 * @brief Handles a GAS Comeback Request containing fragmented chunks of a frame
+	 * @brief Handles a GAS Comeback Response containing a fragment of a Configuration Response frame.
 	 * 
 	 * @param frame The GAS Comeback Frame
 	 * @param len Length of the frame. 
@@ -125,7 +125,7 @@ public:
 	 * @return true on success, otherwise false
 	 * @note: If this is a "dummy" GAS Initial Response frame, Enrollee responds with a GAS Comeback Request frame to initial frame fragmentation
 	 * 
-	 * Is this is otherwise a "real" GAS Initial Response frame, it's forwarded to `handle_config_response`
+	 * Otherwise, if this is a "real" GAS Initial Response frame, it's forwarded to `handle_config_response`
 	 */
 	bool handle_gas_initial_response(ec_gas_initial_response_frame_t *frame, size_t len, uint8_t src_mac[ETH_ALEN]);
 
@@ -306,7 +306,7 @@ private:
 	std::pair<uint8_t*, size_t> create_connection_status_result(ec_status_code_t dpp_status, const std::string& ssid);
 
 	/**
-	 * @brief Create a GAS Comeback Request frame with default fields to be sent to a Peer indicating we're ready to receive more GAS Comeback Response frames
+	 * @brief Create a GAS Comeback Request frame with default fields to be sent to a Peer indicating we're ready to receive the next GAS Comeback Response frame
 	 * 
 	 * @param dialog_token The dialog token of the GAS session
 	 * @return ec_gas_comeback_request_frame_t* The GAS Comeback Frame on success, otherwise nullptr
@@ -409,7 +409,8 @@ private:
 		std::chrono::steady_clock::time_point last_seen = std::chrono::steady_clock::now();
 	};
 
-	// Key -> sender's MAC + dialog_token (example: aabbcceeddff_42) as a string, value -> GAS frame fragments
+	// Key -> sender's MAC + dialog_token (example: aabbcceeddff_42) as a string
+	// Value -> buffer for re-assembling GAS frame fragments
 	std::unordered_map<std::string, gas_fragment_buffer_t> m_gas_fragments;
 };
 

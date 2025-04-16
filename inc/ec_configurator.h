@@ -170,7 +170,9 @@ public:
 
 	/**
 	 * @brief Handles a GAS Comeback Request frame
-	 * A GAS Comeback Request frame (in the context of DPP) indicates that a peer is ready to receive fragmented frames via GAS Comeback Response frames, and serves no other purpose.
+	 * A GAS Comeback Request frame (in the context of DPP) indicates that a peer is ready the to receive the next fragmented frame via GAS Comeback Response frame.
+	 * 
+	 * For each Comeback Request frame received, we will sent the next fragment (if any) to the requesting peer.
 	 * @param buff The frame
 	 * @param len The length of the frame
 	 * @param sa The source addr of the frame (Enrollee)

@@ -158,7 +158,7 @@ public:
 
 	/**
 	 * @brief Handles a GAS Comeback Request frame
-	 * A GAS Comeback Request frame (in the context of DPP) indicates that a peer is ready to receive fragmented frames via GAS Comeback Response frames, and serves no other purpose.
+	 * A GAS Comeback Request frame (in the context of DPP) indicates that a peer is ready the to receive the next fragmented frame via GAS Comeback Response frame.
 	 * 
 	 * For each Comeback Request frame received, we will sent the next fragment (if any) to the requesting peer.
 	 * @param buff The frame
@@ -192,11 +192,13 @@ private:
 	/**
 	 * @brief Stored GAS frame session dialog tokens with peers.
 	 * 
+	 * Key -> Peer MAC, as a string
+	 * Value -> GAS session dialog token for the peer.
 	 */
 	std::unordered_map<std::string, uint8_t> m_gas_session_dialog_tokens = {};
 
 	/**
-	 * @brief Sends a "dummy" GAS Initial Response frame indicating to the Peer that fragmented frames will soon come in the form of GAS Comeback Response frames
+	 * @brief Sends a "dummy" GAS Initial Response frame indicating to the Peer that we have fragmented data for it
 	 * 
 	 * The peer must respond to this frame with a GAS Comeback Request in order for GAS Comeback Responses to follow
 	 * @param dest_mac The destination MAC
@@ -213,12 +215,6 @@ private:
 	 * @return std::vector<ec_gas_comeback_response_frame_t *> Vector of frame fragments encapsulated in GAS Comeback Response frames, otherwise empty
 	 */
 	std::vector<ec_gas_comeback_response_frame_t *> fragment_large_frame(const uint8_t *payload, size_t len, uint8_t dialog_token);
-
-	/**
-	 * @brief Whether or not a peer is ready to receive GAS Comeback Response frames
-	 * 
-	 */
-	std::unordered_map<std::string, bool> m_peer_ready_for_frag_frame = {};
 
 	/**
 	 * @brief Queue'd fragments to be sent to a peer once they indicate (via a GAS Comeback Request frame) that they are ready to receive more fragments

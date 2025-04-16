@@ -100,7 +100,6 @@ bool ec_manager_t::handle_recv_gas_pub_action_frame(ec_gas_frame_base_t *frame, 
             break;
         case dpp_gas_initial_resp:
             did_succeed = m_enrollee->handle_gas_initial_response(reinterpret_cast<ec_gas_initial_response_frame_t*>(frame), len, source_addr);
-            // did_succeed = m_enrollee->handle_config_response(reinterpret_cast<uint8_t*>(frame), static_cast<unsigned int>(len), source_addr);
             break;
         case dpp_gas_comeback_req: {
             did_succeed = m_configurator->handle_gas_comeback_request(reinterpret_cast<uint8_t*>(frame), static_cast<unsigned int>(len), source_addr);
@@ -111,7 +110,6 @@ bool ec_manager_t::handle_recv_gas_pub_action_frame(ec_gas_frame_base_t *frame, 
             break;
         }
         default:
-            // XXX: handle comeback frames
             em_printfout("unhandled DPP GAS action type=%02x", frame->action);
             break;
     }

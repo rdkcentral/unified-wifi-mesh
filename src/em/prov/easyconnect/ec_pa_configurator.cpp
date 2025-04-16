@@ -3,9 +3,6 @@
 #include "ec_util.h"
 #include "util.h"
 
-#include <thread>
-#include <chrono>
-
 bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
     em_printfout("Recieved a DPP Presence Announcement Frame from '" MACSTRFMT "'\n", MAC2STR(src_mac));
@@ -60,8 +57,6 @@ bool ec_pa_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, u
 bool ec_pa_configurator_t::handle_cfg_request(uint8_t *buff, unsigned int len, uint8_t sa[ETH_ALEN])
 {
     em_printfout("Rx'd a DPP Configuration Request from " MACSTRFMT "", MAC2STR(sa));
-    ec_gas_initial_request_frame_t *req_frame = reinterpret_cast<ec_gas_initial_request_frame_t *>(buff);
-    m_gas_session_dialog_tokens[util::mac_to_string(sa)] = req_frame->base.dialog_token;
 
     // EasyMesh R6 5.3.4
     // If a Proxy Agent receives a DPP Configuration Request frame in a GAS frame from an Enrollee Multi-AP Agent, it shall
@@ -291,7 +286,6 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
 bool ec_pa_configurator_t::handle_gas_comeback_request([[maybe_unused]] uint8_t *buff, [[maybe_unused]] unsigned int len, uint8_t sa[ETH_ALEN])
 {
     em_printfout("Received a GAS Comeback Request frame from '" MACSTRFMT "'", MAC2STR(sa));
-    m_peer_ready_for_frag_frame[util::mac_to_string(sa)] = true;
     auto frame_it = m_gas_frames_to_be_sent.find(util::mac_to_string(sa));
     if (frame_it == m_gas_frames_to_be_sent.end()) {
         // Nothing to do
@@ -323,6 +317,8 @@ bool ec_pa_configurator_t::handle_gas_comeback_request([[maybe_unused]] uint8_t 
     
     if (!sent) {
         em_printfout("Failed to send fragment #%d to '" MACSTRFMT "'", fragment->fragment_id, MAC2STR(sa));
+        free(fragment);
+        return false;
     }
 
     em_printfout("Sent fragment #%d (more frags = %d) to '" MACSTRFMT "'", fragment->fragment_id, fragment->more_fragments, MAC2STR(sa));
@@ -334,7 +330,7 @@ bool ec_pa_configurator_t::send_prepare_for_fragmented_frames_frame(uint8_t dest
 {
     auto it = m_gas_session_dialog_tokens.find(util::mac_to_string(dest_mac));
     if (it == m_gas_session_dialog_tokens.end()) {
-        em_printfout("No GAS session dialog token found for '" MACSTRFMT "', cannot send fragmented frame!",  MAC2STR(dest_mac));
+        em_printfout("No GAS session dialog token found for '" MACSTRFMT "', cannot send fragmentation indication message to peer!",  MAC2STR(dest_mac));
         return false;
     }
     uint8_t dialog_token = it->second;

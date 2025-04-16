@@ -469,7 +469,7 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
     return sent_dpp_config_gas_frame;
 }
 
-bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint8_t sa[ETH_ALEN])
+bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa[ETH_ALEN])
 {
     // EasyMesh 5.4.3
     // If an Enrollee Multi-AP Agent receives a DPP Configuration Response frame, it shall send a DPP Configuration Result
@@ -1227,7 +1227,7 @@ bool ec_enrollee_t::handle_gas_comeback_response(ec_gas_comeback_response_frame_
         util::print_hex_dump(m_gas_fragments[source_mac_key].reassembled_payload);
         bool did_succeed = handle_config_response(
             m_gas_fragments[source_mac_key].reassembled_payload.data(),
-            static_cast<unsigned int>(m_gas_fragments[source_mac_key].reassembled_payload.size()),
+            m_gas_fragments[source_mac_key].reassembled_payload.size(),
             src_mac
         );
         if (!did_succeed) {
@@ -1279,7 +1279,7 @@ bool ec_enrollee_t::handle_gas_initial_response(ec_gas_initial_response_frame_t 
     }
 
     // Not a fragmentation prep signal, just a complete response frame.
-    return handle_config_response(reinterpret_cast<uint8_t*>(resp_frame), static_cast<unsigned int>(len), src_mac);
+    return handle_config_response(reinterpret_cast<uint8_t*>(resp_frame), len, src_mac);
 }
 
 ec_gas_comeback_request_frame_t *ec_enrollee_t::create_comeback_request(uint8_t dialog_token)
