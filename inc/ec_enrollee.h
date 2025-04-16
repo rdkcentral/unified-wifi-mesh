@@ -117,8 +117,8 @@ public:
 	 * to avoid any unintended behavior.
 	 */
 	inline void teardown_connection() {
+		// Frees connection context and associated ephemeral context
         ec_crypto::free_connection_ctx(&m_c_ctx);
-        ec_crypto::free_ephemeral_context(&m_c_ctx.eph_ctx, m_c_ctx.nonce_len, m_c_ctx.digest_len);
     }
 
     
