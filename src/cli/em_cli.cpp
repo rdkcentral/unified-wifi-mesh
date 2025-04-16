@@ -43,7 +43,6 @@
 #include "em_cli.h"
 #include <readline/readline.h>
 #include <readline/history.h>
-
 em_cli_t g_cli;
 
 em_network_node_t *em_cli_t::get_reset_tree(char *platform)
@@ -191,7 +190,16 @@ em_cmd_t& em_cli_t::get_command(char *in, size_t in_len, em_network_node_t *node
                                 strlen("Summary@RadioEnable"));
                     }
                     break;
-
+		case em_cmd_type_dev_test:
+                    if ((tmp = strstr(cmd->m_param.u.args.fixed_args, "DevTest")) != NULL) {
+                        *tmp = 0;
+                    }
+		if (strncmp(args[num_args - 1], "1", strlen("1")) == 0) {
+			strncat(cmd->m_param.u.args.fixed_args, "DevTest@update", strlen("DevTest@update"));
+		} else {
+			strncat(cmd->m_param.u.args.fixed_args, "DevTest", strlen("DevTest"));
+		}
+		break;
                 default:
                     break;
             }
@@ -210,7 +218,6 @@ em_cmd_t& em_cli_t::get_command(char *in, size_t in_len, em_network_node_t *node
 
 	em_cmd_cli_t::m_client_cmd_spec[idx].m_param.net_node = node;
 
-
     return em_cmd_cli_t::m_client_cmd_spec[idx];
 }
 
@@ -221,6 +228,7 @@ em_network_node_t *em_cli_t::exec(char *in, size_t sz, em_network_node_t *node)
 	em_network_node_t *new_node;
     em_cmd_cli_t *cli_cmd;
 
+    pthread_mutex_lock(&cli_lock);
     snprintf(cmd, sizeof(cmd),  "%s", in);
     cli_cmd = new em_cmd_cli_t(get_command(cmd, sz, node));
 
@@ -239,10 +247,10 @@ em_network_node_t *em_cli_t::exec(char *in, size_t sz, em_network_node_t *node)
     }
 
     delete cli_cmd;
+    pthread_mutex_unlock(&cli_lock);	
 
     new_node = em_net_node_t::get_network_tree(result);	
 	free(result);
-
 	return new_node;
 }
 
@@ -266,12 +274,185 @@ void em_cli_t::dump_lib_dbg(char *str)
         return;
     }
 
-    fputs("\n==========\n", fp);	
+    fputs("\n==========\n", fp);
     fputs(str, fp);
 
     fclose(fp);
 }
 
+
+bool em_cli_t::dev_test_set_ssid(int noofiteration, char *haultype_conf, int len)
+{
+	em_long_string_t cmd, wfa;
+	char *result, *formatted, *err, *dev_result;
+	em_network_node_t *new_node, *dev_node;
+	cJSON *json, *ssid, *token, *mod, *wfa_json, *haultype, *info, *haultype_arr, *dev_test;
+	int i = 0, size = 0;
+
+	//Get SSID
+	snprintf(cmd, sizeof(cmd), "%s", "get_ssid OneWifiMesh");
+	result = (char *)malloc(EM_MAX_EVENT_DATA_LEN);
+	memset(result, 0, EM_MAX_EVENT_DATA_LEN);
+	new_node = g_cli.exec(cmd, sizeof(cmd), NULL);
+	em_cmd_cli_t::get_edited_node(new_node, "NetworkSSIDList", result);
+	g_cli.dump_lib_dbg(result);
+	json = cJSON_Parse(result);
+
+	if (json == NULL) {
+		err = (char*) cJSON_GetErrorPtr();
+		if (err != NULL) {
+		   g_cli.dump_lib_dbg(err);
+		}
+		cJSON_Delete(json);
+		free(result);
+		return 0;
+	}
+
+	//SET_SSID
+	snprintf(wfa, sizeof(wfa), "wfa-dataelements:NetworkSSIDList");
+	wfa_json = cJSON_GetObjectItem(json, wfa);
+	mod = cJSON_GetObjectItem(wfa_json, "NetworkSSIDList");
+	size = cJSON_GetArraySize(mod);
+	for (i = 0; i < size; i++) {
+		info = cJSON_GetArrayItem(mod, i);
+		haultype_arr = cJSON_GetObjectItem(info, "HaulType");
+		haultype = cJSON_GetArrayItem(haultype_arr, 0);
+		if (strncmp(haultype->valuestring, haultype_conf, len) == 0) {
+		   ssid = cJSON_GetObjectItem(info, "SSID");
+		   snprintf(ssid->valuestring, 16, "%s%d","test_", noofiteration);
+		}
+	}
+	formatted = cJSON_Print(wfa_json);
+	//g_cli.dump_lib_dbg(formatted);
+	snprintf(cmd, sizeof(cmd), "%s", "set_ssid OneWifiMesh");
+	new_node = em_net_node_t::get_network_tree(formatted);
+	g_cli.exec(cmd, sizeof(cmd),new_node);
+	free(result);
+	cJSON_Delete(json);
+	g_cli.dump_lib_dbg("SSID channel change completed");
+	sleep(1);
+	return 1;
+}
+
+void em_cli_t::dev_test_exec()
+{
+	em_long_string_t cmd, wfa;
+	char *result, *formatted, *err, *dev_result;
+	 em_network_node_t *new_node, *dev_node;
+	cJSON *json, *mod, *wfa_json, *em, *dev_test, *type, *info, *noofiteration, *noofiteration_cplt, *test_status, *cur_iteration_inprogress, *em_info, *em_conf, *test_enable, *haul_type;
+	bool set_ssid_status = 0;;
+	int i = 0, size = 0, j = 0, em_count = 0, test_enabled_count = 0, online_count = 0, failcount = 0, h_type = 0;
+
+	//Get Dev_Test
+	snprintf(cmd, sizeof(cmd),	"%s", "dev_test OneWifiMesh 0");
+	dev_result = (char *)malloc(EM_MAX_EVENT_DATA_LEN);
+	memset(dev_result, 0, EM_MAX_EVENT_DATA_LEN);
+	dev_node = g_cli.exec(cmd, sizeof(cmd), NULL);
+	em_cmd_cli_t::get_edited_node(dev_node, "Test", dev_result);
+	 g_cli.dump_lib_dbg(dev_result);
+	json = cJSON_Parse(dev_result);
+	 if (json == NULL) {
+		err = (char*) cJSON_GetErrorPtr();
+		if (err != NULL) {
+			g_cli.dump_lib_dbg(err);
+		}
+		cJSON_Delete(json);
+		free(dev_result);
+		return ;
+	 }
+
+	snprintf(wfa, sizeof(wfa), "wfa-dataelements:Test");
+	wfa_json = cJSON_GetObjectItem(json, wfa);
+	em = cJSON_GetObjectItem(wfa_json, "em_list");
+	mod = cJSON_GetObjectItem(wfa_json, "dev_test");
+	size = cJSON_GetArraySize(mod);
+	for (i = 0; i < size; i++) {
+		info = cJSON_GetArrayItem(mod, i);
+		type = cJSON_GetObjectItem(info, "Test_type");
+		if (strncmp(type->valuestring,"ssid_change", sizeof("ssid_change")) == 0) {
+			noofiteration = cJSON_GetObjectItem(info,"No_of_iteration");
+			noofiteration_cplt = cJSON_GetObjectItem(info,"Num_of_iteration_completed");
+			test_enable = cJSON_GetObjectItem(info, "Test_enabled");
+			cur_iteration_inprogress= cJSON_GetObjectItem(info, "Current_iteration_inprogress");
+			haul_type = cJSON_GetObjectItem(info, "Haul_type");
+
+			if (test_enable->valuedouble) {
+				test_status = cJSON_GetObjectItem(info, "Test_status");
+
+				if ((!strncmp(test_status->valuestring, "In-Progress", sizeof("In-Progress")) == 0) ) {
+
+					//Set Dev Test Init Config
+					cJSON_AddNumberToObject(info, "Configure_active_em", 1);
+					formatted = cJSON_Print(wfa_json);
+					//g_cli.dump_lib_dbg(formatted);
+					new_node = em_net_node_t::get_network_tree(formatted);
+					snprintf(cmd, sizeof(cmd),	"%s", "set_dev_test OneWifiMesh");
+					g_cli.exec(cmd, sizeof(cmd),new_node);
+				} else {
+
+					//Handle Test In-Progress
+					em_count = cJSON_GetArraySize(em);
+					online_count = 0;
+					test_enabled_count = 0;
+					failcount = 0;
+
+					//Iterate through EM to get the em state information
+					for (j = 0; j < em_count; j++) {
+						em_info = cJSON_GetArrayItem(em, j);
+						em_conf = cJSON_GetArrayItem(em_info, 2); // Get Test enabled parameter
+						if (strncmp(em_conf->valuestring, "Test_Enabled:1", sizeof("Test_Enabled:1")) == 0 ) {
+							test_enabled_count++;
+							em_conf = cJSON_GetArrayItem(em_info, 3);  // Get the device status
+							if (strncmp(em_conf->valuestring, "Online", sizeof("Online")) == 0 ) {
+								online_count++;
+							}
+							if (strncmp(em_conf->valuestring, "Config-failed", sizeof("Config-failed")) == 0 ) {
+								failcount++;
+							}
+						}
+					}
+
+					if (failcount) {	//Test Failed - Disable the test enable, set Status to fail and set current iteration to zero
+						g_cli.dump_lib_dbg(" em config failed, test failed");
+						test_enable->valuedouble = 0;
+						strncpy(test_status->valuestring, "Failed", sizeof("failed"));
+						cur_iteration_inprogress->valuedouble = 0;
+					} else if (noofiteration_cplt->valuedouble == noofiteration->valuedouble) { // Test Complete
+						test_status = cJSON_GetObjectItem(info, "Test_status");
+						strncpy(test_status->valuestring, "Complete", sizeof("Complete"));
+						test_enable = cJSON_GetObjectItem(info, "Test_enabled");
+						test_enable->valuedouble = 0;
+					} else if ((online_count == test_enabled_count) && (online_count > 0) 
+						&& (cur_iteration_inprogress->valuedouble > 0) && (test_enable->valuedouble)) { //EM configured for all the EM - Update current iteration complete
+						noofiteration_cplt->valuedouble = noofiteration_cplt->valuedouble + 1;
+					} else if (test_enabled_count == 0) {	//Test fail since no em is in configured state
+						g_cli.dump_lib_dbg("All em down, test failed");
+						test_enable->valuedouble = 0;
+						strncpy(test_status->valuestring, "Failed", sizeof("failed"));
+						cur_iteration_inprogress->valuedouble = 0;
+					}
+
+					//Start the next iteration of testing
+					if ((noofiteration_cplt->valuedouble == cur_iteration_inprogress->valuedouble ) && (test_enable->valuedouble ) && (noofiteration_cplt->valuedouble != noofiteration->valuedouble)) {
+						set_ssid_status = dev_test_set_ssid(cur_iteration_inprogress->valuedouble + 1, haul_type->valuestring, strlen(haul_type->valuestring));
+						if (set_ssid_status) {
+							//Set Dev Test Config
+							cur_iteration_inprogress->valuedouble = cur_iteration_inprogress->valuedouble  + 1;
+						}
+					}
+					formatted = cJSON_Print(wfa_json);
+					//g_cli.dump_lib_dbg(formatted);
+					new_node = em_net_node_t::get_network_tree(formatted);
+					snprintf(cmd, sizeof(cmd),	"%s", "set_dev_test OneWifiMesh");
+					g_cli.exec(cmd, sizeof(cmd),new_node);
+				}
+			}
+		}
+	}
+
+	cJSON_Delete(json);
+	free(dev_result);
+}
 
 int em_cli_t::init(em_cli_params_t	*params)
 {
@@ -354,4 +535,9 @@ extern "C" unsigned int can_expand_node(em_network_node_t *node)
 extern "C" em_network_node_t *get_reset_tree(char *platform)
 {
 	return g_cli.get_reset_tree(platform);
+}
+
+extern "C" void dev_test_exec()
+{
+	g_cli.dev_test_exec();
 }

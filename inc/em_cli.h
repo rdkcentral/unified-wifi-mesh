@@ -21,6 +21,7 @@
 
 #include "em_base.h"
 #include "em_cmd_exec.h"
+#include <pthread.h>
 
 class em_cli_t {
     
@@ -40,7 +41,7 @@ class em_cli_t {
 	 */
 	em_cmd_t& get_command(char *in, size_t in_len, em_network_node_t *node = NULL);
     em_long_string_t	m_lib_dbg_file_name;
-
+    pthread_mutex_t cli_lock;
 public:
 
 	em_cli_params_t	m_params;
@@ -141,6 +142,8 @@ public:
 	 */
 	void dump_lib_dbg(char *str);
 
+	void dev_test_exec();
+	bool dev_test_set_ssid(int noofiteration, char *haultype, int len);
     
 	/**!
 	 * @brief Constructor for the em_cli_t class.

@@ -259,6 +259,17 @@ public:
 	 * @returns True if the command type is in progress, false otherwise.
 	 */
 	bool is_cmd_type_in_progress(em_bus_event_t *evt);
+
+	/**!
+	 * @brief Checks if a command type is currently in progress.
+	 *
+	 * This function determines whether a dev test commands types are identified by the
+	 * parameter `type`, is currently being processed or is in progress.
+	 *
+	 *
+	 * @returns True if the command type is in progress, false otherwise.
+	 */
+	bool get_dev_test_status();
  
 	/**!
 	 * @brief Checks if a command type is currently in progress.

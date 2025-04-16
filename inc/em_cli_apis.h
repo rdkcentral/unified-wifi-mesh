@@ -399,7 +399,7 @@ extern "C" {
 	 * @note Ensure that the format string is correctly specified to avoid runtime errors.
 	 */
 	void dump_lib_dbg(char *fmt);
-
+	void dev_test_exec();
 #ifdef __cplusplus
 }  // extern "C"
 #endif

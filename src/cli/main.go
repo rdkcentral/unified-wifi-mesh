@@ -255,11 +255,11 @@ func CreateEasyMeshCommands() map[string]EasyMeshCmd {
 		DebugCmd: {
 			Title:                DebugCmd,
 			LoadOrder:            14,
-			GetCommand:           "dev_test OneWifiMesh",
-			GetCommandEx:         "",
-			SetCommand:           "",
+			GetCommand:           "dev_test OneWifiMesh 0",
+			GetCommandEx:         "dev_test OneWifiMesh 1",
+			SetCommand:           "set_dev_test OneWifiMesh",
 			Help:                 "",
-			AllowUnmodifiedApply: false,
+			AllowUnmodifiedApply: true,
 		},
 	}
 }
@@ -373,6 +373,9 @@ func (m model) Init() tea.Cmd {
 	return textinput.Blink
 }
 
+func (m model) dev_test_handler() {
+	C.dev_test_exec();
+}
 func (m *model) timerHandler() {
 	for {
 		select {
@@ -385,6 +388,7 @@ func (m *model) timerHandler() {
 		case <-m.ticker.C:
 			if program != nil {
 				program.Send(refreshUIMsg{index: m.list.Index()})
+				m.dev_test_handler()
 			}
 
 		case <-m.quit:
@@ -524,7 +528,7 @@ func (m *model) execSelectedCommand(cmdStr string, cmdType int) {
 	case GETX:
 		if value.GetCommandEx != "" {
 			m.currentNetNode = C.exec(C.CString(value.GetCommandEx), C.strlen(C.CString(value.GetCommandEx)), nil)
-			//spew.Fdump(m.dump, value.GetCommandEx)
+			spew.Fdump(m.dump, value.GetCommandEx)
 			treeNode := make([]etree.Node, 1)
 			m.displayedNetNode = C.clone_network_tree_for_display(m.currentNetNode, nil, 0xffff, false)
 			m.nodesToTree(m.displayedNetNode, &treeNode[0])
@@ -796,4 +800,5 @@ func main() {
 		fmt.Println("Error running program:", err)
 		os.Exit(1)
 	}
+
 }
