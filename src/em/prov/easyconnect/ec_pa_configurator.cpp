@@ -307,7 +307,7 @@ bool ec_pa_configurator_t::handle_gas_comeback_request([[maybe_unused]] uint8_t 
     }
 
     // Get the fragments to send
-    std::vector<ec_gas_comeback_response_frame_t*> fragments = frame_it->second;
+    std::vector<ec_gas_comeback_response_frame_t*>& fragments = frame_it->second;
 
     if (fragments.empty()) {
         em_printfout("Received GAS Comeback Request, but we have no more fragments to send to '" MACSTRFMT "'", MAC2STR(sa));
@@ -378,6 +378,8 @@ std::vector<ec_gas_comeback_response_frame_t *> ec_pa_configurator_t::fragment_l
         frame->fragment_id = frag_id;
         frame->more_fragments = ((offset + chunk_size) < len) ? 1 : 0;
 
+        em_printfout("Copying data into fragment #%d:\n", frag_id);
+        util::print_hex_dump(static_cast<unsigned int>(chunk_size), const_cast<uint8_t*>(payload + offset));
         // Copy the actual chunk of the payload into the frame
         frame = ec_util::copy_payload_to_gas_resp(frame, const_cast<uint8_t *>(payload + offset), chunk_size);
         if (!frame) {

@@ -492,6 +492,8 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, unsigned int len, uint
 
     ec_status_code_t config_response_status_code = static_cast<ec_status_code_t>(status_attrib->data[0]);
 
+    em_printfout("Configuration response status=%d (%s)", static_cast<int>(config_response_status_code), ec_util::status_code_to_string(config_response_status_code).c_str());
+
     ec_status_code_t valid_status_codes[4] = {DPP_STATUS_OK, DPP_STATUS_CONFIGURE_PENDING, DPP_STATUS_NEW_KEY_NEEDED, DPP_STATUS_CSR_BAD};
     bool config_response_status_code_valid = false;
     for (int i = 0; i < static_cast<int>(std::size(valid_status_codes)); i++) {
@@ -1221,6 +1223,8 @@ bool ec_enrollee_t::handle_gas_comeback_response(ec_gas_comeback_response_frame_
 
     if (!more_frags_coming) {
         // No more data coming, we've got a complete frame
+        em_printfout("Full fragmented frame reassembled:\n");
+        util::print_hex_dump(m_gas_fragments[source_mac_key].reassembled_payload);
         bool did_succeed = handle_config_response(
             m_gas_fragments[source_mac_key].reassembled_payload.data(),
             static_cast<unsigned int>(m_gas_fragments[source_mac_key].reassembled_payload.size()),

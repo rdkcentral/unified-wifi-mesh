@@ -139,6 +139,8 @@ namespace util {
 	 */
 	void print_hex_dump(unsigned int length, uint8_t *buffer, easymesh_dbg_type_t module=EM_STDOUT);
 
+	void print_hex_dump(const std::vector<uint8_t>& data, easymesh_dbg_type_t module=EM_STDOUT);
+
 
 
 	/**
