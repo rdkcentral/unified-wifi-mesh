@@ -57,6 +57,8 @@ bool ec_pa_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, u
 bool ec_pa_configurator_t::handle_cfg_request(uint8_t *buff, unsigned int len, uint8_t sa[ETH_ALEN])
 {
     em_printfout("Rx'd a DPP Configuration Request from " MACSTRFMT "", MAC2STR(sa));
+    ec_gas_initial_request_frame_t *req_frame = reinterpret_cast<ec_gas_initial_request_frame_t *>(buff);
+    m_gas_session_dialog_tokens[util::mac_to_string(sa)] = req_frame->base.dialog_token;
 
     // EasyMesh R6 5.3.4
     // If a Proxy Agent receives a DPP Configuration Request frame in a GAS frame from an Enrollee Multi-AP Agent, it shall
