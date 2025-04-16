@@ -1099,7 +1099,7 @@ int em_t::init()
     // initialize the crypto
     m_crypto.init();
 
-    ssize_t stack_size = 0x800000; /* 8MB */
+    size_t stack_size = 0x800000; /* 8MB */
     pthread_attr_t attr;
     pthread_attr_t *attrp = NULL;
     int ret = 0;
@@ -1183,6 +1183,7 @@ const char *em_t::state_2_str(em_state_t state)
         EM_STATE_2S(em_state_max)
         EM_STATE_2S(em_state_agent_beacon_report_pending)
         EM_STATE_2S(em_state_agent_channel_select_configuration_pending)
+        default: break;
     }
 
     return "em_state_unknown";

@@ -88,7 +88,7 @@ int dm_sta_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "RCPI")) != NULL) {
-        m_sta_info.rcpi = tmp->valuedouble;
+        m_sta_info.rcpi = static_cast<unsigned char>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "UtilizationTransmit")) != NULL) {
