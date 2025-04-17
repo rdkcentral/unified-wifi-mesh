@@ -377,14 +377,19 @@ void em_agent_t::handle_recv_gas_frame(em_bus_event_t *evt)
         }
         break;
     }
-    case dpp_gas_action_type_t::dpp_gas_comeback_req:
+    case dpp_gas_action_type_t::dpp_gas_comeback_req: {
         printf("%s:%d: Received GAS Comeback Request\n", __func__, __LINE__);
-        // TODO: handle comeback request
+        is_wfa_ec_gas = true;
         break;
-    case dpp_gas_action_type_t::dpp_gas_comeback_resp:
+    }
+    case dpp_gas_action_type_t::dpp_gas_comeback_resp: {
         printf("%s:%d: Received GAS Comeback Response\n", __func__, __LINE__);
-        // TODO: handle comeback response
+        ec_gas_comeback_response_frame_t *cb_resp_frame = reinterpret_cast<ec_gas_comeback_response_frame_t*>(gas_frame_base);
+        if (cb_resp_frame->ape_id[0] == 0xDD && memcmp(cb_resp_frame->ape_id, DPP_GAS_CONFIG_REQ_PROTO_ID, sizeof(DPP_GAS_CONFIG_REQ_PROTO_ID)) == 0) {
+            is_wfa_ec_gas = true;
+        }
         break;
+    }
     default:
         printf("%s:%d: Received unknown GAS action type '0x%x'\n", __func__, __LINE__,
                gas_frame_base->action);

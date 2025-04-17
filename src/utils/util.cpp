@@ -174,6 +174,11 @@ std::pair<FILE*, std::string> get_module_log_fd_name(easymesh_dbg_type_t module,
     return std::make_pair(nullptr, std::string());
 }
 
+void util::print_hex_dump(const std::vector<uint8_t>& data, easymesh_dbg_type_t module)
+{
+    util::print_hex_dump(static_cast<unsigned int>(data.size()), const_cast<uint8_t*>(data.data()), module);
+}
+
 void util::print_hex_dump(unsigned int length, uint8_t *buffer, easymesh_dbg_type_t module)
 {
     unsigned int i;

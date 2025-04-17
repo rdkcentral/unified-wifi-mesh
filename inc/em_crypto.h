@@ -25,6 +25,9 @@
 #include <openssl/dh.h>
 #include "em_base.h"
 #include <openssl/evp.h>
+
+
+
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
 #include <openssl/param_build.h>
 #include <openssl/types.h>
@@ -36,6 +39,8 @@
 #include <utility>
 #include <string>
 #include <memory>
+
+#include <string.h>
 
 #define SHA256_MAC_LEN 32
 #define AES_BLOCK_SIZE 16
@@ -105,45 +110,41 @@ public:
 	 */
 	int init();
 
-    
-	/**
-	 * @brief Computes an HMAC hash using OpenSSL for multiple input elements.
-	 *
-	 * This function calculates an HMAC hash using a specified hashing algorithm and key,
-	 * supporting multiple input elements. It's compatible with different OpenSSL versions
-	 * (pre-1.1.0, 1.1.0+, and 3.0.0+) through conditional compilation.
-	 *
-	 * @param[in] hashing_algo The OpenSSL message digest algorithm to use (e.g., EVP_sha256()).
-	 * @param[in] key Pointer to the key used for HMAC calculation.
-	 * @param[in] keylen Length of the key in bytes.
-	 * @param[in] num_elem Number of elements to be hashed.
-	 * @param[in] addr Array of pointers to input data elements.
-	 * @param[in] len Array of lengths corresponding to each input element.
-	 * @param[out] hmac Output buffer where the computed HMAC will be stored.
-	 *
-	 * @return uint8_t Returns 1 on success, 0 on failure.
-	 *
-	 * @note The hmac buffer must be pre-allocated with sufficient space for the output
-	 *       (32 bytes for SHA-256).
-	 */
-	static uint8_t platform_hmac_hash(const EVP_MD * hashing_algo, uint8_t *key, uint32_t keylen, uint8_t num_elem, uint8_t **addr, size_t *len, uint8_t *hmac);
+    /**
+     * @brief Computes an HMAC hash using OpenSSL for multiple input elements
+     *
+     * This function calculates an HMAC hash using a specified hashing algorithm and key,
+     * supporting multiple input elements. It's compatible with different OpenSSL versions
+     * (pre-1.1.0, 1.1.0+, and 3.0.0+) through conditional compilation.
+     *
+     * @param hashing_algo The OpenSSL message digest algorithm to use (e.g., EVP_sha256())
+     * @param key         Pointer to the key used for HMAC calculation
+     * @param keylen      Length of the key in bytes
+     * @param num_elem    Number of elements to be hashed
+     * @param addr        Array of pointers to input data elements
+     * @param len         Array of lengths corresponding to each input element
+     * @param hmac        Output buffer where the computed HMAC will be stored
+     *
+     * @return uint8_t    Returns 1 on success, 0 on failure
+     *
+     * @note The hmac buffer must be pre-allocated with sufficient space for the output
+     *       (32 bytes for SHA-256)
+     */
+    static uint8_t platform_hmac_hash(const EVP_MD * hashing_algo, uint8_t *key, size_t keylen, uint8_t num_elem, uint8_t **addr, size_t *len, uint8_t *hmac);
 
-    
-	/**
-	 * @brief Convenience wrapper to compute HMAC-SHA256 hash for multiple input elements.
-	 *
-	 * This function computes the HMAC-SHA256 hash for a given set of input data elements using the specified key.
-	 *
-	 * @param[in] key Key used for HMAC calculation.
-	 * @param[in] keylen Length of the key in bytes.
-	 * @param[in] num_elem Number of elements to hash.
-	 * @param[in] addr Array of pointers to input data elements.
-	 * @param[in] len Array of lengths for each input element.
-	 * @param[out] hmac Output buffer for computed HMAC.
-	 *
-	 * @return 1 on success, 0 on failure.
-	 */
-	inline static uint8_t platform_hmac_SHA256(uint8_t *key, uint32_t keylen, uint8_t num_elem, uint8_t **addr, size_t *len, uint8_t *hmac){
+    /**
+    * @brief Convenience wrapper to compute HMAC-SHA256 hash for multiple input elements
+    *
+    * @param key      Key used for HMAC calculation
+    * @param keylen   Length of the key in bytes  
+    * @param num_elem Number of elements to hash
+    * @param addr     Array of pointers to input data elements
+    * @param len      Array of lengths for each input element
+    * @param hmac     Output buffer for computed HMAC
+    *
+    * @return 1 on success, 0 on failure
+    */
+    inline static uint8_t platform_hmac_SHA256(uint8_t *key, size_t keylen, uint8_t num_elem, uint8_t **addr, size_t *len, uint8_t *hmac){
         return platform_hmac_hash(EVP_sha256(), key, keylen, num_elem, addr, len, hmac);
     }
     
@@ -1118,11 +1119,7 @@ struct ECPointDeleter {
 };
 
 struct ECGroupDeleter {
-    void operator()(EC_GROUP* group) const { 
-        #if !defined(FORCE_OPENSSL_1_1) && OPENSSL_VERSION_NUMBER >= 0x30000000L
-        if (group) EC_GROUP_free(group); 
-        #endif
-    }
+    void operator()(EC_GROUP* group) const { if (group) EC_GROUP_free(group); }
 };
 
 struct SSLKeyDeleter {
