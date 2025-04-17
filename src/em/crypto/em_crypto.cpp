@@ -41,26 +41,30 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include <pthread.h>
-#include <openssl/rand.h>
-#include <openssl/evp.h>
-#include <openssl/dh.h>
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
-#include <openssl/provider.h>
-#endif
 #include <sys/types.h>
 #include <ifaddrs.h>
+
 #include "em.h"
 #include "em_crypto.h"
 #include "util.h"
+
 #include <iostream>
-#include <openssl/dh.h>
-#include <openssl/evp.h>
-#include <openssl/pem.h>
-#include <openssl/err.h>
 #include <fstream>
 #include <sstream>
 #include <string>
 
+#include <openssl/dh.h>
+#include <openssl/evp.h>
+#include <openssl/pem.h>
+#include <openssl/err.h>
+#include <openssl/rand.h>
+#include <openssl/evp.h>
+#include <openssl/dh.h>
+
+
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#include <openssl/provider.h>
+#endif
 
 // Initialize the static member variables
 // From RFC 3526
@@ -88,7 +92,7 @@ static pthread_once_t init_once = PTHREAD_ONCE_INIT;
 
 em_crypto_t::em_crypto_t() {
 
-
+    #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     pthread_once(&init_once, []() {
         if (OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CONFIG, NULL) == 0) {
             fprintf(stderr, "OpenSSL initialization failed\n");
@@ -102,6 +106,7 @@ em_crypto_t::em_crypto_t() {
         }
 #endif
     });
+    #endif
 }
 
 int em_crypto_t::init()
@@ -118,6 +123,8 @@ int em_crypto_t::init()
     EVP_PKEY *param_pkey = NULL;
     EVP_PKEY_CTX *pkey_ctx = NULL;
     EVP_PKEY *pkey = NULL;
+#else
+    DH *dh = NULL;
 #endif
     /* Create prime and generator by converting binary to BIGNUM format */
     p = BN_bin2bn(g_dh1536_p, sizeof(g_dh1536_p), NULL);
@@ -126,7 +133,6 @@ int em_crypto_t::init()
     if (!g) { goto bail; }
 
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
-    DH *dh = NULL;
     if (NULL == (dh = DH_new())) {
         goto bail;
     }
@@ -269,7 +275,7 @@ uint8_t em_crypto_t::platform_hash(const EVP_MD * hashing_algo, uint8_t num_elem
 
     return res;
 }
-uint8_t em_crypto_t::platform_hmac_hash(const EVP_MD * hashing_algo, uint8_t *key, uint32_t keylen, uint8_t num_elem, uint8_t **addr, size_t *len, uint8_t *hmac)
+uint8_t em_crypto_t::platform_hmac_hash(const EVP_MD * hashing_algo, uint8_t *key, size_t keylen, uint8_t num_elem, uint8_t **addr, size_t *len, uint8_t *hmac)
 {
     //em_util_info_print(EM_CONF," %s:%d\n",__func__,__LINE__);
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
@@ -1031,7 +1037,7 @@ std::string em_crypto_t::ec_key_to_base64_der(const SSL_KEY *key) {
 
     // Convert the key to DER format
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
-    der_length = i2d_EC_PUBKEY(key, &der_buffer);
+    der_length = i2d_EC_PUBKEY(const_cast<SSL_KEY*>(key), &der_buffer);
 #else
     der_length = i2d_PUBKEY(key, &der_buffer);
 #endif
@@ -1202,6 +1208,7 @@ SSL_KEY *em_crypto_t::generate_ec_key(int nid)
 }
 void em_crypto_t::free_key(SSL_KEY *key)
 {
+    if (!key) return;
     EVP_PKEY_free(key);
 }
 bool em_crypto_t::write_keypair_to_pem(const SSL_KEY *key, const std::string &file_path) { 
@@ -1264,22 +1271,47 @@ err:
 #else
 EC_GROUP *em_crypto_t::get_key_group(const SSL_KEY *key)
 {
-    // key = EC_KEY
     if (!key) return NULL;
-    return const_cast<EC_GROUP*>(EC_KEY_get0_group(key));
+
+    const EC_GROUP* group = EC_KEY_get0_group(key);
+    if (!group) return NULL;
+
+    // Provides consistent behavior across different OpenSSL versions
+    // since OpenSSL 3.0+ creates a new EC_GROUP object.
+    int nid = EC_GROUP_get_curve_name(group);
+    return EC_GROUP_new_by_curve_name(nid);
 }
 BIGNUM *em_crypto_t::get_priv_key_bn(const SSL_KEY *key)
 {
     if (!key) return NULL;
-    return const_cast<BIGNUM*>(EC_KEY_get0_private_key(key));
+    
+    // Get the original point
+    const BIGNUM* original = EC_KEY_get0_private_key(key);
+    if (!original) return NULL;
+    
+    // Provides consistent behavior across different OpenSSL versions
+    // since OpenSSL 3.0+ creates a new BIGNUM object.
+    return BN_dup(original);
 }
 
-EC_POINT *em_crypto_t::get_pub_key_point(const SSL_KEY *key, __attribute__((unused)) EC_GROUP* key_group)
+EC_POINT *em_crypto_t::get_pub_key_point(const SSL_KEY *key, EC_GROUP* key_group)
 {
     if (!key) return NULL;
-    return const_cast<EC_POINT*>(EC_KEY_get0_public_key(key));
+    
+    // Get the original point
+    const EC_POINT* original = EC_KEY_get0_public_key(key);
+    if (!original) return NULL;
+    
+    // Use provided group or get it from the key
+    EC_GROUP* group = key_group;
+    if (!group) {
+        group = const_cast<EC_GROUP*>(EC_KEY_get0_group(key));
+        if (!group) return NULL;
+    }
+    // Provides consistent behavior across different OpenSSL versions
+    // since OpenSSL 3.0+ creates a new EC_POINT object. 
+    return EC_POINT_dup(original, const_cast<const EC_GROUP*>(group));
 }
-
 SSL_KEY *em_crypto_t::generate_ec_key(EC_GROUP *group)
 {
     if (!group) return NULL;
@@ -1300,6 +1332,7 @@ SSL_KEY *em_crypto_t::generate_ec_key(int nid)
 
 void em_crypto_t::free_key(SSL_KEY *key)
 {
+    if (!key) return;
     EC_KEY_free(key);
 }
 
@@ -1316,13 +1349,13 @@ bool em_crypto_t::write_keypair_to_pem(const SSL_KEY *key, const std::string &fi
     ASSERT_NOT_NULL(fp, false, "%s:%d Failed to open file (%s)", __func__, __LINE__, file_path.c_str());
     
     // Write private key to PEM file
-    if (!PEM_write_ECPrivateKey(fp, key, NULL, NULL, 0, NULL, NULL)) {
+    if (!PEM_write_ECPrivateKey(fp, const_cast<SSL_KEY*>(key), NULL, NULL, 0, NULL, NULL)) {
         printf("%s:%d Failed to write private key to PEM file\n", __func__, __LINE__);
         goto err;
     }
     
     // Write public key to the same PEM file
-    if (!PEM_write_EC_PUBKEY(fp, key)) {
+    if (!PEM_write_EC_PUBKEY(fp, const_cast<SSL_KEY*>(key))) {
         printf("%s:%d Failed to write public key to PEM file\n", __func__, __LINE__);
         goto err;
     }
@@ -1584,7 +1617,7 @@ bool em_crypto_t::verify_signature(const std::vector<uint8_t> &message,
     return result;
 }
 
-static std::optional<std::vector<uint8_t>> em_crypto_t::sign_data_ecdsa(const std::vector<uint8_t> &data_to_sign, EC_KEY *private_key, const EVP_MD *md = EVP_sha256())
+std::optional<std::vector<uint8_t>> em_crypto_t::sign_data_ecdsa(const std::vector<uint8_t> &data_to_sign, EC_KEY *private_key, const EVP_MD *md)
 {
     EVP_PKEY *pkey = EVP_PKEY_new();
     if (!pkey) {
