@@ -117,14 +117,9 @@ uint8_t *ec_util::add_wrapped_data_attr(ec_frame_t *frame, uint8_t *frame_attrib
     return add_wrapped_data_attr(reinterpret_cast<uint8_t*>(frame), sizeof(ec_frame_t), frame_attribs, non_wrapped_len, use_aad, key, create_wrap_attribs);
 }
 
-uint8_t *ec_util::add_wrapped_data_attr(ec_gas_initial_request_frame_t *frame, uint8_t *frame_attribs, size_t *non_wrapped_len, bool use_aad, uint8_t *key, std::function<std::pair<uint8_t *, uint16_t>()> create_wrap_attribs)
+uint8_t *ec_util::add_cfg_wrapped_data_attr(uint8_t *frame_attribs, size_t *non_wrapped_len, bool use_aad, uint8_t *key, std::function<std::pair<uint8_t *, uint16_t>()> create_wrap_attribs)
 {
-    return add_wrapped_data_attr(reinterpret_cast<uint8_t*>(frame), sizeof(ec_gas_initial_request_frame_t), frame_attribs, non_wrapped_len, use_aad, key, create_wrap_attribs);
-}
-
-uint8_t *ec_util::add_wrapped_data_attr(ec_gas_initial_response_frame_t *frame, uint8_t *frame_attribs, size_t *non_wrapped_len, bool use_aad, uint8_t *key, std::function<std::pair<uint8_t *, uint16_t>()> create_wrap_attribs)
-{
-    return add_wrapped_data_attr(reinterpret_cast<uint8_t*>(frame), sizeof(ec_gas_initial_response_frame_t), frame_attribs, non_wrapped_len, use_aad, key, create_wrap_attribs);
+    return add_wrapped_data_attr(NULL, 0, frame_attribs, non_wrapped_len, use_aad, key, create_wrap_attribs);
 }
 
 uint8_t *ec_util::add_wrapped_data_attr(uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, size_t *non_wrapped_len,
@@ -179,11 +174,15 @@ uint8_t *ec_util::add_wrapped_data_attr(uint8_t *frame, size_t frame_len, uint8_
    if (use_aad) {
 
         ASSERT_NOT_NULL_FREE2(frame_attribs, NULL, wrapped_attrib, wrap_attribs, "Frame attributes cannot be NULL for AAD encryption\n");
-        ASSERT_NOT_NULL_FREE2(frame, NULL, wrapped_attrib, wrap_attribs, "Frame cannot be NULL for AAD encryption\n");
-        
-        siv_result = siv_encrypt(&ctx, wrap_attribs, &wrapped_attrib->data[AES_BLOCK_SIZE], wrapped_len, wrapped_attrib->data, 2,
-            frame, frame_len,
-            frame_attribs, *non_wrapped_len);
+        if (frame == NULL || frame_len == 0) {
+            em_printfout("frame is null or frame_len == 0 for AAD encryption, skipping it");
+            siv_result = siv_encrypt(&ctx, wrap_attribs, &wrapped_attrib->data[AES_BLOCK_SIZE], wrapped_len, wrapped_attrib->data, 1,
+                frame_attribs, *non_wrapped_len);
+        } else {
+            siv_result = siv_encrypt(&ctx, wrap_attribs, &wrapped_attrib->data[AES_BLOCK_SIZE], wrapped_len, wrapped_attrib->data, 2,
+                frame, frame_len,
+                frame_attribs, *non_wrapped_len);
+        }
     } else {
         siv_result = siv_encrypt(&ctx, wrap_attribs, &wrapped_attrib->data[AES_BLOCK_SIZE], wrapped_len, wrapped_attrib->data, 0);
     }
@@ -201,6 +200,11 @@ uint8_t *ec_util::add_wrapped_data_attr(uint8_t *frame, size_t frame_len, uint8_
     free(wrap_attribs);
 
     return ret_frame_attribs;
+}
+
+std::pair<uint8_t *, uint16_t> ec_util::unwrap_wrapped_attrib(const ec_attribute_t &wrapped_attrib, uint8_t *frame_attribs, bool uses_aad, uint8_t *key)
+{
+    return unwrap_wrapped_attrib(wrapped_attrib, NULL, 0, frame_attribs, uses_aad, key); 
 }
 
 std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(const ec_attribute_t& wrapped_attrib, ec_frame_t *frame, bool uses_aad, uint8_t* key)
@@ -242,15 +246,20 @@ std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(const ec_attribute_
     uint8_t* unwrap_attribs = reinterpret_cast<uint8_t*>(calloc(wrapped_len, 1));
     int result = -1;
     if (uses_aad) {
-        if (frame == NULL) {
-            em_printfout("AAD input is NULL, AAD decryption failed!");
-            return {nullptr, 0};
-        }
         size_t pre_wrapped_attribs_size = static_cast<size_t>(reinterpret_cast<uint8_t*>(wrapped_attrib.original) - frame_attribs);
-        result = siv_decrypt(&ctx, wrapped_ciphertext, unwrap_attribs, wrapped_len,
-                             wrapped_attrib.data, 2,
-                             frame, frame_len,
-                             frame_attribs, pre_wrapped_attribs_size);
+        if (frame == NULL || frame_len == 0) {
+            em_printfout("frame is null or frame_len == 0 for AAD decryption, skipping it");
+            result = siv_decrypt(&ctx, wrapped_ciphertext, unwrap_attribs, wrapped_len,
+                wrapped_attrib.data, 1,
+                frame_attribs, pre_wrapped_attribs_size);
+        } else {
+            result = siv_decrypt(&ctx, wrapped_ciphertext, unwrap_attribs, wrapped_len,
+                wrapped_attrib.data, 2,
+                frame, frame_len,
+                frame_attribs, pre_wrapped_attribs_size);
+        }
+        
+
     } else {
         result = siv_decrypt(&ctx, wrapped_ciphertext, unwrap_attribs, wrapped_len,
                              wrapped_attrib.data, 0);
@@ -472,6 +481,33 @@ uint8_t *ec_util::copy_attrs_to_frame(uint8_t *frame, size_t frame_base_size, ui
 
     memcpy(new_frame + frame_base_size, attrs, attrs_len);
     return new_frame;
+}
+
+uint8_t *ec_util::copy_payload_to_gas_resp(uint8_t *frame, size_t frame_base_size, uint8_t *payload, size_t payload_len)
+{
+    size_t new_len = frame_base_size + payload_len;
+    uint8_t *new_frame = reinterpret_cast<uint8_t*>(realloc(frame, new_len));
+    if (new_frame == nullptr) {
+        em_printfout("Unable to realloc");
+        return nullptr;
+    }
+
+    memcpy(new_frame + frame_base_size, payload, payload_len);
+    return new_frame;
+}
+
+ec_gas_initial_response_frame_t *ec_util::copy_payload_to_gas_resp(ec_gas_initial_response_frame_t *frame, uint8_t *payload, size_t payload_len)
+{
+    return reinterpret_cast<ec_gas_initial_response_frame_t *>(copy_payload_to_gas_resp(
+        reinterpret_cast<uint8_t*>(frame), sizeof(ec_gas_initial_response_frame_t), payload, payload_len
+    ));
+}
+
+ec_gas_comeback_response_frame_t *ec_util::copy_payload_to_gas_resp(ec_gas_comeback_response_frame_t *frame, uint8_t *payload, size_t payload_len)
+{
+    return reinterpret_cast<ec_gas_comeback_response_frame_t*>(copy_payload_to_gas_resp(
+        reinterpret_cast<uint8_t*>(frame), sizeof(ec_gas_comeback_response_frame_t), payload, payload_len
+    ));
 }
 
 std::string ec_util::generate_channel_list(const std::string& ssid, std::unordered_map<std::string, std::vector<scanned_channels_t>> scanned_channels_map)

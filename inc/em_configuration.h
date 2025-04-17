@@ -1702,24 +1702,7 @@ public:
         return em_crypto_t::platform_SHA256(num, addr, len, digest); 
     }
 
-    
-	/**!
-	 * @brief Computes the KDK using HMAC SHA256.
-	 *
-	 * This function takes a key and other parameters to compute the KDK.
-	 *
-	 * @param[in] key Pointer to the key used for HMAC.
-	 * @param[in] keylen Length of the key.
-	 * @param[in] num_elem Number of elements in the addr array.
-	 * @param[in] addr Array of pointers to data elements.
-	 * @param[in] len Array of lengths corresponding to each data element.
-	 * @param[out] hmac Pointer to the buffer where the computed HMAC will be stored.
-	 *
-	 * @returns int Status of the HMAC computation.
-	 *
-	 * @note This function uses the platform-specific HMAC SHA256 implementation.
-	 */
-	int compute_kdk(unsigned char *key, unsigned short keylen, 
+    int compute_kdk(unsigned char *key, size_t keylen, 
         unsigned char num_elem, unsigned char **addr, 
         size_t *len, unsigned char *hmac) {
             return em_crypto_t::platform_hmac_SHA256(key, keylen, num_elem, addr, len, hmac);

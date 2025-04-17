@@ -25,26 +25,12 @@ protected:
 
     void SetUp() override
     {
-        const auto sig_x = em_crypto_t::base64url_decode(test_sig_x);
-        ASSERT_NE(sig_x, std::nullopt);
-        const auto sig_y = em_crypto_t::base64url_decode(test_sig_y);
-        ASSERT_NE(sig_y, std::nullopt);
 
-        const auto opt_test = std::make_optional<std::vector<uint8_t>>(test_priv_proto_key);
-        signing_key =
-            em_crypto_t::create_ec_key_from_coordinates(*sig_x, *sig_y, opt_test, test_sig_curve);
-        ASSERT_NE(signing_key, nullptr);
     }
 
     void TearDown() override
     {
-        if (signing_key) {
-            em_crypto_t::free_key(signing_key);
-        }
     }
-
-    // MUTABLES
-    SSL_KEY *signing_key = nullptr;
 
     // CONSTANTS
 
@@ -177,16 +163,62 @@ TEST_F(EmCryptoTests, DecodeJWSPayload)
 TEST_F(EmCryptoTests, SignJWSConnector)
 {
 
-    ASSERT_NE(signing_key, nullptr);
+    const auto sig_x = em_crypto_t::base64url_decode(test_sig_x);
+    ASSERT_NE(sig_x, std::nullopt);
+    const auto sig_y = em_crypto_t::base64url_decode(test_sig_y);
+    ASSERT_NE(sig_y, std::nullopt);
+
+    const auto opt_test = std::make_optional<std::vector<uint8_t>>(test_priv_proto_key);
+    scoped_ssl_key signing_key(em_crypto_t::create_ec_key_from_coordinates(*sig_x, *sig_y, opt_test, test_sig_curve));
+    ASSERT_NE(signing_key.get(), nullptr);
+
     printf("Signing Key\n");
-    if (EVP_PKEY_print_public_fp(stdout, signing_key, 0, NULL) < 1) {
+    #if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    if (EVP_PKEY_print_public_fp(stdout, signing_key.get(), 0, NULL) < 1) {
         auto err = ERR_get_error();
         printf("Failed to print public key: %s\n", ERR_error_string(err, NULL));
     }
-    if (EVP_PKEY_print_private_fp(stdout, signing_key, 0, NULL) < 1) {
+    if (EVP_PKEY_print_private_fp(stdout, signing_key.get(), 0, NULL) < 1) {
         auto err = ERR_get_error();
         printf("Failed to print private key: %s\n", ERR_error_string(err, NULL));
     }
+#else
+    // Convert EC_KEY to EVP_PKEY
+    EVP_PKEY* pkey = EVP_PKEY_new();
+    if (pkey == NULL) {
+        auto err = ERR_get_error();
+        printf("Failed to create EVP_PKEY: %s\n", ERR_error_string(err, NULL));
+        return;
+    }
+    
+    if (EVP_PKEY_set1_EC_KEY(pkey, signing_key.get()) != 1) {
+        auto err = ERR_get_error();
+        EVP_PKEY_free(pkey);
+        ASSERT_TRUE(false) << "Failed to assign EC_KEY to EVP_PKEY: " << ERR_error_string(err, NULL); 
+    }
+    
+    // Use BIO
+    BIO *bio = BIO_new_fp(stdout, BIO_NOCLOSE);
+    if (bio == NULL) {
+        auto err = ERR_get_error();
+        EVP_PKEY_free(pkey);
+        ASSERT_TRUE(false) << "Failed to create BIO: " << ERR_error_string(err, NULL); 
+    }
+    
+    if (EVP_PKEY_print_public(bio, pkey, 0, NULL) < 1) {
+        auto err = ERR_get_error();
+        printf("Failed to print public key: %s\n", ERR_error_string(err, NULL));
+    }
+    
+    if (EVP_PKEY_print_private(bio, pkey, 0, NULL) < 1) {
+        auto err = ERR_get_error();
+        printf("Failed to print private key: %s\n", ERR_error_string(err, NULL));
+    }
+    
+    BIO_free(bio);
+    EVP_PKEY_free(pkey); 
+#endif
+
 
     // Get JWS Header and Payload as Strings
     cJSON *jws_header = cJSON_Parse(test_jws_header_data.c_str());
@@ -214,11 +246,11 @@ TEST_F(EmCryptoTests, SignJWSConnector)
     std::vector<uint8_t> data_vec(data.begin(), data.end());
 
     // JWS Signature (sig)
-    auto sig = em_crypto_t::sign_data_ecdsa(data_vec, signing_key, EVP_sha256());
+    auto sig = em_crypto_t::sign_data_ecdsa(data_vec, signing_key.get(), EVP_sha256());
     ASSERT_NE(sig, std::nullopt) << "Failed to sign data, 'sig' could not be generated";
 
     // Verify that the signature was generated correctly.
-    bool did_verify = em_crypto_t::verify_signature(data_vec, *sig, signing_key, EVP_sha256());
+    bool did_verify = em_crypto_t::verify_signature(data_vec, *sig, signing_key.get(), EVP_sha256());
     EXPECT_TRUE(did_verify) << "Failed to verify signature (sig)";
 }
 
@@ -258,6 +290,12 @@ TEST_F(EmCryptoTests, KeyComponentsConsistency)
     scoped_ssl_key key(em_crypto_t::generate_ec_key(NID_secp256k1));
     ASSERT_NE(key.get(), nullptr) << "Could not generate key";
 
+    // Create BN_CTX for calculations - this helps manage internal allocations
+    BN_CTX* bn_ctx = BN_CTX_new();
+    ASSERT_NE(bn_ctx, nullptr) << "Could not create BN_CTX";
+
+    BN_CTX_start(bn_ctx);
+
     // Get components
     scoped_ec_group group(em_crypto_t::get_key_group(key.get()));
     ASSERT_NE(group.get(), nullptr) << "Could not get key group";
@@ -273,12 +311,16 @@ TEST_F(EmCryptoTests, KeyComponentsConsistency)
     ASSERT_NE(computed_pub.get(), nullptr) << "Could not create new EC_POINT";
 
     ASSERT_TRUE(
-        EC_POINT_mul(group.get(), computed_pub.get(), priv.get(), nullptr, nullptr, nullptr))
+        EC_POINT_mul(group.get(), computed_pub.get(), priv.get(), nullptr, nullptr, bn_ctx))
         << "Could not compute public key from private key";
 
     // Compare the public key points
-    EXPECT_EQ(EC_POINT_cmp(group.get(), pub.get(), computed_pub.get(), nullptr), 0)
+    EXPECT_EQ(EC_POINT_cmp(group.get(), pub.get(), computed_pub.get(), bn_ctx), 0)
         << "Computed public key doesn't match the original";
+
+    // End BN_CTX to free temporary BIGNUMs
+    BN_CTX_end(bn_ctx);
+    BN_CTX_free(bn_ctx);
 }
 
 // Test case for key serialization

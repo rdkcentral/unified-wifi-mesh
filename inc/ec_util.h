@@ -36,6 +36,9 @@
 
 #define EC_FRAME_BASE_SIZE (offsetof(ec_frame_t, attributes))
 
+// -100 buffer is for frame overhead (management header, etc).
+#define WIFI_MTU_SIZE (1500UL - 100UL)
+
 typedef enum {
     DPP_URI_VERSION = 0,
     DPP_URI_MAC,
@@ -255,6 +258,7 @@ public:
                 created_frame_size = sizeof(ec_gas_initial_request_frame_t);
             }
             break;
+
             case dpp_gas_action_type_t::dpp_gas_initial_resp: {
                 frame = calloc(1, sizeof(ec_gas_initial_response_frame_t));
                 if (!frame) {
@@ -269,6 +273,34 @@ public:
                 created_frame_size = sizeof(ec_gas_initial_response_frame_t);
             }
             break;
+
+			case dpp_gas_action_type_t::dpp_gas_comeback_req: {
+				frame = calloc(1, sizeof(ec_gas_comeback_request_frame_t));
+				if (!frame) {
+					printf("%s:%d: Failed to allocate GAS Comeback Request frame!\n", __func__, __LINE__);
+					break;
+				}
+				created_frame_size = sizeof(ec_gas_comeback_request_frame_t);
+			}
+			break;
+	
+			case dpp_gas_action_type_t::dpp_gas_comeback_resp: {
+				frame = calloc(1, sizeof(ec_gas_comeback_response_frame_t));
+				if (!frame) {
+					printf("%s:%d: Failed to allocate GAS Comeback Response frame!\n", __func__, __LINE__);
+					break;
+				}
+				auto *cb_resp_frame = static_cast<ec_gas_comeback_response_frame_t *>(frame);
+				memcpy(cb_resp_frame->ape, DPP_GAS_CONFIG_REQ_APE, sizeof(cb_resp_frame->ape));
+				memcpy(cb_resp_frame->ape_id, DPP_GAS_CONFIG_REQ_PROTO_ID, sizeof(cb_resp_frame->ape_id));
+				cb_resp_frame->status_code = 0;           // SUCCESS
+				cb_resp_frame->gas_comeback_delay = 0;    // No delay for now
+				cb_resp_frame->fragment_id = 0;
+				cb_resp_frame->more_fragments = 0;
+				created_frame_size = sizeof(ec_gas_comeback_response_frame_t);
+			}
+			break;
+
             default:
                 printf("%s:%d: unhandled GAS frame type=%02x\n", __func__, __LINE__, action);
                 break;
@@ -357,6 +389,39 @@ public:
 	 * @note Ensure that the frame has enough space to accommodate the attributes starting from the specified offset.
 	 */
 	static uint8_t* copy_attrs_to_frame(uint8_t *frame, size_t frame_base_size, uint8_t *attrs, size_t attrs_len);
+
+	/**
+	 * @brief Copy a payload to a GAS Initial Response or GAS Comeback Response frame
+	 * 
+	 * @param frame The frame to copy to
+	 * @param frame_base_size The offset where the payload will be copied to
+	 * @param payload The payload to add to the frame
+	 * @param payload_len The size of the payload.
+	 * @return uint8_t* Pointer to base of the frame with newly added payload on success, otherwise nullptr
+	 */
+	static uint8_t *copy_payload_to_gas_resp(uint8_t *frame, size_t frame_base_size, uint8_t *payload, size_t payload_len);
+
+	/**
+	 * @brief Copy a payload to a GAS Initial Response frame
+	 * 
+	 * @param frame The frame to copy to
+	 * @param frame_base_size The offset where the payload will be copied to
+	 * @param payload The payload to add to the frame
+	 * @param payload_len The size of the payload.
+	 * @return uint8_t* Pointer to base of the frame with newly added payload on success, otherwise nullptr
+	 */
+	static ec_gas_initial_response_frame_t *copy_payload_to_gas_resp(ec_gas_initial_response_frame_t *frame, uint8_t *payload, size_t payload_len);
+
+	/**
+	 * @brief Copy a payload to a GAS Comeback Response frame
+	 * 
+	 * @param frame The frame to copy to
+	 * @param frame_base_size The offset where the payload will be copied to
+	 * @param payload The payload to add to the frame
+	 * @param payload_len The size of the payload.
+	 * @return uint8_t* Pointer to base of the frame with newly added payload on success, otherwise nullptr
+	 */
+	static ec_gas_comeback_response_frame_t *copy_payload_to_gas_resp(ec_gas_comeback_response_frame_t *frame, uint8_t *payload, size_t payload_len);
 
     
 	/**
@@ -529,11 +594,15 @@ public:
         bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> create_wrap_attribs);
 
 	/**
-	 * @brief Add a wrapped data attribute to a frame
+	 * @brief Add a wrapped data attribute to an attributes buffer without the frame AAD. 
+	 * Not exclusive to configuration frames however accordinf to the spec it is only used in configuration frames.
+	 * 
+	 * EasyConnect 6.4.1 
+	 * 	All DPP Configuration Protocol messages except for the DPP Configuration Request for Fragments frame, are AES-SIV protected. 
+	 * 	AAD for use with AES-SIV for protected messages in the DPP Configuration protocol shall consist of all octets in the Query Request 
+	 * 	and Query Response fields up to the first octet of the Wrapped Data attribute, which is the last attribute in a 
+	 * 	DPP Configuration frame. When the number of octets of AAD is zero, the number of components of AAD passed to AES-SIV is zero.
 	 *
-	 * This function adds a wrapped data attribute to the specified frame attributes.
-	 *
-	 * @param[in] frame The frame to use as Additional Authenticated Data (AAD). Can be NULL if no AAD is needed.
 	 * @param[in,out] frame_attribs The attributes to add the wrapped data attribute to and to use as AAD.
 	 * @param[in,out] non_wrapped_len The length of the non-wrapped attributes (`frame_attribs`).
 	 * @param[in] use_aad Whether to use AAD in the encryption.
@@ -545,30 +614,9 @@ public:
 	 * @note The `create_wrap_attribs` function will allocate heap-memory which is freed inside the `add_wrapped_data_attr` function.
 	 *       **The caller should not use statically allocated memory in `create_wrap_attribs` or free the memory returned by `create_wrap_attribs`.**
 	 */
-	static uint8_t* add_wrapped_data_attr(ec_gas_initial_request_frame_t *frame, uint8_t* frame_attribs, size_t* non_wrapped_len, 
-        bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> create_wrap_attribs);
+	static uint8_t* add_cfg_wrapped_data_attr(uint8_t *frame_attribs, size_t *non_wrapped_len, bool use_aad, uint8_t *key, 
+		std::function<std::pair<uint8_t *, uint16_t>()> create_wrap_attribs);
 
-	/**
-	 * @brief Add a wrapped data attribute to a frame
-	 *
-	 * This function adds a wrapped data attribute to the specified frame attributes.
-	 *
-	 * @param[in] frame The frame to use as Additional Authenticated Data (AAD). Can be NULL if no AAD is needed.
-	 * @param[in,out] frame_attribs The attributes to add the wrapped data attribute to and to use as AAD.
-	 * @param[in,out] non_wrapped_len The length of the non-wrapped attributes (`frame_attribs`).
-	 * @param[in] use_aad Whether to use AAD in the encryption.
-	 * @param[in] key The key to use for encryption.
-	 * @param[in] create_wrap_attribs A function to create the attributes to wrap and their length. Memory is handled by the function (see note).
-	 *
-	 * @return uint8_t* The new frame attributes with the wrapped data attribute added.
-	 *
-	 * @note The `create_wrap_attribs` function will allocate heap-memory which is freed inside the `add_wrapped_data_attr` function.
-	 *       **The caller should not use statically allocated memory in `create_wrap_attribs` or free the memory returned by `create_wrap_attribs`.**
-	 */
-	static uint8_t* add_wrapped_data_attr(ec_gas_initial_response_frame_t *frame, uint8_t* frame_attribs, size_t* non_wrapped_len, 
-		bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> create_wrap_attribs);
-
-    
 	/**!
 	 * @brief Adds wrapped data attributes to a frame.
 	 *
@@ -589,6 +637,27 @@ public:
 	 */
 	static uint8_t* add_wrapped_data_attr(uint8_t *frame, size_t frame_len, uint8_t* frame_attribs, size_t* non_wrapped_len, 
         bool use_aad, uint8_t* key, std::function<std::pair<uint8_t*, uint16_t>()> create_wrap_attribs);
+
+
+	/**
+	 * @brief Unwrap a wrapped data attribute without frame AAD
+	 *
+	 * This function unwraps a wrapped attribute using the provided key and
+	 * optional additional authenticated data (AAD) from the frame.
+	 *
+	 * @param[in] wrapped_attrib The wrapped attribute to unwrap (retrieved using `get_attrib`).
+	 * @param[in] uses_aad Whether the wrapped attribute uses AAD.
+	 * @param[in] key The key to use for decryption.
+	 *
+	 * @return std::pair<uint8_t*, uint16_t> A heap allocated buffer of unwrapped attributes on success,
+	 *         which can then be fetched via `get_attrib`, along with the length of that buffer.
+	 *         The buffer is NULL and the size is 0 on failure.
+	 *
+	 * @warning The caller is responsible for freeing the memory returned by this function.
+	 *
+	 * @note Forwards to `unwrap_wrapped_attrib(ec_attribute_t wrapped_attrib, uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, bool uses_aad, uint8_t *key);`
+	 */
+	static std::pair<uint8_t*, uint16_t> unwrap_wrapped_attrib(const ec_attribute_t &wrapped_attrib, uint8_t *frame_attribs, bool uses_aad, uint8_t *key);
     
 	/**
 	 * @brief Unwrap a wrapped data attribute

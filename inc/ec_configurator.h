@@ -168,6 +168,20 @@ public:
         return true; // Optional to implement
     }
 
+	/**
+	 * @brief Handles a GAS Comeback Request frame
+	 * A GAS Comeback Request frame (in the context of DPP) indicates that a peer is ready the to receive the next fragmented frame via GAS Comeback Response frame.
+	 * 
+	 * For each Comeback Request frame received, we will sent the next fragment (if any) to the requesting peer.
+	 * @param buff The frame
+	 * @param len The length of the frame
+	 * @param sa The source addr of the frame (Enrollee)
+	 * @return true on success, otherwise false
+	 */
+	virtual bool handle_gas_comeback_request(uint8_t *buff, unsigned int len, uint8_t sa[ETH_ALEN]) {
+		return true; // Implemented by PA configurator only
+	}
+
     
 	/**
 	 * @brief Handles a configuration result 802.11+GAS frame, performing the necessary actions.
