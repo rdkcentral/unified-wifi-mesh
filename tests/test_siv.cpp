@@ -60,6 +60,7 @@ TEST_F(AESSIVTest, BasicEncryptionDecryption) {
                           static_cast<int>(plaintext_len), 
                           tag, 
                           0), 1);
+    siv_free(&ctx);
     
     // Verify decryption worked
     ASSERT_TRUE(cmp_buff(reinterpret_cast<const uint8_t*>(plaintext), 
@@ -111,6 +112,8 @@ TEST_F(AESSIVTest, EncryptionWithAssociatedData) {
                           2, 
                           ad1, static_cast<int>(ad1_len), 
                           ad2, static_cast<int>(ad2_len)), 1);
+
+    siv_free(&ctx);
     
     // Verify decryption worked
     ASSERT_TRUE(cmp_buff(reinterpret_cast<const uint8_t*>(plaintext), 
@@ -143,6 +146,7 @@ TEST_F(AESSIVTest, DifferentKeySizes) {
                               static_cast<int>(plaintext_len), 
                               tag, 
                               0), 1);
+        siv_free(&ctx);
         ASSERT_TRUE(cmp_buff(reinterpret_cast<const uint8_t*>(plaintext), 
                                    decrypted, 
                                    plaintext_len));
@@ -164,6 +168,7 @@ TEST_F(AESSIVTest, DifferentKeySizes) {
                               static_cast<int>(plaintext_len), 
                               tag, 
                               0), 1);
+        siv_free(&ctx);
         ASSERT_TRUE(cmp_buff(reinterpret_cast<const uint8_t*>(plaintext), 
                                    decrypted, 
                                    plaintext_len));
@@ -185,6 +190,7 @@ TEST_F(AESSIVTest, DifferentKeySizes) {
                               static_cast<int>(plaintext_len), 
                               tag, 
                               0), 1);
+        siv_free(&ctx);
         ASSERT_TRUE(cmp_buff(reinterpret_cast<const uint8_t*>(plaintext), 
                                    decrypted, 
                                    plaintext_len));
@@ -267,6 +273,8 @@ TEST_F(AESSIVTest, TamperingDetection) {
                           tag,
                           1, 
                           tampered_ad, static_cast<int>(tampered_ad_len)), -1);
+
+    siv_free(&ctx);
 }
 
 // Test empty message
@@ -310,7 +318,7 @@ TEST_F(AESSIVTest, EmptyMessage) {
                           1, 
                           ad, static_cast<int>(ad_len)), 1);
     
-    // Verify decryption worked (nothing to compare for empty message)
+    siv_free(&ctx);
 }
 
 // Test multiple encryption/decryption operations with same context
@@ -366,6 +374,8 @@ TEST_F(AESSIVTest, MultipleOperations) {
                           static_cast<int>(plaintext2_len), 
                           tag2, 
                           0), 1);
+
+    siv_free(&ctx);
     
     // Verify both decryptions worked
     ASSERT_TRUE(cmp_buff(reinterpret_cast<const uint8_t*>(plaintext1), 
@@ -412,6 +422,8 @@ TEST_F(AESSIVTest, LargeMessage) {
                           static_cast<int>(plaintext.size()), 
                           tag, 
                           0), 1);
+    
+    siv_free(&ctx);
     
     // Verify decryption worked
     ASSERT_TRUE(cmp_buff(plaintext.data(), decrypted.data(), plaintext.size()));
@@ -485,4 +497,5 @@ TEST_F(AESSIVTest, ManyAssociatedDataFields) {
                           ad1, static_cast<int>(ad1_len), 
                           ad2, static_cast<int>(ad2_len), 
                           ad3, static_cast<int>(ad3_len)), -1);
+    siv_free(&ctx);
 }

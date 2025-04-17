@@ -35,10 +35,20 @@
  * this code cannot simply be copied and put under another distribution
  * license (including the GNU public license).
  */
+// First, modify the siv_ctx structure to store raw keys for OpenSSL 3.0
+// Add this to the siv_ctx structure in aes_siv.h:
+
 #ifndef _SIV_H_
 #define _SIV_H_
 
 #include <openssl/aes.h>
+
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+#define SIV_KEY_CTX AES_KEY
+#else
+#include <openssl/evp.h>
+#define SIV_KEY_CTX EVP_CIPHER_CTX*
+#endif
 
 /*
  * stolen from openssl's aes_locl.h
@@ -64,8 +74,13 @@ typedef struct _siv_ctx {
     unsigned char K2[AES_BLOCK_SIZE];
     unsigned char T[AES_BLOCK_SIZE];
     unsigned char benchmark[AES_BLOCK_SIZE];
-    AES_KEY ctr_sched;
-    AES_KEY s2v_sched;
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    // Store raw keys for OpenSSL 3.0 ctr
+    unsigned char ctr_key[AES_BLOCK_SIZE*2]; // Up to 256 bits
+    int ctr_key_bits;                        // Key size in bits
+#endif
+    SIV_KEY_CTX ctr_sched;
+    SIV_KEY_CTX s2v_sched;
 } siv_ctx;
 
 #define AES_128_BYTES    16
@@ -96,15 +111,65 @@ void siv_aes_ctr(siv_ctx *, const unsigned char *, const int, unsigned char *,
 extern "C" {
 #endif
 
+/*
+ * siv_init()
+ *    Initializes a SIV context with the provided key material.
+ *    Sets up the AES key schedules and CMAC subkeys required for SIV operations.
+ *
+ *    @param ctx     Pointer to the SIV context to initialize
+ *    @param key     Pointer to the key material
+ *    @param keylen  Length of the key material in bits (must be SIV_256, SIV_384, or SIV_512)
+ *    @return        1 on success, -1 on invalid key length
+ */
 int siv_init(siv_ctx *, const unsigned char *, int);
+
+/*
+ * siv_encrypt()
+ *    Performs SIV encryption on plaintext with associated data.
+ *    Generates a synthetic IV that serves as both MAC tag and counter IV.
+ *
+ *    @param ctx        Pointer to the SIV context
+ *    @param p          Pointer to the plaintext
+ *    @param c          Pointer to the ciphertext output buffer (must be at least len bytes)
+ *    @param len        Length of the plaintext/ciphertext in bytes
+ *    @param counter    Output buffer for the synthetic IV (must be AES_BLOCK_SIZE bytes)
+ *    @param nad        Number of associated data items
+ *    @param ...        Variable arguments: pairs of (data_ptr, data_len) for each AD item
+ *    @return           1 on success, negative on failure
+ */
 int siv_encrypt(siv_ctx *, const unsigned char *, unsigned char *, 
                 const int, unsigned char *, const int, ... );
+
+/*
+ * siv_decrypt()
+ *    Performs SIV decryption on ciphertext and verifies the synthetic IV.
+ *    Decrypts the ciphertext and validates the authentication tag.
+ *
+ *    @param ctx        Pointer to the SIV context
+ *    @param c          Pointer to the ciphertext
+ *    @param p          Pointer to the plaintext output buffer (must be at least len bytes)
+ *    @param len        Length of the plaintext/ciphertext in bytes
+ *    @param counter    Pointer to the synthetic IV for verification (must be AES_BLOCK_SIZE bytes)
+ *    @param nad        Number of associated data items
+ *    @param ...        Variable arguments: pairs of (data_ptr, data_len) for each AD item
+ *    @return           1 on successful decryption and authentication, -1 on verification failure
+ */
 int siv_decrypt(siv_ctx *, const unsigned char *, unsigned char *,
                 const int, unsigned char *, const int, ... );
+
+/*
+ * siv_free()
+ *    Frees the SIV context and its associated resources.
+ *
+ *    @param ctx        Pointer to the SIV context
+ */
+void siv_free (siv_ctx *ctx);
 
 #ifdef __cplusplus
 }
 #endif
+
+//#undef SIV_KEY_CTX
 
 #endif /* _SIV_H_ */
 
