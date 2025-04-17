@@ -1208,7 +1208,7 @@ bool ec_enrollee_t::handle_gas_comeback_response(ec_gas_comeback_response_frame_
         em_printfout("NULL GAS comeback response frame");
         return false;
     }
-    const std::string source_mac_key = util::mac_to_string(src_mac) + "_" + std::to_string(frame->base.dialog_token);
+    const std::string source_mac_key = util::mac_to_string(src_mac) + "_" + std::to_string(static_cast<int>(frame->base.dialog_token));
     if (frame->fragment_id != m_gas_fragments[source_mac_key].expected_fragment_id) {
         em_printfout("Fragment ID mismatch for dialog=%d from %s", frame->base.dialog_token, source_mac_key.c_str());
         return false;

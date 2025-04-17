@@ -940,12 +940,9 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_recfg_auth_confirm(s
 
     // TODO: Add transaction ID outside this function
     uint8_t trans_id = 0;
-    ec_dpp_reconfig_flags_t reconfig_flags = {
-        .connector_key = 1, // DONT REUSE
-        .reserved = 0,
-    };
-
-
+    ec_dpp_reconfig_flags_t reconfig_flags;
+    memset(&reconfig_flags, 0, sizeof(reconfig_flags));
+    reconfig_flags.connector_key = 1; // DONT REUSE
 
     attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_dpp_status, static_cast<uint8_t>(dpp_status));
 
