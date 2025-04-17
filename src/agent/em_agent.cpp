@@ -322,6 +322,39 @@ void em_agent_t::handle_btm_request_action_frame(em_bus_event_t *evt)
     }
 }
 
+void em_agent_t::handle_recv_cce_ind(em_bus_event_t *event)
+{
+    if (event == nullptr) {
+        em_printfout("NULL bus event!");
+        return;
+    }
+    const size_t expected_event_size = sizeof(wifi_bss_info_t);
+    if (event->data_len > expected_event_size) {
+        em_printfout("Got an event of size %d, expected %d, not handling.", event->data_len, expected_event_size);
+        return;
+    }
+    wifi_bss_info_t *bss_info = reinterpret_cast<wifi_bss_info_t *>(event->u.raw_buff);
+    bool freq_ok = (bss_info->freq > 0);
+
+    if (!freq_ok) {
+        em_printfout("Heard a CCE indication message on invalid frequency=%d, not using", bss_info->freq);
+        return;
+    }
+
+    em_t *al_node = get_al_node();
+    if (al_node == nullptr) {
+        em_printfout("AL node is nullptr, cannot forward CCE indication message");
+        return;
+    }
+
+    bool forwarded_message = al_node->m_ec_manager->handle_cce_ind_frequency(bss_info->freq);
+    if (!forwarded_message) {
+        em_printfout("EC Manager failed to handle new CCE frequency!");
+        return;
+    }
+
+}
+
 void em_agent_t::handle_recv_gas_frame(em_bus_event_t *evt)
 {
     if (!evt) {
@@ -668,6 +701,10 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
             handle_recv_gas_frame(evt);
             break;
 
+        case em_bus_event_type_recv_cce_ind_msg:
+            handle_recv_cce_ind(evt);
+            break;
+
         default:
             break;
     }    
@@ -852,6 +889,15 @@ void em_agent_t::input_listener()
         return;
     }
 
+    for (int i = 0; i < MAX_NUM_RADIOS; i++) {
+        if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.Radio.%d.CCEInd", reinterpret_cast<void *>(em_agent_t::cce_indication_ie_cb), nullptr, 0) != 0) {
+            printf("Failed to subscribe to 'Device.WiFi.Radio.%d.CCEInd'\n", i);
+            // Not 100% necessary for this subscription to happen as DPP Enrollee has a pre-determined channel list
+            // from the EasyConnect spec as well as its' DPP URI
+            continue;
+        }
+    }
+
     io(NULL);
 }
 
@@ -883,6 +929,13 @@ int em_agent_t::beacon_report_cb(char *event_name, raw_data_t *data, void *userD
 
     g_agent.io_process(em_bus_event_type_beacon_report, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
+    return 0;
+}
+
+int em_agent_t::cce_indication_ie_cb(char *event_name, raw_data_t *data, void *userData)
+{
+    if (data == nullptr) return -1;
+    g_agent.io_process(em_bus_event_type_recv_cce_ind_msg, (uint8_t *)data->raw_data.bytes, data->raw_data_len);
     return 0;
 }
 
@@ -1299,6 +1352,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 
         case em_msg_type_proxied_encap_dpp:
         case em_msg_type_chirp_notif:
+        case em_msg_type_dpp_cce_ind:
             em = al_em;
             break;
         default:

@@ -126,6 +126,16 @@ bool ec_manager_t::handle_recv_gas_pub_action_frame(ec_gas_frame_base_t *frame, 
     return did_succeed;
 }
 
+bool ec_manager_t::handle_cce_ind_frequency(unsigned int freq)
+{
+    if (!m_enrollee) {
+        em_printfout("New frequency from CCE IE, but no Enrollee");
+        // This is fine
+        return true;
+    }
+    return m_enrollee->add_presence_announcement_freq(freq);
+}
+
 bool ec_manager_t::upgrade_to_onboarded_proxy_agent()
 {
     if (m_is_controller) {

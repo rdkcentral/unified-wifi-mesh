@@ -1292,3 +1292,10 @@ ec_gas_comeback_request_frame_t *ec_enrollee_t::create_comeback_request(uint8_t 
     if (frame == nullptr || len == 0) return nullptr;
     return reinterpret_cast<ec_gas_comeback_request_frame_t*>(frame);
 }
+
+bool ec_enrollee_t::add_presence_announcement_freq(unsigned int freq)
+{
+    m_pres_announcement_freqs.insert(static_cast<uint32_t>(freq));
+    em_printfout("Added %d to list of Presesnce Announcement frequencies from CCE IE", freq);
+    return true;
+}

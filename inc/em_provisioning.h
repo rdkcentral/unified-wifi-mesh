@@ -34,6 +34,7 @@ class em_provisioning_t {
 	 * This function is responsible for creating a CCE indication message and storing it in the provided buffer.
 	 *
 	 * @param[out] buff Pointer to the buffer where the CCE indication message will be stored.
+	 * @param enable Enable/disable CCE indication
 	 *
 	 * @returns int Status code indicating success or failure of the message creation.
 	 * @retval 0 Success
@@ -41,23 +42,7 @@ class em_provisioning_t {
 	 *
 	 * @note Ensure the buffer is properly allocated before calling this function.
 	 */
-	int create_cce_ind_msg(uint8_t *buff);
-    
-	/**!
-	 * @brief Creates a CCE indication command.
-	 *
-	 * This function is responsible for creating a CCE (Common Channel Element) indication command and storing it in the provided buffer.
-	 *
-	 * @param[out] buff Pointer to the buffer where the CCE indication command will be stored.
-	 *
-	 * @returns int
-	 * @retval 0 on success
-	 * @retval -1 on failure
-	 *
-	 * @note Ensure that the buffer is properly allocated before calling this function.
-	 */
-	int create_cce_ind_cmd(uint8_t *buff);
-    
+	int create_cce_ind_msg(uint8_t *buff, bool enable);
     
 	/**!
 	 * @brief Creates a BSS configuration request message.

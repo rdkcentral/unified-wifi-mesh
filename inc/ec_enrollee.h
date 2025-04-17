@@ -129,7 +129,14 @@ public:
 	 */
 	bool handle_gas_initial_response(ec_gas_initial_response_frame_t *frame, size_t len, uint8_t src_mac[ETH_ALEN]);
 
-    
+	/**
+	 * @brief Add a new frequency to send Presence Announcement frames on
+	 * 
+	 * @param freq The frequency to add
+	 * @return true on success, otherwise falses
+	 */
+	bool add_presence_announcement_freq(unsigned int freq);
+
 	/**!
 	 * @brief Tears down the existing connection by freeing associated resources.
 	 *

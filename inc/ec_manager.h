@@ -58,7 +58,13 @@ public:
 	 */
 	bool handle_recv_ec_action_frame(ec_frame_t* frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]);
 
-
+	/**
+	 * @brief Tell Enrollee that we heard a CCE IE on `freq` so it should add `freq` to it's Presence Announcement frequency list
+	 * 
+	 * @param freq The frequency that a CCE IE was heard on
+	 * @return true on success, otherwise false
+	 */
+	bool handle_cce_ind_frequency(unsigned int freq);
     
 	/**!
 	 * @brief Handles the reception of a GAS public action frame.

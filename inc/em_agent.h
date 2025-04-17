@@ -247,6 +247,8 @@ class em_agent_t : public em_mgr_t {
 	 */
 	void handle_recv_gas_frame(em_bus_event_t *evt);
 
+	void handle_recv_cce_ind(em_bus_event_t *event);
+
 public:
 
     bus_handle_t m_bus_hdl;
@@ -793,6 +795,16 @@ public:
 	 * @note Ensure that the data pointer is valid before accessing its contents.
 	 */
 	static int beacon_report_cb(char *event_name, raw_data_t *data, void *userData);
+
+	/**
+	 * @brief Callback for handling CCE indication information elements heard in a Beacon
+	 * 
+	 * @param event_name The name of the event.
+	 * @param data The raw data of the event
+	 * @param userData User-data passed to the callback
+	 * @return int 0 on success, otherwise -1
+	 */
+	static int cce_indication_ie_cb(char *event_name, raw_data_t *data, void *userData);
     
 	/**!
 	 * @brief Retrieves the associated data for the given input.
