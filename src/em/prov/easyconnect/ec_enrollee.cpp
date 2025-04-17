@@ -527,18 +527,22 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
     auto dpp_config_obj_1905 = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_dpp_config_obj);
     ASSERT_OPT_HAS_VALUE_FREE(dpp_config_obj_1905, false, unwrapped_attrs, "%s:%d: No IEEE1905 Configuration object attribute found\n", __func__, __LINE__);
 
-    auto dpp_config_obj_bsta = ec_util::get_attrib(reinterpret_cast<uint8_t*>(dpp_config_obj_1905->original) + dpp_config_obj_1905->length, unwrapped_attrs_len, ec_attrib_id_dpp_config_obj);
+    auto dpp_config_obj_bsta = ec_util::get_attrib(reinterpret_cast<uint8_t*>(dpp_config_obj_1905->original) + ec_util::get_ec_attr_size(dpp_config_obj_1905->length), unwrapped_attrs_len, ec_attrib_id_dpp_config_obj);
     ASSERT_OPT_HAS_VALUE_FREE(dpp_config_obj_bsta, false, unwrapped_attrs, "%s:%d: No bSTA Configuration object attribute found\n", __func__, __LINE__);
 
     // This is optional, so can be nullptr.
     auto send_connection_status_attr = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_send_conn_status);
 
     // Parse JSON objects
-    cJSON *ieee1905_configuration_object = cJSON_ParseWithLength(reinterpret_cast<const char *>(dpp_config_obj_1905->original), static_cast<size_t>(dpp_config_obj_1905->length));
+    cJSON *ieee1905_configuration_object = cJSON_ParseWithLength(reinterpret_cast<const char *>(dpp_config_obj_1905->data), static_cast<size_t>(dpp_config_obj_1905->length));
     ASSERT_NOT_NULL(ieee1905_configuration_object, false, "%s:%d: Could not parse IEEE1905 Configuration object, invalid JSON?\n", __func__, __LINE__);
 
-    cJSON *bsta_configuration_object = cJSON_ParseWithLength(reinterpret_cast<const char *>(dpp_config_obj_bsta->original), static_cast<size_t>(dpp_config_obj_bsta->length));
+    cJSON *bsta_configuration_object = cJSON_ParseWithLength(reinterpret_cast<const char *>(dpp_config_obj_bsta->data), static_cast<size_t>(dpp_config_obj_bsta->length));
     ASSERT_NOT_NULL(bsta_configuration_object, false, "%s:%d: Could not parse bSTA Configuration object, invalid JSON?\n", __func__, __LINE__);
+
+    // For debugging.
+    em_printfout("Enrollee de-serialized 1905 Congiruration Object:\n%s", cjson_utils::stringify(ieee1905_configuration_object).c_str());
+    em_printfout("Enrollee de-serialized bSTA Configuration Object:\n%s", cjson_utils::stringify(bsta_configuration_object).c_str());
 
     cJSON *bsta_cred_obj = cJSON_GetObjectItem(bsta_configuration_object, "cred");
     cJSON *bsta_discovery_obj = cJSON_GetObjectItem(bsta_configuration_object, "discovery");
