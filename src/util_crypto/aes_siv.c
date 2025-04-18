@@ -35,6 +35,17 @@
  * this code cannot simply be copied and put under another distribution
  * license (including the GNU public license).
  */
+
+/*
+ * Modifications by CableLabs for Comcast.
+ *     - Enhanced documentation
+ *     - OpenSSL 3.0+ Compatability
+ *         - Add `aes_encrypt_block`, `aes_init`, and `siv_free` abstractions
+ *         - Updated `siv_aes_ctr` and existing methods for OpenSSL 3.0 for EVP_CIPHER_CTX
+ * Copyright 2025 Comcast Cable Communications Management, LLC
+ */
+
+
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>

@@ -35,8 +35,14 @@
  * this code cannot simply be copied and put under another distribution
  * license (including the GNU public license).
  */
-// First, modify the siv_ctx structure to store raw keys for OpenSSL 3.0
-// Add this to the siv_ctx structure in aes_siv.h:
+
+/*
+ * Modifications by CableLabs for Comcast.
+ *     - Enhanced Documentation
+ *     - OpenSSL 3.0+ Compatability
+ *         - Added `SIV_KEY_CTX` macro and temporary `ctr_key` storage in `siv_ctx`
+ * Copyright 2025 Comcast Cable Communications Management, LLC
+ */
 
 #ifndef _SIV_H_
 #define _SIV_H_
