@@ -373,9 +373,18 @@ void em_mgr_t::nodes_listener()
         while (em != NULL) {
             if (em->is_al_interface_em() == true) {
 #ifdef AL_SAP
-                AlServiceDataUnit sdu = g_sap->serviceAccessPointDataIndication();
-                std::vector<unsigned char> payload = sdu.getPayload();
-                proto_process(payload.data(), payload.size(), em);
+                try{
+                    AlServiceDataUnit sdu = g_sap->serviceAccessPointDataIndication();
+                    std::vector<unsigned char> payload = sdu.getPayload();
+                    proto_process(payload.data(), payload.size(), em);
+                } catch (const AlServiceException& e) {
+                    if (e.getPrimitiveError() == PrimitiveError::InvalidMessage) {
+                        em_printfout("%s. Dropping packet", e.what());
+                    } else {
+                        em_printfout("%s", e.what());
+                        throw e; // rethrow the exception if it's not an indication failure
+                    }
+                }
 #else
 				pthread_mutex_lock(&m_mutex);
 				ret = FD_ISSET(em->get_fd(), &m_rset);

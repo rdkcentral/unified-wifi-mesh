@@ -164,12 +164,11 @@ AlServiceDataUnit AlServiceAccessPoint::serviceAccessPointDataIndication() {
 
         // Receive data from the socket
         ssize_t bytesRead = recv(socketDescriptor, buffer.data(), buffer.size(), 0);
-        if (bytesRead == -1) {
+        if (bytesRead <= 0) {
             if (errno == EBADF || errno == ECONNRESET) {
                 throw AlServiceException("Socket closed or connection reset", PrimitiveError::SocketClosed);
-            } else {
-                throw AlServiceException("Failed to receive message through Unix socket", PrimitiveError::IndicationFailed);
             }
+            throw AlServiceException("Failed to receive message through Unix socket", PrimitiveError::IndicationFailed);
         }
         buffer.resize(bytesRead);
         
@@ -180,7 +179,7 @@ AlServiceDataUnit AlServiceAccessPoint::serviceAccessPointDataIndication() {
         try {
             fragment.deserialize(buffer);
         } catch (const std::exception& e) {
-            throw AlServiceException("Failed to deserialize AlServiceDataUnit fragment", PrimitiveError::IndicationFailed);
+            throw AlServiceException("Failed to deserialize AlServiceDataUnit fragment", PrimitiveError::InvalidMessage);
         }
         #ifdef DEBUG_MODE
         std::cout << "Received fragment " << static_cast<int>(fragment.getFragmentId())
