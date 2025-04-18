@@ -256,9 +256,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
     cmdu = reinterpret_cast<em_cmdu_t *>(data + sizeof(em_raw_hdr_t));
 
 
-    if (memcmp(hdr->src, hdr->dst, sizeof(mac_address_t)) == 0 &&
-        memcmp(hdr->src, m_ruid.mac, sizeof(mac_address_t)) == 0 &&
-        memcmp(hdr->dst, m_ruid.mac, sizeof(mac_address_t)) == 0) {
+    if (memcmp(hdr->src, hdr->dst, sizeof(mac_address_t)) == 0){
 
         // This is a message that was sent to the same address it was sent from, 
         // check if I infact sent it to myself
@@ -647,9 +645,7 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     int ret = 0;
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
 
-    if (memcmp(hdr->src, hdr->dst, sizeof(mac_address_t)) == 0 &&
-        memcmp(hdr->src, m_ruid.mac, sizeof(mac_address_t)) == 0 &&
-        memcmp(hdr->dst, m_ruid.mac, sizeof(mac_address_t)) == 0) {
+    if (memcmp(hdr->src, hdr->dst, sizeof(mac_address_t)) == 0){
         // I am sending this message to a node with the same MAC address,
         // store the message for later comparison
         auto hash = em_crypto_t::platform_SHA256(buff, len);
@@ -658,12 +654,25 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
         }
     }
 #ifdef AL_SAP
+    auto ctrl_al = m_data_model->get_controller_interface_mac();
+    auto agent_al = m_data_model->get_agent_al_interface_mac();
+    bool is_colocated = (memcmp(ctrl_al, agent_al, ETH_ALEN) == 0);
+
     AlServiceDataUnit sdu;
     sdu.setSourceAlMacAddress(g_al_mac_sap);
+    if (m_service_type == em_service_type_ctrl) {
+        if (is_colocated) {
+            sdu.setDestinationAlMacAddress(g_al_mac_sap);
+        } else {
+            sdu.setDestinationAlMacAddress({0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
+        }
+    }
     if (m_service_type == em_service_type_agent) {
-        sdu.setDestinationAlMacAddress({0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
-    } else if (m_service_type == em_service_type_ctrl) {
-        sdu.setDestinationAlMacAddress({0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
+        if (is_colocated) {
+            sdu.setDestinationAlMacAddress(g_al_mac_sap);
+        } else {
+            sdu.setDestinationAlMacAddress({0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
+        }
     }
 
     std::vector<unsigned char> payload;
