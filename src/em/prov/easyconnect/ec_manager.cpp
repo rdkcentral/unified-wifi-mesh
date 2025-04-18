@@ -154,3 +154,13 @@ bool ec_manager_t::upgrade_to_onboarded_proxy_agent()
     em_printfout("Upgraded enrollee agent to proxy agent");
     return true;
 }
+
+bool ec_manager_t::handle_cce_ie(unsigned int freq)
+{
+    if (!m_enrollee) {
+        em_printfout("New Presence Announcement frequency heard from a CCE IE, but no Enrollee");
+        // This is fine
+        return true;
+    }
+    return m_enrollee->add_presence_announcement_freq(freq);
+}

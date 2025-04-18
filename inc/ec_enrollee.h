@@ -167,6 +167,14 @@ public:
 	ec_enrollee_t(const ec_enrollee_t&) = delete;
     ec_enrollee_t& operator=(const ec_enrollee_t&) = delete;
 
+	/**
+	 * @brief Adds a frequency to send Presence Announcement frames on
+	 * 
+	 * @param freq The new frequency to add 
+	 * @return true on success, false otherwise
+	 */
+	bool add_presence_announcement_freq(unsigned int freq);
+
 private:
 
     
