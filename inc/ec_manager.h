@@ -122,7 +122,7 @@ public:
 	 */
 	inline bool pa_cfg_toggle_cce(bool enable) {
         if (!m_is_controller || m_configurator == nullptr) {
-            return -1;
+            return false;
         }
         auto pa_cfg = dynamic_cast<ec_pa_configurator_t*>(m_configurator.get());
         if (!pa_cfg) {

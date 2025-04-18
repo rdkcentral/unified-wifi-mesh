@@ -120,6 +120,12 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             if (!m_ec_manager->cfg_onboard_enrollee(dpp_info)){
                 printf("Failed to start DPP\n");
             }
+
+            uint8_t cce_ind_msg_buff[MAX_EM_BUFF_SZ] = {0};
+            int msg_size = create_cce_ind_msg(cce_ind_msg_buff, true);
+            if (send_frame(cce_ind_msg_buff, static_cast<unsigned int>(msg_size)) < 0) {
+                em_printfout("Failed to send DPP CCE Indication message!");
+            }
             
             break;
         }

@@ -610,6 +610,10 @@ typedef struct {
 }__attribute__((__packed__)) em_dpp_bootstrap_uri_t;
 
 typedef struct {
+    uint8_t advertise_cce; // 1->Enable, 0->Disable
+} __attribute__((__packed__)) em_cce_indication_t;
+
+typedef struct {
     unsigned char enrollee_mac_addr_present : 1;
     unsigned char reserved : 1;
     unsigned char dpp_frame_indicator : 1;

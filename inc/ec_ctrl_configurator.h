@@ -48,6 +48,16 @@ public:
 	 */
 	bool process_chirp_notification(em_dpp_chirp_value_t* chirp_tlv, uint16_t tlv_len) override;
 
+	/**
+	 * @brief Start the EC configurator onboarding process for an enrollee.
+	 *
+	 * This function initiates the onboarding process using the provided bootstrapping data.
+	 *
+	 * @param[in] bootstrapping_data The data to use for onboarding (Parsed DPP URI Data).
+	 *
+	 * @return bool True if the onboarding process is successful, false otherwise.
+	 */
+	virtual bool onboard_enrollee(ec_data_t* bootstrapping_data) override;
     
 	/**
 	 * @brief Handle a proxied encapsulated DPP message TLVs (including chirp value) and direct to 1905 agent.
