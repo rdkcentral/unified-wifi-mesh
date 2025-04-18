@@ -8,6 +8,60 @@
 #include "em_crypto.h"
 #include <netinet/in.h>
 
+bool ec_ctrl_configurator_t::onboard_enrollee(ec_data_t *bootstrapping_data)
+{
+
+    if (bootstrapping_data == NULL) {
+        em_printfout("Bootstrapping data is NULL");
+        return false;
+    }
+    if (bootstrapping_data->version < 2) {
+        em_printfout("Bootstrapping Version '%d' not supported!", bootstrapping_data->version);
+        return false;
+    }
+    if (memcmp(bootstrapping_data->mac_addr, ZERO_MAC_ADDR, ETHER_ADDR_LEN) == 0) {
+        em_printfout("Bootstrapping data MAC address is 0 ");
+        return false;
+    }
+    if (bootstrapping_data->responder_boot_key == NULL) {
+        em_printfout("Bootstrapping data initiator key is NULL");
+        return false;
+    }
+
+    // Check if the MAC address is already in use
+    // TODO: Not sure what to do if the MAC address is already in use
+    std::string mac_str = util::mac_to_string(bootstrapping_data->mac_addr);
+    if (m_connections.find(mac_str) != m_connections.end()) {
+        em_printfout("Bootstrapping data MAC address already in use");
+        return false;
+    }
+    // Create a new connection context
+    ec_connection_context_t conn_ctx;
+    m_connections[mac_str] = conn_ctx;
+    auto& c_ctx = m_connections[mac_str];
+    
+
+    // Initialize bootstrapping data
+    memset(&c_ctx.boot_data, 0, sizeof(ec_data_t));
+    memcpy(&c_ctx.boot_data, bootstrapping_data, sizeof(ec_data_t));
+
+    // Not all of these will be present but it is better to compute them now.
+    c_ctx.boot_data.resp_priv_boot_key = em_crypto_t::get_priv_key_bn(c_ctx.boot_data.responder_boot_key);
+    c_ctx.boot_data.resp_pub_boot_key = em_crypto_t::get_pub_key_point(c_ctx.boot_data.responder_boot_key);
+
+    c_ctx.boot_data.init_priv_boot_key = em_crypto_t::get_priv_key_bn(c_ctx.boot_data.initiator_boot_key);    
+    c_ctx.boot_data.init_pub_boot_key = em_crypto_t::get_pub_key_point(c_ctx.boot_data.initiator_boot_key);
+
+
+    if (c_ctx.boot_data.resp_pub_boot_key == NULL) {
+        em_printfout("Could not get responder bootstrap public key");
+        return false;
+    }
+
+    printf("Configurator MAC: %s\n", m_mac_addr.c_str());
+    return ec_crypto::init_connection_ctx(c_ctx, c_ctx.boot_data.responder_boot_key);
+}
+
 bool ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *chirp_tlv, uint16_t tlv_len)
 {
 

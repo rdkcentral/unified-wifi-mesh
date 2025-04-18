@@ -109,7 +109,9 @@ public:
 	 *
 	 * @return bool True if the onboarding process is successful, false otherwise.
 	 */
-	bool onboard_enrollee(ec_data_t* bootstrapping_data);
+	virtual bool onboard_enrollee(ec_data_t* bootstrapping_data) {
+		return true; // Only implemented by Controller Configurator, not PA
+	}
 
     
 	/**
