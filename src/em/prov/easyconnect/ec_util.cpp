@@ -186,6 +186,7 @@ uint8_t *ec_util::add_wrapped_data_attr(uint8_t *frame, size_t frame_len, uint8_
     } else {
         siv_result = siv_encrypt(&ctx, wrap_attribs, &wrapped_attrib->data[AES_BLOCK_SIZE], wrapped_len, wrapped_attrib->data, 0);
     }
+    siv_free(&ctx);
     if (siv_result < 0) {
         em_printfout("Failed to encrypt and authenticate wrapped data");
         free(wrap_attribs);
@@ -264,7 +265,7 @@ std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(const ec_attribute_
         result = siv_decrypt(&ctx, wrapped_ciphertext, unwrap_attribs, wrapped_len,
                              wrapped_attrib.data, 0);
     }
-
+    siv_free(&ctx);
     if (result < 0) {
         em_printfout("Failed to decrypt and authenticate wrapped data");
         free(unwrap_attribs);
