@@ -1852,7 +1852,7 @@ public:
 	 */
 	void set_primary_device_type(char *type) { m_device.set_primary_device_type(type); }
     //void operator =(dm_easy_mesh_t const& obj);
-    dm_easy_mesh_t operator =(dm_easy_mesh_t const& obj);
+    dm_easy_mesh_t& operator =(dm_easy_mesh_t const& obj);
     bool operator ==(dm_easy_mesh_t const& obj);
     
 	/**!

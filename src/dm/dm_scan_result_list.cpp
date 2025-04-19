@@ -81,13 +81,13 @@ int dm_scan_result_list_t::set_config(db_client_t& db_client, const cJSON *obj_a
     cJSON *obj;
     dm_scan_result_t scan_result;
     dm_orch_type_t op;
-	int i, size;
+	unsigned int i, size;
 	db_update_scan_result_t res;
 
-    size = cJSON_GetArraySize(obj_arr);
+    size = static_cast<unsigned int>(cJSON_GetArraySize(obj_arr));
 
     for (i = 0; i < size; i++) {
-        obj = cJSON_GetArrayItem(obj_arr, i);
+        obj = cJSON_GetArrayItem(obj_arr, static_cast<int>(i));
         scan_result.decode(obj, parent_id);
 		for (i = 0; i < scan_result.m_scan_result.num_neighbors; i++) {
 			res.result = scan_result.get_scan_result();

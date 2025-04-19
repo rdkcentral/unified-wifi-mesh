@@ -718,11 +718,11 @@ int dm_easy_mesh_ctrl_t::analyze_set_channel(em_bus_event_t *evt, em_cmd_t *pcmd
 					// Check if the channel has changed or not
 					if (updated_oclass->m_op_class_info.channels[0] != current_oclass->m_op_class_info.channels[0]) {
 						already_added = 0;
-						band = dm_easy_mesh_t::get_freq_band_by_op_class(updated_oclass->m_op_class_info.id.op_class);
+						band = dm_easy_mesh_t::get_freq_band_by_op_class(static_cast<int>(updated_oclass->m_op_class_info.id.op_class));
 
 						// Check if the band is already added to event parameters
 						for (k = 0; k < evt->params.u.args.num_args; k++) {
-							if (atoi(evt->params.u.args.args[k]) == band) {
+							if (static_cast<unsigned int>(atoi(evt->params.u.args.args[k])) == band) {
 								already_added = 1;
 								break;
 							}

@@ -112,7 +112,7 @@ times_two (unsigned char *output, unsigned char *input)
     out = output + AES_BLOCK_SIZE - 1;
     in = input + AES_BLOCK_SIZE - 1;
     for (i = 0; i < AES_BLOCK_SIZE; i++) {
-        *(out--) = (*in << 1) | carry;
+        *(out--) = (unsigned char)((*in << 1) | carry);
         carry = (*(in--) & 0x80) ? 1 : 0;
     }
 
@@ -138,7 +138,7 @@ pad (unsigned char *buf, int len)
     i = len;
     buf[i++] = 0x80;
     if (i < AES_BLOCK_SIZE) {
-        memset(buf + i, 0, AES_BLOCK_SIZE - i);
+        memset(buf + i, 0, (size_t)(AES_BLOCK_SIZE - i));
     }
 }
 
@@ -156,7 +156,8 @@ void
 aes_cmac (siv_ctx *ctx, const unsigned char *msg, int mlen, unsigned char *C)
 {
     int n, i, slop;
-    unsigned char Mn[AES_BLOCK_SIZE], *ptr;
+    unsigned char Mn[AES_BLOCK_SIZE];
+    const unsigned char *ptr;
 
     memcpy(C, zero, AES_BLOCK_SIZE);
 
@@ -168,7 +169,7 @@ aes_cmac (siv_ctx *ctx, const unsigned char *msg, int mlen, unsigned char *C)
     /*
      * CBC mode for first n-1 blocks
      */
-    ptr = (unsigned char *)msg;
+    ptr = msg;
     for (i = 0; i < (n-1); i++) {
         xor(C, ptr);
         AES_encrypt(C, C, &ctx->s2v_sched);
@@ -181,7 +182,7 @@ aes_cmac (siv_ctx *ctx, const unsigned char *msg, int mlen, unsigned char *C)
      */
     memset(Mn, 0, AES_BLOCK_SIZE);
     if ((slop = (mlen % AES_BLOCK_SIZE)) != 0) {
-        memcpy(Mn, ptr, slop);
+        memcpy(Mn, ptr, (size_t)slop);
         pad(Mn, slop);
         xor(Mn, ctx->K2);
     } else {
@@ -216,7 +217,8 @@ int
 s2v_final (siv_ctx *ctx, const unsigned char *X, int xlen, unsigned char *digest)
 {
     unsigned char T[AES_BLOCK_SIZE], C[AES_BLOCK_SIZE];
-    unsigned char padX[AES_BLOCK_SIZE], *ptr;
+    unsigned char padX[AES_BLOCK_SIZE];
+    const unsigned char *ptr;
     int blocks, i, slop;
 
     if (xlen < AES_BLOCK_SIZE) {
@@ -225,7 +227,7 @@ s2v_final (siv_ctx *ctx, const unsigned char *X, int xlen, unsigned char *digest
          * do another x2 of our running total and pad the
          * input before the final xor and sPRF.
          */
-        memcpy(padX, X, xlen);
+        memcpy(padX, X, (size_t)xlen);
         pad(padX, xlen);
 
         times_two(T, ctx->T);
@@ -246,7 +248,7 @@ s2v_final (siv_ctx *ctx, const unsigned char *X, int xlen, unsigned char *digest
              * we AES-CMAC the buffer.
              */
             blocks = (xlen+(AES_BLOCK_SIZE-1))/AES_BLOCK_SIZE - 1;
-            ptr = (unsigned char *)X;
+            ptr = X;
             memcpy(C, zero, AES_BLOCK_SIZE);
             if (blocks > 1) {
                 /*
@@ -277,7 +279,7 @@ s2v_final (siv_ctx *ctx, const unsigned char *X, int xlen, unsigned char *digest
                  * now the final block is small so xor the end then pad and xor
                  */
                 memset(T, 0, AES_BLOCK_SIZE);
-                memcpy(T, ptr, slop);
+                memcpy(T, ptr, (size_t)slop);
                 for (i = 0; i < slop; i++) {
                     T[i] ^= ctx->T[(AES_BLOCK_SIZE-slop)+i];
                 }
@@ -564,7 +566,7 @@ siv_decrypt (siv_ctx *ctx, const unsigned char *c, unsigned char *p,
      */
     siv_restart(ctx);
     if (memcmp(ctr, counter, AES_BLOCK_SIZE)) {
-        memset(p, 0, len);
+        memset(p, 0, (size_t)len);
         return -1;      /* FAIL */
     } else {
         return 1;

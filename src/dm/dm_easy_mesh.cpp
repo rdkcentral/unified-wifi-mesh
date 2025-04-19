@@ -46,7 +46,7 @@
 #include "em_cmd_ap_cap.h"
 #include "em_cmd_client_cap.h"
 
-dm_easy_mesh_t dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
+dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
 {
     dm_sta_t *sta;
     em_long_string_t key;

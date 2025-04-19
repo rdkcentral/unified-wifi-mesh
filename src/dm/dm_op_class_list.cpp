@@ -308,7 +308,7 @@ int dm_op_class_list_t::sync_db(db_client_t& db_client, void *ctx)
             token_parts[i] = ch_str[i];
         }
 
-		if ((str != NULL) && (*str != 0)) {	
+		if (*str != 0) {
 			info.num_channels = static_cast<unsigned int>(get_strings_by_token(str, ',', EM_MAX_CHANNELS_IN_LIST, token_parts));
 			for (i = 0; i < info.num_channels; i++) {
 				info.channels[i] = static_cast<unsigned int>(atoi(token_parts[i]));

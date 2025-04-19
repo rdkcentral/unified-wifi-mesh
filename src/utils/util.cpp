@@ -114,9 +114,9 @@ char *get_formatted_time_em(char *time)
     gettimeofday(&tv_now, NULL);
     tm_info = const_cast<struct tm *>(localtime(&tv_now.tv_sec));
 
-    strftime(tmp, 128, "%m/%d/%y - %T", tm_info);
+    strftime(tmp, 128, "%m/%d/%Y - %T", tm_info);
 
-    snprintf(time, 128, "%s.%06lld", tmp, static_cast<long long>(tv_now.tv_usec));
+    snprintf(time, 160, "%s.%06lld", tmp, static_cast<long long>(tv_now.tv_usec));
     return time;
 }
 
@@ -181,7 +181,7 @@ void util::print_hex_dump(const std::vector<uint8_t>& data, easymesh_dbg_type_t 
 
 void util::print_hex_dump(unsigned int length, uint8_t *buffer, easymesh_dbg_type_t module)
 {
-    int i;
+    unsigned int i;
     uint8_t buff[512] = {};
     const uint8_t * pc = const_cast<const uint8_t *>(buffer);
 
@@ -381,15 +381,15 @@ std::pair<uint8_t, uint8_t> util::em_freq_to_chan(unsigned int frequency, const 
     std::pair<uint8_t, uint8_t> global_result;
     
     for (const auto& range : frequency_ranges) {
-        int min_freq = range.base_freq + (range.min_chan * range.spacing);
-        int max_freq = range.base_freq + (range.max_chan * range.spacing);
+        unsigned int min_freq = static_cast<unsigned int>(range.base_freq + (range.min_chan * range.spacing));
+        unsigned int max_freq = static_cast<unsigned int>(range.base_freq + (range.max_chan * range.spacing));
         
         if (frequency < min_freq || frequency > max_freq) continue;
         
         if ((frequency - range.base_freq) % range.spacing != 0) continue;
         
         // Calculate channel number and validate it's within uint8_t/channel range
-        int channel_calc = (frequency - range.base_freq) / range.spacing;
+        unsigned int channel_calc = (frequency - range.base_freq) / range.spacing;
         if (channel_calc < range.min_chan || channel_calc > range.max_chan) continue;
         
         uint8_t channel = static_cast<uint8_t>(channel_calc);
