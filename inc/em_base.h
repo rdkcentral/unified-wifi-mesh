@@ -2579,6 +2579,7 @@ typedef enum {
     em_bus_event_type_m2_tx,
     em_bus_event_type_topo_sync,
     em_bus_event_type_onewifi_private_cb,
+    em_bus_event_type_onewifi_mesh_sta_cb,
     em_bus_event_type_onewifi_radio_cb,
     em_bus_event_type_m2ctrl_configuration,
     em_bus_event_type_sta_assoc,
