@@ -122,7 +122,7 @@ public:
 	 */
 	inline bool pa_cfg_toggle_cce(bool enable) {
         if (!m_is_controller || m_configurator == nullptr) {
-            return -1;
+            return false;
         }
         auto pa_cfg = dynamic_cast<ec_pa_configurator_t*>(m_configurator.get());
         if (!pa_cfg) {
@@ -205,6 +205,15 @@ public:
 	 * @return true if the node is onboarding, false otherwise
 	 */
 	inline bool is_enrollee_onboarding() { return m_is_e_onboarding; }
+
+	/**
+	 * @brief Handle a CCE information element being heard
+	 * (add the frequency the CCE IE was heard on to Enrollee's list of Presence Announcement frequencies)
+	 * 
+	 * @param freq The frequency that a CCE IE was heard on
+	 * @return true on success, otherwise false
+	 */
+	bool handle_cce_ie(unsigned int freq);
 
 
 private:

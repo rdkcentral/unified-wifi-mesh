@@ -322,6 +322,37 @@ void em_agent_t::handle_btm_request_action_frame(em_bus_event_t *evt)
     }
 }
 
+void em_agent_t::handle_recv_cce_ie(em_bus_event_t *event)
+{
+    if (event == nullptr) {
+        em_printfout("NULL event!");
+        return;
+    }
+    const size_t expected_size = sizeof(wifi_bss_info_t);
+    if (event->data_len > expected_size) {
+        em_printfout("Expected event of size %d, got %d, not handling", expected_size, event->data_len);
+        return;
+    }
+    wifi_bss_info_t *bss_info = reinterpret_cast<wifi_bss_info_t *>(event->u.raw_buff);
+    bool freq_ok = (bss_info->freq > 0);
+
+    if (!freq_ok) {
+        em_printfout("Heard a CCE information element on invalid frequency (%d), not handling", bss_info->freq);
+        return;
+    }
+
+    em_t *al_node = get_al_node();
+    if (al_node == nullptr) {
+        em_printfout("AL node is nullptr!");
+        return;
+    }
+
+    if (!al_node->m_ec_manager->handle_cce_ie(bss_info->freq)) {
+        em_printfout("EC manager failed to handle new frequency from a CCE IE!");
+        return;
+    }
+}
+
 void em_agent_t::handle_recv_gas_frame(em_bus_event_t *evt)
 {
     if (!evt) {
@@ -668,6 +699,10 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
             handle_recv_gas_frame(evt);
             break;
 
+        case em_bus_event_type_cce_ie:
+            handle_recv_cce_ie(evt);
+            break;
+
         default:
             break;
     }    
@@ -852,7 +887,31 @@ void em_agent_t::input_listener()
         return;
     }
 
+    for (int i = 0; i < MAX_NUM_RADIOS; i++) {
+        // OneWifi bus path is 1-indexed, here
+        std::string cce_ind_path = "Device.WiFi.Radio." + std::to_string(i + 1) + ".CCEInd";
+        em_printfout("Attempting to subscribe to '%s'", cce_ind_path.c_str());
+        if (desc->bus_event_subs_fn(&m_bus_hdl, cce_ind_path.c_str(), reinterpret_cast<void *>(&em_agent_t::cce_ie_cb), nullptr, 0) != 0) {
+            // Failing to subscribe to this path is OK, as in the context of DPP,
+            // an Enrollee has a default channel list defined by the EasyConnect spec,
+            // as well as a list of channels defined in its' DPP URI. So, just log and move on.
+            em_printfout("Failed to subscribe to '%s', dynamic DPP channel list generation unavailable.", cce_ind_path.c_str());
+            continue;
+        }
+    }
+
     io(NULL);
+}
+
+int em_agent_t::cce_ie_cb(char *event_name, raw_data_t *data, void *userData)
+{
+    if (data == nullptr) {
+        em_printfout("NULL data from OneWifi callback!");
+        return -1;
+    }
+    g_agent.io_process(em_bus_event_type_cce_ie, reinterpret_cast<unsigned char *>(data->raw_data.bytes), data->raw_data_len);
+    return 1;
+
 }
 
 int em_agent_t::channel_scan_cb(char *event_name, raw_data_t *data, void *userData)
@@ -1299,6 +1358,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 
         case em_msg_type_proxied_encap_dpp:
         case em_msg_type_chirp_notif:
+        case em_msg_type_dpp_cce_ind:
             em = al_em;
             break;
         default:

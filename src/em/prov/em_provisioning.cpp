@@ -45,26 +45,21 @@
 #include "util.h"
 #include "ec_util.h"
 
-int em_provisioning_t::create_cce_ind_cmd(uint8_t *buff)
-{
-    return 0;
-}
-
-int em_provisioning_t::create_cce_ind_msg(uint8_t *buff)
+int em_provisioning_t::create_cce_ind_msg(uint8_t *buff, bool enable)
 {
     uint16_t  msg_id = em_msg_type_dpp_cce_ind;
     unsigned int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     uint8_t *tmp = buff;
-    uint16_t enable = 0;
+    uint8_t cce_enable = 0;
     uint16_t type = htons(ETH_P_1905);
 
     memcpy(tmp, reinterpret_cast<uint8_t *> (get_peer_mac()), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += static_cast<unsigned int> (sizeof(mac_address_t));
 
-    memcpy(tmp, get_current_cmd()->get_al_interface_mac(), sizeof(mac_address_t));
+    memcpy(tmp, get_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += static_cast<unsigned int> (sizeof(mac_address_t));
 
@@ -85,9 +80,8 @@ int em_provisioning_t::create_cce_ind_msg(uint8_t *buff)
     // One DPP CCE Indication tlv 17.2.82
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_dpp_cce_indication;
-    //enable = (get_state() == em_state_agent_prov) ? 1:0;
-	enable = (get_state() == em_state_agent_configured) ? 1:0;
-    memcpy(tlv->value, &enable, sizeof(uint16_t));
+    cce_enable = (enable ? 1 : 0); 
+    memcpy(tlv->value, &cce_enable, sizeof(uint8_t));
     tlv->len = htons(sizeof(uint16_t));
 
     tmp += (sizeof(em_tlv_t) + sizeof(uint16_t));
@@ -407,49 +401,34 @@ int em_provisioning_t::create_dpp_direct_encap_msg(uint8_t *buff, uint8_t *frame
 
 int em_provisioning_t::handle_cce_ind_msg(uint8_t *buff, unsigned int len)
 {
-    em_tlv_t    *tlv;
-    unsigned int tmp_len;
-    int ret = 0;
-    unsigned int rq_ctr = 0, rx_ctr = 0;
-    //uint8_t msg[MAX_EM_BUFF_SZ]; commented since not used
-    //unsigned int sz;  commented since sz not used
+    em_tlv_t *tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
-    // mandatory need 17.2.82
-    rq_ctr = 1;
+    bool enable = false;
+    bool valid_tlv = false;
 
-    em_printfout("Parsing cce ind message");
-
-    tlv = reinterpret_cast<em_tlv_t *> (buff); tmp_len = len;
-
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if ((tlv->type == em_tlv_type_dpp_cce_indication) && (htons(tlv->len) == sizeof(uint16_t))) {
-            em_printfout("validated cce ind tlv");
-            rx_ctr++;
+    while ((tlv->type != em_tlv_type_eom)) {
+        if (tlv->type == em_tlv_type_dpp_cce_indication) {
+            em_cce_indication_t *cce_ind_tlv = reinterpret_cast<em_cce_indication_t *>(tlv->value);
+            enable = static_cast<bool>(cce_ind_tlv->advertise_cce);
+            valid_tlv = true;
+            break;
         }
-
-        tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<uint8_t *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<uint8_t *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
     }
 
-    if (rx_ctr != rq_ctr) {
-        em_printfout("cce ind message parsing failed");
+    if (!valid_tlv) {
+        em_printfout("Received a DPP CCE Indication Message but did not contain DPP CCE Indication TLV!");
         return -1;
     }
 
-    // if this is a proxy agent (must be provisioned) , ask onewifi to beacon cce otherwise send presence announcement
-    if (get_state() > em_state_agent_configured) {
-        //sz = static_cast<unsigned int> (create_cce_ind_cmd(msg)); commented since sz not used
-        //ret = send_cmd(msg, sz); // Modify send_cmd
-        if (ret > 0) {
-            em_printfout("cmd send success");
-            //set_state(em_state_agent_auth_req_pending);
-        } else {
-            em_printfout("cmd send failed, error:%d", errno);
-        }
+    bool cce_toggled = m_ec_manager->pa_cfg_toggle_cce(enable);
+    if (!cce_toggled) {
+        em_printfout("Could not toggle CCE to %d", static_cast<int>(enable));
+        return -1;
     }
 
-    return ret;
-
+    em_printfout("Successfully %s CCE in Beacons and Probe Responses", (enable == true ? "enabled" : "disabled"));
+    return 0;
 }
 
 void em_provisioning_t::process_msg(uint8_t *data, unsigned int len)
@@ -460,6 +439,7 @@ void em_provisioning_t::process_msg(uint8_t *data, unsigned int len)
 
     switch (htons(cmdu->type)) {
         case em_msg_type_dpp_cce_ind:
+            handle_cce_ind_msg(data, len);
             break;
 
         case em_msg_type_proxied_encap_dpp:
@@ -593,8 +573,14 @@ cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *con
 
     // XXX: TODO: akm is hard-coded. Should come from em_akm_suite_info_t or equivalent, but
     // not currently populated anywhere in the data model.
-    std::string akm = "psk";
-    if (!cJSON_AddStringToObject(bsta_list_obj, "akm", util::akm_to_oui(akm).c_str())) {
+    std::string akms[2] = {"psk", "dpp"};
+    std::string akm_suites = {};
+    for (size_t i = 0; i < std::size(akms); i++) {
+        akm_suites += util::akm_to_oui(akms[i]);
+        if (!akm_suites.empty() && i < std::size(akms) - 1) akm_suites += "+";
+    }
+
+    if (!cJSON_AddStringToObject(bsta_list_obj, "akm", akm_suites.c_str())) {
         em_printfout("Could not add AKM to bSTAList object!");
         cJSON_Delete(b_sta_list_arr);
         return nullptr;
@@ -620,9 +606,10 @@ cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *con
     }
 
     for (unsigned int i = 0; i < dm->get_num_radios(); i++) {
-        const dm_radio_t *radio = dm->get_radio(i);
-        if (!radio)
+        dm_radio_t *radio = dm->get_radio(i);
+        if (!radio) {
             continue;
+        }
 
         cJSON *radioListObj = cJSON_CreateObject();
         if (!radioListObj) {
@@ -633,7 +620,7 @@ cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *con
 
         if (!cJSON_AddStringToObject(
                 radioListObj, "RUID",
-                util::mac_to_string(radio->m_radio_info.id.ruid, "").c_str())) {
+                util::mac_to_string(radio->get_radio_info()->intf.mac, "").c_str())) {
             em_printfout("Could not add RUID to RadioList object!");
             cJSON_Delete(radioListObj);
             cJSON_Delete(bsta_list_obj);
@@ -642,9 +629,13 @@ cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *con
 
         std::string radio_channel_list;
         for (unsigned int j = 0; j < dm->get_num_op_class(); j++) {
-            const dm_op_class_t *opclass = dm->get_op_class(j);
-            if (opclass == nullptr) continue;
-            if (memcmp(opclass->m_op_class_info.id.ruid, radio->m_radio_info.id.ruid, ETH_ALEN) == 0) {
+            dm_op_class_t *opclass = dm->get_op_class(j);
+            if (opclass == nullptr) {
+                continue;
+            }
+
+            if (memcmp(radio->get_radio_info()->intf.mac, opclass->m_op_class_info.id.ruid, ETH_ALEN) == 0) {
+                em_printfout("Found opclass %d for radio '" MACSTRFMT "'", opclass->m_op_class_info.op_class, MAC2STR(radio->get_radio_info()->intf.mac));
                 radio_channel_list += std::to_string(opclass->m_op_class_info.op_class) + "/" +
                                       std::to_string(opclass->m_op_class_info.channel);
                 if (j != dm->get_num_op_class() - 1)
