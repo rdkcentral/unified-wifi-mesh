@@ -3162,6 +3162,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 	dm_easy_mesh_t *dm = get_data_model();
 	unsigned int no_of_haultype = 0, radio_exists, i;
 	dm_radio_t * radio;
+	bool is_colocated = dm->get_colocated();
 
 	for (i = 0; i < dm->get_num_radios(); i++) {
 		radio = dm->get_radio(i);
@@ -3192,7 +3193,12 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 	len += static_cast<short> (sizeof(data_elem_attr_t) + size);
 	tmp += (sizeof(data_elem_attr_t) + size);
 	for (i = 0; i < no_of_haultype; i++) {
-		haul_type = static_cast<em_haul_type_t> (haultype_precedence[i]);
+		if(is_colocated && no_of_haultype == 1 && (memcmp(get_radio_interface_mac(), dm->get_agent_al_interface_mac(), ETH_ALEN) == 0)) {
+			printf("\n%s:%d: Colocated and Single BSS. Configuring em_haul_type_backhaul \n", __func__, __LINE__);
+			haul_type = em_haul_type_backhaul;
+		} else {
+			haul_type = static_cast<em_haul_type_t> (haultype_precedence[i]);
+		}
 		if ((net_ssid_info = get_network_ssid_info_by_haul_type(haul_type)) == NULL) {
 			printf("%s:%d: Could not find network ssid information for haul type %d\n", __func__, __LINE__, haul_type);
 			continue;
