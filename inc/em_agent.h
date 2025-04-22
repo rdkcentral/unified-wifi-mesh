@@ -185,6 +185,13 @@ class em_agent_t : public em_mgr_t {
 	 * @param event The event containing the `bss_info_t` which heard the CCE IE in a beacon or probe response
 	 */
 	void handle_recv_cce_ie(em_bus_event_t *event);
+
+	/**
+	 * @brief Handles the reception of association status of a STA
+	 * 
+	 * @param event The event containing the `rdk_sta_data_t` info which includes the association status along with other information
+	 */
+	void handle_recv_assoc_status(em_bus_event_t *event);
     
 	/**!
 	 * @brief Handles the BTM response action frame.
@@ -807,9 +814,19 @@ public:
 	 * @param event_name The name of the event
 	 * @param data The raw event data
 	 * @param userData User provided callback data
-	 * @return int 0 on success, otherwise -1
+	 * @return int 1 on success, otherwise -1
 	 */
 	static int cce_ie_cb(char *event_name, raw_data_t *data, void *userData);
+
+	/**
+	 * @brief Callback for association status event
+	 * 
+	 * @param event_name The name of the event
+	 * @param data The raw event data
+	 * @param userData Optional user-provided callback data
+	 * @return int 1 on success, otherwise -1
+	 */
+	static int association_status_cb(char *event_name, raw_data_t *data, void *userData);
     
 	/**!
 	 * @brief Retrieves the associated data for the given input.

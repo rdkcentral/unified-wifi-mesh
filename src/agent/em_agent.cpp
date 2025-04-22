@@ -321,6 +321,26 @@ void em_agent_t::handle_btm_request_action_frame(em_bus_event_t *evt)
 	    printf("analyze_btm_request_action_frame failed\n");
     }
 }
+void em_agent_t::handle_recv_assoc_status(em_bus_event_t *event)
+{
+    if (event == nullptr) {
+        em_printfout("NULL event!");
+        return;
+    }
+    rdk_sta_data_t *sta_data = reinterpret_cast<rdk_sta_data_t *>(event->u.raw_buff);
+
+    // Only the `ec_manager_t` (which belongs only to the AL node) needs to get live association status at this time
+    em_t *al_node = get_al_node();
+    if (al_node == nullptr) {
+        em_printfout("AL node is nullptr!");
+        return;
+    }
+
+    if (!al_node->m_ec_manager->handle_assoc_status(*sta_data)) {
+        em_printfout("EC managed failed to handle association status event!");
+        return;
+    }
+}
 
 void em_agent_t::handle_recv_cce_ie(em_bus_event_t *event)
 {
@@ -702,6 +722,10 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
         case em_bus_event_type_cce_ie:
             handle_recv_cce_ie(evt);
             break;
+        
+        case em_bus_event_type_assoc_status:
+            handle_recv_assoc_status(evt);
+            break;
 
         default:
             break;
@@ -900,7 +924,22 @@ void em_agent_t::input_listener()
         }
     }
 
+    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.AssociationStatus", reinterpret_cast<void *>(&em_agent_t::association_status_cb), nullptr, 0) != 0) {
+        em_printfout("Failed to subscribe to 'Device.WiFi.EM.AssociationStatus'");
+        return;
+    }
+
     io(NULL);
+}
+
+int em_agent_t::association_status_cb(char *event_name, raw_data_t *data, void *userData)
+{
+    if (data == nullptr) {
+        em_printfout("NULL data from OneWiFi callback!");
+        return -1;
+    }
+    g_agent.io_process(em_bus_event_type_assoc_status, reinterpret_cast<unsigned char *>(data->raw_data.bytes), data->raw_data_len);
+    return 1;
 }
 
 int em_agent_t::cce_ie_cb(char *event_name, raw_data_t *data, void *userData)

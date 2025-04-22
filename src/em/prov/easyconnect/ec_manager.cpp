@@ -164,3 +164,12 @@ bool ec_manager_t::handle_cce_ie(unsigned int freq)
     }
     return m_enrollee->add_presence_announcement_freq(freq);
 }
+
+bool ec_manager_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
+{
+    if (!m_enrollee) {
+        // No Enrollee so we don't care about this spurious association status event
+        return true;
+    }
+    return m_enrollee->handle_assoc_status(sta_data);
+}

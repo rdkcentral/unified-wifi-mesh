@@ -175,6 +175,18 @@ public:
 	 */
 	bool add_presence_announcement_freq(unsigned int freq);
 
+	/**
+	 * @brief Handles an association status event.
+	 * 
+	 * If this event maps to our bSTA's association attempt, check the association status and send a Configuration Status Result frame
+	 * 
+	 * If this event does NOT map to our bSTAs association attempt, just throw it away
+	 * 
+	 * @param sta_data The STA data containing association status
+	 * @return true on success, otherwise false
+	 */
+	bool handle_assoc_status(const rdk_sta_data_t &sta_data);
+
 private:
 
     
@@ -420,6 +432,13 @@ private:
 	// Key -> sender's MAC + dialog_token (example: aabbcceeddff_42) as a string
 	// Value -> buffer for re-assembling GAS frame fragments
 	std::unordered_map<std::string, gas_fragment_buffer_t> m_gas_fragments;
+
+	/**
+	 * @brief Map of BSSIDs (as strings) that we are awaiting association status for
+	 * Key: BSSID (as string)
+	 * Value: The MAC of the node we're trying to associate to
+	 */
+	std::unordered_map<std::string, mac_addr_t> m_awaiting_assoc_status = {};
 };
 
 #endif // EC_ENROLLEE_H
