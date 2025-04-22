@@ -254,7 +254,7 @@ int dm_policy_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
     for (i = 0; i < policy->num_sta; i++) {
 		dm_easy_mesh_t::macbytes_to_string(policy->sta_mac[i], sta_mac_str);
         strncat(sta_mac_list_str, sta_mac_str, strlen(sta_mac_str));
-        strncat(sta_mac_list_str, ",", 2);
+        strncat(sta_mac_list_str, ",", strlen(",")+1);
     }
 
 	if (strlen(sta_mac_list_str) > 0)

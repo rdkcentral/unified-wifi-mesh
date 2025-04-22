@@ -351,7 +351,7 @@ int dm_sta_list_t::sync_db(db_client_t& db_client, void *ctx)
         info.frame_body_len = static_cast<unsigned int> (db_client.get_number(ctx, 21));
 
         db_client.get_string(ctx, frame_body, 22);
-        dm_easy_mesh_t::unhex(strlen(frame_body), frame_body, EM_MAX_FRAME_BODY_LEN, info.frame_body);
+        dm_easy_mesh_t::unhex(static_cast<unsigned int>(strlen(frame_body)), frame_body, EM_MAX_FRAME_BODY_LEN, info.frame_body);
 
         update_list(dm_sta_t(&info), dm_orch_type_db_insert);
     }

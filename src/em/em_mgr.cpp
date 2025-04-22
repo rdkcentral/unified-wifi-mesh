@@ -296,7 +296,7 @@ void *em_mgr_t::mgr_input_listen(void *arg)
 
 int em_mgr_t::input_listen()
 {
-    ssize_t stack_size = 0x800000; /* 8MB */
+    size_t stack_size = 0x800000; /* 8MB */
     pthread_attr_t attr;
     pthread_attr_t *attrp = NULL;
     int ret = 0;
@@ -429,7 +429,7 @@ void *em_mgr_t::mgr_nodes_listen(void *arg)
 
 int em_mgr_t::nodes_listen()
 {
-    ssize_t stack_size = 0x800000; /* 8MB */
+    size_t stack_size = 0x800000; /* 8MB */
     pthread_attr_t attr;
     pthread_attr_t *attrp = NULL;
     int ret = 0;

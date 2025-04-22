@@ -68,7 +68,8 @@ int em_cmd_exec_t::load_params_file(const char *filename, char *buff)
         return -1;
     } else {
 
-        memset(buff, 0, sizeof(buff));
+        //clear the data from buffer
+        strncpy(buff, "", 1);
         while (fgets(tmp, sizeof(tmp), fp) != NULL) {
             strncat(buff, tmp, strlen(tmp));
             sz += static_cast<int> (strlen(tmp));
