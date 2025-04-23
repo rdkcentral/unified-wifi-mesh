@@ -571,21 +571,15 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
         return false;
     }
 
-    // First, we need to scan and ensure that the Configurator's requested BSS is
-    // within range for us / exists.
-
-    // TODO: scan!
-
-
-    // TODO: associate with bSTA config information from Configurator!
-
-    ec_status_code_t connection_status = DPP_STATUS_CONFIG_REJECTED;
-
-
-    // Only necessary if Configurator includes "sendConnStatus" in Configuration response.
-    bool needs_connection_status = (send_connection_status_attr.has_value());
+    // First, we immediately send a Connection Status Result frame to Configurator per
+    // EasyConnect 6.4.4 after parsing/ensuring the Configuration Response is valid
 
     // Mandatory Configuration Result frame indicating configuration status.
+    // The spec is a bit goofy here and says that DPP Status should indicate
+    // the success or failure of _applying the configuration_
+    // It does not mention that this status indicates real association success/failure
+    // So, just send DPP_STATUS_OK as there's no configuration application mechanism here
+    ec_status_code_t connection_status = DPP_STATUS_OK;
     auto [config_result_frame, config_result_frame_len] = create_config_result(connection_status);
     if (config_result_frame == nullptr || config_result_frame_len == 0) {
         em_printfout("Failed to create DPP Configuration Result frame");
@@ -602,44 +596,28 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
         em_printfout("Sent Configuration Result frame to '" MACSTRFMT "'", MAC2STR(sa));
     }
 
-    // No Conn Status frame needed.
-    if (!needs_connection_status) {
-        free(config_result_frame);
-        free(unwrapped_attrs);
-        cJSON_Delete(bsta_configuration_object);
-        cJSON_Delete(ieee1905_configuration_object);
-        return ok;
-    }
-    
-    auto [conn_status_result_frame, conn_status_result_frame_len] = create_connection_status_result(connection_status, std::string(bsta_ssid->valuestring, strlen(bsta_ssid->valuestring)));
-    
-    if (!conn_status_result_frame || conn_status_result_frame_len == 0) {
-        em_printfout("Configurator required a Connection Status Result frame, but could not create one");
-        free(config_result_frame);
-        free(unwrapped_attrs);
-        cJSON_Delete(ieee1905_configuration_object);
-        cJSON_Delete(bsta_configuration_object);
-        return false;
-    }
-    
-    if (!m_send_action_frame(sa, conn_status_result_frame, conn_status_result_frame_len, 0, 0)) {
-        em_printfout("Failed to send Connection Status Result frame to Configurator!");
-        free(config_result_frame);
-        free(unwrapped_attrs);
-        free(conn_status_result_frame);
-        cJSON_Delete(ieee1905_configuration_object);
-        cJSON_Delete(bsta_configuration_object);
-        return false;
-    }
-    
-    em_printfout("Sent a Connection Status Result frame to Configurator");
+    // Then, we need to scan and ensure that the Configurator's requested BSS is
+    // within range for us / exists.
+
+    // TODO: scan!
+
+
+    // TODO: associate with bSTA config information from Configurator!
+
+
+
+    // Only necessary if Configurator includes "sendConnStatus" in Configuration response.
+    bool needs_connection_status = (send_connection_status_attr.has_value());
+
+    if (needs_connection_status) {
+        // TODO: add BSSID we're attemping to associate to to m_awaiting_assoc_status map!
+    } 
 
     free(config_result_frame);
     free(unwrapped_attrs);
-    free(conn_status_result_frame);
     cJSON_Delete(bsta_configuration_object);
     cJSON_Delete(ieee1905_configuration_object);
-    return true;    
+    return ok;    
 }
 
 std::pair<uint8_t *, size_t> ec_enrollee_t::create_presence_announcement()
@@ -1297,5 +1275,56 @@ bool ec_enrollee_t::add_presence_announcement_freq(unsigned int freq)
 {
     m_pres_announcement_freqs.insert(static_cast<uint32_t>(freq));
     em_printfout("Added %d to list of Presence Announcement frequencies", freq);
+    return true;
+}
+
+bool ec_enrollee_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
+{
+    std::string bssid_str = util::mac_to_string(sta_data.bss_info.bssid);
+    // Is this a BSSID we tried to connect to, and therefore a relevant event for us?
+    auto it = m_awaiting_assoc_status.find(bssid_str);
+    if (it == m_awaiting_assoc_status.end()) {
+        em_printfout("Got association status, but it wasn't for our association attempt.");
+        // This is fine
+        return true;
+    }
+    ec_status_code_t dpp_status;
+    switch (sta_data.stats.connect_status) {
+        case wifi_connection_status_connected:
+            dpp_status = DPP_STATUS_OK;
+            break;
+        // OneWifi connection statuses disabled and disconnected do not cleanly
+        // map to any DPP Status Code (EasyConnect table 22), so map them to
+        // STATUS_NO_AP as a generic catch-all.
+        case wifi_connection_status_disabled:
+        [[fallthrough]];
+        case wifi_connection_status_disconnected:
+        [[fallthrough]];
+        case wifi_connection_status_ap_not_found:
+            dpp_status = DPP_STATUS_NO_AP_DISCOVERED;
+            break;
+        default:
+            em_printfout("Unhandled Wi-Fi connection status enum %d", sta_data.stats.connect_status);
+            return false;
+    }
+
+    auto [frame, frame_len] = create_connection_status_result(dpp_status, std::string(sta_data.bss_info.ssid));
+    if (frame == nullptr || frame_len == 0) {
+        em_printfout("Failed to create Configuration Connection Status Result frame!");
+        return false;
+    }
+
+    bool sent = m_send_action_frame(reinterpret_cast<uint8_t*>(it->second), frame, frame_len, m_selected_freq, 0);
+    if (sent) {
+        em_printfout("Sent Configuration Connection Status Result frame!");
+    } else {
+        em_printfout("Failed to send Configuration Connection Status Result Frame to '" MACSTRFMT "'", MAC2STR(it->second));
+    }
+
+    // Reset state
+    m_awaiting_assoc_status.erase(it);
+    free(frame);
+
+    
     return true;
 }

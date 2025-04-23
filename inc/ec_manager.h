@@ -215,6 +215,14 @@ public:
 	 */
 	bool handle_cce_ie(unsigned int freq);
 
+	/**
+	 * @brief Handle an association status event (for the Enrollee's bSTA association attempt)
+	 * 
+	 * @param sta_data The STA data which contains association status
+	 * @return true on success otherwise false
+	 */
+	bool handle_assoc_status(const rdk_sta_data_t &sta_data);
+
 
 private:
     bool m_is_controller;
