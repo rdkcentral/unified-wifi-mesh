@@ -27,7 +27,8 @@ lib_LTLIBRARIES=libemcli.la
 libemcli_la_CPPFLAGS = \
     -I$(top_srcdir)/inc \
     -I$(top_srcdir)/src/utils \
-    -I$(top_srcdir)/src/util
+    -I$(top_srcdir)/src/util \
+    -I$(top_srcdir)/src/util_crypto
  
 libemcli_la_CPPFLAGS += -g -fPIC
  
