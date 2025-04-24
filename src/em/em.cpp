@@ -763,9 +763,26 @@ bool em_t::toggle_cce(bool enable)
 
 bool em_t::bsta_connect_bss(const std::string& ssid, const std::string passphrase, bssid_t bssid)
 {
-    // TODO: Maybe come back to index of 0
-    auto bsta_info = m_data_model->get_bss_info(0);
-    ASSERT_NOT_NULL(bsta_info, false, "%s:%d: Could not get BSS info\n", __func__, __LINE__);
+    em_bss_info_t *bsta_info = NULL; 
+    for (unsigned int i = 0; i < m_data_model->get_num_bss(); i++) {
+        bsta_info = m_data_model->get_bss_info(i);
+        if (!bsta_info) continue;
+        // Skip if not backhaul
+        if (bsta_info->id.haul_type != em_haul_type_backhaul) {
+            continue;
+        }
+        auto radio = m_data_model->get_radio(bsta_info->ruid.mac);
+        if (!radio) continue;
+        if (!radio->m_radio_info.enabled || !bsta_info->enabled) {
+            continue;
+        }
+        break;
+    }
+    if (!bsta_info) {
+        em_printfout("No backhaul bSTA found to connect to BSS\n");
+        return false;
+    }
+
     memset(bsta_info->ssid, 0, sizeof(bsta_info->ssid));
     strcpy(bsta_info->ssid, ssid.c_str());
     
