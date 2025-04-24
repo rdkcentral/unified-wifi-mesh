@@ -852,6 +852,40 @@ bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_f
     return true;
 }
 
+bool em_agent_t::set_disconnected_steady_state()
+{
+    
+    wifi_bus_desc_t *desc = get_bus_descriptor();
+    ASSERT_NOT_NULL(desc, false, "%s:%d descriptor is null\n", __func__, __LINE__);
+
+    raw_data_t raw_act_frame;
+    memset(&raw_act_frame, 0, sizeof(raw_data_t));
+    raw_act_frame.data_type = bus_data_type_none;
+    if (desc->bus_set_fn(&m_bus_hdl, WIFI_SET_DISCONN_STEADY_STATE, &raw_act_frame)== 0) {
+        em_printfout("Set Disconnected Steady State succeeded");
+        return true;
+    }
+    em_printfout("Set Disconnected Steady State failed");
+    return false;
+}
+
+bool em_agent_t::set_disconnected_scan_none_state()
+{
+    
+    wifi_bus_desc_t *desc = get_bus_descriptor();
+    ASSERT_NOT_NULL(desc, false, "%s:%d descriptor is null\n", __func__, __LINE__);
+
+    raw_data_t raw_act_frame;
+    memset(&raw_act_frame, 0, sizeof(raw_data_t));
+    raw_act_frame.data_type = bus_data_type_none;
+    if (desc->bus_set_fn(&m_bus_hdl, WIFI_SET_DISCONN_SCAN_NONE_STATE, &raw_act_frame)== 0) {
+        em_printfout("Set Disconnected Scan None succeeded");
+        return true;
+    }
+    em_printfout("Set Disconnected Scan None failed");
+    return false;
+}
+
 bool em_agent_t::can_onboard_additional_aps()
 {
     // XXX: TODO: Real business logic!
@@ -1553,6 +1587,10 @@ bool em_agent_t::try_start_dpp_onboarding()  {
         return false;
     }
     printf("%s:%d: DPP bootstrapping data generated successfully\n", __func__, __LINE__);
+
+    // Should move after channel list is built
+    set_disconnected_steady_state();
+    
     if (!al_node->get_ec_mgr().enrollee_start_onboarding(false, &ec_data)){
         printf("%s:%d: DPP onboarding failed to start\n", __func__, __LINE__);
         return false;
