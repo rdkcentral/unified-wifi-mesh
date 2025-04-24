@@ -761,6 +761,41 @@ bool em_t::toggle_cce(bool enable)
     return !enable || success;
 }
 
+bool em_t::bsta_connect_bss(const std::string& ssid, const std::string passphrase, bssid_t bssid)
+{
+    // TODO: Maybe come back to index of 0
+    auto bsta_info = m_data_model->get_bss_info(0);
+    ASSERT_NOT_NULL(bsta_info, false, "%s:%d: Could not get BSS info\n", __func__, __LINE__);
+    memset(bsta_info->ssid, 0, sizeof(bsta_info->ssid));
+    strcpy(bsta_info->ssid, ssid.c_str());
+    
+    memcpy(bsta_info->bssid.mac, bssid, sizeof(bssid_t));
+    
+    memset(bsta_info->mesh_sta_passphrase, 0, sizeof(bsta_info->mesh_sta_passphrase));
+    strcpy(bsta_info->mesh_sta_passphrase, passphrase.c_str());
+
+    // Kick out of disconnected steady state (will fail if not in that state)
+    m_mgr->set_disconnected_scan_none_state();
+
+    em_printfout("Starting Mesh STA Config");
+    int res = m_mgr->refresh_onewifi_subdoc("MESH STA CONFIG", webconfig_subdoc_type_mesh_backhaul_sta);
+    em_printfout("Finished Mesh STA Config");
+    return res == 1;
+}
+
+bool em_t::start_stop_build_ec_channel_list(bool do_start)
+{
+    if (do_start) {
+        // If we want to build the channel list, we have to be scanning,
+        // so we need to make sure we are not in the disconnected steady state
+        return m_mgr->set_disconnected_scan_none_state();
+    }
+    // If we want to stop building the channel list (which only happens before action frames)
+    // we need to make sure we are in the disconnected steady state to make sure action frames are
+    // sent and recieved well.
+    return m_mgr->set_disconnected_steady_state();
+}
+
 void em_t::push_to_queue(em_event_t *evt)
 {
     pthread_mutex_lock(&m_iq.lock);
@@ -1245,9 +1280,12 @@ em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr
                 ? std::bind(&em_t::create_enrollee_bsta_list, this, std::placeholders::_1)
                 : std::bind(&em_t::create_configurator_bsta_response_obj, this, std::placeholders::_1),
             service_type == em_service_type_ctrl
-                ? std::bind(&em_t::create_ieee1905_response_obj, this, std::placeholders::_1) : static_cast<get_1905_info_func>(nullptr),
+                ? std::bind(&em_t::create_ieee1905_response_obj, this, std::placeholders::_1)
+                : static_cast<get_1905_info_func>(nullptr),
             std::bind(&em_mgr_t::can_onboard_additional_aps, mgr),
-        std::bind(&em_t::toggle_cce, this, std::placeholders::_1),
+            std::bind(&em_t::toggle_cce, this, std::placeholders::_1),
+            std::bind(&em_t::start_stop_build_ec_channel_list, this, std::placeholders::_1),
+            std::bind(&em_t::bsta_connect_bss, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
             service_type == em_service_type_ctrl
         ));
     }
