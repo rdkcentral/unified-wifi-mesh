@@ -2244,6 +2244,7 @@ typedef struct {
     bool    multi_bssid;
     bool    transmitted_bssid;
     em_eht_operations_bss_t eht_ops;
+    em_short_string_t mesh_sta_passphrase;
 
     // Extra vendor information elements for the BSS
     // @note Don't manually allocate, use the helper functions to add/remove elements 
@@ -2581,6 +2582,7 @@ typedef enum {
     em_bus_event_type_m2_tx,
     em_bus_event_type_topo_sync,
     em_bus_event_type_onewifi_private_cb,
+    em_bus_event_type_onewifi_mesh_sta_cb,
     em_bus_event_type_onewifi_radio_cb,
     em_bus_event_type_m2ctrl_configuration,
     em_bus_event_type_sta_assoc,

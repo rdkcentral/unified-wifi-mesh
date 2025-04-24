@@ -525,6 +525,17 @@ public:
 	 * @note Ensure that the event structure is properly initialized before passing it to this function.
 	 */
 	void handle_onewifi_private_cb(em_bus_event_t *evt);
+
+	/**!
+	 * @brief Handles the mesh station callback for OneWiFi events.
+	 *
+	 * This function processes the event received from the OneWiFi bus and performs necessary actions.
+	 *
+	 * @param[in] evt Pointer to the event structure containing OneWiFi event data.
+	 *
+	 * @note Ensure that the event structure is properly initialized before passing it to this function.
+	 */
+	void handle_onewifi_mesh_sta_cb(em_bus_event_t *evt);
 	
 	/**!
 	 * @brief Handles the OneWiFi radio callback event.

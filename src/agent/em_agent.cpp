@@ -226,6 +226,25 @@ void em_agent_t::handle_onewifi_private_cb(em_bus_event_t *evt)
     }
 }
 
+void em_agent_t::handle_onewifi_mesh_sta_cb(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+    wifi_bus_desc_t *desc;
+
+    if ((desc = get_bus_descriptor()) == NULL) {
+        printf("descriptor is null");
+    }
+
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
+        m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+    } else if ((num = m_data_model.analyze_onewifi_vap_cb(evt, pcmd)) == 0) {
+        printf("analyze_onewifi_vap_cb completed\n");
+    } else if (m_orch->submit_commands(pcmd, num) > 0) {
+        printf("submitted command for orchestration\n");
+    }
+}
+
 void em_agent_t::handle_onewifi_radio_cb(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
@@ -685,7 +704,9 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 		case em_bus_event_type_onewifi_private_cb:
             handle_onewifi_private_cb(evt);
             break;
-
+        case em_bus_event_type_onewifi_mesh_sta_cb:
+            handle_onewifi_mesh_sta_cb(evt);
+            break;
 		case em_bus_event_type_onewifi_radio_cb:
 			handle_onewifi_radio_cb(evt);
 			break;
@@ -1097,29 +1118,34 @@ void em_agent_t::onewifi_cb(char *event_name, raw_data_t *data, void *userData)
 
 	if (json == NULL) {
 		printf("%s:%d Error parsing JSON\n", __func__, __LINE__);
-	} else {
-		cJSON *subdoc_name = cJSON_GetObjectItemCaseSensitive(json, "SubDocName");
-		if (cJSON_IsString(subdoc_name) && (subdoc_name->valuestring != NULL)) {
-			if ((strcmp(subdoc_name->valuestring, "private") == 0) || (strcmp(subdoc_name->valuestring, "Vap_5G") == 0) ||
-				(strcmp(subdoc_name->valuestring, "Vap_2.4G") == 0)) {
-				printf("%s:%d Found SubDocName: private\n", __func__, __LINE__);
-				g_agent.io_process(em_bus_event_type_onewifi_private_cb, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
-
-			} else if ((strcmp(subdoc_name->valuestring, "radio") == 0) || (strcmp(subdoc_name->valuestring, "radio_5G") == 0) ||
-				(strcmp(subdoc_name->valuestring, "radio_2.4G") == 0)) {
-				printf("%s:%d Found SubDocName: radio\n", __func__, __LINE__);
-				g_agent.io_process(em_bus_event_type_onewifi_radio_cb, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
-
-			} else {
-				printf("%s:%d SubDocName not matching private or radio \n", __func__, __LINE__);
-				return;
-			}
-		} else {
-			printf("%s:%d SubDocName not found\n", __func__, __LINE__);
-		}
-
-		cJSON_Delete(json);
+        return;
 	}
+    cJSON *subdoc_name = cJSON_GetObjectItemCaseSensitive(json, "SubDocName");
+    if (!cJSON_IsString(subdoc_name) || (subdoc_name->valuestring == NULL)) {
+        cJSON_Delete(json);
+        return;
+    }
+
+    if ((strcmp(subdoc_name->valuestring, "private") == 0) || (strcmp(subdoc_name->valuestring, "Vap_5G") == 0) ||
+        (strcmp(subdoc_name->valuestring, "Vap_2.4G") == 0)) {
+        printf("%s:%d Found SubDocName: private\n", __func__, __LINE__);
+        g_agent.io_process(em_bus_event_type_onewifi_private_cb, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
+
+    } else if ((strcmp(subdoc_name->valuestring, "radio") == 0) || (strcmp(subdoc_name->valuestring, "radio_5G") == 0) ||
+        (strcmp(subdoc_name->valuestring, "radio_2.4G") == 0)) {
+        printf("%s:%d Found SubDocName: radio\n", __func__, __LINE__);
+        g_agent.io_process(em_bus_event_type_onewifi_radio_cb, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
+
+    } else if ((strcmp(subdoc_name->valuestring, "mesh_sta") == 0) || 
+               (strcmp(subdoc_name->valuestring, "mesh backhaul sta") == 0)) {
+        printf("%s:%d Found SubDocName: mesh_sta\n", __func__, __LINE__);
+        g_agent.io_process(em_bus_event_type_onewifi_mesh_sta_cb, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
+
+    } else {
+        printf("%s:%d SubDocName not matching private or radio \n", __func__, __LINE__);
+    }
+
+    cJSON_Delete(json);
 
 }
 
