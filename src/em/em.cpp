@@ -613,7 +613,7 @@ int em_t::start_al_interface()
     memset(&addr_ll, 0, sizeof(struct sockaddr_ll));
     addr_ll.sll_family   = AF_PACKET;
     addr_ll.sll_protocol = htons(ETH_P_ALL);
-    addr_ll.sll_ifindex  = static_cast<int>(if_nametoindex(m_ruid.name));
+    addr_ll.sll_ifindex = INADDR_ANY;
     addr = reinterpret_cast<struct sockaddr *>(&addr_ll);
     slen = sizeof(struct sockaddr_ll);
 
