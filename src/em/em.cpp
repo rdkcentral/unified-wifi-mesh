@@ -223,6 +223,10 @@ void em_t::orch_execute(em_cmd_t *pcmd)
         case em_cmd_type_beacon_report:
             m_sm.set_state(em_state_agent_beacon_report_pending);
             break;
+
+        case em_cmd_type_ap_metrics_report:
+            m_sm.set_state(em_state_agent_ap_metrics_pending);
+            break;
     
         default:
             break;
@@ -405,6 +409,12 @@ void em_t::handle_agent_state()
 
         case em_cmd_type_beacon_report:
             if (m_sm.get_state() == em_state_agent_beacon_report_pending) {
+                em_metrics_t::process_agent_state();
+            }
+            break;
+
+        case em_cmd_type_ap_metrics_report:
+            if (m_sm.get_state() == em_state_agent_ap_metrics_pending) {
                 em_metrics_t::process_agent_state();
             }
             break;

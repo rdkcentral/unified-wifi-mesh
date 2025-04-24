@@ -50,6 +50,7 @@
 #include "em_cmd_scan_result.h"
 #include "em_cmd_beacon_report.h"
 #include "em_cmd_sta_link_metrics.h"
+#include "em_cmd_ap_metrics_report.h"
 
 int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
@@ -691,9 +692,6 @@ int dm_easy_mesh_agent_t::analyze_beacon_report(em_bus_event_t *evt, em_cmd_t *p
     dm_easy_mesh_agent_t  dm;
     unsigned int num = 0, num_radios = 0;
     mac_addr_str_t macstr;
-    webconfig_t config;
-    webconfig_external_easymesh_t extdata = {0};
-    webconfig_subdoc_type_t type = webconfig_subdoc_type_beacon_report;
 
     dm.init();
 
@@ -724,6 +722,72 @@ int dm_easy_mesh_agent_t::analyze_beacon_report(em_bus_event_t *evt, em_cmd_t *p
 
     pcmd[num] = new em_cmd_beacon_report_t(evt->params, dm);
 
+    tmp = pcmd[num];
+    num++;
+
+    while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+        tmp = pcmd[num];
+        num++;
+    }
+
+    return num;
+}
+
+int dm_easy_mesh_agent_t::analyze_ap_metrics_report(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    em_cmd_t *tmp = NULL;
+    em_cmd_params_t *evt_param = NULL;
+    unsigned int num = 0;
+    mac_addr_str_t macstr;
+    cJSON *json, *emap_metrics_report, *param_obj;
+    int radio_index = 0;
+
+    translate_and_decode_onewifi_subdoc((char *)evt->u.raw_buff, webconfig_subdoc_type_em_ap_metrics_report, "AP Metrics Report");
+
+    json = cJSON_Parse((const char *)evt->u.raw_buff);
+    emap_metrics_report = cJSON_GetObjectItem(json, "EMAPMetricsReport");
+    if (emap_metrics_report == NULL) {
+        printf("%s:%d: Invalid or missing EMAPMetricsReport\n", __func__, __LINE__);
+        return 0;
+    }
+
+    param_obj = cJSON_GetObjectItemCaseSensitive(emap_metrics_report, "Radio Index");
+    if ((param_obj == NULL) || (cJSON_IsNumber(param_obj) == false) ) {
+        printf("%s:%d Unable to find scanner mac\n", __func__, __LINE__);
+        return 0;
+    }
+
+    radio_index = param_obj->valueint;
+    evt_param = &evt->params;
+    dm_easy_mesh_t::macbytes_to_string(get_radio_by_ref(radio_index).get_radio_interface_mac(), macstr);
+    memcpy(evt_param->u.ap_metrics_params.ruid, get_radio_by_ref(radio_index).get_radio_interface_mac(), sizeof(mac_addr_t));
+    //printf("%s:%d: Radio Index: %d and mac: %s\n", radio_index, macstr);
+
+    if (strstr((const char *)evt->u.raw_buff, "Associated STA Traffic Stats") != NULL) {
+        //printf("Associated STA Traffic Stats found in JSON.\n");
+        evt_param->u.ap_metrics_params.sta_traffic_stats_include = true;
+    } else {
+        //printf("Associated STA Traffic Stats not found in JSON.\n");
+        evt_param->u.ap_metrics_params.sta_traffic_stats_include = false;
+    }
+
+    if (strstr((const char *)evt->u.raw_buff, "Associated STA Link Metrics Report") != NULL) {
+        //printf("Associated STA Link Metrics Report found in JSON.\n");
+        evt_param->u.ap_metrics_params.sta_link_metrics_include = true;
+    } else {
+        //printf("Associated STA Link Metrics Report not found in JSON.\n");
+        evt_param->u.ap_metrics_params.sta_link_metrics_include = false;
+    }
+
+    if (strstr((const char *)evt->u.raw_buff, "Associated Wi-Fi 6 STA Status Report") != NULL) {
+        //printf("Associated Wi-Fi 6 STA Status Report found in JSON.\n");
+        evt_param->u.ap_metrics_params.wifi6_status_report_include = true;
+    } else {
+        //printf("Associated Wi-Fi 6 STA Status Report not found in JSON.\n");
+        evt_param->u.ap_metrics_params.wifi6_status_report_include = false;
+    }
+
+    pcmd[num] = new em_cmd_ap_metrics_report_t(evt->params, *(this));
     tmp = pcmd[num];
     num++;
 
