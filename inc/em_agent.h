@@ -261,6 +261,17 @@ class em_agent_t : public em_mgr_t {
 	 */
 	void handle_recv_gas_frame(em_bus_event_t *evt);
 
+	/**!
+	 * @brief Handles the AP Metrics report event.
+	 *
+	 * This function processes the AP Metrics report event received from the event bus.
+	 *
+	 * @param[in] evt Pointer to the event structure containing the AP Metrics report data.
+	 *
+	 * @note Ensure that the event structure is properly initialized before calling this function.
+	 */
+	void handle_ap_metrics_report(em_bus_event_t *evt);
+
 public:
 
     bus_handle_t m_bus_hdl;
@@ -827,6 +838,22 @@ public:
 	 * @return int 1 on success, otherwise -1
 	 */
 	static int association_status_cb(char *event_name, raw_data_t *data, void *userData);
+	/**!
+	 * @brief Callback function for handling AP Metrics reports.
+	 *
+	 * This function is triggered when an AP Metrics report event occurs.
+	 *
+	 * @param[in] event_name The name of the event that triggered the callback.
+	 * @param[in] data Pointer to the raw data associated with the AP Metrics report.
+	 * @param[in] userData User-defined data passed to the callback function.
+	 *
+	 * @returns int Status code indicating the success or failure of the callback execution.
+	 * @retval 0 Success.
+	 * @retval -1 Failure.
+	 *
+	 * @note Ensure that the data pointer is valid before accessing its contents.
+	 */
+	static int ap_metrics_report_cb(char *event_name, raw_data_t *data, void *userData);
     
 	/**!
 	 * @brief Retrieves the associated data for the given input.

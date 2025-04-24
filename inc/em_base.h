@@ -1952,6 +1952,8 @@ typedef enum {
     em_cmd_type_get_mld_config,
     em_cmd_type_mld_reconfig,
     em_cmd_type_beacon_report,
+    em_cmd_type_ap_metrics_report,
+
     em_cmd_type_max,
 } em_cmd_type_t;
 
@@ -2597,6 +2599,7 @@ typedef enum {
     em_bus_event_type_get_sta_client_type,
     em_bus_event_type_cce_ie,
     em_bus_event_type_assoc_status,
+    em_bus_event_type_ap_metrics_report,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -2825,6 +2828,13 @@ typedef struct {
     em_disassoc_params_t	params[MAX_STA_TO_DISASSOC];
 } em_cmd_disassoc_params_t;
 
+typedef struct {
+    mac_address_t   ruid;
+    bool sta_link_metrics_include;
+    bool sta_traffic_stats_include;
+    bool wifi6_status_report_include;
+} __attribute__((__packed__)) em_cmd_ap_metrics_rprt_params_t;
+
 typedef enum {
     em_network_node_data_type_invalid,
     em_network_node_data_type_false,
@@ -2864,6 +2874,7 @@ typedef struct {
         em_cmd_btm_report_params_t  btm_report_params;
         em_cmd_disassoc_params_t	disassoc_params;
 		em_cmd_scan_params_t	scan_params;
+        em_cmd_ap_metrics_rprt_params_t ap_metrics_params;
     } u;
 	em_network_node_t *net_node;
 } em_cmd_params_t;

@@ -627,7 +627,7 @@ void em_agent_t::handle_set_policy(em_bus_event_t *evt)
 void em_agent_t::handle_beacon_report(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
-    unsigned int num;
+    unsigned int num = 0;
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         printf("analyze_beacon_report in progress\n");
@@ -635,6 +635,20 @@ void em_agent_t::handle_beacon_report(em_bus_event_t *evt)
         printf("analyze_beacon_report failed\n");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
         printf("submitted beacon report cmd for orch\n");
+    }
+}
+
+void em_agent_t::handle_ap_metrics_report(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
+        printf("analyze_ap_metrics_report in progress\n");
+    } else if ((num = m_data_model.analyze_ap_metrics_report(evt, pcmd)) == 0) {
+        printf("analyze_ap_metrics_report failed\n");
+    } else if (m_orch->submit_commands(pcmd, num) > 0) {
+        printf("Submitted AP Metrics report cmd for orch\n");
     }
 }
 
@@ -725,6 +739,9 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
         
         case em_bus_event_type_assoc_status:
             handle_recv_assoc_status(evt);
+
+        case em_bus_event_type_ap_metrics_report:
+            handle_ap_metrics_report(evt);
             break;
 
         default:
@@ -837,7 +854,6 @@ bool em_agent_t::can_onboard_additional_aps()
     return true;
 }
 
-
 void em_agent_t::input_listener()
 {
     wifi_bus_desc_t *desc;
@@ -929,6 +945,11 @@ void em_agent_t::input_listener()
         return;
     }
 
+    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.APMetricsReport", (void *)&em_agent_t::ap_metrics_report_cb, NULL, 0) != 0) {
+        printf("%s:%d bus get failed\n", __func__, __LINE__);
+        return;
+    }
+
     io(NULL);
 }
 
@@ -972,6 +993,16 @@ int em_agent_t::channel_scan_cb(char *event_name, raw_data_t *data, void *userDa
     g_agent.io_process(em_bus_event_type_scan_result, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
     return 1;
+}
+
+int em_agent_t::ap_metrics_report_cb(char *event_name, raw_data_t *data, void *userData)
+{
+    //printf("%s:%d Received Frame data for event [%s] and data :\n%s\n", __func__, __LINE__, event_name, data->raw_data.bytes);
+    (void)userData;
+
+    g_agent.io_process(em_bus_event_type_ap_metrics_report, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
+
+    return 0;
 }
 
 int em_agent_t::beacon_report_cb(char *event_name, raw_data_t *data, void *userData)
