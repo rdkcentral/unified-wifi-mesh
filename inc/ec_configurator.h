@@ -69,7 +69,7 @@ using start_stop_clist_build_func = std::function<bool(bool)>;
  * @param bssid The BSSID of the BSS to connect to
  * @return bool true if the attempt was performed successfully, false otherwise
  */
-using bsta_connect_func = std::function<bool(const std::string&, const std::string, bssid_t)>;
+using bsta_connect_func = std::function<bool(const std::string&, const std::string&, bssid_t)>;
 
 /**
  * @brief Creates a DPP Configuration Response object for the backhaul STA interface.

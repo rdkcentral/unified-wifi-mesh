@@ -155,6 +155,13 @@ public:
 	 */
 	inline std::string get_mac_addr() { return m_mac_addr; };
 
+	/**!
+	 * @brief Retrieves wether this enrollee is in onboarding state or not.
+	 * 
+	 * @returns true if this enrollee is in onboarding state, false otherwise.
+	 */
+	inline bool is_onboarding() { return m_is_onboarding; };
+
     // Disable copy construction and assignment
     // Requires use of references or pointers when working with instances of this class
     
@@ -458,6 +465,8 @@ private:
 	 * Value: The MAC of the node we're trying to associate to
 	 */
 	std::unordered_map<std::string, std::vector<uint8_t>> m_awaiting_assoc_status = {};
+
+	bool m_is_onboarding = false;
 };
 
 #endif // EC_ENROLLEE_H

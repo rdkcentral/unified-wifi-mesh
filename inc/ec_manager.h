@@ -106,8 +106,7 @@ public:
         if (m_is_controller || m_enrollee == nullptr) {
             return false;
         }
-        m_is_e_onboarding = m_enrollee->start_onboarding(do_reconfig, boot_data);
-        return m_is_e_onboarding;
+        return m_enrollee->start_onboarding(do_reconfig, boot_data);
     }
 
     
@@ -201,11 +200,16 @@ public:
 	/**
 	 * @brief Whether the enrollee node is **actively** onboarding or not.
 	 *
-	 * If the node is a controller, this will always return false.
+	 * If the node is a configurator, this will always return false.
 	 *
 	 * @return true if the node is onboarding, false otherwise
 	 */
-	inline bool is_enrollee_onboarding() { return m_is_e_onboarding; }
+	inline bool is_enrollee_onboarding() { 
+		if (!m_enrollee) {
+			return false;
+		}
+		return m_enrollee->is_onboarding();
+	}
 
 	/**
 	 * @brief Handle a CCE information element being heard
@@ -227,8 +231,6 @@ public:
 
 private:
     bool m_is_controller;
-
-    bool m_is_e_onboarding = false;
     
     // Used to store the function pointers to instantiate objects again
     send_chirp_func m_stored_chirp_fn;

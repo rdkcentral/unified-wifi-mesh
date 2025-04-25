@@ -858,10 +858,10 @@ bool em_agent_t::set_disconnected_steady_state()
     wifi_bus_desc_t *desc = get_bus_descriptor();
     ASSERT_NOT_NULL(desc, false, "%s:%d descriptor is null\n", __func__, __LINE__);
 
-    raw_data_t raw_act_frame;
-    memset(&raw_act_frame, 0, sizeof(raw_data_t));
-    raw_act_frame.data_type = bus_data_type_none;
-    if (desc->bus_set_fn(&m_bus_hdl, WIFI_SET_DISCONN_STEADY_STATE, &raw_act_frame)== 0) {
+    raw_data_t empty_arg;
+    memset(&empty_arg, 0, sizeof(raw_data_t));
+    empty_arg.data_type = bus_data_type_none;
+    if (desc->bus_set_fn(&m_bus_hdl, WIFI_SET_DISCONN_STEADY_STATE, &empty_arg)== 0) {
         em_printfout("Set Disconnected Steady State succeeded");
         return true;
     }
@@ -875,10 +875,10 @@ bool em_agent_t::set_disconnected_scan_none_state()
     wifi_bus_desc_t *desc = get_bus_descriptor();
     ASSERT_NOT_NULL(desc, false, "%s:%d descriptor is null\n", __func__, __LINE__);
 
-    raw_data_t raw_act_frame;
-    memset(&raw_act_frame, 0, sizeof(raw_data_t));
-    raw_act_frame.data_type = bus_data_type_none;
-    if (desc->bus_set_fn(&m_bus_hdl, WIFI_SET_DISCONN_SCAN_NONE_STATE, &raw_act_frame)== 0) {
+    raw_data_t empty_arg;
+    memset(&empty_arg, 0, sizeof(raw_data_t));
+    empty_arg.data_type = bus_data_type_none;
+    if (desc->bus_set_fn(&m_bus_hdl, WIFI_SET_DISCONN_SCAN_NONE_STATE, &empty_arg)== 0) {
         em_printfout("Set Disconnected Scan None succeeded");
         return true;
     }

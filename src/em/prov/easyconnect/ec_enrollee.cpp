@@ -22,7 +22,7 @@ ec_enrollee_t::~ec_enrollee_t()
 
 bool ec_enrollee_t::start_onboarding(bool do_reconfig, ec_data_t* boot_data)
 {
-
+    m_is_onboarding = false;
     ASSERT_NOT_NULL(boot_data, false, "%s:%d Bootstrapping data is NULL\n", __func__, __LINE__);
     if (boot_data->version < 2) {
         em_printfout("Bootstrapping Version '%d' not supported!", boot_data->version);
@@ -73,6 +73,7 @@ bool ec_enrollee_t::start_onboarding(bool do_reconfig, ec_data_t* boot_data)
 
     // Begin send presence announcements thread.
     m_send_pres_announcement_thread = std::thread(&ec_enrollee_t::send_presence_announcement_frames, this);
+    m_is_onboarding = true;
     return true;
 }
 
@@ -1317,6 +1318,12 @@ bool ec_enrollee_t::add_presence_announcement_freq(unsigned int freq)
 bool ec_enrollee_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
 {
     std::string bssid_str = util::mac_to_string(sta_data.bss_info.bssid);
+    
+    if (sta_data.stats.connect_status == wifi_connection_status_connected) {
+        m_is_onboarding = false;
+        em_printfout("Onboarding complete, connected to BSSID: " MACSTRFMT, MAC2STR(sta_data.bss_info.bssid));
+    }
+
     // Is this a BSSID we tried to connect to, and therefore a relevant event for us?
     auto it = m_awaiting_assoc_status.find(bssid_str);
     if (it == m_awaiting_assoc_status.end()) {
