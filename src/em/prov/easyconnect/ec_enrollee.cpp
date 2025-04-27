@@ -7,8 +7,10 @@
 #include "cjson_util.h"
 #include <unistd.h>
 
-ec_enrollee_t::ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame, get_backhaul_sta_info_func get_bsta_info)
-                            : m_mac_addr(mac_addr), m_send_action_frame(send_action_frame), m_get_bsta_info(get_bsta_info), m_scanned_channels_map{}
+ec_enrollee_t::ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame, get_backhaul_sta_info_func get_bsta_info, 
+                             start_stop_clist_build_func start_stop_clist_build_fn, bsta_connect_func bsta_connect_fn)
+                            : m_mac_addr(mac_addr), m_send_action_frame(send_action_frame), m_get_bsta_info(get_bsta_info), 
+                              m_start_stop_clist_build_fn(start_stop_clist_build_fn), m_bsta_connect_fn(bsta_connect_fn), m_scanned_channels_map{}
 {
 }
 
@@ -20,7 +22,7 @@ ec_enrollee_t::~ec_enrollee_t()
 
 bool ec_enrollee_t::start_onboarding(bool do_reconfig, ec_data_t* boot_data)
 {
-
+    m_is_onboarding = false;
     ASSERT_NOT_NULL(boot_data, false, "%s:%d Bootstrapping data is NULL\n", __func__, __LINE__);
     if (boot_data->version < 2) {
         em_printfout("Bootstrapping Version '%d' not supported!", boot_data->version);
@@ -71,6 +73,7 @@ bool ec_enrollee_t::start_onboarding(bool do_reconfig, ec_data_t* boot_data)
 
     // Begin send presence announcements thread.
     m_send_pres_announcement_thread = std::thread(&ec_enrollee_t::send_presence_announcement_frames, this);
+    m_is_onboarding = true;
     return true;
 }
 
@@ -562,6 +565,32 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
         cJSON_Delete(ieee1905_configuration_object);
         return false;
     }
+
+    cJSON *bsta_bssid = cJSON_GetObjectItem(bsta_discovery_obj, "BSSID");
+    bssid_t bssid = {0};
+    if (bsta_bssid != nullptr && cJSON_IsString(bsta_bssid)) {
+        std::string bssid_str(bsta_bssid->valuestring);
+        if (bssid_str.length() != (ETH_ALEN*2)) {
+            em_printfout("Invalid BSSID length");
+            free(unwrapped_attrs);
+            cJSON_Delete(bsta_configuration_object);
+            cJSON_Delete(ieee1905_configuration_object);
+            return false;
+        }
+        // Convert hex (non-delimited) string to byte array
+        for (int i = 0; i < ETH_ALEN; i++) {
+            std::string byte_str = bssid_str.substr(i*2, 2);
+            bssid[i] = static_cast<uint8_t>(strtol(byte_str.c_str(), nullptr, 16));
+        }
+    }
+    
+    if (memcmp(bssid, ZERO_MAC_ADDR, ETH_ALEN) == 0) {
+        em_printfout("No BSSID provided in bSTA Configuration object, generating random to still trigger connection");
+        // Generate random BSSID
+        RAND_bytes(bssid, ETH_ALEN);
+        em_printfout("Generated random BSSID: " MACSTRFMT "", MAC2STR(bssid));
+    }
+
     cJSON *bsta_pass = cJSON_GetObjectItem(bsta_cred_obj, "pass");
     if (bsta_pass == nullptr) {
         em_printfout("Could not get \"pass\" from bSTA Configuration object.");
@@ -599,11 +628,15 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
     // Then, we need to scan and ensure that the Configurator's requested BSS is
     // within range for us / exists.
 
-    // TODO: scan!
+    // Send connection request to OneWifi to connect to the BSS
+    // OneWifi will scan "auto-magically" for us before attempting to connect
 
-
-    // TODO: associate with bSTA config information from Configurator!
-
+    if (!m_bsta_connect_fn(bsta_ssid->valuestring, bsta_pass->valuestring, bssid)){
+        em_printfout("Failed to attempt a connection to BSS");
+        ok = false;
+    } else {
+        em_printfout("Attempted to connect to BSS");
+    }
 
 
     // Only necessary if Configurator includes "sendConnStatus" in Configuration response.
@@ -611,6 +644,10 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
 
     if (needs_connection_status) {
         // TODO: add BSSID we're attemping to associate to to m_awaiting_assoc_status map!
+        std::string bssid_str = util::mac_to_string(bssid);
+        std::vector<uint8_t> sender_mac(sa, sa + ETH_ALEN);
+        m_awaiting_assoc_status[bssid_str] = sender_mac;
+        em_printfout("Added BSSID to awaiting association status map: %s", bssid_str.c_str());
     } 
 
     free(config_result_frame);
@@ -1281,10 +1318,22 @@ bool ec_enrollee_t::add_presence_announcement_freq(unsigned int freq)
 bool ec_enrollee_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
 {
     std::string bssid_str = util::mac_to_string(sta_data.bss_info.bssid);
+    
+    if (sta_data.stats.connect_status == wifi_connection_status_connected) {
+        m_is_onboarding = false;
+        em_printfout("Onboarding complete, connected to BSSID: " MACSTRFMT, MAC2STR(sta_data.bss_info.bssid));
+    }
+
     // Is this a BSSID we tried to connect to, and therefore a relevant event for us?
     auto it = m_awaiting_assoc_status.find(bssid_str);
     if (it == m_awaiting_assoc_status.end()) {
         em_printfout("Got association status, but it wasn't for our association attempt.");
+        em_printfout("\tBSSID: " MACSTRFMT, MAC2STR(sta_data.bss_info.bssid));
+        em_printfout("\tSSID: %s", sta_data.bss_info.ssid);
+        em_printfout("\tStatus: %d", sta_data.stats.connect_status);
+        for (const auto &pair : m_awaiting_assoc_status) {
+            em_printfout("\t\tAwaiting BSSID: %s", pair.first.c_str());
+        }
         // This is fine
         return true;
     }
@@ -1314,7 +1363,7 @@ bool ec_enrollee_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
         return false;
     }
 
-    bool sent = m_send_action_frame(reinterpret_cast<uint8_t*>(it->second), frame, frame_len, m_selected_freq, 0);
+    bool sent = m_send_action_frame(it->second.data(), frame, frame_len, m_selected_freq, 0);
     if (sent) {
         em_printfout("Sent Configuration Connection Status Result frame!");
     } else {

@@ -605,9 +605,13 @@ cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *con
         return nullptr;
     }
 
-    for (unsigned int i = 0; i < dm->get_num_radios(); i++) {
-        dm_radio_t *radio = dm->get_radio(i);
-        if (!radio) {
+    for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
+        em_bss_info_t *bss_info = dm->get_bss_info(i);
+        if (!bss_info) {
+            continue;
+        }
+        // Skip if not backhaul
+        if (bss_info->id.haul_type != em_haul_type_backhaul) {
             continue;
         }
 
@@ -617,10 +621,10 @@ cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *con
             cJSON_Delete(bsta_list_obj);
             return nullptr;
         }
-
+        uint8_t* ruid = bss_info->ruid.mac;
         if (!cJSON_AddStringToObject(
                 radioListObj, "RUID",
-                util::mac_to_string(radio->get_radio_info()->intf.mac, "").c_str())) {
+                util::mac_to_string(ruid, "").c_str())) {
             em_printfout("Could not add RUID to RadioList object!");
             cJSON_Delete(radioListObj);
             cJSON_Delete(bsta_list_obj);
@@ -634,8 +638,8 @@ cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *con
                 continue;
             }
 
-            if (memcmp(radio->get_radio_info()->intf.mac, opclass->m_op_class_info.id.ruid, ETH_ALEN) == 0) {
-                em_printfout("Found opclass %d for radio '" MACSTRFMT "'", opclass->m_op_class_info.op_class, MAC2STR(radio->get_radio_info()->intf.mac));
+            if (memcmp(ruid, opclass->m_op_class_info.id.ruid, ETH_ALEN) == 0) {
+                em_printfout("Found opclass %d for radio '" MACSTRFMT "'", opclass->m_op_class_info.op_class, MAC2STR(ruid));
                 radio_channel_list += std::to_string(opclass->m_op_class_info.op_class) + "/" +
                                       std::to_string(opclass->m_op_class_info.channel);
                 if (j != dm->get_num_op_class() - 1)
