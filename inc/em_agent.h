@@ -28,6 +28,14 @@
 #include "em_simulator.h"
 #include "bus.h"
 
+#ifndef WIFI_SET_DISCONN_STEADY_STATE
+#define WIFI_SET_DISCONN_STEADY_STATE         "Device.WiFi.EM.SetDisconnSteadyState"
+#endif
+
+#ifndef WIFI_SET_DISCONN_SCAN_NONE_STATE
+#define WIFI_SET_DISCONN_SCAN_NONE_STATE      "Device.WiFi.EM.SetDisconnScanNoneState"
+#endif
+
 #include <string>
 
 class em_cmd_agent_t;
@@ -319,6 +327,26 @@ public:
 	 * @return true if the action frame was sent successfully, false otherwise.
 	 */
 	bool send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency=0, unsigned int wait_time_ms=0) override;
+
+
+	/**
+	 * @brief Set the disconnected steady state.
+	 * 
+	 * This function temporarily interupts the disconnected-scanning state machine in OneWifi
+	 * and sets the device to an unstable steady state, stopping the constant scanning process
+	 * 
+	 * @note This only works when OneWifi is in a `disconnected*` state
+	 */
+	bool set_disconnected_steady_state() override;
+
+	/**
+	 * @brief Set the disconnected scan none state (the initial state of the disconnected-scanning state machine).
+	 * 
+	 * This function returns from the disconnected-steady state to the disconnected-scanning state machine.
+	 * 
+	 * @note This only works when OneWifi is in the disconnected steady state.
+	 */
+	bool set_disconnected_scan_none_state() override;
 
     
 	/**

@@ -51,6 +51,27 @@ using send_act_frame_func = std::function<bool(uint8_t*, uint8_t *, size_t, unsi
 using toggle_cce_func = std::function<bool(bool)>;
 
 /**
+ * @brief Initial setup for starting or stopping the building of the channel list
+ * 
+ * @param do_start true to start the process, false to stop it
+ * @return bool true if the action was successful, false otherwise
+ * 
+ * @note This does not build the channel list but just sets up the environment for the process
+ */
+using start_stop_clist_build_func = std::function<bool(bool)>;
+
+
+/**
+ * @brief Attempts a connection between the backhaul STA to the specified BSS.
+ * 
+ * @param ssid The SSID of the BSS to connect to
+ * @param passphrase The passphrase for the BSS
+ * @param bssid The BSSID of the BSS to connect to
+ * @return bool true if the attempt was performed successfully, false otherwise
+ */
+using bsta_connect_func = std::function<bool(const std::string&, const std::string&, bssid_t)>;
+
+/**
  * @brief Creates a DPP Configuration Response object for the backhaul STA interface.
  * @param conn_ctx Optional connection context (not needed for Enrollee, needed for Configurator) -- pass nullptr if not needed.
  * @return cJSON * on success, nullptr otherwise

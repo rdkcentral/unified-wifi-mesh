@@ -332,6 +332,33 @@ public:
         return false;
     }
 
+	/**
+	 * @brief Set the disconnected steady state.
+	 * 
+	 * This function temporarily interupts the disconnected-scanning state machine in OneWifi
+	 * and sets the device to an unstable steady state, stopping the constant scanning process
+	 * 
+	 * @note This only works when OneWifi is in a `disconnected*` state
+	 * @note This function is optional to implement and may not be supported on all platforms.
+	 */
+	virtual bool set_disconnected_steady_state() {
+        printf("set_disconnected_steady_state not implemented\n");
+        return false;
+    }
+
+	/**
+	 * @brief Set the disconnected scan none state (the initial state of the disconnected-scanning state machine).
+	 * 
+	 * This function returns from the disconnected-steady state to the disconnected-scanning state machine.
+	 * 
+	 * @note This only works when OneWifi is in the disconnected steady state.
+	 * @note This function is optional to implement and may not be supported on all platforms.
+	 */
+	virtual bool set_disconnected_scan_none_state() {
+        printf("set_disconnected_steady_state not implemented\n");
+        return false;
+    }
+
     
 	/**
 	 * @brief Callback to determine if the mesh is capable of supporting additional onboarded APs.

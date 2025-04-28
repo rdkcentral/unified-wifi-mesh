@@ -32,7 +32,8 @@ public:
 	 * If the EasyMesh code is correctly implemented this should not be an issue.
 	 */
 	ec_manager_t(std::string mac_addr, send_chirp_func send_chirp, send_encap_dpp_func send_encap_dpp, send_act_frame_func send_action_frame, 
-        get_backhaul_sta_info_func get_bsta_info, get_1905_info_func get_1905_info, can_onboard_additional_aps_func can_onboard, toggle_cce_func toggle_cce, bool m_is_controller);
+        get_backhaul_sta_info_func get_bsta_info, get_1905_info_func get_1905_info, can_onboard_additional_aps_func can_onboard, toggle_cce_func toggle_cce, 
+		start_stop_clist_build_func start_stop_clist_build_fn, bsta_connect_func bsta_connect_fn, bool m_is_controller);
     
 	/**!
 	 * @brief Destructor for ec_manager_t class.
@@ -105,8 +106,7 @@ public:
         if (m_is_controller || m_enrollee == nullptr) {
             return false;
         }
-        m_is_e_onboarding = m_enrollee->start_onboarding(do_reconfig, boot_data);
-        return m_is_e_onboarding;
+        return m_enrollee->start_onboarding(do_reconfig, boot_data);
     }
 
     
@@ -200,11 +200,16 @@ public:
 	/**
 	 * @brief Whether the enrollee node is **actively** onboarding or not.
 	 *
-	 * If the node is a controller, this will always return false.
+	 * If the node is a configurator, this will always return false.
 	 *
 	 * @return true if the node is onboarding, false otherwise
 	 */
-	inline bool is_enrollee_onboarding() { return m_is_e_onboarding; }
+	inline bool is_enrollee_onboarding() { 
+		if (!m_enrollee) {
+			return false;
+		}
+		return m_enrollee->is_onboarding();
+	}
 
 	/**
 	 * @brief Handle a CCE information element being heard
@@ -226,8 +231,6 @@ public:
 
 private:
     bool m_is_controller;
-
-    bool m_is_e_onboarding = false;
     
     // Used to store the function pointers to instantiate objects again
     send_chirp_func m_stored_chirp_fn;

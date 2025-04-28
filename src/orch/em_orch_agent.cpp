@@ -33,6 +33,7 @@
 #include <sys/uio.h>
 #include <unistd.h>
 #include <assert.h>
+#include <util.h>
 #include "em_base.h"
 #include "em_cmd.h"
 #include "em_orch_agent.h"
@@ -49,6 +50,19 @@ void em_orch_agent_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 
     stats = (em_cmd_stats_t *)hash_map_get(m_cmd_map, key);
     assert(stats != NULL);
+
+    if (pcmd->get_type() == em_cmd_type_dev_init && pcmd->get_agent_al_interface() != NULL) {
+        auto agent_int = pcmd->get_agent_al_interface();
+        std::string al_mac_key = util::mac_to_string(agent_int->mac) + "_al";
+        em_t* al_node = (em_t*)hash_map_get(m_mgr->m_em_map, al_mac_key.c_str());
+        if (al_node != NULL && al_node->m_ec_manager && al_node->m_ec_manager->is_enrollee_onboarding()) {
+            // If the enrollee is still onboarding, we need to wait for it to finish before timing out
+            // Lets reset the timeout
+            gettimeofday(&pcmd->m_start_time, NULL);
+            stats->time = 0;
+        }
+    }
+
     if (stats->time > EM_MAX_CMD_GEN_TTL) {
         printf("%s:%d: Canceling comd: %s because time limit exceeded\n", __func__, __LINE__, pcmd->get_cmd_name());
         cancel_command(pcmd->get_type());

@@ -3117,7 +3117,7 @@ int em_configuration_t::handle_encrypted_settings()
             printf("%s:%d: ssid attrib: %s\n", __func__, __LINE__, radioconfig.ssid[index]);
             memcpy(radioconfig.radio_mac[index], get_radio_interface_mac(), sizeof(mac_address_t));
         } else if (id == attr_id_auth_type) {
-            radioconfig.authtype[index] = attr->val[0];
+            memcpy(reinterpret_cast<char *> (&radioconfig.authtype[index]), reinterpret_cast<unsigned char *> (attr->val), htons(attr->len));
         } else if (id == attr_id_encryption_type) {
             printf("%s:%d: encr type attrib\n", __func__, __LINE__);
         } else if (id == attr_id_network_key) {
@@ -3168,6 +3168,9 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 		radio = dm->get_radio(i);
 		if (memcmp(radio->m_radio_info.id.ruid, get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
 			radio_exists = true;
+			if (radio->m_radio_info.band == em_freq_band_60) {
+				auth_type = 0x0200;
+			}
 			break;
 		}
 	}
