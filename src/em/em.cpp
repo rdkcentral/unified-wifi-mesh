@@ -645,30 +645,29 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     int ret = 0;
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
 
+    bool is_loopback_frame = false;
     if (memcmp(hdr->src, hdr->dst, sizeof(mac_address_t)) == 0){
         // I am sending this message to a node with the same MAC address,
         // store the message for later comparison
+        is_loopback_frame = true;
         auto hash = em_crypto_t::platform_SHA256(buff, len);
         if (hash.size() == SHA256_MAC_LEN) {
             m_coloc_sent_hashed_msgs.insert(em_crypto_t::hash_to_hex_string(hash));
         }
     }
 #ifdef AL_SAP
-    auto ctrl_al = m_data_model->get_controller_interface_mac();
-    auto agent_al = m_data_model->get_agent_al_interface_mac();
-    bool is_colocated = (memcmp(ctrl_al, agent_al, ETH_ALEN) == 0);
 
     AlServiceDataUnit sdu;
     sdu.setSourceAlMacAddress(g_al_mac_sap);
     if (m_service_type == em_service_type_ctrl) {
-        if (is_colocated) {
+        if (is_loopback_frame) {
             sdu.setDestinationAlMacAddress(g_al_mac_sap);
         } else {
             sdu.setDestinationAlMacAddress({0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
         }
     }
     if (m_service_type == em_service_type_agent) {
-        if (is_colocated) {
+        if (is_loopback_frame) {
             sdu.setDestinationAlMacAddress(g_al_mac_sap);
         } else {
             sdu.setDestinationAlMacAddress({0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
@@ -759,6 +758,58 @@ bool em_t::toggle_cce(bool enable)
 
     // Disabling CCEs always succeeds, and enabling succeeds if `success` is set to true
     return !enable || success;
+}
+
+bool em_t::bsta_connect_bss(const std::string& ssid, const std::string passphrase, bssid_t bssid)
+{
+    em_bss_info_t *bsta_info = NULL; 
+    for (unsigned int i = 0; i < m_data_model->get_num_bss(); i++) {
+        bsta_info = m_data_model->get_bss_info(i);
+        if (!bsta_info) continue;
+        // Skip if not backhaul
+        if (bsta_info->id.haul_type != em_haul_type_backhaul) {
+            continue;
+        }
+        auto radio = m_data_model->get_radio(bsta_info->ruid.mac);
+        if (!radio) continue;
+        if (!radio->m_radio_info.enabled || !bsta_info->enabled) {
+            continue;
+        }
+        break;
+    }
+    if (!bsta_info) {
+        em_printfout("No backhaul bSTA found to connect to BSS\n");
+        return false;
+    }
+
+    memset(bsta_info->ssid, 0, sizeof(bsta_info->ssid));
+    strcpy(bsta_info->ssid, ssid.c_str());
+    
+    memcpy(bsta_info->bssid.mac, bssid, sizeof(bssid_t));
+    
+    memset(bsta_info->mesh_sta_passphrase, 0, sizeof(bsta_info->mesh_sta_passphrase));
+    strcpy(bsta_info->mesh_sta_passphrase, passphrase.c_str());
+
+    // Kick out of disconnected steady state (will fail if not in that state)
+    m_mgr->set_disconnected_scan_none_state();
+
+    em_printfout("Starting Mesh STA Config");
+    int res = m_mgr->refresh_onewifi_subdoc("MESH STA CONFIG", webconfig_subdoc_type_mesh_backhaul_sta);
+    em_printfout("Finished Mesh STA Config");
+    return res == 1;
+}
+
+bool em_t::start_stop_build_ec_channel_list(bool do_start)
+{
+    if (do_start) {
+        // If we want to build the channel list, we have to be scanning,
+        // so we need to make sure we are not in the disconnected steady state
+        return m_mgr->set_disconnected_scan_none_state();
+    }
+    // If we want to stop building the channel list (which only happens before action frames)
+    // we need to make sure we are in the disconnected steady state to make sure action frames are
+    // sent and recieved well.
+    return m_mgr->set_disconnected_steady_state();
 }
 
 void em_t::push_to_queue(em_event_t *evt)
@@ -1245,9 +1296,12 @@ em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr
                 ? std::bind(&em_t::create_enrollee_bsta_list, this, std::placeholders::_1)
                 : std::bind(&em_t::create_configurator_bsta_response_obj, this, std::placeholders::_1),
             service_type == em_service_type_ctrl
-                ? std::bind(&em_t::create_ieee1905_response_obj, this, std::placeholders::_1) : static_cast<get_1905_info_func>(nullptr),
+                ? std::bind(&em_t::create_ieee1905_response_obj, this, std::placeholders::_1)
+                : static_cast<get_1905_info_func>(nullptr),
             std::bind(&em_mgr_t::can_onboard_additional_aps, mgr),
-        std::bind(&em_t::toggle_cce, this, std::placeholders::_1),
+            std::bind(&em_t::toggle_cce, this, std::placeholders::_1),
+            std::bind(&em_t::start_stop_build_ec_channel_list, this, std::placeholders::_1),
+            std::bind(&em_t::bsta_connect_bss, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
             service_type == em_service_type_ctrl
         ));
     }

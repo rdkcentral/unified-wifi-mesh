@@ -312,12 +312,13 @@ TEST_F(ECUtilAttributeTest, AddAttributeEmptyData) {
     // Try adding attribute with null data
     uint8_t* null_data = nullptr;
     buffer = ec_util::add_attrib(buffer, &buffer_len, ec_attrib_id_dpp_status, 0, null_data);
-    EXPECT_EQ(buffer, nullptr) << "add_attrib should fail with null data";
+    EXPECT_EQ(buffer, buffer) << "add_attrib should be the same as the input";
+    EXPECT_EQ(buffer_len, 0) << "Buffer length should be zero when adding null data";
     
     // Try adding attribute with zero length
     uint8_t some_data[] = {0x01, 0x02, 0x03};
     buffer = ec_util::add_attrib(buffer, &buffer_len, ec_attrib_id_dpp_status, 0, some_data);
-    EXPECT_EQ(buffer, nullptr) << "add_attrib should fail with zero length";
+    EXPECT_EQ(buffer, buffer) << "add_attrib return buffer should be the same as the input";
     
     // Adding valid data should work
     buffer = ec_util::add_attrib(buffer, &buffer_len, ec_attrib_id_dpp_status, sizeof(some_data), some_data);

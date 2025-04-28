@@ -57,13 +57,7 @@ std::optional<const ec_attribute_t> ec_util::get_attrib(uint8_t *buff, size_t le
 
 
 uint8_t* ec_util::add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, uint16_t len, uint8_t *data)
-{
-    if (data == NULL || len == 0) {
-        fprintf(stderr, "Invalid input\n");
-        return NULL;
-    }
-
-    
+{    
     // Add extra space for the new attribute
     size_t new_len = *buff_len + get_ec_attr_size(len);
     uint8_t* base_ptr = buff;
@@ -81,9 +75,12 @@ uint8_t* ec_util::add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id,
     // EC attribute id and length are little endian according to the spec (8.1)
     attr->attr_id = SWAP_LITTLE_ENDIAN(id);
     attr->length = SWAP_LITTLE_ENDIAN(len);
-    memcpy(attr->data, data, len);
 
-    *buff_len += get_ec_attr_size(len);
+    if (data != NULL && len != 0){
+        memcpy(attr->data, data, len);
+        *buff_len += get_ec_attr_size(len);
+    }
+
     // Return the start of the next attribute in the buffer
     return base_ptr;
 }

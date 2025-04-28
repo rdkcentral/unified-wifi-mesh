@@ -27,13 +27,14 @@ public:
 	 * @param[in] mac_addr The MAC address of the device.
 	 * @param[in] send_action_frame Callback for sending 802.11 action frames.
 	 * @param[in] get_bsta_info Callback for getting backhaul STA info, used for building DPP Configuration Request JSON objects.
+	 * @param[in] start_stop_clist_build_fn Callback for starting/stopping the building of the EC channel list.
+	 * @param[in] bsta_connect_fn Callback for attempting to connect a backhaul STA to a BSS
 	 *
 	 * @note The default state of an enrollee is non-onboarding. All non-controller devices are started as (non-onboarding) enrollees
 	 *       until they are told that they are on the network at which point they can be upgraded to a proxy agent.
 	 */
-	ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame, get_backhaul_sta_info_func get_bsta_info);
-    
-    // Destructor
+	ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame, get_backhaul_sta_info_func get_bsta_info, 
+				  start_stop_clist_build_func start_stop_clist_build_fn, bsta_connect_func bsta_connect_fn);
     
 	/**!
 	 * @brief Destructor for the ec_enrollee_t class.
@@ -154,6 +155,13 @@ public:
 	 */
 	inline std::string get_mac_addr() { return m_mac_addr; };
 
+	/**!
+	 * @brief Retrieves wether this enrollee is in onboarding state or not.
+	 * 
+	 * @returns true if this enrollee is in onboarding state, false otherwise.
+	 */
+	inline bool is_onboarding() { return m_is_onboarding; };
+
     // Disable copy construction and assignment
     // Requires use of references or pointers when working with instances of this class
     
@@ -214,6 +222,24 @@ private:
      * @return true if successful, false otherwise
      */
     send_act_frame_func m_send_action_frame;
+
+
+	/**
+	 * @brief Function to start/stop the building of the channel list
+	 * 
+	 * @param do_start true to start the process, false to stop it
+	 * @return bool true if the action was successful, false otherwise
+	 */
+	start_stop_clist_build_func m_start_stop_clist_build_fn;
+
+	/**
+	 * @brief Function to attempt to connect a backhaul STA to a BSS
+	 * 
+	 * @param bsta_mac The MAC address of the backhaul STA
+	 * @param bss_info The BSS information to connect to
+	 * @return bool true if successful, false otherwise
+	 */	
+	bsta_connect_func m_bsta_connect_fn;
 
     /**
      * @brief Get backhaul station information to be JSON encoded and added to DPP Configuration Request frame.
@@ -438,7 +464,9 @@ private:
 	 * Key: BSSID (as string)
 	 * Value: The MAC of the node we're trying to associate to
 	 */
-	std::unordered_map<std::string, mac_addr_t> m_awaiting_assoc_status = {};
+	std::unordered_map<std::string, std::vector<uint8_t>> m_awaiting_assoc_status = {};
+
+	bool m_is_onboarding = false;
 };
 
 #endif // EC_ENROLLEE_H
