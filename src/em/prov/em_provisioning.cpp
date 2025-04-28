@@ -707,13 +707,13 @@ cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_co
         if (!bss) continue;
         if (bss->m_bss_info.id.haul_type == em_haul_type_backhaul && strncmp(bss->m_bss_info.ssid, network_ssid_info->ssid, strlen(network_ssid_info->ssid)) == 0) {
             em_printfout("Found backhaul mesh! '%s'", bss->m_bss_info.ssid);
-            if (!cJSON_AddStringToObject(discovery_object, "BSSID", util::mac_to_string(bss->m_bss_info.bssid.mac).c_str())) {
+            if (!cJSON_AddStringToObject(discovery_object, "BSSID", util::mac_to_string(bss->m_bss_info.bssid.mac, "").c_str())) {
                 em_printfout("Failed to add \"BSSID\" to bSTA Configuration Object");
                 cJSON_Delete(bsta_configuration_object);
                 cJSON_Delete(discovery_object);
                 return nullptr;
             }
-            if (!cJSON_AddStringToObject(discovery_object, "RUID", util::mac_to_string(bss->m_bss_info.ruid.mac).c_str())) {
+            if (!cJSON_AddStringToObject(discovery_object, "RUID", util::mac_to_string(bss->m_bss_info.ruid.mac, "").c_str())) {
                 em_printfout("Failed to add \"RUID\" to bSTA Configuration Object");
                 cJSON_Delete(bsta_configuration_object);
                 cJSON_Delete(discovery_object);
