@@ -655,11 +655,10 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     int ret = 0;
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
 
-    bool is_loopback_frame = false;
-    if (memcmp(hdr->src, hdr->dst, sizeof(mac_address_t)) == 0){
+    bool is_loopback_frame = (memcmp(hdr->src, hdr->dst, sizeof(mac_address_t)) == 0);
+    if (is_loopback_frame){
         // I am sending this message to a node with the same MAC address,
         // store the message for later comparison
-        is_loopback_frame = true;
         auto hash = em_crypto_t::platform_SHA256(buff, len);
         if (hash.size() == SHA256_MAC_LEN) {
             m_coloc_sent_hashed_msgs.insert(em_crypto_t::hash_to_hex_string(hash));

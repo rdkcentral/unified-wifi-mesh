@@ -578,7 +578,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
             return false;
         }
         // Convert hex (non-delimited) string to byte array
-        for (int i = 0; i < ETH_ALEN; i++) {
+        for (size_t i = 0; i < ETH_ALEN; i++) {
             std::string byte_str = bssid_str.substr(i*2, 2);
             bssid[i] = static_cast<uint8_t>(strtol(byte_str.c_str(), nullptr, 16));
         }
