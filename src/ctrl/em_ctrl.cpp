@@ -550,7 +550,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
     bssid_t	bssid;
     dm_bss_t *bss;
     em_profile_type_t profile;
-    em_long_string_t key;
+    em_2xlong_string_t key;
     unsigned int i;
     bool found;
     mac_addr_str_t mac_str1, mac_str2, dev_mac_str, radio_mac_str;

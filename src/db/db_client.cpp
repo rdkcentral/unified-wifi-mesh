@@ -106,7 +106,7 @@ char *db_client_t::get_string(void *ctx, char *str, unsigned int col)
 
 int db_client_t::get_number(void *ctx, unsigned int col)
 {
-    int n;
+    int n = 0;
 
     assert(ctx != NULL);
 

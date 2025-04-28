@@ -842,7 +842,7 @@ int dm_easy_mesh_t::decode_config_set_radio(em_subdoc_info_t *subdoc, const char
         return EM_PARSE_ERR_NET_ID;
     }
 
-    strncpy(m_network.m_net_info.id, net_id, strlen(net_id) + 1);
+    strncpy(m_network.m_net_info.id, net_id, sizeof(em_long_string_t)-1);
 
     if ((dev_arr_obj = cJSON_GetObjectItem(net_obj, "DeviceList")) == NULL) {
         printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
@@ -941,7 +941,7 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
         return EM_PARSE_ERR_NET_ID;
 	}
 
-	strncpy(m_network.m_net_info.id, net_id, strlen(net_id) + 1);
+	strncpy(m_network.m_net_info.id, net_id, sizeof(em_long_string_t)-1);
 
     if ((dev_arr_obj = cJSON_GetObjectItem(net_obj, "DeviceList")) == NULL) {
         printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);

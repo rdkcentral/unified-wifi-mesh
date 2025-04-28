@@ -401,7 +401,7 @@ int em_configuration_t::create_operational_bss_tlv(unsigned char *buff)
         	}
         	radio->bss_num++;
         	memcpy(bss->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
-        	strncpy(bss->ssid, dm->m_bss[j].m_bss_info.ssid, strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
+            strncpy(bss->ssid, dm->m_bss[j].m_bss_info.ssid, sizeof(ssid_t));
         	bss->ssid_len = static_cast<unsigned char> (strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
         	all_bss_len += static_cast<unsigned int> (sizeof(em_ap_operational_bss_t) + bss->ssid_len);
         	bss = reinterpret_cast<em_ap_operational_bss_t *>(reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_operational_bss_t) + bss->ssid_len);
@@ -449,7 +449,7 @@ int em_configuration_t::create_operational_bss_tlv_topology(unsigned char *buff)
 				}
 				radio->bss_num++;
 				memcpy(bss->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
-				strncpy(bss->ssid, dm->m_bss[j].m_bss_info.ssid, strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
+				strncpy(bss->ssid, dm->m_bss[j].m_bss_info.ssid, sizeof(ssid_t));
 				bss->ssid_len = static_cast<unsigned char> (strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
 				all_bss_len += static_cast<unsigned int> (sizeof(em_ap_operational_bss_t) + bss->ssid_len);
 				bss = reinterpret_cast<em_ap_operational_bss_t *>(reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_operational_bss_t) + bss->ssid_len);
@@ -501,7 +501,7 @@ int em_configuration_t::create_bss_config_rprt_tlv(unsigned char *buff)
         	bss_rprt_len += sizeof(em_bss_rprt_t);
         	memcpy(bss_rprt->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(bssid_t));
         	bss_rprt->ssid_len = static_cast<unsigned char> (strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
-        	strncpy(bss_rprt->ssid, dm->m_bss[j].m_bss_info.ssid, strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
+            strncpy(bss_rprt->ssid, dm->m_bss[j].m_bss_info.ssid, sizeof(ssid_t));
 	
     	    bss_rprt_len += bss_rprt->ssid_len;
 
@@ -615,7 +615,9 @@ int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
             affiliated_ap_mld->affiliated_mac_addr_valid = affiliated_ap_info.mac_addr_valid;
             affiliated_ap_mld->link_id_valid = affiliated_ap_info.link_id_valid;
             memcpy(affiliated_ap_mld->ruid, affiliated_ap_info.ruid.mac, sizeof(mac_address_t));
-            memcpy(affiliated_ap_mld->affiliated_mac_addr, affiliated_ap_info.mac_addr, sizeof(mac_address_t));
+            mac_addr_t temp_mac;
+            memcpy(temp_mac, affiliated_ap_info.mac_addr, sizeof(mac_addr_t));
+            memcpy(affiliated_ap_mld->affiliated_mac_addr, temp_mac, sizeof(mac_addr_t));
             memcpy(&affiliated_ap_mld->link_id, &affiliated_ap_info.link_id, sizeof(unsigned char));
 
             affiliated_ap_mld = reinterpret_cast<em_affiliated_ap_mld_t *> (reinterpret_cast<unsigned char *> (affiliated_ap_mld) + sizeof(em_affiliated_ap_mld_t));
@@ -846,7 +848,7 @@ void em_configuration_t::handle_ap_vendor_operational_bss(unsigned char *value, 
 				dm->set_num_bss(dm->get_num_bss() + 1);
 			}
 			// fill up id first
-			strncpy(dm_bss->m_bss_info.id.net_id, dm->m_device.m_device_info.id.net_id, strlen(dm->m_device.m_device_info.id.net_id) + 1);
+			strncpy(dm_bss->m_bss_info.id.net_id, dm->m_device.m_device_info.id.net_id, sizeof(em_long_string_t));
 			memcpy(dm_bss->m_bss_info.id.dev_mac, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
 			memcpy(dm_bss->m_bss_info.id.ruid, radio->ruid, sizeof(mac_address_t));
 			memcpy(dm_bss->m_bss_info.id.bssid, bss->bssid, sizeof(mac_address_t));
@@ -1452,8 +1454,7 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
 				dm_bss = &dm->m_bss[dm->m_num_bss];
 
 				// fill up id first
-				strncpy(dm_bss->m_bss_info.id.net_id, dm->m_device.m_device_info.id.net_id, 
-							strlen(dm->m_device.m_device_info.id.net_id) + 1);
+				strncpy(dm_bss->m_bss_info.id.net_id, dm->m_device.m_device_info.id.net_id, sizeof(em_long_string_t));
 				memcpy(dm_bss->m_bss_info.id.dev_mac, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
 				memcpy(dm_bss->m_bss_info.id.ruid, radio->ruid, sizeof(mac_address_t));
 				memcpy(dm_bss->m_bss_info.id.bssid, bss->bssid, sizeof(mac_address_t));
@@ -1464,7 +1465,7 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
 			}
             strncpy(dm_bss->m_bss_info.ssid, bss->ssid, bss->ssid_len);
 			dm_bss->m_bss_info.enabled = true;
-			strncpy(dm_bss->m_bss_info.timestamp, time_date, strlen(time_date) + 1);
+			strncpy(dm_bss->m_bss_info.timestamp, time_date, sizeof(em_long_string_t));
 
 			updated_at_least_one_bss = true;
 			
@@ -1587,7 +1588,7 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     bool found_op_bss = false;
     bool found_profile = false;
     bool found_bss_config_rprt = false;
-    em_profile_type_t profile;
+    em_profile_type_t profile = em_profile_type_reserved;
 	dm_easy_mesh_t *dm;
     
 	dm = get_data_model();
@@ -1732,7 +1733,9 @@ int em_configuration_t::handle_ap_mld_config_tlv(unsigned char *buff, unsigned i
             affiliated_ap_info->mac_addr_valid = affiliated_ap_mld->affiliated_mac_addr_valid;
             affiliated_ap_info->link_id_valid = affiliated_ap_mld->link_id_valid;
             memcpy(affiliated_ap_info->ruid.mac, affiliated_ap_mld->ruid, sizeof(mac_address_t));
-            memcpy(affiliated_ap_info->mac_addr, affiliated_ap_mld->affiliated_mac_addr, sizeof(mac_address_t));
+            mac_addr_t temp_mac;
+            memcpy(temp_mac, affiliated_ap_mld->affiliated_mac_addr, sizeof(mac_addr_t));
+            memcpy(affiliated_ap_info->mac_addr, temp_mac, sizeof(mac_address_t));
             memcpy(&affiliated_ap_info->link_id, &affiliated_ap_mld->link_id, sizeof(unsigned char));
 
             affiliated_ap_mld = reinterpret_cast<em_affiliated_ap_mld_t *> (reinterpret_cast<unsigned char *> (affiliated_ap_mld) + sizeof(em_affiliated_ap_mld_t));
@@ -3161,7 +3164,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 
 	dm_easy_mesh_t *dm = get_data_model();
 	unsigned int no_of_haultype = 0, radio_exists, i;
-	dm_radio_t * radio;
+	dm_radio_t * radio = NULL;
 	bool is_colocated = dm->get_colocated();
 
 	for (i = 0; i < dm->get_num_radios(); i++) {
@@ -3191,7 +3194,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 	attr->id = htons(attr_id_no_of_haul_type);
 	size = 1;
 	attr->len = htons(static_cast<short unsigned int> (size));
-	attr->val[0] = static_cast<unsigned char> (no_of_haultype);
+	memcpy(reinterpret_cast<char *> (attr->val), reinterpret_cast<unsigned char *> (&no_of_haultype), sizeof(no_of_haultype));
 
 	len += static_cast<short> (sizeof(data_elem_attr_t) + size);
 	tmp += (sizeof(data_elem_attr_t) + size);
