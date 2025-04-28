@@ -3081,6 +3081,7 @@ int em_configuration_t::handle_encrypted_settings()
     mac_addr_str_t mac_str;
     unsigned char *plain;
     unsigned short plain_len;
+    unsigned short auth_type;
     int index = -1;
     m2ctrl_radioconfig radioconfig;
     plain = m_m2_encrypted_settings + AES_BLOCK_SIZE;
@@ -3117,7 +3118,8 @@ int em_configuration_t::handle_encrypted_settings()
             printf("%s:%d: ssid attrib: %s\n", __func__, __LINE__, radioconfig.ssid[index]);
             memcpy(radioconfig.radio_mac[index], get_radio_interface_mac(), sizeof(mac_address_t));
         } else if (id == attr_id_auth_type) {
-            memcpy(reinterpret_cast<char *> (&radioconfig.authtype[index]), reinterpret_cast<unsigned char *> (attr->val), htons(attr->len));
+            memcpy(reinterpret_cast<char *> (&auth_type), reinterpret_cast<unsigned char *> (attr->val), htons(attr->len));
+            radioconfig.authtype[index] = static_cast<unsigned int>(auth_type);
         } else if (id == attr_id_encryption_type) {
             printf("%s:%d: encr type attrib\n", __func__, __LINE__);
         } else if (id == attr_id_network_key) {
