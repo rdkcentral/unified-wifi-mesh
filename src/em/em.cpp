@@ -665,18 +665,21 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
         }
     }
 #ifdef AL_SAP
+    auto ctrl_al = m_data_model->get_controller_interface_mac();
+    auto agent_al = m_data_model->get_agent_al_interface_mac();
+    bool is_colocated = (memcmp(ctrl_al, agent_al, ETH_ALEN) == 0);
 
     AlServiceDataUnit sdu;
     sdu.setSourceAlMacAddress(g_al_mac_sap);
     if (m_service_type == em_service_type_ctrl) {
-        if (is_loopback_frame) {
+        if (is_loopback_frame || is_colocated) {
             sdu.setDestinationAlMacAddress(g_al_mac_sap);
         } else {
             sdu.setDestinationAlMacAddress({0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
         }
     }
     if (m_service_type == em_service_type_agent) {
-        if (is_loopback_frame) {
+        if (is_loopback_frame || is_colocated) {
             sdu.setDestinationAlMacAddress(g_al_mac_sap);
         } else {
             sdu.setDestinationAlMacAddress({0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
