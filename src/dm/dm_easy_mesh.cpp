@@ -320,7 +320,7 @@ int dm_easy_mesh_t::encode_config_reset(em_subdoc_info_t *subdoc, const char *ke
 	char *formatted_json;
 	mac_addr_str_t	mac_str;
 	em_long_string_t	interface_str;
-	const char *preference[] = {"First Preference", "Second Preference", "Third Preference", "Fourth Preference", "Fifth Preference"};
+	const char *preference[] = {"First Preference", "Second Preference", "Third Preference", "Fourth Preference", "Fifth Preference", "Sixth Preference", "Seventh Preference", "Eighth Preference"};
 	unsigned int i, preference_arraysz = sizeof(preference)/sizeof(*preference);
 
     if ((parent_obj = cJSON_CreateObject()) == NULL) {
@@ -1731,12 +1731,14 @@ int dm_easy_mesh_t::get_interfaces_list(em_interface_t interfaces[], unsigned in
         addr = tmp->ifa_addr;
 		ll_addr = reinterpret_cast<struct sockaddr_ll*> (tmp->ifa_addr);
         if ((addr != NULL) && (addr->sa_family == AF_PACKET) && 
-				(strncmp(tmp->ifa_name, "lo", strlen("lo")) != 0) && (strncmp(tmp->ifa_name, "brlan", strlen("brlan")) != 0) &&
+				(memcmp(ll_addr->sll_addr, null_mac, sizeof(mac_address_t)) != 0) &&
+				(strncmp(tmp->ifa_name, "lo", strlen("lo")) != 0) &&
+				(strncmp(tmp->ifa_name, "dummy", strlen("dummy")) != 0) &&
 				(strncmp(tmp->ifa_name, "lan", strlen("lan")) != 0) &&
 				(strncmp(tmp->ifa_name, "eth2", strlen("eth2")) != 0) &&
 				(strncmp(tmp->ifa_name, "eth3", strlen("eth3")) != 0) &&
-				(strncmp(tmp->ifa_name, "br", strlen("br")) != 0) &&
-				(memcmp(ll_addr->sll_addr, null_mac, sizeof(mac_address_t)) != 0)) {
+				((!strncmp(tmp->ifa_name, "brlan0", strlen("brlan0"))) ||
+				(strncmp(tmp->ifa_name, "br", strlen("br")) != 0))){
             strncpy(interfaces[num].name, tmp->ifa_name, strlen(tmp->ifa_name) + 1);
 			if (strstr(tmp->ifa_name, "eth") != NULL) {
 				interfaces[num].media = em_media_type_ieee8023ab;
