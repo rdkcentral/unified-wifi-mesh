@@ -645,29 +645,31 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     int ret = 0;
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
 
-    bool is_loopback_frame = false;
-    if (memcmp(hdr->src, hdr->dst, sizeof(mac_address_t)) == 0){
+    bool is_loopback_frame = (memcmp(hdr->src, hdr->dst, sizeof(mac_address_t)) == 0);
+    if (is_loopback_frame){
         // I am sending this message to a node with the same MAC address,
         // store the message for later comparison
-        is_loopback_frame = true;
         auto hash = em_crypto_t::platform_SHA256(buff, len);
         if (hash.size() == SHA256_MAC_LEN) {
             m_coloc_sent_hashed_msgs.insert(em_crypto_t::hash_to_hex_string(hash));
         }
     }
 #ifdef AL_SAP
+    auto ctrl_al = m_data_model->get_controller_interface_mac();
+    auto agent_al = m_data_model->get_agent_al_interface_mac();
+    bool is_colocated = (memcmp(ctrl_al, agent_al, ETH_ALEN) == 0);
 
     AlServiceDataUnit sdu;
     sdu.setSourceAlMacAddress(g_al_mac_sap);
     if (m_service_type == em_service_type_ctrl) {
-        if (is_loopback_frame) {
+        if (is_loopback_frame || is_colocated) {
             sdu.setDestinationAlMacAddress(g_al_mac_sap);
         } else {
             sdu.setDestinationAlMacAddress({0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
         }
     }
     if (m_service_type == em_service_type_agent) {
-        if (is_loopback_frame) {
+        if (is_loopback_frame || is_colocated) {
             sdu.setDestinationAlMacAddress(g_al_mac_sap);
         } else {
             sdu.setDestinationAlMacAddress({0x00, 0x00, 0x00, 0x00, 0x00, 0x00});

@@ -223,6 +223,12 @@ private:
      */
     send_act_frame_func m_send_action_frame;
 
+    /**
+     * @brief Get backhaul station information to be JSON encoded and added to DPP Configuration Request frame.
+     *
+     * @return cJSON * on success, nullptr otherwise.
+     */
+    get_backhaul_sta_info_func m_get_bsta_info;
 
 	/**
 	 * @brief Function to start/stop the building of the channel list
@@ -241,12 +247,7 @@ private:
 	 */	
 	bsta_connect_func m_bsta_connect_fn;
 
-    /**
-     * @brief Get backhaul station information to be JSON encoded and added to DPP Configuration Request frame.
-     *
-     * @return cJSON * on success, nullptr otherwise.
-     */
-    get_backhaul_sta_info_func m_get_bsta_info;
+
 
     const ec_dpp_capabilities_t m_dpp_caps = {{
         .enrollee = 1,
