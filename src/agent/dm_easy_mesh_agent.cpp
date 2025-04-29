@@ -741,7 +741,8 @@ int dm_easy_mesh_agent_t::analyze_ap_metrics_report(em_bus_event_t *evt, em_cmd_
     mac_addr_str_t macstr;
     cJSON *json, *emap_metrics_report, *param_obj;
     int radio_index = 0;
-
+    
+    printf("%s:%d: Enter\n", __func__, __LINE__);
     translate_and_decode_onewifi_subdoc((char *)evt->u.raw_buff, webconfig_subdoc_type_em_ap_metrics_report, "AP Metrics Report");
 
     json = cJSON_Parse((const char *)evt->u.raw_buff);
@@ -761,7 +762,7 @@ int dm_easy_mesh_agent_t::analyze_ap_metrics_report(em_bus_event_t *evt, em_cmd_
     evt_param = &evt->params;
     dm_easy_mesh_t::macbytes_to_string(get_radio_by_ref(radio_index).get_radio_interface_mac(), macstr);
     memcpy(evt_param->u.ap_metrics_params.ruid, get_radio_by_ref(radio_index).get_radio_interface_mac(), sizeof(mac_addr_t));
-    //printf("%s:%d: Radio Index: %d and mac: %s\n", radio_index, macstr);
+    //printf("%s:%d: Radio Index: %d and mac: %s\n", __func__, __LINE__, radio_index, macstr);
 
     if (strstr((const char *)evt->u.raw_buff, "Associated STA Traffic Stats") != NULL) {
         //printf("Associated STA Traffic Stats found in JSON.\n");
