@@ -343,8 +343,9 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
     em_policy_cfg_params_t policy;
     em_tlv_t    *tlv;
     unsigned int tlv_len;
-	size_t data_len = 0;
-	unsigned int i = 0;
+    size_t data_len = 0;
+    unsigned int i = 0;
+    mac_addr_str_t mac_str;
 
     memset(&policy, 0, sizeof(em_policy_cfg_t));
 
@@ -385,6 +386,9 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
             for(i = 0; i < metrics->radios_num; i++) {
                 em_metric_rprt_policy_radio_t *radio = &metrics->radios[i];
                 memcpy(&policy.metrics_policy.radios[i], radio, sizeof(em_metric_rprt_policy_radio_t));
+
+                dm_easy_mesh_t::macbytes_to_string(policy.metrics_policy.radios[i].ruid, mac_str);
+                printf("%s:%d Recvd policy for radio %s\n", __func__, __LINE__, mac_str);
             }
             data_len += (metrics->radios_num * sizeof(em_metric_rprt_policy_radio_t));
         } else if (tlv->type == em_tlv_type_dflt_8021q_settings) {

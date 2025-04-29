@@ -321,11 +321,17 @@ int em_metrics_t::handle_ap_metrics_tlv(unsigned char *buff, bssid_t get_bssid)
 {
     em_ap_metric_t *ap_metrics = reinterpret_cast<em_ap_metric_t *> (buff);
     em_bss_info_t *bss = get_data_model()->get_bss_info_with_mac(ap_metrics->bssid);
+    mac_addr_str_t bss_str;
 
     memcpy(get_bssid, ap_metrics->bssid, sizeof(mac_addr_t));
-    bss->numberofsta = htons(ap_metrics->num_sta);
-
-    //printf("%s:%d Num of stas is %d\n", __func__, __LINE__, bss->numberofsta);
+    if (bss != NULL) {
+        bss->numberofsta = htons(ap_metrics->num_sta);
+        dm_easy_mesh_t::macbytes_to_string(ap_metrics->bssid, bss_str);
+        printf("%s:%d Num of stas associated to BSS[%s] is: %d\n", __func__, __LINE__, bss_str, bss->numberofsta);
+    } else {
+        dm_easy_mesh_t::macbytes_to_string(ap_metrics->bssid, bss_str);
+        printf("%s:%d BSS not found: %s\n", __func__, __LINE__, bss_str);
+    }
 
     return 0;
 }
@@ -860,37 +866,37 @@ int em_metrics_t::send_ap_metrics_response()
 
     //AP Metrics Response 17.1.17
     //AP Metrics TLV (17.2.22)
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_ap_metrics;
-    sz = create_ap_metrics_tlv(tlv->value);
-    tlv->len =  htons(static_cast<unsigned short> (sz));
-
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-
-    //AP Extended Metrics TLV (17.2.61)
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_ap_ext_metric;
-    sz = create_ap_ext_metrics_tlv(tlv->value);
-    tlv->len =  htons(static_cast<unsigned short> (sz));
-
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-
-    //Radio Metrics TLV (17.2.60)
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_radio_metric;
-    sz = create_radio_metrics_tlv(tlv->value);
-    tlv->len =  htons(static_cast<unsigned short> (sz));
-
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-
     for (bss_index = 0; bss_index < dm->m_num_bss; bss_index++) {
         if (memcmp(dm->m_bss[bss_index].m_bss_info.ruid.mac,
             get_current_cmd()->get_param()->u.ap_metrics_params.ruid, sizeof(mac_addr_t)) != 0) {
             continue;
         }
+
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        tlv->type = em_tlv_type_ap_metrics;
+        sz = create_ap_metrics_tlv(tlv->value, dm->m_bss[bss_index]);
+        tlv->len =  htons(static_cast<unsigned short> (sz));
+
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+
+        //AP Extended Metrics TLV (17.2.61)
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        tlv->type = em_tlv_type_ap_ext_metric;
+        sz = create_ap_ext_metrics_tlv(tlv->value, dm->m_bss[bss_index]);
+        tlv->len =  htons(static_cast<unsigned short> (sz));
+
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+
+        //Radio Metrics TLV (17.2.60)
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        tlv->type = em_tlv_type_radio_metric;
+        sz = create_radio_metrics_tlv(tlv->value);
+        tlv->len =  htons(static_cast<unsigned short> (sz));
+
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
         //now search if this sta is associated to this
         sta = reinterpret_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
@@ -1224,32 +1230,25 @@ short em_metrics_t::create_beacon_metrics_response_tlv(unsigned char *buff)
     return static_cast<short> (len);
 }
 
-short em_metrics_t::create_ap_metrics_tlv(unsigned char *buff)
+short em_metrics_t::create_ap_metrics_tlv(unsigned char *buff, dm_bss_t &dm_bss)
 {
     size_t len = 0;
-    dm_easy_mesh_t *dm = NULL;
-    dm_sta_t *sta = NULL;
-    dm_bss_t *dm_bss = NULL;
-    int j = 0;
-    mac_addr_str_t rad_str;
+    mac_addr_str_t rad_str, bss_str;
     em_ap_metric_t *ap_metrics = reinterpret_cast<em_ap_metric_t *> (buff);
 
-    dm = get_data_model();
+    dm_easy_mesh_t::macbytes_to_string(dm_bss.m_bss_info.ruid.mac, rad_str);
+    if (memcmp(dm_bss.m_bss_info.ruid.mac, 
+        get_current_cmd()->get_param()->u.ap_metrics_params.ruid, sizeof(mac_addr_t)) == 0) {
+        dm_easy_mesh_t::macbytes_to_string(dm_bss.m_bss_info.bssid.mac, bss_str);
+        printf("%s:%d Creating ap response for bssid: %s\n", __func__, __LINE__, bss_str);
 
-    for (j = 0; j < dm->get_num_bss(); j++) {
-        dm_easy_mesh_t::macbytes_to_string(dm->m_bss[j].m_bss_info.ruid.mac, rad_str);
-        if (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, 
-            get_current_cmd()->get_param()->u.ap_metrics_params.ruid, sizeof(mac_addr_t)) != 0) {
-            continue;
-        }
-
-        memcpy(ap_metrics->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
+        memcpy(ap_metrics->bssid, dm_bss.m_bss_info.bssid.mac, sizeof(mac_address_t));
         len += static_cast<size_t> (sizeof(mac_address_t));
 
-        ap_metrics->channel_util = dm->m_bss[j].m_bss_info.numberofsta;
+        ap_metrics->channel_util = dm_bss.m_bss_info.numberofsta;
         len += static_cast<size_t> (sizeof(unsigned char));
 
-        ap_metrics->num_sta = htons(dm->m_bss[j].m_bss_info.numberofsta);
+        ap_metrics->num_sta = htons(dm_bss.m_bss_info.numberofsta);
         len += static_cast<size_t> (sizeof(unsigned short));
 
         ap_metrics->est_service_params_BE_bit = 1;
@@ -1264,22 +1263,16 @@ short em_metrics_t::create_ap_metrics_tlv(unsigned char *buff)
     return static_cast<short> (len);
 }
 
-short em_metrics_t::create_ap_ext_metrics_tlv(unsigned char *buff)
+short em_metrics_t::create_ap_ext_metrics_tlv(unsigned char *buff, dm_bss_t &dm_bss)
 {
     size_t len = 0;
-    dm_easy_mesh_t *dm = get_data_model();
-    int j = 0;
     mac_addr_str_t rad_str;
     em_ap_ext_metric_t *ap_ext_metrics = reinterpret_cast<em_ap_ext_metric_t *> (buff);
 
-    for (j = 0; j < dm->get_num_bss(); j++) {
-        dm_easy_mesh_t::macbytes_to_string(dm->m_bss[j].m_bss_info.ruid.mac, rad_str);
-        if (memcmp(dm->m_bss[j].m_bss_info.ruid.mac,
-            get_current_cmd()->get_param()->u.ap_metrics_params.ruid, sizeof(mac_addr_t)) != 0) {
-            continue;
-        }
-
-        memcpy(ap_ext_metrics->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
+    dm_easy_mesh_t::macbytes_to_string(dm_bss.m_bss_info.ruid.mac, rad_str);
+    if (memcmp(dm_bss.m_bss_info.ruid.mac,
+        get_current_cmd()->get_param()->u.ap_metrics_params.ruid, sizeof(mac_addr_t)) == 0) {
+        memcpy(ap_ext_metrics->bssid, dm_bss.m_bss_info.bssid.mac, sizeof(mac_address_t));
     }
 
     len = static_cast<size_t> (sizeof(em_ap_ext_metric_t));

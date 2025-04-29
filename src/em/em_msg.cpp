@@ -118,6 +118,9 @@ bool em_msg_t::get_bss_id(mac_address_t *mac)
         } else if (tlv->type == em_tlv_type_client_info) {
             memcpy(mac, tlv->value + sizeof(mac_address_t), sizeof(mac_address_t));
             return true;
+        } else if (tlv->type == em_tlv_type_ap_metrics) {
+            memcpy(mac, tlv->value, sizeof(mac_address_t));
+            return true;
         }
 
         len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
@@ -194,7 +197,10 @@ bool em_msg_t::get_radio_id(mac_address_t *mac)
 		} else if (tlv->type == em_tlv_type_channel_scan_rslt) {
 			memcpy(mac, tlv->value, sizeof(mac_address_t));
             return true;
-		}
+		} else if (tlv->type == em_tlv_type_radio_metric) {
+            memcpy(mac, tlv->value, sizeof(mac_address_t));
+            return true;
+        }
 
         len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));

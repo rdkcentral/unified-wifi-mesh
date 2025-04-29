@@ -643,9 +643,10 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             }
             break;
 
-        case em_msg_type_topo_notif:
+        /* case em_msg_type_topo_notif:
         case em_msg_type_client_cap_rprt:
-            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+        case em_msg_type_ap_metrics_rsp:
+           if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                     len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_bss_id(&bssid) == false) {
                 printf("%s:%d: Could not find bss id in msg:0x%04x\n", __func__, __LINE__, htons(cmdu->type));
                 return NULL;
@@ -661,7 +662,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 dm_easy_mesh_t::macbytes_to_string(bssid, mac_str1);
     
                 snprintf(key, sizeof (em_2xlong_string_t), "%s@%s@%s@%s@", dm->get_radio_info(i)->id.net_id, dev_mac_str, radio_mac_str, mac_str1);
-
+                printf("%s:%d: Topo Notify: key to get bss[%s] from data model: %s\n", __func__, __LINE__, mac_str1, key);
                 if ((bss = m_data_model.get_bss(key)) == NULL) {
                     found = false;
                     continue;
@@ -680,7 +681,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 return NULL;
             }
 
-            break;
+            break; */
 
         case em_msg_type_autoconf_resp:
         case em_msg_type_topo_query:
@@ -759,13 +760,52 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 	        em = al_em;
 	        break;
 
-        case em_msg_type_ap_metrics_rsp:
-            em = static_cast<em_t *> (hash_map_get_first(m_em_map));
-            while(em != NULL) {
-                if (em->is_al_interface_em() == false) {
-                    break;
+        case em_msg_type_topo_notif:
+        case em_msg_type_client_cap_rprt:
+        case em_msg_type_ap_metrics_rsp://Temp solution until the problem of bssid associating with multiple radios is fixed
+            if (em_msg_type_ap_metrics_rsp == htons(cmdu->type)) {
+                printf("%s:%d: Rcvd ap metrics\n", __func__, __LINE__);
+            }
+
+            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+                    len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_bss_id(&bssid) == false) {
+                printf("%s:%d: Could not find bss id in msg:0x%04x\n", __func__, __LINE__, htons(cmdu->type));
+                return NULL;
+            }
+
+            if ((dm = get_data_model(const_cast<const char *> (global_netid), const_cast<const unsigned char *> (hdr->src))) == NULL) {
+                printf("%s:%d: Can not find data model\n", __func__, __LINE__);
+            }
+
+            //find the radio for this bss
+            for (i = 0; i < dm->get_num_radios(); i++) {
+                found = true;
+                dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (dm->get_radio_info(i)->id.dev_mac), dev_mac_str);
+                dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (dm->get_radio_info(i)->id.ruid), radio_mac_str);
+                dm_easy_mesh_t::macbytes_to_string(bssid, mac_str1);
+
+                snprintf(key, sizeof (em_2xlong_string_t), "%s@%s@%s@%s@", dm->get_radio_info(i)->id.net_id, dev_mac_str, radio_mac_str, mac_str1);
+                if (em_msg_type_ap_metrics_rsp == htons(cmdu->type)) {
+                    printf("%s:%d: AP resp: key to get bss[%s] from data model: %s\n", __func__, __LINE__, mac_str1, key);
                 }
-                em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
+
+                //if ((bss = m_data_model.get_bss(key)) == NULL) {
+                if ((bss = dm->get_bss(dm->get_radio_info(i)->id.ruid, bssid)) == NULL) {
+                    found = false;
+                    continue;
+                }
+                break;
+            }
+
+            if (found == false) {
+                printf("%s:%d: Could not find bss:%s from data model\n", __func__, __LINE__, mac_str1);
+                return NULL;
+            }
+
+            dm_easy_mesh_t::macbytes_to_string(bss->m_bss_info.ruid.mac, mac_str1);
+            if ((em = static_cast<em_t *> (hash_map_get(m_em_map, mac_str1))) == NULL) {
+                printf("%s:%d: Could not find radio:%s\n", __func__, __LINE__, mac_str1);
+                return NULL;
             }
             break;
 
