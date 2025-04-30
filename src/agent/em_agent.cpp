@@ -1129,13 +1129,13 @@ void em_agent_t::onewifi_cb(char *event_name, raw_data_t *data, void *userData)
         return;
     }
 
-    if ((strcmp(subdoc_name->valuestring, "private") == 0) || (strcmp(subdoc_name->valuestring, "Vap_5G") == 0) ||
-        (strcmp(subdoc_name->valuestring, "Vap_2.4G") == 0)) {
+    if ((strcmp(subdoc_name->valuestring, "private") == 0) || (strcmp(subdoc_name->valuestring, "Vap_6G") == 0) ||
+        (strcmp(subdoc_name->valuestring, "Vap_5G") == 0) || (strcmp(subdoc_name->valuestring, "Vap_2.4G") == 0)) {
         printf("%s:%d Found SubDocName: private\n", __func__, __LINE__);
         g_agent.io_process(em_bus_event_type_onewifi_private_cb, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
-    } else if ((strcmp(subdoc_name->valuestring, "radio") == 0) || (strcmp(subdoc_name->valuestring, "radio_5G") == 0) ||
-        (strcmp(subdoc_name->valuestring, "radio_2.4G") == 0)) {
+    } else if ((strcmp(subdoc_name->valuestring, "radio") == 0) || (strcmp(subdoc_name->valuestring, "radio_6G") == 0) ||
+        (strcmp(subdoc_name->valuestring, "radio_5G") == 0) || (strcmp(subdoc_name->valuestring, "radio_2.4G") == 0)) {
         printf("%s:%d Found SubDocName: radio\n", __func__, __LINE__);
         g_agent.io_process(em_bus_event_type_onewifi_radio_cb, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
