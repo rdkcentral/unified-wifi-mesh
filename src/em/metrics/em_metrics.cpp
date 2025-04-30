@@ -103,7 +103,7 @@ int em_metrics_t::handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff)
 int em_metrics_t::handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff)
 {
     em_assoc_sta_vendor_link_metrics_t *sta_metrics;
-    em_assoc_vendor_link_metrics_t *metrics;
+    //em_assoc_vendor_link_metrics_t *metrics;
     dm_sta_t *sta;
     unsigned int i;
     dm_easy_mesh_t  *dm;
@@ -111,9 +111,9 @@ int em_metrics_t::handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff)
     dm = get_data_model();
 
     sta_metrics = reinterpret_cast<em_assoc_sta_vendor_link_metrics_t *> (buff);
-    for (i = 0; i < sta_metrics->num_bssids; i++) {
+    /* for (i = 0; i < sta_metrics->num_bssids; i++) {
         metrics = &sta_metrics->assoc_vendor_link_metrics[i];
-        sta = dm->find_sta(sta_metrics->sta_mac, metrics->bssid);
+        sta = dm->find_sta(sta_metrics->sta_mac, sta_metrics->bssid);
         if (sta == NULL) {
             continue;
         }
@@ -122,8 +122,9 @@ int em_metrics_t::handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff)
         sta->m_sta_info.pkts_tx = metrics->packets_sent;
         sta->m_sta_info.bytes_rx = metrics->bytes_received;
         sta->m_sta_info.bytes_tx = metrics->bytes_sent;
-    }
+    } */
 
+    sta = dm->find_sta(sta_metrics->sta_mac, sta_metrics->bssid);
     if (sta != NULL) {
         strncpy(sta->m_sta_info.sta_client_type, sta_metrics->sta_client_type, sizeof(sta->m_sta_info.sta_client_type));
     }
@@ -450,6 +451,17 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_assoc_wifi6_sta_rprt) {
+        }
+        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+    tlv = tlv_start;
+    tmp_len = base_len;
+
+    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        if (tlv->type == em_tlv_type_vendor_sta_metrics) {
+            handle_assoc_sta_vendor_link_metrics_tlv(tlv->value);
         }
         tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
@@ -943,6 +955,15 @@ int em_metrics_t::send_ap_metrics_response()
             tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
             len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
+            //assoc vendor link metrics
+            tlv = reinterpret_cast<em_tlv_t *> (tmp);
+            tlv->type = em_tlv_type_vendor_sta_metrics;
+            sz = create_assoc_vendor_sta_link_metrics_tlv(tlv->value, sta->m_sta_info.id, sta);
+            tlv->len = htons(static_cast<short unsigned int> (sz));
+
+            tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+            len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+
             sta = reinterpret_cast<dm_sta_t *> (hash_map_get_next(get_current_cmd()->get_data_model()->m_sta_map, sta));
         }
     }
@@ -1067,30 +1088,30 @@ short em_metrics_t::create_assoc_ext_sta_link_metrics_tlv(unsigned char *buff, m
 short em_metrics_t::create_assoc_vendor_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac, const dm_sta_t *const sta)
 {
     size_t len = 0;
-    dm_easy_mesh_t *dm;
     em_assoc_sta_vendor_link_metrics_t *assoc_sta_metrics = reinterpret_cast<em_assoc_sta_vendor_link_metrics_t*> (buff);
-    em_assoc_vendor_link_metrics_t *metrics;
-
-    dm = get_data_model();
+    //em_assoc_vendor_link_metrics_t *metrics;
 
     if (sta == NULL) {
         memcpy(&assoc_sta_metrics->sta_mac, &sta_mac, sizeof(assoc_sta_metrics->sta_mac));
         len += sizeof(assoc_sta_metrics->sta_mac);
 
-        assoc_sta_metrics->num_bssids = 0;
-        len += sizeof(assoc_sta_metrics->num_bssids);
+        /*assoc_sta_metrics->num_bssids = 0;
+        len += sizeof(assoc_sta_metrics->num_bssids);*/
         return static_cast<short> (len);
     }
     else {
-        metrics = &assoc_sta_metrics->assoc_vendor_link_metrics[0];
+        //metrics = &assoc_sta_metrics->assoc_vendor_link_metrics[0];
         if ((memcmp(sta->m_sta_info.id, sta_mac, sizeof(mac_address_t)) == 0)) {
             memcpy(assoc_sta_metrics->sta_mac, sta->m_sta_info.id, sizeof(assoc_sta_metrics->sta_mac));
             len += sizeof(assoc_sta_metrics->sta_mac);
 
+            memcpy(&assoc_sta_metrics->bssid, sta->m_sta_info.bssid, sizeof(bssid_t));
+            len += sizeof(bssid_t);
+
             strncpy(assoc_sta_metrics->sta_client_type, sta->m_sta_info.sta_client_type, sizeof(assoc_sta_metrics->sta_client_type));
             len += sizeof(assoc_sta_metrics->sta_client_type);
 
-            assoc_sta_metrics->num_bssids = static_cast<unsigned char> (dm->get_num_bss_for_associated_sta(sta_mac));
+            /*assoc_sta_metrics->num_bssids = static_cast<unsigned char> (dm->get_num_bss_for_associated_sta(sta_mac));
             len += sizeof(assoc_sta_metrics->num_bssids);
 
             memcpy(metrics->bssid, sta->m_sta_info.bssid, sizeof(metrics->bssid));
@@ -1106,7 +1127,7 @@ short em_metrics_t::create_assoc_vendor_sta_link_metrics_tlv(unsigned char *buff
             len += sizeof(metrics->bytes_received);
 
             metrics->bytes_sent = sta->m_sta_info.bytes_tx;
-            len += sizeof(metrics->bytes_sent);
+            len += sizeof(metrics->bytes_sent);*/
         }
     }
     return static_cast<short> (len);
