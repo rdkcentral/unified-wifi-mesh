@@ -914,9 +914,10 @@ typedef struct {
 
 typedef struct {
     mac_address_t sta_mac;
+    bssid_t bssid;
     em_string_t sta_client_type;
-    unsigned char num_bssids;
-    em_assoc_vendor_link_metrics_t assoc_vendor_link_metrics[0];
+    //unsigned char num_bssids;
+    //em_assoc_vendor_link_metrics_t assoc_vendor_link_metrics[0];
 }__attribute__((__packed__)) em_assoc_sta_vendor_link_metrics_t;
 
 typedef struct {
