@@ -280,6 +280,9 @@ int dm_easy_mesh_agent_t::analyze_onewifi_vap_cb(em_bus_event_t *evt, em_cmd_t *
 			} else if (strcmp(subdoc_name->valuestring, "Vap_2.4G") == 0) {
 				printf("%s:%d Found SubDocName:Vap 2.4G recv\n", __func__, __LINE__);
 				freq_band = em_freq_band_24;
+			} else if (strcmp(subdoc_name->valuestring, "Vap_6G") == 0) {
+				printf("%s:%d Found SubDocName:Vap 6G recv\n", __func__, __LINE__);
+				freq_band = em_freq_band_60;
 			}
 		}
 		for (j = 0; j < get_num_radios(); j++) {
