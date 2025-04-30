@@ -523,9 +523,10 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
     dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(), radio_mac_str);
     snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bssid_str, radio_mac_str);
 
-    hash_map_put(dm->m_sta_assoc_map, strdup(key), new dm_sta_t(&sta_info));
-
-    dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
+    if (hash_map_get(dm->m_sta_assoc_map, key) == NULL) {
+        hash_map_put(dm->m_sta_assoc_map, strdup(key), new dm_sta_t(&sta_info));
+        dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
+    }
 
     return 0;
 }
