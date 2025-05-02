@@ -1276,7 +1276,7 @@ TEST(dm_assoc_sta_mld_t_Test, CopyConstructorWithInvalidMacAddressInput) {
     dm_assoc_sta_mld_t original;
     memset(original.m_assoc_sta_mld_info.mac_addr, 0xFF, sizeof(mac_address_t));
     dm_assoc_sta_mld_t copy(original);
-    for (int i = 0; i < sizeof(mac_address_t); ++i) {
+    for (size_t i = 0; i < sizeof(mac_address_t); ++i) {
         EXPECT_EQ(copy.m_assoc_sta_mld_info.mac_addr[i], 0);
     }
     std::cout << "Exiting CopyConstructorWithInvalidMacAddressInput" << std::endl;
@@ -1308,12 +1308,12 @@ TEST(dm_assoc_sta_mld_t_Test, CopyConstructorWithMaxAffiliatedStations) {
     std::cout << "Entering CopyConstructorWithMaxAffiliatedStations" << std::endl;
     dm_assoc_sta_mld_t original;
     original.m_assoc_sta_mld_info.num_affiliated_sta = EM_MAX_AP_MLD;
-    for (int i = 0; i < EM_MAX_AP_MLD; ++i) {
-        original.m_assoc_sta_mld_info.affiliated_sta[i].mac_addr[0] = i;
+    for (size_t i = 0; i < EM_MAX_AP_MLD; ++i) {
+        original.m_assoc_sta_mld_info.affiliated_sta[i].mac_addr[0] = static_cast<unsigned char>(i);
     }
     dm_assoc_sta_mld_t copy(original);
     EXPECT_EQ(copy.m_assoc_sta_mld_info.num_affiliated_sta, original.m_assoc_sta_mld_info.num_affiliated_sta);
-    for (int i = 0; i < EM_MAX_AP_MLD; ++i) {
+    for (size_t i = 0; i < EM_MAX_AP_MLD; ++i) {
         EXPECT_EQ(copy.m_assoc_sta_mld_info.affiliated_sta[i].mac_addr[0], original.m_assoc_sta_mld_info.affiliated_sta[i].mac_addr[0]);
     }
     std::cout << "Exiting CopyConstructorWithMaxAffiliatedStations" << std::endl;

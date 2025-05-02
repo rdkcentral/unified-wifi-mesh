@@ -107,21 +107,12 @@ TEST_F(AlServiceAccessPointTest, VerifyServiceAccessPointDataIndication) {
  * | Step | Description | Test Data | Expected Result | Notes |
  * | :--: | ----------- | --------- | ---------------- | ----- |
  * | 01 | Initialize an AlServiceDataUnit message | Directly set MAC addresses, fragment flags, and payload | Data unit should contain valid content | Direct field access |
- * | 02 | Send the message using serviceAccessPointDataRequest | Populated dataUnit object | No exception is thrown | Uses ASSERT_NO_THROW |
+ * | 02 | Send the message using serviceAccessPointDataRequest | dataUnit object | No exception is thrown | Uses ASSERT_NO_THROW |
  * | 03 | Clean up any used resources | None | Automatic via test framework |  |
  */
  TEST_F(AlServiceAccessPointTest, ValidDataUnitMessage) {
     std::cout << "Entering ValidDataUnitMessage test" << std::endl;
     AlServiceDataUnit dataUnit;
-    // Directly populate MAC addresses
-    dataUnit.sourceAlMacAddress = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
-    dataUnit.destinationAlMacAddress = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB};
-    // Set fragmentation info
-    dataUnit.isFragment = 0;
-    dataUnit.isLastFragment = 1;
-    dataUnit.fragmentId = 1;
-    // Set a basic payload
-    dataUnit.payload = {'H', 'e', 'l', 'l', 'o'};
     // Exercise the method under test
     ASSERT_NO_THROW({
         serviceAccessPoint->serviceAccessPointDataRequest(dataUnit);

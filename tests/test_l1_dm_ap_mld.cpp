@@ -323,7 +323,7 @@ TEST_F(dm_ap_mld_t_Test, EncodeWithCJSONObjectContainingSpecialCharacters) {
  * | 01 | Setup the test environment by creating an instance of `dm_ap_mld_t` | instance = new dm_ap_mld_t() | Instance should be created successfully | Done by Pre-requisite SetUp function |
  * | 02 | Set few of the m_ap_mld_info member values | instance->m_ap_mld_info.num_affiliated_ap = EM_MAX_AP_MLD, instance->m_ap_mld_info.mac_addr_valid = false, instance->m_ap_mld_info.nstr = true, instance->m_ap_mld_info.nstr = false, instance->m_ap_mld_info.emlmr = true, instance->m_ap_mld_info.emlsr = false | Value should be set successfully | Should be successful |
  * | 03 | Retrieve the AP MLD information using `get_ap_mld_info` | info = instance->get_ap_mld_info() | `info` should not be nullptr | Should Pass |
- * | 04 | Verify if the values are retrieved same as the set values | info->m_ap_mld_info.num_affiliated_ap = EM_MAX_AP_MLD, info->m_ap_mld_info.mac_addr_valid = false, info->m_ap_mld_info.nstr = true, info->m_ap_mld_info.nstr = false, info->m_ap_mld_info.emlmr = true, info->m_ap_mld_info.emlsr = false | Should return true | Ensures the value is correctly stored and retrieved |
+ * | 04 | Verify if the values are retrieved same as the set values | info->num_affiliated_ap = EM_MAX_AP_MLD, info->mac_addr_valid = false, info->nstr = true, info->nstr = false, info->emlmr = true, info->emlsr = false | Should return true | Ensures the value is correctly stored and retrieved |
  * | 05 | Tear down the test environment by deleting the instance of `dm_ap_mld_t` | delete instance | Instance should be deleted successfully | Done by Pre-requisite TearDown function |
  */
 TEST_F(dm_ap_mld_t_Test, RetrieveAPMLDInfoWithValidValues) {
@@ -337,11 +337,11 @@ TEST_F(dm_ap_mld_t_Test, RetrieveAPMLDInfoWithValidValues) {
     em_ap_mld_info_t* info = instance->get_ap_mld_info();
     ASSERT_NE(info, nullptr);
     ASSERT_EQ(info->num_affiliated_ap, EM_MAX_AP_MLD);
-    ASSERT_EQ(info->m_ap_mld_info.mac_addr_valid, false);
-    ASSERT_EQ(info->m_ap_mld_info.nstr, true);   
-    ASSERT_EQ(info->m_ap_mld_info.nstr, false);    
-    ASSERT_EQ(info->m_ap_mld_info.emlmr, true);   
-    ASSERT_EQ(info->m_ap_mld_info.emlsr, false);
+    ASSERT_EQ(info->mac_addr_valid, false);
+    ASSERT_EQ(info->nstr, true);   
+    ASSERT_EQ(info->nstr, false);    
+    ASSERT_EQ(info->emlmr, true);   
+    ASSERT_EQ(info->emlsr, false);
     std::cout << "Exiting RetrieveAPMLDInfoWithValidValues test" << std::endl;
 }
 

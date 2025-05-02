@@ -661,7 +661,7 @@ TEST_F(dm_bss_t_Test, InitializeBSSInformationStructureMultipleTimes) {
   */
 TEST_F(dm_bss_t_Test, MatchCriteriaWithValidCriteriaString) {
      std::cout << "Entering MatchCriteriaWithValidCriteriaStringTEST" << std::endl;
-     char criteria[] = "valid_criteria" << std::endl;
+     char criteria[] = "valid_criteria";
      bool result = instance->match_criteria(criteria);
      ASSERT_TRUE(result);
      std::cout << "Exiting MatchCriteriaWithValidCriteriaStringTEST" << std::endl;
@@ -695,7 +695,7 @@ TEST_F(dm_bss_t_Test, MatchCriteriaWithValidCriteriaString) {
  
 TEST_F(dm_bss_t_Test, MatchCriteriaWithEmptyCriteriaString) {
      std::cout << "Entering MatchCriteriaWithEmptyCriteriaStringTEST" << std::endl;
-     char criteria[] = "" << std::endl;
+     char criteria[] = "";
      bool result = instance->match_criteria(criteria);
      ASSERT_FALSE(result);
      std::cout << "Exiting MatchCriteriaWithEmptyCriteriaStringTEST" << std::endl;
@@ -753,7 +753,7 @@ TEST_F(dm_bss_t_Test, MatchCriteriaWithNullCriteriaString) {
   */
 TEST_F(dm_bss_t_Test, MatchCriteriaWithSpecialCharacters) {
      std::cout << "Entering MatchCriteriaWithSpecialCharactersTEST" << std::endl;
-     char criteria[] = "!@#$%^&*()" << std::endl;
+     char criteria[] = "!@#$%^&*()";
      bool result = instance->match_criteria(criteria);
      ASSERT_FALSE(result);
      std::cout << "Exiting MatchCriteriaWithSpecialCharactersTEST" << std::endl;
@@ -783,7 +783,7 @@ TEST_F(dm_bss_t_Test, MatchCriteriaWithSpecialCharacters) {
   */
 TEST_F(dm_bss_t_Test, MatchCriteriaWithTabAndNewlineCharacters) {
      std::cout << "Entering MatchCriteriaWithTabAndNewlineCharactersTEST" << std::endl;
-     char criteria[] = "\tvalid\ncriteria " << std::endl;
+     char criteria[] = "\tvalid\ncriteria ";
      bool result = instance->match_criteria(criteria);
      ASSERT_FALSE(result);
      std::cout << "Exiting MatchCriteriaWithTabAndNewlineCharactersTEST" << std::endl;
@@ -815,7 +815,7 @@ TEST_F(dm_bss_t_Test, MatchCriteriaWithTabAndNewlineCharacters) {
 TEST_F(dm_bss_t_Test, ParseBssIdFromValidKey) {
      std::cout << "Entering ParseBssIdFromValidKeyTEST" << std::endl;
      em_bss_id_t id;
-     const char* key = "valid_key_string" << std::endl;
+     const char* key = "valid_key_string";
      int result = instance->parse_bss_id_from_key(key, &id);
      ASSERT_EQ(result, 0);
      std::cout << "Exiting ParseBssIdFromValidKeyTEST" << std::endl;
@@ -848,7 +848,7 @@ TEST_F(dm_bss_t_Test, ParseBssIdFromValidKey) {
 TEST_F(dm_bss_t_Test, ParseBssIdFromInvalidKey) {
      std::cout << "Entering ParseBssIdFromInvalidKeyTEST" << std::endl;
      em_bss_id_t id;
-     const char* key = "invalid_key_string" << std::endl;
+     const char* key = "invalid_key_string";
      int result = instance->parse_bss_id_from_key(key, &id);
      ASSERT_EQ(result, -1);
      std::cout << "Exiting ParseBssIdFromInvalidKeyTEST" << std::endl;
@@ -909,7 +909,7 @@ TEST_F(dm_bss_t_Test, ParseBssIdWithNullKey) {
  
 TEST_F(dm_bss_t_Test, ParseBssIdWithNullIdPointer) {
      std::cout << "Entering ParseBssIdWithNullIdPointerTEST" << std::endl;
-     const char* key = "valid_key_string" << std::endl;
+     const char* key = "valid_key_string";
      int result = instance->parse_bss_id_from_key(key, NULL);
      ASSERT_EQ(result, -1);
      std::cout << "Exiting ParseBssIdWithNullIdPointerTEST" << std::endl;
@@ -940,7 +940,7 @@ TEST_F(dm_bss_t_Test, ParseBssIdWithNullIdPointer) {
 TEST_F(dm_bss_t_Test, ParseBssIdWithEmptyKeyString) {
      std::cout << "Entering ParseBssIdWithEmptyKeyStringTEST" << std::endl;
      em_bss_id_t id;
-     const char* key = "" << std::endl;
+     const char* key = "";
      int result = instance->parse_bss_id_from_key(key, &id);
      ASSERT_EQ(result, -1);
      std::cout << "Exiting ParseBssIdWithEmptyKeyStringTEST" << std::endl;
@@ -972,7 +972,7 @@ TEST_F(dm_bss_t_Test, ParseBssIdWithEmptyKeyString) {
 TEST_F(dm_bss_t_Test, ParseBssIdWithKeyContainingSpecialCharacters) {
      std::cout << "Entering ParseBssIdWithKeyContainingSpecialCharactersTEST" << std::endl;
      em_bss_id_t id;
-     const char* key = "key_with_special_chars!@#$" << std::endl;
+     const char* key = "key_with_special_chars!@#$";
      int result = instance->parse_bss_id_from_key(key, &id);
      ASSERT_EQ(result, -1);
      std::cout << "Exiting ParseBssIdWithKeyContainingSpecialCharactersTEST" << std::endl;
@@ -1002,7 +1002,7 @@ TEST_F(dm_bss_t_Test, ParseBssIdWithKeyContainingSpecialCharacters) {
 TEST_F(dm_bss_t_Test, ParseBssIdWithKeyContainingMixedAlphanumericCharacters) {
      std::cout << "Entering ParseBssIdWithKeyContainingMixedAlphanumericCharactersTEST" << std::endl;
      em_bss_id_t id;
-     const char* key = "key123456" << std::endl;
+     const char* key = "key123456";
      int result = instance->parse_bss_id_from_key(key, &id);
      ASSERT_EQ(result, 0);
      std::cout << "Exiting ParseBssIdWithKeyContainingMixedAlphanumericCharactersTEST" << std::endl;
@@ -1032,13 +1032,28 @@ TEST_F(dm_bss_t_Test, ParseBssIdWithKeyContainingMixedAlphanumericCharacters) {
   * | 06 | Log exiting message | "Exiting RemoveVendorIEWIthValidInputTEST" | Log message is printed | Should be successful |
   * | 07 | Clean up theTEST fixture | delete instance | instance is deleted | Done by Pre-requisite TearDown function |
   */
-TEST_F(dm_bss_t_Test, RemoveVendorIEWIthValidInput) {
+  TEST_F(dm_bss_t_Test, RemoveVendorIEWIthValidInput) {
      std::cout << "Entering RemoveVendorIEWIthValidInputTEST" << std::endl;
-     ieee80211_vs_ie valid_ie = {0xDD, 5, {0x00, 0x50, 0xF2}, 1, 0, {0x01, 0x02, 0x03}};
-     instance->remove_vendor_ie(&valid_ie);
+     uint8_t payload[] = {0x01, 0x02, 0x03};
+     size_t payload_len = sizeof(payload);
+     size_t total_size = sizeof(ieee80211_vs_ie) + payload_len;
+     // Allocate enough memory for the struct + payload
+     ieee80211_vs_ie* valid_ie = (ieee80211_vs_ie*)malloc(total_size);
+     ASSERT_NE(valid_ie, nullptr);  // Always check malloc result
+     valid_ie->vs_ie = 0xDD;
+     valid_ie->vs_len = 5; // Length of OUI(3) + type + subtype
+     valid_ie->vs_oui[0] = 0x00;
+     valid_ie->vs_oui[1] = 0x50;
+     valid_ie->vs_oui[2] = 0xF2;
+     valid_ie->vs_type = 1;
+     valid_ie->vs_subtype = 0;
+     memcpy(valid_ie->payload, payload, payload_len);
+     instance->remove_vendor_ie(valid_ie);
+     free(valid_ie);  // Always free dynamically allocated memory
      ASSERT_TRUE(true);
      std::cout << "Exiting RemoveVendorIEWIthValidInputTEST" << std::endl;
-}
+ }
+ 
  
  /**
   * @brief TEST the remove_vendor_ie function with a null pointer
@@ -1090,13 +1105,25 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthNullPointer) {
   * | 04 | Verify the function handled the zero-length IE correctly | ASSERT_TRUE(true) | None | Should Pass |
   * | 05 | Tear down theTEST environment | None | None | Done by Pre-requisite TearDown function |
   */
-TEST_F(dm_bss_t_Test, RemoveVendorIEWIthZeroLength) {
+  TEST_F(dm_bss_t_Test, RemoveVendorIEWIthZeroLength) {
      std::cout << "Entering RemoveVendorIEWIthZeroLengthTEST" << std::endl;
-     ieee80211_vs_ie zero_length_ie = {0xDD, 0, {0x00, 0x50, 0xF2}, 1, 0, {0x01, 0x02, 0x03}};
-     instance->remove_vendor_ie(&zero_length_ie);
+     // Only allocate memory for the base structure with no payload
+     size_t total_size = sizeof(ieee80211_vs_ie); // payload size is 0
+     ieee80211_vs_ie* zero_length_ie = (ieee80211_vs_ie*)malloc(total_size);
+     ASSERT_NE(zero_length_ie, nullptr);  // Always check allocation
+     zero_length_ie->vs_ie = 0xDD;
+     zero_length_ie->vs_len = 0;  // Indicates zero-length
+     zero_length_ie->vs_oui[0] = 0x00;
+     zero_length_ie->vs_oui[1] = 0x50;
+     zero_length_ie->vs_oui[2] = 0xF2;
+     zero_length_ie->vs_type = 1;
+     zero_length_ie->vs_subtype = 0;
+     // No payload to copy
+     instance->remove_vendor_ie(zero_length_ie);
+     free(zero_length_ie);
      ASSERT_TRUE(true);
      std::cout << "Exiting RemoveVendorIEWIthZeroLengthTEST" << std::endl;
-}
+ } 
  
  /**
   * @brief TEST the removal of a vendor IE with maximum length
