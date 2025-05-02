@@ -233,9 +233,11 @@ bool em_orch_t::eligible_for_active(em_cmd_t *pcmd)
 
     for (i = static_cast<int>(queue_count(pcmd->m_em_candidates)) - 1; i >= 0; i--) {
         em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, static_cast<unsigned int>(i)));
-        if (em->get_orch_state() != em_orch_state_idle) {
-            eligible = false;
-            break;
+	if (em != NULL) {
+		if (em->get_orch_state() != em_orch_state_idle) {
+			eligible = false;
+			break;
+		}
         }
     }
 
