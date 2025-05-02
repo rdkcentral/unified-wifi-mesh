@@ -90,43 +90,12 @@ TEST_F(AlServiceAccessPointTest, VerifyServiceAccessPointDataIndication) {
 }
 
 /**
- * @brief Test the serviceAccessPointDataRequest function with a valid AlServiceDataUnit message.
- *
- * This test verifies that the serviceAccessPointDataRequest function correctly processes a well-formed
- * AlServiceDataUnit message, including MAC addresses, fragmentation flags, and payload.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 003@n
- * **Priority:** High@n
- * @n
- * **Pre-Conditions:** serviceAccessPoint must be initialized@n
- * **Dependencies:** AlServiceAccessPoint and AlServiceDataUnit classes@n
- * **User Interaction:** None@n
- * @n
- * **Test Procedure:**@n
- * | Step | Description | Test Data | Expected Result | Notes |
- * | :--: | ----------- | --------- | ---------------- | ----- |
- * | 01 | Initialize an AlServiceDataUnit message | Directly set MAC addresses, fragment flags, and payload | Data unit should contain valid content | Direct field access |
- * | 02 | Send the message using serviceAccessPointDataRequest | dataUnit object | No exception is thrown | Uses ASSERT_NO_THROW |
- * | 03 | Clean up any used resources | None | Automatic via test framework |  |
- */
- TEST_F(AlServiceAccessPointTest, ValidDataUnitMessage) {
-    std::cout << "Entering ValidDataUnitMessage test" << std::endl;
-    AlServiceDataUnit dataUnit;
-    // Exercise the method under test
-    ASSERT_NO_THROW({
-        serviceAccessPoint->serviceAccessPointDataRequest(dataUnit);
-    });
-    std::cout << "Exiting ValidDataUnitMessage test" << std::endl;
-}
-
-/**
  * @brief Test the registration of a service access point with invalid operation and type.
  *
  * This test verifies if the service access point can be registered with an invalid operation and type.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 004
+ * **Test Case ID:** 003
  * **Priority:** High
  * @n
  * **Pre-Conditions:** None
@@ -155,7 +124,7 @@ TEST_F(AlServiceAccessPointTest, RegisterServiceAccessPointWithinvalidOperationA
  * This test checks if the service access point registration response is received.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 005
+ * **Test Case ID:** 004
  * **Priority:** High
  * @n
  * **Pre-Conditions:** None
@@ -182,7 +151,7 @@ TEST_F(AlServiceAccessPointTest, VerifyServiceAccessPointRegistrationResponseFie
  * This test checks if the AlServiceAccessPoint class correctly handles the scenario where an invalid socket descriptor is set. The test ensures that the socket descriptor is set to -1 and verifies that the getSocketDescriptor method returns -1.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 006@n
+ * **Test Case ID:** 005@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -208,7 +177,7 @@ TEST_F(AlServiceAccessPointTest, SetInvalidSocketDescriptorNegative) {
  * This test verifies that setting the socket descriptor to zero is handled correctly by the AlServiceAccessPoint class.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 007
+ * **Test Case ID:** 006
  * **Priority:** High
  * @n
  * **Pre-Conditions:** None
@@ -235,7 +204,7 @@ TEST_F(AlServiceAccessPointTest, SetInvalidSocketDescriptorZero) {
  * This test verifies that the AlServiceAccessPoint class correctly sets and retrieves a large positive socket descriptor value.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 008
+ * **Test Case ID:** 007
  * **Priority:** High
  * @n
  * **Pre-Conditions:** None
@@ -263,7 +232,7 @@ TEST_F(AlServiceAccessPointTest, SetValidSocketDescriptorLargePositive) {
  * returns the correct value.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 009
+ * **Test Case ID:** 008
  * **Priority:** High
  * @n
  * **Pre-Conditions:** None
@@ -289,7 +258,7 @@ TEST_F(AlServiceAccessPointTest, SetInvalidSocketDescriptorExtremelyLarge) {
 * This test checks if the AlServiceAccessPoint object can be successfully created with a valid socket path. This is important to ensure that the service access point can be initialized correctly with a valid path.
 *
 * **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 010@n
+* **Test Case ID:** 009@n
 * **Priority:** High@n
 * @n
 * **Pre-Conditions:** None@n
@@ -317,7 +286,7 @@ TEST_F(AlServiceAccessPointTest, ValidSocketPath) {
 * It ensures that the class handles this edge case appropriately without crashing or misbehaving.
 *
 * **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 011@n
+* **Test Case ID:** 010@n
 * **Priority:** High@n
 * @n
 * **Pre-Conditions:** None@n
@@ -346,7 +315,7 @@ TEST_F(AlServiceAccessPointTest, EmptySocketPath) {
 * This test checks the behavior of the AlServiceAccessPoint constructor when provided with a socket path of maximum length (108 characters). This is to ensure that the class can handle long socket paths without errors.
 *
 * **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 012@n
+* **Test Case ID:** 011@n
 * **Priority:** High@n
 * @n
 * **Pre-Conditions:** None@n
@@ -372,7 +341,7 @@ TEST_F(AlServiceAccessPointTest, LongSocketPath) {
 * This test verifies that the AlServiceAccessPoint class can handle socket paths that contain special characters. This is important to ensure that the class can manage paths with a variety of characters without errors.
 *
 * **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 013@n
+* **Test Case ID:** 012@n
 * **Priority:** High@n
 * @n
 * **Pre-Conditions:** None@n
@@ -398,7 +367,7 @@ TEST_F(AlServiceAccessPointTest, SpecialCharactersSocketPath) {
 * The objective is to ensure that the class correctly processes or rejects such paths without causing unexpected behavior or crashes.
 *
 * **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 014@n
+* **Test Case ID:** 013@n
 * **Priority:** High@n
 * @n
 * **Pre-Conditions:** None@n

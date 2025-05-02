@@ -607,10 +607,14 @@ TEST_F(AlServiceDataUnitTest, RetrieveFragmentStatusAndPrint) {
  * | 02 | Retrieve the payload from the AlServiceDataUnit instance | None | Payload retrieved | Should be successful |
  * | 03 | Clean up the test environment by deleting the instance of AlServiceDataUnit | None | Instance of AlServiceDataUnit deleted | Done by Pre-requisite TearDown function |
  */
-TEST_F(AlServiceDataUnitTest, RetrievePayloadAndPrint) {
+TTEST_F(AlServiceDataUnitTest, RetrievePayloadAndPrint) {
     std::cout << "Entering RetrievePayloadAndPrint test" << std::endl;
     std::vector<unsigned char>& payload = alServiceDataUnit->getPayload();
-    std::cout << "Fragment status: " << payload << std::endl;
+    std::cout << "Payload bytes (hex): ";
+    for (auto byte : payload) {
+        std::cout << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(byte) << " ";
+    }
+    std::cout << std::endl;
     std::cout << "Exiting RetrievePayloadAndPrint test" << std::endl;
 }
 
@@ -637,7 +641,11 @@ TEST_F(AlServiceDataUnitTest, RetrievePayloadAndPrint) {
 TEST_F(AlServiceDataUnitTest, RetrieveSourceAlMacAddress) {
     std::cout << "Entering RetrieveSourceAlMacAddress test" << std::endl;
     MacAddress macAddress = alServiceDataUnit->getSourceAlMacAddress();
-    std::cout << "Source AL MAC Address: " << macAddress << std::endl;
+    std::cout << "Source AL MAC Address: ";
+    for (auto byte : macAddress) {
+        std::cout << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(byte) << ":";
+    }
+    std::cout << std::endl;
     std::cout << "Exiting RetrieveSourceAlMacAddress test" << std::endl;
 }
 
