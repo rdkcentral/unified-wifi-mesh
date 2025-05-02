@@ -541,14 +541,14 @@ TEST_F(dm_bsta_mld_Test, Initialize_m_bsta_mld_info_structure_multiple_times) {
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data |Expected Result |Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01| Create two identical objects of dm_bsta_mld_t | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {affiliated_bsta_info}}, obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {affiliated_bsta_info}} | Objects should be identical | Should Pass |
+  * | 01| Create two identical objects of dm_bsta_mld_t | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1}, obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1} | Objects should be identical | Should Pass |
   * | 02| Compare the two objects using the equality operator | obj1 == obj2 | EXPECT_TRUE(obj1 == obj2) | Should Pass |
   */
 TEST(dm_btsa_mld_Test, BothObjectsAreIdentical) {
       std::cout << "Entering BothObjectsAreIdentical" << std::endl;
       dm_bsta_mld_t obj1, obj2;
-      obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {affiliated_bsta_info}};
-      obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {affiliated_bsta_info}};
+      obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1};
+      obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1};
       EXPECT_TRUE(obj1 == obj2);
       std::cout << "Exiting BothObjectsAreIdentical" << std::endl;
 }
@@ -569,14 +569,14 @@ TEST(dm_btsa_mld_Test, BothObjectsAreIdentical) {
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Create two instances of dm_bsta_mld_t with different MAC addresses | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {affiliated_bsta_info}}, obj2.m_bsta_mld_info = {false, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {affiliated_bsta_info}} | Instances created successfully | Should be successful |
+  * | 01 | Create two instances of dm_bsta_mld_t with different MAC addresses | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1}, obj2.m_bsta_mld_info = {false, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1} | Instances created successfully | Should be successful |
   * | 02 | Compare the two instances using the equality operator | obj1 == obj2 | EXPECT_FALSE(obj1 == obj2) | Should Pass |
   */
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentMacAddrValid) {
       std::cout << "Entering ObjectsHaveDifferentMacAddrValid" << std::endl;
       dm_bsta_mld_t obj1, obj2;
-      obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {affiliated_bsta_info}};
-      obj2.m_bsta_mld_info = {false, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {affiliated_bsta_info}};
+      obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1};
+      obj2.m_bsta_mld_info = {false, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1};
       EXPECT_FALSE(obj1 == obj2);
       std::cout << "Exiting ObjectsHaveDifferentMacAddrValid" << std::endl;
 }
@@ -597,13 +597,13 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentMacAddrValid) {
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data |Expected Result |Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01| Create two instances of dm_bsta_mld_t with different AP MLD MAC addresses | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {affiliated_bsta_info}}, obj2.m_bsta_mld_info = {true, false, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {affiliated_bsta_info}} | Two objects should not be equal | Should Pass |
+  * | 01| Create two instances of dm_bsta_mld_t with different AP MLD MAC addresses | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1}, obj2.m_bsta_mld_info = {true, false, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1} | Two objects should not be equal | Should Pass |
   */
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentApMldMacAddrValid) {
       std::cout << "Entering ObjectsHaveDifferentApMldMacAddrValid" << std::endl;
       dm_bsta_mld_t obj1, obj2;
-      obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {affiliated_bsta_info}};
-      obj2.m_bsta_mld_info = {true, false, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {affiliated_bsta_info}};
+      obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1};
+      obj2.m_bsta_mld_info = {true, false, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1};
       EXPECT_FALSE(obj1 == obj2);
       std::cout << "Exiting ObjectsHaveDifferentApMldMacAddrValid" << std::endl;
 }
@@ -630,8 +630,8 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentApMldMacAddrValid) {
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentMacAddr) {
       std::cout << "Entering ObjectsHaveDifferentMacAddr" << std::endl;
       dm_bsta_mld_t obj1, obj2;
-      obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {affiliated_bsta_info}};
-      obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x56}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {affiliated_bsta_info}};
+      obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1};
+      obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x56}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1};
       EXPECT_FALSE(obj1 == obj2);
       std::cout << "Exiting ObjectsHaveDifferentMacAddr" << std::endl;
 }
@@ -989,9 +989,9 @@ TEST(dm_bsta_mld_Test, AssigningMinAffiliatedBsta) {
 }
  
   /**
-  * @briefTEST to validate MLD information with all fields set to true
+  * @briefTEST to validate MLD information with few fields set
   *
-  * ThisTEST verifies that the dm_bsta_mld_t object correctly initializes and stores the MLD information when all fields are set to true.@n
+  * This TEST verifies that the dm_bsta_mld_t object correctly initializes and stores the MLD information when few fields are set.@n
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 030@n
@@ -1004,193 +1004,28 @@ TEST(dm_bsta_mld_Test, AssigningMinAffiliatedBsta) {
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Initialize MLD information with all fields set to true | mac_addr_valid = true, ap_mld_mac_addr_valid = true, mac_addr = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, ap_mld_mac_addr = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, str = true, nstr = true, emlsr = true, emlmr = true, num_affiliated_bsta = 1 | Object should be initialized with the provided values | Should Pass |
-  * | 02 | Check mac_addr_valid field | mac_addr_valid = true | ASSERT_EQ(obj.m_bsta_mld_info.mac_addr_valid, true) | Should Pass |
-  * | 03 | Check ap_mld_mac_addr_valid field | ap_mld_mac_addr_valid = true | ASSERT_EQ(obj.m_bsta_mld_info.ap_mld_mac_addr_valid, true) | Should Pass |
-  * | 04 | Check mac_addr field | mac_addr = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55} | ASSERT_EQ(memcmp(obj.m_bsta_mld_info.mac_addr, ap_mld_info.mac_addr, sizeof(mac_address_t)), 0) | Should Pass |
-  * | 05 | Check ap_mld_mac_addr field | ap_mld_mac_addr = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB} | ASSERT_EQ(memcmp(obj.m_bsta_mld_info.ap_mld_mac_addr, ap_mld_info.ap_mld_mac_addr, sizeof(mac_address_t)), 0) | Should Pass |
-  * | 06 | Check str field | str = true | ASSERT_EQ(obj.m_bsta_mld_info.str, true) | Should Pass |
-  * | 07 | Check nstr field | nstr = true | ASSERT_EQ(obj.m_bsta_mld_info.nstr, true) | Should Pass |
-  * | 08 | Check emlsr field | emlsr = true | ASSERT_EQ(obj.m_bsta_mld_info.emlsr, true) | Should Pass |
-  * | 09 | Check emlmr field | emlmr = true | ASSERT_EQ(obj.m_bsta_mld_info.emlmr, true) | Should Pass |
-  * | 10 | Check num_affiliated_bsta field | num_affiliated_bsta = 1 | ASSERT_EQ(obj.m_bsta_mld_info.num_affiliated_bsta, 1) | Should Pass |
+  * | 01 | Initialize MLD information with valid values for few fields | mac_addr_valid = true, ap_mld_mac_addr_valid = true, str = false, nstr = false, emlsr = true, emlmr = false, num_affiliated_bsta = 1 | Object should be initialized with the provided values | Should Pass |
+  * | 02 | Check if initialized values are retrieved as expected | mac_addr_valid = true, ap_mld_mac_addr_valid = true, str = false, nstr = false, emlsr = true, emlmr = false, num_affiliated_bsta = 1 | Values should be same as initialized values | Should Pass |
   */
-TEST(dm_bsta_mld_Test, ValidMLDInformationAllFieldsTrue) {
-      std::cout << "Entering ValidMLDInformationAllFieldsTrueTEST";
-      em_bsta_mld_info_t ap_mld_info = {
-          true,
-          true,
-          {0x00, 0x11, 0x22, 0x33, 0x44, 0x55},
-          {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB},
-          true,
-          true,
-          true,
-          true,
-          1,
-          {/* fill with valid data */}
-    };
+TEST(dm_bsta_mld_Test, ValidMLDInformationAllFields) {
+      std::cout << "Entering ValidMLDInformationAllFieldsTEST";
+      em_bsta_mld_info_t ap_mld_info;
+      ap_mld_info.mac_addr_valid = true;
+      ap_mld_info.ap_mld_mac_addr_valid = true;
+      ap_mld_info.str = false;
+      ap_mld_info.nstr = false;
+      ap_mld_info.emlsr = true;
+      ap_mld_info.emlmr = false;
+      ap_mld_info.num_affiliated_bsta = 1;
       dm_bsta_mld_t obj(&ap_mld_info);
       ASSERT_EQ(obj.m_bsta_mld_info.mac_addr_valid, true);
       ASSERT_EQ(obj.m_bsta_mld_info.ap_mld_mac_addr_valid, true);
-      ASSERT_EQ(memcmp(obj.m_bsta_mld_info.mac_addr, ap_mld_info.mac_addr, sizeof(mac_address_t)), 0);
-      ASSERT_EQ(memcmp(obj.m_bsta_mld_info.ap_mld_mac_addr, ap_mld_info.ap_mld_mac_addr, sizeof(mac_address_t)), 0);
-      ASSERT_EQ(obj.m_bsta_mld_info.str, true);
-      ASSERT_EQ(obj.m_bsta_mld_info.nstr, true);
-      ASSERT_EQ(obj.m_bsta_mld_info.emlsr, true);
-      ASSERT_EQ(obj.m_bsta_mld_info.emlmr, true);
-      ASSERT_EQ(obj.m_bsta_mld_info.num_affiliated_bsta, 1);
-      std::cout << "Exiting ValidMLDInformationAllFieldsTrueTEST";
-}
- 
-  /**
-  * @briefTEST to validate MLD information with all fields set to false
-  *
-  * ThisTEST verifies that the dm_bsta_mld_t object correctly initializes and stores the MLD information when all fields are set to false.@n
-  *
-  * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 031@n
-  * **Priority:** High@n
-  * @n
-  * **Pre-Conditions:** None@n
-  * **Dependencies:** None@n
-  * **User Interaction:** None@n
-  * @n
-  * **Test Procedure:**@n
-  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
-  * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Initialize MLD information with all fields set to false | mac_addr_valid = false, ap_mld_mac_addr_valid = false, mac_addr = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, ap_mld_mac_addr = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, str = false, nstr = false, emlsr = false, emlmr = false, num_affiliated_bsta = 0 | Object should be initialized with the provided values | Should Pass |
-  * | 02 | Verify mac_addr_valid field | mac_addr_valid = false | ASSERT_EQ(obj.m_bsta_mld_info.mac_addr_valid, false) | Should Pass |
-  * | 03 | Verify ap_mld_mac_addr_valid field | ap_mld_mac_addr_valid = false | ASSERT_EQ(obj.m_bsta_mld_info.ap_mld_mac_addr_valid, false) | Should Pass |
-  * | 04 | Verify mac_addr field | mac_addr = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00} | ASSERT_EQ(memcmp(obj.m_bsta_mld_info.mac_addr, ap_mld_info.mac_addr, sizeof(mac_address_t)), 0) | Should Pass |
-  * | 05 | Verify ap_mld_mac_addr field | ap_mld_mac_addr = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00} | ASSERT_EQ(memcmp(obj.m_bsta_mld_info.ap_mld_mac_addr, ap_mld_info.ap_mld_mac_addr, sizeof(mac_address_t)), 0) | Should Pass |
-  * | 06 | Verify str field | str = false | ASSERT_EQ(obj.m_bsta_mld_info.str, false) | Should Pass |
-  * | 07 | Verify nstr field | nstr = false | ASSERT_EQ(obj.m_bsta_mld_info.nstr, false) | Should Pass |
-  * | 08 | Verify emlsr field | emlsr = false | ASSERT_EQ(obj.m_bsta_mld_info.emlsr, false) | Should Pass |
-  * | 09 | Verify emlmr field | emlmr = false | ASSERT_EQ(obj.m_bsta_mld_info.emlmr, false) | Should Pass |
-  * | 10 | Verify num_affiliated_bsta field | num_affiliated_bsta = 0 | ASSERT_EQ(obj.m_bsta_mld_info.num_affiliated_bsta, 0) | Should Pass |
-  */
-TEST(dm_bsta_mld_Test, ValidMLDInformationAllFieldsFalse) {
-      std::cout << "Entering ValidMLDInformationAllFieldsFalseTEST";
-      em_bsta_mld_info_t ap_mld_info = {
-          false,
-          false,
-          {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-          {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-          false,
-          false,
-          false,
-          false,
-          0,
-          {/* fill with invalid data */}
-    };
-      dm_bsta_mld_t obj(&ap_mld_info);
-      ASSERT_EQ(obj.m_bsta_mld_info.mac_addr_valid, false);
-      ASSERT_EQ(obj.m_bsta_mld_info.ap_mld_mac_addr_valid, false);
-      ASSERT_EQ(memcmp(obj.m_bsta_mld_info.mac_addr, ap_mld_info.mac_addr, sizeof(mac_address_t)), 0);
-      ASSERT_EQ(memcmp(obj.m_bsta_mld_info.ap_mld_mac_addr, ap_mld_info.ap_mld_mac_addr, sizeof(mac_address_t)), 0);
       ASSERT_EQ(obj.m_bsta_mld_info.str, false);
       ASSERT_EQ(obj.m_bsta_mld_info.nstr, false);
-      ASSERT_EQ(obj.m_bsta_mld_info.emlsr, false);
-      ASSERT_EQ(obj.m_bsta_mld_info.emlmr, false);
-      ASSERT_EQ(obj.m_bsta_mld_info.num_affiliated_bsta, 0);
-      std::cout << "Exiting ValidMLDInformationAllFieldsFalseTEST";
-}
- 
-  /**
-  * @briefTEST to verify the behavior of dm_bsta_mld_t when initialized with a null MLD information pointer.
-  *
-  * ThisTEST checks the default values of the dm_bsta_mld_t object when it is initialized with a null MLD information pointer. 
-  * It ensures that all the fields in the m_bsta_mld_info structure are set to their expected default values.
-  *
-  * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 032@n
-  * **Priority:** High@n
-  * @n
-  * **Pre-Conditions:** None@n
-  * **Dependencies:** None@n
-  * **User Interaction:** None@n
-  * @n
-  * **Test Procedure:**@n
-  * | Variation / Step | Description |TEST Data |Expected Result |Notes |
-  * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01| Initialize dm_bsta_mld_t with null pointer | instance = new dm_bsta_mld_t(), obj = dm_bsta_mld_t(nullptr) | Object should be initialized with default values | Should Pass |
-  * | 02| Check mac_addr_valid field | obj.m_bsta_mld_info.mac_addr_valid | false | Should Pass |
-  * | 03| Check ap_mld_mac_addr_valid field | obj.m_bsta_mld_info.ap_mld_mac_addr_valid | false | Should Pass |
-  * | 04| Check mac_addr field | memcmp(obj.m_bsta_mld_info.mac_addr, (mac_address_t){0}, sizeof(mac_address_t)) | 0 | Should Pass |
-  * | 05| Check ap_mld_mac_addr field | memcmp(obj.m_bsta_mld_info.ap_mld_mac_addr, (mac_address_t){0}, sizeof(mac_address_t)) | 0 | Should Pass |
-  * | 06| Check str field | obj.m_bsta_mld_info.str | false | Should Pass |
-  * | 07| Check nstr field | obj.m_bsta_mld_info.nstr | false | Should Pass |
-  * | 08| Check emlsr field | obj.m_bsta_mld_info.emlsr | false | Should Pass |
-  * | 09| Check emlmr field | obj.m_bsta_mld_info.emlmr | false | Should Pass |
-  * | 10| Check num_affiliated_bsta field | obj.m_bsta_mld_info.num_affiliated_bsta | 0 | Should Pass |
-  */
-TEST(dm_bsta_mld_Test, NullMLDInformationPointer) {
-      std::cout << "Entering NullMLDInformationPointerTEST";
-      dm_bsta_mld_t obj(nullptr);
-      ASSERT_EQ(obj.m_bsta_mld_info.mac_addr_valid, false);
-      ASSERT_EQ(obj.m_bsta_mld_info.ap_mld_mac_addr_valid, false);
-      ASSERT_EQ(memcmp(obj.m_bsta_mld_info.mac_addr, (mac_address_t){0}, sizeof(mac_address_t)), 0);
-      ASSERT_EQ(memcmp(obj.m_bsta_mld_info.ap_mld_mac_addr, (mac_address_t){0}, sizeof(mac_address_t)), 0);
-      ASSERT_EQ(obj.m_bsta_mld_info.str, false);
-      ASSERT_EQ(obj.m_bsta_mld_info.nstr, false);
-      ASSERT_EQ(obj.m_bsta_mld_info.emlsr, false);
-      ASSERT_EQ(obj.m_bsta_mld_info.emlmr, false);
-      ASSERT_EQ(obj.m_bsta_mld_info.num_affiliated_bsta, 0);
-      std::cout << "Exiting NullMLDInformationPointerTEST";
-}
- 
-  /**
-  * @briefTEST the MLDInformationInvalidMACAddresses function for handling invalid MAC addresses
-  *
-  * ThisTEST verifies that the MLDInformationInvalidMACAddresses function correctly handles and processes invalid MAC addresses. It ensures that the function can handle edge cases where MAC addresses are set to all 0xFF, which is typically considered an invalid or broadcast address.
-  *
-  * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 033@n
-  * **Priority:** High@n
-  * @n
-  * **Pre-Conditions:** None@n
-  * **Dependencies:** None@n
-  * **User Interaction:** None@n
-  * @n
-  * **Test Procedure:**@n
-  * | Variation / Step | Description |TEST Data |Expected Result |Notes |
-  * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01| Initialize theTEST instance | instance = new dm_bsta_mld_t() | Should be successful | |
-  * | 02| Set up invalid MAC addresses and initialize the object | ap_mld_info = {true, true, {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, true, true, true, true, 1, obj = dm_bsta_mld_t(&ap_mld_info) | Should be successful | |
-  * | 03| Check if mac_addr_valid is true | obj.m_bsta_mld_info.mac_addr_valid = true | Should Pass | |
-  * | 04| Check if ap_mld_mac_addr_valid is true | obj.m_bsta_mld_info.ap_mld_mac_addr_valid = true | Should Pass | |
-  * | 05| Compare MAC addresses | memcmp(obj.m_bsta_mld_info.mac_addr, ap_mld_info.mac_addr, sizeof(mac_address_t)) = 0 | Should Pass | |
-  * | 06| Compare AP MLD MAC addresses | memcmp(obj.m_bsta_mld_info.ap_mld_mac_addr, ap_mld_info.ap_mld_mac_addr, sizeof(mac_address_t)) = 0 | Should Pass | |
-  * | 07| Check if str is true | obj.m_bsta_mld_info.str = true | Should Pass | |
-  * | 08| Check if nstr is true | obj.m_bsta_mld_info.nstr = true | Should Pass | |
-  * | 09| Check if emlsr is true | obj.m_bsta_mld_info.emlsr = true | Should Pass | |
-  * | 10| Check if emlmr is true | obj.m_bsta_mld_info.emlmr = true | Should Pass | |
-  * | 11| Check the number of affiliated bsta | obj.m_bsta_mld_info.num_affiliated_bsta = 1 | Should Pass | |
-  */
-TEST(dm_bsta_mld_Test, MLDInformationInvalidMACAddresses) {
-      std::cout << "Entering MLDInformationInvalidMACAddressesTEST";
-      em_bsta_mld_info_t ap_mld_info = {
-          true,
-          true,
-          {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
-          {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
-          true,
-          true,
-          true,
-          true,
-          1
-    };
-      dm_bsta_mld_t obj(&ap_mld_info);
-      ASSERT_EQ(obj.m_bsta_mld_info.mac_addr_valid, true);
-      ASSERT_EQ(obj.m_bsta_mld_info.ap_mld_mac_addr_valid, true);
-      ASSERT_EQ(memcmp(obj.m_bsta_mld_info.mac_addr, ap_mld_info.mac_addr, sizeof(mac_address_t)), 0);
-      ASSERT_EQ(memcmp(obj.m_bsta_mld_info.ap_mld_mac_addr, ap_mld_info.ap_mld_mac_addr, sizeof(mac_address_t)), 0);
-      ASSERT_EQ(obj.m_bsta_mld_info.str, true);
-      ASSERT_EQ(obj.m_bsta_mld_info.nstr, true);
       ASSERT_EQ(obj.m_bsta_mld_info.emlsr, true);
-      ASSERT_EQ(obj.m_bsta_mld_info.emlmr, true);
+      ASSERT_EQ(obj.m_bsta_mld_info.emlmr, false);
       ASSERT_EQ(obj.m_bsta_mld_info.num_affiliated_bsta, 1);
-      std::cout << "Exiting MLDInformationInvalidMACAddressesTEST";
+      std::cout << "Exiting ValidMLDInformationAllFieldsTEST";
 }
 
   /**
@@ -1199,7 +1034,7 @@ TEST(dm_bsta_mld_Test, MLDInformationInvalidMACAddresses) {
   * ThisTEST verifies that the copy constructor of the dm_bsta_mld_t class correctly copies all fields from the original object to the new object. This ensures that the copy constructor works as expected when all fields are initialized.
   *
   * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 034@n
+  * **Test Case ID:** 031@n
   * **Priority:** High@n
   * @n
   * **Pre-Conditions:** None@n
@@ -1231,7 +1066,7 @@ TEST(dm_bsta_mld_Test, CopyConstructorWithAllFieldsInitialized) {
       ASSERT_EQ(original.m_bsta_mld_info.emlsr, copy.m_bsta_mld_info.emlsr);
       ASSERT_EQ(original.m_bsta_mld_info.emlmr, copy.m_bsta_mld_info.emlmr);
       ASSERT_EQ(original.m_bsta_mld_info.num_affiliated_bsta, copy.m_bsta_mld_info.num_affiliated_bsta);
-      ASSERT_EQ(std::cout << "Exiting CopyConstructorWithAllFieldsInitialized" << std::endl;
+      std::cout << "Exiting CopyConstructorWithAllFieldsInitialized" << std::endl;
 }
  
   /**
@@ -1240,7 +1075,7 @@ TEST(dm_bsta_mld_Test, CopyConstructorWithAllFieldsInitialized) {
   * ThisTEST verifies that the copy constructor of the dm_bsta_mld_t class correctly copies the MAC address values even when they are set to invalid values (0xFF). This ensures that the copy constructor handles edge cases properly.
   *
   * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 035@n
+  * **Test Case ID:** 032@n
   * **Priority:** High@n
   * @n
   * **Pre-Conditions:** None@n

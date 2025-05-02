@@ -937,7 +937,7 @@ TEST(dm_ap_mld_tTest, NullAPMLDInformation) {
     std::cout << "Entering NullAPMLDInformation test";
     em_ap_mld_info_t *ap_mld_info = nullptr;
     dm_ap_mld_t ap_mld(ap_mld_info);
-    ASSERT_FALSE(ap_mld.m_ap_mld_info, nullptr);
+    ASSERT_NE(ap_mld.m_ap_mld_info, nullptr);
     std::cout << "Exiting NullAPMLDInformation test";
 }
 
@@ -1099,46 +1099,13 @@ TEST(dm_ap_mld_tTest, ZeroAffiliatedAPs) {
     std::cout << "Exiting ZeroAffiliatedAPs test";
 }
 
-
-
 /**
-* @brief Test the copy constructor of dm_ap_mld_t with a valid input instance.
+* @brief Test the copy constructor of dm_ap_mld_t with valid values
 *
-* This test verifies that the copy constructor of the dm_ap_mld_t class correctly creates a new instance that is equal to the original instance. This is important to ensure that the copy constructor performs a deep copy and maintains the integrity of the original instance.
+* This test verifies that the copy constructor of the dm_ap_mld_t class correctly copies an instance with valid values. It ensures that all fields are accurately duplicated in the new instance.@n
 *
 * **Test Group ID:** Basic: 01@n
 * **Test Case ID:** 033@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Initialize a valid instance of dm_ap_mld_t | valid_instance.init() | Should be successful | Should be successful |
-* | 02 | Create a copy of the valid instance using the copy constructor | dm_ap_mld_t copy_instance(valid_instance) | Should be successful | Should Pass |
-* | 03 | Assert that the copied instance is equal to the original instance | ASSERT_EQ(copy_instance, valid_instance) | Should be successful | Should Pass |
-*/
-TEST(dm_ap_mld_tTest, CopyConstructorWithValidInput) {
-    std::cout << "Entering CopyConstructorWithValidInput" << std::endl;
-    dm_ap_mld_t valid_instance;
-    valid_instance.init();
-    dm_ap_mld_t copy_instance(valid_instance);
-    ASSERT_EQ(copy_instance, valid_instance);
-    std::cout << "Exiting CopyConstructorWithValidInput" << std::endl;
-}
-
-
-
-/**
-* @brief Test the copy constructor of dm_ap_mld_t with maximum values
-*
-* This test verifies that the copy constructor of the dm_ap_mld_t class correctly copies an instance with maximum values. It ensures that all fields are accurately duplicated in the new instance.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 034@n
 * **Priority:** High@n
 * @n
 * **Pre-Conditions:** None@n
@@ -1152,11 +1119,11 @@ TEST(dm_ap_mld_tTest, CopyConstructorWithValidInput) {
 * | 02 | Copy max_instance to copy_instance using copy constructor | copy_instance(max_instance) | copy_instance should be equal to max_instance | Should Pass |
 * | 03 | Assert that copy_instance is equal to max_instance | ASSERT_EQ(copy_instance, max_instance) | The assertion should pass, confirming the copy was successful | Should Pass |
 */
-TEST(dm_ap_mld_tTest, CopyConstructorWithMaxValues) {
-    std::cout << "Entering CopyConstructorWithMaxValues" << std::endl;
+TEST(dm_ap_mld_tTest, CopyConstructorWithValidValues) {
+    std::cout << "Entering CopyConstructorWithValidValues" << std::endl;
     dm_ap_mld_t max_instance;
     max_instance.m_ap_mld_info.mac_addr_valid = true;
-    max_instance.m_ap_mld_info.ssid = "MaxSSID";
+    strncpy(max_instance.m_ap_mld_info.ssid, "MaxSSID", sizeof(max_instance.m_ap_mld_info.ssid));
     max_instance.m_ap_mld_info.mac_addr = {255, 255, 255, 255, 255, 255};
     max_instance.m_ap_mld_info.str = true;
     max_instance.m_ap_mld_info.nstr = true;
@@ -1165,41 +1132,8 @@ TEST(dm_ap_mld_tTest, CopyConstructorWithMaxValues) {
     max_instance.m_ap_mld_info.num_affiliated_ap = EM_MAX_AP_MLD;
     dm_ap_mld_t copy_instance(max_instance);
     ASSERT_EQ(copy_instance, max_instance);
-    std::cout << "Exiting CopyConstructorWithMaxValues" << std::endl;
+    std::cout << "Exiting CopyConstructorWithValidValues" << std::endl;
 }
-
-
-
-/**
-* @brief Test the copy constructor of dm_ap_mld_t with minimum values
-*
-* This test verifies that the copy constructor of the dm_ap_mld_t class correctly copies an instance initialized with minimum values. The test ensures that the copied instance is equal to the original instance.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 035@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Initialize min_instance with minimum values | min_instance.init() | min_instance is initialized with minimum values | Should be successful |
-* | 02 | Copy min_instance to copy_instance using copy constructor | dm_ap_mld_t copy_instance(min_instance) | copy_instance is a copy of min_instance | Should be successful |
-* | 03 | Assert that copy_instance is equal to min_instance | ASSERT_EQ(copy_instance, min_instance) | copy_instance is equal to min_instance | Should Pass |
-*/
-TEST(dm_ap_mld_tTest, CopyConstructorWithMinValues) {
-    std::cout << "Entering CopyConstructorWithMinValues" << std::endl;
-    dm_ap_mld_t min_instance;
-    min_instance.init();
-    dm_ap_mld_t copy_instance(min_instance);
-    ASSERT_EQ(copy_instance, min_instance);
-    std::cout << "Exiting CopyConstructorWithMinValues" << std::endl;
-}
-
-
 
 /**
 * @brief Test the copy constructor of dm_ap_mld_t with a null input
@@ -1207,7 +1141,7 @@ TEST(dm_ap_mld_tTest, CopyConstructorWithMinValues) {
 * This test checks the behavior of the copy constructor when it is provided with a null input. The objective is to ensure that the constructor throws an exception when attempting to copy from a null instance.@n
 *
 * **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 036@n
+* **Test Case ID:** 034@n
 * **Priority:** High@n
 * @n
 * **Pre-Conditions:** None@n

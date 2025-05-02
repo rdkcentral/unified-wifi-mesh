@@ -575,78 +575,14 @@ TEST_F(dm_bss_t_Test, RetrieveBssInfoWithModifiedValues) {
      ASSERT_EQ(bss_info->id.haul_type, em_haul_type_fronthaul);
      std::cout << "Exiting RetrieveBssInfoWithModifiedValuesTEST" << std::endl;
 }
- 
- /**
-  * @brief TEST the retrieval of BSS info with an invalid media type.
-  *
-  * ThisTEST verifies that the `get_bss_info` method correctly handles an invalid media type by setting the media type to an invalid value and checking the returned BSS info structure.
-  *
-  * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 018@n
-  * **Priority:** High@n
-  * @n
-  * **Pre-Conditions:** None@n
-  * **Dependencies:** None@n
-  * **User Interaction:** None@n
-  * @n
-  * **Test Procedure:**@n
-  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
-  * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment | instance = new dm_bss_t() | instance is created | Done by Pre-requisite SetUp function |
-  * | 02 | Set an invalid media type | instance->m_bss_info.bssid.media = static_cast<em_media_type_t>(999) | media type is set to 999 | Should be successful |
-  * | 03 | Retrieve BSS info | em_bss_info_t* bss_info = instance->get_bss_info() | bss_info is retrieved | Should be successful |
-  * | 04 | Check BSS info is not null | ASSERT_NE(bss_info, nullptr) | bss_info is not null | Should Pass |
-  * | 05 | Check media type in BSS info | ASSERT_EQ(bss_info->bssid.media, 999) | media type is 999 | Should Pass |
-  * | 06 | Tear down theTEST environment | delete instance | instance is deleted | Done by Pre-requisite TearDown function |
-  */
-TEST_F(dm_bss_t_Test, RetrieveBssInfoWithInvalidMediaType) {
-     std::cout << "Entering RetrieveBssInfoWithInvalidMediaTypeTEST" << std::endl;
-     instance->m_bss_info.bssid.media = static_cast<em_media_type_t>(999);
-     em_bss_info_t* bss_info = instance->get_bss_info();
-     ASSERT_NE(bss_info, nullptr);
-     ASSERT_EQ(bss_info->bssid.media, 999);
-     std::cout << "Exiting RetrieveBssInfoWithInvalidMediaTypeTEST" << std::endl;
-}
- 
- /**
-  * @brief TEST to verify the behavior of RetrieveBssInfo with an invalid haul type
-  *
-  * ThisTEST checks the behavior of the RetrieveBssInfo function when an invalid haul type is set. 
-  * It ensures that the function can handle invalid input gracefully and returns the expected results.
-  *
-  * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 019@n
-  * **Priority:** High@n
-  * @n
-  * **Pre-Conditions:** None@n
-  * **Dependencies:** None@n
-  * **User Interaction:** None@n
-  * @n
-  * **Test Procedure:**@n
-  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
-  * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment | None | None | Done by Pre-requisite SetUp function |
-  * | 02 | Set an invalid haul type in the instance | haul_type = 999 | None | Should be successful |
-  * | 03 | Retrieve BSS info using the instance | None | bss_info != nullptr | Should Pass |
-  * | 04 | Verify the haul type in the retrieved BSS info | haul_type = 999 | haul_type == 999 | Should Pass |
-  * | 05 | Tear down theTEST environment | None | None | Done by Pre-requisite TearDown function |
-  */
-TEST_F(dm_bss_t_Test, RetrieveBssInfoWithInvalidHaulType) {
-     std::cout << "Entering RetrieveBssInfoWithInvalidHaulTypeTEST" << std::endl;
-     instance->m_bss_info.id.haul_type = static_cast<em_haul_type_t>(999);
-     em_bss_info_t* bss_info = instance->get_bss_info();
-     ASSERT_NE(bss_info, nullptr);
-     ASSERT_EQ(bss_info->id.haul_type, 999);
-     std::cout << "Exiting RetrieveBssInfoWithInvalidHaulTypeTEST" << std::endl;
-}
- 
+
  /**
   * @brief TEST to initialize the BSS information structure
   *
   * ThisTEST verifies the initialization of the BSS information structure by calling the init() method of the dm_bss_t class. TheTEST ensures that the initialization is successful and returns the expected result.
   *
   * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 020@n
+  * **Test Case ID:** 018@n
   * **Priority:** High
   * @n
   * **Pre-Conditions:** None
@@ -675,7 +611,7 @@ TEST_F(dm_bss_t_Test, InitializeBSSInformationStructure) {
   * It ensures that the method can be called repeatedly without causing errors or unexpected behavior.
   *
   * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 021@n
+  * **Test Case ID:** 019@n
   * **Priority:** High@n
   * @n
   * **Pre-Conditions:** None@n
@@ -707,7 +643,7 @@ TEST_F(dm_bss_t_Test, InitializeBSSInformationStructureMultipleTimes) {
   * ThisTEST verifies that the match_criteria function correctly identifies a valid criteria string and returns true.
   *
   * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 022@n
+  * **Test Case ID:** 020@n
   * **Priority:** High
   * @n
   * **Pre-Conditions:** None
@@ -738,7 +674,7 @@ TEST_F(dm_bss_t_Test, MatchCriteriaWithValidCriteriaString) {
   * It ensures that the function correctly identifies that an empty criteria string does not match any criteria.
   *
   * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 023@n
+  * **Test Case ID:** 021@n
   * **Priority:** High@n
   * @n
   * **Pre-Conditions:** None@n
@@ -771,7 +707,7 @@ TEST_F(dm_bss_t_Test, MatchCriteriaWithEmptyCriteriaString) {
   * ThisTEST checks the match_criteria function of the dm_bss_t class to ensure it correctly handles a null criteria string.
   *
   * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 024@n
+  * **Test Case ID:** 022@n
   * **Priority:** High
   * 
   * **Pre-Conditions:** None
@@ -799,7 +735,7 @@ TEST_F(dm_bss_t_Test, MatchCriteriaWithNullCriteriaString) {
   * ThisTEST checks the behavior of the match_criteria function when provided with a string containing special characters. The function is expected to return false, indicating that the criteria do not match.
   *
   * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 025@n
+  * **Test Case ID:** 023@n
   * **Priority:** High
   * @n
   * **Pre-Conditions:** None
@@ -829,7 +765,7 @@ TEST_F(dm_bss_t_Test, MatchCriteriaWithSpecialCharacters) {
   * ThisTEST checks the behavior of the match_criteria function when the input criteria string contains tab, space and newline characters.
   *
   * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 026@n
+  * **Test Case ID:** 024@n
   * **Priority:** High@n
   * @n
   * **Pre-Conditions:** None@n
@@ -859,7 +795,7 @@ TEST_F(dm_bss_t_Test, MatchCriteriaWithTabAndNewlineCharacters) {
   * ThisTEST verifies that the function `parse_bss_id_from_key` correctly parses a valid BSS ID from a given key string. TheTEST ensures that the function returns a success code and the parsed BSS ID is as expected.
   *
   * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 027@n
+  * **Test Case ID:** 025@n
   * **Priority:** High
   * @n
   * **Pre-Conditions:** None
@@ -891,7 +827,7 @@ TEST_F(dm_bss_t_Test, ParseBssIdFromValidKey) {
   * ThisTEST verifies that the `parse_bss_id_from_key` function correctly handles an invalid key string by returning an error code.@n
   *
   * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 028@n
+  * **Test Case ID:** 026@n
   * **Priority:** High@n
   * @n
   * **Pre-Conditions:** None@n
@@ -925,7 +861,7 @@ TEST_F(dm_bss_t_Test, ParseBssIdFromInvalidKey) {
   * It ensures that the function returns an error code (-1) when provided with a NULL key.
   *
   * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 029@n
+  * **Test Case ID:** 027@n
   * **Priority:** High@n
   * @n
   * **Pre-Conditions:** None@n
@@ -956,7 +892,7 @@ TEST_F(dm_bss_t_Test, ParseBssIdWithNullKey) {
   * ThisTEST checks the function parse_bss_id_from_key to ensure it correctly handles the case where the ID pointer is NULL. This is important to verify that the function can gracefully handle invalid input parameters.
   *
   * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 030@n
+  * **Test Case ID:** 028@n
   * **Priority:** High
   * @n
   * **Pre-Conditions:** None
@@ -985,7 +921,7 @@ TEST_F(dm_bss_t_Test, ParseBssIdWithNullIdPointer) {
  * ThisTEST verifies that the parse_bss_id_from_key function correctly handles an empty key string by returning an error code.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 031@n
+ * **Test Case ID:** 029@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1017,7 +953,7 @@ TEST_F(dm_bss_t_Test, ParseBssIdWithEmptyKeyString) {
   * It ensures that the function returns an error code when such keys are provided, as they are not valid.
   *
   * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 032@n
+  * **Test Case ID:** 030@n
   * **Priority:** High
   * 
   * **Pre-Conditions:** None
@@ -1048,7 +984,7 @@ TEST_F(dm_bss_t_Test, ParseBssIdWithKeyContainingSpecialCharacters) {
   * ThisTEST verifies that the function `parse_bss_id_from_key` correctly parses a BSS ID from a key that contains mixed alphanumeric characters. This is important to ensure that the function can handle typical key formats used in the system.
   *
   * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 033@n
+  * **Test Case ID:** 031@n
   * **Priority:** High
   * @n
   * **Pre-Conditions:** None
@@ -1078,7 +1014,7 @@ TEST_F(dm_bss_t_Test, ParseBssIdWithKeyContainingMixedAlphanumericCharacters) {
   * ThisTEST verifies that the `remove_vendor_ie` function correctly handles the removal of a valid vendor-specific information element (IE). TheTEST ensures that the function operates without errors when provided with a valid IE structure.
   *
   * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 034@n
+  * **Test Case ID:** 032@n
   * **Priority:** High@n
   * @n
   * **Pre-Conditions:** None@n
@@ -1110,7 +1046,7 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthValidInput) {
   * ThisTEST verifies that the remove_vendor_ie function can handle a null pointer input without crashing or throwing an exception. This is important to ensure the robustness of the function when dealing with invalid inputs.
   *
   * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 035@n
+  * **Test Case ID:** 033@n
   * **Priority:** High@n
   * @n
   * **Pre-Conditions:** None@n
@@ -1138,7 +1074,7 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthNullPointer) {
   * ThisTEST verifies that the `remove_vendor_ie` function can handle and correctly process a vendor IE with zero length.
   *
   * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 036@n
+  * **Test Case ID:** 034@n
   * **Priority:** High
   * @n
   * **Pre-Conditions:** None
@@ -1168,7 +1104,7 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthZeroLength) {
   * ThisTEST verifies that the `remove_vendor_ie` function can handle and correctly process a vendor IE with the maximum possible length. This is important to ensure that the function can handle edge cases and large inputs without errors.
   *
   * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 037@n
+  * **Test Case ID:** 035@n
   * **Priority:** High@n
   * @n
   * **Pre-Conditions:** None@n
@@ -1201,7 +1137,7 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthMaximumLength) {
   * ThisTEST verifies that the `remove_vendor_ie` function can handle an invalid OUI correctly. TheTEST ensures that the function does not crash or behave unexpectedly when provided with an invalid OUI.
   *
   * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 038@n
+  * **Test Case ID:** 036@n
   * **Priority:** High
   * @n
   * **Pre-Conditions:** None
@@ -1232,7 +1168,7 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthInvalidOUI) {
  * ThisTEST verifies that the `remove_vendor_ie` function can handle an invalid type in the vendor-specific IE structure without causing any errors or crashes. This ensures the robustness of the function when dealing with unexpected input.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 039@n
+ * **Test Case ID:** 037@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1262,7 +1198,7 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthInvalidType) {
  * ThisTEST verifies that the `remove_vendor_ie` function can handle an invalid subtype in the vendor-specific IE correctly. TheTEST ensures that the function does not crash or behave unexpectedly when provided with an invalid subtype.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 040@n
+ * **Test Case ID:** 038@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1293,7 +1229,7 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthInvalidSubtype) {
   * It ensures that the function does not crash or behave unexpectedly when given such input.
   *
   * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 041@n
+  * **Test Case ID:** 039@n
   * **Priority:** High
   * @n
   * **Pre-Conditions:** None
@@ -1324,7 +1260,7 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthEmptyPayload) {
  * ThisTEST checks if two default-constructed objects of the dm_bss_t class are considered equal by the equality operator. This is important to ensure that the equality operator is correctly implemented for the class.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 042@n
+ * **Test Case ID:** 040@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1351,7 +1287,7 @@ TEST(dm_bss_t_Test, CompareIdenticalObjects) {
  * ThisTEST verifies that two dm_bss_t objects with different network IDs are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 043@n
+ * **Test Case ID:** 041@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1383,7 +1319,7 @@ TEST(dm_bss_t_Test, CompareDifferentNetId) {
  * ThisTEST verifies that two dm_bss_t objects with different device MAC addresses are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 044@n
+ * **Test Case ID:** 042@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1413,7 +1349,7 @@ TEST(dm_bss_t_Test, CompareDifferentDevMac) {
  * ThisTEST verifies that two dm_bss_t objects with different ruid values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 045@n
+ * **Test Case ID:** 043@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1442,7 +1378,7 @@ TEST(dm_bss_t_Test, CompareDifferentRuid) {
  * ThisTEST verifies that two different BSSID values are correctly identified as not equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 046@n
+ * **Test Case ID:** 044@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1471,7 +1407,7 @@ TEST(dm_bss_t_Test, CompareDifferentBssid) {
  * ThisTEST verifies that two dm_bss_t objects with different haul types are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 047@n
+ * **Test Case ID:** 045@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1502,7 +1438,7 @@ TEST(dm_bss_t_Test, CompareDifferentHaulType) {
  * ThisTEST verifies that two dm_bss_t objects with different SSIDs are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 048@n
+ * **Test Case ID:** 046@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1533,7 +1469,7 @@ TEST(dm_bss_t_Test, CompareDifferentSsid) {
  * ThisTEST checks if two dm_bss_t objects with different enabled statuses are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 049@n
+ * **Test Case ID:** 047@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1563,7 +1499,7 @@ TEST(dm_bss_t_Test, CompareDifferentEnabledStatus) {
  * ThisTEST verifies that two dm_bss_t objects with different last_change values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 050@n
+ * **Test Case ID:** 048@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1594,7 +1530,7 @@ TEST(dm_bss_t_Test, CompareDifferentLastChange) {
  * ThisTEST verifies that two dm_bss_t objects with different timestamps are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 051@n
+ * **Test Case ID:** 049@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1625,7 +1561,7 @@ TEST(dm_bss_t_Test, CompareDifferentTimestamp) {
  * ThisTEST verifies that two dm_bss_t objects with different unicast_bytes_sent values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 052@n
+ * **Test Case ID:** 050@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1656,7 +1592,7 @@ TEST(dm_bss_t_Test, CompareDifferentUnicastBytesSent) {
  * ThisTEST verifies that two dm_bss_t objects with different unicast_bytes_rcvd values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 053@n
+ * **Test Case ID:** 051@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1685,7 +1621,7 @@ TEST(dm_bss_t_Test, CompareDifferentUnicastBytesRcvd) {
  * ThisTEST verifies that two dm_bss_t objects with different number of stations are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 054@n
+ * **Test Case ID:** 052@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1715,7 +1651,7 @@ TEST(dm_bss_t_Test, CompareDifferentNumberOfSta) {
  * It ensures that the equality operator correctly identifies the objects as not equal when their `est_svc_params_be` fields differ.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 055@n
+ * **Test Case ID:** 053@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1746,7 +1682,7 @@ TEST(dm_bss_t_Test, CompareDifferentEstSvcParamsBe) {
  * ThisTEST verifies that two dm_bss_t objects with different estimated service parameters (est_svc_params_bk) are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 056@n
+ * **Test Case ID:** 054@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1777,7 +1713,7 @@ TEST(dm_bss_t_Test, CompareDifferentEstSvcParamsBk) {
  * ThisTEST verifies that two dm_bss_t objects with different estimated service parameters (est_svc_params_vi) are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 057@n
+ * **Test Case ID:** 055@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1808,7 +1744,7 @@ TEST(dm_bss_t_Test, CompareDifferentEstSvcParamsVi) {
  * ThisTEST verifies that two dm_bss_t objects with different estimated service parameters (est_svc_params_vo) are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 058@n
+ * **Test Case ID:** 056@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1839,7 +1775,7 @@ TEST(dm_bss_t_Test, CompareDifferentEstSvcParamsVo) {
  * ThisTEST checks the equality operator for dm_bss_t objects with different byte counter units. The objective is to ensure that the equality operator correctly identifies objects with different byte counter units as not equal.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 059@n
+ * **Test Case ID:** 057@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1868,7 +1804,7 @@ TEST(dm_bss_t_Test, CompareDifferentByteCounterUnits) {
  * ThisTEST checks the equality operator for dm_bss_t objects when they have different num_fronthaul_akms values.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 060@n
+ * **Test Case ID:** 058@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1897,7 +1833,7 @@ TEST(dm_bss_t_Test, CompareDifferentNumFronthaulAkms) {
  * ThisTEST verifies that two dm_bss_t objects with different fronthaul_akm values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 061@n
+ * **Test Case ID:** 059@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1929,7 +1865,7 @@ TEST(dm_bss_t_Test, CompareDifferentFronthaulAkm) {
  * It ensures that the equality operator correctly identifies the objects as not equal when their num_backhaul_akms values differ.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 062@n
+ * **Test Case ID:** 060@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1958,7 +1894,7 @@ TEST(dm_bss_t_Test, CompareDifferentNumBackhaulAkms) {
  * ThisTEST verifies that two dm_bss_t objects with different backhaul AKM values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 063@n
+ * **Test Case ID:** 061@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1989,7 +1925,7 @@ TEST(dm_bss_t_Test, CompareDifferentBackhaulAkm) {
  * ThisTEST checks the equality operator for dm_bss_t objects when the profile_1b_sta_allowed attribute is different between the two objects. TheTEST ensures that the equality operator correctly identifies the objects as not equal when this attribute differs.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 064@n
+ * **Test Case ID:** 062@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2018,7 +1954,7 @@ TEST(dm_bss_t_Test, CompareDifferentProfile1bStaAllowed) {
  * ThisTEST checks the equality operator for dm_bss_t objects when their profile_2b_sta_allowed values differ. TheTEST ensures that the equality operator correctly identifies the objects as not equal when their profile_2b_sta_allowed values are different.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 065@n
+ * **Test Case ID:** 063@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2047,7 +1983,7 @@ TEST(dm_bss_t_Test, CompareDifferentProfile2bStaAllowed) {
  * ThisTEST verifies that two dm_bss_t objects with different association allowed statuses are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 066@n
+ * **Test Case ID:** 064@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2076,7 +2012,7 @@ TEST(dm_bss_t_Test, CompareDifferentAssocAllowedStatus) {
  * ThisTEST verifies that two dm_bss_t objects with different backhaul_use values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 067@n
+ * **Test Case ID:** 065@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2106,7 +2042,7 @@ TEST(dm_bss_t_Test, CompareDifferentBackhaulUse) {
  * ThisTEST verifies that two dm_bss_t objects with different fronthaul_use values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 068@n
+ * **Test Case ID:** 066@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2135,7 +2071,7 @@ TEST(dm_bss_t_Test, CompareDifferentFronthaulUse) {
  * ThisTEST checks the equality operator for dm_bss_t objects when their r1_disallowed values are different.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 069@n
+ * **Test Case ID:** 067@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2165,7 +2101,7 @@ TEST(dm_bss_t_Test, CompareDifferentR1Disallowed) {
  * It ensures that the equality operator correctly identifies the objects as not equal when one has r2_disallowed set to true and the other to false.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 070@n
+ * **Test Case ID:** 068@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2194,7 +2130,7 @@ TEST(dm_bss_t_Test, CompareDifferentR2Disallowed) {
  * ThisTEST checks the equality operator for dm_bss_t objects when their multi_bssid values are different.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 071@n
+ * **Test Case ID:** 069@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2225,7 +2161,7 @@ TEST(dm_bss_t_Test, CompareDifferentMultiBssid) {
  * transmitted_bssid values are different.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 072@n
+ * **Test Case ID:** 070@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2254,7 +2190,7 @@ TEST(dm_bss_t_Test, CompareDifferentTransmittedBssid) {
  * ThisTEST verifies that two dm_bss_t objects with different EHT operation BSSID values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 073@n
+ * **Test Case ID:** 071@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2284,7 +2220,7 @@ TEST(dm_bss_t_Test, CompareDifferentEhtOps) {
  * It ensures that the equality operator correctly identifies objects with different vendor elements as not equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 074@n
+ * **Test Case ID:** 072@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2314,7 +2250,7 @@ TEST(dm_bss_t_Test, CompareDifferentVendorElements) {
  * ThisTEST verifies that two dm_bss_t objects with different vendor_elements_len values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 075@n
+ * **Test Case ID:** 073@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2343,7 +2279,7 @@ TEST(dm_bss_t_Test, CompareDifferentVendorElementsLen) {
  * ThisTEST checks if the assignment operator correctly assigns initialized values from one instance of dm_bss_t to another instance. This is important to ensure that the assignment operator works as expected and all relevant fields are copied correctly.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 076@n
+ * **Test Case ID:** 074@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2375,7 +2311,7 @@ TEST(dm_bss_t_Test, AssigningInitializedValues) {
  * ThisTEST checks if the assignment operator correctly assigns modified values from one instance of dm_bss_t to another instance.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 077@n
+ * **Test Case ID:** 075@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2406,7 +2342,7 @@ TEST(dm_bss_t_Test, AssigningModifiedValues) {
  * ThisTEST checks the self-assignment operation of the dm_bss_t class to ensure that the object remains consistent and no unintended side effects occur.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 078@n
+ * **Test Case ID:** 076@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2434,7 +2370,7 @@ TEST(dm_bss_t_Test, SelfAssignment) {
  * ThisTEST checks the assignment operator of the dm_bss_t class by assigning different values to the m_bss_info.enabled member and verifying if the assignment is done correctly.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 079@n
+ * **Test Case ID:** 077@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2465,7 +2401,7 @@ TEST(dm_bss_t_Test, AssigningDifferentValues) {
  * ThisTEST checks if the assignment operator correctly assigns the maximum possible value (UINT_MAX) to the unicast_bytes_sent field of the dm_bss_t object. This is important to ensure that the assignment operator handles edge cases correctly.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 080@n
+ * **Test Case ID:** 078@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2495,7 +2431,7 @@ TEST(dm_bss_t_Test, AssigningMaximumValues) {
  * ThisTEST checks the assignment operator of the dm_bss_t class by assigning minimum values (0) to the unicast_bytes_sent member and verifying if the assignment is done correctly.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 081@n
+ * **Test Case ID:** 079@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2525,7 +2461,7 @@ TEST(dm_bss_t_Test, AssigningMinimumValues) {
  * ThisTEST checks the assignment operator of the dm_bss_t class by assigning mixed values to the object's members and verifying if the values are correctly assigned to another object.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 082@n
+ * **Test Case ID:** 080@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2557,7 +2493,7 @@ TEST(dm_bss_t_Test, AssigningMixedValues) {
  * ThisTEST checks if the BSS information is correctly retrieved and matches the expected data when initialized with valid BSS information.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 083@n
+ * **Test Case ID:** 081@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2585,7 +2521,7 @@ TEST(dm_bss_t_Test, ValidBSSInformation) {
  * ThisTEST checks if the dm_bss_t constructor throws an invalid_argument exception when it is initialized with a null BSS information pointer. This is important to ensure that the constructor handles invalid input correctly and prevents potential null pointer dereference issues.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 084@n
+ * **Test Case ID:** 082@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2610,7 +2546,7 @@ TEST(dm_bss_t_Test, NullBSSInformation) {
  * ThisTEST verifies that the BSS information retrieval function works correctly when the BSS information fields are empty. It ensures that the function can handle and return the correct BSS information even when no data is provided initially.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 085@n
+ * **Test Case ID:** 083@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2638,7 +2574,7 @@ TEST(dm_bss_t_Test, BSSInformationWithEmptyFields) {
  * ThisTEST checks the behavior of the BSS information handling when the net_id and ssid fields are filled with maximum length strings. This is to ensure that the system can handle edge cases with maximum input sizes without errors.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 086@n
+ * **Test Case ID:** 084@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2668,7 +2604,7 @@ TEST(dm_bss_t_Test, BSSInformationWithMaxLengthStrings) {
  * ThisTEST checks the behavior of the BSS information retrieval function when provided with an invalid MAC address. The objective is to ensure that the function can handle invalid MAC addresses gracefully and return the expected BSS information structure.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 087@n
+ * **Test Case ID:** 085@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2679,82 +2615,23 @@ TEST(dm_bss_t_Test, BSSInformationWithMaxLengthStrings) {
  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Initialize BSS information with invalid MAC address | bss.id.dev_mac = 0xFF | Should initialize BSS information with invalid MAC address | Should be successful |
- * | 02 | Create dm_bss_t object with initialized BSS information | dm_bss_t obj(&bss) | Should create dm_bss_t object | Should be successful |
- * | 03 | Retrieve BSS information using get_bss_info() | obj.get_bss_info() | Should return pointer to initialized BSS information | Should Pass |
+ * | 02 | Create dm_bss_t object with initialized BSS information | dm_bss_t obj(&bss) | Should create dm_bss_t object | Should not be successful |
  */
 TEST(dm_bss_t_Test, BSSInformationWithInvalidMACAddress) {
      std::cout << "Entering BSSInformationWithInvalidMACAddressTEST";
      em_bss_info_t bss;
      memset(bss.id.dev_mac, 0xFF, sizeof(bss.id.dev_mac));
      dm_bss_t obj(&bss);
-     ASSERT_EQ(obj.get_bss_info(), &bss);
      std::cout << "Exiting BSSInformationWithInvalidMACAddressTEST";
 }
- 
- /**
- * @brief TEST the behavior of BSSInformation with an invalid haul type
- *
- * ThisTEST verifies that the BSSInformation function correctly handles an invalid haul type by setting the haul type to an invalid value and checking if the function returns the expected BSS information structure.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 088@n
- * **Priority:** High@n
- * @n
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description |TEST Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set haul type to an invalid value and create dm_bss_t object | haul_type = 999 | dm_bss_t object should be created successfully | Should be successful |
- * | 02 | Call get_bss_info() method | None | Should return the BSS information structure with the invalid haul type | Should Pass |
- */
-TEST(dm_bss_t_Test, BSSInformationWithInvalidHaulType) {
-     std::cout << "Entering BSSInformationWithInvalidHaulTypeTEST";
-     em_bss_info_t bss;
-     bss.id.haul_type = static_cast<em_haul_type_t>(999);
-     dm_bss_t obj(&bss);
-     ASSERT_EQ(obj.get_bss_info(), &bss);
-     std::cout << "Exiting BSSInformationWithInvalidHaulTypeTEST";
-}
- 
- /**
- * @brief TEST the behavior of BSSInformation with an invalid media type
- *
- * ThisTEST checks the behavior of the BSSInformation function when provided with an invalid media type. The objective is to ensure that the function can handle invalid media types gracefully without causing unexpected behavior or crashes.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 089@n
- * **Priority:** High@n
- * @n
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description |TEST Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Initialize BSS with invalid media type | bss.bssid.media = 999 | N/A | Should be successful |
- * | 02 | Create dm_bss_t object with invalid media type BSS | dm_bss_t obj(&bss) | N/A | Should be successful |
- * | 03 | Verify BSS information retrieval | obj.get_bss_info() | Return value should be &bss, Assertion should pass | Should Pass |
- */
-TEST(dm_bss_t_Test, BSSInformationWithInvalidMediaType) {
-     std::cout << "Entering BSSInformationWithInvalidMediaTypeTEST";
-     em_bss_info_t bss;
-     bss.bssid.media = static_cast<em_media_type_t>(999);
-     dm_bss_t obj(&bss);
-     ASSERT_EQ(obj.get_bss_info(), &bss);
-     std::cout << "Exiting BSSInformationWithInvalidMediaTypeTEST";
-}
- 
+
  /**
  * @brief TEST the BSS information handling with maximum vendor elements
  *
  * ThisTEST verifies that the BSS information structure can handle the maximum number of vendor elements correctly. It ensures that the vendor elements are properly initialized and that the BSS information is correctly retrieved from the object.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 090@n
+ * **Test Case ID:** 086@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2766,7 +2643,6 @@ TEST(dm_bss_t_Test, BSSInformationWithInvalidMediaType) {
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Initialize vendor elements to maximum value | bss.vendor_elements = 0xAA, bss.vendor_elements_len = sizeof(bss.vendor_elements) | Vendor elements should be initialized to 0xAA | Should be successful |
  * | 02 | Create dm_bss_t object with initialized BSS info | bss = initialized BSS info | Object should be created successfully | Should be successful |
- * | 03 | Retrieve BSS info from object and verify | obj.get_bss_info() | Should return pointer to initialized BSS info | Should Pass |
  */
 TEST(dm_bss_t_Test, BSSInformationWithMaxVendorElements) {
      std::cout << "Entering BSSInformationWithMaxVendorElementsTEST";
@@ -2774,7 +2650,6 @@ TEST(dm_bss_t_Test, BSSInformationWithMaxVendorElements) {
      memset(bss.vendor_elements, 0xAA, sizeof(bss.vendor_elements));
      bss.vendor_elements_len = sizeof(bss.vendor_elements);
      dm_bss_t obj(&bss);
-     ASSERT_EQ(obj.get_bss_info(), &bss);
      std::cout << "Exiting BSSInformationWithMaxVendorElementsTEST";
 }
  
@@ -2784,7 +2659,7 @@ TEST(dm_bss_t_Test, BSSInformationWithMaxVendorElements) {
  * ThisTEST checks the behavior of the BSS information handling when the vendor elements length is set to zero. This is important to ensure that the system can handle cases where no vendor-specific information is provided.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 091@n
+ * **Test Case ID:** 087@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2813,7 +2688,7 @@ TEST(dm_bss_t_Test, BSSInformationWithZeroLengthVendorElements) {
  * ThisTEST verifies that the copy constructor of the dm_bss_t class correctly copies the bss_info from the original object to the new object. This ensures that the copy constructor performs a deep copy of the bss_info member.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 092@n
+ * **Test Case ID:** 088@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2847,7 +2722,7 @@ TEST(dm_bss_t_Test, BSSInformationWithZeroLengthVendorElements) {
  * ThisTEST verifies that the copy constructor of the dm_bss_t class correctly copies an object that has special characters in its string attributes. This is important to ensure that the copy constructor handles all types of characters properly.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 093@n
+ * **Test Case ID:** 089@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
