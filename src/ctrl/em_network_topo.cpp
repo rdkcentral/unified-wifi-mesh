@@ -54,7 +54,9 @@ void em_network_topo_t::encode(cJSON *parent)
 
 	for (i = 0; i < m_num_topologies; i++) {
 		child_obj = cJSON_AddObjectToObject(bh_obj, "Device");
-		m_topology[i]->encode(child_obj);
+		if (child_obj != NULL) {
+			m_topology[i]->encode(child_obj);
+		}
 	}	
 }
 
