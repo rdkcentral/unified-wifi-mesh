@@ -438,7 +438,7 @@ int em_configuration_t::create_operational_bss_tlv_topology(unsigned char *buff)
 	ap->radios_num = 1;  //Hard-Coding since topology response is per radio
 	radio = ap->radios;
 	for (i = 0; i < dm->get_num_radios(); i++) {
-		if ((dm->get_radio_by_ref(i).get_radio_interface_mac(), get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
+		if (memcmp(dm->get_radio_by_ref(i).get_radio_interface_mac(), get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
 			memcpy(radio->ruid, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t));
 			radio->bss_num = 0;
 			bss = radio->bss;
