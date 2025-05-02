@@ -408,9 +408,16 @@ TEST(AlServiceExceptionTest, RetrievePrimitiveErrorForFragmentOutOfOrder) {
 *
 */
 TEST_F(AlServiceExceptionTest, ConstructorWithEmptyMessageAndRequestFailed) {
-    std::cout << "Entering ConstructorWithEmptyMessageAndRequestFailed test";
-    AlServiceException ex("", PrimitiveError::RequestFailed);
-    std::cout << "Exiting ConstructorWithEmptyMessageAndRequestFailed test";
+    std::cout << "Entering ConstructorWithEmptyMessageAndRequestFailed test" << std::endl;
+    try {
+        AlServiceException ex("", PrimitiveError::RequestFailed);
+        std::cout << "AlServiceException created successfully" << std::endl;
+    } catch (const std::exception& e) {
+        FAIL() << "Exception thrown: " << e.what();
+    } catch (...) {
+        FAIL() << "Unknown exception thrown";
+    }
+    std::cout << "Exiting ConstructorWithEmptyMessageAndRequestFailed test" << std::endl;
 }
 
 /**
@@ -433,9 +440,16 @@ TEST_F(AlServiceExceptionTest, ConstructorWithEmptyMessageAndRequestFailed) {
 *
 */
 TEST_F(AlServiceExceptionTest, ConstructorWithValidMessageAndInvalidError) {
-    std::cout << "Entering ConstructorWithValidMessageAndInvalidError test";
-    AlServiceException ex("Valid message", 15);
-    std::cout << "Exiting ConstructorWithValidMessageAndInvalidError test";
+    std::cout << "Entering ConstructorWithValidMessageAndInvalidError test" << std::endl;
+    try {
+        AlServiceException ex("Valid message", static_cast<PrimitiveError>(15));
+        std::cout << "AlServiceException created successfully" << std::endl;
+    } catch (const std::exception& e) {
+        FAIL() << "Exception thrown: " << e.what();
+    } catch (...) {
+        FAIL() << "Unknown exception thrown";
+    }
+    std::cout << "Exiting ConstructorWithValidMessageAndInvalidError test" << std::endl;
 }
 
 int main(int argc, char **argv) {

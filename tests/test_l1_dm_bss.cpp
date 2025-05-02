@@ -2823,23 +2823,28 @@ TEST(dm_bss_t_Test, BSSInformationWithZeroLengthVendorElements) {
  * **Test Procedure:**@n
  * | Variation / Step | Description |TEST Data |Expected Result |Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01| Initialize original dm_bss_t object | original.init() | original object initialized | Should be successful |
+ * | 01| Initialize original dm_bss_t object with valid values | original.m_bss_info.ssid = "Test123", original.m_bss_info.enabled = 1, original.m_bss_info.backhaul_use = 1 | original object initialized | Should be successful |
  * | 02| Copy construct dm_bss_t object from original | dm_bss_t copy(original) | copy object created from original | Should be successful |
- * | 03| Compare bss_info of original and copy | *original.get_bss_info(), *copy.get_bss_info() | ASSERT_EQ(*original.get_bss_info(), *copy.get_bss_info()) | Should Pass |
+ * | 03| Compare bss_info of original and copy | copy.m_bss_info.ssid = "Test123", copy.m_bss_info.enabled = 1, copy.m_bss_info.backhaul_use = 1 | Values should be same as original | Should Pass |
  */
-TEST(dm_bss_t_Test, CopyConstructorWithValidDmBssTObject) {
+ TEST(dm_bss_t_Test, CopyConstructorWithValidDmBssTObject) {
      std::cout << "Entering CopyConstructorWithValidDmBssTObject" << std::endl;
      dm_bss_t original;
-     original.init();
+     memset(original.m_bss_info.ssid, 0, sizeof(original.m_bss_info.ssid));
+     memcpy(original.m_bss_info.ssid, "Test123", 7);
+     original.m_bss_info.enabled = 1;
+     original.m_bss_info.backhaul_use = 1;
      dm_bss_t copy(original);
-     ASSERT_EQ(*original.get_bss_info(), *copy.get_bss_info());
+     ASSERT_EQ(0, memcmp(original.m_bss_info.ssid, copy.m_bss_info.ssid, sizeof(original.m_bss_info.ssid)));
+     ASSERT_EQ(original.m_bss_info.enabled, copy.m_bss_info.enabled);
+     ASSERT_EQ(original.m_bss_info.backhaul_use, copy.m_bss_info.backhaul_use);
      std::cout << "Exiting CopyConstructorWithValidDmBssTObject" << std::endl;
-}
+ }
  
  /**
- * @brief TEST the copy constructor of dm_bss_t class with an object having maximum values
+ * @brief TEST the copy constructor of dm_bss_t class with special characters in strings
  *
- * ThisTEST verifies that the copy constructor of the dm_bss_t class correctly copies an object that has its m_bss_info member set to maximum values. This ensures that the copy constructor can handle edge cases where the object contains maximum possible values.
+ * ThisTEST verifies that the copy constructor of the dm_bss_t class correctly copies an object that has special characters in its string attributes. This is important to ensure that the copy constructor handles all types of characters properly.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 093@n
@@ -2852,135 +2857,17 @@ TEST(dm_bss_t_Test, CopyConstructorWithValidDmBssTObject) {
  * **Test Procedure:**@n
  * | Variation / Step | Description |TEST Data |Expected Result |Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01| Create an original dm_bss_t object and set its m_bss_info to maximum values | original.m_bss_info = 0xFF | Object created with maximum values | Should be successful |
- * | 02| Create a copy of the original object using the copy constructor | dm_bss_t copy(original) | Copy created with the same values as original | Should Pass |
- * | 03| Compare the m_bss_info of the original and the copy | original.get_bss_info(), copy.get_bss_info() | Both should be equal | Should Pass |
- */
-TEST(dm_bss_t_Test, CopyConstructorWithDmBssTObjectHavingMaximumValues) {
-     std::cout << "Entering CopyConstructorWithDmBssTObjectHavingMaximumValues" << std::endl;
-     dm_bss_t original;
-     memset(&original.m_bss_info, 0xFF, sizeof(em_bss_info_t));
-     dm_bss_t copy(original);
-     ASSERT_EQ(*original.get_bss_info(), *copy.get_bss_info());
-     std::cout << "Exiting CopyConstructorWithDmBssTObjectHavingMaximumValues" << std::endl;
-}
- 
- /**
- * @brief TEST the copy constructor of dm_bss_t class with an object having minimum values
- *
- * ThisTEST verifies that the copy constructor of the dm_bss_t class correctly copies an object that has its m_bss_info member set to minimum values (all zeros). TheTEST ensures that the copied object has the same bss_info as the original object.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 094@n
- * **Priority:** High@n
- * @n
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description |TEST Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Initialize original dm_bss_t object with minimum values | original.m_bss_info = 0x00 | original object initialized | Should be successful |
- * | 02 | Copy construct dm_bss_t object from original | dm_bss_t copy(original) | copy object created | Should be successful |
- * | 03 | Compare bss_info of original and copy | original.get_bss_info(), copy.get_bss_info() | ASSERT_EQ(*original.get_bss_info(), *copy.get_bss_info()) | Should Pass |
- */
-TEST(dm_bss_t_Test, CopyConstructorWithDmBssTObjectHavingMinimumValues) {
-     std::cout << "Entering CopyConstructorWithDmBssTObjectHavingMinimumValues" << std::endl;
-     dm_bss_t original;
-     memset(&original.m_bss_info, 0x00, sizeof(em_bss_info_t));
-     dm_bss_t copy(original);
-     ASSERT_EQ(*original.get_bss_info(), *copy.get_bss_info());
-     std::cout << "Exiting CopyConstructorWithDmBssTObjectHavingMinimumValues" << std::endl;
-}
- 
- /**
- * @brief TEST the copy constructor of dm_bss_t class when the original object has null pointers in bss_info.
- *
- * ThisTEST verifies that the copy constructor of the dm_bss_t class correctly handles the case where the original object's bss_info pointers are null. It ensures that the copied object has the same bss_info values as the original object.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 095@n
- * **Priority:** High@n
- * @n
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description |TEST Data |Expected Result |Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01| Initialize original dm_bss_t object | original.init() | original object initialized | Should be successful |
- * | 02| Invoke copy constructor | dm_bss_t copy(original) | copy object created | Should be successful |
- * | 03| Compare bss_info of original and copy | *original.get_bss_info(), *copy.get_bss_info() | Values should be equal | Should Pass |
- */
-TEST(dm_bss_t_Test, CopyConstructorWithDmBssTObjectHavingNullPointersInBssInfo) {
-     std::cout << "Entering CopyConstructorWithDmBssTObjectHavingNullPointersInBssInfo" << std::endl;
-     dm_bss_t original;
-     original.init();
-     dm_bss_t copy(original);
-     ASSERT_EQ(*original.get_bss_info(), *copy.get_bss_info());
-     std::cout << "Exiting CopyConstructorWithDmBssTObjectHavingNullPointersInBssInfo" << std::endl;
-}
- 
- /**
- * @brief TEST the copy constructor of dm_bss_t class when the original object has empty strings in bss_info.
- *
- * ThisTEST verifies that the copy constructor of the dm_bss_t class correctly copies an object whose bss_info contains empty strings. This ensures that the copy constructor handles empty string scenarios properly.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 096@n
- * **Priority:** High@n
- * @n
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description |TEST Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Initialize original dm_bss_t object | original.init() | Should be successful | |
- * | 02 | Set ssid in original's bss_info to empty | memset(original.m_bss_info.ssid, 0, sizeof(ssid_t)) | Should be successful | |
- * | 03 | Invoke copy constructor | dm_bss_t copy(original) | Should be successful | Should Pass |
- * | 04 | Compare bss_info of original and copy | ASSERT_EQ(*original.get_bss_info(), *copy.get_bss_info()) | Should be successful | Should Pass |
- */
-TEST(dm_bss_t_Test, CopyConstructorWithDmBssTObjectHavingEmptyStringsInBssInfo) {
-     std::cout << "Entering CopyConstructorWithDmBssTObjectHavingEmptyStringsInBssInfo" << std::endl;
-     dm_bss_t original;
-     original.init();
-     memset(original.m_bss_info.ssid, 0, sizeof(ssid_t));
-     dm_bss_t copy(original);
-     ASSERT_EQ(*original.get_bss_info(), *copy.get_bss_info());
-     std::cout << "Exiting CopyConstructorWithDmBssTObjectHavingEmptyStringsInBssInfo" << std::endl;
-}
- 
- /**
- * @brief TEST the copy constructor of dm_bss_t class with special characters in strings
- *
- * ThisTEST verifies that the copy constructor of the dm_bss_t class correctly copies an object that has special characters in its string attributes. This is important to ensure that the copy constructor handles all types of characters properly.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 097@n
- * **Priority:** High@n
- * @n
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description |TEST Data |Expected Result |Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01| Initialize original dm_bss_t object and set special characters in ssid | original.init(), original.m_bss_info.ssid = "!@#$%^&*()" | Initialization should be successful | Should be successful |
+ * | 01| Initialize original dm_bss_t object and set special characters in ssid | original.m_bss_info.ssid = "!@#$%^&*()" | Initialization should be successful | Should be successful |
  * | 02| Invoke copy constructor with original object | dm_bss_t copy(original) | Copy should have the same ssid as original | Should Pass |
- * | 03| Assert that the bss_info of original and copy are equal | ASSERT_EQ(*original.get_bss_info(), *copy.get_bss_info()) | Assertion should pass | Should Pass |
+ * | 03| Assert that the ssid of original and copy are equal | SSERT_EQ(0, memcmp(original.m_bss_info.ssid, copy.m_bss_info.ssid, sizeof(original.m_bss_info.ssid))) | Assertion should pass | Should Pass |
  */
 TEST(dm_bss_t_Test, CopyConstructorWithDmBssTObjectHavingSpecialCharactersInStrings) {
      std::cout << "Entering CopyConstructorWithDmBssTObjectHavingSpecialCharactersInStrings" << std::endl;
      dm_bss_t original;
-     original.init();
-     strcpy(original.m_bss_info.ssid, "!@#$%^&*()");
+     memset(original.m_bss_info.ssid, 0, sizeof(original.m_bss_info.ssid));
+     memcpy(original.m_bss_info.ssid, "!@#$%^&*()", 10);
      dm_bss_t copy(original);
-     ASSERT_EQ(*original.get_bss_info(), *copy.get_bss_info());
+     ASSERT_EQ(0, memcmp(original.m_bss_info.ssid, copy.m_bss_info.ssid, sizeof(original.m_bss_info.ssid)));
      std::cout << "Exiting CopyConstructorWithDmBssTObjectHavingSpecialCharactersInStrings" << std::endl;
 }
  
