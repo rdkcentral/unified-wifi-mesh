@@ -90,32 +90,42 @@ TEST_F(AlServiceAccessPointTest, VerifyServiceAccessPointDataIndication) {
 }
 
 /**
- * @brief Test the serviceAccessPointDataRequest function.
+ * @brief Test the serviceAccessPointDataRequest function with a valid AlServiceDataUnit message.
  *
- * This test verifies that the serviceAccessPointDataRequest function correctly processes valid input
+ * This test verifies that the serviceAccessPointDataRequest function correctly processes a well-formed
+ * AlServiceDataUnit message, including MAC addresses, fragmentation flags, and payload.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 003@n
  * **Priority:** High@n
  * @n
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
+ * **Pre-Conditions:** serviceAccessPoint must be initialized@n
+ * **Dependencies:** AlServiceAccessPoint and AlServiceDataUnit classes@n
  * **User Interaction:** None@n
  * @n
  * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set up the test environment by initializing the service access point | None | Service access point initialized | Done by Pre-requisite SetUp function |
- * | 02 | Create a valid AlServiceRegistrationRequest message | AlServiceRegistrationRequest message | Message should be set correctly | Should be successful |
- * | 03 | Send the message through the service access point | message | Message sent successfully | Should Pass |
- * | 04 | Tear down the test environment by deleting the service access point | None | Service access point deleted | Done by Pre-requisite TearDown function |
+ * | Step | Description | Test Data | Expected Result | Notes |
+ * | :--: | ----------- | --------- | ---------------- | ----- |
+ * | 01 | Initialize an AlServiceDataUnit message | Directly set MAC addresses, fragment flags, and payload | Data unit should contain valid content | Direct field access |
+ * | 02 | Send the message using serviceAccessPointDataRequest | Populated dataUnit object | No exception is thrown | Uses ASSERT_NO_THROW |
+ * | 03 | Clean up any used resources | None | Automatic via test framework |  |
  */
-TEST_F(AlServiceAccessPointTest, ValidDataUnitMessage) {
+ TEST_F(AlServiceAccessPointTest, ValidDataUnitMessage) {
     std::cout << "Entering ValidDataUnitMessage test" << std::endl;
-	ServiceOperation Operation = ServiceOperation::SOP_ENABLE;
-    ServiceType Type = service operation::BASIC;
-	AlServiceRegistrationRequest request(Operation, Type);
-    serviceAccessPoint->serviceAccessPointDataRequest(message);
+    AlServiceDataUnit dataUnit;
+    // Directly populate MAC addresses
+    dataUnit.sourceAlMacAddress = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
+    dataUnit.destinationAlMacAddress = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB};
+    // Set fragmentation info
+    dataUnit.isFragment = 0;
+    dataUnit.isLastFragment = 1;
+    dataUnit.fragmentId = 1;
+    // Set a basic payload
+    dataUnit.payload = {'H', 'e', 'l', 'l', 'o'};
+    // Exercise the method under test
+    ASSERT_NO_THROW({
+        serviceAccessPoint->serviceAccessPointDataRequest(dataUnit);
+    });
     std::cout << "Exiting ValidDataUnitMessage test" << std::endl;
 }
 

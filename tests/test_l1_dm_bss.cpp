@@ -2207,8 +2207,10 @@ TEST(dm_bss_t_Test, CompareDifferentEhtOps) {
      std::cout << "Entering CompareDifferentEhtOps" << std::endl;
      dm_bss_t obj1;
      dm_bss_t obj2;
-     memcpy(obj1.m_bss_info.eht_ops.bssid, (unsigned char[]){0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, 6);
-     memcpy(obj2.m_bss_info.eht_ops.bssid, (unsigned char[]){0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, 6);
+     unsigned char temp_bssid[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
+     unsigned char temp_bssid2[] = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB};
+     memcpy(obj1.m_bss_info.eht_ops.bssid, temp_bssid, sizeof(temp_bssid));
+     memcpy(obj2.m_bss_info.eht_ops.bssid, temp_bssid2, sizeof(temp_bssid2));
      EXPECT_FALSE(obj1 == obj2);
      std::cout << "Exiting CompareDifferentEhtOps" << std::endl;
 }

@@ -407,7 +407,7 @@ TEST(AlServiceExceptionTest, RetrievePrimitiveErrorForFragmentOutOfOrder) {
 * | 01 | Create an instance of AlServiceException with an empty message and PrimitiveError::RequestFailed | message = "", error = PrimitiveError::RequestFailed | The message should be empty, and the error code should be PrimitiveError::RequestFailed | Should Pass |
 *
 */
-TEST_F(AlServiceExceptionTest, ConstructorWithEmptyMessageAndRequestFailed) {
+TEST(AlServiceExceptionTest, ConstructorWithEmptyMessageAndRequestFailed) {
     std::cout << "Entering ConstructorWithEmptyMessageAndRequestFailed test" << std::endl;
     try {
         AlServiceException ex("", PrimitiveError::RequestFailed);
@@ -439,7 +439,7 @@ TEST_F(AlServiceExceptionTest, ConstructorWithEmptyMessageAndRequestFailed) {
 * | 01| Create an instance of AlServiceException with valid message and unknown error | message = "Valid message", error = 15 | Constructor should not initialize the object with valid message and invalid error | Should Fail |
 *
 */
-TEST_F(AlServiceExceptionTest, ConstructorWithValidMessageAndInvalidError) {
+TEST(AlServiceExceptionTest, ConstructorWithValidMessageAndInvalidError) {
     std::cout << "Entering ConstructorWithValidMessageAndInvalidError test" << std::endl;
     try {
         AlServiceException ex("Valid message", static_cast<PrimitiveError>(15));

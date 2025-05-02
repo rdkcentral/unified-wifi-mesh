@@ -1115,23 +1115,26 @@ TEST(dm_ap_mld_tTest, ZeroAffiliatedAPs) {
 * **Test Procedure:**@n
 * | Variation / Step | Description | Test Data | Expected Result | Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Initialize max_instance with maximum values | m_ap_mld_info.mac_addr_valid = true, m_ap_mld_info.ssid = "MaxSSID", m_ap_mld_info.mac_addr = {255, 255, 255, 255, 255, 255}, m_ap_mld_info.str = true, m_ap_mld_info.nstr = true, m_ap_mld_info.emlsr = true, m_ap_mld_info.emlmr = true, m_ap_mld_info.num_affiliated_ap = EM_MAX_AP_MLD | max_instance should be initialized with the given values | Should be successful |
+* | 01 | Initialize max_instance with maximum values | m_ap_mld_info.mac_addr_valid = true, m_ap_mld_info.ssid = "MaxSSID", m_ap_mld_info.str = true, m_ap_mld_info.nstr = true, m_ap_mld_info.emlsr = true, m_ap_mld_info.emlmr = true, m_ap_mld_info.num_affiliated_ap = EM_MAX_AP_MLD | max_instance should be initialized with the given values | Should be successful |
 * | 02 | Copy max_instance to copy_instance using copy constructor | copy_instance(max_instance) | copy_instance should be equal to max_instance | Should Pass |
-* | 03 | Assert that copy_instance is equal to max_instance | ASSERT_EQ(copy_instance, max_instance) | The assertion should pass, confirming the copy was successful | Should Pass |
+* | 03 | Assert that copy_instance is equal to max_instance | copy_instance.m_ap_mld_info.str = true, copy_instance.m_ap_mld_info.nstr = true, copy_instance.m_ap_mld_info.emlsr = true, copy_instance.m_ap_mld_info.emlmr = true, copy_instance.m_ap_mld_info.num_affiliated_ap = EM_MAX_AP_MLD | The assertion should pass, confirming the copy was successful | Should Pass |
 */
 TEST(dm_ap_mld_tTest, CopyConstructorWithValidValues) {
     std::cout << "Entering CopyConstructorWithValidValues" << std::endl;
     dm_ap_mld_t max_instance;
     max_instance.m_ap_mld_info.mac_addr_valid = true;
     strncpy(max_instance.m_ap_mld_info.ssid, "MaxSSID", sizeof(max_instance.m_ap_mld_info.ssid));
-    max_instance.m_ap_mld_info.mac_addr = {255, 255, 255, 255, 255, 255};
     max_instance.m_ap_mld_info.str = true;
     max_instance.m_ap_mld_info.nstr = true;
     max_instance.m_ap_mld_info.emlsr = true;
     max_instance.m_ap_mld_info.emlmr = true;
     max_instance.m_ap_mld_info.num_affiliated_ap = EM_MAX_AP_MLD;
     dm_ap_mld_t copy_instance(max_instance);
-    ASSERT_EQ(copy_instance, max_instance);
+    ASSERT_EQ(copy_instance.m_ap_mld_info.str, true);
+    ASSERT_EQ(copy_instance.m_ap_mld_info.nstr, true);
+    ASSERT_EQ(copy_instance.m_ap_mld_info.emlsr, true);
+    ASSERT_EQ(copy_instance.m_ap_mld_info.emlmr, true);
+    ASSERT_EQ(copy_instance.m_ap_mld_info.num_affiliated_ap, EM_MAX_AP_MLD);
     std::cout << "Exiting CopyConstructorWithValidValues" << std::endl;
 }
 

@@ -348,10 +348,10 @@ TEST_F(AlServiceDataUnitTest, DeserializeWithValidDataVector) {
 TEST_F(AlServiceDataUnitTest, DeserializeWithMaximumSizeDataVector) {
     std::cout << "Entering DeserializeWithMaximumSizeDataVector test" << std::endl;
     std::vector<unsigned char> data(256);
-    for (int i = 0; i < 256; ++i) {
+    for (size_t i = 0; i < data.size(); ++i) {
         data[i] = static_cast<unsigned char>(i);
     }
-    alServiceDataUnit->deserialize(data);    
+    alServiceDataUnit->deserialize(data);
     std::cout << "Exiting DeserializeWithMaximumSizeDataVector test" << std::endl;
 }
 
@@ -488,12 +488,20 @@ TEST_F(AlServiceDataUnitTest, DeserializeWithDataVectorContainingInvalidMacAddre
  * | 02 | Retrieve the destination AL MAC address using getDestinationAlMacAddress() | None | MAC address should be retrieved | Should be successful |
  * | 03 | Clean up the test environment by deleting AlServiceDataUnit object | None | AlServiceDataUnit object should be deleted | Done by Pre-requisite TearDown function |
  */
-TEST_F(AlServiceDataUnitTest, RetrievePrintAndVerifyDestinationAlMacAddress) {
+ TEST_F(AlServiceDataUnitTest, RetrievePrintAndVerifyDestinationAlMacAddress) {
     std::cout << "Entering RetrievePrintAndVerifyDestinationAlMacAddress test" << std::endl;
     MacAddress macAddress = alServiceDataUnit->getDestinationAlMacAddress();
-    std::cout << "Destination AL MAC Address: " << macAddress << std::endl;
+    std::cout << "Destination AL MAC Address: ";
+    for (size_t i = 0; i < macAddress.size(); ++i) {
+        std::cout << std::hex << std::setw(2) << std::setfill('0')
+                  << static_cast<int>(macAddress[i]);
+        if (i != macAddress.size() - 1)
+            std::cout << ":";
+    }
+    std::cout << std::dec << std::endl;
     std::cout << "Exiting RetrievePrintAndVerifyDestinationAlMacAddress test" << std::endl;
 }
+
 
 /**
  * @brief Test to verify the retrieval and printing of Fragment ID

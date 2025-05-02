@@ -369,12 +369,12 @@ TEST_F(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoAfterInitialization) {
  * | 05 | Verify the AP MLD MAC address of the instance | mac2 = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB} | memcmp(info->ap_mld_mac_addr, mac2, sizeof(mac_address_t)) == 0 | Should Pass |
  * | 06 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
  */
-TEST_F(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithValidMACAddresses) {
+ TEST_F(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithValidMACAddresses) {
     std::cout << "Entering RetrieveAPMLDInfoWithValidMACAddresses test" << std::endl;
     mac_address_t mac1 = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
     mac_address_t mac2 = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB};
-    instance->m_assoc_sta_mld_info.mac_addr = mac1;
-    instance->m_assoc_sta_mld_info.ap_mld_mac_addr = mac2;
+    std::memcpy(instance->m_assoc_sta_mld_info.mac_addr, mac1, sizeof(mac_address_t));
+    std::memcpy(instance->m_assoc_sta_mld_info.ap_mld_mac_addr, mac2, sizeof(mac_address_t));
     em_assoc_sta_mld_info_t* info = instance->get_ap_mld_info();
     ASSERT_NE(info, nullptr);
     ASSERT_EQ(memcmp(info->mac_addr, mac1, sizeof(mac_address_t)), 0);
