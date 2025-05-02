@@ -1753,7 +1753,7 @@ int em_configuration_t::handle_eht_operations_tlv(unsigned char *buff)
     unsigned char *tmp = buff;
 
     unsigned char num_radios;
-    unsigned char num_bss;
+    unsigned char num_bss = 0;
 
     em_eht_operations_t eht_ops;
 

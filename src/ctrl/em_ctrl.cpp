@@ -645,7 +645,8 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 
         case em_msg_type_topo_notif:
         case em_msg_type_client_cap_rprt:
-            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+        case em_msg_type_ap_metrics_rsp:
+           if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                     len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_bss_id(&bssid) == false) {
                 printf("%s:%d: Could not find bss id in msg:0x%04x\n", __func__, __LINE__, htons(cmdu->type));
                 return NULL;
@@ -661,7 +662,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 dm_easy_mesh_t::macbytes_to_string(bssid, mac_str1);
     
                 snprintf(key, sizeof (em_2xlong_string_t), "%s@%s@%s@%s@", dm->get_radio_info(i)->id.net_id, dev_mac_str, radio_mac_str, mac_str1);
-
+                printf("%s:%d: key to get bss[%s] from data model: %s\n", __func__, __LINE__, mac_str1, key);
                 if ((bss = m_data_model.get_bss(key)) == NULL) {
                     found = false;
                     continue;
@@ -758,16 +759,6 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             // TODO: Add more types and might have to work on addressing more
 	        em = al_em;
 	        break;
-
-        case em_msg_type_ap_metrics_rsp:
-            em = static_cast<em_t *> (hash_map_get_first(m_em_map));
-            while(em != NULL) {
-                if (em->is_al_interface_em() == false) {
-                    break;
-                }
-                em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
-            }
-            break;
 
         default:
             printf("%s:%d: Frame: 0x%04x not handled in controller\n", __func__, __LINE__, htons(cmdu->type));

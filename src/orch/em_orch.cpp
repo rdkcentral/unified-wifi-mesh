@@ -308,7 +308,8 @@ bool em_orch_t::is_cmd_type_in_progress(em_bus_event_t *evt)
 
     snprintf(key, sizeof(em_short_string_t), "%d", type);
 
-    if (type == em_cmd_type_cfg_renew ) {
+    if ((type == em_cmd_type_cfg_renew ) ||
+        (type == em_cmd_type_ap_metrics_report)) {
         return is_cmd_type_renew_in_progress(evt);
     }
     if ((stats = static_cast<em_cmd_stats_t *>(hash_map_get(m_cmd_map, key))) != NULL) {
