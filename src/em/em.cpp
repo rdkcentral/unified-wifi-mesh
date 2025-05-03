@@ -168,7 +168,9 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 		
         case em_cmd_type_channel_pref_query:
-            m_sm.set_state(em_state_agent_channel_pref_query);
+	    if (m_sm.get_state() == em_state_agent_topo_synchronized) {
+		    m_sm.set_state(em_state_agent_channel_pref_query);
+	    }
             break;
 
         case em_cmd_type_op_channel_report:

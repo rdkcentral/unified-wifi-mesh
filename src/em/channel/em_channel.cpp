@@ -1948,7 +1948,7 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
     cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
     switch (htons(cmdu->type)) {
         case em_msg_type_channel_pref_query:
-		if ((get_service_type() == em_service_type_agent) && (get_state() < em_state_agent_channel_selection_pending)) {
+		if (get_service_type() == em_service_type_agent) {
 		        handle_channel_pref_query(data, len);
 	        }
             break; 
@@ -1974,7 +1974,7 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
 	    break;
 
         case em_msg_type_channel_sel_req:
-            if (get_service_type() == em_service_type_agent) {
+            if ((get_service_type() == em_service_type_agent)  && (get_state() < em_state_agent_channel_select_configuration_pending)) {
                 handle_channel_sel_req(data, len);
                 send_channel_sel_response_msg(em_chan_sel_resp_code_type_accept, htons(cmdu->id));
             }
@@ -2010,7 +2010,7 @@ void em_channel_t::process_state()
 
     switch (get_state()) {
 		case em_state_agent_channel_pref_query:
-			if (get_service_type() == em_service_type_agent) {
+			if ((get_service_type() == em_service_type_agent) && (get_state() < em_state_agent_channel_selection_pending)) {
 				send_channel_pref_report_msg();
 				printf("%s:%d channel_pref_report_msg send\n", __func__, __LINE__);
 				set_state(em_state_agent_channel_selection_pending);
