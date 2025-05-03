@@ -342,13 +342,15 @@ int em_metrics_t::handle_assoc_sta_traffic_stats(unsigned char *buff, bssid_t bs
     em_assoc_sta_traffic_stats_t	*sta_metrics;
     dm_sta_t *sta;
     dm_easy_mesh_t  *dm;
+    mac_addr_str_t sta_str;
 
     dm = get_data_model();
-
     sta_metrics = reinterpret_cast<em_assoc_sta_traffic_stats_t *> (buff);
 
+    dm_easy_mesh_t::macbytes_to_string(sta_metrics->sta_mac, sta_str);
     sta = dm->find_sta(sta_metrics->sta_mac, bssid);
     if (sta == NULL) {
+        printf("%s:%d: sta not found: %s\n", __func__, __LINE__, sta_str);
         return -1;
     }
 
@@ -917,7 +919,6 @@ int em_metrics_t::send_ap_metrics_response()
                 sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_map, sta);
                 continue;
             }
-
             //Associated STA Traffic Stats TLV (17.2.35)
             tlv = reinterpret_cast<em_tlv_t *> (tmp);
             tlv->type = em_tlv_type_assoc_sta_traffic_sts;
@@ -964,7 +965,7 @@ int em_metrics_t::send_ap_metrics_response()
             tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
             len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
-            sta = reinterpret_cast<dm_sta_t *> (hash_map_get_next(get_current_cmd()->get_data_model()->m_sta_map, sta));
+            sta = reinterpret_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
         }
     }
 
