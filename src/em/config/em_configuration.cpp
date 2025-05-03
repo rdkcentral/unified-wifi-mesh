@@ -3170,9 +3170,6 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 		radio = dm->get_radio(i);
 		if (memcmp(radio->m_radio_info.id.ruid, get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
 			radio_exists = true;
-			if (radio->m_radio_info.band == em_freq_band_60) {
-				auth_type = 0x0200;
-			}
 			break;
 		}
 	}
@@ -3184,6 +3181,10 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 		if (no_of_haultype >= em_haul_type_max) {
 			no_of_haultype = em_haul_type_max ;
 		}
+	}
+
+	if (get_band() == 2) {
+		auth_type = 0x0200;
 	}
 
 	printf("%s:%d No of haultype=%d radio no of bss=%d \n", __func__, __LINE__,no_of_haultype, radio->m_radio_info.number_of_bss);

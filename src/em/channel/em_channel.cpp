@@ -1948,7 +1948,7 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
     cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
     switch (htons(cmdu->type)) {
         case em_msg_type_channel_pref_query:
-	        if (get_service_type() == em_service_type_agent) {
+		if ((get_service_type() == em_service_type_agent) && (get_state() < em_state_agent_channel_selection_pending)) {
 		        handle_channel_pref_query(data, len);
 	        }
             break; 
