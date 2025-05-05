@@ -1162,11 +1162,11 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthNullPointer) {
   * | 04 | Verify the function handled the zero-length IE correctly | ASSERT_TRUE(true) | None | Should Pass |
   * | 05 | Tear down theTEST environment | None | None | Done by Pre-requisite TearDown function |
   */
-  TEST_F(dm_bss_t_Test, RemoveVendorIEWIthZeroLength) {
+TEST_F(dm_bss_t_Test, RemoveVendorIEWIthZeroLength) {
      std::cout << "Entering RemoveVendorIEWIthZeroLengthTEST" << std::endl;
      // Only allocate memory for the base structure with no payload
      size_t total_size = sizeof(ieee80211_vs_ie); // payload size is 0
-     ieee80211_vs_ie* zero_length_ie = (ieee80211_vs_ie*)malloc(total_size);
+     ieee80211_vs_ie* zero_length_ie = static_cast<ieee80211_vs_ie*>(malloc(total_size));
      ASSERT_NE(zero_length_ie, nullptr);  // Always check allocation
      zero_length_ie->vs_ie = 0xDD;
      zero_length_ie->vs_len = 0;  // Indicates zero-length
@@ -1180,7 +1180,7 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthNullPointer) {
      free(zero_length_ie);
      ASSERT_TRUE(true);
      std::cout << "Exiting RemoveVendorIEWIthZeroLengthTEST" << std::endl;
- } 
+} 
  
  /**
   * @brief TEST the removal of a vendor IE with maximum length
@@ -1210,7 +1210,7 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthMaximumLength) {
      uint8_t max_payload[255] = {0}; // Initialize payload
      size_t total_size = sizeof(ieee80211_vs_ie) + 255; // Calculate total size with payload 
      // Dynamically allocate memory for ieee80211_vs_ie and its payload
-     ieee80211_vs_ie* max_length_ie = (ieee80211_vs_ie*)malloc(total_size);
+     ieee80211_vs_ie* max_length_ie = static_cast<ieee80211_vs_ie*>(malloc(total_size));
      ASSERT_NE(max_length_ie, nullptr);  // Always check malloc result 
      // Initialize structure members
      max_length_ie->vs_ie = 0xDD;
@@ -1257,7 +1257,7 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthInvalidOUI) {
      size_t payload_len = sizeof(payload);
      size_t total_size = sizeof(ieee80211_vs_ie) + payload_len; 
      // Dynamically allocate memory for ieee80211_vs_ie + payload
-     ieee80211_vs_ie* invalid_oui_ie = (ieee80211_vs_ie*)malloc(total_size);
+     ieee80211_vs_ie* invalid_oui_ie = static_cast<ieee80211_vs_ie*>(malloc(total_size));
      ASSERT_NE(invalid_oui_ie, nullptr);  // Always check malloc result 
      // Initialize structure members
      invalid_oui_ie->vs_ie = 0xDD;
@@ -1305,7 +1305,7 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthInvalidType) {
      size_t payload_len = sizeof(payload);
      size_t total_size = sizeof(ieee80211_vs_ie) + payload_len;
      // Dynamically allocate memory
-     ieee80211_vs_ie* invalid_type_ie = (ieee80211_vs_ie*)malloc(total_size);
+     ieee80211_vs_ie* invalid_type_ie = static_cast<ieee80211_vs_ie*>(malloc(total_size));
      ASSERT_NE(invalid_type_ie, nullptr);  // Always check malloc result
      // Initialize structure members
      invalid_type_ie->vs_ie = 0xDD;
@@ -1353,7 +1353,7 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthInvalidType) {
      size_t payload_len = sizeof(payload);
      size_t total_size = sizeof(ieee80211_vs_ie) + payload_len;
      // Dynamically allocate memory
-     ieee80211_vs_ie* invalid_subtype_ie = (ieee80211_vs_ie*)malloc(total_size);
+     ieee80211_vs_ie* invalid_subtype_ie = static_cast<ieee80211_vs_ie*>(malloc(total_size));
      ASSERT_NE(invalid_subtype_ie, nullptr);  // Always check malloc result
      // Initialize structure members
      invalid_subtype_ie->vs_ie = 0xDD;
@@ -1402,7 +1402,7 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthInvalidType) {
      size_t payload_len = sizeof(payload);
      size_t total_size = sizeof(ieee80211_vs_ie) + payload_len;
      // Dynamically allocate memory
-     ieee80211_vs_ie* empty_payload_ie = (ieee80211_vs_ie*)malloc(total_size);
+     ieee80211_vs_ie* empty_payload_ie = static_cast<ieee80211_vs_ie*>(malloc(total_size));
      ASSERT_NE(empty_payload_ie, nullptr);  // Always check malloc result
      // Initialize structure members
      empty_payload_ie->vs_ie = 0xDD;
