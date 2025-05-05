@@ -1370,7 +1370,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 
             dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
             if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
-                if ((em->is_al_interface_em() == false)  && (em->get_state() < em_state_agent_channel_select_configuration_pending)) {
+                if (em->is_al_interface_em() == false) {
                     printf("%s:%d: Received em_msg_type_channel_sel_req, found existing radio:%s\n", __func__, __LINE__, mac_str1);
                 } else {
                     return NULL;
