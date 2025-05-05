@@ -660,10 +660,9 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (dm->get_radio_info(i)->id.dev_mac), dev_mac_str);
                 dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (dm->get_radio_info(i)->id.ruid), radio_mac_str);
                 dm_easy_mesh_t::macbytes_to_string(bssid, mac_str1);
-    
                 snprintf(key, sizeof (em_2xlong_string_t), "%s@%s@%s@%s@", dm->get_radio_info(i)->id.net_id, dev_mac_str, radio_mac_str, mac_str1);
                 printf("%s:%d: key to get bss[%s] from data model: %s\n", __func__, __LINE__, mac_str1, key);
-                if ((bss = m_data_model.get_bss(key)) == NULL) {
+                if ((bss = dm->get_bss(dm->get_radio_info(i)->id.ruid, bssid)) == NULL) {
                     found = false;
                     continue;
                 }

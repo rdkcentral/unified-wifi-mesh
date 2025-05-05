@@ -53,11 +53,14 @@ short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
 	em_metric_rprt_policy_radio_t *radio_metric;
 	mac_address_t broadcast_mac = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
+	//TBD, as this needs to be revisited
+	/* Commenting for temporary solution as new values from cli is not reflecting for all radios
 	if (get_current_cmd()->get_type() == em_cmd_type_em_config) {
         dm = get_data_model();
 	} else if (get_current_cmd()->get_type() == em_cmd_type_set_policy) {
         dm = get_current_cmd()->get_data_model();
-	}
+	}*/
+	dm = get_data_model();
 
 	metric = reinterpret_cast<em_metric_rprt_policy_t *> (tmp);
 	for (i = 0; i < dm->get_num_policy(); i++) {
@@ -229,7 +232,10 @@ short em_policy_cfg_t::create_vendor_policy_cfg_tlv(unsigned char *buff)
     unsigned char *tmp = buff;
     unsigned int i = 0;
 
-    dm = get_current_cmd()->get_data_model();
+    //TBD, as this needs to be revisited
+    //Commenting for temporary solution as new values from cli is not reflecting for all radios
+    //dm = get_current_cmd()->get_data_model();
+    dm = get_data_model();
 
     for (i = 0; i < dm->get_num_policy(); i++) {
         policy = &dm->m_policy[i];
