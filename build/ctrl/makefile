@@ -118,25 +118,12 @@ clean:
 # Google Test integration
 TEST_DIR = $(ONEWIFI_EM_HOME)/tests
 TEST_EXEC = $(INSTALLDIR)/bin/onewifi_em_test
-# Common test files (everything except test_l1_al*.cpp)
-COMMON_TEST_SOURCES = $(filter-out $(TEST_DIR)/test_l1_al%.cpp, $(wildcard $(TEST_DIR)/*.cpp))
-
-# SAP-specific test files
-SAP_TEST_SOURCES = $(wildcard $(TEST_DIR)/test_l1_al*.cpp)
-
-# Combine them based on WITH_SAP
-TEST_SOURCES = $(COMMON_TEST_SOURCES)
-ifeq ($(WITH_SAP), 1)
-TEST_SOURCES += $(SAP_TEST_SOURCES)
-endif
+TEST_SOURCES = $(wildcard $(TEST_DIR)/*.cpp)
 TEST_OBJECTS = $(TEST_SOURCES:.cpp=.o)
 TEST_CXXFLAGS = $(CXXFLAGS) -I/usr/include -I/usr/local/include -DTESTING
 
 # Test target
 test: check_test_files install_gtest $(TEST_OBJECTS)
-ifeq ($(WITH_SAP), 1)
-	@$(MAKE) -C $(AL_SAP_HOME)
-endif
 	@$(MAKE) $(ALLOBJECTS) TESTING=1
 	@echo "Building test executable with same link order as main build..."
 	$(CXX) -o $(TEST_EXEC) $(TEST_OBJECTS) $(ALLOBJECTS) $(LIBDIRS) $(LIBS) -lgtest -lgtest_main -pthread -fsanitize=address -fsanitize=undefined
@@ -169,7 +156,5 @@ run:
 # Clean test files only
 clean_tests:
 	$(RM) $(TEST_OBJECTS) $(TEST_EXEC)
-ifeq ($(WITH_SAP), 1)
-	@$(MAKE) -C $(AL_SAP_HOME) clean
-endif
+
 .PHONY: all test install_gtest check_test_files clean_tests compile_test_objects clean run
