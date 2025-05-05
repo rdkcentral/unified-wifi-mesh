@@ -1974,7 +1974,7 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
 	    break;
 
         case em_msg_type_channel_sel_req:
-            if ((get_service_type() == em_service_type_agent)  && (get_state() < em_state_agent_channel_select_configuration_pending)) {
+            if ((get_service_type() == em_service_type_agent)  && ((get_state() < em_state_agent_channel_select_configuration_pending) || (get_state() >= em_state_agent_configured))) {
                 handle_channel_sel_req(data, len);
                 send_channel_sel_response_msg(em_chan_sel_resp_code_type_accept, htons(cmdu->id));
             }
