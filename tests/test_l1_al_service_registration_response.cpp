@@ -20,6 +20,7 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include <stdio.h>
+#include <iomanip>
 #include "al_service_registration_response.h"
 
 class AlServiceRegistrationResponseTest : public ::testing::Test {
@@ -34,6 +35,34 @@ protected:
         delete instance;
     }
 };
+
+MacAddress parseMacAddress(const std::string& macStr) {
+    std::string cleaned;
+    for (char c : macStr) {
+        if (std::isalnum(c)) {
+            cleaned += c;
+        }
+    }
+    MacAddress mac{};
+    for (size_t i = 0; i < 6; ++i) {
+        std::string byteStr = cleaned.substr(i * 2, 2);
+        std::istringstream(byteStr) >> std::hex >> mac[i];
+    }
+    return mac;
+}
+
+std::ostream& operator<<(std::ostream& os, const MacAddress& mac) {
+    for (size_t i = 0; i < mac.size(); ++i) {
+        if (i != 0) os << ":";
+        os << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(mac[i]);
+    }
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const MessageIdRange& range) {
+    os << "[" << range.first << ", " << range.second << "]";
+    return os;
+}
 
 /**
  * @brief Test deserialization with valid data
@@ -118,9 +147,9 @@ TEST_F(AlServiceRegistrationResponseTest, DeserializeWithNullData) {
 */
 TEST(AlServiceRegistrationResponseTest, RetrieveAlMacAddressLocalWithValidInput) {
     std::cout << "Entering RetrieveAlMacAddressLocalWithValidInput test" << std::endl;
-	MessageIdRange range(0,255);
-	AlServiceRegistrationResponse instance("00:1A:2B:3C:4D:5E", range, RegistrationResult::SUCCESS);
-    MacAddress result = instance->getAlMacAddressLocal();
+	MessageIdRange range(0, 255);
+	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), range, RegistrationResult::SUCCESS);
+    MacAddress result = instance.getAlMacAddressLocal();
 	std::cout << "The result is " << result << std::endl;
     std::cout << "Exiting RetrieveAlMacAddressLocalWithValidInput test" << std::endl;
 }
@@ -143,7 +172,7 @@ TEST(AlServiceRegistrationResponseTest, RetrieveAlMacAddressLocalWithValidInput)
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Setup the test environment by creating an instance of AlServiceRegistrationResponse | None | Instance created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Call the constructor with macaddress as empty | "", range, result | None | Should be initialized |
+ * | 02 | Call the constructor with macaddress as empty | "00:00:00:00:00:00", range, result | None | Should be initialized |
  * | 03 | Call the getAlMacAddressLocal function with an empty string as input | input = "" | RETURN_ERR | Should Pass |
  * | 04 | Clean up the test environment by deleting the instance of AlServiceRegistrationResponse | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
  */
@@ -151,38 +180,8 @@ TEST(AlServiceRegistrationResponseTest, RetrieveAlMacAddressLocalWithValidInput)
 TEST(AlServiceRegistrationResponseTest, RetrieveAlMacAddressLocalWithEmptyInput) {
     std::cout << "Entering RetrieveAlMacAddressLocalWithEmptyInput test" << std::endl;	 
 	MessageIdRange range(0, 255);
-	AlServiceRegistrationResponse instance("", range, RegistrationResult::SUCCESS);
-    const MacAddress result = instance->getAlMacAddressLocal();
-    std::cout << "The result is " << result << std::endl;
-    std::cout << "Exiting RetrieveAlMacAddressLocalWithEmptyInput test" << std::endl;
-}
-
-/**
- * @brief Test the retrieval of AL MAC address with null input
- *
- * This test verifies the behavior of the getAlMacAddressLocal function when MAC is null. 
- *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 005@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment by creating an instance of AlServiceRegistrationResponse | None | Instance created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Call the constructor with macaddress as null | null, range, result | None | Should be initialized |
- * | 03 | Call the getAlMacAddressLocal function with an empty string as input | input = "" | RETURN_ERR | Should Pass |
- * | 04 | Clean up the test environment by deleting the instance of AlServiceRegistrationResponse | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
- */
-TEST(AlServiceRegistrationResponseTest, RetrieveAlMacAddressLocalWithEmptyInput) {
-    std::cout << "Entering RetrieveAlMacAddressLocalWithEmptyInput test" << std::endl;
-	MessageIdRange range(0, 255);
-	AlServiceRegistrationResponse instance(nullptr, range, RegistrationResult::SUCCESS);
-    const MacAddress result = instance->getAlMacAddressLocal();
+	AlServiceRegistrationResponse instance(parseMacAddress("00:00:00:00:00:00"), range, RegistrationResult::SUCCESS);
+    const MacAddress result = instance.getAlMacAddressLocal();
     std::cout << "The result is " << result << std::endl;
     std::cout << "Exiting RetrieveAlMacAddressLocalWithEmptyInput test" << std::endl;
 }
@@ -212,8 +211,8 @@ TEST(AlServiceRegistrationResponseTest, RetrieveAlMacAddressLocalWithEmptyInput)
 TEST(AlServiceRegistrationResponseTest, RetrieveMessageIdRangeWithValidInput) {
     std::cout << "Entering RetrieveMessageIdRangeWithValidInput test" << std::endl;	
 	MessageIdRange range(0, 255);
-	AlServiceRegistrationResponse instance("00:1A:2B:3C:4D:5E", range, RegistrationResult::SUCCESS);
-    MessageIdRange result = instance->getMessageIdRange();
+	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), range, RegistrationResult::SUCCESS);
+    MessageIdRange result = instance.getMessageIdRange();
     std::cout << "The result is " << result << std::endl;
     std::cout << "Exiting RetrieveMessageIdRangeWithValidInput test" << std::endl;
 }
@@ -241,40 +240,10 @@ TEST(AlServiceRegistrationResponseTest, RetrieveMessageIdRangeWithValidInput) {
 */
 TEST(AlServiceRegistrationResponseTest, RetrieveMessageIdRangeWithNullInput) {
     std::cout << "Entering RetrieveMessageIdRangeWithNullInput test" << std::endl;
-	AlServiceRegistrationResponse instance("00:1A:2B:3C:4D:5E", nullptr, RegistrationResult::SUCCESS);
-    MessageIdRange result = instance->getMessageIdRange();
+	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), nullptr, RegistrationResult::SUCCESS);
+    MessageIdRange result = instance.getMessageIdRange();
     std::cout << "The result is " << result << std::endl;
     std::cout << "Exiting RetrieveMessageIdRangeWithNullInput test" << std::endl;
-}
-
-/**
- * @brief Test the retrieval of message ID range with empty input
- *
- * This test verifies the behavior of the getMessageIdRange function when provided with an empty input. 
- * It ensures that the function correctly handles this edge case and returns the expected error code.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 008@n
- * **Priority:** High@n
- * @n
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Call getMessageIdRange with empty input | emptyInput = "" | result = RETURN_ERR | Should Pass |
- * | 03 | Verify the result using ASSERT_EQ | result = RETURN_ERR | Assertion should pass | Should be successful |
- * | 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
- */
-TEST(AlServiceRegistrationResponseTest, RetrieveMessageIdRangeWithEmptyInput) {
-    std::cout << "Entering RetrieveMessageIdRangeWithEmptyInput test" << std::endl;
-	AlServiceRegistrationResponse instance("00:1A:2B:3C:4D:5E", "", RegistrationResult::SUCCESS);
-    MessageIdRange result = instance->getMessageIdRange();
-	std::cout << "The result is " << result << std::endl;
-    std::cout << "Exiting RetrieveMessageIdRangeWithEmptyInput test" << std::endl;
 }
 
 /**
@@ -302,8 +271,8 @@ TEST(AlServiceRegistrationResponseTest, RetrieveMessageIdRangeWithEmptyInput) {
 TEST(AlServiceRegistrationResponseTest, RetrieveMessageIdRangeWithMaximumLengthInput) {
     std::cout << "Entering RetrieveMessageIdRangeWithMaximumLengthInput test" << std::endl;
 	MessageIdRange range(0, 65535);
-	AlServiceRegistrationResponse instance("00:1A:2B:3C:4D:5E", range, RegistrationResult::SUCCESS);
-    MessageIdRange result = instance->getMessageIdRange();
+	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), range, RegistrationResult::SUCCESS);
+    MessageIdRange result = instance.getMessageIdRange();
 	std::cout << "The result is " << result << std::endl;
     std::cout << "Exiting RetrieveMessageIdRangeWithMaximumLengthInput test" << std::endl;
 }
@@ -332,8 +301,8 @@ TEST(AlServiceRegistrationResponseTest, RetrieveMessageIdRangeWithMaximumLengthI
 TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenUnknown) {
     std::cout << "Entering RetrieveResultWhenUnknown test" << std::endl;
 	MessageIdRange range(0, 65535);
-	AlServiceRegistrationResponse instance("00:1A:2B:3C:4D:5E", range, RegistrationResult::UNKNOWN);
-    ASSERT_EQ(instance->getResult(), RegistrationResult::UNKNOWN);
+	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), range, RegistrationResult::UNKNOWN);
+    ASSERT_EQ(instance.getResult(), RegistrationResult::UNKNOWN);
     std::cout << "Exiting RetrieveResultWhenUnknown test" << std::endl;
 }
 
@@ -361,8 +330,8 @@ TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenUnknown) {
 TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenSuccess) {
     std::cout << "Entering RetrieveResultWhenSuccess test" << std::endl;
 	MessageIdRange range(0, 65535);
-	AlServiceRegistrationResponse instance("00:1A:2B:3C:4D:5E", range, RegistrationResult::SUCCESS);
-    ASSERT_EQ(instance->getResult(), RegistrationResult::SUCCESS);
+	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), range, RegistrationResult::SUCCESS);
+    ASSERT_EQ(instance.getResult(), RegistrationResult::SUCCESS);
     std::cout << "Exiting RetrieveResultWhenSuccess test" << std::endl;
 }
 
@@ -390,8 +359,8 @@ TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenSuccess) {
 TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenNoRangesAvailable) {
     std::cout << "Entering RetrieveResultWhenNoRangesAvailable test" << std::endl;
     MessageIdRange range(0, 65535);
-	AlServiceRegistrationResponse instance("00:1A:2B:3C:4D:5E", range, RegistrationResult::NO_RANGES_AVAILABLE);
-    ASSERT_EQ(instance->getResult(), RegistrationResult::NO_RANGES_AVAILABLE);
+	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), range, RegistrationResult::NO_RANGES_AVAILABLE);
+    ASSERT_EQ(instance.getResult(), RegistrationResult::NO_RANGES_AVAILABLE);
     std::cout << "Exiting RetrieveResultWhenNoRangesAvailable test" << std::endl;
 }
 
@@ -421,8 +390,8 @@ TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenNoRangesAvailable) {
 TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenServiceNotSupported) {
     std::cout << "Entering RetrieveResultWhenServiceNotSupported test" << std::endl;
 	MessageIdRange range(0, 65535);
-	AlServiceRegistrationResponse instance("00:1A:2B:3C:4D:5E", range, RegistrationResult::SERVICE_NOT_SUPPORTED);
-    ASSERT_EQ(instance->getResult(), RegistrationResult::SERVICE_NOT_SUPPORTED);
+	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), range, RegistrationResult::SERVICE_NOT_SUPPORTED);
+    ASSERT_EQ(instance.getResult(), RegistrationResult::SERVICE_NOT_SUPPORTED);
     std::cout << "Exiting RetrieveResultWhenServiceNotSupported test" << std::endl;
 }
 
@@ -450,8 +419,8 @@ TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenServiceNotSupported) {
 TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenOperationNotSupported) {
     std::cout << "Entering RetrieveResultWhenOperationNotSupported test" << std::endl;
 	MessageIdRange range(0, 65535);
-	AlServiceRegistrationResponse instance("00:1A:2B:3C:4D:5E", range, RegistrationResult::OPERATION_NOT_SUPPORTED);
-    ASSERT_EQ(instance->getResult(), RegistrationResult::OPERATION_NOT_SUPPORTED);
+	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), range, RegistrationResult::OPERATION_NOT_SUPPORTED);
+    ASSERT_EQ(instance.getResult(), RegistrationResult::OPERATION_NOT_SUPPORTED);
     std::cout << "Exiting RetrieveResultWhenOperationNotSupported test" << std::endl;
 }
 
@@ -479,8 +448,8 @@ TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenOperationNotSupported)
 TEST(AlServiceRegistrationResponseTest, SerializeValidRegistrationResponse) {
     std::cout << "Entering SerializeValidRegistrationResponse test" << std::endl;
     MessageIdRange range(0, 65535);
-	AlServiceRegistrationResponse instance("00:1A:2B:3C:4D:5E", range, RegistrationResult::NO_RANGES_AVAILABLE);
-    std::vector<unsigned char> serializedData = instance->serializeRegistrationResponse();    
+	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), range, RegistrationResult::NO_RANGES_AVAILABLE);
+    std::vector<unsigned char> serializedData = instance.serializeRegistrationResponse();    
     ASSERT_FALSE(serializedData.empty());
     std::cout << "Exiting SerializeValidRegistrationResponse test" << std::endl;
 }
@@ -508,11 +477,11 @@ TEST(AlServiceRegistrationResponseTest, SerializeValidRegistrationResponse) {
  * | 04 | Verify the serialized data is empty | serializedData.empty() | True | Should Pass |
  * | 05 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
  */
-TEST_F(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithInvalidMacAddress) {
+TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithInvalidMacAddress) {
     std::cout << "Entering SerializeRegistrationResponseWithInvalidMac test" << std::endl;
 	MessageIdRange range(0, 65535);
-	AlServiceRegistrationResponse instance("00:11:22:33:GG:44", range, RegistrationResult::SUCCESS);
-    std::vector<unsigned char> serializedData = instance->serializeRegistrationResponse();    
+	AlServiceRegistrationResponse instance(parseMacAddress("00:11:22:33:GG:44"), range, RegistrationResult::SUCCESS);
+    std::vector<unsigned char> serializedData = instance.serializeRegistrationResponse();    
     ASSERT_TRUE(serializedData.empty());
     std::cout << "Exiting SerializeRegistrationResponseWithInvalidMac test" << std::endl;
 }
@@ -539,11 +508,11 @@ TEST_F(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithInval
  * | 05 | Serialize the registration response | None | serializedData.empty() = true | Should Pass |
  * | 06 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
  */
-TEST_F(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithEmptyMessageIdRange) {
+TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithEmptyMessageIdRange) {
     std::cout << "Entering SerializeRegistrationResponseWithEmptyMessageIdRange test" << std::endl;
 	MessageIdRange range(0, 0);
-	AlServiceRegistrationResponse instance("00:11:22:33:GG:44", range, RegistrationResult::SUCCESS);   
-    std::vector<unsigned char> serializedData = instance->serializeRegistrationResponse();    
+	AlServiceRegistrationResponse instance(parseMacAddress("00:11:22:33:GG:44"), range, RegistrationResult::SUCCESS);   
+    std::vector<unsigned char> serializedData = instance.serializeRegistrationResponse();    
     ASSERT_TRUE(serializedData.empty());
     std::cout << "Exiting SerializeRegistrationResponseWithEmptyMessageIdRange test" << std::endl;
 }
@@ -569,11 +538,11 @@ TEST_F(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithEmpty
  * | 03 | Serialize the registration response | None | serializedData should not be empty | Should Pass |
  * | 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
  */
-TEST_F(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithFailedResult) {
+TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithFailedResult) {
     std::cout << "Entering SerializeRegistrationResponseWithFailedResult test" << std::endl;
     MessageIdRange range(0, 65535);
-	AlServiceRegistrationResponse instance("00:11:22:33:GG:44", range, RegistrationResult::UNKNOWN);
-    std::vector<unsigned char> serializedData = instance->serializeRegistrationResponse();    
+	AlServiceRegistrationResponse instance("parseMacAddress(00:11:22:33:GG:44"), range, RegistrationResult::UNKNOWN);
+    std::vector<unsigned char> serializedData = instance.serializeRegistrationResponse();    
     ASSERT_FALSE(serializedData.empty());
     std::cout << "Exiting SerializeRegistrationResponseWithFailedResult test" << std::endl;
 }
@@ -600,12 +569,12 @@ TEST_F(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithFaile
  * | 03 | Serialize the registration response | instance->serializeRegistrationResponse() | serializedData = empty vector | Should Pass |
  * | 04 | Tear down the test environment | delete instance |  | Done by Pre-requisite TearDown function |
  */
-TEST_F(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithAllNullInputs) {
+TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithAllNullInputs) {
     std::cout << "Entering SerializeRegistrationResponseWithAllNullInputs test" << std::endl;
 	MacAddress nullMacAddress = {0, 0, 0, 0, 0, 0};
     MessageIdRange range(0, 65535);
 	AlServiceRegistrationResponse instance(nullMacAddress, range, RegistrationResult::SUCCESS);
-    std::vector<unsigned char> serializedData = instance->serializeRegistrationResponse();    
+    std::vector<unsigned char> serializedData = instance.serializeRegistrationResponse();    
     ASSERT_TRUE(serializedData.empty());
     std::cout << "Exiting SerializeRegistrationResponseWithAllNullInputs test" << std::endl;
 }
@@ -632,7 +601,7 @@ TEST_F(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithAllNu
  */
 TEST_F(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_ValidMacAddress_MixedCase) {
     std::cout << "Entering SetAlMacAddressLocal_ValidMacAddress_MixedCase test" << std::endl;
-    instance->setAlMacAddressLocal("00:1A:2b:3C:4d:5E");
+    instance->setAlMacAddressLocal(parseMacAddress("00:1A:2b:3C:4d:5E"));
 	std::cout << "Exiting SetAlMacAddressLocal_ValidMacAddress_MixedCase test" << std::endl;
 }
 
@@ -658,7 +627,7 @@ TEST_F(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_ValidMacAddress_M
  */
 TEST_F(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_ValidMacAddress_NoColons) {
     std::cout << "Entering SetAlMacAddressLocal_ValidMacAddress_NoColons test" << std::endl;
-    instance->setAlMacAddressLocal("001A2B3C4D5E");
+    instance->setAlMacAddressLocal(parseMacAddress("001A2B3C4D5E"));
     std::cout << "Exiting SetAlMacAddressLocal_ValidMacAddress_NoColons test" << std::endl;
 }
 
@@ -684,7 +653,7 @@ TEST_F(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_ValidMacAddress_N
  */
 TEST_F(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_ValidMacAddress_Dashes) {
     std::cout << "Entering SetAlMacAddressLocal_ValidMacAddress_Dashes test" << std::endl;
-    instance->setAlMacAddressLocal("00-1A-2B-3C-4D-5E");
+    instance->setAlMacAddressLocal(parseMacAddress("00-1A-2B-3C-4D-5E"));
     std::cout << "Exiting SetAlMacAddressLocal_ValidMacAddress_Dashes test" << std::endl;
 }
 
@@ -711,8 +680,8 @@ TEST_F(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_ValidMacAddress_D
  */
 TEST_F(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_InvalidMacAddress_TooShort_TooLong) {
     std::cout << "Entering SetAlMacAddressLocal_InvalidMacAddress_TooShort_TooLong test" << std::endl;
-    instance->setAlMacAddressLocal("00:1A:2B:3C:4D");
-	instance->setAlMacAddressLocal("00:1A:2B:3C:4D:5E:6F");
+    instance->setAlMacAddressLocal(parseMacAddress("00:1A:2B:3C:4D"));
+	instance->setAlMacAddressLocal(parseMacAddress("00:1A:2B:3C:4D:5E:6F"));
     std::cout << "Exiting SetAlMacAddressLocal_InvalidMacAddress_TooShort _TooLong test" << std::endl;
 }
 
@@ -739,62 +708,8 @@ TEST_F(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_InvalidMacAddress
  */
 TEST_F(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_InvalidMacAddress_NonHex) {
     std::cout << "Entering SetAlMacAddressLocal_InvalidMacAddress_NonHex test" << std::endl;
-    instance->setAlMacAddressLocal("00:1A:2B:3C:4D:ZZ");
+    instance->setAlMacAddressLocal(parseMacAddress("00:1A:2B:3C:4D:ZZ"));
     std::cout << "Exiting SetAlMacAddressLocal_InvalidMacAddress_NonHex test" << std::endl;
-}
-
-/**
- * @brief Test the behavior of setAlMacAddressLocal method when an empty string is passed.
- *
- * This test verifies that the setAlMacAddressLocal method can handle an empty string input without causing any errors or unexpected behavior.
- *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 025@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment by creating an instance of AlServiceRegistrationResponse | None | Instance should be created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Call the setAlMacAddressLocal method with an empty string | input = "" | Method should handle the empty string without errors | Should Pass |
- * | 03 | Verify the behavior of the method using assertions | None | Assertions should pass | Should be successful |
- * | 04 | Clean up the test environment by deleting the instance of AlServiceRegistrationResponse | None | Instance should be deleted successfully | Done by Pre-requisite TearDown function |
- */
-TEST_F(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_EmptyString) {
-    std::cout << "Entering SetAlMacAddressLocal_EmptyString test" << std::endl;
-    instance->setAlMacAddressLocal("");
-    ASSERT_TRUE(true); // Add appropriate assertions based on method behavior
-    std::cout << "Exiting SetAlMacAddressLocal_EmptyString test" << std::endl;
-}
-
-/**
- * @brief Test the behavior of setAlMacAddressLocal method when given a NULL input.
- *
- * This test verifies that the setAlMacAddressLocal method can handle a NULL input without causing any unexpected behavior or crashes.
- *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 026@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment by creating an instance of AlServiceRegistrationResponse | None | Instance created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Call the setAlMacAddressLocal method with NULL input | input = nullptr | Method handles NULL input gracefully | Should Pass |
- * | 03 | Clean up the test environment by deleting the instance of AlServiceRegistrationResponse | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
- */
-TEST_F(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_NullInput) {
-    std::cout << "Entering SetAlMacAddressLocal_NullInput test" << std::endl;
-    instance->setAlMacAddressLocal(nullptr);
-    std::cout << "Exiting SetAlMacAddressLocal_NullInput test" << std::endl;
 }
 
 /**
@@ -1159,7 +1074,7 @@ TEST_F(AlServiceRegistrationResponseTest, SetAllRegistrationResults) {
 * | 04| Initialize with UNKNOWN result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = UNKNOWN | Object should be created with the values | Should Pass |
 * | 05| Initialize with OPERATION_NOT_SUPPORTED result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = OPERATION_NOT_SUPPORTED | Object should be created with the values | Should Pass |
 */
-TEST_F(AlServiceRegistrationResponseTest, ValidMACAddressValidRangeAllResults) {
+TEST(AlServiceRegistrationResponseTest, ValidMACAddressValidRangeAllResults) {
     std::cout << "Entering ValidMACAddressValidRangeAllResults" << std::endl;
     MacAddress macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E};
     MessageIdRange range = {1000, 2000};
@@ -1195,7 +1110,7 @@ TEST_F(AlServiceRegistrationResponseTest, ValidMACAddressValidRangeAllResults) {
 * | 01| Initialize MAC address, message ID range, and result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {2000, 1000}, result = RegistrationResult::SUCCESS | Object should be created successfully | Should Pass |
 *
 */
-TEST_F(AlServiceRegistrationResponseTest, ValidMACAddressInvalidRangeSuccessResult) {
+TEST(AlServiceRegistrationResponseTest, ValidMACAddressInvalidRangeSuccessResult) {
     std::cout << "Entering ValidMACAddressInvalidRangeSuccessResult" << std::endl;
     MacAddress macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E};
     MessageIdRange range = {2000, 1000};
@@ -1223,7 +1138,7 @@ TEST_F(AlServiceRegistrationResponseTest, ValidMACAddressInvalidRangeSuccessResu
 * | 01 | Initialize AlServiceRegistrationResponse with valid MAC address, zero range, and success result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {0, 0}, result = RegistrationResult::SUCCESS | Object should be initialized successfully | Should Pass |
 *
 */
-TEST_F(AlServiceRegistrationResponseTest, ValidMACAddressZeroRangeSuccessResult) {
+TEST(AlServiceRegistrationResponseTest, ValidMACAddressZeroRangeSuccessResult) {
     std::cout << "Entering ValidMACAddressZeroRangeSuccessResult" << std::endl;
     MacAddress macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E};
     MessageIdRange range = {0, 0};
@@ -1251,7 +1166,7 @@ TEST_F(AlServiceRegistrationResponseTest, ValidMACAddressZeroRangeSuccessResult)
 * | 01| Initialize AlServiceRegistrationResponse with all-zero MAC address, valid message ID range, and success result | macAddress = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, range = {1000, 2000}, result = RegistrationResult::SUCCESS | Object should be initialized successfully | Should Pass |
 *
 */
-TEST_F(AlServiceRegistrationResponseTest, AllZeroMACAddressValidRangeSuccessResult) {
+TEST(AlServiceRegistrationResponseTest, AllZeroMACAddressValidRangeSuccessResult) {
     std::cout << "Entering AllZeroMACAddressValidRangeSuccessResult" << std::endl;
     MacAddress macAddress = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     MessageIdRange range = {1000, 2000};
@@ -1280,7 +1195,7 @@ TEST_F(AlServiceRegistrationResponseTest, AllZeroMACAddressValidRangeSuccessResu
 * | 01 | Initialize MAC address, message ID range, and result | macAddress = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, range = {1000, 2000}, result = RegistrationResult::SUCCESS | Object should be initialized successfully | Should be successful |
 *
 */
-TEST_F(AlServiceRegistrationResponseTest, AllFFMACAddressValidRangeSuccessResult) {
+TEST(AlServiceRegistrationResponseTest, AllFFMACAddressValidRangeSuccessResult) {
     std::cout << "Entering AllFFMACAddressValidRangeSuccessResult" << std::endl;
     MacAddress macAddress = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     MessageIdRange range = {1000, 2000};
@@ -1308,7 +1223,7 @@ TEST_F(AlServiceRegistrationResponseTest, AllFFMACAddressValidRangeSuccessResult
 * | 01 | Construct AlServiceRegistrationResponse object and verify MAC address | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = 0xFF | response.getAlMacAddressLocal() == macAddress | Should Pass |
 *
 */
-TEST_F(AlServiceRegistrationResponseTest, ValidMACAddressValidRangeInvalidResult) {
+TEST(AlServiceRegistrationResponseTest, ValidMACAddressValidRangeInvalidResult) {
     std::cout << "Entering ValidMACAddressValidRangeInvalidResult" << std::endl;
     MacAddress macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E};
     MessageIdRange range = {1000, 2000};

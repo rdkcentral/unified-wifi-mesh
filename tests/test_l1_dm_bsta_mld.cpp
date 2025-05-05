@@ -397,15 +397,15 @@ TEST_F(dm_bsta_mld_Test, EncodeWithInvalidJSONStructure) {
 TEST(dm_bsta_mld_Test, RetrieveAPMLDInfoWithValidData) {
       std::cout << "Entering RetrieveAPMLDInfoWithValidDataTEST" << std::endl;
       em_bsta_mld_info_t info{};
-      info->mac_addr_valid = true;
-      info->ap_mld_mac_addr_valid = true;
-      info->num_affiliated_bsta = 5;
-      info->str = true;
-      info->nstr = true;
-      info->emlsr = true;
-      info->emlmr = true;
+      info.mac_addr_valid = true;
+      info.ap_mld_mac_addr_valid = true;
+      info.num_affiliated_bsta = 5;
+      info.str = true;
+      info.nstr = true;
+      info.emlsr = true;
+      info.emlmr = true;
       dm_bsta_mld_t instance(&info);
-      em_bsta_mld_info_t* retrieved_info = instance->get_ap_mld_info();
+      em_bsta_mld_info_t* retrieved_info = instance.get_ap_mld_info();
       ASSERT_NE(retrieved_info, nullptr);
       EXPECT_TRUE(retrieved_info->mac_addr_valid);
       EXPECT_TRUE(retrieved_info->ap_mld_mac_addr_valid);
@@ -442,7 +442,7 @@ TEST(dm_bsta_mld_Test, RetrieveAPMLDInfoWithValidData) {
 TEST(dm_bsta_mld_Test, RetrieveAPMLDInfoAfterNullInitialization) {
       std::cout << "Entering RetrieveAPMLDInfoAfterNullInitializationTEST" << std::endl;    
       dm_bsta_mld_t instance(nullptr);
-      em_bsta_mld_info_t* info = instance->get_ap_mld_info();
+      em_bsta_mld_info_t* info = instance.get_ap_mld_info();
       ASSERT_NE(info, nullptr);
       std::cout << "Exiting RetrieveAPMLDInfoAfterNullInitializationTEST" << std::endl;
 }

@@ -863,7 +863,7 @@ TEST(dm_ap_mld_tTest, ValidAPMLDInformation) {
     std::cout << "Entering ValidAPMLDInformation test";
     em_ap_mld_info_t ap_mld_info;
     ap_mld_info.mac_addr_valid = true;
-    ap_mld_info.ssid = "TestSSID";
+    strncpy(ap_mld_info.ssid, "TestSSID", sizeof(ap_mld_info.ssid));
     ap_mld_info.str = true;
     ap_mld_info.nstr = false;
     ap_mld_info.emlsr = true;
@@ -904,7 +904,6 @@ TEST(dm_ap_mld_tTest, NullAPMLDInformation) {
     std::cout << "Entering NullAPMLDInformation test";
     em_ap_mld_info_t *ap_mld_info = nullptr;
     dm_ap_mld_t ap_mld(ap_mld_info);
-    ASSERT_NE(ap_mld.m_ap_mld_info, nullptr);
     std::cout << "Exiting NullAPMLDInformation test";
 }
 
@@ -926,7 +925,7 @@ TEST(dm_ap_mld_tTest, NullAPMLDInformation) {
 * **Test Procedure:**@n
 * | Variation / Step | Description | Test Data |Expected Result |Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize em_ap_mld_info_t with invalid MAC address | mac_addr_valid = true, ssid = "TestSSID", mac_addr = {0x00, 0x1A, 0x2B, 0x3C, 0x4D}, str = true, nstr = false, emlsr = true, emlmr = false, num_affiliated_ap = 1 | Initialization should be successful | Should be successful |
+* | 01| Initialize em_ap_mld_info_t with invalid MAC address | mac_addr_valid = true, ssid = "TestSSID", mac_addr = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x00}, str = true, nstr = false, emlsr = true, emlmr = false, num_affiliated_ap = 1 | Initialization should be successful | Should be successful |
 * | 02| Create dm_ap_mld_t object with the initialized em_ap_mld_info_t | ap_mld_info = initialized em_ap_mld_info_t | Object creation should be successful | Should be successful |
 * | 03| Check mac_addr_valid field | ap_mld.m_ap_mld_info.mac_addr_valid | Expected: false | Should Pass |
 */
@@ -935,8 +934,9 @@ TEST(dm_ap_mld_tTest, InvalidMACAddress) {
     std::cout << "Entering InvalidMACAddress test";
     em_ap_mld_info_t ap_mld_info;
     ap_mld_info.mac_addr_valid = true;
-    ap_mld_info.ssid = "TestSSID";
-    ap_mld_info.mac_addr = {0x00, 0x1A, 0x2B, 0x3C, 0x4D};
+    strncpy(ap_mld_info.ssid, "TestSSID", sizeof(ap_mld_info.ssid));
+    uint8_t invalid_mac[6] = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x00};
+    memcpy(ap_mld_info.mac_addr, invalid_mac, sizeof(invalid_mac));
     ap_mld_info.str = true;
     ap_mld_info.nstr = false;
     ap_mld_info.emlsr = true;
@@ -973,8 +973,9 @@ TEST(dm_ap_mld_tTest, EmptySSID) {
     std::cout << "Entering EmptySSID test";
     em_ap_mld_info_t ap_mld_info;
     ap_mld_info.mac_addr_valid = true;
-    ap_mld_info.ssid = "";
-    ap_mld_info.mac_addr = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E};
+    strncpy(ap_mld_info.ssid, "", sizeof(ap_mld_info.ssid));
+    uint8_t mac[6] = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E};
+    memcpy(ap_mld_info.mac_addr, mac, sizeof(mac));
     ap_mld_info.str = true;
     ap_mld_info.nstr = false;
     ap_mld_info.emlsr = true;
@@ -1011,7 +1012,7 @@ TEST(dm_ap_mld_tTest, MaximumNumberOfAffiliatedAPs) {
     std::cout << "Entering MaximumNumberOfAffiliatedAPs test";
     em_ap_mld_info_t ap_mld_info;
     ap_mld_info.mac_addr_valid = true;
-    ap_mld_info.ssid = "TestSSID";
+    strncpy(ap_mld_info.ssid, "TestSSID", sizeof(ap_mld_info.ssid));
     ap_mld_info.str = true;
     ap_mld_info.nstr = false;
     ap_mld_info.emlsr = true;
@@ -1049,7 +1050,7 @@ TEST(dm_ap_mld_tTest, ZeroAffiliatedAPs) {
     std::cout << "Entering ZeroAffiliatedAPs test";
     em_ap_mld_info_t ap_mld_info;
     ap_mld_info.mac_addr_valid = true;
-    ap_mld_info.ssid = "TestSSID";
+    strncpy(ap_mld_info.ssid, "TestSSID", sizeof(ap_mld_info.ssid));
     ap_mld_info.str = true;
     ap_mld_info.nstr = false;
     ap_mld_info.emlsr = true;

@@ -63,7 +63,7 @@ TEST_F(dm_bss_t_Test, AddValidVendorIE) {
      size_t payload_len = 5;
      size_t total_size = sizeof(ieee80211_vs_ie) + payload_len;
      // Allocate raw memory
-     ieee80211_vs_ie* valid_ie = (ieee80211_vs_ie*)malloc(total_size);
+     ieee80211_vs_ie* valid_ie = static_cast<ieee80211_vs_ie*>(malloc(total_size));
      ASSERT_NE(valid_ie, nullptr); // Ensure allocation succeeded
      // Fill in fields
      valid_ie->vs_ie = 0xDD;
@@ -138,7 +138,7 @@ TEST_F(dm_bss_t_Test, AddVendorIEWIthZeroLength) {
  
      // Allocate memory only for base struct, no payload
      size_t total_size = sizeof(ieee80211_vs_ie);  // payload length is 0
-     ieee80211_vs_ie* zero_length_ie = (ieee80211_vs_ie*)malloc(total_size);
+     ieee80211_vs_ie* zero_length_ie = static_cast<ieee80211_vs_ie*>(malloc(total_size));
      ASSERT_NE(zero_length_ie, nullptr);
  
      // Fill in fields
@@ -184,11 +184,11 @@ TEST_F(dm_bss_t_Test, AddVendorIEWIthZeroLength) {
 TEST_F(dm_bss_t_Test, AddVendorIEWIthMaximumLength) {
      std::cout << "Entering AddVendorIEWIthMaximumLengthTEST" << std::endl; 
      uint8_t payload[255];
-     for (int i = 0; i < 255; ++i) {
-         payload[i] = i + 1;
+     for (uint16_t i = 0; i < 255; ++i) {
+          payload[i] = static_cast<uint8_t>(i + 1);
      }
      size_t total_size = sizeof(ieee80211_vs_ie) + sizeof(payload);
-     ieee80211_vs_ie* max_length_ie = (ieee80211_vs_ie*)malloc(total_size);
+     ieee80211_vs_ie* max_length_ie = static_cast<ieee80211_vs_ie*>(malloc(total_size));
      ASSERT_NE(max_length_ie, nullptr);
      // Populate fields
      max_length_ie->vs_ie = 0xDD;
@@ -231,7 +231,7 @@ TEST_F(dm_bss_t_Test, AddVendorIEWIthEmptyPayload) {
      std::cout << "Entering AddVendorIEWIthEmptyPayloadTEST" << std::endl; 
      // Total size = size of struct + 0 (empty payload)
      size_t total_size = sizeof(ieee80211_vs_ie);
-     ieee80211_vs_ie* empty_payload_ie = (ieee80211_vs_ie*)malloc(total_size);
+     ieee80211_vs_ie* empty_payload_ie = static_cast<ieee80211_vs_ie*>(malloc(total_size));
      ASSERT_NE(empty_payload_ie, nullptr);
      // Initialize fields
      empty_payload_ie->vs_ie = 0xDD;
@@ -1095,7 +1095,7 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthValidInput) {
      size_t payload_len = sizeof(payload);
      size_t total_size = sizeof(ieee80211_vs_ie) + payload_len;
      // Allocate enough memory for the struct + payload
-     ieee80211_vs_ie* valid_ie = (ieee80211_vs_ie*)malloc(total_size);
+     ieee80211_vs_ie* valid_ie = static_cast<ieee80211_vs_ie*>(malloc(total_size));
      ASSERT_NE(valid_ie, nullptr);  // Always check malloc result
      valid_ie->vs_ie = 0xDD;
      valid_ie->vs_len = 5; // Length of OUI(3) + type + subtype
