@@ -20,8 +20,8 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include <stdio.h>
-#include <iomanip>
 #include "al_service_registration_response.h"
+#include "test_l1_utils.h"
 
 class AlServiceRegistrationResponseTest : public ::testing::Test {
 protected:
@@ -35,34 +35,6 @@ protected:
         delete instance;
     }
 };
-
-MacAddress parseMacAddress(const std::string& macStr) {
-    std::string cleaned;
-    for (char c : macStr) {
-        if (std::isalnum(c)) {
-            cleaned += c;
-        }
-    }
-    MacAddress mac{};
-    for (size_t i = 0; i < 6; ++i) {
-        std::string byteStr = cleaned.substr(i * 2, 2);
-        std::istringstream(byteStr) >> std::hex >> mac[i];
-    }
-    return mac;
-}
-
-std::ostream& operator<<(std::ostream& os, const MacAddress& mac) {
-    for (size_t i = 0; i < mac.size(); ++i) {
-        if (i != 0) os << ":";
-        os << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(mac[i]);
-    }
-    return os;
-}
-
-std::ostream& operator<<(std::ostream& os, const MessageIdRange& range) {
-    os << "[" << range.first << ", " << range.second << "]";
-    return os;
-}
 
 /**
  * @brief Test deserialization with valid data
@@ -234,13 +206,14 @@ TEST(AlServiceRegistrationResponseTest, RetrieveMessageIdRangeWithValidInput) {
 * | Variation / Step | Description | Test Data |Expected Result |Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
 * | 01| Setup the test environment | None | None | Done by Pre-requisite SetUp function |
-* | 02| Call getMessageIdRange with null input | input = nullptr | result = RETURN_ERR | Should Pass |
+* | 02| Call getMessageIdRange with null message range input | range(0,0) | result = RETURN_ERR | Should Pass |
 * | 03| Verify the result using ASSERT_EQ | result = RETURN_ERR | None | Should be successful |
 * | 04| Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
 */
 TEST(AlServiceRegistrationResponseTest, RetrieveMessageIdRangeWithNullInput) {
     std::cout << "Entering RetrieveMessageIdRangeWithNullInput test" << std::endl;
-	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), nullptr, RegistrationResult::SUCCESS);
+    MessageIdRange range(0, 0);
+	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), range, RegistrationResult::SUCCESS);
     MessageIdRange result = instance.getMessageIdRange();
     std::cout << "The result is " << result << std::endl;
     std::cout << "Exiting RetrieveMessageIdRangeWithNullInput test" << std::endl;
@@ -541,7 +514,7 @@ TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithEmptyMe
 TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithFailedResult) {
     std::cout << "Entering SerializeRegistrationResponseWithFailedResult test" << std::endl;
     MessageIdRange range(0, 65535);
-	AlServiceRegistrationResponse instance("parseMacAddress(00:11:22:33:GG:44"), range, RegistrationResult::UNKNOWN);
+	AlServiceRegistrationResponse instance(parseMacAddress("00:11:22:33:GG:44"), range, RegistrationResult::UNKNOWN);
     std::vector<unsigned char> serializedData = instance.serializeRegistrationResponse();    
     ASSERT_FALSE(serializedData.empty());
     std::cout << "Exiting SerializeRegistrationResponseWithFailedResult test" << std::endl;

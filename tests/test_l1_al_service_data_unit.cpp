@@ -20,8 +20,8 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include <stdio.h>
-#include <numeric>
 #include "al_service_data_unit.h"
+#include "test_l1_utils.h"
 
 class AlServiceDataUnitTest : public ::testing::Test {
 protected:
@@ -35,21 +35,6 @@ protected:
         delete alServiceDataUnit;
     }
 };
-
-MacAddress parseMacAddress(const std::string& macStr) {
-    std::string cleaned;
-    for (char c : macStr) {
-        if (std::isalnum(c)) {
-            cleaned += c;
-        }
-    }
-    MacAddress mac{};
-    for (size_t i = 0; i < 6; ++i) {
-        std::string byteStr = cleaned.substr(i * 2, 2);
-        std::istringstream(byteStr) >> std::hex >> mac[i];
-    }
-    return mac;
-}
 
 /**
  * @brief Test appending valid data to the payload

@@ -21,6 +21,7 @@
 #include <gmock/gmock.h>
 #include <stdio.h>
 #include "al_service_registration_request.h"
+#include "test_l1_utils.h"
 
 class AlServiceRegistrationRequestTest : public ::testing::Test {
 protected:
@@ -34,7 +35,6 @@ protected:
         delete instance;
     }
 };
-
 
 /**
 * @brief Test to verify the deserialization of a valid registration request
@@ -116,7 +116,7 @@ TEST_F(AlServiceRegistrationRequestTest, DeserializeEmptyDataVector) {
 TEST(AlServiceRegistrationRequestTest, RetrieveServiceOperationWhenEnabled) {
     std::cout << "Entering RetrieveServiceOperationWhenEnabled test" << std::endl;
     AlServiceRegistrationRequest instance(ServiceOperation::SOP_ENABLE, ServiceType::SAP_CLIENT);
-	ServiceOperation operation = instance->getServiceOperation();
+	ServiceOperation operation = instance.getServiceOperation();
     std::cout << "The service operation is "  << operation << std::endl;
     ASSERT_EQ(operation, ServiceOperation::SOP_ENABLE);
     std::cout << "The service operation is "  << operation << std::endl;
@@ -146,8 +146,8 @@ TEST(AlServiceRegistrationRequestTest, RetrieveServiceOperationWhenEnabled) {
  */
 TEST(AlServiceRegistrationRequestTest, RetrieveServiceOperationWhenDisabled) {
     std::cout << "Entering RetrieveServiceOperationWhenDisabled test" << std::endl;
-	AlServiceRegistrationRequest instance(ServiceOperation::SOP_DISABLE, , ServiceType::SAP_CLIENT);
-	ServiceOperation operation = instance->getServiceOperation()
+	AlServiceRegistrationRequest instance(ServiceOperation::SOP_DISABLE, ServiceType::SAP_CLIENT);
+	ServiceOperation operation = instance.getServiceOperation();
     std::cout << "The service operation is "  << operation << std::endl;
     ASSERT_EQ(operation, ServiceOperation::SOP_DISABLE);
     std::cout << "Exiting RetrieveServiceOperationWhenDisabled test" << std::endl;
@@ -177,7 +177,7 @@ TEST(AlServiceRegistrationRequestTest, RetrieveServiceOperationWhenDisabled) {
 TEST(AlServiceRegistrationRequestTest, RetrieveServiceOperationWhenInvalid) {
     std::cout << "Entering RetrieveServiceOperationWhenInvalid test" << std::endl;
     AlServiceRegistrationRequest instance(static_cast<ServiceOperation>(0x03), ServiceType::SAP_CLIENT);
-	ServiceOperation operation = instance->getServiceOperation()
+	ServiceOperation operation = instance.getServiceOperation();
     std::cout << "The service operation is "  << operation << std::endl;
     std::cout << "Exiting RetrieveServiceOperationWhenInvalid test" << std::endl;
 }
@@ -206,7 +206,7 @@ TEST(AlServiceRegistrationRequestTest, RetrieveServiceOperationWhenInvalid) {
 TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_SAP_CLIENT) {
     std::cout << "Entering RetrieveServiceType_SAP_CLIENT test" << std::endl;
 	AlServiceRegistrationRequest instance(ServiceOperation::SOP_ENABLE, ServiceType::SAP_CLIENT);    
-    ServiceType result = instance->getServiceType();
+    ServiceType result = instance.getServiceType();
 	std::cout << "The servicetype is "  << result << std::endl;
     ASSERT_EQ(result, ServiceType::SAP_CLIENT);	
     std::cout << "Exiting RetrieveServiceType_SAP_CLIENT test" << std::endl;
@@ -236,7 +236,7 @@ TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_SAP_CLIENT) {
 TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_SAP_SERVER) {
     std::cout << "Entering RetrieveServiceType_SAP_SERVER test" << std::endl;
 	AlServiceRegistrationRequest instance(ServiceOperation::SOP_ENABLE, ServiceType::SAP_SERVER);
-    ServiceType result = instance->getServiceType();
+    ServiceType result = instance.getServiceType();
 	std::cout << "The servicetype is "  << result << std::endl;
     ASSERT_EQ(result, ServiceType::SAP_SERVER);
     std::cout << "Exiting RetrieveServiceType_SAP_SERVER test" << std::endl;
@@ -297,7 +297,7 @@ TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_SAP_TUNNEL_CLIENT) {
 TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_SAP_TUNNEL_SERVER) {
     std::cout << "Entering RetrieveServiceType_SAP_TUNNEL_SERVER test" << std::endl;
 	AlServiceRegistrationRequest instance(ServiceOperation::SOP_ENABLE, ServiceType::SAP_TUNNEL_SERVER);
-    ServiceType result = instance->getServiceType();
+    ServiceType result = instance.getServiceType();
 	std::cout << "The servicetype is "  << result << std::endl;
     ASSERT_EQ(result, ServiceType::SAP_TUNNEL_SERVER);
     std::cout << "Exiting RetrieveServiceType_SAP_TUNNEL_SERVER test" << std::endl;
@@ -324,12 +324,12 @@ TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_SAP_TUNNEL_SERVER) {
 * | 03 | Retrieve and print the service type | ServiceType result = instance->getServiceType() | Should be printed | Print the retrieved service type |
 * | 04 | Tear down the test environment | delete instance | instance should be deleted | Done by Pre-requisite TearDown function |
 */
-TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_SAP_TUNNEL_SERVER) {
-    std::cout << "Entering RetrieveServiceType_SAP_TUNNEL_SERVER test" << std::endl;
+TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_Invalid) {
+    std::cout << "Entering RetrieveServiceType_Invalid test" << std::endl;
 	AlServiceRegistrationRequest instance(ServiceOperation::SOP_ENABLE, static_cast<ServiceType>(0x06));
-    ServiceType result = instance->getServiceType();
+    ServiceType result = instance.getServiceType();
 	std::cout << "The servicetype is "  << result << std::endl;
-    std::cout << "Exiting RetrieveServiceType_SAP_TUNNEL_SERVER test" << std::endl;
+    std::cout << "Exiting RetrieveServiceType_Invalid test" << std::endl;
 }
 
 /**
@@ -353,11 +353,17 @@ TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_SAP_TUNNEL_SERVER) {
  * | 03 | Serialize the registration request | None | result should not be empty | Should Pass |
  * | 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
  */
-TEST(AlServiceRegistrationRequestTest, SerializeValidRegistrationRequest) {
+ TEST(AlServiceRegistrationRequestTest, SerializeValidRegistrationRequest) {
     std::cout << "Entering SerializeValidRegistrationRequest test" << std::endl;
     AlServiceRegistrationRequest instance(ServiceOperation::SOP_ENABLE, ServiceType::SAP_CLIENT);
-    std::vector<unsigned char> result = instance->serializeRegistrationRequest();
-    std::cout << "The result is "  << result << std::endl;
+    std::vector<unsigned char> result = instance.serializeRegistrationRequest();
+    std::cout << "The result is: [";
+    for (size_t i = 0; i < result.size(); ++i) {
+        std::cout << std::hex << std::uppercase << std::setw(2) << std::setfill('0')
+                  << static_cast<int>(result[i]);
+        if (i != result.size() - 1) std::cout << " ";
+    }
+    std::cout << "]" << std::endl;
     std::cout << "Exiting SerializeValidRegistrationRequest test" << std::endl;
 }
 
@@ -382,11 +388,16 @@ TEST(AlServiceRegistrationRequestTest, SerializeValidRegistrationRequest) {
  * | 03 | Serialize the registration request | None | result should be empty | Should Pass |
  * | 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
  */
-TEST(AlServiceRegistrationRequestTest, SerializeInvalidRegistrationRequest) {
+ TEST(AlServiceRegistrationRequestTest, SerializeInvalidRegistrationRequest) {
     std::cout << "Entering SerializeInvalidRegistrationRequest test" << std::endl;
-	AlServiceRegistrationRequest instance(static_cast<ServiceOperation>(0x04), static_cast<ServiceType>(0x05));
-    std::vector<unsigned char> result = instance->serializeRegistrationRequest();
-    std::cout << "The result is "  << result << std::endl;
+    AlServiceRegistrationRequest instance(static_cast<ServiceOperation>(0x04), static_cast<ServiceType>(0x05));
+    std::vector<unsigned char> result = instance.serializeRegistrationRequest();
+    std::cout << "The result is: [";
+    for (size_t i = 0; i < result.size(); ++i) {
+        std::cout << std::hex << std::uppercase << static_cast<int>(result[i]);
+        if (i != result.size() - 1) std::cout << " ";
+    }
+    std::cout << "]" << std::endl;
     std::cout << "Exiting SerializeInvalidRegistrationRequest test" << std::endl;
 }
 
