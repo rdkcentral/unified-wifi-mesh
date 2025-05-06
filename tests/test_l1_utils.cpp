@@ -18,6 +18,9 @@
  */
 
 #include "test_l1_utils.h"
+#include <array>
+#include <sstream>
+#include <cctype>
 
 MacAddress parseMacAddress(const std::string& macStr) {
     std::string cleaned;

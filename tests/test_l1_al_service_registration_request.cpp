@@ -265,9 +265,9 @@ TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_SAP_SERVER) {
  */
 TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_SAP_TUNNEL_CLIENT) {
     std::cout << "Entering RetrieveServiceType_SAP_TUNNEL_CLIENT test" << std::endl;
-	AlServiceRegistrationRequest instance(ServiceOperation::SOP_ENABLE, ServiceType::SAP_TUNNEL_CLIENT);
-    ServiceType result = instance->getServiceType();
-	std::cout << "The servicetype is "  << result << std::endl;
+    AlServiceRegistrationRequest instance(ServiceOperation::SOP_ENABLE, ServiceType::SAP_TUNNEL_CLIENT);
+    ServiceType result = instance.getServiceType();
+    std::cout << "The servicetype is "  << result << std::endl;
     ASSERT_EQ(result, ServiceType::SAP_TUNNEL_CLIENT);
     std::cout << "Exiting RetrieveServiceType_SAP_TUNNEL_CLIENT test" << std::endl;
 }
@@ -296,9 +296,9 @@ TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_SAP_TUNNEL_CLIENT) {
 */
 TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_SAP_TUNNEL_SERVER) {
     std::cout << "Entering RetrieveServiceType_SAP_TUNNEL_SERVER test" << std::endl;
-	AlServiceRegistrationRequest instance(ServiceOperation::SOP_ENABLE, ServiceType::SAP_TUNNEL_SERVER);
+    AlServiceRegistrationRequest instance(ServiceOperation::SOP_ENABLE, ServiceType::SAP_TUNNEL_SERVER);
     ServiceType result = instance.getServiceType();
-	std::cout << "The servicetype is "  << result << std::endl;
+    std::cout << "The servicetype is "  << result << std::endl;
     ASSERT_EQ(result, ServiceType::SAP_TUNNEL_SERVER);
     std::cout << "Exiting RetrieveServiceType_SAP_TUNNEL_SERVER test" << std::endl;
 }
@@ -326,9 +326,9 @@ TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_SAP_TUNNEL_SERVER) {
 */
 TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_Invalid) {
     std::cout << "Entering RetrieveServiceType_Invalid test" << std::endl;
-	AlServiceRegistrationRequest instance(ServiceOperation::SOP_ENABLE, static_cast<ServiceType>(0x06));
+    AlServiceRegistrationRequest instance(ServiceOperation::SOP_ENABLE, static_cast<ServiceType>(0x06));
     ServiceType result = instance.getServiceType();
-	std::cout << "The servicetype is "  << result << std::endl;
+    std::cout << "The servicetype is "  << result << std::endl;
     std::cout << "Exiting RetrieveServiceType_Invalid test" << std::endl;
 }
 

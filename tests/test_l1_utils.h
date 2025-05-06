@@ -2,6 +2,7 @@
 #include <numeric>
 #include <iomanip>
 #include <ostream>
+#include <string>
 #include "al_service_registration_enums.h"
 
 using MacAddress = std::array<uint8_t, 6>;
