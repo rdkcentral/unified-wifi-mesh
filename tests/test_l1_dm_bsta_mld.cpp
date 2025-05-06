@@ -2,7 +2,7 @@
  * If not stated otherwise in this file or this component's LICENSE file the
  * following copyright and licenses apply:
  *
- * Copyright 2025 RDK Management
+ * Copyright 2024 RDK Management
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -69,9 +69,9 @@ TEST_F(dm_bsta_mld_Test, DecodeValidJsonObjectWithValidParentID) {
 }
  
   /**
-   * @brief TEST decoding a valid JSON object with a null parent ID.
+   * @briefTEST decoding a valid JSON object with a null parent ID.
    *
-   * This TEST verifies that the decode function correctly handles a valid JSON object when the parent ID is null. The expected behavior is that the function should return -1, indicating an error due to the null parent ID.
+   * ThisTEST verifies that the decode function correctly handles a valid JSON object when the parent ID is null. The expected behavior is that the function should return -1, indicating an error due to the null parent ID.
    *
    * **Test Group ID:** Basic: 01
    * **Test Case ID:** 002
@@ -101,9 +101,9 @@ TEST_F(dm_bsta_mld_Test, DecodeValidJsonObjectWithNullParentID) {
 }
  
   /**
-   * @brief TEST the decode function with a null JSON object and a valid parent ID.
+   * @briefTEST the decode function with a null JSON object and a valid parent ID.
    *
-   * This TEST checks the behavior of the decode function when provided with a null JSON object and a valid parent ID. The expected result is that the function should return an error code (-1) indicating failure to decode.
+   * ThisTEST checks the behavior of the decode function when provided with a null JSON object and a valid parent ID. The expected result is that the function should return an error code (-1) indicating failure to decode.
    *
    * **Test Group ID:** Basic: 01@n
    * **Test Case ID:** 003@n
@@ -129,9 +129,9 @@ TEST_F(dm_bsta_mld_Test, DecodeNullJsonObjectWithValidParentID) {
 }
  
   /**
-   * @brief TEST to decode an invalid JSON object with a valid parent ID.
+   * @briefTEST to decode an invalid JSON object with a valid parent ID.
    *
-   * This TEST checks the behavior of the decode function when provided with an invalid JSON object and a valid parent ID. The objective is to ensure that the function correctly identifies the invalid JSON and returns an error code.
+   * ThisTEST checks the behavior of the decode function when provided with an invalid JSON object and a valid parent ID. The objective is to ensure that the function correctly identifies the invalid JSON and returns an error code.
    *
    * **Test Group ID:** Basic: 01
    * **Test Case ID:** 004
@@ -162,9 +162,9 @@ TEST_F(dm_bsta_mld_Test, DecodeInvalidJsonObjectWithValidParentID) {
 }
  
   /**
-   * @brief TEST decoding a valid JSON object with an invalid parent ID
+   * @briefTEST decoding a valid JSON object with an invalid parent ID
    *
-   * This TEST verifies that the decode function correctly handles a valid JSON object when provided with an invalid parent ID. The expected behavior is that the function should return an error code indicating failure.
+   * ThisTEST verifies that the decode function correctly handles a valid JSON object when provided with an invalid parent ID. The expected behavior is that the function should return an error code indicating failure.
    *
    * **Test Group ID:** Basic: 01@n
    * **Test Case ID:** 005@n
@@ -194,9 +194,9 @@ TEST_F(dm_bsta_mld_Test, DecodeValidJsonObjectWithInvalidParentID) {
 }
  
   /**
-   * @brief TEST the encoding functionality with a valid cJSON object.
+   * @briefTEST the encoding functionality with a valid cJSON object.
    *
-   * This TEST verifies that the encode function of the dm_bsta_mld_t class correctly processes a valid cJSON object. 
+   * ThisTEST verifies that the encode function of the dm_bsta_mld_t class correctly processes a valid cJSON object. 
    * TheTEST ensures that the object remains valid after encoding and that the function handles various data types correctly.
    *
    * **Test Group ID:** Basic: 01@n
@@ -234,9 +234,9 @@ TEST_F(dm_bsta_mld_Test, EncodeWithValidCJSONObject) {
 }
  
   /**
-   * @brief TEST encoding of JSON object with special characters
+   * @briefTEST encoding of JSON object with special characters
    *
-   * This TEST verifies that the encode function can handle JSON objects containing special characters. It ensures that the function correctly processes and encodes the object without errors.
+   * ThisTEST verifies that the encode function can handle JSON objects containing special characters. It ensures that the function correctly processes and encodes the object without errors.
    *
    * **Test Group ID:** Basic: 01
    * **Test Case ID:** 007
@@ -267,9 +267,9 @@ TEST_F(dm_bsta_mld_Test, EncodeWithSpecialCharacters) {
 }
  
   /**
-   * @brief TEST the encoding functionality with an empty cJSON object.
+   * @briefTEST the encoding functionality with an empty cJSON object.
    *
-   * This TEST verifies that the encode function can handle an empty cJSON object without errors. 
+   * ThisTEST verifies that the encode function can handle an empty cJSON object without errors. 
    * It ensures that the object remains a valid cJSON object after encoding.
    *
    * **Test Group ID:** Basic: 01
@@ -300,9 +300,9 @@ TEST_F(dm_bsta_mld_Test, EncodeWithEmptyCJSONObject) {
 }
  
   /**
-   * @brief TEST the encoding function with a null cJSON object
+   * @briefTEST the encoding function with a null cJSON object
    *
-   * This TEST checks the behavior of the encode function when provided with a null cJSON object. 
+   * ThisTEST checks the behavior of the encode function when provided with a null cJSON object. 
    * It ensures that the function handles null input gracefully without causing any crashes or unexpected behavior.
    *
    * **Test Group ID:** Basic: 01@n
@@ -331,9 +331,9 @@ TEST_F(dm_bsta_mld_Test, EncodeWithNullCJSONObject) {
 }
  
   /**
-   * @brief TEST the encoding function with an invalid JSON structure.
+   * @briefTEST the encoding function with an invalid JSON structure.
    *
-   * This TEST verifies that the encode function can handle an invalid JSON structure correctly. 
+   * ThisTEST verifies that the encode function can handle an invalid JSON structure correctly. 
    * Specifically, it checks if the function can process a JSON array containing a string and 
    * ensures that the structure remains an array after encoding.
    *
@@ -366,9 +366,9 @@ TEST_F(dm_bsta_mld_Test, EncodeWithInvalidJSONStructure) {
 }
  
   /**
-   * @brief TEST to verify the retrieval of AP MLD information with valid data.
+   * @briefTEST to verify the retrieval of AP MLD information with valid data.
    *
-   * This TEST checks the functionality of the `get_ap_mld_info` method in the `dm_bsta_mld_t` class. 
+   * ThisTEST checks the functionality of the `get_ap_mld_info` method in the `dm_bsta_mld_t` class. 
    * It ensures that the method correctly retrieves and validates the AP MLD information.
    *
    * **Test Group ID:** Basic: 01@n
@@ -448,9 +448,9 @@ TEST(dm_bsta_mld_Test, RetrieveAPMLDInfoAfterNullInitialization) {
 }
  
   /**
-   * @brief TEST the initialization of m_bsta_mld_info structure
+   * @briefTEST the initialization of m_bsta_mld_info structure
    *
-   * This TEST verifies the initialization of the m_bsta_mld_info structure by calling the init() method of the dm_bsta_mld_t class instance. TheTEST ensures that the initialization is successful and returns the expected result.
+   * ThisTEST verifies the initialization of the m_bsta_mld_info structure by calling the init() method of the dm_bsta_mld_t class instance. TheTEST ensures that the initialization is successful and returns the expected result.
    *
    * **Test Group ID:** Basic: 01
    * **Test Case ID:** 013
@@ -476,9 +476,9 @@ TEST_F(dm_bsta_mld_Test, Initialize_m_bsta_mld_info_structure) {
 }
  
   /**
-   * @brief TEST the initialization of m_bsta_mld_info structure multiple times
+   * @briefTEST the initialization of m_bsta_mld_info structure multiple times
    *
-   * This TEST verifies that the m_bsta_mld_info structure can be initialized multiple times without any issues. 
+   * ThisTEST verifies that the m_bsta_mld_info structure can be initialized multiple times without any issues. 
    * It ensures that the init() function can be called more than once and still return a successful result.
    *
    * **Test Group ID:** Basic: 01@n
@@ -509,9 +509,9 @@ TEST_F(dm_bsta_mld_Test, Initialize_m_bsta_mld_info_structure_multiple_times) {
 }
   
   /**
-  * @brief TEST to verify if two objects of dm_bsta_mld_t are identical
+  * @briefTEST to verify if two objects of dm_bsta_mld_t are identical
   *
-  * This TEST checks if two instances of dm_bsta_mld_t with identical data are considered equal by the equality operator. This is important to ensure that the equality operator is correctly implemented and can accurately compare two objects of the class.
+  * ThisTEST checks if two instances of dm_bsta_mld_t with identical data are considered equal by the equality operator. This is important to ensure that the equality operator is correctly implemented and can accurately compare two objects of the class.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 015@n
@@ -524,7 +524,7 @@ TEST_F(dm_bsta_mld_Test, Initialize_m_bsta_mld_info_structure_multiple_times) {
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data |Expected Result |Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01| Create two identical objects of dm_bsta_mld_t | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}}, obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}} | Objects should be identical | Should Pass |
+  * | 01| Create two identical objects of dm_bsta_mld_t | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1} , obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1} | Objects should be identical | Should Pass |
   * | 02| Compare the two objects using the equality operator | obj1 == obj2 | EXPECT_TRUE(obj1 == obj2) | Should Pass |
   */
 TEST(dm_btsa_mld_Test, BothObjectsAreIdentical) {
@@ -545,19 +545,14 @@ TEST(dm_btsa_mld_Test, BothObjectsAreIdentical) {
       info1.emlsr = info2.emlsr = true;
       info1.emlmr = info2.emlmr = true;
       info1.num_affiliated_bsta = info2.num_affiliated_bsta = 1;
-      info1.affiliated_bsta[0] = info2.affiliated_bsta[0] = {
-          true,
-          {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5},
-          {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}
-      };
       EXPECT_TRUE(obj1 == obj2);
       std::cout << "Exiting BothObjectsAreIdentical" << std::endl;
 }
  
   /**
-  * @brief TEST to verify that two objects of dm_bsta_mld_t have different MAC addresses and are not equal.
+  * @briefTEST to verify that two objects of dm_bsta_mld_t have different MAC addresses and are not equal.
   *
-  * This TEST checks if two instances of dm_bsta_mld_t with different MAC addresses are not considered equal. This is important to ensure that the equality operator correctly identifies objects with different MAC addresses as unequal.
+  * ThisTEST checks if two instances of dm_bsta_mld_t with different MAC addresses are not considered equal. This is important to ensure that the equality operator correctly identifies objects with different MAC addresses as unequal.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 016@n
@@ -570,7 +565,7 @@ TEST(dm_btsa_mld_Test, BothObjectsAreIdentical) {
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Create two instances of dm_bsta_mld_t with different MAC addresses | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}}, obj2.m_bsta_mld_info = {false, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}} | Instances created successfully | Should be successful |
+  * | 01 | Create two instances of dm_bsta_mld_t with different MAC addresses | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1}, obj2.m_bsta_mld_info = {false, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1} | Instances created successfully | Should be successful |
   * | 02 | Compare the two instances using the equality operator | obj1 == obj2 | EXPECT_FALSE(obj1 == obj2) | Should Pass |
   */
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentMacAddrValid) {
@@ -592,19 +587,14 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentMacAddrValid) {
       info1.emlsr = info2.emlsr = true;
       info1.emlmr = info2.emlmr = true;
       info1.num_affiliated_bsta = info2.num_affiliated_bsta = 1;
-      info1.affiliated_bsta[0] = info2.affiliated_bsta[0] = {
-          true,
-          {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5},
-          {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}
-      };
       EXPECT_FALSE(obj1 == obj2);
       std::cout << "Exiting ObjectsHaveDifferentMacAddrValid" << std::endl;
 }
  
   /**
-  * @brief TEST to verify that two objects of dm_bsta_mld_t have different AP MLD MAC addresses
+  * @briefTEST to verify that two objects of dm_bsta_mld_t have different AP MLD MAC addresses
   *
-  * This TEST checks that two instances of dm_bsta_mld_t with different AP MLD MAC addresses are not considered equal.@n
+  * ThisTEST checks that two instances of dm_bsta_mld_t with different AP MLD MAC addresses are not considered equal.@n
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 017@n
@@ -617,7 +607,7 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentMacAddrValid) {
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data |Expected Result |Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01| Create two instances of dm_bsta_mld_t with different AP MLD MAC addresses | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}}, obj2.m_bsta_mld_info = {true, false, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}} | Two objects should not be equal | Should Pass |
+  * | 01| Create two instances of dm_bsta_mld_t with different AP MLD MAC addresses | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}}, obj2.m_bsta_mld_info = {true, false, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1} | Two objects should not be equal | Should Pass |
   */
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentApMldMacAddrValid) {
       std::cout << "Entering ObjectsHaveDifferentApMldMacAddrValid" << std::endl;
@@ -638,19 +628,14 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentApMldMacAddrValid) {
       info1.emlsr = info2.emlsr = true;
       info1.emlmr = info2.emlmr = true;
       info1.num_affiliated_bsta = info2.num_affiliated_bsta = 1;
-      info1.affiliated_bsta[0] = info2.affiliated_bsta[0] = {
-          true,
-          {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5},
-          {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}
-      };
       EXPECT_FALSE(obj1 == obj2);
       std::cout << "Exiting ObjectsHaveDifferentApMldMacAddrValid" << std::endl;
 }
  
   /**
-  * @brief TEST to verify that two objects have different MAC addresses
+  * @briefTEST to verify that two objects have different MAC addresses
   *
-  * This TEST checks that two instances of `dm_bsta_mld_t` have different MAC addresses and are not considered equal.@n
+  * ThisTEST checks that two instances of `dm_bsta_mld_t` have different MAC addresses and are not considered equal.@n
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 018@n
@@ -685,19 +670,14 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentMacAddr) {
       info1.emlsr = info2.emlsr = true;
       info1.emlmr = info2.emlmr = true;
       info1.num_affiliated_bsta = info2.num_affiliated_bsta = 1;
-      info1.affiliated_bsta[0] = info2.affiliated_bsta[0] = {
-          true,
-          {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5},
-          {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}
-      };
       EXPECT_FALSE(obj1 == obj2);
       std::cout << "Exiting ObjectsHaveDifferentMacAddr" << std::endl;
 }
  
   /**
-  * @brief TEST to verify that two objects of dm_bsta_mld_t have different AP MLD MAC addresses
+  * @briefTEST to verify that two objects of dm_bsta_mld_t have different AP MLD MAC addresses
   *
-  * This TEST checks if two instances of dm_bsta_mld_t have different AP MLD MAC addresses and ensures that the equality operator correctly identifies them as different objects.@n
+  * ThisTEST checks if two instances of dm_bsta_mld_t have different AP MLD MAC addresses and ensures that the equality operator correctly identifies them as different objects.@n
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 019@n
@@ -710,7 +690,7 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentMacAddr) {
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data |Expected Result |Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01| Create two instances of dm_bsta_mld_t and set their m_bsta_mld_info with different AP MLD MAC addresses | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}}, obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBC}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}} | Objects should be different | Should Pass |
+  * | 01| Create two instances of dm_bsta_mld_t and set their m_bsta_mld_info with different AP MLD MAC addresses | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1}, obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBC}, true, true, true, true, 1} | Objects should be different | Should Pass |
   * | 02| Check if the equality operator identifies them as different | EXPECT_FALSE(obj1 == obj2) |TEST should pass | Should Pass |
   */
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentApMldMacAddr) {
@@ -732,19 +712,14 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentApMldMacAddr) {
       info1.emlsr = info2.emlsr = true;
       info1.emlmr = info2.emlmr = true;
       info1.num_affiliated_bsta = info2.num_affiliated_bsta = 1;
-      info1.affiliated_bsta[0] = info2.affiliated_bsta[0] = {
-          true,
-          {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5},
-          {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}
-      };
       EXPECT_FALSE(obj1 == obj2);
       std::cout << "Exiting ObjectsHaveDifferentApMldMacAddr" << std::endl;
 }
  
   /**
-  * @brief TEST to verify that two objects of dm_bsta_mld_t have different m_bsta_mld_info structures.
+  * @briefTEST to verify that two objects of dm_bsta_mld_t have different m_bsta_mld_info structures.
   *
-  * This TEST checks if two objects of dm_bsta_mld_t have different m_bsta_mld_info structures by comparing them using the equality operator. TheTEST ensures that the equality operator correctly identifies the difference in the structures.
+  * ThisTEST checks if two objects of dm_bsta_mld_t have different m_bsta_mld_info structures by comparing them using the equality operator. TheTEST ensures that the equality operator correctly identifies the difference in the structures.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 020@n
@@ -757,7 +732,7 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentApMldMacAddr) {
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data |Expected Result |Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01| Create two objects of dm_bsta_mld_t and set their m_bsta_mld_info structures with different values | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}}, obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, false, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}} | Objects should have different m_bsta_mld_info structures | Should Pass |
+  * | 01| Create two objects of dm_bsta_mld_t and set their m_bsta_mld_info structures with different values | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1}, obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, false, true, true, true, 1} | Objects should have different m_bsta_mld_info structures | Should Pass |
   * | 02| Compare the two objects using the equality operator | obj1 == obj2 | EXPECT_FALSE(obj1 == obj2) | Should Pass |
   */
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentStr) {
@@ -779,19 +754,14 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentStr) {
       info1.emlsr = info2.emlsr = true;
       info1.emlmr = info2.emlmr = true;
       info1.num_affiliated_bsta = info2.num_affiliated_bsta = 1;
-      info1.affiliated_bsta[0] = info2.affiliated_bsta[0] = {
-          true,
-          {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5},
-          {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}
-      };
       EXPECT_FALSE(obj1 == obj2);
       std::cout << "Exiting ObjectsHaveDifferentStr" << std::endl;
 }
  
   /**
-  * @brief TEST to verify that two objects of dm_bsta_mld_t have different nstr values
+  * @briefTEST to verify that two objects of dm_bsta_mld_t have different nstr values
   *
-  * This TEST checks if two objects of dm_bsta_mld_t have different nstr values and ensures that the equality operator correctly identifies them as not equal.@n
+  * ThisTEST checks if two objects of dm_bsta_mld_t have different nstr values and ensures that the equality operator correctly identifies them as not equal.@n
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 021@n
@@ -804,7 +774,7 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentStr) {
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data |Expected Result |Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01| Create two objects of dm_bsta_mld_t and set their m_bsta_mld_info with different nstr values | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}}, obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, false, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}} | Objects should have different nstr values | Should be successful |
+  * | 01| Create two objects of dm_bsta_mld_t and set their m_bsta_mld_info with different nstr values | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1}, obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, false, true, true, 1} | Objects should have different nstr values | Should be successful |
   * | 02| Check if the equality operator identifies them as not equal | EXPECT_FALSE(obj1 == obj2) | The objects should not be equal | Should Pass |
   */
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentNstr) {
@@ -826,19 +796,14 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentNstr) {
       info1.emlsr = info2.emlsr = true;
       info1.emlmr = info2.emlmr = true;
       info1.num_affiliated_bsta = info2.num_affiliated_bsta = 1;
-      info1.affiliated_bsta[0] = info2.affiliated_bsta[0] = {
-          true,
-          {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5},
-          {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}
-      };
       EXPECT_FALSE(obj1 == obj2);
       std::cout << "Exiting ObjectsHaveDifferentNstr" << std::endl;
 }
  
   /**
-  * @brief TEST to verify that two objects of dm_bsta_mld_t have different Emlsr values
+  * @briefTEST to verify that two objects of dm_bsta_mld_t have different Emlsr values
   *
-  * This TEST checks that two instances of dm_bsta_mld_t with different Emlsr values are not considered equal.@n
+  * ThisTEST checks that two instances of dm_bsta_mld_t with different Emlsr values are not considered equal.@n
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 022@n
@@ -851,7 +816,7 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentNstr) {
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data |Expected Result |Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01| Create two instances of dm_bsta_mld_t with different Emlsr values | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}}, obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, false, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}} | Instances should not be equal | Should Pass |
+  * | 01| Create two instances of dm_bsta_mld_t with different Emlsr values | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1}, obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, false, true, 1} | Instances should not be equal | Should Pass |
   * | 02| Compare the two instances using EXPECT_FALSE | EXPECT_FALSE(obj1 == obj2) | The comparison should return false | Should Pass |
   */
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentEmlsr) {
@@ -873,19 +838,14 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentEmlsr) {
       info2.emlsr = false;      
       info1.emlmr = info2.emlmr = true;
       info1.num_affiliated_bsta = info2.num_affiliated_bsta = 1;
-      info1.affiliated_bsta[0] = info2.affiliated_bsta[0] = {
-          true,
-          {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5},
-          {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}
-      };
       EXPECT_FALSE(obj1 == obj2);
       std::cout << "Exiting ObjectsHaveDifferentEmlsr" << std::endl;
 }
  
   /**
-  * @brief TEST to verify that two objects of dm_bsta_mld_t have different EMLMR values
+  * @briefTEST to verify that two objects of dm_bsta_mld_t have different EMLMR values
   *
-  * This TEST checks if two instances of dm_bsta_mld_t with different EMLMR values are not considered equal.@n
+  * ThisTEST checks if two instances of dm_bsta_mld_t with different EMLMR values are not considered equal.@n
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 023@n
@@ -898,7 +858,7 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentEmlsr) {
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data |Expected Result |Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01| Create two instances of dm_bsta_mld_t with different EMLMR values | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}}, obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, false, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}} | Two objects should not be equal | Should Pass |
+  * | 01| Create two instances of dm_bsta_mld_t with different EMLMR values | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1}, obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, false, 1} | Two objects should not be equal | Should Pass |
   * | 02| Compare the two instances using EXPECT_FALSE | EXPECT_FALSE(obj1 == obj2) | The comparison should return false | Should Pass |
   */
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentEmlmr) {
@@ -920,19 +880,14 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentEmlmr) {
       info1.emlmr = true;
       info2.emlmr = false;  
       info1.num_affiliated_bsta = info2.num_affiliated_bsta = 1;
-      info1.affiliated_bsta[0] = info2.affiliated_bsta[0] = {
-          true,
-          {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5},
-          {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}
-      };
       EXPECT_FALSE(obj1 == obj2);
       std::cout << "Exiting ObjectsHaveDifferentEmlmr" << std::endl;
 }
  
   /**
-  * @brief TEST to verify that objects with different number of affiliated BSTA are not equal
+  * @briefTEST to verify that objects with different number of affiliated BSTA are not equal
   *
-  * This TEST checks if two objects of type dm_bsta_mld_t with different number of affiliated BSTA are considered not equal.@n
+  * ThisTEST checks if two objects of type dm_bsta_mld_t with different number of affiliated BSTA are considered not equal.@n
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 024@n
@@ -945,7 +900,7 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentEmlmr) {
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data |Expected Result |Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01| Create two objects of dm_bsta_mld_t with different number of affiliated BSTA | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}}, obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 2, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}} | Objects should not be equal | Should Pass |
+  * | 01| Create two objects of dm_bsta_mld_t with different number of affiliated BSTA | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1}, obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 2} | Objects should not be equal | Should Pass |
   */
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentNumAffiliatedBsta) {
       std::cout << "Entering ObjectsHaveDifferentNumAffiliatedBsta" << std::endl;
@@ -966,19 +921,14 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentNumAffiliatedBsta) {
       info1.emlmr = info2.emlmr = true; 
       info1.num_affiliated_bsta = 1;
       info2.num_affiliated_bsta = 2;
-      info1.affiliated_bsta[0] = info2.affiliated_bsta[0] = {
-          true,
-          {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5},
-          {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}
-      };
       EXPECT_FALSE(obj1 == obj2);
       std::cout << "Exiting ObjectsHaveDifferentNumAffiliatedBsta" << std::endl;
 }
 
   /**
-  * @brief TEST to verify the assignment operator for dm_bsta_mld_t objects
+  * @briefTEST to verify the assignment operator for dm_bsta_mld_t objects
   *
-  * This TEST checks the assignment operator of the dm_bsta_mld_t class to ensure that all member variables are correctly copied from one object to another.@n
+  * ThisTEST checks the assignment operator of the dm_bsta_mld_t class to ensure that all member variables are correctly copied from one object to another.@n
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 025@n
@@ -1017,9 +967,9 @@ TEST(dm_bsta_mld_Test, AssigningValidObject) {
 }
  
   /**
-  * @brief TEST the self-assignment functionality of the dm_bsta_mld_t class
+  * @briefTEST the self-assignment functionality of the dm_bsta_mld_t class
   *
-  * This TEST verifies that the self-assignment operator works correctly for the dm_bsta_mld_t class. 
+  * ThisTEST verifies that the self-assignment operator works correctly for the dm_bsta_mld_t class. 
   * It ensures that assigning an object to itself does not alter its state.
   *
   * **Test Group ID:** Basic: 01@n
@@ -1053,9 +1003,9 @@ TEST(dm_bsta_mld_Test, SelfAssignment) {
 }
  
   /**
-  * @brief TEST to verify the assignment of mixed field values between two objects of dm_bsta_mld_t
+  * @briefTEST to verify the assignment of mixed field values between two objects of dm_bsta_mld_t
   *
-  * This TEST checks if the assignment operator correctly assigns mixed field values from one object to another object of the same type. It ensures that all fields are copied accurately and the values are preserved after assignment.
+  * ThisTEST checks if the assignment operator correctly assigns mixed field values from one object to another object of the same type. It ensures that all fields are copied accurately and the values are preserved after assignment.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 027@n
@@ -1099,9 +1049,9 @@ TEST(dm_bsta_mld_Test, AssigningMixedFieldValues) {
 }
  
   /**
-  * @brief TEST to verify the assignment operator for dm_bsta_mld_t class when assigning maximum affiliated BSTA
+  * @briefTEST to verify the assignment operator for dm_bsta_mld_t class when assigning maximum affiliated BSTA
   *
-  * This TEST checks if the assignment operator correctly assigns the maximum number of affiliated BSTA from one object to another@n
+  * ThisTEST checks if the assignment operator correctly assigns the maximum number of affiliated BSTA from one object to another@n
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 028@n
@@ -1130,9 +1080,9 @@ TEST(dm_bsta_mld_Test, AssigningMaxAffiliatedBsta) {
 }
  
   /**
-  * @brief TEST to verify the assignment operator for dm_bsta_mld_t class
+  * @briefTEST to verify the assignment operator for dm_bsta_mld_t class
   *
-  * This TEST checks if the assignment operator correctly assigns the value of num_affiliated_bsta from one object to another when the value is set to the minimum (0). This is important to ensure that the assignment operator works correctly for edge cases.
+  * ThisTEST checks if the assignment operator correctly assigns the value of num_affiliated_bsta from one object to another when the value is set to the minimum (0). This is important to ensure that the assignment operator works correctly for edge cases.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 029@n
@@ -1161,7 +1111,7 @@ TEST(dm_bsta_mld_Test, AssigningMinAffiliatedBsta) {
 }
  
   /**
-  * @brief TEST to validate MLD information with few fields set
+  * @briefTEST to validate MLD information with few fields set
   *
   * This TEST verifies that the dm_bsta_mld_t object correctly initializes and stores the MLD information when few fields are set.@n
   *
@@ -1201,9 +1151,9 @@ TEST(dm_bsta_mld_Test, ValidMLDInformationAllFields) {
 }
 
   /**
-  * @brief TEST the copy constructor of dm_bsta_mld_t class with all fields initialized
+  * @briefTEST the copy constructor of dm_bsta_mld_t class with all fields initialized
   *
-  * This TEST verifies that the copy constructor of the dm_bsta_mld_t class correctly copies all fields from the original object to the new object. This ensures that the copy constructor works as expected when all fields are initialized.
+  * ThisTEST verifies that the copy constructor of the dm_bsta_mld_t class correctly copies all fields from the original object to the new object. This ensures that the copy constructor works as expected when all fields are initialized.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 031@n
@@ -1242,9 +1192,9 @@ TEST(dm_bsta_mld_Test, CopyConstructorWithAllFieldsInitialized) {
 }
  
   /**
-  * @brief TEST the copy constructor of dm_bsta_mld_t with invalid MAC address values
+  * @briefTEST the copy constructor of dm_bsta_mld_t with invalid MAC address values
   *
-  * This TEST verifies that the copy constructor of the dm_bsta_mld_t class correctly copies the MAC address values even when they are set to invalid values (0xFF). This ensures that the copy constructor handles edge cases properly.
+  * ThisTEST verifies that the copy constructor of the dm_bsta_mld_t class correctly copies the MAC address values even when they are set to invalid values (0xFF). This ensures that the copy constructor handles edge cases properly.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 032@n
