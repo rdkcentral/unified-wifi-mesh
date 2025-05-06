@@ -36,9 +36,9 @@ protected:
 };
   
   /**
-   * @briefTEST decoding a valid JSON object with a valid parent ID
+   * @brief TEST decoding a valid JSON object with a valid parent ID
    *
-   * ThisTEST verifies that the decode function correctly processes a valid JSON object when provided with a valid parent ID.
+   * This TEST verifies that the decode function correctly processes a valid JSON object when provided with a valid parent ID.
    *
    * **Test Group ID:** Basic: 01
    * **Test Case ID:** 001
@@ -530,8 +530,22 @@ TEST_F(dm_bsta_mld_Test, Initialize_m_bsta_mld_info_structure_multiple_times) {
 TEST(dm_btsa_mld_Test, BothObjectsAreIdentical) {
       std::cout << "Entering BothObjectsAreIdentical" << std::endl;
       dm_bsta_mld_t obj1, obj2;
-      obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}};
-      obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}};
+      auto& info1 = obj1.m_bsta_mld_info;
+      auto& info2 = obj2.m_bsta_mld_info;
+      info1.mac_addr_valid = info2.mac_addr_valid = true;
+      info1.ap_mld_mac_addr_valid = info2.ap_mld_mac_addr_valid = true;
+      info1.mac_addr = info2.mac_addr = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
+      info1.ap_mld_mac_addr = info2.ap_mld_mac_addr = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB};
+      info1.str = info2.str = true;
+      info1.nstr = info2.nstr = true;
+      info1.emlsr = info2.emlsr = true;
+      info1.emlmr = info2.emlmr = true;
+      info1.num_affiliated_bsta = info2.num_affiliated_bsta = 1;
+      info1.affiliated_bsta[0] = info2.affiliated_bsta[0] = {
+          true,
+          {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5},
+          {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}
+      };
       EXPECT_TRUE(obj1 == obj2);
       std::cout << "Exiting BothObjectsAreIdentical" << std::endl;
 }
@@ -558,8 +572,23 @@ TEST(dm_btsa_mld_Test, BothObjectsAreIdentical) {
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentMacAddrValid) {
       std::cout << "Entering ObjectsHaveDifferentMacAddrValid" << std::endl;
       dm_bsta_mld_t obj1, obj2;
-      obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}};
-      obj2.m_bsta_mld_info = {false, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}};
+      auto& info1 = obj1.m_bsta_mld_info;
+      auto& info2 = obj2.m_bsta_mld_info;
+      info1.mac_addr_valid = true;
+      info2.mac_addr_valid = false;
+      info1.ap_mld_mac_addr_valid = info2.ap_mld_mac_addr_valid = true;
+      info1.mac_addr = info2.mac_addr = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
+      info1.ap_mld_mac_addr = info2.ap_mld_mac_addr = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB};
+      info1.str = info2.str = true;
+      info1.nstr = info2.nstr = true;
+      info1.emlsr = info2.emlsr = true;
+      info1.emlmr = info2.emlmr = true;
+      info1.num_affiliated_bsta = info2.num_affiliated_bsta = 1;
+      info1.affiliated_bsta[0] = info2.affiliated_bsta[0] = {
+          true,
+          {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5},
+          {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}
+      };
       EXPECT_FALSE(obj1 == obj2);
       std::cout << "Exiting ObjectsHaveDifferentMacAddrValid" << std::endl;
 }
@@ -585,8 +614,23 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentMacAddrValid) {
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentApMldMacAddrValid) {
       std::cout << "Entering ObjectsHaveDifferentApMldMacAddrValid" << std::endl;
       dm_bsta_mld_t obj1, obj2;
-      obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}};
-      obj2.m_bsta_mld_info = {true, false, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}};
+      auto& info1 = obj1.m_bsta_mld_info;
+      auto& info2 = obj2.m_bsta_mld_info;
+      info1.mac_addr_valid = info2.mac_addr_valid = true;      
+      info1.ap_mld_mac_addr_valid = true;
+      info2.ap_mld_mac_addr_valid = false;
+      info1.mac_addr = info2.mac_addr = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
+      info1.ap_mld_mac_addr = info2.ap_mld_mac_addr = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB};
+      info1.str = info2.str = true;
+      info1.nstr = info2.nstr = true;
+      info1.emlsr = info2.emlsr = true;
+      info1.emlmr = info2.emlmr = true;
+      info1.num_affiliated_bsta = info2.num_affiliated_bsta = 1;
+      info1.affiliated_bsta[0] = info2.affiliated_bsta[0] = {
+          true,
+          {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5},
+          {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}
+      };
       EXPECT_FALSE(obj1 == obj2);
       std::cout << "Exiting ObjectsHaveDifferentApMldMacAddrValid" << std::endl;
 }
@@ -613,8 +657,23 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentApMldMacAddrValid) {
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentMacAddr) {
       std::cout << "Entering ObjectsHaveDifferentMacAddr" << std::endl;
       dm_bsta_mld_t obj1, obj2;
-      obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}};
-      obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x56}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}};
+      auto& info1 = obj1.m_bsta_mld_info;
+      auto& info2 = obj2.m_bsta_mld_info;
+      info1.mac_addr_valid = info2.mac_addr_valid = true;      
+      info1.ap_mld_mac_addr_valid = info2.ap_mld_mac_addr_valid = true;
+      info1.mac_addr = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
+      info2.mac_addr = {0x00, 0x11, 0x22, 0x33, 0x44, 0x56};
+      info1.ap_mld_mac_addr = info2.ap_mld_mac_addr = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB};
+      info1.str = info2.str = true;
+      info1.nstr = info2.nstr = true;
+      info1.emlsr = info2.emlsr = true;
+      info1.emlmr = info2.emlmr = true;
+      info1.num_affiliated_bsta = info2.num_affiliated_bsta = 1;
+      info1.affiliated_bsta[0] = info2.affiliated_bsta[0] = {
+          true,
+          {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5},
+          {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}
+      };
       EXPECT_FALSE(obj1 == obj2);
       std::cout << "Exiting ObjectsHaveDifferentMacAddr" << std::endl;
 }
@@ -641,8 +700,23 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentMacAddr) {
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentApMldMacAddr) {
       std::cout << "Entering ObjectsHaveDifferentApMldMacAddr" << std::endl;
       dm_bsta_mld_t obj1, obj2;
-      obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}};
-      obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBC}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}};
+      auto& info1 = obj1.m_bsta_mld_info;
+      auto& info2 = obj2.m_bsta_mld_info;
+      info1.mac_addr_valid = info2.mac_addr_valid = true;      
+      info1.ap_mld_mac_addr_valid = info2.ap_mld_mac_addr_valid = true;
+      info1.mac_addr = info2.mac_addr = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
+      info1.ap_mld_mac_addr = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB};
+      info2.ap_mld_mac_addr = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBC};
+      info1.str = info2.str = true;
+      info1.nstr = info2.nstr = true;
+      info1.emlsr = info2.emlsr = true;
+      info1.emlmr = info2.emlmr = true;
+      info1.num_affiliated_bsta = info2.num_affiliated_bsta = 1;
+      info1.affiliated_bsta[0] = info2.affiliated_bsta[0] = {
+          true,
+          {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5},
+          {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}
+      };
       EXPECT_FALSE(obj1 == obj2);
       std::cout << "Exiting ObjectsHaveDifferentApMldMacAddr" << std::endl;
 }
@@ -669,8 +743,23 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentApMldMacAddr) {
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentStr) {
       std::cout << "Entering ObjectsHaveDifferentStr" << std::endl;
       dm_bsta_mld_t obj1, obj2;
-      obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}};
-      obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, false, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}};
+      auto& info1 = obj1.m_bsta_mld_info;
+      auto& info2 = obj2.m_bsta_mld_info;
+      info1.mac_addr_valid = info2.mac_addr_valid = true;      
+      info1.ap_mld_mac_addr_valid = info2.ap_mld_mac_addr_valid = true;
+      info1.mac_addr = info2.mac_addr = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
+      info1.ap_mld_mac_addr = info2.ap_mld_mac_addr = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB};
+      info1.str = true;
+      info2.str = false;
+      info1.nstr = info2.nstr = true;
+      info1.emlsr = info2.emlsr = true;
+      info1.emlmr = info2.emlmr = true;
+      info1.num_affiliated_bsta = info2.num_affiliated_bsta = 1;
+      info1.affiliated_bsta[0] = info2.affiliated_bsta[0] = {
+          true,
+          {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5},
+          {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}
+      };
       EXPECT_FALSE(obj1 == obj2);
       std::cout << "Exiting ObjectsHaveDifferentStr" << std::endl;
 }
@@ -697,8 +786,23 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentStr) {
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentNstr) {
       std::cout << "Entering ObjectsHaveDifferentNstr" << std::endl;
       dm_bsta_mld_t obj1, obj2;
-      obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}};
-      obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, false, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}};
+      auto& info1 = obj1.m_bsta_mld_info;
+      auto& info2 = obj2.m_bsta_mld_info;
+      info1.mac_addr_valid = info2.mac_addr_valid = true;      
+      info1.ap_mld_mac_addr_valid = info2.ap_mld_mac_addr_valid = true;
+      info1.mac_addr = info2.mac_addr = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
+      info1.ap_mld_mac_addr = info2.ap_mld_mac_addr = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB};
+      info1.str = info2.str = true;      
+      info1.nstr = true;
+      info2.nstr = false;
+      info1.emlsr = info2.emlsr = true;
+      info1.emlmr = info2.emlmr = true;
+      info1.num_affiliated_bsta = info2.num_affiliated_bsta = 1;
+      info1.affiliated_bsta[0] = info2.affiliated_bsta[0] = {
+          true,
+          {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5},
+          {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}
+      };
       EXPECT_FALSE(obj1 == obj2);
       std::cout << "Exiting ObjectsHaveDifferentNstr" << std::endl;
 }
@@ -725,8 +829,23 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentNstr) {
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentEmlsr) {
       std::cout << "Entering ObjectsHaveDifferentEmlsr" << std::endl;
       dm_bsta_mld_t obj1, obj2;
-      obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}};
-      obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, false, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}};
+      auto& info1 = obj1.m_bsta_mld_info;
+      auto& info2 = obj2.m_bsta_mld_info;
+      info1.mac_addr_valid = info2.mac_addr_valid = true;      
+      info1.ap_mld_mac_addr_valid = info2.ap_mld_mac_addr_valid = true;
+      info1.mac_addr = info2.mac_addr = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
+      info1.ap_mld_mac_addr = info2.ap_mld_mac_addr = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB};
+      info1.str = info2.str = true;      
+      info1.nstr = info2.nstr = true;
+      info1.emlsr = true;
+      info2.emlsr = false;      
+      info1.emlmr = info2.emlmr = true;
+      info1.num_affiliated_bsta = info2.num_affiliated_bsta = 1;
+      info1.affiliated_bsta[0] = info2.affiliated_bsta[0] = {
+          true,
+          {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5},
+          {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}
+      };
       EXPECT_FALSE(obj1 == obj2);
       std::cout << "Exiting ObjectsHaveDifferentEmlsr" << std::endl;
 }
@@ -753,8 +872,23 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentEmlsr) {
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentEmlmr) {
       std::cout << "Entering ObjectsHaveDifferentEmlmr" << std::endl;
       dm_bsta_mld_t obj1, obj2;
-      obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}};
-      obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, false, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}};
+      auto& info1 = obj1.m_bsta_mld_info;
+      auto& info2 = obj2.m_bsta_mld_info;
+      info1.mac_addr_valid = info2.mac_addr_valid = true;      
+      info1.ap_mld_mac_addr_valid = info2.ap_mld_mac_addr_valid = true;
+      info1.mac_addr = info2.mac_addr = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
+      info1.ap_mld_mac_addr = info2.ap_mld_mac_addr = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB};
+      info1.str = info2.str = true;      
+      info1.nstr = info2.nstr = true;
+      info1.emlsr = info2.emlsr = true;          
+      info1.emlmr = true;
+      info2.emlmr = false;  
+      info1.num_affiliated_bsta = info2.num_affiliated_bsta = 1;
+      info1.affiliated_bsta[0] = info2.affiliated_bsta[0] = {
+          true,
+          {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5},
+          {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}
+      };
       EXPECT_FALSE(obj1 == obj2);
       std::cout << "Exiting ObjectsHaveDifferentEmlmr" << std::endl;
 }
@@ -780,8 +914,23 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentEmlmr) {
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentNumAffiliatedBsta) {
       std::cout << "Entering ObjectsHaveDifferentNumAffiliatedBsta" << std::endl;
       dm_bsta_mld_t obj1, obj2;
-      obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}};
-      obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 2, {{true, {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}};
+      auto& info1 = obj1.m_bsta_mld_info;
+      auto& info2 = obj2.m_bsta_mld_info;
+      info1.mac_addr_valid = info2.mac_addr_valid = true;      
+      info1.ap_mld_mac_addr_valid = info2.ap_mld_mac_addr_valid = true;
+      info1.mac_addr = info2.mac_addr = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
+      info1.ap_mld_mac_addr = info2.ap_mld_mac_addr = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB};
+      info1.str = info2.str = true;      
+      info1.nstr = info2.nstr = true;
+      info1.emlsr = info2.emlsr = true;          
+      info1.emlmr = info2.emlmr = true; 
+      info1.num_affiliated_bsta = 1;
+      info2.num_affiliated_bsta = 2;
+      info1.affiliated_bsta[0] = info2.affiliated_bsta[0] = {
+          true,
+          {"wlan0", {0x10, 0x20, 0x30, 0x40, 0x50, 0x60}, em_media_type_ieee80211ac_5},
+          {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}
+      };
       EXPECT_FALSE(obj1 == obj2);
       std::cout << "Exiting ObjectsHaveDifferentNumAffiliatedBsta" << std::endl;
 }
