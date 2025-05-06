@@ -2931,8 +2931,3 @@ TEST(dm_bss_t_Test, CopyConstructorWithDmBssTObjectHavingSpecialCharactersInStri
      ASSERT_EQ(0, memcmp(original.m_bss_info.ssid, copy.m_bss_info.ssid, sizeof(original.m_bss_info.ssid)));
      std::cout << "Exiting CopyConstructorWithDmBssTObjectHavingSpecialCharactersInStrings" << std::endl;
 }
- 
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

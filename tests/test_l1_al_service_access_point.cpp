@@ -359,8 +359,3 @@ TEST_F(AlServiceAccessPointTest, NullCharacterInSocketPath) {
     AlServiceAccessPoint serviceAccessPoint(nullCharSocketPath);
     std::cout << "Exiting NullCharacterInSocketPath test";
 }
-
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

@@ -1204,8 +1204,3 @@ TEST(AlServiceRegistrationResponseTest, ValidMACAddressValidRangeInvalidResult) 
     AlServiceRegistrationResponse response(macAddress, range, result);
     std::cout << "Exiting ValidMACAddressValidRangeInvalidResult" << std::endl;
 }
-
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

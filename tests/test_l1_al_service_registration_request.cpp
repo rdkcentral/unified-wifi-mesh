@@ -724,8 +724,3 @@ TEST_F(AlServiceRegistrationRequestTest, Constructor_InvalidType) {
     AlServiceRegistrationRequest request(operation, invalidType);
     std::cout << "Exiting Constructor_InvalidType" << std::endl;
 }
-
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

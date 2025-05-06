@@ -1131,9 +1131,3 @@ TEST(dm_ap_mld_tTest, CopyConstructorWithNullInput) {
     }
     std::cout << "Exiting CopyConstructorWithNullInput" << std::endl;
 }
-
-
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

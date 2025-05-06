@@ -1347,8 +1347,3 @@ TEST(dm_assoc_sta_mld_t_Test, CopyConstructorWithZeroAffiliatedStations) {
     EXPECT_EQ(copy.m_assoc_sta_mld_info.num_affiliated_sta, 0);
     std::cout << "Exiting CopyConstructorWithZeroAffiliatedStations" << std::endl;
 }
-
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

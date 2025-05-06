@@ -2,7 +2,7 @@
  * If not stated otherwise in this file or this component's LICENSE file the
  * following copyright and licenses apply:
  *
- * Copyright 2024 RDK Management
+ * Copyright 2025 RDK Management
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1220,9 +1220,4 @@ TEST(dm_bsta_mld_Test, CopyConstructorWithInvalidMacAddressValues) {
       ASSERT_EQ(0, memcmp(original.m_bsta_mld_info.mac_addr, copy.m_bsta_mld_info.mac_addr, sizeof(original.m_bsta_mld_info.mac_addr)));
       ASSERT_EQ(0, memcmp(original.m_bsta_mld_info.ap_mld_mac_addr, copy.m_bsta_mld_info.ap_mld_mac_addr, sizeof(original.m_bsta_mld_info.ap_mld_mac_addr)));
       std::cout << "Exiting CopyConstructorWithInvalidMacAddressValues" << std::endl;
-}
-
- int main(int argc, char **argv) {
-     ::testing::InitGoogleTest(&argc, argv);
-     return RUN_ALL_TESTS();
 }
