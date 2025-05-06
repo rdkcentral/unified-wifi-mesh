@@ -2,7 +2,7 @@
  * If not stated otherwise in this file or this component's LICENSE file the
  * following copyright and licenses apply:
  *
- * Copyright 2024 RDK Management
+ * Copyright 2025 RDK Management
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -69,9 +69,9 @@ TEST_F(dm_bsta_mld_Test, DecodeValidJsonObjectWithValidParentID) {
 }
  
   /**
-   * @briefTEST decoding a valid JSON object with a null parent ID.
+   * @brief TEST decoding a valid JSON object with a null parent ID.
    *
-   * ThisTEST verifies that the decode function correctly handles a valid JSON object when the parent ID is null. The expected behavior is that the function should return -1, indicating an error due to the null parent ID.
+   * This TEST verifies that the decode function correctly handles a valid JSON object when the parent ID is null. The expected behavior is that the function should return -1, indicating an error due to the null parent ID.
    *
    * **Test Group ID:** Basic: 01
    * **Test Case ID:** 002
@@ -101,9 +101,9 @@ TEST_F(dm_bsta_mld_Test, DecodeValidJsonObjectWithNullParentID) {
 }
  
   /**
-   * @briefTEST the decode function with a null JSON object and a valid parent ID.
+   * @brief TEST the decode function with a null JSON object and a valid parent ID.
    *
-   * ThisTEST checks the behavior of the decode function when provided with a null JSON object and a valid parent ID. The expected result is that the function should return an error code (-1) indicating failure to decode.
+   * This TEST checks the behavior of the decode function when provided with a null JSON object and a valid parent ID. The expected result is that the function should return an error code (-1) indicating failure to decode.
    *
    * **Test Group ID:** Basic: 01@n
    * **Test Case ID:** 003@n
@@ -129,9 +129,9 @@ TEST_F(dm_bsta_mld_Test, DecodeNullJsonObjectWithValidParentID) {
 }
  
   /**
-   * @briefTEST to decode an invalid JSON object with a valid parent ID.
+   * @brief TEST to decode an invalid JSON object with a valid parent ID.
    *
-   * ThisTEST checks the behavior of the decode function when provided with an invalid JSON object and a valid parent ID. The objective is to ensure that the function correctly identifies the invalid JSON and returns an error code.
+   * This TEST checks the behavior of the decode function when provided with an invalid JSON object and a valid parent ID. The objective is to ensure that the function correctly identifies the invalid JSON and returns an error code.
    *
    * **Test Group ID:** Basic: 01
    * **Test Case ID:** 004
@@ -162,9 +162,9 @@ TEST_F(dm_bsta_mld_Test, DecodeInvalidJsonObjectWithValidParentID) {
 }
  
   /**
-   * @briefTEST decoding a valid JSON object with an invalid parent ID
+   * @brief TEST decoding a valid JSON object with an invalid parent ID
    *
-   * ThisTEST verifies that the decode function correctly handles a valid JSON object when provided with an invalid parent ID. The expected behavior is that the function should return an error code indicating failure.
+   * This TEST verifies that the decode function correctly handles a valid JSON object when provided with an invalid parent ID. The expected behavior is that the function should return an error code indicating failure.
    *
    * **Test Group ID:** Basic: 01@n
    * **Test Case ID:** 005@n
@@ -194,9 +194,9 @@ TEST_F(dm_bsta_mld_Test, DecodeValidJsonObjectWithInvalidParentID) {
 }
  
   /**
-   * @briefTEST the encoding functionality with a valid cJSON object.
+   * @brief TEST the encoding functionality with a valid cJSON object.
    *
-   * ThisTEST verifies that the encode function of the dm_bsta_mld_t class correctly processes a valid cJSON object. 
+   * This TEST verifies that the encode function of the dm_bsta_mld_t class correctly processes a valid cJSON object. 
    * TheTEST ensures that the object remains valid after encoding and that the function handles various data types correctly.
    *
    * **Test Group ID:** Basic: 01@n
@@ -234,9 +234,9 @@ TEST_F(dm_bsta_mld_Test, EncodeWithValidCJSONObject) {
 }
  
   /**
-   * @briefTEST encoding of JSON object with special characters
+   * @brief TEST encoding of JSON object with special characters
    *
-   * ThisTEST verifies that the encode function can handle JSON objects containing special characters. It ensures that the function correctly processes and encodes the object without errors.
+   * This TEST verifies that the encode function can handle JSON objects containing special characters. It ensures that the function correctly processes and encodes the object without errors.
    *
    * **Test Group ID:** Basic: 01
    * **Test Case ID:** 007
@@ -267,9 +267,9 @@ TEST_F(dm_bsta_mld_Test, EncodeWithSpecialCharacters) {
 }
  
   /**
-   * @briefTEST the encoding functionality with an empty cJSON object.
+   * @brief TEST the encoding functionality with an empty cJSON object.
    *
-   * ThisTEST verifies that the encode function can handle an empty cJSON object without errors. 
+   * This TEST verifies that the encode function can handle an empty cJSON object without errors. 
    * It ensures that the object remains a valid cJSON object after encoding.
    *
    * **Test Group ID:** Basic: 01
@@ -300,9 +300,9 @@ TEST_F(dm_bsta_mld_Test, EncodeWithEmptyCJSONObject) {
 }
  
   /**
-   * @briefTEST the encoding function with a null cJSON object
+   * @brief TEST the encoding function with a null cJSON object
    *
-   * ThisTEST checks the behavior of the encode function when provided with a null cJSON object. 
+   * This TEST checks the behavior of the encode function when provided with a null cJSON object. 
    * It ensures that the function handles null input gracefully without causing any crashes or unexpected behavior.
    *
    * **Test Group ID:** Basic: 01@n
@@ -331,9 +331,9 @@ TEST_F(dm_bsta_mld_Test, EncodeWithNullCJSONObject) {
 }
  
   /**
-   * @briefTEST the encoding function with an invalid JSON structure.
+   * @brief TEST the encoding function with an invalid JSON structure.
    *
-   * ThisTEST verifies that the encode function can handle an invalid JSON structure correctly. 
+   * This TEST verifies that the encode function can handle an invalid JSON structure correctly. 
    * Specifically, it checks if the function can process a JSON array containing a string and 
    * ensures that the structure remains an array after encoding.
    *
@@ -366,9 +366,9 @@ TEST_F(dm_bsta_mld_Test, EncodeWithInvalidJSONStructure) {
 }
  
   /**
-   * @briefTEST to verify the retrieval of AP MLD information with valid data.
+   * @brief TEST to verify the retrieval of AP MLD information with valid data.
    *
-   * ThisTEST checks the functionality of the `get_ap_mld_info` method in the `dm_bsta_mld_t` class. 
+   * This TEST checks the functionality of the `get_ap_mld_info` method in the `dm_bsta_mld_t` class. 
    * It ensures that the method correctly retrieves and validates the AP MLD information.
    *
    * **Test Group ID:** Basic: 01@n
@@ -448,9 +448,9 @@ TEST(dm_bsta_mld_Test, RetrieveAPMLDInfoAfterNullInitialization) {
 }
  
   /**
-   * @briefTEST the initialization of m_bsta_mld_info structure
+   * @brief TEST the initialization of m_bsta_mld_info structure
    *
-   * ThisTEST verifies the initialization of the m_bsta_mld_info structure by calling the init() method of the dm_bsta_mld_t class instance. TheTEST ensures that the initialization is successful and returns the expected result.
+   * This TEST verifies the initialization of the m_bsta_mld_info structure by calling the init() method of the dm_bsta_mld_t class instance. TheTEST ensures that the initialization is successful and returns the expected result.
    *
    * **Test Group ID:** Basic: 01
    * **Test Case ID:** 013
@@ -476,9 +476,9 @@ TEST_F(dm_bsta_mld_Test, Initialize_m_bsta_mld_info_structure) {
 }
  
   /**
-   * @briefTEST the initialization of m_bsta_mld_info structure multiple times
+   * @brief TEST the initialization of m_bsta_mld_info structure multiple times
    *
-   * ThisTEST verifies that the m_bsta_mld_info structure can be initialized multiple times without any issues. 
+   * This TEST verifies that the m_bsta_mld_info structure can be initialized multiple times without any issues. 
    * It ensures that the init() function can be called more than once and still return a successful result.
    *
    * **Test Group ID:** Basic: 01@n
@@ -509,9 +509,9 @@ TEST_F(dm_bsta_mld_Test, Initialize_m_bsta_mld_info_structure_multiple_times) {
 }
   
   /**
-  * @briefTEST to verify if two objects of dm_bsta_mld_t are identical
+  * @brief TEST to verify if two objects of dm_bsta_mld_t are identical
   *
-  * ThisTEST checks if two instances of dm_bsta_mld_t with identical data are considered equal by the equality operator. This is important to ensure that the equality operator is correctly implemented and can accurately compare two objects of the class.
+  * This TEST checks if two instances of dm_bsta_mld_t with identical data are considered equal by the equality operator. This is important to ensure that the equality operator is correctly implemented and can accurately compare two objects of the class.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 015@n
@@ -555,9 +555,9 @@ TEST(dm_btsa_mld_Test, BothObjectsAreIdentical) {
 }
  
   /**
-  * @briefTEST to verify that two objects of dm_bsta_mld_t have different MAC addresses and are not equal.
+  * @brief TEST to verify that two objects of dm_bsta_mld_t have different MAC addresses and are not equal.
   *
-  * ThisTEST checks if two instances of dm_bsta_mld_t with different MAC addresses are not considered equal. This is important to ensure that the equality operator correctly identifies objects with different MAC addresses as unequal.
+  * This TEST checks if two instances of dm_bsta_mld_t with different MAC addresses are not considered equal. This is important to ensure that the equality operator correctly identifies objects with different MAC addresses as unequal.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 016@n
@@ -602,9 +602,9 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentMacAddrValid) {
 }
  
   /**
-  * @briefTEST to verify that two objects of dm_bsta_mld_t have different AP MLD MAC addresses
+  * @brief TEST to verify that two objects of dm_bsta_mld_t have different AP MLD MAC addresses
   *
-  * ThisTEST checks that two instances of dm_bsta_mld_t with different AP MLD MAC addresses are not considered equal.@n
+  * This TEST checks that two instances of dm_bsta_mld_t with different AP MLD MAC addresses are not considered equal.@n
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 017@n
@@ -648,9 +648,9 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentApMldMacAddrValid) {
 }
  
   /**
-  * @briefTEST to verify that two objects have different MAC addresses
+  * @brief TEST to verify that two objects have different MAC addresses
   *
-  * ThisTEST checks that two instances of `dm_bsta_mld_t` have different MAC addresses and are not considered equal.@n
+  * This TEST checks that two instances of `dm_bsta_mld_t` have different MAC addresses and are not considered equal.@n
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 018@n
@@ -695,9 +695,9 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentMacAddr) {
 }
  
   /**
-  * @briefTEST to verify that two objects of dm_bsta_mld_t have different AP MLD MAC addresses
+  * @brief TEST to verify that two objects of dm_bsta_mld_t have different AP MLD MAC addresses
   *
-  * ThisTEST checks if two instances of dm_bsta_mld_t have different AP MLD MAC addresses and ensures that the equality operator correctly identifies them as different objects.@n
+  * This TEST checks if two instances of dm_bsta_mld_t have different AP MLD MAC addresses and ensures that the equality operator correctly identifies them as different objects.@n
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 019@n
@@ -742,9 +742,9 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentApMldMacAddr) {
 }
  
   /**
-  * @briefTEST to verify that two objects of dm_bsta_mld_t have different m_bsta_mld_info structures.
+  * @brief TEST to verify that two objects of dm_bsta_mld_t have different m_bsta_mld_info structures.
   *
-  * ThisTEST checks if two objects of dm_bsta_mld_t have different m_bsta_mld_info structures by comparing them using the equality operator. TheTEST ensures that the equality operator correctly identifies the difference in the structures.
+  * This TEST checks if two objects of dm_bsta_mld_t have different m_bsta_mld_info structures by comparing them using the equality operator. TheTEST ensures that the equality operator correctly identifies the difference in the structures.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 020@n
@@ -789,9 +789,9 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentStr) {
 }
  
   /**
-  * @briefTEST to verify that two objects of dm_bsta_mld_t have different nstr values
+  * @brief TEST to verify that two objects of dm_bsta_mld_t have different nstr values
   *
-  * ThisTEST checks if two objects of dm_bsta_mld_t have different nstr values and ensures that the equality operator correctly identifies them as not equal.@n
+  * This TEST checks if two objects of dm_bsta_mld_t have different nstr values and ensures that the equality operator correctly identifies them as not equal.@n
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 021@n
@@ -836,9 +836,9 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentNstr) {
 }
  
   /**
-  * @briefTEST to verify that two objects of dm_bsta_mld_t have different Emlsr values
+  * @brief TEST to verify that two objects of dm_bsta_mld_t have different Emlsr values
   *
-  * ThisTEST checks that two instances of dm_bsta_mld_t with different Emlsr values are not considered equal.@n
+  * This TEST checks that two instances of dm_bsta_mld_t with different Emlsr values are not considered equal.@n
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 022@n
@@ -883,9 +883,9 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentEmlsr) {
 }
  
   /**
-  * @briefTEST to verify that two objects of dm_bsta_mld_t have different EMLMR values
+  * @brief TEST to verify that two objects of dm_bsta_mld_t have different EMLMR values
   *
-  * ThisTEST checks if two instances of dm_bsta_mld_t with different EMLMR values are not considered equal.@n
+  * This TEST checks if two instances of dm_bsta_mld_t with different EMLMR values are not considered equal.@n
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 023@n
@@ -930,9 +930,9 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentEmlmr) {
 }
  
   /**
-  * @briefTEST to verify that objects with different number of affiliated BSTA are not equal
+  * @brief TEST to verify that objects with different number of affiliated BSTA are not equal
   *
-  * ThisTEST checks if two objects of type dm_bsta_mld_t with different number of affiliated BSTA are considered not equal.@n
+  * This TEST checks if two objects of type dm_bsta_mld_t with different number of affiliated BSTA are considered not equal.@n
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 024@n
@@ -976,9 +976,9 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentNumAffiliatedBsta) {
 }
 
   /**
-  * @briefTEST to verify the assignment operator for dm_bsta_mld_t objects
+  * @brief TEST to verify the assignment operator for dm_bsta_mld_t objects
   *
-  * ThisTEST checks the assignment operator of the dm_bsta_mld_t class to ensure that all member variables are correctly copied from one object to another.@n
+  * This TEST checks the assignment operator of the dm_bsta_mld_t class to ensure that all member variables are correctly copied from one object to another.@n
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 025@n
@@ -1017,9 +1017,9 @@ TEST(dm_bsta_mld_Test, AssigningValidObject) {
 }
  
   /**
-  * @briefTEST the self-assignment functionality of the dm_bsta_mld_t class
+  * @brief TEST the self-assignment functionality of the dm_bsta_mld_t class
   *
-  * ThisTEST verifies that the self-assignment operator works correctly for the dm_bsta_mld_t class. 
+  * This TEST verifies that the self-assignment operator works correctly for the dm_bsta_mld_t class. 
   * It ensures that assigning an object to itself does not alter its state.
   *
   * **Test Group ID:** Basic: 01@n
@@ -1053,9 +1053,9 @@ TEST(dm_bsta_mld_Test, SelfAssignment) {
 }
  
   /**
-  * @briefTEST to verify the assignment of mixed field values between two objects of dm_bsta_mld_t
+  * @brief TEST to verify the assignment of mixed field values between two objects of dm_bsta_mld_t
   *
-  * ThisTEST checks if the assignment operator correctly assigns mixed field values from one object to another object of the same type. It ensures that all fields are copied accurately and the values are preserved after assignment.
+  * This TEST checks if the assignment operator correctly assigns mixed field values from one object to another object of the same type. It ensures that all fields are copied accurately and the values are preserved after assignment.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 027@n
@@ -1099,9 +1099,9 @@ TEST(dm_bsta_mld_Test, AssigningMixedFieldValues) {
 }
  
   /**
-  * @briefTEST to verify the assignment operator for dm_bsta_mld_t class when assigning maximum affiliated BSTA
+  * @brief TEST to verify the assignment operator for dm_bsta_mld_t class when assigning maximum affiliated BSTA
   *
-  * ThisTEST checks if the assignment operator correctly assigns the maximum number of affiliated BSTA from one object to another@n
+  * This TEST checks if the assignment operator correctly assigns the maximum number of affiliated BSTA from one object to another@n
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 028@n
@@ -1130,9 +1130,9 @@ TEST(dm_bsta_mld_Test, AssigningMaxAffiliatedBsta) {
 }
  
   /**
-  * @briefTEST to verify the assignment operator for dm_bsta_mld_t class
+  * @brief TEST to verify the assignment operator for dm_bsta_mld_t class
   *
-  * ThisTEST checks if the assignment operator correctly assigns the value of num_affiliated_bsta from one object to another when the value is set to the minimum (0). This is important to ensure that the assignment operator works correctly for edge cases.
+  * This TEST checks if the assignment operator correctly assigns the value of num_affiliated_bsta from one object to another when the value is set to the minimum (0). This is important to ensure that the assignment operator works correctly for edge cases.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 029@n
@@ -1161,7 +1161,7 @@ TEST(dm_bsta_mld_Test, AssigningMinAffiliatedBsta) {
 }
  
   /**
-  * @briefTEST to validate MLD information with few fields set
+  * @brief TEST to validate MLD information with few fields set
   *
   * This TEST verifies that the dm_bsta_mld_t object correctly initializes and stores the MLD information when few fields are set.@n
   *
@@ -1201,9 +1201,9 @@ TEST(dm_bsta_mld_Test, ValidMLDInformationAllFields) {
 }
 
   /**
-  * @briefTEST the copy constructor of dm_bsta_mld_t class with all fields initialized
+  * @brief TEST the copy constructor of dm_bsta_mld_t class with all fields initialized
   *
-  * ThisTEST verifies that the copy constructor of the dm_bsta_mld_t class correctly copies all fields from the original object to the new object. This ensures that the copy constructor works as expected when all fields are initialized.
+  * This TEST verifies that the copy constructor of the dm_bsta_mld_t class correctly copies all fields from the original object to the new object. This ensures that the copy constructor works as expected when all fields are initialized.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 031@n
@@ -1242,9 +1242,9 @@ TEST(dm_bsta_mld_Test, CopyConstructorWithAllFieldsInitialized) {
 }
  
   /**
-  * @briefTEST the copy constructor of dm_bsta_mld_t with invalid MAC address values
+  * @brief TEST the copy constructor of dm_bsta_mld_t with invalid MAC address values
   *
-  * ThisTEST verifies that the copy constructor of the dm_bsta_mld_t class correctly copies the MAC address values even when they are set to invalid values (0xFF). This ensures that the copy constructor handles edge cases properly.
+  * This TEST verifies that the copy constructor of the dm_bsta_mld_t class correctly copies the MAC address values even when they are set to invalid values (0xFF). This ensures that the copy constructor handles edge cases properly.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 032@n

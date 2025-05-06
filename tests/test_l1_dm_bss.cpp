@@ -2,7 +2,7 @@
  * If not stated otherwise in this file or this component's LICENSE file the
  * following copyright and licenses apply:
  *
- * Copyright 2024 RDK Management
+ * Copyright 2025 RDK Management
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ protected:
  /**
   * @brief TEST the addition of a valid Vendor IE to the instance.
   *
-  * ThisTEST verifies that a valid Vendor IE (Information Element) can be successfully added to the instance of the dm_bss_t class. TheTEST ensures that the add_vendor_ie function correctly processes and accepts a valid Vendor IE structure.
+  * This TEST verifies that a valid Vendor IE (Information Element) can be successfully added to the instance of the dm_bss_t class. TheTEST ensures that the add_vendor_ie function correctly processes and accepts a valid Vendor IE structure.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 001@n
@@ -84,7 +84,7 @@ TEST_F(dm_bss_t_Test, AddValidVendorIE) {
  /**
   * @brief TEST the add_vendor_ie function with a null pointer
   *
-  * ThisTEST verifies that the add_vendor_ie function correctly handles a null pointer input by returning false.@n
+  * This TEST verifies that the add_vendor_ie function correctly handles a null pointer input by returning false.@n
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 002@n
@@ -114,7 +114,7 @@ TEST_F(dm_bss_t_Test, AddVendorIEWIthNullPointer) {
  /**
   * @brief TEST the addition of a Vendor IE with zero length
   *
-  * ThisTEST verifies that the add_vendor_ie function correctly handles the case where a Vendor IE with zero length is added. This is important to ensure that the function does not accept invalid input, which could lead to unexpected behavior or security vulnerabilities.
+  * This TEST verifies that the add_vendor_ie function correctly handles the case where a Vendor IE with zero length is added. This is important to ensure that the function does not accept invalid input, which could lead to unexpected behavior or security vulnerabilities.
   *
   * **Test Group ID:** Basic: 01
   * **Test Case ID:** 003@n
@@ -161,7 +161,7 @@ TEST_F(dm_bss_t_Test, AddVendorIEWIthZeroLength) {
  /**
   * @brief TEST the addition of a Vendor IE with the maximum allowed length.
   *
-  * ThisTEST verifies that the `add_vendor_ie` function can handle the maximum length of a Vendor IE payload correctly. It ensures that the function can process and add a Vendor IE with a payload of 255 bytes without any issues.
+  * This TEST verifies that the `add_vendor_ie` function can handle the maximum length of a Vendor IE payload correctly. It ensures that the function can process and add a Vendor IE with a payload of 255 bytes without any issues.
   *
   * **Test Group ID:** Basic: 01
   * **Test Case ID:** 004@n
@@ -208,7 +208,7 @@ TEST_F(dm_bss_t_Test, AddVendorIEWIthMaximumLength) {
  /**
  * @brief TEST the addition of a Vendor IE with an empty payload to the dm_bss_t instance.
  *
- * ThisTEST verifies that the add_vendor_ie function can handle and correctly process a Vendor IE with an empty payload. This is important to ensure that the function can handle edge cases where the payload might be empty.
+ * This TEST verifies that the add_vendor_ie function can handle and correctly process a Vendor IE with an empty payload. This is important to ensure that the function can handle edge cases where the payload might be empty.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 005@n
@@ -251,7 +251,7 @@ TEST_F(dm_bss_t_Test, AddVendorIEWIthEmptyPayload) {
  /**
   * @brief TEST decoding a valid JSON object with a valid parent ID
   *
-  * ThisTEST verifies that the decode function correctly processes a valid JSON object and returns a valid parent ID.
+  * This TEST verifies that the decode function correctly processes a valid JSON object and returns a valid parent ID.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 006@n
@@ -284,7 +284,7 @@ TEST_F(dm_bss_t_Test, DecodeValidJsonObjectWithValidParentID) {
  /**
   * @brief TEST the decode function with a null JSON object and a valid parent ID
   *
-  * ThisTEST checks the behavior of the decode function when provided with a null JSON object and a valid parent ID. It ensures that the function returns an error code (-1) as expected.
+  * This TEST checks the behavior of the decode function when provided with a null JSON object and a valid parent ID. It ensures that the function returns an error code (-1) as expected.
   *
   * **Test Group ID:** Basic: 01
   * **Test Case ID:** 007@n
@@ -313,7 +313,7 @@ TEST_F(dm_bss_t_Test, DecodeNullJsonObjectWithValidParentID) {
  /**
  * @brief TEST the decoding of a valid JSON object with a null parent ID.
  *
- * ThisTEST verifies that the decode function correctly handles a valid JSON object when the parent ID is null. The expected behavior is that the function should return -1, indicating an error due to the null parent ID.
+ * This TEST verifies that the decode function correctly handles a valid JSON object when the parent ID is null. The expected behavior is that the function should return -1, indicating an error due to the null parent ID.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 008@n
@@ -345,7 +345,7 @@ TEST_F(dm_bss_t_Test, DecodeValidJsonObjectWithNullParentID) {
  /**
   * @brief TEST decoding an empty JSON object with a valid parent ID
   *
-  * ThisTEST verifies that the decode function correctly handles an empty JSON object and returns the expected error code.
+  * This TEST verifies that the decode function correctly handles an empty JSON object and returns the expected error code.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 009@n
@@ -379,7 +379,7 @@ TEST_F(dm_bss_t_Test, DecodeEmptyJsonObjectWithValidParentID) {
  /**
   * @brief TEST decoding a valid JSON object with an invalid parent ID
   *
-  * ThisTEST verifies that the decode function correctly handles a valid JSON object when provided with an invalid parent ID. The expected behavior is that the function should return an error code (-1) indicating the failure due to the invalid parent ID.
+  * This TEST verifies that the decode function correctly handles a valid JSON object when provided with an invalid parent ID. The expected behavior is that the function should return an error code (-1) indicating the failure due to the invalid parent ID.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 010@n
@@ -413,7 +413,7 @@ TEST_F(dm_bss_t_Test, DecodeValidJsonObjectWithInvalidParentID) {
  /**
   * @brief TEST the encoding of a valid JSON object without a summary.
   *
-  * ThisTEST verifies that the `encode` method of the `dm_bss_t` class correctly encodes a valid JSON object without including a summary. It ensures that the JSON object is created, encoded, and then properly deleted.
+  * This TEST verifies that the `encode` method of the `dm_bss_t` class correctly encodes a valid JSON object without including a summary. It ensures that the JSON object is created, encoded, and then properly deleted.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 011@n
@@ -443,7 +443,7 @@ TEST_F(dm_bss_t_Test, EncodeValidJSONObjectWithoutSummary) {
  /**
   * @brief TEST the encoding of a valid JSON object with summary.
   *
-  * ThisTEST verifies that the `encode` method of the `dm_bss_t` class correctly encodes a JSON object when the summary flag is set to true. It ensures that the JSON object is not null after encoding.
+  * This TEST verifies that the `encode` method of the `dm_bss_t` class correctly encodes a JSON object when the summary flag is set to true. It ensures that the JSON object is not null after encoding.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 012@n
@@ -473,7 +473,7 @@ TEST_F(dm_bss_t_Test, EncodeValidJSONObjectWithSummary) {
  /**
   * @brief TEST encoding of a null JSON object without summary
   *
-  * ThisTEST verifies that the encode function correctly handles a null JSON object when the summary flag is set to false.
+  * This TEST verifies that the encode function correctly handles a null JSON object when the summary flag is set to false.
   *
   * **Test Group ID:** Basic: 01
   * **Test Case ID:** 013@n
@@ -502,7 +502,7 @@ TEST_F(dm_bss_t_Test, EncodeNullJSONObjectWithoutSummary) {
  /**
  * @brief TEST the encoding of a null JSON object with summary enabled.
  *
- * ThisTEST verifies that the encode function correctly handles a null JSON object when the summary flag is set to true. It ensures that the function does not modify the null JSON object and that the object remains null after the function call.
+ * This TEST verifies that the encode function correctly handles a null JSON object when the summary flag is set to true. It ensures that the function does not modify the null JSON object and that the object remains null after the function call.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 014@n
@@ -530,7 +530,7 @@ TEST_F(dm_bss_t_Test, EncodeNullJSONObjectWithSummary) {
  /**
   * @brief TEST the encoding of a JSON object with arrays without summary
   *
-  * ThisTEST verifies the functionality of the encode method in the dm_bss_t class when encoding a JSON object that contains arrays, without including a summary.
+  * This TEST verifies the functionality of the encode method in the dm_bss_t class when encoding a JSON object that contains arrays, without including a summary.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 015@n
@@ -564,7 +564,7 @@ TEST_F(dm_bss_t_Test, EncodeJSONObjectWithArraysWithoutSummary) {
  /**
   * @brief TEST the encoding of a JSON object with arrays and summary
   *
-  * ThisTEST verifies the functionality of the encode method in the dm_bss_t class when encoding a JSON object that contains arrays and a summary flag set to true.
+  * This TEST verifies the functionality of the encode method in the dm_bss_t class when encoding a JSON object that contains arrays and a summary flag set to true.
   *
   * **Test Group ID:** Basic: 01
   * **Test Case ID:** 016@n
@@ -599,7 +599,7 @@ TEST_F(dm_bss_t_Test, EncodeJSONObjectWithArraysWithSummary) {
  /**
   * @brief TEST the retrieval of BSS information with modified values.
   *
-  * ThisTEST verifies that the BSS information can be retrieved correctly after modifying various values of the BSS instance.
+  * This TEST verifies that the BSS information can be retrieved correctly after modifying various values of the BSS instance.
   *
   * **Test Group ID:** Basic: 01
   * **Test Case ID:** 017@n
@@ -636,7 +636,7 @@ TEST_F(dm_bss_t_Test, RetrieveBssInfoWithModifiedValues) {
  /**
   * @brief TEST to initialize the BSS information structure
   *
-  * ThisTEST verifies the initialization of the BSS information structure by calling the init() method of the dm_bss_t class. TheTEST ensures that the initialization is successful and returns the expected result.
+  * This TEST verifies the initialization of the BSS information structure by calling the init() method of the dm_bss_t class. TheTEST ensures that the initialization is successful and returns the expected result.
   *
   * **Test Group ID:** Basic: 01
   * **Test Case ID:** 018@n
@@ -664,7 +664,7 @@ TEST_F(dm_bss_t_Test, InitializeBSSInformationStructure) {
  /**
   * @brief TEST to initialize BSS information structure multiple times
   *
-  * ThisTEST checks the behavior of the `init` method when called multiple times on the same instance of `dm_bss_t`. 
+  * This TEST checks the behavior of the `init` method when called multiple times on the same instance of `dm_bss_t`. 
   * It ensures that the method can be called repeatedly without causing errors or unexpected behavior.
   *
   * **Test Group ID:** Basic: 01@n
@@ -697,7 +697,7 @@ TEST_F(dm_bss_t_Test, InitializeBSSInformationStructureMultipleTimes) {
  /**
   * @brief TEST the match_criteria function with a valid criteria string
   *
-  * ThisTEST verifies that the match_criteria function correctly identifies a valid criteria string and returns true.
+  * This TEST verifies that the match_criteria function correctly identifies a valid criteria string and returns true.
   *
   * **Test Group ID:** Basic: 01
   * **Test Case ID:** 020@n
@@ -727,7 +727,7 @@ TEST_F(dm_bss_t_Test, MatchCriteriaWithValidCriteriaString) {
  /**
   * @brief TEST to verify the behavior of match_criteria with an empty criteria string.
   *
-  * ThisTEST checks the match_criteria function of the dm_bss_t class when provided with an empty criteria string. 
+  * This TEST checks the match_criteria function of the dm_bss_t class when provided with an empty criteria string. 
   * It ensures that the function correctly identifies that an empty criteria string does not match any criteria.
   *
   * **Test Group ID:** Basic: 01@n
@@ -761,7 +761,7 @@ TEST_F(dm_bss_t_Test, MatchCriteriaWithEmptyCriteriaString) {
  /**
   * @brief TEST to verify the behavior of match_criteria when given a null criteria string.
   *
-  * ThisTEST checks the match_criteria function of the dm_bss_t class to ensure it correctly handles a null criteria string.
+  * This TEST checks the match_criteria function of the dm_bss_t class to ensure it correctly handles a null criteria string.
   *
   * **Test Group ID:** Basic: 01
   * **Test Case ID:** 022@n
@@ -789,7 +789,7 @@ TEST_F(dm_bss_t_Test, MatchCriteriaWithNullCriteriaString) {
  /**
   * @brief TEST the match_criteria function with special characters
   *
-  * ThisTEST checks the behavior of the match_criteria function when provided with a string containing special characters. The function is expected to return false, indicating that the criteria do not match.
+  * This TEST checks the behavior of the match_criteria function when provided with a string containing special characters. The function is expected to return false, indicating that the criteria do not match.
   *
   * **Test Group ID:** Basic: 01
   * **Test Case ID:** 023@n
@@ -819,7 +819,7 @@ TEST_F(dm_bss_t_Test, MatchCriteriaWithSpecialCharacters) {
  /**
   * @brief TEST the match_criteria function with tab, space and newline characters in the criteria string.
   *
-  * ThisTEST checks the behavior of the match_criteria function when the input criteria string contains tab, space and newline characters.
+  * This TEST checks the behavior of the match_criteria function when the input criteria string contains tab, space and newline characters.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 024@n
@@ -849,7 +849,7 @@ TEST_F(dm_bss_t_Test, MatchCriteriaWithTabAndNewlineCharacters) {
  /**
   * @brief TEST the parsing of a valid BSS ID from a key string.
   *
-  * ThisTEST verifies that the function `parse_bss_id_from_key` correctly parses a valid BSS ID from a given key string. TheTEST ensures that the function returns a success code and the parsed BSS ID is as expected.
+  * This TEST verifies that the function `parse_bss_id_from_key` correctly parses a valid BSS ID from a given key string. TheTEST ensures that the function returns a success code and the parsed BSS ID is as expected.
   *
   * **Test Group ID:** Basic: 01
   * **Test Case ID:** 025@n
@@ -881,7 +881,7 @@ TEST_F(dm_bss_t_Test, ParseBssIdFromValidKey) {
  /**
   * @brief TEST the parsing of BSS ID from an invalid key string.
   *
-  * ThisTEST verifies that the `parse_bss_id_from_key` function correctly handles an invalid key string by returning an error code.@n
+  * This TEST verifies that the `parse_bss_id_from_key` function correctly handles an invalid key string by returning an error code.@n
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 026@n
@@ -914,7 +914,7 @@ TEST_F(dm_bss_t_Test, ParseBssIdFromInvalidKey) {
  /**
   * @brief TEST the parse_bss_id_from_key function with a NULL key.
   *
-  * ThisTEST verifies that the parse_bss_id_from_key function correctly handles the case where the key is NULL. 
+  * This TEST verifies that the parse_bss_id_from_key function correctly handles the case where the key is NULL. 
   * It ensures that the function returns an error code (-1) when provided with a NULL key.
   *
   * **Test Group ID:** Basic: 01@n
@@ -946,7 +946,7 @@ TEST_F(dm_bss_t_Test, ParseBssIdWithNullKey) {
  /**
   * @brief TEST to verify the behavior of parse_bss_id_from_key when the ID pointer is NULL.
   *
-  * ThisTEST checks the function parse_bss_id_from_key to ensure it correctly handles the case where the ID pointer is NULL. This is important to verify that the function can gracefully handle invalid input parameters.
+  * This TEST checks the function parse_bss_id_from_key to ensure it correctly handles the case where the ID pointer is NULL. This is important to verify that the function can gracefully handle invalid input parameters.
   *
   * **Test Group ID:** Basic: 01
   * **Test Case ID:** 028@n
@@ -975,7 +975,7 @@ TEST_F(dm_bss_t_Test, ParseBssIdWithNullIdPointer) {
  /**
  * @brief TEST the parsing of BSS ID with an empty key string.
  *
- * ThisTEST verifies that the parse_bss_id_from_key function correctly handles an empty key string by returning an error code.@n
+ * This TEST verifies that the parse_bss_id_from_key function correctly handles an empty key string by returning an error code.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 029@n
@@ -1006,7 +1006,7 @@ TEST_F(dm_bss_t_Test, ParseBssIdWithEmptyKeyString) {
  /**
   * @brief TEST the parsing of BSS ID from a key containing special characters.
   *
-  * ThisTEST verifies that the function `parse_bss_id_from_key` correctly handles keys that contain special characters. 
+  * This TEST verifies that the function `parse_bss_id_from_key` correctly handles keys that contain special characters. 
   * It ensures that the function returns an error code when such keys are provided, as they are not valid.
   *
   * **Test Group ID:** Basic: 01
@@ -1038,7 +1038,7 @@ TEST_F(dm_bss_t_Test, ParseBssIdWithKeyContainingSpecialCharacters) {
  /**
   * @brief TEST the parsing of BSS ID from a key containing mixed alphanumeric characters
   *
-  * ThisTEST verifies that the function `parse_bss_id_from_key` correctly parses a BSS ID from a key that contains mixed alphanumeric characters. This is important to ensure that the function can handle typical key formats used in the system.
+  * This TEST verifies that the function `parse_bss_id_from_key` correctly parses a BSS ID from a key that contains mixed alphanumeric characters. This is important to ensure that the function can handle typical key formats used in the system.
   *
   * **Test Group ID:** Basic: 01
   * **Test Case ID:** 031@n
@@ -1068,7 +1068,7 @@ TEST_F(dm_bss_t_Test, ParseBssIdWithKeyContainingMixedAlphanumericCharacters) {
  /**
   * @brief TEST the removal of a vendor-specific IE with valid input.
   *
-  * ThisTEST verifies that the `remove_vendor_ie` function correctly handles the removal of a valid vendor-specific information element (IE). TheTEST ensures that the function operates without errors when provided with a valid IE structure.
+  * This TEST verifies that the `remove_vendor_ie` function correctly handles the removal of a valid vendor-specific information element (IE). TheTEST ensures that the function operates without errors when provided with a valid IE structure.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 032@n
@@ -1115,7 +1115,7 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthValidInput) {
  /**
   * @brief TEST the remove_vendor_ie function with a null pointer
   *
-  * ThisTEST verifies that the remove_vendor_ie function can handle a null pointer input without crashing or throwing an exception. This is important to ensure the robustness of the function when dealing with invalid inputs.
+  * This TEST verifies that the remove_vendor_ie function can handle a null pointer input without crashing or throwing an exception. This is important to ensure the robustness of the function when dealing with invalid inputs.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 033@n
@@ -1143,7 +1143,7 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthNullPointer) {
  /**
   * @brief TEST the removal of a vendor IE with zero length
   *
-  * ThisTEST verifies that the `remove_vendor_ie` function can handle and correctly process a vendor IE with zero length.
+  * This TEST verifies that the `remove_vendor_ie` function can handle and correctly process a vendor IE with zero length.
   *
   * **Test Group ID:** Basic: 01
   * **Test Case ID:** 034@n
@@ -1185,7 +1185,7 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthZeroLength) {
  /**
   * @brief TEST the removal of a vendor IE with maximum length
   *
-  * ThisTEST verifies that the `remove_vendor_ie` function can handle and correctly process a vendor IE with the maximum possible length. This is important to ensure that the function can handle edge cases and large inputs without errors.
+  * This TEST verifies that the `remove_vendor_ie` function can handle and correctly process a vendor IE with the maximum possible length. This is important to ensure that the function can handle edge cases and large inputs without errors.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 035@n
@@ -1232,7 +1232,7 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthMaximumLength) {
  /**
   * @brief TEST the removal of a vendor IE with an invalid OUI
   *
-  * ThisTEST verifies that the `remove_vendor_ie` function can handle an invalid OUI correctly. TheTEST ensures that the function does not crash or behave unexpectedly when provided with an invalid OUI.
+  * This TEST verifies that the `remove_vendor_ie` function can handle an invalid OUI correctly. TheTEST ensures that the function does not crash or behave unexpectedly when provided with an invalid OUI.
   *
   * **Test Group ID:** Basic: 01
   * **Test Case ID:** 036@n
@@ -1279,7 +1279,7 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthInvalidOUI) {
  /**
  * @brief TEST the removal of a vendor IE with an invalid type
  *
- * ThisTEST verifies that the `remove_vendor_ie` function can handle an invalid type in the vendor-specific IE structure without causing any errors or crashes. This ensures the robustness of the function when dealing with unexpected input.
+ * This TEST verifies that the `remove_vendor_ie` function can handle an invalid type in the vendor-specific IE structure without causing any errors or crashes. This ensures the robustness of the function when dealing with unexpected input.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 037@n
@@ -1327,7 +1327,7 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthInvalidType) {
  /**
  * @brief TEST the removal of a vendor IE with an invalid subtype
  *
- * ThisTEST verifies that the `remove_vendor_ie` function can handle an invalid subtype in the vendor-specific IE correctly. TheTEST ensures that the function does not crash or behave unexpectedly when provided with an invalid subtype.
+ * This TEST verifies that the `remove_vendor_ie` function can handle an invalid subtype in the vendor-specific IE correctly. TheTEST ensures that the function does not crash or behave unexpectedly when provided with an invalid subtype.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 038@n
@@ -1375,7 +1375,7 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthInvalidType) {
  /**
   * @brief TEST the removal of a vendor IE with an empty payload
   *
-  * ThisTEST verifies that the `remove_vendor_ie` function can handle the case where the vendor IE has an empty payload. 
+  * This TEST verifies that the `remove_vendor_ie` function can handle the case where the vendor IE has an empty payload. 
   * It ensures that the function does not crash or behave unexpectedly when given such input.
   *
   * **Test Group ID:** Basic: 01
@@ -1424,7 +1424,7 @@ TEST_F(dm_bss_t_Test, RemoveVendorIEWIthInvalidType) {
  /**
  * @brief TEST to compare two identical objects of dm_bss_t class
  *
- * ThisTEST checks if two default-constructed objects of the dm_bss_t class are considered equal by the equality operator. This is important to ensure that the equality operator is correctly implemented for the class.
+ * This TEST checks if two default-constructed objects of the dm_bss_t class are considered equal by the equality operator. This is important to ensure that the equality operator is correctly implemented for the class.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 040@n
@@ -1451,7 +1451,7 @@ TEST(dm_bss_t_Test, CompareIdenticalObjects) {
  /**
  * @brief TEST to compare two dm_bss_t objects with different network IDs
  *
- * ThisTEST verifies that two dm_bss_t objects with different network IDs are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different network IDs are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 041@n
@@ -1483,7 +1483,7 @@ TEST(dm_bss_t_Test, CompareDifferentNetId) {
  /**
  * @brief TEST to compare two dm_bss_t objects with different device MAC addresses
  *
- * ThisTEST verifies that two dm_bss_t objects with different device MAC addresses are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different device MAC addresses are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 042@n
@@ -1518,7 +1518,7 @@ TEST(dm_bss_t_Test, CompareDifferentDevMac) {
  /**
  * @brief TEST to compare two dm_bss_t objects with different ruid values
  *
- * ThisTEST verifies that two dm_bss_t objects with different ruid values are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different ruid values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 043@n
@@ -1553,7 +1553,7 @@ TEST(dm_bss_t_Test, CompareDifferentDevMac) {
  /**
  * @brief TEST to compare two different BSSID values
  *
- * ThisTEST verifies that two different BSSID values are correctly identified as not equal.@n
+ * This TEST verifies that two different BSSID values are correctly identified as not equal.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 044@n
@@ -1588,7 +1588,7 @@ TEST(dm_bss_t_Test, CompareDifferentBssid) {
  /**
  * @brief TEST to compare two objects of dm_bss_t with different haul types
  *
- * ThisTEST verifies that two dm_bss_t objects with different haul types are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different haul types are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 045@n
@@ -1619,7 +1619,7 @@ TEST(dm_bss_t_Test, CompareDifferentHaulType) {
  /**
  * @brief TEST to compare two dm_bss_t objects with different SSIDs
  *
- * ThisTEST verifies that two dm_bss_t objects with different SSIDs are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different SSIDs are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 046@n
@@ -1650,7 +1650,7 @@ TEST(dm_bss_t_Test, CompareDifferentSsid) {
  /**
  * @brief TEST to compare the enabled status of two dm_bss_t objects
  *
- * ThisTEST checks if two dm_bss_t objects with different enabled statuses are not considered equal.@n
+ * This TEST checks if two dm_bss_t objects with different enabled statuses are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 047@n
@@ -1680,7 +1680,7 @@ TEST(dm_bss_t_Test, CompareDifferentEnabledStatus) {
  /**
  * @brief TEST to compare two dm_bss_t objects with different last_change values
  *
- * ThisTEST verifies that two dm_bss_t objects with different last_change values are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different last_change values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 048@n
@@ -1711,7 +1711,7 @@ TEST(dm_bss_t_Test, CompareDifferentLastChange) {
  /**
  * @brief TEST to compare two dm_bss_t objects with different timestamps
  *
- * ThisTEST verifies that two dm_bss_t objects with different timestamps are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different timestamps are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 049@n
@@ -1742,7 +1742,7 @@ TEST(dm_bss_t_Test, CompareDifferentTimestamp) {
  /**
  * @brief TEST to compare different unicast bytes sent in two dm_bss_t objects
  *
- * ThisTEST verifies that two dm_bss_t objects with different unicast_bytes_sent values are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different unicast_bytes_sent values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 050@n
@@ -1773,7 +1773,7 @@ TEST(dm_bss_t_Test, CompareDifferentUnicastBytesSent) {
  /**
  * @brief TEST to compare unicast bytes received between two dm_bss_t objects
  *
- * ThisTEST verifies that two dm_bss_t objects with different unicast_bytes_rcvd values are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different unicast_bytes_rcvd values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 051@n
@@ -1802,7 +1802,7 @@ TEST(dm_bss_t_Test, CompareDifferentUnicastBytesRcvd) {
  /**
  * @brief TEST to compare two dm_bss_t objects with different number of stations
  *
- * ThisTEST verifies that two dm_bss_t objects with different number of stations are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different number of stations are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 052@n
@@ -1831,7 +1831,7 @@ TEST(dm_bss_t_Test, CompareDifferentNumberOfSta) {
  /**
  * @brief TEST to compare different estimated service parameters in BSS info
  *
- * ThisTEST checks the equality operator for `dm_bss_t` objects when their `est_svc_params_be` fields are different. 
+ * This TEST checks the equality operator for `dm_bss_t` objects when their `est_svc_params_be` fields are different. 
  * It ensures that the equality operator correctly identifies the objects as not equal when their `est_svc_params_be` fields differ.
  *
  * **Test Group ID:** Basic: 01@n
@@ -1863,7 +1863,7 @@ TEST(dm_bss_t_Test, CompareDifferentEstSvcParamsBe) {
  /**
  * @brief TEST to compare different estimated service parameters in dm_bss_t objects
  *
- * ThisTEST verifies that two dm_bss_t objects with different estimated service parameters (est_svc_params_bk) are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different estimated service parameters (est_svc_params_bk) are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 054@n
@@ -1894,7 +1894,7 @@ TEST(dm_bss_t_Test, CompareDifferentEstSvcParamsBk) {
  /**
  * @brief TEST to compare different estimated service parameters in dm_bss_t objects
  *
- * ThisTEST verifies that two dm_bss_t objects with different estimated service parameters (est_svc_params_vi) are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different estimated service parameters (est_svc_params_vi) are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 055@n
@@ -1925,7 +1925,7 @@ TEST(dm_bss_t_Test, CompareDifferentEstSvcParamsVi) {
  /**
  * @brief TEST to compare different estimated service parameters in dm_bss_t objects
  *
- * ThisTEST verifies that two dm_bss_t objects with different estimated service parameters (est_svc_params_vo) are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different estimated service parameters (est_svc_params_vo) are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 056@n
@@ -1956,7 +1956,7 @@ TEST(dm_bss_t_Test, CompareDifferentEstSvcParamsVo) {
  /**
  * @brief TEST to compare different byte counter units in dm_bss_t objects
  *
- * ThisTEST checks the equality operator for dm_bss_t objects with different byte counter units. The objective is to ensure that the equality operator correctly identifies objects with different byte counter units as not equal.
+ * This TEST checks the equality operator for dm_bss_t objects with different byte counter units. The objective is to ensure that the equality operator correctly identifies objects with different byte counter units as not equal.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 057@n
@@ -1985,7 +1985,7 @@ TEST(dm_bss_t_Test, CompareDifferentByteCounterUnits) {
  /**
  * @brief TEST to compare two dm_bss_t objects with different num_fronthaul_akms values
  *
- * ThisTEST checks the equality operator for dm_bss_t objects when they have different num_fronthaul_akms values.@n
+ * This TEST checks the equality operator for dm_bss_t objects when they have different num_fronthaul_akms values.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 058@n
@@ -2014,7 +2014,7 @@ TEST(dm_bss_t_Test, CompareDifferentNumFronthaulAkms) {
  /**
  * @brief TEST to compare two dm_bss_t objects with different fronthaul_akm values
  *
- * ThisTEST verifies that two dm_bss_t objects with different fronthaul_akm values are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different fronthaul_akm values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 059@n
@@ -2045,7 +2045,7 @@ TEST(dm_bss_t_Test, CompareDifferentFronthaulAkm) {
  /**
  * @brief TEST to compare two dm_bss_t objects with different num_backhaul_akms values
  *
- * ThisTEST checks the equality operator for dm_bss_t objects when they have different num_backhaul_akms values. 
+ * This TEST checks the equality operator for dm_bss_t objects when they have different num_backhaul_akms values. 
  * It ensures that the equality operator correctly identifies the objects as not equal when their num_backhaul_akms values differ.
  *
  * **Test Group ID:** Basic: 01@n
@@ -2075,7 +2075,7 @@ TEST(dm_bss_t_Test, CompareDifferentNumBackhaulAkms) {
  /**
  * @brief TEST to compare different backhaul AKM values in dm_bss_t objects
  *
- * ThisTEST verifies that two dm_bss_t objects with different backhaul AKM values are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different backhaul AKM values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 061@n
@@ -2106,7 +2106,7 @@ TEST(dm_bss_t_Test, CompareDifferentBackhaulAkm) {
  /**
  * @brief TEST to compare two dm_bss_t objects with different profile_1b_sta_allowed values
  *
- * ThisTEST checks the equality operator for dm_bss_t objects when the profile_1b_sta_allowed attribute is different between the two objects. TheTEST ensures that the equality operator correctly identifies the objects as not equal when this attribute differs.
+ * This TEST checks the equality operator for dm_bss_t objects when the profile_1b_sta_allowed attribute is different between the two objects. TheTEST ensures that the equality operator correctly identifies the objects as not equal when this attribute differs.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 062@n
@@ -2135,7 +2135,7 @@ TEST(dm_bss_t_Test, CompareDifferentProfile1bStaAllowed) {
  /**
  * @brief TEST to compare two dm_bss_t objects with different profile_2b_sta_allowed values
  *
- * ThisTEST checks the equality operator for dm_bss_t objects when their profile_2b_sta_allowed values differ. TheTEST ensures that the equality operator correctly identifies the objects as not equal when their profile_2b_sta_allowed values are different.
+ * This TEST checks the equality operator for dm_bss_t objects when their profile_2b_sta_allowed values differ. TheTEST ensures that the equality operator correctly identifies the objects as not equal when their profile_2b_sta_allowed values are different.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 063@n
@@ -2164,7 +2164,7 @@ TEST(dm_bss_t_Test, CompareDifferentProfile2bStaAllowed) {
  /**
  * @brief TEST to compare different association allowed statuses in dm_bss_t objects
  *
- * ThisTEST verifies that two dm_bss_t objects with different association allowed statuses are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different association allowed statuses are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 064@n
@@ -2193,7 +2193,7 @@ TEST(dm_bss_t_Test, CompareDifferentAssocAllowedStatus) {
  /**
  * @brief TEST to compare different backhaul use in dm_bss_t objects
  *
- * ThisTEST verifies that two dm_bss_t objects with different backhaul_use values are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different backhaul_use values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 065@n
@@ -2223,7 +2223,7 @@ TEST(dm_bss_t_Test, CompareDifferentBackhaulUse) {
  /**
  * @brief TEST to compare two dm_bss_t objects with different fronthaul_use values
  *
- * ThisTEST verifies that two dm_bss_t objects with different fronthaul_use values are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different fronthaul_use values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 066@n
@@ -2252,7 +2252,7 @@ TEST(dm_bss_t_Test, CompareDifferentFronthaulUse) {
  /**
  * @brief TEST to compare two dm_bss_t objects with different r1_disallowed values
  *
- * ThisTEST checks the equality operator for dm_bss_t objects when their r1_disallowed values are different.@n
+ * This TEST checks the equality operator for dm_bss_t objects when their r1_disallowed values are different.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 067@n
@@ -2281,7 +2281,7 @@ TEST(dm_bss_t_Test, CompareDifferentR1Disallowed) {
  /**
  * @brief TEST to compare two dm_bss_t objects with different r2_disallowed values
  *
- * ThisTEST checks the equality operator for dm_bss_t objects when their r2_disallowed values differ. 
+ * This TEST checks the equality operator for dm_bss_t objects when their r2_disallowed values differ. 
  * It ensures that the equality operator correctly identifies the objects as not equal when one has r2_disallowed set to true and the other to false.
  *
  * **Test Group ID:** Basic: 01@n
@@ -2311,7 +2311,7 @@ TEST(dm_bss_t_Test, CompareDifferentR2Disallowed) {
  /**
  * @brief TEST to compare two dm_bss_t objects with different multi_bssid values
  *
- * ThisTEST checks the equality operator for dm_bss_t objects when their multi_bssid values are different.@n
+ * This TEST checks the equality operator for dm_bss_t objects when their multi_bssid values are different.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 069@n
@@ -2340,7 +2340,7 @@ TEST(dm_bss_t_Test, CompareDifferentMultiBssid) {
  /**
  * @brief TEST to compare two dm_bss_t objects with different transmitted_bssid values
  *
- * ThisTEST checks the equality operator for dm_bss_t objects when their transmitted_bssid values differ. 
+ * This TEST checks the equality operator for dm_bss_t objects when their transmitted_bssid values differ. 
  * It ensures that the equality operator correctly identifies that the objects are not equal when their 
  * transmitted_bssid values are different.
  *
@@ -2371,7 +2371,7 @@ TEST(dm_bss_t_Test, CompareDifferentTransmittedBssid) {
  /**
  * @brief TEST to compare different EHT operations in dm_bss_t objects
  *
- * ThisTEST verifies that two dm_bss_t objects with different EHT operation BSSID values are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different EHT operation BSSID values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 071@n
@@ -2402,7 +2402,7 @@ TEST(dm_bss_t_Test, CompareDifferentEhtOps) {
  /**
  * @brief TEST to compare different vendor elements in dm_bss_t objects
  *
- * ThisTEST checks the equality operator for dm_bss_t objects with different vendor elements. 
+ * This TEST checks the equality operator for dm_bss_t objects with different vendor elements. 
  * It ensures that the equality operator correctly identifies objects with different vendor elements as not equal.@n
  *
  * **Test Group ID:** Basic: 01@n
@@ -2433,7 +2433,7 @@ TEST(dm_bss_t_Test, CompareDifferentVendorElements) {
  /**
  * @brief TEST to compare vendor elements length of two dm_bss_t objects
  *
- * ThisTEST verifies that two dm_bss_t objects with different vendor_elements_len values are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different vendor_elements_len values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 073@n
@@ -2462,7 +2462,7 @@ TEST(dm_bss_t_Test, CompareDifferentVendorElementsLen) {
  /**
  * @brief TEST to verify the assignment of initialized values in dm_bss_t class
  *
- * ThisTEST checks if the assignment operator correctly assigns initialized values from one instance of dm_bss_t to another instance. This is important to ensure that the assignment operator works as expected and all relevant fields are copied correctly.
+ * This TEST checks if the assignment operator correctly assigns initialized values from one instance of dm_bss_t to another instance. This is important to ensure that the assignment operator works as expected and all relevant fields are copied correctly.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 074@n
@@ -2494,7 +2494,7 @@ TEST(dm_bss_t_Test, AssigningInitializedValues) {
  /**
  * @brief TEST to verify the assignment of modified values in dm_bss_t class
  *
- * ThisTEST checks if the assignment operator correctly assigns modified values from one instance of dm_bss_t to another instance.@n
+ * This TEST checks if the assignment operator correctly assigns modified values from one instance of dm_bss_t to another instance.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 075@n
@@ -2525,7 +2525,7 @@ TEST(dm_bss_t_Test, AssigningModifiedValues) {
  /**
  * @brief TEST to verify self-assignment behavior of dm_bss_t class
  *
- * ThisTEST checks the self-assignment operation of the dm_bss_t class to ensure that the object remains consistent and no unintended side effects occur.@n
+ * This TEST checks the self-assignment operation of the dm_bss_t class to ensure that the object remains consistent and no unintended side effects occur.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 076@n
@@ -2553,7 +2553,7 @@ TEST(dm_bss_t_Test, SelfAssignment) {
  /**
  * @brief TEST to verify the assignment operator for dm_bss_t class
  *
- * ThisTEST checks the assignment operator of the dm_bss_t class by assigning different values to the m_bss_info.enabled member and verifying if the assignment is done correctly.@n
+ * This TEST checks the assignment operator of the dm_bss_t class by assigning different values to the m_bss_info.enabled member and verifying if the assignment is done correctly.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 077@n
@@ -2584,7 +2584,7 @@ TEST(dm_bss_t_Test, AssigningDifferentValues) {
  /**
  * @brief TEST to verify the assignment of maximum values to the unicast_bytes_sent field
  *
- * ThisTEST checks if the assignment operator correctly assigns the maximum possible value (UINT_MAX) to the unicast_bytes_sent field of the dm_bss_t object. This is important to ensure that the assignment operator handles edge cases correctly.
+ * This TEST checks if the assignment operator correctly assigns the maximum possible value (UINT_MAX) to the unicast_bytes_sent field of the dm_bss_t object. This is important to ensure that the assignment operator handles edge cases correctly.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 078@n
@@ -2614,7 +2614,7 @@ TEST(dm_bss_t_Test, AssigningMaximumValues) {
  /**
  * @brief TEST to verify the assignment of minimum values to the dm_bss_t object
  *
- * ThisTEST checks the assignment operator of the dm_bss_t class by assigning minimum values (0) to the unicast_bytes_sent member and verifying if the assignment is done correctly.@n
+ * This TEST checks the assignment operator of the dm_bss_t class by assigning minimum values (0) to the unicast_bytes_sent member and verifying if the assignment is done correctly.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 079@n
@@ -2644,7 +2644,7 @@ TEST(dm_bss_t_Test, AssigningMinimumValues) {
  /**
  * @brief TEST to verify the assignment operator for dm_bss_t class
  *
- * ThisTEST checks the assignment operator of the dm_bss_t class by assigning mixed values to the object's members and verifying if the values are correctly assigned to another object.@n
+ * This TEST checks the assignment operator of the dm_bss_t class by assigning mixed values to the object's members and verifying if the values are correctly assigned to another object.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 080@n
@@ -2676,7 +2676,7 @@ TEST(dm_bss_t_Test, AssigningMixedValues) {
  /**
  * @brief TEST to validate the BSS information retrieval
  *
- * ThisTEST checks if the BSS information is correctly retrieved and matches the expected data when initialized with valid BSS information.@n
+ * This TEST checks if the BSS information is correctly retrieved and matches the expected data when initialized with valid BSS information.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 081@n
@@ -2704,7 +2704,7 @@ TEST(dm_bss_t_Test, ValidBSSInformation) {
  /**
  * @brief TEST to validate the behavior of dm_bss_t constructor when provided with a null BSS information pointer.
  *
- * ThisTEST checks if the dm_bss_t constructor throws an invalid_argument exception when it is initialized with a null BSS information pointer. This is important to ensure that the constructor handles invalid input correctly and prevents potential null pointer dereference issues.
+ * This TEST checks if the dm_bss_t constructor throws an invalid_argument exception when it is initialized with a null BSS information pointer. This is important to ensure that the constructor handles invalid input correctly and prevents potential null pointer dereference issues.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 082@n
@@ -2729,7 +2729,7 @@ TEST(dm_bss_t_Test, NullBSSInformation) {
  /**
  * @brief TEST the BSS information retrieval with empty fields
  *
- * ThisTEST verifies that the BSS information retrieval function works correctly when the BSS information fields are empty. It ensures that the function can handle and return the correct BSS information even when no data is provided initially.
+ * This TEST verifies that the BSS information retrieval function works correctly when the BSS information fields are empty. It ensures that the function can handle and return the correct BSS information even when no data is provided initially.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 083@n
@@ -2757,7 +2757,7 @@ TEST(dm_bss_t_Test, BSSInformationWithEmptyFields) {
  /**
  * @brief TEST to verify BSS information handling with maximum length strings
  *
- * ThisTEST checks the behavior of the BSS information handling when the net_id and ssid fields are filled with maximum length strings. This is to ensure that the system can handle edge cases with maximum input sizes without errors.@n
+ * This TEST checks the behavior of the BSS information handling when the net_id and ssid fields are filled with maximum length strings. This is to ensure that the system can handle edge cases with maximum input sizes without errors.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 084@n
@@ -2787,7 +2787,7 @@ TEST(dm_bss_t_Test, BSSInformationWithMaxLengthStrings) {
  /**
  * @brief TEST to verify BSS information retrieval with an invalid MAC address
  *
- * ThisTEST checks the behavior of the BSS information retrieval function when provided with an invalid MAC address. The objective is to ensure that the function can handle invalid MAC addresses gracefully and return the expected BSS information structure.
+ * This TEST checks the behavior of the BSS information retrieval function when provided with an invalid MAC address. The objective is to ensure that the function can handle invalid MAC addresses gracefully and return the expected BSS information structure.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 085@n
@@ -2814,7 +2814,7 @@ TEST(dm_bss_t_Test, BSSInformationWithInvalidMACAddress) {
  /**
  * @brief TEST the BSS information handling with maximum vendor elements
  *
- * ThisTEST verifies that the BSS information structure can handle the maximum number of vendor elements correctly. It ensures that the vendor elements are properly initialized and that the BSS information is correctly retrieved from the object.
+ * This TEST verifies that the BSS information structure can handle the maximum number of vendor elements correctly. It ensures that the vendor elements are properly initialized and that the BSS information is correctly retrieved from the object.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 086@n
@@ -2842,7 +2842,7 @@ TEST(dm_bss_t_Test, BSSInformationWithMaxVendorElements) {
  /**
  * @brief TEST to verify BSS information handling with zero-length vendor elements
  *
- * ThisTEST checks the behavior of the BSS information handling when the vendor elements length is set to zero. This is important to ensure that the system can handle cases where no vendor-specific information is provided.
+ * This TEST checks the behavior of the BSS information handling when the vendor elements length is set to zero. This is important to ensure that the system can handle cases where no vendor-specific information is provided.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 087@n
@@ -2871,7 +2871,7 @@ TEST(dm_bss_t_Test, BSSInformationWithZeroLengthVendorElements) {
  /**
  * @brief TEST the copy constructor of dm_bss_t with a valid dm_bss_t object
  *
- * ThisTEST verifies that the copy constructor of the dm_bss_t class correctly copies the bss_info from the original object to the new object. This ensures that the copy constructor performs a deep copy of the bss_info member.
+ * This TEST verifies that the copy constructor of the dm_bss_t class correctly copies the bss_info from the original object to the new object. This ensures that the copy constructor performs a deep copy of the bss_info member.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 088@n
@@ -2905,7 +2905,7 @@ TEST(dm_bss_t_Test, BSSInformationWithZeroLengthVendorElements) {
  /**
  * @brief TEST the copy constructor of dm_bss_t class with special characters in strings
  *
- * ThisTEST verifies that the copy constructor of the dm_bss_t class correctly copies an object that has special characters in its string attributes. This is important to ensure that the copy constructor handles all types of characters properly.
+ * This TEST verifies that the copy constructor of the dm_bss_t class correctly copies an object that has special characters in its string attributes. This is important to ensure that the copy constructor handles all types of characters properly.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 089@n
