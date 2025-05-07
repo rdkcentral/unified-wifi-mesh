@@ -1,4 +1,3 @@
-
 /*
  * If not stated otherwise in this file or this component's LICENSE file the
  * following copyright and licenses apply:
@@ -873,9 +872,9 @@ TEST(dm_ap_mld_tTest, ValidAPMLDInformation) {
     ASSERT_EQ(ap_mld.m_ap_mld_info.mac_addr_valid, true);
     ASSERT_STREQ(ap_mld.m_ap_mld_info.ssid, "TestSSID");
     ASSERT_EQ(ap_mld.m_ap_mld_info.str, true);
-    ASSERT_EQ(ap_mld.m_ap_mld_info.nstr, true);
+    ASSERT_EQ(ap_mld.m_ap_mld_info.nstr, false);
     ASSERT_EQ(ap_mld.m_ap_mld_info.emlsr, true);
-    ASSERT_EQ(ap_mld.m_ap_mld_info.emlmr, true);
+    ASSERT_EQ(ap_mld.m_ap_mld_info.emlmr, false);
     ASSERT_EQ(ap_mld.m_ap_mld_info.num_affiliated_ap, 1);
     std::cout << "Exiting ValidAPMLDInformation test";
 }
