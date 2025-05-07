@@ -43,7 +43,6 @@
 #include "em_cli.h"
 #include <readline/readline.h>
 #include <readline/history.h>
-
 em_cli_t g_cli;
 
 em_network_node_t *em_cli_t::get_reset_tree(char *platform)
@@ -191,7 +190,16 @@ em_cmd_t& em_cli_t::get_command(char *in, size_t in_len, em_network_node_t *node
                                 strlen("Summary@RadioEnable"));
                     }
                     break;
-
+		case em_cmd_type_dev_test:
+                    if ((tmp = strstr(cmd->m_param.u.args.fixed_args, "DevTest")) != NULL) {
+                        *tmp = 0;
+                    }
+		if (strncmp(args[num_args - 1], "1", strlen("1")) == 0) {
+			strncat(cmd->m_param.u.args.fixed_args, "DevTest@update", strlen("DevTest@update"));
+		} else {
+			strncat(cmd->m_param.u.args.fixed_args, "DevTest", strlen("DevTest"));
+		}
+		break;
                 default:
                     break;
             }
@@ -209,7 +217,6 @@ em_cmd_t& em_cli_t::get_command(char *in, size_t in_len, em_network_node_t *node
     }
 
 	em_cmd_cli_t::m_client_cmd_spec[idx].m_param.net_node = node;
-
 
     return em_cmd_cli_t::m_client_cmd_spec[idx];
 }
@@ -239,10 +246,8 @@ em_network_node_t *em_cli_t::exec(char *in, size_t sz, em_network_node_t *node)
     }
 
     delete cli_cmd;
-
     new_node = em_net_node_t::get_network_tree(result);	
 	free(result);
-
 	return new_node;
 }
 
@@ -266,12 +271,11 @@ void em_cli_t::dump_lib_dbg(char *str)
         return;
     }
 
-    fputs("\n==========\n", fp);	
+    fputs("\n==========\n", fp);
     fputs(str, fp);
 
     fclose(fp);
 }
-
 
 int em_cli_t::init(em_cli_params_t	*params)
 {
