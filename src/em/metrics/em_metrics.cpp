@@ -266,7 +266,7 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned int tmp_len = 0;
     dm_sta_t *sta;
-    em_beacon_metrics_resp_t *response;
+    em_beacon_metrics_resp_t *response = NULL;
     dm_easy_mesh_t  *dm;
     unsigned int report_len = 0;
 
@@ -1155,7 +1155,7 @@ short em_metrics_t::create_beacon_metrics_query_tlv(unsigned char *buff, mac_add
 
     for (j = 0; j < dm->get_num_bss(); j++) {
         if (memcmp(&dm->m_bss[j].m_bss_info.bssid, sta->m_sta_info.bssid, sizeof(bssid_t)) != 0) {
-            strncpy(ssid, dm->m_bss[j].m_bss_info.ssid, sizeof(ssid_t));
+            strncpy(ssid, dm->m_bss[j].m_bss_info.ssid, sizeof(ssid_t)-1);
             break;
         }
     }
