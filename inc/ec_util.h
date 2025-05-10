@@ -33,6 +33,8 @@
 #include <memory>
 #include <optional>
 #include <sstream>
+#include <chrono>
+#include <thread>
 
 #define EC_FRAME_BASE_SIZE (offsetof(ec_frame_t, attributes))
 
@@ -893,6 +895,23 @@ public:
 	 */
 	static bool get_dpp_boot_data(ec_data_t *boot_data, mac_addr_t al_mac, bool do_recfg,
                                   bool force_regen = false, em_op_class_info_t *op_class_info = NULL);
+
+
+	/**
+	 * @brief Interruptible sleep for a thread
+	 * 
+	 * @param duration How long to sleep for (arbitrary time unit, s, ms, etc)
+	 * @param stop_on Callback to determine when to stop the sleep
+	 * @param polling_interval How often to wake up and check the `stop_on` condition (ms)
+	 * @return True if the sleeping stopped due to the `stop_on` condition, false if the full duration elapsed
+	 */
+	static bool interruptible_sleep(std::chrono::steady_clock::duration duration, std::function<bool()> stop_on, std::chrono::milliseconds polling_interval = std::chrono::milliseconds(100)) {
+		auto start = std::chrono::steady_clock::now();
+		while (!stop_on() && (std::chrono::steady_clock::now() - start < duration)) {
+			std::this_thread::sleep_for(polling_interval);
+		}
+		return !stop_on();
+	}
 
 private:
     
