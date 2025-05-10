@@ -88,18 +88,6 @@ void ec_enrollee_t::send_presence_announcement_frames()
         return;
     }
 
-    /**
-     * Sleep every 100ms until we receive a DPP Authentication Request frame or the duration expires.
-     */
-    auto interruptible_sleep = [this](auto duration) {
-        auto start = std::chrono::steady_clock::now();
-        while (!m_received_auth_frame.load() && 
-              std::chrono::steady_clock::now() - start < duration) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        return !m_received_auth_frame.load();
-    };
-
     uint32_t current_freq = 0;
 
     while (!m_received_auth_frame.load()) {
@@ -111,7 +99,10 @@ void ec_enrollee_t::send_presence_announcement_frames()
             // specified in Section 6.2.2.
             attempts = 0;
             dwell = 2000;
-            if (!interruptible_sleep(std::chrono::seconds(5))) {
+
+            if (!ec_util::interruptible_sleep(std::chrono::seconds(5), [this]() -> bool {
+                return m_received_auth_frame.load();
+            })) {
                 break;
             }
         }
@@ -131,7 +122,9 @@ void ec_enrollee_t::send_presence_announcement_frames()
             current_freq = freq;
 
             // Wait `dwell` before moving to next channel.
-            if (!interruptible_sleep(std::chrono::milliseconds(dwell))) {
+            if (!ec_util::interruptible_sleep(std::chrono::milliseconds(dwell), [this]() -> bool {
+                return m_received_auth_frame.load();
+            })) {
                 break;
             }
         }
@@ -144,7 +137,9 @@ void ec_enrollee_t::send_presence_announcement_frames()
         attempts++;
         dwell *= 2;
         
-        if (!interruptible_sleep(std::chrono::seconds(30))) {
+        if (!ec_util::interruptible_sleep(std::chrono::seconds(30), [this]() -> bool {
+            return m_received_auth_frame.load();
+        })) {
             break;
         }
     }
