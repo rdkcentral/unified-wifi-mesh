@@ -175,3 +175,12 @@ bool ec_manager_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
     }
     return m_enrollee->handle_assoc_status(sta_data);
 }
+
+bool ec_manager_t::handle_bss_info_event(const wifi_bss_info_t &bss_info)
+{
+    if (!m_enrollee) {
+        // This is fine, ignore event
+        return true;
+    }
+    return m_enrollee->handle_bss_info_event(bss_info);
+}
