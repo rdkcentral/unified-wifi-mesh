@@ -228,6 +228,14 @@ public:
 	 */
 	bool handle_assoc_status(const rdk_sta_data_t &sta_data);
 
+	/**
+	 * @brief Handle a BSS info event. Forwards to Enrollee for handling.
+	 * 
+	 * @param bss_info The BSS info that was heard.
+	 * @return true on success, otherwise false
+	 */
+	bool handle_bss_info_event(const wifi_bss_info_t& bss_info);
+
 
 private:
     bool m_is_controller;
