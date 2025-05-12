@@ -24,7 +24,21 @@
 class em_cmd_get_mld_config_t : public em_cmd_t {
 
 public:
-    em_cmd_get_mld_config_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+    
+	/**!
+	 * @brief Retrieves the MLD configuration based on the provided parameters.
+	 *
+	 * This function is responsible for obtaining the MLD (Multicast Listener Discovery) configuration
+	 * using the specified command parameters and updating the provided EasyMesh data structure.
+	 *
+	 * @param[in] param The command parameters used to retrieve the MLD configuration.
+	 * @param[out] dm The EasyMesh data structure that will be updated with the MLD configuration.
+	 *
+	 * @returns em_cmd_get_mld_config_t The result of the MLD configuration retrieval operation.
+	 *
+	 * @note Ensure that the EasyMesh data structure is properly initialized before calling this function.
+	 */
+	em_cmd_get_mld_config_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif

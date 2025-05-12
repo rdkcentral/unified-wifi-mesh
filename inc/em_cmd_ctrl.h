@@ -27,10 +27,47 @@ class em_cmd_ctrl_t : public em_cmd_exec_t {
     em_ctrl_t& m_ctrl = g_ctrl;
     int m_dsock;
 public:
-    int execute(char *result);
-    int send_result(em_cmd_out_status_t status);
+    
+	/**!
+	 * @brief Executes a command and stores the result.
+	 *
+	 * This function takes a command, executes it, and stores the output in the provided result buffer.
+	 *
+	 * @param[out] result A character buffer where the execution result will be stored.
+	 *
+	 * @returns int Status code of the execution.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure the result buffer is large enough to hold the command output.
+	 */
+	int execute(char *result);
+    
+	/**!
+	 * @brief Sends the result of a command execution.
+	 *
+	 * This function is responsible for sending the result status of a command
+	 * execution to the appropriate handler or output interface.
+	 *
+	 * @param[in] status The status of the command execution to be sent.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure that the status is valid before calling this function.
+	 */
+	int send_result(em_cmd_out_status_t status);
 
-    em_cmd_ctrl_t();
+    
+	/**!
+	 * @brief Constructor for em_cmd_ctrl_t class.
+	 *
+	 * Initializes the em_cmd_ctrl_t object.
+	 *
+	 * @note This constructor does not take any parameters.
+	 */
+	em_cmd_ctrl_t();
 };
 
 #endif

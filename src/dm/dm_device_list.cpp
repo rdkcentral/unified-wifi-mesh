@@ -44,8 +44,8 @@ int dm_device_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 {
     dm_device_t *pdev;
     em_device_info_t *info;
-    char *net_id = (char *)parent;
-    cJSON *obj, *sec_obj;	
+    char *net_id = static_cast<char *> (parent);
+    cJSON *obj;
 	
     pdev = get_first_device();
     while (pdev != NULL) {
@@ -66,7 +66,7 @@ int dm_device_list_t::set_config(db_client_t& db_client, dm_device_t& device, vo
 {
     dm_orch_type_t op;
 
-	dm_device_t::parse_device_id_from_key((char *)key, &device.m_device_info.id);
+	dm_device_t::parse_device_id_from_key(static_cast<char *> (key), &device.m_device_info.id);
  
     update_db(db_client, (op = get_dm_orch_type(db_client, device)), device.get_device_info());
     update_list(device, op);
@@ -77,7 +77,7 @@ int dm_device_list_t::set_config(db_client_t& db_client, dm_device_t& device, vo
 int dm_device_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void *key)
 {
     cJSON *obj;
-    unsigned int i, size;
+    int i, size;
     dm_device_t	device;
     dm_orch_type_t op;
 
@@ -98,10 +98,10 @@ dm_orch_type_t dm_device_list_t::get_dm_orch_type(db_client_t& db_client, const 
 {
     dm_device_t *pdev;
     mac_addr_str_t  mac_str;
-    em_long_string_t	key;
+    em_2xlong_string_t	key;
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)dev.m_device_info.id.dev_mac, mac_str);
-    snprintf(key, sizeof(em_long_string_t), "%s@%s@%d", dev.m_device_info.id.net_id, mac_str, dev.m_device_info.id.media);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (dev.m_device_info.id.dev_mac), mac_str);
+    snprintf(key, sizeof(em_2xlong_string_t), "%s@%s@%d", dev.m_device_info.id.net_id, mac_str, dev.m_device_info.id.media);
 
     pdev = get_device(key);
     
@@ -132,10 +132,10 @@ void dm_device_list_t::update_list(const dm_device_t& dev, dm_orch_type_t op)
 {
     dm_device_t *pdev;
     mac_addr_str_t	mac_str;
-    em_long_string_t	key;
+    em_2xlong_string_t	key;
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)dev.m_device_info.id.dev_mac, mac_str);
-    snprintf(key, sizeof(em_long_string_t), "%s@%s@%d", dev.m_device_info.id.net_id, mac_str, dev.m_device_info.id.media);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (dev.m_device_info.id.dev_mac), mac_str);
+    snprintf(key, sizeof(em_2xlong_string_t), "%s@%s@%d", dev.m_device_info.id.net_id, mac_str, dev.m_device_info.id.media);
 
     switch (op) {
         case dm_orch_type_db_insert:
@@ -150,13 +150,16 @@ void dm_device_list_t::update_list(const dm_device_t& dev, dm_orch_type_t op)
         case dm_orch_type_db_delete:
             remove_device(key);            
             break;
+
+        default:
+            break;
     }
 }
 
 void dm_device_list_t::delete_list()
 {       
     dm_device_t *pdev, *tmp;
-	em_long_string_t key;
+	em_2xlong_string_t key;
 	mac_addr_str_t	dev_mac_str;
     
     pdev = get_first_device();
@@ -165,7 +168,7 @@ void dm_device_list_t::delete_list()
         pdev = get_next_device(pdev);
     
 		dm_easy_mesh_t::macbytes_to_string(tmp->m_device_info.id.dev_mac, dev_mac_str);
-		snprintf(key, sizeof(em_long_string_t), "%s@%s@%d", tmp->m_device_info.id.net_id, dev_mac_str, tmp->m_device_info.id.media);
+		snprintf(key, sizeof(em_2xlong_string_t), "%s@%s@%d", tmp->m_device_info.id.net_id, dev_mac_str, tmp->m_device_info.id.media);
 
         remove_device(key);
     }
@@ -180,12 +183,12 @@ int dm_device_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
 {
     mac_addr_str_t mac_str, bk_mac_str, alid_str;
     const char *media_str = "802.11 n";
-    em_device_info_t *info = (em_device_info_t *)data;
+    em_device_info_t *info = static_cast<em_device_info_t *> (data);
 	int ret = 0;
-	em_long_string_t key;
+	em_2xlong_string_t key;
 
 	dm_easy_mesh_t::macbytes_to_string(info->id.dev_mac, mac_str);
-	snprintf(key, sizeof(em_long_string_t), "%s@%s@%d", info->id.net_id, mac_str, info->id.media);
+	snprintf(key, sizeof(em_2xlong_string_t), "%s@%s@%d", info->id.net_id, mac_str, info->id.media);
 
     //printf("dm_device_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
 	switch (op) {
@@ -228,7 +231,7 @@ bool dm_device_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
     while (db_client.next_result(ctx)) {
         db_client.get_string(ctx, str, 1);
 
-        if (strncmp(str, (char *)key, strlen((char *)key)) == 0) {
+        if (strncmp(str, static_cast<char *> (key), strlen(static_cast<char *> (key))) == 0) {
             return true;
         }
     }
@@ -252,12 +255,12 @@ int dm_device_list_t::sync_db(db_client_t& db_client, void *ctx)
 		db_client.get_string(ctx, mac, 2);
 		dm_easy_mesh_t::string_to_macbytes(mac, info.intf.mac);
 
-        info.profile = (em_profile_type_t)db_client.get_number(ctx, 3);
+        info.profile = static_cast<em_profile_type_t> (db_client.get_number(ctx, 3));
         db_client.get_string(ctx, info.multi_ap_cap, 4);
-        info.coll_interval = db_client.get_number(ctx, 5);
-        info.report_unsuccess_assocs = db_client.get_number(ctx, 6);
-        info.max_reporting_rate = db_client.get_number(ctx, 7);
-        info.ap_metrics_reporting_interval = db_client.get_number(ctx, 8);
+        info.coll_interval = static_cast<unsigned int> (db_client.get_number(ctx, 5));
+        info.report_unsuccess_assocs = static_cast<unsigned int> (db_client.get_number(ctx, 6));
+        info.max_reporting_rate = static_cast<short unsigned int> (db_client.get_number(ctx, 7));
+        info.ap_metrics_reporting_interval = static_cast<short unsigned int> (db_client.get_number(ctx, 8));
         db_client.get_string(ctx, info.manufacturer, 9);
         db_client.get_string(ctx, info.serial_number, 10);
         db_client.get_string(ctx, info.manufacturer_model, 11);
@@ -267,7 +270,7 @@ int dm_device_list_t::sync_db(db_client_t& db_client, void *ctx)
         info.traffic_sep_allowed = db_client.get_number(ctx, 15);
         info.svc_prio_allowed = db_client.get_number(ctx, 16);
         info.dfs_enable = db_client.get_number(ctx, 17);
-        info.max_unsuccessful_assoc_report_rate = db_client.get_number(ctx, 18);
+        info.max_unsuccessful_assoc_report_rate = static_cast<short unsigned int> (db_client.get_number(ctx, 18));
         info.sta_steer_state = db_client.get_number(ctx, 19);
         info.coord_cac_allowed = db_client.get_number(ctx, 20);
 
@@ -281,7 +284,7 @@ int dm_device_list_t::sync_db(db_client_t& db_client, void *ctx)
 
         info.traffic_sep_cap = db_client.get_number(ctx, 24);
         info.easy_conn_cap = db_client.get_number(ctx, 25);
-        info.test_cap = db_client.get_number(ctx, 26);
+        info.test_cap = static_cast<unsigned char> (db_client.get_number(ctx, 26));
 
         update_list(dm_device_t(&info), dm_orch_type_db_insert);
     }

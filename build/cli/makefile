@@ -29,6 +29,7 @@ INCLUDEDIRS = \
 	-I$(ONEWIFI_EM_HOME)/inc \
 	-I$(ONEWIFI_EM_HOME)/src/utils \
 	-I$(ONEWIFI_EM_HOME)/src/util/ \
+	-I$(ONEWIFI_EM_HOME)/src/util_crypto/ \
 	-I$(ONEWIFI_HAL_INTF_HOME) \
 	-I$(ONEWIFI_HOME)/source/utils \
 	-I$(ONEWIFI_HOME)/include \
@@ -39,7 +40,8 @@ INCLUDEDIRS = \
     -I$(RBUS_HOME)/include \
 	-I$(WIFI_CJSON) \
 
-CXXFLAGS = $(INCLUDEDIRS) -g -fPIC
+
+CXXFLAGS = $(INCLUDEDIRS) -g -std=c++17 -fPIC
 CFLAGS = $(INCLUDEDIRS) -g
 LDFLAGS = $(LIBDIRS) $(LIBS)
 LIBDIRS = \
@@ -48,6 +50,7 @@ LIBDIRS = \
 LIBS = -lemcli -lm -lpthread -ldl -lcjson -lreadline -lssl -lcrypto
 
 GENERIC_SOURCES = $(ONEWIFI_HOME)/source/utils/collection.c	\
+                  $(ONEWIFI_EM_SRC)/util_crypto/aes_siv.c \
 
 CLI_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/cli/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/cmd/*.cpp) \
@@ -72,6 +75,8 @@ CLI_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/cli/*.cpp) \
     $(ONEWIFI_EM_SRC)/dm/dm_tid_to_link.cpp \
     $(ONEWIFI_EM_SRC)/em/em_net_node.cpp \
     $(ONEWIFI_EM_SRC)/utils/util.cpp \
+    $(ONEWIFI_EM_SRC)/em/prov/easyconnect/ec_util.cpp \
+
 
 MAIN_SOURCE = $(ONEWIFI_EM_SRC)/cli/main.c
 
@@ -95,8 +100,12 @@ $(MAIN_OBJECT): %.o: %.c
 	$(CXX) $(CFLAGS) -o $@ -c $<
 
 $(PROGRAM):
+# use go 1.19 or above to build
+ifeq ($(CC), aarch64-linux-gnu-gcc-11)
+	CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -extldflags '-L$(INSTALLDIR)/lib -lcrypto -lssl -luuid'" -o $(PROGRAM) $(ONEWIFI_EM_SRC)/cli/*.go
+else
 	go build -ldflags="-extldflags '-L$(INSTALLDIR)/lib -lcrypto -lssl -luuid'" -o $(PROGRAM) $(ONEWIFI_EM_SRC)/cli/*.go
-
+endif
 # Clean target: "make -f Makefile.Linux clean" to remove unwanted objects and executables.
 #
 
@@ -110,5 +119,7 @@ clean:
 # 
 
 run:
-	LD_LIBRARY_PATH=$(INSTALLDIR)/lib $(PROGRAM) $(RUNARGS)
+	@cd $(INSTALLDIR)/bin && \
+	LD_LIBRARY_PATH=$(INSTALLDIR)/lib ./onewifi_em_cli $(RUNARGS)
 
+.PHONY: run

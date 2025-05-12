@@ -33,6 +33,7 @@
 #include <sys/uio.h>
 #include <unistd.h>
 #include <assert.h>
+#include <util.h>
 #include "em_base.h"
 #include "em_cmd.h"
 #include "em_orch_agent.h"
@@ -49,6 +50,19 @@ void em_orch_agent_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 
     stats = (em_cmd_stats_t *)hash_map_get(m_cmd_map, key);
     assert(stats != NULL);
+
+    if (pcmd->get_type() == em_cmd_type_dev_init && pcmd->get_agent_al_interface() != NULL) {
+        auto agent_int = pcmd->get_agent_al_interface();
+        std::string al_mac_key = util::mac_to_string(agent_int->mac) + "_al";
+        em_t* al_node = (em_t*)hash_map_get(m_mgr->m_em_map, al_mac_key.c_str());
+        if (al_node != NULL && al_node->m_ec_manager && al_node->m_ec_manager->is_enrollee_onboarding()) {
+            // If the enrollee is still onboarding, we need to wait for it to finish before timing out
+            // Lets reset the timeout
+            gettimeofday(&pcmd->m_start_time, NULL);
+            stats->time = 0;
+        }
+    }
+
     if (stats->time > EM_MAX_CMD_GEN_TTL) {
         printf("%s:%d: Canceling comd: %s because time limit exceeded\n", __func__, __LINE__, pcmd->get_cmd_name());
         cancel_command(pcmd->get_type());
@@ -90,6 +104,12 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                 return true;
             }
             break;
+
+        case em_cmd_type_sta_link_metrics:
+            if (em->get_state() == em_state_agent_configured) {
+                return true;
+            }
+            break;
 		
         case em_cmd_type_op_channel_report:
             if (em->get_state() == em_state_agent_configured) {
@@ -110,6 +130,12 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             break;
 
         case em_cmd_type_beacon_report:
+            if (em->get_state() == em_state_agent_configured) {
+                return true;
+            }
+            break;
+
+        case em_cmd_type_ap_metrics_report:
             if (em->get_state() == em_state_agent_configured) {
                 return true;
             }
@@ -143,6 +169,11 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 			return true;
 		}
     } else if (pcmd->m_type == em_cmd_type_sta_list) {
+		if ((em->get_state() == em_state_agent_configured) ||
+				(em->get_state() >= em_state_agent_topo_synchronized)){
+			return true;
+		}
+    } else if (pcmd->m_type == em_cmd_type_sta_link_metrics) {
 		if (em->get_state() == em_state_agent_configured) {
 			return true;
 		}
@@ -153,6 +184,11 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 	} else if (pcmd->m_type == em_cmd_type_beacon_report) {
         if ((em->get_state() == em_state_agent_configured) ||
             ((em->get_state() == em_state_agent_beacon_report_pending))) {
+            return true;
+        }
+    } else if (pcmd->m_type == em_cmd_type_ap_metrics_report) {
+        if ((em->get_state() == em_state_agent_configured) ||
+            ((em->get_state() == em_state_agent_ap_metrics_pending))) {
             return true;
         }
     }
@@ -274,6 +310,23 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
         case dm_orch_type_op_channel_report:
         case dm_orch_type_beacon_report:
             break;
+
+        case dm_orch_type_sta_link_metrics:
+            intf = pcmd->get_radio_interface(ctx->arr_index);
+            if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
+                dm = m_mgr->create_data_model(global_netid, intf);
+            }
+
+            sta = (dm_sta_t *)hash_map_get_first(pcmd->get_data_model()->m_sta_assoc_map);
+            while(sta != NULL) {
+                em_sta_info_t *em_sta = dm->get_sta_info(sta->get_sta_info()->id, sta->get_sta_info()->bssid, sta->get_sta_info()->radiomac, em_target_sta_map_consolidated);
+                if (em_sta != NULL) {
+                    memcpy(em_sta, &sta->m_sta_info, sizeof(em_sta_info_t));
+                }
+                sta = (dm_sta_t *)hash_map_get_next(pcmd->get_data_model()->m_sta_assoc_map, sta);
+            }
+            break;
+
         default:
             break;
     }
@@ -311,7 +364,7 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 				}
 				break;
             case em_cmd_type_cfg_renew:
-                if (memcmp(pcmd->get_data_model()->get_radio(num)->get_radio_info()->intf.mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
+                if ((memcmp(pcmd->get_data_model()->get_radio(num)->get_radio_info()->intf.mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) && (!(em->is_al_interface_em()))) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }
@@ -327,7 +380,16 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }
-                break;	
+                break;
+
+            case em_cmd_type_sta_link_metrics:
+                if ((em->is_al_interface_em() == false) && \
+                    (em->has_at_least_one_associated_sta() == true)) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
+                }
+                break;
+
 	        case em_cmd_type_ap_cap_query:
                 if (!(em->is_al_interface_em())) {
                     dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), dst_mac_str);
@@ -369,6 +431,7 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 						printf("%s:%d em_cmd_type_channel_pref_query radio cannot be found.\n", __func__, __LINE__);
 						break;
 					}
+
 					if ((memcmp(radio->get_radio_interface_mac(),em->get_radio_interface_mac(),sizeof(mac_address_t)) == 0)
 							&& (em->get_state() >= em_state_agent_topo_synchronized)
 							&& (em->get_state() < em_state_agent_configured)) {
@@ -386,7 +449,7 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                         printf("%s:%d channel sel radio cannot be found.\n", __func__, __LINE__);
                         break;
                     }
-                    if ((memcmp(radio->get_radio_interface_mac(),em->get_radio_interface_mac(),sizeof(mac_address_t)) == 0) && (em->get_state() == em_state_agent_channel_selection_pending)) {
+                    if ((memcmp(radio->get_radio_interface_mac(),em->get_radio_interface_mac(),sizeof(mac_address_t)) == 0) && (em->get_state() == em_state_agent_channel_select_configuration_pending)) {
                         queue_push(pcmd->m_em_candidates, em);
                         count++;
                         dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), dst_mac_str);
@@ -422,6 +485,14 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 
                 sta = em->find_sta(mac1, mac2);
                 if (sta != NULL) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
+                }
+                break;
+
+            case em_cmd_type_ap_metrics_report:
+                if (memcmp(pcmd->m_param.u.ap_metrics_params.ruid,
+                    em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }

@@ -30,12 +30,37 @@
 #include <vector>
 #include <unordered_map>
 #include <algorithm>
+#include <sstream>
+
+#include <cstdlib>
+#ifdef __GLIBC__
+#include <execinfo.h>
+#endif
 
 
 #include "util.h"
+#include <netinet/in.h>
 
 extern "C" {
     extern char *__progname;
+}
+
+void util::print_stacktrace() {
+#ifdef __GLIBC__
+    // Get the stack trace (Unix/Linux implementation)
+    const int max_frames = 100;
+    void* callstack[max_frames];
+    int frames = backtrace(callstack, max_frames);
+    char** symbols = backtrace_symbols(callstack, frames);
+    
+    // Print the stack trace
+    fprintf(stderr, "Stack trace:\n");
+    for (int i = 0; i < frames; i++) {
+        fprintf(stderr, "%s\n", symbols[i]);
+    }
+    
+    free(symbols);
+#endif
 }
 
 char *util::get_date_time_rfc3399(char *buff, unsigned int len)
@@ -87,11 +112,11 @@ char *get_formatted_time_em(char *time)
     char tmp[128];
 
     gettimeofday(&tv_now, NULL);
-    tm_info = (struct tm *)localtime(&tv_now.tv_sec);
+    tm_info = const_cast<struct tm *>(localtime(&tv_now.tv_sec));
 
-    strftime(tmp, 128, "%m/%d/%y - %T", tm_info);
+    strftime(tmp, 128, "%m/%d/%Y - %T", tm_info);
 
-    snprintf(time, 128, "%s.%06lld", tmp, (long long)tv_now.tv_usec);
+    snprintf(time, 160, "%s.%06lld", tmp, static_cast<long long>(tv_now.tv_usec));
     return time;
 }
 
@@ -149,11 +174,16 @@ std::pair<FILE*, std::string> get_module_log_fd_name(easymesh_dbg_type_t module,
     return std::make_pair(nullptr, std::string());
 }
 
+void util::print_hex_dump(const std::vector<uint8_t>& data, easymesh_dbg_type_t module)
+{
+    util::print_hex_dump(static_cast<unsigned int>(data.size()), const_cast<uint8_t*>(data.data()), module);
+}
+
 void util::print_hex_dump(unsigned int length, uint8_t *buffer, easymesh_dbg_type_t module)
 {
-    int i;
+    unsigned int i;
     uint8_t buff[512] = {};
-    const uint8_t * pc = (const uint8_t *)buffer;
+    const uint8_t * pc = const_cast<const uint8_t *>(buffer);
 
     auto [fp, module_filename] = get_module_log_fd_name(module, EM_LOG_LVL_DEBUG);
     if (fp == NULL) {
@@ -225,12 +255,14 @@ void util::em_util_print(easymesh_log_level_t level, easymesh_dbg_type_t module,
     }
 
     get_formatted_time_em(time_buff);
-    snprintf(buff, sizeof(buff), "\n[%s] %s %s:%s:%d: %s: ", __progname ? __progname : "", time_buff, module_filename, func, line, severity);
+    snprintf(buff, sizeof(buff), "[%s] %s %s:%s:%d: %s: ", __progname ? __progname : "", time_buff, module_filename.c_str(), func, line, severity);
     fprintf(fp, "%s", buff);
 
     va_start(list, format);
     vfprintf(fp, format, list);
     va_end(list);
+
+    fprintf(fp, "\n");
 
     fflush(fp);
     if (fp != stdout) fclose (fp);
@@ -345,19 +377,19 @@ int util::em_chan_to_freq(uint8_t op_class, uint8_t channel, const std::string& 
     return -1;
 }
 
-std::pair<uint8_t, uint8_t> util::em_freq_to_chan(int frequency, const std::string& region) {
+std::pair<uint8_t, uint8_t> util::em_freq_to_chan(unsigned int frequency, const std::string& region) {
     std::pair<uint8_t, uint8_t> global_result;
     
     for (const auto& range : frequency_ranges) {
-        int min_freq = range.base_freq + (range.min_chan * range.spacing);
-        int max_freq = range.base_freq + (range.max_chan * range.spacing);
+        unsigned int min_freq = static_cast<unsigned int>(range.base_freq + (range.min_chan * range.spacing));
+        unsigned int max_freq = static_cast<unsigned int>(range.base_freq + (range.max_chan * range.spacing));
         
         if (frequency < min_freq || frequency > max_freq) continue;
         
         if ((frequency - range.base_freq) % range.spacing != 0) continue;
         
         // Calculate channel number and validate it's within uint8_t/channel range
-        int channel_calc = (frequency - range.base_freq) / range.spacing;
+        unsigned int channel_calc = (frequency - range.base_freq) / range.spacing;
         if (channel_calc < range.min_chan || channel_calc > range.max_chan) continue;
         
         uint8_t channel = static_cast<uint8_t>(channel_calc);
@@ -374,4 +406,51 @@ std::pair<uint8_t, uint8_t> util::em_freq_to_chan(int frequency, const std::stri
     
     // No region-specific match was found, return global result if available
     return global_result;
+}
+
+std::vector<std::string> util::split_by_delim(const std::string& s, char delimiter) {
+    std::vector<std::string> tokens;
+    std::string token;
+    std::istringstream tokenStream(s);
+    
+    while (std::getline(tokenStream, token, delimiter)) {
+        tokens.push_back(token);
+    }
+    
+    return tokens;
+}
+
+std::string util::remove_whitespace(std::string str)
+{
+    str.erase(std::remove_if(str.begin(), str.end(), ::isspace), str.end());
+    return str;
+}
+std::string util::akm_to_oui(std::string akm) {
+    std::transform(akm.begin(), akm.end(), akm.begin(), [](unsigned char c){ return std::tolower(c); });
+    static const std::unordered_map<std::string, std::string> akm_map = {
+        {"psk", "000FAC02"},
+        {"sae", "000FAC08"},
+        {"dpp", "506F9A02"},
+    };
+    const auto it = akm_map.find(akm);
+    if (it == akm_map.end()) return std::string();
+    return it->second;
+}
+
+uint16_t util::deref_net_uint16_to_host(const void* const ptr) {
+    if (ptr == nullptr) {
+        return 0;
+    }
+    uint16_t net_val;
+    memcpy(&net_val, ptr, sizeof(uint16_t));
+    return ntohs(net_val);
+}
+
+bool util::set_net_uint16_from_host(const uint16_t host_val, void* const ptr) {
+    if (ptr == nullptr) {
+        return false;
+    }
+    uint16_t net_val = htons(host_val);
+    memcpy(ptr, &net_val, sizeof(uint16_t));
+    return true;
 }

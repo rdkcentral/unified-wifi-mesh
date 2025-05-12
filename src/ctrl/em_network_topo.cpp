@@ -29,7 +29,6 @@ void em_network_topo_t::encode(cJSON *parent)
 {
 	cJSON *dev_obj, *child_obj, *radio_list_obj, *radio_obj, *bss_list_obj, *bss_obj, *bh_obj;
 	unsigned int i, j;
-	char *tmp;
 
 	dev_obj = cJSON_AddObjectToObject(parent, "Device");
 	m_data_model->m_device.encode(dev_obj, true);
@@ -55,7 +54,9 @@ void em_network_topo_t::encode(cJSON *parent)
 
 	for (i = 0; i < m_num_topologies; i++) {
 		child_obj = cJSON_AddObjectToObject(bh_obj, "Device");
-		m_topology[i]->encode(child_obj);
+		if (child_obj != NULL) {
+			m_topology[i]->encode(child_obj);
+		}
 	}	
 }
 
@@ -67,13 +68,13 @@ em_network_topo_t *em_network_topo_t::find_topology_by_bh_associated(mac_address
 
 	for (i = 0; i < m_data_model->m_num_bss; i++) {
 		if (m_data_model->m_bss[i].m_bss_info.id.haul_type == em_haul_type_backhaul) {
-			sta = (dm_sta_t *)hash_map_get_first(m_data_model->m_sta_map);
+			sta = static_cast<dm_sta_t *> (hash_map_get_first(m_data_model->m_sta_map));
 			while (sta != NULL) {
 				if ((memcmp(sta->m_sta_info.id, sta_mac, sizeof(mac_address_t)) == 0) && 
 						(memcmp(sta->m_sta_info.bssid, m_data_model->m_bss[i].m_bss_info.id.bssid, sizeof(mac_address_t)) == 0)) {
 					return this;
 				}
-				sta = (dm_sta_t *)hash_map_get_next(m_data_model->m_sta_map, sta);
+				sta = static_cast<dm_sta_t *> (hash_map_get_next(m_data_model->m_sta_map, sta));
 			}	
 		}
 	}

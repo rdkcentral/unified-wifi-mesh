@@ -43,12 +43,12 @@ int dm_scan_result_t::decode(const cJSON *obj, void *parent_id)
 {
 	cJSON *tmp, *arr_item;
 	char *str;
-	unsigned int i;
+	int i;
 
 	memset(&m_scan_result, 0, sizeof(em_scan_result_t));
 	
 	if ((tmp = cJSON_GetObjectItem(obj, "ScanStatus")) != NULL) {
-		m_scan_result.scan_status = cJSON_GetNumberValue(tmp);
+		m_scan_result.scan_status = static_cast<unsigned char>(cJSON_GetNumberValue(tmp));
 	}
 
 	if ((tmp = cJSON_GetObjectItem(obj, "TimeStamp")) != NULL) {
@@ -57,11 +57,11 @@ int dm_scan_result_t::decode(const cJSON *obj, void *parent_id)
 	}
 
 	if ((tmp = cJSON_GetObjectItem(obj, "Utilization")) != NULL) {
-		m_scan_result.util = cJSON_GetNumberValue(tmp);
+		m_scan_result.util = static_cast<unsigned char>(cJSON_GetNumberValue(tmp));
 	}
 
 	if ((tmp = cJSON_GetObjectItem(obj, "Noise")) != NULL) {
-		m_scan_result.noise = cJSON_GetNumberValue(tmp);
+		m_scan_result.noise = static_cast<unsigned char>(cJSON_GetNumberValue(tmp));
 	}
 
 	if ((tmp = cJSON_GetObjectItem(obj, "Neighbors")) == NULL) {
@@ -82,33 +82,33 @@ int dm_scan_result_t::decode(const cJSON *obj, void *parent_id)
 		}
 			
 		if ((tmp = cJSON_GetObjectItem(arr_item, "SignalStrength")) != NULL) {
-			m_scan_result.neighbor[m_scan_result.num_neighbors].signal_strength = cJSON_GetNumberValue(tmp);
+			m_scan_result.neighbor[m_scan_result.num_neighbors].signal_strength = static_cast<signed char>(cJSON_GetNumberValue(tmp));
 		}
 
 		if ((tmp = cJSON_GetObjectItem(arr_item, "Bandwidth")) != NULL) {
-			m_scan_result.neighbor[m_scan_result.num_neighbors].bandwidth = (wifi_channelBandwidth_t)cJSON_GetNumberValue(tmp);
+			m_scan_result.neighbor[m_scan_result.num_neighbors].bandwidth = static_cast<wifi_channelBandwidth_t>(cJSON_GetNumberValue(tmp));
 		}
 
 		if ((tmp = cJSON_GetObjectItem(arr_item, "BSSColor")) != NULL) {
-			m_scan_result.neighbor[m_scan_result.num_neighbors].bss_color = cJSON_GetNumberValue(tmp);
+			m_scan_result.neighbor[m_scan_result.num_neighbors].bss_color = static_cast<unsigned char>(cJSON_GetNumberValue(tmp));
 		}
 
 		if ((tmp = cJSON_GetObjectItem(arr_item, "ChannelUtil")) != NULL) {
-			m_scan_result.neighbor[m_scan_result.num_neighbors].channel_util = cJSON_GetNumberValue(tmp);
+			m_scan_result.neighbor[m_scan_result.num_neighbors].channel_util = static_cast<unsigned char>(cJSON_GetNumberValue(tmp));
 		}
 
 		if ((tmp = cJSON_GetObjectItem(arr_item, "STACount")) != NULL) {
-			m_scan_result.neighbor[m_scan_result.num_neighbors].sta_count = cJSON_GetNumberValue(tmp);
+			m_scan_result.neighbor[m_scan_result.num_neighbors].sta_count = static_cast<short unsigned int>(cJSON_GetNumberValue(tmp));
 		}
 
 	}	
 		
 	if ((tmp = cJSON_GetObjectItem(obj, "ScanDuration")) != NULL) {
-		m_scan_result.aggr_scan_duration = cJSON_GetNumberValue(tmp);
+		m_scan_result.aggr_scan_duration = static_cast<unsigned int>(cJSON_GetNumberValue(tmp));
 	}
 
 	if ((tmp = cJSON_GetObjectItem(obj, "ScanType")) != NULL) {
-		m_scan_result.scan_type = cJSON_GetNumberValue(tmp);
+		m_scan_result.scan_type = static_cast<unsigned char>(cJSON_GetNumberValue(tmp));
 	}
 
 
@@ -189,17 +189,17 @@ int dm_scan_result_t::parse_scan_result_id_from_key(const char *key, em_scan_res
             remain = tmp;
         } else if (i == 3) {
             *tmp = 0; 
-			id->op_class = atoi(remain);
+			id->op_class = static_cast<unsigned char>(atoi(remain));
             tmp++;
             remain = tmp;
 		} else if (i == 4) {
             *tmp = 0; 
-			id->channel = atoi(remain);
+			id->channel = static_cast<unsigned char>(atoi(remain));
             tmp++;
 			remain = tmp;
 		} else if (i == 5) {
             *tmp = 0; 
-			id->scanner_type = (em_scanner_type_t)atoi(remain);
+			id->scanner_type = static_cast<em_scanner_type_t>(atoi(remain));
             tmp++;
 			if (bssid != NULL) {
             	dm_easy_mesh_t::string_to_macbytes(tmp, bssid);

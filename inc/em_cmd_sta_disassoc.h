@@ -24,7 +24,19 @@
 class em_cmd_sta_disassoc_t : public em_cmd_t {
 
 public:
-    em_cmd_sta_disassoc_t(em_cmd_disassoc_params_t params);
+    
+	/**!
+	 * @brief Initiates the disassociation process for a station.
+	 *
+	 * This function handles the disassociation of a station based on the provided parameters.
+	 *
+	 * @param[in] params The parameters required to perform the disassociation.
+	 *
+	 * @returns em_cmd_sta_disassoc_t Returns the status of the disassociation command.
+	 *
+	 * @note Ensure that the parameters are correctly set before calling this function.
+	 */
+	em_cmd_sta_disassoc_t(em_cmd_disassoc_params_t params);
 };
 
 #endif

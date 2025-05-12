@@ -49,19 +49,19 @@ unsigned int em_discovery_t::create_topo_query_msg(unsigned char *buff)
     unsigned char *tmp = buff;
     unsigned short type = htons(ETH_P_1905);
 
-    memcpy(tmp, (unsigned char *)get_radio_interface_mac(), sizeof(mac_address_t));
+    memcpy(tmp, const_cast<unsigned char *> (get_radio_interface_mac()), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
-    memcpy(tmp, (unsigned char *)get_radio_interface_mac(), sizeof(mac_address_t));
+    memcpy(tmp, const_cast<unsigned char *> (get_radio_interface_mac()), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
-    memcpy(tmp, (unsigned char *)&type, sizeof(unsigned short));
+    memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
     tmp += sizeof(unsigned short);
     len += sizeof(unsigned short);
 
-    cmdu = (em_cmdu_t *)tmp;
+    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_id);
@@ -72,7 +72,7 @@ unsigned int em_discovery_t::create_topo_query_msg(unsigned char *buff)
     len += sizeof(em_cmdu_t);
 
     // Vendor specific
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_vendor_specific;
     tlv->len = htons(sizeof(em_vendor_specific_t));
 
@@ -80,7 +80,7 @@ unsigned int em_discovery_t::create_topo_query_msg(unsigned char *buff)
     len += (sizeof (em_tlv_t) + sizeof(em_vendor_specific_t));
 
     // End of message
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_eom;
     tlv->len = 0;
 
@@ -100,7 +100,7 @@ unsigned int em_discovery_t::create_topo_discovery_msg(unsigned char *buff)
     unsigned short type = htons(ETH_P_1905);
     mac_address_t   multi_addr = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x13};
 
-    memcpy(tmp, (unsigned char *)multi_addr, sizeof(mac_address_t));
+    memcpy(tmp, const_cast<unsigned char *> (multi_addr), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
@@ -108,11 +108,11 @@ unsigned int em_discovery_t::create_topo_discovery_msg(unsigned char *buff)
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
-    memcpy(tmp, (unsigned char *)&type, sizeof(unsigned short));
+    memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
     tmp += sizeof(unsigned short);
     len += sizeof(unsigned short);
 
-    cmdu = (em_cmdu_t *)tmp;
+    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_id);
@@ -123,7 +123,7 @@ unsigned int em_discovery_t::create_topo_discovery_msg(unsigned char *buff)
     len += sizeof(em_cmdu_t);
 
     // AL MAC Address type TLV
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_al_mac_address;
     tlv->len = htons(sizeof(mac_address_t));
     memcpy(tlv->value, get_current_cmd()->get_al_interface_mac(), sizeof(mac_address_t));
@@ -132,7 +132,7 @@ unsigned int em_discovery_t::create_topo_discovery_msg(unsigned char *buff)
     len += (sizeof (em_tlv_t) + sizeof(mac_address_t));
 
     // MAC Address type TLV
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_mac_address;
     tlv->len = htons(sizeof(mac_address_t));
     memcpy(tlv->value, get_radio_interface_mac(), sizeof(mac_address_t));
@@ -141,7 +141,7 @@ unsigned int em_discovery_t::create_topo_discovery_msg(unsigned char *buff)
     len += (sizeof (em_tlv_t) + sizeof(mac_address_t));
 
     // Vendor specific
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_vendor_specific;
     tlv->len = htons(sizeof(em_vendor_specific_t));
 
@@ -149,7 +149,7 @@ unsigned int em_discovery_t::create_topo_discovery_msg(unsigned char *buff)
     len += (sizeof (em_tlv_t) + sizeof(em_vendor_specific_t));
 
     // End of message
-    tlv = (em_tlv_t *)tmp;
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_eom;
     tlv->len = 0;
 

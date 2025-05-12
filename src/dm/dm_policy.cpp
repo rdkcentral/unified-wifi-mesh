@@ -42,14 +42,13 @@
 int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t type)
 {
     cJSON *tmp, *sta_arr_obj;
-	mac_addr_str_t	mac_str;
 	em_policy_id_t id;
-	unsigned int i;
+	int i;
 
 	//printf("%s:%d: Key: %s\tType: %d\n", __func__, __LINE__, (char *)parent_id, type);
 
     memset(&m_policy, 0, sizeof(em_policy_t));
-	parse_dev_radio_mac_from_key((char *)parent_id, &id);
+	parse_dev_radio_mac_from_key(static_cast<char *>(parent_id), &id);
 	strncpy(m_policy.id.net_id, id.net_id, strlen(id.net_id));
 	memcpy(m_policy.id.dev_mac, id.dev_mac, sizeof(mac_address_t));
 	memcpy(m_policy.id.radio_mac, id.radio_mac, sizeof(mac_address_t));
@@ -67,30 +66,30 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
 		}
 	} else if (type == em_policy_id_type_steering_param) {
 		if ((tmp = cJSON_GetObjectItem(obj, "Steering Policy")) != NULL) {
-			m_policy.policy = (em_steering_policy_type_t)tmp->valuedouble;
+			m_policy.policy = static_cast<em_steering_policy_type_t>(tmp->valuedouble);
 		}	
 		if ((tmp = cJSON_GetObjectItem(obj, "Utilization Threshold")) != NULL) {
-			m_policy.util_threshold = tmp->valuedouble;
+			m_policy.util_threshold = static_cast<short unsigned int>(tmp->valuedouble);
 		}	
 		if ((tmp = cJSON_GetObjectItem(obj, "RCPI Thresold")) != NULL) {
-			m_policy.rcpi_threshold = tmp->valuedouble;
+			m_policy.rcpi_threshold = static_cast<short unsigned int>(tmp->valuedouble);
 		}	
 	} else if (type == em_policy_id_type_ap_metrics_rep) {
     	if ((tmp = cJSON_GetObjectItem(obj, "Interval")) != NULL) {
-        	m_policy.interval = tmp->valuedouble;
+			m_policy.interval = static_cast<short unsigned int>(tmp->valuedouble);
     	}
     	if ((tmp = cJSON_GetObjectItem(obj, "Managed Client Marker")) != NULL) {
 			strncpy(m_policy.managed_sta_marker, cJSON_GetStringValue(tmp), sizeof(em_long_string_t));
     	}
 	} else if (type == em_policy_id_type_radio_metrics_rep) {
     	if ((tmp = cJSON_GetObjectItem(obj, "STA RCPI Threshold")) != NULL) {
-        	m_policy.rcpi_threshold = tmp->valuedouble;
+			m_policy.rcpi_threshold = static_cast<short unsigned int>(tmp->valuedouble);
     	}
     	if ((tmp = cJSON_GetObjectItem(obj, "STA RCPI Hysteresis")) != NULL) {
-        	m_policy.rcpi_hysteresis = tmp->valuedouble;
+			m_policy.rcpi_hysteresis = static_cast<short unsigned int>(tmp->valuedouble);
     	}
     	if ((tmp = cJSON_GetObjectItem(obj, "AP Utilization Thresold")) != NULL) {
-       		m_policy.util_threshold = tmp->valuedouble;
+			m_policy.util_threshold = static_cast<short unsigned int>(tmp->valuedouble);
     	}
     	if ((tmp = cJSON_GetObjectItem(obj, "STA Traffic Stats")) != NULL) {
        		m_policy.sta_traffic_stats = tmp->valuedouble;
@@ -130,7 +129,7 @@ void dm_policy_t::encode(cJSON *obj, em_policy_id_type_t id)
 		}
 
 	} else if (id == em_policy_id_type_steering_param) {
-    	cJSON_AddNumberToObject(obj, "Steering Policy", (unsigned int)m_policy.policy);
+		cJSON_AddNumberToObject(obj, "Steering Policy", static_cast<unsigned int>(m_policy.policy));
     	cJSON_AddNumberToObject(obj, "Utilization Threshold", m_policy.util_threshold);
     	cJSON_AddNumberToObject(obj, "RCPI Threshold", m_policy.rcpi_threshold);
 	} else if (id == em_policy_id_type_ap_metrics_rep) {
@@ -176,6 +175,7 @@ void dm_policy_t::operator = (const dm_policy_t& obj)
     if (this == &obj) { return; }
     memcpy(&this->m_policy.id.dev_mac, &obj.m_policy.id.dev_mac, sizeof(mac_address_t));
     memcpy(&this->m_policy.id.radio_mac, &obj.m_policy.id.radio_mac, sizeof(mac_address_t));
+    this->m_policy.id.type = obj.m_policy.id.type;
     this->m_policy.interval = obj.m_policy.interval;
     this->m_policy.rcpi_threshold = obj.m_policy.rcpi_threshold;
     this->m_policy.rcpi_hysteresis = obj.m_policy.rcpi_hysteresis;
@@ -209,7 +209,7 @@ int dm_policy_t::parse_dev_radio_mac_from_key(const char *key, em_policy_id_t *i
             *tmp = 0;
 			dm_easy_mesh_t::string_to_macbytes(remain, id->radio_mac);
             tmp++;
-			id->type = (em_policy_id_type_t)atoi(tmp);
+			id->type = static_cast<em_policy_id_type_t>(atoi(tmp));
 		}
         i++;
     }

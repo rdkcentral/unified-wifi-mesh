@@ -24,7 +24,22 @@
 class em_cmd_get_ssid_t : public em_cmd_t {
 
 public:
-    em_cmd_get_ssid_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+    
+	/**!
+	 * @brief Retrieves the SSID using the provided command parameters.
+	 *
+	 * This function interfaces with the EasyMesh system to obtain the SSID
+	 * based on the given command parameters.
+	 *
+	 * @param[in] param The command parameters used to retrieve the SSID.
+	 * @param[out] dm The EasyMesh data structure where the SSID will be stored.
+	 *
+	 * @returns em_cmd_get_ssid_t
+	 * @retval Returns a status code indicating success or failure of the operation.
+	 *
+	 * @note Ensure that the EasyMesh system is properly initialized before calling this function.
+	 */
+	em_cmd_get_ssid_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif

@@ -30,14 +30,85 @@ class em_cmd_agent_t : public em_cmd_exec_t {
 public:
     static em_cmd_t m_client_cmd_spec[];
 public:
-    int execute(em_long_string_t result);
-    int send_result(em_cmd_out_status_t status);
-
-    static em_event_t *create_event(char *buff);
     
-    em_cmd_agent_t(em_cmd_type_t type);
-    em_cmd_agent_t(em_cmd_t& obj);
-    em_cmd_agent_t();
+	/**!
+	 * @brief Executes a command and stores the result.
+	 *
+	 * This function executes a command and stores the output in the provided result parameter.
+	 *
+	 * @param[out] result A reference to a variable where the execution result will be stored.
+	 *
+	 * @returns int Status code of the execution.
+	 * @retval 0 on success.
+	 * @retval non-zero on failure.
+	 *
+	 * @note Ensure that the result variable is properly initialized before calling this function.
+	 */
+	int execute(em_long_string_t result);
+    
+	/**!
+	 * @brief Sends the result status.
+	 *
+	 * This function is responsible for sending the result status of a command.
+	 *
+	 * @param[in] status The status of the command output to be sent.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure the status is valid before calling this function.
+	 */
+	int send_result(em_cmd_out_status_t status);
+
+    
+	/**!
+	 * @brief Creates an event from the given buffer.
+	 *
+	 * This function takes a character buffer as input and creates an event of type `em_event_t`.
+	 *
+	 * @param[in] buff A character buffer containing the event data.
+	 *
+	 * @returns A pointer to the created `em_event_t` event.
+	 * @retval NULL if the event creation fails.
+	 *
+	 * @note Ensure that the buffer is properly formatted to create a valid event.
+	 */
+	static em_event_t *create_event(char *buff);
+    
+    
+	/**!
+	 * @brief 
+	 *
+	 * Initializes a command agent with the specified command type.
+	 *
+	 * @param[in] type The type of command to initialize the agent with.
+	 *
+	 * @returns A new instance of em_cmd_agent_t initialized with the given command type.
+	 *
+	 * @note Ensure that the command type is valid and supported by the system.
+	 */
+	em_cmd_agent_t(em_cmd_type_t type);
+    
+	/**!
+	 * @brief Constructor for em_cmd_agent_t class.
+	 *
+	 * This constructor initializes an instance of the em_cmd_agent_t class using the provided em_cmd_t object.
+	 *
+	 * @param[in] obj Reference to an em_cmd_t object used for initialization.
+	 *
+	 * @note Ensure that the em_cmd_t object is properly initialized before passing it to this constructor.
+	 */
+	em_cmd_agent_t(em_cmd_t& obj);
+    
+	/**!
+	 * @brief Constructor for the em_cmd_agent_t class.
+	 *
+	 * This constructor initializes an instance of the em_cmd_agent_t class.
+	 *
+	 * @note This is a default constructor and does not take any parameters.
+	 */
+	em_cmd_agent_t();
 };
 
 #endif

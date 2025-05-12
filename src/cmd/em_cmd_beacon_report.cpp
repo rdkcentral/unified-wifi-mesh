@@ -47,7 +47,7 @@ em_cmd_beacon_report_t::em_cmd_beacon_report_t(em_cmd_params_t param, dm_easy_me
     m_type = em_cmd_type_beacon_report;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
     
-    memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
+    memset(reinterpret_cast<unsigned char *> (&m_orch_desc[0]), 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
 
     m_orch_op_idx = 0;
     m_num_orch_desc = 1;

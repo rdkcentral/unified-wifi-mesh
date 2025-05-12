@@ -24,7 +24,20 @@
 class em_cmd_scan_result_t : public em_cmd_t {
 
 public:
-    em_cmd_scan_result_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+    
+	/**!
+	 * @brief 
+	 *
+	 * This function processes the scan results based on the provided parameters and updates the EasyMesh data model.
+	 *
+	 * @param[in] param The parameters for the scan result command.
+	 * @param[out] dm The EasyMesh data model to be updated with the scan results.
+	 *
+	 * @returns em_cmd_scan_result_t The result of the scan command execution.
+	 *
+	 * @note Ensure that the EasyMesh data model is properly initialized before calling this function.
+	 */
+	em_cmd_scan_result_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif

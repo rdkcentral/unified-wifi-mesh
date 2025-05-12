@@ -2,3 +2,7 @@ install/bin/
 *.o
 *.so
 .vscode/
+.clang-format
+*.log
+DPPURI_sendable.json
+*.a

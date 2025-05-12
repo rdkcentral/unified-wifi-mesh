@@ -46,21 +46,21 @@ int dm_scan_result_list_t::get_config(cJSON *parent_obj, void *parent, bool summ
 	dm_scan_result_t *res;
 	bool all_scan_rsults_of_radio = false;
 
-	dm_scan_result_t::parse_scan_result_id_from_key((char *)parent, &id);
+	dm_scan_result_t::parse_scan_result_id_from_key(static_cast<char *>(parent), &id);
 	if ((id.op_class == 0) && (id.channel == 0) && (id.scanner_type == em_scanner_type_radio)) {
 		all_scan_rsults_of_radio = true;
 	}
 
 	scan_res_arr_obj = cJSON_AddArrayToObject(parent_obj, "ScanResults");
 
-	res = (dm_scan_result_t *)get_first_scan_result();
+	res = static_cast<dm_scan_result_t *>(get_first_scan_result());
 	while (res != NULL) {
 		if (all_scan_rsults_of_radio == true) {
 			if ((strncmp(res->m_scan_result.id.net_id, id.net_id, strlen(id.net_id)) != 0) ||
 					(memcmp(res->m_scan_result.id.dev_mac, id.dev_mac, sizeof(mac_address_t)) != 0) ||
 					(memcmp(res->m_scan_result.id.scanner_mac, id.scanner_mac, sizeof(mac_address_t)) != 0) ||
 					(res->m_scan_result.id.scanner_type != em_scanner_type_radio)) {
-				res = (dm_scan_result_t *)get_next_scan_result(res);
+				res = static_cast<dm_scan_result_t *>(get_next_scan_result(res));
 				continue;
 			}
 		}	
@@ -70,7 +70,7 @@ int dm_scan_result_list_t::get_config(cJSON *parent_obj, void *parent, bool summ
 		cJSON_AddItemToArray(scan_res_arr_obj, scan_res_obj);
 		
 
-		res = (dm_scan_result_t *)get_next_scan_result(res);
+		res = static_cast<dm_scan_result_t *>(get_next_scan_result(res));
 	}
 	
     return 0;
@@ -84,10 +84,10 @@ int dm_scan_result_list_t::set_config(db_client_t& db_client, const cJSON *obj_a
 	unsigned int i, size;
 	db_update_scan_result_t res;
 
-    size = cJSON_GetArraySize(obj_arr);
+    size = static_cast<unsigned int>(cJSON_GetArraySize(obj_arr));
 
     for (i = 0; i < size; i++) {
-        obj = cJSON_GetArrayItem(obj_arr, i);
+        obj = cJSON_GetArrayItem(obj_arr, static_cast<int>(i));
         scan_result.decode(obj, parent_id);
 		for (i = 0; i < scan_result.m_scan_result.num_neighbors; i++) {
 			res.result = scan_result.get_scan_result();
@@ -103,7 +103,6 @@ int dm_scan_result_list_t::set_config(db_client_t& db_client, const cJSON *obj_a
 int dm_scan_result_list_t::set_config(db_client_t& db_client, dm_scan_result_t& scan_result, void *parent_id)
 {
     dm_orch_type_t op;
-    char *tmp = (char *)parent_id;
 	unsigned int i;
 	db_update_scan_result_t res;
 
@@ -111,7 +110,6 @@ int dm_scan_result_list_t::set_config(db_client_t& db_client, dm_scan_result_t& 
 	res.result = scan_result.get_scan_result();
 	res.index = scan_result_self_index;
 	update_db(db_client, (op = get_dm_orch_type(db_client, scan_result, scan_result_self_index)), &res);
-	update_list(scan_result, scan_result_self_index, op);
 
 	for (i = 0; i < scan_result.m_scan_result.num_neighbors; i++) {
 		res.result = scan_result.get_scan_result();
@@ -127,16 +125,17 @@ dm_orch_type_t dm_scan_result_list_t::get_dm_orch_type(db_client_t& db_client, c
 {
     dm_scan_result_t *pscan_result;
     mac_addr_str_t	dev_mac_str, scanner_mac_str, bssid_str;
-	em_long_string_t key;
-	em_neighbor_t *nbr, null_nbr = {0};
+	em_2xlong_string_t key;
+	em_neighbor_t *nbr, null_nbr;
+	memset(&null_nbr, 0, sizeof(em_neighbor_t));
 
-	nbr = (index == scan_result_self_index) ? &null_nbr:(em_neighbor_t *)&scan_result.m_scan_result.neighbor[index];
+	nbr = (index == scan_result_self_index) ? &null_nbr:const_cast<em_neighbor_t *>(&scan_result.m_scan_result.neighbor[index]);
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)scan_result.m_scan_result.id.dev_mac, dev_mac_str);
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)scan_result.m_scan_result.id.scanner_mac, scanner_mac_str);
-	dm_easy_mesh_t::macbytes_to_string((unsigned char *)nbr->bssid, bssid_str);
+	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(scan_result.m_scan_result.id.dev_mac), dev_mac_str);
+	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(scan_result.m_scan_result.id.scanner_mac), scanner_mac_str);
+	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(nbr->bssid), bssid_str);
 
-    snprintf(key, sizeof(em_long_string_t), "%s@%s@%s@%d@%d@%d@%s", 
+    snprintf(key, sizeof(key), "%s@%s@%s@%d@%d@%d@%s",
 					scan_result.m_scan_result.id.net_id, dev_mac_str, scanner_mac_str, scan_result.m_scan_result.id.op_class, 
 					scan_result.m_scan_result.id.channel, scan_result.m_scan_result.id.scanner_type, bssid_str);
 
@@ -163,16 +162,18 @@ void dm_scan_result_list_t::update_list(const dm_scan_result_t& scan_result, uns
 {
     dm_scan_result_t *pscan_result;
     mac_addr_str_t	dev_mac_str, scanner_mac_str, bssid_str;
-	em_long_string_t key;
-	em_neighbor_t *nbr, null_nbr = {0};
+	em_2xlong_string_t key;
+	em_neighbor_t *nbr, null_nbr;
+	memset(&null_nbr, 0, sizeof(em_neighbor_t));
 
-	nbr = (index == scan_result_self_index) ? &null_nbr:(em_neighbor_t *)&scan_result.m_scan_result.neighbor[index];
+	nbr = (index == scan_result_self_index) ? &null_nbr:const_cast<em_neighbor_t *>(&scan_result.m_scan_result.neighbor[index]);
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)scan_result.m_scan_result.id.dev_mac, dev_mac_str);
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)scan_result.m_scan_result.id.scanner_mac, scanner_mac_str);
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)nbr->bssid, bssid_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(scan_result.m_scan_result.id.dev_mac), dev_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(scan_result.m_scan_result.id.scanner_mac), scanner_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(nbr->bssid), bssid_str);
+
     
-	snprintf(key, sizeof(em_long_string_t), "%s@%s@%s@%d@%d@%d@%s", 
+	snprintf(key, sizeof(key), "%s@%s@%s@%d@%d@%d@%s",
 					scan_result.m_scan_result.id.net_id, dev_mac_str, scanner_mac_str, scan_result.m_scan_result.id.op_class, 
 					scan_result.m_scan_result.id.channel, scan_result.m_scan_result.id.scanner_type, bssid_str);
 
@@ -180,7 +181,7 @@ void dm_scan_result_list_t::update_list(const dm_scan_result_t& scan_result, uns
 
     switch (op) {
         case dm_orch_type_db_insert:
-            put_scan_result(key, &scan_result);
+            put_scan_result(key, &scan_result, index);
             break;
 
         case dm_orch_type_db_update:
@@ -191,27 +192,29 @@ void dm_scan_result_list_t::update_list(const dm_scan_result_t& scan_result, uns
         case dm_orch_type_db_delete:
             remove_scan_result(key);
             break;
+
+		default:
+		    break;
     }
 }
 
 void dm_scan_result_list_t::delete_list()
 {   
-    dm_scan_result_t *scan_result, *tmp;
+    dm_scan_result_t *scan_result;
 	mac_addr_str_t dev_mac_str, scanner_mac_str, bssid_str;
-    em_long_string_t key;
+    em_2xlong_string_t key;
 	unsigned int i;
   
     scan_result = get_first_scan_result();
     while (scan_result != NULL) {
-        tmp = scan_result;
         scan_result = get_next_scan_result(scan_result);
 
 		for (i = 0; i < scan_result->m_scan_result.num_neighbors; i++) {
-    		dm_easy_mesh_t::macbytes_to_string((unsigned char *)scan_result->m_scan_result.id.dev_mac, dev_mac_str);
-    		dm_easy_mesh_t::macbytes_to_string((unsigned char *)scan_result->m_scan_result.id.scanner_mac, scanner_mac_str);
-    		dm_easy_mesh_t::macbytes_to_string((unsigned char *)scan_result->m_scan_result.neighbor[i].bssid, bssid_str);
+			dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(scan_result->m_scan_result.id.dev_mac), dev_mac_str);
+			dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(scan_result->m_scan_result.id.scanner_mac), scanner_mac_str);
+			dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(scan_result->m_scan_result.neighbor[i].bssid), bssid_str);
 
-    		snprintf(key, sizeof(em_long_string_t), "%s@%s@%s@%d@%d@%d@%s", 
+            snprintf(key, sizeof(key), "%s@%s@%s@%d@%d@%d@%s",
 						scan_result->m_scan_result.id.net_id, dev_mac_str, scanner_mac_str, scan_result->m_scan_result.id.op_class, 
 						scan_result->m_scan_result.id.channel, scan_result->m_scan_result.id.scanner_type, bssid_str);
   
@@ -228,20 +231,21 @@ bool dm_scan_result_list_t::operator == (const db_easy_mesh_t& obj)
 int dm_scan_result_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *data)
 {
     mac_addr_str_t dev_mac_str, scanner_mac_str, bssid_str;
-	em_long_string_t key;
-	db_update_scan_result_t *res = (db_update_scan_result_t *)data;
+	em_2xlong_string_t key;
+	db_update_scan_result_t *res = static_cast<db_update_scan_result_t *>(data);
     em_scan_result_t *scan_result = res->result;
 	unsigned int index = res->index;
     int ret = 0;
-	em_neighbor_t	*nbr, null_nbr = {0};
+	em_neighbor_t	*nbr, null_nbr;
+	memset(&null_nbr, 0, sizeof(em_neighbor_t));
 
 	nbr = (index == scan_result_self_index) ? &null_nbr:&scan_result->neighbor[index];
 
-   	dm_easy_mesh_t::macbytes_to_string((unsigned char *)scan_result->id.dev_mac, dev_mac_str);
-   	dm_easy_mesh_t::macbytes_to_string((unsigned char *)scan_result->id.scanner_mac, scanner_mac_str);
-   	dm_easy_mesh_t::macbytes_to_string((unsigned char *)nbr->bssid, bssid_str);
+	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(scan_result->id.dev_mac), dev_mac_str);
+	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(scan_result->id.scanner_mac), scanner_mac_str);
+	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(nbr->bssid), bssid_str);
 
-   	snprintf(key, sizeof(em_long_string_t), "%s@%s@%s@%d@%d@%d@%s", 
+    snprintf(key, sizeof(key), "%s@%s@%s@%d@%d@%d@%s",
 					scan_result->id.net_id, dev_mac_str, scanner_mac_str, scan_result->id.op_class, 
 					scan_result->id.channel, scan_result->id.scanner_type, bssid_str);
   
@@ -279,7 +283,7 @@ bool dm_scan_result_list_t::search_db(db_client_t& db_client, void *ctx, void *k
         db_client.get_string(ctx, str, 1);
 		//printf("%s:%d: Comparing source: %s target: %s\n", __func__, __LINE__, str, (char *)key);
 
-        if (strncmp(str, (char *)key, strlen((char *)key)) == 0) {
+		if (strncmp(str, static_cast<char *>(key), strlen(static_cast<char *>(key))) == 0) {
             return true;
         }
     }
@@ -307,13 +311,13 @@ int dm_scan_result_list_t::sync_db(db_client_t& db_client, void *ctx)
 		scan_result.id.channel = id.channel;
 		scan_result.id.scanner_type = id.scanner_type;
 
-		scan_result.scan_status = db_client.get_number(ctx, 2);
+		scan_result.scan_status = static_cast<unsigned char>(db_client.get_number(ctx, 2));
 		
 		db_client.get_string(ctx, str, 3);
 		strncpy(scan_result.timestamp, str, strlen(str) + 1);
 
-		scan_result.util = db_client.get_number(ctx, 4);
-		scan_result.noise = db_client.get_number(ctx, 5);
+		scan_result.util = static_cast<unsigned char>(db_client.get_number(ctx, 4));
+		scan_result.noise = static_cast<unsigned char>(db_client.get_number(ctx, 5));
 
         db_client.get_string(ctx, str, 6);
 		dm_easy_mesh_t::string_to_macbytes(str, scan_result.neighbor[scan_result.num_neighbors].bssid);
@@ -321,13 +325,13 @@ int dm_scan_result_list_t::sync_db(db_client_t& db_client, void *ctx)
         db_client.get_string(ctx, str, 7);
 		strncpy(scan_result.neighbor[scan_result.num_neighbors].ssid, str, strlen(str) + 1);
 
-		scan_result.neighbor[scan_result.num_neighbors].signal_strength = db_client.get_number(ctx, 8);
-		scan_result.neighbor[scan_result.num_neighbors].bandwidth = (wifi_channelBandwidth_t)db_client.get_number(ctx, 9);
-		scan_result.neighbor[scan_result.num_neighbors].bss_color = db_client.get_number(ctx, 10);
-		scan_result.neighbor[scan_result.num_neighbors].channel_util = db_client.get_number(ctx, 11);
-		scan_result.neighbor[scan_result.num_neighbors].sta_count = db_client.get_number(ctx, 12);
-		scan_result.aggr_scan_duration = db_client.get_number(ctx, 13);
-		scan_result.scan_type = db_client.get_number(ctx, 14);
+		scan_result.neighbor[scan_result.num_neighbors].signal_strength = static_cast<signed char>(db_client.get_number(ctx, 8));
+		scan_result.neighbor[scan_result.num_neighbors].bandwidth = static_cast<wifi_channelBandwidth_t>(db_client.get_number(ctx, 9));
+		scan_result.neighbor[scan_result.num_neighbors].bss_color = static_cast<unsigned char>(db_client.get_number(ctx, 10));
+		scan_result.neighbor[scan_result.num_neighbors].channel_util = static_cast<unsigned char>(db_client.get_number(ctx, 11));
+		scan_result.neighbor[scan_result.num_neighbors].sta_count = static_cast<short unsigned int>(db_client.get_number(ctx, 12));
+		scan_result.aggr_scan_duration = static_cast<unsigned int>(db_client.get_number(ctx, 13));
+		scan_result.scan_type = static_cast<unsigned char>(db_client.get_number(ctx, 14));
         
 		update_list(dm_scan_result_t(&scan_result), scan_result.num_neighbors, dm_orch_type_db_insert);
 		scan_result.num_neighbors++;

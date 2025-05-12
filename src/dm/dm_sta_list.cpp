@@ -48,12 +48,10 @@ int dm_sta_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 int dm_sta_list_t::get_config(cJSON *obj_arr, void *parent, em_get_sta_list_reason_t reason)
 {
     dm_sta_t *sta;
-    cJSON *obj, *akms_arr;
-    mac_addr_str_t  mac_str;
+    cJSON *obj;
     bssid_t	bssid;
-    unsigned int i;
 
-    dm_easy_mesh_t::string_to_macbytes((char *)parent, bssid);
+    dm_easy_mesh_t::string_to_macbytes(static_cast<char *>(parent), bssid);
 
     sta = get_first_sta();
     while (sta != NULL) {
@@ -81,7 +79,7 @@ int dm_sta_list_t::analyze_config(const cJSON *obj_arr, void *parent_id, em_cmd_
 int dm_sta_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void *parent_id)
 {
     cJSON *obj;
-    unsigned int i, size;
+    int i, size;
     dm_sta_t sta;
     dm_orch_type_t op;
 
@@ -100,7 +98,6 @@ int dm_sta_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void
 int dm_sta_list_t::set_config(db_client_t& db_client, dm_sta_t& sta, void *parent_id)
 {
     dm_orch_type_t op;
-    char *tmp = (char *)parent_id;
 
     //printf("dm_op_class_list_t::%s:%d: id: %s\n", __func__, __LINE__, (char *)parent_id);
     update_db(db_client, (op = get_dm_orch_type(db_client, sta)), sta.get_sta_info());
@@ -115,9 +112,9 @@ dm_orch_type_t dm_sta_list_t::get_dm_orch_type(db_client_t& db_client, const dm_
     mac_addr_str_t  sta_mac_str, bssid_mac_str, radio_mac_str;
     em_long_string_t key;
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)sta.m_sta_info.id, sta_mac_str);
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)sta.m_sta_info.bssid, bssid_mac_str);
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)sta.m_sta_info.radiomac, radio_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(sta.m_sta_info.id), sta_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(sta.m_sta_info.bssid), bssid_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(sta.m_sta_info.radiomac), radio_mac_str);
     snprintf(key, sizeof (em_long_string_t), "%s@%s@%s", sta_mac_str, bssid_mac_str, radio_mac_str);
 
     psta = get_sta(key);
@@ -150,9 +147,9 @@ void dm_sta_list_t::update_list(const dm_sta_t& sta, dm_orch_type_t op)
     mac_addr_str_t	sta_mac_str, bssid_mac_str, radio_mac_str;
     em_long_string_t key;
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)sta.m_sta_info.id, sta_mac_str);
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)sta.m_sta_info.bssid, bssid_mac_str);
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)sta.m_sta_info.radiomac, radio_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(sta.m_sta_info.id), sta_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(sta.m_sta_info.bssid), bssid_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(sta.m_sta_info.radiomac), radio_mac_str);
     snprintf(key, sizeof (em_long_string_t), "%s@%s@%s", sta_mac_str, bssid_mac_str, radio_mac_str);
 
     switch (op) {
@@ -167,6 +164,9 @@ void dm_sta_list_t::update_list(const dm_sta_t& sta, dm_orch_type_t op)
 
         case dm_orch_type_db_delete:
             remove_sta(key);            
+            break;
+
+        default:
             break;
     }
 
@@ -183,8 +183,8 @@ void dm_sta_list_t::delete_list()
         tmp = psta;
         psta = get_next_sta(psta);       
     
-   	dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_sta_info.id, sta_mac_str);
-    	dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_sta_info.bssid, bssid_mac_str);
+   	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(tmp->m_sta_info.id), sta_mac_str);
+    	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(tmp->m_sta_info.bssid), bssid_mac_str);
     	snprintf(key, sizeof (em_long_string_t), "%s@%s", sta_mac_str, bssid_mac_str);
         remove_sta(key);    
     }
@@ -198,7 +198,7 @@ bool dm_sta_list_t::operator == (const db_easy_mesh_t& obj)
 int dm_sta_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *data)
 {
     mac_addr_str_t sta_mac_str, bssid_mac_str, radio_mac_str;
-    em_sta_info_t *info = (em_sta_info_t *)data;
+    em_sta_info_t *info = static_cast<em_sta_info_t *>(data);
     int ret = 0;
     char frame_body[EM_MAX_FRAME_BODY_LEN*2];
 
@@ -212,7 +212,7 @@ int dm_sta_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
 						dm_easy_mesh_t::macbytes_to_string(info->radiomac, radio_mac_str),
 						info->associated, info->last_ul_rate, info->last_dl_rate,
 						info->est_ul_rate, info->est_dl_rate, info->last_conn_time, info->retrans_count,
-						info->signal_strength, info->util_tx, info->util_rx, info->pkts_tx, info->pkts_rx,
+						info->signal_strength, info->rcpi, info->util_tx, info->util_rx, info->pkts_tx, info->pkts_rx,
 						info->bytes_tx, info->bytes_rx, info->errors_tx, info->errors_rx,
 						info->frame_body_len, frame_body);
 							
@@ -224,7 +224,7 @@ int dm_sta_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
 						dm_easy_mesh_t::macbytes_to_string(info->radiomac, radio_mac_str),
 						info->associated, info->last_ul_rate, info->last_dl_rate,
 						info->est_ul_rate, info->est_dl_rate, info->last_conn_time, info->retrans_count,
-						info->signal_strength, info->util_tx, info->util_rx, info->pkts_tx, info->pkts_rx,
+						info->signal_strength, info->rcpi, info->util_tx, info->util_rx, info->pkts_tx, info->pkts_rx,
 						info->bytes_tx, info->bytes_rx, info->errors_tx, info->errors_rx,
 						info->frame_body_len, frame_body,
 						dm_easy_mesh_t::macbytes_to_string(info->id, sta_mac_str));
@@ -248,7 +248,7 @@ bool dm_sta_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
     while (db_client.next_result(ctx)) {
         db_client.get_string(ctx, mac, 1);
 
-        if (strncmp(mac, (char *)key, strlen((char *)key)) == 0) {
+        if (strncmp(mac, static_cast<char *>(key), strlen(static_cast<char *>(key))) == 0) {
             return true;
         }
     }
@@ -263,7 +263,6 @@ bool dm_sta_list_t::compare_db(db_client_t& db_client, const dm_sta_t& sta)
     char frame_body[EM_MAX_FRAME_BODY_LEN*2];
 
     db_query_t    query;
-    db_result_t   result;
     void *ctx;
 
     memset(query, 0, sizeof(db_query_t));
@@ -284,27 +283,28 @@ bool dm_sta_list_t::compare_db(db_client_t& db_client, const dm_sta_t& sta)
         dm_easy_mesh_t::string_to_macbytes(mac, info.radiomac);
 
         info.associated = db_client.get_number(ctx, 4);
-        info.last_ul_rate = db_client.get_number(ctx, 5);
-        info.last_dl_rate = db_client.get_number(ctx, 6);
-        info.est_ul_rate = db_client.get_number(ctx, 7);
-        info.est_dl_rate = db_client.get_number(ctx, 8);
-        info.last_conn_time = db_client.get_number(ctx, 9);
-        info.retrans_count = db_client.get_number(ctx, 10);
-        info.signal_strength = db_client.get_number(ctx, 11);
-        info.util_tx = db_client.get_number(ctx, 12);
-        info.util_rx = db_client.get_number(ctx, 13);
-        info.pkts_tx = db_client.get_number(ctx, 14);
-        info.pkts_rx = db_client.get_number(ctx, 15);
-        info.bytes_tx = db_client.get_number(ctx, 16);
-        info.bytes_rx = db_client.get_number(ctx, 17);
-        info.errors_tx = db_client.get_number(ctx, 18);
-        info.errors_rx = db_client.get_number(ctx, 19);
-        info.frame_body_len = db_client.get_number(ctx, 20);
+        info.last_ul_rate = static_cast<unsigned int>(db_client.get_number(ctx, 5));
+        info.last_dl_rate = static_cast<unsigned int>(db_client.get_number(ctx, 6));
+        info.est_ul_rate = static_cast<unsigned int>(db_client.get_number(ctx, 7));
+        info.est_dl_rate = static_cast<unsigned int>(db_client.get_number(ctx, 8));
+        info.last_conn_time = static_cast<unsigned int>(db_client.get_number(ctx, 9));
+        info.retrans_count = static_cast<unsigned int>(db_client.get_number(ctx, 10));
+        info.signal_strength = (db_client.get_number(ctx, 11));
+        info.rcpi = static_cast<unsigned char> (db_client.get_number(ctx, 12));
+        info.util_tx = static_cast<unsigned char> (db_client.get_number(ctx, 13));
+        info.util_rx = static_cast<unsigned char> (db_client.get_number(ctx, 14));
+        info.pkts_tx = static_cast<unsigned char> (db_client.get_number(ctx, 15));
+        info.pkts_rx = static_cast<unsigned char> (db_client.get_number(ctx, 16));
+        info.bytes_tx = static_cast<unsigned char> (db_client.get_number(ctx, 17));
+        info.bytes_rx = static_cast<unsigned char> (db_client.get_number(ctx, 18));
+        info.errors_tx = static_cast<unsigned char> (db_client.get_number(ctx, 19));
+        info.errors_rx = static_cast<unsigned char> (db_client.get_number(ctx, 20));
+        info.frame_body_len = static_cast<unsigned char> (db_client.get_number(ctx, 21));
 
-        db_client.get_string(ctx, frame_body, 21);
-        dm_easy_mesh_t::unhex(strlen(frame_body), frame_body, EM_MAX_FRAME_BODY_LEN, info.frame_body);
+        db_client.get_string(ctx, frame_body, 22);
+        dm_easy_mesh_t::unhex(static_cast<unsigned int>(strlen(frame_body)), frame_body, EM_MAX_FRAME_BODY_LEN, info.frame_body);
 
-        if (memcmp((const void*)&sta.m_sta_info, (const void*)&info, sizeof(em_sta_info_t)) == 0) {
+        if (memcmp(static_cast<const void*>(&sta.m_sta_info), static_cast<const void*>(&info), sizeof(em_sta_info_t)) == 0) {
             return true;
         }
     }
@@ -316,8 +316,6 @@ int dm_sta_list_t::sync_db(db_client_t& db_client, void *ctx)
 {
     em_sta_info_t info;
     mac_addr_str_t	mac;
-    em_long_string_t   str;
-    unsigned int i;
     int rc = 0;
     char frame_body[EM_MAX_FRAME_BODY_LEN*2];
 
@@ -334,25 +332,26 @@ int dm_sta_list_t::sync_db(db_client_t& db_client, void *ctx)
         dm_easy_mesh_t::string_to_macbytes(mac, info.radiomac);
 
         info.associated = db_client.get_number(ctx, 4);
-        info.last_ul_rate = db_client.get_number(ctx, 5);
-        info.last_dl_rate = db_client.get_number(ctx, 6);
-        info.est_ul_rate = db_client.get_number(ctx, 7);
-        info.est_dl_rate = db_client.get_number(ctx, 8);
-        info.last_conn_time = db_client.get_number(ctx, 9);
-        info.retrans_count = db_client.get_number(ctx, 10);
-        info.signal_strength = db_client.get_number(ctx, 11);
-        info.util_tx = db_client.get_number(ctx, 12);
-        info.util_rx = db_client.get_number(ctx, 13);
-        info.pkts_tx = db_client.get_number(ctx, 14);
-        info.pkts_rx = db_client.get_number(ctx, 15);
-        info.bytes_tx = db_client.get_number(ctx, 16);
-        info.bytes_rx = db_client.get_number(ctx, 17);
-        info.errors_tx = db_client.get_number(ctx, 18);
-        info.errors_rx = db_client.get_number(ctx, 19);
-        info.frame_body_len = db_client.get_number(ctx, 20);
+        info.last_ul_rate = static_cast<unsigned int>(db_client.get_number(ctx, 5));
+        info.last_dl_rate = static_cast<unsigned int>(db_client.get_number(ctx, 6));
+        info.est_ul_rate = static_cast<unsigned int>(db_client.get_number(ctx, 7));
+        info.est_dl_rate = static_cast<unsigned int>(db_client.get_number(ctx, 8));
+        info.last_conn_time = static_cast<unsigned int>(db_client.get_number(ctx, 9));
+        info.retrans_count = static_cast<unsigned int>(db_client.get_number(ctx, 10));
+        info.signal_strength = static_cast<signed int> (db_client.get_number(ctx, 11));
+        info.rcpi = static_cast<unsigned char> (db_client.get_number(ctx, 12));
+        info.util_tx = static_cast<unsigned int> (db_client.get_number(ctx, 13));
+        info.util_rx = static_cast<unsigned int> (db_client.get_number(ctx, 14));
+        info.pkts_tx = static_cast<unsigned int> (db_client.get_number(ctx, 15));
+        info.pkts_rx = static_cast<unsigned int> (db_client.get_number(ctx, 16));
+        info.bytes_tx = static_cast<unsigned int> (db_client.get_number(ctx, 17));
+        info.bytes_rx = static_cast<unsigned int> (db_client.get_number(ctx, 18));
+        info.errors_tx = static_cast<unsigned int> (db_client.get_number(ctx, 19));
+        info.errors_rx = static_cast<unsigned int> (db_client.get_number(ctx, 20));
+        info.frame_body_len = static_cast<unsigned int> (db_client.get_number(ctx, 21));
 
-        db_client.get_string(ctx, frame_body, 21);
-        dm_easy_mesh_t::unhex(strlen(frame_body), frame_body, EM_MAX_FRAME_BODY_LEN, info.frame_body);
+        db_client.get_string(ctx, frame_body, 22);
+        dm_easy_mesh_t::unhex(static_cast<unsigned int>(strlen(frame_body)), frame_body, EM_MAX_FRAME_BODY_LEN, info.frame_body);
 
         update_list(dm_sta_t(&info), dm_orch_type_db_insert);
     }
@@ -379,6 +378,7 @@ void dm_sta_list_t::init_columns()
     m_columns[m_num_cols++] = db_column_t("LastConnectTime", db_data_type_int, 0);
     m_columns[m_num_cols++] = db_column_t("RetransCount", db_data_type_int, 0);
     m_columns[m_num_cols++] = db_column_t("SignalStrength", db_data_type_int, 0);
+    m_columns[m_num_cols++] = db_column_t("RCPI", db_data_type_int, 0);
     m_columns[m_num_cols++] = db_column_t("UtilizationTransmit", db_data_type_int, 0);
     m_columns[m_num_cols++] = db_column_t("UtilizationReceive", db_data_type_int, 0);
     m_columns[m_num_cols++] = db_column_t("PacketsSent", db_data_type_int, 0);

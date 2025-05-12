@@ -24,7 +24,19 @@
 class em_cmd_btm_report_t : public em_cmd_t {
 
 public:
-    em_cmd_btm_report_t(em_cmd_btm_report_params_t params);
+    
+	/**!
+	 * @brief 
+	 *
+	 * This function processes the BTM report based on the provided parameters.
+	 *
+	 * @param[in] params The parameters required to generate the BTM report.
+	 *
+	 * @returns em_cmd_btm_report_t The generated BTM report.
+	 *
+	 * @note Ensure that the parameters are correctly initialized before calling this function.
+	 */
+	em_cmd_btm_report_t(em_cmd_btm_report_params_t params);
 };
 
 #endif

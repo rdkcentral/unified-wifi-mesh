@@ -43,12 +43,11 @@
 int dm_bss_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 {
     dm_bss_t *pbss;
-    cJSON *obj, *akms_arr;
+    cJSON *obj;
     mac_addr_str_t  mac_str;
     mac_address_t	ruid;
-    unsigned int i;
 
-    dm_easy_mesh_t::string_to_macbytes((char *)parent, ruid);
+    dm_easy_mesh_t::string_to_macbytes(static_cast<char *> (parent), ruid);
 
     pbss = get_first_bss();
     //printf("%s:%d: pbss: %p\n", __func__, __LINE__, pbss);
@@ -78,7 +77,7 @@ int dm_bss_list_t::set_config(db_client_t& db_client, dm_bss_t& bss, void *paren
     dm_orch_type_t op;  
 
     //printf("%s:%d: Parent: %s \n", __func__, __LINE__, (char *)parent_id);
-	parse_bss_id_from_key((char *)parent_id, &bss.m_bss_info.id);
+	parse_bss_id_from_key(static_cast<char *> (parent_id), &bss.m_bss_info.id);
 
     update_db(db_client, (op = get_dm_orch_type(db_client, bss)), bss.get_bss_info());
     update_list(bss, op);
@@ -89,7 +88,7 @@ int dm_bss_list_t::set_config(db_client_t& db_client, dm_bss_t& bss, void *paren
 int dm_bss_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void *parent_id)
 {
     cJSON *obj;
-    unsigned int i, size;
+    int i, size;
     dm_bss_t bss;
     dm_orch_type_t op;
 
@@ -109,19 +108,19 @@ dm_orch_type_t dm_bss_list_t::get_dm_orch_type(db_client_t& db_client, const dm_
 {
     dm_bss_t *pbss;
     mac_addr_str_t  bss_mac_str, radio_mac_str, dev_mac_str;
-	em_long_string_t key;
+	em_2xlong_string_t key;
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)bss.m_bss_info.id.dev_mac, dev_mac_str);
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)bss.m_bss_info.bssid.mac, bss_mac_str);
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)bss.m_bss_info.ruid.mac, radio_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (bss.m_bss_info.id.dev_mac), dev_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (bss.m_bss_info.bssid.mac), bss_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (bss.m_bss_info.ruid.mac), radio_mac_str);
 
-	snprintf(key, sizeof(em_long_string_t), "%s@%s@%s@%s@%d", bss.m_bss_info.id.net_id, dev_mac_str, 
+	snprintf(key, sizeof(em_2xlong_string_t), "%s@%s@%s@%s@%d", bss.m_bss_info.id.net_id, dev_mac_str, 
 					radio_mac_str, bss_mac_str, bss.m_bss_info.id.haul_type);
 
     pbss = get_bss(key);
 
     if (pbss != NULL) {
-        if (entry_exists_in_table(db_client, bss_mac_str) == false) {
+        if (entry_exists_in_table(db_client, key) == false) {
             return dm_orch_type_db_insert;
         }
 
@@ -147,13 +146,13 @@ void dm_bss_list_t::update_list(const dm_bss_t& bss, dm_orch_type_t op)
 {
     dm_bss_t *pbss;
     mac_addr_str_t	bss_mac_str, radio_mac_str, dev_mac_str;
-	em_long_string_t	key;
+	em_2xlong_string_t	key;
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)bss.m_bss_info.id.dev_mac, dev_mac_str);
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)bss.m_bss_info.ruid.mac, radio_mac_str);
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)bss.m_bss_info.bssid.mac, bss_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (bss.m_bss_info.id.dev_mac), dev_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (bss.m_bss_info.ruid.mac), radio_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (bss.m_bss_info.bssid.mac), bss_mac_str);
 
-	snprintf(key, sizeof(em_long_string_t), "%s@%s@%s@%s@%d", bss.m_bss_info.id.net_id, dev_mac_str, 
+	snprintf(key, sizeof(em_2xlong_string_t), "%s@%s@%s@%s@%d", bss.m_bss_info.id.net_id, dev_mac_str, 
 					radio_mac_str, bss_mac_str, bss.m_bss_info.id.haul_type);
 
     switch (op) {
@@ -169,6 +168,9 @@ void dm_bss_list_t::update_list(const dm_bss_t& bss, dm_orch_type_t op)
         case dm_orch_type_db_delete:
             remove_bss(key);            
             break;
+
+        default:
+            break;
     }
 
 }
@@ -177,17 +179,17 @@ void dm_bss_list_t::delete_list()
 {       
     dm_bss_t *pbss, *tmp;
     mac_addr_str_t	bss_mac_str, radio_mac_str, dev_mac_str;
-    em_long_string_t key;
+    em_2xlong_string_t key;
     
     pbss = get_first_bss();
     while (pbss != NULL) {
         tmp = pbss;
         pbss = get_next_bss(pbss);
     
-        dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_bss_info.id.dev_mac, dev_mac_str);
-        dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_bss_info.ruid.mac, radio_mac_str);
-        dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_bss_info.bssid.mac, bss_mac_str);
-        snprintf(key, sizeof (em_long_string_t), "%s@%s@%s@%s@%d", tmp->m_bss_info.id.net_id, dev_mac_str, 
+        dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (tmp->m_bss_info.id.dev_mac), dev_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (tmp->m_bss_info.ruid.mac), radio_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (tmp->m_bss_info.bssid.mac), bss_mac_str);
+        snprintf(key, sizeof (em_2xlong_string_t), "%s@%s@%s@%s@%d", tmp->m_bss_info.id.net_id, dev_mac_str, 
 						radio_mac_str, bss_mac_str, tmp->m_bss_info.id.haul_type);
 
         remove_bss(key);
@@ -203,28 +205,28 @@ bool dm_bss_list_t::operator == (const db_easy_mesh_t& obj)
 int dm_bss_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *data)
 {
     mac_addr_str_t dev_mac_str, bss_mac_str, radio_mac_str;
-    em_bss_info_t *info = (em_bss_info_t *)data;
+    em_bss_info_t *info = static_cast<em_bss_info_t *> (data);
     int ret = 0;
     unsigned int i;
-	em_long_string_t key;
+	em_2xlong_string_t key;
     em_long_string_t	front_akms, back_akms;
         
-	dm_easy_mesh_t::macbytes_to_string((unsigned char *)info->id.dev_mac, dev_mac_str);
-	dm_easy_mesh_t::macbytes_to_string((unsigned char *)info->ruid.mac, radio_mac_str);
-	dm_easy_mesh_t::macbytes_to_string((unsigned char *)info->bssid.mac, bss_mac_str);
-	snprintf(key, sizeof (em_long_string_t), "%s@%s@%s@%s@%d", info->id.net_id, dev_mac_str, 
+	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (info->id.dev_mac), dev_mac_str);
+	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (info->ruid.mac), radio_mac_str);
+	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (info->bssid.mac), bss_mac_str);
+	snprintf(key, sizeof (em_2xlong_string_t), "%s@%s@%s@%s@%d", info->id.net_id, dev_mac_str, 
 					radio_mac_str, bss_mac_str, info->id.haul_type);
 
     //printf("dm_bss_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
     memset(front_akms, 0, sizeof(em_long_string_t));
     for (i = 0; i < info->num_fronthaul_akms; i++) {
         strncat(front_akms, info->fronthaul_akm[i], strlen(info->fronthaul_akm[i]));
-        strncat(front_akms, ",", strlen(","));
+        strncat(front_akms, ",", strlen(",") + 1);
     }
     memset(back_akms, 0, sizeof(em_long_string_t));
     for (i = 0; i < info->num_backhaul_akms; i++) {
         strncat(back_akms, info->backhaul_akm[i], strlen(info->backhaul_akm[i]));
-        strncat(back_akms, ",", strlen(","));
+        strncat(back_akms, ",", strlen(",") + 1);
     }
 	
 	switch (op) {
@@ -265,7 +267,7 @@ bool dm_bss_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
     while (db_client.next_result(ctx)) {
         db_client.get_string(ctx, str, 1);
 
-        if (strncmp(str, (char *)key, strlen((char *)key)) == 0) {
+        if (strncmp(str, static_cast<char *> (key), strlen(static_cast<char *> (key))) == 0) {
             return true;
         }
     }
@@ -306,18 +308,18 @@ int dm_bss_list_t::sync_db(db_client_t& db_client, void *ctx)
         for (i = 0; i < EM_MAX_AKMS; i++) {
             token_parts[i] = info.fronthaul_akm[i];
         }
-        info.num_fronthaul_akms = get_strings_by_token(str, ',', EM_MAX_AKMS, token_parts);
+        info.num_fronthaul_akms = static_cast<unsigned char> (get_strings_by_token(str, ',', EM_MAX_AKMS, token_parts));
 
         db_client.get_string(ctx, str, 11);
 
         for (i = 0; i < EM_MAX_AKMS; i++) {
             token_parts[i] = info.backhaul_akm[i];
         }
-        info.num_backhaul_akms = get_strings_by_token(str, ',', EM_MAX_AKMS, token_parts);
+        info.num_backhaul_akms = static_cast<unsigned char> (get_strings_by_token(str, ',', EM_MAX_AKMS, token_parts));
 
         info.profile_1b_sta_allowed = db_client.get_number(ctx, 12);
         info.profile_2b_sta_allowed = db_client.get_number(ctx, 13);
-        info.assoc_allowed_status = db_client.get_number(ctx, 14);
+        info.assoc_allowed_status = static_cast<unsigned int> (db_client.get_number(ctx, 14));
         info.backhaul_use = db_client.get_number(ctx, 15);
         info.fronthaul_use = db_client.get_number(ctx, 16);
         info.r1_disallowed = db_client.get_number(ctx, 17);

@@ -38,6 +38,7 @@
 #include "dm_dpp.h"
 #include "em_cmd_start_dpp.h"
 #include "dm_easy_mesh.h"
+#include "ec_util.h"
 #include "util.h"
 
 #include <string>
@@ -45,7 +46,7 @@
 
 int dm_dpp_t::analyze_config(const cJSON *obj, void *parent, em_cmd_t *pcmd[], em_cmd_params_t *param, void* user_param)
 {
-	unsigned int num = 0;
+	int num = 0;
 	dm_easy_mesh_t	dm;
 
     // Decodes JSON `obj` into `m_dpp_info`
@@ -62,69 +63,17 @@ int dm_dpp_t::analyze_config(const cJSON *obj, void *parent, em_cmd_t *pcmd[], e
 
 int dm_dpp_t::decode(const cJSON *obj, void *parent_id, void* user_info)
 {
-    cJSON *tmp, *tmp_arr;
-    mac_addr_str_t  mac_str;
-    unsigned int j;
-
-    char *net_id = (char *)parent_id;
-
-    memset(&m_dpp_info, 0, sizeof(ec_data_t));
-
     printf("%s:%d: Decoding DPP\n", __func__, __LINE__);
+
+    std::string country_code = "US";
+    if (user_info != NULL) {
+        country_code = std::string(static_cast<char*>(user_info));
+    }
 		
-    // Get version
-    if ((tmp = cJSON_GetObjectItem(obj, "V:")) != NULL) {
-	    m_dpp_info.version = cJSON_GetNumberValue(tmp);
+    if (!ec_util::decode_bootstrap_data_json(obj, &m_dpp_info, country_code)){
+        printf("%s:%d: Failed to decode DPP data\n", __func__, __LINE__);
+        return -1;
     }
-    // Get MAC address
-    if ((tmp = cJSON_GetObjectItem(obj, "M:")) != NULL && cJSON_IsString(tmp)) {
-	    dm_easy_mesh_t::string_to_macbytes(tmp->valuestring, m_dpp_info.mac_addr);
-    }
-    // Get public key (DER of ASN.1 SubjectPublicKeyInfo encoded in “base64”)
-    if ((tmp = cJSON_GetObjectItem(obj, "K:")) != NULL && cJSON_IsString(tmp)) {
-        // Enrollee (Responder) is the one who sent the URI so that is the owner of the public key
-
-        m_dpp_info.responder_boot_key = em_crypto_t::create_ec_key_from_base64_der(tmp->valuestring);
-	    if (m_dpp_info.responder_boot_key == NULL) {
-            printf("%s:%d: Failed to convert public key to EC_KEY\n", __func__, __LINE__);
-            return -1;
-        }
-    }
-
-    if ((tmp = cJSON_GetObjectItem(obj, "C:")) != NULL && cJSON_IsString(tmp)) {
-
-        em_tiny_string_t country_code = "US";
-        if (user_info != NULL) {
-            memcpy(&country_code, user_info, sizeof(em_tiny_string_t));
-        }
-
-        std::string op_channel_str(tmp->valuestring);
-	    std::stringstream ss(op_channel_str);
-        std::string pair;
-
-        int pair_idx = 0;
-        
-        while (std::getline(ss, pair, ',')) {
-            size_t slash_pos = pair.find('/');
-            if (slash_pos != std::string::npos) {
-                uint8_t op_class = std::stoi(pair.substr(0, slash_pos));
-                uint8_t channel = std::stoi(pair.substr(slash_pos + 1));
-                int freq = util::em_chan_to_freq(op_class, channel, std::string(country_code));
-                if (freq > 0) {
-                    m_dpp_info.ec_freqs[pair_idx] = freq;
-                    pair_idx++;
-                } else {
-                    printf("%s:%d: Failed to convert channel to frequency (op class: %d, channel: %d)\n", __func__, __LINE__, op_class, channel);
-                }
-                
-            }
-        }
-    }
-
-
-
-
-    
 		
     return 0;
 }
@@ -135,17 +84,20 @@ void dm_dpp_t::encode(cJSON *obj)
 }
 
 
-bool ec_pub_keys_equal(const EC_KEY* key1, const EC_KEY* key2) {
+bool ec_pub_keys_equal(const SSL_KEY* key1, const SSL_KEY* key2) {
     if (!key1 || !key2) return false;
     
-    const EC_POINT* point1 = EC_KEY_get0_public_key(key1);
-    const EC_POINT* point2 = EC_KEY_get0_public_key(key2);
+    const EC_POINT* point1 = em_crypto_t::get_pub_key_point(key1);
+    const EC_POINT* point2 = em_crypto_t::get_pub_key_point(key2);
     
     if (!point1 || !point2) return false;
     
-    // Compare just the public points
-    const EC_GROUP* group = EC_KEY_get0_group(key1);
-    return (EC_POINT_cmp(group, point1, point2, NULL) == 0);
+    const EC_GROUP* group1 = em_crypto_t::get_key_group(key1);
+    const EC_GROUP* group2 = em_crypto_t::get_key_group(key2);
+
+    if (EC_GROUP_cmp(group1, group2, NULL) != 0) return false;
+
+    return (EC_POINT_cmp(group1, point1, point2, NULL) == 0);
 }
 
 bool dm_dpp_t::operator == (const dm_dpp_t& obj)

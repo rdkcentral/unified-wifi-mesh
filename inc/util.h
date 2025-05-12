@@ -27,12 +27,28 @@
 #include "wifi_hal.h"
 #include <pthread.h>
 #include <sys/prctl.h>
+#include <byteswap.h>
+
 #include <string>
 #include <memory>
+#include <vector>
 
 #ifndef LOG_PATH_PREFIX
 #define LOG_PATH_PREFIX "/nvram/"
 #endif // LOG_PATH_PREFIX
+
+/**
+ * @brief Perform a byte swap if needed to convert little endian to/from host byte ordering
+ * @param x Unsigned 16 bit integer
+ * @return uint16_t x, byte-swapped if host is big endian, otherwise unchanged
+ */
+static inline uint16_t SWAP_LITTLE_ENDIAN(uint16_t x) {
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+    return x;
+#else
+    return __bswap_16(x);
+#endif
+}
 
 typedef enum {
     EM_STDOUT,
@@ -52,20 +68,105 @@ typedef enum {
 
 namespace util {
 
-void em_util_print(easymesh_log_level_t level, easymesh_dbg_type_t module, const char *func, int line, const char *format, ...);
-void delay(int );
-void add_milliseconds(struct timespec *ts, long milliseconds);
-char *get_date_time_rfc3399(char *buff, unsigned int len);
-void print_hex_dump(unsigned int length, uint8_t *buffer, easymesh_dbg_type_t module=EM_STDOUT);
 
-/**
- * Converts a MAC address to its string representation
- * 
- * @param mac The MAC address as an array of 6 bytes
- * @param delim The delimiter between bytes (default: ":")
- * @return The MAC address as a string in the format "XX:XX:XX:XX:XX:XX"
- */
-inline std::string mac_to_string(const uint8_t mac[6], const std::string& delim = ":") {
+	/**!
+	 * @brief Logs a formatted message with a specified log level and module type.
+	 *
+	 * This function allows for logging messages with varying levels of severity and
+	 * different module types, aiding in debugging and monitoring the system.
+	 *
+	 * @param[in] level The log level indicating the severity of the log message.
+	 * @param[in] module The module type to which the log message belongs.
+	 * @param[in] func The name of the function from which the log is being called.
+	 * @param[in] line The line number in the source code where the log is called.
+	 * @param[in] format The format string for the log message, followed by any additional arguments.
+	 *
+	 * @note This function uses variadic arguments to allow for flexible message formatting.
+	 */
+	void em_util_print(easymesh_log_level_t level, easymesh_dbg_type_t module, const char *func, int line, const char *format, ...);
+
+	/**!
+	 * @brief Introduces a delay for a specified amount of time.
+	 *
+	 * @param[in] duration The amount of time to delay, in milliseconds.
+	 *
+	 * @note This function will block the execution for the specified duration.
+	 */
+	void delay(int );
+
+	/**!
+	 * @brief Adds milliseconds to a given timespec structure.
+	 *
+	 * This function takes a timespec structure and a number of milliseconds,
+	 * and adds the milliseconds to the timespec, updating it accordingly.
+	 *
+	 * @param[in,out] ts Pointer to a timespec structure to be updated.
+	 * @param[in] milliseconds Number of milliseconds to add to the timespec.
+	 *
+	 * @note The function modifies the input timespec structure directly.
+	 */
+	void add_milliseconds(struct timespec *ts, long milliseconds);
+
+	/**!
+	 * @brief Retrieves the current date and time in RFC 3399 format.
+	 *
+	 * This function populates the provided buffer with the current date and time
+	 * formatted according to the RFC 3399 standard.
+	 *
+	 * @param[out] buff A pointer to the buffer where the formatted date and time
+	 * will be stored. The buffer must be large enough to hold the resulting string.
+	 *
+	 * @param[in] len The length of the buffer. This should be sufficient to store
+	 * the complete RFC 3399 formatted date and time string.
+	 *
+	 * @returns A pointer to the buffer containing the formatted date and time.
+	 *
+	 * @note Ensure that the buffer provided is adequately sized to prevent
+	 * buffer overflow.
+	 */
+	char *get_date_time_rfc3399(char *buff, unsigned int len);
+
+	/**!
+	 * @brief Prints a hex dump of the given buffer.
+	 *
+	 * This function outputs the contents of the buffer in hexadecimal format.
+	 *
+	 * @param[in] length The length of the buffer to be printed.
+	 * @param[in] buffer Pointer to the buffer containing the data to be dumped.
+	 * @param[in] module The module type for debugging output, default is EM_STDOUT.
+	 *
+	 * @note Ensure that the buffer is valid and the length is correct to avoid undefined behavior.
+	 */
+	void print_hex_dump(unsigned int length, uint8_t *buffer, easymesh_dbg_type_t module=EM_STDOUT);
+
+	void print_hex_dump(const std::vector<uint8_t>& data, easymesh_dbg_type_t module=EM_STDOUT);
+
+
+
+	/**
+	 * @brief Captures and prints the current call stack to stderr.
+	 *
+	 * The stack trace is printed to stderr with each frame on a separate line.
+	 *	 
+	 * @note The stack trace information may be limited depending on compilation
+	 *       flags. For best results, compile with debugging information (-g).
+	 */
+	void print_stacktrace();
+
+
+	/**
+	 * @brief Converts a MAC address to its string representation.
+	 *
+	 * This function takes a MAC address as an array of 6 bytes and converts it
+	 * into a human-readable string format, with bytes separated by a specified
+	 * delimiter.
+	 *
+	 * @param[in] mac The MAC address as an array of 6 bytes.
+	 * @param[in] delim The delimiter between bytes (default: ":").
+	 *
+	 * @return A string representing the MAC address in the format "XX:XX:XX:XX:XX:XX".
+	 */
+	inline std::string mac_to_string(const uint8_t mac[6], const std::string& delim = ":") {
     char mac_str[18]; // Max size: 6 bytes * 2 hex chars + 5 delimiters + null terminator
     snprintf(mac_str, sizeof(mac_str), "%02x%s%02x%s%02x%s%02x%s%02x%s%02x", 
              mac[0], delim.c_str(), mac[1], delim.c_str(), mac[2], delim.c_str(),
@@ -73,30 +174,106 @@ inline std::string mac_to_string(const uint8_t mac[6], const std::string& delim 
     return std::string(mac_str);
 }
 
-/**
- * em_chan_to_freq - Convert channel info to frequency
- * @param op_class: Operating class
- * @param chan: Channel number
- * @param country: Country code, if known; otherwise, global operating class is used
- * @return Frequency in MHz or -1 if the specified channel is unknown
- * 
- * @note Channels/Op-classes/Frequencies adapted from `hostapd/src/common/ieee80211_common.c:ieee80211_chan_to_freq`
- */
-int em_chan_to_freq(uint8_t op_class, uint8_t chan, const std::string& country="");
+
+	/**!
+	 * @brief Splits a string by a specified delimiter.
+	 *
+	 * This function takes a string and splits it into a vector of substrings
+	 * based on the provided delimiter character.
+	 *
+	 * @param[in] s The string to be split.
+	 * @param[in] delimiter The character used as the delimiter.
+	 *
+	 * @returns A vector of strings containing the split parts.
+	 *
+	 * @note This function does not include the delimiter in the resulting substrings.
+	 */
+	std::vector<std::string> split_by_delim(const std::string& s, char delimiter);
+
+
+	/**
+	 * @brief Remove whitespace from a string.
+	 * 
+	 * This function takes a string and removes all whitespace characters from it.
+	 * 
+	 * @param[in] str The string to remove whitespace from.
+	 * @returns A new string with all whitespace removed.
+	 * 
+	 */
+	std::string remove_whitespace(std::string str);
+
+
+	/**
+	 * @brief Convert channel info to frequency
+	 *
+	 * This function converts the given channel information into a frequency in MHz.
+	 *
+	 * @param[in] op_class Operating class
+	 * @param[in] chan Channel number
+	 * @param[in] country Country code, if known; otherwise, global operating class is used
+	 *
+	 * @return Frequency in MHz
+	 * @retval -1 if the specified channel is unknown
+	 *
+	 * @note Channels/Op-classes/Frequencies adapted from `hostapd/src/common/ieee80211_common.c:ieee80211_chan_to_freq`
+	 */
+	int em_chan_to_freq(uint8_t op_class, uint8_t chan, const std::string& country="");
+
+
+	/**
+	 * @brief Converts a frequency to its corresponding operating class and channel number.
+	 *
+	 * Checks region-specific ranges first, then falls back to global ranges if no match is found.
+	 *
+	 * @param[in] frequency The frequency in MHz to convert.
+	 * @param[in] region refers to the region code (e.g., "US", "EU", "JP", "CN").
+	 *
+	 * @return A pair of {operating_class, channel}.
+	 *
+	 * @note If the region is not specified, the function will only consider empty string.
+	 */
+	std::pair<uint8_t, uint8_t> em_freq_to_chan(unsigned int frequency, const std::string& region="");
+
+
+	/**
+	 * @brief Translate an AKM literal to its OUI representation case-insensitively.
+	 *
+	 * This function takes an AKM string literal and returns its corresponding OUI representation.
+	 * If the AKM is not recognized, it returns an empty string.
+	 *
+	 * @param[in] akm The AKM string literal, for example, "psk".
+	 * @return std::string The OUI representation, such as "000FAC02" for "psk", or an empty string if the AKM is not recognized.
+	 */
+	std::string akm_to_oui(std::string akm);
 
 /**
- * Converts a frequency to its corresponding operating class and channel number.
- * Checks region-specific ranges first, then falls back to global ranges if no match is found.
+ * @brief Retrieve a network byte ordered uint16_t from an address and convert to host byte ordering
  * 
- * @param frequency The frequency in MHz to convert
- * @param region Two-letter region code (e.g., "US", "EU", "JP", "CN"). Empty string for global ranges only.
- * @return Returns pair of {operating_class, channel}. 
+ * @param[in] ptr Pointer to an address containing an unsigned 16 bit integer
+ * @return uint16_t The integer at *ptr, converted to host byte ordering, or 0 if ptr is NULL.
+ * 
+ * @note `ptr` is `void*` because this is typically invoked on data that must be reinterpreted from its assigned type.
+ * @note Byte reordering is achieved using `ntohs`. 
  */
-std::pair<uint8_t, uint8_t> em_freq_to_chan(int frequency, const std::string& region="");
+uint16_t deref_net_uint16_to_host(const void* const ptr);
+
+/**
+ * @brief Set a network byte ordered uint16_t at an address, using a host byte ordered uint16_t as input
+ * 
+ * @param[in] host_val Unsigned 16 bit integer with host byte ordering
+ * @return bool true if successful, false otherwise. Only fails if `ptr` is NULL.
+ * 
+ * @note `ptr` is `void*` because this is typically invoked on data that must be reinterpreted from its assigned type.
+ * @note Byte reordering is achieved using `htons`. 
+ */
+bool set_net_uint16_from_host(const uint16_t host_val, void* const ptr);
 
 } // namespace util
 
+#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+
 #define em_printf(format, ...)  util::em_util_print(EM_LOG_LVL_INFO, EM_AGENT, __func__, __LINE__, format, ##__VA_ARGS__)// general log
+#define em_printfout(format, ...)  util::em_util_print(EM_LOG_LVL_INFO, EM_STDOUT, __FILENAME__, __LINE__, format, ##__VA_ARGS__)// general log
 #define em_util_dbg_print(module, format, ...)  util::em_util_print(EM_LOG_LVL_DEBUG, module, __func__, __LINE__, format, ##__VA_ARGS__)
 #define em_util_info_print(module, format, ...)  util::em_util_print(EM_LOG_LVL_INFO, module, __func__, __LINE__, format, ##__VA_ARGS__)
 #define em_util_error_print(module, format, ...)  util::em_util_print(EM_LOG_LVL_ERROR, module, __func__, __LINE__, format, ##__VA_ARGS__)

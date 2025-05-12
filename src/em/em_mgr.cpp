@@ -46,7 +46,12 @@
 #include "em_cmd.h"
 #include "util.h"
 
+#ifdef AL_SAP
+#include "al_service_access_point.h"
+
 extern char *global_netid;
+extern AlServiceAccessPoint* g_sap;
+#endif
 
 void em_mgr_t::io_process(em_bus_event_type_t type, char *data, unsigned int len, em_cmd_params_t *params)
 {
@@ -205,8 +210,7 @@ em_t *em_mgr_t::create_node(em_interface_t *ruid, em_freq_band_t band, dm_easy_m
         return em;
     }
 
-    em = new em_t(ruid, band, dm, this, profile, type);
-    em->set_al_type(is_al_mac);
+    em = new em_t(ruid, band, dm, this, profile, type, is_al_mac);
     if (em->init() != 0) {
         delete em;
 
@@ -256,8 +260,34 @@ em_t *em_mgr_t::get_al_node()
     return (found == true) ? em:NULL;	
 }
 
+em_t *em_mgr_t::get_phy_al_node()
+{
+    // al_node is the fake ("_al") node
+    em_t* al_node = get_al_node();
+    if (al_node == NULL) return NULL;
+    uint8_t* al_mac = al_node->get_radio_interface_mac();
+
+    // al_mac_str is the real MAC (no "_al" suffix)
+    // al_mac_str will be the key for the real `em_t` in the `m_em_map`
+    char al_mac_str[EM_MAC_STR_LEN+1] = {0};
+    dm_easy_mesh_t::macbytes_to_string(al_mac, al_mac_str);
+    em_t *phy_al_em = reinterpret_cast<em_t *>(hash_map_get(m_em_map, al_mac_str));
+    if (phy_al_em == NULL) {
+        printf("%s:%d: Can not find phy al node with key:%s\n", __func__, __LINE__, al_mac_str);
+        return NULL;
+    }
+    return phy_al_em;
+}
+
 void *em_mgr_t::mgr_input_listen(void *arg)
 {
+    size_t stack_size2;
+    pthread_attr_t attr;
+
+    pthread_attr_init(&attr);
+    pthread_attr_getstacksize(&attr, &stack_size2);
+    pthread_attr_destroy(&attr);
+    printf("%s:%d Thread stack size = %ld bytes \n", __func__, __LINE__, stack_size2);
     em_mgr_t *mgr = static_cast<em_mgr_t *>(arg);
 
     mgr->input_listener();
@@ -266,11 +296,33 @@ void *em_mgr_t::mgr_input_listen(void *arg)
 
 int em_mgr_t::input_listen()
 {
-    if (pthread_create(&m_tid, NULL, em_mgr_t::mgr_input_listen, this) != 0) {
+    size_t stack_size = 0x800000; /* 8MB */
+    pthread_attr_t attr;
+    pthread_attr_t *attrp = NULL;
+    int ret = 0;
+    attrp = &attr;
+    pthread_attr_init(&attr);
+    // Setting explicitly stacksize as in few platforms(e.g. openwrt) if not called, the
+    // new thread will inherit the default stack size which is significantly less
+    // leading to stack overflow.
+    ret = pthread_attr_setstacksize(&attr, stack_size);
+    if (ret != 0) {
+        printf("%s:%d pthread_attr_setstacksize failed for size:%ld ret:%d\n",
+                __func__, __LINE__, stack_size, ret);
+    }
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
+    if (pthread_create(&m_tid, attrp, em_mgr_t::mgr_input_listen, this) != 0) {
         printf("%s:%d: Failed to start em mgr thread\n", __func__, __LINE__);
+        if(attrp != NULL) {
+            pthread_attr_destroy(attrp);
+        }
         return -1;
     }
 
+    if(attrp != NULL) {
+        pthread_attr_destroy(attrp);
+    }
     return 0;
 }
 
@@ -320,6 +372,20 @@ void em_mgr_t::nodes_listener()
         em = static_cast<em_t *>(hash_map_get_first(m_em_map));
         while (em != NULL) {
             if (em->is_al_interface_em() == true) {
+#ifdef AL_SAP
+                try{
+                    AlServiceDataUnit sdu = g_sap->serviceAccessPointDataIndication();
+                    std::vector<unsigned char> payload = sdu.getPayload();
+                    proto_process(payload.data(), payload.size(), em);
+                } catch (const AlServiceException& e) {
+                    if (e.getPrimitiveError() == PrimitiveError::InvalidMessage) {
+                        em_printfout("%s. Dropping packet", e.what());
+                    } else {
+                        em_printfout("%s", e.what());
+                        throw e; // rethrow the exception if it's not an indication failure
+                    }
+                }
+#else
 				pthread_mutex_lock(&m_mutex);
 				ret = FD_ISSET(em->get_fd(), &m_rset);
 				pthread_mutex_unlock(&m_mutex);
@@ -331,6 +397,7 @@ void em_mgr_t::nodes_listener()
                         proto_process(buff, static_cast<unsigned int>(len), em);
                     }
                 }
+#endif
             }
             em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
         }
@@ -347,6 +414,13 @@ void em_mgr_t::nodes_listener()
 
 void *em_mgr_t::mgr_nodes_listen(void *arg)
 {
+    size_t stack_size2;
+    pthread_attr_t attr;
+
+    pthread_attr_init(&attr);
+    pthread_attr_getstacksize(&attr, &stack_size2);
+    printf("%s:%d Thread stack size = %ld bytes \n", __func__, __LINE__, stack_size2);
+    pthread_attr_destroy(&attr);
     em_mgr_t *mgr = static_cast<em_mgr_t *>(arg);
 
     mgr->nodes_listener();
@@ -355,11 +429,32 @@ void *em_mgr_t::mgr_nodes_listen(void *arg)
 
 int em_mgr_t::nodes_listen()
 {
-    if (pthread_create(&m_tid, NULL, em_mgr_t::mgr_nodes_listen, this) != 0) {
+    size_t stack_size = 0x800000; /* 8MB */
+    pthread_attr_t attr;
+    pthread_attr_t *attrp = NULL;
+    int ret = 0;
+    attrp = &attr;
+    pthread_attr_init(&attr);
+    // Setting explicitly stacksize as in few platforms(e.g. openwrt) if not called, the
+    // new thread will inherit the default stack size which is significantly less
+    // leading to stack overflow.
+    ret = pthread_attr_setstacksize(&attr, stack_size);
+    if (ret != 0) {
+        printf("%s:%d pthread_attr_setstacksize failed for size:%ld ret:%d\n",
+                __func__, __LINE__, stack_size, ret);
+    }
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
+    if (pthread_create(&m_tid, attrp, em_mgr_t::mgr_nodes_listen, this) != 0) {
         printf("%s:%d: Failed to start em mgr thread\n", __func__, __LINE__);
+        if(attrp != NULL) {
+            pthread_attr_destroy(attrp);
+        }
         return -1;
     }
-
+    if(attrp != NULL) {
+        pthread_attr_destroy(attrp);
+    }
     return 0;
 }
 

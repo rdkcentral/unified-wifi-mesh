@@ -72,7 +72,6 @@ extern "C"
 #define EM_MAX_RADIO_PER_AGENT         4
 #define EM_MAX_TRAFFIC_SEP_SSID        8
 #define EM_MAX_FREQ_RECORDS_PER_RADIO  8
-#define EM_MAX_CHANNELS   30
 #define MAP_INVENTORY_ITEM_LEN  64
 #define MAX_MCS  6
 #define MAP_AP_ROLE_MAX 2
@@ -81,8 +80,8 @@ extern "C"
 #define EM_MAX_STA_PER_BSS         128
 #define EM_MAX_STA_PER_STEER_POLICY        16 
 #define EM_MAX_STA_PER_AGENT       (EM_MAX_RADIO_PER_AGENT * EM_MAX_STA_PER_BSS)
-#define EM_MAX_NEIGHORS		32
-#define EM_MAX_CHANNEL_SCAN_RPRT_MSG_LEN		768
+#define EM_MAX_NEIGHBORS	16
+#define EM_MAX_CHANNEL_SCAN_RPRT_MSG_LEN		166
 #define EM_MAX_CLIENT_MARKER    5
 
 #define   EM_MAX_EVENT_DATA_LEN   4096*100
@@ -208,6 +207,10 @@ extern "C"
 #define 	EM_PARSE_ERR_NET_ID		EM_PARSE_NO_ERR	- 2	
 #define 	EM_PARSE_ERR_CONFIG		EM_PARSE_NO_ERR	- 3	
 #define 	EM_PARSE_ERR_NO_CHANGE	EM_PARSE_NO_ERR	- 4	
+
+#ifndef ETH_ALEN
+#define ETH_ALEN 6
+#endif // ETH_ALEN
 
 typedef char em_interface_name_t[32];
 typedef unsigned char em_nonce_t[16];
@@ -607,10 +610,14 @@ typedef struct {
 }__attribute__((__packed__)) em_dpp_bootstrap_uri_t;
 
 typedef struct {
+    uint8_t advertise_cce; // 1->Enable, 0->Disable
+} __attribute__((__packed__)) em_cce_indication_t;
+
+typedef struct {
     unsigned char enrollee_mac_addr_present : 1;
     unsigned char reserved : 1;
     unsigned char dpp_frame_indicator : 1;
-    unsigned char content_type : 5;
+    unsigned char reserved2 : 5;
 /*
     Contains:
         - dest_mac_addr (6 bytes, if enrollee_mac_addr_present)
@@ -690,7 +697,7 @@ typedef struct {
     unsigned char util;
     unsigned char noise;
 	unsigned short num_neighbors;
-	em_neighbor_t	neighbor[EM_MAX_NEIGHORS];
+	em_neighbor_t	neighbor[EM_MAX_NEIGHBORS];
     unsigned int  aggr_scan_duration;
     unsigned char scan_type;
 } em_scan_result_t;
@@ -907,8 +914,10 @@ typedef struct {
 
 typedef struct {
     mac_address_t sta_mac;
-    unsigned char num_bssids;
-    em_assoc_vendor_link_metrics_t assoc_vendor_link_metrics[0];
+    bssid_t bssid;
+    em_string_t sta_client_type;
+    //unsigned char num_bssids;
+    //em_assoc_vendor_link_metrics_t assoc_vendor_link_metrics[0];
 }__attribute__((__packed__)) em_assoc_sta_vendor_link_metrics_t;
 
 typedef struct {
@@ -921,7 +930,7 @@ typedef struct {
 }__attribute__((__packed__)) em_ap_radio_id_t;
 
 typedef struct {
-    unsigned char bssid[6];
+    bssid_t bssid;
     unsigned char channel_util;
     unsigned short num_sta;
     unsigned char est_service_params_BE_bit : 1;
@@ -1854,7 +1863,9 @@ typedef enum {
     em_state_agent_onewifi_bssconfig_ind,
 	em_state_agent_autoconfig_renew_pending,
     em_state_agent_topo_synchronized,
+	em_state_agent_channel_pref_query,
 	em_state_agent_channel_selection_pending,
+	em_state_agent_channel_select_configuration_pending,
     em_state_agent_channel_report_pending,
 	em_state_agent_channel_scan_result_pending,
     em_state_agent_configured,
@@ -1863,10 +1874,10 @@ typedef enum {
     em_state_agent_topology_notify,
     em_state_agent_ap_cap_report,
     em_state_agent_client_cap_report,
-    em_state_agent_channel_pref_query,
-    em_state_agent_sta_link_metrics,
+    em_state_agent_sta_link_metrics_pending,
     em_state_agent_steer_btm_res_pending,
     em_state_agent_beacon_report_pending,
+    em_state_agent_ap_metrics_pending,
 
     em_state_ctrl_unconfigured = 0x100,
     em_state_ctrl_wsc_m1_pending,
@@ -1942,6 +1953,8 @@ typedef enum {
     em_cmd_type_get_mld_config,
     em_cmd_type_mld_reconfig,
     em_cmd_type_beacon_report,
+    em_cmd_type_ap_metrics_report,
+
     em_cmd_type_max,
 } em_cmd_type_t;
 
@@ -2140,6 +2153,7 @@ typedef struct {
     mac_address_t   bssid;
     mac_address_t radiomac;
     bool associated;
+    em_string_t sta_client_type;
     em_long_string_t    timestamp;
     unsigned int    last_ul_rate;
     unsigned int    last_dl_rate;
@@ -2231,6 +2245,12 @@ typedef struct {
     bool    multi_bssid;
     bool    transmitted_bssid;
     em_eht_operations_bss_t eht_ops;
+    em_short_string_t mesh_sta_passphrase;
+
+    // Extra vendor information elements for the BSS
+    // @note Don't manually allocate, use the helper functions to add/remove elements 
+    unsigned char vendor_elements[WIFI_AP_MAX_VENDOR_IE_LEN];
+    size_t vendor_elements_len;
 } em_bss_info_t;
 
 typedef struct {
@@ -2573,6 +2593,7 @@ typedef enum {
     em_bus_event_type_m2_tx,
     em_bus_event_type_topo_sync,
     em_bus_event_type_onewifi_private_cb,
+    em_bus_event_type_onewifi_mesh_sta_cb,
     em_bus_event_type_onewifi_radio_cb,
     em_bus_event_type_m2ctrl_configuration,
     em_bus_event_type_sta_assoc,
@@ -2586,7 +2607,14 @@ typedef enum {
     em_bus_event_type_get_mld_config,
     em_bus_event_type_mld_reconfig,
     em_bus_event_type_beacon_report,
-    em_bus_event_type_recv_wfa_action_frame
+    em_bus_event_type_recv_wfa_action_frame,
+    em_bus_event_type_recv_gas_frame,
+    em_bus_event_type_get_sta_client_type,
+    em_bus_event_type_cce_ie,
+    em_bus_event_type_assoc_status,
+    em_bus_event_type_ap_metrics_report,
+
+    em_bus_event_type_max
 } em_bus_event_type_t;
 
 typedef struct {
@@ -2813,6 +2841,13 @@ typedef struct {
     em_disassoc_params_t	params[MAX_STA_TO_DISASSOC];
 } em_cmd_disassoc_params_t;
 
+typedef struct {
+    mac_address_t   ruid;
+    bool sta_link_metrics_include;
+    bool sta_traffic_stats_include;
+    bool wifi6_status_report_include;
+} __attribute__((__packed__)) em_cmd_ap_metrics_rprt_params_t;
+
 typedef enum {
     em_network_node_data_type_invalid,
     em_network_node_data_type_false,
@@ -2852,6 +2887,7 @@ typedef struct {
         em_cmd_btm_report_params_t  btm_report_params;
         em_cmd_disassoc_params_t	disassoc_params;
 		em_cmd_scan_params_t	scan_params;
+        em_cmd_ap_metrics_rprt_params_t ap_metrics_params;
     } u;
 	em_network_node_t *net_node;
 } em_cmd_params_t;
@@ -3060,6 +3096,14 @@ typedef struct {
 	em_editor_callback_t	cb_func;
 	em_cli_type_t	cli_type;
 } em_cli_params_t;
+
+#ifndef SSL_KEY
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+#define SSL_KEY EC_KEY
+#else
+#define SSL_KEY EVP_PKEY
+#endif
+#endif
 
 #ifdef __cplusplus
 }

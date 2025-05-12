@@ -24,7 +24,22 @@
 class em_cmd_reset_t : public em_cmd_t {
 
 public:
-    em_cmd_reset_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+    
+	/**!
+	 * @brief Resets the EasyMesh command parameters.
+	 *
+	 * This function is responsible for resetting the command parameters
+	 * for the EasyMesh device management.
+	 *
+	 * @param[in] param The command parameters to be reset.
+	 * @param[in,out] dm Reference to the EasyMesh device management object.
+	 *
+	 * @returns em_cmd_reset_t The result of the reset operation.
+	 *
+	 * @note Ensure that the device management object is properly initialized
+	 * before calling this function.
+	 */
+	em_cmd_reset_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif

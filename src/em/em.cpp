@@ -51,6 +51,25 @@
 #include "em_cmd_exec.h"
 #include "util.h"
 
+#ifdef AL_SAP
+#include "al_service_access_point.h"
+
+extern AlServiceAccessPoint* g_sap;
+extern MacAddress g_al_mac_sap;
+#endif
+
+ec_manager_t &em_t::get_ec_mgr()
+{
+    if (m_ec_manager == nullptr) {
+        if (!m_is_al_em) {
+            return get_mgr()->get_al_node()->get_ec_mgr();
+        }
+        util::print_stacktrace();
+        throw std::runtime_error("ec_manager_t is not initialized");
+    }
+    return *m_ec_manager; 
+}
+
 void em_t::orch_execute(em_cmd_t *pcmd)
 {
     em_cmd_type_t cmd_type;
@@ -71,6 +90,9 @@ void em_t::orch_execute(em_cmd_t *pcmd)
 
         case em_cmd_type_set_ssid:
         case em_cmd_type_set_radio:
+	    if (m_service_type == em_service_type_ctrl) {
+	        set_renew_tx_count(0);
+	    }
             m_sm.set_state(em_state_ctrl_misconfigured);
 			break;
 
@@ -95,8 +117,14 @@ void em_t::orch_execute(em_cmd_t *pcmd)
                 if (dpp_info->ec_freqs[i] == 0) break;
                 printf("\t\tFreq: %d\n", dpp_info->ec_freqs[i]);
             }
-            if (!m_ec_manager->cfg_start(dpp_info)){
+            if (!m_ec_manager->cfg_onboard_enrollee(dpp_info)){
                 printf("Failed to start DPP\n");
+            }
+
+            uint8_t cce_ind_msg_buff[MAX_EM_BUFF_SZ] = {0};
+            int msg_size = create_cce_ind_msg(cce_ind_msg_buff, true);
+            if (send_frame(cce_ind_msg_buff, static_cast<unsigned int>(msg_size)) < 0) {
+                em_printfout("Failed to send DPP CCE Indication message!");
             }
             
             break;
@@ -140,7 +168,9 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 		
         case em_cmd_type_channel_pref_query:
-            m_sm.set_state(em_state_agent_channel_pref_query);
+	    if (m_sm.get_state() == em_state_agent_topo_synchronized) {
+		    m_sm.set_state(em_state_agent_channel_pref_query);
+	    }
             break;
 
         case em_cmd_type_op_channel_report:
@@ -148,11 +178,16 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 
         case em_cmd_type_sta_link_metrics:
-            m_sm.set_state(em_state_ctrl_sta_link_metrics_pending);
+            m_sm.set_state((m_service_type == em_service_type_agent) ? 
+                em_state_agent_sta_link_metrics_pending:em_state_ctrl_sta_link_metrics_pending);
             break;
 
         case em_cmd_type_set_channel:
-            m_sm.set_state(em_state_ctrl_channel_select_pending);
+	    if (pcmd->get_orch_op() == dm_orch_type_channel_sel) {
+            	m_sm.set_state(em_state_ctrl_channel_select_pending);
+	    } else if ((pcmd->get_orch_op() == dm_orch_type_channel_cnf) && (m_sm.get_state() == em_state_ctrl_channel_selected)) {
+		 m_sm.set_state(em_state_ctrl_channel_cnf_pending);
+	    }
             break;
 
         case em_cmd_type_scan_channel:
@@ -190,6 +225,10 @@ void em_t::orch_execute(em_cmd_t *pcmd)
         case em_cmd_type_beacon_report:
             m_sm.set_state(em_state_agent_beacon_report_pending);
             break;
+
+        case em_cmd_type_ap_metrics_report:
+            m_sm.set_state(em_state_agent_ap_metrics_pending);
+            break;
     
         default:
             break;
@@ -219,7 +258,26 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
     em_cmdu_t *cmdu;
     mac_addr_str_t mac_str;
 
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(data);
     cmdu = reinterpret_cast<em_cmdu_t *>(data + sizeof(em_raw_hdr_t));
+
+
+    if (memcmp(hdr->src, hdr->dst, sizeof(mac_address_t)) == 0){
+
+        // This is a message that was sent to the same address it was sent from, 
+        // check if I infact sent it to myself
+        auto hash = em_crypto_t::platform_SHA256(data, len);
+        auto hash_str = em_crypto_t::hash_to_hex_string(hash);
+
+        if (m_coloc_sent_hashed_msgs.find(hash_str) != m_coloc_sent_hashed_msgs.end()) {
+            // I sent this same message type, I am likely the sender receiving it back
+            // since both the controller and colocated agent have the same AL-mac
+            // so, I should not process it
+            free(data);
+            m_coloc_sent_hashed_msgs.erase(hash_str);
+            return;
+        }
+    }
 
     dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(), mac_str);
     switch (htons(cmdu->type)) {
@@ -256,6 +314,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_assoc_sta_link_metrics_rsp:
         case em_msg_type_beacon_metrics_query:
         case em_msg_type_beacon_metrics_rsp:
+        case em_msg_type_ap_metrics_rsp:
             em_metrics_t::process_msg(data, len);
             break;
 
@@ -315,6 +374,12 @@ void em_t::handle_agent_state()
             em_configuration_t::process_agent_state();
             break;
 
+        case em_cmd_type_sta_link_metrics:
+            if (m_sm.get_state() == em_state_agent_sta_link_metrics_pending) {
+                em_metrics_t::process_agent_state();
+            }
+            break;
+
         case em_cmd_type_start_dpp:
             printf("%s:%d Handle Agent Start DPP\n", __func__, __LINE__);
             if ((m_sm.get_state() >= em_state_agent_unconfigured) && (m_sm.get_state() < em_state_agent_configured)) {
@@ -346,6 +411,12 @@ void em_t::handle_agent_state()
 
         case em_cmd_type_beacon_report:
             if (m_sm.get_state() == em_state_agent_beacon_report_pending) {
+                em_metrics_t::process_agent_state();
+            }
+            break;
+
+        case em_cmd_type_ap_metrics_report:
+            if (m_sm.get_state() == em_state_agent_ap_metrics_pending) {
                 em_metrics_t::process_agent_state();
             }
             break;
@@ -485,6 +556,13 @@ void em_t::proto_run()
 
 void *em_t::em_func(void *arg)
 {
+    size_t stack_size2;
+    pthread_attr_t attr;
+
+    pthread_attr_init(&attr);
+    pthread_attr_getstacksize(&attr, &stack_size2);
+    printf("%s:%d Thread stack size = %ld bytes \n", __func__, __LINE__, stack_size2);
+    pthread_attr_destroy(&attr);
     em_t *m = static_cast<em_t *>(arg);
 
     m->proto_run();
@@ -536,6 +614,9 @@ int em_t::set_bp_filter()
 
 int em_t::start_al_interface()
 {
+#ifdef AL_SAP
+    m_fd = g_sap->getSocketDescriptor();
+#else
     int sock_fd;
     struct sockaddr_ll addr_ll;
     struct sockaddr *addr;
@@ -544,7 +625,7 @@ int em_t::start_al_interface()
     memset(&addr_ll, 0, sizeof(struct sockaddr_ll));
     addr_ll.sll_family   = AF_PACKET;
     addr_ll.sll_protocol = htons(ETH_P_ALL);
-    addr_ll.sll_ifindex  = static_cast<int>(if_nametoindex(m_ruid.name));
+    addr_ll.sll_ifindex = INADDR_ANY;
     addr = reinterpret_cast<struct sockaddr *>(&addr_ll);
     slen = sizeof(struct sockaddr_ll);
 
@@ -562,7 +643,7 @@ int em_t::start_al_interface()
     m_fd = sock_fd;
 
     set_bp_filter();
-
+#endif // AL_SAP
     return 0;
 }
 
@@ -573,11 +654,53 @@ int em_t::send_cmd(em_cmd_type_t type, em_service_type_t svc, unsigned char *buf
 
 int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
 {
+    int ret = 0;
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+
+    bool is_loopback_frame = (memcmp(hdr->src, hdr->dst, sizeof(mac_address_t)) == 0);
+    if (is_loopback_frame){
+        // I am sending this message to a node with the same MAC address,
+        // store the message for later comparison
+        auto hash = em_crypto_t::platform_SHA256(buff, len);
+        if (hash.size() == SHA256_MAC_LEN) {
+            m_coloc_sent_hashed_msgs.insert(em_crypto_t::hash_to_hex_string(hash));
+        }
+    }
+#ifdef AL_SAP
+    auto ctrl_al = m_data_model->get_controller_interface_mac();
+    auto agent_al = m_data_model->get_agent_al_interface_mac();
+    bool is_colocated = (memcmp(ctrl_al, agent_al, ETH_ALEN) == 0);
+
+    AlServiceDataUnit sdu;
+    sdu.setSourceAlMacAddress(g_al_mac_sap);
+    if (m_service_type == em_service_type_ctrl) {
+        if (is_loopback_frame || is_colocated) {
+            sdu.setDestinationAlMacAddress(g_al_mac_sap);
+        } else {
+            sdu.setDestinationAlMacAddress({0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
+        }
+    }
+    if (m_service_type == em_service_type_agent) {
+        if (is_loopback_frame || is_colocated) {
+            sdu.setDestinationAlMacAddress(g_al_mac_sap);
+        } else {
+            sdu.setDestinationAlMacAddress({0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
+        }
+    }
+
+    std::vector<unsigned char> payload;
+    for (unsigned int i = 0; i < len; i++) {
+        payload.push_back(buff[i]);
+    }
+    sdu.setPayload(payload);
+
+    g_sap->serviceAccessPointDataRequest(sdu);
+#else
     em_short_string_t   ifname;
     struct sockaddr_ll sadr_ll;
-    int sock, ret;
+    int sock;
     mac_address_t   multi_addr = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x13};
-    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+
 
     dm_easy_mesh_t::name_from_mac_address(reinterpret_cast<mac_address_t *>(get_al_interface_mac()), ifname);
 
@@ -592,15 +715,115 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     memcpy(sadr_ll.sll_addr, (multicast == true) ? multi_addr:hdr->dst, sizeof(mac_address_t));
 
     ret = static_cast<int>(sendto(sock, buff, len, 0, reinterpret_cast<const struct sockaddr*>(&sadr_ll), sizeof(struct sockaddr_ll)));
-
+    
     close(sock);
-
+#endif
     return ret;
 }
 
 bool em_t::is_matching_freq_band(em_freq_band_t *band)
 {
     return (get_band() == *band);
+}
+
+bool em_t::toggle_cce(bool enable)
+{
+    const unsigned int num_bss = m_data_model->get_num_bss();
+
+    bool success = false;
+    if (enable) {
+        printf("Adding DPP IE to %d BSSs\n", num_bss);
+        for (unsigned int i = 0; i < num_bss; i++) {
+            dm_bss_t* bss = m_data_model->get_bss(i);
+            em_bss_info_t* bss_info = bss->get_bss_info();
+            em_interface_t* bssid = &bss_info->bssid;
+
+            success = bss->add_vendor_ie(&ec_manager_t::CCE_IE);
+            if (!success) {
+                printf("Failed to add DPP IE to BSS '" MACSTRFMT "'\n", MAC2STR(bssid->mac));
+                break;
+            }
+
+            printf("Added DPP IE to BSS '" MACSTRFMT "'\n", MAC2STR(bssid->mac));
+        }
+    }
+
+    // Remove DPP IEs if enable is false or if adding DPP IEs failed
+    // (prevents a state where only some BSSs have DPP IEs)
+    if (!enable || !success) {
+        printf("Removing DPP IE from %d BSSs\n", num_bss);
+        for (unsigned int i = 0; i < num_bss; i++) {
+            dm_bss_t* bss = m_data_model->get_bss(i);
+            em_bss_info_t* bss_info = bss->get_bss_info();
+            em_interface_t* bssid = &bss_info->bssid;
+
+            bss->remove_vendor_ie(&ec_manager_t::CCE_IE);
+            printf("Removed DPP IE from BSS '" MACSTRFMT "'\n", MAC2STR(bssid->mac));
+        }
+    }
+
+    // Refresh OneWifi
+    webconfig_subdoc_type_t vap_type = dm_easy_mesh_t::get_subdoc_vap_type_for_freq(get_band());
+    int refresh_outcome = m_mgr->refresh_onewifi_subdoc("'Vendor IE Refresh'", vap_type);
+    if (refresh_outcome != 1) {
+        printf("Error occurred on Vendor IE Refresh: return value %d\n", refresh_outcome);
+        return false;
+    }
+
+    // Disabling CCEs always succeeds, and enabling succeeds if `success` is set to true
+    return !enable || success;
+}
+
+bool em_t::bsta_connect_bss(const std::string& ssid, const std::string passphrase, bssid_t bssid)
+{
+    em_bss_info_t *bsta_info = NULL; 
+    for (unsigned int i = 0; i < m_data_model->get_num_bss(); i++) {
+        bsta_info = m_data_model->get_bss_info(i);
+        if (!bsta_info) continue;
+        // Skip if not backhaul
+        if (bsta_info->id.haul_type != em_haul_type_backhaul) {
+            continue;
+        }
+        auto radio = m_data_model->get_radio(bsta_info->ruid.mac);
+        if (!radio) continue;
+        if (!radio->m_radio_info.enabled || !bsta_info->enabled) {
+            continue;
+        }
+        break;
+    }
+    if (!bsta_info) {
+        em_printfout("No backhaul bSTA found to connect to BSS\n");
+        return false;
+    }
+
+    memset(bsta_info->ssid, 0, sizeof(bsta_info->ssid));
+    strcpy(bsta_info->ssid, ssid.c_str());
+    
+    memcpy(bsta_info->bssid.mac, bssid, sizeof(bssid_t));
+    
+    memset(bsta_info->mesh_sta_passphrase, 0, sizeof(bsta_info->mesh_sta_passphrase));
+    strcpy(bsta_info->mesh_sta_passphrase, passphrase.c_str());
+
+    // Kick out of disconnected steady state (will fail if not in that state)
+    m_mgr->set_disconnected_scan_none_state();
+
+    em_printfout("Starting Mesh STA Config");
+    int res = m_mgr->refresh_onewifi_subdoc("MESH STA CONFIG", webconfig_subdoc_type_mesh_backhaul_sta);
+    em_printfout("Finished Mesh STA Config");
+    return res == 1;
+}
+
+bool em_t::start_stop_build_ec_channel_list(bool do_start)
+{
+    if (do_start) {
+        // If we want to build the channel list, we have to be scanning,
+        // so we need to make sure we are not in the disconnected steady state
+        return m_mgr->set_disconnected_scan_none_state();
+    }
+    // If we want to stop building the channel list (which only happens before action frames)
+    // we need to make sure we are in the disconnected steady state to make sure action frames are
+    // sent and recieved well.
+    return m_mgr->set_disconnected_steady_state();
 }
 
 void em_t::push_to_queue(em_event_t *evt)
@@ -956,14 +1179,35 @@ int em_t::init()
     // initialize the crypto
     m_crypto.init();
 
-    if (pthread_create(&m_tid, NULL, em_t::em_func, this) != 0) {
+    size_t stack_size = 0x800000; /* 8MB */
+    pthread_attr_t attr;
+    pthread_attr_t *attrp = NULL;
+    int ret = 0;
+    attrp = &attr;
+    pthread_attr_init(&attr);
+    // Setting explicitly stacksize as in few platforms(e.g. openwrt) if not called, the
+    // new thread will inherit the default stack size which is significantly less
+    // leading to stack overflow.
+    ret = pthread_attr_setstacksize(&attr, stack_size);
+    if (ret != 0) {
+        printf("%s:%d pthread_attr_setstacksize failed for size:%ld ret:%d\n",
+                __func__, __LINE__, stack_size, ret);
+    }
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
+    if (pthread_create(&m_tid, attrp, em_t::em_func, this) != 0) {
         printf("%s:%d: Failed to start em thread\n", __func__, __LINE__);
         close(m_fd);
         pthread_mutex_destroy(&m_iq.lock);
         pthread_cond_destroy(&m_iq.cond);
+        if(attrp != NULL) {
+            pthread_attr_destroy(attrp);
+        }
         return -1; 
     }
-
+    if(attrp != NULL) {
+        pthread_attr_destroy(attrp);
+    }
     return 0;
 
 }
@@ -1015,9 +1259,11 @@ const char *em_t::state_2_str(em_state_t state)
         EM_STATE_2S(em_state_agent_ap_cap_report)
         EM_STATE_2S(em_state_agent_client_cap_report)
         EM_STATE_2S(em_state_agent_channel_pref_query)
-        EM_STATE_2S(em_state_agent_sta_link_metrics)
+        EM_STATE_2S(em_state_agent_sta_link_metrics_pending)
         EM_STATE_2S(em_state_max)
         EM_STATE_2S(em_state_agent_beacon_report_pending)
+        EM_STATE_2S(em_state_agent_channel_select_configuration_pending)
+        default: break;
     }
 
     return "em_state_unknown";
@@ -1036,7 +1282,7 @@ const char *em_t::get_band_type_str(em_freq_band_t band)
     return "band_type_unknown";
 }
 
-em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr_t *mgr, em_profile_type_t profile, em_service_type_t type): m_data_model(), m_mgr(mgr), m_orch_state(), m_cmd(), m_sm(), m_service_type(), m_fd(0), m_ruid(*ruid), m_band(band), m_profile_type(profile), m_iq(), m_tid(), m_exit(), m_is_al_em(false)
+em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr_t *mgr, em_profile_type_t profile, em_service_type_t type, bool is_al_em): m_data_model(), m_mgr(mgr), m_orch_state(), m_cmd(), m_sm(), m_service_type(), m_fd(0), m_ruid(*ruid), m_band(band), m_profile_type(profile), m_iq(), m_tid(), m_exit(), m_is_al_em(is_al_em)
 {
     memcpy(&m_ruid, ruid, sizeof(em_interface_t));
     m_band = band;  
@@ -1050,21 +1296,29 @@ em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr
     RAND_bytes(get_crypto_info()->r_nonce, sizeof(em_nonce_t));
     m_data_model = dm;
 	m_mgr = mgr;
+    em_service_type_t service_type = get_service_type();
 
-    /*
-            //TODO: Placeholder Lambda function for toggle cce
-            [this](bool enable) {
-                printf("Toggle CCE: %s\n", enable ? "true" : "false");
-                return 0;  // Added return value
-            },
-    */
-    std::string mac_address = util::mac_to_string(get_peer_mac());
-    m_ec_manager = std::unique_ptr<ec_manager_t>(new ec_manager_t(
-        mac_address, //TODO: Revisit
-        std::bind(&em_t::send_chirp_notif_msg, this, std::placeholders::_1, std::placeholders::_2),
-        std::bind(&em_t::send_prox_encap_dpp_msg, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4),
-        get_service_type() == em_service_type_ctrl
-    ));
+    // We'll only create the EC manager on the AL node 
+    if (is_al_em){
+        std::string mac_address = util::mac_to_string(get_al_interface_mac());
+        m_ec_manager = std::unique_ptr<ec_manager_t>(new ec_manager_t(
+            mac_address,
+            std::bind(&em_t::send_chirp_notif_msg, this, std::placeholders::_1, std::placeholders::_2),
+            std::bind(&em_t::send_prox_encap_dpp_msg, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4),
+            std::bind(&em_mgr_t::send_action_frame, mgr, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5), 
+            service_type == em_service_type_agent
+                ? std::bind(&em_t::create_enrollee_bsta_list, this, std::placeholders::_1)
+                : std::bind(&em_t::create_configurator_bsta_response_obj, this, std::placeholders::_1),
+            service_type == em_service_type_ctrl
+                ? std::bind(&em_t::create_ieee1905_response_obj, this, std::placeholders::_1)
+                : static_cast<get_1905_info_func>(nullptr),
+            std::bind(&em_mgr_t::can_onboard_additional_aps, mgr),
+            std::bind(&em_t::toggle_cce, this, std::placeholders::_1),
+            std::bind(&em_t::start_stop_build_ec_channel_list, this, std::placeholders::_1),
+            std::bind(&em_t::bsta_connect_bss, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
+            service_type == em_service_type_ctrl
+        ));
+    }
 }
 
 em_t::~em_t()

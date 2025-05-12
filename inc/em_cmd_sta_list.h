@@ -24,7 +24,20 @@
 class em_cmd_sta_list_t : public em_cmd_t {
 
 public:
-    em_cmd_sta_list_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+    
+	/**!
+	 * @brief 
+	 *
+	 * This function is responsible for handling the station list command.
+	 *
+	 * @param[in] param The command parameters required for execution.
+	 * @param[in,out] dm The easy mesh data structure that will be modified.
+	 *
+	 * @returns em_cmd_sta_list_t The result of the station list command execution.
+	 *
+	 * @note Ensure that the dm structure is properly initialized before calling this function.
+	 */
+	em_cmd_sta_list_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif

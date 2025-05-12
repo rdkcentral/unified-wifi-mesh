@@ -42,11 +42,11 @@
 int dm_radio_cap_list_t::get_config(cJSON *obj_parent, void *parent, bool summary)
 {
     dm_radio_cap_t *pradio_cap;
-    cJSON *obj;
+    //cJSON *obj;
 	
-    pradio_cap = (dm_radio_cap_t *)hash_map_get_first(m_list);
+    pradio_cap = static_cast<dm_radio_cap_t *>(hash_map_get_first(m_list));
     while (pradio_cap != NULL) {
-       	obj = cJSON_CreateObject(); 
+        //obj = cJSON_CreateObject();
 
 	//cJSON_AddStringToObject(obj, "HTCapabilities", pradio_cap->m_radio_cap_info.ht_cap);
 	//cJSON_AddStringToObject(obj, "VHTCapabilities", pradio_cap->m_radio_cap_info.vht_cap);
@@ -54,7 +54,7 @@ int dm_radio_cap_list_t::get_config(cJSON *obj_parent, void *parent, bool summar
 	//cJSON_AddStringToObject(obj, "EHTCapabilities", pradio_cap->m_radio_cap_info.eht_cap);
 	//cJSON_AddNumberToObject(obj, "NumberOfOpClass", pradio_cap->m_radio_cap_info.num_op_classes);
 	//cJSON_AddObjectToObject(obj, obj_parent);
-	pradio_cap = (dm_radio_cap_t *)hash_map_get_next(m_list, pradio_cap);
+	pradio_cap = static_cast<dm_radio_cap_t *>(hash_map_get_next(m_list, pradio_cap));
     }
     
 	
@@ -64,7 +64,7 @@ int dm_radio_cap_list_t::get_config(cJSON *obj_parent, void *parent, bool summar
 int dm_radio_cap_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void *parent_id)
 {
     cJSON *obj;
-    unsigned int i, size;
+    int i, size;
     dm_radio_cap_t radio_cap;
     dm_orch_type_t	op;
 
@@ -86,9 +86,9 @@ dm_orch_type_t dm_radio_cap_list_t::get_dm_orch_type(db_client_t& db_client, con
     dm_radio_cap_t *pradio_cap;
     mac_addr_str_t  mac_str;
 	
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)radio_cap.m_radio_cap_info.ruid.mac, mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(radio_cap.m_radio_cap_info.ruid.mac), mac_str);
 
-    pradio_cap = (dm_radio_cap_t *)hash_map_get(m_list, mac_str);
+    pradio_cap = static_cast<dm_radio_cap_t *>(hash_map_get(m_list, mac_str));
     if (pradio_cap != NULL) {
         if (*pradio_cap == radio_cap) {
             printf("%s:%d: Device: %s in list\n", __func__, __LINE__,
@@ -111,7 +111,7 @@ void dm_radio_cap_list_t::update_list(const dm_radio_cap_t& radio_cap, dm_orch_t
     dm_radio_cap_t *pradio_cap;
     mac_addr_str_t	mac_str;
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)radio_cap.m_radio_cap_info.ruid.mac, mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(radio_cap.m_radio_cap_info.ruid.mac), mac_str);
     
     switch (op) {
         case dm_orch_type_db_insert:
@@ -119,13 +119,16 @@ void dm_radio_cap_list_t::update_list(const dm_radio_cap_t& radio_cap, dm_orch_t
             break;
 
         case dm_orch_type_db_update:
-            pradio_cap = (dm_radio_cap_t *)hash_map_get(m_list, mac_str);
+            pradio_cap = static_cast<dm_radio_cap_t *>(hash_map_get(m_list, mac_str));
             memcpy(&pradio_cap->m_radio_cap_info, &radio_cap.m_radio_cap_info, sizeof(em_radio_cap_info_t));
             break;
 
         case dm_orch_type_db_delete:
-            pradio_cap = (dm_radio_cap_t *)hash_map_remove(m_list, mac_str);
+            pradio_cap = static_cast<dm_radio_cap_t *>(hash_map_remove(m_list, mac_str));
             delete(pradio_cap);
+            break;
+
+        default:
             break;
     }
 
@@ -136,11 +139,12 @@ void dm_radio_cap_list_t::delete_list()
     dm_radio_cap_t *pradio_cap, *tmp;
     mac_addr_str_t  mac_str = {0};
    
-    pradio_cap = (dm_radio_cap_t *)hash_map_get_first(m_list);
+    pradio_cap = static_cast<dm_radio_cap_t *>(hash_map_get_first(m_list));
+
     while (pradio_cap != NULL) {
         tmp = pradio_cap;
-        pradio_cap = (dm_radio_cap_t *)hash_map_get_next(m_list, pradio_cap);
-        dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_radio_cap_info.ruid.mac, mac_str);
+        pradio_cap = static_cast<dm_radio_cap_t *>(hash_map_get_next(m_list, pradio_cap));
+        dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(tmp->m_radio_cap_info.ruid.mac), mac_str);
    
         hash_map_remove(m_list, mac_str);
         delete(tmp);
@@ -155,9 +159,8 @@ bool dm_radio_cap_list_t::operator == (const db_easy_mesh_t& obj)
 int dm_radio_cap_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *data)
 {
     mac_addr_str_t mac_str;
-    em_radio_cap_info_t *info = (em_radio_cap_info_t *)data;
+    em_radio_cap_info_t *info = static_cast<em_radio_cap_info_t *>(data);
     int ret = 0;
-    unsigned int i;
 
     printf("%s:%d: Opeartion:%d\n", __func__, __LINE__, op);
 

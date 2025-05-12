@@ -73,7 +73,7 @@ struct ieee80211_frame {
             uint8_t         i_addr2[IEEE80211_ADDR_LEN];
             uint8_t         i_addr3[IEEE80211_ADDR_LEN];
         };
-        u_int8_t    i_addr_all[3 * IEEE80211_ADDR_LEN];
+        uint8_t    i_addr_all[3 * IEEE80211_ADDR_LEN];
     };
     uint8_t         i_seq[2];
     /* possibly followed by addr4[IEEE80211_ADDR_LEN]; */
@@ -1130,6 +1130,15 @@ struct ieee80211_csa_ie {
     uint8_t         csa_mode;               /* Channel Switch Mode */
     uint8_t         csa_newchan;            /* New Channel Number */
     uint8_t         csa_count;              /* Channel Switch Count */
+} __attribute__((packed));
+
+struct ieee80211_vs_ie{
+    uint8_t         vs_ie;         /* IEEE80211_ELEMID_VENDOR */
+    uint8_t         vs_len;
+    uint8_t         vs_oui[3];     /* Vendor OUI */
+    uint8_t         vs_type;       /* Vendor Specific type */
+    uint8_t         vs_subtype;    /* Vendor Specific sub-type (required for some devices, can be 0) */
+    uint8_t         payload[];    /* Vendor Specific Payload */
 } __attribute__((packed));
 
 /*

@@ -237,7 +237,7 @@ int em_configuration_t::send_autoconfig_renew_msg()
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_al_mac_address;
     tlv->len = htons(sizeof(mac_address_t));
-    memcpy(tlv->value,get_current_cmd()->get_al_interface_mac(), sizeof(mac_address_t));
+    memcpy(tlv->value, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
 
     tmp += (sizeof (em_tlv_t) + sizeof(mac_address_t));
     len += static_cast<unsigned int> (sizeof (em_tlv_t) + sizeof(mac_address_t));
@@ -255,7 +255,7 @@ int em_configuration_t::send_autoconfig_renew_msg()
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_supported_freq_band;
     tlv->len = htons(sizeof(unsigned char));
-    freq_band = static_cast<em_freq_band_t> (get_band() >> 1);
+    freq_band = static_cast<em_freq_band_t> (get_band());
     memcpy(&tlv->value, &freq_band, sizeof(unsigned char));
 
     tmp += (sizeof (em_tlv_t) + 1);
@@ -438,7 +438,7 @@ int em_configuration_t::create_operational_bss_tlv_topology(unsigned char *buff)
 	ap->radios_num = 1;  //Hard-Coding since topology response is per radio
 	radio = ap->radios;
 	for (i = 0; i < dm->get_num_radios(); i++) {
-		if ((dm->get_radio_by_ref(i).get_radio_interface_mac(), get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
+		if (memcmp(dm->get_radio_by_ref(i).get_radio_interface_mac(), get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
 			memcpy(radio->ruid, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t));
 			radio->bss_num = 0;
 			bss = radio->bss;
@@ -826,7 +826,9 @@ void em_configuration_t::handle_ap_vendor_operational_bss(unsigned char *value, 
 	em_ap_vendor_operational_bss_t *bss;
 	em_ap_vendor_op_bss_t *ap;
 	unsigned int i, j, all_bss_len = 0;
-
+	dm_bss_t *dm_bss;
+	dm_easy_mesh_t  *dm;
+	dm = get_data_model();
 	ap = reinterpret_cast<em_ap_vendor_op_bss_t *> (value);
 	radio = ap->radios;
 	printf("%s:%d Number of radios: %d\n", __func__, __LINE__, ap->radios_num);
@@ -838,6 +840,19 @@ void em_configuration_t::handle_ap_vendor_operational_bss(unsigned char *value, 
 		for (j = 0; j < radio->bss_num; j++) {
 			dm_easy_mesh_t::macbytes_to_string(bss->bssid, bss_mac_str);
 			printf("%s:%d: BSSID=%s	 haul type=%d\n", __func__, __LINE__, bss_mac_str, bss->haultype);
+			dm_bss = dm->get_bss(radio->ruid, bss->bssid);
+			if (dm_bss == NULL) {
+				dm_bss = &dm->m_bss[dm->m_num_bss];
+				dm->set_num_bss(dm->get_num_bss() + 1);
+			}
+			// fill up id first
+			strncpy(dm_bss->m_bss_info.id.net_id, dm->m_device.m_device_info.id.net_id, strlen(dm->m_device.m_device_info.id.net_id) + 1);
+			memcpy(dm_bss->m_bss_info.id.dev_mac, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
+			memcpy(dm_bss->m_bss_info.id.ruid, radio->ruid, sizeof(mac_address_t));
+			memcpy(dm_bss->m_bss_info.id.bssid, bss->bssid, sizeof(mac_address_t));
+			memcpy(dm_bss->m_bss_info.ruid.mac, radio->ruid, sizeof(mac_address_t));
+			memcpy(dm_bss->m_bss_info.bssid.mac, bss->bssid, sizeof(mac_address_t));
+			dm_bss->m_bss_info.id.haul_type = static_cast<em_haul_type_t> (bss->haultype);
 			bss = reinterpret_cast<em_ap_vendor_operational_bss_t *>(reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_vendor_operational_bss_t));
 			all_bss_len += sizeof(em_ap_vendor_operational_bss_t);
 		}
@@ -1609,7 +1624,19 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         
     tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-        
+
+	while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+		if (tlv->type != em_tlv_type_vendor_operational_bss) {
+			tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+			tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+			continue;
+		} else {
+			handle_ap_vendor_operational_bss(tlv->value, tlv->len);
+			break;
+		}
+	}
+	tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+	tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)); 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type != em_tlv_type_operational_bss) {
             tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
@@ -1656,16 +1683,6 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 		return -1;
 	}
 
-	while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-			if (tlv->type != em_tlv_type_vendor_operational_bss) {
-				tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-				tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
-				continue;
-			} else {
-				handle_ap_vendor_operational_bss(tlv->value, tlv->len);
-				break;
-			}
-	}
 
 	dm->set_db_cfg_param(db_cfg_type_policy_list_update, "");
 	return ret;
@@ -1736,7 +1753,7 @@ int em_configuration_t::handle_eht_operations_tlv(unsigned char *buff)
     unsigned char *tmp = buff;
 
     unsigned char num_radios;
-    unsigned char num_bss;
+    unsigned char num_bss = 0;
 
     em_eht_operations_t eht_ops;
 
@@ -2023,12 +2040,12 @@ unsigned short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_ty
     len += static_cast<unsigned short int> (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
     
-	// rf bands
+	// rf bands Table 6.1.3 - RF Band
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_rf_bands);
     size = 1;
     attr->len = htons(size);
-    rf_band = get_band();
+    rf_band = static_cast<em_freq_band_t> (1 << get_band());
     memcpy(attr->val, &rf_band, size);
  
     len += static_cast<unsigned short int> (sizeof(data_elem_attr_t) + size);
@@ -2278,7 +2295,7 @@ unsigned short em_configuration_t::create_m1_msg(unsigned char *buff)
     len += static_cast<unsigned short int> (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
 
-    // rf bands
+    // rf bands Table 6.1.3 - RF Band
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_rf_bands);
     size = 1;
@@ -2362,7 +2379,7 @@ int em_configuration_t::compute_keys(unsigned char *remote_pub, unsigned short p
     unsigned char *secret;
     unsigned short secret_len;
     unsigned char  *addr[3];
-    unsigned int length[3];
+    size_t length[3];
     unsigned char  dhkey[SHA256_MAC_LEN];
     unsigned char  kdk  [SHA256_MAC_LEN];
     unsigned char keys[WPS_AUTHKEY_LEN + WPS_KEYWRAPKEY_LEN + WPS_EMSK_LEN];
@@ -2378,7 +2395,7 @@ int em_configuration_t::compute_keys(unsigned char *remote_pub, unsigned short p
     //util::print_hex_dump(secret_len, secret);
 
     addr[0] = secret;
-    length[0] = secret_len;
+    length[0] = static_cast<size_t> (secret_len);
 
     if (compute_digest(1, addr, length, dhkey) != 1) {
         free(secret);
@@ -2891,11 +2908,26 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
     mac_addr_str_t mac_str;
     em_device_info_t    dev_info;
     dm_easy_mesh_t *dm;
-	em_freq_band_t  band;
+    em_freq_band_t  band;
+    dm_radio_t *radio;
+    unsigned int found = 0, i  = 0;
 
-    dm = get_data_model();
+	dm = get_data_model();
 	memset(&dev_info, 0, sizeof(em_device_info_t));
-    
+
+	for (i = 0; i < dm->m_num_radios; i++) {
+		radio = dm->get_radio(i);
+		if (memcmp(radio->get_radio_interface_mac(), get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
+			continue;
+		}
+		found++;
+		break;
+	}
+
+	if (found == 0) {
+		printf("%s:%d Failed to find the radio\n", __func__, __LINE__);
+		return -1;
+	}
     m_m1_length = len;
     memcpy(m_m1_msg, buff, m_m1_length);
     
@@ -2946,9 +2978,11 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
         } else if (id == attr_id_primary_device_type) {
         } else if (id == attr_id_device_name) {
         } else if (id == attr_id_rf_bands) {
-			band = static_cast<em_freq_band_t> (attr->val[0]);
+			band = static_cast<em_freq_band_t> (attr->val[0] >> 1);
 			printf("%s:%d Freq band = %d \n", __func__, __LINE__,band);
 			set_band(band);
+			radio->get_radio_info()->band = band;
+			dm->set_db_cfg_param(db_cfg_type_radio_list_update, "");
         } else if (id == attr_id_assoc_state) {
         } else if (id == attr_id_device_password_id) {
         } else if (id == attr_id_cfg_error) {
@@ -3043,16 +3077,15 @@ int em_configuration_t::handle_encrypted_settings()
     data_elem_attr_t    *attr;
     int tmp_len, ret = 0;
     unsigned short id;
-    char ssid[32] = {0};
     char pass[64] = {0};
     mac_addr_str_t mac_str;
     unsigned char *plain;
     unsigned short plain_len;
-    unsigned short authtype;
-    unsigned int index = -1;
+    unsigned short auth_type;
+    int index = -1;
     m2ctrl_radioconfig radioconfig;
     plain = m_m2_encrypted_settings + AES_BLOCK_SIZE;
-    plain_len = m_m2_encrypted_settings_len - AES_BLOCK_SIZE;
+    plain_len = static_cast<short unsigned int> (m_m2_encrypted_settings_len - AES_BLOCK_SIZE);
     radioconfig.noofbssconfig = 0;
 
     // first decrypt the encrypted m2 data
@@ -3062,7 +3095,7 @@ int em_configuration_t::handle_encrypted_settings()
         return 0;
     }
 
-    attr = (data_elem_attr_t *)plain;
+    attr = reinterpret_cast<data_elem_attr_t *> (plain);
     tmp_len = plain_len;
     radioconfig.freq = get_band();
 
@@ -3074,7 +3107,7 @@ int em_configuration_t::handle_encrypted_settings()
             printf("%s:%d: noofbss configuration recv=%d\n", __func__, __LINE__,radioconfig.noofbssconfig);
         } else if (id == attr_id_haul_type) {
             index++;
-            radioconfig.haultype[index] = (em_haul_type_t) attr->val[0];
+            radioconfig.haultype[index] = static_cast<em_haul_type_t> (attr->val[0]);
         } else if (id == attr_id_ssid) {
         //If controller does not support no of haultype parameter
             if (index == -1) {
@@ -3085,8 +3118,8 @@ int em_configuration_t::handle_encrypted_settings()
             printf("%s:%d: ssid attrib: %s\n", __func__, __LINE__, radioconfig.ssid[index]);
             memcpy(radioconfig.radio_mac[index], get_radio_interface_mac(), sizeof(mac_address_t));
         } else if (id == attr_id_auth_type) {
-            authtype = attr->val[0];
-            radioconfig.authtype[index] = attr->val[0];
+            memcpy(reinterpret_cast<char *> (&auth_type), reinterpret_cast<unsigned char *> (attr->val), htons(attr->len));
+            radioconfig.authtype[index] = static_cast<unsigned int>(auth_type);
         } else if (id == attr_id_encryption_type) {
             printf("%s:%d: encr type attrib\n", __func__, __LINE__);
         } else if (id == attr_id_network_key) {
@@ -3101,12 +3134,15 @@ int em_configuration_t::handle_encrypted_settings()
             printf("%s:%d: key wrap auth attrib\n", __func__, __LINE__);
             radioconfig.key_wrap_authenticator[index] = attr->val[0];
         }
-        tmp_len -= (sizeof(data_elem_attr_t) + htons(attr->len));
-        attr = (data_elem_attr_t *)((unsigned char *)attr + sizeof(data_elem_attr_t) + htons(attr->len));
+        tmp_len -= static_cast<int> (sizeof(data_elem_attr_t) + htons(attr->len));
+        attr = reinterpret_cast<data_elem_attr_t *> (reinterpret_cast<unsigned char *>(attr) + sizeof(data_elem_attr_t) + htons(attr->len));
     }
 
-    get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, (unsigned char *)&radioconfig, sizeof(radioconfig));
+    get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (&radioconfig), sizeof(radioconfig));
     set_state(em_state_agent_owconfig_pending);
+    if (get_service_type() == em_service_type_agent) {
+        get_ec_mgr().upgrade_to_onboarded_proxy_agent();
+    }
     return ret;
 }
 
@@ -3128,6 +3164,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 	dm_easy_mesh_t *dm = get_data_model();
 	unsigned int no_of_haultype = 0, radio_exists, i;
 	dm_radio_t * radio;
+	bool is_colocated = dm->get_colocated();
 
 	for (i = 0; i < dm->get_num_radios(); i++) {
 		radio = dm->get_radio(i);
@@ -3146,6 +3183,10 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 		}
 	}
 
+	if (get_band() == 2) {
+		auth_type = 0x0200;
+	}
+
 	printf("%s:%d No of haultype=%d radio no of bss=%d \n", __func__, __LINE__,no_of_haultype, radio->m_radio_info.number_of_bss);
 
 	// haultype
@@ -3158,7 +3199,12 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 	len += static_cast<short> (sizeof(data_elem_attr_t) + size);
 	tmp += (sizeof(data_elem_attr_t) + size);
 	for (i = 0; i < no_of_haultype; i++) {
-		haul_type = static_cast<em_haul_type_t> (haultype_precedence[i]);
+		if(is_colocated && no_of_haultype == 1 && (memcmp(get_radio_interface_mac(), dm->get_agent_al_interface_mac(), ETH_ALEN) == 0)) {
+			printf("\n%s:%d: Colocated and Single BSS. Configuring em_haul_type_backhaul \n", __func__, __LINE__);
+			haul_type = em_haul_type_backhaul;
+		} else {
+			haul_type = static_cast<em_haul_type_t> (haultype_precedence[i]);
+		}
 		if ((net_ssid_info = get_network_ssid_info_by_haul_type(haul_type)) == NULL) {
 			printf("%s:%d: Could not find network ssid information for haul type %d\n", __func__, __LINE__, haul_type);
 			continue;
@@ -3247,13 +3293,13 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 int em_configuration_t::create_authenticator(unsigned char *buff)
 {
     unsigned char *addr[2];
-    unsigned int length[2];
+    size_t length[2];
     unsigned char hash[SHA256_MAC_LEN];
 
     addr[0] = m_m1_msg;
     addr[1] = m_m2_msg;
-    length[0] = static_cast<unsigned int> (m_m1_length);
-    length[1] = static_cast<unsigned int> (m_m2_length);
+    length[0] = m_m1_length;
+    length[1] = m_m2_length;
 
     //printf( "%s:%d m1 addr:%s::length:%d,\n", __func__, __LINE__, addr[0], length[0]);
     //util::print_hex_dump(length[0], addr[0]);
@@ -3659,6 +3705,12 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
 
 void em_configuration_t::handle_state_config_none()
 {
+    bool is_dpp_onboarding = get_ec_mgr().is_enrollee_onboarding();
+    if (is_dpp_onboarding) {
+        // Enrollee is in onboarding state, so we should not send autoconfig search message
+        return;
+    }
+
     unsigned char buff[MAX_EM_BUFF_SZ];
     unsigned int sz;
     char* errors[EM_MAX_TLV_MEMBERS] = {0};

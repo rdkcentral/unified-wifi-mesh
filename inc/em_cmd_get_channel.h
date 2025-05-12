@@ -24,7 +24,22 @@
 class em_cmd_get_channel_t : public em_cmd_t {
 
 public:
-    em_cmd_get_channel_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+    
+	/**!
+	 * @brief Retrieves the channel information based on the provided parameters.
+	 *
+	 * This function utilizes the parameters specified in `em_cmd_params_t` to
+	 * determine the appropriate channel settings and updates the `dm_easy_mesh_t`
+	 * structure accordingly.
+	 *
+	 * @param[in] param The command parameters used to fetch channel information.
+	 * @param[out] dm The easy mesh structure that will be updated with channel data.
+	 *
+	 * @returns em_cmd_get_channel_t The result of the channel retrieval operation.
+	 *
+	 * @note Ensure that `dm` is properly initialized before calling this function.
+	 */
+	em_cmd_get_channel_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif

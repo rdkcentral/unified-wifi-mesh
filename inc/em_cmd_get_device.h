@@ -24,6 +24,22 @@
 class em_cmd_get_device_t : public em_cmd_t {
 
 public:
+	
+	/**!
+	 * @brief Retrieves the device information based on the provided parameters.
+	 *
+	 * This function is responsible for obtaining the device details using the specified
+	 * command parameters and updating the easy mesh device model.
+	 *
+	 * @param[in] param The command parameters used to retrieve the device information.
+	 * @param[out] dm The easy mesh device model that will be updated with the retrieved information.
+	 *
+	 * @returns em_cmd_get_device_t The status of the device retrieval operation.
+	 * @retval SUCCESS if the device information was successfully retrieved and updated.
+	 * @retval FAILURE if there was an error during the retrieval process.
+	 *
+	 * @note Ensure that the device model is properly initialized before calling this function.
+	 */
 	em_cmd_get_device_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 

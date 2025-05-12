@@ -40,13 +40,12 @@
 #include <cjson/cJSON.h>
 #include "em_cmd_sta_link_metrics.h"
 
-em_cmd_sta_link_metrics_t::em_cmd_sta_link_metrics_t()
+em_cmd_sta_link_metrics_t::em_cmd_sta_link_metrics_t(dm_easy_mesh_t& dm)
 {
     em_cmd_ctx_t ctx;
-    dm_easy_mesh_t	dm;
 
     m_type = em_cmd_type_sta_link_metrics;
-    memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
+    memset(reinterpret_cast<unsigned char *> (&m_orch_desc[0]), 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
 
     m_orch_op_idx = 0;
     m_num_orch_desc = 1;

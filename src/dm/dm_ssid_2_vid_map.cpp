@@ -49,8 +49,7 @@ int dm_ssid_2_vid_map_t::set_config(db_client_t& db_client, const cJSON *obj_arr
     cJSON *tmp, *obj, *map_arr;
     mac_address_t dev_mac;
     mac_addr_str_t  mac_str;
-    unsigned int i, j, size;
-    dm_orch_type_t op;
+    int i, j, size;
 
     size = cJSON_GetArraySize(obj_arr);
 
@@ -79,7 +78,7 @@ int dm_ssid_2_vid_map_t::set_config(db_client_t& db_client, const cJSON *obj_arr
 	    snprintf(info.id, sizeof(em_long_string_t), "%s@%s", info.ssid, mac_str);
 
     	    if ((tmp = cJSON_GetObjectItem(obj, "VID")) != NULL) {
-        	info.vid = tmp->valuedouble;
+                info.vid = static_cast<short unsigned int>(tmp->valuedouble);
     	    }
 
 	    update_db(db_client, update_list(dm_ssid_2_vid_map_t(&info)), &info);
@@ -96,15 +95,14 @@ dm_orch_type_t dm_ssid_2_vid_map_t::update_list(const dm_ssid_2_vid_map_t& ssid_
 {
     dm_ssid_2_vid_map_t *pssid_2_vid_map;
     bool found = false;
-    mac_addr_str_t	mac_str;
 
-    pssid_2_vid_map = (dm_ssid_2_vid_map_t *)hash_map_get_first(m_list);
+    pssid_2_vid_map = static_cast<dm_ssid_2_vid_map_t *>(hash_map_get_first(m_list));
     while (pssid_2_vid_map != NULL) {
 	if (strncmp(ssid_2_vid_map.m_ssid_2_vid_map_info.id, pssid_2_vid_map->m_ssid_2_vid_map_info.id, strlen(ssid_2_vid_map.m_ssid_2_vid_map_info.id)) == 0) {
 	    found = true;
 	    break;
 	}	
-	pssid_2_vid_map = (dm_ssid_2_vid_map_t *)hash_map_get_next(m_list, pssid_2_vid_map);
+	pssid_2_vid_map = static_cast<dm_ssid_2_vid_map_t *>(hash_map_get_next(m_list, pssid_2_vid_map));
     }
 
     if (found == true) {
@@ -126,9 +124,7 @@ dm_orch_type_t dm_ssid_2_vid_map_t::update_list(const dm_ssid_2_vid_map_t& ssid_
 
 bool dm_ssid_2_vid_map_t::operator == (const db_easy_mesh_t& obj)
 {
-    dm_ssid_2_vid_map_t *pssid_2_vid_map = (dm_ssid_2_vid_map_t *)&obj;
-    unsigned int i, j;
-    bool matched = false;
+    dm_ssid_2_vid_map_t *pssid_2_vid_map = const_cast<dm_ssid_2_vid_map_t *>(reinterpret_cast<const dm_ssid_2_vid_map_t *>(&obj));
 
     if (strncmp(m_ssid_2_vid_map_info.id, pssid_2_vid_map->m_ssid_2_vid_map_info.id, strlen(pssid_2_vid_map->m_ssid_2_vid_map_info.id)) != 0) {
 	printf("%s:%d: id is different\n", __func__, __LINE__);
@@ -150,8 +146,7 @@ bool dm_ssid_2_vid_map_t::operator == (const db_easy_mesh_t& obj)
 
 int dm_ssid_2_vid_map_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *data)
 {
-    mac_addr_str_t mac_str;
-    em_ssid_2_vid_map_info_t *info = (em_ssid_2_vid_map_info_t *)data;
+    em_ssid_2_vid_map_info_t *info = static_cast<em_ssid_2_vid_map_info_t *>(data);
     int ret = 0;
 
     //printf("%s:%d: Opeartion:%d\n", __func__, __LINE__, op);
@@ -184,7 +179,6 @@ bool dm_ssid_2_vid_map_t::search_db(db_client_t& db_client, void *ctx, void *key
 int dm_ssid_2_vid_map_t::sync_db(db_client_t& db_client, void *ctx)
 {
     em_ssid_2_vid_map_info_t info;
-    em_long_string_t   str;
     int rc = 0;
 
     while (db_client.next_result(ctx)) {
@@ -192,7 +186,7 @@ int dm_ssid_2_vid_map_t::sync_db(db_client_t& db_client, void *ctx)
 
 	db_client.get_string(ctx, info.id, 1);
 	db_client.get_string(ctx, info.ssid, 2);
-        info.vid = db_client.get_number(ctx, 3);
+        info.vid = static_cast<short unsigned int>(db_client.get_number(ctx, 3));
         
 	update_list(dm_ssid_2_vid_map_t(&info));
     }

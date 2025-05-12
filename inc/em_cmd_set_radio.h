@@ -24,7 +24,22 @@
 class em_cmd_set_radio_t : public em_cmd_t {
 
 public:
-    em_cmd_set_radio_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+    
+	/**!
+	 * @brief Sets the radio command parameters.
+	 *
+	 * This function configures the radio settings using the provided parameters.
+	 *
+	 * @param[in] param The command parameters to set the radio.
+	 * @param[out] dm The easy mesh data structure to be updated.
+	 *
+	 * @returns Status of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the parameters are valid before calling this function.
+	 */
+	em_cmd_set_radio_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif
