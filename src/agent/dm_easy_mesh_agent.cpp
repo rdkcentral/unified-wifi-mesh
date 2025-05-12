@@ -161,10 +161,13 @@ int dm_easy_mesh_agent_t::analyze_autoconfig_renew(em_bus_event_t *evt, em_cmd_t
     int num = 0;
     unsigned int index = 0;
     em_cmd_t *tmp;
+    mac_addr_str_t mac_str;
 
     raw = (em_bus_event_type_cfg_renew_params_t *)evt->u.raw_buff;
     memcpy(dm.get_controller_interface_mac(), raw->ctrl_src, sizeof(mac_address_t));
     memcpy(dm.get_radio(index)->get_radio_info()->intf.mac, raw->radio, sizeof(mac_address_t));
+    dm_easy_mesh_t::macbytes_to_string(raw->radio, mac_str);
+    printf("%s:%d Renew Radiomac = %s\n", __func__, __LINE__,mac_str);
     pcmd[num] = new em_cmd_cfg_renew_t(em_service_type_agent, evt->params, dm);
     tmp = pcmd[num];
     num++;

@@ -275,13 +275,13 @@ int em_configuration_t::send_autoconfig_renew_msg()
         return -1;
     }
 
+    dm_easy_mesh_t::macbytes_to_string (get_radio_interface_mac(), mac_str);
     if (send_frame(buff, len)  < 0) {
-        printf("%s:%d: Autoconfig Renew send failed, error:%d\n", __func__, __LINE__, errno);
+        printf("%s:%d: Autoconfig Renew send failed, error:%d for %s\n", __func__, __LINE__, errno, mac_str);
         return -1;
     }
 
     m_renew_tx_cnt++;
-    dm_easy_mesh_t::macbytes_to_string (get_radio_interface_mac(), mac_str);
     printf("%s:%d: AutoConfig Renew (%d) Send Successful for %s freq band=%d\n", __func__, __LINE__, m_renew_tx_cnt, mac_str, get_band());
 
     return static_cast<int> (len);
@@ -3137,7 +3137,6 @@ int em_configuration_t::handle_encrypted_settings()
         tmp_len -= static_cast<int> (sizeof(data_elem_attr_t) + htons(attr->len));
         attr = reinterpret_cast<data_elem_attr_t *> (reinterpret_cast<unsigned char *>(attr) + sizeof(data_elem_attr_t) + htons(attr->len));
     }
-
     get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (&radioconfig), sizeof(radioconfig));
     set_state(em_state_agent_owconfig_pending);
     if (get_service_type() == em_service_type_agent) {
