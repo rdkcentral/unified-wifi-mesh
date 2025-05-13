@@ -329,7 +329,8 @@ unsigned int em_msg_t::validate(char *errors[])
         }
 
         if ((m_tlv_member[i].m_requirement == mandatory) &&((m_tlv_member[i].m_present == false)||((sizeof(em_tlv_t) + htons(tlv->len)) < static_cast<size_t> (m_tlv_member[i].m_tlv_length)))) {
-            snprintf(m_errors[m_num_errors], sizeof(m_errors[m_num_errors]), "%s", m_tlv_member[i].m_spec);
+            strncpy(m_errors[m_num_errors], m_tlv_member[i].m_spec, sizeof(m_errors[m_num_errors]) - 1);
+            m_errors[m_num_errors][sizeof(m_errors[m_num_errors]) - 1] = '\0';
             m_num_errors++;
             errors[m_num_errors - 1] = m_errors[m_num_errors - 1];
             validation = false;
@@ -343,7 +344,8 @@ unsigned int em_msg_t::validate(char *errors[])
         }
 
         if ((m_tlv_member[i].m_requirement == bad) && (m_tlv_member[i].m_present == true)) {
-            snprintf(m_errors[m_num_errors], sizeof(m_errors[m_num_errors]), "%s", m_tlv_member[i].m_spec);
+            strncpy(m_errors[m_num_errors], m_tlv_member[i].m_spec, sizeof(m_errors[m_num_errors]) - 1);
+            m_errors[m_num_errors][sizeof(m_errors[m_num_errors]) - 1] = '\0';
             m_num_errors++;
             errors[m_num_errors - 1] = m_errors[m_num_errors - 1];
             //printf("%s:%d; TLV type: 0x%04x Length: %d, presence validation error, profile: %d\n", __func__, __LINE__, 
