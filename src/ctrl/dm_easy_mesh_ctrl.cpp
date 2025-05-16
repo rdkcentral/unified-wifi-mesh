@@ -98,7 +98,7 @@ int dm_easy_mesh_ctrl_t::analyze_config_renew(em_bus_event_t *evt, em_cmd_t *pcm
     printf("%s:%d: Radio: %s\n", __func__, __LINE__, radio_str);
 
     evt->params.u.args.num_args = 1;
-    strncpy(evt->params.u.args.args[0], radio_str, strlen(radio_str) + 1);
+    strncpy(evt->params.u.args.args[0], radio_str, sizeof(em_long_string_t));
     pcmd[num] = new em_cmd_cfg_renew_t(em_service_type_ctrl, evt->params, dm);
 
     tmp = pcmd[num];
@@ -141,9 +141,9 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
         //sta_mac_str, (params->assoc.assoc_event == 1)?"associated with":"disassociated from", bss_mac_str, dev_mac_str);
 
     evt->params.u.args.num_args = 4;
-    strncpy(evt->params.u.args.args[0], dev_mac_str, strlen(dev_mac_str) + 1);
-    strncpy(evt->params.u.args.args[1], bss_mac_str, strlen(bss_mac_str) + 1);
-    strncpy(evt->params.u.args.args[2], sta_mac_str, strlen(sta_mac_str) + 1);
+    strncpy(evt->params.u.args.args[0], dev_mac_str, sizeof(em_long_string_t));
+    strncpy(evt->params.u.args.args[1], bss_mac_str, sizeof(em_long_string_t));
+    strncpy(evt->params.u.args.args[2], sta_mac_str, sizeof(em_long_string_t));
     len = (params->assoc.assoc_event == 1)?strlen("Assoc") + 1:strlen("Disassoc") + 1;
     strncpy(evt->params.u.args.args[3], (params->assoc.assoc_event == 1)?"Assoc":"Disassoc", len);
     pdm = get_data_model(global_netid, params->dev);
@@ -226,8 +226,8 @@ int dm_easy_mesh_ctrl_t::analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *pcmd[])
     printf("%s:%d: Radio: %s AL MAC: %s\n", __func__, __LINE__, radio_str, al_str);
 
     evt->params.u.args.num_args = 2;
-    strncpy(evt->params.u.args.args[0], radio_str, strlen(radio_str) + 1);
-    strncpy(evt->params.u.args.args[1], al_str, strlen(al_str) + 1);
+    strncpy(evt->params.u.args.args[0], radio_str, sizeof(em_long_string_t));
+    strncpy(evt->params.u.args.args[1], al_str, sizeof(em_long_string_t));
     pcmd[num] = new em_cmd_em_config_t(evt->params, dm);
     tmp = pcmd[num];
     num++;

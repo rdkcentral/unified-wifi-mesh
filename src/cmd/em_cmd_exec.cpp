@@ -137,7 +137,8 @@ int em_cmd_exec_t::send_cmd(em_service_type_t to_svc, unsigned char *in, unsigne
     setsockopt(dsock, SOL_SOCKET, SO_RCVBUF, &sz, sizeof(sz)); // Receive buffer 1K
     memset(&addr, 0, sizeof(struct sockaddr_un));
     addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, sock_path, sizeof(addr.sun_path));    
+    //strncpy(addr.sun_path, sock_path, sizeof(addr.sun_path));
+    snprintf(addr.sun_path, sizeof(addr.sun_path), "%.*s", static_cast<int>(sizeof(addr.sun_path) - 1), sock_path);
     //snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", sock_path);
     if ((ret = connect(dsock, reinterpret_cast<const struct sockaddr *> (&addr), sizeof(struct sockaddr_un))) != 0) {
         snprintf(out, out_len, "%s:%d: connect error on socket, err:%d\n", __func__, __LINE__, errno);

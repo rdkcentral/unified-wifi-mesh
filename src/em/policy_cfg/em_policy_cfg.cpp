@@ -44,7 +44,7 @@
 short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
 {
 	short len = 0;
-	dm_easy_mesh_t *dm;
+	dm_easy_mesh_t *dm = NULL;
 	dm_policy_t *policy;
 	bool found_match = false;
 	unsigned char *tmp = buff;
@@ -405,7 +405,7 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
         } else if (tlv->type == em_tlv_type_qos_mgmt_policy){
         } else if (tlv->type == em_tlv_vendor_plolicy_cfg) {
             em_vendor_policy_t *vendor = reinterpret_cast<em_vendor_policy_t *> (tlv->value);
-            strncpy(policy.vendor_policy.managed_client_marker, vendor->managed_client_marker, strlen(vendor->managed_client_marker)+1);
+            strncpy(policy.vendor_policy.managed_client_marker, vendor->managed_client_marker, sizeof(em_string_t)-1);
             data_len += sizeof(em_vendor_policy_t);
         }
 
