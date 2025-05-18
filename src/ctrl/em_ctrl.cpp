@@ -504,7 +504,10 @@ int em_ctrl_t::data_model_init(const char *data_model_path)
     mac_addr_str_t  mac_str;
 
     m_ctrl_cmd = new em_cmd_ctrl_t();
-    m_ctrl_cmd->init();
+    if (m_ctrl_cmd->init() != 0) {
+        printf("%s:%d: ctrl command init failed\n", __func__, __LINE__);
+        return 0;
+	}
     
     if (m_data_model.init(data_model_path, this) != 0) {
         printf("%s:%d: data model init failed\n", __func__, __LINE__);
@@ -772,6 +775,9 @@ void em_ctrl_t::io(void *data, bool input)
 {
     char *str = static_cast<char *> (data);
     m_ctrl_cmd->execute(str);
+
+	m_ctrl_cmd->deinit();
+	delete m_ctrl_cmd;
 }
 
 void em_ctrl_t::start_complete()

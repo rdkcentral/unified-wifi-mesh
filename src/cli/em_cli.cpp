@@ -222,9 +222,12 @@ em_network_node_t *em_cli_t::exec(char *in, size_t sz, em_network_node_t *node)
     em_cmd_cli_t *cli_cmd;
 
     snprintf(cmd, sizeof(cmd),  "%s", in);
-    cli_cmd = new em_cmd_cli_t(get_command(cmd, sz, node));
+    cli_cmd = new em_cmd_cli_t(get_command(cmd, sz, node), m_params.user_data.addr);
 
-    cli_cmd->init();
+    if (cli_cmd->init() != 0) {
+		printf("%s:%d: Failed to init command\n", __func__, __LINE__);
+		return NULL;
+	}
 
 	result = (char *)malloc(EM_MAX_EVENT_DATA_LEN);
 	memset(result, 0, EM_MAX_EVENT_DATA_LEN);
@@ -238,6 +241,7 @@ em_network_node_t *em_cli_t::exec(char *in, size_t sz, em_network_node_t *node)
         }
     }
 
+	cli_cmd->deinit();
     delete cli_cmd;
 
     new_node = em_net_node_t::get_network_tree(result);	

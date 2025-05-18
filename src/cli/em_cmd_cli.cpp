@@ -168,18 +168,18 @@ int em_cmd_cli_t::get_edited_node(em_network_node_t *node, const char *header, c
 
 int em_cmd_cli_t::execute(char *result)
 {
-    struct sockaddr_un addr;
-    int dsock, ret;
+    int ret, dsock;
     em_bus_event_t *bevt;
     em_subdoc_info_t    *info;
     em_event_t *evt;
     em_cmd_params_t *param;
     dm_easy_mesh_t dm;
-    unsigned int sz = sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN;
     unsigned char *tmp;
-    em_long_string_t	in, sock_path;
+    em_long_string_t	in;
     em_status_string_t out;
 	em_network_node_t *node;
+	SSL_CTX *ctx;
+	SSL *ssl;
 
     evt = get_event();
     param = get_param();
@@ -187,14 +187,6 @@ int em_cmd_cli_t::execute(char *result)
     evt->type = em_event_type_bus;
     bevt = &evt->u.bevt;
     memcpy(&bevt->params, param, sizeof(em_cmd_params_t));
-
-    if (get_path_from_dst_service(get_svc(), sock_path) == NULL) {
-        printf("%s:%d: Could not find path from destination service: %d\n", get_svc());
-        return -1;
-    }
-
-    //printf("%s:%d: Executing command: %s, Dst Service: %d with path: %s\n", __func__, __LINE__,
-            //em_cmd_t::get_cmd_type_str(get_type()), get_svc(), sock_path);
 
     switch (get_type()) {
 
@@ -461,45 +453,52 @@ int em_cmd_cli_t::execute(char *result)
 	//printf("%s:%d: Length: %d Event len: %d\n", __func__, __LINE__, bevt->data_len, get_event_length());
 
     get_cmd()->init(&dm);
-  
-    if ((dsock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-        return -1;
-    }
 
-    setsockopt(dsock, SOL_SOCKET, SO_SNDBUF, &sz, sizeof(sz)); // Send buffer EM_MAX_EVENT_DATA_LEN
-    setsockopt(dsock, SOL_SOCKET, SO_RCVBUF, &sz, sizeof(sz)); // Receive buffer EM_MAX_EVENT_DATA_LEN
-
-    memset(&addr, 0, sizeof(struct sockaddr_un));
-    addr.sun_family = AF_UNIX;
-    snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", sock_path);
-    if ((ret = connect(dsock, (const struct sockaddr *) &addr, sizeof(struct sockaddr_un))) != 0) {
-        snprintf(result, sizeof(em_long_string_t), "%s:%d: connect error on socket, err:%d\n", __func__, __LINE__, errno);
-        return -1;
-    }
+	ctx = SSL_CTX_new(TLS_client_method());
+    SSL_CTX_use_certificate_file(ctx, EM_CERT_FILE, SSL_FILETYPE_PEM);
+ 
+	if ((ssl = get_ep_for_dst_svc(ctx, em_service_type_ctrl)) == NULL) {
+		printf("%s:%d: Can not get socket for service\n", __func__, __LINE__);
+		snprintf(result, sizeof(em_long_string_t), "%s:%d: connect error on socket, err:%d\n", __func__, __LINE__, errno);
+		SSL_CTX_free(ctx);
+		return -1;
+	} 
 
     tmp = (unsigned char *)get_event();
 
-    if ((ret = send(dsock, tmp, get_event_length(), 0)) <= 0) {
+	dsock = SSL_get_fd(ssl);
+
+    if ((ret = SSL_write(ssl, tmp, get_event_length())) <= 0) {
+		close(dsock);		
+		SSL_free(ssl);
+		SSL_CTX_free(ctx);
         return -1;
 	}
     
     /* Receive result. */
-    if ((ret = recv(dsock, (unsigned char *)result, EM_MAX_EVENT_DATA_LEN, 0)) <= 0) {
+    if ((ret = SSL_read(ssl, (unsigned char *)result, EM_MAX_EVENT_DATA_LEN)) <= 0) {
         printf("%s:%d: result read error on socket, err:%d\n", __func__, __LINE__, errno);
+		close(dsock);		
+		SSL_free(ssl);
+		SSL_CTX_free(ctx);
         return -1;
     }
 
     close(dsock);
+	SSL_free(ssl);
+	SSL_CTX_free(ctx);
 
     return 0;
 }
 
-em_cmd_cli_t::em_cmd_cli_t(em_cmd_t& obj)
+em_cmd_cli_t::em_cmd_cli_t(em_cmd_t& obj, struct sockaddr_in& addr)
 {
 	em_cmd_params_t *param;
 
     m_cmd.m_type = obj.m_type;
     m_cmd.m_svc = obj.m_svc;
+
+	memcpy(&m_ctrl_addr, &addr, sizeof(struct sockaddr_in));
 
 	param = &m_cmd.m_param;
     memcpy(param, &obj.m_param, sizeof(em_cmd_params_t));
