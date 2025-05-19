@@ -78,6 +78,8 @@ jobs:
                                 libreadline-dev \
                                 iptables \
                                 mariadb-server \
+                                libmariadb3 \
+                                libmariadb-dev \
                                 gnupg \
                                 file \
                                 golang
