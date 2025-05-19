@@ -24,6 +24,7 @@
 #include "dm_easy_mesh_ctrl.h"
 #include "em_orch_ctrl.h"
 #include "bus.h"
+#include "em_dev_test_ctrl.h"
 
 class em_cmd_ctrl_t;
 class AlServiceAccessPoint;
@@ -34,7 +35,7 @@ class em_ctrl_t : public em_mgr_t {
     em_cmd_ctrl_t   *m_ctrl_cmd;
     em_orch_ctrl_t *m_orch;
 	bus_handle_t m_bus_hdl;
-
+	em_dev_test_t dev_test;
     
 	/**!
 	 * @brief Handles a bus event.
@@ -306,7 +307,8 @@ public:
 	 *
 	 * @note Ensure that the event structure is properly initialized before passing it to this function.
 	 */
-	void handle_dev_test(em_bus_event_t *evt);
+	void handle_get_dev_test(em_bus_event_t *evt);
+	void handle_set_dev_test(em_bus_event_t *evt);
     
 	/**!
 	 * @brief Handles the get database event.
