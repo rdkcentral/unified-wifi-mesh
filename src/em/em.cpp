@@ -615,7 +615,7 @@ int em_t::set_bp_filter()
 int em_t::start_al_interface()
 {
 #ifdef AL_SAP
-    m_fd = g_sap->getSocketDescriptor();
+    m_fd = g_sap->getDataSocketDescriptor();
 #else
     int sock_fd;
     struct sockaddr_ll addr_ll;
