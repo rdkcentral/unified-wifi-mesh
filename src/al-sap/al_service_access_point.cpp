@@ -2,50 +2,78 @@
 #include "al_service_utils.h"
 
 // Constructor: Connects to the Unix domain socket using the provided path --> moved from hardcoded to check in the unit test for socket creation
-AlServiceAccessPoint::AlServiceAccessPoint(const std::string& socketPath) : socketPath(socketPath) {
-    socketDescriptor = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (socketDescriptor == -1) {
-        throw AlServiceException("Failed to create Unix socket", PrimitiveError::SocketCreationFailed);
+AlServiceAccessPoint::AlServiceAccessPoint(const std::string &dataSocketPath, const std::string &controlSocketPath) : alDataSocketpath(dataSocketPath),
+                                                                                                                      alControlSocketpath(controlSocketPath)
+{
+    alDataSocketDescriptor = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (alDataSocketDescriptor == -1)
+    {
+        throw AlServiceException("Failed to create Unix socket for data", PrimitiveError::SocketCreationFailed);
     }
-    struct sockaddr_un addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, socketPath.c_str(), sizeof(addr.sun_path) - 1);
-
-    if (connect(socketDescriptor, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
-        close(socketDescriptor);
-        throw AlServiceException("Failed to connect to Unix socket", PrimitiveError::ConnectionFailed);
+    struct sockaddr_un dataAddr = createUnixSocketAddress(dataSocketPath);
+    if (connect(alDataSocketDescriptor, (struct sockaddr *)&dataAddr, sizeof(dataAddr)) == -1)
+    {
+        close(alDataSocketDescriptor);
+        throw AlServiceException("Failed to connect to Unix socket for data", PrimitiveError::ConnectionFailed);
     }
-    #ifdef DEBUG_MODE
-    std::cout << "Connected to Unix socket: " << socketPath << std::endl;
-    #endif
+#ifdef DEBUG_MODE
+    std::cout << "Connected to Unix data socket: " << dataSocketPath << std::endl;
+#endif
+    alControlSocketDescriptor = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (alControlSocketDescriptor == -1)
+    {
+        throw AlServiceException("Failed to create Unix socket for control", PrimitiveError::SocketCreationFailed);
+    }
+    struct sockaddr_un controlAddr = createUnixSocketAddress(controlSocketPath);
+    if (connect(alControlSocketDescriptor, (struct sockaddr *)&controlAddr, sizeof(controlAddr)) == -1)
+    {
+        close(alControlSocketDescriptor);
+        throw AlServiceException("Failed to connect to Unix socket for control", PrimitiveError::ConnectionFailed);
+    }
+#ifdef DEBUG_MODE
+    std::cout << "Connected to Unix control socket: " << controlSocketPath << std::endl;
+#endif
 }
 
 // Destructor: Closes the Unix domain socket
 AlServiceAccessPoint::~AlServiceAccessPoint() {
-    if (socketDescriptor != -1) {
-        close(socketDescriptor);
-        #ifdef DEBUG_MODE
+    if (alDataSocketDescriptor != -1)
+    {
+        close(alDataSocketDescriptor);
+#ifdef DEBUG_MODE
         std::cout << "Unix socket closed." << std::endl;
         #endif
     }
 }
 
 // Getter for the socket descriptor
-int AlServiceAccessPoint::getSocketDescriptor() const {
-    return socketDescriptor;
+int AlServiceAccessPoint::getDataSocketDescriptor() const
+{
+    return alDataSocketDescriptor;
 }
 
 // Setter for the socket descriptor
-void AlServiceAccessPoint::setSocketDescriptor(int descriptor) {
-    socketDescriptor = descriptor;
+void AlServiceAccessPoint::setDataSocketDescriptor(int descriptor)
+{
+    alDataSocketDescriptor = descriptor;
+}
+
+int AlServiceAccessPoint::getControlSocketDescriptor() const
+{
+    return alControlSocketDescriptor;
+}
+
+// Setter for the socket descriptor
+void AlServiceAccessPoint::setControlSocketDescriptor(int descriptor)
+{
+    alControlSocketDescriptor = descriptor;
 }
 
 // Executes service registration request (send a registration message)
 void AlServiceAccessPoint::serviceAccessPointRegistrationRequest(AlServiceRegistrationRequest& message) {
     
     std::vector<unsigned char> serializedData = message.serializeRegistrationRequest();
-    ssize_t bytesSent = send(socketDescriptor, serializedData.data(), serializedData.size(), 0);
+    ssize_t bytesSent = send(alControlSocketDescriptor, serializedData.data(), serializedData.size(), 0);
     if (bytesSent == -1) {
         throw AlServiceException("Failed to send registration request", PrimitiveError::RequestFailed);
     }
@@ -58,7 +86,7 @@ void AlServiceAccessPoint::serviceAccessPointRegistrationRequest(AlServiceRegist
 // Executes service registration indication (receive a registration indication message)
 AlServiceRegistrationResponse AlServiceAccessPoint::serviceAccessPointRegistrationResponse() {
     std::vector<unsigned char> buffer(1500);
-    ssize_t bytesRead = recv(socketDescriptor, buffer.data(), buffer.size(), 0);
+    ssize_t bytesRead = recv(alControlSocketDescriptor, buffer.data(), buffer.size(), 0);
     if (bytesRead == -1) {
         throw AlServiceException("Failed to receive registration indication", PrimitiveError::IndicationFailed);
     }
@@ -92,7 +120,7 @@ void AlServiceAccessPoint::serviceAccessPointDataRequest(AlServiceDataUnit& mess
 
             // Serialize and send the data
             std::vector<unsigned char> serializedData = message.serialize();
-            ssize_t bytesSent = send(socketDescriptor, serializedData.data(), serializedData.size(), 0);
+            ssize_t bytesSent = send(alDataSocketDescriptor, serializedData.data(), serializedData.size(), 0);
             if (bytesSent == -1) {
                 throw AlServiceException("Failed to send message through Unix socket", PrimitiveError::RequestFailed);
             }
@@ -125,7 +153,7 @@ void AlServiceAccessPoint::serviceAccessPointDataRequest(AlServiceDataUnit& mess
             #endif
             // Serialize and send the current fragment
             std::vector<unsigned char> serializedData = message.serialize();
-            ssize_t bytesSent = send(socketDescriptor, serializedData.data(), serializedData.size(), 0);
+            ssize_t bytesSent = send(alDataSocketDescriptor, serializedData.data(), serializedData.size(), 0);
             if (bytesSent == -1) {
                 throw AlServiceException("Failed to send message fragment through Unix socket", PrimitiveError::RequestFailed);
             }
@@ -163,7 +191,7 @@ AlServiceDataUnit AlServiceAccessPoint::serviceAccessPointDataIndication() {
         std::vector<unsigned char> buffer(1500, 0x00);
 
         // Receive data from the socket
-        ssize_t bytesRead = recv(socketDescriptor, buffer.data(), buffer.size(), 0);
+        ssize_t bytesRead = recv(alDataSocketDescriptor, buffer.data(), buffer.size(), 0);
         if (bytesRead <= 0) {
             if (errno == EBADF || errno == ECONNRESET) {
                 throw AlServiceException("Socket closed or connection reset", PrimitiveError::SocketClosed);
