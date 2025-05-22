@@ -405,7 +405,7 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
         } else if (tlv->type == em_tlv_type_qos_mgmt_policy){
         } else if (tlv->type == em_tlv_vendor_plolicy_cfg) {
             em_vendor_policy_t *vendor = reinterpret_cast<em_vendor_policy_t *> (tlv->value);
-            strncpy(policy.vendor_policy.managed_client_marker, vendor->managed_client_marker, sizeof(em_string_t)-1);
+            snprintf(policy.vendor_policy.managed_client_marker, sizeof(em_string_t), "%s", vendor->managed_client_marker);
             data_len += sizeof(em_vendor_policy_t);
         }
 

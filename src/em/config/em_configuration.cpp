@@ -401,7 +401,7 @@ int em_configuration_t::create_operational_bss_tlv(unsigned char *buff)
         	}
         	radio->bss_num++;
         	memcpy(bss->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
-            strncpy(bss->ssid, dm->m_bss[j].m_bss_info.ssid, sizeof(ssid_t));
+        	strncpy(bss->ssid, dm->m_bss[j].m_bss_info.ssid, sizeof(ssid_t));
         	bss->ssid_len = static_cast<unsigned char> (strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
         	all_bss_len += static_cast<unsigned int> (sizeof(em_ap_operational_bss_t) + bss->ssid_len);
         	bss = reinterpret_cast<em_ap_operational_bss_t *>(reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_operational_bss_t) + bss->ssid_len);
@@ -615,9 +615,7 @@ int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
             affiliated_ap_mld->affiliated_mac_addr_valid = affiliated_ap_info.mac_addr_valid;
             affiliated_ap_mld->link_id_valid = affiliated_ap_info.link_id_valid;
             memcpy(affiliated_ap_mld->ruid, affiliated_ap_info.ruid.mac, sizeof(mac_address_t));
-            mac_addr_t temp_mac;
-            memcpy(temp_mac, affiliated_ap_info.mac_addr, sizeof(mac_addr_t));
-            memcpy(affiliated_ap_mld->affiliated_mac_addr, temp_mac, sizeof(mac_addr_t));
+            memcpy(affiliated_ap_mld->affiliated_mac_addr, affiliated_ap_info.mac_addr, sizeof(mac_address_t));
             memcpy(&affiliated_ap_mld->link_id, &affiliated_ap_info.link_id, sizeof(unsigned char));
 
             affiliated_ap_mld = reinterpret_cast<em_affiliated_ap_mld_t *> (reinterpret_cast<unsigned char *> (affiliated_ap_mld) + sizeof(em_affiliated_ap_mld_t));
@@ -1733,9 +1731,7 @@ int em_configuration_t::handle_ap_mld_config_tlv(unsigned char *buff, unsigned i
             affiliated_ap_info->mac_addr_valid = affiliated_ap_mld->affiliated_mac_addr_valid;
             affiliated_ap_info->link_id_valid = affiliated_ap_mld->link_id_valid;
             memcpy(affiliated_ap_info->ruid.mac, affiliated_ap_mld->ruid, sizeof(mac_address_t));
-            mac_addr_t temp_mac;
-            memcpy(temp_mac, affiliated_ap_mld->affiliated_mac_addr, sizeof(mac_addr_t));
-            memcpy(affiliated_ap_info->mac_addr, temp_mac, sizeof(mac_address_t));
+            memcpy(affiliated_ap_info->mac_addr, affiliated_ap_mld->affiliated_mac_addr, sizeof(mac_address_t));
             memcpy(&affiliated_ap_info->link_id, &affiliated_ap_mld->link_id, sizeof(unsigned char));
 
             affiliated_ap_mld = reinterpret_cast<em_affiliated_ap_mld_t *> (reinterpret_cast<unsigned char *> (affiliated_ap_mld) + sizeof(em_affiliated_ap_mld_t));
@@ -3196,7 +3192,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 	attr->id = htons(attr_id_no_of_haul_type);
 	size = 1;
 	attr->len = htons(static_cast<short unsigned int> (size));
-	memcpy(reinterpret_cast<char *> (attr->val), reinterpret_cast<unsigned char *> (&no_of_haultype), sizeof(no_of_haultype));
+	memcpy(reinterpret_cast<char *> (attr->val), reinterpret_cast<unsigned char *> (&no_of_haultype), size);
 
 	len += static_cast<short> (sizeof(data_elem_attr_t) + size);
 	tmp += (sizeof(data_elem_attr_t) + size);

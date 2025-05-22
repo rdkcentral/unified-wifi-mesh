@@ -113,7 +113,7 @@ void em_net_node_t::set_node_array_value(em_network_node_t *node, char *fmt)
 		return;
 	}
 		
-	strncpy(value, tmp, sizeof(em_long_string_t)-1);
+	snprintf(value, sizeof(em_long_string_t), "%s", tmp);
 
 	tmp = value;
 	remain = value;

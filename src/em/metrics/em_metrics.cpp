@@ -1154,7 +1154,7 @@ short em_metrics_t::create_beacon_metrics_query_tlv(unsigned char *buff, mac_add
 
     for (j = 0; j < dm->get_num_bss(); j++) {
         if (memcmp(&dm->m_bss[j].m_bss_info.bssid, sta->m_sta_info.bssid, sizeof(bssid_t)) != 0) {
-            strncpy(ssid, dm->m_bss[j].m_bss_info.ssid, sizeof(ssid_t)-1);
+            snprintf(ssid, sizeof(ssid_t), "%s", dm->m_bss[j].m_bss_info.ssid);
             break;
         }
     }
