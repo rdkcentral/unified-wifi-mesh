@@ -57,7 +57,8 @@ const char *global_netid = "OneWifiMesh";
 AlServiceAccessPoint* g_sap;
 MacAddress g_al_mac_sap;
 
-#define SOCKET_PATH "/tmp/ieee1905_tunnel"
+#define DATA_SOCKET_PATH "/tmp/al_data_socket"
+#define CONTROL_SOCKET_PATH "/tmp/al_control_socket"
 #endif
 
 void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
@@ -886,7 +887,7 @@ em_ctrl_t::~em_ctrl_t()
 #ifdef AL_SAP
 AlServiceAccessPoint* em_ctrl_t::al_sap_register()
 {
-    AlServiceAccessPoint* sap = new AlServiceAccessPoint(SOCKET_PATH);
+    AlServiceAccessPoint* sap = new AlServiceAccessPoint(DATA_SOCKET_PATH, CONTROL_SOCKET_PATH);
 
     AlServiceRegistrationRequest registrationRequest(ServiceOperation::SOP_ENABLE, ServiceType::SAP_TUNNEL_CLIENT);
     sap->serviceAccessPointRegistrationRequest(registrationRequest);
