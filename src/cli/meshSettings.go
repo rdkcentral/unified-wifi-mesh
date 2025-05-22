@@ -12,10 +12,11 @@ import "C"
 
 import (	
 	"os"
+	"strings"
+	"strconv"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/davecgh/go-spew/spew"
 )
 
 // Model implements tea.Model, and manages the browser UI.
@@ -24,6 +25,7 @@ type MeshSettings struct {
 	windowHeight int
 	remoteAddr	textinput.Model
 	dump	*os.File
+	ipValid		bool
 }
 
 func newMeshSettings(platform string, dump *os.File) *MeshSettings {
@@ -32,23 +34,41 @@ func newMeshSettings(platform string, dump *os.File) *MeshSettings {
     return &MeshSettings {
 		remoteAddr:		remoteAddr,	
 		dump:			dump,
+		ipValid:		false,
 	}
 }
 
 // Validator of Remote Controller IP Address
-func remoteAddrValidator(addrPort string) bool {
-	return false
+func remoteAddrValidator(remoteAddr string) (bool, int, int) {
+	var ip int
+	var num int
+
+	if ((strings.Count(remoteAddr, ".") != 3) || (strings.Count(remoteAddr, ":") != 1)) {
+		return false, 0, 0
+	}
+
+	s1 := strings.Split(remoteAddr, ":");
+	s2 := strings.Split(s1[0], ".");
+		
+	for i:= 0; i < len(s2); i++ {
+        // statements
+		num, err := strconv.Atoi(s2[i])
+		if err != nil {
+			return false, 0, 0
+    	} else if num > 255 {
+			return false, 0, 0
+		}
+
+		ip |= num << 8*i
+    }
+
+	num, _ = strconv.Atoi(s1[1])
+
+	return true, ip, num
 }
 
 // Init initialises the Model on program load. It partly implements the tea.Model interface.
 func (m *MeshSettings) Init() tea.Cmd {
-	spew.Fprintf(m.dump, "Mesh Settings Init\n")
-	m.remoteAddr.Placeholder = "10.0.0.1:49152"
-	m.remoteAddr.CharLimit = 21
-	m.remoteAddr.Width = 30
-	m.remoteAddr.Prompt = ""
-	m.remoteAddr.Focus()
-
 	return textinput.Blink
 }
 
@@ -56,8 +76,9 @@ func (m *MeshSettings) Init() tea.Cmd {
 func (m *MeshSettings) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
+	var ip int
+	var port int
 
-	spew.Fprintf(m.dump, "Mesh Settings View\n")
 	switch msg := message.(type) {
 	case tea.WindowSizeMsg:
 		m.windowWidth = msg.Width
@@ -66,10 +87,8 @@ func (m *MeshSettings) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 			case "enter":
-				spew.Fprintf(m.dump, "Remote Addr: %s\n", m.remoteAddr.Value())
-				if (remoteAddrValidator(m.remoteAddr.Value()) == false) {
-					return m, nil
-				}
+				m.ipValid, ip, port = remoteAddrValidator(m.remoteAddr.Value())
+				C.set_remote_addr(C.uint(ip), C.uint(port), C.bool(m.ipValid))	
 		}
 	}
 	
@@ -90,6 +109,11 @@ func (m *MeshSettings) View() string {
 
 	boldStyle := lipgloss.NewStyle().Bold(true)
 	title := boldStyle.Render("Controller IP Address")
+	m.remoteAddr.Placeholder = "10.0.0.1:49152"
+	m.remoteAddr.CharLimit = 21
+	m.remoteAddr.Width = 30
+	m.remoteAddr.Prompt = ""
+	m.remoteAddr.Focus()
 	content := m.remoteAddr.View()
 	layout := lipgloss.JoinVertical(lipgloss.Left, title, content)
 

@@ -3100,6 +3100,7 @@ typedef enum {
 
 typedef struct {
 	struct sockaddr_in  addr;
+	bool	valid;
 } user_data_t;
 
 typedef struct {

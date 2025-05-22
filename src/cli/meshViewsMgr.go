@@ -13,9 +13,9 @@ import "C"
 import (
 	"os"
 	"time"
-	"github.com/davecgh/go-spew/spew"
 	tea "github.com/charmbracelet/bubbletea"
 	overlay "github.com/rmhubbert/bubbletea-overlay"
+	"github.com/davecgh/go-spew/spew"
 )
 
 type sessionState int
@@ -36,14 +36,10 @@ type MeshViewsMgr struct {
 	dump           		*os.File
     ticker            	*time.Ticker
 	quit		chan bool
-	initialized			bool
+	timerActive			bool
 }
 
 func (m *MeshViewsMgr) timerHandler() {
-	if m.initialized == false {
-		return
-	}
-
     for {
         select {
         case <-m.ticker.C:
@@ -69,9 +65,22 @@ func newMeshViewsMgr(platform string) *MeshViewsMgr {
 	return &MeshViewsMgr {
 		meshSettings:			meshSettings,
 		meshViews: 		meshViews,
-		initialized:	false,
+		timerActive:	false,
 		dump:	dump,
 	}	
+}
+
+func (m *MeshViewsMgr) ActivateTimer(enable bool) {
+	if m.timerActive == false && enable == true {
+		spew.Fprintf(m.dump, "Starting timer because remote IP is valid\n")
+    	m.ticker = time.NewTicker(5 * time.Second)
+		m.timerActive = true
+		go m.timerHandler()
+	} else if m.timerActive == true && enable == false {
+		spew.Fprintf(m.dump, "Stopping timer because remote IP is invalid\n")
+		m.ticker.Stop();	
+		m.timerActive = false
+	}
 }
 
 // Init initialises the MeshViewsMgr on program load. It partly implements the tea.Model interface.
@@ -86,10 +95,7 @@ func (m *MeshViewsMgr) Init() tea.Cmd {
 		0,
 	)
 
-    m.ticker = time.NewTicker(5 * time.Second)
     m.quit = make(chan bool)
-
-	go m.timerHandler()
 
 	return nil
 }
@@ -121,9 +127,16 @@ func (m *MeshViewsMgr) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	fg, fgCmd := m.meshSettings.Update(message)
 	m.meshSettings = fg
 
+	if C.is_remote_addr_valid() == true {
+		m.ActivateTimer(true)
+	} else {
+		m.ActivateTimer(false)
+
+	}
+	
 	bg, bgCmd := m.meshViews.Update(message)
 	m.meshViews = bg
-	
+
 	cmds := []tea.Cmd{}
 	cmds = append(cmds, fgCmd, bgCmd)
 
@@ -133,7 +146,6 @@ func (m *MeshViewsMgr) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 // View applies and styling and handles rendering the view. It partly implements the tea.Model
 // interface.
 func (m *MeshViewsMgr) View() string {
-	spew.Fprintf(m.dump, "Mesh Manager View, state: %d\n", m.state)
 	if m.state == settingsView {
 		return m.overlay.View()
 	}
