@@ -151,7 +151,6 @@ void dm_sta_t::encode(cJSON *obj, em_get_sta_list_reason_t reason)
 {
     mac_addr_str_t  mac_str;
     cJSON *reason_obj, *request_obj;
-    em_long_string_t client_info;
 
     dm_sta_t::decode_sta_capability(this);
     dm_sta_t::decode_beacon_report(this);

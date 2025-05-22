@@ -305,8 +305,6 @@ void em_ctrl_t::handle_get_dev_test(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_set_dev_test(em_bus_event_t *evt)
 {
-    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
-    int num, ret;
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
@@ -581,7 +579,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
     bssid_t	bssid;
     dm_bss_t *bss;
     em_profile_type_t profile;
-    em_long_string_t key;
+    em_2xlong_string_t key;
     unsigned int i;
     bool found;
     mac_addr_str_t mac_str1, mac_str2, dev_mac_str, radio_mac_str;
@@ -863,7 +861,7 @@ void em_ctrl_t::start_complete()
 	//Initialze cli devtest
 	for (i = 0; i < em_dev_test_type_max; i++) {
 		dev_test.dev_test_info.num_iteration[i] = 50;
-		dev_test.dev_test_info.test_type[i] = (em_dev_test_type) i;
+		dev_test.dev_test_info.test_type[i] = static_cast<em_dev_test_type>(i);;
 		dev_test.dev_test_info.enabled[i] = 0;
 		dev_test.dev_test_info.num_of_iteration_completed[i] = 0;
 		dev_test.dev_test_info.test_inprogress[i] = 0;

@@ -511,7 +511,7 @@ int em_provisioning_t::handle_proxy_encap_dpp(uint8_t *buff, unsigned int len)
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tlv_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
-    uint16_t encap_tlv_len, chirp_tlv_len = 0;
+    uint16_t encap_tlv_len = 0, chirp_tlv_len = 0;
     em_encap_dpp_t* encap_tlv = NULL;
     em_dpp_chirp_value_t* chirp_tlv = NULL;
 
