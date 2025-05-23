@@ -98,6 +98,7 @@ onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/ctrl/em_cmd_ctrl.cpp \
      $(top_srcdir)/src/ctrl/em_ctrl.cpp \
      $(top_srcdir)/src/ctrl/em_network_topo.cpp \
+     $(top_srcdir)/src/ctrl/em_dev_test_ctrl.cpp \
      $(top_srcdir)/src/db/db_client.cpp \
      $(top_srcdir)/src/db/db_column.cpp \
      $(top_srcdir)/src/db/db_easy_mesh.cpp \
