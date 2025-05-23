@@ -130,6 +130,16 @@ public:
 	 */
 	bool handle_gas_initial_response(ec_gas_initial_response_frame_t *frame, size_t len, uint8_t src_mac[ETH_ALEN]);
 
+	/**
+	 * @brief Handle a Reconfiguration Authentication Request frame
+	 * 
+	 * @param frame The Reconfiguration Authentication Reuqest frame
+	 * @param len The length of the frame
+	 * @param src_mac Where the frame came from (Configurator)
+	 * @return true on success, otherwise false
+	 */
+	bool handle_recfg_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETH_ALEN]);
+
     
 	/**!
 	 * @brief Tears down the existing connection by freeing associated resources.
@@ -195,6 +205,21 @@ public:
 	 */
 	bool handle_assoc_status(const rdk_sta_data_t &sta_data);
 
+	/**
+	 * @brief Handle a BSS info event
+	 * 
+	 * This callback is triggered by OneWifi scanning
+	 * 
+	 * If this BSS info event contains the SSID that we were instructed to 
+	 * connect to (in the Configuration Response from the Configurator), we add
+	 * this BSS info's heard frequency to our Reconfiguration Announcement 
+	 * broadcast frequency list
+	 * 
+	 * @param bss_info The BSS info containing SSID and frequency
+	 * @return true on success, otherwise false
+	 */
+	bool handle_bss_info_event(const wifi_bss_info_t &bss_info);
+
 private:
 
     
@@ -208,6 +233,14 @@ private:
 	 * @note See: EasyConnect 6.2 DPP Presence Announcement
 	 */
 	void send_presence_announcement_frames();
+
+	/**
+	 * @brief Sends DPP Reconfiguration Announcement frames until a DPP Reconfiguration Authentication Request frame is received
+	 * 
+	 * 
+	 * @note See: EasyConnect 6.5.2 DPP Reconfiguration Announcement
+	 */
+	void send_reconfiguration_announcement_frames();
 
     std::string m_mac_addr;
 
@@ -417,6 +450,19 @@ private:
      */
     std::unordered_set<uint32_t> m_pres_announcement_freqs = {2437, 5220};
 
+	/**
+	 * @brief Set of frequencies to broadcast Reconfiguration Announcement frames on
+	 * 
+	 * This list should be extended as follows (EasyConnect 6.5.2):
+	 * 
+	 * 1. If a beacon/probe response is heard advertising the SSID we were given in the Configuration response object,
+	 * add the channel where this frame was heard
+	 * 
+	 * 2. Channels where a CCE IE was heard
+	 * 
+	 */
+	std::unordered_set<uint32_t> m_recnf_announcement_freqs = {2437, 5220};
+
     /**
      * @brief The frequency to send action frames on
      * 
@@ -432,6 +478,13 @@ private:
      */
     std::atomic<bool> m_received_auth_frame{false};
 
+	/**
+	 * @brief True if we've received DPP Reconfiguration Authentication Request frame
+	 * 
+	 * Signals that this Enrollee should stop sending Reconfiguration Announcement frames
+	 */
+	std::atomic<bool> m_received_recfg_auth_frame{false};
+
     /**
      * @brief Thread for sending DPP Presence Announcement frames upon onboarding start
      * 
@@ -443,6 +496,17 @@ private:
      * our DPP Authentication Frame, and keep Presence Announcing forever
      */
     std::thread m_send_pres_announcement_thread;
+
+	/**
+	 * @brief Thread for sending Reconfiguration Announcement frames
+	 * 
+	 * Sends Reconfig Announcement frames until a Reconfiguration Authentication Request frame is heard
+	 * 
+	 * Must be on a seperate thread so as not to block the receiving
+	 * of the Reconfiguration Authentication Request frame
+	 * 
+	 */
+	std::thread m_send_recfg_announcement_thread;
 
 	/**
 	 * @brief Metadata about a fragmented GAS response frame
@@ -468,6 +532,17 @@ private:
 	std::unordered_map<std::string, std::vector<uint8_t>> m_awaiting_assoc_status = {};
 
 	bool m_is_onboarding = false;
+
+	/**
+	 * @brief The SSID contained in the Configuration Response that we're meant to connect to
+	 * 
+	 * This is used in part to rebuild a channel list for DPP Reconfiguration
+	 * 
+	 * EasyConnect 6.5.2:
+	 * 	For each channel on which the Enrollee detects the SSID for which it is currently configured, add to the channel list
+	 * 
+	 */
+	std::string m_configured_ssid = {};
 };
 
 #endif // EC_ENROLLEE_H
