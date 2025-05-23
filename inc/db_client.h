@@ -16,8 +16,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
- #ifndef DB_CLIENT_H
- #define DB_CLIENT_H
+#ifndef DB_CLIENT_H
+#define DB_CLIENT_H
+
 #ifdef OPENWRT_BUILD
 // MariaDB C client header for cross compiled OpenWRT
 #include <mysql/mysql.h>
@@ -25,8 +26,6 @@
 // MariaDB C client header for a standard Linux install (Debian)
 #include <mariadb/mysql.h>
 #endif
-//#include <mariadb/mysql.h>  // MariaDB C client header
-#include <mysql/mysql.h>  // MariaDB C client header
 
  /**!
   * @brief Database client class to manage database connections and queries.
