@@ -34,6 +34,7 @@ onewifi_em_ctrl_CPPFLAGS = \
     -I$(top_srcdir)/OneWifi/source/utils \
     -I$(top_srcdir)/OneWifi/source/platform/rdkb \
     -I$(top_srcdir)/OneWifi/source/platform/common \
+    -I$(STAGING_DIR)/usr/include
     -DUNIT_TEST
 
 onewifi_em_ctrl_CXXFLAGS = $(INCLUDEDIRS) -g -DUNIT_TEST -Wall -Wextra -pedantic -Wpedantic -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wconversion -Wsign-conversion -Weffc++ -Wno-unused-parameter -std=c++17 -fsanitize=address -fsanitize=undefined #-Werror -O2
@@ -143,5 +144,5 @@ onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/OneWifi/source/platform/common/bus_common.c
  
  
-onewifi_em_ctrl_LDFLAGS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lmysqlcppconn -lrbus -fsanitize=address -fsanitize=undefined
+onewifi_em_ctrl_LDFLAGS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lrbus -fsanitize=address -fsanitize=undefined -lmariadb
 
