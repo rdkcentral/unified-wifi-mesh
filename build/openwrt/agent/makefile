@@ -66,6 +66,9 @@ LIBDIRS = \
 	-L/usr/local/ssl/lib/ \
 	-L$(STAGING_DIR)/usr/lib \
 
+CFLAGS += -DOPENWRT_BUILD
+CXXFLAGS += -DOPENWRT_BUILD
+
 ifeq ($(WITH_SAP), 1)
 LIBDIRS += -L$(AL_SAP_HOME)/build/lib
 endif

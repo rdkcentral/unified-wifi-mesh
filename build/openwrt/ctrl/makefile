@@ -52,7 +52,8 @@ CFLAGS += -DPLATFORM_OSX
 endif
 
 CXXFLAGS += $(INCLUDEDIRS) -g -DUNIT_TEST -Wall -Wextra -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wconversion -Wsign-conversion -Wno-unused-parameter -std=c++17 #-Werror -O2 -Weffc++
-
+CFLAGS += -DOPENWRT_BUILD
+CXXFLAGS += -DOPENWRT_BUILD
 ifeq ($(WITH_SAP), 1)
 CXXFLAGS += -DAL_SAP
 endif
