@@ -16,5 +16,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ##########################################################################
+if EM_EXTENDER
+SUBDIRS = agent
+else
 SUBDIRS = cli ctrl agent
+endif
  
