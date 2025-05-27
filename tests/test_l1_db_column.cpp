@@ -447,7 +447,7 @@ TEST(db_column_tTest, ValidNameValidTypeBoundaryArgs2) {
     std::cout << "Entering ValidNameValidTypeBoundaryArgs2 test";
     db_column_name_t name = "column8";
     db_data_type_t type = db_data_type_timestamp;
-    db_data_type_args_t args = (2^32) - 1;
+    db_data_type_args_t args = (1ULL << 32) - 1;
     db_column_t column(name, type, args);
     EXPECT_EQ(column.m_name, name);
     EXPECT_EQ(column.m_type, type);
