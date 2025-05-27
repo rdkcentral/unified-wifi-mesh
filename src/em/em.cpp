@@ -168,7 +168,9 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 		
         case em_cmd_type_channel_pref_query:
-            m_sm.set_state(em_state_agent_channel_pref_query);
+	    if (m_sm.get_state() == em_state_agent_topo_synchronized) {
+		    m_sm.set_state(em_state_agent_channel_pref_query);
+	    }
             break;
 
         case em_cmd_type_op_channel_report:
@@ -222,6 +224,10 @@ void em_t::orch_execute(em_cmd_t *pcmd)
 
         case em_cmd_type_beacon_report:
             m_sm.set_state(em_state_agent_beacon_report_pending);
+            break;
+
+        case em_cmd_type_ap_metrics_report:
+            m_sm.set_state(em_state_agent_ap_metrics_pending);
             break;
     
         default:
@@ -405,6 +411,12 @@ void em_t::handle_agent_state()
 
         case em_cmd_type_beacon_report:
             if (m_sm.get_state() == em_state_agent_beacon_report_pending) {
+                em_metrics_t::process_agent_state();
+            }
+            break;
+
+        case em_cmd_type_ap_metrics_report:
+            if (m_sm.get_state() == em_state_agent_ap_metrics_pending) {
                 em_metrics_t::process_agent_state();
             }
             break;
@@ -603,7 +615,7 @@ int em_t::set_bp_filter()
 int em_t::start_al_interface()
 {
 #ifdef AL_SAP
-    m_fd = g_sap->getSocketDescriptor();
+    m_fd = g_sap->getDataSocketDescriptor();
 #else
     int sock_fd;
     struct sockaddr_ll addr_ll;
@@ -703,7 +715,6 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     memcpy(sadr_ll.sll_addr, (multicast == true) ? multi_addr:hdr->dst, sizeof(mac_address_t));
 
     ret = static_cast<int>(sendto(sock, buff, len, 0, reinterpret_cast<const struct sockaddr*>(&sadr_ll), sizeof(struct sockaddr_ll)));
-    
     close(sock);
 #endif
     return ret;

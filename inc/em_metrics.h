@@ -453,12 +453,13 @@ class em_metrics_t {
 	 * This function generates an AP metrics TLV and stores it in the provided buffer.
 	 *
 	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 * @param[in] buff Reference to dm_bss_t object whose data gets packed for the message.
 	 *
 	 * @returns short The length of the created TLV.
 	 *
 	 * @note Ensure the buffer is large enough to hold the TLV.
 	 */
-	short create_ap_metrics_tlv(unsigned char *buff);
+	short create_ap_metrics_tlv(unsigned char *buff, dm_bss_t &dm_bss);
     
 	/**!
 	 * @brief Creates an AP extension metrics TLV.
@@ -466,6 +467,7 @@ class em_metrics_t {
 	 * This function initializes and creates a TLV (Type-Length-Value) for AP extension metrics.
 	 *
 	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 * @param[in] buff Reference to dm_bss_t object whose data gets packed for the message.
 	 *
 	 * @returns A short integer indicating the success or failure of the operation.
 	 * @retval 0 on success.
@@ -473,7 +475,7 @@ class em_metrics_t {
 	 *
 	 * @note Ensure the buffer is allocated with sufficient space before calling this function.
 	 */
-	short create_ap_ext_metrics_tlv(unsigned char *buff);
+	short create_ap_ext_metrics_tlv(unsigned char *buff, dm_bss_t &dm_bss);
     
 	/**!
 	 * @brief Creates a radio metrics TLV.

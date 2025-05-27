@@ -118,6 +118,9 @@ bool em_msg_t::get_bss_id(mac_address_t *mac)
         } else if (tlv->type == em_tlv_type_client_info) {
             memcpy(mac, tlv->value + sizeof(mac_address_t), sizeof(mac_address_t));
             return true;
+        } else if (tlv->type == em_tlv_type_ap_metrics) {
+            memcpy(mac, tlv->value, sizeof(mac_address_t));
+            return true;
         }
 
         len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
@@ -194,7 +197,10 @@ bool em_msg_t::get_radio_id(mac_address_t *mac)
 		} else if (tlv->type == em_tlv_type_channel_scan_rslt) {
 			memcpy(mac, tlv->value, sizeof(mac_address_t));
             return true;
-		}
+		} else if (tlv->type == em_tlv_type_radio_metric) {
+            memcpy(mac, tlv->value, sizeof(mac_address_t));
+            return true;
+        }
 
         len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
@@ -586,7 +592,7 @@ void em_msg_t::ap_metrics_query()
 
 void em_msg_t::ap_metrics_rsp()
 {
-    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_ap_metrics, mandatory, "17.2.22 of Wi-Fi Easy Mesh 5.0", 24);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_ap_metrics, mandatory, "17.2.22 of Wi-Fi Easy Mesh 5.0", 16);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_ap_ext_metric, (m_profile > em_profile_type_1) ? mandatory:bad, "17.2.61 of Wi-Fi Easy Mesh 5.0", 33);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_radio_metric, (m_profile > em_profile_type_1) ? optional:bad, "17.2.60 of Wi-Fi Easy Mesh 5.0", 13);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_assoc_sta_traffic_sts, optional, "17.2.35 of Wi-Fi Easy Mesh 5.0", 37);

@@ -310,7 +310,22 @@ public:
 	 */
 	int analyze_beacon_report(em_bus_event_t *evt, em_cmd_t *pcmd[]);
 
-    
+	/**!
+	 * @brief Analyzes the AP Metrics report.
+	 *
+	 * This function processes the AP Metrics report received in the event and command structures.
+	 *
+	 * @param[in] evt Pointer to the event structure containing the AP Metrics report.
+	 * @param[in] pcmd Array of pointers to command structures for processing.
+	 *
+	 * @returns int Status code indicating the success or failure of the analysis.
+	 * @retval 0 on success.
+	 * @retval Non-zero error code on failure.
+	 *
+	 * @note Ensure that the event and command structures are properly initialized before calling this function.
+	 */
+	int analyze_ap_metrics_report(em_bus_event_t *evt, em_cmd_t *pcmd[]);
+
 	/**!
 	 * @brief Refreshes the OneWiFi subdocument.
 	 *

@@ -16,157 +16,210 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "mysql_connection.h"
-#include <cppconn/driver.h>
-#include <cppconn/exception.h>
-#include <cppconn/resultset.h>
-#include <cppconn/statement.h>
-#include <string.h>
-#include <stdlib.h>
-#include "db_client.h"
-#include "em_base.h"
+ #include <string.h>
+ #include <stdlib.h>
+ #include <assert.h>
+ #include "db_client.h"
+ #include "em_base.h"
 
-int db_client_t::recreate_db()
-{
-	execute("drop database OneWifiMesh");
-	execute("create database OneWifiMesh");
-	return 0;
-}
+ // Structure to hold the result set and associated data
+ struct result_context_t {
+     MYSQL_RES *result;
+     MYSQL_ROW row;
+ };
 
-void *db_client_t::execute(const char *query)
-{
-    void *tmp = NULL;
+ int db_client_t::recreate_db()
+ {
+     if (!m_con) {
+         printf("%s:%d: No database connection\n", __func__, __LINE__);
+         return -1;
+     }
 
-    try {
-        sql::Statement *stmt;
-        sql::ResultSet *res;
+     // Drop existing database
+     if (mysql_query(m_con, "DROP DATABASE IF EXISTS OneWifiMesh")) {
+         printf("%s:%d: Error dropping database: %s\n", __func__, __LINE__, mysql_error(m_con));
+         return -1;
+     }
 
-        if (m_con) {
-            stmt = static_cast<sql::Connection *> (m_con)->createStatement();
-        } else {
-            printf("%s:%d: Query: %s m_con is NULL, exciting\n", __func__, __LINE__, query);
-            return tmp;
-        }
+     // Create new database
+     if (mysql_query(m_con, "CREATE DATABASE OneWifiMesh")) {
+         printf("%s:%d: Error creating database: %s\n", __func__, __LINE__, mysql_error(m_con));
+         return -1;
+     }
 
-        if (stmt) {
-            res = stmt->executeQuery(query);
-        } else {
-            printf("%s:%d: Query: %s stmt is NULL, exciting\n", __func__, __LINE__, query);
-            return tmp;
-        }
-        tmp = res;
-        delete stmt;
+     return 0;
+ }
 
-    } catch (sql::SQLException &e) {
-        //printf("%s:%d: Exception in executing query, error code:%d\n", __func__, __LINE__, e.getErrorCode());
-    }
+ void *db_client_t::execute(const char *query)
+ {
+     if (!m_con) {
+         printf("%s:%d: Query: %s m_con is NULL, exiting\n", __func__, __LINE__, query);
+         return NULL;
+     }
 
-    return tmp;
-}
+     if (mysql_query(m_con, query)) {
+         printf("%s:%d: Query failed: %s, Error: %s\n", __func__, __LINE__, query, mysql_error(m_con));
+         return NULL;
+     }
 
-bool db_client_t::next_result(void *ctx)
-{
-    bool ret = false;
+     MYSQL_RES *result = mysql_store_result(m_con);
+     if (!result) {
+         // This might not be an error - could be a query that doesn't return results (INSERT, UPDATE, etc.)
+         if (mysql_field_count(m_con) == 0) {
+             return NULL;  // Query was successful but didn't return data
+         } else {
+             printf("%s:%d: Error storing result: %s\n", __func__, __LINE__, mysql_error(m_con));
+             return NULL;
+         }
+     }
 
-    if (ctx == NULL) {
-        return ret;
-    }
+     // Create a context structure to hold the result and current row
+     result_context_t *ctx = new result_context_t;
+     ctx->result = result;
+     ctx->row = NULL;
 
-    try {
-        sql::ResultSet *res = static_cast<sql::ResultSet *> (ctx);
-        ret = res->next();
-        if (ret == false) {
-            //printf("%s:%d: result set deleted\n", __func__, __LINE__);
-            delete res;    
-        }
+     return ctx;
+ }
 
-    } catch (sql::SQLException &e) {
-        printf("%s:%d: Exception, error code:%d\n", __func__, __LINE__, e.getErrorCode());
-    }
+ bool db_client_t::next_result(void *ctx)
+ {
+     if (ctx == NULL) {
+         return false;
+     }
 
-    return ret;
-}
+     result_context_t *res_ctx = static_cast<result_context_t *>(ctx);
+     res_ctx->row = mysql_fetch_row(res_ctx->result);
 
-char *db_client_t::get_string(void *ctx, char *str, unsigned int col)
-{
-    if (ctx == NULL) {
-        return NULL;
-    }
+     if (res_ctx->row == NULL) {
+         // No more rows - clean up
+         mysql_free_result(res_ctx->result);
+         delete res_ctx;
+         return false;
+     }
 
-    try {
-        sql::ResultSet *res = static_cast<sql::ResultSet *> (ctx);
-        snprintf(str, strlen(res->getString(col).c_str()) + 1, "%s", res->getString(col).c_str());
-        //printf("%s:%d: str:%s\n", __func__, __LINE__, str);
-    } catch (sql::SQLException &e) {
-        printf("%s:%d: Exception, error code:%d\n", __func__, __LINE__, e.getErrorCode());
-    }
+     return true;
+ }
 
-    return str;
-}
+ char *db_client_t::get_string(void *ctx, char *str, unsigned int col)
+ {
+     if (ctx == NULL) {
+         return NULL;
+     }
 
-int db_client_t::get_number(void *ctx, unsigned int col)
-{
-    int n;
+     result_context_t *res_ctx = static_cast<result_context_t *>(ctx);
 
-    assert(ctx != NULL);
+     if (res_ctx->row == NULL || res_ctx->row[col - 1] == NULL) {
+         return NULL;
+     }
 
-    try {
-        sql::ResultSet *res = static_cast<sql::ResultSet *> (ctx);
-        n = res->getInt(col);
+     // Note: Column indices in MariaDB C API are 0-based
+     unsigned long *lengths = mysql_fetch_lengths(res_ctx->result);
+     if (!lengths) {
+         return NULL;
+     }
 
-    } catch (sql::SQLException &e) {
-        printf("%s:%d: Exception, error code:%d\n", __func__, __LINE__, e.getErrorCode());
-    }
+     snprintf(str, lengths[col - 1] + 1, "%s", res_ctx->row[col - 1]);
+     return str;
+ }
 
-    return n;
-}
+ int db_client_t::get_number(void *ctx, unsigned int col)
+ {
+     assert(ctx != NULL);
 
-int db_client_t::connect(const char *path)
-{
-    int ret = 0;
-    char *tmp;
+     result_context_t *res_ctx = static_cast<result_context_t *>(ctx);
 
-    if (path == NULL || strlen(path) <= 0) return -1;
+     if (res_ctx->row == NULL || res_ctx->row[col - 1] == NULL) {
+         return 0;
+     }
 
-    if ((tmp = strchr( const_cast<char *> (path), '@')) == NULL) {
-        printf("%s:%d: invalid path: %s\n", __func__, __LINE__, path);
-        return -1;
-    }
+     // Note: Column indices in MariaDB C API are 0-based
+     return atoi(res_ctx->row[col - 1]);
+ }
 
-    *tmp = 0; tmp++;
+ int db_client_t::connect(const char *path)
+ {
+     if (path == NULL || strlen(path) <= 0) {
+         return -1;
+     }
 
-    printf("%s:%d: user:%s pass:%s\n", __func__, __LINE__, path, tmp); 
-    try {
-        m_driver = get_driver_instance();
-        m_con = static_cast<sql::Driver *> (m_driver)->connect("tcp://127.0.0.1:3306", path, tmp);
+     // Parse the path format: "username@password"
+     char *tmp = strchr(const_cast<char *>(path), '@');
+     if (tmp == NULL) {
+         printf("%s:%d: invalid path: %s\n", __func__, __LINE__, path);
+         return -1;
+     }
 
-        static_cast<sql::Connection*> (m_con)->setSchema("OneWifiMesh");
+     // Split username and password
+     char username[256];
+     char password[256];
 
+     size_t user_len = tmp - path;
+     if (user_len >= sizeof(username)) {
+         printf("%s:%d: username too long\n", __func__, __LINE__);
+         return -1;
+     }
 
-    } catch (sql::SQLException &e) {
-        printf("%s:%d: Exception in connecting to database, error code:%d\n", __func__, __LINE__, e.getErrorCode());
-        ret = -1;
-    }
+     strncpy(username, path, user_len);
+     username[user_len] = '\0';
 
-    return ret;
-}
+     tmp++; // Move past '@'
+     strncpy(password, tmp, sizeof(password) - 1);
+     password[sizeof(password) - 1] = '\0';
 
-int db_client_t::init(const char *path)
-{
-    if (connect(path) != 0) {
-        printf("%s:%d: Connect failed\n", __func__, __LINE__);
-        return -1;
-    }
+     printf("%s:%d: user:%s pass:%s\n", __func__, __LINE__, username, password);
 
-    return 0;
-}
+     // Initialize MySQL connection
+     m_con = mysql_init(NULL);
+     if (m_con == NULL) {
+         printf("%s:%d: mysql_init() failed\n", __func__, __LINE__);
+         return -1;
+     }
 
-db_client_t::db_client_t()
-{
+     // Connect to the database
+     if (mysql_real_connect(m_con,
+                           "localhost",
+                           username,
+                           password,
+                           NULL,        // Don't select database yet
+                           3306,       // Default port
+                           NULL,       // Unix socket
+                           0) == NULL) {
+         printf("%s:%d: mysql_real_connect() failed: %s\n", __func__, __LINE__,
+                mysql_error(m_con));
+         mysql_close(m_con);
+         m_con = NULL;
+         return -1;
+     }
 
-}
+     // Select the database
+     if (mysql_select_db(m_con, "OneWifiMesh") != 0) {
+         printf("%s:%d: Error selecting database: %s\n", __func__, __LINE__,
+                mysql_error(m_con));
+         // Don't fail here - the database might not exist yet
+     }
 
-db_client_t::~db_client_t()
-{
+     return 0;
+ }
 
-}
+ int db_client_t::init(const char *path)
+ {
+     if (connect(path) != 0) {
+         printf("%s:%d: Connect failed\n", __func__, __LINE__);
+         return -1;
+     }
+
+     return 0;
+ }
+
+ db_client_t::db_client_t()
+ {
+     m_con = NULL;
+ }
+
+ db_client_t::~db_client_t()
+ {
+     if (m_con) {
+         mysql_close(m_con);
+         m_con = NULL;
+     }
+ }

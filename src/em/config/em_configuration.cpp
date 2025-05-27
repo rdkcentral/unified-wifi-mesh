@@ -275,13 +275,13 @@ int em_configuration_t::send_autoconfig_renew_msg()
         return -1;
     }
 
+    dm_easy_mesh_t::macbytes_to_string (get_radio_interface_mac(), mac_str);
     if (send_frame(buff, len)  < 0) {
-        printf("%s:%d: Autoconfig Renew send failed, error:%d\n", __func__, __LINE__, errno);
+        printf("%s:%d: Autoconfig Renew send failed, error:%d for %s\n", __func__, __LINE__, errno, mac_str);
         return -1;
     }
 
     m_renew_tx_cnt++;
-    dm_easy_mesh_t::macbytes_to_string (get_radio_interface_mac(), mac_str);
     printf("%s:%d: AutoConfig Renew (%d) Send Successful for %s freq band=%d\n", __func__, __LINE__, m_renew_tx_cnt, mac_str, get_band());
 
     return static_cast<int> (len);
@@ -438,7 +438,7 @@ int em_configuration_t::create_operational_bss_tlv_topology(unsigned char *buff)
 	ap->radios_num = 1;  //Hard-Coding since topology response is per radio
 	radio = ap->radios;
 	for (i = 0; i < dm->get_num_radios(); i++) {
-		if ((dm->get_radio_by_ref(i).get_radio_interface_mac(), get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
+		if (memcmp(dm->get_radio_by_ref(i).get_radio_interface_mac(), get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
 			memcpy(radio->ruid, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t));
 			radio->bss_num = 0;
 			bss = radio->bss;
@@ -1753,7 +1753,7 @@ int em_configuration_t::handle_eht_operations_tlv(unsigned char *buff)
     unsigned char *tmp = buff;
 
     unsigned char num_radios;
-    unsigned char num_bss;
+    unsigned char num_bss = 0;
 
     em_eht_operations_t eht_ops;
 
@@ -3137,7 +3137,6 @@ int em_configuration_t::handle_encrypted_settings()
         tmp_len -= static_cast<int> (sizeof(data_elem_attr_t) + htons(attr->len));
         attr = reinterpret_cast<data_elem_attr_t *> (reinterpret_cast<unsigned char *>(attr) + sizeof(data_elem_attr_t) + htons(attr->len));
     }
-
     get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (&radioconfig), sizeof(radioconfig));
     set_state(em_state_agent_owconfig_pending);
     if (get_service_type() == em_service_type_agent) {
@@ -3170,9 +3169,6 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 		radio = dm->get_radio(i);
 		if (memcmp(radio->m_radio_info.id.ruid, get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
 			radio_exists = true;
-			if (radio->m_radio_info.band == em_freq_band_60) {
-				auth_type = 0x0200;
-			}
 			break;
 		}
 	}
@@ -3184,6 +3180,10 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 		if (no_of_haultype >= em_haul_type_max) {
 			no_of_haultype = em_haul_type_max ;
 		}
+	}
+
+	if (get_band() == 2) {
+		auth_type = 0x0200;
 	}
 
 	printf("%s:%d No of haultype=%d radio no of bss=%d \n", __func__, __LINE__,no_of_haultype, radio->m_radio_info.number_of_bss);

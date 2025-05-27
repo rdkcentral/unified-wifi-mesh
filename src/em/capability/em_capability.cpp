@@ -282,17 +282,17 @@ int em_capability_t::send_client_cap_query()
     tmp += (sizeof (em_tlv_t));
     len += (sizeof (em_tlv_t));
     if (em_msg_t(em_msg_type_client_cap_query, em_profile_type_3, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
-        printf("Channel Selection Request msg failed validation in tnx end\n");
+        printf("Capability Query msg failed validation in tnx end\n");
         return -1;
     }
 
     if (send_frame(buff, static_cast<unsigned int> (len))  < 0) {
-        printf("%s:%d: Channel Selection Request msg failed, error:%d\n", __func__, __LINE__, errno);
+        printf("%s:%d: Capability Query msg failed, error:%d\n", __func__, __LINE__, errno);
         return -1;
     }
 
     m_cap_query_tx_cnt++;
-    printf("%s:%d: Capability Query (%d) Send Successful\n", __func__, __LINE__, m_cap_query_tx_cnt);
+    printf("%s:%d: Capability Query (%d) Send Successful for sta:%s\n", __func__, __LINE__, m_cap_query_tx_cnt, evt_param->u.args.args[1]);
 
     return static_cast<int> (len);
 }
@@ -379,6 +379,7 @@ int em_capability_t::send_client_cap_report_msg(mac_address_t sta, bssid_t bss)
     unsigned short msg_id = em_msg_type_client_cap_rprt;
     dm_easy_mesh_t *dm = get_data_model();
     mac_address_t ctrl_mac = {0xe4, 0x5f, 0x01, 0x40, 0x70, 0x5b};
+    mac_addr_str_t mac_str;
 
     //memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t)); 
     memcpy(tmp, ctrl_mac, sizeof(mac_address_t));
@@ -444,9 +445,12 @@ int em_capability_t::send_client_cap_report_msg(mac_address_t sta, bssid_t bss)
     }
 
     if (send_frame(buff, static_cast<unsigned int> (len))  < 0) {
-        printf("%s:%d: CLient Capablity report send failed, error:%d\n", __func__, __LINE__, errno);
+        printf("%s:%d: Client Capablity report send failed, error:%d\n", __func__, __LINE__, errno);
         return -1;
     }
+
+    dm_easy_mesh_t::macbytes_to_string(sta, mac_str);
+    printf("%s:%d: Client Capablity report Send Successful for sta:%s\n", __func__, __LINE__, mac_str);
 
     return static_cast<int> (len);
 }

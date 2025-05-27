@@ -156,12 +156,10 @@ void dm_sta_t::encode(cJSON *obj, em_get_sta_list_reason_t reason)
     dm_sta_t::decode_sta_capability(this);
     dm_sta_t::decode_beacon_report(this);
     dm_easy_mesh_t::macbytes_to_string(m_sta_info.id, mac_str);
-    if (strlen(m_sta_info.sta_client_type) == 0) {
-        snprintf(client_info, sizeof(client_info), "%s", mac_str);
-    } else {
-        snprintf(client_info, sizeof(client_info), "%s (%s)", m_sta_info.sta_client_type, mac_str);
+    if (strlen(m_sta_info.sta_client_type) != 0) {
+        cJSON_AddStringToObject(obj, "ClientType", m_sta_info.sta_client_type);
     }
-    cJSON_AddStringToObject(obj, "MACAddress", client_info);
+    cJSON_AddStringToObject(obj, "MACAddress", mac_str);
     cJSON_AddBoolToObject(obj, "Associated", m_sta_info.associated);
 
     if (reason == em_get_sta_list_reason_none) {
