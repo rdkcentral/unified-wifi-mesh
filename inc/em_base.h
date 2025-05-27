@@ -32,6 +32,8 @@ extern "C"
 #include "wifi_webconfig.h"
 #include <openssl/evp.h>
 #include <uuid/uuid.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include "ec_base.h"
 
 #define EM_MAX_NETWORKS	5
@@ -165,6 +167,11 @@ extern "C"
 #define EM_AGENT_PATH   "agent"
 #define EM_CTRL_PATH    "ctrl"
 #define EM_CLI_PATH "cli"
+#define EM_AGENT_PORT	0xc000
+#define EM_CTRL_PORT    0xc001
+#define EM_CERT_FILE	"../config/cert.crt"
+#define EM_KEY_FILE	"../config/cert.key"
+
 #define EM_CFG_FILE "/nvram/EasymeshCfg.json"
 
 #define EM_MAX_SSID_LEN                33 
@@ -2255,6 +2262,16 @@ typedef struct {
 } em_bss_info_t;
 
 typedef struct {
+    mac_address_t   nbr;
+    float   pos_x;
+    float   pos_y;
+    float   pos_z;
+    mac_address_t   next_hop;
+    unsigned int num_hops;
+    int path_loss; 
+} em_neighbor_info_t;
+
+typedef struct {
     bool  mac_addr_valid;
     bool  link_id_valid;
     em_interface_t  ruid;
@@ -3084,7 +3101,12 @@ typedef enum {
 } em_cli_type_t;
 
 typedef struct {
-    void *user_data; 
+	struct sockaddr_in  addr;
+	bool	valid;
+} user_data_t;
+
+typedef struct {
+	user_data_t user_data; 
 	em_editor_callback_t	cb_func;
 	em_cli_type_t	cli_type;
 } em_cli_params_t;

@@ -25,6 +25,7 @@
 
 struct cJSON;
 class em_cmd_t;
+class em_cmd_exec_t;
 class em_provisioning_t {
 
     
@@ -340,7 +341,7 @@ class em_provisioning_t {
 	 *
 	 * @note This is a pure virtual function and must be implemented by the derived class.
 	 */
-	virtual int send_cmd(em_cmd_type_t type, em_service_type_t svc, uint8_t *buff, unsigned int len) = 0;
+	virtual int send_cmd(em_cmd_exec_t *exec, em_cmd_type_t type, em_service_type_t svc, uint8_t *buff, unsigned int len) = 0;
     
 	/**!
 	 * @brief Retrieves the current command.

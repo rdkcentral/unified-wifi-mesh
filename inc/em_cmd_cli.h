@@ -30,7 +30,25 @@ class em_cmd_cli_t : public em_cmd_exec_t {
     em_cli_t& m_cli = g_cli;
 public:
     static em_cmd_t m_client_cmd_spec[];
+	struct sockaddr_in	m_ctrl_addr;
 public:
+    
+	/**!
+	 * @brief Retrieves the edited network node.
+	 *
+	 * This function fetches the details of the edited network node based on the provided header.
+	 *
+	 * @param[in] header The header information used to identify the node.
+	 * @param[out] node Pointer to the network node structure where the edited node details will be stored.
+	 * @param[out] buff Buffer to store additional information or data related to the node.
+	 *
+	 * @returns int Status code indicating success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the node and buff are properly initialized before calling this function.
+	 */
+	struct sockaddr_in *get_ep_addr() { return &m_ctrl_addr; }
     
 	/**!
 	 * @brief Retrieves the edited network node.
@@ -74,7 +92,7 @@ public:
 	 *
 	 * @note Ensure that the em_cmd_t object is properly initialized before passing it to this constructor.
 	 */
-	em_cmd_cli_t(em_cmd_t& obj);
+	em_cmd_cli_t(em_cmd_t& obj, struct sockaddr_in& addr);
 	
 	/**!
 	 * @brief Destructor for the em_cmd_cli_t class.
