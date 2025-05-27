@@ -328,9 +328,9 @@ func newMeshViews(platform string, dump *os.File) *MeshViews {
 	nodes[0].Type = etree.NodeTypeObject
 	nodes[0].Children = nil
 
-	return &MeshViews {
+	return &MeshViews{
 		platform:               platform,
-		scrollIndex:			0,
+		scrollIndex:            0,
 		menuWidth:              35,
 		menuInstructionsHeight: 3,
 		bottomSpace:            10,
@@ -701,7 +701,7 @@ func (m MeshViews) View() string {
 	}
 
 	end := len(m.scrollContent) - 1
-	if end > start + m.viewHeight {
+	if end > start+m.viewHeight {
 		end = start + m.viewHeight
 	}
 

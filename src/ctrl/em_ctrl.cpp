@@ -317,6 +317,12 @@ void em_ctrl_t::handle_set_dev_test(em_bus_event_t *evt)
 
 }
 
+void em_ctrl_t::handle_ssh_status(em_bus_event_t *evt)
+{
+    m_ctrl_cmd->send_result(em_cmd_out_status_success);
+
+}
+
 void em_ctrl_t::handle_get_dm_data(em_bus_event_t *evt)
 {           
     em_cmd_params_t params = evt->params;
@@ -506,6 +512,10 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
 
         case em_bus_event_type_mld_reconfig:
 			handle_mld_reconfig(evt);
+			break;
+
+        case em_bus_event_type_ssh_status:
+			handle_ssh_status(evt);
 			break;
 	
 	

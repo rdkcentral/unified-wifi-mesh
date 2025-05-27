@@ -74,6 +74,7 @@ em_cmd_params_t spec_params[] = {
     {.u = {.args = {2, {"", "", "", "", ""}, "MLDConfig"}}},
     {.u = {.args = {2, {"", "", "", "", ""}, "MLDReconfig"}}},
 	{.u = {.args = {2, {"", "", "", "", ""}, "DevTest.json"}}},
+    {.u = {.args = {2, {"", "", "", "", ""}, "PING"}}},
 	{.u = {.args = {0, {"", "", "", "", ""}, "max"}}},
 };
 
@@ -108,7 +109,8 @@ em_cmd_t em_cmd_cli_t::m_client_cmd_spec[] = {
     em_cmd_t(em_cmd_type_get_mld_config, spec_params[26]),
     em_cmd_t(em_cmd_type_mld_reconfig, spec_params[27]),
     em_cmd_t(em_cmd_type_set_dev_test, spec_params[28]),
-    em_cmd_t(em_cmd_type_max, spec_params[29]),
+    em_cmd_t(em_cmd_type_get_ssh_status, spec_params[29]),
+    em_cmd_t(em_cmd_type_max, spec_params[30]),
 };
 
 int em_cmd_cli_t::get_edited_node(em_network_node_t *node, const char *header, char *buff)
@@ -461,6 +463,12 @@ int em_cmd_cli_t::execute(char *result)
             snprintf(info->name, sizeof(info->name), "%s", param->u.args.fixed_args);
             break;
 
+        case em_cmd_type_get_ssh_status:
+            bevt->type = em_bus_event_type_ssh_status;
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->u.args.fixed_args, sizeof(em_long_string_t));
+            break;
+
         default:
             break;
     }
@@ -492,7 +500,7 @@ int em_cmd_cli_t::execute(char *result)
     
     /* Receive result. */
     if ((ret = SSL_read(ssl, (unsigned char *)result, EM_MAX_EVENT_DATA_LEN)) <= 0) {
-        snprintf(result, sizeof(em_long_string_t), "%s:%d: result read error on socket, err:%d\n", __func__, __LINE__, errno);
+        printf("%s:%d: result read error on socket, err:%d\n", __func__, __LINE__, errno);
         close(dsock);
         SSL_free(ssl);
         SSL_CTX_free(ctx);

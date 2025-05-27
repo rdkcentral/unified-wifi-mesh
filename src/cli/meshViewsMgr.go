@@ -1,21 +1,22 @@
 package main
 
-/*          
+/*
 #cgo CFLAGS: -I../../inc -I../../../OneWifi/include -I../../../OneWifi/source/utils -I../../../halinterface/include
 #cgo LDFLAGS: -L../../install/lib -lemcli -lcjson -lreadline
 #include <stdio.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 #include "em_cli_apis.h"
-*/  
+*/
 import "C"
 
 import (
 	"os"
 	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
-	overlay "github.com/rmhubbert/bubbletea-overlay"
 	"github.com/davecgh/go-spew/spew"
+	overlay "github.com/rmhubbert/bubbletea-overlay"
 )
 
 type sessionState int
@@ -27,31 +28,31 @@ const (
 
 // MeshViewsMgr implements tea.Model, and manages the browser UI.
 type MeshViewsMgr struct {
-	state        		sessionState
-	windowWidth  		int
-	windowHeight 		int
-	meshSettings   		tea.Model
-	meshViews   		tea.Model
-	overlay      		tea.Model
-	dump           		*os.File
-    ticker            	*time.Ticker
-	quit		chan bool
-	timerActive			bool
+	state        sessionState
+	windowWidth  int
+	windowHeight int
+	meshSettings tea.Model
+	meshViews    tea.Model
+	overlay      tea.Model
+	dump         *os.File
+	ticker       *time.Ticker
+	quit         chan bool
+	timerActive  bool
 }
 
 func (m *MeshViewsMgr) timerHandler() {
-    for {
-        select {
-        case <-m.ticker.C:
-            if program != nil {
-                program.Send(refreshUIMsg{})
-            }
+	for {
+		select {
+		case <-m.ticker.C:
+			if program != nil {
+				program.Send(refreshUIMsg{})
+			}
 
-        case <-m.quit:
-            m.ticker.Stop()
-            return
-        }
-    }
+		case <-m.quit:
+			m.ticker.Stop()
+			return
+		}
+	}
 }
 
 func newMeshViewsMgr(platform string) *MeshViewsMgr {
@@ -62,23 +63,23 @@ func newMeshViewsMgr(platform string) *MeshViewsMgr {
 	meshSettings := newMeshSettings(platform, dump)
 	meshViews := newMeshViews(platform, dump)
 
-	return &MeshViewsMgr {
-		meshSettings:			meshSettings,
-		meshViews: 		meshViews,
-		timerActive:	false,
-		dump:	dump,
-	}	
+	return &MeshViewsMgr{
+		meshSettings: meshSettings,
+		meshViews:    meshViews,
+		timerActive:  false,
+		dump:         dump,
+	}
 }
 
 func (m *MeshViewsMgr) ActivateTimer(enable bool) {
 	if m.timerActive == false && enable == true {
 		spew.Fprintf(m.dump, "Starting timer because remote IP is valid\n")
-    	m.ticker = time.NewTicker(5 * time.Second)
+		m.ticker = time.NewTicker(5 * time.Second)
 		m.timerActive = true
 		go m.timerHandler()
 	} else if m.timerActive == true && enable == false {
 		spew.Fprintf(m.dump, "Stopping timer because remote IP is invalid\n")
-		m.ticker.Stop();	
+		m.ticker.Stop()
 		m.timerActive = false
 	}
 }
@@ -95,13 +96,27 @@ func (m *MeshViewsMgr) Init() tea.Cmd {
 		0,
 	)
 
-    m.quit = make(chan bool)
+	m.quit = make(chan bool)
 
 	return nil
 }
 
 // Update handles event and manages internal state. It partly implements the tea.Model interface.
 func (m *MeshViewsMgr) Update(message tea.Msg) (tea.Model, tea.Cmd) {
+	cmds := []tea.Cmd{}
+
+	switch m.state {
+	case settingsView:
+		var cmd tea.Cmd
+		m.meshSettings, cmd = m.meshSettings.Update(message)
+		cmds = append(cmds, cmd)
+
+	case meshView:
+		var cmd tea.Cmd
+		m.meshViews, cmd = m.meshViews.Update(message)
+		cmds = append(cmds, cmd)
+	}
+
 	switch msg := message.(type) {
 	case tea.WindowSizeMsg:
 		m.windowWidth = msg.Width
@@ -124,21 +139,12 @@ func (m *MeshViewsMgr) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	fg, fgCmd := m.meshSettings.Update(message)
-	m.meshSettings = fg
-
 	if C.is_remote_addr_valid() == true {
 		m.ActivateTimer(true)
 	} else {
 		m.ActivateTimer(false)
 
 	}
-	
-	bg, bgCmd := m.meshViews.Update(message)
-	m.meshViews = bg
-
-	cmds := []tea.Cmd{}
-	cmds = append(cmds, fgCmd, bgCmd)
 
 	return m, tea.Batch(cmds...)
 }

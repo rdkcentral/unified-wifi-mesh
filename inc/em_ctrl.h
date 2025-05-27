@@ -310,6 +310,7 @@ public:
 	void handle_get_dev_test(em_bus_event_t *evt);
 	void handle_set_dev_test(em_bus_event_t *evt);
     
+	void handle_ssh_status(em_bus_event_t *evt);
 	/**!
 	 * @brief Handles the get database event.
 	 *
