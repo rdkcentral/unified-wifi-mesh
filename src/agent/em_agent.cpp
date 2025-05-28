@@ -952,7 +952,7 @@ void em_agent_t::input_listener()
     printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data.raw_data.bytes);
 
     g_agent.io_process(em_bus_event_type_dev_init, (unsigned char *)data.raw_data.bytes, data.raw_data_len);
-    free(data.raw_data.bytes);
+    get_bus_descriptor()->bus_data_free_fn(&data);
 
     if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_WEBCONFIG_DOC_DATA_NORTH, (void *)&em_agent_t::onewifi_cb, NULL, 0) != 0) {
         printf("%s:%d bus get failed\n", __func__, __LINE__);

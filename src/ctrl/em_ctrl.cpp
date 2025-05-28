@@ -45,6 +45,7 @@
 #include "em_orch_ctrl.h"
 #include "util.h"
 #include "wifi_util.h"
+#include "tr_181.h"
 
 #ifdef AL_SAP
 #include "al_service_access_point.h"
@@ -816,7 +817,16 @@ void em_ctrl_t::start_complete()
 	mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 	char service_name[] = "EasyMesh_Ctrl_Service";
 	int i = 0;
-
+	bus_error_t bus_error_val;
+	int num_elements = 0;
+	bus_data_element_t dataElements[] = {
+						{ DEVICE_WIFI_DATAELEMENTS_NETWORK_COLOCATEDAGENTID, bus_element_type_method,
+							{get_device_wifi_dataelements_network_colocated_agentid, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+							{ bus_data_type_string, false, 0, 0, 0, NULL } },
+						{ DEVICE_WIFI_DATAELEMENTS_NETWORK_CONTROLLERID, bus_element_type_method,
+							{ get_device_wifi_dataelements_network_controllerid, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+							{ bus_data_type_string, false, 0, 0, 0, NULL } }
+					};
 	if (m_data_model.is_initialized() == false) {
 		printf("%s:%d: Database not initialized ... needs reset\n", __func__, __LINE__);
 		return;
@@ -846,6 +856,12 @@ void em_ctrl_t::start_complete()
    	} else {
        	printf("%s:%d Collocated agent ID: %s publish  fail\n",__func__, __LINE__, al_mac_str);
    	}
+
+	num_elements = (sizeof(dataElements) / sizeof(bus_data_element_t));
+        bus_error_val = desc->bus_reg_data_element_fn(&m_bus_hdl, dataElements, num_elements);
+        if (bus_error_val != bus_error_success) {
+            printf("%s bus: bus_regDataElements failed\n", __func__);
+        }
 
 	// build initial network topology
 	init_network_topology();

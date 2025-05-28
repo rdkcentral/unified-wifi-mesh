@@ -572,6 +572,25 @@ public:
 	 */
 	em_t *find_em_for_msg_type(unsigned char *data, unsigned int len, em_t *al_em);
 
+	/**!
+	* @brief Callback registered for getting colocated agent ID
+	*
+	* He bus calls this API for Device.WiFi.DataElements.Network.ColocatedAgentID
+	* @param[in] name of the event
+	* @param[i] p_data pointer to get the data
+	* @param[i] user_data get the bus handle
+	*/
+	static bus_error_t get_device_wifi_dataelements_network_colocated_agentid (char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
+	/**!
+	*
+	* @brief Callback registered for getting controller ID
+	* He bus calls this API for Device.WiFi.DataElements.Network.ControllerID
+	* @param[in] name of the event
+	* @param[i] p_data pointer to get the data
+	* @param[i] user_data get the bus handle
+	*/
+	static bus_error_t get_device_wifi_dataelements_network_controllerid (char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 #ifdef AL_SAP
     
 	/**!
