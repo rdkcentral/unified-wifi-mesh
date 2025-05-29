@@ -266,11 +266,7 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
             break;
         }
         case ec_frame_type_recfg_auth_req: {
-            em_printfout("Encap DPP frame type (%d) not handled", ec_frame_type);
-            std::vector<uint8_t> encap_frame_vec(encap_frame, encap_frame + encap_frame_len);
-            // Will be compared against incoming presence announcement hash and mac-addr
-            m_stored_recfg_auth_frames.push_back(encap_frame_vec); 
-            did_finish = true;
+            did_finish = m_send_action_frame(dest_mac, encap_frame, encap_frame_len, 0, 0);
             break;
         }
         default:

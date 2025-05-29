@@ -623,9 +623,7 @@ public:
 	 * @param[in] jws_payload The JWS Payload.
 	 * @param[in] sign_key The key to sign the connector with (creating 'sig').
 	 *
-	 * @return const char* The generated connector, or NULL on failure.
-	 *
-	 * @note The caller is responsible for freeing the returned memory.
+	 * @return std::string The generated connector, empty on failure
 	 *
 	 * @paragraph EasyConnect 4.2.1.1 Digital Signature Computation
 	 * The procedures to compute the digital signature of a Connector and the procedure to verify such signature are described
@@ -639,7 +637,7 @@ public:
 	 * If “sig” is the result of the signature, the Connector is then:
 	 * base64url(UTF8(JWS Protected Header)) | ‘.’ | base64url(JWS Payload) | ‘.’ | base64url(sig)
 	 */
-	static const char* generate_connector(const cJSON* jws_header, const cJSON* jws_payload, SSL_KEY* sign_key);
+	static std::string generate_connector(const cJSON* jws_header, const cJSON* jws_payload, SSL_KEY* sign_key);
 
     
 	/**
@@ -747,6 +745,7 @@ public:
 	 *                   Possible keys are "groupID" and "netRole".
 	 * @param[in] net_access_key The network access key used for encryption.
 	 * @param[in] expiry Optional expiry date for the payload in ISO 8601 format.
+	 * @param version Conditionally included DPP Version number (only used for Reconfiguration C-Connector generation) according to EC
 	 *
 	 * @return cJSON* Pointer to the created JWS payload on success, nullptr otherwise.
 	 *
@@ -770,7 +769,7 @@ public:
 	 *        "expiry":"2019-01-31T22:00:00+02:00"
 	 *   }
 	 */
-	static cJSON* create_jws_payload(ec_connection_context_t& c_ctx, const std::vector<std::unordered_map<std::string, std::string>>& groups, SSL_KEY* net_access_key, std::optional<std::string> expiry = std::nullopt);
+	static cJSON* create_jws_payload(ec_connection_context_t& c_ctx, const std::vector<std::unordered_map<std::string, std::string>>& groups, SSL_KEY* net_access_key, std::optional<std::string> expiry = std::nullopt, std::optional<uint8_t> version = std::nullopt);
 
     
 	/**
