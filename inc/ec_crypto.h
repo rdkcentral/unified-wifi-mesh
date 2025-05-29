@@ -745,6 +745,7 @@ public:
 	 *                   Possible keys are "groupID" and "netRole".
 	 * @param[in] net_access_key The network access key used for encryption.
 	 * @param[in] expiry Optional expiry date for the payload in ISO 8601 format.
+	 * @param version Conditionally included DPP Version number (only used for Reconfiguration C-Connector generation) according to EC
 	 *
 	 * @return cJSON* Pointer to the created JWS payload on success, nullptr otherwise.
 	 *
@@ -768,7 +769,7 @@ public:
 	 *        "expiry":"2019-01-31T22:00:00+02:00"
 	 *   }
 	 */
-	static cJSON* create_jws_payload(ec_connection_context_t& c_ctx, const std::vector<std::unordered_map<std::string, std::string>>& groups, SSL_KEY* net_access_key, std::optional<std::string> expiry = std::nullopt);
+	static cJSON* create_jws_payload(ec_connection_context_t& c_ctx, const std::vector<std::unordered_map<std::string, std::string>>& groups, SSL_KEY* net_access_key, std::optional<std::string> expiry = std::nullopt, std::optional<uint8_t> version = std::nullopt);
 
     
 	/**
