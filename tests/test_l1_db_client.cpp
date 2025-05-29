@@ -224,7 +224,7 @@ TEST_F(db_client_t_Test, RetrieveStringWithNullResultAndNullContext) {
  * | 01 | Initialize the database connection with a valid path | dbClient->init("/valid/path/to/database.db") | result = 0 | Should Pass |
  * | 02 | Verify the result of the initialization | ASSERT_EQ(result, 0) | result = 0 | Should be successful |
  */
-TEST(db_client_t_Test, ConnectWithValidDatabasePath) {
+TEST(db_client_tTest, ConnectWithValidDatabasePath) {
     std::cout << "Entering ConnectWithValidDatabasePath test" << std::endl;
     db_client_t* dbClient = new db_client_t();
     int result = dbClient->init("/valid/path/to/database.db");
@@ -252,7 +252,7 @@ TEST(db_client_t_Test, ConnectWithValidDatabasePath) {
  * | 01 | Call db_client_t::init with an empty path | path = "" | result = -1 | Should Pass |
  * | 02 | Verify the result of the init function | result = -1 | Assertion: ASSERT_EQ(result, -1) | Should be successful |
  */
-TEST(db_client_t_Test, ConnectWithEmptyPath) {
+TEST(db_client_tTest, ConnectWithEmptyPath) {
     std::cout << "Entering ConnectWithEmptyPath test" << std::endl;
     db_client_t* dbClient = new db_client_t();
     int result = dbClient->init("");
@@ -280,7 +280,7 @@ TEST(db_client_t_Test, ConnectWithEmptyPath) {
  * | 01 | Initialize the database client with a path containing special characters. | path = "/path/to/database@#$.db" | result should be 0 | Should Pass |
  * | 02 | Assert that the initialization result is 0. | result = 0 | Assertion should pass. | Should Pass |
  */
-TEST(db_client_t_Test, ConnectWithPathContainingSpecialCharacters) {
+TEST(db_client_tTest, ConnectWithPathContainingSpecialCharacters) {
     std::cout << "Entering ConnectWithPathContainingSpecialCharacters test" << std::endl;
     db_client_t* dbClient = new db_client_t();
     int result = dbClient->init("/path/to/database@#$.db");
@@ -364,7 +364,7 @@ TEST_F(db_client_t_Test, RecreateDatabaseWithValidConnection) {
  * | 03 | Attempt to recreate the database | None | Non-zero return value | Should Pass |
  * | 04 | Tear down the db_client_t instance | None | None | Done by Pre-requisite TearDown function |
  */
-TEST(db_client_t_Test, RecreateDatabaseWithInvalidConnection) {
+TEST(db_client_tTest, RecreateDatabaseWithInvalidConnection) {
     std::cout << "Entering RecreateDatabaseWithInvalidConnection test" << std::endl;
     db_client_t* dbClient = new db_client_t();
     ASSERT_NE(dbClient->init("invalid_path!@#"), 0);
