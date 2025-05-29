@@ -1,4 +1,4 @@
-/*
+/**
  * If not stated otherwise in this file or this component's LICENSE file the
  * following copyright and licenses apply:
  *
@@ -37,25 +37,25 @@ protected:
 };
 
 /**
-* @brief Test to verify the deserialization of a valid registration request
-*
-* This test checks the functionality of the deserializeRegistrationRequest method when provided with valid serialized data. It ensures that the method correctly processes the input data without errors.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 001@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Setup the test environment | instance = new AlServiceRegistrationRequest() | instance is initialized | Done by Pre-requisite SetUp function |
-* | 02 | Call deserializeRegistrationRequest with valid data | validData = valid serialized data | Method processes data correctly | Should Pass |
-* | 03 | Tear down the test environment | delete instance | instance is deleted | Done by Pre-requisite TearDown function |
-*/
+ * @brief Test to verify the deserialization of a valid registration request
+ *
+ * This test checks the functionality of the deserializeRegistrationRequest method when provided with valid serialized data. It ensures that the method correctly processes the input data without errors.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 001@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Setup the test environment | instance = new AlServiceRegistrationRequest() | instance is initialized | Done by Pre-requisite SetUp function |
+ * | 02 | Call deserializeRegistrationRequest with valid data | validData = valid serialized data | Method processes data correctly | Should Pass |
+ * | 03 | Tear down the test environment | delete instance | instance is deleted | Done by Pre-requisite TearDown function |
+ */
 TEST_F(AlServiceRegistrationRequestTest, DeserializeValidRegistrationRequest) {
     std::vector<unsigned char> validData = {0x01, 0x02, 0x03, 0xFF};
     std::cout << "Entering DeserializeValidRegistrationRequest" << std::endl;
@@ -64,26 +64,26 @@ TEST_F(AlServiceRegistrationRequestTest, DeserializeValidRegistrationRequest) {
 }
 
 /**
-* @brief Test to verify the behavior of the deserializeRegistrationRequest method when provided with an empty data vector.
-*
-* This test checks if the deserializeRegistrationRequest method can handle an empty data vector without crashing or throwing exceptions. It ensures that the method can gracefully handle edge cases where no data is provided.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 002@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Setup the test environment by creating an instance of AlServiceRegistrationRequest | instance = new AlServiceRegistrationRequest() | Instance should be created successfully | Done by Pre-requisite SetUp function |
-* | 02 | Initialize an empty data vector | emptyData = {} | Data vector should be initialized successfully | Should be successful |
-* | 03 | Call the deserializeRegistrationRequest method with the empty data vector | instance->deserializeRegistrationRequest(emptyData) | Method should handle the empty data vector without crashing | Should Pass |
-* | 04 | Clean up the test environment by deleting the instance of AlServiceRegistrationRequest | delete instance | Instance should be deleted successfully | Done by Pre-requisite TearDown function |
-*/
+ * @brief Test to verify the behavior of the deserializeRegistrationRequest method when provided with an empty data vector.
+ *
+ * This test checks if the deserializeRegistrationRequest method can handle an empty data vector without crashing or throwing exceptions. It ensures that the method can gracefully handle edge cases where no data is provided.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 002@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Setup the test environment by creating an instance of AlServiceRegistrationRequest | instance = new AlServiceRegistrationRequest() | Instance should be created successfully | Done by Pre-requisite SetUp function |
+ * | 02 | Initialize an empty data vector | emptyData = {} | Data vector should be initialized successfully | Should be successful |
+ * | 03 | Call the deserializeRegistrationRequest method with the empty data vector | instance->deserializeRegistrationRequest(emptyData) | Method should handle the empty data vector without crashing | Should Pass |
+ * | 04 | Clean up the test environment by deleting the instance of AlServiceRegistrationRequest | delete instance | Instance should be deleted successfully | Done by Pre-requisite TearDown function |
+ */
 TEST_F(AlServiceRegistrationRequestTest, DeserializeEmptyDataVector) {
     std::vector<unsigned char> emptyData = {};
     std::cout << "Entering DeserializeEmptyDataVector" << std::endl;
@@ -273,27 +273,27 @@ TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_SAP_TUNNEL_CLIENT) {
 }
 
 /**
-* @brief Test to verify the retrieval of service type SAP_TUNNEL_SERVER
-*
-* This test checks if the service type SAP_TUNNEL_SERVER is correctly set and retrieved from the AlServiceRegistrationRequest instance.
-*
-* **Test Group ID:** Basic: 01
-* **Test Case ID:** 009@n
-* **Priority:** High
-* @n
-* **Pre-Conditions:** None
-* **Dependencies:** None
-* **User Interaction:** None
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Setup the test environment | instance = new AlServiceRegistrationRequest() | instance should be initialized | Done by Pre-requisite SetUp function |
-* | 02 | Set the service type to SAP_TUNNEL_SERVER | instance->setServiceType(ServiceType::SAP_TUNNEL_SERVER) | Service type should be set to SAP_TUNNEL_SERVER | Should be successful |
-* | 03 | Retrieve the service type | ServiceType result = instance->getServiceType() | result should be SAP_TUNNEL_SERVER | Should Pass |
-* | 04 | Verify the retrieved service type | ASSERT_EQ(result, ServiceType::SAP_TUNNEL_SERVER) | Assertion should pass | Should Pass |
-* | 05 | Tear down the test environment | delete instance | instance should be deleted | Done by Pre-requisite TearDown function |
-*/
+ * @brief Test to verify the retrieval of service type SAP_TUNNEL_SERVER
+ *
+ * This test checks if the service type SAP_TUNNEL_SERVER is correctly set and retrieved from the AlServiceRegistrationRequest instance.
+ *
+ * **Test Group ID:** Basic: 01
+ * **Test Case ID:** 009@n
+ * **Priority:** High
+ * @n
+ * **Pre-Conditions:** None
+ * **Dependencies:** None
+ * **User Interaction:** None
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Setup the test environment | instance = new AlServiceRegistrationRequest() | instance should be initialized | Done by Pre-requisite SetUp function |
+ * | 02 | Set the service type to SAP_TUNNEL_SERVER | instance->setServiceType(ServiceType::SAP_TUNNEL_SERVER) | Service type should be set to SAP_TUNNEL_SERVER | Should be successful |
+ * | 03 | Retrieve the service type | ServiceType result = instance->getServiceType() | result should be SAP_TUNNEL_SERVER | Should Pass |
+ * | 04 | Verify the retrieved service type | ASSERT_EQ(result, ServiceType::SAP_TUNNEL_SERVER) | Assertion should pass | Should Pass |
+ * | 05 | Tear down the test environment | delete instance | instance should be deleted | Done by Pre-requisite TearDown function |
+ */
 TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_SAP_TUNNEL_SERVER) {
     std::cout << "Entering RetrieveServiceType_SAP_TUNNEL_SERVER test" << std::endl;
     AlServiceRegistrationRequest instance(ServiceOperation::SOP_ENABLE, ServiceType::SAP_TUNNEL_SERVER);
@@ -304,26 +304,26 @@ TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_SAP_TUNNEL_SERVER) {
 }
 
 /**
-* @brief Test to verify the retrieval of service type after setting to invalid value
-*
-* This test checks the behavior of getServiceType method when service type is set to invalid value.
-*
-* **Test Group ID:** Basic: 01
-* **Test Case ID:** 010@n
-* **Priority:** High
-* @n
-* **Pre-Conditions:** None
-* **Dependencies:** None
-* **User Interaction:** None
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Setup the test environment | instance = new AlServiceRegistrationRequest() | instance should be initialized | Done by Pre-requisite SetUp function |
-* | 02 | Set the service type to invalid value | static_cast<ServiceType>(0x06) | None | Should be successful |
-* | 03 | Retrieve and print the service type | ServiceType result = instance->getServiceType() | Should be printed | Print the retrieved service type |
-* | 04 | Tear down the test environment | delete instance | instance should be deleted | Done by Pre-requisite TearDown function |
-*/
+ * @brief Test to verify the retrieval of service type after setting to invalid value
+ *
+ * This test checks the behavior of getServiceType method when service type is set to invalid value.
+ *
+ * **Test Group ID:** Basic: 01
+ * **Test Case ID:** 010@n
+ * **Priority:** High
+ * @n
+ * **Pre-Conditions:** None
+ * **Dependencies:** None
+ * **User Interaction:** None
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Setup the test environment | instance = new AlServiceRegistrationRequest() | instance should be initialized | Done by Pre-requisite SetUp function |
+ * | 02 | Set the service type to invalid value | static_cast<ServiceType>(0x06) | None | Should be successful |
+ * | 03 | Retrieve and print the service type | ServiceType result = instance->getServiceType() | Should be printed | Print the retrieved service type |
+ * | 04 | Tear down the test environment | delete instance | instance should be deleted | Done by Pre-requisite TearDown function |
+ */
 TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_Invalid) {
     std::cout << "Entering RetrieveServiceType_Invalid test" << std::endl;
     AlServiceRegistrationRequest instance(ServiceOperation::SOP_ENABLE, static_cast<ServiceType>(0x06));
@@ -454,25 +454,25 @@ TEST_F(AlServiceRegistrationRequestTest, SetServiceOperationDisable) {
 }
 
 /**
-* @brief Test to validate the behavior of setServiceOperation with an invalid operation code.
-*
-* This test checks if the setServiceOperation method throws an exception when provided with an invalid operation code.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 015@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Call the SetUp function to initialize the test environment | None | None | Done by Pre-requisite SetUp function |
-* | 02 | Invoke setServiceOperation with an invalid operation code | operation = 0x03 | Exception should be thrown | Should Pass |
-* | 03 | Call the TearDown function to clean up the test environment | None | None | Done by Pre-requisite TearDown function |
-*/
+ * @brief Test to validate the behavior of setServiceOperation with an invalid operation code.
+ *
+ * This test checks if the setServiceOperation method throws an exception when provided with an invalid operation code.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 015@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Call the SetUp function to initialize the test environment | None | None | Done by Pre-requisite SetUp function |
+ * | 02 | Invoke setServiceOperation with an invalid operation code | operation = 0x03 | Exception should be thrown | Should Pass |
+ * | 03 | Call the TearDown function to clean up the test environment | None | None | Done by Pre-requisite TearDown function |
+ */
 TEST_F(AlServiceRegistrationRequestTest, SetServiceOperationInvalid) {
     std::cout << "Entering SetServiceOperationInvalid test" << std::endl;
     ASSERT_ANY_THROW(instance->setServiceOperation(static_cast<ServiceOperation>(0x03)));
@@ -612,26 +612,26 @@ TEST_F(AlServiceRegistrationRequestTest, SetServiceTypeToInvalidValue_0xFF) {
 }
 
 /**
-* @brief Test the constructor of AlServiceRegistrationRequest with SOP_ENABLE operation for all service types.
-*
-* This test verifies that the constructor of AlServiceRegistrationRequest correctly initializes the object with the SOP_ENABLE operation and various service types.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 021@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Initialize request with SOP_ENABLE and SAP_CLIENT | operation = SOP_ENABLE, type = SAP_CLIENT | Object creation should be successful | Should Pass |
-* | 02 | Initialize request with SOP_ENABLE and SAP_SERVER | operation = SOP_ENABLE, type = SAP_SERVER | Object creation should be successful | Should Pass |
-* | 03 | Initialize request with SOP_ENABLE and SAP_TUNNEL_CLIENT | operation = SOP_ENABLE, type = SAP_TUNNEL_CLIENT | Object creation should be successful | Should Pass |
-* | 04 | Initialize request with SOP_ENABLE and SAP_TUNNEL_SERVER | operation = SOP_ENABLE, type = SAP_TUNNEL_SERVER | Object creation should be successful | Should Pass |
-*/
+ * @brief Test the constructor of AlServiceRegistrationRequest with SOP_ENABLE operation for all service types.
+ *
+ * This test verifies that the constructor of AlServiceRegistrationRequest correctly initializes the object with the SOP_ENABLE operation and various service types.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 021@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Initialize request with SOP_ENABLE and SAP_CLIENT | operation = SOP_ENABLE, type = SAP_CLIENT | Object creation should be successful | Should Pass |
+ * | 02 | Initialize request with SOP_ENABLE and SAP_SERVER | operation = SOP_ENABLE, type = SAP_SERVER | Object creation should be successful | Should Pass |
+ * | 03 | Initialize request with SOP_ENABLE and SAP_TUNNEL_CLIENT | operation = SOP_ENABLE, type = SAP_TUNNEL_CLIENT | Object creation should be successful | Should Pass |
+ * | 04 | Initialize request with SOP_ENABLE and SAP_TUNNEL_SERVER | operation = SOP_ENABLE, type = SAP_TUNNEL_SERVER | Object creation should be successful | Should Pass |
+ */
 TEST_F(AlServiceRegistrationRequestTest, Constructor_SOP_ENABLE_AllServiceTypes) {
     std::cout << "Entering Constructor_SOP_ENABLE_AllServiceTypes" << std::endl;
     ServiceOperation operation = ServiceOperation::SOP_ENABLE;
@@ -643,26 +643,26 @@ TEST_F(AlServiceRegistrationRequestTest, Constructor_SOP_ENABLE_AllServiceTypes)
 }
 
 /**
-* @brief Test the constructor of AlServiceRegistrationRequest with SOP_DISABLE operation for all service types.
-*
-* This test verifies that the constructor of AlServiceRegistrationRequest correctly initializes the object with the SOP_DISABLE operation for various service types.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 022@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize request with SOP_DISABLE and SAP_CLIENT | operation = SOP_DISABLE, type = SAP_CLIENT | Object creation should be successful | Should Pass |
-* | 02| Initialize request with SOP_DISABLE and SAP_SERVER | operation = SOP_DISABLE, type = SAP_SERVER | Object creation should be successful | Should Pass |
-* | 03| Initialize request with SOP_DISABLE and SAP_TUNNEL_CLIENT | operation = SOP_DISABLE, type = SAP_TUNNEL_CLIENT | Object creation should be successful | Should Pass |
-* | 04| Initialize request with SOP_DISABLE and SAP_TUNNEL_SERVER | operation = SOP_DISABLE, type = SAP_TUNNEL_SERVER | Object creation should be successful | Should Pass |
-*/
+ * @brief Test the constructor of AlServiceRegistrationRequest with SOP_DISABLE operation for all service types.
+ *
+ * This test verifies that the constructor of AlServiceRegistrationRequest correctly initializes the object with the SOP_DISABLE operation for various service types.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 022@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Initialize request with SOP_DISABLE and SAP_CLIENT | operation = SOP_DISABLE, type = SAP_CLIENT | Object creation should be successful | Should Pass |
+ * | 02| Initialize request with SOP_DISABLE and SAP_SERVER | operation = SOP_DISABLE, type = SAP_SERVER | Object creation should be successful | Should Pass |
+ * | 03| Initialize request with SOP_DISABLE and SAP_TUNNEL_CLIENT | operation = SOP_DISABLE, type = SAP_TUNNEL_CLIENT | Object creation should be successful | Should Pass |
+ * | 04| Initialize request with SOP_DISABLE and SAP_TUNNEL_SERVER | operation = SOP_DISABLE, type = SAP_TUNNEL_SERVER | Object creation should be successful | Should Pass |
+ */
 TEST_F(AlServiceRegistrationRequestTest, Constructor_SOP_DISABLE_AllServiceTypes) {
     std::cout << "Entering Constructor_SOP_DISABLE_AllServiceTypes" << std::endl;
     ServiceOperation operation = ServiceOperation::SOP_DISABLE;
@@ -674,23 +674,23 @@ TEST_F(AlServiceRegistrationRequestTest, Constructor_SOP_DISABLE_AllServiceTypes
 }
 
 /**
-* @brief Test the constructor of AlServiceRegistrationRequest with an invalid ServiceOperation
-*
-* This test verifies that the constructor of AlServiceRegistrationRequest throws an std::invalid_argument exception when provided with an invalid ServiceOperation.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 023@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Set invalid ServiceOperation and valid ServiceType | invalidOperation = 0x03, type = ServiceType::SAP_CLIENT | std::invalid_argument exception with message "Invalid ServiceOperation" | Should Fail |
-*/
+ * @brief Test the constructor of AlServiceRegistrationRequest with an invalid ServiceOperation
+ *
+ * This test verifies that the constructor of AlServiceRegistrationRequest throws an std::invalid_argument exception when provided with an invalid ServiceOperation.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 023@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Set invalid ServiceOperation and valid ServiceType | invalidOperation = 0x03, type = ServiceType::SAP_CLIENT | std::invalid_argument exception with message "Invalid ServiceOperation" | Should Fail |
+ */
 TEST_F(AlServiceRegistrationRequestTest, Constructor_InvalidOperation) {
     std::cout << "Entering Constructor_InvalidOperation" << std::endl;
     ServiceOperation invalidOperation = static_cast<ServiceOperation>(0x03);
@@ -700,23 +700,23 @@ TEST_F(AlServiceRegistrationRequestTest, Constructor_InvalidOperation) {
 }
 
 /**
-* @brief Test the constructor of AlServiceRegistrationRequest with an invalid ServiceType
-*
-* This test verifies that the constructor of AlServiceRegistrationRequest throws an std::invalid_argument exception when an invalid ServiceType is provided.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 024@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Create an instance of AlServiceRegistrationRequest with invalid ServiceType | operation = SOP_ENABLE, invalidType = 0x05 | std::invalid_argument exception with message "Invalid ServiceType" | Should Fail |
-*/
+ * @brief Test the constructor of AlServiceRegistrationRequest with an invalid ServiceType
+ *
+ * This test verifies that the constructor of AlServiceRegistrationRequest throws an std::invalid_argument exception when an invalid ServiceType is provided.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 024@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Create an instance of AlServiceRegistrationRequest with invalid ServiceType | operation = SOP_ENABLE, invalidType = 0x05 | std::invalid_argument exception with message "Invalid ServiceType" | Should Fail |
+ */
 TEST_F(AlServiceRegistrationRequestTest, Constructor_InvalidType) {
     std::cout << "Entering Constructor_InvalidType" << std::endl;
     ServiceOperation operation = ServiceOperation::SOP_ENABLE;

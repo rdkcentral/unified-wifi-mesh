@@ -1,4 +1,4 @@
-/*
+/**
  * If not stated otherwise in this file or this component's LICENSE file the
  * following copyright and licenses apply:
  *
@@ -97,26 +97,26 @@ TEST_F(AlServiceRegistrationResponseTest, DeserializeWithNullData) {
 }
 
 /**
-* @brief Test the retrieval of AL MAC address with valid input
-*
-* This test verifies that the `getAlMacAddressLocal` method of the `AlServiceRegistrationResponse` class returns the expected result when provided with a valid input.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 003@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
-* | 02 | Call `getAlMacAddressLocal` with valid input | input = "valid_input" | result = RETURN_OK | Should Pass |
-* | 03 | Verify the result using ASSERT_EQ | result = RETURN_OK | None | Should be successful |
-* | 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
-*/
+ * @brief Test the retrieval of AL MAC address with valid input
+ *
+ * This test verifies that the `getAlMacAddressLocal` method of the `AlServiceRegistrationResponse` class returns the expected result when provided with a valid input.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 003@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
+ * | 02 | Call `getAlMacAddressLocal` with valid input | input = "valid_input" | result = RETURN_OK | Should Pass |
+ * | 03 | Verify the result using ASSERT_EQ | result = RETURN_OK | None | Should be successful |
+ * | 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ */
 TEST(AlServiceRegistrationResponseTest, RetrieveAlMacAddressLocalWithValidInput) {
     std::cout << "Entering RetrieveAlMacAddressLocalWithValidInput test" << std::endl;
 	MessageIdRange range(0, 255);
@@ -190,26 +190,26 @@ TEST(AlServiceRegistrationResponseTest, RetrieveMessageIdRangeWithValidInput) {
 }
 
 /**
-* @brief Test to verify the behavior of getMessageIdRange with null input
-*
-* This test checks the behavior of the getMessageIdRange method when a null input is provided. It ensures that the method returns the expected error code when given invalid input.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 007@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Setup the test environment | None | None | Done by Pre-requisite SetUp function |
-* | 02| Call getMessageIdRange with null message range input | range(0,0) | result = RETURN_ERR | Should Pass |
-* | 03| Verify the result using ASSERT_EQ | result = RETURN_ERR | None | Should be successful |
-* | 04| Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
-*/
+ * @brief Test to verify the behavior of getMessageIdRange with null input
+ *
+ * This test checks the behavior of the getMessageIdRange method when a null input is provided. It ensures that the method returns the expected error code when given invalid input.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 007@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Setup the test environment | None | None | Done by Pre-requisite SetUp function |
+ * | 02| Call getMessageIdRange with null message range input | range(0,0) | result = RETURN_ERR | Should Pass |
+ * | 03| Verify the result using ASSERT_EQ | result = RETURN_ERR | None | Should be successful |
+ * | 04| Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ */
 TEST(AlServiceRegistrationResponseTest, RetrieveMessageIdRangeWithNullInput) {
     std::cout << "Entering RetrieveMessageIdRangeWithNullInput test" << std::endl;
     MessageIdRange range(0, 0);
@@ -280,26 +280,26 @@ TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenUnknown) {
 }
 
 /**
-* @brief Test to verify the retrieval of result when registration is successful
-*
-* This test checks if the result is correctly retrieved as SUCCESS after setting it to SUCCESS in the AlServiceRegistrationResponse instance@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 011@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Setup the test environment | instance = new AlServiceRegistrationResponse() | instance should be initialized | Done by Pre-requisite SetUp function |
-* | 02| Set the result to SUCCESS | instance->setResult(RegistrationResult::SUCCESS) | RegistrationResult::SUCCESS | Should be successful |
-* | 03| Retrieve the result and check if it is SUCCESS | instance->getResult() | RegistrationResult::SUCCESS | Should Pass |
-* | 04| Cleanup the test environment | delete instance | instance should be deleted | Done by Pre-requisite TearDown function |
-*/
+ * @brief Test to verify the retrieval of result when registration is successful
+ *
+ * This test checks if the result is correctly retrieved as SUCCESS after setting it to SUCCESS in the AlServiceRegistrationResponse instance@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 011@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Setup the test environment | instance = new AlServiceRegistrationResponse() | instance should be initialized | Done by Pre-requisite SetUp function |
+ * | 02| Set the result to SUCCESS | instance->setResult(RegistrationResult::SUCCESS) | RegistrationResult::SUCCESS | Should be successful |
+ * | 03| Retrieve the result and check if it is SUCCESS | instance->getResult() | RegistrationResult::SUCCESS | Should Pass |
+ * | 04| Cleanup the test environment | delete instance | instance should be deleted | Done by Pre-requisite TearDown function |
+ */
 TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenSuccess) {
     std::cout << "Entering RetrieveResultWhenSuccess test" << std::endl;
 	MessageIdRange range(0, 65535);
@@ -369,26 +369,26 @@ TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenServiceNotSupported) {
 }
 
 /**
-* @brief Test to verify the retrieval of result when the operation is not supported.
-*
-* This test checks if the `getResult` method correctly retrieves the result set by the `setResult` method when the operation is not supported.
-*
-* **Test Group ID:** Basic: 01
-* **Test Case ID:** 014@n
-* **Priority:** High
-* @n
-* **Pre-Conditions:** None
-* **Dependencies:** None
-* **User Interaction:** None
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
-* | 02 | Set the result to OPERATION_NOT_SUPPORTED | instance->setResult(RegistrationResult::OPERATION_NOT_SUPPORTED) | None | Should be successful |
-* | 03 | Retrieve the result and check if it matches OPERATION_NOT_SUPPORTED | instance->getResult() | RegistrationResult::OPERATION_NOT_SUPPORTED | Should Pass |
-* | 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
-*/
+ * @brief Test to verify the retrieval of result when the operation is not supported.
+ *
+ * This test checks if the `getResult` method correctly retrieves the result set by the `setResult` method when the operation is not supported.
+ *
+ * **Test Group ID:** Basic: 01
+ * **Test Case ID:** 014@n
+ * **Priority:** High
+ * @n
+ * **Pre-Conditions:** None
+ * **Dependencies:** None
+ * **User Interaction:** None
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
+ * | 02 | Set the result to OPERATION_NOT_SUPPORTED | instance->setResult(RegistrationResult::OPERATION_NOT_SUPPORTED) | None | Should be successful |
+ * | 03 | Retrieve the result and check if it matches OPERATION_NOT_SUPPORTED | instance->getResult() | RegistrationResult::OPERATION_NOT_SUPPORTED | Should Pass |
+ * | 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ */
 TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenOperationNotSupported) {
     std::cout << "Entering RetrieveResultWhenOperationNotSupported test" << std::endl;
 	MessageIdRange range(0, 65535);
@@ -823,25 +823,25 @@ TEST_F(AlServiceRegistrationResponseTest, SetMessageIdRange_EndZero) {
 }
 
 /**
-* @brief Test the setMessageIdRange function with both parameters set to zero.
-*
-* This test verifies the behavior of the setMessageIdRange function when both the start and end message IDs are set to zero. This is a boundary test case to ensure that the function can handle the minimum input values correctly.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 032@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Setup the test environment by creating an instance of AlServiceRegistrationResponse. | None | Instance created successfully | Done by Pre-requisite SetUp function |
-* | 02 | Call the setMessageIdRange function with both parameters set to zero. | start = 0, end = 0 | Function should execute without errors | Should Pass |
-* | 03 | Clean up the test environment by deleting the instance of AlServiceRegistrationResponse. | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
-*/
+ * @brief Test the setMessageIdRange function with both parameters set to zero.
+ *
+ * This test verifies the behavior of the setMessageIdRange function when both the start and end message IDs are set to zero. This is a boundary test case to ensure that the function can handle the minimum input values correctly.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 032@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Setup the test environment by creating an instance of AlServiceRegistrationResponse. | None | Instance created successfully | Done by Pre-requisite SetUp function |
+ * | 02 | Call the setMessageIdRange function with both parameters set to zero. | start = 0, end = 0 | Function should execute without errors | Should Pass |
+ * | 03 | Clean up the test environment by deleting the instance of AlServiceRegistrationResponse. | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
+ */
 TEST_F(AlServiceRegistrationResponseTest, SetMessageIdRange_BothZero) {
     std::cout << "Entering SetMessageIdRange_BothZero test" << std::endl;
     MessageIdRange inputRange = {0, 0};
@@ -1026,27 +1026,27 @@ TEST_F(AlServiceRegistrationResponseTest, SetAllRegistrationResults) {
 }
 
 /**
-* @brief Test the AlServiceRegistrationResponse constructor with valid argument values
-*
-* This test verifies that the AlServiceRegistrationResponse constructor correctly initializes the object with a valid MAC address, a valid message ID range, and all possible registration results.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 039@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize with SUCCESS result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = SUCCESS | Object should be created with the values | Should Pass |
-* | 02| Initialize with NO_RANGES_AVAILABLE result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = NO_RANGES_AVAILABLE | Object should be created with the values | Should Pass |
-* | 03| Initialize with SERVICE_NOT_SUPPORTED result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = SERVICE_NOT_SUPPORTED | Object should be created with the values | Should Pass |
-* | 04| Initialize with UNKNOWN result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = UNKNOWN | Object should be created with the values | Should Pass |
-* | 05| Initialize with OPERATION_NOT_SUPPORTED result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = OPERATION_NOT_SUPPORTED | Object should be created with the values | Should Pass |
-*/
+ * @brief Test the AlServiceRegistrationResponse constructor with valid argument values
+ *
+ * This test verifies that the AlServiceRegistrationResponse constructor correctly initializes the object with a valid MAC address, a valid message ID range, and all possible registration results.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 039@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Initialize with SUCCESS result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = SUCCESS | Object should be created with the values | Should Pass |
+ * | 02| Initialize with NO_RANGES_AVAILABLE result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = NO_RANGES_AVAILABLE | Object should be created with the values | Should Pass |
+ * | 03| Initialize with SERVICE_NOT_SUPPORTED result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = SERVICE_NOT_SUPPORTED | Object should be created with the values | Should Pass |
+ * | 04| Initialize with UNKNOWN result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = UNKNOWN | Object should be created with the values | Should Pass |
+ * | 05| Initialize with OPERATION_NOT_SUPPORTED result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = OPERATION_NOT_SUPPORTED | Object should be created with the values | Should Pass |
+ */
 TEST(AlServiceRegistrationResponseTest, ValidMACAddressValidRangeAllResults) {
     std::cout << "Entering ValidMACAddressValidRangeAllResults" << std::endl;
     MacAddress macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E};
@@ -1066,23 +1066,23 @@ TEST(AlServiceRegistrationResponseTest, ValidMACAddressValidRangeAllResults) {
 }
 
 /**
-* @brief Test the AlServiceRegistrationResponse constructor with valid argument values
-*
-* This test verifies that the AlServiceRegistrationResponse constructor initializes the object with invalid message ID range
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 040@n
-* **Priority:** High@n
-* @n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize MAC address, message ID range, and result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {2000, 1000}, result = RegistrationResult::SUCCESS | Object should be created successfully | Should Pass |
-*
-*/
+ * @brief Test the AlServiceRegistrationResponse constructor with valid argument values
+ *
+ * This test verifies that the AlServiceRegistrationResponse constructor initializes the object with invalid message ID range
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 040@n
+ * **Priority:** High@n
+ * @n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Initialize MAC address, message ID range, and result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {2000, 1000}, result = RegistrationResult::SUCCESS | Object should be created successfully | Should Pass |
+ *
+ */
 TEST(AlServiceRegistrationResponseTest, ValidMACAddressInvalidRangeSuccessResult) {
     std::cout << "Entering ValidMACAddressInvalidRangeSuccessResult" << std::endl;
     MacAddress macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E};
@@ -1093,24 +1093,24 @@ TEST(AlServiceRegistrationResponseTest, ValidMACAddressInvalidRangeSuccessResult
 }
 
 /**
-* @brief Test the AlServiceRegistrationResponse constructor with zero range.
-*
-* This test verifies that the AlServiceRegistrationResponse object is correctly initialized with a valid MAC address, a zero message ID range, and a success result.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 041@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Initialize AlServiceRegistrationResponse with valid MAC address, zero range, and success result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {0, 0}, result = RegistrationResult::SUCCESS | Object should be initialized successfully | Should Pass |
-*
-*/
+ * @brief Test the AlServiceRegistrationResponse constructor with zero range.
+ *
+ * This test verifies that the AlServiceRegistrationResponse object is correctly initialized with a valid MAC address, a zero message ID range, and a success result.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 041@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Initialize AlServiceRegistrationResponse with valid MAC address, zero range, and success result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {0, 0}, result = RegistrationResult::SUCCESS | Object should be initialized successfully | Should Pass |
+ *
+ */
 TEST(AlServiceRegistrationResponseTest, ValidMACAddressZeroRangeSuccessResult) {
     std::cout << "Entering ValidMACAddressZeroRangeSuccessResult" << std::endl;
     MacAddress macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E};
@@ -1121,24 +1121,24 @@ TEST(AlServiceRegistrationResponseTest, ValidMACAddressZeroRangeSuccessResult) {
 }
 
 /**
-* @brief Test the AlServiceRegistrationResponse constructor with all zero MAC address, valid message ID range, and success result.
-*
-* This test verifies that the AlServiceRegistrationResponse object is correctly initialized when provided with an all-zero MAC address, a valid message ID range, and a success result.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 042@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize AlServiceRegistrationResponse with all-zero MAC address, valid message ID range, and success result | macAddress = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, range = {1000, 2000}, result = RegistrationResult::SUCCESS | Object should be initialized successfully | Should Pass |
-*
-*/
+ * @brief Test the AlServiceRegistrationResponse constructor with all zero MAC address, valid message ID range, and success result.
+ *
+ * This test verifies that the AlServiceRegistrationResponse object is correctly initialized when provided with an all-zero MAC address, a valid message ID range, and a success result.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 042@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Initialize AlServiceRegistrationResponse with all-zero MAC address, valid message ID range, and success result | macAddress = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, range = {1000, 2000}, result = RegistrationResult::SUCCESS | Object should be initialized successfully | Should Pass |
+ *
+ */
 TEST(AlServiceRegistrationResponseTest, AllZeroMACAddressValidRangeSuccessResult) {
     std::cout << "Entering AllZeroMACAddressValidRangeSuccessResult" << std::endl;
     MacAddress macAddress = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -1150,24 +1150,24 @@ TEST(AlServiceRegistrationResponseTest, AllZeroMACAddressValidRangeSuccessResult
 
 
 /**
-* @brief Test the AlServiceRegistrationResponse constructor with valid MAC address, message ID range, and success result.
-*
-* This test verifies that the AlServiceRegistrationResponse object is correctly initialized with a MAC address of all 0xFF, a valid message ID range, and a success result.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 043@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Initialize MAC address, message ID range, and result | macAddress = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, range = {1000, 2000}, result = RegistrationResult::SUCCESS | Object should be initialized successfully | Should be successful |
-*
-*/
+ * @brief Test the AlServiceRegistrationResponse constructor with valid MAC address, message ID range, and success result.
+ *
+ * This test verifies that the AlServiceRegistrationResponse object is correctly initialized with a MAC address of all 0xFF, a valid message ID range, and a success result.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 043@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Initialize MAC address, message ID range, and result | macAddress = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, range = {1000, 2000}, result = RegistrationResult::SUCCESS | Object should be initialized successfully | Should be successful |
+ *
+ */
 TEST(AlServiceRegistrationResponseTest, AllFFMACAddressValidRangeSuccessResult) {
     std::cout << "Entering AllFFMACAddressValidRangeSuccessResult" << std::endl;
     MacAddress macAddress = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -1178,24 +1178,24 @@ TEST(AlServiceRegistrationResponseTest, AllFFMACAddressValidRangeSuccessResult) 
 }
 
 /**
-* @brief Test the AlServiceRegistrationResponse constructor and getters with valid MAC address, valid range, and invalid result.
-*
-* This test verifies that the AlServiceRegistrationResponse object is correctly constructed when provided with a valid MAC address, a valid message ID range, and an invalid registration result.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 044@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Construct AlServiceRegistrationResponse object and verify MAC address | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = 0xFF | response.getAlMacAddressLocal() == macAddress | Should Pass |
-*
-*/
+ * @brief Test the AlServiceRegistrationResponse constructor and getters with valid MAC address, valid range, and invalid result.
+ *
+ * This test verifies that the AlServiceRegistrationResponse object is correctly constructed when provided with a valid MAC address, a valid message ID range, and an invalid registration result.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 044@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Construct AlServiceRegistrationResponse object and verify MAC address | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = 0xFF | response.getAlMacAddressLocal() == macAddress | Should Pass |
+ *
+ */
 TEST(AlServiceRegistrationResponseTest, ValidMACAddressValidRangeInvalidResult) {
     std::cout << "Entering ValidMACAddressValidRangeInvalidResult" << std::endl;
     MacAddress macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E};

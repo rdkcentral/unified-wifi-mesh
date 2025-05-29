@@ -1,4 +1,4 @@
-/*
+/**
  * If not stated otherwise in this file or this component's LICENSE file the
  * following copyright and licenses apply:
  *
@@ -221,26 +221,26 @@ TEST(AlServiceExceptionTest, RetrievePrimitiveErrorForTimeout) {
 }
 
 /**
-* @brief Test to verify the retrieval of primitive error for a service not registered scenario.
-*
-* This test checks if the AlServiceException correctly returns the PrimitiveError::ServiceNotRegistered when the exception is initialized with the "Service not registered" message and the corresponding error code.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 008@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Setup the test environment | | | Done by Pre-requisite SetUp function |
-* | 02| Initialize AlServiceException with "Service not registered" and PrimitiveError::ServiceNotRegistered | message = "Service not registered", error = PrimitiveError::ServiceNotRegistered | | Should be successful |
-* | 03| Verify the primitive error retrieved from the exception | | PrimitiveError::ServiceNotRegistered | Should Pass |
-* | 04| Teardown the test environment | | | Done by Pre-requisite TearDown function |
-*/
+ * @brief Test to verify the retrieval of primitive error for a service not registered scenario.
+ *
+ * This test checks if the AlServiceException correctly returns the PrimitiveError::ServiceNotRegistered when the exception is initialized with the "Service not registered" message and the corresponding error code.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 008@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Setup the test environment | | | Done by Pre-requisite SetUp function |
+ * | 02| Initialize AlServiceException with "Service not registered" and PrimitiveError::ServiceNotRegistered | message = "Service not registered", error = PrimitiveError::ServiceNotRegistered | | Should be successful |
+ * | 03| Verify the primitive error retrieved from the exception | | PrimitiveError::ServiceNotRegistered | Should Pass |
+ * | 04| Teardown the test environment | | | Done by Pre-requisite TearDown function |
+ */
 TEST(AlServiceExceptionTest, RetrievePrimitiveErrorForServiceNotRegistered) {
     std::cout << "Entering RetrievePrimitiveErrorForServiceNotRegistered test" << std::endl;
     AlServiceException exception("Service not registered", PrimitiveError::ServiceNotRegistered);
@@ -389,24 +389,24 @@ TEST(AlServiceExceptionTest, RetrievePrimitiveErrorForFragmentOutOfOrder) {
 }
 
 /**
-* @brief Test the constructor of AlServiceException with an empty message and a specific error code.
-*
-* This test verifies that the AlServiceException constructor correctly initializes the object when provided with an empty message and the PrimitiveError::RequestFailed error code.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 014@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Create an instance of AlServiceException with an empty message and PrimitiveError::RequestFailed | message = "", error = PrimitiveError::RequestFailed | The message should be empty, and the error code should be PrimitiveError::RequestFailed | Should Pass |
-*
-*/
+ * @brief Test the constructor of AlServiceException with an empty message and a specific error code.
+ *
+ * This test verifies that the AlServiceException constructor correctly initializes the object when provided with an empty message and the PrimitiveError::RequestFailed error code.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 014@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Create an instance of AlServiceException with an empty message and PrimitiveError::RequestFailed | message = "", error = PrimitiveError::RequestFailed | The message should be empty, and the error code should be PrimitiveError::RequestFailed | Should Pass |
+ *
+ */
 TEST(AlServiceExceptionTest, ConstructorWithEmptyMessageAndRequestFailed) {
     std::cout << "Entering ConstructorWithEmptyMessageAndRequestFailed test" << std::endl;
     try {
@@ -421,24 +421,24 @@ TEST(AlServiceExceptionTest, ConstructorWithEmptyMessageAndRequestFailed) {
 }
 
 /**
-* @brief Test the constructor of AlServiceException with an empty message and unknown error.
-*
-* This test verifies that the AlServiceException constructor correctly handles an valid message and an invalid error code.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 015@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Create an instance of AlServiceException with valid message and unknown error | message = "Valid message", error = 15 | Constructor should not initialize the object with valid message and invalid error | Should Fail |
-*
-*/
+ * @brief Test the constructor of AlServiceException with an empty message and unknown error.
+ *
+ * This test verifies that the AlServiceException constructor correctly handles an valid message and an invalid error code.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 015@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Create an instance of AlServiceException with valid message and unknown error | message = "Valid message", error = 15 | Constructor should not initialize the object with valid message and invalid error | Should Fail |
+ *
+ */
 TEST(AlServiceExceptionTest, ConstructorWithValidMessageAndInvalidError) {
     std::cout << "Entering ConstructorWithValidMessageAndInvalidError test" << std::endl;
     try {

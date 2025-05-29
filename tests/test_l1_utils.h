@@ -1,4 +1,4 @@
-/*
+/**
  * If not stated otherwise in this file or this component's LICENSE file the
  * following copyright and licenses apply:
  *
@@ -22,6 +22,7 @@
 #include <iomanip>
 #include <ostream>
 #include <string>
+#include <array>
 #include "al_service_registration_enums.h"
 
 using MacAddress = std::array<uint8_t, 6>;
