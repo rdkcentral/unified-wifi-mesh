@@ -160,6 +160,8 @@ void ec_enrollee_t::send_reconfiguration_announcement_frames()
         return;
     }
 
+    uint32_t current_freq = 0;
+
     while (!m_received_recfg_auth_frame.load()) {
         for (const auto& freq : m_recnf_announcement_freqs) {
             // EasyConnect 6.5.2
@@ -170,6 +172,7 @@ void ec_enrollee_t::send_reconfiguration_announcement_frames()
             if (!m_send_action_frame(const_cast<uint8_t*>(BROADCAST_MAC_ADDR), frame, frame_len, freq, dwell)) {
                 em_printfout("Failed to send DPP Reconfiguration Announcement frame (broadcast) on freq %d", freq);
             }
+            current_freq = freq;
         }
         // EasyConnect 6.5.2
         // If a valid DPP Reconfiguration Authentication Request frame is not received, it repeats this procedure for
@@ -183,6 +186,7 @@ void ec_enrollee_t::send_reconfiguration_announcement_frames()
         }
     }
 
+    m_selected_freq = current_freq;
     free(frame);
 }
 

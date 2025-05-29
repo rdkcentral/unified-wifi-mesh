@@ -804,7 +804,7 @@ cJSON* ec_crypto::create_jws_header(const std::string& type, const SSL_KEY *c_si
     return jwsHeaderObj;
 }
 
-cJSON* ec_crypto::create_jws_payload(ec_connection_context_t& c_ctx, const std::vector<std::unordered_map<std::string, std::string>>& groups, SSL_KEY* net_access_key, std::optional<std::string> expiry)
+cJSON* ec_crypto::create_jws_payload(ec_connection_context_t& c_ctx, const std::vector<std::unordered_map<std::string, std::string>>& groups, SSL_KEY* net_access_key, std::optional<std::string> expiry, std::optional<uint8_t> version)
 {
     if (net_access_key == nullptr) return nullptr;
     
@@ -832,6 +832,9 @@ cJSON* ec_crypto::create_jws_payload(ec_connection_context_t& c_ctx, const std::
     cJSON_AddStringToObject(netAccessKeyObj, "y", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(y)).c_str());
     if (expiry.has_value()) {
         cJSON_AddStringToObject(jwsPayloadObj, "expiry", expiry.value().c_str());
+    }
+    if (version.has_value()) {
+        cJSON_AddStringToObject(jwsPayloadObj, "version", std::to_string(static_cast<unsigned int>(version.value())).c_str());
     }
     EC_GROUP_free(key_group);
     EC_POINT_free(key_point);

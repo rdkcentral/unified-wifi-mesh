@@ -562,6 +562,12 @@ typedef struct {
      */
     bool is_mutual_auth;
 
+    /**
+     * C-Connector or E-Connector
+     * 
+     */
+    const char *connector;
+
 } ec_ephemeral_context_t;
 
 /**

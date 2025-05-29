@@ -139,6 +139,22 @@ public:
 	 */
 	virtual bool handle_proxied_conn_status_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) override;
 
+	/**
+	 * @brief Handles a Reconfiguration Announcement frame
+	 * 
+	 * If this Reconfiguration Announcement frame is meant for the Configurator that received it
+	 * (determined by comparing the C-sign-key hash attribute to the Configurator's C-sign-key),
+	 * then create a Reconfiguration Authentication frame and send to the Enrollee
+	 * 
+	 * @param frame The Reconfiguration Announcement frame
+	 * @param len The length of the frame
+	 * @param sa The source address (Enrollee)
+	 * @return true on success, otherwise false
+	 * 
+	 * @note Only implemented by the Controller Configurator
+	 */
+	virtual bool handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) override;
+
 private:
     // Private member variables can be added here
 
@@ -169,10 +185,11 @@ private:
 	 * @brief Creates a reconfiguration authentication request.
 	 *
 	 * This function generates a request for reconfiguration authentication.
+	 * @param enrollee_mac The MAC of the Enrollee being Reconfigured
 	 *
 	 * @returns A pair consisting of a pointer to the request data and its size.
 	 */
-	std::pair<uint8_t*, size_t> create_recfg_auth_request();
+	std::pair<uint8_t*, size_t> create_recfg_auth_request(const std::string& enrollee_mac);
     
 	/**!
 	 * @brief Creates an authentication confirmation message.
@@ -247,6 +264,22 @@ private:
      * 
      */
     std::unordered_map<std::string, bool> m_enrollee_successfully_onboarded = {};
+
+	/**
+	 * @brief Maps Enrollee MAC (as string) to whether or not the Reconfiguration flow has already begun
+	 * 
+	 * If we hear a Reconfiguration Announcement frame intended for us, but the Enrollee is already undergoing
+	 * Reconfiguration, ignore and discard the frame
+	 * 
+	 */
+	std::unordered_map<std::string, bool> m_currently_undergoing_recfg = {};
+
+	/**
+	 * @brief C-Connector is the Configurator's Connector that it issues to itself
+	 * as part of the Reconfiguration Authentication flow
+	 * 
+	 */
+	std::string m_c_connector = "";
 };
 
 #endif // EC_CTRL_CONFIGURATOR_H

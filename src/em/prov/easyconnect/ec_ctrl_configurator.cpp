@@ -149,23 +149,7 @@ bool ec_ctrl_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_t
     ec_frame_type_t ec_frame_type = static_cast<ec_frame_type_t>(frame_type);
     switch (ec_frame_type) {
         case ec_frame_type_recfg_announcement: {
-            auto [recfg_auth_frame, recfg_auth_frame_len] = create_recfg_auth_request();
-            if (recfg_auth_frame == NULL || recfg_auth_frame_len == 0) {
-                em_printfout("Failed to create reconfiguration authentication request frame");
-                break;
-            }
-            auto [encap_dpp_tlv, encap_dpp_size] = ec_util::create_encap_dpp_tlv(0, dest_mac, ec_frame_type_recfg_auth_req, recfg_auth_frame, recfg_auth_frame_len);
-            if (encap_dpp_tlv == NULL) {
-                em_printfout("Failed to create Encap DPP TLV");
-                free(recfg_auth_frame);
-                break;
-            }
-            free(recfg_auth_frame);
-            // Send the encapsulated ReCfg Auth Request message (with Encap TLV)
-            // TODO: SEND TO ALL AGENTS
-            this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, NULL, 0);
-            did_finish = true;
-            free(encap_dpp_tlv);
+            did_finish = handle_recfg_announcement(reinterpret_cast<ec_frame_t*>(encap_frame), encap_frame_len, dest_mac);
             break;
         }
         case ec_frame_type_auth_rsp: {
@@ -785,6 +769,82 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
     return true;
 }
 
+bool ec_ctrl_configurator_t::handle_recfg_announcement(ec_frame_t *encap_frame, size_t len, uint8_t sa[ETH_ALEN])
+{
+    if (encap_frame == nullptr || len == 0) {
+        em_printfout("Malformed Reconfiguration Authentication Announcement frame");
+        return false;
+    }
+    std::string enrollee_mac = util::mac_to_string(sa);
+
+
+    size_t attrs_len = len - EC_FRAME_BASE_SIZE;
+
+    ec_frame_t *frame = reinterpret_cast<ec_frame_t *>(encap_frame);
+    auto conf_c_sign_key_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_C_sign_key_hash);
+    ASSERT_OPT_HAS_VALUE(conf_c_sign_key_attr, false, "%s:%d: No Configurator C-sign-key hash in Reconfiguration Announcement frame\n", __func__, __LINE__);
+
+    auto finite_cyclic_group_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_finite_cyclic_group);
+    ASSERT_OPT_HAS_VALUE(finite_cyclic_group_attr, false, "%s:%d: No Finite Cyclic Group attribute in Reconfiguration Announcement frame\n", __func__, __LINE__);
+
+    auto a_nonce_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_a_nonce);
+    ASSERT_OPT_HAS_VALUE(a_nonce_attr, false, "%s:%d: No A-Nonce attribute in Reconfiguration Announcement frame\n", __func__, __LINE__);
+
+    auto e_id_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_e_prime_id);
+    ASSERT_OPT_HAS_VALUE(e_id_attr, false, "%s:%d: No E'-id attribute found in Reconfiguration Announcement frame\n", __func__, __LINE__);
+
+    // In case there are multiple Configurators within RF range of the Enrollee, check the C-sign-key hash to ensure that this frame was
+    // indeed meant for us and not some other Configurator.
+    auto conn_ctx = get_conn_ctx(enrollee_mac);
+    ASSERT_NOT_NULL(conn_ctx, false, "%s:%d: No known connection context for Enrollee '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(sa));
+
+    uint8_t *configurator_c_sign_hash = ec_crypto::compute_key_hash(conn_ctx->C_signing_key);
+    if (memcmp(configurator_c_sign_hash, conf_c_sign_key_attr->data, conf_c_sign_key_attr->length) != 0) {
+        em_printfout("Mismatched C-sign-key hash, perhaps meant for another Configurator? Ignoring Reconfiguration Announcement from '" MACSTRFMT "'", MAC2STR(sa));
+        free(configurator_c_sign_hash);
+        // Not an error.
+        return true;
+    }
+    free(configurator_c_sign_hash);
+
+    // TODO
+    // Derive E-id from E'-id, used to index if Reconfiguration is already under-way.
+    // scoped_ec_group group(ec_crypto::get_ec_group_from_tls_id(SWAP_LITTLE_ENDIAN(*reinterpret_cast<uint16_t*>(finite_cyclic_group_attr->data))));
+    // scoped_ec_point a_nonce(ec_crypto::decode_ec_point(*conn_ctx, a_nonce_attr->data));
+    // scoped_ec_point e_prime_id(ec_crypto::decode_ec_point(*conn_ctx, e_id_attr->data));
+
+    // A-Nonce, FCG and E-prime-id are included here so that we can derive E-id from E'-id,
+    // and use that as a unique ID by which we can determine if a given Enrollee's Reconfiguration is
+    // currently being blocked by user intervention, or is already undergoing.
+    // EC 6.5.3:
+    // The Configurator determines from E-id if it already has serviced a DPP Reconfiguration Announcement frame from this
+    // Enrollee and had to postpone that reconfiguration process, e.g., in case the user first had to solve a problem preventing a
+    // successful connection of the Enrollee to the network. If that is still the case, the Configurator silently discards this DPP
+    // Reconfiguration Announcement frame. Else, the Configurator continues with the DPP Reconfiguration protocol.
+
+    // Instead, why not just use the Enrollee MAC?
+    if (m_currently_undergoing_recfg.find(enrollee_mac) != m_currently_undergoing_recfg.end()) {
+        em_printfout("Received Reconfiguration Announcement frame from '" MACSTRFMT "' but they're already undergoing Reconfiguration. Ignoring frame.", MAC2STR(sa));
+        // Not an error.
+        return true;
+    }
+
+    auto [recfg_auth_req_frame, recfg_auth_req_frame_len] = create_recfg_auth_request(enrollee_mac);
+    ASSERT_NOT_NULL(recfg_auth_req_frame, false, "%s:%d: Failed to create Reconfiguration Authentication Request frame\n", __func__, __LINE__);
+
+    auto [encap_dpp_tlv, encap_dpp_tlv_len] = ec_util::create_encap_dpp_tlv(0, sa, ec_frame_type_recfg_auth_req, recfg_auth_req_frame, recfg_auth_req_frame_len);
+    ASSERT_NOT_NULL_FREE(encap_dpp_tlv, false, recfg_auth_req_frame, "%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
+
+    bool sent = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_tlv_len, nullptr, 0);
+    free(encap_dpp_tlv);
+    free(recfg_auth_req_frame);
+    if (sent) {
+        m_currently_undergoing_recfg[enrollee_mac] = true;
+        m_enrollee_successfully_onboarded[enrollee_mac] = false;
+    }
+    return sent;
+}
+
 std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_auth_request(std::string enrollee_mac)
 {
 
@@ -973,9 +1033,66 @@ STATUS_OK:
     return std::make_pair(reinterpret_cast<uint8_t*>(frame), EC_FRAME_BASE_SIZE + attribs_len);
 }
 
-std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_recfg_auth_request()
+std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_recfg_auth_request(const std::string& enrollee_mac)
 {
-    return {};
+    auto conn_ctx = get_conn_ctx(enrollee_mac);
+    ASSERT_NOT_NULL(conn_ctx, {}, "%s:%d: No connection context for Enrolle '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(enrollee_mac.c_str()));
+    auto e_ctx = get_eph_ctx(enrollee_mac);
+    ASSERT_NOT_NULL(e_ctx, {}, "%s:%d: No ephemeral context found for Enrollee '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(enrollee_mac.c_str()));
+
+    ec_frame_t *frame = ec_util::alloc_frame(ec_frame_type_recfg_auth_req);
+    ASSERT_NOT_NULL(frame, {}, "%s:%d: Could not allocate memory for Reconfiguration Authentication Request frame\n", __func__, __LINE__);
+
+    // C-Nonce
+    memset(e_ctx->c_nonce, 0, conn_ctx->nonce_len);
+    if (RAND_bytes(e_ctx->c_nonce, conn_ctx->nonce_len) != 1) {
+        free(frame);
+        em_printfout("Failed to generate C-Nonce");
+        return {};
+    }
+
+    em_printfout("C-Nonce:");
+    util::print_hex_dump(conn_ctx->nonce_len, e_ctx->c_nonce);
+
+    static uint8_t transId = 0;
+
+    uint8_t *attribs = nullptr;
+    size_t attribs_len = 0UL;
+
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_trans_id, transId++);
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_proto_version, static_cast<uint8_t>(DPP_VERSION));
+    // The Configurator issues itself a Connector, called C-Connector, that includes an netAccessKey on the curve indicated by
+    // the received group attribute and that is signed with the signing key that corresponds to the received SHA-256 (C-sign-
+    // key). The version in the C-Connector shall be set to the highest version that the Configurator supports.
+    // The Configurator shall include a single octet transaction identifier TransId, a Protocol Version attribute containing the
+    // same number as the version member in the C-Connector, the generated C-Connector and the generated C-nonce to
+    // generated the DPP Reconfiguration Authentication Request frame and send this frame to the Enrollee.
+
+    cJSON *jwsHeaderObj = ec_crypto::create_jws_header("dppCon", conn_ctx->C_signing_key);
+
+    std::vector<std::unordered_map<std::string, std::string>> groups = {
+        {{"groupID", "mapNW"}, {"netRole", "configurator"}},
+    };
+
+    std::optional<std::string> null_expiry = std::nullopt;
+    cJSON *jwsPayloadObj = ec_crypto::create_jws_payload(*conn_ctx, groups, conn_ctx->net_access_key, null_expiry, DPP_VERSION);
+
+    auto connector = ec_crypto::generate_connector(jwsHeaderObj, jwsPayloadObj, conn_ctx->C_signing_key);
+    ASSERT_OPT_HAS_VALUE(connector, {}, "%s:%d: Failed to generate C-Connector\n", __func__, __LINE__);
+    e_ctx->connector = connector->c_str();
+
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_dpp_connector, std::string(e_ctx->connector));
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_config_nonce, conn_ctx->nonce_len, e_ctx->c_nonce);
+
+    if ((frame = ec_util::copy_attrs_to_frame(frame, attribs, attribs_len)) == nullptr) {
+        em_printfout("Failed to copy attributes to Reconfiguration Authentication Request frame");
+        free(frame);
+        free(attribs);
+        return {};
+    }
+
+    free(attribs);
+    return std::make_pair(reinterpret_cast<uint8_t *>(frame), EC_FRAME_BASE_SIZE + attribs_len);
 }
 
 std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_recfg_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status)
@@ -1061,8 +1178,9 @@ cJSON *ec_ctrl_configurator_t::finalize_config_obj(cJSON *base, ec_connection_co
 
     cJSON *jwsPayloadObj = ec_crypto::create_jws_payload(conn_ctx, groups, conn_ctx.net_access_key);
     // Create / add connector
-    std::string connector = ec_crypto::generate_connector(jwsHeaderObj, jwsPayloadObj, conn_ctx.C_signing_key);
-    cJSON_AddStringToObject(cred, "signedConnector", connector.c_str());
+    std::optional<std::string> connector = ec_crypto::generate_connector(jwsHeaderObj, jwsPayloadObj, conn_ctx.C_signing_key);
+    ASSERT_OPT_HAS_VALUE(connector, nullptr, "%s:%d: Failed to generate connector\n", __func__, __LINE__);
+    cJSON_AddStringToObject(cred, "signedConnector", connector->c_str());
 
     // Add csign
     cJSON *cSignObj = ec_crypto::create_csign_object(conn_ctx, conn_ctx.C_signing_key);
