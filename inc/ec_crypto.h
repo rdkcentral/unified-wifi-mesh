@@ -623,9 +623,7 @@ public:
 	 * @param[in] jws_payload The JWS Payload.
 	 * @param[in] sign_key The key to sign the connector with (creating 'sig').
 	 *
-	 * @return const char* The generated connector, or NULL on failure.
-	 *
-	 * @note The caller is responsible for freeing the returned memory.
+	 * @return std::string The generated connector, empty on failure
 	 *
 	 * @paragraph EasyConnect 4.2.1.1 Digital Signature Computation
 	 * The procedures to compute the digital signature of a Connector and the procedure to verify such signature are described
@@ -639,7 +637,7 @@ public:
 	 * If “sig” is the result of the signature, the Connector is then:
 	 * base64url(UTF8(JWS Protected Header)) | ‘.’ | base64url(JWS Payload) | ‘.’ | base64url(sig)
 	 */
-	static const char* generate_connector(const cJSON* jws_header, const cJSON* jws_payload, SSL_KEY* sign_key);
+	static std::string generate_connector(const cJSON* jws_header, const cJSON* jws_payload, SSL_KEY* sign_key);
 
     
 	/**
