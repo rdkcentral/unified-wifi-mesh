@@ -1,24 +1,20 @@
 #include "al_service_access_point.h"
 #include "al_service_utils.h"
 
+ /*
+     * We assume MTU = 1500, so max packet size is less or equal MTU size.
+     * Each packet contains a header and a payload. The header size is
+     * 4 (size) + 6 (MAC) + 6 (MAC) + 3 x 1 (3 x 1 byte flags) = 19 bytes.
+     * Because of that, the fragment (payload) size can't exceed
+     * MTU - 19 = 1481 bytes
+    */
+#define FRAGMENT_SIZE 1481
+
+
 // Constructor: Connects to the Unix domain socket using the provided path --> moved from hardcoded to check in the unit test for socket creation
 AlServiceAccessPoint::AlServiceAccessPoint(const std::string &dataSocketPath, const std::string &controlSocketPath) : alDataSocketpath(dataSocketPath),
                                                                                                                       alControlSocketpath(controlSocketPath)
 {
-    alDataSocketDescriptor = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (alDataSocketDescriptor == -1)
-    {
-        throw AlServiceException("Failed to create Unix socket for data", PrimitiveError::SocketCreationFailed);
-    }
-    struct sockaddr_un dataAddr = createUnixSocketAddress(dataSocketPath);
-    if (connect(alDataSocketDescriptor, (struct sockaddr *)&dataAddr, sizeof(dataAddr)) == -1)
-    {
-        close(alDataSocketDescriptor);
-        throw AlServiceException("Failed to connect to Unix socket for data", PrimitiveError::ConnectionFailed);
-    }
-#ifdef DEBUG_MODE
-    std::cout << "Connected to Unix data socket: " << dataSocketPath << std::endl;
-#endif
     alControlSocketDescriptor = socket(AF_UNIX, SOCK_STREAM, 0);
     if (alControlSocketDescriptor == -1)
     {
@@ -33,6 +29,21 @@ AlServiceAccessPoint::AlServiceAccessPoint(const std::string &dataSocketPath, co
 #ifdef DEBUG_MODE
     std::cout << "Connected to Unix control socket: " << controlSocketPath << std::endl;
 #endif
+
+    alDataSocketDescriptor = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (alDataSocketDescriptor == -1)
+    {
+        throw AlServiceException("Failed to create Unix socket for data", PrimitiveError::SocketCreationFailed);
+    }
+    struct sockaddr_un dataAddr = createUnixSocketAddress(dataSocketPath);
+    if (connect(alDataSocketDescriptor, (struct sockaddr *)&dataAddr, sizeof(dataAddr)) == -1)
+    {
+        close(alDataSocketDescriptor);
+        throw AlServiceException("Failed to connect to Unix socket for data", PrimitiveError::ConnectionFailed);
+    }
+#ifdef DEBUG_MODE
+    std::cout << "Connected to Unix data socket: " << dataSocketPath << std::endl;
+#endif
 }
 
 // Destructor: Closes the Unix domain socket
@@ -44,6 +55,14 @@ AlServiceAccessPoint::~AlServiceAccessPoint() {
         std::cout << "Unix socket closed." << std::endl;
         #endif
     }
+    if (alControlSocketDescriptor != -1)
+    {
+        close(alControlSocketDescriptor);
+#ifdef DEBUG_MODE
+        std::cout << "Unix control socket closed." << std::endl;
+#endif
+    }
+
 }
 
 // Getter for the socket descriptor
@@ -71,7 +90,7 @@ void AlServiceAccessPoint::setControlSocketDescriptor(int descriptor)
 
 // Executes service registration request (send a registration message)
 void AlServiceAccessPoint::serviceAccessPointRegistrationRequest(AlServiceRegistrationRequest& message) {
-    
+
     std::vector<unsigned char> serializedData = message.serializeRegistrationRequest();
     ssize_t bytesSent = send(alControlSocketDescriptor, serializedData.data(), serializedData.size(), 0);
     if (bytesSent == -1) {
@@ -104,17 +123,16 @@ AlServiceRegistrationResponse AlServiceAccessPoint::serviceAccessPointRegistrati
 
 // Message to send a SDU message to the IEEE1905 application
 void AlServiceAccessPoint::serviceAccessPointDataRequest(AlServiceDataUnit& message) {
-    const size_t fragmentSize = 1485;
-    
+
     const std::vector<unsigned char>& payload = message.getPayload();
 
     size_t totalSize = payload.size();
 
     //first condition to check if the service has been correctly registered enable
     if (registrationRequest.getServiceOperation() == ServiceOperation::SOP_ENABLE || registrationResponse.getResult() == RegistrationResult::SUCCESS) {
-         
-        // If payload size is less than or equal to 1500, send directly without fragmentation
-        if (totalSize <= fragmentSize) {
+
+        // If whole packet size i less than or equal to 1500, send directly without fragmentation
+        if (totalSize <= FRAGMENT_SIZE) {
             message.setIsFragment(0);
             message.setIsLastFragment(1);
 
@@ -130,10 +148,10 @@ void AlServiceAccessPoint::serviceAccessPointDataRequest(AlServiceDataUnit& mess
             return; // Exit the function after sending
         }
         // For payloads larger than 1500 bytes, handle fragmentation
-        size_t numFragments = (totalSize + fragmentSize - 1) / fragmentSize;
+        size_t numFragments = (totalSize + FRAGMENT_SIZE - 1) / FRAGMENT_SIZE;
         for (size_t i = 0; i < numFragments; ++i) {
-            size_t start = i * fragmentSize;
-            size_t end = std::min(start + fragmentSize, totalSize);
+            size_t start = i * FRAGMENT_SIZE;
+            size_t end = std::min(start + FRAGMENT_SIZE, totalSize);
             std::vector<unsigned char> fragmentData(payload.begin() + start, payload.begin() + end);
 
             message.setPayload(fragmentData);
@@ -199,8 +217,6 @@ AlServiceDataUnit AlServiceAccessPoint::serviceAccessPointDataIndication() {
             throw AlServiceException("Failed to receive message through Unix socket", PrimitiveError::IndicationFailed);
         }
         buffer.resize(bytesRead);
-        
-        std::cout << std::endl;
 
         // Deserialize the received fragment
         AlServiceDataUnit fragment;

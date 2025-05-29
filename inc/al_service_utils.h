@@ -28,4 +28,11 @@ struct sockaddr_in createUDPClientAddress(const std::string &ip, int port);
 std::string macAddressToString(const std::array<uint8_t, 6> arr);
 
 bool areMacsEqual(const std::array<uint8_t, 6> &first, const std::array<uint8_t, 6> &second);
+
+
+std::vector<unsigned char> convert_u32_into_bytes(uint32_t number);
+uint32_t convert_bytes_into_u32(const std::vector<unsigned char>& bytes);
+
+std::vector<unsigned char> remove_length_delimited_part(const std::vector<unsigned char>& buffer);
+
 #endif // AL_SERVICE_UTILS_H
