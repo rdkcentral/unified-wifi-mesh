@@ -21,19 +21,7 @@
 #include <gmock/gmock.h>
 #include <stdio.h>
 #include "dm_bsta_mld.h"
- 
-class dm_bsta_mld_Test : public ::testing::Test {
-protected:
-    dm_bsta_mld_t* instance;
-  
-    void SetUp() override {
-        instance = new dm_bsta_mld_t();
-   }
-  
-    void TearDown() override {
-        delete instance;
-   }
-};
+
   
 /**
  * @brief TEST decoding a valid JSON object with a valid parent ID
@@ -51,18 +39,17 @@ protected:
  * **Test Procedure:**@n
  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup theTEST environment by creating an instance of dm_bsta_mld_t | None | Instance created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Parse a valid JSON string to create a cJSON object | JSON string: "{\"key\":\"value\"}" | cJSON object created successfully | Should be successful |
- * | 03 | Call the decode function with the valid JSON object and a valid parent ID | validJson = cJSON object, parent_id = 1 | Result should be 0 | Should Pass |
- * | 04 | Assert that the result of the decode function is 0 | result = 0 | Assertion should pass | Should Pass |
- * | 05 | Clean up the cJSON object | validJson = cJSON object | cJSON object deleted successfully | Should be successful |
- * | 06 | Tear down theTEST environment by deleting the instance of dm_bsta_mld_t | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Parse a valid JSON string to create a cJSON object | JSON string: "{\"key\":\"value\"}" | cJSON object created successfully | Should be successful |
+ * | 02 | Call the decode function with the valid JSON object and a valid parent ID | validJson = cJSON object, parent_id = 1 | Result should be 0 | Should Pass |
+ * | 03 | Assert that the result of the decode function is 0 | result = 0 | Assertion should pass | Should Pass |
+ * | 04 | Clean up the cJSON object | validJson = cJSON object | cJSON object deleted successfully | Should be successful |
  */
-TEST_F(dm_bsta_mld_Test, DecodeValidJsonObjectWithValidParentID) {
+TEST(dm_bsta_mld_Test, DecodeValidJsonObjectWithValidParentID) {
     std::cout << "Entering DecodeValidJsonObjectWithValidParentIDTEST" << std::endl;
     cJSON* validJson = cJSON_Parse("{\"key\":\"value\"}");
     int parent_id = 1;
-    int result = instance->decode(validJson, &parent_id);
+    dm_bsta_mld_t instance;
+    int result = instance.decode(validJson, &parent_id);
     ASSERT_EQ(result, 0);
     cJSON_Delete(validJson);
     std::cout << "Exiting DecodeValidJsonObjectWithValidParentIDTEST" << std::endl;
@@ -84,18 +71,17 @@ TEST_F(dm_bsta_mld_Test, DecodeValidJsonObjectWithValidParentID) {
  * **Test Procedure:**@n
  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup theTEST environment | instance = new dm_bsta_mld_t() | instance is initialized | Done by Pre-requisite SetUp function |
- * | 02 | Parse a valid JSON object | validJson = cJSON_Parse("{\"key\":\"value\"}") | validJson contains the parsed JSON object | Should be successful |
- * | 03 | Call the decode function with the valid JSON object and null parent ID | result = instance->decode(validJson, nullptr) | result = -1 | Should Pass |
- * | 04 | Assert the result of the decode function | ASSERT_EQ(result, -1) | result is -1 | Should Pass |
- * | 05 | Delete the parsed JSON object | cJSON_Delete(validJson) | validJson is deleted | Should be successful |
- * | 06 | Tear down theTEST environment | delete instance | instance is deleted | Done by Pre-requisite TearDown function |
+ * | 01 | Parse a valid JSON object | validJson = cJSON_Parse("{\"key\":\"value\"}") | validJson contains the parsed JSON object | Should be successful |
+ * | 02 | Call the decode function with the valid JSON object and null parent ID | result = instance.decode(validJson, nullptr) | result = -1 | Should Pass |
+ * | 03 | Assert the result of the decode function | ASSERT_EQ(result, -1) | result is -1 | Should Pass |
+ * | 04 | Delete the parsed JSON object | cJSON_Delete(validJson) | validJson is deleted | Should be successful |
  */
 /*code doesn't handle null  
-TEST_F(dm_bsta_mld_Test, DecodeValidJsonObjectWithNullParentID) {
+TEST(dm_bsta_mld_Test, DecodeValidJsonObjectWithNullParentID) {
     std::cout << "Entering DecodeValidJsonObjectWithNullParentIDTEST" << std::endl;
     cJSON* validJson = cJSON_Parse("{\"key\":\"value\"}");
-    int result = instance->decode(validJson, nullptr);
+    dm_bsta_mld_t instance;
+    int result = instance.decode(validJson, nullptr);
     ASSERT_EQ(result, -1);
     cJSON_Delete(validJson);
     std::cout << "Exiting DecodeValidJsonObjectWithNullParentIDTEST" << std::endl;
@@ -118,15 +104,14 @@ TEST_F(dm_bsta_mld_Test, DecodeValidJsonObjectWithNullParentID) {
  * **Test Procedure:**@n
  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup theTEST environment by creating an instance of dm_bsta_mld_t | None | Instance created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Call the decode function with a null JSON object and a valid parent ID | json_object = nullptr, parent_id = 1 | Result should be -1 | Should Pass |
- * | 03 | Clean up theTEST environment by deleting the instance of dm_bsta_mld_t | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Call the decode function with a null JSON object and a valid parent ID | json_object = nullptr, parent_id = 1 | Result should be -1 | Should Pass |
  */
 /*code doesn't handle null  
-TEST_F(dm_bsta_mld_Test, DecodeNullJsonObjectWithValidParentID) {
+TEST(dm_bsta_mld_Test, DecodeNullJsonObjectWithValidParentID) {
     std::cout << "Entering DecodeNullJsonObjectWithValidParentIDTEST" << std::endl;
     int parent_id = 1;
-    int result = instance->decode(nullptr, &parent_id);
+    dm_bsta_mld_t instance;
+    int result = instance.decode(nullptr, &parent_id);
     ASSERT_EQ(result, -1);
     std::cout << "Exiting DecodeNullJsonObjectWithValidParentIDTEST" << std::endl;
 }
@@ -148,18 +133,17 @@ TEST_F(dm_bsta_mld_Test, DecodeNullJsonObjectWithValidParentID) {
  * **Test Procedure:**@n
  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup theTEST environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Parse an invalid JSON object | invalidJson = "{key:value}" | invalidJson should be parsed | Should be successful |
- * | 03 | Call the decode function with invalid JSON and valid parent ID | invalidJson = "{key:value}", parent_id = 1 | result should be -1 | Should Fail |
- * | 04 | Assert the result of the decode function | result = -1 | result should be -1 | Should Fail |
- * | 05 | Delete the invalid JSON object | invalidJson = "{key:value}" | invalidJson should be deleted | Should be successful |
- * | 06 | Tear down theTEST environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Parse an invalid JSON object | invalidJson = "{key:value}" | invalidJson should be parsed | Should be successful |
+ * | 02 | Call the decode function with invalid JSON and valid parent ID | invalidJson = "{key:value}", parent_id = 1 | result should be -1 | Should Fail |
+ * | 03 | Assert the result of the decode function | result = -1 | result should be -1 | Should Fail |
+ * | 04 | Delete the invalid JSON object | invalidJson = "{key:value}" | invalidJson should be deleted | Should be successful |
  */
-TEST_F(dm_bsta_mld_Test, DecodeInvalidJsonObjectWithValidParentID) {
+TEST(dm_bsta_mld_Test, DecodeInvalidJsonObjectWithValidParentID) {
     std::cout << "Entering DecodeInvalidJsonObjectWithValidParentIDTEST" << std::endl;
     cJSON* invalidJson = cJSON_Parse("{key:value}");
     int parent_id = 1;
-    int result = instance->decode(invalidJson, &parent_id);
+    dm_bsta_mld_t instance;
+    int result = instance.decode(invalidJson, &parent_id);
     ASSERT_EQ(result, -1);
     cJSON_Delete(invalidJson);
     std::cout << "Exiting DecodeInvalidJsonObjectWithValidParentIDTEST" << std::endl;
@@ -181,17 +165,16 @@ TEST_F(dm_bsta_mld_Test, DecodeInvalidJsonObjectWithValidParentID) {
  * **Test Procedure:**@n
  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup theTEST environment by creating an instance of dm_bsta_mld_t | None | Instance created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Parse a valid JSON object | JSON string: {"key":"value"} | cJSON object created successfully | Should be successful |
- * | 03 | Call the decode function with the valid JSON object and an invalid parent ID | validJson = {"key":"value"}, invalid_parent_id = -1 | Result should be -1 | Should Pass |
- * | 04 | Delete the cJSON object to clean up | validJson = {"key":"value"} | cJSON object deleted successfully | Should be successful |
- * | 05 | Tear down theTEST environment by deleting the instance of dm_bsta_mld_t | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Parse a valid JSON object | JSON string: {"key":"value"} | cJSON object created successfully | Should be successful |
+ * | 02 | Call the decode function with the valid JSON object and an invalid parent ID | validJson = {"key":"value"}, invalid_parent_id = -1 | Result should be -1 | Should Pass |
+ * | 03 | Delete the cJSON object to clean up | validJson = {"key":"value"} | cJSON object deleted successfully | Should be successful |
  */
-TEST_F(dm_bsta_mld_Test, DecodeValidJsonObjectWithInvalidParentID) {
+TEST(dm_bsta_mld_Test, DecodeValidJsonObjectWithInvalidParentID) {
     std::cout << "Entering DecodeValidJsonObjectWithInvalidParentIDTEST" << std::endl;
     cJSON* validJson = cJSON_Parse("{\"key\":\"value\"}");
     int invalid_parent_id = -1;
-    int result = instance->decode(validJson, &invalid_parent_id);
+    dm_bsta_mld_t instance;
+    int result = instance.decode(validJson, &invalid_parent_id);
     ASSERT_EQ(result, -1);
     cJSON_Delete(validJson);
     std::cout << "Exiting DecodeValidJsonObjectWithInvalidParentIDTEST" << std::endl;
@@ -214,15 +197,13 @@ TEST_F(dm_bsta_mld_Test, DecodeValidJsonObjectWithInvalidParentID) {
  * **Test Procedure:**@n
  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup theTEST environment | instance = new dm_bsta_mld_t() | instance is created | Done by Pre-requisite SetUp function |
- * | 02 | Create a cJSON object and add string, number, and boolean values | obj = cJSON_CreateObject(), cJSON_AddStringToObject(obj, "name", "test"), cJSON_AddNumberToObject(obj, "age", 30), cJSON_AddBoolToObject(obj, "is_student", false) | cJSON object is created with specified values | Should be successful |
- * | 03 | Create a nested cJSON object and add it to the main object | nested = cJSON_CreateObject(), cJSON_AddStringToObject(nested, "city", "New York"), cJSON_AddItemToObject(obj, "address", nested) | Nested cJSON object is added to the main object | Should be successful |
- * | 04 | Encode the cJSON object using the instance's encode function | instance->encode(obj) | Object is encoded | Should Pass |
- * | 05 | Verify that the object is still a valid cJSON object | cJSON_IsObject(obj) | Assertion passes | Should Pass |
- * | 06 | Clean up the cJSON object | cJSON_Delete(obj) | Object is deleted | Should be successful |
- * | 07 | Tear down theTEST environment | delete instance | instance is deleted | Done by Pre-requisite TearDown function |
+ * | 01 | Create a cJSON object and add string, number, and boolean values | obj = cJSON_CreateObject(), cJSON_AddStringToObject(obj, "name", "test"), cJSON_AddNumberToObject(obj, "age", 30), cJSON_AddBoolToObject(obj, "is_student", false) | cJSON object is created with specified values | Should be successful |
+ * | 02 | Create a nested cJSON object and add it to the main object | nested = cJSON_CreateObject(), cJSON_AddStringToObject(nested, "city", "New York"), cJSON_AddItemToObject(obj, "address", nested) | Nested cJSON object is added to the main object | Should be successful |
+ * | 03 | Encode the cJSON object using the instance's encode function | instance.encode(obj) | Object is encoded | Should Pass |
+ * | 04 | Verify that the object is still a valid cJSON object | cJSON_IsObject(obj) | Assertion passes | Should Pass |
+ * | 05 | Clean up the cJSON object | cJSON_Delete(obj) | Object is deleted | Should be successful |
  */
-TEST_F(dm_bsta_mld_Test, EncodeWithValidCJSONObject) {
+TEST(dm_bsta_mld_Test, EncodeWithValidCJSONObject) {
     std::cout << "Entering EncodeWithValidCJSONObject" << std::endl;
     cJSON*obj = cJSON_CreateObject();
     cJSON_AddStringToObject(obj, "name", "test");
@@ -231,7 +212,8 @@ TEST_F(dm_bsta_mld_Test, EncodeWithValidCJSONObject) {
     cJSON*nested = cJSON_CreateObject();
     cJSON_AddStringToObject(nested, "city", "New York");
     cJSON_AddItemToObject(obj, "address", nested);
-    instance->encode(obj);
+    dm_bsta_mld_t instance;
+    instance.encode(obj);
     ASSERT_TRUE(cJSON_IsObject(obj));
     cJSON_Delete(obj);
     std::cout << "Exiting EncodeWithValidCJSONObject" << std::endl;
@@ -253,18 +235,17 @@ TEST_F(dm_bsta_mld_Test, EncodeWithValidCJSONObject) {
  * **Test Procedure:**@n
  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup theTEST environment by creating an instance of dm_bsta_mld_t | instance = new dm_bsta_mld_t() | Instance created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Create a JSON object and add a string with special characters | obj = cJSON_CreateObject(), cJSON_AddStringToObject(obj, "special", "!@#$%^&*()_+") | JSON object created and string added | Should be successful |
- * | 03 | Encode the JSON object using the instance's encode method | instance->encode(obj) | JSON object encoded successfully | Should Pass |
- * | 04 | Verify that the object is still a valid JSON object | cJSON_IsObject(obj) | Assertion passed | Should Pass |
- * | 05 | Clean up the JSON object | cJSON_Delete(obj) | JSON object deleted | Should be successful |
- * | 06 | Tear down theTEST environment by deleting the instance | delete instance | Instance deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Create a JSON object and add a string with special characters | obj = cJSON_CreateObject(), cJSON_AddStringToObject(obj, "special", "!@#$%^&*()_+") | JSON object created and string added | Should be successful |
+ * | 02 | Encode the JSON object using the instance's encode method | instance.encode(obj) | JSON object encoded successfully | Should Pass |
+ * | 03 | Verify that the object is still a valid JSON object | cJSON_IsObject(obj) | Assertion passed | Should Pass |
+ * | 04 | Clean up the JSON object | cJSON_Delete(obj) | JSON object deleted | Should be successful |
  */
-TEST_F(dm_bsta_mld_Test, EncodeWithSpecialCharacters) {
+TEST(dm_bsta_mld_Test, EncodeWithSpecialCharacters) {
       std::cout << "Entering EncodeWithSpecialCharacters" << std::endl;
       cJSON*obj = cJSON_CreateObject();
       cJSON_AddStringToObject(obj, "special", "!@#$%^&*()_+");
-      instance->encode(obj);
+      dm_bsta_mld_t instance;
+      instance.encode(obj);
       ASSERT_TRUE(cJSON_IsObject(obj));
       cJSON_Delete(obj);
       std::cout << "Exiting EncodeWithSpecialCharacters" << std::endl;
@@ -287,17 +268,16 @@ TEST_F(dm_bsta_mld_Test, EncodeWithSpecialCharacters) {
  * **Test Procedure:**@n
  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup theTEST environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Create an empty cJSON object | None | cJSON object created | Should be successful |
- * | 03 | Call the encode function with the empty cJSON object | obj = empty cJSON object | None | Should Pass |
- * | 04 | Verify the object is still a valid cJSON object | obj = encoded cJSON object | ASSERT_TRUE(cJSON_IsObject(obj)) | Should Pass |
- * | 05 | Delete the cJSON object | obj = encoded cJSON object | None | Should be successful |
- * | 06 | Tear down theTEST environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Create an empty cJSON object | None | cJSON object created | Should be successful |
+ * | 02 | Call the encode function with the empty cJSON object | obj = empty cJSON object | None | Should Pass |
+ * | 03 | Verify the object is still a valid cJSON object | obj = encoded cJSON object | ASSERT_TRUE(cJSON_IsObject(obj)) | Should Pass |
+ * | 04 | Delete the cJSON object | obj = encoded cJSON object | None | Should be successful |
  */
-TEST_F(dm_bsta_mld_Test, EncodeWithEmptyCJSONObject) {
+TEST(dm_bsta_mld_Test, EncodeWithEmptyCJSONObject) {
       std::cout << "Entering EncodeWithEmptyCJSONObject" << std::endl;
       cJSON*obj = cJSON_CreateObject();
-      instance->encode(obj);
+      dm_bsta_mld_t instance;
+      instance.encode(obj);
       ASSERT_TRUE(cJSON_IsObject(obj));
       cJSON_Delete(obj);
       std::cout << "Exiting EncodeWithEmptyCJSONObject" << std::endl;
@@ -320,17 +300,16 @@ TEST_F(dm_bsta_mld_Test, EncodeWithEmptyCJSONObject) {
  * **Test Procedure:**@n
  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup theTEST environment by creating an instance of dm_bsta_mld_t | None | Instance created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Initialize cJSON object to null | cJSON*obj = nullptr | obj is null | Should be successful |
- * | 03 | Call the encode function with the null cJSON object | instance->encode(obj) | Function handles null input gracefully | Should Pass |
- * | 04 | Verify that the cJSON object remains null after encoding | ASSERT_EQ(obj, nullptr) | obj is still null | Should Pass |
- * | 05 | Clean up theTEST environment by deleting the instance of dm_bsta_mld_t | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Initialize cJSON object to null | cJSON*obj = nullptr | obj is null | Should be successful |
+ * | 02 | Call the encode function with the null cJSON object | instance.encode(obj) | Function handles null input gracefully | Should Pass |
+ * | 03 | Verify that the cJSON object remains null after encoding | ASSERT_EQ(obj, nullptr) | obj is still null | Should Pass |
  */
 /*code doesn't handle null  
-TEST_F(dm_bsta_mld_Test, EncodeWithNullCJSONObject) {
+TEST(dm_bsta_mld_Test, EncodeWithNullCJSONObject) {
       std::cout << "Entering EncodeWithNullCJSONObject" << std::endl;
       cJSON*obj = nullptr;
-      instance->encode(obj);
+      dm_bsta_mld_t instance;
+      instance.encode(obj);
       ASSERT_EQ(obj, nullptr);
       std::cout << "Exiting EncodeWithNullCJSONObject" << std::endl;
 }
@@ -354,18 +333,17 @@ TEST_F(dm_bsta_mld_Test, EncodeWithNullCJSONObject) {
  * **Test Procedure:**@n
  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup theTEST environment by creating an instance of dm_bsta_mld_t | instance = new dm_bsta_mld_t() | Instance should be created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Create a JSON array and add an invalid string item to it | obj = cJSON_CreateArray(); cJSON_AddItemToArray(obj, cJSON_CreateString("invalid")); | JSON array should be created with one string item | Should be successful |
- * | 03 | Call the encode function with the invalid JSON structure | instance->encode(obj) | Function should process the JSON structure | Should Pass |
- * | 04 | Verify that the JSON structure is still an array after encoding | cJSON_IsArray(obj) | Assertion should be true | Should Pass |
- * | 05 | Clean up the JSON object | cJSON_Delete(obj) | JSON object should be deleted successfully | Should be successful |
- * | 06 | Tear down theTEST environment by deleting the instance of dm_bsta_mld_t | delete instance | Instance should be deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Create a JSON array and add an invalid string item to it | obj = cJSON_CreateArray(); cJSON_AddItemToArray(obj, cJSON_CreateString("invalid")); | JSON array should be created with one string item | Should be successful |
+ * | 02 | Call the encode function with the invalid JSON structure | instance.encode(obj) | Function should process the JSON structure | Should Pass |
+ * | 03 | Verify that the JSON structure is still an array after encoding | cJSON_IsArray(obj) | Assertion should be true | Should Pass |
+ * | 04 | Clean up the JSON object | cJSON_Delete(obj) | JSON object should be deleted successfully | Should be successful |
  */
-TEST_F(dm_bsta_mld_Test, EncodeWithInvalidJSONStructure) {
+TEST(dm_bsta_mld_Test, EncodeWithInvalidJSONStructure) {
       std::cout << "Entering EncodeWithInvalidJSONStructure" << std::endl;
       cJSON*obj = cJSON_CreateArray();
       cJSON_AddItemToArray(obj, cJSON_CreateString("invalid"));
-      instance->encode(obj);
+      dm_bsta_mld_t instance;
+      instance.encode(obj);
       ASSERT_TRUE(cJSON_IsArray(obj));
       cJSON_Delete(obj);
       std::cout << "Exiting EncodeWithInvalidJSONStructure" << std::endl;
@@ -388,17 +366,15 @@ TEST_F(dm_bsta_mld_Test, EncodeWithInvalidJSONStructure) {
  * **Test Procedure:**@n
  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup theTEST environment | None | Instance of `dm_bsta_mld_t` created | Done by Pre-requisite SetUp function |
- * | 02 | Set valid data in `info` | `info` fields set to valid values | Fields in `info` set correctly | Should be successful |
- * | 04 | Retrieve AP MLD info | None | `retrieved_info` should not be nullptr | Should be successful |
- * | 05 | Validate `mac_addr_valid` field | `retrieved_info->mac_addr_valid` | Should be true | Should Pass |
- * | 06 | Validate `ap_mld_mac_addr_valid` field | `retrieved_info->ap_mld_mac_addr_valid` | Should be true | Should Pass |
- * | 07 | Validate `num_affiliated_bsta` field | `retrieved_info->num_affiliated_bsta` | Should be 5 | Should Pass |
- * | 08 | Validate `str` field | `retrieved_info->str` | Should be true | Should Pass |
- * | 09 | Validate `nstr` field | `retrieved_info->nstr` | Should be true | Should Pass |
- * | 10 | Validate `emlsr` field | `retrieved_info->emlsr` | Should be true | Should Pass |
- * | 11 | Validate `emlmr` field | `retrieved_info->emlmr` | Should be true | Should Pass |
- * | 12 | Tear down theTEST environment | None | Instance of `dm_bsta_mld_t` deleted | Done by Pre-requisite TearDown function |
+ * | 01 | Set valid data in `info` | `info` fields set to valid values | Fields in `info` set correctly | Should be successful |
+ * | 02 | Retrieve AP MLD info | None | `retrieved_info` should not be nullptr | Should be successful |
+ * | 03 | Validate `mac_addr_valid` field | `retrieved_info->mac_addr_valid` | Should be true | Should Pass |
+ * | 04 | Validate `ap_mld_mac_addr_valid` field | `retrieved_info->ap_mld_mac_addr_valid` | Should be true | Should Pass |
+ * | 05 | Validate `num_affiliated_bsta` field | `retrieved_info->num_affiliated_bsta` | Should be 5 | Should Pass |
+ * | 06 | Validate `str` field | `retrieved_info->str` | Should be true | Should Pass |
+ * | 07 | Validate `nstr` field | `retrieved_info->nstr` | Should be true | Should Pass |
+ * | 08 | Validate `emlsr` field | `retrieved_info->emlsr` | Should be true | Should Pass |
+ * | 09 | Validate `emlmr` field | `retrieved_info->emlmr` | Should be true | Should Pass |
  */
 TEST(dm_bsta_mld_Test, RetrieveAPMLDInfoWithValidData) {
       std::cout << "Entering RetrieveAPMLDInfoWithValidDataTEST" << std::endl;
@@ -439,10 +415,8 @@ TEST(dm_bsta_mld_Test, RetrieveAPMLDInfoWithValidData) {
  * **Test Procedure:**@n
  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set up theTEST environment by creating an instance of dm_bsta_mld_t | instance = new dm_bsta_mld_t() | Instance created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Initialize the instance to null | dm_bsta_mld_t(nullptr) | Instance initialized successfully | Should be successful |
- * | 03 | Retrieve AP MLD information | info = instance->get_ap_mld_info() | info != nullptr | Should Pass |
- * | 04 | Tear down theTEST environment by deleting the instance | delete instance | Instance deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Initialize the instance to null | dm_bsta_mld_t(nullptr) | Instance initialized successfully | Should be successful |
+ * | 02 | Retrieve AP MLD information | info = instance.get_ap_mld_info() | info != nullptr | Should Pass |
  */
 /*code doesn't handle null  
 TEST(dm_bsta_mld_Test, RetrieveAPMLDInfoAfterNullInitialization) {
@@ -470,14 +444,13 @@ TEST(dm_bsta_mld_Test, RetrieveAPMLDInfoAfterNullInitialization) {
  * **Test Procedure:**@n
  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup theTEST environment by creating an instance of dm_bsta_mld_t | instance = new dm_bsta_mld_t() | Instance should be created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Call the init() method on the instance | instance->init() | result = 0 | Should Pass |
- * | 03 | Verify the result of the init() method | ASSERT_EQ(result, 0) | result = 0 | Should Pass |
- * | 04 | Tear down theTEST environment by deleting the instance | delete instance | Instance should be deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Call the init() method on the instance | instance.init() | result = 0 | Should Pass |
+ * | 02 | Verify the result of the init() method | ASSERT_EQ(result, 0) | result = 0 | Should Pass |
  */
-TEST_F(dm_bsta_mld_Test, Initialize_m_bsta_mld_info_structure) {
+TEST(dm_bsta_mld_Test, Initialize_m_bsta_mld_info_structure) {
       std::cout << "Entering Initialize_m_bsta_mld_info_structureTEST" << std::endl;
-      int result = instance->init();
+      dm_bsta_mld_t instance;
+      int result = instance.init();
       ASSERT_EQ(result, 0);
       std::cout << "Exiting Initialize_m_bsta_mld_info_structureTEST" << std::endl;
 }
@@ -499,18 +472,17 @@ TEST_F(dm_bsta_mld_Test, Initialize_m_bsta_mld_info_structure) {
  * **Test Procedure:**@n
  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup theTEST environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Call the init() function for the first time | None | result1 = 0 | Should Pass |
- * | 03 | Assert the result of the first init() call | result1 = 0 | Assertion should be true | Should be successful |
- * | 04 | Call the init() function for the second time | None | result2 = 0 | Should Pass |
- * | 05 | Assert the result of the second init() call | result2 = 0 | Assertion should be true | Should be successful |
- * | 06 | Tear down theTEST environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Call the init() function for the first time | None | result1 = 0 | Should Pass |
+ * | 02 | Assert the result of the first init() call | result1 = 0 | Assertion should be true | Should be successful |
+ * | 03 | Call the init() function for the second time | None | result2 = 0 | Should Pass |
+ * | 04 | Assert the result of the second init() call | result2 = 0 | Assertion should be true | Should be successful |
  */
-TEST_F(dm_bsta_mld_Test, Initialize_m_bsta_mld_info_structure_multiple_times) {
+TEST(dm_bsta_mld_Test, Initialize_m_bsta_mld_info_structure_multiple_times) {
       std::cout << "Entering Initialize_m_bsta_mld_info_structure_multiple_timesTEST" << std::endl;
-      int result1 = instance->init();
+      dm_bsta_mld_t instance;
+      int result1 = instance.init();
       ASSERT_EQ(result1, 0);
-      int result2 = instance->init();
+      int result2 = instance.init();
       ASSERT_EQ(result2, 0);
       std::cout << "Exiting Initialize_m_bsta_mld_info_structure_multiple_timesTEST" << std::endl;
 }

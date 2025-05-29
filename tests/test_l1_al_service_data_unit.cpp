@@ -23,19 +23,6 @@
 #include "al_service_data_unit.h"
 #include "test_l1_utils.h"
 
-class AlServiceDataUnitTest : public ::testing::Test {
-protected:
-    AlServiceDataUnit *alServiceDataUnit;
-
-    void SetUp() override {
-        alServiceDataUnit = new AlServiceDataUnit();
-    }
-
-    void TearDown() override {
-        delete alServiceDataUnit;
-    }
-};
-
 /**
  *@brief Test appending valid data to the payload
  *
@@ -52,15 +39,14 @@ protected:
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Define the data to be appended | data = {0x01, 0x02, 0x03} | None | Should be successful |
- *| 03 | Append data to the payload | data = {0x01, 0x02, 0x03}, size = 3 | None | Should Pass |
- *| 08 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Define the data to be appended | data = {0x01, 0x02, 0x03} | None | Should be successful |
+ *| 02 | Append data to the payload | data = {0x01, 0x02, 0x03}, size = 3 | None | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, AppendValidDataToPayload) {
+TEST(AlServiceDataUnitTest, AppendValidDataToPayload) {
     std::cout << "Entering AppendValidDataToPayload test" << std::endl;
     unsigned char data[] = {0x01, 0x02, 0x03};
-    alServiceDataUnit->appendToPayload(data, 3);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.appendToPayload(data, 3);
     std::cout << "Exiting AppendValidDataToPayload test" << std::endl;
 }
 
@@ -80,15 +66,14 @@ TEST_F(AlServiceDataUnitTest, AppendValidDataToPayload) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment by initializing AlServiceDataUnit object | None | AlServiceDataUnit object is initialized | Done by Pre-requisite SetUp function |
- *| 02 | Define an empty data array | data = {} | Empty data array is defined | Should be successful |
- *| 03 | Append the empty data array to the payload | data = {}, size = 0 | None | Should Pass |
- *| 04 | Tear down the test environment by deleting AlServiceDataUnit object | None | AlServiceDataUnit object is deleted | Done by Pre-requisite TearDown function |
+ *| 01 | Define an empty data array | data = {} | Empty data array is defined | Should be successful |
+ *| 02 | Append the empty data array to the payload | data = {}, size = 0 | None | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, AppendEmptyDataToPayload) {
+TEST(AlServiceDataUnitTest, AppendEmptyDataToPayload) {
     std::cout << "Entering AppendEmptyDataToPayload test" << std::endl;
     unsigned char data[] = {};
-    alServiceDataUnit->appendToPayload(data, 0);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.appendToPayload(data, 0);
     std::cout << "Exiting AppendEmptyDataToPayload test" << std::endl;
 }
 
@@ -108,17 +93,15 @@ TEST_F(AlServiceDataUnitTest, AppendEmptyDataToPayload) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment by initializing AlServiceDataUnit object | None | AlServiceDataUnit object is initialized | Done by Pre-requisite SetUp function |
- *| 02 | Log entering the test | None | Log message "Entering AppendNullDataPointerToPayload test" is printed | Should be successful |
- *| 03 | Define a null data pointer | data = nullptr | data is null | Should be successful |
- *| 04 | Append null data pointer to payload | data = nullptr, size = 3 | None | Should Pass |
- *| 05 | Tear down the test environment by deleting AlServiceDataUnit object | None | AlServiceDataUnit object is deleted | Done by Pre-requisite TearDown function |
+ *| 01 | Define a null data pointer | data = nullptr | data is null | Should be successful |
+ *| 02 | Append null data pointer to payload | data = nullptr, size = 3 | None | Should Pass |
  */
 /*code doesn't handle null
-TEST_F(AlServiceDataUnitTest, AppendNullDataPointerToPayload) {
+TEST(AlServiceDataUnitTest, AppendNullDataPointerToPayload) {
     std::cout << "Entering AppendNullDataPointerToPayload test" << std::endl;
     unsigned char *data = nullptr;
-    alServiceDataUnit->appendToPayload(data, 3);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.appendToPayload(data, 3);
     std::cout << "Exiting AppendNullDataPointerToPayload test" << std::endl;
 }
 */
@@ -139,15 +122,14 @@ TEST_F(AlServiceDataUnitTest, AppendNullDataPointerToPayload) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Define data to append | data = {0x01, 0x02, 0x03}, length = 0 | None | Should be successful |
- *| 03 | Append data with zero length to payload | data = {0x01, 0x02, 0x03}, length = 0 | None | Should Pass |
- *| 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Define data to append | data = {0x01, 0x02, 0x03}, length = 0 | None | Should be successful |
+ *| 02 | Append data with zero length to payload | data = {0x01, 0x02, 0x03}, length = 0 | None | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, AppendDataWithZeroLength) {
+TEST(AlServiceDataUnitTest, AppendDataWithZeroLength) {
     std::cout << "Entering AppendDataWithZeroLength test" << std::endl;
     unsigned char data[] = {0x01, 0x02, 0x03};
-    alServiceDataUnit->appendToPayload(data, 0);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.appendToPayload(data, 0);
     std::cout << "Exiting AppendDataWithZeroLength test" << std::endl;
 }
 
@@ -167,18 +149,17 @@ TEST_F(AlServiceDataUnitTest, AppendDataWithZeroLength) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Initialize data array with values from 1 to 255 | data[i] = i + 1 for i in 0 to 254 | data array initialized | Should be successful |
- *| 03 | Append data to payload | data = {1, 2, ..., 255}, length = 255 | Payload size should be 255 | Should Pass |
- *| 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Initialize data array with values from 1 to 255 | data[i] = i + 1 for i in 0 to 254 | data array initialized | Should be successful |
+ *| 02 | Append data to payload | data = {1, 2, ..., 255}, length = 255 | Payload size should be 255 | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, AppendDataWithMaximumLength) {
+TEST(AlServiceDataUnitTest, AppendDataWithMaximumLength) {
     std::cout << "Entering AppendDataWithMaximumLength" << std::endl;
     unsigned char data[255];
     for (int i = 0; i < 255; ++i) {
         data[i] = static_cast<unsigned char>(i + 1);
     }
-    alServiceDataUnit->appendToPayload(data, 255);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.appendToPayload(data, 255);
     std::cout << "Exiting AppendDataWithMaximumLength" << std::endl;
 }
 
@@ -198,18 +179,17 @@ TEST_F(AlServiceDataUnitTest, AppendDataWithMaximumLength) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Initialize data array with values from 1 to 256 | data[i] = i + 1 for i in 0 to 255 | data array initialized | Should be successful |
- *| 03 | Append data to payload | alServiceDataUnit->appendToPayload(data, 256) | data = {1, 2, ..., 256} | Should Pass |
- *| 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Initialize data array with values from 1 to 256 | data[i] = i + 1 for i in 0 to 255 | data array initialized | Should be successful |
+ *| 02 | Append data to payload | alServiceDataUnit.appendToPayload(data, 256) | data = {1, 2, ..., 256} | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, AppendDataWithLengthExceedingBufferSize) {
+TEST(AlServiceDataUnitTest, AppendDataWithLengthExceedingBufferSize) {
     std::cout << "Entering AppendDataWithLengthExceedingBufferSize" << std::endl;
     unsigned char data[256];
     for (int i = 0; i < 256; ++i) {
         data[i] = static_cast<unsigned char>(i + 1);
     }
-    alServiceDataUnit->appendToPayload(data, 256);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.appendToPayload(data, 256);
     std::cout << "Exiting AppendDataWithLengthExceedingBufferSize" << std::endl;
 }
 
@@ -229,16 +209,14 @@ TEST_F(AlServiceDataUnitTest, AppendDataWithLengthExceedingBufferSize) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Initialize the test fixture | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Log entering the test | None | None | Should be successful |
- *| 03 | Define data with special characters and non-ASCII values | data = {0x00, 0xFF, 0x7F, 0x80, 0x81, 0x82} | None | Should be successful |
- *| 04 | Append first 3 bytes of data to payload | data = {0x00, 0xFF, 0x7F}, length = 3 | None | Should Pass |
- *| 05 | Clean up the test fixture | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Define data with special characters and non-ASCII values | data = {0x00, 0xFF, 0x7F, 0x80, 0x81, 0x82} | None | Should be successful |
+ *| 02 | Append first 3 bytes of data to payload | data = {0x00, 0xFF, 0x7F}, length = 3 | None | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, AppendDataWithSpecialCharactersAndNonASCIIValues) {
+TEST(AlServiceDataUnitTest, AppendDataWithSpecialCharactersAndNonASCIIValues) {
     std::cout << "Entering AppendDataWithSpecialCharactersAndNonASCIIValues" << std::endl;
     unsigned char data[] = {0x00, 0xFF, 0x7F, 0x80, 0x81, 0x82};
-    alServiceDataUnit->appendToPayload(data, 3);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.appendToPayload(data, 3);
     std::cout << "Exiting AppendDataWithSpecialCharactersAndNonASCIIValues" << std::endl;
 }
 
@@ -259,15 +237,14 @@ TEST_F(AlServiceDataUnitTest, AppendDataWithSpecialCharactersAndNonASCIIValues) 
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Define data array with mixed valid and invalid values | data = {0x01, 0x02, 0x00} | None | Should be successful |
- *| 03 | Append data to payload | alServiceDataUnit->appendToPayload(data, 3) | None | Should Pass |
- *| 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Define data array with mixed valid and invalid values | data = {0x01, 0x02, 0x00} | None | Should be successful |
+ *| 02 | Append data to payload | alServiceDataUnit.appendToPayload(data, 3) | None | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, AppendDataWithMixedValidAndInvalidValues) {
+TEST(AlServiceDataUnitTest, AppendDataWithMixedValidAndInvalidValues) {
     std::cout << "Entering AppendDataWithMixedValidAndInvalidValues" << std::endl;
     unsigned char data[] = {0x01, 0x02, 0x00};
-    alServiceDataUnit->appendToPayload(data, 3);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.appendToPayload(data, 3);
     std::cout << "Exiting AppendDataWithMixedValidAndInvalidValues" << std::endl;
 }
 
@@ -288,14 +265,13 @@ TEST_F(AlServiceDataUnitTest, AppendDataWithMixedValidAndInvalidValues) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment by initializing `AlServiceDataUnit` object | None | Object should be initialized | Done by Pre-requisite SetUp function |
- *| 02 | Call the `deserialize` method with an empty data vector | data = {} | Method should handle empty input without errors | Should Pass |
- *| 03 | Clean up the test environment by deleting `AlServiceDataUnit` object | None | Object should be deleted | Done by Pre-requisite TearDown function |
+ *| 01 | Call the `deserialize` method with an empty data vector | data = {} | Method should handle empty input without errors | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, DeserializeWithEmptyDataVector) {
+TEST(AlServiceDataUnitTest, DeserializeWithEmptyDataVector) {
     std::cout << "Entering DeserializeWithEmptyDataVector test" << std::endl;
     std::vector<unsigned char> data = {};
-    alServiceDataUnit->deserialize(data);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.deserialize(data);
     std::cout << "Exiting DeserializeWithEmptyDataVector test" << std::endl;
 }
 
@@ -315,15 +291,14 @@ TEST_F(AlServiceDataUnitTest, DeserializeWithEmptyDataVector) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Create a valid data vector | data = {0x01, 0x02, 0x03, 0x04, 0x05} | None | Should be successful |
- *| 03 | Call the deserialize method with the valid data vector | data = {0x01, 0x02, 0x03, 0x04, 0x05} | None | Should Pass |
- *| 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Create a valid data vector | data = {0x01, 0x02, 0x03, 0x04, 0x05} | None | Should be successful |
+ *| 02 | Call the deserialize method with the valid data vector | data = {0x01, 0x02, 0x03, 0x04, 0x05} | None | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, DeserializeWithValidDataVector) {
+TEST(AlServiceDataUnitTest, DeserializeWithValidDataVector) {
     std::cout << "Entering DeserializeWithValidDataVector test" << std::endl;
     std::vector<unsigned char> data = {0x01, 0x02, 0x03, 0x04, 0x05};
-    alServiceDataUnit->deserialize(data);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.deserialize(data);
     std::cout << "Exiting DeserializeWithValidDataVector test" << std::endl;
 }
 
@@ -343,18 +318,17 @@ TEST_F(AlServiceDataUnitTest, DeserializeWithValidDataVector) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data |Expected Result |Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01| Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02| Create a data vector of maximum size (256) and populate it | data = {0, 1, 2, ..., 255} | None | Should be successful |
- *| 03| Call the `deserialize` method with the data vector | data = {0, 1, 2, ..., 255} | None | Should Pass |
- *| 04| Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01| Create a data vector of maximum size (256) and populate it | data = {0, 1, 2, ..., 255} | None | Should be successful |
+ *| 02| Call the `deserialize` method with the data vector | data = {0, 1, 2, ..., 255} | None | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, DeserializeWithMaximumSizeDataVector) {
+TEST(AlServiceDataUnitTest, DeserializeWithMaximumSizeDataVector) {
     std::cout << "Entering DeserializeWithMaximumSizeDataVector test" << std::endl;
     std::vector<unsigned char> data(256);
     for (size_t i = 0; i < data.size(); ++i) {
         data[i] = static_cast<unsigned char>(i);
     }
-    alServiceDataUnit->deserialize(data);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.deserialize(data);
     std::cout << "Exiting DeserializeWithMaximumSizeDataVector test" << std::endl;
 }
 
@@ -374,15 +348,14 @@ TEST_F(AlServiceDataUnitTest, DeserializeWithMaximumSizeDataVector) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Create a data vector containing only zeros | data = {0x00, 0x00, 0x00, 0x00} | None | Should be successful |
- *| 03 | Call the `deserialize` method with the zero data vector | data = {0x00, 0x00, 0x00, 0x00} | None | Should Pass |
- *| 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Create a data vector containing only zeros | data = {0x00, 0x00, 0x00, 0x00} | None | Should be successful |
+ *| 02 | Call the `deserialize` method with the zero data vector | data = {0x00, 0x00, 0x00, 0x00} | None | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, DeserializeWithDataVectorContainingOnlyZeros) {
+TEST(AlServiceDataUnitTest, DeserializeWithDataVectorContainingOnlyZeros) {
     std::cout << "Entering DeserializeWithDataVectorContainingOnlyZeros test" << std::endl;
     std::vector<unsigned char> data = {0x00, 0x00, 0x00, 0x00};
-    alServiceDataUnit->deserialize(data);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.deserialize(data);
     std::cout << "Exiting DeserializeWithDataVectorContainingOnlyZeros test" << std::endl;
 }
 
@@ -402,15 +375,14 @@ TEST_F(AlServiceDataUnitTest, DeserializeWithDataVectorContainingOnlyZeros) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment by initializing `AlServiceDataUnit` object | None | Object initialized | Done by Pre-requisite SetUp function |
- *| 02 | Create a data vector containing only 0x01 values | data = {0x01, 0x01, 0x01, 0x01} | Data vector created | Should be successful |
- *| 03 | Call the `deserialize` method with the created data vector | data = {0x01, 0x01, 0x01, 0x01} | Method executed | Should Pass |
- *| 04 | Clean up the test environment by deleting `AlServiceDataUnit` object | None | Object deleted | Done by Pre-requisite TearDown function |
+ *| 01 | Create a data vector containing only 0x01 values | data = {0x01, 0x01, 0x01, 0x01} | Data vector created | Should be successful |
+ *| 02 | Call the `deserialize` method with the created data vector | data = {0x01, 0x01, 0x01, 0x01} | Method executed | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, DeserializeWithDataVectorContainingOnlyOnes) {
+TEST(AlServiceDataUnitTest, DeserializeWithDataVectorContainingOnlyOnes) {
     std::cout << "Entering DeserializeWithDataVectorContainingOnlyOnes test" << std::endl;
     std::vector<unsigned char> data = {0x01, 0x01, 0x01, 0x01};
-    alServiceDataUnit->deserialize(data);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.deserialize(data);
     std::cout << "Exiting DeserializeWithDataVectorContainingOnlyOnes test" << std::endl;
 }
 
@@ -430,15 +402,14 @@ TEST_F(AlServiceDataUnitTest, DeserializeWithDataVectorContainingOnlyOnes) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment by initializing `AlServiceDataUnit` object. | None | Object initialized successfully | Done by Pre-requisite SetUp function |
- *| 02 | Create a data vector containing valid MAC addresses and payload. | data = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10} | Data vector created successfully | Should be successful |
- *| 03 | Call the `deserialize` method with the created data vector. | data = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10} | Method processes the data without errors | Should Pass |
- *| 04 | Clean up the test environment by deleting `AlServiceDataUnit` object. | None | Object deleted successfully | Done by Pre-requisite TearDown function |
+ *| 01 | Create a data vector containing valid MAC addresses and payload. | data = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10} | Data vector created successfully | Should be successful |
+ *| 02 | Call the `deserialize` method with the created data vector. | data = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10} | Method processes the data without errors | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, DeserializeWithDataVectorContainingValidMacAddressesAndPayload) {
+TEST(AlServiceDataUnitTest, DeserializeWithDataVectorContainingValidMacAddressesAndPayload) {
     std::cout << "Entering DeserializeWithDataVectorContainingValidMacAddressesAndPayload test" << std::endl;
     std::vector<unsigned char> data = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10};
-    alServiceDataUnit->deserialize(data);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.deserialize(data);
     std::cout << "Exiting DeserializeWithDataVectorContainingValidMacAddressesAndPayload test" << std::endl;
 }
 
@@ -458,15 +429,14 @@ TEST_F(AlServiceDataUnitTest, DeserializeWithDataVectorContainingValidMacAddress
  ***Test Procedure:**
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment by initializing `AlServiceDataUnit` object | None | Object should be initialized successfully | Done by Pre-requisite SetUp function |
- *| 02 | Create a data vector containing invalid MAC addresses | data = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF} | Data vector should be created successfully | Should be successful |
- *| 03 | Call the `deserialize` method with the invalid data vector | data = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF} | Method should handle the input without crashing | Should Pass |
- *| 04 | Clean up the test environment by deleting `AlServiceDataUnit` object | None | Object should be deleted successfully | Done by Pre-requisite TearDown function |
+ *| 01 | Create a data vector containing invalid MAC addresses | data = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF} | Data vector should be created successfully | Should be successful |
+ *| 02 | Call the `deserialize` method with the invalid data vector | data = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF} | Method should handle the input without crashing | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, DeserializeWithDataVectorContainingInvalidMacAddresses) {
+TEST(AlServiceDataUnitTest, DeserializeWithDataVectorContainingInvalidMacAddresses) {
     std::cout << "Entering DeserializeWithDataVectorContainingInvalidMacAddresses test" << std::endl;
     std::vector<unsigned char> data = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-    alServiceDataUnit->deserialize(data);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.deserialize(data);
     std::cout << "Exiting DeserializeWithDataVectorContainingInvalidMacAddresses test" << std::endl;
 }
 
@@ -487,13 +457,12 @@ TEST_F(AlServiceDataUnitTest, DeserializeWithDataVectorContainingInvalidMacAddre
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment by initializing AlServiceDataUnit object | None | AlServiceDataUnit object should be initialized | Done by Pre-requisite SetUp function |
- *| 02 | Retrieve the destination AL MAC address using getDestinationAlMacAddress() | None | MAC address should be retrieved | Should be successful |
- *| 03 | Clean up the test environment by deleting AlServiceDataUnit object | None | AlServiceDataUnit object should be deleted | Done by Pre-requisite TearDown function |
+ *| 01 | Retrieve the destination AL MAC address using getDestinationAlMacAddress() | None | MAC address should be retrieved | Should be successful |
  */
- TEST_F(AlServiceDataUnitTest, RetrievePrintAndVerifyDestinationAlMacAddress) {
+ TEST(AlServiceDataUnitTest, RetrievePrintAndVerifyDestinationAlMacAddress) {
     std::cout << "Entering RetrievePrintAndVerifyDestinationAlMacAddress test" << std::endl;
-    MacAddress macAddress = alServiceDataUnit->getDestinationAlMacAddress();
+    AlServiceDataUnit alServiceDataUnit;
+    MacAddress macAddress = alServiceDataUnit.getDestinationAlMacAddress();
     std::cout << "Destination AL MAC Address: ";
     for (size_t i = 0; i < macAddress.size(); ++i) {
         std::cout << std::hex << std::setw(2) << std::setfill('0')
@@ -522,14 +491,13 @@ TEST_F(AlServiceDataUnitTest, DeserializeWithDataVectorContainingInvalidMacAddre
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment by initializing AlServiceDataUnit object | None | AlServiceDataUnit object is created | Done by Pre-requisite SetUp function |
- *| 02 | Retrieve the Fragment ID using getFragmentId method | None | Fragment ID is retrieved | Should be successful |
- *| 03 | Log the retrieved Fragment ID | fragmentId = value | Fragment ID is logged | Should be successful |
- *| 04 | Clean up the test environment by deleting AlServiceDataUnit object | None | AlServiceDataUnit object is deleted | Done by Pre-requisite TearDown function |
+ *| 01 | Retrieve the Fragment ID using getFragmentId method | None | Fragment ID is retrieved | Should be successful |
+ *| 02 | Log the retrieved Fragment ID | fragmentId = value | Fragment ID is logged | Should be successful |
  */
-TEST_F(AlServiceDataUnitTest, RetrieveAndPrintFragmentId) {
+TEST(AlServiceDataUnitTest, RetrieveAndPrintFragmentId) {
     std::cout << "Entering RetrieveAndPrintFragmentId" << std::endl;
-    uint8_t fragmentId = alServiceDataUnit->getFragmentId();
+    AlServiceDataUnit alServiceDataUnit;
+    uint8_t fragmentId = alServiceDataUnit.getFragmentId();
     std::cout << "Fragment ID: " << static_cast<int>(fragmentId);
     std::cout << "Exiting RetrieveAndPrintFragmentId" << std::endl;
 }
@@ -550,14 +518,13 @@ TEST_F(AlServiceDataUnitTest, RetrieveAndPrintFragmentId) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment by initializing `AlServiceDataUnit` object | None | Object should be initialized successfully | Done by Pre-requisite SetUp function |
- *| 02 | Retrieve the fragment status using `getIsFragment` method | None | Should return 0 or 1 | Should Pass |
- *| 03 | Log the fragment status | fragmentStatus = 0 or 1 | Status should be logged | Should be successful |
- *| 04 | Clean up the test environment by deleting `AlServiceDataUnit` object | None | Object should be deleted successfully | Done by Pre-requisite TearDown function |
+ *| 01 | Retrieve the fragment status using `getIsFragment` method | None | Should return 0 or 1 | Should Pass |
+ *| 02 | Log the fragment status | fragmentStatus = 0 or 1 | Status should be logged | Should be successful |
  */
-TEST_F(AlServiceDataUnitTest, RetrieveAndPrintFragmentStatus) {
+TEST(AlServiceDataUnitTest, RetrieveAndPrintFragmentStatus) {
     std::cout << "Entering RetrieveAndPrintFragmentStatus" << std::endl;
-    uint8_t fragmentStatus = alServiceDataUnit->getIsFragment();
+    AlServiceDataUnit alServiceDataUnit;
+    uint8_t fragmentStatus = alServiceDataUnit.getIsFragment();
     std::cout << "Fragment status: " << static_cast<int>(fragmentStatus);
     std::cout << "Exiting RetrieveAndPrintFragmentStatus" << std::endl;
 }
@@ -578,14 +545,13 @@ TEST_F(AlServiceDataUnitTest, RetrieveAndPrintFragmentStatus) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment by initializing `AlServiceDataUnit` object | None | Object should be initialized successfully | Done by Pre-requisite SetUp function |
- *| 02 | Call the `getIsLastFragment` method to retrieve the fragment status | None | Should return 0 | Should Pass |
- *| 03 | Print the retrieved fragment status | result = 0 | Should print "Fragment status: 0" | Should be successful |
- *| 04 | Clean up the test environment by deleting `AlServiceDataUnit` object | None | Object should be deleted successfully | Done by Pre-requisite TearDown function |
+ *| 01 | Call the `getIsLastFragment` method to retrieve the fragment status | None | Should return 0 | Should Pass |
+ *| 02 | Print the retrieved fragment status | result = 0 | Should print "Fragment status: 0" | Should be successful |
  */
-TEST_F(AlServiceDataUnitTest, RetrieveFragmentStatusAndPrint) {
+TEST(AlServiceDataUnitTest, RetrieveFragmentStatusAndPrint) {
     std::cout << "Entering RetrieveFragmentStatusAndPrint test" << std::endl;
-    uint8_t result = alServiceDataUnit->getIsLastFragment();
+    AlServiceDataUnit alServiceDataUnit;
+    uint8_t result = alServiceDataUnit.getIsLastFragment();
     std::cout << "Fragment status: " << static_cast<int>(result) << std::endl;
     std::cout << "Exiting RetrieveFragmentStatusAndPrint test" << std::endl;
 }
@@ -606,13 +572,12 @@ TEST_F(AlServiceDataUnitTest, RetrieveFragmentStatusAndPrint) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment by creating an instance of AlServiceDataUnit | None | Instance of AlServiceDataUnit created | Done by Pre-requisite SetUp function |
- *| 02 | Retrieve the payload from the AlServiceDataUnit instance | None | Payload retrieved | Should be successful |
- *| 03 | Clean up the test environment by deleting the instance of AlServiceDataUnit | None | Instance of AlServiceDataUnit deleted | Done by Pre-requisite TearDown function |
+ *| 01 | Retrieve the payload from the AlServiceDataUnit instance | None | Payload retrieved | Should be successful |
  */
-TEST_F(AlServiceDataUnitTest, RetrievePayloadAndPrint) {
+TEST(AlServiceDataUnitTest, RetrievePayloadAndPrint) {
     std::cout << "Entering RetrievePayloadAndPrint test" << std::endl;
-    std::vector<unsigned char>& payload = alServiceDataUnit->getPayload();
+    AlServiceDataUnit alServiceDataUnit;
+    std::vector<unsigned char>& payload = alServiceDataUnit.getPayload();
     std::cout << "Payload bytes (hex): ";
     for (auto byte : payload) {
         std::cout << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(byte) << " ";
@@ -624,7 +589,7 @@ TEST_F(AlServiceDataUnitTest, RetrievePayloadAndPrint) {
 /**
  *@brief Test to verify the retrieval of the source AL MAC address
  *
- *This test checks the functionality of the getSourceAlMacAddress method in the AlServiceDataUnit class. It ensures that the method returns a valid MAC address.
+ *This test checks the functionality of the gsetSourceAlMacAddress method in the AlServiceDataUnit class. It ensures that the method returns a valid MAC address.
  *
  ***Test Group ID:* *Basic: 01@n
  ***Test Case ID:* *021@n
@@ -637,13 +602,12 @@ TEST_F(AlServiceDataUnitTest, RetrievePayloadAndPrint) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data |Expected Result |Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01| Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02| Retrieve the source AL MAC address using getSourceAlMacAddress method and print it| None | MAC address should be valid | Should Pass |
- *| 03| Clean up the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01| Retrieve the source AL MAC address using gsetSourceAlMacAddress method and print it| None | MAC address should be valid | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, RetrieveSourceAlMacAddress) {
+TEST(AlServiceDataUnitTest, RetrieveSourceAlMacAddress) {
     std::cout << "Entering RetrieveSourceAlMacAddress test" << std::endl;
-    MacAddress macAddress = alServiceDataUnit->getSourceAlMacAddress();
+    AlServiceDataUnit alServiceDataUnit;
+    MacAddress macAddress = alServiceDataUnit.gsetSourceAlMacAddress();
     std::cout << "Source AL MAC Address: ";
     for (auto byte : macAddress) {
         std::cout << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(byte) << ":";
@@ -668,13 +632,12 @@ TEST_F(AlServiceDataUnitTest, RetrieveSourceAlMacAddress) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Serialize the data | None | Execution should happen without any issues | Should Pass |
- *| 09 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Serialize the data | None | Execution should happen without any issues | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, InvokeSerialize) {
+TEST(AlServiceDataUnitTest, InvokeSerialize) {
     std::cout << "Entering SerializeWithValidMacAddressesAndPayload test" << std::endl;
-    std::vector<unsigned char> result = alServiceDataUnit->serialize();
+    AlServiceDataUnit alServiceDataUnit;
+    std::vector<unsigned char> result = alServiceDataUnit.serialize();
     std::cout << "Exiting SerializeWithValidMacAddressesAndPayload test" << std::endl;
 }
 
@@ -694,14 +657,13 @@ TEST_F(AlServiceDataUnitTest, InvokeSerialize) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Set a valid MAC address using setDestinationAlMacAddress method | macAddress = "00:1A:2B:3C:4D:5E" | None | Should be successful |
- *| 03 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Set a valid MAC address using setDestinationAlMacAddress method | macAddress = "00:1A:2B:3C:4D:5E" | None | Should be successful |
  */
-TEST_F(AlServiceDataUnitTest, SetDestinationMacAddress_ValidFormat1) {
+TEST(AlServiceDataUnitTest, SetDestinationMacAddress_ValidFormat1) {
     std::cout << "Entering SetDestinationMacAddress_ValidFormat1" << std::endl;
     std::string macAddress = "00:1A:2B:3C:4D:5E";
-    alServiceDataUnit->setDestinationAlMacAddress(parseMacAddress(macAddress));
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.setDestinationAlMacAddress(parseMacAddress(macAddress));
     std::cout << "Exiting SetDestinationMacAddress_ValidFormat1" << std::endl;
 }
 
@@ -721,14 +683,13 @@ TEST_F(AlServiceDataUnitTest, SetDestinationMacAddress_ValidFormat1) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Set a valid MAC address using setDestinationAlMacAddress | macAddress = "001A2B3C4D5E" | None | Should be successful |
- *| 03 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Set a valid MAC address using setDestinationAlMacAddress | macAddress = "001A2B3C4D5E" | None | Should be successful |
  */
-TEST_F(AlServiceDataUnitTest, SetDestinationMacAddress_ValidFormat2) {
+TEST(AlServiceDataUnitTest, SetDestinationMacAddress_ValidFormat2) {
     std::cout << "Entering SetDestinationMacAddress_ValidFormat2" << std::endl;
     std::string macAddress = "001A2B3C4D5E";
-    alServiceDataUnit->setDestinationAlMacAddress(parseMacAddress(macAddress));
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.setDestinationAlMacAddress(parseMacAddress(macAddress));
     std::cout << "Exiting SetDestinationMacAddress_ValidFormat2" << std::endl;
 }
 
@@ -748,14 +709,13 @@ TEST_F(AlServiceDataUnitTest, SetDestinationMacAddress_ValidFormat2) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Initialize the AlServiceDataUnit object | None | Object initialized | Done by Pre-requisite SetUp function |
- *| 02 | Set a valid MAC address using setDestinationAlMacAddress method | macAddress = "00-1A-2B-3C-4D-5E" | MAC address set successfully | Should be successful |
- *| 03 | Clean up the AlServiceDataUnit object | None | Object cleaned up | Done by Pre-requisite TearDown function |
+ *| 01 | Set a valid MAC address using setDestinationAlMacAddress method | macAddress = "00-1A-2B-3C-4D-5E" | MAC address set successfully | Should be successful |
  */
-TEST_F(AlServiceDataUnitTest, SetDestinationMacAddress_ValidFormat3) {
+TEST(AlServiceDataUnitTest, SetDestinationMacAddress_ValidFormat3) {
     std::cout << "Entering SetDestinationMacAddress_ValidFormat3" << std::endl;
     std::string macAddress = "00-1A-2B-3C-4D-5E";
-    alServiceDataUnit->setDestinationAlMacAddress(parseMacAddress(macAddress));
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.setDestinationAlMacAddress(parseMacAddress(macAddress));
     std::cout << "Exiting SetDestinationMacAddress_ValidFormat3" << std::endl;
 }
 
@@ -775,15 +735,14 @@ TEST_F(AlServiceDataUnitTest, SetDestinationMacAddress_ValidFormat3) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Define an invalid MAC address format | macAddress = "00:1A:2B:3C:4D" | None | Should be successful |
- *| 03 | Call setDestinationAlMacAddress with the invalid MAC address | macAddress = "00:1A:2B:3C:4D" | None | Should Pass |
- *| 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Define an invalid MAC address format | macAddress = "00:1A:2B:3C:4D" | None | Should be successful |
+ *| 02 | Call setDestinationAlMacAddress with the invalid MAC address | macAddress = "00:1A:2B:3C:4D" | None | Should Pass |
  */
- TEST_F(AlServiceDataUnitTest, SetDestinationMacAddress_InvalidFormat1) {
+ TEST(AlServiceDataUnitTest, SetDestinationMacAddress_InvalidFormat1) {
     std::string macAddress = "00:1A:2B:3C:4D";
+    AlServiceDataUnit alServiceDataUnit;
     try {
-        alServiceDataUnit->setDestinationAlMacAddress(parseMacAddress(macAddress));
+        alServiceDataUnit.setDestinationAlMacAddress(parseMacAddress(macAddress));
         FAIL() << "Expected exception for invalid MAC format (too short)";
     } catch (const std::exception& e) {
         std::cout << "Caught expected exception: " << e.what() << std::endl;
@@ -809,14 +768,13 @@ TEST_F(AlServiceDataUnitTest, SetDestinationMacAddress_ValidFormat3) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Set an invalid MAC address format | macAddress = "00:1A:2B:3C:4D:5E:6F" | None | Should Fail |
- *| 03 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Set an invalid MAC address format | macAddress = "00:1A:2B:3C:4D:5E:6F" | None | Should Fail |
  */
- TEST_F(AlServiceDataUnitTest, SetDestinationMacAddress_InvalidFormat2) {
+ TEST(AlServiceDataUnitTest, SetDestinationMacAddress_InvalidFormat2) {
     std::string macAddress = "00:1A:2B:3C:4D:5E:6F";
+    AlServiceDataUnit alServiceDataUnit;
     try {
-        alServiceDataUnit->setDestinationAlMacAddress(parseMacAddress(macAddress));
+        alServiceDataUnit.setDestinationAlMacAddress(parseMacAddress(macAddress));
         FAIL() << "Expected exception for invalid MAC format (too long)";
     } catch (const std::exception& e) {
         std::cout << "Caught expected exception: " << e.what() << std::endl;
@@ -842,14 +800,13 @@ TEST_F(AlServiceDataUnitTest, SetDestinationMacAddress_ValidFormat3) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data |Expected Result |Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01| Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02| Set invalid MAC address | macAddress = "00:1A:2B:3@:4D:ZZ" | None | Should Pass |
- *| 03| Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01| Set invalid MAC address | macAddress = "00:1A:2B:3@:4D:ZZ" | None | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, SetDestinationMacAddress_InvalidCharacters1) {
+TEST(AlServiceDataUnitTest, SetDestinationMacAddress_InvalidCharacters1) {
     std::string macAddress = "00:1A:2B:3@:4D:ZZ";
+    AlServiceDataUnit alServiceDataUnit;
     try {
-        alServiceDataUnit->setDestinationAlMacAddress(parseMacAddress(macAddress));
+        alServiceDataUnit.setDestinationAlMacAddress(parseMacAddress(macAddress));
         FAIL() << "Expected exception for invalid characters in MAC address";
     } catch (const std::exception& e) {
         std::cout << "Caught expected exception: " << e.what() << std::endl;
@@ -875,13 +832,12 @@ TEST_F(AlServiceDataUnitTest, SetDestinationMacAddress_InvalidCharacters1) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Set the fragment ID to zero | fragmentId = 0 | None | Should be successful |
- *| 03 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 |Set the fragment ID to zero | fragmentId = 0 | None | Should be successful |
  */
-TEST_F(AlServiceDataUnitTest, SetFragmentIdToZero) {
+TEST(AlServiceDataUnitTest, SetFragmentIdToZero) {
     std::cout << "Entering SetFragmentIdToZero test" << std::endl;
-    alServiceDataUnit->setFragmentId(0);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.setFragmentId(0);
     std::cout << "Exiting SetFragmentIdToZero test" << std::endl;
 }
 
@@ -901,13 +857,12 @@ TEST_F(AlServiceDataUnitTest, SetFragmentIdToZero) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Set the fragment ID to 255 | fragmentId = 255 | None | Should be successful |
- *| 03 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Set the fragment ID to 255 | fragmentId = 255 | None | Should be successful |
  */
-TEST_F(AlServiceDataUnitTest, SetFragmentIdToMaximumValue) {
+TEST(AlServiceDataUnitTest, SetFragmentIdToMaximumValue) {
     std::cout << "Entering SetFragmentIdToMaximumValue test" << std::endl;
-    alServiceDataUnit->setFragmentId(255);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.setFragmentId(255);
     std::cout << "Exiting SetFragmentIdToMaximumValue test" << std::endl;
 }
 
@@ -927,14 +882,13 @@ TEST_F(AlServiceDataUnitTest, SetFragmentIdToMaximumValue) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data |Expected Result |Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01| Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02| Set the fragment status with minimum valid ID | id = 0 | None | Should be successful |
- *| 03| Cleanup the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01| Set the fragment status with minimum valid ID | id = 0 | None | Should be successful |
  */
-TEST_F(AlServiceDataUnitTest, SetFragmentStatusWithMinValidID) {
+TEST(AlServiceDataUnitTest, SetFragmentStatusWithMinValidID) {
     std::cout << "Entering SetFragmentStatusWithMinValidID" << std::endl;
     uint8_t id = 0;
-    alServiceDataUnit->setIsFragment(id);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.setIsFragment(id);
     std::cout << "Exiting SetFragmentStatusWithMinValidID" << std::endl;
 }
 
@@ -954,14 +908,13 @@ TEST_F(AlServiceDataUnitTest, SetFragmentStatusWithMinValidID) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Set the fragment status with the maximum valid ID | id = 255 | None | Should be successful |
- *| 03 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Set the fragment status with the maximum valid ID | id = 255 | None | Should be successful |
  */
-TEST_F(AlServiceDataUnitTest, SetFragmentStatusWithMaxValidID) {
+TEST(AlServiceDataUnitTest, SetFragmentStatusWithMaxValidID) {
     std::cout << "Entering SetFragmentStatusWithMaxValidID" << std::endl;
     uint8_t id = 255;
-    alServiceDataUnit->setIsFragment(id);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.setIsFragment(id);
     std::cout << "Exiting SetFragmentStatusWithMaxValidID" << std::endl;
 }
 
@@ -981,14 +934,13 @@ TEST_F(AlServiceDataUnitTest, SetFragmentStatusWithMaxValidID) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment by initializing AlServiceDataUnit object | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Set the last fragment status with the maximum valid ID (255) | id = 255 | None | Should be successful |
- *| 03 | Clean up the test environment by deleting AlServiceDataUnit object | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Set the last fragment status with the maximum valid ID (255) | id = 255 | None | Should be successful |
  */
-TEST_F(AlServiceDataUnitTest, SetLastFragmentStatusWithMaxValidID) {
+TEST(AlServiceDataUnitTest, SetLastFragmentStatusWithMaxValidID) {
     std::cout << "Entering SetLastFragmentStatusWithMaxValidID" << std::endl;
     uint8_t id = 255;
-    alServiceDataUnit->setIsLastFragment(id);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.setIsLastFragment(id);
     std::cout << "Exiting SetLastFragmentStatusWithMaxValidID" << std::endl;
 }
 
@@ -1008,14 +960,13 @@ TEST_F(AlServiceDataUnitTest, SetLastFragmentStatusWithMaxValidID) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Call setIsLastFragment with id = 0 | id = 0 | None | Should be successful |
- *| 03 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Call setIsLastFragment with id = 0 | id = 0 | None | Should be successful |
  */
-TEST_F(AlServiceDataUnitTest, SetLastFragmentStatusWithMinValidID) {
+TEST(AlServiceDataUnitTest, SetLastFragmentStatusWithMinValidID) {
     std::cout << "Entering SetLastFragmentStatusWithMinValidID" << std::endl;
     uint8_t id = 0;
-    alServiceDataUnit->setIsLastFragment(id);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.setIsLastFragment(id);
     std::cout << "Exiting SetLastFragmentStatusWithMinValidID" << std::endl;
 }
 
@@ -1035,14 +986,13 @@ TEST_F(AlServiceDataUnitTest, SetLastFragmentStatusWithMinValidID) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Create a valid buffer and set it as the payload | buffer = {0x01, 0x02, 0x03, 0x04} | None | Should be successful |
- *| 03 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Create a valid buffer and set it as the payload | buffer = {0x01, 0x02, 0x03, 0x04} | None | Should be successful |
  */
-TEST_F(AlServiceDataUnitTest, SetPayloadWithValidBuffer) {
+TEST(AlServiceDataUnitTest, SetPayloadWithValidBuffer) {
     std::cout << "Entering SetPayloadWithValidBuffer test" << std::endl;
     std::vector<unsigned char> buffer = {0x01, 0x02, 0x03, 0x04};
-    alServiceDataUnit->setPayload(buffer);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.setPayload(buffer);
     std::cout << "Exiting SetPayloadWithValidBuffer test" << std::endl;
 }
 
@@ -1064,15 +1014,14 @@ TEST_F(AlServiceDataUnitTest, SetPayloadWithValidBuffer) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Initialize an empty buffer | buffer = {} | None | Should be successful |
- *| 03 | Call setPayload with the empty buffer | buffer = {} | None | Should Pass |
- *| 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Initialize an empty buffer | buffer = {} | None | Should be successful |
+ *| 02 | Call setPayload with the empty buffer | buffer = {} | None | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, SetPayloadWithEmptyBuffer) {
+TEST(AlServiceDataUnitTest, SetPayloadWithEmptyBuffer) {
     std::cout << "Entering SetPayloadWithEmptyBuffer test" << std::endl;
     std::vector<unsigned char> buffer = {};
-    alServiceDataUnit->setPayload(buffer);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.setPayload(buffer);
     std::cout << "Exiting SetPayloadWithEmptyBuffer test" << std::endl;
 }
 
@@ -1092,16 +1041,15 @@ TEST_F(AlServiceDataUnitTest, SetPayloadWithEmptyBuffer) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Call SetUp function to initialize AlServiceDataUnit object | None | AlServiceDataUnit object initialized | Done by Pre-requisite SetUp function |
- *| 02 | Create a buffer of size 256 and fill it with incremental values starting from 0 | buffer = {0, 1, 2, ..., 255} | Buffer created and filled with values | Should be successful |
- *| 03 | Call setPayload with the created buffer | buffer = {0, 1, 2, ..., 255} | Payload set in AlServiceDataUnit object | Should Pass |
- *| 04 | Call TearDown function to clean up AlServiceDataUnit object | None | AlServiceDataUnit object deleted | Done by Pre-requisite TearDown function |
+ *| 01 | Create a buffer of size 256 and fill it with incremental values starting from 0 | buffer = {0, 1, 2, ..., 255} | Buffer created and filled with values | Should be successful |
+ *| 02 | Call setPayload with the created buffer | buffer = {0, 1, 2, ..., 255} | Payload set in AlServiceDataUnit object | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, SetPayloadWithMaxSizeBuffer) {
+TEST(AlServiceDataUnitTest, SetPayloadWithMaxSizeBuffer) {
     std::cout << "Entering SetPayloadWithMaxSizeBuffer test" << std::endl;
     std::vector<unsigned char> buffer(256);
     std::iota(buffer.begin(), buffer.end(), 0);
-    alServiceDataUnit->setPayload(buffer);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.setPayload(buffer);
     std::cout << "Exiting SetPayloadWithMaxSizeBuffer test" << std::endl;
 }
 
@@ -1121,15 +1069,14 @@ TEST_F(AlServiceDataUnitTest, SetPayloadWithMaxSizeBuffer) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Create a buffer with all zeroes | buffer = {0x00, 0x00, 0x00, 0x00} | None | Should be successful |
- *| 03 | Set the payload with the zero buffer | buffer = {0x00, 0x00, 0x00, 0x00} | None | Should Pass |
- *| 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Create a buffer with all zeroes | buffer = {0x00, 0x00, 0x00, 0x00} | None | Should be successful |
+ *| 02 | Set the payload with the zero buffer | buffer = {0x00, 0x00, 0x00, 0x00} | None | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, SetPayloadWithAllZeroesBuffer) {
+TEST(AlServiceDataUnitTest, SetPayloadWithAllZeroesBuffer) {
     std::cout << "Entering SetPayloadWithAllZeroesBuffer test" << std::endl;
     std::vector<unsigned char> buffer = {0x00, 0x00, 0x00, 0x00};
-    alServiceDataUnit->setPayload(buffer);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.setPayload(buffer);
     std::cout << "Exiting SetPayloadWithAllZeroesBuffer test" << std::endl;
 }
 
@@ -1149,15 +1096,14 @@ TEST_F(AlServiceDataUnitTest, SetPayloadWithAllZeroesBuffer) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Create a buffer with all ones | buffer = {0xFF, 0xFF, 0xFF, 0xFF} | None | Should be successful |
- *| 03 | Set the payload using the buffer | alServiceDataUnit->setPayload(buffer) | None | Should Pass |
- *| 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Create a buffer with all ones | buffer = {0xFF, 0xFF, 0xFF, 0xFF} | None | Should be successful |
+ *| 02 | Set the payload using the buffer | alServiceDataUnit.setPayload(buffer) | None | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, SetPayloadWithAllOnesBuffer) {
+TEST(AlServiceDataUnitTest, SetPayloadWithAllOnesBuffer) {
     std::cout << "Entering SetPayloadWithAllOnesBuffer test" << std::endl;
     std::vector<unsigned char> buffer = {0xFF, 0xFF, 0xFF, 0xFF};
-    alServiceDataUnit->setPayload(buffer);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.setPayload(buffer);
     std::cout << "Exiting SetPayloadWithAllOnesBuffer test" << std::endl;
 }
 
@@ -1177,15 +1123,14 @@ TEST_F(AlServiceDataUnitTest, SetPayloadWithAllOnesBuffer) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Create a buffer with mixed data types | buffer = {0x01, 'A', 0x02, 'B'} | None | Should be successful |
- *| 03 | Set the payload with the created buffer | alServiceDataUnit->setPayload(buffer) | None | Should Pass |
- *| 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Create a buffer with mixed data types | buffer = {0x01, 'A', 0x02, 'B'} | None | Should be successful |
+ *| 02 | Set the payload with the created buffer | alServiceDataUnit.setPayload(buffer) | None | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, SetPayloadWithMixedDataTypesBuffer) {
+TEST(AlServiceDataUnitTest, SetPayloadWithMixedDataTypesBuffer) {
     std::cout << "Entering SetPayloadWithMixedDataTypesBuffer test" << std::endl;
     std::vector<unsigned char> buffer = {0x01, 'A', 0x02, 'B'};
-    alServiceDataUnit->setPayload(buffer);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.setPayload(buffer);
     std::cout << "Exiting SetPayloadWithMixedDataTypesBuffer test" << std::endl;
 }
 
@@ -1205,15 +1150,14 @@ TEST_F(AlServiceDataUnitTest, SetPayloadWithMixedDataTypesBuffer) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Create a buffer with printable characters | buffer = {'A', 'B', 'C', 'D'} | None | Should be successful |
- *| 03 | Set the payload with the created buffer | alServiceDataUnit->setPayload(buffer) | None | Should Pass |
- *| 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Create a buffer with printable characters | buffer = {'A', 'B', 'C', 'D'} | None | Should be successful |
+ *| 02| Set the payload with the created buffer | alServiceDataUnit.setPayload(buffer) | None | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, SetPayloadWithPrintableCharactersBuffer) {
+TEST(AlServiceDataUnitTest, SetPayloadWithPrintableCharactersBuffer) {
     std::cout << "Entering SetPayloadWithPrintableCharactersBuffer test" << std::endl;
     std::vector<unsigned char> buffer = {'A', 'B', 'C', 'D'};
-    alServiceDataUnit->setPayload(buffer);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.setPayload(buffer);
     std::cout << "Exiting SetPayloadWithPrintableCharactersBuffer test" << std::endl;
 }
 
@@ -1233,15 +1177,14 @@ TEST_F(AlServiceDataUnitTest, SetPayloadWithPrintableCharactersBuffer) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Create a buffer with special characters | buffer = {'@', '#', '$', '%'} | None | Should be successful |
- *| 03 | Set the payload with the special characters buffer | alServiceDataUnit->setPayload(buffer) | None | Should Pass |
- *| 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Create a buffer with special characters | buffer = {'@', '#', '$', '%'} | None | Should be successful |
+ *| 02| Set the payload with the special characters buffer | alServiceDataUnit.setPayload(buffer) | None | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, SetPayloadWithSpecialCharactersBuffer) {
+TEST(AlServiceDataUnitTest, SetPayloadWithSpecialCharactersBuffer) {
     std::cout << "Entering SetPayloadWithSpecialCharactersBuffer test" << std::endl;
     std::vector<unsigned char> buffer = {'@', '#', '$', '%'};
-    alServiceDataUnit->setPayload(buffer);
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.setPayload(buffer);
     std::cout << "Exiting SetPayloadWithSpecialCharactersBuffer test" << std::endl;
 }
 
@@ -1261,14 +1204,13 @@ TEST_F(AlServiceDataUnitTest, SetPayloadWithSpecialCharactersBuffer) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Call setSourceAlMacAddress with a valid MAC address in uppercase | MAC address = "00:1A:2B:3C:4D:5E" | Should Pass | Should be successful |
- *| 03 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Call setSourceAlMacAddress with a valid MAC address in uppercase | MAC address = "00:1A:2B:3C:4D:5E" | Should Pass | Should be successful |
  */
-TEST_F(AlServiceDataUnitTest, SetValidMacAddressUpperCase) {
+TEST(AlServiceDataUnitTest, SetValidMacAddressUpperCase) {
     std::cout << "Entering SetValidMacAddressUpperCase" << std::endl;
     std::string macAddress = "00:1A:2B:3C:4D:5E";
-    alServiceDataUnit->setSourceAlMacAddress(parseMacAddress(macAddress));
+    AlServiceDataUnit alServiceDataUnit;
+    alServiceDataUnit.setSourceAlMacAddress(parseMacAddress(macAddress));
     std::cout << "Exiting SetValidMacAddressUpperCase" << std::endl;
 }
 
@@ -1288,15 +1230,14 @@ TEST_F(AlServiceDataUnitTest, SetValidMacAddressUpperCase) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Call setSourceAlMacAddress with a short MAC address | "00:1A:2B:3C:4D" | None | Should Fail |
- *| 03 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Call setSourceAlMacAddress with a short MAC address | "00:1A:2B:3C:4D" | None | Should Fail |
  */
-TEST_F(AlServiceDataUnitTest, SetInvalidMacAddressShortLength) {
+TEST(AlServiceDataUnitTest, SetInvalidMacAddressShortLength) {
     std::cout << "Entering SetInvalidMacAddressShortLength" << std::endl;
     std::string macAddress = "00:1A:2B:3C:4D";
+    AlServiceDataUnit alServiceDataUnit;
     try {
-        alServiceDataUnit->setSourceAlMacAddress(parseMacAddress(macAddress));
+        alServiceDataUnit.setSourceAlMacAddress(parseMacAddress(macAddress));
         FAIL() << "Expected exception for invalid MAC format (too short)";
     } catch (const std::exception& e) {
         std::cout << "Caught expected exception: " << e.what() << std::endl;
@@ -1324,15 +1265,14 @@ TEST_F(AlServiceDataUnitTest, SetInvalidMacAddressShortLength) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Call setSourceAlMacAddress with an invalid long MAC address | "00:1A:2B:3C:4D:5E:6F" | None | Should Fail |
- *| 03 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Call setSourceAlMacAddress with an invalid long MAC address | "00:1A:2B:3C:4D:5E:6F" | None | Should Fail |
  */
-TEST_F(AlServiceDataUnitTest, SetInvalidMacAddressLongLength) {
+TEST(AlServiceDataUnitTest, SetInvalidMacAddressLongLength) {
     std::cout << "Entering SetInvalidMacAddressLongLength" << std::endl;
     std::string macAddress = "00:1A:2B:3C:4D:5E:6F";
+    AlServiceDataUnit alServiceDataUnit;
     try {
-        alServiceDataUnit->setSourceAlMacAddress(parseMacAddress(macAddress));
+        alServiceDataUnit.setSourceAlMacAddress(parseMacAddress(macAddress));
         FAIL() << "Expected exception for invalid MAC format (too long)";
     } catch (const std::exception& e) {
         std::cout << "Caught expected exception: " << e.what() << std::endl;
@@ -1360,15 +1300,14 @@ TEST_F(AlServiceDataUnitTest, SetInvalidMacAddressLongLength) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Call setSourceAlMacAddress with non-hex characters | "00:1G:2H:3@:4J:5K" | Should handle input correctly or fail gracefully | Should Pass |
- *| 03 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Call setSourceAlMacAddress with non-hex characters | "00:1G:2H:3@:4J:5K" | Should handle input correctly or fail gracefully | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, SetMacAddressWithNonHexCharacters) {
+TEST(AlServiceDataUnitTest, SetMacAddressWithNonHexCharacters) {
     std::cout << "Entering SetMacAddressWithNonHexCharacters" << std::endl;
     std::string macAddress = "00:1G:2H:3@:4J:5K";
+    AlServiceDataUnit alServiceDataUnit;
     try {
-        alServiceDataUnit->setSourceAlMacAddress(parseMacAddress(macAddress));
+        alServiceDataUnit.setSourceAlMacAddress(parseMacAddress(macAddress));
         FAIL() << "Expected exception for invalid characters in MAC address";
     } catch (const std::exception& e) {
         std::cout << "Caught expected exception: " << e.what() << std::endl;
@@ -1395,15 +1334,14 @@ TEST_F(AlServiceDataUnitTest, SetMacAddressWithNonHexCharacters) {
  ***Test Procedure:**@n
  *| Variation / Step | Description | Test Data | Expected Result | Notes |
  *| :----: | --------- | ---------- |-------------- | ----- |
- *| 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- *| 02 | Set the MAC address to all ones | alServiceDataUnit->setSourceAlMacAddress("FF:FF:FF:FF:FF:FF") | None | Should Pass |
- *| 03 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ *| 01 | Set the MAC address to all ones | alServiceDataUnit.setSourceAlMacAddress("FF:FF:FF:FF:FF:FF") | None | Should Pass |
  */
-TEST_F(AlServiceDataUnitTest, SetMacAddressWithAllOnes) {
+TEST(AlServiceDataUnitTest, SetMacAddressWithAllOnes) {
     std::cout << "Entering SetMacAddressWithAllOnes" << std::endl;
     std::string macAddress = "FF:FF:FF:FF:FF:FF";
+    AlServiceDataUnit alServiceDataUnit;
     try {
-        alServiceDataUnit->setSourceAlMacAddress(parseMacAddress(macAddress));
+        alServiceDataUnit.setSourceAlMacAddress(parseMacAddress(macAddress));
         FAIL() << "Unexpected exception while setting all ones for MAC address";
     } catch (const std::exception& e) {
         std::cout << "Caught expected exception: " << e.what() << std::endl;

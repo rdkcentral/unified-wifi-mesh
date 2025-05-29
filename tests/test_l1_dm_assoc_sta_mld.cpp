@@ -22,19 +22,6 @@
 #include <stdio.h>
 #include "dm_assoc_sta_mld.h"
 
-class dm_assoc_sta_mld_t_Test : public ::testing::Test {
-protected:
-    dm_assoc_sta_mld_t* instance;
-
-    void SetUp() override {
-        instance = new dm_assoc_sta_mld_t();
-    }
-
-    void TearDown() override {
-        delete instance;
-    }
-};
-
 /**
  * @brief Test the decode function with a valid JSON object and a valid parent ID.
  *
@@ -51,17 +38,16 @@ protected:
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Parse a valid JSON object | validJsonObject = {"key":"value"} | validJsonObject is created | Should be successful |
- * | 03 | Call decode with valid JSON object and valid parent ID | validJsonObject = {"key":"value"}, parent_id = 1 | result = 0 | Should Pass |
- * | 04 | Delete the JSON object | validJsonObject = {"key":"value"} | validJsonObject is deleted | Should be successful |
- * | 05 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Parse a valid JSON object | validJsonObject = {"key":"value"} | validJsonObject is created | Should be successful |
+ * | 02 | Call decode with valid JSON object and valid parent ID | validJsonObject = {"key":"value"}, parent_id = 1 | result = 0 | Should Pass |
+ * | 03 | Delete the JSON object | validJsonObject = {"key":"value"} | validJsonObject is deleted | Should be successful |
  */
-TEST_F(dm_assoc_sta_mld_t_Test, DecodeWithValidJsonObjectAndValidParentId) {
+TEST(dm_assoc_sta_mld_t_Test, DecodeWithValidJsonObjectAndValidParentId) {
     std::cout << "Entering DecodeWithValidJsonObjectAndValidParentId test" << std::endl;
     cJSON* validJsonObject = cJSON_Parse("{\"key\":\"value\"}");
     int parent_id = 1;
-    int result = instance->decode(validJsonObject, &parent_id);
+    dm_assoc_sta_mld_t instance;
+    int result = instance.decode(validJsonObject, &parent_id);
     ASSERT_EQ(result, 0);
     cJSON_Delete(validJsonObject);
     std::cout << "Exiting DecodeWithValidJsonObjectAndValidParentId test" << std::endl;
@@ -83,23 +69,22 @@ TEST_F(dm_assoc_sta_mld_t_Test, DecodeWithValidJsonObjectAndValidParentId) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set up the test environment by creating an instance of dm_assoc_sta_mld_t | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Parse a valid JSON object | JSON string: {"key":"value"} | cJSON object created | Should be successful |
- * | 03 | Call the decode function with the valid JSON object and null parent ID | validJsonObject, nullptr | Return value: -1 | Should Pass |
- * | 04 | Assert that the result is -1 | result = -1 | Assertion passes | Should be successful |
- * | 05 | Clean up the JSON object | validJsonObject | JSON object deleted | Should be successful |
- * | 06 | Tear down the test environment by deleting the instance of dm_assoc_sta_mld_t | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Parse a valid JSON object | JSON string: {"key":"value"} | cJSON object created | Should be successful |
+ * | 02 | Call the decode function with the valid JSON object and null parent ID | validJsonObject, nullptr | Return value: -1 | Should Pass |
+ * | 03 | Assert that the result is -1 | result = -1 | Assertion passes | Should be successful |
+ * | 04 | Clean up the JSON object | validJsonObject | JSON object deleted | Should be successful |
  */
 /*code doesn't handle null
-TEST_F(dm_assoc_sta_mld_t_Test, DecodeWithValidJsonObjectAndNullParentId) {
+TEST(dm_assoc_sta_mld_t_Test, DecodeWithValidJsonObjectAndNullParentId) {
     std::cout << "Entering DecodeWithValidJsonObjectAndNullParentId test" << std::endl;
     cJSON* validJsonObject = cJSON_Parse("{\"key\":\"value\"}");
-    int result = instance->decode(validJsonObject, nullptr);
+    dm_assoc_sta_mld_t instance;
+    int result = instance.decode(validJsonObject, nullptr);
     ASSERT_EQ(result, -1);
     cJSON_Delete(validJsonObject);
     std::cout << "Exiting DecodeWithValidJsonObjectAndNullParentId test" << std::endl;
 }
- */    
+*/    
 
 /**
  * @brief Test the decode function with a null JSON object and a valid parent ID.
@@ -117,19 +102,18 @@ TEST_F(dm_assoc_sta_mld_t_Test, DecodeWithValidJsonObjectAndNullParentId) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment by creating an instance of dm_assoc_sta_mld_t | None | Instance created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Call the decode function with a null JSON object and a valid parent ID | json_object = nullptr, parent_id = 1 | Result should be -1 | Should Pass |
- * | 03 | Tear down the test environment by deleting the instance of dm_assoc_sta_mld_t | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Call the decode function with a null JSON object and a valid parent ID | json_object = nullptr, parent_id = 1 | Result should be -1 | Should Pass |
  */
 /*code doesn't handle null
-TEST_F(dm_assoc_sta_mld_t_Test, DecodeWithNullJsonObjectAndValidParentId) {
+TEST(dm_assoc_sta_mld_t_Test, DecodeWithNullJsonObjectAndValidParentId) {
     std::cout << "Entering DecodeWithNullJsonObjectAndValidParentId test" << std::endl;
     int parent_id = 1;
-    int result = instance->decode(nullptr, &parent_id);
+    dm_assoc_sta_mld_t instance;
+    int result = instance.decode(nullptr, &parent_id);
     ASSERT_EQ(result, -1);
     std::cout << "Exiting DecodeWithNullJsonObjectAndValidParentId test" << std::endl;
 }
- */    
+*/    
 
 /**
  * @brief Test the decode function with an invalid JSON object and a valid parent ID.
@@ -153,11 +137,12 @@ TEST_F(dm_assoc_sta_mld_t_Test, DecodeWithNullJsonObjectAndValidParentId) {
  * | 04 | Delete the invalid JSON object | invalidJsonObject = "{key:value}" | invalidJsonObject should be deleted | Should be successful |
  * | 05 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
  */
-TEST_F(dm_assoc_sta_mld_t_Test, DecodeWithInvalidJsonObjectAndValidParentId) {
+TEST(dm_assoc_sta_mld_t_Test, DecodeWithInvalidJsonObjectAndValidParentId) {
     std::cout << "Entering DecodeWithInvalidJsonObjectAndValidParentId test" << std::endl;
     cJSON* invalidJsonObject = cJSON_Parse("{key:value}");
     int parent_id = 1;
-    int result = instance->decode(invalidJsonObject, &parent_id);
+    dm_assoc_sta_mld_t instance;
+    int result = instance.decode(invalidJsonObject, &parent_id);
     ASSERT_EQ(result, -1);
     cJSON_Delete(invalidJsonObject);
     std::cout << "Exiting DecodeWithInvalidJsonObjectAndValidParentId test" << std::endl;
@@ -180,17 +165,16 @@ TEST_F(dm_assoc_sta_mld_t_Test, DecodeWithInvalidJsonObjectAndValidParentId) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Parse a valid JSON object | validJsonObject = {"key":"value"} | validJsonObject is parsed successfully | Should be successful |
- * | 03 | Call decode with valid JSON object and invalid parent ID | validJsonObject = {"key":"value"}, invalid_parent_id = -1 | result = -1 | Should Pass |
- * | 04 | Delete the JSON object | validJsonObject = {"key":"value"} | validJsonObject is deleted successfully | Should be successful |
- * | 05 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Parse a valid JSON object | validJsonObject = {"key":"value"} | validJsonObject is parsed successfully | Should be successful |
+ * | 02 | Call decode with valid JSON object and invalid parent ID | validJsonObject = {"key":"value"}, invalid_parent_id = -1 | result = -1 | Should Pass |
+ * | 03 | Delete the JSON object | validJsonObject = {"key":"value"} | validJsonObject is deleted successfully | Should be successful |
  */
-TEST_F(dm_assoc_sta_mld_t_Test, DecodeWithValidJsonObjectAndInvalidParentId) {
+TEST(dm_assoc_sta_mld_t_Test, DecodeWithValidJsonObjectAndInvalidParentId) {
     std::cout << "Entering DecodeWithValidJsonObjectAndInvalidParentId test" << std::endl;
     cJSON* validJsonObject = cJSON_Parse("{\"key\":\"value\"}");
     int invalid_parent_id = -1;
-    int result = instance->decode(validJsonObject, &invalid_parent_id);
+    dm_assoc_sta_mld_t instance;
+    int result = instance.decode(validJsonObject, &invalid_parent_id);
     ASSERT_EQ(result, -1);
     cJSON_Delete(validJsonObject);
     std::cout << "Exiting DecodeWithValidJsonObjectAndInvalidParentId test" << std::endl;
@@ -212,17 +196,16 @@ TEST_F(dm_assoc_sta_mld_t_Test, DecodeWithValidJsonObjectAndInvalidParentId) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Initialize the test fixture | instance = new dm_assoc_sta_mld_t() | instance is initialized | Done by Pre-requisite SetUp function |
- * | 02 | Create a cJSON object and add a key-value pair | obj = cJSON_CreateObject(), cJSON_AddStringToObject(obj, "key", "value") | cJSON object created with key-value pair | Should be successful |
- * | 03 | Call the encode function with the cJSON object | instance->encode(obj) | encode function processes the object | Should Pass |
- * | 04 | Verify the cJSON object contains the expected key | cJSON_HasObjectItem(obj, "key") | Assertion check passes | Should Pass |
- * | 05 | Clean up the test fixture | delete instance | instance is deleted | Done by Pre-requisite TearDown function |
+ * | 01 | Create a cJSON object and add a key-value pair | obj = cJSON_CreateObject(), cJSON_AddStringToObject(obj, "key", "value") | cJSON object created with key-value pair | Should be successful |
+ * | 02 | Call the encode function with the cJSON object | instance.encode(obj) | encode function processes the object | Should Pass |
+ * | 03 | Verify the cJSON object contains the expected key | cJSON_HasObjectItem(obj, "key") | Assertion check passes | Should Pass |
  */
-TEST_F(dm_assoc_sta_mld_t_Test, EncodeWithValidCJSONObject) {
+TEST(dm_assoc_sta_mld_t_Test, EncodeWithValidCJSONObject) {
     std::cout << "Entering EncodeWithValidCJSONObject test" << std::endl;
     cJSON*obj = cJSON_CreateObject();
     cJSON_AddStringToObject(obj, "key", "value");
-    instance->encode(obj);
+    dm_assoc_sta_mld_t instance;
+    instance.encode(obj);
     ASSERT_TRUE(cJSON_HasObjectItem(obj, "key"));
     std::cout << "Exiting EncodeWithValidCJSONObject test" << std::endl;
 }
@@ -243,19 +226,18 @@ TEST_F(dm_assoc_sta_mld_t_Test, EncodeWithValidCJSONObject) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Call the SetUp function to initialize the test environment | None | instance is initialized | Done by Pre-requisite SetUp function |
- * | 02 | Create a null cJSON object | cJSON*obj = nullptr | obj is null | Should be successful |
- * | 03 | Call the encode function with the null cJSON object | instance->encode(obj) | obj = nullptr | Should Pass |
- * | 04 | Call the TearDown function to clean up the test environment | None | instance is deleted | Done by Pre-requisite TearDown function |
+ * | 01 | Create a null cJSON object | cJSON*obj = nullptr | obj is null | Should be successful |
+ * | 02 | Call the encode function with the null cJSON object | instance.encode(obj) | obj = nullptr | Should Pass |
  */
 /*code doesn't handle null
-TEST_F(dm_assoc_sta_mld_t_Test, EncodeWithNullCJSONObject) {
+TEST(dm_assoc_sta_mld_t_Test, EncodeWithNullCJSONObject) {
     std::cout << "Entering EncodeWithNullCJSONObject test" << std::endl;
     cJSON*obj = nullptr;
-    instance->encode(obj);
+    dm_assoc_sta_mld_t instance;
+    instance.encode(obj);
     std::cout << "Exiting EncodeWithNullCJSONObject test" << std::endl;
 }
- */    
+*/    
 
 /**
  * @brief Test the encoding function with invalid data in cJSON object
@@ -273,17 +255,16 @@ TEST_F(dm_assoc_sta_mld_t_Test, EncodeWithNullCJSONObject) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Create a cJSON object and add invalid data | cJSON object with key=123 | cJSON object created with invalid data | Should be successful |
- * | 03 | Call the encode function with the invalid cJSON object | cJSON object with key=123 | Function should handle invalid data | Should Pass |
- * | 04 | Verify the cJSON object still contains the key | cJSON object with key=123 | ASSERT_TRUE(cJSON_HasObjectItem(obj, "key")) | Should Pass |
- * | 05 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Create a cJSON object and add invalid data | cJSON object with key=123 | cJSON object created with invalid data | Should be successful |
+ * | 02 | Call the encode function with the invalid cJSON object | cJSON object with key=123 | Function should handle invalid data | Should Pass |
+ * | 03 | Verify the cJSON object still contains the key | cJSON object with key=123 | ASSERT_TRUE(cJSON_HasObjectItem(obj, "key")) | Should Pass |
  */
-TEST_F(dm_assoc_sta_mld_t_Test, EncodeWithInvalidDataCJSONObject) {
+TEST(dm_assoc_sta_mld_t_Test, EncodeWithInvalidDataCJSONObject) {
     std::cout << "Entering EncodeWithInvalidDataCJSONObject test" << std::endl;
     cJSON*obj = cJSON_CreateObject();
     cJSON_AddNumberToObject(obj, "key", 123);
-    instance->encode(obj);
+    dm_assoc_sta_mld_t instance;
+    instance.encode(obj);
     ASSERT_TRUE(cJSON_HasObjectItem(obj, "key"));
     std::cout << "Exiting EncodeWithInvalidDataCJSONObject test" << std::endl;
 }
@@ -304,17 +285,16 @@ TEST_F(dm_assoc_sta_mld_t_Test, EncodeWithInvalidDataCJSONObject) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set up the test environment by creating an instance of dm_assoc_sta_mld_t | None | Instance created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Create a cJSON object and add a key-value pair with special characters | obj = cJSON_CreateObject(), key = "key", value = "value!@#$%^&*()" | cJSON object created with special characters | Should be successful |
- * | 03 | Call the encode function with the created cJSON object | obj = cJSON object with special characters | Encode function processes the object | Should Pass |
- * | 04 | Verify that the encoded object retains the special characters in the value | key = "key", expected value = "value!@#$%^&*()" | Assertion check passes | Should Pass |
- * | 05 | Tear down the test environment by deleting the instance of dm_assoc_sta_mld_t | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Create a cJSON object and add a key-value pair with special characters | obj = cJSON_CreateObject(), key = "key", value = "value!@#$%^&*()" | cJSON object created with special characters | Should be successful |
+ * | 02 | Call the encode function with the created cJSON object | obj = cJSON object with special characters | Encode function processes the object | Should Pass |
+ * | 03 | Verify that the encoded object retains the special characters in the value | key = "key", expected value = "value!@#$%^&*()" | Assertion check passes | Should Pass |
  */
-TEST_F(dm_assoc_sta_mld_t_Test, EncodeWithSpecialCharactersCJSONObject) {
+TEST(dm_assoc_sta_mld_t_Test, EncodeWithSpecialCharactersCJSONObject) {
     std::cout << "Entering EncodeWithSpecialCharactersCJSONObject test" << std::endl;
     cJSON*obj = cJSON_CreateObject();
     cJSON_AddStringToObject(obj, "key", "value!@#$%^&*()");
-    instance->encode(obj);
+    dm_assoc_sta_mld_t instance;
+    instance.encode(obj);
     ASSERT_STREQ(cJSON_GetObjectItem(obj, "key")->valuestring, "value!@#$%^&*()");
     std::cout << "Exiting EncodeWithSpecialCharactersCJSONObject test" << std::endl;
 }
@@ -335,14 +315,13 @@ TEST_F(dm_assoc_sta_mld_t_Test, EncodeWithSpecialCharactersCJSONObject) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Retrieve AP MLD information | em_assoc_sta_mld_info_t* info = instance->get_ap_mld_info() | None | Should be successful |
- * | 03 | Check if the info is not null | ASSERT_NE(info, nullptr) | info = not null | Should Pass |
- * | 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Retrieve AP MLD information | em_assoc_sta_mld_info_t* info = instance.get_ap_mld_info() | None | Should be successful |
+ * | 02 | Check if the info is not null | ASSERT_NE(info, nullptr) | info = not null | Should Pass |
  */
-TEST_F(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoAfterInitialization) {
+TEST(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoAfterInitialization) {
     std::cout << "Entering RetrieveAPMLDInfoAfterInitialization test" << std::endl;
-    em_assoc_sta_mld_info_t* info = instance->get_ap_mld_info();
+    dm_assoc_sta_mld_t instance;
+    em_assoc_sta_mld_info_t* info = instance.get_ap_mld_info();
 	std::cout << "the retrieved ap mld info is " << info << std::endl;
     ASSERT_NE(info, nullptr);
     std::cout << "Exiting RetrieveAPMLDInfoAfterInitialization test" << std::endl;
@@ -365,20 +344,19 @@ TEST_F(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoAfterInitialization) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Set the MAC addresses for the instance | mac1 = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, mac2 = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB} | None | Should be successful |
- * | 03 | Retrieve the AP MLD information | None | info != nullptr | Should Pass |
- * | 04 | Verify the MAC address of the instance | mac1 = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55} | memcmp(info->mac_addr, mac1, sizeof(mac_address_t)) == 0 | Should Pass |
- * | 05 | Verify the AP MLD MAC address of the instance | mac2 = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB} | memcmp(info->ap_mld_mac_addr, mac2, sizeof(mac_address_t)) == 0 | Should Pass |
- * | 06 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Set the MAC addresses for the instance | mac1 = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, mac2 = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB} | None | Should be successful |
+ * | 02 | Retrieve the AP MLD information | None | info != nullptr | Should Pass |
+ * | 03 | Verify the MAC address of the instance | mac1 = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55} | memcmp(info->mac_addr, mac1, sizeof(mac_address_t)) == 0 | Should Pass |
+ * | 04 | Verify the AP MLD MAC address of the instance | mac2 = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB} | memcmp(info->ap_mld_mac_addr, mac2, sizeof(mac_address_t)) == 0 | Should Pass |
  */
- TEST_F(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithValidMACAddresses) {
+ TEST(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithValidMACAddresses) {
     std::cout << "Entering RetrieveAPMLDInfoWithValidMACAddresses test" << std::endl;
     mac_address_t mac1 = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
     mac_address_t mac2 = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB};
-    memcpy(instance->m_assoc_sta_mld_info.mac_addr, mac1, sizeof(mac_address_t));
-    memcpy(instance->m_assoc_sta_mld_info.ap_mld_mac_addr, mac2, sizeof(mac_address_t));
-    em_assoc_sta_mld_info_t* info = instance->get_ap_mld_info();
+    dm_assoc_sta_mld_t instance;
+    memcpy(instance.m_assoc_sta_mld_info.mac_addr, mac1, sizeof(mac_address_t));
+    memcpy(instance.m_assoc_sta_mld_info.ap_mld_mac_addr, mac2, sizeof(mac_address_t));
+    em_assoc_sta_mld_info_t* info = instance.get_ap_mld_info();
     ASSERT_NE(info, nullptr);
     ASSERT_EQ(memcmp(info->mac_addr, mac1, sizeof(mac_address_t)), 0);
     ASSERT_EQ(memcmp(info->ap_mld_mac_addr, mac2, sizeof(mac_address_t)), 0);
@@ -401,17 +379,16 @@ TEST_F(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoAfterInitialization) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | instance = new dm_assoc_sta_mld_t() | instance is created | Done by Pre-requisite SetUp function |
- * | 02 | Set the number of affiliated stations to the maximum value | instance->m_assoc_sta_mld_info.num_affiliated_sta = EM_MAX_AP_MLD | num_affiliated_sta is set to EM_MAX_AP_MLD | Should be successful |
- * | 03 | Retrieve the AP MLD information | em_assoc_sta_mld_info_t* info = instance->get_ap_mld_info() | info is retrieved | Should Pass |
- * | 04 | Check if the retrieved info is not null | ASSERT_NE(info, nullptr) | info is not null | Should Pass |
- * | 05 | Verify the number of affiliated stations in the retrieved info | ASSERT_EQ(info->num_affiliated_sta, EM_MAX_AP_MLD) | num_affiliated_sta is EM_MAX_AP_MLD | Should Pass |
- * | 06 | Tear down the test environment | delete instance | instance is deleted | Done by Pre-requisite TearDown function |
+ * | 01 | Set the number of affiliated stations to the maximum value | instance.m_assoc_sta_mld_info.num_affiliated_sta = EM_MAX_AP_MLD | num_affiliated_sta is set to EM_MAX_AP_MLD | Should be successful |
+ * | 02 | Retrieve the AP MLD information | em_assoc_sta_mld_info_t* info = instance.get_ap_mld_info() | info is retrieved | Should Pass |
+ * | 03 | Check if the retrieved info is not null | ASSERT_NE(info, nullptr) | info is not null | Should Pass |
+ * | 04 | Verify the number of affiliated stations in the retrieved info | ASSERT_EQ(info.num_affiliated_sta, EM_MAX_AP_MLD) | num_affiliated_sta is EM_MAX_AP_MLD | Should Pass |
  */
-TEST_F(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithMaxAffiliatedStations) {
+TEST(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithMaxAffiliatedStations) {
     std::cout << "Entering RetrieveAPMLDInfoWithMaxAffiliatedStations test" << std::endl;
-    instance->m_assoc_sta_mld_info.num_affiliated_sta = EM_MAX_AP_MLD;
-    em_assoc_sta_mld_info_t* info = instance->get_ap_mld_info();
+    dm_assoc_sta_mld_t instance;
+    instance.m_assoc_sta_mld_info.num_affiliated_sta = EM_MAX_AP_MLD;
+    em_assoc_sta_mld_info_t* info = instance.get_ap_mld_info();
     ASSERT_NE(info, nullptr);
     ASSERT_EQ(info->num_affiliated_sta, EM_MAX_AP_MLD);
     std::cout << "Exiting RetrieveAPMLDInfoWithMaxAffiliatedStations test" << std::endl;
@@ -433,16 +410,15 @@ TEST_F(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithMaxAffiliatedStations) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Set the number of affiliated stations to zero | instance->m_assoc_sta_mld_info.num_affiliated_sta = 0; | None | Should be successful |
- * | 03 | Retrieve the AP MLD information | em_assoc_sta_mld_info_t* info = instance->get_ap_mld_info(); | info != nullptr | Should Pass |
- * | 04 | Verify the number of affiliated stations is zero | ASSERT_EQ(info->num_affiliated_sta, 0); | info->num_affiliated_sta = 0 | Should Pass |
- * | 05 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Set the number of affiliated stations to zero | instance.m_assoc_sta_mld_info.num_affiliated_sta = 0; | None | Should be successful |
+ * | 02 | Retrieve the AP MLD information | em_assoc_sta_mld_info_t* info = instance.get_ap_mld_info(); | info != nullptr | Should Pass |
+ * | 03 | Verify the number of affiliated stations is zero | ASSERT_EQ(info->num_affiliated_sta, 0); | info->num_affiliated_sta = 0 | Should Pass |
  */
-TEST_F(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithZeroAffiliatedStations) {
+TEST(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithZeroAffiliatedStations) {
     std::cout << "Entering RetrieveAPMLDInfoWithZeroAffiliatedStations test" << std::endl;
-    instance->m_assoc_sta_mld_info.num_affiliated_sta = 0;
-    em_assoc_sta_mld_info_t* info = instance->get_ap_mld_info();
+    dm_assoc_sta_mld_t instance;
+    instance.m_assoc_sta_mld_info.num_affiliated_sta = 0;
+    em_assoc_sta_mld_info_t* info = instance.get_ap_mld_info();
     ASSERT_NE(info, nullptr);
     ASSERT_EQ(info->num_affiliated_sta, 0);
     std::cout << "Exiting RetrieveAPMLDInfoWithZeroAffiliatedStations test" << std::endl;
@@ -464,22 +440,21 @@ TEST_F(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithZeroAffiliatedStations) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | instance = new dm_assoc_sta_mld_t() | instance is created | Done by Pre-requisite SetUp function |
- * | 02 | Set boolean fields to true | instance->m_assoc_sta_mld_info.str = true, instance->m_assoc_sta_mld_info.nstr = true, instance->m_assoc_sta_mld_info.emlsr = true, instance->m_assoc_sta_mld_info.emlmr = true | Boolean fields are set to true | Should be successful |
- * | 03 | Retrieve AP MLD information | em_assoc_sta_mld_info_t* info = instance->get_ap_mld_info() | info is not nullptr | Should Pass |
+ * | 01 | Set boolean fields to true | instance.m_assoc_sta_mld_info.str = true, instance.m_assoc_sta_mld_info.nstr = true, instance.m_assoc_sta_mld_info.emlsr = true, instance.m_assoc_sta_mld_info.emlmr = true | Boolean fields are set to true | Should be successful |
+ * | 03 | Retrieve AP MLD information | em_assoc_sta_mld_info_t* info = instance.get_ap_mld_info() | info is not nullptr | Should Pass |
  * | 04 | Verify str field | ASSERT_EQ(info->str, true) | info->str = true | Should Pass |
  * | 05 | Verify nstr field | ASSERT_EQ(info->nstr, true) | info->nstr = true | Should Pass |
  * | 06 | Verify emlsr field | ASSERT_EQ(info->emlsr, true) | info->emlsr = true | Should Pass |
  * | 07 | Verify emlmr field | ASSERT_EQ(info->emlmr, true) | info->emlmr = true | Should Pass |
- * | 08 | Tear down the test environment | delete instance | instance is deleted | Done by Pre-requisite TearDown function |
  */
-TEST_F(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithBooleanFieldsSetToTrue) {
+TEST(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithBooleanFieldsSetToTrue) {
     std::cout << "Entering RetrieveAPMLDInfoWithBooleanFieldsSetToTrue test" << std::endl;
-    instance->m_assoc_sta_mld_info.str = true;
-    instance->m_assoc_sta_mld_info.nstr = true;
-    instance->m_assoc_sta_mld_info.emlsr = true;
-    instance->m_assoc_sta_mld_info.emlmr = true;
-    em_assoc_sta_mld_info_t* info = instance->get_ap_mld_info();
+    dm_assoc_sta_mld_t instance;
+    instance.m_assoc_sta_mld_info.str = true;
+    instance.m_assoc_sta_mld_info.nstr = true;
+    instance.m_assoc_sta_mld_info.emlsr = true;
+    instance.m_assoc_sta_mld_info.emlmr = true;
+    em_assoc_sta_mld_info_t* info = instance.get_ap_mld_info();
     ASSERT_NE(info, nullptr);
     ASSERT_EQ(info->str, true);
     ASSERT_EQ(info->nstr, true);
@@ -504,22 +479,21 @@ TEST_F(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithBooleanFieldsSetToTrue) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Set the boolean fields of m_assoc_sta_mld_info to false | instance->m_assoc_sta_mld_info.str = false, instance->m_assoc_sta_mld_info.nstr = false, instance->m_assoc_sta_mld_info.emlsr = false, instance->m_assoc_sta_mld_info.emlmr = false | None | Should be successful |
- * | 03 | Retrieve the AP MLD information | info = instance->get_ap_mld_info() | info should not be nullptr | Should Pass |
- * | 04 | Verify the str field is false | info->str | false | Should Pass |
- * | 05 | Verify the nstr field is false | info->nstr | false | Should Pass |
- * | 06 | Verify the emlsr field is false | info->emlsr | false | Should Pass |
- * | 07 | Verify the emlmr field is false | info->emlmr | false | Should Pass |
- * | 08 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Set the boolean fields of m_assoc_sta_mld_info to false | instance.m_assoc_sta_mld_info.str = false, instance.m_assoc_sta_mld_info.nstr = false, instance.m_assoc_sta_mld_info.emlsr = false, instance.m_assoc_sta_mld_info.emlmr = false | None | Should be successful |
+ * | 02 | Retrieve the AP MLD information | info = instance.get_ap_mld_info() | info should not be nullptr | Should Pass |
+ * | 03 | Verify the str field is false | info->str | false | Should Pass |
+ * | 04 | Verify the nstr field is false | info->nstr | false | Should Pass |
+ * | 05 | Verify the emlsr field is false | info->emlsr | false | Should Pass |
+ * | 06 | Verify the emlmr field is false | info->emlmr | false | Should Pass |
  */
-TEST_F(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithBooleanFieldsSetToFalse) {
+TEST(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithBooleanFieldsSetToFalse) {
     std::cout << "Entering RetrieveAPMLDInfoWithBooleanFieldsSetToFalse test" << std::endl;
-    instance->m_assoc_sta_mld_info.str = false;
-    instance->m_assoc_sta_mld_info.nstr = false;
-    instance->m_assoc_sta_mld_info.emlsr = false;
-    instance->m_assoc_sta_mld_info.emlmr = false;
-    em_assoc_sta_mld_info_t* info = instance->get_ap_mld_info();
+    dm_assoc_sta_mld_t instance;
+    instance.m_assoc_sta_mld_info.str = false;
+    instance.m_assoc_sta_mld_info.nstr = false;
+    instance.m_assoc_sta_mld_info.emlsr = false;
+    instance.m_assoc_sta_mld_info.emlmr = false;
+    em_assoc_sta_mld_info_t* info = instance.get_ap_mld_info();
     ASSERT_NE(info, nullptr);
     ASSERT_EQ(info->str, false);
     ASSERT_EQ(info->nstr, false);
@@ -546,16 +520,13 @@ TEST_F(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithBooleanFieldsSetToFalse) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | instance = new dm_assoc_sta_mld_t() | instance is created | Done by Pre-requisite SetUp function |
- * | 02 | Print entering message | std::cout << "Entering InitializeAssociationStationMLDInformationStructure" << std::endl; | "Entering InitializeAssociationStationMLDInformationStructure" is printed | Should be successful |
- * | 03 | Call the init() method | result = instance->init() | result = 0 | Should Pass |
- * | 04 | Assert the result | ASSERT_EQ(result, 0) | result == 0 | Should Pass |
- * | 05 | Print exiting message | std::cout << "Exiting InitializeAssociationStationMLDInformationStructure" << std::endl; | "Exiting InitializeAssociationStationMLDInformationStructure" is printed | Should be successful |
- * | 06 | Tear down the test environment | delete instance | instance is deleted | Done by Pre-requisite TearDown function |
+ * | 01 | Call the init() method | result = instance.init() | result = 0 | Should Pass |
+ * | 02 | Assert the result | ASSERT_EQ(result, 0) | result == 0 | Should Pass |
  */
-TEST_F(dm_assoc_sta_mld_t_Test, InitializeAssociationStationMLDInformationStructure) {
+TEST(dm_assoc_sta_mld_t_Test, InitializeAssociationStationMLDInformationStructure) {
     std::cout << "Entering InitializeAssociationStationMLDInformationStructure" << std::endl;
-    int result = instance->init();
+    dm_assoc_sta_mld_t instance;
+    int result = instance.init();
     ASSERT_EQ(result, 0);
     std::cout << "Exiting InitializeAssociationStationMLDInformationStructure" << std::endl;
 }
@@ -577,15 +548,14 @@ TEST_F(dm_assoc_sta_mld_t_Test, InitializeAssociationStationMLDInformationStruct
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Call the `init` method to initialize the instance | None | None | Should be successful |
- * | 03 | Call the `init` method again on the already initialized instance | None | result = 0 | Should Pass |
- * | 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Call the `init` method to initialize the instance | None | None | Should be successful |
+ * | 02 | Call the `init` method again on the already initialized instance | None | result = 0 | Should Pass |
  */
-TEST_F(dm_assoc_sta_mld_t_Test, InitializeAssociationStationMLDInformationStructureWithAlreadyInitializedData) {
+TEST(dm_assoc_sta_mld_t_Test, InitializeAssociationStationMLDInformationStructureWithAlreadyInitializedData) {
     std::cout << "Entering InitializeAssociationStationMLDInformationStructureWithAlreadyInitializedData" << std::endl;
-    instance->init();
-    int result = instance->init();
+    dm_assoc_sta_mld_t instance;
+    instance.init();
+    int result = instance.init();
     ASSERT_EQ(result, 0);
     std::cout << "Exiting InitializeAssociationStationMLDInformationStructureWithAlreadyInitializedData" << std::endl;
 }
@@ -608,7 +578,6 @@ TEST_F(dm_assoc_sta_mld_t_Test, InitializeAssociationStationMLDInformationStruct
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Create two identical objects and compare them using the equality operator | obj1.m_assoc_sta_mld_info = {{0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, false, true, false, 1, {}}, obj2.m_assoc_sta_mld_info = {{0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, false, true, false, 1, {}} | EXPECT_TRUE(obj1 == obj2) | Should Pass |
  */
-
 TEST(dm_assoc_sta_mld_t_Test, IdenticalObjects) {
     std::cout << "Entering IdenticalObjects test";
     dm_assoc_sta_mld_t obj1, obj2;

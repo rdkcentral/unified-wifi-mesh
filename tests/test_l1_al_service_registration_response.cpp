@@ -23,19 +23,6 @@
 #include "al_service_registration_response.h"
 #include "test_l1_utils.h"
 
-class AlServiceRegistrationResponseTest : public ::testing::Test {
-protected:
-    AlServiceRegistrationResponse* instance;
-
-    void SetUp() override {
-        instance = new AlServiceRegistrationResponse();
-    }
-
-    void TearDown() override {
-        delete instance;
-    }
-};
-
 /**
  * @brief Test deserialization with valid data
  *
@@ -52,12 +39,10 @@ protected:
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Initialize valid serialized data | valid serialized data | None | Should be successful |
- * | 03 | Call deserializeRegistrationResponse with valid data | validData | None | Should Pass |
- * | 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Initialize valid serialized data | valid serialized data | None | Should be successful |
+ * | 02 | Call deserializeRegistrationResponse with valid data | validData | None | Should Pass |
  */
-TEST_F(AlServiceRegistrationResponseTest, DeserializeWithValidData) {
+TEST(AlServiceRegistrationResponseTest, DeserializeWithValidData) {
     std::vector<unsigned char> validData = {
     0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E,  // MAC Address (6 bytes)
     0x12, 0x34,                          // First part of message ID range (0x1234)
@@ -65,7 +50,8 @@ TEST_F(AlServiceRegistrationResponseTest, DeserializeWithValidData) {
     0x01                                 // Result (RegistrationResult::SUCCESS)
     };
     std::cout << "Entering DeserializeWithValidData test" << std::endl;
-    instance->deserializeRegistrationResponse(validData);
+    AlServiceRegistrationResponse instance;
+    instance.deserializeRegistrationResponse(validData);
     std::cout << "Exiting DeserializeWithValidData test" << std::endl;
 }
 
@@ -85,14 +71,13 @@ TEST_F(AlServiceRegistrationResponseTest, DeserializeWithValidData) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Call deserializeRegistrationResponse with null data | null | None | Should Pass |
- * | 03 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Call deserializeRegistrationResponse with null data | null | None | Should Pass |
  */
-TEST_F(AlServiceRegistrationResponseTest, DeserializeWithNullData) {
+TEST(AlServiceRegistrationResponseTest, DeserializeWithNullData) {
     std::cout << "Entering DeserializeWithNullData test" << std::endl;
     std::vector<unsigned char> null_data;
-    instance->deserializeRegistrationResponse(null_data);
+    AlServiceRegistrationResponse instance;
+    instance.deserializeRegistrationResponse(null_data);
     std::cout << "Exiting DeserializeWithNullData test" << std::endl;
 }
 
@@ -112,10 +97,8 @@ TEST_F(AlServiceRegistrationResponseTest, DeserializeWithNullData) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Call `getAlMacAddressLocal` with valid input | input = "valid_input" | result = RETURN_OK | Should Pass |
- * | 03 | Verify the result using ASSERT_EQ | result = RETURN_OK | None | Should be successful |
- * | 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Call `getAlMacAddressLocal` with valid input | input = "valid_input" | result = RETURN_OK | Should Pass |
+ * | 02 | Verify the result using ASSERT_EQ | result = RETURN_OK | None | Should be successful |
  */
 TEST(AlServiceRegistrationResponseTest, RetrieveAlMacAddressLocalWithValidInput) {
     std::cout << "Entering RetrieveAlMacAddressLocalWithValidInput test" << std::endl;
@@ -143,10 +126,8 @@ TEST(AlServiceRegistrationResponseTest, RetrieveAlMacAddressLocalWithValidInput)
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment by creating an instance of AlServiceRegistrationResponse | None | Instance created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Call the constructor with macaddress as empty | "00:00:00:00:00:00", range, result | None | Should be initialized |
- * | 03 | Call the getAlMacAddressLocal function with an empty string as input | input = "" | RETURN_ERR | Should Pass |
- * | 04 | Clean up the test environment by deleting the instance of AlServiceRegistrationResponse | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Call the constructor with macaddress as empty | "00:00:00:00:00:00", range, result | None | Should be initialized |
+ * | 02 | Call the getAlMacAddressLocal function with an empty string as input | input = "" | RETURN_ERR | Should Pass |
  */
 
 TEST(AlServiceRegistrationResponseTest, RetrieveAlMacAddressLocalWithEmptyInput) {
@@ -175,10 +156,8 @@ TEST(AlServiceRegistrationResponseTest, RetrieveAlMacAddressLocalWithEmptyInput)
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment by creating an instance of AlServiceRegistrationResponse | None | Instance created | Done by Pre-requisite SetUp function |
- * | 02 | Call the getMessageIdRange function with valid input | validInput = <valid_value> | RETURN_OK | Should Pass |
- * | 03 | Verify the result using ASSERT_EQ | result = RETURN_OK | Assertion should pass | Should be successful |
- * | 04 | Clean up the test environment by deleting the instance of AlServiceRegistrationResponse | None | Instance deleted | Done by Pre-requisite TearDown function |
+ * | 01 | Call the getMessageIdRange function with valid input | validInput = <valid_value> | RETURN_OK | Should Pass |
+ * | 02 | Verify the result using ASSERT_EQ | result = RETURN_OK | Assertion should pass | Should be successful |
  */
 TEST(AlServiceRegistrationResponseTest, RetrieveMessageIdRangeWithValidInput) {
     std::cout << "Entering RetrieveMessageIdRangeWithValidInput test" << std::endl;	
@@ -205,10 +184,8 @@ TEST(AlServiceRegistrationResponseTest, RetrieveMessageIdRangeWithValidInput) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data |Expected Result |Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01| Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02| Call getMessageIdRange with null message range input | range(0,0) | result = RETURN_ERR | Should Pass |
- * | 03| Verify the result using ASSERT_EQ | result = RETURN_ERR | None | Should be successful |
- * | 04| Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01| Call getMessageIdRange with null message range input | range(0,0) | result = RETURN_ERR | Should Pass |
+ * | 02| Verify the result using ASSERT_EQ | result = RETURN_ERR | None | Should be successful |
  */
 TEST(AlServiceRegistrationResponseTest, RetrieveMessageIdRangeWithNullInput) {
     std::cout << "Entering RetrieveMessageIdRangeWithNullInput test" << std::endl;
@@ -236,10 +213,8 @@ TEST(AlServiceRegistrationResponseTest, RetrieveMessageIdRangeWithNullInput) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment by creating an instance of AlServiceRegistrationResponse | None | Instance created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Call the getMessageIdRange function with maximum length input | maximumLengthInput = <value> | RETURN_OK | Should Pass |
- * | 03 | Verify the result using ASSERT_EQ | result = RETURN_OK | Assertion should pass | Should be successful |
- * | 04 | Clean up the test environment by deleting the instance of AlServiceRegistrationResponse | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Call the getMessageIdRange function with maximum length input | maximumLengthInput = <value> | RETURN_OK | Should Pass |
+ * | 02 | Verify the result using ASSERT_EQ | result = RETURN_OK | Assertion should pass | Should be successful |
  */
 TEST(AlServiceRegistrationResponseTest, RetrieveMessageIdRangeWithMaximumLengthInput) {
     std::cout << "Entering RetrieveMessageIdRangeWithMaximumLengthInput test" << std::endl;
@@ -266,10 +241,8 @@ TEST(AlServiceRegistrationResponseTest, RetrieveMessageIdRangeWithMaximumLengthI
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Set the result to UNKNOWN | instance->setResult(RegistrationResult::UNKNOWN) | None | Should be successful |
- * | 03 | Retrieve the result and check if it is UNKNOWN | instance->getResult() | RegistrationResult::UNKNOWN | Should Pass |
- * | 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Set the result to UNKNOWN | instance->setResult(RegistrationResult::UNKNOWN) | None | Should be successful |
+ * | 02 | Retrieve the result and check if it is UNKNOWN | instance->getResult() | RegistrationResult::UNKNOWN | Should Pass |
  */
 TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenUnknown) {
     std::cout << "Entering RetrieveResultWhenUnknown test" << std::endl;
@@ -295,10 +268,8 @@ TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenUnknown) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data |Expected Result |Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01| Setup the test environment | instance = new AlServiceRegistrationResponse() | instance should be initialized | Done by Pre-requisite SetUp function |
- * | 02| Set the result to SUCCESS | instance->setResult(RegistrationResult::SUCCESS) | RegistrationResult::SUCCESS | Should be successful |
- * | 03| Retrieve the result and check if it is SUCCESS | instance->getResult() | RegistrationResult::SUCCESS | Should Pass |
- * | 04| Cleanup the test environment | delete instance | instance should be deleted | Done by Pre-requisite TearDown function |
+ * | 01| Set the result to SUCCESS | instance->setResult(RegistrationResult::SUCCESS) | RegistrationResult::SUCCESS | Should be successful |
+ * | 02| Retrieve the result and check if it is SUCCESS | instance->getResult() | RegistrationResult::SUCCESS | Should Pass |
  */
 TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenSuccess) {
     std::cout << "Entering RetrieveResultWhenSuccess test" << std::endl;
@@ -324,10 +295,8 @@ TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenSuccess) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Set the result to NO_RANGES_AVAILABLE | instance->setResult(RegistrationResult::NO_RANGES_AVAILABLE) | None | Should be successful |
- * | 03 | Retrieve the result and check if it matches NO_RANGES_AVAILABLE | instance->getResult() | RegistrationResult::NO_RANGES_AVAILABLE | Should Pass |
- * | 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Set the result to NO_RANGES_AVAILABLE | instance->setResult(RegistrationResult::NO_RANGES_AVAILABLE) | None | Should be successful |
+ * | 02 | Retrieve the result and check if it matches NO_RANGES_AVAILABLE | instance->getResult() | RegistrationResult::NO_RANGES_AVAILABLE | Should Pass |
  */
 TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenNoRangesAvailable) {
     std::cout << "Entering RetrieveResultWhenNoRangesAvailable test" << std::endl;
@@ -355,10 +324,8 @@ TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenNoRangesAvailable) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Set the result to SERVICE_NOT_SUPPORTED | instance->setResult(RegistrationResult::SERVICE_NOT_SUPPORTED) | None | Should be successful |
- * | 03 | Retrieve the result and check if it is SERVICE_NOT_SUPPORTED | instance->getResult() | RegistrationResult::SERVICE_NOT_SUPPORTED | Should Pass |
- * | 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Set the result to SERVICE_NOT_SUPPORTED | instance->setResult(RegistrationResult::SERVICE_NOT_SUPPORTED) | None | Should be successful |
+ * | 02 | Retrieve the result and check if it is SERVICE_NOT_SUPPORTED | instance->getResult() | RegistrationResult::SERVICE_NOT_SUPPORTED | Should Pass |
  */
 TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenServiceNotSupported) {
     std::cout << "Entering RetrieveResultWhenServiceNotSupported test" << std::endl;
@@ -384,10 +351,8 @@ TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenServiceNotSupported) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Set the result to OPERATION_NOT_SUPPORTED | instance->setResult(RegistrationResult::OPERATION_NOT_SUPPORTED) | None | Should be successful |
- * | 03 | Retrieve the result and check if it matches OPERATION_NOT_SUPPORTED | instance->getResult() | RegistrationResult::OPERATION_NOT_SUPPORTED | Should Pass |
- * | 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Set the result to OPERATION_NOT_SUPPORTED | instance->setResult(RegistrationResult::OPERATION_NOT_SUPPORTED) | None | Should be successful |
+ * | 02 | Retrieve the result and check if it matches OPERATION_NOT_SUPPORTED | instance->getResult() | RegistrationResult::OPERATION_NOT_SUPPORTED | Should Pass |
  */
 TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenOperationNotSupported) {
     std::cout << "Entering RetrieveResultWhenOperationNotSupported test" << std::endl;
@@ -413,10 +378,8 @@ TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenOperationNotSupported)
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Set valid parameters using constructor | "00:1A:2B:3C:4D:5E", range(0, 65535), RegistrationResult::NO_RANGES_AVAILABLE | None | Should be successful |
- * | 03 | Serialize the registration response | None | serializedData should not be empty | Should Pass |
- * | 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Set valid parameters using constructor | "00:1A:2B:3C:4D:5E", range(0, 65535), RegistrationResult::NO_RANGES_AVAILABLE | None | Should be successful |
+ * | 02 | Serialize the registration response | None | serializedData should not be empty | Should Pass |
  */
 TEST(AlServiceRegistrationResponseTest, SerializeValidRegistrationResponse) {
     std::cout << "Entering SerializeValidRegistrationResponse test" << std::endl;
@@ -444,11 +407,9 @@ TEST(AlServiceRegistrationResponseTest, SerializeValidRegistrationResponse) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Initialize the invalid MAC address, valid message range and registration response | invalidMacAddress = "00:11:22:33:GG:44", range(0, 65535), RegistrationResult::SUCCESS | None | Should be successful |
- * | 03 | Serialize the registration response | None | serializedData = instance->serializeRegistrationResponse() | Should Pass |
- * | 04 | Verify the serialized data is empty | serializedData.empty() | True | Should Pass |
- * | 05 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Initialize the invalid MAC address, valid message range and registration response | invalidMacAddress = "00:11:22:33:GG:44", range(0, 65535), RegistrationResult::SUCCESS | None | Should be successful |
+ * | 02 | Serialize the registration response | None | serializedData = instance->serializeRegistrationResponse() | Should Pass |
+ * | 03 | Verify the serialized data is empty | serializedData.empty() | True | Should Pass |
  */
 TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithInvalidMacAddress) {
     std::cout << "Entering SerializeRegistrationResponseWithInvalidMac test" << std::endl;
@@ -475,11 +436,9 @@ TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithInvalid
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Set a valid MAC address | validMacAddress = "00:11:22:33:GG:44", range = (0,0), RegistrationResult::SUCCESS | None | Should be successful |
- * | 03 | Set a successful registration result | valid vector | None | Should be successful |
- * | 05 | Serialize the registration response | None | serializedData.empty() = true | Should Pass |
- * | 06 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Set a valid MAC address | validMacAddress = "00:11:22:33:GG:44", range = (0,0), RegistrationResult::SUCCESS | None | Should be successful |
+ * | 02 | Set a successful registration result | valid vector | None | Should be successful |
+ * | 03 | Serialize the registration response | None | serializedData.empty() = true | Should Pass |
  */
 TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithEmptyMessageIdRange) {
     std::cout << "Entering SerializeRegistrationResponseWithEmptyMessageIdRange test" << std::endl;
@@ -506,10 +465,8 @@ TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithEmptyMe
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Set a valid MAC address, message ID range and failed registration result | "00:11:22:33:GG:44", range, RegistrationResult::UNKNOWN | None | Should be successful |
- * | 03 | Serialize the registration response | None | serializedData should not be empty | Should Pass |
- * | 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Set a valid MAC address, message ID range and failed registration result | "00:11:22:33:GG:44", range, RegistrationResult::UNKNOWN | None | Should be successful |
+ * | 02 | Serialize the registration response | None | serializedData should not be empty | Should Pass |
  */
 TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithFailedResult) {
     std::cout << "Entering SerializeRegistrationResponseWithFailedResult test" << std::endl;
@@ -537,10 +494,8 @@ TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithFailedR
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | instance = new AlServiceRegistrationResponse() |  | Done by Pre-requisite SetUp function |
- * | 02 | Set null MAC address, valid message id range and registration result | "{0, 0, 0, 0, 0, 0}", range(0, 65535), RegistrationResult::SUCCESS |  | Should be successful |
- * | 03 | Serialize the registration response | instance->serializeRegistrationResponse() | serializedData = empty vector | Should Pass |
- * | 04 | Tear down the test environment | delete instance |  | Done by Pre-requisite TearDown function |
+ * | 01 | Set null MAC address, valid message id range and registration result | "{0, 0, 0, 0, 0, 0}", range(0, 65535), RegistrationResult::SUCCESS |  | Should be successful |
+ * | 02 | Serialize the registration response | instance->serializeRegistrationResponse() | serializedData = empty vector | Should Pass |
  */
 TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithAllNullInputs) {
     std::cout << "Entering SerializeRegistrationResponseWithAllNullInputs test" << std::endl;
@@ -568,13 +523,12 @@ TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithAllNull
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Call setAlMacAddressLocal with a valid mixed case MAC address | "00:1A:2b:3C:4d:5E" | None | Should Pass |
- * | 03 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Call setAlMacAddressLocal with a valid mixed case MAC address | "00:1A:2b:3C:4d:5E" | None | Should Pass |
  */
-TEST_F(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_ValidMacAddress_MixedCase) {
+TEST(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_ValidMacAddress_MixedCase) {
     std::cout << "Entering SetAlMacAddressLocal_ValidMacAddress_MixedCase test" << std::endl;
-    instance->setAlMacAddressLocal(parseMacAddress("00:1A:2b:3C:4d:5E"));
+    AlServiceRegistrationResponse instance;
+    instance.setAlMacAddressLocal(parseMacAddress("00:1A:2b:3C:4d:5E"));
 	std::cout << "Exiting SetAlMacAddressLocal_ValidMacAddress_MixedCase test" << std::endl;
 }
 
@@ -594,13 +548,12 @@ TEST_F(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_ValidMacAddress_M
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Call setAlMacAddressLocal with a valid MAC address without colons | input: "001A2B3C4D5E" | None | Should Pass |
- * | 03 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Call setAlMacAddressLocal with a valid MAC address without colons | input: "001A2B3C4D5E" | None | Should Pass |
  */
-TEST_F(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_ValidMacAddress_NoColons) {
+TEST(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_ValidMacAddress_NoColons) {
     std::cout << "Entering SetAlMacAddressLocal_ValidMacAddress_NoColons test" << std::endl;
-    instance->setAlMacAddressLocal(parseMacAddress("001A2B3C4D5E"));
+    AlServiceRegistrationResponse instance;
+    instance.setAlMacAddressLocal(parseMacAddress("001A2B3C4D5E"));
     std::cout << "Exiting SetAlMacAddressLocal_ValidMacAddress_NoColons test" << std::endl;
 }
 
@@ -620,20 +573,19 @@ TEST_F(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_ValidMacAddress_N
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Call setAlMacAddressLocal with a valid MAC address containing dashes | "00-1A-2B-3C-4D-5E" | None | Should Pass |
- * | 03 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Call setAlMacAddressLocal with a valid MAC address containing dashes | "00-1A-2B-3C-4D-5E" | None | Should Pass |
  */
-TEST_F(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_ValidMacAddress_Dashes) {
+TEST(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_ValidMacAddress_Dashes) {
     std::cout << "Entering SetAlMacAddressLocal_ValidMacAddress_Dashes test" << std::endl;
-    instance->setAlMacAddressLocal(parseMacAddress("00-1A-2B-3C-4D-5E"));
+    AlServiceRegistrationResponse instance;
+    instance.setAlMacAddressLocal(parseMacAddress("00-1A-2B-3C-4D-5E"));
     std::cout << "Exiting SetAlMacAddressLocal_ValidMacAddress_Dashes test" << std::endl;
 }
 
 /**
- * @brief Test the behavior of setAlMacAddressLocal with an invalid MAC address that is too short and too long.
+ * @brief Test the behavior of setAlMacAddressLocal with an invalid MAC address that is too short.
  *
- * This test checks the behavior of the setAlMacAddressLocal method when provided with a MAC address that is too short and too long.
+ * This test checks the behavior of the setAlMacAddressLocal method when provided with a MAC address that is too short.
  *
  * **Test Group ID:** Basic: 01
  * **Test Case ID:** 023@n
@@ -646,15 +598,12 @@ TEST_F(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_ValidMacAddress_D
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Call setAlMacAddressLocal with a short MAC address | "00:1A:2B:3C:4D" | None | Should Pass |
- * | 03 | Call setAlMacAddressLocal with an invalid MAC address that is too long | "00:1A:2B:3C:4D:5E:6F" | Method should handle the invalid input appropriately | Should Fail |
- * | 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Call setAlMacAddressLocal with a short MAC address | "00:1A:2B:3C:4D" | None | Should Pass |
  */
-TEST_F(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_InvalidMacAddress_TooShort_TooLong) {
+TEST(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_InvalidMacAddress_TooShort_TooLong) {
     std::cout << "Entering SetAlMacAddressLocal_InvalidMacAddress_TooShort_TooLong test" << std::endl;
-    instance->setAlMacAddressLocal(parseMacAddress("00:1A:2B:3C:4D"));
-	instance->setAlMacAddressLocal(parseMacAddress("00:1A:2B:3C:4D:5E:6F"));
+    AlServiceRegistrationResponse instance;
+    instance.setAlMacAddressLocal(parseMacAddress("00:1A:2B:3C:4D"));
     std::cout << "Exiting SetAlMacAddressLocal_InvalidMacAddress_TooShort _TooLong test" << std::endl;
 }
 
@@ -674,14 +623,13 @@ TEST_F(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_InvalidMacAddress
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment by creating an instance of AlServiceRegistrationResponse | None | Instance created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Call setAlMacAddressLocal with an invalid MAC address containing non-hex characters | "00:1A:2B:3C:4D:ZZ" | Method should handle invalid input | Should Pass |
- * | 03 | Verify the behavior of the method using assertions | None | Appropriate assertions should pass | Should be successful |
- * | 04 | Clean up the test environment by deleting the instance of AlServiceRegistrationResponse | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Call setAlMacAddressLocal with an invalid MAC address containing non-hex characters | "00:1A:2B:3C:4D:ZZ" | Method should handle invalid input | Should Pass |
+ * | 02 | Verify the behavior of the method using assertions | None | Appropriate assertions should pass | Should be successful |
  */
-TEST_F(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_InvalidMacAddress_NonHex) {
+TEST(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_InvalidMacAddress_NonHex) {
     std::cout << "Entering SetAlMacAddressLocal_InvalidMacAddress_NonHex test" << std::endl;
-    instance->setAlMacAddressLocal(parseMacAddress("00:1A:2B:3C:4D:ZZ"));
+    AlServiceRegistrationResponse instance;
+    instance.setAlMacAddressLocal(parseMacAddress("00:1A:2B:3C:4D:ZZ"));
     std::cout << "Exiting SetAlMacAddressLocal_InvalidMacAddress_NonHex test" << std::endl;
 }
 
@@ -701,14 +649,13 @@ TEST_F(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_InvalidMacAddress
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Call setMessageIdRange with valid range | start = 1, end = 100 | None | Should Pass |
- * | 03 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Call setMessageIdRange with valid range | start = 1, end = 100 | None | Should Pass |
  */
-TEST_F(AlServiceRegistrationResponseTest, SetMessageIdRange_ValidRange) {
+TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_ValidRange) {
     std::cout << "Entering SetMessageIdRange_ValidRange test" << std::endl;
     MessageIdRange inputRange = {1, 100};
-    instance->setMessageIdRange(inputRange);
+    AlServiceRegistrationResponse instance;
+    instance.setMessageIdRange(inputRange);
     std::cout << "Exiting SetMessageIdRange_ValidRange test" << std::endl;
 }
 
@@ -728,14 +675,13 @@ TEST_F(AlServiceRegistrationResponseTest, SetMessageIdRange_ValidRange) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Call setMessageIdRange with start greater than end | start = 100, end = 1 | None | Should Pass |
- * | 03 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Call setMessageIdRange with start greater than end | start = 100, end = 1 | None | Should Pass |
  */
-TEST_F(AlServiceRegistrationResponseTest, SetMessageIdRange_StartGreaterThanEnd) {
+TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_StartGreaterThanEnd) {
     std::cout << "Entering SetMessageIdRange_StartGreaterThanEnd test" << std::endl;
     MessageIdRange inputRange = {100, 1};
-    instance->setMessageIdRange(inputRange);
+    AlServiceRegistrationResponse instance;
+    instance.setMessageIdRange(inputRange);
     std::cout << "Exiting SetMessageIdRange_StartGreaterThanEnd test" << std::endl;
 }
 
@@ -756,14 +702,13 @@ TEST_F(AlServiceRegistrationResponseTest, SetMessageIdRange_StartGreaterThanEnd)
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Call setMessageIdRange with start and end equal | start = 50, end = 50 | None | Should Pass |
- * | 03 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Call setMessageIdRange with start and end equal | start = 50, end = 50 | None | Should Pass |
  */
-TEST_F(AlServiceRegistrationResponseTest, SetMessageIdRange_StartEqualToEnd) {
+TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_StartEqualToEnd) {
     std::cout << "Entering SetMessageIdRange_StartEqualToEnd test" << std::endl;
     MessageIdRange inputRange = {50, 50};
-    instance->setMessageIdRange(inputRange);
+    AlServiceRegistrationResponse instance;
+    instance.setMessageIdRange(inputRange);
     std::cout << "Exiting SetMessageIdRange_StartEqualToEnd test" << std::endl;
 }
 
@@ -787,10 +732,11 @@ TEST_F(AlServiceRegistrationResponseTest, SetMessageIdRange_StartEqualToEnd) {
  * | 02 | Call the setMessageIdRange function with start = 0 and end = 100 | start = 0, end = 100 | None | Should Pass |
  * | 03 | Call the TearDown function to clean up the test environment | None | None | Done by Pre-requisite TearDown function |
  */
-TEST_F(AlServiceRegistrationResponseTest, SetMessageIdRange_StartZero) {
+TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_StartZero) {
     std::cout << "Entering SetMessageIdRange_StartZero test" << std::endl;
     MessageIdRange inputRange = {0, 100};
-    instance->setMessageIdRange(inputRange);
+    AlServiceRegistrationResponse instance;
+    instance.setMessageIdRange(inputRange);
     std::cout << "Exiting SetMessageIdRange_StartZero test" << std::endl;
 }
 
@@ -811,14 +757,13 @@ TEST_F(AlServiceRegistrationResponseTest, SetMessageIdRange_StartZero) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment by creating an instance of AlServiceRegistrationResponse | None | Instance created | Done by Pre-requisite SetUp function |
- * | 02 | Call the setMessageIdRange function with start value 1 and end value 0 | start = 1, end = 0 | Function should handle the input without errors | Should Pass |
- * | 03 | Clean up the test environment by deleting the instance of AlServiceRegistrationResponse | None | Instance deleted | Done by Pre-requisite TearDown function |
+ * | 01 | Call the setMessageIdRange function with start value 1 and end value 0 | start = 1, end = 0 | Function should handle the input without errors | Should Pass |
  */
-TEST_F(AlServiceRegistrationResponseTest, SetMessageIdRange_EndZero) {
+TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_EndZero) {
     std::cout << "Entering SetMessageIdRange_EndZero test" << std::endl;
     MessageIdRange inputRange = {1, 0};
-    instance->setMessageIdRange(inputRange);
+    AlServiceRegistrationResponse instance;
+    instance.setMessageIdRange(inputRange);
     std::cout << "Exiting SetMessageIdRange_EndZero test" << std::endl;
 }
 
@@ -838,14 +783,13 @@ TEST_F(AlServiceRegistrationResponseTest, SetMessageIdRange_EndZero) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment by creating an instance of AlServiceRegistrationResponse. | None | Instance created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Call the setMessageIdRange function with both parameters set to zero. | start = 0, end = 0 | Function should execute without errors | Should Pass |
- * | 03 | Clean up the test environment by deleting the instance of AlServiceRegistrationResponse. | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Call the setMessageIdRange function with both parameters set to zero. | start = 0, end = 0 | Function should execute without errors | Should Pass |
  */
-TEST_F(AlServiceRegistrationResponseTest, SetMessageIdRange_BothZero) {
+TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_BothZero) {
     std::cout << "Entering SetMessageIdRange_BothZero test" << std::endl;
     MessageIdRange inputRange = {0, 0};
-    instance->setMessageIdRange(inputRange);
+    AlServiceRegistrationResponse instance;
+    instance.setMessageIdRange(inputRange);
     std::cout << "Exiting SetMessageIdRange_BothZero test" << std::endl;
 }
 
@@ -865,14 +809,13 @@ TEST_F(AlServiceRegistrationResponseTest, SetMessageIdRange_BothZero) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Call setMessageIdRange with start = -1 and end = 100 | start = -1, end = 100 | None | Should Pass |
- * | 03 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Call setMessageIdRange with start = -1 and end = 100 | start = -1, end = 100 | None | Should Pass |
  */
-TEST_F(AlServiceRegistrationResponseTest, SetMessageIdRange_NegativeStart) {
+TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_NegativeStart) {
     std::cout << "Entering SetMessageIdRange_NegativeStart test" << std::endl;
     MessageIdRange inputRange = {-1, 100};
-    instance->setMessageIdRange(inputRange);
+    AlServiceRegistrationResponse instance;
+    instance.setMessageIdRange(inputRange);
     std::cout << "Exiting SetMessageIdRange_NegativeStart test" << std::endl;
 }
 
@@ -893,14 +836,13 @@ TEST_F(AlServiceRegistrationResponseTest, SetMessageIdRange_NegativeStart) {
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment by creating an instance of AlServiceRegistrationResponse | None | Instance created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Call the setMessageIdRange function with start = 1 and end = -100 | start = 1, end = -100 | Function should handle the negative end value appropriately | Should Pass |
- * | 03 | Clean up the test environment by deleting the instance of AlServiceRegistrationResponse | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Call the setMessageIdRange function with start = 1 and end = -100 | start = 1, end = -100 | Function should handle the negative end value appropriately | Should Pass |
  */
-TEST_F(AlServiceRegistrationResponseTest, SetMessageIdRange_NegativeEnd) {
+TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_NegativeEnd) {
     std::cout << "Entering SetMessageIdRange_NegativeEnd test" << std::endl;
     MessageIdRange inputRange = {1, -100};
-    instance->setMessageIdRange(inputRange);
+    AlServiceRegistrationResponse instance;
+    instance.setMessageIdRange(inputRange);
     std::cout << "Exiting SetMessageIdRange_NegativeEnd test" << std::endl;
 }
 
@@ -920,14 +862,13 @@ TEST_F(AlServiceRegistrationResponseTest, SetMessageIdRange_NegativeEnd) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Call setMessageIdRange with both negative values | startId = -1, endId = -100 | None | Should Pass |
- * | 03 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Call setMessageIdRange with both negative values | startId = -1, endId = -100 | None | Should Pass |
  */
-TEST_F(AlServiceRegistrationResponseTest, SetMessageIdRange_BothNegative) {
+TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_BothNegative) {
     std::cout << "Entering SetMessageIdRange_BothNegative test" << std::endl;
     MessageIdRange inputRange = {-1, -100};
-    instance->setMessageIdRange(inputRange);
+    AlServiceRegistrationResponse instance;
+    instance.setMessageIdRange(inputRange);
     std::cout << "Exiting SetMessageIdRange_BothNegative test" << std::endl;
 }
 
@@ -947,14 +888,13 @@ TEST_F(AlServiceRegistrationResponseTest, SetMessageIdRange_BothNegative) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Call setMessageIdRange with large values | input1 = 1000000, input2 = 2000000 | None | Should Pass |
- * | 03 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Call setMessageIdRange with large values | input1 = 1000000, input2 = 2000000 | None | Should Pass |
  */
-TEST_F(AlServiceRegistrationResponseTest, SetMessageIdRange_LargeValues) {
+TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_LargeValues) {
     std::cout << "Entering SetMessageIdRange_LargeValues test" << std::endl;
     MessageIdRange inputRange = {1000000, 2000000};
-    instance->setMessageIdRange(inputRange);
+    AlServiceRegistrationResponse instance;
+    instance.setMessageIdRange(inputRange);
     std::cout << "Exiting SetMessageIdRange_LargeValues test" << std::endl;
 }
 
@@ -974,13 +914,11 @@ TEST_F(AlServiceRegistrationResponseTest, SetMessageIdRange_LargeValues) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment by creating an instance of AlServiceRegistrationResponse | None | Instance created | Done by Pre-requisite SetUp function |
- * | 02 | Call the setResult method with each value of RegistrationResult enum | RegistrationResult::UNKNOWN, SUCCESS, NO_RANGES_AVAILABLE, SERVICE_NOT_SUPPORTED | Should set the result to each corresponding value | Iterates through all enum values |
- * | 03 | Tear down the test environment by deleting the instance of AlServiceRegistrationResponse | None | Instance deleted | Done by Pre-requisite TearDown function |
+ * | 01 | Call the setResult method with each value of RegistrationResult enum | RegistrationResult::UNKNOWN, SUCCESS, NO_RANGES_AVAILABLE, SERVICE_NOT_SUPPORTED | Should set the result to each corresponding value | Iterates through all enum values |
  */
-TEST_F(AlServiceRegistrationResponseTest, SetAllRegistrationResults) {
+TEST(AlServiceRegistrationResponseTest, SetAllRegistrationResults) {
     std::cout << "Entering SetAllRegistrationResults test" << std::endl;
-
+    AlServiceRegistrationResponse instance;
     // Define all enum values in an array
     const std::array<RegistrationResult, 5> allResults = {
         RegistrationResult::UNKNOWN,
@@ -991,7 +929,7 @@ TEST_F(AlServiceRegistrationResponseTest, SetAllRegistrationResults) {
     };
 
     for (const auto& result : allResults) {
-        instance->setResult(result);
+        instance.setResult(result);
         std::cout << "Set result to: " << static_cast<int>(result) << std::endl;
     }
 
@@ -1014,14 +952,13 @@ TEST_F(AlServiceRegistrationResponseTest, SetAllRegistrationResults) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment by creating an instance of AlServiceRegistrationResponse | None | Instance created | Done by Pre-requisite SetUp function |
- * | 02 | Call the setResult method with invalid RegistrationResult |  | Should handle the invalid value | Should fail |
- * | 03 | Tear down the test environment by deleting the instance of AlServiceRegistrationResponse | None | Instance deleted | Done by Pre-requisite TearDown function |
+ * | 01 | Call the setResult method with invalid RegistrationResult |  | Should handle the invalid value | Should fail |
  */
- TEST_F(AlServiceRegistrationResponseTest, SetAllRegistrationResult) {
+ TEST(AlServiceRegistrationResponseTest, SetAllRegistrationResult) {
     std::cout << "Entering SetInvalidRegistrationResult test" << std::endl;
 	uint8_t result = 0x07;
-    instance->setResult(static_cast<RegistrationResult>(result));
+    AlServiceRegistrationResponse instance;
+    instance.setResult(static_cast<RegistrationResult>(result));
     std::cout << "Exiting SetInvalidRegistrationResult test" << std::endl;
 }
 
@@ -1194,7 +1131,6 @@ TEST(AlServiceRegistrationResponseTest, AllFFMACAddressValidRangeSuccessResult) 
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Construct AlServiceRegistrationResponse object and verify MAC address | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = 0xFF | response.getAlMacAddressLocal() == macAddress | Should Pass |
- *
  */
 TEST(AlServiceRegistrationResponseTest, ValidMACAddressValidRangeInvalidResult) {
     std::cout << "Entering ValidMACAddressValidRangeInvalidResult" << std::endl;

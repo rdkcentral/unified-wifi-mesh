@@ -23,19 +23,6 @@
 #include "dm_ap_mld.h"
 
 
-class dm_ap_mld_t_Test : public ::testing::Test {
-protected:
-    dm_ap_mld_t* instance;
-
-    void SetUp() override {
-        instance = new dm_ap_mld_t();
-    }
-
-    void TearDown() override {
-        delete instance;
-    }
-};
-
 /**
  * @brief Test decoding a valid JSON object with a valid parent ID
  *
@@ -52,26 +39,22 @@ protected:
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | instance = new dm_ap_mld_t() | instance is created | Done by Pre-requisite SetUp function |
- * | 02 | Parse a valid JSON string | validJson = cJSON_Parse("{\"key\":\"value\"}") | validJson is parsed successfully | Should be successful |
- * | 03 | Set a valid parent ID | parent_id = 1 | parent_id is set to 1 | Should be successful |
- * | 04 | Call the decode function with valid JSON and parent ID | result = instance->decode(validJson, &parent_id) | result = 0 | Should Pass |
- * | 05 | Assert the result is as expected | ASSERT_EQ(result, 0) | result = 0 | Should Pass |
- * | 06 | Clean up the JSON object | cJSON_Delete(validJson) | validJson is deleted | Should be successful |
- * | 07 | Tear down the test environment | delete instance | instance is deleted | Done by Pre-requisite TearDown function |
+ * | 01 | Parse a valid JSON string | validJson = cJSON_Parse("{\"key\":\"value\"}") | validJson is parsed successfully | Should be successful |
+ * | 02 | Set a valid parent ID | parent_id = 1 | parent_id is set to 1 | Should be successful |
+ * | 03 | Call the decode function with valid JSON and parent ID | result = instance.decode(validJson, &parent_id) | result = 0 | Should Pass |
+ * | 04 | Assert the result is as expected | ASSERT_EQ(result, 0) | result = 0 | Should Pass |
+ * | 05 | Clean up the JSON object | cJSON_Delete(validJson) | validJson is deleted | Should be successful |
  */
-
-TEST_F(dm_ap_mld_t_Test, DecodeValidJsonObjectWithValidParentID) {
+TEST(dm_ap_mld_t_Test, DecodeValidJsonObjectWithValidParentID) {
     std::cout << "Entering DecodeValidJsonObjectWithValidParentID test" << std::endl;
     cJSON*validJson = cJSON_Parse("{\"key\":\"value\"}");
     int parent_id = 1;
-    int result = instance->decode(validJson, &parent_id);
+    dm_ap_mld_t instance;
+    int result = instance.decode(validJson, &parent_id);
     ASSERT_EQ(result, 0);
     cJSON_Delete(validJson);
     std::cout << "Exiting DecodeValidJsonObjectWithValidParentID test" << std::endl;
 }
-
-
 
 /**
  * @brief Test the decoding of a valid JSON object with a null parent ID.
@@ -90,22 +73,19 @@ TEST_F(dm_ap_mld_t_Test, DecodeValidJsonObjectWithValidParentID) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment by creating an instance of dm_ap_mld_t | None | Instance created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Parse a valid JSON object | JSON string: {"key":"value"} | cJSON object created successfully | Should be successful |
- * | 03 | Call the decode function with the valid JSON object and a null parent ID | validJson = {"key":"value"}, parentID = nullptr | Return value should be -1 | Should Pass |
- * | 04 | Delete the cJSON object to clean up | validJson = {"key":"value"} | cJSON object deleted successfully | Should be successful |
- * | 05 | Tear down the test environment by deleting the instance of dm_ap_mld_t | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Parse a valid JSON object | JSON string: {"key":"value"} | cJSON object created successfully | Should be successful |
+ * | 02 | Call the decode function with the valid JSON object and a null parent ID | validJson = {"key":"value"}, parentID = nullptr | Return value should be -1 | Should Pass |
+ * | 03 | Delete the cJSON object to clean up | validJson = {"key":"value"} | cJSON object deleted successfully | Should be successful |
  */
-TEST_F(dm_ap_mld_t_Test, DecodeValidJsonObjectWithNullParentID) {
+TEST(dm_ap_mld_t_Test, DecodeValidJsonObjectWithNullParentID) {
     std::cout << "Entering DecodeValidJsonObjectWithNullParentID test" << std::endl;
     cJSON*validJson = cJSON_Parse("{\"key\":\"value\"}");
-    int result = instance->decode(validJson, nullptr);
+    dm_ap_mld_t instance;
+    int result = instance.decode(validJson, nullptr);
     ASSERT_EQ(result, -1);
     cJSON_Delete(validJson);
     std::cout << "Exiting DecodeValidJsonObjectWithNullParentID test" << std::endl;
 }
-
-
 
 /**
  * @brief Test decoding a null JSON object with a valid parent ID
@@ -123,20 +103,17 @@ TEST_F(dm_ap_mld_t_Test, DecodeValidJsonObjectWithNullParentID) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Call the decode function with a null JSON object and a valid parent ID | json = nullptr, parent_id = 1 | result = -1 | Should Pass |
- * | 03 | Verify the result of the decode function | result = -1 | result == -1 | Should be successful |
- * | 04 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Call the decode function with a null JSON object and a valid parent ID | json = nullptr, parent_id = 1 | result = -1 | Should Pass |
+ * | 02 | Verify the result of the decode function | result = -1 | result == -1 | Should be successful |
  */
-TEST_F(dm_ap_mld_t_Test, DecodeNullJsonObjectWithValidParentID) {
+TEST(dm_ap_mld_t_Test, DecodeNullJsonObjectWithValidParentID) {
     std::cout << "Entering DecodeNullJsonObjectWithValidParentID test" << std::endl;
     int parent_id = 1;
-    int result = instance->decode(nullptr, &parent_id);
+    dm_ap_mld_t instance;
+    int result = instance.decode(nullptr, &parent_id);
     ASSERT_EQ(result, -1);
     std::cout << "Exiting DecodeNullJsonObjectWithValidParentID test" << std::endl;
 }
-
-
 
 /**
  * @brief Test the decoding of an invalid JSON object with a valid parent ID.
@@ -154,18 +131,17 @@ TEST_F(dm_ap_mld_t_Test, DecodeNullJsonObjectWithValidParentID) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set up the test environment by creating an instance of dm_ap_mld_t. | None | Instance created | Done by Pre-requisite SetUp function |
- * | 02 | Parse an invalid JSON string to create a cJSON object. | JSON string: "{key:value}" | cJSON object created | Should be successful |
- * | 03 | Call the decode function with the invalid JSON object and a valid parent ID. | invalidJson = cJSON object, parent_id = 1 | Result = -1 | Should Pass |
- * | 04 | Assert that the result of the decode function is -1. | result = -1 | Assertion passed | Should be successful |
- * | 05 | Clean up the cJSON object. | cJSON object | cJSON object deleted | Should be successful |
- * | 06 | Tear down the test environment by deleting the instance of dm_ap_mld_t. | None | Instance deleted | Done by Pre-requisite TearDown function |
+ * | 01 | Parse an invalid JSON string to create a cJSON object. | JSON string: "{key:value}" | cJSON object created | Should be successful |
+ * | 02 | Call the decode function with the invalid JSON object and a valid parent ID. | invalidJson = cJSON object, parent_id = 1 | Result = -1 | Should Pass |
+ * | 03 | Assert that the result of the decode function is -1. | result = -1 | Assertion passed | Should be successful |
+ * | 04 | Clean up the cJSON object. | cJSON object | cJSON object deleted | Should be successful |
  */
-TEST_F(dm_ap_mld_t_Test, DecodeInvalidJsonObjectWithValidParentID) {
+TEST(dm_ap_mld_t_Test, DecodeInvalidJsonObjectWithValidParentID) {
     std::cout << "Entering DecodeInvalidJsonObjectWithValidParentID test" << std::endl;
     cJSON*invalidJson = cJSON_Parse("{key:value}");
     int parent_id = 1;
-    int result = instance->decode(invalidJson, &parent_id);
+    dm_ap_mld_t instance;
+    int result = instance.decode(invalidJson, &parent_id);
     ASSERT_EQ(result, -1);
     cJSON_Delete(invalidJson);
     std::cout << "Exiting DecodeInvalidJsonObjectWithValidParentID test" << std::endl;
@@ -189,18 +165,16 @@ TEST_F(dm_ap_mld_t_Test, DecodeInvalidJsonObjectWithValidParentID) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment by creating an instance of dm_ap_mld_t | None | Instance created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Create a cJSON object and add a string to it | cJSON object with key="key" and value="value" | cJSON object created successfully | Should be successful |
- * | 03 | Call the encode function with the created cJSON object | cJSON object with key="key" and value="value" | No exceptions thrown | Should Pass |
- * | 04 | Delete the cJSON object to clean up | None | cJSON object deleted successfully | Should be successful |
- * | 05 | Tear down the test environment by deleting the instance of dm_ap_mld_t | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Create a cJSON object and add a string to it | cJSON object with key="key" and value="value" | cJSON object created successfully | Should be successful |
+ * | 02 | Call the encode function with the created cJSON object | cJSON object with key="key" and value="value" | No exceptions thrown | Should Pass |
+ * | 03 | Delete the cJSON object to clean up | None | cJSON object deleted successfully | Should be successful |
  */
-
-TEST_F(dm_ap_mld_t_Test, EncodeWithValidCJSONObject) {
+TEST(dm_ap_mld_t_Test, EncodeWithValidCJSONObject) {
     std::cout << "Entering EncodeWithValidCJSONObject test" << std::endl;
     cJSON*obj = cJSON_CreateObject();
     cJSON_AddStringToObject(obj, "key", "value");
-    ASSERT_NO_THROW(instance->encode(obj));
+    dm_ap_mld_t instance;
+    ASSERT_NO_THROW(instance.encode(obj));
     cJSON_Delete(obj);
     std::cout << "Exiting EncodeWithValidCJSONObject test" << std::endl;
 }
@@ -224,20 +198,16 @@ TEST_F(dm_ap_mld_t_Test, EncodeWithValidCJSONObject) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment by creating an instance of dm_ap_mld_t | instance = new dm_ap_mld_t() | Instance should be created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Set the cJSON object to null | cJSON*obj = nullptr | cJSON object should be null | Should be successful |
- * | 03 | Call the encode function with the null cJSON object | instance->encode(obj) | Should throw an exception | Should Pass |
- * | 04 | Clean up the test environment by deleting the instance of dm_ap_mld_t | delete instance | Instance should be deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Set the cJSON object to null | cJSON*obj = nullptr | cJSON object should be null | Should be successful |
+ * | 02 | Call the encode function with the null cJSON object | instance.encode(obj) | Should throw an exception | Should Pass |
  */
-
-TEST_F(dm_ap_mld_t_Test, EncodeWithNullCJSONObject) {
+TEST(dm_ap_mld_t_Test, EncodeWithNullCJSONObject) {
     std::cout << "Entering EncodeWithNullCJSONObject test" << std::endl;
     cJSON*obj = nullptr;
-    ASSERT_ANY_THROW(instance->encode(obj));
+    dm_ap_mld_t instance;
+    ASSERT_ANY_THROW(instance.encode(obj));
     std::cout << "Exiting EncodeWithNullCJSONObject test" << std::endl;
 }
-
-
 
 /**
  * @brief Test the encoding functionality with an empty cJSON object.
@@ -255,21 +225,18 @@ TEST_F(dm_ap_mld_t_Test, EncodeWithNullCJSONObject) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment by creating an instance of dm_ap_mld_t | None | Instance created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Create an empty cJSON object | None | cJSON object created successfully | Should be successful |
- * | 03 | Call the encode function with the empty cJSON object | obj = empty cJSON object | No exceptions thrown | Should Pass |
- * | 04 | Delete the cJSON object | obj = empty cJSON object | cJSON object deleted successfully | Should be successful |
- * | 05 | Tear down the test environment by deleting the instance of dm_ap_mld_t | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Create an empty cJSON object | None | cJSON object created successfully | Should be successful |
+ * | 02 | Call the encode function with the empty cJSON object | obj = empty cJSON object | No exceptions thrown | Should Pass |
+ * | 03 | Delete the cJSON object | obj = empty cJSON object | cJSON object deleted successfully | Should be successful |
  */
-TEST_F(dm_ap_mld_t_Test, EncodeWithEmptyCJSONObject) {
+TEST(dm_ap_mld_t_Test, EncodeWithEmptyCJSONObject) {
     std::cout << "Entering EncodeWithEmptyCJSONObject test" << std::endl;
     cJSON*obj = cJSON_CreateObject();
-    ASSERT_NO_THROW(instance->encode(obj));
+    dm_ap_mld_t instance;
+    ASSERT_NO_THROW(instance.encode(obj));
     cJSON_Delete(obj);
     std::cout << "Exiting EncodeWithEmptyCJSONObject test" << std::endl;
 }
-
-
 
 /**
  * @brief Test encoding of a cJSON object containing special characters
@@ -287,18 +254,17 @@ TEST_F(dm_ap_mld_t_Test, EncodeWithEmptyCJSONObject) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Create a cJSON object | None | cJSON object created | Should be successful |
- * | 03 | Add a string with special characters to the cJSON object | key = "!@#$%^&*()_+" | String added to cJSON object | Should be successful |
- * | 04 | Call the encode function with the cJSON object | obj = cJSON object with special characters | No exception thrown | Should Pass |
- * | 05 | Delete the cJSON object | obj = cJSON object | cJSON object deleted | Should be successful |
- * | 06 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Create a cJSON object | None | cJSON object created | Should be successful |
+ * | 02 | Add a string with special characters to the cJSON object | key = "!@#$%^&*()_+" | String added to cJSON object | Should be successful |
+ * | 03 | Call the encode function with the cJSON object | obj = cJSON object with special characters | No exception thrown | Should Pass |
+ * | 04 | Delete the cJSON object | obj = cJSON object | cJSON object deleted | Should be successful |
  */
-TEST_F(dm_ap_mld_t_Test, EncodeWithCJSONObjectContainingSpecialCharacters) {
+TEST(dm_ap_mld_t_Test, EncodeWithCJSONObjectContainingSpecialCharacters) {
     std::cout << "Entering EncodeWithCJSONObjectContainingSpecialCharacters test" << std::endl;
     cJSON*obj = cJSON_CreateObject();
     cJSON_AddStringToObject(obj, "key", "!@#$%^&*()_+");
-    ASSERT_NO_THROW(instance->encode(obj));
+    dm_ap_mld_t instance;
+    ASSERT_NO_THROW(instance.encode(obj));
     cJSON_Delete(obj);
     std::cout << "Exiting EncodeWithCJSONObjectContainingSpecialCharacters test" << std::endl;
 }
@@ -319,21 +285,20 @@ TEST_F(dm_ap_mld_t_Test, EncodeWithCJSONObjectContainingSpecialCharacters) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment by creating an instance of `dm_ap_mld_t` | instance = new dm_ap_mld_t() | Instance should be created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Set few of the m_ap_mld_info member values | instance->m_ap_mld_info.num_affiliated_ap = EM_MAX_AP_MLD, instance->m_ap_mld_info.mac_addr_valid = false, instance->m_ap_mld_info.nstr = true, instance->m_ap_mld_info.nstr = false, instance->m_ap_mld_info.emlmr = true, instance->m_ap_mld_info.emlsr = false | Value should be set successfully | Should be successful |
- * | 03 | Retrieve the AP MLD information using `get_ap_mld_info` | info = instance->get_ap_mld_info() | `info` should not be nullptr | Should Pass |
- * | 04 | Verify if the values are retrieved same as the set values | info->num_affiliated_ap = EM_MAX_AP_MLD, info->mac_addr_valid = false, info->nstr = true, info->nstr = false, info->emlmr = true, info->emlsr = false | Should return true | Ensures the value is correctly stored and retrieved |
- * | 05 | Tear down the test environment by deleting the instance of `dm_ap_mld_t` | delete instance | Instance should be deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Set few of the m_ap_mld_info member values | instance.m_ap_mld_info.num_affiliated_ap = EM_MAX_AP_MLD, instance.m_ap_mld_info.mac_addr_valid = false, instance.m_ap_mld_info.nstr = true, instance.m_ap_mld_info.nstr = false, instance.m_ap_mld_info.emlmr = true, instance.m_ap_mld_info.emlsr = false | Value should be set successfully | Should be successful |
+ * | 02 | Retrieve the AP MLD information using `get_ap_mld_info` | info = instance.get_ap_mld_info() | `info` should not be nullptr | Should Pass |
+ * | 03 | Verify if the values are retrieved same as the set values | info->num_affiliated_ap = EM_MAX_AP_MLD, info->mac_addr_valid = false, info->nstr = true, info->nstr = false, info->emlmr = true, info->emlsr = false | Should return true | Ensures the value is correctly stored and retrieved |
  */
-TEST_F(dm_ap_mld_t_Test, RetrieveAPMLDInfoWithValidValues) {
+TEST(dm_ap_mld_t_Test, RetrieveAPMLDInfoWithValidValues) {
     std::cout << "Entering RetrieveAPMLDInfoWithValidValues test" << std::endl;
-    instance->m_ap_mld_info.num_affiliated_ap = EM_MAX_AP_MLD;
-    instance->m_ap_mld_info.mac_addr_valid = false;
-    instance->m_ap_mld_info.nstr = true;    
-    instance->m_ap_mld_info.nstr = false;    
-    instance->m_ap_mld_info.emlmr = true;    
-    instance->m_ap_mld_info.emlsr = false;    
-    em_ap_mld_info_t* info = instance->get_ap_mld_info();
+    dm_ap_mld_t instance;
+    instance.m_ap_mld_info.num_affiliated_ap = EM_MAX_AP_MLD;
+    instance.m_ap_mld_info.mac_addr_valid = false;
+    instance.m_ap_mld_info.nstr = true;    
+    instance.m_ap_mld_info.nstr = false;    
+    instance.m_ap_mld_info.emlmr = true;    
+    instance.m_ap_mld_info.emlsr = false; 
+    em_ap_mld_info_t* info = instance.get_ap_mld_info();
     ASSERT_NE(info, nullptr);
     ASSERT_EQ(info->num_affiliated_ap, EM_MAX_AP_MLD);
     ASSERT_EQ(info->mac_addr_valid, false);
@@ -361,17 +326,16 @@ TEST_F(dm_ap_mld_t_Test, RetrieveAPMLDInfoWithValidValues) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment by creating an instance of `dm_ap_mld_t` | None | Instance created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Initialize the MAC address to all zeros | mac_addr = {0} | MAC address initialized | Should be successful |
- * | 03 | Call the `get_ap_mld_info` method | None | Method should return a non-null pointer | Should Pass |
- * | 04 | Verify the returned pointer is not null | info != nullptr | Assertion should pass | Should Pass |
- * | 05 | Clean up the test environment by deleting the instance of `dm_ap_mld_t` | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Initialize the MAC address to all zeros | mac_addr = {0} | MAC address initialized | Should be successful |
+ * | 02 | Call the `get_ap_mld_info` method | None | Method should return a non-null pointer | Should Pass |
+ * | 03 | Verify the returned pointer is not null | info != nullptr | Assertion should pass | Should Pass |
  */
 
-TEST_F(dm_ap_mld_t_Test, RetrieveAPMLDInfoWithInvalidMacAddr) {
+TEST(dm_ap_mld_t_Test, RetrieveAPMLDInfoWithInvalidMacAddr) {
     std::cout << "Entering RetrieveAPMLDInfoWithInvalidMacAddr test" << std::endl;
-    memset(&instance->m_ap_mld_info.mac_addr, 0, sizeof(mac_address_t));
-    em_ap_mld_info_t* info = instance->get_ap_mld_info();
+    dm_ap_mld_t instance;
+    memset(&instance.m_ap_mld_info.mac_addr, 0, sizeof(mac_address_t));
+    em_ap_mld_info_t* info = instance.get_ap_mld_info();
     ASSERT_NE(info, nullptr);
     std::cout << "Exiting RetrieveAPMLDInfoWithInvalidMacAddr test" << std::endl;
 }
@@ -393,16 +357,14 @@ TEST_F(dm_ap_mld_t_Test, RetrieveAPMLDInfoWithInvalidMacAddr) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment by creating an instance of dm_ap_mld_t | instance = new dm_ap_mld_t() | Instance should be created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Set the number of affiliated APs to 0 | instance->m_ap_mld_info.num_affiliated_ap = 0 | Value should be set successfully | Should be successful |
- * | 03 | Call the get_ap_mld_info() method | info = instance->get_ap_mld_info() | info should not be nullptr | Should Pass |
- * | 04 | Clean up the test environment by deleting the instance of dm_ap_mld_t | delete instance | Instance should be deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Set the number of affiliated APs to 0 | instance.m_ap_mld_info.num_affiliated_ap = 0 | Value should be set successfully | Should be successful |
+ * | 02 | Call the get_ap_mld_info() method | info = instance.get_ap_mld_info() | info should not be nullptr | Should Pass |
  */
-
-TEST_F(dm_ap_mld_t_Test, RetrieveAPMLDInfoWithInvalidNumAffiliatedAP) {
+TEST(dm_ap_mld_t_Test, RetrieveAPMLDInfoWithInvalidNumAffiliatedAP) {
     std::cout << "Entering RetrieveAPMLDInfoWithInvalidNumAffiliatedAP test" << std::endl;
-    instance->m_ap_mld_info.num_affiliated_ap = 0;
-    em_ap_mld_info_t* info = instance->get_ap_mld_info();
+    dm_ap_mld_t instance;
+    instance.m_ap_mld_info.num_affiliated_ap = 0;
+    em_ap_mld_info_t* info = instance.get_ap_mld_info();
     ASSERT_NE(info, nullptr);
     std::cout << "Exiting RetrieveAPMLDInfoWithInvalidNumAffiliatedAP test" << std::endl;
 }
@@ -423,20 +385,16 @@ TEST_F(dm_ap_mld_t_Test, RetrieveAPMLDInfoWithInvalidNumAffiliatedAP) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup the test environment by creating an instance of dm_ap_mld_t | instance = new dm_ap_mld_t() | Instance should be created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Call the init() method on the instance | result = instance->init() | result should be 0 | Should Pass |
- * | 03 | Verify the result using ASSERT_EQ | ASSERT_EQ(result, 0) | result should be 0 | Should be successful |
- * | 04 | Tear down the test environment by deleting the instance | delete instance | Instance should be deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Call the init() method on the instance | result = instance.init() | result should be 0 | Should Pass |
+ * | 02 | Verify the result using ASSERT_EQ | ASSERT_EQ(result, 0) | result should be 0 | Should be successful |
  */
-
-TEST_F(dm_ap_mld_t_Test, Initialize_m_ap_mld_info_structure_successfully) {
+TEST(dm_ap_mld_t_Test, Initialize_m_ap_mld_info_structure_successfully) {
     std::cout << "Entering Initialize_m_ap_mld_info_structure_successfully test" << std::endl;
-    int result = instance->init();
+    dm_ap_mld_t instance;
+    int result = instance.init();
     ASSERT_EQ(result, 0);
     std::cout << "Exiting Initialize_m_ap_mld_info_structure_successfully test" << std::endl;
 }
-
-
 
 /**
  * @brief Test the initialization of m_ap_mld_info structure when it is already initialized
@@ -454,16 +412,15 @@ TEST_F(dm_ap_mld_t_Test, Initialize_m_ap_mld_info_structure_successfully) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Call the SetUp function to initialize the singleton instance | None | Singleton instance initialized | Done by Pre-requisite SetUp function |
- * | 02 | Call the init function twice | None | Return value is 0 | Should Pass |
- * | 03 | Assert that the return value is 0 | None | Assertion passes | Should Pass |
- * | 04 | Call the TearDown function | None | Singleton instance cleanup handled | Done by Pre-requisite TearDown function |
+ * | 01 | Call the init function twice | None | Return value is 0 | Should Pass |
+ * | 02 | Assert that the return value is 0 | None | Assertion passes | Should Pass |
  */
-TEST_F(dm_ap_mld_t_Test, Initialize_m_ap_mld_info_structure_when_already_initialized) {
+TEST(dm_ap_mld_t_Test, Initialize_m_ap_mld_info_structure_when_already_initialized) {
     std::cout << "Entering Initialize_m_ap_mld_info_structure_when_already_initialized test" << std::endl;
-	int result = instance->init();
+    dm_ap_mld_t instance;
+	int result = instance.init();
 	ASSERT_EQ(result, 0);
-    result = instance->init();
+    result = instance.init();
     ASSERT_EQ(result, 0);
     std::cout << "Exiting Initialize_m_ap_mld_info_structure_when_already_initialized test" << std::endl;
 }

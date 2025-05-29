@@ -22,23 +22,10 @@
  #include <stdio.h>
  #include "dm_bss.h"
   
- class dm_bss_t_Test : public ::testing::Test {
- protected:
-     dm_bss_t* instance;
-  
-     void SetUp() override {
-         instance = new dm_bss_t();
-    }
-  
-     void TearDown() override {
-         delete instance;
-    }
- };
-  
 /**
   * @brief TEST the addition of a valid Vendor IE to the instance.
   *
-  * ThisTEST verifies that a valid Vendor IE (Information Element) can be successfully added to the instance of the dm_bss_t class. TheTEST ensures that the add_vendor_ie function correctly processes and accepts a valid Vendor IE structure.
+  * This TEST verifies that a valid Vendor IE (Information Element) can be successfully added to the instance of the dm_bss_t class. TheTEST ensures that the add_vendor_ie function correctly processes and accepts a valid Vendor IE structure.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 001@n
@@ -51,13 +38,11 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment by creating an instance of dm_bss_t | None | Instance created | Done by Pre-requisite SetUp function |
-  * | 02 | Define a valid Vendor IE structure | ieee80211_vs_ie valid_ie = {0xDD, 5, {0x00, 0x50, 0xF2}, 1, 1, {0x01, 0x02, 0x03, 0x04, 0x05}} | Valid Vendor IE defined | Should be successful |
-  * | 03 | Call the add_vendor_ie function with the valid Vendor IE | valid_ie = {0xDD, 5, {0x00, 0x50, 0xF2}, 1, 1, {0x01, 0x02, 0x03, 0x04, 0x05}} | Function returns true | Should Pass |
-  * | 04 | Verify the result using ASSERT_TRUE | result = true | Assertion passes | Should be successful |
-  * | 05 | Clean up theTEST environment by deleting the instance of dm_bss_t | None | Instance deleted | Done by Pre-requisite TearDown function |
+  * | 01 | Define a valid Vendor IE structure | ieee80211_vs_ie valid_ie = {0xDD, 5, {0x00, 0x50, 0xF2}, 1, 1, {0x01, 0x02, 0x03, 0x04, 0x05}} | Valid Vendor IE defined | Should be successful |
+  * | 02 | Call the add_vendor_ie function with the valid Vendor IE | valid_ie = {0xDD, 5, {0x00, 0x50, 0xF2}, 1, 1, {0x01, 0x02, 0x03, 0x04, 0x05}} | Function returns true | Should Pass |
+  * | 03 | Verify the result using ASSERT_TRUE | result = true | Assertion passes | Should be successful |
   */
- TEST_F(dm_bss_t_Test, AddValidVendorIE) {
+ TEST(dm_bss_t_Test, AddValidVendorIE) {
       std::cout << "Entering AddValidVendorIETEST" << std::endl;
       // Total size: size of struct without payload + payload size
       size_t payload_len = 5;
@@ -75,7 +60,8 @@
       valid_ie->vs_subtype = 1;
       uint8_t payload_data[5] = {0x01, 0x02, 0x03, 0x04, 0x05};
       memcpy(valid_ie->payload, payload_data, payload_len);
-      bool result = instance->add_vendor_ie(valid_ie);
+      dm_bss_t instance;
+      bool result = instance.add_vendor_ie(valid_ie);
       ASSERT_TRUE(result);
       free(valid_ie);
       std::cout << "Exiting AddValidVendorIETEST" << std::endl;
@@ -84,7 +70,7 @@
 /**
   * @brief TEST the add_vendor_ie function with a null pointer
   *
-  * ThisTEST verifies that the add_vendor_ie function correctly handles a null pointer input by returning false.@n
+  * This TEST verifies that the add_vendor_ie function correctly handles a null pointer input by returning false.@n
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 002@n
@@ -97,17 +83,14 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Set up theTEST environment | None | None | Done by Pre-requisite SetUp function |
-  * | 02 | Print entering message | None | None | Should be successful |
-  * | 03 | Call add_vendor_ie with null pointer | nullptr | result = false | Should Pass |
-  * | 04 | Assert that the result is false | result = false | Assertion check: result is false | Should be successful |
-  * | 05 | Print exiting message | None | None | Should be successful |
-  * | 06 | Tear down theTEST environment | None | None | Done by Pre-requisite TearDown function |
+  * | 01 | Call add_vendor_ie with null pointer | nullptr | result = false | Should Pass |
+  * | 02 | Assert that the result is false | result = false | Assertion check: result is false | Should be successful |
   */
 /*code doesn't handle null
- TEST_F(dm_bss_t_Test, AddVendorIEWIthNullPointer) {
+ TEST(dm_bss_t_Test, AddVendorIEWIthNullPointer) {
       std::cout << "Entering AddVendorIEWIthNullPointerTEST" << std::endl;
-      bool result = instance->add_vendor_ie(nullptr);
+      dm_bss_t instance;
+      bool result = instance.add_vendor_ie(nullptr);
       ASSERT_FALSE(result);
       std::cout << "Exiting AddVendorIEWIthNullPointerTEST" << std::endl;
  }
@@ -116,7 +99,7 @@
 /**
   * @brief TEST the addition of a Vendor IE with zero length
   *
-  * ThisTEST verifies that the add_vendor_ie function correctly handles the case where a Vendor IE with zero length is added. This is important to ensure that the function does not accept invalid input, which could lead to unexpected behavior or security vulnerabilities.
+  * This TEST verifies that the add_vendor_ie function correctly handles the case where a Vendor IE with zero length is added. This is important to ensure that the function does not accept invalid input, which could lead to unexpected behavior or security vulnerabilities.
   *
   * **Test Group ID:** Basic: 01
   * **Test Case ID:** 003@n
@@ -129,20 +112,17 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment by creating an instance of dm_bss_t | None | Instance created successfully | Done by Pre-requisite SetUp function |
-  * | 02 | Define a zero-length Vendor IE structure | ieee80211_vs_ie zero_length_ie = {0xDD, 0, {0x00, 0x50, 0xF2}, 1, 1, {}} | Structure defined successfully | Should be successful |
-  * | 03 | Call the add_vendor_ie function with the zero-length Vendor IE | zero_length_ie = {0xDD, 0, {0x00, 0x50, 0xF2}, 1, 1, {}} | Function returns false | Should Pass |
-  * | 04 | Verify that the function returns false using ASSERT_FALSE | result = false | Assertion passes | Should be successful |
-  * | 05 | Tear down theTEST environment by deleting the instance of dm_bss_t | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
+  * | 01 | Define a zero-length Vendor IE structure | ieee80211_vs_ie zero_length_ie = {0xDD, 0, {0x00, 0x50, 0xF2}, 1, 1, {}} | Structure defined successfully | Should be successful |
+  * | 02 | Call the add_vendor_ie function with the zero-length Vendor IE | zero_length_ie = {0xDD, 0, {0x00, 0x50, 0xF2}, 1, 1, {}} | Function returns false | Should Pass |
+  * | 03 | Verify that the function returns false using ASSERT_FALSE | result = false | Assertion passes | Should be successful |
   */
- TEST_F(dm_bss_t_Test, AddVendorIEWIthZeroLength) {
+ TEST(dm_bss_t_Test, AddVendorIEWIthZeroLength) {
       std::cout << "Entering AddVendorIEWIthZeroLengthTEST" << std::endl;
-  
       // Allocate memory only for base struct, no payload
       size_t total_size = sizeof(ieee80211_vs_ie);  // payload length is 0
       ieee80211_vs_ie* zero_length_ie = static_cast<ieee80211_vs_ie*>(malloc(total_size));
       ASSERT_NE(zero_length_ie, nullptr);
-  
+      dm_bss_t instance;
       // Fill in fields
       zero_length_ie->vs_ie = 0xDD;
       zero_length_ie->vs_len = 0;
@@ -151,11 +131,9 @@
       zero_length_ie->vs_oui[2] = 0xF2;
       zero_length_ie->vs_type = 1;
       zero_length_ie->vs_subtype = 1;
-  
       // Run the test
-      bool result = instance->add_vendor_ie(zero_length_ie);
+      bool result = instance.add_vendor_ie(zero_length_ie);
       ASSERT_FALSE(result);
-  
       free(zero_length_ie);
       std::cout << "Exiting AddVendorIEWIthZeroLengthTEST" << std::endl;
  } 
@@ -163,7 +141,7 @@
 /**
   * @brief TEST the addition of a Vendor IE with the maximum allowed length.
   *
-  * ThisTEST verifies that the `add_vendor_ie` function can handle the maximum length of a Vendor IE payload correctly. It ensures that the function can process and add a Vendor IE with a payload of 255 bytes without any issues.
+  * This TEST verifies that the `add_vendor_ie` function can handle the maximum length of a Vendor IE payload correctly. It ensures that the function can process and add a Vendor IE with a payload of 255 bytes without any issues.
   *
   * **Test Group ID:** Basic: 01
   * **Test Case ID:** 004@n
@@ -176,14 +154,12 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment by creating an instance of `dm_bss_t`. | None | Instance created successfully | Done by Pre-requisite SetUp function |
-  * | 02 | Initialize a payload array with 255 bytes, each byte incremented by 1. | payload = {1, 2, ..., 255} | Payload initialized successfully | Should be successful |
-  * | 03 | Create a `ieee80211_vs_ie` structure with the maximum length and copy the payload into it. | max_length_ie = {0xDD, 255, {0x00, 0x50, 0xF2}, 1, 1, payload} | Structure created and payload copied successfully | Should be successful |
-  * | 04 | Call the `add_vendor_ie` function with the created `ieee80211_vs_ie` structure. | max_length_ie | Function returns true | Should Pass |
-  * | 05 | Verify that the function returns true, indicating the Vendor IE was added successfully. | result = true | Assertion passes | Should Pass |
-  * | 06 | Clean up theTEST environment by deleting the instance of `dm_bss_t`. | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
+  * | 01 | Initialize a payload array with 255 bytes, each byte incremented by 1. | payload = {1, 2, ..., 255} | Payload initialized successfully | Should be successful |
+  * | 02 | Create a `ieee80211_vs_ie` structure with the maximum length and copy the payload into it. | max_length_ie = {0xDD, 255, {0x00, 0x50, 0xF2}, 1, 1, payload} | Structure created and payload copied successfully | Should be successful |
+  * | 03 | Call the `add_vendor_ie` function with the created `ieee80211_vs_ie` structure. | max_length_ie | Function returns true | Should Pass |
+  * | 04 | Verify that the function returns true, indicating the Vendor IE was added successfully. | result = true | Assertion passes | Should Pass |
   */
- TEST_F(dm_bss_t_Test, AddVendorIEWIthMaximumLength) {
+ TEST(dm_bss_t_Test, AddVendorIEWIthMaximumLength) {
       std::cout << "Entering AddVendorIEWIthMaximumLengthTEST" << std::endl; 
       uint8_t payload[255];
       for (uint16_t i = 0; i < 255; ++i) {
@@ -201,16 +177,17 @@
       max_length_ie->vs_type = 1;
       max_length_ie->vs_subtype = 1;
       memcpy(max_length_ie->payload, payload, 255);
-      bool result = instance->add_vendor_ie(max_length_ie);
+      dm_bss_t instance;
+      bool result = instance.add_vendor_ie(max_length_ie);
       ASSERT_TRUE(result);
       free(max_length_ie);
       std::cout << "Exiting AddVendorIEWIthMaximumLengthTEST" << std::endl;
- } 
+ }
   
 /**
  * @brief TEST the addition of a Vendor IE with an empty payload to the dm_bss_t instance.
  *
- * ThisTEST verifies that the add_vendor_ie function can handle and correctly process a Vendor IE with an empty payload. This is important to ensure that the function can handle edge cases where the payload might be empty.
+ * This TEST verifies that the add_vendor_ie function can handle and correctly process a Vendor IE with an empty payload. This is important to ensure that the function can handle edge cases where the payload might be empty.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 005@n
@@ -223,13 +200,11 @@
  * **Test Procedure:**@n
  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set up theTEST environment by creating an instance of dm_bss_t | None | Instance created | Done by Pre-requisite SetUp function |
- * | 02 | Define an empty payload Vendor IE | struct ieee80211_vs_ie empty_payload_ie = {0xDD, 5, {0x00, 0x50, 0xF2}, 1, 1, {}} | Vendor IE defined | Should be successful |
- * | 03 | Call add_vendor_ie with the empty payload Vendor IE | instance->add_vendor_ie(&empty_payload_ie) | Should return true | Should Pass |
- * | 04 | Verify the result using ASSERT_TRUE | result = true | Assertion should pass | Should Pass |
- * | 05 | Tear down theTEST environment by deleting the instance of dm_bss_t | None | Instance deleted | Done by Pre-requisite TearDown function |
+ * | 01 | Define an empty payload Vendor IE | struct ieee80211_vs_ie empty_payload_ie = {0xDD, 5, {0x00, 0x50, 0xF2}, 1, 1, {}} | Vendor IE defined | Should be successful |
+ * | 02 | Call add_vendor_ie with the empty payload Vendor IE | instance.add_vendor_ie(&empty_payload_ie) | Should return true | Should Pass |
+ * | 03 | Verify the result using ASSERT_TRUE | result = true | Assertion should pass | Should Pass |
  */
- TEST_F(dm_bss_t_Test, AddVendorIEWIthEmptyPayload) {
+ TEST(dm_bss_t_Test, AddVendorIEWIthEmptyPayload) {
       std::cout << "Entering AddVendorIEWIthEmptyPayloadTEST" << std::endl; 
       // Total size = size of struct + 0 (empty payload)
       size_t total_size = sizeof(ieee80211_vs_ie);
@@ -243,8 +218,9 @@
       empty_payload_ie->vs_oui[2] = 0xF2;
       empty_payload_ie->vs_type = 1;
       empty_payload_ie->vs_subtype = 1;
+      dm_bss_t instance;
       // No need to touch payload as it’s empty
-      bool result = instance->add_vendor_ie(empty_payload_ie);
+      bool result = instance.add_vendor_ie(empty_payload_ie);
       ASSERT_TRUE(result);
       free(empty_payload_ie);
       std::cout << "Exiting AddVendorIEWIthEmptyPayloadTEST" << std::endl;
@@ -253,7 +229,7 @@
 /**
   * @brief TEST decoding a valid JSON object with a valid parent ID
   *
-  * ThisTEST verifies that the decode function correctly processes a valid JSON object and returns a valid parent ID.
+  * This TEST verifies that the decode function correctly processes a valid JSON object and returns a valid parent ID.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 006@n
@@ -266,18 +242,17 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment | None | None | Done by Pre-requisite SetUp function |
-  * | 02 | Parse a valid JSON object | validJson = "{\"key\":\"value\"}" | validJson is parsed successfully | Should be successful |
-  * | 03 | Call decode function with valid JSON and parent ID | validJson = "{\"key\":\"value\"}", parent_id = uninitialized | result = 0 | Should Pass |
-  * | 04 | Assert the result of decode function | result = 0 | result == 0 | Should Pass |
-  * | 05 | Clean up the JSON object | validJson = parsed JSON object | validJson is deleted | Should be successful |
-  * | 06 | Tear down theTEST environment | None | None | Done by Pre-requisite TearDown function |
+  * | 01 | Parse a valid JSON object | validJson = "{\"key\":\"value\"}" | validJson is parsed successfully | Should be successful |
+  * | 02 | Call decode function with valid JSON and parent ID | validJson = "{\"key\":\"value\"}", parent_id = uninitialized | result = 0 | Should Pass |
+  * | 03 | Assert the result of decode function | result = 0 | result == 0 | Should Pass |
+  * | 04 | Clean up the JSON object | validJson = parsed JSON object | validJson is deleted | Should be successful |
   */
- TEST_F(dm_bss_t_Test, DecodeValidJsonObjectWithValidParentID) {
+ TEST(dm_bss_t_Test, DecodeValidJsonObjectWithValidParentID) {
       std::cout << "Entering DecodeValidJsonObjectWithValidParentIDTEST" << std::endl;
       cJSON*validJson = cJSON_Parse("{\"key\":\"value\"}");
       int parent_id;
-      int result = instance->decode(validJson, &parent_id);
+      dm_bss_t instance;
+      int result = instance.decode(validJson, &parent_id);
       ASSERT_EQ(result, 0);
       cJSON_Delete(validJson);
       std::cout << "Exiting DecodeValidJsonObjectWithValidParentIDTEST" << std::endl;
@@ -286,7 +261,7 @@
 /**
   * @brief TEST the decode function with a null JSON object and a valid parent ID
   *
-  * ThisTEST checks the behavior of the decode function when provided with a null JSON object and a valid parent ID. It ensures that the function returns an error code (-1) as expected.
+  * This TEST checks the behavior of the decode function when provided with a null JSON object and a valid parent ID. It ensures that the function returns an error code (-1) as expected.
   *
   * **Test Group ID:** Basic: 01
   * **Test Case ID:** 007@n
@@ -299,16 +274,15 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment by creating an instance of dm_bss_t | None | Instance created | Done by Pre-requisite SetUp function |
-  * | 02 | Call the decode function with a null JSON object and a valid parent ID | json_object = nullptr, parent_id = valid | result = -1 | Should Pass |
-  * | 03 | Verify the result of the decode function | result = -1 | result == -1 | Should be successful |
-  * | 04 | Clean up theTEST environment by deleting the instance of dm_bss_t | None | Instance deleted | Done by Pre-requisite TearDown function |
+  * | 01 | Call the decode function with a null JSON object and a valid parent ID | json_object = nullptr, parent_id = valid | result = -1 | Should Pass |
+  * | 02 | Verify the result of the decode function | result = -1 | result == -1 | Should be successful |
   */
 /*code doesn't handle null
- TEST_F(dm_bss_t_Test, DecodeNullJsonObjectWithValidParentID) {
+ TEST(dm_bss_t_Test, DecodeNullJsonObjectWithValidParentID) {
       std::cout << "Entering DecodeNullJsonObjectWithValidParentIDTEST" << std::endl;
       int parent_id;
-      int result = instance->decode(nullptr, &parent_id);
+      dm_bss_t instance;
+      int result = instance.decode(nullptr, &parent_id);
       ASSERT_EQ(result, -1);
       std::cout << "Exiting DecodeNullJsonObjectWithValidParentIDTEST" << std::endl;
  }
@@ -317,7 +291,7 @@
 /**
  * @brief TEST the decoding of a valid JSON object with a null parent ID.
  *
- * ThisTEST verifies that the decode function correctly handles a valid JSON object when the parent ID is null. The expected behavior is that the function should return -1, indicating an error due to the null parent ID.
+ * This TEST verifies that the decode function correctly handles a valid JSON object when the parent ID is null. The expected behavior is that the function should return -1, indicating an error due to the null parent ID.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 008@n
@@ -330,18 +304,17 @@
  * **Test Procedure:**@n
  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set up theTEST environment by creating an instance of dm_bss_t | instance = new dm_bss_t() | Instance created successfully | Done by Pre-requisite SetUp function |
- * | 02 | Parse a valid JSON object | validJson = cJSON_Parse("{\"key\":\"value\"}") | JSON object parsed successfully | Should be successful |
- * | 03 | Call the decode function with the valid JSON object and a null parent ID | result = instance->decode(validJson, nullptr) | result = -1 | Should Pass |
- * | 04 | Assert that the result is -1 | ASSERT_EQ(result, -1) | Assertion passed | Should be successful |
- * | 05 | Clean up the JSON object | cJSON_Delete(validJson) | JSON object deleted successfully | Should be successful |
- * | 06 | Tear down theTEST environment by deleting the instance of dm_bss_t | delete instance | Instance deleted successfully | Done by Pre-requisite TearDown function |
+ * | 01 | Parse a valid JSON object | validJson = cJSON_Parse("{\"key\":\"value\"}") | JSON object parsed successfully | Should be successful |
+ * | 02 | Call the decode function with the valid JSON object and a null parent ID | result = instance.decode(validJson, nullptr) | result = -1 | Should Pass |
+ * | 03 | Assert that the result is -1 | ASSERT_EQ(result, -1) | Assertion passed | Should be successful |
+ * | 04 | Clean up the JSON object | cJSON_Delete(validJson) | JSON object deleted successfully | Should be successful |
  */
 /*code doesn't handle null
- TEST_F(dm_bss_t_Test, DecodeValidJsonObjectWithNullParentID) {
+ TEST(dm_bss_t_Test, DecodeValidJsonObjectWithNullParentID) {
       std::cout << "Entering DecodeValidJsonObjectWithNullParentIDTEST" << std::endl;
       cJSON*validJson = cJSON_Parse("{\"key\":\"value\"}");
-      int result = instance->decode(validJson, nullptr);
+      dm_bss_t instance;
+      int result = instance.decode(validJson, nullptr);
       ASSERT_EQ(result, -1);
       cJSON_Delete(validJson);
       std::cout << "Exiting DecodeValidJsonObjectWithNullParentIDTEST" << std::endl;
@@ -351,7 +324,7 @@
 /**
   * @brief TEST decoding an empty JSON object with a valid parent ID
   *
-  * ThisTEST verifies that the decode function correctly handles an empty JSON object and returns the expected error code.
+  * This TEST verifies that the decode function correctly handles an empty JSON object and returns the expected error code.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 009@n
@@ -364,28 +337,26 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment | instance = new dm_bss_t() | instance is created | Done by Pre-requisite SetUp function |
-  * | 02 | Parse an empty JSON object | emptyJson = cJSON_Parse("{}") | emptyJson is parsed | Should be successful |
-  * | 03 | Call decode with empty JSON and valid parent ID | result = instance->decode(emptyJson, &parent_id) | result = -1 | Should Pass |
-  * | 04 | Assert the result | ASSERT_EQ(result, -1) | result = -1 | Should Pass |
-  * | 05 | Clean up the JSON object | cJSON_Delete(emptyJson) | emptyJson is deleted | Should be successful |
-  * | 06 | Tear down theTEST environment | delete instance | instance is deleted | Done by Pre-requisite TearDown function |
+  * | 01 | Parse an empty JSON object | emptyJson = cJSON_Parse("{}") | emptyJson is parsed | Should be successful |
+  * | 02 | Call decode with empty JSON and valid parent ID | result = instance.decode(emptyJson, &parent_id) | result = -1 | Should Pass |
+  * | 03 | Assert the result | ASSERT_EQ(result, -1) | result = -1 | Should Pass |
+  * | 04 | Clean up the JSON object | cJSON_Delete(emptyJson) | emptyJson is deleted | Should be successful |
   */
-  
- TEST_F(dm_bss_t_Test, DecodeEmptyJsonObjectWithValidParentID) {
+ TEST(dm_bss_t_Test, DecodeEmptyJsonObjectWithValidParentID) {
       std::cout << "Entering DecodeEmptyJsonObjectWithValidParentIDTEST" << std::endl;
       cJSON*emptyJson = cJSON_Parse("{}");
       int parent_id;
-      int result = instance->decode(emptyJson, &parent_id);
+      dm_bss_t instance;
+      int result = instance.decode(emptyJson, &parent_id);
       ASSERT_EQ(result, -1);
       cJSON_Delete(emptyJson);
       std::cout << "Exiting DecodeEmptyJsonObjectWithValidParentIDTEST" << std::endl;
- }
+}
   
 /**
-  * @brief TEST decoding a valid JSON object with an invalid parent ID
+  * @brief TEST the encoding of a valid JSON object without a summary.
   *
-  * ThisTEST verifies that the decode function correctly handles a valid JSON object when provided with an invalid parent ID. The expected behavior is that the function should return an error code (-1) indicating the failure due to the invalid parent ID.
+  * This TEST verifies that the `encode` method of the `dm_bss_t` class correctly encodes a valid JSON object without including a summary. It ensures that the JSON object is created, encoded, and then properly deleted.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 010@n
@@ -398,28 +369,23 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment | None | None | Done by Pre-requisite SetUp function |
-  * | 02 | Parse a valid JSON object | validJson = "{\"key\":\"value\"}" | validJson is parsed successfully | Should be successful |
-  * | 03 | Define an invalid parent ID | invalid_parent_id = 0xDEADBEEF | invalid_parent_id is set | Should be successful |
-  * | 04 | Call the decode function with valid JSON and invalid parent ID | validJson, invalid_parent_id | result = -1 | Should Pass |
-  * | 05 | Assert the result is -1 | result = -1 | Assertion passes | Should be successful |
-  * | 06 | Clean up the JSON object | validJson | validJson is deleted | Should be successful |
-  * | 07 | Tear down theTEST environment | None | None | Done by Pre-requisite TearDown function |
+  * | 01 | Create a JSON object using `cJSON_CreateObject` | None | JSON object created | Should be successful |
+  * | 02 | Call the `encode` method on the instance with the JSON object and `false` for summary | json = cJSON_CreateObject(), summary = false | JSON object encoded | Should Pass |
+  * | 03 | Delete the JSON object using `cJSON_Delete` | json = cJSON_CreateObject() | JSON object deleted | Should be successful |
   */
- TEST_F(dm_bss_t_Test, DecodeValidJsonObjectWithInvalidParentID) {
-      std::cout << "Entering DecodeValidJsonObjectWithInvalidParentIDTEST" << std::endl;
-      cJSON*validJson = cJSON_Parse("{\"key\":\"value\"}");
-      int*invalid_parent_id = reinterpret_cast<int*>(0xDEADBEEF);
-      int result = instance->decode(validJson, invalid_parent_id);
-      ASSERT_EQ(result, -1);
-      cJSON_Delete(validJson);
-      std::cout << "Exiting DecodeValidJsonObjectWithInvalidParentIDTEST" << std::endl;
+ TEST(dm_bss_t_Test, EncodeValidJSONObjectWithoutSummary) {
+      std::cout << "Entering EncodeValidJSONObjectWithoutSummaryTEST" << std::endl;
+      cJSON*json = cJSON_CreateObject();
+      dm_bss_t instance;
+      instance.encode(json, false);
+      cJSON_Delete(json);
+      std::cout << "Exiting EncodeValidJSONObjectWithoutSummaryTEST" << std::endl;
  }
   
 /**
-  * @brief TEST the encoding of a valid JSON object without a summary.
+  * @brief TEST the encoding of a valid JSON object with summary.
   *
-  * ThisTEST verifies that the `encode` method of the `dm_bss_t` class correctly encodes a valid JSON object without including a summary. It ensures that the JSON object is created, encoded, and then properly deleted.
+  * This TEST verifies that the `encode` method of the `dm_bss_t` class correctly encodes a JSON object when the summary flag is set to true. It ensures that the JSON object is not null after encoding.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 011@n
@@ -432,46 +398,15 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Set up theTEST environment by creating an instance of `dm_bss_t` | None | Instance created | Done by Pre-requisite SetUp function |
-  * | 02 | Create a JSON object using `cJSON_CreateObject` | None | JSON object created | Should be successful |
-  * | 03 | Call the `encode` method on the instance with the JSON object and `false` for summary | json = cJSON_CreateObject(), summary = false | JSON object encoded | Should Pass |
-  * | 04 | Delete the JSON object using `cJSON_Delete` | json = cJSON_CreateObject() | JSON object deleted | Should be successful |
-  * | 05 | Tear down theTEST environment by deleting the instance of `dm_bss_t` | None | Instance deleted | Done by Pre-requisite TearDown function |
-  */
- TEST_F(dm_bss_t_Test, EncodeValidJSONObjectWithoutSummary) {
-      std::cout << "Entering EncodeValidJSONObjectWithoutSummaryTEST" << std::endl;
-      cJSON*json = cJSON_CreateObject();
-      instance->encode(json, false);
-      cJSON_Delete(json);
-      std::cout << "Exiting EncodeValidJSONObjectWithoutSummaryTEST" << std::endl;
- }
-  
-/**
-  * @brief TEST the encoding of a valid JSON object with summary.
-  *
-  * ThisTEST verifies that the `encode` method of the `dm_bss_t` class correctly encodes a JSON object when the summary flag is set to true. It ensures that the JSON object is not null after encoding.
-  *
-  * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 012@n
-  * **Priority:** High@n
-  * @n
-  * **Pre-Conditions:** None@n
-  * **Dependencies:** None@n
-  * **User Interaction:** None@n
-  * @n
-  * **Test Procedure:**@n
-  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
-  * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment by creating an instance of `dm_bss_t` | instance = new dm_bss_t() | Instance should be created successfully | Done by Pre-requisite SetUp function |
-  * | 02 | Create a JSON object using `cJSON_CreateObject` | json = cJSON_CreateObject() | JSON object should be created successfully | Should be successful |
-  * | 03 | Call the `encode` method with the JSON object and summary flag set to true | instance->encode(json, true) | JSON object should be encoded successfully | Should Pass |
+  * | 01 | Create a JSON object using `cJSON_CreateObject` | json = cJSON_CreateObject() | JSON object should be created successfully | Should be successful |
+  * | 03 | Call the `encode` method with the JSON object and summary flag set to true | instance.encode(json, true) | JSON object should be encoded successfully | Should Pass |
   * | 04 | Delete the JSON object using `cJSON_Delete` | cJSON_Delete(json) | JSON object should be deleted successfully | Should be successful |
-  * | 05 | Tear down theTEST environment by deleting the instance of `dm_bss_t` | delete instance | Instance should be deleted successfully | Done by Pre-requisite TearDown function |
   */
- TEST_F(dm_bss_t_Test, EncodeValidJSONObjectWithSummary) {
+ TEST(dm_bss_t_Test, EncodeValidJSONObjectWithSummary) {
       std::cout << "Entering EncodeValidJSONObjectWithSummaryTEST" << std::endl;
       cJSON*json = cJSON_CreateObject();
-      instance->encode(json, true);
+      dm_bss_t instance;
+      instance.encode(json, true);
       cJSON_Delete(json);
       std::cout << "Exiting EncodeValidJSONObjectWithSummaryTEST" << std::endl;
  }
@@ -479,10 +414,10 @@
 /**
   * @brief TEST encoding of a null JSON object without summary
   *
-  * ThisTEST verifies that the encode function correctly handles a null JSON object when the summary flag is set to false.
+  * This TEST verifies that the encode function correctly handles a null JSON object when the summary flag is set to false.
   *
   * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 013@n
+  * **Test Case ID:** 012@n
   * **Priority:** High
   * @n
   * **Pre-Conditions:** None
@@ -492,16 +427,15 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment by creating an instance of dm_bss_t | instance = new dm_bss_t() | Instance should be created successfully | Done by Pre-requisite SetUp function |
-  * | 02 | Initialize a null JSON object | cJSON*json = nullptr; | JSON object should be null | Should be successful |
-  * | 03 | Call the encode function with the null JSON object and summary flag set to false | instance->encode(json, false); | Function should handle null JSON object without errors | Should Pass |
-  * | 04 | Clean up theTEST environment by deleting the instance of dm_bss_t | delete instance; | Instance should be deleted successfully | Done by Pre-requisite TearDown function |
+  * | 01 | Initialize a null JSON object | cJSON*json = nullptr; | JSON object should be null | Should be successful |
+  * | 02 | Call the encode function with the null JSON object and summary flag set to false | instance.encode(json, false); | Function should handle null JSON object without errors | Should Pass |
   */
 /*code doesn't handle null
- TEST_F(dm_bss_t_Test, EncodeNullJSONObjectWithoutSummary) {
+ TEST(dm_bss_t_Test, EncodeNullJSONObjectWithoutSummary) {
       std::cout << "Entering EncodeNullJSONObjectWithoutSummaryTEST" << std::endl;
       cJSON*json = nullptr;
-      instance->encode(json, false);
+      dm_bss_t instance;
+      instance.encode(json, false);
       std::cout << "Exiting EncodeNullJSONObjectWithoutSummaryTEST" << std::endl;
  }
  */      
@@ -509,10 +443,10 @@
 /**
   * @brief TEST the encoding of a JSON object with arrays without summary
   *
-  * ThisTEST verifies the functionality of the encode method in the dm_bss_t class when encoding a JSON object that contains arrays, without including a summary.
+  * This TEST verifies the functionality of the encode method in the dm_bss_t class when encoding a JSON object that contains arrays, without including a summary.
   *
   * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 014@n
+  * **Test Case ID:** 013@n
   * **Priority:** High@n
   * @n
   * **Pre-Conditions:** None@n
@@ -522,19 +456,18 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment | instance = new dm_bss_t() | instance is created | Done by Pre-requisite SetUp function |
-  * | 02 | Create a JSON object and an array, and add the array to the JSON object | json = cJSON_CreateObject(), array = cJSON_CreateArray(), cJSON_AddItemToObject(json, "array", array) | JSON object with array is created | Should be successful |
-  * | 03 | Encode the JSON object without summary | instance->encode(json, false) | json, false | Should Pass |
-  * | 04 | Verify the JSON object is not null | ASSERT_TRUE(json != nullptr) | json != nullptr | Should Pass |
-  * | 05 | Clean up the JSON object | cJSON_Delete(json) | json is deleted | Should be successful |
-  * | 06 | Tear down theTEST environment | delete instance | instance is deleted | Done by Pre-requisite TearDown function |
+  * | 01 | Create a JSON object and an array, and add the array to the JSON object | json = cJSON_CreateObject(), array = cJSON_CreateArray(), cJSON_AddItemToObject(json, "array", array) | JSON object with array is created | Should be successful |
+  * | 02 | Encode the JSON object without summary | instance.encode(json, false) | json, false | Should Pass |
+  * | 03 | Verify the JSON object is not null | ASSERT_TRUE(json != nullptr) | json != nullptr | Should Pass |
+  * | 04 | Clean up the JSON object | cJSON_Delete(json) | json is deleted | Should be successful |
   */
- TEST_F(dm_bss_t_Test, EncodeJSONObjectWithArraysWithoutSummary) {
+ TEST(dm_bss_t_Test, EncodeJSONObjectWithArraysWithoutSummary) {
       std::cout << "Entering EncodeJSONObjectWithArraysWithoutSummaryTEST" << std::endl;
       cJSON*json = cJSON_CreateObject();
       cJSON*array = cJSON_CreateArray();
       cJSON_AddItemToObject(json, "array", array);
-      instance->encode(json, false);
+      dm_bss_t instance;
+      instance.encode(json, false);
       ASSERT_TRUE(json != nullptr);
       cJSON_Delete(json);
       std::cout << "Exiting EncodeJSONObjectWithArraysWithoutSummaryTEST" << std::endl;
@@ -543,7 +476,40 @@
 /**
   * @brief TEST the encoding of a JSON object with arrays and summary
   *
-  * ThisTEST verifies the functionality of the encode method in the dm_bss_t class when encoding a JSON object that contains arrays and a summary flag set to true.
+  * This TEST verifies the functionality of the encode method in the dm_bss_t class when encoding a JSON object that contains arrays and a summary flag set to true.
+  *
+  * **Test Group ID:** Basic: 01
+  * **Test Case ID:** 014@n
+  * **Priority:** High
+  * @n
+  * **Pre-Conditions:** None
+  * **Dependencies:** None
+  * **User Interaction:** None
+  * @n
+  * **Test Procedure:**@n
+  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
+  * | :----: | --------- | ---------- |-------------- | ----- |
+  * | 01 | Create a JSON object and an array, and add the array to the JSON object | json = cJSON_CreateObject(), array = cJSON_CreateArray(), cJSON_AddItemToObject(json, "array", array) | JSON object and array should be created and array should be added to JSON object | Should be successful |
+  * | 02 | Encode the JSON object with the summary flag set to true | instance.encode(json, true) | JSON object should be encoded successfully | Should Pass |
+  * | 03 | Verify that the JSON object is not null | ASSERT_TRUE(json != nullptr) | Assertion should pass | Should Pass |
+  * | 04 | Clean up the JSON object | cJSON_Delete(json) | JSON object should be deleted successfully | Should be successful |
+  */
+ TEST(dm_bss_t_Test, EncodeJSONObjectWithArraysWithSummary) {
+      std::cout << "Entering EncodeJSONObjectWithArraysWithSummaryTEST" << std::endl;
+      cJSON*json = cJSON_CreateObject();
+      cJSON*array = cJSON_CreateArray();
+      cJSON_AddItemToObject(json, "array", array);
+      dm_bss_t instance;
+      instance.encode(json, true);
+      ASSERT_TRUE(json != nullptr);
+      cJSON_Delete(json);
+      std::cout << "Exiting EncodeJSONObjectWithArraysWithSummaryTEST" << std::endl;
+ }
+  
+/**
+  * @brief TEST the retrieval of BSS information with modified values.
+  *
+  * This TEST verifies that the BSS information can be retrieved correctly after modifying various values of the BSS instance.
   *
   * **Test Group ID:** Basic: 01
   * **Test Case ID:** 015@n
@@ -553,56 +519,21 @@
   * **Dependencies:** None
   * **User Interaction:** None
   * @n
-  * **Test Procedure:**@n
-  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
-  * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment | instance = new dm_bss_t() | instance should be created successfully | Done by Pre-requisite SetUp function |
-  * | 02 | Create a JSON object and an array, and add the array to the JSON object | json = cJSON_CreateObject(), array = cJSON_CreateArray(), cJSON_AddItemToObject(json, "array", array) | JSON object and array should be created and array should be added to JSON object | Should be successful |
-  * | 03 | Encode the JSON object with the summary flag set to true | instance->encode(json, true) | JSON object should be encoded successfully | Should Pass |
-  * | 04 | Verify that the JSON object is not null | ASSERT_TRUE(json != nullptr) | Assertion should pass | Should Pass |
-  * | 05 | Clean up the JSON object | cJSON_Delete(json) | JSON object should be deleted successfully | Should be successful |
-  * | 06 | Tear down theTEST environment | delete instance | instance should be deleted successfully | Done by Pre-requisite TearDown function |
-  */
- TEST_F(dm_bss_t_Test, EncodeJSONObjectWithArraysWithSummary) {
-      std::cout << "Entering EncodeJSONObjectWithArraysWithSummaryTEST" << std::endl;
-      cJSON*json = cJSON_CreateObject();
-      cJSON*array = cJSON_CreateArray();
-      cJSON_AddItemToObject(json, "array", array);
-      instance->encode(json, true);
-      ASSERT_TRUE(json != nullptr);
-      cJSON_Delete(json);
-      std::cout << "Exiting EncodeJSONObjectWithArraysWithSummaryTEST" << std::endl;
- }
-  
-/**
-  * @brief TEST the retrieval of BSS information with modified values.
-  *
-  * ThisTEST verifies that the BSS information can be retrieved correctly after modifying various values of the BSS instance.
-  *
-  * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 016@n
-  * **Priority:** High
-  * @n
-  * **Pre-Conditions:** None
-  * **Dependencies:** None
-  * **User Interaction:** None
-  * @n
   * **Test Procedure:**
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment | instance = new dm_bss_t() | Instance should be created successfully | Done by Pre-requisite SetUp function |
-  * | 02 | Modify various BSS info values | instance->m_bss_info.enabled = true, instance->m_bss_info.vendor_elements_len = WIFI_AP_MAX_VENDOR_IE_LEN, instance->m_bss_info.bssid.media = em_media_type_ieee80211ac_5, instance->m_bss_info.id.haul_type = em_haul_type_fronthaul | The values should be set | Should be successful |
-  * | 03 | Retrieve the BSS info | em_bss_info_t* bss_info = instance->get_bss_info() | bss_info should not be nullptr | Should be successful |
-  * | 04 | Verify the BSS info values | bss_info->m_bss_info.vendor_elements_len = WIFI_AP_MAX_VENDOR_IE_LEN, bss_info->m_bss_info.bssid.media = em_media_type_ieee80211ac_5, bss_info->m_bss_info.id.haul_type = em_haul_type_fronthaul | Values should be same as set values | Should Pass |
-  * | 05 | Tear down theTEST environment | delete instance | Instance should be deleted successfully | Done by Pre-requisite TearDown function |
+  * | 01 | Modify various BSS info values | instance.m_bss_info.enabled = true, instance.m_bss_info.vendor_elements_len = WIFI_AP_MAX_VENDOR_IE_LEN, instance.m_bss_info.bssid.media = em_media_type_ieee80211ac_5, instance.m_bss_info.id.haul_type = em_haul_type_fronthaul | The values should be set | Should be successful |
+  * | 02 | Retrieve the BSS info | em_bss_info_t* bss_info = instance.get_bss_info() | bss_info should not be nullptr | Should be successful |
+  * | 03 | Verify the BSS info values | bss_info->m_bss_info.vendor_elements_len = WIFI_AP_MAX_VENDOR_IE_LEN, bss_info->m_bss_info.bssid.media = em_media_type_ieee80211ac_5, bss_info->m_bss_info.id.haul_type = em_haul_type_fronthaul | Values should be same as set values | Should Pass |
   */
- TEST_F(dm_bss_t_Test, RetrieveBssInfoWithModifiedValues) {
+ TEST(dm_bss_t_Test, RetrieveBssInfoWithModifiedValues) {
       std::cout << "Entering RetrieveBssInfoWithModifiedValuesTEST" << std::endl;
-      instance->m_bss_info.enabled = true;
-      instance->m_bss_info.vendor_elements_len = WIFI_AP_MAX_VENDOR_IE_LEN;
-      instance->m_bss_info.bssid.media = em_media_type_ieee80211ac_5;
-      instance->m_bss_info.id.haul_type = em_haul_type_fronthaul;
-      em_bss_info_t* bss_info = instance->get_bss_info();
+      dm_bss_t instance;
+      instance.m_bss_info.enabled = true;
+      instance.m_bss_info.vendor_elements_len = WIFI_AP_MAX_VENDOR_IE_LEN;
+      instance.m_bss_info.bssid.media = em_media_type_ieee80211ac_5;
+      instance.m_bss_info.id.haul_type = em_haul_type_fronthaul;
+      em_bss_info_t* bss_info = instance.get_bss_info();
       ASSERT_NE(bss_info, nullptr);
       ASSERT_TRUE(bss_info->enabled);
       ASSERT_EQ(bss_info->vendor_elements_len, WIFI_AP_MAX_VENDOR_IE_LEN);
@@ -614,10 +545,10 @@
 /**
   * @brief TEST to initialize the BSS information structure
   *
-  * ThisTEST verifies the initialization of the BSS information structure by calling the init() method of the dm_bss_t class. TheTEST ensures that the initialization is successful and returns the expected result.
+  * This TEST verifies the initialization of the BSS information structure by calling the init() method of the dm_bss_t class. TheTEST ensures that the initialization is successful and returns the expected result.
   *
   * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 017@n
+  * **Test Case ID:** 016@n
   * **Priority:** High
   * @n
   * **Pre-Conditions:** None
@@ -627,13 +558,12 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment by creating an instance of dm_bss_t | instance = new dm_bss_t() | Instance should be created successfully | Done by Pre-requisite SetUp function |
-  * | 02 | Call the init() method on the instance | instance->init() | Should return 0 | Should Pass |
-  * | 03 | Clean up theTEST environment by deleting the instance | delete instance | Instance should be deleted successfully | Done by Pre-requisite TearDown function |
+  * | 01 | Call the init() method on the instance | instance.init() | Should return 0 | Should Pass |
   */
- TEST_F(dm_bss_t_Test, InitializeBSSInformationStructure) {
+ TEST(dm_bss_t_Test, InitializeBSSInformationStructure) {
       std::cout << "Entering InitializeBSSInformationStructureTEST" << std::endl;
-      int result = instance->init();
+      dm_bss_t instance;
+      int result = instance.init();
       ASSERT_EQ(result, 0);
       std::cout << "Exiting InitializeBSSInformationStructureTEST" << std::endl;
  }
@@ -641,11 +571,11 @@
 /**
   * @brief TEST to initialize BSS information structure multiple times
   *
-  * ThisTEST checks the behavior of the `init` method when called multiple times on the same instance of `dm_bss_t`. 
+  * This TEST checks the behavior of the `init` method when called multiple times on the same instance of `dm_bss_t`. 
   * It ensures that the method can be called repeatedly without causing errors or unexpected behavior.
   *
   * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 018@n
+  * **Test Case ID:** 017@n
   * **Priority:** High@n
   * @n
   * **Pre-Conditions:** None@n
@@ -655,18 +585,17 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment by creating an instance of `dm_bss_t` | instance = new dm_bss_t() | Instance should be created successfully | Done by Pre-requisite SetUp function |
-  * | 02 | Call the `init` method for the first time | result1 = instance->init() | result1 should be 0 | Should Pass |
-  * | 03 | Assert that the first call to `init` returns 0 | ASSERT_EQ(result1, 0) | Assertion should pass | Should be successful |
-  * | 04 | Call the `init` method for the second time | result2 = instance->init() | result2 should be 0 | Should Pass |
-  * | 05 | Assert that the second call to `init` returns 0 | ASSERT_EQ(result2, 0) | Assertion should pass | Should be successful |
-  * | 06 | Clean up theTEST environment by deleting the instance of `dm_bss_t` | delete instance | Instance should be deleted successfully | Done by Pre-requisite TearDown function |
+  * | 01 | Call the `init` method for the first time | result1 = instance.init() | result1 should be 0 | Should Pass |
+  * | 02 | Assert that the first call to `init` returns 0 | ASSERT_EQ(result1, 0) | Assertion should pass | Should be successful |
+  * | 03 | Call the `init` method for the second time | result2 = instance.init() | result2 should be 0 | Should Pass |
+  * | 04 | Assert that the second call to `init` returns 0 | ASSERT_EQ(result2, 0) | Assertion should pass | Should be successful |
   */
- TEST_F(dm_bss_t_Test, InitializeBSSInformationStructureMultipleTimes) {
+ TEST(dm_bss_t_Test, InitializeBSSInformationStructureMultipleTimes) {
       std::cout << "Entering InitializeBSSInformationStructureMultipleTimesTEST" << std::endl;
-      int result1 = instance->init();
+      dm_bss_t instance;
+      int result1 = instance.init();
       ASSERT_EQ(result1, 0);
-      int result2 = instance->init();
+      int result2 = instance.init();
       ASSERT_EQ(result2, 0);
       std::cout << "Exiting InitializeBSSInformationStructureMultipleTimesTEST" << std::endl;
  }
@@ -674,10 +603,10 @@
 /**
   * @brief TEST the match_criteria function with a valid criteria string
   *
-  * ThisTEST verifies that the match_criteria function correctly identifies a valid criteria string and returns true.
+  * This TEST verifies that the match_criteria function correctly identifies a valid criteria string and returns true.
   *
   * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 019@n
+  * **Test Case ID:** 018@n
   * **Priority:** High
   * @n
   * **Pre-Conditions:** None
@@ -687,16 +616,15 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment by creating an instance of dm_bss_t | None | Instance created successfully | Done by Pre-requisite SetUp function |
-  * | 02 | Define a valid criteria string | criteria = "valid_criteria" | Criteria string defined | Should be successful |
-  * | 03 | Call the match_criteria function with the valid criteria string | criteria = "valid_criteria" | Should return true | Should Pass |
-  * | 04 | Verify the result using ASSERT_TRUE | result = true | Assertion should pass | Should be successful |
-  * | 05 | Clean up theTEST environment by deleting the instance of dm_bss_t | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
+  * | 01 | Define a valid criteria string | criteria = "valid_criteria" | Criteria string defined | Should be successful |
+  * | 02 | Call the match_criteria function with the valid criteria string | criteria = "valid_criteria" | Should return true | Should Pass |
+  * | 03 | Verify the result using ASSERT_TRUE | result = true | Assertion should pass | Should be successful |
   */
- TEST_F(dm_bss_t_Test, MatchCriteriaWithValidCriteriaString) {
+ TEST(dm_bss_t_Test, MatchCriteriaWithValidCriteriaString) {
       std::cout << "Entering MatchCriteriaWithValidCriteriaStringTEST" << std::endl;
       char criteria[] = "valid_criteria";
-      bool result = instance->match_criteria(criteria);
+      dm_bss_t instance;
+      bool result = instance.match_criteria(criteria);
       ASSERT_TRUE(result);
       std::cout << "Exiting MatchCriteriaWithValidCriteriaStringTEST" << std::endl;
  }
@@ -704,11 +632,11 @@
 /**
   * @brief TEST to verify the behavior of match_criteria with an empty criteria string.
   *
-  * ThisTEST checks the match_criteria function of the dm_bss_t class when provided with an empty criteria string. 
+  * This TEST checks the match_criteria function of the dm_bss_t class when provided with an empty criteria string. 
   * It ensures that the function correctly identifies that an empty criteria string does not match any criteria.
   *
   * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 020@n
+  * **Test Case ID:** 019@n
   * **Priority:** High@n
   * @n
   * **Pre-Conditions:** None@n
@@ -718,18 +646,15 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment by creating an instance of dm_bss_t | None | Instance of dm_bss_t created | Done by Pre-requisite SetUp function |
-  * | 02 | Log entry message for theTEST | "Entering MatchCriteriaWithEmptyCriteriaStringTEST" | Log message should be recorded | Should be successful |
-  * | 03 | Define an empty criteria string | criteria = "" | Empty criteria string defined | Should be successful |
-  * | 04 | Call match_criteria with the empty criteria string | criteria = "" | result = false | Should Pass |
-  * | 05 | Assert that the result is false | result = false | Assertion should pass | Should Pass |
-  * | 06 | Log exit message for theTEST | "Exiting MatchCriteriaWithEmptyCriteriaStringTEST" | Log message should be recorded | Should be successful |
-  * | 07 | Tear down theTEST environment by deleting the instance of dm_bss_t | None | Instance of dm_bss_t deleted | Done by Pre-requisite TearDown function |
+  * | 01 | Define an empty criteria string | criteria = "" | Empty criteria string defined | Should be successful |
+  * | 02 | Call match_criteria with the empty criteria string | criteria = "" | result = false | Should Pass |
+  * | 03 | Assert that the result is false | result = false | Assertion should pass | Should Pass |
   */
- TEST_F(dm_bss_t_Test, MatchCriteriaWithEmptyCriteriaString) {
+ TEST(dm_bss_t_Test, MatchCriteriaWithEmptyCriteriaString) {
       std::cout << "Entering MatchCriteriaWithEmptyCriteriaStringTEST" << std::endl;
       char criteria[] = "";
-      bool result = instance->match_criteria(criteria);
+      dm_bss_t instance;
+      bool result = instance.match_criteria(criteria);
       ASSERT_FALSE(result);
       std::cout << "Exiting MatchCriteriaWithEmptyCriteriaStringTEST" << std::endl;
  }
@@ -737,10 +662,10 @@
 /**
   * @brief TEST to verify the behavior of match_criteria when given a null criteria string.
   *
-  * ThisTEST checks the match_criteria function of the dm_bss_t class to ensure it correctly handles a null criteria string.
+  * This TEST checks the match_criteria function of the dm_bss_t class to ensure it correctly handles a null criteria string.
   *
   * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 021@n
+  * **Test Case ID:** 020@n
   * **Priority:** High
   * 
   * **Pre-Conditions:** None
@@ -750,15 +675,14 @@
   * **Test Procedure:**
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Set up theTEST environment by creating an instance of dm_bss_t | None | Instance created | Done by Pre-requisite SetUp function |
-  * | 02 | Call match_criteria with a null criteria string | criteria = nullptr | result = false | Should Pass |
-  * | 03 | Tear down theTEST environment by deleting the instance of dm_bss_t | None | Instance deleted | Done by Pre-requisite TearDown function |
+  * | 01 | Call match_criteria with a null criteria string | criteria = nullptr | result = false | Should Pass |
   */
 /*code doesn't handle null  
- TEST_F(dm_bss_t_Test, MatchCriteriaWithNullCriteriaString) {
+ TEST(dm_bss_t_Test, MatchCriteriaWithNullCriteriaString) {
       std::cout << "Entering MatchCriteriaWithNullCriteriaStringTEST" << std::endl;
       char* criteria = nullptr;
-      bool result = instance->match_criteria(criteria);
+      dm_bss_t instance;
+      bool result = instance.match_criteria(criteria);
       ASSERT_FALSE(result);
       std::cout << "Exiting MatchCriteriaWithNullCriteriaStringTEST" << std::endl;
  }
@@ -767,10 +691,10 @@
 /**
   * @brief TEST the match_criteria function with special characters
   *
-  * ThisTEST checks the behavior of the match_criteria function when provided with a string containing special characters. The function is expected to return false, indicating that the criteria do not match.
+  * This TEST checks the behavior of the match_criteria function when provided with a string containing special characters. The function is expected to return false, indicating that the criteria do not match.
   *
   * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 022@n
+  * **Test Case ID:** 021@n
   * **Priority:** High
   * @n
   * **Pre-Conditions:** None
@@ -780,16 +704,15 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment | instance = new dm_bss_t() | instance is created | Done by Pre-requisite SetUp function |
-  * | 02 | Define the criteria with special characters | criteria = "!@#$%^&*()" | criteria is set | Should be successful |
-  * | 03 | Call match_criteria with special characters | result = instance->match_criteria(criteria) | result = false | Should Pass |
-  * | 04 | Assert the result is false | ASSERT_FALSE(result) | result = false | Should Pass |
-  * | 05 | Tear down theTEST environment | delete instance | instance is deleted | Done by Pre-requisite TearDown function |
+  * | 01 | Define the criteria with special characters | criteria = "!@#$%^&*()" | criteria is set | Should be successful |
+  * | 02 | Call match_criteria with special characters | result = instance.match_criteria(criteria) | result = false | Should Pass |
+  * | 03 | Assert the result is false | ASSERT_FALSE(result) | result = false | Should Pass |
   */
- TEST_F(dm_bss_t_Test, MatchCriteriaWithSpecialCharacters) {
+ TEST(dm_bss_t_Test, MatchCriteriaWithSpecialCharacters) {
       std::cout << "Entering MatchCriteriaWithSpecialCharactersTEST" << std::endl;
       char criteria[] = "!@#$%^&*()";
-      bool result = instance->match_criteria(criteria);
+      dm_bss_t instance;
+      bool result = instance.match_criteria(criteria);
       ASSERT_FALSE(result);
       std::cout << "Exiting MatchCriteriaWithSpecialCharactersTEST" << std::endl;
  }
@@ -797,10 +720,10 @@
 /**
   * @brief TEST the match_criteria function with tab, space and newline characters in the criteria string.
   *
-  * ThisTEST checks the behavior of the match_criteria function when the input criteria string contains tab, space and newline characters.
+  * This TEST checks the behavior of the match_criteria function when the input criteria string contains tab, space and newline characters.
   *
   * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 023@n
+  * **Test Case ID:** 022@n
   * **Priority:** High@n
   * @n
   * **Pre-Conditions:** None@n
@@ -810,16 +733,15 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment | None | None | Done by Pre-requisite SetUp function |
-  * | 02 | Define criteria with tab and newline characters | criteria = "\tvalid\ncriteria " | None | Should be successful |
-  * | 03 | Call match_criteria with the defined criteria | criteria = "\tvalid\ncriteria " | result = false | Should Pass |
-  * | 04 | Assert the result is false | result = false | None | Should Pass |
-  * | 05 | Tear down theTEST environment | None | None | Done by Pre-requisite TearDown function |
+  * | 01 | Define criteria with tab and newline characters | criteria = "\tvalid\ncriteria " | None | Should be successful |
+  * | 02 | Call match_criteria with the defined criteria | criteria = "\tvalid\ncriteria " | result = false | Should Pass |
+  * | 03 | Assert the result is false | result = false | None | Should Pass |
   */
- TEST_F(dm_bss_t_Test, MatchCriteriaWithTabAndNewlineCharacters) {
+ TEST(dm_bss_t_Test, MatchCriteriaWithTabAndNewlineCharacters) {
       std::cout << "Entering MatchCriteriaWithTabAndNewlineCharactersTEST" << std::endl;
       char criteria[] = "\tvalid\ncriteria ";
-      bool result = instance->match_criteria(criteria);
+      dm_bss_t instance;
+      bool result = instance.match_criteria(criteria);
       ASSERT_FALSE(result);
       std::cout << "Exiting MatchCriteriaWithTabAndNewlineCharactersTEST" << std::endl;
  }
@@ -827,10 +749,10 @@
 /**
   * @brief TEST the parsing of a valid BSS ID from a key string.
   *
-  * ThisTEST verifies that the function `parse_bss_id_from_key` correctly parses a valid BSS ID from a given key string. TheTEST ensures that the function returns a success code and the parsed BSS ID is as expected.
+  * This TEST verifies that the function `parse_bss_id_from_key` correctly parses a valid BSS ID from a given key string. TheTEST ensures that the function returns a success code and the parsed BSS ID is as expected.
   *
   * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 024@n
+  * **Test Case ID:** 023@n
   * **Priority:** High
   * @n
   * **Pre-Conditions:** None
@@ -840,17 +762,16 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment by creating an instance of `dm_bss_t` | None | Instance created | Done by Pre-requisite SetUp function |
-  * | 02 | Define a valid key string and a BSS ID variable | key = "valid_key_string", id = uninitialized | Variables defined | Should be successful |
-  * | 03 | Call `parse_bss_id_from_key` with the valid key string and BSS ID variable | key = "valid_key_string", id = uninitialized | result = 0 | Should Pass |
-  * | 04 | Verify that the result is 0 (success) | result = 0 | ASSERT_EQ(result, 0) | Should Pass |
-  * | 05 | Clean up theTEST environment by deleting the instance of `dm_bss_t` | None | Instance deleted | Done by Pre-requisite TearDown function |
+  * | 01 | Define a valid key string and a BSS ID variable | key = "valid_key_string", id = uninitialized | Variables defined | Should be successful |
+  * | 02 | Call `parse_bss_id_from_key` with the valid key string and BSS ID variable | key = "valid_key_string", id = uninitialized | result = 0 | Should Pass |
+  * | 03 | Verify that the result is 0 (success) | result = 0 | ASSERT_EQ(result, 0) | Should Pass |
   */
- TEST_F(dm_bss_t_Test, ParseBssIdFromValidKey) {
+ TEST(dm_bss_t_Test, ParseBssIdFromValidKey) {
       std::cout << "Entering ParseBssIdFromValidKeyTEST" << std::endl;
       em_bss_id_t id;
       const char* key = "valid_key_string";
-      int result = instance->parse_bss_id_from_key(key, &id);
+      dm_bss_t instance;
+      int result = instance.parse_bss_id_from_key(key, &id);
       ASSERT_EQ(result, 0);
       std::cout << "Exiting ParseBssIdFromValidKeyTEST" << std::endl;
  }
@@ -858,7 +779,38 @@
 /**
   * @brief TEST the parsing of BSS ID from an invalid key string.
   *
-  * ThisTEST verifies that the `parse_bss_id_from_key` function correctly handles an invalid key string by returning an error code.@n
+  * This TEST verifies that the `parse_bss_id_from_key` function correctly handles an invalid key string by returning an error code.@n
+  *
+  * **Test Group ID:** Basic: 01@n
+  * **Test Case ID:** 024@n
+  * **Priority:** High@n
+  * @n
+  * **Pre-Conditions:** None@n
+  * **Dependencies:** None@n
+  * **User Interaction:** None@n
+  * @n
+  * **Test Procedure:**@n
+  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
+  * | :----: | --------- | ---------- |-------------- | ----- |
+  * | 01 | Declare variables | em_bss_id_t id; const char* key = "invalid_key_string" << std::endl; | Variables declared | Should be successful |
+  * | 02 | Call parse_bss_id_from_key with invalid key | result = instance.parse_bss_id_from_key(key, &id); | key = "invalid_key_string", id = uninitialized | result = -1 | Should Pass |
+  * | 03 | Assert the result is -1 | ASSERT_EQ(result, -1); | result = -1 | Assertion passes | Should Pass |
+  */
+ TEST(dm_bss_t_Test, ParseBssIdFromInvalidKey) {
+      std::cout << "Entering ParseBssIdFromInvalidKeyTEST" << std::endl;
+      em_bss_id_t id;
+      const char* key = "invalid_key_string";
+      dm_bss_t instance;
+      int result = instance.parse_bss_id_from_key(key, &id);
+      ASSERT_EQ(result, -1);
+      std::cout << "Exiting ParseBssIdFromInvalidKeyTEST" << std::endl;
+ }
+  
+/**
+  * @brief TEST the parse_bss_id_from_key function with a NULL key.
+  *
+  * This TEST verifies that the parse_bss_id_from_key function correctly handles the case where the key is NULL. 
+  * It ensures that the function returns an error code (-1) when provided with a NULL key.
   *
   * **Test Group ID:** Basic: 01@n
   * **Test Case ID:** 025@n
@@ -871,51 +823,16 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment | instance = new dm_bss_t() | instance is created | Done by Pre-requisite SetUp function |
-  * | 02 | Log the entry of theTEST | "Entering ParseBssIdFromInvalidKeyTEST" | Log entry | Should be successful |
-  * | 03 | Declare variables | em_bss_id_t id; const char* key = "invalid_key_string" << std::endl; | Variables declared | Should be successful |
-  * | 04 | Call parse_bss_id_from_key with invalid key | result = instance->parse_bss_id_from_key(key, &id); | key = "invalid_key_string", id = uninitialized | result = -1 | Should Pass |
-  * | 05 | Assert the result is -1 | ASSERT_EQ(result, -1); | result = -1 | Assertion passes | Should Pass |
-  * | 06 | Log the exit of theTEST | "Exiting ParseBssIdFromInvalidKeyTEST" | Log exit | Should be successful |
-  * | 07 | Tear down theTEST environment | delete instance | instance is deleted | Done by Pre-requisite TearDown function |
+  * | 01 | Initialize variables | em_bss_id_t id; const char* key = NULL; | id is uninitialized, key is NULL | Should be successful |
+  * | 02 | Call parse_bss_id_from_key with NULL key | result = instance.parse_bss_id_from_key(key, &id); | result = -1 | Should Fail |
+  * | 03 | Verify the result | ASSERT_EQ(result, -1); | result = -1 | Should Fail |
   */
- TEST_F(dm_bss_t_Test, ParseBssIdFromInvalidKey) {
-      std::cout << "Entering ParseBssIdFromInvalidKeyTEST" << std::endl;
-      em_bss_id_t id;
-      const char* key = "invalid_key_string";
-      int result = instance->parse_bss_id_from_key(key, &id);
-      ASSERT_EQ(result, -1);
-      std::cout << "Exiting ParseBssIdFromInvalidKeyTEST" << std::endl;
- }
-  
-/**
-  * @brief TEST the parse_bss_id_from_key function with a NULL key.
-  *
-  * ThisTEST verifies that the parse_bss_id_from_key function correctly handles the case where the key is NULL. 
-  * It ensures that the function returns an error code (-1) when provided with a NULL key.
-  *
-  * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 026@n
-  * **Priority:** High@n
-  * @n
-  * **Pre-Conditions:** None@n
-  * **Dependencies:** None@n
-  * **User Interaction:** None@n
-  * @n
-  * **Test Procedure:**@n
-  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
-  * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment | instance = new dm_bss_t() | instance is created | Done by Pre-requisite SetUp function |
-  * | 02 | Initialize variables | em_bss_id_t id; const char* key = NULL; | id is uninitialized, key is NULL | Should be successful |
-  * | 03 | Call parse_bss_id_from_key with NULL key | result = instance->parse_bss_id_from_key(key, &id); | result = -1 | Should Fail |
-  * | 04 | Verify the result | ASSERT_EQ(result, -1); | result = -1 | Should Fail |
-  * | 05 | Tear down theTEST environment | delete instance | instance is deleted | Done by Pre-requisite TearDown function |
-  */
- TEST_F(dm_bss_t_Test, ParseBssIdWithNullKey) {
+ TEST(dm_bss_t_Test, ParseBssIdWithNullKey) {
       std::cout << "Entering ParseBssIdWithNullKeyTEST" << std::endl;
       em_bss_id_t id;
       const char* key = NULL;
-      int result = instance->parse_bss_id_from_key(key, &id);
+      dm_bss_t instance;
+      int result = instance.parse_bss_id_from_key(key, &id);
       ASSERT_EQ(result, -1);
       std::cout << "Exiting ParseBssIdWithNullKeyTEST" << std::endl;
  }
@@ -923,10 +840,10 @@
 /**
   * @brief TEST to verify the behavior of parse_bss_id_from_key when the ID pointer is NULL.
   *
-  * ThisTEST checks the function parse_bss_id_from_key to ensure it correctly handles the case where the ID pointer is NULL. This is important to verify that the function can gracefully handle invalid input parameters.
+  * This TEST checks the function parse_bss_id_from_key to ensure it correctly handles the case where the ID pointer is NULL. This is important to verify that the function can gracefully handle invalid input parameters.
   *
   * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 027@n
+  * **Test Case ID:** 026@n
   * **Priority:** High
   * @n
   * **Pre-Conditions:** None
@@ -936,14 +853,13 @@
   * **Test Procedure:**
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment by creating an instance of dm_bss_t | None | Instance created successfully | Done by Pre-requisite SetUp function |
-  * | 02 | Call parse_bss_id_from_key with a valid key and NULL ID pointer | key = "valid_key_string", id = NULL | Return value should be -1 | Should Pass |
-  * | 03 | Clean up theTEST environment by deleting the instance of dm_bss_t | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
+  * | 01 | Call parse_bss_id_from_key with a valid key and NULL ID pointer | key = "valid_key_string", id = NULL | Return value should be -1 | Should Pass |
   */
- TEST_F(dm_bss_t_Test, ParseBssIdWithNullIdPointer) {
+ TEST(dm_bss_t_Test, ParseBssIdWithNullIdPointer) {
       std::cout << "Entering ParseBssIdWithNullIdPointerTEST" << std::endl;
       const char* key = "valid_key_string";
-      int result = instance->parse_bss_id_from_key(key, NULL);
+      dm_bss_t instance;
+      int result = instance.parse_bss_id_from_key(key, NULL);
       ASSERT_EQ(result, -1);
       std::cout << "Exiting ParseBssIdWithNullIdPointerTEST" << std::endl;
  }
@@ -951,10 +867,10 @@
 /**
  * @brief TEST the parsing of BSS ID with an empty key string.
  *
- * ThisTEST verifies that the parse_bss_id_from_key function correctly handles an empty key string by returning an error code.@n
+ * This TEST verifies that the parse_bss_id_from_key function correctly handles an empty key string by returning an error code.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 028@n
+ * **Test Case ID:** 027@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -964,17 +880,16 @@
  * **Test Procedure:**@n
  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Initialize theTEST fixture | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Define an empty key string and a BSS ID structure | key = "", id = uninitialized | None | Should be successful |
- * | 03 | Call parse_bss_id_from_key with the empty key string | key = "", id = uninitialized | result = -1 | Should Pass |
- * | 04 | Verify the result is -1 | result = -1 | Assertion check: result == -1 | Should Pass |
- * | 05 | Clean up theTEST fixture | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Define an empty key string and a BSS ID structure | key = "", id = uninitialized | None | Should be successful |
+ * | 02 | Call parse_bss_id_from_key with the empty key string | key = "", id = uninitialized | result = -1 | Should Pass |
+ * | 03 | Verify the result is -1 | result = -1 | Assertion check: result == -1 | Should Pass |
  */
- TEST_F(dm_bss_t_Test, ParseBssIdWithEmptyKeyString) {
+ TEST(dm_bss_t_Test, ParseBssIdWithEmptyKeyString) {
       std::cout << "Entering ParseBssIdWithEmptyKeyStringTEST" << std::endl;
       em_bss_id_t id;
       const char* key = "";
-      int result = instance->parse_bss_id_from_key(key, &id);
+      dm_bss_t instance;
+      int result = instance.parse_bss_id_from_key(key, &id);
       ASSERT_EQ(result, -1);
       std::cout << "Exiting ParseBssIdWithEmptyKeyStringTEST" << std::endl;
  }
@@ -982,11 +897,11 @@
 /**
   * @brief TEST the parsing of BSS ID from a key containing special characters.
   *
-  * ThisTEST verifies that the function `parse_bss_id_from_key` correctly handles keys that contain special characters. 
+  * This TEST verifies that the function `parse_bss_id_from_key` correctly handles keys that contain special characters. 
   * It ensures that the function returns an error code when such keys are provided, as they are not valid.
   *
   * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 029@n
+  * **Test Case ID:** 028@n
   * **Priority:** High
   * 
   * **Pre-Conditions:** None
@@ -996,17 +911,16 @@
   * **Test Procedure:**
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment | None | None | Done by Pre-requisite SetUp function |
-  * | 02 | Define a key with special characters | key = "key!@#$" | None | Should be successful |
-  * | 03 | Call `parse_bss_id_from_key` with the special character key | key = "key!@#$", id = &id | result = -1 | Should Pass |
-  * | 04 | Verify the result is -1 | result = -1 | result = -1 | Should Pass |
-  * | 05 | Tear down theTEST environment | None | None | Done by Pre-requisite TearDown function |
+  * | 01 | Define a key with special characters | key = "key!@#$" | None | Should be successful |
+  * | 02 | Call `parse_bss_id_from_key` with the special character key | key = "key!@#$", id = &id | result = -1 | Should Pass |
+  * | 03 | Verify the result is -1 | result = -1 | result = -1 | Should Pass |
   */
- TEST_F(dm_bss_t_Test, ParseBssIdWithKeyContainingSpecialCharacters) {
+ TEST(dm_bss_t_Test, ParseBssIdWithKeyContainingSpecialCharacters) {
       std::cout << "Entering ParseBssIdWithKeyContainingSpecialCharactersTEST" << std::endl;
       em_bss_id_t id;
       const char* key = "key!@#$";
-      int result = instance->parse_bss_id_from_key(key, &id);
+      dm_bss_t instance;
+      int result = instance.parse_bss_id_from_key(key, &id);
       ASSERT_EQ(result, -1);
       std::cout << "Exiting ParseBssIdWithKeyContainingSpecialCharactersTEST" << std::endl;
  }
@@ -1014,10 +928,10 @@
 /**
   * @brief TEST the parsing of BSS ID from a key containing mixed alphanumeric characters
   *
-  * ThisTEST verifies that the function `parse_bss_id_from_key` correctly parses a BSS ID from a key that contains mixed alphanumeric characters. This is important to ensure that the function can handle typical key formats used in the system.
+  * This TEST verifies that the function `parse_bss_id_from_key` correctly parses a BSS ID from a key that contains mixed alphanumeric characters. This is important to ensure that the function can handle typical key formats used in the system.
   *
   * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 030@n
+  * **Test Case ID:** 029@n
   * **Priority:** High
   * @n
   * **Pre-Conditions:** None
@@ -1027,16 +941,15 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment by creating an instance of `dm_bss_t` | None | Instance created successfully | Done by Pre-requisite SetUp function |
-  * | 02 | Define the key with mixed alphanumeric characters and call `parse_bss_id_from_key` | key = "key123456", id = uninitialized | Function should return 0 | Should Pass |
-  * | 03 | Verify the result of the function call | result = 0 | ASSERT_EQ(result, 0) | Should Pass |
-  * | 04 | Clean up theTEST environment by deleting the instance of `dm_bss_t` | None | Instance deleted successfully | Done by Pre-requisite TearDown function |
+  * | 01 | Define the key with mixed alphanumeric characters and call `parse_bss_id_from_key` | key = "key123456", id = uninitialized | Function should return 0 | Should Pass |
+  * | 02 | Verify the result of the function call | result = 0 | ASSERT_EQ(result, 0) | Should Pass |
   */
- TEST_F(dm_bss_t_Test, ParseBssIdWithKeyContainingMixedAlphanumericCharacters) {
+ TEST(dm_bss_t_Test, ParseBssIdWithKeyContainingMixedAlphanumericCharacters) {
       std::cout << "Entering ParseBssIdWithKeyContainingMixedAlphanumericCharactersTEST" << std::endl;
       em_bss_id_t id;
       const char* key = "key123456";
-      int result = instance->parse_bss_id_from_key(key, &id);
+      dm_bss_t instance;
+      int result = instance.parse_bss_id_from_key(key, &id);
       ASSERT_EQ(result, 0);
       std::cout << "Exiting ParseBssIdWithKeyContainingMixedAlphanumericCharactersTEST" << std::endl;
  }
@@ -1044,10 +957,10 @@
 /**
   * @brief TEST the removal of a vendor-specific IE with valid input.
   *
-  * ThisTEST verifies that the `remove_vendor_ie` function correctly handles the removal of a valid vendor-specific information element (IE). TheTEST ensures that the function operates without errors when provided with a valid IE structure.
+  * This TEST verifies that the `remove_vendor_ie` function correctly handles the removal of a valid vendor-specific information element (IE). TheTEST ensures that the function operates without errors when provided with a valid IE structure.
   *
   * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 031@n
+  * **Test Case ID:** 030@n
   * **Priority:** High@n
   * @n
   * **Pre-Conditions:** None@n
@@ -1057,12 +970,10 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Initialize the TEST fixture | instance = new dm_bss_t() | instance is initialized | Done by Pre-requisite SetUp function |
-  * | 02 | Create a valid vendor-specific IE | ieee80211_vs_ie valid_ie = {0xDD, 5, {0x00, 0x50, 0xF2}, 1, 0, {0x01, 0x02, 0x03}} | valid_ie is created | Should be successful |
-  * | 03 | Call remove_vendor_ie with valid_ie | instance->remove_vendor_ie(&valid_ie) | Function executes without errors | Should Pass |
-  * | 04 | Clean up the TEST fixture | delete instance | instance is deleted | Done by Pre-requisite TearDown function |
+  * | 01 | Create a valid vendor-specific IE | ieee80211_vs_ie valid_ie = {0xDD, 5, {0x00, 0x50, 0xF2}, 1, 0, {0x01, 0x02, 0x03}} | valid_ie is created | Should be successful |
+  * | 02 | Call remove_vendor_ie with valid_ie | instance.remove_vendor_ie(&valid_ie) | Function executes without errors | Should Pass |
   */
- TEST_F(dm_bss_t_Test, RemoveVendorIEWIthValidInput) {
+ TEST(dm_bss_t_Test, RemoveVendorIEWIthValidInput) {
       std::cout << "Entering RemoveVendorIEWIthValidInputTEST" << std::endl;
       uint8_t payload[] = {0x01, 0x02, 0x03};
       size_t payload_len = sizeof(payload);
@@ -1078,7 +989,8 @@
       valid_ie->vs_type = 1;
       valid_ie->vs_subtype = 0;
       memcpy(valid_ie->payload, payload, payload_len);
-      instance->remove_vendor_ie(valid_ie);
+      dm_bss_t instance;
+      instance.remove_vendor_ie(valid_ie);
       free(valid_ie);  // Always free dynamically allocated memory
       std::cout << "Exiting RemoveVendorIEWIthValidInputTEST" << std::endl;
  }
@@ -1087,10 +999,10 @@
 /**
   * @brief TEST the remove_vendor_ie function with a null pointer
   *
-  * ThisTEST verifies that the remove_vendor_ie function can handle a null pointer input without crashing or throwing an exception. This is important to ensure the robustness of the function when dealing with invalid inputs.
+  * This TEST verifies that the remove_vendor_ie function can handle a null pointer input without crashing or throwing an exception. This is important to ensure the robustness of the function when dealing with invalid inputs.
   *
   * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 032@n
+  * **Test Case ID:** 031@n
   * **Priority:** High@n
   * @n
   * **Pre-Conditions:** None@n
@@ -1100,14 +1012,13 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Set up theTEST environment by creating an instance of dm_bss_t | instance = new dm_bss_t() | Instance should be created successfully | Done by Pre-requisite SetUp function |
-  * | 02 | Call the remove_vendor_ie function with a null pointer | nullptr | Function should handle null pointer gracefully | Should Pass |
-  * | 03 | Tear down theTEST environment by deleting the instance of dm_bss_t | delete instance | Instance should be deleted successfully | Done by Pre-requisite TearDown function |
+  * | 01 | Call the remove_vendor_ie function with a null pointer | nullptr | Function should handle null pointer gracefully | Should Pass |
   */
 /*code doesn't handle null  
- TEST_F(dm_bss_t_Test, RemoveVendorIEWIthNullPointer) {
+ TEST(dm_bss_t_Test, RemoveVendorIEWIthNullPointer) {
       std::cout << "Entering RemoveVendorIEWIthNullPointerTEST" << std::endl;
-      ASSERT_ANY_THROW(instance->remove_vendor_ie(nullptr));
+      dm_bss_t instance;
+      ASSERT_ANY_THROW(instance.remove_vendor_ie(nullptr));
       std::cout << "Exiting RemoveVendorIEWIthNullPointerTEST" << std::endl;
  }
  */      
@@ -1115,10 +1026,10 @@
 /**
   * @brief TEST the removal of a vendor IE with zero length
   *
-  * ThisTEST verifies that the `remove_vendor_ie` function can handle and correctly process a vendor IE with zero length.
+  * This TEST verifies that the `remove_vendor_ie` function can handle and correctly process a vendor IE with zero length.
   *
   * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 033@n
+  * **Test Case ID:** 032@n
   * **Priority:** High
   * @n
   * **Pre-Conditions:** None
@@ -1128,13 +1039,11 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment | None | None | Done by Pre-requisite SetUp function |
-  * | 02 | Create a zero-length vendor IE | zero_length_ie = {0xDD, 0, {0x00, 0x50, 0xF2}, 1, 0, {0x01, 0x02, 0x03}} | None | Should be successful |
-  * | 03 | Call the remove_vendor_ie function with the zero-length IE | instance->remove_vendor_ie(&zero_length_ie) | None | Should Pass |
-  * | 04 | Verify the function handled the zero-length IE correctly | ASSERT_TRUE(true) | None | Should Pass |
-  * | 05 | Tear down theTEST environment | None | None | Done by Pre-requisite TearDown function |
+  * | 01 | Create a zero-length vendor IE | zero_length_ie = {0xDD, 0, {0x00, 0x50, 0xF2}, 1, 0, {0x01, 0x02, 0x03}} | None | Should be successful |
+  * | 02 | Call the remove_vendor_ie function with the zero-length IE | instance.remove_vendor_ie(&zero_length_ie) | None | Should Pass |
+  * | 03 | Verify the function handled the zero-length IE correctly | ASSERT_TRUE(true) | None | Should Pass |
   */
- TEST_F(dm_bss_t_Test, RemoveVendorIEWIthZeroLength) {
+ TEST(dm_bss_t_Test, RemoveVendorIEWIthZeroLength) {
       std::cout << "Entering RemoveVendorIEWIthZeroLengthTEST" << std::endl;
       // Only allocate memory for the base structure with no payload
       size_t total_size = sizeof(ieee80211_vs_ie); // payload size is 0
@@ -1147,8 +1056,9 @@
       zero_length_ie->vs_oui[2] = 0xF2;
       zero_length_ie->vs_type = 1;
       zero_length_ie->vs_subtype = 0;
+      dm_bss_t instance;
       // No payload to copy
-      instance->remove_vendor_ie(zero_length_ie);
+      instance.remove_vendor_ie(zero_length_ie);
       free(zero_length_ie);
       ASSERT_TRUE(true);
       std::cout << "Exiting RemoveVendorIEWIthZeroLengthTEST" << std::endl;
@@ -1157,10 +1067,10 @@
 /**
   * @brief TEST the removal of a vendor IE with maximum length
   *
-  * ThisTEST verifies that the `remove_vendor_ie` function can handle and correctly process a vendor IE with the maximum possible length. This is important to ensure that the function can handle edge cases and large inputs without errors.
+  * This TEST verifies that the `remove_vendor_ie` function can handle and correctly process a vendor IE with the maximum possible length. This is important to ensure that the function can handle edge cases and large inputs without errors.
   *
   * **Test Group ID:** Basic: 01@n
-  * **Test Case ID:** 034@n
+  * **Test Case ID:** 033@n
   * **Priority:** High@n
   * @n
   * **Pre-Conditions:** None@n
@@ -1170,14 +1080,12 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment | instance = new dm_bss_t() | Should be successful | Done by Pre-requisite SetUp function |
-  * | 02 | Create a maximum length payload and vendor IE | max_payload = {0}, max_length_ie = {0xDD, 255, {0x00, 0x50, 0xF2}, 1, 0, {0}} | Should be successful | Should be successful |
-  * | 03 | Copy the maximum payload to the vendor IE payload | memcpy(max_length_ie.payload, max_payload, 255) | Should be successful | Should be successful |
-  * | 04 | Call the remove_vendor_ie function with the maximum length IE | instance->remove_vendor_ie(&max_length_ie) | Should Pass | Should Pass |
-  * | 05 | Verify the function executed without errors | ASSERT_TRUE(true) | Should Pass | Should Pass |
-  * | 06 | Tear down theTEST environment | delete instance | Should be successful | Done by Pre-requisite TearDown function |
+  * | 01 | Create a maximum length payload and vendor IE | max_payload = {0}, max_length_ie = {0xDD, 255, {0x00, 0x50, 0xF2}, 1, 0, {0}} | Should be successful | Should be successful |
+  * | 02 | Copy the maximum payload to the vendor IE payload | memcpy(max_length_ie.payload, max_payload, 255) | Should be successful | Should be successful |
+  * | 03 | Call the remove_vendor_ie function with the maximum length IE | instance.remove_vendor_ie(&max_length_ie) | Should Pass | Should Pass |
+  * | 04 | Verify the function executed without errors | ASSERT_TRUE(true) | Should Pass | Should Pass |
   */
- TEST_F(dm_bss_t_Test, RemoveVendorIEWIthMaximumLength) {
+ TEST(dm_bss_t_Test, RemoveVendorIEWIthMaximumLength) {
       std::cout << "Entering RemoveVendorIEWIthMaximumLengthTEST" << std::endl;
       uint8_t max_payload[255] = {0}; // Initialize payload
       size_t total_size = sizeof(ieee80211_vs_ie) + 255; // Calculate total size with payload 
@@ -1194,8 +1102,9 @@
       max_length_ie->vs_subtype = 0;
       // Copy payload
       memcpy(max_length_ie->payload, max_payload, 255);
+      dm_bss_t instance;
       // Call the function to remove vendor IE
-      instance->remove_vendor_ie(max_length_ie);
+      instance.remove_vendor_ie(max_length_ie);
       // Free dynamically allocated memory
       free(max_length_ie);
       std::cout << "Exiting RemoveVendorIEWIthMaximumLengthTEST" << std::endl;
@@ -1204,10 +1113,10 @@
 /**
   * @brief TEST the removal of a vendor IE with an invalid OUI
   *
-  * ThisTEST verifies that the `remove_vendor_ie` function can handle an invalid OUI correctly. TheTEST ensures that the function does not crash or behave unexpectedly when provided with an invalid OUI.
+  * This TEST verifies that the `remove_vendor_ie` function can handle an invalid OUI correctly. TheTEST ensures that the function does not crash or behave unexpectedly when provided with an invalid OUI.
   *
   * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 035@n
+  * **Test Case ID:** 034@n
   * **Priority:** High
   * @n
   * **Pre-Conditions:** None
@@ -1217,13 +1126,11 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment | None | None | Done by Pre-requisite SetUp function |
-  * | 02 | Create an invalid OUI IE | ieee80211_vs_ie invalid_oui_ie = {0xDD, 5, {0xFF, 0xFF, 0xFF}, 1, 0, {0x01, 0x02, 0x03}}; | None | Should be successful |
-  * | 03 | Call remove_vendor_ie with invalid OUI IE | instance->remove_vendor_ie(&invalid_oui_ie); | None | Should Pass |
-  * | 04 | Verify the function handled the invalid OUI correctly | ASSERT_TRUE(true); | None | Should Pass |
-  * | 05 | Tear down theTEST environment | None | None | Done by Pre-requisite TearDown function |
+  * | 01 | Create an invalid OUI IE | ieee80211_vs_ie invalid_oui_ie = {0xDD, 5, {0xFF, 0xFF, 0xFF}, 1, 0, {0x01, 0x02, 0x03}}; | None | Should be successful |
+  * | 02 | Call remove_vendor_ie with invalid OUI IE | instance.remove_vendor_ie(&invalid_oui_ie); | None | Should Pass |
+  * | 03 | Verify the function handled the invalid OUI correctly | ASSERT_TRUE(true); | None | Should Pass |
   */
- TEST_F(dm_bss_t_Test, RemoveVendorIEWIthInvalidOUI) {
+ TEST(dm_bss_t_Test, RemoveVendorIEWIthInvalidOUI) {
       std::cout << "Entering RemoveVendorIEWIthInvalidOUITEST" << std::endl; 
       uint8_t payload[] = {0x01, 0x02, 0x03};
       size_t payload_len = sizeof(payload);
@@ -1241,8 +1148,9 @@
       invalid_oui_ie->vs_subtype = 0;
       // Copy payload
       memcpy(invalid_oui_ie->payload, payload, payload_len);
+      dm_bss_t instance;
       // Call the function to remove vendor IE
-      instance->remove_vendor_ie(invalid_oui_ie);
+      instance.remove_vendor_ie(invalid_oui_ie);
       // Free dynamically allocated memory
       free(invalid_oui_ie);
       std::cout << "Exiting RemoveVendorIEWIthInvalidOUITEST" << std::endl;
@@ -1251,10 +1159,10 @@
 /**
  * @brief TEST the removal of a vendor IE with an invalid type
  *
- * ThisTEST verifies that the `remove_vendor_ie` function can handle an invalid type in the vendor-specific IE structure without causing any errors or crashes. This ensures the robustness of the function when dealing with unexpected input.
+ * This TEST verifies that the `remove_vendor_ie` function can handle an invalid type in the vendor-specific IE structure without causing any errors or crashes. This ensures the robustness of the function when dealing with unexpected input.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 036@n
+ * **Test Case ID:** 035@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1264,13 +1172,11 @@
  * **Test Procedure:**@n
  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set up theTEST environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Create an invalid vendor-specific IE structure | invalid_type_ie = {0xDD, 5, {0x00, 0x50, 0xF2}, 0xFF, 0, {0x01, 0x02, 0x03}} | None | Should be successful |
- * | 03 | Call the `remove_vendor_ie` function with the invalid IE | instance->remove_vendor_ie(&invalid_type_ie) | None | Should Pass |
- * | 04 | Verify the function handled the invalid IE without errors | ASSERT_TRUE(true) | None | Should Pass |
- * | 05 | Tear down theTEST environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Create an invalid vendor-specific IE structure | invalid_type_ie = {0xDD, 5, {0x00, 0x50, 0xF2}, 0xFF, 0, {0x01, 0x02, 0x03}} | None | Should be successful |
+ * | 02 | Call the `remove_vendor_ie` function with the invalid IE | instance.remove_vendor_ie(&invalid_type_ie) | None | Should Pass |
+ * | 03 | Verify the function handled the invalid IE without errors | ASSERT_TRUE(true) | None | Should Pass |
  */
- TEST_F(dm_bss_t_Test, RemoveVendorIEWIthInvalidType) {
+ TEST(dm_bss_t_Test, RemoveVendorIEWIthInvalidType) {
       std::cout << "Entering RemoveVendorIEWIthInvalidTypeTEST" << std::endl;
       // Allocate memory for the ieee80211_vs_ie and its payload
       uint8_t payload[] = {0x01, 0x02, 0x03};
@@ -1289,8 +1195,9 @@
       invalid_type_ie->vs_subtype = 0;
       // Copy the payload into the dynamically allocated structure
       memcpy(invalid_type_ie->payload, payload, payload_len);
+      dm_bss_t instance;
       // Call the function to remove the vendor IE
-      instance->remove_vendor_ie(invalid_type_ie);
+      instance.remove_vendor_ie(invalid_type_ie);
       // Free dynamically allocated memory
       free(invalid_type_ie); 
       std::cout << "Exiting RemoveVendorIEWIthInvalidTypeTEST" << std::endl;
@@ -1299,10 +1206,10 @@
 /**
  * @brief TEST the removal of a vendor IE with an invalid subtype
  *
- * ThisTEST verifies that the `remove_vendor_ie` function can handle an invalid subtype in the vendor-specific IE correctly. TheTEST ensures that the function does not crash or behave unexpectedly when provided with an invalid subtype.
+ * This TEST verifies that the `remove_vendor_ie` function can handle an invalid subtype in the vendor-specific IE correctly. TheTEST ensures that the function does not crash or behave unexpectedly when provided with an invalid subtype.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 037@n
+ * **Test Case ID:** 036@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1312,13 +1219,11 @@
  * **Test Procedure:**@n
  * | Variation / Step | Description |TEST Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Setup theTEST environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Create an invalid vendor-specific IE with subtype 0xFF | invalid_subtype_ie = {0xDD, 5, {0x00, 0x50, 0xF2}, 1, 0xFF, {0x01, 0x02, 0x03}} | None | Should be successful |
- * | 03 | Call the `remove_vendor_ie` function with the invalid vendor-specific IE | instance->remove_vendor_ie(&invalid_subtype_ie) | None | Should Pass |
- * | 04 | Verify the function handled the invalid subtype correctly | ASSERT_TRUE(true) | True | Should Pass |
- * | 05 | Tear down theTEST environment | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Create an invalid vendor-specific IE with subtype 0xFF | invalid_subtype_ie = {0xDD, 5, {0x00, 0x50, 0xF2}, 1, 0xFF, {0x01, 0x02, 0x03}} | None | Should be successful |
+ * | 02 | Call the `remove_vendor_ie` function with the invalid vendor-specific IE | instance.remove_vendor_ie(&invalid_subtype_ie) | None | Should Pass |
+ * | 03 | Verify the function handled the invalid subtype correctly | ASSERT_TRUE(true) | True | Should Pass |
  */
-  TEST_F(dm_bss_t_Test, RemoveVendorIEWIthInvalidSubtype) {
+  TEST(dm_bss_t_Test, RemoveVendorIEWIthInvalidSubtype) {
       std::cout << "Entering RemoveVendorIEWIthInvalidSubtypeTEST" << std::endl;
       // Allocate memory for the ieee80211_vs_ie and its payload
       uint8_t payload[] = {0x01, 0x02, 0x03};
@@ -1337,8 +1242,9 @@
       invalid_subtype_ie->vs_subtype = 0xFF;  // Invalid Subtype
       // Copy the payload into the dynamically allocated structure
       memcpy(invalid_subtype_ie->payload, payload, payload_len);
+      dm_bss_t instance;
       // Call the function to remove the vendor IE
-      instance->remove_vendor_ie(invalid_subtype_ie);
+      instance.remove_vendor_ie(invalid_subtype_ie);
       // Free dynamically allocated memory
       free(invalid_subtype_ie);
       std::cout << "Exiting RemoveVendorIEWIthInvalidSubtypeTEST" << std::endl;
@@ -1347,11 +1253,11 @@
 /**
   * @brief TEST the removal of a vendor IE with an empty payload
   *
-  * ThisTEST verifies that the `remove_vendor_ie` function can handle the case where the vendor IE has an empty payload. 
+  * This TEST verifies that the `remove_vendor_ie` function can handle the case where the vendor IE has an empty payload. 
   * It ensures that the function does not crash or behave unexpectedly when given such input.
   *
   * **Test Group ID:** Basic: 01
-  * **Test Case ID:** 038@n
+  * **Test Case ID:** 037@n
   * **Priority:** High
   * @n
   * **Pre-Conditions:** None
@@ -1361,13 +1267,11 @@
   * **Test Procedure:**@n
   * | Variation / Step | Description |TEST Data | Expected Result | Notes |
   * | :----: | --------- | ---------- |-------------- | ----- |
-  * | 01 | Setup theTEST environment | instance = new dm_bss_t() | Should be successful | Done by Pre-requisite SetUp function |
-  * | 02 | Create an empty payload vendor IE | ieee80211_vs_ie empty_payload_ie = {0xDD, 5, {0x00, 0x50, 0xF2}, 1, 0, {}} | Should be successful | |
-  * | 03 | Call remove_vendor_ie with the empty payload IE | instance->remove_vendor_ie(&empty_payload_ie) | Should Pass | |
-  * | 04 | Verify the function handled the empty payload correctly | ASSERT_TRUE(true) | Should Pass | |
-  * | 05 | Tear down theTEST environment | delete instance | Should be successful | Done by Pre-requisite TearDown function |
+  * | 01 | Create an empty payload vendor IE | ieee80211_vs_ie empty_payload_ie = {0xDD, 5, {0x00, 0x50, 0xF2}, 1, 0, {}} | Should be successful | |
+  * | 02 | Call remove_vendor_ie with the empty payload IE | instance.remove_vendor_ie(&empty_payload_ie) | Should Pass | |
+  * | 03 | Verify the function handled the empty payload correctly | ASSERT_TRUE(true) | Should Pass | |
   */
-   TEST_F(dm_bss_t_Test, RemoveVendorIEWIthEmptyPayload) {
+   TEST(dm_bss_t_Test, RemoveVendorIEWIthEmptyPayload) {
       std::cout << "Entering RemoveVendorIEWIthEmptyPayloadTEST" << std::endl;
       // Allocate memory for the ieee80211_vs_ie and its payload
       uint8_t payload[] = {};  // Empty payload
@@ -1386,8 +1290,9 @@
       empty_payload_ie->vs_subtype = 0;
       // Copy the empty payload into the dynamically allocated structure
       memcpy(empty_payload_ie->payload, payload, payload_len);
+      dm_bss_t instance;
       // Call the function to remove the vendor IE
-      instance->remove_vendor_ie(empty_payload_ie);
+      instance.remove_vendor_ie(empty_payload_ie);
       // Free dynamically allocated memory
       free(empty_payload_ie);
       std::cout << "Exiting RemoveVendorIEWIthEmptyPayloadTEST" << std::endl;
@@ -1396,10 +1301,10 @@
 /**
  * @brief TEST to compare two identical objects of dm_bss_t class
  *
- * ThisTEST checks if two default-constructed objects of the dm_bss_t class are considered equal by the equality operator. This is important to ensure that the equality operator is correctly implemented for the class.
+ * This TEST checks if two default-constructed objects of the dm_bss_t class are considered equal by the equality operator. This is important to ensure that the equality operator is correctly implemented for the class.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 039@n
+ * **Test Case ID:** 038@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1423,10 +1328,10 @@
 /**
  * @brief TEST to compare two dm_bss_t objects with different network IDs
  *
- * ThisTEST verifies that two dm_bss_t objects with different network IDs are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different network IDs are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 040@n
+ * **Test Case ID:** 039@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1455,10 +1360,10 @@
 /**
  * @brief TEST to compare two dm_bss_t objects with different device MAC addresses
  *
- * ThisTEST verifies that two dm_bss_t objects with different device MAC addresses are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different device MAC addresses are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 041@n
+ * **Test Case ID:** 040@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1490,10 +1395,10 @@
 /**
  * @brief TEST to compare two dm_bss_t objects with different ruid values
  *
- * ThisTEST verifies that two dm_bss_t objects with different ruid values are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different ruid values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 042@n
+ * **Test Case ID:** 041@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1525,10 +1430,10 @@
 /**
  * @brief TEST to compare two different BSSID values
  *
- * ThisTEST verifies that two different BSSID values are correctly identified as not equal.@n
+ * This TEST verifies that two different BSSID values are correctly identified as not equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 043@n
+ * **Test Case ID:** 042@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1560,10 +1465,10 @@
 /**
  * @brief TEST to compare two objects of dm_bss_t with different haul types
  *
- * ThisTEST verifies that two dm_bss_t objects with different haul types are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different haul types are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 044@n
+ * **Test Case ID:** 043@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1591,10 +1496,10 @@
 /**
  * @brief TEST to compare two dm_bss_t objects with different SSIDs
  *
- * ThisTEST verifies that two dm_bss_t objects with different SSIDs are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different SSIDs are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 045@n
+ * **Test Case ID:** 044@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1622,10 +1527,10 @@
 /**
  * @brief TEST to compare the enabled status of two dm_bss_t objects
  *
- * ThisTEST checks if two dm_bss_t objects with different enabled statuses are not considered equal.@n
+ * This TEST checks if two dm_bss_t objects with different enabled statuses are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 046@n
+ * **Test Case ID:** 045@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1652,10 +1557,10 @@
 /**
  * @brief TEST to compare two dm_bss_t objects with different last_change values
  *
- * ThisTEST verifies that two dm_bss_t objects with different last_change values are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different last_change values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 047@n
+ * **Test Case ID:** 046@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1683,10 +1588,10 @@
 /**
  * @brief TEST to compare two dm_bss_t objects with different timestamps
  *
- * ThisTEST verifies that two dm_bss_t objects with different timestamps are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different timestamps are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 048@n
+ * **Test Case ID:** 047@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1714,10 +1619,10 @@
 /**
  * @brief TEST to compare different unicast bytes sent in two dm_bss_t objects
  *
- * ThisTEST verifies that two dm_bss_t objects with different unicast_bytes_sent values are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different unicast_bytes_sent values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 049@n
+ * **Test Case ID:** 048@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1745,10 +1650,10 @@
 /**
  * @brief TEST to compare unicast bytes received between two dm_bss_t objects
  *
- * ThisTEST verifies that two dm_bss_t objects with different unicast_bytes_rcvd values are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different unicast_bytes_rcvd values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 050@n
+ * **Test Case ID:** 049@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1774,10 +1679,10 @@
 /**
  * @brief TEST to compare two dm_bss_t objects with different number of stations
  *
- * ThisTEST verifies that two dm_bss_t objects with different number of stations are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different number of stations are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 051@n
+ * **Test Case ID:** 050@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1803,11 +1708,11 @@
 /**
  * @brief TEST to compare different estimated service parameters in BSS info
  *
- * ThisTEST checks the equality operator for `dm_bss_t` objects when their `est_svc_params_be` fields are different. 
+ * This TEST checks the equality operator for `dm_bss_t` objects when their `est_svc_params_be` fields are different. 
  * It ensures that the equality operator correctly identifies the objects as not equal when their `est_svc_params_be` fields differ.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 052@n
+ * **Test Case ID:** 051@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1835,10 +1740,10 @@
 /**
  * @brief TEST to compare different estimated service parameters in dm_bss_t objects
  *
- * ThisTEST verifies that two dm_bss_t objects with different estimated service parameters (est_svc_params_bk) are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different estimated service parameters (est_svc_params_bk) are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 053@n
+ * **Test Case ID:** 052@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1866,10 +1771,10 @@
 /**
  * @brief TEST to compare different estimated service parameters in dm_bss_t objects
  *
- * ThisTEST verifies that two dm_bss_t objects with different estimated service parameters (est_svc_params_vi) are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different estimated service parameters (est_svc_params_vi) are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 054@n
+ * **Test Case ID:** 053@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1897,10 +1802,10 @@
 /**
  * @brief TEST to compare different estimated service parameters in dm_bss_t objects
  *
- * ThisTEST verifies that two dm_bss_t objects with different estimated service parameters (est_svc_params_vo) are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different estimated service parameters (est_svc_params_vo) are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 055@n
+ * **Test Case ID:** 054@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1928,10 +1833,10 @@
 /**
  * @brief TEST to compare different byte counter units in dm_bss_t objects
  *
- * ThisTEST checks the equality operator for dm_bss_t objects with different byte counter units. The objective is to ensure that the equality operator correctly identifies objects with different byte counter units as not equal.
+ * This TEST checks the equality operator for dm_bss_t objects with different byte counter units. The objective is to ensure that the equality operator correctly identifies objects with different byte counter units as not equal.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 056@n
+ * **Test Case ID:** 055@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1957,10 +1862,10 @@
 /**
  * @brief TEST to compare two dm_bss_t objects with different num_fronthaul_akms values
  *
- * ThisTEST checks the equality operator for dm_bss_t objects when they have different num_fronthaul_akms values.@n
+ * This TEST checks the equality operator for dm_bss_t objects when they have different num_fronthaul_akms values.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 057@n
+ * **Test Case ID:** 056@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1986,10 +1891,10 @@
 /**
  * @brief TEST to compare two dm_bss_t objects with different fronthaul_akm values
  *
- * ThisTEST verifies that two dm_bss_t objects with different fronthaul_akm values are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different fronthaul_akm values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 058@n
+ * **Test Case ID:** 057@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2017,11 +1922,11 @@
 /**
  * @brief TEST to compare two dm_bss_t objects with different num_backhaul_akms values
  *
- * ThisTEST checks the equality operator for dm_bss_t objects when they have different num_backhaul_akms values. 
+ * This TEST checks the equality operator for dm_bss_t objects when they have different num_backhaul_akms values. 
  * It ensures that the equality operator correctly identifies the objects as not equal when their num_backhaul_akms values differ.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 059@n
+ * **Test Case ID:** 058@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2047,10 +1952,10 @@
 /**
  * @brief TEST to compare different backhaul AKM values in dm_bss_t objects
  *
- * ThisTEST verifies that two dm_bss_t objects with different backhaul AKM values are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different backhaul AKM values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 060@n
+ * **Test Case ID:** 059@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2078,10 +1983,10 @@
 /**
  * @brief TEST to compare two dm_bss_t objects with different profile_1b_sta_allowed values
  *
- * ThisTEST checks the equality operator for dm_bss_t objects when the profile_1b_sta_allowed attribute is different between the two objects. TheTEST ensures that the equality operator correctly identifies the objects as not equal when this attribute differs.
+ * This TEST checks the equality operator for dm_bss_t objects when the profile_1b_sta_allowed attribute is different between the two objects. TheTEST ensures that the equality operator correctly identifies the objects as not equal when this attribute differs.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 061@n
+ * **Test Case ID:** 060@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2107,10 +2012,10 @@
 /**
  * @brief TEST to compare two dm_bss_t objects with different profile_2b_sta_allowed values
  *
- * ThisTEST checks the equality operator for dm_bss_t objects when their profile_2b_sta_allowed values differ. TheTEST ensures that the equality operator correctly identifies the objects as not equal when their profile_2b_sta_allowed values are different.
+ * This TEST checks the equality operator for dm_bss_t objects when their profile_2b_sta_allowed values differ. TheTEST ensures that the equality operator correctly identifies the objects as not equal when their profile_2b_sta_allowed values are different.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 062@n
+ * **Test Case ID:** 061@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2136,10 +2041,10 @@
 /**
  * @brief TEST to compare different association allowed statuses in dm_bss_t objects
  *
- * ThisTEST verifies that two dm_bss_t objects with different association allowed statuses are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different association allowed statuses are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 063@n
+ * **Test Case ID:** 062@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2165,10 +2070,10 @@
 /**
  * @brief TEST to compare different backhaul use in dm_bss_t objects
  *
- * ThisTEST verifies that two dm_bss_t objects with different backhaul_use values are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different backhaul_use values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 064@n
+ * **Test Case ID:** 063@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2195,10 +2100,10 @@
 /**
  * @brief TEST to compare two dm_bss_t objects with different fronthaul_use values
  *
- * ThisTEST verifies that two dm_bss_t objects with different fronthaul_use values are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different fronthaul_use values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 065@n
+ * **Test Case ID:** 064@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2224,10 +2129,10 @@
 /**
  * @brief TEST to compare two dm_bss_t objects with different r1_disallowed values
  *
- * ThisTEST checks the equality operator for dm_bss_t objects when their r1_disallowed values are different.@n
+ * This TEST checks the equality operator for dm_bss_t objects when their r1_disallowed values are different.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 066@n
+ * **Test Case ID:** 065@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2253,11 +2158,11 @@
 /**
  * @brief TEST to compare two dm_bss_t objects with different r2_disallowed values
  *
- * ThisTEST checks the equality operator for dm_bss_t objects when their r2_disallowed values differ. 
+ * This TEST checks the equality operator for dm_bss_t objects when their r2_disallowed values differ. 
  * It ensures that the equality operator correctly identifies the objects as not equal when one has r2_disallowed set to true and the other to false.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 067@n
+ * **Test Case ID:** 066@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2283,10 +2188,10 @@
 /**
  * @brief TEST to compare two dm_bss_t objects with different multi_bssid values
  *
- * ThisTEST checks the equality operator for dm_bss_t objects when their multi_bssid values are different.@n
+ * This TEST checks the equality operator for dm_bss_t objects when their multi_bssid values are different.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 068@n
+ * **Test Case ID:** 067@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2312,12 +2217,12 @@
 /**
  * @brief TEST to compare two dm_bss_t objects with different transmitted_bssid values
  *
- * ThisTEST checks the equality operator for dm_bss_t objects when their transmitted_bssid values differ. 
+ * This TEST checks the equality operator for dm_bss_t objects when their transmitted_bssid values differ. 
  * It ensures that the equality operator correctly identifies that the objects are not equal when their 
  * transmitted_bssid values are different.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 069@n
+ * **Test Case ID:** 068@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2343,10 +2248,10 @@
 /**
  * @brief TEST to compare different EHT operations in dm_bss_t objects
  *
- * ThisTEST verifies that two dm_bss_t objects with different EHT operation BSSID values are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different EHT operation BSSID values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 070@n
+ * **Test Case ID:** 069@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2374,11 +2279,11 @@
 /**
  * @brief TEST to compare different vendor elements in dm_bss_t objects
  *
- * ThisTEST checks the equality operator for dm_bss_t objects with different vendor elements. 
+ * This TEST checks the equality operator for dm_bss_t objects with different vendor elements. 
  * It ensures that the equality operator correctly identifies objects with different vendor elements as not equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 071@n
+ * **Test Case ID:** 070@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2405,10 +2310,10 @@
 /**
  * @brief TEST to compare vendor elements length of two dm_bss_t objects
  *
- * ThisTEST verifies that two dm_bss_t objects with different vendor_elements_len values are not considered equal.@n
+ * This TEST verifies that two dm_bss_t objects with different vendor_elements_len values are not considered equal.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 072@n
+ * **Test Case ID:** 071@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2434,10 +2339,10 @@
 /**
  * @brief TEST to verify the assignment of initialized values in dm_bss_t class
  *
- * ThisTEST checks if the assignment operator correctly assigns initialized values from one instance of dm_bss_t to another instance. This is important to ensure that the assignment operator works as expected and all relevant fields are copied correctly.
+ * This TEST checks if the assignment operator correctly assigns initialized values from one instance of dm_bss_t to another instance. This is important to ensure that the assignment operator works as expected and all relevant fields are copied correctly.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 073@n
+ * **Test Case ID:** 072@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2465,10 +2370,10 @@
 /**
  * @brief TEST to verify the assignment of modified values in dm_bss_t class
  *
- * ThisTEST checks if the assignment operator correctly assigns modified values from one instance of dm_bss_t to another instance.@n
+ * This TEST checks if the assignment operator correctly assigns modified values from one instance of dm_bss_t to another instance.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 074@n
+ * **Test Case ID:** 073@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2495,10 +2400,10 @@
 /**
  * @brief TEST to verify self-assignment behavior of dm_bss_t class
  *
- * ThisTEST checks the self-assignment operation of the dm_bss_t class to ensure that the object remains consistent and no unintended side effects occur.@n
+ * This TEST checks the self-assignment operation of the dm_bss_t class to ensure that the object remains consistent and no unintended side effects occur.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 075@n
+ * **Test Case ID:** 074@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2523,10 +2428,10 @@
 /**
  * @brief TEST to verify the assignment operator for dm_bss_t class
  *
- * ThisTEST checks the assignment operator of the dm_bss_t class by assigning different values to the m_bss_info.enabled member and verifying if the assignment is done correctly.@n
+ * This TEST checks the assignment operator of the dm_bss_t class by assigning different values to the m_bss_info.enabled member and verifying if the assignment is done correctly.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 076@n
+ * **Test Case ID:** 075@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2554,10 +2459,10 @@
 /**
  * @brief TEST to verify the assignment of maximum values to the unicast_bytes_sent field
  *
- * ThisTEST checks if the assignment operator correctly assigns the maximum possible value (UINT_MAX) to the unicast_bytes_sent field of the dm_bss_t object. This is important to ensure that the assignment operator handles edge cases correctly.
+ * This TEST checks if the assignment operator correctly assigns the maximum possible value (UINT_MAX) to the unicast_bytes_sent field of the dm_bss_t object. This is important to ensure that the assignment operator handles edge cases correctly.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 077@n
+ * **Test Case ID:** 076@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2584,10 +2489,10 @@
 /**
  * @brief TEST to verify the assignment of minimum values to the dm_bss_t object
  *
- * ThisTEST checks the assignment operator of the dm_bss_t class by assigning minimum values (0) to the unicast_bytes_sent member and verifying if the assignment is done correctly.@n
+ * This TEST checks the assignment operator of the dm_bss_t class by assigning minimum values (0) to the unicast_bytes_sent member and verifying if the assignment is done correctly.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 078@n
+ * **Test Case ID:** 077@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2614,10 +2519,10 @@
 /**
  * @brief TEST to verify the assignment operator for dm_bss_t class
  *
- * ThisTEST checks the assignment operator of the dm_bss_t class by assigning mixed values to the object's members and verifying if the values are correctly assigned to another object.@n
+ * This TEST checks the assignment operator of the dm_bss_t class by assigning mixed values to the object's members and verifying if the values are correctly assigned to another object.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 079@n
+ * **Test Case ID:** 078@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2646,10 +2551,10 @@
 /**
  * @brief TEST to validate the BSS information retrieval
  *
- * ThisTEST checks if the BSS information is correctly retrieved and matches the expected data when initialized with valid BSS information.@n
+ * This TEST checks if the BSS information is correctly retrieved and matches the expected data when initialized with valid BSS information.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 080@n
+ * **Test Case ID:** 079@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2674,10 +2579,10 @@
 /**
  * @brief TEST to validate the behavior of dm_bss_t constructor when provided with a null BSS information pointer.
  *
- * ThisTEST checks if the dm_bss_t constructor throws an invalid_argument exception when it is initialized with a null BSS information pointer. This is important to ensure that the constructor handles invalid input correctly and prevents potential null pointer dereference issues.
+ * This TEST checks if the dm_bss_t constructor throws an invalid_argument exception when it is initialized with a null BSS information pointer. This is important to ensure that the constructor handles invalid input correctly and prevents potential null pointer dereference issues.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 081@n
+ * **Test Case ID:** 080@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2701,10 +2606,10 @@
 /**
  * @brief TEST the BSS information retrieval with empty fields
  *
- * ThisTEST verifies that the BSS information retrieval function works correctly when the BSS information fields are empty. It ensures that the function can handle and return the correct BSS information even when no data is provided initially.
+ * This TEST verifies that the BSS information retrieval function works correctly when the BSS information fields are empty. It ensures that the function can handle and return the correct BSS information even when no data is provided initially.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 082@n
+ * **Test Case ID:** 081@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2729,10 +2634,10 @@
 /**
  * @brief TEST to verify BSS information handling with maximum length strings
  *
- * ThisTEST checks the behavior of the BSS information handling when the net_id and ssid fields are filled with maximum length strings. This is to ensure that the system can handle edge cases with maximum input sizes without errors.@n
+ * This TEST checks the behavior of the BSS information handling when the net_id and ssid fields are filled with maximum length strings. This is to ensure that the system can handle edge cases with maximum input sizes without errors.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 083@n
+ * **Test Case ID:** 082@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2759,10 +2664,10 @@
 /**
  * @brief TEST to verify BSS information retrieval with an invalid MAC address
  *
- * ThisTEST checks the behavior of the BSS information retrieval function when provided with an invalid MAC address. The objective is to ensure that the function can handle invalid MAC addresses gracefully and return the expected BSS information structure.
+ * This TEST checks the behavior of the BSS information retrieval function when provided with an invalid MAC address. The objective is to ensure that the function can handle invalid MAC addresses gracefully and return the expected BSS information structure.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 084@n
+ * **Test Case ID:** 083@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2786,10 +2691,10 @@
 /**
  * @brief TEST the BSS information handling with maximum vendor elements
  *
- * ThisTEST verifies that the BSS information structure can handle the maximum number of vendor elements correctly. It ensures that the vendor elements are properly initialized and that the BSS information is correctly retrieved from the object.
+ * This TEST verifies that the BSS information structure can handle the maximum number of vendor elements correctly. It ensures that the vendor elements are properly initialized and that the BSS information is correctly retrieved from the object.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 085@n
+ * **Test Case ID:** 084@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2814,10 +2719,10 @@
 /**
  * @brief TEST to verify BSS information handling with zero-length vendor elements
  *
- * ThisTEST checks the behavior of the BSS information handling when the vendor elements length is set to zero. This is important to ensure that the system can handle cases where no vendor-specific information is provided.
+ * This TEST checks the behavior of the BSS information handling when the vendor elements length is set to zero. This is important to ensure that the system can handle cases where no vendor-specific information is provided.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 086@n
+ * **Test Case ID:** 085@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2843,10 +2748,10 @@
 /**
  * @brief TEST the copy constructor of dm_bss_t with a valid dm_bss_t object
  *
- * ThisTEST verifies that the copy constructor of the dm_bss_t class correctly copies the bss_info from the original object to the new object. This ensures that the copy constructor performs a deep copy of the bss_info member.
+ * This TEST verifies that the copy constructor of the dm_bss_t class correctly copies the bss_info from the original object to the new object. This ensures that the copy constructor performs a deep copy of the bss_info member.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 087@n
+ * **Test Case ID:** 086@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2877,10 +2782,10 @@
 /**
  * @brief TEST the copy constructor of dm_bss_t class with special characters in strings
  *
- * ThisTEST verifies that the copy constructor of the dm_bss_t class correctly copies an object that has special characters in its string attributes. This is important to ensure that the copy constructor handles all types of characters properly.
+ * This TEST verifies that the copy constructor of the dm_bss_t class correctly copies an object that has special characters in its string attributes. This is important to ensure that the copy constructor handles all types of characters properly.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 088@n
+ * **Test Case ID:** 087@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -2902,4 +2807,4 @@
       dm_bss_t copy(original);
       ASSERT_EQ(0, memcmp(original.m_bss_info.ssid, copy.m_bss_info.ssid, sizeof(original.m_bss_info.ssid)));
       std::cout << "Exiting CopyConstructorWithDmBssTObjectHavingSpecialCharactersInStrings" << std::endl;
- }
+}
