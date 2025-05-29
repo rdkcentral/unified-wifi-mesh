@@ -194,6 +194,10 @@ em_cmd_t& em_cli_t::get_command(char *in, size_t in_len, em_network_node_t *node
                     if ((tmp = strstr(cmd->m_param.u.args.fixed_args, "DevTest")) != NULL) {
                         *tmp = 0;
                     }
+                case em_cmd_type_get_ssh_status:
+                    if ((tmp = strstr(cmd->m_param.u.args.fixed_args, "PING")) != NULL) {
+                        *tmp = 0;
+                    }
 		if (strncmp(args[num_args - 1], "1", strlen("1")) == 0) {
 			strncat(cmd->m_param.u.args.fixed_args, "DevTest@update", strlen("DevTest@update"));
 		} else {
@@ -229,9 +233,12 @@ em_network_node_t *em_cli_t::exec(char *in, size_t sz, em_network_node_t *node)
     em_cmd_cli_t *cli_cmd;
 
     snprintf(cmd, sizeof(cmd),  "%s", in);
-    cli_cmd = new em_cmd_cli_t(get_command(cmd, sz, node));
+    cli_cmd = new em_cmd_cli_t(get_command(cmd, sz, node), m_params.user_data.addr);
 
-    cli_cmd->init();
+    if (cli_cmd->init() != 0) {
+		printf("%s:%d: Failed to init command\n", __func__, __LINE__);
+		return NULL;
+	}
 
 	result = (char *)malloc(EM_MAX_EVENT_DATA_LEN);
 	memset(result, 0, EM_MAX_EVENT_DATA_LEN);
@@ -245,6 +252,7 @@ em_network_node_t *em_cli_t::exec(char *in, size_t sz, em_network_node_t *node)
         }
     }
 
+	cli_cmd->deinit();
     delete cli_cmd;
     new_node = em_net_node_t::get_network_tree(result);	
 	free(result);
@@ -277,9 +285,52 @@ void em_cli_t::dump_lib_dbg(char *str)
     fclose(fp);
 }
 
-int em_cli_t::init(em_cli_params_t	*params)
+bool em_cli_t::is_remote_addr_valid()
 {
-	memcpy(&m_params, params, sizeof(em_cli_params_t));
+	return m_params.user_data.valid;
+}
+
+int em_cli_t::set_remote_addr(unsigned int ip, unsigned int port)
+{
+    char *result;
+    em_cmd_cli_t *cli_cmd;
+    em_network_node_t *node = NULL;
+    bool is_connection_valid = false;
+    em_long_string_t cmd = "PING OneWifiMesh";
+
+    m_params.user_data.addr.sin_family = AF_INET;
+    m_params.user_data.addr.sin_addr.s_addr = ip;
+    m_params.user_data.addr.sin_port = htons(port);
+
+    /* Checking the SSH connection with respect to IP and port provided.
+    m_params.user_data.valid will be set to true or fale based on ssh connection status.
+    */
+    cli_cmd = new em_cmd_cli_t(get_command(cmd, strlen(cmd), node), m_params.user_data.addr);
+
+    if (cli_cmd->init() != 0) {
+		printf("%s:%d: Failed to init command\n", __func__, __LINE__);
+		return -1;
+	}
+
+	result = (char *)malloc(EM_MAX_EVENT_DATA_LEN);
+	memset(result, 0, EM_MAX_EVENT_DATA_LEN);
+
+    if (cli_cmd->validate() == false) {
+        cli_cmd->m_cmd.status_to_string(em_cmd_out_status_invalid_input, result);
+    } else {
+        if (cli_cmd->execute(result) != 0) {
+            cli_cmd->m_cmd.status_to_string(em_cmd_out_status_invalid_input, result);
+        } else {
+            /* setting the valid flag as true */
+            is_connection_valid = true;
+        }
+    }
+
+    m_params.user_data.valid = is_connection_valid;
+
+    cli_cmd->deinit();
+    delete cli_cmd;
+    free(result);
 	
     return 0;
 }
@@ -302,9 +353,14 @@ extern "C" em_network_node_t *exec(char *in, size_t in_len, em_network_node_t *n
     return g_cli.exec(in, in_len, node);
 }
 
-extern "C" int init(em_cli_params_t *params)
+extern "C" int set_remote_addr(unsigned int ip, unsigned int port)
 {
-    return g_cli.init(params);
+    return g_cli.set_remote_addr(ip, port);
+}
+
+extern "C" bool is_remote_addr_valid()
+{
+	return g_cli.is_remote_addr_valid();
 }
 
 extern "C" const char *get_first_cmd_str()
