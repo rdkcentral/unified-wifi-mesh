@@ -1,4 +1,4 @@
-/*
+/**
  * If not stated otherwise in this file or this component's LICENSE file the
  * following copyright and licenses apply:
  *
@@ -124,24 +124,24 @@ TEST_F(db_client_t_Test, ExecuteNullQuery) {
 }
 
 /**
-* @brief Test to validate the behavior of the execute function with invalid SQL syntax
-*
-* This test checks if the execute function correctly handles and returns a null result when provided with an invalid SQL query. This is important to ensure that the function can gracefully handle syntax errors in SQL queries.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 004@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Execute the invalid SQL query | query = "SELEC * FROM users;", result = nullptr | result should be nullptr | Should Pass |
-* | 02 | Assert that the result is nullptr | result = nullptr | Assertion should pass | Should Pass |
-*/
+ * @brief Test to validate the behavior of the execute function with invalid SQL syntax
+ *
+ * This test checks if the execute function correctly handles and returns a null result when provided with an invalid SQL query. This is important to ensure that the function can gracefully handle syntax errors in SQL queries.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 004@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Execute the invalid SQL query | query = "SELEC * FROM users;", result = nullptr | result should be nullptr | Should Pass |
+ * | 02 | Assert that the result is nullptr | result = nullptr | Assertion should pass | Should Pass |
+ */
 TEST_F(db_client_t_Test, ExecuteInvalidSQLSyntax) {
     std::cout << "Entering ExecuteInvalidSQLSyntax test" << std::endl;
     const char* query = "SELEC * FROM users;";
@@ -171,7 +171,6 @@ TEST_F(db_client_t_Test, ExecuteInvalidSQLSyntax) {
  * | 02 | Call `get_number` with invalid context | invalid_ctx = nullptr, number = 2 | result != 0 | Should Pass |
  * | 03 | Verify the result is not 0 | result != 0 | None | Should Pass |
  */
-/* Commenting out since 'assert(ctx != NULL)' in source code triggers a runtime assertion failure, causing the program to abort.
 TEST_F(db_client_t_Test, RetrieveIntegerFromInvalidContext) {
     std::cout << "Entering RetrieveIntegerFromInvalidContext test" << std::endl;
     void* invalid_ctx = nullptr;
@@ -179,7 +178,6 @@ TEST_F(db_client_t_Test, RetrieveIntegerFromInvalidContext) {
     ASSERT_NE(result, 0);
     std::cout << "Exiting RetrieveIntegerFromInvalidContext test" << std::endl;
 }
-*/
 
 /**
  * @brief Test the retrieval of a string with null result and null context
@@ -320,24 +318,24 @@ TEST_F(db_client_t_Test, NullResultContext) {
 }
 
 /**
-* @brief Test to verify the recreation of the database with a valid connection
-*
-* This test ensures that the database can be successfully recreated when a valid connection path is provided. It initializes the database client, recreates the database, and verifies the result.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 011@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Initialize the database with a valid path | dbClient->init("valid_path") | Return value = 0 | Should Pass |
-* | 02 | Recreate the database | dbClient->recreate_db() | Return value = 0 | Should Pass |
-*/
+ * @brief Test to verify the recreation of the database with a valid connection
+ *
+ * This test ensures that the database can be successfully recreated when a valid connection path is provided. It initializes the database client, recreates the database, and verifies the result.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 011@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Initialize the database with a valid path | dbClient->init("valid_path") | Return value = 0 | Should Pass |
+ * | 02 | Recreate the database | dbClient->recreate_db() | Return value = 0 | Should Pass |
+ */
 TEST_F(db_client_t_Test, RecreateDatabaseWithValidConnection) {
     std::cout << "Entering RecreateDatabaseWithValidConnection test" << std::endl;
     int result = dbClient->recreate_db();

@@ -1,4 +1,4 @@
-/*
+/**
  * If not stated otherwise in this file or this component's LICENSE file the
  * following copyright and licenses apply:
  *
@@ -23,24 +23,24 @@
 #include "dm_ieee_1905_security.h"
 
 /**
-* @brief Test the decoding of a valid cJSON object
-*
-* This test verifies that the decode function of the dm_ieee_1905_security_t class correctly processes a valid cJSON object.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 001@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Create a valid cJSON object | type = cJSON_Object, valuestring = "valid_string", valueint = 123, valuedouble = 123.45, string = "valid_name" | cJSON object should be created successfully | Should be successful |
-* | 02 | Call the decode function with the valid cJSON object | obj = valid cJSON object | Return value should be 0, EXPECT_EQ(result, 0) | Should Pass |
-*/
+ * @brief Test the decoding of a valid cJSON object
+ *
+ * This test verifies that the decode function of the dm_ieee_1905_security_t class correctly processes a valid cJSON object.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 001@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Create a valid cJSON object | type = cJSON_Object, valuestring = "valid_string", valueint = 123, valuedouble = 123.45, string = "valid_name" | cJSON object should be created successfully | Should be successful |
+ * | 02 | Call the decode function with the valid cJSON object | obj = valid cJSON object | Return value should be 0, EXPECT_EQ(result, 0) | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, DecodeValidCJsonObject) {
     std::cout << "Entering DecodeValidCJsonObject" << std::endl;
     cJSON obj = {};
@@ -56,24 +56,24 @@ TEST(dm_ieee_1905_security_t_Test, DecodeValidCJsonObject) {
 }
 
 /**
-* @brief Test the decoding of a cJSON object with an invalid type
-*
-* This test verifies that the decode function of the dm_ieee_1905_security_t class correctly handles a cJSON object with an invalid type. The objective is to ensure that the function returns a non-zero value indicating failure when the type is invalid.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 002@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Create a cJSON object with an invalid type | type = -1, valuestring = "valid_string", valueint = 123, valuedouble = 123.45, string = "valid_name" | cJSON object created | Should be successful |
-* | 02 | Call the decode function with the invalid cJSON object | obj = &obj | result != 0 | Should Fail |
-*/
+ * @brief Test the decoding of a cJSON object with an invalid type
+ *
+ * This test verifies that the decode function of the dm_ieee_1905_security_t class correctly handles a cJSON object with an invalid type. The objective is to ensure that the function returns a non-zero value indicating failure when the type is invalid.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 002@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Create a cJSON object with an invalid type | type = -1, valuestring = "valid_string", valueint = 123, valuedouble = 123.45, string = "valid_name" | cJSON object created | Should be successful |
+ * | 02 | Call the decode function with the invalid cJSON object | obj = &obj | result != 0 | Should Fail |
+ */
 TEST(dm_ieee_1905_security_t_Test, DecodeCJsonObjectWithInvalidType) {
     std::cout << "Entering DecodeCJsonObjectWithInvalidType" << std::endl;
     cJSON obj = {};
@@ -89,23 +89,23 @@ TEST(dm_ieee_1905_security_t_Test, DecodeCJsonObjectWithInvalidType) {
 }
 
 /**
-* @brief Test the decoding of a cJSON object with a null child
-*
-* This test verifies the behavior of the decode function when provided with a cJSON object that has a null child. This is important to ensure that the function can handle such cases gracefully without crashing or producing incorrect results.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 004@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Create a cJSON object with a null child and call the decode function | cJSON obj = { .type = cJSON_Object, .valuestring = "valid_string", .valueint = 123, .valuedouble = 123.45, .string = "valid_name", .child = NULL }, instance->decode(&obj) | result = 0, EXPECT_EQ(result, 0) | Should Pass |
-*/
+ * @brief Test the decoding of a cJSON object with a null child
+ *
+ * This test verifies the behavior of the decode function when provided with a cJSON object that has a null child. This is important to ensure that the function can handle such cases gracefully without crashing or producing incorrect results.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 004@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Create a cJSON object with a null child and call the decode function | cJSON obj = { .type = cJSON_Object, .valuestring = "valid_string", .valueint = 123, .valuedouble = 123.45, .string = "valid_name", .child = NULL }, instance->decode(&obj) | result = 0, EXPECT_EQ(result, 0) | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, DecodeCJsonObjectWithNullChild) {
     std::cout << "Entering DecodeCJsonObjectWithNullChild" << std::endl;
     cJSON obj = {};
@@ -122,25 +122,25 @@ TEST(dm_ieee_1905_security_t_Test, DecodeCJsonObjectWithNullChild) {
 }
 
 /**
-* @brief Test the decoding of a cJSON object with null next and prev pointers
-*
-* This test verifies the behavior of the decode function when provided with a cJSON object that has null next and prev pointers. This is to ensure that the function can handle such cases without errors and returns the expected result.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 005@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Create a cJSON object with null next and prev pointers | type = cJSON_Object, valuestring = "valid_string", valueint = 123, valuedouble = 123.45, string = "valid_name", next = NULL, prev = NULL | cJSON object created successfully | Should be successful |
-* | 02| Call the decode function with the created cJSON object | obj = &cJSON object | result = 0 | Should Pass |
-* | 03| Verify the result of the decode function | result = 0 | EXPECT_EQ(result, 0) | Should Pass |
-*/
+ * @brief Test the decoding of a cJSON object with null next and prev pointers
+ *
+ * This test verifies the behavior of the decode function when provided with a cJSON object that has null next and prev pointers. This is to ensure that the function can handle such cases without errors and returns the expected result.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 005@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Create a cJSON object with null next and prev pointers | type = cJSON_Object, valuestring = "valid_string", valueint = 123, valuedouble = 123.45, string = "valid_name", next = NULL, prev = NULL | cJSON object created successfully | Should be successful |
+ * | 02| Call the decode function with the created cJSON object | obj = &cJSON object | result = 0 | Should Pass |
+ * | 03| Verify the result of the decode function | result = 0 | EXPECT_EQ(result, 0) | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, DecodeCJsonObjectWithNullNextAndPrev) {
     std::cout << "Entering DecodeCJsonObjectWithNullNextAndPrev" << std::endl;
     cJSON obj = {};
@@ -158,25 +158,25 @@ TEST(dm_ieee_1905_security_t_Test, DecodeCJsonObjectWithNullNextAndPrev) {
 }
 
 /**
-* @brief Test the decoding of a cJSON object with type array
-*
-* This test verifies the functionality of the decode method in the dm_ieee_1905_security_t class when provided with a cJSON object of type array. The objective is to ensure that the decode method correctly processes the input and returns the expected result.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 006@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Create a cJSON object with type array and valid values | type = cJSON_Array, valuestring = "valid_string", valueint = 123, valuedouble = 123.45, string = "valid_name" | cJSON object created successfully | Should be successful |
-* | 02 | Call the decode method with the created cJSON object | obj = &cJSON object | result = 0 | Should Pass |
-* | 03 | Verify the result of the decode method | result = 0 | EXPECT_EQ(result, 0) | Should Pass |
-*/
+ * @brief Test the decoding of a cJSON object with type array
+ *
+ * This test verifies the functionality of the decode method in the dm_ieee_1905_security_t class when provided with a cJSON object of type array. The objective is to ensure that the decode method correctly processes the input and returns the expected result.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 006@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Create a cJSON object with type array and valid values | type = cJSON_Array, valuestring = "valid_string", valueint = 123, valuedouble = 123.45, string = "valid_name" | cJSON object created successfully | Should be successful |
+ * | 02 | Call the decode method with the created cJSON object | obj = &cJSON object | result = 0 | Should Pass |
+ * | 03 | Verify the result of the decode method | result = 0 | EXPECT_EQ(result, 0) | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, DecodeCJsonObjectWithTypeArray) {
     std::cout << "Entering DecodeCJsonObjectWithTypeArray" << std::endl;
     cJSON obj = {};
@@ -192,25 +192,25 @@ TEST(dm_ieee_1905_security_t_Test, DecodeCJsonObjectWithTypeArray) {
 }
 
 /**
-* @brief Test the decoding of a cJSON object with type string
-*
-* This test verifies the functionality of the decode method in the dm_ieee_1905_security_t class when provided with a cJSON object of type string. It ensures that the method correctly processes the input and returns the expected result.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 007@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize cJSON object with type string | type = cJSON_String, valuestring = "valid_string", valueint = 123, valuedouble = 123.45, string = "valid_name" | cJSON object initialized | Should be successful |
-* | 02| Invoke decode method on dm_ieee_1905_security_t instance | obj = &cJSON object | result = 0 | Should Pass |
-* | 03| Verify the result using EXPECT_EQ | result = 0 | EXPECT_EQ(result, 0) | Should Pass |
-*/
+ * @brief Test the decoding of a cJSON object with type string
+ *
+ * This test verifies the functionality of the decode method in the dm_ieee_1905_security_t class when provided with a cJSON object of type string. It ensures that the method correctly processes the input and returns the expected result.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 007@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Initialize cJSON object with type string | type = cJSON_String, valuestring = "valid_string", valueint = 123, valuedouble = 123.45, string = "valid_name" | cJSON object initialized | Should be successful |
+ * | 02| Invoke decode method on dm_ieee_1905_security_t instance | obj = &cJSON object | result = 0 | Should Pass |
+ * | 03| Verify the result using EXPECT_EQ | result = 0 | EXPECT_EQ(result, 0) | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, DecodeCJsonObjectWithTypeString) {
     std::cout << "Entering DecodeCJsonObjectWithTypeString" << std::endl;
     cJSON obj = {};
@@ -226,25 +226,25 @@ TEST(dm_ieee_1905_security_t_Test, DecodeCJsonObjectWithTypeString) {
 }
 
 /**
-* @brief Test the decoding of a cJSON object with type number
-*
-* This test verifies that the decode function of the dm_ieee_1905_security_t class correctly handles a cJSON object of type number. The test ensures that the function returns the expected result when provided with valid input data.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 008@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Create a cJSON object with type number and valid values | type = cJSON_Number, valuestring = "valid_string", valueint = 123, valuedouble = 123.45, string = "valid_name" | cJSON object created successfully | Should be successful |
-* | 02 | Call the decode function with the created cJSON object | obj = &cJSON object | result = 0 | Should Pass |
-* | 03 | Verify the result of the decode function | result = 0 | EXPECT_EQ(result, 0) | Should Pass |
-*/
+ * @brief Test the decoding of a cJSON object with type number
+ *
+ * This test verifies that the decode function of the dm_ieee_1905_security_t class correctly handles a cJSON object of type number. The test ensures that the function returns the expected result when provided with valid input data.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 008@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Create a cJSON object with type number and valid values | type = cJSON_Number, valuestring = "valid_string", valueint = 123, valuedouble = 123.45, string = "valid_name" | cJSON object created successfully | Should be successful |
+ * | 02 | Call the decode function with the created cJSON object | obj = &cJSON object | result = 0 | Should Pass |
+ * | 03 | Verify the result of the decode function | result = 0 | EXPECT_EQ(result, 0) | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, DecodeCJsonObjectWithTypeNumber) {
     std::cout << "Entering DecodeCJsonObjectWithTypeNumber" << std::endl;
     cJSON obj = {};
@@ -260,25 +260,25 @@ TEST(dm_ieee_1905_security_t_Test, DecodeCJsonObjectWithTypeNumber) {
 }
 
 /**
-* @brief Test the decoding of a cJSON object with type Raw
-*
-* This test verifies that the `decode` method of the `dm_ieee_1905_security_t` class correctly decodes a cJSON object of type Raw. The test ensures that the method returns 0, indicating successful decoding.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 009@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Create a cJSON object with type Raw and valid values | type = cJSON_Raw, valuestring = "valid_string", valueint = 123, valuedouble = 123.45, string = "valid_name" | cJSON object created successfully | Should be successful |
-* | 02 | Call the decode method with the created cJSON object | obj = {type = cJSON_Raw, valuestring = "valid_string", valueint = 123, valuedouble = 123.45, string = "valid_name"} | Method returns 0 | Should Pass |
-* | 03 | Verify the result of the decode method | result = 0 | EXPECT_EQ(result, 0) | Should Pass |
-*/
+ * @brief Test the decoding of a cJSON object with type Raw
+ *
+ * This test verifies that the `decode` method of the `dm_ieee_1905_security_t` class correctly decodes a cJSON object of type Raw. The test ensures that the method returns 0, indicating successful decoding.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 009@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Create a cJSON object with type Raw and valid values | type = cJSON_Raw, valuestring = "valid_string", valueint = 123, valuedouble = 123.45, string = "valid_name" | cJSON object created successfully | Should be successful |
+ * | 02 | Call the decode method with the created cJSON object | obj = {type = cJSON_Raw, valuestring = "valid_string", valueint = 123, valuedouble = 123.45, string = "valid_name"} | Method returns 0 | Should Pass |
+ * | 03 | Verify the result of the decode method | result = 0 | EXPECT_EQ(result, 0) | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, DecodeCJsonObjectWithTypeRaw) {
     std::cout << "Entering DecodeCJsonObjectWithTypeRaw" << std::endl;
     cJSON obj = {};
@@ -294,23 +294,23 @@ TEST(dm_ieee_1905_security_t_Test, DecodeCJsonObjectWithTypeRaw) {
 }
 
 /**
-* @brief Test to verify the behavior of the decode function when a NULL input is provided.
-*
-* This test checks the decode function of the dm_ieee_1905_security_t class to ensure that it correctly handles a NULL input. The function is expected to return a non-zero value indicating an error when a NULL input is passed.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 010@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Call decode with NULL input | input = NULL | result != 0 | Should Fail |
-*/
+ * @brief Test to verify the behavior of the decode function when a NULL input is provided.
+ *
+ * This test checks the decode function of the dm_ieee_1905_security_t class to ensure that it correctly handles a NULL input. The function is expected to return a non-zero value indicating an error when a NULL input is passed.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 010@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Call decode with NULL input | input = NULL | result != 0 | Should Fail |
+ */
 /*code doesn't handle null
 TEST(dm_ieee_1905_security_t_Test, DecodeNullCJsonObject) {
     std::cout << "Entering DecodeNullCJsonObject" << std::endl;
@@ -319,7 +319,7 @@ TEST(dm_ieee_1905_security_t_Test, DecodeNullCJsonObject) {
     EXPECT_NE(result, 0);
     std::cout << "Exiting DecodeNullCJsonObject" << std::endl;
 }
-*/
+ */
 
 /**
  * @brief Test the copy constructor of dm_ieee_1905_security_t with valid initialized input.
@@ -358,23 +358,24 @@ TEST(dm_ieee_1905_security_t_Test, CopyConstructorWithValidInitializedInput) {
 
 
 /**
-* @brief Test the copy constructor with a null input
-*
-* This test verifies that the copy constructor of the dm_ieee_1905_security_t class handles a null input correctly by throwing an exception.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 012@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Attempt to copy construct with a null input | original = nullptr | std::exception should be thrown | Should Pass |
-*/
+ * @brief Test the copy constructor with a null input
+ *
+ * This test verifies that the copy constructor of the dm_ieee_1905_security_t class handles a null input correctly by throwing an exception.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 012@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Attempt to copy construct with a null input | original = nullptr | std::exception should be thrown | Should Pass |
+ */
+/*code doesn't handle null input
 TEST(dm_ieee_1905_security_t_Test, CopyConstructorWithNullInput) {
     std::cout << "Entering CopyConstructorWithNullInput" << std::endl;
     dm_ieee_1905_security_t* original = nullptr;
@@ -388,30 +389,31 @@ TEST(dm_ieee_1905_security_t_Test, CopyConstructorWithNullInput) {
     }
     std::cout << "Exiting CopyConstructorWithNullInput" << std::endl;
 }
+ */    
 
 /**
-* @brief Test to validate the network SSID information in the security object
-*
-* This test verifies that the network SSID information is correctly set and retrieved from the security object.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 013@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize network SSID information | net_ssid = { {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, {1, 2, 3} } | Should be successful | Should be successful |
-* | 02| Create security object with network SSID | dm_ieee_1905_security_t security_obj(&net_ssid) | Should be successful | Should be successful |
-* | 03| Verify SSID bytes 0 to 5 | ASSERT_EQ(security_obj.m_ieee_1905_security_info.id[i], net_ssid.id[i]); | Should be equal | Should Pass |
-* | 04| Verify onboarding protocol | security_obj.m_ieee_1905_security_info.sec_cap.onboarding_proto == 1 | Should be 1 | Should Pass |
-* | 05| Verify integrity algorithm | security_obj.m_ieee_1905_security_info.sec_cap.integrity_algo == 2 | Should be 2 | Should Pass |
-* | 06| Verify encryption algorithm | security_obj.m_ieee_1905_security_info.sec_cap.encryption_algo == 3 | Should be 3 | Should Pass |
-*/
+ * @brief Test to validate the network SSID information in the security object
+ *
+ * This test verifies that the network SSID information is correctly set and retrieved from the security object.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 013@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Initialize network SSID information | net_ssid = { {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, {1, 2, 3} } | Should be successful | Should be successful |
+ * | 02| Create security object with network SSID | dm_ieee_1905_security_t security_obj(&net_ssid) | Should be successful | Should be successful |
+ * | 03| Verify SSID bytes 0 to 5 | ASSERT_EQ(security_obj.m_ieee_1905_security_info.id[i], net_ssid.id[i]); | Should be equal | Should Pass |
+ * | 04| Verify onboarding protocol | security_obj.m_ieee_1905_security_info.sec_cap.onboarding_proto == 1 | Should be 1 | Should Pass |
+ * | 05| Verify integrity algorithm | security_obj.m_ieee_1905_security_info.sec_cap.integrity_algo == 2 | Should be 2 | Should Pass |
+ * | 06| Verify encryption algorithm | security_obj.m_ieee_1905_security_info.sec_cap.encryption_algo == 3 | Should be 3 | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, ValidNetworkSSIDInformation) {
     std::cout << "Entering ValidNetworkSSIDInformation test\n";
     em_ieee_1905_security_info_t net_ssid = {
@@ -429,24 +431,24 @@ TEST(dm_ieee_1905_security_t_Test, ValidNetworkSSIDInformation) {
 }
 
 /**
-* @brief Test the behavior of dm_ieee_1905_security_t when initialized with a null network SSID information.
-*
-* This test verifies that the dm_ieee_1905_security_t object correctly handles a null network SSID information by checking the default values of the security information and capabilities.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 014@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Initialize security object with null SSID | net_ssid = nullptr | Object should be initialized | Should Pass |
-* | 02 | Check if it handles gracefully | ASSERT_ANY_THROW(dm_ieee_1905_security_t security_obj(net_ssid)); | Should not crash | Should Pass |
-*/
+ * @brief Test the behavior of dm_ieee_1905_security_t when initialized with a null network SSID information.
+ *
+ * This test verifies that the dm_ieee_1905_security_t object correctly handles a null network SSID information by checking the default values of the security information and capabilities.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 014@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Initialize security object with null SSID | net_ssid = nullptr | Object should be initialized | Should Pass |
+ * | 02 | Check if it handles gracefully | ASSERT_ANY_THROW(dm_ieee_1905_security_t security_obj(net_ssid)); | Should not crash | Should Pass |
+ */
 /*code doesn't handle null
 TEST(dm_ieee_1905_security_t_Test, NullNetworkSSIDInformation) {
     std::cout << "Entering NullNetworkSSIDInformation test";
@@ -454,31 +456,31 @@ TEST(dm_ieee_1905_security_t_Test, NullNetworkSSIDInformation) {
     ASSERT_ANY_THROW(dm_ieee_1905_security_t security_obj(net_ssid));
     std::cout << "Exiting NullNetworkSSIDInformation test";
 }
-*/    
+ */    
 
 /**
-* @brief Test the NetworkSSIDWithAllZeroMACAddress functionality
-*
-* This test verifies that the dm_ieee_1905_security_t class correctly handles a network SSID with an all-zero MAC address. It ensures that the security information and capabilities are correctly set and retrieved.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 015@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Create a network SSID with all-zero MAC address and specific security capabilities | net_ssid = { {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {1, 2, 3} } | Object should be created successfully | Should be successful |
-* | 02| Initialize dm_ieee_1905_security_t object with the created network SSID | security_obj(&net_ssid) | Object should be initialized successfully | Should be successful |
-* | 03| Verify SSID bytes 0 to 5 | ASSERT_EQ(security_obj.m_ieee_1905_security_info.id[i], net_ssid.id[i]); | Should be equal | Should Pass |
-* | 04| Verify onboarding protocol | security_obj.m_ieee_1905_security_info.sec_cap.onboarding_proto == 1 | Should be 1 | Should Pass |
-* | 05| Verify integrity algorithm | security_obj.m_ieee_1905_security_info.sec_cap.integrity_algo == 2 | Should be 2 | Should Pass |
-* | 06| Verify encryption algorithm | security_obj.m_ieee_1905_security_info.sec_cap.encryption_algo == 3 | Should be 3 | Should Pass |
-*/
+ * @brief Test the NetworkSSIDWithAllZeroMACAddress functionality
+ *
+ * This test verifies that the dm_ieee_1905_security_t class correctly handles a network SSID with an all-zero MAC address. It ensures that the security information and capabilities are correctly set and retrieved.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 015@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Create a network SSID with all-zero MAC address and specific security capabilities | net_ssid = { {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {1, 2, 3} } | Object should be created successfully | Should be successful |
+ * | 02| Initialize dm_ieee_1905_security_t object with the created network SSID | security_obj(&net_ssid) | Object should be initialized successfully | Should be successful |
+ * | 03| Verify SSID bytes 0 to 5 | ASSERT_EQ(security_obj.m_ieee_1905_security_info.id[i], net_ssid.id[i]); | Should be equal | Should Pass |
+ * | 04| Verify onboarding protocol | security_obj.m_ieee_1905_security_info.sec_cap.onboarding_proto == 1 | Should be 1 | Should Pass |
+ * | 05| Verify integrity algorithm | security_obj.m_ieee_1905_security_info.sec_cap.integrity_algo == 2 | Should be 2 | Should Pass |
+ * | 06| Verify encryption algorithm | security_obj.m_ieee_1905_security_info.sec_cap.encryption_algo == 3 | Should be 3 | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, NetworkSSIDWithAllZeroMACAddress) {
     std::cout << "Entering NetworkSSIDWithAllZeroMACAddress test";
     em_ieee_1905_security_info_t net_ssid = {
@@ -496,27 +498,27 @@ TEST(dm_ieee_1905_security_t_Test, NetworkSSIDWithAllZeroMACAddress) {
 }
 
 /**
-* @brief Test the NetworkSSIDWithMaximumValuesInMACAddress function
-*
-* This test verifies that the dm_ieee_1905_security_t class correctly handles a network SSID with maximum values in the MAC address. It ensures that the security information and capabilities are correctly set and retrieved.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 016@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Create a network SSID with maximum MAC address values and initialize the security object | net_ssid = { {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, {1, 2, 3} } | Security object should be initialized successfully | Should be successful |
-* | 02 | Verify SSID bytes 0 to 5 | ASSERT_EQ(security_obj.m_ieee_1905_security_info.id[i], net_ssid.id[i]); | Should be equal | Should Pass |
-* | 03| Verify onboarding protocol | security_obj.m_ieee_1905_security_info.sec_cap.onboarding_proto == 1 | Should be 1 | Should Pass |
-* | 04| Verify integrity algorithm | security_obj.m_ieee_1905_security_info.sec_cap.integrity_algo == 2 | Should be 2 | Should Pass |
-* | 05| Verify encryption algorithm | security_obj.m_ieee_1905_security_info.sec_cap.encryption_algo == 3 | Should be 3 | Should Pass |
-*/
+ * @brief Test the NetworkSSIDWithMaximumValuesInMACAddress function
+ *
+ * This test verifies that the dm_ieee_1905_security_t class correctly handles a network SSID with maximum values in the MAC address. It ensures that the security information and capabilities are correctly set and retrieved.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 016@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Create a network SSID with maximum MAC address values and initialize the security object | net_ssid = { {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, {1, 2, 3} } | Security object should be initialized successfully | Should be successful |
+ * | 02 | Verify SSID bytes 0 to 5 | ASSERT_EQ(security_obj.m_ieee_1905_security_info.id[i], net_ssid.id[i]); | Should be equal | Should Pass |
+ * | 03| Verify onboarding protocol | security_obj.m_ieee_1905_security_info.sec_cap.onboarding_proto == 1 | Should be 1 | Should Pass |
+ * | 04| Verify integrity algorithm | security_obj.m_ieee_1905_security_info.sec_cap.integrity_algo == 2 | Should be 2 | Should Pass |
+ * | 05| Verify encryption algorithm | security_obj.m_ieee_1905_security_info.sec_cap.encryption_algo == 3 | Should be 3 | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, NetworkSSIDWithMaximumValuesInMACAddress) {
     std::cout << "Entering NetworkSSIDWithMaximumValuesInMACAddress test";
     em_ieee_1905_security_info_t net_ssid = {
@@ -534,26 +536,26 @@ TEST(dm_ieee_1905_security_t_Test, NetworkSSIDWithMaximumValuesInMACAddress) {
 }
 
 /**
-* @brief Test the encoding of a valid string value in the dm_ieee_1905_security_t class
-*
-* This test verifies that the encode function of the dm_ieee_1905_security_t class correctly handles a valid string input. The objective is to ensure that the function can process and encode a string value without errors.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 017@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Set up the test environment | instance = new dm_ieee_1905_security_t() | Should be successful | |
-* | 02 | Create a cJSON object with type cJSON_String and value "test_string" | obj.type = cJSON_String, obj.valuestring = "test_string" | Should be successful | |
-* | 03 | Call the encode function with the cJSON object | instance.encode(&obj) | Should Pass | |
-* | 04 | Tear down the test environment | delete instance | Should be successful | |
-*/
+ * @brief Test the encoding of a valid string value in the dm_ieee_1905_security_t class
+ *
+ * This test verifies that the encode function of the dm_ieee_1905_security_t class correctly handles a valid string input. The objective is to ensure that the function can process and encode a string value without errors.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 017@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Set up the test environment | instance = new dm_ieee_1905_security_t() | Should be successful | |
+ * | 02 | Create a cJSON object with type cJSON_String and value "test_string" | obj.type = cJSON_String, obj.valuestring = "test_string" | Should be successful | |
+ * | 03 | Call the encode function with the cJSON object | instance.encode(&obj) | Should Pass | |
+ * | 04 | Tear down the test environment | delete instance | Should be successful | |
+ */
 TEST(dm_ieee_1905_security_t_Test, EncodeValidStringValue) {
     std::cout << "Entering EncodeValidStringValue" << std::endl;
     cJSON obj;
@@ -565,24 +567,24 @@ TEST(dm_ieee_1905_security_t_Test, EncodeValidStringValue) {
 }
 
 /**
-* @brief Test the encoding of a valid number value in a cJSON object.
-*
-* This test verifies that the `encode` method of the `dm_ieee_1905_security_t` class correctly handles a cJSON object with a number type and a valid double value. The objective is to ensure that the encoding process works as expected for numeric values.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 018@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Initialize cJSON object with number type and value | obj.type = cJSON_Number, obj.valuedouble = 123.45 | cJSON object initialized with number type and value | Should be successful |
-* | 02 | Call encode method with cJSON object | instance.encode(&obj) | Method should process the cJSON object without errors | Should Pass |
-*/
+ * @brief Test the encoding of a valid number value in a cJSON object.
+ *
+ * This test verifies that the `encode` method of the `dm_ieee_1905_security_t` class correctly handles a cJSON object with a number type and a valid double value. The objective is to ensure that the encoding process works as expected for numeric values.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 018@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Initialize cJSON object with number type and value | obj.type = cJSON_Number, obj.valuedouble = 123.45 | cJSON object initialized with number type and value | Should be successful |
+ * | 02 | Call encode method with cJSON object | instance.encode(&obj) | Method should process the cJSON object without errors | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, EncodeValidNumberValue) {
     std::cout << "Entering EncodeValidNumberValue" << std::endl;
     cJSON obj;
@@ -594,26 +596,26 @@ TEST(dm_ieee_1905_security_t_Test, EncodeValidNumberValue) {
 }
 
 /**
-* @brief Test the encoding of a valid integer value using dm_ieee_1905_security_t class.
-*
-* This test verifies that the encode method of the dm_ieee_1905_security_t class correctly handles and encodes a valid integer value.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 019@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Set up the test environment | instance = new dm_ieee_1905_security_t() | Successful setup | Should be successful |
-* | 02| Create a cJSON object with type cJSON_Number and value 123 | obj.type = cJSON_Number, obj.valueint = 123 | Object created successfully | Should be successful |
-* | 03| Call the encode method with the cJSON object | instance.encode(&obj) | Method should execute without errors | Should Pass |
-* | 04| Tear down the test environment | delete instance | Successful teardown | Should be successful |
-*/
+ * @brief Test the encoding of a valid integer value using dm_ieee_1905_security_t class.
+ *
+ * This test verifies that the encode method of the dm_ieee_1905_security_t class correctly handles and encodes a valid integer value.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 019@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Set up the test environment | instance = new dm_ieee_1905_security_t() | Successful setup | Should be successful |
+ * | 02| Create a cJSON object with type cJSON_Number and value 123 | obj.type = cJSON_Number, obj.valueint = 123 | Object created successfully | Should be successful |
+ * | 03| Call the encode method with the cJSON object | instance.encode(&obj) | Method should execute without errors | Should Pass |
+ * | 04| Tear down the test environment | delete instance | Successful teardown | Should be successful |
+ */
 TEST(dm_ieee_1905_security_t_Test, EncodeValidIntegerValue) {
     std::cout << "Entering EncodeValidIntegerValue" << std::endl;
     cJSON obj;
@@ -625,24 +627,24 @@ TEST(dm_ieee_1905_security_t_Test, EncodeValidIntegerValue) {
 }
 
 /**
-* @brief Test the encoding of a valid boolean true value
-*
-* This test verifies that the encode function correctly handles a cJSON object with a boolean true value. The objective is to ensure that the encode function can process and encode boolean true values without errors.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 020@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Create a cJSON object with boolean true value | obj.type = cJSON_True | cJSON object created successfully | Should be successful |
-* | 02| Call the encode function with the cJSON object | instance.encode(&obj) | Encode function processes the boolean true value without errors | Should Pass |
-*/
+ * @brief Test the encoding of a valid boolean true value
+ *
+ * This test verifies that the encode function correctly handles a cJSON object with a boolean true value. The objective is to ensure that the encode function can process and encode boolean true values without errors.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 020@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Create a cJSON object with boolean true value | obj.type = cJSON_True | cJSON object created successfully | Should be successful |
+ * | 02| Call the encode function with the cJSON object | instance.encode(&obj) | Encode function processes the boolean true value without errors | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, EncodeValidBooleanTrueValue) {
     std::cout << "Entering EncodeValidBooleanTrueValue" << std::endl;
     cJSON obj;
@@ -653,24 +655,24 @@ TEST(dm_ieee_1905_security_t_Test, EncodeValidBooleanTrueValue) {
 }
 
 /**
-* @brief Test the encoding of a valid null value in the dm_ieee_1905_security_t class
-*
-* This test checks the behavior of the encode function when it is provided with a cJSON object of type NULL. This is important to ensure that the function can handle null values gracefully without causing any errors or unexpected behavior.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 021@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Create a cJSON object of type NULL | obj.type = cJSON_NULL | cJSON object created successfully | Should be successful |
-* | 02 | Call the encode function with the NULL cJSON object | instance.encode(&obj) | Function should handle the null value without errors | Should Pass |
-*/
+ * @brief Test the encoding of a valid null value in the dm_ieee_1905_security_t class
+ *
+ * This test checks the behavior of the encode function when it is provided with a cJSON object of type NULL. This is important to ensure that the function can handle null values gracefully without causing any errors or unexpected behavior.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 021@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Create a cJSON object of type NULL | obj.type = cJSON_NULL | cJSON object created successfully | Should be successful |
+ * | 02 | Call the encode function with the NULL cJSON object | instance.encode(&obj) | Function should handle the null value without errors | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, EncodeValidNullValue) {
     std::cout << "Entering EncodeValidNullValue" << std::endl;
     cJSON obj;
@@ -681,24 +683,24 @@ TEST(dm_ieee_1905_security_t_Test, EncodeValidNullValue) {
 }
 
 /**
-* @brief Test the encoding of a valid array value in a cJSON object.
-*
-* This test verifies that the encode function of the dm_ieee_1905_security_t class correctly processes a cJSON object with a valid array value. The objective is to ensure that the function handles the array type and its child elements properly.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 022@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Initialize cJSON object with array and child string | obj.type = cJSON_Array, child_obj.type = cJSON_String, child_obj.valuestring = "child_string", obj.child = &child_obj | cJSON object initialized | Should be successful |
-* | 02 | Call encode function with initialized cJSON object | instance.encode(&obj) | Encode function processes the array and child string correctly | Should Pass |
-*/
+ * @brief Test the encoding of a valid array value in a cJSON object.
+ *
+ * This test verifies that the encode function of the dm_ieee_1905_security_t class correctly processes a cJSON object with a valid array value. The objective is to ensure that the function handles the array type and its child elements properly.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 022@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Initialize cJSON object with array and child string | obj.type = cJSON_Array, child_obj.type = cJSON_String, child_obj.valuestring = "child_string", obj.child = &child_obj | cJSON object initialized | Should be successful |
+ * | 02 | Call encode function with initialized cJSON object | instance.encode(&obj) | Encode function processes the array and child string correctly | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, EncodeValidArrayValue) {
     std::cout << "Entering EncodeValidArrayValue" << std::endl;
     cJSON obj;
@@ -713,26 +715,26 @@ TEST(dm_ieee_1905_security_t_Test, EncodeValidArrayValue) {
 }
 
 /**
-* @brief Test the encoding of a valid cJSON object value
-*
-* This test verifies that the encode function correctly processes a valid cJSON object with a child string value.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 023@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Set up the test environment | instance = new dm_ieee_1905_security_t() | Successful setup | Should be successful |
-* | 02| Initialize cJSON object and child object | obj.type = cJSON_Object, child_obj.type = cJSON_String, child_obj.valuestring = "child_string", obj.child = &child_obj | Correct initialization | Should be successful |
-* | 03| Call the encode function with the initialized cJSON object | instance.encode(&obj) | Successful encoding | Should Pass |
-* | 04| Tear down the test environment | delete instance | Successful teardown | Should be successful |
-*/
+ * @brief Test the encoding of a valid cJSON object value
+ *
+ * This test verifies that the encode function correctly processes a valid cJSON object with a child string value.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 023@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Set up the test environment | instance = new dm_ieee_1905_security_t() | Successful setup | Should be successful |
+ * | 02| Initialize cJSON object and child object | obj.type = cJSON_Object, child_obj.type = cJSON_String, child_obj.valuestring = "child_string", obj.child = &child_obj | Correct initialization | Should be successful |
+ * | 03| Call the encode function with the initialized cJSON object | instance.encode(&obj) | Successful encoding | Should Pass |
+ * | 04| Tear down the test environment | delete instance | Successful teardown | Should be successful |
+ */
 TEST(dm_ieee_1905_security_t_Test, EncodeValidObjectValue) {
     std::cout << "Entering EncodeValidObjectValue" << std::endl;
     cJSON obj;
@@ -747,26 +749,26 @@ TEST(dm_ieee_1905_security_t_Test, EncodeValidObjectValue) {
 }
 
 /**
-* @brief Test to verify the behavior of the encode function when provided with an invalid type.
-*
-* This test checks the encode function of the dm_ieee_1905_security_t class to ensure it handles invalid input types correctly. The objective is to verify that the function can gracefully handle and report errors when an invalid type is passed to it.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 024@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Set up the test environment | instance = new dm_ieee_1905_security_t() | Should be successful | |
-* | 02| Create a cJSON object with an invalid type | obj.type = -1 | Should be successful | |
-* | 03| Call the encode function with the invalid cJSON object | instance.encode(&obj) | Should Pass | |
-* | 04| Tear down the test environment | delete instance | Should be successful | |
-*/
+ * @brief Test to verify the behavior of the encode function when provided with an invalid type.
+ *
+ * This test checks the encode function of the dm_ieee_1905_security_t class to ensure it handles invalid input types correctly. The objective is to verify that the function can gracefully handle and report errors when an invalid type is passed to it.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 024@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Set up the test environment | instance = new dm_ieee_1905_security_t() | Should be successful | |
+ * | 02| Create a cJSON object with an invalid type | obj.type = -1 | Should be successful | |
+ * | 03| Call the encode function with the invalid cJSON object | instance.encode(&obj) | Should Pass | |
+ * | 04| Tear down the test environment | delete instance | Should be successful | |
+ */
 TEST(dm_ieee_1905_security_t_Test, EncodeInvalidType) {
     std::cout << "Entering EncodeInvalidType" << std::endl;
     cJSON obj;
@@ -777,25 +779,25 @@ TEST(dm_ieee_1905_security_t_Test, EncodeInvalidType) {
 }
 
 /**
-* @brief Test to verify the behavior of the encode function when a null pointer is passed.
-*
-* This test checks the encode function of the dm_ieee_1905_security_t class to ensure it handles a null pointer input correctly. This is important to verify that the function can gracefully handle invalid inputs without causing crashes or undefined behavior.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 025@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize the test instance | instance = new dm_ieee_1905_security_t() | Should be successful | Should be successful |
-* | 02| Call encode with null pointer | obj = NULL, instance.encode(obj) | Should not crash or cause undefined behavior | Should Pass |
-* | 03| Clean up the test instance | delete instance | Should be successful | Should be successful |
-*/
+ * @brief Test to verify the behavior of the encode function when a null pointer is passed.
+ *
+ * This test checks the encode function of the dm_ieee_1905_security_t class to ensure it handles a null pointer input correctly. This is important to verify that the function can gracefully handle invalid inputs without causing crashes or undefined behavior.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 025@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Initialize the test instance | instance = new dm_ieee_1905_security_t() | Should be successful | Should be successful |
+ * | 02| Call encode with null pointer | obj = NULL, instance.encode(obj) | Should not crash or cause undefined behavior | Should Pass |
+ * | 03| Clean up the test instance | delete instance | Should be successful | Should be successful |
+ */
 /*code doesn't handle null
 TEST(dm_ieee_1905_security_t_Test, EncodeNullPointer) {
     std::cout << "Entering EncodeNullPointer" << std::endl;
@@ -804,30 +806,30 @@ TEST(dm_ieee_1905_security_t_Test, EncodeNullPointer) {
     instance.encode(obj);
     std::cout << "Exiting EncodeNullPointer" << std::endl;
 }
-*/
+ */
 
 /**
-* @brief Test to retrieve security capabilities after setting specific values
-*
-* This test verifies that the security capabilities are correctly retrieved after setting specific values for onboarding protocol, integrity algorithm, and encryption algorithm in the security object.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 026@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize security object and set specific values for security capabilities | onboarding_proto = 1, integrity_algo = 2, encryption_algo = 3 | Values should be set correctly | Should be successful |
-* | 02| Retrieve security capabilities from the security object | None | sec_cap should not be nullptr | Should Pass |
-* | 03| Verify onboarding protocol value | onboarding_proto = 1 | onboarding_proto should be 1 | Should Pass |
-* | 04| Verify integrity algorithm value | integrity_algo = 2 | integrity_algo should be 2 | Should Pass |
-* | 05| Verify encryption algorithm value | encryption_algo = 3 | encryption_algo should be 3 | Should Pass |
-*/
+ * @brief Test to retrieve security capabilities after setting specific values
+ *
+ * This test verifies that the security capabilities are correctly retrieved after setting specific values for onboarding protocol, integrity algorithm, and encryption algorithm in the security object.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 026@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Initialize security object and set specific values for security capabilities | onboarding_proto = 1, integrity_algo = 2, encryption_algo = 3 | Values should be set correctly | Should be successful |
+ * | 02| Retrieve security capabilities from the security object | None | sec_cap should not be nullptr | Should Pass |
+ * | 03| Verify onboarding protocol value | onboarding_proto = 1 | onboarding_proto should be 1 | Should Pass |
+ * | 04| Verify integrity algorithm value | integrity_algo = 2 | integrity_algo should be 2 | Should Pass |
+ * | 05| Verify encryption algorithm value | encryption_algo = 3 | encryption_algo should be 3 | Should Pass |
+ */
 TEST(dm_ieee_1905_security_Test, RetrieveSecurityCapabilitiesAfterSettingSpecificValues) {
     std::cout << "Entering RetrieveSecurityCapabilitiesAfterSettingSpecificValues" << std::endl;
     dm_ieee_1905_security_t security_obj;
@@ -843,28 +845,28 @@ TEST(dm_ieee_1905_security_Test, RetrieveSecurityCapabilitiesAfterSettingSpecifi
 }
 
 /**
-* @brief Test to verify the retrieval of security information after setting specific values.
-*
-* This test sets specific values to the security information fields and then retrieves the security information to verify if the set values are correctly retrieved.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 027@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Set specific values to the security information fields | id[0] = 0x01, onboarding_proto = 0x02, integrity_algo = 0x03, encryption_algo = 0x04 | Values should be set successfully | Should be successful |
-* | 02| Retrieve the security information | None | result != nullptr | Should Pass |
-* | 03| Verify the id[0] value | result->id[0] = 0x01 | Should Pass |
-* | 04| Verify the onboarding_proto value | result->sec_cap.onboarding_proto = 0x02 | Should Pass |
-* | 05| Verify the integrity_algo value | result->sec_cap.integrity_algo = 0x03 | Should Pass |
-* | 06| Verify the encryption_algo value | result->sec_cap.encryption_algo = 0x04 | Should Pass |
-*/
+ * @brief Test to verify the retrieval of security information after setting specific values.
+ *
+ * This test sets specific values to the security information fields and then retrieves the security information to verify if the set values are correctly retrieved.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 027@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Set specific values to the security information fields | id[0] = 0x01, onboarding_proto = 0x02, integrity_algo = 0x03, encryption_algo = 0x04 | Values should be set successfully | Should be successful |
+ * | 02| Retrieve the security information | None | result != nullptr | Should Pass |
+ * | 03| Verify the id[0] value | result->id[0] = 0x01 | Should Pass |
+ * | 04| Verify the onboarding_proto value | result->sec_cap.onboarding_proto = 0x02 | Should Pass |
+ * | 05| Verify the integrity_algo value | result->sec_cap.integrity_algo = 0x03 | Should Pass |
+ * | 06| Verify the encryption_algo value | result->sec_cap.encryption_algo = 0x04 | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, RetrieveSecurityInfoAfterSettingSpecificValues) {
     std::cout << "Entering RetrieveSecurityInfoAfterSettingSpecificValues" << std::endl;
     dm_ieee_1905_security_t security_obj;
@@ -882,23 +884,23 @@ TEST(dm_ieee_1905_security_t_Test, RetrieveSecurityInfoAfterSettingSpecificValue
 }
 
 /**
-* @brief Test the initialization of the dm_ieee_1905_security_t object
-*
-* This test verifies that the init() method of the dm_ieee_1905_security_t class initializes the object correctly and returns 0, indicating success.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 028@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Create an instance of dm_ieee_1905_security_t and call init() method | instance = new dm_ieee_1905_security_t(), result = instance->init() | result = 0, EXPECT_EQ(result, 0) | Should Pass |
-*/
+ * @brief Test the initialization of the dm_ieee_1905_security_t object
+ *
+ * This test verifies that the init() method of the dm_ieee_1905_security_t class initializes the object correctly and returns 0, indicating success.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 028@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Create an instance of dm_ieee_1905_security_t and call init() method | instance = new dm_ieee_1905_security_t(), result = instance->init() | result = 0, EXPECT_EQ(result, 0) | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, Init_Start) {
     std::cout << "Entering Init_Start" << std::endl;
     dm_ieee_1905_security_t security_obj;
@@ -908,25 +910,25 @@ TEST(dm_ieee_1905_security_t_Test, Init_Start) {
 }
 
 /**
-* @brief Test the assignment operator with identical objects
-*
-* This test verifies that the assignment operator correctly assigns one object to another when both objects are identical. This ensures that the assignment operator works as expected and that the objects remain equal after the assignment.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 029@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Create two identical objects | obj1, obj2 | Objects created successfully | Should be successful |
-* | 02| Assign obj2 to obj1 using assignment operator | obj1 = obj2 | obj1 should be equal to obj2 | Should Pass |
-* | 03| Assert that obj1 is equal to obj2 | ASSERT_TRUE(obj1 == obj2) | Assertion should pass | Should Pass |
-*/
+ * @brief Test the assignment operator with identical objects
+ *
+ * This test verifies that the assignment operator correctly assigns one object to another when both objects are identical. This ensures that the assignment operator works as expected and that the objects remain equal after the assignment.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 029@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Create two identical objects | obj1, obj2 | Objects created successfully | Should be successful |
+ * | 02| Assign obj2 to obj1 using assignment operator | obj1 = obj2 | obj1 should be equal to obj2 | Should Pass |
+ * | 03| Assert that obj1 is equal to obj2 | ASSERT_TRUE(obj1 == obj2) | Assertion should pass | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, AssignmentOperatorWithIdenticalObjects) {
     std::cout << "Entering AssignmentOperatorWithIdenticalObjects" << std::endl;
     dm_ieee_1905_security_t obj1;
@@ -937,26 +939,26 @@ TEST(dm_ieee_1905_security_t_Test, AssignmentOperatorWithIdenticalObjects) {
 }
 
 /**
-* @brief Test the assignment operator with different objects
-*
-* This test verifies that the assignment operator correctly copies the contents of one object to another object of the same class. It ensures that after assignment, both objects are equal.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 030@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Create two objects of dm_ieee_1905_security_t | obj1, obj2 | Objects created successfully | Should be successful |
-* | 02 | Modify obj2's id field | obj2.m_ieee_1905_security_info.id[0] = 1 | obj2's id field modified | Should be successful |
-* | 03 | Assign obj2 to obj1 | obj1 = obj2 | obj1 should be equal to obj2 | Should Pass |
-* | 04 | Assert that obj1 is equal to obj2 | ASSERT_TRUE(obj1 == obj2) | Assertion should pass | Should Pass |
-*/
+ * @brief Test the assignment operator with different objects
+ *
+ * This test verifies that the assignment operator correctly copies the contents of one object to another object of the same class. It ensures that after assignment, both objects are equal.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 030@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Create two objects of dm_ieee_1905_security_t | obj1, obj2 | Objects created successfully | Should be successful |
+ * | 02 | Modify obj2's id field | obj2.m_ieee_1905_security_info.id[0] = 1 | obj2's id field modified | Should be successful |
+ * | 03 | Assign obj2 to obj1 | obj1 = obj2 | obj1 should be equal to obj2 | Should Pass |
+ * | 04 | Assert that obj1 is equal to obj2 | ASSERT_TRUE(obj1 == obj2) | Assertion should pass | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, AssignmentOperatorWithDifferentObjects) {
     std::cout << "Entering AssignmentOperatorWithDifferentObjects" << std::endl;
     dm_ieee_1905_security_t obj1;
@@ -968,26 +970,26 @@ TEST(dm_ieee_1905_security_t_Test, AssignmentOperatorWithDifferentObjects) {
 }
 
 /**
-* @brief Test the assignment operator with different security capabilities
-*
-* This test verifies that the assignment operator correctly copies the security capabilities from one object to another.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 031@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Create two instances of dm_ieee_1905_security_t | instance1, instance2 | Instances created successfully | Should be successful |
-* | 02 | Set different security capabilities for instance2 | instance2.m_ieee_1905_security_info.sec_cap.encryption_algo = 2 | Security capabilities set | Should be successful |
-* | 03 | Assign instance2 to instance1 | instance1 = instance2 | instance1 should have the same security capabilities as instance2 | Should Pass |
-* | 04 | Verify that instance1 and instance2 are equal | ASSERT_TRUE(instance1 == instance2) | The assertion should pass | Should Pass |
-*/
+ * @brief Test the assignment operator with different security capabilities
+ *
+ * This test verifies that the assignment operator correctly copies the security capabilities from one object to another.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 031@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Create two instances of dm_ieee_1905_security_t | instance1, instance2 | Instances created successfully | Should be successful |
+ * | 02 | Set different security capabilities for instance2 | instance2.m_ieee_1905_security_info.sec_cap.encryption_algo = 2 | Security capabilities set | Should be successful |
+ * | 03 | Assign instance2 to instance1 | instance1 = instance2 | instance1 should have the same security capabilities as instance2 | Should Pass |
+ * | 04 | Verify that instance1 and instance2 are equal | ASSERT_TRUE(instance1 == instance2) | The assertion should pass | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, AssignmentOperatorWithDifferentSecurityCapabilities) {
     std::cout << "Entering AssignmentOperatorWithDifferentSecurityCapabilities" << std::endl;
     dm_ieee_1905_security_t obj1;
@@ -999,26 +1001,26 @@ TEST(dm_ieee_1905_security_t_Test, AssignmentOperatorWithDifferentSecurityCapabi
 }
 
 /**
-* @brief Test the assignment operator with different MAC addresses
-*
-* This test verifies that the assignment operator correctly assigns the values from one object to another, even when the MAC addresses are different.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 032@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Create two instances of dm_ieee_1905_security_t | instance = new dm_ieee_1905_security_t() | Instances should be created successfully | Should be successful |
-* | 02| Modify the MAC address of the second instance | obj2.m_ieee_1905_security_info.id[0] = 0xFF | MAC address should be modified | Should be successful |
-* | 03| Assign the second instance to the first instance using the assignment operator | obj1 = obj2 | obj1 should be equal to obj2 | Should Pass |
-* | 04| Verify the assignment using ASSERT_TRUE | ASSERT_TRUE(obj1 == obj2) | Assertion should pass | Should Pass |
-*/
+ * @brief Test the assignment operator with different MAC addresses
+ *
+ * This test verifies that the assignment operator correctly assigns the values from one object to another, even when the MAC addresses are different.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 032@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Create two instances of dm_ieee_1905_security_t | instance = new dm_ieee_1905_security_t() | Instances should be created successfully | Should be successful |
+ * | 02| Modify the MAC address of the second instance | obj2.m_ieee_1905_security_info.id[0] = 0xFF | MAC address should be modified | Should be successful |
+ * | 03| Assign the second instance to the first instance using the assignment operator | obj1 = obj2 | obj1 should be equal to obj2 | Should Pass |
+ * | 04| Verify the assignment using ASSERT_TRUE | ASSERT_TRUE(obj1 == obj2) | Assertion should pass | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, AssignmentOperatorWithDifferentMACAddresses) {
     std::cout << "Entering AssignmentOperatorWithDifferentMACAddresses" << std::endl;
     dm_ieee_1905_security_t obj1;
@@ -1030,24 +1032,24 @@ TEST(dm_ieee_1905_security_t_Test, AssignmentOperatorWithDifferentMACAddresses) 
 }
 
 /**
-* @brief Test to compare two identical objects of dm_ieee_1905_security_t class
-*
-* This test checks if two newly created objects of the dm_ieee_1905_security_t class are identical by using the equality operator. This is important to ensure that the default constructor initializes objects to a consistent state.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 033@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Create two objects of dm_ieee_1905_security_t class | obj1, obj2 | Objects should be created successfully | Should be successful |
-* | 02| Compare the two objects using the equality operator | obj1 == obj2 | EXPECT_TRUE should pass | Should Pass |
-*/
+ * @brief Test to compare two identical objects of dm_ieee_1905_security_t class
+ *
+ * This test checks if two newly created objects of the dm_ieee_1905_security_t class are identical by using the equality operator. This is important to ensure that the default constructor initializes objects to a consistent state.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 033@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Create two objects of dm_ieee_1905_security_t class | obj1, obj2 | Objects should be created successfully | Should be successful |
+ * | 02| Compare the two objects using the equality operator | obj1 == obj2 | EXPECT_TRUE should pass | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, CompareIdenticalObjects) {
     std::cout << "Entering CompareIdenticalObjects" << std::endl;
     dm_ieee_1905_security_t obj1;
@@ -1057,24 +1059,24 @@ TEST(dm_ieee_1905_security_t_Test, CompareIdenticalObjects) {
 }
 
 /**
-* @brief Test to compare different MAC addresses in dm_ieee_1905_security_t objects
-*
-* This test verifies that two dm_ieee_1905_security_t objects with different MAC addresses are not considered equal.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 034@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Create two dm_ieee_1905_security_t objects with different MAC addresses | obj1.m_ieee_1905_security_info.id = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, obj2.m_ieee_1905_security_info.id = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB} | Objects should not be equal | Should Pass |
-* | 02| Compare the two objects using EXPECT_FALSE | obj1 == obj2 | EXPECT_FALSE should pass | Should Pass |
-*/
+ * @brief Test to compare different MAC addresses in dm_ieee_1905_security_t objects
+ *
+ * This test verifies that two dm_ieee_1905_security_t objects with different MAC addresses are not considered equal.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 034@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Create two dm_ieee_1905_security_t objects with different MAC addresses | obj1.m_ieee_1905_security_info.id = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, obj2.m_ieee_1905_security_info.id = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB} | Objects should not be equal | Should Pass |
+ * | 02| Compare the two objects using EXPECT_FALSE | obj1 == obj2 | EXPECT_FALSE should pass | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, CompareDifferentMACAddresses) {
     std::cout << "Entering CompareDifferentMACAddresses" << std::endl;
     dm_ieee_1905_security_t obj1;
@@ -1096,25 +1098,25 @@ TEST(dm_ieee_1905_security_t_Test, CompareDifferentMACAddresses) {
 }
 
 /**
-* @brief Test to compare different onboarding protocols in dm_ieee_1905_security_t class
-*
-* This test verifies that two instances of dm_ieee_1905_security_t with different onboarding protocols are not considered equal.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 035@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Create two instances of dm_ieee_1905_security_t | instance1, instance2 | Instances created successfully | Should be successful |
-* | 02 | Set different onboarding protocols for the instances | instance1.onboarding_proto = 1, instance2.onboarding_proto = 2 | Onboarding protocols set successfully | Should be successful |
-* | 03 | Compare the two instances | instance1 == instance2 | EXPECT_FALSE should pass | Should Pass |
-*/
+ * @brief Test to compare different onboarding protocols in dm_ieee_1905_security_t class
+ *
+ * This test verifies that two instances of dm_ieee_1905_security_t with different onboarding protocols are not considered equal.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 035@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Create two instances of dm_ieee_1905_security_t | instance1, instance2 | Instances created successfully | Should be successful |
+ * | 02 | Set different onboarding protocols for the instances | instance1.onboarding_proto = 1, instance2.onboarding_proto = 2 | Onboarding protocols set successfully | Should be successful |
+ * | 03 | Compare the two instances | instance1 == instance2 | EXPECT_FALSE should pass | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, CompareDifferentOnboardingProtocols) {
     std::cout << "Entering CompareDifferentOnboardingProtocols" << std::endl;
     dm_ieee_1905_security_t obj1;
@@ -1126,26 +1128,26 @@ TEST(dm_ieee_1905_security_t_Test, CompareDifferentOnboardingProtocols) {
 }
 
 /**
-* @brief Test to compare different integrity algorithms in dm_ieee_1905_security_t class
-*
-* This test verifies that two instances of dm_ieee_1905_security_t with different integrity algorithms are not considered equal.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 036@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Create two instances of dm_ieee_1905_security_t | instance1, instance2 | Instances created successfully | Should be successful |
-* | 02 | Set integrity_algo of instance1 to 1 | instance1.integrity_algo = 1 | Integrity algorithm set to 1 | Should be successful |
-* | 03 | Set integrity_algo of instance2 to 2 | instance2.integrity_algo = 2 | Integrity algorithm set to 2 | Should be successful |
-* | 04 | Compare instance1 and instance2 for equality | instance1 == instance2 | EXPECT_FALSE(instance1 == instance2) | Should Pass |
-*/
+ * @brief Test to compare different integrity algorithms in dm_ieee_1905_security_t class
+ *
+ * This test verifies that two instances of dm_ieee_1905_security_t with different integrity algorithms are not considered equal.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 036@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Create two instances of dm_ieee_1905_security_t | instance1, instance2 | Instances created successfully | Should be successful |
+ * | 02 | Set integrity_algo of instance1 to 1 | instance1.integrity_algo = 1 | Integrity algorithm set to 1 | Should be successful |
+ * | 03 | Set integrity_algo of instance2 to 2 | instance2.integrity_algo = 2 | Integrity algorithm set to 2 | Should be successful |
+ * | 04 | Compare instance1 and instance2 for equality | instance1 == instance2 | EXPECT_FALSE(instance1 == instance2) | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, CompareDifferentIntegrityAlgorithms) {
     std::cout << "Entering CompareDifferentIntegrityAlgorithms" << std::endl;
     dm_ieee_1905_security_t obj1;
@@ -1157,25 +1159,25 @@ TEST(dm_ieee_1905_security_t_Test, CompareDifferentIntegrityAlgorithms) {
 }
 
 /**
-* @brief Test to compare different encryption algorithms in dm_ieee_1905_security_t class
-*
-* This test verifies that two instances of dm_ieee_1905_security_t with different encryption algorithms are not considered equal.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 037@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Create two instances of dm_ieee_1905_security_t | instance1, instance2 | Instances created | Should be successful |
-* | 02| Set different encryption algorithms for both instances | instance1.encryption_algo = 1, instance2.encryption_algo = 2 | Encryption algorithms set | Should be successful |
-* | 03| Compare the two instances | instance1 == instance2 | EXPECT_FALSE(instance1 == instance2) | Should Pass |
-*/
+ * @brief Test to compare different encryption algorithms in dm_ieee_1905_security_t class
+ *
+ * This test verifies that two instances of dm_ieee_1905_security_t with different encryption algorithms are not considered equal.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 037@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Create two instances of dm_ieee_1905_security_t | instance1, instance2 | Instances created | Should be successful |
+ * | 02| Set different encryption algorithms for both instances | instance1.encryption_algo = 1, instance2.encryption_algo = 2 | Encryption algorithms set | Should be successful |
+ * | 03| Compare the two instances | instance1 == instance2 | EXPECT_FALSE(instance1 == instance2) | Should Pass |
+ */
 TEST(dm_ieee_1905_security_t_Test, CompareDifferentEncryptionAlgorithms) {
     std::cout << "Entering CompareDifferentEncryptionAlgorithms" << std::endl;
     dm_ieee_1905_security_t obj1;
@@ -1187,28 +1189,28 @@ TEST(dm_ieee_1905_security_t_Test, CompareDifferentEncryptionAlgorithms) {
 }
 
 /**
-* @brief Test to compare two objects with all fields identical except one
-*
-* This test verifies that two objects of type dm_ieee_1905_security_t are not considered equal when all fields are identical except one field. This ensures that the equality operator correctly identifies differences in object fields.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 038@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Create two objects of dm_ieee_1905_security_t | obj1, obj2 | Objects created successfully | Should be successful |
-* | 02 | Set identical id fields for both objects | obj1.id = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, obj2.id = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55} | Fields set successfully | Should be successful |
-* | 03 | Set identical onboarding_proto fields for both objects | obj1.onboarding_proto = 1, obj2.onboarding_proto = 1 | Fields set successfully | Should be successful |
-* | 04 | Set identical integrity_algo fields for both objects | obj1.integrity_algo = 1, obj2.integrity_algo = 1 | Fields set successfully | Should be successful |
-* | 05 | Set different encryption_algo fields for both objects | obj1.encryption_algo = 1, obj2.encryption_algo = 2 | Fields set successfully | Should be successful |
-* | 06 | Compare the two objects | obj1 == obj2 | EXPECT_FALSE(obj1 == obj2) | Should Fail |
-*/
+ * @brief Test to compare two objects with all fields identical except one
+ *
+ * This test verifies that two objects of type dm_ieee_1905_security_t are not considered equal when all fields are identical except one field. This ensures that the equality operator correctly identifies differences in object fields.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 038@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Create two objects of dm_ieee_1905_security_t | obj1, obj2 | Objects created successfully | Should be successful |
+ * | 02 | Set identical id fields for both objects | obj1.id = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, obj2.id = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55} | Fields set successfully | Should be successful |
+ * | 03 | Set identical onboarding_proto fields for both objects | obj1.onboarding_proto = 1, obj2.onboarding_proto = 1 | Fields set successfully | Should be successful |
+ * | 04 | Set identical integrity_algo fields for both objects | obj1.integrity_algo = 1, obj2.integrity_algo = 1 | Fields set successfully | Should be successful |
+ * | 05 | Set different encryption_algo fields for both objects | obj1.encryption_algo = 1, obj2.encryption_algo = 2 | Fields set successfully | Should be successful |
+ * | 06 | Compare the two objects | obj1 == obj2 | EXPECT_FALSE(obj1 == obj2) | Should Fail |
+ */
 TEST(dm_ieee_1905_security_t_Test, CompareAllFieldsIdenticalExceptOne) {
     std::cout << "Entering CompareAllFieldsIdenticalExceptOne" << std::endl;
     dm_ieee_1905_security_t obj1;

@@ -1,4 +1,4 @@
-/*
+/**
  * If not stated otherwise in this file or this component's LICENSE file the
  * following copyright and licenses apply:
  *
@@ -23,7 +23,7 @@
  #include "dm_cac_comp.h"
 
  
- /**
+/**
   * @brief TEST decoding a valid JSON object with a valid parent ID
   *
   * This TEST verifies that the decode function correctly processes a valid JSON object when provided with a valid parent ID.
@@ -54,7 +54,7 @@ TEST(dm_cac_comp_t_Test, DecodeValidJsonObjectWithValidParentID) {
      std::cout << "Exiting DecodeValidJsonObjectWithValidParentIDTEST" << std::endl;
 }
 
- /**
+/**
   * @brief TEST decoding a valid JSON object with a null parent ID
   *
   * This TEST verifies that the decode function correctly handles a valid JSON object when the parent ID is null. The expected behavior is that the function should return -1, indicating an error due to the null parent ID.
@@ -84,7 +84,7 @@ TEST(dm_cac_comp_t_Test, DecodeValidJsonObjectWithNullParentID) {
      std::cout << "Exiting DecodeValidJsonObjectWithNullParentIDTEST" << std::endl;
 }
 
- /**
+/**
   * @brief TEST the decode function with a null JSON object and a valid parent ID.
   *
   * This TEST checks the behavior of the decode function when provided with a null JSON object and a valid parent ID. It ensures that the function returns the expected error code when the JSON object is null.
@@ -112,7 +112,7 @@ TEST(dm_cac_comp_t_Test, DecodeNullJsonObjectWithValidParentID) {
      std::cout << "Exiting DecodeNullJsonObjectWithValidParentIDTEST" << std::endl;
 }
  
- /**
+/**
   * @brief TEST decoding an empty JSON object with a valid parent ID.
   *
   * This TEST checks the behavior of the decode function when provided with an empty JSON object and a valid parent ID. The expected result is that the function should return -1, indicating failure to decode an empty JSON object.
@@ -144,7 +144,7 @@ TEST(dm_cac_comp_t_Test, DecodeEmptyJsonObjectWithValidParentID) {
      std::cout << "Exiting DecodeEmptyJsonObjectWithValidParentIDTEST" << std::endl;
 }
  
- /**
+/**
   * @brief TEST decoding of a JSON object with an invalid structure and a valid parent ID.
   *
   * This TEST verifies that the decode function correctly handles a JSON object with an invalid structure and a valid parent ID. The expected behavior is that the function should return an error code indicating failure.
@@ -175,7 +175,7 @@ TEST(dm_cac_comp_t_Test, DecodeJsonObjectWithInvalidStructureAndValidParentID) {
      std::cout << "Exiting DecodeJsonObjectWithInvalidStructureAndValidParentIDTEST" << std::endl;
 }
 
- /**
+/**
   * @brief TEST the decode function with a valid JSON object and an invalid parent ID.
   *
   * This TEST verifies that the decode function correctly handles a valid JSON object 
@@ -210,7 +210,7 @@ TEST(dm_cac_comp_t_Test, DecodeValidJsonObjectWithInvalidParentID) {
      std::cout << "Exiting DecodeValidJsonObjectWithInvalidParentIDTEST" << std::endl;
 }
  
- /**
+/**
   * @brief TEST the encoding functionality with valid mixed data types
   *
   * This TEST verifies that the encode function can handle a JSON object with mixed data types (string, number, boolean) correctly.
@@ -248,7 +248,7 @@ TEST(dm_cac_comp_t_Test, EncodeWithValidMixedDataTypes) {
      std::cout << "Exiting EncodeWithValidMixedDataTypes" << std::endl;
 }
  
- /**
+/**
   * @brief TEST the encoding function with a null JSON object
   *
   * This TEST checks the behavior of the encode function when provided with a null JSON object. It ensures that the function throws a runtime error as expected when the input is invalid.
@@ -276,7 +276,7 @@ TEST(dm_cac_comp_t_Test, EncodeWithNullObject) {
      std::cout << "Exiting EncodeWithNullObject" << std::endl;
 }
  
- /**
+/**
   * @brief TEST the encoding functionality with an empty JSON object.
   *
   * This TEST verifies that the encode function can handle an empty JSON object without errors and ensures that the object remains valid after encoding.
@@ -308,7 +308,7 @@ TEST(dm_cac_comp_t_Test, EncodeWithEmptyObject) {
      std::cout << "Exiting EncodeWithEmptyObject" << std::endl;
 }
 
- /**
+/**
   * @brief TEST the encoding functionality with arrays and special characters
   *
   * This TEST verifies that the encode function can handle JSON objects containing arrays and special characters correctly.
@@ -344,7 +344,7 @@ TEST(dm_cac_comp_t_Test, EncodeWithArraysAndSpecialCharacters) {
      std::cout << "Exiting EncodeWithArraysAndSpecialCharacters" << std::endl;
 }
 
- /**
+/**
   * @brief TEST the encoding functionality with null values in the JSON object.
   *
   * This TEST verifies that the encode function can handle JSON objects containing null values without causing errors or crashes.
@@ -377,7 +377,7 @@ TEST(dm_cac_comp_t_Test, EncodeWithNullValues) {
      std::cout << "Exiting EncodeWithNullValues" << std::endl;
 }
  
- /**
+/**
   * @brief TEST to verify the retrieval of CAC Component ID after setting RUID
   *
   * This TEST checks if the CAC Component ID can be correctly retrieved after setting the RUID.
@@ -410,7 +410,7 @@ TEST(dm_cac_comp_t_Test, RetrieveCACComponentIDAfterSettingValidRuid) {
      std::cout << "Exiting RetrieveCACComponentIDAfterSettingValidRuidTEST" << std::endl;
 }
 
- /**
+/**
   * @brief TEST to verify the retrieval of CAC Component ID after setting invalid RUID
   *
   * This TEST checks if the CAC Component ID can be retrieved after setting invalid RUID.
@@ -471,7 +471,7 @@ TEST(dm_cac_comp_t_Test, RetrieveDefaultOrchType) {
     std::cout << "Exiting RetrieveDefaultOrchType" << std::endl;
 }
  
- /**
+/**
   * @brief TEST to initialize the CAC Component Information Structure
   *
   * This TEST verifies the initialization of the CAC Component Information Structure by invoking the init() method of the dm_cac_comp_t class. TheTEST ensures that the initialization is successful and returns the expected result.
@@ -499,7 +499,7 @@ TEST(dm_cac_comp_t_Test, InitializeCACComponentInformationStructure) {
      std::cout << "Exiting InitializeCACComponentInformationStructureTEST" << std::endl;
 }
 
- /**
+/**
   * @brief TEST the initialization of CAC Component Information Structure multiple times
   *
   * This TEST verifies that the `init` method of the `dm_cac_comp_t` class can be called multiple times successfully without causing any issues.
@@ -530,7 +530,7 @@ TEST(dm_cac_comp_t_Test, InitializeCACComponentInformationStructureMultipleTimes
      std::cout << "Exiting InitializeCACComponentInformationStructureMultipleTimesTEST" << std::endl;
 }
  
- /**
+/**
  * @brief TEST to compare two identical dm_cac_comp_t objects
  *
  * This TEST verifies that two dm_cac_comp_t objects with identical values are considered equal by the equality operator. This is important to ensure that the equality operator is correctly implemented and can accurately compare objects of this type.
@@ -569,7 +569,7 @@ TEST(dm_cac_comp_t_Test, InitializeCACComponentInformationStructureMultipleTimes
      std::cout << "Exiting CompareIdenticalValues" << std::endl;
  }
  
- /**
+/**
  * @brief TEST to compare two dm_cac_comp_t objects with different RUID values
  *
  * This TEST verifies that two dm_cac_comp_t objects with different RUID values are not considered equal. This is important to ensure that the equality operator correctly identifies objects with different unique identifiers as unequal.
@@ -611,7 +611,7 @@ TEST(dm_cac_comp_t_Test, InitializeCACComponentInformationStructureMultipleTimes
      std::cout << "Exiting CompareDifferentRUIDValues" << std::endl;
  }
 
- /**
+/**
  * @brief TEST to compare different operation class values in dm_cac_comp_t objects
  *
  * This TEST verifies that two dm_cac_comp_t objects with different operation class values are not considered equal.@n
@@ -651,7 +651,7 @@ TEST(dm_cac_comp_t_Test, CompareDifferentOpClassValues) {
      std::cout << "Exiting CompareDifferentOpClassValues" << std::endl;
 }
 
- /**
+/**
  * @brief TEST to compare different channel values in dm_cac_comp_t objects
  *
  * This TEST verifies that two dm_cac_comp_t objects with different channel values are not considered equal.@n
@@ -693,7 +693,7 @@ TEST(dm_cac_comp_t_Test, CompareDifferentChannelValues) {
  
  
  
- /**
+/**
  * @brief TEST to compare different status values in dm_cac_comp_t objects
  *
  * This TEST verifies that two dm_cac_comp_t objects with different status values are not considered equal.@n
@@ -735,7 +735,7 @@ TEST(dm_cac_comp_t_Test, CompareDifferentStatusValues) {
  
  
  
- /**
+/**
  * @brief TEST to compare two dm_cac_comp_t objects with different detected pairs number values
  *
  * This TEST verifies that two dm_cac_comp_t objects with identical attributes except for the detected pairs number value are not considered equal. This is important to ensure that the equality operator correctly distinguishes between objects with different detected pairs numbers.
@@ -777,7 +777,7 @@ TEST(dm_cac_comp_t_Test, CompareDifferentDetectedPairsNumValues) {
  
  
  
- /**
+/**
  * @brief TEST to compare different detected pairs values in dm_cac_comp_t objects
  *
  * This TEST checks the equality operator for dm_cac_comp_t objects with different detected pairs values. 
@@ -818,7 +818,7 @@ TEST(dm_cac_comp_t_Test, CompareDifferentDetectedPairsValues) {
      std::cout << "Exiting CompareDifferentDetectedPairsValues" << std::endl;
 }
  
- /**
+/**
  * @brief TEST to verify the assignment operator for dm_cac_comp_t class
  *
  * This TEST checks if the assignment operator correctly assigns the values from one instance of dm_cac_comp_t to another instance. This is important to ensure that the assignment operator works as expected and the internal state of the object is correctly copied.
@@ -846,7 +846,7 @@ TEST(dm_cac_comp_t_Test, AssigningValidObject) {
      std::cout << "Exiting AssigningValidObject" << std::endl;
 }
 
- /**
+/**
  * @brief TEST to validate the CAC component information
  *
  * This TEST verifies that the CAC component information is correctly initialized and retrieved. It ensures that the object is created with the correct data and that the getter method returns the expected values.
@@ -877,7 +877,7 @@ TEST(dm_cac_comp_t_Test, ValidCACComponentInformation) {
      std::cout << "Exiting ValidCACComponentInformationtest" << std::endl;
 }
  
- /**
+/**
  * @brief TEST to verify the behavior when CAC component information is null
  *
  * This TEST checks the behavior of the dm_cac_comp_t class when it is initialized with a null pointer for the CAC component information. It ensures that the class handles the null pointer correctly and returns the expected default values.
@@ -904,7 +904,7 @@ TEST(dm_cac_comp_t_Test, NullCACComponentInformation) {
 }
 */
  
- /**
+/**
  * @brief TEST the copy constructor of dm_cac_comp_t with a valid source instance
  *
  * This TEST verifies that the copy constructor of the dm_cac_comp_t class correctly copies the data from a valid source instance. TheTEST ensures that the copied instance has the same data as the original instance by comparing their cac_comp_info.

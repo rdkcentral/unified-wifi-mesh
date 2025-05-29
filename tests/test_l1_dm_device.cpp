@@ -1,4 +1,4 @@
-/*
+/**
  * If not stated otherwise in this file or this component's LICENSE file the
  * following copyright and licenses apply:
  *
@@ -631,27 +631,27 @@ TEST(dm_device_t_Test, GetDevInterface_ValidMediaTypes) {
 }
 
 /**
-* @brief Test the GetDevInterface method with an invalid interface
-*
-* This test checks the behavior of the GetDevInterface method when the interface name is empty, MAC address is zeroed out, and media type is set to IEEE80211b_24. It ensures that the method returns nullptr in this scenario.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 021@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Set the interface name to empty | device->m_device_info.intf.name[0] = '\0'; | None | Should be successful |
-* | 03| Zero out the MAC address | memset(device->m_device_info.intf.mac, 0, sizeof(mac_address_t)); | None | Should be successful |
-* | 04| Set the media type to IEEE80211b_24 | device->m_device_info.intf.media = em_media_type_ieee80211b_24; | None | Should be successful |
-* | 05| Call the get_dev_interface method | em_interface_t* intf = device->get_dev_interface(); | None | Should Pass |
-* | 06| Assert that the returned interface is nullptr | ASSERT_EQ(intf, nullptr); | None | Should Pass |
-*/
+ * @brief Test the GetDevInterface method with an invalid interface
+ *
+ * This test checks the behavior of the GetDevInterface method when the interface name is empty, MAC address is zeroed out, and media type is set to IEEE80211b_24. It ensures that the method returns nullptr in this scenario.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 021@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Set the interface name to empty | device->m_device_info.intf.name[0] = '\0'; | None | Should be successful |
+ * | 03| Zero out the MAC address | memset(device->m_device_info.intf.mac, 0, sizeof(mac_address_t)); | None | Should be successful |
+ * | 04| Set the media type to IEEE80211b_24 | device->m_device_info.intf.media = em_media_type_ieee80211b_24; | None | Should be successful |
+ * | 05| Call the get_dev_interface method | em_interface_t* intf = device->get_dev_interface(); | None | Should Pass |
+ * | 06| Assert that the returned interface is nullptr | ASSERT_EQ(intf, nullptr); | None | Should Pass |
+ */
 TEST(dm_device_t_Test, GetDevInterface_InvalidInterface) {
     std::cout << "Entering GetDevInterface_InvalidInterface test\n";
     // Create and populate device info
@@ -852,25 +852,25 @@ TEST(dm_device_t_Test, RetrieveDeviceInterfaceNameWithValidInitialization) {
 }
 
 /**
-* @brief Test to verify the behavior of RetrieveDeviceInterfaceName with an empty name
-*
-* This test checks the behavior of the dm_device_t class when the device interface name is set to an empty string. It ensures that the get_dev_interface_name method returns an empty string as expected.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 027@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Set the device interface name to an empty string | device->set_dev_interface_name("") | None | Should be successful |
-* | 02| Retrieve the device interface name | char* result = device->get_dev_interface_name() | result = "" | Should Pass |
-* | 03| Verify the retrieved name is an empty string | ASSERT_STREQ(result, "") | result = "" | Should Pass |
-*/
+ * @brief Test to verify the behavior of RetrieveDeviceInterfaceName with an empty name
+ *
+ * This test checks the behavior of the dm_device_t class when the device interface name is set to an empty string. It ensures that the get_dev_interface_name method returns an empty string as expected.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 027@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Set the device interface name to an empty string | device->set_dev_interface_name("") | None | Should be successful |
+ * | 02| Retrieve the device interface name | char* result = device->get_dev_interface_name() | result = "" | Should Pass |
+ * | 03| Verify the retrieved name is an empty string | ASSERT_STREQ(result, "") | result = "" | Should Pass |
+ */
 TEST(dm_device_t_Test, RetrieveDeviceInterfaceNameWithEmptyName) {
     std::cout << "Entering RetrieveDeviceInterfaceNameWithEmptyName test" << std::endl;
     // Create and populate device info
@@ -1173,25 +1173,25 @@ TEST(dm_device_t_Test, RetrieveManufacturerWithSpecialCharactersInManufacturerNa
 }
 
 /**
-* @brief Test to verify the retrieval of manufacturer model with a valid model
-*
-* This test checks if the `get_manufacturer_model` function correctly retrieves the manufacturer model when a valid model is set in the device information.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 036@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Set the manufacturer model in device info | manufacturer_model = "Model123" | None | Should be successful |
-* | 02| Retrieve the manufacturer model using `get_manufacturer_model` | None | result = "Model123" | Should Pass |
-* | 03| Verify the retrieved manufacturer model | result = "Model123" | result == "Model123" | Should Pass |
-*/
+ * @brief Test to verify the retrieval of manufacturer model with a valid model
+ *
+ * This test checks if the `get_manufacturer_model` function correctly retrieves the manufacturer model when a valid model is set in the device information.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 036@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Set the manufacturer model in device info | manufacturer_model = "Model123" | None | Should be successful |
+ * | 02| Retrieve the manufacturer model using `get_manufacturer_model` | None | result = "Model123" | Should Pass |
+ * | 03| Verify the retrieved manufacturer model | result = "Model123" | result == "Model123" | Should Pass |
+ */
 TEST(dm_device_t_Test, RetrieveManufacturerModelWithValidModel) {
     std::cout << "Entering RetrieveManufacturerModelWithValidModel test" << std::endl;
     // Create and populate device info
@@ -1206,25 +1206,25 @@ TEST(dm_device_t_Test, RetrieveManufacturerModelWithValidModel) {
 }
 
 /**
-* @brief Test to verify the behavior of RetrieveManufacturerModel with an empty model
-*
-* This test checks the behavior of the get_manufacturer_model function when the manufacturer_model is set to an empty string. It ensures that the function correctly returns an empty string in this scenario.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 037@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Set manufacturer_model to an empty string | device_info.manufacturer_model = "" | None | Should be successful |
-* | 02| Call get_manufacturer_model | char* result = device->get_manufacturer_model() | result = "" | Should Pass |
-* | 03| Verify the result using ASSERT_STREQ | ASSERT_STREQ(result, "") | result = "" | Should Pass |
-*/
+ * @brief Test to verify the behavior of RetrieveManufacturerModel with an empty model
+ *
+ * This test checks the behavior of the get_manufacturer_model function when the manufacturer_model is set to an empty string. It ensures that the function correctly returns an empty string in this scenario.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 037@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Set manufacturer_model to an empty string | device_info.manufacturer_model = "" | None | Should be successful |
+ * | 02| Call get_manufacturer_model | char* result = device->get_manufacturer_model() | result = "" | Should Pass |
+ * | 03| Verify the result using ASSERT_STREQ | ASSERT_STREQ(result, "") | result = "" | Should Pass |
+ */
 TEST(dm_device_t_Test, RetrieveManufacturerModelWithEmptyModel) {
     std::cout << "Entering RetrieveManufacturerModelWithEmptyModel test" << std::endl;
     // Create and populate device info
@@ -1556,23 +1556,23 @@ TEST(dm_device_t_Test, RetrieveSoftwareVersionWhenSetToSpecialCharacters) {
 }
 
 /**
-* @brief Test to initialize the device information structure
-*
-* This test verifies the initialization of the device information structure to ensure that the device is properly set up and ready for use.
-*
-* **Test Group ID:** Basic: 01
-* **Test Case ID:** 048@n
-* **Priority:** High
-* @n
-* **Pre-Conditions:** None
-* **Dependencies:** None
-* **User Interaction:** None
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Initialize the device information structure | None | result = 0 | Should Pass |
-*/
+ * @brief Test to initialize the device information structure
+ *
+ * This test verifies the initialization of the device information structure to ensure that the device is properly set up and ready for use.
+ *
+ * **Test Group ID:** Basic: 01
+ * **Test Case ID:** 048@n
+ * **Priority:** High
+ * @n
+ * **Pre-Conditions:** None
+ * **Dependencies:** None
+ * **User Interaction:** None
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Initialize the device information structure | None | result = 0 | Should Pass |
+ */
 TEST(dm_device_t_Test, InitializeDeviceInformationStructure) {
     std::cout << "Entering InitializeDeviceInformationStructure test" << std::endl;
     dm_device_t device;
@@ -1612,26 +1612,26 @@ TEST(dm_device_t_Test, InitializeDeviceInformationStructureMultipleTimes) {
 }
 
 /**
-* @brief Test to verify the initialization of device information structure after modifying device info
-*
-* This test checks if the device information structure is correctly initialized after modifying the device info. It ensures that the manufacturer field is reset to its default value after initialization.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 050@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Modify the manufacturer field of device info | device->m_device_info.manufacturer[0] = 'A' | None | Should be successful |
-* | 02 | Initialize the device | result = device->init() | None | Should Pass |
-* | 03 | Check the result of initialization | ASSERT_EQ(result, 0) | result = 0 | Should Pass |
-* | 04 | Verify the manufacturer field is reset | ASSERT_EQ(device->m_device_info.manufacturer[0], '\0') | device->m_device_info.manufacturer[0] = '\0' | Should Pass |
-*/
+ * @brief Test to verify the initialization of device information structure after modifying device info
+ *
+ * This test checks if the device information structure is correctly initialized after modifying the device info. It ensures that the manufacturer field is reset to its default value after initialization.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 050@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Modify the manufacturer field of device info | device->m_device_info.manufacturer[0] = 'A' | None | Should be successful |
+ * | 02 | Initialize the device | result = device->init() | None | Should Pass |
+ * | 03 | Check the result of initialization | ASSERT_EQ(result, 0) | result = 0 | Should Pass |
+ * | 04 | Verify the manufacturer field is reset | ASSERT_EQ(device->m_device_info.manufacturer[0], '\0') | device->m_device_info.manufacturer[0] = '\0' | Should Pass |
+ */
 TEST(dm_device_t_Test, InitializeDeviceInformationStructureAfterModifyingDeviceInfo) {
     std::cout << "Entering InitializeDeviceInformationStructureAfterModifyingDeviceInfo test" << std::endl;
     dm_device_t device;
@@ -1673,25 +1673,25 @@ TEST(dm_device_t_Test, ParseValidDeviceIDFromKey) {
 }
 
 /**
-* @brief Test the parsing of device ID from a null key
-*
-* This test checks the behavior of the parse_device_id_from_key function when provided with a null key. It ensures that the function correctly handles invalid input and returns the expected error code.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 052@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize the key to NULL | key = NULL | None | Should be successful |
-* | 02| Call parse_device_id_from_key with NULL key | key = NULL, id = uninitialized | result = -1 | Should Pass |
-* | 03| Verify the result is -1 | result = -1 | result = -1 | Should Pass |
-*/
+ * @brief Test the parsing of device ID from a null key
+ *
+ * This test checks the behavior of the parse_device_id_from_key function when provided with a null key. It ensures that the function correctly handles invalid input and returns the expected error code.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 052@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Initialize the key to NULL | key = NULL | None | Should be successful |
+ * | 02| Call parse_device_id_from_key with NULL key | key = NULL, id = uninitialized | result = -1 | Should Pass |
+ * | 03| Verify the result is -1 | result = -1 | result = -1 | Should Pass |
+ */
 /* Code doesn't handle null and so crash is seen
 TEST(dm_device_t_Test, ParseDeviceIDFromNullKey) {
     std::cout << "Entering ParseDeviceIDFromNullKey\n";
@@ -1701,27 +1701,27 @@ TEST(dm_device_t_Test, ParseDeviceIDFromNullKey) {
     ASSERT_EQ(result, -1);
     std::cout << "Exiting ParseDeviceIDFromNullKey\n";
 }
-*/
+ */
 
 /**
-* @brief Test the parse_device_id_from_key function with a NULL ID pointer
-*
-* This test checks the behavior of the parse_device_id_from_key function when the ID pointer is NULL. The function is expected to return -1 in this case, indicating an error.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 053@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Call parse_device_id_from_key with a valid key and NULL ID pointer | key = "valid_key_string", id = NULL | result = -1 | Should Pass |
-* | 02| Verify the result using ASSERT_EQ | result = -1 | None | Should be successful |
-*/
+ * @brief Test the parse_device_id_from_key function with a NULL ID pointer
+ *
+ * This test checks the behavior of the parse_device_id_from_key function when the ID pointer is NULL. The function is expected to return -1 in this case, indicating an error.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 053@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Call parse_device_id_from_key with a valid key and NULL ID pointer | key = "valid_key_string", id = NULL | result = -1 | Should Pass |
+ * | 02| Verify the result using ASSERT_EQ | result = -1 | None | Should be successful |
+ */
 /* Code doesn't handle null and so crash is seen
 TEST(dm_device_t_Test, ParseDeviceIDWithNullIDPointer) {
     std::cout << "Entering ParseDeviceIDWithNullIDPointer\n";
@@ -1730,7 +1730,7 @@ TEST(dm_device_t_Test, ParseDeviceIDWithNullIDPointer) {
     ASSERT_EQ(result, -1);
     std::cout << "Exiting ParseDeviceIDWithNullIDPointer\n";
 }
-*/
+ */
 
 /**
  * @brief Test the parsing of device ID with an empty key string.
@@ -1819,23 +1819,23 @@ TEST(dm_device_t_Test, ParseDeviceIDWithSpecialCharactersInKey) {
 }
 
 /**
-* @brief Test to verify the behavior of set_dev_interface_mac when a null pointer is passed as MAC address.
-*
-* This test checks if the set_dev_interface_mac function throws an exception when a null pointer is passed as the MAC address. This is important to ensure that the function handles invalid input correctly and does not cause undefined behavior.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 057@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Pass a null pointer as MAC address to set_dev_interface_mac | mac = nullptr | Exception should be thrown | Should Pass |
-*/
+ * @brief Test to verify the behavior of set_dev_interface_mac when a null pointer is passed as MAC address.
+ *
+ * This test checks if the set_dev_interface_mac function throws an exception when a null pointer is passed as the MAC address. This is important to ensure that the function handles invalid input correctly and does not cause undefined behavior.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 057@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Pass a null pointer as MAC address to set_dev_interface_mac | mac = nullptr | Exception should be thrown | Should Pass |
+ */
 /* Code doesn't handle nullptr
 TEST(dm_device_t_Test, SetInvalidMACAddressNullPointer) {
     std::cout << "Entering SetInvalidMACAddressNullPointer test\n";
@@ -1844,7 +1844,7 @@ TEST(dm_device_t_Test, SetInvalidMACAddressNullPointer) {
     ASSERT_ANY_THROW(device.set_dev_interface_mac(mac));
     std::cout << "Exiting SetInvalidMACAddressNullPointer test\n";
 }
-*/
+ */
 
 /**
  * @brief Test to verify the behavior when setting an invalid MAC address with incorrect format
@@ -1865,6 +1865,7 @@ TEST(dm_device_t_Test, SetInvalidMACAddressNullPointer) {
  * | 01 | Define an invalid MAC address with incorrect format | mac = {0x00, 0x1A, 0x2B, 0x3C, 0x4D} | Invalid MAC address defined | Should be successful |
  * | 02 | Call the `set_dev_interface_mac` method with the invalid MAC address | mac = {0x00, 0x1A, 0x2B, 0x3C, 0x4D} | Exception should be thrown | Should Pass |
  */
+/* Code crashes due to improper mac format - doubt
 TEST(dm_device_t_Test, SetInvalidMACAddressIncorrectFormat) {
     std::cout << "Entering SetInvalidMACAddressIncorrectFormat test\n";
     unsigned char mac[] = {0x00, 0x1A, 0x2B, 0x3C, 0x4D};
@@ -1872,6 +1873,7 @@ TEST(dm_device_t_Test, SetInvalidMACAddressIncorrectFormat) {
     ASSERT_ANY_THROW(device.set_dev_interface_mac(mac));
     std::cout << "Exiting SetInvalidMACAddressIncorrectFormat test\n";
 }
+ */
 
 /**
  * @brief Test to verify setting a valid MAC address with all zeros
@@ -1931,24 +1933,24 @@ TEST(dm_device_t_Test, SetValidMACAddressAllOnes) {
 }
 
 /**
-* @brief Test the setting of device interface name with a valid name
-*
-* This test verifies that the device interface name can be set correctly using a valid name.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 061@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Set the device interface name to "eth0" | name = "eth0" | None | Should be successful |
-* | 02| Verify the device interface name is set correctly | name = "eth0" | device->get_dev_interface_name() == "eth0" | Should Pass |
-*/
+ * @brief Test the setting of device interface name with a valid name
+ *
+ * This test verifies that the device interface name can be set correctly using a valid name.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 061@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Set the device interface name to "eth0" | name = "eth0" | None | Should be successful |
+ * | 02| Verify the device interface name is set correctly | name = "eth0" | device->get_dev_interface_name() == "eth0" | Should Pass |
+ */
 TEST(dm_device_t_Test, SetDeviceInterfaceNameWithValidName) {
     std::cout << "Entering SetDeviceInterfaceNameWithValidName";
     char name[] = "eth0";
@@ -1985,23 +1987,23 @@ TEST(dm_device_t_Test, SetDeviceInterfaceNameWithEmptyString) {
 }
 
 /**
-* @brief Test the behavior of set_dev_interface_name when a null pointer is passed.
-*
-* This test checks if the set_dev_interface_name method correctly handles a null pointer input by throwing an exception. This is important to ensure that the method can handle invalid inputs gracefully.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 063@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Pass a null pointer to set_dev_interface_name | name = NULL | Exception should be thrown | Should Pass |
-*/
+ * @brief Test the behavior of set_dev_interface_name when a null pointer is passed.
+ *
+ * This test checks if the set_dev_interface_name method correctly handles a null pointer input by throwing an exception. This is important to ensure that the method can handle invalid inputs gracefully.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 063@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Pass a null pointer to set_dev_interface_name | name = NULL | Exception should be thrown | Should Pass |
+ */
 /* code doesn't handle null
 TEST(dm_device_t_Test, SetDeviceInterfaceNameWithNullPointer) {
     std::cout << "Entering SetDeviceInterfaceNameWithNullPointer";
@@ -2010,7 +2012,7 @@ TEST(dm_device_t_Test, SetDeviceInterfaceNameWithNullPointer) {
     ASSERT_ANY_THROW(device.set_dev_interface_name(name));
     std::cout << "Exiting SetDeviceInterfaceNameWithNullPointer";
 }
-*/
+ */
 
 /**
  * @brief Test setting device interface name with special characters and whitespace
@@ -2092,23 +2094,23 @@ TEST(dm_device_t_Test, SetManufacturerWithEmptyString) {
 }
 
 /**
-* @brief Test the behavior of setting the manufacturer with a null pointer
-*
-* This test verifies behavior when a null pointer is passed to the set_manufacturer function.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 067@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Set the manufacturer to nullptr | device->set_manufacturer(manufacturer) | manufacturer = nullptr | Should Fail |
-*/
+ * @brief Test the behavior of setting the manufacturer with a null pointer
+ *
+ * This test verifies behavior when a null pointer is passed to the set_manufacturer function.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 067@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Set the manufacturer to nullptr | device->set_manufacturer(manufacturer) | manufacturer = nullptr | Should Fail |
+ */
 /* code doesn't handle null
 TEST(dm_device_t_Test, SetManufacturerWithNullPointer) {
     std::cout << "Entering SetManufacturerWithNullPointer test" << std::endl;
@@ -2117,27 +2119,27 @@ TEST(dm_device_t_Test, SetManufacturerWithNullPointer) {
     device.set_manufacturer(manufacturer);
     std::cout << "Exiting SetManufacturerWithNullPointer test" << std::endl;
 }
-*/
+ */
 
 /**
-* @brief Test the SetManufacturer function with a maximum length string
-*
-* This test verifies that the SetManufacturer function correctly handles a string that is exactly the maximum allowed length. It ensures that the manufacturer name is set and retrieved correctly without any truncation or errors.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 068@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Create a manufacturer string with maximum length | manufacturer = 'A' * (max_length - 1) + '\0' | None | Should be successful |
-* | 02| Set the manufacturer using set_manufacturer function | manufacturer = 'A' * (max_length - 1) + '\0' | None | Should Pass |
-*/
+ * @brief Test the SetManufacturer function with a maximum length string
+ *
+ * This test verifies that the SetManufacturer function correctly handles a string that is exactly the maximum allowed length. It ensures that the manufacturer name is set and retrieved correctly without any truncation or errors.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 068@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Create a manufacturer string with maximum length | manufacturer = 'A' * (max_length - 1) + '\0' | None | Should be successful |
+ * | 02| Set the manufacturer using set_manufacturer function | manufacturer = 'A' * (max_length - 1) + '\0' | None | Should Pass |
+ */
 TEST(dm_device_t_Test, SetManufacturerWithMaxLengthString) {
     std::cout << "Entering SetManufacturerWithMaxLengthString test" << std::endl;
     dm_device_t device;
@@ -2203,23 +2205,23 @@ TEST(dm_device_t_Test, SetManufacturerModel_ValidModelName) {
 }
 
 /**
-* @brief Test the setting of an empty manufacturer model name
-*
-* This test verifies that the `set_manufacturer_model` function correctly handles an empty model name
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 071@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Set an empty manufacturer model name | model = "" | None | Should be successful |
-*/
+ * @brief Test the setting of an empty manufacturer model name
+ *
+ * This test verifies that the `set_manufacturer_model` function correctly handles an empty model name
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 071@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Set an empty manufacturer model name | model = "" | None | Should be successful |
+ */
 TEST(dm_device_t_Test, SetManufacturerModel_EmptyModelName) {
     std::cout << "Entering SetManufacturerModel_EmptyModelName";
     char model[] = "";
@@ -2229,23 +2231,23 @@ TEST(dm_device_t_Test, SetManufacturerModel_EmptyModelName) {
 }
 
 /**
-* @brief Test the behavior of set_manufacturer_model when a NULL model name is provided.
-*
-* This test checks if the set_manufacturer_model function throws an invalid_argument exception when a NULL model name is passed. This is important to ensure that the function handles invalid input correctly and does not proceed with a NULL model name.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 072@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Call set_manufacturer_model with NULL model name | model = NULL | Throws std::invalid_argument | Should Pass |
-*/
+ * @brief Test the behavior of set_manufacturer_model when a NULL model name is provided.
+ *
+ * This test checks if the set_manufacturer_model function throws an invalid_argument exception when a NULL model name is passed. This is important to ensure that the function handles invalid input correctly and does not proceed with a NULL model name.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 072@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Call set_manufacturer_model with NULL model name | model = NULL | Throws std::invalid_argument | Should Pass |
+ */
 /* code doesn't handle null
 TEST(dm_device_t_Test, SetManufacturerModel_NullModelName) {
     std::cout << "Entering SetManufacturerModel_NullModelName";
@@ -2254,7 +2256,7 @@ TEST(dm_device_t_Test, SetManufacturerModel_NullModelName) {
     ASSERT_ANY_THROW(device.set_manufacturer_model(model));
     std::cout << "Exiting SetManufacturerModel_NullModelName";
 }
-*/    
+ */    
 
 /**
  * @brief Test to verify the behavior when the model name exceeds the buffer size.
@@ -2275,6 +2277,7 @@ TEST(dm_device_t_Test, SetManufacturerModel_NullModelName) {
  * | 01 | Define a model name that exceeds the buffer size | model = "ModelNameThatIsWayTooLongForTheBufferAndShouldCauseAnError" | None | Should be successful |
  * | 02 | Call set_manufacturer_model with the long model name | model = "ModelNameThatIsWayTooLongForTheBufferAndShouldCauseAnError" | overflow_error exception | Should Pass |
  */
+/* buffer size should be considered while passing - doubt
 TEST(dm_device_t_Test, SetManufacturerModel_ModelNameExceedingBufferSize) {
     std::cout << "Entering SetManufacturerModel_ModelNameExceedingBufferSize";
     char model[] = "ModelNameThatIsWayTooLongForTheBufferAndShouldCauseAnError";
@@ -2282,6 +2285,7 @@ TEST(dm_device_t_Test, SetManufacturerModel_ModelNameExceedingBufferSize) {
     ASSERT_THROW(device.set_manufacturer_model(model), std::overflow_error);
     std::cout << "Exiting SetManufacturerModel_ModelNameExceedingBufferSize";
 }
+ */
 
 /**
  * @brief Test setting the manufacturer model with special characters in the model name.
@@ -2364,23 +2368,23 @@ TEST(dm_device_t_Test, SetPrimaryDeviceType_EmptyString) {
 }
 
 /**
-* @brief Test to verify the behavior of set_primary_device_type when a null pointer is passed.
-*
-* This test checks if the set_primary_device_type function throws an invalid_argument exception when a null pointer is passed as the device type. This is important to ensure that the function handles invalid input gracefully.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 077@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Pass a null pointer to set_primary_device_type | type = NULL | Throws exception | Should Pass |
-*/
+ * @brief Test to verify the behavior of set_primary_device_type when a null pointer is passed.
+ *
+ * This test checks if the set_primary_device_type function throws an invalid_argument exception when a null pointer is passed as the device type. This is important to ensure that the function handles invalid input gracefully.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 077@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Pass a null pointer to set_primary_device_type | type = NULL | Throws exception | Should Pass |
+ */
 /* code doesn't handle null
 TEST(dm_device_t_Test, SetPrimaryDeviceType_NullPointer) {
     std::cout << "Entering SetPrimaryDeviceType_NullPointer test" << std::endl;
@@ -2389,7 +2393,7 @@ TEST(dm_device_t_Test, SetPrimaryDeviceType_NullPointer) {
     ASSERT_ANY_THROW(device.set_primary_device_type(type));
     std::cout << "Exiting SetPrimaryDeviceType_NullPointer test" << std::endl;
 }
-*/
+ */
 
 /**
  * @brief Test to verify the behavior when setting a primary device type that exceeds the buffer size.
@@ -2410,6 +2414,7 @@ TEST(dm_device_t_Test, SetPrimaryDeviceType_NullPointer) {
  * | 01 | Define a device type name that exceeds the buffer size | type = "ThisIsAVeryLongDeviceTypeNameThatExceedsTheBufferSize" | None | Should be successful |
  * | 03 | Call set_primary_device_type with the long device type name and expect an overflow_error | type = "ThisIsAVeryLongDeviceTypeNameThatExceedsTheBufferSize" | overflow_error should be thrown | Should Pass |
  */
+/* buffer size should be considered while passing - doubt
 TEST(dm_device_t_Test, SetPrimaryDeviceType_ExceedingBufferSize) {
     std::cout << "Entering SetPrimaryDeviceType_ExceedingBufferSize test" << std::endl;
     char type[] = "ThisIsAVeryLongDeviceTypeNameThatExceedsTheBufferSize";
@@ -2417,6 +2422,7 @@ TEST(dm_device_t_Test, SetPrimaryDeviceType_ExceedingBufferSize) {
     ASSERT_THROW(device.set_primary_device_type(type), std::overflow_error);
     std::cout << "Exiting SetPrimaryDeviceType_ExceedingBufferSize test" << std::endl;
 }
+ */
 
 /**
  * @brief Test the set_primary_device_type function with special characters and spaces
@@ -2524,7 +2530,7 @@ TEST(dm_device_t_Test, SetSerialNumberWithNullPointer) {
     device.set_serial_number(serial);
     std::cout << "Exiting SetSerialNumberWithNullPointer test" << std::endl;
 }
-*/    
+ */    
 
 /**
  * @brief Test the setting of a serial number with maximum length string
@@ -2599,6 +2605,7 @@ TEST(dm_device_t_Test, SetSerialNumberWithSpecialCharactersAndWhitespaces) {
  * | 01 | Define a very long serial number string | serial = "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890" | None | Should be successful |
  * | 02 | Set the serial number with the long string | device->set_serial_number(serial) | None | Should Pass |
  */
+/* buffer size should be considered while passing - doubt
 TEST(dm_device_t_Test, SetSerialNumberWithVeryLongStringExceedingBufferSize) {
     std::cout << "Entering SetSerialNumberWithVeryLongStringExceedingBufferSize test" << std::endl;
     char serial[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
@@ -2606,6 +2613,7 @@ TEST(dm_device_t_Test, SetSerialNumberWithVeryLongStringExceedingBufferSize) {
     device.set_serial_number(serial);
     std::cout << "Exiting SetSerialNumberWithVeryLongStringExceedingBufferSize test" << std::endl;
 }
+ */
 
 /**
  * @brief Test the setting of a valid software version string in the dm_device_t class.
@@ -2689,7 +2697,7 @@ TEST(dm_device_t_Test, SetSoftwareVersion_NullVersionString) {
     ASSERT_ANY_THROW(device.set_software_version(version));
     std::cout << "Exiting SetSoftwareVersion_NullVersionString test" << std::endl;
 }
-*/    
+ */    
 
 /**
  * @brief Test the set_software_version function with a maximum length version string
@@ -2778,24 +2786,24 @@ TEST(dm_device_t_Test, UpdateEasyMeshJsonCfg_ColocatedModeDisabled) {
 }
 
 /**
-* @brief Test to verify that two devices with identical information are considered equal.
-*
-* This test checks if two `dm_device_t` objects with identical device information are considered equal by the equality operator. This is important to ensure that the equality operator works correctly for device comparison.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 092@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Initialize device1 and device2 with specific information | device.m_device_info.id.net_id = "net1", device.m_device_info.id.dev_mac = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, device.m_device_info.id.media = em_media_type_ieee8023ab, device.m_device_info.intf.name = "eth0", device.m_device_info.intf.mac = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, device.m_device_info.intf.media = em_media_type_ieee8023ab, device.m_device_info.profile = em_profile_type_1, device.m_device_info.manufacturer = "Manufacturer1", device.m_device_info.serial_number = "SN12345", device.m_device_info.manufacturer_model = "Model1", device.m_device_info.software_ver = "1.0.0" | Devices initialized with given information | Should be successful |
-* | 02 | Compare device1 and device2 for equality | EXPECT_TRUE(device1 == device2) | Devices should be equal | Should Pass |
-*/
+ * @brief Test to verify that two devices with identical information are considered equal.
+ *
+ * This test checks if two `dm_device_t` objects with identical device information are considered equal by the equality operator. This is important to ensure that the equality operator works correctly for device comparison.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 092@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Initialize device1 and device2 with specific information | device.m_device_info.id.net_id = "net1", device.m_device_info.id.dev_mac = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, device.m_device_info.id.media = em_media_type_ieee8023ab, device.m_device_info.intf.name = "eth0", device.m_device_info.intf.mac = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, device.m_device_info.intf.media = em_media_type_ieee8023ab, device.m_device_info.profile = em_profile_type_1, device.m_device_info.manufacturer = "Manufacturer1", device.m_device_info.serial_number = "SN12345", device.m_device_info.manufacturer_model = "Model1", device.m_device_info.software_ver = "1.0.0" | Devices initialized with given information | Should be successful |
+ * | 02 | Compare device1 and device2 for equality | EXPECT_TRUE(device1 == device2) | Devices should be equal | Should Pass |
+ */
 TEST(dm_device_t_Test, IdenticalDeviceInformation) {
     std::cout << "Entering IdenticalDeviceInformation" << std::endl;
     dm_device_t device1, device2;
@@ -2833,24 +2841,24 @@ TEST(dm_device_t_Test, IdenticalDeviceInformation) {
 }
 
 /**
-* @brief Test to verify the behavior when two devices have different network IDs.
-*
-* This test checks the equality operator for dm_device_t objects when their network IDs are different. It ensures that the devices are not considered equal if their network IDs differ.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 093@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize device1 and device2 with different net_id | device1.m_device_info.id.net_id = "net1", device2.m_device_info.id.net_id = "net2" | Successful initialization | Should be successful |
-* | 02| Check equality of device1 and device2 | EXPECT_FALSE(device1 == device2) | Devices should not be equal | Should Pass |
-*/
+ * @brief Test to verify the behavior when two devices have different network IDs.
+ *
+ * This test checks the equality operator for dm_device_t objects when their network IDs are different. It ensures that the devices are not considered equal if their network IDs differ.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 093@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Initialize device1 and device2 with different net_id | device1.m_device_info.id.net_id = "net1", device2.m_device_info.id.net_id = "net2" | Successful initialization | Should be successful |
+ * | 02| Check equality of device1 and device2 | EXPECT_FALSE(device1 == device2) | Devices should not be equal | Should Pass |
+ */
 TEST(dm_device_t_Test, DifferentNetId) {
     std::cout << "Entering DifferentNetId" << std::endl;
     dm_device_t device1, device2;
@@ -2864,24 +2872,24 @@ TEST(dm_device_t_Test, DifferentNetId) {
 }
 
 /**
-* @brief Test to verify that two devices with different MAC addresses are not considered equal.
-*
-* This test checks the equality operator for `dm_device_t` objects to ensure that two devices with different MAC addresses are not considered equal. This is important to verify the uniqueness of devices based on their MAC addresses.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 094@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Initialize device2 with different MAC address | device1.m_device_info.id.dev_mac = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, device2.m_device_info.id.dev_mac = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB} | Device initialized | Should be successful |
-* | 02 | Compare device1 and device2 for equality | EXPECT_FALSE(device1 == device2) | Devices should not be equal | Should Pass |
-*/
+ * @brief Test to verify that two devices with different MAC addresses are not considered equal.
+ *
+ * This test checks the equality operator for `dm_device_t` objects to ensure that two devices with different MAC addresses are not considered equal. This is important to verify the uniqueness of devices based on their MAC addresses.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 094@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Initialize device2 with different MAC address | device1.m_device_info.id.dev_mac = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, device2.m_device_info.id.dev_mac = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB} | Device initialized | Should be successful |
+ * | 02 | Compare device1 and device2 for equality | EXPECT_FALSE(device1 == device2) | Devices should not be equal | Should Pass |
+ */
 TEST(dm_device_t_Test, DifferentDevMac) {
     std::cout << "Entering DifferentDevMac" << std::endl;
     dm_device_t device1, device2;
@@ -2894,24 +2902,24 @@ TEST(dm_device_t_Test, DifferentDevMac) {
 }
 
 /**
-* @brief Test to verify the behavior of dm_device_t when comparing devices with different media types.
-*
-* This test checks the equality operator of the dm_device_t class to ensure that two devices with identical attributes except for the media type are not considered equal.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 095@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize with different media types | device1.m_device_info.intf.media = em_media_type_ieee8023ab, device2.m_device_info.intf.media = em_media_type_ieee80211b_24 | Should be successful | 
-* | 02| Compare device1 and device2 using equality operator | EXPECT_FALSE(device1 == device2) | Should Pass | 
-*/
+ * @brief Test to verify the behavior of dm_device_t when comparing devices with different media types.
+ *
+ * This test checks the equality operator of the dm_device_t class to ensure that two devices with identical attributes except for the media type are not considered equal.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 095@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Initialize with different media types | device1.m_device_info.intf.media = em_media_type_ieee8023ab, device2.m_device_info.intf.media = em_media_type_ieee80211b_24 | Should be successful | 
+ * | 02| Compare device1 and device2 using equality operator | EXPECT_FALSE(device1 == device2) | Should Pass | 
+ */
 TEST(dm_device_t_Test, DifferentMediaType) {
     std::cout << "Entering DifferentMediaType" << std::endl;
     dm_device_t device1, device2;
@@ -2922,24 +2930,24 @@ TEST(dm_device_t_Test, DifferentMediaType) {
 }
 
 /**
-* @brief Test to verify the behavior when two devices have different interface names
-*
-* This test checks if two devices with identical properties except for their interface names are considered different.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 096@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize device1 and device2 with different interface names | device1.m_device_info.intf.name = "eth0", device2.m_device_info.intf.name = "eth1" | Devices initialized with different interface names | Should be successful |
-* | 03| Compare device1 and device2 | EXPECT_FALSE(device1 == device2) | Devices should not be equal | Should Pass |
-*/
+ * @brief Test to verify the behavior when two devices have different interface names
+ *
+ * This test checks if two devices with identical properties except for their interface names are considered different.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 096@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Initialize device1 and device2 with different interface names | device1.m_device_info.intf.name = "eth0", device2.m_device_info.intf.name = "eth1" | Devices initialized with different interface names | Should be successful |
+ * | 03| Compare device1 and device2 | EXPECT_FALSE(device1 == device2) | Devices should not be equal | Should Pass |
+ */
 TEST(dm_device_t_Test, DifferentInterfaceNames) {
     std::cout << "Entering DifferentInterfaceNames" << std::endl;
     dm_device_t device1, device2;
@@ -2952,24 +2960,24 @@ TEST(dm_device_t_Test, DifferentInterfaceNames) {
 }
 
 /**
-* @brief Test to verify that devices with different interface MAC addresses are not considered equal.
-*
-* This test checks the equality operator for `dm_device_t` objects to ensure that two devices with identical properties except for their interface MAC addresses are not considered equal. This is important to verify that the MAC address is a distinguishing factor for device identity.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 097@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Initialize device1 and device2 with different interface MAC addresses | device1.m_device_info.intf.mac = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, device2.m_device_info.intf.mac = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB} | Devices initialized with modified MAC address | Should be successful |
-* | 03 | Compare device1 and device2 for equality | EXPECT_FALSE(device1 == device2) | Devices should not be equal | Should Pass |
-*/
+ * @brief Test to verify that devices with different interface MAC addresses are not considered equal.
+ *
+ * This test checks the equality operator for `dm_device_t` objects to ensure that two devices with identical properties except for their interface MAC addresses are not considered equal. This is important to verify that the MAC address is a distinguishing factor for device identity.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 097@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Initialize device1 and device2 with different interface MAC addresses | device1.m_device_info.intf.mac = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, device2.m_device_info.intf.mac = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB} | Devices initialized with modified MAC address | Should be successful |
+ * | 03 | Compare device1 and device2 for equality | EXPECT_FALSE(device1 == device2) | Devices should not be equal | Should Pass |
+ */
 TEST(dm_device_t_Test, DifferentInterfaceMacAddresses) {
     std::cout << "Entering DifferentInterfaceMacAddresses" << std::endl;
     dm_device_t device1, device2;
@@ -2982,24 +2990,24 @@ TEST(dm_device_t_Test, DifferentInterfaceMacAddresses) {
 }
 
 /**
-* @brief Test to verify the behavior of devices with different profiles
-*
-* This test checks if two devices with identical information except for their profiles are considered different.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 098@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize device1 with different profile | device1.m_device_info.profile = em_profile_type_1, device2.m_device_info.profile = em_profile_type_2 | Devices initialized with different profile | Should be successful |
-* | 03| Compare device1 and device2 | EXPECT_FALSE(device1 == device2) | Devices should not be equal | Should Pass |
-*/
+ * @brief Test to verify the behavior of devices with different profiles
+ *
+ * This test checks if two devices with identical information except for their profiles are considered different.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 098@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Initialize device1 with different profile | device1.m_device_info.profile = em_profile_type_1, device2.m_device_info.profile = em_profile_type_2 | Devices initialized with different profile | Should be successful |
+ * | 03| Compare device1 and device2 | EXPECT_FALSE(device1 == device2) | Devices should not be equal | Should Pass |
+ */
 TEST(dm_device_t_Test, DifferentProfiles) {
     std::cout << "Entering DifferentProfiles" << std::endl;
     dm_device_t device1, device2;
@@ -3010,24 +3018,24 @@ TEST(dm_device_t_Test, DifferentProfiles) {
 }
 
 /**
-* @brief Test to verify the behavior when comparing devices from different manufacturers
-*
-* This test checks if two devices with identical properties except for the manufacturer are considered different.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 099@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Initialize device1 and device2 with different manufacturer | device1.m_device_info.manufacturer = "Manufacturer1", device2.m_device_info.manufacturer = "Manufacturer2" | Device2 initialized with properties of device1 but different manufacturer | Should be successful |
-* | 03 | Compare device1 and device2 | device1 == device2 | EXPECT_FALSE(device1 == device2) | Should Pass |
-*/
+ * @brief Test to verify the behavior when comparing devices from different manufacturers
+ *
+ * This test checks if two devices with identical properties except for the manufacturer are considered different.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 099@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Initialize device1 and device2 with different manufacturer | device1.m_device_info.manufacturer = "Manufacturer1", device2.m_device_info.manufacturer = "Manufacturer2" | Device2 initialized with properties of device1 but different manufacturer | Should be successful |
+ * | 03 | Compare device1 and device2 | device1 == device2 | EXPECT_FALSE(device1 == device2) | Should Pass |
+ */
 TEST(dm_device_t_Test, DifferentManufacturers) {
     std::cout << "Entering DifferentManufacturers" << std::endl;
     dm_device_t device1, device2;
@@ -3040,24 +3048,24 @@ TEST(dm_device_t_Test, DifferentManufacturers) {
 }
 
 /**
-* @brief Test to verify that devices with different serial numbers are not considered equal.
-*
-* This test checks the equality operator for `dm_device_t` objects to ensure that two devices with identical attributes except for their serial numbers are not considered equal. This is important to verify that the serial number is a distinguishing attribute for device objects.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 100@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize device1 and device2 with different serial numbers | device1.m_device_info.serial_number = "SN12345", device2.m_device_info.serial_number = "SN67890" | Device2 initialized with same attributes as device1 except serial number | Should be successful |
-* | 03| Compare device1 and device2 for equality | EXPECT_FALSE(device1 == device2) | Devices should not be equal | Should Pass |
-*/
+ * @brief Test to verify that devices with different serial numbers are not considered equal.
+ *
+ * This test checks the equality operator for `dm_device_t` objects to ensure that two devices with identical attributes except for their serial numbers are not considered equal. This is important to verify that the serial number is a distinguishing attribute for device objects.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 100@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Initialize device1 and device2 with different serial numbers | device1.m_device_info.serial_number = "SN12345", device2.m_device_info.serial_number = "SN67890" | Device2 initialized with same attributes as device1 except serial number | Should be successful |
+ * | 03| Compare device1 and device2 for equality | EXPECT_FALSE(device1 == device2) | Devices should not be equal | Should Pass |
+ */
 TEST(dm_device_t_Test, DifferentSerialNumbers) {
     std::cout << "Entering DifferentSerialNumbers" << std::endl;
     dm_device_t device1, device2;
@@ -3070,24 +3078,24 @@ TEST(dm_device_t_Test, DifferentSerialNumbers) {
 }
 
 /**
-* @brief Test to verify the comparison of devices with different manufacturer models
-*
-* This test checks the equality operator for dm_device_t objects when they have the same attributes except for the manufacturer model.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 101@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize device1 and device2 with different manufacturer models | device1.m_device_info.manufacturer_model = "Model1", device2.m_device_info.manufacturer_model = "Model2" | Should be successful |
-* | 03| Compare device1 and device2 using equality operator | EXPECT_FALSE(device1 == device2) | Should Pass |
-*/
+ * @brief Test to verify the comparison of devices with different manufacturer models
+ *
+ * This test checks the equality operator for dm_device_t objects when they have the same attributes except for the manufacturer model.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 101@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Initialize device1 and device2 with different manufacturer models | device1.m_device_info.manufacturer_model = "Model1", device2.m_device_info.manufacturer_model = "Model2" | Should be successful |
+ * | 03| Compare device1 and device2 using equality operator | EXPECT_FALSE(device1 == device2) | Should Pass |
+ */
 TEST(dm_device_t_Test, DifferentManufacturerModels) {
     std::cout << "Entering DifferentManufacturerModels" << std::endl;
     dm_device_t device1, device2;
@@ -3100,24 +3108,24 @@ TEST(dm_device_t_Test, DifferentManufacturerModels) {
 }
 
 /**
-* @brief Test to verify the behavior of the equality operator for devices with different software versions.
-*
-* This test checks if two devices with identical properties except for their software versions are considered unequal.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 102@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize device1 and device2 with different software versions | device1.m_device_info.software_ver = "1.0.0" , device2.m_device_info.software_ver = "2.0.0" | Device2 initialized with given properties | Should be successful |
-* | 03| Compare device1 and device2 using the equality operator | device1 == device2 | EXPECT_FALSE(device1 == device2) | Should Pass |
-*/
+ * @brief Test to verify the behavior of the equality operator for devices with different software versions.
+ *
+ * This test checks if two devices with identical properties except for their software versions are considered unequal.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 102@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Initialize device1 and device2 with different software versions | device1.m_device_info.software_ver = "1.0.0" , device2.m_device_info.software_ver = "2.0.0" | Device2 initialized with given properties | Should be successful |
+ * | 03| Compare device1 and device2 using the equality operator | device1 == device2 | EXPECT_FALSE(device1 == device2) | Should Pass |
+ */
 TEST(dm_device_t_Test, DifferentSoftwareVersions) {
     std::cout << "Entering DifferentSoftwareVersions" << std::endl;
     dm_device_t device1, device2;
@@ -3130,25 +3138,25 @@ TEST(dm_device_t_Test, DifferentSoftwareVersions) {
 }
 
 /**
-* @brief Test to verify the assignment of valid device information
-*
-* This test checks if the assignment operator correctly assigns the device information from one object to another.@n
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 103@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize obj2 with valid values | obj2.m_device_info.id.media = em_media_type_ieee8023ab, obj2.m_device_info.intf.media = em_media_type_ieee8023ab, obj2.m_device_info.profile = em_profile_type_1 | obj2 should be initialized | Should be successful |
-* | 02| Assign obj2 to obj1 | obj1 = obj2 | obj1 should have the same device information as obj2 | Should Pass |
-* | 03| Compare if the set values are same | obj1.m_device_info.id.media = em_media_type_ieee8023ab, obj1.m_device_info.intf.media = em_media_type_ieee8023ab, obj1.m_device_info.profile = em_profile_type_1 | Return value should be 0 | Should Pass |
-*/
+ * @brief Test to verify the assignment of valid device information
+ *
+ * This test checks if the assignment operator correctly assigns the device information from one object to another.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 103@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Initialize obj2 with valid values | obj2.m_device_info.id.media = em_media_type_ieee8023ab, obj2.m_device_info.intf.media = em_media_type_ieee8023ab, obj2.m_device_info.profile = em_profile_type_1 | obj2 should be initialized | Should be successful |
+ * | 02| Assign obj2 to obj1 | obj1 = obj2 | obj1 should have the same device information as obj2 | Should Pass |
+ * | 03| Compare if the set values are same | obj1.m_device_info.id.media = em_media_type_ieee8023ab, obj1.m_device_info.intf.media = em_media_type_ieee8023ab, obj1.m_device_info.profile = em_profile_type_1 | Return value should be 0 | Should Pass |
+ */
 TEST(dm_device_t_Test, AssigningValidDeviceInformation) {
     std::cout << "Entering AssigningValidDeviceInformation" << std::endl;
     dm_device_t obj1;
@@ -3164,24 +3172,24 @@ TEST(dm_device_t_Test, AssigningValidDeviceInformation) {
 }
 
 /**
-* @brief Test to verify the assignment of null device information
-*
-* This test checks the assignment operator of the dm_device_t class when the device information is set to null (zeroed out). It ensures that the assignment operator correctly copies the null device information from one object to another.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 104@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data | Expected Result | Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Assign obj2 to obj1 | obj1 = obj2 | obj1.m_device_info should be equal to obj2.m_device_info | Should Pass |
-* | 02 | Verify the device information of obj1 and obj2 are equal | memcmp(&obj1.m_device_info, &obj2.m_device_info, sizeof(em_device_info_t)) | memcmp should return 0 | Should Pass |
-*/
+ * @brief Test to verify the assignment of null device information
+ *
+ * This test checks the assignment operator of the dm_device_t class when the device information is set to null (zeroed out). It ensures that the assignment operator correctly copies the null device information from one object to another.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 104@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Assign obj2 to obj1 | obj1 = obj2 | obj1.m_device_info should be equal to obj2.m_device_info | Should Pass |
+ * | 02 | Verify the device information of obj1 and obj2 are equal | memcmp(&obj1.m_device_info, &obj2.m_device_info, sizeof(em_device_info_t)) | memcmp should return 0 | Should Pass |
+ */
 TEST(dm_device_t_Test, AssigningNullDeviceInformation) {
     std::cout << "Entering AssigningNullDeviceInformation" << std::endl;
     dm_device_t obj1;
@@ -3192,25 +3200,25 @@ TEST(dm_device_t_Test, AssigningNullDeviceInformation) {
 }
 
 /**
-* @brief Test the initialization of dm_device_t with valid device information
-*
-* This test verifies that the dm_device_t object is correctly initialized when provided with valid device information. It ensures that the device information is not null after initialization.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 105@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Populate valid_device_info with valid data | valid_device_info.id.media = em_media_type_ieee8023ab, valid_device_info.intf.media = em_media_type_ieee8023ab, valid_device_info.profile = em_profile_type_1 | valid_device_info should be populated with valid data | Should be successful |
-* | 02| Initialize dm_device_t with valid_device_info | device = new dm_device_t(&valid_device_info) | device should be initialized successfully | Should Pass |
-* | 03| Check if device information is same as initialized previously | device.m_device_info.id.media = em_media_type_ieee8023ab, device.m_device_info.intf.media = em_media_type_ieee8023ab, device.m_device_info.profile = em_profile_type_1 | Should be same | Should Pass |
-*/
+ * @brief Test the initialization of dm_device_t with valid device information
+ *
+ * This test verifies that the dm_device_t object is correctly initialized when provided with valid device information. It ensures that the device information is not null after initialization.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 105@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Populate valid_device_info with valid data | valid_device_info.id.media = em_media_type_ieee8023ab, valid_device_info.intf.media = em_media_type_ieee8023ab, valid_device_info.profile = em_profile_type_1 | valid_device_info should be populated with valid data | Should be successful |
+ * | 02| Initialize dm_device_t with valid_device_info | device = new dm_device_t(&valid_device_info) | device should be initialized successfully | Should Pass |
+ * | 03| Check if device information is same as initialized previously | device.m_device_info.id.media = em_media_type_ieee8023ab, device.m_device_info.intf.media = em_media_type_ieee8023ab, device.m_device_info.profile = em_profile_type_1 | Should be same | Should Pass |
+ */
 TEST(dm_device_t_Test, InitializeWithValidDeviceInfo) {
     std::cout << "Entering InitializeWithValidDeviceInfo" << std::endl;
     em_device_info_t valid_device_info;
@@ -3225,51 +3233,51 @@ TEST(dm_device_t_Test, InitializeWithValidDeviceInfo) {
 }
 
 /**
-* @brief Test the initialization of dm_device_t with null device info
-*
-* This test checks the behavior of the dm_device_t constructor when it is initialized with a null device info pointer.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 106@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize dm_device_t with null device info | device_info = nullptr | Should handle nullptr | Should Fail |
-*/
+ * @brief Test the initialization of dm_device_t with null device info
+ *
+ * This test checks the behavior of the dm_device_t constructor when it is initialized with a null device info pointer.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 106@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Initialize dm_device_t with null device info | device_info = nullptr | Should handle nullptr | Should Fail |
+ */
 /*code doesn't handle null
 TEST(dm_device_t_Test, InitializeWithNullDeviceInfo) {
     std::cout << "Entering InitializeWithNullDeviceInfo" << std::endl;
     ASSERT_ANY_THROW(dm_device_t device(nullptr));
     std::cout << "Exiting InitializeWithNullDeviceInfo" << std::endl;
 }
-*/    
+ */    
 
 /**
-* @brief Test the copy constructor of dm_device_t with valid device information
-*
-* This test verifies that the copy constructor of the dm_device_t class correctly copies the device information from the original device to the copied device. This ensures that the copy constructor works as expected when valid device information is provided.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 107@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize original device with few valid values | originalDevice.m_device_info.report_unsuccess_assocs = true, originalDevice.m_device_info.prioritization_sup = false | Should be successful | |
-* | 02| Copy construct the device | dm_device_t copiedDevice(originalDevice) | Should be successful | |
-* | 05| Compare the device information | copiedDevice.m_device_info.report_unsuccess_assocs = true, copiedDevice.m_device_info.prioritization_sup = false | Should Pass | |
-*/
+ * @brief Test the copy constructor of dm_device_t with valid device information
+ *
+ * This test verifies that the copy constructor of the dm_device_t class correctly copies the device information from the original device to the copied device. This ensures that the copy constructor works as expected when valid device information is provided.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 107@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01| Initialize original device with few valid values | originalDevice.m_device_info.report_unsuccess_assocs = true, originalDevice.m_device_info.prioritization_sup = false | Should be successful | |
+ * | 02| Copy construct the device | dm_device_t copiedDevice(originalDevice) | Should be successful | |
+ * | 05| Compare the device information | copiedDevice.m_device_info.report_unsuccess_assocs = true, copiedDevice.m_device_info.prioritization_sup = false | Should Pass | |
+ */
 TEST(dm_device_t_Test, CopyConstructorWithValidDeviceInformation) {
     std::cout << "Entering CopyConstructorWithValidDeviceInformation test";
     dm_device_t originalDevice;
@@ -3282,25 +3290,25 @@ TEST(dm_device_t_Test, CopyConstructorWithValidDeviceInformation) {
 }
 
 /**
-* @brief Test the copy constructor of dm_device_t with special characters in the manufacturer field.
-*
-* This test verifies that the copy constructor copies the manufacturer string when it contains special characters.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 108@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Step | Description | Test Data | Expected Result | Notes |
-* | :--: | ----------- | --------- | ---------------- | ----- |
-* | 01   | Initialize original device and set manufacturer with special characters | memcpy(originalDevice.m_device_info.manufacturer, "Special!@#$%^&*()", ...) | Manufacturer field should contain special characters | |
-* | 02   | Copy original device to a new device using copy constructor | dm_device_t copiedDevice(originalDevice) | Copy constructor should create an identical copy of the manufacturer field | |
-* | 03   | Compare only the manufacturer field between original and copied device | memcmp(original.manufacturer, copied.manufacturer) | Fields should match exactly | |
-*/
+ * @brief Test the copy constructor of dm_device_t with special characters in the manufacturer field.
+ *
+ * This test verifies that the copy constructor copies the manufacturer string when it contains special characters.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 108@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Step | Description | Test Data | Expected Result | Notes |
+ * | :--: | ----------- | --------- | ---------------- | ----- |
+ * | 01   | Initialize original device and set manufacturer with special characters | memcpy(originalDevice.m_device_info.manufacturer, "Special!@#$%^&*()", ...) | Manufacturer field should contain special characters | |
+ * | 02   | Copy original device to a new device using copy constructor | dm_device_t copiedDevice(originalDevice) | Copy constructor should create an identical copy of the manufacturer field | |
+ * | 03   | Compare only the manufacturer field between original and copied device | memcmp(original.manufacturer, copied.manufacturer) | Fields should match exactly | |
+ */
 TEST(dm_device_t_Test, CopyConstructorWithSpecialCharactersInDeviceInformation) {
     std::cout << "Entering CopyConstructorWithSpecialCharactersInDeviceInformation test" << std::endl;
     dm_device_t originalDevice;
