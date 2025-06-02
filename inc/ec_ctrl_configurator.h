@@ -273,13 +273,6 @@ private:
 	 * 
 	 */
 	std::unordered_map<std::string, bool> m_currently_undergoing_recfg = {};
-
-	/**
-	 * @brief C-Connector is the Configurator's Connector that it issues to itself
-	 * as part of the Reconfiguration Authentication flow
-	 * 
-	 */
-	std::string m_c_connector = "";
 };
 
 #endif // EC_CTRL_CONFIGURATOR_H

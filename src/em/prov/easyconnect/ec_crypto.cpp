@@ -736,11 +736,11 @@ std::optional<std::vector<cJSON*>> ec_crypto::split_decode_connector(const char*
     return decoded_parts;
 }
 
-std::string ec_crypto::generate_connector(const cJSON * jws_header, const cJSON * jws_payload,  SSL_KEY* sign_key)
+std::optional<std::string> ec_crypto::generate_connector(const cJSON * jws_header, const cJSON * jws_payload,  SSL_KEY* sign_key)
 {
     if (jws_header == NULL || jws_payload == NULL || sign_key == NULL) {
         em_printfout("Invalid input");
-        return "";
+        return std::nullopt;
     }
 
     char* jws_header_cstr = cJSON_PrintUnformatted(jws_header);
@@ -749,7 +749,7 @@ std::string ec_crypto::generate_connector(const cJSON * jws_header, const cJSON 
         em_printfout("Failed to convert cJSON to string");
         if (jws_header_cstr) free(jws_header_cstr);
         if (jws_payload_cstr) free(jws_payload_cstr);
-        return "";
+        return std::nullopt;
     }
     std::string jws_header_str(jws_header_cstr);
     std::string jws_payload_str(jws_payload_cstr);
@@ -765,13 +765,13 @@ std::string ec_crypto::generate_connector(const cJSON * jws_header, const cJSON 
     std::optional<std::vector<uint8_t>> signature = em_crypto_t::sign_data_ecdsa(sig_data_vec, sign_key);
     if (!signature.has_value()) {
         em_printfout("Failed to sign data");
-        return "";
+        return std::nullopt;
     }
 
     std::string base64_signature = em_crypto_t::base64url_encode(signature.value());
     if (base64_signature.empty()) {
         em_printfout("Failed to encode signature");
-        return "";
+        return std::nullopt;
     }
 
     std::string connector = base64_jws_header + "." + base64_jws_payload + "." + base64_signature;

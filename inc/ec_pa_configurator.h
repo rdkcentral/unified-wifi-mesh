@@ -62,6 +62,15 @@ public:
 	 */
 	bool handle_presence_announcement(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]) override;
 
+	/**
+	 * @brief Handles a Reconfiguration Announcement frame
+	 * 
+	 * @param frame The Reconfiguration Announcement frame
+	 * @param len The length of the frame
+	 * @param sa The source MAC of the frame (Enrollee)
+	 * @return true on success, otherwise false
+	 */
+	bool handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) override;
     
 	/**
 	 * @brief Handles an authentication request 802.11 frame, performing the necessary actions and possibly passing to 1905.
@@ -183,11 +192,14 @@ private:
      * Map from Chirp Hash to DPP Authentication Request
      */
     std::map<std::string, std::vector<uint8_t>> m_chirp_hash_frame_map = {};
-    /*
-     * Vector of all cached DPP Reconfiguration Authentication Requests.
-     * Hash does not matter since it is compared against the Controllers C-sign key
-     */
-    std::vector<std::vector<uint8_t>> m_stored_recfg_auth_frames = {};
+
+	/**
+	 * @brief Map of stored DPP Reconfiguration Authentication Requests
+	 * 
+	 * Key -> C-sign key hash as a string
+	 * Value -> Vector of DPP Reconfiguration Authentication Request frames
+	 */
+	std::unordered_map<std::string, std::vector<uint8_t>> m_stored_recfg_auth_frames_map = {};
 
 	/**
 	 * @brief Stored GAS frame session dialog tokens with peers.
