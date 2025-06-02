@@ -41,13 +41,13 @@ INCLUDEDIRS = \
 	-I$(WIFI_CJSON) \
 
 
-CXXFLAGS = $(INCLUDEDIRS) -g -std=c++17 -fPIC
+CXXFLAGS = $(INCLUDEDIRS) -g -std=c++17 -fPIC -I$(STAGING_DIR)/usr/include
 CFLAGS = $(INCLUDEDIRS) -g
 LDFLAGS = $(LIBDIRS) $(LIBS)
 LIBDIRS = \
 	-L$(INSTALLDIR)/lib \
 
-LIBS = -lemcli -lm -lpthread -ldl -lcjson -lreadline -lssl -lcrypto
+LIBS = -lemcli -luuid -lm -lpthread -ldl -lcjson -lreadline -lssl -lcrypto -I$(STAGING_DIR)/usr/lib -lmariadb
 
 GENERIC_SOURCES = $(ONEWIFI_HOME)/source/utils/collection.c	\
                   $(ONEWIFI_EM_SRC)/util_crypto/aes_siv.c \
@@ -88,7 +88,7 @@ MAIN_OBJECT = $(MAIN_SOURCE:.c=.o)
 all: $(EM_CLI_LIBRARY) $(PROGRAM)
 
 $(EM_CLI_LIBRARY): $(EMCLIOBJECTS)
-	$(CXX) -shared -o $@ $(EMCLIOBJECTS)
+	$(CXX) -shared -o $@ $(EMCLIOBJECTS) $(LDFLAGS)
 
 $(GENERIC_OBJECTS): %.o: %.c
 	$(CC) $(CXXFLAGS) -o $@ -c $<
@@ -106,6 +106,7 @@ ifeq ($(CC), aarch64-linux-gnu-gcc-11)
 else
 	go build -ldflags="-extldflags '-L$(INSTALLDIR)/lib -lcrypto -lssl -luuid'" -o $(PROGRAM) $(ONEWIFI_EM_SRC)/cli/*.go
 endif
+
 # Clean target: "make -f Makefile.Linux clean" to remove unwanted objects and executables.
 #
 
