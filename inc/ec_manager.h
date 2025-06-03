@@ -121,7 +121,7 @@ public:
 	 * @note If the operation fails, all CCE IEs are removed before the function exits.
 	 */
 	inline bool pa_cfg_toggle_cce(bool enable) {
-        if (!m_is_controller || m_configurator == nullptr) {
+        if (m_is_controller || m_configurator == nullptr) {
             return false;
         }
         auto pa_cfg = dynamic_cast<ec_pa_configurator_t*>(m_configurator.get());
