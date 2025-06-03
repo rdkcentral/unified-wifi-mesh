@@ -667,23 +667,17 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
         }
     }
 #ifdef AL_SAP
-    auto ctrl_al = m_data_model->get_controller_interface_mac();
-    auto agent_al = m_data_model->get_agent_al_interface_mac();
-    bool is_colocated = (memcmp(ctrl_al, agent_al, ETH_ALEN) == 0);
 
     AlServiceDataUnit sdu;
     sdu.setSourceAlMacAddress(g_al_mac_sap);
-    if (m_service_type == em_service_type_ctrl) {
-        if (is_loopback_frame || is_colocated) {
-            sdu.setDestinationAlMacAddress(g_al_mac_sap);
-        } else {
+    if (is_loopback_frame) {
+        sdu.setDestinationAlMacAddress(g_al_mac_sap);
+    } else {
+        // Set the destination AL MAC address based on the service type
+        if (m_service_type == em_service_type_ctrl) {
             sdu.setDestinationAlMacAddress({0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
         }
-    }
-    if (m_service_type == em_service_type_agent) {
-        if (is_loopback_frame || is_colocated) {
-            sdu.setDestinationAlMacAddress(g_al_mac_sap);
-        } else {
+        if (m_service_type == em_service_type_agent) {
             sdu.setDestinationAlMacAddress({0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
         }
     }
@@ -729,48 +723,88 @@ bool em_t::toggle_cce(bool enable)
 {
     const unsigned int num_bss = m_data_model->get_num_bss();
 
-    bool success = false;
-    if (enable) {
-        printf("Adding DPP IE to %d BSSs\n", num_bss);
-        for (unsigned int i = 0; i < num_bss; i++) {
-            dm_bss_t* bss = m_data_model->get_bss(i);
-            em_bss_info_t* bss_info = bss->get_bss_info();
-            em_interface_t* bssid = &bss_info->bssid;
-
-            success = bss->add_vendor_ie(&ec_manager_t::CCE_IE);
-            if (!success) {
-                printf("Failed to add DPP IE to BSS '" MACSTRFMT "'\n", MAC2STR(bssid->mac));
-                break;
-            }
-
-            printf("Added DPP IE to BSS '" MACSTRFMT "'\n", MAC2STR(bssid->mac));
-        }
-    }
-
-    // Remove DPP IEs if enable is false or if adding DPP IEs failed
-    // (prevents a state where only some BSSs have DPP IEs)
-    if (!enable || !success) {
-        printf("Removing DPP IE from %d BSSs\n", num_bss);
-        for (unsigned int i = 0; i < num_bss; i++) {
-            dm_bss_t* bss = m_data_model->get_bss(i);
-            em_bss_info_t* bss_info = bss->get_bss_info();
-            em_interface_t* bssid = &bss_info->bssid;
-
-            bss->remove_vendor_ie(&ec_manager_t::CCE_IE);
-            printf("Removed DPP IE from BSS '" MACSTRFMT "'\n", MAC2STR(bssid->mac));
-        }
-    }
-
-    // Refresh OneWifi
-    webconfig_subdoc_type_t vap_type = dm_easy_mesh_t::get_subdoc_vap_type_for_freq(get_band());
-    int refresh_outcome = m_mgr->refresh_onewifi_subdoc("'Vendor IE Refresh'", vap_type);
-    if (refresh_outcome != 1) {
-        printf("Error occurred on Vendor IE Refresh: return value %d\n", refresh_outcome);
+    if (num_bss == 0) {
+        printf("No BSSs found to add/remove DPP IE\n");
         return false;
     }
 
-    // Disabling CCEs always succeeds, and enabling succeeds if `success` is set to true
-    return !enable || success;
+    std::vector<em_freq_band_t> bands;
+    std::vector<dm_bss_t*> updated_bsses;
+
+
+
+    bool success = false;
+    for (unsigned int i = 0; i < num_bss; i++) {
+        dm_bss_t* bss = m_data_model->get_bss(i);
+        em_bss_info_t* bss_info = bss->get_bss_info();
+
+        if (!bss_info || !bss_info->enabled) {
+            printf("Skipping BSS %d as it is not enabled\n", i);
+            continue;
+        }
+/*
+While the EasyMesh spec (5.3.4) says
+    "...the Multi-AP Agent shall either include the CCE in the Beacon and Probe Response frames on all of its fronthaul BSSs 
+     or respond with an Error Response message with a Profile-2 Error Code TLV with Reason_Code set to 0x0D."
+in the context of the specification, the term "fronthaul BSSs" refers to the BSSs that the backhaul STA is connected to. There is
+no explicit mention of a "backhaul BSS" in the spec. Since the UWM code has a specific definition of a "backhaul BSS" (meaning a BSS a bSTA associates to)
+then we can say that adding the CCE IE to all of the backhaul BSSs (according to UWM) is the same as adding it to all of the fronthaul BSSs, as per the spec.
+*/
+
+        if (!bss_info->backhaul_use) {
+            printf("Skipping BSS %d as it is not a backhaul BSS\n", i);
+            continue;
+        }
+
+        em_interface_t* bssid = &bss_info->bssid;
+
+        dm_radio_t* radio = m_data_model->get_radio(bss_info->ruid.mac);
+        em_freq_band_t band = radio->m_radio_info.band;
+
+        if (enable){
+            success = bss->add_vendor_ie(&ec_manager_t::CCE_IE);
+        } else {
+            // If we are disabling, we remove the CCE IE
+            bss->remove_vendor_ie(&ec_manager_t::CCE_IE);
+            success = true; // Removing always succeeds
+        }
+        if (!success) {
+            printf("Failed to add DPP IE to BSS '" MACSTRFMT "'\n", MAC2STR(bssid->mac));
+            break;
+        }
+        bands.push_back(band);
+        updated_bsses.push_back(bss);
+
+        if (enable) {
+            printf("Added DPP IE to BSS '" MACSTRFMT "' on band %d\n", MAC2STR(bssid->mac), band);
+        } else {
+            printf("Removed DPP IE from BSS '" MACSTRFMT "' on band %d\n", MAC2STR(bssid->mac), band);
+        }
+    }
+
+    // If we failed to add the DPP IE to any BSS, we clean up the ones we successfully updated
+    // to maintain consistency
+    if (!success) {
+        printf("Cleaning up DPP IEs from BSSs due to failure in previous BSS\n");
+        for (auto& bss : updated_bsses) {
+            bss->remove_vendor_ie(&ec_manager_t::CCE_IE);
+            printf("Removed DPP IE from BSS '" MACSTRFMT "'\n", MAC2STR(bss->get_bss_info()->bssid.mac));
+        }
+        return false;
+    }
+
+    
+    // Refresh OneWifi for each band
+    for (const auto& band : bands) {
+        webconfig_subdoc_type_t vap_type = dm_easy_mesh_t::get_subdoc_vap_type_for_freq(band);
+        printf("Refreshing OneWifi for band %d with subdoc type %d\n", band, vap_type);
+        int refresh_outcome = m_mgr->refresh_onewifi_subdoc("'Vendor IE Refresh'", vap_type);
+        if (refresh_outcome != 1) {
+            printf("Error occurred on Vendor IE Refresh: return value %d\n", refresh_outcome);
+            return false;
+        }
+    }
+    return true;
 }
 
 bool em_t::bsta_connect_bss(const std::string& ssid, const std::string passphrase, bssid_t bssid)
