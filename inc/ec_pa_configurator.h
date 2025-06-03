@@ -33,6 +33,7 @@ public:
         send_act_frame_func send_action_frame,
         get_backhaul_sta_info_func get_sta_info_func,
         get_1905_info_func ieee1905_info_func,
+		get_fbss_info_func fbss_info_func,
         toggle_cce_func toggle_cce_fn
     ) : ec_configurator_t(
             mac_addr,
@@ -41,6 +42,7 @@ public:
             send_action_frame,
             get_sta_info_func,
             ieee1905_info_func,
+			fbss_info_func,
             {}
         ),
         m_toggle_cce(toggle_cce_fn) { }

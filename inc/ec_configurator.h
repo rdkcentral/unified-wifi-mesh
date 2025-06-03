@@ -85,6 +85,12 @@ using get_backhaul_sta_info_func = std::function<cJSON*(ec_connection_context_t 
 using get_1905_info_func = std::function<cJSON*(ec_connection_context_t *)>;
 
 /**
+ * @brief Creates a DPP Configuration Response object for the fronthaul BSS interface(s)
+ * @return cJSON * on success, nullptr otherwise
+ */
+using get_fbss_info_func = std::function<cJSON*(ec_connection_context_t *)>;
+
+/**
  * @brief Used to determine if an additional AP can be on-boarded or not.
  * @return True if additional APs can be on-boraded into the mesh, false otherwise.
  */
@@ -109,7 +115,7 @@ public:
 	 */
 	ec_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg, 
                         send_act_frame_func send_action_frame, get_backhaul_sta_info_func backhaul_sta_info_func, get_1905_info_func ieee1905_info_func,
-                        can_onboard_additional_aps_func can_onboard_func);
+                        get_fbss_info_func fbss_info_func, can_onboard_additional_aps_func can_onboard_func);
     
 	/**!
 	 * @brief Destructor for ec_configurator_t class.
@@ -396,6 +402,8 @@ protected:
     get_backhaul_sta_info_func m_get_backhaul_sta_info;
 
     get_1905_info_func m_get_1905_info;
+
+	get_fbss_info_func m_get_fbss_info;
 
     can_onboard_additional_aps_func m_can_onboard_additional_aps;
 

@@ -455,6 +455,15 @@ protected:
 	 * @note Ensure that the connection context is properly initialized before calling this function.
 	 */
 	cJSON *create_ieee1905_response_obj(ec_connection_context_t *conn_ctx);
+
+	/**
+	 * @brief Create a fBSS (fronthaul BSS) Configuration response object for DPP STA onboarding
+	 * 
+	 * @param conn_ctx The connection context used to create the response object.
+	 * @return cJSON* Configuration response object on success, nullptr otherwise
+	 */
+	cJSON *create_fbss_response_obj(ec_connection_context_t *conn_ctx);
+
 public:
     
 	/**!
