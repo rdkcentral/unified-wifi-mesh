@@ -1345,6 +1345,9 @@ em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr
             service_type == em_service_type_ctrl
                 ? std::bind(&em_t::create_ieee1905_response_obj, this, std::placeholders::_1)
                 : static_cast<get_1905_info_func>(nullptr),
+            service_type == em_service_type_ctrl
+                ? std::bind(&em_t::create_fbss_response_obj, this, std::placeholders::_1)
+                : static_cast<get_fbss_info_func>(nullptr),
             std::bind(&em_mgr_t::can_onboard_additional_aps, mgr),
             std::bind(&em_t::toggle_cce, this, std::placeholders::_1),
             std::bind(&em_t::start_stop_build_ec_channel_list, this, std::placeholders::_1),

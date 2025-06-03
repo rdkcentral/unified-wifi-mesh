@@ -335,6 +335,14 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
     auto dpp_config_request_obj_attr = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_dpp_config_req_obj);
     ASSERT_OPT_HAS_VALUE_FREE(dpp_config_request_obj_attr, false, unwrapped_attrs, "%s:%d: No DPP Configuration Request Object found in DPP Configuration Request frame!\n", __func__, __LINE__);
 
+    cJSON *dpp_config_request_json = cJSON_ParseWithLength(reinterpret_cast<const char *>(dpp_config_request_obj_attr->data), dpp_config_request_obj_attr->length);
+    ASSERT_NOT_NULL_FREE(dpp_config_request_json, false, unwrapped_attrs, "%s:%d: Failed to parse DPP Configuration Request Object JSON!\n", __func__, __LINE__);
+    cJSON *wifi_tech = cJSON_GetObjectItem(dpp_config_request_json, "wi-fi_tech");
+    ASSERT_NOT_NULL_FREE(wifi_tech, false, unwrapped_attrs, "%s:%d: DPP Configuration Request Object does not contain 'wi-fi_tech' field!\n", __func__, __LINE__);
+    cJSON *netRole = cJSON_GetObjectItem(dpp_config_request_json, "netRole");
+    ASSERT_NOT_NULL_FREE(netRole, false, unwrapped_attrs, "%s:%d: DPP Configuration Request Object does not contain 'netRole' field!\n", __func__, __LINE__);
+    bool onboarding_sta_device = (std::string(wifi_tech->valuestring) == "infra" && std::string(netRole->valuestring) == "sta");
+
     // Copy the DPP Configuration Request Object string to an std::string to free the unwrapped attributes
     std::string dpp_config_request_obj_str(reinterpret_cast<char *>(dpp_config_request_obj_attr->data), dpp_config_request_obj_attr->length);
     free(unwrapped_attrs);
@@ -440,7 +448,7 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
         "Credentials."
     );
     */
-    auto [config_response_frame, config_response_frame_len] = create_config_response_frame(src_mac, session_dialog_token, DPP_STATUS_OK);
+    auto [config_response_frame, config_response_frame_len] = create_config_response_frame(src_mac, session_dialog_token, DPP_STATUS_OK, onboarding_sta_device);
     if (config_response_frame == nullptr || config_response_frame_len == 0) {
         em_printfout("Failed to create Configuration Respone frame");
         return false;
@@ -1163,6 +1171,12 @@ cJSON *ec_ctrl_configurator_t::finalize_config_obj(cJSON *base, ec_connection_co
             };
             break;
         }
+        case dpp_config_obj_type_e::dpp_config_obj_fbss: {
+            groups = {
+                {{"groupID", "mapNW"}, {"netRole", "sta"}}
+            };
+            break;
+        }
         default: {
             em_printfout("Unknown DPP Configuration object type %d", static_cast<int>(config_obj_type));
             return nullptr;
@@ -1192,7 +1206,7 @@ cJSON *ec_ctrl_configurator_t::finalize_config_obj(cJSON *base, ec_connection_co
     return base;
 }
 
-std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_frame(uint8_t dest_mac[ETH_ALEN], const uint8_t dialog_token, ec_status_code_t dpp_status)
+std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_frame(uint8_t dest_mac[ETH_ALEN], const uint8_t dialog_token, ec_status_code_t dpp_status, bool is_sta)
 {
     const std::string enrollee_mac = util::mac_to_string(dest_mac);
     auto conn_ctx = get_conn_ctx(enrollee_mac);
@@ -1237,40 +1251,60 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_fram
     }
 
     // DPP_STATUS_OK case.
-
-    // Construct Configuration objects for bSTA and 1905.
+    // 1905 Config Obj Always required
     conn_ctx->ppk = ec_crypto::create_ppkey_public(conn_ctx->C_signing_key);
     ASSERT_NOT_NULL(conn_ctx->ppk, {}, "%s:%d: Failed to generate ppK!\n", __func__, __LINE__);
     ASSERT_NOT_NULL(m_get_1905_info, {}, "%s:%d: Cannot generate 1905 Configuration Object, no callback!\n", __func__, __LINE__);
-    ASSERT_NOT_NULL(m_get_backhaul_sta_info, {}, "%s:%d: Enrollee '" MACSTRFMT "' requests bSTA config, but bSTA config callback is nullptr!\n", __func__, __LINE__, MAC2STR(dest_mac));
+
     cJSON *ieee1905_config_obj = m_get_1905_info(conn_ctx);
-    cJSON *bsta_config_obj = m_get_backhaul_sta_info(conn_ctx);
-    if (ieee1905_config_obj == nullptr || bsta_config_obj == nullptr) {
-        em_printfout("Failed to create bSTA and/or IEEE1905 Configuration object(s)");
-        return {};
-    }
-
-    if ((ieee1905_config_obj = finalize_config_obj(ieee1905_config_obj, *conn_ctx, dpp_config_obj_ieee1905)) == nullptr) {
+    if (ieee1905_config_obj == nullptr) {
         em_printfout("Failed to create IEEE1905 Configuration object");
-        cJSON_Delete(ieee1905_config_obj);
-        cJSON_Delete(bsta_config_obj);
         return {};
     }
-
-    if ((bsta_config_obj = finalize_config_obj(bsta_config_obj, *conn_ctx, dpp_config_obj_bsta)) == nullptr) {
-        em_printfout("Failed to create bSTA Configuration object");
-        cJSON_Delete(ieee1905_config_obj);
-        cJSON_Delete(bsta_config_obj);
+    ieee1905_config_obj = finalize_config_obj(ieee1905_config_obj, *conn_ctx, dpp_config_obj_ieee1905);
+    if (ieee1905_config_obj == nullptr) {
+        em_printfout("Failed to finalize IEEE1905 Configuration object");
         return {};
     }
-
     std::string ieee1905_config_obj_str = cjson_utils::stringify(ieee1905_config_obj);
-    std::string bsta_config_obj_str = cjson_utils::stringify(bsta_config_obj);
     cJSON_Delete(ieee1905_config_obj);
-    cJSON_Delete(bsta_config_obj);
-    // For debugging
     em_printfout("IEEE1905 Configuration object:\n%s", ieee1905_config_obj_str.c_str());
-    em_printfout("bSTA Configuration object:\n%s", bsta_config_obj_str.c_str());
+
+    std::string bsta_config_obj_str, fbss_config_obj_str;
+    // If not STA onboarding (i.e. onboarding an AP Enrollee), create backhaul STA configuration object
+    if (!is_sta) {
+        ASSERT_NOT_NULL(m_get_backhaul_sta_info, {}, "%s:%d: Enrollee '" MACSTRFMT "' requests bSTA config, but bSTA config callback is nullptr!\n", __func__, __LINE__, MAC2STR(dest_mac));
+        cJSON *bsta_config_obj = m_get_backhaul_sta_info(conn_ctx);
+        if (bsta_config_obj == nullptr) {
+            em_printfout("Failed to create bSTA Configuration object");
+            return {};
+        }
+        bsta_config_obj = finalize_config_obj(bsta_config_obj, *conn_ctx, dpp_config_obj_bsta);
+        if (bsta_config_obj == nullptr) {
+            em_printfout("Failed to finalize bSTA Configuration object");
+            return {};
+        }
+        bsta_config_obj_str = cjson_utils::stringify(bsta_config_obj);
+        cJSON_Delete(bsta_config_obj);
+        em_printfout("bSTA Configuration object:\n%s", bsta_config_obj_str.c_str());
+    } else {
+        // If STA onboarding, send fBSS credentials
+        ASSERT_NOT_NULL(m_get_fbss_info, {}, "%s:%d: Enrollee '" MACSTRFMT "' requests STA onboarding (fBSS credentials) but fBSS config callback is nullptr!\n", __func__, __LINE__, MAC2STR(dest_mac));
+        cJSON *fbss_config_obj = m_get_fbss_info(conn_ctx);
+        if (fbss_config_obj == nullptr) {
+            em_printfout("Failed to create fBSS Configuration object");
+            return {};
+        }
+        fbss_config_obj = finalize_config_obj(fbss_config_obj, *conn_ctx, dpp_config_obj_fbss);
+        if (fbss_config_obj == nullptr) {
+            em_printfout("Failed to finalize fBSS Configuration object");
+            return {};
+        }
+        fbss_config_obj_str = cjson_utils::stringify(fbss_config_obj);
+        cJSON_Delete(fbss_config_obj);
+        em_printfout("fBSS Configuration object:\n%s", fbss_config_obj_str.c_str());
+    }
+
 
     // Create DPP Configuration frame.
     auto [frame, frame_len] = ec_util::alloc_gas_frame(dpp_gas_action_type_t::dpp_gas_initial_resp, dialog_token);
@@ -1285,7 +1319,11 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_fram
         size_t wrapped_len = 0;
         uint8_t *wrapped_attribs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, conn_ctx->nonce_len, e_ctx->e_nonce);
         wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_obj, ieee1905_config_obj_str);
-        wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_obj, bsta_config_obj_str);
+        if (!is_sta) {
+            wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_obj, bsta_config_obj_str);
+        } else {
+            wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_obj, fbss_config_obj_str);
+        }
         wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_send_conn_status, 0, NULL);
         return std::make_pair(wrapped_attribs, wrapped_len);
     });

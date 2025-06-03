@@ -10,6 +10,7 @@ struct cJSON;
 typedef enum {
     dpp_config_obj_bsta,
     dpp_config_obj_ieee1905,
+	dpp_config_obj_fbss,
 } dpp_config_obj_type_e;
 
 class ec_ctrl_configurator_t : public ec_configurator_t {
@@ -30,8 +31,8 @@ public:
 	 * @note This constructor initializes the base class ec_configurator_t with the provided parameters.
 	 */
 	ec_ctrl_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg,
-        get_backhaul_sta_info_func backhaul_sta_info_func, get_1905_info_func ieee1905_info_func, can_onboard_additional_aps_func can_onboard_func) :
-        ec_configurator_t(mac_addr, send_chirp_notification, send_prox_encap_dpp_msg, {}, backhaul_sta_info_func, ieee1905_info_func, can_onboard_func)
+        get_backhaul_sta_info_func backhaul_sta_info_func, get_1905_info_func ieee1905_info_func, get_fbss_info_func get_fbss_info, can_onboard_additional_aps_func can_onboard_func) :
+        ec_configurator_t(mac_addr, send_chirp_notification, send_prox_encap_dpp_msg, {}, backhaul_sta_info_func, ieee1905_info_func, get_fbss_info, can_onboard_func)
         {};
         // No MAC address needed for controller configurator
 
@@ -235,6 +236,8 @@ private:
 	 * @param[in] dialog_token The session dialog token for the Enrollee.
 	 * @param[in] dpp_status The status of the DPP Configuration. Use DPP_STATUS_OK for
 	 *                       success or DPP_STATUS_CONFIGURATION_FAILURE for failure.
+	 * @param is_sta Optional parameter to indicate if the frame is for a station (default is false). If this is for a STA being onboarded,
+	 * we provide fronthaul BSS information and don't issue a DPP Connector (EasyMesh 5.3.11)
 	 *
 	 * @return std::pair<uint8_t*, size_t> A pair containing the frame and its length
 	 *                                      on success, or nullptr and 0 on failure.
@@ -242,7 +245,7 @@ private:
 	 * @note Ensure that the destination MAC address is valid and that the dialog token
 	 *       and DPP status are correctly set before calling this function.
 	 */
-	std::pair<uint8_t*, size_t> create_config_response_frame(uint8_t dest_mac[ETH_ALEN], const uint8_t dialog_token, ec_status_code_t dpp_status);
+	std::pair<uint8_t*, size_t> create_config_response_frame(uint8_t dest_mac[ETH_ALEN], const uint8_t dialog_token, ec_status_code_t dpp_status, bool is_sta = false);
 
     
 	/**
