@@ -330,8 +330,7 @@ int dm_network_ssid_list_t::update_db(db_client_t& db_client, dm_orch_type_t op,
 	memset(hauls, 0, sizeof(em_long_string_t));
     for (i = 0; i < info->num_hauls; i++) {
         dm_network_ssid_t::haul_type_to_string(info->haul_type[i], haul_str);
-        strncat(hauls, haul_str, strlen(haul_str));
-        strcat(hauls, ",");
+        snprintf(hauls + strlen(hauls), sizeof(hauls) - strlen(hauls) - 1, "%s,", haul_str);
     }
     hauls[strlen(hauls) - 1] = 0;
     //printf("%s:%d: Haul Types: %s\n", __func__, __LINE__, bands);

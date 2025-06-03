@@ -107,7 +107,7 @@ size_t ec_crypto::compute_hkdf_key(ec_connection_context_t& c_ctx, uint8_t *key_
 BIGNUM* ec_crypto::calculate_Lx(ec_connection_context_t& c_ctx, const BIGNUM* bR, const BIGNUM* pR, const EC_POINT* BI)
 {
     EC_POINT* L = NULL;
-    BIGNUM *sum, *order, *L_x = NULL;
+    BIGNUM *sum = NULL, *order, *L_x = NULL;
     int success = 0;
     
     // Get the order of the curve (q)
