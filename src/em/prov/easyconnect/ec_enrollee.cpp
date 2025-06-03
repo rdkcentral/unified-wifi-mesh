@@ -88,18 +88,6 @@ void ec_enrollee_t::send_presence_announcement_frames()
         return;
     }
 
-    /**
-     * Sleep every 100ms until we receive a DPP Authentication Request frame or the duration expires.
-     */
-    auto interruptible_sleep = [this](auto duration) {
-        auto start = std::chrono::steady_clock::now();
-        while (!m_received_auth_frame.load() && 
-              std::chrono::steady_clock::now() - start < duration) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        return !m_received_auth_frame.load();
-    };
-
     uint32_t current_freq = 0;
 
     while (!m_received_auth_frame.load()) {
@@ -111,7 +99,10 @@ void ec_enrollee_t::send_presence_announcement_frames()
             // specified in Section 6.2.2.
             attempts = 0;
             dwell = 2000;
-            if (!interruptible_sleep(std::chrono::seconds(5))) {
+
+            if (!ec_util::interruptible_sleep(std::chrono::seconds(5), [this]() -> bool {
+                return m_received_auth_frame.load();
+            })) {
                 break;
             }
         }
@@ -131,7 +122,9 @@ void ec_enrollee_t::send_presence_announcement_frames()
             current_freq = freq;
 
             // Wait `dwell` before moving to next channel.
-            if (!interruptible_sleep(std::chrono::milliseconds(dwell))) {
+            if (!ec_util::interruptible_sleep(std::chrono::milliseconds(dwell), [this]() -> bool {
+                return m_received_auth_frame.load();
+            })) {
                 break;
             }
         }
@@ -144,7 +137,9 @@ void ec_enrollee_t::send_presence_announcement_frames()
         attempts++;
         dwell *= 2;
         
-        if (!interruptible_sleep(std::chrono::seconds(30))) {
+        if (!ec_util::interruptible_sleep(std::chrono::seconds(30), [this]() -> bool {
+            return m_received_auth_frame.load();
+        })) {
             break;
         }
     }
@@ -152,6 +147,61 @@ void ec_enrollee_t::send_presence_announcement_frames()
     m_selected_freq = current_freq;
 
     free(frame);
+}
+
+void ec_enrollee_t::send_reconfiguration_announcement_frames()
+{
+    // 2 seconds
+    constexpr uint32_t dwell = 2000;
+    auto [frame, frame_len] = create_recfg_presence_announcement();
+
+    if (frame == nullptr || frame_len == 0) {
+        em_printfout("Failed to create DPP Reconfiguration Announcement frame");
+        return;
+    }
+
+    uint32_t current_freq = 0;
+
+    while (!m_received_recfg_auth_frame.load()) {
+        for (const auto& freq : m_recnf_announcement_freqs) {
+            // EasyConnect 6.5.2
+            // the Enrollee selects a channel from the channel list,
+            // sends a DPP Reconfiguration Announcement frame and waits for two seconds for a DPP Reconfiguration Authentication
+            // Request frame.
+
+            if (!m_send_action_frame(const_cast<uint8_t*>(BROADCAST_MAC_ADDR), frame, frame_len, freq, dwell)) {
+                em_printfout("Failed to send DPP Reconfiguration Announcement frame (broadcast) on freq %d", freq);
+            }
+            current_freq = freq;
+        }
+        // EasyConnect 6.5.2
+        // If a valid DPP Reconfiguration Authentication Request frame is not received, it repeats this procedure for
+        // the next channel in the channel list. When all channels have been exhausted, it pauses for at least 30 seconds before
+        // repeating the announcement procedure.
+
+        if (!ec_util::interruptible_sleep(std::chrono::seconds(30), [this]() -> bool {
+            return m_received_recfg_auth_frame.load();
+        })) {
+            break;
+        }
+    }
+
+    m_selected_freq = current_freq;
+    free(frame);
+}
+
+bool ec_enrollee_t::handle_recfg_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETH_ALEN])
+{
+    if (!frame) {
+        em_printfout("Reconfiguration Authentication Request frame is nullptr");
+        return false;
+    }
+    // Cease reconfiguration announcements
+    m_received_recfg_auth_frame.store(true);
+    if (m_send_recfg_announcement_thread.joinable()) m_send_recfg_announcement_thread.join();
+    em_printfout("Received a Reconfiguration Authentication request, stopping Reconfiguration Announcements");
+    // TODO: finish me
+    return true;
 }
 
 bool ec_enrollee_t::handle_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
@@ -565,6 +615,8 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
         cJSON_Delete(ieee1905_configuration_object);
         return false;
     }
+
+    m_configured_ssid = std::string(bsta_ssid->valuestring);
 
     cJSON *bsta_bssid = cJSON_GetObjectItem(bsta_discovery_obj, "BSSID");
     bssid_t bssid = {0};
@@ -1375,5 +1427,14 @@ bool ec_enrollee_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
     free(frame);
 
     
+    return true;
+}
+
+bool ec_enrollee_t::handle_bss_info_event(const wifi_bss_info_t &bss_info)
+{
+    if (std::string(bss_info.ssid) == m_configured_ssid) {
+        em_printfout("SSID %s heard on frequency %d, adding to Reconfiguration Announcement frequency list", bss_info.ssid, bss_info.freq);
+        m_recnf_announcement_freqs.insert(bss_info.freq);
+    }
     return true;
 }

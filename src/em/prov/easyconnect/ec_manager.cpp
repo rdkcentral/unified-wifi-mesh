@@ -72,6 +72,12 @@ bool ec_manager_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len, ui
         case ec_frame_type_conn_status_result:
             did_succeed = m_configurator->handle_connection_status_result(frame, len, src_mac);
             break;
+        case ec_frame_type_recfg_announcement:
+            did_succeed = m_configurator->handle_recfg_announcement(frame, len, src_mac);
+            break;
+        case ec_frame_type_recfg_auth_req:
+            did_succeed = m_enrollee->handle_recfg_auth_request(frame, len, src_mac);
+            break;
         default:
             em_printfout("frame type (%d) not handled", frame->frame_type);
             break;
@@ -174,4 +180,13 @@ bool ec_manager_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
         return true;
     }
     return m_enrollee->handle_assoc_status(sta_data);
+}
+
+bool ec_manager_t::handle_bss_info_event(const wifi_bss_info_t &bss_info)
+{
+    if (!m_enrollee) {
+        // This is fine, ignore event
+        return true;
+    }
+    return m_enrollee->handle_bss_info_event(bss_info);
 }

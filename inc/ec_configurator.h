@@ -242,6 +242,24 @@ public:
         return true;
     }
 
+	/**
+	 * @brief Handles a Reconfiguration Announcement frame
+	 * 
+	 * If this Reconfiguration Announcement frame is meant for the Configurator that received it
+	 * (determined by comparing the C-sign-key hash attribute to the Configurator's C-sign-key),
+	 * then create a Reconfiguration Authentication frame and send to the Enrollee
+	 * 
+	 * @param frame The Reconfiguration Announcement frame
+	 * @param len The length of the frame
+	 * @param sa The source address (Enrollee)
+	 * @return true on success, otherwise false
+	 * 
+	 * @note Only implemented by the Controller Configurator
+	 */
+	virtual bool handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) {
+		return true;
+	}
+
     
 	/**
 	 * @brief Handle a chirp notification message TLV and direct it to the correct place (802.11 or 1905).

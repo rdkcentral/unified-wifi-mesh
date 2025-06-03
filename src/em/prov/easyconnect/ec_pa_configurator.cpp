@@ -41,6 +41,32 @@ bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_
     return sent;	
 }
 
+bool ec_pa_configurator_t::handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN])
+{
+    em_printfout("Received a DPP Reconfiguration Announcement frame from '" MACSTRFMT "'", MAC2STR(sa));
+
+    // EasyMesh 5.3.10.2
+    size_t attrs_len = len - EC_FRAME_BASE_SIZE;
+    auto c_sign_key_hash_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_C_sign_key_hash);
+    ASSERT_OPT_HAS_VALUE(c_sign_key_hash_attr, false, "%s:%d: No C-sign key hash attribute found in DPP Reconfiguration Announcement frame\n", __func__, __LINE__);
+
+    std::string c_sign_key_hash_str = em_crypto_t::hash_to_hex_string(c_sign_key_hash_attr->data, c_sign_key_hash_attr->length);
+    bool sent = false;
+    bool hash_known = (m_stored_recfg_auth_frames_map.find(c_sign_key_hash_str) != m_stored_recfg_auth_frames_map.end());
+    if (hash_known) {
+        em_printfout("Found matching C-sign key hash in DPP Reconfiguration Announcement frame, sending Reconfiguration Authentication Request frame");
+        std::vector<uint8_t> encap_frame_vec = m_stored_recfg_auth_frames_map[c_sign_key_hash_str];
+        sent = m_send_action_frame(sa, encap_frame_vec.data(), encap_frame_vec.size(), 0, 0);
+    } else {
+        em_printfout("No matching C-sign key hash found in DPP Reconfiguration Announcement frame, sending Reconfiguration Announcement frame to controller");
+        auto [encap_frame, encap_frame_len] = ec_util::create_encap_dpp_tlv(false, sa, ec_frame_type_recfg_announcement, reinterpret_cast<uint8_t*>(frame), len);
+        ASSERT_NOT_NULL(encap_frame, false, "%s:%d: Failed to create Encap DPP TLV for Reconfiguration Announcement frame\n", __func__, __LINE__);
+        sent = m_send_prox_encap_dpp_msg(encap_frame, encap_frame_len, nullptr, 0);
+        free(encap_frame);
+    }
+    return sent;
+}
+
 bool ec_pa_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
     em_printfout("Received a DPP Authentication Response frame from '" MACSTRFMT "'\n", MAC2STR(src_mac));
@@ -266,10 +292,16 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
             break;
         }
         case ec_frame_type_recfg_auth_req: {
-            em_printfout("Encap DPP frame type (%d) not handled", ec_frame_type);
+            ec_frame_t *frame = reinterpret_cast<ec_frame_t*>(encap_frame);
+            auto c_sign_key_hash_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t>(encap_frame_len - EC_FRAME_BASE_SIZE), ec_attrib_id_C_sign_key_hash);
+            if (!c_sign_key_hash_attr.has_value()) {
+                em_printfout("No C-sign key hash attribute found in DPP Reconfiguration Authentication Request frame");
+                free(encap_frame);
+                return false;
+            }
             std::vector<uint8_t> encap_frame_vec(encap_frame, encap_frame + encap_frame_len);
-            // Will be compared against incoming presence announcement hash and mac-addr
-            m_stored_recfg_auth_frames.push_back(encap_frame_vec); 
+            const std::string c_sign_key_hash_str = em_crypto_t::hash_to_hex_string(c_sign_key_hash_attr->data, c_sign_key_hash_attr->length);
+            m_stored_recfg_auth_frames_map[c_sign_key_hash_str] = encap_frame_vec;
             did_finish = true;
             break;
         }
