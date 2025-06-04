@@ -1087,7 +1087,7 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_recfg_auth_request(c
 
     auto connector = ec_crypto::generate_connector(jwsHeaderObj, jwsPayloadObj, conn_ctx->C_signing_key);
     ASSERT_OPT_HAS_VALUE(connector, {}, "%s:%d: Failed to generate C-Connector\n", __func__, __LINE__);
-    e_ctx->connector = connector->c_str();
+    e_ctx->connector = strdup(connector->c_str());
 
     attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_dpp_connector, std::string(e_ctx->connector));
     attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_config_nonce, conn_ctx->nonce_len, e_ctx->c_nonce);

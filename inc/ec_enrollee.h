@@ -324,14 +324,15 @@ private:
 	 *
 	 * This function generates a response for reconfiguration authentication based on the provided DPP status code.
 	 *
-	 * @param[in] dpp_status The DPP status code used to determine the response.
+	 * @param trans_id The transaction ID for this Reconfiguration session
+	 * @param dpp_version The DPP version for this Reconfiguration session
 	 *
 	 * @returns A pair consisting of a pointer to the response data and its size.
 	 * @retval std::pair<uint8_t*, size_t> A pair where the first element is a pointer to the response data and the second element is the size of the data.
 	 *
 	 * @note Ensure that the response data is properly managed and freed after use to avoid memory leaks.
 	 */
-	std::pair<uint8_t*, size_t> create_recfg_auth_response(ec_status_code_t dpp_status);
+	std::pair<uint8_t*, size_t> create_recfg_auth_response(uint8_t trans_id, uint8_t dpp_version);
     
 	/**!
 	 * @brief Creates a configuration request.
