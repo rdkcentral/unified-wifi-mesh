@@ -290,13 +290,18 @@ bool em_cli_t::is_remote_addr_valid()
 	return m_params.user_data.valid;
 }
 
-int em_cli_t::set_remote_addr(unsigned int ip, unsigned int port)
+int em_cli_t::set_remote_addr(unsigned int ip, unsigned int port, bool valid)
 {
     char *result;
     em_cmd_cli_t *cli_cmd;
     em_network_node_t *node = NULL;
     bool is_connection_valid = false;
     em_long_string_t cmd = "PING OneWifiMesh";
+
+    if(valid == false) {
+        m_params.user_data.valid = false;
+        return -1;
+    }
 
     m_params.user_data.addr.sin_family = AF_INET;
     m_params.user_data.addr.sin_addr.s_addr = ip;
@@ -353,9 +358,9 @@ extern "C" em_network_node_t *exec(char *in, size_t in_len, em_network_node_t *n
     return g_cli.exec(in, in_len, node);
 }
 
-extern "C" int set_remote_addr(unsigned int ip, unsigned int port)
+extern "C" int set_remote_addr(unsigned int ip, unsigned int port, bool valid)
 {
-    return g_cli.set_remote_addr(ip, port);
+    return g_cli.set_remote_addr(ip, port, valid);
 }
 
 extern "C" bool is_remote_addr_valid()

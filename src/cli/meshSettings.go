@@ -20,6 +20,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const remoteCtrl_Addr_path = "/nvram/remoteCtrl.txt"
+
 // Model implements tea.Model, and manages the browser UI.
 type MeshSettings struct {
 	windowWidth  int
@@ -27,16 +29,39 @@ type MeshSettings struct {
 	remoteAddr   textinput.Model
 	dump         *os.File
 	ipValid      bool
+	lastIP       string
 }
 
 func newMeshSettings(platform string, dump *os.File) *MeshSettings {
 	remoteAddr := textinput.New()
-
-	return &MeshSettings{
+	settings := &MeshSettings{
 		remoteAddr: remoteAddr,
 		dump:       dump,
 		ipValid:    false,
 	}
+	settings.Init()
+	return settings
+}
+
+func loadConfig(filename string) (string, error) {
+	// Read file content
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return "", err
+	}
+	// Remove extra spaces/newlines
+	return strings.TrimSpace(string(data)), nil
+}
+
+func saveConfig(ipPort string, filename string) error {
+	file, err := os.Create(filename) // Create/overwrite file
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = file.WriteString(ipPort + "\n") // Write to file
+	return err
 }
 
 // Validator of Remote Controller IP Address
@@ -71,11 +96,18 @@ func remoteAddrValidator(remoteAddr string) (bool, int, int) {
 	}
 
 	// Return success, hardcode the port to 49153 as of now
+	saveConfig(remoteAddr, remoteCtrl_Addr_path)
 	return true, ip, 49153
 }
 
 // Init initialises the Model on program load. It partly implements the tea.Model interface.
 func (m *MeshSettings) Init() tea.Cmd {
+	ip, err := loadConfig(remoteCtrl_Addr_path) // Load from file
+	if err != nil || ip == "" {
+		ip = "127.0.0.1:49153" // Fallback default IP
+	}
+	m.lastIP = ip
+	m.remoteAddr.SetValue(m.lastIP)
 	return textinput.Blink
 }
 
@@ -95,11 +127,7 @@ func (m *MeshSettings) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "enter":
 			m.ipValid, ip, port = remoteAddrValidator(m.remoteAddr.Value())
-			if m.ipValid == true {
-				C.set_remote_addr(C.uint(ip), C.uint(port))
-			} else {
-				return m, nil
-			}
+			C.set_remote_addr(C.uint(ip), C.uint(port), C.bool(m.ipValid))
 		}
 	}
 
@@ -119,7 +147,7 @@ func (m *MeshSettings) View() string {
 
 	boldStyle := lipgloss.NewStyle().Bold(true)
 	title := boldStyle.Render("Controller IP Address")
-	m.remoteAddr.Placeholder = "10.0.0.1:49153"
+	m.remoteAddr.Placeholder = "127.0.0.1:49153"
 	m.remoteAddr.CharLimit = 21
 	m.remoteAddr.Width = 30
 	m.remoteAddr.Prompt = ""

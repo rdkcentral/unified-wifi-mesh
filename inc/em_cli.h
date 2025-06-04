@@ -74,7 +74,7 @@ public:
 	 *
 	 * @note Ensure that the parameters are correctly set before calling this function.
 	 */
-	int set_remote_addr(unsigned int ip, unsigned int port);
+	int set_remote_addr(unsigned int ip, unsigned int port, bool valid);
 
 	bool is_remote_addr_valid();
 	
