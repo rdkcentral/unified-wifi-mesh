@@ -45,7 +45,7 @@ INDLUDEDIRS += -I$(WIFI_CJSON)
 CXX_COMMON_FLAGS = -DUNIT_TEST -Wall -Wextra -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wconversion -Wsign-conversion -Wno-unused-parameter -fsanitize=address -fsanitize=undefined #-Werror -O2 -Weffc++
 CXX_SPECIFIC_FLAGS = -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -std=c++17
 
-CXXFLAGS += $(INCLUDEDIRS) -g $(CXX_COMMON_FLAGS) $(CXX_SPECIFIC_FLAGS)
+CXXFLAGS += $(INCLUDEDIRS) -g $(CXX_COMMON_FLAGS) $(CXX_SPECIFIC_FLAGS) `mariadb_config --include`
 CFLAGS += $(INCLUDEDIRS) -g $(CXX_COMMON_FLAGS)
 
 ifeq ($(WITH_SAP), 1)
@@ -64,7 +64,7 @@ ifeq ($(WITH_SAP), 1)
 LIBDIRS += -L$(AL_SAP_HOME)/
 endif
 
-LIBS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lmysqlcppconn -lhebus
+LIBS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lhebus `mariadb_config --libs`
 ifeq ($(WITH_SAP), 1)
 LIBS += -lalsap
 endif
@@ -118,12 +118,25 @@ clean:
 # Google Test integration
 TEST_DIR = $(ONEWIFI_EM_HOME)/tests
 TEST_EXEC = $(INSTALLDIR)/bin/onewifi_em_test
-TEST_SOURCES = $(wildcard $(TEST_DIR)/*.cpp)
+# Common test files (everything except test_l1_al*.cpp)
+COMMON_TEST_SOURCES = $(filter-out $(TEST_DIR)/test_l1_al%.cpp, $(wildcard $(TEST_DIR)/*.cpp))
+
+# SAP-specific test files
+SAP_TEST_SOURCES = $(wildcard $(TEST_DIR)/test_l1_al*.cpp)
+
+# Combine them based on WITH_SAP
+TEST_SOURCES = $(COMMON_TEST_SOURCES)
+ifeq ($(WITH_SAP), 1)
+TEST_SOURCES += $(SAP_TEST_SOURCES)
+endif
 TEST_OBJECTS = $(TEST_SOURCES:.cpp=.o)
 TEST_CXXFLAGS = $(CXXFLAGS) -I/usr/include -I/usr/local/include -DTESTING
 
 # Test target
 test: check_test_files install_gtest $(TEST_OBJECTS)
+ifeq ($(WITH_SAP), 1)
+	@$(MAKE) -C $(AL_SAP_HOME)
+endif
 	@$(MAKE) $(ALLOBJECTS) TESTING=1
 	@echo "Building test executable with same link order as main build..."
 	$(CXX) -o $(TEST_EXEC) $(TEST_OBJECTS) $(ALLOBJECTS) $(LIBDIRS) $(LIBS) -lgtest -lgtest_main -pthread -fsanitize=address -fsanitize=undefined
@@ -156,5 +169,7 @@ run:
 # Clean test files only
 clean_tests:
 	$(RM) $(TEST_OBJECTS) $(TEST_EXEC)
-
+ifeq ($(WITH_SAP), 1)
+	@$(MAKE) -C $(AL_SAP_HOME) clean
+endif
 .PHONY: all test install_gtest check_test_files clean_tests compile_test_objects clean run
