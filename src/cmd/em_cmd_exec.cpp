@@ -309,7 +309,7 @@ int em_cmd_exec_t::send_cmd(em_service_type_t to_svc, unsigned char *in, unsigne
     memset(&addr, 0, sizeof(addr));
 #ifdef LOCAL_CLI 
     addr.sun_family = AF_UNIX;
-    snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", sock_path);
+    snprintf(addr.sun_path, sizeof(addr.sun_path), "%.*s", static_cast<int>(sizeof(addr.sun_path) - 1), sock_path);
 #else
 	addr.sin_family = AF_INET; 
 	addr.sin_addr.s_addr = inet_addr("127.0.0.1");

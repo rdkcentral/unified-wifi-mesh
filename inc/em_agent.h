@@ -195,6 +195,17 @@ class em_agent_t : public em_mgr_t {
 	void handle_recv_cce_ie(em_bus_event_t *event);
 
 	/**
+	 * @brief Handles the reception of BSS info reports from OneWifi
+	 * 
+	 * Used for DPP for building the Enrollee's channel list for Reconfiguration Announcement
+	 * 
+	 * @param event The event containing the `bss_info_t` including an SSID which the Enrollee will check
+	 * to conditionally include the channel (frequency) that the SSID was heard on in its
+	 * Reconfiguration Announcement channel list
+	 */
+	void handle_bss_info(em_bus_event_t *event);
+
+	/**
 	 * @brief Handles the reception of association status of a STA
 	 * 
 	 * @param event The event containing the `rdk_sta_data_t` info which includes the association status along with other information
@@ -877,6 +888,17 @@ public:
 	 * @return int 1 on success, otherwise -1
 	 */
 	static int association_status_cb(char *event_name, raw_data_t *data, void *userData);
+
+	/**
+	 * @brief Callback for BSS scan events
+	 * 
+	 * @param event_name The name of the event
+	 * @param data The raw event data
+	 * @param userData Optional user-provided callback data
+	 * @return int 1 on success, otherwise -1
+	 */
+	static int bss_info_cb(char *event_name, raw_data_t *data, void *userData);
+
 	/**!
 	 * @brief Callback function for handling AP Metrics reports.
 	 *

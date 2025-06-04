@@ -1546,10 +1546,10 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::get_data_model(const char *net_id, const un
 {
     dm_easy_mesh_t *dm = NULL;
     mac_addr_str_t mac_str;
-    em_short_string_t	key;
+    em_2xlong_string_t	key;
 
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (al_mac), mac_str);
-    snprintf(key, sizeof(em_short_string_t), "%s@%s", net_id, mac_str);
+    snprintf(key, sizeof(key), "%s@%s", net_id, mac_str);
     //printf("%s:%d: Retrieve data model at key: %s\n", __func__, __LINE__, key);
     dm = static_cast<dm_easy_mesh_t *> (hash_map_get(m_list, key));
 

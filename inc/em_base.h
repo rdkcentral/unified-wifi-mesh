@@ -2623,6 +2623,7 @@ typedef enum {
     em_bus_event_type_cce_ie,
     em_bus_event_type_assoc_status,
     em_bus_event_type_ap_metrics_report,
+    em_bus_event_type_bss_info,
     em_bus_event_type_ssh_status,
 
     em_bus_event_type_max
