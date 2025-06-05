@@ -33,6 +33,7 @@ public:
         send_act_frame_func send_action_frame,
         get_backhaul_sta_info_func get_sta_info_func,
         get_1905_info_func ieee1905_info_func,
+		get_fbss_info_func fbss_info_func,
         toggle_cce_func toggle_cce_fn
     ) : ec_configurator_t(
             mac_addr,
@@ -41,6 +42,7 @@ public:
             send_action_frame,
             get_sta_info_func,
             ieee1905_info_func,
+			fbss_info_func,
             {}
         ),
         m_toggle_cce(toggle_cce_fn) { }
@@ -62,6 +64,15 @@ public:
 	 */
 	bool handle_presence_announcement(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]) override;
 
+	/**
+	 * @brief Handles a Reconfiguration Announcement frame
+	 * 
+	 * @param frame The Reconfiguration Announcement frame
+	 * @param len The length of the frame
+	 * @param sa The source MAC of the frame (Enrollee)
+	 * @return true on success, otherwise false
+	 */
+	bool handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) override;
     
 	/**
 	 * @brief Handles an authentication request 802.11 frame, performing the necessary actions and possibly passing to 1905.
@@ -183,11 +194,14 @@ private:
      * Map from Chirp Hash to DPP Authentication Request
      */
     std::map<std::string, std::vector<uint8_t>> m_chirp_hash_frame_map = {};
-    /*
-     * Vector of all cached DPP Reconfiguration Authentication Requests.
-     * Hash does not matter since it is compared against the Controllers C-sign key
-     */
-    std::vector<std::vector<uint8_t>> m_stored_recfg_auth_frames = {};
+
+	/**
+	 * @brief Map of stored DPP Reconfiguration Authentication Requests
+	 * 
+	 * Key -> C-sign key hash as a string
+	 * Value -> Vector of DPP Reconfiguration Authentication Request frames
+	 */
+	std::unordered_map<std::string, std::vector<uint8_t>> m_stored_recfg_auth_frames_map = {};
 
 	/**
 	 * @brief Stored GAS frame session dialog tokens with peers.

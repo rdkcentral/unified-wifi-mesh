@@ -342,6 +342,7 @@ void em_agent_t::handle_btm_request_action_frame(em_bus_event_t *evt)
 	    printf("analyze_btm_request_action_frame failed\n");
     }
 }
+
 void em_agent_t::handle_recv_assoc_status(em_bus_event_t *event)
 {
     if (event == nullptr) {
@@ -360,6 +361,25 @@ void em_agent_t::handle_recv_assoc_status(em_bus_event_t *event)
     if (!al_node->m_ec_manager->handle_assoc_status(*sta_data)) {
         em_printfout("EC managed failed to handle association status event!");
         return;
+    }
+}
+
+void em_agent_t::handle_bss_info(em_bus_event_t *event)
+{
+    if (event == nullptr) {
+        em_printfout("NULL event!");
+        return;
+    }
+    wifi_bss_info_t *bss_info = reinterpret_cast<wifi_bss_info_t *>(event->u.raw_buff);
+
+    em_t *al_node = get_al_node();
+    if (al_node == nullptr) {
+        em_printfout("Could not get AL node!");
+        return;
+    }
+
+    if (!al_node->m_ec_manager->handle_bss_info_event(*bss_info)) {
+        em_printfout("EC manager failed to handle a BSS info event!");
     }
 }
 
@@ -762,9 +782,14 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
         
         case em_bus_event_type_assoc_status:
             handle_recv_assoc_status(evt);
+            break;
 
         case em_bus_event_type_ap_metrics_report:
             handle_ap_metrics_report(evt);
+            break;
+
+        case em_bus_event_type_bss_info:
+            handle_bss_info(evt);
             break;
 
         default:
@@ -1002,12 +1027,27 @@ void em_agent_t::input_listener()
         return;
     }
 
+    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EC.BSSInfo", reinterpret_cast<void *>(&em_agent_t::bss_info_cb), nullptr, 0) != 0) {
+        em_printfout("Failed to subscribe to 'Device.WiFi.EC.BSSInfo', dynamic DPP channel list for Reconfiguration Announcement is not available");
+        // This is fine, not a fatal error
+    }
+
     if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.APMetricsReport", (void *)&em_agent_t::ap_metrics_report_cb, NULL, 0) != 0) {
         printf("%s:%d bus get failed\n", __func__, __LINE__);
         return;
     }
 
     io(NULL);
+}
+
+int em_agent_t::bss_info_cb(char *event_name, raw_data_t *data, void *userData)
+{
+    if (data == nullptr) {
+        em_printfout("NULL data from OneWifi callback!");
+        return -1;
+    }
+    g_agent.io_process(em_bus_event_type_bss_info, reinterpret_cast<unsigned char *>(data->raw_data.bytes), data->raw_data_len);
+    return 1;
 }
 
 int em_agent_t::association_status_cb(char *event_name, raw_data_t *data, void *userData)

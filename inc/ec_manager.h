@@ -32,7 +32,7 @@ public:
 	 * If the EasyMesh code is correctly implemented this should not be an issue.
 	 */
 	ec_manager_t(std::string mac_addr, send_chirp_func send_chirp, send_encap_dpp_func send_encap_dpp, send_act_frame_func send_action_frame, 
-        get_backhaul_sta_info_func get_bsta_info, get_1905_info_func get_1905_info, can_onboard_additional_aps_func can_onboard, toggle_cce_func toggle_cce, 
+        get_backhaul_sta_info_func get_bsta_info, get_1905_info_func get_1905_info, get_fbss_info_func get_fbss_info, can_onboard_additional_aps_func can_onboard, toggle_cce_func toggle_cce, 
 		start_stop_clist_build_func start_stop_clist_build_fn, bsta_connect_func bsta_connect_fn, bool m_is_controller);
     
 	/**!
@@ -121,7 +121,7 @@ public:
 	 * @note If the operation fails, all CCE IEs are removed before the function exits.
 	 */
 	inline bool pa_cfg_toggle_cce(bool enable) {
-        if (!m_is_controller || m_configurator == nullptr) {
+        if (m_is_controller || m_configurator == nullptr) {
             return false;
         }
         auto pa_cfg = dynamic_cast<ec_pa_configurator_t*>(m_configurator.get());
@@ -228,6 +228,14 @@ public:
 	 */
 	bool handle_assoc_status(const rdk_sta_data_t &sta_data);
 
+	/**
+	 * @brief Handle a BSS info event. Forwards to Enrollee for handling.
+	 * 
+	 * @param bss_info The BSS info that was heard.
+	 * @return true on success, otherwise false
+	 */
+	bool handle_bss_info_event(const wifi_bss_info_t& bss_info);
+
 
 private:
     bool m_is_controller;
@@ -239,6 +247,7 @@ private:
     get_backhaul_sta_info_func m_get_bsta_info_fn;
     get_1905_info_func m_get_1905_info_fn;
     can_onboard_additional_aps_func m_can_onboard_fn;
+	get_fbss_info_func m_get_fbss_info_fn;
     std::string m_stored_mac_addr;
     
     std::unique_ptr<ec_configurator_t> m_configurator;
