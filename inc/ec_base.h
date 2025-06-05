@@ -194,6 +194,9 @@ typedef union {
     uint8_t byte;
 } __attribute__((packed)) ec_dpp_capabilities_t;
 
+#define DPP_CONFIG_REUSEKEY 0
+#define DPP_CONFIG_REPLACEKEY 1
+
 typedef union {
     struct {
         /**

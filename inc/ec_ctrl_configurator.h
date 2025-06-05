@@ -156,6 +156,16 @@ public:
 	 */
 	virtual bool handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) override;
 
+	/**
+	 * @brief Handles a Reconfiguration Authentication Response frame
+	 * 
+	 * @param frame The proxied encapsulated Reconfiguration Authentication Response frame
+	 * @param len The length of the frame
+	 * @param sa The source address (Enrollee)
+	 * @return true on success, otherwise false
+	 */
+	virtual bool handle_recfg_auth_response(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) override;
+
 private:
     // Private member variables can be added here
 
@@ -216,12 +226,14 @@ private:
 	 *
 	 * @param[in] enrollee_mac The MAC address of the enrollee as a string.
 	 * @param[in] dpp_status The DPP status code as an ec_status_code_t.
+	 * @param enrollee_dpp_status The DPP status code of the Enrollee encoded in the Connection Status JSON object
+	 * @param trans_id The transaction ID for this Reconfiguration session
 	 *
 	 * @returns A pair consisting of a pointer to a uint8_t array and its size.
 	 *
 	 * @note Ensure that the enrollee MAC address is valid and the DPP status code is correctly set.
 	 */
-	std::pair<uint8_t*, size_t> create_recfg_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status);
+	std::pair<uint8_t*, size_t> create_recfg_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status, ec_status_code_t enrollee_dpp_status, uint8_t trans_id);
 
     
 	/**
