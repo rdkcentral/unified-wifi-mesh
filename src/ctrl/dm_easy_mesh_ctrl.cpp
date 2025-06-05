@@ -154,10 +154,7 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
 
     for (i = 0; i < pdm->get_num_radios(); i++) {
         found = true;
-        dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (pdm->get_radio_info(i)->id.ruid), ruid_str);
-        snprintf(key, sizeof (em_2xlong_string_t), "%s@%s@%s@%s@", pdm->get_radio_info(i)->id.net_id, dev_mac_str, ruid_str, bss_mac_str);    
-
-        pbss = get_bss(key);
+        pbss = pdm->get_bss(pdm->get_radio_info(i)->id.ruid, params->assoc.bssid);
         if (pbss == NULL) {
             found = false;
             continue;

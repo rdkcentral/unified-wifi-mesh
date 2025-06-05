@@ -1264,6 +1264,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
     mac_address_t client_mac;
     bool found = false;
     em_string_t al_mac_str;
+    em_bss_info_t *em_bss = NULL;
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
     if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
@@ -1436,11 +1437,20 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             }
 
             dm_easy_mesh_t::macbytes_to_string(bss_mac, mac_str1);
-            if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
-                printf("%s:%d: Received client cap query, found existing BSS:%s\n", __func__, __LINE__, mac_str1);
-            } else {
-                printf("%s:%d: Could not find em for em_msg_type_client_cap_query\n", __func__, __LINE__);
-                return NULL;
+
+            em = static_cast<em_t *> (hash_map_get_first(m_em_map));
+            while (em != NULL) {
+                dm = em->get_data_model();
+                em_bss = dm->get_bss_info_with_mac(bss_mac);
+                if (memcmp(em_bss->ruid.mac, em->get_radio_interface_mac(), sizeof(bssid_t)) == 0) {
+                    printf("%s:%d: Received client cap query: found radio for bss:%s\n", __func__, __LINE__, mac_str1);
+                    break;
+                }
+                em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
+            }
+            if(em == NULL){
+                dm_easy_mesh_t::macbytes_to_string(bss_mac, mac_str2);
+                printf("%s:%d: Received client cap query: Could not find radio:%s of bss:%s\n", __func__, __LINE__, mac_str1, mac_str2);
             }
             break;
 
@@ -1514,12 +1524,9 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
         case em_msg_type_channel_pref_rprt:
         case em_msg_type_1905_ack:
         case em_msg_type_map_policy_config_req:
-            printf(" rcvd em_msg_type_map_policy_config_req\n");
-        
             em = (em_t *)hash_map_get_first(m_em_map);
             while (em != NULL) {
                 if ((em->is_al_interface_em() == false)) {
-                    printf(" em found for policy cfg\n");
                     break;
                 }
                 em = (em_t *)hash_map_get_next(m_em_map, em);

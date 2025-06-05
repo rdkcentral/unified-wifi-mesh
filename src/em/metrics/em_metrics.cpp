@@ -1027,10 +1027,10 @@ short em_metrics_t::create_assoc_sta_link_metrics_tlv(unsigned char *buff, mac_a
             metrics->time_delta_ms = 10;//TODO: Pending proper update
             len += sizeof(metrics->time_delta_ms);
 
-            metrics->est_mac_data_rate_dl = sta->m_sta_info.last_dl_rate;
+            metrics->est_mac_data_rate_dl = sta->m_sta_info.est_dl_rate;
             len += sizeof(metrics->est_mac_data_rate_dl);
 
-            metrics->est_mac_data_rate_ul = sta->m_sta_info.last_ul_rate;
+            metrics->est_mac_data_rate_ul = sta->m_sta_info.est_ul_rate;
             len += sizeof(metrics->est_mac_data_rate_ul);
 
             metrics->rcpi = sta->m_sta_info.rcpi;
