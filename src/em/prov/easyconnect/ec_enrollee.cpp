@@ -224,18 +224,11 @@ bool ec_enrollee_t::handle_recfg_auth_request(ec_frame_t *frame, size_t len, uin
         return false;
     }
 
-    cJSON *c_connector_json = cJSON_ParseWithLength(reinterpret_cast<const char *>(c_connector_attr->data), c_connector_attr->length);
-    ASSERT_NOT_NULL(c_connector_json, false, "%s:%d: Failed to parse DPP Connector JSON from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
-    cJSON *cred = cJSON_GetObjectItem(c_connector_json, "cred");
-    ASSERT_NOT_NULL(cred, false, "%s:%d: No cred in DPP Connector JSON from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
-    cJSON *signedConnector = cJSON_GetObjectItem(cred, "signedConnector");
-    ASSERT_NOT_NULL(signedConnector, false, "%s:%d: No signedConnector in DPP Connector JSON from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
-
     // Ensure c-connector is valid and parsable
-    auto c_connector_decoded_parts = ec_crypto::split_decode_connector(cjson_utils::stringify(signedConnector).c_str());
-    ASSERT_OPT_HAS_VALUE(c_connector_decoded_parts, false, "%s:%d: Failed to split and decode c-connector from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
+    auto payload = ec_crypto::get_jws_payload(std::string(reinterpret_cast<const char *>(c_connector_attr->data), c_connector_attr->length).c_str());
+    ASSERT_OPT_HAS_VALUE(payload, false, "%s:%d: Failed to split and decode c-connector from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
 
-    cJSON *c_connector_version = cJSON_GetObjectItem(c_connector_decoded_parts.value()[1], "version");
+    cJSON *c_connector_version = cJSON_GetObjectItem(payload.value(), "version");
     ASSERT_NOT_NULL(c_connector_version, false, "%s:%d: No version in c-connector from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
 
     if (c_connector_version->valueint != dpp_version) {
@@ -244,7 +237,7 @@ bool ec_enrollee_t::handle_recfg_auth_request(ec_frame_t *frame, size_t len, uin
     }
 
     // Ensure C-Connector is signed with the C-sign-key whose hash was indicated in the Reconfiguration Announcement frame
-    auto c_connector_raw_parts = ec_crypto::split_connector(cjson_utils::stringify(signedConnector).c_str());
+    auto c_connector_raw_parts = ec_crypto::split_connector(std::string(reinterpret_cast<const char *>(c_connector_attr->data), c_connector_attr->length).c_str());
     ASSERT_OPT_HAS_VALUE(c_connector_raw_parts, false, "%s:%d: Failed to split c-connector raw parts from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
 
     std::string signed_msg = c_connector_raw_parts.value()[0] + "." + c_connector_raw_parts.value()[1];
@@ -258,7 +251,7 @@ bool ec_enrollee_t::handle_recfg_auth_request(ec_frame_t *frame, size_t len, uin
     }
 
     // Final verification: ensure netRole is "configurator"
-    cJSON *net_role = cJSON_GetObjectItem(c_connector_json, "netRole");
+    cJSON *net_role = cJSON_GetObjectItem(payload.value(), "netRole");
     ASSERT_NOT_NULL(net_role, false, "%s:%d: No netRole in DPP Connector JSON from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
     if (net_role->type != cJSON_String || strcmp(net_role->valuestring, "configurator") != 0) {
         em_printfout("Invalid netRole in DPP Connector JSON from Reconfiguration Authentication Request frame, expected 'configurator', got '%s'", net_role->valuestring);
@@ -307,7 +300,7 @@ bool ec_enrollee_t::handle_recfg_auth_request(ec_frame_t *frame, size_t len, uin
     }
 
     // Extract C_I (C-Connector netAccessKey, public)
-    cJSON *net_access_key = cJSON_GetObjectItem(c_connector_decoded_parts->at(1), "netAccessKey");
+    cJSON *net_access_key = cJSON_GetObjectItem(payload.value(), "netAccessKey");
     ASSERT_NOT_NULL(net_access_key, false, "%s:%d: No netAccessKey in DPP Connector JSON from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
     EC_POINT *C_I = ec_crypto::decode_ec_point_from_connector_netaccesskey(m_c_ctx, net_access_key);
     ASSERT_NOT_NULL(C_I, false, "%s:%d: Failed to decode C-Connector netAccessKey from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
