@@ -898,6 +898,12 @@ bool ec_ctrl_configurator_t::handle_recfg_auth_response(ec_frame_t *frame, size_
         return false;
     }
 
+    // Ensure transaction ID matches
+    if (static_cast<uint8_t>(trans_id_attr->data[0]) != e_ctx->transaction_id) {
+        em_printfout("Mis-matched transaction ID for Enrollee '%s', expected %d, got %d", enrollee_mac.c_str(), e_ctx->transaction_id, static_cast<uint8_t>(trans_id_attr->data[0]));
+        return false;
+    }
+
     // It also verifies that the E-Connector is valid
     // Spec doesn't specifiy what "valid" means, but we can assume it means well-formed and contains the correct netRole
     auto payload = ec_crypto::get_jws_payload(std::string(reinterpret_cast<const char *>(e_connector_attr->data), static_cast<size_t>(e_connector_attr->length)).c_str());
@@ -996,7 +1002,7 @@ bool ec_ctrl_configurator_t::handle_recfg_auth_response(ec_frame_t *frame, size_
     // that the Enrollee must include a Conn Status object, but again, doesn't specify what should go into it.
     [[maybe_unused]] auto conn_status_attr = ec_util::get_attrib(wrapped_data, wrapped_data_len, ec_attrib_id_conn_status);
 
-    auto [auth_confirm_frame, auth_confirm_frame_len] = create_recfg_auth_confirm(enrollee_mac, dpp_status, static_cast<uint8_t>(trans_id_attr->data[0]));
+    auto [auth_confirm_frame, auth_confirm_frame_len] = create_recfg_auth_confirm(enrollee_mac, dpp_status, e_ctx->transaction_id);
     if (auth_confirm_frame == nullptr || auth_confirm_frame_len == 0) {
         em_printfout("Failed to create Reconfiguration Authentication Confirm frame");
         if (wrapped_data) free(wrapped_data);
@@ -1232,6 +1238,7 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_recfg_auth_request(c
     // The Configurator shall include a single octet transaction identifier TransId, a Protocol Version attribute containing the
     // same number as the version member in the C-Connector, the generated C-Connector and the generated C-nonce to
     // generated the DPP Reconfiguration Authentication Request frame and send this frame to the Enrollee.
+    e_ctx->transaction_id = transId;
 
     cJSON *jwsHeaderObj = ec_crypto::create_jws_header("dppCon", conn_ctx->C_signing_key);
 
