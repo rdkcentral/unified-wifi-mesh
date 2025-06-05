@@ -64,3 +64,21 @@ bool areMacsEqual(const std::array<uint8_t, 6> &first, const std::array<uint8_t,
 {
     return std::equal(begin(first), end(first), begin(second));
 }
+
+std::vector<unsigned char> convert_u32_into_bytes(uint32_t number)
+{
+    return std::vector<unsigned char>{static_cast<unsigned char>(number >> 24),
+                                      static_cast<unsigned char>(number >> 16),
+                                      static_cast<unsigned char>(number >> 8),
+                                      static_cast<unsigned char>(number >> 0)};
+}
+
+uint32_t convert_bytes_into_u32(const std::vector<unsigned char>& bytes)
+{
+    return static_cast<uint32_t>((bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | (bytes[3] << 0));
+}
+
+std::vector<unsigned char> remove_length_delimited_part(const std::vector<unsigned char>& buffer)
+{
+    return std::vector<unsigned char>(buffer.cbegin()+4,buffer.cend());
+}
