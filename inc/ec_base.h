@@ -558,6 +558,12 @@ typedef struct {
      */
     EC_POINT *E_Id;
 
+    /**
+     * @brief The transaction ID used for Reconfiguration
+     * 
+     * This is created by the Configurator and issued to an Enrollee on a per-Reconfiguration-session basis.
+     * 
+     */
     uint8_t transaction_id;
 
     /**

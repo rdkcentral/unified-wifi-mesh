@@ -205,6 +205,8 @@ bool ec_enrollee_t::handle_recfg_auth_request(ec_frame_t *frame, size_t len, uin
 
     auto trans_id_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_trans_id);
     ASSERT_OPT_HAS_VALUE(trans_id_attr, false, "%s:%d: No transaction ID attribute found in Reconfiguration Authentication Request frame\n", __func__, __LINE__);
+    // Store the transaction ID issued to us
+    m_eph_ctx().transaction_id = static_cast<uint8_t>(trans_id_attr->data[0]);
 
     auto protocol_version_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_proto_version);
     ASSERT_OPT_HAS_VALUE(protocol_version_attr, false, "%s:%d: No protocol version attribute found in Reconfiguration Authentication Request frame\n", __func__, __LINE__);
@@ -342,7 +344,7 @@ bool ec_enrollee_t::handle_recfg_auth_request(ec_frame_t *frame, size_t len, uin
 
     // Now with new shared secret M and authentication key ke, we can create the Reconfiguration Response frame
 
-    auto [response_frame, response_frame_len] = create_recfg_auth_response(static_cast<uint8_t>(trans_id_attr->data[0]), dpp_version);
+    auto [response_frame, response_frame_len] = create_recfg_auth_response(m_eph_ctx().transaction_id, dpp_version);
     if (response_frame == nullptr || response_frame_len == 0) {
         em_printfout("Failed to create Reconfiguration Authentication Response frame");
         return false;
@@ -392,6 +394,16 @@ bool ec_enrollee_t::handle_recfg_auth_confirm(ec_frame_t *frame, size_t len, uin
     auto [unwrapped_data, unwrapped_len] = ec_util::unwrap_wrapped_attrib(*wrapped_data_attr, frame, true, m_eph_ctx().ke);
     if (unwrapped_data == nullptr || unwrapped_len == 0) {
         em_printfout("Failed to unwrap wrapped data attribute in Reconfiguration Authentication Confirm frame with ke, restarting Reconfiguration Announcement frames");
+        restart_recfg_announcement();
+        return false;
+    }
+
+    // Verify transaction ID matches
+    auto trans_id_attr = ec_util::get_attrib(unwrapped_data, unwrapped_len, ec_attrib_id_trans_id);
+    ASSERT_OPT_HAS_VALUE_FREE(trans_id_attr, false, unwrapped_data, "%s:%d: No transaction ID found in unwrapped data of Reconfiguration Authentication Confirm frame\n", __func__, __LINE__);
+    if (static_cast<uint8_t>(trans_id_attr->data[0]) != m_eph_ctx().transaction_id) {
+        em_printfout("Mis-matched transaction ID in Reconfiguration Authentication Confirm frame, expected %d, got %d", m_eph_ctx().transaction_id, static_cast<uint8_t>(trans_id_attr->data[0]));
+        free(unwrapped_data);
         restart_recfg_announcement();
         return false;
     }
