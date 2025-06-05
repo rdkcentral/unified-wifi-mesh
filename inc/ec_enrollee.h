@@ -133,12 +133,22 @@ public:
 	/**
 	 * @brief Handle a Reconfiguration Authentication Request frame
 	 * 
-	 * @param frame The Reconfiguration Authentication Reuqest frame
+	 * @param frame The Reconfiguration Authentication Request frame
 	 * @param len The length of the frame
 	 * @param src_mac Where the frame came from (Configurator)
 	 * @return true on success, otherwise false
 	 */
 	bool handle_recfg_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETH_ALEN]);
+
+	/**
+	 * @brief Handles a Reconfiguration Authentication Confirm frame
+	 * 
+	 * @param frame The Reconfiguration Authentication Confirm frame
+	 * @param len The length of the frame
+	 * @param src_mac The source address (Configurator)
+	 * @return true on success, otherwise false
+	 */
+	bool handle_recfg_auth_confirm(ec_frame_t *frame, size_t len, uint8_t src_mac[ETH_ALEN]);
 
     
 	/**!
@@ -338,13 +348,13 @@ private:
 	 * @brief Creates a configuration request.
 	 *
 	 * This function generates a configuration request and returns it as a pair consisting of a pointer to the data and its size.
-	 *
+	 * @param (optional) reconfiguration flags if being called during Reconfiguration
 	 * @returns A pair containing a pointer to the configuration request data and its size.
 	 * @retval std::pair<uint8_t*, size_t> A pair where the first element is a pointer to the data and the second element is the size of the data.
 	 *
 	 * @note Ensure that the returned pointer is managed properly to avoid memory leaks.
 	 */
-	std::pair<uint8_t*, size_t> create_config_request();
+	std::pair<uint8_t*, size_t> create_config_request(std::optional<ec_dpp_reconfig_flags_t> recfg_flags = std::nullopt);
 
     
 	/**

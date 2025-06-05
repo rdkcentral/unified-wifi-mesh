@@ -363,6 +363,88 @@ bool ec_enrollee_t::handle_recfg_auth_request(ec_frame_t *frame, size_t len, uin
     return sent;
 }
 
+bool ec_enrollee_t::handle_recfg_auth_confirm(ec_frame_t *frame, size_t len, uint8_t src_mac[ETH_ALEN])
+{
+    if (frame == nullptr) {
+        em_printfout("Reconfiguration Authentication Confirm frame is nullptr");
+        return false;
+    }
+
+    size_t attrs_len = len - EC_FRAME_BASE_SIZE;
+
+    auto status_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_dpp_status);
+    ASSERT_OPT_HAS_VALUE(status_attr, false, "%s:%d: No DPP Status attribute found in Reconfiguration Authentication Confirm frame\n", __func__, __LINE__);
+
+    const auto restart_recfg_announcement = [this]() -> void {
+        ec_crypto::free_ephemeral_context(&m_c_ctx.eph_ctx, m_c_ctx.nonce_len, m_c_ctx.digest_len);
+        m_received_recfg_auth_frame.store(false);
+        m_send_recfg_announcement_thread = std::thread(&ec_enrollee_t::send_reconfiguration_announcement_frames, this);
+    };
+
+    // EasyConnect 6.5.5:
+    // If the received DPP Status field value is any other than STATUS_OK, the Enrollee may revert to transmitting DPP
+    // Reconfiguration Announcement frames.
+    ec_status_code_t status_code = static_cast<ec_status_code_t>(status_attr->data[0]);
+    if (status_code != DPP_STATUS_OK) {
+        em_printfout("Reconfiguration Authentication Confirm frame status is %d, reverting to transmitting Reconfiguration Announcement frames", status_code);
+        restart_recfg_announcement();
+        return true;
+    }
+
+    auto wrapped_data_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_wrapped_data);
+    ASSERT_OPT_HAS_VALUE(wrapped_data_attr, false, "%s:%d: No wrapped data attribute found in Reconfiguration Authentication Confirm frame\n", __func__, __LINE__);
+
+    // Upon receipt of the DPP Reconfiguration Authentication Confirm frame, the Enrollee attempts to decrypt the encrypted payload.
+    // Note: spec, again, doesn't specify what to do if decryption fails, so we assume it to mean restart Recfg Announcements
+    auto [unwrapped_data, unwrapped_len] = ec_util::unwrap_wrapped_attrib(*wrapped_data_attr, frame, true, m_eph_ctx().ke);
+    if (unwrapped_data == nullptr || unwrapped_len == 0) {
+        em_printfout("Failed to unwrap wrapped data attribute in Reconfiguration Authentication Confirm frame with ke, restarting Reconfiguration Announcement frames");
+        restart_recfg_announcement();
+        return false;
+    }
+
+    // Verify nonces
+    auto c_nonce_attr = ec_util::get_attrib(unwrapped_data, unwrapped_len, ec_attrib_id_config_nonce);
+    ASSERT_OPT_HAS_VALUE_FREE(c_nonce_attr, false, unwrapped_data, "%s:%d: No C-Nonce attribute found in unwrapped data of Reconfiguration Authentication Confirm frame\n", __func__, __LINE__);
+
+    auto e_nonce_attr = ec_util::get_attrib(unwrapped_data, unwrapped_len, ec_attrib_id_enrollee_nonce);
+    ASSERT_OPT_HAS_VALUE_FREE(e_nonce_attr, false, unwrapped_data, "%s:%d: No E-Nonce attribute found in unwrapped data of Reconfiguration Authentication Confirm frame\n", __func__, __LINE__);
+
+    if ((memcmp(c_nonce_attr->data, m_eph_ctx().c_nonce, m_c_ctx.nonce_len) != 0) || (memcmp(e_nonce_attr->data, m_eph_ctx().e_nonce, m_c_ctx.nonce_len) != 0)) {
+        em_printfout("Mismatched nonce(s) found in Reconfiguration Authentication Confirm frame, restarting Reconfiguration Announcement frames");
+        free(unwrapped_data);
+        restart_recfg_announcement();
+        return false;
+    }
+
+    auto version_attr = ec_util::get_attrib(unwrapped_data, unwrapped_len, ec_attrib_id_proto_version);
+    ASSERT_OPT_HAS_VALUE_FREE(version_attr, false, unwrapped_data, "%s:%d: No protocol version attribute found in unwrapped data of Reconfiguration Authentication Confirm frame\n", __func__, __LINE__);
+
+    if (static_cast<uint8_t>(version_attr->data[0]) < 2) {
+        em_printfout("DPP Version '%d' not supported for Reconfiguration", static_cast<uint8_t>(version_attr->data[0]));
+        free(unwrapped_data);
+        restart_recfg_announcement();
+        return false;
+    }
+
+    auto recfg_flags_attr = ec_util::get_attrib(unwrapped_data, unwrapped_len, ec_attrib_id_reconfig_flags);
+    ASSERT_OPT_HAS_VALUE_FREE(recfg_flags_attr, false, unwrapped_data, "%s:%d: No Reconfig-Flags attribute found in unwrapped data of Reconfiguration Authentication Confirm frame\n", __func__, __LINE__);
+
+    // If all's well, we can create and send a Configuration request
+    auto [config_request_frame, config_request_frame_len] = create_config_request(*reinterpret_cast<ec_dpp_reconfig_flags_t*>(recfg_flags_attr->data[0]));
+    if (config_request_frame == nullptr || config_request_frame_len == 0) {
+        em_printfout("Failed to create Configuration Request frame for Reconfiguration");
+        free(unwrapped_data);
+        restart_recfg_announcement();
+        return false;
+    }
+
+    bool sent = m_send_action_frame(src_mac, reinterpret_cast<uint8_t*>(config_request_frame), config_request_frame_len, m_selected_freq, 0);
+    free(config_request_frame);
+    free(unwrapped_data);
+    return sent;
+}
+
 bool ec_enrollee_t::handle_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
     em_printfout("Recieved a DPP Authentication Request from '" MACSTRFMT "', stopping Presence Announcement\n", MAC2STR(src_mac));
@@ -1294,7 +1376,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_recfg_auth_response(uint8_t t
     return std::make_pair(reinterpret_cast<uint8_t *>(frame), EC_FRAME_BASE_SIZE + attribs_len);
 }
 
-std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
+std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request(std::optional<ec_dpp_reconfig_flags_t> recfg_flags)
 {
     // EasyConnect 6.4.2 DPP Configuration Request
     // Regardless of whether the Initiator or Responder took the role of Configurator, the DPP Configuration protocol is always
@@ -1316,6 +1398,28 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     if (m_boot_data().version <= 1) {
         em_printfout("EasyMesh R >= 5 mandates DPP version >= 2, current version is %d, bailing.", m_boot_data().version);
         return {};
+    }
+
+    bool replace_key = false;
+    if (recfg_flags.has_value()) {
+        replace_key = (recfg_flags->connector_key == DPP_CONFIG_REPLACEKEY);
+    }
+
+    if (replace_key) {
+        em_printfout("Reconfiguration Flags CONFIG_REPLACEKEY set, generating new protocol keypair");
+        auto [p_R, P_R] = ec_crypto::generate_proto_keypair(m_c_ctx);
+        if (p_R == nullptr || P_R == nullptr) {
+            em_printfout("Failed to generate new proto keypair");
+            return {};
+        }
+        BN_free(m_eph_ctx().priv_resp_proto_key);
+        EC_POINT_free(m_eph_ctx().public_resp_proto_key);
+        m_eph_ctx().priv_resp_proto_key = const_cast<BIGNUM *>(p_R);
+        m_eph_ctx().public_resp_proto_key = const_cast<EC_POINT*>(P_R);
+        // Also set netAccessKey
+        auto [x, y] = ec_crypto::get_ec_x_y(m_c_ctx, m_eph_ctx().public_resp_proto_key);
+        m_c_ctx.net_access_key = em_crypto_t::create_ec_key_from_coordinates(ec_crypto::BN_to_vec(x), ec_crypto::BN_to_vec(y), ec_crypto::BN_to_vec(m_eph_ctx().priv_init_proto_key));
+        ASSERT_NOT_NULL(m_c_ctx.net_access_key, {}, "%s:%d: Failed to create netAccessKey from Respondor proto keypair\n", __func__, __LINE__);
     }
 
     // EasyMesh R6 5.3.3
