@@ -713,7 +713,7 @@ int dm_easy_mesh_agent_t::analyze_beacon_report(em_bus_event_t *evt, em_cmd_t *p
         memcpy(&dm.m_bss[i], &m_bss[i], sizeof(dm_bss_t));
     }
 
-    translate_and_decode_onewifi_subdoc((char *)evt->u.raw_buff, webconfig_subdoc_type_beacon_report, "Beacon Report");
+    dm.translate_and_decode_onewifi_subdoc((char *)evt->u.raw_buff, webconfig_subdoc_type_beacon_report, "Beacon Report");
 
     sta = (dm_sta_t *)hash_map_get_first((hash_map_t *)dm.m_sta_map);
     if (sta != NULL) {
