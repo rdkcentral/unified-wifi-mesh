@@ -133,12 +133,22 @@ public:
 	/**
 	 * @brief Handle a Reconfiguration Authentication Request frame
 	 * 
-	 * @param frame The Reconfiguration Authentication Reuqest frame
+	 * @param frame The Reconfiguration Authentication Request frame
 	 * @param len The length of the frame
 	 * @param src_mac Where the frame came from (Configurator)
 	 * @return true on success, otherwise false
 	 */
 	bool handle_recfg_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETH_ALEN]);
+
+	/**
+	 * @brief Handles a Reconfiguration Authentication Confirm frame
+	 * 
+	 * @param frame The Reconfiguration Authentication Confirm frame
+	 * @param len The length of the frame
+	 * @param src_mac The source address (Configurator)
+	 * @return true on success, otherwise false
+	 */
+	bool handle_recfg_auth_confirm(ec_frame_t *frame, size_t len, uint8_t src_mac[ETH_ALEN]);
 
     
 	/**!
