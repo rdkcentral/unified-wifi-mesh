@@ -1547,7 +1547,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             break;
         default:
             printf("%s:%d: Frame: %d not handled in agent\n", __func__, __LINE__, htons(cmdu->type));
-            assert(0);
+            em = NULL;
             break;	
 	}
 
