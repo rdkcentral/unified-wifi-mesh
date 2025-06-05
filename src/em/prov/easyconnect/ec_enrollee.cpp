@@ -205,6 +205,8 @@ bool ec_enrollee_t::handle_recfg_auth_request(ec_frame_t *frame, size_t len, uin
 
     auto trans_id_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_trans_id);
     ASSERT_OPT_HAS_VALUE(trans_id_attr, false, "%s:%d: No transaction ID attribute found in Reconfiguration Authentication Request frame\n", __func__, __LINE__);
+    // Store the transaction ID issued to us
+    m_eph_ctx().transaction_id = static_cast<uint8_t>(trans_id_attr->data[0]);
 
     auto protocol_version_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_proto_version);
     ASSERT_OPT_HAS_VALUE(protocol_version_attr, false, "%s:%d: No protocol version attribute found in Reconfiguration Authentication Request frame\n", __func__, __LINE__);
@@ -224,18 +226,11 @@ bool ec_enrollee_t::handle_recfg_auth_request(ec_frame_t *frame, size_t len, uin
         return false;
     }
 
-    cJSON *c_connector_json = cJSON_ParseWithLength(reinterpret_cast<const char *>(c_connector_attr->data), c_connector_attr->length);
-    ASSERT_NOT_NULL(c_connector_json, false, "%s:%d: Failed to parse DPP Connector JSON from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
-    cJSON *cred = cJSON_GetObjectItem(c_connector_json, "cred");
-    ASSERT_NOT_NULL(cred, false, "%s:%d: No cred in DPP Connector JSON from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
-    cJSON *signedConnector = cJSON_GetObjectItem(cred, "signedConnector");
-    ASSERT_NOT_NULL(signedConnector, false, "%s:%d: No signedConnector in DPP Connector JSON from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
-
     // Ensure c-connector is valid and parsable
-    auto c_connector_decoded_parts = ec_crypto::split_decode_connector(cjson_utils::stringify(signedConnector).c_str());
-    ASSERT_OPT_HAS_VALUE(c_connector_decoded_parts, false, "%s:%d: Failed to split and decode c-connector from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
+    auto payload = ec_crypto::get_jws_payload(std::string(reinterpret_cast<const char *>(c_connector_attr->data), c_connector_attr->length).c_str());
+    ASSERT_OPT_HAS_VALUE(payload, false, "%s:%d: Failed to split and decode c-connector from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
 
-    cJSON *c_connector_version = cJSON_GetObjectItem(c_connector_decoded_parts.value()[1], "version");
+    cJSON *c_connector_version = cJSON_GetObjectItem(payload.value(), "version");
     ASSERT_NOT_NULL(c_connector_version, false, "%s:%d: No version in c-connector from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
 
     if (c_connector_version->valueint != dpp_version) {
@@ -244,7 +239,7 @@ bool ec_enrollee_t::handle_recfg_auth_request(ec_frame_t *frame, size_t len, uin
     }
 
     // Ensure C-Connector is signed with the C-sign-key whose hash was indicated in the Reconfiguration Announcement frame
-    auto c_connector_raw_parts = ec_crypto::split_connector(cjson_utils::stringify(signedConnector).c_str());
+    auto c_connector_raw_parts = ec_crypto::split_connector(std::string(reinterpret_cast<const char *>(c_connector_attr->data), c_connector_attr->length).c_str());
     ASSERT_OPT_HAS_VALUE(c_connector_raw_parts, false, "%s:%d: Failed to split c-connector raw parts from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
 
     std::string signed_msg = c_connector_raw_parts.value()[0] + "." + c_connector_raw_parts.value()[1];
@@ -258,7 +253,7 @@ bool ec_enrollee_t::handle_recfg_auth_request(ec_frame_t *frame, size_t len, uin
     }
 
     // Final verification: ensure netRole is "configurator"
-    cJSON *net_role = cJSON_GetObjectItem(c_connector_json, "netRole");
+    cJSON *net_role = cJSON_GetObjectItem(payload.value(), "netRole");
     ASSERT_NOT_NULL(net_role, false, "%s:%d: No netRole in DPP Connector JSON from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
     if (net_role->type != cJSON_String || strcmp(net_role->valuestring, "configurator") != 0) {
         em_printfout("Invalid netRole in DPP Connector JSON from Reconfiguration Authentication Request frame, expected 'configurator', got '%s'", net_role->valuestring);
@@ -307,7 +302,7 @@ bool ec_enrollee_t::handle_recfg_auth_request(ec_frame_t *frame, size_t len, uin
     }
 
     // Extract C_I (C-Connector netAccessKey, public)
-    cJSON *net_access_key = cJSON_GetObjectItem(c_connector_decoded_parts->at(1), "netAccessKey");
+    cJSON *net_access_key = cJSON_GetObjectItem(payload.value(), "netAccessKey");
     ASSERT_NOT_NULL(net_access_key, false, "%s:%d: No netAccessKey in DPP Connector JSON from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
     EC_POINT *C_I = ec_crypto::decode_ec_point_from_connector_netaccesskey(m_c_ctx, net_access_key);
     ASSERT_NOT_NULL(C_I, false, "%s:%d: Failed to decode C-Connector netAccessKey from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
@@ -349,7 +344,7 @@ bool ec_enrollee_t::handle_recfg_auth_request(ec_frame_t *frame, size_t len, uin
 
     // Now with new shared secret M and authentication key ke, we can create the Reconfiguration Response frame
 
-    auto [response_frame, response_frame_len] = create_recfg_auth_response(static_cast<uint8_t>(trans_id_attr->data[0]), dpp_version);
+    auto [response_frame, response_frame_len] = create_recfg_auth_response(m_eph_ctx().transaction_id, dpp_version);
     if (response_frame == nullptr || response_frame_len == 0) {
         em_printfout("Failed to create Reconfiguration Authentication Response frame");
         return false;
@@ -360,6 +355,95 @@ bool ec_enrollee_t::handle_recfg_auth_request(ec_frame_t *frame, size_t len, uin
     // DPP Reconfiguration Authentication Confirm frame (5 second dwell)
     bool sent = m_send_action_frame(src_mac, reinterpret_cast<uint8_t*>(response_frame), response_frame_len, m_selected_freq, 5);
     free(response_frame);
+    return sent;
+}
+
+bool ec_enrollee_t::handle_recfg_auth_confirm(ec_frame_t *frame, size_t len, uint8_t src_mac[ETH_ALEN])
+{
+    if (frame == nullptr) {
+        em_printfout("Reconfiguration Authentication Confirm frame is nullptr");
+        return false;
+    }
+
+    size_t attrs_len = len - EC_FRAME_BASE_SIZE;
+
+    auto status_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_dpp_status);
+    ASSERT_OPT_HAS_VALUE(status_attr, false, "%s:%d: No DPP Status attribute found in Reconfiguration Authentication Confirm frame\n", __func__, __LINE__);
+
+    const auto restart_recfg_announcement = [this]() -> void {
+        ec_crypto::free_ephemeral_context(&m_c_ctx.eph_ctx, m_c_ctx.nonce_len, m_c_ctx.digest_len);
+        m_received_recfg_auth_frame.store(false);
+        m_send_recfg_announcement_thread = std::thread(&ec_enrollee_t::send_reconfiguration_announcement_frames, this);
+    };
+
+    // EasyConnect 6.5.5:
+    // If the received DPP Status field value is any other than STATUS_OK, the Enrollee may revert to transmitting DPP
+    // Reconfiguration Announcement frames.
+    ec_status_code_t status_code = static_cast<ec_status_code_t>(status_attr->data[0]);
+    if (status_code != DPP_STATUS_OK) {
+        em_printfout("Reconfiguration Authentication Confirm frame status is %d, reverting to transmitting Reconfiguration Announcement frames", status_code);
+        restart_recfg_announcement();
+        return true;
+    }
+
+    auto wrapped_data_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_wrapped_data);
+    ASSERT_OPT_HAS_VALUE(wrapped_data_attr, false, "%s:%d: No wrapped data attribute found in Reconfiguration Authentication Confirm frame\n", __func__, __LINE__);
+
+    // Upon receipt of the DPP Reconfiguration Authentication Confirm frame, the Enrollee attempts to decrypt the encrypted payload.
+    // Note: spec, again, doesn't specify what to do if decryption fails, so we assume it to mean restart Recfg Announcements
+    auto [unwrapped_data, unwrapped_len] = ec_util::unwrap_wrapped_attrib(*wrapped_data_attr, frame, true, m_eph_ctx().ke);
+    if (unwrapped_data == nullptr || unwrapped_len == 0) {
+        em_printfout("Failed to unwrap wrapped data attribute in Reconfiguration Authentication Confirm frame with ke, restarting Reconfiguration Announcement frames");
+        restart_recfg_announcement();
+        return false;
+    }
+
+    // Verify transaction ID matches
+    auto trans_id_attr = ec_util::get_attrib(unwrapped_data, unwrapped_len, ec_attrib_id_trans_id);
+    ASSERT_OPT_HAS_VALUE_FREE(trans_id_attr, false, unwrapped_data, "%s:%d: No transaction ID found in unwrapped data of Reconfiguration Authentication Confirm frame\n", __func__, __LINE__);
+    if (static_cast<uint8_t>(trans_id_attr->data[0]) != m_eph_ctx().transaction_id) {
+        em_printfout("Mis-matched transaction ID in Reconfiguration Authentication Confirm frame, expected %d, got %d", m_eph_ctx().transaction_id, static_cast<uint8_t>(trans_id_attr->data[0]));
+        free(unwrapped_data);
+        restart_recfg_announcement();
+        return false;
+    }
+
+    // Verify nonces
+    auto c_nonce_attr = ec_util::get_attrib(unwrapped_data, unwrapped_len, ec_attrib_id_config_nonce);
+    ASSERT_OPT_HAS_VALUE_FREE(c_nonce_attr, false, unwrapped_data, "%s:%d: No C-Nonce attribute found in unwrapped data of Reconfiguration Authentication Confirm frame\n", __func__, __LINE__);
+
+    auto e_nonce_attr = ec_util::get_attrib(unwrapped_data, unwrapped_len, ec_attrib_id_enrollee_nonce);
+    ASSERT_OPT_HAS_VALUE_FREE(e_nonce_attr, false, unwrapped_data, "%s:%d: No E-Nonce attribute found in unwrapped data of Reconfiguration Authentication Confirm frame\n", __func__, __LINE__);
+
+    if ((memcmp(c_nonce_attr->data, m_eph_ctx().c_nonce, m_c_ctx.nonce_len) != 0) || (memcmp(e_nonce_attr->data, m_eph_ctx().e_nonce, m_c_ctx.nonce_len) != 0)) {
+        em_printfout("Mismatched nonce(s) found in Reconfiguration Authentication Confirm frame, restarting Reconfiguration Announcement frames");
+        free(unwrapped_data);
+        restart_recfg_announcement();
+        return false;
+    }
+
+    auto version_attr = ec_util::get_attrib(unwrapped_data, unwrapped_len, ec_attrib_id_proto_version);
+    ASSERT_OPT_HAS_VALUE_FREE(version_attr, false, unwrapped_data, "%s:%d: No protocol version attribute found in unwrapped data of Reconfiguration Authentication Confirm frame\n", __func__, __LINE__);
+
+    if (static_cast<uint8_t>(version_attr->data[0]) < 2) {
+        em_printfout("DPP Version '%d' not supported for Reconfiguration", static_cast<uint8_t>(version_attr->data[0]));
+        free(unwrapped_data);
+        restart_recfg_announcement();
+        return false;
+    }
+
+    // If all's well, we can create and send a Configuration request
+    auto [config_request_frame, config_request_frame_len] = create_config_request();
+    if (config_request_frame == nullptr || config_request_frame_len == 0) {
+        em_printfout("Failed to create Configuration Request frame for Reconfiguration");
+        free(unwrapped_data);
+        restart_recfg_announcement();
+        return false;
+    }
+
+    bool sent = m_send_action_frame(src_mac, reinterpret_cast<uint8_t*>(config_request_frame), config_request_frame_len, m_selected_freq, 0);
+    free(config_request_frame);
+    free(unwrapped_data);
     return sent;
 }
 
