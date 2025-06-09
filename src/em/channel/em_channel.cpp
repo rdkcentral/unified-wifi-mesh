@@ -1913,7 +1913,7 @@ int em_channel_t::handle_channel_scan_rprt(unsigned char *buff, unsigned int len
 		if (tlv->type == em_tlv_type_channel_scan_rslt) {
 			res = reinterpret_cast<em_channel_scan_result_t *> (tlv->value);
 			
-			strncpy(id.net_id, dm->m_network.m_net_info.id, strlen(dm->m_network.m_net_info.id) + 1);	
+			strncpy(id.net_id, dm->m_network.m_net_info.id, sizeof(em_long_string_t));	
 			memcpy(id.dev_mac, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
             memcpy(id.scanner_mac, res->ruid, sizeof(mac_address_t));
             id.op_class = res->op_class;
@@ -1948,7 +1948,7 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
     cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
     switch (htons(cmdu->type)) {
         case em_msg_type_channel_pref_query:
-	        if (get_service_type() == em_service_type_agent) {
+		if (get_service_type() == em_service_type_agent) {
 		        handle_channel_pref_query(data, len);
 	        }
             break; 
@@ -1974,7 +1974,7 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
 	    break;
 
         case em_msg_type_channel_sel_req:
-            if (get_service_type() == em_service_type_agent) {
+            if ((get_service_type() == em_service_type_agent)  && ((get_state() < em_state_agent_channel_select_configuration_pending) || (get_state() >= em_state_agent_configured))) {
                 handle_channel_sel_req(data, len);
                 send_channel_sel_response_msg(em_chan_sel_resp_code_type_accept, htons(cmdu->id));
             }
@@ -2010,7 +2010,7 @@ void em_channel_t::process_state()
 
     switch (get_state()) {
 		case em_state_agent_channel_pref_query:
-			if (get_service_type() == em_service_type_agent) {
+			if ((get_service_type() == em_service_type_agent) && (get_state() < em_state_agent_channel_selection_pending)) {
 				send_channel_pref_report_msg();
 				printf("%s:%d channel_pref_report_msg send\n", __func__, __LINE__);
 				set_state(em_state_agent_channel_selection_pending);

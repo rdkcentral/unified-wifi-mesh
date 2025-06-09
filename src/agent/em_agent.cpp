@@ -47,7 +47,9 @@
 #endif
 
 #define RETRY_SLEEP_INTERVAL_IN_MS 1000
-#define SOCKET_PATH "/tmp/ieee1905_tunnel"
+
+#define DATA_SOCKET_PATH "/tmp/al_data_socket"
+#define CONTROL_SOCKET_PATH "/tmp/al_control_socket"
 
 em_agent_t g_agent;
 const char *global_netid = "OneWifiMesh";
@@ -340,6 +342,7 @@ void em_agent_t::handle_btm_request_action_frame(em_bus_event_t *evt)
 	    printf("analyze_btm_request_action_frame failed\n");
     }
 }
+
 void em_agent_t::handle_recv_assoc_status(em_bus_event_t *event)
 {
     if (event == nullptr) {
@@ -358,6 +361,25 @@ void em_agent_t::handle_recv_assoc_status(em_bus_event_t *event)
     if (!al_node->m_ec_manager->handle_assoc_status(*sta_data)) {
         em_printfout("EC managed failed to handle association status event!");
         return;
+    }
+}
+
+void em_agent_t::handle_bss_info(em_bus_event_t *event)
+{
+    if (event == nullptr) {
+        em_printfout("NULL event!");
+        return;
+    }
+    wifi_bss_info_t *bss_info = reinterpret_cast<wifi_bss_info_t *>(event->u.raw_buff);
+
+    em_t *al_node = get_al_node();
+    if (al_node == nullptr) {
+        em_printfout("Could not get AL node!");
+        return;
+    }
+
+    if (!al_node->m_ec_manager->handle_bss_info_event(*bss_info)) {
+        em_printfout("EC manager failed to handle a BSS info event!");
     }
 }
 
@@ -646,7 +668,7 @@ void em_agent_t::handle_set_policy(em_bus_event_t *evt)
 void em_agent_t::handle_beacon_report(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
-    unsigned int num;
+    unsigned int num = 0;
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         printf("analyze_beacon_report in progress\n");
@@ -654,6 +676,20 @@ void em_agent_t::handle_beacon_report(em_bus_event_t *evt)
         printf("analyze_beacon_report failed\n");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
         printf("submitted beacon report cmd for orch\n");
+    }
+}
+
+void em_agent_t::handle_ap_metrics_report(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
+        printf("analyze_ap_metrics_report in progress\n");
+    } else if ((num = m_data_model.analyze_ap_metrics_report(evt, pcmd)) == 0) {
+        printf("analyze_ap_metrics_report failed\n");
+    } else if (m_orch->submit_commands(pcmd, num) > 0) {
+        printf("Submitted AP Metrics report cmd for orch\n");
     }
 }
 
@@ -746,6 +782,14 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
         
         case em_bus_event_type_assoc_status:
             handle_recv_assoc_status(evt);
+            break;
+
+        case em_bus_event_type_ap_metrics_report:
+            handle_ap_metrics_report(evt);
+            break;
+
+        case em_bus_event_type_bss_info:
+            handle_bss_info(evt);
             break;
 
         default:
@@ -892,7 +936,6 @@ bool em_agent_t::can_onboard_additional_aps()
     return true;
 }
 
-
 void em_agent_t::input_listener()
 {
     wifi_bus_desc_t *desc;
@@ -984,7 +1027,27 @@ void em_agent_t::input_listener()
         return;
     }
 
+    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EC.BSSInfo", reinterpret_cast<void *>(&em_agent_t::bss_info_cb), nullptr, 0) != 0) {
+        em_printfout("Failed to subscribe to 'Device.WiFi.EC.BSSInfo', dynamic DPP channel list for Reconfiguration Announcement is not available");
+        // This is fine, not a fatal error
+    }
+
+    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.APMetricsReport", (void *)&em_agent_t::ap_metrics_report_cb, NULL, 0) != 0) {
+        printf("%s:%d bus get failed\n", __func__, __LINE__);
+        return;
+    }
+
     io(NULL);
+}
+
+int em_agent_t::bss_info_cb(char *event_name, raw_data_t *data, void *userData)
+{
+    if (data == nullptr) {
+        em_printfout("NULL data from OneWifi callback!");
+        return -1;
+    }
+    g_agent.io_process(em_bus_event_type_bss_info, reinterpret_cast<unsigned char *>(data->raw_data.bytes), data->raw_data_len);
+    return 1;
 }
 
 int em_agent_t::association_status_cb(char *event_name, raw_data_t *data, void *userData)
@@ -1027,6 +1090,16 @@ int em_agent_t::channel_scan_cb(char *event_name, raw_data_t *data, void *userDa
     g_agent.io_process(em_bus_event_type_scan_result, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
     return 1;
+}
+
+int em_agent_t::ap_metrics_report_cb(char *event_name, raw_data_t *data, void *userData)
+{
+    //printf("%s:%d Received Frame data for event [%s] and data :\n%s\n", __func__, __LINE__, event_name, data->raw_data.bytes);
+    (void)userData;
+
+    g_agent.io_process(em_bus_event_type_ap_metrics_report, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
+
+    return 0;
 }
 
 int em_agent_t::beacon_report_cb(char *event_name, raw_data_t *data, void *userData)
@@ -1191,6 +1264,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
     mac_address_t client_mac;
     bool found = false;
     em_string_t al_mac_str;
+    em_bss_info_t *em_bss = NULL;
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
     if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
@@ -1316,7 +1390,11 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 
             dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
             if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
-                printf("%s:%d: Received channel preference query recv, found existing radio:%s\n", __func__, __LINE__, mac_str1);
+                if (em->is_al_interface_em() == false) {
+                        printf("%s:%d: Received channel preference query recv, found existing radio:%s\n", __func__, __LINE__, mac_str1);
+                } else {
+                        return NULL;
+                }
             } else {
                 printf("%s:%d: Could not find em for em_msg_type_channel_pref_query\n", __func__, __LINE__);
                 return NULL;
@@ -1335,7 +1413,11 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 
             dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
             if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
-                printf("%s:%d: Received em_msg_type_channel_sel_req, found existing radio:%s\n", __func__, __LINE__, mac_str1);
+                if (em->is_al_interface_em() == false) {
+                    printf("%s:%d: Received em_msg_type_channel_sel_req, found existing radio:%s\n", __func__, __LINE__, mac_str1);
+                } else {
+                    return NULL;
+                }
             } else {
                 printf("%s:%d: Could not find em for em_msg_type_channel_sel_req\n", __func__, __LINE__);
                 return NULL;
@@ -1348,8 +1430,6 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             break;
 
         case  em_msg_type_client_cap_query:
-            printf("%s:%d: Received client cap query\n", __func__, __LINE__);
-
             if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                 len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_bss_id(&bss_mac) == false) {
                 printf("%s:%d: Could not find BSS mac for em_msg_type_client_cap_query\n", __func__, __LINE__);
@@ -1357,16 +1437,24 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             }
 
             dm_easy_mesh_t::macbytes_to_string(bss_mac, mac_str1);
-            if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
-                printf("%s:%d: Received client cap query, found existing BSS:%s\n", __func__, __LINE__, mac_str1);
-            } else {
-                printf("%s:%d: Could not find em for em_msg_type_client_cap_query\n", __func__, __LINE__);
-                return NULL;
+
+            em = static_cast<em_t *> (hash_map_get_first(m_em_map));
+            while (em != NULL) {
+                dm = em->get_data_model();
+                em_bss = dm->get_bss_info_with_mac(bss_mac);
+                if (memcmp(em_bss->ruid.mac, em->get_radio_interface_mac(), sizeof(bssid_t)) == 0) {
+                    printf("%s:%d: Received client cap query: found radio for bss:%s\n", __func__, __LINE__, mac_str1);
+                    break;
+                }
+                em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
+            }
+            if(em == NULL){
+                dm_easy_mesh_t::macbytes_to_string(bss_mac, mac_str2);
+                printf("%s:%d: Received client cap query: Could not find radio:%s of bss:%s\n", __func__, __LINE__, mac_str1, mac_str2);
             }
             break;
 
         case em_msg_type_client_cap_rprt:
-            printf("%s:%d: Sending client cap report\n", __func__, __LINE__);
             break;
 
         case em_msg_type_op_channel_rprt:
@@ -1436,12 +1524,9 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
         case em_msg_type_channel_pref_rprt:
         case em_msg_type_1905_ack:
         case em_msg_type_map_policy_config_req:
-            printf(" rcvd em_msg_type_map_policy_config_req\n");
-        
             em = (em_t *)hash_map_get_first(m_em_map);
             while (em != NULL) {
                 if ((em->is_al_interface_em() == false)) {
-                    printf(" em found for policy cfg\n");
                     break;
                 }
                 em = (em_t *)hash_map_get_next(m_em_map, em);
@@ -1462,7 +1547,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             break;
         default:
             printf("%s:%d: Frame: %d not handled in agent\n", __func__, __LINE__, htons(cmdu->type));
-            assert(0);
+            em = NULL;
             break;	
 	}
 
@@ -1611,7 +1696,7 @@ em_agent_t::~em_agent_t()
 #ifdef AL_SAP
 AlServiceAccessPoint* em_agent_t::al_sap_register()
 {
-    AlServiceAccessPoint* sap = new AlServiceAccessPoint(SOCKET_PATH);
+    AlServiceAccessPoint* sap = new AlServiceAccessPoint(DATA_SOCKET_PATH, CONTROL_SOCKET_PATH);
 
     AlServiceRegistrationRequest registrationRequest(ServiceOperation::SOP_ENABLE, ServiceType::SAP_TUNNEL_CLIENT);
     sap->serviceAccessPointRegistrationRequest(registrationRequest);

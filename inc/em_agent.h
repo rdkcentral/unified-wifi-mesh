@@ -195,6 +195,17 @@ class em_agent_t : public em_mgr_t {
 	void handle_recv_cce_ie(em_bus_event_t *event);
 
 	/**
+	 * @brief Handles the reception of BSS info reports from OneWifi
+	 * 
+	 * Used for DPP for building the Enrollee's channel list for Reconfiguration Announcement
+	 * 
+	 * @param event The event containing the `bss_info_t` including an SSID which the Enrollee will check
+	 * to conditionally include the channel (frequency) that the SSID was heard on in its
+	 * Reconfiguration Announcement channel list
+	 */
+	void handle_bss_info(em_bus_event_t *event);
+
+	/**
 	 * @brief Handles the reception of association status of a STA
 	 * 
 	 * @param event The event containing the `rdk_sta_data_t` info which includes the association status along with other information
@@ -268,6 +279,17 @@ class em_agent_t : public em_mgr_t {
 	 * @note Ensure that the evt parameter is properly initialized before calling this function.
 	 */
 	void handle_recv_gas_frame(em_bus_event_t *evt);
+
+	/**!
+	 * @brief Handles the AP Metrics report event.
+	 *
+	 * This function processes the AP Metrics report event received from the event bus.
+	 *
+	 * @param[in] evt Pointer to the event structure containing the AP Metrics report data.
+	 *
+	 * @note Ensure that the event structure is properly initialized before calling this function.
+	 */
+	void handle_ap_metrics_report(em_bus_event_t *evt);
 
 public:
 
@@ -866,6 +888,33 @@ public:
 	 * @return int 1 on success, otherwise -1
 	 */
 	static int association_status_cb(char *event_name, raw_data_t *data, void *userData);
+
+	/**
+	 * @brief Callback for BSS scan events
+	 * 
+	 * @param event_name The name of the event
+	 * @param data The raw event data
+	 * @param userData Optional user-provided callback data
+	 * @return int 1 on success, otherwise -1
+	 */
+	static int bss_info_cb(char *event_name, raw_data_t *data, void *userData);
+
+	/**!
+	 * @brief Callback function for handling AP Metrics reports.
+	 *
+	 * This function is triggered when an AP Metrics report event occurs.
+	 *
+	 * @param[in] event_name The name of the event that triggered the callback.
+	 * @param[in] data Pointer to the raw data associated with the AP Metrics report.
+	 * @param[in] userData User-defined data passed to the callback function.
+	 *
+	 * @returns int Status code indicating the success or failure of the callback execution.
+	 * @retval 0 Success.
+	 * @retval -1 Failure.
+	 *
+	 * @note Ensure that the data pointer is valid before accessing its contents.
+	 */
+	static int ap_metrics_report_cb(char *event_name, raw_data_t *data, void *userData);
     
 	/**!
 	 * @brief Retrieves the associated data for the given input.

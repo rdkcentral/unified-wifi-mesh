@@ -118,6 +118,9 @@ bool em_msg_t::get_bss_id(mac_address_t *mac)
         } else if (tlv->type == em_tlv_type_client_info) {
             memcpy(mac, tlv->value + sizeof(mac_address_t), sizeof(mac_address_t));
             return true;
+        } else if (tlv->type == em_tlv_type_ap_metrics) {
+            memcpy(mac, tlv->value, sizeof(mac_address_t));
+            return true;
         }
 
         len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
@@ -194,7 +197,10 @@ bool em_msg_t::get_radio_id(mac_address_t *mac)
 		} else if (tlv->type == em_tlv_type_channel_scan_rslt) {
 			memcpy(mac, tlv->value, sizeof(mac_address_t));
             return true;
-		}
+		} else if (tlv->type == em_tlv_type_radio_metric) {
+            memcpy(mac, tlv->value, sizeof(mac_address_t));
+            return true;
+        }
 
         len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
@@ -323,7 +329,7 @@ unsigned int em_msg_t::validate(char *errors[])
         }
 
         if ((m_tlv_member[i].m_requirement == mandatory) &&((m_tlv_member[i].m_present == false)||((sizeof(em_tlv_t) + htons(tlv->len)) < static_cast<size_t> (m_tlv_member[i].m_tlv_length)))) {
-            snprintf(m_errors[m_num_errors], sizeof(m_errors[m_num_errors]), "%s", m_tlv_member[i].m_spec);
+            strncpy(m_errors[m_num_errors], m_tlv_member[i].m_spec, sizeof(m_errors[m_num_errors]));
             m_num_errors++;
             errors[m_num_errors - 1] = m_errors[m_num_errors - 1];
             validation = false;
@@ -337,7 +343,7 @@ unsigned int em_msg_t::validate(char *errors[])
         }
 
         if ((m_tlv_member[i].m_requirement == bad) && (m_tlv_member[i].m_present == true)) {
-            snprintf(m_errors[m_num_errors], sizeof(m_errors[m_num_errors]), "%s", m_tlv_member[i].m_spec);
+            strncpy(m_errors[m_num_errors], m_tlv_member[i].m_spec, sizeof(m_errors[m_num_errors]));
             m_num_errors++;
             errors[m_num_errors - 1] = m_errors[m_num_errors - 1];
             //printf("%s:%d; TLV type: 0x%04x Length: %d, presence validation error, profile: %d\n", __func__, __LINE__, 
@@ -586,7 +592,7 @@ void em_msg_t::ap_metrics_query()
 
 void em_msg_t::ap_metrics_rsp()
 {
-    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_ap_metrics, mandatory, "17.2.22 of Wi-Fi Easy Mesh 5.0", 24);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_ap_metrics, mandatory, "17.2.22 of Wi-Fi Easy Mesh 5.0", 16);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_ap_ext_metric, (m_profile > em_profile_type_1) ? mandatory:bad, "17.2.61 of Wi-Fi Easy Mesh 5.0", 33);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_radio_metric, (m_profile > em_profile_type_1) ? optional:bad, "17.2.60 of Wi-Fi Easy Mesh 5.0", 13);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_assoc_sta_traffic_sts, optional, "17.2.35 of Wi-Fi Easy Mesh 5.0", 37);

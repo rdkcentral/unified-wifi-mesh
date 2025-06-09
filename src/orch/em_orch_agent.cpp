@@ -135,6 +135,12 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             }
             break;
 
+        case em_cmd_type_ap_metrics_report:
+            if (em->get_state() == em_state_agent_configured) {
+                return true;
+            }
+            break;
+
         default:
             if ((em->get_state() == em_state_agent_unconfigured) ||
                     (em->get_state() == em_state_agent_configured)) {
@@ -163,7 +169,8 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 			return true;
 		}
     } else if (pcmd->m_type == em_cmd_type_sta_list) {
-		if (em->get_state() == em_state_agent_configured) {
+		if ((em->get_state() == em_state_agent_configured) ||
+				(em->get_state() >= em_state_agent_topo_synchronized)){
 			return true;
 		}
     } else if (pcmd->m_type == em_cmd_type_sta_link_metrics) {
@@ -177,6 +184,11 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 	} else if (pcmd->m_type == em_cmd_type_beacon_report) {
         if ((em->get_state() == em_state_agent_configured) ||
             ((em->get_state() == em_state_agent_beacon_report_pending))) {
+            return true;
+        }
+    } else if (pcmd->m_type == em_cmd_type_ap_metrics_report) {
+        if ((em->get_state() == em_state_agent_configured) ||
+            ((em->get_state() == em_state_agent_ap_metrics_pending))) {
             return true;
         }
     }
@@ -352,7 +364,9 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 				}
 				break;
             case em_cmd_type_cfg_renew:
+		dm_easy_mesh_t::macbytes_to_string(pcmd->get_data_model()->get_radio(num)->get_radio_info()->intf.mac, src_mac_str);
                 if ((memcmp(pcmd->get_data_model()->get_radio(num)->get_radio_info()->intf.mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) && (!(em->is_al_interface_em()))) {
+		    printf("%s:%d Renew %s added\n", __func__, __LINE__,src_mac_str);
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }
@@ -473,6 +487,15 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 
                 sta = em->find_sta(mac1, mac2);
                 if (sta != NULL) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    printf("%s:%d Beacon report build candidate pushed\n", __func__, __LINE__);
+                    count++;
+                }
+                break;
+
+            case em_cmd_type_ap_metrics_report:
+                if (memcmp(pcmd->m_param.u.ap_metrics_params.ruid,
+                    em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }

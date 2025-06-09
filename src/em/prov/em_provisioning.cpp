@@ -511,7 +511,7 @@ int em_provisioning_t::handle_proxy_encap_dpp(uint8_t *buff, unsigned int len)
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tlv_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
-    uint16_t encap_tlv_len, chirp_tlv_len = 0;
+    uint16_t encap_tlv_len = 0, chirp_tlv_len = 0;
     em_encap_dpp_t* encap_tlv = NULL;
     em_dpp_chirp_value_t* chirp_tlv = NULL;
 
@@ -672,6 +672,133 @@ cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *con
         return nullptr;
     }
     return b_sta_list_arr;
+}
+
+cJSON *em_provisioning_t::create_fbss_response_obj(ec_connection_context_t *conn_ctx)
+{
+    dm_easy_mesh_t *dm = get_data_model();
+    ASSERT_NOT_NULL(dm, nullptr, "%s:%d: Failed to get data model handle.\n", __func__, __LINE__);
+
+    cJSON *fbss_configuration_object = cJSON_CreateObject();
+    ASSERT_NOT_NULL(fbss_configuration_object, nullptr, "%s:%d: Could not create fBSS Configuration Object\n", __func__, __LINE__);
+
+    if (!cJSON_AddStringToObject(fbss_configuration_object, "wi-fi_tech", "map")) {
+        em_printfout("Failed to add \"wi-fi_tech\" to Configuration Object");
+        cJSON_Delete(fbss_configuration_object);
+    }
+
+    cJSON *discovery_object = cJSON_CreateObject();
+    if (discovery_object == nullptr) {
+        em_printfout("Failed to create Discovery Object for DPP Configuration Object");
+        cJSON_Delete(fbss_configuration_object);
+    }
+
+    const em_network_ssid_info_t* network_ssid_info = dm->get_network_ssid_info_by_haul_type(em_haul_type_fronthaul);
+    if (network_ssid_info == nullptr) {
+        em_printfout("No fronthaul BSS found, cannot create fBSS Configuration Object");
+        cJSON_Delete(fbss_configuration_object);
+        cJSON_Delete(discovery_object);
+        return nullptr;
+    }
+
+    if (!cJSON_AddStringToObject(discovery_object, "SSID", network_ssid_info->ssid)) {
+        em_printfout("Could not add \"SSID\" to fBSS Configuration Object");
+        cJSON_Delete(fbss_configuration_object);
+        cJSON_Delete(discovery_object);
+        return nullptr;
+    }
+
+    for (int i = 0; i < dm->get_num_bss(); i++) {
+        const dm_bss_t *bss = dm->get_bss(i);
+        if (!bss) continue;
+        if (bss->m_bss_info.id.haul_type == em_haul_type_fronthaul && strncmp(bss->m_bss_info.ssid, network_ssid_info->ssid, strlen(network_ssid_info->ssid)) == 0) {
+            em_printfout("Found fronthaul BSS! '%s'", bss->m_bss_info.ssid);
+            if (!cJSON_AddStringToObject(discovery_object, "BSSID", util::mac_to_string(bss->m_bss_info.bssid.mac, "").c_str())) {
+                em_printfout("Failed to add \"BSSID\" to fBSS Configuration Object");
+                cJSON_Delete(fbss_configuration_object);
+                cJSON_Delete(discovery_object);
+                return nullptr;
+            }
+            if (!cJSON_AddStringToObject(discovery_object, "RUID", util::mac_to_string(bss->m_bss_info.ruid.mac, "").c_str())) {
+                em_printfout("Failed to add \"RUID\" to fBSS Configuration Object");
+                cJSON_Delete(fbss_configuration_object);
+                cJSON_Delete(discovery_object);
+                return nullptr;
+            }
+        }
+    }
+
+    cJSON *credential_object = cJSON_CreateObject();
+    if (credential_object == nullptr) {
+        em_printfout("Failed to create credential object for DPP Configuration object.");
+        cJSON_Delete(discovery_object);
+        cJSON_Delete(fbss_configuration_object);
+        return nullptr;
+    }
+
+    std::string akm_suites = {};
+    bool needs_psk_hex = false;
+    for (unsigned int i = 0; i < network_ssid_info->num_akms; i++) {
+        if (!akm_suites.empty()) akm_suites += "+";
+        akm_suites += util::akm_to_oui(network_ssid_info->akm[i]);
+
+    }
+    // "psk_hex" is a conditional field,
+    // present only if PSK or AKM or SAE is a selected AKM
+    const auto check_needs_psk_hex = [](std::string akm) -> bool {
+        // psk || sae
+        return akm == util::akm_to_oui("psk")
+        || akm == util::akm_to_oui("sae");
+    };
+
+    std::vector<std::string> akms = util::split_by_delim(akm_suites, '+');
+    for (const auto& akm : akms) {
+        if (check_needs_psk_hex(akm)) needs_psk_hex = true;
+    }
+
+    if (!cJSON_AddStringToObject(credential_object, "akm", akm_suites.c_str())) {
+        em_printfout("Failed to add \"akm\" to bSTA DPP Configuration Object");
+        cJSON_Delete(discovery_object);
+        cJSON_Delete(fbss_configuration_object);
+        cJSON_Delete(credential_object);
+        return nullptr;
+    }
+
+    if (needs_psk_hex) {
+        std::vector<uint8_t> psk = ec_crypto::gen_psk(std::string(network_ssid_info->pass_phrase), std::string(network_ssid_info->ssid));
+        if (psk.empty()) {
+            em_printfout("Failed to generate PSK");
+            cJSON_Delete(discovery_object);
+            cJSON_Delete(fbss_configuration_object);
+            cJSON_Delete(credential_object);
+            return nullptr;
+        }
+
+        cJSON_AddStringToObject(credential_object, "psk_hex", em_crypto_t::hash_to_hex_string(psk).c_str());
+    }
+
+    if (!cJSON_AddStringToObject(credential_object, "pass", network_ssid_info->pass_phrase)) {
+        em_printfout("Failed to add \"pass\" to bSTA DPP Configuration Object");
+        cJSON_Delete(discovery_object);
+        cJSON_Delete(credential_object);
+        cJSON_Delete(fbss_configuration_object);
+        return nullptr;
+    }
+
+    if (!cJSON_AddItemToObject(fbss_configuration_object, "discovery", discovery_object)) {
+        em_printfout("Failed to add \"discovery\" to bSTA DPP Configuration Object");
+        cJSON_Delete(credential_object);
+        cJSON_Delete(discovery_object);
+        cJSON_Delete(fbss_configuration_object);
+    }
+
+    if (!cJSON_AddItemToObject(fbss_configuration_object, "cred", credential_object)) {
+        em_printfout("Failed to add \"cred\" to bSTA DPP Configuration Object");
+        cJSON_Delete(credential_object);
+        cJSON_Delete(fbss_configuration_object);
+    }
+
+    return fbss_configuration_object;
 }
 
 cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_context_t *conn_ctx)

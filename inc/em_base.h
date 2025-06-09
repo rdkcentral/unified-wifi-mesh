@@ -914,9 +914,10 @@ typedef struct {
 
 typedef struct {
     mac_address_t sta_mac;
+    bssid_t bssid;
     em_string_t sta_client_type;
-    unsigned char num_bssids;
-    em_assoc_vendor_link_metrics_t assoc_vendor_link_metrics[0];
+    //unsigned char num_bssids;
+    //em_assoc_vendor_link_metrics_t assoc_vendor_link_metrics[0];
 }__attribute__((__packed__)) em_assoc_sta_vendor_link_metrics_t;
 
 typedef struct {
@@ -1930,6 +1931,7 @@ typedef enum {
     em_cmd_type_btm_sta,
     em_cmd_type_dev_init,
     em_cmd_type_dev_test,
+    em_cmd_type_set_dev_test,
     em_cmd_type_cfg_renew,
     em_cmd_type_vap_config,
     em_cmd_type_sta_list,
@@ -1952,6 +1954,8 @@ typedef enum {
     em_cmd_type_get_mld_config,
     em_cmd_type_mld_reconfig,
     em_cmd_type_beacon_report,
+    em_cmd_type_ap_metrics_report,
+
     em_cmd_type_max,
 } em_cmd_type_t;
 
@@ -2550,6 +2554,7 @@ typedef enum {
     em_bus_event_type_chirp,
     em_bus_event_type_reset,
     em_bus_event_type_dev_test,
+    em_bus_event_type_set_dev_test,
     em_bus_event_type_get_network,
     em_bus_event_type_get_device,
     em_bus_event_type_remove_device,
@@ -2599,6 +2604,8 @@ typedef enum {
     em_bus_event_type_get_sta_client_type,
     em_bus_event_type_cce_ie,
     em_bus_event_type_assoc_status,
+    em_bus_event_type_ap_metrics_report,
+    em_bus_event_type_bss_info,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -2827,6 +2834,13 @@ typedef struct {
     em_disassoc_params_t	params[MAX_STA_TO_DISASSOC];
 } em_cmd_disassoc_params_t;
 
+typedef struct {
+    mac_address_t   ruid;
+    bool sta_link_metrics_include;
+    bool sta_traffic_stats_include;
+    bool wifi6_status_report_include;
+} __attribute__((__packed__)) em_cmd_ap_metrics_rprt_params_t;
+
 typedef enum {
     em_network_node_data_type_invalid,
     em_network_node_data_type_false,
@@ -2866,6 +2880,7 @@ typedef struct {
         em_cmd_btm_report_params_t  btm_report_params;
         em_cmd_disassoc_params_t	disassoc_params;
 		em_cmd_scan_params_t	scan_params;
+        em_cmd_ap_metrics_rprt_params_t ap_metrics_params;
     } u;
 	em_network_node_t *net_node;
 } em_cmd_params_t;
@@ -3074,6 +3089,31 @@ typedef struct {
 	em_editor_callback_t	cb_func;
 	em_cli_type_t	cli_type;
 } em_cli_params_t;
+
+typedef enum {
+	em_dev_test_type_ssid,
+	em_dev_test_type_channel,
+	em_dev_test_type_max
+} em_dev_test_type;
+
+typedef enum {
+        em_dev_test_status_inprogess,
+        em_dev_test_status_idle,
+	em_dev_test_status_complete,
+	em_dev_test_status_failed,
+        em_dev_test_status_max
+} em_dev_test_status;
+
+typedef struct{
+	int num_iteration[em_dev_test_type_max];
+	em_dev_test_type test_type[em_dev_test_type_max];
+	int enabled[em_dev_test_type_max];
+	int num_of_iteration_completed[em_dev_test_type_max];
+	int test_inprogress[em_dev_test_type_max];
+	em_dev_test_status test_status[em_dev_test_type_max];
+        em_haul_type_t haul_type;
+        em_freq_band_t freq_band;
+}em_dev_test_info;
 
 #ifndef SSL_KEY
 #if OPENSSL_VERSION_NUMBER < 0x30000000L

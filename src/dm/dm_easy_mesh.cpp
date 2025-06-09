@@ -842,7 +842,7 @@ int dm_easy_mesh_t::decode_config_set_radio(em_subdoc_info_t *subdoc, const char
         return EM_PARSE_ERR_NET_ID;
     }
 
-    strncpy(m_network.m_net_info.id, net_id, strlen(net_id) + 1);
+    snprintf(m_network.m_net_info.id, sizeof(em_long_string_t), "%s", net_id);
 
     if ((dev_arr_obj = cJSON_GetObjectItem(net_obj, "DeviceList")) == NULL) {
         printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
@@ -941,7 +941,7 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
         return EM_PARSE_ERR_NET_ID;
 	}
 
-	strncpy(m_network.m_net_info.id, net_id, strlen(net_id) + 1);
+    snprintf(m_network.m_net_info.id, sizeof(em_long_string_t), "%s", net_id);
 
     if ((dev_arr_obj = cJSON_GetObjectItem(net_obj, "DeviceList")) == NULL) {
         printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
@@ -2261,7 +2261,7 @@ em_sta_info_t *dm_easy_mesh_t::get_sta_info(mac_address_t sta_mac, bssid_t bssid
     dm_sta_t *sta = NULL;
     const char	*map_str;
     mac_addr_str_t radio_str, bss_str, sta_str;
-    em_long_string_t key;
+    em_long_string_t key = {0};
 
     if (target == em_target_sta_map_assoc) {
         map = m_sta_assoc_map;
@@ -2446,9 +2446,10 @@ void dm_easy_mesh_t::deinit()
         hash_map_remove(m_sta_dassoc_map, key);
     }
 	hash_map_destroy(m_sta_dassoc_map);
-	if (m_wifi_data != NULL)
-		free(m_wifi_data);
-
+	if (m_wifi_data != NULL) {
+        free(m_wifi_data);
+        m_wifi_data = nullptr;
+    }
 }
 
 void dm_easy_mesh_t::set_policy(dm_policy_t policy)
