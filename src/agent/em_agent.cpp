@@ -1730,7 +1730,6 @@ bool em_agent_t::try_start_dpp_onboarding()  {
     }
     printf("%s:%d: DPP bootstrapping data generated successfully\n", __func__, __LINE__);
 
-    // Should move after channel list is built
     set_disconnected_steady_state();
     
     if (!al_node->get_ec_mgr().enrollee_start_onboarding(false, &ec_data)){
