@@ -4,6 +4,7 @@
 #include "ec_util.h"
 
 #include "cjson/cJSON.h"
+#include <numeric>
 
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
 #include <openssl/kdf.h>
@@ -734,6 +735,68 @@ std::optional<std::vector<cJSON*>> ec_crypto::split_decode_connector(const char*
         return std::nullopt;
     }
     return decoded_parts;
+}
+
+std::optional<std::vector<std::string>> ec_crypto::split_connector(const char *conn)
+{
+    if (conn == nullptr) {
+        return std::nullopt;
+    }
+
+    std::string connector(conn);
+    size_t first_dot = connector.find('.');
+    size_t second_dot = connector.find('.', first_dot + 1);
+
+    if (first_dot == std::string::npos || second_dot == std::string::npos) {
+        em_printfout("Malformed connector: %s", connector.c_str());
+        return std::nullopt;
+    }
+
+    std::optional<std::vector<std::string>> parts = std::vector<std::string>{
+        connector.substr(0, first_dot), // Header
+        connector.substr(first_dot + 1, second_dot - first_dot - 1), // Payload
+        connector.substr(second_dot + 1) // Sig
+    };
+
+    return parts;
+}
+
+std::vector<uint8_t> ec_crypto::concat_nonces(const std::vector<std::vector<uint8_t>>& nonces)
+{
+    std::vector<uint8_t> result;
+    size_t total_size = std::accumulate(nonces.begin(), nonces.end(), size_t{0}, 
+        [](size_t sum, const std::vector<uint8_t>& nonce) { return sum + nonce.size(); });
+
+    result.reserve(total_size);
+
+    for (const auto& nonce : nonces) {
+        result.insert(result.end(), nonce.begin(), nonce.end());
+    }
+
+    return result;
+}
+
+EC_POINT *ec_crypto::decode_ec_point_from_connector_netaccesskey(ec_connection_context_t& ctx, cJSON *net_access_key)
+{
+    if (net_access_key == nullptr) {
+        return nullptr;
+    }
+    cJSON *x = cJSON_GetObjectItem(net_access_key, "x");
+    cJSON *y = cJSON_GetObjectItem(net_access_key, "y");
+    if (!x || !y || !cJSON_IsString(x) || !cJSON_IsString(y)) {
+        em_printfout("Invalid netAccessKey format in C-Connector");
+        return nullptr;
+    }
+    std::optional<std::vector<uint8_t>> x_bytes = em_crypto_t::base64url_decode(x->valuestring);
+    std::optional<std::vector<uint8_t>> y_bytes = em_crypto_t::base64url_decode(y->valuestring);
+    if (!x_bytes.has_value() || !y_bytes.has_value()) {
+        em_printfout("Failed to get x, y points from netAccessKey in C-Connector");
+        return nullptr;
+    }
+    std::vector<uint8_t> key_buff(x_bytes->size() + y_bytes->size());
+    key_buff.insert(key_buff.end(), x_bytes->begin(), x_bytes->end());
+    key_buff.insert(key_buff.end(), y_bytes->begin(), y_bytes->end());
+    return ec_crypto::decode_ec_point(ctx, key_buff.data());
 }
 
 std::optional<std::string> ec_crypto::generate_connector(const cJSON * jws_header, const cJSON * jws_payload,  SSL_KEY* sign_key)
