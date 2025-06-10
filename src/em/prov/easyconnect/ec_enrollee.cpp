@@ -1476,10 +1476,13 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request(std::optional<
     ec_gas_initial_request_frame_t *initial_req_frame = static_cast<ec_gas_initial_request_frame_t *> (frame);
     uint8_t *attribs = nullptr;
     size_t attribs_len = 0;
-    // Wrap e-nonce and config req obj(s) with k_e
+    // Wrap e-nonce, config req obj(s), and (optionally) new pub key with k_e
     attribs = ec_util::add_cfg_wrapped_data_attr(attribs, &attribs_len, false, m_eph_ctx().ke, [&](){
         size_t wrapped_len = 0;
         uint8_t* wrapped_attribs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, m_c_ctx.nonce_len, m_eph_ctx().e_nonce);
+        if (replace_key) {
+            wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_init_proto_key, static_cast<uint16_t>(BN_num_bytes(m_c_ctx.prime) * 2), ec_crypto::encode_ec_point(m_c_ctx, m_eph_ctx().public_resp_proto_key));
+        }
         wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_req_obj, cjson_utils::stringify(dpp_config_request_obj));
         return std::make_pair(wrapped_attribs, wrapped_len);
     });

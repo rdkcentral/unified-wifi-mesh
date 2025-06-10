@@ -336,6 +336,23 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
     }
     memcpy(e_ctx->e_nonce, e_nonce_attr->data, e_nonce_len);
 
+    auto proto_key_attr = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_init_proto_key);
+    // This is conditionally included if Configurator has requested the Enrollee to create a new keypair as part of Reconfiguration.
+    if (proto_key_attr) {
+        // EC 6.3.1:
+        // The protocol key of the Enrollee is used as Network Access key (netAccessKey) later in the DPP Configuration and DPP Introduction protocol
+        // For initial auth/config, Configurator holds the Initator role and the Enrollee is the Respondor
+        auto [x, y] = ec_crypto::get_ec_x_y(*conn_ctx, e_ctx->public_resp_proto_key);
+        conn_ctx->net_access_key = em_crypto_t::create_ec_key_from_coordinates(ec_crypto::BN_to_vec(x), ec_crypto::BN_to_vec(y), ec_crypto::BN_to_vec(e_ctx->priv_resp_proto_key));
+        if (conn_ctx->net_access_key == nullptr) {
+            em_printfout("Could not derive net access key from Enrollee protocol keypair");
+            BN_free(x);
+            BN_free(y);
+            free(unwrapped_attrs);
+            return false;
+        }
+    }
+
     auto dpp_config_request_obj_attr = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_dpp_config_req_obj);
     ASSERT_OPT_HAS_VALUE_FREE(dpp_config_request_obj_attr, false, unwrapped_attrs, "%s:%d: No DPP Configuration Request Object found in DPP Configuration Request frame!\n", __func__, __LINE__);
 
@@ -1137,7 +1154,6 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_auth_request(std::st
     free(attribs);
 
     return std::make_pair(reinterpret_cast<uint8_t*>(frame), EC_FRAME_BASE_SIZE + attribs_len);
-
 }
 
 std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status, uint8_t* i_auth_tag)
