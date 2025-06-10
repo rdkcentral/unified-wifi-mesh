@@ -28,14 +28,6 @@
 #include "em_simulator.h"
 #include "bus.h"
 
-#ifndef WIFI_SET_DISCONN_STEADY_STATE
-#define WIFI_SET_DISCONN_STEADY_STATE         "Device.WiFi.EM.SetDisconnSteadyState"
-#endif
-
-#ifndef WIFI_SET_DISCONN_SCAN_NONE_STATE
-#define WIFI_SET_DISCONN_SCAN_NONE_STATE      "Device.WiFi.EM.SetDisconnScanNoneState"
-#endif
-
 #include <string>
 
 class em_cmd_agent_t;
@@ -358,6 +350,19 @@ public:
 	 * @note This only works when OneWifi is in the disconnected steady state.
 	 */
 	bool set_disconnected_scan_none_state() override;
+
+	/**
+	 * @brief Send a scan request to OneWifi
+	 *
+	 * This function sends a scan request with the specified parameters to the mesh.
+	 *
+	 * @param[in] scan_params Pointer to the scan parameters structure.
+	 * @param[in] perform_fresh_scan If true, performs a fresh scan; otherwise, uses cached results.
+	 * @param[in] is_sta_vap If true, performs a `wifi_hal_startScan` (STA compatable), 
+	 * 								  otherwise, performs a `wifi_hal_startNeighborScan` (not STA compatible)
+	 * @return true if the scan request was sent successfully, false otherwise.
+	 */
+	bool send_scan_request(em_scan_params_t* scan_params, bool perform_fresh_scan, bool is_sta_vap = false) override;
 
     
 	/**

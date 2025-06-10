@@ -41,6 +41,7 @@
 #include "util.h"
 #include <cjson/cJSON.h>
 
+#include <string>
 #include <vector>
 #ifdef AL_SAP
 #include "al_service_access_point.h"
@@ -642,9 +643,65 @@ void em_agent_t::handle_channel_scan_params(em_bus_event_t *evt)
        printf("descriptor is null");
     }
 
-    if ((num = m_data_model.analyze_scan_request(evt, desc, &m_bus_hdl)) == 0) {
-	    printf("analyze scan request failed\n");
+    if (!send_scan_request((em_scan_params_t *)&evt->u.raw_buff, true)) {
+        printf("send_scan_request failed\n");
+        return;
     }
+}
+
+bool em_agent_t::send_scan_request(em_scan_params_t* scan_params, bool perform_fresh_scan, bool is_sta_vap){
+    unsigned i, j;
+    mac_addr_str_t radio_mac_str;
+    raw_data_t l_bus_data;
+    
+
+    std::string ruid_str = util::mac_to_string(scan_params->ruid);
+    em_printfout("Radio: %s Num of Op Classes: %d\n", ruid_str.c_str(), scan_params->num_op_classes);
+
+    channel_scan_request_t scan_data;
+    memset(&scan_data, 0, sizeof(channel_scan_request_t));
+
+    scan_data.perform_fresh_scan = perform_fresh_scan;
+    scan_data.num_radios = 1;
+
+    memcpy(scan_data.ruid, scan_params->ruid, sizeof(mac_address_t));
+
+    scan_data.num_operating_classes = scan_params->num_op_classes;
+    for (i = 0; i < scan_params->num_op_classes; i++) {
+        scan_data.operating_classes[i].operating_class = scan_params->op_class[i].op_class;
+        scan_data.operating_classes[i].num_channels = scan_params->op_class[i].num_channels;
+        printf("Op Class: %d ", scan_params->op_class[i].op_class);
+        printf("Channels: ");
+        for (j = 0; j < scan_params->op_class[i].num_channels; j++) {
+            scan_data.operating_classes[i].channels[j] = scan_params->op_class[i].channels[j];
+            printf("%d ", scan_params->op_class[i].channels[j]);
+        }
+        printf("\n");
+    }
+
+    l_bus_data.data_type = bus_data_type_bytes;
+    l_bus_data.raw_data.bytes = (void *)&scan_data;
+    l_bus_data.raw_data_len = sizeof(channel_scan_request_t);
+
+    wifi_bus_desc_t *desc;
+
+    if((desc = get_bus_descriptor()) == NULL) {
+       printf("descriptor is null");
+       return false;
+    }
+
+    std::string path = WIFI_EM_CHANNEL_SCAN_REQUEST;
+    if (is_sta_vap) {
+        em_printfout("Triggering station scan");
+        path = WIFI_EC_SEND_TRIG_STA_SCAN;
+    }
+
+    if (desc->bus_set_fn(&m_bus_hdl, path.c_str(), &l_bus_data) != 0) {
+        em_printfout("Failed to send channel scan request to bus");
+        return false;
+    }
+    em_printfout("Sent channel scan request to bus\n");
+    return true;
 }
 
 void em_agent_t::handle_set_policy(em_bus_event_t *evt)
@@ -999,7 +1056,7 @@ void em_agent_t::input_listener()
         return;
     }
 
-    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.ChannelScanReport", (void *)&em_agent_t::channel_scan_cb, NULL, 0) != 0) {
+    if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_EM_CHANNEL_SCAN_REPORT, (void *)&em_agent_t::channel_scan_cb, NULL, 0) != 0) {
         printf("%s:%d bus get failed\n", __func__, __LINE__);
         return;
     }

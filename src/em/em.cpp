@@ -807,11 +807,10 @@ then we can say that adding the CCE IE to all of the backhaul BSSs (according to
     return true;
 }
 
-bool em_t::bsta_connect_bss(const std::string& ssid, const std::string passphrase, bssid_t bssid)
+em_bss_info_t* em_t::get_bsta_bss_info()
 {
-    em_bss_info_t *bsta_info = NULL; 
     for (unsigned int i = 0; i < m_data_model->get_num_bss(); i++) {
-        bsta_info = m_data_model->get_bss_info(i);
+        em_bss_info_t *bsta_info = m_data_model->get_bss_info(i);
         if (!bsta_info) continue;
         // Skip if not backhaul
         if (bsta_info->id.haul_type != em_haul_type_backhaul) {
@@ -822,8 +821,14 @@ bool em_t::bsta_connect_bss(const std::string& ssid, const std::string passphras
         if (!radio->m_radio_info.enabled || !bsta_info->enabled) {
             continue;
         }
-        break;
+        return bsta_info;
     }
+    return NULL;
+}
+
+bool em_t::bsta_connect_bss(const std::string& ssid, const std::string passphrase, bssid_t bssid)
+{
+    em_bss_info_t *bsta_info = get_bsta_bss_info();
     if (!bsta_info) {
         em_printfout("No backhaul bSTA found to connect to BSS\n");
         return false;

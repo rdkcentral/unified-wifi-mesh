@@ -359,6 +359,23 @@ public:
         return false;
     }
 
+	/**
+	 * @brief Send a scan request to OneWifi
+	 *
+	 * This function sends a scan request with the specified parameters to the mesh.
+	 *
+	 * @param[in] scan_params Pointer to the scan parameters structure.
+	 * @param[in] perform_fresh_scan If true, performs a fresh scan; otherwise, uses cached results.
+	 *
+	 * @return true if the scan request was sent successfully, false otherwise.
+	 * 
+	 * @note This function is optional to implement and may not be supported on all platforms.
+	 */
+	virtual bool send_scan_request(em_scan_params_t* scan_params, bool perform_fresh_scan, bool is_sta_vap = false) {
+		printf("send_scan_request not implemented\n");
+		return false;
+	}
+
     
 	/**
 	 * @brief Callback to determine if the mesh is capable of supporting additional onboarded APs.
