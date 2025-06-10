@@ -213,14 +213,6 @@ public:
 		return m_enrollee->is_onboarding();
 	}
 
-	/**
-	 * @brief Handle a CCE information element being heard
-	 * (add the frequency the CCE IE was heard on to Enrollee's list of Presence Announcement frequencies)
-	 * 
-	 * @param freq The frequency that a CCE IE was heard on
-	 * @return true on success, otherwise false
-	 */
-	bool handle_cce_ie(unsigned int freq);
 
 	/**
 	 * @brief Handle an association status event (for the Enrollee's bSTA association attempt)
@@ -236,7 +228,7 @@ public:
 	 * @param bss_info The BSS info that was heard.
 	 * @return true on success, otherwise false
 	 */
-	bool handle_bss_info_event(const wifi_bss_info_t& bss_info);
+	bool handle_bss_info_event(const std::vector<wifi_bss_info_t>& bss_info_list);
 
 
 private:

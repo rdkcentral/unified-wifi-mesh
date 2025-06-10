@@ -196,14 +196,6 @@ public:
     ec_enrollee_t& operator=(const ec_enrollee_t&) = delete;
 
 	/**
-	 * @brief Adds a frequency to send Presence Announcement frames on
-	 * 
-	 * @param freq The new frequency to add 
-	 * @return true on success, false otherwise
-	 */
-	bool add_presence_announcement_freq(unsigned int freq);
-
-	/**
 	 * @brief Handles an association status event.
 	 * 
 	 * If this event maps to our bSTA's association attempt, check the association status and send a Configuration Status Result frame
@@ -228,7 +220,7 @@ public:
 	 * @param bss_info The BSS info containing SSID and frequency
 	 * @return true on success, otherwise false
 	 */
-	bool handle_bss_info_event(const wifi_bss_info_t &bss_info);
+	bool handle_bss_info_event(const std::vector<wifi_bss_info_t> &bss_info_list);
 
 private:
 
@@ -253,6 +245,15 @@ private:
 	 * @note See: EasyConnect 6.5.2 DPP Reconfiguration Announcement
 	 */
 	void send_reconfiguration_announcement_frames();
+
+
+	/**
+	 * @brief Check that a given BSS Info has a CCE IE present in it's IE buffer
+	 * 
+	 * @param bss_info The bss info to check
+	 * @return True if a CCE IE exists in the IE buffer, false otherwise
+	 */
+	bool check_bss_info_has_cce(const wifi_bss_info_t& bss_info);
 
     std::string m_mac_addr;
 

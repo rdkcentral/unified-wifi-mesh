@@ -2623,7 +2623,6 @@ typedef enum {
     em_bus_event_type_recv_wfa_action_frame,
     em_bus_event_type_recv_gas_frame,
     em_bus_event_type_get_sta_client_type,
-    em_bus_event_type_cce_ie,
     em_bus_event_type_assoc_status,
     em_bus_event_type_ap_metrics_report,
     em_bus_event_type_bss_info,

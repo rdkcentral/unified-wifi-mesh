@@ -371,37 +371,16 @@ void em_agent_t::handle_bss_info(em_bus_event_t *event)
         em_printfout("NULL event!");
         return;
     }
-    wifi_bss_info_t *bss_info = reinterpret_cast<wifi_bss_info_t *>(event->u.raw_buff);
 
-    em_t *al_node = get_al_node();
-    if (al_node == nullptr) {
-        em_printfout("Could not get AL node!");
-        return;
-    }
-
-    if (!al_node->m_ec_manager->handle_bss_info_event(*bss_info)) {
-        em_printfout("EC manager failed to handle a BSS info event!");
-    }
-}
-
-void em_agent_t::handle_recv_cce_ie(em_bus_event_t *event)
-{
-    if (event == nullptr) {
-        em_printfout("NULL event!");
-        return;
-    }
     const size_t expected_size = sizeof(wifi_bss_info_t);
-    if (event->data_len > expected_size) {
-        em_printfout("Expected event of size %d, got %d, not handling", expected_size, event->data_len);
-        return;
-    }
-    wifi_bss_info_t *bss_info = reinterpret_cast<wifi_bss_info_t *>(event->u.raw_buff);
-    bool freq_ok = (bss_info->freq > 0);
+    unsigned int len = event->data_len;
 
-    if (!freq_ok) {
-        em_printfout("Heard a CCE information element on invalid frequency (%d), not handling", bss_info->freq);
+    if (len % expected_size != 0) {
+        em_printfout("Expected event size divisible by %d, got %d, not handling", expected_size, event->data_len);
         return;
     }
+
+    wifi_bss_info_t *bss_info_buff = reinterpret_cast<wifi_bss_info_t *>(event->u.raw_buff);
 
     em_t *al_node = get_al_node();
     if (al_node == nullptr) {
@@ -409,9 +388,24 @@ void em_agent_t::handle_recv_cce_ie(em_bus_event_t *event)
         return;
     }
 
-    if (!al_node->m_ec_manager->handle_cce_ie(bss_info->freq)) {
-        em_printfout("EC manager failed to handle new frequency from a CCE IE!");
+    if (len == 0 || bss_info_buff == NULL) {
+        // Publish that no scan results contained a CCE IE
+        if (!al_node->m_ec_manager->handle_bss_info_event({})) {
+            em_printfout("EC manager failed to handle empty scan result!");
+        }
         return;
+    }
+
+    std::vector<wifi_bss_info_t> heard_bsses;
+    unsigned int bss_count = static_cast<unsigned int>(len / expected_size);
+
+    for (unsigned int curr_idx = 0; curr_idx < bss_count; curr_idx++){
+        wifi_bss_info_t bss_info = bss_info_buff[curr_idx];
+        heard_bsses.push_back(bss_info);
+    }
+
+    if (!al_node->m_ec_manager->handle_bss_info_event(heard_bsses)) {
+        em_printfout("EC manager failed to handle a BSS info event!");
     }
 }
 
@@ -833,10 +827,6 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
             handle_recv_gas_frame(evt);
             break;
 
-        case em_bus_event_type_cce_ie:
-            handle_recv_cce_ie(evt);
-            break;
-        
         case em_bus_event_type_assoc_status:
             handle_recv_assoc_status(evt);
             break;
@@ -1066,19 +1056,6 @@ void em_agent_t::input_listener()
         return;
     }
 
-    for (int i = 0; i < MAX_NUM_RADIOS; i++) {
-        // OneWifi bus path is 1-indexed, here
-        std::string cce_ind_path = "Device.WiFi.Radio." + std::to_string(i + 1) + ".CCEInd";
-        em_printfout("Attempting to subscribe to '%s'", cce_ind_path.c_str());
-        if (desc->bus_event_subs_fn(&m_bus_hdl, cce_ind_path.c_str(), reinterpret_cast<void *>(&em_agent_t::cce_ie_cb), nullptr, 0) != 0) {
-            // Failing to subscribe to this path is OK, as in the context of DPP,
-            // an Enrollee has a default channel list defined by the EasyConnect spec,
-            // as well as a list of channels defined in its' DPP URI. So, just log and move on.
-            em_printfout("Failed to subscribe to '%s', dynamic DPP channel list generation unavailable.", cce_ind_path.c_str());
-            continue;
-        }
-    }
-
     if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.AssociationStatus", reinterpret_cast<void *>(&em_agent_t::association_status_cb), nullptr, 0) != 0) {
         em_printfout("Failed to subscribe to 'Device.WiFi.EM.AssociationStatus'");
         return;
@@ -1115,17 +1092,6 @@ int em_agent_t::association_status_cb(char *event_name, raw_data_t *data, void *
     }
     g_agent.io_process(em_bus_event_type_assoc_status, reinterpret_cast<unsigned char *>(data->raw_data.bytes), data->raw_data_len);
     return 1;
-}
-
-int em_agent_t::cce_ie_cb(char *event_name, raw_data_t *data, void *userData)
-{
-    if (data == nullptr) {
-        em_printfout("NULL data from OneWifi callback!");
-        return -1;
-    }
-    g_agent.io_process(em_bus_event_type_cce_ie, reinterpret_cast<unsigned char *>(data->raw_data.bytes), data->raw_data_len);
-    return 1;
-
 }
 
 int em_agent_t::channel_scan_cb(char *event_name, raw_data_t *data, void *userData)
