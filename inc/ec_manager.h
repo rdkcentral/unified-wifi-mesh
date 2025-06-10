@@ -240,8 +240,8 @@ private:
     send_act_frame_func m_stored_action_frame_fn;
     get_backhaul_sta_info_func m_get_bsta_info_fn;
     get_1905_info_func m_get_1905_info_fn;
-    can_onboard_additional_aps_func m_can_onboard_fn;
 	get_fbss_info_func m_get_fbss_info_fn;
+    can_onboard_additional_aps_func m_can_onboard_fn;
     std::string m_stored_mac_addr;
     
     std::unique_ptr<ec_configurator_t> m_configurator;
