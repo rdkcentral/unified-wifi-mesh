@@ -180,13 +180,6 @@ class em_agent_t : public em_mgr_t {
 	void handle_recv_wfa_action_frame(em_bus_event_t *evt);
 
 	/**
-	 * @brief Handles the reception of CCE Information Element events
-	 * 
-	 * @param event The event containing the `bss_info_t` which heard the CCE IE in a beacon or probe response
-	 */
-	void handle_recv_cce_ie(em_bus_event_t *event);
-
-	/**
 	 * @brief Handles the reception of BSS info reports from OneWifi
 	 * 
 	 * Used for DPP for building the Enrollee's channel list for Reconfiguration Announcement
@@ -873,16 +866,6 @@ public:
 	 * @note Ensure that the data pointer is valid before accessing its contents.
 	 */
 	static int beacon_report_cb(char *event_name, raw_data_t *data, void *userData);
-
-	/**
-	 * @brief Callback for a DPP CCE (Configurator Connectivity Element) being heard from OneWifi
-	 * 
-	 * @param event_name The name of the event
-	 * @param data The raw event data
-	 * @param userData User provided callback data
-	 * @return int 1 on success, otherwise -1
-	 */
-	static int cce_ie_cb(char *event_name, raw_data_t *data, void *userData);
 
 	/**
 	 * @brief Callback for association status event

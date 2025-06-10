@@ -165,16 +165,6 @@ bool ec_manager_t::upgrade_to_onboarded_proxy_agent()
     return true;
 }
 
-bool ec_manager_t::handle_cce_ie(unsigned int freq)
-{
-    if (!m_enrollee) {
-        em_printfout("New Presence Announcement frequency heard from a CCE IE, but no Enrollee");
-        // This is fine
-        return true;
-    }
-    return m_enrollee->add_presence_announcement_freq(freq);
-}
-
 bool ec_manager_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
 {
     if (!m_enrollee) {
@@ -184,11 +174,11 @@ bool ec_manager_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
     return m_enrollee->handle_assoc_status(sta_data);
 }
 
-bool ec_manager_t::handle_bss_info_event(const wifi_bss_info_t &bss_info)
+bool ec_manager_t::handle_bss_info_event(const std::vector<wifi_bss_info_t> &bss_info_list)
 {
     if (!m_enrollee) {
         // This is fine, ignore event
         return true;
     }
-    return m_enrollee->handle_bss_info_event(bss_info);
+    return m_enrollee->handle_bss_info_event(bss_info_list);
 }

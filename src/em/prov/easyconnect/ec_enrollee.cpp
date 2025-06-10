@@ -1745,13 +1745,6 @@ ec_gas_comeback_request_frame_t *ec_enrollee_t::create_comeback_request(uint8_t 
     return reinterpret_cast<ec_gas_comeback_request_frame_t*>(frame);
 }
 
-bool ec_enrollee_t::add_presence_announcement_freq(unsigned int freq)
-{
-    m_pres_announcement_freqs.insert(static_cast<uint32_t>(freq));
-    em_printfout("Added %d to list of Presence Announcement frequencies", freq);
-    return true;
-}
-
 bool ec_enrollee_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
 {
     std::string bssid_str = util::mac_to_string(sta_data.bss_info.bssid);
@@ -1815,11 +1808,69 @@ bool ec_enrollee_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
     return true;
 }
 
-bool ec_enrollee_t::handle_bss_info_event(const wifi_bss_info_t &bss_info)
-{
-    if (std::string(bss_info.ssid) == m_configured_ssid) {
-        em_printfout("SSID %s heard on frequency %d, adding to Reconfiguration Announcement frequency list", bss_info.ssid, bss_info.freq);
-        m_recnf_announcement_freqs.insert(bss_info.freq);
+bool ec_enrollee_t::check_bss_info_has_cce(const wifi_bss_info_t& bss_info) {
+
+    auto is_cce_ie = [](const uint8_t *const ie, size_t ie_len) -> bool {
+        static const uint8_t OUI_WFA[3] = { 0x50, 0x6F, 0x9A };
+        static const uint8_t CCE_CONSTANT = 0x1E;
+        if (ie_len < 4)
+            return false;
+        return memcmp(ie, OUI_WFA, sizeof(OUI_WFA)) == 0 && *(ie + 3) == CCE_CONSTANT;
+    };
+
+
+    if (!bss_info.ie || bss_info.ie_len == 0) {
+        em_printfout("Invalid BSS info!\n");
+        return false;
     }
+    uint8_t *ie_pos = const_cast<uint8_t*>(bss_info.ie);
+    size_t ie_len_remaining = bss_info.ie_len;
+    while (ie_len_remaining > 2) {
+        uint8_t id = ie_pos[0];
+        uint8_t ie_len = ie_pos[1];
+        if (static_cast<size_t>(ie_len + 2) > ie_len_remaining)
+            return false;
+        // 0xdd == Vendor IE
+        if (id == 0xdd && is_cce_ie(ie_pos + 2, ie_len)) {
+            return true;
+        }
+        // next IE
+        ie_len_remaining -= (ie_len + 2);
+        ie_pos += (ie_len + 2);
+    }
+    return false;
+}
+
+bool ec_enrollee_t::handle_bss_info_event(const std::vector<wifi_bss_info_t> &bss_info_list)
+{
+
+    bool did_handle_bss_info = false;
+    for (auto& bss_info : bss_info_list) {
+        /* EC EC 6.5.2 #2 
+        For each channel on which the Enrollee detects the SSID for which it is currently configured, add to the channel list;
+        */
+        if (m_configured_ssid.length() > 0 &&
+            std::string(bss_info.ssid) == m_configured_ssid) {
+            em_printfout("SSID %s heard on frequency %d, adding to Reconfiguration Announcement frequency list", bss_info.ssid, bss_info.freq);
+            m_recnf_announcement_freqs.insert(bss_info.freq);
+            did_handle_bss_info = true;
+        }
+
+        /* EC 6.2.2 #3 and EC 6.5.2 #3
+        3. Scan all supported bands and add each channel on which an AP is advertising the Configurator Connectivity IE
+        (section 8.5.2) to the channel list; then,
+        */
+        if (check_bss_info_has_cce(bss_info)){
+            em_printfout("CCE heard on frequency %d, adding to Presence Announcement frequency list", bss_info.freq);
+            m_pres_announcement_freqs.insert(static_cast<uint32_t>(bss_info.freq));
+            did_handle_bss_info = true;
+        }
+
+    }
+
+    if (!did_handle_bss_info) {
+        em_printfout("Did not recieve any relevant data in scan results...");
+    }
+
     return true;
 }
