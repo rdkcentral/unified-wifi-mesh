@@ -27,14 +27,14 @@ public:
 	 * @param[in] mac_addr The MAC address of the device.
 	 * @param[in] send_action_frame Callback for sending 802.11 action frames.
 	 * @param[in] get_bsta_info Callback for getting backhaul STA info, used for building DPP Configuration Request JSON objects.
-	 * @param[in] start_stop_clist_build_fn Callback for starting/stopping the building of the EC channel list.
+	 * @param[in] trigger_sta_scan_fn Callback for triggering a scan on a station interface 
 	 * @param[in] bsta_connect_fn Callback for attempting to connect a backhaul STA to a BSS
 	 *
 	 * @note The default state of an enrollee is non-onboarding. All non-controller devices are started as (non-onboarding) enrollees
 	 *       until they are told that they are on the network at which point they can be upgraded to a proxy agent.
 	 */
 	ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame, get_backhaul_sta_info_func get_bsta_info, 
-				  start_stop_clist_build_func start_stop_clist_build_fn, bsta_connect_func bsta_connect_fn);
+				  trigger_sta_scan_func trigger_sta_scan_fn, bsta_connect_func bsta_connect_fn);
     
 	/**!
 	 * @brief Destructor for the ec_enrollee_t class.
@@ -232,6 +232,8 @@ public:
 
 private:
 
+
+	void generate_bss_channel_list(bool is_reconfig_list);
     
 	/**
 	 * @brief Sends presence announcement frames until a DPP Authentication Frame is received.
@@ -274,12 +276,11 @@ private:
     get_backhaul_sta_info_func m_get_bsta_info;
 
 	/**
-	 * @brief Function to start/stop the building of the channel list
+	 * @brief Function to trigger a scan on a station interface 
 	 * 
-	 * @param do_start true to start the process, false to stop it
 	 * @return bool true if the action was successful, false otherwise
 	 */
-	start_stop_clist_build_func m_start_stop_clist_build_fn;
+	trigger_sta_scan_func m_trigger_sta_scan_fn;
 
 	/**
 	 * @brief Function to attempt to connect a backhaul STA to a BSS
@@ -459,7 +460,7 @@ private:
      * 
      * Should exclude channels by regional regulation (i.e. DFS channels).
      */
-    std::unordered_set<uint32_t> m_pres_announcement_freqs = {2437, 5220};
+    std::unordered_set<uint32_t> m_pres_announcement_freqs = {};
 
 	/**
 	 * @brief Set of frequencies to broadcast Reconfiguration Announcement frames on
@@ -472,7 +473,7 @@ private:
 	 * 2. Channels where a CCE IE was heard
 	 * 
 	 */
-	std::unordered_set<uint32_t> m_recnf_announcement_freqs = {2437, 5220};
+	std::unordered_set<uint32_t> m_recnf_announcement_freqs = {};
 
     /**
      * @brief The frequency to send action frames on
@@ -495,6 +496,13 @@ private:
 	 * Signals that this Enrollee should stop sending Reconfiguration Announcement frames
 	 */
 	std::atomic<bool> m_received_recfg_auth_frame{false};
+
+	/**
+	 * @brief True if we've received scan results
+	 * 
+	 * Signals that this Enrollee should stop waiting for scan results
+	 */
+	std::atomic<bool> m_received_scan_results{false};
 
     /**
      * @brief Thread for sending DPP Presence Announcement frames upon onboarding start

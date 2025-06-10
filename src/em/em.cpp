@@ -851,17 +851,23 @@ bool em_t::bsta_connect_bss(const std::string& ssid, const std::string passphras
     return res == 1;
 }
 
-bool em_t::start_stop_build_ec_channel_list(bool do_start)
+bool em_t::trigger_sta_scan()
 {
-    if (do_start) {
-        // If we want to build the channel list, we have to be scanning,
-        // so we need to make sure we are not in the disconnected steady state
-        return m_mgr->set_disconnected_scan_none_state();
+    em_bss_info_t *bsta_info = get_bsta_bss_info();
+    if (!bsta_info) {
+        em_printfout("No backhaul bSTA found to start building channel list\n");
+        return false;
     }
-    // If we want to stop building the channel list (which only happens before action frames)
-    // we need to make sure we are in the disconnected steady state to make sure action frames are
-    // sent and recieved well.
-    return m_mgr->set_disconnected_steady_state();
+
+    em_scan_params_t scan_params;
+    memset(&scan_params, 0, sizeof(em_scan_params_t));
+    scan_params.num_op_classes = 0; // Will perform full scan
+    memcpy(scan_params.ruid, bsta_info->ruid.mac, sizeof(mac_address_t));
+    if (!m_mgr->send_scan_request(&scan_params, true, true)){
+        em_printfout("Failed to start scan for building channel list");
+        return false;
+    }
+    return true;
 }
 
 void em_t::push_to_queue(em_event_t *evt)
@@ -1355,7 +1361,7 @@ em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr
                 : static_cast<get_fbss_info_func>(nullptr),
             std::bind(&em_mgr_t::can_onboard_additional_aps, mgr),
             std::bind(&em_t::toggle_cce, this, std::placeholders::_1),
-            std::bind(&em_t::start_stop_build_ec_channel_list, this, std::placeholders::_1),
+            std::bind(&em_t::trigger_sta_scan, this),
             std::bind(&em_t::bsta_connect_bss, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
             service_type == em_service_type_ctrl
         ));

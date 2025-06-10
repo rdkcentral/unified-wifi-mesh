@@ -8,9 +8,9 @@
 #include <unistd.h>
 
 ec_enrollee_t::ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame, get_backhaul_sta_info_func get_bsta_info, 
-                             start_stop_clist_build_func start_stop_clist_build_fn, bsta_connect_func bsta_connect_fn)
+                             trigger_sta_scan_func trigger_sta_scan_fn, bsta_connect_func bsta_connect_fn)
                             : m_mac_addr(mac_addr), m_send_action_frame(send_action_frame), m_get_bsta_info(get_bsta_info), 
-                              m_start_stop_clist_build_fn(start_stop_clist_build_fn), m_bsta_connect_fn(bsta_connect_fn), m_scanned_channels_map{}
+                              m_trigger_sta_scan_fn(trigger_sta_scan_fn), m_bsta_connect_fn(bsta_connect_fn), m_scanned_channels_map{}
 {
 }
 
@@ -66,15 +66,92 @@ bool ec_enrollee_t::start_onboarding(bool do_reconfig, ec_data_t* boot_data)
         return false;
     }
 
-    for (size_t i = 0; i < std::size(boot_data->ec_freqs); i++) {
-        if (boot_data->ec_freqs[i] == 0) continue;
-        m_pres_announcement_freqs.insert(boot_data->ec_freqs[i]);
-    }
+    generate_bss_channel_list(do_reconfig);
 
     // Begin send presence announcements thread.
     m_send_pres_announcement_thread = std::thread(&ec_enrollee_t::send_presence_announcement_frames, this);
     m_is_onboarding = true;
     return true;
+}
+
+void ec_enrollee_t::generate_bss_channel_list(bool is_reconfig_list){
+    // EasyConnect 6.2.2:  Generation of Channel List for Presence Announcement (EC)
+    // EasyConnect 6.5.2:  DPP Reconfiguration Announcement (EC-Reconfig)
+
+    // Clear existing channel list
+    if (is_reconfig_list) {
+        m_recnf_announcement_freqs.erase(m_recnf_announcement_freqs.begin(), m_recnf_announcement_freqs.end());
+    } else {
+        m_pres_announcement_freqs.erase(m_pres_announcement_freqs.begin(), m_pres_announcement_freqs.end());
+    }
+    
+
+    // This step is not present in EC-Reconfig for some reason (likely because of the SSID check)
+    if (!is_reconfig_list) {
+        /* EC #1
+
+        If the enrollee includes a list of global operating class/channel pairs in its DPP URI, 
+        add all those channels to the channel list excluding channels for which unsolicited transmissions 
+        are prohibited by local regulations (e.g., channels subject to Dynamic Frequency Selection);
+        */
+
+        for (size_t i = 0; i < std::size(m_boot_data().ec_freqs); i++) {
+            if (m_boot_data().ec_freqs[i] == 0) continue;
+            m_pres_announcement_freqs.insert(m_boot_data().ec_freqs[i]);
+        }
+    }
+
+
+    /* EC #2 and EC-Reconfig #1
+
+    Select preferred Presence Announcement channels on which to send a DPP Presence Announcement frame 
+    to the broadcast address. For interoperability purposes, the preferred channel shall be one from each 
+    of the following bands, as supported by the Enrollee:
+
+    - 2.4 GHz: Channel 6 (2.437 GHz)
+    - 5 GHz: Channel 44 (5.220 GHz) ...
+    - 60 GHz: Channel 2 (60.48 GHz)
+    - Sub-1 GHz: Channel 37 (920.5 MHz) ... otherwise Channel 1 (863.5 MHz) ...
+    Add the preferred Presence Announcement channels to the channel list;
+    */
+
+    m_pres_announcement_freqs.insert(2437); // 2.4 GHz: Channel 6 (2.437 GHz)
+    m_pres_announcement_freqs.insert(5220); // 5 GHz: Channel 44 (5.220 GHz)
+    m_pres_announcement_freqs.insert(60480); // 60 GHz: Channel 2 (60.48 GHz)
+
+    /* EC-Reconfig #2
+
+    For each channel on which the Enrollee detects the SSID for which it is currently configured, 
+    add to the channel list;
+    */
+    /* EC #3 and EC-Reconfig #3
+
+    Scan all supported bands and add each channel on which an AP is advertising 
+    the Configurator Connectivity element (CCE, Section 8.5.2) to the channel list;
+    */
+    // Both checks happen when the scan results are returned
+    if (!m_trigger_sta_scan_fn()){
+        em_printfout("Failed to start channel scan for DPP Channel List Generation");
+        return;
+    }
+
+    // Wait to recieve scan results
+    bool did_recieve_scan = ec_util::interruptible_sleep(std::chrono::seconds(3), [this]() -> bool {
+        return m_received_scan_results.load();
+    });
+
+    if (did_recieve_scan) {
+        em_printfout("Recieved scan results!");
+    } else {
+        em_printfout("Timed out while trying to recieve scan results, continuing either way...");
+    }
+
+    /* EC #4 and EC-Reconfig #4
+    
+    Remove any second or subsequent occurrence of duplicate channels in the channel list.
+    */
+    // This is done by using a set, which automatically handles duplicates.
+    
 }
 
 void ec_enrollee_t::send_presence_announcement_frames()

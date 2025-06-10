@@ -16,7 +16,7 @@ ec_manager_t::ec_manager_t(
     get_fbss_info_func get_fbss_info,
     can_onboard_additional_aps_func can_onboard,
     toggle_cce_func toggle_cce, 
-    start_stop_clist_build_func start_stop_clist_build_fn, 
+    trigger_sta_scan_func trigger_sta_scan_fn, 
     bsta_connect_func bsta_connect_fn,
     bool is_controller
 ) : m_is_controller(is_controller),
@@ -39,7 +39,7 @@ ec_manager_t::ec_manager_t(
         );
     } else {
         m_enrollee = std::unique_ptr<ec_enrollee_t>(
-            new ec_enrollee_t(mac_addr, send_action_frame, get_bsta_info, start_stop_clist_build_fn, bsta_connect_fn)
+            new ec_enrollee_t(mac_addr, send_action_frame, get_bsta_info, trigger_sta_scan_fn, bsta_connect_fn)
         );
     }
 }

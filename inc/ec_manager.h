@@ -26,6 +26,8 @@ public:
 	 * @param[in] get_1905_info Function to get 1905 information
 	 * @param[in] can_onboard Function to check if additional APs can be onboarded
 	 * @param[in] toggle_cce Function to toggle CCE
+	 * @param[in] trigger_sta_scan_fn Function to trigger a scan on a station interface
+	 * @param[in] bsta_connect_fn Function to connect a backhaul station to a BSS
 	 * @param[in] m_is_controller Whether the node holding this manager is a controller or not
 	 *
 	 * @note Some method calls are only valid for the controller, proxy agent, or the enrollee, and will return fail if called on the wrong object.
@@ -33,7 +35,7 @@ public:
 	 */
 	ec_manager_t(std::string mac_addr, send_chirp_func send_chirp, send_encap_dpp_func send_encap_dpp, send_act_frame_func send_action_frame, 
         get_backhaul_sta_info_func get_bsta_info, get_1905_info_func get_1905_info, get_fbss_info_func get_fbss_info, can_onboard_additional_aps_func can_onboard, toggle_cce_func toggle_cce, 
-		start_stop_clist_build_func start_stop_clist_build_fn, bsta_connect_func bsta_connect_fn, bool m_is_controller);
+		trigger_sta_scan_func trigger_sta_scan_fn, bsta_connect_func bsta_connect_fn, bool m_is_controller);
     
 	/**!
 	 * @brief Destructor for ec_manager_t class.

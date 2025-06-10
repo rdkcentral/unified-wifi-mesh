@@ -51,14 +51,11 @@ using send_act_frame_func = std::function<bool(uint8_t*, uint8_t *, size_t, unsi
 using toggle_cce_func = std::function<bool(bool)>;
 
 /**
- * @brief Initial setup for starting or stopping the building of the channel list
+ * @brief Triggers a scan on a station interface
  * 
- * @param do_start true to start the process, false to stop it
- * @return bool true if the action was successful, false otherwise
- * 
- * @note This does not build the channel list but just sets up the environment for the process
+ * @return bool true if a request was made successfully, false otherwise
  */
-using start_stop_clist_build_func = std::function<bool(bool)>;
+using trigger_sta_scan_func = std::function<bool()>;
 
 
 /**
