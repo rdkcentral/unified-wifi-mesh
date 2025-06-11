@@ -266,6 +266,17 @@ public:
 		return true;
 	}
 
+	/**
+	 * @brief Handles a Reconfiguration Authentication Response frame
+	 * 
+	 * @param frame The proxied encapsulated Reconfiguration Authentication Response frame
+	 * @param len The length of the frame
+	 * @param sa The source address (Enrollee)
+	 * @return true on success, otherwise false
+	 */
+	virtual bool handle_recfg_auth_response(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) {
+		return true; // Optional to implement
+	}
     
 	/**
 	 * @brief Handle a chirp notification message TLV and direct it to the correct place (802.11 or 1905).

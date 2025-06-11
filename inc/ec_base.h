@@ -194,6 +194,9 @@ typedef union {
     uint8_t byte;
 } __attribute__((packed)) ec_dpp_capabilities_t;
 
+#define DPP_CONFIG_REUSEKEY 0
+#define DPP_CONFIG_REPLACEKEY 1
+
 typedef union {
     struct {
         /**
@@ -555,6 +558,12 @@ typedef struct {
      */
     EC_POINT *E_Id;
 
+    /**
+     * @brief The transaction ID used for Reconfiguration
+     * 
+     * This is created by the Configurator and issued to an Enrollee on a per-Reconfiguration-session basis.
+     * 
+     */
     uint8_t transaction_id;
 
     /**
