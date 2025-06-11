@@ -78,12 +78,11 @@ void ec_enrollee_t::generate_bss_channel_list(bool is_reconfig_list){
     // EasyConnect 6.2.2:  Generation of Channel List for Presence Announcement (EC)
     // EasyConnect 6.5.2:  DPP Reconfiguration Announcement (EC-Reconfig)
 
+    auto& freq_list = is_reconfig_list ? m_recnf_announcement_freqs : m_pres_announcement_freqs; 
+
+
     // Clear existing channel list
-    if (is_reconfig_list) {
-        m_recnf_announcement_freqs.erase(m_recnf_announcement_freqs.begin(), m_recnf_announcement_freqs.end());
-    } else {
-        m_pres_announcement_freqs.erase(m_pres_announcement_freqs.begin(), m_pres_announcement_freqs.end());
-    }
+    freq_list.erase(freq_list.begin(), freq_list.end());
     
 
     // This step is not present in EC-Reconfig for some reason (likely because of the SSID check)
@@ -97,7 +96,7 @@ void ec_enrollee_t::generate_bss_channel_list(bool is_reconfig_list){
 
         for (size_t i = 0; i < std::size(m_boot_data().ec_freqs); i++) {
             if (m_boot_data().ec_freqs[i] == 0) continue;
-            m_pres_announcement_freqs.insert(m_boot_data().ec_freqs[i]);
+            freq_list.insert(m_boot_data().ec_freqs[i]);
         }
     }
 
@@ -115,9 +114,10 @@ void ec_enrollee_t::generate_bss_channel_list(bool is_reconfig_list){
     Add the preferred Presence Announcement channels to the channel list;
     */
 
-    m_pres_announcement_freqs.insert(2437); // 2.4 GHz: Channel 6 (2.437 GHz)
-    m_pres_announcement_freqs.insert(5220); // 5 GHz: Channel 44 (5.220 GHz)
-    m_pres_announcement_freqs.insert(60480); // 60 GHz: Channel 2 (60.48 GHz)
+    freq_list.insert(2437); // 2.4 GHz: Channel 6 (2.437 GHz)
+    freq_list.insert(5220); // 5 GHz: Channel 44 (5.220 GHz)
+    freq_list.insert(60480); // 60 GHz: Channel 2 (60.48 GHz)
+    freq_list.insert(920); // 920 MHz: Channel 37 
 
     /* EC-Reconfig #2
 
@@ -182,6 +182,9 @@ void ec_enrollee_t::send_presence_announcement_frames()
             })) {
                 break;
             }
+
+            // Generate new channel list
+            generate_bss_channel_list(false);
         }
 
         for (const auto& freq : m_pres_announcement_freqs) {
@@ -230,6 +233,7 @@ void ec_enrollee_t::send_reconfiguration_announcement_frames()
 {
     // 2 seconds
     constexpr uint32_t dwell = 2000;
+    uint32_t attempts = 0;
     auto [frame, frame_len] = create_recfg_presence_announcement();
 
     if (frame == nullptr || frame_len == 0) {
@@ -240,6 +244,18 @@ void ec_enrollee_t::send_reconfiguration_announcement_frames()
     uint32_t current_freq = 0;
 
     while (!m_received_recfg_auth_frame.load()) {
+
+        if (attempts >= 2) {
+            // EasyConnect 6.5.2
+            // If the Enrollee cycles through the DPP Reconfiguration Announcement procedure two times without receipt of a valid
+            // DPP Reconfiguration Authentication Request frame, it shall regenerate the channel list using the steps above and 
+            // resume the Reconfiguration Announcement procedure.
+            attempts = 0;
+            
+            // Generate new channel list
+            generate_bss_channel_list(true);
+        }
+
         for (const auto& freq : m_recnf_announcement_freqs) {
             // EasyConnect 6.5.2
             // the Enrollee selects a channel from the channel list,
@@ -1862,7 +1878,8 @@ bool ec_enrollee_t::handle_bss_info_event(const std::vector<wifi_bss_info_t> &bs
         */
         if (check_bss_info_has_cce(bss_info)){
             em_printfout("CCE heard on frequency %d, adding to Presence Announcement frequency list", bss_info.freq);
-            m_pres_announcement_freqs.insert(static_cast<uint32_t>(bss_info.freq));
+            m_pres_announcement_freqs.insert(bss_info.freq);
+            m_recnf_announcement_freqs.insert(bss_info.freq);
             did_handle_bss_info = true;
         }
 

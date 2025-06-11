@@ -396,13 +396,8 @@ void em_agent_t::handle_bss_info(em_bus_event_t *event)
         return;
     }
 
-    std::vector<wifi_bss_info_t> heard_bsses;
     unsigned int bss_count = static_cast<unsigned int>(len / expected_size);
-
-    for (unsigned int curr_idx = 0; curr_idx < bss_count; curr_idx++){
-        wifi_bss_info_t bss_info = bss_info_buff[curr_idx];
-        heard_bsses.push_back(bss_info);
-    }
+    std::vector<wifi_bss_info_t> heard_bsses(bss_info_buff, bss_info_buff + bss_count);
 
     if (!al_node->m_ec_manager->handle_bss_info_event(heard_bsses)) {
         em_printfout("EC manager failed to handle a BSS info event!");
@@ -684,11 +679,8 @@ bool em_agent_t::send_scan_request(em_scan_params_t* scan_params, bool perform_f
        return false;
     }
 
-    std::string path = WIFI_EM_CHANNEL_SCAN_REQUEST;
-    if (is_sta_vap) {
-        em_printfout("Triggering station scan");
-        path = WIFI_EC_SEND_TRIG_STA_SCAN;
-    }
+    std::string path = (is_sta_vap) ? WIFI_EC_SEND_TRIG_STA_SCAN : WIFI_EM_CHANNEL_SCAN_REQUEST;
+    em_printfout("Sending channel scan request to: %s", path.c_str());
 
     if (desc->bus_set_fn(&m_bus_hdl, path.c_str(), &l_bus_data) != 0) {
         em_printfout("Failed to send channel scan request to bus");
