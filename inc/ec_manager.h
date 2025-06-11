@@ -225,7 +225,7 @@ public:
 	/**
 	 * @brief Handle a BSS info event. Forwards to Enrollee for handling.
 	 * 
-	 * @param bss_info The BSS info that was heard.
+	 * @param bss_info_list The list of BSS infos heard
 	 * @return true on success, otherwise false
 	 */
 	bool handle_bss_info_event(const std::vector<wifi_bss_info_t>& bss_info_list);
