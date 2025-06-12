@@ -412,9 +412,7 @@ protected:
 	int send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t chirp_len);
     
 	/**!
-	 * @brief Sends a proximity encapsulated DPP message.
-	 *
-	 * This function is responsible for sending a DPP (Device Provisioning Protocol) message that is encapsulated for proximity communication.
+	 * @brief Sends a proxied encapsulated DPP message.
 	 *
 	 * @param[in] encap_dpp_tlv Pointer to the encapsulated DPP TLV structure.
 	 * @param[in] encap_dpp_len Length of the encapsulated DPP TLV.
@@ -428,6 +426,18 @@ protected:
 	 * @note Ensure that the encapsulated DPP TLV and chirp values are properly initialized before calling this function.
 	 */
 	int send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, size_t encap_dpp_len, em_dpp_chirp_value_t *chirp, size_t chirp_len);
+
+	/**!
+	 * @brief Sends a direct encapsulated DPP message. 
+	 *
+	 * @param[in] dpp_frame Pointer to the DPP frame data to be sent.
+	 * @param[in] dpp_frame_len Length of the DPP frame data.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 */
+	int send_direct_encap_dpp_msg(uint8_t* dpp_frame, size_t dpp_frame_len);
     
 	/**!
 	 * @brief Creates a list of enrollee BSTA.
