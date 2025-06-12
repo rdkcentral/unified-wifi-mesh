@@ -24,15 +24,16 @@ public:
 	 * @param[in] mac_addr The MAC address as a string.
 	 * @param[in] send_chirp_notification Function pointer for sending chirp notifications.
 	 * @param[in] send_prox_encap_dpp_msg Function pointer for sending encapsulated DPP messages.
+	 * @param[in] send_direct_encap_dpp_msg The function to send a direct encapsulated DPP message
 	 * @param[in] backhaul_sta_info_func Function pointer to get backhaul station information.
 	 * @param[in] ieee1905_info_func Function pointer to get IEEE 1905 information.
 	 * @param[in] can_onboard_func Function pointer to check if additional APs can be onboarded.
 	 *
 	 * @note This constructor initializes the base class ec_configurator_t with the provided parameters.
 	 */
-	ec_ctrl_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg,
+	ec_ctrl_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg, send_dir_encap_dpp_func send_direct_encap_dpp_msg,
         get_backhaul_sta_info_func backhaul_sta_info_func, get_1905_info_func ieee1905_info_func, get_fbss_info_func get_fbss_info, can_onboard_additional_aps_func can_onboard_func) :
-        ec_configurator_t(mac_addr, send_chirp_notification, send_prox_encap_dpp_msg, {}, backhaul_sta_info_func, ieee1905_info_func, get_fbss_info, can_onboard_func)
+        ec_configurator_t(mac_addr, send_chirp_notification, send_prox_encap_dpp_msg, send_direct_encap_dpp_msg, {}, backhaul_sta_info_func, ieee1905_info_func, get_fbss_info, can_onboard_func)
         {};
         // No MAC address needed for controller configurator
 
