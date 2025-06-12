@@ -447,6 +447,7 @@ void em_provisioning_t::process_msg(uint8_t *data, unsigned int len)
             break;
 
         case em_msg_type_direct_encap_dpp:
+            handle_direct_encap_dpp(data, len);
             break;
 
         case em_msg_type_reconfig_trigger:
@@ -536,6 +537,42 @@ int em_provisioning_t::handle_proxy_encap_dpp(uint8_t *buff, unsigned int len)
     }
 
     if (m_ec_manager->process_proxy_encap_dpp_msg(encap_tlv, encap_tlv_len, chirp_tlv, chirp_tlv_len) != 0){
+        //TODO: Fail
+        return -1;
+    }
+
+	return 0;
+}
+
+int em_provisioning_t::handle_direct_encap_dpp(uint8_t *buff, unsigned int len)
+{
+    em_tlv_t    *tlv;
+    unsigned int tlv_len;
+
+    tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tlv_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    uint16_t direct_frame_len = 0;
+    uint8_t* direct_frame = NULL;
+
+    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+
+        if (tlv->type == em_tlv_type_dpp_msg) {
+            // Direct Encap DPP TLV value **is** the encapsulated frame
+            direct_frame = tlv->value;
+            direct_frame_len = ntohs(tlv->len);
+        }
+
+        tlv_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + ntohs(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<uint8_t *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
+    }
+
+    if (direct_frame == NULL || direct_frame_len == 0) {
+        em_printfout("Recieved Invalid Direct Encap DPP TLV!");
+        return -1;
+    }
+
+    if (m_ec_manager->process_direct_encap_dpp_msg(direct_frame, direct_frame_len) != 0){
         //TODO: Fail
         return -1;
     }
