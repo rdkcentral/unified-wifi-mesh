@@ -187,6 +187,23 @@ public:
         return m_configurator->process_proxy_encap_dpp_msg(encap_tlv, encap_tlv_len, chirp_tlv, chirp_tlv_len);
     }
 
+	/**
+	 * @brief Handle a Direct Encapsulated DPP Message (DPP Message TLV)
+	 *
+	 * @param[in] dpp_frame The frame parsed from the DPP Message TLV
+	 * @param[in] dpp_frame_len The length of the frame from the DPP Message TLV
+	 *
+	 * @return bool True if the frame was processed successfully, false otherwise.
+	 *
+	 * @note Ensure that the configurator is initialized before calling this function.
+	 */
+	inline bool process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len) {
+        if (!m_configurator) {
+            return false;
+        }
+        return m_configurator->process_direct_encap_dpp_msg(dpp_frame, dpp_frame_len);
+    }
+
     /**
      * @brief Configurator Connectivity Element IE, EasyConnect v3.0 section 8.5.2
      */

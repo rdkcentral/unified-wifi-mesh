@@ -126,10 +126,8 @@ class em_provisioning_t {
 	int handle_dpp_chirp_notif(uint8_t *buff, unsigned int len);
     
 	/**!
-	 * @brief Handles the proxy encapsulation for DPP (Device Provisioning Protocol).
+	 * @brief Handles a Proxied Encap DPP Message (EM 17.1.48)
 	 *
-	 * This function processes the given buffer and its length to perform the necessary
-	 * operations for proxy encapsulation in the context of DPP.
 	 *
 	 * @param[in] buff Pointer to the buffer containing the data to be processed.
 	 * @param[in] len Length of the buffer in bytes.
@@ -142,6 +140,22 @@ class em_provisioning_t {
 	 * before calling this function.
 	 */
 	int handle_proxy_encap_dpp(uint8_t *buff, unsigned int len);
+
+
+	/**!
+	 * @brief Handles a Direct Encap DPP Message (EM 17.1.56)
+	 *
+	 * @param[in] buff Pointer to the buffer containing the data to be processed.
+	 * @param[in] len Length of the buffer in bytes.
+	 *
+	 * @returns int Status code indicating success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the buffer is properly allocated and the length is correctly specified
+	 * before calling this function.
+	 */
+	int handle_direct_encap_dpp(uint8_t *buff, unsigned int len);
 
     // states
     

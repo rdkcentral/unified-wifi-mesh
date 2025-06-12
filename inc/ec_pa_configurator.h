@@ -168,6 +168,16 @@ public:
 	bool process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) override;
 
 	/**
+	 * @brief Handle a Direct Encapsulated DPP Message (DPP Message TLV)
+	 *
+	 * @param[in] dpp_frame The frame parsed from the DPP Message TLV
+	 * @param[in] dpp_frame_len The length of the frame from the DPP Message TLV
+	 *
+	 * @return bool True if the frame was processed successfully, false otherwise.
+	 */
+	bool  process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len) override;
+
+	/**
 	 * @brief Handles a GAS Comeback Request frame
 	 * A GAS Comeback Request frame (in the context of DPP) indicates that a peer is ready the to receive the next fragmented frame via GAS Comeback Response frame.
 	 * 

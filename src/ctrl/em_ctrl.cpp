@@ -789,6 +789,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 
         case em_msg_type_chirp_notif:
         case em_msg_type_proxied_encap_dpp:
+        case em_msg_type_direct_encap_dpp:
         case em_msg_type_dpp_cce_ind:
             // TODO: Add more types and might have to work on addressing more
 	        em = al_em;

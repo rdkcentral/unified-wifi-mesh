@@ -303,7 +303,16 @@ public:
 	 */
 	virtual bool  process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) = 0;
 
-    
+	/**
+	 * @brief Handle a Direct Encapsulated DPP Message (DPP Message TLV)
+	 *
+	 * @param[in] dpp_frame The frame parsed from the DPP Message TLV
+	 * @param[in] dpp_frame_len The length of the frame from the DPP Message TLV
+	 *
+	 * @return bool True if the frame was processed successfully, false otherwise.
+	 */
+	virtual bool  process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len) = 0;
+	
 	/**
 	 * @brief Handle a proxied encapsulated DPP Configuration Request frame.
 	 *
