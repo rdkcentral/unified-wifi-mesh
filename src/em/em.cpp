@@ -1349,7 +1349,7 @@ em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr
             mac_address,
             std::bind(&em_t::send_chirp_notif_msg, this, std::placeholders::_1, std::placeholders::_2),
             std::bind(&em_t::send_prox_encap_dpp_msg, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4),
-            std::bind(&em_t::send_direct_encap_dpp_msg, this, std::placeholders::_1, std::placeholders::_2),
+            std::bind(&em_t::send_direct_encap_dpp_msg, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
             std::bind(&em_mgr_t::send_action_frame, mgr, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5), 
             service_type == em_service_type_agent
                 ? std::bind(&em_t::create_enrollee_bsta_list, this, std::placeholders::_1)

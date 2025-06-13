@@ -110,10 +110,6 @@ int em_provisioning_t::send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, si
     unsigned int len = 0;
     uint8_t *tmp = buff;
 
-    //dm_easy_mesh_t *dm = get_data_model();
-
-    //TODO: Decide on addressing.
-    //tmp = em_msg_t::add_1905_header(tmp, &len, dm->get_agent_al_interface_mac(), dm->get_ctrl_al_interface_mac(), em_msg_type_proxied_encap_dpp);
     tmp = em_msg_t::add_1905_header(tmp, &len, const_cast<uint8_t *> (get_peer_mac()), get_al_interface_mac(), em_msg_type_proxied_encap_dpp);
 
     // One 1905 Encap DPP TLV 17.2.79
@@ -149,7 +145,7 @@ int em_provisioning_t::send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, si
     return static_cast<int> (len);
 }
 
-int em_provisioning_t::send_direct_encap_dpp_msg(uint8_t* dpp_frame, size_t dpp_frame_len)
+int em_provisioning_t::send_direct_encap_dpp_msg(uint8_t* dpp_frame, size_t dpp_frame_len, uint8_t dest_al_mac[ETH_ALEN])
 {
     if (dpp_frame_len == 0 || dpp_frame == NULL) {
         em_printfout("Direct DPP Frame is empty");
@@ -161,11 +157,7 @@ int em_provisioning_t::send_direct_encap_dpp_msg(uint8_t* dpp_frame, size_t dpp_
     unsigned int len = 0;
     uint8_t *tmp = buff;
 
-    //dm_easy_mesh_t *dm = get_data_model();
-
-    //TODO: Decide on addressing.
-    //tmp = em_msg_t::add_1905_header(tmp, &len, dm->get_agent_al_interface_mac(), dm->get_ctrl_al_interface_mac(), em_msg_type_proxied_encap_dpp);
-    tmp = em_msg_t::add_1905_header(tmp, &len, const_cast<uint8_t *> (get_peer_mac()), get_al_interface_mac(), em_msg_type_direct_encap_dpp);
+    tmp = em_msg_t::add_1905_header(tmp, &len, dest_al_mac, get_al_interface_mac(), em_msg_type_direct_encap_dpp);
 
     // One 1905 Encap DPP TLV 17.2.86
     tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_dpp_msg, dpp_frame, static_cast<unsigned int> (dpp_frame_len));

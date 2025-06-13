@@ -432,12 +432,13 @@ protected:
 	 *
 	 * @param[in] dpp_frame Pointer to the DPP frame data to be sent.
 	 * @param[in] dpp_frame_len Length of the DPP frame data.
+	 * @param[in] dest_al_mac Pointer to the destination AL MAC address (6 bytes).
 	 *
 	 * @returns int
 	 * @retval 0 on success
 	 * @retval -1 on failure
 	 */
-	int send_direct_encap_dpp_msg(uint8_t* dpp_frame, size_t dpp_frame_len);
+	int send_direct_encap_dpp_msg(uint8_t* dpp_frame, size_t dpp_frame_len, uint8_t dest_al_mac[ETH_ALEN]);
     
 	/**!
 	 * @brief Creates a list of enrollee BSTA.
