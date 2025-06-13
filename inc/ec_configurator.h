@@ -37,7 +37,7 @@ using send_encap_dpp_func = std::function<bool(em_encap_dpp_t*, size_t, em_dpp_c
  * @param dpp_frame_len The length of the DPP frame
  * @return bool true if successful, false otherwise
  */
-using send_dir_encap_dpp_func = std::function<bool(uint8_t*, size_t)>;
+using send_dir_encap_dpp_func = std::function<bool(uint8_t*, size_t, uint8_t*)>;
 
 /**
  * @brief Send an action frame. Optional to implement.
