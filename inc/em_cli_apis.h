@@ -381,6 +381,17 @@ extern "C" {
 	void free_network_tree_string(char *str);
 
 	/**!
+	 * @brief Frees the memory allocated for the network tree string.
+	 *
+	 * This function is responsible for deallocating the memory that was previously allocated for a network tree string.
+	 *
+	 * @param[in] str Pointer to the network tree string to be freed.
+	 *
+	 * @note Ensure that the pointer `str` is valid and was allocated using the corresponding allocation function.
+	 */
+	em_network_node_t *get_network_tree_by_key(em_network_node_t *node, em_long_string_t key);
+
+	/**!
 	 * @brief Initializes the library debugging with the specified file name.
 	 *
 	 * This function sets up the debugging environment by using the provided file name.
