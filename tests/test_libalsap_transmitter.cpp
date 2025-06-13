@@ -104,7 +104,7 @@ int main(int argc, char* argv[]) {
                                                              // TLV 1 - type al-mac-address
             0x1  ,                                           // TLV type
             0x0  , 0x6  ,                                    // TLV len
-            sourceMac[0] , sourceMac[1] , sourceMac[2] , sourceMac[3] , sourceMac[5] , sourceMac[6],  // TLV payload
+            sourceMac[0] , sourceMac[1] , sourceMac[2] , sourceMac[3] , sourceMac[4] , sourceMac[5],  // TLV payload
                                                              // TLV 2 6-22—SearchedRole TLV
             0xd  ,                                           // TLV type
             0x0  , 0x1  ,                                    // TLV len
@@ -117,11 +117,35 @@ int main(int argc, char* argv[]) {
         };
         sdu1500.setPayload(payload1481);
 
+        std::vector<unsigned char> payload_vendor_specific {
+            0x00,                       // CMDU_message_Verson
+            0x00,                       // CMDU_reserved
+            0x00, 0x04,                 // CMDU_message_type
+            0x30, 0xed,                 // CMDU_message_id
+            0x00,                       // CMDU fragment
+            0x80,                       // CMDU flags
+            0x0b,                       // TLV type vend spec
+            0x00, 0x2a,                 // TLV len
+                                        // TLV vendor specific payload
+            0x00, 0x10, 0x18, 0x01, 0x00,
+            0x24, 0x01, 0xa0, 0x2d, 0x13, 0x06, 0x65, 0x24, 0xa0, 0x2d, 0x13, 0x06, 0x65, 0x21, 0x05, 0x31,
+            0x38, 0x38, 0x36, 0x37, 0x10, 0x31, 0x37, 0x36, 0x34, 0x33, 0x39, 0x34, 0x33, 0x33, 0x32, 0x37,
+            0x32, 0x33, 0x34, 0x36, 0x31,
+            0x00,                     // TLV type end of mesage
+            0x00, 0x00                // TLV len
+
+        };
+
         while(true){
             // Send the message
+            sdu1500.setPayload(payload1481);
             sap.serviceAccessPointDataRequest(sdu1500);
-            std::cout << "Client sent the message successfully!" << std::endl;
+            std::cout << "Client sent the message successfully! AUTOCONFIG SEARCH" << std::endl;
+            std::cout << "Waiting for autoconfig response "<<std::endl;
+            auto sdu = sap.serviceAccessPointDataIndication();
 
+            std::cout<<"Send vendor specific"<<std::endl;
+            sdu1500.setPayload(payload_vendor_specific);
             std::this_thread::sleep_for(std::chrono::seconds(3));
         }
 

@@ -41,12 +41,13 @@ int main() {
         while(true) {
             std::cout << "Waiting for data..." << std::endl;
             AlServiceDataUnit ackSdu1500 = sap.serviceAccessPointDataIndication();
+            auto payload = ackSdu1500.getPayload();
 
             // Print the acknowledgment message
             std::cout << "Received  payload with size: " << ackSdu1500.getPayload().size() << " bytes." << std::endl;
             std::cout<<"PAYLOAD: <";
-            for(const auto& byte: ackSdu1500.getPayload()){
-                std::cout <<" "<< std::hex << byte << " ";
+            for (unsigned char byte : ackSdu1500.getPayload()) {
+                std::cout << std::hex << static_cast<int>(byte) << " ";
             }
             std::cout << std::dec << " >"<<std::endl;
         }
