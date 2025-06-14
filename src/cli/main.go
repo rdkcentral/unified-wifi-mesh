@@ -1,18 +1,9 @@
 package main
 
-/*
-#cgo CFLAGS: -I../../inc -I../../../OneWifi/include -I../../../OneWifi/source/utils -I../../../halinterface/include
-#cgo LDFLAGS: -L../../install/lib -lemcli -lcjson -lreadline
-#include <stdio.h>
-#include <readline/readline.h>
-#include <readline/history.h>
-#include "em_cli_apis.h"
-*/
-import "C"
-
 import (
 	"fmt"
 	"os"
+
 	"strings"
 	"time"
 	"unsafe"
@@ -22,39 +13,6 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/davecgh/go-spew/spew"
-	"github.com/rdkcentral/unified-wifi-mesh/src/cli/etree"
-	"golang.org/x/term"
-)
-
-const (
-	linesToDisplay int = 38
-
-	NetworkTopologyCmd    = "Network Topology"
-	NetworkSSIDListCmd    = "SSID List"
-	RadioListCmd          = "WiFi Radios"
-	ChannelsListCmd       = "WiFi Channels"
-	MLDReconfigurationCmd = "Multi Link Operations"
-	ClientDevicesCmd      = "Client Connections"
-	NetworkPolicyCmd      = "Network Policy"
-	NeighborsListCmd      = "WiFi Neighbors"
-	SteerDevicesCmd       = "Optimize Client Connections"
-	BackhaulOptimizeCmd   = "Optimize Backhaul Connections"
-	NetworkMetricsCmd     = "Network Metrics"
-	DeviceOnboardingCmd   = "Onboarding & Provisioning"
-	WiFiEventsCmd         = "WiFi Events"
-	WiFiResetCmd          = "WiFi Reset"
-	DebugCmd              = "Debugging & Testing"
-
-	GET  = 0
-	GETX = 1
-	SET  = 2
-
-	BTN_UPDATE = 0
-	BTN_APPLY  = 1
-	BTN_CANCEL = 2
-	BTN_MAX    = 3
 )
 
 var program *tea.Program
@@ -1142,12 +1100,7 @@ func (m model) View() string {
 }
 
 func main() {
-	if len(os.Args[1:]) != 1 {
-		fmt.Println("Invalid Arguments, please specify platform name")
-		os.Exit(1)
-	}
-
-	program = tea.NewProgram(newModel(os.Args[1]), tea.WithAltScreen())
+    program = tea.NewProgram(newMeshViewsMgr(os.Args[0]), tea.WithAltScreen())
 
 	if _, err := program.Run(); err != nil {
 		fmt.Println("Error running program:", err)
