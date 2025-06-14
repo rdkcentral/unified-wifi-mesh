@@ -57,7 +57,8 @@ const char *global_netid = "OneWifiMesh";
 AlServiceAccessPoint* g_sap;
 MacAddress g_al_mac_sap;
 
-#define SOCKET_PATH "/tmp/ieee1905_tunnel"
+#define DATA_SOCKET_PATH "/tmp/al_data_socket"
+#define CONTROL_SOCKET_PATH "/tmp/al_control_socket"
 #endif
 
 void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
@@ -276,6 +277,44 @@ void em_ctrl_t::handle_remove_device(em_bus_event_t *evt)
 
 }
 
+void em_ctrl_t::handle_get_dev_test(em_bus_event_t *evt)
+{
+    em_cmd_params_t params = evt->params;
+    char *temp = NULL;
+    bool teststatus = false;
+
+    if (params.u.args.num_args < 1) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_invalid_input);
+        return;
+    }
+
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
+    }
+
+    if ((temp = strstr(evt->u.subdoc.name, "update")) != NULL) {
+	dev_test.encode(&evt->u.subdoc, m_em_map, true, false);
+    } else {
+	   
+           teststatus = m_orch->get_dev_test_status();
+	   dev_test.encode(&evt->u.subdoc, m_em_map, false, teststatus);
+    }
+    evt->data_len = static_cast<unsigned int> (strlen(evt->u.subdoc.buff)) + 1;
+    m_ctrl_cmd->copy_bus_event(evt);
+    m_ctrl_cmd->send_result(em_cmd_out_status_success);
+}
+
+void em_ctrl_t::handle_set_dev_test(em_bus_event_t *evt)
+{
+
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+    } else {
+	dev_test.analyze_set_dev_test(evt, m_em_map);
+        m_ctrl_cmd->send_result(em_cmd_out_status_success);
+    }
+
+}
+
 void em_ctrl_t::handle_get_dm_data(em_bus_event_t *evt)
 {           
     em_cmd_params_t params = evt->params;
@@ -291,22 +330,6 @@ void em_ctrl_t::handle_get_dm_data(em_bus_event_t *evt)
     m_ctrl_cmd->copy_bus_event(evt);
     m_ctrl_cmd->send_result(em_cmd_out_status_success);
 }        
-
-void em_ctrl_t::handle_dev_test(em_bus_event_t *evt)
-{
-    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
-    int num = 0;
-
-    if (m_orch->is_cmd_type_in_progress(evt) == true) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_dev_test(evt, pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
-    } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_success);
-    } else {
-        m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
-    }
-}
 
 void em_ctrl_t::handle_reset(em_bus_event_t *evt)
 {
@@ -397,13 +420,19 @@ void em_ctrl_t::input_listener()
 
 void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
 {
-
     switch (evt->type) {
         case em_bus_event_type_reset:
             handle_reset(evt);
             break;
 
         case em_bus_event_type_dev_test:
+	    handle_get_dev_test(evt);
+	    break;
+
+	case em_bus_event_type_set_dev_test:
+	    handle_set_dev_test(evt);
+	    break;
+
         case em_bus_event_type_get_network:
         case em_bus_event_type_get_ssid:
         case em_bus_event_type_get_channel:
@@ -553,7 +582,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
     bssid_t	bssid;
     dm_bss_t *bss;
     em_profile_type_t profile;
-    em_long_string_t key;
+    em_2xlong_string_t key;
     unsigned int i;
     bool found;
     mac_addr_str_t mac_str1, mac_str2, dev_mac_str, radio_mac_str;
@@ -658,13 +687,13 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             if ((dm = get_data_model(const_cast<const char *> (global_netid), const_cast<const unsigned char *> (hdr->src))) == NULL) {
                 printf("%s:%d: Can not find data model\n", __func__, __LINE__);
             }
+
             for (i = 0; i < dm->get_num_radios(); i++) {
                 found = true;
                 dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (dm->get_radio_info(i)->id.dev_mac), dev_mac_str);
                 dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (dm->get_radio_info(i)->id.ruid), radio_mac_str);
                 dm_easy_mesh_t::macbytes_to_string(bssid, mac_str1);
                 snprintf(key, sizeof (em_2xlong_string_t), "%s@%s@%s@%s@", dm->get_radio_info(i)->id.net_id, dev_mac_str, radio_mac_str, mac_str1);
-                printf("%s:%d: key to get bss[%s] from data model: %s\n", __func__, __LINE__, mac_str1, key);
                 if ((bss = dm->get_bss(dm->get_radio_info(i)->id.ruid, bssid)) == NULL) {
                     found = false;
                     continue;
@@ -673,7 +702,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             }
 
             if (found == false) {
-                printf("%s:%d: Could not find bss:%s from data model\n", __func__, __LINE__, mac_str1);
+                printf("%s:%d: Could not find bss:%s from data model, for radio: %s\n", __func__, __LINE__, mac_str1, radio_mac_str);
                 return NULL;
             }
               
@@ -681,6 +710,12 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             if ((em = static_cast<em_t *> (hash_map_get(m_em_map, mac_str1))) == NULL) {
                 printf("%s:%d: Could not find radio:%s\n", __func__, __LINE__, mac_str1);
                 return NULL;
+            } else {
+                dm_easy_mesh_t::macbytes_to_string(bssid, mac_str1);
+                mac_addr_str_t mac;
+                dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac);
+                //printf("%s:%d: Em radio id: %s\n", __func__, __LINE__, mac);
+                //printf("%s:%d: Found em for msg type: %d, key for bss[%s]: %s\n", __func__, __LINE__, htons(cmdu->type), mac_str1, key);
             }
 
             break;
@@ -764,7 +799,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 
         default:
             printf("%s:%d: Frame: 0x%04x not handled in controller\n", __func__, __LINE__, htons(cmdu->type));
-            assert(0);
+            em = NULL;
             break;
     }
 
@@ -790,6 +825,7 @@ void em_ctrl_t::start_complete()
 	em_bus_event_type_cfg_renew_params_t ac_config_raw;
 	mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 	char service_name[] = "EasyMesh_Ctrl_Service";
+	int i = 0;
 
 	if (m_data_model.is_initialized() == false) {
 		printf("%s:%d: Database not initialized ... needs reset\n", __func__, __LINE__);
@@ -834,6 +870,17 @@ void em_ctrl_t::start_complete()
     }
 	memcpy(&ac_config_raw.radio, &null_mac, sizeof(mac_address_t));
 	io_process(em_bus_event_type_cfg_renew, reinterpret_cast<unsigned char *> (&ac_config_raw), sizeof(em_bus_event_type_cfg_renew_params_t));
+	//Initialze cli devtest
+	for (i = 0; i < em_dev_test_type_max; i++) {
+		dev_test.dev_test_info.num_iteration[i] = 50;
+		dev_test.dev_test_info.test_type[i] = static_cast<em_dev_test_type>(i);;
+		dev_test.dev_test_info.enabled[i] = 0;
+		dev_test.dev_test_info.num_of_iteration_completed[i] = 0;
+		dev_test.dev_test_info.test_inprogress[i] = 0;
+		dev_test.dev_test_info.test_status[i] = em_dev_test_status_idle;
+		dev_test.dev_test_info.haul_type = em_haul_type_iot;
+		dev_test.dev_test_info.freq_band = em_freq_band_24;
+	}
 }
 
 
@@ -850,7 +897,7 @@ em_ctrl_t::~em_ctrl_t()
 #ifdef AL_SAP
 AlServiceAccessPoint* em_ctrl_t::al_sap_register()
 {
-    AlServiceAccessPoint* sap = new AlServiceAccessPoint(SOCKET_PATH);
+    AlServiceAccessPoint* sap = new AlServiceAccessPoint(DATA_SOCKET_PATH, CONTROL_SOCKET_PATH);
 
     AlServiceRegistrationRequest registrationRequest(ServiceOperation::SOP_ENABLE, ServiceType::SAP_TUNNEL_CLIENT);
     sap->serviceAccessPointRegistrationRequest(registrationRequest);

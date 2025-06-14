@@ -10,6 +10,7 @@ struct cJSON;
 typedef enum {
     dpp_config_obj_bsta,
     dpp_config_obj_ieee1905,
+	dpp_config_obj_fbss,
 } dpp_config_obj_type_e;
 
 class ec_ctrl_configurator_t : public ec_configurator_t {
@@ -30,8 +31,8 @@ public:
 	 * @note This constructor initializes the base class ec_configurator_t with the provided parameters.
 	 */
 	ec_ctrl_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg,
-        get_backhaul_sta_info_func backhaul_sta_info_func, get_1905_info_func ieee1905_info_func, can_onboard_additional_aps_func can_onboard_func) :
-        ec_configurator_t(mac_addr, send_chirp_notification, send_prox_encap_dpp_msg, {}, backhaul_sta_info_func, ieee1905_info_func, can_onboard_func)
+        get_backhaul_sta_info_func backhaul_sta_info_func, get_1905_info_func ieee1905_info_func, get_fbss_info_func get_fbss_info, can_onboard_additional_aps_func can_onboard_func) :
+        ec_configurator_t(mac_addr, send_chirp_notification, send_prox_encap_dpp_msg, {}, backhaul_sta_info_func, ieee1905_info_func, get_fbss_info, can_onboard_func)
         {};
         // No MAC address needed for controller configurator
 
@@ -139,6 +140,32 @@ public:
 	 */
 	virtual bool handle_proxied_conn_status_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) override;
 
+	/**
+	 * @brief Handles a Reconfiguration Announcement frame
+	 * 
+	 * If this Reconfiguration Announcement frame is meant for the Configurator that received it
+	 * (determined by comparing the C-sign-key hash attribute to the Configurator's C-sign-key),
+	 * then create a Reconfiguration Authentication frame and send to the Enrollee
+	 * 
+	 * @param frame The Reconfiguration Announcement frame
+	 * @param len The length of the frame
+	 * @param sa The source address (Enrollee)
+	 * @return true on success, otherwise false
+	 * 
+	 * @note Only implemented by the Controller Configurator
+	 */
+	virtual bool handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) override;
+
+	/**
+	 * @brief Handles a Reconfiguration Authentication Response frame
+	 * 
+	 * @param frame The proxied encapsulated Reconfiguration Authentication Response frame
+	 * @param len The length of the frame
+	 * @param sa The source address (Enrollee)
+	 * @return true on success, otherwise false
+	 */
+	virtual bool handle_recfg_auth_response(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) override;
+
 private:
     // Private member variables can be added here
 
@@ -169,10 +196,11 @@ private:
 	 * @brief Creates a reconfiguration authentication request.
 	 *
 	 * This function generates a request for reconfiguration authentication.
+	 * @param enrollee_mac The MAC of the Enrollee being Reconfigured
 	 *
 	 * @returns A pair consisting of a pointer to the request data and its size.
 	 */
-	std::pair<uint8_t*, size_t> create_recfg_auth_request();
+	std::pair<uint8_t*, size_t> create_recfg_auth_request(const std::string& enrollee_mac);
     
 	/**!
 	 * @brief Creates an authentication confirmation message.
@@ -198,12 +226,14 @@ private:
 	 *
 	 * @param[in] enrollee_mac The MAC address of the enrollee as a string.
 	 * @param[in] dpp_status The DPP status code as an ec_status_code_t.
+	 * @param enrollee_dpp_status The DPP status code of the Enrollee encoded in the Connection Status JSON object
+	 * @param trans_id The transaction ID for this Reconfiguration session
 	 *
 	 * @returns A pair consisting of a pointer to a uint8_t array and its size.
 	 *
 	 * @note Ensure that the enrollee MAC address is valid and the DPP status code is correctly set.
 	 */
-	std::pair<uint8_t*, size_t> create_recfg_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status);
+	std::pair<uint8_t*, size_t> create_recfg_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status, ec_status_code_t enrollee_dpp_status, uint8_t trans_id);
 
     
 	/**
@@ -218,6 +248,8 @@ private:
 	 * @param[in] dialog_token The session dialog token for the Enrollee.
 	 * @param[in] dpp_status The status of the DPP Configuration. Use DPP_STATUS_OK for
 	 *                       success or DPP_STATUS_CONFIGURATION_FAILURE for failure.
+	 * @param is_sta Optional parameter to indicate if the frame is for a station (default is false). If this is for a STA being onboarded,
+	 * we provide fronthaul BSS information and don't issue a DPP Connector (EasyMesh 5.3.11)
 	 *
 	 * @return std::pair<uint8_t*, size_t> A pair containing the frame and its length
 	 *                                      on success, or nullptr and 0 on failure.
@@ -225,7 +257,7 @@ private:
 	 * @note Ensure that the destination MAC address is valid and that the dialog token
 	 *       and DPP status are correctly set before calling this function.
 	 */
-	std::pair<uint8_t*, size_t> create_config_response_frame(uint8_t dest_mac[ETH_ALEN], const uint8_t dialog_token, ec_status_code_t dpp_status);
+	std::pair<uint8_t*, size_t> create_config_response_frame(uint8_t dest_mac[ETH_ALEN], const uint8_t dialog_token, ec_status_code_t dpp_status, bool is_sta = false);
 
     
 	/**
@@ -247,6 +279,15 @@ private:
      * 
      */
     std::unordered_map<std::string, bool> m_enrollee_successfully_onboarded = {};
+
+	/**
+	 * @brief Maps Enrollee MAC (as string) to whether or not the Reconfiguration flow has already begun
+	 * 
+	 * If we hear a Reconfiguration Announcement frame intended for us, but the Enrollee is already undergoing
+	 * Reconfiguration, ignore and discard the frame
+	 * 
+	 */
+	std::unordered_map<std::string, bool> m_currently_undergoing_recfg = {};
 };
 
 #endif // EC_CTRL_CONFIGURATOR_H

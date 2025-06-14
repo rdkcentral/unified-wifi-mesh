@@ -44,7 +44,7 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
 
     memset(&m_policy, 0, sizeof(em_policy_t));
 	parse_dev_radio_mac_from_key(static_cast<char *>(parent_id), &id);
-	strncpy(m_policy.id.net_id, id.net_id, strlen(id.net_id));
+	strncpy(m_policy.id.net_id, id.net_id, sizeof(em_long_string_t));
 	memcpy(m_policy.id.dev_mac, id.dev_mac, sizeof(mac_address_t));
 	memcpy(m_policy.id.radio_mac, id.radio_mac, sizeof(mac_address_t));
 	m_policy.id.type = type;	
@@ -74,7 +74,7 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
 			m_policy.interval = static_cast<short unsigned int>(tmp->valuedouble);
     	}
     	if ((tmp = cJSON_GetObjectItem(obj, "Managed Client Marker")) != NULL) {
-			strncpy(m_policy.managed_sta_marker, cJSON_GetStringValue(tmp), sizeof(em_long_string_t));
+            snprintf(m_policy.managed_sta_marker, sizeof(em_long_string_t), "%s", cJSON_GetStringValue(tmp));
     	}
 	} else if (type == em_policy_id_type_radio_metrics_rep) {
     	if ((tmp = cJSON_GetObjectItem(obj, "STA RCPI Threshold")) != NULL) {
@@ -178,7 +178,7 @@ void dm_policy_t::operator = (const dm_policy_t& obj)
     this->m_policy.sta_traffic_stats = obj.m_policy.sta_traffic_stats;
     this->m_policy.sta_link_metric = obj.m_policy.sta_link_metric;
     this->m_policy.sta_status = obj.m_policy.sta_status;
-    strncpy(this->m_policy.managed_sta_marker, obj.m_policy.managed_sta_marker, strlen(obj.m_policy.managed_sta_marker) + 1);
+    strncpy(this->m_policy.managed_sta_marker, obj.m_policy.managed_sta_marker, sizeof(em_long_string_t));
 }
 
 int dm_policy_t::parse_dev_radio_mac_from_key(const char *key, em_policy_id_t *id)

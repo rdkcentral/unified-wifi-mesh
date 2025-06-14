@@ -608,11 +608,46 @@ public:
 	 * @param[in] conn The connector to split and decode.
 	 *
 	 * @return std::optional<std::vector<cJSON*>> A vector of cJSON objects containing the decoded parts, or std::nullopt on failure.
+	 * Indices: 0 -> JWS Header, 1 -> JWS Payload, 2 -> JWS Signature.
 	 *
 	 * @note The caller is responsible for freeing the cJSON objects.
 	 */
 	static std::optional<std::vector<cJSON*>> split_decode_connector(const char* conn);
 
+	/**
+	 * @brief Split a Connector into its constituent parts without base64 decoding
+	 * 
+	 * @param conn The connector to split
+	 * @return std::optional<std::vector<std::string>> A vector of strings containing the split parts of the connector, or std::nullopt on failure.
+	 * Indices: 0 -> JWS Header, 1 -> JWS Payload, 2 -> JWS Signature
+	 */
+	static std::optional<std::vector<std::string>> split_connector(const char* conn);
+
+	/**
+	 * @brief Concatenate multiple nonces into a single byte vector. Will be concatenating in the order they are provided
+	 * 
+	 * @param nonces Input list of nonces
+	 * @return std::vector<uint8_t> Concatenated nonce, empty on failure
+	 */
+	static std::vector<uint8_t> concat_nonces(const std::vector<std::vector<uint8_t>>& nonces);
+
+	/**
+	 * @brief Decode an EC point from a DPP Connector's "netAccessKey" field
+	 * 
+	 * @param ctx The connection context containing the EC group and BN context
+	 * @param net_access_key cJSON blob containing the "netAccessKey" field
+	 * Example:
+	 *        "netAccessKey":
+	 *        {
+	 *            "kty":"EC",
+	 *            "crv":"P-256",
+	 *            "x":"Xj-zV2iEiH8XwyA9ijpsL6xyLvDiIBthrHO8ZVxwmpA",
+	 *            "y":"LUsDBmn7nv-LCnn6fBoXKsKpLGJiVpY_knTckGgsgeU"
+	 *        },
+	 * 	
+	 * @return EC_POINT* on success, nullptr otherwise
+	 */
+	static EC_POINT *decode_ec_point_from_connector_netaccesskey(ec_connection_context_t& ctx, cJSON *net_access_key);
     
 	/**
 	 * @brief Generate a connector from JWS header, payload, and the key to create the signature with.
@@ -623,9 +658,7 @@ public:
 	 * @param[in] jws_payload The JWS Payload.
 	 * @param[in] sign_key The key to sign the connector with (creating 'sig').
 	 *
-	 * @return const char* The generated connector, or NULL on failure.
-	 *
-	 * @note The caller is responsible for freeing the returned memory.
+	 * @return std::optional<std::string> The generated connector, nullopt on failure
 	 *
 	 * @paragraph EasyConnect 4.2.1.1 Digital Signature Computation
 	 * The procedures to compute the digital signature of a Connector and the procedure to verify such signature are described
@@ -639,7 +672,7 @@ public:
 	 * If “sig” is the result of the signature, the Connector is then:
 	 * base64url(UTF8(JWS Protected Header)) | ‘.’ | base64url(JWS Payload) | ‘.’ | base64url(sig)
 	 */
-	static const char* generate_connector(const cJSON* jws_header, const cJSON* jws_payload, SSL_KEY* sign_key);
+	static std::optional<std::string> generate_connector(const cJSON* jws_header, const cJSON* jws_payload, SSL_KEY* sign_key);
 
     
 	/**
@@ -747,6 +780,7 @@ public:
 	 *                   Possible keys are "groupID" and "netRole".
 	 * @param[in] net_access_key The network access key used for encryption.
 	 * @param[in] expiry Optional expiry date for the payload in ISO 8601 format.
+	 * @param version Conditionally included DPP Version number (only used for Reconfiguration C-Connector generation) according to EC
 	 *
 	 * @return cJSON* Pointer to the created JWS payload on success, nullptr otherwise.
 	 *
@@ -767,10 +801,11 @@ public:
 	 *            "x":"Xj-zV2iEiH8XwyA9ijpsL6xyLvDiIBthrHO8ZVxwmpA",
 	 *            "y":"LUsDBmn7nv-LCnn6fBoXKsKpLGJiVpY_knTckGgsgeU"
 	 *        },
-	 *        "expiry":"2019-01-31T22:00:00+02:00"
+	 *        "expiry":"2019-01-31T22:00:00+02:00",
+	 * 	  	  "version": 2
 	 *   }
 	 */
-	static cJSON* create_jws_payload(ec_connection_context_t& c_ctx, const std::vector<std::unordered_map<std::string, std::string>>& groups, SSL_KEY* net_access_key, std::optional<std::string> expiry = std::nullopt);
+	static cJSON* create_jws_payload(ec_connection_context_t& c_ctx, const std::vector<std::unordered_map<std::string, std::string>>& groups, SSL_KEY* net_access_key, std::optional<std::string> expiry = std::nullopt, std::optional<uint8_t> version = std::nullopt);
 
     
 	/**

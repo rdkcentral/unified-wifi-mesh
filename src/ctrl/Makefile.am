@@ -98,6 +98,7 @@ onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/ctrl/em_cmd_ctrl.cpp \
      $(top_srcdir)/src/ctrl/em_ctrl.cpp \
      $(top_srcdir)/src/ctrl/em_network_topo.cpp \
+     $(top_srcdir)/src/ctrl/em_dev_test_ctrl.cpp \
      $(top_srcdir)/src/db/db_client.cpp \
      $(top_srcdir)/src/db/db_column.cpp \
      $(top_srcdir)/src/db/db_easy_mesh.cpp \
@@ -142,5 +143,5 @@ onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/OneWifi/source/platform/common/bus_common.c
  
  
-onewifi_em_ctrl_LDFLAGS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lmysqlcppconn -lrbus -fsanitize=address -fsanitize=undefined
+onewifi_em_ctrl_LDFLAGS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lrbus -fsanitize=address -fsanitize=undefined -lmariadb
 

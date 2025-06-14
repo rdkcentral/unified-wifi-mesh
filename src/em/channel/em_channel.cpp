@@ -1913,7 +1913,7 @@ int em_channel_t::handle_channel_scan_rprt(unsigned char *buff, unsigned int len
 		if (tlv->type == em_tlv_type_channel_scan_rslt) {
 			res = reinterpret_cast<em_channel_scan_result_t *> (tlv->value);
 			
-			strncpy(id.net_id, dm->m_network.m_net_info.id, strlen(dm->m_network.m_net_info.id) + 1);	
+			strncpy(id.net_id, dm->m_network.m_net_info.id, sizeof(em_long_string_t));	
 			memcpy(id.dev_mac, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
             memcpy(id.scanner_mac, res->ruid, sizeof(mac_address_t));
             id.op_class = res->op_class;

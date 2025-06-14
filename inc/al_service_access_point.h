@@ -27,7 +27,7 @@ public:
 	 *
 	 * @note Ensure the socket path is valid and accessible.
 	 */
-	AlServiceAccessPoint(const std::string& socketPath);
+	AlServiceAccessPoint(const std::string &dataSocketPath, const std::string &controlSocketPath);
 
     // Destructor: Closes the Unix domain socket and releases any memory used by the SAP
     
@@ -98,37 +98,65 @@ public:
 	 */
 	AlServiceRegistrationResponse serviceAccessPointRegistrationResponse();  // Fills and returns an AlServiceDataUnit object
 
-    // Getter for the socket descriptor
+    // Getter for the data socket descriptor
     
 	/**!
-	 * @brief Retrieves the socket descriptor.
+	 * @brief Retrieves the data socket descriptor.
 	 *
-	 * This function returns the socket descriptor associated with the service access point.
+	 * This function returns the data socket descriptor associated with the service access point.
 	 *
 	 * @returns The socket descriptor as an integer.
 	 * @note This function does not modify any member variables.
 	 */
-	int getSocketDescriptor() const;  // this was added method to get the socket descriptor 
+	int getDataSocketDescriptor() const;  // this was added method to get the socket descriptor 
 
-    // Setter for the socket descriptor
+    // Setter for the data socket descriptor
     
 	/**!
-	 * @brief Sets the socket descriptor for the service access point.
+	 * @brief Sets the data socket descriptor for the service access point.
 	 *
-	 * This function assigns a socket descriptor to the service access point, which
+	 * This function assigns a data socket descriptor to the service access point, which
 	 * is used for network communication.
 	 *
 	 * @param[in] descriptor The socket descriptor to be set.
 	 *
 	 * @note Ensure that the descriptor is valid and open before calling this function.
 	 */
-	void setSocketDescriptor(int descriptor); // this was added method to set the socket descriptor
+	void setDataSocketDescriptor(int descriptor); // this was added method to set the socket descriptor
+
+    // Getter for the control socket descriptor
+    
+	/**!
+	 * @brief Retrieves the control socket descriptor.
+	 *
+	 * This function returns the control socket descriptor associated with the service access point.
+	 *
+	 * @returns The socket descriptor as an integer.
+	 * @note This function does not modify any member variables.
+	 */
+	int getControlSocketDescriptor() const;  // this was added method to get the socket descriptor 
+
+    // Setter for the control socket descriptor
+    
+	/**!
+	 * @brief Sets the control socket descriptor for the service access point.
+	 *
+	 * This function assigns a control socket descriptor to the service access point, which
+	 * is used for network communication.
+	 *
+	 * @param[in] descriptor The socket descriptor to be set.
+	 *
+	 * @note Ensure that the descriptor is valid and open before calling this function.
+	 */
+	void setControlSocketDescriptor(int descriptor); // this was added method to set the socket descriptor
 
 
     private:
     MacAddress alMacAddressLocal;
-    int socketDescriptor;
-    std::string socketPath = "/tmp/ieee1905_socket";  // Unix socket path initialized
+    int alDataSocketDescriptor;
+    std::string alDataSocketpath = "/tmp/al_data_socket"; // Unix socket path initialized
+    int alControlSocketDescriptor;
+    std::string alControlSocketpath = "/tmp/al_control_socket"; // Unix socket path initialized
     AlServiceRegistrationResponse registrationResponse;  // Private member instance
     AlServiceRegistrationRequest registrationRequest;  // Private member instance
 };

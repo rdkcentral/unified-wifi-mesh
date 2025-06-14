@@ -26,14 +26,16 @@ public:
 	 * @param[in] get_1905_info Function to get 1905 information
 	 * @param[in] can_onboard Function to check if additional APs can be onboarded
 	 * @param[in] toggle_cce Function to toggle CCE
+	 * @param[in] trigger_sta_scan_fn Function to trigger a scan on a station interface
+	 * @param[in] bsta_connect_fn Function to connect a backhaul station to a BSS
 	 * @param[in] m_is_controller Whether the node holding this manager is a controller or not
 	 *
 	 * @note Some method calls are only valid for the controller, proxy agent, or the enrollee, and will return fail if called on the wrong object.
 	 * If the EasyMesh code is correctly implemented this should not be an issue.
 	 */
 	ec_manager_t(std::string mac_addr, send_chirp_func send_chirp, send_encap_dpp_func send_encap_dpp, send_act_frame_func send_action_frame, 
-        get_backhaul_sta_info_func get_bsta_info, get_1905_info_func get_1905_info, can_onboard_additional_aps_func can_onboard, toggle_cce_func toggle_cce, 
-		start_stop_clist_build_func start_stop_clist_build_fn, bsta_connect_func bsta_connect_fn, bool m_is_controller);
+        get_backhaul_sta_info_func get_bsta_info, get_1905_info_func get_1905_info, get_fbss_info_func get_fbss_info, can_onboard_additional_aps_func can_onboard, toggle_cce_func toggle_cce, 
+		trigger_sta_scan_func trigger_sta_scan_fn, bsta_connect_func bsta_connect_fn, bool m_is_controller);
     
 	/**!
 	 * @brief Destructor for ec_manager_t class.
@@ -121,7 +123,7 @@ public:
 	 * @note If the operation fails, all CCE IEs are removed before the function exits.
 	 */
 	inline bool pa_cfg_toggle_cce(bool enable) {
-        if (!m_is_controller || m_configurator == nullptr) {
+        if (m_is_controller || m_configurator == nullptr) {
             return false;
         }
         auto pa_cfg = dynamic_cast<ec_pa_configurator_t*>(m_configurator.get());
@@ -211,14 +213,6 @@ public:
 		return m_enrollee->is_onboarding();
 	}
 
-	/**
-	 * @brief Handle a CCE information element being heard
-	 * (add the frequency the CCE IE was heard on to Enrollee's list of Presence Announcement frequencies)
-	 * 
-	 * @param freq The frequency that a CCE IE was heard on
-	 * @return true on success, otherwise false
-	 */
-	bool handle_cce_ie(unsigned int freq);
 
 	/**
 	 * @brief Handle an association status event (for the Enrollee's bSTA association attempt)
@@ -227,6 +221,14 @@ public:
 	 * @return true on success otherwise false
 	 */
 	bool handle_assoc_status(const rdk_sta_data_t &sta_data);
+
+	/**
+	 * @brief Handle a BSS info event. Forwards to Enrollee for handling.
+	 * 
+	 * @param bss_info_list The list of BSS infos heard
+	 * @return true on success, otherwise false
+	 */
+	bool handle_bss_info_event(const std::vector<wifi_bss_info_t>& bss_info_list);
 
 
 private:
@@ -238,6 +240,7 @@ private:
     send_act_frame_func m_stored_action_frame_fn;
     get_backhaul_sta_info_func m_get_bsta_info_fn;
     get_1905_info_func m_get_1905_info_fn;
+	get_fbss_info_func m_get_fbss_info_fn;
     can_onboard_additional_aps_func m_can_onboard_fn;
     std::string m_stored_mac_addr;
     

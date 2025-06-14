@@ -38,16 +38,24 @@ INCLUDEDIRS = \
 	-I$(ONEWIFI_HOME)/source/ccsp \
     -I$(RBUS_HOME)/include \
 	-I$(WIFI_CJSON) \
+	-I$(STAGING_DIR)/usr/include \
+	-I$(ONEWIFI_EM_SRC)/util_crypto \
 
 CXXFLAGS = $(INCLUDEDIRS) -g -std=c++17 -fPIC -fpermissive
 CFLAGS = $(INCLUDEDIRS) -g
 LDFLAGS = $(LIBDIRS) $(LIBS)
+
+CFLAGS += -DOPENWRT_BUILD
+CXXFLAGS += -DOPENWRT_BUILD
+
 LIBDIRS = \
 	-L$(INSTALLDIR)/lib \
+	-L$(STAGING_DIR)/usr/lib \
 
-LIBS = -lemcli -lm -pthread -ldl -lcjson -lreadline -lssl -lcrypto
+LIBS = -lm -pthread -ldl -lcjson -lssl -lcrypto -lmariadb -luuid -lreadline
 
 GENERIC_SOURCES = $(ONEWIFI_HOME)/source/utils/collection.c	\
+		  $(ONEWIFI_EM_SRC)/util_crypto/aes_siv.c \
 
 CLI_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/cli/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/cmd/*.cpp) \
@@ -72,6 +80,7 @@ CLI_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/cli/*.cpp) \
     $(ONEWIFI_EM_SRC)/dm/dm_tid_to_link.cpp \
     $(ONEWIFI_EM_SRC)/em/em_net_node.cpp \
     $(ONEWIFI_EM_SRC)/utils/util.cpp \
+    $(ONEWIFI_EM_SRC)/em/prov/easyconnect/ec_util.cpp \
 
 MAIN_SOURCE = $(ONEWIFI_EM_SRC)/cli/main.c
 
@@ -83,7 +92,7 @@ MAIN_OBJECT = $(MAIN_SOURCE:.c=.o)
 all: $(EM_CLI_LIBRARY) $(PROGRAM)
 
 $(EM_CLI_LIBRARY): $(EMCLIOBJECTS)
-	$(CXX) -shared -o $@ $(EMCLIOBJECTS)
+	$(CXX) -shared -o $@ $(EMCLIOBJECTS) $(LDFLAGS)
 
 $(GENERIC_OBJECTS): %.o: %.c
 	$(CC) $(CXXFLAGS) -o $@ -c $<
@@ -96,11 +105,7 @@ $(MAIN_OBJECT): %.o: %.c
 
 $(PROGRAM):
 # use go 1.19 or above to build
-ifeq ($(CC), aarch64-linux-gnu-gcc-11)
-	CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -extldflags '-L$(INSTALLDIR)/lib -lcrypto -lssl -luuid'" -o $(PROGRAM) $(ONEWIFI_EM_SRC)/cli/*.go
-else
-	go build -ldflags="-extldflags '-L$(INSTALLDIR)/lib -lcrypto -lssl -luuid'" -o $(PROGRAM) $(ONEWIFI_EM_SRC)/cli/*.go
-endif
+	CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -extldflags '-L$(INSTALLDIR)/lib $(LDFLAGS)'" -o $(PROGRAM) $(ONEWIFI_EM_SRC)/cli/*.go
 # Clean target: "make -f Makefile.Linux clean" to remove unwanted objects and executables.
 #
 

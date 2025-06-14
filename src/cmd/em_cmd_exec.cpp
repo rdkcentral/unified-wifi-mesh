@@ -304,6 +304,7 @@ int em_cmd_exec_t::send_cmd(em_service_type_t to_svc, unsigned char *in, unsigne
     memset(&addr, 0, sizeof(addr));
 #ifdef LOCAL_CLI 
     addr.sun_family = AF_UNIX;
+
     snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", sock_path);
 #else
 	addr.sin_family = AF_INET; 
@@ -312,6 +313,7 @@ int em_cmd_exec_t::send_cmd(em_service_type_t to_svc, unsigned char *in, unsigne
 #endif
 
     //snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", sock_path);
+
     if ((ret = connect(dsock, reinterpret_cast<const struct sockaddr *> (&addr), sizeof(struct sockaddr_un))) != 0) {
         snprintf(out, out_len, "%s:%d: connect error on socket, err:%d\n", __func__, __LINE__, errno);
         return -1;

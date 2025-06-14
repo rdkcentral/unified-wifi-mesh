@@ -51,14 +51,11 @@ using send_act_frame_func = std::function<bool(uint8_t*, uint8_t *, size_t, unsi
 using toggle_cce_func = std::function<bool(bool)>;
 
 /**
- * @brief Initial setup for starting or stopping the building of the channel list
+ * @brief Triggers a scan on a station interface
  * 
- * @param do_start true to start the process, false to stop it
- * @return bool true if the action was successful, false otherwise
- * 
- * @note This does not build the channel list but just sets up the environment for the process
+ * @return bool true if a request was made successfully, false otherwise
  */
-using start_stop_clist_build_func = std::function<bool(bool)>;
+using trigger_sta_scan_func = std::function<bool()>;
 
 
 /**
@@ -85,6 +82,12 @@ using get_backhaul_sta_info_func = std::function<cJSON*(ec_connection_context_t 
 using get_1905_info_func = std::function<cJSON*(ec_connection_context_t *)>;
 
 /**
+ * @brief Creates a DPP Configuration Response object for the fronthaul BSS interface(s)
+ * @return cJSON * on success, nullptr otherwise
+ */
+using get_fbss_info_func = std::function<cJSON*(ec_connection_context_t *)>;
+
+/**
  * @brief Used to determine if an additional AP can be on-boarded or not.
  * @return True if additional APs can be on-boraded into the mesh, false otherwise.
  */
@@ -109,7 +112,7 @@ public:
 	 */
 	ec_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg, 
                         send_act_frame_func send_action_frame, get_backhaul_sta_info_func backhaul_sta_info_func, get_1905_info_func ieee1905_info_func,
-                        can_onboard_additional_aps_func can_onboard_func);
+                        get_fbss_info_func fbss_info_func, can_onboard_additional_aps_func can_onboard_func);
     
 	/**!
 	 * @brief Destructor for ec_configurator_t class.
@@ -242,6 +245,35 @@ public:
         return true;
     }
 
+	/**
+	 * @brief Handles a Reconfiguration Announcement frame
+	 * 
+	 * If this Reconfiguration Announcement frame is meant for the Configurator that received it
+	 * (determined by comparing the C-sign-key hash attribute to the Configurator's C-sign-key),
+	 * then create a Reconfiguration Authentication frame and send to the Enrollee
+	 * 
+	 * @param frame The Reconfiguration Announcement frame
+	 * @param len The length of the frame
+	 * @param sa The source address (Enrollee)
+	 * @return true on success, otherwise false
+	 * 
+	 * @note Only implemented by the Controller Configurator
+	 */
+	virtual bool handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) {
+		return true;
+	}
+
+	/**
+	 * @brief Handles a Reconfiguration Authentication Response frame
+	 * 
+	 * @param frame The proxied encapsulated Reconfiguration Authentication Response frame
+	 * @param len The length of the frame
+	 * @param sa The source address (Enrollee)
+	 * @return true on success, otherwise false
+	 */
+	virtual bool handle_recfg_auth_response(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) {
+		return true; // Optional to implement
+	}
     
 	/**
 	 * @brief Handle a chirp notification message TLV and direct it to the correct place (802.11 or 1905).
@@ -378,6 +410,8 @@ protected:
     get_backhaul_sta_info_func m_get_backhaul_sta_info;
 
     get_1905_info_func m_get_1905_info;
+
+	get_fbss_info_func m_get_fbss_info;
 
     can_onboard_additional_aps_func m_can_onboard_additional_aps;
 

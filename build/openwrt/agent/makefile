@@ -36,7 +36,8 @@ INCLUDEDIRS = \
     	-I$(ONEWIFI_HOME)/source/platform/common \
     	-I$(ONEWIFI_HOME)/source/platform/linux/he_bus/inc \
         -I$(ONEWIFI_EM_HOME)/src/util_crypto \
-        -I$(ONEWIFI_HOME)/source/ccsp
+        -I$(ONEWIFI_HOME)/source/ccsp \
+	-I$(STAGING_DIR)/usr/include
 
 ifeq ($(WITH_SAP), 1)
 INCLUDEDIRS += -I$(AL_SAP_HOME)/include
@@ -63,12 +64,16 @@ LIBDIRS = \
 	-L$(ONEWIFI_HOME)/install/lib/ \
 	-L/usr/local/lib    \
 	-L/usr/local/ssl/lib/ \
+	-L$(STAGING_DIR)/usr/lib \
+
+CFLAGS += -DOPENWRT_BUILD
+CXXFLAGS += -DOPENWRT_BUILD
 
 ifeq ($(WITH_SAP), 1)
 LIBDIRS += -L$(AL_SAP_HOME)/build/lib
 endif
 
-LIBS = -lgcc -lc -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwebconfig -lhebus
+LIBS = -lgcc -lc -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwebconfig -lhebus -lmariadb
 
 ifeq ($(WITH_SAP), 1)
 LIBS += -lalsap

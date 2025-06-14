@@ -30,7 +30,7 @@ class em_cmd_cli_t : public em_cmd_exec_t {
     em_cli_t& m_cli = g_cli;
 public:
     static em_cmd_t m_client_cmd_spec[];
-	struct sockaddr_in	m_ctrl_addr;
+    struct sockaddr_in  m_ctrl_addr;
 public:
     
 	/**!
@@ -48,6 +48,7 @@ public:
 	 *
 	 * @note Ensure that the node and buff are properly initialized before calling this function.
 	 */
+
 	struct sockaddr_in *get_ep_addr() { return &m_ctrl_addr; }
     
 	/**!
@@ -66,7 +67,8 @@ public:
 	 * @note Ensure that the node and buff are properly initialized before calling this function.
 	 */
 	int     get_edited_node(em_network_node_t *node, const char *header, char *buff);
-    
+  
+  
 	/**!
 	 * @brief Executes a command and stores the result.
 	 *
@@ -82,7 +84,7 @@ public:
 	 */
 	int execute(char *result);
 
-    
+
 	/**!
 	 * @brief Constructor for the em_cmd_cli_t class.
 	 *

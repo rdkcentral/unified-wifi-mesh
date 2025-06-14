@@ -219,6 +219,27 @@ extern "C"
 #define ETH_ALEN 6
 #endif // ETH_ALEN
 
+#ifndef WIFI_EM_CHANNEL_SCAN_REQUEST
+#define WIFI_EM_CHANNEL_SCAN_REQUEST          "Device.WiFi.EM.ChannelScanRequest"
+#endif
+
+#ifndef WIFI_EC_SEND_TRIG_STA_SCAN
+#define WIFI_EC_SEND_TRIG_STA_SCAN          "Device.WiFi.EC.TriggerStaScan"
+#endif
+
+
+#ifndef WIFI_EM_CHANNEL_SCAN_REPORT
+#define WIFI_EM_CHANNEL_SCAN_REPORT           "Device.WiFi.EM.ChannelScanReport"
+#endif
+
+#ifndef WIFI_SET_DISCONN_STEADY_STATE
+#define WIFI_SET_DISCONN_STEADY_STATE         "Device.WiFi.EM.SetDisconnSteadyState"
+#endif
+
+#ifndef WIFI_SET_DISCONN_SCAN_NONE_STATE
+#define WIFI_SET_DISCONN_SCAN_NONE_STATE      "Device.WiFi.EM.SetDisconnScanNoneState"
+#endif
+
 typedef char em_interface_name_t[32];
 typedef unsigned char em_nonce_t[16];
 typedef unsigned char em_dh5_key_t[192];    // because this is DH group 5 (1536 bits)
@@ -1938,6 +1959,7 @@ typedef enum {
     em_cmd_type_btm_sta,
     em_cmd_type_dev_init,
     em_cmd_type_dev_test,
+    em_cmd_type_set_dev_test,
     em_cmd_type_cfg_renew,
     em_cmd_type_vap_config,
     em_cmd_type_sta_list,
@@ -2570,6 +2592,7 @@ typedef enum {
     em_bus_event_type_chirp,
     em_bus_event_type_reset,
     em_bus_event_type_dev_test,
+    em_bus_event_type_set_dev_test,
     em_bus_event_type_get_network,
     em_bus_event_type_get_device,
     em_bus_event_type_remove_device,
@@ -2617,9 +2640,9 @@ typedef enum {
     em_bus_event_type_recv_wfa_action_frame,
     em_bus_event_type_recv_gas_frame,
     em_bus_event_type_get_sta_client_type,
-    em_bus_event_type_cce_ie,
     em_bus_event_type_assoc_status,
     em_bus_event_type_ap_metrics_report,
+    em_bus_event_type_bss_info,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -3108,6 +3131,31 @@ typedef struct {
 	em_editor_callback_t	cb_func;
 	em_cli_type_t	cli_type;
 } em_cli_params_t;
+
+typedef enum {
+	em_dev_test_type_ssid,
+	em_dev_test_type_channel,
+	em_dev_test_type_max
+} em_dev_test_type;
+
+typedef enum {
+        em_dev_test_status_inprogess,
+        em_dev_test_status_idle,
+	em_dev_test_status_complete,
+	em_dev_test_status_failed,
+        em_dev_test_status_max
+} em_dev_test_status;
+
+typedef struct{
+	int num_iteration[em_dev_test_type_max];
+	em_dev_test_type test_type[em_dev_test_type_max];
+	int enabled[em_dev_test_type_max];
+	int num_of_iteration_completed[em_dev_test_type_max];
+	int test_inprogress[em_dev_test_type_max];
+	em_dev_test_status test_status[em_dev_test_type_max];
+        em_haul_type_t haul_type;
+        em_freq_band_t freq_band;
+}em_dev_test_info;
 
 #ifndef SSL_KEY
 #if OPENSSL_VERSION_NUMBER < 0x30000000L

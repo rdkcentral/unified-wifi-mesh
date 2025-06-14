@@ -41,13 +41,16 @@
 #include "util.h"
 #include <cjson/cJSON.h>
 
+#include <string>
 #include <vector>
 #ifdef AL_SAP
 #include "al_service_access_point.h"
 #endif
 
 #define RETRY_SLEEP_INTERVAL_IN_MS 1000
-#define SOCKET_PATH "/tmp/ieee1905_tunnel"
+
+#define DATA_SOCKET_PATH "/tmp/al_data_socket"
+#define CONTROL_SOCKET_PATH "/tmp/al_control_socket"
 
 em_agent_t g_agent;
 const char *global_netid = "OneWifiMesh";
@@ -340,6 +343,7 @@ void em_agent_t::handle_btm_request_action_frame(em_bus_event_t *evt)
 	    printf("analyze_btm_request_action_frame failed\n");
     }
 }
+
 void em_agent_t::handle_recv_assoc_status(em_bus_event_t *event)
 {
     if (event == nullptr) {
@@ -361,24 +365,22 @@ void em_agent_t::handle_recv_assoc_status(em_bus_event_t *event)
     }
 }
 
-void em_agent_t::handle_recv_cce_ie(em_bus_event_t *event)
+void em_agent_t::handle_bss_info(em_bus_event_t *event)
 {
     if (event == nullptr) {
         em_printfout("NULL event!");
         return;
     }
-    const size_t expected_size = sizeof(wifi_bss_info_t);
-    if (event->data_len > expected_size) {
-        em_printfout("Expected event of size %d, got %d, not handling", expected_size, event->data_len);
-        return;
-    }
-    wifi_bss_info_t *bss_info = reinterpret_cast<wifi_bss_info_t *>(event->u.raw_buff);
-    bool freq_ok = (bss_info->freq > 0);
 
-    if (!freq_ok) {
-        em_printfout("Heard a CCE information element on invalid frequency (%d), not handling", bss_info->freq);
+    const size_t expected_size = sizeof(wifi_bss_info_t);
+    unsigned int len = event->data_len;
+
+    if (len % expected_size != 0) {
+        em_printfout("Expected event size divisible by %d, got %d, not handling", expected_size, event->data_len);
         return;
     }
+
+    wifi_bss_info_t *bss_info_buff = reinterpret_cast<wifi_bss_info_t *>(event->u.raw_buff);
 
     em_t *al_node = get_al_node();
     if (al_node == nullptr) {
@@ -386,9 +388,19 @@ void em_agent_t::handle_recv_cce_ie(em_bus_event_t *event)
         return;
     }
 
-    if (!al_node->m_ec_manager->handle_cce_ie(bss_info->freq)) {
-        em_printfout("EC manager failed to handle new frequency from a CCE IE!");
+    if (len == 0 || bss_info_buff == NULL) {
+        // Publish that no scan results contained a CCE IE
+        if (!al_node->m_ec_manager->handle_bss_info_event({})) {
+            em_printfout("EC manager failed to handle empty scan result!");
+        }
         return;
+    }
+
+    unsigned int bss_count = static_cast<unsigned int>(len / expected_size);
+    std::vector<wifi_bss_info_t> heard_bsses(bss_info_buff, bss_info_buff + bss_count);
+
+    if (!al_node->m_ec_manager->handle_bss_info_event(heard_bsses)) {
+        em_printfout("EC manager failed to handle a BSS info event!");
     }
 }
 
@@ -620,9 +632,62 @@ void em_agent_t::handle_channel_scan_params(em_bus_event_t *evt)
        printf("descriptor is null");
     }
 
-    if ((num = m_data_model.analyze_scan_request(evt, desc, &m_bus_hdl)) == 0) {
-	    printf("analyze scan request failed\n");
+    if (!send_scan_request((em_scan_params_t *)&evt->u.raw_buff, true)) {
+        printf("send_scan_request failed\n");
+        return;
     }
+}
+
+bool em_agent_t::send_scan_request(em_scan_params_t* scan_params, bool perform_fresh_scan, bool is_sta_vap){
+    unsigned i, j;
+    mac_addr_str_t radio_mac_str;
+    raw_data_t l_bus_data;
+    
+
+    std::string ruid_str = util::mac_to_string(scan_params->ruid);
+    em_printfout("Radio: %s Num of Op Classes: %d\n", ruid_str.c_str(), scan_params->num_op_classes);
+
+    channel_scan_request_t scan_data;
+    memset(&scan_data, 0, sizeof(channel_scan_request_t));
+
+    scan_data.perform_fresh_scan = perform_fresh_scan;
+    scan_data.num_radios = 1;
+
+    memcpy(scan_data.ruid, scan_params->ruid, sizeof(mac_address_t));
+
+    scan_data.num_operating_classes = scan_params->num_op_classes;
+    for (i = 0; i < scan_params->num_op_classes; i++) {
+        scan_data.operating_classes[i].operating_class = scan_params->op_class[i].op_class;
+        scan_data.operating_classes[i].num_channels = scan_params->op_class[i].num_channels;
+        printf("Op Class: %d ", scan_params->op_class[i].op_class);
+        printf("Channels: ");
+        for (j = 0; j < scan_params->op_class[i].num_channels; j++) {
+            scan_data.operating_classes[i].channels[j] = scan_params->op_class[i].channels[j];
+            printf("%d ", scan_params->op_class[i].channels[j]);
+        }
+        printf("\n");
+    }
+
+    l_bus_data.data_type = bus_data_type_bytes;
+    l_bus_data.raw_data.bytes = (void *)&scan_data;
+    l_bus_data.raw_data_len = sizeof(channel_scan_request_t);
+
+    wifi_bus_desc_t *desc;
+
+    if((desc = get_bus_descriptor()) == NULL) {
+       printf("descriptor is null");
+       return false;
+    }
+
+    std::string path = (is_sta_vap) ? WIFI_EC_SEND_TRIG_STA_SCAN : WIFI_EM_CHANNEL_SCAN_REQUEST;
+    em_printfout("Sending channel scan request to: %s", path.c_str());
+
+    if (desc->bus_set_fn(&m_bus_hdl, path.c_str(), &l_bus_data) != 0) {
+        em_printfout("Failed to send channel scan request to bus");
+        return false;
+    }
+    em_printfout("Sent channel scan request to bus\n");
+    return true;
 }
 
 void em_agent_t::handle_set_policy(em_bus_event_t *evt)
@@ -754,15 +819,16 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
             handle_recv_gas_frame(evt);
             break;
 
-        case em_bus_event_type_cce_ie:
-            handle_recv_cce_ie(evt);
-            break;
-        
         case em_bus_event_type_assoc_status:
             handle_recv_assoc_status(evt);
+            break;
 
         case em_bus_event_type_ap_metrics_report:
             handle_ap_metrics_report(evt);
+            break;
+
+        case em_bus_event_type_bss_info:
+            handle_bss_info(evt);
             break;
 
         default:
@@ -972,7 +1038,7 @@ void em_agent_t::input_listener()
         return;
     }
 
-    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.ChannelScanReport", (void *)&em_agent_t::channel_scan_cb, NULL, 0) != 0) {
+    if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_EM_CHANNEL_SCAN_REPORT, (void *)&em_agent_t::channel_scan_cb, NULL, 0) != 0) {
         printf("%s:%d bus get failed\n", __func__, __LINE__);
         return;
     }
@@ -982,22 +1048,14 @@ void em_agent_t::input_listener()
         return;
     }
 
-    for (int i = 0; i < MAX_NUM_RADIOS; i++) {
-        // OneWifi bus path is 1-indexed, here
-        std::string cce_ind_path = "Device.WiFi.Radio." + std::to_string(i + 1) + ".CCEInd";
-        em_printfout("Attempting to subscribe to '%s'", cce_ind_path.c_str());
-        if (desc->bus_event_subs_fn(&m_bus_hdl, cce_ind_path.c_str(), reinterpret_cast<void *>(&em_agent_t::cce_ie_cb), nullptr, 0) != 0) {
-            // Failing to subscribe to this path is OK, as in the context of DPP,
-            // an Enrollee has a default channel list defined by the EasyConnect spec,
-            // as well as a list of channels defined in its' DPP URI. So, just log and move on.
-            em_printfout("Failed to subscribe to '%s', dynamic DPP channel list generation unavailable.", cce_ind_path.c_str());
-            continue;
-        }
-    }
-
     if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.AssociationStatus", reinterpret_cast<void *>(&em_agent_t::association_status_cb), nullptr, 0) != 0) {
         em_printfout("Failed to subscribe to 'Device.WiFi.EM.AssociationStatus'");
         return;
+    }
+
+    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EC.BSSInfo", reinterpret_cast<void *>(&em_agent_t::bss_info_cb), nullptr, 0) != 0) {
+        em_printfout("Failed to subscribe to 'Device.WiFi.EC.BSSInfo', dynamic DPP channel list for Reconfiguration Announcement is not available");
+        // This is fine, not a fatal error
     }
 
     if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.APMetricsReport", (void *)&em_agent_t::ap_metrics_report_cb, NULL, 0) != 0) {
@@ -1008,6 +1066,16 @@ void em_agent_t::input_listener()
     io(NULL);
 }
 
+int em_agent_t::bss_info_cb(char *event_name, raw_data_t *data, void *userData)
+{
+    if (data == nullptr) {
+        em_printfout("NULL data from OneWifi callback!");
+        return -1;
+    }
+    g_agent.io_process(em_bus_event_type_bss_info, reinterpret_cast<unsigned char *>(data->raw_data.bytes), data->raw_data_len);
+    return 1;
+}
+
 int em_agent_t::association_status_cb(char *event_name, raw_data_t *data, void *userData)
 {
     if (data == nullptr) {
@@ -1016,17 +1084,6 @@ int em_agent_t::association_status_cb(char *event_name, raw_data_t *data, void *
     }
     g_agent.io_process(em_bus_event_type_assoc_status, reinterpret_cast<unsigned char *>(data->raw_data.bytes), data->raw_data_len);
     return 1;
-}
-
-int em_agent_t::cce_ie_cb(char *event_name, raw_data_t *data, void *userData)
-{
-    if (data == nullptr) {
-        em_printfout("NULL data from OneWifi callback!");
-        return -1;
-    }
-    g_agent.io_process(em_bus_event_type_cce_ie, reinterpret_cast<unsigned char *>(data->raw_data.bytes), data->raw_data_len);
-    return 1;
-
 }
 
 int em_agent_t::channel_scan_cb(char *event_name, raw_data_t *data, void *userData)
@@ -1222,6 +1279,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
     mac_address_t client_mac;
     bool found = false;
     em_string_t al_mac_str;
+    em_bss_info_t *em_bss = NULL;
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
     if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
@@ -1394,11 +1452,20 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             }
 
             dm_easy_mesh_t::macbytes_to_string(bss_mac, mac_str1);
-            if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
-                printf("%s:%d: Received client cap query, found existing BSS:%s\n", __func__, __LINE__, mac_str1);
-            } else {
-                printf("%s:%d: Could not find em for em_msg_type_client_cap_query\n", __func__, __LINE__);
-                return NULL;
+
+            em = static_cast<em_t *> (hash_map_get_first(m_em_map));
+            while (em != NULL) {
+                dm = em->get_data_model();
+                em_bss = dm->get_bss_info_with_mac(bss_mac);
+                if (memcmp(em_bss->ruid.mac, em->get_radio_interface_mac(), sizeof(bssid_t)) == 0) {
+                    printf("%s:%d: Received client cap query: found radio for bss:%s\n", __func__, __LINE__, mac_str1);
+                    break;
+                }
+                em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
+            }
+            if(em == NULL){
+                dm_easy_mesh_t::macbytes_to_string(bss_mac, mac_str2);
+                printf("%s:%d: Received client cap query: Could not find radio:%s of bss:%s\n", __func__, __LINE__, mac_str1, mac_str2);
             }
             break;
 
@@ -1472,12 +1539,9 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
         case em_msg_type_channel_pref_rprt:
         case em_msg_type_1905_ack:
         case em_msg_type_map_policy_config_req:
-            printf(" rcvd em_msg_type_map_policy_config_req\n");
-        
             em = (em_t *)hash_map_get_first(m_em_map);
             while (em != NULL) {
                 if ((em->is_al_interface_em() == false)) {
-                    printf(" em found for policy cfg\n");
                     break;
                 }
                 em = (em_t *)hash_map_get_next(m_em_map, em);
@@ -1498,7 +1562,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             break;
         default:
             printf("%s:%d: Frame: %d not handled in agent\n", __func__, __LINE__, htons(cmdu->type));
-            assert(0);
+            em = NULL;
             break;	
 	}
 
@@ -1624,7 +1688,6 @@ bool em_agent_t::try_start_dpp_onboarding()  {
     }
     printf("%s:%d: DPP bootstrapping data generated successfully\n", __func__, __LINE__);
 
-    // Should move after channel list is built
     set_disconnected_steady_state();
     
     if (!al_node->get_ec_mgr().enrollee_start_onboarding(false, &ec_data)){
@@ -1647,7 +1710,7 @@ em_agent_t::~em_agent_t()
 #ifdef AL_SAP
 AlServiceAccessPoint* em_agent_t::al_sap_register()
 {
-    AlServiceAccessPoint* sap = new AlServiceAccessPoint(SOCKET_PATH);
+    AlServiceAccessPoint* sap = new AlServiceAccessPoint(DATA_SOCKET_PATH, CONTROL_SOCKET_PATH);
 
     AlServiceRegistrationRequest registrationRequest(ServiceOperation::SOP_ENABLE, ServiceType::SAP_TUNNEL_CLIENT);
     sap->serviceAccessPointRegistrationRequest(registrationRequest);

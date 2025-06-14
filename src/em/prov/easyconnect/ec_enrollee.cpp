@@ -8,9 +8,9 @@
 #include <unistd.h>
 
 ec_enrollee_t::ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame, get_backhaul_sta_info_func get_bsta_info, 
-                             start_stop_clist_build_func start_stop_clist_build_fn, bsta_connect_func bsta_connect_fn)
+                             trigger_sta_scan_func trigger_sta_scan_fn, bsta_connect_func bsta_connect_fn)
                             : m_mac_addr(mac_addr), m_send_action_frame(send_action_frame), m_get_bsta_info(get_bsta_info), 
-                              m_start_stop_clist_build_fn(start_stop_clist_build_fn), m_bsta_connect_fn(bsta_connect_fn), m_scanned_channels_map{}
+                              m_trigger_sta_scan_fn(trigger_sta_scan_fn), m_bsta_connect_fn(bsta_connect_fn), m_scanned_channels_map{}
 {
 }
 
@@ -66,15 +66,92 @@ bool ec_enrollee_t::start_onboarding(bool do_reconfig, ec_data_t* boot_data)
         return false;
     }
 
-    for (size_t i = 0; i < std::size(boot_data->ec_freqs); i++) {
-        if (boot_data->ec_freqs[i] == 0) continue;
-        m_pres_announcement_freqs.insert(boot_data->ec_freqs[i]);
-    }
+    generate_bss_channel_list(do_reconfig);
 
     // Begin send presence announcements thread.
     m_send_pres_announcement_thread = std::thread(&ec_enrollee_t::send_presence_announcement_frames, this);
     m_is_onboarding = true;
     return true;
+}
+
+void ec_enrollee_t::generate_bss_channel_list(bool is_reconfig_list){
+    // EasyConnect 6.2.2:  Generation of Channel List for Presence Announcement (EC)
+    // EasyConnect 6.5.2:  DPP Reconfiguration Announcement (EC-Reconfig)
+
+    auto& freq_list = is_reconfig_list ? m_recnf_announcement_freqs : m_pres_announcement_freqs; 
+
+
+    // Clear existing channel list
+    freq_list.erase(freq_list.begin(), freq_list.end());
+    
+
+    // This step is not present in EC-Reconfig for some reason (likely because of the SSID check)
+    if (!is_reconfig_list) {
+        /* EC #1
+
+        If the enrollee includes a list of global operating class/channel pairs in its DPP URI, 
+        add all those channels to the channel list excluding channels for which unsolicited transmissions 
+        are prohibited by local regulations (e.g., channels subject to Dynamic Frequency Selection);
+        */
+
+        for (size_t i = 0; i < std::size(m_boot_data().ec_freqs); i++) {
+            if (m_boot_data().ec_freqs[i] == 0) continue;
+            freq_list.insert(m_boot_data().ec_freqs[i]);
+        }
+    }
+
+
+    /* EC #2 and EC-Reconfig #1
+
+    Select preferred Presence Announcement channels on which to send a DPP Presence Announcement frame 
+    to the broadcast address. For interoperability purposes, the preferred channel shall be one from each 
+    of the following bands, as supported by the Enrollee:
+
+    - 2.4 GHz: Channel 6 (2.437 GHz)
+    - 5 GHz: Channel 44 (5.220 GHz) ...
+    - 60 GHz: Channel 2 (60.48 GHz)
+    - Sub-1 GHz: Channel 37 (920.5 MHz) ... otherwise Channel 1 (863.5 MHz) ...
+    Add the preferred Presence Announcement channels to the channel list;
+    */
+
+    freq_list.insert(2437); // 2.4 GHz: Channel 6 (2.437 GHz)
+    freq_list.insert(5220); // 5 GHz: Channel 44 (5.220 GHz)
+    freq_list.insert(60480); // 60 GHz: Channel 2 (60.48 GHz)
+    freq_list.insert(920); // 920 MHz: Channel 37 
+
+    /* EC-Reconfig #2
+
+    For each channel on which the Enrollee detects the SSID for which it is currently configured, 
+    add to the channel list;
+    */
+    /* EC #3 and EC-Reconfig #3
+
+    Scan all supported bands and add each channel on which an AP is advertising 
+    the Configurator Connectivity element (CCE, Section 8.5.2) to the channel list;
+    */
+    // Both checks happen when the scan results are returned
+    if (!m_trigger_sta_scan_fn()){
+        em_printfout("Failed to start channel scan for DPP Channel List Generation");
+        return;
+    }
+
+    // Wait to recieve scan results
+    bool did_recieve_scan = ec_util::interruptible_sleep(std::chrono::seconds(3), [this]() -> bool {
+        return m_received_scan_results.load();
+    });
+
+    if (did_recieve_scan) {
+        em_printfout("Recieved scan results!");
+    } else {
+        em_printfout("Timed out while trying to recieve scan results, continuing either way...");
+    }
+
+    /* EC #4 and EC-Reconfig #4
+    
+    Remove any second or subsequent occurrence of duplicate channels in the channel list.
+    */
+    // This is done by using a set, which automatically handles duplicates.
+    
 }
 
 void ec_enrollee_t::send_presence_announcement_frames()
@@ -88,18 +165,6 @@ void ec_enrollee_t::send_presence_announcement_frames()
         return;
     }
 
-    /**
-     * Sleep every 100ms until we receive a DPP Authentication Request frame or the duration expires.
-     */
-    auto interruptible_sleep = [this](auto duration) {
-        auto start = std::chrono::steady_clock::now();
-        while (!m_received_auth_frame.load() && 
-              std::chrono::steady_clock::now() - start < duration) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        return !m_received_auth_frame.load();
-    };
-
     uint32_t current_freq = 0;
 
     while (!m_received_auth_frame.load()) {
@@ -111,9 +176,15 @@ void ec_enrollee_t::send_presence_announcement_frames()
             // specified in Section 6.2.2.
             attempts = 0;
             dwell = 2000;
-            if (!interruptible_sleep(std::chrono::seconds(5))) {
+
+            if (!ec_util::interruptible_sleep(std::chrono::seconds(5), [this]() -> bool {
+                return m_received_auth_frame.load();
+            })) {
                 break;
             }
+
+            // Generate new channel list
+            generate_bss_channel_list(false);
         }
 
         for (const auto& freq : m_pres_announcement_freqs) {
@@ -131,7 +202,9 @@ void ec_enrollee_t::send_presence_announcement_frames()
             current_freq = freq;
 
             // Wait `dwell` before moving to next channel.
-            if (!interruptible_sleep(std::chrono::milliseconds(dwell))) {
+            if (!ec_util::interruptible_sleep(std::chrono::milliseconds(dwell), [this]() -> bool {
+                return m_received_auth_frame.load();
+            })) {
                 break;
             }
         }
@@ -144,7 +217,9 @@ void ec_enrollee_t::send_presence_announcement_frames()
         attempts++;
         dwell *= 2;
         
-        if (!interruptible_sleep(std::chrono::seconds(30))) {
+        if (!ec_util::interruptible_sleep(std::chrono::seconds(30), [this]() -> bool {
+            return m_received_auth_frame.load();
+        })) {
             break;
         }
     }
@@ -152,6 +227,320 @@ void ec_enrollee_t::send_presence_announcement_frames()
     m_selected_freq = current_freq;
 
     free(frame);
+}
+
+void ec_enrollee_t::send_reconfiguration_announcement_frames()
+{
+    // 2 seconds
+    constexpr uint32_t dwell = 2000;
+    uint32_t attempts = 0;
+    auto [frame, frame_len] = create_recfg_presence_announcement();
+
+    if (frame == nullptr || frame_len == 0) {
+        em_printfout("Failed to create DPP Reconfiguration Announcement frame");
+        return;
+    }
+
+    uint32_t current_freq = 0;
+
+    while (!m_received_recfg_auth_frame.load()) {
+
+        if (attempts >= 2) {
+            // EasyConnect 6.5.2
+            // If the Enrollee cycles through the DPP Reconfiguration Announcement procedure two times without receipt of a valid
+            // DPP Reconfiguration Authentication Request frame, it shall regenerate the channel list using the steps above and 
+            // resume the Reconfiguration Announcement procedure.
+            attempts = 0;
+            
+            // Generate new channel list
+            generate_bss_channel_list(true);
+        }
+
+        for (const auto& freq : m_recnf_announcement_freqs) {
+            // EasyConnect 6.5.2
+            // the Enrollee selects a channel from the channel list,
+            // sends a DPP Reconfiguration Announcement frame and waits for two seconds for a DPP Reconfiguration Authentication
+            // Request frame.
+
+            if (!m_send_action_frame(const_cast<uint8_t*>(BROADCAST_MAC_ADDR), frame, frame_len, freq, dwell)) {
+                em_printfout("Failed to send DPP Reconfiguration Announcement frame (broadcast) on freq %d", freq);
+            }
+            current_freq = freq;
+        }
+        // EasyConnect 6.5.2
+        // If a valid DPP Reconfiguration Authentication Request frame is not received, it repeats this procedure for
+        // the next channel in the channel list. When all channels have been exhausted, it pauses for at least 30 seconds before
+        // repeating the announcement procedure.
+
+        if (!ec_util::interruptible_sleep(std::chrono::seconds(30), [this]() -> bool {
+            return m_received_recfg_auth_frame.load();
+        })) {
+            break;
+        }
+    }
+
+    m_selected_freq = current_freq;
+    free(frame);
+}
+
+bool ec_enrollee_t::handle_recfg_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETH_ALEN])
+{
+    if (!frame) {
+        em_printfout("Reconfiguration Authentication Request frame is nullptr");
+        return false;
+    }
+    // Cease reconfiguration announcements
+    m_received_recfg_auth_frame.store(true);
+    if (m_send_recfg_announcement_thread.joinable()) m_send_recfg_announcement_thread.join();
+    em_printfout("Received a Reconfiguration Authentication request, stopping Reconfiguration Announcements");
+
+    size_t attrs_len = len - EC_FRAME_BASE_SIZE;
+
+    auto trans_id_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_trans_id);
+    ASSERT_OPT_HAS_VALUE(trans_id_attr, false, "%s:%d: No transaction ID attribute found in Reconfiguration Authentication Request frame\n", __func__, __LINE__);
+    // Store the transaction ID issued to us
+    m_eph_ctx().transaction_id = static_cast<uint8_t>(trans_id_attr->data[0]);
+
+    auto protocol_version_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_proto_version);
+    ASSERT_OPT_HAS_VALUE(protocol_version_attr, false, "%s:%d: No protocol version attribute found in Reconfiguration Authentication Request frame\n", __func__, __LINE__);
+
+    auto c_connector_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_dpp_connector);
+    ASSERT_OPT_HAS_VALUE(c_connector_attr, false, "%s:%d: No DPP Connector attribute found in Reconfiguration Authentication Request frame\n", __func__, __LINE__);
+
+    auto c_nonce_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_config_nonce);
+    ASSERT_OPT_HAS_VALUE(c_nonce_attr, false, "%s:%d: No configuration nonce attribute found in Reconfiguration Authentication Request frame\n", __func__, __LINE__);
+
+    // EasyConnect 6.5.4:
+    // When the Enrollee receives a DPP Reconfiguration Authentication Request frame, it verifies that the protocol version is 2
+    // or higher
+    uint8_t dpp_version = static_cast<uint8_t>(protocol_version_attr->data[0]);
+    if (dpp_version < 2) {
+        em_printfout("DPP Version '%d' not supported, must be >= 2", dpp_version);
+        return false;
+    }
+
+    // Ensure c-connector is valid and parsable
+    auto payload = ec_crypto::get_jws_payload(std::string(reinterpret_cast<const char *>(c_connector_attr->data), c_connector_attr->length).c_str());
+    ASSERT_OPT_HAS_VALUE(payload, false, "%s:%d: Failed to split and decode c-connector from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
+
+    cJSON *c_connector_version = cJSON_GetObjectItem(payload.value(), "version");
+    ASSERT_NOT_NULL(c_connector_version, false, "%s:%d: No version in c-connector from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
+
+    if (c_connector_version->valueint != dpp_version) {
+        em_printfout("DPP Version mismatch in c-connector, expected %d, got %d", dpp_version, c_connector_version->valueint);
+        return false;
+    }
+
+    // Ensure C-Connector is signed with the C-sign-key whose hash was indicated in the Reconfiguration Announcement frame
+    auto c_connector_raw_parts = ec_crypto::split_connector(std::string(reinterpret_cast<const char *>(c_connector_attr->data), c_connector_attr->length).c_str());
+    ASSERT_OPT_HAS_VALUE(c_connector_raw_parts, false, "%s:%d: Failed to split c-connector raw parts from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
+
+    std::string signed_msg = c_connector_raw_parts.value()[0] + "." + c_connector_raw_parts.value()[1];
+    std::vector<uint8_t> signed_bytes(signed_msg.begin(), signed_msg.end());
+    std::optional<std::vector<uint8_t>> sig_bytes = em_crypto_t::base64url_decode(c_connector_raw_parts.value()[2]);
+    ASSERT_OPT_HAS_VALUE(sig_bytes, false, "%s:%d: Failed to decode signature from c-connector in Reconfiguration Authentication Request frame\n", __func__, __LINE__);
+
+    if (!em_crypto_t::verify_signature(signed_bytes, sig_bytes.value(), m_c_ctx.C_signing_key, EVP_sha256())) {
+        em_printfout("Signature verification of c-connector failed");
+        return false;
+    }
+
+    // Final verification: ensure netRole is "configurator"
+    cJSON *net_role = cJSON_GetObjectItem(payload.value(), "netRole");
+    ASSERT_NOT_NULL(net_role, false, "%s:%d: No netRole in DPP Connector JSON from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
+    if (net_role->type != cJSON_String || strcmp(net_role->valuestring, "configurator") != 0) {
+        em_printfout("Invalid netRole in DPP Connector JSON from Reconfiguration Authentication Request frame, expected 'configurator', got '%s'", net_role->valuestring);
+        return false;
+    }
+
+    // Now response generation work can begin
+
+    // Generate new keypair P_R, p_R
+    auto [p_R, P_R] = ec_crypto::generate_proto_keypair(m_c_ctx);
+    if (P_R == nullptr || p_R == nullptr) {
+        em_printfout("Failed to generate new protocol keypair P_R, p_R");
+        return false;
+    }
+
+    BN_free(m_eph_ctx().priv_resp_proto_key);
+    EC_POINT_free(m_eph_ctx().public_resp_proto_key);
+    m_eph_ctx().priv_resp_proto_key = const_cast<BIGNUM *>(p_R);
+    m_eph_ctx().public_resp_proto_key = const_cast<EC_POINT*>(P_R);
+
+
+    // Generate new E-Nonce
+    ec_crypto::rand_zero(m_eph_ctx().e_nonce, m_c_ctx.nonce_len);
+    if (RAND_bytes(m_eph_ctx().e_nonce, m_c_ctx.nonce_len) != 1) {
+        em_printfout("Failed to generate E-Nonce");
+        return false;
+    }
+
+    em_printfout("E-Nonce:\n");
+    util::print_hex_dump(m_c_ctx.nonce_len, m_eph_ctx().e_nonce);
+
+    // Store new C-Nonce
+    ec_crypto::rand_zero(m_eph_ctx().c_nonce, m_c_ctx.nonce_len);
+    memcpy(m_eph_ctx().c_nonce, c_nonce_attr->data, c_nonce_attr->length);
+
+
+    // Concatenate C-nonce and E-nonce to be used as salt for HKDF
+    std::vector<uint8_t> salt = ec_crypto::concat_nonces({
+        std::vector<uint8_t>(m_eph_ctx().c_nonce, m_eph_ctx().c_nonce + m_c_ctx.nonce_len),
+        std::vector<uint8_t>(m_eph_ctx().e_nonce, m_eph_ctx().e_nonce + m_c_ctx.nonce_len)
+    });
+
+    if (salt.empty()) {
+        em_printfout("Failed to concatenate C-Nonce and E-Nonce for HKDF");
+        return false;
+    }
+
+    // Extract C_I (C-Connector netAccessKey, public)
+    cJSON *net_access_key = cJSON_GetObjectItem(payload.value(), "netAccessKey");
+    ASSERT_NOT_NULL(net_access_key, false, "%s:%d: No netAccessKey in DPP Connector JSON from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
+    EC_POINT *C_I = ec_crypto::decode_ec_point_from_connector_netaccesskey(m_c_ctx, net_access_key);
+    ASSERT_NOT_NULL(C_I, false, "%s:%d: Failed to decode C-Connector netAccessKey from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
+
+
+    // Compute M = (c_R + p_R) * C_I
+    BN_free(m_eph_ctx().m);
+    BIGNUM *sum = BN_new();
+    BIGNUM *c_R = em_crypto_t::get_priv_key_bn(m_c_ctx.net_access_key);
+    if (c_R == nullptr) {
+        em_printfout("Failed to extract c_R");
+        BN_free(sum);
+        EC_POINT_free(C_I);
+        return false;
+    }
+
+    // (c_R + p_R)
+    if (!BN_mod_add(sum, c_R, m_eph_ctx().priv_resp_proto_key, m_c_ctx.prime, m_c_ctx.bn_ctx)) {
+        em_printfout("Failed to compute c_R + p_R");
+        BN_free(sum);
+        BN_free(c_R);
+        EC_POINT_free(C_I);
+        return false;
+    }
+
+    // sum * C_I = M.x
+    m_eph_ctx().m = ec_crypto::compute_ec_ss_x(m_c_ctx, sum, C_I);
+    BN_free(sum);
+    BN_free(c_R);
+    EC_POINT_free(C_I);
+    ASSERT_NOT_NULL(m_eph_ctx().m, false, "%s:%d: Failed to compute M.x from (c_R + p_R) * C_I\n", __func__, __LINE__);
+
+    const BIGNUM * bn_inputs[] = { m_eph_ctx().m };
+    // Compute ke = HKDF(C-nonce | E-nonce, "dpp reconfig key", M.x)
+    if (ec_crypto::compute_hkdf_key(m_c_ctx, m_eph_ctx().ke, static_cast<size_t>(m_c_ctx.digest_len), "dpp reconfig key", bn_inputs, 1, salt.data(), salt.size()) == 0) {
+        em_printfout("Failed to compute ke for Reconfiguration");
+        return false;
+    }
+
+    // Now with new shared secret M and authentication key ke, we can create the Reconfiguration Response frame
+
+    auto [response_frame, response_frame_len] = create_recfg_auth_response(m_eph_ctx().transaction_id, dpp_version);
+    if (response_frame == nullptr || response_frame_len == 0) {
+        em_printfout("Failed to create Reconfiguration Authentication Response frame");
+        return false;
+    }
+
+    // EasyConnect 6.5.4:
+    // Upon sending the frame, it shall set a timer for five seconds to wait for a
+    // DPP Reconfiguration Authentication Confirm frame (5 second dwell)
+    bool sent = m_send_action_frame(src_mac, reinterpret_cast<uint8_t*>(response_frame), response_frame_len, m_selected_freq, 5);
+    free(response_frame);
+    return sent;
+}
+
+bool ec_enrollee_t::handle_recfg_auth_confirm(ec_frame_t *frame, size_t len, uint8_t src_mac[ETH_ALEN])
+{
+    if (frame == nullptr) {
+        em_printfout("Reconfiguration Authentication Confirm frame is nullptr");
+        return false;
+    }
+
+    size_t attrs_len = len - EC_FRAME_BASE_SIZE;
+
+    auto status_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_dpp_status);
+    ASSERT_OPT_HAS_VALUE(status_attr, false, "%s:%d: No DPP Status attribute found in Reconfiguration Authentication Confirm frame\n", __func__, __LINE__);
+
+    const auto restart_recfg_announcement = [this]() -> void {
+        ec_crypto::free_ephemeral_context(&m_c_ctx.eph_ctx, m_c_ctx.nonce_len, m_c_ctx.digest_len);
+        m_received_recfg_auth_frame.store(false);
+        m_send_recfg_announcement_thread = std::thread(&ec_enrollee_t::send_reconfiguration_announcement_frames, this);
+    };
+
+    // EasyConnect 6.5.5:
+    // If the received DPP Status field value is any other than STATUS_OK, the Enrollee may revert to transmitting DPP
+    // Reconfiguration Announcement frames.
+    ec_status_code_t status_code = static_cast<ec_status_code_t>(status_attr->data[0]);
+    if (status_code != DPP_STATUS_OK) {
+        em_printfout("Reconfiguration Authentication Confirm frame status is %d, reverting to transmitting Reconfiguration Announcement frames", status_code);
+        restart_recfg_announcement();
+        return true;
+    }
+
+    auto wrapped_data_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_wrapped_data);
+    ASSERT_OPT_HAS_VALUE(wrapped_data_attr, false, "%s:%d: No wrapped data attribute found in Reconfiguration Authentication Confirm frame\n", __func__, __LINE__);
+
+    // Upon receipt of the DPP Reconfiguration Authentication Confirm frame, the Enrollee attempts to decrypt the encrypted payload.
+    // Note: spec, again, doesn't specify what to do if decryption fails, so we assume it to mean restart Recfg Announcements
+    auto [unwrapped_data, unwrapped_len] = ec_util::unwrap_wrapped_attrib(*wrapped_data_attr, frame, true, m_eph_ctx().ke);
+    if (unwrapped_data == nullptr || unwrapped_len == 0) {
+        em_printfout("Failed to unwrap wrapped data attribute in Reconfiguration Authentication Confirm frame with ke, restarting Reconfiguration Announcement frames");
+        restart_recfg_announcement();
+        return false;
+    }
+
+    // Verify transaction ID matches
+    auto trans_id_attr = ec_util::get_attrib(unwrapped_data, unwrapped_len, ec_attrib_id_trans_id);
+    ASSERT_OPT_HAS_VALUE_FREE(trans_id_attr, false, unwrapped_data, "%s:%d: No transaction ID found in unwrapped data of Reconfiguration Authentication Confirm frame\n", __func__, __LINE__);
+    if (static_cast<uint8_t>(trans_id_attr->data[0]) != m_eph_ctx().transaction_id) {
+        em_printfout("Mis-matched transaction ID in Reconfiguration Authentication Confirm frame, expected %d, got %d", m_eph_ctx().transaction_id, static_cast<uint8_t>(trans_id_attr->data[0]));
+        free(unwrapped_data);
+        restart_recfg_announcement();
+        return false;
+    }
+
+    // Verify nonces
+    auto c_nonce_attr = ec_util::get_attrib(unwrapped_data, unwrapped_len, ec_attrib_id_config_nonce);
+    ASSERT_OPT_HAS_VALUE_FREE(c_nonce_attr, false, unwrapped_data, "%s:%d: No C-Nonce attribute found in unwrapped data of Reconfiguration Authentication Confirm frame\n", __func__, __LINE__);
+
+    auto e_nonce_attr = ec_util::get_attrib(unwrapped_data, unwrapped_len, ec_attrib_id_enrollee_nonce);
+    ASSERT_OPT_HAS_VALUE_FREE(e_nonce_attr, false, unwrapped_data, "%s:%d: No E-Nonce attribute found in unwrapped data of Reconfiguration Authentication Confirm frame\n", __func__, __LINE__);
+
+    if ((memcmp(c_nonce_attr->data, m_eph_ctx().c_nonce, m_c_ctx.nonce_len) != 0) || (memcmp(e_nonce_attr->data, m_eph_ctx().e_nonce, m_c_ctx.nonce_len) != 0)) {
+        em_printfout("Mismatched nonce(s) found in Reconfiguration Authentication Confirm frame, restarting Reconfiguration Announcement frames");
+        free(unwrapped_data);
+        restart_recfg_announcement();
+        return false;
+    }
+
+    auto version_attr = ec_util::get_attrib(unwrapped_data, unwrapped_len, ec_attrib_id_proto_version);
+    ASSERT_OPT_HAS_VALUE_FREE(version_attr, false, unwrapped_data, "%s:%d: No protocol version attribute found in unwrapped data of Reconfiguration Authentication Confirm frame\n", __func__, __LINE__);
+
+    if (static_cast<uint8_t>(version_attr->data[0]) < 2) {
+        em_printfout("DPP Version '%d' not supported for Reconfiguration", static_cast<uint8_t>(version_attr->data[0]));
+        free(unwrapped_data);
+        restart_recfg_announcement();
+        return false;
+    }
+
+    auto recfg_flags_attr = ec_util::get_attrib(unwrapped_data, unwrapped_len, ec_attrib_id_reconfig_flags);
+    ASSERT_OPT_HAS_VALUE_FREE(recfg_flags_attr, false, unwrapped_data, "%s:%d: No Reconfig-Flags attribute found in unwrapped data of Reconfiguration Authentication Confirm frame\n", __func__, __LINE__);
+
+    // If all's well, we can create and send a Configuration request
+    auto [config_request_frame, config_request_frame_len] = create_config_request(*reinterpret_cast<ec_dpp_reconfig_flags_t*>(recfg_flags_attr->data[0]));
+    if (config_request_frame == nullptr || config_request_frame_len == 0) {
+        em_printfout("Failed to create Configuration Request frame for Reconfiguration");
+        free(unwrapped_data);
+        restart_recfg_announcement();
+        return false;
+    }
+
+    bool sent = m_send_action_frame(src_mac, reinterpret_cast<uint8_t*>(config_request_frame), config_request_frame_len, m_selected_freq, 0);
+    free(config_request_frame);
+    free(unwrapped_data);
+    return sent;
 }
 
 bool ec_enrollee_t::handle_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
@@ -548,6 +937,11 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
     em_printfout("Enrollee de-serialized bSTA Configuration Object:\n%s", cjson_utils::stringify(bsta_configuration_object).c_str());
 
     cJSON *bsta_cred_obj = cJSON_GetObjectItem(bsta_configuration_object, "cred");
+    cJSON *signed_connector = cJSON_GetObjectItem(bsta_cred_obj, "signedConnector");
+    if (signed_connector) {
+        auto conn_str = cjson_utils::stringify(signed_connector);
+        m_eph_ctx().connector = strdup(conn_str.c_str());
+    }
     cJSON *bsta_discovery_obj = cJSON_GetObjectItem(bsta_configuration_object, "discovery");
     if (bsta_cred_obj == nullptr || bsta_discovery_obj == nullptr) {
         em_printfout("Incomplete bSTA Configuration object received");
@@ -565,6 +959,8 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
         cJSON_Delete(ieee1905_configuration_object);
         return false;
     }
+
+    m_configured_ssid = std::string(bsta_ssid->valuestring);
 
     cJSON *bsta_bssid = cJSON_GetObjectItem(bsta_discovery_obj, "BSSID");
     bssid_t bssid = {0};
@@ -1041,12 +1437,44 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_recfg_presence_announcement()
     return std::make_pair(reinterpret_cast<uint8_t *>(frame), EC_FRAME_BASE_SIZE + attribs_len);
 }
 
-std::pair<uint8_t *, size_t> ec_enrollee_t::create_recfg_auth_response(ec_status_code_t dpp_status)
+std::pair<uint8_t *, size_t> ec_enrollee_t::create_recfg_auth_response(uint8_t trans_id, uint8_t dpp_version)
 {
-    return std::pair<uint8_t *, size_t>();
+    ec_frame_t *frame = ec_util::alloc_frame(ec_frame_type_recfg_auth_rsp);
+    ASSERT_NOT_NULL(frame, {}, "%s:%d: Failed to allocate memory for frame\n", __func__, __LINE__);
+
+    // Encode P_R
+    auto encoded_P_R = ec_crypto::encode_ec_point(m_c_ctx, m_eph_ctx().public_resp_proto_key);
+    ASSERT_NOT_NULL_FREE(encoded_P_R, {}, frame, "%s:%d failed to encode responder protocol key\n", __func__, __LINE__);
+
+    // Create Conn Status obj
+    // Note: spec claims this must be a member of this frame, but doesn't indicate what DPP Status ought to be used
+    cJSON *conn_status_obj = create_dpp_connection_status_obj(DPP_STATUS_AUTH_FAILURE, m_configured_ssid);
+    ASSERT_NOT_NULL_FREE(conn_status_obj, {}, frame, "%s:%d: Failed to create connection status object\n", __func__, __LINE__);
+
+    size_t attribs_len = 0UL;
+    uint8_t *attribs = nullptr;
+
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_trans_id, trans_id);
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_proto_version, dpp_version);
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_dpp_connector, std::string(m_eph_ctx().connector));
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_enrollee_nonce, static_cast<uint16_t>(m_c_ctx.nonce_len), m_eph_ctx().e_nonce);
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_resp_proto_key, static_cast<uint16_t>(BN_num_bytes(m_c_ctx.prime) * 2), encoded_P_R);
+
+    // Wrapped data (k_e)
+    attribs = ec_util::add_wrapped_data_attr(frame, attribs, &attribs_len, true, m_eph_ctx().ke, [&]() {
+        uint8_t *wrap_attribs = nullptr;
+        size_t wrapped_len = 0UL;
+        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_config_nonce, static_cast<uint16_t>(m_c_ctx.nonce_len), m_eph_ctx().c_nonce);
+        wrap_attribs = ec_util::add_attrib(wrap_attribs, &wrapped_len, ec_attrib_id_conn_status, cjson_utils::stringify(conn_status_obj));
+        return std::make_pair(wrap_attribs, wrapped_len);
+    });
+
+    cJSON_Delete(conn_status_obj);
+
+    return std::make_pair(reinterpret_cast<uint8_t *>(frame), EC_FRAME_BASE_SIZE + attribs_len);
 }
 
-std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
+std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request(std::optional<ec_dpp_reconfig_flags_t> recfg_flags)
 {
     // EasyConnect 6.4.2 DPP Configuration Request
     // Regardless of whether the Initiator or Responder took the role of Configurator, the DPP Configuration protocol is always
@@ -1070,6 +1498,28 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
         return {};
     }
 
+    bool replace_key = false;
+    if (recfg_flags.has_value()) {
+        replace_key = (recfg_flags->connector_key == DPP_CONFIG_REPLACEKEY);
+    }
+
+    if (replace_key) {
+        em_printfout("Reconfiguration Flags CONFIG_REPLACEKEY set, generating new protocol keypair");
+        auto [p_R, P_R] = ec_crypto::generate_proto_keypair(m_c_ctx);
+        if (p_R == nullptr || P_R == nullptr) {
+            em_printfout("Failed to generate new proto keypair");
+            return {};
+        }
+        BN_free(m_eph_ctx().priv_resp_proto_key);
+        EC_POINT_free(m_eph_ctx().public_resp_proto_key);
+        m_eph_ctx().priv_resp_proto_key = const_cast<BIGNUM *>(p_R);
+        m_eph_ctx().public_resp_proto_key = const_cast<EC_POINT*>(P_R);
+        // Also set netAccessKey
+        auto [x, y] = ec_crypto::get_ec_x_y(m_c_ctx, m_eph_ctx().public_resp_proto_key);
+        m_c_ctx.net_access_key = em_crypto_t::create_ec_key_from_coordinates(ec_crypto::BN_to_vec(x), ec_crypto::BN_to_vec(y), ec_crypto::BN_to_vec(m_eph_ctx().priv_init_proto_key));
+        ASSERT_NOT_NULL(m_c_ctx.net_access_key, {}, "%s:%d: Failed to create netAccessKey from Respondor proto keypair\n", __func__, __LINE__);
+    }
+
     // EasyMesh R6 5.3.3
     // If an Enrollee Multi-AP Agent sends a DPP Configuration Request frame (see section 6.4.2 of [18] and Table 5), it shall:
     // - Include one DPP Configuration Request Object (see Table 5)
@@ -1084,7 +1534,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     if (gethostname(hostname, sizeof(hostname)) != 0) {
         em_printfout("`gethostname` failed, defaulting DPP Configuration Request object key \"name\" to \"Enrollee\"");
         static const char *default_name = "Enrollee";
-        strncpy(hostname, default_name, strlen(default_name));
+        strncpy(hostname, default_name, sizeof(hostname));
     }
     cJSON *name = cJSON_CreateString(hostname);
     if (!dpp_config_request_obj || !netRole || !wifi_tech) {
@@ -1119,10 +1569,13 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request()
     ec_gas_initial_request_frame_t *initial_req_frame = static_cast<ec_gas_initial_request_frame_t *> (frame);
     uint8_t *attribs = nullptr;
     size_t attribs_len = 0;
-    // Wrap e-nonce and config req obj(s) with k_e
+    // Wrap e-nonce, config req obj(s), and (optionally) new pub key with k_e
     attribs = ec_util::add_cfg_wrapped_data_attr(attribs, &attribs_len, false, m_eph_ctx().ke, [&](){
         size_t wrapped_len = 0;
         uint8_t* wrapped_attribs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, m_c_ctx.nonce_len, m_eph_ctx().e_nonce);
+        if (replace_key) {
+            wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_init_proto_key, static_cast<uint16_t>(BN_num_bytes(m_c_ctx.prime) * 2), ec_crypto::encode_ec_point(m_c_ctx, m_eph_ctx().public_resp_proto_key));
+        }
         wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_req_obj, cjson_utils::stringify(dpp_config_request_obj));
         return std::make_pair(wrapped_attribs, wrapped_len);
     });
@@ -1308,13 +1761,6 @@ ec_gas_comeback_request_frame_t *ec_enrollee_t::create_comeback_request(uint8_t 
     return reinterpret_cast<ec_gas_comeback_request_frame_t*>(frame);
 }
 
-bool ec_enrollee_t::add_presence_announcement_freq(unsigned int freq)
-{
-    m_pres_announcement_freqs.insert(static_cast<uint32_t>(freq));
-    em_printfout("Added %d to list of Presence Announcement frequencies", freq);
-    return true;
-}
-
 bool ec_enrollee_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
 {
     std::string bssid_str = util::mac_to_string(sta_data.bss_info.bssid);
@@ -1375,5 +1821,73 @@ bool ec_enrollee_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
     free(frame);
 
     
+    return true;
+}
+
+bool ec_enrollee_t::check_bss_info_has_cce(const wifi_bss_info_t& bss_info) {
+
+    auto is_cce_ie = [](const uint8_t *const ie, size_t ie_len) -> bool {
+        static const uint8_t OUI_WFA[3] = { 0x50, 0x6F, 0x9A };
+        static const uint8_t CCE_CONSTANT = 0x1E;
+        if (ie_len < 4)
+            return false;
+        return memcmp(ie, OUI_WFA, sizeof(OUI_WFA)) == 0 && *(ie + 3) == CCE_CONSTANT;
+    };
+
+
+    if (!bss_info.ie || bss_info.ie_len == 0) {
+        em_printfout("Invalid BSS info!\n");
+        return false;
+    }
+    uint8_t *ie_pos = const_cast<uint8_t*>(bss_info.ie);
+    size_t ie_len_remaining = bss_info.ie_len;
+    while (ie_len_remaining > 2) {
+        uint8_t id = ie_pos[0];
+        uint8_t ie_len = ie_pos[1];
+        if (static_cast<size_t>(ie_len + 2) > ie_len_remaining)
+            return false;
+        // 0xdd == Vendor IE
+        if (id == 0xdd && is_cce_ie(ie_pos + 2, ie_len)) {
+            return true;
+        }
+        // next IE
+        ie_len_remaining -= (ie_len + 2);
+        ie_pos += (ie_len + 2);
+    }
+    return false;
+}
+
+bool ec_enrollee_t::handle_bss_info_event(const std::vector<wifi_bss_info_t> &bss_info_list)
+{
+
+    bool did_handle_bss_info = false;
+    for (auto& bss_info : bss_info_list) {
+        /* EC EC 6.5.2 #2 
+        For each channel on which the Enrollee detects the SSID for which it is currently configured, add to the channel list;
+        */
+        if (m_configured_ssid.length() > 0 &&
+            std::string(bss_info.ssid) == m_configured_ssid) {
+            em_printfout("SSID %s heard on frequency %d, adding to Reconfiguration Announcement frequency list", bss_info.ssid, bss_info.freq);
+            m_recnf_announcement_freqs.insert(bss_info.freq);
+            did_handle_bss_info = true;
+        }
+
+        /* EC 6.2.2 #3 and EC 6.5.2 #3
+        3. Scan all supported bands and add each channel on which an AP is advertising the Configurator Connectivity IE
+        (section 8.5.2) to the channel list; then,
+        */
+        if (check_bss_info_has_cce(bss_info)){
+            em_printfout("CCE heard on frequency %d, adding to Presence Announcement frequency list", bss_info.freq);
+            m_pres_announcement_freqs.insert(bss_info.freq);
+            m_recnf_announcement_freqs.insert(bss_info.freq);
+            did_handle_bss_info = true;
+        }
+
+    }
+
+    if (!did_handle_bss_info) {
+        em_printfout("Did not recieve any relevant data in scan results...");
+    }
+
     return true;
 }

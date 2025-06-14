@@ -43,7 +43,7 @@ em_cmd_params_t spec_params[] = {
 	{.u = {.args = {0, {"", "", "", "", ""}, "none"}}},
 	{.u = {.args = {2, {"", "", "", "", ""}, "Reset.json"}}},
 	{.u = {.args = {1, {"", "", "", "", ""}, "Radiocap.json"}}},
-	{.u = {.args = {1, {"", "", "", "", ""}, "DevTest"}}},
+	{.u = {.args = {2, {"", "", "", "", ""}, "DevTest"}}},
 	{.u = {.args = {1, {"", "", "", "", ""}, "CfgRenew.json"}}},
 	{.u = {.args = {1, {"", "", "", "", ""}, "VapConfig.json"}}},
 	{.u = {.args = {2, {"", "", "", "", ""}, "Network"}}},
@@ -68,6 +68,7 @@ em_cmd_params_t spec_params[] = {
 	{.u = {.args = {2, {"", "", "", "", ""}, "ScanResult"}}},
     {.u = {.args = {2, {"", "", "", "", ""}, "MLDConfig"}}},
     {.u = {.args = {2, {"", "", "", "", ""}, "MLDReconfig"}}},
+	{.u = {.args = {2, {"", "", "", "", ""}, "DevTest.json"}}},
 	{.u = {.args = {0, {"", "", "", "", ""}, "max"}}},
 };
 
@@ -101,7 +102,8 @@ em_cmd_t em_cmd_cli_t::m_client_cmd_spec[] = {
     em_cmd_t(em_cmd_type_set_policy, spec_params[24]),
     em_cmd_t(em_cmd_type_get_mld_config, spec_params[26]),
     em_cmd_t(em_cmd_type_mld_reconfig, spec_params[27]),
-    em_cmd_t(em_cmd_type_max, spec_params[28]),
+    em_cmd_t(em_cmd_type_set_dev_test, spec_params[28]),
+    em_cmd_t(em_cmd_type_max, spec_params[29]),
 };
 
 int em_cmd_cli_t::get_edited_node(em_network_node_t *node, const char *header, char *buff)
@@ -188,7 +190,20 @@ int em_cmd_cli_t::execute(char *result)
         case em_cmd_type_dev_test:
             bevt->type = em_bus_event_type_dev_test;
             info = &bevt->u.subdoc;
-            snprintf(info->name, sizeof(info->name), "%s", param->u.args.fixed_args);
+	    strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args));
+            break;
+
+        case em_cmd_type_set_dev_test:
+            if ((node = m_cmd.m_param.net_node) == NULL) {
+                return -1;
+            }
+            bevt->type = em_bus_event_type_set_dev_test;
+	    info = &bevt->u.subdoc;
+            strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args));
+                        if ((bevt->data_len = get_edited_node(node, "SetDevTest", info->buff)) < 0) {
+                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
+                return -1;
+                        }
             break;
 
         case em_cmd_type_cfg_renew:

@@ -292,7 +292,7 @@ int em_capability_t::send_client_cap_query()
     }
 
     m_cap_query_tx_cnt++;
-    printf("%s:%d: Capability Query (%d) Send Successful for sta:%s\n", __func__, __LINE__, m_cap_query_tx_cnt, evt_param->u.args.args[1]);
+    printf("%s:%d: Capability Query (%d) Send Successful for sta:%s\n", __func__, __LINE__, m_cap_query_tx_cnt, evt_param->u.args.args[2]);
 
     return static_cast<int> (len);
 }

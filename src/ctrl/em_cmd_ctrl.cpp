@@ -50,6 +50,7 @@ int em_cmd_ctrl_t::execute(char *result)
 
     m_cmd.reset();
 
+
 	if ((lsock = get_listener_socket(em_service_type_ctrl)) < 0) {
 		printf("%s:%d: listener socket get failed, service:%d\n", __func__, __LINE__, get_svc());
         return -1;
