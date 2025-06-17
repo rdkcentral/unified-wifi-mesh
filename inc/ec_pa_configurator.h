@@ -19,6 +19,7 @@ public:
 	 * @param[in] mac_addr The MAC address of the device.
 	 * @param[in] send_chirp_notification The function to send a chirp notification via 1905.
 	 * @param[in] send_prox_encap_dpp_msg The function to send a proxied encapsulated DPP message via 1905.
+	 * @param[in] send_direct_encap_dpp_msg The function to send a direct encapsulated DPP message
 	 * @param[in] send_action_frame The function to send an 802.11 action frame.
 	 * @param[in] get_sta_info_func The function to get backhaul station information.
 	 * @param[in] ieee1905_info_func The function to get 1905 information.
@@ -30,6 +31,7 @@ public:
         std::string mac_addr,
         send_chirp_func send_chirp_notification,
         send_encap_dpp_func send_prox_encap_dpp_msg,
+		send_dir_encap_dpp_func send_direct_encap_dpp_msg,
         send_act_frame_func send_action_frame,
         get_backhaul_sta_info_func get_sta_info_func,
         get_1905_info_func ieee1905_info_func,
@@ -39,6 +41,7 @@ public:
             mac_addr,
             send_chirp_notification,
             send_prox_encap_dpp_msg,
+			send_direct_encap_dpp_msg,
             send_action_frame,
             get_sta_info_func,
             ieee1905_info_func,
@@ -166,6 +169,16 @@ public:
 	 * @return bool True if the message was processed successfully, false otherwise.
 	 */
 	bool process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) override;
+
+	/**
+	 * @brief Handle a Direct Encapsulated DPP Message (DPP Message TLV)
+	 *
+	 * @param[in] dpp_frame The frame parsed from the DPP Message TLV
+	 * @param[in] dpp_frame_len The length of the frame from the DPP Message TLV
+	 *
+	 * @return bool True if the frame was processed successfully, false otherwise.
+	 */
+	bool  process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len) override;
 
 	/**
 	 * @brief Handles a GAS Comeback Request frame
