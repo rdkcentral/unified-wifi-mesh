@@ -379,16 +379,25 @@ void em_mgr_t::nodes_listener()
                     // Original implementation expects whole ethernet frame
                     // not just CMDU, so we have to reconstruct it
                     std::vector<unsigned char> reconstructed_eth_frame;
-                    auto mac = sdu.getDestinationAlMacAddress();
+                    auto mac = sdu.getSourceAlMacAddress();
                     reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),mac.begin(),mac.end());
-                    mac = sdu.getSourceAlMacAddress();
+                    mac = sdu.getDestinationAlMacAddress();
                     reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),mac.begin(),mac.end());
 
                     reconstructed_eth_frame.push_back(0x89);
                     reconstructed_eth_frame.push_back(0x3A);
 
                     reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),payload.begin(),payload.end());
+#ifdef DEBUG_MODE
+                    printf("PP_DEBUG_PUSHING_FIRST_MAC_ADDR:  %02x:%02x:%02x:%02x:%02x:%02x\n",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+                    printf("PP_DEBUG_PUSHING_SECOND_MAC_ADDR:  %02x:%02x:%02x:%02x:%02x:%02x\n",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
 
+                    printf("PP_DEBUG_RECONSTRUCTED_ETH_FRAME: \t");
+                    for(int i =0 ; i < reconstructed_eth_frame.size(); ++i){
+                        printf(" %02x ",reconstructed_eth_frame[i]);
+                    }
+                    printf("\n");
+#endif
                     proto_process(reconstructed_eth_frame.data(), reconstructed_eth_frame.size(), em);
                 } catch (const AlServiceException& e) {
                     if (e.getPrimitiveError() == PrimitiveError::InvalidMessage) {

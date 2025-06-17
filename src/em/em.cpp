@@ -667,6 +667,14 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
         }
     }
 #ifdef AL_SAP
+#ifdef DEBUG_MODE
+    printf("PP_DEBUG_ORIGINAL_ETH_FRAME:\t");
+
+    for(int i = 0 ; i < len; ++i){
+        printf(" %02x ",buff[i]);
+    }
+    printf("\n");
+#endif
     auto ctrl_al = m_data_model->get_controller_interface_mac();
     auto agent_al = m_data_model->get_agent_al_interface_mac();
     bool is_colocated = (memcmp(ctrl_al, agent_al, ETH_ALEN) == 0);
@@ -691,7 +699,10 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     //override destination and source mac addresses
     sdu.setDestinationAlMacAddress({buff[0],buff[1],buff[2],buff[3],buff[4],buff[5]});
     sdu.setSourceAlMacAddress({buff[6],buff[7],buff[8],buff[9],buff[10],buff[11]});
-
+#ifdef DEBUG_MODE
+    printf("PP_DEBUG_SETTING_SDU_DESTINATION_MAC_ADDRESS: %02x:%02x:%02x:%02x:%02x:%02x\n",buff[0],buff[1],buff[2],buff[3],buff[4],buff[5]);
+    printf("PP_DEBUG_SETTING_SDU_SOURCE_MAC_ADDRESS: %02x:%02x:%02x:%02x:%02x:%02x\n",buff[6],buff[7],buff[8],buff[9],buff[10],buff[11]);
+#endif
     std::vector<unsigned char> payload;
     //TODO skip first 14 bytes as buffer is pure ethernet frame
     for (unsigned int i = 14; i < len; i++) {
