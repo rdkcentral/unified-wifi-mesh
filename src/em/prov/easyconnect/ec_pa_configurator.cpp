@@ -3,6 +3,12 @@
 #include "ec_util.h"
 #include "util.h"
 
+ec_pa_configurator_t::ec_pa_configurator_t(const std::string& mac_addr, ec_ops_t& ops)
+    : ec_configurator_t(mac_addr, ops)
+{
+    m_toggle_cce = ops.toggle_cce;
+}
+
 bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
     em_printfout("Recieved a DPP Presence Announcement Frame from '" MACSTRFMT "'\n", MAC2STR(src_mac));

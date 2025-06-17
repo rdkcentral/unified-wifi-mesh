@@ -7,11 +7,14 @@
 #include "cjson_util.h"
 #include <unistd.h>
 
-ec_enrollee_t::ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame, get_backhaul_sta_info_func get_bsta_info, 
-                             trigger_sta_scan_func trigger_sta_scan_fn, bsta_connect_func bsta_connect_fn)
-                            : m_mac_addr(mac_addr), m_send_action_frame(send_action_frame), m_get_bsta_info(get_bsta_info), 
-                              m_trigger_sta_scan_fn(trigger_sta_scan_fn), m_bsta_connect_fn(bsta_connect_fn), m_scanned_channels_map{}
+ec_enrollee_t::ec_enrollee_t(const std::string& mac_addr, ec_ops_t& ops)
+    : m_mac_addr(mac_addr)
 {
+    m_send_action_frame = ops.send_act_frame;
+    m_get_bsta_info = ops.get_backhaul_sta_info;
+    m_trigger_sta_scan_fn = ops.trigger_sta_scan;
+    m_bsta_connect_fn = ops.bsta_connect;
+    m_scanned_channels_map = {};
 }
 
 ec_enrollee_t::~ec_enrollee_t()
