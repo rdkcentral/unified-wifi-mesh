@@ -17,40 +17,11 @@ public:
 	 * It also handles the 1905 frames from the Controller and forwards them to the Enrollee.
 	 *
 	 * @param[in] mac_addr The MAC address of the device.
-	 * @param[in] send_chirp_notification The function to send a chirp notification via 1905.
-	 * @param[in] send_prox_encap_dpp_msg The function to send a proxied encapsulated DPP message via 1905.
-	 * @param[in] send_direct_encap_dpp_msg The function to send a direct encapsulated DPP message
-	 * @param[in] send_action_frame The function to send an 802.11 action frame.
-	 * @param[in] get_sta_info_func The function to get backhaul station information.
-	 * @param[in] ieee1905_info_func The function to get 1905 information.
-	 * @param[in] toggle_cce_fn The function to toggle the CCE (Centralized Control Entity).
+	 * @param ops Callbacks for this Configurator
 	 *
 	 * @note This constructor is part of the ec_pa_configurator_t class which extends ec_configurator_t.
 	 */
-	ec_pa_configurator_t(
-        std::string mac_addr,
-        send_chirp_func send_chirp_notification,
-        send_encap_dpp_func send_prox_encap_dpp_msg,
-		send_dir_encap_dpp_func send_direct_encap_dpp_msg,
-        send_act_frame_func send_action_frame,
-        get_backhaul_sta_info_func get_sta_info_func,
-        get_1905_info_func ieee1905_info_func,
-		get_fbss_info_func fbss_info_func,
-        toggle_cce_func toggle_cce_fn
-    ) : ec_configurator_t(
-            mac_addr,
-            send_chirp_notification,
-            send_prox_encap_dpp_msg,
-			send_direct_encap_dpp_msg,
-            send_action_frame,
-            get_sta_info_func,
-            ieee1905_info_func,
-			fbss_info_func,
-            {}
-        ),
-        m_toggle_cce(toggle_cce_fn) { }
-
-
+	ec_pa_configurator_t(const std::string& mac_addr, ec_ops_t& ops);
     
 	/**
 	 * @brief Handles a presence announcement 802.11 frame, performing the necessary actions and possibly passing to 1905.

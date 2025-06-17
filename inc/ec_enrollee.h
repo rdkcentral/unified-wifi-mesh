@@ -4,6 +4,7 @@
 #include "em_base.h"
 #include "ec_configurator.h"
 #include "ec_util.h"
+#include "ec_ops.h"
 
 #include <map>
 #include <unordered_map>
@@ -18,23 +19,14 @@ struct cJSON;
 class ec_enrollee_t {
 public:
 
-    
+
 	/**
-	 * @brief The EasyConnect Enrollee
-	 *
-	 * Broadcasts 802.11 presence announcements, handles 802.11 frames from Proxy Agents and sends 802.11 responses to Proxy Agents.
-	 *
-	 * @param[in] mac_addr The MAC address of the device.
-	 * @param[in] send_action_frame Callback for sending 802.11 action frames.
-	 * @param[in] get_bsta_info Callback for getting backhaul STA info, used for building DPP Configuration Request JSON objects.
-	 * @param[in] trigger_sta_scan_fn Callback for triggering a scan on a station interface 
-	 * @param[in] bsta_connect_fn Callback for attempting to connect a backhaul STA to a BSS
-	 *
-	 * @note The default state of an enrollee is non-onboarding. All non-controller devices are started as (non-onboarding) enrollees
-	 *       until they are told that they are on the network at which point they can be upgraded to a proxy agent.
+	 * @brief EasyConnect Enrollee
+	 * 
+	 * @param mac_addr The MAC addr of the Enrollee
+	 * @param ops Callbacks for the Enrollee
 	 */
-	ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame, get_backhaul_sta_info_func get_bsta_info, 
-				  trigger_sta_scan_func trigger_sta_scan_fn, bsta_connect_func bsta_connect_fn);
+	ec_enrollee_t(const std::string& mac_addr, ec_ops_t& ops);
     
 	/**!
 	 * @brief Destructor for the ec_enrollee_t class.
@@ -304,6 +296,15 @@ private:
 	 * @return bool true if successful, false otherwise
 	 */	
 	bsta_connect_func m_bsta_connect_fn;
+
+	/**
+	 * @brief Sends a direct encapsulated DPP message
+	 * 
+	 * @param dpp_frame The DPP frame to send
+	 * @param dpp_frame_len The length of the DPP frame
+	 * @return bool true if successful, false otherwise
+	 */
+	send_dir_encap_dpp_func m_send_dir_encap_fn;
 
 
 
