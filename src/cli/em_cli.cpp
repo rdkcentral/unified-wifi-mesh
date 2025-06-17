@@ -227,9 +227,9 @@ em_network_node_t *em_cli_t::exec(char *in, size_t sz, em_network_node_t *node)
     cli_cmd = new em_cmd_cli_t(get_command(cmd, sz, node), m_params.user_data.addr);
 
     if (cli_cmd->init() != 0) {
-		printf("%s:%d: Failed to init command\n", __func__, __LINE__);
-		return NULL;
-	}
+        printf("%s:%d: Failed to init command\n", __func__, __LINE__);
+        return NULL;
+    }
 
 	result = (char *)malloc(EM_MAX_EVENT_DATA_LEN);
 	memset(result, 0, EM_MAX_EVENT_DATA_LEN);
@@ -243,7 +243,7 @@ em_network_node_t *em_cli_t::exec(char *in, size_t sz, em_network_node_t *node)
         }
     }
 
-	cli_cmd->deinit();
+    cli_cmd->deinit();
     delete cli_cmd;
     new_node = em_net_node_t::get_network_tree(result);	
 	free(result);
@@ -280,7 +280,7 @@ void em_cli_t::dump_lib_dbg(char *str)
 
 bool em_cli_t::is_remote_addr_valid()
 {
-	return m_params.user_data.valid;
+    return m_params.user_data.valid;
 }
 
 int em_cli_t::set_remote_addr(unsigned int ip, unsigned int port, bool valid)
@@ -318,7 +318,7 @@ extern "C" int set_remote_addr(unsigned int ip, unsigned int port, bool valid)
 
 extern "C" bool is_remote_addr_valid()
 {
-	return g_cli.is_remote_addr_valid();
+    return g_cli.is_remote_addr_valid();
 }
 
 extern "C" const char *get_first_cmd_str()

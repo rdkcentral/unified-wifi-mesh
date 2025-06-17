@@ -514,7 +514,7 @@ em_network_node_t *em_net_node_t::get_network_tree(char *buff)
         return NULL;
     }
 
-	printf("%s:%d: %s\n", __func__, __LINE__, cJSON_Print(root_obj));
+	//printf("%s:%d: %s\n", __func__, __LINE__, cJSON_Print(root_obj));
 
     root = static_cast<em_network_node_t *> (malloc(sizeof(em_network_node_t)));
     memset(root, 0, sizeof(em_network_node_t));
