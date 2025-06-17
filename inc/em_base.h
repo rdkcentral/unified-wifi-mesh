@@ -169,8 +169,8 @@ extern "C"
 #define EM_CLI_PATH "cli"
 #define EM_AGENT_PORT	0xc000
 #define EM_CTRL_PORT    0xc001
-#define EM_CERT_FILE	"../config/cert.crt"
-#define EM_KEY_FILE	"../config/cert.key"
+#define EM_CERT_FILE	"../config/test_cert.crt"
+#define EM_KEY_FILE	"../config/test_cert.key"
 
 #define EM_CFG_FILE "/nvram/EasymeshCfg.json"
 

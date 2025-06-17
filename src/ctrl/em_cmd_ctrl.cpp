@@ -52,7 +52,7 @@ int em_cmd_ctrl_t::execute(char *result)
 
 
 	if ((lsock = get_listener_socket(em_service_type_ctrl)) < 0) {
-		printf("%s:%d: listener socket get failed, service:%d\n", __func__, __LINE__, get_svc());
+        printf("%s:%d: listener socket get failed, service:%d\n", __func__, __LINE__, get_svc());
         return -1;
 	}
 
@@ -75,14 +75,14 @@ int em_cmd_ctrl_t::execute(char *result)
         //printf("%s:%d: Connection accepted from client\n", __func__, __LINE__);
 
         tmp = reinterpret_cast<unsigned char *> (get_event());
-		m_ssl = SSL_new(get_ssl_ctx());
-		SSL_set_fd(m_ssl, dsock);
+        m_ssl = SSL_new(get_ssl_ctx());
+        SSL_set_fd(m_ssl, dsock);
 
-		if (SSL_accept(m_ssl) <= 0) {
-			SSL_free(m_ssl);
-			close(dsock);
-			continue;
-		}
+        if (SSL_accept(m_ssl) <= 0) {
+            SSL_free(m_ssl);
+            close(dsock);
+            continue;
+        }
 
 		if ((ret = SSL_read(m_ssl, tmp, sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN)) <= 0) {
 			printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
@@ -113,7 +113,7 @@ int em_cmd_ctrl_t::execute(char *result)
         if (wait == false) {
             send_result(em_cmd_out_status_other);
         }
-			
+
         m_cmd.reset();
 		
 

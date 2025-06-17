@@ -86,7 +86,7 @@ int em_cmd_exec_t::execute(em_cmd_type_t type, em_service_type_t to_svc, unsigne
     info = &bevt->u.subdoc;
     memcpy(info->buff, in, len);
     
-	return send_cmd(to_svc, reinterpret_cast<unsigned char *> (&ev), sizeof(em_event_t));;
+    return send_cmd(to_svc, reinterpret_cast<unsigned char *> (&ev), sizeof(em_event_t));;
 }
 
 unsigned short em_cmd_exec_t::get_port_from_dst_service(em_service_type_t to_svc)
@@ -183,14 +183,14 @@ int em_cmd_exec_t::get_listener_socket(em_service_type_t svc)
     if ((lsock = socket(domain, SOCK_STREAM, 0)) < 0) {
         printf("%s:%d: error opening socket, err:%d\n", __func__, __LINE__, errno);
         return -1;
-    }   
+    }
    
     memset(&addr, 0, sizeof(addr));
 #ifdef LOCAL_CLI 
     addr.sun_family = AF_UNIX;
     snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", path);
 #else
-	addr.sin_family = AF_INET; 
+    addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_ANY); 
     addr.sin_port = htons(port);
 #endif
@@ -271,7 +271,7 @@ SSL *em_cmd_exec_t::get_ep_for_dst_svc(SSL_CTX *ctx, em_service_type_t svc)
 
 int em_cmd_exec_t::send_cmd(em_service_type_t to_svc, unsigned char *in, unsigned int in_len, char *out, unsigned int out_len)
 {
-	SSL *ssl;
+    SSL *ssl;
 #ifdef LOCAL_CLI
     struct sockaddr_un addr;
     em_long_string_t sock_path;
