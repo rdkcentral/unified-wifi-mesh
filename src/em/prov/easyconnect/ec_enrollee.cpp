@@ -14,6 +14,7 @@ ec_enrollee_t::ec_enrollee_t(const std::string& mac_addr, ec_ops_t& ops)
     m_get_bsta_info = ops.get_backhaul_sta_info;
     m_trigger_sta_scan_fn = ops.trigger_sta_scan;
     m_bsta_connect_fn = ops.bsta_connect;
+    m_send_dir_encap_fn = ops.send_dir_encap_dpp;
     m_scanned_channels_map = {};
 }
 

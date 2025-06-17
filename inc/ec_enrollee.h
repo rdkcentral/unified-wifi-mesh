@@ -297,6 +297,15 @@ private:
 	 */	
 	bsta_connect_func m_bsta_connect_fn;
 
+	/**
+	 * @brief Sends a direct encapsulated DPP message
+	 * 
+	 * @param dpp_frame The DPP frame to send
+	 * @param dpp_frame_len The length of the DPP frame
+	 * @return bool true if successful, false otherwise
+	 */
+	send_dir_encap_dpp_func m_send_dir_encap_fn;
+
 
 
     const ec_dpp_capabilities_t m_dpp_caps = {{
