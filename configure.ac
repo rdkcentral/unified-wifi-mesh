@@ -38,7 +38,10 @@ AC_PROG_CXX
 AC_PROG_INSTALL
 AM_PROG_CC_C_O
 AM_PROG_LIBTOOL(libtool)
- 
+
+# em extender check
+AM_CONDITIONAL([EM_EXTENDER], [test x$EM_EXTENDER = xtrue])
+
 # Checks for header files.
 AC_CHECK_HEADERS([stdlib.h string.h unistd.h])
  
