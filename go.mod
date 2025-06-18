@@ -1,6 +1,8 @@
 module unified-wifi-mesh/cli
 
-go 1.18
+go 1.23.4
+
+toolchain go1.24.3
 
 require (
 	github.com/charmbracelet/bubbles v0.20.0
@@ -8,13 +10,14 @@ require (
 	github.com/charmbracelet/lipgloss v1.0.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/rdkcentral/unified-wifi-mesh/src/cli/etree v0.0.0-20250121141939-856988e1ac67
+	github.com/rmhubbert/bubbletea-overlay v0.3.2
 	golang.org/x/term v0.27.0
 )
 
 require (
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/charmbracelet/x/ansi v0.4.5 // indirect
+	github.com/charmbracelet/x/ansi v0.6.0 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
@@ -28,5 +31,5 @@ require (
 	github.com/sahilm/fuzzy v0.1.1 // indirect
 	golang.org/x/sync v0.9.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
-	golang.org/x/text v0.3.8 // indirect
+	golang.org/x/text v0.14.0 // indirect
 )
