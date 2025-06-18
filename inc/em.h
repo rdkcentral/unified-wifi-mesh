@@ -39,6 +39,7 @@
 #include <string>
 
 class em_mgr_t;
+class em_cmd_exec_t;
 
 class em_t : 
     public em_configuration_t, public em_discovery_t, 
@@ -196,7 +197,7 @@ class em_t :
 	 *
 	 * @note Ensure that the buffer is properly allocated and the length is correctly specified to avoid buffer overflow.
 	 */
-	int send_cmd(em_cmd_type_t type, em_service_type_t svc, unsigned char *buff, unsigned int len);
+	int send_cmd(em_cmd_exec_t *exec, em_cmd_type_t type, em_service_type_t svc, unsigned char *buff, unsigned int len);
 	
 	/**!
 	 * @brief Push an event onto the event queue.
