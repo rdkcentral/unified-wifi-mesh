@@ -183,6 +183,53 @@ bool ec_ctrl_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_t
     return did_finish;
 }
 
+bool ec_ctrl_configurator_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len)
+{
+    if (dpp_frame == NULL || dpp_frame_len == 0) {
+        em_printfout("DPP Message Frame is empty");
+        return false;
+    }
+
+    bool did_finish = false;
+    ec_frame_t* ec_frame = reinterpret_cast<ec_frame_t*>(dpp_frame);
+
+    ec_frame_type_t ec_frame_type = static_cast<ec_frame_type_t>(ec_frame->frame_type);
+    switch (ec_frame_type) {
+        case ec_frame_type_recfg_announcement: {
+            //did_finish = handle_recfg_announcement(reinterpret_cast<ec_frame_t*>(encap_frame), encap_frame_len, dest_mac);
+            break;
+        }
+        case ec_frame_type_recfg_auth_rsp: {
+            //did_finish = handle_recfg_auth_response(reinterpret_cast<ec_frame_t*>(encap_frame), encap_frame_len, dest_mac);
+            break;
+        }
+        case ec_frame_type_auth_rsp: {
+            //did_finish = handle_auth_response(reinterpret_cast<ec_frame_t*>(encap_frame), encap_frame_len, dest_mac);
+            break;
+        }
+        case ec_frame_type_easymesh: {
+            //did_finish = handle_proxied_dpp_configuration_request(encap_frame, encap_frame_len, dest_mac);
+            break;
+        }
+        case ec_frame_type_cfg_result: {
+            //did_finish = handle_proxied_config_result_frame(encap_frame, encap_frame_len, dest_mac);
+            break;
+        }
+        case ec_frame_type_conn_status_result: {
+            //did_finish = handle_proxied_conn_status_result_frame(encap_frame, encap_frame_len, dest_mac);
+            break;
+        }
+        case ec_frame_type_peer_disc_req: {
+            break;
+        }
+        default:
+            em_printfout("Encap DPP frame type (%d) not handled", ec_frame_type);
+            break;
+    }
+
+    return did_finish;
+}
+
 bool ec_ctrl_configurator_t::handle_proxied_config_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t src_mac[ETH_ALEN])
 {
     if (!encap_frame || encap_frame_len == 0) {

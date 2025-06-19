@@ -101,7 +101,7 @@ int em_provisioning_t::create_cce_ind_msg(uint8_t *buff, bool enable)
 int em_provisioning_t::send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, size_t encap_dpp_len, em_dpp_chirp_value_t *chirp, size_t chirp_len)
 {
     if (encap_dpp_len == 0 || encap_dpp_tlv == NULL) {
-        printf("Encap DPP TLV is empty\n");
+        em_printfout("Encap DPP TLV is empty");
         return -1;
     }
 
@@ -110,10 +110,6 @@ int em_provisioning_t::send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, si
     unsigned int len = 0;
     uint8_t *tmp = buff;
 
-    //dm_easy_mesh_t *dm = get_data_model();
-
-    //TODO: Decide on addressing.
-    //tmp = em_msg_t::add_1905_header(tmp, &len, dm->get_agent_al_interface_mac(), dm->get_ctrl_al_interface_mac(), em_msg_type_proxied_encap_dpp);
     tmp = em_msg_t::add_1905_header(tmp, &len, const_cast<uint8_t *> (get_peer_mac()), get_al_interface_mac(), em_msg_type_proxied_encap_dpp);
 
     // One 1905 Encap DPP TLV 17.2.79
@@ -146,9 +142,46 @@ int em_provisioning_t::send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, si
         return -1;
     }
 
-    
-    // TODO: If needed, likely not
-	//set_state(em_state_ctrl_configured);
+    return static_cast<int> (len);
+}
+
+int em_provisioning_t::send_direct_encap_dpp_msg(uint8_t* dpp_frame, size_t dpp_frame_len, uint8_t dest_al_mac[ETH_ALEN])
+{
+    if (dpp_frame_len == 0 || dpp_frame == NULL) {
+        em_printfout("Direct DPP Frame is empty");
+        return -1;
+    }
+
+    // Make sure there is enough room for the TLV, the 1905 layer will deal with fragmentation.
+    uint8_t buff[MAX_EM_BUFF_SZ+dpp_frame_len];
+    unsigned int len = 0;
+    uint8_t *tmp = buff;
+
+    tmp = em_msg_t::add_1905_header(tmp, &len, dest_al_mac, get_al_interface_mac(), em_msg_type_direct_encap_dpp);
+
+    // One 1905 Encap DPP TLV 17.2.86
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_dpp_msg, dpp_frame, static_cast<unsigned int> (dpp_frame_len));
+
+    tmp = em_msg_t::add_eom_tlv(tmp, &len);
+
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+
+    if (em_msg_t(em_msg_type_direct_encap_dpp, em_profile_type_3, buff, len).validate(errors) == 0) {
+        em_printfout("Direct Encap DPP msg failed validation in tnx end");
+        //return -1;
+    }
+
+    {
+        em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+        em_printfout("Sending Direct Encap DPP msg from '" MACSTRFMT "' to '" MACSTRFMT "'\n", MAC2STR(hdr->src), MAC2STR(hdr->dst));
+    }
+
+    em_printfout("Sending Direct Encap DPP msg of length %d", len);
+    if (send_frame(buff, len)  < 0) {
+        em_printfout("Direct Encap DPP msg failed");
+        perror("send_frame");
+        return -1;
+    }
 
     return static_cast<int> (len);
 }
@@ -447,6 +480,7 @@ void em_provisioning_t::process_msg(uint8_t *data, unsigned int len)
             break;
 
         case em_msg_type_direct_encap_dpp:
+            handle_direct_encap_dpp(data, len);
             break;
 
         case em_msg_type_reconfig_trigger:
@@ -515,7 +549,7 @@ int em_provisioning_t::handle_proxy_encap_dpp(uint8_t *buff, unsigned int len)
     em_encap_dpp_t* encap_tlv = NULL;
     em_dpp_chirp_value_t* chirp_tlv = NULL;
 
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    while ((tlv->type != em_tlv_type_eom) && (tlv_len > 0)) {
 
         if (tlv->type == em_tlv_type_1905_encap_dpp) {
             // Parse out dest STA mac address and hash value then validate against the hash in the 
@@ -536,6 +570,42 @@ int em_provisioning_t::handle_proxy_encap_dpp(uint8_t *buff, unsigned int len)
     }
 
     if (m_ec_manager->process_proxy_encap_dpp_msg(encap_tlv, encap_tlv_len, chirp_tlv, chirp_tlv_len) != 0){
+        //TODO: Fail
+        return -1;
+    }
+
+	return 0;
+}
+
+int em_provisioning_t::handle_direct_encap_dpp(uint8_t *buff, unsigned int len)
+{
+    em_tlv_t    *tlv;
+    unsigned int tlv_len;
+
+    tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tlv_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    uint16_t direct_frame_len = 0;
+    uint8_t* direct_frame = NULL;
+
+    while ((tlv->type != em_tlv_type_eom) && (tlv_len > 0)) {
+
+        if (tlv->type == em_tlv_type_dpp_msg) {
+            // Direct Encap DPP TLV value **is** the encapsulated frame
+            direct_frame = tlv->value;
+            direct_frame_len = ntohs(tlv->len);
+        }
+
+        tlv_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + ntohs(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<uint8_t *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
+    }
+
+    if (direct_frame == NULL || direct_frame_len == 0) {
+        em_printfout("Received Invalid Direct Encap DPP TLV!");
+        return -1;
+    }
+
+    if (m_ec_manager->process_direct_encap_dpp_msg(direct_frame, direct_frame_len) != 0){
         //TODO: Fail
         return -1;
     }

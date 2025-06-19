@@ -29,6 +29,16 @@ using send_chirp_func = std::function<bool(em_dpp_chirp_value_t*, size_t)>;
  */
 using send_encap_dpp_func = std::function<bool(em_encap_dpp_t*, size_t, em_dpp_chirp_value_t*, size_t)>;
 
+
+/**
+ * @brief Sends a direct encapsulated DPP message
+ * 
+ * @param dpp_frame The DPP frame to send
+ * @param dpp_frame_len The length of the DPP frame
+ * @return bool true if successful, false otherwise
+ */
+using send_dir_encap_dpp_func = std::function<bool(uint8_t*, size_t, uint8_t*)>;
+
 /**
  * @brief Send an action frame. Optional to implement.
  * 
@@ -105,14 +115,15 @@ public:
 	 * @param[in] mac_addr The MAC address of the device
 	 * @param[in] send_chirp_notification The function to send a chirp notification
 	 * @param[in] send_prox_encap_dpp_msg The function to send a proxied encapsulated DPP message
+	 * @param[in] send_direct_encap_dpp_msg The function to send a direct encapsulated DPP message
 	 * @param[in] send_action_frame The function to send an action frame
 	 * @param[in] backhaul_sta_info_func The function to get backhaul station information
 	 * @param[in] ieee1905_info_func The function to get IEEE 1905 information
 	 * @param[in] can_onboard_func The function to check if additional APs can be onboarded
 	 */
-	ec_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg, 
-                        send_act_frame_func send_action_frame, get_backhaul_sta_info_func backhaul_sta_info_func, get_1905_info_func ieee1905_info_func,
-                        get_fbss_info_func fbss_info_func, can_onboard_additional_aps_func can_onboard_func);
+	ec_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg,
+                        send_dir_encap_dpp_func send_direct_encap_dpp_msg, send_act_frame_func send_action_frame, get_backhaul_sta_info_func backhaul_sta_info_func, 
+						get_1905_info_func ieee1905_info_func, get_fbss_info_func fbss_info_func, can_onboard_additional_aps_func can_onboard_func);
     
 	/**!
 	 * @brief Destructor for ec_configurator_t class.
@@ -303,7 +314,16 @@ public:
 	 */
 	virtual bool  process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) = 0;
 
-    
+	/**
+	 * @brief Handle a Direct Encapsulated DPP Message (DPP Message TLV)
+	 *
+	 * @param[in] dpp_frame The frame parsed from the DPP Message TLV
+	 * @param[in] dpp_frame_len The length of the frame from the DPP Message TLV
+	 *
+	 * @return bool True if the frame was processed successfully, false otherwise.
+	 */
+	virtual bool  process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len) = 0;
+	
 	/**
 	 * @brief Handle a proxied encapsulated DPP Configuration Request frame.
 	 *
@@ -404,6 +424,8 @@ protected:
     send_chirp_func m_send_chirp_notification;
 
     send_encap_dpp_func m_send_prox_encap_dpp_msg;
+
+    send_dir_encap_dpp_func m_send_dir_encap_dpp_msg;
 
     send_act_frame_func m_send_action_frame;
 
