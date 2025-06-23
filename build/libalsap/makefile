@@ -13,7 +13,6 @@ RECEIVER_SRC = $(AL_SAP_HOME)/../../tests/test_libalsap_receiver.cpp
 TRANSMITTER = $(INSTALLDIR)/bin/test_alsap_transmitter
 RECEIVER = $(INSTALLDIR)/bin/test_alsap_receeiver
 
-ENABLE_DEBUG_MODE ?= ON
 ifeq ($(ENABLE_DEBUG_MODE),ON)
 $(info ENABLE_DEBUG_MODE is set)
 CPPFLAGS += -DDEBUG_MODE

@@ -48,6 +48,12 @@ CXXFLAGS += $(INCLUDEDIRS) -g -DEASY_MESH_NODE -DEM_APP -Wall -Wextra -Wpointer-
 ifeq ($(WITH_SAP), 1)
 CXXFLAGS += -DAL_SAP
 endif
+
+ifeq ($(ENABLE_DEBUG_MODE),ON)
+$(info ENABLE_DEBUG_MODE is set)
+CXXFLAGS += -DDEBUG_MODE
+endif
+
 LDFLAGS += $(LIBDIRS) $(LIBS) -fsanitize=address -fsanitize=undefined
 
 LIBDIRS = \
