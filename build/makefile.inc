@@ -19,7 +19,8 @@
 OS = $(shell uname)
 PLATFORM = $(shell uname -a)
 
-WITH_SAP ?= 0
+WITH_SAP ?= 1
+ENABLE_DEBUG_MODE ?= ON
 
 BASE = $(shell pwd)
 

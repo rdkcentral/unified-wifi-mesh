@@ -352,9 +352,7 @@ void em_mgr_t::nodes_listener()
 {
     em_t *em = NULL;
     struct timeval tm;
-    int rc, highest_fd = 0, ret = 0;
-    ssize_t len;
-    unsigned char buff[MAX_EM_BUFF_SZ];
+    int rc, highest_fd = 0;
 
     tm.tv_sec = 0;
     tm.tv_usec = m_timeout * 1000;
@@ -379,26 +377,26 @@ void em_mgr_t::nodes_listener()
                     // Original implementation expects whole ethernet frame
                     // not just CMDU, so we have to reconstruct it
                     std::vector<unsigned char> reconstructed_eth_frame;
-                    auto mac = sdu.getSourceAlMacAddress();
-                    reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),mac.begin(),mac.end());
-                    mac = sdu.getDestinationAlMacAddress();
-                    reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),mac.begin(),mac.end());
+                    auto first_mac = sdu.getSourceAlMacAddress();
+                    reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),first_mac.begin(),first_mac.end());
+                    auto second_mac = sdu.getDestinationAlMacAddress();
+                    reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),second_mac.begin(),second_mac.end());
 
                     reconstructed_eth_frame.push_back(0x89);
                     reconstructed_eth_frame.push_back(0x3A);
 
                     reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),payload.begin(),payload.end());
 #ifdef DEBUG_MODE
-                    printf("PP_DEBUG_PUSHING_FIRST_MAC_ADDR:  %02x:%02x:%02x:%02x:%02x:%02x\n",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
-                    printf("PP_DEBUG_PUSHING_SECOND_MAC_ADDR:  %02x:%02x:%02x:%02x:%02x:%02x\n",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+                    printf("PP_DEBUG_PUSHING_FIRST_MAC_ADDR:  %02x:%02x:%02x:%02x:%02x:%02x\n",first_mac[0],first_mac[1],first_mac[2],first_mac[3],first_mac[4],first_mac[5]);
+                    printf("PP_DEBUG_PUSHING_SECOND_MAC_ADDR:  %02x:%02x:%02x:%02x:%02x:%02x\n",second_mac[0],second_mac[1],second_mac[2],second_mac[3],second_mac[4],second_mac[5]);
 
                     printf("PP_DEBUG_RECONSTRUCTED_ETH_FRAME: \t");
-                    for(int i =0 ; i < reconstructed_eth_frame.size(); ++i){
+                    for(unsigned int i =0 ; i < static_cast<unsigned int>(reconstructed_eth_frame.size()); i++){
                         printf(" %02x ",reconstructed_eth_frame[i]);
                     }
                     printf("\n");
 #endif
-                    proto_process(reconstructed_eth_frame.data(), reconstructed_eth_frame.size(), em);
+                    proto_process(reconstructed_eth_frame.data(), static_cast<unsigned int>(reconstructed_eth_frame.size()), em);
                 } catch (const AlServiceException& e) {
                     if (e.getPrimitiveError() == PrimitiveError::InvalidMessage) {
                         em_printfout("%s. Dropping packet", e.what());
@@ -408,13 +406,15 @@ void em_mgr_t::nodes_listener()
                     }
                 }
 #else
-    			pthread_mutex_lock(&m_mutex);
-				ret = FD_ISSET(em->get_fd(), &m_rset);
-				pthread_mutex_unlock(&m_mutex);
-				if (ret) {
+                unsigned char buff[MAX_EM_BUFF_SZ];
+                pthread_mutex_lock(&m_mutex);
+                int ret = FD_ISSET(em->get_fd(), &m_rset);
+                pthread_mutex_unlock(&m_mutex);
+                if (ret)
+                {
                     // receive data from this interface
                     memset(buff, 0, MAX_EM_BUFF_SZ);
-                    len = read(em->get_fd(), buff, MAX_EM_BUFF_SZ);
+                    ssize_t len = read(em->get_fd(), buff, MAX_EM_BUFF_SZ);
                     if (len) {
                         proto_process(buff, static_cast<unsigned int>(len), em);
                     }
@@ -428,8 +428,6 @@ void em_mgr_t::nodes_listener()
         highest_fd = reset_listeners();
 
     }
-
-
 }
 
 
