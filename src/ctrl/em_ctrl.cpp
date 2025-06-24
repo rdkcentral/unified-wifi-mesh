@@ -56,9 +56,6 @@ const char *global_netid = "OneWifiMesh";
 #ifdef AL_SAP
 AlServiceAccessPoint* g_sap;
 MacAddress g_al_mac_sap;
-
-#define DATA_SOCKET_PATH "/tmp/al_data_socket"
-#define CONTROL_SOCKET_PATH "/tmp/al_control_socket"
 #endif
 
 void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
@@ -885,9 +882,9 @@ em_ctrl_t::~em_ctrl_t()
 }
 
 #ifdef AL_SAP
-AlServiceAccessPoint* em_ctrl_t::al_sap_register()
+AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_path, const std::string& control_socket_path)
 {
-    AlServiceAccessPoint* sap = new AlServiceAccessPoint(DATA_SOCKET_PATH, CONTROL_SOCKET_PATH);
+    AlServiceAccessPoint* sap = new AlServiceAccessPoint(data_socket_path.c_str(), control_socket_path.c_str());
 
     AlServiceRegistrationRequest registrationRequest(ServiceOperation::SOP_ENABLE, ServiceType::SAP_TUNNEL_CLIENT);
     sap->serviceAccessPointRegistrationRequest(registrationRequest);
@@ -915,7 +912,7 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register()
 int main(int argc, const char *argv[])
 {
 #ifdef AL_SAP
-    g_sap = g_ctrl.al_sap_register();
+    g_sap = g_ctrl.al_sap_register("/tmp/al_em_ctrl_data_socket", "/tmp/al_em_ctrl_control_socket");
 #endif
 
     if (g_ctrl.init(argv[1]) == 0) {

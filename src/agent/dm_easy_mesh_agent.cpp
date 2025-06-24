@@ -52,6 +52,13 @@
 #include "em_cmd_sta_link_metrics.h"
 #include "em_cmd_ap_metrics_report.h"
 
+#ifdef AL_SAP
+#include "al_service_access_point.h"
+
+extern AlServiceAccessPoint* g_sap;
+extern MacAddress g_al_mac_sap;
+#endif
+
 int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     unsigned int num = 0;
@@ -59,6 +66,21 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
     em_cmd_t *tmp;
     
 	dm.translate_onewifi_dml_data((char *)evt->u.raw_buff);
+#ifdef AL_SAP
+    // When AL_SAP is enabled the agent and controller AL MAC should be changed
+    // to the mac obtained from al_sap instead of mac from dml
+    mac_addr_str_t al_mac_str;
+    mac_address_t al_mac;
+    int i=0;
+
+    for (auto byte: g_al_mac_sap) {
+        al_mac[i++] = static_cast<unsigned char>(byte);
+    }
+    dm_easy_mesh_t::macbytes_to_string(al_mac, al_mac_str);
+    printf("%s:%d al_mac = %s\n", __func__, __LINE__,al_mac_str);
+    dm.set_ctrl_al_interface_mac(static_cast<unsigned char*>(al_mac));
+    dm.set_agent_al_interface_mac(static_cast<unsigned char*>(al_mac));
+#endif
 
     dm.print_config();
     //TODO: Check for multiple radios

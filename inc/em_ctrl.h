@@ -26,6 +26,11 @@
 #include "bus.h"
 #include "em_dev_test_ctrl.h"
 
+#ifdef AL_SAP
+#define DATA_SOCKET_PATH "/tmp/al_data_socket"
+#define CONTROL_SOCKET_PATH "/tmp/al_control_socket"
+#endif
+
 class em_cmd_ctrl_t;
 class AlServiceAccessPoint;
 
@@ -584,7 +589,7 @@ public:
 	 *
 	 * @note Ensure that the system has enough resources to register a new service access point.
 	 */
-	AlServiceAccessPoint* al_sap_register();
+	AlServiceAccessPoint* al_sap_register(const std::string& data_socket_path=DATA_SOCKET_PATH, const std::string& control_socket_path=CONTROL_SOCKET_PATH);
 #endif
 
     
