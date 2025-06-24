@@ -648,9 +648,9 @@ int em_t::start_al_interface()
     return 0;
 }
 
-int em_t::send_cmd(em_cmd_type_t type, em_service_type_t svc, unsigned char *buff, unsigned int len)
+int em_t::send_cmd(em_cmd_exec_t *exec, em_cmd_type_t type, em_service_type_t svc, unsigned char *buff, unsigned int len)
 {
-    return em_cmd_exec_t::execute(type, svc, buff, len);
+    return exec->execute(type, svc, buff, len);
 }
 
 int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)

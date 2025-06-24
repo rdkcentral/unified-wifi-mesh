@@ -37,6 +37,7 @@
 #include "em_cmd.h"
 #include "em_cmd_exec.h"
 #include "em_orch_ctrl.h"
+#include "em_cmd_ctrl.h"
 
 extern char *global_netid;
 
@@ -248,6 +249,8 @@ void em_orch_ctrl_t::pre_process_cancel(em_cmd_t *pcmd, em_t *em)
 	em_event_t  ev;
     em_bus_event_t *bev;
     em_bus_event_type_cfg_renew_params_t    *raw;
+	em_ctrl_t *ctrl = static_cast<em_ctrl_t *>(m_mgr);
+	em_cmd_ctrl_t *cmd_ctrl = ctrl->get_ctrl_cmd();
 
 	switch (pcmd->get_type()) {
 		case em_cmd_type_em_config:
@@ -260,7 +263,7 @@ void em_orch_ctrl_t::pre_process_cancel(em_cmd_t *pcmd, em_t *em)
     		bev->type = em_bus_event_type_cfg_renew;
             raw = reinterpret_cast<em_bus_event_type_cfg_renew_params_t *>(bev->u.raw_buff);
     		memcpy(raw->radio, em->get_radio_interface_mac(), sizeof(mac_address_t));
-            em_cmd_exec_t::send_cmd(em_service_type_ctrl, reinterpret_cast<unsigned char *>(&ev), sizeof(em_event_t));
+            cmd_ctrl->send_cmd(em_service_type_ctrl, reinterpret_cast<unsigned char *>(&ev), sizeof(em_event_t));
 			break;
 		
 		case em_cmd_type_cfg_renew:

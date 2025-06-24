@@ -26,9 +26,6 @@
 #include <stdint.h>
 #include "wifi_hal.h"
 #include <pthread.h>
-#include <sys/prctl.h>
-#include <byteswap.h>
-
 #include <string>
 #include <memory>
 #include <vector>
