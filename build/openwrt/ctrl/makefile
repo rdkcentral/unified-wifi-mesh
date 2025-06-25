@@ -38,7 +38,8 @@ INCLUDEDIRS = \
 	-I$(ONEWIFI_HOME)/source/platform/common \
 	-I$(ONEWIFI_HOME)/source/platform/linux/he_bus/inc \
 	-I$(ONEWIFI_HOME)/source/ccsp \
-	-I$(STAGING_DIR)/ \
+	-I$(STAGING_DIR)/usr/include \
+	-I$(STAGING_DIR)/usr/include/mysql \
 
 ifeq ($(WITH_SAP), 1)
 INCLUDEDIRS += -I$(AL_SAP_HOME)/include
@@ -50,8 +51,9 @@ else
 CFLAGS += -DPLATFORM_OSX
 endif
 
-CXXFLAGS += $(INCLUDEDIRS) -g -DUNIT_TEST -Wall -Wextra -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wconversion -Wsign-conversion -Wno-unused-parameter -std=c++17 -fsanitize=address -fsanitize=undefined -fpermissive #-Werror -O2 -Weffc++
-
+CXXFLAGS += $(INCLUDEDIRS) -g -DUNIT_TEST -Wall -Wextra -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wconversion -Wsign-conversion -Wno-unused-parameter -std=c++17 #-Werror -O2 -Weffc++
+CFLAGS += -DOPENWRT_BUILD
+CXXFLAGS += -DOPENWRT_BUILD
 ifeq ($(WITH_SAP), 1)
 CXXFLAGS += -DAL_SAP
 endif
@@ -68,6 +70,7 @@ LIBDIRS = \
 	-L$(ONEWIFI_HOME)/install/lib/ \
 	-L/usr/local/lib    \
 	-L/usr/local/ssl/lib/ \
+	-L$(STAGING_DIR)/usr/lib \
 
 ifeq ($(WITH_SAP), 1)
 LIBDIRS += -L$(AL_SAP_HOME)/build/lib
@@ -79,7 +82,7 @@ else
 LIBDIRS += -L$(INSTALLDIR)/lib/platform/darwin
 endif
 
-LIBS = -lm -pthread -ldl -luuid -lcjson -lssl -lcrypto -lmysqlcppconn -lhebus
+LIBS = -lm -pthread -ldl -luuid -lcjson -lssl -lcrypto -lhebus -lmariadb
 
 ifeq ($(WITH_SAP), 1)
 LIBS += -lalsap

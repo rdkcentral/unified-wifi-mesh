@@ -50,6 +50,7 @@
 #include "em_cmd.h"
 #include "em_cmd_exec.h"
 #include "util.h"
+#include "ec_ops.h"
 
 #ifdef AL_SAP
 #include "al_service_access_point.h"
@@ -681,17 +682,14 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
 
     AlServiceDataUnit sdu;
     sdu.setSourceAlMacAddress(g_al_mac_sap);
-    if (m_service_type == em_service_type_ctrl) {
-        if (is_loopback_frame || is_colocated) {
-            sdu.setDestinationAlMacAddress(g_al_mac_sap);
-        } else {
+    if (is_loopback_frame) {
+        sdu.setDestinationAlMacAddress(g_al_mac_sap);
+    } else {
+        // Set the destination AL MAC address based on the service type
+        if (m_service_type == em_service_type_ctrl) {
             sdu.setDestinationAlMacAddress({0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
         }
-    }
-    if (m_service_type == em_service_type_agent) {
-        if (is_loopback_frame || is_colocated) {
-            sdu.setDestinationAlMacAddress(g_al_mac_sap);
-        } else {
+        if (m_service_type == em_service_type_agent) {
             sdu.setDestinationAlMacAddress({0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
         }
     }
@@ -744,55 +742,95 @@ bool em_t::toggle_cce(bool enable)
 {
     const unsigned int num_bss = m_data_model->get_num_bss();
 
-    bool success = false;
-    if (enable) {
-        printf("Adding DPP IE to %d BSSs\n", num_bss);
-        for (unsigned int i = 0; i < num_bss; i++) {
-            dm_bss_t* bss = m_data_model->get_bss(i);
-            em_bss_info_t* bss_info = bss->get_bss_info();
-            em_interface_t* bssid = &bss_info->bssid;
-
-            success = bss->add_vendor_ie(&ec_manager_t::CCE_IE);
-            if (!success) {
-                printf("Failed to add DPP IE to BSS '" MACSTRFMT "'\n", MAC2STR(bssid->mac));
-                break;
-            }
-
-            printf("Added DPP IE to BSS '" MACSTRFMT "'\n", MAC2STR(bssid->mac));
-        }
-    }
-
-    // Remove DPP IEs if enable is false or if adding DPP IEs failed
-    // (prevents a state where only some BSSs have DPP IEs)
-    if (!enable || !success) {
-        printf("Removing DPP IE from %d BSSs\n", num_bss);
-        for (unsigned int i = 0; i < num_bss; i++) {
-            dm_bss_t* bss = m_data_model->get_bss(i);
-            em_bss_info_t* bss_info = bss->get_bss_info();
-            em_interface_t* bssid = &bss_info->bssid;
-
-            bss->remove_vendor_ie(&ec_manager_t::CCE_IE);
-            printf("Removed DPP IE from BSS '" MACSTRFMT "'\n", MAC2STR(bssid->mac));
-        }
-    }
-
-    // Refresh OneWifi
-    webconfig_subdoc_type_t vap_type = dm_easy_mesh_t::get_subdoc_vap_type_for_freq(get_band());
-    int refresh_outcome = m_mgr->refresh_onewifi_subdoc("'Vendor IE Refresh'", vap_type);
-    if (refresh_outcome != 1) {
-        printf("Error occurred on Vendor IE Refresh: return value %d\n", refresh_outcome);
+    if (num_bss == 0) {
+        printf("No BSSs found to add/remove DPP IE\n");
         return false;
     }
 
-    // Disabling CCEs always succeeds, and enabling succeeds if `success` is set to true
-    return !enable || success;
+    std::vector<em_freq_band_t> bands;
+    std::vector<dm_bss_t*> updated_bsses;
+
+
+
+    bool success = false;
+    for (unsigned int i = 0; i < num_bss; i++) {
+        dm_bss_t* bss = m_data_model->get_bss(i);
+        em_bss_info_t* bss_info = bss->get_bss_info();
+
+        if (!bss_info || !bss_info->enabled) {
+            printf("Skipping BSS %d as it is not enabled\n", i);
+            continue;
+        }
+/*
+While the EasyMesh spec (5.3.4) says
+    "...the Multi-AP Agent shall either include the CCE in the Beacon and Probe Response frames on all of its fronthaul BSSs 
+     or respond with an Error Response message with a Profile-2 Error Code TLV with Reason_Code set to 0x0D."
+in the context of the specification, the term "fronthaul BSSs" refers to the BSSs that the backhaul STA is connected to. There is
+no explicit mention of a "backhaul BSS" in the spec. Since the UWM code has a specific definition of a "backhaul BSS" (meaning a BSS a bSTA associates to)
+then we can say that adding the CCE IE to all of the backhaul BSSs (according to UWM) is the same as adding it to all of the fronthaul BSSs, as per the spec.
+*/
+
+        if (!bss_info->backhaul_use) {
+            printf("Skipping BSS %d as it is not a backhaul BSS\n", i);
+            continue;
+        }
+
+        em_interface_t* bssid = &bss_info->bssid;
+
+        dm_radio_t* radio = m_data_model->get_radio(bss_info->ruid.mac);
+        em_freq_band_t band = radio->m_radio_info.band;
+
+        if (enable){
+            success = bss->add_vendor_ie(&ec_manager_t::CCE_IE);
+        } else {
+            // If we are disabling, we remove the CCE IE
+            bss->remove_vendor_ie(&ec_manager_t::CCE_IE);
+            success = true; // Removing always succeeds
+        }
+        if (!success) {
+            printf("Failed to add DPP IE to BSS '" MACSTRFMT "'\n", MAC2STR(bssid->mac));
+            break;
+        }
+        bands.push_back(band);
+        updated_bsses.push_back(bss);
+
+        if (enable) {
+            printf("Added DPP IE to BSS '" MACSTRFMT "' on band %d\n", MAC2STR(bssid->mac), band);
+        } else {
+            printf("Removed DPP IE from BSS '" MACSTRFMT "' on band %d\n", MAC2STR(bssid->mac), band);
+        }
+    }
+
+    // If we failed to add the DPP IE to any BSS, we clean up the ones we successfully updated
+    // to maintain consistency
+    if (!success) {
+        printf("Cleaning up DPP IEs from BSSs due to failure in previous BSS\n");
+        for (auto& bss : updated_bsses) {
+            bss->remove_vendor_ie(&ec_manager_t::CCE_IE);
+            printf("Removed DPP IE from BSS '" MACSTRFMT "'\n", MAC2STR(bss->get_bss_info()->bssid.mac));
+        }
+        return false;
+    }
+
+    
+    // Refresh OneWifi for each band
+    for (const auto& band : bands) {
+        webconfig_subdoc_type_t vap_type = dm_easy_mesh_t::get_subdoc_vap_type_for_freq(band);
+        printf("Refreshing OneWifi for band %d with subdoc type %d\n", band, vap_type);
+        int refresh_outcome = m_mgr->refresh_onewifi_subdoc("'Vendor IE Refresh'", vap_type);
+        if (refresh_outcome != 1) {
+            printf("Error occurred on Vendor IE Refresh: return value %d\n", refresh_outcome);
+            return false;
+        }
+    }
+    return true;
 }
 
-bool em_t::bsta_connect_bss(const std::string& ssid, const std::string passphrase, bssid_t bssid)
+em_bss_info_t* em_t::get_bsta_bss_info()
 {
     em_bss_info_t *bsta_info = NULL;
     for (unsigned int i = 0; i < m_data_model->get_num_bss(); i++) {
-        bsta_info = m_data_model->get_bss_info(i);
+        em_bss_info_t *bsta_info = m_data_model->get_bss_info(i);
         if (!bsta_info) continue;
         // Skip if not backhaul
         if (bsta_info->id.haul_type != em_haul_type_backhaul) {
@@ -803,8 +841,14 @@ bool em_t::bsta_connect_bss(const std::string& ssid, const std::string passphras
         if (!radio->m_radio_info.enabled || !bsta_info->enabled) {
             continue;
         }
-        break;
+        return bsta_info;
     }
+    return NULL;
+}
+
+bool em_t::bsta_connect_bss(const std::string& ssid, const std::string passphrase, bssid_t bssid)
+{
+    em_bss_info_t *bsta_info = get_bsta_bss_info();
     if (!bsta_info) {
         em_printfout("No backhaul bSTA found to connect to BSS\n");
         return false;
@@ -827,17 +871,23 @@ bool em_t::bsta_connect_bss(const std::string& ssid, const std::string passphras
     return res == 1;
 }
 
-bool em_t::start_stop_build_ec_channel_list(bool do_start)
+bool em_t::trigger_sta_scan()
 {
-    if (do_start) {
-        // If we want to build the channel list, we have to be scanning,
-        // so we need to make sure we are not in the disconnected steady state
-        return m_mgr->set_disconnected_scan_none_state();
+    em_bss_info_t *bsta_info = get_bsta_bss_info();
+    if (!bsta_info) {
+        em_printfout("No backhaul bSTA found to start building channel list\n");
+        return false;
     }
-    // If we want to stop building the channel list (which only happens before action frames)
-    // we need to make sure we are in the disconnected steady state to make sure action frames are
-    // sent and recieved well.
-    return m_mgr->set_disconnected_steady_state();
+
+    em_scan_params_t scan_params;
+    memset(&scan_params, 0, sizeof(em_scan_params_t));
+    scan_params.num_op_classes = 0; // Will perform full scan
+    memcpy(scan_params.ruid, bsta_info->ruid.mac, sizeof(mac_address_t));
+    if (!m_mgr->send_scan_request(&scan_params, true, true)){
+        em_printfout("Failed to start scan for building channel list");
+        return false;
+    }
+    return true;
 }
 
 void em_t::push_to_queue(em_event_t *evt)
@@ -1315,23 +1365,48 @@ em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr
     // We'll only create the EC manager on the AL node
     if (is_al_em){
         std::string mac_address = util::mac_to_string(get_al_interface_mac());
-        m_ec_manager = std::unique_ptr<ec_manager_t>(new ec_manager_t(
+
+        ec_ops_t ops;
+        // Shared callbacks
+        ops.send_chirp = std::bind(&em_t::send_chirp_notif_msg, this, std::placeholders::_1,
+                                    std::placeholders::_2);
+        ops.send_encap_dpp =
+            std::bind(&em_t::send_prox_encap_dpp_msg, this, std::placeholders::_1,
+                      std::placeholders::_2, std::placeholders::_3, std::placeholders::_4);
+        ops.send_dir_encap_dpp =
+            std::bind(&em_t::send_direct_encap_dpp_msg, this, std::placeholders::_1,
+                      std::placeholders::_2, std::placeholders::_3);
+        ops.send_act_frame   = std::bind(&em_mgr_t::send_action_frame, mgr, std::placeholders::_1,
+                                          std::placeholders::_2, std::placeholders::_3,
+                                          std::placeholders::_4, std::placeholders::_5);
+        ops.toggle_cce       = std::bind(&em_t::toggle_cce, this, std::placeholders::_1);
+        ops.trigger_sta_scan = std::bind(&em_t::trigger_sta_scan, this);
+        ops.bsta_connect     = std::bind(&em_t::bsta_connect_bss, this, std::placeholders::_1,
+                                          std::placeholders::_2, std::placeholders::_3);
+        ops.can_onboard_additional_aps = std::bind(&em_mgr_t::can_onboard_additional_aps, mgr);
+
+
+        // Enrollee callbacks
+        if (service_type == em_service_type_agent) {
+            ops.get_backhaul_sta_info =
+                std::bind(&em_t::create_enrollee_bsta_list, this, std::placeholders::_1);
+        }
+
+        // Controller Configurator callbacks
+        if (service_type == em_service_type_ctrl) {
+            ops.get_1905_info =
+                std::bind(&em_t::create_ieee1905_response_obj, this, std::placeholders::_1);
+            ops.get_fbss_info =
+                std::bind(&em_t::create_fbss_response_obj, this, std::placeholders::_1);
+            ops.get_backhaul_sta_info = std::bind(&em_t::create_configurator_bsta_response_obj,
+                                                   this, std::placeholders::_1);
+        }
+
+        m_ec_manager = std::make_unique<ec_manager_t>(
             mac_address,
-            std::bind(&em_t::send_chirp_notif_msg, this, std::placeholders::_1, std::placeholders::_2),
-            std::bind(&em_t::send_prox_encap_dpp_msg, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4),
-            std::bind(&em_mgr_t::send_action_frame, mgr, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5),
-            service_type == em_service_type_agent
-                ? std::bind(&em_t::create_enrollee_bsta_list, this, std::placeholders::_1)
-                : std::bind(&em_t::create_configurator_bsta_response_obj, this, std::placeholders::_1),
+            ops,
             service_type == em_service_type_ctrl
-                ? std::bind(&em_t::create_ieee1905_response_obj, this, std::placeholders::_1)
-                : static_cast<get_1905_info_func>(nullptr),
-            std::bind(&em_mgr_t::can_onboard_additional_aps, mgr),
-            std::bind(&em_t::toggle_cce, this, std::placeholders::_1),
-            std::bind(&em_t::start_stop_build_ec_channel_list, this, std::placeholders::_1),
-            std::bind(&em_t::bsta_connect_bss, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
-            service_type == em_service_type_ctrl
-        ));
+        );
     }
 }
 

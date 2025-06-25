@@ -151,7 +151,6 @@ void dm_sta_t::encode(cJSON *obj, em_get_sta_list_reason_t reason)
 {
     mac_addr_str_t  mac_str;
     cJSON *reason_obj, *request_obj;
-    em_long_string_t client_info;
 
     dm_sta_t::decode_sta_capability(this);
     dm_sta_t::decode_beacon_report(this);
@@ -393,7 +392,8 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
 
         switch (tag->tag_id) {
             case tag_ssid:
-                dm_easy_mesh_t::hex(tag->length, tag->value, sizeof(em_long_string_t), sta->m_sta_info.ssid);
+                memset(sta->m_sta_info.ssid, 0, sizeof(em_long_string_t));
+                memcpy(sta->m_sta_info.ssid, tag->value, tag->length);
                 break;
 
             case tag_supported_rates:

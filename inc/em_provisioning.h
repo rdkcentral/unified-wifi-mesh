@@ -126,10 +126,8 @@ class em_provisioning_t {
 	int handle_dpp_chirp_notif(uint8_t *buff, unsigned int len);
     
 	/**!
-	 * @brief Handles the proxy encapsulation for DPP (Device Provisioning Protocol).
+	 * @brief Handles a Proxied Encap DPP Message (EM 17.1.48)
 	 *
-	 * This function processes the given buffer and its length to perform the necessary
-	 * operations for proxy encapsulation in the context of DPP.
 	 *
 	 * @param[in] buff Pointer to the buffer containing the data to be processed.
 	 * @param[in] len Length of the buffer in bytes.
@@ -142,6 +140,22 @@ class em_provisioning_t {
 	 * before calling this function.
 	 */
 	int handle_proxy_encap_dpp(uint8_t *buff, unsigned int len);
+
+
+	/**!
+	 * @brief Handles a Direct Encap DPP Message (EM 17.1.56)
+	 *
+	 * @param[in] buff Pointer to the buffer containing the data to be processed.
+	 * @param[in] len Length of the buffer in bytes.
+	 *
+	 * @returns int Status code indicating success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the buffer is properly allocated and the length is correctly specified
+	 * before calling this function.
+	 */
+	int handle_direct_encap_dpp(uint8_t *buff, unsigned int len);
 
     // states
     
@@ -398,9 +412,7 @@ protected:
 	int send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t chirp_len);
     
 	/**!
-	 * @brief Sends a proximity encapsulated DPP message.
-	 *
-	 * This function is responsible for sending a DPP (Device Provisioning Protocol) message that is encapsulated for proximity communication.
+	 * @brief Sends a proxied encapsulated DPP message.
 	 *
 	 * @param[in] encap_dpp_tlv Pointer to the encapsulated DPP TLV structure.
 	 * @param[in] encap_dpp_len Length of the encapsulated DPP TLV.
@@ -414,6 +426,19 @@ protected:
 	 * @note Ensure that the encapsulated DPP TLV and chirp values are properly initialized before calling this function.
 	 */
 	int send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, size_t encap_dpp_len, em_dpp_chirp_value_t *chirp, size_t chirp_len);
+
+	/**!
+	 * @brief Sends a direct encapsulated DPP message. 
+	 *
+	 * @param[in] dpp_frame Pointer to the DPP frame data to be sent.
+	 * @param[in] dpp_frame_len Length of the DPP frame data.
+	 * @param[in] dest_al_mac Pointer to the destination AL MAC address (6 bytes).
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 */
+	int send_direct_encap_dpp_msg(uint8_t* dpp_frame, size_t dpp_frame_len, uint8_t dest_al_mac[ETH_ALEN]);
     
 	/**!
 	 * @brief Creates a list of enrollee BSTA.
@@ -455,6 +480,15 @@ protected:
 	 * @note Ensure that the connection context is properly initialized before calling this function.
 	 */
 	cJSON *create_ieee1905_response_obj(ec_connection_context_t *conn_ctx);
+
+	/**
+	 * @brief Create a fBSS (fronthaul BSS) Configuration response object for DPP STA onboarding
+	 * 
+	 * @param conn_ctx The connection context used to create the response object.
+	 * @return cJSON* Configuration response object on success, nullptr otherwise
+	 */
+	cJSON *create_fbss_response_obj(ec_connection_context_t *conn_ctx);
+
 public:
     
 	/**!

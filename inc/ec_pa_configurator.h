@@ -17,35 +17,11 @@ public:
 	 * It also handles the 1905 frames from the Controller and forwards them to the Enrollee.
 	 *
 	 * @param[in] mac_addr The MAC address of the device.
-	 * @param[in] send_chirp_notification The function to send a chirp notification via 1905.
-	 * @param[in] send_prox_encap_dpp_msg The function to send a proxied encapsulated DPP message via 1905.
-	 * @param[in] send_action_frame The function to send an 802.11 action frame.
-	 * @param[in] get_sta_info_func The function to get backhaul station information.
-	 * @param[in] ieee1905_info_func The function to get 1905 information.
-	 * @param[in] toggle_cce_fn The function to toggle the CCE (Centralized Control Entity).
+	 * @param ops Callbacks for this Configurator
 	 *
 	 * @note This constructor is part of the ec_pa_configurator_t class which extends ec_configurator_t.
 	 */
-	ec_pa_configurator_t(
-        std::string mac_addr,
-        send_chirp_func send_chirp_notification,
-        send_encap_dpp_func send_prox_encap_dpp_msg,
-        send_act_frame_func send_action_frame,
-        get_backhaul_sta_info_func get_sta_info_func,
-        get_1905_info_func ieee1905_info_func,
-        toggle_cce_func toggle_cce_fn
-    ) : ec_configurator_t(
-            mac_addr,
-            send_chirp_notification,
-            send_prox_encap_dpp_msg,
-            send_action_frame,
-            get_sta_info_func,
-            ieee1905_info_func,
-            {}
-        ),
-        m_toggle_cce(toggle_cce_fn) { }
-
-
+	ec_pa_configurator_t(const std::string& mac_addr, ec_ops_t& ops);
     
 	/**
 	 * @brief Handles a presence announcement 802.11 frame, performing the necessary actions and possibly passing to 1905.
@@ -62,6 +38,15 @@ public:
 	 */
 	bool handle_presence_announcement(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]) override;
 
+	/**
+	 * @brief Handles a Reconfiguration Announcement frame
+	 * 
+	 * @param frame The Reconfiguration Announcement frame
+	 * @param len The length of the frame
+	 * @param sa The source MAC of the frame (Enrollee)
+	 * @return true on success, otherwise false
+	 */
+	bool handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) override;
     
 	/**
 	 * @brief Handles an authentication request 802.11 frame, performing the necessary actions and possibly passing to 1905.
@@ -157,6 +142,16 @@ public:
 	bool process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) override;
 
 	/**
+	 * @brief Handle a Direct Encapsulated DPP Message (DPP Message TLV)
+	 *
+	 * @param[in] dpp_frame The frame parsed from the DPP Message TLV
+	 * @param[in] dpp_frame_len The length of the frame from the DPP Message TLV
+	 *
+	 * @return bool True if the frame was processed successfully, false otherwise.
+	 */
+	bool  process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len) override;
+
+	/**
 	 * @brief Handles a GAS Comeback Request frame
 	 * A GAS Comeback Request frame (in the context of DPP) indicates that a peer is ready the to receive the next fragmented frame via GAS Comeback Response frame.
 	 * 
@@ -183,11 +178,14 @@ private:
      * Map from Chirp Hash to DPP Authentication Request
      */
     std::map<std::string, std::vector<uint8_t>> m_chirp_hash_frame_map = {};
-    /*
-     * Vector of all cached DPP Reconfiguration Authentication Requests.
-     * Hash does not matter since it is compared against the Controllers C-sign key
-     */
-    std::vector<std::vector<uint8_t>> m_stored_recfg_auth_frames = {};
+
+	/**
+	 * @brief Map of stored DPP Reconfiguration Authentication Requests
+	 * 
+	 * Key -> C-sign key hash as a string
+	 * Value -> Vector of DPP Reconfiguration Authentication Request frames
+	 */
+	std::unordered_map<std::string, std::vector<uint8_t>> m_stored_recfg_auth_frames_map = {};
 
 	/**
 	 * @brief Stored GAS frame session dialog tokens with peers.

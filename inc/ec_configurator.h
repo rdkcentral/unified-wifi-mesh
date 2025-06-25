@@ -7,88 +7,7 @@
 
 #include "em_base.h"
 #include "ec_crypto.h"
-
-
-/**
- * @brief Sends a chirp notification
- * 
- * @param chirp_tlv The chirp TLV to send
- * @param len The length of the chirp TLV
- * @return bool true if successful, false otherwise
- */
-using send_chirp_func = std::function<bool(em_dpp_chirp_value_t*, size_t)>;
-
-/**
- * @brief Sends a proxied encapsulated DPP message
- * 
- * @param encap_dpp_tlv The 1905 Encap DPP TLV to include in the message
- * @param encap_dpp_len The length of the 1905 Encap DPP TLV
- * @param chirp_tlv The chirp value to include in the message. If NULL, the message will not include a chirp value
- * @param chirp_len The length of the chirp value
- * @return bool true if successful, false otherwise
- */
-using send_encap_dpp_func = std::function<bool(em_encap_dpp_t*, size_t, em_dpp_chirp_value_t*, size_t)>;
-
-/**
- * @brief Send an action frame. Optional to implement.
- * 
- * @param dest_mac The destination MAC address
- * @param action_frame The action frame to send
- * @param action_frame_len The length of the action frame
- * @param frequency The frequency to send the frame on (0 for current frequency)
- * @param wait The time to wait on the channel after sending the frame (0 for no wait)
- * @return true if successful, false otherwise
- */
-using send_act_frame_func = std::function<bool(uint8_t*, uint8_t *, size_t, unsigned int, unsigned int)>;
-
-/**
- * @brief Set the CCE IEs in the beacon and probe response frames
- * 
- * @param bool Whether to enable or disable the inclusion of CCE IEs in the beacon and probe response frames
- * @return bool true if successful, false otherwise
- * @note If the operation fails, all CCE IEs are removed before the function exits
- */
-using toggle_cce_func = std::function<bool(bool)>;
-
-/**
- * @brief Initial setup for starting or stopping the building of the channel list
- * 
- * @param do_start true to start the process, false to stop it
- * @return bool true if the action was successful, false otherwise
- * 
- * @note This does not build the channel list but just sets up the environment for the process
- */
-using start_stop_clist_build_func = std::function<bool(bool)>;
-
-
-/**
- * @brief Attempts a connection between the backhaul STA to the specified BSS.
- * 
- * @param ssid The SSID of the BSS to connect to
- * @param passphrase The passphrase for the BSS
- * @param bssid The BSSID of the BSS to connect to
- * @return bool true if the attempt was performed successfully, false otherwise
- */
-using bsta_connect_func = std::function<bool(const std::string&, const std::string&, bssid_t)>;
-
-/**
- * @brief Creates a DPP Configuration Response object for the backhaul STA interface.
- * @param conn_ctx Optional connection context (not needed for Enrollee, needed for Configurator) -- pass nullptr if not needed.
- * @return cJSON * on success, nullptr otherwise
- */
-using get_backhaul_sta_info_func = std::function<cJSON*(ec_connection_context_t *)>;
-
-/**
- * @brief Creates a DPP Configuration Response object for the 1905.1 interface.
- * @return cJSON * on success, nullptr otherwise.
- */
-using get_1905_info_func = std::function<cJSON*(ec_connection_context_t *)>;
-
-/**
- * @brief Used to determine if an additional AP can be on-boarded or not.
- * @return True if additional APs can be on-boraded into the mesh, false otherwise.
- */
-using can_onboard_additional_aps_func = std::function<bool(void)>;
+#include "ec_ops.h"
 
 class ec_configurator_t {
 public:
@@ -100,16 +19,9 @@ public:
 	 * for sending notifications and messages.
 	 *
 	 * @param[in] mac_addr The MAC address of the device
-	 * @param[in] send_chirp_notification The function to send a chirp notification
-	 * @param[in] send_prox_encap_dpp_msg The function to send a proxied encapsulated DPP message
-	 * @param[in] send_action_frame The function to send an action frame
-	 * @param[in] backhaul_sta_info_func The function to get backhaul station information
-	 * @param[in] ieee1905_info_func The function to get IEEE 1905 information
-	 * @param[in] can_onboard_func The function to check if additional APs can be onboarded
+	 * @param ops Callbacks for this Configurator
 	 */
-	ec_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg, 
-                        send_act_frame_func send_action_frame, get_backhaul_sta_info_func backhaul_sta_info_func, get_1905_info_func ieee1905_info_func,
-                        can_onboard_additional_aps_func can_onboard_func);
+	ec_configurator_t(const std::string& mac_addr, ec_ops_t& ops);
     
 	/**!
 	 * @brief Destructor for ec_configurator_t class.
@@ -242,6 +154,35 @@ public:
         return true;
     }
 
+	/**
+	 * @brief Handles a Reconfiguration Announcement frame
+	 * 
+	 * If this Reconfiguration Announcement frame is meant for the Configurator that received it
+	 * (determined by comparing the C-sign-key hash attribute to the Configurator's C-sign-key),
+	 * then create a Reconfiguration Authentication frame and send to the Enrollee
+	 * 
+	 * @param frame The Reconfiguration Announcement frame
+	 * @param len The length of the frame
+	 * @param sa The source address (Enrollee)
+	 * @return true on success, otherwise false
+	 * 
+	 * @note Only implemented by the Controller Configurator
+	 */
+	virtual bool handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) {
+		return true;
+	}
+
+	/**
+	 * @brief Handles a Reconfiguration Authentication Response frame
+	 * 
+	 * @param frame The proxied encapsulated Reconfiguration Authentication Response frame
+	 * @param len The length of the frame
+	 * @param sa The source address (Enrollee)
+	 * @return true on success, otherwise false
+	 */
+	virtual bool handle_recfg_auth_response(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) {
+		return true; // Optional to implement
+	}
     
 	/**
 	 * @brief Handle a chirp notification message TLV and direct it to the correct place (802.11 or 1905).
@@ -271,7 +212,16 @@ public:
 	 */
 	virtual bool  process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) = 0;
 
-    
+	/**
+	 * @brief Handle a Direct Encapsulated DPP Message (DPP Message TLV)
+	 *
+	 * @param[in] dpp_frame The frame parsed from the DPP Message TLV
+	 * @param[in] dpp_frame_len The length of the frame from the DPP Message TLV
+	 *
+	 * @return bool True if the frame was processed successfully, false otherwise.
+	 */
+	virtual bool  process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len) = 0;
+	
 	/**
 	 * @brief Handle a proxied encapsulated DPP Configuration Request frame.
 	 *
@@ -373,11 +323,15 @@ protected:
 
     send_encap_dpp_func m_send_prox_encap_dpp_msg;
 
+    send_dir_encap_dpp_func m_send_dir_encap_dpp_msg;
+
     send_act_frame_func m_send_action_frame;
 
     get_backhaul_sta_info_func m_get_backhaul_sta_info;
 
     get_1905_info_func m_get_1905_info;
+
+	get_fbss_info_func m_get_fbss_info;
 
     can_onboard_additional_aps_func m_can_onboard_additional_aps;
 

@@ -580,49 +580,6 @@ int dm_easy_mesh_agent_t::analyze_btm_request_action_frame(em_bus_event_t *evt, 
     return 1;
 }
 
-int dm_easy_mesh_agent_t::analyze_scan_request(em_bus_event_t *evt, wifi_bus_desc_t *desc, bus_handle_t *bus_hdl)
-{
-    unsigned i, j;
-    mac_addr_str_t radio_mac_str;
-    raw_data_t l_bus_data;
-    channel_scan_request_t scan_data;
-    em_scan_params_t *scan_req = (em_scan_params_t *)&evt->u.raw_buff;
-
-    dm_easy_mesh_t::macbytes_to_string(scan_req->ruid, radio_mac_str);
-    printf("%s:%d: Radio: %s Num of Op Classes: %d\n", __func__, __LINE__, radio_mac_str, scan_req->num_op_classes);
-
-    scan_data.perform_fresh_scan = true;
-    scan_data.num_radios = 1;
-
-    memcpy(scan_data.ruid, scan_req->ruid, sizeof(mac_address_t));
-
-    scan_data.num_operating_classes = scan_req->num_op_classes;
-    for (i = 0; i < scan_req->num_op_classes; i++) {
-        scan_data.operating_classes[i].operating_class = scan_req->op_class[i].op_class;
-        scan_data.operating_classes[i].num_channels = scan_req->op_class[i].num_channels;
-        printf("Op Class: %d ", scan_req->op_class[i].op_class);
-        printf("Channels: ");
-        for (j = 0; j < scan_req->op_class[i].num_channels; j++) {
-            scan_data.operating_classes[i].channels[j] = scan_req->op_class[i].channels[j];
-            printf("%d ", scan_req->op_class[i].channels[j]);
-        }
-        printf("\n");
-    }
-
-    l_bus_data.data_type = bus_data_type_bytes;
-    l_bus_data.raw_data.bytes = (void *)&scan_data;
-    l_bus_data.raw_data_len = sizeof(channel_scan_request_t);
-
-    if (desc->bus_set_fn(bus_hdl, "Device.WiFi.EM.ChannelScanRequest", &l_bus_data)== 0) {
-        printf("%s:%d Scan Req send successfull\n",__func__, __LINE__);
-    }
-    else {
-        printf("%s:%d Scan Req send failed\n",__func__, __LINE__);
-        return -1;
-    }
-    return 1;
-}
-
 int dm_easy_mesh_agent_t::analyze_btm_response_action_frame(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     //TODO: if callback would give for multiple entries or one by one
@@ -735,7 +692,7 @@ int dm_easy_mesh_agent_t::analyze_beacon_report(em_bus_event_t *evt, em_cmd_t *p
         memcpy(&dm.m_bss[i], &m_bss[i], sizeof(dm_bss_t));
     }
 
-    translate_and_decode_onewifi_subdoc((char *)evt->u.raw_buff, webconfig_subdoc_type_beacon_report, "Beacon Report");
+    dm.translate_and_decode_onewifi_subdoc((char *)evt->u.raw_buff, webconfig_subdoc_type_beacon_report, "Beacon Report");
 
     sta = (dm_sta_t *)hash_map_get_first((hash_map_t *)dm.m_sta_map);
     if (sta != NULL) {

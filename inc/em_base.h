@@ -212,6 +212,27 @@ extern "C"
 #define ETH_ALEN 6
 #endif // ETH_ALEN
 
+#ifndef WIFI_EM_CHANNEL_SCAN_REQUEST
+#define WIFI_EM_CHANNEL_SCAN_REQUEST          "Device.WiFi.EM.ChannelScanRequest"
+#endif
+
+#ifndef WIFI_EC_SEND_TRIG_STA_SCAN
+#define WIFI_EC_SEND_TRIG_STA_SCAN          "Device.WiFi.EC.TriggerStaScan"
+#endif
+
+
+#ifndef WIFI_EM_CHANNEL_SCAN_REPORT
+#define WIFI_EM_CHANNEL_SCAN_REPORT           "Device.WiFi.EM.ChannelScanReport"
+#endif
+
+#ifndef WIFI_SET_DISCONN_STEADY_STATE
+#define WIFI_SET_DISCONN_STEADY_STATE         "Device.WiFi.EM.SetDisconnSteadyState"
+#endif
+
+#ifndef WIFI_SET_DISCONN_SCAN_NONE_STATE
+#define WIFI_SET_DISCONN_SCAN_NONE_STATE      "Device.WiFi.EM.SetDisconnScanNoneState"
+#endif
+
 typedef char em_interface_name_t[32];
 typedef unsigned char em_nonce_t[16];
 typedef unsigned char em_dh5_key_t[192];    // because this is DH group 5 (1536 bits)
@@ -2602,9 +2623,9 @@ typedef enum {
     em_bus_event_type_recv_wfa_action_frame,
     em_bus_event_type_recv_gas_frame,
     em_bus_event_type_get_sta_client_type,
-    em_bus_event_type_cce_ie,
     em_bus_event_type_assoc_status,
     em_bus_event_type_ap_metrics_report,
+    em_bus_event_type_bss_info,
 
     em_bus_event_type_max
 } em_bus_event_type_t;

@@ -29,11 +29,10 @@
 
 void em_dev_test_t::encode(em_subdoc_info_t *subdoc, hash_map_t *m_em_map, bool update, bool testinprogress)
 {
-	cJSON *parent, *em_jlist, *em_j, *em_j_info, *em_state, *em_data, *dev_test, *dev_test_param;
+	cJSON *parent, *em_jlist, *em_data, *dev_test, *dev_test_param;
 	char *tmp;
 	em_t *em = NULL;
 	int i = 0;
-	mac_addr_str_t mac_str;
 	em_small_string_t enable;
 	em_short_string_t haul_type_str;
 
@@ -169,7 +168,7 @@ void em_dev_test_t:: decode(em_subdoc_info_t *subdoc, hash_map_t *m_em_map, cons
 		return;
 	}
 
-	arr_size = static_cast<unsigned int> (cJSON_GetArraySize(dev_test_obj));
+	arr_size = cJSON_GetArraySize(dev_test_obj);
 	if (arr_size != em_dev_test_type_max) {
 		printf("%s:%d: Invalid configuration:\n", __func__, __LINE__);
 		cJSON_Delete(parent_obj);
@@ -184,25 +183,25 @@ void em_dev_test_t:: decode(em_subdoc_info_t *subdoc, hash_map_t *m_em_map, cons
 		   snprintf(str_type, sizeof(str_type), "%s", cJSON_GetStringValue(tmp));
 		}
 		if (strncmp(str_type, "ssid_change", sizeof(str_type)) == 0) {
-		   index = (int) em_dev_test_type_ssid;
+		   index = static_cast<int>(em_dev_test_type_ssid);
 		} else {
-		   index = (int) em_dev_test_type_channel;
+		   index = static_cast<int>(em_dev_test_type_channel);
 		}
 		if ((tmp = cJSON_GetObjectItem(obj, "No_of_iteration")) != NULL) {
-			dev_test_info.num_iteration[index] = static_cast<unsigned int> (tmp->valuedouble);
+			dev_test_info.num_iteration[index] = static_cast<int> (tmp->valuedouble);
 		}
 
 		if ((tmp = cJSON_GetObjectItem(obj, "Current_iteration_inprogress")) != NULL) {
-			dev_test_info.test_inprogress[index] = static_cast<unsigned int> (tmp->valuedouble);
+			dev_test_info.test_inprogress[index] = static_cast<int> (tmp->valuedouble);
 		}
 		if ((tmp = cJSON_GetObjectItem(obj, "Num_of_iteration_completed")) != NULL) {
-			dev_test_info.num_of_iteration_completed[index] = static_cast<unsigned int> (tmp->valuedouble);
+			dev_test_info.num_of_iteration_completed[index] = static_cast<int> (tmp->valuedouble);
 		}
 		if ((tmp = cJSON_GetObjectItem(obj, "Haul_type:[Fronthault:0,Backhaul:1,IOT:2,Configurator:3,Hotspot:4]")) != NULL) {
 			dev_test_info.haul_type = static_cast<em_haul_type_t> (tmp->valuedouble);
 		}
 		if ((tmp = cJSON_GetObjectItem(obj, "Test_enabled")) != NULL) {
-			dev_test_info.enabled[index] = static_cast<unsigned int> (tmp->valuedouble);
+			dev_test_info.enabled[index] = static_cast<int> (tmp->valuedouble);
 			if (dev_test_info.enabled[index] == 0) {
 				dev_test_info.test_status[index] = em_dev_test_status_idle;
 				dev_test_info.test_inprogress[index] = 0;

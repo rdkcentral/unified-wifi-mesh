@@ -488,6 +488,7 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                 sta = em->find_sta(mac1, mac2);
                 if (sta != NULL) {
                     queue_push(pcmd->m_em_candidates, em);
+                    printf("%s:%d Beacon report build candidate pushed\n", __func__, __LINE__);
                     count++;
                 }
                 break;
