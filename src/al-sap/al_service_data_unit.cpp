@@ -1,5 +1,6 @@
 #include "al_service_data_unit.h"
 #include "al_service_exception.h"
+#include "al_service_utils.h"
 
 AlServiceDataUnit::AlServiceDataUnit() {
     sourceAlMacAddress.fill(0);
@@ -39,6 +40,13 @@ void AlServiceDataUnit::appendToPayload(const unsigned char* data, size_t length
 std::vector<unsigned char> AlServiceDataUnit::serialize() const {
     std::vector<unsigned char> serializedData;
 
+    // Calculate SDU size
+    uint32_t fragments_size = 3;// is fragment + is last fragment + fragment id
+    uint32_t packet_size = sourceAlMacAddress.size() + destinationAlMacAddress.size() + fragments_size + payload.size();
+
+    // put 32bit size as 8bit
+    serializedData = convert_u32_into_bytes(packet_size);
+
     // Add MAC addresses
     serializedData.insert(serializedData.end(), sourceAlMacAddress.begin(), sourceAlMacAddress.end());
     serializedData.insert(serializedData.end(), destinationAlMacAddress.begin(), destinationAlMacAddress.end());
@@ -62,19 +70,21 @@ std::vector<unsigned char> AlServiceDataUnit::serialize() const {
 
 // Deserialization method
 void AlServiceDataUnit::deserialize(const std::vector<unsigned char>& data) {
-    // Check minimum size (6 bytes each for source and destination MAC, plus 3 bytes for flags and fragment ID)
-    if (data.size() < 15) {
+    // Check minimum size (4 bytes for size, 6 bytes each for source and destination MAC, plus 3 bytes for flags and fragment ID)
+    if (data.size() < 19) {
         throw AlServiceException("Insufficient data to deserialize AlServiceDataUnit", PrimitiveError::DeserializationError);
     }
 
+    auto data_raw = remove_length_delimited_part(data);
+
     // Extract MAC addresses
-    std::copy(data.begin(), data.begin() + 6, sourceAlMacAddress.begin());
-    std::copy(data.begin() + 6, data.begin() + 12, destinationAlMacAddress.begin());
+    std::copy(data_raw.begin(), data_raw.begin() + 6, sourceAlMacAddress.begin());
+    std::copy(data_raw.begin() + 6, data_raw.begin() + 12, destinationAlMacAddress.begin());
 
     // Extract fragment information, ensuring correct byte interpretation
-    isFragment = static_cast<uint8_t>(data[12]);
-    isLastFragment = static_cast<uint8_t>(data[13]);
-    fragmentId = static_cast<uint8_t>(data[14]);
+    isFragment = static_cast<uint8_t>(data_raw[12]);
+    isLastFragment = static_cast<uint8_t>(data_raw[13]);
+    fragmentId = static_cast<uint8_t>(data_raw[14]);
     #ifdef DEBUG_MODE
     // Debugging output to confirm correct interpretation of flags
     std::cout << "Deserialized Fragment Information - isFragment: " << static_cast<int>(isFragment)
@@ -82,5 +92,5 @@ void AlServiceDataUnit::deserialize(const std::vector<unsigned char>& data) {
               << ", fragmentId: " << static_cast<int>(fragmentId) << std::endl;
     #endif
     // Extract Payload
-    payload.assign(data.begin() + 15, data.end());
+    payload.assign(data_raw.begin() + 15, data_raw.end());
 }
