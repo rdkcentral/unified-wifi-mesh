@@ -14,6 +14,7 @@
 #define DATA_SOCKET_PATH "/tmp/al_data_socket"
 #define CONTROL_SOCKET_PATH "/tmp/al_control_socket"
 
+#ifdef AL_SAP
 MacAddress split(const std::string& str, char delimiter) {
     //std::cout<<"START "<<std::endl;
     MacAddress mca;
@@ -194,3 +195,9 @@ int main(int argc, char* argv[]) {
 
     return EXIT_SUCCESS;
 }
+#else //#ifdef AL_SAP
+int main(int argc, char* argv[]) {
+    //Nothing to do
+    return EXIT_SUCCESS;
+}
+#endif //#ifdef AL_SAP

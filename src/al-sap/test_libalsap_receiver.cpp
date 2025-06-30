@@ -12,6 +12,7 @@
 #define CONTROL_SOCKET_PATH "/tmp/al_control_socket"
 
 int main() {
+#ifdef AL_SAP
     try {
         // Step 1: Create an instance of AlServiceAccessPoint for the client side
         std::string dataSocketPath = DATA_SOCKET_PATH;
@@ -62,4 +63,7 @@ int main() {
     }
 
     return EXIT_SUCCESS;
+#else //#ifdef AL_SAP
+    return EXIT_SUCCESS;
+#endif //#ifdef AL_SAP
 }
