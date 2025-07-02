@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"log"
 	"regexp"
-	"strconv"
 	"strings"
 	"unsafe"
 
@@ -41,20 +40,7 @@ func ShowWifiResetDialog(m *MeshViewsMgr) {
         return
     }
 
-    // Basic field retrieval
-    idValue := getTreeValue(resetTree, "ID")
-    deviceCountValue := getTreeValue(resetTree, "NumberOfDevices")
-    timeStampValue := getTreeValue(resetTree, "TimeStamp")
-    ControllerIDValue := getTreeValue(resetTree, "ControllerID")
     collocatedValue := getTreeValue(resetTree, "CollocatedAgentID")
-    mediaType := getTreeValue(resetTree, "MediaType")
-
-    // Assuming deviceCountValue is a string
-    deviceCountInt, err := strconv.Atoi(deviceCountValue)
-    if err != nil {
-        deviceCountInt = 0
-    }
-    countStr := fmt.Sprintf("%d", deviceCountInt)
 
     // Interface MACs
     interfacesList := C.get_network_tree_by_key(resetTree, C.CString("List"))
@@ -67,7 +53,7 @@ func ShowWifiResetDialog(m *MeshViewsMgr) {
     manualMacEntry.Hide()
 
     collocatedSelect := widget.NewSelect(macOptions, func(selected string) {
-        log.Printf("Selected CollocatedAgentID: %s", selected)
+        log.Printf("Selected AL_MAC Interface: %s", selected)
         if selected == "Other" {
             manualMacEntry.Show()
         } else {
@@ -83,89 +69,15 @@ func ShowWifiResetDialog(m *MeshViewsMgr) {
         }
     }
 
-    // Haul type selection
-    haulTypes := getAllHaulTypes(resetTree)
-    selectedHauls := widget.NewCheckGroup(haulTypes, nil)
-
-    ssidEntries := make(map[string]*widget.Entry)
-    passEntries := make(map[string]*widget.Entry)
-    bandEntries := make(map[string]fyne.CanvasObject)
-    akmsAllowedEntries := make(map[string]fyne.CanvasObject)
-    suiteSelectorEntries := make(map[string]fyne.CanvasObject)
-    mfpConfigEntries := make(map[string]fyne.CanvasObject)
-    mobilityDomainEntries := make(map[string]fyne.CanvasObject)
-    enableEntries := make(map[string]fyne.CanvasObject)
-    advertisementEnabled := make(map[string]fyne.CanvasObject)
-    haulForms := container.NewVBox()
-
-    haulData := getConfiguredHauls(resetTree)
-
-    selectedHauls.OnChanged = func(selected []string) {
-        haulForms.Objects = nil
-        for _, haul := range selected {
-            config := haulData[haul]
-            ssid := widget.NewEntry()
-            ssid.SetPlaceHolder(fmt.Sprintf("%s SSID", haul))
-            ssid.SetText(config["SSID"])
-
-            pass := widget.NewEntry()
-            pass.SetPlaceHolder(fmt.Sprintf("%s PassPhrase", haul))
-            pass.SetText(config["PassPhrase"])
-
-            band := widget.NewLabel(config["Band"])
-            akmsAllowed := widget.NewLabel(config["AKMsAllowed"])
-            suiteSelector := widget.NewLabel(config["SuiteSelector"])
-            mfpConfig := widget.NewLabel(config["MFPConfig"])
-            mobilityDomain := widget.NewLabel(config["MobilityDomain"])
-            enable := widget.NewLabel(config["Enable"])
-            advertisement := widget.NewLabel(config["AdvertisementEnabled"])
-
-            ssidEntries[haul] = ssid
-            passEntries[haul] = pass
-            bandEntries[haul] = band
-            enableEntries[haul] = enable
-            akmsAllowedEntries[haul] = akmsAllowed
-            suiteSelectorEntries[haul] = suiteSelector
-            advertisementEnabled[haul] = advertisement
-            mfpConfigEntries[haul] = mfpConfig
-            mobilityDomainEntries[haul] = mobilityDomain
-
-            form := widget.NewForm(
-                widget.NewFormItem("SSID", ssid),
-                widget.NewFormItem("PassPhrase", pass),
-                widget.NewFormItem("Band", band),
-                widget.NewFormItem("AKMsAllowed", akmsAllowed),
-                widget.NewFormItem("SuiteSelector", suiteSelector),
-                widget.NewFormItem("Enable", enable),
-                widget.NewFormItem("AdvertisementEnabled", advertisement),
-                widget.NewFormItem("MFPConfig", mfpConfig),
-                widget.NewFormItem("MobilityDomain", mobilityDomain),
-            )
-
-            haulForms.Add(container.NewVBox(
-                widget.NewLabelWithStyle(fmt.Sprintf("%s Configuration", haul), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-                form,
-            ))
-        }
-        haulForms.Refresh()
-    }
-
     var dlg *widget.PopUp
-    scrollContent := container.NewVBox(
+    resetDialogBody := container.NewVBox(
         widget.NewLabelWithStyle("WiFi Reset Configuration", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
         widget.NewForm(
-            widget.NewFormItem("ID", widget.NewLabel(idValue)),
-            widget.NewFormItem("NumberOfDevices", widget.NewLabel(countStr)),
-            widget.NewFormItem("TimeStamp", widget.NewLabel(timeStampValue)),
-            widget.NewFormItem("ControllerID", widget.NewLabel(ControllerIDValue)),
-            widget.NewFormItem("CollocatedAgentID", container.NewVBox(
+            widget.NewFormItem("AL_MAC Interface", container.NewVBox(
                 collocatedSelect,
                 manualMacEntry,
             )),
-            widget.NewFormItem("MediaType", widget.NewLabel(mediaType)),
-            widget.NewFormItem("Haul Type(s)", selectedHauls),
         ),
-        haulForms,
         layout.NewSpacer(),
         container.NewHBox(
             layout.NewSpacer(),
@@ -178,42 +90,16 @@ func ShowWifiResetDialog(m *MeshViewsMgr) {
                 } else if parts := strings.Split(selectedMac, " "); len(parts) > 0 {
                     selectedMac = parts[0]
                 }
-                // First, update SSID and PassPhrase fields into resetTree
-                for haul, ssidEntry := range ssidEntries {
-                    ssid := strings.TrimSpace(ssidEntry.Text)
-                    pass := strings.TrimSpace(passEntries[haul].Text)
-
-                    // validate the SSID before setting
-                    if err := validateSSID(ssid); err != nil {
-                        msg := fmt.Sprintf("Invalid SSID for haul '%s': %v", haul, err)
-                        errorsList = append(errorsList, msg)
-                        valid = false
-                        continue
-                    }
-
-                    // validate the passphase before setting
-                    if err := validatePassPhrase(pass); err != nil {
-                        msg := fmt.Sprintf("Invalid PassPhrase for haul '%s': %v", haul, err)
-                        errorsList = append(errorsList, msg)
-                        valid = false
-                        continue
-                    }
-
-                    if err := updateSSIDPassForHaulType(resetTree, haul, ssid, pass); err != nil {
-                        msg := fmt.Sprintf("Update failed for SSID and PassPhrase on haul '%s': %v", haul, err)
-                        errorsList = append(errorsList, msg)
-                        valid = false
-                    }
-                }
 
                 // update the CollocatedAgentID in reset tree
-                if err := updateCollocatedAgentID(resetTree, selectedMac); err != nil {
-                    msg := fmt.Sprintf("Update failed for CollocatedAgentID: %v", err)
+                err := updateCollocatedAgentID(resetTree, selectedMac)
+                if err != nil {
+                    msg := fmt.Sprintf("Update failed for AL_MAC Interface: %v", err)
                     errorsList = append(errorsList, msg)
                     valid = false
                 }
 
-                if !valid && err != nil {
+                if !valid {
                     fullError := fmt.Errorf("ERROR: %s", strings.Join(errorsList, "\n"))
                     dialog.ShowError(fullError, m.meshWindow)
                     return
@@ -247,10 +133,11 @@ func ShowWifiResetDialog(m *MeshViewsMgr) {
     )
 
     dlg = widget.NewModalPopUp(
-        container.NewVScroll(scrollContent),
+        resetDialogBody,
         m.meshWindow.Canvas(),
     )
-    dlg.Resize(fyne.NewSize(520, 500))
+    //dlg.Resize(fyne.NewSize(450, 200))
+    dlg.Resize(dlg.Content.MinSize())
     dlg.Show()
 }
 
@@ -309,122 +196,8 @@ func getInterfacePrefence(tree *C.em_network_node_t) []string {
     return macList
 }
 
-/* func: getAllHaulTypes()
- * Description:
- * Traverses the "NetworkSSIDList" node in the provided em_network_node_t tree,
- * and collects all HaulType values from each SSID entry. Supports multiple
- * haul types per entry.
- * returns: list of haul type strings (e.g. "Fronthaul", "Backhaul", etc.).
- */
-func getAllHaulTypes(tree *C.em_network_node_t) []string {
-    var haulTypes []string
-    listNode := C.get_network_tree_by_key(tree, C.CString("NetworkSSIDList"))
-    if listNode == nil {
-        return haulTypes
-    }
 
-    for i := 0; i < int(listNode.num_children); i++ {
-        node := listNode.child[i]
-        haulTypeNode := C.get_network_tree_by_key(node, C.CString("HaulType"))
-        if haulTypeNode == nil || int(haulTypeNode.num_children) == 0 {
-            continue
-        }
-
-        // Iterate over all HaulType values
-        for j := 0; j < int(haulTypeNode.num_children); j++ {
-            haul := C.GoString(&haulTypeNode.child[j].value_str[0])
-            haulTypes = append(haulTypes, haul)
-        }
-    }
-
-    return haulTypes
-}
-
-/* func: getConfiguredHauls()
- * it extracts WiFi haul configurations from the given network tree.
- * Returns: nested map: haulType → {configKey → value}
- */
-func getConfiguredHauls(tree *C.em_network_node_t) map[string]map[string]string {
-    haulConfigs := make(map[string]map[string]string)
-    listNode := C.get_network_tree_by_key(tree, C.CString("NetworkSSIDList"))
-    if listNode == nil {
-        return haulConfigs
-    }
-
-    for i := 0; i < int(listNode.num_children); i++ {
-        node := listNode.child[i]
-
-        // Handle HaulType as list
-        haulTypeNode := C.get_network_tree_by_key(node, C.CString("HaulType"))
-        if haulTypeNode == nil || int(haulTypeNode.num_children) == 0 {
-            continue
-        }
-
-        haul := C.GoString(&haulTypeNode.child[0].value_str[0])
-        config := map[string]string{
-            "SSID":                 getTreeValue(node, "SSID"),
-            "PassPhrase":           getTreeValue(node, "PassPhrase"),
-            "Enable":               getTreeValue(node, "Enable"),
-            "SuiteSelector":        getTreeValue(node, "SuiteSelector"),
-            "AdvertisementEnabled": getTreeValue(node, "AdvertisementEnabled"),
-            "MFPConfig":            getTreeValue(node, "MFPConfig"),
-            "MobilityDomain":       getTreeValue(node, "MobilityDomain"),
-        }
-
-        // Handle array fields
-        if bandNode := C.get_network_tree_by_key(node, C.CString("Band")); bandNode != nil {
-            config["Band"] = joinArrayValues(bandNode)
-        }
-        if akmNode := C.get_network_tree_by_key(node, C.CString("AKMsAllowed")); akmNode != nil {
-            config["AKMsAllowed"] = joinArrayValues(akmNode)
-        }
-        if enableNode := C.get_network_tree_by_key(node, C.CString("Enable")); enableNode != nil {
-            config["Enable"] = getTreeValue(node, "Enable")
-        }
-
-        haulConfigs[haul] = config
-    }
-
-    return haulConfigs
-}
-
-/* func: updateSSIDPassForHaulType()
- * Description:
- * Searches the NetworkSSIDList for a matching HaulType and updates its SSID and PassPhrase fields.
- * returns: nil on successful update; otherwise an error if the list or matching HaulType is not found.
- */
-func updateSSIDPassForHaulType(resetTree *C.em_network_node_t, haulType, newSSID, newPass string) error {
-    networkKey := C.CString("NetworkSSIDList")
-    defer C.free(unsafe.Pointer(networkKey))
-
-    ssidListNode := C.get_network_tree_by_key(resetTree, networkKey)
-    if ssidListNode == nil {
-        return fmt.Errorf("NetworkSSIDList node not found in reset tree")
-    }
-
-    for i := 0; i < int(ssidListNode.num_children); i++ {
-        item := ssidListNode.child[i]
-        if item == nil {
-            continue
-        }
-
-        haulKey := C.CString("HaulType")
-        haulNode := C.get_network_tree_by_key(item, haulKey)
-        C.free(unsafe.Pointer(haulKey))
-        if haulNode == nil || int(haulNode.num_children) == 0 {
-            continue
-        }
-
-        haulTypeStr := C.GoString(&haulNode.child[0].value_str[0])
-        if strings.Contains(haulTypeStr, haulType) {
-            updateNodeValue(item, "SSID", newSSID)
-            updateNodeValue(item, "PassPhrase", newPass)
-        }
-    }
-    return nil
-}
-
-/* func: applyResetConfig
+/* func: updateCollocatedAgentID
  * Description:
  * updates the CollocatedAgentID value in the given reset configuration tree
  * based on the selected or manually entered MAC address, validates its format,
@@ -491,19 +264,6 @@ func isValidMac(mac string) bool {
     return re.MatchString(mac)
 }
 
-/* func: joinArrayValues()
- * Description: converts an array-type em_network_node_t into a single comma-separated string.
- * Return: A single string containing all child string values joined with ", ".
- */
-func joinArrayValues(node *C.em_network_node_t) string {
-    values := []string{}
-    for i := 0; i < int(node.num_children); i++ {
-        val := C.GoString(&node.child[i].value_str[0])
-        values = append(values, val)
-    }
-    return strings.Join(values, ", ")
-}
-
 /* func: getTreeValue()
  * Description: helper function to get value for respective key
  * Return: value of key in String format.
@@ -521,59 +281,4 @@ func getTreeValue(tree *C.em_network_node_t, key string) string {
         }
     }
     return ""
-}
-
-/* func: updateNodeValue()
- * Description: helper function to set the updated node value
- * Return: NA
- */
-func updateNodeValue(parent *C.em_network_node_t, key, newVal string) {
-    cKey := C.CString(key)
-    defer C.free(unsafe.Pointer(cKey))
-
-    node := C.get_network_tree_by_key(parent, cKey)
-    if node == nil {
-        log.Printf("Key '%s' not found in tree", key)
-        return
-    }
-
-    // Safely zero out and copy string into fixed-size buffer
-    const bufSize = 256
-    buf := (*[bufSize]byte)(unsafe.Pointer(&node.value_str[0]))
-
-    for i := range buf {
-        buf[i] = 0
-    }
-    copy(buf[:], newVal)
-}
-
-/* func: validateSSID()
- * Description: helper function to validate the ssid name
- * Return: NA
- */
-func validateSSID(ssid string) error {
-    if ssid == "" {
-        return fmt.Errorf("SSID cannot be empty")
-    }
-    if len(ssid) > 32 {
-        return fmt.Errorf("SSID must be 32 characters or fewer")
-    }
-    if matched, _ := regexp.MatchString(`^[\w\-\. ]+$`, ssid); !matched {
-        return fmt.Errorf("SSID contains invalid characters")
-    }
-    return nil
-}
-
-/* func: validatePassPhrase()
- * Description: helper function to validate the passphase
- * Return: NA
- */
-func validatePassPhrase(pass string) error {
-    if pass == "" {
-        return fmt.Errorf("PassPhrase cannot be empty")
-    }
-    if len(pass) < 8 || len(pass) > 63 {
-        return fmt.Errorf("PassPhrase must be 8-63 characters")
-    }
-    return nil
 }
