@@ -804,6 +804,14 @@ public:
 	 * calling this function.
 	 */
 	short create_ap_cap_tlv(unsigned char *buff);
+
+	/**
+	 * @brief Create an AP Radio Advanced Capabilities TLV (EM 17.2.52)
+	 * 
+	 * @param buff The buffer to write the TLV to.
+	 * @return short The length of the TLV on success, -1 on failure
+	 */
+	short create_ap_radio_advanced_cap_tlv(unsigned char *buff);
     
 	/**!
 	 * @brief Creates a HT TLV (Type-Length-Value) structure.
