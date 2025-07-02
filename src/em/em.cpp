@@ -50,6 +50,7 @@
 #include "em_cmd.h"
 #include "em_cmd_exec.h"
 #include "util.h"
+#include "ec_ops.h"
 
 #ifdef AL_SAP
 #include "al_service_access_point.h"
@@ -1345,27 +1346,48 @@ em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr
     // We'll only create the EC manager on the AL node 
     if (is_al_em){
         std::string mac_address = util::mac_to_string(get_al_interface_mac());
-        m_ec_manager = std::unique_ptr<ec_manager_t>(new ec_manager_t(
+
+        ec_ops_t ops;
+        // Shared callbacks
+        ops.send_chirp = std::bind(&em_t::send_chirp_notif_msg, this, std::placeholders::_1,
+                                    std::placeholders::_2);
+        ops.send_encap_dpp =
+            std::bind(&em_t::send_prox_encap_dpp_msg, this, std::placeholders::_1,
+                      std::placeholders::_2, std::placeholders::_3, std::placeholders::_4);
+        ops.send_dir_encap_dpp =
+            std::bind(&em_t::send_direct_encap_dpp_msg, this, std::placeholders::_1,
+                      std::placeholders::_2, std::placeholders::_3);
+        ops.send_act_frame   = std::bind(&em_mgr_t::send_action_frame, mgr, std::placeholders::_1,
+                                          std::placeholders::_2, std::placeholders::_3,
+                                          std::placeholders::_4, std::placeholders::_5);
+        ops.toggle_cce       = std::bind(&em_t::toggle_cce, this, std::placeholders::_1);
+        ops.trigger_sta_scan = std::bind(&em_t::trigger_sta_scan, this);
+        ops.bsta_connect     = std::bind(&em_t::bsta_connect_bss, this, std::placeholders::_1,
+                                          std::placeholders::_2, std::placeholders::_3);
+        ops.can_onboard_additional_aps = std::bind(&em_mgr_t::can_onboard_additional_aps, mgr);
+
+
+        // Enrollee callbacks
+        if (service_type == em_service_type_agent) {
+            ops.get_backhaul_sta_info =
+                std::bind(&em_t::create_enrollee_bsta_list, this, std::placeholders::_1);
+        }
+
+        // Controller Configurator callbacks
+        if (service_type == em_service_type_ctrl) {
+            ops.get_1905_info =
+                std::bind(&em_t::create_ieee1905_response_obj, this, std::placeholders::_1);
+            ops.get_fbss_info =
+                std::bind(&em_t::create_fbss_response_obj, this, std::placeholders::_1);
+            ops.get_backhaul_sta_info = std::bind(&em_t::create_configurator_bsta_response_obj,
+                                                   this, std::placeholders::_1);
+        }
+
+        m_ec_manager = std::make_unique<ec_manager_t>(
             mac_address,
-            std::bind(&em_t::send_chirp_notif_msg, this, std::placeholders::_1, std::placeholders::_2),
-            std::bind(&em_t::send_prox_encap_dpp_msg, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4),
-            std::bind(&em_t::send_direct_encap_dpp_msg, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
-            std::bind(&em_mgr_t::send_action_frame, mgr, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5), 
-            service_type == em_service_type_agent
-                ? std::bind(&em_t::create_enrollee_bsta_list, this, std::placeholders::_1)
-                : std::bind(&em_t::create_configurator_bsta_response_obj, this, std::placeholders::_1),
+            ops,
             service_type == em_service_type_ctrl
-                ? std::bind(&em_t::create_ieee1905_response_obj, this, std::placeholders::_1)
-                : static_cast<get_1905_info_func>(nullptr),
-            service_type == em_service_type_ctrl
-                ? std::bind(&em_t::create_fbss_response_obj, this, std::placeholders::_1)
-                : static_cast<get_fbss_info_func>(nullptr),
-            std::bind(&em_mgr_t::can_onboard_additional_aps, mgr),
-            std::bind(&em_t::toggle_cce, this, std::placeholders::_1),
-            std::bind(&em_t::trigger_sta_scan, this),
-            std::bind(&em_t::bsta_connect_bss, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
-            service_type == em_service_type_ctrl
-        ));
+        );
     }
 }
 

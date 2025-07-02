@@ -5,6 +5,7 @@
 #include "ec_pa_configurator.h"
 #include "ec_enrollee.h"
 #include "ieee80211.h"
+#include "ec_ops.h"
 
 #include <memory>
 #include <functional>
@@ -17,26 +18,11 @@ public:
 	 *
 	 * All non-controller devices are started as (non-onboarding) enrollees until they are told that they are on the network
 	 * at which point they can be upgraded to a proxy agent.
-	 *
-	 * @param[in] mac_addr The MAC address of the device
-	 * @param[in] send_chirp The function to send a chirp notification via 1905
-	 * @param[in] send_encap_dpp The function to send a proxied encapsulated DPP message via 1905
-	 * @param[in] send_dir_encap_dpp The function to send a direct encapsulated DPP message via 1905
-	 * @param[in] send_action_frame The function to send an 802.11 action frame
-	 * @param[in] get_bsta_info Function to get backhaul station information
-	 * @param[in] get_1905_info Function to get 1905 information
-	 * @param[in] can_onboard Function to check if additional APs can be onboarded
-	 * @param[in] toggle_cce Function to toggle CCE
-	 * @param[in] trigger_sta_scan_fn Function to trigger a scan on a station interface
-	 * @param[in] bsta_connect_fn Function to connect a backhaul station to a BSS
-	 * @param[in] m_is_controller Whether the node holding this manager is a controller or not
-	 *
-	 * @note Some method calls are only valid for the controller, proxy agent, or the enrollee, and will return fail if called on the wrong object.
-	 * If the EasyMesh code is correctly implemented this should not be an issue.
+	 * @param mac_addr The MAC address of the device
+	 * @param ops Struct of callbacks per-EC entity
+	 * @param is_controller Whether the EM node holding this manager is the mesh controller or not.
 	 */
-	ec_manager_t(std::string mac_addr, send_chirp_func send_chirp, send_encap_dpp_func send_encap_dpp, send_dir_encap_dpp_func send_dir_encap_dpp, send_act_frame_func send_action_frame, 
-        get_backhaul_sta_info_func get_bsta_info, get_1905_info_func get_1905_info, get_fbss_info_func get_fbss_info, can_onboard_additional_aps_func can_onboard, toggle_cce_func toggle_cce, 
-		trigger_sta_scan_func trigger_sta_scan_fn, bsta_connect_func bsta_connect_fn, bool m_is_controller);
+	ec_manager_t(const std::string& mac_addr, ec_ops_t& ops, bool is_controller);
     
 	/**!
 	 * @brief Destructor for ec_manager_t class.
@@ -251,16 +237,7 @@ public:
 
 private:
     bool m_is_controller;
-    
-    // Used to store the function pointers to instantiate objects again
-    send_chirp_func m_stored_chirp_fn;
-    send_encap_dpp_func m_stored_encap_dpp_fn;
-    send_dir_encap_dpp_func m_stored_dir_encap_dpp_fn;
-    send_act_frame_func m_stored_action_frame_fn;
-    get_backhaul_sta_info_func m_get_bsta_info_fn;
-    get_1905_info_func m_get_1905_info_fn;
-	get_fbss_info_func m_get_fbss_info_fn;
-    can_onboard_additional_aps_func m_can_onboard_fn;
+	ec_ops_t m_ops;
     std::string m_stored_mac_addr;
     
     std::unique_ptr<ec_configurator_t> m_configurator;
