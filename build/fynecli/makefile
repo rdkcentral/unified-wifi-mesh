@@ -26,7 +26,7 @@ PROGRAM = $(INSTALLDIR)/bin/onewifi_em_cli
 EM_CLI_LIBRARY = $(INSTALLDIR)/lib/libemcli.so
 EM_CERT_SRC = $(INSTALLDIR)/config/test_cert.crt
 EM_KEY_SRC  = $(INSTALLDIR)/config/test_cert.key
-CERT_TARGETS = /nvram/test_cert.crt /nvram/test_cert.key
+CERT_TARGETS = $(NVRAM_DIR)/test_cert.crt $(NVRAM_DIR)/test_cert.key
 
 INCLUDEDIRS = \
 	-I$(ONEWIFI_EM_HOME)/inc \
@@ -104,11 +104,17 @@ else
 	go build -ldflags="-extldflags '-L$(INSTALLDIR)/lib -lcrypto -lssl -luuid'" -o $(PROGRAM) $(ONEWIFI_EM_SRC)/fynecli/*.go
 endif
 
+# Make sure $(NVRAM_DIR) exists
+$(NVRAM_DIR):
+	@if [ ! -d "$@" ]; then \
+        sudo mkdir -p "$@" && sudo chmod 777 "$@"; \
+    fi
+
 #copy the certificate and key to /nvram
-/nvram/test_cert.crt: $(EM_CERT_SRC)
+$(NVRAM_DIR)/test_cert.crt: $(EM_CERT_SRC) | $(NVRAM_DIR)
 	$(CP) $< $@
 
-/nvram/test_cert.key: $(EM_KEY_SRC)
+$(NVRAM_DIR)/test_cert.key: $(EM_KEY_SRC) | $(NVRAM_DIR)
 	$(CP) $< $@
 
 # Clean target: "make -f Makefile.Linux clean" to remove unwanted objects and executables.
