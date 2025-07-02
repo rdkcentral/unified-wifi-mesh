@@ -443,6 +443,7 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
         case em_bus_event_type_get_policy:
         case em_bus_event_type_scan_result:
         case em_bus_event_type_get_mld_config:
+        case em_bus_event_type_get_reset:
             handle_get_dm_data(evt);
             break;
 
@@ -505,7 +506,6 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
         case em_bus_event_type_mld_reconfig:
 			handle_mld_reconfig(evt);
 			break;
-	
 	
         default:
             break;

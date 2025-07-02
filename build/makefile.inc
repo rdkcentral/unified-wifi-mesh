@@ -35,3 +35,4 @@ CXX ?= g++
 CC ?= gcc
 AR ?= ar cr
 RM = -rm -rf
+CP = cp

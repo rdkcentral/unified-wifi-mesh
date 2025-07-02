@@ -96,7 +96,7 @@ int em_cmd_ctrl_t::execute(char *result)
                 if (m_ctrl.is_data_model_initialized() == true && m_ctrl.is_network_topology_initialized() == true) {
                     wait = m_ctrl.io_process(get_event());
                 } else {
-                    if (get_event()->u.bevt.type == em_bus_event_type_reset) {
+                    if ((get_event()->u.bevt.type == em_bus_event_type_reset) || (get_event()->u.bevt.type == em_bus_event_type_get_reset) ){
                         wait = m_ctrl.io_process(get_event());
                     } else {
                         wait = false;

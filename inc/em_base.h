@@ -169,8 +169,8 @@ extern "C"
 #define EM_CLI_PATH "cli"
 #define EM_AGENT_PORT	0xc000
 #define EM_CTRL_PORT    0xc001
-#define EM_CERT_FILE	"../config/test_cert.crt"
-#define EM_KEY_FILE	"../config/test_cert.key"
+#define EM_CERT_FILE	"/nvram/test_cert.crt"
+#define EM_KEY_FILE	"/nvram//test_cert.key"
 
 #define EM_CFG_FILE "/nvram/EasymeshCfg.json"
 
@@ -1983,6 +1983,7 @@ typedef enum {
     em_cmd_type_mld_reconfig,
     em_cmd_type_beacon_report,
     em_cmd_type_ap_metrics_report,
+    em_cmd_type_get_reset,
 
     em_cmd_type_max,
 } em_cmd_type_t;
@@ -2643,6 +2644,7 @@ typedef enum {
     em_bus_event_type_assoc_status,
     em_bus_event_type_ap_metrics_report,
     em_bus_event_type_bss_info,
+    em_bus_event_type_get_reset,
 
     em_bus_event_type_max
 } em_bus_event_type_t;

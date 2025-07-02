@@ -24,6 +24,9 @@ include ../makefile.inc
 
 PROGRAM = $(INSTALLDIR)/bin/onewifi_em_cli
 EM_CLI_LIBRARY = $(INSTALLDIR)/lib/libemcli.so
+EM_CERT_SRC = $(INSTALLDIR)/config/test_cert.crt
+EM_KEY_SRC  = $(INSTALLDIR)/config/test_cert.key
+CERT_TARGETS = /nvram/test_cert.crt /nvram/test_cert.key
 
 INCLUDEDIRS = \
 	-I$(ONEWIFI_EM_HOME)/inc \
@@ -85,7 +88,7 @@ GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o)
 EMCLIOBJECTS = $(CLI_OBJECTS) $(GENERIC_OBJECTS)
 MAIN_OBJECT = $(MAIN_SOURCE:.c=.o) 
 
-all: $(EM_CLI_LIBRARY) $(PROGRAM)
+all: $(EM_CLI_LIBRARY) $(PROGRAM) $(CERT_TARGETS)
 
 $(EM_CLI_LIBRARY): $(EMCLIOBJECTS)
 	$(CXX) -shared -o $@ $(EMCLIOBJECTS) $(LDFLAGS)
@@ -106,6 +109,13 @@ ifeq ($(CC), aarch64-linux-gnu-gcc-11)
 else
 	go build -ldflags="-extldflags '-L$(INSTALLDIR)/lib -lcrypto -lssl -luuid'" -o $(PROGRAM) $(ONEWIFI_EM_SRC)/cli/*.go
 endif
+
+#copy the certificate and key to /nvram
+/nvram/test_cert.crt: $(EM_CERT_SRC)
+	$(CP) $< $@
+
+/nvram/test_cert.key: $(EM_KEY_SRC)
+	$(CP) $< $@
 
 # Clean target: "make -f Makefile.Linux clean" to remove unwanted objects and executables.
 #

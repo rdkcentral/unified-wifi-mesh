@@ -12,7 +12,6 @@ import "C"
 
 import (
 	"image/color"
-	"log"
 	"math"
 
 	"fyne.io/fyne/v2"
@@ -56,20 +55,20 @@ func (c *Concentric) Layout(objects []fyne.CanvasObject, containerSize fyne.Size
 				angle = 0
 			}
 
-			log.Printf("Object[%d]: Angle:%f\tX:%f\tY:%f", i, angle, X, Y)
+			//log.Printf("Object[%d]: Angle:%f\tX:%f\tY:%f", i, angle, X, Y)
 
 			pos = fyne.NewPos(cX+float32(X), cY+float32(Y))
 			objects[i].Move(pos)
 		} else if _, ok := objects[i].(*canvas.Text); ok {
-			log.Printf("Object[%d]: Text", i)
+			//log.Printf("Object[%d]: Text", i)
 			objects[i].Move(objects[i-1].Position())
 		} else if line, ok := objects[i].(*canvas.Line); ok {
-			log.Printf("Object[%d]: Line", i)
+			//log.Printf("Object[%d]: Line", i)
 			line.Position1 = objects[0].Position()
 			line.Position2 = objects[i-2].Position()
 			objects[i].Move(objects[i].Position())
 		} else if _, ok := objects[i].(*canvas.Raster); ok {
-			log.Printf("Object[%d]: Raster", i)
+			//log.Printf("Object[%d]: Raster", i)
 			objects[i].Move(objects[0].Position())
 		}
 	}

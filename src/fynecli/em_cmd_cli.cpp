@@ -68,6 +68,7 @@ em_cmd_params_t spec_params[] = {
 	{.u = {.args = {2, {"", "", "", "", ""}, "ScanResult"}}},
     {.u = {.args = {2, {"", "", "", "", ""}, "MLDConfig"}}},
     {.u = {.args = {2, {"", "", "", "", ""}, "MLDReconfig"}}},
+    {.u = {.args = {2, {"", "", "", "", ""}, "WifiReset"}}},
 	{.u = {.args = {0, {"", "", "", "", ""}, "max"}}},
 };
 
@@ -101,7 +102,8 @@ em_cmd_t em_cmd_cli_t::m_client_cmd_spec[] = {
     em_cmd_t(em_cmd_type_set_policy, spec_params[24]),
     em_cmd_t(em_cmd_type_get_mld_config, spec_params[26]),
     em_cmd_t(em_cmd_type_mld_reconfig, spec_params[27]),
-    em_cmd_t(em_cmd_type_max, spec_params[28]),
+    em_cmd_t(em_cmd_type_get_reset, spec_params[28]),
+    em_cmd_t(em_cmd_type_max, spec_params[29]),
 };
 
 int em_cmd_cli_t::get_edited_node(em_network_node_t *node, const char *header, char *buff)
@@ -437,6 +439,12 @@ int em_cmd_cli_t::execute(char *result)
 
         case em_cmd_type_mld_reconfig:
             bevt->type = em_bus_event_type_mld_reconfig;
+            info = &bevt->u.subdoc;
+            snprintf(info->name, sizeof(info->name), "%s", param->u.args.fixed_args);
+            break;
+
+        case em_cmd_type_get_reset:
+            bevt->type = em_bus_event_type_get_reset;
             info = &bevt->u.subdoc;
             snprintf(info->name, sizeof(info->name), "%s", param->u.args.fixed_args);
             break;

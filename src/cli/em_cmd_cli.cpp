@@ -468,7 +468,7 @@ int em_cmd_cli_t::execute(char *result)
     SSL_CTX_use_certificate_file(ctx, EM_CERT_FILE, SSL_FILETYPE_PEM);
  
 	if ((ssl = get_ep_for_dst_svc(ctx, em_service_type_ctrl)) == NULL) {
-		printf("%s:%d: Can not get socket for service\n", __func__, __LINE__);
+		//printf("%s:%d: Can not get socket for service\n", __func__, __LINE__);
 		snprintf(result, sizeof(em_long_string_t), "%s:%d: connect error on socket, err:%d\n", __func__, __LINE__, errno);
 		SSL_CTX_free(ctx);
 		return -1;

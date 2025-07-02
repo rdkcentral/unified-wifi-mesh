@@ -1,6 +1,6 @@
 package main
 
-/*          
+/*
 #cgo CFLAGS: -I../../inc -I../../../OneWifi/include -I../../../OneWifi/source/utils -I../../../halinterface/include
 #cgo LDFLAGS: -L../../install/lib -lemcli -lcjson -lreadline
 #include <stdio.h>
@@ -11,21 +11,22 @@ package main
 import "C"
 
 import (
-    "fmt"
-    "log"
-    "strings"
-    "strconv"
-    "fyne.io/fyne/v2"
-    "fyne.io/fyne/v2/widget"
+	"fmt"
+	"log"
+	"strconv"
+	"strings"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/widget"
 )
 
 func (b *BaseTab) dumpNetNode(tree *C.em_network_node_t) {
-    log.Printf("Key:\t%s\tType:%d", C.GoString(&tree.key[0]), int(C.get_node_type(tree)));
-   
+    log.Printf("Key:\t%s\tType:%d", C.GoString(&tree.key[0]), int(C.get_node_type(tree)))
+
     nodeType := C.get_node_type(tree)
-    
+
     if nodeType == C.em_network_node_data_type_array_obj || nodeType == C.em_network_node_data_type_array_num ||
-                    nodeType == C.em_network_node_data_type_array_str{
+        nodeType == C.em_network_node_data_type_array_str {
         for i := 0; i < int(tree.num_children); i++ {
             b.dumpNetNode(tree.child[i])
         }
@@ -34,19 +35,19 @@ func (b *BaseTab) dumpNetNode(tree *C.em_network_node_t) {
             b.dumpNetNode(tree.child[i])
         }
     } else if nodeType == C.em_network_node_data_type_string {
-        log.Printf("Value:\t%s", C.GoString(&tree.value_str[0]));
+        log.Printf("Value:\t%s", C.GoString(&tree.value_str[0]))
     } else if nodeType == C.em_network_node_data_type_number {
-        log.Printf("Value:\t%d", int(tree.value_int));
+        log.Printf("Value:\t%d", int(tree.value_int))
     } else if nodeType == C.em_network_node_data_type_false {
-        log.Printf("Value:\tfalse");
+        log.Printf("Value:\tfalse")
     } else if nodeType == C.em_network_node_data_type_true {
-        log.Printf("Value:\ttrue");
+        log.Printf("Value:\ttrue")
     }
 }
 
 func (b *BaseTab) children(id widget.TreeNodeID) []widget.TreeNodeID {
-    var tree     *C.em_network_node_t
-    var branch     *C.em_network_node_t
+    var tree *C.em_network_node_t
+    var branch *C.em_network_node_t
     var s []string
     var after string
     var index int
@@ -102,24 +103,40 @@ func (b *BaseTab) children(id widget.TreeNodeID) []widget.TreeNodeID {
             }
         }
     } else if nodeType == C.em_network_node_data_type_array_obj ||
-                nodeType == C.em_network_node_data_type_array_str ||
-                nodeType == C.em_network_node_data_type_array_num {
+        nodeType == C.em_network_node_data_type_array_str ||
+        nodeType == C.em_network_node_data_type_array_num {
         for i := 0; i < int(tree.num_children); i++ {
             branch = tree.child[i]
             s = append(s, fmt.Sprintf("%s[%d]", C.GoString(&tree.key[0]), i))
         }
     } else if nodeType == C.em_network_node_data_type_string {
-        branch = tree.child[0]
-        s = append(s, fmt.Sprintf("%s: %s", C.GoString(&branch.key[0]), C.GoString(&branch.value_str[0])))
+        if tree.num_children > 0 && tree.child[0] != nil {
+            branch = tree.child[0]
+            s = append(s, fmt.Sprintf("%s: %s", C.GoString(&branch.key[0]), C.GoString(&branch.value_str[0])))
+        } else {
+            log.Printf("String node has no children for id: %s", id)
+        }
     } else if nodeType == C.em_network_node_data_type_number {
-        branch = tree.child[0]
-        s = append(s, fmt.Sprintf("%s: %d", C.GoString(&branch.key[0]), int(branch.value_int)))
+        if tree.num_children > 0 && tree.child[0] != nil {
+            branch = tree.child[0]
+            s = append(s, fmt.Sprintf("%s: %s", C.GoString(&branch.key[0]), C.GoString(&branch.value_str[0])))
+        } else {
+            log.Printf("String node has no children for id: %s", id)
+        }
     } else if nodeType == C.em_network_node_data_type_false {
-        branch = tree.child[0]
-        s = append(s, fmt.Sprintf("%s: false", C.GoString(&branch.key[0])))
+        if tree.num_children > 0 && tree.child[0] != nil {
+            branch = tree.child[0]
+            s = append(s, fmt.Sprintf("%s: %s", C.GoString(&branch.key[0]), C.GoString(&branch.value_str[0])))
+        } else {
+            log.Printf("String node has no children for id: %s", id)
+        }
     } else if nodeType == C.em_network_node_data_type_true {
-        branch = tree.child[0]
-        s = append(s, fmt.Sprintf("%s: true", C.GoString(&branch.key[0])))
+        if tree.num_children > 0 && tree.child[0] != nil {
+            branch = tree.child[0]
+            s = append(s, fmt.Sprintf("%s: %s", C.GoString(&branch.key[0]), C.GoString(&branch.value_str[0])))
+        } else {
+            log.Printf("String node has no children for id: %s", id)
+        }
     } else {
         s = append(s, "")
     }
@@ -129,7 +146,7 @@ func (b *BaseTab) children(id widget.TreeNodeID) []widget.TreeNodeID {
 }
 
 func (b *BaseTab) branch(id widget.TreeNodeID) bool {
-    var tree     *C.em_network_node_t
+    var tree *C.em_network_node_t
 
     if id == "" {
         return true
@@ -141,13 +158,13 @@ func (b *BaseTab) branch(id widget.TreeNodeID) bool {
 
     tree = b.getData()
     if tree == nil {
-        log.Printf("Case 1: branch for id: %s false", id);
+        log.Printf("Case 1: branch for id: %s false", id)
         return false
     }
 
     tree = C.get_network_tree_by_key(tree, C.CString(id))
     if tree == nil {
-        log.Printf("Case 2: branch for id: %s false", id);
+        log.Printf("Case 2: branch for id: %s false", id)
         return false
     }
 
@@ -181,4 +198,3 @@ func (b *BaseTab) getCanvasObject() fyne.CanvasObject {
 func (b *BaseTab) setCanvasObject(obj fyne.CanvasObject) {
     b.obj = obj
 }
-

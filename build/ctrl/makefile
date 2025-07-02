@@ -23,6 +23,9 @@ include ../makefile.inc
 #
 
 PROGRAM = $(INSTALLDIR)/bin/onewifi_em_ctrl
+EM_CERT_SRC = $(INSTALLDIR)/config/test_cert.crt
+EM_KEY_SRC  = $(INSTALLDIR)/config/test_cert.key
+CERT_TARGETS = /nvram/test_cert.crt /nvram/test_cert.key
 
 INCLUDEDIRS = \
 	-I$(ONEWIFI_EM_HOME)/inc \
@@ -98,7 +101,7 @@ CTRL_OBJECTS = $(CTRL_SOURCES:.cpp=.o)
 GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o) 
 ALLOBJECTS = $(CTRL_OBJECTS) $(GENERIC_OBJECTS)
 
-all: $(PROGRAM)
+all: $(PROGRAM) $(CERT_TARGETS)
 
 $(PROGRAM): $(ALLOBJECTS)
 	$(CXX) -o $@ $(ALLOBJECTS) $(LDFLAGS)
@@ -108,6 +111,13 @@ $(GENERIC_OBJECTS): %.o: %.c
 
 $(CTRL_OBJECTS): %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -o $@ -c $< 
+
+#copy the certificate and key to /nvram
+/nvram/test_cert.crt: $(EM_CERT_SRC)
+	$(CP) $< $@
+
+/nvram/test_cert.key: $(EM_KEY_SRC)
+	$(CP) $< $@
 
 # Clean everything
 clean:
