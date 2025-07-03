@@ -387,14 +387,10 @@ void em_mgr_t::nodes_listener()
 
                     reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),payload.begin(),payload.end());
 #ifdef DEBUG_MODE
-                    printf("PP_DEBUG_PUSHING_FIRST_MAC_ADDR:  %02x:%02x:%02x:%02x:%02x:%02x\n",first_mac[0],first_mac[1],first_mac[2],first_mac[3],first_mac[4],first_mac[5]);
-                    printf("PP_DEBUG_PUSHING_SECOND_MAC_ADDR:  %02x:%02x:%02x:%02x:%02x:%02x\n",second_mac[0],second_mac[1],second_mac[2],second_mac[3],second_mac[4],second_mac[5]);
-
-                    printf("PP_DEBUG_RECONSTRUCTED_ETH_FRAME: \t");
-                    for(unsigned int i =0 ; i < static_cast<unsigned int>(reconstructed_eth_frame.size()); i++){
-                        printf(" %02x ",reconstructed_eth_frame[i]);
-                    }
-                    printf("\n");
+                    em_printfout("First MAC Address: " MACSTRFMT, MAC2STR(first_mac));
+                    em_printfout("Second MAC Address: " MACSTRFMT, MAC2STR(second_mac));
+                    em_printfout("RECONSTRUCTED_ETH_FRAME: \t");
+                    util::print_hex_dump(reconstructed_eth_frame);
 #endif
                     proto_process(reconstructed_eth_frame.data(), static_cast<unsigned int>(reconstructed_eth_frame.size()), em);
                 } catch (const AlServiceException& e) {

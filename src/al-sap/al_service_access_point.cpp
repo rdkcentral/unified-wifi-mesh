@@ -118,9 +118,9 @@ void AlServiceAccessPoint::serviceAccessPointDataRequest(AlServiceDataUnit& mess
      * Each packet contains a header and a payload. The header size is
      * 4 (size) + 6 (MAC) + 6 (MAC) + 3 x 1 (3 x 1 byte flags) = 19 bytes.
      * Because of that, the fragment (payload) size can't exceed
-     * MTU - 19 = 1481 bytes
+     * MTU - PACKET_HEADER_SIZE = 1481 bytes
     */
-    const size_t fragmentSize = 1481;
+    const size_t fragmentSize = (1500 - PACKET_HEADER_SIZE);
 
     const std::vector<unsigned char>& payload = message.getPayload();
 
@@ -129,7 +129,7 @@ void AlServiceAccessPoint::serviceAccessPointDataRequest(AlServiceDataUnit& mess
     //first condition to check if the service has been correctly registered enable
     if (registrationRequest.getServiceOperation() == ServiceOperation::SOP_ENABLE || registrationResponse.getResult() == RegistrationResult::SUCCESS) {
          
-        // If whole packet size i less than or equal to 1500, send directly without fragmentation
+        // If whole packet size is less than or equal to 1500, send directly without fragmentation
         if (totalSize <= fragmentSize) {
             message.setIsFragment(0);
             message.setIsLastFragment(1);
