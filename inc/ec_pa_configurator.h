@@ -116,9 +116,6 @@ public:
 
 	bool handle_connection_status_result(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) override;
 
-	bool start_secure_1905_layer(uint8_t dest_al_mac[ETH_ALEN]);
-
-    
 	/**
 	 * @brief Handle a chirp notification TLV and direct to the correct place (802.11 or 1905).
 	 *

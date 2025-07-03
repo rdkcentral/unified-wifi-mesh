@@ -12,7 +12,10 @@ ec_ctrl_configurator_t::ec_ctrl_configurator_t(const std::string& al_mac_addr, e
                                                ec_configurator_t(al_mac_addr, ops, sec_ctx, false)
 {
 
-    m_gmk = std::vector<uint8_t>(); // TODO:!!!!!!!!!!!!
+    // Generate completely random GMK on startup.
+    // The GTKs need to be re-established after re-connecting so it is not needed (and better to) not save it.
+    m_gmk = std::vector<uint8_t>(32, 0);
+    RAND_bytes(m_gmk.data(), m_gmk.size());
 
     // Pass super-class initialized security context + GMK
     if (!m_1905_encrypt_layer.set_sec_params(m_sec_ctx.C_signing_key, m_sec_ctx.net_access_key, m_sec_ctx.connector, EVP_sha256(), m_gmk)) {

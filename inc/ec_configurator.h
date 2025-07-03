@@ -294,10 +294,34 @@ public:
         return true;
     }
 
+	/**
+	 * @brief Handle a DPP peer discovery request frame.
+	 *
+	 * This function processes a DPP peer discovery request frame received from a peer device.
+	 * It delegates the frame handling to the underlying 1905 encryption layer for processing.
+	 *
+	 * @param[in] frame Pointer to the DPP peer discovery request frame to be processed.
+	 * @param[in] len The length of the frame in bytes.
+	 * @param[in] src_mac The source MAC address of the frame sender 
+	 *
+	 * @return true if the frame was processed successfully, otherwise false.
+	 */
 	bool handle_peer_disc_req_frame(ec_frame_t *frame, uint16_t len, uint8_t src_mac[ETH_ALEN]) {
         return m_1905_encrypt_layer.handle_peer_disc_req_frame(frame, len, src_mac);
     }
 
+	/**
+	 * @brief Handle a DPP peer discovery response frame.
+	 *
+	 * This function processes a DPP peer discovery response frame received from a peer device.
+	 * It delegates the frame handling to the underlying 1905 encryption layer for processing.
+	 *
+	 * @param[in] frame Pointer to the DPP peer discovery response frame to be processed.
+	 * @param[in] len The length of the frame in bytes.
+	 * @param[in] src_mac The source MAC address of the frame sender
+	 *
+	 * @return true if the frame was processed successfully, otherwise false.
+	 */
 	bool handle_peer_disc_resp_frame(ec_frame_t *frame, uint16_t len, uint8_t src_mac[ETH_ALEN]) {
         return m_1905_encrypt_layer.handle_peer_disc_resp_frame(frame, len, src_mac);
     }
