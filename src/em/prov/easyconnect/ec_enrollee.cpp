@@ -335,29 +335,16 @@ bool ec_enrollee_t::handle_recfg_auth_request(ec_frame_t *frame, size_t len, uin
         return false;
     }
 
-    // Ensure c-connector is valid and parsable
-    auto payload = ec_crypto::get_jws_payload(std::string(reinterpret_cast<const char *>(c_connector_attr->data), c_connector_attr->length).c_str());
-    ASSERT_OPT_HAS_VALUE(payload, false, "%s:%d: Failed to split and decode c-connector from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
+    // Verify c-connector and ensure it is valid and parsable
+    std::string c_connector_str(reinterpret_cast<const char *>(c_connector_attr->data), c_connector_attr->length);
+    auto payload = ec_crypto::get_jws_payload(c_connector_str.c_str(), m_sec_ctx.C_signing_key);
+    ASSERT_OPT_HAS_VALUE(payload, false, "%s:%d: Failed to split, decode, or verify c-connector from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
 
     cJSON *c_connector_version = cJSON_GetObjectItem(payload.value(), "version");
     ASSERT_NOT_NULL(c_connector_version, false, "%s:%d: No version in c-connector from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
 
     if (c_connector_version->valueint != dpp_version) {
         em_printfout("DPP Version mismatch in c-connector, expected %d, got %d", dpp_version, c_connector_version->valueint);
-        return false;
-    }
-
-    // Ensure C-Connector is signed with the C-sign-key whose hash was indicated in the Reconfiguration Announcement frame
-    auto c_connector_raw_parts = ec_crypto::split_connector(std::string(reinterpret_cast<const char *>(c_connector_attr->data), c_connector_attr->length).c_str());
-    ASSERT_OPT_HAS_VALUE(c_connector_raw_parts, false, "%s:%d: Failed to split c-connector raw parts from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
-
-    std::string signed_msg = c_connector_raw_parts.value()[0] + "." + c_connector_raw_parts.value()[1];
-    std::vector<uint8_t> signed_bytes(signed_msg.begin(), signed_msg.end());
-    std::optional<std::vector<uint8_t>> sig_bytes = em_crypto_t::base64url_decode(c_connector_raw_parts.value()[2]);
-    ASSERT_OPT_HAS_VALUE(sig_bytes, false, "%s:%d: Failed to decode signature from c-connector in Reconfiguration Authentication Request frame\n", __func__, __LINE__);
-
-    if (!em_crypto_t::verify_signature(signed_bytes, sig_bytes.value(), m_c_ctx.C_signing_key, EVP_sha256())) {
-        em_printfout("Signature verification of c-connector failed");
         return false;
     }
 
@@ -413,14 +400,14 @@ bool ec_enrollee_t::handle_recfg_auth_request(ec_frame_t *frame, size_t len, uin
     // Extract C_I (C-Connector netAccessKey, public)
     cJSON *net_access_key = cJSON_GetObjectItem(payload.value(), "netAccessKey");
     ASSERT_NOT_NULL(net_access_key, false, "%s:%d: No netAccessKey in DPP Connector JSON from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
-    EC_POINT *C_I = ec_crypto::decode_ec_point_from_connector_netaccesskey(m_c_ctx, net_access_key);
+    EC_POINT *C_I = ec_crypto::decode_jwk_ec_point(m_c_ctx, net_access_key);
     ASSERT_NOT_NULL(C_I, false, "%s:%d: Failed to decode C-Connector netAccessKey from Reconfiguration Authentication Request frame\n", __func__, __LINE__);
 
 
     // Compute M = (c_R + p_R) * C_I
     BN_free(m_eph_ctx().m);
     BIGNUM *sum = BN_new();
-    BIGNUM *c_R = em_crypto_t::get_priv_key_bn(m_c_ctx.net_access_key);
+    BIGNUM *c_R = em_crypto_t::get_priv_key_bn(m_sec_ctx.net_access_key);
     if (c_R == nullptr) {
         em_printfout("Failed to extract c_R");
         BN_free(sum);
@@ -941,38 +928,81 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
     // This is optional, so can be nullptr.
     auto send_connection_status_attr = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_send_conn_status);
 
-    // Parse JSON objects
-    cJSON *ieee1905_configuration_object = cJSON_ParseWithLength(reinterpret_cast<const char *>(dpp_config_obj_1905->data), static_cast<size_t>(dpp_config_obj_1905->length));
-    ASSERT_NOT_NULL(ieee1905_configuration_object, false, "%s:%d: Could not parse IEEE1905 Configuration object, invalid JSON?\n", __func__, __LINE__);
+    // Only necessary if Configurator includes "sendConnStatus" in Configuration response.
+    bool needs_connection_status = (send_connection_status_attr.has_value());
 
-    cJSON *bsta_configuration_object = cJSON_ParseWithLength(reinterpret_cast<const char *>(dpp_config_obj_bsta->data), static_cast<size_t>(dpp_config_obj_bsta->length));
-    ASSERT_NOT_NULL(bsta_configuration_object, false, "%s:%d: Could not parse bSTA Configuration object, invalid JSON?\n", __func__, __LINE__);
+    // Parse JSON objects
+    scoped_cjson ieee1905_configuration_object(
+        cJSON_ParseWithLength(reinterpret_cast<const char *>(dpp_config_obj_1905->data), static_cast<size_t>(dpp_config_obj_1905->length))
+    );
+    ASSERT_NOT_NULL_FREE(ieee1905_configuration_object, false, unwrapped_attrs, "%s:%d: Could not parse IEEE1905 Configuration object, invalid JSON?\n", __func__, __LINE__);
+
+    scoped_cjson bsta_configuration_object(
+        cJSON_ParseWithLength(reinterpret_cast<const char *>(dpp_config_obj_bsta->data), static_cast<size_t>(dpp_config_obj_bsta->length))
+    );
+    ASSERT_NOT_NULL_FREE(bsta_configuration_object.get(), false, unwrapped_attrs, "%s:%d: Could not parse bSTA Configuration object, invalid JSON?\n", __func__, __LINE__);
+
+    // All unwrapped attributes have been copied/used in some form or another, so we can free them now.
+    free(unwrapped_attrs);
 
     // For debugging.
-    em_printfout("Enrollee de-serialized 1905 Congiruration Object:\n%s", cjson_utils::stringify(ieee1905_configuration_object).c_str());
-    em_printfout("Enrollee de-serialized bSTA Configuration Object:\n%s", cjson_utils::stringify(bsta_configuration_object).c_str());
+    em_printfout("Enrollee de-serialized 1905 Configuration Object:\n%s", cjson_utils::stringify(ieee1905_configuration_object.get()).c_str());
+    em_printfout("Enrollee de-serialized bSTA Configuration Object:\n%s", cjson_utils::stringify(bsta_configuration_object.get()).c_str());
 
-    cJSON *bsta_cred_obj = cJSON_GetObjectItem(bsta_configuration_object, "cred");
-    cJSON *signed_connector = cJSON_GetObjectItem(bsta_cred_obj, "signedConnector");
-    if (signed_connector) {
-        auto conn_str = cjson_utils::stringify(signed_connector);
-        m_eph_ctx().connector = strdup(conn_str.c_str());
+    cJSON *bsta_cred_obj = cJSON_GetObjectItem(bsta_configuration_object.get(), "cred");
+    cJSON *pp_key_obj = cJSON_GetObjectItem(bsta_cred_obj, "ppKey");
+
+    if (pp_key_obj == NULL && DPP_VERSION >= 2){
+        // EasyConnect 4.5.1: ... Present when the negotiated version is 2 or higher...
+        em_printfout("No 'ppKey' found in bSTA Configuration object, required for DPP v2.0+");
+        return false;
     }
-    cJSON *bsta_discovery_obj = cJSON_GetObjectItem(bsta_configuration_object, "discovery");
+
+    if (pp_key_obj != nullptr) {
+        if (m_sec_ctx.pp_key) em_crypto_t::free_key(m_sec_ctx.pp_key);
+        auto [ppk_group, ppk_pub] = ec_crypto::decode_jwk(pp_key_obj);
+        EM_ASSERT_NOT_NULL(ppk_pub, false, "Failed to decode 'ppKey' from bSTA Configuration object");
+        m_sec_ctx.pp_key = em_crypto_t::bundle_ec_key(ppk_group, ppk_pub);
+        EM_ASSERT_NOT_NULL(m_sec_ctx.pp_key, false, "Failed to bundle 'ppKey' public key from bSTA Configuration object");
+    }
+
+    cJSON *signed_connector = cJSON_GetObjectItem(bsta_cred_obj, "signedConnector");
+    cJSON *csign_obj = cJSON_GetObjectItem(bsta_cred_obj, "csign");
+
+    // While these are conditional in the EasyConnect specification, dependant on the DPP AKM being used,
+    // they are required for EasyMesh and 1905 layer security so it is not conditional in this implementation.
+    {
+
+        EM_ASSERT_NOT_NULL(signed_connector, false, "'signedConnector' is missing from configuration response! Required for EasyMesh Agent Enrollee");
+        EM_ASSERT_NOT_NULL(csign_obj, false, "'csign' is missing from configuration response! Required for EasyMesh Agent Enrollee");
+
+        if (m_sec_ctx.connector) ec_crypto::rand_zero_free(m_sec_ctx.connector);
+        m_sec_ctx.connector = strdup(cJSON_GetStringValue(signed_connector));
+
+        EM_ASSERT_NOT_NULL(m_sec_ctx.connector, false, "Failed to copy 'signedConnector' from configuration response");
+
+        if (m_sec_ctx.C_signing_key) em_crypto_t::free_key(m_sec_ctx.C_signing_key);
+        auto [csign_group_raw, csign_pub_raw] = ec_crypto::decode_jwk(csign_obj);
+        EM_ASSERT_NOT_NULL(csign_group_raw, false, "Failed to decode 'csign' group from configuration response");
+        EM_ASSERT_NOT_NULL(csign_pub_raw, false, "Failed to decode 'csign' from configuration response");
+
+        // Use group from configuration response for the signing key
+        m_sec_ctx.C_signing_key = em_crypto_t::bundle_ec_key(csign_group_raw, csign_pub_raw);
+        EM_ASSERT_NOT_NULL(m_sec_ctx.C_signing_key, false, "Failed to bundle 'csign' public key from configuration response");
+    }
+
+    // We have all the keys and information, let's set the security parameters, they can always be changed
+    m_1905_encrypt_layer.set_sec_params(m_sec_ctx.C_signing_key, m_sec_ctx.net_access_key, m_sec_ctx.connector, m_c_ctx.hash_fcn);
+
+    cJSON *bsta_discovery_obj = cJSON_GetObjectItem(bsta_configuration_object.get(), "discovery");
     if (bsta_cred_obj == nullptr || bsta_discovery_obj == nullptr) {
         em_printfout("Incomplete bSTA Configuration object received");
-        free(unwrapped_attrs);
-        cJSON_Delete(bsta_configuration_object);
-        cJSON_Delete(ieee1905_configuration_object);
         return false;
     }
 
     cJSON *bsta_ssid = cJSON_GetObjectItem(bsta_discovery_obj, "SSID");
     if (bsta_ssid == nullptr) {
         em_printfout("Could not get \"SSID\" from bSTA Configuration object.");
-        free(unwrapped_attrs);
-        cJSON_Delete(bsta_configuration_object);
-        cJSON_Delete(ieee1905_configuration_object);
         return false;
     }
 
@@ -984,9 +1014,6 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
         std::string bssid_str(bsta_bssid->valuestring);
         if (bssid_str.length() != (ETH_ALEN*2)) {
             em_printfout("Invalid BSSID length");
-            free(unwrapped_attrs);
-            cJSON_Delete(bsta_configuration_object);
-            cJSON_Delete(ieee1905_configuration_object);
             return false;
         }
         // Convert hex (non-delimited) string to byte array
@@ -1006,9 +1033,6 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
     cJSON *bsta_pass = cJSON_GetObjectItem(bsta_cred_obj, "pass");
     if (bsta_pass == nullptr) {
         em_printfout("Could not get \"pass\" from bSTA Configuration object.");
-        free(unwrapped_attrs);
-        cJSON_Delete(bsta_configuration_object);
-        cJSON_Delete(ieee1905_configuration_object);
         return false;
     }
 
@@ -1024,9 +1048,6 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
     auto [config_result_frame, config_result_frame_len] = create_config_result(connection_status);
     if (config_result_frame == nullptr || config_result_frame_len == 0) {
         em_printfout("Failed to create DPP Configuration Result frame");
-        free(unwrapped_attrs);
-        cJSON_Delete(ieee1905_configuration_object);
-        cJSON_Delete(bsta_configuration_object);
         return false;
     }
 
@@ -1051,9 +1072,6 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
     }
 
 
-    // Only necessary if Configurator includes "sendConnStatus" in Configuration response.
-    bool needs_connection_status = (send_connection_status_attr.has_value());
-
     if (needs_connection_status) {
         // TODO: add BSSID we're attemping to associate to to m_awaiting_assoc_status map!
         std::string bssid_str = util::mac_to_string(bssid);
@@ -1063,9 +1081,6 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
     } 
 
     free(config_result_frame);
-    free(unwrapped_attrs);
-    cJSON_Delete(bsta_configuration_object);
-    cJSON_Delete(ieee1905_configuration_object);
     return ok;    
 }
 
@@ -1359,7 +1374,9 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_recfg_presence_announcement()
     }
 
     // Calculate a-nonce * Ppk
-    if (!EC_POINT_mul(m_c_ctx.group, a_nonce_ppk.get(), NULL, m_c_ctx.ppk, a_nonce.get(),
+    EC_POINT* ppk_pub = em_crypto_t::get_pub_key_point(m_sec_ctx.pp_key);
+    EM_ASSERT_NOT_NULL(ppk_pub, {}, "Failed to get public key point from Ppk");
+    if (!EC_POINT_mul(m_c_ctx.group, a_nonce_ppk.get(), NULL, ppk_pub, a_nonce.get(),
                       m_c_ctx.bn_ctx)) {
         em_printfout("Failed to compute a-nonce * Ppk");
         return {};
@@ -1402,18 +1419,18 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_recfg_presence_announcement()
     size_t attribs_len = 0;
 
     // C-sign-key hash attribute
-    // Might need to replace with "kid"
-    uint8_t *c_sign_hash = ec_crypto::compute_key_hash(m_c_ctx.C_signing_key);
+    // NOTE: Might need to replace with "kid"
+    uint8_t *c_sign_hash = ec_crypto::compute_key_hash(m_sec_ctx.C_signing_key);
     uint8_t *attribs = ec_util::add_attrib(NULL, &attribs_len, ec_attrib_id_C_sign_key_hash,
                                            SHA256_DIGEST_LENGTH, c_sign_hash);
     free(c_sign_hash);
-    ASSERT_NOT_NULL_FREE2(attribs, {}, frame, attribs,
+    ASSERT_NOT_NULL_FREE(attribs, {}, frame,
                           "%s:%d: Failed to add C-signing key hash attribute\n", __func__,
                           __LINE__);
 
     // Finite Cyclic Group attribute
     // Must be little endian according to EC 8.1.1.12
-    scoped_ec_group group(em_crypto_t::get_key_group(m_c_ctx.net_access_key));
+    scoped_ec_group group(em_crypto_t::get_key_group(m_sec_ctx.net_access_key));
     ASSERT_NOT_NULL_FREE2(group.get(), {}, frame, attribs,
                           "%s:%d: Failed to get elliptic curve group from network access key\n",
                           __func__, __LINE__);
@@ -1472,7 +1489,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_recfg_auth_response(uint8_t t
 
     attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_trans_id, trans_id);
     attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_proto_version, dpp_version);
-    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_dpp_connector, std::string(m_eph_ctx().connector));
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_dpp_connector, std::string(m_sec_ctx.connector));
     attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_enrollee_nonce, static_cast<uint16_t>(m_c_ctx.nonce_len), m_eph_ctx().e_nonce);
     attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_resp_proto_key, static_cast<uint16_t>(BN_num_bytes(m_c_ctx.prime) * 2), encoded_P_R);
 
@@ -1486,6 +1503,13 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_recfg_auth_response(uint8_t t
     });
 
     cJSON_Delete(conn_status_obj);
+
+    if (!(frame = ec_util::copy_attrs_to_frame(frame, attribs, attribs_len))) {
+        em_printfout("Failed to copy attributes to Reconfig Auth Response frame");
+        free(attribs);
+        free(frame);
+        return {};
+    }
 
     return std::make_pair(reinterpret_cast<uint8_t *>(frame), EC_FRAME_BASE_SIZE + attribs_len);
 }
@@ -1531,9 +1555,9 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request(std::optional<
         m_eph_ctx().priv_resp_proto_key = const_cast<BIGNUM *>(p_R);
         m_eph_ctx().public_resp_proto_key = const_cast<EC_POINT*>(P_R);
         // Also set netAccessKey
-        auto [x, y] = ec_crypto::get_ec_x_y(m_c_ctx, m_eph_ctx().public_resp_proto_key);
-        m_c_ctx.net_access_key = em_crypto_t::create_ec_key_from_coordinates(ec_crypto::BN_to_vec(x), ec_crypto::BN_to_vec(y), ec_crypto::BN_to_vec(m_eph_ctx().priv_init_proto_key));
-        ASSERT_NOT_NULL(m_c_ctx.net_access_key, {}, "%s:%d: Failed to create netAccessKey from Respondor proto keypair\n", __func__, __LINE__);
+        if (m_sec_ctx.net_access_key) em_crypto_t::free_key(m_sec_ctx.net_access_key);
+        m_sec_ctx.net_access_key = em_crypto_t::bundle_ec_key(m_c_ctx.group, m_eph_ctx().public_resp_proto_key, m_eph_ctx().priv_init_proto_key);
+        ASSERT_NOT_NULL(m_sec_ctx.net_access_key, {}, "%s:%d: Failed to create netAccessKey from Respondor proto keypair\n", __func__, __LINE__);
     }
 
     // EasyMesh R6 5.3.3

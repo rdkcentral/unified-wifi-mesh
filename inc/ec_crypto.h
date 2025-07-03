@@ -816,12 +816,11 @@ public:
 	static std::vector<uint8_t> concat_nonces(const std::vector<std::vector<uint8_t>>& nonces);
 
 	/**
-	 * @brief Decode an EC point from a DPP Connector's "netAccessKey" field
+	 * @brief Decode a JWK from a JSON object and return the EC_POINT.
 	 * 
-	 * @param ctx The connection context containing the EC group and BN context
-	 * @param net_access_key cJSON blob containing the "netAccessKey" field
+	 * @param ctx The connection context containing the BN context
+	 * @param net_access_key cJSON blob 
 	 * Example:
-	 *        "netAccessKey":
 	 *        {
 	 *            "kty":"EC",
 	 *            "crv":"P-256",
@@ -831,7 +830,43 @@ public:
 	 * 	
 	 * @return EC_POINT* on success, nullptr otherwise
 	 */
-	static EC_POINT *decode_ec_point_from_connector_netaccesskey(ec_connection_context_t& ctx, cJSON *net_access_key);
+	static EC_POINT *decode_jwk_ec_point(ec_connection_context_t& ctx, cJSON *net_access_key);
+
+	/**
+	 * @brief Decode a JWK from a JSON object and return the EC_POINT.
+	 * 
+	 * @param net_access_key cJSON blob 
+	 * @param bn_ctx The BN_CTX to used to optimize decoding (optional, can be NULL) 
+	 * Example:
+	 *        {
+	 *            "kty":"EC",
+	 *            "crv":"P-256",
+	 *            "x":"Xj-zV2iEiH8XwyA9ijpsL6xyLvDiIBthrHO8ZVxwmpA",
+	 *            "y":"LUsDBmn7nv-LCnn6fBoXKsKpLGJiVpY_knTckGgsgeU"
+	 *        },
+	 * 	
+	 * @return EC_POINT* on success, nullptr otherwise
+	 */
+	static EC_POINT *decode_jwk_ec_point(cJSON *net_access_key, BN_CTX* bn_ctx = NULL);
+
+
+
+	/**
+	 * @brief Decode a JWK from a JSON object and return the EC_GROUP (crv) and EC_POINT.
+	 * 
+	 * @param net_access_key cJSON blob 
+	 * @param bn_ctx The BN_CTX to used to optimize decoding (optional, can be NULL) 
+	 * Example:
+	 *        {
+	 *            "kty":"EC",
+	 *            "crv":"P-256",
+	 *            "x":"Xj-zV2iEiH8XwyA9ijpsL6xyLvDiIBthrHO8ZVxwmpA",
+	 *            "y":"LUsDBmn7nv-LCnn6fBoXKsKpLGJiVpY_knTckGgsgeU"
+	 *        },
+	 * 	
+	 * @return EC_POINT* on success, nullptr otherwise
+	 */
+	static std::pair<EC_GROUP*, EC_POINT*> decode_jwk(cJSON *net_access_key, BN_CTX* bn_ctx = NULL);
     
 	/**
 	 * @brief Generate a connector from JWS header, payload, and the key to create the signature with.
@@ -990,7 +1025,7 @@ public:
 	 * 	  	  "version": 2
 	 *   }
 	 */
-	static cJSON* create_jws_payload(ec_connection_context_t& c_ctx, const std::vector<std::unordered_map<std::string, std::string>>& groups, SSL_KEY* net_access_key, std::optional<std::string> expiry = std::nullopt, std::optional<uint8_t> version = std::nullopt);
+	static cJSON* create_jws_payload(const std::vector<std::unordered_map<std::string, std::string>>& groups, SSL_KEY* net_access_key, std::optional<std::string> expiry = std::nullopt, std::optional<uint8_t> version = std::nullopt);
 
     
 	/**
@@ -999,7 +1034,6 @@ public:
 	 * This function creates a csign object, which is part of the "cred" object in EasyConnect 4.5.3.
 	 *
 	 * @param[in] c_signing_key Configurator Signing Key.
-	 * @param[in] c_ctx Persistent context.
 	 *
 	 * @return cJSON* Pointer to the created csign object on success, nullptr otherwise.
 	 *
@@ -1013,7 +1047,7 @@ public:
 	 * "kid":"kMcegDBPmNZVakAsBZOzOoCsvQjkr_nEAp9uF-EDmVE"
 	 * },
 	 */
-	static cJSON* create_csign_object(ec_connection_context_t& c_ctx, SSL_KEY *c_signing_key);
+	static cJSON* create_csign_object(SSL_KEY *c_signing_key);
 
     
 	/**
@@ -1031,21 +1065,23 @@ public:
 	 */
 	static EC_POINT* create_ppkey_public(SSL_KEY *c_signing_key);
 
-    
 	/**
-	 * @brief Create a ppkey object.
+	 * @brief Adds the fields present in all JSON Web Key (JWK) objects to the provided JSON object.
+	 * 
+	 * Edits the provided JSON object in-place
 	 *
-	 * This function generates a ppKey object using the provided persistent context.
+	 * @param[in] json_obj The JSON object to which the common JWK fields will be added.
+	 * @param[in] key The key containing the information to be added.
 	 *
-	 * @param[in] c_ctx Persistent context used for creating the ppKey object.
+	 * @return true if the fields were successfully added, false otherwise.
 	 *
-	 * @return cJSON* Returns a pointer to the ppKey object on success, otherwise returns nullptr.
+	 * @note RFC 7517 defines many possible fields for JWK objects, but this function only adds the common fields:
+	 * 			- "kty" 
+	 * 			- "crv"
+	 * 			- "x" 
+	 * 			- "y"
 	 *
-	 * @note EasyConnect 6.5.2
-	 *
-	 * Example of ppKey object:
 	 * @code
-	 * "ppKey":
 	 * {
 	 *   "kty":"EC",
 	 *   "crv":"P-256",
@@ -1054,7 +1090,35 @@ public:
 	 * }
 	 * @endcode
 	 */
-	static cJSON *create_ppkey_object(ec_connection_context_t& c_ctx);
+	static bool add_common_jwk_fields(cJSON* json_obj, const SSL_KEY *key);
+
+	/**
+	 * @brief Adds the fields present in all JSON Web Key (JWK) objects to the provided JSON object.
+	 * 
+	 * Edits the provided JSON object in-place
+	 *
+	 * @param[in] json_obj The JSON object to which the common JWK fields will be added.
+	 * @param[in] key_group The EC_GROUP of the curve the point is on
+	 * @param[in] key_point The EC_POINT containing the information to be added.
+	 *
+	 * @return true if the fields were successfully added, false otherwise.
+	 *
+	 * @note RFC 7517 defines many possible fields for JWK objects, but this function only adds the common fields:
+	 * 			- "kty" 
+	 * 			- "crv"
+	 * 			- "x" 
+	 * 			- "y"
+	 *
+	 * @code
+	 * {
+	 *   "kty":"EC",
+	 *   "crv":"P-256",
+	 *   "x":"XX_ZuJR9nMDSb54C_okhGiJ7OjCZOlWOU9m8zAxgUrU",
+	 *   "y":"Fekm5hyGii80amM_REV5sTOG3-sl1H6MDpZ8TSKnb7c"
+	 * }
+	 * @endcode
+	 */
+	static bool add_common_jwk_fields(cJSON *json_obj, const EC_GROUP* key_group, const EC_POINT *key_point);
 };
 
 #endif // EC_CRYPTO_H
