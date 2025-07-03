@@ -682,16 +682,26 @@ public:
 	 * @param[in] priv_key_bytes Optional private key bytes. Defaults to std::nullopt.
 	 * @param[in] group_name The name of the elliptic curve group. Defaults to "P-256".
 	 *
-	 * @returns A pointer to the generated SSL_KEY structure.
+	 * @returns A pointer to the generated SSL_KEY structure, the caller is responsible for freeing it.
 	 *
 	 * @note Ensure that the provided coordinates and group name are valid for the intended cryptographic operations.
 	 */
-	static SSL_KEY* create_ec_key_from_coordinates(const std::vector<uint8_t>& x_bin, 
+	static SSL_KEY* create_ec_key_from_coordinates(const EC_GROUP* group,
+                                                   const std::vector<uint8_t>& x_bin, 
                                                    const std::vector<uint8_t>& y_bin, 
-                                                   const std::optional<std::vector<uint8_t>>& priv_key_bytes = std::nullopt,
-                                                   const std::string& group_name = "P-256");
+                                                   const std::optional<std::vector<uint8_t>>& priv_key_bytes = std::nullopt);
 
-    
+
+    /**!
+     * @brief Creates an EC key structure encapsulating the public and (optionally) the private key.
+     *
+     * @param[in] group Pointer to the EC_GROUP representing the elliptic curve.
+     * @param[in] public_key Pointer to the EC_POINT representing the public key.
+     * @param[in] private_key Optional pointer to the BIGNUM representing the private key. Defaults to NULL.
+     *
+     * @returns A pointer to the generated SSL_KEY structure, the caller is responsible for freeing it.
+     */
+    static SSL_KEY* bundle_ec_key(const EC_GROUP* group, const EC_POINT* public_key, const BIGNUM* private_key = NULL);
     
 	/**
 	 * @brief Get the group of the key

@@ -1462,9 +1462,9 @@ err:
 #endif
 
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
-SSL_KEY *em_crypto_t::create_ec_key_from_coordinates(
+SSL_KEY *em_crypto_t::create_ec_key_from_coordinates(const EC_GROUP* group,
     const std::vector<uint8_t> &x_bin, const std::vector<uint8_t> &y_bin,
-    const std::optional<std::vector<uint8_t>> &priv_key_bytes, const std::string &group_name)
+    const std::optional<std::vector<uint8_t>> &priv_key_bytes)
 {
     EVP_PKEY *pkey = nullptr;
     OSSL_PARAM_BLD *param_bld = nullptr;
@@ -1473,6 +1473,8 @@ SSL_KEY *em_crypto_t::create_ec_key_from_coordinates(
     BIGNUM *x = nullptr, *y = nullptr, *priv_key_bn = nullptr;
     uint8_t *buf = nullptr;
     size_t buf_len = 0;
+    int nid = NID_undef;
+    const char* group_name;
 
     // Create BIGNUMs for coordinates
     x = BN_bin2bn(x_bin.data(), static_cast<int>(x_bin.size()), nullptr);
@@ -1484,9 +1486,19 @@ SSL_KEY *em_crypto_t::create_ec_key_from_coordinates(
 
     if ((param_bld = OSSL_PARAM_BLD_new()) == NULL) goto err;
 
+    nid = EC_GROUP_get_curve_name(group);
+    if (nid == NID_undef) {
+        printf("Failed to get curve name from group\n");
+        goto err;
+    }
+    group_name = EC_curve_nid2nist(nid);
+    if (!group_name) {
+        printf("Failed to get NIST name for curve NID %d\n", nid);
+        goto err;
+    }
+
     // Set the EC group name
-    if (!OSSL_PARAM_BLD_push_utf8_string(param_bld, OSSL_PKEY_PARAM_GROUP_NAME, group_name.c_str(),
-                                         0))
+    if (!OSSL_PARAM_BLD_push_utf8_string(param_bld, OSSL_PKEY_PARAM_GROUP_NAME, group_name, 0))
         goto err;
 
     // Create a properly formatted uncompressed EC point from X and Y
@@ -1562,11 +1574,18 @@ cleanup:
 }
 #else
 
-SSL_KEY *em_crypto_t::create_ec_key_from_coordinates(
+SSL_KEY *em_crypto_t::create_ec_key_from_coordinates(const EC_GROUP* group,
     const std::vector<uint8_t> &x_bin, const std::vector<uint8_t> &y_bin,
-    const std::optional<std::vector<uint8_t>> &priv_key_bytes, const std::string &group_name)
+    const std::optional<std::vector<uint8_t>> &priv_key_bytes)
 {
-    EC_KEY *ec_key = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
+
+    int nid = EC_GROUP_get_curve_name(group);
+    if (nid == NID_undef) {
+        printf("Failed to get curve name from group\n");
+        return nullptr;
+    }
+
+    EC_KEY *ec_key = EC_KEY_new_by_curve_name(nid);
     if (!ec_key) return nullptr;
 
     BIGNUM *x = BN_bin2bn(x_bin.data(), x_bin.size(), nullptr);
@@ -1703,6 +1722,17 @@ std::optional<std::vector<uint8_t>> em_crypto_t::sign_data_ecdsa(const std::vect
     return result;
 }
 #endif
+
+SSL_KEY *em_crypto_t::bundle_ec_key(const EC_GROUP* group, const EC_POINT *public_key, const BIGNUM *private_key) {
+    EM_ASSERT_NOT_NULL(public_key, NULL, "Public key is NULL");
+    EM_ASSERT_NOT_NULL(group, NULL, "Group is NULL");
+
+    auto [x, y] = ec_crypto::get_ec_x_y(group, public_key);
+    if (private_key == NULL){
+        return em_crypto_t::create_ec_key_from_coordinates(group, ec_crypto::BN_to_vec(x), ec_crypto::BN_to_vec(y));
+    }
+    return em_crypto_t::create_ec_key_from_coordinates(group, ec_crypto::BN_to_vec(x), ec_crypto::BN_to_vec(y), ec_crypto::BN_to_vec(private_key));
+}
 
 std::string em_crypto_t::hash_to_hex_string(const uint8_t *hash, size_t hash_len) {
     char output[hash_len * 2 + 1];
