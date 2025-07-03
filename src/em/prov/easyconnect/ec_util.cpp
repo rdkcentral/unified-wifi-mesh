@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <fstream>
 #include <sstream>
+#include <filesystem>
 
 #include "ec_util.h"
 #include "util.h"
@@ -1021,4 +1022,156 @@ bool ec_util::get_dpp_boot_data(ec_data_t *boot_data, mac_addr_t al_mac, bool do
     }
 
     return true;
+}
+
+bool ec_util::write_persistent_sec_ctx(std::string folder_path, const ec_persistent_sec_ctx_t& sec_ctx){
+    EM_ASSERT_MSG_TRUE(!folder_path.empty(), false, "Provided empty folder path for persistant security context keys");
+    EM_ASSERT_MSG_TRUE(std::filesystem::exists(folder_path), false, "Provided path does not exist");
+    EM_ASSERT_MSG_TRUE(std::filesystem::is_directory(folder_path), false, "Provided path is not a directory");
+
+    auto dir = std::filesystem::path(folder_path);
+    auto write_key_to_file = [&](const SSL_KEY* key, const std::string& file) -> bool {
+        std::filesystem::path full_path = dir / file;
+
+        if (!em_crypto_t::write_keypair_to_pem(key, full_path.string())) {
+            em_printfout("Failed to write key to file %s", full_path.string().c_str());
+            return false;
+        }
+        return true;
+    };
+
+    // Write C-sign-key to folder
+    EM_ASSERT_MSG_TRUE(write_key_to_file(sec_ctx.C_signing_key, DPP_C_SIGN_KEY_FILE), false, "Failed to write C-sign-key to file");
+    // Write net-access-key to folder
+    EM_ASSERT_MSG_TRUE(write_key_to_file(sec_ctx.net_access_key, DPP_NET_ACCESS_KEY_FILE), false, "Failed to write net-access-key to file");
+    // Write PPK key to folder
+    EM_ASSERT_MSG_TRUE(write_key_to_file(sec_ctx.pp_key, DPP_PPK_KEY_FILE), false, "Failed to write PPK to file");
+
+    EM_ASSERT_NOT_NULL(sec_ctx.connector, false, "Connector is NULL");
+    // Write connector to folder
+    std::ofstream((dir / DPP_CONNECTOR_FILE).string()) << std::string(sec_ctx.connector);
+
+    return true;
+}
+
+std::optional<ec_persistent_sec_ctx_t> ec_util::read_persistent_sec_ctx(std::string folder_path){
+    EM_ASSERT_MSG_TRUE(!folder_path.empty(), {}, "Provided empty folder path for persistant security context keys");
+    EM_ASSERT_MSG_TRUE(std::filesystem::exists(folder_path), {}, "Provided path does not exist");
+    EM_ASSERT_MSG_TRUE(std::filesystem::is_directory(folder_path), {}, "Provided path is not a directory");
+
+    ec_persistent_sec_ctx_t sec_ctx;
+
+    auto dir = std::filesystem::path(folder_path);
+    auto read_key_from_file = [&](const std::string& file) -> SSL_KEY* {
+        std::filesystem::path full_path = dir / file;
+        SSL_KEY* key = em_crypto_t::read_keypair_from_pem(full_path.string());
+        EM_ASSERT_NOT_NULL(key, NULL, "Failed to read key from file %s", full_path.string().c_str());
+        return key;
+    };
+
+    // Read C-sign-key from folder
+    sec_ctx.C_signing_key = read_key_from_file(DPP_C_SIGN_KEY_FILE);
+    EM_ASSERT_NOT_NULL(sec_ctx.C_signing_key, {}, "Failed to read C-sign-key from file");
+    // Read net-access-key from folder
+    sec_ctx.net_access_key = read_key_from_file(DPP_NET_ACCESS_KEY_FILE);
+    if (sec_ctx.net_access_key == NULL) {
+        em_printfout("Failed to read net-access-key from file %s", (dir / DPP_NET_ACCESS_KEY_FILE).string().c_str());
+        ec_crypto::free_persistent_sec_ctx(&sec_ctx);
+        return {};
+    }
+    // Read PPK key from folder
+    sec_ctx.pp_key = read_key_from_file(DPP_PPK_KEY_FILE);
+    if (sec_ctx.pp_key == NULL) {
+        em_printfout("Failed to read PPK key from file %s", (dir / DPP_PPK_KEY_FILE).string().c_str());
+        ec_crypto::free_persistent_sec_ctx(&sec_ctx);
+        return {};
+    }
+
+    // Read connector from folder
+    std::filesystem::path connector_path = dir / DPP_CONNECTOR_FILE;
+    if (!std::filesystem::exists(connector_path)) {
+        em_printfout("Connector file does not exist at path '%s', not reading it.", connector_path.string().c_str());
+        return sec_ctx;
+    }
+
+    std::ifstream conn_file(connector_path.string());
+    if (!conn_file.is_open()){
+        em_printfout("Failed to open connector file at path '%s'", connector_path.string().c_str());
+        ec_crypto::free_persistent_sec_ctx(&sec_ctx);
+        return {};
+    }
+    std::string conn_string((std::istreambuf_iterator<char>(conn_file)), std::istreambuf_iterator<char>());
+
+    sec_ctx.connector = strdup(conn_string.c_str());
+    if (sec_ctx.connector == NULL) {
+        em_printfout("Failed to allocate memory for connector string");
+        ec_crypto::free_persistent_sec_ctx(&sec_ctx);
+        return {};
+    }
+    conn_file.close();
+
+    return sec_ctx;
+}
+
+std::optional<ec_persistent_sec_ctx_t> ec_util::generate_sec_ctx_keys(int nid){
+    ec_persistent_sec_ctx_t sec_ctx;
+
+    // Generate C-sign-key
+    sec_ctx.C_signing_key = em_crypto_t::generate_ec_key(nid);
+    EM_ASSERT_NOT_NULL(sec_ctx.C_signing_key, {}, "Failed to generate C-sign-key");
+
+    // Generate net-access-key
+    sec_ctx.net_access_key = em_crypto_t::generate_ec_key(nid);
+    if (sec_ctx.net_access_key == NULL) {
+        em_printfout("Failed to generate net-access-key");
+        ec_crypto::free_persistent_sec_ctx(&sec_ctx);
+    }
+
+    // Generate PPK key
+    sec_ctx.pp_key = em_crypto_t::generate_ec_key(nid);
+    if (sec_ctx.pp_key == NULL) {
+        em_printfout("Failed to generate PPK key");
+        ec_crypto::free_persistent_sec_ctx(&sec_ctx);
+        return {};
+    }
+
+    return sec_ctx;
+}
+
+std::optional<std::string> ec_util::generate_dpp_connector(ec_persistent_sec_ctx_t& sec_ctx, std::string netRole){
+    // Generate Connector
+
+    std::vector<std::string> valid_net_roles = {
+        "mapBackhaulSta",
+        "mapBackhaulBss",
+        "mapAgent",
+        "ap",
+        "mapController",
+        "configurator"
+    };
+    if (std::find(valid_net_roles.begin(), valid_net_roles.end(), netRole) == valid_net_roles.end()) {
+        em_printfout("Invalid netRole '%s' provided for DPP connector generation", netRole.c_str());
+        return {};
+    }
+
+    EM_ASSERT_NOT_NULL(sec_ctx.C_signing_key, {}, "C-signing key is NULL");
+    EM_ASSERT_NOT_NULL(sec_ctx.net_access_key, {}, "Net access key is NULL");
+
+    cJSON *jwsHeaderObj = ec_crypto::create_jws_header("dppCon", sec_ctx.C_signing_key);
+    std::vector<std::unordered_map<std::string, std::string>> groups = {
+        {{"groupID", "mapNW"}, 
+        {"netRole", netRole}},
+    };
+
+    std::optional<std::string> null_expiry = std::nullopt;
+    cJSON *jwsPayloadObj = ec_crypto::create_jws_payload(groups, sec_ctx.net_access_key, null_expiry, DPP_VERSION);
+    auto connector = ec_crypto::generate_connector(jwsHeaderObj, jwsPayloadObj, sec_ctx.C_signing_key);
+    if (!connector.has_value()) {
+        em_printfout("Failed to generate DPP connector");
+        cJSON_free(jwsHeaderObj);
+        cJSON_free(jwsPayloadObj);
+        return {};
+    }
+
+    return connector;
 }

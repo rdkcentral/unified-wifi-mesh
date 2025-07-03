@@ -6,17 +6,22 @@
 
 #include <memory>
 
-ec_manager_t::ec_manager_t(const std::string& mac_addr, ec_ops_t& ops, bool is_controller)
-    : m_is_controller(is_controller),  m_ops(ops) {
+ec_manager_t::ec_manager_t(const std::string& al_mac_addr, ec_ops_t& ops, bool is_controller, std::optional<ec_persistent_sec_ctx_t> sec_ctx)
+    : m_is_controller(is_controller),  m_ops(ops), m_stored_al_mac_addr(al_mac_addr) {
 
-    printf("EC Manager created with MAC: %s\n", mac_addr.c_str());  
+    printf("EC Manager created with MAC: %s\n", al_mac_addr.c_str());  
     if (m_is_controller) {
+        if (!sec_ctx.has_value()) {
+            em_printfout("Security context is required for the controller configurator");
+            throw std::runtime_error("Security context is required for the controller configurator");
+        }
+
         m_configurator = std::unique_ptr<ec_ctrl_configurator_t>(
-            new ec_ctrl_configurator_t(mac_addr, ops)
+            new ec_ctrl_configurator_t(al_mac_addr, ops, *sec_ctx)
         );
     } else {
         m_enrollee = std::unique_ptr<ec_enrollee_t>(
-            new ec_enrollee_t(mac_addr, ops)
+            new ec_enrollee_t(al_mac_addr, ops, sec_ctx)
         );
     }
 }
@@ -113,7 +118,7 @@ bool ec_manager_t::handle_recv_gas_pub_action_frame(ec_gas_frame_base_t *frame, 
     return did_succeed;
 }
 
-bool ec_manager_t::upgrade_to_onboarded_proxy_agent()
+bool ec_manager_t::upgrade_to_onboarded_proxy_agent(bool is_colocated)
 {
     if (m_is_controller) {
         // Only an enrollee agent can be upgraded to a proxy agent
@@ -132,12 +137,15 @@ bool ec_manager_t::upgrade_to_onboarded_proxy_agent()
         em_printfout("Can't upgrade an enrollee that doesn't exist");
         return false;
     }
-    std::string enrollee_mac = m_enrollee->get_mac_addr();
+    auto sec_ctx = m_enrollee->get_sec_ctx();
+    if (sec_ctx.C_signing_key == NULL || sec_ctx.pp_key == NULL || sec_ctx.net_access_key == NULL || sec_ctx.connector == NULL) {
+        em_printfout("!!!!Enrolle doesn't have a valid security context, proxy agent won't be 1905 layer secured!!!!");
+    }
     // Free the enrollee object
     m_enrollee.reset();
     
     // Create a new proxy agent configurator
-    m_configurator = std::unique_ptr<ec_pa_configurator_t>(new ec_pa_configurator_t(enrollee_mac, m_ops));
+    m_configurator = std::unique_ptr<ec_pa_configurator_t>(new ec_pa_configurator_t(m_stored_al_mac_addr, m_ops, sec_ctx, is_colocated));
     em_printfout("Upgraded enrollee agent to proxy agent");
     return true;
 }

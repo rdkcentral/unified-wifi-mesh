@@ -1,12 +1,21 @@
 #include "ec_pa_configurator.h"
 
 #include "ec_util.h"
-#include "util.h"
 
-ec_pa_configurator_t::ec_pa_configurator_t(const std::string& mac_addr, ec_ops_t& ops)
-    : ec_configurator_t(mac_addr, ops)
+ec_pa_configurator_t::ec_pa_configurator_t(const std::string& al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t& sec_ctx, bool is_colocated)
+    : ec_configurator_t(al_mac_addr, ops, sec_ctx, is_colocated)
 {
     m_toggle_cce = ops.toggle_cce;
+    m_send_chirp_notification = ops.send_chirp;
+    m_send_prox_encap_dpp_msg = ops.send_encap_dpp;
+    m_send_dir_encap_dpp_msg = ops.send_dir_encap_dpp;
+    m_send_action_frame = ops.send_act_frame;
+
+    // Pass super-class initialized security context
+    if (!m_1905_encrypt_layer.set_sec_params(m_sec_ctx.C_signing_key, m_sec_ctx.net_access_key, m_sec_ctx.connector, EVP_sha256() /*TODO HASH*/)){
+        em_printfout("Failed to set security parameters for 1905 Encrypt Layer");
+        return;
+    }
 }
 
 bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])

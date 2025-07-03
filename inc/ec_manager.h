@@ -18,11 +18,12 @@ public:
 	 *
 	 * All non-controller devices are started as (non-onboarding) enrollees until they are told that they are on the network
 	 * at which point they can be upgraded to a proxy agent.
-	 * @param mac_addr The MAC address of the device
+	 * @param al_mac_addr The AL MAC address of the device
 	 * @param ops Struct of callbacks per-EC entity
 	 * @param is_controller Whether the EM node holding this manager is the mesh controller or not.
+	 * @param sec_ctx The existing security context for the node.
 	 */
-	ec_manager_t(const std::string& mac_addr, ec_ops_t& ops, bool is_controller);
+	ec_manager_t(const std::string& al_mac_addr, ec_ops_t& ops, bool is_controller, std::optional<ec_persistent_sec_ctx_t> sec_ctx);
     
 	/**!
 	 * @brief Destructor for ec_manager_t class.
@@ -177,12 +178,14 @@ public:
 	 * @brief Upgrade an enrollee to an onboarded proxy agent.
 	 *
 	 * Called once m1/m2 exchange verifies the enrollee agent is on the network.
+	 * 
+	 * @param[in] is_colocated Indicates whether the proxy agent is colocated with the controller.
 	 *
 	 * @return true if successful, false otherwise
 	 *
 	 * @note If the operation fails, all CCE IEs are removed before the function exits.
 	 */
-	bool upgrade_to_onboarded_proxy_agent();
+	bool upgrade_to_onboarded_proxy_agent(bool is_colocated);
 
     
 	/**
