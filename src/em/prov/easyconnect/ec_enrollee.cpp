@@ -7,8 +7,9 @@
 #include "cjson_util.h"
 #include <unistd.h>
 
-ec_enrollee_t::ec_enrollee_t(const std::string& mac_addr, ec_ops_t& ops)
-    : m_mac_addr(mac_addr)
+ec_enrollee_t::ec_enrollee_t(const std::string& al_mac_addr, ec_ops_t& ops, std::optional<ec_persistent_sec_ctx_t> existing_sec_ctx)
+    : m_al_mac_addr(al_mac_addr),
+    m_1905_encrypt_layer(al_mac_addr, ops.send_dir_encap_dpp, ops.send_1905_eapol_encap)
 {
     m_send_action_frame = ops.send_act_frame;
     m_get_bsta_info = ops.get_backhaul_sta_info;
@@ -16,12 +17,26 @@ ec_enrollee_t::ec_enrollee_t(const std::string& mac_addr, ec_ops_t& ops)
     m_bsta_connect_fn = ops.bsta_connect;
     m_send_dir_encap_fn = ops.send_dir_encap_dpp;
     m_scanned_channels_map = {};
+
+    // Import existing security context
+    if (existing_sec_ctx.has_value()) {
+        m_sec_ctx = existing_sec_ctx.value();
+    }
 }
 
 ec_enrollee_t::~ec_enrollee_t()
 {
     teardown_connection();
     if (m_send_pres_announcement_thread.joinable()) m_send_pres_announcement_thread.join();
+    if (m_send_recfg_announcement_thread.joinable()) m_send_recfg_announcement_thread.join();
+
+    if (!ec_util::write_persistent_sec_ctx("/nvram", m_sec_ctx)){
+        em_printfout("Failed to write persistent security context to /nvram");
+        em_printfout("Will need to perform a new onboarding on next boot");
+    }
+
+    ec_crypto::free_persistent_sec_ctx(&m_sec_ctx);
+    
 }
 
 bool ec_enrollee_t::start_onboarding(bool do_reconfig, ec_data_t* boot_data)

@@ -21,12 +21,12 @@ public:
 	 *
 	 * Initializes the ec_ctrl_configurator_t object with the provided MAC address and function pointers.
 	 *
-	 * @param[in] mac_addr The MAC address as a string.
-	 * @param ops Callbacks for this Configurator
-	 *
+	 * @param[in] al_mac_addr The AL MAC address as a string.
+	 * @param[in] ops Callbacks for this Configurator
+	 * @param[in] sec_ctx The security context containing C-signing key, PPK, NAK, and Connector.
 	 * @note This constructor initializes the base class ec_configurator_t with the provided parameters.
 	 */
-	ec_ctrl_configurator_t(const std::string& mac_addr, ec_ops_t& ops) : ec_configurator_t(mac_addr, ops) {};
+	ec_ctrl_configurator_t(const std::string& al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t sec_ctx);
 
 	/**
 	 * @brief Handle a chirp notification message TLV and direct it to the 1905 agent.
@@ -199,10 +199,11 @@ private:
 	 *
 	 * This function generates a request for reconfiguration authentication.
 	 * @param enrollee_mac The MAC of the Enrollee being Reconfigured
+	 * @param fc_group_nid The NID of the Finite Cyclic Group used for generating the C-connector NAK
 	 *
 	 * @returns A pair consisting of a pointer to the request data and its size.
 	 */
-	std::pair<uint8_t*, size_t> create_recfg_auth_request(const std::string& enrollee_mac);
+	std::pair<uint8_t*, size_t> create_recfg_auth_request(const std::string& enrollee_mac, const int fc_group_nid);
     
 	/**!
 	 * @brief Creates an authentication confirmation message.

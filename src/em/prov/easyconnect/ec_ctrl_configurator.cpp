@@ -8,6 +8,22 @@
 #include "em_crypto.h"
 #include <netinet/in.h>
 
+ec_ctrl_configurator_t::ec_ctrl_configurator_t(const std::string& al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t sec_ctx) :
+                                               ec_configurator_t(al_mac_addr, ops, sec_ctx, false)
+{
+
+    m_gmk = std::vector<uint8_t>(); // TODO:!!!!!!!!!!!!
+
+    // Pass super-class initialized security context + GMK
+    if (!m_1905_encrypt_layer.set_sec_params(m_sec_ctx.C_signing_key, m_sec_ctx.net_access_key, m_sec_ctx.connector, EVP_sha256(), m_gmk)) {
+        em_printfout("Failed to set security parameters for 1905 Encrypt Layer");
+        return;
+    }
+
+    
+}
+
+
 bool ec_ctrl_configurator_t::onboard_enrollee(ec_data_t *bootstrapping_data)
 {
 

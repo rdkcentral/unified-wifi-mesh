@@ -20,10 +20,12 @@ public:
 	 * This constructor initializes the EC configurator with the specified functions
 	 * for sending notifications and messages.
 	 *
-	 * @param[in] mac_addr The MAC address of the device
+	 * @param[in] al_mac_addr The AL MAC address of the device
 	 * @param ops Callbacks for this Configurator
+	 * @param sec_ctx The existing security context. Either generated elsewhere or imported from the enrollee.
+	 * @param is_colocated_agent True if this is a co-located agent, false if it is a non-colocated agent or a controller.
 	 */
-	ec_configurator_t(const std::string& mac_addr, ec_ops_t& ops);
+	ec_configurator_t(const std::string& al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t& sec_ctx, bool is_colocated_agent);
     
 	/**!
 	 * @brief Destructor for ec_configurator_t class.
@@ -380,7 +382,7 @@ public:
 protected:
 	std::string m_al_mac_addr;
 
-    std::string m_mac_addr;
+	bool m_is_colocated_agent;
 
     send_chirp_func m_send_chirp_notification;
 
@@ -487,6 +489,14 @@ protected:
         ec_crypto::free_ephemeral_context(&c_ctx.eph_ctx, c_ctx.nonce_len, c_ctx.digest_len);
     }
 
+	/**
+	 * @brief The security context for the Controller/Configurator OR the **Onboarded** Agent
+	 * 
+	 * This context is used to store the security keys and other information required for secure communication with the Controller and other onboarded Agents.
+	 * 	- For the Controller/Configurator, the keys/connector are generated at startup.
+	 * 	- For an **Onboarded Agent** the keys/connector are generated during the onboarding process and used throughout the lifetime of the agent (or until reconfigured).
+	 */
+	ec_persistent_sec_ctx_t m_sec_ctx;
 };
 
 #endif // EC_CONFIGURATOR_H

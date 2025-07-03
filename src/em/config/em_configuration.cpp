@@ -3139,7 +3139,11 @@ int em_configuration_t::handle_encrypted_settings()
     get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (&radioconfig), sizeof(radioconfig));
     set_state(em_state_agent_owconfig_pending);
     if (get_service_type() == em_service_type_agent) {
-        get_ec_mgr().upgrade_to_onboarded_proxy_agent();
+        dm_easy_mesh_t *dm = get_data_model();
+        auto ctrl_al = dm->get_controller_interface_mac();
+        auto agent_al = dm->get_agent_al_interface_mac();
+        bool is_colocated = (memcmp(ctrl_al, agent_al, ETH_ALEN) == 0);
+        get_ec_mgr().upgrade_to_onboarded_proxy_agent(is_colocated);
     }
     return ret;
 }

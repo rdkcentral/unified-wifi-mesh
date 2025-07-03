@@ -2,6 +2,7 @@
 #define EC_PA_CONFIGURATOR_H
 
 #include "ec_configurator.h"
+#include "util.h"
 
 #include <map>
 #include <vector>
@@ -16,12 +17,14 @@ public:
 	 * It handles the 802.11 frames from the Enrollee and forwards them to the Controller.
 	 * It also handles the 1905 frames from the Controller and forwards them to the Enrollee.
 	 *
-	 * @param[in] mac_addr The MAC address of the device.
-	 * @param ops Callbacks for this Configurator
+	 * @param[in] al_mac_addr The AL MAC address of the device.
+	 * @param[in] ops Callbacks for this Configurator
+	 * @param[in] sec_ctx The existing security context. Non-optional since the proxy agent must already be onboarded.
+	 * @param[in] is_colocated True if this is a colocated agent. False otherwise
 	 *
 	 * @note This constructor is part of the ec_pa_configurator_t class which extends ec_configurator_t.
 	 */
-	ec_pa_configurator_t(const std::string& mac_addr, ec_ops_t& ops);
+	ec_pa_configurator_t(const std::string& al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t& sec_ctx, bool is_colocated);
     
 	/**
 	 * @brief Handles a presence announcement 802.11 frame, performing the necessary actions and possibly passing to 1905.
