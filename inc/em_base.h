@@ -215,10 +215,6 @@ extern "C"
 #define 	EM_PARSE_ERR_CONFIG		EM_PARSE_NO_ERR	- 3	
 #define 	EM_PARSE_ERR_NO_CHANGE	EM_PARSE_NO_ERR	- 4	
 
-#ifndef ETH_ALEN
-#define ETH_ALEN 6
-#endif // ETH_ALEN
-
 #ifndef WIFI_EM_CHANNEL_SCAN_REQUEST
 #define WIFI_EM_CHANNEL_SCAN_REQUEST          "Device.WiFi.EM.ChannelScanRequest"
 #endif

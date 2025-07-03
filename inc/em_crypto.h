@@ -219,8 +219,30 @@ public:
 		}
 		return digest;
     }
-    
 
+    /**
+     * @brief Key Derivation Function (KDF) implementation using HMAC
+     * 
+     * Derives a key of specified length using the KDF defined in IEEE 802.11.
+     * Implements: KDF-Hash-Length(K, Label, Context) where the output length
+     * is specified by the caller.
+     * 
+     * @param algo Hash algorithm to use (e.g., EVP_sha256())
+     * @param key Input key material (K)
+     * @param key_len Length of input key in bytes
+     * @param label Purpose string for key derivation (treated as ASCII)
+     * @param context Context data for key derivation (can be NULL if context_len is 0)
+     * @param context_len Length of context data in bytes
+     * @param output Buffer to store derived key
+     * @param output_len Desired length of derived key in bytes
+     * 
+     * @return true on success, false on failure
+     * 
+     * @note Uses little-endian encoding for IEEE 802.11 compatibility
+     * @note Example: KDF-SHA-256-512 when algo=EVP_sha256() and output_len=64
+     */
+    static bool kdf_hash_length(const EVP_MD *algo, const uint8_t *key, size_t key_len, const char *label,
+                          const uint8_t *context, size_t context_len, uint8_t *output, size_t output_len);
     
 	/**
 	 * @brief Appends a 32-bit value in network byte order to a buffer and advances the pointer.
@@ -265,12 +287,13 @@ public:
 	 * @param[in] iv Initialization vector.
 	 * @param[in,out] data Buffer containing ciphertext, also used for plaintext output.
 	 * @param[in] data_len Length of input ciphertext.
+	 * @param[in] disable_padding If true, disables padding (default is true).
 	 *
 	 * @return 1 on success, 0 on failure.
 	 *
 	 * @note Padding is disabled. Input length must be a multiple of the block size.
 	 */
-	static uint8_t platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len);
+	static uint8_t platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len, bool disable_padding = true);
 
     
 	/**
@@ -287,12 +310,13 @@ public:
 	 * @param[in] plain_len Length of input plaintext.
 	 * @param[out] cipher_text Output buffer for ciphertext.
 	 * @param[out] cipher_len Output parameter for length of ciphertext.
+	 * @param[in] disable_padding If true, disables padding (default is true).
 	 *
 	 * @return 1 on success, 0 on failure.
 	 *
 	 * @note Padding is disabled. Input length must be multiple of block size.
 	 */
-	static uint8_t platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher_text, uint32_t *cipher_len);
+	static uint8_t platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher_text, uint32_t *cipher_len, bool disable_padding = true);
 
     
 	/**
@@ -333,6 +357,45 @@ public:
 	static uint8_t platform_aes_128_cbc_encrypt(uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher_text, uint32_t *cipher_len){
         return platform_cipher_encrypt(EVP_aes_128_cbc(), key, iv, plain, plain_len, cipher_text, cipher_len);
     }
+
+
+    /**
+     * @brief Performs NIST AES Key Wrap (RFC 3394) encryption
+     * 
+     * Wraps (encrypts) a plaintext key using the AES Key Wrap algorithm as specified in RFC 3394. 
+     * 
+     * @param kek         Key Encryption Key used to wrap the plaintext
+     * @param kek_len     Length of the KEK in bytes (must be 16, 24, or 32)
+     * @param plain       Plaintext key material to be wrapped
+     * @param plain_len   Length of plaintext in bytes (must be multiple of 8, minimum 16)
+     * @param wrapped     Output buffer for the wrapped key (must be plain_len + 8 bytes)
+     * @param wrapped_len Output parameter that will contain the wrapped key length
+     * 
+     * @return 1 on success, 0 on failure
+     * 
+     * @note The wrapped output will always be 8 bytes larger than the input
+     * @note Input validation: plain_len must be >= 16 and divisible by 8
+     */
+    static uint8_t aes_key_wrap(uint8_t *kek, size_t kek_len, uint8_t *plain, uint32_t plain_len, uint8_t *wrapped, uint32_t *wrapped_len);
+
+    /**
+     * @brief Performs NIST AES Key Unwrap (RFC 3394) decryption
+     * 
+     * Unwraps (decrypts) a wrapped key using the AES Key Unwrap algorithm as specified in RFC 3394. 
+     * 
+     * @param kek           Key Encryption Key used to unwrap the wrapped key
+     * @param kek_len       Length of the KEK in bytes (must be 16, 24, or 32)
+     * @param wrapped       Wrapped key material to be decrypted
+     * @param wrapped_len   Length of wrapped key in bytes (must be multiple of 8, minimum 24)
+     * @param unwrapped     Output buffer for the unwrapped key (must be at least wrapped_len - 8 bytes)
+     * @param unwrapped_len Output parameter that will contain the unwrapped key length
+     * 
+     * @return 1 on success, 0 on failure
+     * 
+     * @note The unwrapped output will always be 8 bytes smaller than the input
+     * @note Input validation: wrapped_len must be >= 24 and divisible by 8
+     */
+    static uint8_t aes_key_unwrap(uint8_t *kek, size_t kek_len, uint8_t *wrapped, uint32_t wrapped_len, uint8_t *unwrapped, uint32_t *unwrapped_len);
 
     
 	/**
@@ -777,6 +840,32 @@ public:
 	 */
 	static inline uint8_t generate_nonce(em_nonce_t nonce) { if (!RAND_bytes(nonce, sizeof(em_nonce_t))) { return 0; } else { return 1; } }
 
+	/**
+	 * @brief Compares two BIGNUMs and returns the max value
+	 * 
+	 * @param[in] a First BIGNUM to compare
+	 * @param[in] b Second BIGNUM to compare
+	 * 
+	 * @return BIGNUM* Pointer to the BIGNUM that is greater or equal
+	 */
+	static inline BIGNUM* bn_max(const BIGNUM *a, const BIGNUM *b) {
+		int cmp = BN_cmp(a, b);
+		return const_cast<BIGNUM*>((cmp >= 0) ? a : b);
+	}
+
+	/**
+	 * @brief Compares two BIGNUMs and returns the min value
+	 * 
+	 * @param[in] a First BIGNUM to compare
+	 * @param[in] b Second BIGNUM to compare
+	 * 
+	 * @return BIGNUM* Pointer to the BIGNUM that is less or equal
+	 */
+	static inline BIGNUM* bn_min(const BIGNUM *a, const BIGNUM *b) {
+		int cmp = BN_cmp(a, b);
+		return const_cast<BIGNUM*>((cmp <= 0) ? a : b);
+	}
+
     // START: Object getters and setters
     
 	/**!
@@ -1130,6 +1219,10 @@ struct BuffDeleter {
     void operator()(uint8_t* buff) const { if (buff) OPENSSL_free(buff); }
 };
 
+struct cJSONObjDeleter {
+    void operator()(cJSON* jsonObj) const { if (jsonObj) cJSON_Delete(jsonObj); }
+};
+
 
 using scoped_ssl_key = std::unique_ptr<SSL_KEY, SSLKeyDeleter>;
 using scoped_bio = std::unique_ptr<BIO, BIODeleter>;
@@ -1137,4 +1230,5 @@ using scoped_bn = std::unique_ptr<BIGNUM, BNDeleter>;
 using scoped_ec_point = std::unique_ptr<EC_POINT, ECPointDeleter>;
 using scoped_ec_group = std::unique_ptr<EC_GROUP, ECGroupDeleter>;
 using scoped_buff = std::unique_ptr<uint8_t, BuffDeleter>;
+using scoped_cjson = std::unique_ptr<cJSON, cJSONObjDeleter>;
 #endif
