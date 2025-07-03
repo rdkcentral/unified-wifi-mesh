@@ -763,13 +763,20 @@ public:
         if (ctx->order) BN_free(ctx->order);
         if (ctx->prime) BN_free(ctx->prime);
         if (ctx->bn_ctx) BN_CTX_free(ctx->bn_ctx);
-        if (ctx->C_signing_key) em_crypto_t::free_key(ctx->C_signing_key);
-        if (ctx->ppk) EC_POINT_free(ctx->ppk);
-        if (ctx->net_access_key) em_crypto_t::free_key(ctx->net_access_key);
-        if (ctx->connector) rand_zero_free(const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(ctx->connector)), strlen(ctx->connector));
 
 		rand_zero(reinterpret_cast<uint8_t*>(ctx), sizeof(ec_connection_context_t));
     }
+
+	static inline void free_persistent_sec_ctx(ec_persistent_sec_ctx_t* ctx) {
+		if (!ctx) return;
+
+		if (ctx->C_signing_key) em_crypto_t::free_key(const_cast<SSL_KEY*>(ctx->C_signing_key));
+		if (ctx->net_access_key) em_crypto_t::free_key(const_cast<SSL_KEY*>(ctx->net_access_key));
+		if (ctx->pp_key) em_crypto_t::free_key(const_cast<SSL_KEY*>(ctx->pp_key));
+		if (ctx->connector) rand_zero_free(ctx->connector);
+
+		rand_zero(reinterpret_cast<uint8_t*>(ctx), sizeof(ec_persistent_sec_ctx_t));
+	}
 
 // START: Connector methods
   

@@ -45,6 +45,13 @@ extern "C"
 #define DPP_VERSION 0x02
 #define DPP_URI_JSON_PATH "/nvram/DPPURI.json"
 #define DPP_BOOT_PEM_PATH "/nvram/DPPURI.pem"
+#define DPP_SEC_CTX_DIR_PATH "/nvram"
+
+
+#define DPP_C_SIGN_KEY_FILE "C-sign-key.pem"
+#define DPP_NET_ACCESS_KEY_FILE "net-access-key.pem"
+#define DPP_PPK_KEY_FILE "ppk.pem"
+#define DPP_CONNECTOR_FILE "connector.txt"
 
 // The NID for generating the local responder keypair
 #define DPP_KEY_NID NID_X9_62_prime256v1
@@ -656,6 +663,78 @@ typedef struct {
     BIGNUM *init_priv_boot_key, *resp_priv_boot_key;
 } ec_data_t;
 
+
+typedef struct {
+
+   /**
+     * Configurator Signing Key.
+     * Used to sign all DPP Connectors.
+     *  - The Configurator has the private/public key pair
+     *  - The Enrollee has the public key only
+     */
+	SSL_KEY* C_signing_key = NULL;
+
+    /**
+     * The Configurator's Privacy Protection Key (PPK).
+     * Used for configuration / re-authentication.
+     *  - The Configurator has the private/public key pair
+     *  - The Enrollee has the public key only
+     */
+	SSL_KEY* pp_key;
+
+    /**
+     * The Controller or Agent/Enrollee's netAccessKey (NAK), used as the netAccessKey for the devices's 1905 connector
+     * This is the key present in the DPP/1905 Connector
+     *  - The Configurator generates it's NAK at initialization (along with connector, EasyMesh 5.3.3)
+     *  - The Enrollee generates it's NAK as a protocol key during the DPP Authentication process
+     */
+	SSL_KEY* net_access_key = nullptr;
+
+    /**
+     * @brief The Controller or Agent/Enrollee's 1905/DPP Connector.
+     *  - The differences between devices are the `netRole` (`mapController` or `mapAgent`) and the `netAccessKey` (NAK).
+     * - The Configurator generates it's Connector at initialization (along with NAK, EasyMesh 5.3.3)
+     * - The Enrollee _recieves_ it's Connector from the Controller/Configurator during the DPP Configuration process.
+     * NULL terminated string, NULL if not set.
+     * @paragraph
+     * EasyConnect 4.2
+     *   A Connector is encoded as a JSON Web Signature (JWS) Compact Serialization of a JWS Protected Header (describing
+     *   the encoded object and signature), a JWS Payload, and a signature. JSON is a data interchange format (see [12]) that
+     *   encodes data as a series of data types (strings, numbers, Booleans, and null) and structure types, formatted as
+     *   name/value pairs.
+     *   ...
+     *   The JWS Compact Serialization is a base64url encoding of each component, with components separated by a dot (“.”).
+     *   The JWS Protected Header is a JSON object that describes:
+     *   • The type of object in the JWS Payload specified as "dppCon"
+     *   • The identifier ("kid" ) for the key used to generate the signature
+     *   • The algorithm ("alg") used to generate a signature
+     *   The supported algorithms are given in [16]. All devices supporting DPP shall support the ES256 algorithm. Key and nonce
+     *   lengths shall be as specified in Table 4. The curve used for the signature may be different from the one used in DPP
+     *   Bootstrapping and DPP Authentication protocols.
+     *   ...
+     * 4.2.1 Connector Signing
+     *   The Configurator possesses a signing key pair (c-sign-key, C-sign-key). The c-sign-key is used by the Configurator to sign
+     *   Connectors, whereas the C-sign-key is used by provisioned devices to verify Connectors of other devices are signed by
+     *   the same Configurator. Connectors signed with the same c-sign-key manage connections in the same network.
+     *   The Configurator sets the public key corresponding to the enrollee protocol key as the **netAccessKey** in the Connector
+     *   data structure, and assigns the DPP Connector attribute depending on the Peer devices with which the enrollee will be
+     *   provisioned to connect.
+     * 4.2.1.1 Digital Signature Computation
+     *   The procedures to compute the digital signature of a Connector and the procedure to verify such signature are described
+     *   in FIPS-186-4 [19] and are specified in this section.  The curve used for the signature may be different from the one used in DPP Bootstrapping and DPP Authentication protocols.
+     *   The signature is performed over the concatenation of the base64url encodings of both the JWS Protected Header and the JWS Payload, separated by a dot (“.”), see section 5.1 of [14].
+     *   The data passed to the signature algorithm is:
+     *   
+     *   base64url(UTF8(JWS Protected Header)) | ‘.’ | base64url(JWS Payload)
+     *    
+     *   where UTF8(s) is the UTF8 representation of the string “s”.
+     *   If “sig” is the result of the signature, the Connector is then:
+     *   base64url(UTF8(JWS Protected Header)) | ‘.’ | base64url(JWS Payload) | ‘.’ | base64url(sig)
+     */
+    const char* connector;
+} ec_persistent_sec_ctx_t;
+
+
 /**
  * @brief The parameters used only during the creation of a connection between a Configurator and a specific Enrollee/Agent
  */
@@ -709,6 +788,9 @@ typedef struct {
      * @brief The transaction ID used for Reconfiguration
      * 
      * This is created by the Configurator and issued to an Enrollee on a per-Reconfiguration-session basis.
+     * This is created by the (no longer Proxy) Agent and issued to an Controller on a per-Network Introduction Protocol-session basis.
+     * 
+     * Both uses cases are fine and won't collide with each other.
      * 
      */
     uint8_t transaction_id;
@@ -719,10 +801,10 @@ typedef struct {
     bool is_mutual_auth;
 
     /**
-     * C-Connector or E-Connector
-     * 
-     */
-    const char *connector;
+     * An ephemeral key pair used for storing a NAK between requests.
+     * Particularly used during EasyConnect re-authentication to store the temporary but newly generated NAK
+     */  
+    SSL_KEY *net_access_key;
 
 } ec_ephemeral_context_t;
 
@@ -744,64 +826,21 @@ typedef struct {
     uint16_t nonce_len;
     int nid;
 
-    //BEGIN:  Variables that persist after configuration to be used during re-configuration
+	/**
+     * Current netAccessKey (NAK) of the Agent/Enrollee.
+     *  - Stored in the case that the Agent/Enrollee chooses not to replace this key during (re)configuration. 
+     *  - Only used by the Controller/Configurator
+     * 
+     */ 
+    SSL_KEY *enrollee_net_access_key;
 
     /**
-     * Privacy-protection-key, the Configurator public privacy protection key.
-     * Both the Configurator and Enrollee have a copy of this key after configuration.
+     * @brief The **AL* MAC address of the peer device that this connection is established with.
+     * 
+     * This can be the MAC address of a Controller or an Agent but it **must** be an AL MAC, not
+     * a PHY MAC. Therefore, this value will be NULL during the initial onboarding (sending of 802.11/802.3 frames)
      */
-    EC_POINT* ppk;
-
-    /**
-     * Configurator Signing Key.
-     * Both the Configurator and Enrollee have a copy of this key after configuration.
-     */
-    SSL_KEY* C_signing_key;
-
-    /*
-        The protocol key of the Enrollee is used as Network Access key (netAccessKey) later in the DPP Configuration and DPP Introduction protocol
-    */  
-    SSL_KEY *net_access_key;
-
-    /**
-     * @brief Can be the Configurator's Connector or the Enroller's connector based on context.
-     * NULL terminated string, NULL if not set.
-     * @paragraph
-     * EasyConnect 4.2
-     *   A Connector is encoded as a JSON Web Signature (JWS) Compact Serialization of a JWS Protected Header (describing
-     *   the encoded object and signature), a JWS Payload, and a signature. JSON is a data interchange format (see [12]) that
-     *   encodes data as a series of data types (strings, numbers, Booleans, and null) and structure types, formatted as
-     *   name/value pairs.
-     *   ...
-     *   The JWS Compact Serialization is a base64url encoding of each component, with components separated by a dot (“.”).
-     *   The JWS Protected Header is a JSON object that describes:
-     *   • The type of object in the JWS Payload specified as "dppCon"
-     *   • The identifier ("kid" ) for the key used to generate the signature
-     *   • The algorithm ("alg") used to generate a signature
-     *   The supported algorithms are given in [16]. All devices supporting DPP shall support the ES256 algorithm. Key and nonce
-     *   lengths shall be as specified in Table 4. The curve used for the signature may be different from the one used in DPP
-     *   Bootstrapping and DPP Authentication protocols.
-     *   ...
-     * 4.2.1 Connector Signing
-     *   The Configurator possesses a signing key pair (c-sign-key, C-sign-key). The c-sign-key is used by the Configurator to sign
-     *   Connectors, whereas the C-sign-key is used by provisioned devices to verify Connectors of other devices are signed by
-     *   the same Configurator. Connectors signed with the same c-sign-key manage connections in the same network.
-     *   The Configurator sets the public key corresponding to the enrollee protocol key as the **netAccessKey** in the Connector
-     *   data structure, and assigns the DPP Connector attribute depending on the Peer devices with which the enrollee will be
-     *   provisioned to connect.
-     * 4.2.1.1 Digital Signature Computation
-     *   The procedures to compute the digital signature of a Connector and the procedure to verify such signature are described
-     *   in FIPS-186-4 [19] and are specified in this section.  The curve used for the signature may be different from the one used in DPP Bootstrapping and DPP Authentication protocols.
-     *   The signature is performed over the concatenation of the base64url encodings of both the JWS Protected Header and the JWS Payload, separated by a dot (“.”), see section 5.1 of [14].
-     *   The data passed to the signature algorithm is:
-     *   
-     *   base64url(UTF8(JWS Protected Header)) | ‘.’ | base64url(JWS Payload)
-     *    
-     *   where UTF8(s) is the UTF8 representation of the string “s”.
-     *   If “sig” is the result of the signature, the Connector is then:
-     *   base64url(UTF8(JWS Protected Header)) | ‘.’ | base64url(JWS Payload) | ‘.’ | base64url(sig)
-     */
-    const char* connector;
+    uint8_t peer_al_mac[ETH_ALEN];
 
     /**
      * @brief The temporary context that is used during the authentication / configuration process and should be securely freed after the process is complete.

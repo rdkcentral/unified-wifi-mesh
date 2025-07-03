@@ -24,10 +24,10 @@ public:
 	/**
 	 * @brief EasyConnect Enrollee
 	 * 
-	 * @param mac_addr The MAC addr of the Enrollee
+	 * @param al_mac_addr The AL MAC addr of the Enrollee
 	 * @param ops Callbacks for the Enrollee
 	 */
-	ec_enrollee_t(const std::string& mac_addr, ec_ops_t& ops);
+	ec_enrollee_t(const std::string& al_mac_addr, ec_ops_t& ops, std::optional<ec_persistent_sec_ctx_t> existing_sec_ctx = std::nullopt);
     
 	/**!
 	 * @brief Destructor for the ec_enrollee_t class.
@@ -185,6 +185,11 @@ public:
     }
 
     
+	/**
+	 * @brief Retrieves the current security context.
+	 */
+	inline ec_persistent_sec_ctx_t get_sec_ctx() { return m_sec_ctx; };
+
 	/**!
 	 * @brief Retrieves the AL MAC address.
 	 *
@@ -638,6 +643,12 @@ private:
 	 * 
 	 */
 	std::string m_configured_ssid = {};
+
+	/**
+	 * The context filled with security keys for the Enrollee that will be saved 
+	 * to the persistent storage on exit.
+	 */
+	ec_persistent_sec_ctx_t m_sec_ctx = {};
 };
 
 #endif // EC_ENROLLEE_H
