@@ -176,7 +176,7 @@ public:
 	 * @param[in] val The uint8_t attribute value.
 	 *
 	 * @return uint8_t* The buffer offset by the length of the attribute.
-	 *
+	 
 	 * @warning The buffer must be freed by the caller.
 	 */
 	static inline uint8_t* add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, uint8_t val) {
@@ -982,7 +982,6 @@ private:
 	 * DIGIT = %x30-39 HEXDIG = DIGIT / "A" / "B" / "C" / "D" / "E" / "F" ALPHA
 	 */
 	static std::map<dpp_uri_field, std::string> encode_bootstrap_data(ec_data_t *boot_data);
-
     
 	/**
 	 * @brief Get the DPP URI field enum from a string.
