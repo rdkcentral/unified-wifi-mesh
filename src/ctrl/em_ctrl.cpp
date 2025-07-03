@@ -791,7 +791,8 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         case em_msg_type_proxied_encap_dpp:
         case em_msg_type_direct_encap_dpp:
         case em_msg_type_dpp_cce_ind:
-            // TODO: Add more types and might have to work on addressing more
+        case em_msg_type_1905_rekey_req:
+        case em_msg_type_1905_encap_eapol:
 	        em = al_em;
 	        break;
 

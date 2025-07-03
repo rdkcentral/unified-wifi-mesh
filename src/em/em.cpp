@@ -329,6 +329,8 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_bss_config_res:
         case em_msg_type_chirp_notif:
         case em_msg_type_dpp_bootstrap_uri_notif:
+        case em_msg_type_1905_rekey_req:
+        case em_msg_type_1905_encap_eapol:
             em_provisioning_t::process_msg(data, len);
             break;
         case em_msg_type_client_steering_req:

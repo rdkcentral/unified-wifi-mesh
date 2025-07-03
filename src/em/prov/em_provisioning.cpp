@@ -187,6 +187,89 @@ int em_provisioning_t::send_direct_encap_dpp_msg(uint8_t* dpp_frame, size_t dpp_
     return static_cast<int> (len);
 }
 
+int em_provisioning_t::send_1905_eapol_encap_msg(uint8_t* eapol_frame, size_t eapol_frame_len, uint8_t dest_al_mac[ETH_ALEN])
+{
+    if (eapol_frame_len == 0 || eapol_frame == NULL) {
+        em_printfout("Direct DPP Frame is empty");
+        return -1;
+    }
+    if (dest_al_mac == NULL) {
+        em_printfout("Destination AL MAC address is NULL");
+        return -1;
+    }
+
+    // Make sure there is enough room for the TLV, the 1905 layer will deal with fragmentation.
+    uint8_t buff[MAX_EM_BUFF_SZ+eapol_frame_len];
+    unsigned int len = 0;
+    uint8_t *tmp = buff;
+
+    tmp = em_msg_t::add_1905_header(tmp, &len, dest_al_mac, get_al_interface_mac(), em_msg_type_1905_encap_eapol);
+
+    // One 1905 Encap DPP TLV 17.2.86
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_1905_encap_eapol, eapol_frame, static_cast<unsigned int> (eapol_frame_len));
+
+    tmp = em_msg_t::add_eom_tlv(tmp, &len);
+
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+
+    if (em_msg_t(em_msg_type_1905_encap_eapol, em_profile_type_3, buff, len).validate(errors) == 0) {
+        em_printfout("EAPOL Encap DPP msg failed validation in tnx end");
+        //return -1;
+    }
+
+    {
+        em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+        em_printfout("Sending EAPOL Encap DPP msg from '" MACSTRFMT "' to '" MACSTRFMT "'\n", MAC2STR(hdr->src), MAC2STR(hdr->dst));
+    }
+
+    em_printfout("Sending EAPOL Encap DPP msg of length %d", len);
+    if (send_frame(buff, len)  < 0) {
+        em_printfout("EAPOL Encap DPP msg failed");
+        perror("send_frame");
+        return -1;
+    }
+
+    return static_cast<int> (len);
+}
+
+int em_provisioning_t::send_1905_rekey_msg(uint8_t dest_al_mac[ETH_ALEN])
+{
+    if (dest_al_mac == NULL) {
+        em_printfout("Destination AL MAC address is NULL");
+        return -1;
+    }
+
+    // Make sure there is enough room for the TLV, the 1905 layer will deal with fragmentation.
+    uint8_t buff[MAX_EM_BUFF_SZ];
+    unsigned int len = 0;
+    uint8_t *tmp = buff;
+
+    tmp = em_msg_t::add_1905_header(tmp, &len, dest_al_mac, get_al_interface_mac(), em_msg_type_1905_rekey_req);
+    // No TLVs
+    tmp = em_msg_t::add_eom_tlv(tmp, &len);
+
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+
+    if (em_msg_t(em_msg_type_1905_rekey_req, em_profile_type_3, buff, len).validate(errors) == 0) {
+        em_printfout("1905 Rekey msg failed validation in tnx end");
+        //return -1;
+    }
+
+    {
+        em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+        em_printfout("Sending 1905 Rekey msg from '" MACSTRFMT "' to '" MACSTRFMT "'\n", MAC2STR(hdr->src), MAC2STR(hdr->dst));
+    }
+
+    em_printfout("Sending 1905 Rekey msg of length %d", len);
+    if (send_frame(buff, len)  < 0) {
+        em_printfout("1905 Rekey msg failed");
+        perror("send_frame");
+        return -1;
+    }
+
+    return static_cast<int> (len);
+}
+
 int em_provisioning_t::send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t chirp_len)
 {
 
@@ -531,6 +614,57 @@ int em_provisioning_t::create_dpp_direct_encap_msg(uint8_t *buff, uint8_t *frame
     return static_cast<int> (len);
 }
 
+int em_provisioning_t::handle_1905_rekey_msg(uint8_t *buff, unsigned int len){
+    // No TLVs, just a notification to rekey the 1905 layer.
+    EM_ASSERT_NOT_NULL(m_ec_manager, -1, "EC Manager is NULL, cannot handle 1905 Rekey message");
+    if (!m_ec_manager->rekey_1905_layer_ptk()){
+        em_printfout("Failed to rekey 1905 layer PTK");
+        return -1;
+    }
+    em_printfout("Successfully rekeyed 1905 layer PTK");
+    return 0;
+}
+
+int em_provisioning_t::handle_1905_encap_eapol_msg(uint8_t *buff, unsigned int len){
+
+    EM_ASSERT_NOT_NULL(m_ec_manager, -1, "EC Manager is NULL, cannot handle 1905 Encap EAPOL message");
+    EM_ASSERT_NOT_NULL(buff, -1, "Buffer is NULL, cannot handle 1905 Encap EAPOL message");
+
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+    
+    uint8_t *src_mac = hdr->src;
+
+    em_tlv_t    *tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    unsigned int tlv_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    uint8_t *eapol_frame = NULL;
+    uint16_t eapol_frame_len = 0;
+
+    while ((tlv->type != em_tlv_type_eom) && (tlv_len > 0)) {
+
+        if (tlv->type == em_tlv_type_1905_encap_eapol) {
+            eapol_frame = tlv->value;
+            eapol_frame_len = ntohs(tlv->len);
+        }
+
+        tlv_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + ntohs(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<uint8_t *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
+    }
+
+    if (eapol_frame == NULL || eapol_frame_len == 0) {
+        em_printfout("Received a 1905 EAPOL Encap message but did not contain EAPOL frame!");
+        return -1;
+    }
+
+    if (!m_ec_manager->process_1905_eapol_encap_msg(buff, len, src_mac)){
+        em_printfout("Failed to handle 1905 EAPOL Encap message");
+        return -1;
+    }
+    em_printfout("Successfully handled 1905 EAPOL Encap message");
+    return 0;
+}
+
+
 int em_provisioning_t::handle_cce_ind_msg(uint8_t *buff, unsigned int len)
 {
     em_tlv_t *tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
@@ -600,7 +734,12 @@ void em_provisioning_t::process_msg(uint8_t *data, unsigned int len)
 
         case em_msg_type_dpp_bootstrap_uri_notif:
             break;
-
+        case em_msg_type_1905_rekey_req:
+            handle_1905_rekey_msg(data, len);
+            break;
+        case em_msg_type_1905_encap_eapol:
+            handle_1905_encap_eapol_msg(data, len);
+            break;
         default:
             em_printfout("unhandled message type %u", htons(cmdu->type));
             break;
@@ -704,7 +843,11 @@ int em_provisioning_t::handle_direct_encap_dpp(uint8_t *buff, unsigned int len)
         return -1;
     }
 
-    if (m_ec_manager->process_direct_encap_dpp_msg(direct_frame, direct_frame_len) != 0){
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+    uint8_t *src_mac = hdr->src;
+    em_printfout("Received Direct Encap DPP msg from '" MACSTRFMT "' of length %d", MAC2STR(src_mac), direct_frame_len);
+
+    if (m_ec_manager->process_direct_encap_dpp_msg(direct_frame, direct_frame_len, src_mac) != 0){
         //TODO: Fail
         return -1;
     }
@@ -721,22 +864,14 @@ cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *con
     }
 
     std::string channelList;
-    cJSON *bsta_list_obj = cJSON_CreateObject();
-    if (!bsta_list_obj) {
-        em_printfout("Failed to allocate for bSTAList object!");
-        return nullptr;
-    }
+    scoped_cjson bsta_list_obj(cJSON_CreateObject());
+    EM_ASSERT_NOT_NULL(bsta_list_obj.get(), nullptr, "Failed to allocate for bSTAList object!");
 
-    cJSON *b_sta_list_arr = cJSON_CreateArray();
-    if (!b_sta_list_arr) {
-        em_printfout("Could not allocate for bSTAList array!");
-        cJSON_Delete(bsta_list_obj);
-        return nullptr;
-    }
+    scoped_cjson b_sta_list_arr(cJSON_CreateArray());
+    EM_ASSERT_NOT_NULL(b_sta_list_arr.get(), nullptr, "Failed to allocate for bSTAList array!");
 
-    if (!cJSON_AddStringToObject(bsta_list_obj, "netRole", "mapBackhaulSta")) {
+    if (!cJSON_AddStringToObject(bsta_list_obj.get(), "netRole", "mapBackhaulSta")) {
         em_printfout("Could not add netRole to bSTAList object!");
-        cJSON_Delete(b_sta_list_arr);
         return nullptr;
     }
 
@@ -749,30 +884,23 @@ cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *con
         if (!akm_suites.empty() && i < std::size(akms) - 1) akm_suites += "+";
     }
 
-    if (!cJSON_AddStringToObject(bsta_list_obj, "akm", akm_suites.c_str())) {
+    if (!cJSON_AddStringToObject(bsta_list_obj.get(), "akm", akm_suites.c_str())) {
         em_printfout("Could not add AKM to bSTAList object!");
-        cJSON_Delete(b_sta_list_arr);
         return nullptr;
     }
 
-    if (!cJSON_AddNumberToObject(bsta_list_obj, "bSTA_Maximum_Links", 1)) {
+    if (!cJSON_AddNumberToObject(bsta_list_obj.get(), "bSTA_Maximum_Links", 1)) {
         em_printfout("Could not add bSTA_Maximum_Links to bSTAList object!");
-        cJSON_Delete(b_sta_list_arr);
         return nullptr;
     }
 
-    if (!cJSON_AddItemToArray(b_sta_list_arr, bsta_list_obj)) {
+    if (!cJSON_AddItemToArray(b_sta_list_arr.get(), bsta_list_obj.get())) {
         em_printfout("Could not add bSTAList object to bSTAList array!");
-        cJSON_Delete(b_sta_list_arr);
         return nullptr;
     }
 
-    cJSON *radio_list_arr = cJSON_AddArrayToObject(bsta_list_obj, "RadioList");
-    if (!radio_list_arr) {
-        em_printfout("Could not add RadioList array to bSTAList object!");
-        cJSON_Delete(bsta_list_obj);
-        return nullptr;
-    }
+    scoped_cjson radio_list_arr(cJSON_AddArrayToObject(bsta_list_obj.get(), "RadioList"));
+    EM_ASSERT_NOT_NULL(radio_list_arr.get(), nullptr, "Could not add RadioList array to bSTAList object!");
 
     for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
         em_bss_info_t *bss_info = dm->get_bss_info(i);
@@ -784,19 +912,14 @@ cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *con
             continue;
         }
 
-        cJSON *radioListObj = cJSON_CreateObject();
-        if (!radioListObj) {
-            em_printfout("Failed to create RadioList object!");
-            cJSON_Delete(bsta_list_obj);
-            return nullptr;
-        }
+        scoped_cjson radioListObj(cJSON_CreateObject());
+        EM_ASSERT_NOT_NULL(radioListObj.get(), nullptr, "Failed to create RadioList object!");
+
         uint8_t* ruid = bss_info->ruid.mac;
         if (!cJSON_AddStringToObject(
-                radioListObj, "RUID",
+                radioListObj.get(), "RUID",
                 util::mac_to_string(ruid, "").c_str())) {
             em_printfout("Could not add RUID to RadioList object!");
-            cJSON_Delete(radioListObj);
-            cJSON_Delete(bsta_list_obj);
             return nullptr;
         }
 
@@ -817,30 +940,25 @@ cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *con
         }
         channelList += radio_channel_list;
 
-        if (!cJSON_AddStringToObject(radioListObj, "RadioChannelList",
+        if (!cJSON_AddStringToObject(radioListObj.get(), "RadioChannelList",
                                      radio_channel_list.c_str())) {
             printf("%s:%d: Could not add RadioChannelList to RadioList object!\n", __func__,
                    __LINE__);
-            cJSON_Delete(radioListObj);
-            cJSON_Delete(bsta_list_obj);
             return nullptr;
         }
 
-        if (!cJSON_AddItemToArray(radio_list_arr, radioListObj)) {
+        if (!cJSON_AddItemToArray(radio_list_arr.get(), radioListObj.get())) {
             printf("%s:%d: Could not add RadioList object to RadioList array!\n", __func__,
                    __LINE__);
-            cJSON_Delete(radioListObj);
-            cJSON_Delete(bsta_list_obj);
             return nullptr;
         }
     }
 
-    if (!cJSON_AddStringToObject(bsta_list_obj, "channelList", channelList.c_str())) {
+    if (!cJSON_AddStringToObject(bsta_list_obj.get(), "channelList", channelList.c_str())) {
         em_printfout("Could not add channelList to bSTAList object!");
-        cJSON_Delete(b_sta_list_arr);
         return nullptr;
     }
-    return b_sta_list_arr;
+    return b_sta_list_arr.get();
 }
 
 cJSON *em_provisioning_t::create_fbss_response_obj(ec_connection_context_t *conn_ctx)
@@ -848,32 +966,22 @@ cJSON *em_provisioning_t::create_fbss_response_obj(ec_connection_context_t *conn
     dm_easy_mesh_t *dm = get_data_model();
     ASSERT_NOT_NULL(dm, nullptr, "%s:%d: Failed to get data model handle.\n", __func__, __LINE__);
 
-    cJSON *fbss_configuration_object = cJSON_CreateObject();
+    scoped_cjson fbss_configuration_object(cJSON_CreateObject());
     ASSERT_NOT_NULL(fbss_configuration_object, nullptr, "%s:%d: Could not create fBSS Configuration Object\n", __func__, __LINE__);
 
-    if (!cJSON_AddStringToObject(fbss_configuration_object, "wi-fi_tech", "map")) {
+    if (!cJSON_AddStringToObject(fbss_configuration_object.get(), "wi-fi_tech", "map")) {
         em_printfout("Failed to add \"wi-fi_tech\" to Configuration Object");
-        cJSON_Delete(fbss_configuration_object);
-    }
-
-    cJSON *discovery_object = cJSON_CreateObject();
-    if (discovery_object == nullptr) {
-        em_printfout("Failed to create Discovery Object for DPP Configuration Object");
-        cJSON_Delete(fbss_configuration_object);
-    }
-
-    const em_network_ssid_info_t* network_ssid_info = dm->get_network_ssid_info_by_haul_type(em_haul_type_fronthaul);
-    if (network_ssid_info == nullptr) {
-        em_printfout("No fronthaul BSS found, cannot create fBSS Configuration Object");
-        cJSON_Delete(fbss_configuration_object);
-        cJSON_Delete(discovery_object);
         return nullptr;
     }
 
-    if (!cJSON_AddStringToObject(discovery_object, "SSID", network_ssid_info->ssid)) {
+    scoped_cjson discovery_object(cJSON_CreateObject());
+    ASSERT_NOT_NULL(discovery_object.get(), nullptr, "%s:%d: Could not create Discovery Object for DPP Configuration Object\n", __func__, __LINE__);
+
+    const em_network_ssid_info_t* network_ssid_info = dm->get_network_ssid_info_by_haul_type(em_haul_type_fronthaul);
+    EM_ASSERT_NOT_NULL(network_ssid_info, nullptr, "Could not get network SSID info for fronthaul BSS");
+
+    if (!cJSON_AddStringToObject(discovery_object.get(), "SSID", network_ssid_info->ssid)) {
         em_printfout("Could not add \"SSID\" to fBSS Configuration Object");
-        cJSON_Delete(fbss_configuration_object);
-        cJSON_Delete(discovery_object);
         return nullptr;
     }
 
@@ -882,26 +990,20 @@ cJSON *em_provisioning_t::create_fbss_response_obj(ec_connection_context_t *conn
         if (!bss) continue;
         if (bss->m_bss_info.id.haul_type == em_haul_type_fronthaul && strncmp(bss->m_bss_info.ssid, network_ssid_info->ssid, strlen(network_ssid_info->ssid)) == 0) {
             em_printfout("Found fronthaul BSS! '%s'", bss->m_bss_info.ssid);
-            if (!cJSON_AddStringToObject(discovery_object, "BSSID", util::mac_to_string(bss->m_bss_info.bssid.mac, "").c_str())) {
+            if (!cJSON_AddStringToObject(discovery_object.get(), "BSSID", util::mac_to_string(bss->m_bss_info.bssid.mac, "").c_str())) {
                 em_printfout("Failed to add \"BSSID\" to fBSS Configuration Object");
-                cJSON_Delete(fbss_configuration_object);
-                cJSON_Delete(discovery_object);
                 return nullptr;
             }
-            if (!cJSON_AddStringToObject(discovery_object, "RUID", util::mac_to_string(bss->m_bss_info.ruid.mac, "").c_str())) {
+            if (!cJSON_AddStringToObject(discovery_object.get(), "RUID", util::mac_to_string(bss->m_bss_info.ruid.mac, "").c_str())) {
                 em_printfout("Failed to add \"RUID\" to fBSS Configuration Object");
-                cJSON_Delete(fbss_configuration_object);
-                cJSON_Delete(discovery_object);
                 return nullptr;
             }
         }
     }
 
-    cJSON *credential_object = cJSON_CreateObject();
+    scoped_cjson credential_object(cJSON_CreateObject());
     if (credential_object == nullptr) {
         em_printfout("Failed to create credential object for DPP Configuration object.");
-        cJSON_Delete(discovery_object);
-        cJSON_Delete(fbss_configuration_object);
         return nullptr;
     }
 
@@ -925,11 +1027,8 @@ cJSON *em_provisioning_t::create_fbss_response_obj(ec_connection_context_t *conn
         if (check_needs_psk_hex(akm)) needs_psk_hex = true;
     }
 
-    if (!cJSON_AddStringToObject(credential_object, "akm", akm_suites.c_str())) {
+    if (!cJSON_AddStringToObject(credential_object.get(), "akm", akm_suites.c_str())) {
         em_printfout("Failed to add \"akm\" to bSTA DPP Configuration Object");
-        cJSON_Delete(discovery_object);
-        cJSON_Delete(fbss_configuration_object);
-        cJSON_Delete(credential_object);
         return nullptr;
     }
 
@@ -937,37 +1036,28 @@ cJSON *em_provisioning_t::create_fbss_response_obj(ec_connection_context_t *conn
         std::vector<uint8_t> psk = ec_crypto::gen_psk(std::string(network_ssid_info->pass_phrase), std::string(network_ssid_info->ssid));
         if (psk.empty()) {
             em_printfout("Failed to generate PSK");
-            cJSON_Delete(discovery_object);
-            cJSON_Delete(fbss_configuration_object);
-            cJSON_Delete(credential_object);
             return nullptr;
         }
 
-        cJSON_AddStringToObject(credential_object, "psk_hex", em_crypto_t::hash_to_hex_string(psk).c_str());
+        cJSON_AddStringToObject(credential_object.get(), "psk_hex", em_crypto_t::hash_to_hex_string(psk).c_str());
     }
 
-    if (!cJSON_AddStringToObject(credential_object, "pass", network_ssid_info->pass_phrase)) {
+    if (!cJSON_AddStringToObject(credential_object.get(), "pass", network_ssid_info->pass_phrase)) {
         em_printfout("Failed to add \"pass\" to bSTA DPP Configuration Object");
-        cJSON_Delete(discovery_object);
-        cJSON_Delete(credential_object);
-        cJSON_Delete(fbss_configuration_object);
         return nullptr;
     }
 
-    if (!cJSON_AddItemToObject(fbss_configuration_object, "discovery", discovery_object)) {
+    if (!cJSON_AddItemToObject(fbss_configuration_object.get(), "discovery", discovery_object.get())) {
         em_printfout("Failed to add \"discovery\" to bSTA DPP Configuration Object");
-        cJSON_Delete(credential_object);
-        cJSON_Delete(discovery_object);
-        cJSON_Delete(fbss_configuration_object);
+        return nullptr;
     }
 
-    if (!cJSON_AddItemToObject(fbss_configuration_object, "cred", credential_object)) {
+    if (!cJSON_AddItemToObject(fbss_configuration_object.get(), "cred", credential_object.get())) {
         em_printfout("Failed to add \"cred\" to bSTA DPP Configuration Object");
-        cJSON_Delete(credential_object);
-        cJSON_Delete(fbss_configuration_object);
+        return nullptr;
     }
 
-    return fbss_configuration_object;
+    return fbss_configuration_object.get();
 }
 
 cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_context_t *conn_ctx)
@@ -975,25 +1065,20 @@ cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_co
     dm_easy_mesh_t *dm = get_data_model();
     ASSERT_NOT_NULL(dm, nullptr, "%s:%d: Failed to get data model handle.\n", __func__, __LINE__);
 
-    cJSON *bsta_configuration_object = cJSON_CreateObject();
-    ASSERT_NOT_NULL(bsta_configuration_object, nullptr, "%s:%d: Could not create bSTA Configuration Object\n", __func__, __LINE__);
+    scoped_cjson bsta_configuration_object(cJSON_CreateObject());
+    ASSERT_NOT_NULL(bsta_configuration_object.get(), nullptr, "%s:%d: Could not create bSTA Configuration Object\n", __func__, __LINE__);
 
-    if (!cJSON_AddStringToObject(bsta_configuration_object, "wi-fi_tech", "map")) {
+    if (!cJSON_AddStringToObject(bsta_configuration_object.get(), "wi-fi_tech", "map")) {
         em_printfout("Failed to add \"wi-fi_tech\" to Configuration Object");
-        cJSON_Delete(bsta_configuration_object);
     }
 
-    cJSON *discovery_object = cJSON_CreateObject();
-    if (discovery_object == nullptr) {
-        em_printfout("Failed to create Discovery Object for DPP Configuration Object");
-        cJSON_Delete(bsta_configuration_object);
-    }
+    scoped_cjson discovery_object(cJSON_CreateObject());
+    EM_ASSERT_NOT_NULL(discovery_object.get(), nullptr, "Failed to create Discovery Object for DPP Configuration Object");
+
     const em_network_ssid_info_t* network_ssid_info = dm->get_network_ssid_info_by_haul_type(em_haul_type_backhaul);
     ASSERT_NOT_NULL(network_ssid_info, nullptr, "%s:%d: No backhaul BSS found, cannot create bSTA Configuration Object\n", __func__, __LINE__);
-    if (!cJSON_AddStringToObject(discovery_object, "SSID", network_ssid_info->ssid)) {
+    if (!cJSON_AddStringToObject(discovery_object.get(), "SSID", network_ssid_info->ssid)) {
         em_printfout("Could not add \"SSID\" to bSTA Configuration Object");
-        cJSON_Delete(bsta_configuration_object);
-        cJSON_Delete(discovery_object);
         return nullptr;
     }
     // Find "BSSID" and "RUID" since not contained in `em_network_ssid_info_t`
@@ -1003,28 +1088,20 @@ cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_co
         if (!bss) continue;
         if (bss->m_bss_info.id.haul_type == em_haul_type_backhaul && strncmp(bss->m_bss_info.ssid, network_ssid_info->ssid, strlen(network_ssid_info->ssid)) == 0) {
             em_printfout("Found backhaul mesh! '%s'", bss->m_bss_info.ssid);
-            if (!cJSON_AddStringToObject(discovery_object, "BSSID", util::mac_to_string(bss->m_bss_info.bssid.mac, "").c_str())) {
+            if (!cJSON_AddStringToObject(discovery_object.get(), "BSSID", util::mac_to_string(bss->m_bss_info.bssid.mac, "").c_str())) {
                 em_printfout("Failed to add \"BSSID\" to bSTA Configuration Object");
-                cJSON_Delete(bsta_configuration_object);
-                cJSON_Delete(discovery_object);
                 return nullptr;
             }
-            if (!cJSON_AddStringToObject(discovery_object, "RUID", util::mac_to_string(bss->m_bss_info.ruid.mac, "").c_str())) {
+            if (!cJSON_AddStringToObject(discovery_object.get(), "RUID", util::mac_to_string(bss->m_bss_info.ruid.mac, "").c_str())) {
                 em_printfout("Failed to add \"RUID\" to bSTA Configuration Object");
-                cJSON_Delete(bsta_configuration_object);
-                cJSON_Delete(discovery_object);
                 return nullptr;
             }
         }
     }
 
-    cJSON *credential_object = cJSON_CreateObject();
-    if (credential_object == nullptr) {
-        em_printfout("Failed to create credential object for DPP Configuration object.");
-        cJSON_Delete(discovery_object);
-        cJSON_Delete(bsta_configuration_object);
-        return nullptr;
-    }
+    scoped_cjson credential_object(cJSON_CreateObject());
+
+    EM_ASSERT_NOT_NULL(credential_object.get(), nullptr, "Failed to create Credential object for DPP Configuration Object");
 
     std::string akm_suites = {};
     bool needs_psk_hex = false;
@@ -1046,11 +1123,8 @@ cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_co
         if (check_needs_psk_hex(akm)) needs_psk_hex = true;
     }
 
-    if (!cJSON_AddStringToObject(credential_object, "akm", akm_suites.c_str())) {
+    if (!cJSON_AddStringToObject(credential_object.get(), "akm", akm_suites.c_str())) {
         em_printfout("Failed to add \"akm\" to bSTA DPP Configuration Object");
-        cJSON_Delete(discovery_object);
-        cJSON_Delete(bsta_configuration_object);
-        cJSON_Delete(credential_object);
         return nullptr;
     }
 
@@ -1058,70 +1132,57 @@ cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_co
         std::vector<uint8_t> psk = ec_crypto::gen_psk(std::string(network_ssid_info->pass_phrase), std::string(network_ssid_info->ssid));
         if (psk.empty()) {
             em_printfout("Failed to generate PSK");
-            cJSON_Delete(discovery_object);
-            cJSON_Delete(bsta_configuration_object);
-            cJSON_Delete(credential_object);
             return nullptr;
         }
 
-        cJSON_AddStringToObject(credential_object, "psk_hex", em_crypto_t::hash_to_hex_string(psk).c_str());
+        cJSON_AddStringToObject(credential_object.get(), "psk_hex", em_crypto_t::hash_to_hex_string(psk).c_str());
     }
 
-    if (!cJSON_AddStringToObject(credential_object, "pass", network_ssid_info->pass_phrase)) {
+    if (!cJSON_AddStringToObject(credential_object.get(), "pass", network_ssid_info->pass_phrase)) {
         em_printfout("Failed to add \"pass\" to bSTA DPP Configuration Object");
-        cJSON_Delete(discovery_object);
-        cJSON_Delete(credential_object);
-        cJSON_Delete(bsta_configuration_object);
         return nullptr;
     }
 
-    if (!cJSON_AddItemToObject(bsta_configuration_object, "discovery", discovery_object)) {
+    if (!cJSON_AddItemToObject(bsta_configuration_object.get(), "discovery", discovery_object.get())) {
         em_printfout("Failed to add \"discovery\" to bSTA DPP Configuration Object");
-        cJSON_Delete(credential_object);
-        cJSON_Delete(discovery_object);
-        cJSON_Delete(bsta_configuration_object);
+        return nullptr;
     }
 
-    if (!cJSON_AddItemToObject(bsta_configuration_object, "cred", credential_object)) {
+    if (!cJSON_AddItemToObject(bsta_configuration_object.get(), "cred", credential_object.get())) {
         em_printfout("Failed to add \"cred\" to bSTA DPP Configuration Object");
-        cJSON_Delete(credential_object);
-        cJSON_Delete(bsta_configuration_object);
+        return nullptr;
     }
-    return bsta_configuration_object;
+    return bsta_configuration_object.get();
 }
 
 cJSON *em_provisioning_t::create_ieee1905_response_obj(ec_connection_context_t *conn_ctx)
 {
-    cJSON* dpp_configuration_object = cJSON_CreateObject();
+    scoped_cjson dpp_configuration_object(cJSON_CreateObject());
     ASSERT_NOT_NULL(dpp_configuration_object, nullptr, "%s:%d: Failed to create 1905 DPP Configuration Object.\n", __func__, __LINE__);
-    if (!cJSON_AddStringToObject(dpp_configuration_object, "wi-fi_tech", "dpp")) {
+
+    if (!cJSON_AddStringToObject(dpp_configuration_object.get(), "wi-fi_tech", "dpp")) {
         em_printfout("Failed to add \"wi-fi_tech\" to 1905 DPP Configuration Object.");
-        cJSON_Delete(dpp_configuration_object);
         return nullptr;
     }
 
-    if (!cJSON_AddNumberToObject(dpp_configuration_object, "dfCounterThreshold", 42)) {
+    if (!cJSON_AddNumberToObject(dpp_configuration_object.get(), "dfCounterThreshold", 42)) {
         em_printfout("Failed to add \"dfCounterThreshold\" to 1905 DPP Configuration Object.");
-        cJSON_Delete(dpp_configuration_object);
         return nullptr;
     }
 
-    cJSON *credential_object = cJSON_CreateObject();
+    scoped_cjson credential_object(cJSON_CreateObject());
     if (!credential_object) {
         em_printfout("Failed to create Credential object for 1905 DPP Configuration Object.");
-        cJSON_Delete(dpp_configuration_object);
         return nullptr;
     }
-    if (!cJSON_AddStringToObject(credential_object, "akm", util::akm_to_oui("dpp").c_str())) {
+    if (!cJSON_AddStringToObject(credential_object.get(), "akm", util::akm_to_oui("dpp").c_str())) {
         em_printfout("Failed to add \"akm\" to 1905 DPP Configuration Object.");
-        cJSON_Delete(credential_object);
-        cJSON_Delete(dpp_configuration_object);
         return nullptr;
     }
 
-    cJSON_AddItemToObject(dpp_configuration_object, "cred", credential_object);
+    cJSON_AddItemToObject(dpp_configuration_object.get(), "cred", credential_object.get());
 
-    return dpp_configuration_object;
+    return dpp_configuration_object.get();
 }
 
 void em_provisioning_t::handle_state_prov_none()
