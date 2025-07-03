@@ -89,7 +89,7 @@ func (t *Topology) periodicTimer() {
 		t.topo.Add(line)
 
 	*/
-	image = canvas.NewImageFromFile("./wifilink.png")
+	//image = canvas.NewImageFromFile("./wifilink.png")
 	//raster := canvas.NewRasterFromImage(image)
 	//t.topo.Add(raster)
 }
