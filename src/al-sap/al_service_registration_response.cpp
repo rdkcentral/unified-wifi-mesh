@@ -38,8 +38,7 @@ RegistrationResult AlServiceRegistrationResponse::getResult() const {
 
 std::vector<unsigned char> AlServiceRegistrationResponse::serializeRegistrationResponse() {
     std::vector<unsigned char> data;
-
-    uint32_t packet_size = alMacAddressLocal.size() + 4 + 1;
+    uint32_t packet_size = alMacAddressLocal.size() + sizeof(MessageIdRange) + sizeof(uint8_t);
     // Serialize MAC address
     data = convert_u32_into_bytes(packet_size);
     data.insert(data.end(), alMacAddressLocal.begin(), alMacAddressLocal.end());
@@ -57,12 +56,13 @@ std::vector<unsigned char> AlServiceRegistrationResponse::serializeRegistrationR
 }
 
 void AlServiceRegistrationResponse::deserializeRegistrationResponse(const std::vector<unsigned char>& data) {
-    // Ensure sufficient data size
-    if (data.size() < 13) {
+    // Ensure data size to be 15.
+    // 4 bytes of frame delimited part + 6 (Macaddress) + 4 (MessageIdRange) + 1 (result)
+    if (data.size() < (sizeof(uint32_t) + sizeof(MacAddress) + sizeof(MessageIdRange) + sizeof(uint8_t))) {
         throw std::runtime_error("Insufficient data to deserialize AlServiceRegistrationResponse");
     }
     // shadow data variable to limit code changes
-    std::vector<unsigned char> data_raw = remove_length_delimited_part( data );
+    std::vector<unsigned char> data_raw = remove_length_delimited_part(data);
 
     // Deserialize MAC address
     std::copy(data_raw.begin(), data_raw.begin() + 6, alMacAddressLocal.begin());

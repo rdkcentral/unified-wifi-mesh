@@ -1839,7 +1839,7 @@ bool ec_enrollee_t::check_bss_info_has_cce(const wifi_bss_info_t& bss_info) {
     };
 
 
-    if (!bss_info.ie || bss_info.ie_len == 0) {
+    if (bss_info.ie_len == 0) {
         em_printfout("Invalid BSS info!\n");
         return false;
     }

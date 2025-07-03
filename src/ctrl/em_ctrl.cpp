@@ -891,7 +891,7 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
 {
     AlServiceAccessPoint* sap = new AlServiceAccessPoint(data_socket_path.c_str(), control_socket_path.c_str());
 
-    AlServiceRegistrationRequest registrationRequest(ServiceOperation::SOP_ENABLE, ServiceType::SAP_TUNNEL_CLIENT);
+    AlServiceRegistrationRequest registrationRequest(ServiceOperation::SOP_ENABLE, ServiceType::SAP_SERVER);
     sap->serviceAccessPointRegistrationRequest(registrationRequest);
 
     AlServiceRegistrationResponse registrationResponse = sap->serviceAccessPointRegistrationResponse();
@@ -905,7 +905,7 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
         }
         std::cout << std::dec << std::endl;
     } else {
-        std::cout << "Registration failed with error: " << (int)result << std::endl;
+        std::cout << "Registration failed with error: " << static_cast<int>(result) << std::endl;
     }
 
     return sap;

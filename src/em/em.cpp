@@ -669,17 +669,9 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     }
 #ifdef AL_SAP
 #ifdef DEBUG_MODE
-    printf("PP_DEBUG_ORIGINAL_ETH_FRAME:\t");
-
-    for(int i = 0 ; i < len; ++i){
-        printf(" %02x ",buff[i]);
-    }
-    printf("\n");
+    em_printfout("ORIGINAL_ETH_FRAME:\t");
+    util::print_hex_dump(len, buff);
 #endif
-    auto ctrl_al = m_data_model->get_controller_interface_mac();
-    auto agent_al = m_data_model->get_agent_al_interface_mac();
-    bool is_colocated = (memcmp(ctrl_al, agent_al, ETH_ALEN) == 0);
-
     AlServiceDataUnit sdu;
     sdu.setSourceAlMacAddress(g_al_mac_sap);
     if (is_loopback_frame) {
@@ -695,11 +687,14 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     }
 
     //override destination and source mac addresses
-    sdu.setDestinationAlMacAddress({buff[0],buff[1],buff[2],buff[3],buff[4],buff[5]});
-    sdu.setSourceAlMacAddress({buff[6],buff[7],buff[8],buff[9],buff[10],buff[11]});
+    MacAddress src_mac, dest_mac;
+    std::copy(buff, buff + ETH_ALEN, dest_mac.begin());
+    sdu.setDestinationAlMacAddress(dest_mac);
+    std::copy(buff + ETH_ALEN, buff + (2*ETH_ALEN), src_mac.begin());
+    sdu.setSourceAlMacAddress(src_mac);
 #ifdef DEBUG_MODE
-    printf("PP_DEBUG_SETTING_SDU_DESTINATION_MAC_ADDRESS: %02x:%02x:%02x:%02x:%02x:%02x\n",buff[0],buff[1],buff[2],buff[3],buff[4],buff[5]);
-    printf("PP_DEBUG_SETTING_SDU_SOURCE_MAC_ADDRESS: %02x:%02x:%02x:%02x:%02x:%02x\n",buff[6],buff[7],buff[8],buff[9],buff[10],buff[11]);
+    em_printfout("Destination MAC Address: " MACSTRFMT, MAC2STR(buff));
+    em_printfout("Source MAC Address: " MACSTRFMT, MAC2STR(buff+ETH_ALEN));
 #endif
     std::vector<unsigned char> payload;
     //TODO skip first 14 bytes as buffer is pure ethernet frame
@@ -828,7 +823,6 @@ then we can say that adding the CCE IE to all of the backhaul BSSs (according to
 
 em_bss_info_t* em_t::get_bsta_bss_info()
 {
-    em_bss_info_t *bsta_info = NULL;
     for (unsigned int i = 0; i < m_data_model->get_num_bss(); i++) {
         em_bss_info_t *bsta_info = m_data_model->get_bss_info(i);
         if (!bsta_info) continue;

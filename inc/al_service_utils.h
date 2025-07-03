@@ -7,6 +7,9 @@
 #include <sys/un.h>
 #include <array>
 
+// 4 (length) + 6 (MAC) + 6 (MAC) + 3 x 1 (3 x 1 byte flags) = 19 bytes.
+#define PACKET_HEADER_SIZE 19
+
 // PrintByteStream function used for debugging only
 /**!
  * @brief Prints the contents of a byte stream.

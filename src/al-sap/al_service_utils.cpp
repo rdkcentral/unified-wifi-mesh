@@ -75,10 +75,12 @@ std::vector<unsigned char> convert_u32_into_bytes(uint32_t number)
 
 uint32_t convert_bytes_into_u32(const std::vector<unsigned char>& bytes)
 {
+    if (bytes.size() < 4)
+        return 0;
     return static_cast<uint32_t>((bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | (bytes[3] << 0));
 }
 
 std::vector<unsigned char> remove_length_delimited_part(const std::vector<unsigned char>& buffer)
 {
-    return std::vector<unsigned char>(buffer.cbegin()+4,buffer.cend());
+    return std::vector<unsigned char>(buffer.cbegin() + sizeof(uint32_t), buffer.cend());
 }
