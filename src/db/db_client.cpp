@@ -153,7 +153,7 @@
      char username[256];
      char password[256];
 
-     size_t user_len = tmp - path;
+     size_t user_len = static_cast<size_t>(tmp - path);
      if (user_len >= sizeof(username)) {
          printf("%s:%d: username too long\n", __func__, __LINE__);
          return -1;

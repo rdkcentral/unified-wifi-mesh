@@ -49,9 +49,6 @@
 
 #define RETRY_SLEEP_INTERVAL_IN_MS 1000
 
-#define DATA_SOCKET_PATH "/tmp/al_data_socket"
-#define CONTROL_SOCKET_PATH "/tmp/al_control_socket"
-
 em_agent_t g_agent;
 const char *global_netid = "OneWifiMesh";
 #ifdef AL_SAP
@@ -1709,9 +1706,9 @@ em_agent_t::~em_agent_t()
 
 }
 #ifdef AL_SAP
-AlServiceAccessPoint* em_agent_t::al_sap_register()
+AlServiceAccessPoint* em_agent_t::al_sap_register(const std::string& data_socket_path, const std::string& control_socket_path)
 {
-    AlServiceAccessPoint* sap = new AlServiceAccessPoint(DATA_SOCKET_PATH, CONTROL_SOCKET_PATH);
+    AlServiceAccessPoint* sap = new AlServiceAccessPoint(data_socket_path.c_str(), control_socket_path.c_str());
 
     AlServiceRegistrationRequest registrationRequest(ServiceOperation::SOP_ENABLE, ServiceType::SAP_TUNNEL_CLIENT);
     sap->serviceAccessPointRegistrationRequest(registrationRequest);
