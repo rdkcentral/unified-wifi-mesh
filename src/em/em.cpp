@@ -1001,6 +1001,26 @@ short em_t::create_ap_cap_tlv(unsigned char *buff)
     return len;
 }
 
+short em_t::create_ap_radio_advanced_cap_tlv(unsigned char *buff)
+{
+    short len = 0;
+    dm_easy_mesh_t *dm = get_data_model();
+    if (!dm) return -1;
+    em_ap_radio_advanced_cap_t *ap_adv_cap = reinterpret_cast<em_ap_radio_advanced_cap_t *>(buff);
+    // One TLV per radio
+    for (unsigned int i = 0; i < dm->get_num_radios(); i++) {
+        dm_radio_t *radio = dm->get_radio(i);
+        if (!radio) continue;
+        memcpy(ap_adv_cap->ruid, radio->m_radio_info.intf.mac, sizeof(mac_address_t));
+        // TODO: remaining fields (bitfields) are Traffic Separation dependent.
+        // next radio
+        ap_adv_cap += 1;
+        len += static_cast<short>(sizeof(em_ap_radio_advanced_cap_t));
+    }
+
+    return len;
+}
+
 short em_t::create_ht_tlv(unsigned char *buff)
 {
     short len = 0;
