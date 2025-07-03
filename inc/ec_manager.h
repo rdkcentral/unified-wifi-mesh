@@ -121,6 +121,57 @@ public:
         return pa_cfg->m_toggle_cce(enable);
     }
 
+	/**
+     * @brief Initiates secure 1905 layer establishment with peer
+     * @param dest_al_mac Destination AL MAC address
+     * @return true if peer discovery request sent successfully
+     * 
+     * @note Creates and sends DPP Peer Discovery Request to begin security establishment process.
+     */
+	inline bool start_secure_1905_layer(uint8_t dest_al_mac[ETH_ALEN]) {
+		if (m_enrollee){
+			return m_enrollee->start_secure_1905_layer(dest_al_mac);
+		}
+		if (m_configurator == nullptr) return false;
+		return m_configurator->start_secure_1905_layer(dest_al_mac);
+		
+	}
+
+	/**
+     * @brief Rekeys existing PTK with established peer
+     * @param dest_al_mac Destination AL MAC address
+     * @return true if PTK rekey handshake initiated successfully
+     * 
+     * @note Requires existing key context. Initiates the same 4-way handshake 
+     *       as the initial handshake with some minor flags changed.
+     */
+	inline bool rekey_1905_layer_ptk() {
+		if (m_enrollee) {
+			return m_enrollee->rekey_1905_layer_ptk();
+		}
+		if (m_configurator == nullptr) return false;
+		return m_configurator->rekey_1905_layer_ptk();
+	}
+
+	/**
+     * @brief Rekeys GTK and distributes to all enrolled agents
+     * @return true if GTK regenerated and distributed successfully
+     * 
+     * @note Controller-only operation. Generates new GTK and sends
+     *       to all agents (EM 5.4.7.5) via group key handshake (EM 5.3.7.3)
+     */
+	inline bool rekey_1905_layer_gtk() {
+		if (m_enrollee) {
+			em_printfout("Rekeying GTK is not supported for enrollee, only for configurator.");
+			return false;
+		}
+		if (m_configurator == nullptr || !m_is_controller){
+			em_printfout("Rekeying GTK is only supported for controller, not an agent.");
+			return false;
+		}
+		return m_configurator->rekey_1905_layer_gtk();
+	}
+
     
 	/**
 	 * @brief Upgrade an enrollee to an onboarded proxy agent.
@@ -179,16 +230,45 @@ public:
 	 *
 	 * @param[in] dpp_frame The frame parsed from the DPP Message TLV
 	 * @param[in] dpp_frame_len The length of the frame from the DPP Message TLV
+	 * @param[in] src_al_mac Source AL MAC address of the DPP frame
 	 *
 	 * @return bool True if the frame was processed successfully, false otherwise.
 	 *
 	 * @note Ensure that the configurator is initialized before calling this function.
 	 */
-	inline bool process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len) {
-        if (!m_configurator) {
-            return false;
+	inline bool process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len, uint8_t src_al_mac[ETH_ALEN]) {
+        if (m_configurator) {
+            return m_configurator->process_direct_encap_dpp_msg(dpp_frame, dpp_frame_len, src_al_mac);
         }
-        return m_configurator->process_direct_encap_dpp_msg(dpp_frame, dpp_frame_len);
+		if (m_enrollee) {
+			return m_enrollee->process_direct_encap_dpp_msg(dpp_frame, dpp_frame_len, src_al_mac);
+		}
+		return false; // Neither configurator nor enrollee is available
+        
+    }
+
+
+		/**
+	 * @brief Process a 1905 EAPOL encapsulated message.
+	 *
+	 * This function processes the provided EAPOL frame and directs it to the appropriate handler
+	 * based on whether the node is a configurator or enrollee.
+	 *
+	 * @param eapol_frame Pointer to the EAPOL frame to process.
+	 * @param eapol_frame_len Length of the EAPOL frame.
+	 * @param src_mac Source MAC address of the frame.
+	 *
+	 * @return true if the message was processed successfully, false otherwise.
+	 */	
+	inline bool process_1905_eapol_encap_msg(uint8_t* eapol_frame, uint16_t eapol_frame_len, uint8_t src_mac[ETH_ALEN]) {
+        if (m_configurator) {
+            return m_configurator->process_1905_eapol_encap_msg(eapol_frame, eapol_frame_len, src_mac);
+        }
+		if (m_enrollee) {
+			return m_enrollee->process_1905_eapol_encap_msg(eapol_frame, eapol_frame_len, src_mac);
+		}
+		return false; // Neither configurator nor enrollee is available
+        
     }
 
     /**
@@ -238,7 +318,7 @@ public:
 private:
     bool m_is_controller;
 	ec_ops_t m_ops;
-    std::string m_stored_mac_addr;
+    std::string m_stored_al_mac_addr;
     
     std::unique_ptr<ec_configurator_t> m_configurator;
     std::unique_ptr<ec_enrollee_t> m_enrollee;
