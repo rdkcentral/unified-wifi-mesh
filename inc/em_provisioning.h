@@ -490,6 +490,159 @@ protected:
 	 */
 	cJSON *create_fbss_response_obj(ec_connection_context_t *conn_ctx);
 
+	/**
+	 * @brief Creates a BSS Configuration Response TLV (17.2.85)
+	 * 
+	 * @param buff The buffer to write the TLV to.
+	 * @return int The length of the TLV created, or -1 on failure.
+	 */
+	int create_bss_conf_rsp_tlv(uint8_t *buff);
+
+	/**
+	 * @brief Creates a BSS Configuration Request TLV (17.2.84)
+	 * 
+	 * @param buff The buffer to write the TLV to.
+	 * @return int The length of the TLV created, or -1 on failure.
+	 */
+	int create_bss_conf_req_tlv(uint8_t *buff);
+
+	/**
+	 * @brief Creates a Backhaul STA Radio Capabilities TLV (17.2.65)
+	 * 
+	 * @param buff The buffer to write the TLV to.
+	 * @return int The length of the TLV created, or -1 on failure.
+	 */
+	int create_bsta_radio_cap_tlv(uint8_t *buff);
+
+	/**
+	 * @brief Creates an AKM Suite Capabilities TLV (17.2.78)
+	 * 
+	 * @param buff The buffer to write the TLV to.
+	 * @return int The length of the TLV created, or -1 on failure.
+	 */
+	int create_akm_suite_cap_tlv(uint8_t *buff);
+
+	/**!
+	 * @brief Creates an AP capability TLV.
+	 *
+	 * This function is responsible for creating an Access Point (AP) capability
+	 * Type-Length-Value (TLV) structure and storing it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns The length of the TLV on success, or -1 on failure
+	 *
+	 * @note Implemented by derived class
+	 */
+	virtual short create_ap_cap_tlv(unsigned char *buff) = 0;
+
+	/**!
+	 * @brief Creates a basic capability for the AP radio.
+	 *
+	 * This function initializes the basic capabilities of the AP radio and stores
+	 * the result in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the basic capability data will be stored.
+	 *
+	 * @return The length of the TLV on success, or -1 on failure.
+	 *
+	 * @note Implemented by derived class
+	 */
+	virtual short create_ap_radio_basic_cap(unsigned char *buff) = 0;
+
+	/**!
+	 * @brief Creates a profile 2 TLV.
+	 *
+	 * This function is responsible for creating a profile 2 TLV (Type-Length-Value) structure
+	 * and storing it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @return The length of the TLV on success, or -1 on failure
+	 *
+	 * @note: Implemented by derived class
+	 */
+	virtual short create_prof_2_tlv(unsigned char *buff) = 0;
+
+	/**!
+	 * @brief Creates a HT TLV (Type-Length-Value) structure.
+	 *
+	 * This function initializes a HT TLV structure in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the HT TLV will be created.
+	 *
+	 * @return The size of the TLV created on success, or -1 on failure.
+	 *
+	 * @note Implemented by derived class
+	 */
+	virtual short create_ht_tlv(unsigned char *buff) = 0;
+
+	/**!
+	 * @brief Creates a VHT TLV (Very High Throughput Tag Length Value) structure.
+	 *
+	 * This function initializes a VHT TLV structure in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the VHT TLV will be created.
+	 *
+	 * @return The size of the TLV created on success, or -1 on failure.
+	 *
+	 * @note Implemented by derived class
+	 */
+	virtual short create_vht_tlv(unsigned char *buff) = 0;
+
+	/**!
+	 * @brief Retrieves the current profile type.
+	 *
+	 * @returns The current profile type as an em_profile_type_t.
+	 */
+	virtual em_profile_type_t   get_profile_type() = 0;
+
+	/**!
+	 * @brief Creates a WiFi 6 TLV (Type-Length-Value) structure.
+	 *
+	 * This function is responsible for creating a WiFi 6 TLV structure and storing it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 * @return Length of TLV created on success otherwise -1
+	 *
+	 * @note This is a pure virtual function and must be implemented by derived classes.
+	 */
+	virtual short create_wifi6_tlv(unsigned char *buff) = 0;
+
+	/**!
+	 * @brief Creates a WiFi 7 TLV (Type-Length-Value) structure.
+	 *
+	 * This function is responsible for creating a TLV structure specific to WiFi 7.
+	 *
+	 * @param[out] buff A pointer to the buffer where the TLV will be created.
+	 * @return Length of TLV created on success otherwise -1
+	 *
+	 * @note Implemented by derived class
+	 */
+	virtual short create_wifi7_tlv(unsigned char *buff) = 0;
+
+	/**!
+	 * @brief Creates an EHT operations TLV.
+	 *
+	 * This function is responsible for creating an EHT (Extremely High Throughput) operations TLV (Type-Length-Value) structure.
+	 *
+	 * @param[out] buff A pointer to the buffer where the TLV will be created.
+	 * @return Length of TLV created on success otherwise -1
+	 *
+	 * @note Implemented by derived class
+	 */
+	virtual short create_eht_operations_tlv(unsigned char *buff) = 0;
+
+	/**
+	 * @brief Create an AP Radio Advanced Capabilities TLV (EM 17.2.52)
+	 * 
+	 * @param buff The buffer to write the TLV to.
+	 * @return short The length of the TLV on success, -1 on failure
+	 * 
+	 * @note Implemented by derived class
+	 */
+	virtual short create_ap_radio_advanced_cap_tlv(unsigned char *buff) = 0;
+
 public:
     
 	/**!
