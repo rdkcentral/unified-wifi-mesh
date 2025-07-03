@@ -956,27 +956,58 @@ std::vector<uint8_t> ec_crypto::concat_nonces(const std::vector<std::vector<uint
     return result;
 }
 
-EC_POINT *ec_crypto::decode_ec_point_from_connector_netaccesskey(ec_connection_context_t& ctx, cJSON *net_access_key)
+EC_POINT *ec_crypto::decode_jwk_ec_point(cJSON *net_access_key, BN_CTX* bn_ctx)
+{
+    auto [group, point] = ec_crypto::decode_jwk(net_access_key, bn_ctx);
+    if (group == nullptr || point == nullptr) {
+        return nullptr;
+    }
+    return point;
+}
+
+std::pair<EC_GROUP*, EC_POINT*> ec_crypto::decode_jwk(cJSON *net_access_key, BN_CTX* bn_ctx)
 {
     if (net_access_key == nullptr) {
-        return nullptr;
+        return {};
     }
     cJSON *x = cJSON_GetObjectItem(net_access_key, "x");
     cJSON *y = cJSON_GetObjectItem(net_access_key, "y");
     if (!x || !y || !cJSON_IsString(x) || !cJSON_IsString(y)) {
         em_printfout("Invalid netAccessKey format in C-Connector");
-        return nullptr;
+        return {};
     }
+
+    cJSON* crv = cJSON_GetObjectItem(net_access_key, "crv");
+    if (crv == NULL || !cJSON_IsString(crv)) {
+        em_printfout("Invalid netAccessKey format in C-Connector, missing or invalid 'crv'");
+        return {};
+    }
+
+    int nid = EC_curve_nist2nid(crv->valuestring);
+    EM_ASSERT_MSG_TRUE(nid != NID_undef, {}, "Invalid curve name in netAccessKey: %s", crv->valuestring);
+
+    scoped_ec_group curv_group(EC_GROUP_new_by_curve_name(nid));
+    EM_ASSERT_NOT_NULL(curv_group.get(), {}, "Failed to create EC_GROUP from curve name: %s", crv->valuestring);
+
     std::optional<std::vector<uint8_t>> x_bytes = em_crypto_t::base64url_decode(x->valuestring);
     std::optional<std::vector<uint8_t>> y_bytes = em_crypto_t::base64url_decode(y->valuestring);
     if (!x_bytes.has_value() || !y_bytes.has_value()) {
         em_printfout("Failed to get x, y points from netAccessKey in C-Connector");
-        return nullptr;
+        return {};
     }
     std::vector<uint8_t> key_buff(x_bytes->size() + y_bytes->size());
     key_buff.insert(key_buff.end(), x_bytes->begin(), x_bytes->end());
     key_buff.insert(key_buff.end(), y_bytes->begin(), y_bytes->end());
-    return ec_crypto::decode_ec_point(ctx, key_buff.data());
+
+    EC_POINT* point = ec_crypto::decode_ec_point(curv_group.get(), key_buff.data(), bn_ctx);
+    EM_ASSERT_NOT_NULL(point, {}, "Failed to decode EC_POINT from netAccessKey");
+    return { curv_group.release(), point };
+}
+
+
+EC_POINT *ec_crypto::decode_jwk_ec_point(ec_connection_context_t& ctx, cJSON *net_access_key)
+{
+    return ec_crypto::decode_jwk_ec_point(net_access_key, ctx.bn_ctx);
 }
 
 std::optional<std::string> ec_crypto::generate_connector(const cJSON * jws_header, const cJSON * jws_payload,  SSL_KEY* sign_key)
@@ -1039,7 +1070,7 @@ cJSON* ec_crypto::create_jws_header(const std::string& type, const SSL_KEY *c_si
     if (c_signing_key == nullptr) return nullptr;
     cJSON *jwsHeaderObj = cJSON_CreateObject();
     uint8_t *hashed_c_sign_key = compute_key_hash(c_signing_key);
-    std::string base64_c_sign_key_hash = em_crypto_t::base64_encode(hashed_c_sign_key, SHA256_DIGEST_LENGTH);
+    std::string base64_c_sign_key_hash = em_crypto_t::base64url_encode(hashed_c_sign_key, SHA256_DIGEST_LENGTH);
     free(hashed_c_sign_key);
     cJSON_AddStringToObject(jwsHeaderObj, "typ", type.c_str());
     cJSON_AddStringToObject(jwsHeaderObj, "kid", base64_c_sign_key_hash.c_str());
@@ -1047,7 +1078,7 @@ cJSON* ec_crypto::create_jws_header(const std::string& type, const SSL_KEY *c_si
     return jwsHeaderObj;
 }
 
-cJSON* ec_crypto::create_jws_payload(ec_connection_context_t& c_ctx, const std::vector<std::unordered_map<std::string, std::string>>& groups, SSL_KEY* net_access_key, std::optional<std::string> expiry, std::optional<uint8_t> version)
+cJSON* ec_crypto::create_jws_payload(const std::vector<std::unordered_map<std::string, std::string>>& groups, SSL_KEY* net_access_key, std::optional<std::string> expiry, std::optional<uint8_t> version)
 {
     if (net_access_key == nullptr) return nullptr;
     
@@ -1065,46 +1096,35 @@ cJSON* ec_crypto::create_jws_payload(ec_connection_context_t& c_ctx, const std::
     }
 
     cJSON *netAccessKeyObj = cJSON_CreateObject();
-    cJSON_AddItemToObject(jwsPayloadObj, "netAccessKey", netAccessKeyObj);
-    cJSON_AddStringToObject(netAccessKeyObj, "kty", "EC");
-    cJSON_AddStringToObject(netAccessKeyObj, "crv", "P-256");
-    EC_GROUP *key_group = em_crypto_t::get_key_group(net_access_key);
-    EC_POINT *key_point = em_crypto_t::get_pub_key_point(net_access_key, key_group);
-    auto [x, y] = get_ec_x_y(c_ctx, key_point);
-    cJSON_AddStringToObject(netAccessKeyObj, "x", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(x)).c_str());
-    cJSON_AddStringToObject(netAccessKeyObj, "y", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(y)).c_str());
+    if (!add_common_jwk_fields(netAccessKeyObj, net_access_key)) {
+        cJSON_Delete(netAccessKeyObj);
+        em_printfout("Failed to add common JWK fields to netAccessKey object");
+        return nullptr;
+    }
     if (expiry.has_value()) {
         cJSON_AddStringToObject(jwsPayloadObj, "expiry", expiry.value().c_str());
     }
     if (version.has_value()) {
         cJSON_AddStringToObject(jwsPayloadObj, "version", std::to_string(static_cast<unsigned int>(version.value())).c_str());
     }
-    EC_GROUP_free(key_group);
-    EC_POINT_free(key_point);
-    BN_free(x);
-    BN_free(y);
     return jwsPayloadObj;
 }
 
-cJSON *ec_crypto::create_csign_object(ec_connection_context_t& c_ctx, SSL_KEY *c_signing_key)
+cJSON *ec_crypto::create_csign_object(SSL_KEY *c_signing_key)
 {
     if (c_signing_key == nullptr) return nullptr;
     cJSON *cSignObj = cJSON_CreateObject();
-    cJSON_AddStringToObject(cSignObj, "kty", "EC");
-    cJSON_AddStringToObject(cSignObj, "crv", "P-256");
+    if (!add_common_jwk_fields(cSignObj, c_signing_key)) {
+        cJSON_Delete(cSignObj);
+        em_printfout("Failed to add common JWK fields to cSign object");
+        return nullptr;
+    }
+
     uint8_t *hashed_c_sign_key = compute_key_hash(c_signing_key);
-    std::string base64_c_sign_key_hash = em_crypto_t::base64_encode(hashed_c_sign_key, SHA256_DIGEST_LENGTH);
+    std::string base64_c_sign_key_hash = em_crypto_t::base64url_encode(hashed_c_sign_key, SHA256_DIGEST_LENGTH);
     free(hashed_c_sign_key);
     cJSON_AddStringToObject(cSignObj, "kid", base64_c_sign_key_hash.c_str());
-    EC_GROUP *key_group = em_crypto_t::get_key_group(c_signing_key);
-    EC_POINT *key_point = em_crypto_t::get_pub_key_point(c_signing_key, key_group);
-    auto [x, y] = ec_crypto::get_ec_x_y(c_ctx, key_point);
-    cJSON_AddStringToObject(cSignObj, "x", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(x)).c_str());
-    cJSON_AddStringToObject(cSignObj, "y", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(y)).c_str());
-    EC_GROUP_free(key_group);
-    EC_POINT_free(key_point);
-    BN_free(x);
-    BN_free(y);
+
     return cSignObj;
 }
 
@@ -1119,15 +1139,61 @@ EC_POINT* ec_crypto::create_ppkey_public(SSL_KEY *c_signing_key)
     return ret;
 }
 
-cJSON *ec_crypto::create_ppkey_object(ec_connection_context_t& c_ctx)
+bool ec_crypto::add_common_jwk_fields(cJSON *json_obj, const SSL_KEY *key)
 {
-    cJSON *ppKeyObj = cJSON_CreateObject();
-    cJSON_AddStringToObject(ppKeyObj, "kty", "EC");
-    cJSON_AddStringToObject(ppKeyObj, "crv", "P-256");
-    auto [x, y] = ec_crypto::get_ec_x_y(c_ctx, c_ctx.ppk);
-    cJSON_AddStringToObject(ppKeyObj, "x", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(x)).c_str());
-    cJSON_AddStringToObject(ppKeyObj, "y", em_crypto_t::base64_encode(ec_crypto::BN_to_vec(y)).c_str());
+
+    EM_ASSERT_NOT_NULL(json_obj, false, "JSON object is NULL");
+    EM_ASSERT_NOT_NULL(key, false, "key is NULL");
+
+    scoped_ec_group key_group(em_crypto_t::get_key_group(key));
+    ASSERT_NOT_NULL(key_group.get(), false, "Could not get group for provided key");
+
+    scoped_ec_point key_point(em_crypto_t::get_pub_key_point(key, key_group.get()));
+    ASSERT_NOT_NULL(key_point.get(), false, "Could not get public key point for provided key");
+
+    return add_common_jwk_fields(json_obj, key_group.get(), key_point.get());
+}
+
+
+bool ec_crypto::add_common_jwk_fields(cJSON *json_obj, const EC_GROUP* key_group, const EC_POINT *key_point)
+{
+
+    EM_ASSERT_NOT_NULL(json_obj, false, "JSON object is NULL");
+    EM_ASSERT_NOT_NULL(key_group, false, "Key group is NULL");
+    EM_ASSERT_NOT_NULL(key_point, false, "Key point is NULL");
+
+    auto [x, y] = ec_crypto::get_ec_x_y(key_group, key_point);
+    if (x == NULL || y == NULL) {
+        if (x) BN_free(x);
+        if (y) BN_free(y);
+        em_printfout("Could not get x, y coordinates for provided key");
+        return false;
+    }
+
+    std::string x_str = em_crypto_t::base64url_encode(ec_crypto::BN_to_vec(x));
+    std::string y_str = em_crypto_t::base64url_encode(ec_crypto::BN_to_vec(y));
+
     BN_free(x);
     BN_free(y);
-    return ppKeyObj;
+
+    if (x_str.empty() || y_str.empty()) {
+        em_printfout("Could not encode x, y coordinates to base64url");
+        return false;
+    }
+
+    int nid = EC_GROUP_get_curve_name(key_group);
+    EM_ASSERT_MSG_TRUE(nid != NID_undef, false, "Could not get curve name for provided key group");
+
+    const char* curve_name = EC_curve_nid2nist(nid);
+    EM_ASSERT_NOT_NULL(curve_name, false, "Could not get curve name for provided key group");
+
+    // Now that we've gotten all of the values, we can add them to the JSON object
+
+    cJSON_AddStringToObject(json_obj, "kty", "EC");
+    cJSON_AddStringToObject(json_obj, "crv", curve_name);
+
+    cJSON_AddStringToObject(json_obj, "x", x_str.c_str());
+    cJSON_AddStringToObject(json_obj, "y", y_str.c_str());
+
+    return true;
 }
