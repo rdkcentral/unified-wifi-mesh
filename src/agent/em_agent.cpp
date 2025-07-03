@@ -1556,6 +1556,8 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
         case em_msg_type_direct_encap_dpp:
         case em_msg_type_chirp_notif:
         case em_msg_type_dpp_cce_ind:
+        case em_msg_type_1905_rekey_req:
+        case em_msg_type_1905_encap_eapol:
             em = al_em;
             break;
         default:

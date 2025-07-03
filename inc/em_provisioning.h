@@ -93,7 +93,39 @@ class em_provisioning_t {
 	 */
 	int create_dpp_direct_encap_msg(uint8_t *buff, uint8_t *frame, uint16_t len);
 
-    
+	/**!
+	 * @brief Handles the 1905 rekey message.
+	 *
+	 * This function processes the 1905 rekey message received in the buffer.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the message.
+	 * @param[in] len Length of the message in the buffer.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 * @retval 0 Success.
+	 * @retval -1 Failure due to invalid parameters.
+	 *
+	 * @note Ensure that the buffer is properly allocated and the length is valid.
+	 */
+	int handle_1905_rekey_msg(uint8_t *buff, unsigned int len);
+
+
+	/**!
+	 * @brief Handles the 1905 encapsulated EAPOL message.
+	 *
+	 * This function processes the 1905 encapsulated EAPOL message received in the buffer.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the message.
+	 * @param[in] len Length of the message in the buffer.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 * @retval 0 Success.
+	 * @retval -1 Failure due to invalid parameters.
+	 *
+	 * @note Ensure that the buffer is properly allocated and the length is valid.
+	 */
+	int handle_1905_encap_eapol_msg(uint8_t *buff, unsigned int len);
+
 	/**!
 	 * @brief Handles the CCE indication message.
 	 *
@@ -395,7 +427,7 @@ protected:
 	 * @note Ensure the buffer is properly allocated before calling this function.
 	 */
 	int create_cce_ind_msg(uint8_t *buff, bool enable);
-    
+
 	/**!
 	 * @brief Sends a chirp notification message.
 	 *
@@ -440,7 +472,34 @@ protected:
 	 * @retval -1 on failure
 	 */
 	int send_direct_encap_dpp_msg(uint8_t* dpp_frame, size_t dpp_frame_len, uint8_t dest_al_mac[ETH_ALEN]);
-    
+
+
+	/**!
+	 * @brief Sends a 1905 EAPOL encapsulated message. 
+	 *
+	 * @param[in] eapol_frame Pointer to the EAPOL frame data to be sent (Including IEEE 802.1X header).
+	 * @param[in] eapol_frame_len Length of the EAPOL frame data.
+	 * @param[in] dest_al_mac Pointer to the destination AL MAC address (6 bytes).
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 */
+	int send_1905_eapol_encap_msg(uint8_t* eapol_frame, size_t eapol_frame_len, uint8_t dest_al_mac[ETH_ALEN]);
+
+	/**!
+	 * @brief Sends a 1905 rekey message.
+	 *
+	 * @param[in] dest_al_mac Pointer to the destination AL MAC address
+	 *
+	 * @returns int Status code indicating success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the destination AL MAC address is properly initialized before calling this function.
+	 */
+	int send_1905_rekey_msg(uint8_t dest_al_mac[ETH_ALEN]);
+
 	/**!
 	 * @brief Creates a list of enrollee BSTA.
 	 *
