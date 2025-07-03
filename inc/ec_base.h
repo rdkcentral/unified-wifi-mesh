@@ -672,7 +672,7 @@ typedef struct {
      *  - The Configurator has the private/public key pair
      *  - The Enrollee has the public key only
      */
-	SSL_KEY* C_signing_key = NULL;
+	SSL_KEY* C_signing_key;
 
     /**
      * The Configurator's Privacy Protection Key (PPK).
@@ -688,7 +688,7 @@ typedef struct {
      *  - The Configurator generates it's NAK at initialization (along with connector, EasyMesh 5.3.3)
      *  - The Enrollee generates it's NAK as a protocol key during the DPP Authentication process
      */
-	SSL_KEY* net_access_key = nullptr;
+	SSL_KEY* net_access_key;
 
     /**
      * @brief The Controller or Agent/Enrollee's 1905/DPP Connector.

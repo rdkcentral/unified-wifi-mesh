@@ -169,7 +169,12 @@ TEST_F(EmCryptoTests, SignJWSConnector)
     ASSERT_NE(sig_y, std::nullopt);
 
     const auto opt_test = std::make_optional<std::vector<uint8_t>>(test_priv_proto_key);
-    scoped_ssl_key signing_key(em_crypto_t::create_ec_key_from_coordinates(*sig_x, *sig_y, opt_test, test_sig_curve));
+
+    int nid = EC_curve_nist2nid(test_sig_curve.c_str());
+    ASSERT_EQ(nid, NID_X9_62_prime256v1) << "Invalid curve name for test";
+
+    scoped_ec_group curv_group(EC_GROUP_new_by_curve_name(nid));
+    scoped_ssl_key signing_key(em_crypto_t::create_ec_key_from_coordinates(curv_group.get(), *sig_x, *sig_y, opt_test));
     ASSERT_NE(signing_key.get(), nullptr);
 
     printf("Signing Key\n");
@@ -411,4 +416,296 @@ TEST_F(EmCryptoTests, TestKeyReading)
     // Compare the public key points
     EXPECT_EQ(EC_POINT_cmp(group.get(), pub.get(), computed_pub.get(), nullptr), 0)
         << "Computed public key doesn't match the original";
+}
+
+TEST_F(EmCryptoTests, AESKeyWrap)
+{
+    // Test AES-128 Key Wrap with known test vectors from RFC 3394
+    uint8_t kek_128[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+                           0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
+    
+    uint8_t plaintext[16] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+                             0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+    
+    // Expected result from RFC 3394 Section 4.1 (with default IV)
+    uint8_t expected_wrapped[24] = {0x1F, 0xA6, 0x8B, 0x0A, 0x81, 0x12, 0xB4, 0x47,
+                                    0xAE, 0xF3, 0x4B, 0xD8, 0xFB, 0x5A, 0x7B, 0x82,
+                                    0x9D, 0x3E, 0x86, 0x23, 0x71, 0xD2, 0xCF, 0xE5};
+    
+    uint8_t wrapped[24];
+    uint32_t wrapped_len = 0;
+    
+    // Test successful wrapping
+    uint8_t result = em_crypto_t::aes_key_wrap(kek_128, 16, plaintext, 16, wrapped, &wrapped_len);
+    EXPECT_EQ(result, 1) << "AES key wrap should succeed";
+    EXPECT_EQ(wrapped_len, 24) << "Wrapped length should be plaintext length + 8";
+    EXPECT_EQ(memcmp(wrapped, expected_wrapped, 24), 0) << "Wrapped result should match RFC 3394 test vector";
+    
+    // Test AES-256 Key Wrap
+    uint8_t kek_256[32];
+    for (int i = 0; i < 32; i++) {
+        kek_256[i] = static_cast<uint8_t>(i);
+    }
+    
+    uint8_t plaintext_256[32];
+    for (int i = 0; i < 32; i++) {
+        plaintext_256[i] = static_cast<uint8_t>(0xFF - i);
+    }
+    
+    uint8_t wrapped_256[40];
+    uint32_t wrapped_len_256 = 0;
+    
+    result = em_crypto_t::aes_key_wrap(kek_256, 32, plaintext_256, 32, wrapped_256, &wrapped_len_256);
+    EXPECT_EQ(result, 1) << "AES-256 key wrap should succeed";
+    EXPECT_EQ(wrapped_len_256, 40) << "AES-256 wrapped length should be 40 bytes";
+    
+    // Test error conditions
+    uint32_t error_len = 0;
+    
+    // Invalid KEK length
+    result = em_crypto_t::aes_key_wrap(kek_128, 15, plaintext, 16, wrapped, &error_len);
+    EXPECT_EQ(result, 0) << "Should fail with invalid KEK length";
+    
+    // Invalid plaintext length (not multiple of 8)
+    result = em_crypto_t::aes_key_wrap(kek_128, 16, plaintext, 15, wrapped, &error_len);
+    EXPECT_EQ(result, 0) << "Should fail with plaintext length not multiple of 8";
+    
+    // Plaintext too short
+    result = em_crypto_t::aes_key_wrap(kek_128, 16, plaintext, 8, wrapped, &error_len);
+    EXPECT_EQ(result, 0) << "Should fail with plaintext length < 16";
+}
+
+TEST_F(EmCryptoTests, AESKeyUnwrap)
+{
+    // Test AES-128 Key Unwrap with known test vectors from RFC 3394
+    uint8_t kek_128[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+                           0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
+    
+    uint8_t wrapped[24] = {0x1F, 0xA6, 0x8B, 0x0A, 0x81, 0x12, 0xB4, 0x47,
+                           0xAE, 0xF3, 0x4B, 0xD8, 0xFB, 0x5A, 0x7B, 0x82,
+                           0x9D, 0x3E, 0x86, 0x23, 0x71, 0xD2, 0xCF, 0xE5};
+    
+    // Expected unwrapped result from RFC 3394
+    uint8_t expected_plaintext[16] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+                                      0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+    
+    uint8_t unwrapped[24];  // Buffer needs to be at least as large as wrapped input
+    uint32_t unwrapped_len = 0;
+    
+    // Test successful unwrapping
+    uint8_t result = em_crypto_t::aes_key_unwrap(kek_128, 16, wrapped, 24, unwrapped, &unwrapped_len);
+    EXPECT_EQ(result, 1) << "AES key unwrap should succeed";
+    EXPECT_EQ(unwrapped_len, 16) << "Unwrapped length should be wrapped length - 8";
+    EXPECT_EQ(memcmp(unwrapped, expected_plaintext, 16), 0) << "Unwrapped result should match original plaintext";
+    
+    // Test round-trip (wrap then unwrap)
+    uint8_t original[32];
+    for (int i = 0; i < 32; i++) {
+        original[i] = static_cast<uint8_t>(0xAA + (i % 16));
+    }
+    
+    uint8_t kek[24] = {0x5A, 0x5A, 0x5A, 0x5A, 0x5A, 0x5A, 0x5A, 0x5A,
+                       0x5A, 0x5A, 0x5A, 0x5A, 0x5A, 0x5A, 0x5A, 0x5A,
+                       0x5A, 0x5A, 0x5A, 0x5A, 0x5A, 0x5A, 0x5A, 0x5A};
+    
+    uint8_t wrapped_roundtrip[40];
+    uint32_t wrapped_roundtrip_len = 0;
+    uint8_t unwrapped_roundtrip[40];  // Buffer needs to be at least as large as wrapped input
+    uint32_t unwrapped_roundtrip_len = 0;
+    
+    // Wrap
+    result = em_crypto_t::aes_key_wrap(kek, 24, original, 32, wrapped_roundtrip, &wrapped_roundtrip_len);
+    EXPECT_EQ(result, 1) << "Round-trip wrap should succeed";
+    
+    // Unwrap
+    result = em_crypto_t::aes_key_unwrap(kek, 24, wrapped_roundtrip, wrapped_roundtrip_len, 
+                                         unwrapped_roundtrip, &unwrapped_roundtrip_len);
+    EXPECT_EQ(result, 1) << "Round-trip unwrap should succeed";
+    EXPECT_EQ(unwrapped_roundtrip_len, 32) << "Round-trip unwrapped length should match original";
+    EXPECT_EQ(memcmp(unwrapped_roundtrip, original, 32), 0) << "Round-trip should preserve data";
+    
+    // Test error conditions
+    uint32_t error_len = 0;
+    uint8_t error_buffer[24];  // Separate buffer for error tests
+    
+    // Invalid KEK length
+    result = em_crypto_t::aes_key_unwrap(kek_128, 17, wrapped, 24, error_buffer, &error_len);
+    EXPECT_EQ(result, 0) << "Should fail with invalid KEK length";
+    
+    // Invalid wrapped length (not multiple of 8)
+    result = em_crypto_t::aes_key_unwrap(kek_128, 16, wrapped, 23, error_buffer, &error_len);
+    EXPECT_EQ(result, 0) << "Should fail with wrapped length not multiple of 8";
+    
+    // Wrapped data too short
+    result = em_crypto_t::aes_key_unwrap(kek_128, 16, wrapped, 16, error_buffer, &error_len);
+    EXPECT_EQ(result, 0) << "Should fail with wrapped length < 24";
+}
+
+TEST_F(EmCryptoTests, KDFHashLength)
+{
+    // Test basic KDF functionality with known inputs
+    uint8_t key[32];
+    for (int i = 0; i < 32; i++) {
+        key[i] = static_cast<uint8_t>(i);
+    }
+    
+    const char* label = "TestLabel";
+    uint8_t context[16];
+    for (int i = 0; i < 16; i++) {
+        context[i] = static_cast<uint8_t>(0xFF - i);
+    }
+    
+    uint8_t output[64];
+    
+    // Test successful KDF with SHA-256
+    bool result = em_crypto_t::kdf_hash_length(EVP_sha256(), key, 32, label, context, 16, output, 64);
+    EXPECT_TRUE(result) << "KDF should succeed with valid inputs";
+    
+    // Verify output is not all zeros (sanity check)
+    bool all_zeros = true;
+    for (int i = 0; i < 64; i++) {
+        if (output[i] != 0) {
+            all_zeros = false;
+            break;
+        }
+    }
+    EXPECT_FALSE(all_zeros) << "KDF output should not be all zeros";
+    
+    // Test deterministic behavior (same inputs produce same outputs)
+    uint8_t output2[64];
+    result = em_crypto_t::kdf_hash_length(EVP_sha256(), key, 32, label, context, 16, output2, 64);
+    EXPECT_TRUE(result) << "Second KDF call should succeed";
+    EXPECT_EQ(memcmp(output, output2, 64), 0) << "KDF should be deterministic";
+    
+    // Test with different output lengths
+    // Note: The KDF includes the output length in the HMAC computation, so different 
+    // output lengths will produce completely different results, not truncated versions
+    uint8_t short_output[16];
+    result = em_crypto_t::kdf_hash_length(EVP_sha256(), key, 32, label, context, 16, short_output, 16);
+    EXPECT_TRUE(result) << "KDF should work with shorter output";
+    // Different lengths produce different outputs due to length being included in HMAC
+    
+    uint8_t long_output[128];
+    result = em_crypto_t::kdf_hash_length(EVP_sha256(), key, 32, label, context, 16, long_output, 128);
+    EXPECT_TRUE(result) << "KDF should work with longer output";
+    // Different lengths produce different outputs due to length being included in HMAC
+    
+    // Test with NULL context
+    uint8_t output_no_context[32];
+    result = em_crypto_t::kdf_hash_length(EVP_sha256(), key, 32, label, nullptr, 0, output_no_context, 32);
+    EXPECT_TRUE(result) << "KDF should work with NULL context";
+    
+    // Test with different hash algorithms
+    uint8_t sha1_output[32];
+    result = em_crypto_t::kdf_hash_length(EVP_sha1(), key, 32, label, context, 16, sha1_output, 32);
+    EXPECT_TRUE(result) << "KDF should work with SHA-1";
+    EXPECT_NE(memcmp(output, sha1_output, 32), 0) << "Different hash algorithms should produce different outputs";
+    
+    // Test error conditions
+    result = em_crypto_t::kdf_hash_length(nullptr, key, 32, label, context, 16, output, 32);
+    EXPECT_FALSE(result) << "Should fail with NULL hash algorithm";
+    
+    result = em_crypto_t::kdf_hash_length(EVP_sha256(), nullptr, 32, label, context, 16, output, 32);
+    EXPECT_FALSE(result) << "Should fail with NULL key";
+    
+    result = em_crypto_t::kdf_hash_length(EVP_sha256(), key, 0, label, context, 16, output, 32);
+    EXPECT_FALSE(result) << "Should fail with zero key length";
+    
+    result = em_crypto_t::kdf_hash_length(EVP_sha256(), key, 32, nullptr, context, 16, output, 32);
+    EXPECT_FALSE(result) << "Should fail with NULL label";
+    
+    result = em_crypto_t::kdf_hash_length(EVP_sha256(), key, 32, label, context, 16, nullptr, 32);
+    EXPECT_FALSE(result) << "Should fail with NULL output";
+    
+    result = em_crypto_t::kdf_hash_length(EVP_sha256(), key, 32, label, context, 16, output, 0);
+    EXPECT_FALSE(result) << "Should fail with zero output length";
+    
+    // Test with very large output length (should fail due to counter limit)
+    // With SHA-256 (32 bytes), we need more than 65535 * 32 = 2,097,120 bytes to exceed UINT16_MAX iterations
+    size_t huge_len = 2100000;  // This requires 65625 iterations, exceeding UINT16_MAX
+    uint8_t* large_output = new uint8_t[huge_len];
+    result = em_crypto_t::kdf_hash_length(EVP_sha256(), key, 32, label, context, 16, large_output, huge_len);
+    EXPECT_FALSE(result) << "Should fail with output length requiring > UINT16_MAX iterations";
+    delete[] large_output;
+}
+
+TEST_F(EmCryptoTests, BundleECKey)
+{
+    // Create a test EC group (P-256)
+    scoped_ec_group group(EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1));
+    ASSERT_NE(group.get(), nullptr) << "Failed to create EC group";
+    
+    // Generate a test key to get valid public/private key components
+    scoped_ssl_key test_key(em_crypto_t::generate_ec_key(NID_X9_62_prime256v1));
+    ASSERT_NE(test_key.get(), nullptr) << "Failed to generate test key";
+    
+    // Extract components from the test key
+    scoped_bn priv_bn(em_crypto_t::get_priv_key_bn(test_key.get()));
+    ASSERT_NE(priv_bn.get(), nullptr) << "Failed to get private key BN";
+    
+    scoped_ec_point pub_point(em_crypto_t::get_pub_key_point(test_key.get(), group.get()));
+    ASSERT_NE(pub_point.get(), nullptr) << "Failed to get public key point";
+    
+    // Test bundling with both public and private key
+    scoped_ssl_key bundled_full(em_crypto_t::bundle_ec_key(group.get(), pub_point.get(), priv_bn.get()));
+    ASSERT_NE(bundled_full.get(), nullptr) << "Failed to bundle EC key with private key";
+    
+    // Verify the bundled key has the same components
+    scoped_bn bundled_priv(em_crypto_t::get_priv_key_bn(bundled_full.get()));
+    ASSERT_NE(bundled_priv.get(), nullptr) << "Failed to get private key from bundled key";
+    
+    scoped_ec_point bundled_pub(em_crypto_t::get_pub_key_point(bundled_full.get(), group.get()));
+    ASSERT_NE(bundled_pub.get(), nullptr) << "Failed to get public key from bundled key";
+    
+    // Compare private keys
+    EXPECT_EQ(BN_cmp(priv_bn.get(), bundled_priv.get()), 0) << "Private keys should match";
+    
+    // Compare public keys
+    EXPECT_EQ(EC_POINT_cmp(group.get(), pub_point.get(), bundled_pub.get(), nullptr), 0) 
+        << "Public keys should match";
+    
+    // Test bundling with only public key (no private key)
+    scoped_ssl_key bundled_pub_only(em_crypto_t::bundle_ec_key(group.get(), pub_point.get(), nullptr));
+    ASSERT_NE(bundled_pub_only.get(), nullptr) << "Failed to bundle EC key without private key";
+    
+    // Verify it has the public key
+    scoped_ec_point bundled_pub_only_point(em_crypto_t::get_pub_key_point(bundled_pub_only.get(), group.get()));
+    ASSERT_NE(bundled_pub_only_point.get(), nullptr) << "Failed to get public key from public-only bundled key";
+    
+    EXPECT_EQ(EC_POINT_cmp(group.get(), pub_point.get(), bundled_pub_only_point.get(), nullptr), 0) 
+        << "Public keys should match in public-only bundle";
+    
+    // Verify it doesn't have a private key (should return NULL)
+    scoped_bn bundled_pub_only_priv(em_crypto_t::get_priv_key_bn(bundled_pub_only.get()));
+    EXPECT_EQ(bundled_pub_only_priv.get(), nullptr) << "Public-only bundle should not have private key";
+    
+    // Test with different curve (secp384r1)
+    scoped_ec_group group384(EC_GROUP_new_by_curve_name(NID_secp384r1));
+    ASSERT_NE(group384.get(), nullptr) << "Failed to create secp384r1 group";
+    
+    scoped_ssl_key test_key384(em_crypto_t::generate_ec_key(NID_secp384r1));
+    ASSERT_NE(test_key384.get(), nullptr) << "Failed to generate secp384r1 test key";
+    
+    scoped_bn priv_bn384(em_crypto_t::get_priv_key_bn(test_key384.get()));
+    ASSERT_NE(priv_bn384.get(), nullptr) << "Failed to get secp384r1 private key BN";
+    
+    scoped_ec_point pub_point384(em_crypto_t::get_pub_key_point(test_key384.get(), group384.get()));
+    ASSERT_NE(pub_point384.get(), nullptr) << "Failed to get secp384r1 public key point";
+    
+    scoped_ssl_key bundled384(em_crypto_t::bundle_ec_key(group384.get(), pub_point384.get(), priv_bn384.get()));
+    ASSERT_NE(bundled384.get(), nullptr) << "Failed to bundle secp384r1 EC key";
+    
+    // Verify the curve of the bundled key
+    scoped_ec_group bundled_group(em_crypto_t::get_key_group(bundled384.get()));
+    ASSERT_NE(bundled_group.get(), nullptr) << "Failed to get group from bundled secp384r1 key";
+    
+    int bundled_nid = EC_GROUP_get_curve_name(bundled_group.get());
+    EXPECT_EQ(bundled_nid, NID_secp384r1) << "Bundled key should have correct curve";
+    
+    // Test error conditions
+    SSL_KEY* null_result = em_crypto_t::bundle_ec_key(nullptr, pub_point.get(), priv_bn.get());
+    EXPECT_EQ(null_result, nullptr) << "Should fail with NULL group";
+    
+    null_result = em_crypto_t::bundle_ec_key(group.get(), nullptr, priv_bn.get());
+    EXPECT_EQ(null_result, nullptr) << "Should fail with NULL public key";
 }

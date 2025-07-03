@@ -656,7 +656,7 @@ int em_provisioning_t::handle_1905_encap_eapol_msg(uint8_t *buff, unsigned int l
         return -1;
     }
 
-    if (!m_ec_manager->process_1905_eapol_encap_msg(buff, len, src_mac)){
+    if (!m_ec_manager->process_1905_eapol_encap_msg(buff, static_cast<uint16_t>(len), src_mac)){
         em_printfout("Failed to handle 1905 EAPOL Encap message");
         return -1;
     }
