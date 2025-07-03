@@ -424,7 +424,7 @@ uint8_t em_crypto_t:: wps_key_derivation_function(uint8_t *key, uint8_t *label_p
     }
     return 1; 
 }
-uint8_t em_crypto_t::platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher_text, uint32_t *cipher_len)
+uint8_t em_crypto_t::platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher_text, uint32_t *cipher_len, bool disable_padding)
 {
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX _ctx;
@@ -445,7 +445,9 @@ uint8_t em_crypto_t::platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint
         return 0;
     }
 
-    EVP_CIPHER_CTX_set_padding(ctx, 0);
+    if (disable_padding) {
+        EVP_CIPHER_CTX_set_padding(ctx, 0);
+    }
 
     
     if (EVP_EncryptUpdate(ctx, cipher_text, &len, plain, static_cast<int> (plain_len)) != 1) {
@@ -467,7 +469,7 @@ uint8_t em_crypto_t::platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint
 
     return 1;
 }
-uint8_t em_crypto_t::platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len)
+uint8_t em_crypto_t::platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len, bool disable_padding)
 {
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX _ctx;
@@ -489,7 +491,10 @@ uint8_t em_crypto_t::platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint
         return 0;
     }
 
-    EVP_CIPHER_CTX_set_padding(ctx, 0);
+    if (disable_padding) {
+        EVP_CIPHER_CTX_set_padding(ctx, 0);
+    }
+    
 
     plen = static_cast<int> (data_len);
     if (EVP_DecryptUpdate(ctx, data, &plen, data, static_cast<int> (data_len)) != 1 || plen != static_cast<int> (data_len)) {
@@ -509,6 +514,72 @@ uint8_t em_crypto_t::platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint
 
     return 1;
 }
+
+uint8_t em_crypto_t::aes_key_wrap(uint8_t *kek, size_t kek_len, 
+                                  uint8_t *plain, uint32_t plain_len,
+                                  uint8_t *wrapped, uint32_t *wrapped_len)
+{
+    const EVP_CIPHER *cipher;
+    
+    // Default IV for AES Key Wrap (RFC 3394 2.2.3.1)
+    uint8_t iv[8] = {0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6};
+
+    
+    // Select cipher based on KEK length (bytes)
+    switch(kek_len) {
+        case 16: cipher = EVP_aes_128_wrap(); break;
+        case 24: cipher = EVP_aes_192_wrap(); break;
+        case 32: cipher = EVP_aes_256_wrap(); break;
+        default: return 0;
+    }
+    
+    // Validate input length (must be multiple of 8, minimum 16)
+    if (plain_len < 16 || (plain_len % 8) != 0) {
+        return 0;
+    }
+    
+    // Use platform_cipher_encrypt with padding ENABLED (false = don't disable padding)
+    return platform_cipher_encrypt(cipher, kek, iv, plain, plain_len, wrapped, wrapped_len, false);
+}
+
+uint8_t em_crypto_t::aes_key_unwrap(uint8_t *kek, size_t kek_len,
+                                    uint8_t *wrapped, uint32_t wrapped_len,
+                                    uint8_t *unwrapped, uint32_t *unwrapped_len)
+{
+    const EVP_CIPHER *cipher;
+    
+    // Default IV for AES Key Wrap (RFC 3394 2.2.3.1)
+    uint8_t iv[8] = {0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6};
+    
+    // Select cipher based on KEK length
+    switch(kek_len) {
+        case 16: cipher = EVP_aes_128_wrap(); break;
+        case 24: cipher = EVP_aes_192_wrap(); break;
+        case 32: cipher = EVP_aes_256_wrap(); break;
+        default: return 0;
+    }
+    
+    // Validate wrapped key length (must be multiple of 8, minimum 24)
+    if (wrapped_len < 24 || (wrapped_len % 8) != 0) {
+        return 0;
+    }
+    
+    // Copy to output buffer first since platform_cipher_decrypt works in-place
+    memcpy(unwrapped, wrapped, wrapped_len);
+    
+    // Use platform_cipher_decrypt with padding ENABLED (false = don't disable padding)
+    if (platform_cipher_decrypt(cipher, kek, iv, unwrapped, wrapped_len, false) != 1) {
+        return 0;
+    }
+    
+    // Output length is 8 bytes less than wrapped length
+    *unwrapped_len = wrapped_len - 8;
+    
+    return 1;
+}
+
+
+
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
 EVP_PKEY* em_crypto_t::create_dh_pkey(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv, BIGNUM *bn_pub)
 {
@@ -1645,4 +1716,68 @@ std::string em_crypto_t::hash_to_hex_string(const uint8_t *hash, size_t hash_len
 std::string em_crypto_t::hash_to_hex_string(const std::vector<uint8_t>& hash)
 {
     return hash_to_hex_string(hash.data(), hash.size());
+}
+
+// KDF implementation based on 802.11 specification
+bool em_crypto_t::kdf_hash_length(const EVP_MD *algo,
+                     const uint8_t *key, size_t key_len,
+                     const char *label,
+                     const uint8_t *context, size_t context_len,
+                     uint8_t *output, size_t output_len) {
+    
+    // Input validation
+    if (!algo || !key || key_len == 0 || !label || !output || output_len == 0) {
+        return false;
+    }
+    
+    size_t hash_len = static_cast<size_t>(EVP_MD_size(algo));
+    if (hash_len == 0 || hash_len > 64) {  // Sanity check on hash size
+        return false;
+    }
+    
+    size_t iterations = (output_len + hash_len - 1) / hash_len;
+    if (iterations > UINT16_MAX) {  // Counter must fit in uint16_t
+        return false;
+    }
+    
+    size_t offset = 0;
+    uint8_t hash[SHA512_DIGEST_LENGTH]; // Max hash size
+    
+    uint8_t *addr[4];
+    size_t len[4];
+    
+    addr[1] = reinterpret_cast<uint8_t *>(const_cast<char *>(label));
+    len[1] = strlen(label);
+    
+    addr[2] = const_cast<uint8_t *>(context);
+    len[2] = context_len;
+    
+    // Length encoded as 16-bit little-endian
+    uint16_t length_bits = SWAP_LITTLE_ENDIAN(static_cast<uint16_t>(output_len * 8));
+    addr[3] = reinterpret_cast<uint8_t*>(&length_bits);
+    len[3] = 2;
+    
+    // Loop counter encoded as 16-bit little-endian
+    uint16_t counter_le;
+    
+    for (size_t i = 1; i <= iterations; i++) {
+        // Encode counter in little-endian
+        counter_le = SWAP_LITTLE_ENDIAN(static_cast<uint16_t>(i));
+        addr[0] = reinterpret_cast<uint8_t*>(&counter_le);
+        len[0] = 2;
+        
+        // Compute HMAC
+        if (!em_crypto_t::platform_hmac_hash(algo, const_cast<uint8_t*>(key), key_len, 4, addr, len, hash)) {
+            return false;
+        }
+        
+        // Copy to output
+        size_t to_copy = (offset + hash_len > output_len) ? 
+                         (output_len - offset) : hash_len;
+        memcpy(output + offset, hash, to_copy);
+        
+        offset += hash_len;
+    }
+
+    return true;
 }

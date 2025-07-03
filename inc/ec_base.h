@@ -49,7 +49,9 @@ extern "C"
 // The NID for generating the local responder keypair
 #define DPP_KEY_NID NID_X9_62_prime256v1
 
-
+#ifndef ETH_ALEN
+#define ETH_ALEN 6
+#endif // ETH_ALEN
 
 #define DPP_OUI_TYPE 0x1A
 #define DPP_MAX_EN_CHANNELS 4
@@ -350,6 +352,123 @@ typedef struct {
     uint8_t comeback_resp[];
 } __attribute__((packed)) ec_gas_comeback_response_frame_t;
 
+// START: Adapted from `eapol_common.h` in hostapd
+#define EAPOL_VERSION 3
+
+enum { IEEE802_1X_TYPE_EAP_PACKET = 0,
+       IEEE802_1X_TYPE_EAPOL_START = 1,
+       IEEE802_1X_TYPE_EAPOL_LOGOFF = 2,
+       IEEE802_1X_TYPE_EAPOL_KEY = 3,
+       IEEE802_1X_TYPE_EAPOL_ENCAPSULATED_ASF_ALERT = 4,
+       IEEE802_1X_TYPE_EAPOL_MKA = 5,
+};
+
+
+/* 
+* 802.11 Table 12-10—KDE selectors + EasyMesh 1905 Table 11
+* 
+* +-------------------+-----------+-------------------------+
+* | OUI               | Data type | Meaning                 |
+* +-------------------+-----------+-------------------------+
+* | 00-0F-AC          | 0         | Reserved                |
+* | 00-0F-AC          | 1         | GTK KDE                 |
+* | 00-0F-AC          | 2         | Reserved                |
+* | 00-0F-AC          | 3         | MAC address KDE         |
+* | 00-0F-AC          | 4         | PMKID KDE               |
+* | 00-0F-AC          | 5         | Reserved                |
+* | 00-0F-AC          | 6         | Nonce KDE               |
+* | 00-0F-AC          | 7         | Lifetime KDE            |
+* | 00-0F-AC          | 8         | Error KDE               |
+* | 00-0F-AC          | 9         | IGTK KDE                |
+* | 00-0F-AC          | 10        | Key ID KDE              |
+* | 00-0F-AC          | 11        | Multi-band GTK KDE      |
+* | 00-0F-AC          | 12        | Multi-band Key ID KDE   |
+* | 00-0F-AC          | 13        | OCI KDE                 |
+* | 00-0F-AC          | 14        | BIGTK KDE               |
+* | (11ba)00-0F-AC    | 15        | WIGTK KDE               |
+* | 00-0F-AC          | (11ba)16-255 | Reserved             |
+* | Other OUI or CID  | Any       | Vendor specific         |
+* +-------------------+-----------+-------------------------+
+* | 50-6F-9A          | 0         | 1905 GTK KDE            |
+* +-------------------+-----------+-------------------------+
+*/
+
+typedef enum {
+    EAPOL_KDE_TYPE_1905_GTK = 0, // EasyMesh 1905 GTK KDE
+    EAPOL_KDE_TYPE_GTK = 1,
+    EAPOL_KDE_TYPE_MAC_ADDR = 3,
+    EAPOL_KDE_TYPE_PMKID = 4,
+    EAPOL_KDE_TYPE_NONCE = 6,
+    EAPOL_KDE_TYPE_LIFETIME = 7,
+    EAPOL_KDE_TYPE_ERROR = 8,
+    EAPOL_KDE_TYPE_IGTK = 9,
+    EAPOL_KDE_TYPE_KEY_ID = 10,
+    EAPOL_KDE_TYPE_MULTI_BAND_GTK = 11,
+    EAPOL_KDE_TYPE_MULTI_BAND_KEY_ID = 12,
+    EAPOL_KDE_TYPE_OCI = 13,
+    EAPOL_KDE_TYPE_BIGTK = 14,
+    EAPOL_KDE_TYPE_WIGTK = 15,
+} eapol_kde_type_t;
+
+typedef struct {
+    uint8_t type; 
+    uint8_t length; 
+    uint8_t oui[3]; 
+    uint8_t data_type;
+    uint8_t data[0];
+} __attribute__((packed)) eapol_kde_t;
+
+
+#define EAPOL_KDE_BASE_SIZE (sizeof(eapol_kde_t) - offsetof(eapol_kde_t, oui))
+
+typedef struct  {
+	uint8_t version;
+	uint8_t type;
+	uint16_t length;
+	/* followed by length octets of data */
+} __attribute__((packed)) ieee802_1x_hdr_t;
+
+// END
+
+typedef struct {
+    uint8_t desc_type;
+    union {
+        struct {
+            uint16_t key_descriptor_version : 3;  // B0-B2
+            uint16_t key_type : 1;                // B3
+            uint16_t reserved1 : 2;               // B4-B5
+            uint16_t install : 1;                 // B6
+            uint16_t key_ack : 1;                 // B7
+            uint16_t key_mic : 1;                 // B8
+            uint16_t secure : 1;                  // B9
+            uint16_t error : 1;                   // B10
+            uint16_t request : 1;                 // B11
+            uint16_t encrypted_key_data : 1;      // B12
+            uint16_t reserved2 : 3;               // B13-B15
+        } bits;
+        uint16_t raw;  // Direct 16-bit access
+    } key_info;
+    uint16_t key_length; 
+    uint64_t key_replay_counter;
+    uint8_t key_nonce[32];
+    uint8_t key_iv[16];
+    uint8_t key_rsc[8];
+    uint8_t _reserved[8]; // Reserved in the EAPOL-PDU
+    /*
+    - The MIC is optional and is only present if the key_info_t.key_mic bit is set.
+    - After the MIC there is a 2 octet key length field
+    - After the key length field, there is a key data field of variable length.
+    */
+    uint8_t mic_len_key[0];
+} __attribute__((packed)) eapol_packet_t; // 802.11 12.7.2
+
+
+typedef struct {
+    uint8_t key_id : 2; // Bits 0-1
+    uint8_t reserved : 6; // Bits 2-7
+    uint8_t gtk[32]; // 1905 GTK
+} __attribute__((packed)) gtk_1905_kde_t;
+
 // Used to avoid many many if-not-null checks
 #define ASSERT_MSG_FALSE(x, ret, errMsg, ...) \
     if(x) { \
@@ -476,6 +595,34 @@ typedef struct {
 #define SSL_KEY EVP_PKEY
 #endif
 #endif
+
+
+typedef struct {
+    uint8_t pmk[SHA256_DIGEST_LENGTH];
+    uint8_t pmkid[16]; // Truncated to 128 bits
+
+    uint8_t ptk[SHA512_DIGEST_LENGTH]; 
+    // Saved after PTK is out of RAM for use with other operations (group handshake, etc)
+    uint8_t ptk_kck[64]; // PTK KCK (Key Confirmation Key) (802.11 12.7.1.3)
+    uint8_t ptk_kek[64]; // PTK KEK (Key Encryption Key) (802.11 12.7.1.3)
+
+    uint8_t a_nonce[SHA256_DIGEST_LENGTH]; // 802.11 12.7.5
+    uint8_t s_nonce[SHA256_DIGEST_LENGTH];
+
+    // The current last sent eapol number (1 to 4) in the 4 way handshake.
+    // This is used to track which frame in the 4 way handshake has been sent.
+    // For example:
+    //      If the first frame in the 4 way handshake is sent, this is 1.
+    //      If the second frame in the 4 way handshake is sent, this is 2.
+    //      If the third frame in the 4 way handshake is sent, this is 3.
+    //      If the fourth frame in the 4 way handshake is sent, this is 4.
+    uint8_t sent_eapol_idx;
+
+    uint64_t curr_replay_counter;
+
+    bool is_ptk_rekeying;
+    
+} ec_1905_key_ctx;
 
 typedef enum {
     ec_session_type_cfg,

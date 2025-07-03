@@ -470,6 +470,10 @@ ec_gas_initial_response_frame_t *ec_util::copy_attrs_to_frame(ec_gas_initial_res
 
 uint8_t *ec_util::copy_attrs_to_frame(uint8_t *frame, size_t frame_base_size, uint8_t *attrs, size_t attrs_len)
 {
+    if (attrs == NULL || attrs_len == 0) {
+        em_printfout("Cannot copy NULL attributes to frame!");
+        return nullptr;
+    }
     size_t new_len = frame_base_size + attrs_len;
     uint8_t *new_frame = reinterpret_cast<uint8_t *>(realloc(frame, new_len));
     if (new_frame == nullptr) {
