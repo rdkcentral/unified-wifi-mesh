@@ -58,7 +58,6 @@ bool ec_ctrl_configurator_t::onboard_enrollee(ec_data_t *bootstrapping_data)
         return false;
     }
 
-    printf("Configurator MAC: %s\n", m_mac_addr.c_str());
     return ec_crypto::init_connection_ctx(c_ctx, c_ctx.boot_data.responder_boot_key);
 }
 
@@ -183,7 +182,7 @@ bool ec_ctrl_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_t
     return did_finish;
 }
 
-bool ec_ctrl_configurator_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len)
+bool ec_ctrl_configurator_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len, uint8_t src_mac[ETH_ALEN])
 {
     if (dpp_frame == NULL || dpp_frame_len == 0) {
         em_printfout("DPP Message Frame is empty");
@@ -220,6 +219,11 @@ bool ec_ctrl_configurator_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, ui
             break;
         }
         case ec_frame_type_peer_disc_req: {
+            did_finish = handle_peer_disc_req_frame(ec_frame, dpp_frame_len, src_mac);
+            break;
+        }
+        case ec_frame_type_peer_disc_rsp: {
+            did_finish = handle_peer_disc_resp_frame(ec_frame, dpp_frame_len, src_mac);
             break;
         }
         default:

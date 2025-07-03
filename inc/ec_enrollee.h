@@ -5,6 +5,7 @@
 #include "ec_configurator.h"
 #include "ec_util.h"
 #include "ec_ops.h"
+#include "ec_1905_encrypt_layer.h"
 
 #include <map>
 #include <unordered_map>
@@ -142,7 +143,33 @@ public:
 	 */
 	bool handle_recfg_auth_confirm(ec_frame_t *frame, size_t len, uint8_t src_mac[ETH_ALEN]);
 
-    
+	/**
+	 * @brief Handle a Direct Encapsulated DPP Message (DPP Message TLV)
+	 *
+	 * @param[in] dpp_frame The frame parsed from the DPP Message TLV
+	 * @param[in] dpp_frame_len The length of the frame from the DPP Message TLV
+	 *
+	 * @return bool True if the frame was processed successfully, false otherwise.
+	 */
+	bool process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len, uint8_t src_mac[ETH_ALEN]);
+
+	/**
+	 * @brief Process a 1905 EAPOL Encapsulated Message (1905 Encap EAPOL TLV)
+	 *
+	 * @param[in] eapol_frame The frame parsed from the 1905 Encap EAPOL TLV
+	 * @param[in] eapol_frame_len The length of the frame from the 1905 Encap EAPOL TLV
+	 * @param[in] src_mac The source MAC address of the EAPOL frame
+	 *
+	 * @return bool True if the frame was processed successfully, false otherwise.
+	 */
+	bool process_1905_eapol_encap_msg(uint8_t* eapol_frame, uint16_t eapol_frame_len, uint8_t src_mac[ETH_ALEN]) {
+		return m_1905_encrypt_layer.handle_eapol_frame(eapol_frame, eapol_frame_len, src_mac);
+	}
+
+	bool handle_peer_disc_resp_frame(ec_frame_t *frame, uint16_t len, uint8_t src_mac[ETH_ALEN]) {
+		return m_1905_encrypt_layer.handle_peer_disc_resp_frame(frame, len, src_mac);
+	}
+
 	/**!
 	 * @brief Tears down the existing connection by freeing associated resources.
 	 *
@@ -159,13 +186,11 @@ public:
 
     
 	/**!
-	 * @brief Retrieves the MAC address.
+	 * @brief Retrieves the AL MAC address.
 	 *
-	 * This function returns the MAC address stored in the object.
-	 *
-	 * @returns The MAC address as a string.
+	 * @returns The AL MAC address as a string.
 	 */
-	inline std::string get_mac_addr() { return m_mac_addr; };
+	inline std::string get_al_mac_addr() { return m_al_mac_addr; };
 
 	/**!
 	 * @brief Retrieves wether this enrollee is in onboarding state or not.
@@ -217,6 +242,40 @@ public:
 	 */
 	bool handle_bss_info_event(const std::vector<wifi_bss_info_t> &bss_info_list);
 
+	/**
+     * @brief Initiates secure 1905 layer establishment with peer
+     * @param dest_al_mac Destination AL MAC address
+     * @return true if peer discovery request sent successfully
+     * 
+     * @note Creates and sends DPP Peer Discovery Request to begin security establishment process.
+     */
+	inline bool start_secure_1905_layer(uint8_t dest_al_mac[ETH_ALEN]) {
+		return m_1905_encrypt_layer.start_secure_1905_layer(dest_al_mac);
+	}
+
+	/**
+     * @brief Rekeys existing PTK with established peer
+     * @param dest_al_mac Destination AL MAC address
+     * @return true if PTK rekey handshake initiated successfully
+     * 
+     * @note Requires existing key context. Initiates the same 4-way handshake 
+     *       as the initial handshake with some minor flags changed.
+     */
+	inline bool rekey_1905_layer_ptk(uint8_t dest_al_mac[ETH_ALEN]) {
+		return m_1905_encrypt_layer.rekey_1905_layer_ptk(dest_al_mac);
+	}
+
+	/**
+     * @brief Rekeys existing PTK with all established peers
+     * @return true if all PTK rekey handshakes initiated successfully
+     * 
+     * @note Requires existing key contexts. Initiates the same 4-way handshake 
+     *       as the initial handshake with some minor flags changed.
+     */
+	inline bool rekey_1905_layer_ptk() {
+		return m_1905_encrypt_layer.rekey_1905_layer_ptk();
+	}
+
 private:
 
 	/**
@@ -260,7 +319,7 @@ private:
 	 */
 	bool check_bss_info_has_cce(const wifi_bss_info_t& bss_info);
 
-    std::string m_mac_addr;
+	std::string m_al_mac_addr;
 
     /**
      * @brief Send an action frame. Optional to implement.
@@ -305,6 +364,12 @@ private:
 	 * @return bool true if successful, false otherwise
 	 */
 	send_dir_encap_dpp_func m_send_dir_encap_fn;
+	
+    // Maps SSID that this Enrollee has attempted to find to the
+    // list of channels/op-classes that were scanned.
+    std::unordered_map<std::string, std::vector<ec_util::scanned_channels_t>> m_scanned_channels_map;
+
+	ec_1905_encrypt_layer_t m_1905_encrypt_layer;
 
 
 
@@ -435,10 +500,6 @@ private:
 	 * @note Heap allocates, caller must free.
 	 */
 	cJSON *create_dpp_connection_status_obj(ec_status_code_t dpp_status, const std::string& ssid);
-
-    // Maps SSID that this Enrollee has attempted to find to the
-    // list of channels/op-classes that were scanned.
-    std::unordered_map<std::string, std::vector<ec_util::scanned_channels_t>> m_scanned_channels_map;
 
     ec_connection_context_t m_c_ctx = {};
 

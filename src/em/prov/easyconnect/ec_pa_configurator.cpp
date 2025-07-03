@@ -148,6 +148,11 @@ bool ec_pa_configurator_t::handle_connection_status_result(ec_frame_t *frame, si
     return sent;
 }
 
+bool ec_pa_configurator_t::start_secure_1905_layer(uint8_t dest_al_mac[ETH_ALEN])
+{
+    return m_1905_encrypt_layer.start_secure_1905_layer(dest_al_mac);
+}
+
 bool ec_pa_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *chirp_tlv, uint16_t tlv_len)
 {
     return true;
@@ -325,7 +330,7 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
 
 
 
-bool ec_pa_configurator_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len)
+bool ec_pa_configurator_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len, uint8_t src_mac[ETH_ALEN])
 {
     if (dpp_frame == NULL || dpp_frame_len == 0) {
         em_printfout("DPP Message Frame is empty");

@@ -110,7 +110,10 @@ public:
 	 *
 	 * @return true if the frame was processed successfully, otherwise false.
 	 */
-	virtual bool handle_connection_status_result(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) override;
+
+	bool handle_connection_status_result(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) override;
+
+	bool start_secure_1905_layer(uint8_t dest_al_mac[ETH_ALEN]);
 
     
 	/**
@@ -149,7 +152,7 @@ public:
 	 *
 	 * @return bool True if the frame was processed successfully, false otherwise.
 	 */
-	bool  process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len) override;
+	bool  process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len, uint8_t src_mac[ETH_ALEN]) override;
 
 	/**
 	 * @brief Handles a GAS Comeback Request frame
