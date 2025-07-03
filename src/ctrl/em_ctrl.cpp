@@ -905,7 +905,7 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
         }
         std::cout << std::dec << std::endl;
     } else {
-        std::cout << "Registration failed with error: " << (int)result << std::endl;
+        std::cout << "Registration failed with error: " << static_cast<int>(result) << std::endl;
     }
 
     return sap;
