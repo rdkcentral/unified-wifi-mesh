@@ -8,6 +8,8 @@
 #include "em_base.h"
 #include "ec_crypto.h"
 #include "ec_ops.h"
+#include "ec_1905_encrypt_layer.h"
+
 
 class ec_configurator_t {
 public:
@@ -18,10 +20,12 @@ public:
 	 * This constructor initializes the EC configurator with the specified functions
 	 * for sending notifications and messages.
 	 *
-	 * @param[in] mac_addr The MAC address of the device
+	 * @param[in] al_mac_addr The AL MAC address of the device
 	 * @param ops Callbacks for this Configurator
+	 * @param sec_ctx The existing security context. Either generated elsewhere or imported from the enrollee.
+	 * @param is_colocated_agent True if this is a co-located agent, false if it is a non-colocated agent or a controller.
 	 */
-	ec_configurator_t(const std::string& mac_addr, ec_ops_t& ops);
+	ec_configurator_t(const std::string& al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t& sec_ctx, bool is_colocated_agent);
     
 	/**!
 	 * @brief Destructor for ec_configurator_t class.
@@ -217,10 +221,25 @@ public:
 	 *
 	 * @param[in] dpp_frame The frame parsed from the DPP Message TLV
 	 * @param[in] dpp_frame_len The length of the frame from the DPP Message TLV
+	 * @param[in] src_mac The source MAC address of the DPP frame
 	 *
 	 * @return bool True if the frame was processed successfully, false otherwise.
 	 */
-	virtual bool  process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len) = 0;
+	virtual bool  process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len, uint8_t src_mac[ETH_ALEN]) = 0;
+
+	/**
+	 * @brief Process a 1905 EAPOL Encapsulated Message (1905 Encap EAPOL TLV)
+	 *
+	 * @param[in] eapol_frame The frame parsed from the 1905 Encap EAPOL TLV
+	 * @param[in] eapol_frame_len The length of the frame from the 1905 Encap EAPOL TLV
+	 *
+	 * @return bool True if the frame was processed successfully, false otherwise.
+	 * 
+	 * @note Not virtual since this function only calls the encryption layer
+	 */
+	bool process_1905_eapol_encap_msg(uint8_t* eapol_frame, uint16_t eapol_frame_len, uint8_t src_mac[ETH_ALEN]) {
+		return m_1905_encrypt_layer.handle_eapol_frame(eapol_frame, eapol_frame_len, src_mac);
+	}
 	
 	/**
 	 * @brief Handle a proxied encapsulated DPP Configuration Request frame.
@@ -275,6 +294,38 @@ public:
         return true;
     }
 
+	/**
+	 * @brief Handle a DPP peer discovery request frame.
+	 *
+	 * This function processes a DPP peer discovery request frame received from a peer device.
+	 * It delegates the frame handling to the underlying 1905 encryption layer for processing.
+	 *
+	 * @param[in] frame Pointer to the DPP peer discovery request frame to be processed.
+	 * @param[in] len The length of the frame in bytes.
+	 * @param[in] src_mac The source MAC address of the frame sender 
+	 *
+	 * @return true if the frame was processed successfully, otherwise false.
+	 */
+	bool handle_peer_disc_req_frame(ec_frame_t *frame, uint16_t len, uint8_t src_mac[ETH_ALEN]) {
+        return m_1905_encrypt_layer.handle_peer_disc_req_frame(frame, len, src_mac);
+    }
+
+	/**
+	 * @brief Handle a DPP peer discovery response frame.
+	 *
+	 * This function processes a DPP peer discovery response frame received from a peer device.
+	 * It delegates the frame handling to the underlying 1905 encryption layer for processing.
+	 *
+	 * @param[in] frame Pointer to the DPP peer discovery response frame to be processed.
+	 * @param[in] len The length of the frame in bytes.
+	 * @param[in] src_mac The source MAC address of the frame sender
+	 *
+	 * @return true if the frame was processed successfully, otherwise false.
+	 */
+	bool handle_peer_disc_resp_frame(ec_frame_t *frame, uint16_t len, uint8_t src_mac[ETH_ALEN]) {
+        return m_1905_encrypt_layer.handle_peer_disc_resp_frame(frame, len, src_mac);
+    }
+
     
 	/**!
 	 * @brief Tears down the connection associated with the given MAC address.
@@ -294,13 +345,50 @@ public:
         ec_crypto::free_ephemeral_context(&c_ctx.eph_ctx, c_ctx.nonce_len, c_ctx.digest_len);
     }
 
-    
-	/**!
-	 * @brief Retrieves the MAC address.
-	 *
-	 * @returns The MAC address as a string.
-	 */
-	inline std::string get_mac_addr() { return m_mac_addr; };
+	/**
+     * @brief Initiates secure 1905 layer establishment with peer
+     * @param dest_al_mac Destination AL MAC address
+     * @return true if peer discovery request sent successfully
+     * 
+     * @note Creates and sends DPP Peer Discovery Request to begin security establishment process.
+     */
+	inline bool start_secure_1905_layer(uint8_t dest_al_mac[ETH_ALEN]) {
+		return m_1905_encrypt_layer.start_secure_1905_layer(dest_al_mac);
+	}
+
+	/**
+     * @brief Rekeys existing PTK with established peer
+     * @param dest_al_mac Destination AL MAC address
+     * @return true if PTK rekey handshake initiated successfully
+     * 
+     * @note Requires existing key context. Initiates the same 4-way handshake 
+     *       as the initial handshake with some minor flags changed.
+     */
+	inline bool rekey_1905_layer_ptk(uint8_t dest_al_mac[ETH_ALEN]) {
+		return m_1905_encrypt_layer.rekey_1905_layer_ptk(dest_al_mac);
+	}
+
+	/**
+     * @brief Rekeys existing PTK with all established peers
+     * @return true if all PTK rekey handshakes initiated successfully
+     * 
+     * @note Requires existing key contexts. Initiates the same 4-way handshake 
+     *       as the initial handshake with some minor flags changed.
+     */
+	inline bool rekey_1905_layer_ptk() {
+		return m_1905_encrypt_layer.rekey_1905_layer_ptk();
+	}
+
+	/**
+     * @brief Rekeys GTK and distributes to all enrolled agents
+     * @return true if GTK regenerated and distributed successfully
+     * 
+     * @note Controller-only operation. Generates new GTK and sends
+     *       to all agents (EM 5.4.7.5) via group key handshake (EM 5.3.7.3)
+     */
+	inline bool rekey_1905_layer_gtk() {
+		return m_1905_encrypt_layer.rekey_1905_layer_gtk();
+	}
 
     // Disable copy construction and assignment
     // Requires use of references or pointers when working with instances of this class
@@ -316,8 +404,9 @@ public:
     ec_configurator_t& operator=(const ec_configurator_t&) = delete;
 
 protected:
+	std::string m_al_mac_addr;
 
-    std::string m_mac_addr;
+	bool m_is_colocated_agent;
 
     send_chirp_func m_send_chirp_notification;
 
@@ -335,9 +424,10 @@ protected:
 
     can_onboard_additional_aps_func m_can_onboard_additional_aps;
 
-    // The connections to the Enrollees/Agents
-    std::map<std::string, ec_connection_context_t> m_connections = {};
+	ec_1905_encrypt_layer_t m_1905_encrypt_layer;
 
+    // The connections to EasyMesh Devices (the Controller, Enrollees, and Agents)
+    std::map<std::string, ec_connection_context_t> m_connections = {};
     
 	/**!
 	 * @brief Retrieves the connection context for a given MAC address.
@@ -423,6 +513,14 @@ protected:
         ec_crypto::free_ephemeral_context(&c_ctx.eph_ctx, c_ctx.nonce_len, c_ctx.digest_len);
     }
 
+	/**
+	 * @brief The security context for the Controller/Configurator OR the **Onboarded** Agent
+	 * 
+	 * This context is used to store the security keys and other information required for secure communication with the Controller and other onboarded Agents.
+	 * 	- For the Controller/Configurator, the keys/connector are generated at startup.
+	 * 	- For an **Onboarded Agent** the keys/connector are generated during the onboarding process and used throughout the lifetime of the agent (or until reconfigured).
+	 */
+	ec_persistent_sec_ctx_t m_sec_ctx;
 };
 
 #endif // EC_CONFIGURATOR_H

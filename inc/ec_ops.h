@@ -52,9 +52,20 @@ using send_encap_dpp_func = std::function<bool(em_encap_dpp_t*, size_t, em_dpp_c
  * 
  * @param dpp_frame The DPP frame to send
  * @param dpp_frame_len The length of the DPP frame
+ * @param dest_al_mac The destination AL MAC address (6 bytes)
  * @return bool true if successful, false otherwise
  */
 using send_dir_encap_dpp_func = std::function<bool(uint8_t*, size_t, uint8_t*)>;
+
+/**
+ * @brief Sends a 1905 EAPOL encapsulated message
+ * 
+ * @param eapol_frame The EAPOL frame to send (including IEEE 802.1X header)
+ * @param eapol_frame_len The length of the EAPOL frame
+ * @param dest_al_mac The destination AL MAC address (6 bytes)
+ * @return bool true if successful, false otherwise
+ */
+using send_1905_eapol_encap_func = std::function<bool(uint8_t*, size_t, uint8_t*)>;
 
 /**
  * @brief Send an action frame. Optional to implement.
@@ -142,4 +153,5 @@ struct ec_ops_t {
     get_1905_info_func get_1905_info = nullptr;
     get_fbss_info_func get_fbss_info = nullptr;
     can_onboard_additional_aps_func can_onboard_additional_aps = nullptr;
+    send_1905_eapol_encap_func send_1905_eapol_encap = nullptr; 
 };

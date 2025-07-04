@@ -214,6 +214,12 @@ class em_t :
 	 */
 	int push_event(em_event_t *evt);
 
+	/**!
+	 * @brief Initializes the EasyConnect manager on the AL node
+	 *
+	 * @returns bool true if initialization is successful, false otherwise.
+	 */
+	bool initialize_ec_manager();
 
 public:
     

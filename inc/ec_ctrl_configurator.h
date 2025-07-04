@@ -21,12 +21,12 @@ public:
 	 *
 	 * Initializes the ec_ctrl_configurator_t object with the provided MAC address and function pointers.
 	 *
-	 * @param[in] mac_addr The MAC address as a string.
-	 * @param ops Callbacks for this Configurator
-	 *
+	 * @param[in] al_mac_addr The AL MAC address as a string.
+	 * @param[in] ops Callbacks for this Configurator
+	 * @param[in] sec_ctx The security context containing C-signing key, PPK, NAK, and Connector.
 	 * @note This constructor initializes the base class ec_configurator_t with the provided parameters.
 	 */
-	ec_ctrl_configurator_t(const std::string& mac_addr, ec_ops_t& ops) : ec_configurator_t(mac_addr, ops) {};
+	ec_ctrl_configurator_t(const std::string& al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t sec_ctx);
 
 	/**
 	 * @brief Handle a chirp notification message TLV and direct it to the 1905 agent.
@@ -49,7 +49,7 @@ public:
 	 *
 	 * @return bool True if the onboarding process is successful, false otherwise.
 	 */
-	virtual bool onboard_enrollee(ec_data_t* bootstrapping_data) override;
+	bool onboard_enrollee(ec_data_t* bootstrapping_data) override;
     
 	/**
 	 * @brief Handle a proxied encapsulated DPP message TLVs (including chirp value) and direct to 1905 agent.
@@ -70,10 +70,11 @@ public:
 	 *
 	 * @param[in] dpp_frame The frame parsed from the DPP Message TLV
 	 * @param[in] dpp_frame_len The length of the frame from the DPP Message TLV
+	 * @param[in] src_mac The source MAC address of the DPP frame
 	 *
 	 * @return bool True if the frame was processed successfully, false otherwise.
 	 */
-	bool  process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len) override;
+	bool  process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len, uint8_t src_mac[ETH_ALEN]) override;
 
     
 	/**
@@ -123,7 +124,7 @@ public:
 	 *
 	 * @return true if the frame was handled successfully, otherwise false.
 	 */
-	virtual bool handle_proxied_config_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) override;
+	bool handle_proxied_config_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) override;
 
     
 	/**
@@ -139,7 +140,7 @@ public:
 	 *
 	 * @return true if the frame was handled successfully, otherwise false.
 	 */
-	virtual bool handle_proxied_conn_status_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) override;
+	bool handle_proxied_conn_status_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) override;
 
 	/**
 	 * @brief Handles a Reconfiguration Announcement frame
@@ -155,7 +156,7 @@ public:
 	 * 
 	 * @note Only implemented by the Controller Configurator
 	 */
-	virtual bool handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) override;
+	bool handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) override;
 
 	/**
 	 * @brief Handles a Reconfiguration Authentication Response frame
@@ -165,7 +166,7 @@ public:
 	 * @param sa The source address (Enrollee)
 	 * @return true on success, otherwise false
 	 */
-	virtual bool handle_recfg_auth_response(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) override;
+	bool handle_recfg_auth_response(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) override;
 
 private:
     // Private member variables can be added here
@@ -198,10 +199,11 @@ private:
 	 *
 	 * This function generates a request for reconfiguration authentication.
 	 * @param enrollee_mac The MAC of the Enrollee being Reconfigured
+	 * @param fc_group_nid The NID of the Finite Cyclic Group used for generating the C-connector NAK
 	 *
 	 * @returns A pair consisting of a pointer to the request data and its size.
 	 */
-	std::pair<uint8_t*, size_t> create_recfg_auth_request(const std::string& enrollee_mac);
+	std::pair<uint8_t*, size_t> create_recfg_auth_request(const std::string& enrollee_mac, const int fc_group_nid);
     
 	/**!
 	 * @brief Creates an authentication confirmation message.
@@ -260,7 +262,6 @@ private:
 	 */
 	std::pair<uint8_t*, size_t> create_config_response_frame(uint8_t dest_mac[ETH_ALEN], const uint8_t dialog_token, ec_status_code_t dpp_status, bool is_sta = false);
 
-    
 	/**
 	 * @brief Finalizes a base DPP Configuration object.
 	 *
@@ -289,6 +290,9 @@ private:
 	 * 
 	 */
 	std::unordered_map<std::string, bool> m_currently_undergoing_recfg = {};
+
+	// The Group Master Key (GMK) used to securing the 1905 layer
+	std::vector<uint8_t> m_gmk;
 };
 
 #endif // EC_CTRL_CONFIGURATOR_H
