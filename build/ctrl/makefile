@@ -23,6 +23,9 @@ include ../makefile.inc
 #
 
 PROGRAM = $(INSTALLDIR)/bin/onewifi_em_ctrl
+EM_CERT_SRC = $(INSTALLDIR)/config/test_cert.crt
+EM_KEY_SRC  = $(INSTALLDIR)/config/test_cert.key
+CERT_TARGETS = $(NVRAM_DIR)/test_cert.crt $(NVRAM_DIR)/test_cert.key
 
 INCLUDEDIRS = \
 	-I$(ONEWIFI_EM_HOME)/inc \
@@ -98,7 +101,7 @@ CTRL_OBJECTS = $(CTRL_SOURCES:.cpp=.o)
 GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o) 
 ALLOBJECTS = $(CTRL_OBJECTS) $(GENERIC_OBJECTS)
 
-all: $(PROGRAM)
+all: $(PROGRAM) $(CERT_TARGETS)
 
 $(PROGRAM): $(ALLOBJECTS)
 	$(CXX) -o $@ $(ALLOBJECTS) $(LDFLAGS)
@@ -108,6 +111,19 @@ $(GENERIC_OBJECTS): %.o: %.c
 
 $(CTRL_OBJECTS): %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -o $@ -c $< 
+
+# Make sure $(NVRAM_DIR) exists
+$(NVRAM_DIR):
+	@if [ ! -d "$@" ]; then \
+        sudo mkdir -p "$@" && sudo chmod 777 "$@"; \
+    fi
+
+#copy the certificate and key to /nvram
+$(NVRAM_DIR)/test_cert.crt: $(EM_CERT_SRC) | $(NVRAM_DIR)
+	$(CP) $< $@
+
+$(NVRAM_DIR)/test_cert.key: $(EM_KEY_SRC) | $(NVRAM_DIR)
+	$(CP) $< $@
 
 # Clean everything
 clean:

@@ -510,7 +510,8 @@ int em_mgr_t::start()
                     continue;
                 }
                 pthread_mutex_unlock(&m_queue.lock);
-                if (((evt->type == em_event_type_bus) && (evt->u.bevt.type == em_bus_event_type_reset)) || 
+                if (((evt->type == em_event_type_bus) && ((evt->u.bevt.type == em_bus_event_type_reset) ||
+                      (evt->u.bevt.type == em_bus_event_type_get_reset))) ||
 						(is_data_model_initialized() == true)) {
 		
                     handle_event(evt);

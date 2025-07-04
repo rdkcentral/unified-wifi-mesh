@@ -32,6 +32,8 @@ extern "C"
 #include "wifi_webconfig.h"
 #include <openssl/evp.h>
 #include <uuid/uuid.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include "ec_base.h"
 
 #define EM_MAX_NETWORKS	5
@@ -165,6 +167,11 @@ extern "C"
 #define EM_AGENT_PATH   "agent"
 #define EM_CTRL_PATH    "ctrl"
 #define EM_CLI_PATH "cli"
+#define EM_AGENT_PORT	0xc000
+#define EM_CTRL_PORT    0xc001
+#define EM_CERT_FILE	"/nvram/test_cert.crt"
+#define EM_KEY_FILE	"/nvram//test_cert.key"
+
 #define EM_CFG_FILE "/nvram/EasymeshCfg.json"
 
 #define EM_MAX_SSID_LEN                33 
@@ -1976,6 +1983,7 @@ typedef enum {
     em_cmd_type_mld_reconfig,
     em_cmd_type_beacon_report,
     em_cmd_type_ap_metrics_report,
+    em_cmd_type_get_reset,
 
     em_cmd_type_max,
 } em_cmd_type_t;
@@ -2274,6 +2282,16 @@ typedef struct {
     unsigned char vendor_elements[WIFI_AP_MAX_VENDOR_IE_LEN];
     size_t vendor_elements_len;
 } em_bss_info_t;
+
+typedef struct {
+    mac_address_t   nbr;
+    float   pos_x;
+    float   pos_y;
+    float   pos_z;
+    mac_address_t   next_hop;
+    unsigned int num_hops;
+    int path_loss; 
+} em_neighbor_info_t;
 
 typedef struct {
     bool  mac_addr_valid;
@@ -2626,6 +2644,7 @@ typedef enum {
     em_bus_event_type_assoc_status,
     em_bus_event_type_ap_metrics_report,
     em_bus_event_type_bss_info,
+    em_bus_event_type_get_reset,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -3105,7 +3124,12 @@ typedef enum {
 } em_cli_type_t;
 
 typedef struct {
-    void *user_data; 
+	struct sockaddr_in  addr;
+	bool	valid;
+} user_data_t;
+
+typedef struct {
+	user_data_t user_data; 
 	em_editor_callback_t	cb_func;
 	em_cli_type_t	cli_type;
 } em_cli_params_t;

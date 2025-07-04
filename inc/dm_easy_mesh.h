@@ -971,6 +971,14 @@ public:
 	 */
 	em_interface_t *get_prioritized_interface(const char *platform);
 
+	/**!
+	 * @brief Retrieves the platform details.
+	 *
+	 * This function retrive the device platform and return the pointer to the name.
+	 *
+	 * @returns A pointer to the name of platform.
+	 */
+	const char* get_platform();
     
 	/**!
 	 * @brief Retrieves the device object.

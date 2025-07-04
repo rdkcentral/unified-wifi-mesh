@@ -309,7 +309,7 @@ public:
 	 */
 	void handle_get_dev_test(em_bus_event_t *evt);
 	void handle_set_dev_test(em_bus_event_t *evt);
-    
+
 	/**!
 	 * @brief Handles the get database event.
 	 *
@@ -586,6 +586,18 @@ public:
 	 */
 	AlServiceAccessPoint* al_sap_register();
 #endif
+
+	/**!
+	 * @brief Registers a new AL Service Access Point.
+	 *
+	 * This function is responsible for creating and registering a new AL Service Access Point.
+	 *
+	 * @returns A pointer to the newly registered AlServiceAccessPoint.
+	 * @retval nullptr If the registration fails.
+	 *
+	 * @note Ensure that the system has enough resources to register a new service access point.
+	 */
+	em_cmd_ctrl_t *get_ctrl_cmd() { return m_ctrl_cmd; }
 
     
 	/**!
