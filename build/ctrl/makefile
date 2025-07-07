@@ -55,6 +55,11 @@ ifeq ($(WITH_SAP), 1)
 CXXFLAGS += -DAL_SAP
 endif
 
+ifeq ($(ENABLE_DEBUG_MODE),ON)
+$(info ENABLE_DEBUG_MODE is set)
+CXXFLAGS += -DDEBUG_MODE
+endif
+
 ifdef TESTING
 CXXFLAGS += -DTESTING
 endif

@@ -877,7 +877,7 @@ cJSON *em_provisioning_t::create_fbss_response_obj(ec_connection_context_t *conn
         return nullptr;
     }
 
-    for (int i = 0; i < dm->get_num_bss(); i++) {
+    for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
         const dm_bss_t *bss = dm->get_bss(i);
         if (!bss) continue;
         if (bss->m_bss_info.id.haul_type == em_haul_type_fronthaul && strncmp(bss->m_bss_info.ssid, network_ssid_info->ssid, strlen(network_ssid_info->ssid)) == 0) {

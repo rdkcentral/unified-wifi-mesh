@@ -1,9 +1,7 @@
 include ../makefile.inc
 
-AL_SAP_LIB = $(AL_SAP_HOME)/libalsap.a
-CPP = g++
-CPPFLAGS = -I../../inc
-AR = ar rcs
+AL_SAP_LIB = $(INSTALLDIR)/lib/libalsap.a
+CXXFLAGS = -I$(ONEWIFI_EM_HOME)/inc
 
 TRANSMITTER_SRC = $(AL_SAP_HOME)/test_libalsap_transmitter.cpp
 RECEIVER_SRC = $(AL_SAP_HOME)/test_libalsap_receiver.cpp
@@ -16,13 +14,13 @@ LIB_FILES = $(filter-out $(EXCLUDE_FILES), $(ALL_CPP_FILES))
 LIB_OBJS = $(LIB_FILES:.cpp=.o)
 
 ifeq ($(WITH_SAP), 1)
-CPPFLAGS += -DAL_SAP
+CXXFLAGS += -DAL_SAP
 LIBS = -lalsap
 endif
 
 ifeq ($(ENABLE_DEBUG_MODE),ON)
 $(info ENABLE_DEBUG_MODE is set)
-CPPFLAGS += -DDEBUG_MODE
+CXXFLAGS += -DDEBUG_MODE
 endif
 
 # Default target
@@ -30,24 +28,21 @@ all: $(AL_SAP_LIB) $(TRANSMITTER) $(RECEIVER)
 
 # Rule to build the static library
 $(AL_SAP_LIB): $(LIB_OBJS)
-	$(AR) $(AL_SAP_LIB) $(LIB_OBJS)
+	$(AR) -rcs $@ $^
 
 # Rule to build object files for library
 %.o: %.cpp
-	$(CPP) $(CPPFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -o $@ -c $<
 
 # Rules to build binaries
-$(TRANSMITTER): $(TRANSMITTER_SRC) $(AL_SAP_LIB)
-	$(CPP) $(CPPFLAGS) $< -o $@ -L$(AL_SAP_HOME) $(LIBS)
+$(TRANSMITTER): $(TRANSMITTER_SRC)
+	$(CXX) $(CXXFLAGS) $< -o $@ -L$(INSTALLDIR)/lib $(LIBS)
 
-$(RECEIVER): $(RECEIVER_SRC) $(AL_SAP_LIB)
-	$(CPP) $(CPPFLAGS) $< -o $@ -L$(AL_SAP_HOME) $(LIBS)
+$(RECEIVER): $(RECEIVER_SRC)
+	$(CXX) $(CXXFLAGS) $< -o $@ -L$(INSTALLDIR)/lib $(LIBS)
 
 # Clean rule
 .PHONY: clean
 clean:
 	rm -f $(AL_SAP_LIB) $(LIB_OBJS) $(TRANSMITTER) $(RECEIVER)
 
-# Optional install
-install: $(AL_SAP_LIB)
-	cp $(AL_SAP_LIB) $(INSTALLDIR)/lib/
