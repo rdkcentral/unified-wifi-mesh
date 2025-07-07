@@ -44,6 +44,7 @@
 #include "cjson/cJSON.h"
 #include "util.h"
 #include "ec_util.h"
+#include "cjson_util.h"
 
 int em_provisioning_t::create_cce_ind_msg(uint8_t *buff, bool enable)
 {
@@ -234,56 +235,154 @@ int em_provisioning_t::send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t 
 
 }
 
+int em_provisioning_t::create_bss_conf_req_tlv(uint8_t *buff)
+{
+    ASSERT_NOT_NULL(buff, -1, "%s:%d: Buffer is null\n", __func__, __LINE__);
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "netRole", "mapAgent");
+    cJSON_AddStringToObject(root, "wi-fi_tech", "map");
+    std::string hostname;
+    {
+        constexpr size_t hostname_size = 256;
+        char hostname_buffer[hostname_size];
+        if (gethostname(hostname_buffer, hostname_size) == 0) {
+            hostname = std::string(hostname_buffer);
+        } else {
+            em_printfout("Failed to get hostname: %s", strerror(errno));
+            hostname = "EasyMeshAgentEnrollee";
+        }
+    }
+    cJSON_AddStringToObject(root, "name", hostname.c_str());
+
+    cJSON *bsta_info = create_enrollee_bsta_list(nullptr);
+    if (!bsta_info) {
+        em_printfout("Failed to create enrollee BSTA list");
+        cJSON_Delete(root);
+        return -1;
+    }
+    cJSON_AddItemToObject(root, "bSTAList", bsta_info);
+    std::string dpp_config_req_obj_str = cjson_utils::stringify(root);
+    cJSON_Delete(root);
+
+    em_bss_conf_req_t *bss_conf_req = reinterpret_cast<em_bss_conf_req_t *>(buff);
+    memcpy(bss_conf_req->dpp_config_req_obj, dpp_config_req_obj_str.c_str(), dpp_config_req_obj_str.size());
+
+    return static_cast<int>(dpp_config_req_obj_str.size());
+}
+
+int em_provisioning_t::create_bsta_radio_cap_tlv(uint8_t *buff)
+{
+    ASSERT_NOT_NULL(buff, -1, "%s:%d: Buffer is null\n", __func__, __LINE__);
+    dm_easy_mesh_t *dm = get_data_model();
+    ASSERT_NOT_NULL(dm, -1, "%s:%d: Data model is null\n", __func__, __LINE__);
+
+    int len = sizeof(em_bh_sta_radio_cap_t);
+    em_bh_sta_radio_cap_t *bsta_radio_cap = reinterpret_cast<em_bh_sta_radio_cap_t*>(buff);
+
+    for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
+        auto* bss_info = dm->get_bss_info(i);
+        if (!bss_info) continue;
+        if (bss_info->id.haul_type != em_haul_type_backhaul) continue;
+        memcpy(bsta_radio_cap->bsta_addr, bss_info->bssid.mac, sizeof(mac_address_t));
+        memcpy(bsta_radio_cap->ruid, bss_info->id.ruid, sizeof(mac_address_t));
+        bsta_radio_cap->bsta_mac_present = 1;
+        break;
+    }
+
+    return len;
+}
+
+int em_provisioning_t::create_akm_suite_cap_tlv(uint8_t *buff)
+{
+    ASSERT_NOT_NULL(buff, -1, "%s:%d: Buffer is null\n", __func__, __LINE__);
+    dm_easy_mesh_t *dm = get_data_model();
+    ASSERT_NOT_NULL(dm, -1, "%s:%d: Data model is null\n", __func__, __LINE__);
+
+    // TODO: AKM suites are not populated in the data model.
+
+    // Complete this TLV (EasyMesh 12.2.78) when this data is dynamically available.
+
+    return 0;
+}
+
 int em_provisioning_t::create_bss_config_req_msg(uint8_t *buff)
 {
-    uint16_t  msg_id = em_msg_type_bss_config_req;
+    em_msg_type_t msg_id = em_msg_type_bss_config_req;
     unsigned int len = 0;
-    em_cmdu_t *cmdu;
-    em_tlv_t *tlv;
+    uint8_t tlv_buff[4096] = {0};
     uint8_t *tmp = buff;
-    uint16_t type = htons(ETH_P_1905);
+    em_service_type_t service_type = get_service_type();
+    em_profile_type_t profile_type = get_profile_type();
+    int tlv_size = 0;
 
-    memcpy(tmp, reinterpret_cast<uint8_t *> (get_peer_mac()), sizeof(mac_address_t));
-    tmp += sizeof(mac_address_t);
-    len += static_cast<unsigned int> (sizeof(mac_address_t));
+    tmp = em_msg_t::add_1905_header(tmp, &len, const_cast<uint8_t *> (get_peer_mac()), get_al_interface_mac(), msg_id);
 
-    memcpy(tmp, get_current_cmd()->get_al_interface_mac(), sizeof(mac_address_t));
-    tmp += sizeof(mac_address_t);
-    len += static_cast<unsigned int> (sizeof(mac_address_t));
+    // 5.3.8 Fronthaul BSS and Backhaul BSS configuration
+    // If an Enrollee Multi-AP Agent has established a PMK and PTK with the Controller at 1905-layer using the procedures
+    // described in section 5.3.7, it shall request configuration for its fronthaul BSSs and backhaul BSSs by sending a BSS
+    // Configuration Request message to the Controller. The BSS Configuration Request message shall include at least
 
-    memcpy(tmp, reinterpret_cast<uint8_t *> (&type), sizeof(uint16_t));
-    tmp += sizeof(uint16_t);
-    len += static_cast<unsigned int> (sizeof(uint16_t));
+    //  One Multi-AP Profile TLV.
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_profile, reinterpret_cast<uint8_t *> (&profile_type), sizeof(em_profile_type_t));
 
-    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
+    //  One SupportedService TLV.
+    // 1 service type followed by the service type value
+    uint8_t service_type_buff[2] = {1, service_type};
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_supported_service, service_type_buff, sizeof(service_type_buff));
 
-    memset(tmp, 0, sizeof(em_cmdu_t));
-    cmdu->type = htons(msg_id);
-    cmdu->id = htons(msg_id);
-    cmdu->last_frag_ind = 1;
+    // One Backhaul STA Radio Capabilities TLV.
+    tlv_size = create_bsta_radio_cap_tlv(tlv_buff);
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_bh_sta_radio_cap, tlv_buff, static_cast<unsigned int> (tlv_size));
 
-    tmp += sizeof(em_cmdu_t);
-    len += static_cast<unsigned int> (sizeof(em_cmdu_t));
+    // One AP capability TLV
+    tlv_size = create_ap_cap_tlv(tlv_buff);
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_ap_cap, tlv_buff, static_cast<unsigned int> (tlv_size));
 
-    // One miltiap profile tlv 17.2.47
-    // One supported service tlv 17.2.1
-    // One akm suite cap tlv 17.2.78
-    // One or more ap radio basic capability tlv 17.2.7
-    // zero or more backhaul STA radio capabilities tlv 17.2.65
-    // One profile 2 ap capability tlv 17.2.48
-    // One or more AO radio advanced capabilities tlv 17.2.52
-    // One BSS configuration request tlv 17.2.84
+    // One AP Radio Basic Capabilities TLV for each of the supported radios of the Multi-AP Agent.
+    tlv_size = create_ap_radio_basic_cap(tlv_buff);
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_ap_radio_basic_cap, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    //  One AKM Suite Capabilities TLV
+    tlv_size = create_akm_suite_cap_tlv(tlv_buff);
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_akm_suite, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    //  One Profile-2 AP Capability TLV.
+    tlv_size = create_prof_2_tlv(tlv_buff);
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_profile_2_ap_cap, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    //  One BSS Configuration Request TLV with DPP attribute(s) for all supported radios of the Multi-AP Agent.
+    tlv_size = create_bss_conf_req_tlv(tlv_buff);
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_bss_conf_req, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    //  One AP HT Capabilities TLV for each radio that is capable of HT (Wi-Fi 4) operation.
+    tlv_size = create_ht_tlv(tlv_buff);
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_ht_cap, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    //  One AP VHT Capabilities TLV for each radio that is capable of VHT (Wi-Fi 5) operation.
+    tlv_size = create_vht_tlv(tlv_buff);
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_vht_cap, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    // NOTE: this CMDU is extended in R6 with additional TLVs for Wi-Fi 6/6E and Wi-Fi 7 capabilities.
+    //  One AP Wi-Fi 6 Capabilities TLV for each radio that is capable of HE (Wi-Fi 6) operation
+    tlv_size = create_wifi6_tlv(tlv_buff);
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_ap_wifi6_cap, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    //  One AP Radio Advanced Capabilities TLV for each of the supported radios of the Multi-AP Agent
+    tlv_size = create_ap_radio_advanced_cap_tlv(tlv_buff);
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_ap_radio_advanced_cap, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    //  If the Agent supports EHT (Wi-Fi 7) operation, one Wi-Fi 7 Agent Capabilities TLV.
+    tlv_size = create_wifi7_tlv(tlv_buff);
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_wifi7_agent_cap, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    //  Zero or one EHT Operations TLV (see section 17.2.103)
+    tlv_size = create_eht_operations_tlv(tlv_buff);
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_eht_operations, tlv_buff, static_cast<unsigned int> (tlv_size));
 
     // End of message
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_eom;
-    tlv->len = 0;
-
-    tmp += (sizeof (em_tlv_t));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t));
+    tmp = em_msg_t::add_eom_tlv(tmp, &len);
 
     return static_cast<int> (len);
-
 }
 
 int em_provisioning_t::create_bss_config_rsp_msg(uint8_t *buff)
