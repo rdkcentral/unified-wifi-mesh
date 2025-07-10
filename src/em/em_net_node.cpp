@@ -479,8 +479,9 @@ int em_net_node_t::get_network_tree_node(cJSON *obj, em_network_node_t *root, un
     tmp_obj = child_obj;
 
     while (tmp_obj != NULL) {
-        sz = sizeof(em_network_node_t) *  2;
 
+        //TBD with details as this needs to be revisited
+        sz = sizeof(em_network_node_t) *  2;
         root->child[root->num_children] = (em_network_node_t *)malloc(sz);
         memset(root->child[root->num_children], 0, sz);
 
