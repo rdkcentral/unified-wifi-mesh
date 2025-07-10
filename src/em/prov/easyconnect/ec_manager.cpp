@@ -118,7 +118,7 @@ bool ec_manager_t::handle_recv_gas_pub_action_frame(ec_gas_frame_base_t *frame, 
     return did_succeed;
 }
 
-bool ec_manager_t::upgrade_to_onboarded_proxy_agent(bool is_colocated)
+bool ec_manager_t::upgrade_to_onboarded_proxy_agent()
 {
     if (m_is_controller) {
         // Only an enrollee agent can be upgraded to a proxy agent
@@ -139,10 +139,15 @@ bool ec_manager_t::upgrade_to_onboarded_proxy_agent(bool is_colocated)
     }
     auto sec_ctx = m_enrollee->get_sec_ctx();
     if (sec_ctx.C_signing_key == NULL || sec_ctx.pp_key == NULL || sec_ctx.net_access_key == NULL || sec_ctx.connector == NULL) {
-        em_printfout("!!!!Enrolle doesn't have a valid security context, proxy agent won't be 1905 layer secured!!!!");
+        em_printfout("!!!!Enrollee doesn't have a valid security context, proxy agent won't be 1905 layer secured!!!!");
     }
     // Free the enrollee object
     m_enrollee.reset();
+
+    // If co-located, the agent will be reading the same key files which, for the controller, will contain the public **and** the private keys.
+    // If not co-located, the agent will only have the public keys.
+    bool is_colocated = em_crypto_t::get_priv_key_bn(sec_ctx.C_signing_key) != nullptr &&
+                        em_crypto_t::get_priv_key_bn(sec_ctx.pp_key) != nullptr;
     
     // Create a new proxy agent configurator
     m_configurator = std::unique_ptr<ec_pa_configurator_t>(new ec_pa_configurator_t(m_stored_al_mac_addr, m_ops, sec_ctx, is_colocated));
