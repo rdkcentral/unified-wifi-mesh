@@ -13,6 +13,7 @@ import "C"
 import (
 	"log"
 	"time"
+	"unsafe"
 
 	//"fyne.io/fyne/layout"
 	"fyne.io/fyne/v2"
@@ -227,8 +228,11 @@ func (m *MeshViewsMgr) timerHandler() {
                 view := m.getViewBySelectedTab()
                 if view != nil {
                     fyne.Do(func() {
-                        view.tabInterface.setData(C.exec(C.CString(view.get), C.strlen(C.CString(view.get)), nil))
-                        //dumpNetNode(view.tabInterface.getData())
+                        cmd := C.CString(view.get)
+                        defer C.free(unsafe.Pointer(cmd))
+
+                        result := C.exec(cmd, C.strlen(cmd), nil)
+                        view.tabInterface.setData(result)
                         view.tabInterface.periodicTimer()
                     })
                 } else {
