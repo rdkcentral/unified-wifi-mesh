@@ -12,7 +12,10 @@ ec_ctrl_configurator_t::ec_ctrl_configurator_t(const std::string& al_mac_addr, e
                                                ec_configurator_t(al_mac_addr, ops, sec_ctx, false)
 {
 
-    m_gmk = std::vector<uint8_t>(); // TODO:!!!!!!!!!!!!
+    // Generate completely random GMK on startup.
+    // The GTKs need to be re-established after re-connecting so it is not needed (and better to) not save it.
+    m_gmk = std::vector<uint8_t>(32, 0);
+    RAND_bytes(m_gmk.data(), static_cast<int>(m_gmk.size()));
 
     // Pass super-class initialized security context + GMK
     if (!m_1905_encrypt_layer.set_sec_params(m_sec_ctx.C_signing_key, m_sec_ctx.net_access_key, m_sec_ctx.connector, EVP_sha256(), m_gmk)) {
@@ -53,12 +56,12 @@ bool ec_ctrl_configurator_t::onboard_enrollee(ec_data_t *bootstrapping_data)
     }
     // Create a new connection context
     ec_connection_context_t conn_ctx;
+    memset(&conn_ctx, 0, sizeof(ec_connection_context_t));
     m_connections[mac_str] = conn_ctx;
     auto& c_ctx = m_connections[mac_str];
     
 
     // Initialize bootstrapping data
-    memset(&c_ctx.boot_data, 0, sizeof(ec_data_t));
     memcpy(&c_ctx.boot_data, bootstrapping_data, sizeof(ec_data_t));
 
     // Not all of these will be present but it is better to compute them now.
@@ -408,8 +411,11 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
         // EC 6.3.1:
         // The protocol key of the Enrollee is used as Network Access key (netAccessKey) later in the DPP Configuration and DPP Introduction protocol
         // For initial auth/config, Configurator holds the Initator role and the Enrollee is the Respondor
+
+        EC_POINT* enrollee_public_nak = ec_crypto::decode_ec_point(*conn_ctx, proto_key_attr->data);
+        EM_ASSERT_NOT_NULL_FREE(enrollee_public_nak, false, unwrapped_attrs, "Failed to decode Enrollee protocol public key (NAK)!");
         
-        SSL_KEY* nak = em_crypto_t::bundle_ec_key(conn_ctx->group, e_ctx->public_resp_proto_key, e_ctx->priv_resp_proto_key);
+        SSL_KEY* nak = em_crypto_t::bundle_ec_key(conn_ctx->group, enrollee_public_nak);
         EM_ASSERT_NOT_NULL_FREE(nak, false, unwrapped_attrs, "Failed to bundle Enrollee protocol keypair into netAccessKey!");
         
         if (conn_ctx->enrollee_net_access_key) em_crypto_t::free_key(conn_ctx->enrollee_net_access_key);
@@ -724,7 +730,7 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
         e_ctx->l = L_x;
     }
 
-    e_ctx->k1 = static_cast<uint8_t *>(calloc(conn_ctx->digest_len, 1));
+    e_ctx->ke = static_cast<uint8_t *>(calloc(conn_ctx->digest_len, 1));
     if (ec_crypto::compute_ke(*conn_ctx, e_ctx, e_ctx->ke) == 0) {
         em_printfout("Failed to compute ke");
         free(prim_unwrapped_data);
@@ -1469,19 +1475,17 @@ cJSON *ec_ctrl_configurator_t::finalize_config_obj(cJSON *base, ec_connection_co
     cJSON *cSignObj = ec_crypto::create_csign_object(m_sec_ctx.C_signing_key);
     cJSON_AddItemToObject(cred, "csign", cSignObj);
 
-    EC_GROUP* key_group = em_crypto_t::get_key_group(m_sec_ctx.pp_key);
-    ASSERT_NOT_NULL(key_group, nullptr, "%s:%d: Failed to get key group for public key\n", __func__, __LINE__);
-    EC_POINT *ppk = em_crypto_t::get_pub_key_point(m_sec_ctx.pp_key, key_group);
-    if (ppk == nullptr) {
-        em_printfout("Failed to get public key point from public key");
-        EC_GROUP_free(key_group);
-        return nullptr;
-    }
+    scoped_ec_group key_group(em_crypto_t::get_key_group(m_sec_ctx.pp_key));
+    ASSERT_NOT_NULL(key_group.get(), nullptr, "%s:%d: Failed to get key group for public key\n", __func__, __LINE__);
+    scoped_ec_point ppk(em_crypto_t::get_pub_key_point(m_sec_ctx.pp_key, key_group.get()));
+
+    EM_ASSERT_NOT_NULL(ppk.get(), nullptr, "Failed to get public key point from public key");
+
     // Add ppKey
     cJSON *ppKeyObj = cJSON_CreateObject();
-    if (!ec_crypto::add_common_jwk_fields(ppKeyObj, key_group, ppk)) {
-        cJSON_Delete(ppKeyObj);
+    if (!ec_crypto::add_common_jwk_fields(ppKeyObj, key_group.get(), ppk.get())) {
         em_printfout("Failed to add common JWK fields to ppKey object");
+        cJSON_Delete(ppKeyObj);
         return nullptr;
     }
     cJSON_AddItemToObject(cred, "ppKey", ppKeyObj);

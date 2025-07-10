@@ -142,6 +142,7 @@ bool ec_manager_t::upgrade_to_onboarded_proxy_agent()
         em_printfout("!!!!Enrollee doesn't have a valid security context, proxy agent won't be 1905 layer secured!!!!");
     }
     // Free the enrollee object
+    m_enrollee->signal_enrollee_is_upgrading();
     m_enrollee.reset();
 
     // If co-located, the agent will be reading the same key files which, for the controller, will contain the public **and** the private keys.

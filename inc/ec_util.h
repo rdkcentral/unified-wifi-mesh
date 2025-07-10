@@ -72,6 +72,15 @@ static const std::map<ec_status_code_t, std::string> status_code_map = {
     {DPP_STATUS_NEW_KEY_NEEDED, "New Key Needed: The Enrollee needs to generate a new Protocol key."}
 };
 
+static const std::vector<std::string> valid_net_roles = {
+        "mapBackhaulSta",
+        "mapBackhaulBss",
+        "mapAgent",
+        "ap",
+        "mapController",
+        "configurator"
+    };
+
 };
 
 class ec_util {

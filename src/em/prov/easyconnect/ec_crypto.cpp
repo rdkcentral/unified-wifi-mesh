@@ -931,8 +931,9 @@ bool ec_crypto::validate_jws_payload(const cJSON *jws_payload, bool check_expire
             em_printfout("JWS payload 'groups' fields are not strings");
             return false;
         }
-        std::string net_role_str = net_role->valuestring;
-        if (net_role_str != "sta" && net_role_str != "ap" && net_role_str != "configurator") {
+        std::string net_role_str(net_role->valuestring);
+        if (std::find(easyconnect::valid_net_roles.begin(), 
+                      easyconnect::valid_net_roles.end(), net_role_str) == easyconnect::valid_net_roles.end()) {
             em_printfout("JWS payload 'groups' has an invalid netRole: %s", net_role_str.c_str());
             return false;
         }
@@ -956,58 +957,62 @@ std::vector<uint8_t> ec_crypto::concat_nonces(const std::vector<std::vector<uint
     return result;
 }
 
-EC_POINT *ec_crypto::decode_jwk_ec_point(cJSON *net_access_key, BN_CTX* bn_ctx)
+EC_POINT *ec_crypto::decode_jwk_ec_point(cJSON *json_web_key, BN_CTX* bn_ctx)
 {
-    auto [group, point] = ec_crypto::decode_jwk(net_access_key, bn_ctx);
+    auto [group, point] = ec_crypto::decode_jwk(json_web_key, bn_ctx);
     if (group == nullptr || point == nullptr) {
         return nullptr;
     }
     return point;
 }
 
-std::pair<EC_GROUP*, EC_POINT*> ec_crypto::decode_jwk(cJSON *net_access_key, BN_CTX* bn_ctx)
+std::pair<EC_GROUP*, EC_POINT*> ec_crypto::decode_jwk(cJSON *json_web_key, BN_CTX* bn_ctx)
 {
-    if (net_access_key == nullptr) {
+    if (json_web_key == nullptr) {
         return {};
     }
-    cJSON *x = cJSON_GetObjectItem(net_access_key, "x");
-    cJSON *y = cJSON_GetObjectItem(net_access_key, "y");
+    cJSON *x = cJSON_GetObjectItem(json_web_key, "x");
+    cJSON *y = cJSON_GetObjectItem(json_web_key, "y");
     if (!x || !y || !cJSON_IsString(x) || !cJSON_IsString(y)) {
-        em_printfout("Invalid netAccessKey format in C-Connector");
+        em_printfout("Invalid JWK format");
         return {};
     }
 
-    cJSON* crv = cJSON_GetObjectItem(net_access_key, "crv");
+    cJSON* crv = cJSON_GetObjectItem(json_web_key, "crv");
     if (crv == NULL || !cJSON_IsString(crv)) {
-        em_printfout("Invalid netAccessKey format in C-Connector, missing or invalid 'crv'");
+        em_printfout("Invalid JWK format, missing or invalid 'crv'");
         return {};
     }
 
     int nid = EC_curve_nist2nid(crv->valuestring);
-    EM_ASSERT_MSG_TRUE(nid != NID_undef, {}, "Invalid curve name in netAccessKey: %s", crv->valuestring);
+    EM_ASSERT_MSG_TRUE(nid != NID_undef, {}, "Invalid curve name in JWK: %s", crv->valuestring);
 
     scoped_ec_group curv_group(EC_GROUP_new_by_curve_name(nid));
     EM_ASSERT_NOT_NULL(curv_group.get(), {}, "Failed to create EC_GROUP from curve name: %s", crv->valuestring);
 
     std::optional<std::vector<uint8_t>> x_bytes = em_crypto_t::base64url_decode(x->valuestring);
     std::optional<std::vector<uint8_t>> y_bytes = em_crypto_t::base64url_decode(y->valuestring);
-    if (!x_bytes.has_value() || !y_bytes.has_value()) {
-        em_printfout("Failed to get x, y points from netAccessKey in C-Connector");
+    EM_ASSERT_OPT_HAS_VALUE(x_bytes, {}, "Failed to decode x from JWK");
+    EM_ASSERT_OPT_HAS_VALUE(y_bytes, {}, "Failed to decode y from JWK");
+
+    scoped_bn bn_x(vec_to_BN(x_bytes.value()));
+    scoped_bn bn_y(vec_to_BN(y_bytes.value()));
+    EM_ASSERT_NOT_NULL(bn_x.get(), {}, "Failed to convert x to BIGNUM");
+    EM_ASSERT_NOT_NULL(bn_y.get(), {}, "Failed to convert y to BIGNUM");
+
+    scoped_ec_point point(EC_POINT_new(curv_group.get()));
+
+    if (EC_POINT_set_affine_coordinates(curv_group.get(), point.get(), bn_x.get(), bn_y.get(), bn_ctx) == 0) {
+        em_printfout("Failed to set affine coordinates for JWK point");
         return {};
     }
-    std::vector<uint8_t> key_buff(x_bytes->size() + y_bytes->size());
-    key_buff.insert(key_buff.end(), x_bytes->begin(), x_bytes->end());
-    key_buff.insert(key_buff.end(), y_bytes->begin(), y_bytes->end());
-
-    EC_POINT* point = ec_crypto::decode_ec_point(curv_group.get(), key_buff.data(), bn_ctx);
-    EM_ASSERT_NOT_NULL(point, {}, "Failed to decode EC_POINT from netAccessKey");
-    return { curv_group.release(), point };
+    return { curv_group.release(), point.release()};
 }
 
 
-EC_POINT *ec_crypto::decode_jwk_ec_point(ec_connection_context_t& ctx, cJSON *net_access_key)
+EC_POINT *ec_crypto::decode_jwk_ec_point(ec_connection_context_t& ctx, cJSON *json_web_key)
 {
-    return ec_crypto::decode_jwk_ec_point(net_access_key, ctx.bn_ctx);
+    return ec_crypto::decode_jwk_ec_point(json_web_key, ctx.bn_ctx);
 }
 
 std::optional<std::string> ec_crypto::generate_connector(const cJSON * jws_header, const cJSON * jws_payload,  SSL_KEY* sign_key)
@@ -1101,11 +1106,13 @@ cJSON* ec_crypto::create_jws_payload(const std::vector<std::unordered_map<std::s
         em_printfout("Failed to add common JWK fields to netAccessKey object");
         return nullptr;
     }
+    cJSON_AddItemToObject(jwsPayloadObj, "netAccessKey", netAccessKeyObj);
+
     if (expiry.has_value()) {
         cJSON_AddStringToObject(jwsPayloadObj, "expiry", expiry.value().c_str());
     }
     if (version.has_value()) {
-        cJSON_AddStringToObject(jwsPayloadObj, "version", std::to_string(static_cast<unsigned int>(version.value())).c_str());
+        cJSON_AddNumberToObject(jwsPayloadObj, "version", version.value());
     }
     return jwsPayloadObj;
 }
@@ -1146,10 +1153,10 @@ bool ec_crypto::add_common_jwk_fields(cJSON *json_obj, const SSL_KEY *key)
     EM_ASSERT_NOT_NULL(key, false, "key is NULL");
 
     scoped_ec_group key_group(em_crypto_t::get_key_group(key));
-    ASSERT_NOT_NULL(key_group.get(), false, "Could not get group for provided key");
+    EM_ASSERT_NOT_NULL(key_group.get(), false, "Could not get group for provided key");
 
     scoped_ec_point key_point(em_crypto_t::get_pub_key_point(key, key_group.get()));
-    ASSERT_NOT_NULL(key_point.get(), false, "Could not get public key point for provided key");
+    EM_ASSERT_NOT_NULL(key_point.get(), false, "Could not get public key point for provided key");
 
     return add_common_jwk_fields(json_obj, key_group.get(), key_point.get());
 }

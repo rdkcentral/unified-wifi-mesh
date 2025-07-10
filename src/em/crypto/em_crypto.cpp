@@ -441,7 +441,22 @@ uint8_t em_crypto_t::platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint
         return 0;
     }
 #endif
+    
+    // For wrap ciphers, set the appropriate flags BEFORE init
+    if (EVP_CIPHER_mode(cipher_type) == EVP_CIPH_WRAP_MODE) {
+        EVP_CIPHER_CTX_set_flags(ctx, EVP_CIPHER_CTX_FLAG_WRAP_ALLOW);
+    }
+    
     if (EVP_EncryptInit_ex(ctx, cipher_type, NULL, key, iv) != 1) {
+        unsigned long err = ERR_get_error();
+        char err_buf[256];
+        ERR_error_string_n(err, err_buf, sizeof(err_buf));
+        printf("%s:%d EVP_EncryptInit_ex failed: %s\n", __func__, __LINE__, err_buf);
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+        EVP_CIPHER_CTX_cleanup(ctx);
+#else
+        EVP_CIPHER_CTX_free(ctx);
+#endif
         return 0;
     }
 
@@ -451,15 +466,32 @@ uint8_t em_crypto_t::platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint
 
     
     if (EVP_EncryptUpdate(ctx, cipher_text, &len, plain, static_cast<int> (plain_len)) != 1) {
+        unsigned long err = ERR_get_error();
+        char err_buf[256];
+        ERR_error_string_n(err, err_buf, sizeof(err_buf));
+        printf("%s:%d EVP_EncryptUpdate failed: %s\n", __func__, __LINE__, err_buf);
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+        EVP_CIPHER_CTX_cleanup(ctx);
+#else
+        EVP_CIPHER_CTX_free(ctx);
+#endif
         return 0;
     }
-
 
     if (EVP_EncryptFinal_ex(ctx, cipher_text + len, &final_len) != 1) {
+        unsigned long err = ERR_get_error();
+        char err_buf[256];
+        ERR_error_string_n(err, err_buf, sizeof(err_buf));
+        printf("%s:%d EVP_EncryptFinal_ex failed: %s\n", __func__, __LINE__, err_buf);
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+        EVP_CIPHER_CTX_cleanup(ctx);
+#else
+        EVP_CIPHER_CTX_free(ctx);
+#endif
         return 0;
     }
 
-    *cipher_len = static_cast<uint32_t> (len);
+    *cipher_len = static_cast<uint32_t> (len + final_len);
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX_cleanup(ctx);
@@ -487,7 +519,22 @@ uint8_t em_crypto_t::platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint
         return 0;
     }
 #endif
+    
+    // For wrap ciphers, set the appropriate flags BEFORE init
+    if (EVP_CIPHER_mode(cipher_type) == EVP_CIPH_WRAP_MODE) {
+        EVP_CIPHER_CTX_set_flags(ctx, EVP_CIPHER_CTX_FLAG_WRAP_ALLOW);
+    }
+    
     if (EVP_DecryptInit_ex(ctx, cipher_type, NULL, key, iv) != 1) {
+        unsigned long err = ERR_get_error();
+        char err_buf[256];
+        ERR_error_string_n(err, err_buf, sizeof(err_buf));
+        printf("%s:%d EVP_DecryptInit_ex failed: %s\n", __func__, __LINE__, err_buf);
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+        EVP_CIPHER_CTX_cleanup(ctx);
+#else
+        EVP_CIPHER_CTX_free(ctx);
+#endif
         return 0;
     }
 
@@ -497,12 +544,40 @@ uint8_t em_crypto_t::platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint
     
 
     plen = static_cast<int> (data_len);
-    if (EVP_DecryptUpdate(ctx, data, &plen, data, static_cast<int> (data_len)) != 1 || plen != static_cast<int> (data_len)) {
+    if (EVP_DecryptUpdate(ctx, data, &plen, data, static_cast<int> (data_len)) != 1) {
+        unsigned long err = ERR_get_error();
+        char err_buf[256];
+        ERR_error_string_n(err, err_buf, sizeof(err_buf));
+        printf("%s:%d EVP_DecryptUpdate failed: %s\n", __func__, __LINE__, err_buf);
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+        EVP_CIPHER_CTX_cleanup(ctx);
+#else
+        EVP_CIPHER_CTX_free(ctx);
+#endif
         return 0;
     }
 
     len = sizeof(buf);
-    if (EVP_DecryptFinal_ex(ctx, buf, &len) != 1 || len != 0) {
+    if (EVP_DecryptFinal_ex(ctx, buf, &len) != 1) {
+        unsigned long err = ERR_get_error();
+        char err_buf[256];
+        ERR_error_string_n(err, err_buf, sizeof(err_buf));
+        printf("%s:%d EVP_DecryptFinal_ex failed: %s\n", __func__, __LINE__, err_buf);
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+        EVP_CIPHER_CTX_cleanup(ctx);
+#else
+        EVP_CIPHER_CTX_free(ctx);
+#endif
+        return 0;
+    }
+    
+    // For non-wrap ciphers, len should be 0 after final
+    if (EVP_CIPHER_mode(cipher_type) != EVP_CIPH_WRAP_MODE && len != 0) {
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+        EVP_CIPHER_CTX_cleanup(ctx);
+#else
+        EVP_CIPHER_CTX_free(ctx);
+#endif
         return 0;
     }
 
@@ -538,8 +613,8 @@ uint8_t em_crypto_t::aes_key_wrap(uint8_t *kek, size_t kek_len,
         return 0;
     }
     
-    // Use platform_cipher_encrypt with padding ENABLED (false = don't disable padding)
-    return platform_cipher_encrypt(cipher, kek, iv, plain, plain_len, wrapped, wrapped_len, false);
+    // Use platform_cipher_encrypt with padding DISABLED for wrap mode (true = disable padding)
+    return platform_cipher_encrypt(cipher, kek, iv, plain, plain_len, wrapped, wrapped_len, true);
 }
 
 uint8_t em_crypto_t::aes_key_unwrap(uint8_t *kek, size_t kek_len,
@@ -567,8 +642,8 @@ uint8_t em_crypto_t::aes_key_unwrap(uint8_t *kek, size_t kek_len,
     // Copy to output buffer first since platform_cipher_decrypt works in-place
     memcpy(unwrapped, wrapped, wrapped_len);
     
-    // Use platform_cipher_decrypt with padding ENABLED (false = don't disable padding)
-    if (platform_cipher_decrypt(cipher, kek, iv, unwrapped, wrapped_len, false) != 1) {
+    // Use platform_cipher_decrypt with padding DISABLED for wrap mode (true = disable padding)
+    if (platform_cipher_decrypt(cipher, kek, iv, unwrapped, wrapped_len, true) != 1) {
         return 0;
     }
     
@@ -1314,12 +1389,12 @@ SSL_KEY *em_crypto_t::read_keypair_from_pem(const std::string &file_path) {
     SSL_KEY *pkey = NULL;
     
     fp = fopen(file_path.c_str(), "rb");
-    ASSERT_NOT_NULL(fp, NULL, "%s:%d Failed to open file (%s)", __func__, __LINE__, file_path.c_str());
+    EM_ASSERT_NOT_NULL(fp, NULL, "Failed to open file (%s)", file_path.c_str());
     
     // Read private key - this will contain both private and public key information
     pkey = PEM_read_PrivateKey(fp, NULL, NULL, NULL);
     if (!pkey) {
-        printf("%s:%d Failed to read private key from PEM file\n", __func__, __LINE__);
+        em_printfout("Failed to read private key from PEM file");
         goto err;
     }
     
@@ -1728,10 +1803,18 @@ SSL_KEY *em_crypto_t::bundle_ec_key(const EC_GROUP* group, const EC_POINT *publi
     EM_ASSERT_NOT_NULL(group, NULL, "Group is NULL");
 
     auto [x, y] = ec_crypto::get_ec_x_y(group, public_key);
-    if (private_key == NULL){
-        return em_crypto_t::create_ec_key_from_coordinates(group, ec_crypto::BN_to_vec(x), ec_crypto::BN_to_vec(y));
+    if (!x || !y) {
+        return NULL;
     }
-    return em_crypto_t::create_ec_key_from_coordinates(group, ec_crypto::BN_to_vec(x), ec_crypto::BN_to_vec(y), ec_crypto::BN_to_vec(private_key));
+    
+    // Use scoped_bn to ensure proper cleanup
+    scoped_bn x_scoped(x);
+    scoped_bn y_scoped(y);
+    
+    if (private_key == NULL){
+        return em_crypto_t::create_ec_key_from_coordinates(group, ec_crypto::BN_to_vec(x_scoped.get()), ec_crypto::BN_to_vec(y_scoped.get()));
+    }
+    return em_crypto_t::create_ec_key_from_coordinates(group, ec_crypto::BN_to_vec(x_scoped.get()), ec_crypto::BN_to_vec(y_scoped.get()), ec_crypto::BN_to_vec(private_key));
 }
 
 std::string em_crypto_t::hash_to_hex_string(const uint8_t *hash, size_t hash_len) {
