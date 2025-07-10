@@ -22,18 +22,22 @@ import (
 
 var (
     wifiResetItem *fyne.MenuItem
+    networkName *fyne.MenuItem
 )
 
 func InitMenuItems() {
     wifiResetItem = fyne.NewMenuItem("Reset", nil)
+    networkName = fyne.NewMenuItem("Network Name", nil)
 
     // Initially disabled
     wifiResetItem.Disabled = true
+    networkName.Disabled = true
 }
 
 func enableMenuItems(m *MeshViewsMgr) {
     // enable the menu options
     wifiResetItem.Disabled = false
+    networkName.Disabled = false
 
     // Trigger menu redraw
     fyne.Do(func() {
@@ -53,6 +57,11 @@ func BuildMainMenu(meshViewsMgr *MeshViewsMgr) *fyne.MainMenu {
         settingsAction()
     })
 
+    networkName.Action = func() {
+        ShowNetworkNameDialog(meshViewsMgr)
+    }
+
+
     helpItem := fyne.NewMenuItem("Help", func() {
         u, err := url.Parse("https://wiki.rdkcentral.com/display/RDK/unified-wifi-mesh+on+RDK-B")
         if err == nil {
@@ -63,6 +72,7 @@ func BuildMainMenu(meshViewsMgr *MeshViewsMgr) *fyne.MainMenu {
     return fyne.NewMainMenu(
         fyne.NewMenu("Settings",
             connectItem,
+            networkName,
             wifiResetItem,
         ),
         fyne.NewMenu("Help", helpItem),

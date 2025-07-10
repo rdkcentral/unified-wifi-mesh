@@ -82,6 +82,10 @@ func (b *BaseTab) children(id widget.TreeNodeID) []widget.TreeNodeID {
 
     if nodeType == C.em_network_node_data_type_obj {
         for i := 0; i < int(tree.num_children); i++ {
+            if i >= len(tree.child) {
+                //log.Printf("Child index out of bounds for id %s", id)
+                break
+            }
             branch = tree.child[i]
             nodeType = C.get_node_type(branch)
             if nodeType == C.em_network_node_data_type_string {
