@@ -11,6 +11,8 @@ ec_pa_configurator_t::ec_pa_configurator_t(const std::string& al_mac_addr, ec_op
     m_send_dir_encap_dpp_msg = ops.send_dir_encap_dpp;
     m_send_action_frame = ops.send_act_frame;
 
+    m_sec_ctx = sec_ctx;
+
     // Pass super-class initialized security context
     if (!m_1905_encrypt_layer.set_sec_params(m_sec_ctx.C_signing_key, m_sec_ctx.net_access_key, m_sec_ctx.connector, EVP_sha256() /*TODO HASH*/)){
         em_printfout("Failed to set security parameters for 1905 Encrypt Layer");
@@ -155,11 +157,6 @@ bool ec_pa_configurator_t::handle_connection_status_result(ec_frame_t *frame, si
     em_printfout("Sent Encap DPP TLV");
     free(encap_dpp_tlv);
     return sent;
-}
-
-bool ec_pa_configurator_t::start_secure_1905_layer(uint8_t dest_al_mac[ETH_ALEN])
-{
-    return m_1905_encrypt_layer.start_secure_1905_layer(dest_al_mac);
 }
 
 bool ec_pa_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *chirp_tlv, uint16_t tlv_len)

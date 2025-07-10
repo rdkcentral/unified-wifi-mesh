@@ -347,6 +347,30 @@ public:
         BN_bn2bin(bn, buffer.data()); // Convert BIGNUM to big-endian byte array
         return buffer;
     }
+
+	/**
+	 * @brief Converts a vector of bytes to a BIGNUM.
+	 * 
+	 * This function takes a vector of bytes and converts it into a BIGNUM.
+	 * The bytes are interpreted as a big-endian integer.
+	 * 
+	 * @param[in] vec The vector of bytes to convert.
+	 * @return BIGNUM* A pointer to the newly created BIGNUM, or NULL on failure.
+	 *
+	 * @note The caller is responsible for freeing the returned BIGNUM with BN_free().
+	 */
+	static BIGNUM* vec_to_BN(const std::vector<uint8_t>& vec) {
+		if (vec.empty()) return NULL;
+
+		BIGNUM *bn = BN_new();
+		if (!bn) return NULL;
+
+		if (BN_bin2bn(vec.data(), static_cast<int>(vec.size()), bn) == NULL) {
+			BN_free(bn);
+			return NULL;
+		}
+		return bn;
+	}
     
 	/**
 	 * @brief Encode an EC point into a protocol key buffer.
@@ -819,7 +843,7 @@ public:
 	 * @brief Decode a JWK from a JSON object and return the EC_POINT.
 	 * 
 	 * @param ctx The connection context containing the BN context
-	 * @param net_access_key cJSON blob 
+	 * @param json_web_key cJSON blob 
 	 * Example:
 	 *        {
 	 *            "kty":"EC",
@@ -830,12 +854,12 @@ public:
 	 * 	
 	 * @return EC_POINT* on success, nullptr otherwise
 	 */
-	static EC_POINT *decode_jwk_ec_point(ec_connection_context_t& ctx, cJSON *net_access_key);
+	static EC_POINT *decode_jwk_ec_point(ec_connection_context_t& ctx, cJSON *json_web_key);
 
 	/**
 	 * @brief Decode a JWK from a JSON object and return the EC_POINT.
 	 * 
-	 * @param net_access_key cJSON blob 
+	 * @param json_web_key cJSON blob 
 	 * @param bn_ctx The BN_CTX to used to optimize decoding (optional, can be NULL) 
 	 * Example:
 	 *        {
@@ -847,14 +871,14 @@ public:
 	 * 	
 	 * @return EC_POINT* on success, nullptr otherwise
 	 */
-	static EC_POINT *decode_jwk_ec_point(cJSON *net_access_key, BN_CTX* bn_ctx = NULL);
+	static EC_POINT *decode_jwk_ec_point(cJSON *json_web_key, BN_CTX* bn_ctx = NULL);
 
 
 
 	/**
 	 * @brief Decode a JWK from a JSON object and return the EC_GROUP (crv) and EC_POINT.
 	 * 
-	 * @param net_access_key cJSON blob 
+	 * @param json_web_key cJSON blob 
 	 * @param bn_ctx The BN_CTX to used to optimize decoding (optional, can be NULL) 
 	 * Example:
 	 *        {
@@ -866,7 +890,7 @@ public:
 	 * 	
 	 * @return EC_POINT* on success, nullptr otherwise
 	 */
-	static std::pair<EC_GROUP*, EC_POINT*> decode_jwk(cJSON *net_access_key, BN_CTX* bn_ctx = NULL);
+	static std::pair<EC_GROUP*, EC_POINT*> decode_jwk(cJSON *json_web_key, BN_CTX* bn_ctx = NULL);
     
 	/**
 	 * @brief Generate a connector from JWS header, payload, and the key to create the signature with.

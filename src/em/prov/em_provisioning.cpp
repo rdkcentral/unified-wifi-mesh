@@ -656,7 +656,7 @@ int em_provisioning_t::handle_1905_encap_eapol_msg(uint8_t *buff, unsigned int l
         return -1;
     }
 
-    if (!m_ec_manager->process_1905_eapol_encap_msg(buff, len, src_mac)){
+    if (!m_ec_manager->process_1905_eapol_encap_msg(buff, static_cast<uint16_t>(len), src_mac)){
         em_printfout("Failed to handle 1905 EAPOL Encap message");
         return -1;
     }
@@ -899,8 +899,10 @@ cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *con
         return nullptr;
     }
 
-    scoped_cjson radio_list_arr(cJSON_AddArrayToObject(bsta_list_obj.get(), "RadioList"));
-    EM_ASSERT_NOT_NULL(radio_list_arr.get(), nullptr, "Could not add RadioList array to bSTAList object!");
+    cJSON* bsta_list = bsta_list_obj.release(); // Ownership managed by b_sta_list_arr
+
+    cJSON* radio_list_arr = cJSON_AddArrayToObject(bsta_list, "RadioList");
+    EM_ASSERT_NOT_NULL(radio_list_arr, nullptr, "Could not add RadioList array to bSTAList object!");
 
     for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
         em_bss_info_t *bss_info = dm->get_bss_info(i);
@@ -947,18 +949,20 @@ cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *con
             return nullptr;
         }
 
-        if (!cJSON_AddItemToArray(radio_list_arr.get(), radioListObj.get())) {
+        if (!cJSON_AddItemToArray(radio_list_arr, radioListObj.get())) {
             printf("%s:%d: Could not add RadioList object to RadioList array!\n", __func__,
                    __LINE__);
             return nullptr;
         }
+        radioListObj.release(); // Ownership transferred to array
     }
 
-    if (!cJSON_AddStringToObject(bsta_list_obj.get(), "channelList", channelList.c_str())) {
+    if (!cJSON_AddStringToObject(bsta_list, "channelList", channelList.c_str())) {
         em_printfout("Could not add channelList to bSTAList object!");
         return nullptr;
     }
-    return b_sta_list_arr.get();
+
+    return b_sta_list_arr.release(); // Ownership transferred to caller
 }
 
 cJSON *em_provisioning_t::create_fbss_response_obj(ec_connection_context_t *conn_ctx)
@@ -1051,13 +1055,15 @@ cJSON *em_provisioning_t::create_fbss_response_obj(ec_connection_context_t *conn
         em_printfout("Failed to add \"discovery\" to bSTA DPP Configuration Object");
         return nullptr;
     }
+    discovery_object.release(); // Ownership transferred to fbss_configuration_object
 
     if (!cJSON_AddItemToObject(fbss_configuration_object.get(), "cred", credential_object.get())) {
         em_printfout("Failed to add \"cred\" to bSTA DPP Configuration Object");
         return nullptr;
     }
+    credential_object.release(); // Ownership transferred to fbss_configuration_object
 
-    return fbss_configuration_object.get();
+    return fbss_configuration_object.release(); // Ownership transferred to caller
 }
 
 cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_context_t *conn_ctx)
@@ -1147,12 +1153,15 @@ cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_co
         em_printfout("Failed to add \"discovery\" to bSTA DPP Configuration Object");
         return nullptr;
     }
+    discovery_object.release(); // Ownership transferred to bsta_configuration_object
 
     if (!cJSON_AddItemToObject(bsta_configuration_object.get(), "cred", credential_object.get())) {
         em_printfout("Failed to add \"cred\" to bSTA DPP Configuration Object");
         return nullptr;
     }
-    return bsta_configuration_object.get();
+    credential_object.release(); // Ownership transferred to bsta_configuration_object
+
+    return bsta_configuration_object.release(); // Ownership transferred to caller
 }
 
 cJSON *em_provisioning_t::create_ieee1905_response_obj(ec_connection_context_t *conn_ctx)
@@ -1181,8 +1190,9 @@ cJSON *em_provisioning_t::create_ieee1905_response_obj(ec_connection_context_t *
     }
 
     cJSON_AddItemToObject(dpp_configuration_object.get(), "cred", credential_object.get());
+    credential_object.release();
 
-    return dpp_configuration_object.get();
+    return dpp_configuration_object.release();
 }
 
 void em_provisioning_t::handle_state_prov_none()

@@ -1065,7 +1065,6 @@ std::optional<ec_persistent_sec_ctx_t> ec_util::read_persistent_sec_ctx(std::str
     auto read_key_from_file = [&](const std::string& file) -> SSL_KEY* {
         std::filesystem::path full_path = dir / file;
         SSL_KEY* key = em_crypto_t::read_keypair_from_pem(full_path.string());
-        EM_ASSERT_NOT_NULL(key, NULL, "Failed to read key from file %s", full_path.string().c_str());
         return key;
     };
 
@@ -1141,15 +1140,8 @@ std::optional<ec_persistent_sec_ctx_t> ec_util::generate_sec_ctx_keys(int nid){
 std::optional<std::string> ec_util::generate_dpp_connector(ec_persistent_sec_ctx_t& sec_ctx, std::string netRole){
     // Generate Connector
 
-    std::vector<std::string> valid_net_roles = {
-        "mapBackhaulSta",
-        "mapBackhaulBss",
-        "mapAgent",
-        "ap",
-        "mapController",
-        "configurator"
-    };
-    if (std::find(valid_net_roles.begin(), valid_net_roles.end(), netRole) == valid_net_roles.end()) {
+    if (std::find(easyconnect::valid_net_roles.begin(), 
+                  easyconnect::valid_net_roles.end(), netRole) == easyconnect::valid_net_roles.end()) {
         em_printfout("Invalid netRole '%s' provided for DPP connector generation", netRole.c_str());
         return {};
     }

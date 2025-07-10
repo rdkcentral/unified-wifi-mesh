@@ -166,6 +166,18 @@ public:
 		return m_1905_encrypt_layer.handle_eapol_frame(eapol_frame, eapol_frame_len, src_mac);
 	}
 
+	/**
+	 * @brief Handle a DPP peer discovery response frame.
+	 *
+	 * This function processes a DPP peer discovery response frame received from a peer device.
+	 * It delegates the frame handling to the underlying 1905 encryption layer for processing.
+	 *
+	 * @param[in] frame Pointer to the DPP peer discovery response frame to be processed.
+	 * @param[in] len The length of the frame in bytes.
+	 * @param[in] src_mac The source MAC address of the frame sender
+	 *
+	 * @return true if the frame was processed successfully, otherwise false.
+	 */
 	bool handle_peer_disc_resp_frame(ec_frame_t *frame, uint16_t len, uint8_t src_mac[ETH_ALEN]) {
 		return m_1905_encrypt_layer.handle_peer_disc_resp_frame(frame, len, src_mac);
 	}
@@ -280,6 +292,12 @@ public:
 	inline bool rekey_1905_layer_ptk() {
 		return m_1905_encrypt_layer.rekey_1905_layer_ptk();
 	}
+
+	/**
+	 * @brief Notifies the destructor that the enrollee is upgrading to a (proxy) agent
+	 * 
+	 */
+	inline void signal_enrollee_is_upgrading() { m_is_upgrading_flag = true; }
 
 private:
 
@@ -649,6 +667,12 @@ private:
 	 * to the persistent storage on exit.
 	 */
 	ec_persistent_sec_ctx_t m_sec_ctx = {};
+
+	/**
+	 * @brief True if this Enrollee will soon be upgrading
+	 * to a (proxy) agent and the destructor will be called.
+	 */
+	bool m_is_upgrading_flag = false; 
 };
 
 #endif // EC_ENROLLEE_H

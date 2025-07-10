@@ -82,7 +82,7 @@ bool ec_1905_encrypt_layer_t::handle_peer_disc_req_frame(ec_frame_t *frame, uint
     auto [header, payload, sig] = *conn_parts;
     (void)sig;
 
-    if (!ec_crypto::validate_jws_header(header, "dppConn")) {
+    if (!ec_crypto::validate_jws_header(header, "dppCon")) {
         em_printfout("Invalid JWS header in Enrollee 1905 Connector");
         return send_peer_disc_response(DPP_STATUS_INVALID_CONNECTOR);
     }
@@ -150,7 +150,6 @@ bool ec_1905_encrypt_layer_t::handle_peer_disc_req_frame(ec_frame_t *frame, uint
     memset(&ctx, 0, sizeof(ec_1905_key_ctx));
     memcpy(ctx.pmk, pmk.data(), pmk.size());
     memcpy(ctx.pmkid, pmkid.data(), pmkid.size());
-    memset(this->m_gtk, 0, sizeof(this->m_gtk)); // Not set yet, will be set later in the 4-way handshake
 
     if (!m_gmk.empty() && memcmp(m_gtk, empty_nonce, SHA256_DIGEST_LENGTH) == 0) {
         em_printfout("Controller has GMK and hasn't generated a GTK yet, deriving GTK");
@@ -242,7 +241,7 @@ bool ec_1905_encrypt_layer_t::handle_peer_disc_resp_frame(ec_frame_t *frame, uin
     auto [header, payload, sig] = *parts;
     (void)sig;
 
-    if (!ec_crypto::validate_jws_header(header, "dppConn")){
+    if (!ec_crypto::validate_jws_header(header, "dppCon")){
         em_printfout("Invalid JWS header in recieved 1905 Connector");
         return false;
     }
@@ -494,7 +493,7 @@ bool ec_1905_encrypt_layer_t::set_sec_params(SSL_KEY *c_sign_key, SSL_KEY* net_a
     auto parts = ec_crypto::split_decode_connector(connector_1905.c_str(), c_sign_key);
     EM_ASSERT_OPT_HAS_VALUE(parts, false, "Could not set 1905 encryption layer security params, failed to decode 1905 connector or verify signature");
     auto [header, payload, sig] = *parts;
-    if (!ec_crypto::validate_jws_header(header, "dppConn")) {
+    if (!ec_crypto::validate_jws_header(header, "dppCon")) {
         em_printfout("Could not set 1905 encryption layer security params, invalid JWS header in 1905 Connector");
         return false;
     }
@@ -542,6 +541,8 @@ bool ec_1905_encrypt_layer_t::set_sec_params(SSL_KEY *c_sign_key, SSL_KEY* net_a
     m_net_access_key = net_access_key;
     m_connector_1905 = connector_1905;
     m_gmk = gmk;
+
+    em_printfout("Initialized 1905 layer encryption with security parameters");
     return true;
 }
 

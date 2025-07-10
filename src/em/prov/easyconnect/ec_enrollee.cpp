@@ -30,6 +30,10 @@ ec_enrollee_t::~ec_enrollee_t()
     if (m_send_pres_announcement_thread.joinable()) m_send_pres_announcement_thread.join();
     if (m_send_recfg_announcement_thread.joinable()) m_send_recfg_announcement_thread.join();
 
+    if (m_is_upgrading_flag) {
+        em_printfout("Enrollee is upgrading, skipping cleanup of persistent security context");
+        return;
+    }
     if (!ec_util::write_persistent_sec_ctx("/nvram", m_sec_ctx)){
         em_printfout("Failed to write persistent security context to /nvram");
         em_printfout("Will need to perform a new onboarding on next boot");
@@ -1538,13 +1542,15 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request(std::optional<
         return {};
     }
 
-    bool replace_key = false;
+    // By default, a new key-pair should be generated
+    // Only when the DPP_CONFIG_REUSEKEY flag is set, we will reuse the existing keypair
+    bool replace_key = true;
     if (recfg_flags.has_value()) {
         replace_key = (recfg_flags->connector_key == DPP_CONFIG_REPLACEKEY);
     }
 
     if (replace_key) {
-        em_printfout("Reconfiguration Flags CONFIG_REPLACEKEY set, generating new protocol keypair");
+        em_printfout("CONFIG_REPLACEKEY set, generating new protocol keypair");
         auto [p_R, P_R] = ec_crypto::generate_proto_keypair(m_c_ctx);
         if (p_R == nullptr || P_R == nullptr) {
             em_printfout("Failed to generate new proto keypair");
