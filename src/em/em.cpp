@@ -659,17 +659,12 @@ int em_t::send_cmd(em_cmd_exec_t *exec, em_cmd_type_t type, em_service_type_t sv
 int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
 {
     int ret = 0;
-    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+    em_raw_hdr_t hdr_copy;
+    memset(&hdr_copy, 0, sizeof(em_raw_hdr_t));
+    memcpy(&hdr_copy, buff, sizeof(em_raw_hdr_t));
 
-    bool is_loopback_frame = (memcmp(hdr->src, hdr->dst, sizeof(mac_address_t)) == 0);
-    if (is_loopback_frame){
-        // I am sending this message to a node with the same MAC address,
-        // store the message for later comparison
-        auto hash = em_crypto_t::platform_SHA256(buff, len);
-        if (hash.size() == SHA256_MAC_LEN) {
-            m_coloc_sent_hashed_msgs.insert(em_crypto_t::hash_to_hex_string(hash));
-        }
-    }
+    bool is_loopback_frame = (memcmp(hdr_copy.src, hdr_copy.dst, sizeof(mac_address_t)) == 0);
+
 #ifdef AL_SAP
 #ifdef DEBUG_MODE
     em_printfout("ORIGINAL_ETH_FRAME:\t");
@@ -695,6 +690,10 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     sdu.setDestinationAlMacAddress(dest_mac);
     std::copy(buff + ETH_ALEN, buff + (2*ETH_ALEN), src_mac.begin());
     sdu.setSourceAlMacAddress(src_mac);
+
+
+    memcpy(hdr_copy.dst, sdu.getDestinationAlMacAddress().data(), ETH_ALEN);
+    memcpy(hdr_copy.src, sdu.getSourceAlMacAddress().data(), ETH_ALEN);
 #ifdef DEBUG_MODE
     em_printfout("Destination MAC Address: " MACSTRFMT, MAC2STR(buff));
     em_printfout("Source MAC Address: " MACSTRFMT, MAC2STR(buff+ETH_ALEN));
@@ -723,11 +722,25 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     sadr_ll.sll_ifindex = static_cast<int>(if_nametoindex(ifname));
     sadr_ll.sll_halen = ETH_ALEN; // length of destination mac address
     sadr_ll.sll_protocol = htons(ETH_P_ALL);
-    memcpy(sadr_ll.sll_addr, (multicast == true) ? multi_addr:hdr->dst, sizeof(mac_address_t));
+    memcpy(sadr_ll.sll_addr, (multicast == true) ? multi_addr:hdr_copy.dst, sizeof(mac_address_t));
 
     ret = static_cast<int>(sendto(sock, buff, len, 0, reinterpret_cast<const struct sockaddr*>(&sadr_ll), sizeof(struct sockaddr_ll)));
     close(sock);
 #endif
+   
+    if (is_loopback_frame){
+        // I am sending this message to a node with the same MAC address,
+        // store the message for later comparison
+
+        // Copy (possibly) modified header back to the buffer
+        memcpy(buff, &hdr_copy, sizeof(em_raw_hdr_t));
+
+        auto hash = em_crypto_t::platform_SHA256(buff, len);
+        if (hash.size() == SHA256_MAC_LEN) {
+            m_coloc_sent_hashed_msgs.insert(em_crypto_t::hash_to_hex_string(hash));
+        }
+    }
+
     return ret;
 }
 
@@ -1414,10 +1427,6 @@ bool em_t::initialize_ec_manager(){
     }
 
     // Read in the persistent security context for the controller or agent
-    auto ctrl_al = m_data_model->get_controller_interface_mac();
-    auto agent_al = m_data_model->get_agent_al_interface_mac();
-    bool is_colocated = (memcmp(ctrl_al, agent_al, ETH_ALEN) == 0);
-
     std::optional<ec_persistent_sec_ctx_t> ctx = ec_util::read_persistent_sec_ctx(DPP_SEC_CTX_DIR_PATH);
 
     if (service_type == em_service_type_ctrl) {
@@ -1441,6 +1450,8 @@ bool em_t::initialize_ec_manager(){
                 return false;
             }
             ctx->connector = strdup(new_connector->c_str());
+            em_printfout("Generated new persistent security context for controller");
+            ec_util::write_persistent_sec_ctx(DPP_SEC_CTX_DIR_PATH, ctx.value());
         }
 
     }
@@ -1453,25 +1464,40 @@ bool em_t::initialize_ec_manager(){
             - we regenerate the net-access-key and the connector since we can't use the same connector as the controller
             -> Regenerate NAK and connector here
         */
-        if (is_colocated && ctx.has_value()) {
-            if (ctx->net_access_key) em_crypto_t::free_key(ctx->net_access_key);
-            if (ctx->connector) ec_crypto::rand_zero_free(ctx->connector);
+        
+        if (ctx.has_value()) {
+            // On a non-colocated enrollee, it will only have the public versions. 
+            // On the co-located agent, it will be reading from the same key store as the controller
+            // so it will have the same public/private key pair used for signing and privacy protection.
+            bool is_colocated = em_crypto_t::get_priv_key_bn(ctx->C_signing_key) != NULL &&
+                                em_crypto_t::get_priv_key_bn(ctx->pp_key) != NULL;
+            
+            if (is_colocated) {
+                em_printfout("Co-located enrollee detected, regenerating net-access-key and connector");
 
-            // Generate a new net-access-key 
-            ctx->net_access_key = em_crypto_t::generate_ec_key(NID_X9_62_prime256v1); // TODO: NID
-            if (!ctx->net_access_key) {
-                em_printfout("Failed to generate net-access-key for colocated agent");
-                ec_crypto::free_persistent_sec_ctx(&ctx.value());
-                return false;
+                if (ctx->net_access_key) em_crypto_t::free_key(ctx->net_access_key);
+                if (ctx->connector) ec_crypto::rand_zero_free(ctx->connector);
+
+                // Generate a new net-access-key 
+                ctx->net_access_key = em_crypto_t::generate_ec_key(NID_X9_62_prime256v1); // TODO: NID
+                if (!ctx->net_access_key) {
+                    em_printfout("Failed to generate net-access-key for colocated agent");
+                    ec_crypto::free_persistent_sec_ctx(&ctx.value());
+                    return false;
+                }
+                // Generate a new connector
+                auto new_connector = ec_util::generate_dpp_connector(*ctx, "mapAgent");
+                if (!new_connector) {
+                    em_printfout("Failed to generate new connector for colocated agent");
+                    ec_crypto::free_persistent_sec_ctx(&ctx.value());
+                    return false;
+                }
+                ctx->connector = strdup(new_connector->c_str());
+
+                em_printfout("Generated new persistent security context for colocated agent");
+            } else {
+                em_printfout("Non-colocated agent detected, using existing persistent security context");
             }
-            // Generate a new connector
-            auto new_connector = ec_util::generate_dpp_connector(*ctx, "mapAgent");
-            if (!new_connector) {
-                em_printfout("Failed to generate new connector for colocated agent");
-                ec_crypto::free_persistent_sec_ctx(&ctx.value());
-                return false;
-            }
-            ctx->connector = strdup(new_connector->c_str());
         }
         /*
         If we are not co-located:
@@ -1479,6 +1505,9 @@ bool em_t::initialize_ec_manager(){
             - If we never associated, the new security context will be generated during DPP Authentication/Configuration
             -> Don't do anything here
         */
+       if (!ctx.has_value()) {
+            em_printfout("No persistent security context found for agent, will generate during DPP Authentication/Configuration");
+        }
     }
 
     m_ec_manager = std::make_unique<ec_manager_t>(

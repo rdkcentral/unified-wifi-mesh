@@ -179,13 +179,11 @@ public:
 	 *
 	 * Called once m1/m2 exchange verifies the enrollee agent is on the network.
 	 * 
-	 * @param[in] is_colocated Indicates whether the proxy agent is colocated with the controller.
-	 *
 	 * @return true if successful, false otherwise
 	 *
 	 * @note If the operation fails, all CCE IEs are removed before the function exits.
 	 */
-	bool upgrade_to_onboarded_proxy_agent(bool is_colocated);
+	bool upgrade_to_onboarded_proxy_agent();
 
     
 	/**
