@@ -201,6 +201,32 @@ bool ec_ctrl_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_t
     return did_finish;
 }
 
+bool ec_ctrl_configurator_t::process_direct_encap_dpp_gas_msg(uint8_t* frame, uint16_t len, uint8_t src_mac[ETH_ALEN])
+{
+    if (!frame || len == 0) {
+        em_printfout("DPP GAS frame is null/empty");
+        return false;
+    }
+
+    bool did_finish = false;
+    auto* base = reinterpret_cast<ec_gas_frame_base_t *>(frame);
+    const dpp_gas_action_type_t action = static_cast<dpp_gas_action_type_t>(base->action);
+
+    switch(action) {
+        case dpp_gas_initial_req: {
+            did_finish = handle_proxied_dpp_configuration_request(frame, len, src_mac, src_mac);
+            break;
+        }
+        // Note: dpp_gas_comeback_req should not be necessary here as the IEEE1905 transport should handle fragmentation.
+        default: {
+            em_printfout("Unhandled DPP GAS action type %d", action);
+            break;
+        }   
+    }
+    return did_finish;
+}
+
+
 bool ec_ctrl_configurator_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len, uint8_t src_mac[ETH_ALEN])
 {
     if (dpp_frame == NULL || dpp_frame_len == 0) {
@@ -213,28 +239,20 @@ bool ec_ctrl_configurator_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, ui
 
     ec_frame_type_t ec_frame_type = static_cast<ec_frame_type_t>(ec_frame->frame_type);
     switch (ec_frame_type) {
-        case ec_frame_type_recfg_announcement: {
-            //did_finish = handle_recfg_announcement(reinterpret_cast<ec_frame_t*>(encap_frame), encap_frame_len, dest_mac);
-            break;
-        }
-        case ec_frame_type_recfg_auth_rsp: {
-            //did_finish = handle_recfg_auth_response(reinterpret_cast<ec_frame_t*>(encap_frame), encap_frame_len, dest_mac);
-            break;
-        }
         case ec_frame_type_auth_rsp: {
-            //did_finish = handle_auth_response(reinterpret_cast<ec_frame_t*>(encap_frame), encap_frame_len, dest_mac);
+            did_finish = handle_auth_response(ec_frame, dpp_frame_len, src_mac, src_mac);
             break;
         }
         case ec_frame_type_easymesh: {
-            //did_finish = handle_proxied_dpp_configuration_request(encap_frame, encap_frame_len, dest_mac);
+            did_finish = process_direct_encap_dpp_gas_msg(dpp_frame, dpp_frame_len, src_mac);
             break;
         }
         case ec_frame_type_cfg_result: {
-            //did_finish = handle_proxied_config_result_frame(encap_frame, encap_frame_len, dest_mac);
+            did_finish = handle_proxied_config_result_frame(reinterpret_cast<uint8_t *>(ec_frame), dpp_frame_len, src_mac, src_mac);
             break;
         }
         case ec_frame_type_conn_status_result: {
-            //did_finish = handle_proxied_conn_status_result_frame(encap_frame, encap_frame_len, dest_mac);
+            did_finish = handle_proxied_conn_status_result_frame(reinterpret_cast<uint8_t*>(ec_frame), dpp_frame_len, src_mac, src_mac);
             break;
         }
         case ec_frame_type_peer_disc_req: {
@@ -251,6 +269,82 @@ bool ec_ctrl_configurator_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, ui
     }
 
     return did_finish;
+}
+
+bool ec_ctrl_configurator_t::handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, size_t len, uint8_t src_mac[ETH_ALEN])
+{
+    if (!chirp) {
+        em_printfout("Chirp TLV is NULL");
+        return false;
+    }
+
+    std::string src_mac_str = util::mac_to_string(src_mac);
+    auto conn_ctx = get_conn_ctx(src_mac_str);
+    if (!conn_ctx) {
+        em_printfout("Received an autoconf search chirp from '%s', but no connection context found. Has the DPP URI been given?", src_mac_str.c_str());
+        return false;
+    }
+
+    uint8_t *enrollee_hash = nullptr;
+    uint16_t enrollee_hash_len = 0;
+    if (!ec_util::parse_dpp_chirp_tlv(chirp, static_cast<uint16_t>(len), nullptr, &enrollee_hash, &enrollee_hash_len)) {
+        em_printfout("Failed to parse DPP Chirp TLV from Autoconf Search (extended) message");
+        return false;
+    }
+
+    // Compare hash.
+    uint8_t *hash = ec_crypto::compute_key_hash(conn_ctx->boot_data.responder_boot_key);
+    if (!hash) {
+        em_printfout("Failed to compute hash of responder bootstrap public key");
+        return false;
+    }
+
+    if (memcmp(hash, enrollee_hash, enrollee_hash_len) != 0) {
+        // Note: spec does not specify what to do if the hashes don't match
+        em_printfout("Chirp notification hash and DPP URI hash did not match! Stopping DPP!");
+        em_printfout("Expected hash: ");
+        util::print_hex_dump(enrollee_hash_len, hash);
+        printf("\n%s:%d: Received hash: \n", __func__, __LINE__);
+        util::print_hex_dump(enrollee_hash_len, enrollee_hash);
+        free(hash);
+        return false;
+    }
+    free(hash);
+
+    // If they match, we respond with Autoconf Response (extended) including
+    // a DPP chirp with hash_validity=1 and hash=enrollee_hash
+    auto [resp_chirp, resp_chirp_len] = ec_util::create_dpp_chirp_tlv(false, true, nullptr, enrollee_hash, enrollee_hash_len);
+    if (!resp_chirp || resp_chirp_len == 0) {
+        em_printfout("Failed to create Chirp TLV for Autoconf Response (extended)");
+        return false;
+    }
+
+    if (!m_send_autoconf_resp_fn(resp_chirp, resp_chirp_len, src_mac)) {
+        em_printfout("Failed to send Autoconf Response (extended) with Chirp TLV");
+        free(resp_chirp);
+        return false;
+    }
+
+    // Here, we can assume we're onboarding this enrollee over Ethernet.
+    conn_ctx->is_eth = true;
+
+    free(resp_chirp);
+
+    // Once we've sent the Autoconf Search Response (extended), the Enrollee will be awaiting a DPP Authentication Request frame.
+    auto [frame, frame_len] = create_auth_request(src_mac_str);
+    if (!frame || frame_len == 0) {
+        em_printfout("Failed to create DPP Authentication Request frame for Enrollee '%s'", src_mac_str.c_str());
+        return false;
+    }
+
+    bool sent = m_send_dir_encap_dpp_msg(frame, frame_len, src_mac);
+    if (!sent) {
+        em_printfout("Failed to send DPP Authentication Request frame to Enrollee '%s'", src_mac_str.c_str());
+    }
+    em_printfout("Sent DPP Authentication Request frame to Enrollee '%s'", src_mac_str.c_str());
+    free(frame);
+    return sent;
+
 }
 
 bool ec_ctrl_configurator_t::handle_proxied_config_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t src_mac[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN])
@@ -454,6 +548,9 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
         auto [config_response_frame, config_response_frame_len] = create_config_response_frame(src_mac, src_al_mac, session_dialog_token, DPP_STATUS_CONFIGURATION_FAILURE);
         std::string status_code_str =  ec_util::status_code_to_string(DPP_STATUS_CONFIGURATION_FAILURE);
 
+        auto [encap_response_frame, encap_response_frame_len] = ec_util::create_encap_dpp_tlv(true, src_mac, ec_frame_type_easymesh, reinterpret_cast<uint8_t*>(config_response_frame), config_response_frame_len);
+        ASSERT_NOT_NULL(encap_response_frame, {}, "%s:%d: Failed to alloc DPP Configuration frame!\n", __func__, __LINE__);
+
         em_printfout("Sending DPP Configuration Response frame for Enrollee '" MACSTRFMT "' over 1905 with DPP status code %s", MAC2STR(src_mac), status_code_str.c_str());
         bool sent = m_send_prox_encap_dpp_msg(reinterpret_cast<em_encap_dpp_t*>(config_response_frame), config_response_frame_len, nullptr, config_response_frame_len, src_al_mac);
         if (!sent) {
@@ -536,13 +633,25 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
         em_printfout("Failed to create Configuration Respone frame");
         return false;
     }
-    bool sent = m_send_prox_encap_dpp_msg(reinterpret_cast<em_encap_dpp_t*>(config_response_frame), config_response_frame_len, nullptr, 0, src_al_mac);
-     // EasyConnect
-    if (!sent) {
-        em_printfout("Failed to send Proxied Encap DPP message containing DPP Configuration frame to '" MACSTRFMT "'", MAC2STR(src_mac));
-        free(config_response_frame);
-        return false;
+
+    auto [encap_response_frame, encap_response_frame_len] = ec_util::create_encap_dpp_tlv(true, src_mac, ec_frame_type_easymesh, reinterpret_cast<uint8_t*>(config_response_frame), config_response_frame_len);
+    ASSERT_NOT_NULL(encap_response_frame, {}, "%s:%d: Failed to alloc DPP Configuration frame!\n", __func__, __LINE__);
+
+    if (!conn_ctx->is_eth) {
+        bool sent = m_send_prox_encap_dpp_msg(reinterpret_cast<em_encap_dpp_t*>(encap_response_frame), encap_response_frame_len, nullptr, 0, src_al_mac);
+        if (!sent) {
+            em_printfout("Failed to send Proxied Encap DPP message containing DPP Configuration frame to '" MACSTRFMT "'", MAC2STR(src_mac));
+            free(config_response_frame);
+            return false;
+        }
+    } else {
+        if (!m_send_dir_encap_dpp_msg(reinterpret_cast<uint8_t*>(config_response_frame), config_response_frame_len, src_mac)) {
+            em_printfout("Failed to send DPP Configuration Response frame via Direct Encap msg to Enrollee '" MACSTRFMT "'", MAC2STR(src_mac));
+            free(config_response_frame);
+            return false;
+        }
     }
+        
     return true;
 }
 
@@ -850,11 +959,19 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
     free(resp_frame);
     ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
 
-    // Send the encapsulated DPP message (with Encap TLV)
-    if (!this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, NULL, 0, src_al_mac)){
-        em_printfout("Failed to send encapsulated DPP message");
-        free(encap_dpp_tlv);
-        return false;
+    if (!conn_ctx->is_eth) {
+        // Send the encapsulated DPP message (with Encap TLV)
+        if (!this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, NULL, 0, src_al_mac)){
+            em_printfout("Failed to send encapsulated DPP message");
+            free(encap_dpp_tlv);
+            return false;
+        }
+    } else {
+        if (!m_send_dir_encap_dpp_msg(reinterpret_cast<uint8_t*>(resp_frame), resp_len, src_mac)) {
+            em_printfout("Failed to send DPP Authentication Confirm frame via Direct Encap msg to Enrollee '" MACSTRFMT "'", MAC2STR(src_mac));
+            free(encap_dpp_tlv);
+            return false;
+        }
     }
 
     free(encap_dpp_tlv);
@@ -1107,7 +1224,11 @@ bool ec_ctrl_configurator_t::handle_recfg_auth_response(ec_frame_t *frame, size_
     }
 
     // The Configurator sets a timer for 2 seconds and waits for the Enrollee to start the DPP Configuration (2s dwell)
-    bool sent = m_send_action_frame(sa, reinterpret_cast<uint8_t*>(auth_confirm_frame), auth_confirm_frame_len, 0, 2);
+    bool sent = (conn_ctx->is_eth)
+                    ? m_send_dir_encap_dpp_msg(reinterpret_cast<uint8_t *>(auth_confirm_frame),
+                                               auth_confirm_frame_len, sa)
+                    : m_send_action_frame(sa, reinterpret_cast<uint8_t *>(auth_confirm_frame),
+                                          auth_confirm_frame_len, 0, 2);
     if (wrapped_data) free(wrapped_data);
     free(auth_confirm_frame);
     return sent;
@@ -1623,7 +1744,13 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_fram
         } else {
             wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_obj, fbss_config_obj_str);
         }
-        wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_send_conn_status, 0, NULL);
+        if (!conn_ctx->is_eth) {
+            // EasyMesh 5.3.5:
+            // If the Multi-AP Controller onboards the Enrollee Multi-AP Agent over a Multi-AP
+            // Logical Ethernet Interface, the Multi-AP Controller shall not include a ‘sendConnStatus’ attribute in a DPP Configuration
+            // Response frame. 
+            wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_send_conn_status, 0, NULL);
+        }
         return std::make_pair(wrapped_attribs, wrapped_len);
     });
 
@@ -1631,9 +1758,6 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_fram
     free(attribs);
     ASSERT_NOT_NULL(response_frame, {}, "%s:%d: Failed to copy attributes to DPP Configuration frame!\n", __func__, __LINE__);
     response_frame->resp_len = static_cast<uint16_t>(attribs_len);
-    auto [encap_response_frame, encap_response_frame_len] = ec_util::create_encap_dpp_tlv(true, dest_mac, ec_frame_type_easymesh, reinterpret_cast<uint8_t*>(response_frame), frame_len + attribs_len);
-    ASSERT_NOT_NULL(encap_response_frame, {}, "%s:%d: Failed to alloc DPP Configuration frame!\n", __func__, __LINE__);
 
-
-    return std::make_pair(reinterpret_cast<uint8_t*>(encap_response_frame), encap_response_frame_len);
+    return std::make_pair(reinterpret_cast<uint8_t *>(response_frame), EC_FRAME_BASE_SIZE + attribs_len);
 }
