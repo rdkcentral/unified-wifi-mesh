@@ -546,7 +546,7 @@ void em_t::proto_run()
             proto_timeout();
             pthread_mutex_lock(&m_iq.lock);
         } else {
-            printf("%s:%d em exited with rc - %d",__func__,__LINE__,rc);
+            printf("%s:%d em exited with rc - %d\n",__func__,__LINE__,rc);
             pthread_mutex_unlock(&m_iq.lock);
             return;
         }

@@ -402,15 +402,15 @@ void em_mgr_t::nodes_listener()
                     }
                 }
 #else
-                unsigned char buff[MAX_EM_BUFF_SZ];
+                unsigned char buff[MAX_EM_BUFF_SZ*EM_MAX_BANDS];
                 pthread_mutex_lock(&m_mutex);
                 int ret = FD_ISSET(em->get_fd(), &m_rset);
                 pthread_mutex_unlock(&m_mutex);
                 if (ret)
                 {
                     // receive data from this interface
-                    memset(buff, 0, MAX_EM_BUFF_SZ);
-                    ssize_t len = read(em->get_fd(), buff, MAX_EM_BUFF_SZ);
+                    memset(buff, 0, MAX_EM_BUFF_SZ*EM_MAX_BANDS);
+                    ssize_t len = read(em->get_fd(), buff, MAX_EM_BUFF_SZ*EM_MAX_BANDS);
                     if (len) {
                         proto_process(buff, static_cast<unsigned int>(len), em);
                     }
