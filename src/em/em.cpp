@@ -51,6 +51,7 @@
 #include "em_cmd_exec.h"
 #include "util.h"
 #include "ec_ops.h"
+#include "ec_util.h"
 
 #ifdef AL_SAP
 #include "al_service_access_point.h"
@@ -328,6 +329,8 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_bss_config_res:
         case em_msg_type_chirp_notif:
         case em_msg_type_dpp_bootstrap_uri_notif:
+        case em_msg_type_1905_rekey_req:
+        case em_msg_type_1905_encap_eapol:
             em_provisioning_t::process_msg(data, len);
             break;
         case em_msg_type_client_steering_req:
@@ -656,17 +659,12 @@ int em_t::send_cmd(em_cmd_exec_t *exec, em_cmd_type_t type, em_service_type_t sv
 int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
 {
     int ret = 0;
-    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+    em_raw_hdr_t hdr_copy;
+    memset(&hdr_copy, 0, sizeof(em_raw_hdr_t));
+    memcpy(&hdr_copy, buff, sizeof(em_raw_hdr_t));
 
-    bool is_loopback_frame = (memcmp(hdr->src, hdr->dst, sizeof(mac_address_t)) == 0);
-    if (is_loopback_frame){
-        // I am sending this message to a node with the same MAC address,
-        // store the message for later comparison
-        auto hash = em_crypto_t::platform_SHA256(buff, len);
-        if (hash.size() == SHA256_MAC_LEN) {
-            m_coloc_sent_hashed_msgs.insert(em_crypto_t::hash_to_hex_string(hash));
-        }
-    }
+    bool is_loopback_frame = (memcmp(hdr_copy.src, hdr_copy.dst, sizeof(mac_address_t)) == 0);
+
 #ifdef AL_SAP
 #ifdef DEBUG_MODE
     em_printfout("ORIGINAL_ETH_FRAME:\t");
@@ -692,6 +690,10 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     sdu.setDestinationAlMacAddress(dest_mac);
     std::copy(buff + ETH_ALEN, buff + (2*ETH_ALEN), src_mac.begin());
     sdu.setSourceAlMacAddress(src_mac);
+
+
+    memcpy(hdr_copy.dst, sdu.getDestinationAlMacAddress().data(), ETH_ALEN);
+    memcpy(hdr_copy.src, sdu.getSourceAlMacAddress().data(), ETH_ALEN);
 #ifdef DEBUG_MODE
     em_printfout("Destination MAC Address: " MACSTRFMT, MAC2STR(buff));
     em_printfout("Source MAC Address: " MACSTRFMT, MAC2STR(buff+ETH_ALEN));
@@ -720,11 +722,25 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     sadr_ll.sll_ifindex = static_cast<int>(if_nametoindex(ifname));
     sadr_ll.sll_halen = ETH_ALEN; // length of destination mac address
     sadr_ll.sll_protocol = htons(ETH_P_ALL);
-    memcpy(sadr_ll.sll_addr, (multicast == true) ? multi_addr:hdr->dst, sizeof(mac_address_t));
+    memcpy(sadr_ll.sll_addr, (multicast == true) ? multi_addr:hdr_copy.dst, sizeof(mac_address_t));
 
     ret = static_cast<int>(sendto(sock, buff, len, 0, reinterpret_cast<const struct sockaddr*>(&sadr_ll), sizeof(struct sockaddr_ll)));
     close(sock);
 #endif
+   
+    if (is_loopback_frame){
+        // I am sending this message to a node with the same MAC address,
+        // store the message for later comparison
+
+        // Copy (possibly) modified header back to the buffer
+        memcpy(buff, &hdr_copy, sizeof(em_raw_hdr_t));
+
+        auto hash = em_crypto_t::platform_SHA256(buff, len);
+        if (hash.size() == SHA256_MAC_LEN) {
+            m_coloc_sent_hashed_msgs.insert(em_crypto_t::hash_to_hex_string(hash));
+        }
+    }
+
     return ret;
 }
 
@@ -1360,6 +1376,149 @@ const char *em_t::get_band_type_str(em_freq_band_t band)
     return "band_type_unknown";
 }
 
+bool em_t::initialize_ec_manager(){
+
+    EM_ASSERT_NOT_NULL(m_mgr, false, "EM Manager is not initialized");
+    EM_ASSERT_NOT_NULL(m_data_model, false, "Data Model is not initialized");
+
+    em_service_type_t service_type = get_service_type();
+
+    std::string mac_address = util::mac_to_string(get_al_interface_mac());
+
+    ec_ops_t ops;
+    // Shared callbacks
+    ops.send_chirp                 = std::bind(&em_t::send_chirp_notif_msg, this, 
+                                                std::placeholders::_1, std::placeholders::_2);
+    ops.send_encap_dpp             = std::bind(&em_t::send_prox_encap_dpp_msg, this, 
+                                                std::placeholders::_1, std::placeholders::_2, 
+                                                std::placeholders::_3, std::placeholders::_4);
+    ops.send_dir_encap_dpp         = std::bind(&em_t::send_direct_encap_dpp_msg, this, 
+                                                std::placeholders::_1, std::placeholders::_2, 
+                                                std::placeholders::_3);
+    ops.send_1905_eapol_encap      = std::bind(&em_t::send_1905_eapol_encap_msg, this, 
+                                                std::placeholders::_1, std::placeholders::_2, 
+                                                std::placeholders::_3);
+    ops.send_act_frame             = std::bind(&em_mgr_t::send_action_frame, m_mgr, 
+                                                std::placeholders::_1, std::placeholders::_2, 
+                                                std::placeholders::_3, std::placeholders::_4, 
+                                                std::placeholders::_5);
+    ops.toggle_cce                 = std::bind(&em_t::toggle_cce, this, std::placeholders::_1);
+    ops.trigger_sta_scan           = std::bind(&em_t::trigger_sta_scan, this);
+    ops.bsta_connect               = std::bind(&em_t::bsta_connect_bss, this, 
+                                                std::placeholders::_1, std::placeholders::_2, 
+                                                std::placeholders::_3);
+    ops.can_onboard_additional_aps = std::bind(&em_mgr_t::can_onboard_additional_aps, m_mgr);
+
+
+    // Enrollee callbacks
+    if (service_type == em_service_type_agent) {
+        ops.get_backhaul_sta_info =
+            std::bind(&em_t::create_enrollee_bsta_list, this, std::placeholders::_1);
+    }
+
+    // Controller Configurator callbacks
+    if (service_type == em_service_type_ctrl) {
+        ops.get_1905_info         = std::bind(&em_t::create_ieee1905_response_obj, this,
+                                                std::placeholders::_1);
+        ops.get_fbss_info         = std::bind(&em_t::create_fbss_response_obj, this, 
+                                                std::placeholders::_1);
+        ops.get_backhaul_sta_info = std::bind(&em_t::create_configurator_bsta_response_obj, 
+                                                this, std::placeholders::_1);
+    }
+
+    // Read in the persistent security context for the controller or agent
+    std::optional<ec_persistent_sec_ctx_t> ctx = ec_util::read_persistent_sec_ctx(DPP_SEC_CTX_DIR_PATH);
+
+    if (service_type == em_service_type_ctrl) {
+
+        /*
+        EasyConnect 7.5
+        When a device is set-up as a Configurator, it generates the key pair (c-sign-key, C-sign-key), to sign and verify Connectors, respectively.
+        Using the same curve as the c-sign-key, it generates the key pair (privacy-protection-key, Privacy-protection-key), to decrypt and encrypt E-ids
+        */
+
+        if (!ctx.has_value()){
+            ctx = ec_util::generate_sec_ctx_keys(NID_X9_62_prime256v1); // TODO: NID
+            if (!ctx.has_value()) {
+                em_printfout("Failed to generate persistent security context for controller");
+                return false;
+            }
+            auto new_connector = ec_util::generate_dpp_connector(*ctx, "mapController");
+            if (!new_connector) {
+                em_printfout("Failed to generate new connector for controller");
+                ec_crypto::free_persistent_sec_ctx(&ctx.value());
+                return false;
+            }
+            ctx->connector = strdup(new_connector->c_str());
+            em_printfout("Generated new persistent security context for controller");
+            ec_util::write_persistent_sec_ctx(DPP_SEC_CTX_DIR_PATH, ctx.value());
+        }
+
+    }
+    
+    if (service_type == em_service_type_agent) {
+
+        /*
+        If we are co-located: 
+            - we are using the same C-signing key and ppKey from the controller (which were saved to DPP_SEC_CTX_DIR_PATH)
+            - we regenerate the net-access-key and the connector since we can't use the same connector as the controller
+            -> Regenerate NAK and connector here
+        */
+        
+        if (ctx.has_value()) {
+            // On a non-colocated enrollee, it will only have the public versions. 
+            // On the co-located agent, it will be reading from the same key store as the controller
+            // so it will have the same public/private key pair used for signing and privacy protection.
+            bool is_colocated = em_crypto_t::get_priv_key_bn(ctx->C_signing_key) != NULL &&
+                                em_crypto_t::get_priv_key_bn(ctx->pp_key) != NULL;
+            
+            if (is_colocated) {
+                em_printfout("Co-located enrollee detected, regenerating net-access-key and connector");
+
+                if (ctx->net_access_key) em_crypto_t::free_key(ctx->net_access_key);
+                if (ctx->connector) ec_crypto::rand_zero_free(ctx->connector);
+
+                // Generate a new net-access-key 
+                ctx->net_access_key = em_crypto_t::generate_ec_key(NID_X9_62_prime256v1); // TODO: NID
+                if (!ctx->net_access_key) {
+                    em_printfout("Failed to generate net-access-key for colocated agent");
+                    ec_crypto::free_persistent_sec_ctx(&ctx.value());
+                    return false;
+                }
+                // Generate a new connector
+                auto new_connector = ec_util::generate_dpp_connector(*ctx, "mapAgent");
+                if (!new_connector) {
+                    em_printfout("Failed to generate new connector for colocated agent");
+                    ec_crypto::free_persistent_sec_ctx(&ctx.value());
+                    return false;
+                }
+                ctx->connector = strdup(new_connector->c_str());
+
+                em_printfout("Generated new persistent security context for colocated agent");
+            } else {
+                em_printfout("Non-colocated agent detected, using existing persistent security context");
+            }
+        }
+        /*
+        If we are not co-located:
+            - If we previously associated, we have the persistent security context we read from /nvram
+            - If we never associated, the new security context will be generated during DPP Authentication/Configuration
+            -> Don't do anything here
+        */
+       if (!ctx.has_value()) {
+            em_printfout("No persistent security context found for agent, will generate during DPP Authentication/Configuration");
+        }
+    }
+
+    m_ec_manager = std::make_unique<ec_manager_t>(
+        mac_address,
+        ops,
+        service_type == em_service_type_ctrl,
+        ctx
+    );
+    return true;
+}
+
 em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr_t *mgr, em_profile_type_t profile, em_service_type_t type, bool is_al_em): m_data_model(), m_mgr(mgr), m_orch_state(), m_cmd(), m_sm(), m_service_type(), m_fd(0), m_ruid(*ruid), m_band(band), m_profile_type(profile), m_iq(), m_tid(), m_exit(), m_is_al_em(is_al_em)
 {
     memcpy(&m_ruid, ruid, sizeof(em_interface_t));
@@ -1374,53 +1533,12 @@ em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr
     RAND_bytes(get_crypto_info()->r_nonce, sizeof(em_nonce_t));
     m_data_model = dm;
 	m_mgr = mgr;
-    em_service_type_t service_type = get_service_type();
 
     // We'll only create the EC manager on the AL node
     if (is_al_em){
-        std::string mac_address = util::mac_to_string(get_al_interface_mac());
-
-        ec_ops_t ops;
-        // Shared callbacks
-        ops.send_chirp = std::bind(&em_t::send_chirp_notif_msg, this, std::placeholders::_1,
-                                    std::placeholders::_2);
-        ops.send_encap_dpp =
-            std::bind(&em_t::send_prox_encap_dpp_msg, this, std::placeholders::_1,
-                      std::placeholders::_2, std::placeholders::_3, std::placeholders::_4);
-        ops.send_dir_encap_dpp =
-            std::bind(&em_t::send_direct_encap_dpp_msg, this, std::placeholders::_1,
-                      std::placeholders::_2, std::placeholders::_3);
-        ops.send_act_frame   = std::bind(&em_mgr_t::send_action_frame, mgr, std::placeholders::_1,
-                                          std::placeholders::_2, std::placeholders::_3,
-                                          std::placeholders::_4, std::placeholders::_5);
-        ops.toggle_cce       = std::bind(&em_t::toggle_cce, this, std::placeholders::_1);
-        ops.trigger_sta_scan = std::bind(&em_t::trigger_sta_scan, this);
-        ops.bsta_connect     = std::bind(&em_t::bsta_connect_bss, this, std::placeholders::_1,
-                                          std::placeholders::_2, std::placeholders::_3);
-        ops.can_onboard_additional_aps = std::bind(&em_mgr_t::can_onboard_additional_aps, mgr);
-
-
-        // Enrollee callbacks
-        if (service_type == em_service_type_agent) {
-            ops.get_backhaul_sta_info =
-                std::bind(&em_t::create_enrollee_bsta_list, this, std::placeholders::_1);
+        if (!initialize_ec_manager()) {
+            throw std::runtime_error("Failed to initialize EC manager");
         }
-
-        // Controller Configurator callbacks
-        if (service_type == em_service_type_ctrl) {
-            ops.get_1905_info =
-                std::bind(&em_t::create_ieee1905_response_obj, this, std::placeholders::_1);
-            ops.get_fbss_info =
-                std::bind(&em_t::create_fbss_response_obj, this, std::placeholders::_1);
-            ops.get_backhaul_sta_info = std::bind(&em_t::create_configurator_bsta_response_obj,
-                                                   this, std::placeholders::_1);
-        }
-
-        m_ec_manager = std::make_unique<ec_manager_t>(
-            mac_address,
-            ops,
-            service_type == em_service_type_ctrl
-        );
     }
 }
 

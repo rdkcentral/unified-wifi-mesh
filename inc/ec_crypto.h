@@ -86,7 +86,22 @@ public:
 	 */
 	static bool init_connection_ctx(ec_connection_context_t& c_ctx, const SSL_KEY *boot_key);
 
-    
+	/**
+	 * @brief Compute the hash of the provided buffer
+	 *
+	 * This function takes a buffer of elements and computes its hash using the
+	 * specified connection context.
+	 *
+	 * @param[in] hash_fn The hash function to use for hashing
+	 * @param[in] digest_len The length of the hash digest to compute
+	 * @param[in] hashing_elements_buffer The buffer containing elements to hash
+	 *
+	 * @return uint8_t* Pointer to the computed hash of the buffer
+	 *
+	 * @note The caller is responsible for managing the memory of the returned hash.
+	 */
+	static uint8_t* compute_hash(const EVP_MD *hash_fn, size_t digest_len, const easyconnect::hash_buffer_t& hashing_elements_buffer);
+	
 	/**
 	 * @brief Compute the hash of the provided buffer
 	 *
@@ -144,7 +159,32 @@ public:
         const BIGNUM **x_val_inputs, int x_val_count, 
         uint8_t *raw_salt, size_t raw_salt_len);
 
-    
+	/**
+	 * @brief Abstracted HKDF computation that handles both simple and complex inputs.
+	 *
+	 * This function provides a unified interface for HKDF computations, handling both
+	 * simple single-input operations and more complex operations with multiple inputs.
+	 * It properly formats BIGNUMs with appropriate padding based on prime length.
+	 *
+	 * @param[in] prime The prime number used for padding and formatting BIGNUMs.
+	 * @param[in] hash_fn The hash function to use for HKDF.
+	 * @param[out] key_out Buffer to store the output key (must be pre-allocated).
+	 * @param[in] key_out_len Length of the output key.
+	 * @param[in] info_str Information string for HKDF.
+	 * @param[in] x_val_inputs Array of BIGNUMs to use as IKM.
+	 * @param[in] x_val_count Number of BIGNUMs in the array.
+	 * @param[in] raw_salt Raw salt buffer (can be NULL).
+	 * @param[in] raw_salt_len Length of raw salt buffer.
+	 *
+	 * @returns Length of the output key on success, 0 on failure.
+	 *
+	 * @note Ensure that the key_out buffer is sufficiently large to hold the output key.
+	 */
+	static size_t compute_hkdf_key(const BIGNUM* prime, const EVP_MD * hash_fn, uint8_t *key_out, size_t key_out_len, const char *info_str,
+        const BIGNUM **x_val_inputs, int x_val_count, 
+        uint8_t *raw_salt, size_t raw_salt_len);
+
+
 	/**!
 	 * @brief Calculates the x-coordinate of L = ((b_R + p_R) modulo q) * B_I.
 	 *
@@ -164,7 +204,73 @@ public:
 	 */
 	static BIGNUM* calculate_Lx(ec_connection_context_t& c_ctx, const BIGNUM* bR, const BIGNUM* pR, const EC_POINT* BI);
 
-    
+	/**!
+	 * @brief Retrieves the x and y coordinates of an elliptic curve point.
+	 *
+	 * This function extracts the affine coordinates (x, y) of a given elliptic curve point and group
+	 *
+	 * @param[in] group The group of the elliptic curve where the point is located
+	 * @param[in] point The elliptic curve point from which to extract the coordinates.
+	 *
+	 * @returns A pair of BIGNUM pointers representing the x and y coordinates.
+	 * @retval std::pair<BIGNUM *, BIGNUM *> A pair containing the x and y coordinates if successful.
+	 * @retval std::pair<BIGNUM *, BIGNUM *> An empty pair if the point is null or if the coordinates cannot be retrieved.
+	 *
+	 * @note The caller is responsible for freeing the BIGNUM pointers returned in the pair.
+	 */
+	static std::pair<BIGNUM *, BIGNUM *> get_ec_x_y(const EC_GROUP* group, const EC_POINT *point, BN_CTX *bn_ctx = NULL) {
+        if (!point) return {};
+		if (!group) return {};
+
+        BIGNUM *x = BN_new(), *y = BN_new();
+        if (EC_POINT_get_affine_coordinates(group, point,
+            x, y, bn_ctx) == 0) {
+            printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
+            BN_free(x);
+            BN_free(y);
+            return {};
+        }
+        return {x, y};
+    }
+
+	/**!
+	 * @brief Retrieves the X coordinate of an elliptic curve point.
+	 *
+	 * This function extracts the X coordinate from the given elliptic curve point
+	 * using the provided connection context.
+	 *
+	 * @param[in] group The elliptic curve group to which the point belongs.
+	 * @param[in] point The elliptic curve point from which to retrieve the X coordinate.
+	 *
+	 * @returns A pointer to a BIGNUM representing the X coordinate of the elliptic curve point.
+	 *
+	 * @note The Y coordinate is freed after extraction.
+	 */
+	static inline BIGNUM* get_ec_x(const EC_GROUP* group, const EC_POINT *point, BN_CTX *bn_ctx = NULL) {
+        auto [x, y] = get_ec_x_y(group, point, bn_ctx);
+        BN_free(y);
+        return x;
+    }
+
+	/**!
+	 * @brief Retrieves the Y coordinate of an elliptic curve point.
+	 *
+	 * This function extracts the Y coordinate from a given elliptic curve point
+	 * using the provided connection context.
+	 *
+	 * @param[in] group The elliptic curve group to which the point belongs.
+	 * @param[in] point The elliptic curve point from which the Y coordinate is extracted.
+	 *
+	 * @returns A pointer to a BIGNUM representing the Y coordinate of the point.
+	 *
+	 * @note The caller is responsible for managing the memory of the returned BIGNUM and The X coordinate is freed after extraction.
+	 */
+	static inline BIGNUM* get_ec_y(const EC_GROUP* group, const EC_POINT *point, BN_CTX *bn_ctx = NULL) {
+        auto [x, y] = get_ec_x_y(group, point, bn_ctx);
+        BN_free(x);
+        return y;
+    }
+
 	/**!
 	 * @brief Retrieves the x and y coordinates of an elliptic curve point.
 	 *
@@ -180,19 +286,8 @@ public:
 	 * @note The caller is responsible for freeing the BIGNUM pointers returned in the pair.
 	 */
 	static std::pair<BIGNUM *, BIGNUM *> get_ec_x_y(ec_connection_context_t& c_ctx, const EC_POINT *point) {
-        if (!point) return {};
-
-        BIGNUM *x = BN_new(), *y = BN_new();
-        if (EC_POINT_get_affine_coordinates(c_ctx.group, point,
-            x, y, c_ctx.bn_ctx) == 0) {
-            printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
-            BN_free(x);
-            BN_free(y);
-            return {};
-        }
-        return {x, y};
+        return get_ec_x_y(c_ctx.group, point, c_ctx.bn_ctx);
     }
-
     
 	/**!
 	 * @brief Retrieves the X coordinate of an elliptic curve point.
@@ -208,11 +303,8 @@ public:
 	 * @note The Y coordinate is freed after extraction.
 	 */
 	static inline BIGNUM* get_ec_x(ec_connection_context_t& c_ctx, const EC_POINT *point) {
-        auto [x, y] = get_ec_x_y(c_ctx, point);
-        BN_free(y);
-        return x;
+        return get_ec_x(c_ctx.group, point, c_ctx.bn_ctx);
     }
-
     
 	/**!
 	 * @brief Retrieves the Y coordinate of an elliptic curve point.
@@ -228,9 +320,7 @@ public:
 	 * @note The caller is responsible for managing the memory of the returned BIGNUM and The X coordinate is freed after extraction.
 	 */
 	static inline BIGNUM* get_ec_y(ec_connection_context_t& c_ctx, const EC_POINT *point) {
-        auto [x, y] = get_ec_x_y(c_ctx, point);
-        BN_free(x);
-        return y;
+        return get_ec_y(c_ctx.group, point, c_ctx.bn_ctx);
     }
 
     
@@ -257,6 +347,30 @@ public:
         BN_bn2bin(bn, buffer.data()); // Convert BIGNUM to big-endian byte array
         return buffer;
     }
+
+	/**
+	 * @brief Converts a vector of bytes to a BIGNUM.
+	 * 
+	 * This function takes a vector of bytes and converts it into a BIGNUM.
+	 * The bytes are interpreted as a big-endian integer.
+	 * 
+	 * @param[in] vec The vector of bytes to convert.
+	 * @return BIGNUM* A pointer to the newly created BIGNUM, or NULL on failure.
+	 *
+	 * @note The caller is responsible for freeing the returned BIGNUM with BN_free().
+	 */
+	static BIGNUM* vec_to_BN(const std::vector<uint8_t>& vec) {
+		if (vec.empty()) return NULL;
+
+		BIGNUM *bn = BN_new();
+		if (!bn) return NULL;
+
+		if (BN_bin2bn(vec.data(), static_cast<int>(vec.size()), bn) == NULL) {
+			BN_free(bn);
+			return NULL;
+		}
+		return bn;
+	}
     
 	/**
 	 * @brief Encode an EC point into a protocol key buffer.
@@ -280,6 +394,17 @@ public:
 	 * @return EC_POINT* The decoded EC point, or NULL on failure. Caller must free with EC_POINT_free()
 	 */
 	static EC_POINT* decode_ec_point(ec_connection_context_t& c_ctx, const uint8_t* protocol_key_buff);
+
+
+	/**!
+	 * @brief Decode a protocol key buffer into an EC point
+	 *
+	 * @param[in] group The EC group defining the elliptic curve
+	 * @param[in] key_buff The encoded protocol key buffer
+	 * @param[in] bn_ctx The BN context to use for decoding (optional, can be NULL)
+	 * @return EC_POINT* The decoded EC point, or NULL on failure. Caller must free with EC_POINT_free()
+	 */
+	static EC_POINT* decode_ec_point(const EC_GROUP* group, const uint8_t *key_buff, BN_CTX* bn_ctx = NULL);
     
 	/**
 	 * @brief Compute the shared secret X coordinate for an EC key pair.
@@ -297,17 +422,38 @@ public:
 	 * @note Ensure that the EC connection context is properly initialized
 	 * before calling this function.
 	 */
-	static inline BIGNUM* compute_ec_ss_x(ec_connection_context_t& c_ctx, const BIGNUM* priv, const EC_POINT* pub) {
-        // TODO: May have to adjust to get the group from the public key
-        EC_POINT *ss = EC_POINT_new(c_ctx.group);
-        if (EC_POINT_mul(c_ctx.group, ss, NULL, pub, priv, c_ctx.bn_ctx) == 0) {
+	static inline BIGNUM* compute_ec_ss_x(const EC_GROUP* group, const BIGNUM* priv, const EC_POINT* pub, BN_CTX* bn_ctx = NULL) {
+        EC_POINT *ss = EC_POINT_new(group);
+        if (EC_POINT_mul(group, ss, NULL, pub, priv, bn_ctx) == 0) {
             printf("%s:%d unable to get x, y of the curve\n", __func__, __LINE__);
             return NULL;
         }
-        return get_ec_x(c_ctx, ss);
+        return get_ec_x(group, ss, bn_ctx);
     }
 
-    
+	/**
+	 * @brief Compute the shared secret X coordinate for an EC key pair.
+	 *
+	 * This function calculates the X coordinate of the shared secret using
+	 * the provided private and public keys.
+	 *
+	 * @param[in] c_ctx The EC connection context containing the group and bn_ctx.
+	 * @param[in] priv The private key (for example p_I, p_R, or b_R).
+	 * @param[in] pub The public key (for example P_I, B_R, or P_R).
+	 *
+	 * @return BIGNUM* The X coordinate of the shared secret, or NULL on failure.
+	 * Caller must free with BN_free().
+	 *
+	 * @note Ensure that the EC connection context is properly initialized
+	 * before calling this function.
+	 */
+	static inline BIGNUM* compute_ec_ss_x(ec_connection_context_t& c_ctx, const BIGNUM* priv, const EC_POINT* pub) {
+        if (!c_ctx.group) return NULL;
+		if (!priv || !pub) return NULL;
+
+		return compute_ec_ss_x(c_ctx.group, priv, pub, c_ctx.bn_ctx);
+    }
+
 	/**
 	* @brief Generate a protocol key pair for the given EC curve.
 	*
@@ -462,6 +608,42 @@ public:
         return get_tls_group_id_from_nid(nid);
     }
 
+	/**
+	 * @brief Get the OpenSSL nid for a given TLS group ID.
+	 * 
+	 * Reference: https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml
+	 * 
+	 * @param tls_group_id The TLS group ID to get the EC_GROUP for.
+	 * 
+	 * @return int The OpenSSL nid corresponding to the TLS group ID, or NID_undef if the group is unknown or unsupported.
+	 */
+	static inline int get_nid_from_tls_group_id(uint16_t tls_group_id) {
+		switch (tls_group_id) {
+			case 23:  /* secp256r1 (NIST P-256) */
+				return NID_X9_62_prime256v1;
+			case 24:  /* secp384r1 (NIST P-384) */
+				return NID_secp384r1;
+			case 25:  /* secp521r1 (NIST P-521) */
+				return NID_secp521r1;
+			case 19:  /* secp192r1 */
+				return NID_X9_62_prime192v1;
+			case 21:  /* secp224r1 */
+				return NID_secp224r1;
+			case 26:  /* brainpoolP256r1 */
+				return NID_brainpoolP256r1;
+			case 27:  /* brainpoolP384r1 */
+				return NID_brainpoolP384r1;
+			case 28:  /* brainpoolP512r1 */
+				return NID_brainpoolP512r1;
+			case 29:  /* x25519 */
+				return NID_X25519;
+			case 30:  /* x448 */
+				return NID_X448;
+			default:
+				return NID_undef;
+		}
+	}
+
     
 	/**!
 	 * @brief Prints the given big number.
@@ -503,6 +685,21 @@ public:
         RAND_bytes(buff, static_cast<int>(len));
         memset(buff, 0, len);
         free(buff);
+    };
+
+
+	/**!
+	 * @brief Securely frees a C string after zering its contents
+	 *
+	 * This function ensures that the buffer is zeroed out before being freed to prevent any sensitive data from being left in memory.
+	 *
+	 * @param[in,out] str Pointer to the string to be zeroed and freed.
+	 *
+	 * @note If `buff` is NULL, the function returns immediately without performing any operations.
+	 */
+	static inline void rand_zero_free(const char* str) {
+		if (str == NULL) return;
+        rand_zero_free(const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(str)), strlen(str));
     };
 
     
@@ -556,6 +753,7 @@ public:
         if (ctx->k2) rand_zero_free(ctx->k2, static_cast<size_t> (digest_len));
         if (ctx->ke) rand_zero_free(ctx->ke, static_cast<size_t> (digest_len));
         if (ctx->bk) rand_zero_free(ctx->bk, static_cast<size_t> (digest_len));
+        if (ctx->net_access_key) em_crypto_t::free_key(ctx->net_access_key);
 
         rand_zero(reinterpret_cast<uint8_t*>(ctx), sizeof(ec_ephemeral_context_t));
     }
@@ -589,30 +787,36 @@ public:
         if (ctx->order) BN_free(ctx->order);
         if (ctx->prime) BN_free(ctx->prime);
         if (ctx->bn_ctx) BN_CTX_free(ctx->bn_ctx);
-        if (ctx->C_signing_key) em_crypto_t::free_key(ctx->C_signing_key);
-        if (ctx->ppk) EC_POINT_free(ctx->ppk);
-        if (ctx->net_access_key) em_crypto_t::free_key(ctx->net_access_key);
-        if (ctx->connector) rand_zero_free(const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(ctx->connector)), strlen(ctx->connector));
 
 		rand_zero(reinterpret_cast<uint8_t*>(ctx), sizeof(ec_connection_context_t));
     }
 
+	static inline void free_persistent_sec_ctx(ec_persistent_sec_ctx_t* ctx) {
+		if (!ctx) return;
+
+		if (ctx->C_signing_key) em_crypto_t::free_key(const_cast<SSL_KEY*>(ctx->C_signing_key));
+		if (ctx->net_access_key) em_crypto_t::free_key(const_cast<SSL_KEY*>(ctx->net_access_key));
+		if (ctx->pp_key) em_crypto_t::free_key(const_cast<SSL_KEY*>(ctx->pp_key));
+		if (ctx->connector) rand_zero_free(ctx->connector);
+
+		rand_zero(reinterpret_cast<uint8_t*>(ctx), sizeof(ec_persistent_sec_ctx_t));
+	}
+
 // START: Connector methods
   
 	/**
-	 * @brief Split and decode a connector into its constituent parts.
-	 *
-	 * This function takes a connector string and splits it into its individual components,
-	 * decoding each part into a cJSON object. The result is a vector of cJSON objects.
+	 * @brief Split and decode a connector into its constituent parts. 
+	 * If the signing_key is provided, it will also verify the signature.
 	 *
 	 * @param[in] conn The connector to split and decode.
+	 * @param[in] signing_key If provided, signature verification will be performed using this key.
 	 *
-	 * @return std::optional<std::vector<cJSON*>> A vector of cJSON objects containing the decoded parts, or std::nullopt on failure.
+	 * @return std::optional<std::tuple<cJSON*, cJSON*, std::vector<uint8_t>> A tuple consisting of the decoded/validated parts, or std::nullopt on failure.
 	 * Indices: 0 -> JWS Header, 1 -> JWS Payload, 2 -> JWS Signature.
 	 *
 	 * @note The caller is responsible for freeing the cJSON objects.
 	 */
-	static std::optional<std::vector<cJSON*>> split_decode_connector(const char* conn);
+	static std::optional<std::tuple<cJSON*, cJSON*, std::vector<uint8_t>>> split_decode_connector(const char* conn, std::optional<SSL_KEY*> signing_key = std::nullopt);
 
 	/**
 	 * @brief Split a Connector into its constituent parts without base64 decoding
@@ -623,6 +827,10 @@ public:
 	 */
 	static std::optional<std::vector<std::string>> split_connector(const char* conn);
 
+	static bool validate_jws_header(const cJSON* jws_header, std::string type);
+
+	static bool validate_jws_payload(const cJSON* jws_payload, bool check_expired=true);
+
 	/**
 	 * @brief Concatenate multiple nonces into a single byte vector. Will be concatenating in the order they are provided
 	 * 
@@ -632,12 +840,11 @@ public:
 	static std::vector<uint8_t> concat_nonces(const std::vector<std::vector<uint8_t>>& nonces);
 
 	/**
-	 * @brief Decode an EC point from a DPP Connector's "netAccessKey" field
+	 * @brief Decode a JWK from a JSON object and return the EC_POINT.
 	 * 
-	 * @param ctx The connection context containing the EC group and BN context
-	 * @param net_access_key cJSON blob containing the "netAccessKey" field
+	 * @param ctx The connection context containing the BN context
+	 * @param json_web_key cJSON blob 
 	 * Example:
-	 *        "netAccessKey":
 	 *        {
 	 *            "kty":"EC",
 	 *            "crv":"P-256",
@@ -647,7 +854,43 @@ public:
 	 * 	
 	 * @return EC_POINT* on success, nullptr otherwise
 	 */
-	static EC_POINT *decode_ec_point_from_connector_netaccesskey(ec_connection_context_t& ctx, cJSON *net_access_key);
+	static EC_POINT *decode_jwk_ec_point(ec_connection_context_t& ctx, cJSON *json_web_key);
+
+	/**
+	 * @brief Decode a JWK from a JSON object and return the EC_POINT.
+	 * 
+	 * @param json_web_key cJSON blob 
+	 * @param bn_ctx The BN_CTX to used to optimize decoding (optional, can be NULL) 
+	 * Example:
+	 *        {
+	 *            "kty":"EC",
+	 *            "crv":"P-256",
+	 *            "x":"Xj-zV2iEiH8XwyA9ijpsL6xyLvDiIBthrHO8ZVxwmpA",
+	 *            "y":"LUsDBmn7nv-LCnn6fBoXKsKpLGJiVpY_knTckGgsgeU"
+	 *        },
+	 * 	
+	 * @return EC_POINT* on success, nullptr otherwise
+	 */
+	static EC_POINT *decode_jwk_ec_point(cJSON *json_web_key, BN_CTX* bn_ctx = NULL);
+
+
+
+	/**
+	 * @brief Decode a JWK from a JSON object and return the EC_GROUP (crv) and EC_POINT.
+	 * 
+	 * @param json_web_key cJSON blob 
+	 * @param bn_ctx The BN_CTX to used to optimize decoding (optional, can be NULL) 
+	 * Example:
+	 *        {
+	 *            "kty":"EC",
+	 *            "crv":"P-256",
+	 *            "x":"Xj-zV2iEiH8XwyA9ijpsL6xyLvDiIBthrHO8ZVxwmpA",
+	 *            "y":"LUsDBmn7nv-LCnn6fBoXKsKpLGJiVpY_knTckGgsgeU"
+	 *        },
+	 * 	
+	 * @return EC_POINT* on success, nullptr otherwise
+	 */
+	static std::pair<EC_GROUP*, EC_POINT*> decode_jwk(cJSON *json_web_key, BN_CTX* bn_ctx = NULL);
     
 	/**
 	 * @brief Generate a connector from JWS header, payload, and the key to create the signature with.
@@ -681,15 +924,16 @@ public:
 	 * This function extracts the JWS Protected Header from the given connector.
 	 *
 	 * @param[in] conn The connector to extract the header from.
+	 * @param[in] signing_key Optional signing key for signature verification.
 	 *
 	 * @return std::optional<cJSON*> The JWS Protected Header, or std::nullopt on failure.
 	 *
 	 * @note The caller is responsible for freeing the cJSON object.
 	 */
-	static inline std::optional<cJSON*> get_jws_header(const char* conn) {
-        auto parts = split_decode_connector(conn);
+	static inline std::optional<cJSON*> get_jws_header(const char* conn, std::optional<SSL_KEY*> signing_key = std::nullopt) {
+        auto parts = split_decode_connector(conn, signing_key);
         if (!parts.has_value()) return std::nullopt;
-        return parts.value()[0]; // JWS header is the first part
+        return std::get<0>(parts.value()); // JWS header is the first part
     }
 
     
@@ -699,15 +943,16 @@ public:
 	 * This function extracts the JWS payload from the given connector string.
 	 *
 	 * @param[in] conn The connector string from which the payload is extracted.
+	 * @param[in] signing_key Optional signing key for signature verification.
 	 *
 	 * @returns std::optional<cJSON*> The JWS Payload wrapped in an optional, or std::nullopt on failure.
 	 *
 	 * @note The caller is responsible for freeing the cJSON object if the payload is successfully extracted.
 	 */
-	static inline std::optional<cJSON*> get_jws_payload(const char* conn) {
-        auto parts = split_decode_connector(conn);
+	static inline std::optional<cJSON*> get_jws_payload(const char* conn, std::optional<SSL_KEY*> signing_key = std::nullopt) {
+        auto parts = split_decode_connector(conn, signing_key);
         if (!parts.has_value()) return std::nullopt;
-        return parts.value()[1]; // JWS payload is the second part
+        return std::get<1>(parts.value()); // JWS payload is the second part
     }
 
     
@@ -722,10 +967,10 @@ public:
 	 *
 	 * @note The caller is responsible for freeing the cJSON object if a valid signature is returned.
 	 */
-	static inline std::optional<cJSON*> get_jws_signature(const char* conn) {
+	static inline std::optional<std::vector<uint8_t>> get_jws_signature(const char* conn) {
         auto parts = split_decode_connector(conn);
         if (!parts.has_value()) return std::nullopt;
-        return parts.value()[2]; // JWS signature is the third part
+        return std::get<2>(parts.value()); // JWS signature is the third part
     }
 
     
@@ -775,7 +1020,6 @@ public:
 	 * This function generates a JSON Web Signature (JWS) payload using the provided context,
 	 * groups, and network access key. The payload includes an optional expiry date.
 	 *
-	 * @param[in] c_ctx Persistent context used for the connection.
 	 * @param[in] groups List of "key":"value" pairs to be included in the "groups" array.
 	 *                   Possible keys are "groupID" and "netRole".
 	 * @param[in] net_access_key The network access key used for encryption.
@@ -805,7 +1049,7 @@ public:
 	 * 	  	  "version": 2
 	 *   }
 	 */
-	static cJSON* create_jws_payload(ec_connection_context_t& c_ctx, const std::vector<std::unordered_map<std::string, std::string>>& groups, SSL_KEY* net_access_key, std::optional<std::string> expiry = std::nullopt, std::optional<uint8_t> version = std::nullopt);
+	static cJSON* create_jws_payload(const std::vector<std::unordered_map<std::string, std::string>>& groups, SSL_KEY* net_access_key, std::optional<std::string> expiry = std::nullopt, std::optional<uint8_t> version = std::nullopt);
 
     
 	/**
@@ -814,7 +1058,6 @@ public:
 	 * This function creates a csign object, which is part of the "cred" object in EasyConnect 4.5.3.
 	 *
 	 * @param[in] c_signing_key Configurator Signing Key.
-	 * @param[in] c_ctx Persistent context.
 	 *
 	 * @return cJSON* Pointer to the created csign object on success, nullptr otherwise.
 	 *
@@ -828,7 +1071,7 @@ public:
 	 * "kid":"kMcegDBPmNZVakAsBZOzOoCsvQjkr_nEAp9uF-EDmVE"
 	 * },
 	 */
-	static cJSON* create_csign_object(ec_connection_context_t& c_ctx, SSL_KEY *c_signing_key);
+	static cJSON* create_csign_object(SSL_KEY *c_signing_key);
 
     
 	/**
@@ -846,21 +1089,23 @@ public:
 	 */
 	static EC_POINT* create_ppkey_public(SSL_KEY *c_signing_key);
 
-    
 	/**
-	 * @brief Create a ppkey object.
+	 * @brief Adds the fields present in all JSON Web Key (JWK) objects to the provided JSON object.
+	 * 
+	 * Edits the provided JSON object in-place
 	 *
-	 * This function generates a ppKey object using the provided persistent context.
+	 * @param[in] json_obj The JSON object to which the common JWK fields will be added.
+	 * @param[in] key The key containing the information to be added.
 	 *
-	 * @param[in] c_ctx Persistent context used for creating the ppKey object.
+	 * @return true if the fields were successfully added, false otherwise.
 	 *
-	 * @return cJSON* Returns a pointer to the ppKey object on success, otherwise returns nullptr.
+	 * @note RFC 7517 defines many possible fields for JWK objects, but this function only adds the common fields:
+	 * 			- "kty" 
+	 * 			- "crv"
+	 * 			- "x" 
+	 * 			- "y"
 	 *
-	 * @note EasyConnect 6.5.2
-	 *
-	 * Example of ppKey object:
 	 * @code
-	 * "ppKey":
 	 * {
 	 *   "kty":"EC",
 	 *   "crv":"P-256",
@@ -869,7 +1114,35 @@ public:
 	 * }
 	 * @endcode
 	 */
-	static cJSON *create_ppkey_object(ec_connection_context_t& c_ctx);
+	static bool add_common_jwk_fields(cJSON* json_obj, const SSL_KEY *key);
+
+	/**
+	 * @brief Adds the fields present in all JSON Web Key (JWK) objects to the provided JSON object.
+	 * 
+	 * Edits the provided JSON object in-place
+	 *
+	 * @param[in] json_obj The JSON object to which the common JWK fields will be added.
+	 * @param[in] key_group The EC_GROUP of the curve the point is on
+	 * @param[in] key_point The EC_POINT containing the information to be added.
+	 *
+	 * @return true if the fields were successfully added, false otherwise.
+	 *
+	 * @note RFC 7517 defines many possible fields for JWK objects, but this function only adds the common fields:
+	 * 			- "kty" 
+	 * 			- "crv"
+	 * 			- "x" 
+	 * 			- "y"
+	 *
+	 * @code
+	 * {
+	 *   "kty":"EC",
+	 *   "crv":"P-256",
+	 *   "x":"XX_ZuJR9nMDSb54C_okhGiJ7OjCZOlWOU9m8zAxgUrU",
+	 *   "y":"Fekm5hyGii80amM_REV5sTOG3-sl1H6MDpZ8TSKnb7c"
+	 * }
+	 * @endcode
+	 */
+	static bool add_common_jwk_fields(cJSON *json_obj, const EC_GROUP* key_group, const EC_POINT *key_point);
 };
 
 #endif // EC_CRYPTO_H

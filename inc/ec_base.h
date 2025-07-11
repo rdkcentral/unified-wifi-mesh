@@ -45,11 +45,20 @@ extern "C"
 #define DPP_VERSION 0x02
 #define DPP_URI_JSON_PATH "/nvram/DPPURI.json"
 #define DPP_BOOT_PEM_PATH "/nvram/DPPURI.pem"
+#define DPP_SEC_CTX_DIR_PATH "/nvram"
+
+
+#define DPP_C_SIGN_KEY_FILE "C-sign-key.pem"
+#define DPP_NET_ACCESS_KEY_FILE "net-access-key.pem"
+#define DPP_PPK_KEY_FILE "ppk.pem"
+#define DPP_CONNECTOR_FILE "connector.txt"
 
 // The NID for generating the local responder keypair
 #define DPP_KEY_NID NID_X9_62_prime256v1
 
-
+#ifndef ETH_ALEN
+#define ETH_ALEN 6
+#endif // ETH_ALEN
 
 #define DPP_OUI_TYPE 0x1A
 #define DPP_MAX_EN_CHANNELS 4
@@ -350,6 +359,123 @@ typedef struct {
     uint8_t comeback_resp[];
 } __attribute__((packed)) ec_gas_comeback_response_frame_t;
 
+// START: Adapted from `eapol_common.h` in hostapd
+#define EAPOL_VERSION 3
+
+enum { IEEE802_1X_TYPE_EAP_PACKET = 0,
+       IEEE802_1X_TYPE_EAPOL_START = 1,
+       IEEE802_1X_TYPE_EAPOL_LOGOFF = 2,
+       IEEE802_1X_TYPE_EAPOL_KEY = 3,
+       IEEE802_1X_TYPE_EAPOL_ENCAPSULATED_ASF_ALERT = 4,
+       IEEE802_1X_TYPE_EAPOL_MKA = 5,
+};
+
+
+/* 
+* 802.11 Table 12-10—KDE selectors + EasyMesh 1905 Table 11
+* 
+* +-------------------+-----------+-------------------------+
+* | OUI               | Data type | Meaning                 |
+* +-------------------+-----------+-------------------------+
+* | 00-0F-AC          | 0         | Reserved                |
+* | 00-0F-AC          | 1         | GTK KDE                 |
+* | 00-0F-AC          | 2         | Reserved                |
+* | 00-0F-AC          | 3         | MAC address KDE         |
+* | 00-0F-AC          | 4         | PMKID KDE               |
+* | 00-0F-AC          | 5         | Reserved                |
+* | 00-0F-AC          | 6         | Nonce KDE               |
+* | 00-0F-AC          | 7         | Lifetime KDE            |
+* | 00-0F-AC          | 8         | Error KDE               |
+* | 00-0F-AC          | 9         | IGTK KDE                |
+* | 00-0F-AC          | 10        | Key ID KDE              |
+* | 00-0F-AC          | 11        | Multi-band GTK KDE      |
+* | 00-0F-AC          | 12        | Multi-band Key ID KDE   |
+* | 00-0F-AC          | 13        | OCI KDE                 |
+* | 00-0F-AC          | 14        | BIGTK KDE               |
+* | (11ba)00-0F-AC    | 15        | WIGTK KDE               |
+* | 00-0F-AC          | (11ba)16-255 | Reserved             |
+* | Other OUI or CID  | Any       | Vendor specific         |
+* +-------------------+-----------+-------------------------+
+* | 50-6F-9A          | 0         | 1905 GTK KDE            |
+* +-------------------+-----------+-------------------------+
+*/
+
+typedef enum {
+    EAPOL_KDE_TYPE_1905_GTK = 0, // EasyMesh 1905 GTK KDE
+    EAPOL_KDE_TYPE_GTK = 1,
+    EAPOL_KDE_TYPE_MAC_ADDR = 3,
+    EAPOL_KDE_TYPE_PMKID = 4,
+    EAPOL_KDE_TYPE_NONCE = 6,
+    EAPOL_KDE_TYPE_LIFETIME = 7,
+    EAPOL_KDE_TYPE_ERROR = 8,
+    EAPOL_KDE_TYPE_IGTK = 9,
+    EAPOL_KDE_TYPE_KEY_ID = 10,
+    EAPOL_KDE_TYPE_MULTI_BAND_GTK = 11,
+    EAPOL_KDE_TYPE_MULTI_BAND_KEY_ID = 12,
+    EAPOL_KDE_TYPE_OCI = 13,
+    EAPOL_KDE_TYPE_BIGTK = 14,
+    EAPOL_KDE_TYPE_WIGTK = 15,
+} eapol_kde_type_t;
+
+typedef struct {
+    uint8_t type; 
+    uint8_t length; 
+    uint8_t oui[3]; 
+    uint8_t data_type;
+    uint8_t data[0];
+} __attribute__((packed)) eapol_kde_t;
+
+
+#define EAPOL_KDE_BASE_SIZE (sizeof(eapol_kde_t) - offsetof(eapol_kde_t, oui))
+
+typedef struct  {
+	uint8_t version;
+	uint8_t type;
+	uint16_t length;
+	/* followed by length octets of data */
+} __attribute__((packed)) ieee802_1x_hdr_t;
+
+// END
+
+typedef struct {
+    uint8_t desc_type;
+    union {
+        struct {
+            uint16_t key_descriptor_version : 3;  // B0-B2
+            uint16_t key_type : 1;                // B3
+            uint16_t reserved1 : 2;               // B4-B5
+            uint16_t install : 1;                 // B6
+            uint16_t key_ack : 1;                 // B7
+            uint16_t key_mic : 1;                 // B8
+            uint16_t secure : 1;                  // B9
+            uint16_t error : 1;                   // B10
+            uint16_t request : 1;                 // B11
+            uint16_t encrypted_key_data : 1;      // B12
+            uint16_t reserved2 : 3;               // B13-B15
+        } bits;
+        uint16_t raw;  // Direct 16-bit access
+    } key_info;
+    uint16_t key_length; 
+    uint64_t key_replay_counter;
+    uint8_t key_nonce[32];
+    uint8_t key_iv[16];
+    uint8_t key_rsc[8];
+    uint8_t _reserved[8]; // Reserved in the EAPOL-PDU
+    /*
+    - The MIC is optional and is only present if the key_info_t.key_mic bit is set.
+    - After the MIC there is a 2 octet key length field
+    - After the key length field, there is a key data field of variable length.
+    */
+    uint8_t mic_len_key[0];
+} __attribute__((packed)) eapol_packet_t; // 802.11 12.7.2
+
+
+typedef struct {
+    uint8_t key_id : 2; // Bits 0-1
+    uint8_t reserved : 6; // Bits 2-7
+    uint8_t gtk[32]; // 1905 GTK
+} __attribute__((packed)) gtk_1905_kde_t;
+
 // Used to avoid many many if-not-null checks
 #define ASSERT_MSG_FALSE(x, ret, errMsg, ...) \
     if(x) { \
@@ -477,6 +603,34 @@ typedef struct {
 #endif
 #endif
 
+
+typedef struct {
+    uint8_t pmk[SHA256_DIGEST_LENGTH];
+    uint8_t pmkid[16]; // Truncated to 128 bits
+
+    uint8_t ptk[SHA512_DIGEST_LENGTH]; 
+    // Saved after PTK is out of RAM for use with other operations (group handshake, etc)
+    uint8_t ptk_kck[64]; // PTK KCK (Key Confirmation Key) (802.11 12.7.1.3)
+    uint8_t ptk_kek[64]; // PTK KEK (Key Encryption Key) (802.11 12.7.1.3)
+
+    uint8_t a_nonce[SHA256_DIGEST_LENGTH]; // 802.11 12.7.5
+    uint8_t s_nonce[SHA256_DIGEST_LENGTH];
+
+    // The current last sent eapol number (1 to 4) in the 4 way handshake.
+    // This is used to track which frame in the 4 way handshake has been sent.
+    // For example:
+    //      If the first frame in the 4 way handshake is sent, this is 1.
+    //      If the second frame in the 4 way handshake is sent, this is 2.
+    //      If the third frame in the 4 way handshake is sent, this is 3.
+    //      If the fourth frame in the 4 way handshake is sent, this is 4.
+    uint8_t sent_eapol_idx;
+
+    uint64_t curr_replay_counter;
+
+    bool is_ptk_rekeying;
+    
+} ec_1905_key_ctx;
+
 typedef enum {
     ec_session_type_cfg,
     ec_session_type_recfg,
@@ -508,6 +662,78 @@ typedef struct {
     // b_I, b_R
     BIGNUM *init_priv_boot_key, *resp_priv_boot_key;
 } ec_data_t;
+
+
+typedef struct {
+
+   /**
+     * Configurator Signing Key.
+     * Used to sign all DPP Connectors.
+     *  - The Configurator has the private/public key pair
+     *  - The Enrollee has the public key only
+     */
+	SSL_KEY* C_signing_key;
+
+    /**
+     * The Configurator's Privacy Protection Key (PPK).
+     * Used for configuration / re-authentication.
+     *  - The Configurator has the private/public key pair
+     *  - The Enrollee has the public key only
+     */
+	SSL_KEY* pp_key;
+
+    /**
+     * The Controller or Agent/Enrollee's netAccessKey (NAK), used as the netAccessKey for the devices's 1905 connector
+     * This is the key present in the DPP/1905 Connector
+     *  - The Configurator generates it's NAK at initialization (along with connector, EasyMesh 5.3.3)
+     *  - The Enrollee generates it's NAK as a protocol key during the DPP Authentication process
+     */
+	SSL_KEY* net_access_key;
+
+    /**
+     * @brief The Controller or Agent/Enrollee's 1905/DPP Connector.
+     *  - The differences between devices are the `netRole` (`mapController` or `mapAgent`) and the `netAccessKey` (NAK).
+     * - The Configurator generates it's Connector at initialization (along with NAK, EasyMesh 5.3.3)
+     * - The Enrollee _recieves_ it's Connector from the Controller/Configurator during the DPP Configuration process.
+     * NULL terminated string, NULL if not set.
+     * @paragraph
+     * EasyConnect 4.2
+     *   A Connector is encoded as a JSON Web Signature (JWS) Compact Serialization of a JWS Protected Header (describing
+     *   the encoded object and signature), a JWS Payload, and a signature. JSON is a data interchange format (see [12]) that
+     *   encodes data as a series of data types (strings, numbers, Booleans, and null) and structure types, formatted as
+     *   name/value pairs.
+     *   ...
+     *   The JWS Compact Serialization is a base64url encoding of each component, with components separated by a dot (“.”).
+     *   The JWS Protected Header is a JSON object that describes:
+     *   • The type of object in the JWS Payload specified as "dppCon"
+     *   • The identifier ("kid" ) for the key used to generate the signature
+     *   • The algorithm ("alg") used to generate a signature
+     *   The supported algorithms are given in [16]. All devices supporting DPP shall support the ES256 algorithm. Key and nonce
+     *   lengths shall be as specified in Table 4. The curve used for the signature may be different from the one used in DPP
+     *   Bootstrapping and DPP Authentication protocols.
+     *   ...
+     * 4.2.1 Connector Signing
+     *   The Configurator possesses a signing key pair (c-sign-key, C-sign-key). The c-sign-key is used by the Configurator to sign
+     *   Connectors, whereas the C-sign-key is used by provisioned devices to verify Connectors of other devices are signed by
+     *   the same Configurator. Connectors signed with the same c-sign-key manage connections in the same network.
+     *   The Configurator sets the public key corresponding to the enrollee protocol key as the **netAccessKey** in the Connector
+     *   data structure, and assigns the DPP Connector attribute depending on the Peer devices with which the enrollee will be
+     *   provisioned to connect.
+     * 4.2.1.1 Digital Signature Computation
+     *   The procedures to compute the digital signature of a Connector and the procedure to verify such signature are described
+     *   in FIPS-186-4 [19] and are specified in this section.  The curve used for the signature may be different from the one used in DPP Bootstrapping and DPP Authentication protocols.
+     *   The signature is performed over the concatenation of the base64url encodings of both the JWS Protected Header and the JWS Payload, separated by a dot (“.”), see section 5.1 of [14].
+     *   The data passed to the signature algorithm is:
+     *   
+     *   base64url(UTF8(JWS Protected Header)) | ‘.’ | base64url(JWS Payload)
+     *    
+     *   where UTF8(s) is the UTF8 representation of the string “s”.
+     *   If “sig” is the result of the signature, the Connector is then:
+     *   base64url(UTF8(JWS Protected Header)) | ‘.’ | base64url(JWS Payload) | ‘.’ | base64url(sig)
+     */
+    const char* connector;
+} ec_persistent_sec_ctx_t;
+
 
 /**
  * @brief The parameters used only during the creation of a connection between a Configurator and a specific Enrollee/Agent
@@ -562,6 +788,9 @@ typedef struct {
      * @brief The transaction ID used for Reconfiguration
      * 
      * This is created by the Configurator and issued to an Enrollee on a per-Reconfiguration-session basis.
+     * This is created by the (no longer Proxy) Agent and issued to an Controller on a per-Network Introduction Protocol-session basis.
+     * 
+     * Both uses cases are fine and won't collide with each other.
      * 
      */
     uint8_t transaction_id;
@@ -572,10 +801,10 @@ typedef struct {
     bool is_mutual_auth;
 
     /**
-     * C-Connector or E-Connector
-     * 
-     */
-    const char *connector;
+     * An ephemeral key pair used for storing a NAK between requests.
+     * Particularly used during EasyConnect re-authentication to store the temporary but newly generated NAK
+     */  
+    SSL_KEY *net_access_key;
 
 } ec_ephemeral_context_t;
 
@@ -597,64 +826,21 @@ typedef struct {
     uint16_t nonce_len;
     int nid;
 
-    //BEGIN:  Variables that persist after configuration to be used during re-configuration
+	/**
+     * Current netAccessKey (NAK) of the Agent/Enrollee.
+     *  - Stored in the case that the Agent/Enrollee chooses not to replace this key during (re)configuration. 
+     *  - Only used by the Controller/Configurator
+     * 
+     */ 
+    SSL_KEY *enrollee_net_access_key;
 
     /**
-     * Privacy-protection-key, the Configurator public privacy protection key.
-     * Both the Configurator and Enrollee have a copy of this key after configuration.
+     * @brief The **AL* MAC address of the peer device that this connection is established with.
+     * 
+     * This can be the MAC address of a Controller or an Agent but it **must** be an AL MAC, not
+     * a PHY MAC. Therefore, this value will be NULL during the initial onboarding (sending of 802.11/802.3 frames)
      */
-    EC_POINT* ppk;
-
-    /**
-     * Configurator Signing Key.
-     * Both the Configurator and Enrollee have a copy of this key after configuration.
-     */
-    SSL_KEY* C_signing_key;
-
-    /*
-        The protocol key of the Enrollee is used as Network Access key (netAccessKey) later in the DPP Configuration and DPP Introduction protocol
-    */  
-    SSL_KEY *net_access_key;
-
-    /**
-     * @brief Can be the Configurator's Connector or the Enroller's connector based on context.
-     * NULL terminated string, NULL if not set.
-     * @paragraph
-     * EasyConnect 4.2
-     *   A Connector is encoded as a JSON Web Signature (JWS) Compact Serialization of a JWS Protected Header (describing
-     *   the encoded object and signature), a JWS Payload, and a signature. JSON is a data interchange format (see [12]) that
-     *   encodes data as a series of data types (strings, numbers, Booleans, and null) and structure types, formatted as
-     *   name/value pairs.
-     *   ...
-     *   The JWS Compact Serialization is a base64url encoding of each component, with components separated by a dot (“.”).
-     *   The JWS Protected Header is a JSON object that describes:
-     *   • The type of object in the JWS Payload specified as "dppCon"
-     *   • The identifier ("kid" ) for the key used to generate the signature
-     *   • The algorithm ("alg") used to generate a signature
-     *   The supported algorithms are given in [16]. All devices supporting DPP shall support the ES256 algorithm. Key and nonce
-     *   lengths shall be as specified in Table 4. The curve used for the signature may be different from the one used in DPP
-     *   Bootstrapping and DPP Authentication protocols.
-     *   ...
-     * 4.2.1 Connector Signing
-     *   The Configurator possesses a signing key pair (c-sign-key, C-sign-key). The c-sign-key is used by the Configurator to sign
-     *   Connectors, whereas the C-sign-key is used by provisioned devices to verify Connectors of other devices are signed by
-     *   the same Configurator. Connectors signed with the same c-sign-key manage connections in the same network.
-     *   The Configurator sets the public key corresponding to the enrollee protocol key as the **netAccessKey** in the Connector
-     *   data structure, and assigns the DPP Connector attribute depending on the Peer devices with which the enrollee will be
-     *   provisioned to connect.
-     * 4.2.1.1 Digital Signature Computation
-     *   The procedures to compute the digital signature of a Connector and the procedure to verify such signature are described
-     *   in FIPS-186-4 [19] and are specified in this section.  The curve used for the signature may be different from the one used in DPP Bootstrapping and DPP Authentication protocols.
-     *   The signature is performed over the concatenation of the base64url encodings of both the JWS Protected Header and the JWS Payload, separated by a dot (“.”), see section 5.1 of [14].
-     *   The data passed to the signature algorithm is:
-     *   
-     *   base64url(UTF8(JWS Protected Header)) | ‘.’ | base64url(JWS Payload)
-     *    
-     *   where UTF8(s) is the UTF8 representation of the string “s”.
-     *   If “sig” is the result of the signature, the Connector is then:
-     *   base64url(UTF8(JWS Protected Header)) | ‘.’ | base64url(JWS Payload) | ‘.’ | base64url(sig)
-     */
-    const char* connector;
+    uint8_t peer_al_mac[ETH_ALEN];
 
     /**
      * @brief The temporary context that is used during the authentication / configuration process and should be securely freed after the process is complete.

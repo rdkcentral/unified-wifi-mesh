@@ -477,35 +477,15 @@ void em_agent_t::handle_recv_gas_frame(em_bus_event_t *evt)
 
     if (is_wfa_ec_gas) {
         printf("%s:%d: Received WFA EC GAS frame\n", __func__, __LINE__);
-        bool dest_al_same = false;
-        if (dest_node != NULL && al_node != NULL) {
-            em_printfout("Dest radio node MAC '" MACSTRFMT "', al_node radio MAC '" MACSTRFMT"'\n", MAC2STR(dest_node->get_radio_interface_mac()), MAC2STR(al_node->get_radio_interface_mac()));
-            dest_al_same = (memcmp(dest_node->get_radio_interface_mac(), al_node->get_radio_interface_mac(), ETH_ALEN) == 0);
-        }
-    
-        auto ctrl_al = m_data_model.get_controller_interface_mac();
-        auto agent_al = m_data_model.get_agent_al_interface_mac();
-        bool is_colocated = (memcmp(ctrl_al, agent_al, ETH_ALEN) == 0);
-    
-        em_printfout("Dest MAC '" MACSTRFMT "', dest_al_same=%d, is_colocated=%d", MAC2STR(dest_node->get_radio_interface_mac()), dest_al_same, is_colocated);
                                 
-        /*
-        If any of the following conditions are satisfied:
-            - The destination MAC is the same as the AL node (mac address)
-            - The colocated flag is set
-        Then the `ec_manager` of the AL node will handle the action frame
-        
-        We don't ignore it if this co-located since the AL-node will be the same as the controller (eth0) 
-        so if we ignore it, no packets will ever get through
-        */
-        if (dest_al_same || is_colocated) {
+        if (al_node != NULL) {
             if (!al_node->get_ec_mgr().handle_recv_gas_pub_action_frame(
                 gas_frame_base, full_frame_length - mgmt_hdr_len, mgmt_frame->sa)) {
                 printf("%s:%d: EC manager failed to handle GAS frame!\n", __func__, __LINE__);
             }
             return;
         }
-
+        printf("%s:%d: Did not find an AL node for handling WFA EC GAS frame!\n", __func__, __LINE__);
     }
 }
 
@@ -553,37 +533,16 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
 
     switch (oui_type) {
     case DPP_OUI_TYPE: {
+        printf("%s:%d: Received DPP action frame\n", __func__, __LINE__);
         em_t* al_node = get_al_node();
-        bool dest_al_same = false;
-        if (dest_radio_node != NULL && al_node != NULL) {
-            em_printfout("Dest radio node MAC '" MACSTRFMT "', al_node radio MAC '" MACSTRFMT"'\n", MAC2STR(dest_radio_node->get_radio_interface_mac()), MAC2STR(al_node->get_radio_interface_mac()));
-            dest_al_same = (memcmp(dest_radio_node->get_radio_interface_mac(), al_node->get_radio_interface_mac(), ETH_ALEN) == 0);
-        }
 
-        auto ctrl_al = m_data_model.get_controller_interface_mac();
-        auto agent_al = m_data_model.get_agent_al_interface_mac();
-        bool is_colocated = (memcmp(ctrl_al, agent_al, ETH_ALEN) == 0);
-
-        em_printfout("Dest MAC '%s', dest_al_same=%d, is_bcast=%d, is_colocated=%d", dest_mac_str, dest_al_same, is_bcast, is_colocated);
-
-        /*
-        If any of the following conditions are satisfied:
-            - The destination MAC is a broadcast address
-            - The destination MAC is the same as the AL node (mac address)
-            - The colocated flag is set
-        Then the `ec_manager` of the AL node will handle the action frame
-        
-        We don't ignore it if this co-located since the AL-node will be the same as the controller (eth0) 
-        so if we ignore it, no packets will ever get through
-        */
-
-        if (is_bcast || dest_al_same || is_colocated) {
+        if (al_node != NULL) {
             if (!al_node->get_ec_mgr().handle_recv_ec_action_frame(ec_frame, full_action_frame_len, mgmt_frame->sa)){
                 em_printfout("EC manager failed to handle action frame!");
             }
             return;
         }
-        em_printfout("Did not find an EM node for action frame!");
+        em_printfout("Did not find an AL node for handling DPP action frame!");
     }
     default:
         break;
@@ -1556,6 +1515,8 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
         case em_msg_type_direct_encap_dpp:
         case em_msg_type_chirp_notif:
         case em_msg_type_dpp_cce_ind:
+        case em_msg_type_1905_rekey_req:
+        case em_msg_type_1905_encap_eapol:
             em = al_em;
             break;
         default:

@@ -791,7 +791,8 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         case em_msg_type_proxied_encap_dpp:
         case em_msg_type_direct_encap_dpp:
         case em_msg_type_dpp_cce_ind:
-            // TODO: Add more types and might have to work on addressing more
+        case em_msg_type_1905_rekey_req:
+        case em_msg_type_1905_encap_eapol:
 	        em = al_em;
 	        break;
 
@@ -905,11 +906,11 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
     RegistrationResult result = registrationResponse.getResult();
     if (result == RegistrationResult::SUCCESS) {
         g_al_mac_sap = registrationResponse.getAlMacAddressLocal();
-        std::cout << "Registration completed with MAC Address: ";
-        for (auto byte : g_al_mac_sap) {
-            std::cout << std::hex << static_cast<int>(byte) << " ";
-        }
-        std::cout << std::dec << std::endl;
+        uint8_t* al_mac_bytes = g_al_mac_sap.data();
+        em_printfout("AL SAP registration successful, AL MAC: %s", util::mac_to_string(al_mac_bytes).c_str());
+
+        m_data_model.set_colocated_agent_interface_mac(al_mac_bytes);
+        m_data_model.set_dev_interface_mac(al_mac_bytes);
     } else {
         std::cout << "Registration failed with error: " << static_cast<int>(result) << std::endl;
     }

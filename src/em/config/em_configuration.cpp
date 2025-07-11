@@ -3705,8 +3705,7 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
 
 void em_configuration_t::handle_state_config_none()
 {
-    bool is_dpp_onboarding = get_ec_mgr().is_enrollee_onboarding();
-    if (is_dpp_onboarding) {
+    if (get_ec_mgr().is_enrollee_onboarding()) {
         // Enrollee is in onboarding state, so we should not send autoconfig search message
         return;
     }

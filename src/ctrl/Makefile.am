@@ -144,4 +144,5 @@ onewifi_em_ctrl_SOURCES =  \
  
  
 onewifi_em_ctrl_LDFLAGS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lrbus -fsanitize=address -fsanitize=undefined -lmariadb
+onewifi_em_ctrl_LDADD = $(top_builddir)/src/al-sap/libalsap.la
 

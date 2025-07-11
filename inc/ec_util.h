@@ -72,6 +72,15 @@ static const std::map<ec_status_code_t, std::string> status_code_map = {
     {DPP_STATUS_NEW_KEY_NEEDED, "New Key Needed: The Enrollee needs to generate a new Protocol key."}
 };
 
+static const std::vector<std::string> valid_net_roles = {
+        "mapBackhaulSta",
+        "mapBackhaulBss",
+        "mapAgent",
+        "ap",
+        "mapController",
+        "configurator"
+    };
+
 };
 
 class ec_util {
@@ -176,7 +185,7 @@ public:
 	 * @param[in] val The uint8_t attribute value.
 	 *
 	 * @return uint8_t* The buffer offset by the length of the attribute.
-	 *
+	 
 	 * @warning The buffer must be freed by the caller.
 	 */
 	static inline uint8_t* add_attrib(uint8_t *buff, size_t* buff_len, ec_attrib_id_t id, uint8_t val) {
@@ -898,6 +907,44 @@ public:
 
 
 	/**
+	 * @brief Write the keys and connector stored in the persistent security context to a folder.
+	 * 
+	 * @param[in] folder_path The path to the folder where the persistent security context will be written.
+	 * @param[in] sec_ctx The persistent security context to write.
+	 * @return true if the persistent security context was written successfully, false otherwise.
+	 */
+	static bool write_persistent_sec_ctx(std::string folder_path, const ec_persistent_sec_ctx_t& sec_ctx);
+
+	/**
+	 * @brief Read the persistent security context from a folder.
+	 * 
+	 * This function reads the persistent security context from the specified folder path.
+	 * If the folder does not exist or **any** of the files are not present, it returns std::nullopt.
+	 * 
+	 * @param folder_path The path to the folder where the persistent security context is stored.
+	 * @return std::optional<ec_persistent_sec_ctx_t> The persistent security context if read successfully, otherwise std::nullopt.
+	 */
+	static std::optional<ec_persistent_sec_ctx_t> read_persistent_sec_ctx(std::string folder_path);
+
+	/**
+	 * @brief Generate a new persistent security context with new **keys**, no new connector
+	 * 
+	 * @param nid The NID of the curve to use for the keys.
+	 * @return std::optional<ec_persistent_sec_ctx_t> The generated persistent security context with new keys, or std::nullopt on failure.
+	 */
+	static std::optional<ec_persistent_sec_ctx_t> generate_sec_ctx_keys(int nid);
+
+	/**
+	 * @brief Generate a DPP connector with the given security context keys and network role.
+	 * 
+	 * @param sec_ctx The security context containing the NAK and the C-signing key
+	 * @param netRole The network role for which the connector is generated (e.g., "mapAgent", "mapController").
+	 * @return std::optional<std::string> The generated DPP connector as a string, or std::nullopt on failure.
+	 */
+	static std::optional<std::string> generate_dpp_connector(ec_persistent_sec_ctx_t& sec_ctx, std::string netRole);
+
+
+	/**
 	 * @brief Interruptible sleep for a thread
 	 * 
 	 * @param duration How long to sleep for (arbitrary time unit, s, ms, etc)
@@ -982,7 +1029,6 @@ private:
 	 * DIGIT = %x30-39 HEXDIG = DIGIT / "A" / "B" / "C" / "D" / "E" / "F" ALPHA
 	 */
 	static std::map<dpp_uri_field, std::string> encode_bootstrap_data(ec_data_t *boot_data);
-
     
 	/**
 	 * @brief Get the DPP URI field enum from a string.

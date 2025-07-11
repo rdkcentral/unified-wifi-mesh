@@ -8,6 +8,25 @@
 #include "em_crypto.h"
 #include <netinet/in.h>
 
+ec_ctrl_configurator_t::ec_ctrl_configurator_t(const std::string& al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t sec_ctx) :
+                                               ec_configurator_t(al_mac_addr, ops, sec_ctx, false)
+{
+
+    // Generate completely random GMK on startup.
+    // The GTKs need to be re-established after re-connecting so it is not needed (and better to) not save it.
+    m_gmk = std::vector<uint8_t>(32, 0);
+    RAND_bytes(m_gmk.data(), static_cast<int>(m_gmk.size()));
+
+    // Pass super-class initialized security context + GMK
+    if (!m_1905_encrypt_layer.set_sec_params(m_sec_ctx.C_signing_key, m_sec_ctx.net_access_key, m_sec_ctx.connector, EVP_sha256(), m_gmk)) {
+        em_printfout("Failed to set security parameters for 1905 Encrypt Layer");
+        return;
+    }
+
+    
+}
+
+
 bool ec_ctrl_configurator_t::onboard_enrollee(ec_data_t *bootstrapping_data)
 {
 
@@ -37,12 +56,12 @@ bool ec_ctrl_configurator_t::onboard_enrollee(ec_data_t *bootstrapping_data)
     }
     // Create a new connection context
     ec_connection_context_t conn_ctx;
+    memset(&conn_ctx, 0, sizeof(ec_connection_context_t));
     m_connections[mac_str] = conn_ctx;
     auto& c_ctx = m_connections[mac_str];
     
 
     // Initialize bootstrapping data
-    memset(&c_ctx.boot_data, 0, sizeof(ec_data_t));
     memcpy(&c_ctx.boot_data, bootstrapping_data, sizeof(ec_data_t));
 
     // Not all of these will be present but it is better to compute them now.
@@ -58,7 +77,6 @@ bool ec_ctrl_configurator_t::onboard_enrollee(ec_data_t *bootstrapping_data)
         return false;
     }
 
-    printf("Configurator MAC: %s\n", m_mac_addr.c_str());
     return ec_crypto::init_connection_ctx(c_ctx, c_ctx.boot_data.responder_boot_key);
 }
 
@@ -183,7 +201,7 @@ bool ec_ctrl_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_t
     return did_finish;
 }
 
-bool ec_ctrl_configurator_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len)
+bool ec_ctrl_configurator_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len, uint8_t src_mac[ETH_ALEN])
 {
     if (dpp_frame == NULL || dpp_frame_len == 0) {
         em_printfout("DPP Message Frame is empty");
@@ -220,6 +238,11 @@ bool ec_ctrl_configurator_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, ui
             break;
         }
         case ec_frame_type_peer_disc_req: {
+            did_finish = handle_peer_disc_req_frame(ec_frame, dpp_frame_len, src_mac);
+            break;
+        }
+        case ec_frame_type_peer_disc_rsp: {
+            did_finish = handle_peer_disc_resp_frame(ec_frame, dpp_frame_len, src_mac);
             break;
         }
         default:
@@ -353,7 +376,6 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
     auto conn_ctx = get_conn_ctx(e_mac);
     auto e_ctx = get_eph_ctx(e_mac);
     ASSERT_NOT_NULL(conn_ctx, false, "%s:%d: No connection context for Enrollee '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(src_mac));
-    ASSERT_NOT_NULL(conn_ctx->net_access_key, false, "%s:%d: Enrollee '" MACSTRFMT "' netAccessKey is NULL!\n", __func__, __LINE__, MAC2STR(src_mac));
     ASSERT_NOT_NULL(e_ctx, false, "%s:%d: No ephemeral context found for Enrollee '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(src_mac));
     ec_gas_initial_request_frame_t *initial_request_frame = reinterpret_cast<ec_gas_initial_request_frame_t *>(encap_frame);
 
@@ -389,15 +411,15 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
         // EC 6.3.1:
         // The protocol key of the Enrollee is used as Network Access key (netAccessKey) later in the DPP Configuration and DPP Introduction protocol
         // For initial auth/config, Configurator holds the Initator role and the Enrollee is the Respondor
-        auto [x, y] = ec_crypto::get_ec_x_y(*conn_ctx, e_ctx->public_resp_proto_key);
-        conn_ctx->net_access_key = em_crypto_t::create_ec_key_from_coordinates(ec_crypto::BN_to_vec(x), ec_crypto::BN_to_vec(y), ec_crypto::BN_to_vec(e_ctx->priv_resp_proto_key));
-        if (conn_ctx->net_access_key == nullptr) {
-            em_printfout("Could not derive net access key from Enrollee protocol keypair");
-            BN_free(x);
-            BN_free(y);
-            free(unwrapped_attrs);
-            return false;
-        }
+
+        EC_POINT* enrollee_public_nak = ec_crypto::decode_ec_point(*conn_ctx, proto_key_attr->data);
+        EM_ASSERT_NOT_NULL_FREE(enrollee_public_nak, false, unwrapped_attrs, "Failed to decode Enrollee protocol public key (NAK)!");
+        
+        SSL_KEY* nak = em_crypto_t::bundle_ec_key(conn_ctx->group, enrollee_public_nak);
+        EM_ASSERT_NOT_NULL_FREE(nak, false, unwrapped_attrs, "Failed to bundle Enrollee protocol keypair into netAccessKey!");
+        
+        if (conn_ctx->enrollee_net_access_key) em_crypto_t::free_key(conn_ctx->enrollee_net_access_key);
+        conn_ctx->enrollee_net_access_key = nak;
     }
 
     auto dpp_config_request_obj_attr = ec_util::get_attrib(unwrapped_attrs, unwrapped_attrs_len, ec_attrib_id_dpp_config_req_obj);
@@ -440,13 +462,6 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
         free(config_response_frame);
         return sent;
     }
-
-    /*
-    EasyConnect 7.5
-    When a device is set-up as a Configurator, it generates the key pair (c-sign-key, C-sign-key), to sign and verify Connectors, respectively.
-    */
-    conn_ctx->C_signing_key = em_crypto_t::generate_ec_key(conn_ctx->nid);
-
 
     /*
     // GAS frame fragmentation / comeback delay / MUD URL
@@ -715,7 +730,7 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
         e_ctx->l = L_x;
     }
 
-    e_ctx->k1 = static_cast<uint8_t *>(calloc(conn_ctx->digest_len, 1));
+    e_ctx->ke = static_cast<uint8_t *>(calloc(conn_ctx->digest_len, 1));
     if (ec_crypto::compute_ke(*conn_ctx, e_ctx, e_ctx->ke) == 0) {
         em_printfout("Failed to compute ke");
         free(prim_unwrapped_data);
@@ -874,7 +889,7 @@ bool ec_ctrl_configurator_t::handle_recfg_announcement(ec_frame_t *encap_frame, 
     auto conn_ctx = get_conn_ctx(enrollee_mac);
     ASSERT_NOT_NULL(conn_ctx, false, "%s:%d: No known connection context for Enrollee '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(sa));
 
-    uint8_t *configurator_c_sign_hash = ec_crypto::compute_key_hash(conn_ctx->C_signing_key);
+    uint8_t *configurator_c_sign_hash = ec_crypto::compute_key_hash(m_sec_ctx.C_signing_key);
     if (memcmp(configurator_c_sign_hash, conf_c_sign_key_attr->data, conf_c_sign_key_attr->length) != 0) {
         em_printfout("Mismatched C-sign-key hash, perhaps meant for another Configurator? Ignoring Reconfiguration Announcement from '" MACSTRFMT "'", MAC2STR(sa));
         free(configurator_c_sign_hash);
@@ -885,7 +900,13 @@ bool ec_ctrl_configurator_t::handle_recfg_announcement(ec_frame_t *encap_frame, 
 
     // TODO
     // Derive E-id from E'-id, used to index if Reconfiguration is already under-way.
-    // scoped_ec_group group(ec_crypto::get_ec_group_from_tls_id(SWAP_LITTLE_ENDIAN(*reinterpret_cast<uint16_t*>(finite_cyclic_group_attr->data))));
+    uint16_t fc_tls_group_id = SWAP_LITTLE_ENDIAN(*reinterpret_cast<uint16_t*>(finite_cyclic_group_attr->data));
+    int fc_nid = ec_crypto::get_nid_from_tls_group_id(fc_tls_group_id);
+    if (fc_nid == NID_undef) {
+        em_printfout("Recieved finite cyclic group is not a supported TLS Group ID: %d", fc_tls_group_id);
+        return true;
+    }
+
     // scoped_ec_point a_nonce(ec_crypto::decode_ec_point(*conn_ctx, a_nonce_attr->data));
     // scoped_ec_point e_prime_id(ec_crypto::decode_ec_point(*conn_ctx, e_id_attr->data));
 
@@ -905,7 +926,7 @@ bool ec_ctrl_configurator_t::handle_recfg_announcement(ec_frame_t *encap_frame, 
         return true;
     }
 
-    auto [recfg_auth_req_frame, recfg_auth_req_frame_len] = create_recfg_auth_request(enrollee_mac);
+    auto [recfg_auth_req_frame, recfg_auth_req_frame_len] = create_recfg_auth_request(enrollee_mac, fc_nid);
     ASSERT_NOT_NULL(recfg_auth_req_frame, false, "%s:%d: Failed to create Reconfiguration Authentication Request frame\n", __func__, __LINE__);
 
     auto [encap_dpp_tlv, encap_dpp_tlv_len] = ec_util::create_encap_dpp_tlv(0, sa, ec_frame_type_recfg_auth_req, recfg_auth_req_frame, recfg_auth_req_frame_len);
@@ -969,8 +990,10 @@ bool ec_ctrl_configurator_t::handle_recfg_auth_response(ec_frame_t *frame, size_
     }
 
     // It also verifies that the E-Connector is valid
-    // Spec doesn't specifiy what "valid" means, but we can assume it means well-formed and contains the correct netRole
-    auto payload = ec_crypto::get_jws_payload(std::string(reinterpret_cast<const char *>(e_connector_attr->data), static_cast<size_t>(e_connector_attr->length)).c_str());
+    // Spec doesn't specifiy what "valid" means, but we can assume it means well-formed, 
+    // verifiable (since they should contain the same C-sign-key, and contains the correct netRole
+    std::string c_connector_str(reinterpret_cast<const char *>(e_connector_attr->data), static_cast<size_t>(e_connector_attr->length));
+    auto payload = ec_crypto::get_jws_payload(c_connector_str.c_str(), m_sec_ctx.C_signing_key);
     ASSERT_OPT_HAS_VALUE(payload, false, "%s:%d: Failed to split and decode E-Connector\n", __func__, __LINE__);
 
     cJSON *net_role = cJSON_GetObjectItem(payload.value(), "netRole");
@@ -983,15 +1006,15 @@ bool ec_ctrl_configurator_t::handle_recfg_auth_response(ec_frame_t *frame, size_
     cJSON *net_access_key = cJSON_GetObjectItem(payload.value(), "netAccessKey");
     ASSERT_NOT_NULL(net_access_key, false, "%s:%d: No netAccessKey in E-Connector body\n", __func__, __LINE__);
     cJSON_Delete(payload.value());
-    scoped_ec_point C_R(ec_crypto::decode_ec_point_from_connector_netaccesskey(*conn_ctx, net_access_key));
+    scoped_ec_point C_R(ec_crypto::decode_jwk_ec_point(*conn_ctx, net_access_key));
     ASSERT_NOT_NULL(C_R.get(), false, "%s:%d: Failed to decode public key from netAccessKey in E-Connector\n", __func__, __LINE__);
 
     // Decode P_R generated by Enrollee
     e_ctx->public_resp_proto_key = ec_crypto::decode_ec_point(*conn_ctx, pr_attr->data);
     ASSERT_NOT_NULL(e_ctx->public_resp_proto_key, false, "%s:%d: Failed to decode Responder Public Protocol Key\n", __func__, __LINE__);
 
-    // Get c_I from our own C-Connector
-    scoped_bn c_I(em_crypto_t::get_priv_key_bn(conn_ctx->net_access_key));
+    // Get c_I from our own C-Connector (throw-away NAK)
+    scoped_bn c_I(em_crypto_t::get_priv_key_bn(e_ctx->net_access_key));
     ASSERT_NOT_NULL(c_I.get(), false, "%s:%d: Failed to get private key from C-Connector\n", __func__, __LINE__);
 
     // Compute M = (C_R + P_R) * c_I
@@ -1276,7 +1299,7 @@ STATUS_OK:
     return std::make_pair(reinterpret_cast<uint8_t*>(frame), EC_FRAME_BASE_SIZE + attribs_len);
 }
 
-std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_recfg_auth_request(const std::string& enrollee_mac)
+std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_recfg_auth_request(const std::string& enrollee_mac, const int fc_group_nid)
 {
     auto conn_ctx = get_conn_ctx(enrollee_mac);
     ASSERT_NOT_NULL(conn_ctx, {}, "%s:%d: No connection context for Enrolle '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(enrollee_mac.c_str()));
@@ -1312,20 +1335,29 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_recfg_auth_request(c
     // generated the DPP Reconfiguration Authentication Request frame and send this frame to the Enrollee.
     e_ctx->transaction_id = transId;
 
-    cJSON *jwsHeaderObj = ec_crypto::create_jws_header("dppCon", conn_ctx->C_signing_key);
+
+    // Generate a **configurator** "throw-away" nak, only used for re-authentication on the same finite-cyclic curve. 
+    SSL_KEY* reauth_nak = em_crypto_t::generate_ec_key(fc_group_nid);
+    EM_ASSERT_NOT_NULL(reauth_nak, {}, "%s:%d: Failed to generate re-authentication NAK\n", __func__, __LINE__);
+    if (e_ctx->net_access_key) em_crypto_t::free_key(e_ctx->net_access_key);
+    e_ctx->net_access_key = reauth_nak;
+    // C-Connector and it's NAK can be thought of as a throw-away connector/NAK, specific to 
+    // re-authentication. They are EasyConnect structures, not related to the global EasyMesh structures
+    // we use for securing the 1905 layer.
+    cJSON *jwsHeaderObj = ec_crypto::create_jws_header("dppCon", m_sec_ctx.C_signing_key);
 
     std::vector<std::unordered_map<std::string, std::string>> groups = {
         {{"groupID", "mapNW"}, {"netRole", "configurator"}},
     };
 
+    // Create / add C-connector (**Configurator** connector)
     std::optional<std::string> null_expiry = std::nullopt;
-    cJSON *jwsPayloadObj = ec_crypto::create_jws_payload(*conn_ctx, groups, conn_ctx->net_access_key, null_expiry, DPP_VERSION);
+    cJSON *jwsPayloadObj = ec_crypto::create_jws_payload(groups, reauth_nak, null_expiry, DPP_VERSION);
 
-    auto connector = ec_crypto::generate_connector(jwsHeaderObj, jwsPayloadObj, conn_ctx->C_signing_key);
+    auto connector = ec_crypto::generate_connector(jwsHeaderObj, jwsPayloadObj, m_sec_ctx.C_signing_key);
     ASSERT_OPT_HAS_VALUE(connector, {}, "%s:%d: Failed to generate C-Connector\n", __func__, __LINE__);
-    e_ctx->connector = strdup(connector->c_str());
 
-    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_dpp_connector, std::string(e_ctx->connector));
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_dpp_connector, *connector);
     attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_config_nonce, conn_ctx->nonce_len, e_ctx->c_nonce);
 
     if ((frame = ec_util::copy_attrs_to_frame(frame, attribs, attribs_len)) == nullptr) {
@@ -1428,23 +1460,34 @@ cJSON *ec_ctrl_configurator_t::finalize_config_obj(cJSON *base, ec_connection_co
 
     cJSON *cred = cJSON_GetObjectItem(base, "cred");
     ASSERT_NOT_NULL_FREE(cred, nullptr, base, "%s:%d: Could not get \"cred\" from IEEE1905 DPP Configuration Object\n", __func__, __LINE__);
-    // Create / add Connector.
+    // Create / add Enrollee Connector.
 
     // Header
-    cJSON *jwsHeaderObj = ec_crypto::create_jws_header("dppCon", conn_ctx.C_signing_key);
+    cJSON *jwsHeaderObj = ec_crypto::create_jws_header("dppCon", m_sec_ctx.C_signing_key);
 
-    cJSON *jwsPayloadObj = ec_crypto::create_jws_payload(conn_ctx, groups, conn_ctx.net_access_key);
+    cJSON *jwsPayloadObj = ec_crypto::create_jws_payload(groups, conn_ctx.enrollee_net_access_key);
     // Create / add connector
-    std::optional<std::string> connector = ec_crypto::generate_connector(jwsHeaderObj, jwsPayloadObj, conn_ctx.C_signing_key);
+    std::optional<std::string> connector = ec_crypto::generate_connector(jwsHeaderObj, jwsPayloadObj, m_sec_ctx.C_signing_key);
     ASSERT_OPT_HAS_VALUE(connector, nullptr, "%s:%d: Failed to generate connector\n", __func__, __LINE__);
     cJSON_AddStringToObject(cred, "signedConnector", connector->c_str());
 
     // Add csign
-    cJSON *cSignObj = ec_crypto::create_csign_object(conn_ctx, conn_ctx.C_signing_key);
+    cJSON *cSignObj = ec_crypto::create_csign_object(m_sec_ctx.C_signing_key);
     cJSON_AddItemToObject(cred, "csign", cSignObj);
 
+    scoped_ec_group key_group(em_crypto_t::get_key_group(m_sec_ctx.pp_key));
+    ASSERT_NOT_NULL(key_group.get(), nullptr, "%s:%d: Failed to get key group for public key\n", __func__, __LINE__);
+    scoped_ec_point ppk(em_crypto_t::get_pub_key_point(m_sec_ctx.pp_key, key_group.get()));
+
+    EM_ASSERT_NOT_NULL(ppk.get(), nullptr, "Failed to get public key point from public key");
+
     // Add ppKey
-    cJSON *ppKeyObj = ec_crypto::create_ppkey_object(conn_ctx);
+    cJSON *ppKeyObj = cJSON_CreateObject();
+    if (!ec_crypto::add_common_jwk_fields(ppKeyObj, key_group.get(), ppk.get())) {
+        em_printfout("Failed to add common JWK fields to ppKey object");
+        cJSON_Delete(ppKeyObj);
+        return nullptr;
+    }
     cJSON_AddItemToObject(cred, "ppKey", ppKeyObj);
     return base;
 }
@@ -1495,8 +1538,6 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_fram
 
     // DPP_STATUS_OK case.
     // 1905 Config Obj Always required
-    conn_ctx->ppk = ec_crypto::create_ppkey_public(conn_ctx->C_signing_key);
-    ASSERT_NOT_NULL(conn_ctx->ppk, {}, "%s:%d: Failed to generate ppK!\n", __func__, __LINE__);
     ASSERT_NOT_NULL(m_get_1905_info, {}, "%s:%d: Cannot generate 1905 Configuration Object, no callback!\n", __func__, __LINE__);
 
     cJSON *ieee1905_config_obj = m_get_1905_info(conn_ctx);
