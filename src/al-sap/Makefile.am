@@ -16,5 +16,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ##########################################################################
-SUBDIRS = cli al-sap ctrl agent
+AM_CFLAGS = -D_ANSC_LINUX
+AM_CFLAGS += -D_ANSC_USER
+AM_CFLAGS += -D_ANSC_LITTLE_ENDIAN_
  
+ACLOCAL_AMFLAGS = -I m4
+hardware_platform = i686-linux-gnu
+lib_LTLIBRARIES=libalsap.la
+ 
+libalsap_la_CPPFLAGS = \
+    -I$(top_srcdir)/inc 
+ 
+libalsap_la_CPPFLAGS += -g -fPIC
+ 
+libalsap_la_SOURCES = \
+ $(top_srcdir)/src/al-sap/al_service_access_point.cpp \
+ $(top_srcdir)/src/al-sap/al_service_exception.cpp \
+ $(top_srcdir)/src/al-sap/al_service_registration_response.cpp \
+ $(top_srcdir)/src/al-sap/al_service_data_unit.cpp \
+ $(top_srcdir)/src/al-sap/al_service_registration_request.cpp \
+ $(top_srcdir)/src/al-sap/al_service_utils.cpp

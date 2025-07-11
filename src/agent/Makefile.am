@@ -127,3 +127,4 @@ onewifi_em_agent_SOURCES =  \
 
 
 onewifi_em_agent_LDFLAGS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwifi_webconfig -lrbus
+onewifi_em_agent_LDADD = $(top_builddir)/src/al-sap/libalsap.la
