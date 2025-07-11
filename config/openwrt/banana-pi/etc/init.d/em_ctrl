@@ -5,7 +5,8 @@ USE_PROCD=1
 #START=95  # Service startup order
 STOP=95  # Service stop order
 Name=onewifi_em_ctrl
-VETH_CTRL_PEER="eth0_virt_peer"
+VETH_BASE_IFACE="eth0" # Base interface for veth pair
+VETH_CTRL_PEER="${VETH_BASE_IFACE}_virt_peer" # Peer interface for veth pair
 BRIDGE_NAME="br-lan"
 
 # Process 1 configuration
@@ -35,12 +36,12 @@ log_message() {
 
 start_service() {
     log_message "Starting em_ctrl service..."
-    # Run setup_veth_for_em_ctrl.sh only if virtual ethernet interface
+    # Run setup_veth_for_em.sh only if virtual ethernet interface
     # is not created
     if [ ! -e "/sys/class/net/$VETH_CTRL_PEER/address" ]; then
-        log_message "Running setup_veth_for_em_ctrl.sh..."
+        log_message "Running controller setup_veth_for_em.sh..."
         cd /banana-pi
-        ./setup_veth_for_em_ctrl.sh $BRIDGE_NAME >> /tmp/em_ctrl_log.txt
+        ./setup_veth_for_em.sh $BRIDGE_NAME $VETH_BASE_IFACE true >> /tmp/em_ctrl_log.txt
         log_message "Initializing mysql, running setup_mysql_db.sh..."
         ./setup_mysql_db.sh
     fi
