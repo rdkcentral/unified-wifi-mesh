@@ -30,6 +30,11 @@
 
 #include <string>
 
+#ifdef AL_SAP
+#define DATA_SOCKET_PATH "/tmp/al_data_socket"
+#define CONTROL_SOCKET_PATH "/tmp/al_control_socket"
+#endif
+
 class em_cmd_agent_t;
 class AlServiceAccessPoint;
 
@@ -951,7 +956,7 @@ public:
 	 *
 	 * @note Ensure that the returned pointer is properly managed to avoid memory leaks.
 	 */
-	AlServiceAccessPoint* al_sap_register();
+	AlServiceAccessPoint* al_sap_register(const std::string& data_socket_path=DATA_SOCKET_PATH, const std::string& control_socket_path=CONTROL_SOCKET_PATH);
 #endif
 
     

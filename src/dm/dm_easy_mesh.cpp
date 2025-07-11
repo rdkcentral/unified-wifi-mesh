@@ -39,6 +39,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <ifaddrs.h>
+#include <fstream>
 #include "dm_easy_mesh.h"
 #include "em_cmd_dev_init.h"
 #include <cjson/cJSON.h>
@@ -1671,6 +1672,18 @@ void dm_easy_mesh_t::str_to_securitymode(unsigned short *mode, char *sec_mode_st
         *mode = EM_AUTH_SAE_AKM24;
 }
 
+const char* dm_easy_mesh_t::get_platform()
+{
+    std::ifstream cpuinfo("/proc/cpuinfo");
+    std::string line;
+    while (std::getline(cpuinfo, line)) {
+        if (line.find("Raspberry Pi") != std::string::npos) return "rpi";
+        if (line.find("Banana Pi") != std::string::npos) return "bpi";
+    }
+
+    return NULL;
+
+}
 em_interface_t *dm_easy_mesh_t::get_prioritized_interface(const char *platform)
 {
 	unsigned int i;

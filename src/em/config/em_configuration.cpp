@@ -2862,7 +2862,7 @@ int em_configuration_t::handle_wsc_m2(unsigned char *buff, unsigned int len)
     unsigned int tmp_len;
     unsigned short id;
 
-    printf("%s:%d: Parsing m1 message, len: %d\n", __func__, __LINE__, len);
+    printf("%s:%d: Parsing m2 message, len: %d\n", __func__, __LINE__, len);
 
     m_m2_length = len - 12;
     memcpy(m_m2_msg, buff, m_m2_length);
@@ -3484,7 +3484,7 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
         return -1;
     }
 	set_state(em_state_ctrl_wsc_m2_sent);
-	printf("%s:%d: autoconfig wsc m2 send\n", __func__, __LINE__);
+	printf("%s:%d: autoconfig wsc m2 send, len:%d\n", __func__, __LINE__, sz);
     memcpy(raw.al, const_cast<unsigned char *> (get_peer_mac()), sizeof(mac_address_t));
     memcpy(raw.radio, get_radio_interface_mac(), sizeof(mac_address_t));
 
@@ -3637,10 +3637,12 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
         case em_msg_type_autoconf_wsc:
             if ((get_wsc_msg_type(tlvs, tlvs_len) == em_wsc_msg_type_m2) &&
                     (get_service_type() == em_service_type_agent) && (get_state() == em_state_agent_wsc_m2_pending)) {
-                handle_autoconfig_wsc_m2(data, len);              
+                        printf("%s:%d: received wsc_m2 len:%d\n", __func__, __LINE__, len);
+                        handle_autoconfig_wsc_m2(data, len);
             } else if ((get_wsc_msg_type(tlvs, tlvs_len) == em_wsc_msg_type_m1) &&
                     (get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_wsc_m1_pending))  {
-                handle_autoconfig_wsc_m1(data, len);
+                        printf("%s:%d: received wsc_m1 len:%d\n", __func__, __LINE__, len);
+                        handle_autoconfig_wsc_m1(data, len);
             }
 
             break;

@@ -21,18 +21,37 @@
 
 #include "em_base.h"
 #include "em_cmd.h"
-
+#include "openssl/ssl.h"
+#include "openssl/err.h"
 
 class em_cmd_exec_t {
 
     pthread_cond_t  m_cond;
     pthread_mutex_t m_lock;
+	SSL_CTX *m_ssl_ctx;	
 
 public:
     em_cmd_t m_cmd;
-    em_long_string_t    m_sock_path;
+    SSL *m_ssl;
 
 public:
+    /**!
+     * @brief Retrieves the edited network node.
+     *
+     * This function fetches the details of the edited network node based on the provided header.
+     *
+     * @param[in] header The header information used to identify the node.
+     * @param[out] node Pointer to the network node structure where the edited node details will be stored.
+     * @param[out] buff Buffer to store additional information or data related to the node.
+     *
+     * @returns int Status code indicating success or failure of the operation.
+     * @retval 0 on success.
+     * @retval -1 on failure.
+     *
+     * @note Ensure that the node and buff are properly initialized before calling this function.
+     */
+    virtual struct sockaddr_in *get_ep_addr() {}
+
     //char *get_result() { return m_cmd.get_result(); }
     
 	/**!
@@ -43,6 +62,18 @@ public:
 	 * @returns True if the command is valid, false otherwise.
 	 */
 	bool validate() { return m_cmd.validate(); }
+    
+	/**!
+	 * @brief Retrieves the current event from the command.
+	 *
+	 * This function returns a pointer to the current event associated with the command.
+	 *
+	 * @returns A pointer to the current event.
+	 * @retval nullptr If no event is associated with the command.
+	 *
+	 * @note Ensure that the returned event pointer is valid before use.
+	 */
+	SSL_CTX *get_ssl_ctx() { return m_ssl_ctx; }
     
 	/**!
 	 * @brief Retrieves the current event from the command.
@@ -127,12 +158,31 @@ public:
 	em_service_type_t get_svc() { return m_cmd.get_svc(); }
     
 	/**!
-	 * @brief Retrieves the socket path.
+	 * @brief gets socket from service type
 	 *
-	 * @returns A pointer to the socket path string.
+	 * This function returns the socket for service type.
+	 *
+	 * @returns socket
 	 */
-	char *get_path() { return m_sock_path; }
-
+	SSL *get_ep_for_dst_svc(SSL_CTX *ctx, em_service_type_t svc);
+    
+	/**!
+	 * @brief gets listener socket from service type
+	 *
+	 * This function returns the socket for service type.
+	 *
+	 * @returns socket
+	 */
+	int get_listener_socket(em_service_type_t svc);
+    
+	/**!
+	 * @brief closes the socket for the service type
+	 *
+	 * This function closes the socket.
+	 *
+	 * @returns void
+	 */
+	void close_listener_socket(int sock, em_service_type_t svc);
     
 	/**!
 	 * @brief Copies a bus event to the command module.
@@ -154,7 +204,17 @@ public:
 	 *
 	 * @note This function should be called before any command execution.
 	 */
-	void init();
+	int init();
+    
+	/**!
+	 * @brief Destroys the command execution environment.
+	 *
+	 * This function sets up necessary resources and configurations
+	 * required for command execution.
+	 *
+	 * @note This function should be called before any command execution.
+	 */
+	void deinit();
     
 	/**!
 	 * @brief Sends a command to a specified service.
@@ -174,7 +234,7 @@ public:
 	 *
 	 * @note Ensure that the input and output buffers are properly allocated before calling this function.
 	 */
-	static int send_cmd(em_service_type_t to_svc, unsigned char *in, unsigned int in_len, char *out = NULL, unsigned int out_len = 0);
+	int send_cmd(em_service_type_t to_svc, unsigned char *in, unsigned int in_len, char *out = NULL, unsigned int out_len = 0);
     
 	/**!
 	 * @brief Executes a command of a specified type to a given service.
@@ -193,8 +253,23 @@ public:
 	 *
 	 * @note Ensure that the input data buffer is valid and the length is correctly specified.
 	 */
-	static int execute(em_cmd_type_t type, em_service_type_t to_svc, unsigned char *in, unsigned int in_len);
+	int execute(em_cmd_type_t type, em_service_type_t to_svc, unsigned char *in, unsigned int in_len);
     
+	/**!
+	 * @brief Retrieves the socket path from the destination service.
+	 *
+	 * This function constructs the socket path based on the destination service type provided.
+	 *
+	 * @param[in] to_svc The destination service type for which the socket path is required.
+	 * @param[out] sock_path The buffer where the constructed socket path will be stored.
+	 *
+	 * @returns A pointer to the socket path string.
+	 * @retval NULL if the path could not be constructed.
+	 *
+	 * @note Ensure that the buffer provided for sock_path is large enough to hold the resulting path.
+	 */
+	static unsigned short get_port_from_dst_service(em_service_type_t to_svc);
+	
 	/**!
 	 * @brief Retrieves the socket path from the destination service.
 	 *

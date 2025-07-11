@@ -56,9 +56,6 @@ const char *global_netid = "OneWifiMesh";
 #ifdef AL_SAP
 AlServiceAccessPoint* g_sap;
 MacAddress g_al_mac_sap;
-
-#define DATA_SOCKET_PATH "/tmp/al_data_socket"
-#define CONTROL_SOCKET_PATH "/tmp/al_control_socket"
 #endif
 
 void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
@@ -443,6 +440,7 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
         case em_bus_event_type_get_policy:
         case em_bus_event_type_scan_result:
         case em_bus_event_type_get_mld_config:
+        case em_bus_event_type_get_reset:
             handle_get_dm_data(evt);
             break;
 
@@ -506,7 +504,6 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
 			handle_mld_reconfig(evt);
 			break;
 	
-	
         default:
             break;
     }
@@ -533,7 +530,10 @@ int em_ctrl_t::data_model_init(const char *data_model_path)
     mac_addr_str_t  mac_str;
 
     m_ctrl_cmd = new em_cmd_ctrl_t();
-    m_ctrl_cmd->init();
+    if (m_ctrl_cmd->init() != 0) {
+        printf("%s:%d: ctrl command init failed\n", __func__, __LINE__);
+        return 0;
+    }
     
     if (m_data_model.init(data_model_path, this) != 0) {
         printf("%s:%d: data model init failed\n", __func__, __LINE__);
@@ -808,6 +808,9 @@ void em_ctrl_t::io(void *data, bool input)
 {
     char *str = static_cast<char *> (data);
     m_ctrl_cmd->execute(str);
+
+    m_ctrl_cmd->deinit();
+    delete m_ctrl_cmd;
 }
 
 void em_ctrl_t::start_complete()
@@ -890,11 +893,11 @@ em_ctrl_t::~em_ctrl_t()
 }
 
 #ifdef AL_SAP
-AlServiceAccessPoint* em_ctrl_t::al_sap_register()
+AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_path, const std::string& control_socket_path)
 {
-    AlServiceAccessPoint* sap = new AlServiceAccessPoint(DATA_SOCKET_PATH, CONTROL_SOCKET_PATH);
+    AlServiceAccessPoint* sap = new AlServiceAccessPoint(data_socket_path.c_str(), control_socket_path.c_str());
 
-    AlServiceRegistrationRequest registrationRequest(ServiceOperation::SOP_ENABLE, ServiceType::SAP_TUNNEL_CLIENT);
+    AlServiceRegistrationRequest registrationRequest(ServiceOperation::SOP_ENABLE, ServiceType::SAP_SERVER);
     sap->serviceAccessPointRegistrationRequest(registrationRequest);
 
     AlServiceRegistrationResponse registrationResponse = sap->serviceAccessPointRegistrationResponse();
@@ -908,7 +911,7 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register()
         }
         std::cout << std::dec << std::endl;
     } else {
-        std::cout << "Registration failed with error: " << (int)result << std::endl;
+        std::cout << "Registration failed with error: " << static_cast<int>(result) << std::endl;
     }
 
     return sap;
@@ -920,7 +923,7 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register()
 int main(int argc, const char *argv[])
 {
 #ifdef AL_SAP
-    g_sap = g_ctrl.al_sap_register();
+    g_sap = g_ctrl.al_sap_register("/tmp/al_em_ctrl_data_socket", "/tmp/al_em_ctrl_control_socket");
 #endif
 
     if (g_ctrl.init(argv[1]) == 0) {

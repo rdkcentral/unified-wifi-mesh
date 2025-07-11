@@ -320,6 +320,20 @@ public:
 	 */
 	static void get_network_tree_node_string(char *str, em_network_node_t *node, unsigned int *pident);
 
+	/**!
+     * @brief Retrieves the network tree node string.
+     *
+     * This function populates the provided string with the network tree node
+     * information based on the given node and identifier.
+     *
+     * @param[out] str The string to be populated with the network node information.
+     * @param[in] node Pointer to the network node structure containing the node data.
+     * @param[in] pident Pointer to an unsigned integer representing the node identifier.
+     *
+     * @note Ensure that the `str` buffer is large enough to hold the resulting string.
+     */
+    static em_network_node_t *get_network_tree_by_key(em_network_node_t *node, em_long_string_t key);
+
     
 	/**!
 	 * @brief Default constructor for the em_net_node_t class.

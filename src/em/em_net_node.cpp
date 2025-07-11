@@ -25,11 +25,6 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <linux/filter.h>
-#include <netinet/ether.h>
-#include <netpacket/packet.h>
-#include <linux/netlink.h>
-#include <linux/rtnetlink.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -447,6 +442,7 @@ void *em_net_node_t::network_tree_to_json(em_network_node_t *root)
 int em_net_node_t::get_network_tree_node(cJSON *obj, em_network_node_t *root, unsigned int *node_display_ctr)
 {
     cJSON *child_obj, *tmp_obj;
+    int sz = 0;
 
     if (obj->string != NULL) {
         strncpy(root->key, obj->string, strlen(obj->string) + 1);
@@ -483,8 +479,12 @@ int em_net_node_t::get_network_tree_node(cJSON *obj, em_network_node_t *root, un
     tmp_obj = child_obj;
 
     while (tmp_obj != NULL) {
-        root->child[root->num_children] = static_cast<em_network_node_t *>(malloc(sizeof(em_network_node_t)));
-        memset(root->child[root->num_children], 0, sizeof(em_network_node_t));
+
+        //TBD with details as this needs to be revisited
+        sz = sizeof(em_network_node_t) *  2;
+        root->child[root->num_children] = (em_network_node_t *)malloc(sz);
+        memset(root->child[root->num_children], 0, sz);
+
         if (cJSON_IsArray(obj) == true) {
             if ((cJSON_IsObject(tmp_obj) == true) || (cJSON_IsArray(tmp_obj) == true)) {
                 (*node_display_ctr)++;
@@ -518,6 +518,8 @@ em_network_node_t *em_net_node_t::get_network_tree(char *buff)
     if ((root_obj = cJSON_Parse(buff)) == NULL) {
         return NULL;
     }
+
+	//printf("%s:%d: %s\n", __func__, __LINE__, cJSON_Print(root_obj));
 
     root = static_cast<em_network_node_t *> (malloc(sizeof(em_network_node_t)));
     memset(root, 0, sizeof(em_network_node_t));
@@ -717,6 +719,24 @@ unsigned int em_net_node_t::get_node_display_position(em_network_node_t *node)
     return node->display_info.node_pos;
 }
 
+em_network_node_t *em_net_node_t::get_network_tree_by_key(em_network_node_t *node, em_long_string_t key)
+{
+	unsigned int i;
+	em_network_node_t *tmp;
+
+	if (strncmp(node->key, key, strlen(key)) == 0) {
+		return node;
+	}	
+
+	for (i = 0; i < node->num_children; i++) {
+		if ((tmp = get_network_tree_by_key(node->child[i], key)) != NULL) {
+			return tmp;
+		}	
+	}
+
+	return NULL;
+}
+
 
 em_net_node_t::em_net_node_t()
 {
@@ -814,4 +834,9 @@ extern "C" em_network_node_t *clone_network_tree_for_display(em_network_node_t *
 extern "C" em_network_node_t *clone_network_tree(em_network_node_t *node)
 {
     return em_net_node_t::clone_network_tree(node);
+}
+
+extern "C" em_network_node_t *get_network_tree_by_key(em_network_node_t *node, em_long_string_t key)
+{
+	return em_net_node_t::get_network_tree_by_key(node, key);
 }

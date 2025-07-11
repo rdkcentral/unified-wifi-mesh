@@ -1246,8 +1246,8 @@ class em_configuration_t {
 
 private:
     em_profile_type_t   m_peer_profile;
-    unsigned char m_m1_msg[MAX_EM_BUFF_SZ];
-    unsigned char m_m2_msg[MAX_EM_BUFF_SZ];
+    unsigned char m_m1_msg[MAX_EM_BUFF_SZ*EM_MAX_BANDS];
+    unsigned char m_m2_msg[MAX_EM_BUFF_SZ*EM_MAX_BANDS];
     size_t m_m1_length;
     size_t m_m2_length;
 

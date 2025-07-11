@@ -237,7 +237,7 @@ public:
 
 private:
     bool m_is_controller;
-	ec_ops_t& m_ops;
+	ec_ops_t m_ops;
     std::string m_stored_mac_addr;
     
     std::unique_ptr<ec_configurator_t> m_configurator;

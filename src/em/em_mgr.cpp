@@ -79,13 +79,13 @@ void em_mgr_t::io_process(em_bus_event_type_t type, unsigned char *data, unsigne
 {
     em_event_t *evt;
     em_bus_event_t *bevt;
-    
+
     evt = static_cast<em_event_t *>(malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN));
     evt->type = em_event_type_bus;
-    bevt = &evt->u.bevt; 
+    bevt = &evt->u.bevt;
     bevt->type = type;
     bevt->data_len = len;
-	
+
 	if (data != NULL) {
     	memcpy(bevt->u.raw_buff, data, len);
 	}
@@ -121,7 +121,7 @@ bool em_mgr_t::io_process(em_event_t *evt)
                 should_wait = true;
             }
             break;
-    
+
         default:
             break;
     }
@@ -159,7 +159,7 @@ void em_mgr_t::delete_nodes()
             delete_node(tmp->get_radio_interface());
         }
 
-    }	
+    }
 }
 
 void em_mgr_t::delete_node(em_interface_t *ruid)
@@ -217,7 +217,7 @@ em_t *em_mgr_t::create_node(em_interface_t *ruid, em_freq_band_t band, dm_easy_m
         return NULL;
     }
 
-    // add this em to hash map 
+    // add this em to hash map
 	pthread_mutex_lock(&m_mutex);
     hash_map_put(m_em_map, strdup(mac_str), em);
 	pthread_mutex_unlock(&m_mutex);
@@ -257,7 +257,7 @@ em_t *em_mgr_t::get_al_node()
         em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
     }
 
-    return (found == true) ? em:NULL;	
+    return (found == true) ? em:NULL;
 }
 
 em_t *em_mgr_t::get_phy_al_node()
@@ -352,9 +352,7 @@ void em_mgr_t::nodes_listener()
 {
     em_t *em = NULL;
     struct timeval tm;
-    int rc, highest_fd = 0, ret = 0;
-    ssize_t len;
-    unsigned char buff[MAX_EM_BUFF_SZ];
+    int rc, highest_fd = 0;
 
     tm.tv_sec = 0;
     tm.tv_usec = m_timeout * 1000;
@@ -376,7 +374,25 @@ void em_mgr_t::nodes_listener()
                 try{
                     AlServiceDataUnit sdu = g_sap->serviceAccessPointDataIndication();
                     std::vector<unsigned char> payload = sdu.getPayload();
-                    proto_process(payload.data(), payload.size(), em);
+                    // Original implementation expects whole ethernet frame
+                    // not just CMDU, so we have to reconstruct it
+                    std::vector<unsigned char> reconstructed_eth_frame;
+                    auto first_mac = sdu.getSourceAlMacAddress();
+                    reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),first_mac.begin(),first_mac.end());
+                    auto second_mac = sdu.getDestinationAlMacAddress();
+                    reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),second_mac.begin(),second_mac.end());
+
+                    reconstructed_eth_frame.push_back(0x89);
+                    reconstructed_eth_frame.push_back(0x3A);
+
+                    reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),payload.begin(),payload.end());
+#ifdef DEBUG_MODE
+                    em_printfout("First MAC Address: " MACSTRFMT, MAC2STR(first_mac));
+                    em_printfout("Second MAC Address: " MACSTRFMT, MAC2STR(second_mac));
+                    em_printfout("RECONSTRUCTED_ETH_FRAME: \t");
+                    util::print_hex_dump(reconstructed_eth_frame);
+#endif
+                    proto_process(reconstructed_eth_frame.data(), static_cast<unsigned int>(reconstructed_eth_frame.size()), em);
                 } catch (const AlServiceException& e) {
                     if (e.getPrimitiveError() == PrimitiveError::InvalidMessage) {
                         em_printfout("%s. Dropping packet", e.what());
@@ -386,13 +402,15 @@ void em_mgr_t::nodes_listener()
                     }
                 }
 #else
-				pthread_mutex_lock(&m_mutex);
-				ret = FD_ISSET(em->get_fd(), &m_rset);
-				pthread_mutex_unlock(&m_mutex);
-				if (ret) {
+                unsigned char buff[MAX_EM_BUFF_SZ*EM_MAX_BANDS];
+                pthread_mutex_lock(&m_mutex);
+                int ret = FD_ISSET(em->get_fd(), &m_rset);
+                pthread_mutex_unlock(&m_mutex);
+                if (ret)
+                {
                     // receive data from this interface
-                    memset(buff, 0, MAX_EM_BUFF_SZ);
-                    len = read(em->get_fd(), buff, MAX_EM_BUFF_SZ);
+                    memset(buff, 0, MAX_EM_BUFF_SZ*EM_MAX_BANDS);
+                    ssize_t len = read(em->get_fd(), buff, MAX_EM_BUFF_SZ*EM_MAX_BANDS);
                     if (len) {
                         proto_process(buff, static_cast<unsigned int>(len), em);
                     }
@@ -401,14 +419,11 @@ void em_mgr_t::nodes_listener()
             }
             em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
         }
-
         tm.tv_sec = 0;
         tm.tv_usec = m_timeout * 1000;
         highest_fd = reset_listeners();
 
     }
-
-
 }
 
 
@@ -416,13 +431,11 @@ void *em_mgr_t::mgr_nodes_listen(void *arg)
 {
     size_t stack_size2;
     pthread_attr_t attr;
-
     pthread_attr_init(&attr);
     pthread_attr_getstacksize(&attr, &stack_size2);
     printf("%s:%d Thread stack size = %ld bytes \n", __func__, __LINE__, stack_size2);
     pthread_attr_destroy(&attr);
     em_mgr_t *mgr = static_cast<em_mgr_t *>(arg);
-
     mgr->nodes_listener();
     return NULL;
 }
@@ -444,7 +457,6 @@ int em_mgr_t::nodes_listen()
                 __func__, __LINE__, stack_size, ret);
     }
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-
     if (pthread_create(&m_tid, attrp, em_mgr_t::mgr_nodes_listen, this) != 0) {
         printf("%s:%d: Failed to start em mgr thread\n", __func__, __LINE__);
         if(attrp != NULL) {
@@ -463,14 +475,14 @@ void em_mgr_t::handle_timeout()
 	m_tick_demultiplex++;
 
 	handle_500ms_tick();
-	
+
 	if ((m_tick_demultiplex % EM_1_TOUT_MULT) == 0) {
 		handle_1s_tick();
-	} 
+	}
 
 	if ((m_tick_demultiplex % EM_2_TOUT_MULT) == 0) {
 		handle_2s_tick();
-	} 
+	}
 
 	if ((m_tick_demultiplex % EM_5_TOUT_MULT) == 0) {
 		handle_5s_tick();
@@ -486,10 +498,8 @@ int em_mgr_t::start()
     struct timespec time_to_wait;
     struct timeval tm;
 	bool started = false;
-
     input_listen();
     nodes_listen();
-
     pthread_mutex_lock(&m_queue.lock);
     while (m_exit == false) {
         rc = 0;
@@ -497,7 +507,7 @@ int em_mgr_t::start()
         gettimeofday(&tm, NULL);
         time_to_wait.tv_sec = tm.tv_sec;
        	time_to_wait.tv_nsec = tm.tv_usec * 1000;
-		util::add_milliseconds(&time_to_wait, m_queue.timeout);		
+		util::add_milliseconds(&time_to_wait, m_queue.timeout);
 
         if (queue_count(m_queue.queue) == 0) {
             rc = pthread_cond_timedwait(&m_queue.cond, &m_queue.lock, &time_to_wait);
@@ -510,9 +520,10 @@ int em_mgr_t::start()
                     continue;
                 }
                 pthread_mutex_unlock(&m_queue.lock);
-                if (((evt->type == em_event_type_bus) && (evt->u.bevt.type == em_bus_event_type_reset)) || 
+                if (((evt->type == em_event_type_bus) && ((evt->u.bevt.type == em_bus_event_type_reset) ||
+                      (evt->u.bevt.type == em_bus_event_type_get_reset))) ||
 						(is_data_model_initialized() == true)) {
-		
+
                     handle_event(evt);
                 }
                 free(evt);
@@ -521,11 +532,11 @@ int em_mgr_t::start()
         } else if (rc == ETIMEDOUT) {
             pthread_mutex_unlock(&m_queue.lock);
             //printf("%s:%d: Timeout secs: %d\n", __func__, __LINE__, time_to_wait.tv_sec);
-            if (is_data_model_initialized() == true) {  
+            if (is_data_model_initialized() == true) {
 				if (started == false) {
-					start_complete();	
+					start_complete();
 					started = true;
-				}          
+				}
                 handle_timeout();
             }
             pthread_mutex_lock(&m_queue.lock);
@@ -536,8 +547,7 @@ int em_mgr_t::start()
         }
     }
     pthread_mutex_unlock(&m_queue.lock);
-
-    return 0;	
+    return 0;
 }
 
 void em_mgr_t::push_to_queue(em_event_t *evt)
@@ -555,8 +565,8 @@ em_event_t *em_mgr_t::pop_from_queue()
 
 int em_mgr_t::init(const char *data_model_path)
 {
-    SSL_load_error_strings(); 
-    SSL_library_init(); 
+    SSL_load_error_strings();
+    SSL_library_init();
 
     m_em_map = hash_map_create();
 

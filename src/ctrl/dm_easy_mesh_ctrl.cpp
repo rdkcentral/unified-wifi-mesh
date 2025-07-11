@@ -114,7 +114,7 @@ int dm_easy_mesh_ctrl_t::analyze_config_renew(em_bus_event_t *evt, em_cmd_t *pcm
 
 int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
-    mac_addr_str_t  dev_mac_str, sta_mac_str, bss_mac_str, radio_mac_str, ruid_str;
+    mac_addr_str_t  dev_mac_str, sta_mac_str, bss_mac_str, radio_mac_str;
     em_bus_event_type_client_assoc_params_t *params;
     int num = 0;
     size_t len;
@@ -276,6 +276,7 @@ int dm_easy_mesh_ctrl_t::analyze_reset(em_bus_event_t *evt, em_cmd_t *pcmd[])
     em_cmd_t *tmp;
 
     subdoc = &evt->u.subdoc;
+
 
     dm.decode_config(subdoc, "Reset");
     //dm.print_config();
@@ -1378,6 +1379,51 @@ int dm_easy_mesh_ctrl_t::get_radio_config(cJSON *parent, char *key, em_get_radio
 	return 0;
 }
 
+int dm_easy_mesh_ctrl_t::get_wifi_reset_config(cJSON *parent, char *key)
+{
+    cJSON *obj;
+    dm_easy_mesh_t dm;
+    em_interface_t *intf;
+    em_subdoc_info_t *subdoc;
+    unsigned char buff[EM_IO_BUFF_SZ];
+
+    subdoc = reinterpret_cast<em_subdoc_info_t*>(buff);
+
+    if (em_cmd_exec_t::load_params_file("Reset.json",  subdoc->buff) < 0) {
+        printf("%s:%d: Failed to load test file\n", __func__, __LINE__);
+        return -1;
+    }
+
+    dm.init();
+    dm.decode_config(subdoc, "Reset");
+
+    const char* platform = dm.get_platform();
+
+    // Prioritize the interface list depending on platform
+    if ((intf = dm.get_prioritized_interface(platform)) == NULL) {
+        intf = dm.get_interface_by_index(0);
+    }
+
+    dm.set_ctrl_al_interface_mac(intf->mac);
+    dm.set_ctrl_al_interface_name(intf->name);
+    dm.set_controller_id(intf->mac);
+    dm.set_controller_intf_media(intf->media);
+
+    //dm.print_config();
+
+    dm.encode_config(subdoc, "Reset");
+
+
+    if ((obj = cJSON_Parse(subdoc->buff)) == NULL) {
+        printf("%s:%d: Failed to load test file\n", __func__, __LINE__);
+        return -1;
+    }
+
+    cJSON_AddItemToObject(parent, "Reference", obj);
+
+    return 0;
+}
+
 int dm_easy_mesh_ctrl_t::get_device_config(cJSON *parent, char *key, bool summary)
 {
     cJSON *net_obj, *dev_list_obj;
@@ -1447,6 +1493,8 @@ void dm_easy_mesh_ctrl_t::get_config(em_long_string_t net_id, em_subdoc_info_t *
         get_reference_config(parent, net_id);
     } else if (strncmp(subdoc->name, "MLDConfig", strlen(subdoc->name)) == 0) {
         get_mld_config(parent, net_id);
+    } else if (strncmp(subdoc->name, "WifiReset", strlen(subdoc->name)) == 0) {
+        get_wifi_reset_config(parent, net_id);
     }
 
     tmp = cJSON_Print(parent);
