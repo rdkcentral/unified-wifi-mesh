@@ -1225,7 +1225,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
     em_raw_hdr_t *hdr;
     em_cmdu_t *cmdu;
     em_interface_t intf;
-    em_freq_band_t band;
+    em_freq_band_t band = em_freq_band_unknown;
     dm_easy_mesh_t *dm;
     em_t *em = NULL;
     mac_address_t ruid;
