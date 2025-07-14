@@ -51,6 +51,7 @@ onewifi_em_agent_SOURCES =  \
      $(top_srcdir)/src/em/prov/easyconnect/ec_manager.cpp \
      $(top_srcdir)/src/em/prov/easyconnect/ec_pa_configurator.cpp \
      $(top_srcdir)/src/em/prov/easyconnect/ec_util.cpp \
+     $(top_srcdir)/src/em/prov/easyconnect/ec_1905_encrypt_layer.cpp \
      $(top_srcdir)/src/em/disc/em_discovery.cpp \
      $(top_srcdir)/src/em/channel/em_channel.cpp  \
      $(top_srcdir)/src/em/capability/em_capability.cpp \

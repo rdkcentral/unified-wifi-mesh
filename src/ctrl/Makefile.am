@@ -53,6 +53,7 @@ onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/em/prov/easyconnect/ec_manager.cpp \
      $(top_srcdir)/src/em/prov/easyconnect/ec_pa_configurator.cpp \
      $(top_srcdir)/src/em/prov/easyconnect/ec_util.cpp \
+     $(top_srcdir)/src/em/prov/easyconnect/ec_1905_encrypt_layer.cpp \
      $(top_srcdir)/src/em/prov/em_provisioning.cpp \
      $(top_srcdir)/src/em/disc/em_discovery.cpp \
      $(top_srcdir)/src/em/channel/em_channel.cpp  \
