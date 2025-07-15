@@ -82,7 +82,7 @@ else
 LIBDIRS += -L$(INSTALLDIR)/lib/platform/darwin
 endif
 
-LIBS = -lm -pthread -ldl -luuid -lcjson -lssl -lcrypto -lhebus -lmariadb
+LIBS = -lm -pthread -ldl -luuid -lcjson -lssl -lcrypto -lhebus -lmariadb -lstdc++fs
 
 ifeq ($(WITH_SAP), 1)
 LIBS += -lalsap

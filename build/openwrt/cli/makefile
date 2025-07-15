@@ -52,7 +52,7 @@ LIBDIRS = \
 	-L$(INSTALLDIR)/lib \
 	-L$(STAGING_DIR)/usr/lib \
 
-LIBS = -lm -pthread -ldl -lcjson -lssl -lcrypto -lmariadb -luuid -lreadline
+LIBS = -lm -pthread -ldl -lcjson -lssl -lcrypto -lmariadb -luuid -lreadline -lstdc++fs
 
 GENERIC_SOURCES = $(ONEWIFI_HOME)/source/utils/collection.c	\
 		  $(ONEWIFI_EM_SRC)/util_crypto/aes_siv.c \
