@@ -83,7 +83,7 @@ public:
 	 * @note This function is optional to implement because the controller+configurator does not
 	 * handle 802.11 frames, but the proxy agent + configurator does.
 	 */
-	virtual bool handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]) {
+	virtual bool handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN], uint8_t src_al_mac[ETH_ALEN]) {
         return true; // Optional to implement
     }
 
@@ -172,7 +172,7 @@ public:
 	 * 
 	 * @note Only implemented by the Controller Configurator
 	 */
-	virtual bool handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) {
+	virtual bool handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN]) {
 		return true;
 	}
 
@@ -184,7 +184,7 @@ public:
 	 * @param sa The source address (Enrollee)
 	 * @return true on success, otherwise false
 	 */
-	virtual bool handle_recfg_auth_response(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) {
+	virtual bool handle_recfg_auth_response(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN]) {
 		return true; // Optional to implement
 	}
     
@@ -199,7 +199,9 @@ public:
 	 *
 	 * @return true if the chirp notification was processed successfully, false otherwise.
 	 */
-	virtual bool process_chirp_notification(em_dpp_chirp_value_t* chirp_tlv, uint16_t tlv_len) = 0;
+	virtual bool process_chirp_notification(em_dpp_chirp_value_t* chirp_tlv, uint16_t tlv_len, uint8_t src_al_mac[ETH_ALEN]) {
+		return true; // Optional to implement
+	}
 
     
 	/**
@@ -211,10 +213,11 @@ public:
 	 * @param[in] encap_tlv_len The length of the 1905 Encap DPP TLV.
 	 * @param[in] chirp_tlv The DPP Chirp Value TLV to parse and handle (NULL if not present).
 	 * @param[in] chirp_tlv_len The length of the DPP Chirp Value TLV (0 if not present).
+	 * @param[in] src_al_mac The source AL MAC address of this message
 	 *
 	 * @return bool True if the message was processed successfully, false otherwise.
 	 */
-	virtual bool  process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) = 0;
+	virtual bool  process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len, uint8_t src_al_mac[ETH_ALEN]) = 0;
 
 	/**
 	 * @brief Handle a Direct Encapsulated DPP Message (DPP Message TLV)
@@ -254,7 +257,7 @@ public:
 	 *
 	 * @note This function is overridden by subclass.
 	 */
-	virtual bool handle_proxied_dpp_configuration_request(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) {
+	virtual bool handle_proxied_dpp_configuration_request(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN]) {
         return true;
     }
 
@@ -272,7 +275,7 @@ public:
 	 *
 	 * @return true if the frame is handled successfully, otherwise false.
 	 */
-	virtual bool handle_proxied_config_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) {
+	virtual bool handle_proxied_config_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN]) {
         return true;
     }
 
@@ -290,7 +293,7 @@ public:
 	 *
 	 * @return true if the frame was handled successfully, otherwise false.
 	 */
-	virtual bool handle_proxied_conn_status_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) {
+	virtual bool handle_proxied_conn_status_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN]) {
         return true;
     }
 

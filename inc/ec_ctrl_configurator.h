@@ -38,7 +38,7 @@ public:
 	 *
 	 * @return true if the processing is successful, false otherwise.
 	 */
-	bool process_chirp_notification(em_dpp_chirp_value_t* chirp_tlv, uint16_t tlv_len) override;
+	bool process_chirp_notification(em_dpp_chirp_value_t* chirp_tlv, uint16_t tlv_len, uint8_t src_al_mac[ETH_ALEN]) override;
 
 	/**
 	 * @brief Start the EC configurator onboarding process for an enrollee.
@@ -60,10 +60,11 @@ public:
 	 * @param[in] encap_tlv_len The length of the 1905 Encap DPP TLV.
 	 * @param[in] chirp_tlv The DPP Chirp Value TLV to parse and handle (NULL if not present).
 	 * @param[in] chirp_tlv_len The length of the DPP Chirp Value TLV (0 if not present).
+	 * @param[in] src_al_mac The source AL MAC address of this message
 	 *
 	 * @return bool True if successful, false otherwise.
 	 */
-	bool process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) override;
+	bool process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len, uint8_t src_al_mac[ETH_ALEN]) override;
 
 	/**
 	 * @brief Handle a Direct Encapsulated DPP Message (DPP Message TLV)
@@ -92,7 +93,7 @@ public:
 	 * @note This function is optional to implement because the controller+configurator does not handle 802.11,
 	 *       but the proxy agent + configurator does.
 	 */
-	bool handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]) override;
+	bool handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN], uint8_t src_al_mac[ETH_ALEN]) override;
 
     
 	/**
@@ -108,7 +109,7 @@ public:
 	 *
 	 * @note Overrides parent implementation.
 	 */
-	bool handle_proxied_dpp_configuration_request(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) override;
+	bool handle_proxied_dpp_configuration_request(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN]) override;
 
     
 	/**
@@ -124,7 +125,7 @@ public:
 	 *
 	 * @return true if the frame was handled successfully, otherwise false.
 	 */
-	bool handle_proxied_config_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) override;
+	bool handle_proxied_config_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN]) override;
 
     
 	/**
@@ -140,7 +141,7 @@ public:
 	 *
 	 * @return true if the frame was handled successfully, otherwise false.
 	 */
-	bool handle_proxied_conn_status_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) override;
+	bool handle_proxied_conn_status_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN]) override;
 
 	/**
 	 * @brief Handles a Reconfiguration Announcement frame
@@ -156,7 +157,7 @@ public:
 	 * 
 	 * @note Only implemented by the Controller Configurator
 	 */
-	bool handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) override;
+	bool handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN]) override;
 
 	/**
 	 * @brief Handles a Reconfiguration Authentication Response frame
@@ -166,7 +167,7 @@ public:
 	 * @param sa The source address (Enrollee)
 	 * @return true on success, otherwise false
 	 */
-	bool handle_recfg_auth_response(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) override;
+	bool handle_recfg_auth_response(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN]) override;
 
 private:
     // Private member variables can be added here

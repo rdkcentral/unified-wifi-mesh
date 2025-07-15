@@ -2,8 +2,9 @@
 
 #include "ec_util.h"
 
-ec_pa_configurator_t::ec_pa_configurator_t(const std::string& al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t& sec_ctx, bool is_colocated)
-    : ec_configurator_t(al_mac_addr, ops, sec_ctx, is_colocated)
+ec_pa_configurator_t::ec_pa_configurator_t(const std::string& al_mac_addr, const std::vector<uint8_t>& ctrl_al_mac_addr,
+                                           ec_ops_t& ops, ec_persistent_sec_ctx_t& sec_ctx, bool is_colocated)
+                                            : ec_configurator_t(al_mac_addr, ops, sec_ctx, is_colocated)
 {
     m_toggle_cce = ops.toggle_cce;
     m_send_chirp_notification = ops.send_chirp;
@@ -12,6 +13,7 @@ ec_pa_configurator_t::ec_pa_configurator_t(const std::string& al_mac_addr, ec_op
     m_send_action_frame = ops.send_act_frame;
 
     m_sec_ctx = sec_ctx;
+    m_ctrl_al_mac_addr = ctrl_al_mac_addr;
 
     bool ieee1905_encryption_possible = true;
 
@@ -51,7 +53,7 @@ bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_
         em_printfout("No matching hash value found for '%s' in the DPP Presence Announcement frame", B_r_hash_str.c_str());
         const auto [chirp_tlv, chirp_tlv_len] = ec_util::create_dpp_chirp_tlv(true, true, src_mac, B_r_hash_attr->data, B_r_hash_attr->length);
         ASSERT_NOT_NULL(chirp_tlv, false, "%s:%d Failed to create DPP Chirp Value TLV\n", __func__, __LINE__);
-        sent = m_send_chirp_notification(chirp_tlv, chirp_tlv_len);
+        sent = m_send_chirp_notification(chirp_tlv, chirp_tlv_len, m_ctrl_al_mac_addr.data());
         free(chirp_tlv);
     } else {
 
@@ -68,8 +70,9 @@ bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_
     return sent;	
 }
 
-bool ec_pa_configurator_t::handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN])
+bool ec_pa_configurator_t::handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN])
 {
+    (void)src_al_mac; // Unused parameter in proxy agent
     em_printfout("Received a DPP Reconfiguration Announcement frame from '" MACSTRFMT "'", MAC2STR(sa));
 
     // EasyMesh 5.3.10.2
@@ -88,21 +91,22 @@ bool ec_pa_configurator_t::handle_recfg_announcement(ec_frame_t *frame, size_t l
         em_printfout("No matching C-sign key hash found in DPP Reconfiguration Announcement frame, sending Reconfiguration Announcement frame to controller");
         auto [encap_frame, encap_frame_len] = ec_util::create_encap_dpp_tlv(false, sa, ec_frame_type_recfg_announcement, reinterpret_cast<uint8_t*>(frame), len);
         ASSERT_NOT_NULL(encap_frame, false, "%s:%d: Failed to create Encap DPP TLV for Reconfiguration Announcement frame\n", __func__, __LINE__);
-        sent = m_send_prox_encap_dpp_msg(encap_frame, encap_frame_len, nullptr, 0);
+        sent = m_send_prox_encap_dpp_msg(encap_frame, encap_frame_len, nullptr, 0, m_ctrl_al_mac_addr.data());
         free(encap_frame);
     }
     return sent;
 }
 
-bool ec_pa_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
+bool ec_pa_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN], uint8_t src_al_mac[ETH_ALEN])
 {
+    (void)src_al_mac; // Unused parameter in proxy agent
     em_printfout("Received a DPP Authentication Response frame from '" MACSTRFMT "'\n", MAC2STR(src_mac));
     // Encapsulate 802.11 frame into 1905 Encap DPP TLV and send to controller
     auto [encap_dpp_tlv, encap_dpp_size] = ec_util::create_encap_dpp_tlv(false, src_mac, ec_frame_type_auth_rsp, reinterpret_cast<uint8_t*>(frame), len);
     ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d Failed to create Encap DPP TLV\n", __func__, __LINE__);
 
     // Only create and forward an Encap TLV
-    bool did_succeed = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, NULL, 0);
+    bool did_succeed = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, NULL, 0, m_ctrl_al_mac_addr.data());
     free(encap_dpp_tlv);
     return did_succeed;
 }
@@ -121,7 +125,7 @@ bool ec_pa_configurator_t::handle_cfg_request(uint8_t *buff, unsigned int len, u
     // 255, and send the message to the Multi-AP Controller.
     auto [encap_dpp_tlv, encap_dpp_tlv_len] = ec_util::create_encap_dpp_tlv(true, sa, static_cast<ec_frame_type_t>(ec_frame_type_easymesh), buff, len);
     ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d: Could not create Encap DPP TLV!\n", __func__, __LINE__);
-    bool sent = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_tlv_len, nullptr, 0);
+    bool sent = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_tlv_len, nullptr, 0, m_ctrl_al_mac_addr.data());
     if (!sent) {
         em_printfout("Failed to send Proxied Encap DPP message!");
     }
@@ -140,7 +144,7 @@ bool ec_pa_configurator_t::handle_cfg_result(ec_frame_t *frame, size_t len, uint
 
     auto [encap_dpp_tlv, encap_dpp_tlv_len] = ec_util::create_encap_dpp_tlv(false, sa, ec_frame_type_cfg_result, reinterpret_cast<uint8_t*>(frame), len);
     ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
-    bool sent = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_tlv_len, nullptr, 0);
+    bool sent = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_tlv_len, nullptr, 0, m_ctrl_al_mac_addr.data());
     if (!sent) {
         em_printfout("Failed to send Encap DPP TLV");
     }
@@ -160,7 +164,7 @@ bool ec_pa_configurator_t::handle_connection_status_result(ec_frame_t *frame, si
 
     auto [encap_dpp_tlv, encap_dpp_tlv_len] = ec_util::create_encap_dpp_tlv(false, sa, ec_frame_type_conn_status_result, reinterpret_cast<uint8_t*>(frame), len);
     ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
-    bool sent = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_tlv_len, nullptr, 0);
+    bool sent = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_tlv_len, nullptr, 0, m_ctrl_al_mac_addr.data());
     if (!sent) {
         em_printfout("Failed to send Encap DPP TLV");
     }
@@ -169,12 +173,7 @@ bool ec_pa_configurator_t::handle_connection_status_result(ec_frame_t *frame, si
     return sent;
 }
 
-bool ec_pa_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *chirp_tlv, uint16_t tlv_len)
-{
-    return true;
-}
-
-bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len)
+bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len, uint8_t src_al_mac[ETH_ALEN])
 {
     if (encap_tlv == NULL || encap_tlv_len == 0) {
         em_printfout("Encap DPP TLV is empty");
