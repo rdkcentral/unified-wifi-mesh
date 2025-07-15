@@ -435,6 +435,7 @@ protected:
 	 *
 	 * @param[in] chirp Pointer to the chirp data to be sent.
 	 * @param[in] chirp_len Length of the chirp data.
+	 * @param[in] dest_al_mac Pointer to the destination AL MAC address (6 bytes).
 	 *
 	 * @returns int Status code indicating success or failure of the operation.
 	 * @retval 0 on success.
@@ -442,7 +443,7 @@ protected:
 	 *
 	 * @note Ensure that the chirp data is properly initialized before calling this function.
 	 */
-	int send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t chirp_len);
+	int send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t chirp_len, uint8_t dest_al_mac[ETH_ALEN]);
     
 	/**!
 	 * @brief Sends a proxied encapsulated DPP message.
@@ -451,6 +452,7 @@ protected:
 	 * @param[in] encap_dpp_len Length of the encapsulated DPP TLV.
 	 * @param[in] chirp Pointer to the DPP chirp value structure.
 	 * @param[in] chirp_len Length of the chirp value.
+	 * @param[in] dst_al_mac Pointer to the destination AL MAC address (6 bytes).
 	 *
 	 * @returns int
 	 * @retval 0 on success
@@ -458,7 +460,7 @@ protected:
 	 *
 	 * @note Ensure that the encapsulated DPP TLV and chirp values are properly initialized before calling this function.
 	 */
-	int send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, size_t encap_dpp_len, em_dpp_chirp_value_t *chirp, size_t chirp_len);
+	int send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, size_t encap_dpp_len, em_dpp_chirp_value_t *chirp, size_t chirp_len, uint8_t dst_al_mac[ETH_ALEN]);
 
 	/**!
 	 * @brief Sends a direct encapsulated DPP message. 

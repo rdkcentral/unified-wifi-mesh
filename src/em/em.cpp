@@ -659,11 +659,7 @@ int em_t::send_cmd(em_cmd_exec_t *exec, em_cmd_type_t type, em_service_type_t sv
 int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
 {
     int ret = 0;
-    em_raw_hdr_t hdr_copy;
-    memset(&hdr_copy, 0, sizeof(em_raw_hdr_t));
-    memcpy(&hdr_copy, buff, sizeof(em_raw_hdr_t));
-
-    bool is_loopback_frame = (memcmp(hdr_copy.src, hdr_copy.dst, sizeof(mac_address_t)) == 0);
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
 
 #ifdef AL_SAP
 #ifdef DEBUG_MODE
@@ -671,39 +667,20 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     util::print_hex_dump(len, buff);
 #endif
     AlServiceDataUnit sdu;
-    sdu.setSourceAlMacAddress(g_al_mac_sap);
-    if (is_loopback_frame) {
-        sdu.setDestinationAlMacAddress(g_al_mac_sap);
-    } else {
-        // Set the destination AL MAC address based on the service type
-        if (m_service_type == em_service_type_ctrl) {
-            sdu.setDestinationAlMacAddress({0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
-        }
-        if (m_service_type == em_service_type_agent) {
-            sdu.setDestinationAlMacAddress({0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
-        }
-    }
-
     //override destination and source mac addresses
     MacAddress src_mac, dest_mac;
-    std::copy(buff, buff + ETH_ALEN, dest_mac.begin());
+    std::copy(hdr->dst, hdr->dst + ETH_ALEN, dest_mac.begin());
+    std::copy(hdr->src, hdr->src + ETH_ALEN, src_mac.begin());
+
     sdu.setDestinationAlMacAddress(dest_mac);
-    std::copy(buff + ETH_ALEN, buff + (2*ETH_ALEN), src_mac.begin());
     sdu.setSourceAlMacAddress(src_mac);
 
-
-    memcpy(hdr_copy.dst, sdu.getDestinationAlMacAddress().data(), ETH_ALEN);
-    memcpy(hdr_copy.src, sdu.getSourceAlMacAddress().data(), ETH_ALEN);
 #ifdef DEBUG_MODE
     em_printfout("Destination MAC Address: " MACSTRFMT, MAC2STR(buff));
     em_printfout("Source MAC Address: " MACSTRFMT, MAC2STR(buff+ETH_ALEN));
 #endif
-    std::vector<unsigned char> payload;
-    //TODO skip first 14 bytes as buffer is pure ethernet frame
-    for (unsigned int i = 14; i < len; i++) {
-        payload.push_back(buff[i]);
-    }
-    sdu.setPayload(payload);
+    // Copy over the payload, excluding the header
+    sdu.setPayload({buff + sizeof(em_raw_hdr_t), buff + len});
     g_sap->serviceAccessPointDataRequest(sdu);
 #else
     em_short_string_t   ifname;
@@ -722,25 +699,12 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     sadr_ll.sll_ifindex = static_cast<int>(if_nametoindex(ifname));
     sadr_ll.sll_halen = ETH_ALEN; // length of destination mac address
     sadr_ll.sll_protocol = htons(ETH_P_ALL);
-    memcpy(sadr_ll.sll_addr, (multicast == true) ? multi_addr:hdr_copy.dst, sizeof(mac_address_t));
+    memcpy(sadr_ll.sll_addr, (multicast == true) ? multi_addr:hdr->dst, sizeof(mac_address_t));
 
     ret = static_cast<int>(sendto(sock, buff, len, 0, reinterpret_cast<const struct sockaddr*>(&sadr_ll), sizeof(struct sockaddr_ll)));
     close(sock);
 #endif
    
-    if (is_loopback_frame){
-        // I am sending this message to a node with the same MAC address,
-        // store the message for later comparison
-
-        // Copy (possibly) modified header back to the buffer
-        memcpy(buff, &hdr_copy, sizeof(em_raw_hdr_t));
-
-        auto hash = em_crypto_t::platform_SHA256(buff, len);
-        if (hash.size() == SHA256_MAC_LEN) {
-            m_coloc_sent_hashed_msgs.insert(em_crypto_t::hash_to_hex_string(hash));
-        }
-    }
-
     return ret;
 }
 
@@ -1388,10 +1352,12 @@ bool em_t::initialize_ec_manager(){
     ec_ops_t ops;
     // Shared callbacks
     ops.send_chirp                 = std::bind(&em_t::send_chirp_notif_msg, this, 
-                                                std::placeholders::_1, std::placeholders::_2);
+                                                std::placeholders::_1, std::placeholders::_2,
+                                                std::placeholders::_3);
     ops.send_encap_dpp             = std::bind(&em_t::send_prox_encap_dpp_msg, this, 
                                                 std::placeholders::_1, std::placeholders::_2, 
-                                                std::placeholders::_3, std::placeholders::_4);
+                                                std::placeholders::_3, std::placeholders::_4,
+                                                std::placeholders::_5);
     ops.send_dir_encap_dpp         = std::bind(&em_t::send_direct_encap_dpp_msg, this, 
                                                 std::placeholders::_1, std::placeholders::_2, 
                                                 std::placeholders::_3);

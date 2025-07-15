@@ -29,6 +29,7 @@
 #include "em_msg.h"
 //#include "util.h"
 #include "em_configuration.h"
+#include "util.h"
 
 bool em_msg_t::get_tlv(em_tlv_t *itlv)
 {
@@ -253,6 +254,26 @@ em_tlv_t *em_msg_t::get_tlv(em_tlv_type_t type)
     unsigned int len;
 
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
+    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+        if (tlv->type == type) {
+            return tlv; 
+        }
+        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + ntohs(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
+    }
+
+    return NULL;
+}
+
+em_tlv_t *em_msg_t::get_tlv(em_tlv_t* tlvs_buff, unsigned int buff_len, em_tlv_type_t type)
+{
+
+    EM_ASSERT_NOT_NULL(tlvs_buff, NULL, "Buffer is NULL");
+    EM_ASSERT_MSG_TRUE(buff_len > 0, NULL, "Buffer length is zero");
+
+    em_tlv_t    *tlv = tlvs_buff;
+    unsigned int len = buff_len;
+
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if (tlv->type == type) {
             return tlv; 

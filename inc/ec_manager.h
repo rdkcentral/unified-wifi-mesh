@@ -183,7 +183,7 @@ public:
 	 *
 	 * @note If the operation fails, all CCE IEs are removed before the function exits.
 	 */
-	bool upgrade_to_onboarded_proxy_agent();
+	bool upgrade_to_onboarded_proxy_agent(uint8_t ctrl_al_mac[ETH_ALEN]);
 
     
 	/**
@@ -197,11 +197,11 @@ public:
 	*
 	* @return true if the chirp notification was processed successfully, false otherwise.
 	*/
-	inline bool process_chirp_notification(em_dpp_chirp_value_t* chirp_tlv, uint16_t tlv_len) {
+	inline bool process_chirp_notification(em_dpp_chirp_value_t* chirp_tlv, uint16_t tlv_len, uint8_t src_al_mac[ETH_ALEN]) {
         if (!m_configurator) {
             return false;
         }
-        return m_configurator->process_chirp_notification(chirp_tlv, tlv_len);
+        return m_configurator->process_chirp_notification(chirp_tlv, tlv_len, src_al_mac);
     }
 
     
@@ -214,16 +214,17 @@ public:
 	 * @param[in] encap_tlv_len The length of the 1905 Encap DPP TLV.
 	 * @param[in] chirp_tlv The DPP Chirp Value TLV to parse and handle (NULL if not present).
 	 * @param[in] chirp_tlv_len The length of the DPP Chirp Value TLV (0 if not present).
+	 * @param[in] src_al_mac The source AL MAC address of this message
 	 *
 	 * @return bool True if the message was processed successfully, false otherwise.
 	 *
 	 * @note Ensure that the configurator is initialized before calling this function.
 	 */
-	inline bool process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) {
+	inline bool process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len, uint8_t src_al_mac[ETH_ALEN]) {
         if (!m_configurator) {
             return false;
         }
-        return m_configurator->process_proxy_encap_dpp_msg(encap_tlv, encap_tlv_len, chirp_tlv, chirp_tlv_len);
+        return m_configurator->process_proxy_encap_dpp_msg(encap_tlv, encap_tlv_len, chirp_tlv, chirp_tlv_len, src_al_mac);
     }
 
 	/**
