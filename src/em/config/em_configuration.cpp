@@ -3067,6 +3067,9 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
     if ((dm != NULL) && (hdr != NULL)) {
         memcpy(&network.m_net_info.ctrl_id.mac, &hdr->src, sizeof(mac_address_t));
         dm->set_network(network);
+        if (get_mgr()->get_al_node() != NULL) {
+            get_ec_mgr().upgrade_to_onboarded_proxy_agent(hdr->src);
+        }
     }
     return 0;
 }
@@ -3138,9 +3141,6 @@ int em_configuration_t::handle_encrypted_settings()
     }
     get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (&radioconfig), sizeof(radioconfig));
     set_state(em_state_agent_owconfig_pending);
-    if (get_service_type() == em_service_type_agent) {
-        get_ec_mgr().upgrade_to_onboarded_proxy_agent();
-    }
     return ret;
 }
 

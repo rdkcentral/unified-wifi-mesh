@@ -31,9 +31,10 @@ struct cJSON;
  * 
  * @param chirp_tlv The chirp TLV to send
  * @param len The length of the chirp TLV
+ * @param dest_al_mac The destination AL MAC address (6 bytes)
  * @return bool true if successful, false otherwise
  */
-using send_chirp_func = std::function<bool(em_dpp_chirp_value_t*, size_t)>;
+using send_chirp_func = std::function<bool(em_dpp_chirp_value_t*, size_t, uint8_t*)>;
 
 /**
  * @brief Sends a proxied encapsulated DPP message
@@ -42,9 +43,10 @@ using send_chirp_func = std::function<bool(em_dpp_chirp_value_t*, size_t)>;
  * @param encap_dpp_len The length of the 1905 Encap DPP TLV
  * @param chirp_tlv The chirp value to include in the message. If NULL, the message will not include a chirp value
  * @param chirp_len The length of the chirp value
+ * @param dst_al_mac The destination AL MAC address (6 bytes)
  * @return bool true if successful, false otherwise
  */
-using send_encap_dpp_func = std::function<bool(em_encap_dpp_t*, size_t, em_dpp_chirp_value_t*, size_t)>;
+using send_encap_dpp_func = std::function<bool(em_encap_dpp_t*, size_t, em_dpp_chirp_value_t*, size_t, uint8_t*)>;
 
 
 /**

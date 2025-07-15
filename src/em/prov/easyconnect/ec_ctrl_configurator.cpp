@@ -80,7 +80,7 @@ bool ec_ctrl_configurator_t::onboard_enrollee(ec_data_t *bootstrapping_data)
     return ec_crypto::init_connection_ctx(c_ctx, c_ctx.boot_data.responder_boot_key);
 }
 
-bool ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *chirp_tlv, uint16_t tlv_len)
+bool ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *chirp_tlv, uint16_t tlv_len, uint8_t src_al_mac[ETH_ALEN])
 {
 
     mac_addr_t mac = {0};
@@ -136,7 +136,7 @@ bool ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *ch
     free(hash);
 
     // Send the encapsulated DPP message (with Encap TLV and Chirp TLV)
-    this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, chirp, chirp_tlv_size);
+    this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, chirp, chirp_tlv_size, src_al_mac);
 
     free(encap_dpp_tlv);
     free(chirp);
@@ -144,7 +144,7 @@ bool ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *ch
     return true; 
 }
 
-bool ec_ctrl_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len)
+bool ec_ctrl_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len, uint8_t src_al_mac[ETH_ALEN])
 {
     if (encap_tlv == NULL || encap_tlv_len == 0) {
         em_printfout("Encap DPP TLV is empty");
@@ -167,27 +167,27 @@ bool ec_ctrl_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_t
     ec_frame_type_t ec_frame_type = static_cast<ec_frame_type_t>(frame_type);
     switch (ec_frame_type) {
         case ec_frame_type_recfg_announcement: {
-            did_finish = handle_recfg_announcement(reinterpret_cast<ec_frame_t*>(encap_frame), encap_frame_len, dest_mac);
+            did_finish = handle_recfg_announcement(reinterpret_cast<ec_frame_t*>(encap_frame), encap_frame_len, dest_mac, src_al_mac);
             break;
         }
         case ec_frame_type_recfg_auth_rsp: {
-            did_finish = handle_recfg_auth_response(reinterpret_cast<ec_frame_t*>(encap_frame), encap_frame_len, dest_mac);
+            did_finish = handle_recfg_auth_response(reinterpret_cast<ec_frame_t*>(encap_frame), encap_frame_len, dest_mac, src_al_mac);
             break;
         }
         case ec_frame_type_auth_rsp: {
-            did_finish = handle_auth_response(reinterpret_cast<ec_frame_t*>(encap_frame), encap_frame_len, dest_mac);
+            did_finish = handle_auth_response(reinterpret_cast<ec_frame_t*>(encap_frame), encap_frame_len, dest_mac, src_al_mac);
             break;
         }
         case ec_frame_type_easymesh: {
-            did_finish = handle_proxied_dpp_configuration_request(encap_frame, encap_frame_len, dest_mac);
+            did_finish = handle_proxied_dpp_configuration_request(encap_frame, encap_frame_len, dest_mac, src_al_mac);
             break;
         }
         case ec_frame_type_cfg_result: {
-            did_finish = handle_proxied_config_result_frame(encap_frame, encap_frame_len, dest_mac);
+            did_finish = handle_proxied_config_result_frame(encap_frame, encap_frame_len, dest_mac, src_al_mac);
             break;
         }
         case ec_frame_type_conn_status_result: {
-            did_finish = handle_proxied_conn_status_result_frame(encap_frame, encap_frame_len, dest_mac);
+            did_finish = handle_proxied_conn_status_result_frame(encap_frame, encap_frame_len, dest_mac, src_al_mac);
             break;
         }
         default:
@@ -253,7 +253,7 @@ bool ec_ctrl_configurator_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, ui
     return did_finish;
 }
 
-bool ec_ctrl_configurator_t::handle_proxied_config_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t src_mac[ETH_ALEN])
+bool ec_ctrl_configurator_t::handle_proxied_config_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t src_mac[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN])
 {
     if (!encap_frame || encap_frame_len == 0) {
         em_printfout("Invalid encapsulated frame");
@@ -313,7 +313,7 @@ bool ec_ctrl_configurator_t::handle_proxied_config_result_frame(uint8_t *encap_f
     return true;
 }
 
-bool ec_ctrl_configurator_t::handle_proxied_conn_status_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t src_mac[ETH_ALEN])
+bool ec_ctrl_configurator_t::handle_proxied_conn_status_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t src_mac[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN])
 {
     if (!encap_frame || encap_frame_len == 0) {
         em_printfout("Invalid encapsulated frame");
@@ -365,7 +365,7 @@ bool ec_ctrl_configurator_t::handle_proxied_conn_status_result_frame(uint8_t *en
     return true;
 }
 
-bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t src_mac[ETH_ALEN])
+bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t src_mac[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN])
 {
     // EasyConnect 6.4.3.1 DPP Configuration Response Configurator Handling
     if (!encap_frame || encap_frame_len == 0) {
@@ -455,7 +455,7 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
         std::string status_code_str =  ec_util::status_code_to_string(DPP_STATUS_CONFIGURATION_FAILURE);
 
         em_printfout("Sending DPP Configuration Response frame for Enrollee '" MACSTRFMT "' over 1905 with DPP status code %s", MAC2STR(src_mac), status_code_str.c_str());
-        bool sent = m_send_prox_encap_dpp_msg(reinterpret_cast<em_encap_dpp_t*>(config_response_frame), config_response_frame_len, nullptr, config_response_frame_len);
+        bool sent = m_send_prox_encap_dpp_msg(reinterpret_cast<em_encap_dpp_t*>(config_response_frame), config_response_frame_len, nullptr, config_response_frame_len, src_al_mac);
         if (!sent) {
             em_printfout("Failed to send DPP Configuration Response for Enrollee '" MACSTRFMT "'", MAC2STR(src_mac));
         }
@@ -536,7 +536,8 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
         em_printfout("Failed to create Configuration Respone frame");
         return false;
     }
-    bool sent = m_send_prox_encap_dpp_msg(reinterpret_cast<em_encap_dpp_t*>(config_response_frame), config_response_frame_len, nullptr, 0);
+    bool sent = m_send_prox_encap_dpp_msg(reinterpret_cast<em_encap_dpp_t*>(config_response_frame), config_response_frame_len, nullptr, 0, src_al_mac);
+     // EasyConnect
     if (!sent) {
         em_printfout("Failed to send Proxied Encap DPP message containing DPP Configuration frame to '" MACSTRFMT "'", MAC2STR(src_mac));
         free(config_response_frame);
@@ -545,7 +546,7 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
     return true;
 }
 
-bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
+bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN], uint8_t src_al_mac[ETH_ALEN])
 {
 
     std::string enrollee_mac = util::mac_to_string(src_mac);
@@ -683,7 +684,7 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
         ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
 
         // Send the encapsulated DPP message (with Encap TLV)
-        if (!this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, NULL, 0)){
+        if (!this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, NULL, 0, src_al_mac)){
             em_printfout("Failed to send Encap DPP TLV");
         }
         free(encap_dpp_tlv);
@@ -812,7 +813,7 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
         ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
 
         // Send the encapsulated DPP message (with Encap TLV)
-        if (!this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, NULL, 0)){
+        if (!this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, NULL, 0, src_al_mac)){
             em_printfout("Failed to send encapsulated DPP message");
         }
 
@@ -850,7 +851,7 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
     ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
 
     // Send the encapsulated DPP message (with Encap TLV)
-    if (!this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, NULL, 0)){
+    if (!this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, NULL, 0, src_al_mac)){
         em_printfout("Failed to send encapsulated DPP message");
         free(encap_dpp_tlv);
         return false;
@@ -860,7 +861,7 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
     return true;
 }
 
-bool ec_ctrl_configurator_t::handle_recfg_announcement(ec_frame_t *encap_frame, size_t len, uint8_t sa[ETH_ALEN])
+bool ec_ctrl_configurator_t::handle_recfg_announcement(ec_frame_t *encap_frame, size_t len, uint8_t sa[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN])
 {
     if (encap_frame == nullptr || len == 0) {
         em_printfout("Malformed Reconfiguration Authentication Announcement frame");
@@ -932,7 +933,7 @@ bool ec_ctrl_configurator_t::handle_recfg_announcement(ec_frame_t *encap_frame, 
     auto [encap_dpp_tlv, encap_dpp_tlv_len] = ec_util::create_encap_dpp_tlv(0, sa, ec_frame_type_recfg_auth_req, recfg_auth_req_frame, recfg_auth_req_frame_len);
     ASSERT_NOT_NULL_FREE(encap_dpp_tlv, false, recfg_auth_req_frame, "%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
 
-    bool sent = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_tlv_len, nullptr, 0);
+    bool sent = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_tlv_len, nullptr, 0, src_al_mac);
     free(encap_dpp_tlv);
     free(recfg_auth_req_frame);
     if (sent) {
@@ -942,7 +943,7 @@ bool ec_ctrl_configurator_t::handle_recfg_announcement(ec_frame_t *encap_frame, 
     return sent;
 }
 
-bool ec_ctrl_configurator_t::handle_recfg_auth_response(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN])
+bool ec_ctrl_configurator_t::handle_recfg_auth_response(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN])
 {
     if (frame == nullptr || len == 0) {
         em_printfout("Malformed Reconfiguration Authentication Response frame");

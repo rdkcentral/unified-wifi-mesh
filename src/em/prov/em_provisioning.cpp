@@ -48,61 +48,41 @@
 
 int em_provisioning_t::create_cce_ind_msg(uint8_t *buff, bool enable)
 {
-    uint16_t  msg_id = em_msg_type_dpp_cce_ind;
     unsigned int len = 0;
-    em_cmdu_t *cmdu;
-    em_tlv_t *tlv;
-    uint8_t *tmp = buff;
-    uint8_t cce_enable = 0;
-    uint16_t type = htons(ETH_P_1905);
 
-    memcpy(tmp, reinterpret_cast<uint8_t *> (get_peer_mac()), sizeof(mac_address_t));
-    tmp += sizeof(mac_address_t);
-    len += static_cast<unsigned int> (sizeof(mac_address_t));
+    /*
+    ...it shall send a DPP CCE Indication message containing one DPP CCE Indication TLV 
+    with the Advertise CCE field set to one and send it to one or more Multi-AP Agents 
+    that indicate support for DPP Onboarding
+    */
+    mac_address_t   multi_addr = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x13};
 
-    memcpy(tmp, get_al_interface_mac(), sizeof(mac_address_t));
-    tmp += sizeof(mac_address_t);
-    len += static_cast<unsigned int> (sizeof(mac_address_t));
-
-    memcpy(tmp, reinterpret_cast<uint8_t *> (&type), sizeof(uint16_t));
-    tmp += sizeof(uint16_t);
-    len += static_cast<unsigned int> (sizeof(uint16_t));
-
-    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
-
-    memset(tmp, 0, sizeof(em_cmdu_t));
-    cmdu->type = htons(msg_id);
-    cmdu->id = htons(msg_id);
-    cmdu->last_frag_ind = 1;
-
-    tmp += sizeof(em_cmdu_t);
-    len += static_cast<unsigned int> (sizeof(em_cmdu_t));
+    uint8_t* tmp = em_msg_t::add_1905_header(buff, &len, multi_addr, get_al_interface_mac(), em_msg_type_dpp_cce_ind);
 
     // One DPP CCE Indication tlv 17.2.82
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_dpp_cce_indication;
-    cce_enable = (enable ? 1 : 0); 
-    memcpy(tlv->value, &cce_enable, sizeof(uint8_t));
-    tlv->len = htons(sizeof(uint16_t));
+    uint8_t cce_enable = (enable ? 1 : 0); 
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_dpp_cce_indication, &cce_enable, sizeof(uint8_t));
 
-    tmp += (sizeof(em_tlv_t) + sizeof(uint16_t));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + sizeof(uint16_t));
 
-    // End of message
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_eom;
-    tlv->len = 0;
-
-    tmp += (sizeof (em_tlv_t));
-    len += static_cast<unsigned int> (sizeof (em_tlv_t));
+    tmp = em_msg_t::add_eom_tlv(tmp, &len); 
 
     return static_cast<int> (len);
 }
 
-int em_provisioning_t::send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, size_t encap_dpp_len, em_dpp_chirp_value_t *chirp, size_t chirp_len)
+int em_provisioning_t::send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, size_t encap_dpp_len, em_dpp_chirp_value_t *chirp, size_t chirp_len, uint8_t dest_al_mac[ETH_ALEN])
 {
     if (encap_dpp_len == 0 || encap_dpp_tlv == NULL) {
         em_printfout("Encap DPP TLV is empty");
+        return -1;
+    }
+
+    if (dest_al_mac == NULL) {
+        em_printfout("Destination AL MAC address is NULL");
+        return -1;
+    }
+
+    if (memcmp(dest_al_mac, ZERO_MAC_ADDR, ETH_ALEN) == 0) {
+        em_printfout("Destination AL MAC address is zero");
         return -1;
     }
 
@@ -111,7 +91,7 @@ int em_provisioning_t::send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, si
     unsigned int len = 0;
     uint8_t *tmp = buff;
 
-    tmp = em_msg_t::add_1905_header(tmp, &len, const_cast<uint8_t *> (get_peer_mac()), get_al_interface_mac(), em_msg_type_proxied_encap_dpp);
+    tmp = em_msg_t::add_1905_header(tmp, &len, dest_al_mac, get_al_interface_mac(), em_msg_type_proxied_encap_dpp);
 
     // One 1905 Encap DPP TLV 17.2.79
     tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_1905_encap_dpp, reinterpret_cast<uint8_t *> (encap_dpp_tlv), static_cast<unsigned int> (encap_dpp_len));
@@ -150,6 +130,15 @@ int em_provisioning_t::send_direct_encap_dpp_msg(uint8_t* dpp_frame, size_t dpp_
 {
     if (dpp_frame_len == 0 || dpp_frame == NULL) {
         em_printfout("Direct DPP Frame is empty");
+        return -1;
+    }
+
+    if (dest_al_mac == NULL) {
+        em_printfout("Destination AL MAC address is NULL");
+        return -1;
+    }
+    if (memcmp(dest_al_mac, ZERO_MAC_ADDR, ETH_ALEN) == 0) {
+        em_printfout("Destination AL MAC address is zero");
         return -1;
     }
 
@@ -197,6 +186,10 @@ int em_provisioning_t::send_1905_eapol_encap_msg(uint8_t* eapol_frame, size_t ea
         em_printfout("Destination AL MAC address is NULL");
         return -1;
     }
+    if (memcmp(dest_al_mac, ZERO_MAC_ADDR, ETH_ALEN) == 0) {
+        em_printfout("Destination AL MAC address is zero");
+        return -1;
+    }
 
     // Make sure there is enough room for the TLV, the 1905 layer will deal with fragmentation.
     uint8_t buff[MAX_EM_BUFF_SZ+eapol_frame_len];
@@ -238,6 +231,10 @@ int em_provisioning_t::send_1905_rekey_msg(uint8_t dest_al_mac[ETH_ALEN])
         em_printfout("Destination AL MAC address is NULL");
         return -1;
     }
+    if (memcmp(dest_al_mac, ZERO_MAC_ADDR, ETH_ALEN) == 0) {
+        em_printfout("Destination AL MAC address is zero");
+        return -1;
+    }
 
     // Make sure there is enough room for the TLV, the 1905 layer will deal with fragmentation.
     uint8_t buff[MAX_EM_BUFF_SZ];
@@ -270,7 +267,7 @@ int em_provisioning_t::send_1905_rekey_msg(uint8_t dest_al_mac[ETH_ALEN])
     return static_cast<int> (len);
 }
 
-int em_provisioning_t::send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t chirp_len)
+int em_provisioning_t::send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t chirp_len, uint8_t dest_al_mac[ETH_ALEN])
 {
 
     if (chirp_len == 0 || chirp == NULL) {
@@ -278,20 +275,22 @@ int em_provisioning_t::send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t 
         return -1;
     }
 
+    if (dest_al_mac == NULL) {
+        printf("Destination AL MAC address is NULL\n");
+        return -1;
+    }
+
+    if (memcmp(dest_al_mac, ZERO_MAC_ADDR, ETH_ALEN) == 0) {
+        printf("Destination AL MAC address is zero\n");
+        return -1;
+    }
+
+
     uint8_t buff[MAX_EM_BUFF_SZ];
     unsigned int len = 0;
     uint8_t *tmp = buff;
 
-    //dm_easy_mesh_t *dm = get_data_model();
-
-    // NOTE: `get_ctrl_al_interface_mac` is really only for co-located so `get_peer_mac` does not work.
-
-    //TODO: Decide on addressing.
-    mac_addr_str_t peer_mac_str = {0}, al_mac_str = {0};
-    dm_easy_mesh_t::macbytes_to_string(get_peer_mac(), peer_mac_str);
-    dm_easy_mesh_t::macbytes_to_string(get_al_interface_mac(), al_mac_str);
-    
-    tmp = em_msg_t::add_1905_header(tmp, &len, get_peer_mac(), get_al_interface_mac(), em_msg_type_chirp_notif);
+    tmp = em_msg_t::add_1905_header(tmp, &len, dest_al_mac, get_al_interface_mac(), em_msg_type_chirp_notif);
 
     // One DPP Chirp value tlv 17.2.83
     tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_dpp_chirp_value, reinterpret_cast<uint8_t *> (chirp), static_cast<unsigned int> (chirp_len));
@@ -305,7 +304,8 @@ int em_provisioning_t::send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t 
         //return -1;
     }
 
-    em_printfout("Sending CHIRP NOTIFICATION");
+    em_printfout("Sending CHIRP NOTIFICATION to '" MACSTRFMT "' from '" MACSTRFMT "'\n",
+                 MAC2STR(dest_al_mac), MAC2STR(get_al_interface_mac()));
     if (send_frame(buff, len)  < 0) {
         em_printfout("Channel Selection Request msg failed, error:%d", errno);
         return -1;
@@ -637,21 +637,10 @@ int em_provisioning_t::handle_1905_encap_eapol_msg(uint8_t *buff, unsigned int l
     em_tlv_t    *tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     unsigned int tlv_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
-    uint8_t *eapol_frame = NULL;
-    uint16_t eapol_frame_len = 0;
+    em_tlv_t* eapol_tlv = em_msg_t::get_tlv(tlv, tlv_len, em_tlv_type_1905_encap_eapol);
+    EM_ASSERT_NOT_NULL(eapol_tlv, -1, "EAPOL Encap TLV not found in 1905 Encap EAPOL message");
 
-    while ((tlv->type != em_tlv_type_eom) && (tlv_len > 0)) {
-
-        if (tlv->type == em_tlv_type_1905_encap_eapol) {
-            eapol_frame = tlv->value;
-            eapol_frame_len = ntohs(tlv->len);
-        }
-
-        tlv_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + ntohs(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<uint8_t *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
-    }
-
-    if (eapol_frame == NULL || eapol_frame_len == 0) {
+    if (eapol_tlv->value == NULL || eapol_tlv->len == 0) {
         em_printfout("Received a 1905 EAPOL Encap message but did not contain EAPOL frame!");
         return -1;
     }
@@ -668,32 +657,28 @@ int em_provisioning_t::handle_1905_encap_eapol_msg(uint8_t *buff, unsigned int l
 int em_provisioning_t::handle_cce_ind_msg(uint8_t *buff, unsigned int len)
 {
     em_tlv_t *tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    unsigned int tlvs_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    
+    em_tlv_t* cce_ind_tlv = em_msg_t::get_tlv(tlv, tlvs_len, em_tlv_type_dpp_cce_indication);
+    EM_ASSERT_NOT_NULL(cce_ind_tlv, -1, "DPP CCE Indication TLV not found in CCE Indication message");
+    EM_ASSERT_NOT_NULL(cce_ind_tlv->value, -1, "DPP CCE Indication TLV value is NULL in CCE Indication message");
 
-    bool enable = false;
-    bool valid_tlv = false;
+    em_cce_indication_t* cce_indication = reinterpret_cast<em_cce_indication_t*>(cce_ind_tlv->value);
 
-    while ((tlv->type != em_tlv_type_eom)) {
-        if (tlv->type == em_tlv_type_dpp_cce_indication) {
-            em_cce_indication_t *cce_ind_tlv = reinterpret_cast<em_cce_indication_t *>(tlv->value);
-            enable = static_cast<bool>(cce_ind_tlv->advertise_cce);
-            valid_tlv = true;
-            break;
-        }
-        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<uint8_t *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
-    }
+    bool do_enable_cce = (cce_indication->advertise_cce == 1);
 
-    if (!valid_tlv) {
+    if (!do_enable_cce) {
         em_printfout("Received a DPP CCE Indication Message but did not contain DPP CCE Indication TLV!");
         return -1;
     }
 
-    bool cce_toggled = m_ec_manager->pa_cfg_toggle_cce(enable);
+    bool cce_toggled = m_ec_manager->pa_cfg_toggle_cce(do_enable_cce);
     if (!cce_toggled) {
-        em_printfout("Could not toggle CCE to %d", static_cast<int>(enable));
+        em_printfout("Could not toggle CCE to %d", static_cast<int>(do_enable_cce));
         return -1;
     }
 
-    em_printfout("Successfully %s CCE in Beacons and Probe Responses", (enable == true ? "enabled" : "disabled"));
+    em_printfout("Successfully %s CCE in Beacons and Probe Responses", (do_enable_cce ? "enabled" : "disabled"));
     return 0;
 }
 
@@ -748,31 +733,23 @@ void em_provisioning_t::process_msg(uint8_t *data, unsigned int len)
 
 int em_provisioning_t::handle_dpp_chirp_notif(uint8_t *buff, unsigned int len)
 {
-    em_tlv_t    *tlv;
-    unsigned int tlv_len;
+    em_tlv_t    *tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    unsigned int tlv_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
-    tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-    tlv_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+    uint8_t *src_mac = hdr->src;
 
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
-        // Can be one or more
-        if (tlv->type == em_tlv_type_dpp_chirp_value) {
-            // Parse out dest STA mac address and hash value then validate against the hash in the 
-            // ec_session dpp uri info public key. 
-            // Then construct an Auth request frame and send back in an Encap message
-            em_dpp_chirp_value_t* chirp_tlv = reinterpret_cast<em_dpp_chirp_value_t*> (tlv->value);
+    em_tlv_t* chirp_tlv = em_msg_t::get_tlv(tlv, tlv_len, em_tlv_type_dpp_chirp_value);
+    EM_ASSERT_NOT_NULL(chirp_tlv, -1, "DPP Chirp Value TLV not found in DPP Chirp Notification message");
+    EM_ASSERT_NOT_NULL(chirp_tlv->value, -1, "DPP Chirp Value TLV value is NULL in DPP Chirp Notification message");
+    em_dpp_chirp_value_t* chirp = reinterpret_cast<em_dpp_chirp_value_t*> (tlv->value);
 
-            if (!m_ec_manager->process_chirp_notification(chirp_tlv, ntohs(tlv->len))){
-                //TODO: Fail
-                em_printfout("Failed to process chirp notification");
-            }
-        }
-
-        tlv_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + ntohs(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<uint8_t *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
+    if (!m_ec_manager->process_chirp_notification(chirp, SWAP_LITTLE_ENDIAN(tlv->len), src_mac)) {
+        //TODO: Fail
+        em_printfout("Failed to process chirp notification");
     }
 
-	return 0;
+    return 0;
 }
 
 int em_provisioning_t::handle_proxy_encap_dpp(uint8_t *buff, unsigned int len)
@@ -780,34 +757,37 @@ int em_provisioning_t::handle_proxy_encap_dpp(uint8_t *buff, unsigned int len)
     em_tlv_t    *tlv;
     unsigned int tlv_len;
 
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+    uint8_t *src_mac = hdr->src;
+
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tlv_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
-    uint16_t encap_tlv_len = 0, chirp_tlv_len = 0;
-    em_encap_dpp_t* encap_tlv = NULL;
-    em_dpp_chirp_value_t* chirp_tlv = NULL;
+    // em_encap_dpp_t* encap_tlv = NULL;
+    // em_dpp_chirp_value_t* chirp_tlv = NULL;
 
-    while ((tlv->type != em_tlv_type_eom) && (tlv_len > 0)) {
+    em_tlv_t* encap_tlv = em_msg_t::get_tlv(tlv, tlv_len, em_tlv_type_1905_encap_dpp);
+    em_tlv_t* chirp_tlv = em_msg_t::get_tlv(tlv, tlv_len, em_tlv_type_dpp_chirp_value);
+    EM_ASSERT_NOT_NULL(encap_tlv, -1, "1905 Encap DPP TLV not found in Proxy Encap DPP message");
+    EM_ASSERT_NOT_NULL(encap_tlv->value, -1, "1905 Encap DPP TLV value is NULL in Proxy Encap DPP message");
 
-        if (tlv->type == em_tlv_type_1905_encap_dpp) {
-            // Parse out dest STA mac address and hash value then validate against the hash in the 
-            // ec_session dpp uri info public key. 
-            // Then construct an Auth request frame and send back in an Encap message
-            encap_tlv = reinterpret_cast<em_encap_dpp_t*> (tlv->value);
-            encap_tlv_len = ntohs(tlv->len);
-        }
-
-        // Optional: Can be 0 or 1
-        if (tlv->type == em_tlv_type_dpp_chirp_value) {
-            chirp_tlv = reinterpret_cast<em_dpp_chirp_value_t*> (tlv->value);
-            chirp_tlv_len = ntohs(tlv->len);
-        }
-
-        tlv_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + ntohs(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<uint8_t *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
+    if (chirp_tlv != nullptr && chirp_tlv->value == nullptr) {
+        em_printfout("Received a Proxy Encap DPP message with Chirp TLV but no value!");
+        return -1;
     }
 
-    if (m_ec_manager->process_proxy_encap_dpp_msg(encap_tlv, encap_tlv_len, chirp_tlv, chirp_tlv_len) != 0){
+    em_encap_dpp_t* encap = reinterpret_cast<em_encap_dpp_t*> (encap_tlv->value);
+    uint16_t encap_tlv_len = ntohs(encap_tlv->len);
+
+    em_dpp_chirp_value_t* chirp = NULL;
+    uint16_t chirp_tlv_len = 0;
+
+    if (chirp_tlv != nullptr) {
+        chirp = reinterpret_cast<em_dpp_chirp_value_t*> (chirp_tlv->value);
+        chirp_tlv_len = ntohs(chirp_tlv->len);
+    }
+
+    if (m_ec_manager->process_proxy_encap_dpp_msg(encap, encap_tlv_len, chirp, chirp_tlv_len, src_mac) != 0){
         //TODO: Fail
         return -1;
     }
@@ -831,11 +811,11 @@ int em_provisioning_t::handle_direct_encap_dpp(uint8_t *buff, unsigned int len)
         if (tlv->type == em_tlv_type_dpp_msg) {
             // Direct Encap DPP TLV value **is** the encapsulated frame
             direct_frame = tlv->value;
-            direct_frame_len = ntohs(tlv->len);
+            direct_frame_len = SWAP_LITTLE_ENDIAN(tlv->len);
         }
 
-        tlv_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + ntohs(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<uint8_t *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
+        tlv_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + SWAP_LITTLE_ENDIAN(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<uint8_t *> (tlv) + sizeof(em_tlv_t) + SWAP_LITTLE_ENDIAN(tlv->len));
     }
 
     if (direct_frame == NULL || direct_frame_len == 0) {

@@ -116,6 +116,22 @@ public:
 	static unsigned char* add_tlv(unsigned char *buff, unsigned int *len, em_tlv_type_t tlv_type, unsigned char *value, unsigned int value_len);
 
     
+
+	/**
+	 * @brief Get a TLV from the message.
+	 * 
+	 * This function retrieves a TLV (Type-Length-Value) structure from the message buffer based on the specified type.
+	 * 
+	 * @param[in] tlvs_buff The buffer containing the TLV structures.
+	 * @param[in] buff_len The length of the buffer.
+	 * @param[in] type The type of the TLV to retrieve.
+	 * 
+	 * @return em_tlv_t* A pointer to the TLV structure if found, or NULL if not found.
+	 * 
+	 * @note Ensure that the buffer is properly initialized and contains valid TLV structures before calling this function.
+	 */
+	static em_tlv_t *get_tlv(em_tlv_t *tlvs_buff, unsigned int buff_len, em_tlv_type_t type);
+
 	/**
 	 * @brief Add an EOM TLV to the message.
 	 *
