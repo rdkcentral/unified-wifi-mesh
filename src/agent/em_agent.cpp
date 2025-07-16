@@ -190,6 +190,20 @@ void em_agent_t::handle_channel_sel_req(em_bus_event_t *evt)
     }
 }
 
+void em_agent_t::handle_csa_beacon_frame(em_bus_event_t *evt)
+{
+    unsigned int num;
+    wifi_bus_desc_t *desc;
+
+    if((desc = get_bus_descriptor()) == NULL) {
+       printf("descriptor is null");
+    }
+
+    if ((num = m_data_model.analyze_csa_beacon_frame(evt, desc, &m_bus_hdl)) == 1) {
+        printf("analyze_csa_beacon_frame completed\n");
+    }
+}
+
 void em_agent_t::handle_m2ctrl_configuration(em_bus_event_t *evt)
 {
     unsigned int num;
@@ -740,6 +754,10 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 			handle_channel_sel_req(evt);
 			break;
 
+		case em_bus_event_type_recv_csa_beacon_frame:
+			handle_csa_beacon_frame(evt);
+			break;
+
         case em_bus_event_type_sta_link_metrics:
             handle_sta_link_metrics(evt);
             break;
@@ -1019,6 +1037,11 @@ void em_agent_t::input_listener()
         return;
     }
 
+   if(desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.CSABeaconFrameRecieved", (void *)&em_agent_t::mgmt_csa_beacon_frame_cb, NULL, 0) != 0) {
+        printf("%s:%d bus get failed\n",__func__,__LINE__);
+        return;
+    }
+
     io(NULL);
 }
 
@@ -1194,6 +1217,14 @@ void em_agent_t::onewifi_cb(char *event_name, raw_data_t *data, void *userData)
 
     cJSON_Delete(json);
 
+}
+
+int em_agent_t::mgmt_csa_beacon_frame_cb(char *event_name, raw_data_t *data, void *userData)
+{
+    printf("%s:%d Received Frame data for event [%s] and data of len:\n%d\n", __func__, __LINE__, event_name, data->raw_data_len);
+
+    g_agent.io_process(em_bus_event_type_recv_csa_beacon_frame, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
+    return 1;
 }
 
 int em_agent_t::data_model_init(const char *data_model_path)

@@ -236,6 +236,16 @@ extern "C"
 #define WIFI_SET_DISCONN_SCAN_NONE_STATE      "Device.WiFi.EM.SetDisconnScanNoneState"
 #endif
 
+// Beacon CSA parsing
+#define CSA_TAG_ID                   37
+#define CSA_IE_MIN_LENGTH            3
+#define TAG_HEADER_LENGTH            2
+#define TAG_NUMBER_OFFSET            0
+#define TAG_LENGTH_OFFSET            1
+#define CSA_SWITCH_MODE_OFFSET       0
+#define CSA_NEW_CHANNEL_OFFSET       1
+#define CSA_SWITCH_COUNT_OFFSET      2
+
 typedef char em_interface_name_t[32];
 typedef unsigned char em_nonce_t[16];
 typedef unsigned char em_dh5_key_t[192];    // because this is DH group 5 (1536 bits)
@@ -2277,6 +2287,7 @@ typedef struct {
     // @note Don't manually allocate, use the helper functions to add/remove elements 
     unsigned char vendor_elements[WIFI_AP_MAX_VENDOR_IE_LEN];
     size_t vendor_elements_len;
+    bool    connect_status;
 } em_bss_info_t;
 
 typedef struct {
@@ -2404,6 +2415,7 @@ typedef struct {
     bool srg_information_valid;
     bool non_srg_offset_valid;
     bool psr_disallowed;
+    bool init_cfg_done;
     unsigned char non_srg_obsspd_max_offset;
     unsigned char srg_obsspd_min_offset;
     unsigned char srg_obsspd_max_offset;
@@ -2641,6 +2653,7 @@ typedef enum {
     em_bus_event_type_ap_metrics_report,
     em_bus_event_type_bss_info,
     em_bus_event_type_get_reset,
+    em_bus_event_type_recv_csa_beacon_frame,
 
     em_bus_event_type_max
 } em_bus_event_type_t;

@@ -297,6 +297,7 @@ void dm_bss_t::operator = (const dm_bss_t& obj)
     this->m_bss_info.transmitted_bssid = obj.m_bss_info.transmitted_bssid;
     memcpy(this->m_bss_info.vendor_elements, obj.m_bss_info.vendor_elements, sizeof(this->m_bss_info.vendor_elements));
     this->m_bss_info.vendor_elements_len = obj.m_bss_info.vendor_elements_len;
+    this->m_bss_info.connect_status = obj.m_bss_info.connect_status;
 }
 
 
@@ -335,6 +336,7 @@ bool dm_bss_t::operator == (const dm_bss_t& obj)
     ret += !(this->m_bss_info.transmitted_bssid == obj.m_bss_info.transmitted_bssid);
     ret += (memcmp(this->m_bss_info.vendor_elements, obj.m_bss_info.vendor_elements, sizeof(this->m_bss_info.vendor_elements)) != 0);
     ret += !(this->m_bss_info.vendor_elements_len == obj.m_bss_info.vendor_elements_len);
+    ret += !(this->m_bss_info.connect_status == obj.m_bss_info.connect_status);
 
     if (ret > 0)
         return false;
