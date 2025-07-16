@@ -401,7 +401,10 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
 	em_op_class_info_t *dm_op_class;
 	em_tx_power_limit_t	*tx_power_limit;
 	em_spatial_reuse_req_t *spatial_reuse_req;
-    em_eht_operations_t *eht_ops;
+	em_eht_operations_t *eht_ops;
+	bool found_mesh_sta = false;
+	em_bss_info_t *bss_info;
+
 
 	channel_sel = reinterpret_cast<op_class_channel_sel*> (evt->u.raw_buff);
 	printf("%s:%d No of opclass=%d tx=%d\n", __func__, __LINE__,
@@ -481,8 +484,137 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
             memcpy(&this->m_bss[j].get_bss_info()->eht_ops, &eht_ops->radios[i].bss[k], sizeof(em_eht_operations_bss_t));
         }
     }
-#endif 
-    return refresh_onewifi_subdoc(desc, bus_hdl, "Radio", get_subdoc_radio_type_for_freq(channel_sel->freq_band));
+#endif
+
+    for (i = 0; i < this->m_num_bss; i++) {
+        bss_info = this->get_bss(i)->get_bss_info();
+        if (bss_info == NULL) {
+            printf("%s:%d: Cannot find bss info for index %d\n", __func__, __LINE__, i);
+            continue;
+        }
+        if (memcmp(tx_power_limit->ruid, bss_info->ruid.mac, sizeof(mac_address_t)) == 0 &&
+            strncmp(bss_info->bssid.name, "mesh_sta", strlen("mesh_sta")) == 0 &&
+            bss_info->connect_status) {
+            found_mesh_sta = true;
+            break;
+        }
+    }
+
+    if(radio_info->init_cfg_done && found_mesh_sta) {
+        printf("%s:%d channel change trigger is based on CSA since mesh sta present\n", __func__, __LINE__);
+        return 1;
+    } else {
+        radio_info->init_cfg_done = true;
+        return refresh_onewifi_subdoc(desc, bus_hdl, "Radio", get_subdoc_radio_type_for_freq(channel_sel->freq_band));
+    }
+
+}
+
+int dm_easy_mesh_agent_t::analyze_csa_beacon_frame(em_bus_event_t *evt, wifi_bus_desc_t *desc, bus_handle_t *bus_hdl)
+{
+    dm_easy_mesh_agent_t dm = *this;
+
+    bool found_mesh_sta = false;
+    bool csa_found = false;
+    int i, j, ie_len;
+    uint8_t tag_number, tag_length;
+    uint8_t switch_mode = 0, new_channel = 0, switch_count = 0;
+
+    em_bss_info_t *mesh_sta_bss, *bss_info;
+    em_op_class_info_t *op_class_info, *info;
+    dm_radio_t *radio;
+    em_freq_band_t freq_band;
+
+    struct ieee80211_mgmt *mgmt = reinterpret_cast<struct ieee80211_mgmt *>(evt->u.raw_buff);
+    const size_t len = evt->data_len;
+    const size_t mgmt_hdr_len = offsetof(struct ieee80211_mgmt, u);
+    const uint8_t *ie = mgmt->u.beacon.variable;
+
+    // Find mesh_sta BSS
+    for (i = 0; i < dm.get_num_bss(); i++) {
+        bss_info = dm.get_bss(i)->get_bss_info();
+        if (bss_info == NULL) {
+            printf("%s:%d: Cannot find bss info for index %d\n", __func__, __LINE__, i);
+            continue;
+        }
+        if (strncmp(bss_info->bssid.name, "mesh_sta", strlen("mesh_sta")) == 0) {
+            found_mesh_sta = true;
+            mesh_sta_bss = bss_info;
+            break;
+        }
+    }
+
+    if (!found_mesh_sta) {
+        printf("%s:%d: Mesh STA not found\n", __func__, __LINE__);
+        return -1;
+    }
+
+    // Find matching op_class based on RUID and current type
+    for (j = 0; j < dm.get_num_op_class(); j++) {
+        info = &dm.m_op_class[j].m_op_class_info;
+        if (info == NULL) {
+            printf("%s:%d: Cannot find op_class info for index %d\n", __func__, __LINE__, j);
+            continue;
+        }
+        if ((memcmp(info->id.ruid, mesh_sta_bss->ruid.mac, sizeof(mac_address_t)) == 0) &&
+            (info->id.type == em_op_class_type_current)) {
+            op_class_info = info;
+            printf("%s:%d op_class: %d, channel: %d\n", __func__, __LINE__, op_class_info->op_class, op_class_info->channel);
+            break;
+        }
+    }
+
+    if (!op_class_info) {
+        printf("%s:%d: No matching current op_class found\n", __func__, __LINE__);
+        return -1;
+    }
+
+    // Parse beacon IEs for CSA tag
+    ie_len = len - (mgmt_hdr_len + sizeof(mgmt->u.beacon));
+    while (ie_len >= TAG_HEADER_LENGTH) {
+        tag_number = ie[TAG_NUMBER_OFFSET];
+        tag_length = ie[TAG_LENGTH_OFFSET];
+
+        if (tag_length + TAG_HEADER_LENGTH > ie_len)
+            break;
+
+        if (tag_number == CSA_TAG_ID && tag_length >= CSA_IE_MIN_LENGTH) {
+            switch_mode = ie[TAG_HEADER_LENGTH + CSA_SWITCH_MODE_OFFSET];
+            new_channel = ie[TAG_HEADER_LENGTH + CSA_NEW_CHANNEL_OFFSET];
+            switch_count = ie[TAG_HEADER_LENGTH + CSA_SWITCH_COUNT_OFFSET];
+
+            csa_found = true;
+            printf("%s:%d: CSA beacon received - mode:%u new_channel:%u switch_count:%u\n",
+                   __func__, __LINE__, switch_mode, new_channel, switch_count);
+            break;
+        }
+
+        ie_len -= (TAG_HEADER_LENGTH + tag_length);
+        ie += (TAG_HEADER_LENGTH + tag_length);
+    }
+
+    if (!csa_found) {
+        printf("%s:%d: CSA info not found in beacon frame\n", __func__, __LINE__);
+        return -1;
+    }
+
+    // Update channel if required
+    if (op_class_info->channel != new_channel) {
+        printf("%s:%d: CSA Channel mismatch. Updating from %d to %d based on CSA\n", __func__, __LINE__, op_class_info->channel, new_channel);
+        op_class_info->channel = new_channel;
+    } else {
+        printf("%s:%d: CSA channel matches\n", __func__, __LINE__);
+    }
+
+    radio = dm.get_radio(op_class_info->id.ruid);
+    if (radio == NULL) {
+        printf("%s:%d: Radio not found\n", __func__, __LINE__);
+        return -1;
+    }
+    freq_band = radio->get_radio_info()->band;
+    printf("%s:%d: Channel change request for freq band : %d\n", __func__, __LINE__, freq_band);
+
+    return dm.refresh_onewifi_subdoc(desc, bus_hdl, "Radio", get_subdoc_radio_type_for_freq(freq_band));
 }
 
 int dm_easy_mesh_agent_t::analyze_sta_link_metrics(em_bus_event_t *evt, em_cmd_t *pcmd[])

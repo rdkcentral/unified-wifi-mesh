@@ -628,7 +628,21 @@ public:
 	 * calling this function.
 	 */
 	void handle_channel_sel_req(em_bus_event_t *evt);
-    
+
+	/**!
+	 * @brief Handles the csa beacon frame request event.
+	 *
+	 * This function processes the csa beacon frame request event received
+	 * from the event bus and performs necessary actions to handle the request.
+	 *
+	 * @param[in] evt Pointer to the event structure containing the channel
+	 * selection request details.
+	 *
+	 * @note Ensure that the event structure is properly initialized before
+	 * calling this function.
+	 */
+	void handle_csa_beacon_frame(em_bus_event_t *evt);
+
 	/**!
 	 * @brief Handles the station link metrics event.
 	 *
@@ -837,7 +851,24 @@ public:
 	 * @note Ensure that the data pointer is valid and points to the correct data structure.
 	 */
 	static int mgmt_action_frame_cb(char *event_name, raw_data_t *data, void *userData);
-    
+
+	/**!
+	 * @brief Callback function for management csa beacon frames.
+	 *
+	 * This function is triggered when a management csa beacon frame event occurs.
+	 *
+	 * @param[in] event_name The name of the event that triggered the callback.
+	 * @param[in] data Pointer to the raw data associated with the event.
+	 * @param[in] userData User-defined data passed to the callback function.
+	 *
+	 * @returns int Status code indicating the success or failure of the callback execution.
+	 * @retval 0 on success.
+	 * @retval Non-zero error code on failure.
+	 *
+	 * @note Ensure that the data pointer is valid and points to the correct data structure.
+	 */
+	static int mgmt_csa_beacon_frame_cb(char *event_name, raw_data_t *data, void *userData);
+
 	/**!
 	 * @brief Callback function for channel scanning.
 	 *
