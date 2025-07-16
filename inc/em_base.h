@@ -2277,6 +2277,7 @@ typedef struct {
     // @note Don't manually allocate, use the helper functions to add/remove elements 
     unsigned char vendor_elements[WIFI_AP_MAX_VENDOR_IE_LEN];
     size_t vendor_elements_len;
+    bool    connect_status;
 } em_bss_info_t;
 
 typedef struct {
@@ -2404,6 +2405,7 @@ typedef struct {
     bool srg_information_valid;
     bool non_srg_offset_valid;
     bool psr_disallowed;
+    bool init_cfg_done;
     unsigned char non_srg_obsspd_max_offset;
     unsigned char srg_obsspd_min_offset;
     unsigned char srg_obsspd_max_offset;
@@ -2636,6 +2638,7 @@ typedef enum {
     em_bus_event_type_beacon_report,
     em_bus_event_type_recv_wfa_action_frame,
     em_bus_event_type_recv_gas_frame,
+    em_bus_event_type_recv_csa_beacon_frame,
     em_bus_event_type_get_sta_client_type,
     em_bus_event_type_assoc_status,
     em_bus_event_type_ap_metrics_report,

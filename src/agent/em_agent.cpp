@@ -190,6 +190,94 @@ void em_agent_t::handle_channel_sel_req(em_bus_event_t *evt)
     }
 }
 
+void em_agent_t::handle_csa_beacon_frame(em_bus_event_t *evt)
+{
+    mac_addr_str_t mac_str;
+    bool found_mesh_sta = false;
+    int i, j;
+    
+    for (i = 0; i < m_data_model.get_num_bss(); i++) {
+        if (strncmp(m_data_model.get_bss(i)->get_bss_info()->bssid.name, "mesh_sta", strlen("mesh_sta")) == 0) {
+            found_mesh_sta = true;
+            break;
+        }
+    }
+    if (!found_mesh_sta) {
+        return;
+    }
+
+    em_op_class_info_t *op_class_info = NULL;
+    for (j = 0; j < m_data_model.get_num_op_class(); j++) {
+        em_op_class_info_t *info = &m_data_model.m_op_class[j].m_op_class_info;
+        if ((memcmp(info->id.ruid, m_data_model.m_bss[i].m_bss_info.ruid.mac, sizeof(mac_address_t)) == 0) &&
+            (info->id.type == em_op_class_type_current)) {
+            op_class_info = info;
+            printf("%s:%d Current op_class: %d, channel: %d\n", __func__, __LINE__, op_class_info->op_class, op_class_info->channel);
+            break;
+        }
+    }
+
+    if (!op_class_info) {
+        printf("No matching current op_class found\n");
+        return;
+    }
+
+    struct ieee80211_mgmt *mgmt = reinterpret_cast<struct ieee80211_mgmt *>(evt->u.raw_buff);
+    mac_addr_str_t sa_str, da_str;
+    dm_easy_mesh_t::macbytes_to_string(mgmt->sa, sa_str);
+    dm_easy_mesh_t::macbytes_to_string(mgmt->da, da_str);
+
+    const size_t len = evt->data_len;
+    const size_t mgmt_hdr_len = offsetof(struct ieee80211_mgmt, u);
+    const uint8_t *ie = mgmt->u.beacon.variable;
+    int ie_len = len - (mgmt_hdr_len + sizeof(mgmt->u.beacon));
+    bool csa_found = false;
+    uint8_t csa_channel = 0;
+
+    while (ie_len >= 2) {
+        uint8_t tag_number = ie[0];
+        uint8_t tag_length = ie[1];
+
+        if (tag_length + 2 > ie_len)
+            break;
+
+        if (tag_number == 37 && tag_length >= 3) {
+            csa_found = true;
+            uint8_t switch_mode = ie[2];
+            csa_channel = ie[3];
+            uint8_t switch_count = ie[4];
+
+            printf("%s:%d: CSA beacon processed - mode:%u new_channel:%u switch_count:%u\n",
+                   __func__, __LINE__, switch_mode, csa_channel, switch_count);
+            break;
+        }
+
+        ie_len -= (2 + tag_length);
+        ie += (2 + tag_length);
+    }
+
+    if (!csa_found) {
+        printf("%s:%d: CSA not found \n", __func__, __LINE__);
+        return;
+    }
+
+    if (op_class_info->channel != csa_channel) {
+        printf("Channel mismatch. Updating from %d to %d\n", op_class_info->channel, csa_channel);
+        op_class_info->channel = csa_channel;
+
+    } else {
+        printf("CSA channel matches to current one\n");
+    }
+
+    em_freq_band_t freq_band;
+    dm_radio_t *radio;
+    radio = m_data_model.get_radio(op_class_info->id.ruid);
+    freq_band = radio->get_radio_info()->band;
+    printf("freq band : %d\n", freq_band);
+    refresh_onewifi_subdoc("Radio", m_data_model.get_subdoc_radio_type_for_freq(freq_band));
+    printf("%s:%d: Beacon with CSA tag processed successfully\n", __func__, __LINE__);
+}
+
 void em_agent_t::handle_m2ctrl_configuration(em_bus_event_t *evt)
 {
     unsigned int num;
@@ -740,6 +828,10 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 			handle_channel_sel_req(evt);
 			break;
 
+        case em_bus_event_type_recv_csa_beacon_frame:
+			handle_csa_beacon_frame(evt);
+			break;            
+
         case em_bus_event_type_sta_link_metrics:
             handle_sta_link_metrics(evt);
             break;
@@ -1019,6 +1111,11 @@ void em_agent_t::input_listener()
         return;
     }
 
+    if(desc->bus_event_subs_fn(&m_bus_hdl, WIFI_CSA_BEACON_FRAME_RECEIVED, (void *)&em_agent_t::mgmt_csa_beacon_frame_cb, NULL, 0) != 0) {
+        printf("%s:%d bus get failed\n",__func__,__LINE__);
+        return;
+    }
+
     io(NULL);
 }
 
@@ -1194,6 +1291,14 @@ void em_agent_t::onewifi_cb(char *event_name, raw_data_t *data, void *userData)
 
     cJSON_Delete(json);
 
+}
+
+int em_agent_t::mgmt_csa_beacon_frame_cb(char *event_name, raw_data_t *data, void *userData)
+{
+       printf("%s:%d Received Frame data for event [%s] and data of len:\n%d\n", __func__, __LINE__, event_name, data->raw_data_len);
+       
+       g_agent.io_process(em_bus_event_type_recv_csa_beacon_frame, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
+       return 1;
 }
 
 int em_agent_t::data_model_init(const char *data_model_path)

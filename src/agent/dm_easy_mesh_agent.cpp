@@ -403,6 +403,7 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
 	em_tx_power_limit_t	*tx_power_limit;
 	em_spatial_reuse_req_t *spatial_reuse_req;
     em_eht_operations_t *eht_ops;
+    bool found_mesh_sta = false;
 
 	channel_sel = (op_class_channel_sel*) evt->u.raw_buff;
 	printf("%s:%d No of opclass=%d tx=%d\n", __func__, __LINE__,channel_sel->num, channel_sel->tx_power);
@@ -482,7 +483,25 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
         }
     }
 #endif 
-    return refresh_onewifi_subdoc(desc, bus_hdl, "Radio", get_subdoc_radio_type_for_freq(channel_sel->freq_band));
+
+    for (i = 0; i < this->m_num_bss; i++) {
+        if (memcmp(tx_power_limit->ruid, this->get_bss(i)->get_bss_info()->ruid.mac, sizeof(mac_address_t)) == 0) {
+            if (strncmp(this->get_bss(i)->get_bss_info()->bssid.name, "mesh_sta", strlen("mesh_sta")) == 0) {
+                if(this->get_bss(i)->get_bss_info()->connect_status == true) {
+                    found_mesh_sta = true;
+                }
+                break;
+            }
+        }
+    }
+
+    if(radio_info->init_cfg_done && found_mesh_sta) {
+        printf("%s:%d channel change trigger is based on CSA since mesh sta present\n", __func__, __LINE__);
+        return 1;
+    } else {
+        radio_info->init_cfg_done = true;
+        return refresh_onewifi_subdoc(desc, bus_hdl, "Radio", get_subdoc_radio_type_for_freq(channel_sel->freq_band));
+    }
 }
 
 int dm_easy_mesh_agent_t::analyze_sta_link_metrics(em_bus_event_t *evt, em_cmd_t *pcmd[])
