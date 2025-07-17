@@ -61,6 +61,17 @@ class em_configuration_t {
 	 * @note Ensure that the buffer is allocated with sufficient size before calling this function.
 	 */
 	int create_autoconfig_search_msg(unsigned char *buff);
+
+	/**
+	 * @brief Create a autoconf search message (extended) including a DPP chirp with optional hash
+	 * 
+	 * @param buff The buffer to write the message to
+	 * @param chirp The chirp TLV to include in the message
+	 * @param hash_len The length of the hash included in the chirp (can be 0 if no hash present)
+	 *
+	 * @return int The length of the created message, or -1 on failure
+	 */
+	int create_autoconf_search_ext_chirp_msg(unsigned char *buff, em_dpp_chirp_value_t *chirp, size_t hash_len);
     
 	/**!
 	 * @brief Creates an auto-configuration WSC M1 message.
@@ -1257,6 +1268,8 @@ private:
     unsigned int m_m2_encrypted_settings_len;
 
 public:
+
+	bool send_autoconf_search_ext_chirp(em_dpp_chirp_value_t *chirp, size_t hash_len);
     
 	/**!
 	 * @brief Processes a message with the given data and length.

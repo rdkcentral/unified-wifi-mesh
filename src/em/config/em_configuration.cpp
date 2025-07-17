@@ -2745,6 +2745,68 @@ int em_configuration_t::create_autoconfig_resp_msg(unsigned char *buff, em_freq_
 
 }
 
+bool em_configuration_t::send_autoconf_search_ext_chirp(em_dpp_chirp_value_t *chirp, size_t hash_len)
+{
+    unsigned char buff[4096] = {0};
+    int len = 0;
+
+    len = create_autoconf_search_ext_chirp_msg(buff, chirp, hash_len);
+    if (len < 0) {
+        em_printfout("Failed to create autoconf search ext chirp msg");
+        return false;
+    }
+
+    // Send the message
+    if (send_frame(buff, len) < 0) {
+        em_printfout("Failed to send autoconf search ext chirp msg");
+        return false;
+    }
+
+    return true;
+}
+
+int em_configuration_t::create_autoconf_search_ext_chirp_msg(uint8_t *buff, em_dpp_chirp_value_t *chirp, size_t hash_len)
+{
+    if (!buff) {
+        em_printfout("Bad param");
+        return -1;
+    }
+
+    // Note: according to 1905 spec, msg id is shared between extended and non-extended search
+    em_msg_type_t msg_id = em_msg_type_autoconf_search;
+    unsigned int len = 0;
+    uint8_t *tmp = buff;
+
+    mac_address_t multi_addr = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x13};
+
+    tmp = em_msg_t::add_1905_header(tmp, &len, multi_addr, get_al_interface_mac(), msg_id);
+
+    // One 1905.1 AL MAC address type TLV (table 6-8)
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_al_mac_address, get_al_interface_mac(), sizeof(mac_address_t));
+
+    // One SearchedRole TLV (table 6-22)
+    // Registrar
+    uint8_t role = 0;
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_searched_role, &role, sizeof(role));
+
+    // One AutoconfigFreqBand TLV (table 6-23)
+    em_freq_band_t band = get_band();
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_autoconf_freq_band, reinterpret_cast<uint8_t*>(&band), sizeof(band));
+
+    // One MultiAP Profile TLV (section 17.2.47)
+    em_profile_type_t profile = get_profile_type();
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_profile, reinterpret_cast<uint8_t*>(&profile), sizeof(profile));
+
+    // Zero or One DPP Chirp TLV (section 17.2.83)
+    if (chirp) {
+        tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_dpp_chirp_value, reinterpret_cast<uint8_t*>(chirp), sizeof(em_dpp_chirp_value_t) + hash_len);
+    }
+
+    // OEM
+    tmp = em_msg_t::add_eom_tlv(tmp, &len);
+    return static_cast<int>(len);
+}
+
 int em_configuration_t::create_autoconfig_search_msg(unsigned char *buff)
 {
     unsigned short  msg_id = em_msg_type_autoconf_search;
