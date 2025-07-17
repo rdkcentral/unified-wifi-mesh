@@ -53,6 +53,7 @@ func (m *MeshViewsMgr) timerHandler() {
 		case <-m.ticker.C:
 			if program != nil {
 				program.Send(refreshUIMsg{})
+				program.Send(DebugTest{})
 			}
 
 		case <-m.quit:
