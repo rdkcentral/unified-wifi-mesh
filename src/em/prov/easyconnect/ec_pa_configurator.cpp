@@ -13,10 +13,20 @@ ec_pa_configurator_t::ec_pa_configurator_t(const std::string& al_mac_addr, ec_op
 
     m_sec_ctx = sec_ctx;
 
-    // Pass super-class initialized security context
-    if (!m_1905_encrypt_layer.set_sec_params(m_sec_ctx.C_signing_key, m_sec_ctx.net_access_key, m_sec_ctx.connector, EVP_sha256() /*TODO HASH*/)){
-        em_printfout("Failed to set security parameters for 1905 Encrypt Layer");
-        return;
+    bool ieee1905_encryption_possible = true;
+
+    if (!m_sec_ctx.C_signing_key || !m_sec_ctx.net_access_key || !m_sec_ctx.connector) {
+        em_printfout("Invalid security context provided to Proxy Agent Configurator");
+        ieee1905_encryption_possible = false;
+    }
+
+    if (ieee1905_encryption_possible) {
+        // Pass super-class initialized security context
+        if (!m_1905_encrypt_layer.set_sec_params(m_sec_ctx.C_signing_key, m_sec_ctx.net_access_key,
+                                                 m_sec_ctx.connector, EVP_sha256() /*TODO HASH*/)) {
+            em_printfout("Failed to set security parameters for 1905 Encrypt Layer");
+            return;
+        }
     }
 }
 
