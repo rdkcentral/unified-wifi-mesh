@@ -876,7 +876,7 @@ bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_f
     char path[100] = {0};
     snprintf(path, sizeof(path), "Device.WiFi.AccessPoint.%d.RawFrame.Mgmt.Action.Tx", test_idx+1);
     
-    em_printfout("Sending action frame: VAP Idx (%d), Dest (" MACSTRFMT "), Frequency (%d), Dwell Time (%d)", test_idx, MAC2STR(dest_mac), frequency, wait_time_ms);
+    em_printfout("Sending action frame: VAP Idx (%d), Dest (" MACSTRFMT "), Frequency (%d), Dwell Time (%d), Length (%d)", test_idx, MAC2STR(dest_mac), frequency, wait_time_ms, action_frame_len);
     // Send the action frame
     bus_error_t rc;
     if ((rc = desc->bus_set_fn(&m_bus_hdl, path,  &raw_act_frame)) != 0) {
@@ -1087,7 +1087,7 @@ int em_agent_t::mgmt_action_frame_cb(char *event_name, raw_data_t *data, void *u
 {
     (void)userData;
     struct ieee80211_mgmt *mgmt_frame = (struct ieee80211_mgmt *)data->raw_data.bytes;
-    printf("%s:%d Received Frame data for event [%s] and data of len:\n%d\n", __func__, __LINE__, event_name, data->raw_data_len);
+    em_printfout("Received Frame data for event [%s] and data of len: %d",event_name, data->raw_data_len);
 
     //util::print_hex_dump(data->raw_data_len, (uint8_t*)data->raw_data.bytes);
 

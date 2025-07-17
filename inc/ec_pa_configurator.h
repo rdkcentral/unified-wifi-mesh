@@ -18,13 +18,14 @@ public:
 	 * It also handles the 1905 frames from the Controller and forwards them to the Enrollee.
 	 *
 	 * @param[in] al_mac_addr The AL MAC address of the device.
+	 * @param[in] ctrl_al_mac_addr The AL MAC address of the Controller.
 	 * @param[in] ops Callbacks for this Configurator
 	 * @param[in] sec_ctx The existing security context. Non-optional since the proxy agent must already be onboarded.
 	 * @param[in] is_colocated True if this is a colocated agent. False otherwise
 	 *
 	 * @note This constructor is part of the ec_pa_configurator_t class which extends ec_configurator_t.
 	 */
-	ec_pa_configurator_t(const std::string& al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t& sec_ctx, bool is_colocated);
+	ec_pa_configurator_t(const std::string& al_mac_addr, const std::vector<uint8_t>& ctrl_al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t& sec_ctx, bool is_colocated);
     
 	/**
 	 * @brief Handles a presence announcement 802.11 frame, performing the necessary actions and possibly passing to 1905.
@@ -49,7 +50,7 @@ public:
 	 * @param sa The source MAC of the frame (Enrollee)
 	 * @return true on success, otherwise false
 	 */
-	bool handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) override;
+	bool handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN]) override;
     
 	/**
 	 * @brief Handles an authentication request 802.11 frame, performing the necessary actions and possibly passing to 1905.
@@ -65,7 +66,7 @@ public:
 	 * @note This function is optional to implement because the controller+configurator does not handle 802.11,
 	 *       but the proxy agent + configurator does.
 	 */
-	bool handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]) override;
+	bool handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN], uint8_t src_al_mac[ETH_ALEN]) override;
 
     
 	/**
@@ -117,20 +118,6 @@ public:
 	bool handle_connection_status_result(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) override;
 
 	/**
-	 * @brief Handle a chirp notification TLV and direct to the correct place (802.11 or 1905).
-	 *
-	 * This function processes the given chirp TLV and determines the appropriate handling
-	 * based on its type, either for 802.11 or 1905 protocols.
-	 *
-	 * @param[in] chirp_tlv Pointer to the chirp TLV to parse and handle.
-	 * @param[in] tlv_len The length of the chirp TLV.
-	 *
-	 * @return true if the chirp notification was processed successfully, false otherwise.
-	 */
-	bool process_chirp_notification(em_dpp_chirp_value_t* chirp_tlv, uint16_t tlv_len) override;
-
-    
-	/**
 	 * @brief Handle a proxied encapsulated DPP message TLVs (including chirp value) and direct to the correct place (802.11 or 1905)
 	 *
 	 * This function processes the encapsulated DPP message TLVs and directs them to the appropriate protocol handler.
@@ -139,10 +126,11 @@ public:
 	 * @param[in] encap_tlv_len The length of the 1905 Encap DPP TLV.
 	 * @param[in] chirp_tlv The DPP Chirp Value TLV to parse and handle. Pass NULL if not present.
 	 * @param[in] chirp_tlv_len The length of the DPP Chirp Value TLV. Pass 0 if not present.
+	 * @param[in] src_al_mac The source AL MAC address of this message
 	 *
 	 * @return bool True if the message was processed successfully, false otherwise.
 	 */
-	bool process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) override;
+	bool process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len, uint8_t src_al_mac[ETH_ALEN]) override;
 
 	/**
 	 * @brief Handle a Direct Encapsulated DPP Message (DPP Message TLV)
@@ -197,6 +185,9 @@ private:
 	 * Value -> GAS session dialog token for the peer.
 	 */
 	std::unordered_map<std::string, uint8_t> m_gas_session_dialog_tokens = {};
+
+
+	std::vector<uint8_t> m_ctrl_al_mac_addr = {}; // Controller AL MAC address
 
 	/**
 	 * @brief Sends a "dummy" GAS Initial Response frame indicating to the Peer that we have fragmented data for it

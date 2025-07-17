@@ -45,7 +45,7 @@ bool ec_manager_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len, ui
             did_succeed = m_enrollee->handle_auth_request(frame, len, src_mac);
             break;
         case ec_frame_type_auth_rsp:
-            did_succeed = m_configurator->handle_auth_response(frame, len, src_mac);
+            did_succeed = m_configurator->handle_auth_response(frame, len, src_mac, NULL);
             break;
         case ec_frame_type_auth_cnf:
             did_succeed = m_enrollee->handle_auth_confirm(frame, len, src_mac);
@@ -57,7 +57,7 @@ bool ec_manager_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len, ui
             did_succeed = m_configurator->handle_connection_status_result(frame, len, src_mac);
             break;
         case ec_frame_type_recfg_announcement:
-            did_succeed = m_configurator->handle_recfg_announcement(frame, len, src_mac);
+            did_succeed = m_configurator->handle_recfg_announcement(frame, len, src_mac, NULL);
             break;
         case ec_frame_type_recfg_auth_req:
             did_succeed = m_enrollee->handle_recfg_auth_request(frame, len, src_mac);
@@ -118,11 +118,20 @@ bool ec_manager_t::handle_recv_gas_pub_action_frame(ec_gas_frame_base_t *frame, 
     return did_succeed;
 }
 
-bool ec_manager_t::upgrade_to_onboarded_proxy_agent()
+bool ec_manager_t::upgrade_to_onboarded_proxy_agent(uint8_t ctrl_al_mac[ETH_ALEN])
 {
     if (m_is_controller) {
         // Only an enrollee agent can be upgraded to a proxy agent
         em_printfout("Can't upgrade a controller to a proxy agent");
+        return false;
+    }
+
+    if (!ctrl_al_mac) {
+        em_printfout("Can't upgrade to a proxy agent without a controller AL MAC address");
+        return false;
+    }
+    if (memcmp(ctrl_al_mac, ZERO_MAC_ADDR, ETH_ALEN) == 0) {
+        em_printfout("Can't upgrade to a proxy agent with a zero controller AL MAC address");
         return false;
     }
 
@@ -151,7 +160,8 @@ bool ec_manager_t::upgrade_to_onboarded_proxy_agent()
                         em_crypto_t::get_priv_key_bn(sec_ctx.pp_key) != nullptr;
     
     // Create a new proxy agent configurator
-    m_configurator = std::unique_ptr<ec_pa_configurator_t>(new ec_pa_configurator_t(m_stored_al_mac_addr, m_ops, sec_ctx, is_colocated));
+    std::vector<uint8_t> ctrl_al_mac_vec(ctrl_al_mac, ctrl_al_mac + ETH_ALEN);
+    m_configurator = std::unique_ptr<ec_pa_configurator_t>(new ec_pa_configurator_t(m_stored_al_mac_addr, ctrl_al_mac_vec, m_ops, sec_ctx, is_colocated));
     em_printfout("Upgraded enrollee agent to proxy agent");
     return true;
 }
