@@ -72,6 +72,17 @@ class em_configuration_t {
 	 * @return int The length of the created message, or -1 on failure
 	 */
 	int create_autoconf_search_ext_chirp_msg(unsigned char *buff, em_dpp_chirp_value_t *chirp, size_t hash_len);
+
+	/**
+	 * @brief Create a autoconf search response message (extended) including a DPP chirp with optional hash
+	 * 
+	 * @param buff The buffer to write to
+	 * @param chirp The chirp TLV to include in the message
+	 * @param len The length of the chirp TLV
+	 * @param dest_mac The destination MAC address to send the response to
+	 * @return int The length of the created message, or -1 on failure
+	 */
+	int create_autoconf_search_resp_ext_chirp_msg(uint8_t *buff, em_dpp_chirp_value_t *chirp, size_t len, uint8_t dest_mac[ETH_ALEN]);
     
 	/**!
 	 * @brief Creates an auto-configuration WSC M1 message.
@@ -1270,6 +1281,8 @@ private:
 public:
 
 	bool send_autoconf_search_ext_chirp(em_dpp_chirp_value_t *chirp, size_t hash_len);
+
+	bool send_autoconf_search_resp_ext_chirp(em_dpp_chirp_value_t *chirp, size_t len, uint8_t dest_mac[ETH_ALEN]);
     
 	/**!
 	 * @brief Processes a message with the given data and length.

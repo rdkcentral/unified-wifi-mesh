@@ -15,6 +15,7 @@ ec_configurator_t::ec_configurator_t(const std::string &al_mac_addr, ec_ops_t& o
     m_get_1905_info              = ops.get_1905_info;
     m_get_fbss_info              = ops.get_fbss_info;
     m_can_onboard_additional_aps = ops.can_onboard_additional_aps;
+    m_send_autoconf_resp_fn      = ops.send_autoconf_search_resp;
 
     EM_ASSERT_NOT_NULL(sec_ctx.C_signing_key, , "C-signing key is NULL! Can not secure 1905 layer!");
     EM_ASSERT_NOT_NULL(sec_ctx.pp_key, , "PPK is NULL! Can not secure 1905 layer!");

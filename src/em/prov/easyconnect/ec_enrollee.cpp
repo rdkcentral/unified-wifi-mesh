@@ -1123,6 +1123,14 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
     } 
 
     free(config_result_frame);
+
+    if (m_ethernet) {
+        // EasyMesh 5.3.5:
+        // After the Enrollee Multi-AP Agent sent the encapsulated DPP Configuration Result frame to the Controller, it shall follow
+        // the procedures in section 5.3.7 to set up a secure 1905-layer connectivity with the Controller
+        // TODO: begin Peer Discovery?
+    }
+
     return ok;    
 }
 
