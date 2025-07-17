@@ -16,10 +16,9 @@ ec_configurator_t::ec_configurator_t(const std::string &al_mac_addr, ec_ops_t& o
     m_get_fbss_info              = ops.get_fbss_info;
     m_can_onboard_additional_aps = ops.can_onboard_additional_aps;
 
-    EM_ASSERT_NOT_NULL(sec_ctx.C_signing_key, , "C-signing key is NULL! Can not secure 1905 layer!");
-    EM_ASSERT_NOT_NULL(sec_ctx.pp_key, , "PPK is NULL! Can not secure 1905 layer!");
-    EM_ASSERT_NOT_NULL(sec_ctx.net_access_key, , "NAK is NULL! Can not secure 1905 layer!");
-    EM_ASSERT_NOT_NULL(sec_ctx.connector, , "Connector is NULL! Can not secure 1905 layer!");
+    if (!sec_ctx.C_signing_key || !sec_ctx.pp_key || !sec_ctx.net_access_key || !sec_ctx.connector) {
+        em_printfout("Key(s) missing, cannot secure 1905 layer!");
+    }
 
     m_sec_ctx = sec_ctx;
 }
