@@ -287,7 +287,7 @@ bool ec_ctrl_configurator_t::handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, 
 
     uint8_t *enrollee_hash = nullptr;
     uint16_t enrollee_hash_len = 0;
-    if (!ec_util::parse_dpp_chirp_tlv(chirp, len, nullptr, &enrollee_hash, &enrollee_hash_len)) {
+    if (!ec_util::parse_dpp_chirp_tlv(chirp, static_cast<uint16_t>(len), nullptr, &enrollee_hash, &enrollee_hash_len)) {
         em_printfout("Failed to parse DPP Chirp TLV from Autoconf Search (extended) message");
         return false;
     }
@@ -548,6 +548,9 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
         auto [config_response_frame, config_response_frame_len] = create_config_response_frame(src_mac, session_dialog_token, DPP_STATUS_CONFIGURATION_FAILURE);
         std::string status_code_str =  ec_util::status_code_to_string(DPP_STATUS_CONFIGURATION_FAILURE);
 
+        auto [encap_response_frame, encap_response_frame_len] = ec_util::create_encap_dpp_tlv(true, src_mac, ec_frame_type_easymesh, reinterpret_cast<uint8_t*>(config_response_frame), config_response_frame_len);
+        ASSERT_NOT_NULL(encap_response_frame, {}, "%s:%d: Failed to alloc DPP Configuration frame!\n", __func__, __LINE__);
+
         em_printfout("Sending DPP Configuration Response frame for Enrollee '" MACSTRFMT "' over 1905 with DPP status code %s", MAC2STR(src_mac), status_code_str.c_str());
         bool sent = m_send_prox_encap_dpp_msg(reinterpret_cast<em_encap_dpp_t*>(config_response_frame), config_response_frame_len, nullptr, config_response_frame_len);
         if (!sent) {
@@ -630,7 +633,11 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
         em_printfout("Failed to create Configuration Respone frame");
         return false;
     }
-    bool sent = m_send_prox_encap_dpp_msg(reinterpret_cast<em_encap_dpp_t*>(config_response_frame), config_response_frame_len, nullptr, 0);
+
+    auto [encap_response_frame, encap_response_frame_len] = ec_util::create_encap_dpp_tlv(true, src_mac, ec_frame_type_easymesh, reinterpret_cast<uint8_t*>(config_response_frame), config_response_frame_len);
+    ASSERT_NOT_NULL(encap_response_frame, {}, "%s:%d: Failed to alloc DPP Configuration frame!\n", __func__, __LINE__);
+
+    bool sent = m_send_prox_encap_dpp_msg(reinterpret_cast<em_encap_dpp_t*>(encap_response_frame), encap_response_frame_len, nullptr, 0);
     if (!sent) {
         em_printfout("Failed to send Proxied Encap DPP message containing DPP Configuration frame to '" MACSTRFMT "'", MAC2STR(src_mac));
         free(config_response_frame);
@@ -1720,9 +1727,6 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_fram
     free(attribs);
     ASSERT_NOT_NULL(response_frame, {}, "%s:%d: Failed to copy attributes to DPP Configuration frame!\n", __func__, __LINE__);
     response_frame->resp_len = static_cast<uint16_t>(attribs_len);
-    auto [encap_response_frame, encap_response_frame_len] = ec_util::create_encap_dpp_tlv(true, dest_mac, ec_frame_type_easymesh, reinterpret_cast<uint8_t*>(response_frame), frame_len + attribs_len);
-    ASSERT_NOT_NULL(encap_response_frame, {}, "%s:%d: Failed to alloc DPP Configuration frame!\n", __func__, __LINE__);
 
-
-    return std::make_pair(reinterpret_cast<uint8_t*>(encap_response_frame), encap_response_frame_len);
+    return std::make_pair(reinterpret_cast<uint8_t *>(response_frame), EC_FRAME_BASE_SIZE + attribs_len);
 }
