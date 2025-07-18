@@ -637,12 +637,21 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
     auto [encap_response_frame, encap_response_frame_len] = ec_util::create_encap_dpp_tlv(true, src_mac, ec_frame_type_easymesh, reinterpret_cast<uint8_t*>(config_response_frame), config_response_frame_len);
     ASSERT_NOT_NULL(encap_response_frame, {}, "%s:%d: Failed to alloc DPP Configuration frame!\n", __func__, __LINE__);
 
-    bool sent = m_send_prox_encap_dpp_msg(reinterpret_cast<em_encap_dpp_t*>(encap_response_frame), encap_response_frame_len, nullptr, 0);
-    if (!sent) {
-        em_printfout("Failed to send Proxied Encap DPP message containing DPP Configuration frame to '" MACSTRFMT "'", MAC2STR(src_mac));
-        free(config_response_frame);
-        return false;
+    if (!m_enrollee_is_eth[e_mac]) {
+        bool sent = m_send_prox_encap_dpp_msg(reinterpret_cast<em_encap_dpp_t*>(encap_response_frame), encap_response_frame_len, nullptr, 0);
+        if (!sent) {
+            em_printfout("Failed to send Proxied Encap DPP message containing DPP Configuration frame to '" MACSTRFMT "'", MAC2STR(src_mac));
+            free(config_response_frame);
+            return false;
+        }
+    } else {
+        if (!m_send_dir_encap_dpp_msg(reinterpret_cast<uint8_t*>(config_response_frame), config_response_frame_len, src_mac)) {
+            em_printfout("Failed to send DPP Configuration Response frame via Direct Encap msg to Enrollee '" MACSTRFMT "'", MAC2STR(src_mac));
+            free(config_response_frame);
+            return false;
+        }
     }
+        
     return true;
 }
 
@@ -950,11 +959,19 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
     free(resp_frame);
     ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
 
-    // Send the encapsulated DPP message (with Encap TLV)
-    if (!this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, NULL, 0)){
-        em_printfout("Failed to send encapsulated DPP message");
-        free(encap_dpp_tlv);
-        return false;
+    if (!m_enrollee_is_eth[enrollee_mac]) {
+        // Send the encapsulated DPP message (with Encap TLV)
+        if (!this->m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, NULL, 0)){
+            em_printfout("Failed to send encapsulated DPP message");
+            free(encap_dpp_tlv);
+            return false;
+        }
+    } else {
+        if (!m_send_dir_encap_dpp_msg(reinterpret_cast<uint8_t*>(resp_frame), resp_len, src_mac)) {
+            em_printfout("Failed to send DPP Authentication Confirm frame via Direct Encap msg to Enrollee '" MACSTRFMT "'", MAC2STR(src_mac));
+            free(encap_dpp_tlv);
+            return false;
+        }
     }
 
     free(encap_dpp_tlv);
