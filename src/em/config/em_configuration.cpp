@@ -3750,7 +3750,10 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
             break;
 
         case em_msg_type_autoconf_resp:
-            if ((get_service_type() == em_service_type_agent) && (get_state() == em_state_agent_autoconfig_rsp_pending)) {
+            if ((get_service_type() == em_service_type_agent) &&
+                    (get_state() == em_state_agent_autoconfig_rsp_pending) ||
+                (get_service_type() == em_service_type_agent &&
+                 get_ec_mgr().is_enrollee_onboarding())) {
                 handle_autoconfig_resp(data, len);
             }
             break;
