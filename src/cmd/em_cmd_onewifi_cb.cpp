@@ -51,7 +51,7 @@ em_cmd_ow_cb_t::em_cmd_ow_cb_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
 
     snprintf(m_name, sizeof(m_name), "%s", "onewifi_cnf");
     m_svc = em_service_type_agent;
-    init(&dm);
+    init(dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
     ctx.type = m_orch_desc[0].op;

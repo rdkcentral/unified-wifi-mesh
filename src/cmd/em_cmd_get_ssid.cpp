@@ -50,7 +50,7 @@ em_cmd_get_ssid_t::em_cmd_get_ssid_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
 	strncpy(m_name, "get_ssid", strlen("get_ssid") + 1);
    	m_svc = em_service_type_ctrl;
 
-    init(&dm);
+    init(dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
     m_data_model.set_cmd_ctx(&ctx);

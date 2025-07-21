@@ -1688,7 +1688,8 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
         	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (radio.m_radio_info.intf.mac), radio_mac_str);
             snprintf(parent, sizeof(em_2xlong_string_t), "%s@%s@%s", device.m_device_info.id.net_id, dev_mac_str, radio_mac_str);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_radio_list_delete);
-            if (dm_radio_list_t::update_db(m_db_client, dm_orch_type_db_delete, dm->get_radio(i)) != 0) {
+			if (dm->get_radio(i) &&
+				dm_radio_list_t::update_db(m_db_client, dm_orch_type_db_delete, dm->get_radio(i)->get_radio_info()) != 0) {
                 at_least_one_failed = true;
             }
 			dm_radio_list_t::update_list(radio, dm_orch_type_db_delete);
@@ -1724,8 +1725,8 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
         for (i = 0; i < dm->get_num_bss(); i++) {
             bss = dm->get_bss_by_ref(i);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_bss_list_delete);
-            if ((bss.match_criteria(criteria) == true) && 
-					(dm_bss_list_t::update_db(m_db_client, dm_orch_type_db_delete, dm->get_bss(i)) != 0)) {
+			if ((bss.match_criteria(criteria) == true) && (dm->get_bss(i)) &&
+					(dm_bss_list_t::update_db(m_db_client, dm_orch_type_db_delete, dm->get_bss(i)->get_bss_info()) != 0)) {
                 at_least_one_failed = true;
             }
 			dm_bss_list_t::update_list(bss, dm_orch_type_db_delete);
@@ -1767,9 +1768,10 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
             	radio_mac_str, op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.op_class);
             snprintf(parent, sizeof(em_2xlong_string_t), "%s@%d@%d", radio_mac_str, op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.op_class);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_op_class_list_delete);
-            if (dm_op_class_list_t::update_db(m_db_client, dm_orch_type_db_delete, dm->get_op_class(i)) != 0) {
-                at_least_one_failed = true;
-            }
+			if (dm->get_op_class(i) &&
+				dm_op_class_list_t::update_db(m_db_client, dm_orch_type_db_delete, dm->get_op_class(i)->get_op_class_info()) != 0) {
+				at_least_one_failed = true;
+			}
 			dm_op_class_list_t::update_list(op_class, dm_orch_type_db_delete);
         }
         
@@ -1814,7 +1816,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
         sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_dassoc_map));
         while (sta != NULL) {
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_sta_list_delete);
-            if (dm_sta_list_t::update_db(m_db_client, dm_orch_type_db_delete, sta) != 0) {
+            if (dm_sta_list_t::update_db(m_db_client, dm_orch_type_db_delete, sta->get_sta_info()) != 0) {
                 dm->reset_db_cfg_type(db_cfg_type_sta_list_delete);
             }
             sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_dassoc_map, sta));
@@ -1824,7 +1826,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
         while (sta != NULL) {
             tmp = sta;
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_sta_list_delete);
-            if (dm_sta_list_t::update_db(m_db_client, dm_orch_type_db_delete, sta) != 0) {
+            if (dm_sta_list_t::update_db(m_db_client, dm_orch_type_db_delete, sta->get_sta_info()) != 0) {
                 dm->reset_db_cfg_type(db_cfg_type_sta_list_delete);
             }
             dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);

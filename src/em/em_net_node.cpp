@@ -442,7 +442,7 @@ void *em_net_node_t::network_tree_to_json(em_network_node_t *root)
 int em_net_node_t::get_network_tree_node(cJSON *obj, em_network_node_t *root, unsigned int *node_display_ctr)
 {
     cJSON *child_obj, *tmp_obj;
-    int sz = 0;
+    size_t sz = 0;
 
     if (obj->string != NULL) {
         strncpy(root->key, obj->string, strlen(obj->string) + 1);
@@ -481,8 +481,8 @@ int em_net_node_t::get_network_tree_node(cJSON *obj, em_network_node_t *root, un
     while (tmp_obj != NULL) {
 
         //TBD with details as this needs to be revisited
-        sz = sizeof(em_network_node_t) *  2;
-        root->child[root->num_children] = (em_network_node_t *)malloc(sz);
+        sz = sizeof(em_network_node_t) * 2;
+        root->child[root->num_children] = static_cast<em_network_node_t *> (malloc(sz));
         memset(root->child[root->num_children], 0, sz);
 
         if (cJSON_IsArray(obj) == true) {

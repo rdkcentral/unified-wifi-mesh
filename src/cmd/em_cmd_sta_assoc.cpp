@@ -51,7 +51,7 @@ em_cmd_sta_assoc_t::em_cmd_sta_assoc_t(em_cmd_params_t param, dm_easy_mesh_t& dm
 
     strncpy(m_name, "sta_assoc", strlen("sta_assoc") + 1);
     m_svc = em_service_type_ctrl;
-    init(&dm);
+    init(dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
     ctx.type = m_orch_desc[0].op;

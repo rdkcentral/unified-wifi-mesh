@@ -462,7 +462,7 @@ int em_cmd_cli_t::execute(char *result)
 
 	//printf("%s:%d: Length: %d Event len: %d\n", __func__, __LINE__, bevt->data_len, get_event_length());
 
-    get_cmd()->init(&dm);
+    get_cmd()->init(dm);
 
 	ctx = SSL_CTX_new(TLS_client_method());
     SSL_CTX_use_certificate_file(ctx, EM_CERT_FILE, SSL_FILETYPE_PEM);

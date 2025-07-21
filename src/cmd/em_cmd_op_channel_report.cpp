@@ -51,7 +51,7 @@ em_cmd_op_channel_report_t::em_cmd_op_channel_report_t(em_cmd_params_t param, dm
 
     snprintf(m_name, sizeof(m_name), "%s", "channel_report");
     m_svc = em_service_type_agent;
-    init(&dm);
+    init(dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
     ctx.type = m_orch_desc[0].op;

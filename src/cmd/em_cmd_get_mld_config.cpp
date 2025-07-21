@@ -49,7 +49,7 @@ em_cmd_get_mld_config_t::em_cmd_get_mld_config_t(em_cmd_params_t param, dm_easy_
 
     strncpy(m_name, "get_mld_config", strlen("get_mld_config") + 1);
     m_svc = em_service_type_agent;
-    init(&dm);
+    init(dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
     m_data_model.set_cmd_ctx(&ctx);

@@ -52,7 +52,7 @@ em_cmd_btm_report_t::em_cmd_btm_report_t(em_cmd_btm_report_params_t params)
 
     strncpy(m_name, "btm_report", strlen("btm_report") + 1);
     m_svc = em_service_type_agent;
-    init(&dm);
+    init(dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
     ctx.type = m_orch_desc[0].op;
