@@ -2745,6 +2745,111 @@ int em_configuration_t::create_autoconfig_resp_msg(unsigned char *buff, em_freq_
 
 }
 
+bool em_configuration_t::send_autoconf_search_resp_ext_chirp(em_dpp_chirp_value_t *chirp, size_t len, uint8_t dest_mac[ETH_ALEN])
+{
+    uint8_t buff[4096] = {0};
+    int msg_len = create_autoconf_search_resp_ext_chirp_msg(buff, chirp, len, dest_mac);
+    if (msg_len < 0) {
+        em_printfout("Failed to create Autoconf Search Response (extended)");
+        return false;
+    }
+
+    if (send_frame(buff, msg_len) < 0) {
+        em_printfout("Failed to send Autoconf Search Response (extended)");
+        return false;
+    }
+    return true;
+}
+
+int em_configuration_t::create_autoconf_search_resp_ext_chirp_msg(uint8_t *buff, em_dpp_chirp_value_t *chirp, size_t len, uint8_t dest_mac[ETH_ALEN])
+{
+    if (!buff) {
+        em_printfout("Bad param");
+        return -1;
+    }
+
+    em_msg_type_t msg_id = em_msg_type_autoconf_resp;
+    unsigned int cmdu_len = 0;
+    uint8_t *tmp = buff;
+
+    tmp = em_msg_t::add_1905_header(tmp, &cmdu_len, dest_mac, get_al_interface_mac(), msg_id);
+
+    // One MultiAP Profile TLV (section 17.2.47)
+    em_profile_type_t profile = get_profile_type();
+    tmp = em_msg_t::add_tlv(tmp, &cmdu_len, em_tlv_type_profile, reinterpret_cast<uint8_t*>(&profile), sizeof(profile));
+
+    // Zero or One DPP Chirp TLV (section 17.2.83)
+    if (chirp) {
+        tmp = em_msg_t::add_tlv(tmp, &cmdu_len, em_tlv_type_dpp_chirp_value, reinterpret_cast<uint8_t*>(chirp), sizeof(em_dpp_chirp_value_t) + len);
+    }
+
+    // OEM
+    tmp = em_msg_t::add_eom_tlv(tmp, &cmdu_len);
+    return static_cast<int>(cmdu_len);
+}
+
+bool em_configuration_t::send_autoconf_search_ext_chirp(em_dpp_chirp_value_t *chirp, size_t hash_len)
+{
+    unsigned char buff[4096] = {0};
+    int len = 0;
+
+    len = create_autoconf_search_ext_chirp_msg(buff, chirp, hash_len);
+    if (len < 0) {
+        em_printfout("Failed to create autoconf search ext chirp msg");
+        return false;
+    }
+
+    // Send the message
+    if (send_frame(buff, len) < 0) {
+        em_printfout("Failed to send autoconf search ext chirp msg");
+        return false;
+    }
+
+    return true;
+}
+
+int em_configuration_t::create_autoconf_search_ext_chirp_msg(uint8_t *buff, em_dpp_chirp_value_t *chirp, size_t hash_len)
+{
+    if (!buff) {
+        em_printfout("Bad param");
+        return -1;
+    }
+
+    // Note: according to 1905 spec, msg id is shared between extended and non-extended search
+    em_msg_type_t msg_id = em_msg_type_autoconf_search;
+    unsigned int len = 0;
+    uint8_t *tmp = buff;
+
+    mac_address_t multi_addr = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x13};
+
+    tmp = em_msg_t::add_1905_header(tmp, &len, multi_addr, get_al_interface_mac(), msg_id);
+
+    // One 1905.1 AL MAC address type TLV (table 6-8)
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_al_mac_address, get_al_interface_mac(), sizeof(mac_address_t));
+
+    // One SearchedRole TLV (table 6-22)
+    // Registrar
+    uint8_t role = 0;
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_searched_role, &role, sizeof(role));
+
+    // One AutoconfigFreqBand TLV (table 6-23)
+    em_freq_band_t band = get_band();
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_autoconf_freq_band, reinterpret_cast<uint8_t*>(&band), sizeof(band));
+
+    // One MultiAP Profile TLV (section 17.2.47)
+    em_profile_type_t profile = get_profile_type();
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_profile, reinterpret_cast<uint8_t*>(&profile), sizeof(profile));
+
+    // Zero or One DPP Chirp TLV (section 17.2.83)
+    if (chirp) {
+        tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_dpp_chirp_value, reinterpret_cast<uint8_t*>(chirp), sizeof(em_dpp_chirp_value_t) + hash_len);
+    }
+
+    // OEM
+    tmp = em_msg_t::add_eom_tlv(tmp, &len);
+    return static_cast<int>(len);
+}
+
 int em_configuration_t::create_autoconfig_search_msg(unsigned char *buff)
 {
     unsigned short  msg_id = em_msg_type_autoconf_search;
@@ -3512,6 +3617,14 @@ int em_configuration_t::handle_autoconfig_resp(unsigned char *buff, unsigned int
 
         return -1;
     }
+
+    // If this contains a DPP Chirp TLV, forward to EC manager for handling.
+    em_tlv_t *dpp_chirp_tlv = em_msg_t(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t), len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_tlv(em_tlv_type_dpp_chirp_value);
+    if (dpp_chirp_tlv) {
+        em_printfout("Found DPP Chirp in Autoconfig Response, forwarding to EC");
+        return get_ec_mgr().handle_autoconf_resp_chirp(reinterpret_cast<em_dpp_chirp_value_t*>(dpp_chirp_tlv->value), SWAP_LITTLE_ENDIAN(dpp_chirp_tlv->len), hdr->src);
+    }
+
     printf("Received resp and validated...creating M1 msg\n");
     sz = static_cast<unsigned int> (create_autoconfig_wsc_m1_msg(msg, hdr->src));
 
@@ -3562,6 +3675,14 @@ int em_configuration_t::handle_autoconfig_search(unsigned char *buff, unsigned i
     if (em_msg_t(buff + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_al_mac_address(al_mac) == false) {
         printf("%s:%d: Could not get al mac address\n", __func__, __LINE__);
         return -1;
+    }
+
+    // Autoconf Search (extended) optionally contains a DPP chirp
+    // If we find a chirp, forward to the EC manager for handling
+    em_tlv_t *dpp_chirp_tlv = em_msg_t(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t), len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_tlv(em_tlv_type_dpp_chirp_value);
+    if (dpp_chirp_tlv) {
+        em_printfout("Found DPP Chirp in Autoconfig Search (extended), forwarding to EC");
+        return get_ec_mgr().handle_autoconf_chirp(reinterpret_cast<em_dpp_chirp_value_t*>(dpp_chirp_tlv->value), SWAP_LITTLE_ENDIAN(dpp_chirp_tlv->len), al_mac);
     }
     
     sz = static_cast<unsigned int> (create_autoconfig_resp_msg(msg, band, al_mac));
@@ -3629,7 +3750,10 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
             break;
 
         case em_msg_type_autoconf_resp:
-            if ((get_service_type() == em_service_type_agent) && (get_state() == em_state_agent_autoconfig_rsp_pending)) {
+            if ((get_service_type() == em_service_type_agent) &&
+                    (get_state() == em_state_agent_autoconfig_rsp_pending) ||
+                (get_service_type() == em_service_type_agent &&
+                 get_ec_mgr().is_enrollee_onboarding())) {
                 handle_autoconfig_resp(data, len);
             }
             break;
