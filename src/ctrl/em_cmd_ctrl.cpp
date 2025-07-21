@@ -156,6 +156,6 @@ em_cmd_ctrl_t::em_cmd_ctrl_t()
 {
     dm_easy_mesh_t dm;
 
-    m_cmd.init(&dm);
+    m_cmd.init(dm);
 }
 

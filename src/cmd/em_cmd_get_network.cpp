@@ -49,7 +49,7 @@ em_cmd_get_network_t::em_cmd_get_network_t(em_cmd_params_t param, dm_easy_mesh_t
 
     strncpy(m_name, "get_network", strlen("get_network") + 1);
     m_svc = em_service_type_agent;
-    init(&dm);
+    init(dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
     m_data_model.set_cmd_ctx(&ctx);

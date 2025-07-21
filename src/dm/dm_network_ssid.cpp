@@ -266,7 +266,7 @@ dm_network_ssid_t::dm_network_ssid_t(const dm_network_ssid_t& net_ssid)
 
 dm_network_ssid_t::dm_network_ssid_t()
 {
-
+    init();
 }
 
 dm_network_ssid_t::~dm_network_ssid_t()

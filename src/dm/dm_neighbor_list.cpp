@@ -154,7 +154,7 @@ bool dm_neighbor_list_t::operator == (const db_easy_mesh_t& obj)
 int dm_neighbor_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *data)
 {
     mac_addr_str_t nbr_mac_str, next_hop_mac_str;
-    em_neighbor_info_t *info = (em_neighbor_info_t *)data;
+    em_neighbor_info_t *info = static_cast<em_neighbor_info_t *> (data);
     int ret = 0;
         
 	dm_easy_mesh_t::macbytes_to_string((unsigned char *)info->nbr, nbr_mac_str);

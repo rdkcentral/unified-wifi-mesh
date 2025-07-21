@@ -41,9 +41,8 @@
 
 int dm_neighbor_t::decode(const cJSON *obj, void *parent_id)
 {
-    cJSON *tmp, *tmp_arr;
+    cJSON *tmp;
     mac_addr_str_t  mac_str;
-    unsigned int i;
 
     memset(&m_neighbor_info, 0, sizeof(em_neighbor_info_t));
 
@@ -53,15 +52,15 @@ int dm_neighbor_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "POS_I")) != NULL) {
-        m_neighbor_info.pos_x = tmp->valuedouble;
+        m_neighbor_info.pos_x = static_cast <float> (tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "POS_J")) != NULL) {
-        m_neighbor_info.pos_y = tmp->valuedouble;
+        m_neighbor_info.pos_y = static_cast <float> (tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "POS_K")) != NULL) {
-        m_neighbor_info.pos_z = tmp->valuedouble;
+        m_neighbor_info.pos_z = static_cast <float> (tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "NextHop")) != NULL) {
@@ -70,11 +69,11 @@ int dm_neighbor_t::decode(const cJSON *obj, void *parent_id)
     }
     
 	if ((tmp = cJSON_GetObjectItem(obj, "NumHops")) != NULL) {
-        m_neighbor_info.num_hops = tmp->valuedouble;
+        m_neighbor_info.num_hops = static_cast <unsigned int> (tmp->valueint);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "PathLoss")) != NULL) {
-        m_neighbor_info.path_loss = tmp->valuedouble;
+        m_neighbor_info.path_loss = tmp->valueint;
     }
 
     return 0;

@@ -50,7 +50,7 @@ public:
      *
      * @note Ensure that the node and buff are properly initialized before calling this function.
      */
-    virtual struct sockaddr_in *get_ep_addr() {}
+    virtual struct sockaddr_in *get_ep_addr() { return NULL; };
 
     //char *get_result() { return m_cmd.get_result(); }
     

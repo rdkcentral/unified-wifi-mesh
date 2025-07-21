@@ -51,7 +51,7 @@ em_cmd_scan_result_t::em_cmd_scan_result_t(em_cmd_params_t param, dm_easy_mesh_t
 
     strncpy(m_name, "scan_result", strlen("scan_result") + 1);
     m_svc = em_service_type_ctrl;
-    init(&dm);
+    init(dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
     ctx.type = m_orch_desc[0].op;

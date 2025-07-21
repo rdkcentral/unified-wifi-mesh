@@ -42,7 +42,7 @@ em_cmd_cfg_renew_t::em_cmd_cfg_renew_t(em_service_type_t service, em_cmd_params_
 
     snprintf(m_name, sizeof(m_name), "%s", "cfg_renew");
     m_svc = em_service_type_ctrl;
-    init(&dm);
+    init(dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
     ctx.type = m_orch_desc[0].op;    

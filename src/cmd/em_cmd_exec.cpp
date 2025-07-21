@@ -172,7 +172,8 @@ int em_cmd_exec_t::get_listener_socket(em_service_type_t svc)
 #else
     if ((port = get_port_from_dst_service(svc)) == 0) {
 #endif
-        printf("%s:%d: Could not find path from destination service: %d\n", svc);
+        printf("%s:%d: Could not find path from destination service: %d\n",
+            __func__, __LINE__, svc);
         return -1;
     }
 
@@ -228,7 +229,8 @@ SSL *em_cmd_exec_t::get_ep_for_dst_svc(SSL_CTX *ctx, em_service_type_t svc)
 #else
     if ((port = get_port_from_dst_service(svc)) == 0) {
 #endif
-        printf("%s:%d: Could not find path from destination service: %d\n", svc);
+        printf("%s:%d: Could not find path from destination service: %d\n",
+            __func__, __LINE__, svc);
 		close(sock);
         return NULL;
     }
@@ -238,11 +240,13 @@ SSL *em_cmd_exec_t::get_ep_for_dst_svc(SSL_CTX *ctx, em_service_type_t svc)
     addr.sun_family = AF_UNIX;
     snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", sock_path);
 #else
-	memcpy(&addr, get_ep_addr(), sizeof(struct sockaddr_in));
+    if (get_ep_addr() != NULL) {
+	    memcpy(&addr, get_ep_addr(), sizeof(struct sockaddr_in));
+    }
     addr.sin_port = htons(port);
 #endif
     
-	if ((ret = connect(sock, (const struct sockaddr *) &addr, sizeof(addr))) != 0) {
+	if ((ret = connect(sock, reinterpret_cast< struct sockaddr *> (&addr), sizeof(addr))) != 0) {
         printf("%s:%d: Could not connect to dest\n", __func__, __LINE__);
 		close(sock);
         return NULL;
@@ -322,7 +326,7 @@ int em_cmd_exec_t::send_cmd(em_service_type_t to_svc, unsigned char *in, unsigne
     ssl = SSL_new(m_ssl_ctx);
     SSL_set_fd(ssl, dsock);
 
-    if ((ret = SSL_write(ssl, in, in_len)) <= 0) {
+    if ((ret = SSL_write(ssl, in, static_cast<int> (in_len))) <= 0) {
     	SSL_free(ssl);
         close(dsock);
         return -1;
@@ -335,7 +339,7 @@ int em_cmd_exec_t::send_cmd(em_service_type_t to_svc, unsigned char *in, unsigne
     }
     
 	/* Receive result. */
-    if ((ret = SSL_read(ssl, reinterpret_cast<unsigned char *> (out), out_len)) <= 0) {
+    if ((ret = SSL_read(ssl, reinterpret_cast<unsigned char *> (out), static_cast<int> (out_len))) <= 0) {
         snprintf(out, out_len, "%s:%d: result read error on socket, err:%d\n", __func__, __LINE__, errno);
     	SSL_free(ssl);
         close(dsock);

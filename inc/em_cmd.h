@@ -515,7 +515,7 @@ public:
 	 * @note Ensure that the configuration structure is properly initialized
 	 * before passing it to this function.
 	 */
-	void init(dm_easy_mesh_t *dm);
+	void init(dm_easy_mesh_t& dm);
     
 	/**!
 	 * @brief Initializes the system or component.

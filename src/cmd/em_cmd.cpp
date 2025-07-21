@@ -184,11 +184,11 @@ void em_cmd_t::deinit()
 	//free(m_evt);
 }
 
-void em_cmd_t::init(dm_easy_mesh_t *dm)
+void em_cmd_t::init(dm_easy_mesh_t& dm)
 {
     m_em_candidates = queue_create();
     m_data_model.init();
-    m_data_model = *dm;
+    m_data_model = dm;
 }
 
 em_cmd_t *em_cmd_t::clone()
@@ -870,7 +870,7 @@ em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param, dm_easy_mesh_t& dm
     m_type = type;
     m_db_cfg_type = db_cfg_type_none;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
-    init(&dm);
+    init(dm);
     init();
 }
 

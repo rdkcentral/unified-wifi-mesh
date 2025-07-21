@@ -52,7 +52,7 @@ em_cmd_sta_disassoc_t::em_cmd_sta_disassoc_t(em_cmd_disassoc_params_t params)
 
     strncpy(m_name, "disassoc_sta", strlen("disassoc_sta") + 1);
     m_svc = em_service_type_agent;
-    init(&dm);
+    init(dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
     ctx.type = m_orch_desc[0].op;
