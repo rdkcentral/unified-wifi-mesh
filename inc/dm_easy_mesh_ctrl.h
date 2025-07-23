@@ -804,6 +804,23 @@ public:
 	int get_wifi_reset_config(cJSON *parent, char *key);
 
 	/**!
+	 * @brief Retrieves the wifi channel capability from the given JSON object.
+	 *
+	 * This function searches for the specified key within the JSON object
+	 * and returns the associated wifi channel capability.
+	 *
+	 * @param[in] parent The JSON object containing the configuration data.
+	 * @param[in] key The key to search for within the JSON object.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 * @retval 0 on success.
+	 * @retval -1 if the key is not found or an error occurs.
+	 *
+	 * @note Ensure that the JSON object is properly initialized before calling this function.
+	 */
+	int get_channel_capabilities (cJSON *parent, char *key);
+
+	/**!
 	 * @brief Retrieves the reference configuration based on the provided key.
 	 *
 	 * This function searches within the given JSON object to find the configuration

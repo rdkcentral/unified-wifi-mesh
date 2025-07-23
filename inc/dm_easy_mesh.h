@@ -18,7 +18,7 @@
 
 #ifndef DM_EM_H
 #define DM_EM_H
-
+#include <vector>
 #include "em_base.h"
 #include "wifi_webconfig.h"
 #include "dm_device.h"
@@ -100,6 +100,22 @@ public:
 	 * EasyMesh framework to avoid unexpected results.
 	 */
 	static em_freq_band_t get_freq_band_by_op_class(int op_class);
+
+	/**!
+	 * @brief Retrieves the list of channel associated with a given operating class.
+	 *
+	 * This function takes an operating class as input and returns the corresponding
+	 * channel list. It is used to map operating classes to their respective
+	 * channels in the EasyMesh framework.
+	 *
+	 * @param[in] op_class The operating class for which the frequency band is required.
+	 *
+	 * @returns The list of channels corresponding to the provided operating class.
+	 *
+	 * @note Ensure that the provided operating class is valid and supported by the
+	 * EasyMesh framework to avoid unexpected results.
+	 */
+	static std::vector<int> get_channel_list_by_op_class(int op_class);
 	
 	/**!
 	 * @brief Retrieves the BSS information associated with a given MAC address.

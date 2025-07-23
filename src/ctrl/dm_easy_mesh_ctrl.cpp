@@ -1379,6 +1379,38 @@ int dm_easy_mesh_ctrl_t::get_radio_config(cJSON *parent, char *key, em_get_radio
 	return 0;
 }
 
+int dm_easy_mesh_ctrl_t::get_channel_capabilities (cJSON *parent, char *key)
+{
+    cJSON *net_obj, *dev_list_obj, *dev_obj, *radio_list_obj, *radio_obj, *op_class_cap_obj;;
+	cJSON *preferred_channels_list_obj, *channel_list_obj;
+    int i, j;
+    char *tmp;
+    em_long_string_t op_key;
+
+    net_obj = cJSON_AddObjectToObject(parent, "Network");
+    dm_network_list_t::get_config(net_obj, key, true);
+
+    dev_list_obj = cJSON_AddArrayToObject(net_obj, "DeviceList");
+    dm_device_list_t::get_config(dev_list_obj, key, true);
+
+    for (i = 0; i < cJSON_GetArraySize(dev_list_obj); i++) {
+        dev_obj = cJSON_GetArrayItem(dev_list_obj, i);
+        radio_list_obj = cJSON_AddArrayToObject(dev_obj, "RadioList");
+        dm_radio_list_t::get_config(radio_list_obj, cJSON_GetStringValue(cJSON_GetObjectItem(dev_obj, "ID")),
+				em_get_radio_list_reason_radio_summary);
+        for (j = 0; j < cJSON_GetArraySize(radio_list_obj); j++) {
+            radio_obj = cJSON_GetArrayItem(radio_list_obj, j);
+            tmp = cJSON_GetStringValue(cJSON_GetObjectItem(radio_obj, "ID"));
+
+            op_class_cap_obj = cJSON_AddArrayToObject(radio_obj, "ChannelCapability");
+            snprintf(op_key, sizeof(op_key), "%s@%d@%d", tmp, em_op_class_type_capability, 0);
+            dm_op_class_list_t::get_config(op_class_cap_obj, op_key);
+        }
+    }
+
+    return 0;
+
+}
 int dm_easy_mesh_ctrl_t::get_wifi_reset_config(cJSON *parent, char *key)
 {
     cJSON *obj;
@@ -1475,6 +1507,8 @@ void dm_easy_mesh_ctrl_t::get_config(em_long_string_t net_id, em_subdoc_info_t *
         get_channel_config(parent, net_id, em_get_channel_list_reason_set_anticipated);
     } else if (strncmp(subdoc->name, "ChannelListSummary@ScanChannel", strlen(subdoc->name)) == 0) {
         get_channel_config(parent, net_id, em_get_channel_list_reason_scan_params);
+    } else if (strncmp(subdoc->name, "ChannelListSummary@getCapabilities", strlen(subdoc->name)) == 0) {
+        get_channel_capabilities(parent, net_id);
     } else if (strncmp(subdoc->name, "BSSList", strlen(subdoc->name)) == 0) {
         get_bss_config(parent, net_id);
     } else if (strncmp(subdoc->name, "STAList", strlen(subdoc->name)) == 0) {

@@ -42,7 +42,7 @@
 int dm_op_class_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 {
     dm_op_class_t *pop_class;
-    cJSON *obj, *non_op_arr, *anticipated_arr;
+    cJSON *obj, *non_op_arr, *anticipated_arr, *radio_band, *channel_arr;
     unsigned int i;
     em_op_class_id_t id;
     em_op_class_info_t *info;
@@ -72,6 +72,13 @@ int dm_op_class_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 	    	for (i = 0; i < pop_class->m_op_class_info.num_channels; i++) {
             	cJSON_AddItemToArray(non_op_arr, cJSON_CreateNumber(pop_class->m_op_class_info.channels[i]));
         	}
+            channel_arr = cJSON_AddArrayToObject(obj, "ChannelList");
+            std::vector<int> v = dm_easy_mesh_t::get_channel_list_by_op_class(static_cast<int>(pop_class->m_op_class_info.id.op_class));
+            unsigned int band = dm_easy_mesh_t::get_freq_band_by_op_class(static_cast<int>(pop_class->m_op_class_info.id.op_class));
+            for (i = 0; i < v.size(); i++) {
+                cJSON_AddItemToArray(channel_arr, cJSON_CreateNumber(v[i]));
+            }
+            cJSON_AddNumberToObject(obj, "Band", band);
     	} else if ((id.type == em_op_class_type_preference) || 
 							(id.type == em_op_class_type_anticipated) ||
 							(id.type == em_op_class_type_scan_param)) {
@@ -91,15 +98,15 @@ int dm_op_class_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 void dm_op_class_list_t::get_config(cJSON *obj_arr, em_op_class_type_t type)
 {
 	dm_op_class_t *op_class;
-	cJSON *obj, *channel_arr;
+	cJSON *obj, *channel_arr, *non_op_arr;
 	unsigned int i;
 
 	// only anticipated is implemented now
-	if ((type != em_op_class_type_anticipated) && (type != em_op_class_type_scan_param)) {
+	if ((type != em_op_class_type_anticipated) && (type != em_op_class_type_scan_param) && (type != em_op_class_type_capability)) {
 		printf("%s:%d: Non anticipated category not imeplemented, type: %d\n", __func__, __LINE__, type);
 		assert(0);
 		return;
-	}		
+	}
 
 	op_class = static_cast<dm_op_class_t *>(get_first_pre_set_op_class_by_type(type));
 	while (op_class) {
