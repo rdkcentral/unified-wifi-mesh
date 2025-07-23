@@ -2,17 +2,17 @@
 
 USE_PROCD=1
 #Commenting start to ensure that service is started manually
-#START=99  # Service startup order
+#START=97  # Service startup order
 STOP=99  # Service stop order
-Name=onewifi_em_agent
+Name=ieee1905_agent
 VETH_BASE_IFACE="eth1" # Base interface for veth pair
 VETH_AGENT_PEER="${VETH_BASE_IFACE}_virt_peer" # Peer interface for veth pair
 BRIDGE_NAME="br-lan"
-DELAY_BEFORE_AGENT_START=30 #Delay in seconds
 
-# Process 2 configuration
-PROG="/usr/bin/onewifi_em_agent"
-PIDFILE="/tmp/em_agent.pid"
+# Process configuration
+PROG="/usr/bin/ieee1905"
+PIDFILE="/tmp/ieee1905_agent.pid"
+ARGS="-f ieee1905::al_sap=trace,ieee1905::cmdu_handler=trace,ieee1905::cmdu_proxy=trace,ieee1905::cmdu_observer=trace -i"
 
 #Helper function for logging with timestamp
 log_message() {
@@ -30,26 +30,31 @@ log_message() {
 }
 
 start_service() {
-    log_message "em_agent script started, onewifi_em_agent to start after sleep..."
-    sleep $DELAY_BEFORE_AGENT_START
-    log_message "sleep done, em_agent starting..."
+    log_message "Starting ieee1905_agent service..."
+    # Run setup_veth_for_em.sh only if virtual ethernet interface
+    # is not created
+    if [ ! -e "/sys/class/net/$VETH_AGENT_PEER/address" ]; then
+        log_message "Running agent setup_veth_for_em.sh..."
+        cd /banana-pi
+        ./setup_veth_for_em.sh $BRIDGE_NAME $VETH_BASE_IFACE false >> /tmp/em_agent_log.txt
+    fi
 
-    procd_open_instance "onewifi_em_agent"
-    procd_set_param command $PROG  # Command with arguments
-    procd_set_param respawn 50 10 10  # Automatically restart if down
+    # Use procd to manage the ieee1905 process and ieee1905_controller process
+    procd_open_instance "ieee1905_agent"
+    procd_set_param command $PROG $ARGS $VETH_AGENT_PEER # Command with arguments
+    procd_set_param respawn 25 10 10  # Automatically restart if down
     procd_set_param limits core="unlimited"
     procd_set_param limits stack="unlimited"
     procd_set_param stdout 1 # forward stdout of the command to logd
     procd_set_param stderr 1 # same for stderr
     procd_set_param pidfile "$PIDFILE"
-    procd_set_param delay $DELAY_BEFORE_AGENT_START # Wait before starting the command
     procd_close_instance
 
-    log_message "onewifi_em_agent started."
+    log_message "ieee1905_agent started."
 }
 
 stop_service() {
-    log_message "Stopping onewifi_em_agent service..."
+    log_message "Stopping ieee1905 service..."
     # Stop the main process if it is running
     if [ -f $PIDFILE ]; then
         kill -9 "$(cat $PIDFILE)"  # Kill the process
@@ -58,13 +63,13 @@ stop_service() {
 }
 
 restart_service() {
-    log_message "Restart triggered for em_agent service..."
+    log_message "Restart triggered for ieee1905_agent service..."
     stop
     start
 }
 
 reload_service() {
-    log_message "Reload triggered for em_agent service..."
+    log_message "Reload triggered for ieee1905_agent service..."
     stop
     start
 }
