@@ -94,7 +94,7 @@ void AlServiceAccessPoint::serviceAccessPointRegistrationRequest(AlServiceRegist
 
 // Executes service registration indication (receive a registration indication message)
 AlServiceRegistrationResponse AlServiceAccessPoint::serviceAccessPointRegistrationResponse() {
-    std::vector<unsigned char> buffer(1500);
+    std::vector<unsigned char> buffer(SOCKET_MTU);
     ssize_t bytesRead = recv(alControlSocketDescriptor, buffer.data(), buffer.size(), 0);
     if (bytesRead == -1) {
         throw AlServiceException("Failed to receive registration indication", PrimitiveError::IndicationFailed);
@@ -114,13 +114,13 @@ AlServiceRegistrationResponse AlServiceAccessPoint::serviceAccessPointRegistrati
 // Message to send a SDU message to the IEEE1905 application
 void AlServiceAccessPoint::serviceAccessPointDataRequest(AlServiceDataUnit& message) {
     /*
-     * We assume MTU = 1500, so max packet size is less or equal MTU size.
+     * We assume MTU = SOCKET_MTU, so max packet size is less or equal MTU size.
      * Each packet contains a header and a payload. The header size is
      * 4 (size) + 6 (MAC) + 6 (MAC) + 3 x 1 (3 x 1 byte flags) = 19 bytes.
      * Because of that, the fragment (payload) size can't exceed
      * MTU - PACKET_HEADER_SIZE = 1481 bytes
     */
-    const size_t fragmentSize = (1500 - PACKET_HEADER_SIZE);
+    const size_t fragmentSize = (SOCKET_MTU - PACKET_HEADER_SIZE);
 
     const std::vector<unsigned char>& payload = message.getPayload();
 
@@ -129,7 +129,7 @@ void AlServiceAccessPoint::serviceAccessPointDataRequest(AlServiceDataUnit& mess
     //first condition to check if the service has been correctly registered enable
     if (registrationRequest.getServiceOperation() == ServiceOperation::SOP_ENABLE || registrationResponse.getResult() == RegistrationResult::SUCCESS) {
 
-        // If whole packet size is less than or equal to 1500, send directly without fragmentation
+        // If whole packet size is less than or equal to fragmentSize, send directly without fragmentation
         if (totalSize <= fragmentSize) {
             message.setIsFragment(0);
             message.setIsLastFragment(1);
@@ -145,7 +145,7 @@ void AlServiceAccessPoint::serviceAccessPointDataRequest(AlServiceDataUnit& mess
             #endif
             return; // Exit the function after sending
         }
-        // For payloads larger than 1500 bytes, handle fragmentation
+        // For payloads larger than fragmentSize bytes, handle fragmentation
         size_t numFragments = (totalSize + fragmentSize - 1) / fragmentSize;
         for (size_t i = 0; i < numFragments; ++i) {
             size_t start = i * fragmentSize;
@@ -204,7 +204,7 @@ AlServiceDataUnit AlServiceAccessPoint::serviceAccessPointDataIndication() {
     AlServiceDataUnit message;
 
     while (receivingFragments) {
-        std::vector<unsigned char> buffer( 65536, 0x00);
+        std::vector<unsigned char> buffer(SOCKET_MTU, 0x00);
 
         // Receive data from the socket
         ssize_t bytesRead = recv(alDataSocketDescriptor, buffer.data(), buffer.size(), 0);
