@@ -80,7 +80,7 @@ void AlServiceAccessPoint::setControlSocketDescriptor(int descriptor)
 
 // Executes service registration request (send a registration message)
 void AlServiceAccessPoint::serviceAccessPointRegistrationRequest(AlServiceRegistrationRequest& message) {
-    
+
     std::vector<unsigned char> serializedData = message.serializeRegistrationRequest();
     ssize_t bytesSent = send(alControlSocketDescriptor, serializedData.data(), serializedData.size(), 0);
     if (bytesSent == -1) {
@@ -128,7 +128,7 @@ void AlServiceAccessPoint::serviceAccessPointDataRequest(AlServiceDataUnit& mess
 
     //first condition to check if the service has been correctly registered enable
     if (registrationRequest.getServiceOperation() == ServiceOperation::SOP_ENABLE || registrationResponse.getResult() == RegistrationResult::SUCCESS) {
-         
+
         // If whole packet size is less than or equal to 1500, send directly without fragmentation
         if (totalSize <= fragmentSize) {
             message.setIsFragment(0);
@@ -204,7 +204,7 @@ AlServiceDataUnit AlServiceAccessPoint::serviceAccessPointDataIndication() {
     AlServiceDataUnit message;
 
     while (receivingFragments) {
-        std::vector<unsigned char> buffer(1500, 0x00);
+        std::vector<unsigned char> buffer( 65536, 0x00);
 
         // Receive data from the socket
         ssize_t bytesRead = recv(alDataSocketDescriptor, buffer.data(), buffer.size(), 0);
@@ -215,7 +215,7 @@ AlServiceDataUnit AlServiceAccessPoint::serviceAccessPointDataIndication() {
             throw AlServiceException("Failed to receive message through Unix socket", PrimitiveError::IndicationFailed);
         }
         buffer.resize(bytesRead);
-       
+
         // Deserialize the received fragment
         AlServiceDataUnit fragment;
         try {
