@@ -79,7 +79,7 @@ CLI_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/fynecli/*.cpp) \
     $(ONEWIFI_EM_SRC)/em/em_net_node.cpp \
     $(ONEWIFI_EM_SRC)/utils/util.cpp \
     $(ONEWIFI_EM_SRC)/em/prov/easyconnect/ec_util.cpp \
-
+    $(ONEWIFI_EM_SRC)/em/prov/easyconnect/ec_crypto.cpp \
 
 CLI_OBJECTS = $(CLI_SOURCES:.cpp=.o)
 GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o) 

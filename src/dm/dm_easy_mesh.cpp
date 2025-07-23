@@ -2035,6 +2035,21 @@ em_freq_band_t  dm_easy_mesh_t::get_freq_band_by_op_class(int op_class)
 	return em_freq_band_unknown; // Return invalid if op_class not found
 }
 
+std::vector<int>  dm_easy_mesh_t::get_channel_list_by_op_class(int op_class)
+{
+	size_t i = 0;
+    std::vector<int> channels;
+	for (i = 0; i < sizeof(m_e4_table) / sizeof(m_e4_table[0]); ++i) {
+		if (m_e4_table[i].op_class == op_class) {
+			for(int j=0; m_e4_table[i].channels[j]!= 0; j++ ) {
+                channels.push_back(m_e4_table[i].channels[j]);
+            }
+            return channels;
+		}
+	}
+    return channels;
+}
+
 em_bss_info_t *dm_easy_mesh_t::get_bss_info_with_mac(mac_address_t mac)
 {
 	unsigned int i = 0;

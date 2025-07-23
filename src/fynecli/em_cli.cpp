@@ -174,6 +174,9 @@ em_cmd_t& em_cli_t::get_command(char *in, size_t in_len, em_network_node_t *node
                     } else if (strncmp(args[num_args - 1], "2", strlen("2")) == 0) {
                         strncat(cmd->m_param.u.args.fixed_args, "Summary@ScanChannel", 
                                 strlen("Summary@ScanChannel"));
+                    } else if (strncmp(args[num_args - 1], "3", strlen("3")) == 0) {
+                        strncat(cmd->m_param.u.args.fixed_args, "Summary@getCapabilities",
+                                strlen("Summary@getCapabilities"));
                     }
                     break;
 

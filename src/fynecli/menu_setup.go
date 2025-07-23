@@ -23,21 +23,25 @@ import (
 var (
     wifiResetItem *fyne.MenuItem
     networkName *fyne.MenuItem
+    wifiChannelChange *fyne.MenuItem
 )
 
 func InitMenuItems() {
-    wifiResetItem = fyne.NewMenuItem("Reset", nil)
     networkName = fyne.NewMenuItem("Network Name", nil)
+    wifiChannelChange = fyne.NewMenuItem("Channel", nil)
+    wifiResetItem = fyne.NewMenuItem("Reset", nil)
 
     // Initially disabled
-    wifiResetItem.Disabled = true
     networkName.Disabled = true
+    wifiChannelChange.Disabled = true
+    wifiResetItem.Disabled = true
 }
 
 func enableMenuItems(m *MeshViewsMgr) {
     // enable the menu options
-    wifiResetItem.Disabled = false
     networkName.Disabled = false
+    wifiChannelChange.Disabled = false
+    wifiResetItem.Disabled = false
 
     // Trigger menu redraw
     fyne.Do(func() {
@@ -48,10 +52,6 @@ func enableMenuItems(m *MeshViewsMgr) {
 
 func BuildMainMenu(meshViewsMgr *MeshViewsMgr) *fyne.MainMenu {
 
-    wifiResetItem.Action = func() {
-        ShowWifiResetDialog(meshViewsMgr)
-    }
-
     connectItem := fyne.NewMenuItem("Connection", func() {
         log.Println("Connecting to remote...")
         settingsAction()
@@ -59,6 +59,14 @@ func BuildMainMenu(meshViewsMgr *MeshViewsMgr) *fyne.MainMenu {
 
     networkName.Action = func() {
         ShowNetworkNameDialog(meshViewsMgr)
+    }
+
+    wifiChannelChange.Action = func() {
+        ShowWifiChannelChangeDialog(meshViewsMgr)
+    }
+
+    wifiResetItem.Action = func() {
+        ShowWifiResetDialog(meshViewsMgr)
     }
 
 
@@ -73,6 +81,7 @@ func BuildMainMenu(meshViewsMgr *MeshViewsMgr) *fyne.MainMenu {
         fyne.NewMenu("Settings",
             connectItem,
             networkName,
+            wifiChannelChange,
             wifiResetItem,
         ),
         fyne.NewMenu("Help", helpItem),
