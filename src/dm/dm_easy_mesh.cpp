@@ -2037,16 +2037,16 @@ em_freq_band_t  dm_easy_mesh_t::get_freq_band_by_op_class(int op_class)
 
 std::vector<int>  dm_easy_mesh_t::get_channel_list_by_op_class(int op_class)
 {
-	size_t i = 0;
+    size_t i = 0;
     std::vector<int> channels;
-	for (i = 0; i < sizeof(m_e4_table) / sizeof(m_e4_table[0]); ++i) {
-		if (m_e4_table[i].op_class == op_class) {
-			for(int j=0; m_e4_table[i].channels[j]!= 0; j++ ) {
+    for (i = 0; i < sizeof(m_e4_table) / sizeof(m_e4_table[0]); ++i) {
+        if (m_e4_table[i].op_class == op_class) {
+            for(int j=0; j < m_e4_table[i].num_channels; j++) {
                 channels.push_back(m_e4_table[i].channels[j]);
             }
             return channels;
-		}
-	}
+        }
+    }
     return channels;
 }
 
