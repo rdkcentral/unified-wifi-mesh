@@ -1381,8 +1381,8 @@ int dm_easy_mesh_ctrl_t::get_radio_config(cJSON *parent, char *key, em_get_radio
 
 int dm_easy_mesh_ctrl_t::get_channel_capabilities (cJSON *parent, char *key)
 {
-    cJSON *net_obj, *dev_list_obj, *dev_obj, *radio_list_obj, *radio_obj, *op_class_cap_obj;;
-	cJSON *preferred_channels_list_obj, *channel_list_obj;
+    cJSON *net_obj, *dev_list_obj, *dev_obj, *radio_list_obj, *radio_obj, *op_class_cap_obj;
+    cJSON *preferred_channels_list_obj, *channel_list_obj;
     int i, j;
     char *tmp;
     em_long_string_t op_key;
