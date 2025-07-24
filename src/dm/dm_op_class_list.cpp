@@ -42,7 +42,7 @@
 int dm_op_class_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 {
     dm_op_class_t *pop_class;
-    cJSON *obj, *non_op_arr, *anticipated_arr, *radio_band, *channel_arr;
+    cJSON *obj, *non_op_arr, *anticipated_arr, *channel_arr;
     unsigned int i;
     em_op_class_id_t id;
     em_op_class_info_t *info;
@@ -98,7 +98,7 @@ int dm_op_class_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 void dm_op_class_list_t::get_config(cJSON *obj_arr, em_op_class_type_t type)
 {
 	dm_op_class_t *op_class;
-	cJSON *obj, *channel_arr, *non_op_arr;
+	cJSON *obj, *channel_arr;
 	unsigned int i;
 
 	// only anticipated is implemented now
