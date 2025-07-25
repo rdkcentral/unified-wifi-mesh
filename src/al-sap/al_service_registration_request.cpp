@@ -4,20 +4,20 @@
 
 // Constructor
 // Parameterized constructor
-AlServiceRegistrationRequest::AlServiceRegistrationRequest(ServiceOperation operation, ServiceType type)
+AlServiceRegistrationRequest::AlServiceRegistrationRequest(SAPActivation operation, ServiceType type)
     : serviceOperation(operation), serviceType(type) {}
 
 // Default constructor
 AlServiceRegistrationRequest::AlServiceRegistrationRequest()
-    : serviceOperation(ServiceOperation::SOP_ENABLE), serviceType(ServiceType::SAP_CLIENT) {}
+    : serviceOperation(SAPActivation::SAP_ENABLE), serviceType(ServiceType::EmAgent) {}
 
 // Setter for service operation
-void AlServiceRegistrationRequest::setServiceOperation(ServiceOperation service) {
+void AlServiceRegistrationRequest::setSAPActivationStatus(SAPActivation service) {
     serviceOperation = service;
 }
 
 // Getter for service operation
-ServiceOperation AlServiceRegistrationRequest::getServiceOperation() const {
+SAPActivation AlServiceRegistrationRequest::getSAPActivationStatus() const {
     return serviceOperation;
 }
 
@@ -50,7 +50,7 @@ std::vector<unsigned char> AlServiceRegistrationRequest::serializeRegistrationRe
 void AlServiceRegistrationRequest::deserializeRegistrationRequest(const std::vector<unsigned char>& data) {
     auto data_raw = remove_length_delimited_part(data);
     if (data.size() >= SIZE_BYTES) {
-        serviceOperation = static_cast<ServiceOperation>(data_raw[0]);
+        serviceOperation = static_cast<SAPActivation>(data_raw[0]);
         serviceType = static_cast<ServiceType>(data_raw[1]);
 
     } else {

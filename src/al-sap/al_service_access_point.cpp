@@ -127,7 +127,7 @@ void AlServiceAccessPoint::serviceAccessPointDataRequest(AlServiceDataUnit& mess
     size_t totalSize = payload.size();
 
     //first condition to check if the service has been correctly registered enable
-    if (registrationRequest.getServiceOperation() == ServiceOperation::SOP_ENABLE || registrationResponse.getResult() == RegistrationResult::SUCCESS) {
+    if (registrationRequest.getSAPActivationStatus() == SAPActivation::SAP_ENABLE || registrationResponse.getResult() == RegistrationResult::SUCCESS) {
 
         // If whole packet size is less than or equal to fragmentSize, send directly without fragmentation
         if (totalSize <= fragmentSize) {
@@ -183,7 +183,7 @@ void AlServiceAccessPoint::serviceAccessPointDataRequest(AlServiceDataUnit& mess
     #endif
     std::cout << "Cannot send data: Registration unsuccessful." << std::endl;
     throw AlServiceException("Registration unsuccessful", PrimitiveError::RegistrationError);
-    } else if (registrationRequest.getServiceOperation() != ServiceOperation::SOP_ENABLE) {
+    } else if (registrationRequest.getSAPActivationStatus() != SAPActivation::SAP_ENABLE) {
         #ifdef DEBUG_MODE
         // If the service operation is not enabled
         std::cout << "Cannot send data: Service operation not enabled." << std::endl;
