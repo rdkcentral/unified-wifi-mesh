@@ -2496,7 +2496,8 @@ typedef struct {
 typedef struct {
     unsigned char ap_mld_mac_addr_valid : 1;
     unsigned char reserved1 : 7;
-    em_ap_mld_ssids_t ssids[0];
+    unsigned char ssid_len;
+    ssid_t ssid;
     mac_addr_t ap_mld_mac_addr;
     unsigned char str : 1;
     unsigned char nstr : 1;
