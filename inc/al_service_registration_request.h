@@ -29,7 +29,7 @@ public:
 	 *
 	 * @note Ensure that the operation and type are valid and supported by the service registration system.
 	 */
-	AlServiceRegistrationRequest(ServiceOperation operation, ServiceType type);
+	AlServiceRegistrationRequest(SAPActivation operation, ServiceType type);
 
     // Setters and getters for service operation
 
@@ -42,7 +42,7 @@ public:
 	 *
 	 * @note Ensure that the service operation is valid before calling this function.
 	 */
-	void setServiceOperation(ServiceOperation service);
+	void setSAPActivationStatus(SAPActivation service);
 
 	/**!
 	 * @brief Retrieves the service operation.
@@ -51,7 +51,7 @@ public:
 	 *
 	 * @returns ServiceOperation The current service operation.
 	 */
-	ServiceOperation getServiceOperation() const;
+	SAPActivation getSAPActivationStatus() const;
 
     // Setters and getters for service type
 
@@ -107,7 +107,7 @@ public:
     static const size_t FRAMED_SIZE_BYTES = 4 + SIZE_BYTES;
 
 private:
-    ServiceOperation serviceOperation;
+    SAPActivation serviceOperation;
     ServiceType serviceType;
 };
 
