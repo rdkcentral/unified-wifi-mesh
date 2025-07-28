@@ -51,7 +51,7 @@ int main(int argc, char* argv[]) {
         std::cout << "Registering client as Easy Mesh Client..." << std::endl;
 
         // Create and configure the registration request
-        AlServiceRegistrationRequest registrationRequest(ServiceOperation::SOP_ENABLE, ServiceType::SAP_CLIENT);
+        AlServiceRegistrationRequest registrationRequest(SAPActivation::SAP_ENABLE, ServiceType::EmAgent);
 
         // Send the registration request
         sap.serviceAccessPointRegistrationRequest(registrationRequest);
