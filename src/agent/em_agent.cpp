@@ -1702,7 +1702,7 @@ AlServiceAccessPoint* em_agent_t::al_sap_register(const std::string& data_socket
 {
     AlServiceAccessPoint* sap = new AlServiceAccessPoint(data_socket_path.c_str(), control_socket_path.c_str());
 
-    AlServiceRegistrationRequest registrationRequest(ServiceOperation::SOP_ENABLE, ServiceType::SAP_CLIENT);
+    AlServiceRegistrationRequest registrationRequest(SAPActivation::SAP_ENABLE, ServiceType::EmAgent);
     sap->serviceAccessPointRegistrationRequest(registrationRequest);
 
     AlServiceRegistrationResponse registrationResponse = sap->serviceAccessPointRegistrationResponse();
