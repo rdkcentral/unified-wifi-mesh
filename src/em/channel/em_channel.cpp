@@ -1456,6 +1456,7 @@ int em_channel_t::handle_channel_pref_tlv_ctrl(unsigned char *buff, unsigned int
 	channel_pref = pref->op_classes;
 	memcpy(op_class_info[i].id.ruid, pref->ruid, sizeof(mac_address_t));
 	for (i = 0; i < pref->op_classes_num; i++) {
+		memset(&op_class_info[i], 0, sizeof(em_op_class_info_t));
 		memcpy(op_class_info[i].id.ruid, device->intf.mac, sizeof(mac_address_t));
 		op_class_info[i].id.type = em_op_class_type_preference;
 		op_class_info[i].op_class = static_cast<unsigned int> (channel_pref->op_class);
