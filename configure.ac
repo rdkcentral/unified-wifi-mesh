@@ -32,6 +32,9 @@ AC_DISABLE_STATIC
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])
  
+# Check for em agent
+AM_CONDITIONAL([EM_EXTENDER], [test x$EM_EXTENDER = xtrue])
+
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_CXX
