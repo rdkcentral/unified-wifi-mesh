@@ -324,9 +324,63 @@ TEST_F(EmCryptoTests, KeyComponentsConsistency)
         << "Computed public key doesn't match the original";
 
     // End BN_CTX to free temporary BIGNUMs
-    BN_CTX_end(bn_ctx);
+    BN_CTX_end(bn_ctx); 
     BN_CTX_free(bn_ctx);
 }
+
+
+TEST_F(EmCryptoTests, ECKeyDERSerialization)
+{
+    // Generate a key for testing
+    scoped_ssl_key key(em_crypto_t::generate_ec_key(NID_secp256k1));
+    ASSERT_NE(key.get(), nullptr) << "Could not generate key";
+
+    std::string base64_der = em_crypto_t::ec_key_to_base64_der(key.get());
+    ASSERT_FALSE(base64_der.empty()) << "Could not convert key to base64 DER";
+
+    scoped_ssl_key new_key(em_crypto_t::ec_key_from_base64_der(base64_der));
+    ASSERT_NE(new_key.get(), nullptr) << "Could not read key from base64 DER";
+
+    // Get new components
+    scoped_ec_group new_group(em_crypto_t::get_key_group(new_key.get()));
+    ASSERT_NE(new_group.get(), nullptr) << "Could not get key group";
+    int curve_nid = EC_GROUP_get_curve_name(new_group.get());
+    EXPECT_EQ(curve_nid, NID_secp256k1) << "Read key has wrong curve";
+    scoped_ec_point new_pub(em_crypto_t::get_pub_key_point(new_key.get(), new_group.get()));
+    ASSERT_NE(new_pub.get(), nullptr) << "Could not get public key point";
+
+    // Get original components
+
+    scoped_ec_group orig_group(em_crypto_t::get_key_group(key.get()));
+    ASSERT_NE(orig_group.get(), nullptr) << "Could not get original key group";
+
+    scoped_ec_point orig_pub(em_crypto_t::get_pub_key_point(key.get(), orig_group.get()));
+    ASSERT_NE(orig_pub.get(), nullptr) << "Could not get original public key point";
+
+    // Compare the public key points
+    EXPECT_EQ(EC_POINT_cmp(new_group.get(), new_pub.get(), orig_pub.get(), nullptr), 0)
+        << "Computed public key doesn't match the original after serialization/deserialization";
+}
+
+TEST_F(EmCryptoTests, ECKeyDERForwardReverseSerialization)
+{
+    // Generate a key for testing
+    scoped_ssl_key key(em_crypto_t::generate_ec_key(NID_secp256k1));
+    ASSERT_NE(key.get(), nullptr) << "Could not generate key";
+
+    std::string base64_der = em_crypto_t::ec_key_to_base64_der(key.get());
+    ASSERT_FALSE(base64_der.empty()) << "Could not convert key to base64 DER";
+
+    scoped_ssl_key new_key(em_crypto_t::ec_key_from_base64_der(base64_der));
+    ASSERT_NE(new_key.get(), nullptr) << "Could not read key from base64 DER";
+
+    std::string new_base64_der = em_crypto_t::ec_key_to_base64_der(new_key.get());
+    ASSERT_FALSE(new_base64_der.empty()) << "Could not convert new key to base64 DER";
+
+    // Compare the original and new base64 DER strings
+    EXPECT_EQ(base64_der, new_base64_der) << "Base64 DER serialization did not match after forward and reverse serialization";
+}
+
 
 // Test case for key serialization
 TEST_F(EmCryptoTests, KeySerialization)
