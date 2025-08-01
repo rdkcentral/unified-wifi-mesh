@@ -1674,9 +1674,9 @@ void dm_easy_mesh_t::str_to_securitymode(unsigned short *mode, char *sec_mode_st
 
 const char* dm_easy_mesh_t::get_platform()
 {
-    std::ifstream cpuinfo("/proc/cpuinfo");
+    std::ifstream platformName("/sys/firmware/devicetree/base/model");
     std::string line;
-    while (std::getline(cpuinfo, line)) {
+    while (std::getline(platformName, line)) {
         if (line.find("Raspberry Pi") != std::string::npos) return "rpi";
         if (line.find("Banana Pi") != std::string::npos) return "bpi";
     }
