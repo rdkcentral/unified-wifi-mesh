@@ -1594,7 +1594,8 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request(std::optional<
         em_printfout("Get bSTA info callback is nullptr! Cannot create DPP Configuration Request Object, bailing.");
         return {};
     }
-    cJSON *bsta_info = m_get_bsta_info(nullptr);
+
+    cJSON *bsta_info = m_get_bsta_info(nullptr, nullptr);
     ASSERT_NOT_NULL_FREE(bsta_info, {}, m_eph_ctx().e_nonce, "%s:%d: bSTA info is nullptr!\n", __func__, __LINE__);
     cJSON_AddItemToObject(dpp_config_request_obj, "bSTAList", bsta_info);
 

@@ -1351,7 +1351,7 @@ bool em_t::initialize_ec_manager(){
     ops.send_1905_eapol_encap      = std::bind(&em_t::send_1905_eapol_encap_msg, this, 
                                                 std::placeholders::_1, std::placeholders::_2, 
                                                 std::placeholders::_3);
-    ops.send_act_frame             = std::bind(&em_mgr_t::send_action_frame, m_mgr, 
+    ops.send_act_frame             = std::bind(&em_mgr_t::send_backhaul_action_frame, m_mgr, 
                                                 std::placeholders::_1, std::placeholders::_2, 
                                                 std::placeholders::_3, std::placeholders::_4, 
                                                 std::placeholders::_5);
@@ -1366,7 +1366,7 @@ bool em_t::initialize_ec_manager(){
     // Enrollee callbacks
     if (service_type == em_service_type_agent) {
         ops.get_backhaul_sta_info =
-            std::bind(&em_t::create_enrollee_bsta_list, this, std::placeholders::_1);
+            std::bind(&em_t::create_enrollee_bsta_list, this, std::placeholders::_1, std::placeholders::_2);
     }
 
     // Controller Configurator callbacks
@@ -1376,7 +1376,7 @@ bool em_t::initialize_ec_manager(){
         ops.get_fbss_info         = std::bind(&em_t::create_fbss_response_obj, this, 
                                                 std::placeholders::_1);
         ops.get_backhaul_sta_info = std::bind(&em_t::create_configurator_bsta_response_obj, 
-                                                this, std::placeholders::_1);
+                                                this, std::placeholders::_1, std::placeholders::_2);
     }
 
     // Read in the persistent security context for the controller or agent

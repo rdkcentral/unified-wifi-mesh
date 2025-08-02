@@ -247,8 +247,9 @@ private:
 	 * destination MAC address, dialog token, and DPP status. The frame is encapsulated
 	 * as a DPP TLV.
 	 *
-	 * @param[out] dest_mac The destination MAC address of the Enrollee. This should be
+	 * @param[in] dest_mac The destination MAC address of the Enrollee. This should be
 	 *                      an array of ETH_ALEN bytes.
+	 * @param[in] pa_al_mac The AL MAC address of Proxy Agent that is being used to onboard the Enrollee.
 	 * @param[in] dialog_token The session dialog token for the Enrollee.
 	 * @param[in] dpp_status The status of the DPP Configuration. Use DPP_STATUS_OK for
 	 *                       success or DPP_STATUS_CONFIGURATION_FAILURE for failure.
@@ -261,7 +262,7 @@ private:
 	 * @note Ensure that the destination MAC address is valid and that the dialog token
 	 *       and DPP status are correctly set before calling this function.
 	 */
-	std::pair<uint8_t*, size_t> create_config_response_frame(uint8_t dest_mac[ETH_ALEN], const uint8_t dialog_token, ec_status_code_t dpp_status, bool is_sta = false);
+	std::pair<uint8_t*, size_t> create_config_response_frame(uint8_t dest_mac[ETH_ALEN], uint8_t pa_al_mac[ETH_ALEN], const uint8_t dialog_token, ec_status_code_t dpp_status, bool is_sta = false);
 
 	/**
 	 * @brief Finalizes a base DPP Configuration object.
