@@ -118,6 +118,20 @@ public:
 	 * EasyMesh framework to avoid unexpected results.
 	 */
 	static std::vector<int> get_channel_list_by_op_class(int op_class);
+
+	/**!
+	 * @brief Retrieves the operating class information for a given BSS with an optional check for integer operating class.
+	 *
+	 * This function searches for the operating class information associated with the
+	 * specified BSS (Basic Service Set) identified by its MAC address.
+	 *
+	 * @param[in] bssid The MAC address of the BSS for which the operating class information is requested.
+	 * @param[in] op_class Optional check for integer operating class (used to filter results). Can be NULL.
+	 *
+	 * @returns The pointer to the `em_op_class_info_t` structure containing the operating class information.
+	 * NULL if no matching BSS is found or if the operating class does not match.
+	 */
+	em_op_class_info_t* get_opclass_info_for_bss(mac_address_t bssid, unsigned int* op_class = NULL);
 	
 	/**!
 	 * @brief Retrieves the BSS information associated with a given MAC address.
@@ -1241,6 +1255,23 @@ public:
 	 * @note Ensure that the index is within the valid range of BSS entries.
 	 */
 	static em_bss_info_t *get_bss_info(void *dm, unsigned int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_bss_info(index); }
+
+	/**!
+	 * @brief Retrieves the `em_bss_info_t` for the bSTA.
+	 *
+	 * @returns A pointer to the em_bss_info_t structure containing BSTA BSS information. NULL if not found.
+	 *
+	 */
+	em_bss_info_t* get_bsta_bss_info();
+
+
+	/**!
+	 * @brief Retrieves the `em_bss_info_t` for the backhaul BSS.
+	 *
+	 * @returns A pointer to the em_bss_info_t structure containing the backhaul BSS information.
+	 * NULL if the backhaul BSS is not found
+	 */
+	em_bss_info_t* get_backhaul_bss_info();
     
 	/**!
 	 * @brief Retrieves the number of BSS (Basic Service Set).
