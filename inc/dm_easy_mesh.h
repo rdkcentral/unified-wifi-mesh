@@ -40,6 +40,8 @@
 #include "dm_tid_to_link.h"
 #include "webconfig_external_proto.h"
 
+#define GLOBAL_NET_ID "OneWifiMesh"
+
 class em_t;
 
 class dm_easy_mesh_t {

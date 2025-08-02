@@ -39,8 +39,6 @@
 #include "em_orch_agent.h"
 #include "em.h"
 
-extern char *global_netid;
-
 void em_orch_agent_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 {
     em_cmd_stats_t *stats;
@@ -223,8 +221,8 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
             printf("%s:%d: calling create node\n", __func__, __LINE__);
 
             intf = pcmd->get_agent_al_interface();
-            if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
-                dm = m_mgr->create_data_model(global_netid, intf);
+            if ((dm = m_mgr->get_data_model(GLOBAL_NET_ID, intf->mac)) == NULL) {
+                dm = m_mgr->create_data_model(GLOBAL_NET_ID, intf);
             }
             config.type = em_commit_target_al;
             //commit basic configuration before orchestrate
@@ -238,8 +236,8 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
             // for radio insert, create the radio em and then submit command
             for (unsigned int i = 0; i < pcmd->get_data_model()->get_num_radios(); i++) {
                 intf = pcmd->get_radio_interface(i);
-                if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
-                    dm = m_mgr->create_data_model(global_netid, intf);
+                if ((dm = m_mgr->get_data_model(GLOBAL_NET_ID, intf->mac)) == NULL) {
+                    dm = m_mgr->create_data_model(GLOBAL_NET_ID, intf);
                 }    
                 dm_easy_mesh_t::macbytes_to_string(intf->mac, mac_str);
                 config.type = em_commit_target_radio;
@@ -259,8 +257,8 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
             break;
         case dm_orch_type_sta_aggregate:
             intf = pcmd->get_radio_interface(ctx->arr_index);
-            if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
-                dm = m_mgr->create_data_model(global_netid, intf);
+            if ((dm = m_mgr->get_data_model(GLOBAL_NET_ID, intf->mac)) == NULL) {
+                dm = m_mgr->create_data_model(GLOBAL_NET_ID, intf);
             }
 
             sta = static_cast<dm_sta_t *> (hash_map_get_first(pcmd->get_data_model()->m_sta_assoc_map));
@@ -312,8 +310,8 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
 
         case dm_orch_type_sta_link_metrics:
             intf = pcmd->get_radio_interface(ctx->arr_index);
-            if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
-                dm = m_mgr->create_data_model(global_netid, intf);
+            if ((dm = m_mgr->get_data_model(GLOBAL_NET_ID, intf->mac)) == NULL) {
+                dm = m_mgr->create_data_model(GLOBAL_NET_ID, intf);
             }
 
             sta = static_cast<dm_sta_t *> (hash_map_get_first(pcmd->get_data_model()->m_sta_assoc_map));
