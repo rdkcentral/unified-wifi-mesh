@@ -599,6 +599,7 @@ following exchanges. If so, it sends the DPP Authentication Response frame on th
 Authentication Request frame without replying to it.
         */
         uint16_t op_chan = *reinterpret_cast<uint16_t*>(channel_attr->data);
+        op_chan = SWAP_LITTLE_ENDIAN(op_chan);
         em_printfout("Channel attribute: %d", op_chan);
 
         uint8_t op_class = static_cast<uint8_t>(op_chan >> 8);
@@ -1594,7 +1595,8 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request(std::optional<
         em_printfout("Get bSTA info callback is nullptr! Cannot create DPP Configuration Request Object, bailing.");
         return {};
     }
-    cJSON *bsta_info = m_get_bsta_info(nullptr);
+
+    cJSON *bsta_info = m_get_bsta_info(nullptr, nullptr);
     ASSERT_NOT_NULL_FREE(bsta_info, {}, m_eph_ctx().e_nonce, "%s:%d: bSTA info is nullptr!\n", __func__, __LINE__);
     cJSON_AddItemToObject(dpp_config_request_obj, "bSTAList", bsta_info);
 
@@ -2102,6 +2104,8 @@ bool ec_enrollee_t::handle_bss_info_event(const std::vector<wifi_bss_info_t> &bs
     if (!did_handle_bss_info) {
         em_printfout("Did not recieve any relevant data in scan results...");
     }
+
+    m_received_scan_results.store(true);
 
     return true;
 }

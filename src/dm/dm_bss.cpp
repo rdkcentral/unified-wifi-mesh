@@ -266,12 +266,14 @@ void dm_bss_t::encode(cJSON *obj, bool summary)
 void dm_bss_t::operator = (const dm_bss_t& obj)
 {
 	if (this == &obj) { return; }
+    this->m_bss_info.vap_index = obj.m_bss_info.vap_index;
 	strncpy(this->m_bss_info.id.net_id, obj.m_bss_info.id.net_id, sizeof(em_long_string_t));
 	memcpy(this->m_bss_info.id.dev_mac, obj.m_bss_info.id.dev_mac, sizeof(mac_address_t));
 	memcpy(this->m_bss_info.id.ruid, obj.m_bss_info.id.ruid, sizeof(mac_address_t));
 	memcpy(this->m_bss_info.id.bssid, obj.m_bss_info.id.bssid, sizeof(mac_address_t));
 
     memcpy(&this->m_bss_info.id.haul_type, &obj.m_bss_info.id.haul_type, sizeof(em_haul_type_t));
+    memcpy(&this->m_bss_info.vap_mode, &obj.m_bss_info.vap_mode, sizeof(em_vap_mode_t));
     memcpy(&this->m_bss_info.bssid.mac, &obj.m_bss_info.bssid.mac, sizeof(mac_address_t));
     memcpy(&this->m_bss_info.bssid.name, &obj.m_bss_info.bssid.name, sizeof(em_interface_name_t));
     memcpy(&this->m_bss_info.ruid.mac, &obj.m_bss_info.ruid.mac, sizeof(mac_address_t));
@@ -309,6 +311,8 @@ bool dm_bss_t::operator == (const dm_bss_t& obj)
 	ret += (memcmp(this->m_bss_info.id.dev_mac, obj.m_bss_info.id.dev_mac, sizeof(mac_address_t)) != 0);
 	ret += (memcmp(this->m_bss_info.id.ruid, obj.m_bss_info.id.ruid, sizeof(mac_address_t)) != 0);
 	ret += (memcmp(this->m_bss_info.id.bssid, obj.m_bss_info.id.bssid, sizeof(mac_address_t)) != 0);
+    ret += (this->m_bss_info.vap_index != obj.m_bss_info.vap_index);
+    ret += (memcmp(&this->m_bss_info.vap_mode, &obj.m_bss_info.vap_mode, sizeof(em_vap_mode_t)) != 0);
 
     ret += (memcmp(&this->m_bss_info.id.haul_type, &obj.m_bss_info.id.haul_type, sizeof(em_haul_type_t)) != 0);
     ret += (memcmp(&this->m_bss_info.bssid.mac ,&obj.m_bss_info.bssid.mac,sizeof(mac_address_t)) != 0);

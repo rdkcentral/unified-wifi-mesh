@@ -49,7 +49,6 @@
 #ifdef AL_SAP
 #include "al_service_access_point.h"
 
-extern char *global_netid;
 extern AlServiceAccessPoint* g_sap;
 #endif
 

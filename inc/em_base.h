@@ -2019,6 +2019,11 @@ typedef enum {
 	em_haul_type_max,
 } em_haul_type_t;
 
+typedef enum {
+    em_vap_mode_ap,
+	em_vap_mode_sta
+} em_vap_mode_t;
+
 typedef struct {
     unsigned int frame_len;
     unsigned char *frame;
@@ -2252,6 +2257,10 @@ typedef struct {
 } em_bss_id_t;
 
 typedef struct {
+    // Vap Index is constant. Any modification will not be reflected in OneWifi.
+    unsigned int vap_index;
+    // Vap Mode is constant. Any modification will not be reflected in OneWifi.
+    em_vap_mode_t vap_mode;
 	em_bss_id_t	id;
 	em_interface_t	bssid;
 	em_interface_t	ruid;

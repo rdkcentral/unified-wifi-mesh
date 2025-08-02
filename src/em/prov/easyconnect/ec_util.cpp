@@ -92,7 +92,7 @@ uint16_t ec_util::freq_to_channel_attr(unsigned int freq)
 
     auto [op_class, channel] = op_chan;
     
-    return static_cast<uint16_t>((channel << 8) | (0x00ff & op_class));
+    return static_cast<uint16_t>((op_class << 8) | (0x00ff & channel));
 }
 
 bool ec_util::validate_frame(const ec_frame_t *frame)
@@ -817,7 +817,7 @@ bool ec_util::decode_bootstrap_data_json(const cJSON *json_obj, ec_data_t *boot_
         ASSERT_MSG_TRUE(uri_type != std::nullopt, false, "%s:%d: Key (%s) not valid \n", __func__,
                         __LINE__, key);
         if (uri_map.find(*uri_type) != uri_map.end()) {
-            em_printfout("Key '%s' is duplicated", key);
+            em_printfout("Key '%s' is duplicated, invalid URI! Exiting", key);
             return false;
         }
         if (cJSON_IsString(object_item)) {
@@ -825,7 +825,7 @@ bool ec_util::decode_bootstrap_data_json(const cJSON *json_obj, ec_data_t *boot_
         } else if (cJSON_IsNumber(object_item)) {
             uri_map[*uri_type] = std::to_string(cJSON_GetNumberValue(object_item));
         } else {
-            em_printfout("Key '%s' is not a string or number", key);
+            em_printfout("Key '%s' is not a string or number, invalid URI! Exiting", key);
             return false;
         }
     }

@@ -731,9 +731,10 @@ bool em_t::toggle_cce(bool enable)
     for (unsigned int i = 0; i < num_bss; i++) {
         dm_bss_t* bss = m_data_model->get_bss(i);
         em_bss_info_t* bss_info = bss->get_bss_info();
+        uint8_t vap_index = bss_info->vap_index;
 
         if (!bss_info || !bss_info->enabled) {
-            printf("Skipping BSS %d as it is not enabled\n", i);
+            printf("Skipping VAP %d as it is not enabled\n", vap_index);
             continue;
         }
 /*
@@ -745,8 +746,13 @@ no explicit mention of a "backhaul BSS" in the spec. Since the UWM code has a sp
 then we can say that adding the CCE IE to all of the backhaul BSSs (according to UWM) is the same as adding it to all of the fronthaul BSSs, as per the spec.
 */
 
-        if (!bss_info->backhaul_use) {
-            printf("Skipping BSS %d as it is not a backhaul BSS\n", i);
+        if (bss_info->vap_mode != em_vap_mode_ap) {
+            printf("Skipping VAP %d as it is not an AP\n", vap_index);
+            continue;
+        }
+
+        if (bss_info->id.haul_type != em_haul_type_backhaul) {
+            printf("Skipping VAP %d as it is not a backhaul BSS\n", vap_index);
             continue;
         }
 
@@ -763,16 +769,16 @@ then we can say that adding the CCE IE to all of the backhaul BSSs (according to
             success = true; // Removing always succeeds
         }
         if (!success) {
-            printf("Failed to add DPP IE to BSS '" MACSTRFMT "'\n", MAC2STR(bssid->mac));
+            printf("Failed to add DPP IE to VAP (%d) '" MACSTRFMT "'\n", vap_index, MAC2STR(bssid->mac));
             break;
         }
         bands.push_back(band);
         updated_bsses.push_back(bss);
 
         if (enable) {
-            printf("Added DPP IE to BSS '" MACSTRFMT "' on band %d\n", MAC2STR(bssid->mac), band);
+            printf("Added DPP IE to VAP (%d) '" MACSTRFMT "' on band %d\n", vap_index, MAC2STR(bssid->mac), band);
         } else {
-            printf("Removed DPP IE from BSS '" MACSTRFMT "' on band %d\n", MAC2STR(bssid->mac), band);
+            printf("Removed DPP IE from VAP (%d) '" MACSTRFMT "' on band %d\n",vap_index, MAC2STR(bssid->mac), band);
         }
     }
 
@@ -801,28 +807,9 @@ then we can say that adding the CCE IE to all of the backhaul BSSs (according to
     return true;
 }
 
-em_bss_info_t* em_t::get_bsta_bss_info()
-{
-    for (unsigned int i = 0; i < m_data_model->get_num_bss(); i++) {
-        em_bss_info_t *bsta_info = m_data_model->get_bss_info(i);
-        if (!bsta_info) continue;
-        // Skip if not backhaul
-        if (bsta_info->id.haul_type != em_haul_type_backhaul) {
-            continue;
-        }
-        auto radio = m_data_model->get_radio(bsta_info->ruid.mac);
-        if (!radio) continue;
-        if (!radio->m_radio_info.enabled || !bsta_info->enabled) {
-            continue;
-        }
-        return bsta_info;
-    }
-    return NULL;
-}
-
 bool em_t::bsta_connect_bss(const std::string& ssid, const std::string passphrase, bssid_t bssid)
 {
-    em_bss_info_t *bsta_info = get_bsta_bss_info();
+    em_bss_info_t *bsta_info = m_data_model->get_bsta_bss_info();
     if (!bsta_info) {
         em_printfout("No backhaul bSTA found to connect to BSS\n");
         return false;
@@ -847,7 +834,7 @@ bool em_t::bsta_connect_bss(const std::string& ssid, const std::string passphras
 
 bool em_t::trigger_sta_scan()
 {
-    em_bss_info_t *bsta_info = get_bsta_bss_info();
+    em_bss_info_t *bsta_info = m_data_model->get_bsta_bss_info();
     if (!bsta_info) {
         em_printfout("No backhaul bSTA found to start building channel list\n");
         return false;
@@ -1364,7 +1351,7 @@ bool em_t::initialize_ec_manager(){
     ops.send_1905_eapol_encap      = std::bind(&em_t::send_1905_eapol_encap_msg, this, 
                                                 std::placeholders::_1, std::placeholders::_2, 
                                                 std::placeholders::_3);
-    ops.send_act_frame             = std::bind(&em_mgr_t::send_action_frame, m_mgr, 
+    ops.send_act_frame             = std::bind(&em_mgr_t::send_backhaul_action_frame, m_mgr, 
                                                 std::placeholders::_1, std::placeholders::_2, 
                                                 std::placeholders::_3, std::placeholders::_4, 
                                                 std::placeholders::_5);
@@ -1379,7 +1366,7 @@ bool em_t::initialize_ec_manager(){
     // Enrollee callbacks
     if (service_type == em_service_type_agent) {
         ops.get_backhaul_sta_info =
-            std::bind(&em_t::create_enrollee_bsta_list, this, std::placeholders::_1);
+            std::bind(&em_t::create_enrollee_bsta_list, this, std::placeholders::_1, std::placeholders::_2);
     }
 
     // Controller Configurator callbacks
@@ -1389,7 +1376,7 @@ bool em_t::initialize_ec_manager(){
         ops.get_fbss_info         = std::bind(&em_t::create_fbss_response_obj, this, 
                                                 std::placeholders::_1);
         ops.get_backhaul_sta_info = std::bind(&em_t::create_configurator_bsta_response_obj, 
-                                                this, std::placeholders::_1);
+                                                this, std::placeholders::_1, std::placeholders::_2);
     }
 
     // Read in the persistent security context for the controller or agent

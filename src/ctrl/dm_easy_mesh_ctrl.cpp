@@ -58,8 +58,6 @@
 #include "em_cmd_get_mld_config.h"
 #include "em_cmd_mld_reconfig.h"
 
-extern char *global_netid;
-
 int dm_easy_mesh_ctrl_t::analyze_sta_link_metrics(em_cmd_t *pcmd[])
 {
     int num = 0;
@@ -146,7 +144,7 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     strncpy(evt->params.u.args.args[2], sta_mac_str, sizeof(em_long_string_t));
     len = (params->assoc.assoc_event == 1)?strlen("Assoc") + 1:strlen("Disassoc") + 1;
     strncpy(evt->params.u.args.args[3], (params->assoc.assoc_event == 1)?"Assoc":"Disassoc", len);
-    pdm = get_data_model(global_netid, params->dev);
+    pdm = get_data_model(GLOBAL_NET_ID, params->dev);
     if (pdm == NULL) {
         printf("%s:%d: Could not find data model for dev: %s\n", __func__, __LINE__, dev_mac_str);
         return -1;
@@ -1011,7 +1009,7 @@ int dm_easy_mesh_ctrl_t::analyze_mld_reconfig(em_cmd_t *pcmd[])
         return 0;
     }
 
-    num = dm_network_ssid_list_t::analyze_config(netssid_list_obj, (void *)global_netid, cmd, &evt->params);
+    num = dm_network_ssid_list_t::analyze_config(netssid_list_obj, (void *)GLOBAL_NET_ID, cmd, &evt->params);
     cJSON_free(obj);
 
     return num;
@@ -1076,7 +1074,7 @@ int dm_easy_mesh_ctrl_t::set_device_list(cJSON *dev_list_obj)
     cJSON *obj, *dev_obj, *radio_list_obj;
     mac_address_t dev_mac;
 
-    dm_device_list_t::set_config(m_db_client, dev_list_obj, static_cast<void *> (global_netid));
+    dm_device_list_t::set_config(m_db_client, dev_list_obj, static_cast<void*>(const_cast<char*>(GLOBAL_NET_ID)));
 
     num = cJSON_GetArraySize(dev_list_obj);
     //printf("%s:%d: Number of devices: %d\n", __func__, __LINE__, num);
@@ -1665,7 +1663,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
 
     if (dm->db_cfg_type_is_set(db_cfg_type_network_list_update)) {
 		criteria = dm->db_cfg_type_get_criteria(db_cfg_type_network_list_update);
-        if (dm_network_list_t::set_config(m_db_client, dm->get_network_by_ref(), global_netid) == 0) {
+        if (dm_network_list_t::set_config(m_db_client, dm->get_network_by_ref(), static_cast<void*>(const_cast<char*>(GLOBAL_NET_ID))) == 0) {
             dm->reset_db_cfg_type(db_cfg_type_network_list_update);
         }
     }
@@ -1891,7 +1889,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
         for (i = 0; i < dm->get_num_network_ssid(); i++) {
             net_ssid = dm->get_network_ssid_by_ref(i);
             snprintf(parent, sizeof(em_2xlong_string_t), "%s@%s",
-                    global_netid, dm_network_ssid_t::haul_type_to_string(net_ssid.m_network_ssid_info.haul_type[0], haul_str));
+                    GLOBAL_NET_ID, dm_network_ssid_t::haul_type_to_string(net_ssid.m_network_ssid_info.haul_type[0], haul_str));
             //printf("%s:%d: Key: %s\n", __func__, __LINE__, parent);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_network_ssid_list_update);
             if (dm_network_ssid_list_t::set_config(m_db_client, dm->get_network_ssid_by_ref(i), parent) != 0) {
@@ -1910,7 +1908,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
 			policy = dm->get_policy_by_ref(i);
 			dm_easy_mesh_t::macbytes_to_string(policy.m_policy.id.dev_mac, dev_mac_str);
 			dm_easy_mesh_t::macbytes_to_string(policy.m_policy.id.radio_mac, radio_mac_str);
-            snprintf(parent, sizeof(em_2xlong_string_t), "%s@%s@%s@%d", global_netid, dev_mac_str, radio_mac_str, policy.m_policy.id.type);
+            snprintf(parent, sizeof(em_2xlong_string_t), "%s@%s@%s@%d", GLOBAL_NET_ID, dev_mac_str, radio_mac_str, policy.m_policy.id.type);
             //printf("%s:%d: Key: %s\n", __func__, __LINE__, parent);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_policy_list_update);
             if (dm_policy_list_t::set_config(m_db_client, dm->get_policy_by_ref(i), parent) != 0) {

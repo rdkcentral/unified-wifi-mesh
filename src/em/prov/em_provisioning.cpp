@@ -337,7 +337,7 @@ int em_provisioning_t::create_bss_conf_req_tlv(uint8_t *buff)
     }
     cJSON_AddStringToObject(root, "name", hostname.c_str());
 
-    cJSON *bsta_info = create_enrollee_bsta_list(nullptr);
+    cJSON *bsta_info = create_enrollee_bsta_list(nullptr, nullptr);
     if (!bsta_info) {
         em_printfout("Failed to create enrollee BSTA list");
         cJSON_Delete(root);
@@ -835,8 +835,11 @@ int em_provisioning_t::handle_direct_encap_dpp(uint8_t *buff, unsigned int len)
 	return 0;
 }
 
-cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *conn_ctx)
+cJSON *em_provisioning_t::create_enrollee_bsta_list(ec_connection_context_t *conn_ctx, uint8_t pa_al_mac[ETH_ALEN])
 {
+    (void) pa_al_mac; // pa_al_mac is not used in this function, but is a requirement for the function signature.
+
+
     dm_easy_mesh_t *dm = get_data_model();
     if (dm == nullptr) {
         em_printfout("Could not get data model handle!");
@@ -1046,10 +1049,13 @@ cJSON *em_provisioning_t::create_fbss_response_obj(ec_connection_context_t *conn
     return fbss_configuration_object.release(); // Ownership transferred to caller
 }
 
-cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_context_t *conn_ctx)
+cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_context_t *conn_ctx, uint8_t pa_al_mac[ETH_ALEN])
 {
-    dm_easy_mesh_t *dm = get_data_model();
-    ASSERT_NOT_NULL(dm, nullptr, "%s:%d: Failed to get data model handle.\n", __func__, __LINE__);
+    em_mgr_t* mgr = get_mgr();
+    EM_ASSERT_NOT_NULL(mgr, nullptr, "Manager is NULL, cannot create configurator bSTA response object");
+
+    dm_easy_mesh_t *dm = mgr->get_data_model(GLOBAL_NET_ID, pa_al_mac);
+    EM_ASSERT_NOT_NULL(dm, nullptr, "Data model for PA al MAC (" MACSTRFMT ") is NULL!", MAC2STR(pa_al_mac));
 
     scoped_cjson bsta_configuration_object(cJSON_CreateObject());
     ASSERT_NOT_NULL(bsta_configuration_object.get(), nullptr, "%s:%d: Could not create bSTA Configuration Object\n", __func__, __LINE__);
@@ -1069,22 +1075,22 @@ cJSON *em_provisioning_t::create_configurator_bsta_response_obj(ec_connection_co
     }
     // Find "BSSID" and "RUID" since not contained in `em_network_ssid_info_t`
     // XXX: Note: R5 only - R6 introduces MLDs.
-    for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
-        const dm_bss_t *bss = dm->get_bss(i);
-        if (!bss) continue;
-        if (bss->m_bss_info.id.haul_type == em_haul_type_backhaul && strncmp(bss->m_bss_info.ssid, network_ssid_info->ssid, strlen(network_ssid_info->ssid)) == 0) {
-            em_printfout("Found backhaul mesh! '%s'", bss->m_bss_info.ssid);
-            if (!cJSON_AddStringToObject(discovery_object.get(), "BSSID", util::mac_to_string(bss->m_bss_info.bssid.mac, "").c_str())) {
-                em_printfout("Failed to add \"BSSID\" to bSTA Configuration Object");
-                return nullptr;
-            }
-            if (!cJSON_AddStringToObject(discovery_object.get(), "RUID", util::mac_to_string(bss->m_bss_info.ruid.mac, "").c_str())) {
-                em_printfout("Failed to add \"RUID\" to bSTA Configuration Object");
-                return nullptr;
-            }
+
+    const em_bss_info_t *bss_info = dm->get_backhaul_bss_info();
+    if (bss_info != NULL) {
+        em_printfout("Found backhaul mesh! '%s'", bss_info->ssid);
+        if (std::string(bss_info->ssid) != std::string(network_ssid_info->ssid)) {
+            em_printfout("WARNING: (Broadcasting) Backhaul BSS SSID '%s' does not match (DB) Network SSID '%s'", bss_info->ssid, network_ssid_info->ssid);
+        }
+        if (!cJSON_AddStringToObject(discovery_object.get(), "BSSID", util::mac_to_string(bss_info->bssid.mac, "").c_str())) {
+            em_printfout("Failed to add \"BSSID\" to bSTA Configuration Object");
+            return nullptr;
+        }
+        if (!cJSON_AddStringToObject(discovery_object.get(), "RUID", util::mac_to_string(bss_info->ruid.mac, "").c_str())) {
+            em_printfout("Failed to add \"RUID\" to bSTA Configuration Object");
+            return nullptr;
         }
     }
-
     scoped_cjson credential_object(cJSON_CreateObject());
 
     EM_ASSERT_NOT_NULL(credential_object.get(), nullptr, "Failed to create Credential object for DPP Configuration Object");
