@@ -412,6 +412,17 @@ class em_provisioning_t {
 	 */
 	virtual dm_easy_mesh_t *get_data_model() = 0;
 
+	/**!
+	 * @brief Retrieves the manager instance.
+	 *
+	 * This function is a pure virtual function that must be implemented by the derived class.
+	 *
+	 * @returns A pointer to the em_mgr_t instance.
+	 *
+	 * @note This function does not take any parameters and returns a pointer to the manager.
+	 */
+	virtual em_mgr_t *get_mgr() = 0;
+
 protected:
 
 	/**!
@@ -509,12 +520,13 @@ protected:
 	 * based on the provided connection context.
 	 *
 	 * @param[in] conn_ctx Pointer to the connection context used to create the list.
+	 * @param[in] pa_al_mac UNUSED
 	 *
 	 * @returns A pointer to a cJSON object representing the enrollee BSTA list.
 	 *
 	 * @note Ensure that the connection context is properly initialized before calling this function.
 	 */
-	cJSON *create_enrollee_bsta_list(ec_connection_context_t *conn_ctx);
+	cJSON *create_enrollee_bsta_list(ec_connection_context_t *conn_ctx, uint8_t pa_al_mac[ETH_ALEN]);
     
 	/**!
 	 * @brief Creates a configurator BSTA response object.
@@ -523,12 +535,13 @@ protected:
 	 * based on the provided connection context.
 	 *
 	 * @param[in] conn_ctx Pointer to the connection context used to create the response.
+	 * @param[in] pa_al_mac The AL MAC address of the Proxy Agent that is being used to onboard the Enrollee.
 	 *
 	 * @returns A pointer to the created cJSON object representing the BSTA response.
 	 *
 	 * @note Ensure that the connection context is properly initialized before calling this function.
 	 */
-	cJSON *create_configurator_bsta_response_obj(ec_connection_context_t *conn_ctx);
+	cJSON *create_configurator_bsta_response_obj(ec_connection_context_t *conn_ctx, uint8_t pa_al_mac[ETH_ALEN]);
     
 	/**!
 	 * @brief Creates an IEEE 1905 response object.

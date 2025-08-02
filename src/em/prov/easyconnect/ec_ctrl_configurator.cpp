@@ -451,7 +451,7 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
     bool cannot_onboard_more = (m_can_onboard_additional_aps == nullptr || !m_can_onboard_additional_aps());
     if (cannot_onboard_more) {
         em_printfout("DPP Configuration Request frame received, but we cannot onboard any more APs! Rejecting with status %s", ec_util::status_code_to_string(DPP_STATUS_CONFIGURATION_FAILURE).c_str());
-        auto [config_response_frame, config_response_frame_len] = create_config_response_frame(src_mac, session_dialog_token, DPP_STATUS_CONFIGURATION_FAILURE);
+        auto [config_response_frame, config_response_frame_len] = create_config_response_frame(src_mac, src_al_mac, session_dialog_token, DPP_STATUS_CONFIGURATION_FAILURE);
         std::string status_code_str =  ec_util::status_code_to_string(DPP_STATUS_CONFIGURATION_FAILURE);
 
         em_printfout("Sending DPP Configuration Response frame for Enrollee '" MACSTRFMT "' over 1905 with DPP status code %s", MAC2STR(src_mac), status_code_str.c_str());
@@ -531,7 +531,7 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
         "Credentials."
     );
     */
-    auto [config_response_frame, config_response_frame_len] = create_config_response_frame(src_mac, session_dialog_token, DPP_STATUS_OK, onboarding_sta_device);
+    auto [config_response_frame, config_response_frame_len] = create_config_response_frame(src_mac, src_al_mac, session_dialog_token, DPP_STATUS_OK, onboarding_sta_device);
     if (config_response_frame == nullptr || config_response_frame_len == 0) {
         em_printfout("Failed to create Configuration Respone frame");
         return false;
@@ -1493,7 +1493,7 @@ cJSON *ec_ctrl_configurator_t::finalize_config_obj(cJSON *base, ec_connection_co
     return base;
 }
 
-std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_frame(uint8_t dest_mac[ETH_ALEN], const uint8_t dialog_token, ec_status_code_t dpp_status, bool is_sta)
+std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_frame(uint8_t dest_mac[ETH_ALEN], uint8_t pa_al_mac[ETH_ALEN], const uint8_t dialog_token, ec_status_code_t dpp_status, bool is_sta)
 {
     const std::string enrollee_mac = util::mac_to_string(dest_mac);
     auto conn_ctx = get_conn_ctx(enrollee_mac);
@@ -1559,7 +1559,7 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_fram
     // If not STA onboarding (i.e. onboarding an AP Enrollee), create backhaul STA configuration object
     if (!is_sta) {
         ASSERT_NOT_NULL(m_get_backhaul_sta_info, {}, "%s:%d: Enrollee '" MACSTRFMT "' requests bSTA config, but bSTA config callback is nullptr!\n", __func__, __LINE__, MAC2STR(dest_mac));
-        cJSON *bsta_config_obj = m_get_backhaul_sta_info(conn_ctx);
+        cJSON *bsta_config_obj = m_get_backhaul_sta_info(conn_ctx, pa_al_mac);
         if (bsta_config_obj == nullptr) {
             em_printfout("Failed to create bSTA Configuration object");
             return {};
