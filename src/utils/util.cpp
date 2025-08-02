@@ -366,12 +366,20 @@ const std::vector<freq_range> frequency_ranges = {
 };
 
 int util::em_chan_to_freq(uint8_t op_class, uint8_t channel, const std::string& region) {
+
     for (const auto& range : frequency_ranges) {
+
+        uint8_t chan = channel;
+        if (chan == 0) {
+            chan = range.min_chan; // If channel is 0, use the minimum channel in the range
+        }
+
+        bool is_valid_channel = (chan >= range.min_chan && chan <= range.max_chan);
+        bool is_valid_op_class = (range.op_class == op_class);
+
         if ((range.region.empty() || range.region == region) && 
-            range.op_class == op_class &&
-            channel >= range.min_chan && 
-            channel <= range.max_chan) {
-            return range.base_freq + (channel * range.spacing);
+            is_valid_channel && is_valid_op_class) {
+            return range.base_freq + (chan * range.spacing);
         }
     }
     return -1;

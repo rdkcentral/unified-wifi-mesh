@@ -1079,7 +1079,7 @@ bool ec_ctrl_configurator_t::handle_recfg_auth_response(ec_frame_t *frame, size_
         }
     }
 
-    //  If the value matches, the Configurator can use the information in the Connection Status object to set the values in the Reconfig-
+    //  If the value matches, the Configurator can use the information in the Connection Status object to set the Reconfig-
     // Flags attribute. It also saves the Enrollee's nonce.
     ec_crypto::rand_zero(e_ctx->e_nonce, conn_ctx->nonce_len);
     memcpy(e_ctx->e_nonce, e_nonce_attr->data, conn_ctx->nonce_len);
@@ -1199,7 +1199,7 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_auth_request(std::st
     //TODO: REVISIT THIS
     if (conn_ctx->boot_data.ec_freqs[0] != 0){
         unsigned int base_freq = conn_ctx->boot_data.ec_freqs[0]; 
-        uint16_t chann_attr = ec_util::freq_to_channel_attr(base_freq);
+        uint16_t chann_attr = SWAP_LITTLE_ENDIAN(ec_util::freq_to_channel_attr(base_freq));
         attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_channel, sizeof(uint16_t), reinterpret_cast<uint8_t*>(&chann_attr));
     }
 
