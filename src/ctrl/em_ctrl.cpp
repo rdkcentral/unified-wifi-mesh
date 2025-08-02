@@ -51,7 +51,6 @@
 #endif
 
 em_ctrl_t g_ctrl;
-const char *global_netid = "OneWifiMesh";
 
 #ifdef AL_SAP
 AlServiceAccessPoint* g_sap;
@@ -540,14 +539,14 @@ int em_ctrl_t::data_model_init(const char *data_model_path)
         return 0;
     }
 
-    intf = m_data_model.get_ctrl_al_interface(const_cast<char *> (global_netid));
+    intf = m_data_model.get_ctrl_al_interface(const_cast<char*>(GLOBAL_NET_ID));
 	if (intf == NULL) {
 		printf("%s:%d: data model init failed could not find netid\n", __func__, __LINE__);
 		return 0;
 	}
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (intf->mac), mac_str);
 
-    if ((dm = get_data_model(global_netid, intf->mac)) == NULL) {
+    if ((dm = get_data_model(GLOBAL_NET_ID, intf->mac)) == NULL) {
         printf("%s:%s:%d: Could not find data model for mac:%s\n", __FILE__, __func__, __LINE__, mac_str);
     } else {
         //printf("%s:%s:%d: Data model found, creating node for mac:%s\n", __FILE__, __func__, __LINE__, mac_str);
@@ -609,15 +608,15 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 
             dm_easy_mesh_t::macbytes_to_string(intf.mac, mac_str1);
             printf("%s:%d: Received autoconfig search from agenti al mac: %s\n", __func__, __LINE__, mac_str1);
-            if ((dm = get_data_model(const_cast<const char *> (global_netid), const_cast<const unsigned char *> (intf.mac))) == NULL) {
+            if ((dm = get_data_model(GLOBAL_NET_ID, const_cast<const unsigned char *> (intf.mac))) == NULL) {
                 if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_profile(&profile) == false) {
                     profile = em_profile_type_1;
                 }
-                dm = create_data_model(const_cast<const char *> (global_netid), const_cast<const em_interface_t *> (&intf), profile);
-                printf("%s:%d: Created data model for mac: %s net: %s\n", __func__, __LINE__, mac_str1, global_netid);
+                dm = create_data_model(GLOBAL_NET_ID, const_cast<const em_interface_t *> (&intf), profile);
+                printf("%s:%d: Created data model for mac: %s net: %s\n", __func__, __LINE__, mac_str1, GLOBAL_NET_ID);
             } else {
                 dm_easy_mesh_t::macbytes_to_string(dm->get_agent_al_interface_mac(), mac_str1);
-                printf("%s:%d: Found existing data model for mac: %s net: %s\n", __func__, __LINE__, mac_str1, global_netid);
+                printf("%s:%d: Found existing data model for mac: %s net: %s\n", __func__, __LINE__, mac_str1, GLOBAL_NET_ID);
             }
             em = al_em;
             break;
@@ -637,7 +636,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 else
                     printf("%s:%d: Autoconf wsc msg sent already. Incorrect state = (%d)\n", __func__, __LINE__, em->get_state());
             } else {
-                if ((dm = get_data_model(const_cast<const char *> (global_netid), const_cast<const unsigned char *> (hdr->src))) == NULL) {
+                if ((dm = get_data_model(GLOBAL_NET_ID, const_cast<const unsigned char *> (hdr->src))) == NULL) {
                     printf("%s:%d: Can not find data model\n", __func__, __LINE__);
                 }
 
@@ -681,7 +680,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 return NULL;
             }
 
-            if ((dm = get_data_model(const_cast<const char *> (global_netid), const_cast<const unsigned char *> (hdr->src))) == NULL) {
+            if ((dm = get_data_model(GLOBAL_NET_ID, const_cast<const unsigned char *> (hdr->src))) == NULL) {
                 printf("%s:%d: Can not find data model\n", __func__, __LINE__);
             }
 
@@ -842,7 +841,7 @@ void em_ctrl_t::start_complete()
         return;
     }
 
-	intf = m_data_model.get_ctrl_al_interface(const_cast<char *> (global_netid));
+	intf = m_data_model.get_ctrl_al_interface(const_cast<char*>(GLOBAL_NET_ID));
 	assert(intf != NULL);
 
 	dm_easy_mesh_t::macbytes_to_string(intf->mac, al_mac_str);

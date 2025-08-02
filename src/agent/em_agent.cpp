@@ -50,7 +50,6 @@
 #define RETRY_SLEEP_INTERVAL_IN_MS 1000
 
 em_agent_t g_agent;
-const char *global_netid = "OneWifiMesh";
 #ifdef AL_SAP
 AlServiceAccessPoint* g_sap;
 MacAddress g_al_mac_sap;
