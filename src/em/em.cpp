@@ -801,28 +801,9 @@ then we can say that adding the CCE IE to all of the backhaul BSSs (according to
     return true;
 }
 
-em_bss_info_t* em_t::get_bsta_bss_info()
-{
-    for (unsigned int i = 0; i < m_data_model->get_num_bss(); i++) {
-        em_bss_info_t *bsta_info = m_data_model->get_bss_info(i);
-        if (!bsta_info) continue;
-        // Skip if not backhaul
-        if (bsta_info->id.haul_type != em_haul_type_backhaul) {
-            continue;
-        }
-        auto radio = m_data_model->get_radio(bsta_info->ruid.mac);
-        if (!radio) continue;
-        if (!radio->m_radio_info.enabled || !bsta_info->enabled) {
-            continue;
-        }
-        return bsta_info;
-    }
-    return NULL;
-}
-
 bool em_t::bsta_connect_bss(const std::string& ssid, const std::string passphrase, bssid_t bssid)
 {
-    em_bss_info_t *bsta_info = get_bsta_bss_info();
+    em_bss_info_t *bsta_info = m_data_model->get_bsta_bss_info();
     if (!bsta_info) {
         em_printfout("No backhaul bSTA found to connect to BSS\n");
         return false;
@@ -847,7 +828,7 @@ bool em_t::bsta_connect_bss(const std::string& ssid, const std::string passphras
 
 bool em_t::trigger_sta_scan()
 {
-    em_bss_info_t *bsta_info = get_bsta_bss_info();
+    em_bss_info_t *bsta_info = m_data_model->get_bsta_bss_info();
     if (!bsta_info) {
         em_printfout("No backhaul bSTA found to start building channel list\n");
         return false;

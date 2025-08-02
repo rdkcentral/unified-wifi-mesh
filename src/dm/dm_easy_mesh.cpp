@@ -2190,6 +2190,72 @@ dm_bss_t *dm_easy_mesh_t::get_bss(mac_address_t radio_mac, mac_address_t bss_mac
     return NULL;
 }
 
+em_bss_info_t* dm_easy_mesh_t::get_bsta_bss_info()
+{
+    for (unsigned int i = 0; i < m_num_bss; i++) {
+        em_bss_info_t *bsta_info = this->get_bss_info(i);
+        if (!bsta_info) continue;
+        // Skip if not backhaul
+        if (bsta_info->id.haul_type != em_haul_type_backhaul) {
+            continue;
+        }
+        if (bsta_info->vap_mode != em_vap_mode_sta) {
+            continue;
+        }
+        auto radio = this->get_radio(bsta_info->ruid.mac);
+        if (!radio) continue;
+        if (!radio->m_radio_info.enabled || !bsta_info->enabled) {
+            continue;
+        }
+        return bsta_info;
+    }
+    return NULL;
+}
+
+em_bss_info_t* dm_easy_mesh_t::get_backhaul_bss_info()
+{
+    for (unsigned int i = 0; i < m_num_bss; i++) {
+        em_bss_info_t *bss = this->get_bss_info(i);
+        if (!bss) continue;
+        if (bss->id.haul_type != em_haul_type_backhaul){
+            continue;
+        }
+        if (bss->vap_mode != em_vap_mode_ap) {
+            continue;
+        }
+        auto radio = this->get_radio(bss->ruid.mac);
+        if (!radio) continue;
+        if (!radio->m_radio_info.enabled || !bss->enabled) {
+            continue;
+        }
+        return bss;
+    }
+    return NULL;
+}
+
+
+em_op_class_info_t* dm_easy_mesh_t::get_opclass_info_for_bss(mac_address_t bssid, unsigned int* op_class) {
+    for (unsigned int opclass_idx = 0; opclass_idx < m_num_opclass; opclass_idx++) {
+        em_op_class_info_t* op_class_info = &m_op_class[opclass_idx].m_op_class_info;
+
+        if (memcmp(bssid, op_class_info->id.ruid, ETH_ALEN) != 0) {
+            // Didn't find the RUID in the op classes, so skip this BSS
+            continue;
+        }
+        if (op_class != NULL) {
+            if (op_class_info->op_class != *op_class) {
+                // The op class doesn't match the one we want
+                continue;
+            }
+        }
+        // `m_op_class_info.channel` is almost always 0 for some reason so it's not used here
+        
+        // Found a matching bss_info for frequency
+        return op_class_info;
+    }
+    return NULL;
+}
+
 em_sta_info_t *dm_easy_mesh_t::get_first_sta_info(em_target_sta_map_t target)
 {
     hash_map_t *map;

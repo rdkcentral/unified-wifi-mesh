@@ -450,15 +450,6 @@ public:
 	bool trigger_sta_scan();
 
 	/**!
-	 * @brief Retrieves the `em_bss_info_t` for the bSTA BSS.
-	 *
-	 *
-	 * @returns A pointer to the em_bss_info_t structure containing BSTA BSS information. NULL if not found.
-	 *
-	 */
-	em_bss_info_t* get_bsta_bss_info();
-	
-	/**!
 	 * @brief Retrieves the manager instance.
 	 *
 	 * This function returns a pointer to the manager instance.
