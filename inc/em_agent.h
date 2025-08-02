@@ -281,6 +281,22 @@ class em_agent_t : public em_mgr_t {
 	 */
 	void handle_ap_metrics_report(em_bus_event_t *evt);
 
+	/**
+	 * @brief Send an action frame
+	 *
+	 * This function sends an action frame to a specified destination MAC address on a specific VAP
+	 *
+	 * @param[in] dest_mac The destination MAC address.
+	 * @param[in] action_frame The action frame to send.
+	 * @param[in] action_frame_len The length of the action frame.
+	 * @param[in] vap_idx The index of the VAP to send the frame on.
+	 * @param[in] frequency The frequency to send the frame on (0 for current frequency).
+	 * @param[in] wait_time_ms The time to dwell on the frequency before switching back to the original frequency (0 for no wait).
+	 *
+	 * @return true if the action frame was sent successfully, false otherwise.
+	 */
+	bool send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, uint8_t vap_idx, unsigned int frequency=0, unsigned int wait_time_ms=0);
+
 public:
 
     bus_handle_t m_bus_hdl;
@@ -329,6 +345,20 @@ public:
 	 */
 	bool send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency=0, unsigned int wait_time_ms=0) override;
 
+	/**
+	 * @brief Send an action frame on the backhaul interface
+	 *
+	 * This function sends an action frame to a specified destination MAC address on the backhaul interface.
+	 *
+	 * @param[in] dest_mac The destination MAC address.
+	 * @param[in] action_frame The action frame to send.
+	 * @param[in] action_frame_len The length of the action frame.
+	 * @param[in] frequency The frequency to send the frame on (0 for current frequency).
+	 * @param[in] wait_time_ms The time to dwell on the frequency before switching back to the original frequency (0 for no wait).
+	 *
+	 * @return true if the action frame was sent successfully, false otherwise.
+	 */
+	bool send_backhaul_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency=0, unsigned int wait_time_ms=0) override;
 
 	/**
 	 * @brief Set the disconnected steady state.

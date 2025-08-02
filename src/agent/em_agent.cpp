@@ -150,6 +150,43 @@ void em_agent_t::handle_dev_init(em_bus_event_t *evt)
         return;
     }
 
+    wifi_bus_desc_t *desc;
+
+    if((desc = get_bus_descriptor()) == NULL) {
+       printf("descriptor is null");
+       return;
+    }
+
+    // Iterate through all of the BSSs and subscribe to receive management action frames
+    for (int bss_idx = 0; bss_idx < m_data_model.m_num_bss; bss_idx++) {
+        auto bss_info = m_data_model.get_bss_info(bss_idx);
+        unsigned int vap_index = bss_info->vap_index; // The actual OneWifi VAP index
+
+// TODO: TEMP CODE: 
+//  Since HE-BUS can only subscribe to one index path at a time, we will only be subscribing to the backhaul BSSs
+//  Once HE-BUS supports multiple index paths or is no-longer used, this can be removed...
+        if (bss_info->id.haul_type != em_haul_type_backhaul) {
+            continue; // Only subscribe for backhaul BSSs
+        }
+        // TODO: Will need to come back to once Mediatek supports sending off-channel action frames in STA mode
+        if (bss_info->vap_mode != em_vap_mode_ap) {
+            continue; // Only subscribe for AP mode
+        }
+// END: TEMP CODE
+
+
+        std::string path = "Device.WiFi.AccessPoint." + std::to_string(vap_index + 1) + ".RawFrame.Mgmt.Action.Rx";
+        if (desc->bus_event_subs_fn(&m_bus_hdl, path.c_str(), (void *)&em_agent_t::mgmt_action_frame_cb, NULL, 0) != 0) {
+            em_printfout("Subscription failed for path %s", path.c_str());
+            continue;
+        }
+        em_printfout("Subscribed to receive management action frames for VAP %d", vap_index);
+
+        // TEMP CODE:
+        break;
+        // END TEMP CODE
+    }
+
     if (do_start_dpp_onboarding) {
         try_start_dpp_onboarding();
         // TODO: check if dpp onboarding is successful and manage result
@@ -424,12 +461,27 @@ void em_agent_t::handle_recv_gas_frame(em_bus_event_t *evt)
     const size_t mgmt_hdr_len = offsetof(struct ieee80211_mgmt, u);
     ieee80211_mgmt *mgmt_frame = (ieee80211_mgmt *)evt->u.raw_buff;
 
-    mac_addr_str_t dest_mac;
-    dm_easy_mesh_t::macbytes_to_string(mgmt_frame->da, dest_mac);
-    em_t *dest_node = (em_t *)hash_map_get(g_agent.m_em_map, dest_mac);
-    if (!dest_node) {
-        printf("%s:%d: no node found for MAC '%s'\n", __func__, __LINE__, dest_mac);
-        return;
+    std::string dest_mac_str = util::mac_to_string(mgmt_frame->da);
+    // Validate that it is a broadcast frame or we have a node that should have received it
+    em_t* dest_radio_node = nullptr;
+
+    bool is_bcast = (memcmp(mgmt_frame->da, BROADCAST_MAC_ADDR, ETH_ALEN) == 0);
+    if (is_bcast) {
+        printf("Received GAS action frame with broadcast destination MAC address\n");
+    } else {
+        // Dest MAC is not necsessarily the same as the radio node's MAC address, so we need to look it up
+        em_bss_info_t* dest_bss = m_data_model.get_bss_info_with_mac(mgmt_frame->da);
+        if (dest_bss == NULL) {
+            em_printfout("No BSS found for dest mac %s\n", dest_mac_str.c_str());
+            return;
+        }
+
+        std::string ruid_str = util::mac_to_string(dest_bss->ruid.mac);
+        dest_radio_node = static_cast<em_t*>(hash_map_get(g_agent.m_em_map, ruid_str.c_str()));
+        if (dest_radio_node == NULL) {
+            em_printfout("No radio node found for dest mac %s\n", dest_mac_str.c_str());
+            return;
+        }
     }
 
     em_t* al_node = get_al_node();
@@ -524,18 +576,30 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
 
     printf("%s:%d: Received WFA action frame: Full Length: %d, VS Action Data Length: %d\n", __func__, __LINE__, frame_len, vs_data_len);
 
-    mac_addr_str_t dest_mac_str;
-    dm_easy_mesh_t::macbytes_to_string(mgmt_frame->da, dest_mac_str);
-    printf("Dest Mac Str: %s\n", dest_mac_str);
+    std::string dest_mac_str = util::mac_to_string(mgmt_frame->da);
+    em_printfout("Dest Mac Str: %s", dest_mac_str.c_str());
+
+    // Validate either this is a broadcast frame or we have a node that should have received it
+    // even though (for DPP_OUI) we are processing it all in the AL node
+    em_t* dest_radio_node = nullptr;
+
     bool is_bcast = (memcmp(mgmt_frame->da, BROADCAST_MAC_ADDR, ETH_ALEN) == 0);
     if (is_bcast) {
         printf("Received WFA action frame with broadcast destination MAC address\n");
-    }
-    em_t* dest_radio_node = static_cast<em_t*>(hash_map_get(g_agent.m_em_map, dest_mac_str));
-    if (dest_radio_node == NULL &&  !is_bcast) {
-        // If the destination MAC is a broadcast address, we don't need to find the node
-        em_printfout("No radio node found for dest mac %s\n", dest_mac_str);
-        return;
+    } else {
+        // Dest MAC is not necsessarily the same as the radio node's MAC address, so we need to look it up
+        em_bss_info_t* dest_bss = m_data_model.get_bss_info_with_mac(mgmt_frame->da);
+        if (dest_bss == NULL) {
+            em_printfout("No BSS found for dest mac %s\n", dest_mac_str.c_str());
+            return;
+        }
+
+        std::string ruid_str = util::mac_to_string(dest_bss->ruid.mac);
+        dest_radio_node = static_cast<em_t*>(hash_map_get(g_agent.m_em_map, ruid_str.c_str()));
+        if (dest_radio_node == NULL) {
+            em_printfout("No radio node found for dest mac %s\n", dest_mac_str.c_str());
+            return;
+        }
     }
 
     // First byte is the OUI type
@@ -861,23 +925,64 @@ int em_agent_t::refresh_onewifi_subdoc(const char * log_name, const webconfig_su
     return m_data_model.refresh_onewifi_subdoc(desc, &m_bus_hdl, log_name, type);
 }
 
+bool em_agent_t::send_backhaul_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency, unsigned int wait_time_ms) {
+
+
+    const em_bss_info_t *bss_info = m_data_model.get_backhaul_bss_info();
+    EM_ASSERT_NOT_NULL(bss_info, false, "No backhaul BSS info found");
+
+    return send_action_frame(dest_mac, action_frame, action_frame_len, bss_info->vap_index, frequency, wait_time_ms);
+}
+
+
 bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency, unsigned int wait_time_ms) {
 
+
+    auto [op_class, channel] = util::em_freq_to_chan(frequency);
+    unsigned int op_class_uint = static_cast<unsigned int>(op_class);
+    EM_ASSERT_MSG_TRUE(op_class != 0 && channel != 0, false, "Invalid frequency %d, cannot convert", frequency);
+
+    int vap_idx = -1;
+
+    for (int bss_idx = 0; bss_idx < m_data_model.m_num_bss; bss_idx++) {
+        auto bss_info = m_data_model.get_bss_info(bss_idx);
+        if (bss_info == nullptr) {
+            continue;
+        }
+        uint8_t* bss_mac = bss_info->bssid.mac;
+        // Find opclasses for the BSS
+        em_op_class_info_t* op_class_info = m_data_model.get_opclass_info_for_bss(bss_mac, &op_class_uint);
+        if (op_class_info == nullptr) {
+            continue;
+        }
+        vap_idx = bss_info->vap_index;
+        // Found a matching BSS, no need to continue searching
+        break;
+    }
+    if (vap_idx == -1) {
+        em_printfout("No matching BSS found for frequency %d, op class %d, channel %d",
+                     frequency, op_class, channel);
+        return false;
+    }
+
+    return send_action_frame(dest_mac, action_frame, action_frame_len, vap_idx, frequency, wait_time_ms);
+}
+
+bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, uint8_t vap_idx, unsigned int frequency, unsigned int wait_time_ms) {
+
     wifi_bus_desc_t *desc = get_bus_descriptor();
-    ASSERT_NOT_NULL(desc, false, "%s:%d descriptor is null\n", __func__, __LINE__);
+    EM_ASSERT_NOT_NULL(desc, false, "descriptor is null");
+    EM_ASSERT_NOT_NULL(dest_mac, false, "dest_mac is null");
+    EM_ASSERT_NOT_NULL(action_frame, false, "action_frame is null");
 
     // Allocate memory for the action frame parameters, ieee80211 header and action frame body
     action_frame_params_t *act_frame_params = (action_frame_params_t*) calloc(sizeof(action_frame_params_t) + action_frame_len, 1);
-    ASSERT_NOT_NULL(act_frame_params, false, "%s:%d calloc failed\n", __func__, __LINE__);
+    EM_ASSERT_NOT_NULL(act_frame_params, false, "calloc failed");
 
-    // Hardcoded to 0 just the same as the other bus calls
-    // NOTE: AccessPoint.1 = ap_index 0. One is the data model indexing, one is NL80211/hal indexing
-    static int test_idx = 0;
-    act_frame_params->ap_index = test_idx;
+    act_frame_params->ap_index = vap_idx;
     memcpy(act_frame_params->dest_addr, dest_mac, ETH_ALEN);
     act_frame_params->frequency = frequency;
 
-    //TODO: Disabled until halinterace, rdk-wifi-hal, OneWifi PRs are merged
     act_frame_params->wait_time_ms = wait_time_ms;
 
     act_frame_params->frame_len = action_frame_len;
@@ -891,14 +996,12 @@ bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_f
 
     
     char path[100] = {0};
-    snprintf(path, sizeof(path), "Device.WiFi.AccessPoint.%d.RawFrame.Mgmt.Action.Tx", test_idx+1);
+    snprintf(path, sizeof(path), "Device.WiFi.AccessPoint.%d.RawFrame.Mgmt.Action.Tx", vap_idx+1);
     
-    em_printfout("Sending action frame: VAP Idx (%d), Dest (" MACSTRFMT "), Frequency (%d), Dwell Time (%d), Length (%d)", test_idx, MAC2STR(dest_mac), frequency, wait_time_ms, action_frame_len);
+    em_printfout("Sending action frame: VAP Idx (%d), Dest (" MACSTRFMT "), Frequency (%d), Dwell Time (%d), Length (%d)", vap_idx, MAC2STR(dest_mac), frequency, wait_time_ms, action_frame_len);
     // Send the action frame
     bus_error_t rc;
     if ((rc = desc->bus_set_fn(&m_bus_hdl, path,  &raw_act_frame)) != 0) {
-        if (rc == bus_error_destination_not_found) test_idx++;
-        if (test_idx > 255) test_idx = 0;
         printf("%s:%d bus set failed (%d)\n", __func__, __LINE__, rc);
         free(act_frame_params);
         return false;
@@ -1002,11 +1105,6 @@ void em_agent_t::input_listener()
     }
 
     if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.STALinkMetricsReport", (void *)&em_agent_t::assoc_stats_cb, NULL, 0) != 0) {
-        printf("%s:%d bus get failed\n", __func__, __LINE__);
-        return;
-    }
-
-    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.AccessPoint.1.RawFrame.Mgmt.Action.Rx", (void *)&em_agent_t::mgmt_action_frame_cb, NULL, 0) != 0) {
         printf("%s:%d bus get failed\n", __func__, __LINE__);
         return;
     }
@@ -1659,19 +1757,33 @@ bool em_agent_t::try_start_dpp_onboarding()  {
         return false;
     }
 
+#if 0
+    em_bss_info_t* bsta_info = m_data_model.get_bsta_bss_info(); 
+    uint8_t* enrollee_mac = bsta_info->ruid.mac;
+#else
+    // TODO: Temporarily using the backhaul BSS info for enrollee MAC
+    // instead of the BSTA until off-channel action frames can be sent from a station.
+    em_bss_info_t* bss_info = m_data_model.get_backhaul_bss_info();
+    uint8_t* enrollee_mac = bss_info->bssid.mac;
+#endif
+
+    if (enrollee_mac == NULL || memcmp(enrollee_mac, ZERO_MAC_ADDR, ETH_ALEN) == 0) {
+        printf("%s:%d: Enrollee MAC address is not set, cannot start DPP onboarding\n", __func__, __LINE__);
+        return false;
+    }
+
+    em_printf("Starting DPP onboarding for enrollee MAC: " MACSTRFMT " (RUID: " MACSTRFMT ")",
+              MAC2STR(enrollee_mac), MAC2STR(bss_info->ruid.mac));
+
     em_t* al_node = get_al_node();
-    ASSERT_NOT_NULL(al_node, false, "%s:%d: al_node is null\n", __func__, __LINE__);
+    EM_ASSERT_NOT_NULL(al_node, false, "AL Node is NULL, cannot start DPP onboarding");
 
-    uint8_t* al_mac = al_node->get_radio_interface_mac();
-    ASSERT_NOT_NULL(al_mac, false, "%s:%d: al_mac is null\n", __func__, __LINE__);
-
-    //TODO: Just getting the first op-class info for now since AL is not a Wi-Fi interface
-    auto op_chan_data = m_data_model.get_op_class_info(0);
-    ASSERT_NOT_NULL(op_chan_data, false, "%s:%d: Could not get current op class/channel from AL radio\n", __func__, __LINE__);
+    em_op_class_info_t *op_class_info = m_data_model.get_opclass_info_for_bss(bss_info->ruid.mac);
+    EM_ASSERT_NOT_NULL(op_class_info, false, "Could not get current op class/channel from radio");
 
     // Generate new DPP bootstrapping data to ensure correct MAC address is used
     ec_data_t ec_data;
-    if (!ec_util::get_dpp_boot_data(&ec_data, al_mac, false, do_regen_dpp_uri, op_chan_data)) {
+    if (!ec_util::get_dpp_boot_data(&ec_data, enrollee_mac, false, do_regen_dpp_uri, op_class_info)) {
         printf("%s:%d: Failed to get DPP bootstrapping data\n", __func__, __LINE__);
         return false;
     }
