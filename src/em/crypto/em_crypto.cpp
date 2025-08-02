@@ -1151,7 +1151,6 @@ SSL_KEY* em_crypto_t::ec_key_from_base64_der(const std::string& base64_der_pubke
         return NULL;
     }
 
-    EC_KEY_set_conv_form(ec_key, POINT_CONVERSION_COMPRESSED);
     EC_KEY_set_asn1_flag(ec_key, OPENSSL_EC_NAMED_CURVE);
 
     return ec_key;

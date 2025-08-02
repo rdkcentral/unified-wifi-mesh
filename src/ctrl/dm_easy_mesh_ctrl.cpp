@@ -1420,7 +1420,7 @@ int dm_easy_mesh_ctrl_t::get_wifi_reset_config(cJSON *parent, char *key)
 
     subdoc = reinterpret_cast<em_subdoc_info_t*>(buff);
 
-    if (em_cmd_exec_t::load_params_file("Reset.json",  subdoc->buff) < 0) {
+    if (em_cmd_exec_t::load_params_file("/nvram/Reset.json",  subdoc->buff) < 0) {
         printf("%s:%d: Failed to load test file\n", __func__, __LINE__);
         return -1;
     }
