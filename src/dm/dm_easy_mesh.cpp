@@ -1678,7 +1678,7 @@ const char* dm_easy_mesh_t::get_platform()
     std::string line;
     while (std::getline(platformName, line)) {
         if (line.find("Raspberry Pi") != std::string::npos) return "rpi";
-        if (line.find("Banana Pi") != std::string::npos) return "bpi";
+        if (line.find("Bananapi BPI") != std::string::npos) return "bpi";
     }
 
     return NULL;
