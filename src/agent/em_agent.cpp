@@ -55,6 +55,38 @@ AlServiceAccessPoint* g_sap;
 MacAddress g_al_mac_sap;
 #endif
 
+bool em_agent_t::handle_csi_trigger(em_bus_event_t *evt)
+{
+    csi_cfg_trigger_data_t *csi_set_data = (csi_cfg_trigger_data_t *)evt->u.raw_buff;
+    wifi_bus_desc_t *desc = get_bus_descriptor();
+    ASSERT_NOT_NULL(desc, false, "%s:%d descriptor is null\n", __func__, __LINE__);
+
+    raw_data_t csi_frame;
+
+    csi_frame.raw_data.bytes = (void *)csi_set_data;
+    csi_frame.raw_data_len = sizeof(csi_cfg_trigger_data_t);
+    csi_frame.data_type = bus_data_type_bytes;
+
+    if (desc->bus_set_fn(&m_bus_hdl, EM_CSI_MAC_NAME, &csi_frame)== 0) {
+        printf("Set csi sounding mac\r\n");
+        return true;
+    }
+    printf("Failed to set csi sounding mac\r\n");
+    return false;
+}
+
+void em_agent_t::handle_csi(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+
+    if ((num = m_data_model.analyze_csi(evt, pcmd)) == 0) {
+        printf("%s:%d: csi analysis failed\n", __func__, __LINE__);
+    } else if (m_orch->submit_commands(pcmd, num) > 0) {
+                ;
+    }
+}
+
 void em_agent_t::handle_sta_list(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
@@ -791,6 +823,14 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
             handle_sta_list(evt);
             break;
 
+        case em_bus_event_type_csi:
+            handle_csi(evt);
+            break;
+
+        case em_bus_event_type_csi_trigger:
+            handle_csi_trigger(evt);
+            break;
+
         case em_bus_event_type_ap_cap_query:
             handle_ap_cap_query(evt);
             break;
@@ -1139,6 +1179,12 @@ void em_agent_t::input_listener()
         return;
     }
 
+    int rc = desc->bus_event_subs_fn(&m_bus_hdl, EM_CSI_COVARIANT_DATA, (void *)&em_agent_t::csi_data_cb, NULL, 0);
+    if (rc != 0) {
+        printf("%s:%d bus get:%s failed:%d\n",__func__,__LINE__, EM_CSI_COVARIANT_DATA, rc);
+        return;
+    }
+
     io(NULL);
 }
 
@@ -1324,6 +1370,12 @@ int em_agent_t::mgmt_csa_beacon_frame_cb(char *event_name, raw_data_t *data, voi
     return 1;
 }
 
+void em_agent_t::csi_data_cb(char *event_name, raw_data_t *data, void *userData)
+{
+    (void)userData;
+    g_agent.io_process(em_bus_event_type_csi, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
+}
+
 int em_agent_t::data_model_init(const char *data_model_path)
 {
     if (data_model_path != NULL) {
@@ -1379,6 +1431,9 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
     cmdu = (em_cmdu_t *)(data + sizeof(em_raw_hdr_t));
 
     switch (htons(cmdu->type)) {
+        case em_msg_type_csi_notif:
+            break;
+
 	case em_msg_type_autoconf_resp:
 		found = false;
 		if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),

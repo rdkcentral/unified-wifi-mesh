@@ -428,6 +428,7 @@ public:
 	 */
 	int send_available_spectrum_inquiry_msg();
 
+        int send_csi_notification();
     
 	/**!
 	 * @brief Handles the channel scan request.
@@ -460,7 +461,9 @@ public:
 	 * @note Ensure the buffer is properly allocated and the length is correct.
 	 */
 	int handle_channel_scan_rprt(unsigned char *buff, unsigned int len);
-    
+   
+        int handle_csi_notification(unsigned char *buff, unsigned int len);
+
 	/**!
 	 * @brief Handles the result of a channel scan.
 	 *

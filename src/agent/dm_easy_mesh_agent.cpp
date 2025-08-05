@@ -51,6 +51,7 @@
 #include "em_cmd_beacon_report.h"
 #include "em_cmd_sta_link_metrics.h"
 #include "em_cmd_ap_metrics_report.h"
+#include "em_cmd_csi.h"
 
 #ifdef AL_SAP
 #include "al_service_access_point.h"
@@ -173,6 +174,50 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
     }
 
     return static_cast<int> (num);
+}
+
+int dm_easy_mesh_agent_t::analyze_csi(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    dm_easy_mesh_agent_t  dm;
+    int num = 0;
+    mac_addr_str_t  dev_mac_str, sounding_mac_str;
+    uint8_t *raw;
+    em_csi_container_t *csi_container_info;
+    uint8_t mac_size = sizeof(mac_address_t);
+
+    dm.init();
+
+    //Data received from OneWifi to agent
+    raw = (uint8_t *)evt->u.raw_buff;
+
+    dm.m_num_csi_containers = 1;
+    csi_container_info = &dm.m_csi_containers[dm.m_num_csi_containers - 1].m_csi_container;
+
+    //device mac
+    memcpy(csi_container_info->id.dev_mac, raw, mac_size);
+    dm_easy_mesh_t::macbytes_to_string(csi_container_info->id.dev_mac, dev_mac_str);
+    raw += mac_size;
+
+    //sounding mac
+    memcpy(csi_container_info->id.sounding_mac, raw, mac_size);
+    dm_easy_mesh_t::macbytes_to_string(csi_container_info->id.sounding_mac, sounding_mac_str);
+    raw += mac_size;
+
+    //csi angle value
+    memcpy(&csi_container_info->angle, raw, sizeof(double));
+    raw += sizeof(double);
+
+    //csi distance value
+    memcpy(&csi_container_info->distance, raw, sizeof(double));
+    raw += sizeof(double);
+    printf("%s:%d: Device:%s Sounder:%s angle:%f distance:%f\n",
+        __func__, __LINE__, dev_mac_str, sounding_mac_str,
+        csi_container_info->angle, csi_container_info->distance);
+
+    pcmd[num] = new em_cmd_csi_t(evt->params, dm);
+    num++;
+
+    return num;
 }
 
 int dm_easy_mesh_agent_t::analyze_autoconfig_renew(em_bus_event_t *evt, em_cmd_t *pcmd[])

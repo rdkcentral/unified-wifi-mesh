@@ -32,6 +32,7 @@
 #include "dm_op_class.h"
 #include "dm_policy.h"
 #include "dm_scan_result.h"
+#include "dm_csi_container.h"
 #include "dm_radio_cap.h"
 #include "dm_cac_comp.h"
 #include "dm_ap_mld.h"
@@ -67,6 +68,8 @@ public:
     dm_op_class_t m_op_class[EM_MAX_OPCLASS];
 	unsigned int	m_num_policy;
 	dm_policy_t	m_policy[EM_MAX_POLICIES];
+    uint32_t           m_num_csi_containers;
+    dm_csi_container_t m_csi_containers[EM_MAX_CSI_CONTAINERS];
 	hash_map_t		*m_scan_result_map = NULL;
     hash_map_t  	*m_sta_map = NULL;
     hash_map_t      *m_sta_assoc_map = NULL;
@@ -2462,7 +2465,9 @@ public:
 	 * @note Ensure that the policy parameter is valid and supported by the system.
 	 */
 	void set_policy(dm_policy_t policy);
-    
+   
+        void set_csi_container(dm_csi_container_t cont);
+
 	/**!
 	 * @brief Retrieves the current em_t instance.
 	 *

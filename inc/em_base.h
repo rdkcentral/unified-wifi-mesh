@@ -99,6 +99,7 @@ extern "C"
 #define EM_MAX_DB_CFG_CRITERIA	32
 
 #define EM_CLI_MAX_ARGS 5
+#define EM_MAX_CSI_CONTAINERS 5
 
 /* Authentication Type Flags */
 #define EM_AUTH_OPEN 0x0001
@@ -236,6 +237,9 @@ extern "C"
 #define WIFI_SET_DISCONN_SCAN_NONE_STATE      "Device.WiFi.EM.SetDisconnScanNoneState"
 #endif
 
+#define EM_CSI_COVARIANT_DATA "EmCsiCovariant"
+#define EM_CSI_MAC_NAME "EmCsiSetMac"
+
 // Beacon CSA parsing
 #define CSA_TAG_ID                   37
 #define CSA_IE_MIN_LENGTH            3
@@ -261,6 +265,11 @@ typedef char    em_subdoc_data_buff_t[0];
 typedef char    em_status_string_t[EM_IO_BUFF_SZ];
 typedef unsigned	char    em_raw_data_t[0];
 
+typedef struct csi_cfg_trigger_data {
+    em_interface_name_t name;
+    mac_address_t sounding_mac;
+    bool status;
+} csi_cfg_trigger_data_t;
 
 typedef struct {
     unsigned char   dsap;
@@ -437,6 +446,7 @@ typedef enum {
     em_msg_type_bsta_mld_config_req,
     em_msg_type_bsta_mld_config_resp,
     em_msg_type_avail_spectrum_inquiry = 0x8049,
+    em_msg_type_csi_notif = 0x80a0,
 } em_msg_type_t;
 
 typedef enum {
@@ -601,8 +611,11 @@ typedef enum {
     em_tlv_vendor_plolicy_cfg = 0xf2,
     em_tlv_type_vendor_operational_bss = 0xf3,
 
-	// RDK Proprietary TLV values
-	em_tlv_type_rdk_radio_enable = 0xfe,
+    // RDK Proprietary TLV values
+    em_tlv_type_rdk_sounding_sta_mac = 0xfb,
+    em_tlv_type_rdk_angle_csi_data = 0xfc,
+    em_tlv_type_rdk_distance_csi_data = 0xfd,
+    em_tlv_type_rdk_radio_enable = 0xfe,
 } em_tlv_type_t;
 
 typedef struct {
@@ -1912,6 +1925,7 @@ typedef enum {
     em_state_agent_steer_btm_res_pending,
     em_state_agent_beacon_report_pending,
     em_state_agent_ap_metrics_pending,
+    em_state_agent_csi_notify,
 
     em_state_ctrl_unconfigured = 0x100,
     em_state_ctrl_wsc_m1_pending,
@@ -1990,6 +2004,9 @@ typedef enum {
     em_cmd_type_beacon_report,
     em_cmd_type_ap_metrics_report,
     em_cmd_type_get_reset,
+    em_cmd_type_csi,
+    em_cmd_type_get_csi_config,
+    em_cmd_type_get_csi_data,
 
     em_cmd_type_max,
 } em_cmd_type_t;
@@ -2663,6 +2680,10 @@ typedef enum {
     em_bus_event_type_bss_info,
     em_bus_event_type_get_reset,
     em_bus_event_type_recv_csa_beacon_frame,
+    em_bus_event_type_csi_trigger,
+    em_bus_event_type_csi,
+    em_bus_event_type_get_csi_config,
+    em_bus_event_type_get_csi_data,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -2748,7 +2769,8 @@ typedef enum {
     dm_orch_type_sta_disassoc,
     dm_orch_type_policy_cfg,
     dm_orch_type_mld_reconfig,
-    dm_orch_type_beacon_report
+    dm_orch_type_beacon_report,
+    dm_orch_type_csi_commit
 } dm_orch_type_t;
 
 typedef struct {
@@ -2929,10 +2951,25 @@ typedef struct em_network_node {
     struct em_network_node     *child[EM_MAX_DM_CHILDREN];
 } em_network_node_t;
 
+typedef struct {
+    em_long_string_t net_id;
+    mac_address_t   dev_mac;
+    mac_address_t sounding_mac;
+} __attribute__((packed)) em_csi_container_id_t;
+
+typedef struct {
+    em_csi_container_id_t id;
+    double angle;
+    double distance;
+} __attribute__((packed)) em_csi_container_t;
+
 typedef em_scan_params_t em_cmd_scan_params_t;
+typedef em_csi_container_t em_cmd_csi_data_params_t;
+
 typedef struct {
     union {
         em_cmd_args_t	args;
+        em_cmd_csi_data_params_t csi_data_params;
         em_cmd_steer_params_t	steer_params;
         em_cmd_btm_report_params_t  btm_report_params;
         em_cmd_disassoc_params_t	disassoc_params;

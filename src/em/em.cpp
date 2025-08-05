@@ -60,6 +60,90 @@ extern AlServiceAccessPoint* g_sap;
 extern MacAddress g_al_mac_sap;
 #endif
 
+em_state_t em_t::check_all_em_node_state(void)
+{
+    em_state_t state = em_state_agent_unconfigured;
+    em_t *em;
+    
+    if (m_mgr == NULL) {
+        printf("%s main obj not found\r\n", __func__);
+        return state;
+    }
+
+    em = static_cast<em_t *>(hash_map_get_first(m_mgr->m_em_map));
+    while (em != NULL) {
+        if ((!em->is_al_interface_em()) &&
+            (em->get_state() == em_state_agent_configured)) {
+            state = em_state_agent_configured;
+            break; 
+        }
+        em = static_cast<em_t *>(hash_map_get_next(m_mgr->m_em_map, em));
+    }
+
+    return state;
+}
+
+void em_t::monitor_agent_state(void)
+{
+    if (m_mgr == NULL) {
+        printf("%s main obj not found\r\n", __func__);
+        return;
+    } else if ((m_is_al_em == true) ||
+        (m_service_type != em_service_type_agent)) {
+        return;
+    }
+
+    em_t *em_al_node = m_mgr->get_al_node();
+    if (em_al_node == NULL) {
+        printf("%s el al node not found\r\n", __func__);
+        return;
+    }
+
+    em_bss_info_t *bss_info;
+    dm_easy_mesh_t *p_data_model = em_al_node->get_data_model();
+    bool is_agent_state_changed = false;
+    static em_state_t pre_agent_state = em_state_agent_unconfigured;
+
+    if (p_data_model) {
+        em_state_t agent_state = check_all_em_node_state();
+        if ((pre_agent_state != agent_state) &&
+            (agent_state == em_state_agent_configured)) {
+            is_agent_state_changed = true;
+        }
+        pre_agent_state = agent_state;
+        for (int index = 0; index < p_data_model->m_num_bss; index++) {
+            bss_info = &p_data_model->m_bss[index].m_bss_info;
+            if (is_agent_state_changed &&
+                bss_info->connect_status &&
+                (strncmp(bss_info->bssid.name, "mesh_sta", strlen("mesh_sta")) == 0)) {
+                csi_cfg_trigger_data_t csi_set_data = { 0 };
+                const mac_address_t zero_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+                strncpy(csi_set_data.name, bss_info->bssid.name,
+                    strlen(bss_info->bssid.name) + 1);
+                if (!memcmp(bss_info->bssid.mac, zero_mac, sizeof(mac_address_t))) {
+                    //add log print
+                    continue;
+                }
+                printf("Trigger csi with AP\r\n");
+                memcpy(csi_set_data.sounding_mac, bss_info->bssid.mac,
+                    sizeof(mac_address_t));
+                csi_set_data.status = bss_info->connect_status;
+                m_mgr->io_process(em_bus_event_type_csi_trigger,
+                    reinterpret_cast<unsigned char *> (&csi_set_data),
+                    sizeof(csi_cfg_trigger_data_t));
+                break;
+            }
+        }
+    }
+}
+
+void em_t::set_state(em_state_t state)
+{
+    m_sm.set_state(state);
+    monitor_agent_state();
+}
+
 ec_manager_t &em_t::get_ec_mgr()
 {
     if (m_ec_manager == nullptr) {
@@ -89,6 +173,10 @@ void em_t::orch_execute(em_cmd_t *pcmd)
         case em_cmd_type_sta_list:
             m_sm.set_state(em_state_agent_topology_notify);
 			break;
+
+        case em_cmd_type_csi:
+            m_sm.set_state(em_state_agent_csi_notify);
+            break;
 
         case em_cmd_type_set_ssid:
         case em_cmd_type_set_radio:
@@ -309,6 +397,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_avail_spectrum_inquiry:
 		case em_msg_type_channel_scan_req:
 		case em_msg_type_channel_scan_rprt:
+        case em_msg_type_csi_notif:
             em_channel_t::process_msg(data, len);
             break;
 
@@ -422,6 +511,12 @@ void em_t::handle_agent_state()
         case em_cmd_type_ap_metrics_report:
             if (m_sm.get_state() == em_state_agent_ap_metrics_pending) {
                 em_metrics_t::process_agent_state();
+            }
+            break;
+
+        case em_cmd_type_csi:
+            if (m_sm.get_state() == em_state_agent_csi_notify) {
+                em_channel_t::process_state();
             }
             break;
 
@@ -1305,6 +1400,7 @@ const char *em_t::state_2_str(em_state_t state)
         EM_STATE_2S(em_state_agent_client_cap_report)
         EM_STATE_2S(em_state_agent_channel_pref_query)
         EM_STATE_2S(em_state_agent_sta_link_metrics_pending)
+        EM_STATE_2S(em_state_agent_csi_notify)
         EM_STATE_2S(em_state_max)
         EM_STATE_2S(em_state_agent_beacon_report_pending)
         EM_STATE_2S(em_state_agent_channel_select_configuration_pending)

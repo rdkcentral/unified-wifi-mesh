@@ -527,7 +527,7 @@ public:
 	 *
 	 * @note Ensure that the state provided is valid and within the expected range of states.
 	 */
-	void set_state(em_state_t state) {  m_sm.set_state(state); }
+	void set_state(em_state_t state);
 	
 	/**!
 	 * @brief Retrieves the service type.
@@ -1185,6 +1185,8 @@ public:
 	 */
 	static const char *state_2_str(em_state_t state);
 
+        em_state_t check_all_em_node_state(void);
+        void monitor_agent_state(void);
 
 	bool get_devteststatus(){return dev_test_enable;}
 	void set_devteststatus(bool enable ) { dev_test_enable = enable;} 
