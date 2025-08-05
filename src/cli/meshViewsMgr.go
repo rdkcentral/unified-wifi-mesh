@@ -13,7 +13,9 @@ import "C"
 import (
 	"os"
 	"time"
-
+	"net"
+	"fmt"
+	"encoding/binary"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/davecgh/go-spew/spew"
 )
@@ -39,12 +41,27 @@ type MeshViewsMgr struct {
 	timerActive bool
 }
 
-func newMeshSettings1(platform string, dump *os.File) {
-	// IP: 127.0.0.1 = 0x7F000001 in BE, but little-endian requires shifting like this:
-	ip := (127 << 0) | (0 << 8) | (0 << 16) | (1 << 24)
-	port := 49153
+func newMeshSettings1(remoteIP string, remotePort int) error {
+	// Validate IP
+	ip := net.ParseIP(remoteIP)
+	if ip == nil {
+		return fmt.Errorf("invalid IP address: %s", remoteIP)
+	}
+	ip = ip.To4()
+	if ip == nil {
+		return fmt.Errorf("not a valid IPv4 address: %s", remoteIP)
+	}
 
-	C.set_remote_addr(C.uint(ip), C.uint(port), C.bool(true))
+	// Validate port
+	if remotePort < 1 || remotePort > 65535 {
+		return fmt.Errorf("invalid port: %d", remotePort)
+	}
+
+	// Convert to uint32 in little-endian
+	ipLE := binary.LittleEndian.Uint32(ip)
+
+	C.set_remote_addr(C.uint(ipLE), C.uint(remotePort), C.bool(true))
+	return nil
 }
 
 func (m *MeshViewsMgr) timerHandler() {
@@ -63,13 +80,15 @@ func (m *MeshViewsMgr) timerHandler() {
 	}
 }
 
-func newMeshViewsMgr(platform string) *MeshViewsMgr {
+func newMeshViewsMgr(platform string, remoteIP string, remotePort int) *MeshViewsMgr {
 
 	dump, _ := os.OpenFile("messages.log", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
 	C.init_lib_dbg(C.CString("messages_lib.log"))
 
-	//meshSettings := newMeshSettings(platform, dump)
-	newMeshSettings1(platform, dump)
+	err := newMeshSettings1(remoteIP, remotePort); if err != nil {
+		spew.Fprintf(dump, "Error initializing MeshSettings: %v\n", err)
+		return nil
+	}
 	meshViews := newMeshViews(platform, dump)
 
 	mgr := &MeshViewsMgr{
