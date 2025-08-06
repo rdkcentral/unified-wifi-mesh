@@ -110,23 +110,23 @@ using bsta_connect_func = std::function<bool(const std::string&, const std::stri
 
 /**
  * @brief Creates a DPP Configuration Response object for the backhaul STA interface.
- * @param conn_ctx Optional connection context (not needed for Enrollee, needed for Configurator) -- pass nullptr if not needed.
  * @param pa_al_mac The AL MAC address of the Proxy Agent that is being used to onboard the Enrollee.
  * @return cJSON * on success, nullptr otherwise
  */
-using get_backhaul_sta_info_func = std::function<cJSON*(ec_connection_context_t *, uint8_t*)>;
+using get_backhaul_sta_info_func = std::function<cJSON*(uint8_t*)>;
 
 /**
  * @brief Creates a DPP Configuration Response object for the 1905.1 interface.
  * @return cJSON * on success, nullptr otherwise.
  */
-using get_1905_info_func = std::function<cJSON*(ec_connection_context_t *)>;
+using get_1905_info_func = std::function<cJSON*()>;
 
 /**
  * @brief Creates a DPP Configuration Response object for the fronthaul BSS interface(s)
+ * @param pa_al_mac The AL MAC address of the Proxy Agent that is being used to onboard the Enrollee.
  * @return cJSON * on success, nullptr otherwise
  */
-using get_fbss_info_func = std::function<cJSON*(ec_connection_context_t *)>;
+using get_fbss_info_func = std::function<cJSON*(uint8_t*)>;
 
 /**
  * @brief Used to determine if an additional AP can be on-boarded or not.

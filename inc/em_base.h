@@ -613,10 +613,14 @@ typedef struct {
 } __attribute__((__packed__)) em_qos_mgmt_des_t;
 
 typedef struct {
-    unsigned char num_agents;
     mac_address_t agent_mac;
     unsigned char multi_ap_profile;
     unsigned char security;
+} __attribute__((__packed__)) em_agent_list_agent_t;
+
+typedef struct {
+    unsigned char num_agents;
+    unsigned char agents[0]; // em_agent_list_agent_t array
 } __attribute__((__packed__)) em_agent_list_t;
 
 typedef struct {

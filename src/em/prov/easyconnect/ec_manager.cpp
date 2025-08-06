@@ -146,7 +146,7 @@ bool ec_manager_t::upgrade_to_onboarded_proxy_agent(uint8_t ctrl_al_mac[ETH_ALEN
         em_printfout("Can't upgrade an enrollee that doesn't exist");
         return false;
     }
-    auto sec_ctx = m_enrollee->get_sec_ctx();
+    auto sec_ctx = *m_enrollee->get_sec_ctx();
     if (sec_ctx.C_signing_key == NULL || sec_ctx.pp_key == NULL || sec_ctx.net_access_key == NULL || sec_ctx.connector == NULL) {
         em_printfout("!!!!Enrollee doesn't have a valid security context, proxy agent won't be 1905 layer secured!!!!");
     }

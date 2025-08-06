@@ -757,7 +757,23 @@ public:
 	 * @note Ensure that no data models are in use before calling this function.
 	 */
 	void delete_all_data_models() { }
-    
+	
+	/**!
+	 * @brief Retrieves the first data model in the data model list.
+	 *
+	 * @returns NULL since the agent does not manage multiple data models.
+	 */
+	dm_easy_mesh_t *get_first_dm() override { return nullptr; } 
+
+	/**!
+	 * @brief Retrieves the next data model in the data model list.
+	 *
+	 * @param[in] dm Pointer to the current data model.
+	 *
+	 * @returns NULL since the agent does not manage multiple data models.
+	 */
+	dm_easy_mesh_t *get_next_dm(dm_easy_mesh_t *dm) override { return nullptr; }
+
 	/**!
 	 * @brief Updates the tables with the provided EasyMesh data.
 	 *

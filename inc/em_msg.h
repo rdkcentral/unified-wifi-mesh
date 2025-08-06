@@ -133,6 +133,35 @@ public:
 	static em_tlv_t *get_tlv(em_tlv_t *tlvs_buff, unsigned int buff_len, em_tlv_type_t type);
 
 	/**
+	 * @brief Get the first TLV from the buffer.
+	 *
+	 * This function retrieves the first TLV (Type-Length-Value) structure from the provided buffer.
+	 *
+	 * @param[in] tlvs_buff The buffer containing the TLV structures.
+	 * @param[in] buff_len The length of the buffer.
+	 *
+	 * @return em_tlv_t* A pointer to the first TLV structure in the buffer, or NULL if the buffer is empty.
+	 *
+	 * @note Ensure that the buffer is properly initialized and contains valid TLV structures before calling this function.
+	 */
+	static em_tlv_t *get_first_tlv(em_tlv_t* tlvs_buff, unsigned int buff_len);
+
+	/**
+	 * @brief Get the next TLV from the buffer.
+	 *
+	 * This function retrieves the next TLV (Type-Length-Value) structure from the provided buffer, starting from a given TLV.
+	 *
+	 * @param[in] tlv The current TLV structure from which to find the next TLV.
+	 * @param[in] tlvs_buff The buffer containing the TLV structures.
+	 * @param[in] buff_len The length of the buffer.
+	 *
+	 * @return em_tlv_t* A pointer to the next TLV structure in the buffer, or NULL if there are no more TLVs.
+	 *
+	 * @note Ensure that the buffer is properly initialized and contains valid TLV structures before calling this function.
+	 */
+	static em_tlv_t *get_next_tlv(em_tlv_t* tlv, em_tlv_t* tlvs_buff, unsigned int buff_len);
+
+	/**
 	 * @brief Add an EOM TLV to the message.
 	 *
 	 * This function appends an End of Message (EOM) Type-Length-Value (TLV) to the provided buffer.
