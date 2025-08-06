@@ -285,6 +285,37 @@ em_tlv_t *em_msg_t::get_tlv(em_tlv_t* tlvs_buff, unsigned int buff_len, em_tlv_t
     return NULL;
 }
 
+em_tlv_t *em_msg_t::get_first_tlv(em_tlv_t* tlvs_buff, unsigned int buff_len)
+{
+
+    EM_ASSERT_NOT_NULL(tlvs_buff, NULL, "Buffer is NULL");
+    EM_ASSERT_MSG_TRUE(buff_len > 0, NULL, "Buffer length is zero");
+
+    em_tlv_t    *tlv = tlvs_buff;
+
+    uint16_t tlv_len = ntohs(tlv->len);
+
+    EM_ASSERT_MSG_TRUE(tlv_len > 0, NULL, "First TLV length is zero");
+    EM_ASSERT_MSG_TRUE(tlv_len >= (buff_len - sizeof(em_tlv_t)), NULL, "TLVs buffer cannot fit first TLV"); 
+
+    return tlv;
+}
+
+em_tlv_t *em_msg_t::get_next_tlv(em_tlv_t* tlv, em_tlv_t* tlvs_buff, unsigned int buff_len)
+{
+
+    EM_ASSERT_NOT_NULL(tlv, NULL, "TLV is NULL");
+    EM_ASSERT_NOT_NULL(tlvs_buff, NULL, "Buffer is NULL");
+    EM_ASSERT_MSG_TRUE(buff_len > 0, NULL, "Buffer length is zero");
+
+    size_t offset = reinterpret_cast<uint8_t*>(tlv) - reinterpret_cast<uint8_t*>(tlvs_buff);
+    EM_ASSERT_MSG_TRUE(offset < buff_len, NULL, "TLV offset exceeds buffer length");
+
+    em_tlv_t* offset_tlvs_buff = reinterpret_cast<em_tlv_t*>(reinterpret_cast<uint8_t*>(tlvs_buff) + offset);
+
+    return get_first_tlv(offset_tlvs_buff, buff_len - offset);
+}
+
 unsigned char* em_msg_t::add_buff_element(unsigned char *buff, unsigned int *len, unsigned char *element, unsigned int element_len)
 {
     memcpy(buff, element, element_len);

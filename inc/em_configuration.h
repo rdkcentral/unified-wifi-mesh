@@ -96,6 +96,72 @@ class em_configuration_t {
 	int create_autoconfig_wsc_m2_msg(unsigned char *buff, em_haul_type_t haul_type[], unsigned int num_hauls);
     
 	/**!
+	 * @brief Creates a BSS configuration request message.
+	 *
+	 * This function initializes a buffer with the necessary data to form a BSS configuration request message.
+	 *
+	 * @param[out] buff Pointer to the buffer where the request message will be stored.
+	 * @param[in] dest_al_mac  The destination AL MAC address for the message.
+	 *
+	 * @returns int Status code indicating success or failure of the operation.
+	 * @retval the size of the request message on success. 
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure the buffer is allocated with sufficient size before calling this function.
+	 */
+	int create_bss_config_req_msg(uint8_t *buff, uint8_t dest_al_mac[ETH_ALEN]);
+    
+	/**!
+	 * @brief Creates a BSS configuration response message.
+	 *
+	 * This function is responsible for creating a BSS configuration response message
+	 * and storing it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the response message will be stored.
+	 * @param[in] dest_al_mac  The destination AL MAC address for the message.
+	 *
+	 * @returns int Status code indicating success or failure of the operation.
+	 * @retval the size of the response message on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure the buffer is allocated with sufficient size before calling this function.
+	 */
+	int create_bss_config_rsp_msg(uint8_t *buff, uint8_t dest_al_mac[ETH_ALEN]);
+    
+	/**!
+	 * @brief Creates a BSS configuration response message.
+	 *
+	 * This function initializes a buffer with the BSS configuration response message.
+	 *
+	 * @param[out] buff Pointer to the buffer where the response message will be stored.
+	 * @param[in] dest_al_mac  The destination AL MAC address for the message.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 * @retval the size of the response message on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure the buffer is allocated with sufficient size before calling this function.
+	 */
+	int create_bss_config_res_msg(uint8_t *buff, uint8_t dest_al_mac[ETH_ALEN]);
+
+
+	/**!
+	 * @brief Creates an agent list message.
+	 *
+	 * This function generates an Agent List message according to EasyMesh R6 17.1.48
+	 *
+	 * @param[out] buff Pointer to the buffer where the agent list message will be stored.
+	 * @param[in] dest_al_mac The destination AL MAC address for the message.
+	 *
+	 * @returns int Status code indicating success or failure of the operation.
+	 * @retval the size of the agent list message on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the buffer is allocated with sufficient size before calling this function.
+	 */
+	int create_agent_list_msg(uint8_t *buff, uint8_t dest_al_mac[ETH_ALEN]);
+
+	/**!
 	 * @brief Creates an operational BSS TLV.
 	 *
 	 * This function is responsible for creating an operational BSS TLV and storing it in the provided buffer.
@@ -243,9 +309,127 @@ class em_configuration_t {
 	 *
 	 * @note Ensure that the buffer is large enough to hold the TLV data.
 	 */
-	unsigned short create_eht_operations_tlv(unsigned char *buff);
+	virtual short create_eht_operations_tlv(unsigned char *buff) = 0;
 
-    
+	/**!
+	 * @brief Creates an AP capability TLV.
+	 *
+	 * This function is responsible for creating an Access Point (AP) capability
+	 * Type-Length-Value (TLV) structure and storing it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns The length of the TLV on success, or -1 on failure
+	 *
+	 * @note Implemented by derived class
+	 */
+	virtual short create_ap_cap_tlv(unsigned char *buff) = 0;
+
+	/**!
+	 * @brief Creates a basic capability for the AP radio.
+	 *
+	 * This function initializes the basic capabilities of the AP radio and stores
+	 * the result in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the basic capability data will be stored.
+	 *
+	 * @return The length of the TLV on success, or -1 on failure.
+	 *
+	 * @note Implemented by derived class
+	 */
+	virtual short create_ap_radio_basic_cap(unsigned char *buff) = 0;
+
+	/**!
+	 * @brief Creates a profile 2 TLV.
+	 *
+	 * This function is responsible for creating a profile 2 TLV (Type-Length-Value) structure
+	 * and storing it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @return The length of the TLV on success, or -1 on failure
+	 *
+	 * @note: Implemented by derived class
+	 */
+	virtual short create_prof_2_tlv(unsigned char *buff) = 0;
+
+	/**!
+	 * @brief Creates a HT TLV (Type-Length-Value) structure.
+	 *
+	 * This function initializes a HT TLV structure in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the HT TLV will be created.
+	 *
+	 * @return The size of the TLV created on success, or -1 on failure.
+	 *
+	 * @note Implemented by derived class
+	 */
+	virtual short create_ht_tlv(unsigned char *buff) = 0;
+
+	/**!
+	 * @brief Creates a VHT TLV (Very High Throughput Tag Length Value) structure.
+	 *
+	 * This function initializes a VHT TLV structure in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the VHT TLV will be created.
+	 *
+	 * @return The size of the TLV created on success, or -1 on failure.
+	 *
+	 * @note Implemented by derived class
+	 */
+	virtual short create_vht_tlv(unsigned char *buff) = 0;
+
+	/**!
+	 * @brief Creates a WiFi 6 TLV (Type-Length-Value) structure.
+	 *
+	 * This function is responsible for creating a WiFi 6 TLV structure and storing it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 * @return Length of TLV created on success otherwise -1
+	 *
+	 * @note This is a pure virtual function and must be implemented by derived classes.
+	 */
+	virtual short create_wifi6_tlv(unsigned char *buff) = 0;
+
+	/**!
+	 * @brief Creates a WiFi 7 TLV (Type-Length-Value) structure.
+	 *
+	 * This function is responsible for creating a TLV structure specific to WiFi 7.
+	 *
+	 * @param[out] buff A pointer to the buffer where the TLV will be created.
+	 * @return Length of TLV created on success otherwise -1
+	 *
+	 * @note Implemented by derived class
+	 */
+	virtual short create_wifi7_tlv(unsigned char *buff) = 0;
+
+	/**
+	 * @brief Create an AP Radio Advanced Capabilities TLV (EM 17.2.52)
+	 * 
+	 * @param buff The buffer to write the TLV to.
+	 * @return short The length of the TLV on success, -1 on failure
+	 * 
+	 * @note Implemented by derived class
+	 */
+	virtual short create_ap_radio_advanced_cap_tlv(unsigned char *buff) = 0;
+
+	/**!
+	 * @brief Creates a list of enrollee BSTA.
+	 *
+	 * This function generates a cJSON object representing the list of enrollee BSTA
+	 * based on the provided connection context.
+	 *
+	 * @param[in] pa_al_mac UNUSED
+	 *
+	 * @returns A pointer to a cJSON object representing the enrollee BSTA list.
+	 *
+	 * @note Ensure that the connection context is properly initialized before calling this function.
+	 */
+	virtual cJSON *create_enrollee_bsta_list(uint8_t pa_al_mac[ETH_ALEN]) = 0;
+
+
+	virtual cJSON *create_bss_dpp_response_obj(const em_bss_info_t *bss_info, bool is_sta_response, bool tear_down_bss) = 0;
+	
 	/**!
 	 * @brief Sends a topology response message.
 	 *
@@ -358,7 +542,75 @@ class em_configuration_t {
 	 */
 	int send_1905_ack_message(mac_addr_t sta_mac);
     
-    
+	
+
+	/**!
+	 * @brief Handles a BSS Configuration Request message and sends a Response to the source
+	 * 
+	 * EasyMesh 5.3.8 / EasyMesh 17.1.58
+	 * 
+	 * @param[in] buff Pointer to the buffer containing the BSS Configuration Request message.
+	 * @param[in] len Length of the message in bytes.
+	 * @param[in] src_al_mac Source AL MAC address of the sender.
+	 * 
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 * @note Ensure that the buffer is properly allocated and contains a valid BSS Configuration Request message.
+	 */
+ 	int handle_bss_config_req_msg(uint8_t *buff, unsigned int len, uint8_t src_al_mac[ETH_ALEN]);
+
+
+	/**!
+	 * @brief Handles a BSS Configuration Response message and sends a Result to the source
+	 * 
+	 * EasyMesh 5.3.8 / EasyMesh 17.1.58
+	 * 
+	 * @param[in] buff Pointer to the buffer containing the BSS Configuration Response message.
+	 * @param[in] len Length of the message in bytes.
+	 * @param[in] src_al_mac Source AL MAC address of the sender.
+	 * 
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 * @note Ensure that the buffer is properly allocated and contains a valid BSS Configuration Response message.
+	 */	
+	int handle_bss_config_rsp_msg(uint8_t *buff, unsigned int len, uint8_t src_al_mac[ETH_ALEN]);
+
+
+	/**!
+	 * @brief Handles a BSS Configuration Result message and sends an Agent List to the source
+	 * 
+	 * EasyMesh 5.3.8 / EasyMesh 17.1.58
+	 * 
+	 * @param[in] buff Pointer to the buffer containing the BSS Configuration Result message.
+	 * @param[in] len Length of the message in bytes.
+	 * @param[in] src_al_mac Source AL MAC address of the sender.
+	 * 
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 * @note Ensure that the buffer is properly allocated and contains a valid BSS Configuration Result message.
+	 */
+	int handle_bss_config_res_msg(uint8_t *buff, unsigned int len, uint8_t src_al_mac[ETH_ALEN]);
+
+	/**!
+	 * @brief Handles the Agent List message and processes it.
+	 *
+	 * EasyMesh 5.3.8 / EasyMesh 17.1.58
+	 *
+	 * @param[in] buff Pointer to the buffer containing the Agent List message.
+	 * @param[in] len Length of the message in bytes.
+	 * @param[in] src_al_mac Source AL MAC address of the sender.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure that the buffer is properly allocated and contains a valid Agent List message.
+	 */
+	int handle_agent_list_msg(uint8_t *buff, unsigned int len, uint8_t src_al_mac[ETH_ALEN]);
+	
 	/**!
 	 * @brief Handles the auto-configuration response.
 	 *
@@ -602,7 +854,24 @@ class em_configuration_t {
 	 * @note Ensure that the buffer is properly allocated and the length is correctly specified.
 	 */
 	int handle_ack_msg(unsigned char *buff, unsigned int len);
-    
+   
+	
+	/**!
+	 * @brief Handles the BSS Configuration Response TLV.
+	 *
+	 * This function processes the BSS Configuration Response TLV including tearing down, and setting up 
+	 * fronthaul and backhaul BSSs according to EasyMesh 5.3.8
+	 *
+	 * @param[in] tlv Pointer to the BSS Configuration Response TLV structure.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure the TLV is properly initialized before calling this function.
+	 */
+	int handle_bss_config_rsp_tlv(em_tlv_t* tlv);
+
 	/**!
 	 * @brief Handles the AP MLD configuration TLV.
 	 *
@@ -752,6 +1021,51 @@ class em_configuration_t {
 	 * calling this function.
 	 */
 	int create_vendor_operational_bss_tlv(unsigned char *buff);
+
+	/**
+	 * @brief Creates a Backhaul STA Radio Capabilities TLV (17.2.65)
+	 * 
+	 * @param buff The buffer to write the TLV to.
+	 * @return int The length of the TLV created, or -1 on failure.
+	 */
+	int create_bsta_radio_cap_tlv(uint8_t *buff);
+
+	/**
+	 * @brief Creates an AKM Suite Capabilities TLV (17.2.78)
+	 * 
+	 * @param buff The buffer to write the TLV to.
+	 * @return int The length of the TLV created, or -1 on failure.
+	 */
+	int create_akm_suite_cap_tlv(uint8_t *buff);
+
+	/**
+	 * @brief Creates a BSS Configuration Response TLV (17.2.85)
+	 * 
+	 * @param buff The buffer to write the TLV to.
+	 * @param bss_info Pointer to the `em_bss_info_t` struct containing the information about the BSS to create on the agent.
+	 * @param dest_al_mac The destination AL MAC address (6 bytes).
+	 * @return int The length of the TLV created, or -1 on failure.
+	 */
+	int create_bss_conf_resp_tlv(uint8_t *buff, em_bss_info_t *bss_info, uint8_t dest_al_mac[ETH_ALEN]);
+
+	/**
+	 * @brief Creates a BSS Configuration Request TLV (17.2.84)
+	 * 
+	 * @param buff The buffer to write the TLV to.
+	 * @return int The length of the TLV created, or -1 on failure.
+	 */
+	int create_bss_conf_req_tlv(uint8_t *buff);
+
+	/**
+	 * @brief Creates an Agent List TLV (17.2.77) containing basic infomation about all agents in the network
+	 * 
+	 * @param buff The buffer to write the TLV to.
+	 * @return int The length of the TLV created, or -1 on failure.
+	 * 
+	 * @note Make sure that the buffer is large enough to hold the TLV data.
+	 */
+	int create_agent_list_tlv(uint8_t *buff);
+
  
     // state handlers 
     
@@ -1056,24 +1370,6 @@ class em_configuration_t {
 	 * @note This is a pure virtual function and must be implemented by derived classes.
 	 */
 	virtual em_cmd_t *get_current_cmd() = 0;
-    
-	/**!
-	 * @brief Creates a basic capability for the AP radio.
-	 *
-	 * This function is responsible for setting up the basic capabilities
-	 * of the access point (AP) radio using the provided buffer.
-	 *
-	 * @param[out] buff A pointer to the buffer where the basic capabilities
-	 * will be stored. The buffer should be allocated by the caller.
-	 *
-	 * @returns A short integer indicating the success or failure of the operation.
-	 * @retval 0 on success.
-	 * @retval -1 on failure.
-	 *
-	 * @note Ensure that the buffer is properly allocated before calling this function.
-	 * @note This function is a pure virtual function that must be implemented by the derived class.
-	 */
-	virtual short create_ap_radio_basic_cap(unsigned char *buff) = 0;
     
 	/**!
 	 * @brief Checks if the interface is an AL interface.

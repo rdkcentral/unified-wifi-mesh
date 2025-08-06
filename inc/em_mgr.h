@@ -546,7 +546,32 @@ public:
 	 */
 	virtual void update_network_topology() = 0;
     
-    
+ 
+	/**!
+	 * @brief Retrieves the first data model from the list.
+	 * 
+	 * @note ONLY IMPLEMENTED BY THE CONTROLLER.
+	 *
+	 * @returns A pointer to the first data model in the list.
+	 */
+	virtual dm_easy_mesh_t *get_first_dm() = 0;
+	
+	/**!
+	 * @brief Retrieves the next data model in the list.
+	 *
+	 * This function returns the next data model object from the list of data models.
+	 * 
+	 * @note ONLY IMPLEMENTED BY THE CONTROLLER.
+	 *
+	 * @param[in] dm A pointer to the current data model object.
+	 *
+	 * @returns A pointer to the next data model object in the list.
+	 * @retval nullptr If there is no next data model.
+	 *
+	 * @note Ensure that the input data model pointer is valid before calling this function.
+	 */
+	virtual dm_easy_mesh_t *get_next_dm(dm_easy_mesh_t *dm) = 0;
+
 	/**!
 	 * @brief Retrieves the data model for a given network ID.
 	 *

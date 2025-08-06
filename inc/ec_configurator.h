@@ -393,6 +393,11 @@ public:
 		return m_1905_encrypt_layer.rekey_1905_layer_gtk();
 	}
 
+	/**
+	 * @brief Retrieves the current security context.
+	 */
+	inline ec_persistent_sec_ctx_t* get_sec_ctx() { return &m_sec_ctx; };
+
     // Disable copy construction and assignment
     // Requires use of references or pointers when working with instances of this class
     
@@ -405,6 +410,23 @@ public:
 	 */
 	ec_configurator_t(const ec_configurator_t&) = delete;
     ec_configurator_t& operator=(const ec_configurator_t&) = delete;
+
+	/**
+	 * @brief Get the conn ctx object for a given peer AL MAC address.
+	 * 
+	 * @note Needed to retrieve the enrollee NAK for BSS Configuration Response.
+	 * 
+	 * @param peer_al_mac The AL MAC address of the peer for which the connection context is requested.
+	 * @return ec_connection_context_t* A pointer to the connection context associated with the given AL MAC address. NULL if not found. 
+	 */
+	inline ec_connection_context_t* get_al_conn_ctx(uint8_t peer_al_mac[ETH_ALEN]) {
+        for (auto& conn : m_connections) {
+			if (memcmp(conn.second.peer_al_mac, peer_al_mac, ETH_ALEN) == 0) {
+				return &conn.second;
+			}
+		}
+		return NULL;
+    }
 
 protected:
 	std::string m_al_mac_addr;

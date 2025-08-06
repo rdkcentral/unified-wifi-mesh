@@ -1425,12 +1425,12 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_recfg_auth_confirm(s
     return std::make_pair(reinterpret_cast<uint8_t*>(frame), EC_FRAME_BASE_SIZE + attribs_len);
 }
 
-cJSON *ec_ctrl_configurator_t::finalize_config_obj(cJSON *base, ec_connection_context_t& conn_ctx, dpp_config_obj_type_e config_obj_type)
+cJSON *ec_ctrl_configurator_t::finalize_dpp_config_obj(cJSON *base, dpp_config_obj_type_e config_obj_type, ec_persistent_sec_ctx_t* sec_ctx, SSL_KEY* enrollee_net_access_key)
 {
-    if (base == nullptr) {
-        em_printfout("Based a nullptr base Configuration object");
-        return nullptr;
-    }
+
+    EM_ASSERT_NOT_NULL(base, nullptr, "Based a nullptr base Configuration object");
+    EM_ASSERT_NOT_NULL(sec_ctx, nullptr, "NULL Security Context");
+    EM_ASSERT_NOT_NULL(enrollee_net_access_key, nullptr, "NULL Enrollee Net Access Key");
 
     std::vector<std::unordered_map<std::string, std::string>> groups;
 
@@ -1447,9 +1447,23 @@ cJSON *ec_ctrl_configurator_t::finalize_config_obj(cJSON *base, ec_connection_co
             };
             break;
         }
-        case dpp_config_obj_type_e::dpp_config_obj_fbss: {
+        case dpp_config_obj_type_e::dpp_config_obj_fbss_sta: {
             groups = {
                 {{"groupID", "mapNW"}, {"netRole", "sta"}}
+            };
+            break;
+        }
+        // EasyMesh 5.3.8
+        case dpp_config_obj_type_e::dpp_config_obj_fbss_ap: {
+            groups = {
+                {{"groupID", "mapNW"}, {"netRole", "ap"}}
+            };
+            break;
+        }
+        // EasyMesh 5.3.8
+        case dpp_config_obj_type_e::dpp_config_obj_backhaul_bss: {
+            groups = {
+                {{"groupID", "mapNW"}, {"netRole", "mapBackhaulBss"}}
             };
             break;
         }
@@ -1464,21 +1478,21 @@ cJSON *ec_ctrl_configurator_t::finalize_config_obj(cJSON *base, ec_connection_co
     // Create / add Enrollee Connector.
 
     // Header
-    cJSON *jwsHeaderObj = ec_crypto::create_jws_header("dppCon", m_sec_ctx.C_signing_key);
+    cJSON *jwsHeaderObj = ec_crypto::create_jws_header("dppCon", sec_ctx->C_signing_key);
 
-    cJSON *jwsPayloadObj = ec_crypto::create_jws_payload(groups, conn_ctx.enrollee_net_access_key);
+    cJSON *jwsPayloadObj = ec_crypto::create_jws_payload(groups, enrollee_net_access_key);
     // Create / add connector
-    std::optional<std::string> connector = ec_crypto::generate_connector(jwsHeaderObj, jwsPayloadObj, m_sec_ctx.C_signing_key);
+    std::optional<std::string> connector = ec_crypto::generate_connector(jwsHeaderObj, jwsPayloadObj, sec_ctx->C_signing_key);
     ASSERT_OPT_HAS_VALUE(connector, nullptr, "%s:%d: Failed to generate connector\n", __func__, __LINE__);
     cJSON_AddStringToObject(cred, "signedConnector", connector->c_str());
 
     // Add csign
-    cJSON *cSignObj = ec_crypto::create_csign_object(m_sec_ctx.C_signing_key);
+    cJSON *cSignObj = ec_crypto::create_csign_object(sec_ctx->C_signing_key);
     cJSON_AddItemToObject(cred, "csign", cSignObj);
 
-    scoped_ec_group key_group(em_crypto_t::get_key_group(m_sec_ctx.pp_key));
+    scoped_ec_group key_group(em_crypto_t::get_key_group(sec_ctx->pp_key));
     ASSERT_NOT_NULL(key_group.get(), nullptr, "%s:%d: Failed to get key group for public key\n", __func__, __LINE__);
-    scoped_ec_point ppk(em_crypto_t::get_pub_key_point(m_sec_ctx.pp_key, key_group.get()));
+    scoped_ec_point ppk(em_crypto_t::get_pub_key_point(sec_ctx->pp_key, key_group.get()));
 
     EM_ASSERT_NOT_NULL(ppk.get(), nullptr, "Failed to get public key point from public key");
 
@@ -1541,12 +1555,12 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_fram
     // 1905 Config Obj Always required
     ASSERT_NOT_NULL(m_get_1905_info, {}, "%s:%d: Cannot generate 1905 Configuration Object, no callback!\n", __func__, __LINE__);
 
-    cJSON *ieee1905_config_obj = m_get_1905_info(conn_ctx);
+    cJSON *ieee1905_config_obj = m_get_1905_info();
     if (ieee1905_config_obj == nullptr) {
         em_printfout("Failed to create IEEE1905 Configuration object");
         return {};
     }
-    ieee1905_config_obj = finalize_config_obj(ieee1905_config_obj, *conn_ctx, dpp_config_obj_ieee1905);
+    ieee1905_config_obj = finalize_dpp_config_obj(ieee1905_config_obj, dpp_config_obj_ieee1905, &m_sec_ctx, conn_ctx->enrollee_net_access_key);
     if (ieee1905_config_obj == nullptr) {
         em_printfout("Failed to finalize IEEE1905 Configuration object");
         return {};
@@ -1559,12 +1573,12 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_fram
     // If not STA onboarding (i.e. onboarding an AP Enrollee), create backhaul STA configuration object
     if (!is_sta) {
         ASSERT_NOT_NULL(m_get_backhaul_sta_info, {}, "%s:%d: Enrollee '" MACSTRFMT "' requests bSTA config, but bSTA config callback is nullptr!\n", __func__, __LINE__, MAC2STR(dest_mac));
-        cJSON *bsta_config_obj = m_get_backhaul_sta_info(conn_ctx, pa_al_mac);
+        cJSON *bsta_config_obj = m_get_backhaul_sta_info(pa_al_mac);
         if (bsta_config_obj == nullptr) {
             em_printfout("Failed to create bSTA Configuration object");
             return {};
         }
-        bsta_config_obj = finalize_config_obj(bsta_config_obj, *conn_ctx, dpp_config_obj_bsta);
+        bsta_config_obj = finalize_dpp_config_obj(bsta_config_obj, dpp_config_obj_bsta, &m_sec_ctx, conn_ctx->enrollee_net_access_key);
         if (bsta_config_obj == nullptr) {
             em_printfout("Failed to finalize bSTA Configuration object");
             return {};
@@ -1575,12 +1589,12 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_fram
     } else {
         // If STA onboarding, send fBSS credentials
         ASSERT_NOT_NULL(m_get_fbss_info, {}, "%s:%d: Enrollee '" MACSTRFMT "' requests STA onboarding (fBSS credentials) but fBSS config callback is nullptr!\n", __func__, __LINE__, MAC2STR(dest_mac));
-        cJSON *fbss_config_obj = m_get_fbss_info(conn_ctx);
+        cJSON *fbss_config_obj = m_get_fbss_info(pa_al_mac);
         if (fbss_config_obj == nullptr) {
             em_printfout("Failed to create fBSS Configuration object");
             return {};
         }
-        fbss_config_obj = finalize_config_obj(fbss_config_obj, *conn_ctx, dpp_config_obj_fbss);
+        fbss_config_obj = finalize_dpp_config_obj(fbss_config_obj, dpp_config_obj_fbss_sta, &m_sec_ctx, conn_ctx->enrollee_net_access_key);
         if (fbss_config_obj == nullptr) {
             em_printfout("Failed to finalize fBSS Configuration object");
             return {};

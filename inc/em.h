@@ -997,8 +997,65 @@ public:
 	 *
 	 * @note Ensure that the buffer is properly allocated before calling this function.
 	 */
-	short create_ap_radio_basic_cap(unsigned char *buff);   
+	short create_ap_radio_basic_cap(unsigned char *buff);
     //Msg-End
+
+	//START: DPP Callbacks for BSS information
+	// Originally done by @tuckerpo
+
+	/**!
+	 * @brief Creates a configurator BSTA response object.
+	 *
+	 * This function generates a cJSON object representing the BSTA response
+	 * based on the provided connection context.
+	 *
+	 * @param[in] pa_al_mac The AL MAC address of the Proxy Agent that is being used to onboard the Enrollee.
+	 *
+	 * @returns A pointer to the created cJSON object representing the BSTA response.
+	 *
+	 * @note Ensure that the connection context is properly initialized before calling this function.
+	 */
+	cJSON *create_configurator_bsta_response_obj(uint8_t pa_al_mac[ETH_ALEN]);
+    
+	/**!
+	 * @brief Creates an IEEE 1905 response object.
+	 *
+	 * This function generates a cJSON object that represents an IEEE 1905 response.
+	 *
+	 * @param[in] conn_ctx Pointer to the connection context used for creating the response.
+	 *
+	 * @returns A pointer to the created cJSON object representing the IEEE 1905 response.
+	 *
+	 * @note Ensure that the connection context is properly initialized before calling this function.
+	 */
+	cJSON *create_ieee1905_response_obj();
+
+	/**
+	 * @brief Create a fBSS (fronthaul BSS) Configuration response object for DPP STA onboarding
+	 * 
+	 * @param[in] pa_al_mac The AL MAC address of the Proxy Agent that is being used to onboard the Enrollee.
+	 * 
+	 * @return cJSON* Configuration response object on success, nullptr otherwise
+	 */
+	cJSON *create_fbss_response_obj(uint8_t pa_al_mac[ETH_ALEN]);
+
+	/**!
+	 * @brief Creates a list of enrollee BSTA.
+	 *
+	 * This function generates a cJSON object representing the list of enrollee BSTA
+	 * based on the provided connection context.
+	 *
+	 * @param[in] pa_al_mac UNUSED
+	 *
+	 * @returns A pointer to a cJSON object representing the enrollee BSTA list.
+	 *
+	 * @note Ensure that the connection context is properly initialized before calling this function.
+	 */
+	cJSON *create_enrollee_bsta_list(uint8_t pa_al_mac[ETH_ALEN]);
+    
+	cJSON *create_bss_dpp_response_obj(const em_bss_info_t *bss_info, bool is_sta_response, bool tear_down_bss);
+
+	// END: DPP Callbacks for BSS information
 
     
 	/**!
