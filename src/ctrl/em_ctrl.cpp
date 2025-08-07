@@ -51,6 +51,7 @@
 #endif
 
 em_ctrl_t g_ctrl;
+em_network_topo_t *g_network_topology = NULL;
 
 #ifdef AL_SAP
 AlServiceAccessPoint* g_sap;

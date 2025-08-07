@@ -781,6 +781,7 @@ int em_configuration_t::create_vendor_operational_bss_tlv(unsigned char *buff)
 					radio->bss_num++;
 					memcpy(bss->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
 					bss->haultype = static_cast<short unsigned int> (dm->m_bss[j].m_bss_info.id.haul_type);
+					bss->vap_mode = static_cast<short unsigned int> (dm->m_bss[j].m_bss_info.vap_mode);
 					bss = reinterpret_cast<em_ap_vendor_operational_bss_t *> (reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_vendor_operational_bss_t));
 					all_bss_len += sizeof(em_ap_vendor_operational_bss_t);
 			}
@@ -804,15 +805,15 @@ void em_configuration_t::print_ap_vendor_operational_bss_tlv(unsigned char *valu
 
 	ap = reinterpret_cast<em_ap_vendor_op_bss_t *> (value);
 	radio = ap->radios;
-	printf("%s:%d Number of radios: %d\n", __func__, __LINE__, ap->radios_num);
+	em_printfout("Number of radios: %d", ap->radios_num);
 	for (i = 0; i < ap->radios_num; i++) {
 		dm_easy_mesh_t::macbytes_to_string(radio->ruid, rd_mac_str);
-		printf("%s:%d: Radio: %s\n", __func__, __LINE__, rd_mac_str);
+		em_printfout("Radio: %s", rd_mac_str);
 		bss = radio->bss;
-		printf("%s:%d Number of bss: %d\n", __func__, __LINE__, radio->bss_num);
+		em_printfout("Number of bss: %d", radio->bss_num);
 		for (j = 0; j < radio->bss_num; j++) {
 			dm_easy_mesh_t::macbytes_to_string(bss->bssid, bss_mac_str);
-			printf("%s:%d: BSSID=%s	 haul type=%d\n", __func__, __LINE__, bss_mac_str, bss->haultype);
+			em_printfout("BSSID=%s haul type=%d vap_mode:%d", bss_mac_str, bss->haultype, bss->vap_mode);
 			bss = reinterpret_cast<em_ap_vendor_operational_bss_t *> (reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_vendor_operational_bss_t));
 			all_bss_len += sizeof(em_ap_vendor_operational_bss_t);
 		}
@@ -833,15 +834,15 @@ void em_configuration_t::handle_ap_vendor_operational_bss(unsigned char *value, 
 	dm = get_data_model();
 	ap = reinterpret_cast<em_ap_vendor_op_bss_t *> (value);
 	radio = ap->radios;
-	printf("%s:%d Number of radios: %d\n", __func__, __LINE__, ap->radios_num);
+	em_printfout("Number of radios: %d", ap->radios_num);
 	for (i = 0; i < ap->radios_num; i++) {
 		dm_easy_mesh_t::macbytes_to_string(radio->ruid, rd_mac_str);
-		printf("%s:%d: Radio: %s\n", __func__, __LINE__, rd_mac_str);
+		em_printfout("Radio: %s", rd_mac_str);
 		bss = radio->bss;
-		printf("%s:%d Number of bss: %d\n", __func__, __LINE__, radio->bss_num);
+		em_printfout("Number of bss: %d", radio->bss_num);
 		for (j = 0; j < radio->bss_num; j++) {
 			dm_easy_mesh_t::macbytes_to_string(bss->bssid, bss_mac_str);
-			printf("%s:%d: BSSID=%s	 haul type=%d\n", __func__, __LINE__, bss_mac_str, bss->haultype);
+			em_printfout("BSSID=%s haul type=%d vap_mode:%d", bss_mac_str, bss->haultype, bss->vap_mode);
 			dm_bss = dm->get_bss(radio->ruid, bss->bssid);
 			if (dm_bss == NULL) {
 				dm_bss = &dm->m_bss[dm->m_num_bss];
@@ -855,6 +856,7 @@ void em_configuration_t::handle_ap_vendor_operational_bss(unsigned char *value, 
 			memcpy(dm_bss->m_bss_info.ruid.mac, radio->ruid, sizeof(mac_address_t));
 			memcpy(dm_bss->m_bss_info.bssid.mac, bss->bssid, sizeof(mac_address_t));
 			dm_bss->m_bss_info.id.haul_type = static_cast<em_haul_type_t> (bss->haultype);
+			dm_bss->m_bss_info.vap_mode = static_cast<em_vap_mode_t> (bss->vap_mode);
 			bss = reinterpret_cast<em_ap_vendor_operational_bss_t *>(reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_vendor_operational_bss_t));
 			all_bss_len += sizeof(em_ap_vendor_operational_bss_t);
 		}
@@ -4496,6 +4498,9 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
             if ((get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_topo_sync_pending)) {
 			    if (handle_topology_response(data, len) == 0) {
 					set_state(em_state_ctrl_topo_synchronized);
+                    printf("%s:%d em_msg_type_topo_resp handle success, state: %s\n", __func__, __LINE__, em_t::state_2_str(get_state()));
+                    //update network topology here
+                    get_mgr()->update_network_topology();
 				} else {
 					printf("%s:%d em_msg_type_topo_resp handle failed \n", __func__, __LINE__);
 				}
