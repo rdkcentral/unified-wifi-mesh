@@ -1648,7 +1648,9 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             em = al_em;
             break;
         default:
-            printf("%s:%d: Frame: %d not handled in agent\n", __func__, __LINE__, htons(cmdu->type));
+            if (htons(cmdu->type) != em_msg_type_topo_disc) {
+                printf("%s:%d: Frame: %d not handled in agent\n", __func__, __LINE__, htons(cmdu->type));
+            }
             em = NULL;
             break;	
 	}
