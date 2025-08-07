@@ -136,7 +136,7 @@ int em_cmd_ctrl_t::send_result(em_cmd_out_status_t status)
 
     tmp = reinterpret_cast<unsigned char *> (m_cmd.status_to_string(status, str));
 
-    if ((ret = SSL_write(m_ssl, tmp, strlen(str) + 1)) <= 0) {
+    if ((ret = SSL_write(m_ssl, tmp, static_cast<int> (strlen(str) + 1))) <= 0) {
         printf("%s:%d: write error on socket, err:%d\n", __func__, __LINE__, errno);
     }
 
