@@ -377,8 +377,6 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
 			if (pcmd->get_type() != em_cmd_type_em_config) {
 				break;
 			}
-
-			m_mgr->update_network_topology();
 			break;
 
         default:

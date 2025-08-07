@@ -146,6 +146,7 @@ void dm_radio_t::encode(cJSON *obj, em_get_radio_list_reason_t reason)
     cJSON_AddNumberToObject(obj, "NumberOfUnassocSta", m_radio_info.number_of_unassoc_sta);
     cJSON_AddNumberToObject(obj, "Noise", m_radio_info.noise);
     cJSON_AddNumberToObject(obj, "Utilization", m_radio_info.utilization);
+    cJSON_AddNumberToObject(obj, "Band", m_radio_info.band);
 
 	if (reason == em_get_radio_list_reason_radio_summary) {
 		return;
