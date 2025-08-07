@@ -1051,7 +1051,10 @@ void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_
         dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
 
-    assert(found_dm == true);
+    if (found_dm != true) {
+        em_printfout("dm for  mac address:%s id.type:%d not found, return...", mac_str, id.type);
+        return;
+    }
 
     // now check if the op class is already there
     for (i = 0; i < dm->get_num_op_class(); i++) {

@@ -60,7 +60,7 @@ int dm_neighbor_list_t::set_config(db_client_t& db_client, dm_neighbor_t& nbr, v
 int dm_neighbor_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void *parent_id)
 {
     cJSON *obj;
-    unsigned int i, size;
+    int i, size;
     dm_neighbor_t nbr;
     dm_orch_type_t op;
 
@@ -81,7 +81,7 @@ dm_orch_type_t dm_neighbor_list_t::get_dm_orch_type(db_client_t& db_client, cons
     dm_neighbor_t *pnbr;
     mac_addr_str_t  nbr_mac_str;
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)nbr.m_neighbor_info.nbr, nbr_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (nbr.m_neighbor_info.nbr), nbr_mac_str);
 
     pnbr = get_neighbor(nbr_mac_str);
 
@@ -107,7 +107,7 @@ void dm_neighbor_list_t::update_list(const dm_neighbor_t& nbr, dm_orch_type_t op
     dm_neighbor_t *pnbr;
     mac_addr_str_t	nbr_mac_str;
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)nbr.m_neighbor_info.nbr, nbr_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (nbr.m_neighbor_info.nbr), nbr_mac_str);
 
     switch (op) {
         case dm_orch_type_db_insert:
@@ -139,7 +139,7 @@ void dm_neighbor_list_t::delete_list()
         tmp = pnbr;
         pnbr = get_next_neighbor(pnbr);
     
-        dm_easy_mesh_t::macbytes_to_string((unsigned char *)tmp->m_neighbor_info.nbr, nbr_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (tmp->m_neighbor_info.nbr), nbr_mac_str);
 
         remove_neighbor(nbr_mac_str);
     }
@@ -157,8 +157,8 @@ int dm_neighbor_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, voi
     em_neighbor_info_t *info = static_cast<em_neighbor_info_t *> (data);
     int ret = 0;
         
-	dm_easy_mesh_t::macbytes_to_string((unsigned char *)info->nbr, nbr_mac_str);
-	dm_easy_mesh_t::macbytes_to_string((unsigned char *)info->next_hop, next_hop_mac_str);
+	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (info->nbr), nbr_mac_str);
+	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (info->next_hop), next_hop_mac_str);
 
     //printf("dm_neighbor_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
 	
@@ -192,7 +192,7 @@ bool dm_neighbor_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
     while (db_client.next_result(ctx)) {
         db_client.get_string(ctx, str, 1);
 
-        if (strncmp(str, (char *)key, strlen((char *)key)) == 0) {
+        if (strncmp(str, static_cast<char *> (key), strlen(static_cast<char *> (key))) == 0) {
             return true;
         }
     }
@@ -213,14 +213,14 @@ int dm_neighbor_list_t::sync_db(db_client_t& db_client, void *ctx)
         db_client.get_string(ctx, str, 1);
 		dm_easy_mesh_t::string_to_macbytes(str, info.nbr);
 
-		info.pos_x = db_client.get_number(ctx, 2);
-		info.pos_y = db_client.get_number(ctx, 3);
-		info.pos_z = db_client.get_number(ctx, 4);
+		info.pos_x = static_cast<float> (db_client.get_number(ctx, 2));
+		info.pos_y = static_cast<float> (db_client.get_number(ctx, 3));
+		info.pos_z = static_cast<float> (db_client.get_number(ctx, 4));
         
 		db_client.get_string(ctx, mac, 5);
         dm_easy_mesh_t::string_to_macbytes(mac, info.next_hop);
 
-        info.num_hops = db_client.get_number(ctx, 6);
+        info.num_hops = static_cast<unsigned int> (db_client.get_number(ctx, 6));
         info.path_loss = db_client.get_number(ctx, 7);
 
         update_list(dm_neighbor_t(&info), dm_orch_type_db_insert);
