@@ -11,19 +11,30 @@ import (
 func main() {
 	remoteIP := "127.0.0.1"
 	remotePort := 49153
-	if len(os.Args) > 1 {
-		remoteIP = os.Args[1]
+	
+	if len(os.Args) == 1 {
+		fmt.Fprintln(os.Stderr, "Must provide platform!");
+		fmt.Fprintf(os.Stderr, "Usage: %s platform [ip_addr] [port]\n", os.Args[0])
+		os.Exit(1)
 	}
+
+	platform := os.Args[1]
+
 	if len(os.Args) > 2 {
-		port, err := strconv.Atoi(os.Args[2])
+		remoteIP = os.Args[2]
+	}
+	if len(os.Args) > 3 {
+		port, err := strconv.Atoi(os.Args[3])
 		if err != nil {
-			fmt.Errorf("Invalid port number: %v", err)
+			fmt.Fprintf(os.Stderr, "Invalid port number: %v\n", err)
 			os.Exit(1)
 		}
 		remotePort = port
 	}
+	
+	fmt.Printf("Platform: %s, IP: %s, Port: %d\n", platform, remoteIP, remotePort)
 
-	meshViewMgr := newMeshViewsMgr(os.Args[0], remoteIP, remotePort)
+	meshViewMgr := newMeshViewsMgr(platform, remoteIP, remotePort)
 	if meshViewMgr == nil {
 		fmt.Println("Failed to create MeshViewsMgr")
 		os.Exit(1)
