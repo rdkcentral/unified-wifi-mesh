@@ -1258,8 +1258,9 @@ typedef struct {
 } __attribute__((__packed__)) em_neigh_device_list_t;
 
 typedef struct {
-	   mac_address_t bssid;
-		  unsigned short haultype;
+    mac_address_t bssid;
+    unsigned short haultype;
+    unsigned short vap_mode;
 } __attribute__((__packed__)) em_ap_vendor_operational_bss_t;
 
 typedef struct {
