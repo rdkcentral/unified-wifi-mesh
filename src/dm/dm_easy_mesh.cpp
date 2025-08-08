@@ -88,6 +88,11 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
         m_policy[i] = obj.m_policy[i];
     }
 
+    m_num_ap_mld = obj.m_num_ap_mld;
+    for (unsigned int i = 0; i < EM_MAX_AP_MLD; i++) {
+        m_ap_mld[i] = obj.m_ap_mld[i];
+    }
+
     sta = static_cast<dm_sta_t *> (hash_map_get_first(obj.m_sta_map));
     while (sta != NULL) {
         dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
@@ -183,6 +188,18 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
 				}
 			}
 		}
+
+		printf(" ==== debug :%s:%d dm.m_num_ap_mld: %d \n", __func__, __LINE__, dm.m_num_ap_mld);
+		for (i = 0; i < dm.m_num_ap_mld; i++) {
+			em_ap_mld_info_t *src_mld_info = dm.m_ap_mld[i].get_ap_mld_info();
+
+			if (src_mld_info->num_affiliated_ap > 0) {
+				update_ap_mld_info(src_mld_info);
+			} else {
+				printf(" ==== debug :%s:%d Skipping MLD[%d] as no affiliated APs found\n", __func__, __LINE__, i);
+			}
+		}
+
 	}
     return false;
 }
@@ -2765,6 +2782,114 @@ void dm_easy_mesh_t::update_scan_results(em_scan_result_t *scan_result)
         res = create_new_scan_result(id);
         *res->get_scan_result() = *scan_result;
     }
+}
+
+em_ap_mld_info_t *dm_easy_mesh_t::get_ap_mld_frm_bssid(mac_address_t bss_id)
+{
+    unsigned int i, j;
+    em_ap_mld_info_t *ap_mld_info = NULL;
+    mac_addr_str_t  mac_str1, mac_str2;
+
+    printf(" ==== debug :%s:%d m_num_ap_mld: %d ====\n", __func__, __LINE__, m_num_ap_mld);
+    for (i = 0; i < m_num_ap_mld; i++) {
+        ap_mld_info = &m_ap_mld[i].m_ap_mld_info;
+        printf(" ==== debug :%s:%d num_affiliated_ap: %d ====\n", __func__, __LINE__, ap_mld_info->num_affiliated_ap);
+        for (j = 0; j < ap_mld_info->num_affiliated_ap; ++j) {
+            dm_easy_mesh_t::macbytes_to_string(ap_mld_info->affiliated_ap[j].mac_addr, mac_str1);
+            dm_easy_mesh_t::macbytes_to_string(bss_id, mac_str2);  
+            if (memcmp(ap_mld_info->affiliated_ap[j].mac_addr, bss_id, sizeof(mac_address_t)) == 0) {
+                break;
+            }
+        }
+    }
+
+    return ap_mld_info;
+}
+
+void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
+{
+    printf(" ==== debug :%s:%d ====\n", __func__, __LINE__);
+
+    em_ap_mld_info_t *target_mld = NULL;
+
+    //Find existing MLD by MAC
+    printf("%s:%d m_num_ap_mld %d\n", __func__, __LINE__, m_num_ap_mld);
+    for (int i = 0; i < m_num_ap_mld; i++) {
+        if (memcmp(m_ap_mld[i].m_ap_mld_info.mac_addr, ap_mld_info->mac_addr, sizeof(mac_address_t)) == 0) {
+            target_mld = &m_ap_mld[i].m_ap_mld_info;
+            printf("%s:%d Found existing MLD at index %d\n", __func__, __LINE__, i);
+            break;
+        }
+    }
+
+    //If not found, create new entry
+    if (!target_mld) {
+        if (m_num_ap_mld >= EM_MAX_AP_MLD) {
+            printf("%s:%d Max MLD entries reached\n", __func__, __LINE__);
+            return;
+        }
+
+        target_mld = &m_ap_mld[m_num_ap_mld].m_ap_mld_info;
+        memset(target_mld, 0, sizeof(em_ap_mld_info_t));
+        printf("%s:%d Created new MLD at index %d\n", __func__, __LINE__, m_num_ap_mld);
+        m_num_ap_mld++;
+    }
+
+    //Update MLD fields
+    target_mld->mac_addr_valid = ap_mld_info->mac_addr_valid;
+    strncpy(target_mld->ssid, ap_mld_info->ssid, sizeof(ssid_t));
+    memcpy(target_mld->mac_addr, ap_mld_info->mac_addr, sizeof(mac_address_t));
+    target_mld->str = ap_mld_info->str;
+    target_mld->nstr = ap_mld_info->nstr;
+    target_mld->emlsr = ap_mld_info->emlsr;
+    target_mld->emlmr = ap_mld_info->emlmr;
+
+    // Loop through all affiliated APs
+    for (int j = 0; j < ap_mld_info->num_affiliated_ap; j++) {
+        em_affiliated_ap_info_t *input_ap = &ap_mld_info->affiliated_ap[j];
+        em_affiliated_ap_info_t *target_aff_ap = NULL;
+        bool aff_ap_found = false;
+
+        for (int k = 0; k < target_mld->num_affiliated_ap; k++) {
+            if (memcmp(target_mld->affiliated_ap[k].mac_addr, input_ap->mac_addr, sizeof(mac_address_t)) == 0) {
+                target_aff_ap = &target_mld->affiliated_ap[k];
+                aff_ap_found = true;
+                printf("%s:%d Found existing affiliated AP at index %d\n", __func__, __LINE__, k);
+                break;
+            }
+        }
+
+        if (!aff_ap_found) {
+            if (target_mld->num_affiliated_ap >= EM_MAX_AP_MLD) {
+                printf("%s:%d Max affiliated APs reached for MLD\n", __func__, __LINE__);
+                continue;
+            }
+
+            target_aff_ap = &target_mld->affiliated_ap[target_mld->num_affiliated_ap];
+            memset(target_aff_ap, 0, sizeof(em_affiliated_ap_info_t));
+            printf("%s:%d Added new affiliated AP at index %d\n", __func__, __LINE__, target_mld->num_affiliated_ap);
+            target_mld->num_affiliated_ap++;
+        }
+
+        // Update affiliated AP fields
+        target_aff_ap->mac_addr_valid = input_ap->mac_addr_valid;
+        target_aff_ap->link_id_valid = input_ap->link_id_valid;
+        target_aff_ap->ruid = input_ap->ruid;
+        memcpy(target_aff_ap->mac_addr, input_ap->mac_addr, sizeof(mac_address_t));
+        target_aff_ap->link_id = input_ap->link_id;
+    }
+
+    printf("%s:%d Updated MLD and affiliated APs\n", __func__, __LINE__);
+}
+
+void dm_easy_mesh_t::update_bsta_mld_info(em_bsta_mld_info_t *bsta_mld_info)
+{
+    printf(" ==== debug :%s:%d ====\n", __func__, __LINE__);
+}
+
+void dm_easy_mesh_t::update_assoc_sta_mld_info(em_assoc_sta_mld_info_t *assoc_sta_mld_info)
+{
+    printf(" ==== debug :%s:%d ====\n", __func__, __LINE__);
 }
 
 void dm_easy_mesh_t::reset_db_cfg_type(db_cfg_type_t type) 
