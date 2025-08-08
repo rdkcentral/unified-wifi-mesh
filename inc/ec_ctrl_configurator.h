@@ -80,6 +80,17 @@ public:
 	 */
 	bool  process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len, uint8_t src_mac[ETH_ALEN]) override;
 
+	/**
+	 * @brief Handles a chirp found in an Autoconf Search (extended) message.
+	 * 
+	 * @param chirp The DPP chirp.
+	 * @param len The length of the chirp hash (can be 0).
+	 * @param src_mac Where it came from (Enrollee).
+	 * @return true on success, otherwise false.
+	 * 
+	 */
+	bool handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, size_t len, uint8_t src_mac[ETH_ALEN]) override;
+
     
 	/**
 	 * @brief Handles an authentication response 802.11 frame, performing the necessary actions.
@@ -283,6 +294,16 @@ private:
 	 */
 	std::pair<uint8_t*, size_t> create_config_response_frame(uint8_t dest_mac[ETH_ALEN], uint8_t pa_al_mac[ETH_ALEN], const uint8_t dialog_token, ec_status_code_t dpp_status, bool is_sta = false);
 
+	/**
+	 * @brief Handles a GAS frame embedded in a Direct Encap DPP Message
+	 * 
+	 * @param frame The GAS frame
+	 * @param len The length of the frame
+	 * @param src_mac The origin of the frame
+	 * @return true on success otherwise false
+	 */
+	bool process_direct_encap_dpp_gas_msg(uint8_t* frame, uint16_t len, uint8_t src_mac[ETH_ALEN]);
+
     /**
      * @brief Maps Enrollee MAC (as string) to onboarded status. True if onboarded (now a Proxy Agent), false if still onboarding / onboarding failed.
      * 
@@ -300,6 +321,7 @@ private:
 
 	// The Group Master Key (GMK) used to securing the 1905 layer
 	std::vector<uint8_t> m_gmk;
+
 };
 
 #endif // EC_CTRL_CONFIGURATOR_H

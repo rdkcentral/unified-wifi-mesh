@@ -38,14 +38,14 @@ class em_configuration_t {
 	 * @param[out] buff Pointer to the buffer where the response message will be stored.
 	 * @param[in] band The frequency band for which the response message is being created.
 	 * @param[in] dst Pointer to the destination address for the response message.
+	 * @param[in] chirp Optional pointer to a DPP chirp value to include in the message.
+	 * @param[in] hash_len Length of the hash to be included in the chirp (can be 0 if no chirp is present).
 	 *
-	 * @returns int Status code indicating success or failure of the message creation.
-	 * @retval 0 on success.
-	 * @retval -1 on failure.
+	 * @return int The length of the created response message, or -1 on failure.
 	 *
 	 * @note Ensure that the buffer is adequately sized to hold the response message.
 	 */
-	int create_autoconfig_resp_msg(unsigned char *buff, em_freq_band_t band, unsigned char *dst);
+	int create_autoconfig_resp_msg(unsigned char *buff, em_freq_band_t band, unsigned char *dst, em_dpp_chirp_value_t *chirp = nullptr, size_t hash_len = 0);
     
 	/**!
 	 * @brief Creates an auto-configuration search message.
@@ -53,14 +53,14 @@ class em_configuration_t {
 	 * This function is responsible for generating a search message used in the auto-configuration process.
 	 *
 	 * @param[out] buff Pointer to the buffer where the search message will be stored.
+	 * @param[in] chirp Optional pointer to a DPP chirp value to include in the message.
+	 * @param[in] hash_len Length of the hash to be included in the chirp (can be 0 if no chirp is present).
 	 *
-	 * @returns int
-	 * @retval 0 on success
-	 * @retval -1 on failure
+	 * @returns int Size of CMDU created on success, otherwise -1
 	 *
 	 * @note Ensure that the buffer is allocated with sufficient size before calling this function.
 	 */
-	int create_autoconfig_search_msg(unsigned char *buff);
+	int create_autoconfig_search_msg(unsigned char *buff, em_dpp_chirp_value_t *chirp = nullptr, size_t hash_len = 0);
     
 	/**!
 	 * @brief Creates an auto-configuration WSC M1 message.
@@ -1553,6 +1553,10 @@ private:
     unsigned int m_m2_encrypted_settings_len;
 
 public:
+
+	bool send_autoconf_search_ext_chirp(em_dpp_chirp_value_t *chirp, size_t hash_len);
+
+	bool send_autoconf_search_resp_ext_chirp(em_dpp_chirp_value_t *chirp, size_t len, uint8_t dest_mac[ETH_ALEN]);
     
 	/**!
 	 * @brief Processes a message with the given data and length.

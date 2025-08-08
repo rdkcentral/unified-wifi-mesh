@@ -48,12 +48,13 @@ public:
 	 * @param[in] do_reconfig A boolean flag indicating whether to reconfigure/reauthenticate
 	 * the enrollee. If true, the enrollee will be reconfigured.
 	 * @param[out] boot_data A pointer to an ec_data_t structure where the boot data will be stored.
+	 * @param[in] ethernet Whether or not this Enrollee is onboarding over Ethernet (default false)
 	 *
 	 * @return bool Returns true if the onboarding process is successful, false otherwise.
 	 *
 	 * @note Ensure that the enrollee is in a state ready for onboarding before calling this function.
 	 */
-	bool start_onboarding(bool do_reconfig, ec_data_t* boot_data);
+	bool start_onboarding(bool do_reconfig, ec_data_t* boot_data, bool ethernet = false);
 
     
 	/**
@@ -152,6 +153,16 @@ public:
 	 * @return bool True if the frame was processed successfully, false otherwise.
 	 */
 	bool process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len, uint8_t src_mac[ETH_ALEN]);
+
+	/**
+	 * @brief Handles a GAS frame embedded in a Direct Encap DPP Message
+	 * 
+	 * @param frame The GAS frame
+	 * @param len The length of the frame
+	 * @param src_mac The origin of the frame
+	 * @return true on success otherwise false
+	 */
+	bool process_direct_encap_dpp_gas_msg(uint8_t* frame, uint16_t len, uint8_t src_mac[ETH_ALEN]);
 
 	/**
 	 * @brief Process a 1905 EAPOL Encapsulated Message (1905 Encap EAPOL TLV)
@@ -299,6 +310,17 @@ public:
 	 */
 	inline void signal_enrollee_is_upgrading() { m_is_upgrading_flag = true; }
 
+	/**
+	 * @brief Handle a chirp embedded in an Autoconf Response frame.
+	 * When onboarding via Ethernet, the Controller will send a 1905 AP-Autoconfiguration Response message (extended) including a DPP Chirp Value TLV with the Hash Validity bit set to one and the Hash Value field set to the hash of the Enrollee.
+	 * 
+	 * @param chirp The chirp TLV.
+	 * @param chirp_len The length of the chirp.
+	 * @param src_mac Where the chirp came from (Controller).
+	 * @return true on success, otherwise false.
+	 */
+	bool handle_autoconf_response_chirp(em_dpp_chirp_value_t *chirp, size_t chirp_len, uint8_t src_mac[ETH_ALEN]);
+
 private:
 
 	/**
@@ -387,6 +409,17 @@ private:
 	 * @return bool true if successful, false otherwise
 	 */
 	send_dir_encap_dpp_func m_send_dir_encap_fn;
+
+	/**
+	 * @brief Sends an Autoconf Search message (extended)
+	 * 
+	 * @param Chirp The chirp to include in the autoconf search message
+	 * @param len The length of the hash in the chirp (can be 0)
+	 * 
+	 * @note No dest mac as autoconf search is a multicast message
+	 * @return True on success otherwise false
+	 */
+	send_autoconf_search_func m_send_autoconf_search_fn;
 	
     // Maps SSID that this Enrollee has attempted to find to the
     // list of channels/op-classes that were scanned.
@@ -672,7 +705,8 @@ private:
 	 * @brief True if this Enrollee will soon be upgrading
 	 * to a (proxy) agent and the destructor will be called.
 	 */
-	bool m_is_upgrading_flag = false; 
+	bool m_is_upgrading_flag = false;
+
 };
 
 #endif // EC_ENROLLEE_H
