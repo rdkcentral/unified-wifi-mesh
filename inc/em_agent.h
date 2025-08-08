@@ -38,6 +38,11 @@
 class em_cmd_agent_t;
 class AlServiceAccessPoint;
 
+struct csi_sounding_set {
+    mac_address_t sounding_mac;
+    //@TBD need to add few more parameters
+};
+
 class em_agent_t : public em_mgr_t {
 
     em_orch_agent_t *m_orch;
@@ -542,7 +547,10 @@ public:
 	 * @note Ensure that the event structure is properly initialized before calling this function.
 	 */
 	void handle_sta_list(em_bus_event_t *evt);
-    
+
+        void handle_csi(em_bus_event_t *evt);
+        bool handle_csi_trigger(em_bus_event_t *evt);
+
 	/**!
 	 * @brief Handles the access point capability query event.
 	 *
@@ -867,7 +875,9 @@ public:
 	 * passing it to this function.
 	 */
 	static void onewifi_cb(char *event_name, raw_data_t *data, void *userData);
-    
+
+        static void csi_data_cb(char *event_name, raw_data_t *data, void *userData);
+
 	/**!
 	 * @brief Callback function for association statistics.
 	 *

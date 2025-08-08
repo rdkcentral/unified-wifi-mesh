@@ -88,6 +88,11 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
         m_policy[i] = obj.m_policy[i];
     }
 
+    m_num_csi_containers = obj.m_num_csi_containers;
+    for (unsigned int i = 0; i < m_num_csi_containers; i++) {
+        m_csi_containers[i] = obj.m_csi_containers[i];
+    }
+
     sta = static_cast<dm_sta_t *> (hash_map_get_first(obj.m_sta_map));
     while (sta != NULL) {
         dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
@@ -2633,6 +2638,37 @@ void dm_easy_mesh_t::set_channels_list(dm_op_class_t op_class[], unsigned int nu
 			
 		memcpy(&poclass->m_op_class_info, &oclass->m_op_class_info, sizeof(em_op_class_info_t));
 	}
+}
+
+void dm_easy_mesh_t::set_csi_container(dm_csi_container_t cont)
+{
+    unsigned int i;
+    dm_csi_container_t *pcont;
+    bool found_match = false;
+
+    for (i = 0; i < m_num_csi_containers; i++) {
+        pcont = &m_csi_containers[i];
+        if (memcmp(cont.m_csi_container.id.sounding_mac,
+            pcont->m_csi_container.id.sounding_mac,
+            sizeof(mac_address_t)) == 0) {
+            found_match = true;
+            break;
+        }
+    }
+
+    if (found_match == false) {
+        if (m_num_csi_containers >= EM_MAX_CSI_CONTAINERS) {
+            mac_addr_str_t dev_mac_str;
+            dm_easy_mesh_t::macbytes_to_string((unsigned char *)cont.m_csi_container.id.dev_mac,
+                dev_mac_str);
+            printf("csi containers is full skip this:%s client info\r\n", dev_mac_str);
+            return;
+        }
+        pcont = &m_csi_containers[m_num_csi_containers];
+        m_num_csi_containers++;
+    }
+
+    memcpy(&pcont->m_csi_container, &cont.m_csi_container, sizeof(em_csi_container_t));
 }
 
 void dm_easy_mesh_t::print_op_class_list(dm_easy_mesh_t *dm)

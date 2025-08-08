@@ -1478,6 +1478,37 @@ int dm_easy_mesh_ctrl_t::get_mld_config(cJSON *parent, char *key)
 	return 0;
 }
 
+int dm_easy_mesh_ctrl_t::get_csi_config(cJSON *parent, char *key)
+{
+    cJSON *ext_obj;
+
+    ext_obj = cJSON_AddArrayToObject(parent, "Extenders");
+    dm_csi_container_list_t::get_config(ext_obj, NULL, false);
+    return 0;
+}
+
+void dm_easy_mesh_ctrl_t::get_csi_data(em_long_string_t net_id, mac_addr_str_t dev_mac_str, em_subdoc_info_t *subdoc)
+{
+    cJSON *parent, *sounders;
+    em_long_string_t key;
+    char *tmp;
+    mac_addr_t null_mac = {0};
+    mac_addr_str_t  null_mac_str;
+
+    parent = cJSON_CreateObject();
+    sounders = cJSON_AddArrayToObject(parent, "Sounders");
+
+    dm_easy_mesh_t::macbytes_to_string(null_mac, null_mac_str);
+
+    snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", GLOBAL_NET_ID, dev_mac_str, null_mac_str);
+    dm_csi_container_list_t::get_data(sounders, (void *)key);
+
+    tmp = cJSON_Print(parent);
+    //printf("%s:%d: Subdoc: %s\n", __func__, __LINE__, tmp);
+    strncpy(subdoc->buff, tmp, strlen(tmp) + 1);
+    cJSON_free(parent);
+}
+
 void dm_easy_mesh_ctrl_t::get_config(em_long_string_t net_id, em_subdoc_info_t *subdoc)
 {
     cJSON *parent;
@@ -1526,6 +1557,8 @@ void dm_easy_mesh_ctrl_t::get_config(em_long_string_t net_id, em_subdoc_info_t *
         get_mld_config(parent, net_id);
     } else if (strncmp(subdoc->name, "WifiReset", strlen(subdoc->name)) == 0) {
         get_wifi_reset_config(parent, net_id);
+    } else if (strncmp(subdoc->name, "CSIConfig", strlen(subdoc->name)) == 0) {
+        get_csi_config(parent, net_id);
     }
 
     tmp = cJSON_Print(parent);
@@ -1595,6 +1628,7 @@ void dm_easy_mesh_ctrl_t::init_tables()
     dm_sta_list_t::init();
     dm_policy_list_t::init();
     dm_scan_result_list_t::init();
+    dm_csi_container_list_t::init();
 }
 
 int dm_easy_mesh_ctrl_t::load_net_ssid_table()
@@ -1634,6 +1668,8 @@ int dm_easy_mesh_ctrl_t::load_tables()
         printf("%s:%d: data base empty ... needs reset\n", __func__, __LINE__);
         return -1;
     }
+
+    dm_csi_container_list_t::load_data();
 
 	set_initialized();
 

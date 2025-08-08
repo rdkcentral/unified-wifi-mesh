@@ -70,6 +70,7 @@ CLI_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/fynecli/*.cpp) \
     $(ONEWIFI_EM_SRC)/dm/dm_policy.cpp \
     $(ONEWIFI_EM_SRC)/dm/dm_scan_result.cpp \
     $(ONEWIFI_EM_SRC)/dm/dm_sta.cpp \
+    $(ONEWIFI_EM_SRC)/dm/dm_csi_container.cpp \
     $(ONEWIFI_EM_SRC)/dm/dm_radio_cap.cpp \
     $(ONEWIFI_EM_SRC)/dm/dm_cac_comp.cpp \
     $(ONEWIFI_EM_SRC)/dm/dm_ap_mld.cpp \

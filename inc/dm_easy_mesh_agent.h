@@ -61,7 +61,9 @@ public:
 	 * @note Ensure that the event and command data are properly initialized before calling this function.
 	 */
 	int analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]);
-    
+
+        int analyze_csi(em_bus_event_t *evt, em_cmd_t *pcmd[]);
+
 	/**!
 	 * @brief Analyzes the auto-configuration renewal process.
 	 *

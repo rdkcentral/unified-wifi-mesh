@@ -57,6 +57,28 @@ AlServiceAccessPoint* g_sap;
 MacAddress g_al_mac_sap;
 #endif
 
+void em_ctrl_t::handle_csi_event(em_bus_event_t *evt)
+{
+    mac_addr_str_t  dev_mac_str, sounding_mac_str;
+    em_csi_container_t *cont;
+    em_long_string_t key;
+    dm_csi_container_t *pdm;
+    dm_easy_mesh_ctrl_t *dm;
+
+    cont = (em_csi_container_t *)&evt->params.u.csi_data_params;
+    
+    dm_easy_mesh_t::macbytes_to_string(cont->id.dev_mac, dev_mac_str);  
+    dm_easy_mesh_t::macbytes_to_string(cont->id.sounding_mac, sounding_mac_str);
+    printf("%s:%d: Device:%s Sounder:%s angle:%f distance:%f\n", __func__, __LINE__,
+        dev_mac_str, sounding_mac_str, cont->angle, cont->distance);
+	
+    snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", GLOBAL_NET_ID, dev_mac_str, sounding_mac_str);
+    pdm = new dm_csi_container_t(cont);
+
+    dm = (dm_easy_mesh_ctrl_t *)get_data_model(GLOBAL_NET_ID);
+    dm->put_csi_container(key, pdm);
+}
+
 void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
 {
     em_commit_info_t *info;
@@ -327,6 +349,24 @@ void em_ctrl_t::handle_get_dm_data(em_bus_event_t *evt)
     m_ctrl_cmd->send_result(em_cmd_out_status_success);
 }        
 
+void em_ctrl_t::handle_get_csi_data(em_bus_event_t *evt)
+{
+    unsigned int len;
+
+    em_cmd_params_t params = evt->params;
+
+    //em_cmd_t::dump_bus_event(evt);
+    if (params.u.args.num_args < 1) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_invalid_input);
+        return;
+    }
+
+    m_data_model.get_csi_data(params.u.args.args[1], params.u.args.args[2], &evt->u.subdoc);
+    evt->data_len = static_cast<unsigned int> (strlen(evt->u.subdoc.buff)) + 1;
+    m_ctrl_cmd->copy_bus_event(evt);
+    m_ctrl_cmd->send_result(em_cmd_out_status_success);       
+}
+
 void em_ctrl_t::handle_reset(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
@@ -440,7 +480,12 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
         case em_bus_event_type_scan_result:
         case em_bus_event_type_get_mld_config:
         case em_bus_event_type_get_reset:
+        case em_bus_event_type_get_csi_config:
             handle_get_dm_data(evt);
+            break;
+
+        case em_bus_event_type_get_csi_data:
+            handle_get_csi_data(evt);
             break;
 
         case em_bus_event_type_set_radio:
@@ -502,7 +547,11 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
         case em_bus_event_type_mld_reconfig:
 			handle_mld_reconfig(evt);
 			break;
-	
+
+        case em_bus_event_type_csi:
+            handle_csi_event(evt);
+            break;
+
         default:
             break;
     }
@@ -792,6 +841,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         case em_msg_type_dpp_cce_ind:
         case em_msg_type_1905_rekey_req:
         case em_msg_type_1905_encap_eapol:
+        case em_msg_type_csi_notif:
 	        em = al_em;
 	        break;
 

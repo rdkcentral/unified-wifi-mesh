@@ -59,6 +59,7 @@ public:
 	 */
 	int send_result(em_cmd_out_status_t status);
 
+        int send_result(unsigned char *result, unsigned int len);
     
 	/**!
 	 * @brief Constructor for em_cmd_ctrl_t class.

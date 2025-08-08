@@ -192,7 +192,9 @@ public:
 	 * @note Ensure that the event structure is properly initialized before calling this function.
 	 */
 	void handle_start_dpp(em_bus_event_t *evt);
-    
+
+        void handle_csi_event(em_bus_event_t *evt);
+
 	/**!
 	 * @brief Handles client steering based on the event provided.
 	 *
@@ -372,7 +374,9 @@ public:
 	 * @note Ensure that the event structure is properly initialized before calling this function.
 	 */
 	void handle_get_dm_data(em_bus_event_t *evt);
-    
+   
+        void handle_get_csi_data(em_bus_event_t *evt);
+
 	/**!
 	 * @brief Handles the DM commit event.
 	 *

@@ -782,7 +782,12 @@ public:
 	 */
 	void put_scan_result(const char *key, const dm_scan_result_t *scan_result, unsigned int index);
 
-    
+        dm_csi_container_t *get_first_csi_container();
+        dm_csi_container_t *get_next_csi_container(dm_csi_container_t *cont);
+        dm_csi_container_t *get_csi_container(const char *key);
+        void remove_csi_container(const char *key);
+        void put_csi_container(const char *key, const dm_csi_container_t *cont);
+
 	/**!
 	 * @brief Constructor for the dm_easy_mesh_list_t class.
 	 *
