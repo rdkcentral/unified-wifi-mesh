@@ -82,8 +82,8 @@ void em_agent_t::handle_csi(em_bus_event_t *evt)
 
     if ((num = m_data_model.analyze_csi(evt, pcmd)) == 0) {
         printf("%s:%d: csi analysis failed\n", __func__, __LINE__);
-    } else if (m_orch->submit_commands(pcmd, num) > 0) {
-                ;
+    } else if (m_orch->submit_commands(pcmd, num) == 0) {
+        printf("%s:%d: csi data submit command failed\n", __func__, __LINE__);
     }
 }
 

@@ -28,53 +28,6 @@ class em_cmd_t;
 class em_cmd_exec_t;
 class em_provisioning_t {
 
-    
-	/**!
-	 * @brief Creates a BSS configuration request message.
-	 *
-	 * This function initializes a buffer with the necessary data to form a BSS configuration request message.
-	 *
-	 * @param[out] buff Pointer to the buffer where the request message will be stored.
-	 *
-	 * @returns int Status code indicating success or failure of the operation.
-	 * @retval 0 on success.
-	 * @retval -1 on failure.
-	 *
-	 * @note Ensure the buffer is allocated with sufficient size before calling this function.
-	 */
-	int create_bss_config_req_msg(uint8_t *buff);
-    
-	/**!
-	 * @brief Creates a BSS configuration response message.
-	 *
-	 * This function is responsible for creating a BSS configuration response message
-	 * and storing it in the provided buffer.
-	 *
-	 * @param[out] buff Pointer to the buffer where the response message will be stored.
-	 *
-	 * @returns int Status code indicating success or failure of the operation.
-	 * @retval 0 on success.
-	 * @retval -1 on failure.
-	 *
-	 * @note Ensure the buffer is allocated with sufficient size before calling this function.
-	 */
-	int create_bss_config_rsp_msg(uint8_t *buff);
-    
-	/**!
-	 * @brief Creates a BSS configuration response message.
-	 *
-	 * This function initializes a buffer with the BSS configuration response message.
-	 *
-	 * @param[out] buff Pointer to the buffer where the response message will be stored.
-	 *
-	 * @returns int Status code indicating success or failure.
-	 * @retval 0 on success.
-	 * @retval -1 on failure.
-	 *
-	 * @note Ensure the buffer is allocated with sufficient size before calling this function.
-	 */
-	int create_bss_config_res_msg(uint8_t *buff);
-    
 	/**!
 	 * @brief Creates a DPP direct encapsulation message.
 	 *
@@ -124,7 +77,7 @@ class em_provisioning_t {
 	 *
 	 * @note Ensure that the buffer is properly allocated and the length is valid.
 	 */
-	int handle_1905_encap_eapol_msg(uint8_t *buff, unsigned int len);
+	int handle_1905_encap_eapol_msg(uint8_t *buff, unsigned int len, uint8_t src_al_mac[ETH_ALEN]);
 
 	/**!
 	 * @brief Handles the CCE indication message.
@@ -156,7 +109,7 @@ class em_provisioning_t {
 	 *
 	 * @note Ensure that the buffer is valid and contains the expected data format.
 	 */
-	int handle_dpp_chirp_notif(uint8_t *buff, unsigned int len);
+	int handle_dpp_chirp_notif(uint8_t *buff, unsigned int len, uint8_t src_al_mac[ETH_ALEN]);
     
 	/**!
 	 * @brief Handles a Proxied Encap DPP Message (EM 17.1.48)
@@ -172,7 +125,7 @@ class em_provisioning_t {
 	 * @note Ensure that the buffer is properly allocated and the length is correctly specified
 	 * before calling this function.
 	 */
-	int handle_proxy_encap_dpp(uint8_t *buff, unsigned int len);
+	int handle_proxy_encap_dpp(uint8_t *buff, unsigned int len, uint8_t src_al_mac[ETH_ALEN]);
 
 
 	/**!
@@ -188,7 +141,7 @@ class em_provisioning_t {
 	 * @note Ensure that the buffer is properly allocated and the length is correctly specified
 	 * before calling this function.
 	 */
-	int handle_direct_encap_dpp(uint8_t *buff, unsigned int len);
+	int handle_direct_encap_dpp(uint8_t *buff, unsigned int len, uint8_t src_al_mac[ETH_ALEN]);
 
     // states
     
@@ -513,212 +466,8 @@ protected:
 	 */
 	int send_1905_rekey_msg(uint8_t dest_al_mac[ETH_ALEN]);
 
-	/**!
-	 * @brief Creates a list of enrollee BSTA.
-	 *
-	 * This function generates a cJSON object representing the list of enrollee BSTA
-	 * based on the provided connection context.
-	 *
-	 * @param[in] conn_ctx Pointer to the connection context used to create the list.
-	 * @param[in] pa_al_mac UNUSED
-	 *
-	 * @returns A pointer to a cJSON object representing the enrollee BSTA list.
-	 *
-	 * @note Ensure that the connection context is properly initialized before calling this function.
-	 */
-	cJSON *create_enrollee_bsta_list(ec_connection_context_t *conn_ctx, uint8_t pa_al_mac[ETH_ALEN]);
-    
-	/**!
-	 * @brief Creates a configurator BSTA response object.
-	 *
-	 * This function generates a cJSON object representing the BSTA response
-	 * based on the provided connection context.
-	 *
-	 * @param[in] conn_ctx Pointer to the connection context used to create the response.
-	 * @param[in] pa_al_mac The AL MAC address of the Proxy Agent that is being used to onboard the Enrollee.
-	 *
-	 * @returns A pointer to the created cJSON object representing the BSTA response.
-	 *
-	 * @note Ensure that the connection context is properly initialized before calling this function.
-	 */
-	cJSON *create_configurator_bsta_response_obj(ec_connection_context_t *conn_ctx, uint8_t pa_al_mac[ETH_ALEN]);
-    
-	/**!
-	 * @brief Creates an IEEE 1905 response object.
-	 *
-	 * This function generates a cJSON object that represents an IEEE 1905 response.
-	 *
-	 * @param[in] conn_ctx Pointer to the connection context used for creating the response.
-	 *
-	 * @returns A pointer to the created cJSON object representing the IEEE 1905 response.
-	 *
-	 * @note Ensure that the connection context is properly initialized before calling this function.
-	 */
-	cJSON *create_ieee1905_response_obj(ec_connection_context_t *conn_ctx);
-
-	/**
-	 * @brief Create a fBSS (fronthaul BSS) Configuration response object for DPP STA onboarding
-	 * 
-	 * @param conn_ctx The connection context used to create the response object.
-	 * @return cJSON* Configuration response object on success, nullptr otherwise
-	 */
-	cJSON *create_fbss_response_obj(ec_connection_context_t *conn_ctx);
-
-	/**
-	 * @brief Creates a BSS Configuration Response TLV (17.2.85)
-	 * 
-	 * @param buff The buffer to write the TLV to.
-	 * @return int The length of the TLV created, or -1 on failure.
-	 */
-	int create_bss_conf_rsp_tlv(uint8_t *buff);
-
-	/**
-	 * @brief Creates a BSS Configuration Request TLV (17.2.84)
-	 * 
-	 * @param buff The buffer to write the TLV to.
-	 * @return int The length of the TLV created, or -1 on failure.
-	 */
-	int create_bss_conf_req_tlv(uint8_t *buff);
-
-	/**
-	 * @brief Creates a Backhaul STA Radio Capabilities TLV (17.2.65)
-	 * 
-	 * @param buff The buffer to write the TLV to.
-	 * @return int The length of the TLV created, or -1 on failure.
-	 */
-	int create_bsta_radio_cap_tlv(uint8_t *buff);
-
-	/**
-	 * @brief Creates an AKM Suite Capabilities TLV (17.2.78)
-	 * 
-	 * @param buff The buffer to write the TLV to.
-	 * @return int The length of the TLV created, or -1 on failure.
-	 */
-	int create_akm_suite_cap_tlv(uint8_t *buff);
-
-	/**!
-	 * @brief Creates an AP capability TLV.
-	 *
-	 * This function is responsible for creating an Access Point (AP) capability
-	 * Type-Length-Value (TLV) structure and storing it in the provided buffer.
-	 *
-	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
-	 *
-	 * @returns The length of the TLV on success, or -1 on failure
-	 *
-	 * @note Implemented by derived class
-	 */
-	virtual short create_ap_cap_tlv(unsigned char *buff) = 0;
-
-	/**!
-	 * @brief Creates a basic capability for the AP radio.
-	 *
-	 * This function initializes the basic capabilities of the AP radio and stores
-	 * the result in the provided buffer.
-	 *
-	 * @param[out] buff Pointer to the buffer where the basic capability data will be stored.
-	 *
-	 * @return The length of the TLV on success, or -1 on failure.
-	 *
-	 * @note Implemented by derived class
-	 */
-	virtual short create_ap_radio_basic_cap(unsigned char *buff) = 0;
-
-	/**!
-	 * @brief Creates a profile 2 TLV.
-	 *
-	 * This function is responsible for creating a profile 2 TLV (Type-Length-Value) structure
-	 * and storing it in the provided buffer.
-	 *
-	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
-	 *
-	 * @return The length of the TLV on success, or -1 on failure
-	 *
-	 * @note: Implemented by derived class
-	 */
-	virtual short create_prof_2_tlv(unsigned char *buff) = 0;
-
-	/**!
-	 * @brief Creates a HT TLV (Type-Length-Value) structure.
-	 *
-	 * This function initializes a HT TLV structure in the provided buffer.
-	 *
-	 * @param[out] buff Pointer to the buffer where the HT TLV will be created.
-	 *
-	 * @return The size of the TLV created on success, or -1 on failure.
-	 *
-	 * @note Implemented by derived class
-	 */
-	virtual short create_ht_tlv(unsigned char *buff) = 0;
-
-	/**!
-	 * @brief Creates a VHT TLV (Very High Throughput Tag Length Value) structure.
-	 *
-	 * This function initializes a VHT TLV structure in the provided buffer.
-	 *
-	 * @param[out] buff Pointer to the buffer where the VHT TLV will be created.
-	 *
-	 * @return The size of the TLV created on success, or -1 on failure.
-	 *
-	 * @note Implemented by derived class
-	 */
-	virtual short create_vht_tlv(unsigned char *buff) = 0;
-
-	/**!
-	 * @brief Retrieves the current profile type.
-	 *
-	 * @returns The current profile type as an em_profile_type_t.
-	 */
-	virtual em_profile_type_t   get_profile_type() = 0;
-
-	/**!
-	 * @brief Creates a WiFi 6 TLV (Type-Length-Value) structure.
-	 *
-	 * This function is responsible for creating a WiFi 6 TLV structure and storing it in the provided buffer.
-	 *
-	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
-	 * @return Length of TLV created on success otherwise -1
-	 *
-	 * @note This is a pure virtual function and must be implemented by derived classes.
-	 */
-	virtual short create_wifi6_tlv(unsigned char *buff) = 0;
-
-	/**!
-	 * @brief Creates a WiFi 7 TLV (Type-Length-Value) structure.
-	 *
-	 * This function is responsible for creating a TLV structure specific to WiFi 7.
-	 *
-	 * @param[out] buff A pointer to the buffer where the TLV will be created.
-	 * @return Length of TLV created on success otherwise -1
-	 *
-	 * @note Implemented by derived class
-	 */
-	virtual short create_wifi7_tlv(unsigned char *buff) = 0;
-
-	/**!
-	 * @brief Creates an EHT operations TLV.
-	 *
-	 * This function is responsible for creating an EHT (Extremely High Throughput) operations TLV (Type-Length-Value) structure.
-	 *
-	 * @param[out] buff A pointer to the buffer where the TLV will be created.
-	 * @return Length of TLV created on success otherwise -1
-	 *
-	 * @note Implemented by derived class
-	 */
-	virtual short create_eht_operations_tlv(unsigned char *buff) = 0;
-
-	/**
-	 * @brief Create an AP Radio Advanced Capabilities TLV (EM 17.2.52)
-	 * 
-	 * @param buff The buffer to write the TLV to.
-	 * @return short The length of the TLV on success, -1 on failure
-	 * 
-	 * @note Implemented by derived class
-	 */
-	virtual short create_ap_radio_advanced_cap_tlv(unsigned char *buff) = 0;
-
 public:
-    
+
 	/**!
 	 * @brief Processes a message with the given data and length.
 	 *

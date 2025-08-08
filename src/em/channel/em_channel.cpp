@@ -549,54 +549,6 @@ short em_channel_t::create_spatial_reuse_req_tlv(unsigned char *buff)
     return len;
 }
 
-short em_channel_t::create_eht_operations_tlv(unsigned char *buff)
-{
-    short len = 0;
-    unsigned int i = 0, j = 0;
-    unsigned char *tmp = buff;
-    dm_easy_mesh_t  *dm;
-    em_eht_operations_bss_t  *eht_ops_bss;
-
-    dm = get_data_model();
-
-    unsigned char num_radios = static_cast<unsigned char> (dm->get_num_radios());
-    unsigned char num_bss;
-
-    memcpy(tmp, &num_radios, sizeof(unsigned char));
-    tmp += sizeof(unsigned char);
-    len += static_cast<short unsigned int> (sizeof(unsigned char));
-
-    for (i = 0; i < num_radios; i++) {
-        memcpy(tmp, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t));
-        tmp += sizeof(mac_address_t);
-        len += static_cast<short unsigned int> (sizeof(mac_address_t));
-
-        num_bss = static_cast<unsigned char> (dm->get_num_bss());
-
-        memcpy(tmp, &num_bss, sizeof(unsigned char));
-        tmp += sizeof(unsigned char);
-        len += static_cast<short unsigned int> (sizeof(unsigned char));
-
-
-        for (j = 0; j < dm->get_num_bss(); j++) {
-        	if (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
-            	continue;
-        	}
-
-            memcpy(tmp, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
-            tmp += sizeof(mac_address_t);
-            len += static_cast<short unsigned int> (sizeof(mac_address_t));
-
-            eht_ops_bss = &dm->m_bss[j].m_bss_info.eht_ops;
-            memcpy(tmp, eht_ops_bss, sizeof(em_eht_operations_bss_t));
-            tmp += sizeof(em_eht_operations_bss_t);
-            len += static_cast<short unsigned int> (sizeof(em_eht_operations_bss_t));
-        }
-    }
-
-    return len;
-}
-
 int em_channel_t::send_channel_sel_request_msg()
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
@@ -2183,6 +2135,7 @@ void em_channel_t::process_state()
     switch (get_state()) {
         case em_state_agent_csi_notify:
             send_csi_notification();
+            //@TBD Set agent state to unconfigured
             set_state(em_state_agent_unconfigured);
             break;
 

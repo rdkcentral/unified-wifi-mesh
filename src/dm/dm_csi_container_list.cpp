@@ -42,35 +42,35 @@
 
 int dm_csi_container_list_t::get_data(cJSON *parent, void *key)
 {
-	em_csi_container_id_t id;
-	dm_csi_container_t *cont = NULL;
+    em_csi_container_id_t id;
+    dm_csi_container_t *cont = NULL;
     cJSON *obj;
-	mac_addr_t null_mac = {0};
-	bool get_all = false;
+    mac_addr_t null_mac = {0};
+    bool get_all = false;
 
-	dm_csi_container_t::parse_csi_container_id_from_key((char *)key, &id);
-	if (memcmp(id.sounding_mac, null_mac, sizeof(mac_address_t)) == 0) {
-		get_all = true;
-	}
+    dm_csi_container_t::parse_csi_container_id_from_key((char *)key, &id);
+    if (memcmp(id.sounding_mac, null_mac, sizeof(mac_address_t)) == 0) {
+        get_all = true;
+    }
 
     cont = get_first_csi_container();
     while (cont != NULL) {
-		if (memcmp(cont->m_csi_container.id.dev_mac, id.dev_mac, sizeof(mac_address_t)) == 0) {
-			if (get_all == true) {
-				obj = cJSON_CreateObject();
-				cont->encode_data(obj);
-				cJSON_AddItemToArray(parent, obj);
-			} else if (memcmp(cont->m_csi_container.id.sounding_mac, id.sounding_mac, sizeof(mac_address_t)) == 0) {
-				obj = cJSON_CreateObject();
-				cont->encode_data(obj);
-				cJSON_AddItemToArray(parent, obj);
-			}	
-		}	
+        if (memcmp(cont->m_csi_container.id.dev_mac, id.dev_mac, sizeof(mac_address_t)) == 0) {
+            if (get_all == true) {
+                obj = cJSON_CreateObject();
+                cont->encode_data(obj);
+                cJSON_AddItemToArray(parent, obj);
+            } else if (memcmp(cont->m_csi_container.id.sounding_mac, id.sounding_mac, sizeof(mac_address_t)) == 0) {
+                obj = cJSON_CreateObject();
+                cont->encode_data(obj);
+                cJSON_AddItemToArray(parent, obj);
+            }
+        }
 
         cont = get_next_csi_container(cont);
     }
 
-	return 0;
+    return 0;
 }
 
 int dm_csi_container_list_t::get_config(cJSON *obj_arr, void *parent)
@@ -80,20 +80,20 @@ int dm_csi_container_list_t::get_config(cJSON *obj_arr, void *parent)
 
 int dm_csi_container_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 {
-	dm_csi_container_t *cont = NULL;
+    dm_csi_container_t *cont = NULL;
     cJSON *obj;
-	mac_address_t	parent_mac = {0};
+    mac_address_t parent_mac = {0};
 
-	if (parent != NULL) {
-		dm_easy_mesh_t::string_to_macbytes((char *)parent, parent_mac);
-	}
+    if (parent != NULL) {
+        dm_easy_mesh_t::string_to_macbytes((char *)parent, parent_mac);
+    }
 
     cont = get_first_csi_container();
     while (cont != NULL) {
-		if (memcmp(cont->m_csi_container.id.sounding_mac, cont->m_csi_container.id.dev_mac, sizeof(mac_address_t)) != 0) {
-        	cont = get_next_csi_container(cont);
-			continue;	
-		}	
+        if (memcmp(cont->m_csi_container.id.sounding_mac, cont->m_csi_container.id.dev_mac, sizeof(mac_address_t)) != 0) {
+            cont = get_next_csi_container(cont);
+            continue;
+        }
 
         obj = cJSON_CreateObject();
         cont->encode(obj);
@@ -134,5 +134,5 @@ int dm_csi_container_list_t::load_data()
 
 int dm_csi_container_list_t::init()
 {
-	return 0;
+    return 0;
 }

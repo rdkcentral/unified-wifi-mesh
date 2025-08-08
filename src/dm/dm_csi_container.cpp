@@ -86,7 +86,7 @@ int dm_csi_container_t::parse_csi_container_id_from_key(const char *key, em_csi_
     while ((tmp = strchr(remain, '@')) != NULL) {
         if (i == 0) {
             *tmp = 0;
-            strncpy(id->net_id, remain, strlen(remain) + 1);
+            strncpy(id->net_id, remain, sizeof(id->net_id) - 1);
             tmp++;  
             remain = tmp;
         } else if (i == 1) {
@@ -94,10 +94,22 @@ int dm_csi_container_t::parse_csi_container_id_from_key(const char *key, em_csi_
             dm_easy_mesh_t::string_to_macbytes(remain, id->dev_mac);
             tmp++;
             dm_easy_mesh_t::string_to_macbytes(tmp, id->sounding_mac);
+            break;
         }  
         i++;
     }
 
+    return 0;
+}
+
+em_csi_container_t *dm_csi_container_t::get_csi_container(void)
+{
+    return &m_csi_container;
+}
+
+int dm_csi_container_t::init(void)
+{
+    memset(&m_csi_container, 0, sizeof(em_csi_container_t));
     return 0;
 }
 

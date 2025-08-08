@@ -26,8 +26,8 @@ public:
     em_csi_container_t    m_csi_container;
 
 public:
-    int init() { memset(&m_csi_container, 0, sizeof(em_csi_container_t)); return 0; }
-    em_csi_container_t *get_csi_container() { return &m_csi_container; }
+    int init();
+    em_csi_container_t *get_csi_container();
     int decode(const cJSON *obj, void *parent_id);
     void encode(cJSON *obj);
     void encode_data(cJSON *obj);

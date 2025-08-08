@@ -8,9 +8,12 @@
 struct cJSON;
 
 typedef enum {
+	dpp_config_obj_none = 0,
     dpp_config_obj_bsta,
     dpp_config_obj_ieee1905,
-	dpp_config_obj_fbss,
+	dpp_config_obj_fbss_sta,
+	dpp_config_obj_fbss_ap,
+	dpp_config_obj_backhaul_bss
 } dpp_config_obj_type_e;
 
 class ec_ctrl_configurator_t : public ec_configurator_t {
@@ -169,6 +172,22 @@ public:
 	 */
 	bool handle_recfg_auth_response(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN]) override;
 
+
+	/**
+	 * @brief Finalizes a base DPP Configuration object.
+	 *
+	 * A base configuration object has all mandatory base fields filled out, including keys
+	 * "wi-fi_tech", "discovery", and "cred".
+	 *
+	 * @param[in,out] base The base JSON object to be finalized.
+	 * @param[in] config_obj_type The type of DPP Configuration object to fill out.
+	 * @param[in] sec_ctx The security context containing the Configurator's keys.
+	 * @param[in] enrollee_net_access_key The netAccessKey of the Enrollee, used as the netAccessKey in the new DPP Connector
+	 *
+	 * @return cJSON* DPP Configuration object on success, nullptr otherwise.
+	 */
+	static cJSON *finalize_dpp_config_obj(cJSON *base, dpp_config_obj_type_e config_obj_type, ec_persistent_sec_ctx_t* sec_ctx, SSL_KEY* enrollee_net_access_key);
+
 private:
     // Private member variables can be added here
 
@@ -263,20 +282,6 @@ private:
 	 *       and DPP status are correctly set before calling this function.
 	 */
 	std::pair<uint8_t*, size_t> create_config_response_frame(uint8_t dest_mac[ETH_ALEN], uint8_t pa_al_mac[ETH_ALEN], const uint8_t dialog_token, ec_status_code_t dpp_status, bool is_sta = false);
-
-	/**
-	 * @brief Finalizes a base DPP Configuration object.
-	 *
-	 * A base configuration object has all mandatory base fields filled out, including keys
-	 * "wi-fi_tech", "discovery", and "cred".
-	 *
-	 * @param[in,out] base The base JSON object to be finalized.
-	 * @param[in] conn_ctx The EC connection context.
-	 * @param[in] config_obj_type The type of DPP Configuration object to fill out.
-	 *
-	 * @return cJSON* DPP Configuration object on success, nullptr otherwise.
-	 */
-	cJSON *finalize_config_obj(cJSON *base, ec_connection_context_t& conn_ctx, dpp_config_obj_type_e config_obj_type);
 
     /**
      * @brief Maps Enrollee MAC (as string) to onboarded status. True if onboarded (now a Proxy Agent), false if still onboarding / onboarding failed.

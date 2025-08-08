@@ -68,7 +68,7 @@ public:
     dm_op_class_t m_op_class[EM_MAX_OPCLASS];
 	unsigned int	m_num_policy;
 	dm_policy_t	m_policy[EM_MAX_POLICIES];
-    uint32_t           m_num_csi_containers;
+    uint32_t m_num_csi_containers;
     dm_csi_container_t m_csi_containers[EM_MAX_CSI_CONTAINERS];
 	hash_map_t		*m_scan_result_map = NULL;
     hash_map_t  	*m_sta_map = NULL;

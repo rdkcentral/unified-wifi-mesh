@@ -72,10 +72,10 @@ void em_ctrl_t::handle_csi_event(em_bus_event_t *evt)
     printf("%s:%d: Device:%s Sounder:%s angle:%f distance:%f\n", __func__, __LINE__,
         dev_mac_str, sounding_mac_str, cont->angle, cont->distance);
 	
-    snprintf(key, sizeof(em_long_string_t), "OneWifiMesh@%s@%s", dev_mac_str, sounding_mac_str);
+    snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", GLOBAL_NET_ID, dev_mac_str, sounding_mac_str);
     pdm = new dm_csi_container_t(cont);
 
-    dm = (dm_easy_mesh_ctrl_t *)get_data_model("OneWifiMesh");
+    dm = (dm_easy_mesh_ctrl_t *)get_data_model(GLOBAL_NET_ID);
     dm->put_csi_container(key, pdm);
 }
 

@@ -19,20 +19,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <errno.h>
-#include <assert.h>
-#include <signal.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <net/if.h>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
-#include <sys/uio.h>
-#include <sys/time.h>
-#include <sys/un.h>
-#include <unistd.h>
-#include <pthread.h>
-#include <cjson/cJSON.h>
 #include "em_cmd_get_csi_config.h"
 
 em_cmd_get_csi_config_t::em_cmd_get_csi_config_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
@@ -47,7 +33,7 @@ em_cmd_get_csi_config_t::em_cmd_get_csi_config_t(em_cmd_params_t param, dm_easy_
     m_orch_op_idx = 0;
     m_num_orch_desc = 0;
 
-    strncpy(m_name, "get_csi_config", strlen("get_csi_config") + 1);
+    strncpy(m_name, "get_csi_config", sizeof(m_name) - 1);
     m_svc = em_service_type_ctrl;
 
     init(dm);

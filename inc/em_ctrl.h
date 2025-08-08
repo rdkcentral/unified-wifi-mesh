@@ -464,7 +464,22 @@ public:
 	 */
 	void update_network_topology() { m_data_model.update_network_topology(); }
 
-    
+	/**!
+	 * @brief Retrieves the first data model in the agent list.
+	 *
+	 * @returns A pointer to the first `dm_easy_mesh_t` data model, or nullptr if no dms are available.
+	 */
+	dm_easy_mesh_t *get_first_dm() override { return m_data_model.get_first_dm(); }
+
+	/**!
+	 * @brief Retrieves the next data model in the agent list.
+	 *
+	 * @param[in] dm Pointer to the current `dm_easy_mesh_t` data model.
+	 *
+	 * @returns A pointer to the next `dm_easy_mesh_t` data model, or nullptr if there are no more dms.
+	 */
+	dm_easy_mesh_t *get_next_dm(dm_easy_mesh_t *dm) override { return m_data_model.get_next_dm(dm); }
+
 	/**!
 	 * @brief Retrieves the data model for a given network ID and optional AL MAC address.
 	 *

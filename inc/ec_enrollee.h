@@ -200,7 +200,7 @@ public:
 	/**
 	 * @brief Retrieves the current security context.
 	 */
-	inline ec_persistent_sec_ctx_t get_sec_ctx() { return m_sec_ctx; };
+	inline ec_persistent_sec_ctx_t* get_sec_ctx() { return &m_sec_ctx; };
 
 	/**!
 	 * @brief Retrieves the AL MAC address.

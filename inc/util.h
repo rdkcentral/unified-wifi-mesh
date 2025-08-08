@@ -200,10 +200,20 @@ namespace util {
 	 * @param[in] mac_str The MAC address string to convert.
 	 * @return A vector of 6 bytes representing the MAC address, or an empty vector if the input is invalid.
 	 */
-	inline std::vector<uint8_t> macstr_to_vector(const std::string& mac_str) {
+	inline std::vector<uint8_t> macstr_to_vector(const std::string& mac_str, const std::string& delim = ":") {
 		std::vector<uint8_t> mac;
+
+		// Special case for empty deliminator since a split cannot be determined
+		if (delim.empty()){
+			mac.resize(ETHER_ADDR_LEN);
+			for (size_t i = 0; i < ETHER_ADDR_LEN; i++) {
+				std::string byte_str = mac_str.substr(i*2, 2);
+				mac[i] = static_cast<uint8_t>(strtol(byte_str.c_str(), nullptr, 16));
+			}
+			return mac;
+		}
 		
-		std::vector<std::string> parts = split_by_delim(mac_str, ':');
+		std::vector<std::string> parts = split_by_delim(mac_str, delim.c_str()[0]);
 		if (parts.size() != 6) return {};
 		for (auto& part : parts) {
 			try {

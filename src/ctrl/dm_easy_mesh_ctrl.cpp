@@ -1500,7 +1500,7 @@ void dm_easy_mesh_ctrl_t::get_csi_data(em_long_string_t net_id, mac_addr_str_t d
 
     dm_easy_mesh_t::macbytes_to_string(null_mac, null_mac_str);
 
-    snprintf(key, sizeof(em_long_string_t), "OneWifiMesh@%s@%s", dev_mac_str, null_mac_str);
+    snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", GLOBAL_NET_ID, dev_mac_str, null_mac_str);
     dm_csi_container_list_t::get_data(sounders, (void *)key);
 
     tmp = cJSON_Print(parent);

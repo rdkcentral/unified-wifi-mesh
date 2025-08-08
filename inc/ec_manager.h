@@ -173,7 +173,37 @@ public:
 		return m_configurator->rekey_1905_layer_gtk();
 	}
 
-    
+	/**
+	 * @brief Get the security context of the node
+	 * 
+	 * @return ec_persistent_sec_ctx_t* Pointer to the security context, or NULL if not available.
+	 */
+	inline ec_persistent_sec_ctx_t* get_sec_ctx() {
+		if (m_enrollee) {
+			return m_enrollee->get_sec_ctx();
+		}
+		if (m_configurator) {
+			return m_configurator->get_sec_ctx();
+		}
+		return nullptr;
+	}
+
+	/**
+	 * @brief Get a connection context of the peer for a given peer AL MAC address.
+	 * 
+	 * @note Only necsessary for the configurator to access the cached enrollee NAK for the BSS Configuration Response.
+	 * 
+	 * @param peer_al_mac The AL MAC address of the peer device to get the connection context for.
+	 * @return ec_connection_context_t* Pointer to the connection context for the specified peer AL MAC address, or NULL if not found.
+	 */
+	inline ec_connection_context_t* get_al_conn_ctx(uint8_t peer_al_mac[ETH_ALEN]) {
+
+		if (m_configurator) {
+			return m_configurator->get_al_conn_ctx(peer_al_mac);
+		}
+		return NULL;
+    }
+
 	/**
 	 * @brief Upgrade an enrollee to an onboarded proxy agent.
 	 *
