@@ -138,6 +138,7 @@ onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/orch/em_orch_ctrl.cpp \
      $(top_srcdir)/src/util_crypto/aes_siv.c \
      $(top_srcdir)/src/utils/util.cpp \
+     $(top_srcdir)/src/utils/timer.cpp \
      $(top_srcdir)/OneWifi/source/utils/collection.c \
      $(top_srcdir)/OneWifi/lib/common/util.c \
      $(top_srcdir)/OneWifi/source/platform/rdkb/bus.c \ 

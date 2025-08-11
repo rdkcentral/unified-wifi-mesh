@@ -124,6 +124,7 @@ onewifi_em_agent_SOURCES =  \
      $(top_srcdir)/OneWifi/lib/common/util.c \
      $(top_srcdir)/OneWifi/source/utils/collection.c \
      $(top_srcdir)/src/utils/util.cpp \
+     $(top_srcdir)/src/utils/timer.cpp \
      $(top_srcdir)/src/util_crypto/aes_siv.c
 
 
