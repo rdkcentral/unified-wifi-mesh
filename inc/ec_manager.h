@@ -279,6 +279,30 @@ public:
         
     }
 
+	/**
+	 * @brief Handles a chirp found in an Autoconf Search (extended) message.
+	 * 
+	 * @param chirp The DPP chirp.
+	 * @param src_mac Where it came from (Enrollee).
+	 * @return true on success, otherwise false.
+	 * 
+	 */
+	bool handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, size_t len, uint8_t src_mac[ETH_ALEN]) {
+		if (m_configurator) {
+			return m_configurator->handle_autoconf_chirp(chirp, len, src_mac);
+		}
+		// Not valid for Enrollee
+		return false;
+	}
+
+	bool handle_autoconf_resp_chirp(em_dpp_chirp_value_t* chirp, size_t len, uint8_t src_mac[ETH_ALEN]) {
+		if (m_enrollee) {
+			m_enrollee->handle_autoconf_response_chirp(chirp, len, src_mac);
+		}
+		// Not valid for Configurator
+		return false;
+	}
+
 
 		/**
 	 * @brief Process a 1905 EAPOL encapsulated message.

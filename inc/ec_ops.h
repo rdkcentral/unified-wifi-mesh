@@ -25,6 +25,28 @@
 
 struct cJSON;
 
+/**
+ * @brief Sends an Autoconf Search message (extended)
+ * 
+ * @param Chirp The chirp to include in the autoconf search message
+ * @param len The length of the hash in the chirp (can be 0)
+ * 
+ * @note No dest mac as autoconf search is a multicast message
+ * @return True on success otherwise false
+ */
+using send_autoconf_search_func = std::function<bool(em_dpp_chirp_value_t *, size_t)>;
+
+/**p
+ * @brief Sends an Autoconf Search Response message (extended)
+ * 
+ * @param Chirp The Chirp to include in the autoconf search response message
+ * @param len The length of the hash in the chirp (can be 0)
+ * @param dest_mac The destination MAC address to send the response to
+ * 
+ * @return True on success otherwise false
+ * 
+ */
+using send_autoconf_search_resp_func = std::function<bool(em_dpp_chirp_value_t *, size_t, uint8_t[ETH_ALEN])>;
 
 /**
  * @brief Sends a chirp notification
@@ -157,4 +179,6 @@ struct ec_ops_t {
     get_fbss_info_func get_fbss_info = nullptr;
     can_onboard_additional_aps_func can_onboard_additional_aps = nullptr;
     send_1905_eapol_encap_func send_1905_eapol_encap = nullptr; 
+    send_autoconf_search_func send_autoconf_search = nullptr;
+    send_autoconf_search_resp_func send_autoconf_search_resp = nullptr;
 };

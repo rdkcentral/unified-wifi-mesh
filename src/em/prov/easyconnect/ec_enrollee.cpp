@@ -3,6 +3,7 @@
 #include "ec_crypto.h"
 #include "em_crypto.h"
 #include "util.h"
+#include "timer.h"
 #include "cjson/cJSON.h"
 #include "cjson_util.h"
 #include <unistd.h>
@@ -16,6 +17,7 @@ ec_enrollee_t::ec_enrollee_t(const std::string& al_mac_addr, ec_ops_t& ops, std:
     m_trigger_sta_scan_fn = ops.trigger_sta_scan;
     m_bsta_connect_fn = ops.bsta_connect;
     m_send_dir_encap_fn = ops.send_dir_encap_dpp;
+    m_send_autoconf_search_fn = ops.send_autoconf_search;
     m_scanned_channels_map = {};
 
     // Import existing security context
@@ -43,9 +45,10 @@ ec_enrollee_t::~ec_enrollee_t()
     
 }
 
-bool ec_enrollee_t::start_onboarding(bool do_reconfig, ec_data_t* boot_data)
+bool ec_enrollee_t::start_onboarding(bool do_reconfig, ec_data_t* boot_data, bool ethernet)
 {
     m_is_onboarding = false;
+    m_c_ctx.is_eth = ethernet;
     ASSERT_NOT_NULL(boot_data, false, "%s:%d Bootstrapping data is NULL\n", __func__, __LINE__);
     if (boot_data->version < 2) {
         em_printfout("Bootstrapping Version '%d' not supported!", boot_data->version);
@@ -88,8 +91,34 @@ bool ec_enrollee_t::start_onboarding(bool do_reconfig, ec_data_t* boot_data)
 
     generate_bss_channel_list(do_reconfig);
 
-    // Begin send presence announcements thread.
-    m_send_pres_announcement_thread = std::thread(&ec_enrollee_t::send_presence_announcement_frames, this);
+    if (!m_c_ctx.is_eth) {
+        // Begin send presence announcements thread.
+        m_send_pres_announcement_thread =
+            std::thread(&ec_enrollee_t::send_presence_announcement_frames, this);
+    } else {
+        // Onboarding via Ethernet, need to fire off Autoconf Search (extended) with our bootstrapping key hash and await a response from the Controller
+        uint8_t *resp_boot_key_chirp_hash =
+            ec_crypto::compute_key_hash(m_boot_data().responder_boot_key, "chirp");
+        ASSERT_NOT_NULL(resp_boot_key_chirp_hash, false,
+                        "%s:%d unable to compute \"chirp\" responder bootstrapping key hash\n",
+                        __func__, __LINE__);
+        auto [chirp, chirp_len] = ec_util::create_dpp_chirp_tlv(
+            false, true, nullptr, resp_boot_key_chirp_hash, SHA256_DIGEST_LENGTH);
+        if (chirp == nullptr || chirp_len == 0) {
+            em_printfout("Failed to create DPP Chirp TLV for Autoconf Search (extended)");
+            return false;
+        }
+
+        if (!m_send_autoconf_search_fn(chirp, chirp_len)) {
+            em_printfout(
+                "Failed to send initial Autoconf Search (extended) with bootstrapping key hash");
+            free(chirp);
+            // If we fail to send, onboarding cannot continue.
+            return false;
+        }
+        free(chirp);
+    }
+
     m_is_onboarding = true;
     return true;
 }
@@ -453,7 +482,11 @@ bool ec_enrollee_t::handle_recfg_auth_request(ec_frame_t *frame, size_t len, uin
     // EasyConnect 6.5.4:
     // Upon sending the frame, it shall set a timer for five seconds to wait for a
     // DPP Reconfiguration Authentication Confirm frame (5 second dwell)
-    bool sent = m_send_action_frame(src_mac, reinterpret_cast<uint8_t*>(response_frame), response_frame_len, m_selected_freq, 5);
+    bool sent = (m_c_ctx.is_eth)
+                    ? m_send_dir_encap_fn(reinterpret_cast<uint8_t *>(response_frame),
+                                          response_frame_len, src_mac)
+                    : m_send_action_frame(src_mac, reinterpret_cast<uint8_t *>(response_frame),
+                                          response_frame_len, m_selected_freq, 5);
     free(response_frame);
     return sent;
 }
@@ -544,7 +577,12 @@ bool ec_enrollee_t::handle_recfg_auth_confirm(ec_frame_t *frame, size_t len, uin
         return false;
     }
 
-    bool sent = m_send_action_frame(src_mac, reinterpret_cast<uint8_t*>(config_request_frame), config_request_frame_len, m_selected_freq, 0);
+    bool sent =
+        (m_c_ctx.is_eth)
+            ? m_send_dir_encap_fn(reinterpret_cast<uint8_t *>(config_request_frame),
+                                  config_request_frame_len, src_mac)
+            : m_send_action_frame(src_mac, reinterpret_cast<uint8_t *>(config_request_frame),
+                                  config_request_frame_len, m_selected_freq, 0);
     free(config_request_frame);
     free(unwrapped_data);
     return sent;
@@ -1086,6 +1124,14 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
     } 
 
     free(config_result_frame);
+
+    if (m_c_ctx.is_eth) {
+        // EasyMesh 5.3.5:
+        // After the Enrollee Multi-AP Agent sent the encapsulated DPP Configuration Result frame to the Controller, it shall follow
+        // the procedures in section 5.3.7 to set up a secure 1905-layer connectivity with the Controller
+        // TODO: begin Peer Discovery?
+    }
+
     return ok;    
 }
 
@@ -1761,7 +1807,12 @@ bool ec_enrollee_t::handle_gas_comeback_response(ec_gas_comeback_response_frame_
         // If there's more frags coming, send a Comeback Request to enable sending of next Comeback Response
         ec_gas_comeback_request_frame_t *cb_frame = create_comeback_request(frame->base.dialog_token);
         ASSERT_NOT_NULL(cb_frame, false, "%s:%d: Failed to allocate a GAS Comeback Request frame\n", __func__, __LINE__);
-        bool sent = m_send_action_frame(src_mac, reinterpret_cast<uint8_t*>(cb_frame), sizeof(ec_gas_comeback_request_frame_t), m_selected_freq, 0);
+        bool sent =
+            (m_c_ctx.is_eth)
+                ? m_send_dir_encap_fn(reinterpret_cast<uint8_t *>(cb_frame),
+                                      sizeof(ec_gas_comeback_request_frame_t), src_mac)
+                : m_send_action_frame(src_mac, reinterpret_cast<uint8_t *>(cb_frame),
+                                      sizeof(ec_gas_comeback_request_frame_t), m_selected_freq, 0);
         if (!sent) {
             em_printfout("Failed to send GAS Comeback Request to '" MACSTRFMT "', we made it to frag #%d", MAC2STR(src_mac), frame->fragment_id);
         }
@@ -1786,7 +1837,12 @@ bool ec_enrollee_t::handle_gas_initial_response(ec_gas_initial_response_frame_t 
 
         ec_gas_comeback_request_frame_t *cb_frame = create_comeback_request(resp_frame->base.dialog_token);
         ASSERT_NOT_NULL(cb_frame, false, "%s:%d: Failed to allocate GAS Initial Request frame\n", __func__, __LINE__);
-        bool sent = m_send_action_frame(src_mac, reinterpret_cast<uint8_t*>(cb_frame), sizeof(ec_gas_comeback_request_frame_t), m_selected_freq, 0);
+        bool sent =
+            (m_c_ctx.is_eth)
+                ? m_send_dir_encap_fn(reinterpret_cast<uint8_t *>(cb_frame),
+                                      sizeof(ec_gas_comeback_request_frame_t), src_mac)
+                : m_send_action_frame(src_mac, reinterpret_cast<uint8_t *>(cb_frame),
+                                      sizeof(ec_gas_comeback_request_frame_t), m_selected_freq, 0);
         free(cb_frame);
         if (!sent) {
             em_printfout("Failed to send GAS Comeback Request to '" MACSTRFMT "'", MAC2STR(src_mac));
@@ -1857,7 +1913,9 @@ bool ec_enrollee_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
         return false;
     }
 
-    bool sent = m_send_action_frame(it->second.data(), frame, frame_len, m_selected_freq, 0);
+    bool sent = (m_c_ctx.is_eth)
+                    ? m_send_dir_encap_fn(frame, frame_len, it->second.data())
+                    : m_send_action_frame(it->second.data(), frame, frame_len, m_selected_freq, 0);
     if (sent) {
         em_printfout("Sent Configuration Connection Status Result frame!");
     } else {
@@ -1870,6 +1928,40 @@ bool ec_enrollee_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
 
     
     return true;
+}
+
+bool ec_enrollee_t::process_direct_encap_dpp_gas_msg(uint8_t* frame, uint16_t len, uint8_t src_mac[ETH_ALEN])
+{
+    if (!frame || len == 0) {
+        em_printfout("Bad encap GAS frame");
+        return false;
+    }
+
+    bool did_finish = false;
+
+    auto* base = reinterpret_cast<ec_gas_frame_base_t*>(frame);
+
+    dpp_gas_action_type_t action = static_cast<dpp_gas_action_type_t>(base->action);
+    switch (action) {
+        case dpp_gas_initial_resp: {
+            did_finish = handle_gas_initial_response(reinterpret_cast<ec_gas_initial_response_frame_t*>(frame), len, src_mac);
+            break;
+        }
+        case dpp_gas_comeback_resp: {
+            did_finish = handle_gas_comeback_response(reinterpret_cast<ec_gas_comeback_response_frame_t*>(frame), len, src_mac);
+            break;
+        }
+        // dpp_gas_initial_req and dpp_gas_comeback_req are not handled here, as they are sent by the Enrollee
+        case dpp_gas_initial_req:
+        [[fallthrough]];
+        case dpp_gas_comeback_req:
+        [[fallthrough]];
+        default:
+            em_printfout("Unhandled encap GAS action type %d", action);
+            break;
+    }
+
+    return did_finish;
 }
 
 bool ec_enrollee_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len, uint8_t src_mac[ETH_ALEN])
@@ -1885,152 +1977,21 @@ bool ec_enrollee_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dp
 
     bool did_finish = false;
 
-    // TODO: I am VERY explicitly commenting out the buisness logic for the other frame types here,
-    // because the dpp frame given here is just a buffer, not any other info so more stuff has to be worked out with config.
-/*
-    std::string dest_mac_str = util::mac_to_string(dest_mac);
-
-    bool needs_fragmentation = (encap_frame_len > WIFI_MTU_SIZE);
-    if (needs_fragmentation) {
-        auto it = m_gas_session_dialog_tokens.find(dest_mac_str);
-        if (it == m_gas_session_dialog_tokens.end()) {
-            em_printfout("No GAS session dialog token found for '" MACSTRFMT "', not sending 802.11 frame.", MAC2STR(dest_mac));
-            return false;
-        }
-        uint8_t dialog_token = it->second;
-        // If peer is not ready to receive GAS Comeback Frames, we must first send a "dummy" GAS Initial Response frame inidicating to the 
-        // peer that GAS Comeback Response frames will be coming.
-        // Fragment the frame and store the fragments and wait for a GAS Comeback Request prior to sending.
-        em_printfout("Sending fragmentation prepare GAS Initial Response frame to '" MACSTRFMT "'", MAC2STR(dest_mac));
-        m_gas_frames_to_be_sent[dest_mac_str] = fragment_large_frame(encap_frame, encap_frame_len, dialog_token);
-        return send_prepare_for_fragmented_frames_frame(dest_mac);
-    }
-
-    // Pre-processing according to EM spec 5.4.3 Page 43
-    // If a Proxy Agent receives a Proxied Encap DPP message from the Multi-AP Controller, it shall extract the DPP frame from
-    // the Encapsulated Frame field of the 1905 Encap DPP TLV and:
-
-    // 1. If the 1905 Encap DPP TLV DPP Frame Indicator bit field is set to one and the Frame Type field is set to 255, the
-    // Proxy Agent shall decapsulate the DPP Configuration Response frame from the TLV and send it to the Enrollee Multi-
-    // AP Agent using a GAS frame as described in [18]
-    if (encap_tlv->dpp_frame_indicator && ec_frame_type == ec_frame_type_t::ec_frame_type_easymesh) {
-        if (!encap_tlv->enrollee_mac_addr_present) {
-            em_printfout("Cannot forward DPP Configuration Result to Enrollee, MAC addr not present!");
-            return false;
-        }
-        bool sent = m_send_action_frame(dest_mac, encap_frame, encap_frame_len, 0, 0);
-        if (!sent) {
-            em_printfout("Failed to forward DPP Configuration Result to Enrollee '" MACSTRFMT "'", MAC2STR(dest_mac));
-        }
-        free(encap_frame);
-        return sent;
-    }
-
-    // 2. If the 1905 Encap DPP TLV DPP Frame Indicator bit field is set to one and the Frame Type field set to a value other
-    // than 255, the Proxy Agent shall discard the message
-    // 3. If the 1905 Encap DPP TLV DPP Frame Indicator bit field is set to zero and the Frame Type field set to 255, the Proxy
-    // Agent shall discard the message
-    if ((encap_tlv->dpp_frame_indicator && ec_frame_type != ec_frame_type_t::ec_frame_type_easymesh) ||
-        (!encap_tlv->dpp_frame_indicator && ec_frame_type == ec_frame_type_t::ec_frame_type_easymesh)) {
-            em_printfout("Invalid Encap DPP fields, discarding message. DPP Frame Indicator=%d, DPP frame type=%d", encap_tlv->dpp_frame_indicator, ec_frame_type);
-            free(encap_frame);
-            return true;
-    }
-    // 4. If the 1905 Encap DPP TLV DPP Frame Indicator bit field is set to zero and the Frame Type field is set to a valid
-    // value, the Proxy Agent shall process the message following the procedures described in sections 5.3.4 or 5.3.10.
-    // Case 4 --  see next pile of text
-
-    // EasyMesh R6 5.4.3 Page 42
-    // If a Proxy Agent receives a Proxied Encap DPP message from the Controller, it shall extract the DPP frame from the
-    // Encapsulated Frame field of the 1905 Encap DPP TLV. If the DPP Frame Indicator field value is zero, and if the Frame
-    // Type field is not equal to zero or 15, then:
-    if ((ec_frame_type != ec_frame_type_t::ec_frame_type_auth_req && ec_frame_type != ec_frame_type_t::ec_frame_type_recfg_auth_req)) {
-        // 1. If the DPP Frame Indicator bit field in the 1905 Encap DPP TLV is set to zero and the Enrollee MAC Address Present
-        // bit is set to one, then the Proxy Agent shall send the frame as a unicast Public Action frame to the Enrollee MAC
-        // address
-        if (!encap_tlv->dpp_frame_indicator && encap_tlv->enrollee_mac_addr_present) {
-            bool sent = m_send_action_frame(dest_mac, encap_frame, encap_frame_len, 0, 0);
-            if (!sent) {
-                em_printfout("Failed to send non-DPP unicast action frame to '" MACSTRFMT "'", MAC2STR(dest_mac));
-            }
-            free(encap_frame);
-            return sent;
-        }
-        // 2. If the DPP Frame Indicator bit field in the 1905 Encap DPP TLV is set to zero and the Enrollee MAC Address Present
-        // bit is set to zero, then the Proxy Agent shall send the frame as a broadcast Public Action frame
-        else if (!encap_tlv->dpp_frame_indicator && !encap_tlv->enrollee_mac_addr_present) {
-            bool sent = m_send_action_frame(const_cast<uint8_t *>(BROADCAST_MAC_ADDR), encap_frame, encap_frame_len, 0, 0);
-            if (!sent) {
-                em_printfout("Failed to sent non-DPP broadcast action frame!");
-            }
-            free(encap_frame);
-            return sent;
-        }
-        // 3. If the DPP Frame Indicator bit field in the 1905 Encap DPP TLV is set to one and the Enrollee MAC Address Present
-        // bit is set to one, then the Proxy Agent shall send the frame as a unicast GAS frame to the Enrollee MAC address
-        else if (encap_tlv->dpp_frame_indicator && encap_tlv->enrollee_mac_addr_present) {
-            bool sent = m_send_action_frame(dest_mac, encap_frame, encap_frame_len, 0, 0);
-            if (!sent) {
-                em_printfout("Sent DPP unicast GAS frame to '" MACSTRFMT "'", MAC2STR(dest_mac));
-            }
-            free(encap_frame);
-            return sent;
-        }
-        // 4. If the DPP Frame Indicator bit field in the 1905 Encap DPP TLV is set to one and the Enrollee MAC Address Present
-        // bit is set to zero, then the Proxy Agent shall discard the message
-        else if (encap_tlv->dpp_frame_indicator && !encap_tlv->enrollee_mac_addr_present) {
-            em_printfout("Proxied Encap DPP Message with DPP Frame Indicator set, but Enrollee MAC Addr Present false! Discarding.");
-            free(encap_frame);
-            return true;
-        }
-    }
-
-    // Handlers for frame types 0, 15 "ec_frame_type_auth_req" and "ec_frame_type_recfg_auth_req"
-*/
     switch (ec_frame_type) {
-        case ec_frame_type_auth_req: {
-            /*
-            if (chirp_tlv == NULL || chirp_tlv_len == 0) {
-                em_printfout("Chirp TLV is empty");
-                break;
-            }
-            mac_addr_t chirp_mac = {0};
-            uint8_t* chirp_hash = NULL;
-            uint16_t chirp_hash_len = 0;
-            if (!ec_util::parse_dpp_chirp_tlv(chirp_tlv, chirp_tlv_len, &chirp_mac, &chirp_hash, &chirp_hash_len)) {
-                em_printfout("Failed to parse DPP Chirp TLV");
-                break;
-            }
-            std::string chirp_hash_str = em_crypto_t::hash_to_hex_string(chirp_hash, chirp_hash_len);
-            em_printfout("Chirp TLV Hash: %s", chirp_hash_str.c_str());
-
-            free(chirp_hash);
-            
-            // Store the encap frame keyed by the chirp hash in the map
-            std::vector<uint8_t> encap_frame_vec(encap_frame, encap_frame + encap_frame_len);
-            m_chirp_hash_frame_map[chirp_hash_str] = encap_frame_vec;
-            did_finish = true;
-            */
-            break;
-        }
-        case ec_frame_type_recfg_auth_req: {
-            /*
-            ec_frame_t *frame = reinterpret_cast<ec_frame_t*>(encap_frame);
-            auto c_sign_key_hash_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t>(encap_frame_len - EC_FRAME_BASE_SIZE), ec_attrib_id_C_sign_key_hash);
-            if (!c_sign_key_hash_attr.has_value()) {
-                em_printfout("No C-sign key hash attribute found in DPP Reconfiguration Authentication Request frame");
-                free(encap_frame);
-                return false;
-            }
-            std::vector<uint8_t> encap_frame_vec(encap_frame, encap_frame + encap_frame_len);
-            const std::string c_sign_key_hash_str = em_crypto_t::hash_to_hex_string(c_sign_key_hash_attr->data, c_sign_key_hash_attr->length);
-            m_stored_recfg_auth_frames_map[c_sign_key_hash_str] = encap_frame_vec;
-            did_finish = true;
-            */
-            break;
-        }
         case ec_frame_type_peer_disc_rsp: {
-            did_finish = handle_peer_disc_resp_frame(reinterpret_cast<ec_frame_t*>(dpp_frame), dpp_frame_len, src_mac);
+            did_finish = handle_peer_disc_resp_frame(ec_frame, dpp_frame_len, src_mac);
+            break;
+        }
+        case ec_frame_type_auth_req: {
+            did_finish = handle_auth_request(ec_frame, dpp_frame_len, src_mac);
+            break;
+        }
+        case ec_frame_type_auth_cnf: {
+            did_finish = handle_auth_confirm(ec_frame, dpp_frame_len, src_mac);
+            break;
+        }
+        case ec_frame_type_easymesh: {
+            did_finish = process_direct_encap_dpp_gas_msg(dpp_frame, dpp_frame_len, src_mac);
             break;
         }
         default:
@@ -2107,5 +2068,67 @@ bool ec_enrollee_t::handle_bss_info_event(const std::vector<wifi_bss_info_t> &bs
 
     m_received_scan_results.store(true);
 
+    return true;
+}
+
+bool ec_enrollee_t::handle_autoconf_response_chirp(em_dpp_chirp_value_t *chirp, size_t chirp_len, uint8_t src_mac[ETH_ALEN])
+{
+    if (!chirp || chirp_len == 0) {
+        em_printfout("Invalid autoconf chirp response");
+        return false;
+    }
+
+    em_printfout("Received autoconf chirp response from " MACSTRFMT, MAC2STR(src_mac));
+
+    if (!chirp->hash_valid) {
+        em_printfout("Chirp hash is not valid, cannot process further");
+        return false;
+    }
+
+    // Verify hash matches hash of our bootstrap key.
+    uint8_t *our_key_hash = ec_crypto::compute_key_hash(m_boot_data().responder_boot_key);
+    if (!our_key_hash) {
+        em_printfout("Failed to compute hash of our bootstrap key, cannot verify chirp response");
+        return false;
+    }
+
+    if (memcmp(chirp->data, our_key_hash, SHA256_DIGEST_LENGTH) != 0) {
+        em_printfout("Chirp response hash does not match our bootstrap key hash.");
+        free(our_key_hash);
+        return false;
+    }
+
+    // Now, we can begin a 10 second timer awaiting a DPP Authentication Request frame from the Controller.
+    ThreadedTimer timer;
+    timer.execute_after(std::chrono::seconds(10), [this, src_mac]() {
+        if (m_received_auth_frame.load()) {
+            em_printfout("Received DPP Authentication Request frame");
+            return;
+        }
+        // Never received a DPP Authentication Request frame, spec says re-send autoconf + chirp
+        em_printfout("Did not receive DPP Authentication Request frame, re-sending autoconf + chirp");
+        // Compute the hash of the responder boot key
+        uint8_t *resp_boot_key_chirp_hash = ec_crypto::compute_key_hash(m_boot_data().responder_boot_key, "chirp");
+        if (!resp_boot_key_chirp_hash) {
+            em_printfout("Failed to compute hash of responder boot key, cannot re-send chirp response");
+            return;
+        }
+        auto [chirp, chirp_len] = ec_util::create_dpp_chirp_tlv(false, true, nullptr, resp_boot_key_chirp_hash, SHA256_DIGEST_LENGTH);
+        free(resp_boot_key_chirp_hash);
+        if (!chirp || chirp_len == 0) {
+            em_printfout("Failed to create autoconf chirp response");
+            return;
+        }
+        if (!m_send_autoconf_search_fn(chirp, chirp_len)) {
+            em_printfout("Failed to re-send autoconf chirp");
+            free(chirp);
+            return;
+        }
+        free(chirp);
+        em_printfout("Re-sent autoconf chirp response to " MACSTRFMT, MAC2STR(src_mac));
+    });
+
+    // Receive of DPP Auth Req frame will happen async, we're done here
+    free(our_key_hash);
     return true;
 }

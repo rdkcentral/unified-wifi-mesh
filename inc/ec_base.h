@@ -846,6 +846,11 @@ typedef struct {
      * @brief The temporary context that is used during the authentication / configuration process and should be securely freed after the process is complete.
      */
     ec_ephemeral_context_t eph_ctx;
+
+    /**
+     * @brief Is this Enrollee onboarding via ethernet?
+     */
+    bool is_eth;
 } ec_connection_context_t;
 
 

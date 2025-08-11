@@ -231,6 +231,20 @@ public:
 	virtual bool  process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len, uint8_t src_mac[ETH_ALEN]) = 0;
 
 	/**
+	 * @brief Handles a chirp found in an Autoconf Search (extended) message.
+	 * 
+	 * @param chirp The DPP chirp.
+	 * @param len The length of the chirp hash (can be 0).
+	 * @param src_mac Where it came from (Enrollee).
+	 * @return true on success, otherwise false.
+	 * 
+	 */
+	virtual bool handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, size_t len, uint8_t src_mac[ETH_ALEN]) {
+		// impl'd by Controller Configurator only
+		return false;
+	} 
+
+	/**
 	 * @brief Process a 1905 EAPOL Encapsulated Message (1905 Encap EAPOL TLV)
 	 *
 	 * @param[in] eapol_frame The frame parsed from the 1905 Encap EAPOL TLV
@@ -448,6 +462,8 @@ protected:
 	get_fbss_info_func m_get_fbss_info;
 
     can_onboard_additional_aps_func m_can_onboard_additional_aps;
+
+	send_autoconf_search_resp_func m_send_autoconf_resp_fn;
 
 	ec_1905_encrypt_layer_t m_1905_encrypt_layer;
 

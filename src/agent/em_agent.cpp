@@ -1928,6 +1928,10 @@ int main(int argc, const char *argv[])
             g_agent.do_regen_dpp_uri = true;
             continue;
         }
+        if (arg == "--ethernet") {
+            g_agent.ethernet_onboarding = true;
+            continue;
+        }
         if (data_model_path.empty()) {
             data_model_path = arg;
             continue;
