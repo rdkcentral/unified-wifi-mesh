@@ -457,6 +457,21 @@ void em_cmd_t::init()
             m_svc = em_service_type_ctrl;
             break;
 
+        case em_cmd_type_csi:
+            snprintf(m_name, sizeof(m_name), "%s", "csi");
+            m_svc = em_service_type_agent;
+            break;
+
+        case em_cmd_type_get_csi_config:
+            snprintf(m_name, sizeof(m_name), "%s", "get_csi_config");
+            m_svc = em_service_type_ctrl;
+            break;
+
+        case em_cmd_type_get_csi_data:
+            snprintf(m_name, sizeof(m_name), "%s", "get_csi_data");
+            m_svc = em_service_type_ctrl;
+            break;
+
         default:
             break;
 
@@ -500,7 +515,8 @@ const char *em_cmd_t::get_bus_event_type_str(em_bus_event_type_t type)
         BUS_EVENT_TYPE_2S(em_bus_event_type_get_mld_config)
         BUS_EVENT_TYPE_2S(em_bus_event_type_mld_reconfig)
         BUS_EVENT_TYPE_2S(em_bus_event_type_get_reset)
-       
+        BUS_EVENT_TYPE_2S(em_bus_event_type_csi)
+
         default:
            break;
     }
@@ -770,6 +786,18 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
             type = em_cmd_type_get_reset;
             break;
 
+        case em_bus_event_type_csi:
+            type = em_cmd_type_csi;
+            break;
+
+        case em_bus_event_type_get_csi_config:
+            type = em_cmd_type_get_csi_config;
+            break;
+
+        case em_bus_event_type_get_csi_data:
+            type = em_cmd_type_get_csi_data;
+            break;
+
         default:
             break;
     }
@@ -820,6 +848,10 @@ em_bus_event_type_t em_cmd_t::cmd_2_bus_event_type(em_cmd_type_t ctype)
 
         case em_cmd_type_get_reset:
             type = em_bus_event_type_get_reset;
+            break;
+
+        case em_cmd_type_csi:
+            type = em_bus_event_type_csi;
             break;
 
         default:

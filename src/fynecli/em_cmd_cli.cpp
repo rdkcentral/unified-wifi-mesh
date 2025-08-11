@@ -449,6 +449,18 @@ int em_cmd_cli_t::execute(char *result)
             snprintf(info->name, sizeof(info->name), "%s", param->u.args.fixed_args);
             break;
 
+        case em_cmd_type_get_csi_config:
+            bevt->type = em_bus_event_type_get_csi_config;
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->u.args.fixed_args, sizeof(info->name) - 1);
+            break;
+
+        case em_cmd_type_get_csi_data:
+            bevt->type = em_bus_event_type_get_csi_data;
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->u.args.fixed_args, sizeof(info->name) - 1);
+            break;
+
         default:
             break;
     }

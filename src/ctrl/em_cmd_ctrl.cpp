@@ -124,6 +124,24 @@ int em_cmd_ctrl_t::execute(char *result)
     return 0;
 }
 
+int em_cmd_ctrl_t::send_result(unsigned char *data, unsigned int len)
+{
+    ssize_t ret;
+    int sd;
+
+    if ((ret = SSL_write(m_ssl, data, len)) <= 0) {
+        printf("%s:%d: write error on socket, err:%d\n", __func__, __LINE__, errno);
+    }
+
+    //printf("%s:%d: Send success bytes sent:%d\n", __func__, __LINE__, ret);
+    sd = SSL_get_fd(m_ssl);
+    SSL_shutdown(m_ssl);
+    SSL_free(m_ssl);
+    close(sd);
+
+    return 0;
+}
+
 int em_cmd_ctrl_t::send_result(em_cmd_out_status_t status)
 {
     ssize_t ret;

@@ -1405,6 +1405,109 @@ void dm_easy_mesh_list_t::put_scan_result(const char *key, const dm_scan_result_
 
 }
 
+dm_csi_container_t *dm_easy_mesh_list_t::get_first_csi_container()
+{
+    dm_easy_mesh_t *dm;
+
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
+    while (dm != NULL) {
+        if (dm->m_num_csi_containers > 0) {
+            return &dm->m_csi_containers[0];
+        }
+
+        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
+    }
+
+    return NULL;
+}
+
+dm_csi_container_t *dm_easy_mesh_list_t::get_next_csi_container(dm_csi_container_t *cont)
+{
+    dm_easy_mesh_t *dm;
+    bool return_next = false;
+    unsigned int i;
+
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
+    while (dm != NULL) {
+        if (dm->m_num_csi_containers == 0) {
+            dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
+            continue;
+        }
+
+        if (return_next == true) {
+            return &dm->m_csi_containers[0];
+        }
+
+        for (i = 0; i < dm->m_num_csi_containers; i++) {
+            if (cont == &dm->m_csi_containers[i]) {
+                return_next = true;
+                break;
+            }
+        }
+
+        if ((return_next == true) && ((i + 1) < dm->m_num_csi_containers)) {
+            return &dm->m_csi_containers[i + 1];
+        }
+
+        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
+    }
+
+    return NULL;
+}
+
+dm_csi_container_t *dm_easy_mesh_list_t::get_csi_container(const char *key)
+{
+    dm_easy_mesh_t *dm = NULL;
+    dm_csi_container_t *cont = NULL;
+    em_csi_container_id_t id;	
+    mac_addr_str_t dev_mac_str;
+    unsigned int i;
+    bool found = false;
+
+    dm_csi_container_t::parse_csi_container_id_from_key(key, &id);	
+    dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
+
+    if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
+        printf("%s:%d: Could not find data model for Network: %s and dev: %s\n", __func__, __LINE__,
+            id.net_id, dev_mac_str);
+        return NULL; 
+    }
+
+    for (i = 0; i < dm->m_num_csi_containers; i++) {
+        cont = &dm->m_csi_containers[i];
+        if ((strncmp(id.net_id, cont->m_csi_container.id.net_id, strlen(id.net_id)) == 0) &&
+            (memcmp(id.dev_mac, cont->m_csi_container.id.dev_mac, sizeof(mac_address_t)) == 0) &&
+            (memcmp(id.sounding_mac, cont->m_csi_container.id.sounding_mac, sizeof(mac_address_t)) == 0)) {
+            found = true;
+            break;
+        }
+    }
+
+    return (found == true) ? cont : NULL;
+}
+
+void dm_easy_mesh_list_t::remove_csi_container(const char *key)
+{
+
+}
+
+void dm_easy_mesh_list_t::put_csi_container(const char *key, const dm_csi_container_t *cont)
+{
+    dm_easy_mesh_t *dm = NULL;
+    mac_addr_str_t dev_mac_str;
+
+    dm_csi_container_t::parse_csi_container_id_from_key(key, &((dm_csi_container_t *)cont)->m_csi_container.id);	
+    dm_easy_mesh_t::macbytes_to_string((unsigned char *)cont->m_csi_container.id.dev_mac, dev_mac_str);
+
+    if ((dm = get_data_model(cont->m_csi_container.id.net_id, cont->m_csi_container.id.dev_mac)) == NULL) {
+        printf("%s:%d: Could not find data model for Network: %s and dev: %s\n", __func__, __LINE__, 
+            cont->m_csi_container.id.net_id, dev_mac_str);
+        return;
+    }
+
+    dm->set_csi_container(*cont);
+}
+
 void dm_easy_mesh_list_t::delete_all_data_models()
 {
 	dm_easy_mesh_t *dm = NULL, *tmp;

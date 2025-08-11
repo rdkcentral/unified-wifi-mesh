@@ -31,6 +31,7 @@
 #include "dm_sta_list.h"
 #include "dm_policy_list.h"
 #include "dm_scan_result_list.h"
+#include "dm_csi_container_list.h"
 #include "dm_dpp.h"
 #include "db_client.h"
 #include "dm_easy_mesh_list.h"
@@ -45,7 +46,7 @@ class dm_easy_mesh_ctrl_t :
     public dm_ieee_1905_security_list_t, public dm_radio_list_t, public dm_radio_cap_list_t,
         
     public dm_op_class_list_t, public dm_bss_list_t, public dm_sta_list_t, public dm_policy_list_t,
-	public dm_scan_result_list_t {
+	public dm_scan_result_list_t, public dm_csi_container_list_t {
 
     db_client_t m_db_client;
     bool	m_initialized;
@@ -785,7 +786,9 @@ public:
 	 * @note Ensure that the JSON object is properly initialized before calling this function.
 	 */
 	int get_mld_config(cJSON *parent, char *key);
-    
+   
+        int get_csi_config(cJSON *parent, char *key);
+
     /**!
 	 * @brief Retrieves the wifi reset configuration from the given JSON object.
 	 *
@@ -851,7 +854,9 @@ public:
 	 * em_subdoc_info_t structure before calling this function.
 	 */
 	void get_config(em_long_string_t net_id, em_subdoc_info_t *subdoc);
-    
+
+        void get_csi_data(em_long_string_t net_id, mac_addr_str_t dev_mac_str, em_subdoc_info_t *subdoc);
+
 	/**!
 	* @brief Sets the configuration for the Easy Mesh.
 	*
@@ -1549,6 +1554,11 @@ public:
 	 */
 	void put_scan_result(const char *key, const dm_scan_result_t *scan_result, unsigned int index) { m_data_model_list.put_scan_result(key, scan_result, index); }
 
+        dm_csi_container_t *get_first_csi_container() { return m_data_model_list.get_first_csi_container(); }
+        dm_csi_container_t *get_next_csi_container(dm_csi_container_t *cont) { return m_data_model_list.get_next_csi_container(cont); }
+        dm_csi_container_t *get_csi_container(const char *key) { return m_data_model_list.get_csi_container(key); }
+        void remove_csi_container(const char *key) { m_data_model_list.remove_csi_container(key); }
+        void put_csi_container(const char *key, const dm_csi_container_t *cont) { m_data_model_list.put_csi_container(key, cont); }
 	
 	/**!
 	 * @brief Initializes the network topology.

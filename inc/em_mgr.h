@@ -210,7 +210,6 @@ public:
 	 */
 	em_t *get_al_node();
 
-    
 	/**
 	* @brief Get the physical AL node.
 	* In other words, the actual `em_t` node that is being used to perform EasyMesh operations.

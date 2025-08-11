@@ -1336,6 +1336,125 @@ int em_channel_t::send_available_spectrum_inquiry_msg()
 
 }
 
+int em_channel_t::send_csi_notification()
+{
+    unsigned short  msg_id = em_msg_type_csi_notif;
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    unsigned int len = 0, i;
+    unsigned short sz;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    unsigned char buff[MAX_EM_BUFF_SZ];
+    unsigned char *tmp = buff;
+    unsigned short type = htons(ETH_P_1905);
+    dm_easy_mesh_t *pdm, *dm;
+    dm_csi_container_t *cont = NULL;
+    mac_addr_str_t  dev_mac_str, sounding_mac_str;
+
+    pdm = get_current_cmd()->get_data_model();
+    cont = &pdm->m_csi_containers[0];
+    dm_easy_mesh_t::macbytes_to_string(cont->m_csi_container.id.dev_mac, dev_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(cont->m_csi_container.id.sounding_mac, sounding_mac_str);
+    
+
+    printf("%s:%d: Device:%s Sounder:%s\n", __func__, __LINE__, dev_mac_str, sounding_mac_str);
+
+    dm = get_data_model();
+
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+
+    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
+
+    memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += static_cast<unsigned int> (sizeof(unsigned short));
+
+    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
+
+    memset(tmp, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(msg_id);
+    cmdu->id = htons(msg_id);
+    cmdu->last_frag_ind = 1;
+    cmdu->relay_ind = 1;
+
+    tmp += sizeof(em_cmdu_t);
+    len += static_cast<unsigned int> (sizeof(em_cmdu_t));
+
+    // Device MAC Address type TLV
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_al_mac_address;
+    tlv->len = htons(sizeof(mac_address_t));
+    memcpy(tlv->value, cont->m_csi_container.id.dev_mac, sizeof(mac_address_t));
+
+    tmp += (sizeof (em_tlv_t) + sizeof(mac_address_t));
+    len += static_cast<unsigned int> (sizeof (em_tlv_t) + sizeof(mac_address_t));
+
+    // Sounding client MAC Address type TLV
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_rdk_sounding_sta_mac;
+    tlv->len = htons(sizeof(mac_address_t));
+    memcpy(tlv->value, cont->m_csi_container.id.sounding_mac, sizeof(mac_address_t));
+
+    tmp += (sizeof (em_tlv_t) + sizeof(mac_address_t));
+    len += static_cast<unsigned int> (sizeof (em_tlv_t) + sizeof(mac_address_t));
+
+    // fill the CSI angle and distance info
+
+    printf("csi angle:%f distance:%f\r\n", cont->m_csi_container.angle,
+        cont->m_csi_container.distance);
+
+    //CSI Angle tvl data
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_rdk_angle_csi_data;
+    sz = sizeof(double);
+    memcpy(tlv->value, (unsigned char *)&cont->m_csi_container.angle, sz);
+    tlv->len =  htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + sz);
+
+    //CSI distance tvl data
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_rdk_distance_csi_data;
+    sz = sizeof(double);
+    memcpy(tlv->value, (unsigned char *)&cont->m_csi_container.distance, sz);
+    tlv->len =  htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + sz);
+
+    // End of message
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_eom;
+    tlv->len = 0;
+
+    tmp += (sizeof (em_tlv_t));
+    len += static_cast<unsigned int> (sizeof (em_tlv_t));
+
+/*
+    if (em_msg_t(em_msg_type_csi_notif, em_profile_type_3, buff, len).validate(errors) == 0) {
+        printf("CSI notification msg validation failed\n");
+
+        return -1;
+    }
+*/
+
+    if (send_frame(buff, len)  < 0) {
+        printf("%s:%d: Topology notification send failed, error:%d\n", __func__, __LINE__, errno);
+        return -1;
+    }
+
+    //printf("%s:%d: CSI notification Send Successful\n", __func__, __LINE__);
+
+    return static_cast<int> (len);
+}
+
 int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len)
 {
     dm_easy_mesh_t *dm;
@@ -1848,6 +1967,54 @@ void em_channel_t::fill_scan_result(dm_scan_result_t *scan_res, em_channel_scan_
 
 }
 
+int em_channel_t::handle_csi_notification(unsigned char *buff, unsigned int len)
+{
+    em_tlv_t    *tlv;
+    int tlv_len;
+    mac_addr_str_t dev_mac_str, sounding_mac_str;
+    em_event_t *evt;
+    em_csi_container_t *cont;
+
+    evt = (em_event_t *)malloc(sizeof(em_event_t));
+    evt->type = em_event_type_bus;
+    evt->u.bevt.data_len = 0;
+    evt->u.bevt.type = em_bus_event_type_csi;
+    cont = (em_csi_container_t *)&evt->u.bevt.params.u.csi_data_params;
+
+    memset(cont, 0, sizeof(em_csi_container_t));
+
+    tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tlv_len = static_cast<int> (len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
+
+    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+        if (tlv->type == em_tlv_type_rdk_sounding_sta_mac) {
+            memcpy(cont->id.sounding_mac, tlv->value, sizeof(mac_address_t));
+        } else if (tlv->type == em_tlv_type_rdk_angle_csi_data) {
+            memcpy(&cont->angle, tlv->value, htons(tlv->len));	
+        } else if (tlv->type == em_tlv_type_rdk_distance_csi_data) {
+            memcpy(&cont->distance, tlv->value, htons(tlv->len));	
+        } else if (tlv->type == em_tlv_type_al_mac_address) {
+            memcpy(cont->id.dev_mac, tlv->value, sizeof(mac_address_t));	
+        }
+
+        tlv_len -= static_cast<int> (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+#if 1
+    dm_easy_mesh_t::macbytes_to_string(cont->id.dev_mac, dev_mac_str);	
+    dm_easy_mesh_t::macbytes_to_string(cont->id.sounding_mac, sounding_mac_str);	
+
+    printf("%s:%d: Device: %s Sounder: %s\n", __func__, __LINE__, 
+        dev_mac_str, sounding_mac_str);
+    printf("csi angle:%f distance:%f\r\n", cont->angle,
+        cont->distance);
+#endif
+    push_event(evt);
+    free(evt);
+    return 0;
+}
+
 int em_channel_t::handle_channel_scan_rprt(unsigned char *buff, unsigned int len)
 {
 	em_tlv_t    *tlv;
@@ -1950,7 +2117,11 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
            		handle_channel_scan_rprt(data, len);
 			}
             break;
-
+        case em_msg_type_csi_notif:
+            if (get_service_type() == em_service_type_ctrl) {
+                handle_csi_notification(data, len);
+            }
+            break;
         default:
             break;
     }
@@ -1962,6 +2133,12 @@ void em_channel_t::process_state()
 	dm_easy_mesh_t *dm;
 
     switch (get_state()) {
+        case em_state_agent_csi_notify:
+            send_csi_notification();
+            //@TBD Set agent state to unconfigured
+            set_state(em_state_agent_unconfigured);
+            break;
+
 		case em_state_agent_channel_pref_query:
 			if ((get_service_type() == em_service_type_agent) && (get_state() < em_state_agent_channel_selection_pending)) {
 				send_channel_pref_report_msg();
