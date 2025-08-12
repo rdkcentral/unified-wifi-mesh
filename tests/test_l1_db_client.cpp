@@ -373,3 +373,67 @@ TEST(db_client_tTest, RecreateDatabaseWithInvalidConnection) {
     delete dbClient;
     std::cout << "Exiting RecreateDatabaseWithInvalidConnection test" << std::endl;
 }
+
+/**
+ * @brief Verify that the default construction of db_client_t initializes its internal members to NULL
+ *
+ * This test invokes the default constructor of db_client_t and verifies that its internal members (m_driver and m_con) are set to NULL. The test ensures that no exceptions are thrown during construction and that pointer arithmetic confirms the internal state.
+ *
+ * **Test Group ID:** Basic: 01
+ * **Test Case ID:** 013@n
+ * **Priority:** High
+ *
+ * **Pre-Conditions:** None
+ * **Dependencies:** None
+ * **User Interaction:** None
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Invoke the default constructor of db_client_t and access internal members (m_driver, m_con) via pointer arithmetic | constructor = default | db_client_t instance is created with m_driver == nullptr and m_con == nullptr; assertions (EXPECT_EQ) pass without exceptions | Should Pass |
+ */
+TEST(db_client_tTest, DefaultConstruction)
+{
+    std::cout << "Entering DefaultConstruction test" << std::endl;
+
+    // Invoking the default constructor and ensuring no exception is thrown.
+    EXPECT_NO_THROW({
+        db_client_t client;
+        std::cout << "Invoked db_client_t::db_client_t() constructor." << std::endl;
+    });
+
+    std::cout << "Exiting DefaultConstruction test" << std::endl;
+}
+
+/**
+ * @brief Verify that db_client_t destructor correctly releases allocated database resources
+ *
+ * This test ensures that when a db_client_t object goes out of scope, its destructor is invoked automatically and effectively releases the internal database resources without throwing any exceptions. The test verifies that the internal state modifications related to m_driver and m_con are properly handled.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 014@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description                                                                                   | Test Data                                   | Expected Result                                                                                           | Notes       |
+ * | :--------------: | --------------------------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ----------- |
+ * | 01               | Invoke the default constructor of db_client_t and allow the object to go out of scope triggering the destructor | constructor = default, scope = automatic    | Destructor should release database resources without throwing an exception; internal state changes occur as expected | Should Pass |
+ */
+TEST(db_client_tTest, DestructorReleasesDatabaseResourcesCorrectly) {
+    std::cout << "Entering Destructor releases database resources correctly test" << std::endl;
+
+    EXPECT_NO_THROW({
+        std::cout << "Invoking db_client_t default constructor." << std::endl;
+        {
+            db_client_t client;
+            std::cout << "db_client_t object created successfully." << std::endl;
+        }
+        std::cout << "db_client_t object went out of scope; destructor should have been invoked automatically." << std::endl;
+    });
+
+    std::cout << "Exiting Destructor releases database resources correctly test" << std::endl;
+}

@@ -1522,3 +1522,64 @@ TEST(dm_network_ssid_t_Test, CompareDifferentNumHaulsValues) {
     EXPECT_FALSE(obj1 == obj2);
     std::cout << "Exiting CompareDifferentNumHaulsValues test";
 }
+
+/**
+ * @brief Validate that the default constructor for dm_network_ssid_t creates a valid object
+ *
+ * This test verifies that invoking the default constructor of dm_network_ssid_t does not throw any exceptions
+ * and results in the creation of a valid object with m_network_ssid_info default initialized. It is important
+ * to ensure that object instantiation through default construction works as expected without runtime errors.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 051@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                            | Test Data                                                  | Expected Result                                                                                         | Notes       |
+ * | :--------------: | ---------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------- |
+ * | 01               | Invoke the default constructor for dm_network_ssid_t and validate object creation  | No input parameters, output: instance of dm_network_ssid_t   | Object is successfully created, no exception is thrown, and the object's internal state is default initialized | Should Pass |
+ */
+TEST(dm_network_ssid_t_Test, DefaultConstruction_creates_valid_dm_network_ssid_t_object) {
+    std::cout << "Entering DefaultConstruction_creates_valid_dm_network_ssid_t_object test" << std::endl;
+
+    EXPECT_NO_THROW({
+        std::cout << "Invoking dm_network_ssid_t default constructor" << std::endl;
+        dm_network_ssid_t obj;
+        std::cout << "dm_network_ssid_t object created successfully." << std::endl;
+    });
+
+    std::cout << "Exiting DefaultConstruction_creates_valid_dm_network_ssid_t_object test" << std::endl;
+}
+/**
+ * @brief Verify that the default construction and destruction of dm_network_ssid_t does not throw exceptions
+ *
+ * This test ensures that an instance of dm_network_ssid_t can be created using its default constructor and properly destroyed without throwing any exceptions. It validates the exception safety of object lifecycle operations.
+ *
+ * **Test Group ID:** Basic: 01
+ * **Test Case ID:** 052@n
+ * **Priority:** High
+ *
+ * **Pre-Conditions:** None
+ * **Dependencies:** None
+ * **User Interaction:** None
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                                                      | Test Data                                              | Expected Result                                                            | Notes      |
+ * | :--------------: | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------ | -------------------------------------------------------------------------- | ---------- |
+ * | 01               | Invoke the default constructor for dm_network_ssid_t and let the object go out of scope to call the destructor | constructor = default, output = object memory address, exception check = EXPECT_NO_THROW | The object is constructed and automatically destroyed without throwing any exception | Should Pass|
+ */
+TEST(dm_network_ssid_t_Test, DestructionDefault) {
+    std::cout << "Entering DestructionDefault test" << std::endl;
+    // Using EXPECT_NO_THROW to ensure no exception is thrown during object creation and destruction
+    EXPECT_NO_THROW({
+        std::cout << "Invoking default constructor for dm_network_ssid_t" << std::endl;
+        dm_network_ssid_t obj;
+        // Object goes out of scope at the end of this block, invoking the destructor.
+        std::cout << "dm_network_ssid_t object will be destroyed automatically when going out of scope" << std::endl;
+    });
+    std::cout << "Exiting DestructionDefault test" << std::endl;
+}

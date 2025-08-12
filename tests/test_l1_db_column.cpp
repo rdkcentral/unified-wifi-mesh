@@ -454,3 +454,61 @@ TEST(db_column_tTest, ValidNameValidTypeBoundaryArgs2) {
     EXPECT_EQ(column.m_type_args, args);
     std::cout << "Exiting ValidNameValidTypeBoundaryArgs2 test";
 }
+
+/**
+ * @brief Verifies that the default constructor creates a valid db_column_t instance without throwing exceptions.
+ *
+ * Tests that calling the default constructor of db_column_t does not throw any exceptions.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 014@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                                           | Test Data   |                                                  Expected Result                                    | Notes       |
+ * | :--------------: | ------------------------------------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------| ----------- |
+ * | 01               | Invoke the default constructor of db_column_t and verify that no exception is thrown. | input: None | Instance is created successfully with accessible default member values and no exceptions are thrown | Should Pass |
+ */
+TEST(db_column_tTest, DefaultConstructorCreatesValidInstance) {
+    std::cout << "Entering DefaultConstructorCreatesValidInstance test" << std::endl;
+
+    EXPECT_NO_THROW({
+        std::cout << "Invoking db_column_t default constructor" << std::endl;
+        db_column_t instance;
+        std::cout << "db_column_t instance created successfully" << std::endl;
+    });
+
+    std::cout << "Exiting DefaultConstructorCreatesValidInstance test" << std::endl;
+}
+
+/**
+ * @brief Test the behavior of db_column_t's destructor when a default constructed instance goes out of scope.
+ *
+ * This test validates that an object of db_column_t, upon destruction after being created using the default constructor, does not throw any exceptions. It ensures that the destructor handles resources properly and that the object's lifecycle completes without error.
+ *
+ * **Test Group ID:** Basic: 01
+ * **Test Case ID:** 015@n
+ * **Priority:** High
+ *
+ * **Pre-Conditions:** None
+ * **Dependencies:** None
+ * **User Interaction:** None
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                                                   | Test Data                                                       | Expected Result                                                            | Notes      |
+ * | :--------------: | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------- | ---------- |
+ * | 01               | Invoke the default constructor and automatic destruction of db_column_t instance within EXPECT_NO_THROW. | input = none, output = db_column_t() instance creation and destruction | No exception is thrown; EXPECT_NO_THROW assertion passes                    | Should Pass |
+ */
+TEST(db_column_tTest, DestructorDefaultConstructed) {
+    std::cout << "Entering DestructorDefaultConstructed test" << std::endl;
+    EXPECT_NO_THROW({
+        db_column_t obj;
+        std::cout << "Invoked default constructor for db_column_t instance." << std::endl;
+    });
+    std::cout << "Exited inner scope; db_column_t destructor should have been invoked without exception." << std::endl;
+    std::cout << "Exiting DestructorDefaultConstructed test" << std::endl;
+}

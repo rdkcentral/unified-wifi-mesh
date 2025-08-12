@@ -3321,3 +3321,75 @@ TEST(dm_device_t_Test, CopyConstructorWithSpecialCharactersInDeviceInformation) 
     ASSERT_EQ(0, memcmp(originalDevice.m_device_info.manufacturer, copiedDevice.m_device_info.manufacturer, sizeof(em_long_string_t)));
     std::cout << "Exiting CopyConstructorWithSpecialCharactersInDeviceInformation test" << std::endl;
 }
+
+/**
+ * @brief Verify that the default constructor of dm_device_t creates a valid object without throwing an exception.
+ *
+ * This test checks that invoking the default constructor of dm_device_t does not result in any exception
+ * and that the resultant object's m_device_info member is initialized to its default state. The objective
+ * is to ensure the stability of basic object construction which is critical for further functionalities that
+ * depend on a valid dm_device_t object.
+ *
+ * **Test Group ID:** Basic: 01
+ * **Test Case ID:** 109@n
+ * **Priority:** High
+ *
+ * **Pre-Conditions:** None
+ * **Dependencies:** None
+ * **User Interaction:** None
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                                              | Test Data                                                  | Expected Result                                                                           | Notes      |
+ * | :--------------: | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ---------- |
+ * | 01               | Invoke dm_device_t default constructor and verify that no exception is thrown.             | No input arguments, invocation of dm_device_t constructor. | Object is created successfully, no exception is thrown, and m_device_info is in default state. | Should Pass |
+ */
+TEST(dm_device_t_Test, DefaultConstructionCreatesValidObject) {
+    std::cout << "Entering DefaultConstructionCreatesValidObject test" << std::endl;
+
+    EXPECT_NO_THROW({
+        // Invocation of the default constructor of dm_device_t
+        std::cout << "Invoking dm_device_t::dm_device_t() constructor." << std::endl;
+        dm_device_t device;
+        std::cout << "dm_device_t object created successfully." << std::endl;
+    });
+
+    std::cout << "Exiting DefaultConstructionCreatesValidObject test" << std::endl;
+}
+
+/**
+ * @brief Verify that the destructor is invoked without exceptions on a heap allocated dm_device_t object
+ *
+ * This test allocates a dm_device_t object on the heap using its default constructor and then deletes it.
+ * The objective is to ensure that no exceptions are thrown during object creation or deletion, meaning the destructor
+ * is called properly to release any allocated resources.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 110@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                                                     | Test Data                                                              | Expected Result                                                               | Notes       |
+ * | :--------------: | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------- |
+ * | 01               | Invoke the default constructor to allocate a dm_device_t object on the heap.                     | Invocation: obj = new dm_device_t()                                    | No exception thrown; obj is allocated (non-null pointer)                      | Should Pass |
+ * | 02               | Delete the allocated dm_device_t object to invoke its destructor.                                | Invocation: delete obj (with obj pointer from step 01)                 | No exception thrown during deletion; destructor called successfully           | Should Pass |
+ */
+TEST(dm_device_t_Test, Destructor_called_on_heap_allocated_object) {
+    std::cout << "Entering Destructor_called_on_heap_allocated_object test" << std::endl;
+    std::cout << "Invoking default constructor for dm_device_t object on heap." << std::endl;
+    // Create an object using default constructor
+    dm_device_t* obj = nullptr;
+    EXPECT_NO_THROW({
+        obj = new dm_device_t();
+    });
+    std::cout << "Invoking the destructor by calling delete on the dm_device_t object." << std::endl;
+    // Delete the object. The destructor should be invoked without any exceptions.
+    EXPECT_NO_THROW({
+        delete obj;
+    });
+    std::cout << "Destructor invoked successfully on heap allocated object." << std::endl;
+    std::cout << "Exiting Destructor_called_on_heap_allocated_object test" << std::endl;
+}

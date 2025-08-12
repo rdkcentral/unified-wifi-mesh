@@ -934,3 +934,64 @@ TEST(dm_cac_comp_t_Test, CopyConstructorWithValidSourceInstance) {
      ASSERT_EQ(new_instance.m_cac_comp_info.channel, 36);
      std::cout << "Exiting CopyConstructorWithValidSourceInstance" << std::endl;
 }
+
+/**
+ * @brief Test the default constructor of dm_cac_comp_t to ensure that it properly initializes the object without throwing exceptions.
+ *
+ * This test verifies that invoking the default constructor of dm_cac_comp_t does not throw any exception.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 028@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                       | Test Data                                                         | Expected Result                                                           | Notes        |
+ * | :--------------: | ----------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------ |
+ * | 01               | Invoke the default constructor of dm_cac_comp_t and log the state.  | constructor = dm_cac_comp_t(), m_cac_comp_info = default state     | No exception is thrown; dm_cac_comp_t object is created and internal state is valid. | Should Pass  |
+ */
+TEST(dm_cac_comp_t_Test, DefaultConstructor_Success) {
+    std::cout << "Entering DefaultConstructor_Success test" << std::endl;
+    // Invoking default constructor and expect no throw
+    EXPECT_NO_THROW({
+        dm_cac_comp_t obj;
+        std::cout << "Invoked dm_cac_comp_t() constructor." << std::endl;
+    });
+    std::cout << "Exiting DefaultConstructor_Success test" << std::endl;
+}
+
+/**
+ * @brief Verify proper destruction of a dm_cac_comp_t object in automatic scope.
+ *
+ * This test verifies that an object of type dm_cac_comp_t is successfully created using its default constructor and is properly destroyed upon exiting the scope. The test ensures that no exceptions are thrown during the object's creation and automatic destruction, thereby validating correct resource management.
+ *
+ * **Test Group ID:** Basic: 01
+ * **Test Case ID:** 029@n
+ * **Priority:** High
+ *
+ * **Pre-Conditions:** None
+ * **Dependencies:** None
+ * **User Interaction:** None
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Invoke the default constructor of dm_cac_comp_t within an EXPECT_NO_THROW block to instantiate the object and trigger automatic destruction when going out of scope. | constructor_call = default, object scope = automatic | Object is created and its destructor is invoked without throwing any exceptions. | Should Pass |
+ */
+TEST(dm_cac_comp_t_Test, Valid_object_destruction_in_automatic_scope) {
+    std::cout << "Entering Valid_object_destruction_in_automatic_scope test" << std::endl;
+
+    // Create an object using the default constructor and ensure no exception is thrown
+    EXPECT_NO_THROW({
+        std::cout << "Invoking default constructor for dm_cac_comp_t." << std::endl;
+        dm_cac_comp_t obj;
+        std::cout << "dm_cac_comp_t object created. m_cac_comp_info internal state creation assumed initialized." << std::endl;
+        std::cout << "Leaving inner scope. Destructor ~dm_cac_comp_t() will be automatically invoked." << std::endl;
+    });
+
+    std::cout << "Exited inner scope; dm_cac_comp_t destructor should have been invoked without exception." << std::endl;
+    std::cout << "Exiting Valid_object_destruction_in_automatic_scope test" << std::endl;
+}

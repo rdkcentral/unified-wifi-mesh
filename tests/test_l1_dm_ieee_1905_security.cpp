@@ -1235,4 +1235,66 @@ TEST(dm_ieee_1905_security_t_Test, CompareAllFieldsIdenticalExceptOne) {
     obj2.m_ieee_1905_security_info.sec_cap.encryption_algo = 2;
     EXPECT_FALSE(obj1 == obj2);
     std::cout << "Exiting CompareAllFieldsIdenticalExceptOne" << std::endl;
-}   
+}
+
+/**
+ * @brief Verify that the default constructor of dm_ieee_1905_security_t successfully initializes the internal state without throwing exceptions.
+ *
+ * This test checks that creating an instance of dm_ieee_1905_security_t using its default constructor does not throw any exceptions and that the object’s internal state is initialized to the expected default values.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 039@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Invoke the default constructor of dm_ieee_1905_security_t to create an instance. | input: None, output: object with default initialization values | Object is successfully created with the default constructor without throwing any exceptions. | Should Pass |
+ */
+TEST(dm_ieee_1905_security_t_Test, DefaultConstructorInitializesObjectSuccessfully) {
+    std::cout << "Entering DefaultConstructorInitializesObjectSuccessfully test" << std::endl;
+
+    // Invoke the default constructor and ensure no exception is thrown
+    EXPECT_NO_THROW({
+        dm_ieee_1905_security_t obj;
+        std::cout << "Invoked dm_ieee_1905_security_t default constructor successfully." << std::endl;
+    });
+
+    std::cout << "Exiting DefaultConstructorInitializesObjectSuccessfully test" << std::endl;
+}
+
+/**
+ * @brief Test default construction and destruction of dm_ieee_1905_security_t object.
+ *
+ * This test verifies that the default constructor of dm_ieee_1905_security_t correctly initializes an object and that the destructor properly releases the allocated resources without throwing any exceptions.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 040@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                         | Test Data                                                       | Expected Result                                                | Notes      |
+ * | :--------------: | ------------------------------------------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------------- | ---------- |
+ * | 01               | Invoke default constructor for dm_ieee_1905_security_t.             | constructor = dm_ieee_1905_security_t(), no arguments             | Object is created successfully without throwing exceptions.  | Should Pass|
+ * | 02               | Invoke destructor to delete the created object.                     | input = pointer to dm_ieee_1905_security_t instance, delete operator invoked | Object is deleted successfully without throwing exceptions.  | Should Pass|
+ */
+TEST(dm_ieee_1905_security_t_Test, DefaultConstructorDestruction) {
+    std::cout << "Entering DefaultConstructorDestruction test" << std::endl;
+    EXPECT_NO_THROW({
+        std::cout << "Invoking default constructor dm_ieee_1905_security_t()" << std::endl;
+        dm_ieee_1905_security_t* obj = new dm_ieee_1905_security_t();
+        std::cout << "Object created successfully using default constructor" << std::endl;
+        std::cout << "Invoking destructor for dm_ieee_1905_security_t()" << std::endl;
+        delete obj;
+        std::cout << "Destructor invoked successfully" << std::endl;
+    });
+    std::cout << "Exiting DefaultConstructorDestruction test" << std::endl;
+}

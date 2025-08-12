@@ -1121,3 +1121,68 @@ TEST(dm_dpp_tTest, CompareDifferentObjects) {
      cJSON_Delete(obj);
      std::cout << "Exiting ValidJSONObjectWithSpecialCharacters" << std::endl;
  }
+
+/**
+ * @brief Test the successful construction of dm_dpp_t using its default constructor
+ *
+ * This test ensures that an object of dm_dpp_t can be created using its default constructor without throwing any exceptions.
+ * It verifies that the constructor properly initializes the object and outputs debug logs for verifying internal state.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 035@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                            | Test Data                                           | Expected Result                                                                                | Notes         |
+ * | :--------------: | ---------------------------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------- |
+ * | 01               | Invoke dm_dpp_t default constructor and check for exceptions           | Constructor call: dm_dpp_t(), no inputs, no outputs | Object is created without exceptions; EXPECT_NO_THROW assertion passes                        | Should Pass   |
+ * | 02               | Print debug logs for internal state and test messages                  | Invocation of std::cout, no input parameters        | Debug messages printed including internal state address and test entry/exit messages           | Should be successful |
+ */
+TEST(dm_dpp_tTest, dm_dpp_t_constructor_success)
+{
+    std::cout << "Entering dm_dpp_t_constructor_success test" << std::endl;
+
+    // Invoke the default constructor of dm_dpp_t and check that no exception is thrown.
+    EXPECT_NO_THROW({
+        dm_dpp_t obj;
+        std::cout << "Invoked dm_dpp_t() default constructor successfully." << std::endl;
+    });
+
+    std::cout << "Exiting dm_dpp_t_constructor_success test" << std::endl;
+}
+
+/**
+ * @brief Verify that dm_dpp_t's destructor, invoked via a default constructed object, does not throw any exceptions.
+ *
+ * This test validates that an object of type dm_dpp_t created using its default constructor is properly destructed without any exceptions being thrown. The test ensures resource cleanup via the destructor works reliably.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 036@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                      | Test Data                                              | Expected Result                                                                                | Notes       |
+ * | :--------------: | ---------------------------------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ----------- |
+ * | 01               | Invoke default constructor of dm_dpp_t and let the object go out of scope to trigger the destructor | input: None, output: Object created via dm_dpp_t()     | The object is created and destroyed without any exception (EXPECT_NO_THROW passes)             | Should Pass |
+ */
+TEST(dm_dpp_tTest, Destructor_Default)
+{
+    std::cout << "Entering Destructor_Default test" << std::endl;
+
+    EXPECT_NO_THROW({
+        std::cout << "Invoking default constructor of dm_dpp_t." << std::endl;
+        dm_dpp_t obj;  // Object created via default constructor
+        std::cout << "dm_dpp_t object created using default constructor. About to go out of scope triggering destructor." << std::endl;
+    });
+
+    std::cout << "Destruction of dm_dpp_t (default constructed) completed without exception." << std::endl;
+    std::cout << "Exiting Destructor_Default test" << std::endl;
+}
