@@ -2808,3 +2808,64 @@
       ASSERT_EQ(0, memcmp(original.m_bss_info.ssid, copy.m_bss_info.ssid, sizeof(original.m_bss_info.ssid)));
       std::cout << "Exiting CopyConstructorWithDmBssTObjectHavingSpecialCharactersInStrings" << std::endl;
 }
+
+/**
+ * @brief Validate that dm_bss_t can be successfully instantiated using its parameterless constructor
+ *
+ * This test verifies that the default constructor of dm_bss_t does not throw any exceptions during object
+ * creation.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 088@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                              | Test Data                                         | Expected Result                                    | Notes       |
+ * | :--------------: | -------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------------- | ----------- |
+ * | 01               | Invoke dm_bss_t default constructor                      | No input arguments, output: instance of dm_bss_t  | Object is instantiated without throwing exceptions | Should Pass |
+ */
+TEST(dm_bss_t_Test, SuccessfulInstantiationUsingParameterlessConstructor) {
+    std::cout << "Entering DefaultConstructor test" << std::endl;
+
+    EXPECT_NO_THROW({
+        // Invoke default constructor
+        dm_bss_t obj;
+        std::cout << "Invoked dm_bss_t default constructor." << std::endl;
+    });
+
+    std::cout << "Exiting DefaultConstructor test" << std::endl;
+}
+
+/**
+ * @brief Test the default destructor behavior of dm_bss_t
+ *
+ * This test verifies that an object of dm_bss_t can be created using its default constructor without throwing any exceptions. It then checks that once the object goes out of scope, its destructor is properly invoked without any issues.
+ *
+ * **Test Group ID:** Basic: 01
+ * **Test Case ID:** 089@n
+ * **Priority:** High
+ *
+ * **Pre-Conditions:** None
+ * **Dependencies:** None
+ * **User Interaction:** None
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                        | Test Data                                        | Expected Result                                           | Notes        |
+ * | :--------------: | ------------------------------------------------------------------ | ------------------------------------------------ | --------------------------------------------------------- | ------------ |
+ * | 01               | Invoke default constructor and observe object destruction without exceptions | None = n/a                                      | No exception thrown; default constructor and destructor executed as expected | Should Pass  |
+ */
+TEST(dm_bss_t_Test, DefaultDestructor) {
+    std::cout << "Entering DefaultDestructor test" << std::endl;
+    EXPECT_NO_THROW({
+        {
+            dm_bss_t obj;
+            std::cout << "Invoked default constructor for dm_bss_t" << std::endl;
+        }
+        std::cout << "dm_bss_t object went out of scope, destructor invoked" << std::endl;
+    });
+    std::cout << "Exiting DefaultDestructor test" << std::endl;
+}

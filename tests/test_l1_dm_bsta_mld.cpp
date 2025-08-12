@@ -1200,3 +1200,67 @@ TEST(dm_bsta_mld_Test, CopyConstructorWithInvalidMacAddressValues) {
       ASSERT_EQ(0, memcmp(original.m_bsta_mld_info.ap_mld_mac_addr, copy.m_bsta_mld_info.ap_mld_mac_addr, sizeof(original.m_bsta_mld_info.ap_mld_mac_addr)));
       std::cout << "Exiting CopyConstructorWithInvalidMacAddressValues" << std::endl;
 }
+
+/**
+ * @brief Test the default constructor of dm_bsta_mld_t for proper object creation and initialization
+ *
+ * This test verifies that invoking the default constructor of dm_bsta_mld_t does not throw any exceptions and that the object's
+ * internal state (m_bsta_mld_info) is initialized with default values. This ensures that the object is properly constructed for future usage.
+ *
+ * **Test Group ID:** Basic: 01
+ * **Test Case ID:** 033@n
+ * **Priority:** High
+ *
+ * **Pre-Conditions:** None
+ * **Dependencies:** None
+ * **User Interaction:** None
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                                                   | Test Data                                                                                                                      | Expected Result                                                                                                      | Notes         |
+ * | :--------------: | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ------------- |
+ * | 01               | Invoke the default constructor of dm_bsta_mld_t and verify no exception is thrown                | Invocation: default constructor (dm_bsta_mld_t obj)                                                                            | Object is created without throwing any exceptions; EXPECT_NO_THROW passes                                             | Should Pass   |
+ */
+TEST(dm_bsta_mld_t_Test, DefaultConstructorPositiveTest) {
+    std::cout << "Entering DefaultConstructorPositiveTest test" << std::endl;
+
+    std::cout << "Invoking default constructor: dm_bsta_mld_t obj;" << std::endl;
+    EXPECT_NO_THROW({
+        dm_bsta_mld_t obj;
+        std::cout << "dm_bsta_mld_t object created successfully." << std::endl;
+    });
+
+    std::cout << "Exiting DefaultConstructorPositiveTest test" << std::endl;
+}
+
+/**
+ * @brief Validates that the default constructed dm_bsta_mld_t object is destructed without throwing exceptions.
+ *
+ * This test case verifies that creating an instance of dm_bsta_mld_t using the default constructor and then allowing it to go out of scope (thus invoking the destructor) does not throw any exceptions. It also prints internal state information for demonstration purposes.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 034@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Invoke default constructor and allow the object to go out of scope to trigger the destructor of dm_bsta_mld_t. | No input parameters; internal state prints: dm_bsta_mld_t obj; m_bsta_mld_info pointer address output; exception check through EXPECT_NO_THROW. | The object should be constructed and destructed without any exception being thrown. | Should Pass |
+ */
+TEST(dm_bsta_mld_t_Test, Destructor_DefaultConstructed) {
+    std::cout << "Entering Destructor_DefaultConstructed test" << std::endl;
+    EXPECT_NO_THROW({
+        {
+            std::cout << "Invoking default constructor for dm_bsta_mld_t." << std::endl;
+            dm_bsta_mld_t obj;
+            std::cout << "Default constructor invoked successfully." << std::endl;
+            // Print internal state of the object (for demonstration, printing pointer to m_bsta_mld_info)
+            std::cout << "Internal state (m_bsta_mld_info) address: " << &obj.m_bsta_mld_info << std::endl;
+            std::cout << "About to leave scope, which will invoke the destructor for dm_bsta_mld_t." << std::endl;
+        }
+    });
+    std::cout << "Exiting Destructor_DefaultConstructed test" << std::endl;
+}

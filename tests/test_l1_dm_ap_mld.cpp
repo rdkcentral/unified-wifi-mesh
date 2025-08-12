@@ -1081,3 +1081,63 @@ TEST(dm_ap_mld_tTest, CopyConstructorWithNullInput) {
     std::cout << "Exiting CopyConstructorWithNullInput" << std::endl;
 }
  */
+
+/**
+ * @brief Test to verify that the dm_ap_mld_t default constructor operate without throwing exceptions.
+ *
+ * This test checks if the dm_ap_mld_t object can be created without any runtime errors. It is designed to track that the default constructor properly initializes the object without issues.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 034@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                               | Test Data                                                                    | Expected Result                                                       | Notes         |
+ * | :--------------: | --------------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------- |
+ * | 01               | Instantiate dm_ap_mld_t using the default constructor and verify that no exception is thrown during destruction. | No input arguments, output: object instantiation | The API call returns normally without any exceptions being thrown. | Should Pass   |
+ */
+TEST(dm_ap_mld_tTest, Constructor) {
+    std::cout << "Entering Constructor test" << std::endl;
+    EXPECT_NO_THROW({
+        dm_ap_mld_t object;
+        std::cout << "Invoked dm_ap_mld_t default constructor." << std::endl;
+    });
+    std::cout << "Exiting Constructor test" << std::endl;
+}
+/**
+ * @brief Verify that the dm_ap_mld_t instance is properly destroyed without throwing exceptions.
+ *
+ * This test verifies that when a dm_ap_mld_t object is created using the default constructor and then deleted,
+ * the destructor cleans up resources without throwing any exceptions. It ensures that resource allocation and
+ * deallocation are handled correctly.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 035@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                     | Test Data                                                              | Expected Result                                                                        | Notes         |
+ * | :--------------: | --------------------------------------------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------- |
+ * | 01               | Create a dm_ap_mld_t object using the default constructor.      | No input arguments; output: obj pointer allocated (dm_ap_mld_t instance) | Object is created successfully with resources properly allocated.                    | Should Pass   |
+ * | 02               | Delete the dm_ap_mld_t object to invoke its destructor.         | Input: obj pointer; output: resources released                        | No exception thrown during deletion, ensuring destructor invokes resource cleanup cleanly. | Should Pass   |
+ */
+TEST(dm_ap_mld_tTest, DestructionOfInstance) {
+    std::cout << "Entering DestructionOfInstance test" << std::endl;
+    EXPECT_NO_THROW({
+        std::cout << "Creating dm_ap_mld_t object using default constructor." << std::endl;
+        dm_ap_mld_t* obj = new dm_ap_mld_t();
+        std::cout << "dm_ap_mld_t object created. (Resources allocated)" << std::endl;
+        std::cout << "Invoking destructor by deleting the dm_ap_mld_t object." << std::endl;
+        delete obj;
+        std::cout << "Destructor invoked. Resources should have been released cleanly." << std::endl;
+    });
+    std::cout << "Exiting DestructionOfInstance test" << std::endl;
+}

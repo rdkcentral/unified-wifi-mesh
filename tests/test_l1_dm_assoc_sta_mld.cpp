@@ -1301,3 +1301,65 @@ TEST(dm_assoc_sta_mld_t_Test, CopyConstructorWithZeroAffiliatedStations) {
     EXPECT_EQ(copy.m_assoc_sta_mld_info.num_affiliated_sta, 0);
     std::cout << "Exiting CopyConstructorWithZeroAffiliatedStations" << std::endl;
 }
+
+/**
+ * @brief Validate that the default constructor of dm_assoc_sta_mld_t initializes the object successfully.
+ *
+ * This test ensures that invoking the default constructor of dm_assoc_sta_mld_t does not throw any exceptions and that the object is created with a valid default internal state.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 042@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description                                                                  | Test Data                                                      | Expected Result                                                                             | Notes      |
+ * | :--------------: | ---------------------------------------------------------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------- | ---------- |
+ * | 01               | Invoke the default constructor of dm_assoc_sta_mld_t and verify no exception | constructor invoked with no parameters, output: default object state | Object is successfully created without throwing any exception; | Should Pass |
+ */
+TEST(dm_assoc_sta_mld_t_Test, DefaultConstructionInitializesSuccessfully) {
+    std::cout << "Entering DefaultConstructionInitializesSuccessfully test" << std::endl;
+    // Invoke the default constructor and check that no exception is thrown.
+    EXPECT_NO_THROW({
+        dm_assoc_sta_mld_t obj;
+        std::cout << "Invoked dm_assoc_sta_mld_t default constructor successfully." << std::endl;
+    });
+    std::cout << "Exiting DefaultConstructionInitializesSuccessfully test" << std::endl;
+}
+
+/**
+ * @brief Verify that the default constructor of dm_assoc_sta_mld_t and its destructor work as expected
+ *
+ * This test validates that invoking the default constructor of dm_assoc_sta_mld_t does not throw an exception and that the object's destructor is properly called when the object goes out of scope. It ensures proper resource management in the object's lifecycle.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 043@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description                                                                                                          | Test Data                               | Expected Result                                                                                   | Notes      |
+ * | :--------------: | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------- |
+ * | 01               | Invoke the default constructor of dm_assoc_sta_mld_t and ensure no exception is thrown; confirm destructor call on scope exit. | constructor = default, no parameters    | Constructor should succeed without throwing and object destructor should be invoked upon scope exit. | Should Pass |
+ */
+TEST(dm_assoc_sta_mld_t_Test, Destructor_DefaultConstructor) {
+    std::cout << "Entering Destructor_DefaultConstructor test" << std::endl;
+
+    {
+        std::cout << "Invoking default constructor of dm_assoc_sta_mld_t" << std::endl;
+        EXPECT_NO_THROW({
+            dm_assoc_sta_mld_t obj;
+            std::cout << "dm_assoc_sta_mld_t object created using default constructor" << std::endl;
+            // Object will go out of scope at the end of this block, triggering the destructor.
+        });
+        std::cout << "dm_assoc_sta_mld_t object is going out of scope, destructor should now be invoked" << std::endl;
+    }
+
+    std::cout << "Exiting Destructor_DefaultConstructor test" << std::endl;
+}

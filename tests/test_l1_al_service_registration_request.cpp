@@ -681,3 +681,34 @@ TEST(AlServiceRegistrationRequestTest, Constructor_InvalidType) {
     AlServiceRegistrationRequest request(operation, invalidType);
     std::cout << "Exiting Constructor_InvalidType" << std::endl;
 }
+
+/**
+ * @brief Verify that the default constructor of AlServiceRegistrationRequest creates a valid instance without throwing exceptions.
+ *
+ * This test verifies that using the default constructor of AlServiceRegistrationRequest does not throw any exceptions and correctly initializes the object's default internal state (serviceOperation and serviceType). It ensures that the object creation is successful and that the default values are properly set.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 025@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description                                                        | Test Data                                                         | Expected Result                                                                 | Notes      |
+ * | :--------------: | ------------------------------------------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------- |
+ * | 01               | Invoke default constructor of AlServiceRegistrationRequest           | input: none, output: instance with default serviceOperation and serviceType | No exception is thrown; the object's default fields are correctly initialized | Should Pass |
+ */
+TEST(AlServiceRegistrationRequestTest, DefaultConstructorCreatesValidInstance) {
+    std::cout << "Entering DefaultConstructorCreatesValidInstance test" << std::endl;
+
+    std::cout << "Invoking AlServiceRegistrationRequest::AlServiceRegistrationRequest() default constructor" << std::endl;
+    EXPECT_NO_THROW({
+        AlServiceRegistrationRequest obj;
+        std::cout << "AlServiceRegistrationRequest object created successfully." << std::endl;
+        std::cout << "Default internal state: serviceOperation and serviceType are set to their default values." << std::endl;
+    });
+
+    std::cout << "Exiting DefaultConstructorCreatesValidInstance test" << std::endl;
+}

@@ -1351,3 +1351,33 @@ TEST(AlServiceDataUnitTest, SetMacAddressWithAllOnes) {
     }
     std::cout << "Exiting SetMacAddressWithAllOnes" << std::endl;
 }
+
+/**
+ * @brief Verify that the default constructor of AlServiceDataUnit creates an instance with the expected default state.
+ *
+ * This test invokes the default constructor of the AlServiceDataUnit and confirms that no exception is thrown during object creation.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 048@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                                 | Test Data                                                                                                                      | Expected Result                                                                          | Notes         |
+ * | :--------------: | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- | ------------- |
+ * | 01               | Invoke the default constructor of AlServiceDataUnit and verify no exception.  | input: none, output: instance creation using default constructor                                                                 | AlServiceDataUnit instance is created without throwing any exceptions.                 | Should Pass   |
+ */
+TEST(AlServiceDataUnit, AlServiceDataUnit_defaultConstructor) {
+    std::cout << "Entering AlServiceDataUnit_defaultConstructor test" << std::endl;
+
+    std::cout << "Invoking default constructor of AlServiceDataUnit" << std::endl;
+    EXPECT_NO_THROW({
+        AlServiceDataUnit dataUnit;
+        std::cout << "AlServiceDataUnit instance created successfully using default constructor" << std::endl;
+    });
+
+    std::cout << "Exiting AlServiceDataUnit_defaultConstructor test" << std::endl;
+}

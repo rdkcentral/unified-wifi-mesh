@@ -1140,3 +1140,33 @@ TEST(AlServiceRegistrationResponseTest, ValidMACAddressValidRangeInvalidResult) 
     AlServiceRegistrationResponse response(macAddress, range, result);
     std::cout << "Exiting ValidMACAddressValidRangeInvalidResult" << std::endl;
 }
+
+/**
+ * @brief Verify that the default constructor of AlServiceRegistrationResponse creates a valid object without throwing exceptions
+ *
+ * This test validates that the default constructor of AlServiceRegistrationResponse initializes an object properly without any exceptions being thrown.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 045@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description                                                                          | Test Data                                           | Expected Result                                                               | Notes       |
+ * | :--------------: | ------------------------------------------------------------------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------- | ----------- |
+ * | 01               | Invoke the default constructor and check that object creation does not throw exceptions | No input | No exception is thrown and object is successfully created | Should Pass |
+ */
+TEST(AlServiceRegistrationResponseTest, DefaultConstructorCreatesValidObject)
+{
+    std::cout << "Entering DefaultConstructorCreatesValidObject test" << std::endl;
+    // Invoke the default constructor and validate that no exception is thrown.
+    EXPECT_NO_THROW({
+        std::cout << "Invoking AlServiceRegistrationResponse default constructor." << std::endl;
+        AlServiceRegistrationResponse response;  // Object creation using default constructor
+        std::cout << "AlServiceRegistrationResponse default constructor invocation completed." << std::endl;
+    });
+    std::cout << "Exiting DefaultConstructorCreatesValidObject test" << std::endl;
+}

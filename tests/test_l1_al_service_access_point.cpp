@@ -359,3 +359,39 @@ TEST_F(AlServiceAccessPointTest, NullCharacterInSocketPath) {
     AlServiceAccessPoint serviceAccessPoint(nullCharSocketPath);
     std::cout << "Exiting NullCharacterInSocketPath test";
 }
+
+/**
+ * @brief Test the proper destruction of an instance of AlServiceAccessPoint
+ *
+ * This test verifies that creating an instance of AlServiceAccessPoint using a valid socket path does not throw any exceptions and that the destructor is properly invoked when the instance goes out of scope.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 013@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                                                  | Test Data                               | Expected Result                                                 | Notes       |
+ * | :--------------: | -------------------------------------------------------------------------------------------- | --------------------------------------- | --------------------------------------------------------------- | ----------- |
+ * | 01               | Invoke the constructor of AlServiceAccessPoint with a valid socket path and ensure destruction occurs without throwing exceptions | socketPath = /tmp/test_socket           | The instance is created and destructed without any exceptions   | Should Pass |
+ */
+TEST(AlServiceAccessPoint, DestructorInitializedInstance) {
+    std::cout << "Entering DestructorInitializedInstance test" << std::endl;
+
+    std::string socketPath = "/tmp/test_socket";
+    std::cout << "Invoking constructor AlServiceAccessPoint with socketPath: " << socketPath << std::endl;
+
+    EXPECT_NO_THROW({
+        {
+            // Create an instance of AlServiceAccessPoint using the provided socketPath.
+            AlServiceAccessPoint instance(socketPath);
+            std::cout << "AlServiceAccessPoint instance created successfully with socketPath: " << socketPath << std::endl;
+        } // instance goes out-of-scope here, invoking the destructor.
+        std::cout << "AlServiceAccessPoint instance has been destructed (went out of scope)" << std::endl;
+    });
+
+    std::cout << "Exiting DestructorInitializedInstance test" << std::endl;
+}
