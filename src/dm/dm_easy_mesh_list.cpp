@@ -1459,7 +1459,7 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
 	const em_policy_t	em_policy[] = {
 						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 
 							em_policy_id_type_ap_metrics_rep}, 0, {}, em_steering_policy_type_unknown, 
-							0, 0, 120, 0, true, true, false, "easymesh_demo", false, false, false},
+							0, 0, 120, 0, false, false, false, "", false, false, false},
 						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, 
 							em_policy_id_type_radio_metrics_rep}, 0, {}, em_steering_policy_type_unknown, 
 							60, 120, 0, 5, false, false, false, "", false, false, false},
@@ -1546,10 +1546,10 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::get_data_model(const char *net_id, const un
 {
     dm_easy_mesh_t *dm = NULL;
     mac_addr_str_t mac_str;
-    em_short_string_t	key;
+    em_2xlong_string_t	key;
 
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (al_mac), mac_str);
-    snprintf(key, sizeof(em_short_string_t), "%s@%s", net_id, mac_str);
+    snprintf(key, sizeof(key), "%s@%s", net_id, mac_str);
     //printf("%s:%d: Retrieve data model at key: %s\n", __func__, __LINE__, key);
     dm = static_cast<dm_easy_mesh_t *> (hash_map_get(m_list, key));
 

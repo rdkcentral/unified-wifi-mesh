@@ -25,11 +25,6 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <linux/filter.h>
-#include <netinet/ether.h>
-#include <netpacket/packet.h>
-#include <linux/netlink.h>
-#include <linux/rtnetlink.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -271,7 +266,7 @@ dm_network_ssid_t::dm_network_ssid_t(const dm_network_ssid_t& net_ssid)
 
 dm_network_ssid_t::dm_network_ssid_t()
 {
-
+    init();
 }
 
 dm_network_ssid_t::~dm_network_ssid_t()

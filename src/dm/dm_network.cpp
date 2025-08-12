@@ -25,11 +25,6 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <linux/filter.h>
-#include <netinet/ether.h>
-#include <netpacket/packet.h>
-#include <linux/netlink.h>
-#include <linux/rtnetlink.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -176,7 +171,7 @@ void dm_network_t::operator = (const dm_network_t& obj)
     if (this == &obj) { return; }
     memcpy(&this->m_net_info.id,&obj.m_net_info.id,sizeof(em_long_string_t));
     this->m_net_info.num_of_devices = obj.m_net_info.num_of_devices;
-    strncpy(this->m_net_info.timestamp, obj.m_net_info.timestamp, strlen(obj.m_net_info.timestamp) + 1);
+    strncpy(this->m_net_info.timestamp, obj.m_net_info.timestamp, sizeof(em_long_string_t));
     memcpy(&this->m_net_info.ctrl_id.mac ,&obj.m_net_info.ctrl_id.mac,sizeof(mac_address_t));
     memcpy(&this->m_net_info.ctrl_id.name,&obj.m_net_info.ctrl_id.name,sizeof(em_interface_name_t));
     this->m_net_info.num_mscs_disallowed_sta = obj.m_net_info.num_mscs_disallowed_sta;
@@ -198,7 +193,7 @@ int dm_network_t::init()
 	util::get_date_time_rfc3399(date_time, EM_DATE_TIME_BUFF_SZ);
 
 	memset(&m_net_info, 0, sizeof(em_network_info_t)); 
-	strncpy(m_net_info.timestamp, date_time, strlen(date_time) + 1);
+	strncpy(m_net_info.timestamp, date_time, sizeof(em_long_string_t));
 	return 0;
 }
 

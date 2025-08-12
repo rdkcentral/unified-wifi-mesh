@@ -29,11 +29,6 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <linux/filter.h>
-#include <netinet/ether.h>
-#include <netpacket/packet.h>
-#include <linux/netlink.h>
-#include <linux/rtnetlink.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -429,7 +424,7 @@ uint8_t em_crypto_t:: wps_key_derivation_function(uint8_t *key, uint8_t *label_p
     }
     return 1; 
 }
-uint8_t em_crypto_t::platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher_text, uint32_t *cipher_len)
+uint8_t em_crypto_t::platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher_text, uint32_t *cipher_len, bool disable_padding)
 {
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX _ctx;
@@ -446,23 +441,57 @@ uint8_t em_crypto_t::platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint
         return 0;
     }
 #endif
+    
+    // For wrap ciphers, set the appropriate flags BEFORE init
+    if (EVP_CIPHER_mode(cipher_type) == EVP_CIPH_WRAP_MODE) {
+        EVP_CIPHER_CTX_set_flags(ctx, EVP_CIPHER_CTX_FLAG_WRAP_ALLOW);
+    }
+    
     if (EVP_EncryptInit_ex(ctx, cipher_type, NULL, key, iv) != 1) {
+        unsigned long err = ERR_get_error();
+        char err_buf[256];
+        ERR_error_string_n(err, err_buf, sizeof(err_buf));
+        printf("%s:%d EVP_EncryptInit_ex failed: %s\n", __func__, __LINE__, err_buf);
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+        EVP_CIPHER_CTX_cleanup(ctx);
+#else
+        EVP_CIPHER_CTX_free(ctx);
+#endif
         return 0;
     }
 
-    EVP_CIPHER_CTX_set_padding(ctx, 0);
+    if (disable_padding) {
+        EVP_CIPHER_CTX_set_padding(ctx, 0);
+    }
 
     
     if (EVP_EncryptUpdate(ctx, cipher_text, &len, plain, static_cast<int> (plain_len)) != 1) {
+        unsigned long err = ERR_get_error();
+        char err_buf[256];
+        ERR_error_string_n(err, err_buf, sizeof(err_buf));
+        printf("%s:%d EVP_EncryptUpdate failed: %s\n", __func__, __LINE__, err_buf);
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+        EVP_CIPHER_CTX_cleanup(ctx);
+#else
+        EVP_CIPHER_CTX_free(ctx);
+#endif
         return 0;
     }
-
 
     if (EVP_EncryptFinal_ex(ctx, cipher_text + len, &final_len) != 1) {
+        unsigned long err = ERR_get_error();
+        char err_buf[256];
+        ERR_error_string_n(err, err_buf, sizeof(err_buf));
+        printf("%s:%d EVP_EncryptFinal_ex failed: %s\n", __func__, __LINE__, err_buf);
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+        EVP_CIPHER_CTX_cleanup(ctx);
+#else
+        EVP_CIPHER_CTX_free(ctx);
+#endif
         return 0;
     }
 
-    *cipher_len = static_cast<uint32_t> (len);
+    *cipher_len = static_cast<uint32_t> (len + final_len);
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX_cleanup(ctx);
@@ -472,7 +501,7 @@ uint8_t em_crypto_t::platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint
 
     return 1;
 }
-uint8_t em_crypto_t::platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len)
+uint8_t em_crypto_t::platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len, bool disable_padding)
 {
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX _ctx;
@@ -490,19 +519,65 @@ uint8_t em_crypto_t::platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint
         return 0;
     }
 #endif
+    
+    // For wrap ciphers, set the appropriate flags BEFORE init
+    if (EVP_CIPHER_mode(cipher_type) == EVP_CIPH_WRAP_MODE) {
+        EVP_CIPHER_CTX_set_flags(ctx, EVP_CIPHER_CTX_FLAG_WRAP_ALLOW);
+    }
+    
     if (EVP_DecryptInit_ex(ctx, cipher_type, NULL, key, iv) != 1) {
+        unsigned long err = ERR_get_error();
+        char err_buf[256];
+        ERR_error_string_n(err, err_buf, sizeof(err_buf));
+        printf("%s:%d EVP_DecryptInit_ex failed: %s\n", __func__, __LINE__, err_buf);
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+        EVP_CIPHER_CTX_cleanup(ctx);
+#else
+        EVP_CIPHER_CTX_free(ctx);
+#endif
         return 0;
     }
 
-    EVP_CIPHER_CTX_set_padding(ctx, 0);
+    if (disable_padding) {
+        EVP_CIPHER_CTX_set_padding(ctx, 0);
+    }
+    
 
     plen = static_cast<int> (data_len);
-    if (EVP_DecryptUpdate(ctx, data, &plen, data, static_cast<int> (data_len)) != 1 || plen != static_cast<int> (data_len)) {
+    if (EVP_DecryptUpdate(ctx, data, &plen, data, static_cast<int> (data_len)) != 1) {
+        unsigned long err = ERR_get_error();
+        char err_buf[256];
+        ERR_error_string_n(err, err_buf, sizeof(err_buf));
+        printf("%s:%d EVP_DecryptUpdate failed: %s\n", __func__, __LINE__, err_buf);
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+        EVP_CIPHER_CTX_cleanup(ctx);
+#else
+        EVP_CIPHER_CTX_free(ctx);
+#endif
         return 0;
     }
 
     len = sizeof(buf);
-    if (EVP_DecryptFinal_ex(ctx, buf, &len) != 1 || len != 0) {
+    if (EVP_DecryptFinal_ex(ctx, buf, &len) != 1) {
+        unsigned long err = ERR_get_error();
+        char err_buf[256];
+        ERR_error_string_n(err, err_buf, sizeof(err_buf));
+        printf("%s:%d EVP_DecryptFinal_ex failed: %s\n", __func__, __LINE__, err_buf);
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+        EVP_CIPHER_CTX_cleanup(ctx);
+#else
+        EVP_CIPHER_CTX_free(ctx);
+#endif
+        return 0;
+    }
+    
+    // For non-wrap ciphers, len should be 0 after final
+    if (EVP_CIPHER_mode(cipher_type) != EVP_CIPH_WRAP_MODE && len != 0) {
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+        EVP_CIPHER_CTX_cleanup(ctx);
+#else
+        EVP_CIPHER_CTX_free(ctx);
+#endif
         return 0;
     }
 
@@ -514,6 +589,72 @@ uint8_t em_crypto_t::platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint
 
     return 1;
 }
+
+uint8_t em_crypto_t::aes_key_wrap(uint8_t *kek, size_t kek_len, 
+                                  uint8_t *plain, uint32_t plain_len,
+                                  uint8_t *wrapped, uint32_t *wrapped_len)
+{
+    const EVP_CIPHER *cipher;
+    
+    // Default IV for AES Key Wrap (RFC 3394 2.2.3.1)
+    uint8_t iv[8] = {0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6};
+
+    
+    // Select cipher based on KEK length (bytes)
+    switch(kek_len) {
+        case 16: cipher = EVP_aes_128_wrap(); break;
+        case 24: cipher = EVP_aes_192_wrap(); break;
+        case 32: cipher = EVP_aes_256_wrap(); break;
+        default: return 0;
+    }
+    
+    // Validate input length (must be multiple of 8, minimum 16)
+    if (plain_len < 16 || (plain_len % 8) != 0) {
+        return 0;
+    }
+    
+    // Use platform_cipher_encrypt with padding DISABLED for wrap mode (true = disable padding)
+    return platform_cipher_encrypt(cipher, kek, iv, plain, plain_len, wrapped, wrapped_len, true);
+}
+
+uint8_t em_crypto_t::aes_key_unwrap(uint8_t *kek, size_t kek_len,
+                                    uint8_t *wrapped, uint32_t wrapped_len,
+                                    uint8_t *unwrapped, uint32_t *unwrapped_len)
+{
+    const EVP_CIPHER *cipher;
+    
+    // Default IV for AES Key Wrap (RFC 3394 2.2.3.1)
+    uint8_t iv[8] = {0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6};
+    
+    // Select cipher based on KEK length
+    switch(kek_len) {
+        case 16: cipher = EVP_aes_128_wrap(); break;
+        case 24: cipher = EVP_aes_192_wrap(); break;
+        case 32: cipher = EVP_aes_256_wrap(); break;
+        default: return 0;
+    }
+    
+    // Validate wrapped key length (must be multiple of 8, minimum 24)
+    if (wrapped_len < 24 || (wrapped_len % 8) != 0) {
+        return 0;
+    }
+    
+    // Copy to output buffer first since platform_cipher_decrypt works in-place
+    memcpy(unwrapped, wrapped, wrapped_len);
+    
+    // Use platform_cipher_decrypt with padding DISABLED for wrap mode (true = disable padding)
+    if (platform_cipher_decrypt(cipher, kek, iv, unwrapped, wrapped_len, true) != 1) {
+        return 0;
+    }
+    
+    // Output length is 8 bytes less than wrapped length
+    *unwrapped_len = wrapped_len - 8;
+    
+    return 1;
+}
+
+
+
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
 EVP_PKEY* em_crypto_t::create_dh_pkey(BIGNUM *p, BIGNUM *g, BIGNUM *bn_priv, BIGNUM *bn_pub)
 {
@@ -1010,7 +1151,6 @@ SSL_KEY* em_crypto_t::ec_key_from_base64_der(const std::string& base64_der_pubke
         return NULL;
     }
 
-    EC_KEY_set_conv_form(ec_key, POINT_CONVERSION_COMPRESSED);
     EC_KEY_set_asn1_flag(ec_key, OPENSSL_EC_NAMED_CURVE);
 
     return ec_key;
@@ -1248,12 +1388,12 @@ SSL_KEY *em_crypto_t::read_keypair_from_pem(const std::string &file_path) {
     SSL_KEY *pkey = NULL;
     
     fp = fopen(file_path.c_str(), "rb");
-    ASSERT_NOT_NULL(fp, NULL, "%s:%d Failed to open file (%s)", __func__, __LINE__, file_path.c_str());
+    EM_ASSERT_NOT_NULL(fp, NULL, "Failed to open file (%s)", file_path.c_str());
     
     // Read private key - this will contain both private and public key information
     pkey = PEM_read_PrivateKey(fp, NULL, NULL, NULL);
     if (!pkey) {
-        printf("%s:%d Failed to read private key from PEM file\n", __func__, __LINE__);
+        em_printfout("Failed to read private key from PEM file");
         goto err;
     }
     
@@ -1396,9 +1536,9 @@ err:
 #endif
 
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
-SSL_KEY *em_crypto_t::create_ec_key_from_coordinates(
+SSL_KEY *em_crypto_t::create_ec_key_from_coordinates(const EC_GROUP* group,
     const std::vector<uint8_t> &x_bin, const std::vector<uint8_t> &y_bin,
-    const std::optional<std::vector<uint8_t>> &priv_key_bytes, const std::string &group_name)
+    const std::optional<std::vector<uint8_t>> &priv_key_bytes)
 {
     EVP_PKEY *pkey = nullptr;
     OSSL_PARAM_BLD *param_bld = nullptr;
@@ -1407,6 +1547,8 @@ SSL_KEY *em_crypto_t::create_ec_key_from_coordinates(
     BIGNUM *x = nullptr, *y = nullptr, *priv_key_bn = nullptr;
     uint8_t *buf = nullptr;
     size_t buf_len = 0;
+    int nid = NID_undef;
+    const char* group_name;
 
     // Create BIGNUMs for coordinates
     x = BN_bin2bn(x_bin.data(), static_cast<int>(x_bin.size()), nullptr);
@@ -1418,9 +1560,19 @@ SSL_KEY *em_crypto_t::create_ec_key_from_coordinates(
 
     if ((param_bld = OSSL_PARAM_BLD_new()) == NULL) goto err;
 
+    nid = EC_GROUP_get_curve_name(group);
+    if (nid == NID_undef) {
+        printf("Failed to get curve name from group\n");
+        goto err;
+    }
+    group_name = EC_curve_nid2nist(nid);
+    if (!group_name) {
+        printf("Failed to get NIST name for curve NID %d\n", nid);
+        goto err;
+    }
+
     // Set the EC group name
-    if (!OSSL_PARAM_BLD_push_utf8_string(param_bld, OSSL_PKEY_PARAM_GROUP_NAME, group_name.c_str(),
-                                         0))
+    if (!OSSL_PARAM_BLD_push_utf8_string(param_bld, OSSL_PKEY_PARAM_GROUP_NAME, group_name, 0))
         goto err;
 
     // Create a properly formatted uncompressed EC point from X and Y
@@ -1496,11 +1648,18 @@ cleanup:
 }
 #else
 
-SSL_KEY *em_crypto_t::create_ec_key_from_coordinates(
+SSL_KEY *em_crypto_t::create_ec_key_from_coordinates(const EC_GROUP* group,
     const std::vector<uint8_t> &x_bin, const std::vector<uint8_t> &y_bin,
-    const std::optional<std::vector<uint8_t>> &priv_key_bytes, const std::string &group_name)
+    const std::optional<std::vector<uint8_t>> &priv_key_bytes)
 {
-    EC_KEY *ec_key = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
+
+    int nid = EC_GROUP_get_curve_name(group);
+    if (nid == NID_undef) {
+        printf("Failed to get curve name from group\n");
+        return nullptr;
+    }
+
+    EC_KEY *ec_key = EC_KEY_new_by_curve_name(nid);
     if (!ec_key) return nullptr;
 
     BIGNUM *x = BN_bin2bn(x_bin.data(), x_bin.size(), nullptr);
@@ -1638,6 +1797,25 @@ std::optional<std::vector<uint8_t>> em_crypto_t::sign_data_ecdsa(const std::vect
 }
 #endif
 
+SSL_KEY *em_crypto_t::bundle_ec_key(const EC_GROUP* group, const EC_POINT *public_key, const BIGNUM *private_key) {
+    EM_ASSERT_NOT_NULL(public_key, NULL, "Public key is NULL");
+    EM_ASSERT_NOT_NULL(group, NULL, "Group is NULL");
+
+    auto [x, y] = ec_crypto::get_ec_x_y(group, public_key);
+    if (!x || !y) {
+        return NULL;
+    }
+    
+    // Use scoped_bn to ensure proper cleanup
+    scoped_bn x_scoped(x);
+    scoped_bn y_scoped(y);
+    
+    if (private_key == NULL){
+        return em_crypto_t::create_ec_key_from_coordinates(group, ec_crypto::BN_to_vec(x_scoped.get()), ec_crypto::BN_to_vec(y_scoped.get()));
+    }
+    return em_crypto_t::create_ec_key_from_coordinates(group, ec_crypto::BN_to_vec(x_scoped.get()), ec_crypto::BN_to_vec(y_scoped.get()), ec_crypto::BN_to_vec(private_key));
+}
+
 std::string em_crypto_t::hash_to_hex_string(const uint8_t *hash, size_t hash_len) {
     char output[hash_len * 2 + 1];
     for (size_t i = 0; i < hash_len; i++) {
@@ -1650,4 +1828,68 @@ std::string em_crypto_t::hash_to_hex_string(const uint8_t *hash, size_t hash_len
 std::string em_crypto_t::hash_to_hex_string(const std::vector<uint8_t>& hash)
 {
     return hash_to_hex_string(hash.data(), hash.size());
+}
+
+// KDF implementation based on 802.11 specification
+bool em_crypto_t::kdf_hash_length(const EVP_MD *algo,
+                     const uint8_t *key, size_t key_len,
+                     const char *label,
+                     const uint8_t *context, size_t context_len,
+                     uint8_t *output, size_t output_len) {
+    
+    // Input validation
+    if (!algo || !key || key_len == 0 || !label || !output || output_len == 0) {
+        return false;
+    }
+    
+    size_t hash_len = static_cast<size_t>(EVP_MD_size(algo));
+    if (hash_len == 0 || hash_len > 64) {  // Sanity check on hash size
+        return false;
+    }
+    
+    size_t iterations = (output_len + hash_len - 1) / hash_len;
+    if (iterations > UINT16_MAX) {  // Counter must fit in uint16_t
+        return false;
+    }
+    
+    size_t offset = 0;
+    uint8_t hash[SHA512_DIGEST_LENGTH]; // Max hash size
+    
+    uint8_t *addr[4];
+    size_t len[4];
+    
+    addr[1] = reinterpret_cast<uint8_t *>(const_cast<char *>(label));
+    len[1] = strlen(label);
+    
+    addr[2] = const_cast<uint8_t *>(context);
+    len[2] = context_len;
+    
+    // Length encoded as 16-bit little-endian
+    uint16_t length_bits = SWAP_LITTLE_ENDIAN(static_cast<uint16_t>(output_len * 8));
+    addr[3] = reinterpret_cast<uint8_t*>(&length_bits);
+    len[3] = 2;
+    
+    // Loop counter encoded as 16-bit little-endian
+    uint16_t counter_le;
+    
+    for (size_t i = 1; i <= iterations; i++) {
+        // Encode counter in little-endian
+        counter_le = SWAP_LITTLE_ENDIAN(static_cast<uint16_t>(i));
+        addr[0] = reinterpret_cast<uint8_t*>(&counter_le);
+        len[0] = 2;
+        
+        // Compute HMAC
+        if (!em_crypto_t::platform_hmac_hash(algo, const_cast<uint8_t*>(key), key_len, 4, addr, len, hash)) {
+            return false;
+        }
+        
+        // Copy to output
+        size_t to_copy = (offset + hash_len > output_len) ? 
+                         (output_len - offset) : hash_len;
+        memcpy(output + offset, hash, to_copy);
+        
+        offset += hash_len;
+    }
+
+    return true;
 }

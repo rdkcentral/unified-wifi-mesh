@@ -53,6 +53,7 @@ onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/em/prov/easyconnect/ec_manager.cpp \
      $(top_srcdir)/src/em/prov/easyconnect/ec_pa_configurator.cpp \
      $(top_srcdir)/src/em/prov/easyconnect/ec_util.cpp \
+     $(top_srcdir)/src/em/prov/easyconnect/ec_1905_encrypt_layer.cpp \
      $(top_srcdir)/src/em/prov/em_provisioning.cpp \
      $(top_srcdir)/src/em/disc/em_discovery.cpp \
      $(top_srcdir)/src/em/channel/em_channel.cpp  \
@@ -137,6 +138,7 @@ onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/orch/em_orch_ctrl.cpp \
      $(top_srcdir)/src/util_crypto/aes_siv.c \
      $(top_srcdir)/src/utils/util.cpp \
+     $(top_srcdir)/src/utils/timer.cpp \
      $(top_srcdir)/OneWifi/source/utils/collection.c \
      $(top_srcdir)/OneWifi/lib/common/util.c \
      $(top_srcdir)/OneWifi/source/platform/rdkb/bus.c \ 
@@ -144,4 +146,5 @@ onewifi_em_ctrl_SOURCES =  \
  
  
 onewifi_em_ctrl_LDFLAGS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lrbus -fsanitize=address -fsanitize=undefined -lmariadb
+onewifi_em_ctrl_LDADD = $(top_builddir)/src/al-sap/libalsap.la
 

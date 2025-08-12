@@ -25,11 +25,6 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <linux/filter.h>
-#include <netinet/ether.h>
-#include <netpacket/packet.h>
-#include <linux/netlink.h>
-#include <linux/rtnetlink.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -221,7 +216,7 @@ bool dm_radio_t::operator == (const dm_radio_t& obj) {
 void dm_radio_t::operator = (const dm_radio_t& obj)
 {
 	if (this == &obj) { return; }
-	strncpy(this->m_radio_info.id.net_id, obj.m_radio_info.id.net_id, strlen(obj.m_radio_info.id.net_id) + 1);
+	strncpy(this->m_radio_info.id.net_id, obj.m_radio_info.id.net_id, sizeof(em_long_string_t));
 	memcpy(this->m_radio_info.id.dev_mac, obj.m_radio_info.id.dev_mac, sizeof(mac_address_t));
 	memcpy(this->m_radio_info.id.ruid, obj.m_radio_info.id.ruid, sizeof(mac_address_t));
 	

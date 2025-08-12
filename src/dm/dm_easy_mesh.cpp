@@ -39,6 +39,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <ifaddrs.h>
+#include <fstream>
 #include "dm_easy_mesh.h"
 #include "em_cmd_dev_init.h"
 #include <cjson/cJSON.h>
@@ -842,7 +843,7 @@ int dm_easy_mesh_t::decode_config_set_radio(em_subdoc_info_t *subdoc, const char
         return EM_PARSE_ERR_NET_ID;
     }
 
-    strncpy(m_network.m_net_info.id, net_id, strlen(net_id) + 1);
+    snprintf(m_network.m_net_info.id, sizeof(em_long_string_t), "%s", net_id);
 
     if ((dev_arr_obj = cJSON_GetObjectItem(net_obj, "DeviceList")) == NULL) {
         printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
@@ -941,7 +942,7 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
         return EM_PARSE_ERR_NET_ID;
 	}
 
-	strncpy(m_network.m_net_info.id, net_id, strlen(net_id) + 1);
+    snprintf(m_network.m_net_info.id, sizeof(em_long_string_t), "%s", net_id);
 
     if ((dev_arr_obj = cJSON_GetObjectItem(net_obj, "DeviceList")) == NULL) {
         printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
@@ -1671,6 +1672,18 @@ void dm_easy_mesh_t::str_to_securitymode(unsigned short *mode, char *sec_mode_st
         *mode = EM_AUTH_SAE_AKM24;
 }
 
+const char* dm_easy_mesh_t::get_platform()
+{
+    std::ifstream platformName("/sys/firmware/devicetree/base/model");
+    std::string line;
+    while (std::getline(platformName, line)) {
+        if (line.find("Raspberry Pi") != std::string::npos) return "rpi";
+        if (line.find("Bananapi BPI") != std::string::npos) return "bpi";
+    }
+
+    return NULL;
+
+}
 em_interface_t *dm_easy_mesh_t::get_prioritized_interface(const char *platform)
 {
 	unsigned int i;
@@ -1979,7 +1992,34 @@ em_e4_table_t dm_easy_mesh_t::m_e4_table[] = {
 	{ 115, em_freq_band_5, 20, 4, {36, 40, 44, 48} },
 	{ 116, em_freq_band_5, 40, 2, {36, 44} },
 	{ 117, em_freq_band_5, 40, 2, {40, 48} },
-	{ 118, em_freq_band_5, 20, 4, {52, 56, 60, 64} }
+	{ 118, em_freq_band_5, 20, 4, {52, 56, 60, 64} },
+	{ 119, em_freq_band_5, 40, 2, {52, 60} },
+	{ 120, em_freq_band_5, 40, 2, {56, 64} },
+	{ 121, em_freq_band_5, 20, 12, {100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144} },
+	{ 122, em_freq_band_5, 40, 6, {100, 108, 116, 124, 132, 140} },
+	{ 123, em_freq_band_5, 40, 6, {104, 112, 120, 128, 136, 144} },
+	{ 124, em_freq_band_5, 20, 4, {149, 153, 157, 161} },
+	{ 125, em_freq_band_5, 20, 6, {149, 153, 157, 161, 165, 169} },
+	{ 126, em_freq_band_5, 40, 2, {149, 157} },
+	{ 127, em_freq_band_5, 40, 2, {153, 161} },
+	{ 128, em_freq_band_5, 80, 6, {36, 52, 100, 116, 132, 149} },
+	{ 129, em_freq_band_5, 160, 2, {36, 100} },
+	{ 130, em_freq_band_5, 80, 6, {36, 52, 100, 116, 132, 149} },
+	{ 131, em_freq_band_60, 20, 59, {1, 5, 9, 13, 17, 21, 25, 29, 33, 37,
+				41, 45, 49, 53, 57, 61, 65, 69, 73, 77,
+				81, 85, 89, 93, 97, 101, 105, 109, 113, 117,
+				121, 125, 129, 133, 137, 141, 145, 149, 153, 157,
+				161, 165, 169, 173, 177, 181, 185, 189, 193, 197,
+				201, 205, 209, 213, 217, 221, 225, 229, 233} },
+	{ 132, em_freq_band_60, 40, 29, {1, 9, 17, 25, 33, 41, 49, 57, 65, 73,
+				81, 89, 95, 105, 113, 121, 129, 137, 145, 153,
+				161, 169, 177, 185, 193, 201, 209, 217, 225} },
+	{ 133, em_freq_band_60, 80, 14, {1, 17, 33, 49, 65, 81, 97, 113, 129, 145,
+				161, 177, 193, 209} },
+	{ 134, em_freq_band_60, 160, 7, {1, 33, 65, 97, 129, 161, 193} },
+	{ 135, em_freq_band_60, 80, 14, {1, 17, 33, 49, 65, 81, 97, 113, 129, 145,
+				161, 177, 193, 209} },
+	{ 136, em_freq_band_60, 20, 1, {2} }
 };
 
 // Function to get frequency band by operating class
@@ -1993,6 +2033,21 @@ em_freq_band_t  dm_easy_mesh_t::get_freq_band_by_op_class(int op_class)
 	}
     
 	return em_freq_band_unknown; // Return invalid if op_class not found
+}
+
+std::vector<int>  dm_easy_mesh_t::get_channel_list_by_op_class(int op_class)
+{
+    size_t i = 0;
+    std::vector<int> channels;
+    for (i = 0; i < sizeof(m_e4_table) / sizeof(m_e4_table[0]); ++i) {
+        if (m_e4_table[i].op_class == op_class) {
+            for(int j=0; j < m_e4_table[i].num_channels; j++) {
+                channels.push_back(m_e4_table[i].channels[j]);
+            }
+            return channels;
+        }
+    }
+    return channels;
 }
 
 em_bss_info_t *dm_easy_mesh_t::get_bss_info_with_mac(mac_address_t mac)
@@ -2132,6 +2187,72 @@ dm_bss_t *dm_easy_mesh_t::get_bss(mac_address_t radio_mac, mac_address_t bss_mac
         }
     }
 
+    return NULL;
+}
+
+em_bss_info_t* dm_easy_mesh_t::get_bsta_bss_info()
+{
+    for (unsigned int i = 0; i < m_num_bss; i++) {
+        em_bss_info_t *bsta_info = this->get_bss_info(i);
+        if (!bsta_info) continue;
+        // Skip if not backhaul
+        if (bsta_info->id.haul_type != em_haul_type_backhaul) {
+            continue;
+        }
+        if (bsta_info->vap_mode != em_vap_mode_sta) {
+            continue;
+        }
+        auto radio = this->get_radio(bsta_info->ruid.mac);
+        if (!radio) continue;
+        if (!radio->m_radio_info.enabled || !bsta_info->enabled) {
+            continue;
+        }
+        return bsta_info;
+    }
+    return NULL;
+}
+
+em_bss_info_t* dm_easy_mesh_t::get_backhaul_bss_info()
+{
+    for (unsigned int i = 0; i < m_num_bss; i++) {
+        em_bss_info_t *bss = this->get_bss_info(i);
+        if (!bss) continue;
+        if (bss->id.haul_type != em_haul_type_backhaul){
+            continue;
+        }
+        if (bss->vap_mode != em_vap_mode_ap) {
+            continue;
+        }
+        auto radio = this->get_radio(bss->ruid.mac);
+        if (!radio) continue;
+        if (!radio->m_radio_info.enabled || !bss->enabled) {
+            continue;
+        }
+        return bss;
+    }
+    return NULL;
+}
+
+
+em_op_class_info_t* dm_easy_mesh_t::get_opclass_info_for_bss(mac_address_t bssid, unsigned int* op_class) {
+    for (unsigned int opclass_idx = 0; opclass_idx < m_num_opclass; opclass_idx++) {
+        em_op_class_info_t* op_class_info = &m_op_class[opclass_idx].m_op_class_info;
+
+        if (memcmp(bssid, op_class_info->id.ruid, ETH_ALEN) != 0) {
+            // Didn't find the RUID in the op classes, so skip this BSS
+            continue;
+        }
+        if (op_class != NULL) {
+            if (op_class_info->op_class != *op_class) {
+                // The op class doesn't match the one we want
+                continue;
+            }
+        }
+        // `m_op_class_info.channel` is almost always 0 for some reason so it's not used here
+        
+        // Found a matching bss_info for frequency
+        return op_class_info;
+    }
     return NULL;
 }
 

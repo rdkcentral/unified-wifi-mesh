@@ -108,18 +108,18 @@ jobs:
       run: |
         git config --global user.email "${{ github.actor }}@users.noreply.github.com"
         git config --global user.name "${{ github.actor }}"
-        make -f build/linux/makefile setup
+        make -f build/linux/bpi/makefile setup
       env:
         GITHUB_ACTOR: ${{ github.actor }}
 
     - name: Build - OneWiFi
       working-directory: easymesh_project/OneWifi
       continue-on-error: true
-      run: make -j -f build/linux/makefile all
+      run: make -j -f build/linux/bpi/makefile all
       
     - name: Confirm Linking - Controller
       working-directory: easymesh_project/OneWifi
-      run: make -f build/linux/makefile all
+      run: make -f build/linux/bpi/makefile all
 
     - name: Install GTest
       working-directory: easymesh_project/unified-wifi-mesh/

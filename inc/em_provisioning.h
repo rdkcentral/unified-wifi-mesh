@@ -25,55 +25,9 @@
 
 struct cJSON;
 class em_cmd_t;
+class em_cmd_exec_t;
 class em_provisioning_t {
 
-    
-	/**!
-	 * @brief Creates a BSS configuration request message.
-	 *
-	 * This function initializes a buffer with the necessary data to form a BSS configuration request message.
-	 *
-	 * @param[out] buff Pointer to the buffer where the request message will be stored.
-	 *
-	 * @returns int Status code indicating success or failure of the operation.
-	 * @retval 0 on success.
-	 * @retval -1 on failure.
-	 *
-	 * @note Ensure the buffer is allocated with sufficient size before calling this function.
-	 */
-	int create_bss_config_req_msg(uint8_t *buff);
-    
-	/**!
-	 * @brief Creates a BSS configuration response message.
-	 *
-	 * This function is responsible for creating a BSS configuration response message
-	 * and storing it in the provided buffer.
-	 *
-	 * @param[out] buff Pointer to the buffer where the response message will be stored.
-	 *
-	 * @returns int Status code indicating success or failure of the operation.
-	 * @retval 0 on success.
-	 * @retval -1 on failure.
-	 *
-	 * @note Ensure the buffer is allocated with sufficient size before calling this function.
-	 */
-	int create_bss_config_rsp_msg(uint8_t *buff);
-    
-	/**!
-	 * @brief Creates a BSS configuration response message.
-	 *
-	 * This function initializes a buffer with the BSS configuration response message.
-	 *
-	 * @param[out] buff Pointer to the buffer where the response message will be stored.
-	 *
-	 * @returns int Status code indicating success or failure.
-	 * @retval 0 on success.
-	 * @retval -1 on failure.
-	 *
-	 * @note Ensure the buffer is allocated with sufficient size before calling this function.
-	 */
-	int create_bss_config_res_msg(uint8_t *buff);
-    
 	/**!
 	 * @brief Creates a DPP direct encapsulation message.
 	 *
@@ -92,7 +46,39 @@ class em_provisioning_t {
 	 */
 	int create_dpp_direct_encap_msg(uint8_t *buff, uint8_t *frame, uint16_t len);
 
-    
+	/**!
+	 * @brief Handles the 1905 rekey message.
+	 *
+	 * This function processes the 1905 rekey message received in the buffer.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the message.
+	 * @param[in] len Length of the message in the buffer.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 * @retval 0 Success.
+	 * @retval -1 Failure due to invalid parameters.
+	 *
+	 * @note Ensure that the buffer is properly allocated and the length is valid.
+	 */
+	int handle_1905_rekey_msg(uint8_t *buff, unsigned int len);
+
+
+	/**!
+	 * @brief Handles the 1905 encapsulated EAPOL message.
+	 *
+	 * This function processes the 1905 encapsulated EAPOL message received in the buffer.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the message.
+	 * @param[in] len Length of the message in the buffer.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 * @retval 0 Success.
+	 * @retval -1 Failure due to invalid parameters.
+	 *
+	 * @note Ensure that the buffer is properly allocated and the length is valid.
+	 */
+	int handle_1905_encap_eapol_msg(uint8_t *buff, unsigned int len, uint8_t src_al_mac[ETH_ALEN]);
+
 	/**!
 	 * @brief Handles the CCE indication message.
 	 *
@@ -123,13 +109,11 @@ class em_provisioning_t {
 	 *
 	 * @note Ensure that the buffer is valid and contains the expected data format.
 	 */
-	int handle_dpp_chirp_notif(uint8_t *buff, unsigned int len);
+	int handle_dpp_chirp_notif(uint8_t *buff, unsigned int len, uint8_t src_al_mac[ETH_ALEN]);
     
 	/**!
-	 * @brief Handles the proxy encapsulation for DPP (Device Provisioning Protocol).
+	 * @brief Handles a Proxied Encap DPP Message (EM 17.1.48)
 	 *
-	 * This function processes the given buffer and its length to perform the necessary
-	 * operations for proxy encapsulation in the context of DPP.
 	 *
 	 * @param[in] buff Pointer to the buffer containing the data to be processed.
 	 * @param[in] len Length of the buffer in bytes.
@@ -141,7 +125,23 @@ class em_provisioning_t {
 	 * @note Ensure that the buffer is properly allocated and the length is correctly specified
 	 * before calling this function.
 	 */
-	int handle_proxy_encap_dpp(uint8_t *buff, unsigned int len);
+	int handle_proxy_encap_dpp(uint8_t *buff, unsigned int len, uint8_t src_al_mac[ETH_ALEN]);
+
+
+	/**!
+	 * @brief Handles a Direct Encap DPP Message (EM 17.1.56)
+	 *
+	 * @param[in] buff Pointer to the buffer containing the data to be processed.
+	 * @param[in] len Length of the buffer in bytes.
+	 *
+	 * @returns int Status code indicating success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the buffer is properly allocated and the length is correctly specified
+	 * before calling this function.
+	 */
+	int handle_direct_encap_dpp(uint8_t *buff, unsigned int len, uint8_t src_al_mac[ETH_ALEN]);
 
     // states
     
@@ -340,7 +340,7 @@ class em_provisioning_t {
 	 *
 	 * @note This is a pure virtual function and must be implemented by the derived class.
 	 */
-	virtual int send_cmd(em_cmd_type_t type, em_service_type_t svc, uint8_t *buff, unsigned int len) = 0;
+	virtual int send_cmd(em_cmd_exec_t *exec, em_cmd_type_t type, em_service_type_t svc, uint8_t *buff, unsigned int len) = 0;
     
 	/**!
 	 * @brief Retrieves the current command.
@@ -365,6 +365,17 @@ class em_provisioning_t {
 	 */
 	virtual dm_easy_mesh_t *get_data_model() = 0;
 
+	/**!
+	 * @brief Retrieves the manager instance.
+	 *
+	 * This function is a pure virtual function that must be implemented by the derived class.
+	 *
+	 * @returns A pointer to the em_mgr_t instance.
+	 *
+	 * @note This function does not take any parameters and returns a pointer to the manager.
+	 */
+	virtual em_mgr_t *get_mgr() = 0;
+
 protected:
 
 	/**!
@@ -380,7 +391,7 @@ protected:
 	 * @note Ensure the buffer is properly allocated before calling this function.
 	 */
 	int create_cce_ind_msg(uint8_t *buff, bool enable);
-    
+
 	/**!
 	 * @brief Sends a chirp notification message.
 	 *
@@ -388,6 +399,7 @@ protected:
 	 *
 	 * @param[in] chirp Pointer to the chirp data to be sent.
 	 * @param[in] chirp_len Length of the chirp data.
+	 * @param[in] dest_al_mac Pointer to the destination AL MAC address (6 bytes).
 	 *
 	 * @returns int Status code indicating success or failure of the operation.
 	 * @retval 0 on success.
@@ -395,17 +407,16 @@ protected:
 	 *
 	 * @note Ensure that the chirp data is properly initialized before calling this function.
 	 */
-	int send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t chirp_len);
+	int send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t chirp_len, uint8_t dest_al_mac[ETH_ALEN]);
     
 	/**!
-	 * @brief Sends a proximity encapsulated DPP message.
-	 *
-	 * This function is responsible for sending a DPP (Device Provisioning Protocol) message that is encapsulated for proximity communication.
+	 * @brief Sends a proxied encapsulated DPP message.
 	 *
 	 * @param[in] encap_dpp_tlv Pointer to the encapsulated DPP TLV structure.
 	 * @param[in] encap_dpp_len Length of the encapsulated DPP TLV.
 	 * @param[in] chirp Pointer to the DPP chirp value structure.
 	 * @param[in] chirp_len Length of the chirp value.
+	 * @param[in] dst_al_mac Pointer to the destination AL MAC address (6 bytes).
 	 *
 	 * @returns int
 	 * @retval 0 on success
@@ -413,50 +424,50 @@ protected:
 	 *
 	 * @note Ensure that the encapsulated DPP TLV and chirp values are properly initialized before calling this function.
 	 */
-	int send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, size_t encap_dpp_len, em_dpp_chirp_value_t *chirp, size_t chirp_len);
-    
+	int send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, size_t encap_dpp_len, em_dpp_chirp_value_t *chirp, size_t chirp_len, uint8_t dst_al_mac[ETH_ALEN]);
+
 	/**!
-	 * @brief Creates a list of enrollee BSTA.
+	 * @brief Sends a direct encapsulated DPP message. 
 	 *
-	 * This function generates a cJSON object representing the list of enrollee BSTA
-	 * based on the provided connection context.
+	 * @param[in] dpp_frame Pointer to the DPP frame data to be sent.
+	 * @param[in] dpp_frame_len Length of the DPP frame data.
+	 * @param[in] dest_al_mac Pointer to the destination AL MAC address (6 bytes).
 	 *
-	 * @param[in] conn_ctx Pointer to the connection context used to create the list.
-	 *
-	 * @returns A pointer to a cJSON object representing the enrollee BSTA list.
-	 *
-	 * @note Ensure that the connection context is properly initialized before calling this function.
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
 	 */
-	cJSON *create_enrollee_bsta_list(ec_connection_context_t *conn_ctx);
-    
+	int send_direct_encap_dpp_msg(uint8_t* dpp_frame, size_t dpp_frame_len, uint8_t dest_al_mac[ETH_ALEN]);
+
+
 	/**!
-	 * @brief Creates a configurator BSTA response object.
+	 * @brief Sends a 1905 EAPOL encapsulated message. 
 	 *
-	 * This function generates a cJSON object representing the BSTA response
-	 * based on the provided connection context.
+	 * @param[in] eapol_frame Pointer to the EAPOL frame data to be sent (Including IEEE 802.1X header).
+	 * @param[in] eapol_frame_len Length of the EAPOL frame data.
+	 * @param[in] dest_al_mac Pointer to the destination AL MAC address (6 bytes).
 	 *
-	 * @param[in] conn_ctx Pointer to the connection context used to create the response.
-	 *
-	 * @returns A pointer to the created cJSON object representing the BSTA response.
-	 *
-	 * @note Ensure that the connection context is properly initialized before calling this function.
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
 	 */
-	cJSON *create_configurator_bsta_response_obj(ec_connection_context_t *conn_ctx);
-    
+	int send_1905_eapol_encap_msg(uint8_t* eapol_frame, size_t eapol_frame_len, uint8_t dest_al_mac[ETH_ALEN]);
+
 	/**!
-	 * @brief Creates an IEEE 1905 response object.
+	 * @brief Sends a 1905 rekey message.
 	 *
-	 * This function generates a cJSON object that represents an IEEE 1905 response.
+	 * @param[in] dest_al_mac Pointer to the destination AL MAC address
 	 *
-	 * @param[in] conn_ctx Pointer to the connection context used for creating the response.
+	 * @returns int Status code indicating success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
 	 *
-	 * @returns A pointer to the created cJSON object representing the IEEE 1905 response.
-	 *
-	 * @note Ensure that the connection context is properly initialized before calling this function.
+	 * @note Ensure that the destination AL MAC address is properly initialized before calling this function.
 	 */
-	cJSON *create_ieee1905_response_obj(ec_connection_context_t *conn_ctx);
+	int send_1905_rekey_msg(uint8_t dest_al_mac[ETH_ALEN]);
+
 public:
-    
+
 	/**!
 	 * @brief Processes a message with the given data and length.
 	 *

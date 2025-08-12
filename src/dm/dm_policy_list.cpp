@@ -253,8 +253,7 @@ int dm_policy_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
 	memset(sta_mac_list_str, 0, sizeof(sta_mac_list_str));
     for (i = 0; i < policy->num_sta; i++) {
 		dm_easy_mesh_t::macbytes_to_string(policy->sta_mac[i], sta_mac_str);
-        strncat(sta_mac_list_str, sta_mac_str, strlen(sta_mac_str));
-        strncat(sta_mac_list_str, ",", strlen(",")+1);
+        snprintf(sta_mac_list_str + strlen(sta_mac_list_str), sizeof(sta_mac_list_str) - strlen(sta_mac_list_str) - 1,"%s,", sta_mac_str);
     }
 
 	if (strlen(sta_mac_list_str) > 0)
