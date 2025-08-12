@@ -18,7 +18,7 @@
 
 #ifndef DM_EM_H
 #define DM_EM_H
-
+#include <vector>
 #include "em_base.h"
 #include "wifi_webconfig.h"
 #include "dm_device.h"
@@ -39,6 +39,8 @@
 #include "dm_assoc_sta_mld.h"
 #include "dm_tid_to_link.h"
 #include "webconfig_external_proto.h"
+
+#define GLOBAL_NET_ID "OneWifiMesh"
 
 class em_t;
 
@@ -100,6 +102,36 @@ public:
 	 * EasyMesh framework to avoid unexpected results.
 	 */
 	static em_freq_band_t get_freq_band_by_op_class(int op_class);
+
+	/**!
+	 * @brief Retrieves the list of channel associated with a given operating class.
+	 *
+	 * This function takes an operating class as input and returns the corresponding
+	 * channel list. It is used to map operating classes to their respective
+	 * channels in the EasyMesh framework.
+	 *
+	 * @param[in] op_class The operating class for which the frequency band is required.
+	 *
+	 * @returns The list of channels corresponding to the provided operating class.
+	 *
+	 * @note Ensure that the provided operating class is valid and supported by the
+	 * EasyMesh framework to avoid unexpected results.
+	 */
+	static std::vector<int> get_channel_list_by_op_class(int op_class);
+
+	/**!
+	 * @brief Retrieves the operating class information for a given BSS with an optional check for integer operating class.
+	 *
+	 * This function searches for the operating class information associated with the
+	 * specified BSS (Basic Service Set) identified by its MAC address.
+	 *
+	 * @param[in] bssid The MAC address of the BSS for which the operating class information is requested.
+	 * @param[in] op_class Optional check for integer operating class (used to filter results). Can be NULL.
+	 *
+	 * @returns The pointer to the `em_op_class_info_t` structure containing the operating class information.
+	 * NULL if no matching BSS is found or if the operating class does not match.
+	 */
+	em_op_class_info_t* get_opclass_info_for_bss(mac_address_t bssid, unsigned int* op_class = NULL);
 	
 	/**!
 	 * @brief Retrieves the BSS information associated with a given MAC address.
@@ -971,6 +1003,14 @@ public:
 	 */
 	em_interface_t *get_prioritized_interface(const char *platform);
 
+	/**!
+	 * @brief Retrieves the platform details.
+	 *
+	 * This function retrive the device platform and return the pointer to the name.
+	 *
+	 * @returns A pointer to the name of platform.
+	 */
+	const char* get_platform();
     
 	/**!
 	 * @brief Retrieves the device object.
@@ -1215,6 +1255,23 @@ public:
 	 * @note Ensure that the index is within the valid range of BSS entries.
 	 */
 	static em_bss_info_t *get_bss_info(void *dm, unsigned int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_bss_info(index); }
+
+	/**!
+	 * @brief Retrieves the `em_bss_info_t` for the bSTA.
+	 *
+	 * @returns A pointer to the em_bss_info_t structure containing BSTA BSS information. NULL if not found.
+	 *
+	 */
+	em_bss_info_t* get_bsta_bss_info();
+
+
+	/**!
+	 * @brief Retrieves the `em_bss_info_t` for the backhaul BSS.
+	 *
+	 * @returns A pointer to the em_bss_info_t structure containing the backhaul BSS information.
+	 * NULL if the backhaul BSS is not found
+	 */
+	em_bss_info_t* get_backhaul_bss_info();
     
 	/**!
 	 * @brief Retrieves the number of BSS (Basic Service Set).

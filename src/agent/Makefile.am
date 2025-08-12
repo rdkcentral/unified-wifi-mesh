@@ -51,6 +51,7 @@ onewifi_em_agent_SOURCES =  \
      $(top_srcdir)/src/em/prov/easyconnect/ec_manager.cpp \
      $(top_srcdir)/src/em/prov/easyconnect/ec_pa_configurator.cpp \
      $(top_srcdir)/src/em/prov/easyconnect/ec_util.cpp \
+     $(top_srcdir)/src/em/prov/easyconnect/ec_1905_encrypt_layer.cpp \
      $(top_srcdir)/src/em/disc/em_discovery.cpp \
      $(top_srcdir)/src/em/channel/em_channel.cpp  \
      $(top_srcdir)/src/em/capability/em_capability.cpp \
@@ -123,7 +124,9 @@ onewifi_em_agent_SOURCES =  \
      $(top_srcdir)/OneWifi/lib/common/util.c \
      $(top_srcdir)/OneWifi/source/utils/collection.c \
      $(top_srcdir)/src/utils/util.cpp \
+     $(top_srcdir)/src/utils/timer.cpp \
      $(top_srcdir)/src/util_crypto/aes_siv.c
 
 
 onewifi_em_agent_LDFLAGS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwifi_webconfig -lrbus
+onewifi_em_agent_LDADD = $(top_builddir)/src/al-sap/libalsap.la

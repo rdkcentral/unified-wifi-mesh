@@ -28,15 +28,12 @@
 #include "em_simulator.h"
 #include "bus.h"
 
-#ifndef WIFI_SET_DISCONN_STEADY_STATE
-#define WIFI_SET_DISCONN_STEADY_STATE         "Device.WiFi.EM.SetDisconnSteadyState"
-#endif
-
-#ifndef WIFI_SET_DISCONN_SCAN_NONE_STATE
-#define WIFI_SET_DISCONN_SCAN_NONE_STATE      "Device.WiFi.EM.SetDisconnScanNoneState"
-#endif
-
 #include <string>
+
+#ifdef AL_SAP
+#define DATA_SOCKET_PATH "/tmp/al_data_socket"
+#define CONTROL_SOCKET_PATH "/tmp/al_control_socket"
+#endif
 
 class em_cmd_agent_t;
 class AlServiceAccessPoint;
@@ -188,11 +185,15 @@ class em_agent_t : public em_mgr_t {
 	void handle_recv_wfa_action_frame(em_bus_event_t *evt);
 
 	/**
-	 * @brief Handles the reception of CCE Information Element events
+	 * @brief Handles the reception of BSS info reports from OneWifi
 	 * 
-	 * @param event The event containing the `bss_info_t` which heard the CCE IE in a beacon or probe response
+	 * Used for DPP for building the Enrollee's channel list for Reconfiguration Announcement
+	 * 
+	 * @param event The event containing the `bss_info_t` including an SSID which the Enrollee will check
+	 * to conditionally include the channel (frequency) that the SSID was heard on in its
+	 * Reconfiguration Announcement channel list
 	 */
-	void handle_recv_cce_ie(em_bus_event_t *event);
+	void handle_bss_info(em_bus_event_t *event);
 
 	/**
 	 * @brief Handles the reception of association status of a STA
@@ -280,11 +281,31 @@ class em_agent_t : public em_mgr_t {
 	 */
 	void handle_ap_metrics_report(em_bus_event_t *evt);
 
+	/**
+	 * @brief Send an action frame
+	 *
+	 * This function sends an action frame to a specified destination MAC address on a specific VAP
+	 *
+	 * @param[in] dest_mac The destination MAC address.
+	 * @param[in] action_frame The action frame to send.
+	 * @param[in] action_frame_len The length of the action frame.
+	 * @param[in] vap_idx The index of the VAP to send the frame on.
+	 * @param[in] frequency The frequency to send the frame on (0 for current frequency).
+	 * @param[in] wait_time_ms The time to dwell on the frequency before switching back to the original frequency (0 for no wait).
+	 *
+	 * @return true if the action frame was sent successfully, false otherwise.
+	 */
+	bool send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, uint8_t vap_idx, unsigned int frequency=0, unsigned int wait_time_ms=0);
+
 public:
 
     bus_handle_t m_bus_hdl;
     bool do_start_dpp_onboarding = false;
     bool do_regen_dpp_uri = false;
+	/**
+	 * @brief Are we onboarding via DPP over Ethernet?
+	 */
+	bool ethernet_onboarding = false;
 
 	/**!
 	 * @brief Listens for input events and processes them accordingly.
@@ -328,6 +349,20 @@ public:
 	 */
 	bool send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency=0, unsigned int wait_time_ms=0) override;
 
+	/**
+	 * @brief Send an action frame on the backhaul interface
+	 *
+	 * This function sends an action frame to a specified destination MAC address on the backhaul interface.
+	 *
+	 * @param[in] dest_mac The destination MAC address.
+	 * @param[in] action_frame The action frame to send.
+	 * @param[in] action_frame_len The length of the action frame.
+	 * @param[in] frequency The frequency to send the frame on (0 for current frequency).
+	 * @param[in] wait_time_ms The time to dwell on the frequency before switching back to the original frequency (0 for no wait).
+	 *
+	 * @return true if the action frame was sent successfully, false otherwise.
+	 */
+	bool send_backhaul_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency=0, unsigned int wait_time_ms=0) override;
 
 	/**
 	 * @brief Set the disconnected steady state.
@@ -347,6 +382,19 @@ public:
 	 * @note This only works when OneWifi is in the disconnected steady state.
 	 */
 	bool set_disconnected_scan_none_state() override;
+
+	/**
+	 * @brief Send a scan request to OneWifi
+	 *
+	 * This function sends a scan request with the specified parameters to the mesh.
+	 *
+	 * @param[in] scan_params Pointer to the scan parameters structure.
+	 * @param[in] perform_fresh_scan If true, performs a fresh scan; otherwise, uses cached results.
+	 * @param[in] is_sta_vap If true, performs a `wifi_hal_startScan` (STA compatable), 
+	 * 								  otherwise, performs a `wifi_hal_startNeighborScan` (not STA compatible)
+	 * @return true if the scan request was sent successfully, false otherwise.
+	 */
+	bool send_scan_request(em_scan_params_t* scan_params, bool perform_fresh_scan, bool is_sta_vap = false) override;
 
     
 	/**
@@ -614,7 +662,21 @@ public:
 	 * calling this function.
 	 */
 	void handle_channel_sel_req(em_bus_event_t *evt);
-    
+
+	/**!
+	 * @brief Handles the csa beacon frame request event.
+	 *
+	 * This function processes the csa beacon frame request event received
+	 * from the event bus and performs necessary actions to handle the request.
+	 *
+	 * @param[in] evt Pointer to the event structure containing the channel
+	 * selection request details.
+	 *
+	 * @note Ensure that the event structure is properly initialized before
+	 * calling this function.
+	 */
+	void handle_csa_beacon_frame(em_bus_event_t *evt);
+
 	/**!
 	 * @brief Handles the station link metrics event.
 	 *
@@ -699,7 +761,23 @@ public:
 	 * @note Ensure that no data models are in use before calling this function.
 	 */
 	void delete_all_data_models() { }
-    
+	
+	/**!
+	 * @brief Retrieves the first data model in the data model list.
+	 *
+	 * @returns NULL since the agent does not manage multiple data models.
+	 */
+	dm_easy_mesh_t *get_first_dm() override { return nullptr; } 
+
+	/**!
+	 * @brief Retrieves the next data model in the data model list.
+	 *
+	 * @param[in] dm Pointer to the current data model.
+	 *
+	 * @returns NULL since the agent does not manage multiple data models.
+	 */
+	dm_easy_mesh_t *get_next_dm(dm_easy_mesh_t *dm) override { return nullptr; }
+
 	/**!
 	 * @brief Updates the tables with the provided EasyMesh data.
 	 *
@@ -823,7 +901,24 @@ public:
 	 * @note Ensure that the data pointer is valid and points to the correct data structure.
 	 */
 	static int mgmt_action_frame_cb(char *event_name, raw_data_t *data, void *userData);
-    
+
+	/**!
+	 * @brief Callback function for management csa beacon frames.
+	 *
+	 * This function is triggered when a management csa beacon frame event occurs.
+	 *
+	 * @param[in] event_name The name of the event that triggered the callback.
+	 * @param[in] data Pointer to the raw data associated with the event.
+	 * @param[in] userData User-defined data passed to the callback function.
+	 *
+	 * @returns int Status code indicating the success or failure of the callback execution.
+	 * @retval 0 on success.
+	 * @retval Non-zero error code on failure.
+	 *
+	 * @note Ensure that the data pointer is valid and points to the correct data structure.
+	 */
+	static int mgmt_csa_beacon_frame_cb(char *event_name, raw_data_t *data, void *userData);
+
 	/**!
 	 * @brief Callback function for channel scanning.
 	 *
@@ -859,16 +954,6 @@ public:
 	static int beacon_report_cb(char *event_name, raw_data_t *data, void *userData);
 
 	/**
-	 * @brief Callback for a DPP CCE (Configurator Connectivity Element) being heard from OneWifi
-	 * 
-	 * @param event_name The name of the event
-	 * @param data The raw event data
-	 * @param userData User provided callback data
-	 * @return int 1 on success, otherwise -1
-	 */
-	static int cce_ie_cb(char *event_name, raw_data_t *data, void *userData);
-
-	/**
 	 * @brief Callback for association status event
 	 * 
 	 * @param event_name The name of the event
@@ -877,6 +962,17 @@ public:
 	 * @return int 1 on success, otherwise -1
 	 */
 	static int association_status_cb(char *event_name, raw_data_t *data, void *userData);
+
+	/**
+	 * @brief Callback for BSS scan events
+	 * 
+	 * @param event_name The name of the event
+	 * @param data The raw event data
+	 * @param userData Optional user-provided callback data
+	 * @return int 1 on success, otherwise -1
+	 */
+	static int bss_info_cb(char *event_name, raw_data_t *data, void *userData);
+
 	/**!
 	 * @brief Callback function for handling AP Metrics reports.
 	 *
@@ -941,7 +1037,7 @@ public:
 	 *
 	 * @note Ensure that the returned pointer is properly managed to avoid memory leaks.
 	 */
-	AlServiceAccessPoint* al_sap_register();
+	AlServiceAccessPoint* al_sap_register(const std::string& data_socket_path=DATA_SOCKET_PATH, const std::string& control_socket_path=CONTROL_SOCKET_PATH);
 #endif
 
     

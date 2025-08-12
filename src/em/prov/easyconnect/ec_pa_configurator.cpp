@@ -1,7 +1,36 @@
 #include "ec_pa_configurator.h"
 
 #include "ec_util.h"
-#include "util.h"
+
+ec_pa_configurator_t::ec_pa_configurator_t(const std::string& al_mac_addr, const std::vector<uint8_t>& ctrl_al_mac_addr,
+                                           ec_ops_t& ops, ec_persistent_sec_ctx_t& sec_ctx, bool is_colocated)
+                                            : ec_configurator_t(al_mac_addr, ops, sec_ctx, is_colocated)
+{
+    m_toggle_cce = ops.toggle_cce;
+    m_send_chirp_notification = ops.send_chirp;
+    m_send_prox_encap_dpp_msg = ops.send_encap_dpp;
+    m_send_dir_encap_dpp_msg = ops.send_dir_encap_dpp;
+    m_send_action_frame = ops.send_act_frame;
+
+    m_sec_ctx = sec_ctx;
+    m_ctrl_al_mac_addr = ctrl_al_mac_addr;
+
+    bool ieee1905_encryption_possible = true;
+
+    if (!m_sec_ctx.C_signing_key || !m_sec_ctx.net_access_key || !m_sec_ctx.connector) {
+        em_printfout("Invalid security context provided to Proxy Agent Configurator");
+        ieee1905_encryption_possible = false;
+    }
+
+    if (ieee1905_encryption_possible) {
+        // Pass super-class initialized security context
+        if (!m_1905_encrypt_layer.set_sec_params(m_sec_ctx.C_signing_key, m_sec_ctx.net_access_key,
+                                                 m_sec_ctx.connector, EVP_sha256() /*TODO HASH*/)) {
+            em_printfout("Failed to set security parameters for 1905 Encrypt Layer");
+            return;
+        }
+    }
+}
 
 bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
@@ -24,7 +53,7 @@ bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_
         em_printfout("No matching hash value found for '%s' in the DPP Presence Announcement frame", B_r_hash_str.c_str());
         const auto [chirp_tlv, chirp_tlv_len] = ec_util::create_dpp_chirp_tlv(true, true, src_mac, B_r_hash_attr->data, B_r_hash_attr->length);
         ASSERT_NOT_NULL(chirp_tlv, false, "%s:%d Failed to create DPP Chirp Value TLV\n", __func__, __LINE__);
-        sent = m_send_chirp_notification(chirp_tlv, chirp_tlv_len);
+        sent = m_send_chirp_notification(chirp_tlv, chirp_tlv_len, m_ctrl_al_mac_addr.data());
         free(chirp_tlv);
     } else {
 
@@ -41,15 +70,43 @@ bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_
     return sent;	
 }
 
-bool ec_pa_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
+bool ec_pa_configurator_t::handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN])
 {
+    (void)src_al_mac; // Unused parameter in proxy agent
+    em_printfout("Received a DPP Reconfiguration Announcement frame from '" MACSTRFMT "'", MAC2STR(sa));
+
+    // EasyMesh 5.3.10.2
+    size_t attrs_len = len - EC_FRAME_BASE_SIZE;
+    auto c_sign_key_hash_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_C_sign_key_hash);
+    ASSERT_OPT_HAS_VALUE(c_sign_key_hash_attr, false, "%s:%d: No C-sign key hash attribute found in DPP Reconfiguration Announcement frame\n", __func__, __LINE__);
+
+    std::string c_sign_key_hash_str = em_crypto_t::hash_to_hex_string(c_sign_key_hash_attr->data, c_sign_key_hash_attr->length);
+    bool sent = false;
+    bool hash_known = (m_stored_recfg_auth_frames_map.find(c_sign_key_hash_str) != m_stored_recfg_auth_frames_map.end());
+    if (hash_known) {
+        em_printfout("Found matching C-sign key hash in DPP Reconfiguration Announcement frame, sending Reconfiguration Authentication Request frame");
+        std::vector<uint8_t> encap_frame_vec = m_stored_recfg_auth_frames_map[c_sign_key_hash_str];
+        sent = m_send_action_frame(sa, encap_frame_vec.data(), encap_frame_vec.size(), 0, 0);
+    } else {
+        em_printfout("No matching C-sign key hash found in DPP Reconfiguration Announcement frame, sending Reconfiguration Announcement frame to controller");
+        auto [encap_frame, encap_frame_len] = ec_util::create_encap_dpp_tlv(false, sa, ec_frame_type_recfg_announcement, reinterpret_cast<uint8_t*>(frame), len);
+        ASSERT_NOT_NULL(encap_frame, false, "%s:%d: Failed to create Encap DPP TLV for Reconfiguration Announcement frame\n", __func__, __LINE__);
+        sent = m_send_prox_encap_dpp_msg(encap_frame, encap_frame_len, nullptr, 0, m_ctrl_al_mac_addr.data());
+        free(encap_frame);
+    }
+    return sent;
+}
+
+bool ec_pa_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN], uint8_t src_al_mac[ETH_ALEN])
+{
+    (void)src_al_mac; // Unused parameter in proxy agent
     em_printfout("Received a DPP Authentication Response frame from '" MACSTRFMT "'\n", MAC2STR(src_mac));
     // Encapsulate 802.11 frame into 1905 Encap DPP TLV and send to controller
     auto [encap_dpp_tlv, encap_dpp_size] = ec_util::create_encap_dpp_tlv(false, src_mac, ec_frame_type_auth_rsp, reinterpret_cast<uint8_t*>(frame), len);
     ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d Failed to create Encap DPP TLV\n", __func__, __LINE__);
 
     // Only create and forward an Encap TLV
-    bool did_succeed = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, NULL, 0);
+    bool did_succeed = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_size, NULL, 0, m_ctrl_al_mac_addr.data());
     free(encap_dpp_tlv);
     return did_succeed;
 }
@@ -68,7 +125,7 @@ bool ec_pa_configurator_t::handle_cfg_request(uint8_t *buff, unsigned int len, u
     // 255, and send the message to the Multi-AP Controller.
     auto [encap_dpp_tlv, encap_dpp_tlv_len] = ec_util::create_encap_dpp_tlv(true, sa, static_cast<ec_frame_type_t>(ec_frame_type_easymesh), buff, len);
     ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d: Could not create Encap DPP TLV!\n", __func__, __LINE__);
-    bool sent = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_tlv_len, nullptr, 0);
+    bool sent = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_tlv_len, nullptr, 0, m_ctrl_al_mac_addr.data());
     if (!sent) {
         em_printfout("Failed to send Proxied Encap DPP message!");
     }
@@ -87,7 +144,7 @@ bool ec_pa_configurator_t::handle_cfg_result(ec_frame_t *frame, size_t len, uint
 
     auto [encap_dpp_tlv, encap_dpp_tlv_len] = ec_util::create_encap_dpp_tlv(false, sa, ec_frame_type_cfg_result, reinterpret_cast<uint8_t*>(frame), len);
     ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
-    bool sent = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_tlv_len, nullptr, 0);
+    bool sent = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_tlv_len, nullptr, 0, m_ctrl_al_mac_addr.data());
     if (!sent) {
         em_printfout("Failed to send Encap DPP TLV");
     }
@@ -107,7 +164,7 @@ bool ec_pa_configurator_t::handle_connection_status_result(ec_frame_t *frame, si
 
     auto [encap_dpp_tlv, encap_dpp_tlv_len] = ec_util::create_encap_dpp_tlv(false, sa, ec_frame_type_conn_status_result, reinterpret_cast<uint8_t*>(frame), len);
     ASSERT_NOT_NULL(encap_dpp_tlv, false, "%s:%d: Failed to create Encap DPP TLV\n", __func__, __LINE__);
-    bool sent = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_tlv_len, nullptr, 0);
+    bool sent = m_send_prox_encap_dpp_msg(encap_dpp_tlv, encap_dpp_tlv_len, nullptr, 0, m_ctrl_al_mac_addr.data());
     if (!sent) {
         em_printfout("Failed to send Encap DPP TLV");
     }
@@ -116,12 +173,7 @@ bool ec_pa_configurator_t::handle_connection_status_result(ec_frame_t *frame, si
     return sent;
 }
 
-bool ec_pa_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *chirp_tlv, uint16_t tlv_len)
-{
-    return true;
-}
-
-bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len)
+bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len, uint8_t src_al_mac[ETH_ALEN])
 {
     if (encap_tlv == NULL || encap_tlv_len == 0) {
         em_printfout("Encap DPP TLV is empty");
@@ -266,10 +318,16 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
             break;
         }
         case ec_frame_type_recfg_auth_req: {
-            em_printfout("Encap DPP frame type (%d) not handled", ec_frame_type);
+            ec_frame_t *frame = reinterpret_cast<ec_frame_t*>(encap_frame);
+            auto c_sign_key_hash_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t>(encap_frame_len - EC_FRAME_BASE_SIZE), ec_attrib_id_C_sign_key_hash);
+            if (!c_sign_key_hash_attr.has_value()) {
+                em_printfout("No C-sign key hash attribute found in DPP Reconfiguration Authentication Request frame");
+                free(encap_frame);
+                return false;
+            }
             std::vector<uint8_t> encap_frame_vec(encap_frame, encap_frame + encap_frame_len);
-            // Will be compared against incoming presence announcement hash and mac-addr
-            m_stored_recfg_auth_frames.push_back(encap_frame_vec); 
+            const std::string c_sign_key_hash_str = em_crypto_t::hash_to_hex_string(c_sign_key_hash_attr->data, c_sign_key_hash_attr->length);
+            m_stored_recfg_auth_frames_map[c_sign_key_hash_str] = encap_frame_vec;
             did_finish = true;
             break;
         }
@@ -282,6 +340,175 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
     // Then construct an Auth request frame and send back in an Encap message
 
     free(encap_frame);
+    return did_finish;
+}
+
+
+
+bool ec_pa_configurator_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len, uint8_t src_mac[ETH_ALEN])
+{
+    if (dpp_frame == NULL || dpp_frame_len == 0) {
+        em_printfout("DPP Message Frame is empty");
+        return false;
+    }
+
+    ec_frame_t* ec_frame = reinterpret_cast<ec_frame_t*>(dpp_frame);
+
+    ec_frame_type_t ec_frame_type = static_cast<ec_frame_type_t>(ec_frame->frame_type);
+
+    bool did_finish = false;
+
+    // TODO: I am VERY explicitly commenting out the buisness logic for the other frame types here,
+    // because the dpp frame given here is just a buffer, not any other info so more stuff has to be worked out with config.
+/*
+    std::string dest_mac_str = util::mac_to_string(dest_mac);
+
+    bool needs_fragmentation = (encap_frame_len > WIFI_MTU_SIZE);
+    if (needs_fragmentation) {
+        auto it = m_gas_session_dialog_tokens.find(dest_mac_str);
+        if (it == m_gas_session_dialog_tokens.end()) {
+            em_printfout("No GAS session dialog token found for '" MACSTRFMT "', not sending 802.11 frame.", MAC2STR(dest_mac));
+            return false;
+        }
+        uint8_t dialog_token = it->second;
+        // If peer is not ready to receive GAS Comeback Frames, we must first send a "dummy" GAS Initial Response frame inidicating to the 
+        // peer that GAS Comeback Response frames will be coming.
+        // Fragment the frame and store the fragments and wait for a GAS Comeback Request prior to sending.
+        em_printfout("Sending fragmentation prepare GAS Initial Response frame to '" MACSTRFMT "'", MAC2STR(dest_mac));
+        m_gas_frames_to_be_sent[dest_mac_str] = fragment_large_frame(encap_frame, encap_frame_len, dialog_token);
+        return send_prepare_for_fragmented_frames_frame(dest_mac);
+    }
+
+    // Pre-processing according to EM spec 5.4.3 Page 43
+    // If a Proxy Agent receives a Proxied Encap DPP message from the Multi-AP Controller, it shall extract the DPP frame from
+    // the Encapsulated Frame field of the 1905 Encap DPP TLV and:
+
+    // 1. If the 1905 Encap DPP TLV DPP Frame Indicator bit field is set to one and the Frame Type field is set to 255, the
+    // Proxy Agent shall decapsulate the DPP Configuration Response frame from the TLV and send it to the Enrollee Multi-
+    // AP Agent using a GAS frame as described in [18]
+    if (encap_tlv->dpp_frame_indicator && ec_frame_type == ec_frame_type_t::ec_frame_type_easymesh) {
+        if (!encap_tlv->enrollee_mac_addr_present) {
+            em_printfout("Cannot forward DPP Configuration Result to Enrollee, MAC addr not present!");
+            return false;
+        }
+        bool sent = m_send_action_frame(dest_mac, encap_frame, encap_frame_len, 0, 0);
+        if (!sent) {
+            em_printfout("Failed to forward DPP Configuration Result to Enrollee '" MACSTRFMT "'", MAC2STR(dest_mac));
+        }
+        free(encap_frame);
+        return sent;
+    }
+
+    // 2. If the 1905 Encap DPP TLV DPP Frame Indicator bit field is set to one and the Frame Type field set to a value other
+    // than 255, the Proxy Agent shall discard the message
+    // 3. If the 1905 Encap DPP TLV DPP Frame Indicator bit field is set to zero and the Frame Type field set to 255, the Proxy
+    // Agent shall discard the message
+    if ((encap_tlv->dpp_frame_indicator && ec_frame_type != ec_frame_type_t::ec_frame_type_easymesh) ||
+        (!encap_tlv->dpp_frame_indicator && ec_frame_type == ec_frame_type_t::ec_frame_type_easymesh)) {
+            em_printfout("Invalid Encap DPP fields, discarding message. DPP Frame Indicator=%d, DPP frame type=%d", encap_tlv->dpp_frame_indicator, ec_frame_type);
+            free(encap_frame);
+            return true;
+    }
+    // 4. If the 1905 Encap DPP TLV DPP Frame Indicator bit field is set to zero and the Frame Type field is set to a valid
+    // value, the Proxy Agent shall process the message following the procedures described in sections 5.3.4 or 5.3.10.
+    // Case 4 --  see next pile of text
+
+    // EasyMesh R6 5.4.3 Page 42
+    // If a Proxy Agent receives a Proxied Encap DPP message from the Controller, it shall extract the DPP frame from the
+    // Encapsulated Frame field of the 1905 Encap DPP TLV. If the DPP Frame Indicator field value is zero, and if the Frame
+    // Type field is not equal to zero or 15, then:
+    if ((ec_frame_type != ec_frame_type_t::ec_frame_type_auth_req && ec_frame_type != ec_frame_type_t::ec_frame_type_recfg_auth_req)) {
+        // 1. If the DPP Frame Indicator bit field in the 1905 Encap DPP TLV is set to zero and the Enrollee MAC Address Present
+        // bit is set to one, then the Proxy Agent shall send the frame as a unicast Public Action frame to the Enrollee MAC
+        // address
+        if (!encap_tlv->dpp_frame_indicator && encap_tlv->enrollee_mac_addr_present) {
+            bool sent = m_send_action_frame(dest_mac, encap_frame, encap_frame_len, 0, 0);
+            if (!sent) {
+                em_printfout("Failed to send non-DPP unicast action frame to '" MACSTRFMT "'", MAC2STR(dest_mac));
+            }
+            free(encap_frame);
+            return sent;
+        }
+        // 2. If the DPP Frame Indicator bit field in the 1905 Encap DPP TLV is set to zero and the Enrollee MAC Address Present
+        // bit is set to zero, then the Proxy Agent shall send the frame as a broadcast Public Action frame
+        else if (!encap_tlv->dpp_frame_indicator && !encap_tlv->enrollee_mac_addr_present) {
+            bool sent = m_send_action_frame(const_cast<uint8_t *>(BROADCAST_MAC_ADDR), encap_frame, encap_frame_len, 0, 0);
+            if (!sent) {
+                em_printfout("Failed to sent non-DPP broadcast action frame!");
+            }
+            free(encap_frame);
+            return sent;
+        }
+        // 3. If the DPP Frame Indicator bit field in the 1905 Encap DPP TLV is set to one and the Enrollee MAC Address Present
+        // bit is set to one, then the Proxy Agent shall send the frame as a unicast GAS frame to the Enrollee MAC address
+        else if (encap_tlv->dpp_frame_indicator && encap_tlv->enrollee_mac_addr_present) {
+            bool sent = m_send_action_frame(dest_mac, encap_frame, encap_frame_len, 0, 0);
+            if (!sent) {
+                em_printfout("Sent DPP unicast GAS frame to '" MACSTRFMT "'", MAC2STR(dest_mac));
+            }
+            free(encap_frame);
+            return sent;
+        }
+        // 4. If the DPP Frame Indicator bit field in the 1905 Encap DPP TLV is set to one and the Enrollee MAC Address Present
+        // bit is set to zero, then the Proxy Agent shall discard the message
+        else if (encap_tlv->dpp_frame_indicator && !encap_tlv->enrollee_mac_addr_present) {
+            em_printfout("Proxied Encap DPP Message with DPP Frame Indicator set, but Enrollee MAC Addr Present false! Discarding.");
+            free(encap_frame);
+            return true;
+        }
+    }
+
+    // Handlers for frame types 0, 15 "ec_frame_type_auth_req" and "ec_frame_type_recfg_auth_req"
+*/
+    switch (ec_frame_type) {
+        case ec_frame_type_auth_req: {
+            /*
+            if (chirp_tlv == NULL || chirp_tlv_len == 0) {
+                em_printfout("Chirp TLV is empty");
+                break;
+            }
+            mac_addr_t chirp_mac = {0};
+            uint8_t* chirp_hash = NULL;
+            uint16_t chirp_hash_len = 0;
+            if (!ec_util::parse_dpp_chirp_tlv(chirp_tlv, chirp_tlv_len, &chirp_mac, &chirp_hash, &chirp_hash_len)) {
+                em_printfout("Failed to parse DPP Chirp TLV");
+                break;
+            }
+            std::string chirp_hash_str = em_crypto_t::hash_to_hex_string(chirp_hash, chirp_hash_len);
+            em_printfout("Chirp TLV Hash: %s", chirp_hash_str.c_str());
+
+            free(chirp_hash);
+            
+            // Store the encap frame keyed by the chirp hash in the map
+            std::vector<uint8_t> encap_frame_vec(encap_frame, encap_frame + encap_frame_len);
+            m_chirp_hash_frame_map[chirp_hash_str] = encap_frame_vec;
+            did_finish = true;
+            */
+            break;
+        }
+        case ec_frame_type_recfg_auth_req: {
+            /*
+            ec_frame_t *frame = reinterpret_cast<ec_frame_t*>(encap_frame);
+            auto c_sign_key_hash_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t>(encap_frame_len - EC_FRAME_BASE_SIZE), ec_attrib_id_C_sign_key_hash);
+            if (!c_sign_key_hash_attr.has_value()) {
+                em_printfout("No C-sign key hash attribute found in DPP Reconfiguration Authentication Request frame");
+                free(encap_frame);
+                return false;
+            }
+            std::vector<uint8_t> encap_frame_vec(encap_frame, encap_frame + encap_frame_len);
+            const std::string c_sign_key_hash_str = em_crypto_t::hash_to_hex_string(c_sign_key_hash_attr->data, c_sign_key_hash_attr->length);
+            m_stored_recfg_auth_frames_map[c_sign_key_hash_str] = encap_frame_vec;
+            did_finish = true;
+            */
+            break;
+        }
+        case ec_frame_type_peer_disc_rsp: {
+            break;
+        }
+        default:
+            em_printfout("Encap DPP frame type (%d) not handled", ec_frame_type);
+            break;
+    }
     return did_finish;
 }
 

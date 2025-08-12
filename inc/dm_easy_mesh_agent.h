@@ -188,7 +188,25 @@ public:
 	 * @note Ensure that the event and descriptor pointers are valid before calling this function.
 	 */
 	int analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_desc_t *desc,bus_handle_t *bus_hdl);
-    
+
+    /**!
+	 * @brief Analyzes the csa beacon frame received.
+	 *
+	 * This function processes the csa beacon frame received event and updates the
+	 * WiFi bus descriptor accordingly.
+	 *
+	 * @param[in] evt Pointer to the event structure containing csa beacon frame received details.
+	 * @param[in] desc Pointer to the WiFi bus descriptor to be updated.
+	 * @param[in] bus_hdl Handle to the bus where the event is processed.
+	 *
+	 * @returns int Status code indicating success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval Non-zero error code on failure.
+	 *
+	 * @note Ensure that the event and descriptor pointers are valid before calling this function.
+	 */
+	int analyze_csa_beacon_frame(em_bus_event_t *evt, wifi_bus_desc_t *desc, bus_handle_t *bus_hdl);
+
 	/**!
 	 * @brief Analyzes the station link metrics.
 	 *
@@ -242,24 +260,6 @@ public:
 	 * before calling this function.
 	 */
 	int analyze_btm_response_action_frame(em_bus_event_t *evt, em_cmd_t *pcmd[]);
-    
-	/**!
-	 * @brief Analyzes the scan request and processes the event and bus descriptor.
-	 *
-	 * This function takes an event and a bus descriptor, analyzes the scan request,
-	 * and performs necessary operations using the bus handle.
-	 *
-	 * @param[in] evt Pointer to the event structure containing scan request details.
-	 * @param[in] desc Pointer to the bus descriptor structure.
-	 * @param[out] bus_hdl Pointer to the bus handle that will be used for operations.
-	 *
-	 * @returns int Status code indicating the success or failure of the operation.
-	 * @retval 0 on success.
-	 * @retval Non-zero error code on failure.
-	 *
-	 * @note Ensure that the event and descriptor pointers are valid before calling this function.
-	 */
-	int analyze_scan_request(em_bus_event_t *evt, wifi_bus_desc_t *desc,bus_handle_t *bus_hdl);
     
 	/**!
 	 * @brief Analyzes the scan result from the event bus.

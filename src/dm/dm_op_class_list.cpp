@@ -42,7 +42,7 @@
 int dm_op_class_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 {
     dm_op_class_t *pop_class;
-    cJSON *obj, *non_op_arr, *anticipated_arr;
+    cJSON *obj, *non_op_arr, *anticipated_arr, *channel_arr;
     unsigned int i;
     em_op_class_id_t id;
     em_op_class_info_t *info;
@@ -72,6 +72,13 @@ int dm_op_class_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 	    	for (i = 0; i < pop_class->m_op_class_info.num_channels; i++) {
             	cJSON_AddItemToArray(non_op_arr, cJSON_CreateNumber(pop_class->m_op_class_info.channels[i]));
         	}
+            channel_arr = cJSON_AddArrayToObject(obj, "ChannelList");
+            std::vector<int> v = dm_easy_mesh_t::get_channel_list_by_op_class(static_cast<int>(pop_class->m_op_class_info.id.op_class));
+            unsigned int band = dm_easy_mesh_t::get_freq_band_by_op_class(static_cast<int>(pop_class->m_op_class_info.id.op_class));
+            for (i = 0; i < v.size(); i++) {
+                cJSON_AddItemToArray(channel_arr, cJSON_CreateNumber(v[i]));
+            }
+            cJSON_AddNumberToObject(obj, "Band", band);
     	} else if ((id.type == em_op_class_type_preference) || 
 							(id.type == em_op_class_type_anticipated) ||
 							(id.type == em_op_class_type_scan_param)) {
@@ -95,11 +102,11 @@ void dm_op_class_list_t::get_config(cJSON *obj_arr, em_op_class_type_t type)
 	unsigned int i;
 
 	// only anticipated is implemented now
-	if ((type != em_op_class_type_anticipated) && (type != em_op_class_type_scan_param)) {
+	if ((type != em_op_class_type_anticipated) && (type != em_op_class_type_scan_param) && (type != em_op_class_type_capability)) {
 		printf("%s:%d: Non anticipated category not imeplemented, type: %d\n", __func__, __LINE__, type);
 		assert(0);
 		return;
-	}		
+	}
 
 	op_class = static_cast<dm_op_class_t *>(get_first_pre_set_op_class_by_type(type));
 	while (op_class) {
@@ -151,7 +158,7 @@ dm_orch_type_t dm_op_class_list_t::get_dm_orch_type(db_client_t& db_client, cons
 {
     dm_op_class_t *pop_class;
     mac_addr_str_t  mac_str;
-    em_short_string_t   key;
+    em_long_string_t   key;
 
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(op_class.m_op_class_info.id.ruid), mac_str);
 	//printf("%s:%d: MAC: %s\tType: %d\tClass: %d\n", __func__, __LINE__, mac_str,
@@ -211,7 +218,7 @@ void dm_op_class_list_t::delete_list()
 {   
     dm_op_class_t *pop_class, *tmp;
     mac_addr_str_t  mac_str = {0};
-    em_short_string_t	key;
+    em_long_string_t	key;
   
     pop_class = get_first_op_class();
     while (pop_class != NULL) {
@@ -232,7 +239,8 @@ bool dm_op_class_list_t::operator == (const db_easy_mesh_t& obj)
 int dm_op_class_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *data)
 {
     mac_addr_str_t mac_str;
-    em_long_string_t channels_str = {0}, id;
+    em_long_string_t id;
+    em_2xlong_string_t channels_str = {0};
     char tmp[8];
     em_op_class_info_t *info = static_cast<em_op_class_info_t *>(data);
     int ret = 0;
@@ -240,7 +248,7 @@ int dm_op_class_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, voi
 
     dm_easy_mesh_t::macbytes_to_string(info->id.ruid, mac_str);
     snprintf(id, sizeof(id), "%s@%d@%d", mac_str, info->id.type, info->id.op_class);
-    //printf("\n%s:%d: Opeartion:%d, id:%s\tmac:%s\ttype:%d\tClass:%d\tClass: %d\n", __func__, __LINE__, op, id, mac_str, info->id.type, info->id.op_class, info->op_class);
+    //printf("%s:%d: Operation:%d, id:%s\tClass: %d Channel:%d\n", __func__, __LINE__, op, id, info->op_class, info->channel);
 
 	for (i = 0; i < info->num_channels; i++) {
 		snprintf(tmp, sizeof(tmp), "%d,", info->channels[i]);
@@ -289,7 +297,8 @@ bool dm_op_class_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
 int dm_op_class_list_t::sync_db(db_client_t& db_client, void *ctx)
 {
     em_op_class_info_t info;
-    em_long_string_t   str, id;
+    em_long_string_t   id;
+    em_2xlong_string_t str;
     em_short_string_t	ch_str[EM_MAX_CHANNELS_IN_LIST];
     char   *token_parts[EM_MAX_CHANNELS_IN_LIST];
     unsigned int i = 0;
@@ -340,7 +349,7 @@ void dm_op_class_list_t::init_columns()
     m_columns[m_num_cols++] = db_column_t("ID", db_data_type_char, 32);
     m_columns[m_num_cols++] = db_column_t("Class", db_data_type_int, 0);
     m_columns[m_num_cols++] = db_column_t("Channel", db_data_type_int, 0);
-    m_columns[m_num_cols++] = db_column_t("ChannelList", db_data_type_char, 64);
+    m_columns[m_num_cols++] = db_column_t("ChannelList", db_data_type_text, sizeof(em_2xlong_string_t));
     m_columns[m_num_cols++] = db_column_t("TxPower", db_data_type_int, 0);
     m_columns[m_num_cols++] = db_column_t("MaxTxPower", db_data_type_int, 0);
     m_columns[m_num_cols++] = db_column_t("Minutes", db_data_type_int, 0);

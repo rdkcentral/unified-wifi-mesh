@@ -25,11 +25,6 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <linux/filter.h>
-#include <netinet/ether.h>
-#include <netpacket/packet.h>
-#include <linux/netlink.h>
-#include <linux/rtnetlink.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -56,7 +51,7 @@ em_cmd_op_channel_report_t::em_cmd_op_channel_report_t(em_cmd_params_t param, dm
 
     snprintf(m_name, sizeof(m_name), "%s", "channel_report");
     m_svc = em_service_type_agent;
-    init(&dm);
+    init(dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
     ctx.type = m_orch_desc[0].op;

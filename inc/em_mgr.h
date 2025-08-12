@@ -333,6 +333,27 @@ public:
     }
 
 	/**
+	 * @brief Send an action frame on the backhaul BSS. Optional to implement.
+	 *
+	 * This function attempts to send an action frame to a specified destination
+	 * MAC address. It allows specifying the frequency and wait time for the action.
+	 *
+	 * @param[in] dest_mac The destination MAC address.
+	 * @param[in] action_frame The action frame to send.
+	 * @param[in] action_frame_len The length of the action frame.
+	 * @param[in] frequency The frequency to send the frame on (0 for current frequency).
+	 * @param[in] wait_time_ms The time to dwell on the frequency before switching back to the original frequency (0 for no wait).
+	 *
+	 * @return true if the action frame was sent successfully, false otherwise.
+	 *
+	 * @note This function is optional to implement and may not be supported on all platforms.
+	 */
+	virtual bool send_backhaul_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency=0, unsigned int wait_time_ms=0) {
+        printf("send_action_frame not implemented\n");
+        return false;
+    }
+
+	/**
 	 * @brief Set the disconnected steady state.
 	 * 
 	 * This function temporarily interupts the disconnected-scanning state machine in OneWifi
@@ -358,6 +379,23 @@ public:
         printf("set_disconnected_steady_state not implemented\n");
         return false;
     }
+
+	/**
+	 * @brief Send a scan request to OneWifi
+	 *
+	 * This function sends a scan request with the specified parameters to the mesh.
+	 *
+	 * @param[in] scan_params Pointer to the scan parameters structure.
+	 * @param[in] perform_fresh_scan If true, performs a fresh scan; otherwise, uses cached results.
+	 *
+	 * @return true if the scan request was sent successfully, false otherwise.
+	 * 
+	 * @note This function is optional to implement and may not be supported on all platforms.
+	 */
+	virtual bool send_scan_request(em_scan_params_t* scan_params, bool perform_fresh_scan, bool is_sta_vap = false) {
+		printf("send_scan_request not implemented\n");
+		return false;
+	}
 
     
 	/**
@@ -508,7 +546,32 @@ public:
 	 */
 	virtual void update_network_topology() = 0;
     
-    
+ 
+	/**!
+	 * @brief Retrieves the first data model from the list.
+	 * 
+	 * @note ONLY IMPLEMENTED BY THE CONTROLLER.
+	 *
+	 * @returns A pointer to the first data model in the list.
+	 */
+	virtual dm_easy_mesh_t *get_first_dm() = 0;
+	
+	/**!
+	 * @brief Retrieves the next data model in the list.
+	 *
+	 * This function returns the next data model object from the list of data models.
+	 * 
+	 * @note ONLY IMPLEMENTED BY THE CONTROLLER.
+	 *
+	 * @param[in] dm A pointer to the current data model object.
+	 *
+	 * @returns A pointer to the next data model object in the list.
+	 * @retval nullptr If there is no next data model.
+	 *
+	 * @note Ensure that the input data model pointer is valid before calling this function.
+	 */
+	virtual dm_easy_mesh_t *get_next_dm(dm_easy_mesh_t *dm) = 0;
+
 	/**!
 	 * @brief Retrieves the data model for a given network ID.
 	 *

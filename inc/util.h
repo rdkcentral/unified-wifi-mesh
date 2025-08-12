@@ -26,9 +26,6 @@
 #include <stdint.h>
 #include "wifi_hal.h"
 #include <pthread.h>
-#include <sys/prctl.h>
-#include <byteswap.h>
-
 #include <string>
 #include <memory>
 #include <vector>
@@ -167,12 +164,14 @@ namespace util {
 	 * @return A string representing the MAC address in the format "XX:XX:XX:XX:XX:XX".
 	 */
 	inline std::string mac_to_string(const uint8_t mac[6], const std::string& delim = ":") {
-    char mac_str[18]; // Max size: 6 bytes * 2 hex chars + 5 delimiters + null terminator
-    snprintf(mac_str, sizeof(mac_str), "%02x%s%02x%s%02x%s%02x%s%02x%s%02x", 
-             mac[0], delim.c_str(), mac[1], delim.c_str(), mac[2], delim.c_str(),
-             mac[3], delim.c_str(), mac[4], delim.c_str(), mac[5]);
-    return std::string(mac_str);
-}
+		char mac_str[18]; // Max size: 6 bytes * 2 hex chars + 5 delimiters + null terminator
+		snprintf(mac_str, sizeof(mac_str), "%02x%s%02x%s%02x%s%02x%s%02x%s%02x", 
+				mac[0], delim.c_str(), mac[1], delim.c_str(), mac[2], delim.c_str(),
+				mac[3], delim.c_str(), mac[4], delim.c_str(), mac[5]);
+		return std::string(mac_str);
+	}
+
+
 
 
 	/**!
@@ -189,6 +188,45 @@ namespace util {
 	 * @note This function does not include the delimiter in the resulting substrings.
 	 */
 	std::vector<std::string> split_by_delim(const std::string& s, char delimiter);
+
+
+	/**
+	 * @brief Converts a MAC address string to a vector of bytes.
+	 *
+	 * This function takes a MAC address in string format (e.g., "01:23:45:67:89:ab")
+	 * and converts it into a vector of 6 bytes. If the input string is invalid,
+	 * an empty vector is returned.
+	 *
+	 * @param[in] mac_str The MAC address string to convert.
+	 * @return A vector of 6 bytes representing the MAC address, or an empty vector if the input is invalid.
+	 */
+	inline std::vector<uint8_t> macstr_to_vector(const std::string& mac_str, const std::string& delim = ":") {
+		std::vector<uint8_t> mac;
+
+		// Special case for empty deliminator since a split cannot be determined
+		if (delim.empty()){
+			mac.resize(ETHER_ADDR_LEN);
+			for (size_t i = 0; i < ETHER_ADDR_LEN; i++) {
+				std::string byte_str = mac_str.substr(i*2, 2);
+				mac[i] = static_cast<uint8_t>(strtol(byte_str.c_str(), nullptr, 16));
+			}
+			return mac;
+		}
+		
+		std::vector<std::string> parts = split_by_delim(mac_str, delim.c_str()[0]);
+		if (parts.size() != 6) return {};
+		for (auto& part : parts) {
+			try {
+				mac.push_back(
+					static_cast<uint8_t>(std::stoi(part, nullptr, 16))
+				);
+			} catch (...) {
+				return {};
+			}
+		}
+
+		return mac;
+	}
 
 
 	/**
@@ -277,5 +315,125 @@ bool set_net_uint16_from_host(const uint16_t host_val, void* const ptr);
 #define em_util_dbg_print(module, format, ...)  util::em_util_print(EM_LOG_LVL_DEBUG, module, __func__, __LINE__, format, ##__VA_ARGS__)
 #define em_util_info_print(module, format, ...)  util::em_util_print(EM_LOG_LVL_INFO, module, __func__, __LINE__, format, ##__VA_ARGS__)
 #define em_util_error_print(module, format, ...)  util::em_util_print(EM_LOG_LVL_ERROR, module, __func__, __LINE__, format, ##__VA_ARGS__)
+
+
+// Used to avoid many many if-not-null checks
+#define EM_ASSERT_MSG_FALSE(x, ret, errMsg, ...) \
+    if(x) { \
+        em_printfout(errMsg, ## __VA_ARGS__); \
+        return ret; \
+    }
+
+#define EM_ASSERT_MSG_TRUE(x, ret, errMsg, ...) EM_ASSERT_MSG_FALSE(!(x), ret, errMsg, ## __VA_ARGS__)
+#define EM_ASSERT_NOT_NULL(x, ret, errMsg, ...) EM_ASSERT_MSG_FALSE(x == NULL, ret, errMsg, ## __VA_ARGS__)
+
+/**
+ * @brief Asserts that a pointer is not NULL, and if it is, frees up to 3 pointers and returns a value
+ * @param x The pointer to check for NULL
+ * @param ret The value to return if x is NULL
+ * @param ptr1 First pointer to free (can be NULL)
+ * @param ptr2 Second pointer to free (can be NULL) 
+ * @param ptr3 Third pointer to free (can be NULL)
+ * @param errMsg Format string for error message
+ * @param ... Additional arguments for the format string
+ */
+#define EM_ASSERT_NOT_NULL_FREE3(x, ret, ptr1, ptr2, ptr3, errMsg, ...) \
+    do { \
+        if(x == NULL) { \
+            em_printfout(errMsg, ## __VA_ARGS__); \
+            void *_tmp1 = (ptr1); \
+            void *_tmp2 = (ptr2); \
+            void *_tmp3 = (ptr3); \
+            if (_tmp1) { \
+                free(_tmp1); \
+            } \
+            if (_tmp2) { \
+                free(_tmp2); \
+            } \
+            if (_tmp3) { \
+                free(_tmp3); \
+            } \
+            return ret; \
+        } \
+    } while (0)
+
+/**
+ * @brief Asserts that a pointer is not NULL, and if it is, frees up to 2 pointers and returns a value
+ */
+#define EM_ASSERT_NOT_NULL_FREE2(x, ret, ptr1, ptr2, errMsg, ...) \
+    EM_ASSERT_NOT_NULL_FREE3(x, ret, ptr1, ptr2, NULL, errMsg, ## __VA_ARGS__)
+
+/**
+ * @brief Asserts that a pointer is not NULL, and if it is, frees one pointer and returns a value
+ */
+#define EM_ASSERT_NOT_NULL_FREE(x, ret, ptr1, errMsg, ...) \
+    EM_ASSERT_NOT_NULL_FREE2(x, ret, ptr1, NULL, errMsg, ## __VA_ARGS__)
+
+
+#define EM_ASSERT_NULL(x, ret, errMsg, ...) EM_ASSERT_MSG_TRUE(x == 0, ret, errMsg, ## __VA_ARGS__)
+#define EM_ASSERT_EQUALS(x, y, ret, errMsg, ...) EM_ASSERT_MSG_TRUE(x == y, ret, errMsg, ## __VA_ARGS__)
+#define EM_ASSERT_NOT_EQUALS(x, y, ret, errMsg, ...) EM_ASSERT_MSG_FALSE(x == y, ret, errMsg, ## __VA_ARGS__)
+
+/**
+ * @brief Asserts that a std::optional has a value, and if it doesn't, frees up to 3 pointers and returns a value
+ * @param x The std::optional to check for a value
+ * @param ret The value to return if x is nullopt
+ * @param ptr1 First pointer to free (can be NULL)
+ * @param ptr2 Second pointer to free (can be NULL) 
+ * @param ptr3 Third pointer to free (can be NULL)
+ * @param errMsg Format string for error message
+ * @param ... Additional arguments for the format string
+ */
+#define EM_ASSERT_OPT_HAS_VALUE_FREE3(x, ret, ptr1, ptr2, ptr3, errMsg, ...) \
+    do { \
+        if(!x.has_value()) { \
+            em_printfout(errMsg, ## __VA_ARGS__); \
+            void *_tmp1 = (ptr1); \
+            void *_tmp2 = (ptr2); \
+            void *_tmp3 = (ptr3); \
+            if (_tmp1) { \
+                free(_tmp1); \
+            } \
+            if (_tmp2) { \
+                free(_tmp2); \
+            } \
+            if (_tmp3) { \
+                free(_tmp3); \
+            } \
+            return ret; \
+        } \
+    } while (0)
+
+/**
+ * @brief Asserts that a std::optional has a value, and if it doesn't, frees up to 2 pointers and returns a value
+ * @param x The std::optional to check for a value
+ * @param ret The value to return if x is nullopt
+ * @param ptr1 First pointer to free (can be NULL)
+ * @param ptr2 Second pointer to free (can be NULL) 
+ * @param errMsg Format string for error message
+ * @param ... Additional arguments for the format string
+ */
+#define EM_ASSERT_OPT_HAS_VALUE_FREE2(x, ret, ptr1, ptr2, errMsg, ...) \
+    EM_ASSERT_OPT_HAS_VALUE_FREE3(x, ret, ptr1, ptr2, NULL, errMsg, ## __VA_ARGS__)
+
+/**
+ * @brief Asserts that a std::optional has a value, and if it doesn't, frees a pointer and returns a value
+ * @param x The std::optional to check for a value
+ * @param ret The value to return if x is nullopt
+ * @param ptr1 First pointer to free (can be NULL)
+ * @param errMsg Format string for error message
+ * @param ... Additional arguments for the format string
+ */
+#define EM_ASSERT_OPT_HAS_VALUE_FREE(x, ret, ptr1, errMsg, ...) \
+    EM_ASSERT_OPT_HAS_VALUE_FREE2(x, ret, ptr1, NULL, errMsg, ## __VA_ARGS__)
+
+/**
+ * @brief Asserts that a std::optional has a value, and returns a value if it doesn't
+ * @param x The std::optional to check for a value
+ * @param ret The value to return if x is nullopt
+ * @param errMsg Format string for error message
+ * @param ... Additional arguments for the format string
+ */
+#define EM_ASSERT_OPT_HAS_VALUE(x, ret, errMsg, ...) EM_ASSERT_MSG_TRUE(x.has_value(), ret, errMsg, ## __VA_ARGS__)
 
 #endif

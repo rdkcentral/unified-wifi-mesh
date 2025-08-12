@@ -9,7 +9,7 @@
 class AlServiceRegistrationRequest {
 public:
      // Constructor
-    
+
 	/**!
 	 * @brief Constructor for the AlServiceRegistrationRequest class.
 	 *
@@ -18,7 +18,7 @@ public:
 	 * @note This is a default constructor and does not take any parameters.
 	 */
 	AlServiceRegistrationRequest();  // Default constructor
-    
+
 	/**!
 	 * @brief Constructor for AlServiceRegistrationRequest.
 	 *
@@ -29,10 +29,10 @@ public:
 	 *
 	 * @note Ensure that the operation and type are valid and supported by the service registration system.
 	 */
-	AlServiceRegistrationRequest(ServiceOperation operation, ServiceType type);
-    
+	AlServiceRegistrationRequest(SAPActivation operation, ServiceType type);
+
     // Setters and getters for service operation
-    
+
 	/**!
 	 * @brief Sets the service operation.
 	 *
@@ -42,8 +42,8 @@ public:
 	 *
 	 * @note Ensure that the service operation is valid before calling this function.
 	 */
-	void setServiceOperation(ServiceOperation service);
-    
+	void setSAPActivationStatus(SAPActivation service);
+
 	/**!
 	 * @brief Retrieves the service operation.
 	 *
@@ -51,10 +51,10 @@ public:
 	 *
 	 * @returns ServiceOperation The current service operation.
 	 */
-	ServiceOperation getServiceOperation() const;
+	SAPActivation getSAPActivationStatus() const;
 
     // Setters and getters for service type
-    
+
 	/**!
 	 * @brief Sets the type of service.
 	 *
@@ -65,7 +65,7 @@ public:
 	 * @note Ensure that the service type is valid and supported.
 	 */
 	void setServiceType(ServiceType service);
-    
+
 	/**!
 	 * @brief Retrieves the service type.
 	 *
@@ -76,7 +76,7 @@ public:
 	ServiceType getServiceType() const;
 
     // Serialization and deserialization methods
-    
+
 	/**!
 	 * @brief Serializes the registration request into a vector of bytes.
 	 *
@@ -85,8 +85,8 @@ public:
 	 *
 	 * @returns A vector of unsigned char containing the serialized registration request.
 	 */
-	std::vector<unsigned char> serializeRegistrationRequest(); 
-    
+	std::vector<unsigned char> serializeRegistrationRequest();
+
 	/**!
 	 * @brief Deserializes the registration request from the given data.
 	 *
@@ -99,8 +99,15 @@ public:
 	 */
 	void deserializeRegistrationRequest(const std::vector<unsigned char>& data);
 
+	/*
+    	Size of the registration request message in bytes
+    	size of packet (4 bytes) + Service Operation (1 byte) + Service Type (1 byte) = 2 bytes
+    */
+    static const size_t SIZE_BYTES = 2;
+    static const size_t FRAMED_SIZE_BYTES = 4 + SIZE_BYTES;
+
 private:
-    ServiceOperation serviceOperation;
+    SAPActivation serviceOperation;
     ServiceType serviceType;
 };
 

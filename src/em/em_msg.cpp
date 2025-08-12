@@ -29,6 +29,7 @@
 #include "em_msg.h"
 //#include "util.h"
 #include "em_configuration.h"
+#include "util.h"
 
 bool em_msg_t::get_tlv(em_tlv_t *itlv)
 {
@@ -264,6 +265,57 @@ em_tlv_t *em_msg_t::get_tlv(em_tlv_type_t type)
     return NULL;
 }
 
+em_tlv_t *em_msg_t::get_tlv(em_tlv_t* tlvs_buff, unsigned int buff_len, em_tlv_type_t type)
+{
+
+    EM_ASSERT_NOT_NULL(tlvs_buff, NULL, "Buffer is NULL");
+    EM_ASSERT_MSG_TRUE(buff_len > 0, NULL, "Buffer length is zero");
+
+    em_tlv_t    *tlv = tlvs_buff;
+    unsigned int len = buff_len;
+
+    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+        if (tlv->type == type) {
+            return tlv; 
+        }
+        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + ntohs(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
+    }
+
+    return NULL;
+}
+
+em_tlv_t *em_msg_t::get_first_tlv(em_tlv_t* tlvs_buff, unsigned int buff_len)
+{
+
+    EM_ASSERT_NOT_NULL(tlvs_buff, NULL, "Buffer is NULL");
+    EM_ASSERT_MSG_TRUE(buff_len > 0, NULL, "Buffer length is zero");
+
+    em_tlv_t    *tlv = tlvs_buff;
+
+    uint16_t tlv_len = ntohs(tlv->len);
+
+    EM_ASSERT_MSG_TRUE(tlv_len > 0, NULL, "First TLV length is zero");
+    EM_ASSERT_MSG_TRUE(tlv_len >= (buff_len - sizeof(em_tlv_t)), NULL, "TLVs buffer cannot fit first TLV"); 
+
+    return tlv;
+}
+
+em_tlv_t *em_msg_t::get_next_tlv(em_tlv_t* tlv, em_tlv_t* tlvs_buff, unsigned int buff_len)
+{
+
+    EM_ASSERT_NOT_NULL(tlv, NULL, "TLV is NULL");
+    EM_ASSERT_NOT_NULL(tlvs_buff, NULL, "Buffer is NULL");
+    EM_ASSERT_MSG_TRUE(buff_len > 0, NULL, "Buffer length is zero");
+
+    size_t offset = reinterpret_cast<uint8_t*>(tlv) - reinterpret_cast<uint8_t*>(tlvs_buff);
+    EM_ASSERT_MSG_TRUE(offset < buff_len, NULL, "TLV offset exceeds buffer length");
+
+    em_tlv_t* offset_tlvs_buff = reinterpret_cast<em_tlv_t*>(reinterpret_cast<uint8_t*>(tlvs_buff) + offset);
+
+    return get_first_tlv(offset_tlvs_buff, buff_len - offset);
+}
+
 unsigned char* em_msg_t::add_buff_element(unsigned char *buff, unsigned int *len, unsigned char *element, unsigned int element_len)
 {
     memcpy(buff, element, element_len);
@@ -329,7 +381,7 @@ unsigned int em_msg_t::validate(char *errors[])
         }
 
         if ((m_tlv_member[i].m_requirement == mandatory) &&((m_tlv_member[i].m_present == false)||((sizeof(em_tlv_t) + htons(tlv->len)) < static_cast<size_t> (m_tlv_member[i].m_tlv_length)))) {
-            snprintf(m_errors[m_num_errors], sizeof(m_errors[m_num_errors]), "%s", m_tlv_member[i].m_spec);
+            strncpy(m_errors[m_num_errors], m_tlv_member[i].m_spec, sizeof(m_errors[m_num_errors]));
             m_num_errors++;
             errors[m_num_errors - 1] = m_errors[m_num_errors - 1];
             validation = false;
@@ -343,7 +395,7 @@ unsigned int em_msg_t::validate(char *errors[])
         }
 
         if ((m_tlv_member[i].m_requirement == bad) && (m_tlv_member[i].m_present == true)) {
-            snprintf(m_errors[m_num_errors], sizeof(m_errors[m_num_errors]), "%s", m_tlv_member[i].m_spec);
+            strncpy(m_errors[m_num_errors], m_tlv_member[i].m_spec, sizeof(m_errors[m_num_errors]));
             m_num_errors++;
             errors[m_num_errors - 1] = m_errors[m_num_errors - 1];
             //printf("%s:%d; TLV type: 0x%04x Length: %d, presence validation error, profile: %d\n", __func__, __LINE__, 

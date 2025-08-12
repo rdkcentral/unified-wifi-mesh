@@ -73,7 +73,7 @@ ifeq ($(WITH_SAP), 1)
 LIBDIRS += -L$(AL_SAP_HOME)/build/lib
 endif
 
-LIBS = -lgcc -lc -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwebconfig -lhebus -lmariadb
+LIBS = -lgcc -lc -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwebconfig -lhebus -lmariadb -lstdc++fs
 
 ifeq ($(WITH_SAP), 1)
 LIBS += -lalsap

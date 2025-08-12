@@ -53,27 +53,14 @@ em_cmd_t em_cmd_agent_t::m_client_cmd_spec[] = {
 
 int em_cmd_agent_t::execute(em_long_string_t result)
 {
-    struct sockaddr_un addr;
     int ret, lsock, dsock;
     unsigned int sz = EM_MAX_EVENT_DATA_LEN, i, offset, iter;
     unsigned char *tmp;
 
     m_cmd.reset();
 
-    unlink(get_path());
-
-    if ((lsock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-        printf("%s:%d: error opening socket, err:%d\n", __func__, __LINE__, errno);
-        return -1;
-    }
-
-    memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", get_path());
-    //strcpy(addr.sun_path, m_sock_path);
-
-    if ((ret = bind(lsock, (const struct sockaddr *)&addr, sizeof(struct sockaddr_un))) == -1) {
-        printf("%s:%d: bind error on socket: %d, err:%d\n", __func__, __LINE__, lsock, errno);
+	if ((lsock = get_listener_socket(em_service_type_agent)) < 0) {
+        printf("%s:%d: listener socket get failed, service:%d\n", __func__, __LINE__, get_svc());
         return -1;
     }
 
@@ -115,8 +102,7 @@ int em_cmd_agent_t::execute(em_long_string_t result)
 
     }
 
-    close(lsock);
-    unlink(get_path());
+	close_listener_socket(lsock, get_svc());
 
     return 0;
 }
@@ -230,5 +216,5 @@ em_cmd_agent_t::em_cmd_agent_t(em_cmd_type_t type)
 
 em_cmd_agent_t::em_cmd_agent_t()
 {
-    snprintf(m_sock_path, sizeof(m_sock_path), "%s_%s", EM_PATH_PREFIX, EM_AGENT_PATH);
+
 }

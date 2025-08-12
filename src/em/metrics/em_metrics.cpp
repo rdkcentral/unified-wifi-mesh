@@ -104,8 +104,8 @@ int em_metrics_t::handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff)
 {
     em_assoc_sta_vendor_link_metrics_t *sta_metrics;
     //em_assoc_vendor_link_metrics_t *metrics;
-    dm_sta_t *sta;
-    unsigned int i;
+    dm_sta_t *sta = NULL;
+    //unsigned int i;
     dm_easy_mesh_t  *dm;
 
     dm = get_data_model();
@@ -266,7 +266,7 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned int tmp_len = 0;
     dm_sta_t *sta;
-    em_beacon_metrics_resp_t *response;
+    em_beacon_metrics_resp_t *response = NULL;
     dm_easy_mesh_t  *dm;
     unsigned int report_len = 0;
 
@@ -854,7 +854,6 @@ int em_metrics_t::send_ap_metrics_response()
     dm_sta_t *sta;
     short msg_id = em_msg_type_ap_metrics_rsp;
     int bss_index = 0;
-    mac_addr_str_t rad_str;
 
     memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
@@ -880,7 +879,7 @@ int em_metrics_t::send_ap_metrics_response()
 
     //AP Metrics Response 17.1.17
     //AP Metrics TLV (17.2.22)
-    for (bss_index = 0; bss_index < dm->m_num_bss; bss_index++) {
+    for (bss_index = 0; bss_index < static_cast<int>(dm->m_num_bss); bss_index++) {
         if (memcmp(dm->m_bss[bss_index].m_bss_info.ruid.mac,
             get_current_cmd()->get_param()->u.ap_metrics_params.ruid, sizeof(mac_addr_t)) != 0) {
             continue;
@@ -916,7 +915,7 @@ int em_metrics_t::send_ap_metrics_response()
         sta = reinterpret_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
         while(sta != NULL) {
             if (memcmp(sta->get_sta_info()->bssid, dm->m_bss[bss_index].m_bss_info.bssid.mac, sizeof(mac_address_t)) != 0) {
-                sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_map, sta);
+                sta = static_cast<dm_sta_t *>(hash_map_get_next(dm->m_sta_map, sta));
                 continue;
             }
             //Associated STA Traffic Stats TLV (17.2.35)
@@ -1028,10 +1027,10 @@ short em_metrics_t::create_assoc_sta_link_metrics_tlv(unsigned char *buff, mac_a
             metrics->time_delta_ms = 10;//TODO: Pending proper update
             len += sizeof(metrics->time_delta_ms);
 
-            metrics->est_mac_data_rate_dl = sta->m_sta_info.last_dl_rate;
+            metrics->est_mac_data_rate_dl = sta->m_sta_info.est_dl_rate;
             len += sizeof(metrics->est_mac_data_rate_dl);
 
-            metrics->est_mac_data_rate_ul = sta->m_sta_info.last_ul_rate;
+            metrics->est_mac_data_rate_ul = sta->m_sta_info.est_ul_rate;
             len += sizeof(metrics->est_mac_data_rate_ul);
 
             metrics->rcpi = sta->m_sta_info.rcpi;
@@ -1155,7 +1154,7 @@ short em_metrics_t::create_beacon_metrics_query_tlv(unsigned char *buff, mac_add
 
     for (j = 0; j < dm->get_num_bss(); j++) {
         if (memcmp(&dm->m_bss[j].m_bss_info.bssid, sta->m_sta_info.bssid, sizeof(bssid_t)) != 0) {
-            strncpy(ssid, dm->m_bss[j].m_bss_info.ssid, sizeof(ssid_t));
+            snprintf(ssid, sizeof(ssid_t), "%s", dm->m_bss[j].m_bss_info.ssid);
             break;
         }
     }
@@ -1267,16 +1266,16 @@ short em_metrics_t::create_ap_metrics_tlv(unsigned char *buff, dm_bss_t &dm_bss)
         memcpy(ap_metrics->bssid, dm_bss.m_bss_info.bssid.mac, sizeof(mac_address_t));
         len += static_cast<size_t> (sizeof(mac_address_t));
 
-        ap_metrics->channel_util = dm_bss.m_bss_info.numberofsta;
+        ap_metrics->channel_util = static_cast<unsigned char>(dm_bss.m_bss_info.numberofsta);
         len += static_cast<size_t> (sizeof(unsigned char));
 
-        ap_metrics->num_sta = htons(dm_bss.m_bss_info.numberofsta);
+        ap_metrics->num_sta = htons(static_cast<uint16_t>(dm_bss.m_bss_info.numberofsta));
         len += static_cast<size_t> (sizeof(unsigned short));
 
         ap_metrics->est_service_params_BE_bit = 1;
         len += static_cast<size_t> (sizeof(unsigned char));
 
-        for(int i = 0; i < sizeof(ap_metrics->est_service_params_BE); i++) {
+        for(int i = 0; i < static_cast<int>(sizeof(ap_metrics->est_service_params_BE)); i++) {
             ap_metrics->est_service_params_BE[i] = 0;
             len += static_cast<size_t> (sizeof(unsigned char));
         }
