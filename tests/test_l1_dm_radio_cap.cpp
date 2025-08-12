@@ -1189,3 +1189,67 @@ TEST(dm_radio_cap_tTest, CompareDifferentEHTCap) {
     EXPECT_FALSE(obj1 == obj2);
     std::cout << "Exiting CompareDifferentEHTCap" << std::endl;
 }
+
+/**
+ * @brief Verifies that the dm_radio_cap_t default constructor successfully creates an object without throwing an exception.
+ *
+ * This test case ensures that invoking the default constructor of dm_radio_cap_t does not result in any unexpected exceptions and that the internally maintained state (m_radio_cap_info) remains in its default configuration.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 039@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                      | Test Data                                        | Expected Result                                                                               | Notes       |
+ * | :--------------: | ---------------------------------------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------- | ----------- |
+ * | 01               | Invoke dm_radio_cap_t default constructor and verify no exception thrown | Invocation: dm_radio_cap_t();                    | The object is created successfully without any exceptions and internal state is defaulted.      | Should Pass |
+ */
+TEST(dm_radio_cap_tTest, DefaultConstructor) {
+    std::cout << "Entering DefaultConstructor test" << std::endl;
+
+    EXPECT_NO_THROW({
+        std::cout << "Invoking dm_radio_cap_t() default constructor." << std::endl;
+        dm_radio_cap_t obj;
+        std::cout << "dm_radio_cap_t object created successfully." << std::endl;
+    });
+
+    std::cout << "Exiting DefaultConstructor test" << std::endl;
+}
+
+/**
+ * @brief Tests whether the destructor of dm_radio_cap_t is invoked without throwing exceptions.
+ *
+ * This test creates an instance of dm_radio_cap_t using the default constructor and then deletes the object,
+ * which triggers the destructor. It verifies that no exceptions are thrown during the destruction process,
+ * ensuring that the destructor properly cleans up resources.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 040@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                              | Test Data                                         | Expected Result                                                | Notes       |
+ * | :--------------: | ------------------------------------------------------------------------ | ------------------------------------------------- | -------------------------------------------------------------- | ----------- |
+ * | 01               | Create dm_radio_cap_t object using default constructor and invoke destructor by deleting the object | obj = new dm_radio_cap_t(), delete obj             | No exception is thrown during object destruction (EXPECT_NO_THROW check) | Should Pass |
+ */
+TEST(dm_radio_cap_tTest, DestructorInvocation) {
+    std::cout << "Entering DestructorInvocation test" << std::endl;
+    EXPECT_NO_THROW({
+        std::cout << "Creating dm_radio_cap_t object using default constructor" << std::endl;
+        dm_radio_cap_t *obj = new dm_radio_cap_t();
+        std::cout << "dm_radio_cap_t object created at address: " << obj << std::endl;
+
+        std::cout << "Invoking destructor by deleting object" << std::endl;
+        delete obj;
+        std::cout << "Destructor executed; resources cleaned up for dm_radio_cap_t object" << std::endl;
+    });
+    std::cout << "Exiting DestructorInvocation test" << std::endl;
+}

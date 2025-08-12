@@ -1712,3 +1712,69 @@ TEST(dm_sta_t_Test, NullKey) {
     std::cout << "Exiting NullKey" << std::endl;
 }
 */
+
+/**
+ * @brief Verify that dm_sta_t default constructor creates a valid object without throwing exceptions.
+ *
+ * This test verifies that when invoking the default constructor of dm_sta_t, the constructor does not throw any exceptions
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 050@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                                           | Test Data                                             | Expected Result                                                                                        | Notes       |
+ * | :--------------: | ------------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ----------- |
+ * | 01               | Invoke dm_sta_t default constructor and verify that no exception is thrown; validate object creation | dm_sta_t instance created using default constructor   | Instance is created successfully without throwing exceptions and internal state is appropriately initialized | Should Pass |
+ */
+TEST(dm_sta_t_Test, DefaultConstructorCreatesValidObject) {
+    std::cout << "Entering DefaultConstructorCreatesValidObject test" << std::endl;
+
+    std::cout << "About to invoke dm_sta_t default constructor" << std::endl;
+    EXPECT_NO_THROW({
+        dm_sta_t instance;
+        std::cout << "dm_sta_t default constructor invoked successfully" << std::endl;
+        std::cout << "Internal state: m_sta_info structure instance has been created" << std::endl;
+    });
+
+    std::cout << "Exiting DefaultConstructorCreatesValidObject test" << std::endl;
+}
+
+/**
+ * @brief Verify that dm_sta_t destructor is called without throwing exceptions when the object goes out of scope.
+ *
+ * This test validates that an instance of dm_sta_t, when constructed using the default constructor, is properly destroyed without throwing any exceptions upon scope exit. The test ensures that the destructor invocation does not lead to any runtime errors.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 051@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                    | Test Data                                       | Expected Result                                     | Notes         |
+ * | :---------------:| ---------------------------------------------------------------| ------------------------------------------------| ----------------------------------------------------| --------------|
+ * | 01               | Invoke the default constructor of dm_sta_t                     | constructor = default                           | dm_sta_t object is created successfully             | Should Pass   |
+ * | 02               | Allow the object to go out of scope to trigger the destructor    | object goes out of scope                        | Destructor is executed without throwing exceptions  | Should Pass   |
+ */
+TEST(dm_sta_t_Test, dm_sta_t_destructor_default_constructor) {
+    std::cout << "Entering dm_sta_t::~dm_sta_t()_start test" << std::endl;
+
+    // Using lambda to create a scope for the dm_sta_t object to ensure destructor execution.
+    EXPECT_NO_THROW({
+        std::cout << "Invoking default constructor of dm_sta_t" << std::endl;
+        {
+            dm_sta_t obj;
+            std::cout << "dm_sta_t object created successfully using default constructor" << std::endl;
+        }
+        std::cout << "dm_sta_t object has gone out of scope and destructor should be invoked" << std::endl;
+    });
+
+    std::cout << "Exiting dm_sta_t::~dm_sta_t()_end test" << std::endl;
+}

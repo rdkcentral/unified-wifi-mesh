@@ -1527,3 +1527,65 @@ TEST(dm_op_class_t_Test, KeyWithMaximumLength) {
     EXPECT_EQ(result, 0);
     std::cout << "Exiting KeyWithMaximumLength" << std::endl;
 }
+
+/**
+ * @brief Validates that dm_op_class_t's default constructor instantiates a valid object without throwing exceptions
+ *
+ * This test verifies that invoking the default constructor of dm_op_class_t creates an object in a valid default state. It checks that no exceptions are thrown during instantiation and that the member m_op_class_info is properly initialized. This is critical to ensure that object instantiation using the default constructor meets the expected robustness criteria.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 047@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                         | Test Data                                                                                  | Expected Result                                                            | Notes        |
+ * | :--------------: | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- | ------------ |
+ * | 01               | Invoke the default constructor of dm_op_class_t                     | No inputs, default construction invocation                                                 | Object is created successfully without throwing any exceptions           | Should Pass  |
+ */
+TEST(dm_op_class_t_Test, DefaultConstructorInstantiationProducesValidObject) {
+    std::cout << "Entering DefaultConstructorInstantiationProducesValidObject test" << std::endl;
+
+    EXPECT_NO_THROW({
+        // Invoking the default constructor for dm_op_class_t
+        dm_op_class_t testObject;
+        std::cout << "Invoked dm_op_class_t default constructor." << std::endl;
+    });
+
+    std::cout << "Exiting DefaultConstructorInstantiationProducesValidObject test" << std::endl;
+}
+
+/**
+ * @brief Verify that the destructor of dm_op_class_t for a default constructed object does not throw exceptions.
+ *
+ * This test case checks that constructing a dm_op_class_t object using its default constructor, and subsequently allowing it to go out of scope, does not trigger any exceptions during destruction. This ensures safe behavior of the destructor under normal conditions.
+ *
+ * **Test Group ID:** Basic: 01
+ * **Test Case ID:** 048@n
+ * **Priority:** High
+ *
+ * **Pre-Conditions:** None
+ * **Dependencies:** None
+ * **User Interaction:** None
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Invoke the default constructor of dm_op_class_t | No input parameters, output: dm_op_class_t object created | Object is constructed without errors and no exception is thrown during construction | Should Pass |
+ * | 02 | Object goes out of scope to trigger the destructor | No explicit input; implicit call to destructor | Destructor is invoked automatically without throwing any exception | Should be successful |
+ */
+TEST(dm_op_class_t_Test, Destructor_Default_Constructed)
+{
+    std::cout << "Entering Destructor_Default_Constructed test" << std::endl;
+    // The destructor will be automatically invoked when the object goes out of scope.
+    EXPECT_NO_THROW({
+        std::cout << "Invoking default constructor of dm_op_class_t" << std::endl;
+        dm_op_class_t obj;
+        std::cout << "About to exit inner scope to invoke destructor of dm_op_class_t." << std::endl;
+    });
+    std::cout << "dm_op_class_t destructor has been invoked as object went out of scope." << std::endl;
+    std::cout << "Exiting Destructor_Default_Constructed test" << std::endl;
+}

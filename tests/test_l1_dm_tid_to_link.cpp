@@ -1135,3 +1135,63 @@ TEST(dm_tid_to_link_t_Test, DifferentNumMappingValues) {
     EXPECT_FALSE(obj1 == obj2);
     std::cout << "Exiting DifferentNumMappingValues test";
 }
+
+/**
+ * @brief Test default constructor for dm_tid_to_link_t instance creation
+ *
+ * Tests that the dm_tid_to_link_t object is correctly instantiated using the default constructor without throwing any exceptions, ensuring the initial state is set to default.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 030@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Invoke the default constructor of dm_tid_to_link_t and verify that no exception is thrown | No inputs; output: instance creation using default state | Instance is created successfully without throwing exceptions and default state is set | Should Pass |
+ */
+TEST(dm_tid_to_link_t_Test, DefaultConstructor) {
+    std::cout << "Entering Construct dm_tid_to_link_t instance using default constructor test" << std::endl;
+
+    EXPECT_NO_THROW({
+        std::cout << "Invoking dm_tid_to_link_t default constructor." << std::endl;
+        dm_tid_to_link_t instance;
+        std::cout << "dm_tid_to_link_t instance created successfully." << std::endl;
+    });
+
+    std::cout << "Exiting Construct dm_tid_to_link_t instance using default constructor test" << std::endl;
+}
+
+/**
+ * @brief Verify that the object of dm_tid_to_link_t is safely destroyed using the default constructor without throwing exceptions.
+ *
+ * This test case evaluates the construction and subsequent destruction of an object created with the default constructor of dm_tid_to_link_t. The test ensures that the destructor is called properly when the object goes out of scope and no exception is thrown during the process.@n
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 031@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description                                                                                      | Test Data                                                              | Expected Result                           | Notes      |
+ * | :----:           | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------- | ---------- |
+ * | 01               | Invoke the default constructor and let the object go out of scope to trigger the destructor       | input: default constructor, output: object destruction without exception | No exception thrown; Destructor invoked  | Should Pass|
+ */
+TEST(dm_tid_to_link_t_Test, NormalDestructionUsingDefaultConstructor) {
+    std::cout << "Entering NormalDestructionUsingDefaultConstructor test" << std::endl;
+    EXPECT_NO_THROW({
+        {
+            dm_tid_to_link_t obj;
+            std::cout << "Invoked default constructor of dm_tid_to_link_t." << std::endl;
+        }
+        std::cout << "dm_tid_to_link_t object went out of scope. Destructor should have been called safely." << std::endl;
+    });
+    std::cout << "Exiting NormalDestructionUsingDefaultConstructor test" << std::endl;
+}

@@ -1428,3 +1428,66 @@ TEST(dm_policy_test, EmptyKeyString) {
     EXPECT_EQ(result, -1);
     std::cout << "Exiting EmptyKeyString" << std::endl;
 }
+
+/**
+ * @brief Validate that the default constructor of dm_policy_t creates an object without throwing an exception.
+ *
+ * Validate that the default constructor of dm_policy_t initializes the object , without throwing any exceptions.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 042@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Invoke the default constructor of dm_policy_t to create an object and verify no exceptions are thrown. | Constructor invoked with no parameters | Object creation is successful with no exceptions (EXPECT_NO_THROW) | Should Pass |
+ * | 02 | Log messages for constructor invocation and internal state initialization. | Console output: "dm_policy_t object created using default constructor." | Expected log messages are printed to indicate successful object creation and initialization | Should be successful |
+ */
+TEST(dm_policy_test, dm_policy_t_defaultConstructor_success) {
+    std::cout << "Entering dm_policy_t::dm_policy_t()_start test" << std::endl;
+
+    std::cout << "Invoking default constructor for dm_policy_t" << std::endl;
+    EXPECT_NO_THROW({
+        dm_policy_t obj;
+        std::cout << "dm_policy_t object created using default constructor." << std::endl;
+    });
+
+    std::cout << "Exiting dm_policy_t::dm_policy_t()_end test" << std::endl;
+}
+
+/**
+ * @brief Validate that the destructor of a default constructed dm_policy_t object is invoked without throwing exceptions.
+ *
+ * This test verifies that when a dm_policy_t object is created using the default constructor and then goes out of scope, its destructor is called properly without any exceptions.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 043@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                                                     | Test Data                                                              | Expected Result                                                             | Notes        |
+ * | :--------------: | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------- | ------------ |
+ * | 01               | Create a default dm_policy_t object within a scoped block to trigger the destructor upon scope exit. | dm_policy_t object = default constructed (no input arguments provided) | Destructor is invoked without throwing any exception as the object goes out of scope. | Should Pass  |
+ */
+TEST(dm_policy_test, destructor_default) {
+    std::cout << "Entering destructor_default test" << std::endl;
+    EXPECT_NO_THROW({
+        std::cout << "Creating a default constructed dm_policy_t object." << std::endl;
+        {
+            dm_policy_t defaultObj;
+            std::cout << "dm_policy_t object created " << std::endl;
+            std::cout << "About to exit inner scope to invoke destructor of dm_policy_t." << std::endl;
+        }
+        std::cout << "dm_policy_t destructor has been invoked as object went out of scope." << std::endl;
+    });
+    std::cout << "Exiting destructor_default test" << std::endl;
+}

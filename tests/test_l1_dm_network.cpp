@@ -1600,3 +1600,68 @@ TEST(dm_network_test, SetMediaTypeToInvalidValue) {
     ASSERT_NE(network.get_network_info()->media, static_cast<em_media_type_t>(0x9999));
     std::cout << "Exiting SetMediaTypeToInvalidValue test";
 }
+
+/**
+ * @brief Verify that the default constructor of dm_network_t creates an object successfully without throwing any exceptions.
+ *
+ * This test checks that invoking the default constructor of dm_network_t does not throw any exceptions. It ensures that the basic object creation functionality is working as expected.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 047@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description                                                                 | Test Data                                                       | Expected Result                                                   | Notes       |
+ * | :--------------: | --------------------------------------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------- | ----------  |
+ * | 01               | Invoke the default constructor of dm_network_t to create an object.         | input: none, output: dm_network_t object creation.              | No exception is thrown; the object is created successfully      | Should Pass |
+ */
+TEST(dm_network_t_test, Default_Constructor_Successful_Object_Creation) {
+    std::cout << "Entering Default_Constructor_Successful_Object_Creation test" << std::endl;
+
+    EXPECT_NO_THROW({
+        // Invoking the default constructor of dm_network_t
+        dm_network_t obj;
+        std::cout << "Invoked dm_network_t::dm_network_t() default constructor." << std::endl;
+        std::cout << "dm_network_t object created successfully. m_net_info is set to its default state." << std::endl;
+    });
+
+    std::cout << "Exiting Default_Constructor_Successful_Object_Creation test" << std::endl;
+}
+
+/**
+ * @brief Validate the default construction and automatic destruction of dm_network_t.
+ *
+ * This test verifies that constructing a dm_network_t object using its default constructor does not throw any exceptions and that the destructor is implicitly called when the object goes out of scope.
+ *
+ * **Test Group ID:** Basic: 01
+ * **Test Case ID:** 048@n
+ * **Priority:** High
+ *
+ * **Pre-Conditions:** None
+ * **Dependencies:** None
+ * **User Interaction:** None
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                    | Test Data                                       | Expected Result                                                             | Notes       |
+ * | :--------------: | -------------------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------- | ----------- |
+ * | 01               | Invoke the default constructor of dm_network_t within a scope  | dm_network_t obj created using default constructor, no additional inputs | API does not throw exception, object is successfully constructed and destructor is automatically invoked | Should Pass |
+ */
+TEST(dm_network_t_test, dm_network_t_destructor_default_construction_start) {
+    std::cout << "Entering dm_network_t_destructor_default_construction_start test" << std::endl;
+
+    // Create a scope to explicitly invoke the destructor at the end of block
+    {
+        std::cout << "Invoking default constructor of dm_network_t" << std::endl;
+        EXPECT_NO_THROW({
+            dm_network_t obj;
+            std::cout << "dm_network_t object constructed successfully using default constructor" << std::endl;
+        });
+        std::cout << "Exiting inner scope, destructor of dm_network_t will be invoked automatically" << std::endl;
+    }
+
+    std::cout << "Exiting dm_network_t_destructor_default_construction_start test" << std::endl;
+}

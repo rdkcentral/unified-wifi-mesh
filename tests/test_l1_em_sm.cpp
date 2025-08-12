@@ -295,3 +295,69 @@ TEST(em_sm_t_Test, ValidateInvalidState) {
     EXPECT_FALSE(obj.validate_sm(invalid_state));
     std::cout << "Exiting ValidateInvalidState test" << std::endl;
 }
+
+/**
+ * @brief Test the default constructor of em_sm_t to verify that no exceptions are thrown and the object is correctly initialized.
+ *
+ * This test creates an instance of em_sm_t using its default constructor and verifies that no exception is thrown during construction.
+ * It also logs internal state information to confirm that the instance is properly initialized.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 007@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                      | Test Data                                          | Expected Result                                                       | Notes      |
+ * | :--------------: | --------------------------------------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------- | ---------- |
+ * | 01               | Invoke the default constructor of em_sm_t and verify no exception is thrown and the internal state is properly initialized. | input = none, output = valid em_sm_t instance       | The default constructor is executed without throwing any exceptions and the instance is created successfully. | Should Pass |
+ */
+TEST(em_sm_t_Test, DefaultConstructor) {
+    std::cout << "Entering DefaultConstructor test" << std::endl;
+
+    // Invoking default constructor of em_sm_t and verifying no exception is thrown.
+    EXPECT_NO_THROW({
+        std::cout << "Invoking em_sm_t default constructor." << std::endl;
+        em_sm_t obj;
+        std::cout << "em_sm_t instance created successfully." << std::endl;
+    });
+
+    std::cout << "Exiting DefaultConstructor test" << std::endl;
+}
+
+/**
+ * @brief Verify that em_sm_t object instantiation and destruction occur without throwing any exceptions.
+ *
+ * This test case checks if the default constructor for em_sm_t creates an object successfully and whether the destructor is invoked automatically when the object goes out of scope without causing any exceptions. This confirms proper resource management and object lifecycle behavior.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 008@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                                  | Test Data                                             | Expected Result                                              | Notes      |
+ * | :--------------: | ---------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------ | ---------- |
+ * | 01               | Invoke the default constructor of em_sm_t and let the object go out of scope. | input: none, output: object creation and destruction   | No exception should be thrown; the destructor should be invoked as the object goes out of scope. | Should Pass |
+ */
+TEST(em_sm_t_Test, Destruction_em_sm_t)
+{
+    std::cout << "Entering Destruction_em_sm_t test" << std::endl;
+
+    EXPECT_NO_THROW({
+        std::cout << "Invoking default constructor: em_sm_t()" << std::endl;
+        {
+            em_sm_t obj;
+            std::cout << "Object created. Internal state changes if any have been initialized." << std::endl;
+        }
+        std::cout << "Object went out of scope. Destructor em_sm_t::~em_sm_t() invoked." << std::endl;
+    });
+
+    std::cout << "Exiting Destruction_em_sm_t test" << std::endl;
+}

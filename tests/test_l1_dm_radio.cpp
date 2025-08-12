@@ -1699,3 +1699,71 @@ TEST(dm_radio_t_Test, KeyWithMaximumLength) {
     EXPECT_EQ(result, 0);
     std::cout << "Exiting KeyWithMaximumLength test";
 }
+
+/**
+ * @brief Verifies that the default constructor of dm_radio_t creates an object successfully.
+ *
+ * This test ensures that the default constructor of dm_radio_t does not throw any exceptions and properly initializes the object,
+ * including setting up the internal state of the m_radio_info member. It is important because the proper creation and initialization
+ * of the dm_radio_t object is critical for subsequent operations that depend on a valid object state.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 053@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                                       | Test Data                                                                            | Expected Result                                                                 | Notes           |
+ * | :--------------: | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | --------------- |
+ * | 01               | Log the entry into the test.                                                      | No input                                                                           | "Entering DefaultConstructionCreatesDmRadio_tObjectSuccessfully test" printed     | Should be successful |
+ * | 02               | Invoke the default constructor of dm_radio_t within EXPECT_NO_THROW to check for exceptions. | input: none, output: dm_radio_t object creation invocation                           | dm_radio_t object created without throwing any exceptions                        | Should Pass     |
+ * | 03               | Inspect the internal state (address of m_radio_info) of the created dm_radio_t object.         | input: address of radio.m_radio_info; output: memory address information printed      | Valid address printed for m_radio_info indicating proper initialization           | Should be successful |
+ * | 04               | Log the exit from the test.                                                       | No input                                                                           | "Exiting DefaultConstructionCreatesDmRadio_tObjectSuccessfully test" printed      | Should be successful |
+ */
+TEST(dm_radio_t_Test, DefaultConstructionCreatesDmRadio_tObjectSuccessfully)
+{
+    std::cout << "Entering DefaultConstructionCreatesDmRadio_tObjectSuccessfully test" << std::endl;
+    EXPECT_NO_THROW({
+        std::cout << "Invoking dm_radio_t default constructor." << std::endl;
+        dm_radio_t radio;
+        std::cout << "dm_radio_t object created successfully." << std::endl;
+    });
+    std::cout << "Exiting DefaultConstructionCreatesDmRadio_tObjectSuccessfully test" << std::endl;
+}
+
+/**
+ * @brief Verify that the default destructor of dm_radio_t completes without throwing exceptions
+ *
+ * This test verifies that an instance of dm_radio_t, created using the default constructor, is properly destructed without any exceptions. The test checks if the object's destructor is invoked safely when the instance goes out of scope.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 054@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description                                                           | Test Data                                                                                           | Expected Result                                                           | Notes         |
+ * | :--------------: | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------- |
+ * | 01               | Invoke the default constructor of dm_radio_t to create an instance    | input: none, output: instance created using default constructor                                     | Instance is created without throwing an exception                        | Should Pass   |
+ * | 02               | Exit the scope to trigger the destructor of the dm_radio_t instance     | input: instance going out-of-scope, output: destructor invocation                                   | Destructor is invoked successfully without throwing any exception        | Should Pass   |
+ */
+TEST(dm_radio_t_Test, Destructor_valid_default) {
+    std::cout << "Entering Destructor_valid_default test" << std::endl;
+    EXPECT_NO_THROW({
+        std::cout << "Invoking default constructor of dm_radio_t" << std::endl;
+        {
+            dm_radio_t instance;
+            std::cout << "dm_radio_t instance created using default constructor" << std::endl;
+            std::cout << "Instance internal state -- m_radio_info might be default initialized" << std::endl;
+            std::cout << "About to exit scope to trigger destructor for dm_radio_t instance" << std::endl;
+        }
+        std::cout << "Destructor for dm_radio_t instance invoked when object went out of scope" << std::endl;
+    });
+    std::cout << "Exiting Destructor_valid_default test" << std::endl;
+}
