@@ -6,40 +6,22 @@
 
 #include <memory>
 
-ec_manager_t::ec_manager_t(
-    std::string mac_addr,
-    send_chirp_func send_chirp,
-    send_encap_dpp_func send_encap_dpp,
-    send_act_frame_func send_action_frame,
-    get_backhaul_sta_info_func get_bsta_info,
-    get_1905_info_func get_1905_info,
-    get_fbss_info_func get_fbss_info,
-    can_onboard_additional_aps_func can_onboard,
-    toggle_cce_func toggle_cce, 
-    start_stop_clist_build_func start_stop_clist_build_fn, 
-    bsta_connect_func bsta_connect_fn,
-    bool is_controller
-) : m_is_controller(is_controller),
-    m_stored_chirp_fn(send_chirp),
-    m_stored_encap_dpp_fn(send_encap_dpp),
-    m_stored_action_frame_fn(send_action_frame),
-    m_get_bsta_info_fn(get_bsta_info),
-    m_get_1905_info_fn(get_1905_info),
-    m_get_fbss_info_fn(get_fbss_info),
-    m_can_onboard_fn(can_onboard),
-    m_stored_mac_addr(mac_addr),
-    m_configurator(nullptr),
-    m_enrollee(nullptr),
-    m_toggle_cce_fn(toggle_cce) {
-	
-    printf("EC Manager created with MAC: %s\n", mac_addr.c_str());  
+ec_manager_t::ec_manager_t(const std::string& al_mac_addr, ec_ops_t& ops, bool is_controller, std::optional<ec_persistent_sec_ctx_t> sec_ctx)
+    : m_is_controller(is_controller),  m_ops(ops), m_stored_al_mac_addr(al_mac_addr) {
+
+    printf("EC Manager created with MAC: %s\n", al_mac_addr.c_str());  
     if (m_is_controller) {
+        if (!sec_ctx.has_value()) {
+            em_printfout("Security context is required for the controller configurator");
+            throw std::runtime_error("Security context is required for the controller configurator");
+        }
+
         m_configurator = std::unique_ptr<ec_ctrl_configurator_t>(
-            new ec_ctrl_configurator_t(mac_addr, send_chirp, send_encap_dpp, get_bsta_info, get_1905_info, get_fbss_info, can_onboard)
+            new ec_ctrl_configurator_t(al_mac_addr, ops, *sec_ctx)
         );
     } else {
         m_enrollee = std::unique_ptr<ec_enrollee_t>(
-            new ec_enrollee_t(mac_addr, send_action_frame, get_bsta_info, start_stop_clist_build_fn, bsta_connect_fn)
+            new ec_enrollee_t(al_mac_addr, ops, sec_ctx)
         );
     }
 }
@@ -63,7 +45,7 @@ bool ec_manager_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len, ui
             did_succeed = m_enrollee->handle_auth_request(frame, len, src_mac);
             break;
         case ec_frame_type_auth_rsp:
-            did_succeed = m_configurator->handle_auth_response(frame, len, src_mac);
+            did_succeed = m_configurator->handle_auth_response(frame, len, src_mac, NULL);
             break;
         case ec_frame_type_auth_cnf:
             did_succeed = m_enrollee->handle_auth_confirm(frame, len, src_mac);
@@ -75,7 +57,7 @@ bool ec_manager_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len, ui
             did_succeed = m_configurator->handle_connection_status_result(frame, len, src_mac);
             break;
         case ec_frame_type_recfg_announcement:
-            did_succeed = m_configurator->handle_recfg_announcement(frame, len, src_mac);
+            did_succeed = m_configurator->handle_recfg_announcement(frame, len, src_mac, NULL);
             break;
         case ec_frame_type_recfg_auth_req:
             did_succeed = m_enrollee->handle_recfg_auth_request(frame, len, src_mac);
@@ -136,11 +118,20 @@ bool ec_manager_t::handle_recv_gas_pub_action_frame(ec_gas_frame_base_t *frame, 
     return did_succeed;
 }
 
-bool ec_manager_t::upgrade_to_onboarded_proxy_agent()
+bool ec_manager_t::upgrade_to_onboarded_proxy_agent(uint8_t ctrl_al_mac[ETH_ALEN])
 {
     if (m_is_controller) {
         // Only an enrollee agent can be upgraded to a proxy agent
         em_printfout("Can't upgrade a controller to a proxy agent");
+        return false;
+    }
+
+    if (!ctrl_al_mac) {
+        em_printfout("Can't upgrade to a proxy agent without a controller AL MAC address");
+        return false;
+    }
+    if (memcmp(ctrl_al_mac, ZERO_MAC_ADDR, ETH_ALEN) == 0) {
+        em_printfout("Can't upgrade to a proxy agent with a zero controller AL MAC address");
         return false;
     }
 
@@ -155,24 +146,24 @@ bool ec_manager_t::upgrade_to_onboarded_proxy_agent()
         em_printfout("Can't upgrade an enrollee that doesn't exist");
         return false;
     }
-    std::string enrollee_mac = m_enrollee->get_mac_addr();
+    auto sec_ctx = *m_enrollee->get_sec_ctx();
+    if (sec_ctx.C_signing_key == NULL || sec_ctx.pp_key == NULL || sec_ctx.net_access_key == NULL || sec_ctx.connector == NULL) {
+        em_printfout("!!!!Enrollee doesn't have a valid security context, proxy agent won't be 1905 layer secured!!!!");
+    }
     // Free the enrollee object
+    m_enrollee->signal_enrollee_is_upgrading();
     m_enrollee.reset();
+
+    // If co-located, the agent will be reading the same key files which, for the controller, will contain the public **and** the private keys.
+    // If not co-located, the agent will only have the public keys.
+    bool is_colocated = em_crypto_t::get_priv_key_bn(sec_ctx.C_signing_key) != nullptr &&
+                        em_crypto_t::get_priv_key_bn(sec_ctx.pp_key) != nullptr;
     
     // Create a new proxy agent configurator
-    m_configurator = std::unique_ptr<ec_pa_configurator_t>(new ec_pa_configurator_t(enrollee_mac, m_stored_chirp_fn, m_stored_encap_dpp_fn, m_stored_action_frame_fn, m_get_bsta_info_fn, m_get_1905_info_fn, m_get_fbss_info_fn, m_toggle_cce_fn));
+    std::vector<uint8_t> ctrl_al_mac_vec(ctrl_al_mac, ctrl_al_mac + ETH_ALEN);
+    m_configurator = std::unique_ptr<ec_pa_configurator_t>(new ec_pa_configurator_t(m_stored_al_mac_addr, ctrl_al_mac_vec, m_ops, sec_ctx, is_colocated));
     em_printfout("Upgraded enrollee agent to proxy agent");
     return true;
-}
-
-bool ec_manager_t::handle_cce_ie(unsigned int freq)
-{
-    if (!m_enrollee) {
-        em_printfout("New Presence Announcement frequency heard from a CCE IE, but no Enrollee");
-        // This is fine
-        return true;
-    }
-    return m_enrollee->add_presence_announcement_freq(freq);
 }
 
 bool ec_manager_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
@@ -184,11 +175,11 @@ bool ec_manager_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
     return m_enrollee->handle_assoc_status(sta_data);
 }
 
-bool ec_manager_t::handle_bss_info_event(const wifi_bss_info_t &bss_info)
+bool ec_manager_t::handle_bss_info_event(const std::vector<wifi_bss_info_t> &bss_info_list)
 {
     if (!m_enrollee) {
         // This is fine, ignore event
         return true;
     }
-    return m_enrollee->handle_bss_info_event(bss_info);
+    return m_enrollee->handle_bss_info_event(bss_info_list);
 }

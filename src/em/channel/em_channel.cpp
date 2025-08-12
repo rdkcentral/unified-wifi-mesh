@@ -549,54 +549,6 @@ short em_channel_t::create_spatial_reuse_req_tlv(unsigned char *buff)
     return len;
 }
 
-short em_channel_t::create_eht_operations_tlv(unsigned char *buff)
-{
-    short len = 0;
-    unsigned int i = 0, j = 0;
-    unsigned char *tmp = buff;
-    dm_easy_mesh_t  *dm;
-    em_eht_operations_bss_t  *eht_ops_bss;
-
-    dm = get_data_model();
-
-    unsigned char num_radios = static_cast<unsigned char> (dm->get_num_radios());
-    unsigned char num_bss;
-
-    memcpy(tmp, &num_radios, sizeof(unsigned char));
-    tmp += sizeof(unsigned char);
-    len += static_cast<short unsigned int> (sizeof(unsigned char));
-
-    for (i = 0; i < num_radios; i++) {
-        memcpy(tmp, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t));
-        tmp += sizeof(mac_address_t);
-        len += static_cast<short unsigned int> (sizeof(mac_address_t));
-
-        num_bss = static_cast<unsigned char> (dm->get_num_bss());
-
-        memcpy(tmp, &num_bss, sizeof(unsigned char));
-        tmp += sizeof(unsigned char);
-        len += static_cast<short unsigned int> (sizeof(unsigned char));
-
-
-        for (j = 0; j < dm->get_num_bss(); j++) {
-        	if (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
-            	continue;
-        	}
-
-            memcpy(tmp, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
-            tmp += sizeof(mac_address_t);
-            len += static_cast<short unsigned int> (sizeof(mac_address_t));
-
-            eht_ops_bss = &dm->m_bss[j].m_bss_info.eht_ops;
-            memcpy(tmp, eht_ops_bss, sizeof(em_eht_operations_bss_t));
-            tmp += sizeof(em_eht_operations_bss_t);
-            len += static_cast<short unsigned int> (sizeof(em_eht_operations_bss_t));
-        }
-    }
-
-    return len;
-}
-
 int em_channel_t::send_channel_sel_request_msg()
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
@@ -1456,6 +1408,7 @@ int em_channel_t::handle_channel_pref_tlv_ctrl(unsigned char *buff, unsigned int
 	channel_pref = pref->op_classes;
 	memcpy(op_class_info[i].id.ruid, pref->ruid, sizeof(mac_address_t));
 	for (i = 0; i < pref->op_classes_num; i++) {
+		memset(&op_class_info[i], 0, sizeof(em_op_class_info_t));
 		memcpy(op_class_info[i].id.ruid, device->intf.mac, sizeof(mac_address_t));
 		op_class_info[i].id.type = em_op_class_type_preference;
 		op_class_info[i].op_class = static_cast<unsigned int> (channel_pref->op_class);

@@ -14,6 +14,8 @@
 // AlServiceAccessPoint class definition
 using MacAddress = std::array<uint8_t, 6>;
 
+constexpr size_t SOCKET_MTU = 65536;
+
 class AlServiceAccessPoint {
 public:
     // Constructor that accepts a custom socket path

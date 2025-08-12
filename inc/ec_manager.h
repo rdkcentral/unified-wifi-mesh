@@ -5,6 +5,7 @@
 #include "ec_pa_configurator.h"
 #include "ec_enrollee.h"
 #include "ieee80211.h"
+#include "ec_ops.h"
 
 #include <memory>
 #include <functional>
@@ -17,23 +18,12 @@ public:
 	 *
 	 * All non-controller devices are started as (non-onboarding) enrollees until they are told that they are on the network
 	 * at which point they can be upgraded to a proxy agent.
-	 *
-	 * @param[in] mac_addr The MAC address of the device
-	 * @param[in] send_chirp The function to send a chirp notification via 1905
-	 * @param[in] send_encap_dpp The function to send a proxied encapsulated DPP message via 1905
-	 * @param[in] send_action_frame The function to send an 802.11 action frame
-	 * @param[in] get_bsta_info Function to get backhaul station information
-	 * @param[in] get_1905_info Function to get 1905 information
-	 * @param[in] can_onboard Function to check if additional APs can be onboarded
-	 * @param[in] toggle_cce Function to toggle CCE
-	 * @param[in] m_is_controller Whether the node holding this manager is a controller or not
-	 *
-	 * @note Some method calls are only valid for the controller, proxy agent, or the enrollee, and will return fail if called on the wrong object.
-	 * If the EasyMesh code is correctly implemented this should not be an issue.
+	 * @param al_mac_addr The AL MAC address of the device
+	 * @param ops Struct of callbacks per-EC entity
+	 * @param is_controller Whether the EM node holding this manager is the mesh controller or not.
+	 * @param sec_ctx The existing security context for the node.
 	 */
-	ec_manager_t(std::string mac_addr, send_chirp_func send_chirp, send_encap_dpp_func send_encap_dpp, send_act_frame_func send_action_frame, 
-        get_backhaul_sta_info_func get_bsta_info, get_1905_info_func get_1905_info, get_fbss_info_func get_fbss_info, can_onboard_additional_aps_func can_onboard, toggle_cce_func toggle_cce, 
-		start_stop_clist_build_func start_stop_clist_build_fn, bsta_connect_func bsta_connect_fn, bool m_is_controller);
+	ec_manager_t(const std::string& al_mac_addr, ec_ops_t& ops, bool is_controller, std::optional<ec_persistent_sec_ctx_t> sec_ctx);
     
 	/**!
 	 * @brief Destructor for ec_manager_t class.
@@ -132,17 +122,98 @@ public:
         return pa_cfg->m_toggle_cce(enable);
     }
 
-    
+	/**
+     * @brief Initiates secure 1905 layer establishment with peer
+     * @param dest_al_mac Destination AL MAC address
+     * @return true if peer discovery request sent successfully
+     * 
+     * @note Creates and sends DPP Peer Discovery Request to begin security establishment process.
+     */
+	inline bool start_secure_1905_layer(uint8_t dest_al_mac[ETH_ALEN]) {
+		if (m_enrollee){
+			return m_enrollee->start_secure_1905_layer(dest_al_mac);
+		}
+		if (m_configurator == nullptr) return false;
+		return m_configurator->start_secure_1905_layer(dest_al_mac);
+		
+	}
+
+	/**
+     * @brief Rekeys existing PTK with established peer
+     * @param dest_al_mac Destination AL MAC address
+     * @return true if PTK rekey handshake initiated successfully
+     * 
+     * @note Requires existing key context. Initiates the same 4-way handshake 
+     *       as the initial handshake with some minor flags changed.
+     */
+	inline bool rekey_1905_layer_ptk() {
+		if (m_enrollee) {
+			return m_enrollee->rekey_1905_layer_ptk();
+		}
+		if (m_configurator == nullptr) return false;
+		return m_configurator->rekey_1905_layer_ptk();
+	}
+
+	/**
+     * @brief Rekeys GTK and distributes to all enrolled agents
+     * @return true if GTK regenerated and distributed successfully
+     * 
+     * @note Controller-only operation. Generates new GTK and sends
+     *       to all agents (EM 5.4.7.5) via group key handshake (EM 5.3.7.3)
+     */
+	inline bool rekey_1905_layer_gtk() {
+		if (m_enrollee) {
+			em_printfout("Rekeying GTK is not supported for enrollee, only for configurator.");
+			return false;
+		}
+		if (m_configurator == nullptr || !m_is_controller){
+			em_printfout("Rekeying GTK is only supported for controller, not an agent.");
+			return false;
+		}
+		return m_configurator->rekey_1905_layer_gtk();
+	}
+
+	/**
+	 * @brief Get the security context of the node
+	 * 
+	 * @return ec_persistent_sec_ctx_t* Pointer to the security context, or NULL if not available.
+	 */
+	inline ec_persistent_sec_ctx_t* get_sec_ctx() {
+		if (m_enrollee) {
+			return m_enrollee->get_sec_ctx();
+		}
+		if (m_configurator) {
+			return m_configurator->get_sec_ctx();
+		}
+		return nullptr;
+	}
+
+	/**
+	 * @brief Get a connection context of the peer for a given peer AL MAC address.
+	 * 
+	 * @note Only necsessary for the configurator to access the cached enrollee NAK for the BSS Configuration Response.
+	 * 
+	 * @param peer_al_mac The AL MAC address of the peer device to get the connection context for.
+	 * @return ec_connection_context_t* Pointer to the connection context for the specified peer AL MAC address, or NULL if not found.
+	 */
+	inline ec_connection_context_t* get_al_conn_ctx(uint8_t peer_al_mac[ETH_ALEN]) {
+
+		if (m_configurator) {
+			return m_configurator->get_al_conn_ctx(peer_al_mac);
+		}
+		return NULL;
+    }
+
 	/**
 	 * @brief Upgrade an enrollee to an onboarded proxy agent.
 	 *
 	 * Called once m1/m2 exchange verifies the enrollee agent is on the network.
-	 *
+	 * 
 	 * @return true if successful, false otherwise
 	 *
 	 * @note If the operation fails, all CCE IEs are removed before the function exits.
 	 */
-	bool upgrade_to_onboarded_proxy_agent();
+	bool upgrade_to_onboarded_proxy_agent(uint8_t ctrl_al_mac[ETH_ALEN]);
 
     
 	/**
@@ -156,11 +227,11 @@ public:
 	*
 	* @return true if the chirp notification was processed successfully, false otherwise.
 	*/
-	inline bool process_chirp_notification(em_dpp_chirp_value_t* chirp_tlv, uint16_t tlv_len) {
+	inline bool process_chirp_notification(em_dpp_chirp_value_t* chirp_tlv, uint16_t tlv_len, uint8_t src_al_mac[ETH_ALEN]) {
         if (!m_configurator) {
             return false;
         }
-        return m_configurator->process_chirp_notification(chirp_tlv, tlv_len);
+        return m_configurator->process_chirp_notification(chirp_tlv, tlv_len, src_al_mac);
     }
 
     
@@ -173,16 +244,87 @@ public:
 	 * @param[in] encap_tlv_len The length of the 1905 Encap DPP TLV.
 	 * @param[in] chirp_tlv The DPP Chirp Value TLV to parse and handle (NULL if not present).
 	 * @param[in] chirp_tlv_len The length of the DPP Chirp Value TLV (0 if not present).
+	 * @param[in] src_al_mac The source AL MAC address of this message
 	 *
 	 * @return bool True if the message was processed successfully, false otherwise.
 	 *
 	 * @note Ensure that the configurator is initialized before calling this function.
 	 */
-	inline bool process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) {
+	inline bool process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len, uint8_t src_al_mac[ETH_ALEN]) {
         if (!m_configurator) {
             return false;
         }
-        return m_configurator->process_proxy_encap_dpp_msg(encap_tlv, encap_tlv_len, chirp_tlv, chirp_tlv_len);
+        return m_configurator->process_proxy_encap_dpp_msg(encap_tlv, encap_tlv_len, chirp_tlv, chirp_tlv_len, src_al_mac);
+    }
+
+	/**
+	 * @brief Handle a Direct Encapsulated DPP Message (DPP Message TLV)
+	 *
+	 * @param[in] dpp_frame The frame parsed from the DPP Message TLV
+	 * @param[in] dpp_frame_len The length of the frame from the DPP Message TLV
+	 * @param[in] src_al_mac Source AL MAC address of the DPP frame
+	 *
+	 * @return bool True if the frame was processed successfully, false otherwise.
+	 *
+	 * @note Ensure that the configurator is initialized before calling this function.
+	 */
+	inline bool process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len, uint8_t src_al_mac[ETH_ALEN]) {
+        if (m_configurator) {
+            return m_configurator->process_direct_encap_dpp_msg(dpp_frame, dpp_frame_len, src_al_mac);
+        }
+		if (m_enrollee) {
+			return m_enrollee->process_direct_encap_dpp_msg(dpp_frame, dpp_frame_len, src_al_mac);
+		}
+		return false; // Neither configurator nor enrollee is available
+        
+    }
+
+	/**
+	 * @brief Handles a chirp found in an Autoconf Search (extended) message.
+	 * 
+	 * @param chirp The DPP chirp.
+	 * @param src_mac Where it came from (Enrollee).
+	 * @return true on success, otherwise false.
+	 * 
+	 */
+	bool handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, size_t len, uint8_t src_mac[ETH_ALEN]) {
+		if (m_configurator) {
+			return m_configurator->handle_autoconf_chirp(chirp, len, src_mac);
+		}
+		// Not valid for Enrollee
+		return false;
+	}
+
+	bool handle_autoconf_resp_chirp(em_dpp_chirp_value_t* chirp, size_t len, uint8_t src_mac[ETH_ALEN]) {
+		if (m_enrollee) {
+			m_enrollee->handle_autoconf_response_chirp(chirp, len, src_mac);
+		}
+		// Not valid for Configurator
+		return false;
+	}
+
+
+		/**
+	 * @brief Process a 1905 EAPOL encapsulated message.
+	 *
+	 * This function processes the provided EAPOL frame and directs it to the appropriate handler
+	 * based on whether the node is a configurator or enrollee.
+	 *
+	 * @param eapol_frame Pointer to the EAPOL frame to process.
+	 * @param eapol_frame_len Length of the EAPOL frame.
+	 * @param src_mac Source MAC address of the frame.
+	 *
+	 * @return true if the message was processed successfully, false otherwise.
+	 */	
+	inline bool process_1905_eapol_encap_msg(uint8_t* eapol_frame, uint16_t eapol_frame_len, uint8_t src_mac[ETH_ALEN]) {
+        if (m_configurator) {
+            return m_configurator->process_1905_eapol_encap_msg(eapol_frame, eapol_frame_len, src_mac);
+        }
+		if (m_enrollee) {
+			return m_enrollee->process_1905_eapol_encap_msg(eapol_frame, eapol_frame_len, src_mac);
+		}
+		return false; // Neither configurator nor enrollee is available
+        
     }
 
     /**
@@ -211,14 +353,6 @@ public:
 		return m_enrollee->is_onboarding();
 	}
 
-	/**
-	 * @brief Handle a CCE information element being heard
-	 * (add the frequency the CCE IE was heard on to Enrollee's list of Presence Announcement frequencies)
-	 * 
-	 * @param freq The frequency that a CCE IE was heard on
-	 * @return true on success, otherwise false
-	 */
-	bool handle_cce_ie(unsigned int freq);
 
 	/**
 	 * @brief Handle an association status event (for the Enrollee's bSTA association attempt)
@@ -231,24 +365,16 @@ public:
 	/**
 	 * @brief Handle a BSS info event. Forwards to Enrollee for handling.
 	 * 
-	 * @param bss_info The BSS info that was heard.
+	 * @param bss_info_list The list of BSS infos heard
 	 * @return true on success, otherwise false
 	 */
-	bool handle_bss_info_event(const wifi_bss_info_t& bss_info);
+	bool handle_bss_info_event(const std::vector<wifi_bss_info_t>& bss_info_list);
 
 
 private:
     bool m_is_controller;
-    
-    // Used to store the function pointers to instantiate objects again
-    send_chirp_func m_stored_chirp_fn;
-    send_encap_dpp_func m_stored_encap_dpp_fn;
-    send_act_frame_func m_stored_action_frame_fn;
-    get_backhaul_sta_info_func m_get_bsta_info_fn;
-    get_1905_info_func m_get_1905_info_fn;
-    can_onboard_additional_aps_func m_can_onboard_fn;
-	get_fbss_info_func m_get_fbss_info_fn;
-    std::string m_stored_mac_addr;
+	ec_ops_t m_ops;
+    std::string m_stored_al_mac_addr;
     
     std::unique_ptr<ec_configurator_t> m_configurator;
     std::unique_ptr<ec_enrollee_t> m_enrollee;

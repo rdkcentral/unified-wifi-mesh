@@ -8,9 +8,12 @@
 struct cJSON;
 
 typedef enum {
+	dpp_config_obj_none = 0,
     dpp_config_obj_bsta,
     dpp_config_obj_ieee1905,
-	dpp_config_obj_fbss,
+	dpp_config_obj_fbss_sta,
+	dpp_config_obj_fbss_ap,
+	dpp_config_obj_backhaul_bss
 } dpp_config_obj_type_e;
 
 class ec_ctrl_configurator_t : public ec_configurator_t {
@@ -21,22 +24,13 @@ public:
 	 *
 	 * Initializes the ec_ctrl_configurator_t object with the provided MAC address and function pointers.
 	 *
-	 * @param[in] mac_addr The MAC address as a string.
-	 * @param[in] send_chirp_notification Function pointer for sending chirp notifications.
-	 * @param[in] send_prox_encap_dpp_msg Function pointer for sending encapsulated DPP messages.
-	 * @param[in] backhaul_sta_info_func Function pointer to get backhaul station information.
-	 * @param[in] ieee1905_info_func Function pointer to get IEEE 1905 information.
-	 * @param[in] can_onboard_func Function pointer to check if additional APs can be onboarded.
-	 *
+	 * @param[in] al_mac_addr The AL MAC address as a string.
+	 * @param[in] ops Callbacks for this Configurator
+	 * @param[in] sec_ctx The security context containing C-signing key, PPK, NAK, and Connector.
 	 * @note This constructor initializes the base class ec_configurator_t with the provided parameters.
 	 */
-	ec_ctrl_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg,
-        get_backhaul_sta_info_func backhaul_sta_info_func, get_1905_info_func ieee1905_info_func, get_fbss_info_func get_fbss_info, can_onboard_additional_aps_func can_onboard_func) :
-        ec_configurator_t(mac_addr, send_chirp_notification, send_prox_encap_dpp_msg, {}, backhaul_sta_info_func, ieee1905_info_func, get_fbss_info, can_onboard_func)
-        {};
-        // No MAC address needed for controller configurator
+	ec_ctrl_configurator_t(const std::string& al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t sec_ctx);
 
-    
 	/**
 	 * @brief Handle a chirp notification message TLV and direct it to the 1905 agent.
 	 *
@@ -47,7 +41,7 @@ public:
 	 *
 	 * @return true if the processing is successful, false otherwise.
 	 */
-	bool process_chirp_notification(em_dpp_chirp_value_t* chirp_tlv, uint16_t tlv_len) override;
+	bool process_chirp_notification(em_dpp_chirp_value_t* chirp_tlv, uint16_t tlv_len, uint8_t src_al_mac[ETH_ALEN]) override;
 
 	/**
 	 * @brief Start the EC configurator onboarding process for an enrollee.
@@ -58,7 +52,7 @@ public:
 	 *
 	 * @return bool True if the onboarding process is successful, false otherwise.
 	 */
-	virtual bool onboard_enrollee(ec_data_t* bootstrapping_data) override;
+	bool onboard_enrollee(ec_data_t* bootstrapping_data) override;
     
 	/**
 	 * @brief Handle a proxied encapsulated DPP message TLVs (including chirp value) and direct to 1905 agent.
@@ -69,10 +63,33 @@ public:
 	 * @param[in] encap_tlv_len The length of the 1905 Encap DPP TLV.
 	 * @param[in] chirp_tlv The DPP Chirp Value TLV to parse and handle (NULL if not present).
 	 * @param[in] chirp_tlv_len The length of the DPP Chirp Value TLV (0 if not present).
+	 * @param[in] src_al_mac The source AL MAC address of this message
 	 *
 	 * @return bool True if successful, false otherwise.
 	 */
-	bool process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) override;
+	bool process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len, uint8_t src_al_mac[ETH_ALEN]) override;
+
+	/**
+	 * @brief Handle a Direct Encapsulated DPP Message (DPP Message TLV)
+	 *
+	 * @param[in] dpp_frame The frame parsed from the DPP Message TLV
+	 * @param[in] dpp_frame_len The length of the frame from the DPP Message TLV
+	 * @param[in] src_mac The source MAC address of the DPP frame
+	 *
+	 * @return bool True if the frame was processed successfully, false otherwise.
+	 */
+	bool  process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len, uint8_t src_mac[ETH_ALEN]) override;
+
+	/**
+	 * @brief Handles a chirp found in an Autoconf Search (extended) message.
+	 * 
+	 * @param chirp The DPP chirp.
+	 * @param len The length of the chirp hash (can be 0).
+	 * @param src_mac Where it came from (Enrollee).
+	 * @return true on success, otherwise false.
+	 * 
+	 */
+	bool handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, size_t len, uint8_t src_mac[ETH_ALEN]) override;
 
     
 	/**
@@ -90,7 +107,7 @@ public:
 	 * @note This function is optional to implement because the controller+configurator does not handle 802.11,
 	 *       but the proxy agent + configurator does.
 	 */
-	bool handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]) override;
+	bool handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN], uint8_t src_al_mac[ETH_ALEN]) override;
 
     
 	/**
@@ -106,7 +123,7 @@ public:
 	 *
 	 * @note Overrides parent implementation.
 	 */
-	bool handle_proxied_dpp_configuration_request(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) override;
+	bool handle_proxied_dpp_configuration_request(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN]) override;
 
     
 	/**
@@ -122,7 +139,7 @@ public:
 	 *
 	 * @return true if the frame was handled successfully, otherwise false.
 	 */
-	virtual bool handle_proxied_config_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) override;
+	bool handle_proxied_config_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN]) override;
 
     
 	/**
@@ -138,7 +155,7 @@ public:
 	 *
 	 * @return true if the frame was handled successfully, otherwise false.
 	 */
-	virtual bool handle_proxied_conn_status_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) override;
+	bool handle_proxied_conn_status_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN]) override;
 
 	/**
 	 * @brief Handles a Reconfiguration Announcement frame
@@ -154,7 +171,33 @@ public:
 	 * 
 	 * @note Only implemented by the Controller Configurator
 	 */
-	virtual bool handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) override;
+	bool handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN]) override;
+
+	/**
+	 * @brief Handles a Reconfiguration Authentication Response frame
+	 * 
+	 * @param frame The proxied encapsulated Reconfiguration Authentication Response frame
+	 * @param len The length of the frame
+	 * @param sa The source address (Enrollee)
+	 * @return true on success, otherwise false
+	 */
+	bool handle_recfg_auth_response(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN]) override;
+
+
+	/**
+	 * @brief Finalizes a base DPP Configuration object.
+	 *
+	 * A base configuration object has all mandatory base fields filled out, including keys
+	 * "wi-fi_tech", "discovery", and "cred".
+	 *
+	 * @param[in,out] base The base JSON object to be finalized.
+	 * @param[in] config_obj_type The type of DPP Configuration object to fill out.
+	 * @param[in] sec_ctx The security context containing the Configurator's keys.
+	 * @param[in] enrollee_net_access_key The netAccessKey of the Enrollee, used as the netAccessKey in the new DPP Connector
+	 *
+	 * @return cJSON* DPP Configuration object on success, nullptr otherwise.
+	 */
+	static cJSON *finalize_dpp_config_obj(cJSON *base, dpp_config_obj_type_e config_obj_type, ec_persistent_sec_ctx_t* sec_ctx, SSL_KEY* enrollee_net_access_key);
 
 private:
     // Private member variables can be added here
@@ -187,10 +230,11 @@ private:
 	 *
 	 * This function generates a request for reconfiguration authentication.
 	 * @param enrollee_mac The MAC of the Enrollee being Reconfigured
+	 * @param fc_group_nid The NID of the Finite Cyclic Group used for generating the C-connector NAK
 	 *
 	 * @returns A pair consisting of a pointer to the request data and its size.
 	 */
-	std::pair<uint8_t*, size_t> create_recfg_auth_request(const std::string& enrollee_mac);
+	std::pair<uint8_t*, size_t> create_recfg_auth_request(const std::string& enrollee_mac, const int fc_group_nid);
     
 	/**!
 	 * @brief Creates an authentication confirmation message.
@@ -216,12 +260,14 @@ private:
 	 *
 	 * @param[in] enrollee_mac The MAC address of the enrollee as a string.
 	 * @param[in] dpp_status The DPP status code as an ec_status_code_t.
+	 * @param enrollee_dpp_status The DPP status code of the Enrollee encoded in the Connection Status JSON object
+	 * @param trans_id The transaction ID for this Reconfiguration session
 	 *
 	 * @returns A pair consisting of a pointer to a uint8_t array and its size.
 	 *
 	 * @note Ensure that the enrollee MAC address is valid and the DPP status code is correctly set.
 	 */
-	std::pair<uint8_t*, size_t> create_recfg_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status);
+	std::pair<uint8_t*, size_t> create_recfg_auth_confirm(std::string enrollee_mac, ec_status_code_t dpp_status, ec_status_code_t enrollee_dpp_status, uint8_t trans_id);
 
     
 	/**
@@ -231,8 +277,9 @@ private:
 	 * destination MAC address, dialog token, and DPP status. The frame is encapsulated
 	 * as a DPP TLV.
 	 *
-	 * @param[out] dest_mac The destination MAC address of the Enrollee. This should be
+	 * @param[in] dest_mac The destination MAC address of the Enrollee. This should be
 	 *                      an array of ETH_ALEN bytes.
+	 * @param[in] pa_al_mac The AL MAC address of Proxy Agent that is being used to onboard the Enrollee.
 	 * @param[in] dialog_token The session dialog token for the Enrollee.
 	 * @param[in] dpp_status The status of the DPP Configuration. Use DPP_STATUS_OK for
 	 *                       success or DPP_STATUS_CONFIGURATION_FAILURE for failure.
@@ -245,22 +292,17 @@ private:
 	 * @note Ensure that the destination MAC address is valid and that the dialog token
 	 *       and DPP status are correctly set before calling this function.
 	 */
-	std::pair<uint8_t*, size_t> create_config_response_frame(uint8_t dest_mac[ETH_ALEN], const uint8_t dialog_token, ec_status_code_t dpp_status, bool is_sta = false);
+	std::pair<uint8_t*, size_t> create_config_response_frame(uint8_t dest_mac[ETH_ALEN], uint8_t pa_al_mac[ETH_ALEN], const uint8_t dialog_token, ec_status_code_t dpp_status, bool is_sta = false);
 
-    
 	/**
-	 * @brief Finalizes a base DPP Configuration object.
-	 *
-	 * A base configuration object has all mandatory base fields filled out, including keys
-	 * "wi-fi_tech", "discovery", and "cred".
-	 *
-	 * @param[in,out] base The base JSON object to be finalized.
-	 * @param[in] conn_ctx The EC connection context.
-	 * @param[in] config_obj_type The type of DPP Configuration object to fill out.
-	 *
-	 * @return cJSON* DPP Configuration object on success, nullptr otherwise.
+	 * @brief Handles a GAS frame embedded in a Direct Encap DPP Message
+	 * 
+	 * @param frame The GAS frame
+	 * @param len The length of the frame
+	 * @param src_mac The origin of the frame
+	 * @return true on success otherwise false
 	 */
-	cJSON *finalize_config_obj(cJSON *base, ec_connection_context_t& conn_ctx, dpp_config_obj_type_e config_obj_type);
+	bool process_direct_encap_dpp_gas_msg(uint8_t* frame, uint16_t len, uint8_t src_mac[ETH_ALEN]);
 
     /**
      * @brief Maps Enrollee MAC (as string) to onboarded status. True if onboarded (now a Proxy Agent), false if still onboarding / onboarding failed.
@@ -276,6 +318,10 @@ private:
 	 * 
 	 */
 	std::unordered_map<std::string, bool> m_currently_undergoing_recfg = {};
+
+	// The Group Master Key (GMK) used to securing the 1905 layer
+	std::vector<uint8_t> m_gmk;
+
 };
 
 #endif // EC_CTRL_CONFIGURATOR_H

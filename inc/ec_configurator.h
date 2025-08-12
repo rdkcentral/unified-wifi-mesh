@@ -7,94 +7,9 @@
 
 #include "em_base.h"
 #include "ec_crypto.h"
+#include "ec_ops.h"
+#include "ec_1905_encrypt_layer.h"
 
-
-/**
- * @brief Sends a chirp notification
- * 
- * @param chirp_tlv The chirp TLV to send
- * @param len The length of the chirp TLV
- * @return bool true if successful, false otherwise
- */
-using send_chirp_func = std::function<bool(em_dpp_chirp_value_t*, size_t)>;
-
-/**
- * @brief Sends a proxied encapsulated DPP message
- * 
- * @param encap_dpp_tlv The 1905 Encap DPP TLV to include in the message
- * @param encap_dpp_len The length of the 1905 Encap DPP TLV
- * @param chirp_tlv The chirp value to include in the message. If NULL, the message will not include a chirp value
- * @param chirp_len The length of the chirp value
- * @return bool true if successful, false otherwise
- */
-using send_encap_dpp_func = std::function<bool(em_encap_dpp_t*, size_t, em_dpp_chirp_value_t*, size_t)>;
-
-/**
- * @brief Send an action frame. Optional to implement.
- * 
- * @param dest_mac The destination MAC address
- * @param action_frame The action frame to send
- * @param action_frame_len The length of the action frame
- * @param frequency The frequency to send the frame on (0 for current frequency)
- * @param wait The time to wait on the channel after sending the frame (0 for no wait)
- * @return true if successful, false otherwise
- */
-using send_act_frame_func = std::function<bool(uint8_t*, uint8_t *, size_t, unsigned int, unsigned int)>;
-
-/**
- * @brief Set the CCE IEs in the beacon and probe response frames
- * 
- * @param bool Whether to enable or disable the inclusion of CCE IEs in the beacon and probe response frames
- * @return bool true if successful, false otherwise
- * @note If the operation fails, all CCE IEs are removed before the function exits
- */
-using toggle_cce_func = std::function<bool(bool)>;
-
-/**
- * @brief Initial setup for starting or stopping the building of the channel list
- * 
- * @param do_start true to start the process, false to stop it
- * @return bool true if the action was successful, false otherwise
- * 
- * @note This does not build the channel list but just sets up the environment for the process
- */
-using start_stop_clist_build_func = std::function<bool(bool)>;
-
-
-/**
- * @brief Attempts a connection between the backhaul STA to the specified BSS.
- * 
- * @param ssid The SSID of the BSS to connect to
- * @param passphrase The passphrase for the BSS
- * @param bssid The BSSID of the BSS to connect to
- * @return bool true if the attempt was performed successfully, false otherwise
- */
-using bsta_connect_func = std::function<bool(const std::string&, const std::string&, bssid_t)>;
-
-/**
- * @brief Creates a DPP Configuration Response object for the backhaul STA interface.
- * @param conn_ctx Optional connection context (not needed for Enrollee, needed for Configurator) -- pass nullptr if not needed.
- * @return cJSON * on success, nullptr otherwise
- */
-using get_backhaul_sta_info_func = std::function<cJSON*(ec_connection_context_t *)>;
-
-/**
- * @brief Creates a DPP Configuration Response object for the 1905.1 interface.
- * @return cJSON * on success, nullptr otherwise.
- */
-using get_1905_info_func = std::function<cJSON*(ec_connection_context_t *)>;
-
-/**
- * @brief Creates a DPP Configuration Response object for the fronthaul BSS interface(s)
- * @return cJSON * on success, nullptr otherwise
- */
-using get_fbss_info_func = std::function<cJSON*(ec_connection_context_t *)>;
-
-/**
- * @brief Used to determine if an additional AP can be on-boarded or not.
- * @return True if additional APs can be on-boraded into the mesh, false otherwise.
- */
-using can_onboard_additional_aps_func = std::function<bool(void)>;
 
 class ec_configurator_t {
 public:
@@ -105,17 +20,12 @@ public:
 	 * This constructor initializes the EC configurator with the specified functions
 	 * for sending notifications and messages.
 	 *
-	 * @param[in] mac_addr The MAC address of the device
-	 * @param[in] send_chirp_notification The function to send a chirp notification
-	 * @param[in] send_prox_encap_dpp_msg The function to send a proxied encapsulated DPP message
-	 * @param[in] send_action_frame The function to send an action frame
-	 * @param[in] backhaul_sta_info_func The function to get backhaul station information
-	 * @param[in] ieee1905_info_func The function to get IEEE 1905 information
-	 * @param[in] can_onboard_func The function to check if additional APs can be onboarded
+	 * @param[in] al_mac_addr The AL MAC address of the device
+	 * @param ops Callbacks for this Configurator
+	 * @param sec_ctx The existing security context. Either generated elsewhere or imported from the enrollee.
+	 * @param is_colocated_agent True if this is a co-located agent, false if it is a non-colocated agent or a controller.
 	 */
-	ec_configurator_t(std::string mac_addr, send_chirp_func send_chirp_notification, send_encap_dpp_func send_prox_encap_dpp_msg, 
-                        send_act_frame_func send_action_frame, get_backhaul_sta_info_func backhaul_sta_info_func, get_1905_info_func ieee1905_info_func,
-                        get_fbss_info_func fbss_info_func, can_onboard_additional_aps_func can_onboard_func);
+	ec_configurator_t(const std::string& al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t& sec_ctx, bool is_colocated_agent);
     
 	/**!
 	 * @brief Destructor for ec_configurator_t class.
@@ -173,7 +83,7 @@ public:
 	 * @note This function is optional to implement because the controller+configurator does not
 	 * handle 802.11 frames, but the proxy agent + configurator does.
 	 */
-	virtual bool handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]) {
+	virtual bool handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN], uint8_t src_al_mac[ETH_ALEN]) {
         return true; // Optional to implement
     }
 
@@ -262,10 +172,21 @@ public:
 	 * 
 	 * @note Only implemented by the Controller Configurator
 	 */
-	virtual bool handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN]) {
+	virtual bool handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN]) {
 		return true;
 	}
 
+	/**
+	 * @brief Handles a Reconfiguration Authentication Response frame
+	 * 
+	 * @param frame The proxied encapsulated Reconfiguration Authentication Response frame
+	 * @param len The length of the frame
+	 * @param sa The source address (Enrollee)
+	 * @return true on success, otherwise false
+	 */
+	virtual bool handle_recfg_auth_response(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN]) {
+		return true; // Optional to implement
+	}
     
 	/**
 	 * @brief Handle a chirp notification message TLV and direct it to the correct place (802.11 or 1905).
@@ -278,7 +199,9 @@ public:
 	 *
 	 * @return true if the chirp notification was processed successfully, false otherwise.
 	 */
-	virtual bool process_chirp_notification(em_dpp_chirp_value_t* chirp_tlv, uint16_t tlv_len) = 0;
+	virtual bool process_chirp_notification(em_dpp_chirp_value_t* chirp_tlv, uint16_t tlv_len, uint8_t src_al_mac[ETH_ALEN]) {
+		return true; // Optional to implement
+	}
 
     
 	/**
@@ -290,12 +213,51 @@ public:
 	 * @param[in] encap_tlv_len The length of the 1905 Encap DPP TLV.
 	 * @param[in] chirp_tlv The DPP Chirp Value TLV to parse and handle (NULL if not present).
 	 * @param[in] chirp_tlv_len The length of the DPP Chirp Value TLV (0 if not present).
+	 * @param[in] src_al_mac The source AL MAC address of this message
 	 *
 	 * @return bool True if the message was processed successfully, false otherwise.
 	 */
-	virtual bool  process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len) = 0;
+	virtual bool  process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, em_dpp_chirp_value_t *chirp_tlv, uint16_t chirp_tlv_len, uint8_t src_al_mac[ETH_ALEN]) = 0;
 
-    
+	/**
+	 * @brief Handle a Direct Encapsulated DPP Message (DPP Message TLV)
+	 *
+	 * @param[in] dpp_frame The frame parsed from the DPP Message TLV
+	 * @param[in] dpp_frame_len The length of the frame from the DPP Message TLV
+	 * @param[in] src_mac The source MAC address of the DPP frame
+	 *
+	 * @return bool True if the frame was processed successfully, false otherwise.
+	 */
+	virtual bool  process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len, uint8_t src_mac[ETH_ALEN]) = 0;
+
+	/**
+	 * @brief Handles a chirp found in an Autoconf Search (extended) message.
+	 * 
+	 * @param chirp The DPP chirp.
+	 * @param len The length of the chirp hash (can be 0).
+	 * @param src_mac Where it came from (Enrollee).
+	 * @return true on success, otherwise false.
+	 * 
+	 */
+	virtual bool handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, size_t len, uint8_t src_mac[ETH_ALEN]) {
+		// impl'd by Controller Configurator only
+		return false;
+	} 
+
+	/**
+	 * @brief Process a 1905 EAPOL Encapsulated Message (1905 Encap EAPOL TLV)
+	 *
+	 * @param[in] eapol_frame The frame parsed from the 1905 Encap EAPOL TLV
+	 * @param[in] eapol_frame_len The length of the frame from the 1905 Encap EAPOL TLV
+	 *
+	 * @return bool True if the frame was processed successfully, false otherwise.
+	 * 
+	 * @note Not virtual since this function only calls the encryption layer
+	 */
+	bool process_1905_eapol_encap_msg(uint8_t* eapol_frame, uint16_t eapol_frame_len, uint8_t src_mac[ETH_ALEN]) {
+		return m_1905_encrypt_layer.handle_eapol_frame(eapol_frame, eapol_frame_len, src_mac);
+	}
+	
 	/**
 	 * @brief Handle a proxied encapsulated DPP Configuration Request frame.
 	 *
@@ -309,7 +271,7 @@ public:
 	 *
 	 * @note This function is overridden by subclass.
 	 */
-	virtual bool handle_proxied_dpp_configuration_request(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) {
+	virtual bool handle_proxied_dpp_configuration_request(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN]) {
         return true;
     }
 
@@ -327,7 +289,7 @@ public:
 	 *
 	 * @return true if the frame is handled successfully, otherwise false.
 	 */
-	virtual bool handle_proxied_config_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) {
+	virtual bool handle_proxied_config_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN]) {
         return true;
     }
 
@@ -345,8 +307,40 @@ public:
 	 *
 	 * @return true if the frame was handled successfully, otherwise false.
 	 */
-	virtual bool handle_proxied_conn_status_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN]) {
+	virtual bool handle_proxied_conn_status_result_frame(uint8_t *encap_frame, uint16_t encap_frame_len, uint8_t dest_mac[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN]) {
         return true;
+    }
+
+	/**
+	 * @brief Handle a DPP peer discovery request frame.
+	 *
+	 * This function processes a DPP peer discovery request frame received from a peer device.
+	 * It delegates the frame handling to the underlying 1905 encryption layer for processing.
+	 *
+	 * @param[in] frame Pointer to the DPP peer discovery request frame to be processed.
+	 * @param[in] len The length of the frame in bytes.
+	 * @param[in] src_mac The source MAC address of the frame sender 
+	 *
+	 * @return true if the frame was processed successfully, otherwise false.
+	 */
+	bool handle_peer_disc_req_frame(ec_frame_t *frame, uint16_t len, uint8_t src_mac[ETH_ALEN]) {
+        return m_1905_encrypt_layer.handle_peer_disc_req_frame(frame, len, src_mac);
+    }
+
+	/**
+	 * @brief Handle a DPP peer discovery response frame.
+	 *
+	 * This function processes a DPP peer discovery response frame received from a peer device.
+	 * It delegates the frame handling to the underlying 1905 encryption layer for processing.
+	 *
+	 * @param[in] frame Pointer to the DPP peer discovery response frame to be processed.
+	 * @param[in] len The length of the frame in bytes.
+	 * @param[in] src_mac The source MAC address of the frame sender
+	 *
+	 * @return true if the frame was processed successfully, otherwise false.
+	 */
+	bool handle_peer_disc_resp_frame(ec_frame_t *frame, uint16_t len, uint8_t src_mac[ETH_ALEN]) {
+        return m_1905_encrypt_layer.handle_peer_disc_resp_frame(frame, len, src_mac);
     }
 
     
@@ -368,13 +362,55 @@ public:
         ec_crypto::free_ephemeral_context(&c_ctx.eph_ctx, c_ctx.nonce_len, c_ctx.digest_len);
     }
 
-    
-	/**!
-	 * @brief Retrieves the MAC address.
-	 *
-	 * @returns The MAC address as a string.
+	/**
+     * @brief Initiates secure 1905 layer establishment with peer
+     * @param dest_al_mac Destination AL MAC address
+     * @return true if peer discovery request sent successfully
+     * 
+     * @note Creates and sends DPP Peer Discovery Request to begin security establishment process.
+     */
+	inline bool start_secure_1905_layer(uint8_t dest_al_mac[ETH_ALEN]) {
+		return m_1905_encrypt_layer.start_secure_1905_layer(dest_al_mac);
+	}
+
+	/**
+     * @brief Rekeys existing PTK with established peer
+     * @param dest_al_mac Destination AL MAC address
+     * @return true if PTK rekey handshake initiated successfully
+     * 
+     * @note Requires existing key context. Initiates the same 4-way handshake 
+     *       as the initial handshake with some minor flags changed.
+     */
+	inline bool rekey_1905_layer_ptk(uint8_t dest_al_mac[ETH_ALEN]) {
+		return m_1905_encrypt_layer.rekey_1905_layer_ptk(dest_al_mac);
+	}
+
+	/**
+     * @brief Rekeys existing PTK with all established peers
+     * @return true if all PTK rekey handshakes initiated successfully
+     * 
+     * @note Requires existing key contexts. Initiates the same 4-way handshake 
+     *       as the initial handshake with some minor flags changed.
+     */
+	inline bool rekey_1905_layer_ptk() {
+		return m_1905_encrypt_layer.rekey_1905_layer_ptk();
+	}
+
+	/**
+     * @brief Rekeys GTK and distributes to all enrolled agents
+     * @return true if GTK regenerated and distributed successfully
+     * 
+     * @note Controller-only operation. Generates new GTK and sends
+     *       to all agents (EM 5.4.7.5) via group key handshake (EM 5.3.7.3)
+     */
+	inline bool rekey_1905_layer_gtk() {
+		return m_1905_encrypt_layer.rekey_1905_layer_gtk();
+	}
+
+	/**
+	 * @brief Retrieves the current security context.
 	 */
-	inline std::string get_mac_addr() { return m_mac_addr; };
+	inline ec_persistent_sec_ctx_t* get_sec_ctx() { return &m_sec_ctx; };
 
     // Disable copy construction and assignment
     // Requires use of references or pointers when working with instances of this class
@@ -389,13 +425,33 @@ public:
 	ec_configurator_t(const ec_configurator_t&) = delete;
     ec_configurator_t& operator=(const ec_configurator_t&) = delete;
 
-protected:
+	/**
+	 * @brief Get the conn ctx object for a given peer AL MAC address.
+	 * 
+	 * @note Needed to retrieve the enrollee NAK for BSS Configuration Response.
+	 * 
+	 * @param peer_al_mac The AL MAC address of the peer for which the connection context is requested.
+	 * @return ec_connection_context_t* A pointer to the connection context associated with the given AL MAC address. NULL if not found. 
+	 */
+	inline ec_connection_context_t* get_al_conn_ctx(uint8_t peer_al_mac[ETH_ALEN]) {
+        for (auto& conn : m_connections) {
+			if (memcmp(conn.second.peer_al_mac, peer_al_mac, ETH_ALEN) == 0) {
+				return &conn.second;
+			}
+		}
+		return NULL;
+    }
 
-    std::string m_mac_addr;
+protected:
+	std::string m_al_mac_addr;
+
+	bool m_is_colocated_agent;
 
     send_chirp_func m_send_chirp_notification;
 
     send_encap_dpp_func m_send_prox_encap_dpp_msg;
+
+    send_dir_encap_dpp_func m_send_dir_encap_dpp_msg;
 
     send_act_frame_func m_send_action_frame;
 
@@ -407,9 +463,12 @@ protected:
 
     can_onboard_additional_aps_func m_can_onboard_additional_aps;
 
-    // The connections to the Enrollees/Agents
-    std::map<std::string, ec_connection_context_t> m_connections = {};
+	send_autoconf_search_resp_func m_send_autoconf_resp_fn;
 
+	ec_1905_encrypt_layer_t m_1905_encrypt_layer;
+
+    // The connections to EasyMesh Devices (the Controller, Enrollees, and Agents)
+    std::map<std::string, ec_connection_context_t> m_connections = {};
     
 	/**!
 	 * @brief Retrieves the connection context for a given MAC address.
@@ -495,6 +554,14 @@ protected:
         ec_crypto::free_ephemeral_context(&c_ctx.eph_ctx, c_ctx.nonce_len, c_ctx.digest_len);
     }
 
+	/**
+	 * @brief The security context for the Controller/Configurator OR the **Onboarded** Agent
+	 * 
+	 * This context is used to store the security keys and other information required for secure communication with the Controller and other onboarded Agents.
+	 * 	- For the Controller/Configurator, the keys/connector are generated at startup.
+	 * 	- For an **Onboarded Agent** the keys/connector are generated during the onboarding process and used throughout the lifetime of the agent (or until reconfigured).
+	 */
+	ec_persistent_sec_ctx_t m_sec_ctx;
 };
 
 #endif // EC_CONFIGURATOR_H

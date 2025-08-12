@@ -1,0 +1,184 @@
+/**
+ * Copyright 2025 Comcast Cable Communications Management, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#pragma once
+
+#include "em_base.h"
+#include "ec_crypto.h"
+
+#include <functional>
+
+struct cJSON;
+
+/**
+ * @brief Sends an Autoconf Search message (extended)
+ * 
+ * @param Chirp The chirp to include in the autoconf search message
+ * @param len The length of the hash in the chirp (can be 0)
+ * 
+ * @note No dest mac as autoconf search is a multicast message
+ * @return True on success otherwise false
+ */
+using send_autoconf_search_func = std::function<bool(em_dpp_chirp_value_t *, size_t)>;
+
+/**p
+ * @brief Sends an Autoconf Search Response message (extended)
+ * 
+ * @param Chirp The Chirp to include in the autoconf search response message
+ * @param len The length of the hash in the chirp (can be 0)
+ * @param dest_mac The destination MAC address to send the response to
+ * 
+ * @return True on success otherwise false
+ * 
+ */
+using send_autoconf_search_resp_func = std::function<bool(em_dpp_chirp_value_t *, size_t, uint8_t[ETH_ALEN])>;
+
+/**
+ * @brief Sends a chirp notification
+ * 
+ * @param chirp_tlv The chirp TLV to send
+ * @param len The length of the chirp TLV
+ * @param dest_al_mac The destination AL MAC address (6 bytes)
+ * @return bool true if successful, false otherwise
+ */
+using send_chirp_func = std::function<bool(em_dpp_chirp_value_t*, size_t, uint8_t*)>;
+
+/**
+ * @brief Sends a proxied encapsulated DPP message
+ * 
+ * @param encap_dpp_tlv The 1905 Encap DPP TLV to include in the message
+ * @param encap_dpp_len The length of the 1905 Encap DPP TLV
+ * @param chirp_tlv The chirp value to include in the message. If NULL, the message will not include a chirp value
+ * @param chirp_len The length of the chirp value
+ * @param dst_al_mac The destination AL MAC address (6 bytes)
+ * @return bool true if successful, false otherwise
+ */
+using send_encap_dpp_func = std::function<bool(em_encap_dpp_t*, size_t, em_dpp_chirp_value_t*, size_t, uint8_t*)>;
+
+
+/**
+ * @brief Sends a direct encapsulated DPP message
+ * 
+ * @param dpp_frame The DPP frame to send
+ * @param dpp_frame_len The length of the DPP frame
+ * @param dest_al_mac The destination AL MAC address (6 bytes)
+ * @return bool true if successful, false otherwise
+ */
+using send_dir_encap_dpp_func = std::function<bool(uint8_t*, size_t, uint8_t*)>;
+
+/**
+ * @brief Sends a 1905 EAPOL encapsulated message
+ * 
+ * @param eapol_frame The EAPOL frame to send (including IEEE 802.1X header)
+ * @param eapol_frame_len The length of the EAPOL frame
+ * @param dest_al_mac The destination AL MAC address (6 bytes)
+ * @return bool true if successful, false otherwise
+ */
+using send_1905_eapol_encap_func = std::function<bool(uint8_t*, size_t, uint8_t*)>;
+
+/**
+ * @brief Send an action frame. Optional to implement.
+ * 
+ * @param dest_mac The destination MAC address
+ * @param action_frame The action frame to send
+ * @param action_frame_len The length of the action frame
+ * @param frequency The frequency to send the frame on (0 for current frequency)
+ * @param wait The time to wait on the channel after sending the frame (0 for no wait)
+ * @return true if successful, false otherwise
+ */
+using send_act_frame_func = std::function<bool(uint8_t*, uint8_t *, size_t, unsigned int, unsigned int)>;
+
+/**
+ * @brief Set the CCE IEs in the beacon and probe response frames
+ * 
+ * @param bool Whether to enable or disable the inclusion of CCE IEs in the beacon and probe response frames
+ * @return bool true if successful, false otherwise
+ * @note If the operation fails, all CCE IEs are removed before the function exits
+ */
+using toggle_cce_func = std::function<bool(bool)>;
+
+/**
+ * @brief Triggers a scan on a station interface
+ * 
+ * @return bool true if a request was made successfully, false otherwise
+ */
+using trigger_sta_scan_func = std::function<bool()>;
+
+
+/**
+ * @brief Attempts a connection between the backhaul STA to the specified BSS.
+ * 
+ * @param ssid The SSID of the BSS to connect to
+ * @param passphrase The passphrase for the BSS
+ * @param bssid The BSSID of the BSS to connect to
+ * @return bool true if the attempt was performed successfully, false otherwise
+ */
+using bsta_connect_func = std::function<bool(const std::string&, const std::string&, bssid_t)>;
+
+/**
+ * @brief Creates a DPP Configuration Response object for the backhaul STA interface.
+ * @param pa_al_mac The AL MAC address of the Proxy Agent that is being used to onboard the Enrollee.
+ * @return cJSON * on success, nullptr otherwise
+ */
+using get_backhaul_sta_info_func = std::function<cJSON*(uint8_t*)>;
+
+/**
+ * @brief Creates a DPP Configuration Response object for the 1905.1 interface.
+ * @return cJSON * on success, nullptr otherwise.
+ */
+using get_1905_info_func = std::function<cJSON*()>;
+
+/**
+ * @brief Creates a DPP Configuration Response object for the fronthaul BSS interface(s)
+ * @param pa_al_mac The AL MAC address of the Proxy Agent that is being used to onboard the Enrollee.
+ * @return cJSON * on success, nullptr otherwise
+ */
+using get_fbss_info_func = std::function<cJSON*(uint8_t*)>;
+
+/**
+ * @brief Used to determine if an additional AP can be on-boarded or not.
+ * @return True if additional APs can be on-boraded into the mesh, false otherwise.
+ */
+using can_onboard_additional_aps_func = std::function<bool(void)>;
+
+/**
+ * @brief Callback configuration structure for EasyConnect (EC) logic
+ * 
+ * This struct aggregates a set of optional functional callbacks used by the EasyConnect manager
+ * to interact with underlying platform or control-plane behavior. Each callback is expected to be 
+ * bound by the entity (e.g., `em_t`) instantiating an `ec_manager_t`, depending on its service role 
+ * (controller/configurator, agent/proxy agent, agent/enrollee).
+ * 
+ * All fields default to `nullptr`
+ */
+struct ec_ops_t {
+    send_chirp_func send_chirp = nullptr;
+    send_encap_dpp_func send_encap_dpp = nullptr;
+    send_dir_encap_dpp_func send_dir_encap_dpp = nullptr;
+    send_act_frame_func send_act_frame = nullptr;
+    toggle_cce_func toggle_cce = nullptr;
+    trigger_sta_scan_func trigger_sta_scan = nullptr;
+    bsta_connect_func bsta_connect = nullptr;
+    get_backhaul_sta_info_func get_backhaul_sta_info = nullptr;
+    get_1905_info_func get_1905_info = nullptr;
+    get_fbss_info_func get_fbss_info = nullptr;
+    can_onboard_additional_aps_func can_onboard_additional_aps = nullptr;
+    send_1905_eapol_encap_func send_1905_eapol_encap = nullptr; 
+    send_autoconf_search_func send_autoconf_search = nullptr;
+    send_autoconf_search_resp_func send_autoconf_search_resp = nullptr;
+};

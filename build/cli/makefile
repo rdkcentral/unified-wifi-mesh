@@ -24,6 +24,9 @@ include ../makefile.inc
 
 PROGRAM = $(INSTALLDIR)/bin/onewifi_em_cli
 EM_CLI_LIBRARY = $(INSTALLDIR)/lib/libemcli.so
+EM_CERT_SRC = $(INSTALLDIR)/config/test_cert.crt
+EM_KEY_SRC  = $(INSTALLDIR)/config/test_cert.key
+CERT_TARGETS = $(NVRAM_DIR)/test_cert.crt $(NVRAM_DIR)/test_cert.key
 
 INCLUDEDIRS = \
 	-I$(ONEWIFI_EM_HOME)/inc \
@@ -76,6 +79,7 @@ CLI_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/cli/*.cpp) \
     $(ONEWIFI_EM_SRC)/em/em_net_node.cpp \
     $(ONEWIFI_EM_SRC)/utils/util.cpp \
     $(ONEWIFI_EM_SRC)/em/prov/easyconnect/ec_util.cpp \
+    $(ONEWIFI_EM_SRC)/em/prov/easyconnect/ec_crypto.cpp \
 
 
 MAIN_SOURCE = $(ONEWIFI_EM_SRC)/cli/main.c
@@ -85,7 +89,7 @@ GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o)
 EMCLIOBJECTS = $(CLI_OBJECTS) $(GENERIC_OBJECTS)
 MAIN_OBJECT = $(MAIN_SOURCE:.c=.o) 
 
-all: $(EM_CLI_LIBRARY) $(PROGRAM)
+all: $(EM_CLI_LIBRARY) $(PROGRAM) $(CERT_TARGETS)
 
 $(EM_CLI_LIBRARY): $(EMCLIOBJECTS)
 	$(CXX) -shared -o $@ $(EMCLIOBJECTS) $(LDFLAGS)
@@ -106,6 +110,19 @@ ifeq ($(CC), aarch64-linux-gnu-gcc-11)
 else
 	go build -ldflags="-extldflags '-L$(INSTALLDIR)/lib -lcrypto -lssl -luuid'" -o $(PROGRAM) $(ONEWIFI_EM_SRC)/cli/*.go
 endif
+
+# Make sure $(NVRAM_DIR) exists
+$(NVRAM_DIR):
+	@if [ ! -d "$@" ]; then \
+        sudo mkdir -p "$@" && sudo chmod 777 "$@"; \
+    fi
+
+#copy the certificate and key to /nvram
+$(NVRAM_DIR)/test_cert.crt: $(EM_CERT_SRC) | $(NVRAM_DIR)
+	$(CP) $< $@
+
+$(NVRAM_DIR)/test_cert.key: $(EM_KEY_SRC) | $(NVRAM_DIR)
+	$(CP) $< $@
 
 # Clean target: "make -f Makefile.Linux clean" to remove unwanted objects and executables.
 #

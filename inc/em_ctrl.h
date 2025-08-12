@@ -26,6 +26,11 @@
 #include "bus.h"
 #include "em_dev_test_ctrl.h"
 
+#ifdef AL_SAP
+#define DATA_SOCKET_PATH "/tmp/al_data_socket"
+#define CONTROL_SOCKET_PATH "/tmp/al_control_socket"
+#endif
+
 class em_cmd_ctrl_t;
 class AlServiceAccessPoint;
 
@@ -309,7 +314,7 @@ public:
 	 */
 	void handle_get_dev_test(em_bus_event_t *evt);
 	void handle_set_dev_test(em_bus_event_t *evt);
-    
+
 	/**!
 	 * @brief Handles the get database event.
 	 *
@@ -455,7 +460,22 @@ public:
 	 */
 	void update_network_topology() { m_data_model.update_network_topology(); }
 
-    
+	/**!
+	 * @brief Retrieves the first data model in the agent list.
+	 *
+	 * @returns A pointer to the first `dm_easy_mesh_t` data model, or nullptr if no dms are available.
+	 */
+	dm_easy_mesh_t *get_first_dm() override { return m_data_model.get_first_dm(); }
+
+	/**!
+	 * @brief Retrieves the next data model in the agent list.
+	 *
+	 * @param[in] dm Pointer to the current `dm_easy_mesh_t` data model.
+	 *
+	 * @returns A pointer to the next `dm_easy_mesh_t` data model, or nullptr if there are no more dms.
+	 */
+	dm_easy_mesh_t *get_next_dm(dm_easy_mesh_t *dm) override { return m_data_model.get_next_dm(dm); }
+
 	/**!
 	 * @brief Retrieves the data model for a given network ID and optional AL MAC address.
 	 *
@@ -584,8 +604,20 @@ public:
 	 *
 	 * @note Ensure that the system has enough resources to register a new service access point.
 	 */
-	AlServiceAccessPoint* al_sap_register();
+	AlServiceAccessPoint* al_sap_register(const std::string& data_socket_path=DATA_SOCKET_PATH, const std::string& control_socket_path=CONTROL_SOCKET_PATH);
 #endif
+
+	/**!
+	 * @brief Registers a new AL Service Access Point.
+	 *
+	 * This function is responsible for creating and registering a new AL Service Access Point.
+	 *
+	 * @returns A pointer to the newly registered AlServiceAccessPoint.
+	 * @retval nullptr If the registration fails.
+	 *
+	 * @note Ensure that the system has enough resources to register a new service access point.
+	 */
+	em_cmd_ctrl_t *get_ctrl_cmd() { return m_ctrl_cmd; }
 
     
 	/**!

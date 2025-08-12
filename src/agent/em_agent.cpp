@@ -41,6 +41,7 @@
 #include "util.h"
 #include <cjson/cJSON.h>
 
+#include <string>
 #include <vector>
 #ifdef AL_SAP
 #include "al_service_access_point.h"
@@ -48,11 +49,7 @@
 
 #define RETRY_SLEEP_INTERVAL_IN_MS 1000
 
-#define DATA_SOCKET_PATH "/tmp/al_data_socket"
-#define CONTROL_SOCKET_PATH "/tmp/al_control_socket"
-
 em_agent_t g_agent;
-const char *global_netid = "OneWifiMesh";
 #ifdef AL_SAP
 AlServiceAccessPoint* g_sap;
 MacAddress g_al_mac_sap;
@@ -153,6 +150,43 @@ void em_agent_t::handle_dev_init(em_bus_event_t *evt)
         return;
     }
 
+    wifi_bus_desc_t *desc;
+
+    if((desc = get_bus_descriptor()) == NULL) {
+       printf("descriptor is null");
+       return;
+    }
+
+    // Iterate through all of the BSSs and subscribe to receive management action frames
+    for (int bss_idx = 0; bss_idx < m_data_model.m_num_bss; bss_idx++) {
+        auto bss_info = m_data_model.get_bss_info(bss_idx);
+        unsigned int vap_index = bss_info->vap_index; // The actual OneWifi VAP index
+
+// TODO: TEMP CODE: 
+//  Since HE-BUS can only subscribe to one index path at a time, we will only be subscribing to the backhaul BSSs
+//  Once HE-BUS supports multiple index paths or is no-longer used, this can be removed...
+        if (bss_info->id.haul_type != em_haul_type_backhaul) {
+            continue; // Only subscribe for backhaul BSSs
+        }
+        // TODO: Will need to come back to once Mediatek supports sending off-channel action frames in STA mode
+        if (bss_info->vap_mode != em_vap_mode_ap) {
+            continue; // Only subscribe for AP mode
+        }
+// END: TEMP CODE
+
+
+        std::string path = "Device.WiFi.AccessPoint." + std::to_string(vap_index + 1) + ".RawFrame.Mgmt.Action.Rx";
+        if (desc->bus_event_subs_fn(&m_bus_hdl, path.c_str(), (void *)&em_agent_t::mgmt_action_frame_cb, NULL, 0) != 0) {
+            em_printfout("Subscription failed for path %s", path.c_str());
+            continue;
+        }
+        em_printfout("Subscribed to receive management action frames for VAP %d", vap_index);
+
+        // TEMP CODE:
+        break;
+        // END TEMP CODE
+    }
+
     if (do_start_dpp_onboarding) {
         try_start_dpp_onboarding();
         // TODO: check if dpp onboarding is successful and manage result
@@ -189,6 +223,20 @@ void em_agent_t::handle_channel_sel_req(em_bus_event_t *evt)
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
     } else if ((num = m_data_model.analyze_channel_sel_req(evt, desc, &m_bus_hdl)) == 0) {
             printf("handle_channel_sel_req complete");
+    }
+}
+
+void em_agent_t::handle_csa_beacon_frame(em_bus_event_t *evt)
+{
+    unsigned int num;
+    wifi_bus_desc_t *desc;
+
+    if((desc = get_bus_descriptor()) == NULL) {
+       printf("descriptor is null");
+    }
+
+    if ((num = m_data_model.analyze_csa_beacon_frame(evt, desc, &m_bus_hdl)) == 1) {
+        printf("analyze_csa_beacon_frame completed\n");
     }
 }
 
@@ -370,37 +418,16 @@ void em_agent_t::handle_bss_info(em_bus_event_t *event)
         em_printfout("NULL event!");
         return;
     }
-    wifi_bss_info_t *bss_info = reinterpret_cast<wifi_bss_info_t *>(event->u.raw_buff);
 
-    em_t *al_node = get_al_node();
-    if (al_node == nullptr) {
-        em_printfout("Could not get AL node!");
-        return;
-    }
-
-    if (!al_node->m_ec_manager->handle_bss_info_event(*bss_info)) {
-        em_printfout("EC manager failed to handle a BSS info event!");
-    }
-}
-
-void em_agent_t::handle_recv_cce_ie(em_bus_event_t *event)
-{
-    if (event == nullptr) {
-        em_printfout("NULL event!");
-        return;
-    }
     const size_t expected_size = sizeof(wifi_bss_info_t);
-    if (event->data_len > expected_size) {
-        em_printfout("Expected event of size %d, got %d, not handling", expected_size, event->data_len);
-        return;
-    }
-    wifi_bss_info_t *bss_info = reinterpret_cast<wifi_bss_info_t *>(event->u.raw_buff);
-    bool freq_ok = (bss_info->freq > 0);
+    unsigned int len = event->data_len;
 
-    if (!freq_ok) {
-        em_printfout("Heard a CCE information element on invalid frequency (%d), not handling", bss_info->freq);
+    if (len % expected_size != 0) {
+        em_printfout("Expected event size divisible by %d, got %d, not handling", expected_size, event->data_len);
         return;
     }
+
+    wifi_bss_info_t *bss_info_buff = reinterpret_cast<wifi_bss_info_t *>(event->u.raw_buff);
 
     em_t *al_node = get_al_node();
     if (al_node == nullptr) {
@@ -408,9 +435,19 @@ void em_agent_t::handle_recv_cce_ie(em_bus_event_t *event)
         return;
     }
 
-    if (!al_node->m_ec_manager->handle_cce_ie(bss_info->freq)) {
-        em_printfout("EC manager failed to handle new frequency from a CCE IE!");
+    if (len == 0 || bss_info_buff == NULL) {
+        // Publish that no scan results contained a CCE IE
+        if (!al_node->m_ec_manager->handle_bss_info_event({})) {
+            em_printfout("EC manager failed to handle empty scan result!");
+        }
         return;
+    }
+
+    unsigned int bss_count = static_cast<unsigned int>(len / expected_size);
+    std::vector<wifi_bss_info_t> heard_bsses(bss_info_buff, bss_info_buff + bss_count);
+
+    if (!al_node->m_ec_manager->handle_bss_info_event(heard_bsses)) {
+        em_printfout("EC manager failed to handle a BSS info event!");
     }
 }
 
@@ -424,12 +461,27 @@ void em_agent_t::handle_recv_gas_frame(em_bus_event_t *evt)
     const size_t mgmt_hdr_len = offsetof(struct ieee80211_mgmt, u);
     ieee80211_mgmt *mgmt_frame = (ieee80211_mgmt *)evt->u.raw_buff;
 
-    mac_addr_str_t dest_mac;
-    dm_easy_mesh_t::macbytes_to_string(mgmt_frame->da, dest_mac);
-    em_t *dest_node = (em_t *)hash_map_get(g_agent.m_em_map, dest_mac);
-    if (!dest_node) {
-        printf("%s:%d: no node found for MAC '%s'\n", __func__, __LINE__, dest_mac);
-        return;
+    std::string dest_mac_str = util::mac_to_string(mgmt_frame->da);
+    // Validate that it is a broadcast frame or we have a node that should have received it
+    em_t* dest_radio_node = nullptr;
+
+    bool is_bcast = (memcmp(mgmt_frame->da, BROADCAST_MAC_ADDR, ETH_ALEN) == 0);
+    if (is_bcast) {
+        printf("Received GAS action frame with broadcast destination MAC address\n");
+    } else {
+        // Dest MAC is not necsessarily the same as the radio node's MAC address, so we need to look it up
+        em_bss_info_t* dest_bss = m_data_model.get_bss_info_with_mac(mgmt_frame->da);
+        if (dest_bss == NULL) {
+            em_printfout("No BSS found for dest mac %s\n", dest_mac_str.c_str());
+            return;
+        }
+
+        std::string ruid_str = util::mac_to_string(dest_bss->ruid.mac);
+        dest_radio_node = static_cast<em_t*>(hash_map_get(g_agent.m_em_map, ruid_str.c_str()));
+        if (dest_radio_node == NULL) {
+            em_printfout("No radio node found for dest mac %s\n", dest_mac_str.c_str());
+            return;
+        }
     }
 
     em_t* al_node = get_al_node();
@@ -490,35 +542,15 @@ void em_agent_t::handle_recv_gas_frame(em_bus_event_t *evt)
 
     if (is_wfa_ec_gas) {
         printf("%s:%d: Received WFA EC GAS frame\n", __func__, __LINE__);
-        bool dest_al_same = false;
-        if (dest_node != NULL && al_node != NULL) {
-            em_printfout("Dest radio node MAC '" MACSTRFMT "', al_node radio MAC '" MACSTRFMT"'\n", MAC2STR(dest_node->get_radio_interface_mac()), MAC2STR(al_node->get_radio_interface_mac()));
-            dest_al_same = (memcmp(dest_node->get_radio_interface_mac(), al_node->get_radio_interface_mac(), ETH_ALEN) == 0);
-        }
-    
-        auto ctrl_al = m_data_model.get_controller_interface_mac();
-        auto agent_al = m_data_model.get_agent_al_interface_mac();
-        bool is_colocated = (memcmp(ctrl_al, agent_al, ETH_ALEN) == 0);
-    
-        em_printfout("Dest MAC '" MACSTRFMT "', dest_al_same=%d, is_colocated=%d", MAC2STR(dest_node->get_radio_interface_mac()), dest_al_same, is_colocated);
                                 
-        /*
-        If any of the following conditions are satisfied:
-            - The destination MAC is the same as the AL node (mac address)
-            - The colocated flag is set
-        Then the `ec_manager` of the AL node will handle the action frame
-        
-        We don't ignore it if this co-located since the AL-node will be the same as the controller (eth0) 
-        so if we ignore it, no packets will ever get through
-        */
-        if (dest_al_same || is_colocated) {
+        if (al_node != NULL) {
             if (!al_node->get_ec_mgr().handle_recv_gas_pub_action_frame(
                 gas_frame_base, full_frame_length - mgmt_hdr_len, mgmt_frame->sa)) {
                 printf("%s:%d: EC manager failed to handle GAS frame!\n", __func__, __LINE__);
             }
             return;
         }
-
+        printf("%s:%d: Did not find an AL node for handling WFA EC GAS frame!\n", __func__, __LINE__);
     }
 }
 
@@ -544,18 +576,30 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
 
     printf("%s:%d: Received WFA action frame: Full Length: %d, VS Action Data Length: %d\n", __func__, __LINE__, frame_len, vs_data_len);
 
-    mac_addr_str_t dest_mac_str;
-    dm_easy_mesh_t::macbytes_to_string(mgmt_frame->da, dest_mac_str);
-    printf("Dest Mac Str: %s\n", dest_mac_str);
+    std::string dest_mac_str = util::mac_to_string(mgmt_frame->da);
+    em_printfout("Dest Mac Str: %s", dest_mac_str.c_str());
+
+    // Validate either this is a broadcast frame or we have a node that should have received it
+    // even though (for DPP_OUI) we are processing it all in the AL node
+    em_t* dest_radio_node = nullptr;
+
     bool is_bcast = (memcmp(mgmt_frame->da, BROADCAST_MAC_ADDR, ETH_ALEN) == 0);
     if (is_bcast) {
         printf("Received WFA action frame with broadcast destination MAC address\n");
-    }
-    em_t* dest_radio_node = static_cast<em_t*>(hash_map_get(g_agent.m_em_map, dest_mac_str));
-    if (dest_radio_node == NULL &&  !is_bcast) {
-        // If the destination MAC is a broadcast address, we don't need to find the node
-        em_printfout("No radio node found for dest mac %s\n", dest_mac_str);
-        return;
+    } else {
+        // Dest MAC is not necsessarily the same as the radio node's MAC address, so we need to look it up
+        em_bss_info_t* dest_bss = m_data_model.get_bss_info_with_mac(mgmt_frame->da);
+        if (dest_bss == NULL) {
+            em_printfout("No BSS found for dest mac %s\n", dest_mac_str.c_str());
+            return;
+        }
+
+        std::string ruid_str = util::mac_to_string(dest_bss->ruid.mac);
+        dest_radio_node = static_cast<em_t*>(hash_map_get(g_agent.m_em_map, ruid_str.c_str()));
+        if (dest_radio_node == NULL) {
+            em_printfout("No radio node found for dest mac %s\n", dest_mac_str.c_str());
+            return;
+        }
     }
 
     // First byte is the OUI type
@@ -566,37 +610,16 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
 
     switch (oui_type) {
     case DPP_OUI_TYPE: {
+        printf("%s:%d: Received DPP action frame\n", __func__, __LINE__);
         em_t* al_node = get_al_node();
-        bool dest_al_same = false;
-        if (dest_radio_node != NULL && al_node != NULL) {
-            em_printfout("Dest radio node MAC '" MACSTRFMT "', al_node radio MAC '" MACSTRFMT"'\n", MAC2STR(dest_radio_node->get_radio_interface_mac()), MAC2STR(al_node->get_radio_interface_mac()));
-            dest_al_same = (memcmp(dest_radio_node->get_radio_interface_mac(), al_node->get_radio_interface_mac(), ETH_ALEN) == 0);
-        }
 
-        auto ctrl_al = m_data_model.get_controller_interface_mac();
-        auto agent_al = m_data_model.get_agent_al_interface_mac();
-        bool is_colocated = (memcmp(ctrl_al, agent_al, ETH_ALEN) == 0);
-
-        em_printfout("Dest MAC '%s', dest_al_same=%d, is_bcast=%d, is_colocated=%d", dest_mac_str, dest_al_same, is_bcast, is_colocated);
-
-        /*
-        If any of the following conditions are satisfied:
-            - The destination MAC is a broadcast address
-            - The destination MAC is the same as the AL node (mac address)
-            - The colocated flag is set
-        Then the `ec_manager` of the AL node will handle the action frame
-        
-        We don't ignore it if this co-located since the AL-node will be the same as the controller (eth0) 
-        so if we ignore it, no packets will ever get through
-        */
-
-        if (is_bcast || dest_al_same || is_colocated) {
+        if (al_node != NULL) {
             if (!al_node->get_ec_mgr().handle_recv_ec_action_frame(ec_frame, full_action_frame_len, mgmt_frame->sa)){
                 em_printfout("EC manager failed to handle action frame!");
             }
             return;
         }
-        em_printfout("Did not find an EM node for action frame!");
+        em_printfout("Did not find an AL node for handling DPP action frame!");
     }
     default:
         break;
@@ -642,9 +665,62 @@ void em_agent_t::handle_channel_scan_params(em_bus_event_t *evt)
        printf("descriptor is null");
     }
 
-    if ((num = m_data_model.analyze_scan_request(evt, desc, &m_bus_hdl)) == 0) {
-	    printf("analyze scan request failed\n");
+    if (!send_scan_request((em_scan_params_t *)&evt->u.raw_buff, true)) {
+        printf("send_scan_request failed\n");
+        return;
     }
+}
+
+bool em_agent_t::send_scan_request(em_scan_params_t* scan_params, bool perform_fresh_scan, bool is_sta_vap){
+    unsigned i, j;
+    mac_addr_str_t radio_mac_str;
+    raw_data_t l_bus_data;
+    
+
+    std::string ruid_str = util::mac_to_string(scan_params->ruid);
+    em_printfout("Radio: %s Num of Op Classes: %d\n", ruid_str.c_str(), scan_params->num_op_classes);
+
+    channel_scan_request_t scan_data;
+    memset(&scan_data, 0, sizeof(channel_scan_request_t));
+
+    scan_data.perform_fresh_scan = perform_fresh_scan;
+    scan_data.num_radios = 1;
+
+    memcpy(scan_data.ruid, scan_params->ruid, sizeof(mac_address_t));
+
+    scan_data.num_operating_classes = scan_params->num_op_classes;
+    for (i = 0; i < scan_params->num_op_classes; i++) {
+        scan_data.operating_classes[i].operating_class = scan_params->op_class[i].op_class;
+        scan_data.operating_classes[i].num_channels = scan_params->op_class[i].num_channels;
+        printf("Op Class: %d ", scan_params->op_class[i].op_class);
+        printf("Channels: ");
+        for (j = 0; j < scan_params->op_class[i].num_channels; j++) {
+            scan_data.operating_classes[i].channels[j] = scan_params->op_class[i].channels[j];
+            printf("%d ", scan_params->op_class[i].channels[j]);
+        }
+        printf("\n");
+    }
+
+    l_bus_data.data_type = bus_data_type_bytes;
+    l_bus_data.raw_data.bytes = (void *)&scan_data;
+    l_bus_data.raw_data_len = sizeof(channel_scan_request_t);
+
+    wifi_bus_desc_t *desc;
+
+    if((desc = get_bus_descriptor()) == NULL) {
+       printf("descriptor is null");
+       return false;
+    }
+
+    std::string path = (is_sta_vap) ? WIFI_EC_SEND_TRIG_STA_SCAN : WIFI_EM_CHANNEL_SCAN_REQUEST;
+    em_printfout("Sending channel scan request to: %s", path.c_str());
+
+    if (desc->bus_set_fn(&m_bus_hdl, path.c_str(), &l_bus_data) != 0) {
+        em_printfout("Failed to send channel scan request to bus");
+        return false;
+    }
+    em_printfout("Sent channel scan request to bus\n");
+    return true;
 }
 
 void em_agent_t::handle_set_policy(em_bus_event_t *evt)
@@ -741,6 +817,10 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 			handle_channel_sel_req(evt);
 			break;
 
+		case em_bus_event_type_recv_csa_beacon_frame:
+			handle_csa_beacon_frame(evt);
+			break;
+
         case em_bus_event_type_sta_link_metrics:
             handle_sta_link_metrics(evt);
             break;
@@ -776,10 +856,6 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
             handle_recv_gas_frame(evt);
             break;
 
-        case em_bus_event_type_cce_ie:
-            handle_recv_cce_ie(evt);
-            break;
-        
         case em_bus_event_type_assoc_status:
             handle_recv_assoc_status(evt);
             break;
@@ -849,23 +925,64 @@ int em_agent_t::refresh_onewifi_subdoc(const char * log_name, const webconfig_su
     return m_data_model.refresh_onewifi_subdoc(desc, &m_bus_hdl, log_name, type);
 }
 
+bool em_agent_t::send_backhaul_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency, unsigned int wait_time_ms) {
+
+
+    const em_bss_info_t *bss_info = m_data_model.get_backhaul_bss_info();
+    EM_ASSERT_NOT_NULL(bss_info, false, "No backhaul BSS info found");
+
+    return send_action_frame(dest_mac, action_frame, action_frame_len, bss_info->vap_index, frequency, wait_time_ms);
+}
+
+
 bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency, unsigned int wait_time_ms) {
 
+
+    auto [op_class, channel] = util::em_freq_to_chan(frequency);
+    unsigned int op_class_uint = static_cast<unsigned int>(op_class);
+    EM_ASSERT_MSG_TRUE(op_class != 0 && channel != 0, false, "Invalid frequency %d, cannot convert", frequency);
+
+    int vap_idx = -1;
+
+    for (int bss_idx = 0; bss_idx < m_data_model.m_num_bss; bss_idx++) {
+        auto bss_info = m_data_model.get_bss_info(bss_idx);
+        if (bss_info == nullptr) {
+            continue;
+        }
+        uint8_t* bss_mac = bss_info->bssid.mac;
+        // Find opclasses for the BSS
+        em_op_class_info_t* op_class_info = m_data_model.get_opclass_info_for_bss(bss_mac, &op_class_uint);
+        if (op_class_info == nullptr) {
+            continue;
+        }
+        vap_idx = bss_info->vap_index;
+        // Found a matching BSS, no need to continue searching
+        break;
+    }
+    if (vap_idx == -1) {
+        em_printfout("No matching BSS found for frequency %d, op class %d, channel %d",
+                     frequency, op_class, channel);
+        return false;
+    }
+
+    return send_action_frame(dest_mac, action_frame, action_frame_len, vap_idx, frequency, wait_time_ms);
+}
+
+bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, uint8_t vap_idx, unsigned int frequency, unsigned int wait_time_ms) {
+
     wifi_bus_desc_t *desc = get_bus_descriptor();
-    ASSERT_NOT_NULL(desc, false, "%s:%d descriptor is null\n", __func__, __LINE__);
+    EM_ASSERT_NOT_NULL(desc, false, "descriptor is null");
+    EM_ASSERT_NOT_NULL(dest_mac, false, "dest_mac is null");
+    EM_ASSERT_NOT_NULL(action_frame, false, "action_frame is null");
 
     // Allocate memory for the action frame parameters, ieee80211 header and action frame body
     action_frame_params_t *act_frame_params = (action_frame_params_t*) calloc(sizeof(action_frame_params_t) + action_frame_len, 1);
-    ASSERT_NOT_NULL(act_frame_params, false, "%s:%d calloc failed\n", __func__, __LINE__);
+    EM_ASSERT_NOT_NULL(act_frame_params, false, "calloc failed");
 
-    // Hardcoded to 0 just the same as the other bus calls
-    // NOTE: AccessPoint.1 = ap_index 0. One is the data model indexing, one is NL80211/hal indexing
-    static int test_idx = 0;
-    act_frame_params->ap_index = test_idx;
+    act_frame_params->ap_index = vap_idx;
     memcpy(act_frame_params->dest_addr, dest_mac, ETH_ALEN);
     act_frame_params->frequency = frequency;
 
-    //TODO: Disabled until halinterace, rdk-wifi-hal, OneWifi PRs are merged
     act_frame_params->wait_time_ms = wait_time_ms;
 
     act_frame_params->frame_len = action_frame_len;
@@ -879,14 +996,12 @@ bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_f
 
     
     char path[100] = {0};
-    snprintf(path, sizeof(path), "Device.WiFi.AccessPoint.%d.RawFrame.Mgmt.Action.Tx", test_idx+1);
+    snprintf(path, sizeof(path), "Device.WiFi.AccessPoint.%d.RawFrame.Mgmt.Action.Tx", vap_idx+1);
     
-    em_printfout("Sending action frame: VAP Idx (%d), Dest (" MACSTRFMT "), Frequency (%d), Dwell Time (%d)", test_idx, MAC2STR(dest_mac), frequency, wait_time_ms);
+    em_printfout("Sending action frame: VAP Idx (%d), Dest (" MACSTRFMT "), Frequency (%d), Dwell Time (%d), Length (%d)", vap_idx, MAC2STR(dest_mac), frequency, wait_time_ms, action_frame_len);
     // Send the action frame
     bus_error_t rc;
     if ((rc = desc->bus_set_fn(&m_bus_hdl, path,  &raw_act_frame)) != 0) {
-        if (rc == bus_error_destination_not_found) test_idx++;
-        if (test_idx > 255) test_idx = 0;
         printf("%s:%d bus set failed (%d)\n", __func__, __LINE__, rc);
         free(act_frame_params);
         return false;
@@ -994,12 +1109,7 @@ void em_agent_t::input_listener()
         return;
     }
 
-    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.AccessPoint.1.RawFrame.Mgmt.Action.Rx", (void *)&em_agent_t::mgmt_action_frame_cb, NULL, 0) != 0) {
-        printf("%s:%d bus get failed\n", __func__, __LINE__);
-        return;
-    }
-
-    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.ChannelScanReport", (void *)&em_agent_t::channel_scan_cb, NULL, 0) != 0) {
+    if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_EM_CHANNEL_SCAN_REPORT, (void *)&em_agent_t::channel_scan_cb, NULL, 0) != 0) {
         printf("%s:%d bus get failed\n", __func__, __LINE__);
         return;
     }
@@ -1007,19 +1117,6 @@ void em_agent_t::input_listener()
     if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.BeaconReport", (void *)&em_agent_t::beacon_report_cb, NULL, 0) != 0) {
         printf("%s:%d bus get failed\n", __func__, __LINE__);
         return;
-    }
-
-    for (int i = 0; i < MAX_NUM_RADIOS; i++) {
-        // OneWifi bus path is 1-indexed, here
-        std::string cce_ind_path = "Device.WiFi.Radio." + std::to_string(i + 1) + ".CCEInd";
-        em_printfout("Attempting to subscribe to '%s'", cce_ind_path.c_str());
-        if (desc->bus_event_subs_fn(&m_bus_hdl, cce_ind_path.c_str(), reinterpret_cast<void *>(&em_agent_t::cce_ie_cb), nullptr, 0) != 0) {
-            // Failing to subscribe to this path is OK, as in the context of DPP,
-            // an Enrollee has a default channel list defined by the EasyConnect spec,
-            // as well as a list of channels defined in its' DPP URI. So, just log and move on.
-            em_printfout("Failed to subscribe to '%s', dynamic DPP channel list generation unavailable.", cce_ind_path.c_str());
-            continue;
-        }
     }
 
     if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.AssociationStatus", reinterpret_cast<void *>(&em_agent_t::association_status_cb), nullptr, 0) != 0) {
@@ -1034,6 +1131,11 @@ void em_agent_t::input_listener()
 
     if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.APMetricsReport", (void *)&em_agent_t::ap_metrics_report_cb, NULL, 0) != 0) {
         printf("%s:%d bus get failed\n", __func__, __LINE__);
+        return;
+    }
+
+   if(desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.CSABeaconFrameRecieved", (void *)&em_agent_t::mgmt_csa_beacon_frame_cb, NULL, 0) != 0) {
+        printf("%s:%d bus get failed\n",__func__,__LINE__);
         return;
     }
 
@@ -1058,17 +1160,6 @@ int em_agent_t::association_status_cb(char *event_name, raw_data_t *data, void *
     }
     g_agent.io_process(em_bus_event_type_assoc_status, reinterpret_cast<unsigned char *>(data->raw_data.bytes), data->raw_data_len);
     return 1;
-}
-
-int em_agent_t::cce_ie_cb(char *event_name, raw_data_t *data, void *userData)
-{
-    if (data == nullptr) {
-        em_printfout("NULL data from OneWifi callback!");
-        return -1;
-    }
-    g_agent.io_process(em_bus_event_type_cce_ie, reinterpret_cast<unsigned char *>(data->raw_data.bytes), data->raw_data_len);
-    return 1;
-
 }
 
 int em_agent_t::channel_scan_cb(char *event_name, raw_data_t *data, void *userData)
@@ -1116,7 +1207,7 @@ int em_agent_t::mgmt_action_frame_cb(char *event_name, raw_data_t *data, void *u
 {
     (void)userData;
     struct ieee80211_mgmt *mgmt_frame = (struct ieee80211_mgmt *)data->raw_data.bytes;
-    printf("%s:%d Received Frame data for event [%s] and data of len:\n%d\n", __func__, __LINE__, event_name, data->raw_data_len);
+    em_printfout("Received Frame data for event [%s] and data of len: %d",event_name, data->raw_data_len);
 
     //util::print_hex_dump(data->raw_data_len, (uint8_t*)data->raw_data.bytes);
 
@@ -1225,6 +1316,14 @@ void em_agent_t::onewifi_cb(char *event_name, raw_data_t *data, void *userData)
 
 }
 
+int em_agent_t::mgmt_csa_beacon_frame_cb(char *event_name, raw_data_t *data, void *userData)
+{
+    printf("%s:%d Received Frame data for event [%s] and data of len:\n%d\n", __func__, __LINE__, event_name, data->raw_data_len);
+
+    g_agent.io_process(em_bus_event_type_recv_csa_beacon_frame, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
+    return 1;
+}
+
 int em_agent_t::data_model_init(const char *data_model_path)
 {
     if (data_model_path != NULL) {
@@ -1254,7 +1353,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
     em_raw_hdr_t *hdr;
     em_cmdu_t *cmdu;
     em_interface_t intf;
-    em_freq_band_t band;
+    em_freq_band_t band = em_freq_band_unknown;
     dm_easy_mesh_t *dm;
     em_t *em = NULL;
     mac_address_t ruid;
@@ -1541,8 +1640,11 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             break;
 
         case em_msg_type_proxied_encap_dpp:
+        case em_msg_type_direct_encap_dpp:
         case em_msg_type_chirp_notif:
         case em_msg_type_dpp_cce_ind:
+        case em_msg_type_1905_rekey_req:
+        case em_msg_type_1905_encap_eapol:
             em = al_em;
             break;
         default:
@@ -1655,25 +1757,38 @@ bool em_agent_t::try_start_dpp_onboarding()  {
         return false;
     }
 
+#if 0
+    em_bss_info_t* bsta_info = m_data_model.get_bsta_bss_info(); 
+    uint8_t* enrollee_mac = bsta_info->ruid.mac;
+#else
+    // TODO: Temporarily using the backhaul BSS info for enrollee MAC
+    // instead of the BSTA until off-channel action frames can be sent from a station.
+    em_bss_info_t* bss_info = m_data_model.get_backhaul_bss_info();
+    uint8_t* enrollee_mac = bss_info->bssid.mac;
+#endif
+
+    if (enrollee_mac == NULL || memcmp(enrollee_mac, ZERO_MAC_ADDR, ETH_ALEN) == 0) {
+        printf("%s:%d: Enrollee MAC address is not set, cannot start DPP onboarding\n", __func__, __LINE__);
+        return false;
+    }
+
+    em_printf("Starting DPP onboarding for enrollee MAC: " MACSTRFMT " (RUID: " MACSTRFMT ")",
+              MAC2STR(enrollee_mac), MAC2STR(bss_info->ruid.mac));
+
     em_t* al_node = get_al_node();
-    ASSERT_NOT_NULL(al_node, false, "%s:%d: al_node is null\n", __func__, __LINE__);
+    EM_ASSERT_NOT_NULL(al_node, false, "AL Node is NULL, cannot start DPP onboarding");
 
-    uint8_t* al_mac = al_node->get_radio_interface_mac();
-    ASSERT_NOT_NULL(al_mac, false, "%s:%d: al_mac is null\n", __func__, __LINE__);
-
-    //TODO: Just getting the first op-class info for now since AL is not a Wi-Fi interface
-    auto op_chan_data = m_data_model.get_op_class_info(0);
-    ASSERT_NOT_NULL(op_chan_data, false, "%s:%d: Could not get current op class/channel from AL radio\n", __func__, __LINE__);
+    em_op_class_info_t *op_class_info = m_data_model.get_opclass_info_for_bss(bss_info->ruid.mac);
+    EM_ASSERT_NOT_NULL(op_class_info, false, "Could not get current op class/channel from radio");
 
     // Generate new DPP bootstrapping data to ensure correct MAC address is used
     ec_data_t ec_data;
-    if (!ec_util::get_dpp_boot_data(&ec_data, al_mac, false, do_regen_dpp_uri, op_chan_data)) {
+    if (!ec_util::get_dpp_boot_data(&ec_data, enrollee_mac, false, do_regen_dpp_uri, op_class_info)) {
         printf("%s:%d: Failed to get DPP bootstrapping data\n", __func__, __LINE__);
         return false;
     }
     printf("%s:%d: DPP bootstrapping data generated successfully\n", __func__, __LINE__);
 
-    // Should move after channel list is built
     set_disconnected_steady_state();
     
     if (!al_node->get_ec_mgr().enrollee_start_onboarding(false, &ec_data)){
@@ -1694,11 +1809,11 @@ em_agent_t::~em_agent_t()
 
 }
 #ifdef AL_SAP
-AlServiceAccessPoint* em_agent_t::al_sap_register()
+AlServiceAccessPoint* em_agent_t::al_sap_register(const std::string& data_socket_path, const std::string& control_socket_path)
 {
-    AlServiceAccessPoint* sap = new AlServiceAccessPoint(DATA_SOCKET_PATH, CONTROL_SOCKET_PATH);
+    AlServiceAccessPoint* sap = new AlServiceAccessPoint(data_socket_path.c_str(), control_socket_path.c_str());
 
-    AlServiceRegistrationRequest registrationRequest(ServiceOperation::SOP_ENABLE, ServiceType::SAP_TUNNEL_CLIENT);
+    AlServiceRegistrationRequest registrationRequest(SAPActivation::SAP_ENABLE, ServiceType::EmAgent);
     sap->serviceAccessPointRegistrationRequest(registrationRequest);
 
     AlServiceRegistrationResponse registrationResponse = sap->serviceAccessPointRegistrationResponse();
@@ -1756,6 +1871,10 @@ int main(int argc, const char *argv[])
         }
         if (arg == "--regen-dpp-uri") {
             g_agent.do_regen_dpp_uri = true;
+            continue;
+        }
+        if (arg == "--ethernet") {
+            g_agent.ethernet_onboarding = true;
             continue;
         }
         if (data_model_path.empty()) {

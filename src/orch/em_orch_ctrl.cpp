@@ -37,8 +37,7 @@
 #include "em_cmd.h"
 #include "em_cmd_exec.h"
 #include "em_orch_ctrl.h"
-
-extern char *global_netid;
+#include "em_cmd_ctrl.h"
 
 void em_orch_ctrl_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 {
@@ -248,6 +247,8 @@ void em_orch_ctrl_t::pre_process_cancel(em_cmd_t *pcmd, em_t *em)
 	em_event_t  ev;
     em_bus_event_t *bev;
     em_bus_event_type_cfg_renew_params_t    *raw;
+	em_ctrl_t *ctrl = static_cast<em_ctrl_t *>(m_mgr);
+	em_cmd_ctrl_t *cmd_ctrl = ctrl->get_ctrl_cmd();
 
 	switch (pcmd->get_type()) {
 		case em_cmd_type_em_config:
@@ -260,7 +261,7 @@ void em_orch_ctrl_t::pre_process_cancel(em_cmd_t *pcmd, em_t *em)
     		bev->type = em_bus_event_type_cfg_renew;
             raw = reinterpret_cast<em_bus_event_type_cfg_renew_params_t *>(bev->u.raw_buff);
     		memcpy(raw->radio, em->get_radio_interface_mac(), sizeof(mac_address_t));
-            em_cmd_exec_t::send_cmd(em_service_type_ctrl, reinterpret_cast<unsigned char *>(&ev), sizeof(em_event_t));
+            cmd_ctrl->send_cmd(em_service_type_ctrl, reinterpret_cast<unsigned char *>(&ev), sizeof(em_event_t));
 			break;
 		
 		case em_cmd_type_cfg_renew:
@@ -277,7 +278,7 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
 {
     em_t *em;
     em_ctrl_t *ctrl = static_cast<em_ctrl_t *>(m_mgr);
-    dm_easy_mesh_ctrl_t *dm_ctrl = reinterpret_cast<dm_easy_mesh_ctrl_t *>(ctrl->get_data_model(global_netid));
+    dm_easy_mesh_ctrl_t *dm_ctrl = reinterpret_cast<dm_easy_mesh_ctrl_t *>(ctrl->get_data_model(GLOBAL_NET_ID));
     dm_easy_mesh_t *dm = &pcmd->m_data_model;
     dm_easy_mesh_t *mgr_dm;
     mac_addr_str_t	mac_str;
@@ -306,12 +307,12 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
             break;
 
         case dm_orch_type_al_insert:
-            mgr_dm = m_mgr->get_data_model(global_netid, pcmd->get_al_interface_mac());
+            mgr_dm = m_mgr->get_data_model(GLOBAL_NET_ID, pcmd->get_al_interface_mac());
             if (mgr_dm == NULL) {
                 break;
             }
 			dm_easy_mesh_t::macbytes_to_string(pcmd->get_al_interface_mac(), mac_str);	
-			//printf("%s:%d: DM of net_id: %s, AL MAC: %s Manager dm: %p\n", __func__, __LINE__, global_netid, mac_str, mgr_dm);
+			//printf("%s:%d: DM of net_id: %s, AL MAC: %s Manager dm: %p\n", __func__, __LINE__, GLOBAL_NET_ID, mac_str, mgr_dm);
             
             // for device insert, just create the al interface em and return, do not submit command
             em = m_mgr->create_node(pcmd->get_ctrl_al_interface(), em_freq_band_unknown, mgr_dm, true, em_profile_type_3, em_service_type_ctrl);
@@ -364,7 +365,7 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
 			dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.u.args.args[0], radio_mac);
 			dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.u.args.args[1], dev_mac);
 			
-			mgr_dm = m_mgr->get_data_model(global_netid, dev_mac);
+			mgr_dm = m_mgr->get_data_model(GLOBAL_NET_ID, dev_mac);
             if (mgr_dm == NULL) {
                 break;
             }		

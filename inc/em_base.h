@@ -32,6 +32,8 @@ extern "C"
 #include "wifi_webconfig.h"
 #include <openssl/evp.h>
 #include <uuid/uuid.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include "ec_base.h"
 
 #define EM_MAX_NETWORKS	5
@@ -44,7 +46,7 @@ extern "C"
 #define EM_MAC_STR_LEN  17
 #define EM_MAX_COLS     32
 #define EM_MAX_DM_CHILDREN	32
-#define EM_MAX_E4_TABLE_CHANNEL 32
+#define EM_MAX_E4_TABLE_CHANNEL 64
 #define EM_DATE_TIME_BUFF_SZ	64
 #define EM_PROTO_TOUT   1
 #define EM_METRICS_REQ_MULT 5
@@ -165,6 +167,11 @@ extern "C"
 #define EM_AGENT_PATH   "agent"
 #define EM_CTRL_PATH    "ctrl"
 #define EM_CLI_PATH "cli"
+#define EM_AGENT_PORT	0xc000
+#define EM_CTRL_PORT    0xc001
+#define EM_CERT_FILE	"/nvram/test_cert.crt"
+#define EM_KEY_FILE	"/nvram//test_cert.key"
+
 #define EM_CFG_FILE "/nvram/EasymeshCfg.json"
 
 #define EM_MAX_SSID_LEN                33 
@@ -208,9 +215,36 @@ extern "C"
 #define 	EM_PARSE_ERR_CONFIG		EM_PARSE_NO_ERR	- 3	
 #define 	EM_PARSE_ERR_NO_CHANGE	EM_PARSE_NO_ERR	- 4	
 
-#ifndef ETH_ALEN
-#define ETH_ALEN 6
-#endif // ETH_ALEN
+#ifndef WIFI_EM_CHANNEL_SCAN_REQUEST
+#define WIFI_EM_CHANNEL_SCAN_REQUEST          "Device.WiFi.EM.ChannelScanRequest"
+#endif
+
+#ifndef WIFI_EC_SEND_TRIG_STA_SCAN
+#define WIFI_EC_SEND_TRIG_STA_SCAN          "Device.WiFi.EC.TriggerStaScan"
+#endif
+
+
+#ifndef WIFI_EM_CHANNEL_SCAN_REPORT
+#define WIFI_EM_CHANNEL_SCAN_REPORT           "Device.WiFi.EM.ChannelScanReport"
+#endif
+
+#ifndef WIFI_SET_DISCONN_STEADY_STATE
+#define WIFI_SET_DISCONN_STEADY_STATE         "Device.WiFi.EM.SetDisconnSteadyState"
+#endif
+
+#ifndef WIFI_SET_DISCONN_SCAN_NONE_STATE
+#define WIFI_SET_DISCONN_SCAN_NONE_STATE      "Device.WiFi.EM.SetDisconnScanNoneState"
+#endif
+
+// Beacon CSA parsing
+#define CSA_TAG_ID                   37
+#define CSA_IE_MIN_LENGTH            3
+#define TAG_HEADER_LENGTH            2
+#define TAG_NUMBER_OFFSET            0
+#define TAG_LENGTH_OFFSET            1
+#define CSA_SWITCH_MODE_OFFSET       0
+#define CSA_NEW_CHANNEL_OFFSET       1
+#define CSA_SWITCH_COUNT_OFFSET      2
 
 typedef char em_interface_name_t[32];
 typedef unsigned char em_nonce_t[16];
@@ -579,10 +613,14 @@ typedef struct {
 } __attribute__((__packed__)) em_qos_mgmt_des_t;
 
 typedef struct {
-    unsigned char num_agents;
     mac_address_t agent_mac;
     unsigned char multi_ap_profile;
     unsigned char security;
+} __attribute__((__packed__)) em_agent_list_agent_t;
+
+typedef struct {
+    unsigned char num_agents;
+    unsigned char agents[0]; // em_agent_list_agent_t array
 } __attribute__((__packed__)) em_agent_list_t;
 
 typedef struct {
@@ -1955,6 +1993,7 @@ typedef enum {
     em_cmd_type_mld_reconfig,
     em_cmd_type_beacon_report,
     em_cmd_type_ap_metrics_report,
+    em_cmd_type_get_reset,
 
     em_cmd_type_max,
 } em_cmd_type_t;
@@ -1983,6 +2022,11 @@ typedef enum {
 	em_haul_type_hotspot,
 	em_haul_type_max,
 } em_haul_type_t;
+
+typedef enum {
+    em_vap_mode_ap,
+	em_vap_mode_sta
+} em_vap_mode_t;
 
 typedef struct {
     unsigned int frame_len;
@@ -2217,6 +2261,10 @@ typedef struct {
 } em_bss_id_t;
 
 typedef struct {
+    // Vap Index is constant. Any modification will not be reflected in OneWifi.
+    unsigned int vap_index;
+    // Vap Mode is constant. Any modification will not be reflected in OneWifi.
+    em_vap_mode_t vap_mode;
 	em_bss_id_t	id;
 	em_interface_t	bssid;
 	em_interface_t	ruid;
@@ -2252,7 +2300,18 @@ typedef struct {
     // @note Don't manually allocate, use the helper functions to add/remove elements 
     unsigned char vendor_elements[WIFI_AP_MAX_VENDOR_IE_LEN];
     size_t vendor_elements_len;
+    bool    connect_status;
 } em_bss_info_t;
+
+typedef struct {
+    mac_address_t   nbr;
+    float   pos_x;
+    float   pos_y;
+    float   pos_z;
+    mac_address_t   next_hop;
+    unsigned int num_hops;
+    int path_loss; 
+} em_neighbor_info_t;
 
 typedef struct {
     bool  mac_addr_valid;
@@ -2369,6 +2428,7 @@ typedef struct {
     bool srg_information_valid;
     bool non_srg_offset_valid;
     bool psr_disallowed;
+    bool init_cfg_done;
     unsigned char non_srg_obsspd_max_offset;
     unsigned char srg_obsspd_min_offset;
     unsigned char srg_obsspd_max_offset;
@@ -2602,10 +2662,11 @@ typedef enum {
     em_bus_event_type_recv_wfa_action_frame,
     em_bus_event_type_recv_gas_frame,
     em_bus_event_type_get_sta_client_type,
-    em_bus_event_type_cce_ie,
     em_bus_event_type_assoc_status,
     em_bus_event_type_ap_metrics_report,
     em_bus_event_type_bss_info,
+    em_bus_event_type_get_reset,
+    em_bus_event_type_recv_csa_beacon_frame,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -3085,7 +3146,12 @@ typedef enum {
 } em_cli_type_t;
 
 typedef struct {
-    void *user_data; 
+	struct sockaddr_in  addr;
+	bool	valid;
+} user_data_t;
+
+typedef struct {
+	user_data_t user_data; 
 	em_editor_callback_t	cb_func;
 	em_cli_type_t	cli_type;
 } em_cli_params_t;

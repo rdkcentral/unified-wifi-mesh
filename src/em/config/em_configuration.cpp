@@ -46,6 +46,8 @@
 #include "em_crypto.h"
 #include "em.h"
 #include "em_cmd_exec.h"
+#include "cjson_util.h"
+#include "ec_ctrl_configurator.h"
 
 // Initialize the static member variables
 unsigned short em_configuration_t::msg_id = 0;
@@ -1053,54 +1055,6 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst)
     printf("setting state to em_state_agent_topo_synchronized\n");
     set_state(em_state_agent_topo_synchronized);
     return static_cast<int> (len);
-}
-
-unsigned short em_configuration_t::create_eht_operations_tlv(unsigned char *buff)
-{
-    unsigned short len = 0;
-    unsigned int i = 0, j = 0;
-    unsigned char *tmp = buff;
-    dm_easy_mesh_t  *dm;
-    em_eht_operations_bss_t  *eht_ops_bss;
-
-    dm = get_data_model();
-
-    unsigned char num_radios = static_cast<unsigned char> (dm->get_num_radios());
-    unsigned char num_bss;
-
-    memcpy(tmp, &num_radios, sizeof(unsigned char));
-    tmp += sizeof(unsigned char);
-    len += sizeof(unsigned char);
-
-    for (i = 0; i < num_radios; i++) {
-        memcpy(tmp, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t));
-        tmp += sizeof(mac_address_t);
-        len += sizeof(mac_address_t);
-
-        num_bss = static_cast<unsigned char> (dm->get_num_bss());
-
-        memcpy(tmp, &num_bss, sizeof(unsigned char));
-        tmp += sizeof(unsigned char);
-        len += sizeof(unsigned char);
-
-
-        for (j = 0; j < dm->get_num_bss(); j++) {
-        	if (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
-            	continue;
-        	}
-
-            memcpy(tmp, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
-            tmp += sizeof(mac_address_t);
-            len += sizeof(mac_address_t);
-
-            eht_ops_bss = &dm->m_bss[j].m_bss_info.eht_ops;
-            memcpy(tmp, eht_ops_bss, sizeof(em_eht_operations_bss_t));
-            tmp += sizeof(em_eht_operations_bss_t);
-            len += sizeof(em_eht_operations_bss_t);
-        }
-    }
-
-    return len;
 }
 
 int em_configuration_t::send_ap_mld_config_req_msg()
@@ -2349,6 +2303,223 @@ unsigned short em_configuration_t::create_m1_msg(unsigned char *buff)
     return len;
 }
 
+int em_configuration_t::create_bss_config_req_msg(uint8_t *buff, uint8_t dest_al_mac[ETH_ALEN])
+{
+    unsigned int len = 0;
+    uint8_t tlv_buff[4096] = {0};
+    em_service_type_t service_type = get_service_type();
+    em_profile_type_t profile_type = get_profile_type();
+    int tlv_size = 0;
+
+    uint8_t* tmp = em_msg_t::add_1905_header(buff, &len, dest_al_mac, get_al_interface_mac(), em_msg_type_bss_config_req);
+
+    // 5.3.8 Fronthaul BSS and Backhaul BSS configuration
+    // If an Enrollee Multi-AP Agent has established a PMK and PTK with the Controller at 1905-layer using the procedures
+    // described in section 5.3.7, it shall request configuration for its fronthaul BSSs and backhaul BSSs by sending a BSS
+    // Configuration Request message to the Controller. The BSS Configuration Request message shall include at least
+
+    //  One Multi-AP Profile TLV.
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_profile, reinterpret_cast<uint8_t *> (&profile_type), sizeof(em_profile_type_t));
+
+    //  One SupportedService TLV.
+    // 1 service type followed by the service type value
+    uint8_t service_type_buff[2] = {1, service_type};
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_supported_service, service_type_buff, sizeof(service_type_buff));
+
+    // One Backhaul STA Radio Capabilities TLV.
+    tlv_size = create_bsta_radio_cap_tlv(tlv_buff); // Data
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_bh_sta_radio_cap, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    // One AP capability TLV
+    tlv_size = create_ap_cap_tlv(tlv_buff); //Data
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_ap_cap, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    // One AP Radio Basic Capabilities TLV for each of the supported radios of the Multi-AP Agent.
+    tlv_size = create_ap_radio_basic_cap(tlv_buff); // Data
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_ap_radio_basic_cap, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    //  One AKM Suite Capabilities TLV
+    tlv_size = create_akm_suite_cap_tlv(tlv_buff); // Data
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_akm_suite, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    //  One Profile-2 AP Capability TLV.
+    tlv_size = create_prof_2_tlv(tlv_buff); // Data
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_profile_2_ap_cap, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    //  One BSS Configuration Request TLV with DPP attribute(s) for all supported radios of the Multi-AP Agent.
+    tlv_size = create_bss_conf_req_tlv(tlv_buff); // Data
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_bss_conf_req, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    //  One AP HT Capabilities TLV for each radio that is capable of HT (Wi-Fi 4) operation.
+    tlv_size = create_ht_tlv(tlv_buff); // Data
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_ht_cap, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    //  One AP VHT Capabilities TLV for each radio that is capable of VHT (Wi-Fi 5) operation.
+    tlv_size = create_vht_tlv(tlv_buff); // Data
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_vht_cap, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    // NOTE: this CMDU is extended in R6 with additional TLVs for Wi-Fi 6/6E and Wi-Fi 7 capabilities.
+    //  One AP Wi-Fi 6 Capabilities TLV for each radio that is capable of HE (Wi-Fi 6) operation
+    tlv_size = create_wifi6_tlv(tlv_buff); // Data
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_ap_wifi6_cap, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    //  One AP Radio Advanced Capabilities TLV for each of the supported radios of the Multi-AP Agent
+    tlv_size = create_ap_radio_advanced_cap_tlv(tlv_buff); // Data
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_ap_radio_advanced_cap, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    //  If the Agent supports EHT (Wi-Fi 7) operation, one Wi-Fi 7 Agent Capabilities TLV.
+    tlv_size = create_wifi7_tlv(tlv_buff); // Data
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_wifi7_agent_cap, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    //  Zero or one EHT Operations TLV (see section 17.2.103)
+    tlv_size = create_eht_operations_tlv(tlv_buff); // Data
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_eht_operations, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    // End of message
+    tmp = em_msg_t::add_eom_tlv(tmp, &len);
+
+    return static_cast<int> (len);
+}
+
+int em_configuration_t::create_bss_config_rsp_msg(uint8_t *buff, uint8_t dest_al_mac[ETH_ALEN])
+{
+
+    // TODO: Come back to. It's the same as autoconf but in testing that can be wrong
+    dm_easy_mesh_t *dm = get_data_model();
+    EM_ASSERT_NOT_NULL(dm, -1, "Data model is null");
+
+    unsigned int len = 0;
+    uint8_t tlv_buff[sizeof(uint16_t)] = {0};
+    uint16_t tlv_size = 0;
+
+    memset(tlv_buff, 0, sizeof(tlv_buff));
+
+    uint8_t *tmp = em_msg_t::add_1905_header(buff, &len, dest_al_mac, get_al_interface_mac(), em_msg_type_bss_config_rsp);
+
+    // One or more BSS config response tlv 17.2.85
+
+    /* EasyMesh 5.3.8 Fronthaul BSS and Backhaul BSS configuration
+    
+    If a Multi-AP Controller receives a BSS Configuration Request message, it shall respond within one second with a BSS Configuration Response message including one or more BSS Configuration Response TLV(s), 
+    each TLV containing one DPP Configuration Object with DPP Configuration Object attributes for the fronthaul BSS(s) and backhaul BSS(s) to be configured on the Enrollee Multi-AP Agent.
+        
+        - Each TLV has one DPP Configuration Object but there will be multiple TLVs in the BSS Configuration Response message.
+    */
+   
+
+    for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
+        em_bss_info_t *bss_info = dm->get_bss_info(i);
+        if (bss_info == nullptr) continue;
+
+        if (bss_info->id.haul_type != em_haul_type_fronthaul && bss_info->id.haul_type != em_haul_type_backhaul) {
+            continue; // Only process fronthaul and backhaul BSS
+        }
+
+        std::string bssid_str = util::mac_to_string(bss_info->id.bssid);
+
+        auto radio = dm->get_radio(bss_info->ruid.mac);
+        if (!radio) continue;
+        if (!radio->m_radio_info.enabled || !bss_info->enabled) {
+            em_printfout("Skipping BSS ID: %s, radio or BSS is not enabled", bssid_str.c_str());
+            continue;
+        }
+
+        tlv_size = create_bss_conf_resp_tlv(tlv_buff, bss_info, dest_al_mac); // Data
+        if (tlv_size < 0) {
+            em_printfout("Failed to create BSS config response TLV for BSS ID: %s", bssid_str.c_str());
+            continue;
+        }
+        tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_bss_conf_rsp, tlv_buff, static_cast<unsigned int> (tlv_size));
+    }
+
+    // Zero or One default 802.1Q settings tlv 17.2.49
+    // Default 802.1Q settings TLV as used in Auto-Configuration right now
+    memset(tlv_buff, 0, sizeof(em_8021q_settings_t));
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_dflt_8021q_settings, tlv_buff, sizeof(em_8021q_settings_t));
+
+    // Zero or One traffic separation policy tlv 17.2.50
+    tlv_size = create_traffic_separation_policy(tlv_buff); // Data
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_traffic_separation_policy, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    // Zero or one Agent AP MLD Configuration TLV (see section 17.2.96)
+    tlv_size = create_ap_mld_config_tlv(tlv_buff); // TLV
+    tmp = em_msg_t::add_buff_element(tmp, &len, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    // Zero or one Backhaul STA MLD Configuration TLV (see section 17.2.97)
+    tlv_size = create_bsta_mld_config_tlv(tlv_buff); // TLV
+    tmp = em_msg_t::add_buff_element(tmp, &len, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    //Zero or one EHT Operations TLV (see section 17.2.103)
+    tlv_size = create_eht_operations_tlv(tlv_buff); // Data
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_eht_operations, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    // End of message
+    tmp = em_msg_t::add_eom_tlv(tmp, &len);
+
+    return static_cast<int> (len);
+
+}
+
+int em_configuration_t::create_bss_config_res_msg(uint8_t *buff, uint8_t dest_al_mac[ETH_ALEN])
+{
+    unsigned int len = 0;
+    uint8_t *tmp = buff;
+
+    uint8_t tlv_buff[sizeof(uint16_t)] = {0};
+    int tlv_size = 0;
+
+    tmp = em_msg_t::add_1905_header(tmp, &len, dest_al_mac, get_al_interface_mac(), em_msg_type_bss_config_res);
+
+    // One BSS Configuration Report TLV 17.2.75
+    tlv_size = create_bss_config_rprt_tlv(tlv_buff); // TLV
+    EM_ASSERT_MSG_TRUE(tlv_size > 0, -1, "Failed to create BSS Configuration Report TLV");
+    tmp = em_msg_t::add_buff_element(tmp, &len, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    // Zero or one Agent AP MLD Configuration TLV (see section 17.2.96)
+    tlv_size = create_ap_mld_config_tlv(tlv_buff); // TLV
+    if (tlv_size > 0) {
+        tmp = em_msg_t::add_buff_element(tmp, &len, tlv_buff, static_cast<unsigned int> (tlv_size));
+    }
+    // Zero or one Backhaul STA MLD Configuration TLV (see section 17.2.97)
+    tlv_size = create_bsta_mld_config_tlv(tlv_buff); // TLV
+    if (tlv_size > 0) {
+        tmp = em_msg_t::add_buff_element(tmp, &len, tlv_buff, static_cast<unsigned int> (tlv_size));
+    }
+
+    // Zero or one EHT Operations TLV (see section 17.2.103)
+    tlv_size = create_eht_operations_tlv(tlv_buff); // Data
+    if (tlv_size > 0) {
+        tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_eht_operations, tlv_buff, static_cast<unsigned int> (tlv_size));
+    }
+
+    // End of message
+    tmp = em_msg_t::add_eom_tlv(tmp, &len);
+
+    return static_cast<int> (len);
+
+}
+
+int em_configuration_t::create_agent_list_msg(uint8_t *buff, uint8_t dest_al_mac[ETH_ALEN])
+{
+
+    unsigned int len = 0;
+    uint8_t *tmp = buff;
+    uint8_t tlv_buff[sizeof(uint16_t)] = {0};
+    int tlv_size = 0;
+
+    tmp = em_msg_t::add_1905_header(tmp, &len, dest_al_mac, get_al_interface_mac(), em_msg_type_agent_list);
+
+    // One Agent List TLV 17.2.77
+    tlv_size = create_agent_list_tlv(tlv_buff); // Data
+    EM_ASSERT_MSG_TRUE(tlv_size > 0, -1, "Failed to create Agent List TLV");
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_agent_list, tlv_buff, static_cast<unsigned int> (tlv_size));
+
+    // End of message
+    tmp = em_msg_t::add_eom_tlv(tmp, &len);
+
+    return static_cast<int> (len);
+}
+
 unsigned short em_configuration_t::create_error_code_tlv(unsigned char *buff, int val, mac_addr_t sta_mac)
 {
     unsigned short len = 0;
@@ -2371,6 +2542,184 @@ unsigned short em_configuration_t::create_error_code_tlv(unsigned char *buff, in
     len += static_cast<unsigned short int> (sizeof(mac_address_t));
 
     return len;
+}
+
+int em_configuration_t::create_bsta_radio_cap_tlv(uint8_t *buff)
+{
+    ASSERT_NOT_NULL(buff, -1, "%s:%d: Buffer is null\n", __func__, __LINE__);
+    dm_easy_mesh_t *dm = get_data_model();
+    ASSERT_NOT_NULL(dm, -1, "%s:%d: Data model is null\n", __func__, __LINE__);
+
+    int len = sizeof(em_bh_sta_radio_cap_t);
+    em_bh_sta_radio_cap_t *bsta_radio_cap = reinterpret_cast<em_bh_sta_radio_cap_t*>(buff);
+
+    for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
+        auto* bss_info = dm->get_bss_info(i);
+        if (!bss_info) continue;
+        if (bss_info->id.haul_type != em_haul_type_backhaul) continue;
+        memcpy(bsta_radio_cap->bsta_addr, bss_info->bssid.mac, sizeof(mac_address_t));
+        memcpy(bsta_radio_cap->ruid, bss_info->id.ruid, sizeof(mac_address_t));
+        bsta_radio_cap->bsta_mac_present = 1;
+        break;
+    }
+
+    return len;
+}
+
+int em_configuration_t::create_akm_suite_cap_tlv(uint8_t *buff)
+{
+    ASSERT_NOT_NULL(buff, -1, "%s:%d: Buffer is null\n", __func__, __LINE__);
+    dm_easy_mesh_t *dm = get_data_model();
+    ASSERT_NOT_NULL(dm, -1, "%s:%d: Data model is null\n", __func__, __LINE__);
+
+    // TODO: AKM suites are not populated in the data model.
+
+    // Complete this TLV (EasyMesh 12.2.78) when this data is dynamically available.
+
+    return 0;
+}
+
+int em_configuration_t::create_bss_conf_req_tlv(uint8_t *buff)
+{
+    ASSERT_NOT_NULL(buff, -1, "%s:%d: Buffer is null\n", __func__, __LINE__);
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "netRole", "mapAgent");
+    cJSON_AddStringToObject(root, "wi-fi_tech", "map");
+    std::string hostname;
+    {
+        constexpr size_t hostname_size = 256;
+        char hostname_buffer[hostname_size];
+        if (gethostname(hostname_buffer, hostname_size) == 0) {
+            hostname = std::string(hostname_buffer);
+        } else {
+            em_printfout("Failed to get hostname: %s", strerror(errno));
+            hostname = "EasyMeshAgentEnrollee";
+        }
+    }
+    cJSON_AddStringToObject(root, "name", hostname.c_str());
+
+    cJSON *bsta_info = create_enrollee_bsta_list(nullptr);
+    if (!bsta_info) {
+        em_printfout("Failed to create enrollee BSTA list");
+        cJSON_Delete(root);
+        return -1;
+    }
+    cJSON_AddItemToObject(root, "bSTAList", bsta_info);
+
+    std::string dpp_config_req_obj_str = cjson_utils::stringify(root);
+    cJSON_Delete(root);
+
+    em_bss_conf_req_t *bss_conf_req = reinterpret_cast<em_bss_conf_req_t *>(buff);
+    memcpy(bss_conf_req->dpp_config_req_obj, dpp_config_req_obj_str.c_str(), dpp_config_req_obj_str.size());
+
+    return static_cast<int>(dpp_config_req_obj_str.size());
+}
+
+int em_configuration_t::create_agent_list_tlv(uint8_t *buff) {
+
+
+    em_mgr_t *em_mgr = get_mgr();
+    EM_ASSERT_NOT_NULL(em_mgr, -1, "EM Manager is NULL, cannot create Agent List TLV");
+    dm_easy_mesh_t *dm = em_mgr->get_first_dm();
+    EM_ASSERT_NOT_NULL(dm, -1, "First DM is NULL, cannot create Agent List TLV");
+
+    /* EasyMesh 17.2.77
+    - Num_Agents: 
+        - MAC Address
+        - Multi-AP Profile
+        - Security
+    */
+
+    em_agent_list_t *agent_list = reinterpret_cast<em_agent_list_t *>(buff);
+    agent_list->num_agents = 0;
+
+    uint8_t* agent_obj_buff = buff + sizeof(em_agent_list_t);
+
+    int tlv_size = sizeof(em_agent_list_t);
+
+    while (dm != NULL) {
+        // 
+        em_agent_list_agent_t *agent_obj = reinterpret_cast<em_agent_list_agent_t *>(agent_obj_buff);
+        memset(agent_obj, 0, sizeof(em_agent_list_agent_t));
+
+        em_profile_type_t profile = dm->get_device()->m_device_info.profile;
+        uint8_t* al_mac = dm->get_agent_al_interface_mac();
+
+        // Double check that all of these values are actually correct given that stuff can be set weird in UWM
+        memcpy(agent_obj->agent_mac, al_mac, ETH_ALEN);
+        agent_obj->multi_ap_profile = static_cast<uint8_t>(profile);
+        agent_obj->security = 0x01; // ALl UWM agents support 1905-layer security
+
+        agent_list->num_agents++;
+
+        agent_obj_buff += sizeof(em_agent_list_agent_t);
+        tlv_size += sizeof(em_agent_list_agent_t);
+        dm = em_mgr->get_next_dm(dm);
+    }
+
+    return tlv_size;
+}
+
+
+int em_configuration_t::create_bss_conf_resp_tlv(uint8_t *buff, em_bss_info_t *bss_info, uint8_t dest_al_mac[ETH_ALEN])
+{
+
+    EM_ASSERT_NOT_NULL(buff, -1, "Buffer is NULL, cannot create BSS Configuration Response TLV");
+    EM_ASSERT_NOT_NULL(bss_info, -1, "BSS info is NULL, cannot create BSS Configuration Response TLV");
+
+    /* EasyMesh 5.3.8 Fronthaul BSS and Backhaul BSS configuration
+    
+    If a Multi-AP Controller receives a BSS Configuration Request message, it shall respond within one second with a BSS Configuration Response message including one or more BSS Configuration Response TLV(s), 
+    each TLV containing one DPP Configuration Object with DPP Configuration Object attributes for the fronthaul BSS(s) and backhaul BSS(s) to be configured on the Enrollee Multi-AP Agent.
+        
+        - Each TLV has one DPP Configuration Object but there will be multiple TLVs in the BSS Configuration Response message.
+    */
+
+    std::string bssid_mac = util::mac_to_string(bss_info->bssid.mac);
+
+    ec_manager_t &ec_mgr = get_ec_mgr();
+    ec_persistent_sec_ctx_t* sec_ctx = ec_mgr.get_sec_ctx();
+    EM_ASSERT_NOT_NULL(sec_ctx, -1, "Security context is NULL, cannot create BSS Configuration Response objects");
+
+    /*
+    In the ideal spec, this would be sent by the enrollee in the BSS Configuration Request. 
+    However, because that is not the case, we have to cache it for now and look it up after the fact.
+    */
+    ec_connection_context_t* conn_ctx = ec_mgr.get_al_conn_ctx(dest_al_mac);
+    EM_ASSERT_NOT_NULL(conn_ctx, -1, "Could not get connection context for destination (peer) AL MAC: " MACSTRFMT, MAC2STR(dest_al_mac));
+    SSL_KEY* enrollee_nak = conn_ctx->enrollee_net_access_key;
+    EM_ASSERT_NOT_NULL(enrollee_nak, -1, "Enrollee NAK is NULL for destination (peer) AL MAC: " MACSTRFMT, MAC2STR(dest_al_mac));
+
+    // false for is_sta_response, false for tear_down_bss
+    scoped_cjson bss_config_obj(create_bss_dpp_response_obj(bss_info, false, false));
+
+    EM_ASSERT_NOT_NULL(bss_config_obj.get(), -1, "Failed to create BSS DPP Configuration Object for BSS ID: %s", bssid_mac.c_str());
+
+    em_haul_type_t haul_type = bss_info->id.haul_type;
+    EM_ASSERT_MSG_TRUE(haul_type == em_haul_type_fronthaul || haul_type == em_haul_type_backhaul, -1,
+                       "BSS ID: %s is neither fronthaul nor backhaul, cannot create DPP Configuration Object", bssid_mac.c_str());
+
+
+    /*
+    The DPP connector created here is used for station onboarding to the BSS.
+    */
+    dpp_config_obj_type_e dpp_conf_obj_type = dpp_config_obj_type_e::dpp_config_obj_none;
+    if (haul_type == em_haul_type_fronthaul) {
+        dpp_conf_obj_type = dpp_config_obj_type_e::dpp_config_obj_fbss_ap;
+    } 
+    if (haul_type == em_haul_type_backhaul) {
+        dpp_conf_obj_type = dpp_config_obj_type_e::dpp_config_obj_backhaul_bss;
+    }
+
+    scoped_cjson final_config_obj(ec_ctrl_configurator_t::finalize_dpp_config_obj(bss_config_obj.get(), dpp_conf_obj_type, sec_ctx, enrollee_nak));
+
+    std::string json_string = cjson_utils::stringify(final_config_obj.get(), true);
+
+    EM_ASSERT_MSG_TRUE(json_string.length() > 0, -1, "Failed to stringify BSS DPP Configuration Object for BSS ID: %s", bssid_mac.c_str());
+
+    memcpy(buff, json_string.c_str(), json_string.length());
+
+    return json_string.length();
 }
 
 int em_configuration_t::compute_keys(unsigned char *remote_pub, unsigned short pub_len, unsigned char *local_priv, unsigned short priv_len)
@@ -2639,7 +2988,7 @@ int em_configuration_t::create_autoconfig_wsc_m1_msg(unsigned char *buff, unsign
     return len;
 }
 
-int em_configuration_t::create_autoconfig_resp_msg(unsigned char *buff, em_freq_band_t band, unsigned char *dst)
+int em_configuration_t::create_autoconfig_resp_msg(unsigned char* buff, em_freq_band_t band, unsigned char* dst, em_dpp_chirp_value_t* chirp, size_t hash_len)
 {
     unsigned short  msg_id = em_msg_type_autoconf_resp;
     int len = 0;
@@ -2733,6 +3082,17 @@ int em_configuration_t::create_autoconfig_resp_msg(unsigned char *buff, em_freq_
     tmp += (sizeof(em_tlv_t) + sizeof(em_ctrl_cap_t));
     len += static_cast<int> (sizeof(em_tlv_t) + sizeof(em_ctrl_cap_t));
 
+    // Zero or one DPP Chirp Value TLV (see section 17.2.83).
+    if (chirp) {
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        tlv->type = em_tlv_type_dpp_chirp_value;
+        tlv->len = htons(static_cast<unsigned short int>(sizeof(em_dpp_chirp_value_t) + hash_len));
+        memcpy(tlv->value, chirp, sizeof(em_dpp_chirp_value_t) + hash_len);
+
+        tmp += (sizeof(em_tlv_t) + sizeof(em_dpp_chirp_value_t) + hash_len);
+        len += static_cast<int> (sizeof(em_tlv_t) + sizeof(em_dpp_chirp_value_t) + hash_len);
+    }
+
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_eom;
@@ -2745,114 +3105,84 @@ int em_configuration_t::create_autoconfig_resp_msg(unsigned char *buff, em_freq_
 
 }
 
-int em_configuration_t::create_autoconfig_search_msg(unsigned char *buff)
+bool em_configuration_t::send_autoconf_search_resp_ext_chirp(em_dpp_chirp_value_t *chirp, size_t len, uint8_t dest_mac[ETH_ALEN])
 {
-    unsigned short  msg_id = em_msg_type_autoconf_search;
+    uint8_t buff[4096] = {0};
+    int msg_len = create_autoconfig_resp_msg(buff, get_band(), dest_mac, chirp, len);
+    if (msg_len < 0) {
+        em_printfout("Failed to create Autoconf Search Response (extended)");
+        return false;
+    }
+
+    if (send_frame(buff, static_cast<unsigned int>(msg_len)) < 0) {
+        em_printfout("Failed to send Autoconf Search Response (extended)");
+        return false;
+    }
+    return true;
+}
+
+bool em_configuration_t::send_autoconf_search_ext_chirp(em_dpp_chirp_value_t *chirp, size_t hash_len)
+{
+    unsigned char buff[4096] = {0};
     int len = 0;
-    em_cmdu_t *cmdu;
-    em_tlv_t *tlv;
-    em_enum_type_t searched, profile;
-    unsigned char *tmp = buff;
-    unsigned short type = htons(ETH_P_1905);
-    mac_address_t   multi_addr = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x13};
-    em_service_type_t service_type = get_service_type();
-    unsigned char registrar = 0;
-    em_freq_band_t freq_band;
 
-    memcpy(tmp, const_cast<unsigned char *> (multi_addr), sizeof(mac_address_t));
-    tmp += sizeof(mac_address_t);
-    len += static_cast<int> (sizeof(mac_address_t));
+    len = create_autoconfig_search_msg(buff, chirp, hash_len);
+    if (len < 0) {
+        em_printfout("Failed to create autoconf search ext chirp msg");
+        return false;
+    }
 
-    memcpy(tmp, get_current_cmd()->get_al_interface_mac(), sizeof(mac_address_t));
-    tmp += sizeof(mac_address_t);
-    len += static_cast<int> (sizeof(mac_address_t));
+    // Send the message
+    if (send_frame(buff, static_cast<unsigned int>(len)) < 0) {
+        em_printfout("Failed to send autoconf search ext chirp msg");
+        return false;
+    }
 
-    memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
-    tmp += sizeof(unsigned short);
-    len += static_cast<int> (sizeof(unsigned short));
+    return true;
+}
 
-    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
+int em_configuration_t::create_autoconfig_search_msg(unsigned char *buff, em_dpp_chirp_value_t *chirp, size_t hash_len)
+{
+    unsigned int len = 0;
+    uint8_t *tmp = buff;
+    mac_address_t multi_addr = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x13};
 
-    memset(tmp, 0, sizeof(em_cmdu_t));
-    cmdu->type = htons(msg_id);
-    cmdu->id = em_configuration_t::msg_id;
-    em_configuration_t::msg_id++;
-    cmdu->last_frag_ind = 1;
-    cmdu->relay_ind = 1;
+    tmp = em_msg_t::add_1905_header(tmp, &len, multi_addr, get_al_interface_mac(), em_msg_type_autoconf_search);
 
-    tmp += sizeof(em_cmdu_t);
-    len += static_cast<int> (sizeof(em_cmdu_t));
+    // One 1905.1 AL MAC address type TLV (table 6-8)
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_al_mac_address, get_al_interface_mac(), sizeof(mac_address_t));
 
-    // AL MAC Address type TLV
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_al_mac_address;
-    tlv->len = htons(sizeof(mac_address_t));
-    memcpy(tlv->value,get_current_cmd()->get_al_interface_mac(), sizeof(mac_address_t));
+    // One SearchedRole TLV (see Table 6-22)
+    // Registrar == 0x00, 0x01 - 0xFF reserved
+    uint8_t role = 0;
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_searched_role, &role, sizeof(role));
 
-    tmp += (sizeof (em_tlv_t) + sizeof(mac_address_t));
-    len += static_cast<int> (sizeof (em_tlv_t) + sizeof(mac_address_t));
+    // One AutoconfigFreqBand TLV (see Table 6-23)
+    em_freq_band_t band = get_band();
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_autoconf_freq_band, reinterpret_cast<uint8_t*>(&band), sizeof(band));
 
-    //6-22—SearchedRole TLV
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_searched_role;
-    tlv->len = htons(sizeof(unsigned char));
-    memcpy(&tlv->value, &registrar, sizeof(unsigned char));
+    // Extended fields
+    // Zero or one SupportedService TLV (see section 17.2.1).
+    uint8_t service[2] = {1, get_service_type()};
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_supported_service, service, sizeof(service));
 
-    tmp += (sizeof (em_tlv_t) + 1);
-    len += static_cast<int> (sizeof (em_tlv_t) + 1);
+    // Zero or one SearchedService TLV (see section 17.2.2).
+    // 0x00: Controller, 0x01 - 0xFF reserved
+    uint8_t searched_service[2] = {1, em_service_type_ctrl};
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_searched_service, searched_service, sizeof(searched_service));
 
-    //6-23—autoconf_freq_band TLV
-    freq_band = get_band();
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_autoconf_freq_band;
-    tlv->len = htons(sizeof(unsigned char));
-    memcpy(&tlv->value, &freq_band, sizeof(unsigned char));
- 
-    tmp += (sizeof (em_tlv_t) + 1);
-    len += static_cast<int> (sizeof (em_tlv_t) + 1);
+    // One Multi-AP Profile TLV (see section 17.2.47).
+    em_profile_type_t profile = get_profile_type();
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_profile, reinterpret_cast<uint8_t*>(&profile), sizeof(profile));
 
-    // supported service 17.2.1
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_supported_service;
-    tlv->len = htons(sizeof(em_enum_type_t) + 1);
-    tlv->value[0] = 1;
-    memcpy(&tlv->value[1], &service_type, sizeof(em_enum_type_t));
+    // Zero or One DPP Chirp TLV (section 17.2.83)
+    if (chirp) {
+        tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_dpp_chirp_value, reinterpret_cast<uint8_t*>(chirp), static_cast<unsigned int>(sizeof(em_dpp_chirp_value_t) + hash_len));
+    }
 
-    tmp += (sizeof(em_tlv_t) + sizeof(em_enum_type_t) + 1);
-    len += static_cast<int> (sizeof(em_tlv_t) + sizeof(em_enum_type_t) + 1);
-
-    // searched service 17.2.2
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_searched_service;
-    tlv->len = htons(sizeof(em_enum_type_t) + 1);
-    tlv->value[0] = 1;
-    searched = em_service_type_ctrl;
-    memcpy(&tlv->value[1], &searched, sizeof(em_enum_type_t));
-
-    tmp += (sizeof(em_tlv_t) + sizeof(em_enum_type_t) + 1);
-    len += static_cast<int> (sizeof(em_tlv_t) + sizeof(em_enum_type_t) + 1);
-
-    // One multiAP profile tlv 17.2.47
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_profile;
-    tlv->len = htons(sizeof(em_enum_type_t));
-    profile = em_profile_type_3;
-    memcpy(tlv->value, &profile, sizeof(em_enum_type_t));
-
-    tmp += (sizeof(em_tlv_t) + sizeof(em_enum_type_t));
-    len += static_cast<int> (sizeof(em_tlv_t) + sizeof(em_enum_type_t));
-    
-
-    // End of message
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_eom;
-    tlv->len = 0;
-
-    tmp += (sizeof (em_tlv_t));
-    len += static_cast<int> (sizeof (em_tlv_t));
-
-    return len;
-
+    // OEM
+    tmp = em_msg_t::add_eom_tlv(tmp, &len);
+    return static_cast<int>(len);
 }
 
 int em_configuration_t::handle_wsc_m2(unsigned char *buff, unsigned int len)
@@ -2862,7 +3192,7 @@ int em_configuration_t::handle_wsc_m2(unsigned char *buff, unsigned int len)
     unsigned int tmp_len;
     unsigned short id;
 
-    printf("%s:%d: Parsing m1 message, len: %d\n", __func__, __LINE__, len);
+    printf("%s:%d: Parsing m2 message, len: %d\n", __func__, __LINE__, len);
 
     m_m2_length = len - 12;
     memcpy(m_m2_msg, buff, m_m2_length);
@@ -3067,6 +3397,9 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
     if ((dm != NULL) && (hdr != NULL)) {
         memcpy(&network.m_net_info.ctrl_id.mac, &hdr->src, sizeof(mac_address_t));
         dm->set_network(network);
+        if (get_mgr()->get_al_node() != NULL) {
+            get_ec_mgr().upgrade_to_onboarded_proxy_agent(hdr->src);
+        }
     }
     return 0;
 }
@@ -3138,10 +3471,488 @@ int em_configuration_t::handle_encrypted_settings()
     }
     get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (&radioconfig), sizeof(radioconfig));
     set_state(em_state_agent_owconfig_pending);
-    if (get_service_type() == em_service_type_agent) {
-        get_ec_mgr().upgrade_to_onboarded_proxy_agent();
-    }
     return ret;
+}
+
+int em_configuration_t::handle_bss_config_req_msg(uint8_t *buff, unsigned int len, uint8_t src_al_mac[ETH_ALEN]) {
+    // Controller
+
+    /* EasyMesh 5.3.8 
+    If a Multi-AP Controller receives a BSS Configuration Request message, it shall respond within one second with a BSS
+    Configuration Response message including one or more BSS Configuration Response TLV(s), each TLV containing one
+    DPP Configuration Object with DPP Configuration Object attributes for the fronthaul BSS(s) and backhaul BSS(s) to be
+    configured on the Enrollee Multi-AP Agent.
+    */
+
+    // Despite the amount of TLVs in the BSS Configuration Request message, we only need to respond with a BSS Configuration Response message
+
+    //TODO:  Update DM
+    em_tlv_t *tlv_buff = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    unsigned int tlv_buff_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    em_tlv_t *tlv = em_msg_t::get_first_tlv(tlv_buff, tlv_buff_len);
+    EM_ASSERT_NOT_NULL(tlv, -1, "Failed to get first TLV from BSS Configuration Request message");
+
+    /* EasyMesh 17.1.53
+    • One Multi-AP Profile TLV.
+    • One SupportedService TLV.
+    • If the Agent supports a Backhaul STA, one Backhaul STA Radio Capabilities TLV.
+    • One AP Capability TLV
+    • One AP Radio Basic Capabilities TLV for each of the supported radios of the Multi-AP Agent.
+    • One AKM Suite Capabilities TLV.
+    • One Profile-2 AP Capability TLV.
+    • One BSS Configuration Request TLV with DPP attribute(s) for all supported radios of the Multi-AP Agent.
+    • One AP HT Capabilities TLV for each radio that is capable of HT (Wi-Fi 4) operation.
+    • One AP VHT Capabilities TLV for each radio that is capable of VHT (Wi-Fi 5) operation.
+    • One AP HE Capabilities TLV for each radio that is capable of HE (Wi-Fi 6) operation.
+    • One AP Wi-Fi 6 Capabilities TLV for each radio that is capable of HE (Wi-Fi 6) operation.
+    • One AP Radio Advanced Capabilities TLV for each of the supported radios of the Multi-AP Agent.
+    • If the Agent supports EHT (Wi-Fi 7) operation, one Wi-Fi 7 Agent Capabilities TLV.
+    • Zero or one EHT Operations TLV (see section 17.2.103)
+    */
+
+    em_profile_type_t profile = em_profile_type_reserved;
+    em_service_type_t service_type = em_service_type_none;
+
+    while (tlv != NULL) {
+
+        if (tlv->type == em_tlv_type_eom || tlv->len == 0) {
+            break; // End of message or empty TLV
+        }
+
+        switch (tlv->type) {
+            case em_tlv_type_profile:
+                memcpy(&profile, tlv->value, ntohs(tlv->len));
+                break;
+            case em_tlv_type_supported_service:
+                memcpy(&service_type, &tlv->value[1], sizeof(em_service_type_t));
+                break;
+            case em_tlv_type_bh_sta_radio_cap:
+                 // Not handled by UWM right now? 
+                break;
+            case em_tlv_type_ap_cap:
+                 // Not handled by UWM right now?
+                break;
+            case em_tlv_type_ap_radio_basic_cap:
+                handle_ap_radio_basic_cap(tlv->value, htons(tlv->len));
+                break;
+            case em_tlv_type_akm_suite:
+                 // Not handled by UWM right now?
+                break;
+            case em_tlv_type_profile_2_ap_cap:
+                // Not handled by UWM right now?
+                break;
+            case em_tlv_type_bss_conf_req:
+                // Process BSS Configuration Request TLV
+                // This TLV contains DPP Configuration Request Object which does not appear to have any specific use with generating a response 
+                break;
+            case em_tlv_type_ht_cap:
+                // Not handled by UWM right now?
+                break;
+            case em_tlv_type_vht_cap:
+                // Not handled by UWM right now?
+                break;
+            case em_tlv_type_he_cap:
+                // Not handled by UWM right now?
+                break;
+            case em_tlv_type_ap_wifi6_cap:
+                // Not handled by UWM right now?
+                break;
+            case em_tlv_type_ap_radio_advanced_cap:
+                handle_ap_radio_advanced_cap(tlv->value, htons(tlv->len));
+                break;
+            case em_tlv_type_wifi7_agent_cap:
+                // Not handled by UWM right now?
+                break;
+            case em_tlv_eht_operations:
+                handle_eht_operations_tlv(tlv->value);
+                break;
+            default:
+                em_printfout("Unknown TLV type %d in BSS Configuration Request message", tlv->type);
+                break;
+        } 
+
+        tlv = em_msg_t::get_next_tlv(tlv, tlv_buff, tlv_buff_len);
+    }
+
+
+    uint8_t frame[MAX_EM_BUFF_SZ] = {0};
+
+    int frame_len = create_bss_config_rsp_msg(frame, src_al_mac);
+    EM_ASSERT_MSG_TRUE(frame_len > 0, -1, "Failed to create BSS Configuration Response message");
+
+    // Send the BSS Configuration Response message
+    int ret = send_frame(frame, static_cast<unsigned int>(frame_len), src_al_mac);
+    EM_ASSERT_MSG_TRUE(ret == 0, -1, "Failed to send BSS Configuration Response message to '" MACSTRFMT "'", MAC2STR(src_al_mac));
+
+    em_printfout("Sent BSS Configuration Response message to '" MACSTRFMT "'", MAC2STR(src_al_mac));
+
+    return 0;
+}
+
+
+int em_configuration_t::handle_bss_config_rsp_tlv(em_tlv_t* tlv){
+    // Agent
+
+    EM_ASSERT_NOT_NULL(tlv, -1, "BSS Configuration Response TLV is NULL");
+
+    dm_easy_mesh_t *dm = get_data_model();
+    EM_ASSERT_NOT_NULL(dm, -1, "Data model is NULL");
+
+
+    std::string dpp_config_obj(reinterpret_cast<char*>(tlv->value));
+    EM_ASSERT_MSG_TRUE(dpp_config_obj.length() > 0, -1, "DPP Configuration Object in BSS Configuration Response TLV is empty");
+    scoped_cjson dpp_config_json(cJSON_ParseWithLength(dpp_config_obj.data(), dpp_config_obj.length()));
+
+    EM_ASSERT_NOT_NULL(dpp_config_json.get(), -1, "Failed to parse DPP Configuration Object from BSS Configuration Response TLV");
+    EM_ASSERT_MSG_TRUE(cJSON_IsObject(dpp_config_json.get()), -1, "DPP Configuration Object in BSS Configuration Response TLV is not a JSON object");
+
+
+    scoped_cjson wifi_tech_json(cJSON_GetObjectItemCaseSensitive(dpp_config_json.get(), "wi-fi_tech"));
+    EM_ASSERT_NOT_NULL(wifi_tech_json.get(), -1, "Failed to get 'wi-fi_tech' from DPP Configuration Object in BSS Configuration Response TLV");
+    EM_ASSERT_MSG_TRUE(cJSON_IsString(wifi_tech_json.get()), -1, "'wi-fi_tech' in DPP Configuration Object is not a string");
+
+    std::string wifi_tech(cJSON_GetStringValue(wifi_tech_json.get()));
+    EM_ASSERT_MSG_TRUE(!wifi_tech.empty(), -1, "'wi-fi_tech' in DPP Configuration Object is empty");
+
+    // Determine haul type based on 'wi-fi_tech' according to EasyMesh 5.3.8
+    em_haul_type_t haul_type = em_haul_type_max;
+    if (wifi_tech == "map") {
+        haul_type = em_haul_type_backhaul;
+    }
+    if (wifi_tech == "inframap") {
+        haul_type = em_haul_type_fronthaul;
+    }
+
+    EM_ASSERT_MSG_TRUE(haul_type != em_haul_type_max, -1, "Invalid 'wi-fi_tech' value in DPP Configuration Object: %s", wifi_tech.c_str());
+    em_printfout("Processing BSS Configuration Response TLV with haul type: %d", haul_type);
+
+
+    scoped_cjson discovery_obj(cJSON_GetObjectItem(dpp_config_json.get(), "discovery"));
+    EM_ASSERT_NOT_NULL(discovery_obj.get(), -1, "Failed to get 'discovery' from DPP Configuration Object in BSS Configuration Response TLV");
+    EM_ASSERT_MSG_TRUE(cJSON_IsObject(discovery_obj.get()), -1, "'discovery' in DPP Configuration Object is not a JSON object");
+
+    scoped_cjson ssid_obj(cJSON_GetObjectItemCaseSensitive(discovery_obj.get(), "SSID"));
+    scoped_cjson bssid_obj(cJSON_GetObjectItemCaseSensitive(discovery_obj.get(), "BSSID"));
+    scoped_cjson ruid_obj(cJSON_GetObjectItemCaseSensitive(discovery_obj.get(), "RUID"));
+
+    // RUID must always be present and SSID can be "null" but always present so not NULL/nullptr
+    EM_ASSERT_NOT_NULL(ssid_obj.get(), -1, "Failed to get 'SSID' from 'discovery' in DPP Configuration Object in BSS Configuration Response TLV");
+    EM_ASSERT_NOT_NULL(ruid_obj.get(), -1, "Failed to get 'RUID' from 'discovery' in DPP Configuration Object in BSS Configuration Response TLV");
+
+
+    EM_ASSERT_MSG_TRUE(cJSON_IsString(ruid_obj.get()), -1, "'RUID' in 'discovery' is not a string");
+    std::string ruid = cJSON_GetStringValue(ruid_obj.get());
+
+    std::vector<uint8_t> ruid_mac = util::macstr_to_vector(ruid, "");
+
+    // Begin setting bss configuration in data model
+
+    if (cJSON_IsNull(ssid_obj.get())) {
+
+
+        // "inframap"
+        if (haul_type == em_haul_type_fronthaul && bssid_obj.get() == NULL){
+            /*
+            If a Multi-AP Controller does not want to configure any BSS on a radio of a Multi-AP Agent, it shall include a BSS
+            Configuration Response TLV in the BSS Configuration Response message and shall set the parameters in the DPP
+            Configuration Object fields of the BSS Configuration Response TLV described in Table 6 as follows:
+            • DPP Configuration Object
+                ▪ wi-fi_tech = "inframap"
+            • Discovery Object
+                ▪ SSID: NULL
+                ▪ Radio Unique Identifier of the radio
+            */
+            em_printfout("Received BSS Configuration Response TLV with 'SSID' as NULL for haul type 'inframap', not configuring radio %s", ruid.c_str());
+            return 0;
+        }
+        // "inframap" or "map"
+        if (bssid_obj.get() != NULL) {
+            /*
+            If a Multi-AP Controller wants to tear down an existing BSS on a radio of a Multi-AP Agent, it shall include a BSS
+            Configuration Response TLV in the BSS Configuration Response message and shall set the parameters in the DPP
+            Configuration Object fields of the BSS Configuration Response TLV described in Table 6 as follows:
+            • DPP Configuration Object
+                ▪ wi-fi_tech = "inframap" or "map"
+            • Discovery Object
+                ▪ SSID: NULL
+                ▪ Radio Unique Identifier of the radio
+                ▪ BSSID
+            */
+
+            std::string bssid = cJSON_GetStringValue(bssid_obj.get());
+            std::vector <uint8_t> bssid_mac = util::macstr_to_vector(bssid, "");
+           
+            em_printfout("Received BSS Configuration Response TLV with 'SSID' as NULL, \"tearing down\" (disabling) BSS on radio %s with BSSID %s", 
+                         ruid.c_str(), bssid.c_str());
+
+            dm_bss_t* bss = dm->get_bss(ruid_mac.data(), bssid_mac.data());
+            EM_ASSERT_NOT_NULL(bss, -1, "Failed to get BSS with RUID %s and BSSID %s", ruid.c_str(), bssid.c_str());
+            
+            // Disable BSS
+            bss->m_bss_info.enabled = false;
+            return 0;
+        }
+        
+        // SSID is NULL but not within spec paths, undefined error
+        em_printfout("Received Invalid BSS Configuration Response TLV with 'SSID' as NULL. Failing...");
+        return -1;
+    }
+
+    // Traditional configuration
+    EM_ASSERT_NOT_NULL(bssid_obj.get(), -1, "Failed to get 'BSSID' from 'discovery' in DPP Configuration Object in BSS Configuration Response TLV");
+
+    std::string ssid = cJSON_GetStringValue(ssid_obj.get());
+    EM_ASSERT_MSG_TRUE(!ssid.empty(), -1, "'SSID' in 'discovery' is empty");
+
+    std::string bssid = cJSON_GetStringValue(bssid_obj.get());
+    std::vector <uint8_t> bssid_mac = util::macstr_to_vector(bssid, "");
+
+    em_network_ssid_info_t* ssid_info = dm->get_network_ssid_info_by_haul_type(haul_type);
+    
+    // You're kind of out of luck here. The implementation of UWM assumes that the SSID info is always available for the haul type
+    // Even if BSS infos are not. 1905 Topology Responses creates BSS infos, OneWifi configurations (/nvram/InterfaceMap) which is hardcoded on the router
+    // creates DM SSID infos. Auto-config will return whatever SSIDs are on the DM which then updates OneWifi SSIDs, which then, when the 1905 topology response
+    // occurs, will create the BSS infos with those SSIDs. The SSIDs are not being created in UWM code (besides database sync) so I am not doing that here...
+    EM_ASSERT_NOT_NULL(ssid_info, -1, "Failed to get SSID info for haul type %d", haul_type);
+
+    em_printfout("Received BSS Configuration Response TLV with SSID '%s', BSSID '%s' and haul type %d", ssid.c_str(), bssid.c_str(), haul_type);
+
+    char time_date[EM_DATE_TIME_BUFF_SZ];
+    util::get_date_time_rfc3399(time_date, sizeof(time_date));
+
+    // Copied from em_configuration_t::handle_ap_operational_bss
+    dm_bss_t* dm_bss = dm->get_bss(ruid_mac.data(), bssid_mac.data());
+    if (dm_bss == NULL) {
+        // BSS does not exist, create it
+        dm_bss = &dm->m_bss[dm->m_num_bss];
+
+        // fill up id first
+        strncpy(dm_bss->m_bss_info.id.net_id, dm->m_device.m_device_info.id.net_id, sizeof(em_long_string_t));
+        memcpy(dm_bss->m_bss_info.id.dev_mac, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
+        memcpy(dm_bss->m_bss_info.id.ruid, ruid_mac.data(), sizeof(mac_address_t));
+        memcpy(dm_bss->m_bss_info.id.bssid, bssid_mac.data(), sizeof(mac_address_t));
+
+        memcpy(dm_bss->m_bss_info.bssid.mac, bssid_mac.data(), sizeof(mac_address_t));
+        memcpy(dm_bss->m_bss_info.ruid.mac, ruid_mac.data(), sizeof(mac_address_t));
+        dm->set_num_bss(dm->get_num_bss() + 1);
+    }
+    strncpy(dm_bss->m_bss_info.ssid, ssid.c_str(), ssid.length());
+    dm_bss->m_bss_info.enabled = true;
+    strncpy(dm_bss->m_bss_info.timestamp, time_date, sizeof(em_long_string_t));
+
+    /*
+    Theoretically, the main point of this is to set a DPP Connector for STAs to join via non-EasyMesh DPP rather than using a PSK.
+    Since the DPP Connector is not a parameter here and I don't expect it to be for a while, this code will be parsing it with a commented out 
+    setter.
+    */
+
+    scoped_cjson cred_obj(cJSON_GetObjectItemCaseSensitive(dpp_config_json.get(), "cred"));
+    EM_ASSERT_NOT_NULL(cred_obj.get(), -1, "Failed to get 'cred' from DPP Configuration Object in BSS Configuration Response TLV");
+    EM_ASSERT_MSG_TRUE(cJSON_IsObject(cred_obj.get()), -1, "'cred' in DPP Configuration Object is not a JSON object");
+
+
+    scoped_cjson dpp_connector_obj(cJSON_GetObjectItemCaseSensitive(cred_obj.get(), "signedConnector"));
+    EM_ASSERT_NOT_NULL(dpp_connector_obj.get(), -1, "Failed to get 'signedConnector' from 'cred' in DPP Configuration Object in BSS Configuration Response TLV");
+    EM_ASSERT_MSG_TRUE(cJSON_IsString(dpp_connector_obj.get()), -1, "'signedConnector' in 'cred' is not a string");
+
+    std::string dpp_connector = cJSON_GetStringValue(dpp_connector_obj.get());
+
+    scoped_cjson csign_obj(cJSON_GetObjectItemCaseSensitive(cred_obj.get(), "csign"));
+    EM_ASSERT_NOT_NULL(csign_obj.get(), -1, "Failed to get 'csign' from 'cred' in DPP Configuration Object in BSS Configuration Response TLV");
+    EM_ASSERT_MSG_TRUE(cJSON_IsObject(csign_obj.get()), -1, "'csign' is not an object");
+
+    auto [csign_group, csign_pub] = ec_crypto::decode_jwk(csign_obj.get());
+    if (csign_group == NULL || csign_pub == NULL) {
+        em_printfout("Failed to decode C-sign key");
+        if (csign_group) EC_GROUP_free(csign_group);
+        if (csign_pub) EC_POINT_free(csign_pub);
+        return -1;
+    }
+
+    scoped_ssl_key csign_key(em_crypto_t::bundle_ec_key(csign_group, csign_pub));
+    EM_ASSERT_NOT_NULL(csign_key.get(), -1, "Failed to bundle C-sign key");
+
+    // Validate the DPP Connector
+    auto parts = ec_crypto::split_decode_connector(dpp_connector.c_str(), csign_key.get());
+    EM_ASSERT_OPT_HAS_VALUE(parts, -1, "Failed to decode or verify DPP Connector: %s", dpp_connector.c_str());
+
+    /* If DPP Connectors were supported in OneWifi, this would be the place to set it
+    strncpy(dm_bss->m_bss_info.dpp_connector, dpp_connector.c_str(), dpp_connector.length());
+    */
+
+    return 0;
+}
+
+int em_configuration_t::handle_bss_config_rsp_msg(uint8_t *buff, unsigned int len, uint8_t src_al_mac[ETH_ALEN]) {
+    // Agent
+
+    /*
+    If an Enrollee Multi-AP Agent receives a BSS Configuration Response message from the
+    Multi-AP Controller, it shall configure its fronthaul BSS(s) and backhaul BSS(s) accordingly and send a BSS Configuration
+    Result message to the Multi-AP Controller.
+    */
+
+    // TODO: Update DM to configure fronthaul and backhaul BSSs
+
+    /* EasyMesh 17.1.54
+    • One or more BSS Configuration Response TLV (see section 17.2.85) [Profile-3].
+    • Zero or one Default 802.1Q Settings TLV (see section 17.2.49).
+    • Zero or one Traffic Separation Policy TLV (see section 17.2.50).
+    • Zero or one Agent AP MLD Configuration TLV (see section 17.2.96)
+    • Zero or one Backhaul STA MLD Configuration TLV (see section 17.2.97)
+    • Zero or one EHT Operations TLV (see section 17.2.103)
+    */
+
+    em_tlv_t *tlv_buff = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    unsigned int tlv_buff_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    em_tlv_t *tlv = em_msg_t::get_first_tlv(tlv_buff, tlv_buff_len);
+    EM_ASSERT_NOT_NULL(tlv, -1, "Failed to get first TLV from BSS Configuration Response message");
+
+    std::string bss_dpp_connector = "";
+
+    while (tlv != NULL) {
+
+        if (tlv->type == em_tlv_type_eom || tlv->len == 0) {
+            break; // End of message or empty TLV
+        }
+
+        switch (tlv->type) {
+            case em_tlv_type_bss_conf_rsp: {
+                // Process BSS Configuration Response TLV
+                // Can be more than one for each BSS a classical DPP connector should be assigned to
+                if (handle_bss_config_rsp_tlv(tlv)) return -1;
+                break;
+            }
+            case em_tlv_type_dflt_8021q_settings:
+                // Not handled by UWM right now?
+                break;
+            case em_tlv_type_traffic_separation_policy:
+                // Not handled by UWM right now?
+                break;
+            case em_tlv_type_ap_mld_config:
+                handle_ap_mld_config_tlv(tlv->value, htons(tlv->len));
+                break;
+            case em_tlv_type_bsta_mld_config:
+                handle_bsta_mld_config_req(tlv->value, htons(tlv->len));
+                break;
+            case em_tlv_eht_operations:
+                handle_eht_operations_tlv(tlv->value);
+                break;
+            default:
+                em_printfout("Unknown TLV type %d in BSS Configuration Response message", tlv->type);
+                break;
+        } 
+
+        tlv = em_msg_t::get_next_tlv(tlv, tlv_buff, tlv_buff_len);
+    }
+
+    uint8_t frame[MAX_EM_BUFF_SZ] = {0};
+
+    int frame_len = create_bss_config_res_msg(frame, src_al_mac);
+    EM_ASSERT_MSG_TRUE(frame_len > 0, -1, "Failed to create BSS Configuration Result message");
+
+    // Send the BSS Configuration Result message
+    int ret = send_frame(frame, static_cast<unsigned int>(frame_len), src_al_mac);
+    EM_ASSERT_MSG_TRUE(ret == 0, -1, "Failed to send BSS Configuration Result message to '" MACSTRFMT "'", MAC2STR(src_al_mac));
+    em_printfout("Sent BSS Configuration Result message to '" MACSTRFMT "'", MAC2STR(src_al_mac));
+
+    return 0;
+}
+
+int em_configuration_t::handle_bss_config_res_msg(uint8_t *buff, unsigned int len, uint8_t src_al_mac[ETH_ALEN]) {
+    // Controller
+
+    /*
+    If the Multi-AP Controller receives a BSS Configuration Result message, it shall:
+        • send an Agent List message to the newly onboarded Enrollee Multi-AP Agent and all the other existing Multi-AP
+        Agents
+        • include the Agent List TLV with the list of all the Multi-AP Agents that are part of the Multi-AP network (including the
+        newly enrolled Multi-AP Agent itself)
+        • set the Multi-AP Profile field in the Agent List TLV to the value of the Multi-AP Profile field of the Multi-AP Profile TLV
+        received from each Multi-AP Agent (If the Multi-AP Profile field is not received, set to Profile-1)
+        • set the Security field in the Agent List TLV to 1905 Security enabled for all Multi-AP Profile-3 devices onboarded with
+        DPP Onboarding, and set the Security field to 1905 Security not enabled otherwise
+    */
+
+    /* EasyMesh 17.1.55
+    • One BSS Configuration Report TLV (see section 17.2.75) [Profile-3].
+    • Zero or one Agent AP MLD Configuration TLV (see section 17.2.96)
+    • Zero or one Backhaul STA MLD Configuration TLV (see section 17.2.97)
+    • Zero or one EHT Operations TLV (see section 17.2.103)
+    */
+
+    em_tlv_t *tlv_buff = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    unsigned int tlv_buff_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    em_tlv_t *tlv = em_msg_t::get_first_tlv(tlv_buff, tlv_buff_len);
+    EM_ASSERT_NOT_NULL(tlv, -1, "Failed to get first TLV from BSS Configuration Result message");
+
+    while (tlv != NULL) {
+
+        if (tlv->type == em_tlv_type_eom || tlv->len == 0) {
+            break; // End of message or empty TLV
+        }
+
+        switch (tlv->type) {
+            case em_tlv_type_bss_conf_rep:
+                // Process BSS Configuration Report TLV
+                handle_bss_configuration_report(tlv->value, htons(tlv->len));
+                break;
+            case em_tlv_type_ap_mld_config:
+                handle_ap_mld_config_tlv(tlv->value, htons(tlv->len));
+                break;
+            case em_tlv_type_bsta_mld_config:
+                // Not handled by UWM right now?
+                break;
+            case em_tlv_eht_operations:
+                handle_eht_operations_tlv(tlv->value);
+                break;
+            default:
+                em_printfout("Unknown TLV type %d in BSS Configuration Result message", tlv->type);
+                break;
+        } 
+
+        tlv = em_msg_t::get_next_tlv(tlv, tlv_buff, tlv_buff_len);
+    }
+
+    uint8_t frame[MAX_EM_BUFF_SZ] = {0};
+
+    int frame_len = create_agent_list_msg(frame, src_al_mac);
+    EM_ASSERT_MSG_TRUE(frame_len > 0, -1, "Failed to create Agent List message");
+
+    // Send the Agent List message
+    int ret = send_frame(frame, static_cast<unsigned int>(frame_len), src_al_mac);
+    EM_ASSERT_MSG_TRUE(ret == 0, -1, "Failed to send Agent List message to '" MACSTRFMT "'", MAC2STR(src_al_mac));
+    em_printfout("Sent Agent List message to '" MACSTRFMT "'", MAC2STR(src_al_mac));
+
+    return 0;
+}
+
+int em_configuration_t::handle_agent_list_msg(uint8_t *buff, unsigned int len, uint8_t src_al_mac[ETH_ALEN]) {
+    // Agent
+
+    em_tlv_t *tlv_buff = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    unsigned int tlv_buff_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    em_tlv_t *tlv = em_msg_t::get_tlv(tlv_buff, tlv_buff_len, em_tlv_type_agent_list);
+    EM_ASSERT_NOT_NULL(tlv, -1, "Failed to get Agent List TLV from Agent List message");
+
+
+    em_agent_list_t* agent_list_tlv = reinterpret_cast<em_agent_list_t *>(tlv->value);
+
+    em_agent_list_agent_t* agent_list = reinterpret_cast<em_agent_list_agent_t *>(agent_list_tlv->agents);
+    for (size_t i = 0; i < agent_list_tlv->num_agents; i++) {
+
+        em_agent_list_agent_t* agent = &agent_list[i];
+
+        em_printfout("Agent %zu: MAC: " MACSTRFMT ", Profile: %d, Security: %s", i + 1, MAC2STR(agent->agent_mac), agent->multi_ap_profile,
+                     agent->security ? "Enabled" : "Not Enabled");
+
+        // TODO: DM? I don't think so?
+        // This message is recieved on the agent side so theres no DM agent list to update here, just the DM for this agent
+    }
 }
 
 int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_type_t haul_type)
@@ -3484,7 +4295,7 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
         return -1;
     }
 	set_state(em_state_ctrl_wsc_m2_sent);
-	printf("%s:%d: autoconfig wsc m2 send\n", __func__, __LINE__);
+	printf("%s:%d: autoconfig wsc m2 send, len:%d\n", __func__, __LINE__, sz);
     memcpy(raw.al, const_cast<unsigned char *> (get_peer_mac()), sizeof(mac_address_t));
     memcpy(raw.radio, get_radio_interface_mac(), sizeof(mac_address_t));
 
@@ -3512,6 +4323,14 @@ int em_configuration_t::handle_autoconfig_resp(unsigned char *buff, unsigned int
 
         return -1;
     }
+
+    // If this contains a DPP Chirp TLV, forward to EC manager for handling.
+    em_tlv_t *dpp_chirp_tlv = em_msg_t(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t), len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_tlv(em_tlv_type_dpp_chirp_value);
+    if (dpp_chirp_tlv) {
+        em_printfout("Found DPP Chirp in Autoconfig Response, forwarding to EC");
+        return get_ec_mgr().handle_autoconf_resp_chirp(reinterpret_cast<em_dpp_chirp_value_t*>(dpp_chirp_tlv->value), SWAP_LITTLE_ENDIAN(dpp_chirp_tlv->len), hdr->src);
+    }
+
     printf("Received resp and validated...creating M1 msg\n");
     sz = static_cast<unsigned int> (create_autoconfig_wsc_m1_msg(msg, hdr->src));
 
@@ -3562,6 +4381,14 @@ int em_configuration_t::handle_autoconfig_search(unsigned char *buff, unsigned i
     if (em_msg_t(buff + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_al_mac_address(al_mac) == false) {
         printf("%s:%d: Could not get al mac address\n", __func__, __LINE__);
         return -1;
+    }
+
+    // Autoconf Search (extended) optionally contains a DPP chirp
+    // If we find a chirp, forward to the EC manager for handling
+    em_tlv_t *dpp_chirp_tlv = em_msg_t(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t), len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_tlv(em_tlv_type_dpp_chirp_value);
+    if (dpp_chirp_tlv) {
+        em_printfout("Found DPP Chirp in Autoconfig Search (extended), forwarding to EC");
+        return get_ec_mgr().handle_autoconf_chirp(reinterpret_cast<em_dpp_chirp_value_t*>(dpp_chirp_tlv->value), SWAP_LITTLE_ENDIAN(dpp_chirp_tlv->len), al_mac);
     }
     
     sz = static_cast<unsigned int> (create_autoconfig_resp_msg(msg, band, al_mac));
@@ -3617,6 +4444,9 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
     tlvs = data + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
     tlvs_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) - sizeof(em_cmdu_t));
 
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(data);
+    uint8_t *src_al_mac = hdr->src;
+
     switch (htons(cmdu->type)) {
         case em_msg_type_autoconf_search:
             if (get_service_type() == em_service_type_ctrl) {
@@ -3629,7 +4459,10 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
             break;
 
         case em_msg_type_autoconf_resp:
-            if ((get_service_type() == em_service_type_agent) && (get_state() == em_state_agent_autoconfig_rsp_pending)) {
+            if ((get_service_type() == em_service_type_agent &&
+                    get_state() == em_state_agent_autoconfig_rsp_pending) ||
+                (get_service_type() == em_service_type_agent &&
+                 get_ec_mgr().is_enrollee_onboarding())) {
                 handle_autoconfig_resp(data, len);
             }
             break;
@@ -3637,10 +4470,12 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
         case em_msg_type_autoconf_wsc:
             if ((get_wsc_msg_type(tlvs, tlvs_len) == em_wsc_msg_type_m2) &&
                     (get_service_type() == em_service_type_agent) && (get_state() == em_state_agent_wsc_m2_pending)) {
-                handle_autoconfig_wsc_m2(data, len);              
+                        printf("%s:%d: received wsc_m2 len:%d\n", __func__, __LINE__, len);
+                        handle_autoconfig_wsc_m2(data, len);
             } else if ((get_wsc_msg_type(tlvs, tlvs_len) == em_wsc_msg_type_m1) &&
                     (get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_wsc_m1_pending))  {
-                handle_autoconfig_wsc_m1(data, len);
+                        printf("%s:%d: received wsc_m1 len:%d\n", __func__, __LINE__, len);
+                        handle_autoconfig_wsc_m1(data, len);
             }
 
             break;
@@ -3695,7 +4530,27 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
 
         case em_msg_type_1905_ack:
             handle_ack_msg(data, len);
-
+            break;
+        case em_msg_type_bss_config_req:
+            if ((get_service_type() == em_service_type_ctrl)) {
+                handle_bss_config_req_msg(data, len, src_al_mac);
+            }
+            break;
+        case em_msg_type_bss_config_rsp:
+            if ((get_service_type() == em_service_type_agent)){
+                handle_bss_config_rsp_msg(data, len, src_al_mac);
+            }
+            break;
+        case em_msg_type_bss_config_res:
+            if ((get_service_type() == em_service_type_ctrl)) {
+                handle_bss_config_res_msg(data, len, src_al_mac);
+            }
+            break;
+        case em_msg_type_agent_list:
+            if ((get_service_type() == em_service_type_agent)){
+                handle_agent_list_msg(data, len, src_al_mac);
+            }
+            break;
         default:
             break;
     }
@@ -3703,8 +4558,7 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
 
 void em_configuration_t::handle_state_config_none()
 {
-    bool is_dpp_onboarding = get_ec_mgr().is_enrollee_onboarding();
-    if (is_dpp_onboarding) {
+    if (get_ec_mgr().is_enrollee_onboarding()) {
         // Enrollee is in onboarding state, so we should not send autoconfig search message
         return;
     }

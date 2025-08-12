@@ -4,6 +4,8 @@
 #include "em_base.h"
 #include "ec_configurator.h"
 #include "ec_util.h"
+#include "ec_ops.h"
+#include "ec_1905_encrypt_layer.h"
 
 #include <map>
 #include <unordered_map>
@@ -18,23 +20,14 @@ struct cJSON;
 class ec_enrollee_t {
 public:
 
-    
+
 	/**
-	 * @brief The EasyConnect Enrollee
-	 *
-	 * Broadcasts 802.11 presence announcements, handles 802.11 frames from Proxy Agents and sends 802.11 responses to Proxy Agents.
-	 *
-	 * @param[in] mac_addr The MAC address of the device.
-	 * @param[in] send_action_frame Callback for sending 802.11 action frames.
-	 * @param[in] get_bsta_info Callback for getting backhaul STA info, used for building DPP Configuration Request JSON objects.
-	 * @param[in] start_stop_clist_build_fn Callback for starting/stopping the building of the EC channel list.
-	 * @param[in] bsta_connect_fn Callback for attempting to connect a backhaul STA to a BSS
-	 *
-	 * @note The default state of an enrollee is non-onboarding. All non-controller devices are started as (non-onboarding) enrollees
-	 *       until they are told that they are on the network at which point they can be upgraded to a proxy agent.
+	 * @brief EasyConnect Enrollee
+	 * 
+	 * @param al_mac_addr The AL MAC addr of the Enrollee
+	 * @param ops Callbacks for the Enrollee
 	 */
-	ec_enrollee_t(std::string mac_addr, send_act_frame_func send_action_frame, get_backhaul_sta_info_func get_bsta_info, 
-				  start_stop_clist_build_func start_stop_clist_build_fn, bsta_connect_func bsta_connect_fn);
+	ec_enrollee_t(const std::string& al_mac_addr, ec_ops_t& ops, std::optional<ec_persistent_sec_ctx_t> existing_sec_ctx = std::nullopt);
     
 	/**!
 	 * @brief Destructor for the ec_enrollee_t class.
@@ -55,12 +48,13 @@ public:
 	 * @param[in] do_reconfig A boolean flag indicating whether to reconfigure/reauthenticate
 	 * the enrollee. If true, the enrollee will be reconfigured.
 	 * @param[out] boot_data A pointer to an ec_data_t structure where the boot data will be stored.
+	 * @param[in] ethernet Whether or not this Enrollee is onboarding over Ethernet (default false)
 	 *
 	 * @return bool Returns true if the onboarding process is successful, false otherwise.
 	 *
 	 * @note Ensure that the enrollee is in a state ready for onboarding before calling this function.
 	 */
-	bool start_onboarding(bool do_reconfig, ec_data_t* boot_data);
+	bool start_onboarding(bool do_reconfig, ec_data_t* boot_data, bool ethernet = false);
 
     
 	/**
@@ -133,14 +127,72 @@ public:
 	/**
 	 * @brief Handle a Reconfiguration Authentication Request frame
 	 * 
-	 * @param frame The Reconfiguration Authentication Reuqest frame
+	 * @param frame The Reconfiguration Authentication Request frame
 	 * @param len The length of the frame
 	 * @param src_mac Where the frame came from (Configurator)
 	 * @return true on success, otherwise false
 	 */
 	bool handle_recfg_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETH_ALEN]);
 
-    
+	/**
+	 * @brief Handles a Reconfiguration Authentication Confirm frame
+	 * 
+	 * @param frame The Reconfiguration Authentication Confirm frame
+	 * @param len The length of the frame
+	 * @param src_mac The source address (Configurator)
+	 * @return true on success, otherwise false
+	 */
+	bool handle_recfg_auth_confirm(ec_frame_t *frame, size_t len, uint8_t src_mac[ETH_ALEN]);
+
+	/**
+	 * @brief Handle a Direct Encapsulated DPP Message (DPP Message TLV)
+	 *
+	 * @param[in] dpp_frame The frame parsed from the DPP Message TLV
+	 * @param[in] dpp_frame_len The length of the frame from the DPP Message TLV
+	 *
+	 * @return bool True if the frame was processed successfully, false otherwise.
+	 */
+	bool process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len, uint8_t src_mac[ETH_ALEN]);
+
+	/**
+	 * @brief Handles a GAS frame embedded in a Direct Encap DPP Message
+	 * 
+	 * @param frame The GAS frame
+	 * @param len The length of the frame
+	 * @param src_mac The origin of the frame
+	 * @return true on success otherwise false
+	 */
+	bool process_direct_encap_dpp_gas_msg(uint8_t* frame, uint16_t len, uint8_t src_mac[ETH_ALEN]);
+
+	/**
+	 * @brief Process a 1905 EAPOL Encapsulated Message (1905 Encap EAPOL TLV)
+	 *
+	 * @param[in] eapol_frame The frame parsed from the 1905 Encap EAPOL TLV
+	 * @param[in] eapol_frame_len The length of the frame from the 1905 Encap EAPOL TLV
+	 * @param[in] src_mac The source MAC address of the EAPOL frame
+	 *
+	 * @return bool True if the frame was processed successfully, false otherwise.
+	 */
+	bool process_1905_eapol_encap_msg(uint8_t* eapol_frame, uint16_t eapol_frame_len, uint8_t src_mac[ETH_ALEN]) {
+		return m_1905_encrypt_layer.handle_eapol_frame(eapol_frame, eapol_frame_len, src_mac);
+	}
+
+	/**
+	 * @brief Handle a DPP peer discovery response frame.
+	 *
+	 * This function processes a DPP peer discovery response frame received from a peer device.
+	 * It delegates the frame handling to the underlying 1905 encryption layer for processing.
+	 *
+	 * @param[in] frame Pointer to the DPP peer discovery response frame to be processed.
+	 * @param[in] len The length of the frame in bytes.
+	 * @param[in] src_mac The source MAC address of the frame sender
+	 *
+	 * @return true if the frame was processed successfully, otherwise false.
+	 */
+	bool handle_peer_disc_resp_frame(ec_frame_t *frame, uint16_t len, uint8_t src_mac[ETH_ALEN]) {
+		return m_1905_encrypt_layer.handle_peer_disc_resp_frame(frame, len, src_mac);
+	}
+
 	/**!
 	 * @brief Tears down the existing connection by freeing associated resources.
 	 *
@@ -156,14 +208,17 @@ public:
     }
 
     
-	/**!
-	 * @brief Retrieves the MAC address.
-	 *
-	 * This function returns the MAC address stored in the object.
-	 *
-	 * @returns The MAC address as a string.
+	/**
+	 * @brief Retrieves the current security context.
 	 */
-	inline std::string get_mac_addr() { return m_mac_addr; };
+	inline ec_persistent_sec_ctx_t* get_sec_ctx() { return &m_sec_ctx; };
+
+	/**!
+	 * @brief Retrieves the AL MAC address.
+	 *
+	 * @returns The AL MAC address as a string.
+	 */
+	inline std::string get_al_mac_addr() { return m_al_mac_addr; };
 
 	/**!
 	 * @brief Retrieves wether this enrollee is in onboarding state or not.
@@ -186,14 +241,6 @@ public:
     ec_enrollee_t& operator=(const ec_enrollee_t&) = delete;
 
 	/**
-	 * @brief Adds a frequency to send Presence Announcement frames on
-	 * 
-	 * @param freq The new frequency to add 
-	 * @return true on success, false otherwise
-	 */
-	bool add_presence_announcement_freq(unsigned int freq);
-
-	/**
 	 * @brief Handles an association status event.
 	 * 
 	 * If this event maps to our bSTA's association attempt, check the association status and send a Configuration Status Result frame
@@ -206,22 +253,88 @@ public:
 	bool handle_assoc_status(const rdk_sta_data_t &sta_data);
 
 	/**
-	 * @brief Handle a BSS info event
+	 * @brief Handle a list of BSS info events generated by a scan
 	 * 
 	 * This callback is triggered by OneWifi scanning
 	 * 
-	 * If this BSS info event contains the SSID that we were instructed to 
+	 * If one of these BSS infos contains the SSID that we were instructed to 
 	 * connect to (in the Configuration Response from the Configurator), we add
-	 * this BSS info's heard frequency to our Reconfiguration Announcement 
-	 * broadcast frequency list
+	 * that BSS info's heard frequency to our Reconfiguration Announcement 
+	 * broadcast frequency list.
 	 * 
-	 * @param bss_info The BSS info containing SSID and frequency
+	 * If one of these BSS infos contains a CCE IE we add that BSS info's 
+	 * heard frequency to our (Reconfiguration) Announcement broadcast frequency list.
+	 * 
+	 * @param bss_info_list The BSS info containing SSID and frequency
 	 * @return true on success, otherwise false
 	 */
-	bool handle_bss_info_event(const wifi_bss_info_t &bss_info);
+	bool handle_bss_info_event(const std::vector<wifi_bss_info_t> &bss_info_list);
+
+	/**
+     * @brief Initiates secure 1905 layer establishment with peer
+     * @param dest_al_mac Destination AL MAC address
+     * @return true if peer discovery request sent successfully
+     * 
+     * @note Creates and sends DPP Peer Discovery Request to begin security establishment process.
+     */
+	inline bool start_secure_1905_layer(uint8_t dest_al_mac[ETH_ALEN]) {
+		return m_1905_encrypt_layer.start_secure_1905_layer(dest_al_mac);
+	}
+
+	/**
+     * @brief Rekeys existing PTK with established peer
+     * @param dest_al_mac Destination AL MAC address
+     * @return true if PTK rekey handshake initiated successfully
+     * 
+     * @note Requires existing key context. Initiates the same 4-way handshake 
+     *       as the initial handshake with some minor flags changed.
+     */
+	inline bool rekey_1905_layer_ptk(uint8_t dest_al_mac[ETH_ALEN]) {
+		return m_1905_encrypt_layer.rekey_1905_layer_ptk(dest_al_mac);
+	}
+
+	/**
+     * @brief Rekeys existing PTK with all established peers
+     * @return true if all PTK rekey handshakes initiated successfully
+     * 
+     * @note Requires existing key contexts. Initiates the same 4-way handshake 
+     *       as the initial handshake with some minor flags changed.
+     */
+	inline bool rekey_1905_layer_ptk() {
+		return m_1905_encrypt_layer.rekey_1905_layer_ptk();
+	}
+
+	/**
+	 * @brief Notifies the destructor that the enrollee is upgrading to a (proxy) agent
+	 * 
+	 */
+	inline void signal_enrollee_is_upgrading() { m_is_upgrading_flag = true; }
+
+	/**
+	 * @brief Handle a chirp embedded in an Autoconf Response frame.
+	 * When onboarding via Ethernet, the Controller will send a 1905 AP-Autoconfiguration Response message (extended) including a DPP Chirp Value TLV with the Hash Validity bit set to one and the Hash Value field set to the hash of the Enrollee.
+	 * 
+	 * @param chirp The chirp TLV.
+	 * @param chirp_len The length of the chirp.
+	 * @param src_mac Where the chirp came from (Controller).
+	 * @return true on success, otherwise false.
+	 */
+	bool handle_autoconf_response_chirp(em_dpp_chirp_value_t *chirp, size_t chirp_len, uint8_t src_mac[ETH_ALEN]);
 
 private:
 
+	/**
+	 * @brief Initializes the corresponding channel list with the default channels
+	 * then triggers a channel scan to add channels where BSSs are either broadcasting 
+	 * CCE IEs and/or the configured SSID.
+	 * 
+	 * @param is_reconfig_list If true, generate the reconfiguration channel list.
+	 * Otherwise, generate the presence announcement channel list.
+	 * 
+	 * @note See: EasyConnect 6.2.2 Generation of Channel List for Presence Announcement
+	 * @note See: EasyConnect 6.5.2 DPP Reconfiguration Announcement 
+	 */
+	void generate_bss_channel_list(bool is_reconfig_list);
     
 	/**
 	 * @brief Sends presence announcement frames until a DPP Authentication Frame is received.
@@ -242,7 +355,16 @@ private:
 	 */
 	void send_reconfiguration_announcement_frames();
 
-    std::string m_mac_addr;
+
+	/**
+	 * @brief Check that a given BSS Info has a CCE IE present in it's IE buffer
+	 * 
+	 * @param bss_info The bss info to check
+	 * @return True if a CCE IE exists in the IE buffer, false otherwise
+	 */
+	bool check_bss_info_has_cce(const wifi_bss_info_t& bss_info);
+
+	std::string m_al_mac_addr;
 
     /**
      * @brief Send an action frame. Optional to implement.
@@ -264,12 +386,11 @@ private:
     get_backhaul_sta_info_func m_get_bsta_info;
 
 	/**
-	 * @brief Function to start/stop the building of the channel list
+	 * @brief Function to trigger a scan on a station interface 
 	 * 
-	 * @param do_start true to start the process, false to stop it
 	 * @return bool true if the action was successful, false otherwise
 	 */
-	start_stop_clist_build_func m_start_stop_clist_build_fn;
+	trigger_sta_scan_func m_trigger_sta_scan_fn;
 
 	/**
 	 * @brief Function to attempt to connect a backhaul STA to a BSS
@@ -279,6 +400,32 @@ private:
 	 * @return bool true if successful, false otherwise
 	 */	
 	bsta_connect_func m_bsta_connect_fn;
+
+	/**
+	 * @brief Sends a direct encapsulated DPP message
+	 * 
+	 * @param dpp_frame The DPP frame to send
+	 * @param dpp_frame_len The length of the DPP frame
+	 * @return bool true if successful, false otherwise
+	 */
+	send_dir_encap_dpp_func m_send_dir_encap_fn;
+
+	/**
+	 * @brief Sends an Autoconf Search message (extended)
+	 * 
+	 * @param Chirp The chirp to include in the autoconf search message
+	 * @param len The length of the hash in the chirp (can be 0)
+	 * 
+	 * @note No dest mac as autoconf search is a multicast message
+	 * @return True on success otherwise false
+	 */
+	send_autoconf_search_func m_send_autoconf_search_fn;
+	
+    // Maps SSID that this Enrollee has attempted to find to the
+    // list of channels/op-classes that were scanned.
+    std::unordered_map<std::string, std::vector<ec_util::scanned_channels_t>> m_scanned_channels_map;
+
+	ec_1905_encrypt_layer_t m_1905_encrypt_layer;
 
 
 
@@ -338,13 +485,13 @@ private:
 	 * @brief Creates a configuration request.
 	 *
 	 * This function generates a configuration request and returns it as a pair consisting of a pointer to the data and its size.
-	 *
+	 * @param (optional) reconfiguration flags if being called during Reconfiguration
 	 * @returns A pair containing a pointer to the configuration request data and its size.
 	 * @retval std::pair<uint8_t*, size_t> A pair where the first element is a pointer to the data and the second element is the size of the data.
 	 *
 	 * @note Ensure that the returned pointer is managed properly to avoid memory leaks.
 	 */
-	std::pair<uint8_t*, size_t> create_config_request();
+	std::pair<uint8_t*, size_t> create_config_request(std::optional<ec_dpp_reconfig_flags_t> recfg_flags = std::nullopt);
 
     
 	/**
@@ -410,10 +557,6 @@ private:
 	 */
 	cJSON *create_dpp_connection_status_obj(ec_status_code_t dpp_status, const std::string& ssid);
 
-    // Maps SSID that this Enrollee has attempted to find to the
-    // list of channels/op-classes that were scanned.
-    std::unordered_map<std::string, std::vector<ec_util::scanned_channels_t>> m_scanned_channels_map;
-
     ec_connection_context_t m_c_ctx = {};
 
     
@@ -449,7 +592,7 @@ private:
      * 
      * Should exclude channels by regional regulation (i.e. DFS channels).
      */
-    std::unordered_set<uint32_t> m_pres_announcement_freqs = {2437, 5220};
+    std::unordered_set<uint32_t> m_pres_announcement_freqs = {};
 
 	/**
 	 * @brief Set of frequencies to broadcast Reconfiguration Announcement frames on
@@ -462,7 +605,7 @@ private:
 	 * 2. Channels where a CCE IE was heard
 	 * 
 	 */
-	std::unordered_set<uint32_t> m_recnf_announcement_freqs = {2437, 5220};
+	std::unordered_set<uint32_t> m_recnf_announcement_freqs = {};
 
     /**
      * @brief The frequency to send action frames on
@@ -485,6 +628,13 @@ private:
 	 * Signals that this Enrollee should stop sending Reconfiguration Announcement frames
 	 */
 	std::atomic<bool> m_received_recfg_auth_frame{false};
+
+	/**
+	 * @brief True if we've received scan results
+	 * 
+	 * Signals that this Enrollee should stop waiting for scan results
+	 */
+	std::atomic<bool> m_received_scan_results{false};
 
     /**
      * @brief Thread for sending DPP Presence Announcement frames upon onboarding start
@@ -544,6 +694,19 @@ private:
 	 * 
 	 */
 	std::string m_configured_ssid = {};
+
+	/**
+	 * The context filled with security keys for the Enrollee that will be saved 
+	 * to the persistent storage on exit.
+	 */
+	ec_persistent_sec_ctx_t m_sec_ctx = {};
+
+	/**
+	 * @brief True if this Enrollee will soon be upgrading
+	 * to a (proxy) agent and the destructor will be called.
+	 */
+	bool m_is_upgrading_flag = false;
+
 };
 
 #endif // EC_ENROLLEE_H

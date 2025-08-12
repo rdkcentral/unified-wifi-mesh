@@ -39,6 +39,7 @@
 #include <string>
 
 class em_mgr_t;
+class em_cmd_exec_t;
 
 class em_t : 
     public em_configuration_t, public em_discovery_t, 
@@ -196,7 +197,7 @@ class em_t :
 	 *
 	 * @note Ensure that the buffer is properly allocated and the length is correctly specified to avoid buffer overflow.
 	 */
-	int send_cmd(em_cmd_type_t type, em_service_type_t svc, unsigned char *buff, unsigned int len);
+	int send_cmd(em_cmd_exec_t *exec, em_cmd_type_t type, em_service_type_t svc, unsigned char *buff, unsigned int len);
 	
 	/**!
 	 * @brief Push an event onto the event queue.
@@ -213,6 +214,12 @@ class em_t :
 	 */
 	int push_event(em_event_t *evt);
 
+	/**!
+	 * @brief Initializes the EasyConnect manager on the AL node
+	 *
+	 * @returns bool true if initialization is successful, false otherwise.
+	 */
+	bool initialize_ec_manager();
 
 public:
     
@@ -436,14 +443,12 @@ public:
 	bool bsta_connect_bss(const std::string& ssid, const std::string passphrase, bssid_t bssid);
 
 	/**
-	 * @brief Perform actions to start or stop the building of the EC channel list.
-	 * Doesn't actually perform the building of the EC channel list, just starts or stops the process.
+	 * @brief Triggers a station scan on all channels
 	 * 
-	 * @param do_start true to start the process, false to stop it.
 	 * @return true if the action was successful, false otherwise.
 	 */
-	bool start_stop_build_ec_channel_list(bool do_start);
-	
+	bool trigger_sta_scan();
+
 	/**!
 	 * @brief Retrieves the manager instance.
 	 *
@@ -797,6 +802,14 @@ public:
 	 * calling this function.
 	 */
 	short create_ap_cap_tlv(unsigned char *buff);
+
+	/**
+	 * @brief Create an AP Radio Advanced Capabilities TLV (EM 17.2.52)
+	 * 
+	 * @param buff The buffer to write the TLV to.
+	 * @return short The length of the TLV on success, -1 on failure
+	 */
+	short create_ap_radio_advanced_cap_tlv(unsigned char *buff);
     
 	/**!
 	 * @brief Creates a HT TLV (Type-Length-Value) structure.
@@ -984,8 +997,65 @@ public:
 	 *
 	 * @note Ensure that the buffer is properly allocated before calling this function.
 	 */
-	short create_ap_radio_basic_cap(unsigned char *buff);   
+	short create_ap_radio_basic_cap(unsigned char *buff);
     //Msg-End
+
+	//START: DPP Callbacks for BSS information
+	// Originally done by @tuckerpo
+
+	/**!
+	 * @brief Creates a configurator BSTA response object.
+	 *
+	 * This function generates a cJSON object representing the BSTA response
+	 * based on the provided connection context.
+	 *
+	 * @param[in] pa_al_mac The AL MAC address of the Proxy Agent that is being used to onboard the Enrollee.
+	 *
+	 * @returns A pointer to the created cJSON object representing the BSTA response.
+	 *
+	 * @note Ensure that the connection context is properly initialized before calling this function.
+	 */
+	cJSON *create_configurator_bsta_response_obj(uint8_t pa_al_mac[ETH_ALEN]);
+    
+	/**!
+	 * @brief Creates an IEEE 1905 response object.
+	 *
+	 * This function generates a cJSON object that represents an IEEE 1905 response.
+	 *
+	 * @param[in] conn_ctx Pointer to the connection context used for creating the response.
+	 *
+	 * @returns A pointer to the created cJSON object representing the IEEE 1905 response.
+	 *
+	 * @note Ensure that the connection context is properly initialized before calling this function.
+	 */
+	cJSON *create_ieee1905_response_obj();
+
+	/**
+	 * @brief Create a fBSS (fronthaul BSS) Configuration response object for DPP STA onboarding
+	 * 
+	 * @param[in] pa_al_mac The AL MAC address of the Proxy Agent that is being used to onboard the Enrollee.
+	 * 
+	 * @return cJSON* Configuration response object on success, nullptr otherwise
+	 */
+	cJSON *create_fbss_response_obj(uint8_t pa_al_mac[ETH_ALEN]);
+
+	/**!
+	 * @brief Creates a list of enrollee BSTA.
+	 *
+	 * This function generates a cJSON object representing the list of enrollee BSTA
+	 * based on the provided connection context.
+	 *
+	 * @param[in] pa_al_mac UNUSED
+	 *
+	 * @returns A pointer to a cJSON object representing the enrollee BSTA list.
+	 *
+	 * @note Ensure that the connection context is properly initialized before calling this function.
+	 */
+	cJSON *create_enrollee_bsta_list(uint8_t pa_al_mac[ETH_ALEN]);
+    
+	cJSON *create_bss_dpp_response_obj(const em_bss_info_t *bss_info, bool is_sta_response, bool tear_down_bss);
+
+	// END: DPP Callbacks for BSS information
 
     
 	/**!

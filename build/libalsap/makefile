@@ -1,38 +1,53 @@
 include ../makefile.inc
 
-
-TARGET = $(AL_SAP_HOME)/libalsap.a
+AL_SAP_LIB = $(AL_SAP_HOME)/libalsap.a
 CPP = g++
 CPPFLAGS = -I../../inc
 AR = ar rcs
 
-FILES := $(wildcard $(AL_SAP_HOME)/*.cpp)
-OBJS := $(patsubst %.cpp, %.o, $(FILES))
+TRANSMITTER_SRC = $(AL_SAP_HOME)/test_libalsap_transmitter.cpp
+RECEIVER_SRC = $(AL_SAP_HOME)/test_libalsap_receiver.cpp
+TRANSMITTER = $(INSTALLDIR)/bin/test_alsap_transmitter
+RECEIVER = $(INSTALLDIR)/bin/test_alsap_receiver
 
+ALL_CPP_FILES = $(wildcard $(AL_SAP_HOME)/*.cpp)
+EXCLUDE_FILES = $(TRANSMITTER_SRC) $(RECEIVER_SRC)
+LIB_FILES = $(filter-out $(EXCLUDE_FILES), $(ALL_CPP_FILES))
+LIB_OBJS = $(LIB_FILES:.cpp=.o)
 
-ENABLE_DEBUG_MODE ?= OFF
-ifeq ($(ENABLE_DEBUG_MODE),ON)
-$(info ENABLE_DEBUG_MODE is set)
-CPPFLAGS += "-DDEBUG_MODE"
+ifeq ($(WITH_SAP), 1)
+CPPFLAGS += -DAL_SAP
+LIBS = -lalsap
 endif
 
+ifeq ($(ENABLE_DEBUG_MODE),ON)
+$(info ENABLE_DEBUG_MODE is set)
+CPPFLAGS += -DDEBUG_MODE
+endif
 
+# Default target
+all: $(AL_SAP_LIB) $(TRANSMITTER) $(RECEIVER)
 
-# Rule to build the target
-$(TARGET): $(OBJS)
-	$(AR) $(TARGET) $(OBJS)
+# Rule to build the static library
+$(AL_SAP_LIB): $(LIB_OBJS)
+	$(AR) $(AL_SAP_LIB) $(LIB_OBJS)
 
-# Rule to build object files
+# Rule to build object files for library
 %.o: %.cpp
-	$(CC) $(CPPFLAGS) -c $< -o $@
+	$(CPP) $(CPPFLAGS) -c $< -o $@
 
-# Clean rule to remove generated files
+# Rules to build binaries
+$(TRANSMITTER): $(TRANSMITTER_SRC) $(AL_SAP_LIB)
+	$(CPP) $(CPPFLAGS) $< -o $@ -L$(AL_SAP_HOME) $(LIBS)
+
+$(RECEIVER): $(RECEIVER_SRC) $(AL_SAP_LIB)
+	$(CPP) $(CPPFLAGS) $< -o $@ -L$(AL_SAP_HOME) $(LIBS)
+
+# Clean rule
 .PHONY: clean
 clean:
-	rm -f $(TARGET) $(OBJS)
+	rm -f $(AL_SAP_LIB) $(LIB_OBJS) $(TRANSMITTER) $(RECEIVER)
 
-all:	$(TARGET)
-
-
-install:	$(TARGET)
-	cp $(TARGET) $(INSTALLDIR)/lib/
+# Optional install
+install: $(AL_SAP_LIB)
+	cp $(AL_SAP_LIB) $(INSTALLDIR)/lib/

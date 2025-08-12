@@ -57,7 +57,9 @@ extern "C" {
 	 *
 	 * @note Ensure that the params structure is properly populated before calling this function.
 	 */
-	int init(em_cli_params_t *params);
+	int set_remote_addr(unsigned int ip, unsigned int port, bool valid);
+
+	bool is_remote_addr_valid();
 
 
 	/**!
@@ -377,6 +379,17 @@ extern "C" {
 	 * @note Ensure that the pointer `str` is valid and was allocated using the corresponding allocation function.
 	 */
 	void free_network_tree_string(char *str);
+
+	/**!
+	 * @brief Frees the memory allocated for the network tree string.
+	 *
+	 * This function is responsible for deallocating the memory that was previously allocated for a network tree string.
+	 *
+	 * @param[in] str Pointer to the network tree string to be freed.
+	 *
+	 * @note Ensure that the pointer `str` is valid and was allocated using the corresponding allocation function.
+	 */
+	em_network_node_t *get_network_tree_by_key(em_network_node_t *node, em_long_string_t key);
 
 	/**!
 	 * @brief Initializes the library debugging with the specified file name.

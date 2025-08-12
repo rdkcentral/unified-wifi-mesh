@@ -4,16 +4,15 @@
 #include <cstdint>
 
 //keeps operation state
-enum class ServiceOperation : uint8_t {
-    SOP_ENABLE = 0x01, 
-    SOP_DISABLE = 0x02
+enum class SAPActivation : uint8_t {
+    SAP_ENABLE = 0x01, 
+    SAP_DISABLE = 0x02
 };
 //keeps the service type requested to the IEEE1905 layer
 enum class ServiceType : uint8_t {
-    SAP_CLIENT = 0x01,
-    SAP_SERVER = 0x02,
-    SAP_TUNNEL_CLIENT = 0x03,
-    SAP_TUNNEL_SERVER = 0x04
+    EmAgent = 0x01,
+    EmController = 0x02,
+    
 };
 //keeps registration result
 //not all the results are handled for now
@@ -22,7 +21,6 @@ enum class RegistrationResult : uint8_t {
     SUCCESS = 0x01,
     NO_RANGES_AVAILABLE = 0x02,
     SERVICE_NOT_SUPPORTED = 0x03,
-    OPERATION_NOT_SUPPORTED = 0x03
 };
 
 #endif // AL_SERVICE_REGISTRATION_ENUMS_H

@@ -39,8 +39,6 @@
 #include "em_orch_agent.h"
 #include "em.h"
 
-extern char *global_netid;
-
 void em_orch_agent_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 {
     em_cmd_stats_t *stats;
@@ -48,13 +46,13 @@ void em_orch_agent_t::orch_transient(em_cmd_t *pcmd, em_t *em)
     
     snprintf(key, sizeof(em_short_string_t), "%d", pcmd->get_type());
 
-    stats = (em_cmd_stats_t *)hash_map_get(m_cmd_map, key);
+    stats = static_cast <em_cmd_stats_t *> (hash_map_get(m_cmd_map, key));
     assert(stats != NULL);
 
     if (pcmd->get_type() == em_cmd_type_dev_init && pcmd->get_agent_al_interface() != NULL) {
         auto agent_int = pcmd->get_agent_al_interface();
         std::string al_mac_key = util::mac_to_string(agent_int->mac) + "_al";
-        em_t* al_node = (em_t*)hash_map_get(m_mgr->m_em_map, al_mac_key.c_str());
+        em_t* al_node = static_cast <em_t*> (hash_map_get(m_mgr->m_em_map, al_mac_key.c_str()));
         if (al_node != NULL && al_node->m_ec_manager && al_node->m_ec_manager->is_enrollee_onboarding()) {
             // If the enrollee is still onboarding, we need to wait for it to finish before timing out
             // Lets reset the timeout
@@ -213,7 +211,6 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
     dm_sta_t *sta;
     em_long_string_t key;
     mac_addr_str_t sta_mac_str, bss_mac_str, radio_mac_str;
-    mac_address_t   radio_mac;
     em_freq_band_t band;
 
     ctx = pcmd->m_data_model.get_cmd_ctx();
@@ -224,8 +221,8 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
             printf("%s:%d: calling create node\n", __func__, __LINE__);
 
             intf = pcmd->get_agent_al_interface();
-            if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
-                dm = m_mgr->create_data_model(global_netid, intf);
+            if ((dm = m_mgr->get_data_model(GLOBAL_NET_ID, intf->mac)) == NULL) {
+                dm = m_mgr->create_data_model(GLOBAL_NET_ID, intf);
             }
             config.type = em_commit_target_al;
             //commit basic configuration before orchestrate
@@ -239,12 +236,12 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
             // for radio insert, create the radio em and then submit command
             for (unsigned int i = 0; i < pcmd->get_data_model()->get_num_radios(); i++) {
                 intf = pcmd->get_radio_interface(i);
-                if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
-                    dm = m_mgr->create_data_model(global_netid, intf);
+                if ((dm = m_mgr->get_data_model(GLOBAL_NET_ID, intf->mac)) == NULL) {
+                    dm = m_mgr->create_data_model(GLOBAL_NET_ID, intf);
                 }    
                 dm_easy_mesh_t::macbytes_to_string(intf->mac, mac_str);
                 config.type = em_commit_target_radio;
-                snprintf((char *)config.params,sizeof(config.params),(char*)"%s",mac_str);
+                snprintf(reinterpret_cast<char*>(&config.params[0]), sizeof(config.params), "%s", mac_str);
                 dm->commit_config(pcmd->m_data_model, config);
                 config.type = em_commit_target_bss;
                 dm->commit_config(pcmd->m_data_model, config);
@@ -260,11 +257,11 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
             break;
         case dm_orch_type_sta_aggregate:
             intf = pcmd->get_radio_interface(ctx->arr_index);
-            if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
-                dm = m_mgr->create_data_model(global_netid, intf);
+            if ((dm = m_mgr->get_data_model(GLOBAL_NET_ID, intf->mac)) == NULL) {
+                dm = m_mgr->create_data_model(GLOBAL_NET_ID, intf);
             }
 
-            sta = (dm_sta_t *)hash_map_get_first(pcmd->get_data_model()->m_sta_assoc_map);
+            sta = static_cast<dm_sta_t *> (hash_map_get_first(pcmd->get_data_model()->m_sta_assoc_map));
             while(sta != NULL) {
                 dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
                 dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
@@ -280,10 +277,10 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
                     hash_map_put(dm->m_sta_map, strdup(key), new dm_sta_t(*sta));
                 }
 
-                sta = (dm_sta_t *)hash_map_get_next(pcmd->get_data_model()->m_sta_assoc_map, sta);
+                sta = static_cast<dm_sta_t *> (hash_map_get_next(pcmd->get_data_model()->m_sta_assoc_map, sta));
             }
 
-            sta = (dm_sta_t *)hash_map_get_first(pcmd->get_data_model()->m_sta_dassoc_map);
+            sta = static_cast<dm_sta_t *> (hash_map_get_first(pcmd->get_data_model()->m_sta_dassoc_map));
             while(sta != NULL) {
                 dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
                 dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
@@ -291,11 +288,11 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
                 snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
 
                 em_sta_info_t *em_sta = dm->get_sta_info(sta->get_sta_info()->id, sta->get_sta_info()->bssid, sta->get_sta_info()->radiomac, em_target_sta_map_consolidated);
-                sta = (dm_sta_t *)hash_map_get_next(pcmd->get_data_model()->m_sta_dassoc_map, sta);
+                sta = static_cast<dm_sta_t *>(hash_map_get_next(pcmd->get_data_model()->m_sta_dassoc_map, sta));
                 if (em_sta != NULL) {
                     printf("Consolidated Map removed with key: %s\n", key);
                     dm_sta_t *tmp = sta;
-                    tmp = (dm_sta_t *)hash_map_remove(dm->m_sta_map, key);
+                    tmp = static_cast<dm_sta_t *>(hash_map_remove(dm->m_sta_map, key));
                     delete tmp;
                 }
             }
@@ -313,17 +310,17 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
 
         case dm_orch_type_sta_link_metrics:
             intf = pcmd->get_radio_interface(ctx->arr_index);
-            if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
-                dm = m_mgr->create_data_model(global_netid, intf);
+            if ((dm = m_mgr->get_data_model(GLOBAL_NET_ID, intf->mac)) == NULL) {
+                dm = m_mgr->create_data_model(GLOBAL_NET_ID, intf);
             }
 
-            sta = (dm_sta_t *)hash_map_get_first(pcmd->get_data_model()->m_sta_assoc_map);
+            sta = static_cast<dm_sta_t *> (hash_map_get_first(pcmd->get_data_model()->m_sta_assoc_map));
             while(sta != NULL) {
                 em_sta_info_t *em_sta = dm->get_sta_info(sta->get_sta_info()->id, sta->get_sta_info()->bssid, sta->get_sta_info()->radiomac, em_target_sta_map_consolidated);
                 if (em_sta != NULL) {
                     memcpy(em_sta, &sta->m_sta_info, sizeof(em_sta_info_t));
                 }
-                sta = (dm_sta_t *)hash_map_get_next(pcmd->get_data_model()->m_sta_assoc_map, sta);
+                sta = static_cast<dm_sta_t *> (hash_map_get_next(pcmd->get_data_model()->m_sta_assoc_map, sta));
             }
             break;
 
@@ -341,15 +338,13 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
     em_cmd_ctx_t *ctx;
     dm_radio_t *radio;
     mac_addr_str_t	src_mac_str, dst_mac_str;
-    em_freq_band_t freq_band, em_freq_band;
-    int build_autoconf_renew = 0;
     dm_easy_mesh_t dm;
     mac_address_t	radio_mac, mac1, mac2;
     dm_sta_t *sta;
 
     ctx = pcmd->m_data_model.get_cmd_ctx();
 	pthread_mutex_lock(&m_mgr->m_mutex);
-    em = (em_t *)hash_map_get_first(m_mgr->m_em_map);	
+    em = static_cast<em_t *> (hash_map_get_first(m_mgr->m_em_map));
     while (em != NULL) {
         switch (pcmd->m_type) {
             case em_cmd_type_dev_init:
@@ -402,7 +397,7 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 		        break;
 	        case em_cmd_type_client_cap_query:
                 if (!(em->is_al_interface_em())) {
-                    radio = pcmd->m_data_model.get_radio((unsigned int)0);
+                    radio = pcmd->m_data_model.get_radio(static_cast<unsigned int> (0));
 		            if (radio == NULL) {
                         printf("%s:%d client cap radio cannot be found.\n", __func__, __LINE__);
                         break;
@@ -428,7 +423,7 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                 break;
 			case em_cmd_type_channel_pref_query:
 				if (!(em->is_al_interface_em())) {
-					radio = pcmd->m_data_model.get_radio((unsigned int)0);
+					radio = pcmd->m_data_model.get_radio(static_cast<unsigned int> (0));
 					if (radio == NULL) {
 						printf("%s:%d em_cmd_type_channel_pref_query radio cannot be found.\n", __func__, __LINE__);
 						break;
@@ -446,7 +441,7 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 				break;
             case em_cmd_type_op_channel_report:
                 if (!(em->is_al_interface_em())) {
-                    radio = pcmd->m_data_model.get_radio((unsigned int)0);
+                    radio = pcmd->m_data_model.get_radio(static_cast<unsigned int> (0));
                     if (radio == NULL) {
                         printf("%s:%d channel sel radio cannot be found.\n", __func__, __LINE__);
                         break;
@@ -504,7 +499,7 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 			default:
                 break;
         }
-        em = (em_t *)hash_map_get_next(m_mgr->m_em_map, em);	
+        em = static_cast<em_t *> (hash_map_get_next(m_mgr->m_em_map, em));	
     }
 	pthread_mutex_unlock(&m_mgr->m_mutex);
     return count;
