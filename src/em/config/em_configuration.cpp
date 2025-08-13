@@ -595,6 +595,7 @@ int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
     //dm->m_ap_mld[0].m_ap_mld_info.num_affiliated_ap = 1;
     //memcpy(dm->m_ap_mld[0].m_ap_mld_info.affiliated_ap[0].ruid.mac, get_radio_interface_mac(), sizeof(mac_address_t));
 
+    printf(" ==== debug :%s:%d  dm->get_num_ap_mld(): %d \n", __func__, __LINE__,  dm->get_num_ap_mld());
     for (i = 0; i < dm->get_num_ap_mld(); i++) {
         em_ap_mld_info_t& ap_mld_info = dm->m_ap_mld[i].m_ap_mld_info;
         ap_mld->ap_mld_mac_addr_valid = ap_mld_info.mac_addr_valid;
