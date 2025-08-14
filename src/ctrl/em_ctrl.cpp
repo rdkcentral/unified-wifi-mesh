@@ -51,6 +51,7 @@
 #endif
 
 em_ctrl_t g_ctrl;
+em_network_topo_t *g_network_topology = NULL;
 
 #ifdef AL_SAP
 AlServiceAccessPoint* g_sap;
@@ -796,7 +797,9 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 	        break;
 
         default:
-            printf("%s:%d: Frame: 0x%04x not handled in controller\n", __func__, __LINE__, htons(cmdu->type));
+            if (htons(cmdu->type) != em_msg_type_topo_disc) {
+                printf("%s:%d: Frame: 0x%04x not handled in controller\n", __func__, __LINE__, htons(cmdu->type));
+            }
             em = NULL;
             break;
     }
