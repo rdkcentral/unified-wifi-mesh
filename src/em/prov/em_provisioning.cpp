@@ -480,9 +480,10 @@ int em_provisioning_t::handle_dpp_chirp_notif(uint8_t *buff, unsigned int len, u
     em_dpp_chirp_value_t* chirp = reinterpret_cast<em_dpp_chirp_value_t*> (tlv->value);
 
     if (!m_ec_manager->process_chirp_notification(chirp, SWAP_LITTLE_ENDIAN(tlv->len), src_al_mac)) {
-        //TODO: Fail
         em_printfout("Failed to process chirp notification");
+        return -1;
     }
+    set_is_dpp_onboarding(true);
 
     return 0;
 }

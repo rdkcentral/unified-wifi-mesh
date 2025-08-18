@@ -6,6 +6,7 @@
 #include "ec_util.h"
 #include "ec_ops.h"
 #include "ec_1905_encrypt_layer.h"
+#include "timer.h"
 
 #include <map>
 #include <unordered_map>
@@ -364,6 +365,13 @@ private:
 	 */
 	bool check_bss_info_has_cce(const wifi_bss_info_t& bss_info);
 
+	/**
+	 * @brief Sends an Autoconf Search (extended) with a Chirp TLV
+	 * 
+	 * @return true on success, otherwise false
+	 */
+	bool send_autoconf_search_chirp();
+
 	std::string m_al_mac_addr;
 
     /**
@@ -676,6 +684,8 @@ private:
 	 * 
 	 */
 	std::thread m_send_recfg_announcement_thread;
+
+	std::shared_ptr<ThreadedTimer> m_autoconf_search_timer = std::make_shared<ThreadedTimer>();
 
 	/**
 	 * @brief Metadata about a fragmented GAS response frame

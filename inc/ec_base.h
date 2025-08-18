@@ -848,6 +848,17 @@ typedef struct {
     ec_ephemeral_context_t eph_ctx;
 
     /**
+     * @brief True if the DPP process outlined in the EasyConnect specification has been completed.
+     * This is true before the enrollee is fully onboarded because there are additional EasyMesh specification
+     * steps that need to be completed before the Enrollee is fully onboarded.
+     * 
+     * For example:
+     *   - EasyConnect outlines: Bootstrapping, Authentication, and Configuration.
+     *   - EasyMesh outlines: Autoconf+Chirp, 1905 layer security, and BSS Configuration.
+     */
+    bool is_easyconnect_dpp_complete;
+
+    /**
      * @brief Is this Enrollee onboarding via ethernet?
      */
     bool is_eth;

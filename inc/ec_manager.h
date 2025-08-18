@@ -92,11 +92,11 @@ public:
 	 *
 	 * @return true if the onboarding process is successful, false otherwise.
 	 */
-	inline bool enrollee_start_onboarding(bool do_reconfig, ec_data_t* boot_data) {
+	inline bool enrollee_start_onboarding(bool do_reconfig, ec_data_t* boot_data, bool ethernet) {
         if (m_is_controller || m_enrollee == nullptr) {
             return false;
         }
-        return m_enrollee->start_onboarding(do_reconfig, boot_data);
+        return m_enrollee->start_onboarding(do_reconfig, boot_data, ethernet);
     }
 
     
