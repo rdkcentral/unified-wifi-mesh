@@ -6,9 +6,11 @@
 
 ec_1905_encrypt_layer_t::ec_1905_encrypt_layer_t(std::string local_al_mac, 
                                                  send_dir_encap_dpp_func send_direct_encap_dpp_msg, 
-                                                 send_1905_eapol_encap_func send_1905_eapol_encap_msg) : 
+                                                 send_1905_eapol_encap_func send_1905_eapol_encap_msg,
+                                                 handshake_completed_handler handshake_complete) : 
                                                  m_send_dir_encap_dpp_msg(send_direct_encap_dpp_msg), 
-                                                 m_send_1905_eapol_encap_msg(send_1905_eapol_encap_msg) {
+                                                 m_send_1905_eapol_encap_msg(send_1905_eapol_encap_msg),
+                                                 m_handshake_complete(handshake_complete) {
         
     m_al_mac_addr = util::macstr_to_vector(local_al_mac);
     if (m_al_mac_addr.empty()) {
@@ -157,6 +159,7 @@ bool ec_1905_encrypt_layer_t::handle_peer_disc_req_frame(ec_frame_t *frame, uint
             em_printfout("Failed to derive GTK");
             return false;
         }
+        em_printfout("Successfully derived GTK for Agent '%s'", src_mac_str.c_str()); 
     }
     
     if (m_1905_mac_key_mac.find(src_mac_str) != m_1905_mac_key_mac.end()) {
@@ -176,6 +179,9 @@ bool ec_1905_encrypt_layer_t::handle_peer_disc_req_frame(ec_frame_t *frame, uint
         em_printfout("Failed to send Peer Discovery Response frame to Agent '%s'", src_mac_str.c_str());
         return false;
     }
+
+    // Wait .5 seconds to make sure that the first EAPOL frame arrives after the discovery response
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
     if (!begin_1905_4way_handshake(src_mac, false)) {
         em_printfout("Failed to begin 1905 4-way handshake with Agent '%s'", src_mac_str.c_str());
@@ -198,12 +204,12 @@ bool ec_1905_encrypt_layer_t::handle_peer_disc_resp_frame(ec_frame_t *frame, uin
     size_t attrs_len = len - EC_FRAME_BASE_SIZE;
 
     auto status_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_dpp_status);
-    EM_ASSERT_OPT_HAS_VALUE(status_attr, false, "No Status attribute found in Peer Discovery Request frame");
+    EM_ASSERT_OPT_HAS_VALUE(status_attr, false, "No Status attribute found in Peer Discovery Response frame");
 
     ec_status_code_t dpp_status = static_cast<ec_status_code_t>(status_attr->data[0]);
 
     auto trans_id_attr = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_trans_id);
-    EM_ASSERT_OPT_HAS_VALUE(trans_id_attr, false, "No Transaction ID attribute found in Peer Discovery Request frame");
+    EM_ASSERT_OPT_HAS_VALUE(trans_id_attr, false, "No Transaction ID attribute found in Peer Discovery Response frame");
 
     uint8_t trans_id = trans_id_attr->data[0];
 
@@ -231,12 +237,12 @@ bool ec_1905_encrypt_layer_t::handle_peer_disc_resp_frame(ec_frame_t *frame, uin
     }
 
     auto connector_attr_1905 = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_dpp_connector);
-    EM_ASSERT_OPT_HAS_VALUE(connector_attr_1905, false, "No DPP Connector attribute found in Peer Discovery Request frame");
+    EM_ASSERT_OPT_HAS_VALUE(connector_attr_1905, false, "No DPP Connector attribute found in Peer Discovery Response frame");
 
     std::string connector_1905_str(reinterpret_cast<const char *>(connector_attr_1905->data), static_cast<size_t>(connector_attr_1905->length));
 
     auto parts = ec_crypto::split_decode_connector(connector_1905_str.c_str(), m_C_signing_key);
-    EM_ASSERT_OPT_HAS_VALUE(parts, false, "Failed to decoderecieved 1905 Connector or verify signature");
+    EM_ASSERT_OPT_HAS_VALUE(parts, false, "Failed to decode recieved 1905 Connector or verify signature");
 
     auto [header, payload, sig] = *parts;
     (void)sig;
@@ -308,15 +314,17 @@ bool ec_1905_encrypt_layer_t::handle_eapol_frame(uint8_t *frame, uint16_t len, u
 
     bool key_ctx_exists = m_1905_mac_key_mac.find(src_mac_str) != m_1905_mac_key_mac.end();
     if (!key_ctx_exists) {
-        // We don't have an existing key context, this means that we just recieved/sent our first frame and are therefore
-        // the peer who is doing the second frame of the 4-way handshake.
-        em_printfout("No existing key context for '%s', assuming this first EAPOL frame in the 4-way handshake", src_mac_str.c_str());
-        ec_1905_key_ctx ctx;
-        memset(&ctx, 0, sizeof(ec_1905_key_ctx));
-        m_1905_mac_key_mac[src_mac_str] = ctx;
+        // We don't have an existing key context, this means that a key context was not created during the DPP Network Introduction
+        // so we cannot continue with the 4-way handshake
+        em_printfout("No existing key context for '%s', PMK has not been established via DPP Network Introduction! Exiting...", src_mac_str.c_str());
+        return false;
     }
 
     ec_1905_key_ctx& ctx = m_1905_mac_key_mac[src_mac_str];
+    if (memcmp(ctx.pmk, empty_nonce, SHA256_DIGEST_LENGTH) == 0) {
+        em_printfout("PMK for '%s' is empty, cannot handle EAPOL frame! DPP Network Introduction was not completed!", src_mac_str.c_str());
+        return false;
+    }
 
     eapol_packet_t *eapol_packet = validate_eapol_frame(ctx, frame, len);
     EM_ASSERT_NOT_NULL(eapol_packet, false, "Invalid EAPOL frame received");
@@ -378,6 +386,7 @@ bool ec_1905_encrypt_layer_t::start_secure_1905_layer(uint8_t dest_al_mac[ETH_AL
     EM_ASSERT_NOT_NULL(dest_al_mac, false, "Destination AL MAC address is null.");
     EM_ASSERT_NOT_NULL(m_C_signing_key, false, "C-signing key is not set, cannot start 1905 layer security");
     EM_ASSERT_MSG_FALSE(m_connector_1905.empty(), false, "Connector 1905 is not set, cannot start 1905 layer security");
+    EM_ASSERT_NOT_NULL(m_net_access_key, false, "Net Access key is not set, cannot start 1905 layer security");
 
     em_printfout("Starting to secure 1905 layer for '" MACSTRFMT "'", MAC2STR(dest_al_mac));
 
@@ -487,7 +496,9 @@ bool ec_1905_encrypt_layer_t::set_sec_params(SSL_KEY *c_sign_key, SSL_KEY* net_a
     
     EM_ASSERT_NOT_NULL(c_sign_key, false, "Could not set 1905 encryption layer security params, NULL C-sign-key");
     EM_ASSERT_NOT_NULL(net_access_key, false, "Could not set 1905 encryption layer security params, NULL Net Access Key");
-    EM_ASSERT_NOT_EQUALS(connector_1905, "", false, "Could not set 1905 encryption layer security params, empty 1905 connector"); 
+    EM_ASSERT_NOT_EQUALS(connector_1905, "", false, "Could not set 1905 encryption layer security params, empty 1905 connector");
+
+    EM_ASSERT_NOT_NULL(em_crypto_t::get_priv_key_bn(net_access_key), false, "Could not set 1905 encryption layer security params, Net Access Key is not a valid private key");
     
     // Validate 1905 Connector before attempting to use it for 1905 layer
     auto parts = ec_crypto::split_decode_connector(connector_1905.c_str(), c_sign_key);
@@ -541,6 +552,7 @@ bool ec_1905_encrypt_layer_t::set_sec_params(SSL_KEY *c_sign_key, SSL_KEY* net_a
     m_net_access_key = net_access_key;
     m_connector_1905 = connector_1905;
     m_gmk = gmk;
+    memset(m_gtk, 0, sizeof(m_gtk));
 
     em_printfout("Initialized 1905 layer encryption with security parameters");
     return true;
@@ -686,15 +698,10 @@ std::pair<uint8_t *, size_t> ec_1905_encrypt_layer_t::create_peer_disc_req(uint8
     EM_ASSERT_NOT_NULL(frame, {}, "failed to allocate memory for frame");
 
     size_t attribs_len = 0;
+    uint8_t *attribs = NULL;
 
-    static uint8_t trans_id = 0;
-
-    uint8_t* attribs = ec_util::add_attrib(NULL, &attribs_len, ec_attrib_id_trans_id, static_cast<uint8_t>(trans_id++));
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_trans_id, static_cast<uint8_t>(m_transaction_id));
     attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_dpp_connector, m_connector_1905);
-
-    // Won't run into the reconfig case here since this use is in the PA / Agent not in the Controller
-    m_transaction_id = trans_id;
-
 
     if (DPP_VERSION >= 2){
         attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_proto_version, static_cast<uint8_t>(DPP_VERSION));
@@ -725,7 +732,7 @@ std::pair<uint8_t *, size_t> ec_1905_encrypt_layer_t::create_peer_disc_resp(uint
     size_t attribs_len = 0;
 
     uint8_t* attribs = ec_util::add_attrib(NULL, &attribs_len, ec_attrib_id_trans_id, static_cast<uint8_t>(trans_id));
-    attribs = ec_util::add_attrib(NULL, &attribs_len, ec_attrib_id_dpp_status, static_cast<uint8_t>(dpp_status));
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_dpp_status, static_cast<uint8_t>(dpp_status));
 
     if (dpp_status == DPP_STATUS_OK) {
         // If DPP Status is OK, include the 1905 Connector
@@ -749,15 +756,21 @@ std::pair<uint8_t *, size_t> ec_1905_encrypt_layer_t::create_peer_disc_resp(uint
     return std::make_pair(reinterpret_cast<uint8_t *>(frame), EC_FRAME_BASE_SIZE + attribs_len);
 }
 
-std::pair<uint8_t*, size_t> ec_1905_encrypt_layer_t::append_key_data_buff(uint8_t* eapol_frame, size_t eapol_frame_size, uint8_t* kde, size_t kde_len) {
+std::pair<uint8_t*, size_t> ec_1905_encrypt_layer_t::append_key_data_buff(uint8_t* eapol_frame, size_t eapol_frame_size, uint8_t* kde, size_t kde_len, bool perform_inital_expand) {
 
     EM_ASSERT_NOT_NULL(eapol_frame, {}, "EAPOL frame is null");
-    EM_ASSERT_MSG_TRUE(eapol_frame_size > sizeof(ieee802_1x_hdr_t) + sizeof(eapol_packet_t), {}, 
+    EM_ASSERT_MSG_TRUE(eapol_frame_size >= sizeof(ieee802_1x_hdr_t) + sizeof(eapol_packet_t), {}, 
         "EAPOL frame size is too small to contain EAPOL header and packet");
     EM_ASSERT_NOT_NULL(kde, {}, "KDE is null");
     EM_ASSERT_MSG_TRUE(kde_len >= EAPOL_KDE_BASE_SIZE, {}, "KDE length is too small, must be at least %zu bytes", EAPOL_KDE_BASE_SIZE);
 
-    uint8_t* new_frame = reinterpret_cast<uint8_t*>(realloc(eapol_frame, eapol_frame_size + kde_len));
+    size_t new_frame_size = eapol_frame_size + kde_len;
+    if (perform_inital_expand) {
+        // If we are expanding for MIC, we need to add the MIC length to the frame size
+        // This will ensure that the EAPOL frame can accommodate the MIC field when added
+        new_frame_size += (mic_kck_bits / 8) + sizeof(uint16_t); // + MIC length (bytes) + Key Data Length field
+    }
+    uint8_t* new_frame = reinterpret_cast<uint8_t*>(realloc(eapol_frame, new_frame_size));
     EM_ASSERT_NOT_NULL(new_frame, {}, "Failed to allocate memory for EAPOL frame with KDE");
 
     eapol_packet_t* eapol_packet = reinterpret_cast<eapol_packet_t*>(new_frame + sizeof(ieee802_1x_hdr_t));
@@ -780,7 +793,7 @@ std::pair<uint8_t*, size_t> ec_1905_encrypt_layer_t::append_key_data_buff(uint8_
     // Copy the KDE to the end of the EAPOL packet
     memcpy(data_ptr, kde, kde_len);
 
-    return {new_frame, eapol_frame_size + kde_len};
+    return {new_frame, new_frame_size};
 }
 
 std::pair<uint8_t *, size_t> ec_1905_encrypt_layer_t::alloc_eapol_frame(bool is_mic_present)
@@ -900,6 +913,10 @@ bool ec_1905_encrypt_layer_t::verify_mic(ec_1905_key_ctx &ctx, uint8_t *eapol_fr
     eapol_packet_t* eapol_packet = reinterpret_cast<eapol_packet_t*>(eapol_frame + sizeof(ieee802_1x_hdr_t));
     if (memcmp(eapol_packet->mic_len_key, mic.data(), mic.size()) != 0) {
         em_printfout("MIC verification failed for EAPOL frame");
+        em_printfout("Calculated MIC: ");
+        util::print_hex_dump(mic);
+        em_printfout("EAPOL frame MIC: ");
+        util::print_hex_dump(mic.size(), eapol_packet->mic_len_key);
         return false;
     }
 
@@ -908,7 +925,7 @@ bool ec_1905_encrypt_layer_t::verify_mic(ec_1905_key_ctx &ctx, uint8_t *eapol_fr
 
 std::vector<uint8_t> ec_1905_encrypt_layer_t::calculate_mic(ec_1905_key_ctx &ctx, uint8_t* eapol_frame, size_t eapol_frame_size) {
     EM_ASSERT_NOT_NULL(eapol_frame, {}, "EAPOL header is null");
-    EM_ASSERT_MSG_TRUE(eapol_frame_size > sizeof(ieee802_1x_hdr_t) + sizeof(eapol_packet_t), {}, 
+    EM_ASSERT_MSG_TRUE(eapol_frame_size >= sizeof(ieee802_1x_hdr_t) + sizeof(eapol_packet_t), {}, 
         "EAPOL frame size is too small to contain EAPOL header and packet");
     EM_ASSERT_NOT_NULL(m_hash_fn, {}, "Hash function is not set, cannot calculate MIC");
     EM_ASSERT_MSG_TRUE(mic_kck_bits > 0, {}, "MIC KCK bits must be greater than 0 to calculate MIC");
@@ -933,7 +950,6 @@ std::vector<uint8_t> ec_1905_encrypt_layer_t::calculate_mic(ec_1905_key_ctx &ctx
     // MIC is at the end of the EAPOL packet, before Key Len and Key Data
     memset(eapol_packet->mic_len_key, 0, mic_len_bytes); 
 
-
     // Calculate the MIC for the EAPOL frame
 
     // Initialize temp MIC buffer to the max algorithm digest length since it will be truncated
@@ -951,6 +967,7 @@ std::vector<uint8_t> ec_1905_encrypt_layer_t::calculate_mic(ec_1905_key_ctx &ctx
 
     std::vector<uint8_t> mic(temp_mic, temp_mic + mic_len_bytes); // Truncate to MIC length
     free(eapol_frame_copy);
+
     return mic;
 }
 
@@ -971,7 +988,7 @@ std::pair<uint8_t*, size_t> ec_1905_encrypt_layer_t::build_pw_eapol_frame_1(ec_1
     eapol_packet->key_info.bits.encrypted_key_data = 0;
 
     eapol_packet->key_length = sizeof(ctx.ptk); // Key Length = Temporal Key Length
-    eapol_packet->key_replay_counter = ctx.curr_replay_counter++; // Increment the replay counter for the first frame
+    eapol_packet->key_replay_counter = ++ctx.curr_replay_counter; // Increment the replay counter for the first frame
     
     // Generate A-nonce
     if (RAND_bytes(ctx.a_nonce, sizeof(ctx.a_nonce)) != 1) {
@@ -997,6 +1014,10 @@ std::pair<uint8_t*, size_t> ec_1905_encrypt_layer_t::build_pw_eapol_frame_1(ec_1
     auto [final_eapol_frame, final_eapol_frame_size] = append_key_data_buff(eapol_frame, eapol_frame_size, reinterpret_cast<uint8_t*>(kde), sizeof(eapol_kde_t) + sizeof(ctx.pmkid)); // Append the KDE to the EAPOL packet
     free(kde);
     ASSERT_NOT_NULL(final_eapol_frame, {}, "Failed to append KDE to EAPOL frame");
+
+    // Set the EAPOL frame length
+    ieee802_1x_hdr_t* eapol_hdr = reinterpret_cast<ieee802_1x_hdr_t*>(final_eapol_frame);
+    eapol_hdr->length = htons(static_cast<uint16_t>(final_eapol_frame_size - sizeof(ieee802_1x_hdr_t))); 
 
     return {final_eapol_frame, final_eapol_frame_size};
 }
@@ -1040,6 +1061,10 @@ std::pair<uint8_t*, size_t> ec_1905_encrypt_layer_t::build_pw_eapol_frame_2(ec_1
 
     // Key Data Length = 0, since we are not sending any key data in this frame
     // Key Data = []
+
+    // Set the EAPOL frame length
+    ieee802_1x_hdr_t* eapol_hdr = reinterpret_cast<ieee802_1x_hdr_t*>(eapol_frame);
+    eapol_hdr->length = htons(static_cast<uint16_t>(eapol_frame_size - sizeof(ieee802_1x_hdr_t))); 
 
     std::vector<uint8_t> mic = calculate_mic(ctx, eapol_frame, eapol_frame_size);
     if (mic.empty()) {
@@ -1132,9 +1157,13 @@ std::pair<uint8_t*, size_t> ec_1905_encrypt_layer_t::build_pw_eapol_frame_3(ec_1
     }
 
     // Add encrypted Key Data to the EAPOL frame
-    auto [final_eapol_frame, final_eapol_frame_size] = append_key_data_buff(eapol_frame, eapol_frame_size, wrapped_key_data, wrapped_key_data_len);
+    auto [final_eapol_frame, final_eapol_frame_size] = append_key_data_buff(eapol_frame, eapol_frame_size, wrapped_key_data, wrapped_key_data_len, true);
 
     EM_ASSERT_NOT_NULL(final_eapol_frame, {}, "Failed to append encrypted Key Data to EAPOL frame");
+
+    // Set the EAPOL frame length
+    ieee802_1x_hdr_t* eapol_hdr = reinterpret_cast<ieee802_1x_hdr_t*>(final_eapol_frame);
+    eapol_hdr->length = htons(static_cast<uint16_t>(final_eapol_frame_size - sizeof(ieee802_1x_hdr_t))); 
 
     // Calculate the MIC for the EAPOL frame
     std::vector<uint8_t> mic = calculate_mic(ctx, final_eapol_frame, final_eapol_frame_size);
@@ -1144,6 +1173,8 @@ std::pair<uint8_t*, size_t> ec_1905_encrypt_layer_t::build_pw_eapol_frame_3(ec_1
         free(final_eapol_frame);
         return {};
     }
+
+    eapol_packet = reinterpret_cast<eapol_packet_t*>(final_eapol_frame + sizeof(ieee802_1x_hdr_t));
 
     // Copy the MIC to the end of the EAPOL packet (before Key Len and Key Data)
     memcpy(eapol_packet->mic_len_key, mic.data(), mic.size()); 
@@ -1184,6 +1215,10 @@ std::pair<uint8_t*, size_t> ec_1905_encrypt_layer_t::build_pw_eapol_frame_4(ec_1
 
     // Key Data Length = 0, none required 
     // Key Data = []
+
+    // Set the EAPOL frame length
+    ieee802_1x_hdr_t* eapol_hdr = reinterpret_cast<ieee802_1x_hdr_t*>(eapol_frame);
+    eapol_hdr->length = htons(static_cast<uint16_t>(eapol_frame_size - sizeof(ieee802_1x_hdr_t))); 
 
     std::vector<uint8_t> mic = calculate_mic(ctx, eapol_frame, eapol_frame_size);
     if (mic.empty()) {
@@ -1267,9 +1302,13 @@ std::pair<uint8_t *, size_t> ec_1905_encrypt_layer_t::build_group_eapol_frame_1(
     auto [wrapped_key_data, wrapped_key_data_len] = encrypt_key_data(ctx, key_data_plain, key_data_len);
 
     // Add encrypted Key Data to the EAPOL frame
-    auto [final_eapol_frame, final_eapol_frame_size] = append_key_data_buff(eapol_frame, eapol_frame_size, wrapped_key_data, wrapped_key_data_len);
+    auto [final_eapol_frame, final_eapol_frame_size] = append_key_data_buff(eapol_frame, eapol_frame_size, wrapped_key_data, wrapped_key_data_len, true);
 
     EM_ASSERT_NOT_NULL(final_eapol_frame, {}, "Failed to append encrypted Key Data to EAPOL frame");
+
+    // Set the EAPOL frame length
+    ieee802_1x_hdr_t* eapol_hdr = reinterpret_cast<ieee802_1x_hdr_t*>(final_eapol_frame);
+    eapol_hdr->length = htons(static_cast<uint16_t>(final_eapol_frame_size - sizeof(ieee802_1x_hdr_t))); 
 
     // Calculate the MIC for the EAPOL frame
     std::vector<uint8_t> mic = calculate_mic(ctx, final_eapol_frame, final_eapol_frame_size);
@@ -1278,6 +1317,8 @@ std::pair<uint8_t *, size_t> ec_1905_encrypt_layer_t::build_group_eapol_frame_1(
         free(final_eapol_frame);
         return {};
     }
+
+    eapol_packet = reinterpret_cast<eapol_packet_t*>(final_eapol_frame + sizeof(ieee802_1x_hdr_t));
 
     // Copy the MIC to the end of the EAPOL packet (before Key Len and Key Data)
     memcpy(eapol_packet->mic_len_key, mic.data(), mic.size()); 
@@ -1318,6 +1359,10 @@ std::pair<uint8_t *, size_t> ec_1905_encrypt_layer_t::build_group_eapol_frame_2(
 
     // Key Data Length = 0, none required 
     // Key Data = []
+
+    // Set the EAPOL frame length
+    ieee802_1x_hdr_t* eapol_hdr = reinterpret_cast<ieee802_1x_hdr_t*>(eapol_frame);
+    eapol_hdr->length = htons(static_cast<uint16_t>(eapol_frame_size - sizeof(ieee802_1x_hdr_t))); 
 
     std::vector<uint8_t> mic = calculate_mic(ctx, eapol_frame, eapol_frame_size);
     if (mic.empty()) {
@@ -1445,6 +1490,12 @@ bool ec_1905_encrypt_layer_t::handle_pw_eapol_frame_2(ec_1905_key_ctx &ctx, uint
     }
     em_printfout("Received EAPOL frame with replay counter %llu, proceeding with 4-way handshake", eapol_packet->key_replay_counter);
 
+    if (memcmp(eapol_packet->key_nonce, empty_nonce, sizeof(eapol_packet->key_nonce)) == 0) {
+        em_printfout("Received EAPOL frame with empty SNonce, discarding");
+        return false;
+    }
+    memcpy(ctx.s_nonce, eapol_packet->key_nonce, sizeof(ctx.s_nonce));
+
     if (!compute_ptk(m_hash_fn, ctx, src_mac, m_al_mac_addr.data())){
         em_printfout("Failed to derive PTK for frame 2 in 4-way handshake with '" MACSTRFMT "'", MAC2STR(src_mac));
         return false;
@@ -1465,8 +1516,6 @@ bool ec_1905_encrypt_layer_t::handle_pw_eapol_frame_2(ec_1905_key_ctx &ctx, uint
     The PTK-KEK is used by the EAPOL-Key frames to provide data confidentiality in the 4-way handshake and group key handshake messages.
     */
     memcpy(ctx.ptk_kek, ctx.ptk + kck_bytes, kek_bits / 8); 
-
-    em_printfout("Derived PTK for 4-way handshake with '" MACSTRFMT "'", MAC2STR(src_mac));
 
     // Verify the MIC
     if (!verify_mic(ctx, frame, len)) {
@@ -1568,7 +1617,7 @@ bool ec_1905_encrypt_layer_t::handle_pw_eapol_frame_3(ec_1905_key_ctx &ctx, uint
 
     // Build and send the fourth frame of the 4-way handshake
     em_printfout("Building EAPOL frame 4 for 4-way handshake with '" MACSTRFMT "'", MAC2STR(src_mac));
-    auto [eapol_frame_4, frame_len] = build_pw_eapol_frame_3(ctx);
+    auto [eapol_frame_4, frame_len] = build_pw_eapol_frame_4(ctx);
     if (eapol_frame_4 == nullptr || frame_len == 0) {
         em_printfout("Failed to build EAPOL frame 4 for 4-way handshake with '" MACSTRFMT "'", MAC2STR(src_mac));
         return false;
@@ -1597,6 +1646,9 @@ bool ec_1905_encrypt_layer_t::handle_pw_eapol_frame_3(ec_1905_key_ctx &ctx, uint
     // Installed keys, removing from the context
     ec_crypto::rand_zero(ctx.ptk, sizeof(ctx.ptk));
     ec_crypto::rand_zero(this->m_gtk, sizeof(this->m_gtk));
+
+    // Notify that the (pairwise) handshake is complete (supplicant side)
+    m_handshake_complete(src_mac, false);
     
     return true;
 }
@@ -1649,6 +1701,9 @@ bool ec_1905_encrypt_layer_t::handle_pw_eapol_frame_4(ec_1905_key_ctx &ctx, uint
     ctx.curr_replay_counter++; // Update the current replay counter to a fresh value
 
     em_printfout("4-way handshake with '" MACSTRFMT "' completed successfully", MAC2STR(src_mac));
+
+    // Notify that the (pairwise) handshake is complete (authenticator side)
+    m_handshake_complete(src_mac, false);
 
     // Installed key, removing from the context
     ec_crypto::rand_zero(ctx.ptk, sizeof(ctx.ptk));
@@ -1745,6 +1800,9 @@ bool ec_1905_encrypt_layer_t::handle_group_eapol_frame_1(ec_1905_key_ctx &ctx, u
 
     // Increment the replay counter 
     ctx.curr_replay_counter++;
+
+    // Notify that the (group) handshake is complete (supplicant side)
+    m_handshake_complete(src_mac, true);
     return true;
 }
 
@@ -1782,14 +1840,17 @@ bool ec_1905_encrypt_layer_t::handle_group_eapol_frame_2(ec_1905_key_ctx &ctx, u
 
     em_printfout("Group key handshake with '" MACSTRFMT "' completed successfully", MAC2STR(src_mac)); 
 
+    // Notify that the group key handshake is complete
+    m_handshake_complete(src_mac, true);
+
     return true;
 }
 
 eapol_packet_t* ec_1905_encrypt_layer_t::validate_eapol_frame(ec_1905_key_ctx &ctx, uint8_t *eapol_frame, size_t eapol_frame_len)
 {
     ieee802_1x_hdr_t* eapol_hdr = reinterpret_cast<ieee802_1x_hdr_t*>(eapol_frame);
-    EM_ASSERT_EQUALS(eapol_hdr->version, EAPOL_VERSION, NULL, "802.1X version mismatch in frame parsing");
-    EM_ASSERT_EQUALS(eapol_hdr->type, IEEE802_1X_TYPE_EAPOL_KEY, NULL, "802.1X type mismatch in frame parsing");
+    EM_ASSERT_EQUALS(eapol_hdr->version, EAPOL_VERSION, NULL, "802.1X version mismatch in frame parsing (%d  != %d)", eapol_hdr->version, EAPOL_VERSION);
+    EM_ASSERT_EQUALS(eapol_hdr->type, IEEE802_1X_TYPE_EAPOL_KEY, NULL, "802.1X type mismatch in frame parsing (%d  != %d)", eapol_hdr->type, IEEE802_1X_TYPE_EAPOL_KEY);
 
     eapol_packet_t* eapol_packet = reinterpret_cast<eapol_packet_t*>(eapol_frame + sizeof(ieee802_1x_hdr_t));
 
@@ -1837,7 +1898,7 @@ bool ec_1905_encrypt_layer_t::compute_gtk(const EVP_MD *algo, uint8_t aa[ETH_ALE
 }
 
 bool ec_1905_encrypt_layer_t::compute_ptk(const EVP_MD *algo, ec_1905_key_ctx &ctx, uint8_t aa[ETH_ALEN], uint8_t spa[ETH_ALEN]) {
-    
+   
     uint8_t *min_aa_spa, *max_aa_spa;
     uint8_t *min_nonce, *max_nonce;
     
@@ -1887,5 +1948,15 @@ bool ec_1905_encrypt_layer_t::set_key(uint8_t *key, size_t key_len, uint16_t key
 {
     // TODO: SoftHSM
     // if (is_pairwise) ignore `recv_seq_counter`
-    return false;
+    if (key == nullptr || key_len == 0 || mac == nullptr) {
+        em_printfout("Invalid parameters for setting key");
+        return false;
+    }
+    if (is_pairwise) {
+        em_printfout("Setting PTK with ID %u for MAC '" MACSTRFMT "'", key_id, MAC2STR(mac));
+    } else {
+        em_printfout("Setting GTK with ID %u for MAC '" MACSTRFMT "'", key_id, MAC2STR(mac));
+    }
+    util::print_hex_dump(key_len, key);
+    return true;
 }

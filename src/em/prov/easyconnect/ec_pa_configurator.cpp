@@ -24,7 +24,7 @@ ec_pa_configurator_t::ec_pa_configurator_t(const std::string& al_mac_addr, const
 
     if (ieee1905_encryption_possible) {
         // Pass super-class initialized security context
-        if (!m_1905_encrypt_layer.set_sec_params(m_sec_ctx.C_signing_key, m_sec_ctx.net_access_key,
+        if (!m_1905_encrypt_layer->set_sec_params(m_sec_ctx.C_signing_key, m_sec_ctx.net_access_key,
                                                  m_sec_ctx.connector, EVP_sha256() /*TODO HASH*/)) {
             em_printfout("Failed to set security parameters for 1905 Encrypt Layer");
             return;
