@@ -64,7 +64,14 @@ ec_manager_t &em_t::get_ec_mgr()
 {
     if (m_ec_manager == nullptr) {
         if (!m_is_al_em) {
-            return get_mgr()->get_al_node()->get_ec_mgr();
+            em_t* al_node = get_mgr()->get_al_node();
+            if (al_node == nullptr) {
+                util::print_stacktrace();
+                throw std::runtime_error("AL node is not initialized");
+            }
+            // Recursively get the AL node's EC manager
+            // This will throw if the AL node's EC manager is not initialized
+            return al_node->get_ec_mgr();
         }
         util::print_stacktrace();
         throw std::runtime_error("ec_manager_t is not initialized");

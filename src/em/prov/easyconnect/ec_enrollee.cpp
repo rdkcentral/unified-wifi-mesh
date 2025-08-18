@@ -3,7 +3,6 @@
 #include "ec_crypto.h"
 #include "em_crypto.h"
 #include "util.h"
-#include "timer.h"
 #include "cjson/cJSON.h"
 #include "cjson_util.h"
 #include <unistd.h>
@@ -115,26 +114,10 @@ bool ec_enrollee_t::start_onboarding(bool do_reconfig, ec_data_t* boot_data, boo
             std::thread(&ec_enrollee_t::send_presence_announcement_frames, this);
     } else {
         // Onboarding via Ethernet, need to fire off Autoconf Search (extended) with our bootstrapping key hash and await a response from the Controller
-        uint8_t *resp_boot_key_chirp_hash =
-            ec_crypto::compute_key_hash(m_boot_data().responder_boot_key, "chirp");
-        ASSERT_NOT_NULL(resp_boot_key_chirp_hash, false,
-                        "%s:%d unable to compute \"chirp\" responder bootstrapping key hash\n",
-                        __func__, __LINE__);
-        auto [chirp, chirp_len] = ec_util::create_dpp_chirp_tlv(
-            false, true, nullptr, resp_boot_key_chirp_hash, SHA256_DIGEST_LENGTH);
-        if (chirp == nullptr || chirp_len == 0) {
-            em_printfout("Failed to create DPP Chirp TLV for Autoconf Search (extended)");
-            return false;
-        }
-
-        if (!m_send_autoconf_search_fn(chirp, chirp_len)) {
-            em_printfout(
-                "Failed to send initial Autoconf Search (extended) with bootstrapping key hash");
-            free(chirp);
-            // If we fail to send, onboarding cannot continue.
-            return false;
-        }
-        free(chirp);
+        bool did_succeed = send_autoconf_search_chirp();
+        EM_ASSERT_MSG_TRUE(did_succeed, false, "Failed to initial Autoconf Search (extended) with bootstrapping key hash");
+        // Did a basic one first in order to check for validity
+        m_autoconf_search_timer->start_periodic(std::chrono::milliseconds(1000), std::bind(&ec_enrollee_t::send_autoconf_search_chirp, this));
     }
 
     m_is_onboarding = true;
@@ -1888,6 +1871,28 @@ ec_gas_comeback_request_frame_t *ec_enrollee_t::create_comeback_request(uint8_t 
     return reinterpret_cast<ec_gas_comeback_request_frame_t*>(frame);
 }
 
+bool ec_enrollee_t::send_autoconf_search_chirp(){
+
+    uint8_t *resp_boot_key_chirp_hash = ec_crypto::compute_key_hash(m_boot_data().responder_boot_key, "chirp");
+    EM_ASSERT_NOT_NULL(resp_boot_key_chirp_hash, false, "Failed to compute hash of responder boot key, can't send autoconf search");
+
+    auto [chirp, chirp_len] = ec_util::create_dpp_chirp_tlv(false, true, nullptr, resp_boot_key_chirp_hash, SHA256_DIGEST_LENGTH);
+    free(resp_boot_key_chirp_hash);
+    if (!chirp || chirp_len == 0) {
+        em_printfout("Failed to create chirp tlv for autoconf search");
+        return false;
+    }
+    if (!m_send_autoconf_search_fn(chirp, chirp_len)) {
+        em_printfout(
+            "Failed to send initial Autoconf Search (extended) with bootstrapping key hash");
+        free(chirp);
+        return false;
+    }
+    free(chirp);
+    em_printfout("Sent Autoconf Search (extended) with bootstrapping key hash");
+    return true;
+}
+
 bool ec_enrollee_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
 {
     std::string bssid_str = util::mac_to_string(sta_data.bss_info.bssid);
@@ -1900,7 +1905,7 @@ bool ec_enrollee_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
     // Is this a BSSID we tried to connect to, and therefore a relevant event for us?
     auto it = m_awaiting_assoc_status.find(bssid_str);
     if (it == m_awaiting_assoc_status.end()) {
-        em_printfout("Got association status, but it wasn't for our association attempt.");
+        em_printfout("Got association status, not awaiting connection status frame");
         em_printfout("\tBSSID: " MACSTRFMT, MAC2STR(sta_data.bss_info.bssid));
         em_printfout("\tSSID: %s", sta_data.bss_info.ssid);
         em_printfout("\tStatus: %d", sta_data.stats.connect_status);
@@ -2102,6 +2107,7 @@ bool ec_enrollee_t::handle_autoconf_response_chirp(em_dpp_chirp_value_t *chirp, 
     }
 
     em_printfout("Received autoconf chirp response from " MACSTRFMT, MAC2STR(src_mac));
+    m_autoconf_search_timer->stop();
 
     if (!chirp->hash_valid) {
         em_printfout("Chirp hash is not valid, cannot process further");
@@ -2120,38 +2126,22 @@ bool ec_enrollee_t::handle_autoconf_response_chirp(em_dpp_chirp_value_t *chirp, 
         free(our_key_hash);
         return false;
     }
+    free(our_key_hash);
 
     // Now, we can begin a 10 second timer awaiting a DPP Authentication Request frame from the Controller.
-    ThreadedTimer timer;
-    timer.execute_after(std::chrono::seconds(10), [this, src_mac]() {
+    // Created on heap to ensure it lives long enough for the timer callback
+    auto timer = std::make_shared<ThreadedTimer>();
+    timer->execute_after(std::chrono::seconds(10), [this, src_mac, timer]() {
         if (m_received_auth_frame.load()) {
             em_printfout("Received DPP Authentication Request frame");
             return;
         }
         // Never received a DPP Authentication Request frame, spec says re-send autoconf + chirp
         em_printfout("Did not receive DPP Authentication Request frame, re-sending autoconf + chirp");
-        // Compute the hash of the responder boot key
-        uint8_t *resp_boot_key_chirp_hash = ec_crypto::compute_key_hash(m_boot_data().responder_boot_key, "chirp");
-        if (!resp_boot_key_chirp_hash) {
-            em_printfout("Failed to compute hash of responder boot key, cannot re-send chirp response");
-            return;
-        }
-        auto [chirp, chirp_len] = ec_util::create_dpp_chirp_tlv(false, true, nullptr, resp_boot_key_chirp_hash, SHA256_DIGEST_LENGTH);
-        free(resp_boot_key_chirp_hash);
-        if (!chirp || chirp_len == 0) {
-            em_printfout("Failed to create autoconf chirp response");
-            return;
-        }
-        if (!m_send_autoconf_search_fn(chirp, chirp_len)) {
-            em_printfout("Failed to re-send autoconf chirp");
-            free(chirp);
-            return;
-        }
-        free(chirp);
+        m_autoconf_search_timer->start_periodic(std::chrono::milliseconds(1000), std::bind(&ec_enrollee_t::send_autoconf_search_chirp, this));
         em_printfout("Re-sent autoconf chirp response to " MACSTRFMT, MAC2STR(src_mac));
     });
 
     // Receive of DPP Auth Req frame will happen async, we're done here
-    free(our_key_hash);
     return true;
 }

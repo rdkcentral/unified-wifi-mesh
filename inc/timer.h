@@ -26,9 +26,9 @@ public:
      * @brief Starts a timer which calls `callback` with periodicity `interval`
      * 
      * @param interval The periodicity at which to call the callback
-     * @param callback The callback.
+     * @param callback The callback. If the callback returns false, the timer will stop.
      */
-    void start_periodic(std::chrono::milliseconds interval, std::function<void()> callback);
+    void start_periodic(std::chrono::milliseconds interval, std::function<bool()> callback);
 
     /**
      * @brief Cancel this timer.

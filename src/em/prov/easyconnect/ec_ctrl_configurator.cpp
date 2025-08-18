@@ -273,15 +273,9 @@ bool ec_ctrl_configurator_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, ui
 
 bool ec_ctrl_configurator_t::handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, size_t len, uint8_t src_mac[ETH_ALEN])
 {
+    em_printfout("Received Autoconf Search (extended) chirp from Enrollee '%s'", util::mac_to_string(src_mac).c_str());
     if (!chirp) {
         em_printfout("Chirp TLV is NULL");
-        return false;
-    }
-
-    std::string src_mac_str = util::mac_to_string(src_mac);
-    auto conn_ctx = get_conn_ctx(src_mac_str);
-    if (!conn_ctx) {
-        em_printfout("Received an autoconf search chirp from '%s', but no connection context found. Has the DPP URI been given?", src_mac_str.c_str());
         return false;
     }
 
@@ -291,25 +285,57 @@ bool ec_ctrl_configurator_t::handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, 
         em_printfout("Failed to parse DPP Chirp TLV from Autoconf Search (extended) message");
         return false;
     }
+    
+    // Autoconfig Chirps are only done for Ethernet onboarding
 
-    // Compare hash.
-    uint8_t *hash = ec_crypto::compute_key_hash(conn_ctx->boot_data.responder_boot_key);
-    if (!hash) {
-        em_printfout("Failed to compute hash of responder bootstrap public key");
-        return false;
-    }
+    // The source mac here is the AL MAC, but the MAC provided in the DPP URI can be assumed to be the PHY MAC
+    // Therefore we're going to need to do a lookup by hash...
 
-    if (memcmp(hash, enrollee_hash, enrollee_hash_len) != 0) {
-        // Note: spec does not specify what to do if the hashes don't match
-        em_printfout("Chirp notification hash and DPP URI hash did not match! Stopping DPP!");
-        em_printfout("Expected hash: ");
-        util::print_hex_dump(enrollee_hash_len, hash);
-        printf("\n%s:%d: Received hash: \n", __func__, __LINE__);
-        util::print_hex_dump(enrollee_hash_len, enrollee_hash);
+    ec_connection_context_t *e_conn_ctx = nullptr;
+    std::string enroleee_phy_mac = "";
+
+    for (auto & [mac, conn_ctx] : m_connections) {
+
+        // We found the connection context for this Enrollee
+        if (conn_ctx.boot_data.responder_boot_key == NULL) {
+            em_printfout("No responder bootstrap key found for Enrollee '%s'", mac.c_str());
+            continue;
+        }
+
+        // Compare hash.
+        uint8_t *hash = ec_crypto::compute_key_hash(conn_ctx.boot_data.responder_boot_key);
+        if (!hash) {
+            em_printfout("Failed to compute hash of responder bootstrap public key for Enrollee '%s'", mac.c_str());
+            continue;
+        }
+        if (memcmp(hash, enrollee_hash, enrollee_hash_len) == 0) {
+            // We found the Enrollee
+            em_printfout("Found Enrollee '%s' with matching hash", mac.c_str());
+            e_conn_ctx  = &conn_ctx;
+            enroleee_phy_mac = mac;
+            free(hash);
+            break;
+        }
         free(hash);
+    }
+    std::string src_mac_str = util::mac_to_string(src_mac);
+
+    if (!e_conn_ctx) {
+        em_printfout("Received an autoconf search chirp from (AL MAC) '%s', but no connection context found for hash. Has the DPP URI been given?", src_mac_str.c_str());
         return false;
     }
-    free(hash);
+
+    // We know that this is the AL MAC of the Enrollee now.
+    memcpy(e_conn_ctx->peer_al_mac, src_mac, ETH_ALEN);
+
+    // We'll need to make the m_connections map use the AL MAC as the key instead of the PHY MAC.
+    // This is because the Ethernet enrollee will be using the AL MAC for DPP communication.
+    ec_connection_context_t existing_conn_ctx = *e_conn_ctx; // Copy the existing context
+    m_connections.erase(enroleee_phy_mac);
+    m_connections[src_mac_str] = existing_conn_ctx; // Insert with the AL MAC as the key
+
+    // Update the connection context variable to use the new pointer
+    e_conn_ctx = get_conn_ctx(src_mac_str);
 
     // If they match, we respond with Autoconf Response (extended) including
     // a DPP chirp with hash_validity=1 and hash=enrollee_hash
@@ -325,10 +351,10 @@ bool ec_ctrl_configurator_t::handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, 
         return false;
     }
 
-    // Here, we can assume we're onboarding this enrollee over Ethernet.
-    conn_ctx->is_eth = true;
-
     free(resp_chirp);
+
+    // Here, we can assume we're onboarding this enrollee over Ethernet.
+    e_conn_ctx->is_eth = true;
 
     // Once we've sent the Autoconf Search Response (extended), the Enrollee will be awaiting a DPP Authentication Request frame.
     auto [frame, frame_len] = create_auth_request(src_mac_str);
@@ -394,9 +420,9 @@ bool ec_ctrl_configurator_t::handle_proxied_config_result_frame(uint8_t *encap_f
 
     ec_status_code_t dpp_status = static_cast<ec_status_code_t>(status_attr->data[0]);
     if (dpp_status == DPP_STATUS_OK) {
-        m_enrollee_successfully_onboarded[enrollee_mac] = true;
+        conn_ctx->is_easyconnect_dpp_complete = true;
     } else if (dpp_status == DPP_STATUS_CONFIG_REJECTED) {
-        m_enrollee_successfully_onboarded[enrollee_mac] = false;
+        conn_ctx->is_easyconnect_dpp_complete = false;
     } else {
         em_printfout("Invalid DPP Status %d (%s)", static_cast<int>(dpp_status), ec_util::status_code_to_string(dpp_status).c_str());
         free(unwrapped_attrs);
@@ -1055,7 +1081,7 @@ bool ec_ctrl_configurator_t::handle_recfg_announcement(ec_frame_t *encap_frame, 
     free(recfg_auth_req_frame);
     if (sent) {
         m_currently_undergoing_recfg[enrollee_mac] = true;
-        m_enrollee_successfully_onboarded[enrollee_mac] = false;
+        conn_ctx->is_easyconnect_dpp_complete = false;
     }
     return sent;
 }
