@@ -552,7 +552,7 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
         ASSERT_NOT_NULL(encap_response_frame, {}, "%s:%d: Failed to alloc DPP Configuration frame!\n", __func__, __LINE__);
 
         em_printfout("Sending DPP Configuration Response frame for Enrollee '" MACSTRFMT "' over 1905 with DPP status code %s", MAC2STR(src_mac), status_code_str.c_str());
-        bool sent = m_send_prox_encap_dpp_msg(reinterpret_cast<em_encap_dpp_t*>(config_response_frame), config_response_frame_len, nullptr, config_response_frame_len, src_al_mac);
+        bool sent = m_send_prox_encap_dpp_msg(encap_response_frame, encap_response_frame_len, nullptr, config_response_frame_len, src_al_mac);
         if (!sent) {
             em_printfout("Failed to send DPP Configuration Response for Enrollee '" MACSTRFMT "'", MAC2STR(src_mac));
         }
@@ -638,7 +638,7 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
     ASSERT_NOT_NULL(encap_response_frame, {}, "%s:%d: Failed to alloc DPP Configuration frame!\n", __func__, __LINE__);
 
     if (!conn_ctx->is_eth) {
-        bool sent = m_send_prox_encap_dpp_msg(reinterpret_cast<em_encap_dpp_t*>(encap_response_frame), encap_response_frame_len, nullptr, 0, src_al_mac);
+        bool sent = m_send_prox_encap_dpp_msg(encap_response_frame, encap_response_frame_len, nullptr, 0, src_al_mac);
         if (!sent) {
             em_printfout("Failed to send Proxied Encap DPP message containing DPP Configuration frame to '" MACSTRFMT "'", MAC2STR(src_mac));
             free(config_response_frame);
@@ -1663,13 +1663,7 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_fram
 
         response_frame->resp_len = static_cast<uint16_t>(attribs_len);
 
-        auto [proxy_encap_frame, proxy_encap_frame_len] = ec_util::create_encap_dpp_tlv(true, dest_mac, ec_frame_type_easymesh, reinterpret_cast<uint8_t*>(response_frame), sizeof(*response_frame) + attribs_len);
-        if (proxy_encap_frame == nullptr || proxy_encap_frame_len == 0) {
-            em_printfout("Could not create Proxied Encap DPP TLV!");
-            free(response_frame);
-            return {};
-        }
-        return std::make_pair(reinterpret_cast<uint8_t*>(proxy_encap_frame), proxy_encap_frame_len);
+        return std::make_pair(reinterpret_cast<uint8_t *>(response_frame), sizeof(ec_gas_initial_response_frame_t) + attribs_len);
     }
 
     // DPP_STATUS_OK case.
@@ -1759,5 +1753,5 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_fram
     ASSERT_NOT_NULL(response_frame, {}, "%s:%d: Failed to copy attributes to DPP Configuration frame!\n", __func__, __LINE__);
     response_frame->resp_len = static_cast<uint16_t>(attribs_len);
 
-    return std::make_pair(reinterpret_cast<uint8_t *>(response_frame), EC_FRAME_BASE_SIZE + attribs_len);
+    return std::make_pair(reinterpret_cast<uint8_t *>(response_frame), sizeof(ec_gas_initial_response_frame_t) + attribs_len);
 }
