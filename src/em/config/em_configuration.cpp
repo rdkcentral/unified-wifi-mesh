@@ -365,7 +365,7 @@ int em_configuration_t::send_topology_query_msg()
     }
 
     m_topo_query_tx_cnt++;
-    printf("%s:%d: Topology Query (%d) Send Successful\n", __func__, __LINE__, m_topo_query_tx_cnt);
+    em_printfout("Topology Query (%d) Sent", m_topo_query_tx_cnt);
 
 	return static_cast<int> (len);
 }
@@ -4804,7 +4804,7 @@ void em_configuration_t::process_ctrl_state()
             send_ap_mld_config_req_msg();
             break;
         default:
-            printf("%s:%d: unhandled case %s\n", __func__, __LINE__, em_t::state_2_str(get_state()));
+            em_printfout("unhandled state:%s in config state machine.", em_t::state_2_str(get_state()));
             break;
     }
 
