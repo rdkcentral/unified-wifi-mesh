@@ -387,13 +387,13 @@ TEST(AlServiceRegistrationRequest, ParameterizedConstructor_ValidServiceType_EmC
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Log the beginning of the test and create an instance of AlServiceRegistrationRequest with an invalid service type. | serviceOperation = SOP_ENABLE, serviceType = static_cast<ServiceType>(0x06) | Instance is created successfully with the given parameters. | Should be successful |
+ * | 01 | Log the beginning of the test and create an instance of AlServiceRegistrationRequest with an invalid service type. | SAPActivation = SAP_ENABLE, serviceType = static_cast<ServiceType>(0x06) | Instance is created successfully with the given parameters. | Should be successful |
  * | 02 | Call getServiceType() to retrieve the service type from the instance. | API Call: result = instance.getServiceType() | The returned service type should match the invalid input (static_cast<ServiceType>(0x06)). | Should Fail |
  * | 03 | Log the retrieved service type and the exit of the test. | Output log: service type value printed. | The console outputs the service type and indicates test completion. | Should be successful |
  */
 TEST(AlServiceRegistrationRequest, RetrieveServiceType_Invalid) {
     std::cout << "Entering RetrieveServiceType_Invalid test" << std::endl;
-    AlServiceRegistrationRequest instance(ServiceOperation::SOP_ENABLE, static_cast<ServiceType>(0x06));
+    AlServiceRegistrationRequest instance(SAPActivation::SAP_ENABLE, static_cast<ServiceType>(0x06));
     ServiceType result = instance.getServiceType();
     std::cout << "The servicetype is "  << result << std::endl;
     std::cout << "Exiting RetrieveServiceType_Invalid test" << std::endl;
@@ -401,7 +401,7 @@ TEST(AlServiceRegistrationRequest, RetrieveServiceType_Invalid) {
 /**
  * @brief Validate that serialization of a valid registration request returns a non-empty vector of bytes
  *
- * This test creates an instance of AlServiceRegistrationRequest with valid parameters (SOP_ENABLE and SAP_CLIENT)
+ * This test creates an instance of AlServiceRegistrationRequest with valid parameters (SAP_ENABLE and EmAgent)
  * and then invokes serializeRegistrationRequest to generate the serialized data. The test ensures that the returned
  * vector is correctly generated. This is important to verify that the serialization logic for valid registration requests
  * works as expected.
@@ -417,11 +417,11 @@ TEST(AlServiceRegistrationRequest, RetrieveServiceType_Invalid) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Instantiate AlServiceRegistrationRequest with valid inputs and call serializeRegistrationRequest | ServiceOperation = SOP_ENABLE, ServiceType = SAP_CLIENT, output = vector<unsigned char> | Returns a non-empty vector of serialized data | Should Pass |
+ * | 01 | Instantiate AlServiceRegistrationRequest with valid inputs and call serializeRegistrationRequest | SAPActivation = SAP_ENABLE, ServiceType = EmAgent, output = vector<unsigned char> | Returns a non-empty vector of serialized data | Should Pass |
  */
 TEST(AlServiceRegistrationRequest, SerializeValidRegistrationRequest) {
     std::cout << "Entering SerializeValidRegistrationRequest test" << std::endl;
-    AlServiceRegistrationRequest instance(ServiceOperation::SOP_ENABLE, ServiceType::SAP_CLIENT);
+    AlServiceRegistrationRequest instance(SAPActivation::SAP_ENABLE, ServiceType::EmAgent);
     std::vector<unsigned char> result = instance.serializeRegistrationRequest();
     std::cout << "The result is: [";
     for (size_t i = 0; i < result.size(); ++i) {
@@ -450,13 +450,13 @@ TEST(AlServiceRegistrationRequest, SerializeValidRegistrationRequest) {
  * **Test Procedure:**
  * | Variation / Step | Description                                                                                   | Test Data                                                  | Expected Result                                                                     | Notes           |
  * | :--------------: | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------ | --------------- |
- * | 01               | Log the entry into the test and instantiate AlServiceRegistrationRequest with invalid values. | serviceOperation = 0x04, serviceType = 0x05                 | Instance of AlServiceRegistrationRequest is created successfully                    | Should Pass     |
+ * | 01               | Log the entry into the test and instantiate AlServiceRegistrationRequest with invalid values. | SAPActivation = 0x04, serviceType = 0x05                 | Instance of AlServiceRegistrationRequest is created successfully                    | Should Pass     |
  * | 02               | Invoke serializeRegistrationRequest() on the instance to perform the serialization operation.  | No direct input, uses instance internal state              | A vector of unsigned char containing the serialized registration data is returned    | Should Pass     |
  * | 03               | Log the serialized result and exit the test.                                                 | result (vector<unsigned char>) as output from the API call | Serialized data is printed in hex format on the console                              | Should be successful |
  */
 TEST(AlServiceRegistrationRequest, SerializeInvalidRegistrationRequest) {
     std::cout << "Entering SerializeInvalidRegistrationRequest test" << std::endl;
-    AlServiceRegistrationRequest instance(static_cast<ServiceOperation>(0x04), static_cast<ServiceType>(0x05));
+    AlServiceRegistrationRequest instance(static_cast<SAPActivation>(0x04), static_cast<ServiceType>(0x05));
     std::vector<unsigned char> result = instance.serializeRegistrationRequest();
     std::cout << "The result is: [";
     for (size_t i = 0; i < result.size(); ++i) {

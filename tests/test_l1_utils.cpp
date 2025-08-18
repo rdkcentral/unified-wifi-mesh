@@ -54,10 +54,10 @@ std::ostream& operator<<(std::ostream& os, const MessageIdRange& range) {
 
 std::ostream& operator<<(std::ostream& os, const SAPActivation& op) {
     switch (op) {
-        case SAPActivation::SOP_ENABLE:
+        case SAPActivation::SAP_ENABLE:
             os << "SOP_ENABLE";
             break;
-        case SAPActivation::SOP_DISABLE:
+        case SAPActivation::SAP_DISABLE:
             os << "SOP_DISABLE";
             break;
         default:
