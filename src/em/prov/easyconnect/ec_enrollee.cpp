@@ -9,9 +9,7 @@
 #include <unistd.h>
 
 ec_enrollee_t::ec_enrollee_t(const std::string& al_mac_addr, ec_ops_t& ops, std::optional<ec_persistent_sec_ctx_t> existing_sec_ctx)
-    : m_al_mac_addr(al_mac_addr),
-    m_1905_encrypt_layer(al_mac_addr, ops.send_dir_encap_dpp, ops.send_1905_eapol_encap)
-{
+    : m_al_mac_addr(al_mac_addr) {
     m_send_action_frame = ops.send_act_frame;
     m_get_bsta_info = ops.get_backhaul_sta_info;
     m_trigger_sta_scan_fn = ops.trigger_sta_scan;
@@ -19,6 +17,13 @@ ec_enrollee_t::ec_enrollee_t(const std::string& al_mac_addr, ec_ops_t& ops, std:
     m_send_dir_encap_fn = ops.send_dir_encap_dpp;
     m_send_autoconf_search_fn = ops.send_autoconf_search;
     m_scanned_channels_map = {};
+
+    m_1905_encrypt_layer = std::make_unique<ec_1905_encrypt_layer_t>(
+        al_mac_addr, 
+        ops.send_dir_encap_dpp, 
+        ops.send_1905_eapol_encap,
+        std::bind(&ec_enrollee_t::handle_1905_handshake_completed, 
+                  this, std::placeholders::_1, std::placeholders::_2));
 
     // Import existing security context
     if (existing_sec_ctx.has_value()) {
@@ -43,6 +48,18 @@ ec_enrollee_t::~ec_enrollee_t()
 
     ec_crypto::free_persistent_sec_ctx(&m_sec_ctx);
     
+}
+
+void ec_enrollee_t::handle_1905_handshake_completed(uint8_t peer_mac[ETH_ALEN], bool is_group) {
+    em_printfout("1905 handshake completed with peer: " MACSTRFMT ", group key: %s", 
+                 MAC2STR(peer_mac), is_group ? "true" : "false");
+
+    // Now that we've established 1905 layer connectivity, start BSS Configuration
+    if (!m_send_bss_config_req_fn(peer_mac)) {
+        em_printfout("Failed to send BSS Configuration Request to peer: " MACSTRFMT, MAC2STR(peer_mac));
+        return;
+    }
+    em_printfout("BSS Configuration Request sent to peer: " MACSTRFMT, MAC2STR(peer_mac));
 }
 
 bool ec_enrollee_t::start_onboarding(bool do_reconfig, ec_data_t* boot_data, bool ethernet)
@@ -1035,7 +1052,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
     }
 
     // We have all the keys and information, let's set the security parameters, they can always be changed
-    m_1905_encrypt_layer.set_sec_params(m_sec_ctx.C_signing_key, m_sec_ctx.net_access_key, m_sec_ctx.connector, m_c_ctx.hash_fcn);
+    m_1905_encrypt_layer->set_sec_params(m_sec_ctx.C_signing_key, m_sec_ctx.net_access_key, m_sec_ctx.connector, m_c_ctx.hash_fcn);
 
     cJSON *bsta_discovery_obj = cJSON_GetObjectItem(bsta_configuration_object.get(), "discovery");
     if (bsta_cred_obj == nullptr || bsta_discovery_obj == nullptr) {
@@ -1101,6 +1118,16 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
         em_printfout("Sent Configuration Result frame to '" MACSTRFMT "'", MAC2STR(sa));
     }
 
+    // If we're Ethernet, we are done, just need to start 1905 layer security
+    if (m_c_ctx.is_eth) {
+        // EasyMesh 5.3.5:
+        // After the Enrollee Multi-AP Agent sent the encapsulated DPP Configuration Result frame to the Controller, it shall follow
+        // the procedures in section 5.3.7 to set up a secure 1905-layer connectivity with the Controller
+
+        return m_1905_encrypt_layer->start_secure_1905_layer(sa);
+    }
+        
+
     // Then, we need to scan and ensure that the Configurator's requested BSS is
     // within range for us / exists.
 
@@ -1115,21 +1142,11 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
     }
 
 
-    if (needs_connection_status) {
-        // TODO: add BSSID we're attemping to associate to to m_awaiting_assoc_status map!
+    if (needs_connection_status && !m_c_ctx.is_eth) {
         std::string bssid_str = util::mac_to_string(bssid);
         std::vector<uint8_t> sender_mac(sa, sa + ETH_ALEN);
         m_awaiting_assoc_status[bssid_str] = sender_mac;
         em_printfout("Added BSSID to awaiting association status map: %s", bssid_str.c_str());
-    } 
-
-    free(config_result_frame);
-
-    if (m_c_ctx.is_eth) {
-        // EasyMesh 5.3.5:
-        // After the Enrollee Multi-AP Agent sent the encapsulated DPP Configuration Result frame to the Controller, it shall follow
-        // the procedures in section 5.3.7 to set up a secure 1905-layer connectivity with the Controller
-        // TODO: begin Peer Discovery?
     }
 
     return ok;    
