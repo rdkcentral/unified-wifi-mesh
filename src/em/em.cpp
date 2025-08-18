@@ -732,7 +732,7 @@ bool em_t::toggle_cce(bool enable)
     for (unsigned int i = 0; i < num_bss; i++) {
         dm_bss_t* bss = m_data_model->get_bss(i);
         em_bss_info_t* bss_info = bss->get_bss_info();
-        uint8_t vap_index = bss_info->vap_index;
+        unsigned int vap_index = bss_info->vap_index;
 
         if (!bss_info || !bss_info->enabled) {
             printf("Skipping VAP %d as it is not enabled\n", vap_index);
