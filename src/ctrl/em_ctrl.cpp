@@ -793,6 +793,8 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         case em_msg_type_dpp_cce_ind:
         case em_msg_type_1905_rekey_req:
         case em_msg_type_1905_encap_eapol:
+        case em_msg_type_bss_config_req:
+        case em_msg_type_bss_config_res:
 	        em = al_em;
 	        break;
         case em_msg_type_topo_disc:
