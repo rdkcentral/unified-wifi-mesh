@@ -124,6 +124,7 @@ AGENT_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
     $(ONEWIFI_EM_SRC)/dm/dm_assoc_sta_mld.cpp \
     $(ONEWIFI_EM_SRC)/dm/dm_tid_to_link.cpp \
     $(ONEWIFI_EM_SRC)/utils/util.cpp \
+    $(ONEWIFI_EM_SRC)/utils/timer.cpp \
 
 AGENT_OBJECTS = $(AGENT_SOURCES:.cpp=.o)
 GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o) 
