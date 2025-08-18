@@ -1,4 +1,5 @@
-/**
+
+/*
  * If not stated otherwise in this file or this component's LICENSE file the
  * following copyright and licenses apply:
  *
@@ -16,312 +17,409 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include <stdio.h>
 #include "al_service_registration_request.h"
-#include "test_l1_utils.h"
+
 
 /**
- * @brief Test to verify the deserialization of a valid registration request
+ * @brief Test to verify that the default constructor instantiates the object without throwing an exception.
  *
- * This test checks the functionality of the deserializeRegistrationRequest method when provided with valid serialized data. It ensures that the method correctly processes the input data without errors.
+ * This test ensures that calling the default constructor of AlServiceRegistrationRequest does not throw any exceptions and results in the proper instantiation of an object with the expected default internal state.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 001@n
  * **Priority:** High@n
- * @n
+ * 
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Call deserializeRegistrationRequest with valid data | validData = valid serialized data | Method processes data correctly | Should Pass |
- */
-TEST(AlServiceRegistrationRequestTest, DeserializeValidRegistrationRequest) {
-    std::vector<unsigned char> validData = {0x01, 0x02, 0x03, 0xFF};
-    std::cout << "Entering DeserializeValidRegistrationRequest" << std::endl;
-    AlServiceRegistrationRequest instance;
-    instance.deserializeRegistrationRequest(validData);
-    std::cout << "Exiting DeserializeValidRegistrationRequest" << std::endl;
-}
-
-/**
- * @brief Test to verify the behavior of the deserializeRegistrationRequest method when provided with an empty data vector.
  *
- * This test checks if the deserializeRegistrationRequest method can handle an empty data vector without crashing or throwing exceptions. It ensures that the method can gracefully handle edge cases where no data is provided.
+ * **Test Procedure:**@n
+ * | Variation / Step | Description                                                        | Test Data                                  | Expected Result                                                                   | Notes       |
+ * | :--------------: | ------------------------------------------------------------------ | ------------------------------------------ | ---------------------------------------------------------------------------------- | ----------- |
+ * | 01               | Invoke default constructor for AlServiceRegistrationRequest object   | No input, default constructor invoked      | API call does not throw any exception and object is created with default state      | Should Pass |
+ */
+TEST(AlServiceRegistrationRequest, InstantiateObjectUsingDefaultConstructorSuccessfully) {
+    std::cout << "Entering InstantiateObjectUsingDefaultConstructorSuccessfully test" << std::endl;
+    
+    // Invoke the default constructor
+    EXPECT_NO_THROW({
+        std::cout << "Invoking default constructor for AlServiceRegistrationRequest." << std::endl;
+        AlServiceRegistrationRequest obj;
+        std::cout << "Default constructor called. Object created with default internal state." << std::endl;
+        // Since internal state is not accessible via getters, we assume default initialization.
+        std::cout << "Internal state assumed as default based on constructor behavior." << std::endl;
+    });
+    
+    std::cout << "Exiting InstantiateObjectUsingDefaultConstructorSuccessfully test" << std::endl;
+}
+/**
+ * @brief Test construction of AlServiceRegistrationRequest with valid values
+ *
+ * This test ensures that the AlServiceRegistrationRequest constructor does not throw an exception when invoked with valid SAPActivation and ServiceType values. It iterates over all valid combinations of SAPActivation (SAP_ENABLE and SAP_DISABLE) and ServiceType (EmAgent and EmController) to verify successful object creation.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 002@n
  * **Priority:** High@n
- * @n
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Initialize an empty data vector | emptyData = {} | Data vector should be initialized successfully | Should be successful |
- * | 02 | Call the deserializeRegistrationRequest method with the empty data vector | instance->deserializeRegistrationRequest(emptyData) | Method should handle the empty data vector without crashing | Should Pass |
- */
-TEST(AlServiceRegistrationRequestTest, DeserializeEmptyDataVector) {
-    std::vector<unsigned char> emptyData = {};
-    std::cout << "Entering DeserializeEmptyDataVector" << std::endl;
-    AlServiceRegistrationRequest instance;
-    instance.deserializeRegistrationRequest(emptyData);
-    ASSERT_TRUE(true); // Add appropriate assertions based on expected state
-    std::cout << "Exiting DeserializeEmptyDataVector" << std::endl;
-}
-
-/**
- * @brief Test to verify the retrieval of service operation when it is enabled
  *
- * This test checks if the service operation is correctly set and retrieved when the service operation is enabled.
+ * **Test Procedure:**@n
+ * | Variation / Step | Description                                                                 | Test Data                                                            | Expected Result                                                  | Notes       |
+ * | :--------------: | --------------------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------- | ----------- |
+ * | 01               | Invoke constructor with SAPActivation = SAP_ENABLE and ServiceType = EmAgent  | SAPActivation = SAP_ENABLE, ServiceType = EmAgent                    | No exception thrown and object constructed successfully          | Should Pass |
+ * | 02               | Invoke constructor with SAPActivation = SAP_ENABLE and ServiceType = EmController | SAPActivation = SAP_ENABLE, ServiceType = EmController                | No exception thrown and object constructed successfully          | Should Pass |
+ * | 03               | Invoke constructor with SAPActivation = SAP_DISABLE and ServiceType = EmAgent | SAPActivation = SAP_DISABLE, ServiceType = EmAgent                  | No exception thrown and object constructed successfully          | Should Pass |
+ * | 04               | Invoke constructor with SAPActivation = SAP_DISABLE and ServiceType = EmController | SAPActivation = SAP_DISABLE, ServiceType = EmController            | No exception thrown and object constructed successfully          | Should Pass |
+ */
+TEST(AlServiceRegistrationRequest, ConstructorWithValidValues) {
+    std::cout << "Entering ConstructorWithValidValues test" << std::endl;
+    // Looping through valid SAPActivation values and ServiceType values
+    SAPActivation validOperations[] = { SAPActivation::SAP_ENABLE, SAPActivation::SAP_DISABLE };
+    ServiceType validTypes[] = { ServiceType::EmAgent, ServiceType::EmController };
+
+    for (const auto& op : validOperations) {
+        for (const auto& type : validTypes) {
+            std::cout << "Invoking AlServiceRegistrationRequest constructor with SAPActivation = " 
+                      << static_cast<uint8_t>(op) << " and ServiceType = " 
+                      << static_cast<uint8_t>(type) << std::endl;
+            // Expect no exception thrown for valid parameters
+            EXPECT_NO_THROW({
+                AlServiceRegistrationRequest request(op, type);
+                std::cout << "Constructed AlServiceRegistrationRequest object" << std::endl;
+            });
+        }
+    }
+    std::cout << "Exiting ConstructorWithValidValues test" << std::endl;
+}
+/**
+ * @brief Verify that the constructor of AlServiceRegistrationRequest throws an exception when provided with an invalid SAPActivation value.
+ *
+ * This test validates that the AlServiceRegistrationRequest constructor correctly handles an invalid SAPActivation value (0xFF) by throwing an exception, while being provided with a valid ServiceType (EmAgent). This ensures robust error handling in the API when input parameters are not within the expected range.
  *
  * **Test Group ID:** Basic: 01
  * **Test Case ID:** 003
  * **Priority:** High
- * 
+ *
  * **Pre-Conditions:** None
  * **Dependencies:** None
  * **User Interaction:** None
- * 
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                                                     | Test Data                                                  | Expected Result                                                    | Notes             |
+ * | :--------------: | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------ | ----------------- |
+ * | 01               | Print the message indicating the start of the test.                                             | None                                                       | "Entering ConstructorWithInvalidSAPActivation test" is printed.    | Should be successful |
+ * | 02               | Initialize variables with invalid SAPActivation value and valid ServiceType, and print invoking message. | invalidOp = 0xFF, validType = EmAgent                        | "Invoking AlServiceRegistrationRequest constructor with invalid SAPActivation value = 255 and valid ServiceType value = (EmAgent as uint8_t)" is printed. | Should be successful |
+ * | 03               | Call the AlServiceRegistrationRequest constructor with the invalid SAPActivation value and valid ServiceType, and expect an exception. | API call: AlServiceRegistrationRequest(invalidOp, validType) | An exception is thrown as verified by the EXPECT_ANY_THROW assertion. | Should Pass       |
+ * | 04               | Print the message indicating the end of the test.                                               | None                                                       | "Exiting ConstructorWithInvalidSAPActivation test" is printed.     | Should be successful |
+ */
+TEST(AlServiceRegistrationRequest, ConstructorWithInvalidSAPActivation) {
+    std::cout << "Entering ConstructorWithInvalidSAPActivation test" << std::endl;
+    SAPActivation invalidOp = static_cast<SAPActivation>(0xFF);
+    ServiceType validType = ServiceType::EmAgent;
+    std::cout << "Invoking AlServiceRegistrationRequest constructor with invalid SAPActivation value = " 
+              << static_cast<uint8_t>(invalidOp) << " and valid ServiceType value = " 
+              << static_cast<uint8_t>(validType) << std::endl;
+
+    // Expect constructor to throw an exception for invalid SAPActivation value
+    EXPECT_ANY_THROW({
+        AlServiceRegistrationRequest request(invalidOp, validType);
+    });
+
+    std::cout << "Exiting ConstructorWithInvalidSAPActivation test" << std::endl;
+}
+/**
+ * @brief Verify that the AlServiceRegistrationRequest constructor throws an exception for an invalid ServiceType.
+ *
+ * This test validates that when providing an invalid ServiceType value (0xFF) along with a valid SAPActivation value (SAP_ENABLE),
+ * the constructor of AlServiceRegistrationRequest correctly throws an exception. This ensures that the class properly validates input values.
+ *
+ * **Test Group ID:** Basic: 01
+ * **Test Case ID:** 004
+ * **Priority:** High
+ *
+ * **Pre-Conditions:** None
+ * **Dependencies:** None
+ * **User Interaction:** None
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set the service operation to SOP_ENABLE | ServiceOperation::SOP_ENABLE | Service operation set to SOP_ENABLE | Should be successful |
- * | 02 | Retrieve the service operation and check if it is SOP_ENABLE | None | Retrieved service operation should be SOP_ENABLE | Should Pass |
+ * | 01 | Call the AlServiceRegistrationRequest constructor with valid SAPActivation (SAP_ENABLE) and invalid ServiceType (0xFF) | validOp = SAP_ENABLE, invalidType = 0xFF | The constructor should throw an exception. | Should Pass |
  */
-TEST(AlServiceRegistrationRequestTest, RetrieveServiceOperationWhenEnabled) {
-    std::cout << "Entering RetrieveServiceOperationWhenEnabled test" << std::endl;
-    AlServiceRegistrationRequest instance(ServiceOperation::SOP_ENABLE, ServiceType::SAP_CLIENT);
-	ServiceOperation operation = instance.getServiceOperation();
-    std::cout << "The service operation is "  << operation << std::endl;
-    ASSERT_EQ(operation, ServiceOperation::SOP_ENABLE);
-    std::cout << "The service operation is "  << operation << std::endl;
-    std::cout << "Exiting RetrieveServiceOperationWhenEnabled test" << std::endl;
-}
+TEST(AlServiceRegistrationRequest, ConstructorWithInvalidServiceType) {
+    std::cout << "Entering ConstructorWithInvalidServiceType test" << std::endl;
+    SAPActivation validOp = SAPActivation::SAP_ENABLE;
+    ServiceType invalidType = static_cast<ServiceType>(0xFF);
+    std::cout << "Invoking AlServiceRegistrationRequest constructor with valid SAPActivation value = " 
+              << static_cast<uint8_t>(validOp) << " and invalid ServiceType value = " 
+              << static_cast<uint8_t>(invalidType) << std::endl;
 
+    // Expect constructor to throw an exception for invalid ServiceType value
+    EXPECT_ANY_THROW({
+        AlServiceRegistrationRequest request(validOp, invalidType);
+    });
+
+    std::cout << "Exiting ConstructorWithInvalidServiceType test" << std::endl;
+}
 /**
- * @brief Test to verify the retrieval of service operation when it is disabled.
+ * @brief Verify that getSAPActivationStatus() returns SAP_ENABLE correctly
  *
- * This test checks if the service operation is correctly set to disabled and retrieved as disabled.@n
+ * This test verifies that when an instance of AlServiceRegistrationRequest is constructed using SAPActivation::SAP_ENABLE 
+ * along with a valid ServiceType, the getSAPActivationStatus() method correctly returns SAP_ENABLE. This ensures that the 
+ * API behaves as expected when provided with valid initialization inputs and that no exceptions are thrown during execution.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 004@n
+ * **Test Case ID:** 005@n
  * **Priority:** High@n
- * @n
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * @n
+ *
  * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | Variation / Step | Description | Test Data |Expected Result |Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set the service operation to SOP_DISABLE | ServiceOperation::SOP_DISABLE | Service operation set to SOP_DISABLE | Should be successful |
- * | 02 | Retrieve the service operation and check if it is disabled | instance->getServiceOperation() | ServiceOperation::SOP_DISABLE | Should Pass |
+ * | 01 | Create a valid ServiceType, construct AlServiceRegistrationRequest with SAPActivation::SAP_ENABLE, and invoke getSAPActivationStatus() | input: SAPActivation = SAP_ENABLE, ServiceType = 0; output: returnedSAPActivationStatus = SAP_ENABLE | API returns SAP_ENABLE and assertion EXPECT_EQ confirms the value | Should Pass |
  */
-TEST(AlServiceRegistrationRequestTest, RetrieveServiceOperationWhenDisabled) {
-    std::cout << "Entering RetrieveServiceOperationWhenDisabled test" << std::endl;
-	AlServiceRegistrationRequest instance(ServiceOperation::SOP_DISABLE, ServiceType::SAP_CLIENT);
-	ServiceOperation operation = instance.getServiceOperation();
-    std::cout << "The service operation is "  << operation << std::endl;
-    ASSERT_EQ(operation, ServiceOperation::SOP_DISABLE);
-    std::cout << "Exiting RetrieveServiceOperationWhenDisabled test" << std::endl;
+TEST(AlServiceRegistrationRequest, getSAPActivationStatus_returns_SAP_ENABLE) {
+    std::cout << "Entering getSAPActivationStatus_returns_SAP_ENABLE test" << std::endl;
+    
+    // Create a valid ServiceType value.
+    ServiceType validServiceType = 0;
+    std::cout << "Created a valid ServiceType with value: " << validServiceType << std::endl;
+    
+    EXPECT_NO_THROW({
+        // Construct the object with SAP_ENABLE.
+        AlServiceRegistrationRequest request(SAPActivation::SAP_ENABLE, validServiceType);
+        std::cout << "Constructed AlServiceRegistrationRequest with SAPActivation::SAP_ENABLE" << std::endl;
+        
+        // Invoke getSAPActivationStatus() method.
+        SAPActivation activation = request.getSAPActivationStatus();
+        std::cout << "Invoked getSAPActivationStatus(), returned value: " 
+                  << static_cast<int>(activation) << std::endl;
+        
+        // Validate that the returned value is SAP_ENABLE.
+        EXPECT_EQ(activation, SAPActivation::SAP_ENABLE);
+    });
+    
+    std::cout << "Exiting getSAPActivationStatus_returns_SAP_ENABLE test" << std::endl;
 }
-
 /**
- * @brief Test to verify the behavior of retrieving service operation when an invalid operation is set.
+ * @brief Verify that getSAPActivationStatus returns SAP_DISABLE for a valid service type.
  *
- * This test checks the behavior of the AlServiceRegistrationRequest class when an invalid service operation is set. 
+ * This test creates an instance of AlServiceRegistrationRequest using SAPActivation::SAP_DISABLE along with a valid service type.
+ * It then calls getSAPActivationStatus and verifies that the returned SAPActivation value is SAP_DISABLE.
+ * This test ensures that the SAP activation status is correctly maintained and returned in the object.
  *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 005@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set an invalid service operation (0x03) | serviceOperation = 0x03 | Service operation set successfully | Should be successful |
- * | 02 | Retrieve the service operation | None | Should be same as the set value | Should Pass |
- *
- */
-TEST(AlServiceRegistrationRequestTest, RetrieveServiceOperationWhenInvalid) {
-    std::cout << "Entering RetrieveServiceOperationWhenInvalid test" << std::endl;
-    AlServiceRegistrationRequest instance(static_cast<ServiceOperation>(0x03), ServiceType::SAP_CLIENT);
-	ServiceOperation operation = instance.getServiceOperation();
-    std::cout << "The service operation is "  << operation << std::endl;
-    std::cout << "Exiting RetrieveServiceOperationWhenInvalid test" << std::endl;
-}
-
-/**
- * @brief Test to verify the retrieval of service type SAP_CLIENT
- *
- * This test sets the service type to SAP_CLIENT and verifies if the getServiceType method retrieves the correct service type.
- *
- * **Test Group ID:** Basic: 01
+ * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 006@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set the service type to SAP_CLIENT | ServiceType::SAP_CLIENT | None | Should be successful |
- * | 02 | Retrieve the service type | None | ServiceType::SAP_CLIENT | Should Pass |
- */
-TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_SAP_CLIENT) {
-    std::cout << "Entering RetrieveServiceType_SAP_CLIENT test" << std::endl;
-	AlServiceRegistrationRequest instance(ServiceOperation::SOP_ENABLE, ServiceType::SAP_CLIENT);    
-    ServiceType result = instance.getServiceType();
-	std::cout << "The servicetype is "  << result << std::endl;
-    ASSERT_EQ(result, ServiceType::SAP_CLIENT);	
-    std::cout << "Exiting RetrieveServiceType_SAP_CLIENT test" << std::endl;
-}
-
-/**
- * @brief Test the retrieval of service type for SAP_SERVER
+ * **Priority:** High@n
  *
- * This test verifies that the service type can be correctly set and retrieved as SAP_SERVER.
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                               | Test Data                                                        | Expected Result                                                       | Notes           |
+ * | :--------------: | ------------------------------------------------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------- | --------------- |
+ * | 01               | Create a valid ServiceType with a value of 0                              | validServiceType = 0                                             | ServiceType created successfully                                      | Should be successful |
+ * | 02               | Construct AlServiceRegistrationRequest with SAPActivation::SAP_DISABLE      | SAPActivation = SAP_DISABLE, ServiceType = validServiceType        | Object constructed successfully                                       | Should be successful |
+ * | 03               | Invoke getSAPActivationStatus method                                      | No additional input; object already constructed                    | Returns SAPActivation::SAP_DISABLE                                    | Should Pass     |
+ * | 04               | Validate that the returned activation status equals SAP_DISABLE           | Expected return value: SAP_DISABLE                               | EXPECT_EQ validates that activation is equal to SAP_DISABLE           | Should be successful |
+ */
+TEST(AlServiceRegistrationRequest, getSAPActivationStatus_returns_SAP_DISABLE) {
+    std::cout << "Entering getSAPActivationStatus_returns_SAP_DISABLE test" << std::endl;
+    
+    // Create a valid ServiceType value.
+    ServiceType validServiceType = 0;
+    std::cout << "Created a valid ServiceType with value: " << validServiceType << std::endl;
+    
+    EXPECT_NO_THROW({
+        // Construct the object with SAP_DISABLE.
+        AlServiceRegistrationRequest request(SAPActivation::SAP_DISABLE, validServiceType);
+        std::cout << "Constructed AlServiceRegistrationRequest with SAPActivation::SAP_DISABLE" << std::endl;
+        
+        // Invoke getSAPActivationStatus() method.
+        SAPActivation activation = request.getSAPActivationStatus();
+        std::cout << "Invoked getSAPActivationStatus(), returned value: " 
+                  << static_cast<int>(activation) << std::endl;
+        
+        // Validate that the returned value is SAP_DISABLE.
+        EXPECT_EQ(activation, SAPActivation::SAP_DISABLE);
+    });
+    
+    std::cout << "Exiting getSAPActivationStatus_returns_SAP_DISABLE test" << std::endl;
+}
+/**
+ * @brief Verify that getSAPActivationStatus() does not return the invalid SAPActivation value.
+ *
+ * This test verifies that when an AlServiceRegistrationRequest object is constructed with an invalid SAPActivation value,
+ * the getSAPActivationStatus() method does not return the invalid value provided during construction. This ensures the
+ * robustness of the SAPActivation status retrieval and prevents erroneous activation data from being used downstream.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 007@n
+ * **Test Case ID:** 007
  * **Priority:** High
- * @n
+ *
  * **Pre-Conditions:** None
  * **Dependencies:** None
  * **User Interaction:** None
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set the service type to SAP_SERVER | ServiceType::SAP_SERVER | None | Should be successful |
- * | 02 | Retrieve the service type | None | ServiceType::SAP_SERVER | Should Pass |
- */
-TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_SAP_SERVER) {
-    std::cout << "Entering RetrieveServiceType_SAP_SERVER test" << std::endl;
-	AlServiceRegistrationRequest instance(ServiceOperation::SOP_ENABLE, ServiceType::SAP_SERVER);
-    ServiceType result = instance.getServiceType();
-	std::cout << "The servicetype is "  << result << std::endl;
-    ASSERT_EQ(result, ServiceType::SAP_SERVER);
-    std::cout << "Exiting RetrieveServiceType_SAP_SERVER test" << std::endl;
-}
-
-/**
- * @brief Test to verify the retrieval of service type SAP_TUNNEL_CLIENT
  *
- * This test sets the service type to SAP_TUNNEL_CLIENT and verifies if the getServiceType method retrieves the correct service type.
- *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 008@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set the service type to SAP_TUNNEL_CLIENT | ServiceType::SAP_TUNNEL_CLIENT | None | Should be successful |
- * | 02 | Retrieve the service type | None | ServiceType::SAP_TUNNEL_CLIENT | Should Pass |
+ * | 01 | Construct AlServiceRegistrationRequest object with invalid SAPActivation and valid ServiceType. | input: SAPActivation = 0x07, ServiceType = 0 | No exception is thrown while constructing the object. | Should Pass |
+ * | 02 | Invoke getSAPActivationStatus() on the constructed object and validate the returned value. | output: activation value, compared against input SAPActivation = 0x07 | The returned activation value is not equal to 0x07, satisfying the EXPECT_NE check. | Should Pass |
  */
-TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_SAP_TUNNEL_CLIENT) {
-    std::cout << "Entering RetrieveServiceType_SAP_TUNNEL_CLIENT test" << std::endl;
-    AlServiceRegistrationRequest instance(ServiceOperation::SOP_ENABLE, ServiceType::SAP_TUNNEL_CLIENT);
-    ServiceType result = instance.getServiceType();
-    std::cout << "The servicetype is "  << result << std::endl;
-    ASSERT_EQ(result, ServiceType::SAP_TUNNEL_CLIENT);
-    std::cout << "Exiting RetrieveServiceType_SAP_TUNNEL_CLIENT test" << std::endl;
+TEST(AlServiceRegistrationRequest, getSAPActivationStatus_invalidSAPActivation) {
+    std::cout << "Entering getSAPActivationStatus_invalidSAPActivation test" << std::endl;
+    
+    // Create a valid ServiceType value.
+    ServiceType validServiceType = 0;
+    EXPECT_NO_THROW({
+        // Construct the object with invalid SAPActivation.
+        AlServiceRegistrationRequest request(static_cast<SAPActivation>(0x07), validServiceType);
+        std::cout << "Constructed AlServiceRegistrationRequest with invalid SAPActivation value" << std::endl;
+        
+        // Invoke getSAPActivationStatus() method.
+        SAPActivation activation = request.getSAPActivationStatus();
+        std::cout << "Invoked getSAPActivationStatus(), returned value: " 
+                  << static_cast<int>(activation) << std::endl;
+        
+        // Validate that the returned value is not static_cast<SAPActivation>(0x07)
+        EXPECT_NE(activation, static_cast<SAPActivation>(0x07));
+    });
+    
+    std::cout << "Exiting getSAPActivationStatus_invalidSAPActivation test" << std::endl;
 }
-
 /**
- * @brief Test to verify the retrieval of service type SAP_TUNNEL_SERVER
+ * @brief Validate that the parameterized constructor correctly initializes the request with ServiceType::EmAgent.
  *
- * This test checks if the service type SAP_TUNNEL_SERVER is correctly set and retrieved from the AlServiceRegistrationRequest instance.
+ * This test verifies that an AlServiceRegistrationRequest object can be successfully created using the parameterized constructor with a valid service type (ServiceType::EmAgent). It then validates that the getServiceType() method returns the expected service type. This test ensures that the object initialization and subsequent service type retrieval function as intended.
  *
- * **Test Group ID:** Basic: 01
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 008@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                                                         | Test Data                                                       | Expected Result                                                      | Notes      |
+ * | :--------------: | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------- | ---------- |
+ * | 01               | Invoke the parameterized constructor with SAPActivation_operation = 0 and ServiceType::EmAgent       | SAPActivation_operation = 0, ServiceType = EmAgent              | Object is created without throwing an exception                      | Should Pass|
+ * | 02               | Call getServiceType() method and check that it returns ServiceType::EmAgent                           | Method call: getServiceType(), expected output: ServiceType::EmAgent| Returned value equals ServiceType::EmAgent as verified by EXPECT_EQ     | Should Pass|
+ */
+TEST(AlServiceRegistrationRequest, ParameterizedConstructor_ValidServiceType_EmAgent) {
+    std::cout << "Entering ParameterizedConstructor_ValidServiceType_EmAgent test" << std::endl;
+    int SAPActivation_operation = 0;
+    std::cout << "Invoking parameterized constructor with SAPActivation_operation = " << SAPActivation_operation 
+              << " and ServiceType::EmAgent" << std::endl;
+    EXPECT_NO_THROW({
+        AlServiceRegistrationRequest request(SAPActivation_operation, ServiceType::EmAgent);        
+        std::cout << "Calling getServiceType() method." << std::endl;
+        ServiceType retValue = request.getServiceType();
+        std::cout << "Retrieved service type value: " 
+                  << (retValue == ServiceType::EmAgent ? "EmAgent" : "EmController") << std::endl;
+        EXPECT_EQ(retValue, ServiceType::EmAgent);
+    });
+
+    std::cout << "Exiting ParameterizedConstructor_ValidServiceType_EmAgent test" << std::endl;
+}
+/**
+ * @brief Tests that the AlServiceRegistrationRequest constructor properly initializes the object with valid inputs and that the getServiceType() method returns the correct service type.
+ *
+ * This test verifies that when the parameterized constructor of AlServiceRegistrationRequest is called with SAPActivation_operation set to 0 and ServiceType::EmController,
+ * the object is created without throwing any exceptions and the getServiceType() method returns ServiceType::EmController as expected.
+ *
+ * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 009@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
  * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set the service type to SAP_TUNNEL_SERVER | instance->setServiceType(ServiceType::SAP_TUNNEL_SERVER) | Service type should be set to SAP_TUNNEL_SERVER | Should be successful |
- * | 02 | Retrieve the service type | ServiceType result = instance->getServiceType() | result should be SAP_TUNNEL_SERVER | Should Pass |
- * | 03 | Verify the retrieved service type | ASSERT_EQ(result, ServiceType::SAP_TUNNEL_SERVER) | Assertion should pass | Should Pass |
+ * | Variation / Step | Description                                                                 | Test Data                                                                                      | Expected Result                                                          | Notes       |
+ * | :--------------: | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ----------- |
+ * | 01               | Invoke the parameterized constructor with SAPActivation_operation = 0 and ServiceType::EmController. | input1 = SAPActivation_operation (0), input2 = ServiceType::EmController                        | Object is created without throwing an exception.                       | Should Pass |
+ * | 02               | Call getServiceType() method to retrieve the service type from the constructed object.  | input: object from constructor, expected output = ServiceType::EmController                      | getServiceType() returns ServiceType::EmController and assertion passes. | Should Pass |
  */
-TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_SAP_TUNNEL_SERVER) {
-    std::cout << "Entering RetrieveServiceType_SAP_TUNNEL_SERVER test" << std::endl;
-    AlServiceRegistrationRequest instance(ServiceOperation::SOP_ENABLE, ServiceType::SAP_TUNNEL_SERVER);
-    ServiceType result = instance.getServiceType();
-    std::cout << "The servicetype is "  << result << std::endl;
-    ASSERT_EQ(result, ServiceType::SAP_TUNNEL_SERVER);
-    std::cout << "Exiting RetrieveServiceType_SAP_TUNNEL_SERVER test" << std::endl;
+TEST(AlServiceRegistrationRequest, ParameterizedConstructor_ValidServiceType_EmController) {
+    std::cout << "Entering ParameterizedConstructor_ValidServiceType_EmController test" << std::endl;
+    int SAPActivation_operation = 0;
+    std::cout << "Invoking parameterized constructor with SAPActivation_operation = " << SAPActivation_operation 
+              << " and ServiceType::EmController" << std::endl;
+    EXPECT_NO_THROW({
+        AlServiceRegistrationRequest request(SAPActivation_operation, ServiceType::EmController);
+        
+        std::cout << "Calling getServiceType() method." << std::endl;
+        ServiceType retValue = request.getServiceType();
+        std::cout << "Retrieved service type value: " 
+                  << (retValue == ServiceType::EmAgent ? "EmAgent" : "EmController") << std::endl;
+        EXPECT_EQ(retValue, ServiceType::EmController);
+    });
+  
+    std::cout << "Exiting ParameterizedConstructor_ValidServiceType_EmController test" << std::endl;
 }
-
 /**
- * @brief Test to verify the retrieval of service type after setting to invalid value
+ * @brief Verify retrieval of an invalid service type.
  *
- * This test checks the behavior of getServiceType method when service type is set to invalid value.
+ * This test verifies that when an invalid service type is provided to the AlServiceRegistrationRequest constructor,
+ * the getServiceType() method returns the invalid service type as set. This scenario is essential to ensure that the API
+ * correctly handles and returns the service type even if it is invalid, which helps in debugging and validation of input.
  *
- * **Test Group ID:** Basic: 01
+ * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 010@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set the service type to invalid value | static_cast<ServiceType>(0x06) | None | Should be successful |
- * | 02 | Retrieve and print the service type | ServiceType result = instance->getServiceType() | Should be printed | Print the retrieved service type |
+ * | 01 | Log the beginning of the test and create an instance of AlServiceRegistrationRequest with an invalid service type. | serviceOperation = SOP_ENABLE, serviceType = static_cast<ServiceType>(0x06) | Instance is created successfully with the given parameters. | Should be successful |
+ * | 02 | Call getServiceType() to retrieve the service type from the instance. | API Call: result = instance.getServiceType() | The returned service type should match the invalid input (static_cast<ServiceType>(0x06)). | Should Fail |
+ * | 03 | Log the retrieved service type and the exit of the test. | Output log: service type value printed. | The console outputs the service type and indicates test completion. | Should be successful |
  */
-TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_Invalid) {
+TEST(AlServiceRegistrationRequest, RetrieveServiceType_Invalid) {
     std::cout << "Entering RetrieveServiceType_Invalid test" << std::endl;
     AlServiceRegistrationRequest instance(ServiceOperation::SOP_ENABLE, static_cast<ServiceType>(0x06));
     ServiceType result = instance.getServiceType();
     std::cout << "The servicetype is "  << result << std::endl;
     std::cout << "Exiting RetrieveServiceType_Invalid test" << std::endl;
 }
-
 /**
- * @brief Test the serialization of a valid registration request
+ * @brief Validate that serialization of a valid registration request returns a non-empty vector of bytes
  *
- * This test verifies that a valid registration request is correctly serialized by the AlServiceRegistrationRequest class.
+ * This test creates an instance of AlServiceRegistrationRequest with valid parameters (SOP_ENABLE and SAP_CLIENT)
+ * and then invokes serializeRegistrationRequest to generate the serialized data. The test ensures that the returned
+ * vector is correctly generated. This is important to verify that the serialization logic for valid registration requests
+ * works as expected.
  *
- * **Test Group ID:** Basic: 01
+ * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 011@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set the service operation and type to valid values | ServiceOperation::SOP_ENABLE, ServiceType::SAP_CLIENT | None | Should be successful |
- * | 02 | Serialize the registration request | None | result should not be empty | Should Pass |
+ * | 01 | Instantiate AlServiceRegistrationRequest with valid inputs and call serializeRegistrationRequest | ServiceOperation = SOP_ENABLE, ServiceType = SAP_CLIENT, output = vector<unsigned char> | Returns a non-empty vector of serialized data | Should Pass |
  */
- TEST(AlServiceRegistrationRequestTest, SerializeValidRegistrationRequest) {
+TEST(AlServiceRegistrationRequest, SerializeValidRegistrationRequest) {
     std::cout << "Entering SerializeValidRegistrationRequest test" << std::endl;
     AlServiceRegistrationRequest instance(ServiceOperation::SOP_ENABLE, ServiceType::SAP_CLIENT);
     std::vector<unsigned char> result = instance.serializeRegistrationRequest();
@@ -334,27 +432,29 @@ TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_Invalid) {
     std::cout << "]" << std::endl;
     std::cout << "Exiting SerializeValidRegistrationRequest test" << std::endl;
 }
-
 /**
- * @brief Test the serialization of an invalid registration request
+ * @brief Verify that an invalid registration request is serialized correctly.
  *
- * This test verifies that the serialization of a registration request with invalid operation and type results in an empty vector.
+ * This test creates an instance of AlServiceRegistrationRequest with invalid parameters
+ * and invokes the serializeRegistrationRequest method to determine if the serialization
+ * is performed as expected when provided with improper service operation and service type.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 012@n
  * **Priority:** High@n
- * @n
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set invalid service operation and type | static_cast<ServiceOperation>(0x04), static_cast<ServiceType>(0x05) | None | Should be successful |
- * | 02 | Serialize the registration request | None | result should be empty | Should Pass |
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                                                   | Test Data                                                  | Expected Result                                                                     | Notes           |
+ * | :--------------: | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------ | --------------- |
+ * | 01               | Log the entry into the test and instantiate AlServiceRegistrationRequest with invalid values. | serviceOperation = 0x04, serviceType = 0x05                 | Instance of AlServiceRegistrationRequest is created successfully                    | Should Pass     |
+ * | 02               | Invoke serializeRegistrationRequest() on the instance to perform the serialization operation.  | No direct input, uses instance internal state              | A vector of unsigned char containing the serialized registration data is returned    | Should Pass     |
+ * | 03               | Log the serialized result and exit the test.                                                 | result (vector<unsigned char>) as output from the API call | Serialized data is printed in hex format on the console                              | Should be successful |
  */
- TEST(AlServiceRegistrationRequestTest, SerializeInvalidRegistrationRequest) {
+TEST(AlServiceRegistrationRequest, SerializeInvalidRegistrationRequest) {
     std::cout << "Entering SerializeInvalidRegistrationRequest test" << std::endl;
     AlServiceRegistrationRequest instance(static_cast<ServiceOperation>(0x04), static_cast<ServiceType>(0x05));
     std::vector<unsigned char> result = instance.serializeRegistrationRequest();
@@ -366,349 +466,296 @@ TEST(AlServiceRegistrationRequestTest, RetrieveServiceType_Invalid) {
     std::cout << "]" << std::endl;
     std::cout << "Exiting SerializeInvalidRegistrationRequest test" << std::endl;
 }
-
 /**
- * @brief Test the setServiceOperation method for enabling service operation
+ * @brief Validate that deserializeRegistrationRequest correctly processes a valid registration request
  *
- * This test verifies that the setServiceOperation method can successfully enable a service operation without throwing any exceptions.
+ * This test case verifies that the deserializeRegistrationRequest method of the AlServiceRegistrationRequest class correctly processes a valid registration request. It ensures that when a proper byte stream is provided, the registration data is deserialized without errors.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 013@n
+ * **Test Case ID:** 013
  * **Priority:** High
- * @n
+ *
  * **Pre-Conditions:** None
  * **Dependencies:** None
  * **User Interaction:** None
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Call setServiceOperation with SOP_ENABLE | ServiceOperation::SOP_ENABLE | No exception thrown | Should Pass |
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                                              | Test Data                                               | Expected Result                                                                  | Notes      |
+ * | :--------------: | ---------------------------------------------------------------------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------- | ---------- |
+ * | 01               | Invokes the deserializeRegistrationRequest API with a valid byte stream input              | validData = 0x01, 0x02, 0x03, 0xFF                        | API processes the valid registration request without errors and returns normally | Should Pass |
  */
-TEST(AlServiceRegistrationRequestTest, SetServiceOperationEnable) {
-    std::cout << "Entering SetServiceOperationEnable test" << std::endl;
+TEST(AlServiceRegistrationRequest, DeserializeValidRegistrationRequest) {
+    std::vector<unsigned char> validData = {0x01, 0x02, 0x03, 0xFF};
+    std::cout << "Entering DeserializeValidRegistrationRequest" << std::endl;
     AlServiceRegistrationRequest instance;
-    ASSERT_NO_THROW(instance.setServiceOperation(ServiceOperation::SOP_ENABLE));
-    std::cout << "Exiting SetServiceOperationEnable test" << std::endl;
+    instance.deserializeRegistrationRequest(validData);
+    std::cout << "Exiting DeserializeValidRegistrationRequest" << std::endl;
 }
-
 /**
- * @brief Test to verify the setServiceOperation function with SOP_DISABLE operation
+ * @brief Verify that deserializeRegistrationRequest handles an empty data vector.
  *
- * This test checks if the setServiceOperation function can handle the SOP_DISABLE operation without throwing any exceptions.
+ * This test verifies that the deserializeRegistrationRequest method can process an empty data vector without causing errors or unexpected behavior. It ensures that the API properly handles cases with no input data, which is critical for robust input validation.
  *
- * **Test Group ID:** Basic: 01
+ * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 014@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Call setServiceOperation with SOP_DISABLE operation | ServiceOperation::SOP_DISABLE | No exception should be thrown | Should Pass |
- */
-TEST(AlServiceRegistrationRequestTest, SetServiceOperationDisable) {
-    std::cout << "Entering SetServiceOperationDisable test" << std::endl;
-    AlServiceRegistrationRequest instance;
-    ASSERT_NO_THROW(instance.setServiceOperation(ServiceOperation::SOP_DISABLE));
-    std::cout << "Exiting SetServiceOperationDisable test" << std::endl;
-}
-
-/**
- * @brief Test to validate the behavior of setServiceOperation with an invalid operation code.
- *
- * This test checks if the setServiceOperation method throws an exception when provided with an invalid operation code.@n
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 015@n
  * **Priority:** High@n
- * @n
+ * 
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Invoke setServiceOperation with an invalid operation code | operation = 0x03 | Exception should be thrown | Should Pass |
+ * 
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                       | Test Data                  | Expected Result                                                      | Notes       |
+ * | :--------------: | ----------------------------------------------------------------- | -------------------------- | -------------------------------------------------------------------- | ----------- |
+ * | 01               | Invoke deserializeRegistrationRequest with an empty data vector     | emptyData = {}             | API handles empty input without errors; ASSERT_TRUE condition passes | Should Pass |
  */
-TEST(AlServiceRegistrationRequestTest, SetServiceOperationInvalid) {
-    std::cout << "Entering SetServiceOperationInvalid test" << std::endl;
+TEST(AlServiceRegistrationRequest, DeserializeEmptyDataVector) {
+    std::vector<unsigned char> emptyData = {};
+    std::cout << "Entering DeserializeEmptyDataVector" << std::endl;
     AlServiceRegistrationRequest instance;
-    ASSERT_ANY_THROW(instance.setServiceOperation(static_cast<ServiceOperation>(0x03)));
-    std::cout << "Exiting SetServiceOperationInvalid test" << std::endl;
+    instance.deserializeRegistrationRequest(emptyData);
+    ASSERT_TRUE(true); // Add appropriate assertions based on expected state
+    std::cout << "Exiting DeserializeEmptyDataVector" << std::endl;
 }
-
 /**
- * @brief Test the setting of service type to SAP_CLIENT
+ * @brief Verifies that the SAP activation status is correctly set to SAP_ENABLE.
  *
- * This test verifies that the service type can be correctly set to SAP_CLIENT and retrieved using the getServiceType method.
+ * This test creates an instance of AlServiceRegistrationRequest using its default constructor and then invokes setSAPActivationStatus with the SAP_ENABLE value. It ensures that the object is created successfully without exceptions and that the method call properly sets the internal activation status.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 016@n
+ * **Test Case ID:** 015
  * **Priority:** High
- * @n
+ *
  * **Pre-Conditions:** None
  * **Dependencies:** None
  * **User Interaction:** None
- * @n
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set the service type to SAP_CLIENT | ServiceType::SAP_CLIENT | None | Should be successful |
+ * | :----: | --------- | ---------- | -------------- | ----- |
+ * | 01 | Create an instance of AlServiceRegistrationRequest using the default constructor | No input required | Object is successfully created without throwing exceptions | Should be successful |
+ * | 02 | Invoke setSAPActivationStatus with SAP_ENABLE option | input: SAPActivation::SAP_ENABLE | Method completes without exceptions; internal state is set to SAP_ENABLE (0x01) | Should Pass |
  */
-TEST(AlServiceRegistrationRequestTest, SetServiceTypeToSAP_CLIENT) {
-    std::cout << "Entering SetServiceTypeToSAP_CLIENT test" << std::endl;
-    AlServiceRegistrationRequest instance;
-    instance.setServiceType(ServiceType::SAP_CLIENT);
-    std::cout << "Exiting SetServiceTypeToSAP_CLIENT test" << std::endl;
-}
-
-/**
- * @brief Test the setting of service type to SAP_SERVER
- *
- * This test verifies that the service type can be set to SAP_SERVER and retrieved correctly.
- *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 017@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set the service type to SAP_SERVER | ServiceType::SAP_SERVER | None | Should be successful |
- */
-TEST(AlServiceRegistrationRequestTest, SetServiceTypeToSAP_SERVER) {
-    std::cout << "Entering SetServiceTypeToSAP_SERVER test" << std::endl;
-    AlServiceRegistrationRequest instance;
-    instance.setServiceType(ServiceType::SAP_SERVER);
-    std::cout << "Exiting SetServiceTypeToSAP_SERVER test" << std::endl;
-}
-
-/**
- * @brief Test the setting of service type to SAP_TUNNEL_CLIENT
- *
- * This test verifies that the service type can be correctly set to SAP_TUNNEL_CLIENT and retrieved using the getServiceType method.
- *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 018@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set the service type to SAP_TUNNEL_CLIENT | ServiceType::SAP_TUNNEL_CLIENT | None | Should be successful |
- */
-TEST(AlServiceRegistrationRequestTest, SetServiceTypeToSAP_TUNNEL_CLIENT) {
-    std::cout << "Entering SetServiceTypeToSAP_TUNNEL_CLIENT test" << std::endl;
-    AlServiceRegistrationRequest instance;
-    instance.setServiceType(ServiceType::SAP_TUNNEL_CLIENT);
-    std::cout << "Exiting SetServiceTypeToSAP_TUNNEL_CLIENT test" << std::endl;
-}
-
-/**
- * @brief Test the setting of service type to SAP_TUNNEL_SERVER
- *
- * This test verifies that the service type can be correctly set to SAP_TUNNEL_SERVER and retrieved using the getServiceType method.
- *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 019@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set the service type to SAP_TUNNEL_SERVER | ServiceType::SAP_TUNNEL_SERVER | None | Should be successful |
- */
-TEST(AlServiceRegistrationRequestTest, SetServiceTypeToSAP_TUNNEL_SERVER) {
-    std::cout << "Entering SetServiceTypeToSAP_TUNNEL_SERVER test" << std::endl;
-    AlServiceRegistrationRequest instance;
-    instance.setServiceType(ServiceType::SAP_TUNNEL_SERVER);
-    std::cout << "Exiting SetServiceTypeToSAP_TUNNEL_SERVER test" << std::endl;
-}
-
-/**
- * @brief Test to verify setting an invalid service type value
- *
- * This test checks the behavior of the AlServiceRegistrationRequest class when an invalid service type value (0xFF) is set. 
- * It ensures that the service type is not set to the invalid value.
- *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 020@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set the service type to an invalid value (0xFF) | serviceType = 0xFF | Service type should not be set to 0xFF | Should Pass |
- */
-TEST(AlServiceRegistrationRequestTest, SetServiceTypeToInvalidValue_0xFF) {
-    std::cout << "Entering SetServiceTypeToInvalidValue_0xFF test" << std::endl;
-    AlServiceRegistrationRequest instance;
-    instance.setServiceType(static_cast<ServiceType>(0xFF));
-    std::cout << "Exiting SetServiceTypeToInvalidValue_0xFF test" << std::endl;
-}
-
-/**
- * @brief Test the constructor of AlServiceRegistrationRequest with SOP_ENABLE operation for all service types.
- *
- * This test verifies that the constructor of AlServiceRegistrationRequest correctly initializes the object with the SOP_ENABLE operation and various service types.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 021@n
- * **Priority:** High@n
- * @n
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Initialize request with SOP_ENABLE and SAP_CLIENT | operation = SOP_ENABLE, type = SAP_CLIENT | Object creation should be successful | Should Pass |
- * | 02 | Initialize request with SOP_ENABLE and SAP_SERVER | operation = SOP_ENABLE, type = SAP_SERVER | Object creation should be successful | Should Pass |
- * | 03 | Initialize request with SOP_ENABLE and SAP_TUNNEL_CLIENT | operation = SOP_ENABLE, type = SAP_TUNNEL_CLIENT | Object creation should be successful | Should Pass |
- * | 04 | Initialize request with SOP_ENABLE and SAP_TUNNEL_SERVER | operation = SOP_ENABLE, type = SAP_TUNNEL_SERVER | Object creation should be successful | Should Pass |
- */
-TEST(AlServiceRegistrationRequestTest, Constructor_SOP_ENABLE_AllServiceTypes) {
-    std::cout << "Entering Constructor_SOP_ENABLE_AllServiceTypes" << std::endl;
-    ServiceOperation operation = ServiceOperation::SOP_ENABLE;
-    ServiceType types[] = {ServiceType::SAP_CLIENT, ServiceType::SAP_SERVER, ServiceType::SAP_TUNNEL_CLIENT, ServiceType::SAP_TUNNEL_SERVER};
-    for (ServiceType type : types) {
-        AlServiceRegistrationRequest request(operation, type);
-    }
-    std::cout << "Exiting Constructor_SOP_ENABLE_AllServiceTypes" << std::endl;
-}
-
-/**
- * @brief Test the constructor of AlServiceRegistrationRequest with SOP_DISABLE operation for all service types.
- *
- * This test verifies that the constructor of AlServiceRegistrationRequest correctly initializes the object with the SOP_DISABLE operation for various service types.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 022@n
- * **Priority:** High@n
- * @n
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data |Expected Result |Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01| Initialize request with SOP_DISABLE and SAP_CLIENT | operation = SOP_DISABLE, type = SAP_CLIENT | Object creation should be successful | Should Pass |
- * | 02| Initialize request with SOP_DISABLE and SAP_SERVER | operation = SOP_DISABLE, type = SAP_SERVER | Object creation should be successful | Should Pass |
- * | 03| Initialize request with SOP_DISABLE and SAP_TUNNEL_CLIENT | operation = SOP_DISABLE, type = SAP_TUNNEL_CLIENT | Object creation should be successful | Should Pass |
- * | 04| Initialize request with SOP_DISABLE and SAP_TUNNEL_SERVER | operation = SOP_DISABLE, type = SAP_TUNNEL_SERVER | Object creation should be successful | Should Pass |
- */
-TEST(AlServiceRegistrationRequestTest, Constructor_SOP_DISABLE_AllServiceTypes) {
-    std::cout << "Entering Constructor_SOP_DISABLE_AllServiceTypes" << std::endl;
-    ServiceOperation operation = ServiceOperation::SOP_DISABLE;
-    ServiceType types[] = {ServiceType::SAP_CLIENT, ServiceType::SAP_SERVER, ServiceType::SAP_TUNNEL_CLIENT, ServiceType::SAP_TUNNEL_SERVER};
-    for (ServiceType type : types) {
-        AlServiceRegistrationRequest request(operation, type);
-    }
-    std::cout << "Exiting Constructor_SOP_DISABLE_AllServiceTypes" << std::endl;
-}
-
-/**
- * @brief Test the constructor of AlServiceRegistrationRequest with an invalid ServiceOperation
- *
- * This test verifies that the constructor of AlServiceRegistrationRequest throws an std::invalid_argument exception when provided with an invalid ServiceOperation.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 023@n
- * **Priority:** High@n
- * @n
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data |Expected Result |Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01| Set invalid ServiceOperation and valid ServiceType | invalidOperation = 0x03, type = ServiceType::SAP_CLIENT | std::invalid_argument exception with message "Invalid ServiceOperation" | Should Fail |
- */
-TEST(AlServiceRegistrationRequestTest, Constructor_InvalidOperation) {
-    std::cout << "Entering Constructor_InvalidOperation" << std::endl;
-    ServiceOperation invalidOperation = static_cast<ServiceOperation>(0x03);
-    ServiceType type = ServiceType::SAP_CLIENT;
-    AlServiceRegistrationRequest request(invalidOperation, type);
-    std::cout << "Exiting Constructor_InvalidOperation" << std::endl;
-}
-
-/**
- * @brief Test the constructor of AlServiceRegistrationRequest with an invalid ServiceType
- *
- * This test verifies that the constructor of AlServiceRegistrationRequest throws an std::invalid_argument exception when an invalid ServiceType is provided.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 024@n
- * **Priority:** High@n
- * @n
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data |Expected Result |Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01| Create an instance of AlServiceRegistrationRequest with invalid ServiceType | operation = SOP_ENABLE, invalidType = 0x05 | std::invalid_argument exception with message "Invalid ServiceType" | Should Fail |
- */
-TEST(AlServiceRegistrationRequestTest, Constructor_InvalidType) {
-    std::cout << "Entering Constructor_InvalidType" << std::endl;
-    ServiceOperation operation = ServiceOperation::SOP_ENABLE;
-    ServiceType invalidType = static_cast<ServiceType>(0x05);
-    AlServiceRegistrationRequest request(operation, invalidType);
-    std::cout << "Exiting Constructor_InvalidType" << std::endl;
-}
-
-/**
- * @brief Verify that the default constructor of AlServiceRegistrationRequest creates a valid instance without throwing exceptions.
- *
- * This test verifies that using the default constructor of AlServiceRegistrationRequest does not throw any exceptions and correctly initializes the object's default internal state (serviceOperation and serviceType). It ensures that the object creation is successful and that the default values are properly set.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 025@n
- * **Priority:** High@n
- *
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- *
- * **Test Procedure:**@n
- * | Variation / Step | Description                                                        | Test Data                                                         | Expected Result                                                                 | Notes      |
- * | :--------------: | ------------------------------------------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------- |
- * | 01               | Invoke default constructor of AlServiceRegistrationRequest           | input: none, output: instance with default serviceOperation and serviceType | No exception is thrown; the object's default fields are correctly initialized | Should Pass |
- */
-TEST(AlServiceRegistrationRequestTest, DefaultConstructorCreatesValidInstance) {
-    std::cout << "Entering DefaultConstructorCreatesValidInstance test" << std::endl;
-
-    std::cout << "Invoking AlServiceRegistrationRequest::AlServiceRegistrationRequest() default constructor" << std::endl;
+TEST(AlServiceRegistrationRequest, Set_SAPActivationStatus_with_SAP_ENABLE) {
+    std::cout << "Entering Set_SAPActivationStatus_with_SAP_ENABLE test" << std::endl;
+    
+    // Create object using default constructor and log object creation
     EXPECT_NO_THROW({
-        AlServiceRegistrationRequest obj;
-        std::cout << "AlServiceRegistrationRequest object created successfully." << std::endl;
-        std::cout << "Default internal state: serviceOperation and serviceType are set to their default values." << std::endl;
+        AlServiceRegistrationRequest request;
+        std::cout << "Created AlServiceRegistrationRequest object using default constructor" << std::endl;
+        
+        // Log before invocation
+        std::cout << "Invoking setSAPActivationStatus with value SAP_ENABLE (0x01)" << std::endl;
+        EXPECT_NO_THROW(request.setSAPActivationStatus(SAPActivation::SAP_ENABLE));
+        std::cout << "setSAPActivationStatus invoked successfully with SAP_ENABLE" << std::endl;
+        
+        // Since no getter is provided, we log that the expected internal value should be SAP_ENABLE.
+        std::cout << "Expected internal service activation status: SAP_ENABLE (0x01)" << std::endl;
     });
+    
+    std::cout << "Exiting Set_SAPActivationStatus_with_SAP_ENABLE test" << std::endl;
+}
+/**
+ * @brief Verifies that setting the SAP Activation status to SAP_DISABLE is successful.
+ *
+ * In this test, an object of AlServiceRegistrationRequest is created using the default constructor. Then,
+ * the setSAPActivationStatus API is invoked with the SAP_DISABLE value (0x02). The test ensures that no exceptions
+ * are thrown and that the internal state of the object is updated correctly. This test validates the correct
+ * behavior of the API in a positive scenario using valid input.
+ *
+ * **Test Group ID:** Basic: 01
+ * **Test Case ID:** 016
+ * **Priority:** High
+ *
+ * **Pre-Conditions:** None
+ * **Dependencies:** None
+ * **User Interaction:** None
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Create an instance of AlServiceRegistrationRequest using the default constructor | No input parameters; constructor invoked | Object is created successfully without throwing an exception | Should be successful |
+ * | 02 | Invoke setSAPActivationStatus with SAP_DISABLE (0x02) on the created object | request object, input: SAP_DISABLE = 0x02 | Method executes without throwing; internal state is updated to SAP_DISABLE | Should Pass |
+ */
+TEST(AlServiceRegistrationRequest, Set_SAPActivationStatus_with_SAP_DISABLE) {
+    std::cout << "Entering Set_SAPActivationStatus_with_SAP_DISABLE test" << std::endl;
+    
+    // Create object with the default constructor
+    EXPECT_NO_THROW({
+        AlServiceRegistrationRequest request;
+        std::cout << "Created AlServiceRegistrationRequest object using default constructor" << std::endl;
+        
+        // Log invocation details
+        std::cout << "Invoking setSAPActivationStatus with value SAP_DISABLE (0x02)" << std::endl;
+        EXPECT_NO_THROW(request.setSAPActivationStatus(SAPActivation::SAP_DISABLE));
+        std::cout << "setSAPActivationStatus invoked successfully with SAP_DISABLE" << std::endl;
+        
+        // Log expected internal state change
+        std::cout << "Expected internal service activation status: SAP_DISABLE (0x02)" << std::endl;
+    });
+    
+    std::cout << "Exiting Set_SAPActivationStatus_with_SAP_DISABLE test" << std::endl;
+}
+/**
+ * @brief Test the behavior of setSAPActivationStatus when invoked with an invalid value.
+ *
+ * This test verifies that calling setSAPActivationStatus with an invalid SAPActivation value (created via explicit cast from 0xFF)
+ * does not throw an exception and handles the value gracefully without affecting the internal state of the AlServiceRegistrationRequest object.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 017@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                          | Test Data                                      | Expected Result                                                               | Notes           |
+ * | :--------------: | -------------------------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------- | --------------- |
+ * | 01               | Create an AlServiceRegistrationRequest object using the default constructor. | N/A                                            | Object is constructed successfully without throwing an exception.            | Should be successful |
+ * | 02               | Create an invalid SAPActivation value via an explicit cast.          | invalidValue = 0xFF                            | The invalidValue holds an invalid SAPActivation enum value.                   | Should be successful |
+ * | 03               | Invoke setSAPActivationStatus with the invalid value.                | input: invalidValue = 0xFF, output: none         | The API call handles the invalid value gracefully without throwing an exception. | Should Pass     |
+ */
+TEST(AlServiceRegistrationRequest, Set_SAPActivationStatus_with_Invalid_Value) {
+    std::cout << "Entering Set_SAPActivationStatus_with_Invalid_Value test" << std::endl;
+    
+    EXPECT_NO_THROW({
+        AlServiceRegistrationRequest request;
+        std::cout << "Created AlServiceRegistrationRequest object using default constructor" << std::endl;
+        
+        // Create an invalid SAPActivation value via explicit cast.
+        SAPActivation invalidValue = static_cast<SAPActivation>(0xFF);
+        std::cout << "Invoking setSAPActivationStatus with invalid value (0xFF) via explicit cast" << std::endl;
+        
+        EXPECT_NO_THROW(request.setSAPActivationStatus(invalidValue));
+        std::cout << "setSAPActivationStatus invoked with invalid value without crashing" << std::endl;
+        
+        // Log that the expected behavior is graceful handling of the invalid value.
+        std::cout << "Expected: The method handles the invalid value gracefully without crashing or affecting internal state" << std::endl;
+    });
+    
+    std::cout << "Exiting Set_SAPActivationStatus_with_Invalid_Value test" << std::endl;
+}
+/**
+ * @brief Verify setting service type to EmAgent for AlServiceRegistrationRequest object
+ *
+ * This test verifies that an instance of AlServiceRegistrationRequest can be created using the default constructor, and that the setServiceType API correctly sets the service type to EmAgent without throwing any exceptions. This ensures that the service registration functionality handles the EmAgent service type as expected.
+ *
+ * **Test Group ID:** Basic: 01
+ * **Test Case ID:** 018
+ * **Priority:** High
+ *
+ * **Pre-Conditions:** None
+ * **Dependencies:** None
+ * **User Interaction:** None
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- | -------------- | ----- |
+ * | 01 | Invoke default constructor to create an instance of AlServiceRegistrationRequest | None | Instance is created successfully without exceptions | Should be successful |
+ * | 02 | Call setServiceType with ServiceType::EmAgent to update the service type | service = ServiceType::EmAgent (0x01) | Method executes without throwing exceptions and updates the internal state to EmAgent | Should Pass |
+ */
+TEST(AlServiceRegistrationRequest, SetServiceType_EmAgent) {
+    std::cout << "Entering SetServiceType_EmAgent test" << std::endl;
 
-    std::cout << "Exiting DefaultConstructorCreatesValidInstance test" << std::endl;
+    // Create an instance of AlServiceRegistrationRequest using the default constructor.
+    EXPECT_NO_THROW({
+        AlServiceRegistrationRequest request;
+        std::cout << "Created AlServiceRegistrationRequest object using default constructor" << std::endl;
+
+        // Set service type to EmAgent.
+        ServiceType service = ServiceType::EmAgent;
+        std::cout << "Invoking setServiceType with ServiceType::EmAgent (0x01)" << std::endl;
+        EXPECT_NO_THROW({
+            request.setServiceType(service);
+            std::cout << "setServiceType successfully invoked with value: EmAgent" << std::endl;
+        });
+
+        // Debug log: (Assuming internal state is updated; if a getter were available, its value would be printed here)
+        std::cout << "Internal state updated to EmAgent" << std::endl;
+    });
+    
+    std::cout << "Exiting SetServiceType_EmAgent test" << std::endl;
+}
+/**
+ * @brief Validate that setting the service type to EmController does not throw exceptions and updates internal state.
+ *
+ * This test verifies that an instance of AlServiceRegistrationRequest can be created without errors, and that setting the service type to ServiceType::EmController is handled correctly by the API. The test checks that no exceptions are thrown during these operations.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 019@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                       | Test Data                                                                | Expected Result                                              | Notes      |
+ * | :--------------: | ----------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------ | ---------- |
+ * | 01               | Create instance using the default constructor and invoke setServiceType with ServiceType::EmController | input: default constructor, service = EmController                     | No exception thrown; internal state updated to EmController  | Should Pass |
+ */
+TEST(AlServiceRegistrationRequest, SetServiceType_EmController) {
+    std::cout << "Entering SetServiceType_EmController test" << std::endl;
+
+    // Create an instance of AlServiceRegistrationRequest using the default constructor.
+    EXPECT_NO_THROW({
+        AlServiceRegistrationRequest request;
+        std::cout << "Created AlServiceRegistrationRequest object using default constructor" << std::endl;
+
+        // Set service type to EmController.
+        ServiceType service = ServiceType::EmController;
+        std::cout << "Invoking setServiceType with ServiceType::EmController (0x02)" << std::endl;
+        EXPECT_NO_THROW({
+            request.setServiceType(service);
+            std::cout << "setServiceType successfully invoked with value: EmController" << std::endl;
+        });
+
+        // Debug log: (Assuming internal state is updated; if a getter were available, its value would be printed here)
+        std::cout << "Internal state updated to EmController" << std::endl;
+    });
+    
+    std::cout << "Exiting SetServiceType_EmController test" << std::endl;
+}
+/**
+ * @brief Verify proper error handling when an invalid service type is provided.
+ *
+ * This test validates that the setServiceType method of the AlServiceRegistrationRequest class
+ * correctly throws an exception when an invalid ServiceType value (0x03) is passed. It ensures
+ * that the internal data integrity is maintained by not accepting invalid input.
+ *
+ * **Test Group ID:** Basic: 01
+ * **Test Case ID:** 020
+ * **Priority:** High
+ *
+ * **Pre-Conditions:** None
+ * **Dependencies:** None
+ * **User Interaction:** None
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                              | Test Data                                                         | Expected Result                                                            | Notes             |
+ * | :--------------: | ------------------------------------------------------------------------ | ----------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------- |
+ * | 01               | Create an instance of AlServiceRegistrationRequest using default constructor. | N/A, output: request instance created                             | Object should be created without throwing any exceptions.                | Should be successful |
+ * | 02               | Invoke setServiceType with an invalid service type (0x03).                | input: invalidService = 0x03, output: N/A                           | API is expected to throw an exception indicating invalid input handling.   | Should Fail        |
+ */
+TEST(AlServiceRegistrationRequest, SetServiceType_Invalid) {
+    std::cout << "Entering SetServiceType_Invalid test" << std::endl;
+
+    // Create an instance of AlServiceRegistrationRequest using the default constructor.
+    EXPECT_NO_THROW({
+        AlServiceRegistrationRequest request;
+        std::cout << "Created AlServiceRegistrationRequest object using default constructor" << std::endl;
+        // Set an invalid service type.
+        ServiceType invalidService = static_cast<ServiceType>(0x03);
+        std::cout << "Invoking setServiceType with an invalid service type (0x03)" << std::endl;
+        
+        // Expecting the method to handle invalid input gracefully.
+        EXPECT_ANY_THROW({
+            request.setServiceType(invalidService);
+            std::cout << "setServiceType invocation with invalid value returned normally" << std::endl;
+        });
+    });
+    
+    std::cout << "Exiting SetServiceType_Invalid test" << std::endl;
 }

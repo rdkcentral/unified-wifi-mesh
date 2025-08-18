@@ -336,39 +336,12 @@ TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenServiceNotSupported) {
 }
 
 /**
- * @brief Test to verify the retrieval of result when the operation is not supported.
- *
- * This test checks if the `getResult` method correctly retrieves the result set by the `setResult` method when the operation is not supported.
- *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 014@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set the result to OPERATION_NOT_SUPPORTED | instance->setResult(RegistrationResult::OPERATION_NOT_SUPPORTED) | None | Should be successful |
- * | 02 | Retrieve the result and check if it matches OPERATION_NOT_SUPPORTED | instance->getResult() | RegistrationResult::OPERATION_NOT_SUPPORTED | Should Pass |
- */
-TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenOperationNotSupported) {
-    std::cout << "Entering RetrieveResultWhenOperationNotSupported test" << std::endl;
-	MessageIdRange range(0, 65535);
-	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), range, RegistrationResult::OPERATION_NOT_SUPPORTED);
-    ASSERT_EQ(instance.getResult(), RegistrationResult::OPERATION_NOT_SUPPORTED);
-    std::cout << "Exiting RetrieveResultWhenOperationNotSupported test" << std::endl;
-}
-
-/**
  * @brief Test the serialization of a valid registration response
  *
  * This test verifies that a valid registration response is correctly serialized into a non-empty byte vector.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 015@n
+ * **Test Case ID:** 014@n
  * **Priority:** High
  * @n
  * **Pre-Conditions:** None
@@ -397,7 +370,7 @@ TEST(AlServiceRegistrationResponseTest, SerializeValidRegistrationResponse) {
  * It ensures that the system correctly handles invalid input by returning an empty serialized data vector.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 016@n
+ * **Test Case ID:** 015@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -426,7 +399,7 @@ TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithInvalid
  * This test verifies that the serialization of a registration response with an empty message ID range results in an empty serialized data vector. This is important to ensure that the system correctly handles cases where no message IDs are provided.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 017@n
+ * **Test Case ID:** 016@n
  * **Priority:** High
  * @n
  * **Pre-Conditions:** None
@@ -455,7 +428,7 @@ TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithEmptyMe
  * This test verifies that the serialization of a registration response with a failed result produces a non-empty serialized data vector.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 018@n
+ * **Test Case ID:** 017@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -484,7 +457,7 @@ TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithFailedR
  * It ensures that the serialized data is empty when the MAC address is null
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 019@n
+ * **Test Case ID:** 018@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -513,7 +486,7 @@ TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithAllNull
  * This test verifies that the setAlMacAddressLocal method correctly handles a valid MAC address input with mixed case characters
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 020@n
+ * **Test Case ID:** 019@n
  * **Priority:** High
  * @n
  * **Pre-Conditions:** None
@@ -538,7 +511,7 @@ TEST(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_ValidMacAddress_Mix
  * This test verifies that the AlServiceRegistrationResponse class can correctly handle and set a valid MAC address string that does not contain colons.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 021@n
+ * **Test Case ID:** 020@n
  * **Priority:** High
  * @n
  * **Pre-Conditions:** None
@@ -563,7 +536,7 @@ TEST(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_ValidMacAddress_NoC
  * This test verifies that the method setAlMacAddressLocal correctly handles a valid MAC address formatted with dashes.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 022@n
+ * **Test Case ID:** 021@n
  * **Priority:** High
  * @n
  * **Pre-Conditions:** None
@@ -588,7 +561,7 @@ TEST(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_ValidMacAddress_Das
  * This test checks the behavior of the setAlMacAddressLocal method when provided with a MAC address that is too short.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 023@n
+ * **Test Case ID:** 022@n
  * **Priority:** High
  * @n
  * **Pre-Conditions:** None
@@ -613,7 +586,7 @@ TEST(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_InvalidMacAddress_T
  * This test checks the behavior of the setAlMacAddressLocal method when provided with an invalid MAC address that contains non-hexadecimal characters. The purpose is to ensure that the method handles invalid input gracefully.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 024@n
+ * **Test Case ID:** 023@n
  * **Priority:** High
  * 
  * **Pre-Conditions:** None
@@ -639,7 +612,7 @@ TEST(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_InvalidMacAddress_N
  * This test verifies that the setMessageIdRange function correctly handles a valid range of message IDs.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 027@n
+ * **Test Case ID:** 024@n
  * **Priority:** High
  * @n
  * **Pre-Conditions:** None
@@ -665,7 +638,7 @@ TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_ValidRange) {
  * This test verifies the behavior of the setMessageIdRange function when the start value is greater than the end value.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 028@n
+ * **Test Case ID:** 025@n
  * **Priority:** High
  * @n
  * **Pre-Conditions:** None
@@ -692,7 +665,7 @@ TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_StartGreaterThanEnd) {
  * It ensures that the function can handle this edge case without errors.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 029@n
+ * **Test Case ID:** 026@n
  * **Priority:** High
  * @n
  * **Pre-Conditions:** None
@@ -718,7 +691,7 @@ TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_StartEqualToEnd) {
  * This test verifies that the setMessageIdRange function can handle a start value of zero and a valid end value.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 030@n
+ * **Test Case ID:** 027@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -747,7 +720,7 @@ TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_StartZero) {
  * It ensures that the function handles this edge case correctly without any errors.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 031@n
+ * **Test Case ID:** 028@n
  * **Priority:** High
  * @n
  * **Pre-Conditions:** None
@@ -773,7 +746,7 @@ TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_EndZero) {
  * This test verifies the behavior of the setMessageIdRange function when both the start and end message IDs are set to zero. This is a boundary test case to ensure that the function can handle the minimum input values correctly.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 032@n
+ * **Test Case ID:** 029@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -799,7 +772,7 @@ TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_BothZero) {
  * This test verifies that the setMessageIdRange function can handle a negative start value correctly.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 033@n
+ * **Test Case ID:** 030@n
  * **Priority:** High
  * @n
  * **Pre-Conditions:** None
@@ -826,7 +799,7 @@ TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_NegativeStart) {
  * It ensures that the function handles this edge case appropriately.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 034@n
+ * **Test Case ID:** 031@n
  * **Priority:** High
  * 
  * **Pre-Conditions:** None
@@ -852,7 +825,7 @@ TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_NegativeEnd) {
  * This test verifies the behavior of the setMessageIdRange function when both input values are negative.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 035@n
+ * **Test Case ID:** 032@n
  * **Priority:** High
  * @n
  * **Pre-Conditions:** None
@@ -878,7 +851,7 @@ TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_BothNegative) {
  * This test verifies that the setMessageIdRange function can handle large values for the message ID range without any issues.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 036@n
+ * **Test Case ID:** 033@n
  * **Priority:** High
  * @n
  * **Pre-Conditions:** None
@@ -904,7 +877,7 @@ TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_LargeValues) {
  * This test verifies that the setResult method correctly sets the result to each valid RegistrationResult enum value.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 037@n
+ * **Test Case ID:** 034@n
  * **Priority:** High
  * @n
  * **Pre-Conditions:** None
@@ -920,12 +893,11 @@ TEST(AlServiceRegistrationResponseTest, SetAllRegistrationResults) {
     std::cout << "Entering SetAllRegistrationResults test" << std::endl;
     AlServiceRegistrationResponse instance;
     // Define all enum values in an array
-    const std::array<RegistrationResult, 5> allResults = {
+    const std::array<RegistrationResult, 4> allResults = {
         RegistrationResult::UNKNOWN,
         RegistrationResult::SUCCESS,
         RegistrationResult::NO_RANGES_AVAILABLE,
-        RegistrationResult::SERVICE_NOT_SUPPORTED,
-		RegistrationResult::OPERATION_NOT_SUPPORTED
+        RegistrationResult::SERVICE_NOT_SUPPORTED
     };
 
     for (const auto& result : allResults) {
@@ -942,7 +914,7 @@ TEST(AlServiceRegistrationResponseTest, SetAllRegistrationResults) {
  * This test verifies that the setResult method handles the result of invalid RegistrationResult
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 038@n
+ * **Test Case ID:** 035@n
  * **Priority:** High
  * @n
  * **Pre-Conditions:** None
@@ -968,7 +940,7 @@ TEST(AlServiceRegistrationResponseTest, SetAllRegistrationResults) {
  * This test verifies that the AlServiceRegistrationResponse constructor correctly initializes the object with a valid MAC address, a valid message ID range, and all possible registration results.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 039@n
+ * **Test Case ID:** 036@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -982,7 +954,6 @@ TEST(AlServiceRegistrationResponseTest, SetAllRegistrationResults) {
  * | 02| Initialize with NO_RANGES_AVAILABLE result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = NO_RANGES_AVAILABLE | Object should be created with the values | Should Pass |
  * | 03| Initialize with SERVICE_NOT_SUPPORTED result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = SERVICE_NOT_SUPPORTED | Object should be created with the values | Should Pass |
  * | 04| Initialize with UNKNOWN result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = UNKNOWN | Object should be created with the values | Should Pass |
- * | 05| Initialize with OPERATION_NOT_SUPPORTED result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = OPERATION_NOT_SUPPORTED | Object should be created with the values | Should Pass |
  */
 TEST(AlServiceRegistrationResponseTest, ValidMACAddressValidRangeAllResults) {
     std::cout << "Entering ValidMACAddressValidRangeAllResults" << std::endl;
@@ -992,8 +963,7 @@ TEST(AlServiceRegistrationResponseTest, ValidMACAddressValidRangeAllResults) {
         RegistrationResult::SUCCESS,
         RegistrationResult::NO_RANGES_AVAILABLE,
         RegistrationResult::SERVICE_NOT_SUPPORTED,
-        RegistrationResult::UNKNOWN,
-        RegistrationResult::OPERATION_NOT_SUPPORTED
+        RegistrationResult::UNKNOWN
     };
     for (const auto& result : results) {
         std::cout << "Testing with result: " << static_cast<uint8_t>(result) << std::endl;
@@ -1008,7 +978,7 @@ TEST(AlServiceRegistrationResponseTest, ValidMACAddressValidRangeAllResults) {
  * This test verifies that the AlServiceRegistrationResponse constructor initializes the object with invalid message ID range
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 040@n
+ * **Test Case ID:** 037@n
  * **Priority:** High@n
  * @n
  * **Dependencies:** None@n
@@ -1035,7 +1005,7 @@ TEST(AlServiceRegistrationResponseTest, ValidMACAddressInvalidRangeSuccessResult
  * This test verifies that the AlServiceRegistrationResponse object is correctly initialized with a valid MAC address, a zero message ID range, and a success result.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 041@n
+ * **Test Case ID:** 038@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1063,7 +1033,7 @@ TEST(AlServiceRegistrationResponseTest, ValidMACAddressZeroRangeSuccessResult) {
  * This test verifies that the AlServiceRegistrationResponse object is correctly initialized when provided with an all-zero MAC address, a valid message ID range, and a success result.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 042@n
+ * **Test Case ID:** 039@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1092,7 +1062,7 @@ TEST(AlServiceRegistrationResponseTest, AllZeroMACAddressValidRangeSuccessResult
  * This test verifies that the AlServiceRegistrationResponse object is correctly initialized with a MAC address of all 0xFF, a valid message ID range, and a success result.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 043@n
+ * **Test Case ID:** 040@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1103,7 +1073,6 @@ TEST(AlServiceRegistrationResponseTest, AllZeroMACAddressValidRangeSuccessResult
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Initialize MAC address, message ID range, and result | macAddress = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, range = {1000, 2000}, result = RegistrationResult::SUCCESS | Object should be initialized successfully | Should be successful |
- *
  */
 TEST(AlServiceRegistrationResponseTest, AllFFMACAddressValidRangeSuccessResult) {
     std::cout << "Entering AllFFMACAddressValidRangeSuccessResult" << std::endl;
@@ -1120,7 +1089,7 @@ TEST(AlServiceRegistrationResponseTest, AllFFMACAddressValidRangeSuccessResult) 
  * This test verifies that the AlServiceRegistrationResponse object is correctly constructed when provided with a valid MAC address, a valid message ID range, and an invalid registration result.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 044@n
+ * **Test Case ID:** 041@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -1147,7 +1116,7 @@ TEST(AlServiceRegistrationResponseTest, ValidMACAddressValidRangeInvalidResult) 
  * This test validates that the default constructor of AlServiceRegistrationResponse initializes an object properly without any exceptions being thrown.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 045@n
+ * **Test Case ID:** 042@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n

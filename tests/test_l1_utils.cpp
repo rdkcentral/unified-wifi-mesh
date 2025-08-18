@@ -37,10 +37,12 @@ MacAddress parseMacAddress(const std::string& macStr) {
     return mac;
 }
 
+
 std::ostream& operator<<(std::ostream& os, const MacAddress& mac) {
     for (size_t i = 0; i < mac.size(); ++i) {
         if (i != 0) os << ":";
-        os << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(mac[i]);
+        os << std::hex << std::setw(2) << std::setfill('0')
+           << static_cast<unsigned int>(mac[i]);
     }
     return os;
 }
@@ -50,12 +52,12 @@ std::ostream& operator<<(std::ostream& os, const MessageIdRange& range) {
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const ServiceOperation& op) {
+std::ostream& operator<<(std::ostream& os, const SAPActivation& op) {
     switch (op) {
-        case ServiceOperation::SOP_ENABLE:
+        case SAPActivation::SOP_ENABLE:
             os << "SOP_ENABLE";
             break;
-        case ServiceOperation::SOP_DISABLE:
+        case SAPActivation::SOP_DISABLE:
             os << "SOP_DISABLE";
             break;
         default:
@@ -66,17 +68,11 @@ std::ostream& operator<<(std::ostream& os, const ServiceOperation& op) {
 
 std::ostream& operator<<(std::ostream& os, const ServiceType& type) {
     switch (type) {
-        case ServiceType::SAP_CLIENT:
-            os << "SAP_CLIENT";
+        case ServiceType::EmAgent:
+            os << "EmAgent";
             break;
-        case ServiceType::SAP_SERVER:
-            os << "SAP_SERVER";
-            break;
-        case ServiceType::SAP_TUNNEL_CLIENT:
-            os << "SAP_TUNNEL_CLIENT";
-            break;
-        case ServiceType::SAP_TUNNEL_SERVER:
-            os << "SAP_TUNNEL_SERVER";
+        case ServiceType::EmController:
+            os << "EmController";
             break;
         default:
             os << "UNKNOWN_SERVICE_TYPE";

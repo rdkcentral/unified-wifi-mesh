@@ -31,5 +31,5 @@ using MessageIdRange = std::pair<uint16_t, uint16_t>;
 MacAddress parseMacAddress(const std::string& macStr);
 std::ostream& operator<<(std::ostream& os, const MacAddress& mac);
 std::ostream& operator<<(std::ostream& os, const MessageIdRange& range);
-std::ostream& operator<<(std::ostream& os, const ServiceOperation& op);
+std::ostream& operator<<(std::ostream& os, const SAPActivation& op);
 std::ostream& operator<<(std::ostream& os, const ServiceType& type);
