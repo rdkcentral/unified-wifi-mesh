@@ -793,8 +793,9 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
 
     ec_status_code_t dpp_status = static_cast<ec_status_code_t>(status_attrib->data[0]);
 
+    std::string status_str = ec_util::status_code_to_string(dpp_status);
     if (dpp_status != DPP_STATUS_OK && dpp_status != DPP_STATUS_AUTH_FAILURE && dpp_status != DPP_STATUS_NOT_COMPATIBLE) {
-        em_printfout("Recieved Improper DPP Status: \"%s\"", ec_util::status_code_to_string(dpp_status).c_str());
+        em_printfout("Recieved Improper DPP Status: \"%s\"", status_str.c_str());
         return false;
     }
 
@@ -802,7 +803,7 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
     ASSERT_OPT_HAS_VALUE(wrapped_attr, false, "%s:%d: No wrapped data attribute found\n", __func__, __LINE__);
 
     uint8_t* key = (dpp_status == DPP_STATUS_OK) ? m_eph_ctx().ke : m_eph_ctx().k2;
-    ASSERT_NOT_NULL(key, false, "%s:%d: k_e or k_2 is NULL!\n", __func__, __LINE__);
+    EM_ASSERT_NOT_NULL(key, false, "k_e or k_2 is NULL (status=%s)!", status_str.c_str());
 
     // If DPP Status is OK, wrap the I-auth with the KE key, otherwise wrap the Responder Nonce with the K2 key
     auto [unwrapped_data, unwrapped_data_len] = ec_util::unwrap_wrapped_attrib(*wrapped_attr, frame, true, key);
@@ -814,7 +815,6 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
     if (dpp_status != DPP_STATUS_OK) {
         // Unwrapping successfully occured but there is an error, "generate an alert"
         free(unwrapped_data);
-        std::string status_str = ec_util::status_code_to_string(dpp_status);
         em_printfout("Authentication Failed with DPP Status: %s", status_str.c_str());
         return false;
     }
@@ -924,7 +924,7 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
     return sent_dpp_config_gas_frame;
 }
 
-bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa[ETH_ALEN])
+bool ec_enrollee_t::handle_config_response(uint8_t *query_resp, size_t len, uint8_t sa[ETH_ALEN])
 {
     // EasyMesh 5.4.3
     // If an Enrollee Multi-AP Agent receives a DPP Configuration Response frame, it shall send a DPP Configuration Result
@@ -939,10 +939,10 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
 
     // EasyConnect 6.4.3.2 Enrollee Handling
     em_printfout("Got a DPP Configuration Response from " MACSTRFMT "", MAC2STR(sa));
-    ec_gas_initial_response_frame_t *config_response_frame = reinterpret_cast<ec_gas_initial_response_frame_t*>(buff);
+    EM_ASSERT_NOT_NULL(query_resp, false, "Query response is NULL");
+    EM_ASSERT_MSG_TRUE(len > 0, false, "Query response length is zero");
 
-
-    auto status_attrib = ec_util::get_attrib(reinterpret_cast<uint8_t*>(config_response_frame->resp), static_cast<size_t>(config_response_frame->resp_len), ec_attrib_id_dpp_status);
+    auto status_attrib = ec_util::get_attrib(query_resp, len, ec_attrib_id_dpp_status);
     ASSERT_OPT_HAS_VALUE(status_attrib, false, "%s:%d: No DPP status attribute found\n", __func__, __LINE__);
 
     ec_status_code_t config_response_status_code = static_cast<ec_status_code_t>(status_attrib->data[0]);
@@ -968,10 +968,10 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
         return false;
     }
 
-    auto wrapped_attrs = ec_util::get_attrib(config_response_frame->resp, static_cast<size_t>(config_response_frame->resp_len), ec_attrib_id_wrapped_data);
+    auto wrapped_attrs = ec_util::get_attrib(query_resp, len, ec_attrib_id_wrapped_data);
     ASSERT_OPT_HAS_VALUE(wrapped_attrs, false, "%s:%d: Failed to get wrapped data attribute!\n", __func__, __LINE__);
 
-    auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(*wrapped_attrs, config_response_frame->resp, true, m_eph_ctx().ke);
+    auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(*wrapped_attrs, query_resp, true, m_eph_ctx().ke);
     if (unwrapped_attrs == nullptr || unwrapped_attrs_len == 0) {
         em_printfout("Failed to unwrap wrapped attributes.");
         return false;
@@ -1111,7 +1111,12 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
         return false;
     }
 
-    bool ok = m_send_action_frame(sa, config_result_frame, config_result_frame_len, m_selected_freq, 0);
+    bool ok = (m_c_ctx.is_eth)
+                    ? m_send_dir_encap_fn(config_result_frame, config_result_frame_len, sa)
+                    : m_send_action_frame(sa, config_result_frame, config_result_frame_len, m_selected_freq, 0);
+
+    free(config_result_frame);
+
     if (!ok) {
         em_printfout("Failed to send DPP Configuration Result frame");
     } else {
@@ -1622,11 +1627,11 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request(std::optional<
         }
         BN_free(m_eph_ctx().priv_resp_proto_key);
         EC_POINT_free(m_eph_ctx().public_resp_proto_key);
-        m_eph_ctx().priv_resp_proto_key = const_cast<BIGNUM *>(p_R);
         m_eph_ctx().public_resp_proto_key = const_cast<EC_POINT*>(P_R);
+        m_eph_ctx().priv_resp_proto_key = const_cast<BIGNUM *>(p_R);
         // Also set netAccessKey
         if (m_sec_ctx.net_access_key) em_crypto_t::free_key(m_sec_ctx.net_access_key);
-        m_sec_ctx.net_access_key = em_crypto_t::bundle_ec_key(m_c_ctx.group, m_eph_ctx().public_resp_proto_key, m_eph_ctx().priv_init_proto_key);
+        m_sec_ctx.net_access_key = em_crypto_t::bundle_ec_key(m_c_ctx.group, m_eph_ctx().public_resp_proto_key, m_eph_ctx().priv_resp_proto_key);
         ASSERT_NOT_NULL(m_sec_ctx.net_access_key, {}, "%s:%d: Failed to create netAccessKey from Respondor proto keypair\n", __func__, __LINE__);
     }
 
@@ -1872,7 +1877,7 @@ bool ec_enrollee_t::handle_gas_initial_response(ec_gas_initial_response_frame_t 
     }
 
     // Not a fragmentation prep signal, just a complete response frame.
-    return handle_config_response(reinterpret_cast<uint8_t*>(resp_frame), len, src_mac);
+    return handle_config_response(resp_frame->resp, static_cast<size_t>(resp_frame->resp_len), src_mac);
 }
 
 ec_gas_comeback_request_frame_t *ec_enrollee_t::create_comeback_request(uint8_t dialog_token)
