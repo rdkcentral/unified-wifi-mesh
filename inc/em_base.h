@@ -253,6 +253,7 @@ typedef char    em_short_string_t[64];
 typedef char    em_long_string_t[128];
 typedef char    em_2xlong_string_t[256];
 typedef char    em_3xlong_string_t[512];
+typedef char    em_4xlong_string_t[1024];
 typedef char    em_string_t[32];
 typedef char    em_small_string_t[16];
 typedef char    em_tiny_string_t[4];
@@ -1324,7 +1325,7 @@ typedef struct {
 } __attribute__((__packed__)) em_bss_conf_rsp_t;
 
 typedef struct {
-    unsigned char *dpp_config_req_obj;
+    char dpp_config_req_obj[0];
 } __attribute__((__packed__)) em_bss_conf_req_t;
 
 typedef struct {
@@ -1896,6 +1897,8 @@ typedef enum {
 
 typedef enum {
     em_state_agent_unconfigured,
+    em_state_agent_1905_unconfigured,
+    em_state_agent_1905_securing,
     em_state_agent_autoconfig_rsp_pending,
     em_state_agent_wsc_m2_pending,
     em_state_agent_owconfig_pending,
@@ -2804,6 +2807,7 @@ typedef struct{
 	unsigned int noofbssconfig;
 	em_haul_type_t haultype[EM_MAX_BSS_PER_RADIO];
 	mac_address_t radio_mac[EM_MAX_BSS_PER_RADIO];
+    em_4xlong_string_t dpp_connector[EM_MAX_BSS_PER_RADIO];
 } m2ctrl_radioconfig;
 
 typedef struct{

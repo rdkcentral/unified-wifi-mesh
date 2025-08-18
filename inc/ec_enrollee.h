@@ -420,6 +420,15 @@ private:
 	 * @return True on success otherwise false
 	 */
 	send_autoconf_search_func m_send_autoconf_search_fn;
+
+	/**
+	 * @brief Sends a BSS Configuration Request message
+	 * 
+	 * @param dest_al_mac The destination AL MAC address (6 bytes)
+	 * 
+	 * @return True on success otherwise false
+	 */
+	send_bss_config_req_func m_send_bss_config_req_fn;
 	
     // Maps SSID that this Enrollee has attempted to find to the
     // list of channels/op-classes that were scanned.

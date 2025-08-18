@@ -16,6 +16,7 @@ ec_enrollee_t::ec_enrollee_t(const std::string& al_mac_addr, ec_ops_t& ops, std:
     m_bsta_connect_fn = ops.bsta_connect;
     m_send_dir_encap_fn = ops.send_dir_encap_dpp;
     m_send_autoconf_search_fn = ops.send_autoconf_search;
+    m_send_bss_config_req_fn = ops.send_bss_config_req;
     m_scanned_channels_map = {};
 
     m_1905_encrypt_layer = std::make_unique<ec_1905_encrypt_layer_t>(

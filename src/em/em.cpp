@@ -264,23 +264,6 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
     cmdu = reinterpret_cast<em_cmdu_t *>(data + sizeof(em_raw_hdr_t));
 
 
-    if (memcmp(hdr->src, hdr->dst, sizeof(mac_address_t)) == 0){
-
-        // This is a message that was sent to the same address it was sent from,
-        // check if I infact sent it to myself
-        auto hash = em_crypto_t::platform_SHA256(data, len);
-        auto hash_str = em_crypto_t::hash_to_hex_string(hash);
-
-        if (m_coloc_sent_hashed_msgs.find(hash_str) != m_coloc_sent_hashed_msgs.end()) {
-            // I sent this same message type, I am likely the sender receiving it back
-            // since both the controller and colocated agent have the same AL-mac
-            // so, I should not process it
-            free(data);
-            m_coloc_sent_hashed_msgs.erase(hash_str);
-            return;
-        }
-    }
-
     dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(), mac_str);
     switch (htons(cmdu->type)) {
         case em_msg_type_autoconf_search:
@@ -1194,11 +1177,18 @@ short em_t::create_eht_operations_tlv(unsigned char *buff)
     len += sizeof(unsigned char);
 
     for (i = 0; i < num_radios; i++) {
-        memcpy(tmp, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t));
+        uint8_t* ruid = dm->get_radio_info(i)->id.ruid;
+        memcpy(tmp, ruid, sizeof(mac_address_t));
         tmp += sizeof(mac_address_t);
         len += sizeof(mac_address_t);
 
-        num_bss = static_cast<unsigned char> (dm->get_num_bss());
+        // Count BSS only for this specific radio
+        num_bss = 0;
+        for (j = 0; j < dm->get_num_bss(); j++) {
+            if (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, ruid, sizeof(mac_address_t)) == 0) {
+                num_bss++;
+            }
+        }
 
         memcpy(tmp, &num_bss, sizeof(unsigned char));
         tmp += sizeof(unsigned char);
@@ -1206,7 +1196,7 @@ short em_t::create_eht_operations_tlv(unsigned char *buff)
 
 
         for (j = 0; j < dm->get_num_bss(); j++) {
-        	if (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
+        	if (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, ruid, sizeof(mac_address_t)) != 0) {
             	continue;
         	}
 
@@ -1741,6 +1731,8 @@ bool em_t::initialize_ec_manager(){
     ops.can_onboard_additional_aps = std::bind(&em_mgr_t::can_onboard_additional_aps, m_mgr);
     ops.send_autoconf_search       = std::bind(&em_t::send_autoconf_search_ext_chirp, this,
                                                std::placeholders::_1, std::placeholders::_2);
+    ops.send_bss_config_req       = std::bind(&em_t::send_bss_config_req_msg, this, 
+                                                std::placeholders::_1);
 
     // Enrollee callbacks
     if (service_type == em_service_type_agent) {
