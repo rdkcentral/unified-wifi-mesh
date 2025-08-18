@@ -1477,9 +1477,9 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             if (((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL)  && (em->get_state() == em_state_agent_onewifi_bssconfig_ind)) {
                 printf("%s:%d: Received topo query, found existing radio:%s\n", __func__, __LINE__, mac_str1);
             } else {
-                printf("%s:%d: Could not find em for em_msg_type_topo_query\n", __func__, __LINE__);
-				if (em != NULL) {
-					printf("%s:%d em_msg_type_topo_query :em mac=%s is in incorrect state state=%d \n", __func__, __LINE__, mac_str1, em->get_state());
+ 				if (em != NULL) {
+					em_printfout("em_msg_type_topo_query :em mac=%s is in incorrect state state=%d",
+                        mac_str1, em->get_state());
 				}
                 return NULL;
             }
