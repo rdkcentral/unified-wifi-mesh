@@ -1647,6 +1647,9 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
         case em_msg_type_1905_encap_eapol:
             em = al_em;
             break;
+        case em_msg_type_topo_disc:
+            em = NULL;
+            break;
         default:
             printf("%s:%d: Frame: %d not handled in agent\n", __func__, __LINE__, htons(cmdu->type));
             em = NULL;

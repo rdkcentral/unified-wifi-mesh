@@ -393,7 +393,7 @@ int em_provisioning_t::handle_1905_encap_eapol_msg(uint8_t *buff, unsigned int l
     em_tlv_t* eapol_tlv = em_msg_t::get_tlv(tlv, tlv_len, em_tlv_type_1905_encap_eapol);
     EM_ASSERT_NOT_NULL(eapol_tlv, -1, "EAPOL Encap TLV not found in 1905 Encap EAPOL message");
 
-    if (eapol_tlv->value == NULL || eapol_tlv->len == 0) {
+    if (eapol_tlv->len == 0) {
         em_printfout("Received a 1905 EAPOL Encap message but did not contain EAPOL frame!");
         return -1;
     }
@@ -509,12 +509,6 @@ int em_provisioning_t::handle_proxy_encap_dpp(uint8_t *buff, unsigned int len, u
     em_tlv_t* encap_tlv = em_msg_t::get_tlv(tlv, tlv_len, em_tlv_type_1905_encap_dpp);
     em_tlv_t* chirp_tlv = em_msg_t::get_tlv(tlv, tlv_len, em_tlv_type_dpp_chirp_value);
     EM_ASSERT_NOT_NULL(encap_tlv, -1, "1905 Encap DPP TLV not found in Proxy Encap DPP message");
-    EM_ASSERT_NOT_NULL(encap_tlv->value, -1, "1905 Encap DPP TLV value is NULL in Proxy Encap DPP message");
-
-    if (chirp_tlv != nullptr && chirp_tlv->value == nullptr) {
-        em_printfout("Received a Proxy Encap DPP message with Chirp TLV but no value!");
-        return -1;
-    }
 
     em_encap_dpp_t* encap = reinterpret_cast<em_encap_dpp_t*> (encap_tlv->value);
     uint16_t encap_tlv_len = ntohs(encap_tlv->len);
