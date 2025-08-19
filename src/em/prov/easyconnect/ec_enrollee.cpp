@@ -236,8 +236,11 @@ void ec_enrollee_t::send_presence_announcement_frames()
             // Generate new channel list
             generate_bss_channel_list(false);
         }
+        // m_pres_announcement_freqs may be modified by a different thread
+        // iterate a local copy for thread safety
+        std::vector<uint32_t> freqs(m_pres_announcement_freqs.begin(), m_pres_announcement_freqs.end());
 
-        for (const auto& freq : m_pres_announcement_freqs) {
+        for (const auto& freq : freqs) {
             // EasyConnect 6.2.3
             // For each channel in the channel list generated as per Section 6.2.2, the Enrollee, shall send a DPP Presence
             // Announcement frame and listen for 2 seconds to receive a DPP Authentication Request frame. If a valid DPP
@@ -306,7 +309,9 @@ void ec_enrollee_t::send_reconfiguration_announcement_frames()
             generate_bss_channel_list(true);
         }
 
-        for (const auto& freq : m_recnf_announcement_freqs) {
+        // thread-safe copy
+        std::vector<uint32_t> freqs(m_recnf_announcement_freqs.begin(), m_recnf_announcement_freqs.end());
+        for (const auto& freq : freqs) {
             // EasyConnect 6.5.2
             // the Enrollee selects a channel from the channel list,
             // sends a DPP Reconfiguration Announcement frame and waits for two seconds for a DPP Reconfiguration Authentication
