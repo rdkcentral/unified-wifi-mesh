@@ -52,7 +52,6 @@ int dm_sta_list_t::get_config(cJSON *obj_arr, void *parent, em_get_sta_list_reas
     bssid_t	bssid;
 
     dm_easy_mesh_t::string_to_macbytes(static_cast<char *>(parent), bssid);
-
     sta = get_first_sta();
     while (sta != NULL) {
         if (memcmp(sta->m_sta_info.bssid, bssid, sizeof(mac_address_t)) != 0) {
@@ -65,7 +64,7 @@ int dm_sta_list_t::get_config(cJSON *obj_arr, void *parent, em_get_sta_list_reas
         cJSON_AddItemToArray(obj_arr, obj);
         sta = get_next_sta(sta);
     }
-
+    //em_printfout("Station list for bssid %s:\n%s", parent, cJSON_Print(obj_arr));
     return 0;
 }
 

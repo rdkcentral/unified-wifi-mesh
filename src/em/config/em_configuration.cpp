@@ -157,7 +157,7 @@ int em_configuration_t::send_topology_notification_by_client(mac_address_t sta, 
     tmp += (sizeof (em_tlv_t));
     len += static_cast<unsigned int> (sizeof (em_tlv_t));
 
-    printf("%s:%d Create topology notification msg successfull\n", __func__, __LINE__);
+    printf("%s:%d Create topology notification msg successful, len:%d\n", __func__, __LINE__, len);
 
     if (em_msg_t(em_msg_type_topo_notif, em_profile_type_3, buff, len).validate(errors) == 0) {
         printf("Topology notification msg validation failed\n");
@@ -1455,8 +1455,9 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     bool eligible_to_req_cap = false;
 
-    dm = get_data_model();
-	
+	dm = get_data_model();
+	em_printfout("Topology Notification received, length: %d", len);
+
 	if (em_msg_t(em_msg_type_topo_notif, m_peer_profile, buff, len).validate(errors) == 0) {
         printf("%s:%d: topology response msg validation failed\n", __func__, __LINE__);
             
@@ -1491,7 +1492,7 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
             snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bssid_str, radio_mac_str);
 
             //printf("%s:%d: Client Device:%s %s\n", __func__, __LINE__, sta_mac_str,
-                    //(assoc_evt_tlv->assoc_event == 1)?"associated":"disassociated");
+            //        (assoc_evt_tlv->assoc_event == 1)?"associated":"disassociated");
 
             if ((sta = static_cast<dm_sta_t *> (hash_map_get(dm->m_sta_map, key))) == NULL) {
                 eligible_to_req_cap = true;
@@ -1522,6 +1523,7 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
                 hash_map_put(dm->m_sta_assoc_map, strdup(key), new dm_sta_t(&sta_info));
 
                 dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
+                em_printfout("Client updated to db: %s", key);
             }
             break;
         }
@@ -1529,7 +1531,6 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
 		tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
 		tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
-
 	return 0;
 }
 
