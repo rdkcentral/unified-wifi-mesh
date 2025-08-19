@@ -648,8 +648,8 @@ void dm_easy_mesh_list_t::put_sta(const char *key, const dm_sta_t *sta)
     }
 
     if ((psta = static_cast<dm_sta_t *> (hash_map_get(dm->m_sta_map, key))) != NULL) {
-        //printf("%s:%d: STA:%s already present on BSS:%s of radio:%s\n", __func__, __LINE__,
-        //		sta_mac_str, bssid_str, radio_mac_str);
+        //printf("%s:%d: STA:%s already present on BSS:%s of radio:%s dm:%p dm_mac:%s\n", __func__, __LINE__,
+        //    sta_mac_str, bssid_str, radio_mac_str, dm, util::mac_to_string(dm->m_device.m_device_info.intf.mac).c_str());
         memcpy(&psta->m_sta_info, &sta->m_sta_info, sizeof(em_sta_info_t));
         return;
     }
@@ -657,8 +657,8 @@ void dm_easy_mesh_list_t::put_sta(const char *key, const dm_sta_t *sta)
     psta = new dm_sta_t(*sta);
     hash_map_put(dm->m_sta_map, strdup(key), psta);
 
-    //printf("%s:%d: STA:%s added to BSS:%s of radio:%s\n", __func__, __LINE__,
-            //sta_mac_str, bssid_str, radio_mac_str);
+    //printf("%s:%d: STA:%s added to BSS:%s of radio:%s dm:%p dm_mac:%s\n", __func__, __LINE__,
+    //        sta_mac_str, bssid_str, radio_mac_str, dm, util::mac_to_string(dm->m_device.m_device_info.intf.mac).c_str());
 }
 
 dm_network_ssid_t *dm_easy_mesh_list_t::get_first_network_ssid()
@@ -1553,7 +1553,6 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::get_data_model(const char *net_id, const un
 
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (al_mac), mac_str);
     snprintf(key, sizeof(key), "%s@%s", net_id, mac_str);
-    //printf("%s:%d: Retrieve data model at key: %s\n", __func__, __LINE__, key);
     dm = static_cast<dm_easy_mesh_t *> (hash_map_get(m_list, key));
 
     return dm;
