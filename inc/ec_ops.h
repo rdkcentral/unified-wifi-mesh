@@ -26,6 +26,14 @@
 struct cJSON;
 
 /**
+ * @brief Sends an BSS Configuration Request message
+ * 
+ * @param dest_al_mac The destination AL MAC address (6 bytes)
+ * @return True on success otherwise false
+ */
+using send_bss_config_req_func = std::function<bool(uint8_t[ETH_ALEN])>;
+
+/**
  * @brief Sends an Autoconf Search message (extended)
  * 
  * @param Chirp The chirp to include in the autoconf search message
@@ -36,7 +44,7 @@ struct cJSON;
  */
 using send_autoconf_search_func = std::function<bool(em_dpp_chirp_value_t *, size_t)>;
 
-/**p
+/**
  * @brief Sends an Autoconf Search Response message (extended)
  * 
  * @param Chirp The Chirp to include in the autoconf search response message
@@ -181,4 +189,5 @@ struct ec_ops_t {
     send_1905_eapol_encap_func send_1905_eapol_encap = nullptr; 
     send_autoconf_search_func send_autoconf_search = nullptr;
     send_autoconf_search_resp_func send_autoconf_search_resp = nullptr;
+    send_bss_config_req_func send_bss_config_req = nullptr;
 };

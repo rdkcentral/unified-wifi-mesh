@@ -63,23 +63,8 @@ class em_t :
     bool    m_exit;
     bool m_is_al_em;
     bool dev_test_enable;
-	
-	/**
-	 * @brief Set of hashed messages that have been sent in co-located systems
-	 * 
-	 * This set is used to track the messages that have been sent 
-	 * to avoid recieving the same message that was sent by another co-located 1905 object.
-	 * 
-	 * For example: {Controller} -> {Controller, Co-located Agent}, or 
-	 * 				{Co-located Agent} -> {Controller, Co-located Agent})
-	 * 
-	 * This occurs because both the Controller and the Co-located Agent have the same AL-mac, 
-	 * resulting in them both recieving the messages they sent each other when infact, it should be:
-	 * 
-	 * {Controller} -> {Co-located Agent} and
-	 * {Co-located Agent} -> {Controller}
-	 */
-	std::set<std::string> m_coloc_sent_hashed_msgs;
+
+	bool m_is_dpp_onboarding = false;
 
     
 	/**!
@@ -722,6 +707,10 @@ public:
 	 * @note The returned MAC address is dependent on the current service type.
 	 */
 	unsigned char *get_peer_mac() { return (m_service_type == em_service_type_ctrl) ? m_data_model->get_agent_al_interface_mac():m_data_model->get_controller_interface_mac(); }
+
+	bool get_is_dpp_onboarding() override { return m_is_dpp_onboarding; }
+
+	void set_is_dpp_onboarding(bool is_onboarding) override { m_is_dpp_onboarding = is_onboarding; }
 
     
 	/**!

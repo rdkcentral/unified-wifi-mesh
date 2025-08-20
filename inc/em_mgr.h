@@ -410,6 +410,15 @@ public:
         return true;
     }
 
+	/**
+	 * @brief Checks if the agent is currently DPP onboarding.
+	 * 
+	 * @return true if the agent is DPP onboarding, false otherwise.
+	 */
+	virtual bool is_agent_dpp_onboarding() {
+        return false;
+    }
+
     
 	/**!
 	 * @brief Finds the EM for a given message type.

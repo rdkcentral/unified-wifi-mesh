@@ -763,3 +763,69 @@ TEST_F(EmCryptoTests, BundleECKey)
     null_result = em_crypto_t::bundle_ec_key(group.get(), nullptr, priv_bn.get());
     EXPECT_EQ(null_result, nullptr) << "Should fail with NULL public key";
 }
+
+TEST_F(EmCryptoTests, PlatformHmacHashRFC4231TestCase1) {
+    // RFC 4231 Test Case 1 (https://datatracker.ietf.org/doc/html/rfc4231#section-4.2)
+    // Key = 0x0b repeated 20 times
+    uint8_t key[20];
+    memset(key, 0x0b, 20);
+    
+    // Data = "Hi There"
+    const char* data = "Hi There";
+    uint8_t hmac_result[32]; // SHA-256 output size
+    
+    uint8_t* addr[1] = { (uint8_t*)data };
+    size_t len[1] = { strlen(data) };
+    
+    // Expected result from RFC 4231
+    uint8_t expected[32] = {
+        0xb0, 0x34, 0x4c, 0x61, 0xd8, 0xdb, 0x38, 0x53,
+        0x5c, 0xa8, 0xaf, 0xce, 0xaf, 0x0b, 0xf1, 0x2b,
+        0x88, 0x1d, 0xc2, 0x00, 0xc9, 0x83, 0x3d, 0xa7,
+        0x26, 0xe9, 0x37, 0x6c, 0x2e, 0x32, 0xcf, 0xf7
+    };
+    
+    uint8_t result = em_crypto_t::platform_hmac_hash(
+        EVP_sha256(),
+        key, 20,
+        1, addr, len,
+        hmac_result
+    );
+    
+    EXPECT_EQ(result, 1) << "HMAC calculation should succeed";
+    EXPECT_EQ(memcmp(hmac_result, expected, 32), 0) << "HMAC result should match RFC 4231 test vector";
+}
+
+TEST_F(EmCryptoTests, PlatformHmacHashRFC4231TestCase2) {
+    // RFC 4231 Test Case 2 (https://datatracker.ietf.org/doc/html/rfc4231#section-4.3)
+    // Key = "Jefe"
+    const char* key = "Jefe";
+    
+    // Data has two elements:
+    // Element 1: "what do ya want " 
+    // Element 2: "for nothing?"
+    const char* data1 = "what do ya want ";
+    const char* data2 = "for nothing?";
+    uint8_t hmac_result[32];
+    
+    uint8_t* addr[2] = { (uint8_t*)data1, (uint8_t*)data2 };
+    size_t len[2] = { strlen(data1), strlen(data2) };
+    
+    // Expected result from RFC 4231
+    uint8_t expected[32] = {
+        0x5b, 0xdc, 0xc1, 0x46, 0xbf, 0x60, 0x75, 0x4e,
+        0x6a, 0x04, 0x24, 0x26, 0x08, 0x95, 0x75, 0xc7,
+        0x5a, 0x00, 0x3f, 0x08, 0x9d, 0x27, 0x39, 0x83,
+        0x9d, 0xec, 0x58, 0xb9, 0x64, 0xec, 0x38, 0x43
+    };
+    
+    uint8_t result = em_crypto_t::platform_hmac_hash(
+        EVP_sha256(),
+        (uint8_t*)key, strlen(key),
+        2, addr, len,  // Note: num_elem = 2
+        hmac_result
+    );
+    
+    EXPECT_EQ(result, 1) << "HMAC calculation should succeed";
+    EXPECT_EQ(memcmp(hmac_result, expected, 32), 0) << "HMAC result should match RFC 4231 test case 2";
+}

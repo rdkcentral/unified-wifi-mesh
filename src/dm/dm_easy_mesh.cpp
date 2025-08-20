@@ -179,7 +179,8 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
 					m_bss[m_num_bss] = dm.m_bss[i];
 					m_num_bss = m_num_bss + 1;
 					macbytes_to_string(dm.get_bss(i)->get_bss_info()->bssid.mac,mac_str);
-					printf("%s:%d New BSS %s configuration updated  no of bss=%d vapname=%s\n", __func__, __LINE__,mac_str,m_num_bss, dm.get_bss(i)->get_bss_info()->bssid.name);
+					printf("%s:%d New BSS %s configuration updated  no of bss=%d vapname=%s\n",
+						__func__, __LINE__, mac_str, m_num_bss, dm.get_bss(i)->get_bss_info()->bssid.name);
 				}
 			}
 		}
@@ -2192,6 +2193,9 @@ dm_bss_t *dm_easy_mesh_t::get_bss(mac_address_t radio_mac, mac_address_t bss_mac
 
 em_bss_info_t* dm_easy_mesh_t::get_bsta_bss_info()
 {
+    std::string dev_mac_str = util::mac_to_string(m_device.m_device_info.intf.mac);
+    em_printfout("dev_mac:%s, num_bss:%d", dev_mac_str.c_str(), m_num_bss);
+
     for (unsigned int i = 0; i < m_num_bss; i++) {
         em_bss_info_t *bsta_info = this->get_bss_info(i);
         if (!bsta_info) continue;
@@ -2199,11 +2203,16 @@ em_bss_info_t* dm_easy_mesh_t::get_bsta_bss_info()
         if (bsta_info->id.haul_type != em_haul_type_backhaul) {
             continue;
         }
+
         if (bsta_info->vap_mode != em_vap_mode_sta) {
             continue;
         }
         auto radio = this->get_radio(bsta_info->ruid.mac);
         if (!radio) continue;
+        em_printfout("radio_mac:%s backhaul bss_mac:%s radio enabled:%d sta_info enabled:%d",
+            util::mac_to_string(bsta_info->ruid.mac).c_str(),
+            util::mac_to_string(bsta_info->id.bssid).c_str(),
+            radio->m_radio_info.enabled, bsta_info->enabled);
         if (!radio->m_radio_info.enabled || !bsta_info->enabled) {
             continue;
         }

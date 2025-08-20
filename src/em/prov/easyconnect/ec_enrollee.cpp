@@ -3,22 +3,27 @@
 #include "ec_crypto.h"
 #include "em_crypto.h"
 #include "util.h"
-#include "timer.h"
 #include "cjson/cJSON.h"
 #include "cjson_util.h"
 #include <unistd.h>
 
 ec_enrollee_t::ec_enrollee_t(const std::string& al_mac_addr, ec_ops_t& ops, std::optional<ec_persistent_sec_ctx_t> existing_sec_ctx)
-    : m_al_mac_addr(al_mac_addr),
-    m_1905_encrypt_layer(al_mac_addr, ops.send_dir_encap_dpp, ops.send_1905_eapol_encap)
-{
+    : m_al_mac_addr(al_mac_addr) {
     m_send_action_frame = ops.send_act_frame;
     m_get_bsta_info = ops.get_backhaul_sta_info;
     m_trigger_sta_scan_fn = ops.trigger_sta_scan;
     m_bsta_connect_fn = ops.bsta_connect;
     m_send_dir_encap_fn = ops.send_dir_encap_dpp;
     m_send_autoconf_search_fn = ops.send_autoconf_search;
+    m_send_bss_config_req_fn = ops.send_bss_config_req;
     m_scanned_channels_map = {};
+
+    m_1905_encrypt_layer = std::make_unique<ec_1905_encrypt_layer_t>(
+        al_mac_addr, 
+        ops.send_dir_encap_dpp, 
+        ops.send_1905_eapol_encap,
+        std::bind(&ec_enrollee_t::handle_1905_handshake_completed, 
+                  this, std::placeholders::_1, std::placeholders::_2));
 
     // Import existing security context
     if (existing_sec_ctx.has_value()) {
@@ -43,6 +48,18 @@ ec_enrollee_t::~ec_enrollee_t()
 
     ec_crypto::free_persistent_sec_ctx(&m_sec_ctx);
     
+}
+
+void ec_enrollee_t::handle_1905_handshake_completed(uint8_t peer_mac[ETH_ALEN], bool is_group) {
+    em_printfout("1905 handshake completed with peer: " MACSTRFMT ", group key: %s", 
+                 MAC2STR(peer_mac), is_group ? "true" : "false");
+
+    // Now that we've established 1905 layer connectivity, start BSS Configuration
+    if (!m_send_bss_config_req_fn(peer_mac)) {
+        em_printfout("Failed to send BSS Configuration Request to peer: " MACSTRFMT, MAC2STR(peer_mac));
+        return;
+    }
+    em_printfout("BSS Configuration Request sent to peer: " MACSTRFMT, MAC2STR(peer_mac));
 }
 
 bool ec_enrollee_t::start_onboarding(bool do_reconfig, ec_data_t* boot_data, bool ethernet)
@@ -97,26 +114,10 @@ bool ec_enrollee_t::start_onboarding(bool do_reconfig, ec_data_t* boot_data, boo
             std::thread(&ec_enrollee_t::send_presence_announcement_frames, this);
     } else {
         // Onboarding via Ethernet, need to fire off Autoconf Search (extended) with our bootstrapping key hash and await a response from the Controller
-        uint8_t *resp_boot_key_chirp_hash =
-            ec_crypto::compute_key_hash(m_boot_data().responder_boot_key, "chirp");
-        ASSERT_NOT_NULL(resp_boot_key_chirp_hash, false,
-                        "%s:%d unable to compute \"chirp\" responder bootstrapping key hash\n",
-                        __func__, __LINE__);
-        auto [chirp, chirp_len] = ec_util::create_dpp_chirp_tlv(
-            false, true, nullptr, resp_boot_key_chirp_hash, SHA256_DIGEST_LENGTH);
-        if (chirp == nullptr || chirp_len == 0) {
-            em_printfout("Failed to create DPP Chirp TLV for Autoconf Search (extended)");
-            return false;
-        }
-
-        if (!m_send_autoconf_search_fn(chirp, chirp_len)) {
-            em_printfout(
-                "Failed to send initial Autoconf Search (extended) with bootstrapping key hash");
-            free(chirp);
-            // If we fail to send, onboarding cannot continue.
-            return false;
-        }
-        free(chirp);
+        bool did_succeed = send_autoconf_search_chirp();
+        EM_ASSERT_MSG_TRUE(did_succeed, false, "Failed to initial Autoconf Search (extended) with bootstrapping key hash");
+        // Did a basic one first in order to check for validity
+        m_autoconf_search_timer->start_periodic(std::chrono::milliseconds(1000), std::bind(&ec_enrollee_t::send_autoconf_search_chirp, this));
     }
 
     m_is_onboarding = true;
@@ -235,8 +236,11 @@ void ec_enrollee_t::send_presence_announcement_frames()
             // Generate new channel list
             generate_bss_channel_list(false);
         }
+        // m_pres_announcement_freqs may be modified by a different thread
+        // iterate a local copy for thread safety
+        std::vector<uint32_t> freqs(m_pres_announcement_freqs.begin(), m_pres_announcement_freqs.end());
 
-        for (const auto& freq : m_pres_announcement_freqs) {
+        for (const auto& freq : freqs) {
             // EasyConnect 6.2.3
             // For each channel in the channel list generated as per Section 6.2.2, the Enrollee, shall send a DPP Presence
             // Announcement frame and listen for 2 seconds to receive a DPP Authentication Request frame. If a valid DPP
@@ -305,7 +309,9 @@ void ec_enrollee_t::send_reconfiguration_announcement_frames()
             generate_bss_channel_list(true);
         }
 
-        for (const auto& freq : m_recnf_announcement_freqs) {
+        // thread-safe copy
+        std::vector<uint32_t> freqs(m_recnf_announcement_freqs.begin(), m_recnf_announcement_freqs.end());
+        for (const auto& freq : freqs) {
             // EasyConnect 6.5.2
             // the Enrollee selects a channel from the channel list,
             // sends a DPP Reconfiguration Announcement frame and waits for two seconds for a DPP Reconfiguration Authentication
@@ -776,8 +782,9 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
 
     ec_status_code_t dpp_status = static_cast<ec_status_code_t>(status_attrib->data[0]);
 
+    std::string status_str = ec_util::status_code_to_string(dpp_status);
     if (dpp_status != DPP_STATUS_OK && dpp_status != DPP_STATUS_AUTH_FAILURE && dpp_status != DPP_STATUS_NOT_COMPATIBLE) {
-        em_printfout("Recieved Improper DPP Status: \"%s\"", ec_util::status_code_to_string(dpp_status).c_str());
+        em_printfout("Recieved Improper DPP Status: \"%s\"", status_str.c_str());
         return false;
     }
 
@@ -785,7 +792,7 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
     ASSERT_OPT_HAS_VALUE(wrapped_attr, false, "%s:%d: No wrapped data attribute found\n", __func__, __LINE__);
 
     uint8_t* key = (dpp_status == DPP_STATUS_OK) ? m_eph_ctx().ke : m_eph_ctx().k2;
-    ASSERT_NOT_NULL(key, false, "%s:%d: k_e or k_2 is NULL!\n", __func__, __LINE__);
+    EM_ASSERT_NOT_NULL(key, false, "k_e or k_2 is NULL (status=%s)!", status_str.c_str());
 
     // If DPP Status is OK, wrap the I-auth with the KE key, otherwise wrap the Responder Nonce with the K2 key
     auto [unwrapped_data, unwrapped_data_len] = ec_util::unwrap_wrapped_attrib(*wrapped_attr, frame, true, key);
@@ -797,7 +804,6 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
     if (dpp_status != DPP_STATUS_OK) {
         // Unwrapping successfully occured but there is an error, "generate an alert"
         free(unwrapped_data);
-        std::string status_str = ec_util::status_code_to_string(dpp_status);
         em_printfout("Authentication Failed with DPP Status: %s", status_str.c_str());
         return false;
     }
@@ -907,7 +913,7 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
     return sent_dpp_config_gas_frame;
 }
 
-bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa[ETH_ALEN])
+bool ec_enrollee_t::handle_config_response(uint8_t *query_resp, size_t len, uint8_t sa[ETH_ALEN])
 {
     // EasyMesh 5.4.3
     // If an Enrollee Multi-AP Agent receives a DPP Configuration Response frame, it shall send a DPP Configuration Result
@@ -922,10 +928,10 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
 
     // EasyConnect 6.4.3.2 Enrollee Handling
     em_printfout("Got a DPP Configuration Response from " MACSTRFMT "", MAC2STR(sa));
-    ec_gas_initial_response_frame_t *config_response_frame = reinterpret_cast<ec_gas_initial_response_frame_t*>(buff);
+    EM_ASSERT_NOT_NULL(query_resp, false, "Query response is NULL");
+    EM_ASSERT_MSG_TRUE(len > 0, false, "Query response length is zero");
 
-
-    auto status_attrib = ec_util::get_attrib(reinterpret_cast<uint8_t*>(config_response_frame->resp), static_cast<size_t>(config_response_frame->resp_len), ec_attrib_id_dpp_status);
+    auto status_attrib = ec_util::get_attrib(query_resp, len, ec_attrib_id_dpp_status);
     ASSERT_OPT_HAS_VALUE(status_attrib, false, "%s:%d: No DPP status attribute found\n", __func__, __LINE__);
 
     ec_status_code_t config_response_status_code = static_cast<ec_status_code_t>(status_attrib->data[0]);
@@ -951,10 +957,10 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
         return false;
     }
 
-    auto wrapped_attrs = ec_util::get_attrib(config_response_frame->resp, static_cast<size_t>(config_response_frame->resp_len), ec_attrib_id_wrapped_data);
+    auto wrapped_attrs = ec_util::get_attrib(query_resp, len, ec_attrib_id_wrapped_data);
     ASSERT_OPT_HAS_VALUE(wrapped_attrs, false, "%s:%d: Failed to get wrapped data attribute!\n", __func__, __LINE__);
 
-    auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(*wrapped_attrs, config_response_frame->resp, true, m_eph_ctx().ke);
+    auto [unwrapped_attrs, unwrapped_attrs_len] = ec_util::unwrap_wrapped_attrib(*wrapped_attrs, query_resp, true, m_eph_ctx().ke);
     if (unwrapped_attrs == nullptr || unwrapped_attrs_len == 0) {
         em_printfout("Failed to unwrap wrapped attributes.");
         return false;
@@ -1035,7 +1041,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
     }
 
     // We have all the keys and information, let's set the security parameters, they can always be changed
-    m_1905_encrypt_layer.set_sec_params(m_sec_ctx.C_signing_key, m_sec_ctx.net_access_key, m_sec_ctx.connector, m_c_ctx.hash_fcn);
+    m_1905_encrypt_layer->set_sec_params(m_sec_ctx.C_signing_key, m_sec_ctx.net_access_key, m_sec_ctx.connector, m_c_ctx.hash_fcn);
 
     cJSON *bsta_discovery_obj = cJSON_GetObjectItem(bsta_configuration_object.get(), "discovery");
     if (bsta_cred_obj == nullptr || bsta_discovery_obj == nullptr) {
@@ -1094,12 +1100,27 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
         return false;
     }
 
-    bool ok = m_send_action_frame(sa, config_result_frame, config_result_frame_len, m_selected_freq, 0);
+    bool ok = (m_c_ctx.is_eth)
+                    ? m_send_dir_encap_fn(config_result_frame, config_result_frame_len, sa)
+                    : m_send_action_frame(sa, config_result_frame, config_result_frame_len, m_selected_freq, 0);
+
+    free(config_result_frame);
+
     if (!ok) {
         em_printfout("Failed to send DPP Configuration Result frame");
     } else {
         em_printfout("Sent Configuration Result frame to '" MACSTRFMT "'", MAC2STR(sa));
     }
+
+    // If we're Ethernet, we are done, just need to start 1905 layer security
+    if (m_c_ctx.is_eth) {
+        // EasyMesh 5.3.5:
+        // After the Enrollee Multi-AP Agent sent the encapsulated DPP Configuration Result frame to the Controller, it shall follow
+        // the procedures in section 5.3.7 to set up a secure 1905-layer connectivity with the Controller
+
+        return m_1905_encrypt_layer->start_secure_1905_layer(sa);
+    }
+        
 
     // Then, we need to scan and ensure that the Configurator's requested BSS is
     // within range for us / exists.
@@ -1115,21 +1136,11 @@ bool ec_enrollee_t::handle_config_response(uint8_t *buff, size_t len, uint8_t sa
     }
 
 
-    if (needs_connection_status) {
-        // TODO: add BSSID we're attemping to associate to to m_awaiting_assoc_status map!
+    if (needs_connection_status && !m_c_ctx.is_eth) {
         std::string bssid_str = util::mac_to_string(bssid);
         std::vector<uint8_t> sender_mac(sa, sa + ETH_ALEN);
         m_awaiting_assoc_status[bssid_str] = sender_mac;
         em_printfout("Added BSSID to awaiting association status map: %s", bssid_str.c_str());
-    } 
-
-    free(config_result_frame);
-
-    if (m_c_ctx.is_eth) {
-        // EasyMesh 5.3.5:
-        // After the Enrollee Multi-AP Agent sent the encapsulated DPP Configuration Result frame to the Controller, it shall follow
-        // the procedures in section 5.3.7 to set up a secure 1905-layer connectivity with the Controller
-        // TODO: begin Peer Discovery?
     }
 
     return ok;    
@@ -1605,11 +1616,11 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request(std::optional<
         }
         BN_free(m_eph_ctx().priv_resp_proto_key);
         EC_POINT_free(m_eph_ctx().public_resp_proto_key);
-        m_eph_ctx().priv_resp_proto_key = const_cast<BIGNUM *>(p_R);
         m_eph_ctx().public_resp_proto_key = const_cast<EC_POINT*>(P_R);
+        m_eph_ctx().priv_resp_proto_key = const_cast<BIGNUM *>(p_R);
         // Also set netAccessKey
         if (m_sec_ctx.net_access_key) em_crypto_t::free_key(m_sec_ctx.net_access_key);
-        m_sec_ctx.net_access_key = em_crypto_t::bundle_ec_key(m_c_ctx.group, m_eph_ctx().public_resp_proto_key, m_eph_ctx().priv_init_proto_key);
+        m_sec_ctx.net_access_key = em_crypto_t::bundle_ec_key(m_c_ctx.group, m_eph_ctx().public_resp_proto_key, m_eph_ctx().priv_resp_proto_key);
         ASSERT_NOT_NULL(m_sec_ctx.net_access_key, {}, "%s:%d: Failed to create netAccessKey from Respondor proto keypair\n", __func__, __LINE__);
     }
 
@@ -1855,7 +1866,7 @@ bool ec_enrollee_t::handle_gas_initial_response(ec_gas_initial_response_frame_t 
     }
 
     // Not a fragmentation prep signal, just a complete response frame.
-    return handle_config_response(reinterpret_cast<uint8_t*>(resp_frame), len, src_mac);
+    return handle_config_response(resp_frame->resp, static_cast<size_t>(resp_frame->resp_len), src_mac);
 }
 
 ec_gas_comeback_request_frame_t *ec_enrollee_t::create_comeback_request(uint8_t dialog_token)
@@ -1863,6 +1874,28 @@ ec_gas_comeback_request_frame_t *ec_enrollee_t::create_comeback_request(uint8_t 
     auto [frame, len] = ec_util::alloc_gas_frame(dpp_gas_comeback_req, dialog_token);
     if (frame == nullptr || len == 0) return nullptr;
     return reinterpret_cast<ec_gas_comeback_request_frame_t*>(frame);
+}
+
+bool ec_enrollee_t::send_autoconf_search_chirp(){
+
+    uint8_t *resp_boot_key_chirp_hash = ec_crypto::compute_key_hash(m_boot_data().responder_boot_key, "chirp");
+    EM_ASSERT_NOT_NULL(resp_boot_key_chirp_hash, false, "Failed to compute hash of responder boot key, can't send autoconf search");
+
+    auto [chirp, chirp_len] = ec_util::create_dpp_chirp_tlv(false, true, nullptr, resp_boot_key_chirp_hash, SHA256_DIGEST_LENGTH);
+    free(resp_boot_key_chirp_hash);
+    if (!chirp || chirp_len == 0) {
+        em_printfout("Failed to create chirp tlv for autoconf search");
+        return false;
+    }
+    if (!m_send_autoconf_search_fn(chirp, chirp_len)) {
+        em_printfout(
+            "Failed to send initial Autoconf Search (extended) with bootstrapping key hash");
+        free(chirp);
+        return false;
+    }
+    free(chirp);
+    em_printfout("Sent Autoconf Search (extended) with bootstrapping key hash");
+    return true;
 }
 
 bool ec_enrollee_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
@@ -1877,7 +1910,7 @@ bool ec_enrollee_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
     // Is this a BSSID we tried to connect to, and therefore a relevant event for us?
     auto it = m_awaiting_assoc_status.find(bssid_str);
     if (it == m_awaiting_assoc_status.end()) {
-        em_printfout("Got association status, but it wasn't for our association attempt.");
+        em_printfout("Got association status, not awaiting connection status frame");
         em_printfout("\tBSSID: " MACSTRFMT, MAC2STR(sta_data.bss_info.bssid));
         em_printfout("\tSSID: %s", sta_data.bss_info.ssid);
         em_printfout("\tStatus: %d", sta_data.stats.connect_status);
@@ -2079,6 +2112,7 @@ bool ec_enrollee_t::handle_autoconf_response_chirp(em_dpp_chirp_value_t *chirp, 
     }
 
     em_printfout("Received autoconf chirp response from " MACSTRFMT, MAC2STR(src_mac));
+    m_autoconf_search_timer->stop();
 
     if (!chirp->hash_valid) {
         em_printfout("Chirp hash is not valid, cannot process further");
@@ -2097,38 +2131,22 @@ bool ec_enrollee_t::handle_autoconf_response_chirp(em_dpp_chirp_value_t *chirp, 
         free(our_key_hash);
         return false;
     }
+    free(our_key_hash);
 
     // Now, we can begin a 10 second timer awaiting a DPP Authentication Request frame from the Controller.
-    ThreadedTimer timer;
-    timer.execute_after(std::chrono::seconds(10), [this, src_mac]() {
+    // Created on heap to ensure it lives long enough for the timer callback
+    auto timer = std::make_shared<ThreadedTimer>();
+    timer->execute_after(std::chrono::seconds(10), [this, src_mac, timer]() {
         if (m_received_auth_frame.load()) {
             em_printfout("Received DPP Authentication Request frame");
             return;
         }
         // Never received a DPP Authentication Request frame, spec says re-send autoconf + chirp
         em_printfout("Did not receive DPP Authentication Request frame, re-sending autoconf + chirp");
-        // Compute the hash of the responder boot key
-        uint8_t *resp_boot_key_chirp_hash = ec_crypto::compute_key_hash(m_boot_data().responder_boot_key, "chirp");
-        if (!resp_boot_key_chirp_hash) {
-            em_printfout("Failed to compute hash of responder boot key, cannot re-send chirp response");
-            return;
-        }
-        auto [chirp, chirp_len] = ec_util::create_dpp_chirp_tlv(false, true, nullptr, resp_boot_key_chirp_hash, SHA256_DIGEST_LENGTH);
-        free(resp_boot_key_chirp_hash);
-        if (!chirp || chirp_len == 0) {
-            em_printfout("Failed to create autoconf chirp response");
-            return;
-        }
-        if (!m_send_autoconf_search_fn(chirp, chirp_len)) {
-            em_printfout("Failed to re-send autoconf chirp");
-            free(chirp);
-            return;
-        }
-        free(chirp);
+        m_autoconf_search_timer->start_periodic(std::chrono::milliseconds(1000), std::bind(&ec_enrollee_t::send_autoconf_search_chirp, this));
         em_printfout("Re-sent autoconf chirp response to " MACSTRFMT, MAC2STR(src_mac));
     });
 
     // Receive of DPP Auth Req frame will happen async, we're done here
-    free(our_key_hash);
     return true;
 }

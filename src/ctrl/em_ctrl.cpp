@@ -52,6 +52,7 @@
 #endif
 
 em_ctrl_t g_ctrl;
+em_network_topo_t *g_network_topology = NULL;
 
 #ifdef AL_SAP
 AlServiceAccessPoint* g_sap;
@@ -793,9 +794,13 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         case em_msg_type_dpp_cce_ind:
         case em_msg_type_1905_rekey_req:
         case em_msg_type_1905_encap_eapol:
+        case em_msg_type_bss_config_req:
+        case em_msg_type_bss_config_res:
 	        em = al_em;
 	        break;
-
+        case em_msg_type_topo_disc:
+            em = NULL;
+            break;
         default:
             printf("%s:%d: Frame: 0x%04x not handled in controller\n", __func__, __LINE__, htons(cmdu->type));
             em = NULL;

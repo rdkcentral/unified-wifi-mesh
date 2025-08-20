@@ -304,12 +304,6 @@ private:
 	 */
 	bool process_direct_encap_dpp_gas_msg(uint8_t* frame, uint16_t len, uint8_t src_mac[ETH_ALEN]);
 
-    /**
-     * @brief Maps Enrollee MAC (as string) to onboarded status. True if onboarded (now a Proxy Agent), false if still onboarding / onboarding failed.
-     * 
-     */
-    std::unordered_map<std::string, bool> m_enrollee_successfully_onboarded = {};
-
 	/**
 	 * @brief Maps Enrollee MAC (as string) to whether or not the Reconfiguration flow has already begun
 	 * 

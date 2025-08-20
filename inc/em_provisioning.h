@@ -376,6 +376,10 @@ class em_provisioning_t {
 	 */
 	virtual em_mgr_t *get_mgr() = 0;
 
+	virtual bool get_is_dpp_onboarding() = 0;
+
+	virtual void set_is_dpp_onboarding(bool is_onboarding) = 0;
+
 protected:
 
 	/**!

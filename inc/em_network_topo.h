@@ -48,6 +48,47 @@ public:
 	em_network_topo_t *find_topology_by_bh_associated(mac_address_t sta);
 	
 	/**!
+	 * @brief Finds the network topology associated with a given data model.
+	 *
+	 * This function searches within the data model, the associated backhaul
+	 * sta and returns the network topology of the corresponding bssID which is
+	 * associated with that sta. This is required when the AL_SAP define is
+	 * enabled as the al_interface is associated with a virtual MAC address
+	 *
+	 * @param[in] dm The data model for which the network topology is to be found.
+	 *
+	 * @returns A pointer to the network topology associated with the given data model.
+	 * @retval NULL if no associated topology is found.
+	 *
+	 */
+	em_network_topo_t *find_topology_by_bh_associated(dm_easy_mesh_t *dm);
+
+	/**!
+	 * @brief Finds the network topology associated with a given BSS MAC address.
+	 *
+	 * This function searches for and returns the network topology that is associated
+	 * with the specified BSS MAC address.
+	 *
+	 * @param[in] bss_mac The MAC address of the BSS for which the network topology
+	 *                    is to be found.
+	 *
+	 * @returns A pointer to the network topology associated with the given BSS MAC address.
+	 * @retval NULL if no associated topology is found.
+	 *
+	 * @note Ensure that the BSS MAC address provided is valid and corresponds to a BSS
+	 *       within the network.
+	 */
+	em_network_topo_t *find_topology_by_bss_mac(mac_address_t bss_mac);
+
+	/**!
+	 * @brief Prints the network topology tree.
+	 *
+	 * This function recursively prints the network topology tree, starting from the
+	 * root node.
+	 */
+	void print_topology();
+
+	/**!
 	 * @brief Finds the network topology based on the provided EasyMesh data.
 	 *
 	 * This function searches for and returns the network topology structure
@@ -79,10 +120,12 @@ public:
 	 * This function integrates a new mesh network into the existing topology.
 	 *
 	 * @param[in] dm Pointer to the mesh network structure to be added.
+	 * @param[in] child_topos Array of child topologies to be added under the new mesh network.
+	 * @param[in] num_child_topos Number of child topologies to be added.
 	 *
 	 * @note Ensure that the mesh network structure is properly initialized before calling this function.
 	 */
-	void add(dm_easy_mesh_t *dm);
+	void add(dm_easy_mesh_t *dm, em_network_topo_t **child_topos = NULL, unsigned int num_child_topos = 0);
 	
 	/**!
 	 * @brief Removes a specified easy mesh network.
@@ -92,11 +135,13 @@ public:
 	 *
 	 * @param[in] dm A pointer to the `dm_easy_mesh_t` structure representing
 	 * the easy mesh network to be removed.
+	 * @param[out] child_topos An array of pointers to `em_network_topo_t` structures
 	 *
+	 * @returns The number of child topologies of the removed parent topology.
 	 * @note Ensure that the `dm` pointer is valid and properly initialized
 	 * before calling this function.
 	 */
-	void remove(dm_easy_mesh_t *dm);
+	bool remove(dm_easy_mesh_t *dm, em_network_topo_t **child_topos = NULL, unsigned int *num_child_topos = NULL);
 
 	
 	/**!
@@ -105,11 +150,12 @@ public:
 	 * This function integrates a new network topology into the provided EasyMesh instance, allowing for enhanced network management and configuration.
 	 *
 	 * @param[in] dm Pointer to the EasyMesh instance where the network topology will be added.
+	 * @param[in] child_topos Optional. An array of child topologies to be added under the new network topology.
+	 * @param[in] num_child_topos Optional. The number of child topologies to be added.
 	 *
 	 * @note Ensure that the EasyMesh instance is properly initialized before calling this function.
 	 */
-	void add_network_topo(dm_easy_mesh_t *dm);
-
+	void add_network_topo(dm_easy_mesh_t *dm, em_network_topo_t **child_topos = NULL, unsigned int num_child_topos = 0);
 	
 	/**!
 	 * @brief Encodes the given cJSON object.

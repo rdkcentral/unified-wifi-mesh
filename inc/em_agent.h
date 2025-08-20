@@ -317,7 +317,11 @@ public:
 	 */
 	void input_listener();
 
-    
+
+	bool is_agent_dpp_onboarding() override {
+		return do_start_dpp_onboarding;
+	}
+
 	/**
 	 * @brief Refresh the OneWifi subdoc with current information + provided data and send to OneWifi.
 	 *
