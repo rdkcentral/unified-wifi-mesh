@@ -1069,7 +1069,7 @@ void em_agent_t::input_listener()
     raw_data_t data;
     int num_retry = 0;
     bus_error_t bus_error_val;
-    char service_name[] = "EasyMesh_service";
+    char service_name[] = "EasyMesh_service_agent";
 
     bus_init(&m_bus_hdl);
 
