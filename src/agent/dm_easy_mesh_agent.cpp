@@ -64,7 +64,8 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
     int num = 0;
     dm_easy_mesh_agent_t  dm;
     em_cmd_t *tmp;
-    
+   
+	printf(" ==== debug :%s:%d this : %p ====\n", __func__, __LINE__, this); 
 	dm.translate_onewifi_dml_data(reinterpret_cast<char *> (evt->u.raw_buff));
 #ifdef AL_SAP
     // When AL_SAP is enabled the agent and controller AL MAC should be changed
@@ -83,6 +84,55 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
 #endif
 
     dm.print_config();
+    //Below are added for debug only and will be removed later.
+    printf(" ==== debug :%s:%d dm.m_num_ap_mld : %d ====\n", __func__, __LINE__, dm.m_num_ap_mld);
+
+    for(unsigned int i = 0; i < dm.m_num_ap_mld; i++) {
+        //em_ap_mld_info_t *info = dm.m_ap_mld[0].get_ap_mld_info();
+        em_ap_mld_info_t *info = dm.get_ap_mld(i)->get_ap_mld_info();
+
+        if (!info){
+            printf("No AP MLD information available.\n");
+            return -1;
+        }
+
+        printf("mac_addr_valid: %s\n", info->mac_addr_valid ? "true" : "false");
+        printf("mac_addr: %02x:%02x:%02x:%02x:%02x:%02x\n",
+            info->mac_addr[0], info->mac_addr[1], info->mac_addr[2],
+            info->mac_addr[3], info->mac_addr[4], info->mac_addr[5]);
+
+        printf("SSID: %s\n", info->ssid);  // Assuming `ssid_t` contains a `char ssid[]`
+
+        printf("str: %s\n", info->str ? "true" : "false");
+        printf("nstr: %s\n", info->nstr ? "true" : "false");
+        printf("emlsr: %s\n", info->emlsr ? "true" : "false");
+        printf("emlmr: %s\n", info->emlmr ? "true" : "false");
+
+        printf("num_affiliated_ap: %u\n", info->num_affiliated_ap);
+
+        for (int i = 0; i < info->num_affiliated_ap; ++i) {
+            em_affiliated_ap_info_t *aff = &info->affiliated_ap[i];
+
+            printf("\nAffiliated AP %d:\n", i + 1);
+            printf("  mac_addr_valid: %s\n", aff->mac_addr_valid ? "true" : "false");
+            printf("  mac_addr: %02x:%02x:%02x:%02x:%02x:%02x\n",
+                aff->mac_addr[0], aff->mac_addr[1], aff->mac_addr[2],
+                aff->mac_addr[3], aff->mac_addr[4], aff->mac_addr[5]);
+
+            printf("  link_id_valid: %s\n", aff->link_id_valid ? "true" : "false");
+            printf("  link_id: %u\n", aff->link_id);
+
+            printf("  ruid name: %s\n", aff->ruid.name);
+            printf("  ruid mac: %02x:%02x:%02x:%02x:%02x:%02x\n",
+                aff->ruid.mac[0], aff->ruid.mac[1], aff->ruid.mac[2],
+                aff->ruid.mac[3], aff->ruid.mac[4], aff->ruid.mac[5]);
+            printf("  ruid media: %d\n", aff->ruid.media);
+        }
+    
+
+    }
+    // Debug prints ends here
+
     //TODO: Check for multiple radios
     pcmd[num] = new em_cmd_dev_init_t(evt->params, dm);
     tmp = pcmd[num];
@@ -209,7 +259,8 @@ void dm_easy_mesh_agent_t::translate_onewifi_dml_data (char *str)
     webconfig_proto_easymesh_init(&ext, this, NULL, NULL, get_num_radios, set_num_radios,
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info, 
-            get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results);
+            get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
+            update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid);
     
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -249,6 +300,8 @@ int dm_easy_mesh_agent_t::analyze_m2ctrl_configuration(em_bus_event_t *evt, wifi
 		printf("%s:%d New configuration SSID=%s  passphrase=%s haultype=%d radiomac=%s\n",__func__, __LINE__,m2ctrl.ssid[i], m2ctrl.password[i], m2ctrl.haultype[i],mac_str);
 	}
 
+    printf(" ==== debug :%s:%d this : %p ====\n", __func__, __LINE__, this);
+    printf(" ==== debug :%s:%d m_num_ap_mld: %d ====\n", __func__, __LINE__, m_num_ap_mld);
     return refresh_onewifi_subdoc(desc, bus_hdl, "Private", get_subdoc_vap_type_for_freq(radioconfig->freq), &m2ctrl, NULL);
 }    
 
@@ -271,7 +324,7 @@ int dm_easy_mesh_agent_t::analyze_onewifi_vap_cb(em_bus_event_t *evt, em_cmd_t *
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, 
             get_op_class_info, get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac,
-            update_scan_results);
+            update_scan_results, update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid);
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
     if (webconfig_init(&config) != webconfig_error_none) {
@@ -345,7 +398,8 @@ int dm_easy_mesh_agent_t::analyze_onewifi_radio_cb(em_bus_event_t *evt, em_cmd_t
     webconfig_proto_easymesh_init(&ext, &dm, NULL, NULL, get_num_radios, set_num_radios,
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info, 
-            get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results);
+            get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
+            update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid);
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -758,7 +812,8 @@ int dm_easy_mesh_agent_t::analyze_scan_result(em_bus_event_t *evt, em_cmd_t *pcm
     webconfig_proto_easymesh_init(&ext, &dm, NULL, NULL, get_num_radios, set_num_radios,
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
-            get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results);
+            get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
+            update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid);
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -930,7 +985,8 @@ void dm_easy_mesh_agent_t::translate_and_decode_onewifi_subdoc(char *str, webcon
     webconfig_proto_easymesh_init(&extdata, this, NULL, NULL, get_num_radios, set_num_radios,
         get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
         get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
-        get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results);
+        get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
+        update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid);
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -954,7 +1010,8 @@ int dm_easy_mesh_agent_t::refresh_onewifi_subdoc(wifi_bus_desc_t *desc, bus_hand
     webconfig_proto_easymesh_init(&ext_data, this, m2_cfg, policy_config, get_num_radios, set_num_radios,
         get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
         get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
-        get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results);
+        get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
+        update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid);
 
     webconfig_t config;
     config.initializer = webconfig_initializer_onewifi;
