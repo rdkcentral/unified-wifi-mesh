@@ -17,14 +17,17 @@ void ThreadedTimer::execute_after(std::chrono::milliseconds delay, std::function
     });
 }
 
-void ThreadedTimer::start_periodic(std::chrono::milliseconds interval, std::function<void()> callback) {
+void ThreadedTimer::start_periodic(std::chrono::milliseconds interval, std::function<bool()> callback) {
     stop();
     running = true;
     timer_thread = std::make_unique<std::thread>([this, interval, callback]() {
         while (running.load()) {
             std::this_thread::sleep_for(interval);
             if (running.load()) {
-                callback();
+                if (!callback()) {
+                    stop();  // Stop if callback returns false
+                    break;
+                }
             }
         }
     });

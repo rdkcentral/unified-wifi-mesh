@@ -1309,7 +1309,7 @@ void em_agent_t::onewifi_cb(char *event_name, raw_data_t *data, void *userData)
         g_agent.io_process(em_bus_event_type_onewifi_mesh_sta_cb, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
     } else {
-        printf("%s:%d SubDocName not matching private or radio \n", __func__, __LINE__);
+        em_printfout("SubDocName (%s) not matching private, mesh_sta, or radio", subdoc_name->valuestring);
     }
 
     cJSON_Delete(json);
@@ -1387,11 +1387,16 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 			return NULL;
 		}
 
+        if (is_agent_dpp_onboarding()){
+            return al_em;
+        }
+
 		em = (em_t *)hash_map_get_first(m_em_map);
 		while (em != NULL) {
 			if (!(em->is_al_interface_em())) {
 				if (em->is_matching_freq_band(&band) == true) {
-					if ((em->get_state() != em_state_agent_autoconfig_renew_pending) && (em->get_state() !=em_state_agent_wsc_m2_pending) && (em->get_state() != em_state_agent_owconfig_pending) ) {
+					if ((em->get_state() != em_state_agent_autoconfig_renew_pending) && (em->get_state() !=em_state_agent_wsc_m2_pending) && 
+                        (em->get_state() != em_state_agent_owconfig_pending) && (em->get_state() != em_state_agent_1905_securing)) {
 						found = true;
 						break;
 					} else {
@@ -1472,9 +1477,9 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             if (((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL)  && (em->get_state() == em_state_agent_onewifi_bssconfig_ind)) {
                 printf("%s:%d: Received topo query, found existing radio:%s\n", __func__, __LINE__, mac_str1);
             } else {
-                printf("%s:%d: Could not find em for em_msg_type_topo_query\n", __func__, __LINE__);
-				if (em != NULL) {
-					printf("%s:%d em_msg_type_topo_query :em mac=%s is in incorrect state state=%d \n", __func__, __LINE__, mac_str1, em->get_state());
+ 				if (em != NULL) {
+					em_printfout("em_msg_type_topo_query :em mac=%s is in incorrect state state=%d",
+                        mac_str1, em->get_state());
 				}
                 return NULL;
             }
@@ -1645,6 +1650,8 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
         case em_msg_type_dpp_cce_ind:
         case em_msg_type_1905_rekey_req:
         case em_msg_type_1905_encap_eapol:
+        case em_msg_type_bss_config_rsp:
+        case em_msg_type_agent_list:
             em = al_em;
             break;
         case em_msg_type_topo_disc:
@@ -1794,7 +1801,7 @@ bool em_agent_t::try_start_dpp_onboarding()  {
 
     set_disconnected_steady_state();
     
-    if (!al_node->get_ec_mgr().enrollee_start_onboarding(false, &ec_data)){
+    if (!al_node->get_ec_mgr().enrollee_start_onboarding(false, &ec_data, ethernet_onboarding)){
         printf("%s:%d: DPP onboarding failed to start\n", __func__, __LINE__);
         return false;
     }

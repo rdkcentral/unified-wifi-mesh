@@ -870,7 +870,7 @@ class em_configuration_t {
 	 *
 	 * @note Ensure the TLV is properly initialized before calling this function.
 	 */
-	int handle_bss_config_rsp_tlv(em_tlv_t* tlv);
+	int handle_bss_config_rsp_tlv(em_tlv_t* tlv, m2ctrl_radioconfig& radioconfig, size_t bss_count);
 
 	/**!
 	 * @brief Handles the AP MLD configuration TLV.
@@ -1557,6 +1557,8 @@ public:
 	bool send_autoconf_search_ext_chirp(em_dpp_chirp_value_t *chirp, size_t hash_len);
 
 	bool send_autoconf_search_resp_ext_chirp(em_dpp_chirp_value_t *chirp, size_t len, uint8_t dest_mac[ETH_ALEN]);
+
+	bool send_bss_config_req_msg(uint8_t dest_al_mac[ETH_ALEN]);
     
 	/**!
 	 * @brief Processes a message with the given data and length.
@@ -2133,6 +2135,11 @@ public:
 	 * @note Ensure that the count is a valid unsigned integer.
 	 */
 	void set_topo_query_tx_count(unsigned int cnt) { m_topo_query_tx_cnt = cnt; }
+
+	virtual bool get_is_dpp_onboarding() = 0;
+
+	virtual void set_is_dpp_onboarding(bool is_onboarding) = 0;
+
     static unsigned short msg_id;
 
     em_crypto_t m_crypto;

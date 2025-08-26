@@ -53,7 +53,7 @@ void em_orch_agent_t::orch_transient(em_cmd_t *pcmd, em_t *em)
         auto agent_int = pcmd->get_agent_al_interface();
         std::string al_mac_key = util::mac_to_string(agent_int->mac) + "_al";
         em_t* al_node = static_cast <em_t*> (hash_map_get(m_mgr->m_em_map, al_mac_key.c_str()));
-        if (al_node != NULL && al_node->m_ec_manager && al_node->m_ec_manager->is_enrollee_onboarding()) {
+        if (al_node != NULL && al_node->m_ec_manager && al_node->get_is_dpp_onboarding()) {
             // If the enrollee is still onboarding, we need to wait for it to finish before timing out
             // Lets reset the timeout
             gettimeofday(&pcmd->m_start_time, NULL);
@@ -141,7 +141,8 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
 
         default:
             if ((em->get_state() == em_state_agent_unconfigured) ||
-                    (em->get_state() == em_state_agent_configured)) {
+                    (em->get_state() == em_state_agent_configured) ||
+                    (em->get_state() == em_state_agent_1905_unconfigured)) {
                 return true;
             }
             break;

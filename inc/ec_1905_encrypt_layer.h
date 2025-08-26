@@ -17,6 +17,14 @@ Specification sections referenced according to:
 #include <vector>
 #include <stdexcept>
 
+/**
+ * @brief Handler for notifying when a 1905 handshake is completed
+ * 
+ * @param mac MAC address of the peer
+ * @param is_group True if the handshake was for a group key, false for pairwise
+ */
+using handshake_completed_handler = std::function<void(uint8_t[ETH_ALEN], bool)>;
+
 static const uint8_t EAPOL_KDE_OUI_WFA[3] = {0x50, 0x6F, 0x9A};
 static const uint8_t EAPOL_KDE_OUI[3] = {0x00, 0x0F, 0xAC};
 
@@ -31,7 +39,8 @@ public:
      */
     ec_1905_encrypt_layer_t(std::string local_al_mac, 
                             send_dir_encap_dpp_func send_direct_encap_dpp_msg,
-                            send_1905_eapol_encap_func send_1905_eapol_encap_msg);
+                            send_1905_eapol_encap_func send_1905_eapol_encap_msg,
+                            handshake_completed_handler handshake_complete);
     ~ec_1905_encrypt_layer_t() {};
 
     /**
@@ -150,6 +159,7 @@ private:
     // Callback functions
     send_dir_encap_dpp_func m_send_dir_encap_dpp_msg;
     send_1905_eapol_encap_func m_send_1905_eapol_encap_msg;
+    handshake_completed_handler m_handshake_complete;
 
     // DPP frame creation
     /**
@@ -377,11 +387,12 @@ private:
      * @param eapol_frame_size Current frame size
      * @param kde KDE data to append
      * @param kde_len KDE length
+     * @param perform_inital_expand True to expand frame size for MIC and key data length field
      * @return Pair of new frame buffer and size, or {nullptr, 0} on error
      * 
      * @note Reallocates frame buffer and updates key data length field.
      */
-    std::pair<uint8_t*, size_t> append_key_data_buff(uint8_t* eapol_frame, size_t eapol_frame_size, uint8_t* kde, size_t kde_len);
+    std::pair<uint8_t*, size_t> append_key_data_buff(uint8_t* eapol_frame, size_t eapol_frame_size, uint8_t* kde, size_t kde_len, bool perform_inital_expand = false);
 
     // Cryptographic utilities
     /**

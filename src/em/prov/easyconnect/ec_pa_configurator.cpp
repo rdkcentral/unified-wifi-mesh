@@ -24,7 +24,7 @@ ec_pa_configurator_t::ec_pa_configurator_t(const std::string& al_mac_addr, const
 
     if (ieee1905_encryption_possible) {
         // Pass super-class initialized security context
-        if (!m_1905_encrypt_layer.set_sec_params(m_sec_ctx.C_signing_key, m_sec_ctx.net_access_key,
+        if (!m_1905_encrypt_layer->set_sec_params(m_sec_ctx.C_signing_key, m_sec_ctx.net_access_key,
                                                  m_sec_ctx.connector, EVP_sha256() /*TODO HASH*/)) {
             em_printfout("Failed to set security parameters for 1905 Encrypt Layer");
             return;
@@ -209,7 +209,12 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
         // peer that GAS Comeback Response frames will be coming.
         // Fragment the frame and store the fragments and wait for a GAS Comeback Request prior to sending.
         em_printfout("Sending fragmentation prepare GAS Initial Response frame to '" MACSTRFMT "'", MAC2STR(dest_mac));
-        m_gas_frames_to_be_sent[dest_mac_str] = fragment_large_frame(encap_frame, encap_frame_len, dialog_token);
+
+        // Since we are fragmenting into comeback response frames, we need to remove the initial response header
+        uint8_t* payload = encap_frame + sizeof(ec_gas_initial_response_frame_t);
+        size_t payload_len = encap_frame_len - sizeof(ec_gas_initial_response_frame_t);
+
+        m_gas_frames_to_be_sent[dest_mac_str] = fragment_large_frame(payload, payload_len, dialog_token);
         return send_prepare_for_fragmented_frames_frame(dest_mac);
     }
 
@@ -358,148 +363,12 @@ bool ec_pa_configurator_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint
 
     bool did_finish = false;
 
-    // TODO: I am VERY explicitly commenting out the buisness logic for the other frame types here,
-    // because the dpp frame given here is just a buffer, not any other info so more stuff has to be worked out with config.
-/*
-    std::string dest_mac_str = util::mac_to_string(dest_mac);
 
-    bool needs_fragmentation = (encap_frame_len > WIFI_MTU_SIZE);
-    if (needs_fragmentation) {
-        auto it = m_gas_session_dialog_tokens.find(dest_mac_str);
-        if (it == m_gas_session_dialog_tokens.end()) {
-            em_printfout("No GAS session dialog token found for '" MACSTRFMT "', not sending 802.11 frame.", MAC2STR(dest_mac));
-            return false;
-        }
-        uint8_t dialog_token = it->second;
-        // If peer is not ready to receive GAS Comeback Frames, we must first send a "dummy" GAS Initial Response frame inidicating to the 
-        // peer that GAS Comeback Response frames will be coming.
-        // Fragment the frame and store the fragments and wait for a GAS Comeback Request prior to sending.
-        em_printfout("Sending fragmentation prepare GAS Initial Response frame to '" MACSTRFMT "'", MAC2STR(dest_mac));
-        m_gas_frames_to_be_sent[dest_mac_str] = fragment_large_frame(encap_frame, encap_frame_len, dialog_token);
-        return send_prepare_for_fragmented_frames_frame(dest_mac);
-    }
-
-    // Pre-processing according to EM spec 5.4.3 Page 43
-    // If a Proxy Agent receives a Proxied Encap DPP message from the Multi-AP Controller, it shall extract the DPP frame from
-    // the Encapsulated Frame field of the 1905 Encap DPP TLV and:
-
-    // 1. If the 1905 Encap DPP TLV DPP Frame Indicator bit field is set to one and the Frame Type field is set to 255, the
-    // Proxy Agent shall decapsulate the DPP Configuration Response frame from the TLV and send it to the Enrollee Multi-
-    // AP Agent using a GAS frame as described in [18]
-    if (encap_tlv->dpp_frame_indicator && ec_frame_type == ec_frame_type_t::ec_frame_type_easymesh) {
-        if (!encap_tlv->enrollee_mac_addr_present) {
-            em_printfout("Cannot forward DPP Configuration Result to Enrollee, MAC addr not present!");
-            return false;
-        }
-        bool sent = m_send_action_frame(dest_mac, encap_frame, encap_frame_len, 0, 0);
-        if (!sent) {
-            em_printfout("Failed to forward DPP Configuration Result to Enrollee '" MACSTRFMT "'", MAC2STR(dest_mac));
-        }
-        free(encap_frame);
-        return sent;
-    }
-
-    // 2. If the 1905 Encap DPP TLV DPP Frame Indicator bit field is set to one and the Frame Type field set to a value other
-    // than 255, the Proxy Agent shall discard the message
-    // 3. If the 1905 Encap DPP TLV DPP Frame Indicator bit field is set to zero and the Frame Type field set to 255, the Proxy
-    // Agent shall discard the message
-    if ((encap_tlv->dpp_frame_indicator && ec_frame_type != ec_frame_type_t::ec_frame_type_easymesh) ||
-        (!encap_tlv->dpp_frame_indicator && ec_frame_type == ec_frame_type_t::ec_frame_type_easymesh)) {
-            em_printfout("Invalid Encap DPP fields, discarding message. DPP Frame Indicator=%d, DPP frame type=%d", encap_tlv->dpp_frame_indicator, ec_frame_type);
-            free(encap_frame);
-            return true;
-    }
-    // 4. If the 1905 Encap DPP TLV DPP Frame Indicator bit field is set to zero and the Frame Type field is set to a valid
-    // value, the Proxy Agent shall process the message following the procedures described in sections 5.3.4 or 5.3.10.
-    // Case 4 --  see next pile of text
-
-    // EasyMesh R6 5.4.3 Page 42
-    // If a Proxy Agent receives a Proxied Encap DPP message from the Controller, it shall extract the DPP frame from the
-    // Encapsulated Frame field of the 1905 Encap DPP TLV. If the DPP Frame Indicator field value is zero, and if the Frame
-    // Type field is not equal to zero or 15, then:
-    if ((ec_frame_type != ec_frame_type_t::ec_frame_type_auth_req && ec_frame_type != ec_frame_type_t::ec_frame_type_recfg_auth_req)) {
-        // 1. If the DPP Frame Indicator bit field in the 1905 Encap DPP TLV is set to zero and the Enrollee MAC Address Present
-        // bit is set to one, then the Proxy Agent shall send the frame as a unicast Public Action frame to the Enrollee MAC
-        // address
-        if (!encap_tlv->dpp_frame_indicator && encap_tlv->enrollee_mac_addr_present) {
-            bool sent = m_send_action_frame(dest_mac, encap_frame, encap_frame_len, 0, 0);
-            if (!sent) {
-                em_printfout("Failed to send non-DPP unicast action frame to '" MACSTRFMT "'", MAC2STR(dest_mac));
-            }
-            free(encap_frame);
-            return sent;
-        }
-        // 2. If the DPP Frame Indicator bit field in the 1905 Encap DPP TLV is set to zero and the Enrollee MAC Address Present
-        // bit is set to zero, then the Proxy Agent shall send the frame as a broadcast Public Action frame
-        else if (!encap_tlv->dpp_frame_indicator && !encap_tlv->enrollee_mac_addr_present) {
-            bool sent = m_send_action_frame(const_cast<uint8_t *>(BROADCAST_MAC_ADDR), encap_frame, encap_frame_len, 0, 0);
-            if (!sent) {
-                em_printfout("Failed to sent non-DPP broadcast action frame!");
-            }
-            free(encap_frame);
-            return sent;
-        }
-        // 3. If the DPP Frame Indicator bit field in the 1905 Encap DPP TLV is set to one and the Enrollee MAC Address Present
-        // bit is set to one, then the Proxy Agent shall send the frame as a unicast GAS frame to the Enrollee MAC address
-        else if (encap_tlv->dpp_frame_indicator && encap_tlv->enrollee_mac_addr_present) {
-            bool sent = m_send_action_frame(dest_mac, encap_frame, encap_frame_len, 0, 0);
-            if (!sent) {
-                em_printfout("Sent DPP unicast GAS frame to '" MACSTRFMT "'", MAC2STR(dest_mac));
-            }
-            free(encap_frame);
-            return sent;
-        }
-        // 4. If the DPP Frame Indicator bit field in the 1905 Encap DPP TLV is set to one and the Enrollee MAC Address Present
-        // bit is set to zero, then the Proxy Agent shall discard the message
-        else if (encap_tlv->dpp_frame_indicator && !encap_tlv->enrollee_mac_addr_present) {
-            em_printfout("Proxied Encap DPP Message with DPP Frame Indicator set, but Enrollee MAC Addr Present false! Discarding.");
-            free(encap_frame);
-            return true;
-        }
-    }
-
-    // Handlers for frame types 0, 15 "ec_frame_type_auth_req" and "ec_frame_type_recfg_auth_req"
-*/
     switch (ec_frame_type) {
         case ec_frame_type_auth_req: {
-            /*
-            if (chirp_tlv == NULL || chirp_tlv_len == 0) {
-                em_printfout("Chirp TLV is empty");
-                break;
-            }
-            mac_addr_t chirp_mac = {0};
-            uint8_t* chirp_hash = NULL;
-            uint16_t chirp_hash_len = 0;
-            if (!ec_util::parse_dpp_chirp_tlv(chirp_tlv, chirp_tlv_len, &chirp_mac, &chirp_hash, &chirp_hash_len)) {
-                em_printfout("Failed to parse DPP Chirp TLV");
-                break;
-            }
-            std::string chirp_hash_str = em_crypto_t::hash_to_hex_string(chirp_hash, chirp_hash_len);
-            em_printfout("Chirp TLV Hash: %s", chirp_hash_str.c_str());
-
-            free(chirp_hash);
-            
-            // Store the encap frame keyed by the chirp hash in the map
-            std::vector<uint8_t> encap_frame_vec(encap_frame, encap_frame + encap_frame_len);
-            m_chirp_hash_frame_map[chirp_hash_str] = encap_frame_vec;
-            did_finish = true;
-            */
             break;
         }
         case ec_frame_type_recfg_auth_req: {
-            /*
-            ec_frame_t *frame = reinterpret_cast<ec_frame_t*>(encap_frame);
-            auto c_sign_key_hash_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t>(encap_frame_len - EC_FRAME_BASE_SIZE), ec_attrib_id_C_sign_key_hash);
-            if (!c_sign_key_hash_attr.has_value()) {
-                em_printfout("No C-sign key hash attribute found in DPP Reconfiguration Authentication Request frame");
-                free(encap_frame);
-                return false;
-            }
-            std::vector<uint8_t> encap_frame_vec(encap_frame, encap_frame + encap_frame_len);
-            const std::string c_sign_key_hash_str = em_crypto_t::hash_to_hex_string(c_sign_key_hash_attr->data, c_sign_key_hash_attr->length);
-            m_stored_recfg_auth_frames_map[c_sign_key_hash_str] = encap_frame_vec;
-            did_finish = true;
-            */
             break;
         }
         case ec_frame_type_peer_disc_rsp: {

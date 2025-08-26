@@ -243,6 +243,8 @@ int dm_easy_mesh_agent_t::analyze_m2ctrl_configuration(em_bus_event_t *evt, wifi
 		memcpy(m2ctrl.password[i], radioconfig->password[i], sizeof(m2ctrl.password[i]));
 		m2ctrl.enable[i] = radioconfig->enable[i];
 		m2ctrl.haultype[i] = static_cast<em_haul_type_t> (radioconfig->haultype[i]);
+        // Nothing is done with the dpp_connector as of now but this is here when needed in the future.
+        memcpy(m2ctrl.dpp_connector[i], radioconfig->dpp_connector[i], sizeof(m2ctrl.dpp_connector[i]));
 		dm_easy_mesh_t::macbytes_to_string(radioconfig->radio_mac[i],mac_str);
 		printf("%s:%d New configuration SSID=%s  passphrase=%s haultype=%d radiomac=%s\n",__func__, __LINE__,m2ctrl.ssid[i], m2ctrl.password[i], m2ctrl.haultype[i],mac_str);
 	}

@@ -350,9 +350,9 @@ typedef struct {
 typedef struct {
     ec_gas_frame_base_t base;
     uint16_t status_code;            // Same field as initial response
+    uint8_t fragment_id : 7;             // Fragment ID (0–255)
+    uint8_t more_fragments : 1;         // 1 = more fragments to come, 0 = this is the last fragment
     uint16_t gas_comeback_delay;     // 0 if this is the final response
-    uint8_t fragment_id;             // Fragment ID (0–255)
-    uint8_t more_fragments;          // 1 = more to come, 0 = this is the last frag
     uint8_t ape[3];
     uint8_t ape_id[7];
     uint16_t comeback_resp_len;
@@ -846,6 +846,17 @@ typedef struct {
      * @brief The temporary context that is used during the authentication / configuration process and should be securely freed after the process is complete.
      */
     ec_ephemeral_context_t eph_ctx;
+
+    /**
+     * @brief True if the DPP process outlined in the EasyConnect specification has been completed.
+     * This is true before the enrollee is fully onboarded because there are additional EasyMesh specification
+     * steps that need to be completed before the Enrollee is fully onboarded.
+     * 
+     * For example:
+     *   - EasyConnect outlines: Bootstrapping, Authentication, and Configuration.
+     *   - EasyMesh outlines: Autoconf+Chirp, 1905 layer security, and BSS Configuration.
+     */
+    bool is_easyconnect_dpp_complete;
 
     /**
      * @brief Is this Enrollee onboarding via ethernet?
