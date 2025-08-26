@@ -288,32 +288,47 @@ em_tlv_t *em_msg_t::get_tlv(em_tlv_t* tlvs_buff, unsigned int buff_len, em_tlv_t
 em_tlv_t *em_msg_t::get_first_tlv(em_tlv_t* tlvs_buff, unsigned int buff_len)
 {
 
-    EM_ASSERT_NOT_NULL(tlvs_buff, NULL, "Buffer is NULL");
-    EM_ASSERT_MSG_TRUE(buff_len > 0, NULL, "Buffer length is zero");
+    if (tlvs_buff == NULL || buff_len == 0) {
+        return NULL;
+    }
 
-    em_tlv_t    *tlv = tlvs_buff;
-
+    em_tlv_t *tlv = tlvs_buff;
     uint16_t tlv_len = ntohs(tlv->len);
 
-    EM_ASSERT_MSG_TRUE(tlv_len > 0, NULL, "First TLV length is zero");
-    EM_ASSERT_MSG_TRUE(tlv_len >= (buff_len - sizeof(em_tlv_t)), NULL, "TLVs buffer cannot fit first TLV"); 
+    if (tlv_len == 0 || tlv_len + sizeof(em_tlv_t) > buff_len) {
+        return NULL; // Invalid TLV length or buffer too small
+    }
 
     return tlv;
 }
 
 em_tlv_t *em_msg_t::get_next_tlv(em_tlv_t* tlv, em_tlv_t* tlvs_buff, unsigned int buff_len)
 {
-
     EM_ASSERT_NOT_NULL(tlv, NULL, "TLV is NULL");
     EM_ASSERT_NOT_NULL(tlvs_buff, NULL, "Buffer is NULL");
     EM_ASSERT_MSG_TRUE(buff_len > 0, NULL, "Buffer length is zero");
 
-    size_t offset = reinterpret_cast<uint8_t*>(tlv) - reinterpret_cast<uint8_t*>(tlvs_buff);
+    uint8_t* main_tlvs_buff = reinterpret_cast<uint8_t*>(tlvs_buff);
+
+    // Calculate offset of current TLV from buffer start
+    size_t offset = reinterpret_cast<uint8_t*>(tlv) - main_tlvs_buff;
     EM_ASSERT_MSG_TRUE(offset < buff_len, NULL, "TLV offset exceeds buffer length");
 
-    em_tlv_t* offset_tlvs_buff = reinterpret_cast<em_tlv_t*>(reinterpret_cast<uint8_t*>(tlvs_buff) + offset);
+    // Calculate the size of the current TLV (header + data)
+    uint16_t current_tlv_size = sizeof(em_tlv_t) + ntohs(tlv->len);
+    
+    // Shift the offset by the current TLV
+    offset += current_tlv_size;
+    if (offset >= buff_len) {
+        return NULL; // No more TLVs
+    }
 
-    return get_first_tlv(offset_tlvs_buff, buff_len - offset);
+    // Position buffer pointer to start of next TLV
+    em_tlv_t* next_tlvs_buff = reinterpret_cast<em_tlv_t*>(main_tlvs_buff + offset);
+    unsigned int next_tlvs_buff_len = buff_len - static_cast<unsigned int>(offset);
+    
+    // Use get_first_tlv to validate and return the next TLV
+    return get_first_tlv(next_tlvs_buff, next_tlvs_buff_len);
 }
 
 unsigned char* em_msg_t::add_buff_element(unsigned char *buff, unsigned int *len, unsigned char *element, unsigned int element_len)

@@ -691,6 +691,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (dm->get_radio_info(i)->id.ruid), radio_mac_str);
                 dm_easy_mesh_t::macbytes_to_string(bssid, mac_str1);
                 snprintf(key, sizeof (em_2xlong_string_t), "%s@%s@%s@%s@", dm->get_radio_info(i)->id.net_id, dev_mac_str, radio_mac_str, mac_str1);
+
                 if ((bss = dm->get_bss(dm->get_radio_info(i)->id.ruid, bssid)) == NULL) {
                     found = false;
                     continue;
@@ -793,6 +794,8 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         case em_msg_type_dpp_cce_ind:
         case em_msg_type_1905_rekey_req:
         case em_msg_type_1905_encap_eapol:
+        case em_msg_type_bss_config_req:
+        case em_msg_type_bss_config_res:
 	        em = al_em;
 	        break;
         case em_msg_type_topo_disc:
