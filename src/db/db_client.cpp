@@ -58,7 +58,8 @@
      }
 
      if (mysql_query(m_con, query)) {
-         printf("%s:%d: Query failed: %s, Error: %s\n", __func__, __LINE__, query, mysql_error(m_con));
+         printf("%s:%d: Query failed: %s\n", __func__, __LINE__, query);
+         printf("%s:%d: Error: %s\n", __func__, __LINE__, mysql_error(m_con));
          return NULL;
      }
 

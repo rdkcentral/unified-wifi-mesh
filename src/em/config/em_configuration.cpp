@@ -365,7 +365,7 @@ int em_configuration_t::send_topology_query_msg()
     }
 
     m_topo_query_tx_cnt++;
-    em_printfout("Topology Query (%d) Sent", m_topo_query_tx_cnt);
+    em_printfout("Topology Query (%d) Sent for radio:%s", m_topo_query_tx_cnt, util::mac_to_string(get_radio_interface_mac()).c_str());
 
 	return static_cast<int> (len);
 }
@@ -4456,8 +4456,7 @@ int em_configuration_t::handle_autoconfig_resp(unsigned char *buff, unsigned int
 
         return -1;
     }
-    em_printf("autoconfig wsc m1 send successful");
-    printf("%s:%d: autoconfig wsc m1 send success\n", __func__, __LINE__);
+    em_printfout("autoconfig wsc m1 send success, len:%d", sz);
     set_state(em_state_agent_wsc_m2_pending);
 
     return 0;   
