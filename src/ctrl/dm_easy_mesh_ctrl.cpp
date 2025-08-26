@@ -1471,7 +1471,8 @@ int dm_easy_mesh_ctrl_t::get_device_config(cJSON *parent, char *key, bool summar
 int dm_easy_mesh_ctrl_t::get_network_config(cJSON *parent, char *key)
 {
 	// get the data from topology
-	m_topology->encode(parent);   	 
+	m_topology->encode(parent);
+	//em_printfout("Network Topology Json:\n%s",cJSON_Print(parent));
 	return 0;
 }
 

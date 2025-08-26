@@ -25,12 +25,16 @@
 #include <cjson/cJSON.h>
 #include "em_network_topo.h"
 #include "util.h"
+#include "dm_sta_list.h"
+#include "dm_easy_mesh_ctrl.h"
+#include "em_ctrl.h"
 
+extern em_ctrl_t g_ctrl;
 extern em_network_topo_t *g_network_topology;
 
 void em_network_topo_t::encode(cJSON *parent)
 {
-	cJSON *dev_obj, *child_obj, *radio_list_obj, *radio_obj, *bss_list_obj, *bss_obj, *bh_obj;
+	cJSON *dev_obj, *child_obj, *radio_list_obj, *radio_obj, *bss_list_obj, *bss_obj, *bh_obj, *sta_list_obj;
 	unsigned int i, j;
 
 	dev_obj = cJSON_AddObjectToObject(parent, "Device");
@@ -47,6 +51,14 @@ void em_network_topo_t::encode(cJSON *parent)
 							m_data_model->m_radio[i].m_radio_info.id.ruid, sizeof(mac_address_t)) == 0) {
 				bss_obj = cJSON_CreateObject();
 				m_data_model->m_bss[j].encode(bss_obj, true);
+				sta_list_obj = cJSON_AddArrayToObject(bss_obj, "STAList");
+				dm_easy_mesh_ctrl_t *dm_ctrl = reinterpret_cast<dm_easy_mesh_ctrl_t *>(g_ctrl.get_data_model(GLOBAL_NET_ID));
+				if (dm_ctrl != NULL) {
+					// Get the Station associated with this bss
+					std::string bss_mac_str = util::mac_to_string(m_data_model->m_bss[j].m_bss_info.bssid.mac);
+					dm_ctrl->dm_sta_list_t::get_config(sta_list_obj, static_cast<void*>(const_cast<char*> (bss_mac_str.c_str())),
+						em_get_sta_list_reason_none);
+				}
 				cJSON_AddItemToArray(bss_list_obj, bss_obj);
 			}
 		}

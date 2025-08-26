@@ -4,8 +4,7 @@
 #include "util.h"
 
 ec_configurator_t::ec_configurator_t(const std::string &al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t& sec_ctx, bool is_colocated_agent)
-    : m_al_mac_addr(al_mac_addr), m_is_colocated_agent(is_colocated_agent),
-    m_1905_encrypt_layer(al_mac_addr, ops.send_dir_encap_dpp, ops.send_1905_eapol_encap)
+    : m_al_mac_addr(al_mac_addr), m_is_colocated_agent(is_colocated_agent)
 {
     m_send_chirp_notification    = ops.send_chirp;
     m_send_prox_encap_dpp_msg    = ops.send_encap_dpp;
@@ -16,12 +15,27 @@ ec_configurator_t::ec_configurator_t(const std::string &al_mac_addr, ec_ops_t& o
     m_get_fbss_info              = ops.get_fbss_info;
     m_can_onboard_additional_aps = ops.can_onboard_additional_aps;
     m_send_autoconf_resp_fn      = ops.send_autoconf_search_resp;
+    
+    // Initialize the 1905 encryption layer in the constructor body to avoid issues
+    // with using 'this' in the initializer list on some platforms (e.g., OpenWRT)
+    m_1905_encrypt_layer = std::make_unique<ec_1905_encrypt_layer_t>(
+        al_mac_addr, 
+        ops.send_dir_encap_dpp, 
+        ops.send_1905_eapol_encap,
+        std::bind(&ec_configurator_t::handle_1905_handshake_completed, 
+                  this, std::placeholders::_1, std::placeholders::_2));
 
     if (!sec_ctx.C_signing_key || !sec_ctx.pp_key || !sec_ctx.net_access_key || !sec_ctx.connector) {
         em_printfout("Key(s) missing, cannot secure 1905 layer!");
     }
 
     m_sec_ctx = sec_ctx;
+}
+
+void ec_configurator_t::handle_1905_handshake_completed(uint8_t peer_mac[ETH_ALEN], bool is_group) {
+    em_printfout("1905 handshake completed with peer: " MACSTRFMT ", group key: %s", 
+                 MAC2STR(peer_mac), is_group ? "true" : "false");
+                 
 }
 
 ec_configurator_t::~ec_configurator_t()

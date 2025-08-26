@@ -272,16 +272,19 @@ uint8_t em_crypto_t::platform_hash(const EVP_MD * hashing_algo, uint8_t num_elem
 }
 uint8_t em_crypto_t::platform_hmac_hash(const EVP_MD * hashing_algo, uint8_t *key, size_t keylen, uint8_t num_elem, uint8_t **addr, size_t *len, uint8_t *hmac)
 {
-    //em_util_info_print(EM_CONF," %s:%d\n",__func__,__LINE__);
+
+    if (!key || !addr || !len || !hmac || keylen == 0) {
+        return 0;
+    }
+
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     EVP_MD_CTX   *ctx;
     EVP_PKEY     *pkey;
-    size_t        mdlen = 32;
 #else
     HMAC_CTX     *ctx;
-    unsigned int  mdlen = 32;
 #endif
     size_t        i;
+    unsigned int mdlen = static_cast<unsigned int> (EVP_MD_size(hashing_algo));
 
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     ctx = EVP_MD_CTX_new();
@@ -307,10 +310,12 @@ uint8_t em_crypto_t::platform_hmac_hash(const EVP_MD * hashing_algo, uint8_t *ke
     }
 
     for (i = 0; i < num_elem; i++) {
-        EVP_DigestSignUpdate(ctx, addr[i], len[i]);
+        if (EVP_DigestSignUpdate(ctx, addr[i], len[i]) != 1) {
+            goto bail;
+        }
     }
 
-    if (EVP_DigestSignFinal(ctx, hmac, &mdlen) != 1) {
+    if (EVP_DigestSignFinal(ctx, hmac, reinterpret_cast<size_t*>(&mdlen)) != 1) {
         goto bail;
     }
 #else
@@ -1888,7 +1893,7 @@ bool em_crypto_t::kdf_hash_length(const EVP_MD *algo,
                          (output_len - offset) : hash_len;
         memcpy(output + offset, hash, to_copy);
         
-        offset += hash_len;
+        offset += to_copy;
     }
 
     return true;

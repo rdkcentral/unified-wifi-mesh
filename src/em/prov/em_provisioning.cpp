@@ -163,12 +163,9 @@ int em_provisioning_t::send_direct_encap_dpp_msg(uint8_t* dpp_frame, size_t dpp_
         //return -1;
     }
 
-    {
-        em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
-        em_printfout("Sending Direct Encap DPP msg from '" MACSTRFMT "' to '" MACSTRFMT "'\n", MAC2STR(hdr->src), MAC2STR(hdr->dst));
-    }
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+    em_printfout("Sending Direct Encap DPP msg from '" MACSTRFMT "' to '" MACSTRFMT "' of length %d", MAC2STR(hdr->src), MAC2STR(hdr->dst), len);
 
-    em_printfout("Sending Direct Encap DPP msg of length %d", len);
     if (send_frame(buff, len)  < 0) {
         em_printfout("Direct Encap DPP msg failed");
         perror("send_frame");
@@ -210,11 +207,6 @@ int em_provisioning_t::send_1905_eapol_encap_msg(uint8_t* eapol_frame, size_t ea
     if (em_msg_t(em_msg_type_1905_encap_eapol, em_profile_type_3, buff, len).validate(errors) == 0) {
         em_printfout("EAPOL Encap DPP msg failed validation in tnx end");
         //return -1;
-    }
-
-    {
-        em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
-        em_printfout("Sending EAPOL Encap DPP msg from '" MACSTRFMT "' to '" MACSTRFMT "'\n", MAC2STR(hdr->src), MAC2STR(hdr->dst));
     }
 
     em_printfout("Sending EAPOL Encap DPP msg of length %d", len);
@@ -393,16 +385,16 @@ int em_provisioning_t::handle_1905_encap_eapol_msg(uint8_t *buff, unsigned int l
     em_tlv_t* eapol_tlv = em_msg_t::get_tlv(tlv, tlv_len, em_tlv_type_1905_encap_eapol);
     EM_ASSERT_NOT_NULL(eapol_tlv, -1, "EAPOL Encap TLV not found in 1905 Encap EAPOL message");
 
-    if (eapol_tlv->len == 0) {
+    uint16_t eapol_frame_len = ntohs(eapol_tlv->len);
+    if (eapol_tlv->value == NULL || eapol_frame_len == 0) {
         em_printfout("Received a 1905 EAPOL Encap message but did not contain EAPOL frame!");
         return -1;
     }
 
-    if (!m_ec_manager->process_1905_eapol_encap_msg(buff, static_cast<uint16_t>(len), src_al_mac)){
+    if (!m_ec_manager->process_1905_eapol_encap_msg(eapol_tlv->value, eapol_frame_len, src_al_mac)){
         em_printfout("Failed to handle 1905 EAPOL Encap message");
         return -1;
     }
-    em_printfout("Successfully handled 1905 EAPOL Encap message");
     return 0;
 }
 
@@ -488,9 +480,10 @@ int em_provisioning_t::handle_dpp_chirp_notif(uint8_t *buff, unsigned int len, u
     em_dpp_chirp_value_t* chirp = reinterpret_cast<em_dpp_chirp_value_t*> (tlv->value);
 
     if (!m_ec_manager->process_chirp_notification(chirp, SWAP_LITTLE_ENDIAN(tlv->len), src_al_mac)) {
-        //TODO: Fail
         em_printfout("Failed to process chirp notification");
+        return -1;
     }
+    set_is_dpp_onboarding(true);
 
     return 0;
 }
@@ -537,29 +530,15 @@ int em_provisioning_t::handle_direct_encap_dpp(uint8_t *buff, unsigned int len, 
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tlv_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
-    uint16_t direct_frame_len = 0;
-    uint8_t* direct_frame = NULL;
+    em_printfout("Received Direct Encap DPP message of length %d", len);
 
-    while ((tlv->type != em_tlv_type_eom) && (tlv_len > 0)) {
+    em_tlv_t* direct_tlv = em_msg_t::get_tlv(tlv, tlv_len, em_tlv_type_dpp_msg);
+    EM_ASSERT_NOT_NULL(direct_tlv, -1, "Direct Encap DPP TLV not found in Direct Encap DPP message");
 
-        if (tlv->type == em_tlv_type_dpp_msg) {
-            // Direct Encap DPP TLV value **is** the encapsulated frame
-            direct_frame = tlv->value;
-            direct_frame_len = SWAP_LITTLE_ENDIAN(tlv->len);
-        }
+    uint16_t direct_frame_len = ntohs(direct_tlv->len);
+    EM_ASSERT_MSG_TRUE(direct_frame_len > 0, -1, "Direct Encap DPP TLV length is zero in Direct Encap DPP message");
 
-        tlv_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + SWAP_LITTLE_ENDIAN(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<uint8_t *> (tlv) + sizeof(em_tlv_t) + SWAP_LITTLE_ENDIAN(tlv->len));
-    }
-
-    if (direct_frame == NULL || direct_frame_len == 0) {
-        em_printfout("Received Invalid Direct Encap DPP TLV!");
-        return -1;
-    }
-
-    em_printfout("Received Direct Encap DPP msg from '" MACSTRFMT "' of length %d", MAC2STR(src_al_mac), direct_frame_len);
-
-    if (m_ec_manager->process_direct_encap_dpp_msg(direct_frame, direct_frame_len, src_al_mac) != 0){
+    if (m_ec_manager->process_direct_encap_dpp_msg(direct_tlv->value, direct_frame_len, src_al_mac) != 0){
         //TODO: Fail
         return -1;
     }

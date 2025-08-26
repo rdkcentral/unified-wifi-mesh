@@ -378,11 +378,11 @@ int em_capability_t::send_client_cap_report_msg(mac_address_t sta, bssid_t bss)
     unsigned short type = htons(ETH_P_1905);
     unsigned short msg_id = em_msg_type_client_cap_rprt;
     dm_easy_mesh_t *dm = get_data_model();
-    mac_address_t ctrl_mac = {0xe4, 0x5f, 0x01, 0x40, 0x70, 0x5b};
     mac_addr_str_t mac_str;
 
-    //memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t)); 
-    memcpy(tmp, ctrl_mac, sizeof(mac_address_t));
+    em_printfout("send_client_cap_report_msg for controller mac address:%s",
+        util::mac_to_string(dm->get_ctl_mac()).c_str());
+    memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
@@ -530,8 +530,8 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
     if (hash_map_get(dm->m_sta_assoc_map, key) == NULL) {
         hash_map_put(dm->m_sta_assoc_map, strdup(key), new dm_sta_t(&sta_info));
         dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
+        em_printfout("New client updated to db: %s", key);
     }
-
     return 0;
 }
 

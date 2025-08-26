@@ -255,7 +255,7 @@ public:
 	 * @note Not virtual since this function only calls the encryption layer
 	 */
 	bool process_1905_eapol_encap_msg(uint8_t* eapol_frame, uint16_t eapol_frame_len, uint8_t src_mac[ETH_ALEN]) {
-		return m_1905_encrypt_layer.handle_eapol_frame(eapol_frame, eapol_frame_len, src_mac);
+		return m_1905_encrypt_layer->handle_eapol_frame(eapol_frame, eapol_frame_len, src_mac);
 	}
 	
 	/**
@@ -324,7 +324,7 @@ public:
 	 * @return true if the frame was processed successfully, otherwise false.
 	 */
 	bool handle_peer_disc_req_frame(ec_frame_t *frame, uint16_t len, uint8_t src_mac[ETH_ALEN]) {
-        return m_1905_encrypt_layer.handle_peer_disc_req_frame(frame, len, src_mac);
+        return m_1905_encrypt_layer->handle_peer_disc_req_frame(frame, len, src_mac);
     }
 
 	/**
@@ -340,7 +340,7 @@ public:
 	 * @return true if the frame was processed successfully, otherwise false.
 	 */
 	bool handle_peer_disc_resp_frame(ec_frame_t *frame, uint16_t len, uint8_t src_mac[ETH_ALEN]) {
-        return m_1905_encrypt_layer.handle_peer_disc_resp_frame(frame, len, src_mac);
+        return m_1905_encrypt_layer->handle_peer_disc_resp_frame(frame, len, src_mac);
     }
 
     
@@ -370,7 +370,7 @@ public:
      * @note Creates and sends DPP Peer Discovery Request to begin security establishment process.
      */
 	inline bool start_secure_1905_layer(uint8_t dest_al_mac[ETH_ALEN]) {
-		return m_1905_encrypt_layer.start_secure_1905_layer(dest_al_mac);
+		return m_1905_encrypt_layer->start_secure_1905_layer(dest_al_mac);
 	}
 
 	/**
@@ -382,7 +382,7 @@ public:
      *       as the initial handshake with some minor flags changed.
      */
 	inline bool rekey_1905_layer_ptk(uint8_t dest_al_mac[ETH_ALEN]) {
-		return m_1905_encrypt_layer.rekey_1905_layer_ptk(dest_al_mac);
+		return m_1905_encrypt_layer->rekey_1905_layer_ptk(dest_al_mac);
 	}
 
 	/**
@@ -393,7 +393,7 @@ public:
      *       as the initial handshake with some minor flags changed.
      */
 	inline bool rekey_1905_layer_ptk() {
-		return m_1905_encrypt_layer.rekey_1905_layer_ptk();
+		return m_1905_encrypt_layer->rekey_1905_layer_ptk();
 	}
 
 	/**
@@ -404,7 +404,7 @@ public:
      *       to all agents (EM 5.4.7.5) via group key handshake (EM 5.3.7.3)
      */
 	inline bool rekey_1905_layer_gtk() {
-		return m_1905_encrypt_layer.rekey_1905_layer_gtk();
+		return m_1905_encrypt_layer->rekey_1905_layer_gtk();
 	}
 
 	/**
@@ -465,9 +465,11 @@ protected:
 
 	send_autoconf_search_resp_func m_send_autoconf_resp_fn;
 
-	ec_1905_encrypt_layer_t m_1905_encrypt_layer;
+	std::unique_ptr<ec_1905_encrypt_layer_t> m_1905_encrypt_layer;
 
     // The connections to EasyMesh Devices (the Controller, Enrollees, and Agents)
+	// The key can be the phy MAC or the AL MAC, depending on the context.
+	// The `peer_al_mac` field in the context will always be the AL MAC (when it's been set)
     std::map<std::string, ec_connection_context_t> m_connections = {};
     
 	/**!
@@ -562,6 +564,14 @@ protected:
 	 * 	- For an **Onboarded Agent** the keys/connector are generated during the onboarding process and used throughout the lifetime of the agent (or until reconfigured).
 	 */
 	ec_persistent_sec_ctx_t m_sec_ctx;
+
+	/**
+	 * @brief Handles the completion of a 1905 handshake.
+	 * 
+	 * @param mac The peer MAC address of the device that completed the handshake.
+	 * @param is_group True if the handshake was for a group key, false if it was for a pairwise key.
+	 */
+	void handle_1905_handshake_completed(uint8_t peer_mac[ETH_ALEN], bool is_group);
 };
 
 #endif // EC_CONFIGURATOR_H

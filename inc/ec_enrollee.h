@@ -6,6 +6,7 @@
 #include "ec_util.h"
 #include "ec_ops.h"
 #include "ec_1905_encrypt_layer.h"
+#include "timer.h"
 
 #include <map>
 #include <unordered_map>
@@ -174,7 +175,7 @@ public:
 	 * @return bool True if the frame was processed successfully, false otherwise.
 	 */
 	bool process_1905_eapol_encap_msg(uint8_t* eapol_frame, uint16_t eapol_frame_len, uint8_t src_mac[ETH_ALEN]) {
-		return m_1905_encrypt_layer.handle_eapol_frame(eapol_frame, eapol_frame_len, src_mac);
+		return m_1905_encrypt_layer->handle_eapol_frame(eapol_frame, eapol_frame_len, src_mac);
 	}
 
 	/**
@@ -190,7 +191,7 @@ public:
 	 * @return true if the frame was processed successfully, otherwise false.
 	 */
 	bool handle_peer_disc_resp_frame(ec_frame_t *frame, uint16_t len, uint8_t src_mac[ETH_ALEN]) {
-		return m_1905_encrypt_layer.handle_peer_disc_resp_frame(frame, len, src_mac);
+		return m_1905_encrypt_layer->handle_peer_disc_resp_frame(frame, len, src_mac);
 	}
 
 	/**!
@@ -278,7 +279,7 @@ public:
      * @note Creates and sends DPP Peer Discovery Request to begin security establishment process.
      */
 	inline bool start_secure_1905_layer(uint8_t dest_al_mac[ETH_ALEN]) {
-		return m_1905_encrypt_layer.start_secure_1905_layer(dest_al_mac);
+		return m_1905_encrypt_layer->start_secure_1905_layer(dest_al_mac);
 	}
 
 	/**
@@ -290,7 +291,7 @@ public:
      *       as the initial handshake with some minor flags changed.
      */
 	inline bool rekey_1905_layer_ptk(uint8_t dest_al_mac[ETH_ALEN]) {
-		return m_1905_encrypt_layer.rekey_1905_layer_ptk(dest_al_mac);
+		return m_1905_encrypt_layer->rekey_1905_layer_ptk(dest_al_mac);
 	}
 
 	/**
@@ -301,7 +302,7 @@ public:
      *       as the initial handshake with some minor flags changed.
      */
 	inline bool rekey_1905_layer_ptk() {
-		return m_1905_encrypt_layer.rekey_1905_layer_ptk();
+		return m_1905_encrypt_layer->rekey_1905_layer_ptk();
 	}
 
 	/**
@@ -364,6 +365,13 @@ private:
 	 */
 	bool check_bss_info_has_cce(const wifi_bss_info_t& bss_info);
 
+	/**
+	 * @brief Sends an Autoconf Search (extended) with a Chirp TLV
+	 * 
+	 * @return true on success, otherwise false
+	 */
+	bool send_autoconf_search_chirp();
+
 	std::string m_al_mac_addr;
 
     /**
@@ -420,12 +428,21 @@ private:
 	 * @return True on success otherwise false
 	 */
 	send_autoconf_search_func m_send_autoconf_search_fn;
+
+	/**
+	 * @brief Sends a BSS Configuration Request message
+	 * 
+	 * @param dest_al_mac The destination AL MAC address (6 bytes)
+	 * 
+	 * @return True on success otherwise false
+	 */
+	send_bss_config_req_func m_send_bss_config_req_fn;
 	
     // Maps SSID that this Enrollee has attempted to find to the
     // list of channels/op-classes that were scanned.
     std::unordered_map<std::string, std::vector<ec_util::scanned_channels_t>> m_scanned_channels_map;
 
-	ec_1905_encrypt_layer_t m_1905_encrypt_layer;
+	std::unique_ptr<ec_1905_encrypt_layer_t> m_1905_encrypt_layer;
 
 
 
@@ -557,6 +574,15 @@ private:
 	 */
 	cJSON *create_dpp_connection_status_obj(ec_status_code_t dpp_status, const std::string& ssid);
 
+	/**
+	 * @brief Handles the completion of a 1905 handshake.
+	 * 
+	 * @param mac The peer MAC address of the device that completed the handshake.
+	 * @param is_group True if the handshake was for a group key, false if it was for a pairwise key.
+	 */
+	void handle_1905_handshake_completed(uint8_t peer_mac[ETH_ALEN], bool is_group);
+
+
     ec_connection_context_t m_c_ctx = {};
 
     
@@ -658,6 +684,8 @@ private:
 	 * 
 	 */
 	std::thread m_send_recfg_announcement_thread;
+
+	std::shared_ptr<ThreadedTimer> m_autoconf_search_timer = std::make_shared<ThreadedTimer>();
 
 	/**
 	 * @brief Metadata about a fragmented GAS response frame

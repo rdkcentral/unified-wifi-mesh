@@ -39,7 +39,8 @@ TEST(ThreadedTimerTest, PeriodicRunsMultipleTimes) {
 
     timer.start_periodic(50ms, [&]() {
         counter++;
-    });
+        return true;
+   });
 
     std::this_thread::sleep_for(220ms);
     timer.stop();
