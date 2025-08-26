@@ -60,6 +60,7 @@ type BaseTab struct {
 
 type Topology struct {
     BaseTab
+    timerCount int
     topo *fyne.Container
 }
 
@@ -136,6 +137,7 @@ func (m *MeshViewsMgr) createViews() {
     image := canvas.NewImageFromResource(resourceGatewayPng)
     image.Resize(fyne.Size{Width: 50, Height: 50})
     tabInterface.setCanvasObject(image)
+    image.Hide()
     topo.topo = container.New(&Concentric{}, tabInterface.getCanvasObject())
 
     m.easyMeshViews[TopologyString] = EasyMeshView{
@@ -208,6 +210,10 @@ func (m *MeshViewsMgr) getViewBySelectedTab() *EasyMeshView {
         }
     }
     return nil
+}
+
+func pause_start_Timer(val bool) {
+	meshViewsMgr.isEditing = val
 }
 
 func (m *MeshViewsMgr) timerHandler() {
