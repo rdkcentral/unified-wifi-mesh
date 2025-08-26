@@ -267,7 +267,6 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
     em_cmdu_t *cmdu;
     mac_addr_str_t mac_str;
 
-    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(data);
     cmdu = reinterpret_cast<em_cmdu_t *>(data + sizeof(em_raw_hdr_t));
 
 
@@ -949,6 +948,8 @@ short em_t::create_ap_radio_basic_cap(unsigned char *buff) {
             all_channel_len = 0;
         }
     }
+    em_printfout("Created AP Radio Basic Cap TLV for Radio:%s, num_bss:%d, op_class_num:%d, len:%d",
+                 util::mac_to_string(get_radio_interface_mac()).c_str(), cap->num_bss, cap->op_class_num, len);
     return static_cast<short>(len);
 }
 
@@ -1218,7 +1219,7 @@ short em_t::create_eht_operations_tlv(unsigned char *buff)
         }
     }
 
-    return len;
+    return static_cast<short> (len);
 }
 
 cJSON *em_t::create_enrollee_bsta_list(uint8_t pa_al_mac[ETH_ALEN])
