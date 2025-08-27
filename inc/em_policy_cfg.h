@@ -188,6 +188,19 @@ public:
 	short create_traffic_sep_policy_tlv(unsigned char *buff);
 
 	/**!
+	 * @brief Creates a channel scan report policy TLV.
+	 *
+	 * This function generates a channel scan report policy TLV (Type-Length-Value) and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns short The length of the created TLV.
+	 *
+	 * @note Ensure that the buffer is large enough to hold the TLV.
+	 */
+	short create_chan_scan_report_policy_tlv(unsigned char *buff);
+
+	/**!
 	 * @brief Creates an unsuccessful association policy TLV.
 	 *
 	 * This function generates an unsuccessful association policy TLV (Type-Length-Value) and stores it in the provided buffer.

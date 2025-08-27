@@ -233,18 +233,21 @@ short em_policy_cfg_t::create_traffic_sep_policy_tlv(unsigned char *buff)
 
     return static_cast<short> (len);
 }
+
 short em_policy_cfg_t::create_chan_scan_report_policy_tlv(unsigned char *buff)
 {
     size_t len = 0;
 
     return static_cast<short> (len);
 }
+
 short em_policy_cfg_t::create_unsucc_assoc_policy_tlv(unsigned char *buff)
 {
     size_t len = 0;
 
     return static_cast<short> (len);
 }
+
 short em_policy_cfg_t::create_backhaul_bss_conf_policy_tlv(unsigned char *buff)
 {
     size_t len = 0;
@@ -257,7 +260,6 @@ short em_policy_cfg_t::create_qos_mgt_policy_tlv(unsigned char *buff)
 
     return static_cast<short> (len);
 }
-
 
 short em_policy_cfg_t::create_vendor_policy_cfg_tlv(unsigned char *buff)
 {
