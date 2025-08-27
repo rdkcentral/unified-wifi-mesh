@@ -57,7 +57,7 @@ void em_network_topo_t::encode(cJSON *parent)
 					// Get the Station associated with this bss
 					std::string bss_mac_str = util::mac_to_string(m_data_model->m_bss[j].m_bss_info.bssid.mac);
 					dm_ctrl->dm_sta_list_t::get_config(sta_list_obj, static_cast<void*>(const_cast<char*> (bss_mac_str.c_str())),
-						em_get_sta_list_reason_none);
+						em_get_sta_list_reason_topology);
 				}
 				cJSON_AddItemToArray(bss_list_obj, bss_obj);
 			}

@@ -229,8 +229,16 @@ void dm_sta_t::encode(cJSON *obj, em_get_sta_list_reason_t reason)
         cJSON_AddNumberToObject(reason_obj, "SteeringTimer", 0);
         cJSON_AddStringToObject(reason_obj, "TargetBSS", "00:00:00:00:00:00");
     } else if (reason == em_get_sta_list_reason_neighbors) {
-		encode_beacon_report(obj);
-	}
+        encode_beacon_report(obj);
+    } else if (reason == em_get_sta_list_reason_topology) {
+        cJSON_AddStringToObject(obj, "SSID", m_sta_info.ssid);
+        cJSON_AddNumberToObject(obj, "SignalStrength", m_sta_info.signal_strength);
+        cJSON_AddNumberToObject(obj, "LastConnectTime", m_sta_info.last_conn_time);
+        cJSON_AddStringToObject(obj, "HTCapabilities", m_sta_info.ht_cap);
+        cJSON_AddStringToObject(obj, "VHTCapabilities", m_sta_info.vht_cap);
+        cJSON_AddStringToObject(obj, "HECapabilities", m_sta_info.he_cap);
+        cJSON_AddStringToObject(obj, "ClientCapabilities", m_sta_info.cap);
+    }
 }
 
 void dm_sta_t::encode_beacon_report(cJSON *obj)
