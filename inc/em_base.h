@@ -3084,6 +3084,7 @@ typedef enum {
     em_get_sta_list_reason_btm,
     em_get_sta_list_reason_disassoc,
     em_get_sta_list_reason_neighbors,
+    em_get_sta_list_reason_topology,
 } em_get_sta_list_reason_t;
 
 typedef enum {
