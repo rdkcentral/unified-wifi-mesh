@@ -100,7 +100,7 @@ int em_metrics_t::handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff)
     return 0;
 }
 
-int em_metrics_t::handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff)
+int em_metrics_t::handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff, unsigned int len)
 {
     em_assoc_sta_vendor_link_metrics_t *sta_metrics;
     //em_assoc_vendor_link_metrics_t *metrics;
@@ -125,7 +125,7 @@ int em_metrics_t::handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff)
     } */
 
     sta = dm->find_sta(sta_metrics->sta_mac, sta_metrics->bssid);
-    if (sta != NULL) {
+    if (sta != NULL && len >= sizeof(em_assoc_sta_vendor_link_metrics_t)) {
         strncpy(sta->m_sta_info.sta_client_type, sta_metrics->sta_client_type, sizeof(sta->m_sta_info.sta_client_type));
     }
 
@@ -216,7 +216,7 @@ int em_metrics_t::handle_associated_sta_link_metrics_resp(unsigned char *buff, u
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_vendor_sta_metrics) {
-            handle_assoc_sta_vendor_link_metrics_tlv(tlv->value);
+            handle_assoc_sta_vendor_link_metrics_tlv(tlv->value, ntohs(tlv->len));
         }
 
         tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
@@ -463,7 +463,7 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_vendor_sta_metrics) {
-            handle_assoc_sta_vendor_link_metrics_tlv(tlv->value);
+            handle_assoc_sta_vendor_link_metrics_tlv(tlv->value, ntohs(tlv->len));
         }
         tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
