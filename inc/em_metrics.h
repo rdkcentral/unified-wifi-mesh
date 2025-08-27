@@ -221,6 +221,7 @@ class em_metrics_t {
 	 * of station vendor link metrics TLV.
 	 *
 	 * @param[in] buff Pointer to the buffer containing the TLV data.
+	 * @param[in] len Length of the data in the buffer.
 	 *
 	 * @returns int Status code indicating success or failure.
 	 * @retval 0 on success.
@@ -228,7 +229,7 @@ class em_metrics_t {
 	 *
 	 * @note Ensure that the buffer is properly allocated and contains valid TLV data.
 	 */
-	int handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff);
+	int handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff, unsigned int len);
     
 	/**!
 	 * @brief Handles the beacon metrics query.
