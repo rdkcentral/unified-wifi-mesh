@@ -2587,17 +2587,35 @@ void dm_easy_mesh_t::set_policy(dm_policy_t policy)
 	unsigned int i = 0;
 	dm_policy_t *ppolicy;
 	bool found_match = false;
+    int temp = 0;
 
-	for (i = 0; i < m_num_policy; i++) {
-		ppolicy = &m_policy[i];
-		if ((strncmp(policy.m_policy.id.net_id, ppolicy->m_policy.id.net_id, strlen(policy.m_policy.id.net_id) == 0)) &&
-				(memcmp(policy.m_policy.id.dev_mac, ppolicy->m_policy.id.dev_mac, sizeof(mac_address_t)) == 0) &&
-				(memcmp(policy.m_policy.id.radio_mac, ppolicy->m_policy.id.radio_mac, sizeof(mac_address_t)) == 0) && 
-				(policy.m_policy.id.type == ppolicy->m_policy.id.type)) {
-			found_match = true;
-			break;
-		}
-	}	
+    for (i = 0; i < m_num_policy; i++) {
+        ppolicy = &m_policy[i];
+        /*printf("Checking policy index %d\n", i);
+        printf("Input policy: net_id=%s, dev_mac=%02x:%02x:%02x:%02x:%02x:%02x, radio_mac=%02x:%02x:%02x:%02x:%02x:%02x, type=%d\n",
+            policy.m_policy.id.net_id,
+            policy.m_policy.id.dev_mac[0], policy.m_policy.id.dev_mac[1], policy.m_policy.id.dev_mac[2],
+            policy.m_policy.id.dev_mac[3], policy.m_policy.id.dev_mac[4], policy.m_policy.id.dev_mac[5],
+            policy.m_policy.id.radio_mac[0], policy.m_policy.id.radio_mac[1], policy.m_policy.id.radio_mac[2],
+            policy.m_policy.id.radio_mac[3], policy.m_policy.id.radio_mac[4], policy.m_policy.id.radio_mac[5],
+            policy.m_policy.id.type);
+        printf("Existing policy: net_id=%s, dev_mac=%02x:%02x:%02x:%02x:%02x:%02x, radio_mac=%02x:%02x:%02x:%02x:%02x:%02x, type=%d\n",
+            ppolicy->m_policy.id.net_id,
+            ppolicy->m_policy.id.dev_mac[0], ppolicy->m_policy.id.dev_mac[1], ppolicy->m_policy.id.dev_mac[2],
+            ppolicy->m_policy.id.dev_mac[3], ppolicy->m_policy.id.dev_mac[4], ppolicy->m_policy.id.dev_mac[5],
+            ppolicy->m_policy.id.radio_mac[0], ppolicy->m_policy.id.radio_mac[1], ppolicy->m_policy.id.radio_mac[2],
+            ppolicy->m_policy.id.radio_mac[3], ppolicy->m_policy.id.radio_mac[4], ppolicy->m_policy.id.radio_mac[5],
+            ppolicy->m_policy.id.type);*/
+
+        temp = ((strncmp(policy.m_policy.id.net_id, ppolicy->m_policy.id.net_id, strlen(policy.m_policy.id.net_id) == 0)) &&
+                (memcmp(policy.m_policy.id.dev_mac, ppolicy->m_policy.id.dev_mac, sizeof(mac_address_t)) == 0) &&
+                (memcmp(policy.m_policy.id.radio_mac, ppolicy->m_policy.id.radio_mac, sizeof(mac_address_t)) == 0));
+
+        if ( (temp == 0) && (policy.m_policy.id.type == ppolicy->m_policy.id.type) ) {
+            found_match = true;
+            break;
+        }
+    }
 
 	memcpy(&m_policy[i].m_policy, &policy.m_policy, sizeof(em_policy_t));
 	memcpy(m_policy[i].m_policy.id.dev_mac, m_device.m_device_info.intf.mac, sizeof(mac_address_t));
