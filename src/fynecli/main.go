@@ -255,7 +255,7 @@ func (m *MeshViewsMgr) timerHandler() {
 
 func main() {
     meshViewsMgr.meshApp = app.New()
-    meshViewsMgr.meshWindow = meshViewsMgr.meshApp.NewWindow("OneWifiMesh")
+    meshViewsMgr.meshWindow = meshViewsMgr.meshApp.NewWindow("RDK Mesh")
 
     meshViewsMgr.createViews()
 

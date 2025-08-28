@@ -194,7 +194,7 @@
 													"VapMode":	0,
 													"STAList":      [{
                                                                 "MACAddress":   "1A:a1:98:7f:98:a1",
-																"ClientType":   "Android",
+																"ClientType":   "Android - Pixel-7-Pro",
                                                                 "Associated":   true,
                                                                 "Neighbors":    [],
                                                                 "LastDataUplinkRate":   0,
@@ -338,7 +338,7 @@
 													"VapMode":	0,
 													"STAList":      [{
                                                                 "MACAddress":   "01:70:10:Af:FF:D2",
-																"ClientType":   "iPhone",
+																"ClientType":   "Apple iPhone 14",
                                                                 "Associated":   true,
                                                                 "Neighbors":    [],
                                                                 "LastDataUplinkRate":   0,

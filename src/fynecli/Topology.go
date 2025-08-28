@@ -187,87 +187,20 @@ var triangleOffsets = []struct{ X, Y float32 }{
 	{X: 0, Y: -75},
 }
 
-func NewBandCircleButton(radius float32, col color.Color, onTapped func()) *BandCircleButton {
-	btn := &BandCircleButton{
-		color:    col,
-		radius:   radius,
-		onTapped: onTapped,
-	}
-	btn.ExtendBaseWidget(btn)
-	return btn
-}
-
-func (b *BandCircleButton) CreateRenderer() fyne.WidgetRenderer {
-	circle := canvas.NewCircle(b.color)
-	circle.Resize(fyne.NewSize(b.radius*2, b.radius*2))
-
-	var border *canvas.Circle
-	if b.highlight {
-		border = canvas.NewCircle(color.Black)
-		border.StrokeWidth = 2
-		border.StrokeColor = color.Black
-		border.Resize(fyne.NewSize(b.radius*2+4, b.radius*2+4))
-		border.Move(fyne.NewPos(-2, -2))
-	}
-
-	objects := []fyne.CanvasObject{}
-	if border != nil {
-		objects = append(objects, border)
-	}
-	objects = append(objects, circle)
-
-	return &bandCircleRenderer{
-		circle:  circle,
-		border:  border,
-		button:  b,
-		objects: objects,
-	}
-}
-
-func (r *bandCircleRenderer) Layout(size fyne.Size) {
-	r.circle.Resize(size)
-	if r.border != nil {
-		r.border.Resize(fyne.NewSize(size.Width+4, size.Height+4))
-		r.border.Move(fyne.NewPos(-2, -2))
-	}
-}
-
-func (r *bandCircleRenderer) MinSize() fyne.Size {
-	return fyne.NewSize(r.button.radius*2, r.button.radius*2)
-}
-
-func (r *bandCircleRenderer) Refresh() {
-	canvas.Refresh(r.circle)
-	if r.border != nil {
-		canvas.Refresh(r.border)
-	}
-}
-
-func (r *bandCircleRenderer) Objects() []fyne.CanvasObject {
-	return r.objects
-}
-
-func (r *bandCircleRenderer) Destroy() {}
-
-func (b *BandCircleButton) Tapped(_ *fyne.PointEvent) {
-	b.highlight = true
-	b.Refresh()
-	if b.onTapped != nil {
-		b.onTapped()
-	}
-}
-
 func getIconForClientType(clientType string) fyne.Resource {
-	switch clientType {
-	case "iPhone":
-		return resourceIphonePng
-	case "iPad":
-		return resourceIpadPng
-	case "Android":
-		return resourceAndroidPng
-	default:
-		return resourceIphonePng
-	}
+    lower := strings.ToLower(clientType)
+
+    switch {
+    case strings.Contains(lower, "iphone"):
+        return resourceIphonePng
+    case strings.Contains(lower, "ipad"):
+        return resourceIpadPng
+    case strings.Contains(lower, "android"):
+        return resourceAndroidPng
+    default:
+        return  resourceAndroidPng// fallback icon
+    }
+
 }
 
 func loadNestedTopologyJSON(path string, container *fyne.Container) (*simple.UndirectedGraph, map[string]graph.Node, map[string]RawNode, []BandEdge, error) {
@@ -506,6 +439,39 @@ func buildHaulTypes(radioList []Radio) []HaulTypeVisual {
 	return haulTypes
 }
 
+
+type ClickableImage struct {
+    widget.BaseWidget
+    image    *canvas.Image
+    onTapped func()
+}
+
+func NewClickableImage(res fyne.Resource, onTapped func()) *ClickableImage {
+    img := canvas.NewImageFromResource(res)
+    img.FillMode = canvas.ImageFillContain
+    img.SetMinSize(fyne.NewSize(40, 40)) // Set desired size
+
+    c := &ClickableImage{
+        image:    img,
+        onTapped: onTapped,
+    }
+    c.ExtendBaseWidget(c)
+    return c
+}
+
+func (c *ClickableImage) CreateRenderer() fyne.WidgetRenderer {
+    return widget.NewSimpleRenderer(c.image)
+}
+
+func (c *ClickableImage) Tapped(_ *fyne.PointEvent) {
+	c.Refresh()
+    if c.onTapped != nil {
+        c.onTapped()
+    }
+}
+
+func (c *ClickableImage) Destroy() {}
+
 func drawEChartsGraph(
 	g *simple.UndirectedGraph,
 	nodeMap map[string]graph.Node,
@@ -518,7 +484,7 @@ func drawEChartsGraph(
 	canvasSize := container.Size()
 	canvasOffset := fyne.NewPos(canvasSize.Width/2, canvasSize.Height/2)
 
-	heading := canvas.NewText("OneWifi Mesh Network", parseHexColor("#708090"))
+	heading := canvas.NewText("RDK Mesh Network", parseHexColor("#708090"))
 	heading.TextStyle = fyne.TextStyle{Bold: true}
 	heading.TextSize = 25
 	heading.Move(fyne.NewPos(10, 10))
@@ -686,20 +652,16 @@ func drawEChartsGraph(
 			staOffsetY := float32(math.Sin(angle)) * (radius - 20)
 			staPos := fyne.NewPos(haulCenter.X+staOffsetX-70, haulCenter.Y+staOffsetY+50)
 
-			// Draw STA icon
-			staIcon := canvas.NewImageFromResource(staCtx.Icon)
-			staIcon.Resize(fyne.NewSize(40, 40))
-			staIcon.Move(fyne.NewPos(staPos.X-10, staPos.Y-10))
-			staIcon.FillMode = canvas.ImageFillContain
+			staIcon := NewClickableImage(staCtx.Icon, func() {
+				info := fmt.Sprintf("%s\nMAC: %s\n", sta.ClientType, sta.MACAddress)
+				pause_start_Timer(true)
+				showTooltip(container, info, fyne.NewPos(staPos.X, staPos.Y), color.RGBA{R: 216, G: 167, B: 7, A: 255})
+			})
+			staIcon.Resize(fyne.NewSize(40, 40)) // Ensure it's visible
+			staIcon.Move(fyne.NewPos(staPos.X-20, staPos.Y-20)) // Adjust position
 			container.Add(staIcon)
+			container.Refresh()
 
-			// Draw STA label
-			_, hexCol := bandToNameAndColor(band)
-			col := parseHexColor(hexCol)
-			staLabel := canvas.NewText(sta.MACAddress, color.RGBA{R: 30, G: 30, B: 30, A: 255})
-			staLabel.TextSize = 10
-			staLabel.Move(fyne.NewPos(staPos.X-20, staPos.Y+30))
-			container.Add(staLabel)
 
 			// Connect sinewave from STA to node icon (not HaulType)
 			nodeCenter := fyne.NewPos(meta.X+canvasOffset.X, meta.Y+canvasOffset.Y)
@@ -710,7 +672,7 @@ func drawEChartsGraph(
 			length := math.Hypot(dx, dy)
 
 			// Normalize and scale offset
-			staOffsetDistance := 20.0  // STA side offset
+			staOffsetDistance := 25.0  // STA side offset
 			nodeOffsetDistance := 30.0 // Node side offset (slightly more)
 
 			offsetX := dx / length
@@ -728,6 +690,9 @@ func drawEChartsGraph(
 
 			wavePoints := GenerateSineWavePoints(startVec, endVec, 6, 10, 100)
 
+			_, hexCol := bandToNameAndColor(band)
+			col := parseHexColor(hexCol)
+			col = lightenColor(col, 0.3)
 			for i := 0; i < len(wavePoints)-1; i++ {
 				p1 := fyne.NewPos(float32(wavePoints[i].X), float32(wavePoints[i].Y))
 				p2 := fyne.NewPos(float32(wavePoints[i+1].X), float32(wavePoints[i+1].Y))
@@ -857,6 +822,28 @@ func drawEChartsGraph(
 	}
 }
 
+
+func lightenColor(c color.Color, factor float64) color.RGBA {
+    rgba, ok := c.(color.RGBA)
+    if !ok {
+        // fallback if color is not RGBA
+        r, g, b, a := c.RGBA()
+        rgba = color.RGBA{
+            R: uint8(r >> 8),
+            G: uint8(g >> 8),
+            B: uint8(b >> 8),
+            A: uint8(a >> 8),
+        }
+    }
+
+    return color.RGBA{
+        R: uint8(float64(rgba.R) + (255-float64(rgba.R))*factor),
+        G: uint8(float64(rgba.G) + (255-float64(rgba.G))*factor),
+        B: uint8(float64(rgba.B) + (255-float64(rgba.B))*factor),
+        A: rgba.A,
+    }
+}
+
 func offsetFromCenter(start, end fyne.Position, offset float32) fyne.Position {
 	dx := end.X - start.X
 	dy := end.Y - start.Y
@@ -936,7 +923,7 @@ func showTooltip(container *fyne.Container, info string, pos fyne.Position, bgCo
 	label := widget.NewLabel(info)
 	label.Wrapping = fyne.TextWrapWord
 	label.TextStyle = fyne.TextStyle{Bold: true}
-	label.Resize(fyne.NewSize(200, label.MinSize().Height))
+	label.Resize(fyne.NewSize(200, label.MinSize().Height-20))
 
 	// Calculate position
 	screenSize := container.Size()
@@ -954,12 +941,12 @@ func showTooltip(container *fyne.Container, info string, pos fyne.Position, bgCo
 		tooltipPos.Y = pos.Y + 10
 	}
 	if tooltipPos.Y+tooltipSize.Height > screenSize.Height {
-		tooltipPos.Y = screenSize.Height - tooltipSize.Height - 10
+		tooltipPos.Y = screenSize.Height - tooltipSize.Height - 50
 	}
 
 	// Background rectangle
 	bg := canvas.NewRectangle(bgColor)
-	bg.Resize(tooltipSize.Add(fyne.NewSize(40, 30))) // Padding for close button
+	bg.Resize(tooltipSize.Add(fyne.NewSize(20, 20))) // Smaller padding
 	bg.Move(tooltipPos.Subtract(fyne.NewPos(10, 10)))
 	container.Add(bg)
 	currentTooltipBg = bg
@@ -1063,7 +1050,7 @@ func colorForHaulType(haulType string) color.RGBA {
 func getDefaultBands() []Band {
 	return []Band{
 		{Name: "2.4GHz", Color: "#8B4513"},
-		{Name: "5GHz", Color: "#5A6A8A"},
+		{Name: "5GHz", Color: "#5a82c2ff"},
 		{Name: "6GHz", Color: "#CD5C5C"},
 	}
 }

@@ -88,8 +88,8 @@
 													"TimeStamp":	"2025-07-31T01:37:50Z",
 													"VapMode":	0,
 													"STAList":      [{
-                                                                "MACAddress":   "1A:a1:98:7f:98:a1",
-																"ClientType":   "Android",
+                                                                "MACAddress":   "1a:a1:98:7f:98:a1",
+																"ClientType":   "Android - Pixel-7-Pro",
                                                                 "Associated":   true,
                                                                 "Neighbors":    [],
                                                                 "LastDataUplinkRate":   0,
@@ -236,7 +236,7 @@
 													"VapMode":	0,
 													"STAList":      [{
                                                                 "MACAddress":   "12:a0:98:7f:98:a7",
-																"ClientType":   "iPad",
+																"ClientType":   "Apple iPad",
                                                                 "Associated":   true,
                                                                 "Neighbors":    [],
                                                                 "LastDataUplinkRate":   0,
@@ -379,8 +379,8 @@
 													"TimeStamp":	"2025-07-31T01:37:50Z",
 													"VapMode":	0,
 													"STAList":      [{
-                                                                "MACAddress":   "01:70:10:Af:FF:D2",
-																"ClientType":   "iPhone",
+                                                                "MACAddress":   "01:70:10:af:ff:d2",
+																"ClientType":   "Apple iPhone 14",
                                                                 "Associated":   true,
                                                                 "Neighbors":    [],
                                                                 "LastDataUplinkRate":   0,
