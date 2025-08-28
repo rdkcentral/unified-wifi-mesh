@@ -365,8 +365,8 @@ int dm_policy_list_t::sync_db(db_client_t& db_client, void *ctx)
         policy.def_8021q_settings.primary_vid = static_cast<unsigned short>(db_client.get_number(ctx, 15));
         policy.def_8021q_settings.default_pcp = static_cast<unsigned char>(db_client.get_number(ctx, 16));
         for (i = 0; i < em_haul_type_max; i++) {
-            db_client.get_string(ctx, policy.traffic_separ.ssid_info[i].ssid, (17 + i));
-            policy.traffic_separ.ssid_info[i].vlan_id = static_cast<unsigned char>(db_client.get_number(ctx, (18 + i)));
+            db_client.get_string(ctx, policy.traffic_separ.ssid_info[i].ssid, (17 + (2*i)));
+            policy.traffic_separ.ssid_info[i].vlan_id = static_cast<unsigned char>(db_client.get_number(ctx, (18 + (2*i))));
         }
         
 		update_list(dm_policy_t(&policy), dm_orch_type_db_insert);
@@ -403,7 +403,7 @@ void dm_policy_list_t::init_columns()
     m_columns[m_num_cols++] = db_column_t("PrimaryVlanId", db_data_type_tinyint, 0);
     m_columns[m_num_cols++] = db_column_t("DefaultPcp", db_data_type_tinyint, 0);
 
-    for (int i = 0; i < em_haul_type_max-1; i++) {
+    for (int i = 0; i < em_haul_type_max; i++) {
         snprintf(col_name, sizeof(col_name), "SSID_%d", i);
         m_columns[m_num_cols++] = db_column_t(col_name, db_data_type_char, 64);
         snprintf(col_name, sizeof(col_name), "VlanId_%d", i);

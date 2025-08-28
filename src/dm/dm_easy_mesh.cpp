@@ -2591,27 +2591,11 @@ void dm_easy_mesh_t::set_policy(dm_policy_t policy)
 
     for (i = 0; i < m_num_policy; i++) {
         ppolicy = &m_policy[i];
-        /*printf("Checking policy index %d\n", i);
-        printf("Input policy: net_id=%s, dev_mac=%02x:%02x:%02x:%02x:%02x:%02x, radio_mac=%02x:%02x:%02x:%02x:%02x:%02x, type=%d\n",
-            policy.m_policy.id.net_id,
-            policy.m_policy.id.dev_mac[0], policy.m_policy.id.dev_mac[1], policy.m_policy.id.dev_mac[2],
-            policy.m_policy.id.dev_mac[3], policy.m_policy.id.dev_mac[4], policy.m_policy.id.dev_mac[5],
-            policy.m_policy.id.radio_mac[0], policy.m_policy.id.radio_mac[1], policy.m_policy.id.radio_mac[2],
-            policy.m_policy.id.radio_mac[3], policy.m_policy.id.radio_mac[4], policy.m_policy.id.radio_mac[5],
-            policy.m_policy.id.type);
-        printf("Existing policy: net_id=%s, dev_mac=%02x:%02x:%02x:%02x:%02x:%02x, radio_mac=%02x:%02x:%02x:%02x:%02x:%02x, type=%d\n",
-            ppolicy->m_policy.id.net_id,
-            ppolicy->m_policy.id.dev_mac[0], ppolicy->m_policy.id.dev_mac[1], ppolicy->m_policy.id.dev_mac[2],
-            ppolicy->m_policy.id.dev_mac[3], ppolicy->m_policy.id.dev_mac[4], ppolicy->m_policy.id.dev_mac[5],
-            ppolicy->m_policy.id.radio_mac[0], ppolicy->m_policy.id.radio_mac[1], ppolicy->m_policy.id.radio_mac[2],
-            ppolicy->m_policy.id.radio_mac[3], ppolicy->m_policy.id.radio_mac[4], ppolicy->m_policy.id.radio_mac[5],
-            ppolicy->m_policy.id.type);*/
-
-        temp = ((strncmp(policy.m_policy.id.net_id, ppolicy->m_policy.id.net_id, strlen(policy.m_policy.id.net_id) == 0)) &&
+        temp = ((strncmp(policy.m_policy.id.net_id, ppolicy->m_policy.id.net_id, strlen(policy.m_policy.id.net_id)) == 0) &&
                 (memcmp(policy.m_policy.id.dev_mac, ppolicy->m_policy.id.dev_mac, sizeof(mac_address_t)) == 0) &&
                 (memcmp(policy.m_policy.id.radio_mac, ppolicy->m_policy.id.radio_mac, sizeof(mac_address_t)) == 0));
 
-        if ( (temp == 0) && (policy.m_policy.id.type == ppolicy->m_policy.id.type) ) {
+        if ( (temp == true) && (policy.m_policy.id.type == ppolicy->m_policy.id.type) ) {
             found_match = true;
             break;
         }

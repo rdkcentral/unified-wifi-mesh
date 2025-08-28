@@ -103,7 +103,7 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
 			m_policy.def_8021q_settings.default_pcp = static_cast<unsigned char>(tmp->valuedouble);
 		}
 	} else if (type == em_policy_id_type_traffic_separation) {
-		if ((arr_obj = cJSON_GetObjectItem(obj, "Traffic Separtion")) == NULL) {
+		if ((arr_obj = cJSON_GetObjectItem(obj, "Traffic Separation")) == NULL) {
 			return 0;
 		}
 
@@ -117,7 +117,6 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
 				m_policy.traffic_separ.ssid_info->vlan_id = static_cast<unsigned short>(tmp->valuedouble);
 			}
 		}
-	//} else if () {
 	} else if (type == em_policy_id_type_channel_scan) {
     	if ((tmp = cJSON_GetObjectItem(obj, "Report Independent Channel Scans")) != NULL) {
    			m_policy.independent_scan_report = tmp->valuedouble;
@@ -164,7 +163,7 @@ void dm_policy_t::encode(cJSON *obj, em_policy_id_type_t id)
 		cJSON_AddNumberToObject(obj, "Primary VLAN ID", m_policy.def_8021q_settings.primary_vid);
 		cJSON_AddNumberToObject(obj, "Default PCP", m_policy.def_8021q_settings.default_pcp);
 	} else if (id == em_policy_id_type_traffic_separation) {
-		sta_arr_obj = cJSON_AddArrayToObject(obj, "Traffic Separtion");
+		sta_arr_obj = cJSON_AddArrayToObject(obj, "Traffic Separation");
 		for (i = 0; i < em_haul_type_max; i++) {
 			cJSON_AddStringToObject(obj, "SSID Name", m_policy.traffic_separ.ssid_info[i].ssid);
 			cJSON_AddNumberToObject(obj, "VLAN ID", m_policy.traffic_separ.ssid_info[i].vlan_id);
