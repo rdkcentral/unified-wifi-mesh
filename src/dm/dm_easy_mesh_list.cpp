@@ -1494,7 +1494,7 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
 						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 							em_policy_id_type_traffic_separation}, 0, {}, em_steering_policy_type_unknown,
 							0, 0, 0, 0, false, false, false, "", false, false, false, {41, 3},
-							{4, {{12, "private_ssid", 12},
+							{5, {{12, "private_ssid", 12},
 								{13, "mesh_backhaul", 13},
 								{8, "iot_ssid", 14},
 								{10, "lnf_radius", 15},

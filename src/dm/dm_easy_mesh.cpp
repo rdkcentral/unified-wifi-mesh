@@ -2587,7 +2587,7 @@ void dm_easy_mesh_t::set_policy(dm_policy_t policy)
 	unsigned int i = 0;
 	dm_policy_t *ppolicy;
 	bool found_match = false;
-    int temp = 0;
+	bool temp = 0;
 
     for (i = 0; i < m_num_policy; i++) {
         ppolicy = &m_policy[i];
