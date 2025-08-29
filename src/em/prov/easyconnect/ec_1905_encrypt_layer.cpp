@@ -772,6 +772,7 @@ std::pair<uint8_t*, size_t> ec_1905_encrypt_layer_t::append_key_data_buff(uint8_
     }
     uint8_t* new_frame = reinterpret_cast<uint8_t*>(realloc(eapol_frame, new_frame_size));
     EM_ASSERT_NOT_NULL(new_frame, {}, "Failed to allocate memory for EAPOL frame with KDE");
+    memset(new_frame + eapol_frame_size, 0, new_frame_size - eapol_frame_size); // Zero out the new part of the frame
 
     eapol_packet_t* eapol_packet = reinterpret_cast<eapol_packet_t*>(new_frame + sizeof(ieee802_1x_hdr_t));
 
@@ -787,6 +788,7 @@ std::pair<uint8_t*, size_t> ec_1905_encrypt_layer_t::append_key_data_buff(uint8_
 
     key_data_len += static_cast<uint16_t>(kde_len); // Add New KDE length to key data length
 
+    em_printfout("DEBUG: Writing key_data_len=%u to packet at offset %ld", key_data_len, (data_ptr - reinterpret_cast<uint8_t*>(new_frame)));
     memcpy(data_ptr, &key_data_len, sizeof(uint16_t)); // Update Key Data Length in EAPOL packet
     data_ptr += sizeof(uint16_t); // Move pointer to Key Data field 
 
@@ -848,12 +850,14 @@ std::pair<uint8_t *, size_t> ec_1905_encrypt_layer_t::encrypt_key_data(ec_1905_k
     uint8_t* wrapped_key_data = reinterpret_cast<uint8_t*>(calloc(new_key_data_len+8, 1)); // +8 for integrity check
     uint32_t wrapped_key_data_len = 0;
 
+    em_printfout("DEBUG: Calling aes_key_wrap with plain_len=%zu", new_key_data_len);
     if (!em_crypto_t::aes_key_wrap(ctx.ptk_kek, kek_bits / 8, key_data_plain_copy, static_cast<uint32_t>(new_key_data_len), wrapped_key_data, &wrapped_key_data_len)){
         em_printfout("Failed to encrypt Key Data using AES Key Wrap");
         free(wrapped_key_data);
         free(key_data_plain_copy);
         return {};
     }
+    em_printfout("DEBUG: aes_key_wrap returned wrapped_len=%u", wrapped_key_data_len);
     free(key_data_plain_copy);
     return {wrapped_key_data, wrapped_key_data_len};
 }
@@ -1149,12 +1153,14 @@ std::pair<uint8_t*, size_t> ec_1905_encrypt_layer_t::build_pw_eapol_frame_3(ec_1
     key_data_len = sizeof(eapol_kde_t) + sizeof(gtk_1905_kde_t);
 
 
+    em_printfout("DEBUG: Encrypting key_data_len=%zu bytes for frame 3", key_data_len);
     auto [wrapped_key_data, wrapped_key_data_len] = encrypt_key_data(ctx, key_data_plain, key_data_len);
     if (wrapped_key_data == NULL || wrapped_key_data_len == 0) {
         em_printfout("Failed to encrypt Key Data for EAPOL frame 3 in 4-way handshake with '%s'", util::mac_to_string(m_al_mac_addr.data()).c_str());
         free(eapol_frame);
         return {};
     }
+    em_printfout("DEBUG: Wrapped key data length=%zu for frame 3", wrapped_key_data_len);
 
     // Add encrypted Key Data to the EAPOL frame
     auto [final_eapol_frame, final_eapol_frame_size] = append_key_data_buff(eapol_frame, eapol_frame_size, wrapped_key_data, wrapped_key_data_len, true);
@@ -1590,8 +1596,20 @@ bool ec_1905_encrypt_layer_t::handle_pw_eapol_frame_3(ec_1905_key_ctx &ctx, uint
     // The wrapped key data is located after the MIC and the length field in the EAPOL packet
     uint16_t mic_len_bytes = mic_kck_bits / 8; // Length of the MIC in bytes
     uint16_t wrapped_len = 0;
-    memcpy(&wrapped_len, eapol_packet->mic_len_key + mic_len_bytes, sizeof(uint16_t));
+    uint8_t* len_ptr = eapol_packet->mic_len_key + mic_len_bytes;
+    memcpy(&wrapped_len, len_ptr, sizeof(uint16_t));
+    em_printfout("DEBUG: Read wrapped_len=%u (0x%04X) from offset %ld, bytes: 0x%02X 0x%02X", 
+                 wrapped_len, wrapped_len, 
+                 (len_ptr - reinterpret_cast<uint8_t*>(frame)),
+                 len_ptr[0], len_ptr[1]);
     uint8_t* wrapped_data = eapol_packet->mic_len_key + mic_len_bytes + sizeof(uint16_t); 
+    
+    // Validate wrapped_len is reasonable (GTK + KDE overhead should be < 256 bytes)
+    if (wrapped_len > 256) {
+        em_printfout("ERROR: Invalid wrapped_len=%u (0x%04X) in frame 3, rejecting packet from '" MACSTRFMT "'", 
+                     wrapped_len, wrapped_len, MAC2STR(src_mac));
+        return false;
+    }
     
     auto [unwrapped_key_data, unwrapped_key_data_len] = decrypt_key_data(ctx, wrapped_data, wrapped_len);
     if (unwrapped_key_data == nullptr || unwrapped_key_data_len == 0) {
@@ -1747,9 +1765,20 @@ bool ec_1905_encrypt_layer_t::handle_group_eapol_frame_1(ec_1905_key_ctx &ctx, u
     // The wrapped key data is located after the MIC and the length field in the EAPOL packet
     uint16_t mic_len_bytes = mic_kck_bits / 8; // Length of the MIC in bytes
     uint16_t wrapped_len = 0;
-    memcpy(&wrapped_len, eapol_packet->mic_len_key + mic_len_bytes, sizeof(uint16_t));
+    uint8_t* len_ptr = eapol_packet->mic_len_key + mic_len_bytes;
+    memcpy(&wrapped_len, len_ptr, sizeof(uint16_t));
+    em_printfout("DEBUG: Read wrapped_len=%u (0x%04X) from offset %ld, bytes: 0x%02X 0x%02X", 
+                 wrapped_len, wrapped_len, 
+                 (len_ptr - reinterpret_cast<uint8_t*>(frame)),
+                 len_ptr[0], len_ptr[1]);
     uint8_t* wrapped_data = eapol_packet->mic_len_key + mic_len_bytes + sizeof(uint16_t); 
     
+    // Validate wrapped_len is reasonable (GTK + KDE overhead should be < 256 bytes)
+    if (wrapped_len > 256) {
+        em_printfout("ERROR: Invalid wrapped_len=%u (0x%04X) in group frame 1, rejecting packet from '" MACSTRFMT "'", 
+                     wrapped_len, wrapped_len, MAC2STR(src_mac));
+        return false;
+    }
 
     auto [unwrapped_key_data, unwrapped_len] = decrypt_key_data(ctx, wrapped_data, wrapped_len);
     if (unwrapped_key_data == nullptr || unwrapped_len == 0) {
