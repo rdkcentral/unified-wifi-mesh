@@ -2104,6 +2104,125 @@ unsigned short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_ty
     return len;
 }
 
+typedef enum
+{
+    wifi_security_mode_wps_none = 0x0001, /**< No security. */
+    wifi_security_mode_wps_wpa_personal = 0x0002, /**< WPA Personal. */
+    wifi_security_mode_wps_shared = 0x0004, /**< Shared. */
+    wifi_security_mode_wps_wpa_enterprise = 0x0008, /**< WPA Enterprise. */
+    wifi_security_mode_wps_wpa2_enterprise = 0x0010, /**< WPA2 Enterprise. */
+    wifi_security_mode_wps_wpa2_personal = 0x0020, /**< WPA2 Personal. */
+    wifi_security_mode_wps_sae_m8 = 0x0040, /**< SAE with AKM8. */
+    wifi_security_mode_wps_dpp = 0x0080, /**< DPP AKM. */
+    wifi_security_mode_wps_sae_24 = 0x0100, /**< SAE with AKM24. */
+} wifi_security_modes_wps_t;
+
+struct security_mapping_table_t {
+    std::vector<std::string> keys;
+    uint16_t mode;
+};
+
+static const std::vector<security_mapping_table_t> security_map = {
+    { { "wpa-psk" },                  wifi_security_mode_wps_wpa_personal },
+    { { "wpa2-psk" },                 wifi_security_mode_wps_wpa2_personal },
+    { { "wpa2-eap" },                 wifi_security_mode_wps_wpa2_enterprise },
+    { { "sae" },                      wifi_security_mode_wps_sae_24 }, // WPA 3 - Personal
+    { { "wpa-eap" },                  wifi_security_mode_wps_wpa_enterprise },
+    { { "wpa-eap", "wpa2-eap" },      wifi_security_mode_wps_wpa2_enterprise },
+    { { "wpa2-psk", "sae" },          wifi_security_mode_wps_wpa2_personal | wifi_security_mode_wps_sae_m8 },
+    { { "wpa-psk", "wpa2-psk" },      wifi_security_mode_wps_wpa2_personal },
+    { { "wpa2-psk", "sae", "rsno" },  wifi_security_mode_wps_wpa2_personal | wifi_security_mode_wps_sae_m8 },
+    { { "dpp" },                      wifi_security_mode_wps_dpp }
+};
+
+
+uint16_t convert_akm_strings_to_wps_authtype(std::vector<std::string> akm_strings)
+
+{
+    if (akm_strings.empty()) {
+        return 0; // No AKM strings provided
+    }
+    
+    // Both `akm_strings` and `security_map` keys are expected to have few elements so 
+    // the actual complexity of this nested loop is not a concern.
+    for (const auto& entry : security_map) {
+        if (entry.keys.size() != akm_strings.size()) {
+            continue;
+        }
+        // All AKMs in akm_strings must be present in entry key
+        for (const auto& akm : akm_strings) {
+            if (std::find(entry.keys.begin(), entry.keys.end(), akm) == entry.keys.end()) {
+                break;
+            }
+            if (&akm == &akm_strings.back()) {
+                return entry.mode;
+            }
+        }
+    }
+
+    return 0;
+}
+
+uint16_t convert_akm_strings_to_wps_authtype(const em_short_string_t akm_array[], size_t akm_count)
+{
+    if (akm_count == 0 || akm_array == nullptr) {
+        return 0; // No AKM strings provided
+    }
+    
+    // Both `akm_array` and `security_map` keys are expected to have few elements so 
+    // the actual complexity of this nested loop is not a concern.
+    for (const auto& entry : security_map) {
+        // All AKMs in akm_array must be present in entry key
+        // This assumes they are in order
+        if (entry.keys.size() != akm_count) {
+            continue;
+        }
+        size_t matching_akm_count = 0;
+        for (size_t i = 0; i < akm_count; ++i) {
+            if (strcmp(entry.keys[i].c_str(), akm_array[i]) == 0) {
+                matching_akm_count++;
+            }
+        }
+        if (matching_akm_count == akm_count) {
+            return entry.mode;
+        }
+    }
+    
+    return 0;
+}
+
+std::vector<std::string> convert_wps_authtype_to_akm_strings(uint16_t authtype)
+{
+    std::set<std::string> result;
+    
+    // First try exact match for efficiency (handles common single combinations)
+    for (const auto& entry : security_map) {
+        if (authtype == entry.mode) {
+            for (const auto& key : entry.keys) {
+                result.insert(key);
+            }
+            return std::vector<std::string>(result.begin(), result.end());
+        }
+    }
+    
+    // If no exact match, decompose into individual flags and collect all corresponding AKMs
+    uint16_t remaining_flags = authtype;
+    
+    // Process each entry in security_map to see if its mode is a subset of authtype
+    for (const auto& entry : security_map) {
+        if (entry.mode != 0 && (remaining_flags & entry.mode) == entry.mode) {
+            // This entry's mode is fully contained in authtype
+            for (const auto& key : entry.keys) {
+                result.insert(key);
+            }
+            // Remove these flags from remaining_flags to avoid double-counting
+            remaining_flags &= ~entry.mode;
+        }
+    }
+    
+    return std::vector<std::string>(result.begin(), result.end());
+}
+
 unsigned short em_configuration_t::create_m1_msg(unsigned char *buff)
 {
     data_elem_attr_t *attr;
@@ -2174,12 +2293,36 @@ unsigned short em_configuration_t::create_m1_msg(unsigned char *buff)
     len += static_cast<unsigned short int> (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
 
-    // auth type flags  
+    // auth type flags
+
+    // Add fronthaul and backhaul AKMs of all BSSs on a radio to
+    // a set (to prevent duplicates)
+    uint16_t auth_flags = 0;
+    dm_easy_mesh_t *dm = get_current_cmd()->get_data_model();
+    for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
+        em_bss_info_t *bss_info = dm->get_bss_info(i);
+        if (bss_info == NULL) continue;
+
+        uint16_t fh_auth_flags = convert_akm_strings_to_wps_authtype(bss_info->fronthaul_akm, bss_info->num_fronthaul_akms);
+        if (fh_auth_flags == 0) {
+            em_printfout("Warning: Could not map fronthaul AKM strings to WPS auth type for BSS %s", bss_info->ssid);
+        }
+
+        uint16_t bh_auth_flags = convert_akm_strings_to_wps_authtype(bss_info->backhaul_akm, bss_info->num_backhaul_akms);
+        if (bh_auth_flags == 0) {
+            em_printfout("Warning: Could not map backhaul AKM strings to WPS auth type for BSS %s", bss_info->ssid);
+        }
+        auth_flags |= (fh_auth_flags | bh_auth_flags);
+    }
+
+    em_printfout("WPS Auth Flags: 0x%04x", auth_flags);
+    auth_flags = htons(auth_flags);
+
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_auth_type_flags);
-    size = sizeof(unsigned short);
+    size = sizeof(auth_flags);
     attr->len = htons(size);
-    memcpy(attr->val, &get_device_info()->sec_1905.auth_flags, size);
+    memcpy(attr->val, &auth_flags, size);
     
     len += static_cast<unsigned short int> (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -2404,6 +2547,7 @@ int em_configuration_t::create_bss_config_req_msg(uint8_t *buff, uint8_t dest_al
 
     //  One BSS Configuration Request TLV with DPP attribute(s) for all supported radios of the Multi-AP Agent.
     tlv_size = create_bss_conf_req_tlv(tlv_buff); // Data
+    EM_ASSERT_MSG_TRUE(tlv_size > 0, -1, "Failed to create BSS Configuration Request TLV");
     tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_bss_conf_req, tlv_buff, static_cast<unsigned int> (tlv_size));
 
     //  One AP HT Capabilities TLV for each radio that is capable of HT (Wi-Fi 4) operation.
@@ -2628,11 +2772,81 @@ int em_configuration_t::create_akm_suite_cap_tlv(uint8_t *buff)
     dm_easy_mesh_t *dm = get_data_model();
     ASSERT_NOT_NULL(dm, -1, "%s:%d: Data model is null\n", __func__, __LINE__);
 
-    // TODO: AKM suites are not populated in the data model.
+    em_akm_suite_info_t *akm_suite_info = reinterpret_cast<em_akm_suite_info_t *>(buff);
 
-    // Complete this TLV (EasyMesh 12.2.78) when this data is dynamically available.
+    std::set<std::string> fh_akms;
+    std::set<std::string> bh_akms;
 
-    return 0;
+    for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
+        em_bss_info_t *bss_info = dm->get_bss_info(i);
+        em_printfout("Processing BSS %d with BSSID: %s", i, util::mac_to_string(bss_info->bssid.mac).c_str());
+        if (bss_info == NULL) continue;
+
+        for (int i = 0; i < bss_info->num_fronthaul_akms; i++) {
+            fh_akms.insert(bss_info->fronthaul_akm[i]);
+        }
+        for (int i = 0; i < bss_info->num_backhaul_akms; i++) {
+            bh_akms.insert(bss_info->backhaul_akm[i]);
+        }
+
+        em_printfout("Fronthaul AKMs so far:");
+        for (const auto& akm : fh_akms) {
+            printf(" %s", akm.c_str());
+        }
+        printf("\n");
+        em_printfout("Backhaul AKMs so far:");
+        for (const auto& akm : bh_akms) {
+            printf(" %s", akm.c_str());
+        }
+        printf("\n");
+    }
+
+    std::vector<std::string> fh_akms_vec(fh_akms.begin(), fh_akms.end());
+    std::vector<std::string> bh_akms_vec(bh_akms.begin(), bh_akms.end());
+
+    em_printfout("Fronthaul AKMs:");
+    for (const auto& akm : fh_akms_vec) {
+        printf(" %s", akm.c_str());
+    }
+    printf("\n");
+    em_printfout("Backhaul AKMs:");
+    for (const auto& akm : bh_akms_vec) {
+        printf(" %s", akm.c_str());
+    }
+    printf("\n");
+
+
+    size_t tlv_size = sizeof(uint8_t) + sizeof(uint8_t); // Size of the `Num_BackAKM` and `Num_FrontAKM` fields
+    tlv_size += (sizeof(em_fh_akm_suite_t) * fh_akms_vec.size()); // Size of fronthaul AKM suites
+    tlv_size += (sizeof(em_bh_akm_suite_t) * bh_akms_vec.size()); // Size of backhaul AKM suites
+
+    memset(buff, 0, tlv_size);
+
+    akm_suite_info->bh_akm_suite_count = static_cast<uint8_t>(bh_akms_vec.size());
+
+    uint8_t* ptr = reinterpret_cast<uint8_t*>(akm_suite_info->bh_fh_data);
+    // Copy backhaul AKMs
+    for (size_t i = 0; i < bh_akms_vec.size(); i++) {
+        std::vector<uint8_t> bh_akm_bytes = util::akm_to_bytes(bh_akms_vec[i]);
+        em_printfout("Backhaul AKM %d", i);
+        util::print_hex_dump(bh_akm_bytes);
+        memcpy(ptr, bh_akm_bytes.data(), bh_akm_bytes.size());
+        ptr += sizeof(em_bh_akm_suite_t);
+    }
+
+    *ptr = static_cast<uint8_t>(fh_akms_vec.size());
+    ptr+=sizeof(uint8_t);
+
+    // Copy fronthaul AKMs
+    for (size_t i = 0; i < fh_akms_vec.size(); i++) {
+        std::vector<uint8_t> fh_akm_bytes = util::akm_to_bytes(fh_akms_vec[i]);
+        em_printfout("Fronthaul AKM %d", i);
+        util::print_hex_dump(fh_akm_bytes);
+        memcpy(ptr, fh_akm_bytes.data(), fh_akm_bytes.size());
+        ptr += sizeof(em_fh_akm_suite_t);
+    }
+
+    return static_cast<int>(tlv_size);
 }
 
 int em_configuration_t::create_bss_conf_req_tlv(uint8_t *buff)
@@ -3341,6 +3555,30 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
             set_e_public(attr->val, htons(attr->len));
             //printf("%s:%d: enrollee public key length:%d\n", __func__, __LINE__, htons(attr->len));
         } else if (id == attr_id_auth_type_flags) {
+            uint16_t auth_flags = 0;
+            memcpy(&auth_flags, attr->val, sizeof(uint16_t));
+            auth_flags = ntohs(auth_flags);
+            std::vector<std::string> akms = convert_wps_authtype_to_akm_strings(auth_flags);
+            em_printfout("Recieved AKMs: (0x%04x)", auth_flags);
+            for (auto &akm : akms) {
+                printf(" %s", akm.c_str());
+            }
+            printf("\n");
+            if (akms.size() > 0) {
+                for (unsigned int i = 0; i < radio->get_radio_info()->number_of_bss; i++) {
+                    em_bss_info_t* bss_info = dm->get_bss_info(i);
+                    if (bss_info != NULL) {
+                        bss_info->num_fronthaul_akms = static_cast<uint8_t>(akms.size());
+                        bss_info->num_backhaul_akms = static_cast<uint8_t>(akms.size());
+                        em_printfout("BSS %u, Set %zu FH AKMs, Set %zu BH AKMs", i, akms.size(), akms.size());
+                        for (size_t i = 0; i < akms.size(); i++){
+                            snprintf(bss_info->fronthaul_akm[i], sizeof(em_short_string_t), "%s", akms[i].c_str());
+                            snprintf(bss_info->backhaul_akm[i], sizeof(em_short_string_t), "%s", akms[i].c_str());
+                        }
+                    }
+                }
+			    dm->set_db_cfg_param(db_cfg_type_bss_list_update, "");
+            }
         } else if (id == attr_id_encryption_type_flags) {
         } else if (id == attr_id_conn_type_flags) {
         } else if (id == attr_id_cfg_methods) {
@@ -3615,6 +3853,9 @@ int em_configuration_t::handle_bss_config_req_msg(uint8_t *buff, unsigned int le
                 break;
             case em_tlv_type_akm_suite:
                  // Not handled by UWM right now?
+                em_printfout("Processing AKM Suite Capabilities TLV");
+                // TODO: HANDLE AKM Suite Capabilities TLV
+                util::print_hex_dump(ntohs(tlv->len), tlv->value);
                 break;
             case em_tlv_type_profile_2_ap_cap:
                 // Not handled by UWM right now?
@@ -3859,11 +4100,22 @@ int em_configuration_t::handle_bss_config_rsp_tlv(em_tlv_t* tlv, m2ctrl_radiocon
     While I am setting the DPP Connector here, I am also setting the PSK since OneWifi currently doesn't do anything with the DPP Connector
     and the PSK is needed.
     */
-    // TODO: CONVERT AKM TO AUTH TYPE
-    uint16_t auth_type = 0x0010;
-    	if (get_band() == 2) {
-		auth_type = 0x0200;
-	}
+    
+
+    // The AKM recieved "should" be valid, but it's not because the controller doesn't recieved information from the BSSes.
+    // Since this information is initialized by OneWifi, we're just going to use it here, like how they do in other areas...
+   
+    std::vector<std::string> akm_ouis = util::split_by_delim(akm, '+');
+    uint16_t auth_type = 0;
+    for (const auto& akm_oui : akm_ouis) {
+        std::string akm_str = util::oui_to_akm(akm_oui);
+        if (akm_str.empty()) {
+            em_printfout("Received invalid AKM OUI in BSS Configuration Response TLV: %s", akm_oui.c_str());
+            continue;
+        }
+        auth_type |= convert_akm_strings_to_wps_authtype({akm_str});
+        em_printfout("Converted AKM OUI '%s'. Current Auth Type: 0x%04x", akm_oui.c_str(), auth_type);
+    }
 
     radioconfig.authtype[bss_count] = static_cast<unsigned int>(auth_type);
     memcpy(radioconfig.password[bss_count], pass.c_str(), sizeof(radioconfig.password[bss_count]));
@@ -3974,6 +4226,24 @@ int em_configuration_t::handle_bss_config_rsp_msg(uint8_t *buff, unsigned int le
 
     radioconfig.noofbssconfig = bss_count;
     radioconfig.freq = get_band();
+
+    // DEBUG: Print the radio configuration
+    em_printfout("Radio Config: ");
+    printf("\tFrequency: %d\n", radioconfig.freq);
+    for (unsigned int i = 0; i < bss_count; i++) {
+        printf("\tBSS %u:\n", i);
+        bool is_enabled = radioconfig.enable[i];
+        printf("\t\tEnabled: %s\n", is_enabled ? "true" : "false");
+        if (!is_enabled) continue;
+        printf("\t\tHaul Type: %d\n", radioconfig.haultype[i]);
+        printf("\t\tSSID: %s\n", radioconfig.ssid[i]);
+        printf("\t\tPassword: %s\n", radioconfig.password[i]);
+        printf("\t\tAuth Type: %u\n", radioconfig.authtype[i]);
+        printf("\t\tRadio MAC: " MACSTRFMT "\n", MAC2STR(radioconfig.radio_mac[i]));
+        printf("\t\tBSSID (expected empty): " MACSTRFMT "\n", MAC2STR(radioconfig.bssid_mac[i]));
+        printf("\t\tDPP Connector: %s\n", radioconfig.dpp_connector[i]);
+        printf("\t\tKey Wrap Authenticator (expected 0): %d\n", radioconfig.key_wrap_authenticator[i]);
+    }
 
     get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (&radioconfig), sizeof(radioconfig));
     set_state(em_state_agent_owconfig_pending);
