@@ -1647,7 +1647,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
 {
     //dm_orch_type_t type = dm_orch_type_none;
     dm_device_t device;
-    dm_radio_t radio;
+    dm_radio_t *radio;
     dm_op_class_t op_class;
 	dm_policy_t	policy;
 	dm_scan_result_t	*scan_result;
@@ -1699,11 +1699,11 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
         device = dm->get_device_by_ref();
         dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (device.m_device_info.intf.mac), dev_mac_str);
         for (i = 0; i < dm->get_num_radios(); i++) {
-            radio = dm->get_radio_by_ref(i);
-        	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (radio.m_radio_info.intf.mac), radio_mac_str);
+            radio = dm->get_radio(i);
+            dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (radio->m_radio_info.intf.mac), radio_mac_str);
             snprintf(parent, sizeof(em_2xlong_string_t), "%s@%s@%s", device.m_device_info.id.net_id, dev_mac_str, radio_mac_str);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_radio_list_update);
-            if (dm_radio_list_t::set_config(m_db_client, radio, parent) != 0) {
+            if (dm_radio_list_t::set_config(m_db_client, *radio, parent) != 0) {
                 at_least_one_failed = true;;
             }
         }
@@ -1718,15 +1718,15 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
         device = dm->get_device_by_ref();
         dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (device.m_device_info.intf.mac), dev_mac_str);
         for (i = 0; i < dm->get_num_radios(); i++) {
-            radio = dm->get_radio_by_ref(i);
-        	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (radio.m_radio_info.intf.mac), radio_mac_str);
+            radio = dm->get_radio(i);
+            dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (radio->m_radio_info.intf.mac), radio_mac_str);
             snprintf(parent, sizeof(em_2xlong_string_t), "%s@%s@%s", device.m_device_info.id.net_id, dev_mac_str, radio_mac_str);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_radio_list_delete);
 			if (dm->get_radio(i) &&
 				dm_radio_list_t::update_db(m_db_client, dm_orch_type_db_delete, dm->get_radio(i)->get_radio_info()) != 0) {
                 at_least_one_failed = true;
             }
-			dm_radio_list_t::update_list(radio, dm_orch_type_db_delete);
+			dm_radio_list_t::update_list(*radio, dm_orch_type_db_delete);
         }
         if (at_least_one_failed == true) {
             at_least_one_failed = false;

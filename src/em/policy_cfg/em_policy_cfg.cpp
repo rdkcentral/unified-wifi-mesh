@@ -220,6 +220,47 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
 	return static_cast<short> (len);
 }
 
+short em_policy_cfg_t::create_def_8021q_settings_policy_tlv(unsigned char *buff)
+{
+    size_t len = 0;
+
+    return static_cast<short> (len);
+}
+
+short em_policy_cfg_t::create_traffic_sep_policy_tlv(unsigned char *buff)
+{
+    size_t len = 0;
+
+    return static_cast<short> (len);
+}
+
+short em_policy_cfg_t::create_chan_scan_report_policy_tlv(unsigned char *buff)
+{
+    size_t len = 0;
+
+    return static_cast<short> (len);
+}
+
+short em_policy_cfg_t::create_unsucc_assoc_policy_tlv(unsigned char *buff)
+{
+    size_t len = 0;
+
+    return static_cast<short> (len);
+}
+
+short em_policy_cfg_t::create_backhaul_bss_conf_policy_tlv(unsigned char *buff)
+{
+    size_t len = 0;
+
+    return static_cast<short> (len);
+}
+short em_policy_cfg_t::create_qos_mgt_policy_tlv(unsigned char *buff)
+{
+    size_t len = 0;
+
+    return static_cast<short> (len);
+}
+
 short em_policy_cfg_t::create_vendor_policy_cfg_tlv(unsigned char *buff)
 {
     size_t len = 0;
@@ -301,6 +342,60 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_metric_reporting_policy;
     sz = create_metrics_rep_policy_tlv(tlv->value);
+    tlv->len = htons(static_cast<short unsigned int> (sz));
+
+    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+
+    // Zero or one Default 802.1Q Settings TLV (see section 17.2.49).
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_dflt_8021q_settings;
+    sz = create_def_8021q_settings_policy_tlv(tlv->value);
+    tlv->len = htons(static_cast<short unsigned int> (sz));
+
+    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+
+    // Zero or one Traffic Separation Policy TLV (see section 17.2.50).
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_traffic_separation_policy;
+    sz = create_traffic_sep_policy_tlv(tlv->value);
+    tlv->len = htons(static_cast<short unsigned int> (sz));
+
+    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+
+    // Zero or one Channel Scan Reporting Policy TLV (see section 17.2.37).
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_channel_scan_rprt_policy;
+    sz = create_chan_scan_report_policy_tlv(tlv->value);
+    tlv->len = htons(static_cast<short unsigned int> (sz));
+
+    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+
+    // Zero or one Unsuccessful Association Policy TLV (see section 17.2.58).
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_unsucc_assoc_policy;
+    sz = create_unsucc_assoc_policy_tlv(tlv->value);
+    tlv->len = htons(static_cast<short unsigned int> (sz));
+
+    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+
+    // Zero or more Backhaul BSS Configuration TLV (see section 17.2.66).
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_backhaul_bss_conf;
+    sz = create_backhaul_bss_conf_policy_tlv(tlv->value);
+    tlv->len = htons(static_cast<short unsigned int> (sz));
+
+    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+
+    // Zero or more QoS Management Policy TLVs (see section 17.2.92)
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_qos_mgmt_policy;
+    sz = create_qos_mgt_policy_tlv(tlv->value);
     tlv->len = htons(static_cast<short unsigned int> (sz));
 
     tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));

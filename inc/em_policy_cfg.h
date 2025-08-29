@@ -160,7 +160,85 @@ public:
 	 * @note Ensure that the buffer is large enough to hold the TLV.
 	 */
 	short create_metrics_rep_policy_tlv(unsigned char *buff);
-    
+
+	/**!
+	 * @brief Creates a default 802.1q settings policy TLV.
+	 *
+	 * This function generates a default 802.1q settings TLV (Type-Length-Value) and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns short The length of the created TLV.
+	 *
+	 * @note Ensure that the buffer is large enough to hold the TLV.
+	 */
+	short create_def_8021q_settings_policy_tlv(unsigned char *buff);
+
+	/**!
+	 * @brief Creates a traffic separation policy TLV.
+	 *
+	 * This function generates a traffic separation policy TLV (Type-Length-Value) and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns short The length of the created TLV.
+	 *
+	 * @note Ensure that the buffer is large enough to hold the TLV.
+	 */
+	short create_traffic_sep_policy_tlv(unsigned char *buff);
+
+	/**!
+	 * @brief Creates a channel scan report policy TLV.
+	 *
+	 * This function generates a channel scan report policy TLV (Type-Length-Value) and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns short The length of the created TLV.
+	 *
+	 * @note Ensure that the buffer is large enough to hold the TLV.
+	 */
+	short create_chan_scan_report_policy_tlv(unsigned char *buff);
+
+	/**!
+	 * @brief Creates an unsuccessful association policy TLV.
+	 *
+	 * This function generates an unsuccessful association policy TLV (Type-Length-Value) and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns short The length of the created TLV.
+	 *
+	 * @note Ensure that the buffer is large enough to hold the TLV.
+	 */
+	short create_unsucc_assoc_policy_tlv(unsigned char *buff);
+
+	/**!
+	 * @brief Creates a backhaul bss configuration policy TLV.
+	 *
+	 * This function generates a backhaul bss configuration policy TLV (Type-Length-Value) and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns short The length of the created TLV.
+	 *
+	 * @note Ensure that the buffer is large enough to hold the TLV.
+	 */
+	short create_backhaul_bss_conf_policy_tlv(unsigned char *buff);
+
+	/**!
+	 * @brief Creates a qos management policy TLV.
+	 *
+	 * This function generates a qos management policy TLV (Type-Length-Value) and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns short The length of the created TLV.
+	 *
+	 * @note Ensure that the buffer is large enough to hold the TLV.
+	 */
+	short create_qos_mgt_policy_tlv(unsigned char *buff);
+
 	/**!
 	 * @brief Creates a vendor policy configuration TLV.
 	 *
@@ -178,7 +256,6 @@ public:
 	 * calling this function.
 	 */
 	short create_vendor_policy_cfg_tlv(unsigned char *buff);
-
     
 	/**!
 	 * @brief Sends a policy configuration request message.
