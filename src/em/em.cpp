@@ -1167,7 +1167,7 @@ short em_t::create_cac_cap_tlv(unsigned char *buff)
     return len;
 }
 
-short em_t::create_eht_operations_tlv(unsigned char *buff)
+unsigned short em_t::create_eht_operations_tlv(unsigned char *buff)
 {
     unsigned short len = 0;
     unsigned int i = 0, j = 0;

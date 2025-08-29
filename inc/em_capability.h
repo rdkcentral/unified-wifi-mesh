@@ -335,7 +335,7 @@ class em_capability_t {
 	 *
 	 * @note Ensure that the buffer is properly allocated before calling this function.
 	 */
-	virtual short create_eht_operations_tlv(unsigned char *buff) = 0;
+	virtual unsigned short create_eht_operations_tlv(unsigned char *buff) = 0;
     
 	/**!
 	 * @brief Creates a channel scan TLV.
