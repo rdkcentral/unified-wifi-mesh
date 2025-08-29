@@ -201,6 +201,9 @@ public:
 		if (m_configurator) {
 			return m_configurator->get_al_conn_ctx(peer_al_mac);
 		}
+		if (m_enrollee) {
+			return m_enrollee->get_conn_ctx();
+		}
 		return NULL;
     }
 

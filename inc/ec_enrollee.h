@@ -222,6 +222,13 @@ public:
 	inline std::string get_al_mac_addr() { return m_al_mac_addr; };
 
 	/**!
+	 * @brief Retrieves the connection context.
+	 *
+	 * @returns A pointer to the connection context.
+	 */
+	inline ec_connection_context_t* get_conn_ctx() { return &m_c_ctx; };
+
+	/**!
 	 * @brief Retrieves wether this enrollee is in onboarding state or not.
 	 * 
 	 * @returns true if this enrollee is in onboarding state, false otherwise.
