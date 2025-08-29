@@ -191,6 +191,38 @@ namespace util {
 
 
 	/**
+	 * @brief Splits a hex string without delimiters into a vector of bytes.
+	 *
+	 * This function takes a hex string (e.g., "0123456789ab") and converts it
+	 * into a vector of bytes. The function expects the string to have an even
+	 * length corresponding to the expected number of bytes.
+	 *
+	 * @param[in] s The hex string to be converted.
+	 * @param[in] expected_bytes The expected number of bytes in the output vector.
+	 *
+	 * @return A vector of bytes representing the hex string, or an empty vector if the input is invalid.
+	 *
+	 * @note The input string must have a length of exactly `expected_bytes * 2`.
+	 */
+	inline std::vector<uint8_t> split_nodelim_hex_str(const std::string& s, size_t expected_bytes) {
+		std::vector<uint8_t> bytes;
+		if (s.length() != expected_bytes * 2) return bytes; // Invalid length
+
+		bytes.reserve(expected_bytes);
+		for (size_t i = 0; i < s.length(); i += 2) {
+			std::string byte_str = s.substr(i, 2);
+			try {
+				uint8_t byte = static_cast<uint8_t>(std::stoi(byte_str, nullptr, 16));
+				bytes.push_back(byte);
+			} catch (...) {
+				return {};
+			}
+		}
+
+		return bytes;
+	}
+
+	/**
 	 * @brief Converts a MAC address string to a vector of bytes.
 	 *
 	 * This function takes a MAC address in string format (e.g., "01:23:45:67:89:ab")
@@ -205,12 +237,7 @@ namespace util {
 
 		// Special case for empty deliminator since a split cannot be determined
 		if (delim.empty()){
-			mac.resize(ETHER_ADDR_LEN);
-			for (size_t i = 0; i < ETHER_ADDR_LEN; i++) {
-				std::string byte_str = mac_str.substr(i*2, 2);
-				mac[i] = static_cast<uint8_t>(strtol(byte_str.c_str(), nullptr, 16));
-			}
-			return mac;
+			return split_nodelim_hex_str(mac_str, ETHER_ADDR_LEN);	
 		}
 		
 		std::vector<std::string> parts = split_by_delim(mac_str, delim.c_str()[0]);
@@ -284,27 +311,50 @@ namespace util {
 	 */
 	std::string akm_to_oui(std::string akm);
 
-/**
- * @brief Retrieve a network byte ordered uint16_t from an address and convert to host byte ordering
- * 
- * @param[in] ptr Pointer to an address containing an unsigned 16 bit integer
- * @return uint16_t The integer at *ptr, converted to host byte ordering, or 0 if ptr is NULL.
- * 
- * @note `ptr` is `void*` because this is typically invoked on data that must be reinterpreted from its assigned type.
- * @note Byte reordering is achieved using `ntohs`. 
- */
-uint16_t deref_net_uint16_to_host(const void* const ptr);
+	/**
+	 * @brief Translate an OUI representation to its AKM literal case-insensitively.
+	 *
+	 * This function takes an OUI string representation and returns its corresponding AKM literal.
+	 * If the OUI is not recognized, it returns an empty string.
+	 *
+	 * @param[in] oui The OUI string representation, for example, "000FAC02".
+	 * @return std::string The AKM literal, such as "psk" for "000FAC02", or an empty string if the OUI is not recognized.
+	 */
+	std::string oui_to_akm(std::string oui);
 
-/**
- * @brief Set a network byte ordered uint16_t at an address, using a host byte ordered uint16_t as input
- * 
- * @param[in] host_val Unsigned 16 bit integer with host byte ordering
- * @return bool true if successful, false otherwise. Only fails if `ptr` is NULL.
- * 
- * @note `ptr` is `void*` because this is typically invoked on data that must be reinterpreted from its assigned type.
- * @note Byte reordering is achieved using `htons`. 
- */
-bool set_net_uint16_from_host(const uint16_t host_val, void* const ptr);
+
+	/** * @brief Convert an AKM string literal to its byte representation.
+	 * 
+	 * This function translates an AKM string (e.g., "psk") to its corresponding OUI + suite type byte array
+	 * representation (e.g., {0x00, 0x0F, 0xAC, 0x02}). If the AKM is not recognized, it returns
+	 * an empty vector.
+	 * 
+	 * @param[in] akm The AKM string literal to convert.
+	 * @return A vector of bytes representing the AKM, or an empty vector if the AKM is not recognized.
+	 */
+	std::vector<uint8_t> akm_to_bytes(std::string akm);
+
+	/**
+	 * @brief Retrieve a network byte ordered uint16_t from an address and convert to host byte ordering
+	 * 
+	 * @param[in] ptr Pointer to an address containing an unsigned 16 bit integer
+	 * @return uint16_t The integer at *ptr, converted to host byte ordering, or 0 if ptr is NULL.
+	 * 
+	 * @note `ptr` is `void*` because this is typically invoked on data that must be reinterpreted from its assigned type.
+	 * @note Byte reordering is achieved using `ntohs`. 
+	 */
+	uint16_t deref_net_uint16_to_host(const void* const ptr);
+
+	/**
+	 * @brief Set a network byte ordered uint16_t at an address, using a host byte ordered uint16_t as input
+	 * 
+	 * @param[in] host_val Unsigned 16 bit integer with host byte ordering
+	 * @return bool true if successful, false otherwise. Only fails if `ptr` is NULL.
+	 * 
+	 * @note `ptr` is `void*` because this is typically invoked on data that must be reinterpreted from its assigned type.
+	 * @note Byte reordering is achieved using `htons`. 
+	 */
+	bool set_net_uint16_from_host(const uint16_t host_val, void* const ptr);
 
 } // namespace util
 

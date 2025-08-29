@@ -1479,11 +1479,25 @@ cJSON *em_t::create_bss_dpp_response_obj(const em_bss_info_t *bss_info, bool is_
         return nullptr;
     }
 
+    std::set<std::string> bss_akms;
+
+    em_printfout("BSS Info Num Fronthaul AKMS: %u", bss_info->num_fronthaul_akms);
+    for (unsigned int i = 0; i < bss_info->num_fronthaul_akms; i++) {
+        bss_akms.insert(bss_info->fronthaul_akm[i]);
+    }
+    em_printfout("BSS Info Num Backhaul AKMS: %u", bss_info->num_backhaul_akms);
+    for (unsigned int i = 0; i < bss_info->num_backhaul_akms; i++) {
+        bss_akms.insert(bss_info->backhaul_akm[i]);
+    }
+
     std::string akm_suites = {};
     bool needs_psk_hex = false;
-    for (unsigned int i = 0; i < network_ssid_info->num_akms; i++) {
+    std::vector<std::string> bss_akms_vec(bss_akms.begin(), bss_akms.end());
+    em_printfout("Num AKMs: %u", bss_akms_vec.size());
+    for (unsigned int i = 0; i < bss_akms_vec.size(); i++) {
         if (!akm_suites.empty()) akm_suites += "+";
-        akm_suites += util::akm_to_oui(network_ssid_info->akm[i]);
+        em_printfout("AKM[%u]: %s", i, bss_akms_vec[i].c_str());
+        akm_suites += util::akm_to_oui(bss_akms_vec[i]);
 
     }
     // "psk_hex" is a conditional field,
