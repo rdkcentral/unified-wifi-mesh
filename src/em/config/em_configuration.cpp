@@ -38,6 +38,9 @@
 #include <pthread.h>
 #include <openssl/rand.h>
 #include <assert.h>
+#include <string>
+#include <vector>
+#include <algorithm>
 #include "em_configuration.h"
 #include "em_msg.h"
 #include "dm_easy_mesh.h"
@@ -48,6 +51,8 @@
 #include "em_cmd_exec.h"
 #include "cjson_util.h"
 #include "ec_ctrl_configurator.h"
+
+#include "wifi_util.h"
 
 // Initialize the static member variables
 unsigned short em_configuration_t::msg_id = 0;
@@ -2581,16 +2586,12 @@ int em_configuration_t::create_bss_config_req_msg(uint8_t *buff, uint8_t dest_al
     return static_cast<int> (len);
 }
 
-int em_configuration_t::create_bss_config_rsp_msg(uint8_t *buff, uint8_t dest_al_mac[ETH_ALEN])
+int em_configuration_t::create_bss_config_rsp_msg(uint8_t *buff, uint8_t dest_al_mac[ETH_ALEN], SSL_KEY* enrollee_nak)
 {
-
-    // TODO: Come back to. It's the same as autoconf but in testing that can be wrong
-    dm_easy_mesh_t *dm = get_data_model();
-    EM_ASSERT_NOT_NULL(dm, -1, "Data model is null");
 
     unsigned int len = 0;
     uint8_t tlv_buff[UINT16_MAX] = {0};
-    uint16_t tlv_size = 0;
+    int tlv_size = 0;
 
     memset(tlv_buff, 0, sizeof(tlv_buff));
 
@@ -2606,30 +2607,50 @@ int em_configuration_t::create_bss_config_rsp_msg(uint8_t *buff, uint8_t dest_al
         - Each TLV has one DPP Configuration Object but there will be multiple TLVs in the BSS Configuration Response message.
     */
    
+    em_mgr_t *em_mgr = get_mgr();
+    EM_ASSERT_NOT_NULL(em_mgr, -1, "EM Manager is NULL, cannot create Agent List TLV");
+    dm_easy_mesh_t *dm = em_mgr->get_first_dm();
+    EM_ASSERT_NOT_NULL(dm, -1, "First DM is NULL, cannot create Agent List TLV");
 
-    for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
-        em_bss_info_t *bss_info = dm->get_bss_info(i);
-        if (bss_info == nullptr) continue;
+    // Each DM in the list contains BSSs, not the current `get_data_model()` dm. 
+    int dbg_dm_idx = 0;
+    while (dm != NULL) {
+        em_printfout("Creating BSS Config Response TLV for DM index: %d, Num BSS: %d", dbg_dm_idx++, dm->get_num_bss());
+        for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
+            em_bss_info_t *bss_info = dm->get_bss_info(i);
+            if (bss_info == nullptr) continue;
+            em_printfout("-------------------------------------------------");
+            std::string bssid_str = util::mac_to_string(bss_info->id.bssid);
+            
+            if (bss_info->id.haul_type == em_haul_type_max) {
+                em_printfout("Skipping BSS ID: %s, haul type is max", bssid_str.c_str());
+                continue;
+            }
 
-        if (bss_info->id.haul_type != em_haul_type_fronthaul && bss_info->id.haul_type != em_haul_type_backhaul) {
-            continue; // Only process fronthaul and backhaul BSS
+            if (bss_info->vap_mode == em_vap_mode_sta) {
+                em_printfout("Skipping BSS (with RUID): %s, vap mode is STA", util::mac_to_string(bss_info->ruid.mac).c_str());
+                continue;
+            }
+            
+            em_printfout("Creating BSS Config Response TLV for BSS ID: %s", bssid_str.c_str());
+
+            auto radio = dm->get_radio(bss_info->ruid.mac);
+            if (!radio) continue;
+            if (!radio->m_radio_info.enabled || !bss_info->enabled) {
+                em_printfout("Skipping BSS ID: %s, radio or BSS is not enabled", bssid_str.c_str());
+                continue;
+            }
+
+            tlv_size = create_bss_conf_resp_tlv(tlv_buff, bss_info, dest_al_mac, dm, enrollee_nak); // Data
+            if (tlv_size < 0) {
+                em_printfout("Failed to create BSS config response TLV for BSS ID: %s", bssid_str.c_str());
+                continue;
+            }
+            em_printfout("BSS Config Response TLV created for BSS ID: %s, TLV size: %d", bssid_str.c_str(), tlv_size);
+            tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_bss_conf_rsp, tlv_buff, static_cast<unsigned int> (tlv_size));
         }
-
-        std::string bssid_str = util::mac_to_string(bss_info->id.bssid);
-
-        auto radio = dm->get_radio(bss_info->ruid.mac);
-        if (!radio) continue;
-        if (!radio->m_radio_info.enabled || !bss_info->enabled) {
-            em_printfout("Skipping BSS ID: %s, radio or BSS is not enabled", bssid_str.c_str());
-            continue;
-        }
-
-        tlv_size = create_bss_conf_resp_tlv(tlv_buff, bss_info, dest_al_mac); // Data
-        if (tlv_size < 0) {
-            em_printfout("Failed to create BSS config response TLV for BSS ID: %s", bssid_str.c_str());
-            continue;
-        }
-        tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_bss_conf_rsp, tlv_buff, static_cast<unsigned int> (tlv_size));
+        em_printfout("-------------------------------------------------");
+        dm = em_mgr->get_next_dm(dm);
     }
 
     // Zero or One default 802.1Q settings tlv 17.2.49
@@ -2868,21 +2889,39 @@ int em_configuration_t::create_bss_conf_req_tlv(uint8_t *buff)
     }
     cJSON_AddStringToObject(root, "name", hostname.c_str());
 
-    cJSON *bsta_info = create_enrollee_bsta_list(nullptr);
-    if (!bsta_info) {
-        em_printfout("Failed to create enrollee BSTA list");
-        cJSON_Delete(root);
-        return -1;
-    }
-    cJSON_AddItemToObject(root, "bSTAList", bsta_info);
-
     std::string dpp_config_req_obj_str = cjson_utils::stringify(root);
     cJSON_Delete(root);
 
-    em_bss_conf_req_t *bss_conf_req = reinterpret_cast<em_bss_conf_req_t *>(buff);
-    memcpy(bss_conf_req->dpp_config_req_obj, dpp_config_req_obj_str.c_str(), dpp_config_req_obj_str.size());
+    ec_connection_context_t* conn_ctx = get_ec_mgr().get_al_conn_ctx(NULL);
+    ec_persistent_sec_ctx_t* sec_ctx = get_ec_mgr().get_sec_ctx();
 
-    return static_cast<int>(dpp_config_req_obj_str.size());
+    EM_ASSERT_NOT_NULL(conn_ctx, -1, "Connection context is NULL, cannot create BSS Configuration Request TLV");
+    EM_ASSERT_NOT_NULL(sec_ctx, -1, "Security context is NULL, cannot create BSS Configuration Request TLV");
+
+    uint16_t nak_len = static_cast<uint16_t>(BN_num_bytes(conn_ctx->prime) * 2);
+    scoped_ec_point public_nak(em_crypto_t::get_pub_key_point(sec_ctx->net_access_key));
+    EM_ASSERT_NOT_NULL(public_nak, -1, "Public NAK is NULL, cannot create BSS Configuration Request TLV");
+    
+    scoped_ec_group group(em_crypto_t::get_key_group(sec_ctx->net_access_key));
+    EM_ASSERT_NOT_NULL(group.get(), -1,"Failed to get elliptic curve group from network access key");
+
+    scoped_buff encoded_nak(ec_crypto::encode_ec_point(group.get(), public_nak.get()));
+    EM_ASSERT_NOT_NULL(encoded_nak.get(), -1, "Failed to encode public NAK to buffer");
+
+    uint16_t tls_group_id = ec_crypto::get_tls_group_id_from_ec_group(group.get());
+    EM_ASSERT_MSG_TRUE(tls_group_id != UINT16_MAX, -1, "Failed to get TLS group ID from EC group");
+
+    size_t attribs_len = 0;
+    uint8_t* attribs = NULL;
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_dpp_config_req_obj, dpp_config_req_obj_str);
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_init_proto_key, nak_len, encoded_nak.get());
+    attribs = ec_util::add_attrib(attribs, &attribs_len, ec_attrib_id_finite_cyclic_group, SWAP_LITTLE_ENDIAN(tls_group_id));
+
+    memcpy(buff, attribs, attribs_len);
+    free(attribs); 
+    em_printfout("BSS Configuration Request TLV attributes (len %zu):", attribs_len);
+    util::print_hex_dump(attribs_len, buff);
+    return static_cast<int>(attribs_len);
 }
 
 int em_configuration_t::create_agent_list_tlv(uint8_t *buff) {
@@ -2931,7 +2970,7 @@ int em_configuration_t::create_agent_list_tlv(uint8_t *buff) {
 }
 
 
-int em_configuration_t::create_bss_conf_resp_tlv(uint8_t *buff, em_bss_info_t *bss_info, uint8_t dest_al_mac[ETH_ALEN])
+int em_configuration_t::create_bss_conf_resp_tlv(uint8_t *buff, em_bss_info_t *bss_info, uint8_t dest_al_mac[ETH_ALEN], dm_easy_mesh_t *dm, SSL_KEY* enrollee_nak)
 {
 
     EM_ASSERT_NOT_NULL(buff, -1, "Buffer is NULL, cannot create BSS Configuration Response TLV");
@@ -2951,37 +2990,33 @@ int em_configuration_t::create_bss_conf_resp_tlv(uint8_t *buff, em_bss_info_t *b
     ec_persistent_sec_ctx_t* sec_ctx = ec_mgr.get_sec_ctx();
     EM_ASSERT_NOT_NULL(sec_ctx, -1, "Security context is NULL, cannot create BSS Configuration Response objects");
 
-    /*
-    In the ideal spec, this would be sent by the enrollee in the BSS Configuration Request. 
-    However, because that is not the case, we have to cache it for now and look it up after the fact.
-    */
-    ec_connection_context_t* conn_ctx = ec_mgr.get_al_conn_ctx(dest_al_mac);
-    EM_ASSERT_NOT_NULL(conn_ctx, -1, "Could not get connection context for destination (peer) AL MAC: " MACSTRFMT, MAC2STR(dest_al_mac));
-    SSL_KEY* enrollee_nak = conn_ctx->enrollee_net_access_key;
-    EM_ASSERT_NOT_NULL(enrollee_nak, -1, "Enrollee NAK is NULL for destination (peer) AL MAC: " MACSTRFMT, MAC2STR(dest_al_mac));
-
     // false for is_sta_response, false for tear_down_bss
-    scoped_cjson bss_config_obj(create_bss_dpp_response_obj(bss_info, false, false));
+    scoped_cjson bss_config_obj(create_bss_dpp_response_obj(bss_info, false, false, dm));
 
     EM_ASSERT_NOT_NULL(bss_config_obj.get(), -1, "Failed to create BSS DPP Configuration Object for BSS ID: %s", bssid_mac.c_str());
 
-    em_haul_type_t haul_type = bss_info->id.haul_type;
-    EM_ASSERT_MSG_TRUE(haul_type == em_haul_type_fronthaul || haul_type == em_haul_type_backhaul, -1,
-                       "BSS ID: %s is neither fronthaul nor backhaul, cannot create DPP Configuration Object", bssid_mac.c_str());
-
+    bool is_backhaul = bss_info->id.haul_type == em_haul_type_backhaul;
 
     /*
     The DPP connector created here is used for station onboarding to the BSS.
     */
     dpp_config_obj_type_e dpp_conf_obj_type = dpp_config_obj_type_e::dpp_config_obj_none;
-    if (haul_type == em_haul_type_fronthaul) {
-        dpp_conf_obj_type = dpp_config_obj_type_e::dpp_config_obj_fbss_ap;
-    } 
-    if (haul_type == em_haul_type_backhaul) {
+    if (is_backhaul) {
         dpp_conf_obj_type = dpp_config_obj_type_e::dpp_config_obj_backhaul_bss;
+    } else {
+        // Assume all other haul types are fronthaul
+        dpp_conf_obj_type = dpp_config_obj_type_e::dpp_config_obj_fbss_ap;
     }
 
-    scoped_cjson final_config_obj(ec_ctrl_configurator_t::finalize_dpp_config_obj(bss_config_obj.get(), dpp_conf_obj_type, sec_ctx, enrollee_nak));
+    // finalize_dpp_config_obj modifies the object in-place and returns the same pointer
+    // Use release() to transfer ownership and avoid double-free
+    scoped_cjson final_config_obj(ec_ctrl_configurator_t::finalize_dpp_config_obj(bss_config_obj.release(), dpp_conf_obj_type, sec_ctx, enrollee_nak));
+
+    // DEBUG
+    em_printfout("Created BSS DPP Configuration Object for BSSID: %s, haul type: %s",
+                 bssid_mac.c_str(),
+                 is_backhaul ? "Backhaul" : "Fronthaul");
+    em_printfout("%s", cjson_utils::stringify(final_config_obj.get(), false).c_str());
 
     std::string json_string = cjson_utils::stringify(final_config_obj.get(), true);
 
@@ -3803,7 +3838,7 @@ int em_configuration_t::handle_bss_config_req_msg(uint8_t *buff, unsigned int le
 
     //TODO:  Update DM
     em_tlv_t *tlv_buff = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-    unsigned int tlv_buff_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    unsigned int tlv_buff_len = static_cast<unsigned int>(len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
 
     em_tlv_t *tlv = em_msg_t::get_first_tlv(tlv_buff, tlv_buff_len);
     EM_ASSERT_NOT_NULL(tlv, -1, "Failed to get first TLV from BSS Configuration Request message");
@@ -3829,6 +3864,8 @@ int em_configuration_t::handle_bss_config_req_msg(uint8_t *buff, unsigned int le
     em_profile_type_t profile = em_profile_type_reserved;
     em_service_type_t service_type = em_service_type_none;
 
+    scoped_ssl_key enrollee_nak(nullptr); // Network Access Key
+
     while (tlv != NULL) {
 
         if (tlv->type == em_tlv_type_eom || tlv->len == 0) {
@@ -3837,18 +3874,23 @@ int em_configuration_t::handle_bss_config_req_msg(uint8_t *buff, unsigned int le
 
         switch (tlv->type) {
             case em_tlv_type_profile:
+                em_printfout("Processing Multi-AP Profile TLV");
                 memcpy(&profile, tlv->value, ntohs(tlv->len));
                 break;
             case em_tlv_type_supported_service:
+                em_printfout("Processing Supported Service TLV");
                 memcpy(&service_type, &tlv->value[1], sizeof(em_service_type_t));
                 break;
             case em_tlv_type_bh_sta_radio_cap:
                  // Not handled by UWM right now? 
+                 em_printfout("Processing Backhaul STA Radio Capabilities TLV - Not handled");
                 break;
             case em_tlv_type_ap_cap:
                  // Not handled by UWM right now?
+                 em_printfout("Processing AP Capabilities TLV - Not handled");
                 break;
             case em_tlv_type_ap_radio_basic_cap:
+                em_printfout("Processing AP Radio Basic Capabilities TLV");
                 handle_ap_radio_basic_cap(tlv->value, htons(tlv->len));
                 break;
             case em_tlv_type_akm_suite:
@@ -3859,31 +3901,41 @@ int em_configuration_t::handle_bss_config_req_msg(uint8_t *buff, unsigned int le
                 break;
             case em_tlv_type_profile_2_ap_cap:
                 // Not handled by UWM right now?
+                em_printfout("Processing Profile-2 AP Capabilities TLV - Not handled");
                 break;
-            case em_tlv_type_bss_conf_req:
-                // Process BSS Configuration Request TLV
-                // This TLV contains DPP Configuration Request Object which does not appear to have any specific use with generating a response 
-                em_printfout("Processing BSS Configuration Request TLV with DPP Configuration Object");
+            case em_tlv_type_bss_conf_req: {
+                em_printfout("Processing BSS Configuration Request TLV");
+                SSL_KEY* nak = handle_bss_config_req_tlv(tlv);
+                enrollee_nak.reset(nak);
+                EM_ASSERT_NOT_NULL(enrollee_nak.get(), -1, "Failed to handle BSS Configuration Request TLV, Enrollee Network Access Key is NULL");
                 break;
+            }
             case em_tlv_type_ht_cap:
+                em_printfout("Processing HT Capabilities TLV - Not handled");
                 // Not handled by UWM right now?
                 break;
             case em_tlv_type_vht_cap:
+                em_printfout("Processing VHT Capabilities TLV - Not handled");
                 // Not handled by UWM right now?
                 break;
             case em_tlv_type_he_cap:
+                em_printfout("Processing HE Capabilities TLV - Not handled");
                 // Not handled by UWM right now?
                 break;
             case em_tlv_type_ap_wifi6_cap:
+                em_printfout("Processing Wi-Fi 6 Capabilities TLV - Not handled");
                 // Not handled by UWM right now?
                 break;
             case em_tlv_type_ap_radio_advanced_cap:
+                em_printfout("Processing AP Radio Advanced Capabilities TLV");
                 handle_ap_radio_advanced_cap(tlv->value, htons(tlv->len));
                 break;
             case em_tlv_type_wifi7_agent_cap:
+                em_printfout("Processing Wi-Fi 7 Agent Capabilities TLV - Not handled");
                 // Not handled by UWM right now?
                 break;
             case em_tlv_eht_operations:
+                em_printfout("Processing EHT Operations TLV");
                 handle_eht_operations_tlv(tlv->value);
                 break;
             default:
@@ -3894,10 +3946,12 @@ int em_configuration_t::handle_bss_config_req_msg(uint8_t *buff, unsigned int le
         tlv = em_msg_t::get_next_tlv(tlv, tlv_buff, tlv_buff_len);
     }
 
+    EM_ASSERT_NOT_NULL(enrollee_nak.get(), -1, "Enrollee Network Access Key was not recieved, cannot continue with BSS Configuration Response");
 
-    uint8_t frame[MAX_EM_BUFF_SZ] = {0};
 
-    int frame_len = create_bss_config_rsp_msg(frame, src_al_mac);
+    uint8_t frame[UINT16_MAX] = {0};
+
+    int frame_len = create_bss_config_rsp_msg(frame, src_al_mac, enrollee_nak.get());
     EM_ASSERT_MSG_TRUE(frame_len > 0, -1, "Failed to create BSS Configuration Response message");
 
     // Send the BSS Configuration Response message
@@ -3909,6 +3963,55 @@ int em_configuration_t::handle_bss_config_req_msg(uint8_t *buff, unsigned int le
     return 0;
 }
 
+
+SSL_KEY* em_configuration_t::handle_bss_config_req_tlv(em_tlv_t* tlv) {
+
+    EM_ASSERT_NOT_NULL(tlv, NULL, "BSS Configuration Request TLV is NULL");
+    
+    em_printfout("Processing BSS Configuration Request TLV with DPP Configuration Object");
+
+    uint8_t* attribs = tlv->value;
+    size_t attribs_len = static_cast<size_t>(ntohs(tlv->len));
+
+    /* NOTE
+    Passing the Enrollee NAK and the finite cyclic group are not strictly inside the spec however there really is no spec compliant method 
+    to get the enrollee NAK (for generating the following connector) without this. You can store the enrollee NAK but you also don't _really_ know which
+    enrollee NAK corresponds to your newly onboarded device since you previously communicated via phy MAC addresses, and now you communicate via AL MACs.
+    Since Wi-Fi DPP onboarding uses regular Auto-configuration and not Auto-conf + chirp, you also can't do a lookup by hash to find which AL MAC corresponds 
+    you are **now** communicating on corresponds to your previous phy MAC. Either way these methods are not how DPP is intended to be set up and onboarding is intended to
+    be done.
+
+    This is a flaw in the spec that hopefully can be resolved soon. 
+
+    The good news is that the use of attributes in this way is supported by the spec already. For example in EasyMesh 5.3.2:
+    
+    >The DPP Configuration Request object is a JSON (JavaScript Object Notation) encoded data structure as defined in [22], that is transmitted as a DPP attribute (see 8.1 in [18])
+    >in the DPP Configuration Request frame (see 8.3.2 in [18]) and BSS Configuration Request TLV (see 17.2.84).
+
+    This means that the BSS Configuration Request TLV (and later on the "BSS Configuration Response TLV") is intended to have EasyConnect Attributes inside it. So the addition
+    of these two attributes to the existing attributes buffer is not outside of the realm of posibilities.
+    */
+
+    // This TLV contains DPP Configuration Request Object which does not appear to have any specific use with generating a response 
+    // `ec_attrib_id_dpp_config_req_obj` does not seem to do anything here
+
+    auto group_attrib = ec_util::get_attrib(attribs, attribs_len, ec_attrib_id_finite_cyclic_group);
+    EM_ASSERT_OPT_HAS_VALUE(group_attrib, NULL, "BSS Configuration Request TLV does not contain finite cyclic group attribute");
+    uint16_t fc_tls_group_id = SWAP_LITTLE_ENDIAN(*reinterpret_cast<uint16_t*>(group_attrib->data));
+    int fc_nid = ec_crypto::get_nid_from_tls_group_id(fc_tls_group_id);
+    EM_ASSERT_MSG_TRUE(fc_nid != NID_undef, NULL, "Received finite cyclic group is not a supported TLS Group ID: %d", fc_tls_group_id);
+
+    scoped_ec_group group(EC_GROUP_new_by_curve_name(fc_nid));
+    EM_ASSERT_NOT_NULL(group.get(), NULL, "Failed to create EC Group from TLS Group ID: %d", fc_tls_group_id);
+    
+    auto nak_attrib = ec_util::get_attrib(attribs, attribs_len, ec_attrib_id_init_proto_key);
+    EM_ASSERT_OPT_HAS_VALUE(nak_attrib, NULL, "BSS Configuration Request TLV does not contain Enrollee protocol key attribute");
+
+    scoped_ec_point enrollee_public_nak(ec_crypto::decode_ec_point(group.get(), nak_attrib->data));
+    EM_ASSERT_NOT_NULL(enrollee_public_nak, NULL, "Failed to decode Enrollee protocol key from BSS Configuration Request TLV");
+
+    return em_crypto_t::bundle_ec_key(group.get(), enrollee_public_nak.get());
+}
 
 int em_configuration_t::handle_bss_config_rsp_tlv(em_tlv_t* tlv, m2ctrl_radioconfig& radioconfig, size_t bss_count) {
     // Agent
@@ -3927,11 +4030,11 @@ int em_configuration_t::handle_bss_config_rsp_tlv(em_tlv_t* tlv, m2ctrl_radiocon
     EM_ASSERT_MSG_TRUE(cJSON_IsObject(dpp_config_json.get()), -1, "DPP Configuration Object in BSS Configuration Response TLV is not a JSON object");
 
 
-    scoped_cjson wifi_tech_json(cJSON_GetObjectItemCaseSensitive(dpp_config_json.get(), "wi-fi_tech"));
-    EM_ASSERT_NOT_NULL(wifi_tech_json.get(), -1, "Failed to get 'wi-fi_tech' from DPP Configuration Object in BSS Configuration Response TLV");
-    EM_ASSERT_MSG_TRUE(cJSON_IsString(wifi_tech_json.get()), -1, "'wi-fi_tech' in DPP Configuration Object is not a string");
+    cJSON* wifi_tech_json = cJSON_GetObjectItemCaseSensitive(dpp_config_json.get(), "wi-fi_tech");
+    EM_ASSERT_NOT_NULL(wifi_tech_json, -1, "Failed to get 'wi-fi_tech' from DPP Configuration Object in BSS Configuration Response TLV");
+    EM_ASSERT_MSG_TRUE(cJSON_IsString(wifi_tech_json), -1, "'wi-fi_tech' in DPP Configuration Object is not a string");
 
-    std::string wifi_tech(cJSON_GetStringValue(wifi_tech_json.get()));
+    std::string wifi_tech(cJSON_GetStringValue(wifi_tech_json));
     EM_ASSERT_MSG_TRUE(!wifi_tech.empty(), -1, "'wi-fi_tech' in DPP Configuration Object is empty");
 
     // Determine haul type based on 'wi-fi_tech' according to EasyMesh 5.3.8
@@ -3947,31 +4050,31 @@ int em_configuration_t::handle_bss_config_rsp_tlv(em_tlv_t* tlv, m2ctrl_radiocon
     em_printfout("Processing BSS Configuration Response TLV with haul type: %d", haul_type);
 
 
-    scoped_cjson discovery_obj(cJSON_GetObjectItem(dpp_config_json.get(), "discovery"));
-    EM_ASSERT_NOT_NULL(discovery_obj.get(), -1, "Failed to get 'discovery' from DPP Configuration Object in BSS Configuration Response TLV");
-    EM_ASSERT_MSG_TRUE(cJSON_IsObject(discovery_obj.get()), -1, "'discovery' in DPP Configuration Object is not a JSON object");
+    cJSON* discovery_obj = cJSON_GetObjectItem(dpp_config_json.get(), "discovery");
+    EM_ASSERT_NOT_NULL(discovery_obj, -1, "Failed to get 'discovery' from DPP Configuration Object in BSS Configuration Response TLV");
+    EM_ASSERT_MSG_TRUE(cJSON_IsObject(discovery_obj), -1, "'discovery' in DPP Configuration Object is not a JSON object");
 
-    scoped_cjson ssid_obj(cJSON_GetObjectItemCaseSensitive(discovery_obj.get(), "SSID"));
-    scoped_cjson bssid_obj(cJSON_GetObjectItemCaseSensitive(discovery_obj.get(), "BSSID"));
-    scoped_cjson ruid_obj(cJSON_GetObjectItemCaseSensitive(discovery_obj.get(), "RUID"));
+    cJSON* ssid_obj = cJSON_GetObjectItemCaseSensitive(discovery_obj, "SSID");
+    cJSON* bssid_obj = cJSON_GetObjectItemCaseSensitive(discovery_obj, "BSSID");
+    cJSON* ruid_obj = cJSON_GetObjectItemCaseSensitive(discovery_obj, "RUID");
 
     // RUID must always be present and SSID can be "null" but always present so not NULL/nullptr
-    EM_ASSERT_NOT_NULL(ssid_obj.get(), -1, "Failed to get 'SSID' from 'discovery' in DPP Configuration Object in BSS Configuration Response TLV");
-    EM_ASSERT_NOT_NULL(ruid_obj.get(), -1, "Failed to get 'RUID' from 'discovery' in DPP Configuration Object in BSS Configuration Response TLV");
+    EM_ASSERT_NOT_NULL(ssid_obj, -1, "Failed to get 'SSID' from 'discovery' in DPP Configuration Object in BSS Configuration Response TLV");
+    EM_ASSERT_NOT_NULL(ruid_obj, -1, "Failed to get 'RUID' from 'discovery' in DPP Configuration Object in BSS Configuration Response TLV");
 
 
-    EM_ASSERT_MSG_TRUE(cJSON_IsString(ruid_obj.get()), -1, "'RUID' in 'discovery' is not a string");
-    std::string ruid = cJSON_GetStringValue(ruid_obj.get());
+    EM_ASSERT_MSG_TRUE(cJSON_IsString(ruid_obj), -1, "'RUID' in 'discovery' is not a string");
+    std::string ruid = cJSON_GetStringValue(ruid_obj);
 
     std::vector<uint8_t> ruid_mac = util::macstr_to_vector(ruid, "");
 
     // Begin setting bss configuration in data model
 
-    if (cJSON_IsNull(ssid_obj.get())) {
+    if (cJSON_IsNull(ssid_obj)) {
 
 
         // "inframap"
-        if (haul_type == em_haul_type_fronthaul && bssid_obj.get() == NULL){
+        if (haul_type == em_haul_type_fronthaul && bssid_obj == NULL){
             /*
             If a Multi-AP Controller does not want to configure any BSS on a radio of a Multi-AP Agent, it shall include a BSS
             Configuration Response TLV in the BSS Configuration Response message and shall set the parameters in the DPP
@@ -3986,7 +4089,7 @@ int em_configuration_t::handle_bss_config_rsp_tlv(em_tlv_t* tlv, m2ctrl_radiocon
             return -1;
         }
         // "inframap" or "map"
-        if (bssid_obj.get() != NULL) {
+        if (bssid_obj != NULL) {
             /*
             If a Multi-AP Controller wants to tear down an existing BSS on a radio of a Multi-AP Agent, it shall include a BSS
             Configuration Response TLV in the BSS Configuration Response message and shall set the parameters in the DPP
@@ -3999,14 +4102,15 @@ int em_configuration_t::handle_bss_config_rsp_tlv(em_tlv_t* tlv, m2ctrl_radiocon
                 ▪ BSSID
             */
 
-            std::string bssid = cJSON_GetStringValue(bssid_obj.get());
+            std::string bssid = cJSON_GetStringValue(bssid_obj);
             std::vector <uint8_t> bssid_mac = util::macstr_to_vector(bssid, "");
+            std::string bssid_formatted = util::mac_to_string(bssid_mac.data());
            
             em_printfout("Received BSS Configuration Response TLV with 'SSID' as NULL, \"tearing down\" (disabling) BSS on radio %s with BSSID %s", 
-                         ruid.c_str(), bssid.c_str());
+                         ruid.c_str(), bssid_formatted);
 
             dm_bss_t* bss = dm->get_bss(ruid_mac.data(), bssid_mac.data());
-            EM_ASSERT_NOT_NULL(bss, -1, "Failed to get BSS with RUID %s and BSSID %s", ruid.c_str(), bssid.c_str());
+            EM_ASSERT_NOT_NULL(bss, -1, "Failed to get BSS with RUID %s and BSSID %s", ruid.c_str(), bssid_formatted);
             
             // Disable BSS
             bss->m_bss_info.enabled = false;
@@ -4020,47 +4124,24 @@ int em_configuration_t::handle_bss_config_rsp_tlv(em_tlv_t* tlv, m2ctrl_radiocon
     }
 
     // Traditional configuration
-    EM_ASSERT_NOT_NULL(bssid_obj.get(), -1, "Failed to get 'BSSID' from 'discovery' in DPP Configuration Object in BSS Configuration Response TLV");
+    EM_ASSERT_NOT_NULL(bssid_obj, -1, "Failed to get 'BSSID' from 'discovery' in DPP Configuration Object in BSS Configuration Response TLV");
 
-    std::string ssid = cJSON_GetStringValue(ssid_obj.get());
+    std::string ssid = cJSON_GetStringValue(ssid_obj);
     EM_ASSERT_MSG_TRUE(!ssid.empty(), -1, "'SSID' in 'discovery' is empty");
 
-    std::string bssid = cJSON_GetStringValue(bssid_obj.get());
+    std::string bssid = cJSON_GetStringValue(bssid_obj);
     std::vector <uint8_t> bssid_mac = util::macstr_to_vector(bssid, "");
+    std::string bssid_formatted = util::mac_to_string(bssid_mac.data());
 
-    em_network_ssid_info_t* ssid_info = dm->get_network_ssid_info_by_haul_type(haul_type);
+    // em_network_ssid_info_t* ssid_info = dm->get_network_ssid_info_by_haul_type(haul_type);
     
-    // You're kind of out of luck here. The implementation of UWM assumes that the SSID info is always available for the haul type
-    // Even if BSS infos are not. 1905 Topology Responses creates BSS infos, OneWifi configurations (/nvram/InterfaceMap) which is hardcoded on the router
-    // creates DM SSID infos. Auto-config will return whatever SSIDs are on the DM which then updates OneWifi SSIDs, which then, when the 1905 topology response
-    // occurs, will create the BSS infos with those SSIDs. The SSIDs are not being created in UWM code (besides database sync) so I am not doing that here...
-    EM_ASSERT_NOT_NULL(ssid_info, -1, "Failed to get SSID info for haul type %d", haul_type);
+    // // You're kind of out of luck here. The implementation of UWM assumes that the SSID info is always available for the haul type
+    // // Even if BSS infos are not. 1905 Topology Responses creates BSS infos, OneWifi configurations (/nvram/InterfaceMap) which is hardcoded on the router
+    // // creates DM SSID infos. Auto-config will return whatever SSIDs are on the DM which then updates OneWifi SSIDs, which then, when the 1905 topology response
+    // // occurs, will create the BSS infos with those SSIDs. The SSIDs are not being created in UWM code (besides database sync) so I am not doing that here...
+    // EM_ASSERT_NOT_NULL(ssid_info, -1, "Failed to get SSID info for haul type %d", haul_type);
 
-    em_printfout("Received BSS Configuration Response TLV with SSID '%s', BSSID '%s' and haul type %d", ssid.c_str(), bssid.c_str(), haul_type);
-
-    char time_date[EM_DATE_TIME_BUFF_SZ];
-    util::get_date_time_rfc3399(time_date, sizeof(time_date));
-
-    // Copied from em_configuration_t::handle_ap_operational_bss
-    dm_bss_t* dm_bss = dm->get_bss(ruid_mac.data(), bssid_mac.data());
-    if (dm_bss == NULL) {
-        // BSS does not exist, create it
-        dm_bss = &dm->m_bss[dm->m_num_bss];
-
-        // fill up id first
-        strncpy(dm_bss->m_bss_info.id.net_id, dm->m_device.m_device_info.id.net_id, sizeof(em_long_string_t));
-        memcpy(dm_bss->m_bss_info.id.dev_mac, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
-        memcpy(dm_bss->m_bss_info.id.ruid, ruid_mac.data(), sizeof(mac_address_t));
-        memcpy(dm_bss->m_bss_info.id.bssid, bssid_mac.data(), sizeof(mac_address_t));
-
-        memcpy(dm_bss->m_bss_info.bssid.mac, bssid_mac.data(), sizeof(mac_address_t));
-        memcpy(dm_bss->m_bss_info.ruid.mac, ruid_mac.data(), sizeof(mac_address_t));
-        dm->set_num_bss(dm->get_num_bss() + 1);
-    }
-    strncpy(dm_bss->m_bss_info.ssid, ssid.c_str(), ssid.length());
-    dm_bss->m_bss_info.enabled = true;
-    strncpy(dm_bss->m_bss_info.timestamp, time_date, sizeof(em_long_string_t));
-
+    em_printfout("Received BSS Configuration Response TLV with SSID '%s', BSSID '%s' and haul type %d", ssid.c_str(), bssid_formatted.c_str(), haul_type);
 
     radioconfig.haultype[bss_count] = haul_type;
     memcpy(radioconfig.ssid[bss_count], ssid.c_str(), sizeof(radioconfig.ssid[bss_count]));
@@ -4068,32 +4149,31 @@ int em_configuration_t::handle_bss_config_rsp_tlv(em_tlv_t* tlv, m2ctrl_radiocon
     radioconfig.enable[bss_count] = true;
 
 
-    scoped_cjson cred_obj(cJSON_GetObjectItemCaseSensitive(dpp_config_json.get(), "cred"));
-    EM_ASSERT_NOT_NULL(cred_obj.get(), -1, "Failed to get 'cred' from DPP Configuration Object in BSS Configuration Response TLV");
-    EM_ASSERT_MSG_TRUE(cJSON_IsObject(cred_obj.get()), -1, "'cred' in DPP Configuration Object is not a JSON object");
+    cJSON* cred_obj = cJSON_GetObjectItemCaseSensitive(dpp_config_json.get(), "cred");
+    EM_ASSERT_NOT_NULL(cred_obj, -1, "Failed to get 'cred' from DPP Configuration Object in BSS Configuration Response TLV");
+    EM_ASSERT_MSG_TRUE(cJSON_IsObject(cred_obj), -1, "'cred' in DPP Configuration Object is not a JSON object");
 
 
-    scoped_cjson dpp_connector_obj(cJSON_GetObjectItemCaseSensitive(cred_obj.get(), "signedConnector"));
-    EM_ASSERT_NOT_NULL(dpp_connector_obj.get(), -1, "Failed to get 'signedConnector' from 'cred' in DPP Configuration Object in BSS Configuration Response TLV");
-    EM_ASSERT_MSG_TRUE(cJSON_IsString(dpp_connector_obj.get()), -1, "'signedConnector' in 'cred' is not a string");
+    cJSON* dpp_connector_obj = cJSON_GetObjectItemCaseSensitive(cred_obj, "signedConnector");
+    EM_ASSERT_NOT_NULL(dpp_connector_obj, -1, "Failed to get 'signedConnector' from 'cred' in DPP Configuration Object in BSS Configuration Response TLV");
+    EM_ASSERT_MSG_TRUE(cJSON_IsString(dpp_connector_obj), -1, "'signedConnector' in 'cred' is not a string");
 
-    std::string dpp_connector = cJSON_GetStringValue(dpp_connector_obj.get());
+    std::string dpp_connector = cJSON_GetStringValue(dpp_connector_obj);
 
-    scoped_cjson csign_obj(cJSON_GetObjectItemCaseSensitive(cred_obj.get(), "csign"));
-    EM_ASSERT_NOT_NULL(csign_obj.get(), -1, "Failed to get 'csign' from 'cred' in DPP Configuration Object in BSS Configuration Response TLV");
-    EM_ASSERT_MSG_TRUE(cJSON_IsObject(csign_obj.get()), -1, "'csign' is not an object");
+    cJSON* csign_obj = cJSON_GetObjectItemCaseSensitive(cred_obj, "csign");
+    EM_ASSERT_NOT_NULL(csign_obj, -1, "Failed to get 'csign' from 'cred' in DPP Configuration Object in BSS Configuration Response TLV");
+    EM_ASSERT_MSG_TRUE(cJSON_IsObject(csign_obj), -1, "'csign' is not an object");
 
 
-    scoped_cjson akm_str(cJSON_GetObjectItemCaseSensitive(dpp_config_json.get(), "akm"));
-    EM_ASSERT_NOT_NULL(akm_str.get(), -1, "Failed to get 'akm' from 'cred' in DPP Configuration Object in BSS Configuration Response TLV");
-    EM_ASSERT_MSG_TRUE(cJSON_IsString(akm_str.get()), -1, "'akm' in 'cred' in DPP Configuration Object is not a string");
-    std::string akm = cJSON_GetStringValue(akm_str.get());
+    cJSON* akm_str = cJSON_GetObjectItemCaseSensitive(cred_obj, "akm");
+    EM_ASSERT_NOT_NULL(akm_str, -1, "Failed to get 'akm' from 'cred' in DPP Configuration Object in BSS Configuration Response TLV");
+    EM_ASSERT_MSG_TRUE(cJSON_IsString(akm_str), -1, "'akm' in 'cred' in DPP Configuration Object is not a string");
+    std::string akm = cJSON_GetStringValue(akm_str);
 
-    scoped_cjson pass_str(cJSON_GetObjectItemCaseSensitive(dpp_config_json.get(), "pass"));
-    EM_ASSERT_NOT_NULL(pass_str.get(), -1, "Failed to get 'pass' from 'cred' in DPP Configuration Object in BSS Configuration Response TLV");
-    EM_ASSERT_MSG_TRUE(cJSON_IsString(pass_str.get()), -1, "'pass' in 'cred' in DPP Configuration Object is not a string");
-    std::string pass = cJSON_GetStringValue(pass_str.get());
-   
+    cJSON* pass_str = cJSON_GetObjectItemCaseSensitive(cred_obj, "pass");
+    EM_ASSERT_NOT_NULL(pass_str, -1, "Failed to get 'pass' from 'cred' in DPP Configuration Object in BSS Configuration Response TLV");
+    EM_ASSERT_MSG_TRUE(cJSON_IsString(pass_str), -1, "'pass' in 'cred' in DPP Configuration Object is not a string");
+    std::string pass = cJSON_GetStringValue(pass_str);
 
     /*
     Theoretically, the main point of this is to set a DPP Connector for STAs to join via non-EasyMesh DPP rather than using a PSK.
@@ -4120,7 +4200,7 @@ int em_configuration_t::handle_bss_config_rsp_tlv(em_tlv_t* tlv, m2ctrl_radiocon
     radioconfig.authtype[bss_count] = static_cast<unsigned int>(auth_type);
     memcpy(radioconfig.password[bss_count], pass.c_str(), sizeof(radioconfig.password[bss_count]));
 
-    auto [csign_group, csign_pub] = ec_crypto::decode_jwk(csign_obj.get());
+    auto [csign_group, csign_pub] = ec_crypto::decode_jwk(csign_obj);
     if (csign_group == NULL || csign_pub == NULL) {
         em_printfout("Failed to decode C-sign key");
         if (csign_group) EC_GROUP_free(csign_group);
@@ -4165,7 +4245,7 @@ int em_configuration_t::handle_bss_config_rsp_msg(uint8_t *buff, unsigned int le
     */
 
     em_tlv_t *tlv_buff = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-    unsigned int tlv_buff_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    unsigned int tlv_buff_len = static_cast<unsigned int>(len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
 
     em_printfout("Received BSS Configuration Response message from '" MACSTRFMT "'", MAC2STR(src_al_mac));
 
@@ -4175,7 +4255,7 @@ int em_configuration_t::handle_bss_config_rsp_msg(uint8_t *buff, unsigned int le
     std::string bss_dpp_connector = "";
     m2ctrl_radioconfig radioconfig;
 
-    size_t bss_count = 0;
+    unsigned int bss_count = 0;
 
     while (tlv != NULL) {
 
@@ -4187,7 +4267,7 @@ int em_configuration_t::handle_bss_config_rsp_msg(uint8_t *buff, unsigned int le
             case em_tlv_type_bss_conf_rsp: {
                 // Process BSS Configuration Response TLV
                 // Can be more than one for each BSS a classical DPP connector should be assigned to
-                if (handle_bss_config_rsp_tlv(tlv, radioconfig, bss_count)) return -1;
+                if (handle_bss_config_rsp_tlv(tlv, radioconfig, static_cast<size_t>(bss_count))) return -1;
                 bss_count++;
                 break;
             }
@@ -4753,6 +4833,10 @@ int em_configuration_t::handle_autoconfig_resp(unsigned char *buff, unsigned int
     if (get_is_dpp_onboarding()) {
         // If DPP onboarding is enabled, we end here and start securing the 1905 layer
         set_state(em_state_agent_1905_securing); // Set state to avoid follow-on autoconf messages
+        ec_manager_t &ec_mgr = get_ec_mgr();
+        em_printfout("DPP Onboarding - starting 1905 security with controller " MACSTRFMT, MAC2STR(hdr->src));
+        // Set peer AL MAC to controller AL MAC
+        memcpy(ec_mgr.get_al_conn_ctx(NULL)->peer_al_mac, hdr->src, sizeof(mac_address_t));
         return get_ec_mgr().start_secure_1905_layer(hdr->src) ? 0 : -1;
     }
 
