@@ -253,7 +253,7 @@ void dm_bss_t::encode(cJSON *obj, bool summary)
 
     cJSON *backhaul_akmsArray = cJSON_CreateArray();
     for (i = 0; i < m_bss_info.num_backhaul_akms; i++) {
-        cJSON_AddItemToArray(fronthaul_akmsArray, cJSON_CreateString(m_bss_info.backhaul_akm[i]));
+        cJSON_AddItemToArray(backhaul_akmsArray, cJSON_CreateString(m_bss_info.backhaul_akm[i]));
     }
 
     // Add the array to the object
