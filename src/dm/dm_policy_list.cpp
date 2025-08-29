@@ -73,6 +73,12 @@ int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
 		} else if (policy->m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
 			policy->encode(obj, em_policy_id_type_ap_metrics_rep);
 			cJSON_AddItemToObject(parent_obj, "AP Metrics Reporting Policy", obj);
+        } else if (policy->m_policy.id.type == em_policy_id_type_default_8021q_settings) {
+            policy->encode(obj, em_policy_id_type_default_8021q_settings);
+            cJSON_AddItemToObject(parent_obj, "Default 802.1Q Settings Policy", obj);
+        } else if (policy->m_policy.id.type == em_policy_id_type_traffic_separation) {
+            policy->encode(obj, em_policy_id_type_traffic_separation);
+            cJSON_AddItemToObject(parent_obj, "Traffic Separation Policy", obj);
 		} else if (policy->m_policy.id.type == em_policy_id_type_channel_scan) {
 			policy->encode(obj, em_policy_id_type_channel_scan);
 			cJSON_AddItemToObject(parent_obj, "Channel Scan Reporting Policy", obj);
@@ -266,7 +272,13 @@ int dm_policy_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
             ret = insert_row(db_client, key, sta_mac_list_str, policy->policy, policy->interval, policy->rcpi_threshold, 
 											policy->rcpi_hysteresis, policy->util_threshold, policy->sta_traffic_stats, 
 											policy->sta_link_metric, policy->sta_status, policy->managed_sta_marker,
-											policy->independent_scan_report, policy->profile_1_sta_disallowed, policy->profile_2_sta_disallowed);
+											policy->independent_scan_report, policy->profile_1_sta_disallowed, policy->profile_2_sta_disallowed,
+                                            policy->def_8021q_settings.primary_vid, policy->def_8021q_settings.default_pcp,
+                                            policy->traffic_separ.ssid_info[0].ssid, policy->traffic_separ.ssid_info[0].vlan_id,
+                                            policy->traffic_separ.ssid_info[1].ssid, policy->traffic_separ.ssid_info[1].vlan_id,
+                                            policy->traffic_separ.ssid_info[2].ssid, policy->traffic_separ.ssid_info[2].vlan_id,
+                                            policy->traffic_separ.ssid_info[3].ssid, policy->traffic_separ.ssid_info[3].vlan_id,
+                                            policy->traffic_separ.ssid_info[4].ssid, policy->traffic_separ.ssid_info[4].vlan_id);
             break;
 
 	    case dm_orch_type_db_update:
@@ -274,7 +286,12 @@ int dm_policy_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
                                             policy->rcpi_hysteresis, policy->util_threshold, policy->sta_traffic_stats, 
                                             policy->sta_link_metric, policy->sta_status, policy->managed_sta_marker,
                                             policy->independent_scan_report, policy->profile_1_sta_disallowed, 
-											policy->profile_2_sta_disallowed, key);
+											policy->profile_2_sta_disallowed, policy->def_8021q_settings.primary_vid, policy->def_8021q_settings.default_pcp,
+                                            policy->traffic_separ.ssid_info[0].ssid, policy->traffic_separ.ssid_info[0].vlan_id,
+                                            policy->traffic_separ.ssid_info[1].ssid, policy->traffic_separ.ssid_info[1].vlan_id,
+                                            policy->traffic_separ.ssid_info[2].ssid, policy->traffic_separ.ssid_info[2].vlan_id,
+                                            policy->traffic_separ.ssid_info[3].ssid, policy->traffic_separ.ssid_info[3].vlan_id,
+                                            policy->traffic_separ.ssid_info[4].ssid, policy->traffic_separ.ssid_info[4].vlan_id, key);
             break;
 
 	    case dm_orch_type_db_delete:
@@ -345,6 +362,12 @@ int dm_policy_list_t::sync_db(db_client_t& db_client, void *ctx)
 		policy.independent_scan_report = db_client.get_number(ctx, 12);
 		policy.profile_1_sta_disallowed = db_client.get_number(ctx, 13);
 		policy.profile_2_sta_disallowed = db_client.get_number(ctx, 14);
+        policy.def_8021q_settings.primary_vid = static_cast<unsigned short>(db_client.get_number(ctx, 15));
+        policy.def_8021q_settings.default_pcp = static_cast<unsigned char>(db_client.get_number(ctx, 16));
+        for (i = 0; i < em_haul_type_max; i++) {
+            db_client.get_string(ctx, policy.traffic_separ.ssid_info[i].ssid, (17 + (2*i)));
+            policy.traffic_separ.ssid_info[i].vlan_id = static_cast<unsigned char>(db_client.get_number(ctx, (18 + (2*i))));
+        }
         
 		update_list(dm_policy_t(&policy), dm_orch_type_db_insert);
     }
@@ -359,6 +382,8 @@ void dm_policy_list_t::init_table()
 
 void dm_policy_list_t::init_columns()
 {
+    char col_name[32];
+
     m_num_cols = 0;
 
     m_columns[m_num_cols++] = db_column_t("ID", db_data_type_char, 64);
@@ -375,6 +400,16 @@ void dm_policy_list_t::init_columns()
     m_columns[m_num_cols++] = db_column_t("IndependentScanRep", db_data_type_tinyint, 0);
     m_columns[m_num_cols++] = db_column_t("Profile_1_Disallowed", db_data_type_tinyint, 0);
     m_columns[m_num_cols++] = db_column_t("Profile_2_Disallowed", db_data_type_tinyint, 0);
+    m_columns[m_num_cols++] = db_column_t("PrimaryVlanId", db_data_type_tinyint, 0);
+    m_columns[m_num_cols++] = db_column_t("DefaultPcp", db_data_type_tinyint, 0);
+
+    for (int i = 0; i < em_haul_type_max; i++) {
+        snprintf(col_name, sizeof(col_name), "SSID_%d", i);
+        m_columns[m_num_cols++] = db_column_t(col_name, db_data_type_char, 64);
+        snprintf(col_name, sizeof(col_name), "VlanId_%d", i);
+        m_columns[m_num_cols++] = db_column_t(col_name, db_data_type_tinyint, 0);
+
+    }
 }
 
 int dm_policy_list_t::init()

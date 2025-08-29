@@ -3106,8 +3106,13 @@ typedef enum {
 	em_policy_id_type_steering_param,
 	em_policy_id_type_ap_metrics_rep,
 	em_policy_id_type_radio_metrics_rep,
+	em_policy_id_type_default_8021q_settings,
+	em_policy_id_type_traffic_separation,
 	em_policy_id_type_channel_scan,
+	em_policy_id_type_unsuccess_assoc,
 	em_policy_id_type_backhaul_bss_config,
+	em_policy_id_type_qos_mgt,
+
 	em_policy_id_type_unknown,
 } em_policy_id_type_t;
 
@@ -3126,12 +3131,28 @@ typedef enum {
 } em_steering_policy_type_t;
 
 typedef struct {
+    unsigned short	primary_vid;
+    unsigned char default_pcp;
+} em_8021q_settings_policy_t;
+
+typedef struct {
+    unsigned char ssid_len;
+    char ssid[MAX_WIFI_SSID_LEN];
+    unsigned short vlan_id;
+} em_ssid_info_traffic_separ_pol_t;
+
+typedef struct {
+    unsigned char num_ssids;
+    em_ssid_info_traffic_separ_pol_t ssid_info[em_haul_type_max];
+} em_traffic_separation_policy_t;
+
+typedef struct {
 	em_policy_id_t	id;
 	unsigned int num_sta;
 	mac_address_t	sta_mac[EM_MAX_STA_PER_STEER_POLICY];
 	em_steering_policy_type_t	policy;
 	unsigned short	util_threshold;
-	unsigned short	rcpi_threshold;	
+	unsigned short	rcpi_threshold;
 	unsigned short	interval;
 	unsigned short	rcpi_hysteresis;
 	bool	sta_traffic_stats;
@@ -3141,6 +3162,8 @@ typedef struct {
 	bool	independent_scan_report;
 	bool	profile_1_sta_disallowed;
 	bool	profile_2_sta_disallowed;
+	em_8021q_settings_policy_t  def_8021q_settings;
+	em_traffic_separation_policy_t traffic_separ;
 } em_policy_t;
 
 typedef em_network_node_t  *(* em_editor_callback_t)(em_network_node_t *, void *);

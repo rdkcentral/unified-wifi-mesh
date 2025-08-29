@@ -36,7 +36,7 @@
 
 int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t type)
 {
-    cJSON *tmp, *sta_arr_obj;
+    cJSON *tmp, *sta_arr_obj, *arr_obj, *tmp_obj;
 	em_policy_id_t id;
 	int i;
 
@@ -93,8 +93,30 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
        		m_policy.sta_link_metric = tmp->valuedouble;
     	}
     	if ((tmp = cJSON_GetObjectItem(obj, "STA Status")) != NULL) {
-   			m_policy.sta_status = tmp->valuedouble;
+			m_policy.sta_status = tmp->valuedouble;
     	}
+	} else if (type == em_policy_id_type_default_8021q_settings) {
+		if ((tmp = cJSON_GetObjectItem(obj, "Primay VLAN ID")) != NULL) {
+			m_policy.def_8021q_settings.primary_vid = static_cast<unsigned short>(tmp->valuedouble);
+		}
+		if ((tmp = cJSON_GetObjectItem(obj, "Default PCP")) != NULL) {
+			m_policy.def_8021q_settings.default_pcp = static_cast<unsigned char>(tmp->valuedouble);
+		}
+	} else if (type == em_policy_id_type_traffic_separation) {
+		if ((arr_obj = cJSON_GetObjectItem(obj, "Traffic Separation")) == NULL) {
+			return 0;
+		}
+
+		for (i = 0; i < cJSON_GetArraySize(arr_obj); i++) {
+			tmp_obj = cJSON_GetArrayItem(arr_obj, i);
+			if ((tmp = cJSON_GetObjectItem(tmp_obj, "SSID Name")) != NULL) {
+				m_policy.traffic_separ.ssid_info->ssid_len = strlen(cJSON_GetStringValue(tmp));
+				strncpy(m_policy.traffic_separ.ssid_info->ssid, cJSON_GetStringValue(tmp), m_policy.traffic_separ.ssid_info->ssid_len);
+			}
+			if ((tmp = cJSON_GetObjectItem(obj, "VLAN ID")) != NULL) {
+				m_policy.traffic_separ.ssid_info->vlan_id = static_cast<unsigned short>(tmp->valuedouble);
+			}
+		}
 	} else if (type == em_policy_id_type_channel_scan) {
     	if ((tmp = cJSON_GetObjectItem(obj, "Report Independent Channel Scans")) != NULL) {
    			m_policy.independent_scan_report = tmp->valuedouble;
@@ -137,13 +159,26 @@ void dm_policy_t::encode(cJSON *obj, em_policy_id_type_t id)
 		cJSON_AddNumberToObject(obj, "STA Traffic Stats", m_policy.sta_traffic_stats);
 		cJSON_AddNumberToObject(obj, "STA Link Metrics", m_policy.sta_link_metric);
 		cJSON_AddNumberToObject(obj, "STA Status", m_policy.sta_status);
+	} else if (id == em_policy_id_type_default_8021q_settings) {
+		cJSON_AddNumberToObject(obj, "Primary VLAN ID", m_policy.def_8021q_settings.primary_vid);
+		cJSON_AddNumberToObject(obj, "Default PCP", m_policy.def_8021q_settings.default_pcp);
+	} else if (id == em_policy_id_type_traffic_separation) {
+		sta_arr_obj = cJSON_AddArrayToObject(obj, "Traffic Separation");
+		for (i = 0; i < em_haul_type_max; i++) {
+			cJSON_AddStringToObject(obj, "SSID Name", m_policy.traffic_separ.ssid_info[i].ssid);
+			cJSON_AddNumberToObject(obj, "VLAN ID", m_policy.traffic_separ.ssid_info[i].vlan_id);
+		}
 	} else if (id == em_policy_id_type_channel_scan) {
 		cJSON_AddNumberToObject(obj, "Report Independent Channel Scans", m_policy.independent_scan_report);
+	} else if (id == em_policy_id_type_unsuccess_assoc) {
+
 	} else if (id == em_policy_id_type_backhaul_bss_config) {
 
+	} else if (id == em_policy_id_type_unsuccess_assoc) {
+
+	} else if (id == em_policy_id_type_qos_mgt) {
+
 	}
-
-
 }
 
 bool dm_policy_t::operator == (const dm_policy_t& obj)
@@ -160,7 +195,8 @@ bool dm_policy_t::operator == (const dm_policy_t& obj)
     ret += !(this->m_policy.sta_link_metric == obj.m_policy.sta_link_metric);
     ret += !(this->m_policy.sta_status == obj.m_policy.sta_status);
 	ret += (strncmp(this->m_policy.managed_sta_marker, obj.m_policy.managed_sta_marker, strlen(this->m_policy.managed_sta_marker)) != 0);
-     
+    ret += (memcmp(&this->m_policy.def_8021q_settings, &obj.m_policy.def_8021q_settings, sizeof(em_8021q_settings_policy_t)) != 0);
+    ret += (memcmp(&this->m_policy.traffic_separ, &obj.m_policy.traffic_separ, sizeof(em_traffic_separation_policy_t)) != 0);
 
 	return (ret > 0) ? false:true;
 }
@@ -179,6 +215,8 @@ void dm_policy_t::operator = (const dm_policy_t& obj)
     this->m_policy.sta_link_metric = obj.m_policy.sta_link_metric;
     this->m_policy.sta_status = obj.m_policy.sta_status;
     strncpy(this->m_policy.managed_sta_marker, obj.m_policy.managed_sta_marker, sizeof(em_long_string_t));
+    memcpy(&this->m_policy.def_8021q_settings, &obj.m_policy.def_8021q_settings, sizeof(em_8021q_settings_policy_t));
+    memcpy(&this->m_policy.traffic_separ, &obj.m_policy.traffic_separ, sizeof(em_traffic_separation_policy_t));
 }
 
 int dm_policy_t::parse_dev_radio_mac_from_key(const char *key, em_policy_id_t *id)
