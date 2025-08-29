@@ -2905,7 +2905,7 @@ int em_configuration_t::create_agent_list_tlv(uint8_t *buff) {
 
     uint8_t* agent_obj_buff = buff + sizeof(em_agent_list_t);
 
-    int tlv_size = sizeof(em_agent_list_t);
+    size_t tlv_size = sizeof(em_agent_list_t);
 
     while (dm != NULL) {
         // 
@@ -2927,7 +2927,7 @@ int em_configuration_t::create_agent_list_tlv(uint8_t *buff) {
         dm = em_mgr->get_next_dm(dm);
     }
 
-    return tlv_size;
+    return static_cast<int>(tlv_size);
 }
 
 
@@ -2989,7 +2989,7 @@ int em_configuration_t::create_bss_conf_resp_tlv(uint8_t *buff, em_bss_info_t *b
 
     memcpy(buff, json_string.c_str(), json_string.length());
 
-    return json_string.length();
+    return static_cast<int>(json_string.length());
 }
 
 int em_configuration_t::compute_keys(unsigned char *remote_pub, unsigned short pub_len, unsigned char *local_priv, unsigned short priv_len)
@@ -4274,7 +4274,7 @@ int em_configuration_t::handle_bss_config_res_msg(uint8_t *buff, unsigned int le
     */
 
     em_tlv_t *tlv_buff = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-    unsigned int tlv_buff_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    unsigned int tlv_buff_len = static_cast<unsigned int>(len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
 
     em_printfout("Received BSS Configuration Result message from '" MACSTRFMT "'", MAC2STR(src_al_mac));
 
@@ -4335,7 +4335,7 @@ int em_configuration_t::handle_agent_list_msg(uint8_t *buff, unsigned int len, u
     // Agent
 
     em_tlv_t *tlv_buff = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-    unsigned int tlv_buff_len = len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    unsigned int tlv_buff_len = static_cast<unsigned int>(len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
 
     em_printfout("Received Agent List message from '" MACSTRFMT "'", MAC2STR(src_al_mac));
 

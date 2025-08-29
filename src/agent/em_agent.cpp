@@ -678,7 +678,7 @@ bool em_agent_t::send_scan_request(em_scan_params_t* scan_params, bool perform_f
     
 
     std::string ruid_str = util::mac_to_string(scan_params->ruid);
-    em_printfout("Radio: %s Num of Op Classes: %d\n", ruid_str.c_str(), scan_params->num_op_classes);
+    em_printfout("Radio: %s Num of Op Classes: %d", ruid_str.c_str(), scan_params->num_op_classes);
 
     channel_scan_request_t scan_data;
     memset(&scan_data, 0, sizeof(channel_scan_request_t));
@@ -929,7 +929,8 @@ bool em_agent_t::send_backhaul_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t 
 
 
     const em_bss_info_t *bss_info = m_data_model.get_backhaul_bss_info();
-    EM_ASSERT_NOT_NULL(bss_info, false, "No backhaul BSS info found");
+    em_printfout("Sending backhaul station action frame on frequency %d", frequency);
+    EM_ASSERT_NOT_NULL(bss_info, false, "No backhaul bsta info found");
 
     return send_action_frame(dest_mac, action_frame, action_frame_len, bss_info->vap_index, frequency, wait_time_ms);
 }
