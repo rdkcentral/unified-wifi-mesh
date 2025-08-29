@@ -882,7 +882,7 @@ public:
 	 *
 	 * @note Ensure that the buffer provided is large enough to hold the TLV structure.
 	 */
-	short create_eht_operations_tlv(unsigned char *buff);
+	unsigned short create_eht_operations_tlv(unsigned char *buff);
     
 	/**!
 	 * @brief Creates a channel scan TLV.
