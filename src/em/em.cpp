@@ -1361,7 +1361,7 @@ cJSON *em_t::create_fbss_response_obj(uint8_t pa_al_mac[ETH_ALEN]) {
     EM_ASSERT_NOT_NULL(bss_info, nullptr, "Could not find BSS with SSID: '%s'", network_ssid_info->ssid);
 
     // true for is_sta_response, false for tear_down_bss
-    scoped_cjson bss_config_obj (create_bss_dpp_response_obj(bss_info, true, false)); 
+    scoped_cjson bss_config_obj (create_bss_dpp_response_obj(bss_info, true, false, dm)); 
     EM_ASSERT_NOT_NULL(bss_config_obj.get(), nullptr, "Could not create fBSS DPP Configuration Object");
 
     return bss_config_obj.release(); // Ownership transferred to caller
@@ -1394,15 +1394,18 @@ cJSON *em_t::create_configurator_bsta_response_obj(uint8_t pa_al_mac[ETH_ALEN])
     EM_ASSERT_NOT_NULL(bss_info, nullptr, "Could not find BSS with SSID: '%s'", network_ssid_info->ssid);
 
     // true for is_sta_response (doesn't change anything on the backhaul), false for tear_down_bss
-    scoped_cjson bss_config_obj (create_bss_dpp_response_obj(bss_info, true, false)); 
+    scoped_cjson bss_config_obj (create_bss_dpp_response_obj(bss_info, true, false, dm)); 
     EM_ASSERT_NOT_NULL(bss_config_obj.get(), nullptr, "Could not create bSTA DPP Configuration Object");
 
     return bss_config_obj.release(); // Ownership transferred to caller
 }
 
-cJSON *em_t::create_bss_dpp_response_obj(const em_bss_info_t *bss_info, bool is_sta_response, bool tear_down_bss)
+cJSON *em_t::create_bss_dpp_response_obj(const em_bss_info_t *bss_info, bool is_sta_response, bool tear_down_bss, dm_easy_mesh_t* data_model)
 {
-    dm_easy_mesh_t *dm = get_data_model();
+    dm_easy_mesh_t *dm = data_model;
+    if (dm == nullptr) {
+        dm = get_data_model();
+    }
     ASSERT_NOT_NULL(dm, nullptr, "%s:%d: Failed to get data model handle.\n", __func__, __LINE__);
 
     EM_ASSERT_NOT_NULL(bss_info, nullptr, "%s:%d: BSS info is NULL, cannot create DPP Configuration Object", __func__, __LINE__);
@@ -1412,19 +1415,13 @@ cJSON *em_t::create_bss_dpp_response_obj(const em_bss_info_t *bss_info, bool is_
 
     em_haul_type_t haul_type = bss_info->id.haul_type;
 
-    bool is_fronthaul = (haul_type == em_haul_type_fronthaul);
     bool is_backhaul = (haul_type == em_haul_type_backhaul);
-
-    if (!is_fronthaul && !is_backhaul) {
-        em_printfout("BSS is neither fronthaul nor backhaul, cannot create DPP Configuration Object");
-        return nullptr;
-    }
 
     std::string wifi_tech = "";
     if (is_backhaul) {
         wifi_tech = "map";
-    }
-    if (is_fronthaul) {
+    } else {
+        // Assume all other haul types are fronthaul
         if (is_sta_response) {
             // EasyMesh 5.3.11
             wifi_tech = "infra";
