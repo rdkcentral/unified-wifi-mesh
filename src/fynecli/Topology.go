@@ -100,6 +100,7 @@ type Band struct {
 
 type HaulTypeVisual struct {
 	Name        string     `json:"name"`
+	SSID        string     `json:"ssid"`
 	VlanId      int        `json:"VlanId"`
 	Color       color.RGBA `json:"color"`
 	Radius      float32    `json:"radius"`
@@ -170,6 +171,12 @@ type TopologyNode struct {
 	} `json:"Result"`
 }
 
+type ClickableImage struct {
+    widget.BaseWidget
+    image    *canvas.Image
+    onTapped func()
+}
+
 // Map to keep track of node IDs
 var nodeMap = map[string]graph.Node{}
 var g = simple.NewDirectedGraph()
@@ -185,6 +192,43 @@ var triangleOffsets = []struct{ X, Y float32 }{
 	{X: -75, Y: 50},
 	{X: 75, Y: 50},
 	{X: 0, Y: -75},
+}
+
+func NewClickableImage(res fyne.Resource, onTapped func()) *ClickableImage {
+    img := canvas.NewImageFromResource(res)
+    img.FillMode = canvas.ImageFillContain
+    img.SetMinSize(fyne.NewSize(40, 40)) // Set desired size
+
+    c := &ClickableImage{
+        image:    img,
+        onTapped: onTapped,
+    }
+    c.ExtendBaseWidget(c)
+    return c
+}
+
+func (c *ClickableImage) CreateRenderer() fyne.WidgetRenderer {
+    return widget.NewSimpleRenderer(c.image)
+}
+
+func (c *ClickableImage) Tapped(_ *fyne.PointEvent) {
+	c.Refresh()
+    if c.onTapped != nil {
+        c.onTapped()
+    }
+}
+
+func (c *ClickableImage) Destroy() {}
+
+func getTestJSONFile(timerCount int) string {
+    files := []string{
+        "../../src/fynecli/example/network_topo.json",
+        "../../src/fynecli/example/network_topo1.json",
+        "../../src/fynecli/example/network_topo2.json",
+        "../../src/fynecli/example/network_topo3.json",
+    }
+    index := (timerCount - 1) / 3 % len(files)
+    return files[index]
 }
 
 func getIconForClientType(clientType string) fyne.Resource {
@@ -203,7 +247,222 @@ func getIconForClientType(clientType string) fyne.Resource {
 
 }
 
+/* func: loadNestedTopologyFromDeviceTree()
+ * Description:
+ * This function parse the network topology tree 
+* and set the respective stricture to draw the graph
+ * returns: N/A
+ */
+func loadNestedTopologyFromDeviceTree(tree *C.em_network_node_t, container *fyne.Container) (*simple.UndirectedGraph, map[string]graph.Node, map[string]RawNode, []BandEdge, error) {
+    // local variables
+	const (
+        r         = 300.0
+        staRadius = 80.0
+        rootSize  = 70
+        childSize = 50
+        angleStep = 50.0
+    )
+
+    g := simple.NewUndirectedGraph()
+    nodeMap := make(map[string]graph.Node)
+    metaMap := make(map[string]RawNode)
+    var bandEdges []BandEdge
+
+    canvasSize := container.Size()
+    canvasWidth := canvasSize.Width
+
+    var rootDeviceNode *C.em_network_node_t
+    var rootDeviceID string
+
+	// Parse for root device
+	backhaulTree := C.get_network_tree_by_key(tree, C.CString("Backhaul"))
+    if backhaulTree == nil {
+        return g, nodeMap, metaMap, bandEdges, nil
+    }
+
+	// Parse for collocated agent
+	childNode := C.get_network_tree_by_key(backhaulTree, C.CString("Child"))
+    if childNode == nil {
+        return g, nodeMap, metaMap, bandEdges, nil
+    }
+
+    // Prase the tree and get the root node
+	for i := 0; i < int(childNode.num_children); i++ {
+        child := childNode.child[i]
+		childBackhaulTree := C.get_network_tree_by_key(child, C.CString("Backhaul"))
+        if getTreeValue(childBackhaulTree, "MACAddress") == "00:00:00:00:00:00" {
+            rootDeviceNode = child
+            rootDeviceID = getTreeValue(child, "ID")
+            break
+        }
+    }
+
+    if rootDeviceNode == nil {
+        return nil, nil, nil, nil, fmt.Errorf("root device not found")
+    }
+
+    // Helper function for createSTAList
+    createSTAList := func(deviceX, deviceY float32, radioNode *C.em_network_node_t) []STAWithContext {
+        var staList []STAWithContext
+        for i := 0; i < int(radioNode.num_children); i++ {
+            radio := radioNode.child[i]
+            bssNode := C.get_network_tree_by_key(radio, C.CString("BSSList"))
+            for j := 0; j < int(bssNode.num_children); j++ {
+                bss := bssNode.child[j]
+                staNode := C.get_network_tree_by_key(bss, C.CString("STAList"))
+                for k := 0; k < int(staNode.num_children); k++ {
+                    sta := staNode.child[k]
+
+					// Ignore sta entries if ClientType is not present
+					if getTreeValue(sta, "ClientType") == "" {
+						continue
+					}
+                    theta := -60.0 * (math.Pi / 180)
+                    staX := deviceX + float32(staRadius)*float32(math.Cos(theta))
+                    staY := deviceY + float32(staRadius)*float32(math.Sin(theta))
+                    staList = append(staList, STAWithContext{
+                        STA:      parseSTA(sta),
+                        Band:     getKeyIntValue(radio, "Band"),
+                        HaulType: getTreeValue(bss, "HaulType"),
+                        SSID:     getTreeValue(bss, "SSID"),
+                        Icon:     getIconForClientType(getTreeValue(sta, "ClientType")),
+                        X:        staX,
+                        Y:        staY,
+                    })
+                    theta -= 50
+                }
+            }
+        }
+        return staList
+    }
+
+    // Helper function for createNode
+    createNode := func(deviceNode *C.em_network_node_t, x, y float32, size float32) string {
+        deviceID := getTreeValue(deviceNode, "ID")
+        node := g.NewNode()
+        g.AddNode(node)
+        nodeMap[deviceID] = node
+
+        icon := resourceExtenderPng
+        if deviceID == rootDeviceID {
+            icon = resourceGatewayPng
+        }
+
+        radios := parseRadioList(deviceNode.child[2])
+
+        metaMap[deviceID] = RawNode{
+            Name:       deviceID,
+            X:          x,
+            Y:          y,
+            SymbolSize: size,
+            RadioList:  radios,
+            Bands:      getBandsFromRadioList(radios),
+            HaulTypes:  buildHaulTypes(radios),
+            Icon:       icon,
+            STAList:    createSTAList(x, y, deviceNode.child[2]),
+        }
+        return deviceID
+    }
+
+    // Recursive traversal
+    var traverse func(deviceNode *C.em_network_node_t, parentX, parentY float32, baseAngle float64, depth int)
+    traverse = func(deviceNode *C.em_network_node_t, parentX, parentY float32, baseAngle float64, depth int) {
+        if deviceNode == nil {
+            return
+        }
+
+        deviceID := getTreeValue(deviceNode, "ID")
+        if _, exists := nodeMap[deviceID]; !exists {
+            var x, y float32
+            var size float32
+
+            if deviceID == rootDeviceID {
+                x = -canvasWidth/2 + 190
+                y = 0
+                size = rootSize
+            } else {
+                theta := baseAngle * (math.Pi / 180)
+                x = parentX + float32(r)*float32(math.Cos(theta))
+                y = parentY + float32(r)*float32(math.Sin(theta))
+                size = childSize
+            }
+
+            createNode(deviceNode, x, y, size)
+        }
+
+        backhaul := C.get_network_tree_by_key(deviceNode, C.CString("Backhaul"))
+        if backhaul == nil {
+            return
+        }
+
+        childList := C.get_network_tree_by_key(backhaul, C.CString("Child"))
+        if childList == nil {
+            return
+        }
+
+        for i := 0; i < int(childList.num_children); i++ {
+            child := childList.child[i]
+            childID := getTreeValue(child, "ID")
+
+            childAngle := baseAngle + float64(i)*angleStep
+
+            if _, exists := nodeMap[childID]; !exists {
+                theta := childAngle * (math.Pi / 180)
+                childX := metaMap[deviceID].X + float32(r)*float32(math.Cos(theta))
+                childY := metaMap[deviceID].Y + float32(r)*float32(math.Sin(theta))
+				if depth == 0 {
+				    if(i==0) {
+					    childY -= 130
+					    childX -= 50
+				    } else if(i==1) {
+					    childY -= 80
+					    childX += 60
+				    }
+			    } else if depth == 1 {
+					if(i==0) {
+					    childY += 130
+					    childX -= 50
+				    }
+				} 
+
+                createNode(child, childX, childY, childSize)
+            }
+
+            band := getBandFromRadioTree(child)
+            /*channel := getChannelFromRadioTree(child)*/
+			var channel int
+			if band == 0 {
+				channel = 6
+			} else if band == 1 {
+				channel = 36
+			} else if band == 2 {
+				channel = 149
+			}  
+
+            g.SetEdge(g.NewEdge(nodeMap[deviceID], nodeMap[childID]))
+            bandEdges = append(bandEdges, BandEdge{
+                From:     deviceID,
+                To:       childID,
+                Band:     band,
+                Channel:  channel, //TODO: hardcoded for now, will be replace with actual value
+            })
+
+            traverse(child, metaMap[deviceID].X, metaMap[deviceID].Y, childAngle, depth+1)
+        }
+    }
+
+    traverse(rootDeviceNode, 0, 0, 0, 0)
+    return g, nodeMap, metaMap, bandEdges, nil
+}
+
+/* func: loadNestedTopologyJSON()
+ * Description:
+ * This function parse the network topology static json files 
+ * and set the respective stricture to draw the graph
+ * returns: N/A
+ */
 func loadNestedTopologyJSON(path string, container *fyne.Container) (*simple.UndirectedGraph, map[string]graph.Node, map[string]RawNode, []BandEdge, error) {
+	// open the json file
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, nil, nil, nil, err
@@ -230,6 +489,7 @@ func loadNestedTopologyJSON(path string, container *fyne.Container) (*simple.Und
 
 	var rootDeviceID string
 
+	// Helper function for createSTAList
 	createSTAList := func(deviceX, deviceY float32, radioList []Radio) []STAWithContext {
 		var staList []STAWithContext
 		for _, radio := range radioList {
@@ -255,6 +515,7 @@ func loadNestedTopologyJSON(path string, container *fyne.Container) (*simple.Und
 		return staList
 	}
 
+	// Helper function for createNode
 	createNode := func(device Device, x, y float32, size float32) {
 		node := g.NewNode()
 		g.AddNode(node)
@@ -281,8 +542,9 @@ func loadNestedTopologyJSON(path string, container *fyne.Container) (*simple.Und
 	canvasSize := container.Size()
 	canvasWidth := canvasSize.Width
 
-	var traverse func(device Device, parentX, parentY float32, baseAngle float64)
-	traverse = func(device Device, parentX, parentY float32, baseAngle float64) {
+	// Recursive traversal
+	var traverse func(device Device, parentX, parentY float32, baseAngle float64, depth int)
+	traverse = func(device Device, parentX, parentY float32, baseAngle float64, depth int) {
 		if device.ID == "" {
 			return
 		}
@@ -323,19 +585,24 @@ func loadNestedTopologyJSON(path string, container *fyne.Container) (*simple.Und
 				childX := metaMap[device.ID].X + float32(r)*float32(math.Cos(theta))
 				childY := metaMap[device.ID].Y + float32(r)*float32(math.Sin(theta))
 
-				if child.ID == "ea:f6:db:3b:bb:71" {
-					childY -= 130
-					childX -= 50
-				}
+				//Apply depth-based offset
+				log.Printf("Dept: %d, childId: %s\n", depth, child.ID)
+				if depth == 0 {
+					if child.ID == "ea:f6:db:3b:bb:71" {
+						childY -= 130
+						childX -= 50
+				    }
 
-				if child.ID == "e2:42:20:03:25:a5" {
-					childY += 130 // Move Extender 1 upward by 50 pixels
-					childX -= 50
-				}
+					if child.ID == "e2:42:20:03:25:a6" {
+						childY -= 80 // Move Extender 1 upward by 50 pixels
+					    childX += 60
+				    }
 
-				if child.ID == "e2:42:20:03:25:a6" {
-					childY -= 80 // Move Extender 1 upward by 50 pixels
-					childX += 60
+				} else if depth == 1 {
+					if child.ID == "e2:42:20:03:25:a5" {
+					    childY += 130 // Move Extender 1 upward by 50 pixels
+					    childX -= 50
+				    }
 				}
 
 				createNode(child, childX, childY, childSize)
@@ -368,7 +635,7 @@ func loadNestedTopologyJSON(path string, container *fyne.Container) (*simple.Und
 				Channel:  channel,
 			})
 
-			traverse(child, metaMap[device.ID].X, metaMap[device.ID].Y, childAngle)
+			traverse(child, metaMap[device.ID].X, metaMap[device.ID].Y, childAngle, depth+1)
 		}
 	}
 
@@ -385,94 +652,16 @@ func loadNestedTopologyJSON(path string, container *fyne.Container) (*simple.Und
 		return nil, nil, nil, nil, fmt.Errorf("no device with MACAddress 00:00:00:00:00:00 found")
 	}
 
-	traverse(*rootDevice, 0, 0, 0)
+	traverse(*rootDevice, 0, 0, 0, 0)
 	return g, nodeMap, metaMap, bandEdges, nil
 }
 
-func buildHaulTypes(radioList []Radio) []HaulTypeVisual {
-	haulTypeMap := make(map[string]*HaulTypeVisual)
-
-	for _, radio := range radioList {
-		for _, bss := range radio.BSSList {
-			if bss.HaulType == "" {
-				continue
-			}
-
-			// Initialize if not already present
-			if _, exists := haulTypeMap[bss.HaulType]; !exists {
-				haulTypeMap[bss.HaulType] = &HaulTypeVisual{
-					Name:        bss.HaulType,
-					Color:       colorForHaulType(bss.HaulType),
-					Radius:      100.0,
-					OffsetIndex: len(haulTypeMap) % len(triangleOffsets),
-					BSSList:     []BSS{},
-				}
-			}
-
-			// Append BSS info with Band
-			haulTypeMap[bss.HaulType].BSSList = append(haulTypeMap[bss.HaulType].BSSList, BSS{
-				BSSID:     bss.BSSID,
-				HaulType:  bss.HaulType,
-				SSID:      bss.SSID,
-				Enabled:   bss.Enabled,
-				TimeStamp: bss.TimeStamp,
-				VapMode:   bss.VapMode,
-				Band:      radio.Band,
-				VlanId:    bss.VlanId,
-				IEEE:      radio.IEEE,
-			})
-		}
-	}
-
-	// Convert map to sorted slice
-	sortedNames := make([]string, 0, len(haulTypeMap))
-	for ht := range haulTypeMap {
-		sortedNames = append(sortedNames, ht)
-	}
-	sort.Strings(sortedNames)
-
-	haulTypes := make([]HaulTypeVisual, 0, len(sortedNames))
-	for _, ht := range sortedNames {
-		haulTypes = append(haulTypes, *haulTypeMap[ht])
-	}
-
-	return haulTypes
-}
-
-
-type ClickableImage struct {
-    widget.BaseWidget
-    image    *canvas.Image
-    onTapped func()
-}
-
-func NewClickableImage(res fyne.Resource, onTapped func()) *ClickableImage {
-    img := canvas.NewImageFromResource(res)
-    img.FillMode = canvas.ImageFillContain
-    img.SetMinSize(fyne.NewSize(40, 40)) // Set desired size
-
-    c := &ClickableImage{
-        image:    img,
-        onTapped: onTapped,
-    }
-    c.ExtendBaseWidget(c)
-    return c
-}
-
-func (c *ClickableImage) CreateRenderer() fyne.WidgetRenderer {
-    return widget.NewSimpleRenderer(c.image)
-}
-
-func (c *ClickableImage) Tapped(_ *fyne.PointEvent) {
-	c.Refresh()
-    if c.onTapped != nil {
-        c.onTapped()
-    }
-}
-
-func (c *ClickableImage) Destroy() {}
-
-func drawEChartsGraph(
+/* func: drawNetworkTopologyGraph()
+ * Description:
+ * This function draw the mesh network topology
+ * returns: N/A
+ */
+func drawNetworkTopologyGraph(
 	g *simple.UndirectedGraph,
 	nodeMap map[string]graph.Node,
 	metaMap map[string]RawNode,
@@ -481,9 +670,11 @@ func drawEChartsGraph(
 ) {
 	idToName := make(map[int64]string)
 
+	// Get the convas Size
 	canvasSize := container.Size()
 	canvasOffset := fyne.NewPos(canvasSize.Width/2, canvasSize.Height/2)
 
+	// Home  or Topology Page header
 	heading := canvas.NewText("RDK Mesh Network", parseHexColor("#708090"))
 	heading.TextStyle = fyne.TextStyle{Bold: true}
 	heading.TextSize = 25
@@ -499,25 +690,21 @@ func drawEChartsGraph(
 		meta := metaMap[name]
 		pos := fyne.NewPos(meta.X+canvasOffset.X, meta.Y+canvasOffset.Y)
 
+		// Parse the haulType and create a partial overlapping haultype circle
 		for _, ht := range meta.HaulTypes {
+			// transparentColor for haul type
 			transparentCol := color.RGBA{R: ht.Color.R, G: ht.Color.G, B: ht.Color.B, A: 100}
-
 			offset := triangleOffsets[ht.OffsetIndex]
 
+			// Haul type radious
 			radius := ht.Radius
 
+			// haul type circe position and dimentions
 			circlePos := fyne.NewPos(pos.X-radius+offset.X, pos.Y-radius+offset.Y)
 			circleSize := fyne.NewSize(radius*2, radius*2)
 
-			haulInfo := fmt.Sprintf("%s\n", ht.Name)
-			if ht.Name == "Fronthaul" {
-				ht.VlanId = 12
-			} else if ht.Name == "Backhaul" {
-				ht.VlanId = 13
-			} else if ht.Name == "Iot" {
-				ht.VlanId = 11
-			}
-
+			// haul info to be display inside the circle
+			haulInfo := fmt.Sprintf("%s\n", ht.SSID)
 			if len(ht.BSSList) > 0 {
 				for _, bss := range ht.BSSList {
 					if bss.VapMode != 1 {
@@ -525,6 +712,14 @@ func drawEChartsGraph(
 						haulInfo += fmt.Sprintf("\n%s - %s - %s", bss.BSSID, bandName, bss.IEEE)
 					}
 				}
+			}
+			// TODO: This is dummy/hardcorded data, Replace this is actual vlanID 
+			if ht.Name == "Fronthaul" {
+				ht.VlanId = 12
+			} else if ht.Name == "Backhaul" {
+				ht.VlanId = 13
+			} else if ht.Name == "Iot" {
+				ht.VlanId = 11
 			}
 			haulInfo += fmt.Sprintf("\nVLANID = %d\n", ht.VlanId)
 
@@ -643,8 +838,7 @@ func drawEChartsGraph(
 			}
 
 			// Place STA inside the HaulType circle using a radial offset
-			// You can use index-based offset or random angle for distribution
-			staIndex := 1 // or use a loop index if available
+			staIndex := 1
 			totalSTAs := len(meta.STAList)
 			angle := 2 * math.Pi * float64(staIndex) / float64(totalSTAs)
 
@@ -657,13 +851,13 @@ func drawEChartsGraph(
 				pause_start_Timer(true)
 				showTooltip(container, info, fyne.NewPos(staPos.X, staPos.Y), color.RGBA{R: 216, G: 167, B: 7, A: 255})
 			})
-			staIcon.Resize(fyne.NewSize(40, 40)) // Ensure it's visible
-			staIcon.Move(fyne.NewPos(staPos.X-20, staPos.Y-20)) // Adjust position
+			staIcon.Resize(fyne.NewSize(40, 40))
+			staIcon.Move(fyne.NewPos(staPos.X-20, staPos.Y-20))
 			container.Add(staIcon)
 			container.Refresh()
 
 
-			// Connect sinewave from STA to node icon (not HaulType)
+			// Connect sinewave from STA to node icon
 			nodeCenter := fyne.NewPos(meta.X+canvasOffset.X, meta.Y+canvasOffset.Y)
 
 			// Compute direction vector from STA to Node
@@ -672,8 +866,8 @@ func drawEChartsGraph(
 			length := math.Hypot(dx, dy)
 
 			// Normalize and scale offset
-			staOffsetDistance := 25.0  // STA side offset
-			nodeOffsetDistance := 30.0 // Node side offset (slightly more)
+			staOffsetDistance := 25.0
+			nodeOffsetDistance := 30.0
 
 			offsetX := dx / length
 			offsetY := dy / length
@@ -742,7 +936,7 @@ func drawEChartsGraph(
 		_, hexCol := bandToNameAndColor(edge.Band)
 		col := parseHexColor(hexCol)
 
-		nodeRadius := float32(35) // Adjust based on your icon size
+		nodeRadius := float32(35)
 
 		adjustedFrom := offsetFromCenter(fromCenter, toCenter, nodeRadius)
 		adjustedTo := offsetFromCenter(toCenter, fromCenter, nodeRadius)
@@ -751,7 +945,7 @@ func drawEChartsGraph(
 		endVec := r2.Vec{X: float64(adjustedTo.X), Y: float64(adjustedTo.Y)}
 
 		// Generate sine wave points
-		wavePoints := GenerateSineWavePoints(startVec, endVec, 5, 30, 200) // amplitude=20, frequency
+		wavePoints := GenerateSineWavePoints(startVec, endVec, 5, 30, 200)
 		midIndex := len(wavePoints) / 2
 		mid := wavePoints[midIndex]
 		midPos := fyne.NewPos(float32(mid.X), float32(mid.Y))
@@ -822,89 +1016,94 @@ func drawEChartsGraph(
 	}
 }
 
+/* func: buildHaulTypes()
+ * Description:
+ * This is a helper function to create a haulTypeMap
+ * returns: []HaulTypeVisual
+ */
+func buildHaulTypes(radioList []Radio) []HaulTypeVisual {
+	haulTypeMap := make(map[string]*HaulTypeVisual)
 
-func lightenColor(c color.Color, factor float64) color.RGBA {
-    rgba, ok := c.(color.RGBA)
-    if !ok {
-        // fallback if color is not RGBA
-        r, g, b, a := c.RGBA()
-        rgba = color.RGBA{
-            R: uint8(r >> 8),
-            G: uint8(g >> 8),
-            B: uint8(b >> 8),
-            A: uint8(a >> 8),
-        }
-    }
-
-    return color.RGBA{
-        R: uint8(float64(rgba.R) + (255-float64(rgba.R))*factor),
-        G: uint8(float64(rgba.G) + (255-float64(rgba.G))*factor),
-        B: uint8(float64(rgba.B) + (255-float64(rgba.B))*factor),
-        A: rgba.A,
-    }
-}
-
-func offsetFromCenter(start, end fyne.Position, offset float32) fyne.Position {
-	dx := end.X - start.X
-	dy := end.Y - start.Y
-	length := float32(math.Hypot(float64(dx), float64(dy)))
-
-	if length == 0 {
-		return start
-	}
-
-	// Normalize and scale
-	nx := dx / length
-	ny := dy / length
-
-	return fyne.NewPos(start.X+nx*offset, start.Y+ny*offset)
-}
-
-func (c *Concentric) MinSize(objects []fyne.CanvasObject) fyne.Size {
-	w, h := float32(50), float32(50)
-	return fyne.NewSize(w, h)
-}
-
-func (c *Concentric) Layout(objects []fyne.CanvasObject, containerSize fyne.Size) {
-	/*var angle, incr, radius float64
-	centerX := containerSize.Width / 2
-	centerY := containerSize.Height / 2
-	cX := centerX - c.MinSize(objects).Width/2
-	cY := centerY - c.MinSize(objects).Height/2
-
-	if len(objects) > 0 {
-		objects[0].Move(fyne.NewPos(cX, cY))
-	}
-
-	angle = 0
-	incr = 30
-	radius = 100
-
-	for i := 1; i < len(objects); i++ {
-		switch obj := objects[i].(type) {
-		case *canvas.Image:
-			X := radius * math.Cos(angle*math.Pi/180)
-			Y := radius * math.Sin(angle*math.Pi/180)
-			angle += incr
-			if angle >= 360 {
-				radius += 70
-				incr += 2
-				angle = 0
+	for _, radio := range radioList {
+		for _, bss := range radio.BSSList {
+			if bss.HaulType == "" {
+				continue
 			}
-			pos := fyne.NewPos(cX+float32(X), cY+float32(Y))
-			obj.Move(pos)
-		case *canvas.Text:
-			obj.Move(objects[i-1].Position())
-		case *canvas.Line:
-			obj.Position1 = objects[0].Position()
-			obj.Position2 = objects[i-2].Position()
-			obj.Move(obj.Position())
-		case *canvas.Raster:
-			obj.Move(objects[0].Position())
+
+			// Initialize if not already present
+			if _, exists := haulTypeMap[bss.HaulType]; !exists {
+				haulTypeMap[bss.HaulType] = &HaulTypeVisual{
+					Name:        bss.HaulType,
+					SSID:        bss.SSID,
+					Color:       colorForHaulType(bss.HaulType),
+					Radius:      100.0,
+					OffsetIndex: len(haulTypeMap) % len(triangleOffsets),
+					BSSList:     []BSS{},
+				}
+			}
+
+			// Append BSS info with Band
+			haulTypeMap[bss.HaulType].BSSList = append(haulTypeMap[bss.HaulType].BSSList, BSS{
+				BSSID:     bss.BSSID,
+				HaulType:  bss.HaulType,
+				SSID:      bss.SSID,
+				Enabled:   bss.Enabled,
+				TimeStamp: bss.TimeStamp,
+				VapMode:   bss.VapMode,
+				Band:      radio.Band,
+				VlanId:    bss.VlanId,
+				IEEE:      radio.IEEE,
+			})
 		}
-	}*/
+	}
+
+	// Convert map to sorted slice
+	sortedNames := make([]string, 0, len(haulTypeMap))
+	for ht := range haulTypeMap {
+		sortedNames = append(sortedNames, ht)
+	}
+	sort.Strings(sortedNames)
+
+	haulTypes := make([]HaulTypeVisual, 0, len(sortedNames))
+	for _, ht := range sortedNames {
+		haulTypes = append(haulTypes, *haulTypeMap[ht])
+	}
+
+	return haulTypes
 }
 
+/* func: GenerateSineWavePoints()
+ * Description:
+ * generate sine wave based on amplitude, freq and steps
+ * returns: NA
+ */
+func GenerateSineWavePoints(start, end r2.Vec, amplitude float64, frequency float64, steps int) []r2.Vec {
+	var points []r2.Vec
+
+	// Direction vector
+	dir := r2.Sub(end, start)
+	length := math.Hypot(dir.X, dir.Y)
+	unitDir := r2.Scale(1/length, dir)
+
+	// Perpendicular vector
+	perp := r2.Vec{-unitDir.Y, unitDir.X}
+
+	for i := 0; i <= steps; i++ {
+		t := float64(i) / float64(steps)
+		base := r2.Add(start, r2.Scale(t, dir))
+		offset := amplitude * math.Sin(t*frequency*2*math.Pi)
+		wavePoint := r2.Add(base, r2.Scale(offset, perp))
+		points = append(points, wavePoint)
+	}
+
+	return points
+}
+
+/* func: showTooltip()
+ * Description:
+ * this function create the popup to display STA info on click
+ * returns: NA
+ */
 func showTooltip(container *fyne.Container, info string, pos fyne.Position, bgColor color.Color) {
 	if currentTooltipBg != nil {
 		container.Remove(currentTooltipBg)
@@ -977,28 +1176,11 @@ func showTooltip(container *fyne.Container, info string, pos fyne.Position, bgCo
 	currentTooltipCloseBtn = closeBtn
 }
 
-func GenerateSineWavePoints(start, end r2.Vec, amplitude float64, frequency float64, steps int) []r2.Vec {
-	var points []r2.Vec
-
-	// Direction vector
-	dir := r2.Sub(end, start)
-	length := math.Hypot(dir.X, dir.Y)
-	unitDir := r2.Scale(1/length, dir)
-
-	// Perpendicular vector
-	perp := r2.Vec{-unitDir.Y, unitDir.X}
-
-	for i := 0; i <= steps; i++ {
-		t := float64(i) / float64(steps)
-		base := r2.Add(start, r2.Scale(t, dir))
-		offset := amplitude * math.Sin(t*frequency*2*math.Pi)
-		wavePoint := r2.Add(base, r2.Scale(offset, perp))
-		points = append(points, wavePoint)
-	}
-
-	return points
-}
-
+/* func: getBandsFromRadioList()
+ * Description:
+ * this function create a map of bands with respect to radioList
+ * returns: NA
+ */
 func getBandsFromRadioList(radios []Radio) []Band {
 	defaultBands := getDefaultBands()
 	bandMap := make(map[int]Band)
@@ -1019,21 +1201,152 @@ func getBandsFromRadioList(radios []Radio) []Band {
 	return bands
 }
 
-func printBandEdges(edges []BandEdge) {
-	for _, edge := range edges {
-		fmt.Printf("From: %s, To: %s, Haul: %s\n", edge.From, edge.To, edge.HaulType)
+/* func: parseSTA()
+ * Description:
+ * this function Parse the necessary info from STA node and set the STA struct
+ * returns: NA
+ */
+func parseSTA(node *C.em_network_node_t) STA {
+	var associated bool
+	if getTreeValue(node, "Associated") == "true" {
+		associated = true
+	} else {
+		associated =  false
 	}
+    return STA{
+        MACAddress: getTreeValue(node, "MACAddress"),
+        ClientType: getTreeValue(node, "ClientType"),
+		Associated: associated,
+    }
 }
 
-func parseHexColor(s string) color.Color {
-	c, err := colorful.Hex(s)
-	if err != nil {
-		return color.Black
-	}
-	r, g, b := c.RGB255()
-	return color.RGBA{R: r, G: g, B: b, A: 255}
+/* func: parseRadioList()
+ * Description:
+ * this function Parse the necessary info from Radio node
+ * returns: []Radio
+ */
+func parseRadioList(tree *C.em_network_node_t) []Radio {
+    var radios []Radio
+    if tree == nil {
+        return radios
+    }
+
+    for i := 0; i < int(tree.num_children); i++ {
+        radio := tree.child[i]
+        if radio == nil {
+            continue
+        }
+
+        bssNode := C.get_network_tree_by_key(radio, C.CString("BSSList"))
+        var bssList []BSS
+        for j := 0; j < int(bssNode.num_children); j++ {
+            bss := bssNode.child[j]
+            if bss == nil {
+                continue
+            }
+
+            staNode := C.get_network_tree_by_key(bss, C.CString("STAList"))
+            var staList []STA
+            for k := 0; k < int(staNode.num_children); k++ {
+                sta := staNode.child[k]
+                if sta != nil {
+                    staList = append(staList, parseSTA(sta))
+                }
+            }
+
+            bssList = append(bssList, BSS{
+				BSSID: getTreeValue(bss, "BSSID"),
+                SSID:     getTreeValue(bss, "SSID"),
+                HaulType: getTreeValue(bss, "HaulType"),
+                VapMode:  getKeyIntValue(bss, "VapMode"),
+                Channel:  getKeyIntValue(bss, "Channel"),
+                STAList:  staList,
+            })
+        }
+
+        radios = append(radios, Radio{
+            ID:                 getTreeValue(radio, "ID"),
+            Enabled:            getKeyIntValue(radio, "Enabled") == 1,
+            NumberOfBSS:        getKeyIntValue(radio, "NumberOfBSS"),
+            NumberOfUnassocSta: getKeyIntValue(radio, "NumberOfUnassocSta"),
+            Noise:              getKeyIntValue(radio, "Noise"),
+            Utilization:        getKeyIntValue(radio, "Utilization"),
+            Band:               getKeyIntValue(radio, "Band"),
+            IEEE:               getTreeValue(radio, "IEEE"),
+            BSSList:            bssList,
+        })
+    }
+    return radios
 }
 
+/* func: getBandFromRadioTree()
+ * Description:
+ * this function Parse the RadioList node and get the band info
+ * returns: []Radio
+ */
+func getBandFromRadioTree(node *C.em_network_node_t) int {
+    radioList := C.get_network_tree_by_key(node, C.CString("RadioList"))
+    for i := 0; i < int(radioList.num_children); i++ {
+        radio := radioList.child[i]
+        if radio != nil {
+            return getKeyIntValue(radio, "Band")
+        }
+    }
+    return -1
+}
+
+/* func: lightenColor()
+ * Description:
+ * Helper function to make the sinwave line little lighter for STA
+ * returns: color.RGBA
+ */
+func lightenColor(c color.Color, factor float64) color.RGBA {
+    rgba, ok := c.(color.RGBA)
+    if !ok {
+        // fallback if color is not RGBA
+        r, g, b, a := c.RGBA()
+        rgba = color.RGBA{
+            R: uint8(r >> 8),
+            G: uint8(g >> 8),
+            B: uint8(b >> 8),
+            A: uint8(a >> 8),
+        }
+    }
+
+    return color.RGBA{
+        R: uint8(float64(rgba.R) + (255-float64(rgba.R))*factor),
+        G: uint8(float64(rgba.G) + (255-float64(rgba.G))*factor),
+        B: uint8(float64(rgba.B) + (255-float64(rgba.B))*factor),
+        A: rgba.A,
+    }
+}
+
+/* func: offsetFromCenter()
+ * Description:
+ * Helper function to calculate the offset from center
+ * returns: fyne.Position
+ */
+func offsetFromCenter(start, end fyne.Position, offset float32) fyne.Position {
+	dx := end.X - start.X
+	dy := end.Y - start.Y
+	length := float32(math.Hypot(float64(dx), float64(dy)))
+
+	if length == 0 {
+		return start
+	}
+
+	// Normalize and scale
+	nx := dx / length
+	ny := dy / length
+
+	return fyne.NewPos(start.X+nx*offset, start.Y+ny*offset)
+}
+
+/* func: colorForHaulType()
+ * Description:
+ * Helper function for haultype color mapping
+ * returns: fyne.Position
+ */
 func colorForHaulType(haulType string) color.RGBA {
 	switch haulType {
 	case "Backhaul":
@@ -1047,6 +1360,11 @@ func colorForHaulType(haulType string) color.RGBA {
 	}
 }
 
+/* func: getDefaultBands()
+ * Description:
+ * Helper function for band color mapping
+ * returns: NA
+ */
 func getDefaultBands() []Band {
 	return []Band{
 		{Name: "2.4GHz", Color: "#8B4513"},
@@ -1055,6 +1373,11 @@ func getDefaultBands() []Band {
 	}
 }
 
+/* func: bandToNameAndColor()
+ * Description:
+ * Helper function to get band name and respective color based on radio index
+ * returns: name, color
+ */
 func bandToNameAndColor(index int) (string, string) {
 	bands := getDefaultBands()
 	if index >= 0 && index < len(bands) {
@@ -1063,6 +1386,47 @@ func bandToNameAndColor(index int) (string, string) {
 	return "Unknown", "#808080" // Default gray for unknown band
 }
 
+/* func: distance()
+ * Description:
+ * Helper function to calculate the devaition from node
+ * returns: fyne.Position
+ */
+func distance(a, b fyne.Position) float32 {
+	dx := a.X - b.X
+	dy := a.Y - b.Y
+	return float32(math.Hypot(float64(dx), float64(dy)))
+}
+
+/* func: parseHexColor()
+ * Description:
+ * Helper function to convert hex colorto color.Color format
+ * returns: fyne.Position
+ */
+func parseHexColor(s string) color.Color {
+	c, err := colorful.Hex(s)
+	if err != nil {
+		return color.Black
+	}
+	r, g, b := c.RGB255()
+	return color.RGBA{R: r, G: g, B: b, A: 255}
+}
+
+/* func: printBandEdges()
+ * Description:
+ * Helper function to print BandEdge array data
+ * returns: fyne.Position
+ */
+func printBandEdges(edges []BandEdge) {
+	for _, edge := range edges {
+		fmt.Printf("From: %s, To: %s, Haul: %s\n", edge.From, edge.To, edge.HaulType)
+	}
+}
+
+/* func: printRawNodes()
+ * Description:
+ * Helper function to print RawNode array data
+ * returns: fyne.Position
+ */
 func printRawNodes(metaMap map[string]RawNode) {
 	for _, node := range metaMap {
 		fmt.Printf("Node: %s\n", node.Name)
@@ -1080,43 +1444,107 @@ func printRawNodes(metaMap map[string]RawNode) {
 	}
 }
 
-func distance(a, b fyne.Position) float32 {
-	dx := a.X - b.X
-	dy := a.Y - b.Y
-	return float32(math.Hypot(float64(dx), float64(dy)))
+func (c *Concentric) MinSize(objects []fyne.CanvasObject) fyne.Size {
+	w, h := float32(50), float32(50)
+	return fyne.NewSize(w, h)
 }
 
-func (t *Topology) periodicTimer() {
-	// Clear previous graph
-	var jsonFile string
+func (c *Concentric) Layout(objects []fyne.CanvasObject, containerSize fyne.Size) {
+	/*var angle, incr, radius float64
+	centerX := containerSize.Width / 2
+	centerY := containerSize.Height / 2
+	cX := centerX - c.MinSize(objects).Width/2
+	cY := centerY - c.MinSize(objects).Height/2
 
-	t.topo.Objects = nil
-	t.topo.Refresh()
-	t.timerCount++
-
-	if t.timerCount <= 3 {
-	jsonFile = "../../src/fynecli/example/network_topo.json"
-	} else if t.timerCount > 3 && t.timerCount <= 6 {
-		jsonFile = "../../src/fynecli/example/network_topo1.json"
-	} else if t.timerCount > 6 && t.timerCount <= 9 {
-		jsonFile = "../../src/fynecli/example/network_topo2.json"
-	} else if t.timerCount > 9 && t.timerCount <= 12 {
-		jsonFile = "../../src/fynecli/example/network_topo3.json"
-	} else {
-		t.timerCount = 0
-		jsonFile = "../../src/fynecli/example/network_topo.json"
+	if len(objects) > 0 {
+		objects[0].Move(fyne.NewPos(cX, cY))
 	}
 
-	g, nodeMap, metaMap, bandEdges, err := loadNestedTopologyJSON(jsonFile, t.topo)
+	angle = 0
+	incr = 30
+	radius = 100
 
-	//printBandEdges(bandEdges)
-	//printRawNodes(metaMap)
+	for i := 1; i < len(objects); i++ {
+		switch obj := objects[i].(type) {
+		case *canvas.Image:
+			X := radius * math.Cos(angle*math.Pi/180)
+			Y := radius * math.Sin(angle*math.Pi/180)
+			angle += incr
+			if angle >= 360 {
+				radius += 70
+				incr += 2
+				angle = 0
+			}
+			pos := fyne.NewPos(cX+float32(X), cY+float32(Y))
+			obj.Move(pos)
+		case *canvas.Text:
+			obj.Move(objects[i-1].Position())
+		case *canvas.Line:
+			obj.Position1 = objects[0].Position()
+			obj.Position2 = objects[i-2].Position()
+			obj.Move(obj.Position())
+		case *canvas.Raster:
+			obj.Move(objects[0].Position())
+		}
+	}*/
+}
+
+/* func: periodicTimer()
+ * Description:
+ * periodicTimer is being called by timer to fetch
+ * and update the topology graph periodically
+ * returns: NA
+ */
+func (t *Topology) periodicTimer() {
+	// local variable
+	var (
+        jsonFile  string
+        err       error
+        g         *simple.UndirectedGraph
+        nodeMap   map[string]graph.Node
+        metaMap   map[string]RawNode
+        bandEdges []BandEdge
+    )
+
+	// Clear previous graph
+	t.topo.Objects = nil
+	t.topo.Refresh()
+
+	// Draw the graph based on static json files
+	if len(os.Args) > 1 && os.Args[1] == "test" {	
+		t.timerCount++
+        jsonFile = getTestJSONFile(t.timerCount)
+	    g, nodeMap, metaMap, bandEdges, err = loadNestedTopologyJSON(jsonFile, t.topo)
+	} else {
+		// Fetch the live data and draw the graph based live data
+		topologyTree := t.getData()
+		if topologyTree == nil {
+			log.Printf("Failed to get the network topology")
+			return
+		}
+		// Fetch the Devoce node
+		topoDeviceTree := C.get_network_tree_by_key(topologyTree, C.CString("Device"))
+		if topoDeviceTree == nil {
+			log.Printf("Failed to get the network topology")
+			return
+		}
+
+		// Call the helper function to parse set the structure.
+		g, nodeMap, metaMap, bandEdges, err = loadNestedTopologyFromDeviceTree(topoDeviceTree, t.topo)
+	}
+
+	// Validate if any error while parsing
 	if err != nil {
 		log.Printf("Error loading topology: %v", err)
 		return
 	}
 
-	drawEChartsGraph(g, nodeMap, metaMap, bandEdges, t.topo)
+	// Helper function to pring the links
+	printBandEdges(bandEdges)
+	printRawNodes(metaMap)
+	
+    // Draw the graph
+	drawNetworkTopologyGraph(g, nodeMap, metaMap, bandEdges, t.topo)
 
 	t.topo.Refresh()
 

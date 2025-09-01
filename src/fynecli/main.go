@@ -142,7 +142,7 @@ func (m *MeshViewsMgr) createViews() {
 
     m.easyMeshViews[TopologyString] = EasyMeshView{
         title: TopologyString,
-        get:   "get_bss OneWifiMesh",
+        get:   "get_network OneWifiMesh",
         //tabItem: container.NewTabItemWithIcon("", theme.HomeIcon(), tabInterface.getCanvasObject()),
         tabItem:      container.NewTabItemWithIcon("", theme.HomeIcon(), topo.topo),
         tabInterface: tabInterface,
@@ -255,6 +255,7 @@ func (m *MeshViewsMgr) timerHandler() {
 
 func main() {
     meshViewsMgr.meshApp = app.New()
+    //meshViewsMgr.meshApp.Settings().SetTheme(theme.DarkTheme())
     meshViewsMgr.meshWindow = meshViewsMgr.meshApp.NewWindow("RDK Mesh")
 
     meshViewsMgr.createViews()
