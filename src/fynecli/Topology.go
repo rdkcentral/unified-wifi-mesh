@@ -428,7 +428,8 @@ func loadNestedTopologyFromDeviceTree(tree *C.em_network_node_t, container *fyne
                 createNode(child, childX, childY, childSize)
             }
 
-            band := getBandFromRadioTree(child)
+            // parse the band with extender connected
+            band := getBandFromRadioTree(child.child[2])
             /*channel := getChannelFromRadioTree(child)*/
 			var channel int
 			if band == 0 {
@@ -437,7 +438,7 @@ func loadNestedTopologyFromDeviceTree(tree *C.em_network_node_t, container *fyne
 				channel = 36
 			} else if band == 2 {
 				channel = 149
-			}  
+			}
 
             g.SetEdge(g.NewEdge(nodeMap[deviceID], nodeMap[childID]))
             bandEdges = append(bandEdges, BandEdge{
@@ -709,6 +710,11 @@ func drawNetworkTopologyGraph(
 				for _, bss := range ht.BSSList {
 					if bss.VapMode != 1 {
 						bandName, _ := bandToNameAndColor(bss.Band)
+						if bss.Band == 0 || bss.Band == 1 {
+							bss.IEEE= "802.11ax"
+						} else {
+							bss.IEEE= "802.11be"
+						}
 						haulInfo += fmt.Sprintf("\n%s - %s - %s", bss.BSSID, bandName, bss.IEEE)
 					}
 				}
@@ -718,7 +724,7 @@ func drawNetworkTopologyGraph(
 				ht.VlanId = 12
 			} else if ht.Name == "Backhaul" {
 				ht.VlanId = 13
-			} else if ht.Name == "Iot" {
+			} else if ht.Name == "IoT" {
 				ht.VlanId = 11
 			}
 			haulInfo += fmt.Sprintf("\nVLANID = %d\n", ht.VlanId)
@@ -1259,6 +1265,7 @@ func parseRadioList(tree *C.em_network_node_t) []Radio {
                 SSID:     getTreeValue(bss, "SSID"),
                 HaulType: getTreeValue(bss, "HaulType"),
                 VapMode:  getKeyIntValue(bss, "VapMode"),
+                Band:     getKeyIntValue(bss, "Band"),
                 Channel:  getKeyIntValue(bss, "Channel"),
                 STAList:  staList,
             })
@@ -1282,16 +1289,29 @@ func parseRadioList(tree *C.em_network_node_t) []Radio {
 /* func: getBandFromRadioTree()
  * Description:
  * this function Parse the RadioList node and get the band info
- * returns: []Radio
+ * returns: band
  */
 func getBandFromRadioTree(node *C.em_network_node_t) int {
-    radioList := C.get_network_tree_by_key(node, C.CString("RadioList"))
-    for i := 0; i < int(radioList.num_children); i++ {
-        radio := radioList.child[i]
-        if radio != nil {
-            return getKeyIntValue(radio, "Band")
+
+	// Iterate through the radiolist child
+	for i := 0; i < int(node.num_children); i++ {
+        radio := node.child[i]
+        if radio == nil {
+            continue
+        }
+
+		// BSSList node
+        bssListNode := C.get_network_tree_by_key(radio, C.CString("BSSList"))
+        for i := 0; i < int(bssListNode.num_children); i++ {
+            bss := bssListNode.child[i]
+		    vapMode := getKeyIntValue(bss, "VapMode")
+            if vapMode == 1 {
+				// return the band if vapMode is set
+                return getKeyIntValue(radio, "Band")
+            }
         }
     }
+	// If no valid connected band found
     return -1
 }
 
@@ -1418,7 +1438,7 @@ func parseHexColor(s string) color.Color {
  */
 func printBandEdges(edges []BandEdge) {
 	for _, edge := range edges {
-		fmt.Printf("From: %s, To: %s, Haul: %s\n", edge.From, edge.To, edge.HaulType)
+		fmt.Printf("From: %s, To: %s, Band: %d\n", edge.From, edge.To, edge.Band)
 	}
 }
 
@@ -1506,10 +1526,6 @@ func (t *Topology) periodicTimer() {
         bandEdges []BandEdge
     )
 
-	// Clear previous graph
-	t.topo.Objects = nil
-	t.topo.Refresh()
-
 	// Draw the graph based on static json files
 	if len(os.Args) > 1 && os.Args[1] == "test" {	
 		t.timerCount++
@@ -1518,10 +1534,11 @@ func (t *Topology) periodicTimer() {
 	} else {
 		// Fetch the live data and draw the graph based live data
 		topologyTree := t.getData()
-		if topologyTree == nil {
+		if topologyTree == nil || getTreeValue(topologyTree, "Status") != "Success" {
 			log.Printf("Failed to get the network topology")
 			return
 		}
+
 		// Fetch the Devoce node
 		topoDeviceTree := C.get_network_tree_by_key(topologyTree, C.CString("Device"))
 		if topoDeviceTree == nil {
@@ -1543,6 +1560,9 @@ func (t *Topology) periodicTimer() {
 	printBandEdges(bandEdges)
 	printRawNodes(metaMap)
 	
+	// Clear previous graph
+	t.topo.Objects = nil
+	t.topo.Refresh()
     // Draw the graph
 	drawNetworkTopologyGraph(g, nodeMap, metaMap, bandEdges, t.topo)
 
