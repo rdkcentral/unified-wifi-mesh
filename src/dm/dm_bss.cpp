@@ -183,6 +183,7 @@ void dm_bss_t::encode(cJSON *obj, bool summary)
     dm_easy_mesh_t::macbytes_to_string(m_bss_info.bssid.mac, mac_str);
     cJSON_AddStringToObject(obj, "BSSID", mac_str);
 
+	//TBD: Currently using default hard-coded values of VLAN-ID, need to integrate so that DM is updated from DB/CLI/Agent
 	switch (m_bss_info.id.haul_type) {
 		case em_haul_type_fronthaul:
 			strncpy(haul_type_str, "Fronthaul", strlen("Fronthaul") + 1);
