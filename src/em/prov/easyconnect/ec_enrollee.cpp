@@ -164,11 +164,13 @@ void ec_enrollee_t::generate_bss_channel_list(bool is_reconfig_list){
     Add the preferred Presence Announcement channels to the channel list;
     */
 
+    /*
     freq_list.insert(2437); // 2.4 GHz: Channel 6 (2.437 GHz)
     freq_list.insert(5220); // 5 GHz: Channel 44 (5.220 GHz)
     freq_list.insert(60480); // 60 GHz: Channel 2 (60.48 GHz)
     freq_list.insert(920); // 920 MHz: Channel 37 
-
+    */
+    freq_list.insert(5180);
     /* EC-Reconfig #2
 
     For each channel on which the Enrollee detects the SSID for which it is currently configured, 
@@ -2088,7 +2090,7 @@ bool ec_enrollee_t::handle_bss_info_event(const std::vector<wifi_bss_info_t> &bs
         */
         if (check_bss_info_has_cce(bss_info)){
             em_printfout("CCE heard on frequency %d, adding to Presence Announcement frequency list", bss_info.freq);
-            m_pres_announcement_freqs.insert(bss_info.freq);
+            //m_pres_announcement_freqs.insert(bss_info.freq);
             m_recnf_announcement_freqs.insert(bss_info.freq);
             did_handle_bss_info = true;
         }

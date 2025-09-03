@@ -269,7 +269,7 @@ int dm_easy_mesh_agent_t::analyze_m2ctrl_configuration(em_bus_event_t *evt, wifi
 		printf("%s:%d New configuration SSID=%s  passphrase=%s haultype=%d radiomac=%s\n",__func__, __LINE__,m2ctrl.ssid[i], m2ctrl.password[i], m2ctrl.haultype[i],mac_str);
 	}
 
-    return refresh_onewifi_subdoc(desc, bus_hdl, "Private", get_subdoc_vap_type_for_freq(radioconfig->freq), &m2ctrl, NULL);
+    return refresh_onewifi_subdoc(desc, bus_hdl, "Private", get_subdoc_vap_type_for_freq(radioconfig->freq[0]), &m2ctrl, NULL);
 }    
 
 int dm_easy_mesh_agent_t::analyze_onewifi_vap_cb(em_bus_event_t *evt, em_cmd_t *pcmd[])

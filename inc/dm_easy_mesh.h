@@ -1668,7 +1668,7 @@ public:
 	 *
 	 * @note Ensure that the MAC address provided is valid and corresponds to a configured radio.
 	 */
-	dm_radio_t *get_radio(mac_address_t mac);
+	dm_radio_t *get_radio(const mac_address_t mac);
     
 	/**!
 	 * @brief Retrieves the radio interface for a given index.
