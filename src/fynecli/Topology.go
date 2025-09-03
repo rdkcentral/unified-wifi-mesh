@@ -287,13 +287,12 @@ func loadNestedTopologyFromDeviceTree(tree *C.em_network_node_t, container *fyne
     }
 
     // Prase the tree and get the root node
-	for i := 0; i < int(childNode.num_children); i++ {
-        child := childNode.child[i]
-		childBackhaulTree := C.get_network_tree_by_key(child, C.CString("Backhaul"))
+    if int(childNode.num_children) > 0 {
+        child := childNode.child[int(childNode.num_children)-1]
+        childBackhaulTree := C.get_network_tree_by_key(child, C.CString("Backhaul"))
         if getTreeValue(childBackhaulTree, "MACAddress") == "00:00:00:00:00:00" {
             rootDeviceNode = child
             rootDeviceID = getTreeValue(child, "ID")
-            break
         }
     }
 
@@ -313,10 +312,16 @@ func loadNestedTopologyFromDeviceTree(tree *C.em_network_node_t, container *fyne
                 for k := 0; k < int(staNode.num_children); k++ {
                     sta := staNode.child[k]
 
-					// Ignore sta entries if ClientType is not present
-					if getTreeValue(sta, "ClientType") == "" {
-						continue
-					}
+                    if getTreeValue(sta, "Associated") == "false" || getTreeValue(sta, "SSID") == "" {
+                        continue
+                    }
+
+                    staSSID := getTreeValue(sta, "SSID")
+                    bssHaulType := getTreeValue(bss, "HaulType")
+                    if bssHaulType == "Backhaul" && getTreeValue(bss, "SSID") == staSSID {
+                        continue
+                    }
+
                     theta := -60.0 * (math.Pi / 180)
                     staX := deviceX + float32(staRadius)*float32(math.Cos(theta))
                     staY := deviceY + float32(staRadius)*float32(math.Sin(theta))
@@ -823,60 +828,75 @@ func drawNetworkTopologyGraph(
 		}
 
 		// Draw associated STAs inside HaulType circle and connect to node icon
-		for _, staCtx := range meta.STAList {
-			if !staCtx.STA.Associated {
-				continue
-			}
+        haulTypeSTAIndex := make(map[string]int)
+        haulTypeSTACount := make(map[string]int)
 
-			sta := staCtx.STA
-			band := staCtx.Band
+        //count STAs per HaulType
+        for _, staCtx := range meta.STAList {
+                if staCtx.STA.Associated {
+                    haulTypeSTACount[staCtx.HaulType]++
+                }
+        }
 
-			// Find the HaulType circle center for this STA
-			var haulCenter fyne.Position
-			var radius float32
-			for _, ht := range meta.HaulTypes {
-				if ht.Name == staCtx.HaulType {
-					offset := triangleOffsets[ht.OffsetIndex]
-					haulCenter = fyne.NewPos(meta.X+canvasOffset.X+offset.X, meta.Y+canvasOffset.Y+offset.Y)
-					radius = ht.Radius
-					break
-				}
-			}
+        // Place STAs
+        for _, staCtx := range meta.STAList {
+            if !staCtx.STA.Associated {
+                continue
+            }
 
-			// Place STA inside the HaulType circle using a radial offset
-			staIndex := 1
-			totalSTAs := len(meta.STAList)
-			angle := 2 * math.Pi * float64(staIndex) / float64(totalSTAs)
+            sta := staCtx.STA
+            band := staCtx.Band
+            haulType := staCtx.HaulType
 
-			staOffsetX := float32(math.Cos(angle)) * (radius - 20)
-			staOffsetY := float32(math.Sin(angle)) * (radius - 20)
-			staPos := fyne.NewPos(haulCenter.X+staOffsetX-70, haulCenter.Y+staOffsetY+50)
+            var haulCenter fyne.Position
+            var radius float32
+            for _, ht := range meta.HaulTypes {
+                if ht.Name == haulType {
+                    offset := triangleOffsets[ht.OffsetIndex]
+                    haulCenter = fyne.NewPos(meta.X+canvasOffset.X+offset.X, meta.Y+canvasOffset.Y+offset.Y)
+                    radius = ht.Radius
+                    break
+                }
+            }
 
-			staIcon := NewClickableImage(staCtx.Icon, func() {
-				info := fmt.Sprintf("%s\nMAC: %s\n", sta.ClientType, sta.MACAddress)
-				pause_start_Timer(true)
-				showTooltip(container, info, fyne.NewPos(staPos.X, staPos.Y), color.RGBA{R: 216, G: 167, B: 7, A: 255})
-			})
-			staIcon.Resize(fyne.NewSize(40, 40))
-			staIcon.Move(fyne.NewPos(staPos.X-20, staPos.Y-20))
-			container.Add(staIcon)
-			container.Refresh()
+            // Get index and total for this HaulType
+            staIndex := haulTypeSTAIndex[haulType]
+            totalSTAs := haulTypeSTACount[haulType]
+            haulTypeSTAIndex[haulType]++
 
+            nodeCenter := fyne.NewPos(meta.X+canvasOffset.X, meta.Y+canvasOffset.Y)
+            dx := float64(nodeCenter.X - haulCenter.X)
+            dy := float64(nodeCenter.Y - haulCenter.Y)
+            baseAngle := math.Atan2(dy, dx)
 
-			// Connect sinewave from STA to node icon
-			nodeCenter := fyne.NewPos(meta.X+canvasOffset.X, meta.Y+canvasOffset.Y)
+            // Rotate starting angle by ±90° to push STAs away from node
+            startAngle := baseAngle + math.Pi/2
 
-			// Compute direction vector from STA to Node
-			dx := float64(nodeCenter.X - staPos.X)
-			dy := float64(nodeCenter.Y - staPos.Y)
-			length := math.Hypot(dx, dy)
+            // Angle and position
+            angle := startAngle + 2*math.Pi*float64(staIndex)/float64(totalSTAs)
+            margin := float32(25) // keep STA away from node
+            staOffsetX := float32(math.Cos(angle)) * (radius - margin)
+            staOffsetY := float32(math.Sin(angle)) * (radius - margin)
+            staPos := fyne.NewPos(haulCenter.X+staOffsetX-20, haulCenter.Y+staOffsetY-20)
+
+            staIcon := NewClickableImage(staCtx.Icon, func() {
+                info := fmt.Sprintf("%s\nMAC: %s\n", sta.ClientType, sta.MACAddress)
+                pause_start_Timer(true)
+                showTooltip(container, info, fyne.NewPos(staPos.X, staPos.Y), color.RGBA{R: 216, G: 167, B: 7, A: 255})
+            })
+            staIcon.Resize(fyne.NewSize(40, 40))
+            staIcon.Move(fyne.NewPos(staPos.X-20, staPos.Y-20))
+            container.Add(staIcon)
+            container.Refresh()
 
 			// Normalize and scale offset
 			staOffsetDistance := 25.0
 			nodeOffsetDistance := 30.0
 
-			offsetX := dx / length
-			offsetY := dy / length
+			// Compute direction vector from STA to Node
+            length := math.Hypot(float64(nodeCenter.X-staPos.X), float64(nodeCenter.Y-staPos.Y))
+            offsetX := (float64(nodeCenter.X) - float64(staPos.X)) / length
+            offsetY := (float64(nodeCenter.Y) - float64(staPos.Y)) / length
 
 			// Apply offset to start and end points
 			startVec := r2.Vec{
