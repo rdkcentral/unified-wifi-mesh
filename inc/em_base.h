@@ -2805,7 +2805,7 @@ typedef struct{
 	mac_address_t bssid_mac[EM_MAX_BSS_PER_RADIO];
 	unsigned int key_wrap_authenticator[EM_MAX_BSS_PER_RADIO];
 	bool enable[EM_MAX_BSS_PER_RADIO];
-	em_freq_band_t freq;
+	em_freq_band_t freq[EM_MAX_BSS_PER_RADIO];
 	unsigned int noofbssconfig;
 	em_haul_type_t haultype[EM_MAX_BSS_PER_RADIO];
 	mac_address_t radio_mac[EM_MAX_BSS_PER_RADIO];

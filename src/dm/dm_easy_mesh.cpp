@@ -1884,7 +1884,7 @@ dm_radio_t *dm_easy_mesh_t::get_radio(unsigned int index)
 	}
 }
 
-dm_radio_t *dm_easy_mesh_t::get_radio(mac_address_t mac)
+dm_radio_t *dm_easy_mesh_t::get_radio(const mac_address_t mac)
 {
     unsigned int i = 0;
     for (i = 0; i < m_num_radios; i++) {

@@ -2127,7 +2127,7 @@ struct security_mapping_table_t {
     uint16_t mode;
 };
 
-static const std::vector<security_mapping_table_t> security_map = {
+static const std::vector<security_mapping_table_t> wps_security_map = {
     { { "wpa-psk" },                  wifi_security_mode_wps_wpa_personal },
     { { "wpa2-psk" },                 wifi_security_mode_wps_wpa2_personal },
     { { "wpa2-eap" },                 wifi_security_mode_wps_wpa2_enterprise },
@@ -2140,6 +2140,39 @@ static const std::vector<security_mapping_table_t> security_map = {
     { { "dpp" },                      wifi_security_mode_wps_dpp }
 };
 
+static const std::vector<security_mapping_table_t> ow_security_map = {
+    { { "wpa-psk" },                  wifi_security_mode_wps_wpa_personal },
+    { { "wpa2-psk" },                 wifi_security_mode_wpa2_personal },
+    { { "wpa2-eap" },                 wifi_security_mode_wpa2_enterprise },
+    { { "sae" },                      wifi_security_mode_wpa3_personal },
+    { { "aes" },                      wifi_security_mode_wpa3_enterprise },
+    { { "enhanced-open" },                      wifi_security_mode_enhanced_open },
+    { { "wpa-eap" },                  wifi_security_mode_wpa_enterprise },
+    { { "wpa-eap", "wpa2-eap" },      wifi_security_mode_wpa_wpa2_enterprise },
+    { { "wpa2-psk", "sae" },          wifi_security_mode_wpa3_transition },
+    { { "wpa-psk", "wpa2-psk" },      wifi_security_mode_wpa_wpa2_personal },
+    { { "wpa2-psk", "sae", "rsno" },  wifi_security_mode_wpa3_compatibility }
+};
+
+std::optional<wifi_security_modes_t> ow_akm_strings_to_security_mode(const std::vector<std::string>& input_keys) {
+    for (const auto& mapping : ow_security_map) {
+        if (mapping.keys.size() != input_keys.size()) {
+            continue;
+        }
+        
+        // Check if sets are equal (order doesn't matter)
+        auto sorted_mapping_keys = mapping.keys;
+        auto sorted_input_keys = input_keys;
+        std::sort(sorted_mapping_keys.begin(), sorted_mapping_keys.end());
+        std::sort(sorted_input_keys.begin(), sorted_input_keys.end());
+        
+        if (sorted_mapping_keys == sorted_input_keys) {
+            return static_cast<wifi_security_modes_t>(mapping.mode);
+        }
+    }
+    return std::nullopt;
+}
+
 
 uint16_t convert_akm_strings_to_wps_authtype(std::vector<std::string> akm_strings)
 
@@ -2148,9 +2181,9 @@ uint16_t convert_akm_strings_to_wps_authtype(std::vector<std::string> akm_string
         return 0; // No AKM strings provided
     }
     
-    // Both `akm_strings` and `security_map` keys are expected to have few elements so 
+    // Both `akm_strings` and `wps_security_map` keys are expected to have few elements so 
     // the actual complexity of this nested loop is not a concern.
-    for (const auto& entry : security_map) {
+    for (const auto& entry : wps_security_map) {
         if (entry.keys.size() != akm_strings.size()) {
             continue;
         }
@@ -2174,9 +2207,9 @@ uint16_t convert_akm_strings_to_wps_authtype(const em_short_string_t akm_array[]
         return 0; // No AKM strings provided
     }
     
-    // Both `akm_array` and `security_map` keys are expected to have few elements so 
+    // Both `akm_array` and `wps_security_map` keys are expected to have few elements so 
     // the actual complexity of this nested loop is not a concern.
-    for (const auto& entry : security_map) {
+    for (const auto& entry : wps_security_map) {
         // All AKMs in akm_array must be present in entry key
         // This assumes they are in order
         if (entry.keys.size() != akm_count) {
@@ -2201,7 +2234,7 @@ std::vector<std::string> convert_wps_authtype_to_akm_strings(uint16_t authtype)
     std::set<std::string> result;
     
     // First try exact match for efficiency (handles common single combinations)
-    for (const auto& entry : security_map) {
+    for (const auto& entry : wps_security_map) {
         if (authtype == entry.mode) {
             for (const auto& key : entry.keys) {
                 result.insert(key);
@@ -2213,8 +2246,8 @@ std::vector<std::string> convert_wps_authtype_to_akm_strings(uint16_t authtype)
     // If no exact match, decompose into individual flags and collect all corresponding AKMs
     uint16_t remaining_flags = authtype;
     
-    // Process each entry in security_map to see if its mode is a subset of authtype
-    for (const auto& entry : security_map) {
+    // Process each entry in wps_security_map to see if its mode is a subset of authtype
+    for (const auto& entry : wps_security_map) {
         if (entry.mode != 0 && (remaining_flags & entry.mode) == entry.mode) {
             // This entry's mode is fully contained in authtype
             for (const auto& key : entry.keys) {
@@ -2303,6 +2336,7 @@ unsigned short em_configuration_t::create_m1_msg(unsigned char *buff)
     // Add fronthaul and backhaul AKMs of all BSSs on a radio to
     // a set (to prevent duplicates)
     uint16_t auth_flags = 0;
+/*
     dm_easy_mesh_t *dm = get_current_cmd()->get_data_model();
     for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
         em_bss_info_t *bss_info = dm->get_bss_info(i);
@@ -2311,15 +2345,25 @@ unsigned short em_configuration_t::create_m1_msg(unsigned char *buff)
         uint16_t fh_auth_flags = convert_akm_strings_to_wps_authtype(bss_info->fronthaul_akm, bss_info->num_fronthaul_akms);
         if (fh_auth_flags == 0) {
             em_printfout("Warning: Could not map fronthaul AKM strings to WPS auth type for BSS %s", bss_info->ssid);
+            printf("Fronthaul AKM strings (%d):", bss_info->num_fronthaul_akms);
+            for (int i = 0; i < bss_info->num_fronthaul_akms; i++) {
+                printf(" %s", bss_info->fronthaul_akm[i]);
+            }
+            printf("\n");
         }
 
         uint16_t bh_auth_flags = convert_akm_strings_to_wps_authtype(bss_info->backhaul_akm, bss_info->num_backhaul_akms);
         if (bh_auth_flags == 0) {
             em_printfout("Warning: Could not map backhaul AKM strings to WPS auth type for BSS %s", bss_info->ssid);
+            printf("Backhaul AKM strings (%d):", bss_info->num_backhaul_akms);
+            for (int i = 0; i < bss_info->num_backhaul_akms; i++) {
+                printf(" %s", bss_info->backhaul_akm[i]);
+            }
+            printf("\n");
         }
         auth_flags |= (fh_auth_flags | bh_auth_flags);
     }
-
+*/
     em_printfout("WPS Auth Flags: 0x%04x", auth_flags);
     auth_flags = htons(auth_flags);
 
@@ -3777,7 +3821,6 @@ int em_configuration_t::handle_encrypted_settings()
 
     attr = reinterpret_cast<data_elem_attr_t *> (plain);
     tmp_len = plain_len;
-    radioconfig.freq = get_band();
 
     while (tmp_len > 0) {
 
@@ -3816,6 +3859,10 @@ int em_configuration_t::handle_encrypted_settings()
         }
         tmp_len -= static_cast<int> (sizeof(data_elem_attr_t) + htons(attr->len));
         attr = reinterpret_cast<data_elem_attr_t *> (reinterpret_cast<unsigned char *>(attr) + sizeof(data_elem_attr_t) + htons(attr->len));
+    }
+
+    for (int i = 0; i < radioconfig.noofbssconfig; i++){
+        radioconfig.freq[i] = get_band();
     }
     get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (&radioconfig), sizeof(radioconfig));
     set_state(em_state_agent_owconfig_pending);
@@ -4070,6 +4117,20 @@ int em_configuration_t::handle_bss_config_rsp_tlv(em_tlv_t* tlv, m2ctrl_radiocon
 
     // Begin setting bss configuration in data model
 
+    // Get frequency from RDK freq band attribute if present
+    cJSON* rdk_freq_obj = cJSON_GetObjectItemCaseSensitive(dpp_config_json.get(), "XRDK_BSS_Frequency");
+    em_freq_band_t freq_band = em_freq_band_unknown;
+    if (cJSON_IsNumber(rdk_freq_obj)) {
+        int freq = rdk_freq_obj->valueint;
+        if (freq >= 0 && freq < em_freq_band_unknown) {
+            freq_band = static_cast<em_freq_band_t>(freq);
+        }
+    }
+    if (freq_band == em_freq_band_unknown) {
+        em_printfout("RDK frequency band attribute not present or invalid!");
+    }
+    radioconfig.freq[bss_count] = freq_band;
+
     if (cJSON_IsNull(ssid_obj)) {
 
 
@@ -4186,18 +4247,28 @@ int em_configuration_t::handle_bss_config_rsp_tlv(em_tlv_t* tlv, m2ctrl_radiocon
     // Since this information is initialized by OneWifi, we're just going to use it here, like how they do in other areas...
    
     std::vector<std::string> akm_ouis = util::split_by_delim(akm, '+');
-    uint16_t auth_type = 0;
+    std::vector<std::string> ow_akm_strs;
     for (const auto& akm_oui : akm_ouis) {
         std::string akm_str = util::oui_to_akm(akm_oui);
         if (akm_str.empty()) {
             em_printfout("Received invalid AKM OUI in BSS Configuration Response TLV: %s", akm_oui.c_str());
             continue;
         }
-        auth_type |= convert_akm_strings_to_wps_authtype({akm_str});
-        em_printfout("Converted AKM OUI '%s'. Current Auth Type: 0x%04x", akm_oui.c_str(), auth_type);
+        ow_akm_strs.push_back(akm_str);
+    }
+    EM_ASSERT_MSG_TRUE(!ow_akm_strs.empty(), -1, "No valid AKM OUIs received in BSS Configuration Response TLV");
+    for (auto& str : ow_akm_strs) {
+        em_printfout("Using AKM '%s' for BSS Configuration Response TLV", str.c_str());
+    }
+    auto auth_type = ow_akm_strings_to_security_mode(ow_akm_strs);
+    EM_ASSERT_OPT_HAS_VALUE(auth_type, -1, "Failed to convert AKM OUIs to auth type");
+
+    em_printfout("Security Mode: %d, AKMS: ", *auth_type);
+    for (const auto& str : ow_akm_strs) {
+        printf("\t- %s\n", str.c_str());
     }
 
-    radioconfig.authtype[bss_count] = static_cast<unsigned int>(auth_type);
+    radioconfig.authtype[bss_count] = static_cast<unsigned int>(*auth_type);
     memcpy(radioconfig.password[bss_count], pass.c_str(), sizeof(radioconfig.password[bss_count]));
 
     auto [csign_group, csign_pub] = ec_crypto::decode_jwk(csign_obj);
@@ -4305,28 +4376,93 @@ int em_configuration_t::handle_bss_config_rsp_msg(uint8_t *buff, unsigned int le
     em_printfout("Sent BSS Configuration Result message to '" MACSTRFMT "'", MAC2STR(src_al_mac));
 
     radioconfig.noofbssconfig = bss_count;
-    radioconfig.freq = get_band();
+
+    hash_map_t* em_map = get_mgr()->m_em_map;
+    em_t* em = static_cast<em_t *>(hash_map_get_first(em_map));
+    dm_network_t network;
+    dm_easy_mesh_t* dm = NULL;
+
+    // Organize the configurations by frequency band
+    m2ctrl_radioconfig band_radioconfigs[em_freq_band_unknown];
+    memset(band_radioconfigs, 0, sizeof(band_radioconfigs));
+
+    for (unsigned int i = 0; i < radioconfig.noofbssconfig; i++) {
+        m2ctrl_radioconfig* band_config = &band_radioconfigs[radioconfig.freq[i]];
+        unsigned int idx = band_config->noofbssconfig;
+
+        band_config->haultype[idx] = radioconfig.haultype[i];
+        memcpy(band_config->ssid[idx], radioconfig.ssid[i], sizeof(radioconfig.ssid[i]));
+        memcpy(band_config->password[idx], radioconfig.password[i], sizeof(radioconfig.password[i]));
+        band_config->authtype[idx] = radioconfig.authtype[i];
+        memcpy(band_config->radio_mac[idx], radioconfig.radio_mac[i], sizeof(radioconfig.radio_mac[i]));
+        memcpy(band_config->bssid_mac[idx], radioconfig.bssid_mac[i], sizeof(radioconfig.bssid_mac[i]));
+        memcpy(band_config->dpp_connector[idx], radioconfig.dpp_connector[i], sizeof(radioconfig.dpp_connector[i]));
+        band_config->key_wrap_authenticator[idx] = radioconfig.key_wrap_authenticator[i];
+        band_config->enable[idx] = radioconfig.enable[i];
+        band_config->freq[idx] = radioconfig.freq[i];
+        band_config->noofbssconfig++;
+    }
 
     // DEBUG: Print the radio configuration
     em_printfout("Radio Config: ");
-    printf("\tFrequency: %d\n", radioconfig.freq);
-    for (unsigned int i = 0; i < bss_count; i++) {
-        printf("\tBSS %u:\n", i);
-        bool is_enabled = radioconfig.enable[i];
-        printf("\t\tEnabled: %s\n", is_enabled ? "true" : "false");
-        if (!is_enabled) continue;
-        printf("\t\tHaul Type: %d\n", radioconfig.haultype[i]);
-        printf("\t\tSSID: %s\n", radioconfig.ssid[i]);
-        printf("\t\tPassword: %s\n", radioconfig.password[i]);
-        printf("\t\tAuth Type: %u\n", radioconfig.authtype[i]);
-        printf("\t\tRadio MAC: " MACSTRFMT "\n", MAC2STR(radioconfig.radio_mac[i]));
-        printf("\t\tBSSID (expected empty): " MACSTRFMT "\n", MAC2STR(radioconfig.bssid_mac[i]));
-        printf("\t\tDPP Connector: %s\n", radioconfig.dpp_connector[i]);
-        printf("\t\tKey Wrap Authenticator (expected 0): %d\n", radioconfig.key_wrap_authenticator[i]);
+    for (em_freq_band_t band = em_freq_band_24; band < em_freq_band_unknown; band = static_cast<em_freq_band_t>(band + 1)) {
+        m2ctrl_radioconfig& config = band_radioconfigs[band];
+        printf("\tFrequency Band: %d\n", band);
+        if (config.noofbssconfig == 0) {
+            printf("\t\tNo BSS configurations\n");
+            continue;
+        }
+        for (unsigned int i = 0; i < config.noofbssconfig; i++) {
+            printf("\t\tBSS %u:\n", i);
+            bool is_enabled = config.enable[i];
+            printf("\t\t\tEnabled: %s\n", is_enabled ? "true" : "false");
+            if (!is_enabled) continue;
+            printf("\t\t\tHaul Type: %d\n", config.haultype[i]);
+            printf("\t\t\tSSID: %s\n", config.ssid[i]);
+            printf("\t\t\tPassword: %s\n", config.password[i]);
+            printf("\t\t\tAuth Type: %u\n", config.authtype[i]);
+            printf("\t\t\tRadio MAC: " MACSTRFMT "\n", MAC2STR(config.radio_mac[i]));
+            printf("\t\t\tBSSID (expected empty): " MACSTRFMT "\n", MAC2STR(config.bssid_mac[i]));
+            printf("\t\t\tDPP Connector: %s\n", config.dpp_connector[i]);
+            printf("\t\t\tKey Wrap Authenticator (expected 0): %d\n", config.key_wrap_authenticator[i]);
+        }
     }
 
-    get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (&radioconfig), sizeof(radioconfig));
-    set_state(em_state_agent_owconfig_pending);
+    // For all the nodes, commit the configuration
+    while (em != NULL) {
+        // Skip AL EM
+        if (em->is_al_interface_em()){
+            em->set_is_dpp_onboarding(false);
+            em = static_cast<em_t *>(hash_map_get_next(em_map, reinterpret_cast<void *>(em)));
+            continue;
+        }
+
+        m2ctrl_radioconfig* band_radioconfig = &band_radioconfigs[em->get_band()];
+        if (band_radioconfig == NULL) {
+            em_printfout("No radio configuration for band %d, skipping configuration for node '" MACSTRFMT "'", em->get_band(), MAC2STR(em->get_radio_interface_mac()));
+            em = static_cast<em_t *>(hash_map_get_next(em_map, reinterpret_cast<void *>(em)));
+            continue;
+        }
+        
+        //Commit controller mac address
+        if ((dm = em->get_data_model()) != NULL) {
+            memcpy(&network.m_net_info.ctrl_id.mac, src_al_mac, sizeof(mac_address_t));
+            dm->set_network(network);
+        }
+        em->set_is_dpp_onboarding(false);
+        if (band_radioconfig->noofbssconfig == 0) {
+            em_printfout("No BSS configurations for band %d, skipping configuration for node '" MACSTRFMT "'", band_radioconfig->freq[0], MAC2STR(em->get_radio_interface_mac()));
+            em = static_cast<em_t *>(hash_map_get_next(em_map, reinterpret_cast<void *>(em)));
+            continue;
+        }
+        em_printfout("Committing radio configuration to node '" MACSTRFMT "' on band %d with %d BSS configurations", 
+                     MAC2STR(em->get_radio_interface_mac()), band_radioconfig->freq[0], band_radioconfig->noofbssconfig);
+        em->get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (band_radioconfig), sizeof(m2ctrl_radioconfig));
+        em->set_state(em_state_agent_owconfig_pending);
+
+        em = static_cast<em_t *>(hash_map_get_next(em_map, reinterpret_cast<void *>(em)));
+    }
+
 
     return 0;
 }
