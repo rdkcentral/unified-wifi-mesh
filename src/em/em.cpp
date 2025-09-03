@@ -1438,6 +1438,25 @@ cJSON *em_t::create_bss_dpp_response_obj(const em_bss_info_t *bss_info, bool is_
         return nullptr;
     }
 
+    dm_radio_t* radio = dm->get_radio(bss_info->ruid.mac);
+    em_freq_band_t band = static_cast<em_freq_band_t>(radio->m_radio_info.band);
+
+    /* EasyConnect 4.5.2
+    A DPP Configuration Object may contain additional attributes to help DPP peers in exchanging information that can be
+used by other applications. This section describes optional attributes that can be included in the Configuration Object.
+Note that a Configuration Object that includes any 3rd party optional attributes cannot exceed the maximum length of the
+GAS response, including maximum allowed GAS fragments, as defined by IEEE (see section 8.3). This section describes
+optional attributes can be included in the Configuration Request Object.
+All additional properties and their sub-properties defined in the DPP configuration object should be identified by path
+names that identify their purpose or organization. These path names should be reasonable in length and not exceed 80
+characters, in order to limit the size of the DPP Configuration Object.
+Any 3rd party attributes that are included in the DPP configuration object shall not duplicate, replace, or preclude any
+existing functionality of DPP as defined in this specification.
+    */
+    if (!cJSON_AddNumberToObject(bss_configuration_object.get(), "XRDK_BSS_Frequency", band)) {
+        em_printfout("Failed to add \"XRDK_BSS_Frequency\" to Configuration Object");
+        return nullptr;
+    }
 
 // START: Discovery Object
     scoped_cjson discovery_object(cJSON_CreateObject());
@@ -1491,11 +1510,22 @@ cJSON *em_t::create_bss_dpp_response_obj(const em_bss_info_t *bss_info, bool is_
     bool needs_psk_hex = false;
     std::vector<std::string> bss_akms_vec(bss_akms.begin(), bss_akms.end());
     em_printfout("Num AKMs: %u", bss_akms_vec.size());
+
+    if (bss_akms_vec.size() == 0) {
+        em_printfout("No AKMs found for BSS, adding default AKM:");
+        if (band >= em_freq_band_60) {
+            em_printfout("6GHz band detected, adding default AKM: sae");
+            bss_akms_vec.push_back("sae");
+        } else {
+            em_printfout("Non-6GHz band detected, adding default AKM: wpa2-psk");
+            bss_akms_vec.push_back("wpa2-psk");
+        }
+    }
+
     for (unsigned int i = 0; i < bss_akms_vec.size(); i++) {
         if (!akm_suites.empty()) akm_suites += "+";
         em_printfout("AKM[%u]: %s", i, bss_akms_vec[i].c_str());
         akm_suites += util::akm_to_oui(bss_akms_vec[i]);
-
     }
     // "psk_hex" is a conditional field,
     // present only if PSK or AKM or SAE is a selected AKM
