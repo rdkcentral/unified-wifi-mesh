@@ -236,7 +236,7 @@ int dm_bss_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
 						info->est_svc_params_be, info->est_svc_params_bk, info->est_svc_params_vi, info->est_svc_params_vo,
 						front_akms, back_akms, info->profile_1b_sta_allowed, info->profile_2b_sta_allowed, info->assoc_allowed_status,
 						info->backhaul_use, info->fronthaul_use, info->r1_disallowed, info->r2_disallowed, 
-						info->multi_bssid, info->transmitted_bssid);
+						info->multi_bssid, info->transmitted_bssid, info->vlan_id);
 							
 			break;
 
@@ -245,7 +245,7 @@ int dm_bss_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
                         info->est_svc_params_be, info->est_svc_params_bk, info->est_svc_params_vi, info->est_svc_params_vo,
                         front_akms, back_akms, info->profile_1b_sta_allowed, info->profile_2b_sta_allowed, info->assoc_allowed_status,
                         info->backhaul_use, info->fronthaul_use, info->r1_disallowed, info->r2_disallowed, 
-                        info->multi_bssid, info->transmitted_bssid,
+                        info->multi_bssid, info->transmitted_bssid, info->vlan_id,
 						dm_easy_mesh_t::macbytes_to_string(info->bssid.mac, bss_mac_str));
 			break;
 
@@ -326,6 +326,7 @@ int dm_bss_list_t::sync_db(db_client_t& db_client, void *ctx)
         info.r2_disallowed = db_client.get_number(ctx, 18);
         info.multi_bssid = db_client.get_number(ctx, 19);
         info.transmitted_bssid = db_client.get_number(ctx, 20);
+        info.vlan_id = db_client.get_number(ctx, 21);
 
         update_list(dm_bss_t(&info), dm_orch_type_db_insert);
     }

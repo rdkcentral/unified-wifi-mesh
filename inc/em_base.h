@@ -2299,6 +2299,7 @@ typedef struct {
     bool    transmitted_bssid;
     em_eht_operations_bss_t eht_ops;
     em_short_string_t mesh_sta_passphrase;
+    unsigned int vlan_id;
 
     // Extra vendor information elements for the BSS
     // @note Don't manually allocate, use the helper functions to add/remove elements 
