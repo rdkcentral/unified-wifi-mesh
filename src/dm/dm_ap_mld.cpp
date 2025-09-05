@@ -57,7 +57,13 @@ void dm_ap_mld_t::operator = (const dm_ap_mld_t& obj)
     this->m_ap_mld_info.emlsr = obj.m_ap_mld_info.emlsr;
     this->m_ap_mld_info.emlmr = obj.m_ap_mld_info.emlmr;
     this->m_ap_mld_info.num_affiliated_ap = obj.m_ap_mld_info.num_affiliated_ap;
-    memcpy(&this->m_ap_mld_info.affiliated_ap,&obj.m_ap_mld_info.affiliated_ap,sizeof(em_affiliated_ap_info_t));
+    for(unsigned int i = 0; i < this->m_ap_mld_info.num_affiliated_ap; i++) {
+        memcpy(&this->m_ap_mld_info.affiliated_ap[i].ruid, &obj.m_ap_mld_info.affiliated_ap[i].ruid, sizeof(mac_address_t));
+        this->m_ap_mld_info.affiliated_ap[i].mac_addr_valid = obj.m_ap_mld_info.affiliated_ap[i].mac_addr_valid;
+        memcpy(&this->m_ap_mld_info.affiliated_ap[i].mac_addr, &obj.m_ap_mld_info.affiliated_ap[i].mac_addr,sizeof(mac_address_t));
+        this->m_ap_mld_info.affiliated_ap[i].link_id_valid = obj.m_ap_mld_info.affiliated_ap[i].link_id_valid;
+        this->m_ap_mld_info.affiliated_ap[i].link_id = obj.m_ap_mld_info.affiliated_ap[i].link_id;
+    }
 }
 
 
@@ -93,7 +99,7 @@ dm_ap_mld_t::dm_ap_mld_t(const dm_ap_mld_t& ap_mld)
 
 dm_ap_mld_t::dm_ap_mld_t()
 {
-
+    memset(&m_ap_mld_info, 0, sizeof(em_ap_mld_info_t));
 }
 
 dm_ap_mld_t::~dm_ap_mld_t()
