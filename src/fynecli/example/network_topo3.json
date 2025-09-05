@@ -30,7 +30,8 @@
 											    "NumberOfUnassocSta":	0,
 											    "Noise":	0,
 											    "Utilization":	0,
-											    "Band":	0,   
+											    "Band":	0,
+												"Channel": 6,
 												"IEEE": "802.11ax",
 											    "BSSList":	[{
 													"BSSID":	"7b:16:b5:01:36:5b",
@@ -49,7 +50,6 @@
 													"Enabled":	true,
 													"TimeStamp":	"2025-07-31T01:37:50Z",
 													"VapMode":	1,
-													"Channel": 6,
 													"STAList":      []
 												}, {
 										            "BSSID":	"7b:16:b5:01:36:5c",
@@ -78,6 +78,7 @@
 											"Noise":	0,
 											"Utilization":	0,
 											"Band":	1,
+											"Channel": 36,
 											"IEEE": "802.11ax",
 											"BSSList":	[{
 													"BSSID":	"7b:16:b5:01:36:5f",
@@ -115,6 +116,7 @@
 											"Noise":	0,
 											"Utilization":	0,
 											"Band":	2,
+											"Channel": 149,
 											"IEEE": "802.11be",
 											"BSSList":	[{
 													"BSSID":	"7b:16:b5:01:36:6c",
@@ -137,6 +139,7 @@
 											"Noise":	0,
 											"Utilization":	0,
 											"Band":	0,
+											"Channel": 6,
 											"IEEE": "802.11ax",
 											"BSSList":	[{
 													"BSSID":	"fa:0e:4f:db:6b:28",
@@ -174,6 +177,7 @@
 											"Noise":	0,
 											"Utilization":	0,
 											"Band":	1,
+											"Channel": 36,
 											"IEEE": "802.11be",
 											"BSSList":	[{
 													"BSSID":	"fa:0e:4f:db:6b:2b",
@@ -192,49 +196,7 @@
 													"Enabled":	true,
 													"TimeStamp":	"2025-07-31T01:47:14Z",
 													"VapMode":	0,
-													"STAList":      [{
-                                                                "MACAddress":   "1A:a1:98:7f:98:a1",
-																"ClientType":   "Android - Pixel-7-Pro",
-                                                                "Associated":   true,
-                                                                "Neighbors":    [],
-                                                                "LastDataUplinkRate":   0,
-                                                                "TimeStamp":    "",
-                                                                "EstMACDataRateUplink": 0,
-                                                                "LastConnectTime":      0,
-                                                                "RetransCount": 0,
-                                                                "EstMACDataRateDownlink":       0,
-                                                                "HTCapabilities":       "2d001bff00000000000000000000000100000000000000000000",
-                                                                "SignalStrength":       0,
-                                                                "RCPI": 0,
-                                                                "UtilizationTransmit":  0,
-                                                                "VHTCapabilities":      "",
-                                                                "HECapabilities":       "",
-                                                                "ClientCapabilities":   "",
-                                                                "LastDataDownlinkRate": 0,
-                                                                "PacketsReceived":      0,
-                                                                "UtilizationReceive":   0,
-                                                                "BytesSent":    0,
-                                                                "PacketsSent":  0,
-                                                                "BytesReceived":        0,
-                                                                "ErrorsSent":   0,
-                                                                "ErrorsReceived":       0,
-                                                                "CellularDataPreference":       "",
-                                                                "ListenInterval":       "",
-                                                                "SSID": "amar_ssid",
-                                                                "SupportedRates":       "02040b1624b0486c",
-                                                                "PowerCapability":      "0516",
-                                                                "SupportedChannels":    "010d",
-                                                                "RSNInformation":       "0100000fac040100000fac040100000fac020c00",
-                                                                "ExtendedSupportedRates":       "8c129860",
-                                                                "SupportedOperatingClasses":    "518685848381807f7e7d7c7b7a7978777675747351",
-                                                                "ExtendedCapabilities": "04000800010000400020",
-                                                                "RMEnabledCapabilities":        "7308010000",
-                                                                "VendorSpecific":       [{
-                                                                                "VendorInfo":   "00101802000010000000"
-                                                                        }, {
-                                                                                "VendorInfo":   "0050f202000100"
-                                                                        }]
-                                                        }]
+													"STAList": []
 												},  {
 										            "BSSID":	"0e:f2:eb:ac:1a:2f",
 										            "HaulType":	"Iot",
@@ -243,7 +205,18 @@
 										            "Enabled":	true,
 										            "TimeStamp":	"2025-07-31T01:44:39Z",
 										            "VapMode":	0,
-										            "STAList":      []
+										            "STAList":      [{
+                                                        "MACAddress":   "1A:a1:98:7f:98:a1",
+														"ClientType":   "Android - Pixel-7-Pro",
+                                                        "Associated":   true,
+                                                        "SSID": "Public",
+                                                        "SignalStrength": 0,
+                                                        "LastConnectTime": 0,
+                                                        "HTCapabilities": "",
+                                                        "VHTCapabilities": "",
+                                                        "HECapabilities": "",
+                                                        "ClientCapabilities": ""
+                                                    }]
 									            }, {
 													"BSSID":	"0e:f2:eb:ac:1a:2f",
 													"HaulType":	"Backhaul",
@@ -252,7 +225,6 @@
 													"Enabled":	true,
 													"TimeStamp":	"2025-07-31T01:47:14Z",
 													"VapMode":	1,
-													"Channel": 36,
 													"STAList":      []
 												}]
 										}, {
@@ -263,6 +235,7 @@
 											"Noise":	0,
 											"Utilization":	0,
 											"Band":	2,
+											"Channel": 149,
 											"IEEE": "802.11be",
 											"BSSList":	[{
 													"BSSID":	"fa:0e:4f:db:6b:2c",
@@ -290,6 +263,7 @@
 											"Noise":	0,
 											"Utilization":	0,
 											"Band":	0,
+											"Channel": 6,
 											"IEEE": "802.11ax",
 											"BSSList":	[{
 													"BSSID":	"8a:86:a5:0a:35:5b",
@@ -327,6 +301,7 @@
 											"Noise":	0,
 											"Utilization":	0,
 											"Band":	1,
+											"Channel": 36,
 											"IEEE": "802.11ax",
 											"BSSList":	[{
 													"BSSID":	"8a:86:a5:0a:35:5e",
@@ -336,49 +311,7 @@
 													"Enabled":	true,
 													"TimeStamp":	"2025-07-31T01:37:50Z",
 													"VapMode":	0,
-													"STAList":      [{
-                                                                "MACAddress":   "01:70:10:Af:FF:D2",
-																"ClientType":   "Apple iPhone 14",
-                                                                "Associated":   true,
-                                                                "Neighbors":    [],
-                                                                "LastDataUplinkRate":   0,
-                                                                "TimeStamp":    "",
-                                                                "EstMACDataRateUplink": 0,
-                                                                "LastConnectTime":      0,
-                                                                "RetransCount": 0,
-                                                                "EstMACDataRateDownlink":       0,
-                                                                "HTCapabilities":       "2d001bff00000000000000000000000100000000000000000000",
-                                                                "SignalStrength":       0,
-                                                                "RCPI": 0,
-                                                                "UtilizationTransmit":  0,
-                                                                "VHTCapabilities":      "",
-                                                                "HECapabilities":       "",
-                                                                "ClientCapabilities":   "",
-                                                                "LastDataDownlinkRate": 0,
-                                                                "PacketsReceived":      0,
-                                                                "UtilizationReceive":   0,
-                                                                "BytesSent":    0,
-                                                                "PacketsSent":  0,
-                                                                "BytesReceived":        0,
-                                                                "ErrorsSent":   0,
-                                                                "ErrorsReceived":       0,
-                                                                "CellularDataPreference":       "",
-                                                                "ListenInterval":       "",
-                                                                "SSID": "amar_ssid",
-                                                                "SupportedRates":       "02040b1624b0486c",
-                                                                "PowerCapability":      "0516",
-                                                                "SupportedChannels":    "010d",
-                                                                "RSNInformation":       "0100000fac040100000fac040100000fac020c00",
-                                                                "ExtendedSupportedRates":       "8c129860",
-                                                                "SupportedOperatingClasses":    "518685848381807f7e7d7c7b7a7978777675747351",
-                                                                "ExtendedCapabilities": "04000800010000400020",
-                                                                "RMEnabledCapabilities":        "7308010000",
-                                                                "VendorSpecific":       [{
-                                                                                "VendorInfo":   "00101802000010000000"
-                                                                        }, {
-                                                                                "VendorInfo":   "0050f202000100"
-                                                                        }]
-                                                        }]
+													"STAList":      []
 												}, {
 													"BSSID":	"8a:86:a5:0a:35:5f",
 													"HaulType":	"Backhaul",
@@ -396,7 +329,6 @@
 													"Enabled":	true,
 													"TimeStamp":	"2025-07-31T01:37:50Z",
 													"VapMode":	1,
-													"Channel": 36,
 													"STAList":      []
 												}, {
 										            "BSSID":	"8a:86:a5:0a:35:6b",
@@ -406,7 +338,18 @@
 										            "Enabled":	true,
 										            "TimeStamp":	"2025-07-31T01:44:39Z",
 										            "VapMode":	0,
-										            "STAList":      []
+										            "STAList":      [{
+                                                        "MACAddress":   "01:70:10:Af:FF:D2",
+														"ClientType":   "Apple iPhone 14",
+                                                        "Associated":   true,
+                                                        "SSID": "Public",
+                                                        "SignalStrength": 0,
+                                                        "LastConnectTime": 0,
+                                                        "HTCapabilities": "",
+                                                        "VHTCapabilities": "",
+                                                        "HECapabilities": "",
+                                                        "ClientCapabilities": ""
+                                                    }]
 									            }]
 										}, {
 											"ID":	"8a:86:a5:0a:35:6c",
@@ -416,6 +359,7 @@
 											"Noise":	0,
 											"Utilization":	0,
 											"Band":	2,
+											"Channel": 149,
 											"IEEE": "802.11be",
 											"BSSList":	[{
 													"BSSID":	"8a:86:a5:0a:35:6c",
@@ -438,6 +382,7 @@
 								"Noise":	0,
 								"Utilization":	0,
 								"Band":	0,
+								"Channel": 6,
 								"IEEE": "802.11ax",
 								"BSSList":	[{
 										"BSSID":	"0e:f2:eb:ac:1a:2c",
@@ -475,6 +420,7 @@
 								"Noise":	0,
 								"Utilization":	0,
 								"Band":	1,
+								"Channel": 36,
 								"IEEE": "802.11ax",
 								"BSSList":	[{
 										"BSSID":	"00:00:00:00:00:00",
@@ -484,7 +430,6 @@
 										"Enabled":	true,
 										"TimeStamp":	"2025-07-31T01:44:39Z",
 										"VapMode":	1,
-										"Channel": 36,
 										"STAList":      []
 									}, {
 										"BSSID":	"0e:f2:eb:ac:1a:2f",
@@ -522,6 +467,7 @@
 								"Noise":	0,
 								"Utilization":	0,
 								"Band":	2,
+								"Channel": 149,
 								"IEEE": "802.11be",
 								"BSSList":	[{
 										"BSSID":	"0e:f2:eb:ac:1a:30",

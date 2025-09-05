@@ -62,12 +62,9 @@ type DeviceWrapper struct {
 type Radio struct {
 	ID                 string `json:"ID"`
 	Enabled            bool   `json:"Enabled"`
-	NumberOfBSS        int    `json:"NumberOfBSS"`
-	NumberOfUnassocSta int    `json:"NumberOfUnassocSta"`
-	Noise              int    `json:"Noise"`
-	Utilization        int    `json:"Utilization"`
 	Band               int    `json:"Band"`
 	IEEE               string `json:"IEEE"`
+	Channel            int    `json:"CHannel"`
 	BSSList            []BSS  `json:"BSSList"`
 }
 
@@ -434,23 +431,14 @@ func loadNestedTopologyFromDeviceTree(tree *C.em_network_node_t, container *fyne
             }
 
             // parse the band with extender connected
-            band := getBandFromRadioTree(child.child[2])
-            /*channel := getChannelFromRadioTree(child)*/
-			var channel int
-			if band == 0 {
-				channel = 6
-			} else if band == 1 {
-				channel = 36
-			} else if band == 2 {
-				channel = 149
-			}
+            band, channel := getBandAndChannelFromRadioTree(child.child[2])
 
             g.SetEdge(g.NewEdge(nodeMap[deviceID], nodeMap[childID]))
             bandEdges = append(bandEdges, BandEdge{
                 From:     deviceID,
                 To:       childID,
                 Band:     band,
-                Channel:  channel, //TODO: hardcoded for now, will be replace with actual value
+                Channel:  channel,
             })
 
             traverse(child, metaMap[deviceID].X, metaMap[deviceID].Y, childAngle, depth+1)
@@ -622,7 +610,7 @@ func loadNestedTopologyJSON(path string, container *fyne.Container) (*simple.Und
 					if bss.VapMode == 1 {
 						band = radio.Band
 						haulType = bss.HaulType
-						channel = bss.Channel
+						channel = radio.Channel
 						break
 					}
 				}
@@ -810,7 +798,6 @@ func drawNetworkTopologyGraph(
 		}
 
 		if len(meta.HaulTypes) > 0 {
-			//circleCenter := fyne.NewPos(meta.X+canvasOffset.X+offset.X, meta.Y+canvasOffset.Y+offset.Y)
 			label := canvas.NewText(name, color.RGBA{R: 30, G: 30, B: 30, A: 255})
 			label.TextSize = 10
 			label.Refresh()
@@ -865,33 +852,63 @@ func drawNetworkTopologyGraph(
             haulTypeSTAIndex[haulType]++
 
             nodeCenter := fyne.NewPos(meta.X+canvasOffset.X, meta.Y+canvasOffset.Y)
+            // Placement STA on far half of circle (180° arc opposite node)
+            layerCount := int(math.Ceil(math.Sqrt(float64(totalSTAs))))
+            layer := staIndex / layerCount
+            posInLayer := staIndex % layerCount
+
+            // Compute angle from HaulType center to Node center
             dx := float64(nodeCenter.X - haulCenter.X)
             dy := float64(nodeCenter.Y - haulCenter.Y)
-            baseAngle := math.Atan2(dy, dx)
+            nodeAngle := math.Atan2(dy, dx) // angle in radians
 
-            // Rotate starting angle by ±90° to push STAs away from node
-            startAngle := baseAngle + math.Pi/2
+            // Opposite direction
+            oppositeAngle := nodeAngle + math.Pi
 
-            // Angle and position
-            angle := startAngle + 2*math.Pi*float64(staIndex)/float64(totalSTAs)
-            margin := float32(25) // keep STA away from node
-            staOffsetX := float32(math.Cos(angle)) * (radius - margin)
-            staOffsetY := float32(math.Sin(angle)) * (radius - margin)
-            staPos := fyne.NewPos(haulCenter.X+staOffsetX-20, haulCenter.Y+staOffsetY-20)
+            // Normalize angle to [0, 2π]
+            oppositeAngle = math.Mod(oppositeAngle, 2*math.Pi)
+
+            // Spread over 180° centered on oppositeAngle
+            arcSpan := math.Pi // 180°
+            startAngle := oppositeAngle - arcSpan/2
+            endAngle := oppositeAngle + arcSpan/2
+
+            angleStep := (endAngle - startAngle) / float64(layerCount)
+
+            // Add angular displacement to avoid stacking
+            angleOffset := (angleStep / 2) * float64(layer % 2)
+            angle := startAngle + angleStep*float64(posInLayer) + angleOffset
+
+            // Layer radius: start from outer edge inward with jitter
+            layerSpacing := radius / float32(layerCount+1)
+            jitter := float32(5 * (layer % 2)) // alternate radial shift
+            layerRadius := radius - layerSpacing*float32(layer+1) + jitter
+
+            staOffsetX := float32(math.Cos(angle)) * layerRadius
+            staOffsetY := float32(math.Sin(angle)) * layerRadius
+            staPos := fyne.NewPos(haulCenter.X+staOffsetX, haulCenter.Y+staOffsetY)
+
+            // Dynamic icon size
+			minSize := float32(16)
+            maxSize := float32(40)
+            iconSize := maxSize - (maxSize-minSize)*float32(totalSTAs)/float32(20)
+            if iconSize < minSize {
+                iconSize = minSize
+            }
 
             staIcon := NewClickableImage(staCtx.Icon, func() {
-                info := fmt.Sprintf("%s\nMAC: %s\n", sta.ClientType, sta.MACAddress)
+                info := fmt.Sprintf("%.28s\nMAC: %s\n", sta.ClientType, sta.MACAddress)
                 pause_start_Timer(true)
                 showTooltip(container, info, fyne.NewPos(staPos.X, staPos.Y), color.RGBA{R: 216, G: 167, B: 7, A: 255})
             })
-            staIcon.Resize(fyne.NewSize(40, 40))
-            staIcon.Move(fyne.NewPos(staPos.X-20, staPos.Y-20))
+            staIcon.Resize(fyne.NewSize(iconSize, iconSize))
+            staIcon.Move(fyne.NewPos(staPos.X-iconSize/2, staPos.Y-iconSize/2))
             container.Add(staIcon)
             container.Refresh()
 
-			// Normalize and scale offset
-			staOffsetDistance := 25.0
-			nodeOffsetDistance := 30.0
+            // Normalize and scale offset
+            staOffsetDistance := float64(iconSize) * 0.5
+            nodeOffsetDistance := 30.0
 
 			// Compute direction vector from STA to Node
             length := math.Hypot(float64(nodeCenter.X-staPos.X), float64(nodeCenter.Y-staPos.Y))
@@ -908,7 +925,25 @@ func drawNetworkTopologyGraph(
 				Y: float64(nodeCenter.Y) - offsetY*nodeOffsetDistance,
 			}
 
-			wavePoints := GenerateSineWavePoints(startVec, endVec, 6, 10, 100)
+            bandWavelength := map[int]float64{
+                0: 10.0, // wavelength in pixels for band 0
+                1: 8.0, // shorter wavelength for higher frequency
+                2: 6.0,
+            }
+            wavelength, ok := bandWavelength[band]
+            if !ok {
+                wavelength = 10.0 // default wavelength
+            }
+
+            distance := math.Hypot(endVec.X - startVec.X, endVec.Y - startVec.Y)
+
+            // Calculate number of cycles based on fixed wavelength
+            cycles := distance / wavelength
+
+            desiredPointsPerCycle := 8.0 // smoothness
+            steps := int(cycles * desiredPointsPerCycle)
+
+			wavePoints := GenerateSineWavePoints(startVec, endVec, 5, cycles, steps)
 
 			_, hexCol := bandToNameAndColor(band)
 			col := parseHexColor(hexCol)
@@ -1104,26 +1139,27 @@ func buildHaulTypes(radioList []Radio) []HaulTypeVisual {
  * returns: NA
  */
 func GenerateSineWavePoints(start, end r2.Vec, amplitude float64, frequency float64, steps int) []r2.Vec {
-	var points []r2.Vec
+    var points []r2.Vec
 
-	// Direction vector
-	dir := r2.Sub(end, start)
-	length := math.Hypot(dir.X, dir.Y)
-	unitDir := r2.Scale(1/length, dir)
+    // Direction vector
+    dir := r2.Sub(end, start)
+    length := math.Hypot(dir.X, dir.Y)
+    unitDir := r2.Scale(1/length, dir)
 
-	// Perpendicular vector
-	perp := r2.Vec{-unitDir.Y, unitDir.X}
+    // Perpendicular vector
+    perp := r2.Vec{-unitDir.Y, unitDir.X}
 
-	for i := 0; i <= steps; i++ {
-		t := float64(i) / float64(steps)
-		base := r2.Add(start, r2.Scale(t, dir))
-		offset := amplitude * math.Sin(t*frequency*2*math.Pi)
-		wavePoint := r2.Add(base, r2.Scale(offset, perp))
-		points = append(points, wavePoint)
-	}
+    for i := 0; i <= steps; i++ {
+        t := float64(i) / float64(steps)
+        base := r2.Add(start, r2.Scale(t*length, unitDir))
+        offset := amplitude * math.Sin(t * frequency * 2 * math.Pi)
+        point := r2.Add(base, r2.Scale(offset, perp))
+        points = append(points, point)
+    }
 
-	return points
+    return points
 }
+
 
 /* func: showTooltip()
  * Description:
@@ -1148,7 +1184,7 @@ func showTooltip(container *fyne.Container, info string, pos fyne.Position, bgCo
 	label := widget.NewLabel(info)
 	label.Wrapping = fyne.TextWrapWord
 	label.TextStyle = fyne.TextStyle{Bold: true}
-	label.Resize(fyne.NewSize(200, label.MinSize().Height-20))
+	label.Resize(fyne.NewSize(225, label.MinSize().Height-20))
 
 	// Calculate position
 	screenSize := container.Size()
@@ -1286,7 +1322,6 @@ func parseRadioList(tree *C.em_network_node_t) []Radio {
                 HaulType: getTreeValue(bss, "HaulType"),
                 VapMode:  getKeyIntValue(bss, "VapMode"),
                 Band:     getKeyIntValue(bss, "Band"),
-                Channel:  getKeyIntValue(bss, "Channel"),
                 STAList:  staList,
             })
         }
@@ -1294,10 +1329,6 @@ func parseRadioList(tree *C.em_network_node_t) []Radio {
         radios = append(radios, Radio{
             ID:                 getTreeValue(radio, "ID"),
             Enabled:            getKeyIntValue(radio, "Enabled") == 1,
-            NumberOfBSS:        getKeyIntValue(radio, "NumberOfBSS"),
-            NumberOfUnassocSta: getKeyIntValue(radio, "NumberOfUnassocSta"),
-            Noise:              getKeyIntValue(radio, "Noise"),
-            Utilization:        getKeyIntValue(radio, "Utilization"),
             Band:               getKeyIntValue(radio, "Band"),
             IEEE:               getTreeValue(radio, "IEEE"),
             BSSList:            bssList,
@@ -1311,7 +1342,7 @@ func parseRadioList(tree *C.em_network_node_t) []Radio {
  * this function Parse the RadioList node and get the band info
  * returns: band
  */
-func getBandFromRadioTree(node *C.em_network_node_t) int {
+func getBandAndChannelFromRadioTree(node *C.em_network_node_t) (int, int) {
 
 	// Iterate through the radiolist child
 	for i := 0; i < int(node.num_children); i++ {
@@ -1327,12 +1358,12 @@ func getBandFromRadioTree(node *C.em_network_node_t) int {
 		    vapMode := getKeyIntValue(bss, "VapMode")
             if vapMode == 1 {
 				// return the band if vapMode is set
-                return getKeyIntValue(radio, "Band")
+                return getKeyIntValue(radio, "Band") , getKeyIntValue(radio, "Channel")
             }
         }
     }
 	// If no valid connected band found
-    return -1
+    return -1, 0
 }
 
 /* func: lightenColor()
@@ -1551,6 +1582,7 @@ func (t *Topology) periodicTimer() {
 		t.timerCount++
         jsonFile = getTestJSONFile(t.timerCount)
 	    g, nodeMap, metaMap, bandEdges, err = loadNestedTopologyJSON(jsonFile, t.topo)
+
 	} else {
 		// Fetch the live data and draw the graph based live data
 		topologyTree := t.getData()
