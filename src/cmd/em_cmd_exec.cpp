@@ -165,6 +165,7 @@ int em_cmd_exec_t::get_listener_socket(em_service_type_t svc)
 	int domain = AF_INET;
 #endif
 	int lsock;
+    int do_reuse_sock = 1;
 	ssize_t ret;
 
 #ifdef LOCAL_CLI
@@ -196,6 +197,8 @@ int em_cmd_exec_t::get_listener_socket(em_service_type_t svc)
     addr.sin_port = htons(port);
 #endif
 
+    setsockopt(lsock, SOL_SOCKET, SO_REUSEADDR, &do_reuse_sock, sizeof(do_reuse_sock)); // Reuse address 
+
     if ((ret = bind(lsock, reinterpret_cast<const struct sockaddr *> (&addr), sizeof(struct sockaddr_un))) == -1) {
         printf("%s:%d: bind error on socket: %d, err:%d\n", __func__, __LINE__, lsock, errno);
         return -1;
@@ -217,12 +220,15 @@ SSL *em_cmd_exec_t::get_ep_for_dst_svc(SSL_CTX *ctx, em_service_type_t svc)
 	int domain = AF_INET;
 #endif
     int sock, ret;
+    int do_reuse_sock = 1;
 	unsigned int sz = sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN;
 
     if ((sock = socket(domain, SOCK_STREAM, 0)) < 0) {
         printf("%s:%d: Could not create socket\n", __func__, __LINE__);
         return NULL;
     }
+
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &do_reuse_sock, sizeof(do_reuse_sock)); // Reuse address 
 
 #ifdef LOCAL_CLI
     if (get_path_from_dst_service(svc, sock_path) == NULL) {
@@ -288,6 +294,7 @@ int em_cmd_exec_t::send_cmd(em_service_type_t to_svc, unsigned char *in, unsigne
     int dsock;
     ssize_t ret;
     unsigned int sz = sizeof(em_event_t);
+    int do_reuse_sock = 1;
 
 #ifdef LOCAL_CLI
     if (get_path_from_dst_service(to_svc, sock_path) == NULL) {
@@ -304,6 +311,7 @@ int em_cmd_exec_t::send_cmd(em_service_type_t to_svc, unsigned char *in, unsigne
     }
     setsockopt(dsock, SOL_SOCKET, SO_SNDBUF, &sz, sizeof(sz)); // Send buffer 1K
     setsockopt(dsock, SOL_SOCKET, SO_RCVBUF, &sz, sizeof(sz)); // Receive buffer 1K
+    setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, &do_reuse_sock, sizeof(do_reuse_sock)); // Reuse address 
 
     memset(&addr, 0, sizeof(addr));
 #ifdef LOCAL_CLI 
