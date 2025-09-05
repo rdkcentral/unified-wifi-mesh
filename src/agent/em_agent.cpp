@@ -556,7 +556,21 @@ void em_agent_t::handle_recv_gas_frame(em_bus_event_t *evt)
 
 void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
 {
+    uint8_t* mgmt_frame_buff = reinterpret_cast<uint8_t*>(evt->u.raw_buff);
     size_t frame_len = evt->data_len;
+    unsigned int recv_freq = 0;
+
+    #ifdef FEATURE_RECV_FREQ_ACT_SUB
+    // The frequency (and other wifi data) is prepended to the action frame data
+    wifi_frame_t frame_info;
+    memset(&frame_info, 0, sizeof(frame_info));
+    memcpy(&frame_info, evt->u.raw_buff, sizeof(wifi_frame_t));
+    em_printfout("Received WFA action frame at frequency %d MHz", frame_info.recv_freq);
+
+    mgmt_frame_buff += sizeof(wifi_frame_t);
+    frame_len -= sizeof(wifi_frame_t);
+    recv_freq = frame_info.recv_freq;
+    #endif
 
     const size_t mgmt_hdr_len = offsetof(struct ieee80211_mgmt, u);
     const size_t fixed_full_header_len = 
@@ -570,7 +584,7 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
         printf("%s:%d Recieved WFA Action frame is too short! Must have at least the OUI type in the data field\n", __func__, __LINE__);
         return;
     }
-    auto mgmt_frame = reinterpret_cast<struct ieee80211_mgmt *>(evt->u.raw_buff);
+    auto mgmt_frame = reinterpret_cast<struct ieee80211_mgmt *>(mgmt_frame_buff);
     auto vs_action_data = mgmt_frame->u.action.u.vs_public_action.variable;
     auto vs_data_len = frame_len - fixed_full_header_len;
 
@@ -606,7 +620,7 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
     uint8_t oui_type = *vs_action_data;
 
     size_t full_action_frame_len = frame_len - mgmt_hdr_len;
-    auto ec_frame = reinterpret_cast<ec_frame_t*>(evt->u.raw_buff + mgmt_hdr_len);
+    auto ec_frame = reinterpret_cast<ec_frame_t*>(mgmt_frame_buff + mgmt_hdr_len);
 
     switch (oui_type) {
     case DPP_OUI_TYPE: {
@@ -614,7 +628,7 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
         em_t* al_node = get_al_node();
 
         if (al_node != NULL) {
-            if (!al_node->get_ec_mgr().handle_recv_ec_action_frame(ec_frame, full_action_frame_len, mgmt_frame->sa)){
+            if (!al_node->get_ec_mgr().handle_recv_ec_action_frame(ec_frame, full_action_frame_len, mgmt_frame->sa, recv_freq)) {
                 em_printfout("EC manager failed to handle action frame!");
             }
             return;
@@ -1207,14 +1221,29 @@ int em_agent_t::beacon_report_cb(char *event_name, raw_data_t *data, void *userD
 int em_agent_t::mgmt_action_frame_cb(char *event_name, raw_data_t *data, void *userData)
 {
     (void)userData;
-    struct ieee80211_mgmt *mgmt_frame = (struct ieee80211_mgmt *)data->raw_data.bytes;
     em_printfout("Received Frame data for event [%s] and data of len: %d",event_name, data->raw_data_len);
+
+    EM_ASSERT_MSG_TRUE(data != NULL && data->raw_data.bytes != NULL && data->raw_data_len > 0, -1,
+                   "Invalid data in mgmt_action_frame_cb");
+
+    uint8_t* mgmt_frame_data = (uint8_t*)data->raw_data.bytes;
+    unsigned int mgmt_hdr_len = data->raw_data_len;
+    #ifdef FEATURE_RECV_FREQ_ACT_SUB
+    // The frequency (and other wifi data) is prepended to the action frame data
+    // skip it
+    mgmt_frame_data += sizeof(wifi_frame_t);
+    mgmt_hdr_len -= sizeof(wifi_frame_t);
+    #endif
+
+    struct ieee80211_mgmt *mgmt_frame = (struct ieee80211_mgmt *)mgmt_frame_data;
+    
+    
 
     //util::print_hex_dump(data->raw_data_len, (uint8_t*)data->raw_data.bytes);
 
     //printf("Received Frame data for event %s \n", event_name);
     if (mgmt_frame->u.action.u.bss_tm_resp.action == WLAN_WNM_BTM_RESPONSE) {
-        g_agent.io_process(em_bus_event_type_btm_response, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
+        g_agent.io_process(em_bus_event_type_btm_response, mgmt_frame_data, mgmt_hdr_len);
 
         return 1;
     }
@@ -1224,15 +1253,15 @@ int em_agent_t::mgmt_action_frame_cb(char *event_name, raw_data_t *data, void *u
         uint8_t wfa_oui[3] = {0x50, 0x6F, 0x9A};
         if (!memcmp(mgmt_frame->u.action.u.vs_public_action.oui, wfa_oui, sizeof(wfa_oui))){
             // Push WFA action frame back to main thread
-            g_agent.io_process(em_bus_event_type_recv_wfa_action_frame, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
+            // Push all data to pass frequency as well
+            g_agent.io_process(em_bus_event_type_recv_wfa_action_frame, reinterpret_cast<uint8_t*>(data->raw_data.bytes), data->raw_data_len);
         }
     }
 
     if (mgmt_frame->u.action.u.public_action.action >= WLAN_PA_GAS_INITIAL_REQ &&
         mgmt_frame->u.action.u.public_action.action <= WLAN_PA_GAS_COMEBACK_RESP) {
         printf("%s:%d: GAS frame rx'd\n", __func__, __LINE__);
-        g_agent.io_process(em_bus_event_type_recv_gas_frame, (uint8_t *)data->raw_data.bytes,
-                           data->raw_data_len);
+        g_agent.io_process(em_bus_event_type_recv_gas_frame, mgmt_frame_data, mgmt_hdr_len);
     }
 
     return 0;

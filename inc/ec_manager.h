@@ -44,10 +44,11 @@ public:
 	 * @param[in] frame The frame received to handle.
 	 * @param[in] len The length of the frame.
 	 * @param[in] src_mac The MAC address of the source of the frame.
+	 * @param[in] recv_freq The frequency (in MHz) at which the frame was received.
 	 *
 	 * @return true if the frame was handled successfully, false otherwise.
 	 */
-	bool handle_recv_ec_action_frame(ec_frame_t* frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]);
+	bool handle_recv_ec_action_frame(ec_frame_t* frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN], unsigned int recv_freq);
 
 
     

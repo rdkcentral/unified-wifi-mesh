@@ -134,7 +134,7 @@ void ec_enrollee_t::generate_bss_channel_list(bool is_reconfig_list){
     // Clear existing channel list
     freq_list.erase(freq_list.begin(), freq_list.end());
     
-
+    #ifdef FEATURE_RECV_FREQ_ACT_SUB // Only use CCE channels if we can't get the frequency from the action frame subscription handler
     // This step is not present in EC-Reconfig for some reason (likely because of the SSID check)
     if (!is_reconfig_list) {
         /* EC #1
@@ -164,13 +164,11 @@ void ec_enrollee_t::generate_bss_channel_list(bool is_reconfig_list){
     Add the preferred Presence Announcement channels to the channel list;
     */
 
-    /*
     freq_list.insert(2437); // 2.4 GHz: Channel 6 (2.437 GHz)
     freq_list.insert(5220); // 5 GHz: Channel 44 (5.220 GHz)
     freq_list.insert(60480); // 60 GHz: Channel 2 (60.48 GHz)
     freq_list.insert(920); // 920 MHz: Channel 37 
-    */
-    freq_list.insert(5180);
+    #endif
     /* EC-Reconfig #2
 
     For each channel on which the Enrollee detects the SSID for which it is currently configured, 
@@ -217,7 +215,6 @@ void ec_enrollee_t::send_presence_announcement_frames()
         return;
     }
 
-    uint32_t current_freq = 0;
 
     while (!m_received_auth_frame.load()) {
         if (attempts >= 4) {
@@ -254,7 +251,6 @@ void ec_enrollee_t::send_presence_announcement_frames()
                 em_printfout("Failed to send DPP Presence Announcement frame (broadcast) on freq %d", freq);
             }
 
-            current_freq = freq;
 
             // Wait `dwell` before moving to next channel.
             if (!ec_util::interruptible_sleep(std::chrono::milliseconds(dwell), [this]() -> bool {
@@ -279,7 +275,6 @@ void ec_enrollee_t::send_presence_announcement_frames()
         }
     }
 
-    m_selected_freq = current_freq;
 
     free(frame);
 }
@@ -296,7 +291,6 @@ void ec_enrollee_t::send_reconfiguration_announcement_frames()
         return;
     }
 
-    uint32_t current_freq = 0;
 
     while (!m_received_recfg_auth_frame.load()) {
 
@@ -322,7 +316,6 @@ void ec_enrollee_t::send_reconfiguration_announcement_frames()
             if (!m_send_action_frame(const_cast<uint8_t*>(BROADCAST_MAC_ADDR), frame, frame_len, freq, dwell)) {
                 em_printfout("Failed to send DPP Reconfiguration Announcement frame (broadcast) on freq %d", freq);
             }
-            current_freq = freq;
         }
         // EasyConnect 6.5.2
         // If a valid DPP Reconfiguration Authentication Request frame is not received, it repeats this procedure for
@@ -336,7 +329,6 @@ void ec_enrollee_t::send_reconfiguration_announcement_frames()
         }
     }
 
-    m_selected_freq = current_freq;
     free(frame);
 }
 
@@ -596,11 +588,14 @@ bool ec_enrollee_t::handle_recfg_auth_confirm(ec_frame_t *frame, size_t len, uin
     return sent;
 }
 
-bool ec_enrollee_t::handle_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
+bool ec_enrollee_t::handle_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN], unsigned int recv_freq)
 {
     em_printfout("Recieved a DPP Authentication Request from '" MACSTRFMT "', stopping Presence Announcement\n", MAC2STR(src_mac));
     // Halt presence announcement once DPP Authentication frame is received.
     m_received_auth_frame.store(true);
+    #ifdef FEATURE_RECV_FREQ_ACT_SUB
+    m_selected_freq = static_cast<uint32_t>(recv_freq);
+    #endif
     if (m_send_pres_announcement_thread.joinable()) m_send_pres_announcement_thread.join();
     size_t attrs_len = len - EC_FRAME_BASE_SIZE;
 
@@ -2018,7 +2013,7 @@ bool ec_enrollee_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dp
             break;
         }
         case ec_frame_type_auth_req: {
-            did_finish = handle_auth_request(ec_frame, dpp_frame_len, src_mac);
+            did_finish = handle_auth_request(ec_frame, dpp_frame_len, src_mac, 0);
             break;
         }
         case ec_frame_type_auth_cnf: {
@@ -2090,7 +2085,7 @@ bool ec_enrollee_t::handle_bss_info_event(const std::vector<wifi_bss_info_t> &bs
         */
         if (check_bss_info_has_cce(bss_info)){
             em_printfout("CCE heard on frequency %d, adding to Presence Announcement frequency list", bss_info.freq);
-            //m_pres_announcement_freqs.insert(bss_info.freq);
+            m_pres_announcement_freqs.insert(bss_info.freq);
             m_recnf_announcement_freqs.insert(bss_info.freq);
             did_handle_bss_info = true;
         }

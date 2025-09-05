@@ -66,12 +66,13 @@ public:
 	 * @param[in] frame Pointer to the frame to handle.
 	 * @param[in] len The length of the frame.
 	 * @param[in] src_mac Source MAC address of the frame.
+	 * @param[in] recv_freq The frequency (in MHz) at which the frame was received.
 	 *
 	 * @return true if the authentication request was handled successfully, false otherwise.
 	 *
 	 * @note Ensure that the frame and MAC address are valid before calling this function.
 	 */
-	bool handle_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]);
+	bool handle_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN], unsigned int recv_freq);
 
     
 	/**
