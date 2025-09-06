@@ -677,7 +677,7 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
 
     bool did_succeed = false;
     if (!conn_ctx->is_eth) {
-        bool sent = m_send_prox_encap_dpp_msg(encap_response_frame, encap_response_frame_len, nullptr, 0, src_al_mac);
+        did_succeed = m_send_prox_encap_dpp_msg(encap_response_frame, encap_response_frame_len, nullptr, 0, src_al_mac);
         if (!did_succeed) {
             em_printfout("Failed to send Proxied Encap DPP message containing DPP Configuration frame to '" MACSTRFMT "'", MAC2STR(src_mac));
         }

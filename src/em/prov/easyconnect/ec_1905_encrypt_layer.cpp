@@ -920,7 +920,7 @@ bool ec_1905_encrypt_layer_t::verify_mic(ec_1905_key_ctx &ctx, uint8_t *eapol_fr
         em_printfout("Calculated MIC: ");
         util::print_hex_dump(mic);
         em_printfout("EAPOL frame MIC: ");
-        util::print_hex_dump(mic.size(), eapol_packet->mic_len_key);
+        util::print_hex_dump(static_cast<unsigned int>(mic.size()), eapol_packet->mic_len_key);
         return false;
     }
 
@@ -1986,6 +1986,6 @@ bool ec_1905_encrypt_layer_t::set_key(uint8_t *key, size_t key_len, uint16_t key
     } else {
         em_printfout("Setting GTK with ID %u for MAC '" MACSTRFMT "'", key_id, MAC2STR(mac));
     }
-    util::print_hex_dump(key_len, key);
+    util::print_hex_dump(static_cast<unsigned int>(key_len), key);
     return true;
 }

@@ -45,6 +45,10 @@ extern "C"
  * 
  * If defined, the frequency (and other wifi data) is recieved along with the action frame
  * in the action frame subscription handler.
+ * 
+ * halinterface PR #49: https://github.com/rdkcentral/rdkb-halif-wifi/pull/49
+ * rdk-wifi-hal PR #344: https://github.com/rdkcentral/rdk-wifi-hal/pull/344
+ * OneWifi PR #576: https://github.com/rdkcentral/OneWifi/pull/576
  */
 //#define FEATURE_RECV_FREQ_ACT_SUB 
 
