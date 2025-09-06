@@ -234,17 +234,24 @@ bool ec_ctrl_configurator_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, ui
         return false;
     }
 
-    bool did_finish = false;
     ec_frame_t* ec_frame = reinterpret_cast<ec_frame_t*>(dpp_frame);
+
+    /*
+    0x09 = Vendor Specific Action Frame (EasyConnect in this case)
+    0x0A = GAS 
+    Both EasyConnect and GAS frames have the same first two fields.
+    */
+    bool is_gas_frame = (ec_frame->action >= dpp_gas_initial_req && ec_frame->action <= dpp_gas_comeback_resp);
+    if (is_gas_frame) {
+        return process_direct_encap_dpp_gas_msg(dpp_frame, dpp_frame_len, src_mac);
+    }
+
+    bool did_finish = false;
 
     ec_frame_type_t ec_frame_type = static_cast<ec_frame_type_t>(ec_frame->frame_type);
     switch (ec_frame_type) {
         case ec_frame_type_auth_rsp: {
             did_finish = handle_auth_response(ec_frame, dpp_frame_len, src_mac, src_mac);
-            break;
-        }
-        case ec_frame_type_easymesh: {
-            did_finish = process_direct_encap_dpp_gas_msg(dpp_frame, dpp_frame_len, src_mac);
             break;
         }
         case ec_frame_type_cfg_result: {
@@ -296,6 +303,7 @@ bool ec_ctrl_configurator_t::handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, 
 
     for (auto & [mac, conn_ctx] : m_connections) {
 
+        em_printfout("Checking connection context for Enrollee '%s'", mac.c_str());
         // We found the connection context for this Enrollee
         if (conn_ctx.boot_data.responder_boot_key == NULL) {
             em_printfout("No responder bootstrap key found for Enrollee '%s'", mac.c_str());
@@ -303,11 +311,15 @@ bool ec_ctrl_configurator_t::handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, 
         }
 
         // Compare hash.
-        uint8_t *hash = ec_crypto::compute_key_hash(conn_ctx.boot_data.responder_boot_key);
+        uint8_t *hash = ec_crypto::compute_key_hash(conn_ctx.boot_data.responder_boot_key, "chirp");
         if (!hash) {
             em_printfout("Failed to compute hash of responder bootstrap public key for Enrollee '%s'", mac.c_str());
             continue;
         }
+        em_printfout("Computed hash of responder bootstrap public key for Enrollee '%s': ", mac.c_str());
+        util::print_hex_dump(enrollee_hash_len, hash);
+        em_printfout("Received hash from Autoconf Search (extended) chirp: ");
+        util::print_hex_dump(enrollee_hash_len, enrollee_hash);
         if (memcmp(hash, enrollee_hash, enrollee_hash_len) == 0) {
             // We found the Enrollee
             em_printfout("Found Enrollee '%s' with matching hash", mac.c_str());
@@ -660,25 +672,26 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
         return false;
     }
 
-    auto [encap_response_frame, encap_response_frame_len] = ec_util::create_encap_dpp_tlv(true, src_mac, ec_frame_type_easymesh, reinterpret_cast<uint8_t*>(config_response_frame), config_response_frame_len);
-    ASSERT_NOT_NULL(encap_response_frame, {}, "%s:%d: Failed to alloc DPP Configuration frame!\n", __func__, __LINE__);
+    auto [encap_response_frame, encap_response_frame_len] = ec_util::create_encap_dpp_tlv(true, src_mac, ec_frame_type_easymesh, config_response_frame, config_response_frame_len);
+    ASSERT_NOT_NULL_FREE(encap_response_frame, {}, config_response_frame, "%s:%d: Failed to alloc DPP Configuration frame!\n", __func__, __LINE__);
 
+    bool did_succeed = false;
     if (!conn_ctx->is_eth) {
         bool sent = m_send_prox_encap_dpp_msg(encap_response_frame, encap_response_frame_len, nullptr, 0, src_al_mac);
-        if (!sent) {
+        if (!did_succeed) {
             em_printfout("Failed to send Proxied Encap DPP message containing DPP Configuration frame to '" MACSTRFMT "'", MAC2STR(src_mac));
-            free(config_response_frame);
-            return false;
         }
     } else {
-        if (!m_send_dir_encap_dpp_msg(reinterpret_cast<uint8_t*>(config_response_frame), config_response_frame_len, src_mac)) {
+        did_succeed = m_send_dir_encap_dpp_msg(reinterpret_cast<uint8_t*>(config_response_frame), config_response_frame_len, src_mac);
+        if (!did_succeed) {
             em_printfout("Failed to send DPP Configuration Response frame via Direct Encap msg to Enrollee '" MACSTRFMT "'", MAC2STR(src_mac));
-            free(config_response_frame);
-            return false;
         }
     }
+
+    free(config_response_frame);
+    free(encap_response_frame);
         
-    return true;
+    return did_succeed;
 }
 
 bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN], uint8_t src_al_mac[ETH_ALEN])
@@ -889,7 +902,8 @@ bool ec_ctrl_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len,
     // Get Responder Auth Tag
     auto resp_auth_tag_attr = ec_util::get_attrib(sec_unwrapped_data, sec_unwrapped_len, ec_attrib_id_resp_auth_tag);
     ASSERT_OPT_HAS_VALUE_FREE(resp_auth_tag_attr, false, sec_unwrapped_data, "%s:%d: No Responder Auth Tag attribute found\n", __func__, __LINE__);
-    uint8_t resp_auth_tag[resp_auth_tag_attr->length] = {0};
+    uint8_t resp_auth_tag[resp_auth_tag_attr->length];
+    memset(resp_auth_tag, 0, resp_auth_tag_attr->length);
     memcpy(resp_auth_tag, resp_auth_tag_attr->data, resp_auth_tag_attr->length);
     free(sec_unwrapped_data);
 
@@ -1714,7 +1728,7 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_fram
     // If not STA onboarding (i.e. onboarding an AP Enrollee), create backhaul STA configuration object
     if (!is_sta) {
         ASSERT_NOT_NULL(m_get_backhaul_sta_info, {}, "%s:%d: Enrollee '" MACSTRFMT "' requests bSTA config, but bSTA config callback is nullptr!\n", __func__, __LINE__, MAC2STR(dest_mac));
-        cJSON *bsta_config_obj = m_get_backhaul_sta_info(pa_al_mac);
+        cJSON *bsta_config_obj = m_get_backhaul_sta_info(conn_ctx->is_eth ? NULL : pa_al_mac);
         if (bsta_config_obj == nullptr) {
             em_printfout("Failed to create bSTA Configuration object");
             return {};
@@ -1730,7 +1744,7 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_fram
     } else {
         // If STA onboarding, send fBSS credentials
         ASSERT_NOT_NULL(m_get_fbss_info, {}, "%s:%d: Enrollee '" MACSTRFMT "' requests STA onboarding (fBSS credentials) but fBSS config callback is nullptr!\n", __func__, __LINE__, MAC2STR(dest_mac));
-        cJSON *fbss_config_obj = m_get_fbss_info(pa_al_mac);
+        cJSON *fbss_config_obj = m_get_fbss_info(conn_ctx->is_eth ? NULL : pa_al_mac);
         if (fbss_config_obj == nullptr) {
             em_printfout("Failed to create fBSS Configuration object");
             return {};

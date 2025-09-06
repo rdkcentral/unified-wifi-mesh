@@ -1335,22 +1335,17 @@ cJSON *em_t::create_enrollee_bsta_list(uint8_t pa_al_mac[ETH_ALEN])
     return b_sta_list_arr.release(); // Ownership transferred to caller
 }
 
-cJSON *em_t::create_fbss_response_obj(uint8_t pa_al_mac[ETH_ALEN]) {
+em_bss_info_t* get_bss_info(dm_easy_mesh_t* dm, const em_haul_type_t haul_type) {
+    em_bss_info_t *bss_info = NULL;
 
-    em_mgr_t* mgr = get_mgr();
-    EM_ASSERT_NOT_NULL(mgr, nullptr, "Manager is NULL, cannot create configurator bSTA response object");
-
-    dm_easy_mesh_t *dm = mgr->get_data_model(GLOBAL_NET_ID, pa_al_mac);
-    EM_ASSERT_NOT_NULL(dm, nullptr, "Data model for PA al MAC (" MACSTRFMT ") is NULL!", MAC2STR(pa_al_mac));
-
-    const em_bss_info_t *bss_info = NULL;
-
-    const em_network_ssid_info_t* network_ssid_info = dm->get_network_ssid_info_by_haul_type(em_haul_type_fronthaul);
+    const em_network_ssid_info_t* network_ssid_info = dm->get_network_ssid_info_by_haul_type(haul_type);
     EM_ASSERT_NOT_NULL(network_ssid_info, nullptr, "Could not get network SSID info for fronthaul BSS");
 
+    em_printfout("Checking %d BSSs for SSID '%s'", dm->get_num_bss(), network_ssid_info->ssid);
     for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
-        const dm_bss_t *bss = dm->get_bss(i);
+        dm_bss_t *bss = dm->get_bss(i);
         if (!bss) continue;
+        em_printfout("Checking BSS with SSID: '%s' and haul type %d", bss->m_bss_info.ssid, bss->m_bss_info.id.haul_type);
         if (strncmp(bss->m_bss_info.ssid, network_ssid_info->ssid, strlen(network_ssid_info->ssid)) == 0) {
             em_printfout("Found BSS with SSID: '%s'", bss->m_bss_info.ssid);
             bss_info = &bss->m_bss_info;
@@ -1360,6 +1355,33 @@ cJSON *em_t::create_fbss_response_obj(uint8_t pa_al_mac[ETH_ALEN]) {
 
     EM_ASSERT_NOT_NULL(bss_info, nullptr, "Could not find BSS with SSID: '%s'", network_ssid_info->ssid);
 
+    return bss_info;
+}
+
+cJSON *em_t::create_fbss_response_obj(uint8_t pa_al_mac[ETH_ALEN]) {
+
+    em_mgr_t* mgr = get_mgr();
+    EM_ASSERT_NOT_NULL(mgr, nullptr, "Manager is NULL, cannot create configurator bSTA response object");
+
+
+    const em_haul_type_t haul_type = em_haul_type_fronthaul;
+    em_bss_info_t* bss_info = NULL;
+    dm_easy_mesh_t *dm = NULL;
+    // This is via ethernet and therefore we are processing this in the controller and not a proxy agent
+    // We need to find the BSS info from a data model in the list
+    if (pa_al_mac == NULL) {
+        for (dm = mgr->get_first_dm(); dm != NULL; dm = mgr->get_next_dm(dm)) {
+            bss_info = get_bss_info(dm, haul_type);
+            if (bss_info != NULL) break;
+        }
+    } else {
+        dm_easy_mesh_t *dm = mgr->get_data_model(GLOBAL_NET_ID, pa_al_mac);
+        EM_ASSERT_NOT_NULL(dm, nullptr, "Data model for PA al MAC (" MACSTRFMT ") is NULL!", MAC2STR(pa_al_mac));
+
+        bss_info = get_bss_info(dm, haul_type);
+    }
+
+    
     // true for is_sta_response, false for tear_down_bss
     scoped_cjson bss_config_obj (create_bss_dpp_response_obj(bss_info, true, false, dm)); 
     EM_ASSERT_NOT_NULL(bss_config_obj.get(), nullptr, "Could not create fBSS DPP Configuration Object");
@@ -1372,26 +1394,22 @@ cJSON *em_t::create_configurator_bsta_response_obj(uint8_t pa_al_mac[ETH_ALEN])
     em_mgr_t* mgr = get_mgr();
     EM_ASSERT_NOT_NULL(mgr, nullptr, "Manager is NULL, cannot create configurator bSTA response object");
 
-    dm_easy_mesh_t *dm = mgr->get_data_model(GLOBAL_NET_ID, pa_al_mac);
-    EM_ASSERT_NOT_NULL(dm, nullptr, "Data model for PA al MAC (" MACSTRFMT ") is NULL!", MAC2STR(pa_al_mac));
-
-
-    const em_bss_info_t *bss_info = NULL;
-
-    const em_network_ssid_info_t* network_ssid_info = dm->get_network_ssid_info_by_haul_type(em_haul_type_backhaul);
-    EM_ASSERT_NOT_NULL(network_ssid_info, nullptr, "No backhaul BSS found, cannot create bSTA Configuration Object");
-
-    for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
-        const dm_bss_t *bss = dm->get_bss(i);
-        if (!bss) continue;
-        if (bss->m_bss_info.id.haul_type == em_haul_type_backhaul && strncmp(bss->m_bss_info.ssid, network_ssid_info->ssid, strlen(network_ssid_info->ssid)) == 0) {
-            em_printfout("Found backhaul mesh! '%s'", bss->m_bss_info.ssid);
-            bss_info = &bss->m_bss_info;
-            break;
+    const em_haul_type_t haul_type = em_haul_type_backhaul;
+    em_bss_info_t* bss_info = NULL;
+    dm_easy_mesh_t *dm = NULL;
+    // This is via ethernet and therefore we are processing this in the controller and not a proxy agent
+    // We need to find the BSS info from a data model in the list
+    if (pa_al_mac == NULL) {
+        for (dm = mgr->get_first_dm(); dm != NULL; dm = mgr->get_next_dm(dm)) {
+            bss_info = get_bss_info(dm, haul_type);
+            if (bss_info != NULL) break;
         }
-    }
+    } else {
+        dm_easy_mesh_t *dm = mgr->get_data_model(GLOBAL_NET_ID, pa_al_mac);
+        EM_ASSERT_NOT_NULL(dm, nullptr, "Data model for PA al MAC (" MACSTRFMT ") is NULL!", MAC2STR(pa_al_mac));
 
-    EM_ASSERT_NOT_NULL(bss_info, nullptr, "Could not find BSS with SSID: '%s'", network_ssid_info->ssid);
+        bss_info = get_bss_info(dm, haul_type);
+    }
 
     // true for is_sta_response (doesn't change anything on the backhaul), false for tear_down_bss
     scoped_cjson bss_config_obj (create_bss_dpp_response_obj(bss_info, true, false, dm)); 
