@@ -386,7 +386,7 @@ int em_provisioning_t::handle_1905_encap_eapol_msg(uint8_t *buff, unsigned int l
     EM_ASSERT_NOT_NULL(eapol_tlv, -1, "EAPOL Encap TLV not found in 1905 Encap EAPOL message");
 
     uint16_t eapol_frame_len = ntohs(eapol_tlv->len);
-    if (eapol_tlv->value == NULL || eapol_frame_len == 0) {
+    if (eapol_frame_len == 0) {
         em_printfout("Received a 1905 EAPOL Encap message but did not contain EAPOL frame!");
         return -1;
     }

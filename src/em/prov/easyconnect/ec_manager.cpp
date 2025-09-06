@@ -30,7 +30,7 @@ ec_manager_t::~ec_manager_t()
 {
 }
 
-bool ec_manager_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
+bool ec_manager_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN], unsigned int recv_freq)
 {
     if (!ec_util::validate_frame(frame)) {
         em_printfout("frame validation failed");
@@ -42,7 +42,7 @@ bool ec_manager_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len, ui
             did_succeed = m_configurator->handle_presence_announcement(frame, len, src_mac);
             break;
         case ec_frame_type_auth_req:
-            did_succeed = m_enrollee->handle_auth_request(frame, len, src_mac);
+            did_succeed = m_enrollee->handle_auth_request(frame, len, src_mac, recv_freq);
             break;
         case ec_frame_type_auth_rsp:
             did_succeed = m_configurator->handle_auth_response(frame, len, src_mac, NULL);

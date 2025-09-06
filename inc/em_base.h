@@ -1356,11 +1356,11 @@ typedef struct {
 
 typedef struct {
     unsigned char  bh_akm_suite_count;
-    em_bh_akm_suite_t  *bh_akm_suites;
-    unsigned char  fh_akm_suite_count;
-    em_fh_akm_suite_t  *fh_akm_suites;
+    // BH AKM suites follow immediately (bh_akm_suite_count * sizeof(em_bh_akm_suite_t) bytes)
+    // Then fh_akm_suite_count (1 byte)
+    // Then FH AKM suites (fh_akm_suite_count * sizeof(em_fh_akm_suite_t) bytes)
+    unsigned char  bh_fh_data[0]; 
 } __attribute__((__packed__)) em_akm_suite_info_t;
-
 typedef struct {
     mac_address_t  ruid;
     unsigned char  bsta_mac_present : 1;
@@ -2804,7 +2804,7 @@ typedef struct{
 	mac_address_t bssid_mac[EM_MAX_BSS_PER_RADIO];
 	unsigned int key_wrap_authenticator[EM_MAX_BSS_PER_RADIO];
 	bool enable[EM_MAX_BSS_PER_RADIO];
-	em_freq_band_t freq;
+	em_freq_band_t freq[EM_MAX_BSS_PER_RADIO];
 	unsigned int noofbssconfig;
 	em_haul_type_t haultype[EM_MAX_BSS_PER_RADIO];
 	mac_address_t radio_mac[EM_MAX_BSS_PER_RADIO];

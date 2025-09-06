@@ -1783,21 +1783,30 @@ bool em_crypto_t::verify_signature(const std::vector<uint8_t> &message,
 
 std::optional<std::vector<uint8_t>> em_crypto_t::sign_data_ecdsa(const std::vector<uint8_t> &data_to_sign, EC_KEY *private_key, const EVP_MD *md)
 {
+    // Validate the EC_KEY before using it
+    if (!EC_KEY_check_key(private_key)) {
+        fprintf(stderr, "Invalid EC_KEY provided to sign_data_ecdsa\n");
+        return std::nullopt;
+    }
+
     EVP_PKEY *pkey = EVP_PKEY_new();
     if (!pkey) {
         fprintf(stderr, "Failed to create EVP_PKEY\n");
         return std::nullopt;
     }
 
-    if (EVP_PKEY_assign_EC_KEY(pkey, EC_KEY_dup(private_key)) != 1) {
+    // Use reference counting instead of duplication to avoid thread-safety issues
+    EC_KEY_up_ref(private_key);
+    if (EVP_PKEY_assign_EC_KEY(pkey, private_key) != 1) {
         fprintf(stderr, "Failed to assign EC_KEY to EVP_PKEY\n");
+        EC_KEY_free(private_key); // Decrement the reference count we just added
         EVP_PKEY_free(pkey);
         return std::nullopt;
     }
 
     auto result = sign_data_ecdsa(data_to_sign, pkey, md);
 
-    EVP_PKEY_free(pkey);
+    EVP_PKEY_free(pkey); // This will decrement the EC_KEY reference count
     return result;
 }
 #endif

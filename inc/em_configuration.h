@@ -126,7 +126,7 @@ class em_configuration_t {
 	 *
 	 * @note Ensure the buffer is allocated with sufficient size before calling this function.
 	 */
-	int create_bss_config_rsp_msg(uint8_t *buff, uint8_t dest_al_mac[ETH_ALEN]);
+	int create_bss_config_rsp_msg(uint8_t *buff, uint8_t dest_al_mac[ETH_ALEN], SSL_KEY* enrollee_nak);
     
 	/**!
 	 * @brief Creates a BSS configuration response message.
@@ -309,7 +309,7 @@ class em_configuration_t {
 	 *
 	 * @note Ensure that the buffer is large enough to hold the TLV data.
 	 */
-	virtual short create_eht_operations_tlv(unsigned char *buff) = 0;
+	virtual unsigned short create_eht_operations_tlv(unsigned char *buff) = 0;
 
 	/**!
 	 * @brief Creates an AP capability TLV.
@@ -428,7 +428,7 @@ class em_configuration_t {
 	virtual cJSON *create_enrollee_bsta_list(uint8_t pa_al_mac[ETH_ALEN]) = 0;
 
 
-	virtual cJSON *create_bss_dpp_response_obj(const em_bss_info_t *bss_info, bool is_sta_response, bool tear_down_bss) = 0;
+	virtual cJSON *create_bss_dpp_response_obj(const em_bss_info_t *bss_info, bool is_sta_response, bool tear_down_bss, dm_easy_mesh_t* data_model = NULL) = 0;
 	
 	/**!
 	 * @brief Sends a topology response message.
@@ -855,6 +855,17 @@ class em_configuration_t {
 	 */
 	int handle_ack_msg(unsigned char *buff, unsigned int len);
    
+
+	/**!
+	 * @brief Handles the BSS Configuration Request TLV.
+	 *
+	 * @param[in] tlv Pointer to the BSS Configuration Request TLV structure.
+	 *
+	 * @returns SSL_KEY* Pointer to the Enrollee Network Access Key (NAK) if successful, NULL on failure.
+	 *
+	 * @note Ensure the TLV is properly initialized before calling this function.
+	 */
+	SSL_KEY* handle_bss_config_req_tlv(em_tlv_t* tlv);
 	
 	/**!
 	 * @brief Handles the BSS Configuration Response TLV.
@@ -1046,7 +1057,7 @@ class em_configuration_t {
 	 * @param dest_al_mac The destination AL MAC address (6 bytes).
 	 * @return int The length of the TLV created, or -1 on failure.
 	 */
-	int create_bss_conf_resp_tlv(uint8_t *buff, em_bss_info_t *bss_info, uint8_t dest_al_mac[ETH_ALEN]);
+	int create_bss_conf_resp_tlv(uint8_t *buff, em_bss_info_t *bss_info, uint8_t dest_al_mac[ETH_ALEN], dm_easy_mesh_t* dm, SSL_KEY* enrollee_nak);
 
 	/**
 	 * @brief Creates a BSS Configuration Request TLV (17.2.84)
