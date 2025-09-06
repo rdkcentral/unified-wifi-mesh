@@ -34,7 +34,7 @@ ec_pa_configurator_t::ec_pa_configurator_t(const std::string& al_mac_addr, const
 
 bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
-    em_printfout("Recieved a DPP Presence Announcement Frame from '" MACSTRFMT "'\n", MAC2STR(src_mac));
+    em_printfout("Recieved a DPP Presence Announcement Frame from '" MACSTRFMT "'", MAC2STR(src_mac));
     size_t attrs_len = len - EC_FRAME_BASE_SIZE;
 
     auto B_r_hash_attr = ec_util::get_attrib(frame->attributes, static_cast<uint16_t> (attrs_len), ec_attrib_id_resp_bootstrap_key_hash);
@@ -312,6 +312,7 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
                 break;
             }
             std::string chirp_hash_str = em_crypto_t::hash_to_hex_string(chirp_hash, chirp_hash_len);
+            em_printfout("Recieved Chirp TLV and Authentication Request from '" MACSTRFMT "', caching for later..", MAC2STR(chirp_mac));
             em_printfout("Chirp TLV Hash: %s", chirp_hash_str.c_str());
 
             free(chirp_hash);

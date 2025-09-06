@@ -1354,12 +1354,19 @@ typedef struct {
     unsigned char  akm_suite_type;
 } __attribute__((__packed__)) em_fh_akm_suite_t;
 
+typedef struct em_fh_akm_suite_info_t {
+    uint8_t count;
+    em_fh_akm_suite_t suites[0];
+};
+
+typedef struct em_bh_akm_suite_info_t {
+    uint8_t count;
+    em_bh_akm_suite_t suites[0];
+};
+
 typedef struct {
-    unsigned char  bh_akm_suite_count;
-    // BH AKM suites follow immediately (bh_akm_suite_count * sizeof(em_bh_akm_suite_t) bytes)
-    // Then fh_akm_suite_count (1 byte)
-    // Then FH AKM suites (fh_akm_suite_count * sizeof(em_fh_akm_suite_t) bytes)
-    unsigned char  bh_fh_data[0]; 
+    em_bh_akm_suite_info_t bh_akm_suites;
+    em_fh_akm_suite_info_t fh_akm_suites; 
 } __attribute__((__packed__)) em_akm_suite_info_t;
 typedef struct {
     mac_address_t  ruid;

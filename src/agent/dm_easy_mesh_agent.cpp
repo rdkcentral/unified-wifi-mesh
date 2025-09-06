@@ -223,25 +223,6 @@ void dm_easy_mesh_agent_t::translate_onewifi_dml_data (char *str)
                 
     if ((webconfig_easymesh_decode(&config, str, &ext, &type)) == webconfig_error_none) {
         printf("%s:%d Dev-Init decode success\n",__func__, __LINE__);
-        for (unsigned int i = 0; i < get_num_bss(); i++) {
-            dm_bss_t *bss = get_bss(i);
-            if (bss != NULL) {
-                em_printfout("BSS[%u] AKMS");
-                em_bss_info_t *bss_info = bss->get_bss_info();
-                if (bss_info == NULL) {
-                    printf("\tBSS[%u] has no info\n", i);
-                    continue;
-                }
-                printf("\tNum Fronthaul AKMS: %u\n", bss_info->num_fronthaul_akms);
-                for (unsigned int j = 0; j < bss_info->num_fronthaul_akms; j++) {
-                    printf("\tFronthaul AKM[%u]: %s\n", j, bss_info->fronthaul_akm[j]);
-                }
-                printf("\tNum Backhaul AKMS: %u\n", bss_info->num_backhaul_akms);
-                for (unsigned int j = 0; j < bss_info->num_backhaul_akms; j++) {
-                    printf("\tBackhaul AKM[%u]: %s\n", j, bss_info->backhaul_akm[j]);
-                }
-            }
-        }
     } else {       
         printf("%s:%d Dev-Init decode fail\n",__func__, __LINE__);
     }       

@@ -1405,11 +1405,14 @@ cJSON *em_t::create_configurator_bsta_response_obj(uint8_t pa_al_mac[ETH_ALEN])
             if (bss_info != NULL) break;
         }
     } else {
-        dm_easy_mesh_t *dm = mgr->get_data_model(GLOBAL_NET_ID, pa_al_mac);
+        dm = mgr->get_data_model(GLOBAL_NET_ID, pa_al_mac);
         EM_ASSERT_NOT_NULL(dm, nullptr, "Data model for PA al MAC (" MACSTRFMT ") is NULL!", MAC2STR(pa_al_mac));
 
         bss_info = get_bss_info(dm, haul_type);
     }
+
+    EM_ASSERT_NOT_NULL(bss_info, nullptr, "Could not find backhaul bSTA BSS info in data model");
+    EM_ASSERT_NOT_NULL(dm, nullptr, "Could not find data model to create bSTA DPP Configuration Object");
 
     // true for is_sta_response (doesn't change anything on the backhaul), false for tear_down_bss
     scoped_cjson bss_config_obj (create_bss_dpp_response_obj(bss_info, true, false, dm)); 
@@ -1457,6 +1460,7 @@ cJSON *em_t::create_bss_dpp_response_obj(const em_bss_info_t *bss_info, bool is_
     }
 
     dm_radio_t* radio = dm->get_radio(bss_info->ruid.mac);
+    EM_ASSERT_NOT_NULL(radio, nullptr, "Could not find radio for BSS RUID: " MACSTRFMT, MAC2STR(bss_info->ruid.mac));
     em_freq_band_t band = static_cast<em_freq_band_t>(radio->m_radio_info.band);
 
     /* EasyConnect 4.5.2
