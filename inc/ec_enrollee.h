@@ -743,11 +743,11 @@ private:
 	 */
 	bool m_is_upgrading_flag = false;
 
-	bool send_phy_frame(uint8_t dst_mac[ETH_ALEN], uint8_t* frame, size_t frame_len, unsigned int freq, unsigned int wait){
+	bool send_phy_frame(uint8_t dst_mac[ETH_ALEN], uint8_t* frame, size_t frame_len, unsigned int freq, unsigned int wait=0){
 		if (m_c_ctx.is_eth) {
 			return m_send_dir_encap_fn(frame, frame_len, dst_mac);
 		}
-        return m_send_action_frame(dst_mac, frame, frame_len, freq, 0);
+        return m_send_action_frame(dst_mac, frame, frame_len, freq, wait);
 	}
 
 };

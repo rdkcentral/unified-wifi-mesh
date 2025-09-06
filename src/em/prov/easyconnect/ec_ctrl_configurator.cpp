@@ -87,6 +87,8 @@ bool ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *ch
     uint8_t* hash = NULL; // Max hash length to avoid dynamic allocation
     uint16_t hash_len = 0;
 
+    em_printfout("Recieved Chirp Notification TLV from '" MACSTRFMT "'", MAC2STR(src_al_mac));
+
     if (!ec_util::parse_dpp_chirp_tlv(chirp_tlv, tlv_len, &mac, reinterpret_cast<uint8_t**>(&hash), &hash_len)) {
         em_printfout("Failed to parse DPP Chirp TLV");
         return false;
@@ -677,7 +679,7 @@ bool ec_ctrl_configurator_t::handle_proxied_dpp_configuration_request(uint8_t *e
 
     bool did_succeed = false;
     if (!conn_ctx->is_eth) {
-        bool sent = m_send_prox_encap_dpp_msg(encap_response_frame, encap_response_frame_len, nullptr, 0, src_al_mac);
+        did_succeed = m_send_prox_encap_dpp_msg(encap_response_frame, encap_response_frame_len, nullptr, 0, src_al_mac);
         if (!did_succeed) {
             em_printfout("Failed to send Proxied Encap DPP message containing DPP Configuration frame to '" MACSTRFMT "'", MAC2STR(src_mac));
         }
@@ -1277,7 +1279,7 @@ bool ec_ctrl_configurator_t::handle_recfg_auth_response(ec_frame_t *frame, size_
 std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_auth_request(std::string enrollee_mac)
 {
 
-    em_printfout("Enter");
+    em_printfout("Creating Authentication Request frame for Enrollee '%s'", enrollee_mac.c_str());
     auto conn_ctx = get_conn_ctx(enrollee_mac);
     ASSERT_NOT_NULL(conn_ctx, {}, "%s:%d: No connection context for Enrollee '" MACSTRFMT "'\n", __func__, __LINE__, MAC2STR(enrollee_mac));
     auto e_ctx = get_eph_ctx(enrollee_mac);

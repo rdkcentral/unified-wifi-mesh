@@ -482,7 +482,7 @@ bool ec_enrollee_t::handle_recfg_auth_request(ec_frame_t *frame, size_t len, uin
     // EasyConnect 6.5.4:
     // Upon sending the frame, it shall set a timer for five seconds to wait for a
     // DPP Reconfiguration Authentication Confirm frame (5 second dwell)
-    bool sent = send_phy_frame(src_mac, response_frame, response_frame_len, m_selected_freq, 5);
+    bool sent = send_phy_frame(src_mac, response_frame, response_frame_len, m_selected_freq);
 
     free(response_frame);
     return sent;
@@ -574,7 +574,7 @@ bool ec_enrollee_t::handle_recfg_auth_confirm(ec_frame_t *frame, size_t len, uin
         return false;
     }
 
-    bool sent = send_phy_frame(src_mac, config_request_frame, config_request_frame_len, m_selected_freq, 0);
+    bool sent = send_phy_frame(src_mac, config_request_frame, config_request_frame_len, m_selected_freq);
 
     free(config_request_frame);
     free(unwrapped_data);
@@ -716,7 +716,7 @@ Authentication Request frame without replying to it.
             em_printfout("failed to create response frame");
             return false;
         }
-        if (send_phy_frame(src_mac, resp_frame, resp_len, m_selected_freq, 0)){
+        if (send_phy_frame(src_mac, resp_frame, resp_len, m_selected_freq)){
             em_printfout("Successfully sent DPP Status Not Compatible response frame to '" MACSTRFMT "'", MAC2STR(src_mac));
         } else {
             em_printfout("Failed to send DPP Status Not Compatible response frame to " MACSTRFMT "'", MAC2STR(src_mac));
@@ -736,7 +736,7 @@ Authentication Request frame without replying to it.
             em_printfout("failed to create response frame");
             return false;
         }
-        if (send_phy_frame(src_mac, resp_frame, resp_len, m_selected_freq, 0)){
+        if (send_phy_frame(src_mac, resp_frame, resp_len, m_selected_freq)){
             em_printfout("Successfully sent DPP Status Response Pending response frame to '" MACSTRFMT "'", MAC2STR(src_mac));
         } else {
             em_printfout("Failed to send DPP Status Response Pending response frame to '" MACSTRFMT "'", MAC2STR(src_mac));
@@ -753,7 +753,7 @@ Authentication Request frame without replying to it.
         em_printfout("failed to create response frame");
         return false;
     }
-    bool did_succeed = send_phy_frame(src_mac, resp_frame, resp_len, m_selected_freq, 0);
+    bool did_succeed = send_phy_frame(src_mac, resp_frame, resp_len, m_selected_freq);
     if (did_succeed){
         em_printfout("Successfully sent DPP Status OK response frame to '" MACSTRFMT "'", MAC2STR(src_mac));
     } else {
@@ -893,7 +893,7 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
     // in an 802.11 frame to a DPP frame encapsulated in a Multi-AP CMDU message. **Upon successful authentication**, the
     // Enrollee Multi-AP Agent requests configuration by exchanging DPP Configuration Protocol messages (see 6.6 of [18])
     // with the Multi-AP Controller.
-    bool sent_dpp_config_gas_frame = send_phy_frame(src_mac, config_req, config_req_len, m_selected_freq, 0);
+    bool sent_dpp_config_gas_frame = send_phy_frame(src_mac, config_req, config_req_len, m_selected_freq);
     if (sent_dpp_config_gas_frame) {
         em_printfout("Sent DPP Configuration Request 802.11 frame to Proxy Agent!");
     } else {
@@ -1091,7 +1091,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *query_resp, size_t len, uint
         return false;
     }
 
-    bool ok = send_phy_frame(sa, config_result_frame, config_result_frame_len, m_selected_freq, 0);
+    bool ok = send_phy_frame(sa, config_result_frame, config_result_frame_len, m_selected_freq);
 
     free(config_result_frame);
 
@@ -1807,7 +1807,7 @@ bool ec_enrollee_t::handle_gas_comeback_response(ec_gas_comeback_response_frame_
         // If there's more frags coming, send a Comeback Request to enable sending of next Comeback Response
         ec_gas_comeback_request_frame_t *cb_frame = create_comeback_request(frame->base.dialog_token);
         ASSERT_NOT_NULL(cb_frame, false, "%s:%d: Failed to allocate a GAS Comeback Request frame\n", __func__, __LINE__);
-        bool sent = send_phy_frame(src_mac, reinterpret_cast<uint8_t *>(cb_frame), sizeof(ec_gas_comeback_request_frame_t), m_selected_freq, 0);
+        bool sent = send_phy_frame(src_mac, reinterpret_cast<uint8_t *>(cb_frame), sizeof(ec_gas_comeback_request_frame_t), m_selected_freq);
 
         if (!sent) {
             em_printfout("Failed to send GAS Comeback Request to '" MACSTRFMT "', we made it to frag #%d", MAC2STR(src_mac), frame->fragment_id);
@@ -1833,7 +1833,7 @@ bool ec_enrollee_t::handle_gas_initial_response(ec_gas_initial_response_frame_t 
 
         ec_gas_comeback_request_frame_t *cb_frame = create_comeback_request(resp_frame->base.dialog_token);
         ASSERT_NOT_NULL(cb_frame, false, "%s:%d: Failed to allocate GAS Initial Request frame\n", __func__, __LINE__);
-        bool sent = send_phy_frame(src_mac, reinterpret_cast<uint8_t *>(cb_frame), sizeof(ec_gas_comeback_request_frame_t), m_selected_freq, 0);
+        bool sent = send_phy_frame(src_mac, reinterpret_cast<uint8_t *>(cb_frame), sizeof(ec_gas_comeback_request_frame_t), m_selected_freq);
 
         free(cb_frame);
         if (!sent) {
@@ -1927,7 +1927,7 @@ bool ec_enrollee_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
         return false;
     }
 
-    bool sent = send_phy_frame(it->second.data(), frame, frame_len, m_selected_freq, 0);
+    bool sent = send_phy_frame(it->second.data(), frame, frame_len, m_selected_freq);
 
     if (sent) {
         em_printfout("Sent Configuration Connection Status Result frame!");

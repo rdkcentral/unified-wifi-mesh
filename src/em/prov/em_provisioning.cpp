@@ -115,7 +115,7 @@ int em_provisioning_t::send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, si
 
     {
         em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
-        em_printfout("Sending Proxied Encap DPP msg from '" MACSTRFMT "' to '" MACSTRFMT "'\n", MAC2STR(hdr->src), MAC2STR(hdr->dst));
+        em_printfout("Sending Proxied Encap DPP msg from '" MACSTRFMT "' to '" MACSTRFMT "'", MAC2STR(hdr->src), MAC2STR(hdr->dst));
     }
 
     em_printfout("Sending Proxied Encap DPP msg of length %d", len);
@@ -294,19 +294,16 @@ int em_provisioning_t::send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t 
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
 
     if (em_msg_t(em_msg_type_chirp_notif, em_profile_type_3, buff, len).validate(errors) == 0) {
-        printf("Channel Selection Request msg failed validation in tnx end\n");
+        em_printfout("Chirp Notification msg failed validation in tnx end");
         //return -1;
     }
 
-    em_printfout("Sending CHIRP NOTIFICATION to '" MACSTRFMT "' from '" MACSTRFMT "'\n",
+    em_printfout("Sending CHIRP NOTIFICATION to '" MACSTRFMT "' from '" MACSTRFMT "'",
                  MAC2STR(dest_al_mac), MAC2STR(get_al_interface_mac()));
     if (send_frame(buff, len)  < 0) {
-        em_printfout("Channel Selection Request msg failed, error:%d", errno);
+        em_printfout("Chirp Notification msg failed, error:%d", errno);
         return -1;
     }
-
-    // TODO: If needed, likely not
-	//set_state(em_state_ctrl_configured);
 
     return static_cast<int> (len);
 
