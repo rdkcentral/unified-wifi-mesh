@@ -199,8 +199,10 @@ int dm_device_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
             			info->manufacturer_model, info->software_ver, info->exec_env, info->country_code, info->traffic_sep_allowed,
             			info->svc_prio_allowed, info->dfs_enable, info->max_unsuccessful_assoc_report_rate, info->sta_steer_state, 
             			info->coord_cac_allowed, dm_easy_mesh_t::macbytes_to_string(info->backhaul_mac.mac, bk_mac_str), media_str,
-            			dm_easy_mesh_t::macbytes_to_string(info->backhaul_alid.mac, alid_str), info->traffic_sep_cap, info->easy_conn_cap,
+                        bk_mac_str, info->traffic_sep_cap, info->easy_conn_cap,
             			info->test_cap);
+                        //TBD: Backhaul mac and id to be retrieved using Backhaul capability report
+                        //Revisit: Currently using src address from M1 msg to updtae backhual mac and id data into db
 			break;
 
 		case dm_orch_type_db_update:
@@ -209,8 +211,10 @@ int dm_device_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
 						info->manufacturer_model, info->software_ver, info->exec_env, info->country_code, info->traffic_sep_allowed,
 						info->svc_prio_allowed, info->dfs_enable, info->max_unsuccessful_assoc_report_rate, info->sta_steer_state,
 						info->coord_cac_allowed, dm_easy_mesh_t::macbytes_to_string(info->backhaul_mac.mac, bk_mac_str), media_str,
-						dm_easy_mesh_t::macbytes_to_string(info->backhaul_alid.mac, alid_str), info->traffic_sep_cap, info->easy_conn_cap,
+                        bk_mac_str, info->traffic_sep_cap, info->easy_conn_cap,
 						info->test_cap, key);
+                        //TBD: Backhaul mac and id to be retrieved using Backhaul capability report
+                        //Revisit: Currently using src address from M1 msg to updtae backhaul mac and id data into db
 			break;
 
 		case dm_orch_type_db_delete:

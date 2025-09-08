@@ -3636,6 +3636,9 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
             memcpy(dev_info.serial_number, attr->val, htons(attr->len));
             set_serial_number(dev_info.serial_number);
             //printf("%s:%d: Manufacturer:%s\n", __func__, __LINE__, dev_info.serial_number);
+            //TBD: Revisit, Backhauk mac and id to be retrived using Backhaul capability report
+            memcpy(dev_info.backhaul_mac.mac, get_peer_mac(), sizeof(mac_address_t));
+            memcpy(dev_info.backhaul_alid.mac, get_peer_mac(), sizeof(mac_address_t));
             dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
         } else if (id == attr_id_primary_device_type) {
         } else if (id == attr_id_device_name) {
