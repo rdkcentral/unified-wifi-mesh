@@ -581,27 +581,22 @@ int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
 
     dm = get_data_model();
 
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_ap_mld_config;
-
-    ap_mld_conf = reinterpret_cast<em_ap_mld_config_t *> (tlv->value);
-    ap_mld_conf->num_ap_mld = static_cast<unsigned char> (dm->get_num_ap_mld());
+    ap_mld_conf = reinterpret_cast<em_ap_mld_config_t *> (buff);
+    memset(ap_mld_conf, 0, sizeof(em_ap_mld_config_t));
 
     tlv_len = static_cast<short unsigned int> (sizeof(em_ap_mld_config_t));
 
     ap_mld = ap_mld_conf->ap_mld;
+    memset(ap_mld, 0, sizeof(em_ap_mld_t));
 
-    //dm->set_num_ap_mld(1);
-    //dm->m_ap_mld[0].m_ap_mld_info.num_affiliated_ap = 1;
-    //memcpy(dm->m_ap_mld[0].m_ap_mld_info.affiliated_ap[0].ruid.mac, get_radio_interface_mac(), sizeof(mac_address_t));
+    ap_mld_conf->num_ap_mld = static_cast<unsigned char> (dm->get_num_ap_mld());
 
     for (i = 0; i < dm->get_num_ap_mld(); i++) {
         em_ap_mld_info_t& ap_mld_info = dm->m_ap_mld[i].m_ap_mld_info;
         ap_mld->ap_mld_mac_addr_valid = ap_mld_info.mac_addr_valid;
 
-        ap_mld_ssids = ap_mld->ssids;
-        ap_mld_ssids->ssid_len = static_cast<unsigned char> (strlen(ap_mld_info.ssid) + 1);
-        strncpy(ap_mld_ssids->ssid, ap_mld_info.ssid, ap_mld_ssids->ssid_len);
+        ap_mld->ssid_len = static_cast<unsigned char>(sizeof(ssid_t));
+        strncpy(ap_mld->ssid, ap_mld_info.ssid, ap_mld->ssid_len);
 
         memcpy(ap_mld->ap_mld_mac_addr, ap_mld_info.mac_addr, sizeof(mac_address_t));
         ap_mld->str = ap_mld_info.str;
@@ -611,9 +606,11 @@ int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
 
         ap_mld->num_affiliated_ap = ap_mld_info.num_affiliated_ap;
         affiliated_ap_mld = ap_mld->affiliated_ap_mld;
+        affiliated_ap_len = 0;
 
         for (j = 0; j < ap_mld->num_affiliated_ap; j++) {
             em_affiliated_ap_info_t& affiliated_ap_info = dm->m_ap_mld[i].m_ap_mld_info.affiliated_ap[j];
+            memset(affiliated_ap_mld, 0, sizeof(em_affiliated_ap_mld_t));
             affiliated_ap_mld->affiliated_mac_addr_valid = affiliated_ap_info.mac_addr_valid;
             affiliated_ap_mld->link_id_valid = affiliated_ap_info.link_id_valid;
             memcpy(affiliated_ap_mld->ruid, affiliated_ap_info.ruid.mac, sizeof(mac_address_t));
@@ -624,14 +621,13 @@ int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
             affiliated_ap_len += static_cast<short unsigned int> (sizeof(em_affiliated_ap_mld_t));
         }
 
-        ap_mld = reinterpret_cast<em_ap_mld_t *>(reinterpret_cast<unsigned char *> (ap_mld) + sizeof(em_ap_mld_t) + ap_mld_ssids->ssid_len + affiliated_ap_len);
-        ap_mld_len += static_cast<short unsigned int> (sizeof(em_ap_mld_t) + ap_mld_ssids->ssid_len + affiliated_ap_len);
+        ap_mld = reinterpret_cast<em_ap_mld_t *>(reinterpret_cast<unsigned char *> (ap_mld) + sizeof(em_ap_mld_t) + affiliated_ap_len);
+        ap_mld_len += static_cast<short unsigned int> (sizeof(em_ap_mld_t) + affiliated_ap_len);
     }
 
     tlv_len += ap_mld_len;
-    tlv->len = htons(tlv_len);
 
-    return sizeof(em_tlv_t) + tlv_len;
+    return tlv_len;
 }
 
 int em_configuration_t::create_bsta_mld_config_tlv(unsigned char *buff)
@@ -1006,10 +1002,13 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst)
     len += static_cast<unsigned int> (tlv_len);
 
     // One AP MLD Configuration TLV
-    tlv_len = static_cast<short unsigned int> (create_ap_mld_config_tlv(tmp));
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_ap_mld_config;
+    tlv_len = static_cast<short unsigned int> (create_ap_mld_config_tlv(tlv->value));
+    tlv->len = htons(tlv_len);
 
-    tmp += tlv_len;
-    len += static_cast<unsigned int> (tlv_len);
+    tmp += sizeof(em_tlv_t) + tlv_len;
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
 
     // One Backhaul STA MLD Configuration TLV
     tlv_len = static_cast<short unsigned int> (create_bsta_mld_config_tlv(tmp));
@@ -1639,6 +1638,25 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 		return -1;
 	}
 
+    bool found_ap_mld = false;
+    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        if (tlv->type != em_tlv_type_ap_mld_config) {
+            tmp_len -= static_cast<int> (sizeof(em_tlv_t) + htons(tlv->len));
+            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+
+            continue;
+
+        } else {
+            found_ap_mld = true;
+            break;
+       }
+    }
+
+    if (found_ap_mld == true) {
+        em_printfout("Found AP MLD details in topology response message");
+        handle_ap_mld_config_tlv(tlv->value, htons(tlv->len));
+    }
+    em_printfout("No of AP MLDs: %d", dm->m_num_ap_mld);
 
 	dm->set_db_cfg_param(db_cfg_type_policy_list_update, "");
 	return ret;
@@ -1663,16 +1681,24 @@ int em_configuration_t::handle_ap_mld_config_tlv(unsigned char *buff, unsigned i
 
     dm = get_data_model();
 
+    if(ap_mld_conf->num_ap_mld == 0) {
+        em_printfout("Zero AP MLD data");
+        return 0;
+    }
     dm->set_num_ap_mld(ap_mld_conf->num_ap_mld);
 
+    em_printfout("No of AP MLDs: %d", ap_mld_conf->num_ap_mld);
     ap_mld = ap_mld_conf->ap_mld;
 
     for (i = 0; i < ap_mld_conf->num_ap_mld; i++) {
         em_ap_mld_info_t* ap_mld_info = &dm->m_ap_mld[i].m_ap_mld_info;
-        ap_mld_info->mac_addr_valid = ap_mld->ap_mld_mac_addr_valid;
+        if (ap_mld_info == NULL) {
+           em_printfout("NULL pointer detected in ap_mld_info");
+           return 0;
+        }
 
-        ap_mld_ssids = ap_mld->ssids;
-        strncpy(ap_mld_info->ssid, ap_mld_ssids->ssid, ap_mld_ssids->ssid_len);
+        ap_mld_info->mac_addr_valid = ap_mld->ap_mld_mac_addr_valid;
+        strncpy(ap_mld_info->ssid, ap_mld->ssid, ap_mld->ssid_len);
 
         memcpy(ap_mld_info->mac_addr, ap_mld->ap_mld_mac_addr, sizeof(mac_address_t));
         ap_mld_info->str = ap_mld->str;
@@ -1695,8 +1721,8 @@ int em_configuration_t::handle_ap_mld_config_tlv(unsigned char *buff, unsigned i
             affiliated_ap_len += sizeof(em_affiliated_ap_mld_t);
         }
 
-        ap_mld = reinterpret_cast<em_ap_mld_t *> (reinterpret_cast<unsigned char *> (ap_mld) + sizeof(em_ap_mld_t) + ap_mld_ssids->ssid_len + affiliated_ap_len);
-        ap_mld_len += static_cast<short unsigned int> (sizeof(em_ap_mld_t) + ap_mld_ssids->ssid_len + affiliated_ap_len);
+        ap_mld = reinterpret_cast<em_ap_mld_t *> (reinterpret_cast<unsigned char *> (ap_mld) + sizeof(em_ap_mld_t) + affiliated_ap_len);
+        ap_mld_len += static_cast<short unsigned int> (sizeof(em_ap_mld_t) + affiliated_ap_len);
     }
 
     return 0;
@@ -3399,6 +3425,24 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
 
     set_e_mac(get_radio_interface_mac());
     handle_wsc_m2(tlv->value, htons(tlv->len));
+
+    bool found_ap_mld = false;
+    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        if (tlv->type != em_tlv_type_ap_mld_config) {
+            tmp_len -= static_cast<int> (sizeof(em_tlv_t) + htons(tlv->len));
+            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+
+            continue;
+
+        } else {
+            found_ap_mld = true;
+            break;
+       }
+    }
+    if (found_ap_mld == true) {
+        em_printfout("Found AP MLD details in message");
+        handle_ap_mld_config_tlv(tlv->value, htons(tlv->len));
+    }
 
     // first compute keys
     if (compute_keys(get_r_public(), static_cast<short unsigned int> (get_r_public_len()), get_e_private(), static_cast<short unsigned int> (get_e_private_len())) != 1) {

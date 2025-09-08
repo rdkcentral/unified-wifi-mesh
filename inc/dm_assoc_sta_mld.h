@@ -45,7 +45,7 @@ public:
 	 *
 	 * @returns A pointer to the `em_assoc_sta_mld_info_t` structure containing the AP MLD information.
 	 */
-	em_assoc_sta_mld_info_t *get_ap_mld_info() { return &m_assoc_sta_mld_info; }
+	em_assoc_sta_mld_info_t *get_assoc_sta_mld_info() { return &m_assoc_sta_mld_info; }
     
 	/**!
 	 * @brief Decodes a JSON object and associates it with a parent identifier.

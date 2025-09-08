@@ -1611,7 +1611,18 @@ public:
 	 */
 	static unsigned int get_num_assoc_sta_mld(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->get_num_assoc_sta_mld(); }
 
-    
+	em_ap_mld_info_t *get_ap_mld_frm_bssid(mac_address_t bss_id);
+	static em_ap_mld_info_t *get_ap_mld_frm_bssid(void *dm, mac_address_t bss_id) { return (static_cast<dm_easy_mesh_t *>(dm))->get_ap_mld_frm_bssid(bss_id); }
+
+	void update_ap_mld_info(em_ap_mld_info_t *ap_mld_info);
+	static void update_ap_mld_info(void *dm, em_ap_mld_info_t *ap_mld_info) { (static_cast<dm_easy_mesh_t *>(dm))->update_ap_mld_info(ap_mld_info); }
+
+	void update_bsta_mld_info(em_bsta_mld_info_t *bsta_mld_info);
+	static void update_bsta_mld_info(void *dm, em_bsta_mld_info_t *bsta_mld_info) { (static_cast<dm_easy_mesh_t *>(dm))->update_bsta_mld_info(bsta_mld_info); }
+
+	void update_assoc_sta_mld_info(em_assoc_sta_mld_info_t *assoc_sta_mld_info);
+	static void update_assoc_sta_mld_info(void *dm, em_assoc_sta_mld_info_t *assoc_sta_mld_info) { (static_cast<dm_easy_mesh_t *>(dm))->update_assoc_sta_mld_info(assoc_sta_mld_info); }
+
 	/**!
 	 * @brief Retrieves the Data Model DPP object.
 	 *
