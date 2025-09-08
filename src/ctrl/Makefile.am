@@ -36,7 +36,7 @@ onewifi_em_ctrl_CPPFLAGS = \
     -I$(top_srcdir)/OneWifi/source/platform/common \
     -DUNIT_TEST
 
-onewifi_em_ctrl_CXXFLAGS = $(INCLUDEDIRS) -g -DUNIT_TEST -Wall -Wextra -pedantic -Wpedantic -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wconversion -Wsign-conversion -Weffc++ -Wno-unused-parameter -std=c++17 -fsanitize=address -fsanitize=undefined #-Werror -O2
+onewifi_em_ctrl_CXXFLAGS = $(INCLUDEDIRS) -g -DUNIT_TEST -Wall -Wextra -pedantic -Wpedantic -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wsign-conversion -Weffc++ -Wno-unused-parameter -std=c++17 -fsanitize=address -fsanitize=undefined #-Wconversion -Werror -O2
 
 onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/em/em.cpp \

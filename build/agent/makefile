@@ -43,7 +43,7 @@ INCLUDEDIRS += -I$(AL_SAP_HOME)/include
 endif
 
 $(info The value of VARIABLE is $(ONEWIFI_HAL_INTF_HOME))
-CXX_COMMON_FLAGS = -DUNIT_TEST -DEASY_MESH_NODE -DEM_APP -Wall -Wextra -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wconversion -Wsign-conversion -Wno-unused-parameter -fsanitize=address -fsanitize=undefined #-Werror -O2 -Weffc++
+CXX_COMMON_FLAGS = -DUNIT_TEST -DEASY_MESH_NODE -DEM_APP -Wall -Wextra -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wsign-conversion -Wno-unused-parameter -fsanitize=address -fsanitize=undefined #-Wconversion -Werror -O2 -Weffc++
 CXX_SPECIFIC_FLAGS = -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -std=c++17
 
 ifeq ($(WITH_SAP), 1)

@@ -1352,17 +1352,17 @@ typedef struct {
 typedef struct {
     unsigned char  oui[3];
     unsigned char  akm_suite_type;
-} __attribute__((__packed__)) em_fh_akm_suite_t;
+}  em_fh_akm_suite_t;
 
-typedef struct em_fh_akm_suite_info_t {
+typedef struct {
     uint8_t count;
     em_fh_akm_suite_t suites[0];
-};
+} __attribute__((__packed__)) em_fh_akm_suite_info_t;
 
-typedef struct em_bh_akm_suite_info_t {
+typedef struct {
     uint8_t count;
     em_bh_akm_suite_t suites[0];
-};
+} __attribute__((__packed__)) em_bh_akm_suite_info_t;
 
 typedef struct {
     em_bh_akm_suite_info_t bh_akm_suites;

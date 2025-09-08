@@ -361,7 +361,7 @@ typedef struct {
 typedef struct {
     ec_gas_frame_base_t base;
     uint16_t status_code;            // Same field as initial response
-    uint8_t fragment_id : 7;             // Fragment ID (0–255)
+    uint8_t fragment_id : 7;             // Fragment ID (0–127)
     uint8_t more_fragments : 1;         // 1 = more fragments to come, 0 = this is the last fragment
     uint16_t gas_comeback_delay;     // 0 if this is the final response
     uint8_t ape[3];
