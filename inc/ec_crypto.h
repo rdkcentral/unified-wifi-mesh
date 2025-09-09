@@ -385,6 +385,19 @@ public:
 	 * @note The caller must free the returned buffer with free().
 	 */
 	static scoped_buff encode_ec_point(ec_connection_context_t& c_ctx, const EC_POINT *point);
+
+	/**
+	 * @brief Encode an EC point into a protocol key buffer.
+	 * 
+	 * This function encodes an elliptic curve (EC) point into a protocol key buffer.
+	 * 
+	 * @param group The EC group defining the elliptic curve.
+	 * @param point The EC point to encode.
+	 * @param prime The prime number defining the field of the elliptic curve, if NULL will be derived from the group.
+	 * @param bn_ctx The BN context to use for encoding (optional, can be NULL).
+	 * @return scoped_buff 
+	 */
+	static scoped_buff encode_ec_point(const EC_GROUP* group, const EC_POINT *point, const BIGNUM* prime = NULL, BN_CTX* bn_ctx = NULL);
     
 	/**!
 	 * @brief Decode a protocol key buffer into an EC point

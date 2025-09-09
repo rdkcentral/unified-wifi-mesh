@@ -48,7 +48,7 @@ public:
 	 *
 	 * @note Ensure that the returned pointer is not null before accessing its members.
 	 */
-	em_bsta_mld_info_t *get_ap_mld_info() { return &m_bsta_mld_info; }
+	em_bsta_mld_info_t *get_bsta_mld_info() { return &m_bsta_mld_info; }
     
 	/**!
 	 * @brief Decodes a JSON object and associates it with a parent ID.

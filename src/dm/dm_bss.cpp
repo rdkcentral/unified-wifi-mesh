@@ -178,29 +178,36 @@ void dm_bss_t::encode(cJSON *obj, bool summary)
     mac_addr_str_t  mac_str;
     unsigned short i;
 	em_short_string_t	haul_type_str;
+    unsigned int vlan_id = 0;
 
     dm_easy_mesh_t::macbytes_to_string(m_bss_info.bssid.mac, mac_str);
     cJSON_AddStringToObject(obj, "BSSID", mac_str);
 
+	//TBD: Currently using default hard-coded values of VLAN-ID, need to integrate so that DM is updated from DB/CLI/Agent
 	switch (m_bss_info.id.haul_type) {
 		case em_haul_type_fronthaul:
 			strncpy(haul_type_str, "Fronthaul", strlen("Fronthaul") + 1);
+			vlan_id = 12;
 			break;
 
 		case em_haul_type_backhaul:
 			strncpy(haul_type_str, "Backhaul", strlen("Backhaul") + 1);
+			vlan_id = 13;
 			break;
 
 		case em_haul_type_iot:
 			strncpy(haul_type_str, "IoT", strlen("IoT") + 1);
+			vlan_id = 14;
 			break;
 
 		case em_haul_type_configurator:
 			strncpy(haul_type_str, "Configurator", strlen("Configurator") + 1);
+			vlan_id = 15;
 			break;
 
 		case em_haul_type_hotspot:
 			strncpy(haul_type_str, "Hotspot", strlen("Hotspot") + 1);
+			vlan_id = 16;
 			break;
 
 		default:
@@ -212,6 +219,7 @@ void dm_bss_t::encode(cJSON *obj, bool summary)
     cJSON_AddBoolToObject(obj, "Enabled", m_bss_info.enabled);
     cJSON_AddStringToObject(obj, "TimeStamp", m_bss_info.timestamp);
     cJSON_AddNumberToObject(obj, "VapMode", m_bss_info.vap_mode);
+    cJSON_AddNumberToObject(obj, "VlanID", vlan_id);
     
 	if (summary == true) {
         return;
@@ -245,7 +253,7 @@ void dm_bss_t::encode(cJSON *obj, bool summary)
 
     cJSON *backhaul_akmsArray = cJSON_CreateArray();
     for (i = 0; i < m_bss_info.num_backhaul_akms; i++) {
-        cJSON_AddItemToArray(fronthaul_akmsArray, cJSON_CreateString(m_bss_info.backhaul_akm[i]));
+        cJSON_AddItemToArray(backhaul_akmsArray, cJSON_CreateString(m_bss_info.backhaul_akm[i]));
     }
 
     // Add the array to the object
@@ -301,6 +309,7 @@ void dm_bss_t::operator = (const dm_bss_t& obj)
     memcpy(this->m_bss_info.vendor_elements, obj.m_bss_info.vendor_elements, sizeof(this->m_bss_info.vendor_elements));
     this->m_bss_info.vendor_elements_len = obj.m_bss_info.vendor_elements_len;
     this->m_bss_info.connect_status = obj.m_bss_info.connect_status;
+    this->m_bss_info.vlan_id = obj.m_bss_info.vlan_id;
 }
 
 
@@ -342,6 +351,7 @@ bool dm_bss_t::operator == (const dm_bss_t& obj)
     ret += (memcmp(this->m_bss_info.vendor_elements, obj.m_bss_info.vendor_elements, sizeof(this->m_bss_info.vendor_elements)) != 0);
     ret += !(this->m_bss_info.vendor_elements_len == obj.m_bss_info.vendor_elements_len);
     ret += !(this->m_bss_info.connect_status == obj.m_bss_info.connect_status);
+    ret += !(this->m_bss_info.vlan_id == obj.m_bss_info.vlan_id);
 
     if (ret > 0)
         return false;

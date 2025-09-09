@@ -1352,15 +1352,22 @@ typedef struct {
 typedef struct {
     unsigned char  oui[3];
     unsigned char  akm_suite_type;
-} __attribute__((__packed__)) em_fh_akm_suite_t;
+}  em_fh_akm_suite_t;
 
 typedef struct {
-    unsigned char  bh_akm_suite_count;
-    em_bh_akm_suite_t  *bh_akm_suites;
-    unsigned char  fh_akm_suite_count;
-    em_fh_akm_suite_t  *fh_akm_suites;
-} __attribute__((__packed__)) em_akm_suite_info_t;
+    uint8_t count;
+    em_fh_akm_suite_t suites[0];
+} __attribute__((__packed__)) em_fh_akm_suite_info_t;
 
+typedef struct {
+    uint8_t count;
+    em_bh_akm_suite_t suites[0];
+} __attribute__((__packed__)) em_bh_akm_suite_info_t;
+
+typedef struct {
+    em_bh_akm_suite_info_t bh_akm_suites;
+    em_fh_akm_suite_info_t fh_akm_suites; 
+} __attribute__((__packed__)) em_akm_suite_info_t;
 typedef struct {
     mac_address_t  ruid;
     unsigned char  bsta_mac_present : 1;
@@ -2299,6 +2306,7 @@ typedef struct {
     bool    transmitted_bssid;
     em_eht_operations_bss_t eht_ops;
     em_short_string_t mesh_sta_passphrase;
+    unsigned int vlan_id;
 
     // Extra vendor information elements for the BSS
     // @note Don't manually allocate, use the helper functions to add/remove elements 
@@ -2495,7 +2503,8 @@ typedef struct {
 typedef struct {
     unsigned char ap_mld_mac_addr_valid : 1;
     unsigned char reserved1 : 7;
-    em_ap_mld_ssids_t ssids[0];
+    unsigned char ssid_len;
+    ssid_t ssid;
     mac_addr_t ap_mld_mac_addr;
     unsigned char str : 1;
     unsigned char nstr : 1;
@@ -2803,7 +2812,7 @@ typedef struct{
 	mac_address_t bssid_mac[EM_MAX_BSS_PER_RADIO];
 	unsigned int key_wrap_authenticator[EM_MAX_BSS_PER_RADIO];
 	bool enable[EM_MAX_BSS_PER_RADIO];
-	em_freq_band_t freq;
+	em_freq_band_t freq[EM_MAX_BSS_PER_RADIO];
 	unsigned int noofbssconfig;
 	em_haul_type_t haultype[EM_MAX_BSS_PER_RADIO];
 	mac_address_t radio_mac[EM_MAX_BSS_PER_RADIO];

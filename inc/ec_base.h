@@ -40,6 +40,17 @@ extern "C"
 
 #include "wifi_webconfig.h"
 
+/**
+ * @brief Temporary until halinterface, rdk-wifi-hal, and OneWifi PRs are merged
+ * 
+ * If defined, the frequency (and other wifi data) is recieved along with the action frame
+ * in the action frame subscription handler.
+ * 
+ * halinterface PR #49: https://github.com/rdkcentral/rdkb-halif-wifi/pull/49
+ * rdk-wifi-hal PR #344: https://github.com/rdkcentral/rdk-wifi-hal/pull/344
+ * OneWifi PR #576: https://github.com/rdkcentral/OneWifi/pull/576
+ */
+//#define FEATURE_RECV_FREQ_ACT_SUB 
 
 // START: Hardcoded EasyConnect values
 #define DPP_VERSION 0x02
@@ -350,7 +361,7 @@ typedef struct {
 typedef struct {
     ec_gas_frame_base_t base;
     uint16_t status_code;            // Same field as initial response
-    uint8_t fragment_id : 7;             // Fragment ID (0–255)
+    uint8_t fragment_id : 7;             // Fragment ID (0–127)
     uint8_t more_fragments : 1;         // 1 = more fragments to come, 0 = this is the last fragment
     uint16_t gas_comeback_delay;     // 0 if this is the final response
     uint8_t ape[3];

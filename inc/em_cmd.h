@@ -120,7 +120,7 @@ public:
 	 *
 	 * @returns The total length of the event in bytes.
 	 */
-	unsigned int get_event_length() { return (sizeof(em_event_t) + get_event_data_length()); }
+	unsigned int get_event_length() { return static_cast<unsigned int>(sizeof(em_event_t) + get_event_data_length()); }
     
 	/**!
 	 * @brief Retrieves the length of the event data.

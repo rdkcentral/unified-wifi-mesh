@@ -134,7 +134,7 @@ void ec_enrollee_t::generate_bss_channel_list(bool is_reconfig_list){
     // Clear existing channel list
     freq_list.erase(freq_list.begin(), freq_list.end());
     
-
+    #ifdef FEATURE_RECV_FREQ_ACT_SUB // Only use CCE channels if we can't get the frequency from the action frame subscription handler
     // This step is not present in EC-Reconfig for some reason (likely because of the SSID check)
     if (!is_reconfig_list) {
         /* EC #1
@@ -168,7 +168,7 @@ void ec_enrollee_t::generate_bss_channel_list(bool is_reconfig_list){
     freq_list.insert(5220); // 5 GHz: Channel 44 (5.220 GHz)
     freq_list.insert(60480); // 60 GHz: Channel 2 (60.48 GHz)
     freq_list.insert(920); // 920 MHz: Channel 37 
-
+    #endif
     /* EC-Reconfig #2
 
     For each channel on which the Enrollee detects the SSID for which it is currently configured, 
@@ -215,7 +215,6 @@ void ec_enrollee_t::send_presence_announcement_frames()
         return;
     }
 
-    uint32_t current_freq = 0;
 
     while (!m_received_auth_frame.load()) {
         if (attempts >= 4) {
@@ -252,7 +251,6 @@ void ec_enrollee_t::send_presence_announcement_frames()
                 em_printfout("Failed to send DPP Presence Announcement frame (broadcast) on freq %d", freq);
             }
 
-            current_freq = freq;
 
             // Wait `dwell` before moving to next channel.
             if (!ec_util::interruptible_sleep(std::chrono::milliseconds(dwell), [this]() -> bool {
@@ -277,7 +275,6 @@ void ec_enrollee_t::send_presence_announcement_frames()
         }
     }
 
-    m_selected_freq = current_freq;
 
     free(frame);
 }
@@ -294,7 +291,6 @@ void ec_enrollee_t::send_reconfiguration_announcement_frames()
         return;
     }
 
-    uint32_t current_freq = 0;
 
     while (!m_received_recfg_auth_frame.load()) {
 
@@ -320,7 +316,6 @@ void ec_enrollee_t::send_reconfiguration_announcement_frames()
             if (!m_send_action_frame(const_cast<uint8_t*>(BROADCAST_MAC_ADDR), frame, frame_len, freq, dwell)) {
                 em_printfout("Failed to send DPP Reconfiguration Announcement frame (broadcast) on freq %d", freq);
             }
-            current_freq = freq;
         }
         // EasyConnect 6.5.2
         // If a valid DPP Reconfiguration Authentication Request frame is not received, it repeats this procedure for
@@ -334,7 +329,6 @@ void ec_enrollee_t::send_reconfiguration_announcement_frames()
         }
     }
 
-    m_selected_freq = current_freq;
     free(frame);
 }
 
@@ -488,11 +482,8 @@ bool ec_enrollee_t::handle_recfg_auth_request(ec_frame_t *frame, size_t len, uin
     // EasyConnect 6.5.4:
     // Upon sending the frame, it shall set a timer for five seconds to wait for a
     // DPP Reconfiguration Authentication Confirm frame (5 second dwell)
-    bool sent = (m_c_ctx.is_eth)
-                    ? m_send_dir_encap_fn(reinterpret_cast<uint8_t *>(response_frame),
-                                          response_frame_len, src_mac)
-                    : m_send_action_frame(src_mac, reinterpret_cast<uint8_t *>(response_frame),
-                                          response_frame_len, m_selected_freq, 5);
+    bool sent = send_phy_frame(src_mac, response_frame, response_frame_len, m_selected_freq);
+
     free(response_frame);
     return sent;
 }
@@ -583,22 +574,21 @@ bool ec_enrollee_t::handle_recfg_auth_confirm(ec_frame_t *frame, size_t len, uin
         return false;
     }
 
-    bool sent =
-        (m_c_ctx.is_eth)
-            ? m_send_dir_encap_fn(reinterpret_cast<uint8_t *>(config_request_frame),
-                                  config_request_frame_len, src_mac)
-            : m_send_action_frame(src_mac, reinterpret_cast<uint8_t *>(config_request_frame),
-                                  config_request_frame_len, m_selected_freq, 0);
+    bool sent = send_phy_frame(src_mac, config_request_frame, config_request_frame_len, m_selected_freq);
+
     free(config_request_frame);
     free(unwrapped_data);
     return sent;
 }
 
-bool ec_enrollee_t::handle_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
+bool ec_enrollee_t::handle_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN], unsigned int recv_freq)
 {
     em_printfout("Recieved a DPP Authentication Request from '" MACSTRFMT "', stopping Presence Announcement\n", MAC2STR(src_mac));
     // Halt presence announcement once DPP Authentication frame is received.
     m_received_auth_frame.store(true);
+    #ifdef FEATURE_RECV_FREQ_ACT_SUB
+    m_selected_freq = static_cast<uint32_t>(recv_freq);
+    #endif
     if (m_send_pres_announcement_thread.joinable()) m_send_pres_announcement_thread.join();
     size_t attrs_len = len - EC_FRAME_BASE_SIZE;
 
@@ -644,7 +634,7 @@ Authentication Request frame without replying to it.
         */
         uint16_t op_chan = *reinterpret_cast<uint16_t*>(channel_attr->data);
         op_chan = SWAP_LITTLE_ENDIAN(op_chan);
-        em_printfout("Channel attribute: %d", op_chan);
+        em_printfout("Channel attribute: %02x", op_chan);
 
         uint8_t op_class = static_cast<uint8_t>(op_chan >> 8);
         uint8_t channel = static_cast<uint8_t>(op_chan & 0x00ff);
@@ -726,7 +716,7 @@ Authentication Request frame without replying to it.
             em_printfout("failed to create response frame");
             return false;
         }
-        if (m_send_action_frame(src_mac, resp_frame, resp_len, m_selected_freq, 0)){
+        if (send_phy_frame(src_mac, resp_frame, resp_len, m_selected_freq)){
             em_printfout("Successfully sent DPP Status Not Compatible response frame to '" MACSTRFMT "'", MAC2STR(src_mac));
         } else {
             em_printfout("Failed to send DPP Status Not Compatible response frame to " MACSTRFMT "'", MAC2STR(src_mac));
@@ -746,7 +736,7 @@ Authentication Request frame without replying to it.
             em_printfout("failed to create response frame");
             return false;
         }
-        if (m_send_action_frame(src_mac, resp_frame, resp_len, m_selected_freq, 0)){
+        if (send_phy_frame(src_mac, resp_frame, resp_len, m_selected_freq)){
             em_printfout("Successfully sent DPP Status Response Pending response frame to '" MACSTRFMT "'", MAC2STR(src_mac));
         } else {
             em_printfout("Failed to send DPP Status Response Pending response frame to '" MACSTRFMT "'", MAC2STR(src_mac));
@@ -763,7 +753,7 @@ Authentication Request frame without replying to it.
         em_printfout("failed to create response frame");
         return false;
     }
-    bool did_succeed = m_send_action_frame(src_mac, resp_frame, resp_len, m_selected_freq, 0);
+    bool did_succeed = send_phy_frame(src_mac, resp_frame, resp_len, m_selected_freq);
     if (did_succeed){
         em_printfout("Successfully sent DPP Status OK response frame to '" MACSTRFMT "'", MAC2STR(src_mac));
     } else {
@@ -811,7 +801,8 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
     auto i_auth_tag_attr = ec_util::get_attrib(unwrapped_data, unwrapped_data_len, ec_attrib_id_init_auth_tag);
     ASSERT_OPT_HAS_VALUE_FREE(i_auth_tag_attr, false, unwrapped_data, "%s:%d: No initiator authentication tag attribute found\n", __func__, __LINE__);
     
-    uint8_t i_auth_tag[i_auth_tag_attr->length] = {0};
+    uint8_t i_auth_tag[i_auth_tag_attr->length];
+    memset(i_auth_tag, 0, i_auth_tag_attr->length);
     memcpy(i_auth_tag, i_auth_tag_attr->data, i_auth_tag_attr->length);
 
     free(unwrapped_data);
@@ -902,7 +893,7 @@ bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t s
     // in an 802.11 frame to a DPP frame encapsulated in a Multi-AP CMDU message. **Upon successful authentication**, the
     // Enrollee Multi-AP Agent requests configuration by exchanging DPP Configuration Protocol messages (see 6.6 of [18])
     // with the Multi-AP Controller.
-    bool sent_dpp_config_gas_frame = m_send_action_frame(src_mac, config_req, config_req_len, m_selected_freq, 0);
+    bool sent_dpp_config_gas_frame = send_phy_frame(src_mac, config_req, config_req_len, m_selected_freq);
     if (sent_dpp_config_gas_frame) {
         em_printfout("Sent DPP Configuration Request 802.11 frame to Proxy Agent!");
     } else {
@@ -1100,9 +1091,7 @@ bool ec_enrollee_t::handle_config_response(uint8_t *query_resp, size_t len, uint
         return false;
     }
 
-    bool ok = (m_c_ctx.is_eth)
-                    ? m_send_dir_encap_fn(config_result_frame, config_result_frame_len, sa)
-                    : m_send_action_frame(sa, config_result_frame, config_result_frame_len, m_selected_freq, 0);
+    bool ok = send_phy_frame(sa, config_result_frame, config_result_frame_len, m_selected_freq);
 
     free(config_result_frame);
 
@@ -1818,12 +1807,8 @@ bool ec_enrollee_t::handle_gas_comeback_response(ec_gas_comeback_response_frame_
         // If there's more frags coming, send a Comeback Request to enable sending of next Comeback Response
         ec_gas_comeback_request_frame_t *cb_frame = create_comeback_request(frame->base.dialog_token);
         ASSERT_NOT_NULL(cb_frame, false, "%s:%d: Failed to allocate a GAS Comeback Request frame\n", __func__, __LINE__);
-        bool sent =
-            (m_c_ctx.is_eth)
-                ? m_send_dir_encap_fn(reinterpret_cast<uint8_t *>(cb_frame),
-                                      sizeof(ec_gas_comeback_request_frame_t), src_mac)
-                : m_send_action_frame(src_mac, reinterpret_cast<uint8_t *>(cb_frame),
-                                      sizeof(ec_gas_comeback_request_frame_t), m_selected_freq, 0);
+        bool sent = send_phy_frame(src_mac, reinterpret_cast<uint8_t *>(cb_frame), sizeof(ec_gas_comeback_request_frame_t), m_selected_freq);
+
         if (!sent) {
             em_printfout("Failed to send GAS Comeback Request to '" MACSTRFMT "', we made it to frag #%d", MAC2STR(src_mac), frame->fragment_id);
         }
@@ -1848,12 +1833,8 @@ bool ec_enrollee_t::handle_gas_initial_response(ec_gas_initial_response_frame_t 
 
         ec_gas_comeback_request_frame_t *cb_frame = create_comeback_request(resp_frame->base.dialog_token);
         ASSERT_NOT_NULL(cb_frame, false, "%s:%d: Failed to allocate GAS Initial Request frame\n", __func__, __LINE__);
-        bool sent =
-            (m_c_ctx.is_eth)
-                ? m_send_dir_encap_fn(reinterpret_cast<uint8_t *>(cb_frame),
-                                      sizeof(ec_gas_comeback_request_frame_t), src_mac)
-                : m_send_action_frame(src_mac, reinterpret_cast<uint8_t *>(cb_frame),
-                                      sizeof(ec_gas_comeback_request_frame_t), m_selected_freq, 0);
+        bool sent = send_phy_frame(src_mac, reinterpret_cast<uint8_t *>(cb_frame), sizeof(ec_gas_comeback_request_frame_t), m_selected_freq);
+
         free(cb_frame);
         if (!sent) {
             em_printfout("Failed to send GAS Comeback Request to '" MACSTRFMT "'", MAC2STR(src_mac));
@@ -1946,9 +1927,8 @@ bool ec_enrollee_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
         return false;
     }
 
-    bool sent = (m_c_ctx.is_eth)
-                    ? m_send_dir_encap_fn(frame, frame_len, it->second.data())
-                    : m_send_action_frame(it->second.data(), frame, frame_len, m_selected_freq, 0);
+    bool sent = send_phy_frame(it->second.data(), frame, frame_len, m_selected_freq);
+
     if (sent) {
         em_printfout("Sent Configuration Connection Status Result frame!");
     } else {
@@ -2006,6 +1986,16 @@ bool ec_enrollee_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dp
 
     ec_frame_t* ec_frame = reinterpret_cast<ec_frame_t*>(dpp_frame);
 
+    /*
+    0x09 = Vendor Specific Action Frame (EasyConnect in this case)
+    0x0A-0x0D = GAS 
+    Both EasyConnect and GAS frames have the same first two fields.
+    */
+    bool is_gas_frame = (ec_frame->action >= dpp_gas_initial_req && ec_frame->action <= dpp_gas_comeback_resp);
+    if (is_gas_frame) {
+        return process_direct_encap_dpp_gas_msg(dpp_frame, dpp_frame_len, src_mac);
+    }
+
     ec_frame_type_t ec_frame_type = static_cast<ec_frame_type_t>(ec_frame->frame_type);
 
     bool did_finish = false;
@@ -2016,15 +2006,11 @@ bool ec_enrollee_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dp
             break;
         }
         case ec_frame_type_auth_req: {
-            did_finish = handle_auth_request(ec_frame, dpp_frame_len, src_mac);
+            did_finish = handle_auth_request(ec_frame, dpp_frame_len, src_mac, 0);
             break;
         }
         case ec_frame_type_auth_cnf: {
             did_finish = handle_auth_confirm(ec_frame, dpp_frame_len, src_mac);
-            break;
-        }
-        case ec_frame_type_easymesh: {
-            did_finish = process_direct_encap_dpp_gas_msg(dpp_frame, dpp_frame_len, src_mac);
             break;
         }
         default:
@@ -2061,7 +2047,7 @@ bool ec_enrollee_t::check_bss_info_has_cce(const wifi_bss_info_t& bss_info) {
             return true;
         }
         // next IE
-        ie_len_remaining -= (ie_len + 2);
+        ie_len_remaining -= static_cast<size_t>(ie_len + 2);
         ie_pos += (ie_len + 2);
     }
     return false;

@@ -433,16 +433,46 @@ std::string util::remove_whitespace(std::string str)
     str.erase(std::remove_if(str.begin(), str.end(), ::isspace), str.end());
     return str;
 }
+
+static const std::unordered_map<std::string, std::string> akm_oui_map = {
+    {"wpa-eap", "0050F201"},
+    {"wpa-psk", "0050F202"},
+    {"wpa2-eap", "000FAC01"},
+    {"wpa2-psk", "000FAC02"}, // Same as "psk"
+    {"psk", "000FAC02"},
+    {"sae", "000FAC08"},
+    {"dpp", "506F9A02"},
+};
+
+static const std::unordered_map<std::string, std::string> oui_akm_map = {
+    {"0050F201", "wpa-eap"},
+    {"0050F202", "wpa-psk"},
+    {"000FAC01", "wpa2-eap"},
+    {"000FAC02", "wpa2-psk"}, // Same as "psk"
+    {"000FAC02", "psk"},
+    {"000FAC08", "sae"},
+    {"506F9A02", "dpp"},
+};
+
 std::string util::akm_to_oui(std::string akm) {
     std::transform(akm.begin(), akm.end(), akm.begin(), [](unsigned char c){ return std::tolower(c); });
-    static const std::unordered_map<std::string, std::string> akm_map = {
-        {"psk", "000FAC02"},
-        {"sae", "000FAC08"},
-        {"dpp", "506F9A02"},
-    };
-    const auto it = akm_map.find(akm);
-    if (it == akm_map.end()) return std::string();
+    const auto it = akm_oui_map.find(akm);
+    if (it == akm_oui_map.end()) return std::string();
     return it->second;
+}
+
+std::string util::oui_to_akm(std::string oui) {
+    std::transform(oui.begin(), oui.end(), oui.begin(), [](unsigned char c){ return std::toupper(c); });
+    const auto it = oui_akm_map.find(oui);
+    if (it == oui_akm_map.end()) return std::string();
+    return it->second;
+}
+
+std::vector<uint8_t> util::akm_to_bytes(std::string akm) {
+    std::string oui = akm_to_oui(akm);
+    if (oui.empty()) return {};
+    std::vector<uint8_t> bytes = util::split_nodelim_hex_str(oui, 3 + 1); // 3 bytes OUI + 1 byte suite type
+    return bytes;
 }
 
 uint16_t util::deref_net_uint16_to_host(const void* const ptr) {

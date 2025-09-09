@@ -193,7 +193,7 @@ int dm_network_t::init()
 	util::get_date_time_rfc3399(date_time, EM_DATE_TIME_BUFF_SZ);
 
 	memset(&m_net_info, 0, sizeof(em_network_info_t)); 
-	strncpy(m_net_info.timestamp, date_time, sizeof(em_long_string_t));
+	strncpy(m_net_info.timestamp, date_time, EM_DATE_TIME_BUFF_SZ);
 	return 0;
 }
 

@@ -13,6 +13,80 @@ TEST(EmUtilTest, TestStringSplit) {
     EXPECT_EQ(result[2], "String");
 }
 
+TEST(EmUtilTest, TestSplitNodelimHexStr) {
+    // Test valid hex string with correct length
+    std::string valid_hex = "0123456789ab";
+    std::vector<uint8_t> result = util::split_nodelim_hex_str(valid_hex, 6);
+    EXPECT_EQ(result.size(), 6);
+    EXPECT_EQ(result[0], 0x01);
+    EXPECT_EQ(result[1], 0x23);
+    EXPECT_EQ(result[2], 0x45);
+    EXPECT_EQ(result[3], 0x67);
+    EXPECT_EQ(result[4], 0x89);
+    EXPECT_EQ(result[5], 0xab);
+
+    // Test with uppercase hex characters
+    std::string uppercase_hex = "ABCDEF012345";
+    result = util::split_nodelim_hex_str(uppercase_hex, 6);
+    EXPECT_EQ(result.size(), 6);
+    EXPECT_EQ(result[0], 0xAB);
+    EXPECT_EQ(result[1], 0xCD);
+    EXPECT_EQ(result[2], 0xEF);
+    EXPECT_EQ(result[3], 0x01);
+    EXPECT_EQ(result[4], 0x23);
+    EXPECT_EQ(result[5], 0x45);
+
+    // Test with all zeros
+    std::string zeros = "000000000000";
+    result = util::split_nodelim_hex_str(zeros, 6);
+    EXPECT_EQ(result.size(), 6);
+    for (size_t i = 0; i < 6; i++) {
+        EXPECT_EQ(result[i], 0x00);
+    }
+
+    // Test with all F's
+    std::string ffs = "ffffffffffff";
+    result = util::split_nodelim_hex_str(ffs, 6);
+    EXPECT_EQ(result.size(), 6);
+    for (size_t i = 0; i < 6; i++) {
+        EXPECT_EQ(result[i], 0xFF);
+    }
+
+    // Test invalid length (too short)
+    std::string too_short = "0123456789";
+    result = util::split_nodelim_hex_str(too_short, 6);
+    EXPECT_TRUE(result.empty());
+
+    // Test invalid length (too long)
+    std::string too_long = "0123456789abcd";
+    result = util::split_nodelim_hex_str(too_long, 6);
+    EXPECT_TRUE(result.empty());
+
+    // Test invalid hex characters
+    std::string invalid_hex = "01234567XY89";
+    result = util::split_nodelim_hex_str(invalid_hex, 6);
+    EXPECT_TRUE(result.empty());
+
+    // Test empty string
+    std::string empty = "";
+    result = util::split_nodelim_hex_str(empty, 0);
+    EXPECT_TRUE(result.empty());
+
+    // Test single byte
+    std::string single = "5a";
+    result = util::split_nodelim_hex_str(single, 1);
+    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(result[0], 0x5a);
+
+    // Test mixed case
+    std::string mixed = "aB1Cd2";
+    result = util::split_nodelim_hex_str(mixed, 3);
+    EXPECT_EQ(result.size(), 3);
+    EXPECT_EQ(result[0], 0xaB);
+    EXPECT_EQ(result[1], 0x1C);
+    EXPECT_EQ(result[2], 0xd2);
+}
+
 class EmUtilByteOrderTest : public ::testing::Test {
 protected:
     static void SetUpTestSuite() {

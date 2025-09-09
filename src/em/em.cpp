@@ -1167,7 +1167,7 @@ short em_t::create_cac_cap_tlv(unsigned char *buff)
     return len;
 }
 
-short em_t::create_eht_operations_tlv(unsigned char *buff)
+unsigned short em_t::create_eht_operations_tlv(unsigned char *buff)
 {
     unsigned short len = 0;
     unsigned int i = 0, j = 0;
@@ -1335,22 +1335,17 @@ cJSON *em_t::create_enrollee_bsta_list(uint8_t pa_al_mac[ETH_ALEN])
     return b_sta_list_arr.release(); // Ownership transferred to caller
 }
 
-cJSON *em_t::create_fbss_response_obj(uint8_t pa_al_mac[ETH_ALEN]) {
+em_bss_info_t* get_bss_info(dm_easy_mesh_t* dm, const em_haul_type_t haul_type) {
+    em_bss_info_t *bss_info = NULL;
 
-    em_mgr_t* mgr = get_mgr();
-    EM_ASSERT_NOT_NULL(mgr, nullptr, "Manager is NULL, cannot create configurator bSTA response object");
-
-    dm_easy_mesh_t *dm = mgr->get_data_model(GLOBAL_NET_ID, pa_al_mac);
-    EM_ASSERT_NOT_NULL(dm, nullptr, "Data model for PA al MAC (" MACSTRFMT ") is NULL!", MAC2STR(pa_al_mac));
-
-    const em_bss_info_t *bss_info = NULL;
-
-    const em_network_ssid_info_t* network_ssid_info = dm->get_network_ssid_info_by_haul_type(em_haul_type_fronthaul);
+    const em_network_ssid_info_t* network_ssid_info = dm->get_network_ssid_info_by_haul_type(haul_type);
     EM_ASSERT_NOT_NULL(network_ssid_info, nullptr, "Could not get network SSID info for fronthaul BSS");
 
+    em_printfout("Checking %d BSSs for SSID '%s'", dm->get_num_bss(), network_ssid_info->ssid);
     for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
-        const dm_bss_t *bss = dm->get_bss(i);
+        dm_bss_t *bss = dm->get_bss(i);
         if (!bss) continue;
+        em_printfout("Checking BSS with SSID: '%s' and haul type %d", bss->m_bss_info.ssid, bss->m_bss_info.id.haul_type);
         if (strncmp(bss->m_bss_info.ssid, network_ssid_info->ssid, strlen(network_ssid_info->ssid)) == 0) {
             em_printfout("Found BSS with SSID: '%s'", bss->m_bss_info.ssid);
             bss_info = &bss->m_bss_info;
@@ -1360,8 +1355,35 @@ cJSON *em_t::create_fbss_response_obj(uint8_t pa_al_mac[ETH_ALEN]) {
 
     EM_ASSERT_NOT_NULL(bss_info, nullptr, "Could not find BSS with SSID: '%s'", network_ssid_info->ssid);
 
+    return bss_info;
+}
+
+cJSON *em_t::create_fbss_response_obj(uint8_t pa_al_mac[ETH_ALEN]) {
+
+    em_mgr_t* mgr = get_mgr();
+    EM_ASSERT_NOT_NULL(mgr, nullptr, "Manager is NULL, cannot create configurator bSTA response object");
+
+
+    const em_haul_type_t haul_type = em_haul_type_fronthaul;
+    em_bss_info_t* bss_info = NULL;
+    dm_easy_mesh_t *dm = NULL;
+    // This is via ethernet and therefore we are processing this in the controller and not a proxy agent
+    // We need to find the BSS info from a data model in the list
+    if (pa_al_mac == NULL) {
+        for (dm = mgr->get_first_dm(); dm != NULL; dm = mgr->get_next_dm(dm)) {
+            bss_info = get_bss_info(dm, haul_type);
+            if (bss_info != NULL) break;
+        }
+    } else {
+        dm_easy_mesh_t *dm = mgr->get_data_model(GLOBAL_NET_ID, pa_al_mac);
+        EM_ASSERT_NOT_NULL(dm, nullptr, "Data model for PA al MAC (" MACSTRFMT ") is NULL!", MAC2STR(pa_al_mac));
+
+        bss_info = get_bss_info(dm, haul_type);
+    }
+
+    
     // true for is_sta_response, false for tear_down_bss
-    scoped_cjson bss_config_obj (create_bss_dpp_response_obj(bss_info, true, false)); 
+    scoped_cjson bss_config_obj (create_bss_dpp_response_obj(bss_info, true, false, dm)); 
     EM_ASSERT_NOT_NULL(bss_config_obj.get(), nullptr, "Could not create fBSS DPP Configuration Object");
 
     return bss_config_obj.release(); // Ownership transferred to caller
@@ -1372,37 +1394,39 @@ cJSON *em_t::create_configurator_bsta_response_obj(uint8_t pa_al_mac[ETH_ALEN])
     em_mgr_t* mgr = get_mgr();
     EM_ASSERT_NOT_NULL(mgr, nullptr, "Manager is NULL, cannot create configurator bSTA response object");
 
-    dm_easy_mesh_t *dm = mgr->get_data_model(GLOBAL_NET_ID, pa_al_mac);
-    EM_ASSERT_NOT_NULL(dm, nullptr, "Data model for PA al MAC (" MACSTRFMT ") is NULL!", MAC2STR(pa_al_mac));
-
-
-    const em_bss_info_t *bss_info = NULL;
-
-    const em_network_ssid_info_t* network_ssid_info = dm->get_network_ssid_info_by_haul_type(em_haul_type_backhaul);
-    EM_ASSERT_NOT_NULL(network_ssid_info, nullptr, "No backhaul BSS found, cannot create bSTA Configuration Object");
-
-    for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
-        const dm_bss_t *bss = dm->get_bss(i);
-        if (!bss) continue;
-        if (bss->m_bss_info.id.haul_type == em_haul_type_backhaul && strncmp(bss->m_bss_info.ssid, network_ssid_info->ssid, strlen(network_ssid_info->ssid)) == 0) {
-            em_printfout("Found backhaul mesh! '%s'", bss->m_bss_info.ssid);
-            bss_info = &bss->m_bss_info;
-            break;
+    const em_haul_type_t haul_type = em_haul_type_backhaul;
+    em_bss_info_t* bss_info = NULL;
+    dm_easy_mesh_t *dm = NULL;
+    // This is via ethernet and therefore we are processing this in the controller and not a proxy agent
+    // We need to find the BSS info from a data model in the list
+    if (pa_al_mac == NULL) {
+        for (dm = mgr->get_first_dm(); dm != NULL; dm = mgr->get_next_dm(dm)) {
+            bss_info = get_bss_info(dm, haul_type);
+            if (bss_info != NULL) break;
         }
+    } else {
+        dm = mgr->get_data_model(GLOBAL_NET_ID, pa_al_mac);
+        EM_ASSERT_NOT_NULL(dm, nullptr, "Data model for PA al MAC (" MACSTRFMT ") is NULL!", MAC2STR(pa_al_mac));
+
+        bss_info = get_bss_info(dm, haul_type);
     }
 
-    EM_ASSERT_NOT_NULL(bss_info, nullptr, "Could not find BSS with SSID: '%s'", network_ssid_info->ssid);
+    EM_ASSERT_NOT_NULL(bss_info, nullptr, "Could not find backhaul bSTA BSS info in data model");
+    EM_ASSERT_NOT_NULL(dm, nullptr, "Could not find data model to create bSTA DPP Configuration Object");
 
     // true for is_sta_response (doesn't change anything on the backhaul), false for tear_down_bss
-    scoped_cjson bss_config_obj (create_bss_dpp_response_obj(bss_info, true, false)); 
+    scoped_cjson bss_config_obj (create_bss_dpp_response_obj(bss_info, true, false, dm)); 
     EM_ASSERT_NOT_NULL(bss_config_obj.get(), nullptr, "Could not create bSTA DPP Configuration Object");
 
     return bss_config_obj.release(); // Ownership transferred to caller
 }
 
-cJSON *em_t::create_bss_dpp_response_obj(const em_bss_info_t *bss_info, bool is_sta_response, bool tear_down_bss)
+cJSON *em_t::create_bss_dpp_response_obj(const em_bss_info_t *bss_info, bool is_sta_response, bool tear_down_bss, dm_easy_mesh_t* data_model)
 {
-    dm_easy_mesh_t *dm = get_data_model();
+    dm_easy_mesh_t *dm = data_model;
+    if (dm == nullptr) {
+        dm = get_data_model();
+    }
     ASSERT_NOT_NULL(dm, nullptr, "%s:%d: Failed to get data model handle.\n", __func__, __LINE__);
 
     EM_ASSERT_NOT_NULL(bss_info, nullptr, "%s:%d: BSS info is NULL, cannot create DPP Configuration Object", __func__, __LINE__);
@@ -1412,19 +1436,13 @@ cJSON *em_t::create_bss_dpp_response_obj(const em_bss_info_t *bss_info, bool is_
 
     em_haul_type_t haul_type = bss_info->id.haul_type;
 
-    bool is_fronthaul = (haul_type == em_haul_type_fronthaul);
     bool is_backhaul = (haul_type == em_haul_type_backhaul);
-
-    if (!is_fronthaul && !is_backhaul) {
-        em_printfout("BSS is neither fronthaul nor backhaul, cannot create DPP Configuration Object");
-        return nullptr;
-    }
 
     std::string wifi_tech = "";
     if (is_backhaul) {
         wifi_tech = "map";
-    }
-    if (is_fronthaul) {
+    } else {
+        // Assume all other haul types are fronthaul
         if (is_sta_response) {
             // EasyMesh 5.3.11
             wifi_tech = "infra";
@@ -1441,6 +1459,26 @@ cJSON *em_t::create_bss_dpp_response_obj(const em_bss_info_t *bss_info, bool is_
         return nullptr;
     }
 
+    dm_radio_t* radio = dm->get_radio(bss_info->ruid.mac);
+    EM_ASSERT_NOT_NULL(radio, nullptr, "Could not find radio for BSS RUID: " MACSTRFMT, MAC2STR(bss_info->ruid.mac));
+    em_freq_band_t band = static_cast<em_freq_band_t>(radio->m_radio_info.band);
+
+    /* EasyConnect 4.5.2
+    A DPP Configuration Object may contain additional attributes to help DPP peers in exchanging information that can be
+used by other applications. This section describes optional attributes that can be included in the Configuration Object.
+Note that a Configuration Object that includes any 3rd party optional attributes cannot exceed the maximum length of the
+GAS response, including maximum allowed GAS fragments, as defined by IEEE (see section 8.3). This section describes
+optional attributes can be included in the Configuration Request Object.
+All additional properties and their sub-properties defined in the DPP configuration object should be identified by path
+names that identify their purpose or organization. These path names should be reasonable in length and not exceed 80
+characters, in order to limit the size of the DPP Configuration Object.
+Any 3rd party attributes that are included in the DPP configuration object shall not duplicate, replace, or preclude any
+existing functionality of DPP as defined in this specification.
+    */
+    if (!cJSON_AddNumberToObject(bss_configuration_object.get(), "XRDK_BSS_Frequency", band)) {
+        em_printfout("Failed to add \"XRDK_BSS_Frequency\" to Configuration Object");
+        return nullptr;
+    }
 
 // START: Discovery Object
     scoped_cjson discovery_object(cJSON_CreateObject());
@@ -1479,12 +1517,37 @@ cJSON *em_t::create_bss_dpp_response_obj(const em_bss_info_t *bss_info, bool is_
         return nullptr;
     }
 
+    std::set<std::string> bss_akms;
+
+    em_printfout("BSS Info Num Fronthaul AKMS: %u", bss_info->num_fronthaul_akms);
+    for (unsigned int i = 0; i < bss_info->num_fronthaul_akms; i++) {
+        bss_akms.insert(bss_info->fronthaul_akm[i]);
+    }
+    em_printfout("BSS Info Num Backhaul AKMS: %u", bss_info->num_backhaul_akms);
+    for (unsigned int i = 0; i < bss_info->num_backhaul_akms; i++) {
+        bss_akms.insert(bss_info->backhaul_akm[i]);
+    }
+
     std::string akm_suites = {};
     bool needs_psk_hex = false;
-    for (unsigned int i = 0; i < network_ssid_info->num_akms; i++) {
-        if (!akm_suites.empty()) akm_suites += "+";
-        akm_suites += util::akm_to_oui(network_ssid_info->akm[i]);
+    std::vector<std::string> bss_akms_vec(bss_akms.begin(), bss_akms.end());
+    em_printfout("Num AKMs: %u", bss_akms_vec.size());
 
+    if (bss_akms_vec.size() == 0) {
+        em_printfout("No AKMs found for BSS, adding default AKM:");
+        if (band >= em_freq_band_60) {
+            em_printfout("6GHz band detected, adding default AKM: sae");
+            bss_akms_vec.push_back("sae");
+        } else {
+            em_printfout("Non-6GHz band detected, adding default AKM: wpa2-psk");
+            bss_akms_vec.push_back("wpa2-psk");
+        }
+    }
+
+    for (unsigned int i = 0; i < bss_akms_vec.size(); i++) {
+        if (!akm_suites.empty()) akm_suites += "+";
+        em_printfout("AKM[%u]: %s", i, bss_akms_vec[i].c_str());
+        akm_suites += util::akm_to_oui(bss_akms_vec[i]);
     }
     // "psk_hex" is a conditional field,
     // present only if PSK or AKM or SAE is a selected AKM

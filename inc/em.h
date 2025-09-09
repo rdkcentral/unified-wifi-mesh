@@ -882,7 +882,7 @@ public:
 	 *
 	 * @note Ensure that the buffer provided is large enough to hold the TLV structure.
 	 */
-	short create_eht_operations_tlv(unsigned char *buff);
+	unsigned short create_eht_operations_tlv(unsigned char *buff);
     
 	/**!
 	 * @brief Creates a channel scan TLV.
@@ -1042,7 +1042,7 @@ public:
 	 */
 	cJSON *create_enrollee_bsta_list(uint8_t pa_al_mac[ETH_ALEN]);
     
-	cJSON *create_bss_dpp_response_obj(const em_bss_info_t *bss_info, bool is_sta_response, bool tear_down_bss);
+	cJSON *create_bss_dpp_response_obj(const em_bss_info_t *bss_info, bool is_sta_response, bool tear_down_bss, dm_easy_mesh_t *data_model = NULL);
 
 	// END: DPP Callbacks for BSS information
 

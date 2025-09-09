@@ -603,15 +603,35 @@ bool ec_crypto::init_connection_ctx(ec_connection_context_t& c_ctx, const SSL_KE
 
 scoped_buff ec_crypto::encode_ec_point(ec_connection_context_t &c_ctx, const EC_POINT *point)
 {
+    return encode_ec_point(c_ctx.group, point, c_ctx.prime, c_ctx.bn_ctx);
+}
+
+scoped_buff ec_crypto::encode_ec_point(const EC_GROUP* group, const EC_POINT *point, const BIGNUM* prime, BN_CTX* bn_ctx)
+{
     scoped_bn x(BN_new());
     scoped_bn y(BN_new());
 
-    if (EC_POINT_get_affine_coordinates(c_ctx.group, point, x.get(), y.get(), c_ctx.bn_ctx) == 0) {
+    if (EC_POINT_get_affine_coordinates(group, point, x.get(), y.get(), bn_ctx) == 0) {
         em_printfout("unable to get x, y of the curve");
         return nullptr;
     }
 
-    int prime_len = BN_num_bytes(c_ctx.prime);
+    BIGNUM *prime_bn = const_cast<BIGNUM *>(prime);
+    bool is_prime_fetched = false;
+    if (prime_bn == NULL) {
+        prime_bn = BN_new();
+        if (EC_GROUP_get_curve(group, prime_bn, NULL, NULL, bn_ctx) == 0) {
+            em_printfout("unable to get prime of the curve");
+            BN_free(prime_bn);
+            return nullptr;
+        }
+        is_prime_fetched = true;
+    }
+
+    int prime_len = BN_num_bytes(prime_bn);
+    if (is_prime_fetched) {
+        BN_free(prime_bn);
+    }
 
     uint8_t *key_buff = reinterpret_cast<uint8_t *>(calloc(static_cast<size_t>(2 * prime_len), 1));
     if (key_buff == NULL) {

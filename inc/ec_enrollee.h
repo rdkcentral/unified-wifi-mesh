@@ -66,12 +66,13 @@ public:
 	 * @param[in] frame Pointer to the frame to handle.
 	 * @param[in] len The length of the frame.
 	 * @param[in] src_mac Source MAC address of the frame.
+	 * @param[in] recv_freq The frequency (in MHz) at which the frame was received.
 	 *
 	 * @return true if the authentication request was handled successfully, false otherwise.
 	 *
 	 * @note Ensure that the frame and MAC address are valid before calling this function.
 	 */
-	bool handle_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN]);
+	bool handle_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN], unsigned int recv_freq);
 
     
 	/**
@@ -220,6 +221,13 @@ public:
 	 * @returns The AL MAC address as a string.
 	 */
 	inline std::string get_al_mac_addr() { return m_al_mac_addr; };
+
+	/**!
+	 * @brief Retrieves the connection context.
+	 *
+	 * @returns A pointer to the connection context.
+	 */
+	inline ec_connection_context_t* get_conn_ctx() { return &m_c_ctx; };
 
 	/**!
 	 * @brief Retrieves wether this enrollee is in onboarding state or not.
@@ -734,6 +742,13 @@ private:
 	 * to a (proxy) agent and the destructor will be called.
 	 */
 	bool m_is_upgrading_flag = false;
+
+	bool send_phy_frame(uint8_t dst_mac[ETH_ALEN], uint8_t* frame, size_t frame_len, unsigned int freq, unsigned int wait=0){
+		if (m_c_ctx.is_eth) {
+			return m_send_dir_encap_fn(frame, frame_len, dst_mac);
+		}
+        return m_send_action_frame(dst_mac, frame, frame_len, freq, wait);
+	}
 
 };
 
