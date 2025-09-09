@@ -572,11 +572,8 @@ int em_configuration_t::create_device_info_type_tlv(unsigned char *buff)
 
 int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
 {
-    em_tlv_t *tlv;
-    unsigned char *tmp = buff;
     em_ap_mld_config_t *ap_mld_conf;
     em_ap_mld_t *ap_mld;
-    em_ap_mld_ssids_t *ap_mld_ssids;
     em_affiliated_ap_mld_t *affiliated_ap_mld;
     dm_easy_mesh_t  *dm;
     unsigned int i, j;
@@ -1646,7 +1643,7 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     bool found_ap_mld = false;
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type != em_tlv_type_ap_mld_config) {
-            tmp_len -= static_cast<int> (sizeof(em_tlv_t) + htons(tlv->len));
+            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
             tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
 
             continue;
@@ -1677,7 +1674,6 @@ int em_configuration_t::handle_ap_mld_config_tlv(unsigned char *buff, unsigned i
 {
     em_ap_mld_config_t *ap_mld_conf = reinterpret_cast<em_ap_mld_config_t *> (buff);
     em_ap_mld_t *ap_mld;
-    em_ap_mld_ssids_t *ap_mld_ssids;
     em_affiliated_ap_mld_t *affiliated_ap_mld;
     dm_easy_mesh_t  *dm;
     unsigned int i, j;

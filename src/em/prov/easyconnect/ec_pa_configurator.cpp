@@ -470,7 +470,7 @@ std::vector<ec_gas_comeback_response_frame_t *> ec_pa_configurator_t::fragment_l
         ec_gas_comeback_response_frame_t *frame = static_cast<ec_gas_comeback_response_frame_t *>(base_frame);
         frame->comeback_resp_len = static_cast<uint16_t>(chunk_size);
 
-        frame->fragment_id = frag_id;
+        frame->fragment_id = frag_id & 0x7F;
         frame->more_fragments = ((offset + chunk_size) < len) ? 1 : 0;
 
         em_printfout("Copying data into fragment #%d:\n", frag_id);

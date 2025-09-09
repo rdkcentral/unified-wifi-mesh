@@ -2047,7 +2047,7 @@ bool ec_enrollee_t::check_bss_info_has_cce(const wifi_bss_info_t& bss_info) {
             return true;
         }
         // next IE
-        ie_len_remaining -= (ie_len + 2);
+        ie_len_remaining -= static_cast<size_t>(ie_len + 2);
         ie_pos += (ie_len + 2);
     }
     return false;
