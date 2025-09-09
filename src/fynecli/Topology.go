@@ -16,6 +16,8 @@ import (
 	"image/color"
 	"log"
 	"math"
+	"math/rand"
+
 	"os"
 	"sort"
 	"strings"
@@ -74,7 +76,6 @@ type BSS struct {
 	VlanId    int    `json:"VlanId"`
 	SSID      string `json:"SSID"`
 	Enabled   bool   `json:"Enabled"`
-	TimeStamp string `json:"TimeStamp"`
 	VapMode   int    `json:"VapMode"`
 	Band      int    `json:"Band"`
 	IEEE      string `json:"IEEE"`
@@ -224,7 +225,7 @@ func getTestJSONFile(timerCount int) string {
         "../../src/fynecli/example/network_topo2.json",
         "../../src/fynecli/example/network_topo3.json",
     }
-    index := (timerCount - 1) / 3 % len(files)
+    index := (timerCount) / 4 % len(files)
     return files[index]
 }
 
@@ -712,14 +713,7 @@ func drawNetworkTopologyGraph(
 					}
 				}
 			}
-			// TODO: This is dummy/hardcorded data, Replace this is actual vlanID 
-			if ht.Name == "Fronthaul" {
-				ht.VlanId = 12
-			} else if ht.Name == "Backhaul" {
-				ht.VlanId = 13
-			} else if ht.Name == "IoT" {
-				ht.VlanId = 11
-			}
+
 			haulInfo += fmt.Sprintf("\nVLANID = %d\n", ht.VlanId)
 
 			lines := strings.Split(haulInfo, "\n")
@@ -814,18 +808,29 @@ func drawNetworkTopologyGraph(
 			container.Add(label)
 		}
 
-		// Draw associated STAs inside HaulType circle and connect to node icon
-        haulTypeSTAIndex := make(map[string]int)
-        haulTypeSTACount := make(map[string]int)
+        //Calculate the node center postion
+        nodeCenter := fyne.NewPos(meta.X+canvasOffset.X, meta.Y+canvasOffset.Y)
 
-        //count STAs per HaulType
+        // Total STA associated
+        totalSTAs := 0
         for _, staCtx := range meta.STAList {
-                if staCtx.STA.Associated {
-                    haulTypeSTACount[staCtx.HaulType]++
-                }
+            if staCtx.STA.Associated {
+                totalSTAs++
+            }
         }
 
-        // Place STAs
+        // STAs angle steps
+        angleStep := 2 * math.Pi / float64(totalSTAs)
+        // minimum radius
+        minRadius := float32(60)
+        // maximum radius
+        maxRadius := float32(120)
+        minSize := float32(16)
+        maxSize := float32(40)
+        placedPositions := []fyne.Position{}
+
+        //Place each STA around the node
+        staIndex := 0
         for _, staCtx := range meta.STAList {
             if !staCtx.STA.Associated {
                 continue
@@ -833,69 +838,63 @@ func drawNetworkTopologyGraph(
 
             sta := staCtx.STA
             band := staCtx.Band
-            haulType := staCtx.HaulType
-
-            var haulCenter fyne.Position
-            var radius float32
-            for _, ht := range meta.HaulTypes {
-                if ht.Name == haulType {
-                    offset := triangleOffsets[ht.OffsetIndex]
-                    haulCenter = fyne.NewPos(meta.X+canvasOffset.X+offset.X, meta.Y+canvasOffset.Y+offset.Y)
-                    radius = ht.Radius
-                    break
-                }
-            }
-
-            // Get index and total for this HaulType
-            staIndex := haulTypeSTAIndex[haulType]
-            totalSTAs := haulTypeSTACount[haulType]
-            haulTypeSTAIndex[haulType]++
-
-            nodeCenter := fyne.NewPos(meta.X+canvasOffset.X, meta.Y+canvasOffset.Y)
-            // Placement STA on far half of circle (180° arc opposite node)
-            layerCount := int(math.Ceil(math.Sqrt(float64(totalSTAs))))
-            layer := staIndex / layerCount
-            posInLayer := staIndex % layerCount
-
-            // Compute angle from HaulType center to Node center
-            dx := float64(nodeCenter.X - haulCenter.X)
-            dy := float64(nodeCenter.Y - haulCenter.Y)
-            nodeAngle := math.Atan2(dy, dx) // angle in radians
-
-            // Opposite direction
-            oppositeAngle := nodeAngle + math.Pi
-
-            // Normalize angle to [0, 2π]
-            oppositeAngle = math.Mod(oppositeAngle, 2*math.Pi)
-
-            // Spread over 180° centered on oppositeAngle
-            arcSpan := math.Pi // 180°
-            startAngle := oppositeAngle - arcSpan/2
-            endAngle := oppositeAngle + arcSpan/2
-
-            angleStep := (endAngle - startAngle) / float64(layerCount)
-
-            // Add angular displacement to avoid stacking
-            angleOffset := (angleStep / 2) * float64(layer % 2)
-            angle := startAngle + angleStep*float64(posInLayer) + angleOffset
-
-            // Layer radius: start from outer edge inward with jitter
-            layerSpacing := radius / float32(layerCount+1)
-            jitter := float32(5 * (layer % 2)) // alternate radial shift
-            layerRadius := radius - layerSpacing*float32(layer+1) + jitter
-
-            staOffsetX := float32(math.Cos(angle)) * layerRadius
-            staOffsetY := float32(math.Sin(angle)) * layerRadius
-            staPos := fyne.NewPos(haulCenter.X+staOffsetX, haulCenter.Y+staOffsetY)
 
             // Dynamic icon size
-			minSize := float32(16)
-            maxSize := float32(40)
             iconSize := maxSize - (maxSize-minSize)*float32(totalSTAs)/float32(20)
             if iconSize < minSize {
                 iconSize = minSize
             }
 
+            // Use index-based seed for consistent placement
+            r := rand.New(rand.NewSource(int64(staIndex)))
+
+            // calculating the STA position for placement
+            var staPos fyne.Position
+			placed := false
+            for attempt := 0; attempt < 10; attempt++ {
+                radius := minRadius + r.Float32()*(maxRadius-minRadius)
+                if radius < minRadius {
+                    radius = minRadius
+                }
+
+                angle := angleStep*float64(staIndex) + r.Float64()*angleStep
+                offsetX := float32(math.Cos(angle)) * radius
+                offsetY := float32(math.Sin(angle)) * radius
+                candidatePos := fyne.NewPos(nodeCenter.X+offsetX, nodeCenter.Y+offsetY)
+
+                // Check overlap
+                overlap := false
+                for _, other := range placedPositions {
+                    dx := candidatePos.X - other.X
+                    dy := candidatePos.Y - other.Y
+                    if math.Hypot(float64(dx), float64(dy)) < float64(iconSize+4) {
+                        overlap = true
+                        break
+                    }
+                }
+
+                if !overlap {
+                    staPos = candidatePos
+					placed = true
+                    placedPositions = append(placedPositions, staPos)
+                    break
+                }
+            }
+
+            // Fallback if no valid position found
+            if !placed {
+                fmt.Printf("Warning: Failed to place STA %d. Using fallback position.\n", staIndex)
+                fallbackRadius := maxRadius - iconSize
+				fallbackAngle := 2 * math.Pi * float64(staIndex) / float64(totalSTAs)
+                fallbackOffsetX := float32(math.Cos(fallbackAngle)) * fallbackRadius
+                fallbackOffsetY := float32(math.Sin(fallbackAngle)) * fallbackRadius
+
+                staPos = fyne.NewPos(nodeCenter.X+fallbackOffsetX, nodeCenter.Y+fallbackOffsetY)
+                placedPositions = append(placedPositions, staPos)
+
+            }
+
+            // Create STA icon
             staIcon := NewClickableImage(staCtx.Icon, func() {
                 info := fmt.Sprintf("%.28s\nMAC: %s\n", sta.ClientType, sta.MACAddress)
                 pause_start_Timer(true)
@@ -905,60 +904,47 @@ func drawNetworkTopologyGraph(
             staIcon.Move(fyne.NewPos(staPos.X-iconSize/2, staPos.Y-iconSize/2))
             container.Add(staIcon)
             container.Refresh()
-
-            // Normalize and scale offset
+            // Draw sine wave connection
             staOffsetDistance := float64(iconSize) * 0.5
             nodeOffsetDistance := 30.0
-
-			// Compute direction vector from STA to Node
             length := math.Hypot(float64(nodeCenter.X-staPos.X), float64(nodeCenter.Y-staPos.Y))
-            offsetX := (float64(nodeCenter.X) - float64(staPos.X)) / length
-            offsetY := (float64(nodeCenter.Y) - float64(staPos.Y)) / length
+            offsetXDir := (float64(nodeCenter.X) - float64(staPos.X)) / length
+            offsetYDir := (float64(nodeCenter.Y) - float64(staPos.Y)) / length
 
-			// Apply offset to start and end points
-			startVec := r2.Vec{
-				X: float64(staPos.X) + offsetX*staOffsetDistance,
-				Y: float64(staPos.Y) + offsetY*staOffsetDistance,
-			}
-			endVec := r2.Vec{
-				X: float64(nodeCenter.X) - offsetX*nodeOffsetDistance,
-				Y: float64(nodeCenter.Y) - offsetY*nodeOffsetDistance,
-			}
+            startVec := r2.Vec{
+                X: float64(staPos.X) + offsetXDir*staOffsetDistance,
+                Y: float64(staPos.Y) + offsetYDir*staOffsetDistance,
+            }
+            endVec := r2.Vec{
+                X: float64(nodeCenter.X) - offsetXDir*nodeOffsetDistance,
+                Y: float64(nodeCenter.Y) - offsetYDir*nodeOffsetDistance,
+            }
 
             bandWavelength := map[int]float64{
-                0: 10.0, // wavelength in pixels for band 0
-                1: 8.0, // shorter wavelength for higher frequency
+                0: 10.0,
+                1: 8.0,
                 2: 6.0,
             }
-            wavelength, ok := bandWavelength[band]
-            if !ok {
-                wavelength = 10.0 // default wavelength
-            }
-
-            distance := math.Hypot(endVec.X - startVec.X, endVec.Y - startVec.Y)
-
-            // Calculate number of cycles based on fixed wavelength
+            wavelength := bandWavelength[band]
+            distance := math.Hypot(endVec.X-startVec.X, endVec.Y-startVec.Y)
             cycles := distance / wavelength
+            steps := int(cycles * 8.0)
 
-            desiredPointsPerCycle := 8.0 // smoothness
-            steps := int(cycles * desiredPointsPerCycle)
+            wavePoints := GenerateSineWavePoints(startVec, endVec, 5, cycles, steps)
+             _, hexCol := bandToNameAndColor(band)
+            col := lightenColor(parseHexColor(hexCol), 0.3)
 
-			wavePoints := GenerateSineWavePoints(startVec, endVec, 5, cycles, steps)
-
-			_, hexCol := bandToNameAndColor(band)
-			col := parseHexColor(hexCol)
-			col = lightenColor(col, 0.3)
-			for i := 0; i < len(wavePoints)-1; i++ {
-				p1 := fyne.NewPos(float32(wavePoints[i].X), float32(wavePoints[i].Y))
-				p2 := fyne.NewPos(float32(wavePoints[i+1].X), float32(wavePoints[i+1].Y))
-				lineSegment := canvas.NewLine(col)
-				lineSegment.StrokeWidth = 1
-				lineSegment.Position1 = p1
-				lineSegment.Position2 = p2
-				container.Add(lineSegment)
-			}
-		}
-
+            for i := 0; i < len(wavePoints)-1; i++ {
+                p1 := fyne.NewPos(float32(wavePoints[i].X), float32(wavePoints[i].Y))
+                p2 := fyne.NewPos(float32(wavePoints[i+1].X), float32(wavePoints[i+1].Y))
+                lineSegment := canvas.NewLine(col)
+                lineSegment.StrokeWidth = 1
+                lineSegment.Position1 = p1
+                lineSegment.Position2 = p2
+                container.Add(lineSegment)
+            }
+            staIndex++
+        }
 	}
 
 	for _, edge := range bandEdges {
@@ -1096,6 +1082,7 @@ func buildHaulTypes(radioList []Radio) []HaulTypeVisual {
 				haulTypeMap[bss.HaulType] = &HaulTypeVisual{
 					Name:        bss.HaulType,
 					SSID:        bss.SSID,
+					VlanId:      bss.VlanId,
 					Color:       colorForHaulType(bss.HaulType),
 					Radius:      100.0,
 					OffsetIndex: len(haulTypeMap) % len(triangleOffsets),
@@ -1109,7 +1096,6 @@ func buildHaulTypes(radioList []Radio) []HaulTypeVisual {
 				HaulType:  bss.HaulType,
 				SSID:      bss.SSID,
 				Enabled:   bss.Enabled,
-				TimeStamp: bss.TimeStamp,
 				VapMode:   bss.VapMode,
 				Band:      radio.Band,
 				VlanId:    bss.VlanId,
@@ -1322,6 +1308,7 @@ func parseRadioList(tree *C.em_network_node_t) []Radio {
                 HaulType: getTreeValue(bss, "HaulType"),
                 VapMode:  getKeyIntValue(bss, "VapMode"),
                 Band:     getKeyIntValue(bss, "Band"),
+                VlanId:   getKeyIntValue(bss, "VlanID"),
                 STAList:  staList,
             })
         }
@@ -1578,8 +1565,7 @@ func (t *Topology) periodicTimer() {
     )
 
 	// Draw the graph based on static json files
-	if len(os.Args) > 1 && os.Args[1] == "test" {	
-		t.timerCount++
+	if len(os.Args) > 1 && os.Args[1] == "test" {
         jsonFile = getTestJSONFile(t.timerCount)
 	    g, nodeMap, metaMap, bandEdges, err = loadNestedTopologyJSON(jsonFile, t.topo)
 
@@ -1608,16 +1594,15 @@ func (t *Topology) periodicTimer() {
 		return
 	}
 
-	// Helper function to pring the links
-	printBandEdges(bandEdges)
-	printRawNodes(metaMap)
+	// Debug Helper function to print the links
+	//printBandEdges(bandEdges)
+	//printRawNodes(metaMap)
 	
 	// Clear previous graph
 	t.topo.Objects = nil
 	t.topo.Refresh()
-    // Draw the graph
+	// Draw the graph
 	drawNetworkTopologyGraph(g, nodeMap, metaMap, bandEdges, t.topo)
 
 	t.topo.Refresh()
-
 }

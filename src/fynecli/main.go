@@ -12,6 +12,7 @@ import "C"
 
 import (
 	"log"
+	"math"
 	"time"
 	"unsafe"
 
@@ -237,6 +238,21 @@ func (m *MeshViewsMgr) timerHandler() {
                         cmd := C.CString(view.get)
                         defer C.free(unsafe.Pointer(cmd))
 
+                        if view.title == TopologyString {
+                            // Get the data for topology tab on every 5*4 = 20 sec
+                            topoView, ok := view.tabInterface.(*Topology)
+                            if ok {
+                                // Handle overflow: reset timer
+                                if topoView.timerCount == math.MaxInt {
+                                    topoView.timerCount = 0
+                                }
+
+                                topoView.timerCount++
+                                if (topoView.timerCount)%4 != 1 {
+                                    return
+                                }
+                            }
+                        }
                         result := C.exec(cmd, C.strlen(cmd), nil)
                         view.tabInterface.setData(result)
                         view.tabInterface.periodicTimer()
