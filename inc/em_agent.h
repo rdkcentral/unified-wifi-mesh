@@ -353,6 +353,21 @@ public:
 	 */
 	bool send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency=0, unsigned int wait_time_ms=0) override;
 
+
+	/**
+	 * @brief Attempts a connection between the backhaul STA to the specified BSS.
+	 * 
+	 * @param[in] ssid The SSID of the BSS to connect to.
+	 * @param[in] passphrase The passphrase for the BSS.
+	 * @param[in] bssid The BSSID of the BSS to connect to.
+	 * 
+	 * @returns true if the attempt at a connection was successful, false otherwise.
+	 * 
+	 * @note The return value being true only indicates that OneWifi will attempt to connect to the BSS
+	 * and does mean that the connection was successful and the bSTA is associated to the BSS.
+	 */
+	bool bsta_connect_bss(const std::string& ssid, const std::string passphrase, bssid_t bssid) override;
+
 	/**
 	 * @brief Send an action frame on the backhaul interface
 	 *
