@@ -37,6 +37,7 @@ public:
 	 *
 	 * @param[in] evt Pointer to the event structure containing initialization details.
 	 * @param[out] pcmd Array of pointers to command structures to be processed.
+	 * @param[in] do_connect_bsta Boolean flag indicating whether to connect the bSTA to the backhaul BSS on dev init
 	 *
 	 * @returns int
 	 * @retval 0 on success
@@ -44,7 +45,7 @@ public:
 	 *
 	 * @note Ensure that the event and command pointers are valid before calling this function.
 	 */
-	int analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]);
+	int analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[], bool do_connect_bsta);
     
 	/**!
 	 * @brief Analyzes the station list based on the provided event and command.

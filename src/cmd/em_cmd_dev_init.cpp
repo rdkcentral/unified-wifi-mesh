@@ -35,7 +35,7 @@
 #include <cjson/cJSON.h>
 #include "em_cmd_dev_init.h"
 
-em_cmd_dev_init_t::em_cmd_dev_init_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
+em_cmd_dev_init_t::em_cmd_dev_init_t(em_cmd_params_t param, dm_easy_mesh_t& dm, bool do_connect_bsta)
 {
     em_cmd_ctx_t ctx;;
     m_type = em_cmd_type_dev_init;
@@ -49,6 +49,14 @@ em_cmd_dev_init_t::em_cmd_dev_init_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
     m_orch_desc[1].op = dm_orch_type_em_insert;
     m_orch_desc[0].submit = false;
     m_orch_desc[1].submit = true;
+
+    if (do_connect_bsta && m_num_orch_desc < EM_MAX_CMD) {
+        // This should always be last, so add it at the end
+        m_orch_desc[m_num_orch_desc].op = dm_orch_type_bsta_connect;
+        m_orch_desc[m_num_orch_desc].submit = true;
+        m_num_orch_desc++;
+    }
+
 
     strncpy(m_name, "dev_init", strlen("dev_init") + 1);
     m_svc = em_service_type_agent;

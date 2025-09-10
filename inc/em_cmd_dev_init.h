@@ -34,6 +34,8 @@ public:
 	 * @param[in] param The command parameters required for device initialization.
 	 * @param[in,out] dm The easy mesh configuration to be used for initialization.
 	 *                   This parameter is modified during the initialization process.
+	 * @param[in] do_connect_bsta Boolean flag indicating whether to connect the bSTA 
+	 * 							  to the backhaul BSS on dev init
 	 *
 	 * @returns em_cmd_dev_init_t
 	 * @retval SUCCESS if the device is initialized successfully.
@@ -42,7 +44,7 @@ public:
 	 *
 	 * @note Ensure that the device is in a proper state before calling this function.
 	 */
-	em_cmd_dev_init_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+	em_cmd_dev_init_t(em_cmd_params_t param, dm_easy_mesh_t& dm, bool do_connect_bsta);
 };
 
 #endif

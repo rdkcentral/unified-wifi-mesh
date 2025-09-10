@@ -4505,7 +4505,7 @@ int em_configuration_t::handle_bss_config_rsp_msg(uint8_t *buff, unsigned int le
     while (em != NULL) {
         // Skip AL EM
         if (em->is_al_interface_em()){
-            em->set_is_dpp_onboarding(false);
+            em->set_is_onboarding(false);
             em = static_cast<em_t *>(hash_map_get_next(em_map, reinterpret_cast<void *>(em)));
             continue;
         }
@@ -4522,7 +4522,7 @@ int em_configuration_t::handle_bss_config_rsp_msg(uint8_t *buff, unsigned int le
             memcpy(&network.m_net_info.ctrl_id.mac, src_al_mac, sizeof(mac_address_t));
             dm->set_network(network);
         }
-        em->set_is_dpp_onboarding(false);
+        em->set_is_onboarding(false);
         if (band_radioconfig->noofbssconfig == 0) {
             em_printfout("No BSS configurations for band %d, skipping configuration for node '" MACSTRFMT "'", band_radioconfig->freq[0], MAC2STR(em->get_radio_interface_mac()));
             em = static_cast<em_t *>(hash_map_get_next(em_map, reinterpret_cast<void *>(em)));
@@ -4654,8 +4654,8 @@ int em_configuration_t::handle_agent_list_msg(uint8_t *buff, unsigned int len, u
         dm->set_network(network);
         if (get_mgr()->get_al_node() != NULL) {
             get_ec_mgr().upgrade_to_onboarded_proxy_agent(src_al_mac);
-            set_is_dpp_onboarding(false);
-            get_mgr()->get_al_node()->set_is_dpp_onboarding(false); // Just in case
+            set_is_onboarding(false);
+            get_mgr()->get_al_node()->set_is_onboarding(false); // Just in case
         }
     }
     return 0;
@@ -5046,7 +5046,7 @@ int em_configuration_t::handle_autoconfig_resp(unsigned char *buff, unsigned int
         return get_ec_mgr().handle_autoconf_resp_chirp(reinterpret_cast<em_dpp_chirp_value_t*>(dpp_chirp_tlv->value), SWAP_LITTLE_ENDIAN(dpp_chirp_tlv->len), hdr->src);
     }
 
-    if (get_is_dpp_onboarding()) {
+    if (get_is_onboarding()) {
         // If DPP onboarding is enabled, we end here and start securing the 1905 layer
         set_state(em_state_agent_1905_securing); // Set state to avoid follow-on autoconf messages
         ec_manager_t &ec_mgr = get_ec_mgr();
@@ -5054,6 +5054,15 @@ int em_configuration_t::handle_autoconfig_resp(unsigned char *buff, unsigned int
         // Set peer AL MAC to controller AL MAC
         memcpy(ec_mgr.get_al_conn_ctx(NULL)->peer_al_mac, hdr->src, sizeof(mac_address_t));
         return get_ec_mgr().start_secure_1905_layer(hdr->src) ? 0 : -1;
+    }
+
+    // If we're not DPP onboarding, if we get an autoconfig response we can be considered "onboarded"
+    // (the phy layer is connected (wifi) and the 1905 layer has found the controller)
+    if (!get_mgr()->is_agent_dpp_onboarding()) {
+        em_t* al_em = get_mgr()->get_al_node();
+        if (al_em){
+            al_em->set_is_onboarding(false);
+        }
     }
 
     printf("Received resp and validated...creating M1 msg\n");
@@ -5132,7 +5141,7 @@ int em_configuration_t::handle_autoconfig_search(unsigned char *buff, unsigned i
     }
     printf("%s:%d: autoconfig rsp send success\n", __func__, __LINE__);
 
-    if (!get_is_dpp_onboarding()) {
+    if (!get_is_onboarding()) {
         set_state(em_state_ctrl_wsc_m1_pending);
     }
 
@@ -5190,7 +5199,7 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
         case em_msg_type_autoconf_resp:
             if (((get_service_type() == em_service_type_agent &&
                     get_state() == em_state_agent_autoconfig_rsp_pending) ||
-                (get_service_type() == em_service_type_agent && get_is_dpp_onboarding())) && get_state() != em_state_agent_1905_securing) {
+                (get_service_type() == em_service_type_agent && get_is_onboarding())) && get_state() != em_state_agent_1905_securing) {
                 handle_autoconfig_resp(data, len);
             }
             break;
@@ -5290,7 +5299,7 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
 
 void em_configuration_t::handle_state_config_none()
 {
-    if (get_is_dpp_onboarding()) {
+    if (get_is_onboarding()) {
         // Enrollee is in onboarding state, so we should not send autoconfig search message
         em_t* al_node = get_mgr()->get_al_node();
         if (al_node == NULL) {

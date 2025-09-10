@@ -1892,9 +1892,6 @@ bool ec_enrollee_t::handle_assoc_status(const rdk_sta_data_t &sta_data)
     auto it = m_awaiting_assoc_status.find(bssid_str);
     if (it == m_awaiting_assoc_status.end()) {
         em_printfout("Got association status, not awaiting connection status frame");
-        em_printfout("\tBSSID: " MACSTRFMT, MAC2STR(sta_data.bss_info.bssid));
-        em_printfout("\tSSID: %s", sta_data.bss_info.ssid);
-        em_printfout("\tStatus: %d", sta_data.stats.connect_status);
         for (const auto &pair : m_awaiting_assoc_status) {
             em_printfout("\t\tAwaiting BSSID: %s", pair.first.c_str());
         }

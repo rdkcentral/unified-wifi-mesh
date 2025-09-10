@@ -59,7 +59,7 @@ extern AlServiceAccessPoint* g_sap;
 extern MacAddress g_al_mac_sap;
 #endif
 
-int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[])
+int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[], bool do_connect_bsta)
 {
     int num = 0;
     dm_easy_mesh_agent_t  dm;
@@ -84,7 +84,7 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
 
     dm.print_config();
     //TODO: Check for multiple radios
-    pcmd[num] = new em_cmd_dev_init_t(evt->params, dm);
+    pcmd[num] = new em_cmd_dev_init_t(evt->params, dm, do_connect_bsta);
     tmp = pcmd[num];
     num++;
 

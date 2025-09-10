@@ -53,7 +53,7 @@ void em_orch_agent_t::orch_transient(em_cmd_t *pcmd, em_t *em)
         auto agent_int = pcmd->get_agent_al_interface();
         std::string al_mac_key = util::mac_to_string(agent_int->mac) + "_al";
         em_t* al_node = static_cast <em_t*> (hash_map_get(m_mgr->m_em_map, al_mac_key.c_str()));
-        if (al_node != NULL && al_node->m_ec_manager && al_node->get_is_dpp_onboarding()) {
+        if (al_node != NULL && al_node->get_is_onboarding()) {
             // If the enrollee is still onboarding, we need to wait for it to finish before timing out
             // Lets reset the timeout
             gettimeofday(&pcmd->m_start_time, NULL);
@@ -254,6 +254,31 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
                 }
             }
             break;
+
+        case dm_orch_type_bsta_connect: {
+                intf = pcmd->get_agent_al_interface();
+                if ((dm = m_mgr->get_data_model(GLOBAL_NET_ID, intf->mac)) == NULL) {
+                    dm = m_mgr->create_data_model(GLOBAL_NET_ID, intf);
+                }
+                em_t* al_em = m_mgr->get_al_node();
+                if (al_em == NULL) {
+                    em_printfout("Cannot find AL node, cannot connect bSTA");
+                    break;
+                }
+                al_em->set_is_onboarding(true);
+                em_bss_info_t* info = dm->get_backhaul_bss_info();
+                if (info == NULL) {
+                    em_printfout("CANNOT FIND BACKHAUL BSS INFO");
+                } else {
+                    em_printfout("Auto-connecting to backhaul SSID: '%s', password: '%s'", info->ssid, info->mesh_ap_passphrase);
+                    // BSSID does not matter, all that matters (according to OneWifi) is that 
+                    // it has changed (i.e. is not all zeroes)
+                    mac_addr_t rand_bssid = {0};
+                    RAND_bytes(rand_bssid, MAC_ADDR_LEN);
+                    m_mgr->bsta_connect_bss(info->ssid, info->mesh_ap_passphrase, rand_bssid);
+                }
+                break;
+            }
         case dm_orch_type_em_update:
             break;
         case dm_orch_type_sta_aggregate:

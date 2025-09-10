@@ -141,10 +141,16 @@ void em_agent_t::handle_dev_init(em_bus_event_t *evt)
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
         return;
     }
-    if ((num = m_data_model.analyze_dev_init(evt, pcmd)) == 0) {
+    
+    // Don't automatically connect to default backhaul BSS if 
+    //  - Should be DPP onboarding
+    //  - Is Colocated (since bSTA won't be used in this case)
+    bool do_connect_bsta = !(do_start_dpp_onboarding || m_data_model.get_colocated());
+    if ((num = m_data_model.analyze_dev_init(evt, pcmd, do_connect_bsta)) == 0) {
         m_agent_cmd->send_result(em_cmd_out_status_no_change);
         return;
     }
+
     if (m_orch->submit_commands(pcmd, num) == 0) {
         m_agent_cmd->send_result(em_cmd_out_status_not_ready);
         return;
@@ -405,6 +411,12 @@ void em_agent_t::handle_recv_assoc_status(em_bus_event_t *event)
         em_printfout("AL node is nullptr!");
         return;
     }
+
+
+    em_printfout("Got association status event:");
+    em_printfout("\tBSSID: " MACSTRFMT, MAC2STR(sta_data->bss_info.bssid));
+    em_printfout("\tSSID: %s", sta_data->bss_info.ssid);
+    em_printfout("\tStatus: %d", sta_data->stats.connect_status);
 
     if (!al_node->m_ec_manager->handle_assoc_status(*sta_data)) {
         em_printfout("EC managed failed to handle association status event!");
@@ -945,6 +957,31 @@ bool em_agent_t::send_backhaul_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t 
     EM_ASSERT_NOT_NULL(bss_info, false, "No backhaul bsta info found");
 
     return send_action_frame(dest_mac, action_frame, action_frame_len, bss_info->vap_index, frequency, wait_time_ms);
+}
+
+bool em_agent_t::bsta_connect_bss(const std::string& ssid, const std::string passphrase, bssid_t bssid)
+{
+    em_bss_info_t *bsta_info =  m_data_model.get_bsta_bss_info();
+    if (!bsta_info) {
+        em_printfout("No backhaul bSTA found to connect to BSS\n");
+        return false;
+    }
+
+    memset(bsta_info->ssid, 0, sizeof(bsta_info->ssid));
+    strcpy(bsta_info->ssid, ssid.c_str());
+
+    memcpy(bsta_info->bssid.mac, bssid, sizeof(bssid_t));
+
+    memset(bsta_info->mesh_sta_passphrase, 0, sizeof(bsta_info->mesh_sta_passphrase));
+    strcpy(bsta_info->mesh_sta_passphrase, passphrase.c_str());
+
+    // Kick out of disconnected steady state (will fail if not in that state)
+    this->set_disconnected_scan_none_state();
+
+    em_printfout("Starting Mesh STA Config");
+    int res = this->refresh_onewifi_subdoc("MESH STA CONFIG", webconfig_subdoc_type_mesh_backhaul_sta);
+    em_printfout("Finished Mesh STA Config");
+    return res == 1;
 }
 
 

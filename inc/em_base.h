@@ -2280,10 +2280,12 @@ typedef struct {
 } em_bss_id_t;
 
 typedef struct {
-    // Vap Index is constant. Any modification will not be reflected in OneWifi.
+    // READ ONLY fields
     unsigned int vap_index;
-    // Vap Mode is constant. Any modification will not be reflected in OneWifi.
     em_vap_mode_t vap_mode;
+    em_short_string_t mesh_ap_passphrase;
+
+    // Configurable fields (possibly)
 	em_bss_id_t	id;
 	em_interface_t	bssid;
 	em_interface_t	ruid;
@@ -2707,6 +2709,7 @@ typedef struct {
 
 typedef enum {
     dm_orch_type_none,
+    dm_orch_type_bsta_connect,
     dm_orch_type_net_insert,
     dm_orch_type_net_update,
     dm_orch_type_net_delete,
