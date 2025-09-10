@@ -64,9 +64,21 @@ int dm_dpp_t::decode(const cJSON *obj, void *parent_id, void* user_info)
     if (user_info != NULL) {
         country_code = std::string(static_cast<char*>(user_info));
     }
+
+    // DPP Object is: 
+    /*
+    {
+    "URI" : "{DPP URI string here}"
+    }
+    */
+
+    cJSON* uri_json = cJSON_GetObjectItem(obj, "URI");
+    EM_ASSERT_NOT_NULL(uri_json, -1, "Failed to get URI from DPP JSON object");
+    char* uri_str = cJSON_GetStringValue(uri_json);
+    EM_ASSERT_NOT_NULL(uri_str, -1, "Failed to get URI string from DPP JSON object");
 		
-    if (!ec_util::decode_bootstrap_data_json(obj, &m_dpp_info, country_code)){
-        printf("%s:%d: Failed to decode DPP data\n", __func__, __LINE__);
+    if (!ec_util::decode_bootstrap_data_uri(std::string(uri_str), &m_dpp_info, country_code)){
+        em_printfout("Failed to decode DPP data");
         return -1;
     }
 		

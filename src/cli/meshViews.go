@@ -786,11 +786,11 @@ func (m *MeshViews) execSelectedCommand(cmdStr string, cmdType int) {
 	switch cmdType {
 	case GET:
 		if value.Title == DeviceOnboardingCmd {
-			nodes, err := readJSONFile("/tmp/DPPURI.json")
+			nodes, err := readDPPUriTxtFileToNodes("/tmp/DPPURI.txt")
 			if err != nil {
 				// fallback
-				spew.Fprintf(m.dump, "Error reading /tmp/DPPURI.json, trying current working directory: %v\n", err)
-				nodes, err = readJSONFile("DPPURI.json")
+				spew.Fprintf(m.dump, "Error reading /tmp/DPPURI.txt, trying current working directory: %v\n", err)
+				nodes, err = readDPPUriTxtFileToNodes("DPPURI.txt")
 				if err != nil {
 					spew.Fprintf(m.dump, "Error reading fallback DPPURI.json: %v\n", err)
 					return

@@ -54,7 +54,7 @@ extern "C"
 
 // START: Hardcoded EasyConnect values
 #define DPP_VERSION 0x02
-#define DPP_URI_JSON_PATH "/nvram/DPPURI.json"
+#define DPP_URI_TXT_PATH "/nvram/DPPURI.txt"
 #define DPP_BOOT_PEM_PATH "/nvram/DPPURI.pem"
 #define DPP_SEC_CTX_DIR_PATH "/nvram"
 
