@@ -134,6 +134,10 @@ int dm_sta_t::decode(const cJSON *obj, void *parent_id)
         snprintf(m_sta_info.he_cap, sizeof(m_sta_info.he_cap), "%s", cJSON_GetStringValue(tmp));
     }
 
+    if ((tmp = cJSON_GetObjectItem(obj, "MLDAddr")) != NULL) {
+        snprintf(m_sta_info.multi_link, sizeof(m_sta_info.multi_link), "%s", cJSON_GetStringValue(tmp));
+    }
+
     if ((tmp = cJSON_GetObjectItem(obj, "CellularDataPreference")) != NULL) {
         snprintf(m_sta_info.cellular_data_pref, sizeof(m_sta_info.cellular_data_pref), "%s", cJSON_GetStringValue(tmp));
     }
@@ -183,6 +187,8 @@ void dm_sta_t::encode(cJSON *obj, em_get_sta_list_reason_t reason)
         cJSON_AddStringToObject(obj, "CellularDataPreference", m_sta_info.cellular_data_pref);
         cJSON_AddStringToObject(obj, "ListenInterval", m_sta_info.listen_interval);
         cJSON_AddStringToObject(obj, "SSID", m_sta_info.ssid);
+        if (m_sta_info.multi_link[0] != '\0')
+            cJSON_AddStringToObject(obj, "MLDAddr", m_sta_info.multi_link);
         cJSON_AddStringToObject(obj, "SupportedRates", m_sta_info.supp_rates);
         cJSON_AddStringToObject(obj, "PowerCapability", m_sta_info.power_cap);
         cJSON_AddStringToObject(obj, "SupportedChannels", m_sta_info.supp_channels);
@@ -232,6 +238,8 @@ void dm_sta_t::encode(cJSON *obj, em_get_sta_list_reason_t reason)
         encode_beacon_report(obj);
     } else if (reason == em_get_sta_list_reason_topology) {
         cJSON_AddStringToObject(obj, "SSID", m_sta_info.ssid);
+        if (m_sta_info.multi_link[0] != '\0')
+            cJSON_AddStringToObject(obj, "MLDAddr", m_sta_info.multi_link);
         cJSON_AddNumberToObject(obj, "SignalStrength", m_sta_info.signal_strength);
         cJSON_AddNumberToObject(obj, "LastConnectTime", m_sta_info.last_conn_time);
         cJSON_AddStringToObject(obj, "HTCapabilities", m_sta_info.ht_cap);
@@ -332,6 +340,7 @@ void dm_sta_t::operator = (const dm_sta_t& obj)
     memcpy(&this->m_sta_info.supp_op_classes, &obj.m_sta_info.supp_op_classes, sizeof(em_long_string_t));
     memcpy(&this->m_sta_info.ext_cap, &obj.m_sta_info.ext_cap, sizeof(em_long_string_t));
     memcpy(&this->m_sta_info.rm_cap, &obj.m_sta_info.rm_cap, sizeof(em_long_string_t));
+    memcpy(&this->m_sta_info.multi_link, &obj.m_sta_info.multi_link, sizeof(em_long_string_t));
     for (unsigned int i = 0; i < this->m_sta_info.num_vendor_infos; i++) {
         memcpy(&this->m_sta_info.vendor_info, &obj.m_sta_info.vendor_info, sizeof(em_long_string_t));
     }
@@ -366,6 +375,9 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
     unsigned int offset = 0;
     unsigned char length;
     tag_type_t tag_id;
+    unsigned char *ext_ptr;
+    int ext_len;
+    unsigned char common_info_len;
 
     sta->m_sta_info.num_vendor_infos = 0;
 
@@ -454,6 +466,25 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
                     sta->m_sta_info.num_vendor_infos++;
                 }
                 break;
+
+            case tag_extended_tags: {
+                if (tag->value[0] == tag_ext_multi_link) {
+                    ext_ptr = tag->value + 1;
+                    ext_len = tag->length - 1;
+
+                    // Minimum required length: 2 (multilink_control) + 1 (common_info_len) + 6 (MLD MAC)
+                    if (ext_len >= 9) {
+                        ext_ptr += 2; // Skip multilink_control
+                        common_info_len = ext_ptr[0];
+                        ext_ptr++;
+
+                        if (common_info_len >= EM_MAC_ADDR_LEN) {
+                            strncpy(sta->m_sta_info.multi_link, util::mac_to_string(ext_ptr).c_str(), sizeof(em_long_string_t));
+                        }
+                    }
+                }
+                break;
+            }
 
             default:
                 printf("%s:%d: Unknown Tag ID: %d\n", __func__, __LINE__, tag->tag_id);

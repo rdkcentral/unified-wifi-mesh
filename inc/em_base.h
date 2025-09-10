@@ -43,6 +43,7 @@ extern "C"
 #define EM_MAX_PLATFORMS	5
 #define ETH_P_1905      0x893a
 #define MAX_INTF_NAME_SZ    16
+#define EM_MAC_ADDR_LEN 6
 #define EM_MAC_STR_LEN  17
 #define EM_MAX_COLS     32
 #define EM_MAX_DM_CHILDREN	32
@@ -2252,6 +2253,7 @@ typedef struct {
     em_long_string_t    supp_op_classes;
     em_long_string_t    ext_cap;
     em_long_string_t    rm_cap;
+    em_long_string_t    multi_link;
     em_long_string_t    vendor_info[MAX_VENDOR_INFO];
 
     wifi_BeaconReport_t beacon_reports[EM_MAX_BEACON_REPORTS_PER_SCAN];
@@ -2307,6 +2309,7 @@ typedef struct {
     em_eht_operations_bss_t eht_ops;
     em_short_string_t mesh_sta_passphrase;
     unsigned int vlan_id;
+    mac_address_t   mld_mac;
 
     // Extra vendor information elements for the BSS
     // @note Don't manually allocate, use the helper functions to add/remove elements 
@@ -3076,9 +3079,11 @@ typedef enum {
     tag_extended_supported_rates = 50,
     tag_supported_operating_classes = 59,
     tag_rm_enabled_capability = 70,
+    tag_ext_multi_link = 107,
     tag_extended_capabilities = 127,
     tag_vht_capability = 191,
     tag_vendor_specific = 221,
+    tag_extended_tags = 255,
 } tag_type_t;
 
 typedef struct {
