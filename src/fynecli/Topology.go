@@ -72,19 +72,19 @@ type Radio struct {
 
 type BSS struct {
 	BSSID     string `json:"BSSID"`
+	MLDAddr   string `json:"MLDAddr"`
 	HaulType  string `json:"HaulType"`
 	VlanId    int    `json:"VlanId"`
 	SSID      string `json:"SSID"`
-	Enabled   bool   `json:"Enabled"`
 	VapMode   int    `json:"VapMode"`
 	Band      int    `json:"Band"`
 	IEEE      string `json:"IEEE"`
-	Channel   int    `json:"Channel"`
 	STAList   []STA  `json:"STAList"`
 }
 
 type STA struct {
 	MACAddress     string `json:"MACAddress"`
+	MLDAddr        string `json:"MLDAddr"`
 	ClientType     string `json:"ClientType"`
 	Associated     bool   `json:"Associated"`
 	SignalStrength int    `json:"SignalStrength"`
@@ -239,6 +239,8 @@ func getIconForClientType(clientType string) fyne.Resource {
         return resourceIpadPng
     case strings.Contains(lower, "android"):
         return resourceAndroidPng
+    case strings.Contains(lower, "laptop"):
+        return resourceLaptopPng
     default:
         return  resourceAndroidPng// fallback icon
     }
@@ -693,6 +695,9 @@ func drawNetworkTopologyGraph(
 
 			// Haul type radious
 			radius := ht.Radius
+			mldAddr := ""
+			mldBands := []string{}
+			mldLinkCount := 0
 
 			// haul type circe position and dimentions
 			circlePos := fyne.NewPos(pos.X-radius+offset.X, pos.Y-radius+offset.Y)
@@ -704,6 +709,11 @@ func drawNetworkTopologyGraph(
 				for _, bss := range ht.BSSList {
 					if bss.VapMode != 1 {
 						bandName, _ := bandToNameAndColor(bss.Band)
+						if bss.MLDAddr != "" {
+							mldLinkCount++
+							mldAddr = bss.MLDAddr
+							mldBands = append(mldBands, bandName)
+						}
 						if bss.Band == 0 || bss.Band == 1 {
 							bss.IEEE= "802.11ax"
 						} else {
@@ -713,7 +723,9 @@ func drawNetworkTopologyGraph(
 					}
 				}
 			}
-
+			if mldLinkCount > 0 {
+				haulInfo += fmt.Sprintf("\n%s - %d (%s)", mldAddr, mldLinkCount, strings.Join(mldBands, ", "))
+			}
 			haulInfo += fmt.Sprintf("\nVLANID = %d\n", ht.VlanId)
 
 			lines := strings.Split(haulInfo, "\n")
@@ -778,7 +790,6 @@ func drawNetworkTopologyGraph(
 			circle.Resize(circleSize)
 			circle.Move(circlePos)
 			container.Add(circle)
-
 		}
 
 		if meta.Icon != nil {
@@ -822,7 +833,7 @@ func drawNetworkTopologyGraph(
         // STAs angle steps
         angleStep := 2 * math.Pi / float64(totalSTAs)
         // minimum radius
-        minRadius := float32(60)
+        minRadius := float32(80)
         // maximum radius
         maxRadius := float32(120)
         minSize := float32(16)
@@ -857,7 +868,10 @@ func drawNetworkTopologyGraph(
                     radius = minRadius
                 }
 
-                angle := angleStep*float64(staIndex) + r.Float64()*angleStep
+                angle := angleStep*float64(staIndex)
+                if totalSTAs < 5 {
+                    angle += r.Float64()*angleStep
+                }
                 offsetX := float32(math.Cos(angle)) * radius
                 offsetY := float32(math.Sin(angle)) * radius
                 candidatePos := fyne.NewPos(nodeCenter.X+offsetX, nodeCenter.Y+offsetY)
@@ -896,7 +910,11 @@ func drawNetworkTopologyGraph(
 
             // Create STA icon
             staIcon := NewClickableImage(staCtx.Icon, func() {
-                info := fmt.Sprintf("%.28s\nMAC: %s\n", sta.ClientType, sta.MACAddress)
+                info := fmt.Sprintf("%.28s\n", sta.ClientType)
+                info += fmt.Sprintf("MAC: %s\n",sta.MACAddress)
+                if sta.MLDAddr != "" {
+                    info += fmt.Sprintf("MLD: %s\n",sta.MLDAddr)
+                }
                 pause_start_Timer(true)
                 showTooltip(container, info, fyne.NewPos(staPos.X, staPos.Y), color.RGBA{R: 216, G: 167, B: 7, A: 255})
             })
@@ -1093,9 +1111,9 @@ func buildHaulTypes(radioList []Radio) []HaulTypeVisual {
 			// Append BSS info with Band
 			haulTypeMap[bss.HaulType].BSSList = append(haulTypeMap[bss.HaulType].BSSList, BSS{
 				BSSID:     bss.BSSID,
+				MLDAddr:   bss.MLDAddr,
 				HaulType:  bss.HaulType,
 				SSID:      bss.SSID,
-				Enabled:   bss.Enabled,
 				VapMode:   bss.VapMode,
 				Band:      radio.Band,
 				VlanId:    bss.VlanId,
@@ -1303,7 +1321,8 @@ func parseRadioList(tree *C.em_network_node_t) []Radio {
             }
 
             bssList = append(bssList, BSS{
-				BSSID: getTreeValue(bss, "BSSID"),
+				BSSID:    getTreeValue(bss, "BSSID"),
+				MLDAddr:  getTreeValue(bss, "MLDAddr"),
                 SSID:     getTreeValue(bss, "SSID"),
                 HaulType: getTreeValue(bss, "HaulType"),
                 VapMode:  getKeyIntValue(bss, "VapMode"),
@@ -1427,7 +1446,7 @@ func getDefaultBands() []Band {
 	return []Band{
 		{Name: "2.4GHz", Color: "#8B4513"},
 		{Name: "5GHz", Color: "#5a82c2ff"},
-		{Name: "6GHz", Color: "#CD5C5C"},
+		{Name: "6GHz", Color: "#e60808ff"},
 	}
 }
 
