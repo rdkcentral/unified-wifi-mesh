@@ -1679,6 +1679,7 @@ int em_configuration_t::handle_ap_mld_config_tlv(unsigned char *buff, unsigned i
     unsigned int i, j;
     unsigned short ap_mld_len = 0;
     unsigned short affiliated_ap_len = 0;
+    dm_bss_t *dm_bss;
 
     dm = get_data_model();
 
@@ -1720,6 +1721,12 @@ int em_configuration_t::handle_ap_mld_config_tlv(unsigned char *buff, unsigned i
 
             affiliated_ap_mld = reinterpret_cast<em_affiliated_ap_mld_t *> (reinterpret_cast<unsigned char *> (affiliated_ap_mld) + sizeof(em_affiliated_ap_mld_t));
             affiliated_ap_len += sizeof(em_affiliated_ap_mld_t);
+
+            dm_bss = dm->get_bss(affiliated_ap_info->ruid.mac, affiliated_ap_info->mac_addr);
+            if (dm_bss != NULL) {
+                memcpy(dm_bss->m_bss_info.mld_mac, ap_mld_info->mac_addr , sizeof(mac_address_t));
+            }
+
         }
 
         ap_mld = reinterpret_cast<em_ap_mld_t *> (reinterpret_cast<unsigned char *> (ap_mld) + sizeof(em_ap_mld_t) + affiliated_ap_len);
