@@ -23,6 +23,32 @@ ec_ctrl_configurator_t::ec_ctrl_configurator_t(const std::string& al_mac_addr, e
         return;
     }
 
+    ec_data_t const_boot_data;
+    if (ec_util::read_bootstrap_data_from_files(&const_boot_data, DPP_URI_TXT_PATH)){
+        em_printfout("Loaded constant DPP bootstrapping data from '%s'", DPP_URI_TXT_PATH);
+
+        // Just use a zero MAC address so that there are no collisions with real bootstrapping MACs
+        // The lookup can happen later
+        std::string mac_str = util::mac_to_string(ZERO_MAC_ADDR);
+        // Create a new connection context
+        ec_connection_context_t conn_ctx;
+        memset(&conn_ctx, 0, sizeof(ec_connection_context_t));
+        m_connections[mac_str] = conn_ctx;
+        auto& c_ctx = m_connections[mac_str];
+        
+
+        // Initialize bootstrapping data
+        memcpy(&c_ctx.boot_data, &const_boot_data, sizeof(ec_data_t));
+
+        // Not all of these will be present but it is better to compute them now.
+        c_ctx.boot_data.resp_priv_boot_key = em_crypto_t::get_priv_key_bn(c_ctx.boot_data.responder_boot_key);
+        c_ctx.boot_data.resp_pub_boot_key = em_crypto_t::get_pub_key_point(c_ctx.boot_data.responder_boot_key);
+
+        c_ctx.boot_data.init_priv_boot_key = em_crypto_t::get_priv_key_bn(c_ctx.boot_data.initiator_boot_key);    
+        c_ctx.boot_data.init_pub_boot_key = em_crypto_t::get_pub_key_point(c_ctx.boot_data.initiator_boot_key);
+
+    }
+
     
 }
 
@@ -84,7 +110,7 @@ bool ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *ch
 {
 
     mac_addr_t mac = {0};
-    uint8_t* hash = NULL; // Max hash length to avoid dynamic allocation
+    uint8_t* hash = NULL;
     uint16_t hash_len = 0;
 
     em_printfout("Recieved Chirp Notification TLV from '" MACSTRFMT "'", MAC2STR(src_al_mac));
@@ -95,8 +121,24 @@ bool ec_ctrl_configurator_t::process_chirp_notification(em_dpp_chirp_value_t *ch
     }
 
     std::string mac_str = util::mac_to_string(mac);
-    auto c_ctx = get_conn_ctx(mac_str);
-    ASSERT_NOT_NULL_FREE(c_ctx, false, hash, "%s:%d: Connection context not found for enrollee MAC %s. Has the DPP URI been given?\n", __func__, __LINE__, mac_str.c_str());
+    ec_connection_context_t* c_ctx = get_conn_ctx(mac_str);
+    if (c_ctx == NULL) {
+        // We couldn't find a connection context for this MAC. Maybe the bootstrapping data doesn't include the MAC?
+        // Let's do a lookup by hash...
+
+        auto mac_ctx = find_conn_ctx(hash, hash_len);
+        EM_ASSERT_OPT_HAS_VALUE(mac_ctx, false, "No connection context found for Enrollee with matching hash. Has the DPP URI been given?\n");
+
+        c_ctx = mac_ctx.value().second; // Use the found connection context
+
+
+        // We now know that this bootstrapping data/connection context is for this MAC address
+        ec_connection_context_t new_c_ctx;
+        memcpy(&new_c_ctx.boot_data, &c_ctx->boot_data, sizeof(ec_data_t));
+        m_connections[mac_str] = new_c_ctx;
+    }
+
+    EM_ASSERT_NOT_NULL_FREE(c_ctx, false, hash, "No connection context found for Enrollee with matching MAC or hash. Has the DPP URI been given?\n");
 
     // Validate hash
     // Compute the hash of the responder boot key 
@@ -300,44 +342,14 @@ bool ec_ctrl_configurator_t::handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, 
     // The source mac here is the AL MAC, but the MAC provided in the DPP URI can be assumed to be the PHY MAC
     // Therefore we're going to need to do a lookup by hash...
 
-    ec_connection_context_t *e_conn_ctx = nullptr;
-    std::string enroleee_phy_mac = "";
+    auto mac_ctx = find_conn_ctx(enrollee_hash, enrollee_hash_len);
+    EM_ASSERT_OPT_HAS_VALUE_FREE(mac_ctx, false, enrollee_hash, "No connection context found for Enrollee with matching hash. Has the DPP URI been given?\n");
 
-    for (auto & [mac, conn_ctx] : m_connections) {
-
-        em_printfout("Checking connection context for Enrollee '%s'", mac.c_str());
-        // We found the connection context for this Enrollee
-        if (conn_ctx.boot_data.responder_boot_key == NULL) {
-            em_printfout("No responder bootstrap key found for Enrollee '%s'", mac.c_str());
-            continue;
-        }
-
-        // Compare hash.
-        uint8_t *hash = ec_crypto::compute_key_hash(conn_ctx.boot_data.responder_boot_key, "chirp");
-        if (!hash) {
-            em_printfout("Failed to compute hash of responder bootstrap public key for Enrollee '%s'", mac.c_str());
-            continue;
-        }
-        em_printfout("Computed hash of responder bootstrap public key for Enrollee '%s': ", mac.c_str());
-        util::print_hex_dump(enrollee_hash_len, hash);
-        em_printfout("Received hash from Autoconf Search (extended) chirp: ");
-        util::print_hex_dump(enrollee_hash_len, enrollee_hash);
-        if (memcmp(hash, enrollee_hash, enrollee_hash_len) == 0) {
-            // We found the Enrollee
-            em_printfout("Found Enrollee '%s' with matching hash", mac.c_str());
-            e_conn_ctx  = &conn_ctx;
-            enroleee_phy_mac = mac;
-            free(hash);
-            break;
-        }
-        free(hash);
-    }
+    auto [enroleee_phy_mac, e_conn_ctx] = mac_ctx.value();
     std::string src_mac_str = util::mac_to_string(src_mac);
 
-    if (!e_conn_ctx) {
-        em_printfout("Received an autoconf search chirp from (AL MAC) '%s', but no connection context found for hash. Has the DPP URI been given?", src_mac_str.c_str());
-        return false;
-    }
+    EM_ASSERT_NOT_NULL_FREE(e_conn_ctx, false, enrollee_hash, "Received an autoconf search chirp from (AL MAC) '%s', but no connection context found for hash."
+                                                              " Has the DPP URI been given?", src_mac_str.c_str());
 
     // We know that this is the AL MAC of the Enrollee now.
     memcpy(e_conn_ctx->peer_al_mac, src_mac, ETH_ALEN);
@@ -354,6 +366,7 @@ bool ec_ctrl_configurator_t::handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, 
     // If they match, we respond with Autoconf Response (extended) including
     // a DPP chirp with hash_validity=1 and hash=enrollee_hash
     auto [resp_chirp, resp_chirp_len] = ec_util::create_dpp_chirp_tlv(false, true, nullptr, enrollee_hash, enrollee_hash_len);
+    free(enrollee_hash);
     if (!resp_chirp || resp_chirp_len == 0) {
         em_printfout("Failed to create Chirp TLV for Autoconf Response (extended)");
         return false;
@@ -1796,4 +1809,44 @@ std::pair<uint8_t *, size_t> ec_ctrl_configurator_t::create_config_response_fram
     response_frame->resp_len = static_cast<uint16_t>(attribs_len);
 
     return std::make_pair(reinterpret_cast<uint8_t *>(response_frame), sizeof(ec_gas_initial_response_frame_t) + attribs_len);
+}
+
+std::optional<std::pair<std::string, ec_connection_context_t *>> ec_ctrl_configurator_t::find_conn_ctx(uint8_t* enrollee_hash, uint8_t hash_len){
+    ec_connection_context_t *e_conn_ctx = nullptr;
+    std::string enroleee_phy_mac = "";
+
+    for (auto & [mac, conn_ctx] : m_connections) {
+
+        em_printfout("Checking connection context for Enrollee '%s'", mac.c_str());
+        // We found the connection context for this Enrollee
+        if (conn_ctx.boot_data.responder_boot_key == NULL) {
+            em_printfout("No responder bootstrap key found for Enrollee '%s'", mac.c_str());
+            continue;
+        }
+
+        // Compare hash.
+        uint8_t *hash = ec_crypto::compute_key_hash(conn_ctx.boot_data.responder_boot_key, "chirp");
+        if (!hash) {
+            em_printfout("Failed to compute hash of responder bootstrap public key for Enrollee '%s'", mac.c_str());
+            continue;
+        }
+        em_printfout("Computed hash of responder bootstrap public key for Enrollee '%s': ", mac.c_str());
+        util::print_hex_dump(hash_len, hash);
+        em_printfout("Received hash from Autoconf Search (extended) chirp: ");
+        util::print_hex_dump(hash_len, enrollee_hash);
+        if (memcmp(hash, enrollee_hash, hash_len) == 0) {
+            // We found the Enrollee
+            em_printfout("Found Enrollee '%s' with matching hash", mac.c_str());
+            e_conn_ctx  = &conn_ctx;
+            enroleee_phy_mac = mac;
+            free(hash);
+            break;
+        }
+        free(hash);
+    }
+
+    EM_ASSERT_NOT_NULL(e_conn_ctx, {}, "No connection context found for Enrollee with given hash");
+    EM_ASSERT_MSG_TRUE(!enroleee_phy_mac.empty(), {}, "No Enrollee MAC found for Enrollee with given hash");
+
+    return {{enroleee_phy_mac, e_conn_ctx}};
 }
