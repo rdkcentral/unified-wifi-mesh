@@ -122,6 +122,8 @@ func readJSONFile(filePath string) ([]etree.Node, error) {
 	return nodes, nil
 }
 
+
+
 // convertNodesToJSON converts an etree.Node structure back into a generic interface{}
 // that can be marshaled to JSON. It handles objects, arrays, strings, numbers and booleans.
 //
@@ -185,6 +187,55 @@ func convertNodesToJSON(nodes []etree.Node) interface{} {
     }
     
     return nil
+}
+
+
+
+// readTextFileToNodes reads a text file, wraps its content in a JSON structure
+// with the "URI" key, and converts it to etree.Node structure.
+//
+// Parameters:
+//   - filePath: string path to the text file
+//
+// Returns:
+//   - []etree.Node: slice of nodes representing the JSON structure with URI key
+//   - error: any error encountered during file reading or conversion
+//
+// Example:
+//   If text file contains "DPP:C:81/1:some-key-here;"
+//   The resulting JSON structure will be:
+//   {
+//     "URI": "DPP:C:81/1:some-key-here;"
+//   }
+func readDPPUriTxtFileToNodes(filePath string) ([]etree.Node, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("error opening file: %v", err)
+	}
+	defer file.Close()
+
+	content, err := io.ReadAll(file)
+	if err != nil {
+		return nil, fmt.Errorf("error reading file: %v", err)
+	}
+
+	// Trim whitespace/newlines from the content
+	uriContent := strings.TrimSpace(string(content))
+
+	// Create JSON structure with URI object containing URI key
+	jsonData := map[string]interface{}{
+		"URI": map[string]interface{}{
+			"URI": uriContent,
+		},
+	}
+
+	// Convert to nodes using existing function
+	nodes := convertJSONToNodes(jsonData)
+	if len(nodes) == 0 {
+		return nil, fmt.Errorf("no nodes created from text file content")
+	}
+
+	return nodes, nil
 }
 
 // writeJSONFile writes an etree.Node structure to a JSON file.
