@@ -366,29 +366,74 @@ int dm_device_t::parse_device_id_from_key(const char *key, em_device_id_t *id)
 int dm_device_t::update_easymesh_json_cfg(bool colocated_mode)
 {
 	mac_addr_str_t mac_str;
-
-	// Create a JSON object
-	cJSON *root = cJSON_CreateObject();
+	cJSON *root = NULL;
 
 	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (m_device_info.backhaul_mac.mac), mac_str);
-	cJSON_AddStringToObject(root, "AL_MAC_ADDR", const_cast<char*> (mac_str));
-	cJSON_AddNumberToObject(root, "Colocated_mode", static_cast<int> (colocated_mode));
+
+	FILE *file = fopen(EM_CFG_FILE, "r");
+	if (file != NULL) {
+		// File exists - Read and parse JSON
+		fseek(file, 0, SEEK_END);
+		long length = ftell(file);
+		rewind(file);
+
+		char *data = (char*)malloc(length + 1);
+		if (data) {
+			fread(data, 1, length, file);
+			data[length] = '\0';
+			root = cJSON_Parse(data);
+			free(data);
+		}
+		fclose(file);
+	}
+
+	if (root == NULL) {
+		// File does not exist or parse failed - create JSON object
+		root = cJSON_CreateObject();
+	}
+
+	// Update or add MAC address and colocated mode
+	cJSON *mac_item = cJSON_GetObjectItem(root, "AL_MAC_ADDR");
+	if (mac_item) {
+		cJSON_ReplaceItemInObject(root, "AL_MAC_ADDR", cJSON_CreateString(const_cast<char*>(mac_str)));
+	} else {
+		cJSON_AddStringToObject(root, "AL_MAC_ADDR", const_cast<char*>(mac_str));
+	}
+
+	cJSON *coloc_item = cJSON_GetObjectItem(root, "Colocated_mode");
+	if (coloc_item) {
+		cJSON_ReplaceItemInObject(root, "Colocated_mode", cJSON_CreateNumber(static_cast<int>(colocated_mode)));
+	} else {
+		cJSON_AddNumberToObject(root, "Colocated_mode", static_cast<int>(colocated_mode));
+	}
+
 	//Configuring Mesh Backhaul with default SSID and KeyPassphrase
- 	//TBD: This file to be updated with the configuration used for mesh_backhaul
-	cJSON_AddStringToObject(root, "Backhaul_SSID", "mesh_backhaul");
-	cJSON_AddStringToObject(root, "Backhaul_KeyPassphrase", "test-backhaul");
-	cJSON_AddStringToObject(root, "Fronthaul_SSID", "private_ssid");
-	cJSON_AddStringToObject(root, "Fronthaul_KeyPassphrase", "test-fronthaul");
-	cJSON_AddStringToObject(root, "Iot_SSID", "iot_ssid");
-	cJSON_AddStringToObject(root, "Iot_KeyPassphrase", "test-backhaul");
+	//TBD: This file to be updated with the configuration used for mesh_backhaul
+	if (!cJSON_GetObjectItem(root, "Backhaul_SSID"))
+		cJSON_AddStringToObject(root, "Backhaul_SSID", "mesh_backhaul");
+	if (!cJSON_GetObjectItem(root, "Backhaul_KeyPassphrase"))
+		cJSON_AddStringToObject(root, "Backhaul_KeyPassphrase", "test-backhaul");
+
+	//TBD: Fronthaul and IOT needs to be removed later.
+	//Added as temporary work around as vap configuration not working with wifi7 MLO build
+	if (!cJSON_GetObjectItem(root, "Fronthaul_SSID"))
+		cJSON_AddStringToObject(root, "Fronthaul_SSID", "private_ssid");
+	if (!cJSON_GetObjectItem(root, "Fronthaul_KeyPassphrase"))
+		cJSON_AddStringToObject(root, "Fronthaul_KeyPassphrase", "test-fronthaul");
+	if (!cJSON_GetObjectItem(root, "Iot_SSID"))
+		cJSON_AddStringToObject(root, "Iot_SSID", "iot_ssid");
+	if (!cJSON_GetObjectItem(root, "Iot_KeyPassphrase"))
+		cJSON_AddStringToObject(root, "Iot_KeyPassphrase", "test-backhaul");
+
 	//Enable 4 address mode by default in unified-wifi-mesh
-	cJSON_AddBoolToObject(root, "sta_4addr_mode_enabled", cJSON_True);
+	if (!cJSON_GetObjectItem(root, "sta_4addr_mode_enabled"))
+		cJSON_AddBoolToObject(root, "sta_4addr_mode_enabled", cJSON_True);
 
 	// Convert the JSON object to a string
 	char *jsonString = cJSON_Print(root);
 
 	// Write the JSON string to a file
-	FILE *file = fopen(EM_CFG_FILE, "w");
+	file = fopen(EM_CFG_FILE, "w");
 	if (file == NULL) {
 		printf("%s:%d Could not open file:%s for writing\n", __func__, __LINE__, EM_CFG_FILE);
 		cJSON_Delete(root);
