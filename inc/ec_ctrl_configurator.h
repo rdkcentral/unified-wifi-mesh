@@ -305,6 +305,18 @@ private:
 	bool process_direct_encap_dpp_gas_msg(uint8_t* frame, uint16_t len, uint8_t src_mac[ETH_ALEN]);
 
 	/**
+	 * @brief Finds the connection context based on the enrollee's bootstrapping key hash instead of MAC address
+	 * 
+	 * This function searches for a connection context that matches the provided enrollee hash.
+	 * 
+	 * @param enrollee_hash The hash of the enrollee's bootstrapping key.
+	 * @param hash_len The length of the enrollee hash.
+	 * @return A pair containing the enrollee MAC address as a string and a pointer to the corresponding connection context.
+	 *         If no match is found, returns an empty string and nullptr.
+	 */
+	std::optional<std::pair<std::string, ec_connection_context_t *>> find_conn_ctx(uint8_t* enrollee_hash, uint8_t hash_len);
+
+	/**
 	 * @brief Maps Enrollee MAC (as string) to whether or not the Reconfiguration flow has already begun
 	 * 
 	 * If we hear a Reconfiguration Announcement frame intended for us, but the Enrollee is already undergoing

@@ -475,6 +475,8 @@ public:
 	 * @param[out] hash_len The length of the hash.
 	 *
 	 * @return true if the parsing is successful, false otherwise.
+	 * 
+	 * @note `hash` is allocated by this function and must be freed by the caller.
 	 */
 	static bool parse_dpp_chirp_tlv(em_dpp_chirp_value_t* chirp_tlv,  uint16_t chirp_tlv_len, mac_addr_t *mac, uint8_t **hash, uint16_t *hash_len);
 
