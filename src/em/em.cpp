@@ -1911,9 +1911,16 @@ bool em_t::initialize_ec_manager(){
         mac_address,
         ops,
         service_type == em_service_type_ctrl,
-        ctx
+        ctx,
+        std::bind(&em_t::cfg_1905_handshake_complete_handler, this, 
+                  std::placeholders::_1, std::placeholders::_2)
     );
     return true;
+}
+
+void em_t::cfg_1905_handshake_complete_handler(uint8_t peer_al_mac[ETH_ALEN], bool is_group_key){
+    // TODO: I'm sure more is needed here
+    set_peer_1905_security_status(peer_al_mac, peer_1905_security_status::PEER_1905_SECURITY_SECURED);
 }
 
 em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr_t *mgr, em_profile_type_t profile, em_service_type_t type, bool is_al_em): m_data_model(), m_mgr(mgr), m_orch_state(), m_cmd(), m_sm(), m_service_type(), m_fd(0), m_ruid(*ruid), m_band(band), m_profile_type(profile), m_iq(), m_tid(), m_exit(), m_is_al_em(is_al_em)
