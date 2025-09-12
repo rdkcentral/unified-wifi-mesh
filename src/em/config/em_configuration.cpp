@@ -498,7 +498,7 @@ int em_configuration_t::create_bss_config_rprt_tlv(unsigned char *buff)
 	
 	for (i = 0; i < dm->get_num_radios(); i++) {
     	memcpy(rd_rprt->ruid, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t));
-    	rd_rprt->num_bss = 0;
+        rd_rprt->num_bss = 0;
     	bss_rprt = rd_rprt->bss_rprt;
 
     	for (j = 0; j < dm->get_num_bss(); j++) {
@@ -822,7 +822,7 @@ void em_configuration_t::print_ap_vendor_operational_bss_tlv(unsigned char *valu
 
 void em_configuration_t::handle_ap_vendor_operational_bss(unsigned char *value, unsigned int len)
 {
-	mac_addr_str_t	rd_mac_str, bss_mac_str;
+	mac_addr_str_t	rd_mac_str, bss_mac_str, mac_str;
 	em_ap_vendor_op_bss_radio_t		   *radio;
 	em_ap_vendor_operational_bss_t *bss;
 	em_ap_vendor_op_bss_t *ap;
@@ -855,6 +855,16 @@ void em_configuration_t::handle_ap_vendor_operational_bss(unsigned char *value, 
 			memcpy(dm_bss->m_bss_info.bssid.mac, bss->bssid, sizeof(mac_address_t));
 			dm_bss->m_bss_info.id.haul_type = static_cast<em_haul_type_t> (bss->haultype);
 			dm_bss->m_bss_info.vap_mode = static_cast<em_vap_mode_t> (bss->vap_mode);
+
+            if ((dm_bss->m_bss_info.id.haul_type == em_haul_type_backhaul) && (bss->vap_mode == 0)) {
+                if (memcmp(bss->bssid, ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0) {
+                    memcpy(dm->m_device.m_device_info.backhaul_mac.mac, bss->bssid, sizeof(mac_address_t));
+                    em_printfout("    Backhaul mac updated to: %s\n", dm_easy_mesh_t::macbytes_to_string(dm->m_device.m_device_info.backhaul_mac.mac, mac_str));
+                    em_printfout("    Backhaul AL ID: %s\n", dm_easy_mesh_t::macbytes_to_string(dm->m_device.m_device_info.backhaul_alid.mac, mac_str));
+
+                    dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
+                }
+            }
 			bss = reinterpret_cast<em_ap_vendor_operational_bss_t *>(reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_vendor_operational_bss_t));
 			all_bss_len += sizeof(em_ap_vendor_operational_bss_t);
 		}
@@ -1002,6 +1012,15 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst)
 
     tmp += tlv_len;
     len += static_cast<unsigned int> (tlv_len);
+
+    // Zero or One Backhaul STA Radio capabilities, 17.2.65 Backhaul STA Radio Capabilities TLV
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_bh_sta_radio_cap;
+    tlv_len = static_cast<short unsigned int> (create_bsta_radio_cap_tlv(tlv->value));
+    tlv->len = htons(tlv_len);
+
+    tmp += sizeof(em_tlv_t) + tlv_len;
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
 
     // One AP MLD Configuration TLV
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -1363,6 +1382,38 @@ int em_configuration_t::handle_bsta_mld_config_req(unsigned char *buff, unsigned
 	return 0;
 }
 
+int em_configuration_t::handle_bsta_radio_cap(unsigned char *buff, unsigned int len)
+{
+    dm_easy_mesh_t *dm = get_data_model();
+    em_bh_sta_radio_cap_t *bsta_radio_cap = reinterpret_cast<em_bh_sta_radio_cap_t*>(buff);
+    mac_addr_str_t mac_str, r_str;
+
+    em_printfout("      Rcvd Backhaul STA Radio Capabilities received, sta mac: %s for radio: %s, mac present?: %d\n\n",
+        dm_easy_mesh_t::macbytes_to_string(bsta_radio_cap->bsta_addr, mac_str),
+        dm_easy_mesh_t::macbytes_to_string(bsta_radio_cap->ruid, r_str), bsta_radio_cap->bsta_mac_present);
+
+    //find device based on this radio
+    em_device_info_t *dev = dm->get_device_info();
+    dm_radio_t *radio = dm->get_radio(bsta_radio_cap->ruid);
+    if (radio == NULL) {
+        return -1;
+    }
+
+    if (dev == NULL) {
+        return -1;
+    }
+
+    em_printfout("      BSTA device id from dm radio: %s\n",
+            dm_easy_mesh_t::macbytes_to_string(radio->m_radio_info.id.dev_mac, mac_str));
+    em_printfout("      BSTA Cap Device id: %s\n\n",
+            dm_easy_mesh_t::macbytes_to_string(dev->id.dev_mac, mac_str));
+
+    memcpy(dm->m_device.m_device_info.backhaul_sta, bsta_radio_cap->bsta_addr, sizeof(mac_address_t));
+    dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
+
+    return 0;
+}
+
 int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned int len)
 {
 	dm_easy_mesh_t	*dm;
@@ -1639,6 +1690,18 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 		printf("%s:%d: BSS Configuration Report handling failed\n", __func__, __LINE__);
 		return -1;
 	}
+
+    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        if (tlv->type != em_tlv_type_bh_sta_radio_cap) {
+            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+            tlv = reinterpret_cast <em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+            continue;
+        } else {
+            handle_bsta_radio_cap(tlv->value, tlv->len);
+            break;
+        }
+    }
+
 
     bool found_ap_mld = false;
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
@@ -2807,10 +2870,24 @@ int em_configuration_t::create_bsta_radio_cap_tlv(uint8_t *buff)
     for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
         auto* bss_info = dm->get_bss_info(i);
         if (!bss_info) continue;
+
+        em_printfout("  BSSID %s, vap_mode:%d, vap name: %s, haul type: %d",
+            util::mac_to_string(bss_info->bssid.mac).c_str(), bss_info->vap_mode, bss_info->bssid.name,  bss_info->id.haul_type);
+
         if (bss_info->id.haul_type != em_haul_type_backhaul) continue;
-        memcpy(bsta_radio_cap->bsta_addr, bss_info->bssid.mac, sizeof(mac_address_t));
-        memcpy(bsta_radio_cap->ruid, bss_info->id.ruid, sizeof(mac_address_t));
+        if (bss_info->vap_mode == em_vap_mode_sta) {
+            em_printfout("  BSTA: %s",
+                util::mac_to_string(bss_info->sta_mac).c_str());
+            memcpy(bsta_radio_cap->bsta_addr, bss_info->sta_mac, sizeof(mac_address_t));
+        } else {
+            memcpy(bsta_radio_cap->bsta_addr, bss_info->bssid.mac, sizeof(mac_address_t));
+        }
+
+        memcpy(bsta_radio_cap->ruid, bss_info->ruid.mac, sizeof(mac_address_t));
         bsta_radio_cap->bsta_mac_present = 1;
+        em_printfout("  Backhaul STA Radio Capabilities TLV: BSTA: %s of rad: %s",
+            util::mac_to_string(bsta_radio_cap->bsta_addr).c_str(),
+            util::mac_to_string(bss_info->ruid.mac).c_str());
         break;
     }
 
@@ -3639,6 +3716,13 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
             memcpy(dev_info.serial_number, attr->val, htons(attr->len));
             set_serial_number(dev_info.serial_number);
             //printf("%s:%d: Manufacturer:%s\n", __func__, __LINE__, dev_info.serial_number);
+            memcpy(dm->m_device.m_device_info.backhaul_alid.mac, get_peer_mac(), sizeof(mac_address_t));
+
+            dm_easy_mesh_t::macbytes_to_string(dm->m_device.m_device_info.backhaul_mac.mac, mac_str);
+            em_printfout("        Updated dm dev_info backhaul_mac: %s\n", mac_str);
+            dm_easy_mesh_t::macbytes_to_string(dm->m_device.m_device_info.backhaul_alid.mac, mac_str);
+            em_printfout("        Updated dm dev_info, backhaul_alid mac: %s\n", mac_str);
+
             dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
         } else if (id == attr_id_primary_device_type) {
         } else if (id == attr_id_device_name) {
