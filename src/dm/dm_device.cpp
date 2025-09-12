@@ -377,10 +377,6 @@ int dm_device_t::update_easymesh_json_cfg(bool colocated_mode)
  	//TBD: This file to be updated with the configuration used for mesh_backhaul
 	cJSON_AddStringToObject(root, "Backhaul_SSID", "mesh_backhaul");
 	cJSON_AddStringToObject(root, "Backhaul_KeyPassphrase", "test-backhaul");
-	cJSON_AddStringToObject(root, "Fronthaul_SSID", "private_ssid");
-	cJSON_AddStringToObject(root, "Fronthaul_KeyPassphrase", "test-fronthaul");
-	cJSON_AddStringToObject(root, "Iot_SSID", "iot_ssid");
-	cJSON_AddStringToObject(root, "Iot_KeyPassphrase", "test-backhaul");
 	//Enable 4 address mode by default in unified-wifi-mesh
 	cJSON_AddBoolToObject(root, "sta_4addr_mode_enabled", cJSON_True);
 
