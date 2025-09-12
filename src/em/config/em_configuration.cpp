@@ -3761,8 +3761,16 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
     if ((dm != NULL) && (hdr != NULL)) {
         memcpy(&network.m_net_info.ctrl_id.mac, &hdr->src, sizeof(mac_address_t));
         dm->set_network(network);
-        if (get_mgr()->get_al_node() != NULL) {
+        em_t* al_node = get_mgr()->get_al_node();
+        if (al_node != NULL) {
             get_ec_mgr().upgrade_to_onboarded_proxy_agent(hdr->src);
+#ifdef ENABLE_COLOCATED_1905_SECURE
+            if (al_node->get_peer_1905_security_status(hdr->src) == peer_1905_security_status::PEER_1905_SECURITY_NOT_STARTED) {
+                al_node->set_peer_1905_security_status(hdr->src, peer_1905_security_status::PEER_1905_SECURITY_IN_PROGRESS);
+                get_ec_mgr().start_secure_1905_layer(hdr->src);
+            }
+#endif
+
         }
     }
     return 0;

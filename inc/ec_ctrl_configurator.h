@@ -29,7 +29,7 @@ public:
 	 * @param[in] sec_ctx The security context containing C-signing key, PPK, NAK, and Connector.
 	 * @note This constructor initializes the base class ec_configurator_t with the provided parameters.
 	 */
-	ec_ctrl_configurator_t(const std::string& al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t sec_ctx);
+	ec_ctrl_configurator_t(const std::string& al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t sec_ctx, handshake_completed_handler handshake_complete);
 
 	/**
 	 * @brief Handle a chirp notification message TLV and direct it to the 1905 agent.

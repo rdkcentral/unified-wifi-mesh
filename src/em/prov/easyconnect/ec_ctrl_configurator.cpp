@@ -8,8 +8,8 @@
 #include "em_crypto.h"
 #include <netinet/in.h>
 
-ec_ctrl_configurator_t::ec_ctrl_configurator_t(const std::string& al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t sec_ctx) :
-                                               ec_configurator_t(al_mac_addr, ops, sec_ctx, false)
+ec_ctrl_configurator_t::ec_ctrl_configurator_t(const std::string& al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t sec_ctx, handshake_completed_handler handshake_complete) :
+                                               ec_configurator_t(al_mac_addr, ops, sec_ctx, false, handshake_complete)
 {
 
     // Generate completely random GMK on startup.

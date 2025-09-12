@@ -38,6 +38,12 @@
 #include <set>
 #include <string>
 
+enum peer_1905_security_status {
+	PEER_1905_SECURITY_NOT_STARTED = 0,
+	PEER_1905_SECURITY_IN_PROGRESS,
+	PEER_1905_SECURITY_SECURED
+};
+
 class em_mgr_t;
 class em_cmd_exec_t;
 
@@ -66,7 +72,8 @@ class em_t :
 
 	bool m_is_dpp_onboarding = false;
 
-    
+	std::map<std::string, peer_1905_security_status> m_1905_layer_peer_security_statuses;
+
 	/**!
 	 * @brief Executes the protocol run sequence.
 	 *
@@ -1234,6 +1241,23 @@ public:
 
 	bool get_devteststatus(){return dev_test_enable;}
 	void set_devteststatus(bool enable ) { dev_test_enable = enable;} 
+
+
+	void cfg_1905_handshake_complete_handler(uint8_t peer_al_mac[ETH_ALEN], bool is_group_key);
+
+	peer_1905_security_status get_peer_1905_security_status(uint8_t peer_al_mac[ETH_ALEN]){
+		std::string mac_str = util::mac_to_string(peer_al_mac);
+		if(m_1905_layer_peer_security_statuses.find(mac_str) != m_1905_layer_peer_security_statuses.end()){
+			return m_1905_layer_peer_security_statuses[mac_str];
+		}
+		return peer_1905_security_status::PEER_1905_SECURITY_NOT_STARTED;
+	}
+
+	void set_peer_1905_security_status(uint8_t peer_al_mac[ETH_ALEN], peer_1905_security_status status){
+		std::string mac_str = util::mac_to_string(peer_al_mac);
+		m_1905_layer_peer_security_statuses[mac_str] = status;
+	}
+
 	/**!
 	 * @brief Initializes the EasyMesh interface with the specified parameters.
 	 *

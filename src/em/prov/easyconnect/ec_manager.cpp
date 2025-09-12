@@ -6,8 +6,8 @@
 
 #include <memory>
 
-ec_manager_t::ec_manager_t(const std::string& al_mac_addr, ec_ops_t& ops, bool is_controller, std::optional<ec_persistent_sec_ctx_t> sec_ctx)
-    : m_is_controller(is_controller),  m_ops(ops), m_stored_al_mac_addr(al_mac_addr) {
+ec_manager_t::ec_manager_t(const std::string& al_mac_addr, ec_ops_t& ops, bool is_controller, std::optional<ec_persistent_sec_ctx_t> sec_ctx, handshake_completed_handler cfg_handshake_complete)
+    : m_is_controller(is_controller),  m_ops(ops), m_stored_al_mac_addr(al_mac_addr), m_handshake_complete(cfg_handshake_complete) {
 
     printf("EC Manager created with MAC: %s\n", al_mac_addr.c_str());  
     if (m_is_controller) {
@@ -17,7 +17,7 @@ ec_manager_t::ec_manager_t(const std::string& al_mac_addr, ec_ops_t& ops, bool i
         }
 
         m_configurator = std::unique_ptr<ec_ctrl_configurator_t>(
-            new ec_ctrl_configurator_t(al_mac_addr, ops, *sec_ctx)
+            new ec_ctrl_configurator_t(al_mac_addr, ops, *sec_ctx, cfg_handshake_complete)
         );
     } else {
         m_enrollee = std::unique_ptr<ec_enrollee_t>(
@@ -161,7 +161,7 @@ bool ec_manager_t::upgrade_to_onboarded_proxy_agent(uint8_t ctrl_al_mac[ETH_ALEN
     
     // Create a new proxy agent configurator
     std::vector<uint8_t> ctrl_al_mac_vec(ctrl_al_mac, ctrl_al_mac + ETH_ALEN);
-    m_configurator = std::unique_ptr<ec_pa_configurator_t>(new ec_pa_configurator_t(m_stored_al_mac_addr, ctrl_al_mac_vec, m_ops, sec_ctx, is_colocated));
+    m_configurator = std::unique_ptr<ec_pa_configurator_t>(new ec_pa_configurator_t(m_stored_al_mac_addr, ctrl_al_mac_vec, m_ops, sec_ctx, is_colocated, m_handshake_complete));
     em_printfout("Upgraded enrollee agent to proxy agent");
     return true;
 }

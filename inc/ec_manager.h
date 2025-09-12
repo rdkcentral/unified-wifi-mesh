@@ -23,7 +23,7 @@ public:
 	 * @param is_controller Whether the EM node holding this manager is the mesh controller or not.
 	 * @param sec_ctx The existing security context for the node.
 	 */
-	ec_manager_t(const std::string& al_mac_addr, ec_ops_t& ops, bool is_controller, std::optional<ec_persistent_sec_ctx_t> sec_ctx);
+	ec_manager_t(const std::string& al_mac_addr, ec_ops_t& ops, bool is_controller, std::optional<ec_persistent_sec_ctx_t> sec_ctx, handshake_completed_handler cfg_handshake_complete);
     
 	/**!
 	 * @brief Destructor for ec_manager_t class.
@@ -383,6 +383,7 @@ private:
     std::unique_ptr<ec_configurator_t> m_configurator;
     std::unique_ptr<ec_enrollee_t> m_enrollee;
     toggle_cce_func m_toggle_cce_fn;
+	handshake_completed_handler m_handshake_complete;
 };
 
 #endif // EC_MANAGER_H
