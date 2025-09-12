@@ -788,8 +788,14 @@ func drawNetworkTopologyGraph(
 
 			circle := canvas.NewCircle(transparentCol)
 			circle.Resize(circleSize)
+			if mldLinkCount > 0 {
+				//Green shadow ring around the edge of haultype circle if MLD supported.
+				circle.StrokeWidth = 6
+				circle.StrokeColor = color.RGBA{R: 10, G: 60, B: 20, A: 70}
+			}
 			circle.Move(circlePos)
 			container.Add(circle)
+
 		}
 
 		if meta.Icon != nil {

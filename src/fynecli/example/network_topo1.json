@@ -267,6 +267,7 @@
 											"IEEE": "802.11ax",
 											"BSSList":	[{
 													"BSSID":	"8a:86:a5:0a:35:5b",
+													"MLDAddr":  "aa:bb:bb:bb:ee:ff",
 													"HaulType":	"Fronthaul",
 													"VlanId": 12,
 													"SSID":	"private_ssid",
@@ -282,7 +283,19 @@
 										            "Enabled":	true,
 										            "TimeStamp":	"2025-07-31T01:44:39Z",
 										            "VapMode":	0,
-										            "STAList":      []
+										            "STAList":      [{
+														"ClientType":   "LAPTOP-0KTM6B3C",
+														"MACAddress":   "84:14:4d:e6:9e:3e",
+														"MLDAddr": "a2:b2:c2:d2:e2:f2",
+														"Associated":   true,
+														"SSID": "Public",
+														"SignalStrength": 0,
+														"LastConnectTime": 0,
+														"HTCapabilities": "e70917ffff000000000000000000000000000000000000000000",
+														"VHTCapabilities": "f6719003faff0000faff0020",
+														"HECapabilities": "",
+														"ClientCapabilities": ""
+                                                    }]
 									            }, {
 													"BSSID":	"8a:86:a5:0a:35:5d",
 													"HaulType":	"Backhaul",
@@ -305,6 +318,7 @@
 											"IEEE": "802.11ax",
 											"BSSList":	[{
 													"BSSID":	"8a:86:a5:0a:35:5e",
+													"MLDAddr": "a2:b2:c2:d2:e2:f2",
 													"HaulType":	"Fronthaul",
 													"VlanId": 12,
 													"SSID":	"private_ssid",
@@ -363,6 +377,7 @@
 											"IEEE": "802.11be",
 											"BSSList":	[{
 													"BSSID":	"8a:86:a5:0a:35:6d",
+													"MLDAddr": "a2:b2:c2:d2:e2:f2",
 													"HaulType":	"Fronthaul",
 													"VlanId": 12,
 													"SSID":	"private_ssid",
