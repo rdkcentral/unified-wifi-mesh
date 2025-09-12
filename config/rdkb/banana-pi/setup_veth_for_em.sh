@@ -91,12 +91,21 @@ if [ -f "$VETH_OUTPUT" ]; then
 fi
 
 if [ "$DO_OBTAIN_MAC" = false ]; then
-   if [ -f "$PREV_VETH_PEER_MACADDR" ]; then                                                         
-      VETH1_MACADDR=`cat $PREV_VETH_PEER_MACADDR`                                                  
-      ip link set dev $VETH_PEER address $VETH1_MACADDR                                                   
-   else
-      ifconfig $VETH_PEER | grep HWaddr | cut -d ' ' -f6 > $PREV_VETH_PEER_MACADDR
-   fi  
+    if [ -e "/sys/class/net/erouter0/address" ]; then
+       base_addr="$(cat /sys/class/net/erouter0/address)"
+    elif [ -e "/sys/class/net/lan0/address" ]; then
+       base_addr="$(cat /sys/class/net/lan0/address)"
+    else
+       base_addr="$(cat /sys/class/ieee80211/phy0/macaddress)"
+    fi
+    echo "Reading mac:$base_addr from lan0/erouter0/phy0"
+    #Convert the mac address into hex and increment by 1
+    VETH1_MACADDR=$(echo $base_addr | tr -d ':')
+    VETH1_MACADDR=$((0x$VETH1_MACADDR + 0x20))
+    #Obtain the VETH_PEER mac address by converting to str format
+    veth1_mac=$(printf "%012x" $VETH1_MACADDR | sed 's/../&:/g;s/:$//')
+    echo "$VETH_PEER macaddress: $veth1_mac"
+    ip link set dev $VETH_PEER address $veth1_mac
 fi
 
 if [ "$RESULT" = "$TEST_MSG" ]; then
