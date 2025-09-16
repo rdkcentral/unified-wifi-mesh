@@ -3,8 +3,8 @@
 #include "ec_util.h"
 
 ec_pa_configurator_t::ec_pa_configurator_t(const std::string& al_mac_addr, const std::vector<uint8_t>& ctrl_al_mac_addr,
-                                           ec_ops_t& ops, ec_persistent_sec_ctx_t& sec_ctx, bool is_colocated)
-                                            : ec_configurator_t(al_mac_addr, ops, sec_ctx, is_colocated)
+                                           ec_ops_t& ops, ec_persistent_sec_ctx_t& sec_ctx, bool is_colocated, handshake_completed_handler handshake_complete)
+                                            : ec_configurator_t(al_mac_addr, ops, sec_ctx, is_colocated, handshake_complete)
 {
     m_toggle_cce = ops.toggle_cce;
     m_send_chirp_notification = ops.send_chirp;
@@ -372,7 +372,12 @@ bool ec_pa_configurator_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint
         case ec_frame_type_recfg_auth_req: {
             break;
         }
+        case ec_frame_type_peer_disc_req: {
+            did_finish = handle_peer_disc_req_frame(ec_frame, dpp_frame_len, src_mac);
+            break;
+        }
         case ec_frame_type_peer_disc_rsp: {
+            did_finish = handle_peer_disc_resp_frame(ec_frame, dpp_frame_len, src_mac);
             break;
         }
         default:

@@ -52,6 +52,11 @@ extern "C"
  */
 //#define FEATURE_RECV_FREQ_ACT_SUB 
 
+// Enable support for 1905-layer securing on a colocated agent (onboarding using WSC onboarding)
+// This is enabled right now since currently the layer is not encrypted so functionality won't be broken
+// but when SoftHSM is hooked up and the layer is encrypted, this can commented out to disable the feature
+#define ENABLE_COLOCATED_1905_SECURE
+
 // START: Hardcoded EasyConnect values
 #define DPP_VERSION 0x02
 #define DPP_URI_TXT_PATH "/nvram/DPPURI.txt"

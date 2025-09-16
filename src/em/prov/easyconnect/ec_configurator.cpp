@@ -3,7 +3,7 @@
 #include "ec_util.h"
 #include "util.h"
 
-ec_configurator_t::ec_configurator_t(const std::string &al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t& sec_ctx, bool is_colocated_agent)
+ec_configurator_t::ec_configurator_t(const std::string &al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t& sec_ctx, bool is_colocated_agent, handshake_completed_handler handshake_complete)
     : m_al_mac_addr(al_mac_addr), m_is_colocated_agent(is_colocated_agent)
 {
     m_send_chirp_notification    = ops.send_chirp;
@@ -22,8 +22,7 @@ ec_configurator_t::ec_configurator_t(const std::string &al_mac_addr, ec_ops_t& o
         al_mac_addr, 
         ops.send_dir_encap_dpp, 
         ops.send_1905_eapol_encap,
-        std::bind(&ec_configurator_t::handle_1905_handshake_completed, 
-                  this, std::placeholders::_1, std::placeholders::_2));
+        handshake_complete);
 
     if (!sec_ctx.C_signing_key || !sec_ctx.pp_key || !sec_ctx.net_access_key || !sec_ctx.connector) {
         em_printfout("Key(s) missing, cannot secure 1905 layer!");

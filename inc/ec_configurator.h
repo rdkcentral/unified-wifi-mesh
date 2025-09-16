@@ -25,7 +25,7 @@ public:
 	 * @param sec_ctx The existing security context. Either generated elsewhere or imported from the enrollee.
 	 * @param is_colocated_agent True if this is a co-located agent, false if it is a non-colocated agent or a controller.
 	 */
-	ec_configurator_t(const std::string& al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t& sec_ctx, bool is_colocated_agent);
+	ec_configurator_t(const std::string& al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t& sec_ctx, bool is_colocated_agent, handshake_completed_handler handshake_complete);
     
 	/**!
 	 * @brief Destructor for ec_configurator_t class.

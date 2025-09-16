@@ -2858,7 +2858,12 @@ int em_configuration_t::create_akm_suite_cap_tlv(uint8_t *buff)
     em_bh_akm_suite_t *bh_akm_suite = bh_akm_suite_info->suites;
     // Copy backhaul AKMs
     for (size_t i = 0; i < bh_akms_vec.size(); i++) {
+        if (bh_akms_vec[i].empty()) continue;
         std::vector<uint8_t> bh_akm_bytes = util::akm_to_bytes(bh_akms_vec[i]);
+        if (bh_akm_bytes.size() != 4) {
+            em_printfout("Warning: Could not map backhaul AKM string '%s' to AKM suite bytes, skipping", bh_akms_vec[i].c_str());
+            continue;
+        }
         // OUI is first 3 bytes, suite type is last byte
         memcpy(bh_akm_suite[i].oui, bh_akm_bytes.data(), 3);
         bh_akm_suite[i].akm_suite_type = bh_akm_bytes[3];
@@ -2868,7 +2873,12 @@ int em_configuration_t::create_akm_suite_cap_tlv(uint8_t *buff)
 
     // Copy fronthaul AKMs
     for (size_t i = 0; i < fh_akms_vec.size(); i++) {
+        if (fh_akms_vec[i].empty()) continue;
         std::vector<uint8_t> fh_akm_bytes = util::akm_to_bytes(fh_akms_vec[i]);
+        if (fh_akm_bytes.size() != 4) {
+            em_printfout("Warning: Could not map fronthaul AKM string '%s' to AKM suite bytes, skipping", fh_akms_vec[i].c_str());
+            continue;
+        }
         // OUI is first 3 bytes, suite type is last byte
         memcpy(fh_akm_suite[i].oui, fh_akm_bytes.data(), 3);
         fh_akm_suite[i].akm_suite_type = fh_akm_bytes[3];
@@ -3751,8 +3761,16 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
     if ((dm != NULL) && (hdr != NULL)) {
         memcpy(&network.m_net_info.ctrl_id.mac, &hdr->src, sizeof(mac_address_t));
         dm->set_network(network);
-        if (get_mgr()->get_al_node() != NULL) {
+        em_t* al_node = get_mgr()->get_al_node();
+        if (al_node != NULL) {
             get_ec_mgr().upgrade_to_onboarded_proxy_agent(hdr->src);
+#ifdef ENABLE_COLOCATED_1905_SECURE
+            if (al_node->get_peer_1905_security_status(hdr->src) == peer_1905_security_status::PEER_1905_SECURITY_NOT_STARTED) {
+                al_node->set_peer_1905_security_status(hdr->src, peer_1905_security_status::PEER_1905_SECURITY_IN_PROGRESS);
+                get_ec_mgr().start_secure_1905_layer(hdr->src);
+            }
+#endif
+
         }
     }
     return 0;

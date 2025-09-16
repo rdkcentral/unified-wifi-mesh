@@ -25,7 +25,7 @@ public:
 	 *
 	 * @note This constructor is part of the ec_pa_configurator_t class which extends ec_configurator_t.
 	 */
-	ec_pa_configurator_t(const std::string& al_mac_addr, const std::vector<uint8_t>& ctrl_al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t& sec_ctx, bool is_colocated);
+	ec_pa_configurator_t(const std::string& al_mac_addr, const std::vector<uint8_t>& ctrl_al_mac_addr, ec_ops_t& ops, ec_persistent_sec_ctx_t& sec_ctx, bool is_colocated, handshake_completed_handler handshake_complete);
     
 	/**
 	 * @brief Handles a presence announcement 802.11 frame, performing the necessary actions and possibly passing to 1905.
