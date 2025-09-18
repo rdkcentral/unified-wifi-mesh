@@ -178,6 +178,10 @@ int em_cmd_cli_t::execute(char *result)
 	SSL_CTX *ctx;
 	SSL *ssl;
 
+    unsigned char buffer[EM_MAX_EVENT_DATA_LEN];
+    int total_read = 0;
+    int bytes;
+
     evt = get_event();
     param = get_param();
 
@@ -480,14 +484,43 @@ int em_cmd_cli_t::execute(char *result)
 	}
     
     /* Receive result. */
-    if ((ret = SSL_read(ssl, (unsigned char *)result, EM_MAX_EVENT_DATA_LEN)) <= 0) {
+    while (total_read < EM_MAX_EVENT_DATA_LEN) {
+        bytes = SSL_read(ssl, buffer + total_read, EM_MAX_EVENT_DATA_LEN - total_read);
+        if (bytes > 0) {
+            total_read += bytes;
+        } else {
+            switch(SSL_get_error(ssl, bytes)) {
+                case SSL_ERROR_WANT_READ:
+                case SSL_ERROR_WANT_WRITE:
+                    // Retry in non-blocking mode
+                    continue;
+                case SSL_ERROR_ZERO_RETURN:
+                    // Connection closed cleanly
+                    break;
+                default:
+                    // Fatal error
+                    printf("%s:%d: result read error on socket, err:%d\n", __func__, __LINE__, errno);
+                    close(dsock);
+                    SSL_free(ssl);
+                    SSL_CTX_free(ctx);
+                    return -1;
+            }
+            break;
+        }
+    }
+
+    if (total_read <= 0) {
         printf("%s:%d: result read error on socket, err:%d\n", __func__, __LINE__, errno);
-		close(dsock);		
-		SSL_free(ssl);
-		SSL_CTX_free(ctx);
+        close(dsock);
+        SSL_free(ssl);
+        SSL_CTX_free(ctx);
         return -1;
     }
 
+    // Copy the data to result buffer
+    memcpy(result, buffer, total_read);
+
+    // success
     close(dsock);
 	SSL_free(ssl);
 	SSL_CTX_free(ctx);
