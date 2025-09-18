@@ -162,9 +162,16 @@ int db_easy_mesh_t::update_row(db_client_t& db_client, ...)
     format[strlen(format) - 2] = 0;
     snprintf(tmp, sizeof(db_query_t), " where %s = ", m_columns[0].m_name);
     snprintf(format + strlen(format), sizeof(format) - strlen(format), "%s", tmp);
-
     snprintf(format + strlen(format), sizeof(format) - strlen(format), "%s", get_column_format(col_fmt, 0));
     format[strlen(format) - 2] = 0;
+
+    /* Extending query with extra BSSID check only for STAList table updation */
+    if(strncmp(m_table_name, "STAList", sizeof(m_table_name)) == 0) {
+        snprintf(tmp, sizeof(db_query_t), " and %s = ", m_columns[1].m_name);
+        snprintf(format + strlen(format), sizeof(format) - strlen(format), "%s", tmp);
+        snprintf(format + strlen(format), sizeof(format) - strlen(format), "%s", get_column_format(col_fmt, 1));
+        format[strlen(format) - 2] = 0;
+    }
 
     va_start(list, db_client);
     (void) vsnprintf(query, sizeof(db_query_t), format, list);

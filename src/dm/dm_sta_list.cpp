@@ -226,7 +226,8 @@ int dm_sta_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
 						info->signal_strength, info->rcpi, info->util_tx, info->util_rx, info->pkts_tx, info->pkts_rx,
 						info->bytes_tx, info->bytes_rx, info->errors_tx, info->errors_rx,
 						info->frame_body_len, frame_body,
-						dm_easy_mesh_t::macbytes_to_string(info->id, sta_mac_str));
+						dm_easy_mesh_t::macbytes_to_string(info->id, sta_mac_str),
+						dm_easy_mesh_t::macbytes_to_string(info->bssid, bssid_mac_str));
 			break;
 
 		case dm_orch_type_db_delete:
