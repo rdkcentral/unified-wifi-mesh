@@ -194,6 +194,53 @@ bool dm_sta_list_t::operator == (const db_easy_mesh_t& obj)
     return true;
 }
 
+int dm_sta_list_t::update_row(db_client_t& db_client, ...)
+{
+    unsigned int i;
+    db_query_t  tmp, format, query;
+    va_list list;
+    db_fmt_t    col_fmt;
+    void *ctx;
+
+    snprintf(format, sizeof(db_query_t), "update %s set ", m_table_name);
+
+    for (i = 1; i < m_num_cols; i++) {
+        memset(tmp, 0, sizeof(db_query_t));
+        snprintf(tmp, sizeof(db_query_t), "%s = ", m_columns[i].m_name);
+        snprintf(format + strlen(format), sizeof(format) - strlen(format), "%s", tmp);
+        snprintf(format + strlen(format), sizeof(format) - strlen(format), "%s", get_column_format(col_fmt, i));
+    }
+
+    format[strlen(format) - 2] = 0;
+    snprintf(tmp, sizeof(db_query_t), " where %s = ", m_columns[0].m_name);
+    snprintf(format + strlen(format), sizeof(format) - strlen(format), "%s", tmp);
+    snprintf(format + strlen(format), sizeof(format) - strlen(format), "%s", get_column_format(col_fmt, 0));
+    format[strlen(format) - 2] = 0;
+
+    /* Extending query with extra BSSID check only for STAList table updation */
+    if(strncmp(m_table_name, "STAList", sizeof(m_table_name)) == 0) {
+        snprintf(tmp, sizeof(db_query_t), " and %s = ", m_columns[1].m_name);
+        snprintf(format + strlen(format), sizeof(format) - strlen(format), "%s", tmp);
+        snprintf(format + strlen(format), sizeof(format) - strlen(format), "%s", get_column_format(col_fmt, 1));
+        format[strlen(format) - 2] = 0;
+    }
+    else
+    {
+        em_printfout("update_row called for DB update other than STAList table updation");
+    }
+
+    va_start(list, db_client);
+    (void) vsnprintf(query, sizeof(db_query_t), format, list);
+    va_end(list);
+
+    //printf("%s:%d: Query: %s\n", __func__, __LINE__, query);
+
+    ctx = db_client.execute(query);
+    while (db_client.next_result(ctx) == true);
+
+    return 0;
+}
+
 int dm_sta_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *data)
 {
     mac_addr_str_t sta_mac_str, bssid_mac_str, radio_mac_str;
@@ -226,7 +273,8 @@ int dm_sta_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
 						info->signal_strength, info->rcpi, info->util_tx, info->util_rx, info->pkts_tx, info->pkts_rx,
 						info->bytes_tx, info->bytes_rx, info->errors_tx, info->errors_rx,
 						info->frame_body_len, frame_body,
-						dm_easy_mesh_t::macbytes_to_string(info->id, sta_mac_str));
+						dm_easy_mesh_t::macbytes_to_string(info->id, sta_mac_str),
+						dm_easy_mesh_t::macbytes_to_string(info->bssid, bssid_mac_str));
 			break;
 
 		case dm_orch_type_db_delete:
