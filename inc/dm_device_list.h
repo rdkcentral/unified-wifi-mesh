@@ -148,6 +148,7 @@ public:
 	 * @note Ensure that the database client is properly initialized before calling this function.
 	 */
 	bool search_db(db_client_t& db_client, void *ctx, void *key);
+	bool compare_db(db_client_t& db_client, const dm_device_t& sta);
     bool operator == (const db_easy_mesh_t& obj);
     
 	/**!
