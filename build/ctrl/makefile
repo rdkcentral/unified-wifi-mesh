@@ -184,4 +184,34 @@ run:
 clean_tests:
 	$(RM) $(TEST_OBJECTS) $(TEST_EXEC)
 
-.PHONY: all test install_gtest check_test_files clean_tests compile_test_objects clean run
+#Unit tests
+UNITTEST_DIR = $(ONEWIFI_EM_HOME)/Unittests
+UNITTEST_EXEC = $(INSTALLDIR)/bin/onewifi_em_ctrl_test
+UNITTEST_SOURCES = $(wildcard $(UNITTEST_DIR)/*.cpp)
+UNITTEST_OBJECTS = $(UNITTEST_SOURCES:.cpp=.o)
+UNITTEST_CXXFLAGS = $(TEST_CXXFLAGS)
+
+# Build unittest executable but do NOT run it
+build_unittest_only: check_unittest_files install_gtest $(UNITTEST_OBJECTS)
+	@$(MAKE) $(ALLOBJECTS) TESTING=1
+	@echo "Building unittest executable with same link order as main build..."
+	$(CXX) -o $(UNITTEST_EXEC) $(UNITTEST_OBJECTS) $(ALLOBJECTS) $(LIBDIRS) $(LIBS) -lgtest -lgtest_main -pthread -fsanitize=address -fsanitize=undefined
+	@echo "Unittest executable built as $(UNITTEST_EXEC) (not executed)."
+
+# Compile unit test source files	
+$(UNITTEST_DIR)/%.o: $(UNITTEST_DIR)/%.cpp
+	@echo "Compiling unittest file $<..."
+	$(CXX) $(UNITTEST_CXXFLAGS) -o $@ -c $<	
+
+# Check if any test files exist
+check_unittest_files:
+	@if [ -z "$(UNITTEST_SOURCES)" ]; then \
+		echo "Error: No unittest files found in $(UNITTEST_DIR)/"; \
+		exit 1; \
+	fi
+	
+# Clean test files only
+clean_unittests:
+	$(RM) $(UNITTEST_OBJECTS) $(UNITTEST_EXEC)
+	
+.PHONY: all test install_gtest check_test_files clean_tests compile_test_objects clean run build_unittest_only check_unittest_files clean_unittests
