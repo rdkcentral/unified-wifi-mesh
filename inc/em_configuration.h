@@ -788,7 +788,8 @@ class em_configuration_t {
 	 * @note Ensure the buffer is properly allocated and the length is correct before calling this function.
 	 */
 	int handle_topology_notification(unsigned char *buff, unsigned int len);
-	
+	int handle_bsta_radio_cap(unsigned char *buff, unsigned int len);
+
 	/**!
 	 * @brief Handles the operational BSS for the access point.
 	 *

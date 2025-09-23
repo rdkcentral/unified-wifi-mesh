@@ -315,6 +315,7 @@ void dm_bss_t::operator = (const dm_bss_t& obj)
     this->m_bss_info.connect_status = obj.m_bss_info.connect_status;
     this->m_bss_info.vlan_id = obj.m_bss_info.vlan_id;
     memcpy(&this->m_bss_info.mld_mac, &obj.m_bss_info.mld_mac, sizeof(mac_address_t));
+    memcpy(&this->m_bss_info.sta_mac, &obj.m_bss_info.sta_mac, sizeof(mac_address_t));
 }
 
 
@@ -358,6 +359,7 @@ bool dm_bss_t::operator == (const dm_bss_t& obj)
     ret += !(this->m_bss_info.connect_status == obj.m_bss_info.connect_status);
     ret += !(this->m_bss_info.vlan_id == obj.m_bss_info.vlan_id);
     ret += (memcmp(&this->m_bss_info.mld_mac, &obj.m_bss_info.mld_mac, sizeof(mac_address_t)) != 0);
+    ret += (memcmp(&this->m_bss_info.sta_mac, &obj.m_bss_info.sta_mac, sizeof(mac_address_t)) != 0);
 
     if (ret > 0)
         return false;
