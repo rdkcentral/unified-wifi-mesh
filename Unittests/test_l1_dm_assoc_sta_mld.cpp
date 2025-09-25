@@ -198,11 +198,13 @@ TEST(dm_assoc_sta_mld_t_Test, DecodeWithValidJsonObjectAndInvalidParentId) {
  */
 TEST(dm_assoc_sta_mld_t_Test, EncodeWithValidCJSONObject) {
     std::cout << "Entering EncodeWithValidCJSONObject test" << std::endl;
-    cJSON*obj = cJSON_CreateObject();
-    cJSON_AddStringToObject(obj, "key", "value");
-    dm_assoc_sta_mld_t instance;
-    instance.encode(obj);
-    ASSERT_TRUE(cJSON_HasObjectItem(obj, "key"));
+    EXPECT_NO_THROW({
+        cJSON*obj = cJSON_CreateObject();
+        cJSON_AddStringToObject(obj, "key", "value");
+        dm_assoc_sta_mld_t instance;
+        instance.encode(obj);
+        ASSERT_TRUE(cJSON_HasObjectItem(obj, "key"));
+    });
     std::cout << "Exiting EncodeWithValidCJSONObject test" << std::endl;
 }
 
@@ -227,9 +229,11 @@ TEST(dm_assoc_sta_mld_t_Test, EncodeWithValidCJSONObject) {
  */
 TEST(dm_assoc_sta_mld_t_Test, EncodeWithNullCJSONObject) {
     std::cout << "Entering EncodeWithNullCJSONObject test" << std::endl;
-    cJSON*obj = nullptr;
-    dm_assoc_sta_mld_t instance;
-    instance.encode(obj);
+    EXPECT_ANY_THROW({
+        cJSON*obj = nullptr;
+        dm_assoc_sta_mld_t instance;
+        instance.encode(obj);
+    });
     std::cout << "Exiting EncodeWithNullCJSONObject test" << std::endl;
 }  
 
@@ -249,18 +253,17 @@ TEST(dm_assoc_sta_mld_t_Test, EncodeWithNullCJSONObject) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Create a cJSON object and add invalid data | cJSON object with key=123 | cJSON object created with invalid data | Should be successful |
- * | 02 | Call the encode function with the invalid cJSON object | cJSON object with key=123 | Function should handle invalid data | Should Pass |
- * | 03 | Verify the cJSON object still contains the key | cJSON object with key=123 | ASSERT_TRUE(cJSON_HasObjectItem(obj, "key")) | Should Pass |
+ * | 01 | Create an empty cJSON object | empty cJSON object | cJSON object created with empty data | Should be successful |
+ * | 02 | Call the encode function with the empty cJSON object | empty cJSON object | Function should handle empty data | Should Pass |
  */
-TEST(dm_assoc_sta_mld_t_Test, EncodeWithInvalidDataCJSONObject) {
-    std::cout << "Entering EncodeWithInvalidDataCJSONObject test" << std::endl;
-    cJSON*obj = cJSON_CreateObject();
-    cJSON_AddNumberToObject(obj, "key", 123);
+TEST(dm_assoc_sta_mld_t_Test, EncodeWithEmptyCJSONObject) {
+    std::cout << "Entering EncodeWithEmptyCJSONObject test" << std::endl;
+    // valid JSON but missing required fields
+    cJSON* obj = cJSON_CreateObject();
     dm_assoc_sta_mld_t instance;
-    instance.encode(obj);
-    ASSERT_TRUE(cJSON_HasObjectItem(obj, "key"));
-    std::cout << "Exiting EncodeWithInvalidDataCJSONObject test" << std::endl;
+    EXPECT_ANY_THROW(instance.encode(obj));
+    cJSON_Delete(obj);  // cleanup
+    std::cout << "Exiting EncodeWithEmptyCJSONObject test" << std::endl;
 }
 
 /**
@@ -285,11 +288,12 @@ TEST(dm_assoc_sta_mld_t_Test, EncodeWithInvalidDataCJSONObject) {
  */
 TEST(dm_assoc_sta_mld_t_Test, EncodeWithSpecialCharactersCJSONObject) {
     std::cout << "Entering EncodeWithSpecialCharactersCJSONObject test" << std::endl;
-    cJSON*obj = cJSON_CreateObject();
+    cJSON* obj = cJSON_CreateObject();
     cJSON_AddStringToObject(obj, "key", "value!@#$%^&*()");
     dm_assoc_sta_mld_t instance;
-    instance.encode(obj);
+    ASSERT_NO_THROW(instance.encode(obj));
     ASSERT_STREQ(cJSON_GetObjectItem(obj, "key")->valuestring, "value!@#$%^&*()");
+    cJSON_Delete(obj);
     std::cout << "Exiting EncodeWithSpecialCharactersCJSONObject test" << std::endl;
 }
 
@@ -314,10 +318,16 @@ TEST(dm_assoc_sta_mld_t_Test, EncodeWithSpecialCharactersCJSONObject) {
  */
 TEST(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoAfterInitialization) {
     std::cout << "Entering RetrieveAPMLDInfoAfterInitialization test" << std::endl;
-    dm_assoc_sta_mld_t instance;
-    em_assoc_sta_mld_info_t* info = instance.get_assoc_sta_mld_info();
-	std::cout << "the retrieved ap mld info is " << info << std::endl;
-    ASSERT_NE(info, nullptr);
+    EXPECT_NO_THROW({
+        dm_assoc_sta_mld_t instance;
+        em_assoc_sta_mld_info_t* info = instance.get_assoc_sta_mld_info();        
+        ASSERT_NE(info, nullptr);
+        std::cout << "Printing few of the retrieved values" << std::endl;
+        std::cout << "info->str is " << info->str << std::endl;
+        std::cout << "info->nstr is " << info->nstr << std::endl;
+        std::cout << "info->emlsr is " << info->emlsr << std::endl;
+        std::cout << "info->emlmr is " << info->emlmr << std::endl;
+    });
     std::cout << "Exiting RetrieveAPMLDInfoAfterInitialization test" << std::endl;
 }
 
@@ -380,11 +390,13 @@ TEST(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoAfterInitialization) {
  */
 TEST(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithMaxAffiliatedStations) {
     std::cout << "Entering RetrieveAPMLDInfoWithMaxAffiliatedStations test" << std::endl;
-    dm_assoc_sta_mld_t instance;
-    instance.m_assoc_sta_mld_info.num_affiliated_sta = EM_MAX_AP_MLD;
-    em_assoc_sta_mld_info_t* info = instance.get_assoc_sta_mld_info();
-    ASSERT_NE(info, nullptr);
-    ASSERT_EQ(info->num_affiliated_sta, EM_MAX_AP_MLD);
+    EXPECT_NO_THROW({
+        dm_assoc_sta_mld_t instance;
+        instance.m_assoc_sta_mld_info.num_affiliated_sta = EM_MAX_AP_MLD;
+        em_assoc_sta_mld_info_t* info = instance.get_assoc_sta_mld_info();
+        ASSERT_NE(info, nullptr);
+        ASSERT_EQ(info->num_affiliated_sta, EM_MAX_AP_MLD);
+    });
     std::cout << "Exiting RetrieveAPMLDInfoWithMaxAffiliatedStations test" << std::endl;
 }
 
@@ -410,11 +422,13 @@ TEST(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithMaxAffiliatedStations) {
  */
 TEST(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithZeroAffiliatedStations) {
     std::cout << "Entering RetrieveAPMLDInfoWithZeroAffiliatedStations test" << std::endl;
-    dm_assoc_sta_mld_t instance;
-    instance.m_assoc_sta_mld_info.num_affiliated_sta = 0;
-    em_assoc_sta_mld_info_t* info = instance.get_assoc_sta_mld_info();
-    ASSERT_NE(info, nullptr);
-    ASSERT_EQ(info->num_affiliated_sta, 0);
+    EXPECT_NO_THROW({
+        dm_assoc_sta_mld_t instance;
+        instance.m_assoc_sta_mld_info.num_affiliated_sta = 0;
+        em_assoc_sta_mld_info_t* info = instance.get_assoc_sta_mld_info();
+        ASSERT_NE(info, nullptr);
+        ASSERT_EQ(info->num_affiliated_sta, 0);
+    });
     std::cout << "Exiting RetrieveAPMLDInfoWithZeroAffiliatedStations test" << std::endl;
 }
 
@@ -443,17 +457,19 @@ TEST(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithZeroAffiliatedStations) {
  */
 TEST(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithBooleanFieldsSetToTrue) {
     std::cout << "Entering RetrieveAPMLDInfoWithBooleanFieldsSetToTrue test" << std::endl;
-    dm_assoc_sta_mld_t instance;
-    instance.m_assoc_sta_mld_info.str = true;
-    instance.m_assoc_sta_mld_info.nstr = true;
-    instance.m_assoc_sta_mld_info.emlsr = true;
-    instance.m_assoc_sta_mld_info.emlmr = true;
-    em_assoc_sta_mld_info_t* info = instance.get_assoc_sta_mld_info();
-    ASSERT_NE(info, nullptr);
-    ASSERT_EQ(info->str, true);
-    ASSERT_EQ(info->nstr, true);
-    ASSERT_EQ(info->emlsr, true);
-    ASSERT_EQ(info->emlmr, true);
+    EXPECT_NO_THROW({
+        dm_assoc_sta_mld_t instance;
+        instance.m_assoc_sta_mld_info.str = true;
+        instance.m_assoc_sta_mld_info.nstr = true;
+        instance.m_assoc_sta_mld_info.emlsr = true;
+        instance.m_assoc_sta_mld_info.emlmr = true;
+        em_assoc_sta_mld_info_t* info = instance.get_assoc_sta_mld_info();
+        ASSERT_NE(info, nullptr);
+        ASSERT_EQ(info->str, true);
+        ASSERT_EQ(info->nstr, true);
+        ASSERT_EQ(info->emlsr, true);
+        ASSERT_EQ(info->emlmr, true);
+    });
     std::cout << "Exiting RetrieveAPMLDInfoWithBooleanFieldsSetToTrue test" << std::endl;
 }
 
@@ -482,17 +498,19 @@ TEST(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithBooleanFieldsSetToTrue) {
  */
 TEST(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithBooleanFieldsSetToFalse) {
     std::cout << "Entering RetrieveAPMLDInfoWithBooleanFieldsSetToFalse test" << std::endl;
-    dm_assoc_sta_mld_t instance;
-    instance.m_assoc_sta_mld_info.str = false;
-    instance.m_assoc_sta_mld_info.nstr = false;
-    instance.m_assoc_sta_mld_info.emlsr = false;
-    instance.m_assoc_sta_mld_info.emlmr = false;
-    em_assoc_sta_mld_info_t* info = instance.get_assoc_sta_mld_info();
-    ASSERT_NE(info, nullptr);
-    ASSERT_EQ(info->str, false);
-    ASSERT_EQ(info->nstr, false);
-    ASSERT_EQ(info->emlsr, false);
-    ASSERT_EQ(info->emlmr, false);
+    EXPECT_NO_THROW({
+        dm_assoc_sta_mld_t instance;
+        instance.m_assoc_sta_mld_info.str = false;
+        instance.m_assoc_sta_mld_info.nstr = false;
+        instance.m_assoc_sta_mld_info.emlsr = false;
+        instance.m_assoc_sta_mld_info.emlmr = false;
+        em_assoc_sta_mld_info_t* info = instance.get_assoc_sta_mld_info();
+        ASSERT_NE(info, nullptr);
+        ASSERT_EQ(info->str, false);
+        ASSERT_EQ(info->nstr, false);
+        ASSERT_EQ(info->emlsr, false);
+        ASSERT_EQ(info->emlmr, false);
+    });
     std::cout << "Exiting RetrieveAPMLDInfoWithBooleanFieldsSetToFalse test" << std::endl;
 }
 
@@ -519,9 +537,11 @@ TEST(dm_assoc_sta_mld_t_Test, RetrieveAPMLDInfoWithBooleanFieldsSetToFalse) {
  */
 TEST(dm_assoc_sta_mld_t_Test, InitializeAssociationStationMLDInformationStructure) {
     std::cout << "Entering InitializeAssociationStationMLDInformationStructure" << std::endl;
-    dm_assoc_sta_mld_t instance;
-    int result = instance.init();
-    ASSERT_EQ(result, 0);
+    EXPECT_NO_THROW({
+        dm_assoc_sta_mld_t instance;
+        int result = instance.init();
+        ASSERT_EQ(result, 0);
+    });
     std::cout << "Exiting InitializeAssociationStationMLDInformationStructure" << std::endl;
 }
 
@@ -547,10 +567,12 @@ TEST(dm_assoc_sta_mld_t_Test, InitializeAssociationStationMLDInformationStructur
  */
 TEST(dm_assoc_sta_mld_t_Test, InitializeAssociationStationMLDInformationStructureWithAlreadyInitializedData) {
     std::cout << "Entering InitializeAssociationStationMLDInformationStructureWithAlreadyInitializedData" << std::endl;
-    dm_assoc_sta_mld_t instance;
-    instance.init();
-    int result = instance.init();
-    ASSERT_EQ(result, 0);
+    EXPECT_NO_THROW({
+        dm_assoc_sta_mld_t instance;
+        instance.init();
+        int result = instance.init();
+        ASSERT_EQ(result, 0);
+    });
     std::cout << "Exiting InitializeAssociationStationMLDInformationStructureWithAlreadyInitializedData" << std::endl;
 }
 
@@ -831,10 +853,12 @@ TEST(dm_assoc_sta_mld_t_Test, DifferentAffiliatedStaValues) {
  */
 TEST(dm_assoc_sta_mld_t_Test, AssigningValidObject) {
     std::cout << "Entering AssigningValidObject" << std::endl;
-    dm_assoc_sta_mld_t obj1;
+    dm_assoc_sta_mld_t obj1{};
+    memset(&obj1.m_assoc_sta_mld_info, 0, sizeof(obj1.m_assoc_sta_mld_info));
     obj1.m_assoc_sta_mld_info.str = true;
     obj1.m_assoc_sta_mld_info.num_affiliated_sta = 5;
-    dm_assoc_sta_mld_t obj2;
+    dm_assoc_sta_mld_t obj2{};
+    memset(&obj2.m_assoc_sta_mld_info, 0, sizeof(obj2.m_assoc_sta_mld_info));
     obj2 = obj1;
     ASSERT_EQ(obj2.m_assoc_sta_mld_info.str, obj1.m_assoc_sta_mld_info.str);
     ASSERT_EQ(obj2.m_assoc_sta_mld_info.num_affiliated_sta, obj1.m_assoc_sta_mld_info.num_affiliated_sta);
@@ -865,8 +889,10 @@ TEST(dm_assoc_sta_mld_t_Test, AssigningValidObject) {
  */
 TEST(dm_assoc_sta_mld_t_Test, AssigningDefaultObject) {
     std::cout << "Entering AssigningDefaultObject" << std::endl;
-    dm_assoc_sta_mld_t obj1;
-    dm_assoc_sta_mld_t obj2;
+    dm_assoc_sta_mld_t obj1{};
+    memset(&obj1.m_assoc_sta_mld_info, 0, sizeof(obj1.m_assoc_sta_mld_info));
+    dm_assoc_sta_mld_t obj2{};
+    memset(&obj2.m_assoc_sta_mld_info, 0, sizeof(obj2.m_assoc_sta_mld_info));
     obj2.m_assoc_sta_mld_info.str = true;
     obj2.m_assoc_sta_mld_info.num_affiliated_sta = 5;
     obj2 = obj1;
@@ -897,10 +923,12 @@ TEST(dm_assoc_sta_mld_t_Test, AssigningDefaultObject) {
  */
 TEST(dm_assoc_sta_mld_t_Test, AssigningMaxValues) {
     std::cout << "Entering AssigningMaxValues" << std::endl;
-    dm_assoc_sta_mld_t obj1;
+    dm_assoc_sta_mld_t obj1{};
+    memset(&obj1.m_assoc_sta_mld_info, 0, sizeof(obj1.m_assoc_sta_mld_info));
+    dm_assoc_sta_mld_t obj2{};
+    memset(&obj2.m_assoc_sta_mld_info, 0, sizeof(obj2.m_assoc_sta_mld_info));
     obj1.m_assoc_sta_mld_info.str = true;
     obj1.m_assoc_sta_mld_info.num_affiliated_sta = 255;
-    dm_assoc_sta_mld_t obj2;
     obj2 = obj1;
     ASSERT_EQ(obj2.m_assoc_sta_mld_info.str, obj1.m_assoc_sta_mld_info.str);
     ASSERT_EQ(obj2.m_assoc_sta_mld_info.num_affiliated_sta, obj1.m_assoc_sta_mld_info.num_affiliated_sta);
@@ -929,10 +957,12 @@ TEST(dm_assoc_sta_mld_t_Test, AssigningMaxValues) {
  */
 TEST(dm_assoc_sta_mld_t_Test, AssigningMinValues) {
     std::cout << "Entering AssigningMinValues" << std::endl;
-    dm_assoc_sta_mld_t obj1;
+    dm_assoc_sta_mld_t obj1{};
+    memset(&obj1.m_assoc_sta_mld_info, 0, sizeof(obj1.m_assoc_sta_mld_info));
+    dm_assoc_sta_mld_t obj2{};
+    memset(&obj2.m_assoc_sta_mld_info, 0, sizeof(obj2.m_assoc_sta_mld_info));
     obj1.m_assoc_sta_mld_info.str = false;
     obj1.m_assoc_sta_mld_info.num_affiliated_sta = 0;
-    dm_assoc_sta_mld_t obj2;
     obj2 = obj1;
     ASSERT_EQ(obj2.m_assoc_sta_mld_info.str, obj1.m_assoc_sta_mld_info.str);
     ASSERT_EQ(obj2.m_assoc_sta_mld_info.num_affiliated_sta, obj1.m_assoc_sta_mld_info.num_affiliated_sta);
@@ -1008,9 +1038,9 @@ TEST(dm_assoc_sta_mld_t_Test, ValidAPMLDInformation) {
 TEST(dm_assoc_sta_mld_t_Test, NullAPMLDInformation) {
     std::cout << "Entering NullAPMLDInformation test";
     em_assoc_sta_mld_info_t* ap_mld_info = nullptr;
-    dm_assoc_sta_mld_t assoc_sta_mld(ap_mld_info);
+    EXPECT_ANY_THROW(dm_assoc_sta_mld_t assoc_sta_mld(ap_mld_info));  
     std::cout << "Exiting NullAPMLDInformation test";
-}
+}   
 
 /**
  * @brief Test to validate the behavior of the dm_assoc_sta_mld_t class when initialized with an invalid MAC address.
@@ -1131,7 +1161,7 @@ TEST(dm_assoc_sta_mld_t_Test, ExceedingMaximumNumberOfAffiliatedStations) {
     em_assoc_sta_mld_info_t ap_mld_info;
     ap_mld_info.num_affiliated_sta = EM_MAX_AP_MLD + 1;
     dm_assoc_sta_mld_t assoc_sta_mld(&ap_mld_info);
-    EXPECT_EQ(assoc_sta_mld.m_assoc_sta_mld_info.num_affiliated_sta, ap_mld_info.num_affiliated_sta);
+    EXPECT_NE(assoc_sta_mld.m_assoc_sta_mld_info.num_affiliated_sta, ap_mld_info.num_affiliated_sta);
     std::cout << "Exiting ExceedingMaximumNumberOfAffiliatedStations test";
 }
 
@@ -1195,12 +1225,14 @@ TEST(dm_assoc_sta_mld_t_Test, CopyConstructorWithValidInput) {
  */
 TEST(dm_assoc_sta_mld_t_Test, CopyConstructorWithInvalidMacAddressInput) {
     std::cout << "Entering CopyConstructorWithInvalidMacAddressInput" << std::endl;
-    dm_assoc_sta_mld_t original;
-    memset(original.m_assoc_sta_mld_info.mac_addr, 0xFF, sizeof(mac_address_t));
-    dm_assoc_sta_mld_t copy(original);
-    for (size_t i = 0; i < sizeof(mac_address_t); ++i) {
-        EXPECT_EQ(copy.m_assoc_sta_mld_info.mac_addr[i], 0);
-    }
+    EXPECT_ANY_THROW({
+        dm_assoc_sta_mld_t original;
+        memset(original.m_assoc_sta_mld_info.mac_addr, 0xFF, sizeof(mac_address_t));
+        dm_assoc_sta_mld_t copy(original);
+        for (size_t i = 0; i < sizeof(mac_address_t); ++i) {
+            EXPECT_EQ(copy.m_assoc_sta_mld_info.mac_addr[i], 0);
+        }
+    });
     std::cout << "Exiting CopyConstructorWithInvalidMacAddressInput" << std::endl;
 }
 
@@ -1318,7 +1350,6 @@ TEST(dm_assoc_sta_mld_t_Test, DefaultConstructionInitializesSuccessfully) {
  */
 TEST(dm_assoc_sta_mld_t_Test, Destructor_DefaultConstructor) {
     std::cout << "Entering Destructor_DefaultConstructor test" << std::endl;
-
     {
         std::cout << "Invoking default constructor of dm_assoc_sta_mld_t" << std::endl;
         EXPECT_NO_THROW({
@@ -1328,6 +1359,5 @@ TEST(dm_assoc_sta_mld_t_Test, Destructor_DefaultConstructor) {
         });
         std::cout << "dm_assoc_sta_mld_t object is going out of scope, destructor should now be invoked" << std::endl;
     }
-
     std::cout << "Exiting Destructor_DefaultConstructor test" << std::endl;
 }

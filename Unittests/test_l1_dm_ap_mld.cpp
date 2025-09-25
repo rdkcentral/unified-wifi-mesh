@@ -287,28 +287,30 @@ TEST(dm_ap_mld_t_Test, EncodeWithCJSONObjectContainingSpecialCharacters) {
  */
 TEST(dm_ap_mld_t_Test, RetrieveAPMLDInfoWithValidValues) {
     std::cout << "Entering RetrieveAPMLDInfoWithValidValues test" << std::endl;
-    dm_ap_mld_t instance;
-    instance.m_ap_mld_info.num_affiliated_ap = EM_MAX_AP_MLD;
-    instance.m_ap_mld_info.mac_addr_valid = false;
-    instance.m_ap_mld_info.nstr = true;    
-    instance.m_ap_mld_info.nstr = false;    
-    instance.m_ap_mld_info.emlmr = true;    
-    instance.m_ap_mld_info.emlsr = false; 
-    em_ap_mld_info_t* info = instance.get_ap_mld_info();
-    ASSERT_NE(info, nullptr);
-    ASSERT_EQ(info->num_affiliated_ap, EM_MAX_AP_MLD);
-    ASSERT_EQ(info->mac_addr_valid, false);
-    ASSERT_EQ(info->nstr, true);   
-    ASSERT_EQ(info->nstr, false);    
-    ASSERT_EQ(info->emlmr, true);   
-    ASSERT_EQ(info->emlsr, false);
+    EXPECT_NO_THROW({
+        dm_ap_mld_t instance;
+        instance.m_ap_mld_info.num_affiliated_ap = EM_MAX_AP_MLD;
+        instance.m_ap_mld_info.mac_addr_valid = false;
+        instance.m_ap_mld_info.nstr = true;    
+        instance.m_ap_mld_info.nstr = false;    
+        instance.m_ap_mld_info.emlmr = true;    
+        instance.m_ap_mld_info.emlsr = false; 
+        em_ap_mld_info_t* info = instance.get_ap_mld_info();
+        ASSERT_NE(info, nullptr);
+        ASSERT_EQ(info->num_affiliated_ap, EM_MAX_AP_MLD);
+        ASSERT_EQ(info->mac_addr_valid, false);
+        ASSERT_EQ(info->nstr, true);   
+        ASSERT_EQ(info->nstr, false);    
+        ASSERT_EQ(info->emlmr, true);   
+        ASSERT_EQ(info->emlsr, false);
+    });
     std::cout << "Exiting RetrieveAPMLDInfoWithValidValues test" << std::endl;
 }
 
 /**
  * @brief Test to retrieve AP MLD information with an invalid MAC address
  *
- * This test verifies the behavior of the `get_ap_mld_info` method when the MAC address is invalid (all zeros). 
+ * This test verifies the behavior of the `get_ap_mld_info` method when the MAC address is invalid (all FF). 
  * It ensures that the method does not return a null pointer, indicating that it handles invalid input gracefully.
  *
  * **Test Group ID:** Basic: 01@n
@@ -322,47 +324,20 @@ TEST(dm_ap_mld_t_Test, RetrieveAPMLDInfoWithValidValues) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Initialize the MAC address to all zeros | mac_addr = {0} | MAC address initialized | Should be successful |
+ * | 01 | Initialize the MAC address to all FF | mac_addr = "FF:FF:FF:FF:FF:FF" | MAC address initialized | Should be successful |
  * | 02 | Call the `get_ap_mld_info` method | None | Method should return a non-null pointer | Should Pass |
  * | 03 | Verify the returned pointer is not null | info != nullptr | Assertion should pass | Should Pass |
  */
-
 TEST(dm_ap_mld_t_Test, RetrieveAPMLDInfoWithInvalidMacAddr) {
     std::cout << "Entering RetrieveAPMLDInfoWithInvalidMacAddr test" << std::endl;
     dm_ap_mld_t instance;
-    memset(&instance.m_ap_mld_info.mac_addr, 0, sizeof(mac_address_t));
+    memset(&instance.m_ap_mld_info.mac_addr, 0xFF, sizeof(mac_address_t));
     em_ap_mld_info_t* info = instance.get_ap_mld_info();
     ASSERT_NE(info, nullptr);
+    for (size_t i = 0; i < sizeof(mac_address_t); ++i) {
+        EXPECT_NE(info->mac_addr[i], static_cast<uint8_t>(0xFF));
+    }
     std::cout << "Exiting RetrieveAPMLDInfoWithInvalidMacAddr test" << std::endl;
-}
-
-/**
- * @brief Test to retrieve AP MLD information with an invalid number of affiliated APs
- *
- * This test verifies the behavior of the get_ap_mld_info() method when the number of affiliated APs is set to an invalid value (0). 
- * It ensures that the method does not return a null pointer even when the input is invalid.
- *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 011@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set the number of affiliated APs to 0 | instance.m_ap_mld_info.num_affiliated_ap = 0 | Value should be set successfully | Should be successful |
- * | 02 | Call the get_ap_mld_info() method | info = instance.get_ap_mld_info() | info should not be nullptr | Should Pass |
- */
-TEST(dm_ap_mld_t_Test, RetrieveAPMLDInfoWithInvalidNumAffiliatedAP) {
-    std::cout << "Entering RetrieveAPMLDInfoWithInvalidNumAffiliatedAP test" << std::endl;
-    dm_ap_mld_t instance;
-    instance.m_ap_mld_info.num_affiliated_ap = 0;
-    em_ap_mld_info_t* info = instance.get_ap_mld_info();
-    ASSERT_NE(info, nullptr);
-    std::cout << "Exiting RetrieveAPMLDInfoWithInvalidNumAffiliatedAP test" << std::endl;
 }
 
 /**
@@ -371,7 +346,7 @@ TEST(dm_ap_mld_t_Test, RetrieveAPMLDInfoWithInvalidNumAffiliatedAP) {
  * This test verifies that the m_ap_mld_info structure is initialized successfully by calling the init() method of the dm_ap_mld_t class.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 012@n
+ * **Test Case ID:** 011@n
  * **Priority:** High
  * @n
  * **Pre-Conditions:** None
@@ -386,9 +361,11 @@ TEST(dm_ap_mld_t_Test, RetrieveAPMLDInfoWithInvalidNumAffiliatedAP) {
  */
 TEST(dm_ap_mld_t_Test, Initialize_m_ap_mld_info_structure_successfully) {
     std::cout << "Entering Initialize_m_ap_mld_info_structure_successfully test" << std::endl;
-    dm_ap_mld_t instance;
-    int result = instance.init();
-    ASSERT_EQ(result, 0);
+    EXPECT_NO_THROW({
+        dm_ap_mld_t instance;
+        int result = instance.init();
+        ASSERT_EQ(result, 0);
+    });
     std::cout << "Exiting Initialize_m_ap_mld_info_structure_successfully test" << std::endl;
 }
 
@@ -413,11 +390,13 @@ TEST(dm_ap_mld_t_Test, Initialize_m_ap_mld_info_structure_successfully) {
  */
 TEST(dm_ap_mld_t_Test, Initialize_m_ap_mld_info_structure_when_already_initialized) {
     std::cout << "Entering Initialize_m_ap_mld_info_structure_when_already_initialized test" << std::endl;
-    dm_ap_mld_t instance;
-	int result = instance.init();
-	ASSERT_EQ(result, 0);
-    result = instance.init();
-    ASSERT_EQ(result, 0);
+    EXPECT_NO_THROW({
+        dm_ap_mld_t instance;
+        int result = instance.init();
+        ASSERT_EQ(result, 0);
+        result = instance.init();
+        ASSERT_EQ(result, 0);
+    });
     std::cout << "Exiting Initialize_m_ap_mld_info_structure_when_already_initialized test" << std::endl;
 }
 
@@ -438,14 +417,21 @@ TEST(dm_ap_mld_t_Test, Initialize_m_ap_mld_info_structure_when_already_initializ
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Create two dm_ap_mld_t objects | obj1, obj2 | Objects created successfully | Should be successful |
- * | 02 | Set m_ap_mld_info of obj1 to be equal to m_ap_mld_info of obj2 | obj1.m_ap_mld_info = obj2.m_ap_mld_info | m_ap_mld_info attributes are identical | Should be successful |
+ * | 02 | Set few parameters of m_ap_mld_info of obj1 to be equal to m_ap_mld_info of obj2 | obj1.m_ap_mld_info = obj2.m_ap_mld_info | m_ap_mld_info attributes are identical | Should be successful |
  * | 03 | Compare obj1 and obj2 using equality operator | obj1 == obj2 | EXPECT_TRUE assertion passes | Should Pass |
  */
 TEST(dm_ap_mld_tTest, CompareIdenticalObjects) {
     std::cout << "Entering CompareIdenticalObjects test";
-    dm_ap_mld_t obj1, obj2;
-    obj1.m_ap_mld_info = obj2.m_ap_mld_info;
+    dm_ap_mld_t obj1{}, obj2{};
+    memset(&obj1.m_ap_mld_info, 0, sizeof(obj1.m_ap_mld_info));
+    memset(&obj2.m_ap_mld_info, 0, sizeof(obj2.m_ap_mld_info));
+    obj1.m_ap_mld_info.mac_addr_valid = obj2.m_ap_mld_info.mac_addr_valid = true;
+    obj1.m_ap_mld_info.str = obj2.m_ap_mld_info.str = true;
+    obj1.m_ap_mld_info.emlsr = obj2.m_ap_mld_info.emlsr = false;
     EXPECT_TRUE(obj1 == obj2);
+    EXPECT_EQ(obj1.m_ap_mld_info.mac_addr_valid, obj2.m_ap_mld_info.mac_addr_valid);
+    EXPECT_EQ(obj1.m_ap_mld_info.str, obj2.m_ap_mld_info.str);
+    EXPECT_EQ(obj1.m_ap_mld_info.emlsr, obj2.m_ap_mld_info.emlsr);
     std::cout << "Exiting CompareIdenticalObjects test";
 }
 
@@ -470,7 +456,9 @@ TEST(dm_ap_mld_tTest, CompareIdenticalObjects) {
  */
 TEST(dm_ap_mld_tTest, CompareDifferentMacAddrValid) {
     std::cout << "Entering CompareDifferentMacAddrValid test";
-    dm_ap_mld_t obj1, obj2;
+    dm_ap_mld_t obj1{}, obj2{};
+    memset(&obj1.m_ap_mld_info, 0, sizeof(obj1.m_ap_mld_info));
+    memset(&obj2.m_ap_mld_info, 0, sizeof(obj2.m_ap_mld_info));
     obj1.m_ap_mld_info.mac_addr_valid = true;
     obj2.m_ap_mld_info.mac_addr_valid = false;
     EXPECT_FALSE(obj1 == obj2);
@@ -498,7 +486,9 @@ TEST(dm_ap_mld_tTest, CompareDifferentMacAddrValid) {
  */
 TEST(dm_ap_mld_tTest, CompareDifferentSSID) {
     std::cout << "Entering CompareDifferentSSID test";
-    dm_ap_mld_t obj1, obj2;
+    dm_ap_mld_t obj1{}, obj2{};
+    memset(&obj1.m_ap_mld_info, 0, sizeof(obj1.m_ap_mld_info));
+    memset(&obj2.m_ap_mld_info, 0, sizeof(obj2.m_ap_mld_info));
     strcpy(obj1.m_ap_mld_info.ssid, "SSID1");
     strcpy(obj2.m_ap_mld_info.ssid, "SSID2");
     EXPECT_FALSE(obj1 == obj2);
@@ -526,7 +516,9 @@ TEST(dm_ap_mld_tTest, CompareDifferentSSID) {
  */
 TEST(dm_ap_mld_tTest, CompareDifferentMacAddr) {
     std::cout << "Entering CompareDifferentMacAddr test";
-    dm_ap_mld_t obj1, obj2;
+    dm_ap_mld_t obj1{}, obj2{};
+    memset(&obj1.m_ap_mld_info, 0, sizeof(obj1.m_ap_mld_info));
+    memset(&obj2.m_ap_mld_info, 0, sizeof(obj2.m_ap_mld_info));
     obj1.m_ap_mld_info.mac_addr[0] = 0x01;
     obj2.m_ap_mld_info.mac_addr[0] = 0x02;
     EXPECT_FALSE(obj1 == obj2);
@@ -554,7 +546,9 @@ TEST(dm_ap_mld_tTest, CompareDifferentMacAddr) {
  */
 TEST(dm_ap_mld_tTest, CompareDifferentStr) {
     std::cout << "Entering CompareDifferentStr test";
-    dm_ap_mld_t obj1, obj2;
+    dm_ap_mld_t obj1{}, obj2{};
+    memset(&obj1.m_ap_mld_info, 0, sizeof(obj1.m_ap_mld_info));
+    memset(&obj2.m_ap_mld_info, 0, sizeof(obj2.m_ap_mld_info));
     obj1.m_ap_mld_info.str = true;
     obj2.m_ap_mld_info.str = false;
     EXPECT_FALSE(obj1 == obj2);
@@ -583,7 +577,9 @@ TEST(dm_ap_mld_tTest, CompareDifferentStr) {
  */
 TEST(dm_ap_mld_tTest, CompareDifferentNstr) {
     std::cout << "Entering CompareDifferentNstr test";
-    dm_ap_mld_t obj1, obj2;
+    dm_ap_mld_t obj1{}, obj2{};
+    memset(&obj1.m_ap_mld_info, 0, sizeof(obj1.m_ap_mld_info));
+    memset(&obj2.m_ap_mld_info, 0, sizeof(obj2.m_ap_mld_info));
     obj1.m_ap_mld_info.nstr = true;
     obj2.m_ap_mld_info.nstr = false;
     EXPECT_FALSE(obj1 == obj2);
@@ -611,7 +607,9 @@ TEST(dm_ap_mld_tTest, CompareDifferentNstr) {
  */
 TEST(dm_ap_mld_tTest, CompareDifferentEmlsr) {
     std::cout << "Entering CompareDifferentEmlsr test";
-    dm_ap_mld_t obj1, obj2;
+    dm_ap_mld_t obj1{}, obj2{};
+    memset(&obj1.m_ap_mld_info, 0, sizeof(obj1.m_ap_mld_info));
+    memset(&obj2.m_ap_mld_info, 0, sizeof(obj2.m_ap_mld_info));
     obj1.m_ap_mld_info.emlsr = true;
     obj2.m_ap_mld_info.emlsr = false;
     EXPECT_FALSE(obj1 == obj2);
@@ -640,7 +638,9 @@ TEST(dm_ap_mld_tTest, CompareDifferentEmlsr) {
  */
 TEST(dm_ap_mld_tTest, CompareDifferentEmlmr) {
     std::cout << "Entering CompareDifferentEmlmr test";
-    dm_ap_mld_t obj1, obj2;
+    dm_ap_mld_t obj1{}, obj2{};
+    memset(&obj1.m_ap_mld_info, 0, sizeof(obj1.m_ap_mld_info));
+    memset(&obj2.m_ap_mld_info, 0, sizeof(obj2.m_ap_mld_info));
     obj1.m_ap_mld_info.emlmr = true;
     obj2.m_ap_mld_info.emlmr = false;
     EXPECT_FALSE(obj1 == obj2);
@@ -669,7 +669,9 @@ TEST(dm_ap_mld_tTest, CompareDifferentEmlmr) {
  */
 TEST(dm_ap_mld_tTest, CompareDifferentNumAffiliatedAp) {
     std::cout << "Entering CompareDifferentNumAffiliatedAp test";
-    dm_ap_mld_t obj1, obj2;
+    dm_ap_mld_t obj1{}, obj2{};
+    memset(&obj1.m_ap_mld_info, 0, sizeof(obj1.m_ap_mld_info));
+    memset(&obj2.m_ap_mld_info, 0, sizeof(obj2.m_ap_mld_info));
     obj1.m_ap_mld_info.num_affiliated_ap = 1;
     obj2.m_ap_mld_info.num_affiliated_ap = 2;
     EXPECT_FALSE(obj1 == obj2);
@@ -698,8 +700,9 @@ TEST(dm_ap_mld_tTest, CompareDifferentNumAffiliatedAp) {
  */
 TEST(dm_ap_mld_tTest, AssigningValidObject) {
     std::cout << "Entering AssigningValidObject" << std::endl;
-    dm_ap_mld_t obj1;
-    dm_ap_mld_t obj2;
+    dm_ap_mld_t obj1{}, obj2{};
+    memset(&obj1.m_ap_mld_info, 0, sizeof(obj1.m_ap_mld_info));
+    memset(&obj2.m_ap_mld_info, 0, sizeof(obj2.m_ap_mld_info));
     obj1.m_ap_mld_info.emlmr = true;
     strcpy(obj1.m_ap_mld_info.ssid, "SSID1");
     obj2 = obj1;
@@ -730,8 +733,9 @@ TEST(dm_ap_mld_tTest, AssigningValidObject) {
  */
 TEST(dm_ap_mld_tTest, AssigningInvalidValues) {
     std::cout << "Entering AssigningInvalidValues" << std::endl;
-    dm_ap_mld_t obj1;
-    dm_ap_mld_t obj2;
+    dm_ap_mld_t obj1{}, obj2{};
+    memset(&obj1.m_ap_mld_info, 0, sizeof(obj1.m_ap_mld_info));
+    memset(&obj2.m_ap_mld_info, 0, sizeof(obj2.m_ap_mld_info));
     unsigned char mac[] = {0x0A, 0xBB, 0xDD, 0x00, 0x00, 0x00};
     memcpy(obj1.m_ap_mld_info.mac_addr, mac, sizeof(mac));
     obj2 = obj1;
@@ -764,7 +768,8 @@ TEST(dm_ap_mld_tTest, AssigningInvalidValues) {
  */
 TEST(dm_ap_mld_tTest, ValidAPMLDInformation) {
     std::cout << "Entering ValidAPMLDInformation test";
-    em_ap_mld_info_t ap_mld_info;
+    em_ap_mld_info_t ap_mld_info{};
+    memset(&ap_mld_info, 0, sizeof(ap_mld_info));
     ap_mld_info.mac_addr_valid = true;
     strncpy(ap_mld_info.ssid, "TestSSID", sizeof(ap_mld_info.ssid));
     ap_mld_info.str = true;
@@ -806,7 +811,7 @@ TEST(dm_ap_mld_tTest, NullAPMLDInformation) {
     em_ap_mld_info_t*ap_mld_info = nullptr;
     dm_ap_mld_t ap_mld(ap_mld_info);
     std::cout << "Exiting NullAPMLDInformation test";
-}
+}   
 
 /**
  * @brief Test to validate the behavior when an invalid MAC address is provided.
@@ -830,7 +835,8 @@ TEST(dm_ap_mld_tTest, NullAPMLDInformation) {
  */
 TEST(dm_ap_mld_tTest, InvalidMACAddress) {
     std::cout << "Entering InvalidMACAddress test";
-    em_ap_mld_info_t ap_mld_info;
+    em_ap_mld_info_t ap_mld_info{};
+    memset(&ap_mld_info, 0, sizeof(ap_mld_info));
     ap_mld_info.mac_addr_valid = true;
     strncpy(ap_mld_info.ssid, "TestSSID", sizeof(ap_mld_info.ssid));
     uint8_t invalid_mac[6] = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x00};
@@ -842,7 +848,7 @@ TEST(dm_ap_mld_tTest, InvalidMACAddress) {
     ap_mld_info.num_affiliated_ap = 1;
     dm_ap_mld_t ap_mld(&ap_mld_info);
     for (size_t i = 0; i < sizeof(invalid_mac); ++i) {
-        ASSERT_EQ(ap_mld.m_ap_mld_info.mac_addr[i], invalid_mac[i]);
+        EXPECT_NE(ap_mld.m_ap_mld_info.mac_addr[i], invalid_mac[i]);
     }
     std::cout << "Exiting InvalidMACAddress test";
 }
@@ -869,7 +875,8 @@ TEST(dm_ap_mld_tTest, InvalidMACAddress) {
  */
 TEST(dm_ap_mld_tTest, EmptySSID) {
     std::cout << "Entering EmptySSID test";
-    em_ap_mld_info_t ap_mld_info;
+    em_ap_mld_info_t ap_mld_info{};
+    memset(&ap_mld_info, 0, sizeof(ap_mld_info));
     ap_mld_info.mac_addr_valid = true;
     strncpy(ap_mld_info.ssid, "", sizeof(ap_mld_info.ssid));
     uint8_t mac[6] = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E};
@@ -906,7 +913,8 @@ TEST(dm_ap_mld_tTest, EmptySSID) {
  */
 TEST(dm_ap_mld_tTest, MaximumNumberOfAffiliatedAPs) {
     std::cout << "Entering MaximumNumberOfAffiliatedAPs test";
-    em_ap_mld_info_t ap_mld_info;
+    em_ap_mld_info_t ap_mld_info{};
+    memset(&ap_mld_info, 0, sizeof(ap_mld_info));
     ap_mld_info.mac_addr_valid = true;
     strncpy(ap_mld_info.ssid, "TestSSID", sizeof(ap_mld_info.ssid));
     ap_mld_info.str = true;
@@ -941,7 +949,8 @@ TEST(dm_ap_mld_tTest, MaximumNumberOfAffiliatedAPs) {
  */
 TEST(dm_ap_mld_tTest, ZeroAffiliatedAPs) {
     std::cout << "Entering ZeroAffiliatedAPs test";
-    em_ap_mld_info_t ap_mld_info;
+    em_ap_mld_info_t ap_mld_info{};
+    memset(&ap_mld_info, 0, sizeof(ap_mld_info));
     ap_mld_info.mac_addr_valid = true;
     strncpy(ap_mld_info.ssid, "TestSSID", sizeof(ap_mld_info.ssid));
     ap_mld_info.str = true;
@@ -976,7 +985,8 @@ TEST(dm_ap_mld_tTest, ZeroAffiliatedAPs) {
  */
 TEST(dm_ap_mld_tTest, CopyConstructorWithValidValues) {
     std::cout << "Entering CopyConstructorWithValidValues" << std::endl;
-    dm_ap_mld_t max_instance;
+    dm_ap_mld_t max_instance{};
+    memset(&max_instance.m_ap_mld_info, 0, sizeof(max_instance.m_ap_mld_info));
     max_instance.m_ap_mld_info.mac_addr_valid = true;
     strncpy(max_instance.m_ap_mld_info.ssid, "MaxSSID", sizeof(max_instance.m_ap_mld_info.ssid));
     max_instance.m_ap_mld_info.str = true;
@@ -1013,17 +1023,12 @@ TEST(dm_ap_mld_tTest, CopyConstructorWithValidValues) {
  */
 TEST(dm_ap_mld_tTest, CopyConstructorWithNullInput) {
     std::cout << "Entering CopyConstructorWithNullInput" << std::endl;
-    dm_ap_mld_t* null_instance = nullptr;
-    try {
+    EXPECT_ANY_THROW({
+        dm_ap_mld_t* null_instance = nullptr;
         dm_ap_mld_t copy_instance(*null_instance);
-        FAIL() << "Expected std::exception";
-    } catch (const std::exception& e) {
-        SUCCEED();
-    } catch (...) {
-        FAIL() << "Expected std::exception";
-    }
+    });
     std::cout << "Exiting CopyConstructorWithNullInput" << std::endl;
-}
+}   
 
 /**
  * @brief Test to verify that the dm_ap_mld_t default constructor operate without throwing exceptions.

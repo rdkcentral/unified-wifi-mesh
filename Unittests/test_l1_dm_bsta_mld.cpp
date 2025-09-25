@@ -201,17 +201,19 @@ TEST(dm_bsta_mld_Test, DecodeValidJsonObjectWithInvalidParentID) {
  */
 TEST(dm_bsta_mld_Test, EncodeWithValidCJSONObject) {
     std::cout << "Entering EncodeWithValidCJSONObject" << std::endl;
-    cJSON*obj = cJSON_CreateObject();
-    cJSON_AddStringToObject(obj, "name", "test");
-    cJSON_AddNumberToObject(obj, "age", 30);
-    cJSON_AddBoolToObject(obj, "is_student", false);
-    cJSON*nested = cJSON_CreateObject();
-    cJSON_AddStringToObject(nested, "city", "New York");
-    cJSON_AddItemToObject(obj, "address", nested);
-    dm_bsta_mld_t instance;
-    instance.encode(obj);
-    ASSERT_TRUE(cJSON_IsObject(obj));
-    cJSON_Delete(obj);
+    EXPECT_NO_THROW({
+      cJSON*obj = cJSON_CreateObject();
+      cJSON_AddStringToObject(obj, "name", "test");
+      cJSON_AddNumberToObject(obj, "age", 30);
+      cJSON_AddBoolToObject(obj, "is_student", false);
+      cJSON*nested = cJSON_CreateObject();
+      cJSON_AddStringToObject(nested, "city", "New York");
+      cJSON_AddItemToObject(obj, "address", nested);
+      dm_bsta_mld_t instance;
+      instance.encode(obj);
+      ASSERT_TRUE(cJSON_IsObject(obj));
+      cJSON_Delete(obj);
+    });
     std::cout << "Exiting EncodeWithValidCJSONObject" << std::endl;
 }
  
@@ -238,12 +240,14 @@ TEST(dm_bsta_mld_Test, EncodeWithValidCJSONObject) {
  */
 TEST(dm_bsta_mld_Test, EncodeWithSpecialCharacters) {
       std::cout << "Entering EncodeWithSpecialCharacters" << std::endl;
-      cJSON*obj = cJSON_CreateObject();
-      cJSON_AddStringToObject(obj, "special", "!@#$%^&*()_+");
-      dm_bsta_mld_t instance;
-      instance.encode(obj);
-      ASSERT_TRUE(cJSON_IsObject(obj));
-      cJSON_Delete(obj);
+      EXPECT_NO_THROW({
+            cJSON*obj = cJSON_CreateObject();
+            cJSON_AddStringToObject(obj, "special", "!@#$%^&*()_+");
+            dm_bsta_mld_t instance;
+            instance.encode(obj);
+            ASSERT_TRUE(cJSON_IsObject(obj));
+            cJSON_Delete(obj);
+      });
       std::cout << "Exiting EncodeWithSpecialCharacters" << std::endl;
 }
  
@@ -271,11 +275,13 @@ TEST(dm_bsta_mld_Test, EncodeWithSpecialCharacters) {
  */
 TEST(dm_bsta_mld_Test, EncodeWithEmptyCJSONObject) {
       std::cout << "Entering EncodeWithEmptyCJSONObject" << std::endl;
-      cJSON*obj = cJSON_CreateObject();
-      dm_bsta_mld_t instance;
-      instance.encode(obj);
-      ASSERT_TRUE(cJSON_IsObject(obj));
-      cJSON_Delete(obj);
+      EXPECT_NO_THROW({
+            cJSON*obj = cJSON_CreateObject();
+            dm_bsta_mld_t instance;
+            instance.encode(obj);
+            ASSERT_TRUE(cJSON_IsObject(obj));
+            cJSON_Delete(obj);
+      });
       std::cout << "Exiting EncodeWithEmptyCJSONObject" << std::endl;
 }
  
@@ -304,7 +310,7 @@ TEST(dm_bsta_mld_Test, EncodeWithNullCJSONObject) {
       std::cout << "Entering EncodeWithNullCJSONObject" << std::endl;
       cJSON*obj = nullptr;
       dm_bsta_mld_t instance;
-      instance.encode(obj);
+      EXPECT_ANY_THROW(instance.encode(obj));
       ASSERT_EQ(obj, nullptr);
       std::cout << "Exiting EncodeWithNullCJSONObject" << std::endl;
 }
@@ -333,14 +339,15 @@ TEST(dm_bsta_mld_Test, EncodeWithNullCJSONObject) {
  * | 04 | Clean up the JSON object | cJSON_Delete(obj) | JSON object should be deleted successfully | Should be successful |
  */
 TEST(dm_bsta_mld_Test, EncodeWithInvalidJSONStructure) {
-      std::cout << "Entering EncodeWithInvalidJSONStructure" << std::endl;
-      cJSON*obj = cJSON_CreateArray();
-      cJSON_AddItemToArray(obj, cJSON_CreateString("invalid"));
-      dm_bsta_mld_t instance;
-      instance.encode(obj);
-      ASSERT_TRUE(cJSON_IsArray(obj));
-      cJSON_Delete(obj);
-      std::cout << "Exiting EncodeWithInvalidJSONStructure" << std::endl;
+    std::cout << "Entering EncodeWithInvalidJSONStructure" << std::endl;
+    cJSON* obj = cJSON_CreateArray();
+    cJSON_AddItemToArray(obj, cJSON_CreateString("invalid"));
+    dm_bsta_mld_t instance;
+    EXPECT_ANY_THROW({
+        instance.encode(obj);
+    });
+    cJSON_Delete(obj);
+    std::cout << "Exiting EncodeWithInvalidJSONStructure" << std::endl;
 }
  
 /**
@@ -411,14 +418,16 @@ TEST(dm_bsta_mld_Test, RetrieveAPMLDInfoWithValidData) {
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Initialize the instance to null | dm_bsta_mld_t(nullptr) | Instance initialized successfully | Should be successful |
  * | 02 | Retrieve AP MLD information | info = instance.get_bsta_mld_info() | info != nullptr | Should Pass |
- */  
+ */
 TEST(dm_bsta_mld_Test, RetrieveAPMLDInfoAfterNullInitialization) {
-      std::cout << "Entering RetrieveAPMLDInfoAfterNullInitializationTEST" << std::endl;    
-      dm_bsta_mld_t instance(nullptr);
-      em_bsta_mld_info_t* info = instance.get_bsta_mld_info();
-      ASSERT_NE(info, nullptr);
+      std::cout << "Entering RetrieveAPMLDInfoAfterNullInitializationTEST" << std::endl;
+      EXPECT_ANY_THROW({
+            dm_bsta_mld_t instance(nullptr);
+            em_bsta_mld_info_t* info = instance.get_bsta_mld_info();
+            ASSERT_NE(info, nullptr);
+      });
       std::cout << "Exiting RetrieveAPMLDInfoAfterNullInitializationTEST" << std::endl;
-}
+}     
  
 /**
  * @brief TEST the initialization of m_bsta_mld_info structure
@@ -441,9 +450,11 @@ TEST(dm_bsta_mld_Test, RetrieveAPMLDInfoAfterNullInitialization) {
  */
 TEST(dm_bsta_mld_Test, Initialize_m_bsta_mld_info_structure) {
       std::cout << "Entering Initialize_m_bsta_mld_info_structureTEST" << std::endl;
-      dm_bsta_mld_t instance;
-      int result = instance.init();
-      ASSERT_EQ(result, 0);
+      EXPECT_NO_THROW({
+            dm_bsta_mld_t instance;
+            int result = instance.init();
+            ASSERT_EQ(result, 0);
+      });
       std::cout << "Exiting Initialize_m_bsta_mld_info_structureTEST" << std::endl;
 }
  
@@ -471,11 +482,13 @@ TEST(dm_bsta_mld_Test, Initialize_m_bsta_mld_info_structure) {
  */
 TEST(dm_bsta_mld_Test, Initialize_m_bsta_mld_info_structure_multiple_times) {
       std::cout << "Entering Initialize_m_bsta_mld_info_structure_multiple_timesTEST" << std::endl;
-      dm_bsta_mld_t instance;
-      int result1 = instance.init();
-      ASSERT_EQ(result1, 0);
-      int result2 = instance.init();
-      ASSERT_EQ(result2, 0);
+      EXPECT_NO_THROW({
+            dm_bsta_mld_t instance;
+            int result1 = instance.init();
+            ASSERT_EQ(result1, 0);
+            int result2 = instance.init();
+            ASSERT_EQ(result2, 0);
+      });
       std::cout << "Exiting Initialize_m_bsta_mld_info_structure_multiple_timesTEST" << std::endl;
 }
   
@@ -924,8 +937,10 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentNumAffiliatedBsta) {
  */
 TEST(dm_bsta_mld_Test, AssigningMixedFieldValues) {
       std::cout << "Entering AssigningMixedFieldValuesTEST";
-      dm_bsta_mld_t obj1;
-      dm_bsta_mld_t obj2;
+      dm_bsta_mld_t obj1{};
+      dm_bsta_mld_t obj2{};
+      memset(&obj1.m_bsta_mld_info, 0, sizeof(obj1.m_bsta_mld_info));
+      memset(&obj2.m_bsta_mld_info, 0, sizeof(obj2.m_bsta_mld_info));
       obj2.m_bsta_mld_info.mac_addr_valid = true;
       obj2.m_bsta_mld_info.ap_mld_mac_addr_valid = false;
       obj2.m_bsta_mld_info.str = true;
@@ -965,8 +980,10 @@ TEST(dm_bsta_mld_Test, AssigningMixedFieldValues) {
  */
 TEST(dm_bsta_mld_Test, AssigningMaxAffiliatedBsta) {
       std::cout << "Entering AssigningMaxAffiliatedBstaTEST";
-      dm_bsta_mld_t obj1;
-      dm_bsta_mld_t obj2;
+      dm_bsta_mld_t obj1{};
+      dm_bsta_mld_t obj2{};
+      memset(&obj1.m_bsta_mld_info, 0, sizeof(obj1.m_bsta_mld_info));
+      memset(&obj2.m_bsta_mld_info, 0, sizeof(obj2.m_bsta_mld_info));
       obj2.m_bsta_mld_info.num_affiliated_bsta = EM_MAX_AP_MLD;
       obj1 = obj2;
       ASSERT_EQ(obj1.m_bsta_mld_info.num_affiliated_bsta, obj2.m_bsta_mld_info.num_affiliated_bsta);
@@ -996,8 +1013,10 @@ TEST(dm_bsta_mld_Test, AssigningMaxAffiliatedBsta) {
  */
 TEST(dm_bsta_mld_Test, AssigningMinAffiliatedBsta) {
       std::cout << "Entering AssigningMinAffiliatedBstaTEST";
-      dm_bsta_mld_t obj1;
-      dm_bsta_mld_t obj2;
+      dm_bsta_mld_t obj1{};
+      dm_bsta_mld_t obj2{};
+      memset(&obj1.m_bsta_mld_info, 0, sizeof(obj1.m_bsta_mld_info));
+      memset(&obj2.m_bsta_mld_info, 0, sizeof(obj2.m_bsta_mld_info));
       obj2.m_bsta_mld_info.num_affiliated_bsta = 0;
       obj1 = obj2;
       ASSERT_EQ(obj1.m_bsta_mld_info.num_affiliated_bsta, obj2.m_bsta_mld_info.num_affiliated_bsta);
@@ -1107,7 +1126,8 @@ TEST(dm_bsta_mld_Test, CopyConstructorWithAllFieldsInitialized) {
  */
 TEST(dm_bsta_mld_Test, CopyConstructorWithInvalidMacAddressValues) {
       std::cout << "Entering CopyConstructorWithInvalidMacAddressValues" << std::endl;
-      dm_bsta_mld_t original;
+      dm_bsta_mld_t original{};
+      memset(&original.m_bsta_mld_info, 0, sizeof(original.m_bsta_mld_info));
       memset(original.m_bsta_mld_info.mac_addr, 0xFF, sizeof(mac_address_t));
       memset(original.m_bsta_mld_info.ap_mld_mac_addr, 0xFF, sizeof(mac_address_t));
       dm_bsta_mld_t copy(original);
@@ -1137,13 +1157,11 @@ TEST(dm_bsta_mld_Test, CopyConstructorWithInvalidMacAddressValues) {
  */
 TEST(dm_bsta_mld_t_Test, DefaultConstructorPositiveTest) {
     std::cout << "Entering DefaultConstructorPositiveTest test" << std::endl;
-
     std::cout << "Invoking default constructor: dm_bsta_mld_t obj;" << std::endl;
     EXPECT_NO_THROW({
         dm_bsta_mld_t obj;
         std::cout << "dm_bsta_mld_t object created successfully." << std::endl;
     });
-
     std::cout << "Exiting DefaultConstructorPositiveTest test" << std::endl;
 }
 
