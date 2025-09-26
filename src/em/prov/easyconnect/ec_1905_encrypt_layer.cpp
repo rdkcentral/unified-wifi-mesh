@@ -347,7 +347,6 @@ bool ec_1905_encrypt_layer_t::handle_eapol_frame(uint8_t *frame, uint16_t len, u
                 ctx.sent_eapol_idx, src_mac_str.c_str());
         }
 
-        free(eapol_packet);
         return ret;
     }
 
@@ -377,7 +376,6 @@ bool ec_1905_encrypt_layer_t::handle_eapol_frame(uint8_t *frame, uint16_t len, u
                     ctx.sent_eapol_idx, src_mac_str.c_str());
     }
 
-    free(eapol_packet);
     return ret;
 
 }
@@ -764,7 +762,7 @@ std::pair<uint8_t*, size_t> ec_1905_encrypt_layer_t::append_key_data_buff(uint8_
     EM_ASSERT_NOT_NULL(kde, {}, "KDE is null");
     EM_ASSERT_MSG_TRUE(kde_len >= EAPOL_KDE_BASE_SIZE, {}, "KDE length is too small, must be at least %zu bytes", EAPOL_KDE_BASE_SIZE);
 
-    size_t new_frame_size = eapol_frame_size + kde_len;
+    size_t new_frame_size = eapol_frame_size + kde_len + sizeof(uint16_t); // New KDE length + Key Data Length field(uint16_t)
     if (perform_inital_expand) {
         // If we are expanding for MIC, we need to add the MIC length to the frame size
         // This will ensure that the EAPOL frame can accommodate the MIC field when added
@@ -776,7 +774,7 @@ std::pair<uint8_t*, size_t> ec_1905_encrypt_layer_t::append_key_data_buff(uint8_
 
     eapol_packet_t* eapol_packet = reinterpret_cast<eapol_packet_t*>(new_frame + sizeof(ieee802_1x_hdr_t));
 
-    bool mic_present = eapol_packet->key_info.bits.key_mic == 1;
+    bool mic_present = (eapol_packet->key_info.bits.key_mic == 1);
     
     uint8_t* data_ptr = reinterpret_cast<uint8_t*>(eapol_packet) + sizeof(eapol_packet_t);
 
@@ -1129,7 +1127,7 @@ std::pair<uint8_t*, size_t> ec_1905_encrypt_layer_t::build_pw_eapol_frame_3(ec_1
     // Therefore:
     // Key Data Length = 1905 GTK KDE Length
     // Key Data = [1905 GTK KDE]
-    if (memcmp(this->m_gtk, empty_nonce, sizeof(this->m_gtk)) == 0) {
+    if (memcmp(this->m_gtk, empty_nonce, sizeof(empty_nonce)) == 0) {
         em_printfout("Empty GTK in 4-way handshake, cannot continue 4 way handshake");
         free(eapol_frame);
         return {};
@@ -1625,7 +1623,7 @@ bool ec_1905_encrypt_layer_t::handle_pw_eapol_frame_3(ec_1905_key_ctx &ctx, uint
     // EasyMesh Table 12
     gtk_1905_kde_t* gtk_kde_data = reinterpret_cast<gtk_1905_kde_t*>(gtk_kde->data);
     EM_ASSERT_MSG_TRUE(gtk_kde_data->key_id != 0, false, "Key ID must not be 0 in 1905 group key handshake");
-    memcpy(this->m_gtk, gtk_kde_data->gtk, sizeof(this->m_gtk));
+    memcpy(this->m_gtk, gtk_kde_data->gtk, unwrapped_key_data_len - sizeof(eapol_kde_t) - offsetof(gtk_1905_kde_t, gtk));
     this->m_gtk_id = gtk_kde_data->key_id;
 
     em_printfout("Unwrapped Group Key Data for 4-way handshake with '" MACSTRFMT "'", MAC2STR(src_mac));
