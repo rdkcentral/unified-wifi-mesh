@@ -134,11 +134,3 @@ jobs:
         export ASAN_OPTIONS="detect_leaks=1:fast_unwind_on_malloc=0:leak_check_at_exit=1:symbolize=1:print_stacktrace=1:print_legend=1"
         export LSAN_OPTIONS="report_objects=1:max_leaks=0:verbosity=1"
         make -j -C build/ctrl test
-
-    - name: Make build_unittest_only
-      working-directory: easymesh_project/unified-wifi-mesh/
-      timeout-minutes: 5 
-      run: |
-        export ASAN_OPTIONS="detect_leaks=1:fast_unwind_on_malloc=0:leak_check_at_exit=1:symbolize=1:print_stacktrace=1:print_legend=1"
-        export LSAN_OPTIONS="report_objects=1:max_leaks=0:verbosity=1"
-        make -j -C build/ctrl build_unittest_only        

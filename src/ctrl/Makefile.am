@@ -148,10 +148,10 @@ onewifi_em_ctrl_SOURCES =  \
 onewifi_em_ctrl_LDFLAGS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lrbus -fsanitize=address -fsanitize=undefined -lmariadb
 onewifi_em_ctrl_LDADD = $(top_builddir)/src/al-sap/libalsap.la
 onewifi_em_ctrl_test_SOURCES = $(onewifi_em_ctrl_SOURCES) \
-                               $(top_srcdir)/Unittests/main.cpp \
-                               $(top_srcdir)/Unittests/test_l1_dm_assoc_sta_mld.cpp \
-                               $(top_srcdir)/Unittests/test_l1_dm_ap_mld.cpp \
-                               $(top_srcdir)/Unittests/test_l1_dm_bsta_mld.cpp
+                               $(top_srcdir)/tests/main.cpp \
+                               $(top_srcdir)/tests/test_l1_dm_assoc_sta_mld.cpp \
+                               $(top_srcdir)/tests/test_l1_dm_ap_mld.cpp \
+                               $(top_srcdir)/tests/test_l1_dm_bsta_mld.cpp
 onewifi_em_ctrl_test_CPPFLAGS = $(onewifi_em_ctrl_CPPFLAGS) \
                                 -I$(PKG_CONFIG_SYSROOT_DIR)$(includedir)/gtest \
                                 -DTESTING
