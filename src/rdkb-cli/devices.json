@@ -1,0 +1,1350 @@
+[
+  {
+    "mac": "AA:BB:CC:00:00:01",
+    "role": "Controller",
+    "vendor": "OpenSync",
+    "model": "EasyMesh-R6-Pro",
+    "ip_address": "192.168.1.1",
+    "status": "Online",
+    "last_seen": "2025-08-28T10:30:00Z",
+    "uptime": "7d 3h 42m",
+    "capabilities": {
+      "radios": [
+        {
+          "band": "2.4GHz",
+          "standard": "802.11ax",
+          "supported_channels": [
+            {
+              "channel": 1,
+              "frequency_mhz": 2412,
+              "dfs_required": false,
+              "max_tx_power_dbm": 20,
+              "availability": "Available"
+            },
+            {
+              "channel": 6,
+              "frequency_mhz": 2437,
+              "dfs_required": false,
+              "max_tx_power_dbm": 20,
+              "availability": "Available"
+            },
+            {
+              "channel": 11,
+              "frequency_mhz": 2462,
+              "dfs_required": false,
+              "max_tx_power_dbm": 20,
+              "availability": "Available"
+            }
+          ],
+          "current_channel": 6,
+          "channel_width": 40,
+          "max_phy_rate_mbps": 574,
+          "max_spatial_streams": 2,
+          "bssids": [
+            {
+              "bssid": "AA:BB:CC:00:00:01",
+              "ssid": "EasyMesh-Home",
+              "purpose": "Fronthaul",
+              "hidden": false,
+              "encryption": "WPA3-SAE",
+              "passphrase": "SecureHome2024!"
+            },
+            {
+              "bssid": "AA:BB:CC:00:00:11",
+              "ssid": "EasyMesh-Guest",
+              "purpose": "Guest",
+              "hidden": false,
+              "encryption": "WPA3-SAE",
+              "passphrase": "Guest2024!"
+            }
+          ],
+          "antenna_config": {
+            "tx_antennas": 2,
+            "rx_antennas": 2,
+            "diversity_support": true
+          },
+          "power_settings": {
+            "tx_power_dbm": 20,
+            "tx_power_auto": true,
+            "power_save_enabled": false,
+            "noise_floor_dbm": -95
+          },
+          "dfs_capability": false,
+          "mimo_capability": {
+            "spatial_streams": 2,
+            "mu_mimo": true,
+            "su_mimo": true,
+            "beamforming": true
+          },
+          "beamforming_support": true,
+          "ofdma_support": true,
+          "mu_mimo_support": true,
+          "twt_support": true,
+          "mlo_support": false,
+          "radio_metrics": {
+            "band": "2.4GHz",
+            "channel_utilization_percent": 35.2,
+            "noise_floor_dbm": -95,
+            "tx_power_dbm": 20,
+            "tx_bytes": 1024768000,
+            "rx_bytes": 2048576000,
+            "tx_packets": 850000,
+            "rx_packets": 1200000,
+            "tx_errors": 125,
+            "rx_errors": 89,
+            "retry_count": 5670,
+            "connected_clients": 8,
+            "airtime_utilization_percent": 28.5,
+            "interference_level": 0.15,
+            "last_updated": "2025-08-28T10:29:45Z"
+          }
+        },
+        {
+          "band": "5GHz",
+          "standard": "802.11ax",
+          "supported_channels": [
+            {
+              "channel": 36,
+              "frequency_mhz": 5180,
+              "dfs_required": false,
+              "max_tx_power_dbm": 24,
+              "availability": "Available"
+            },
+            {
+              "channel": 40,
+              "frequency_mhz": 5200,
+              "dfs_required": false,
+              "max_tx_power_dbm": 24,
+              "availability": "Available"
+            },
+            {
+              "channel": 44,
+              "frequency_mhz": 5220,
+              "dfs_required": false,
+              "max_tx_power_dbm": 24,
+              "availability": "Available"
+            },
+            {
+              "channel": 48,
+              "frequency_mhz": 5240,
+              "dfs_required": false,
+              "max_tx_power_dbm": 24,
+              "availability": "Available"
+            },
+            {
+              "channel": 149,
+              "frequency_mhz": 5745,
+              "dfs_required": false,
+              "max_tx_power_dbm": 24,
+              "availability": "Available"
+            },
+            {
+              "channel": 153,
+              "frequency_mhz": 5765,
+              "dfs_required": false,
+              "max_tx_power_dbm": 24,
+              "availability": "Available"
+            },
+            {
+              "channel": 157,
+              "frequency_mhz": 5785,
+              "dfs_required": false,
+              "max_tx_power_dbm": 24,
+              "availability": "Available"
+            },
+            {
+              "channel": 161,
+              "frequency_mhz": 5805,
+              "dfs_required": false,
+              "max_tx_power_dbm": 24,
+              "availability": "Available"
+            }
+          ],
+          "current_channel": 149,
+          "channel_width": 80,
+          "max_phy_rate_mbps": 1201,
+          "max_spatial_streams": 2,
+          "bssids": [
+            {
+              "bssid": "AA:BB:CC:00:00:02",
+              "ssid": "EasyMesh-Home",
+              "purpose": "Fronthaul",
+              "hidden": false,
+              "encryption": "WPA3-SAE"
+            },
+            {
+              "bssid": "AA:BB:CC:00:00:12",
+              "ssid": "EasyMesh-Backhaul",
+              "purpose": "Backhaul",
+              "hidden": true,
+              "encryption": "WPA3-SAE"
+            }
+          ],
+          "antenna_config": {
+            "tx_antennas": 2,
+            "rx_antennas": 2,
+            "diversity_support": true
+          },
+          "power_settings": {
+            "tx_power_dbm": 24,
+            "tx_power_auto": true,
+            "power_save_enabled": false,
+            "noise_floor_dbm": -98
+          },
+          "dfs_capability": true,
+          "mimo_capability": {
+            "spatial_streams": 2,
+            "mu_mimo": true,
+            "su_mimo": true,
+            "beamforming": true
+          },
+          "beamforming_support": true,
+          "ofdma_support": true,
+          "mu_mimo_support": true,
+          "twt_support": true,
+          "mlo_support": false,
+          "radio_metrics": {
+            "band": "5GHz",
+            "channel_utilization_percent": 42.8,
+            "noise_floor_dbm": -98,
+            "tx_power_dbm": 24,
+            "tx_bytes": 2048576000,
+            "rx_bytes": 4096000000,
+            "tx_packets": 1500000,
+            "rx_packets": 2100000,
+            "tx_errors": 89,
+            "rx_errors": 45,
+            "retry_count": 3240,
+            "connected_clients": 12,
+            "airtime_utilization_percent": 38.7,
+            "interference_level": 0.08,
+            "last_updated": "2025-08-28T10:29:45Z"
+          }
+        },
+        {
+          "band": "6GHz",
+          "standard": "802.11be",
+          "supported_channels": [
+            {
+              "channel": 37,
+              "frequency_mhz": 6115,
+              "dfs_required": false,
+              "max_tx_power_dbm": 30,
+              "availability": "Available"
+            },
+            {
+              "channel": 41,
+              "frequency_mhz": 6135,
+              "dfs_required": false,
+              "max_tx_power_dbm": 30,
+              "availability": "Available"
+            },
+            {
+              "channel": 45,
+              "frequency_mhz": 6155,
+              "dfs_required": false,
+              "max_tx_power_dbm": 30,
+              "availability": "Available"
+            },
+            {
+              "channel": 49,
+              "frequency_mhz": 6175,
+              "dfs_required": false,
+              "max_tx_power_dbm": 30,
+              "availability": "Available"
+            }
+          ],
+          "current_channel": 37,
+          "channel_width": 160,
+          "max_phy_rate_mbps": 2402,
+          "max_spatial_streams": 4,
+          "bssids": [
+            {
+              "bssid": "AA:BB:CC:00:00:03",
+              "ssid": "EasyMesh-Home",
+              "purpose": "Fronthaul",
+              "hidden": false,
+              "encryption": "WPA3-SAE"
+            },
+            {
+              "bssid": "AA:BB:CC:00:00:13",
+              "ssid": "EasyMesh-Backhaul-6G",
+              "purpose": "Backhaul",
+              "hidden": true,
+              "encryption": "WPA3-SAE"
+            }
+          ],
+          "antenna_config": {
+            "tx_antennas": 4,
+            "rx_antennas": 4,
+            "diversity_support": true
+          },
+          "power_settings": {
+            "tx_power_dbm": 30,
+            "tx_power_auto": true,
+            "power_save_enabled": false,
+            "noise_floor_dbm": -100
+          },
+          "dfs_capability": false,
+          "mimo_capability": {
+            "spatial_streams": 4,
+            "mu_mimo": true,
+            "su_mimo": true,
+            "beamforming": true
+          },
+          "beamforming_support": true,
+          "ofdma_support": true,
+          "mu_mimo_support": true,
+          "twt_support": true,
+          "mlo_support": true,
+          "radio_metrics": {
+            "band": "6GHz",
+            "channel_utilization_percent": 15.2,
+            "noise_floor_dbm": -100,
+            "tx_power_dbm": 30,
+            "tx_bytes": 4096000000,
+            "rx_bytes": 6144000000,
+            "tx_packets": 2800000,
+            "rx_packets": 3200000,
+            "tx_errors": 12,
+            "rx_errors": 8,
+            "retry_count": 890,
+            "connected_clients": 6,
+            "airtime_utilization_percent": 12.8,
+            "interference_level": 0.02,
+            "last_updated": "2025-08-28T10:29:45Z"
+          }
+        }
+      ],
+      "backhaul_capability": {
+        "ethernet_ports": 4,
+        "wifi_backhaul": true,
+        "supported_bands": ["5GHz", "6GHz"],
+        "redundancy_support": true,
+        "dedicated_radio": true
+      },
+      "steering_capability": {
+        "band_steering": true,
+        "load_balancing": true,
+        "client_steering": true,
+        "btm_support": true,
+        "rrm_support": true,
+        "11k_support": true,
+        "11v_support": true,
+        "11r_support": true
+      },
+      "security_capability": {
+        "wpa3_sae": true,
+        "wpa3_enterprise": true,
+        "enhanced_open": true,
+        "owe": true,
+        "pmf_support": true,
+        "supported_eap_methods": ["EAP-TLS", "EAP-TTLS", "EAP-PEAP"],
+        "certificate_auth": true
+      },
+      "qos_capability": {
+        "wmm": true,
+        "dscp": true,
+        "traffic_shaping": true,
+        "prioritization": true,
+        "supported_queues": 8,
+        "bandwidth_control": true
+      },
+      "multiap_capability": {
+        "r1_support": true,
+        "r2_support": true,
+        "r3_support": true,
+        "r4_support": true,
+        "r5_support": true,
+        "r6_support": true,
+        "coordinated_scan": true,
+        "optimized_roaming": true,
+        "traffic_separation": true
+      },
+      "wifi7_support": true,
+      "max_mesh_links": 8,
+      "firmware": "v6.2.1-easymesh-r6",
+      "serial_number": "ESM001R6PRO",
+      "manufacturer_oui": "AA:BB:CC",
+      "supported_profiles": ["R6", "R5", "R4", "R3", "R2", "R1"]
+    },
+    "metrics": {
+      "cpu_usage_percent": 32.5,
+      "memory_usage_percent": 58.2,
+      "temperature_celsius": 45.8,
+      "power_consumption_watts": 25.4,
+      "radio_metrics": [
+        {
+          "band": "2.4GHz",
+          "channel_utilization_percent": 35.2,
+          "noise_floor_dbm": -95,
+          "tx_power_dbm": 20,
+          "tx_bytes": 1024768000,
+          "rx_bytes": 2048576000,
+          "tx_packets": 850000,
+          "rx_packets": 1200000,
+          "tx_errors": 125,
+          "rx_errors": 89,
+          "retry_count": 5670,
+          "connected_clients": 8,
+          "airtime_utilization_percent": 28.5,
+          "interference_level": 0.15,
+          "last_updated": "2025-08-28T10:29:45Z"
+        }
+      ],
+      "ethernet_metrics": [
+        {
+          "port": "eth0",
+          "status": "up",
+          "speed": "1000Mbps",
+          "duplex": "full",
+          "tx_bytes": 8589934592,
+          "rx_bytes": 17179869184,
+          "tx_packets": 5000000,
+          "rx_packets": 7500000,
+          "tx_errors": 0,
+          "rx_errors": 0,
+          "last_updated": "2025-08-28T10:29:45Z"
+        }
+      ],
+      "last_updated": "2025-08-28T10:29:45Z"
+    },
+    "configuration": {
+      "hostname": "easymesh-controller-01",
+      "mesh_id": "EasyMesh-R6-Network-001",
+      "management_vlan": 1,
+      "radio_configs": [
+        {
+          "band": "2.4GHz",
+          "channel": 6,
+          "channel_width": 40,
+          "tx_power_dbm": 20,
+          "country_code": "US",
+          "auto_channel_enable": true,
+          "dfs_enable": false,
+          "beacon_interval_ms": 100,
+          "dtim_period": 2,
+          "rts_threshold": 2347,
+          "fragmentation_threshold": 2346
+        },
+        {
+          "band": "5GHz",
+          "channel": 149,
+          "channel_width": 80,
+          "tx_power_dbm": 24,
+          "country_code": "US",
+          "auto_channel_enable": true,
+          "dfs_enable": true,
+          "beacon_interval_ms": 100,
+          "dtim_period": 2,
+          "rts_threshold": 2347,
+          "fragmentation_threshold": 2346
+        },
+        {
+          "band": "6GHz",
+          "channel": 37,
+          "channel_width": 160,
+          "tx_power_dbm": 30,
+          "country_code": "US",
+          "auto_channel_enable": true,
+          "dfs_enable": false,
+          "beacon_interval_ms": 100,
+          "dtim_period": 2,
+          "rts_threshold": 2347,
+          "fragmentation_threshold": 2346
+        }
+      ],
+      "backhaul_config": {
+        "preferred_band": "6GHz",
+        "fallback_bands": ["5GHz", "Ethernet"],
+        "ethernet_priority": true,
+        "redundancy_enable": true,
+        "load_balancing": true
+      },
+      "steering_config": {
+        "band_steering_enable": true,
+        "load_balancing_enable": true,
+        "rssi_threshold_dbm": -65,
+        "utilization_threshold_percent": 70.0,
+        "steering_policy": "aggressive",
+        "block_time_seconds": 30
+      },
+      "security_config": {
+        "auth_mode": "WPA3-SAE",
+        "encryption_mode": "AES",
+        "passphrase": "SecureHome2024!",
+        "pmf_required": true,
+        "sae_groups": [19, 20, 21],
+        "radius_servers": [],
+        "certificate_config": {
+          "server_cert": "",
+          "private_key": "",
+          "ca_cert": "",
+          "client_certs_required": false
+        }
+      },
+      "qos_config": {
+        "wmm_enable": true,
+        "dscp_mapping": {
+          "voice": "EF",
+          "video": "AF41",
+          "data": "BE"
+        },
+        "traffic_priorities": {
+          "voice": 7,
+          "video": 5,
+          "data": 0
+        },
+        "bandwidth_limits_mbps": {
+          "guest": 50,
+          "iot": 20
+        }
+      },
+      "logging_config": {
+        "log_level": "info",
+        "syslog_server": "",
+        "log_categories": ["system", "wireless", "security"],
+        "log_rotation": true,
+        "max_log_size_mb": 100
+      },
+      "update_config": {
+        "auto_update": true,
+        "update_server": "https://updates.easymesh.com",
+        "update_schedule": "0 2 * * 0",
+        "backup_config": true
+      },
+      "custom_settings": {
+        "ai_optimization": "enabled",
+        "interference_mitigation": "auto",
+        "power_save_mode": "disabled"
+      }
+    },
+    "security_profile": {
+      "profile_name": "Enterprise-Grade",
+      "auth_method": "WPA3-SAE",
+      "encryption_type": "AES-256",
+      "certificate_type": "X.509",
+      "security_level": "High"
+    },
+    "location": {
+      "building": "Main House",
+      "floor": "1st Floor",
+      "room": "Network Closet",
+      "description": "Primary mesh controller in basement network rack",
+      "coordinates": {
+        "latitude": 37.7749,
+        "longitude": -122.4194,
+        "altitude": 52.0
+      },
+      "height_meters": 0.8,
+      "position_3d": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.8
+      }
+    }
+  },
+  {
+    "mac": "AA:BB:CC:00:00:02",
+    "role": "Agent",
+    "vendor": "Plume",
+    "model": "SuperPod-R6",
+    "ip_address": "192.168.1.10",
+    "status": "Online",
+    "last_seen": "2025-08-28T10:29:30Z",
+    "uptime": "6d 12h 18m",
+    "capabilities": {
+      "radios": [
+        {
+          "band": "5GHz",
+          "standard": "802.11ax",
+          "supported_channels": [
+            {
+              "channel": 36,
+              "frequency_mhz": 5180,
+              "dfs_required": false,
+              "max_tx_power_dbm": 22,
+              "availability": "Available"
+            },
+            {
+              "channel": 149,
+              "frequency_mhz": 5745,
+              "dfs_required": false,
+              "max_tx_power_dbm": 22,
+              "availability": "Available"
+            }
+          ],
+          "current_channel": 36,
+          "channel_width": 80,
+          "max_phy_rate_mbps": 867,
+          "max_spatial_streams": 2,
+          "bssids": [
+            {
+              "bssid": "AA:BB:CC:00:00:04",
+              "ssid": "EasyMesh-Home",
+              "purpose": "Fronthaul",
+              "hidden": false,
+              "encryption": "WPA3-SAE"
+            }
+          ],
+          "antenna_config": {
+            "tx_antennas": 2,
+            "rx_antennas": 2,
+            "diversity_support": true
+          },
+          "power_settings": {
+            "tx_power_dbm": 22,
+            "tx_power_auto": true,
+            "power_save_enabled": false,
+            "noise_floor_dbm": -96
+          },
+          "dfs_capability": true,
+          "mimo_capability": {
+            "spatial_streams": 2,
+            "mu_mimo": true,
+            "su_mimo": true,
+            "beamforming": true
+          },
+          "beamforming_support": true,
+          "ofdma_support": true,
+          "mu_mimo_support": true,
+          "twt_support": true,
+          "mlo_support": false,
+          "radio_metrics": {
+            "band": "5GHz",
+            "channel_utilization_percent": 28.4,
+            "noise_floor_dbm": -96,
+            "tx_power_dbm": 22,
+            "tx_bytes": 1536000000,
+            "rx_bytes": 3072000000,
+            "tx_packets": 1200000,
+            "rx_packets": 1800000,
+            "tx_errors": 45,
+            "rx_errors": 22,
+            "retry_count": 2340,
+            "connected_clients": 7,
+            "airtime_utilization_percent": 25.6,
+            "interference_level": 0.12,
+            "last_updated": "2025-08-28T10:29:30Z"
+          }
+        },
+        {
+          "band": "6GHz",
+          "standard": "802.11be",
+          "supported_channels": [
+            {
+              "channel": 45,
+              "frequency_mhz": 6155,
+              "dfs_required": false,
+              "max_tx_power_dbm": 28,
+              "availability": "Available"
+            }
+          ],
+          "current_channel": 45,
+          "channel_width": 160,
+          "max_phy_rate_mbps": 2402,
+          "max_spatial_streams": 4,
+          "bssids": [
+            {
+              "bssid": "AA:BB:CC:00:00:05",
+              "ssid": "EasyMesh-Home",
+              "purpose": "Fronthaul",
+              "hidden": false,
+              "encryption": "WPA3-SAE"
+            }
+          ],
+          "antenna_config": {
+            "tx_antennas": 4,
+            "rx_antennas": 4,
+            "diversity_support": true
+          },
+          "power_settings": {
+            "tx_power_dbm": 28,
+            "tx_power_auto": true,
+            "power_save_enabled": false,
+            "noise_floor_dbm": -99
+          },
+          "dfs_capability": false,
+          "mimo_capability": {
+            "spatial_streams": 4,
+            "mu_mimo": true,
+            "su_mimo": true,
+            "beamforming": true
+          },
+          "beamforming_support": true,
+          "ofdma_support": true,
+          "mu_mimo_support": true,
+          "twt_support": true,
+          "mlo_support": true,
+          "radio_metrics": {
+            "band": "6GHz",
+            "channel_utilization_percent": 18.7,
+            "noise_floor_dbm": -99,
+            "tx_power_dbm": 28,
+            "tx_bytes": 3072000000,
+            "rx_bytes": 4608000000,
+            "tx_packets": 2100000,
+            "rx_packets": 2800000,
+            "tx_errors": 8,
+            "rx_errors": 5,
+            "retry_count": 456,
+            "connected_clients": 4,
+            "airtime_utilization_percent": 15.2,
+            "interference_level": 0.03,
+            "last_updated": "2025-08-28T10:29:30Z"
+          }
+        }
+      ],
+      "backhaul_capability": {
+        "ethernet_ports": 2,
+        "wifi_backhaul": true,
+        "supported_bands": ["5GHz", "6GHz"],
+        "redundancy_support": true,
+        "dedicated_radio": false
+      },
+      "steering_capability": {
+        "band_steering": true,
+        "load_balancing": true,
+        "client_steering": true,
+        "btm_support": true,
+        "rrm_support": true,
+        "11k_support": true,
+        "11v_support": true,
+        "11r_support": true
+      },
+      "security_capability": {
+        "wpa3_sae": true,
+        "wpa3_enterprise": false,
+        "enhanced_open": true,
+        "owe": true,
+        "pmf_support": true,
+        "supported_eap_methods": [],
+        "certificate_auth": false
+      },
+      "qos_capability": {
+        "wmm": true,
+        "dscp": true,
+        "traffic_shaping": true,
+        "prioritization": true,
+        "supported_queues": 4,
+        "bandwidth_control": true
+      },
+      "multiap_capability": {
+        "r1_support": true,
+        "r2_support": true,
+        "r3_support": true,
+        "r4_support": true,
+        "r5_support": true,
+        "r6_support": true,
+        "coordinated_scan": true,
+        "optimized_roaming": true,
+        "traffic_separation": true
+      },
+      "wifi7_support": true,
+      "max_mesh_links": 4,
+      "firmware": "v3.1.2-plume-r6",
+      "serial_number": "PLM002SP6",
+      "manufacturer_oui": "AA:BB:CC",
+      "supported_profiles": ["R6", "R5", "R4", "R3", "R2"]
+    },
+    "metrics": {
+      "cpu_usage_percent": 28.3,
+      "memory_usage_percent": 42.8,
+      "temperature_celsius": 38.2,
+      "power_consumption_watts": 18.7,
+      "radio_metrics": [
+        {
+          "band": "5GHz",
+          "channel_utilization_percent": 28.4,
+          "noise_floor_dbm": -96,
+          "tx_power_dbm": 22,
+          "tx_bytes": 1536000000,
+          "rx_bytes": 3072000000,
+          "tx_packets": 1200000,
+          "rx_packets": 1800000,
+          "tx_errors": 45,
+          "rx_errors": 22,
+          "retry_count": 2340,
+          "connected_clients": 7,
+          "airtime_utilization_percent": 25.6,
+          "interference_level": 0.12,
+          "last_updated": "2025-08-28T10:29:30Z"
+        }
+      ],
+      "ethernet_metrics": [
+        {
+          "port": "eth0",
+          "status": "up",
+          "speed": "1000Mbps",
+          "duplex": "full",
+          "tx_bytes": 4294967296,
+          "rx_bytes": 8589934592,
+          "tx_packets": 2500000,
+          "rx_packets": 4000000,
+          "tx_errors": 0,
+          "rx_errors": 0,
+          "last_updated": "2025-08-28T10:29:30Z"
+        }
+      ],
+      "last_updated": "2025-08-28T10:29:30Z"
+    },
+    "configuration": {
+      "hostname": "easymesh-agent-livingroom",
+      "mesh_id": "EasyMesh-R6-Network-001",
+      "management_vlan": 1,
+      "radio_configs": [
+        {
+          "band": "5GHz",
+          "channel": 36,
+          "channel_width": 80,
+          "tx_power_dbm": 22,
+          "country_code": "US",
+          "auto_channel_enable": true,
+          "dfs_enable": true,
+          "beacon_interval_ms": 100,
+          "dtim_period": 2,
+          "rts_threshold": 2347,
+          "fragmentation_threshold": 2346
+        },
+        {
+          "band": "6GHz",
+          "channel": 45,
+          "channel_width": 160,
+          "tx_power_dbm": 28,
+          "country_code": "US",
+          "auto_channel_enable": true,
+          "dfs_enable": false,
+          "beacon_interval_ms": 100,
+          "dtim_period": 2,
+          "rts_threshold": 2347,
+          "fragmentation_threshold": 2346
+        }
+      ],
+      "backhaul_config": {
+        "preferred_band": "6GHz",
+        "fallback_bands": ["5GHz"],
+        "ethernet_priority": false,
+        "redundancy_enable": false,
+        "load_balancing": false
+      },
+      "steering_config": {
+        "band_steering_enable": true,
+        "load_balancing_enable": true,
+        "rssi_threshold_dbm": -70,
+        "utilization_threshold_percent": 75.0,
+        "steering_policy": "balanced",
+        "block_time_seconds": 20
+      },
+      "security_config": {
+        "auth_mode": "WPA3-SAE",
+        "encryption_mode": "AES",
+        "passphrase": "SecureHome2024!",
+        "pmf_required": true,
+        "sae_groups": [19, 20],
+        "radius_servers": [],
+        "certificate_config": {
+          "server_cert": "",
+          "private_key": "",
+          "ca_cert": "",
+          "client_certs_required": false
+        }
+      },
+      "qos_config": {
+        "wmm_enable": true,
+        "dscp_mapping": {
+          "voice": "EF",
+          "video": "AF41",
+          "data": "BE"
+        },
+        "traffic_priorities": {
+          "voice": 7,
+          "video": 5,
+          "data": 0
+        },
+        "bandwidth_limits_mbps": {}
+      },
+      "logging_config": {
+        "log_level": "warn",
+        "syslog_server": "192.168.1.1",
+        "log_categories": ["wireless", "security"],
+        "log_rotation": true,
+        "max_log_size_mb": 50
+      },
+      "update_config": {
+        "auto_update": true,
+        "update_server": "https://updates.easymesh.com",
+        "update_schedule": "0 3 * * 0",
+        "backup_config": true
+      },
+      "custom_settings": {
+        "ai_optimization": "enabled",
+        "interference_mitigation": "auto"
+      }
+    },
+    "security_profile": {
+      "profile_name": "Consumer-Premium",
+      "auth_method": "WPA3-SAE",
+      "encryption_type": "AES-256",
+      "certificate_type": "None",
+      "security_level": "High"
+    },
+    "location": {
+      "building": "Main House",
+      "floor": "1st Floor",
+      "room": "Living Room",
+      "description": "Wall-mounted mesh node near TV entertainment center",
+      "coordinates": {
+        "latitude": 37.7749,
+        "longitude": -122.4194,
+        "altitude": 52.0
+      },
+      "height_meters": 1.5,
+      "position_3d": {
+        "x": 5.0,
+        "y": 0.0,
+        "z": 1.5
+      }
+    }
+  },
+  {
+    "mac": "AA:BB:CC:00:00:03",
+    "role": "Agent",
+    "vendor": "Google",
+    "model": "Nest Wifi Pro 6E R6",
+    "ip_address": "192.168.1.11",
+    "status": "Online",
+    "last_seen": "2025-08-28T10:28:45Z",
+    "uptime": "5d 8h 26m",
+    "capabilities": {
+      "radios": [
+        {
+          "band": "2.4GHz",
+          "standard": "802.11ax",
+          "supported_channels": [
+            {
+              "channel": 1,
+              "frequency_mhz": 2412,
+              "dfs_required": false,
+              "max_tx_power_dbm": 18,
+              "availability": "Available"
+            },
+            {
+              "channel": 11,
+              "frequency_mhz": 2462,
+              "dfs_required": false,
+              "max_tx_power_dbm": 18,
+              "availability": "Available"
+            }
+          ],
+          "current_channel": 11,
+          "channel_width": 40,
+          "max_phy_rate_mbps": 574,
+          "max_spatial_streams": 2,
+          "bssids": [
+            {
+              "bssid": "AA:BB:CC:00:00:06",
+              "ssid": "EasyMesh-Home",
+              "purpose": "Fronthaul",
+              "hidden": false,
+              "encryption": "WPA3-SAE"
+            }
+          ],
+          "antenna_config": {
+            "tx_antennas": 2,
+            "rx_antennas": 2,
+            "diversity_support": true
+          },
+          "power_settings": {
+            "tx_power_dbm": 18,
+            "tx_power_auto": true,
+            "power_save_enabled": false,
+            "noise_floor_dbm": -94
+          },
+          "dfs_capability": false,
+          "mimo_capability": {
+            "spatial_streams": 2,
+            "mu_mimo": true,
+            "su_mimo": true,
+            "beamforming": true
+          },
+          "beamforming_support": true,
+          "ofdma_support": true,
+          "mu_mimo_support": true,
+          "twt_support": true,
+          "mlo_support": false,
+          "radio_metrics": {
+            "band": "2.4GHz",
+            "channel_utilization_percent": 45.6,
+            "noise_floor_dbm": -94,
+            "tx_power_dbm": 18,
+            "tx_bytes": 768000000,
+            "rx_bytes": 1536000000,
+            "tx_packets": 650000,
+            "rx_packets": 950000,
+            "tx_errors": 78,
+            "rx_errors": 45,
+            "retry_count": 3450,
+            "connected_clients": 5,
+            "airtime_utilization_percent": 42.3,
+            "interference_level": 0.22,
+            "last_updated": "2025-08-28T10:28:45Z"
+          }
+        },
+        {
+          "band": "5GHz",
+          "standard": "802.11ax",
+          "supported_channels": [
+            {
+              "channel": 161,
+              "frequency_mhz": 5805,
+              "dfs_required": false,
+              "max_tx_power_dbm": 23,
+              "availability": "Available"
+            }
+          ],
+          "current_channel": 161,
+          "channel_width": 80,
+          "max_phy_rate_mbps": 1201,
+          "max_spatial_streams": 2,
+          "bssids": [
+            {
+              "bssid": "AA:BB:CC:00:00:07",
+              "ssid": "EasyMesh-Home",
+              "purpose": "Fronthaul",
+              "hidden": false,
+              "encryption": "WPA3-SAE"
+            }
+          ],
+          "antenna_config": {
+            "tx_antennas": 2,
+            "rx_antennas": 2,
+            "diversity_support": true
+          },
+          "power_settings": {
+            "tx_power_dbm": 23,
+            "tx_power_auto": true,
+            "power_save_enabled": false,
+            "noise_floor_dbm": -97
+          },
+          "dfs_capability": true,
+          "mimo_capability": {
+            "spatial_streams": 2,
+            "mu_mimo": true,
+            "su_mimo": true,
+            "beamforming": true
+          },
+          "beamforming_support": true,
+          "ofdma_support": true,
+          "mu_mimo_support": true,
+          "twt_support": true,
+          "mlo_support": false,
+          "radio_metrics": {
+            "band": "5GHz",
+            "channel_utilization_percent": 35.8,
+            "noise_floor_dbm": -97,
+            "tx_power_dbm": 23,
+            "tx_bytes": 2048000000,
+            "rx_bytes": 3072000000,
+            "tx_packets": 1400000,
+            "rx_packets": 2100000,
+            "tx_errors": 32,
+            "rx_errors": 18,
+            "retry_count": 1890,
+            "connected_clients": 8,
+            "airtime_utilization_percent": 32.1,
+            "interference_level": 0.09,
+            "last_updated": "2025-08-28T10:28:45Z"
+          }
+        },
+        {
+          "band": "6GHz",
+          "standard": "802.11ax",
+          "supported_channels": [
+            {
+              "channel": 93,
+              "frequency_mhz": 6395,
+              "dfs_required": false,
+              "max_tx_power_dbm": 30,
+              "availability": "Available"
+            }
+          ],
+          "current_channel": 93,
+          "channel_width": 160,
+          "max_phy_rate_mbps": 2402,
+          "max_spatial_streams": 2,
+          "bssids": [
+            {
+              "bssid": "AA:BB:CC:00:00:08",
+              "ssid": "EasyMesh-Home",
+              "purpose": "Fronthaul",
+              "hidden": false,
+              "encryption": "WPA3-SAE"
+            }
+          ],
+          "antenna_config": {
+            "tx_antennas": 2,
+            "rx_antennas": 2,
+            "diversity_support": true
+          },
+          "power_settings": {
+            "tx_power_dbm": 30,
+            "tx_power_auto": true,
+            "power_save_enabled": false,
+            "noise_floor_dbm": -100
+          },
+          "dfs_capability": false,
+          "mimo_capability": {
+            "spatial_streams": 2,
+            "mu_mimo": true,
+            "su_mimo": true,
+            "beamforming": true
+          },
+          "beamforming_support": true,
+          "ofdma_support": true,
+          "mu_mimo_support": true,
+          "twt_support": true,
+          "mlo_support": false,
+          "radio_metrics": {
+            "band": "6GHz",
+            "channel_utilization_percent": 12.4,
+            "noise_floor_dbm": -100,
+            "tx_power_dbm": 30,
+            "tx_bytes": 2560000000,
+            "rx_bytes": 3840000000,
+            "tx_packets": 1800000,
+            "rx_packets": 2400000,
+            "tx_errors": 5,
+            "rx_errors": 3,
+            "retry_count": 234,
+            "connected_clients": 3,
+            "airtime_utilization_percent": 10.8,
+            "interference_level": 0.01,
+            "last_updated": "2025-08-28T10:28:45Z"
+          }
+        }
+      ],
+      "backhaul_capability": {
+        "ethernet_ports": 2,
+        "wifi_backhaul": true,
+        "supported_bands": ["5GHz", "6GHz"],
+        "redundancy_support": false,
+        "dedicated_radio": false
+      },
+      "steering_capability": {
+        "band_steering": true,
+        "load_balancing": true,
+        "client_steering": true,
+        "btm_support": true,
+        "rrm_support": true,
+        "11k_support": true,
+        "11v_support": true,
+        "11r_support": true
+      },
+      "security_capability": {
+        "wpa3_sae": true,
+        "wpa3_enterprise": false,
+        "enhanced_open": true,
+        "owe": true,
+        "pmf_support": true,
+        "supported_eap_methods": [],
+        "certificate_auth": false
+      },
+      "qos_capability": {
+        "wmm": true,
+        "dscp": true,
+        "traffic_shaping": true,
+        "prioritization": true,
+        "supported_queues": 4,
+        "bandwidth_control": true
+      },
+      "multiap_capability": {
+        "r1_support": true,
+        "r2_support": true,
+        "r3_support": true,
+        "r4_support": true,
+        "r5_support": true,
+        "r6_support": true,
+        "coordinated_scan": true,
+        "optimized_roaming": true,
+        "traffic_separation": false
+      },
+      "wifi7_support": false,
+      "max_mesh_links": 6,
+      "firmware": "v1.9.3-nest-r6",
+      "serial_number": "NST003P6E",
+      "manufacturer_oui": "AA:BB:CC",
+      "supported_profiles": ["R6", "R5", "R4", "R3", "R2"]
+    },
+    "metrics": {
+      "cpu_usage_percent": 35.7,
+      "memory_usage_percent": 48.9,
+      "temperature_celsius": 42.1,
+      "power_consumption_watts": 22.3,
+      "radio_metrics": [
+        {
+          "band": "2.4GHz",
+          "channel_utilization_percent": 45.6,
+          "noise_floor_dbm": -94,
+          "tx_power_dbm": 18,
+          "tx_bytes": 768000000,
+          "rx_bytes": 1536000000,
+          "tx_packets": 650000,
+          "rx_packets": 950000,
+          "tx_errors": 78,
+          "rx_errors": 45,
+          "retry_count": 3450,
+          "connected_clients": 5,
+          "airtime_utilization_percent": 42.3,
+          "interference_level": 0.22,
+          "last_updated": "2025-08-28T10:28:45Z"
+        }
+      ],
+      "ethernet_metrics": [
+        {
+          "port": "eth0",
+          "status": "up",
+          "speed": "1000Mbps",
+          "duplex": "full",
+          "tx_bytes": 3221225472,
+          "rx_bytes": 6442450944,
+          "tx_packets": 2000000,
+          "rx_packets": 3500000,
+          "tx_errors": 0,
+          "rx_errors": 0,
+          "last_updated": "2025-08-28T10:28:45Z"
+        }
+      ],
+      "last_updated": "2025-08-28T10:28:45Z"
+    },
+    "configuration": {
+      "hostname": "easymesh-agent-bedroom",
+      "mesh_id": "EasyMesh-R6-Network-001",
+      "management_vlan": 1,
+      "radio_configs": [
+        {
+          "band": "2.4GHz",
+          "channel": 11,
+          "channel_width": 40,
+          "tx_power_dbm": 18,
+          "country_code": "US",
+          "auto_channel_enable": true,
+          "dfs_enable": false,
+          "beacon_interval_ms": 100,
+          "dtim_period": 2,
+          "rts_threshold": 2347,
+          "fragmentation_threshold": 2346
+        },
+        {
+          "band": "5GHz",
+          "channel": 161,
+          "channel_width": 80,
+          "tx_power_dbm": 23,
+          "country_code": "US",
+          "auto_channel_enable": true,
+          "dfs_enable": true,
+          "beacon_interval_ms": 100,
+          "dtim_period": 2,
+          "rts_threshold": 2347,
+          "fragmentation_threshold": 2346
+        },
+        {
+          "band": "6GHz",
+          "channel": 93,
+          "channel_width": 160,
+          "tx_power_dbm": 30,
+          "country_code": "US",
+          "auto_channel_enable": true,
+          "dfs_enable": false,
+          "beacon_interval_ms": 100,
+          "dtim_period": 2,
+          "rts_threshold": 2347,
+          "fragmentation_threshold": 2346
+        }
+      ],
+      "backhaul_config": {
+        "preferred_band": "6GHz",
+        "fallback_bands": ["5GHz"],
+        "ethernet_priority": false,
+        "redundancy_enable": false,
+        "load_balancing": false
+      },
+      "steering_config": {
+        "band_steering_enable": true,
+        "load_balancing_enable": true,
+        "rssi_threshold_dbm": -68,
+        "utilization_threshold_percent": 80.0,
+        "steering_policy": "conservative",
+        "block_time_seconds": 25
+      },
+      "security_config": {
+        "auth_mode": "WPA3-SAE",
+        "encryption_mode": "AES",
+        "passphrase": "SecureHome2024!",
+        "pmf_required": true,
+        "sae_groups": [19, 20],
+        "radius_servers": [],
+        "certificate_config": {
+          "server_cert": "",
+          "private_key": "",
+          "ca_cert": "",
+          "client_certs_required": false
+        }
+      },
+      "qos_config": {
+        "wmm_enable": true,
+        "dscp_mapping": {
+          "voice": "EF",
+          "video": "AF41",
+          "data": "BE"
+        },
+        "traffic_priorities": {
+          "voice": 7,
+          "video": 5,
+          "data": 0
+        },
+        "bandwidth_limits_mbps": {}
+      },
+      "logging_config": {
+        "log_level": "error",
+        "syslog_server": "192.168.1.1",
+        "log_categories": ["system", "wireless"],
+        "log_rotation": true,
+        "max_log_size_mb": 25
+      },
+      "update_config": {
+        "auto_update": true,
+        "update_server": "https://updates.easymesh.com",
+        "update_schedule": "0 4 * * 0",
+        "backup_config": true
+      },
+      "custom_settings": {
+        "ai_optimization": "disabled",
+        "interference_mitigation": "manual"
+      }
+    },
+    "security_profile": {
+      "profile_name": "Standard",
+      "auth_method": "WPA3-SAE",
+      "encryption_type": "AES-256",
+      "certificate_type": "None",
+      "security_level": "Medium"
+    },
+    "location": {
+      "building": "Main House",
+      "floor": "2nd Floor",
+      "room": "Master Bedroom",
+      "description": "Bedside table placement for bedroom coverage",
+      "coordinates": {
+        "latitude": 37.7749,
+        "longitude": -122.4194,
+        "altitude": 56.0
+      },
+      "height_meters": 1.2,
+      "position_3d": {
+        "x": 8.0,
+        "y": 4.0,
+        "z": 4.2
+      }
+    }
+  }
+]
