@@ -2117,6 +2117,7 @@ typedef struct {
     wifi_ieee80211Variant_t  backhaul_media_type;
     unsigned int    backhaul_phyrate;
     em_interface_t   backhaul_alid;
+    mac_address_t   backhaul_sta;
     bool    traffic_sep_cap;
     bool    easy_conn_cap;
     unsigned char test_cap;
@@ -2310,6 +2311,7 @@ typedef struct {
     em_short_string_t mesh_sta_passphrase;
     unsigned int vlan_id;
     mac_address_t   mld_mac;
+    mac_address_t   sta_mac;
 
     // Extra vendor information elements for the BSS
     // @note Don't manually allocate, use the helper functions to add/remove elements 
