@@ -1,0 +1,1427 @@
+<!-- 
+ *
+ * If not stated otherwise in this file or this component's LICENSE file the
+ * following copyright and licenses apply:
+ *
+ * Copyright 2023 RDK Management
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EasyMesh R6 Pro Controller</title>
+    <link rel="stylesheet" href="static/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
+    <!-- Added Chart.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="main-header">
+            <div class="header-left">
+                <div class="logo">
+                    <i class="fas fa-network-wired"></i>
+                    <span class="logo-text">EasyMesh R6 Pro</span>
+                    <span class="version-badge">v1.0.0</span>
+                </div>
+            </div>
+            <div class="header-center">
+                <div class="search-container">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="Search devices, clients, settings..." id="global-search">
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="status-indicators">
+                    <div class="indicator" id="connection-status">
+                        <i class="fas fa-wifi"></i>
+                        <span class="status-text">Connecting...</span>
+                    </div>
+                    <div class="indicator" id="health-status">
+                        <i class="fas fa-heart"></i>
+                        <span class="health-score">--</span>
+                    </div>
+                </div>
+                <div class="user-menu">
+                    <button class="notifications-btn" id="notifications-btn">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-badge" style="display: none;">0</span>
+                    </button>
+                    <div class="user-avatar">
+                        <i class="fas fa-user-shield"></i>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="app-body">
+            <!-- Sidebar Navigation -->
+            <aside class="sidebar">
+                <nav class="sidebar-nav">
+                    <div class="nav-section">
+                        <h3>Overview</h3>
+                        <ul>
+                            <li><a href="#" data-tab="dashboard" class="nav-link active">
+                                <i class="fas fa-tachometer-alt"></i>
+                                <span>Dashboard</span>
+                            </a></li>
+                            <li><a href="#" data-tab="topology" class="nav-link">
+                                <i class="fas fa-sitemap"></i>
+                                <span>Network Topology</span>
+                            </a></li>
+                            <li><a href="#" data-tab="coverage" class="nav-link">
+                                <i class="fas fa-map"></i>
+                                <span>Coverage Map</span>
+                            </a></li>
+                        </ul>
+                    </div>
+
+                    <div class="nav-section">
+                        <h3>Management</h3>
+                        <ul>
+                            <li><a href="#" data-tab="devices" class="nav-link">
+                                <i class="fas fa-network-wired"></i>
+                                <span>Mesh Devices</span>
+                                <span class="count-badge" id="device-count">0</span>
+                            </a></li>
+                            <li><a href="#" data-tab="clients" class="nav-link">
+                                <i class="fas fa-users"></i>
+                                <span>Connected Clients</span>
+                                <span class="count-badge" id="client-count">0</span>
+                            </a></li>
+                            <li><a href="#" data-tab="wireless" class="nav-link">
+                                <i class="fas fa-wifi"></i>
+                                <span>Wireless Settings</span>
+                            </a></li>
+                        </ul>
+                    </div>
+
+                    <div class="nav-section">
+                        <h3>Monitoring</h3>
+                        <ul>
+                            <li><a href="#" data-tab="performance" class="nav-link">
+                                <i class="fas fa-chart-line"></i>
+                                <span>Performance</span>
+                            </a></li>
+                            <li><a href="#" data-tab="interference" class="nav-link">
+                                <i class="fas fa-wave-square"></i>
+                                <span>RF Analysis</span>
+                            </a></li>
+                            <li><a href="#" data-tab="security" class="nav-link">
+                                <i class="fas fa-shield-alt"></i>
+                                <span>Security Center</span>
+                            </a></li>
+                        </ul>
+                    </div>
+
+                    <div class="nav-section">
+                        <h3>System</h3>
+                        <ul>
+                            <li><a href="#" data-tab="firmware" class="nav-link">
+                                <i class="fas fa-microchip"></i>
+                                <span>Firmware</span>
+                            </a></li>
+                            <li><a href="#" data-tab="reports" class="nav-link">
+                                <i class="fas fa-file-alt"></i>
+                                <span>Reports</span>
+                            </a></li>
+                            <li><a href="#" data-tab="settings" class="nav-link">
+                                <i class="fas fa-cog"></i>
+                                <span>System Settings</span>
+                            </a></li>
+                        </ul>
+                    </div>
+                </nav>
+
+                <div class="sidebar-footer">
+                    <div class="system-info">
+                        <div class="info-item">
+                            <i class="fas fa-server"></i>
+                            <span>Uptime: <span id="system-uptime">--</span></span>
+                        </div>
+                        <div class="info-item">
+                            <i class="fas fa-thermometer-half"></i>
+                            <span>Temp: <span id="system-temp">--</span></span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Main Content Area -->
+            <main class="main-content">
+                <!-- Dashboard Tab -->
+                <section id="dashboard" class="tab-content active">
+                    <div class="page-header">
+                        <h1><i class="fas fa-tachometer-alt"></i> Network Dashboard</h1>
+                        <div class="page-actions">
+                            <button class="btn btn-secondary" id="refresh-dashboard">
+                                <i class="fas fa-sync"></i> Refresh
+                            </button>
+                            <button class="btn btn-primary" id="optimize-network">
+                                <i class="fas fa-magic"></i> AI Optimize
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Key Metrics Cards -->
+                    <div class="metrics-grid">
+                        <div class="metric-card primary">
+                            <div class="metric-icon">
+                                <i class="fas fa-network-wired"></i>
+                            </div>
+                            <div class="metric-content">
+                                <h3>Mesh Nodes</h3>
+                                <div class="metric-value" id="total-nodes">0</div>
+                                <div class="metric-status" id="nodes-status">Loading...</div>
+                            </div>
+                        </div>
+
+                        <div class="metric-card success">
+                            <div class="metric-icon">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div class="metric-content">
+                                <h3>Active Clients</h3>
+                                <div class="metric-value" id="active-clients">0</div>
+                                <div class="metric-change" id="clients-change">Loading...</div>
+                            </div>
+                        </div>
+
+                        <div class="metric-card info">
+                            <div class="metric-icon">
+                                <i class="fas fa-tachometer-alt"></i>
+                            </div>
+                            <div class="metric-content">
+                                <h3>Avg Throughput</h3>
+                                <div class="metric-value" id="avg-throughput">0</div>
+                                <div class="metric-unit">Mbps</div>
+                            </div>
+                        </div>
+
+                        <div class="metric-card warning">
+                            <div class="metric-icon">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </div>
+                            <div class="metric-content">
+                                <h3>Interference</h3>
+                                <div class="metric-value" id="interference-level">Low</div>
+                                <div class="metric-change" id="interference-detail">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Network Health Overview -->
+                    <div class="content-grid">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-heart"></i> Network Health</h3>
+                                <div class="health-score-large" id="health-score-display">--</div>
+                            </div>
+                            <div class="card-content">
+                                <div class="health-indicators" id="health-indicators">
+                                    <div class="health-item">
+                                        <span class="indicator excellent"></span>
+                                        <span class="label">Coverage</span>
+                                        <span class="value">--%</span>
+                                    </div>
+                                    <div class="health-item">
+                                        <span class="indicator good"></span>
+                                        <span class="label">Performance</span>
+                                        <span class="value">--%</span>
+                                    </div>
+                                    <div class="health-item">
+                                        <span class="indicator excellent"></span>
+                                        <span class="label">Security</span>
+                                        <span class="value">--%</span>
+                                    </div>
+                                    <div class="health-item">
+                                        <span class="indicator good"></span>
+                                        <span class="label">Stability</span>
+                                        <span class="value">--%</span>
+                                    </div>
+                                </div>
+                                <div class="optimization-suggestions">
+                                    <h4>Optimization Suggestions</h4>
+                                    <ul id="optimization-list">
+                                        <li><i class="fas fa-lightbulb"></i> Loading recommendations...</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-chart-area"></i> Real-Time Traffic</h3>
+                                <div class="chart-controls">
+                                    <button class="btn-sm" data-timerange="1h">1H</button>
+                                    <button class="btn-sm active" data-timerange="6h">6H</button>
+                                    <button class="btn-sm" data-timerange="24h">24H</button>
+                                </div>
+                            </div>
+                            <div class="card-content">
+                                <div class="traffic-chart-container">
+                                    <canvas id="traffic-chart"></canvas>
+                                </div>
+                                <div class="traffic-summary">
+                                    <div class="traffic-item">
+                                        <span class="traffic-label">Upload</span>
+                                        <span class="traffic-value" id="upload-speed">-- Mbps</span>
+                                    </div>
+                                    <div class="traffic-item">
+                                        <span class="traffic-label">Download</span>
+                                        <span class="traffic-value" id="download-speed">-- Mbps</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Status Cards -->
+                    <div class="quick-status-grid" id="quick-status-grid">
+                        <div class="status-card">
+                            <h4><i class="fas fa-shield-alt"></i> Security Status</h4>
+                            <div class="status-content">
+                                <div class="status-indicator success"></div>
+                                <span>Loading...</span>
+                            </div>
+                            <div class="status-detail">Checking security protocols</div>
+                        </div>
+
+                        <div class="status-card">
+                            <h4><i class="fas fa-sync-alt"></i> Load Balancing</h4>
+                            <div class="status-content">
+                                <div class="status-indicator success"></div>
+                                <span>Loading...</span>
+                            </div>
+                            <div class="status-detail">Analyzing client distribution</div>
+                        </div>
+
+                        <div class="status-card">
+                            <h4><i class="fas fa-satellite-dish"></i> Backhaul</h4>
+                            <div class="status-content">
+                                <div class="status-indicator success"></div>
+                                <span>Loading...</span>
+                            </div>
+                            <div class="status-detail">Checking backhaul connections</div>
+                        </div>
+
+                        <div class="status-card">
+                            <h4><i class="fas fa-microchip"></i> Firmware</h4>
+                            <div class="status-content">
+                                <div class="status-indicator warning"></div>
+                                <span>Loading...</span>
+                            </div>
+                            <div class="status-detail">Checking for updates</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Network Topology Tab -->
+                <section id="topology" class="tab-content">
+                    <div class="page-header">
+                        <h1><i class="fas fa-sitemap"></i> Network Topology</h1>
+                        <div class="page-actions">
+                            <button class="btn btn-secondary">
+                                <i class="fas fa-download"></i> Export
+                            </button>
+                            <button class="btn btn-primary" id="optimize-topology">
+                                <i class="fas fa-magic"></i> Optimize Layout
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="topology-container">
+                        <div class="topology-sidebar">
+                            <div class="topology-controls">
+                                <h3>View Options</h3>
+                                <div class="control-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" checked id="show-signal-strength">
+                                        <span>Signal Strength</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" checked id="show-bandwidth">
+                                        <span>Bandwidth Usage</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="show-client-count">
+                                        <span>Client Count</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="topology-legend">
+                                <h3>Legend</h3>
+                                <div class="legend-item">
+                                    <div class="legend-icon controller"></div>
+                                    <span>Controller</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-icon agent"></div>
+                                    <span>Agent</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-line ethernet"></div>
+                                    <span>Ethernet</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-line wireless"></div>
+                                    <span>Wireless</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="topology-main">
+                            <div id="topology-visualization">
+                                <div class="loading-message">Loading network topology...</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Device Management Tab -->
+                <section id="devices" class="tab-content">
+                    <div class="page-header">
+                        <h1><i class="fas fa-network-wired"></i> Mesh Devices</h1>
+                        <div class="page-actions">
+                            <button class="btn btn-secondary">
+                                <i class="fas fa-plus"></i> Add Device
+                            </button>
+                            <button class="btn btn-secondary">
+                                <i class="fas fa-sync"></i> Scan Network
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="devices-container">
+                        <div class="devices-grid" id="devices-grid">
+                            <div class="loading-message">Loading devices...</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Client Management Tab -->
+                <section id="clients" class="tab-content">
+                    <div class="page-header">
+                        <h1><i class="fas fa-users"></i> Connected Clients</h1>
+                        <div class="page-actions">
+                            <div class="filter-group">
+                                <select id="client-filter">
+                                    <option value="all">All Clients</option>
+                                    <option value="wifi7">Wi-Fi 7</option>
+                                    <option value="wifi6">Wi-Fi 6/6E</option>
+                                    <option value="legacy">Legacy</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-secondary">
+                                <i class="fas fa-download"></i> Export List
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="clients-container">
+                        <div class="clients-table-container">
+                            <table class="clients-table" id="clients-table">
+                                <thead>
+                                    <tr>
+                                        <th>Device</th>
+                                        <th>Connection</th>
+                                        <th>Signal</th>
+                                        <th>Speed</th>
+                                        <th>Usage</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="clients-tbody">
+                                    <tr>
+                                        <td colspan="6" class="loading-message">Loading clients...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+                <!-- Wireless Settings Tab - Add this section to your index.html -->
+<section id="wireless" class="tab-content">
+    <div class="page-header">
+        <h1><i class="fas fa-wifi"></i> Wireless Settings</h1>
+        <div class="page-actions">
+            <button class="btn btn-secondary" id="wireless-scan-channels">
+                <i class="fas fa-radar"></i> Scan Channels
+            </button>
+            <button class="btn btn-primary" id="save-wireless-settings">
+                <i class="fas fa-save"></i> Apply Settings
+            </button>
+        </div>
+    </div>
+
+    <div class="wireless-container">
+        <!-- Network Profiles Section -->
+        <div class="wireless-section">
+            <div class="card">
+                <div class="card-header">
+                    <h3><i class="fas fa-network-wired"></i> Network Profiles</h3>
+                    <button class="btn btn-sm btn-primary" id="add-network-profile">
+                        <i class="fas fa-plus"></i> Add Profile
+                    </button>
+                </div>
+                <div class="card-content">
+                    <div class="profiles-grid" id="network-profiles-grid">
+                        <!-- Profiles will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Radio Configuration Section -->
+        <div class="wireless-section">
+            <div class="card">
+                <div class="card-header">
+                    <h3><i class="fas fa-broadcast-tower"></i> Radio Configuration</h3>
+                    <div class="radio-tabs">
+                        <button class="radio-tab-btn active" data-band="2.4ghz">2.4GHz</button>
+                        <button class="radio-tab-btn" data-band="5ghz">5GHz</button>
+                        <button class="radio-tab-btn" data-band="6ghz">6GHz</button>
+                    </div>
+                </div>
+                <div class="card-content">
+                    <!-- 2.4GHz Radio Settings -->
+                    <div class="radio-config-panel active" id="radio-2.4ghz">
+                        <div class="config-grid">
+                            <div class="config-group">
+                                <label class="config-label">Radio Status</label>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="radio-2g4-enabled" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="config-group">
+                                <label class="config-label">Channel</label>
+                                <div class="channel-selection">
+                                    <label class="radio-label">
+                                        <input type="radio" name="channel-2g4-mode" value="auto" checked>
+                                        Auto
+                                    </label>
+                                    <label class="radio-label">
+                                        <input type="radio" name="channel-2g4-mode" value="manual">
+                                        Manual
+                                    </label>
+                                    <select id="channel-2g4-manual" class="form-select" disabled>
+                                        <option value="1">1 (2412 MHz)</option>
+                                        <option value="6">6 (2437 MHz)</option>
+                                        <option value="11">11 (2462 MHz)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="config-group">
+                                <label class="config-label">Channel Width</label>
+                                <select id="channel-width-2g4" class="form-select">
+                                    <option value="20">20 MHz</option>
+                                    <option value="40" selected>40 MHz</option>
+                                </select>
+                            </div>
+                            <div class="config-group">
+                                <label class="config-label">Transmit Power</label>
+                                <div class="power-control">
+                                    <label class="radio-label">
+                                        <input type="radio" name="power-2g4-mode" value="auto" checked>
+                                        Auto
+                                    </label>
+                                    <label class="radio-label">
+                                        <input type="radio" name="power-2g4-mode" value="manual">
+                                        Manual
+                                    </label>
+                                    <div class="power-slider">
+                                        <input type="range" id="power-2g4-manual" min="1" max="20" value="20" disabled>
+                                        <span class="power-value">20 dBm</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="advanced-settings">
+                            <h4>Advanced Settings</h4>
+                            <div class="config-grid">
+                                <div class="config-group">
+                                    <label class="config-label">Beacon Interval</label>
+                                    <input type="number" id="beacon-interval-2g4" class="form-input" value="100" min="50" max="1000">
+                                    <span class="input-unit">ms</span>
+                                </div>
+                                <div class="config-group">
+                                    <label class="config-label">RTS Threshold</label>
+                                    <input type="number" id="rts-threshold-2g4" class="form-input" value="2347" min="0" max="2347">
+                                    <span class="input-unit">bytes</span>
+                                </div>
+                                <div class="config-group">
+                                    <label class="config-label">Legacy Rates</label>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="legacy-rates-2g4" checked>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 5GHz Radio Settings -->
+                    <div class="radio-config-panel" id="radio-5ghz">
+                        <div class="config-grid">
+                            <div class="config-group">
+                                <label class="config-label">Radio Status</label>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="radio-5g-enabled" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="config-group">
+                                <label class="config-label">Channel</label>
+                                <div class="channel-selection">
+                                    <label class="radio-label">
+                                        <input type="radio" name="channel-5g-mode" value="auto" checked>
+                                        Auto
+                                    </label>
+                                    <label class="radio-label">
+                                        <input type="radio" name="channel-5g-mode" value="manual">
+                                        Manual
+                                    </label>
+                                    <select id="channel-5g-manual" class="form-select" disabled>
+                                        <option value="36">36 (5180 MHz)</option>
+                                        <option value="40">40 (5200 MHz)</option>
+                                        <option value="44">44 (5220 MHz)</option>
+                                        <option value="48">48 (5240 MHz)</option>
+                                        <option value="149">149 (5745 MHz)</option>
+                                        <option value="153">153 (5765 MHz)</option>
+                                        <option value="157">157 (5785 MHz)</option>
+                                        <option value="161">161 (5805 MHz)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="config-group">
+                                <label class="config-label">Channel Width</label>
+                                <select id="channel-width-5g" class="form-select">
+                                    <option value="20">20 MHz</option>
+                                    <option value="40">40 MHz</option>
+                                    <option value="80" selected>80 MHz</option>
+                                    <option value="160">160 MHz</option>
+                                </select>
+                            </div>
+                            <div class="config-group">
+                                <label class="config-label">DFS Channels</label>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="dfs-enabled" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="config-group">
+                                <label class="config-label">Transmit Power</label>
+                                <div class="power-control">
+                                    <label class="radio-label">
+                                        <input type="radio" name="power-5g-mode" value="auto" checked>
+                                        Auto
+                                    </label>
+                                    <label class="radio-label">
+                                        <input type="radio" name="power-5g-mode" value="manual">
+                                        Manual
+                                    </label>
+                                    <div class="power-slider">
+                                        <input type="range" id="power-5g-manual" min="1" max="24" value="24" disabled>
+                                        <span class="power-value">24 dBm</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 6GHz Radio Settings -->
+                    <div class="radio-config-panel" id="radio-6ghz">
+                        <div class="config-grid">
+                            <div class="config-group">
+                                <label class="config-label">Radio Status</label>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="radio-6g-enabled" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="config-group">
+                                <label class="config-label">Channel</label>
+                                <div class="channel-selection">
+                                    <label class="radio-label">
+                                        <input type="radio" name="channel-6g-mode" value="auto" checked>
+                                        Auto
+                                    </label>
+                                    <label class="radio-label">
+                                        <input type="radio" name="channel-6g-mode" value="manual">
+                                        Manual
+                                    </label>
+                                    <select id="channel-6g-manual" class="form-select" disabled>
+                                        <option value="37">37 (6115 MHz)</option>
+                                        <option value="41">41 (6135 MHz)</option>
+                                        <option value="45">45 (6155 MHz)</option>
+                                        <option value="49">49 (6175 MHz)</option>
+                                        <option value="93">93 (6395 MHz)</option>
+                                        <option value="97">97 (6415 MHz)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="config-group">
+                                <label class="config-label">Channel Width</label>
+                                <select id="channel-width-6g" class="form-select">
+                                    <option value="20">20 MHz</option>
+                                    <option value="40">40 MHz</option>
+                                    <option value="80">80 MHz</option>
+                                    <option value="160" selected>160 MHz</option>
+                                    <option value="320">320 MHz (Wi-Fi 7)</option>
+                                </select>
+                            </div>
+                            <div class="config-group">
+                                <label class="config-label">PSC Channels Only</label>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="psc-only">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="config-group">
+                                <label class="config-label">Transmit Power</label>
+                                <div class="power-control">
+                                    <label class="radio-label">
+                                        <input type="radio" name="power-6g-mode" value="auto" checked>
+                                        Auto
+                                    </label>
+                                    <label class="radio-label">
+                                        <input type="radio" name="power-6g-mode" value="manual">
+                                        Manual
+                                    </label>
+                                    <div class="power-slider">
+                                        <input type="range" id="power-6g-manual" min="1" max="30" value="30" disabled>
+                                        <span class="power-value">30 dBm</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="wifi7-features">
+                            <h4>Wi-Fi 7 Features</h4>
+                            <div class="config-grid">
+                                <div class="config-group">
+                                    <label class="config-label">Multi-Link Operation</label>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="mlo-enabled" checked>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="config-group">
+                                    <label class="config-label">Multi-RU</label>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="multi-ru-enabled" checked>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="config-group">
+                                    <label class="config-label">Punctured Preamble</label>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="punctured-preamble" checked>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Band Steering & Load Balancing -->
+        <div class="wireless-section">
+            <div class="card">
+                <div class="card-header">
+                    <h3><i class="fas fa-balance-scale"></i> Band Steering & Load Balancing</h3>
+                </div>
+                <div class="card-content">
+                    <div class="config-grid">
+                        <div class="config-group">
+                            <label class="config-label">Band Steering</label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="band-steering-enabled" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <p class="config-description">Automatically move clients to less congested bands</p>
+                        </div>
+                        <div class="config-group">
+                            <label class="config-label">Load Balancing</label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="load-balancing-enabled" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <p class="config-description">Distribute clients across access points for optimal performance</p>
+                        </div>
+                        <div class="config-group">
+                            <label class="config-label">Steering Policy</label>
+                            <select id="steering-policy" class="form-select">
+                                <option value="conservative">Conservative</option>
+                                <option value="balanced" selected>Balanced</option>
+                                <option value="aggressive">Aggressive</option>
+                            </select>
+                        </div>
+                        <div class="config-group">
+                            <label class="config-label">RSSI Threshold</label>
+                            <input type="number" id="rssi-threshold" class="form-input" value="-65" min="-90" max="-30">
+                            <span class="input-unit">dBm</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Advanced Wireless Features -->
+        <div class="wireless-section">
+            <div class="card">
+                <div class="card-header">
+                    <h3><i class="fas fa-cogs"></i> Advanced Features</h3>
+                </div>
+                <div class="card-content">
+                    <div class="config-grid">
+                        <div class="config-group">
+                            <label class="config-label">OFDMA</label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="ofdma-enabled" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <p class="config-description">Orthogonal Frequency Division Multiple Access for efficiency</p>
+                        </div>
+                        <div class="config-group">
+                            <label class="config-label">MU-MIMO</label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="mu-mimo-enabled" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <p class="config-description">Multi-User Multiple-Input Multiple-Output</p>
+                        </div>
+                        <div class="config-group">
+                            <label class="config-label">Beamforming</label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="beamforming-enabled" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <p class="config-description">Focus radio signals toward connected devices</p>
+                        </div>
+                        <div class="config-group">
+                            <label class="config-label">Target Wake Time (TWT)</label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="twt-enabled" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <p class="config-description">Power saving for IoT devices</p>
+                        </div>
+                        <div class="config-group">
+                            <label class="config-label">Airtime Fairness</label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="airtime-fairness-enabled" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <p class="config-description">Ensure fair airtime distribution among clients</p>
+                        </div>
+                        <div class="config-group">
+                            <label class="config-label">Fast Transition (802.11r)</label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="fast-transition-enabled" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <p class="config-description">Fast roaming between access points</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Network Profile Modal -->
+    <div class="modal-overlay" id="network-profile-modal">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2 id="profile-modal-title">Add Network Profile</h2>
+                <button class="modal-close" onclick="closeModal('network-profile-modal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-content">
+                <form id="network-profile-form">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label class="form-label">Profile Name</label>
+                            <input type="text" id="profile-name" class="form-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">SSID</label>
+                            <input type="text" id="profile-ssid" class="form-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Security Type</label>
+                            <select id="profile-security" class="form-select">
+                                <option value="WPA3-SAE">WPA3-SAE</option>
+                                <option value="WPA3-Enterprise">WPA3-Enterprise</option>
+                                <option value="WPA2-PSK">WPA2-PSK (Legacy)</option>
+                                <option value="Enhanced-Open">Enhanced Open</option>
+                                <option value="Open">Open</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="passphrase-group">
+                            <label class="form-label">Passphrase</label>
+                            <input type="password" id="profile-passphrase" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">VLAN ID</label>
+                            <input type="number" id="profile-vlan" class="form-input" value="1" min="1" max="4094">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="profile-hidden">
+                                Hidden Network
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="profile-guest">
+                                Guest Network
+                            </label>
+                        </div>
+                        <div class="form-group" id="bandwidth-limit-group" style="display: none;">
+                            <label class="form-label">Bandwidth Limit (Mbps)</label>
+                            <input type="number" id="profile-bandwidth" class="form-input" min="1" max="1000">
+                        </div>
+                    </div>
+                    
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('network-profile-modal')">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Profile</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</section>
+                <!-- Other tabs would continue here but keeping response length manageable -->
+               <!-- Coverage Map Tab - Add this section to your index.html -->
+<section id="coverage" class="tab-content">
+    <div class="page-header">
+        <h1><i class="fas fa-map"></i> Coverage Map</h1>
+        <div class="page-actions">
+            <div class="view-controls">
+                <button class="btn btn-sm btn-secondary view-btn active" data-view="heatmap">
+                    <i class="fas fa-fire"></i> Heatmap
+                </button>
+                <button class="btn btn-sm btn-secondary view-btn" data-view="devices">
+                    <i class="fas fa-router"></i> Devices
+                </button>
+                <button class="btn btn-sm btn-secondary view-btn" data-view="clients">
+                    <i class="fas fa-users"></i> Clients
+                </button>
+            </div>
+            <div class="map-controls">
+                <button class="btn btn-secondary" id="refresh-coverage">
+                    <i class="fas fa-sync"></i> Refresh
+                </button>
+                <button class="btn btn-primary" id="optimize-placement">
+                    <i class="fas fa-magic"></i> Optimize Placement
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="coverage-container">
+        <!-- Map Settings Panel -->
+        <div class="coverage-sidebar">
+            <div class="coverage-settings">
+                <h3>Map Settings</h3>
+                
+                <!-- Floor Plan Selection -->
+                <div class="settings-group">
+                    <label class="settings-label">Floor Plan</label>
+                    <select id="floor-selector" class="form-select">
+                        <option value="1st-floor" selected>1st Floor</option>
+                        <option value="2nd-floor">2nd Floor</option>
+                        <option value="basement">Basement</option>
+                        <option value="custom">Upload Custom</option>
+                    </select>
+                </div>
+
+                <!-- Band Selection -->
+                <div class="settings-group">
+                    <label class="settings-label">Frequency Band</label>
+                    <div class="band-selector">
+                        <button class="band-btn active" data-band="2.4ghz">2.4GHz</button>
+                        <button class="band-btn" data-band="5ghz">5GHz</button>
+                        <button class="band-btn" data-band="6ghz">6GHz</button>
+                    </div>
+                </div>
+
+                <!-- Signal Threshold -->
+                <div class="settings-group">
+                    <label class="settings-label">Signal Threshold</label>
+                    <div class="threshold-control">
+                        <input type="range" id="signal-threshold" min="-90" max="-30" value="-70" class="threshold-slider">
+                        <span class="threshold-value">-70 dBm</span>
+                    </div>
+                    <div class="threshold-description">Minimum signal for good coverage</div>
+                </div>
+
+                <!-- Coverage Options -->
+                <div class="settings-group">
+                    <label class="settings-label">Display Options</label>
+                    <div class="coverage-options">
+                        <label class="option-checkbox">
+                            <input type="checkbox" id="show-weak-zones" checked>
+                            <span>Show Weak Signal Areas</span>
+                        </label>
+                        <label class="option-checkbox">
+                            <input type="checkbox" id="show-interference">
+                            <span>Show Interference</span>
+                        </label>
+                        <label class="option-checkbox">
+                            <input type="checkbox" id="show-client-paths">
+                            <span>Show Client Movement</span>
+                        </label>
+                        <label class="option-checkbox">
+                            <input type="checkbox" id="show-predictions" checked>
+                            <span>Show Coverage Predictions</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Map Scale -->
+                <div class="settings-group">
+                    <label class="settings-label">Scale (meters per pixel)</label>
+                    <input type="number" id="map-scale" class="form-input" value="0.1" min="0.01" max="1" step="0.01">
+                </div>
+            </div>
+
+            <!-- Coverage Legend -->
+            <div class="coverage-legend">
+                <h3>Signal Strength Legend</h3>
+                <div class="legend-items">
+                    <div class="legend-item">
+                        <div class="legend-color excellent"></div>
+                        <span class="legend-text">Excellent (-30 to -50 dBm)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color good"></div>
+                        <span class="legend-text">Good (-50 to -60 dBm)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color fair"></div>
+                        <span class="legend-text">Fair (-60 to -70 dBm)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color poor"></div>
+                        <span class="legend-text">Poor (-70 to -80 dBm)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color no-signal"></div>
+                        <span class="legend-text">No Signal (< -80 dBm)</span>
+                    </div>
+                </div>
+
+                <div class="legend-symbols">
+                    <h4>Symbols</h4>
+                    <div class="symbol-item">
+                        <i class="fas fa-router symbol-icon controller"></i>
+                        <span>Controller</span>
+                    </div>
+                    <div class="symbol-item">
+                        <i class="fas fa-wifi symbol-icon agent"></i>
+                        <span>Mesh Agent</span>
+                    </div>
+                    <div class="symbol-item">
+                        <i class="fas fa-mobile-alt symbol-icon client"></i>
+                        <span>Connected Client</span>
+                    </div>
+                    <div class="symbol-item">
+                        <i class="fas fa-exclamation-triangle symbol-icon warning"></i>
+                        <span>Weak Signal Zone</span>
+                    </div>
+                    <div class="symbol-item">
+                        <i class="fas fa-plus symbol-icon suggestion"></i>
+                        <span>Suggested Placement</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Coverage Statistics -->
+            <div class="coverage-stats">
+                <h3>Coverage Statistics</h3>
+                <div class="stat-item">
+                    <div class="stat-label">Total Coverage</div>
+                    <div class="stat-value" id="total-coverage">---%</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Excellent Signal</div>
+                    <div class="stat-value" id="excellent-coverage">---%</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Weak Signal Areas</div>
+                    <div class="stat-value" id="weak-areas">--- m²</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Dead Zones</div>
+                    <div class="stat-value" id="dead-zones">--- m²</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Interference Level</div>
+                    <div class="stat-value" id="interference-level">Low</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Coverage Map -->
+        <div class="coverage-main">
+            <div class="map-container" id="coverage-map">
+                <!-- Map Toolbar -->
+                <div class="map-toolbar">
+                    <div class="toolbar-group">
+                        <button class="toolbar-btn" id="zoom-in" title="Zoom In">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <button class="toolbar-btn" id="zoom-out" title="Zoom Out">
+                            <i class="fas fa-minus"></i>
+                        </button>
+                        <button class="toolbar-btn" id="fit-view" title="Fit to View">
+                            <i class="fas fa-expand"></i>
+                        </button>
+                    </div>
+                    <div class="toolbar-group">
+                        <button class="toolbar-btn" id="measure-tool" title="Measure Distance">
+                            <i class="fas fa-ruler"></i>
+                        </button>
+                        <button class="toolbar-btn" id="add-device-tool" title="Add Device">
+                            <i class="fas fa-plus-circle"></i>
+                        </button>
+                    </div>
+                    <div class="toolbar-info">
+                        <span class="zoom-level">Zoom: 100%</span>
+                        <span class="coordinates" id="mouse-coordinates">0, 0</span>
+                    </div>
+                </div>
+
+                <!-- SVG Map Canvas -->
+                <div class="map-canvas" id="map-canvas">
+                    <svg id="coverage-svg" width="100%" height="100%" viewBox="0 0 1000 600">
+                        <!-- Background Grid -->
+                        <defs>
+                            <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                                <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e5e7eb" stroke-width="1" opacity="0.3"/>
+                            </pattern>
+                            
+                            <!-- Coverage Gradients -->
+                            <radialGradient id="excellentSignal" cx="50%" cy="50%" r="50%">
+                                <stop offset="0%" style="stop-color:#10b981;stop-opacity:0.8" />
+                                <stop offset="100%" style="stop-color:#10b981;stop-opacity:0" />
+                            </radialGradient>
+                            
+                            <radialGradient id="goodSignal" cx="50%" cy="50%" r="50%">
+                                <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:0.6" />
+                                <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0" />
+                            </radialGradient>
+                            
+                            <radialGradient id="fairSignal" cx="50%" cy="50%" r="50%">
+                                <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:0.4" />
+                                <stop offset="100%" style="stop-color:#f59e0b;stop-opacity:0" />
+                            </radialGradient>
+                            
+                            <radialGradient id="poorSignal" cx="50%" cy="50%" r="50%">
+                                <stop offset="0%" style="stop-color:#ef4444;stop-opacity:0.3" />
+                                <stop offset="100%" style="stop-color:#ef4444;stop-opacity:0" />
+                            </radialGradient>
+                        </defs>
+                        
+                        <!-- Grid Background -->
+                        <rect width="100%" height="100%" fill="url(#grid)" />
+                        
+                        <!-- Floor Plan Layer -->
+                        <g id="floor-plan-layer">
+                            <!-- Floor plan will be rendered here -->
+                        </g>
+                        
+                        <!-- Coverage Heatmap Layer -->
+                        <g id="coverage-layer">
+                            <!-- Coverage circles will be rendered here -->
+                        </g>
+                        
+                        <!-- Devices Layer -->
+                        <g id="devices-layer">
+                            <!-- Device icons will be rendered here -->
+                        </g>
+                        
+                        <!-- Clients Layer -->
+                        <g id="clients-layer">
+                            <!-- Client icons will be rendered here -->
+                        </g>
+                        
+                        <!-- Annotations Layer -->
+                        <g id="annotations-layer">
+                            <!-- Weak zones, suggestions, etc. -->
+                        </g>
+                        
+                        <!-- Measurements Layer -->
+                        <g id="measurements-layer">
+                            <!-- Distance measurements -->
+                        </g>
+                    </svg>
+                </div>
+
+                <!-- Loading Overlay -->
+                <div class="map-loading" id="map-loading">
+                    <div class="loading-content">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>Analyzing coverage...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Coverage Analysis Panel -->
+            <div class="analysis-panel" id="analysis-panel">
+                <div class="analysis-header">
+                    <h3>Coverage Analysis</h3>
+                    <button class="panel-close" onclick="document.getElementById('analysis-panel').classList.remove('active')">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="analysis-content">
+                    <div class="analysis-section">
+                        <h4>Weak Signal Areas</h4>
+                        <ul id="weak-areas-list">
+                            <li>Loading analysis...</li>
+                        </ul>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>Placement Recommendations</h4>
+                        <ul id="recommendations-list">
+                            <li>Analyzing optimal positions...</li>
+                        </ul>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>Interference Sources</h4>
+                        <ul id="interference-list">
+                            <li>Scanning for interference...</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Device Placement Modal -->
+    <div class="modal-overlay" id="device-placement-modal">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2>Add Device at Position</h2>
+                <button class="modal-close" onclick="closeModal('device-placement-modal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-content">
+                <div class="placement-info">
+                    <div class="placement-coords">
+                        <label>Position:</label>
+                        <span id="placement-coordinates">X: 0, Y: 0</span>
+                    </div>
+                    <div class="predicted-coverage">
+                        <h4>Predicted Coverage</h4>
+                        <div class="coverage-preview">
+                            <div class="coverage-metric">
+                                <label>Coverage Radius:</label>
+                                <span id="predicted-radius">25m</span>
+                            </div>
+                            <div class="coverage-metric">
+                                <label>Signal Quality:</label>
+                                <span id="predicted-quality">Good</span>
+                            </div>
+                            <div class="coverage-metric">
+                                <label>Interference Risk:</label>
+                                <span id="predicted-interference">Low</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="device-selection">
+                    <h4>Select Device Type</h4>
+                    <div class="device-types">
+                        <label class="device-type-option">
+                            <input type="radio" name="device-type" value="controller">
+                            <span class="device-type-card">
+                                <i class="fas fa-router"></i>
+                                <span>Controller</span>
+                            </span>
+                        </label>
+                        <label class="device-type-option">
+                            <input type="radio" name="device-type" value="agent" checked>
+                            <span class="device-type-card">
+                                <i class="fas fa-wifi"></i>
+                                <span>Mesh Agent</span>
+                            </span>
+                        </label>
+                        <label class="device-type-option">
+                            <input type="radio" name="device-type" value="extender">
+                            <span class="device-type-card">
+                                <i class="fas fa-broadcast-tower"></i>
+                                <span>Range Extender</span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="closeModal('device-placement-modal')">
+                        Cancel
+                    </button>
+                    <button class="btn btn-primary" id="confirm-placement">
+                        <i class="fas fa-plus"></i> Add Device
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floor Plan Upload Modal -->
+    <div class="modal-overlay" id="floor-plan-modal">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2>Upload Floor Plan</h2>
+                <button class="modal-close" onclick="closeModal('floor-plan-modal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-content">
+                <div class="upload-section">
+                    <div class="upload-area" id="floor-plan-dropzone">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <h4>Drop your floor plan here</h4>
+                        <p>or click to browse files</p>
+                        <p class="upload-note">Supports JPG, PNG, PDF, SVG files</p>
+                        <input type="file" id="floor-plan-file" accept=".jpg,.jpeg,.png,.pdf,.svg" hidden>
+                    </div>
+                </div>
+
+                <div class="calibration-section" id="calibration-section" style="display: none;">
+                    <h4>Calibrate Scale</h4>
+                    <p>Click two points on the floor plan and enter the real distance between them.</p>
+                    <div class="calibration-controls">
+                        <label>Distance between points:</label>
+                        <div class="distance-input">
+                            <input type="number" id="calibration-distance" placeholder="10" min="0.1" step="0.1">
+                            <select id="calibration-unit">
+                                <option value="m">meters</option>
+                                <option value="ft">feet</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="calibration-status" id="calibration-status">
+                        Select two points on the image
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="closeModal('floor-plan-modal')">
+                        Cancel
+                    </button>
+                    <button class="btn btn-primary" id="save-floor-plan" disabled>
+                        <i class="fas fa-save"></i> Save Floor Plan
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</section> 
+                <!-- Placeholder for other tabs -->
+                <section id="performance" class="tab-content">
+                    <div class="page-header">
+                        <h1><i class="fas fa-chart-line"></i> Performance Monitoring</h1>
+                    </div>
+                    <div class="loading-message">Performance monitoring interface loading...</div>
+                </section>
+
+                <section id="interference" class="tab-content">
+                    <div class="page-header">
+                        <h1><i class="fas fa-wave-square"></i> RF Analysis</h1>
+                    </div>
+                    <div class="loading-message">RF analysis interface loading...</div>
+                </section>
+
+                <section id="security" class="tab-content">
+                    <div class="page-header">
+                        <h1><i class="fas fa-shield-alt"></i> Security Center</h1>
+                    </div>
+                    <div class="loading-message">Security center loading...</div>
+                </section>
+
+                <section id="settings" class="tab-content">
+                    <div class="page-header">
+                        <h1><i class="fas fa-cog"></i> System Settings</h1>
+                    </div>
+                    <div class="loading-message">System settings loading...</div>
+                </section>
+
+            </main>
+        </div>
+
+        <!-- Notification Panel -->
+        <div class="notification-panel" id="notification-panel">
+            <div class="notification-header">
+                <h3>Notifications</h3>
+                <button class="close-panel" id="close-notifications">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="notification-list" id="notification-list">
+                <!-- Notifications will be populated here -->
+            </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" id="loading-overlay">
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Device Details -->
+    <div class="modal-overlay" id="device-modal">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2 id="device-modal-title">Device Details</h2>
+                <button class="modal-close" onclick="window.closeModal && window.closeModal('device-modal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-content" id="device-modal-content">
+                <!-- Device details will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="static/script.js"></script>
+    <script src="static/wireless-settings.js"></script>
+    <script src="static/map.js"></script>
+</body>
+</html>
