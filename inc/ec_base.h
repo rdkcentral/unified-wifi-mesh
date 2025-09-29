@@ -489,7 +489,7 @@ typedef struct {
 typedef struct {
     uint8_t key_id : 2; // Bits 0-1
     uint8_t reserved : 6; // Bits 2-7
-    uint8_t gtk[32]; // 1905 GTK
+    uint8_t gtk[SHA512_DIGEST_LENGTH]; // 1905 GTK
 } __attribute__((packed)) gtk_1905_kde_t;
 
 // Used to avoid many many if-not-null checks

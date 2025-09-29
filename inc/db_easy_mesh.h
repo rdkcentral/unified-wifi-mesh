@@ -295,7 +295,7 @@ public:
 	 * @note Ensure that the database client is properly initialized before calling
 	 * this function.
 	 */
-	int update_row(db_client_t& db_client, ...);
+	virtual int update_row(db_client_t& db_client, ...);
     
 	/**!
 	 * @brief Compares a row in the database.
