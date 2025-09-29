@@ -1,0 +1,25 @@
+Device Categories:
+
+Wi-Fi 7 Devices: MacBook Pro M3, Galaxy S24 Ultra (802.11be with MLO support)
+Wi-Fi 6/6E: iPhone 15 Pro Max, iPad Pro, PlayStation 5, gaming laptops
+Smart Home: Samsung Smart TV, Nest Hub Max, Echo Show, Ring Doorbell
+Gaming: PlayStation 5, Nintendo Switch, Legion gaming laptop
+Enterprise: ThinkPad X1 Carbon, Surface Pro with business QoS profiles
+IoT: Philips Hue Bridge, voice assistants with specialized profiles
+
+Professional Data Features:
+
+Real-time Metrics: RSSI, SNR, throughput, packet loss, latency, jitter
+Advanced Capabilities: Spatial streams, channel width, Wi-Fi standards support
+QoS Profiles: Gaming, streaming, business, IoT optimized policies
+Steering Policies: Performance, power-efficient, low-latency, stability modes
+3D Positioning: Precise location tracking for coverage optimization
+Usage Analytics: Connection duration, data usage, activity patterns
+
+R6 Enhanced Features:
+
+Wi-Fi 7 MLO support indicators
+Target Wake Time (TWT) capabilities
+OFDMA and MU-MIMO support flags
+WPA3-SAE security profiles
+Advanced steering (BTM, RRM, 802.11k/v/r)
