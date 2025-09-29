@@ -212,6 +212,7 @@ TEST(dm_assoc_sta_mld_t_Test, EncodeWithValidCJSONObject) {
         dm_assoc_sta_mld_t instance;
         instance.encode(obj);
         ASSERT_TRUE(cJSON_HasObjectItem(obj, "key"));
+	cJSON_Delete(obj);
     });
     std::cout << "Exiting EncodeWithValidCJSONObject test" << std::endl;
 }
