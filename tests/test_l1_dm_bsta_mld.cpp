@@ -527,9 +527,11 @@ TEST(dm_bsta_mld_Test, Initialize_m_bsta_mld_info_structure_multiple_times) {
  */
 TEST(dm_btsa_mld_Test, BothObjectsAreIdentical) {
       std::cout << "Entering BothObjectsAreIdentical" << std::endl;
-      dm_bsta_mld_t obj1, obj2;
+      dm_bsta_mld_t obj1{}, obj2{};
       auto& info1 = obj1.m_bsta_mld_info;
       auto& info2 = obj2.m_bsta_mld_info;
+      memset(&info1, 0, sizeof(info1));
+      memset(&info2, 0, sizeof(info2));
       info1.mac_addr_valid = info2.mac_addr_valid = true;
       info1.ap_mld_mac_addr_valid = info2.ap_mld_mac_addr_valid = true;
       uint8_t mac[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
@@ -568,9 +570,11 @@ TEST(dm_btsa_mld_Test, BothObjectsAreIdentical) {
  */
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentMacAddrValid) {
       std::cout << "Entering ObjectsHaveDifferentMacAddrValid" << std::endl;
-      dm_bsta_mld_t obj1, obj2;
+      dm_bsta_mld_t obj1{}, obj2{};
       auto& info1 = obj1.m_bsta_mld_info;
       auto& info2 = obj2.m_bsta_mld_info;
+      memset(&info1, 0, sizeof(info1));
+      memset(&info2, 0, sizeof(info2));
       info1.mac_addr_valid = true;
       info2.mac_addr_valid = false;
       info1.ap_mld_mac_addr_valid = info2.ap_mld_mac_addr_valid = true;
@@ -609,9 +613,11 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentMacAddrValid) {
  */
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentApMldMacAddrValid) {
       std::cout << "Entering ObjectsHaveDifferentApMldMacAddrValid" << std::endl;
-      dm_bsta_mld_t obj1, obj2;
+      dm_bsta_mld_t obj1{}, obj2{};      
       auto& info1 = obj1.m_bsta_mld_info;
       auto& info2 = obj2.m_bsta_mld_info;
+      memset(&info1, 0, sizeof(info1));
+      memset(&info2, 0, sizeof(info2));
       info1.mac_addr_valid = info2.mac_addr_valid = true;      
       info1.ap_mld_mac_addr_valid = true;
       info2.ap_mld_mac_addr_valid = false;
@@ -651,9 +657,11 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentApMldMacAddrValid) {
  */
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentMacAddr) {
       std::cout << "Entering ObjectsHaveDifferentMacAddr" << std::endl;
-      dm_bsta_mld_t obj1, obj2;
+      dm_bsta_mld_t obj1{}, obj2{};
       auto& info1 = obj1.m_bsta_mld_info;
       auto& info2 = obj2.m_bsta_mld_info;
+      memset(&info1, 0, sizeof(info1));
+      memset(&info2, 0, sizeof(info2));
       info1.mac_addr_valid = info2.mac_addr_valid = true;      
       info1.ap_mld_mac_addr_valid = info2.ap_mld_mac_addr_valid = true;
       uint8_t mac[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
@@ -693,9 +701,11 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentMacAddr) {
  */
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentApMldMacAddr) {
       std::cout << "Entering ObjectsHaveDifferentApMldMacAddr" << std::endl;
-      dm_bsta_mld_t obj1, obj2;
+      dm_bsta_mld_t obj1{}, obj2{};
       auto& info1 = obj1.m_bsta_mld_info;
       auto& info2 = obj2.m_bsta_mld_info;
+      memset(&info1, 0, sizeof(info1));
+      memset(&info2, 0, sizeof(info2));
       info1.mac_addr_valid = info2.mac_addr_valid = true;      
       info1.ap_mld_mac_addr_valid = info2.ap_mld_mac_addr_valid = true;
       uint8_t mac[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
@@ -735,9 +745,11 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentApMldMacAddr) {
  */
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentStr) {
       std::cout << "Entering ObjectsHaveDifferentStr" << std::endl;
-      dm_bsta_mld_t obj1, obj2;
+      dm_bsta_mld_t obj1{}, obj2{};
       auto& info1 = obj1.m_bsta_mld_info;
       auto& info2 = obj2.m_bsta_mld_info;
+      memset(&info1, 0, sizeof(info1));
+      memset(&info2, 0, sizeof(info2));
       info1.mac_addr_valid = info2.mac_addr_valid = true;      
       info1.ap_mld_mac_addr_valid = info2.ap_mld_mac_addr_valid = true;
       uint8_t mac[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
@@ -777,9 +789,11 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentStr) {
  */
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentNstr) {
       std::cout << "Entering ObjectsHaveDifferentNstr" << std::endl;
-      dm_bsta_mld_t obj1, obj2;
+      dm_bsta_mld_t obj1{}, obj2{};
       auto& info1 = obj1.m_bsta_mld_info;
       auto& info2 = obj2.m_bsta_mld_info;
+      memset(&info1, 0, sizeof(info1));
+      memset(&info2, 0, sizeof(info2));
       info1.mac_addr_valid = info2.mac_addr_valid = true;      
       info1.ap_mld_mac_addr_valid = info2.ap_mld_mac_addr_valid = true;
       uint8_t mac[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
@@ -819,9 +833,11 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentNstr) {
  */
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentEmlsr) {
       std::cout << "Entering ObjectsHaveDifferentEmlsr" << std::endl;
-      dm_bsta_mld_t obj1, obj2;
+      dm_bsta_mld_t obj1{}, obj2{};
       auto& info1 = obj1.m_bsta_mld_info;
       auto& info2 = obj2.m_bsta_mld_info;
+      memset(&info1, 0, sizeof(info1));
+      memset(&info2, 0, sizeof(info2));
       info1.mac_addr_valid = info2.mac_addr_valid = true;      
       info1.ap_mld_mac_addr_valid = info2.ap_mld_mac_addr_valid = true;
       uint8_t mac[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
@@ -861,9 +877,11 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentEmlsr) {
  */
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentEmlmr) {
       std::cout << "Entering ObjectsHaveDifferentEmlmr" << std::endl;
-      dm_bsta_mld_t obj1, obj2;
+      dm_bsta_mld_t obj1{}, obj2{};
       auto& info1 = obj1.m_bsta_mld_info;
       auto& info2 = obj2.m_bsta_mld_info;
+      memset(&info1, 0, sizeof(info1));
+      memset(&info2, 0, sizeof(info2));
       info1.mac_addr_valid = info2.mac_addr_valid = true;      
       info1.ap_mld_mac_addr_valid = info2.ap_mld_mac_addr_valid = true;
       uint8_t mac[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
@@ -902,9 +920,11 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentEmlmr) {
  */
 TEST(dm_btsa_mld_Test, ObjectsHaveDifferentNumAffiliatedBsta) {
       std::cout << "Entering ObjectsHaveDifferentNumAffiliatedBsta" << std::endl;
-      dm_bsta_mld_t obj1, obj2;
+      dm_bsta_mld_t obj1{}, obj2{};
       auto& info1 = obj1.m_bsta_mld_info;
       auto& info2 = obj2.m_bsta_mld_info;
+      memset(&info1, 0, sizeof(info1));
+      memset(&info2, 0, sizeof(info2));
       info1.mac_addr_valid = info2.mac_addr_valid = true;      
       info1.ap_mld_mac_addr_valid = info2.ap_mld_mac_addr_valid = true;
       uint8_t mac[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
@@ -1058,7 +1078,8 @@ TEST(dm_bsta_mld_Test, AssigningMinAffiliatedBsta) {
  */
 TEST(dm_bsta_mld_Test, ValidMLDInformationAllFields) {
       std::cout << "Entering ValidMLDInformationAllFieldsTEST";
-      em_bsta_mld_info_t ap_mld_info;
+      em_bsta_mld_info_t ap_mld_info{};
+      memset(&ap_mld_info, 0, sizeof(ap_mld_info));
       ap_mld_info.mac_addr_valid = true;
       ap_mld_info.ap_mld_mac_addr_valid = true;
       ap_mld_info.str = false;
@@ -1099,7 +1120,8 @@ TEST(dm_bsta_mld_Test, ValidMLDInformationAllFields) {
  */
 TEST(dm_bsta_mld_Test, CopyConstructorWithAllFieldsInitialized) {
       std::cout << "Entering CopyConstructorWithAllFieldsInitialized" << std::endl;
-      dm_bsta_mld_t original;
+      dm_bsta_mld_t original{};
+      memset(&original.m_bsta_mld_info, 0, sizeof(original.m_bsta_mld_info));
       original.m_bsta_mld_info.mac_addr_valid = true;
       original.m_bsta_mld_info.ap_mld_mac_addr_valid = true;
       original.m_bsta_mld_info.str = false;
@@ -1204,8 +1226,6 @@ TEST(dm_bsta_mld_t_Test, Destructor_DefaultConstructed) {
             std::cout << "Invoking default constructor for dm_bsta_mld_t." << std::endl;
             dm_bsta_mld_t obj;
             std::cout << "Default constructor invoked successfully." << std::endl;
-            // Print internal state of the object (for demonstration, printing pointer to m_bsta_mld_info)
-            std::cout << "Internal state (m_bsta_mld_info) address: " << &obj.m_bsta_mld_info << std::endl;
             std::cout << "About to leave scope, which will invoke the destructor for dm_bsta_mld_t." << std::endl;
         }
     });
