@@ -12,6 +12,7 @@ import "C"
 
 import (
 	"log"
+	"math"
 	"time"
 	"unsafe"
 
@@ -60,6 +61,7 @@ type BaseTab struct {
 
 type Topology struct {
     BaseTab
+    timerCount int
     topo *fyne.Container
 }
 
@@ -136,11 +138,12 @@ func (m *MeshViewsMgr) createViews() {
     image := canvas.NewImageFromResource(resourceGatewayPng)
     image.Resize(fyne.Size{Width: 50, Height: 50})
     tabInterface.setCanvasObject(image)
+    image.Hide()
     topo.topo = container.New(&Concentric{}, tabInterface.getCanvasObject())
 
     m.easyMeshViews[TopologyString] = EasyMeshView{
         title: TopologyString,
-        get:   "get_bss OneWifiMesh",
+        get:   "get_network OneWifiMesh",
         //tabItem: container.NewTabItemWithIcon("", theme.HomeIcon(), tabInterface.getCanvasObject()),
         tabItem:      container.NewTabItemWithIcon("", theme.HomeIcon(), topo.topo),
         tabInterface: tabInterface,
@@ -210,6 +213,10 @@ func (m *MeshViewsMgr) getViewBySelectedTab() *EasyMeshView {
     return nil
 }
 
+func pause_start_Timer(val bool) {
+	meshViewsMgr.isEditing = val
+}
+
 func (m *MeshViewsMgr) timerHandler() {
     for {
         select {
@@ -231,6 +238,21 @@ func (m *MeshViewsMgr) timerHandler() {
                         cmd := C.CString(view.get)
                         defer C.free(unsafe.Pointer(cmd))
 
+                        if view.title == TopologyString {
+                            // Get the data for topology tab on every 5*4 = 20 sec
+                            topoView, ok := view.tabInterface.(*Topology)
+                            if ok {
+                                // Handle overflow: reset timer
+                                if topoView.timerCount == math.MaxInt {
+                                    topoView.timerCount = 0
+                                }
+
+                                topoView.timerCount++
+                                if (topoView.timerCount)%4 != 1 {
+                                    return
+                                }
+                            }
+                        }
                         result := C.exec(cmd, C.strlen(cmd), nil)
                         view.tabInterface.setData(result)
                         view.tabInterface.periodicTimer()
@@ -249,7 +271,8 @@ func (m *MeshViewsMgr) timerHandler() {
 
 func main() {
     meshViewsMgr.meshApp = app.New()
-    meshViewsMgr.meshWindow = meshViewsMgr.meshApp.NewWindow("OneWifiMesh")
+    //meshViewsMgr.meshApp.Settings().SetTheme(theme.DarkTheme())
+    meshViewsMgr.meshWindow = meshViewsMgr.meshApp.NewWindow("RDK Mesh")
 
     meshViewsMgr.createViews()
 
