@@ -74,7 +74,6 @@ TEST(dm_assoc_sta_mld_t_Test, DecodeWithValidJsonObjectAndValidParentId) {
  * | 03 | Assert that the result is -1 | result = -1 | Assertion passes | Should be successful |
  * | 04 | Clean up the JSON object | validJsonObject | JSON object deleted | Should be successful |
  */
-/*
 TEST(dm_assoc_sta_mld_t_Test, DecodeWithValidJsonObjectAndNullParentId) {
     std::cout << "Entering DecodeWithValidJsonObjectAndNullParentId test" << std::endl;
     cJSON* validJsonObject = cJSON_Parse("{\"key\":\"value\"}");
@@ -83,8 +82,7 @@ TEST(dm_assoc_sta_mld_t_Test, DecodeWithValidJsonObjectAndNullParentId) {
     ASSERT_EQ(result, -1);
     cJSON_Delete(validJsonObject);
     std::cout << "Exiting DecodeWithValidJsonObjectAndNullParentId test" << std::endl;
-}
-*/    
+}   
 
 /**
  * @brief Test the decode function with a null JSON object and a valid parent ID.
@@ -104,7 +102,6 @@ TEST(dm_assoc_sta_mld_t_Test, DecodeWithValidJsonObjectAndNullParentId) {
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Call the decode function with a null JSON object and a valid parent ID | json_object = nullptr, parent_id = 1 | Result should be -1 | Should Pass |
  */
-/* 
 TEST(dm_assoc_sta_mld_t_Test, DecodeWithNullJsonObjectAndValidParentId) {
     std::cout << "Entering DecodeWithNullJsonObjectAndValidParentId test" << std::endl;
     int parent_id = 1;
@@ -112,8 +109,7 @@ TEST(dm_assoc_sta_mld_t_Test, DecodeWithNullJsonObjectAndValidParentId) {
     int result = instance.decode(nullptr, &parent_id);
     ASSERT_EQ(result, -1);
     std::cout << "Exiting DecodeWithNullJsonObjectAndValidParentId test" << std::endl;
-}
-*/     
+}    
 
 /**
  * @brief Test the decode function with an invalid JSON object and a valid parent ID.
@@ -137,7 +133,6 @@ TEST(dm_assoc_sta_mld_t_Test, DecodeWithNullJsonObjectAndValidParentId) {
  * | 04 | Delete the invalid JSON object | invalidJsonObject = "{key:value}" | invalidJsonObject should be deleted | Should be successful |
  * | 05 | Tear down the test environment | None | None | Done by Pre-requisite TearDown function |
  */
- /*
 TEST(dm_assoc_sta_mld_t_Test, DecodeWithInvalidJsonObjectAndValidParentId) {
     std::cout << "Entering DecodeWithInvalidJsonObjectAndValidParentId test" << std::endl;
     cJSON* invalidJsonObject = cJSON_Parse("{key:value}");
@@ -147,8 +142,7 @@ TEST(dm_assoc_sta_mld_t_Test, DecodeWithInvalidJsonObjectAndValidParentId) {
     ASSERT_EQ(result, -1);
     cJSON_Delete(invalidJsonObject);
     std::cout << "Exiting DecodeWithInvalidJsonObjectAndValidParentId test" << std::endl;
-}
-*/    
+}   
 
 /**
  * @brief Test the decode function with a valid JSON object and an invalid parent ID.
@@ -171,7 +165,6 @@ TEST(dm_assoc_sta_mld_t_Test, DecodeWithInvalidJsonObjectAndValidParentId) {
  * | 02 | Call decode with valid JSON object and invalid parent ID | validJsonObject = {"key":"value"}, invalid_parent_id = -1 | result = -1 | Should Pass |
  * | 03 | Delete the JSON object | validJsonObject = {"key":"value"} | validJsonObject is deleted successfully | Should be successful |
  */
-/*
 TEST(dm_assoc_sta_mld_t_Test, DecodeWithValidJsonObjectAndInvalidParentId) {
     std::cout << "Entering DecodeWithValidJsonObjectAndInvalidParentId test" << std::endl;
     cJSON* validJsonObject = cJSON_Parse("{\"key\":\"value\"}");
@@ -182,7 +175,6 @@ TEST(dm_assoc_sta_mld_t_Test, DecodeWithValidJsonObjectAndInvalidParentId) {
     cJSON_Delete(validJsonObject);
     std::cout << "Exiting DecodeWithValidJsonObjectAndInvalidParentId test" << std::endl;
 }
-*/
 
 /**
  * @brief Test the encoding functionality with a valid cJSON object.
@@ -236,7 +228,6 @@ TEST(dm_assoc_sta_mld_t_Test, EncodeWithValidCJSONObject) {
  * | 01 | Create a null cJSON object | cJSON*obj = nullptr | obj is null | Should be successful |
  * | 02 | Call the encode function with the null cJSON object | instance.encode(obj) | obj = nullptr | Should Pass |
  */
-/* 
 TEST(dm_assoc_sta_mld_t_Test, EncodeWithNullCJSONObject) {
     std::cout << "Entering EncodeWithNullCJSONObject test" << std::endl;
     EXPECT_ANY_THROW({
@@ -246,7 +237,6 @@ TEST(dm_assoc_sta_mld_t_Test, EncodeWithNullCJSONObject) {
     });
     std::cout << "Exiting EncodeWithNullCJSONObject test" << std::endl;
 }
-*/
 
 /**
  * @brief Test the encoding function with invalid data in cJSON object
@@ -267,7 +257,6 @@ TEST(dm_assoc_sta_mld_t_Test, EncodeWithNullCJSONObject) {
  * | 01 | Create an empty cJSON object | empty cJSON object | cJSON object created with empty data | Should be successful |
  * | 02 | Call the encode function with the empty cJSON object | empty cJSON object | Function should handle empty data | Should Pass |
  */
-/* 
 TEST(dm_assoc_sta_mld_t_Test, EncodeWithEmptyCJSONObject) {
     std::cout << "Entering EncodeWithEmptyCJSONObject test" << std::endl;
     // valid JSON but missing required fields
@@ -276,8 +265,7 @@ TEST(dm_assoc_sta_mld_t_Test, EncodeWithEmptyCJSONObject) {
     EXPECT_ANY_THROW(instance.encode(obj));
     cJSON_Delete(obj);  // cleanup
     std::cout << "Exiting EncodeWithEmptyCJSONObject test" << std::endl;
-}
-*/    
+}   
 
 /**
  * @brief Test encoding of a JSON object with special characters
@@ -805,7 +793,6 @@ TEST(dm_assoc_sta_mld_t_Test, DifferentEmlmrValues) {
  * | 01| Create two dm_assoc_sta_mld_t objects with different number of affiliated stations | obj1.m_assoc_sta_mld_info = {{0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, false, true, false, 1, {}}, obj2.m_assoc_sta_mld_info = {{0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, false, true, false, 2, {}} | Objects should not be equal | Should Pass |
  * | 02| Check equality using EXPECT_FALSE | EXPECT_FALSE(obj1 == obj2) | Should return false | Should Pass |
  */
-
 TEST(dm_assoc_sta_mld_t_Test, DifferentNumAffiliatedSta) {
     std::cout << "Entering DifferentNumAffiliatedSta test";
     dm_assoc_sta_mld_t obj1, obj2;
@@ -1048,14 +1035,12 @@ TEST(dm_assoc_sta_mld_t_Test, ValidAPMLDInformation) {
  * | 01 | Initialize AP MLD information to null | ap_mld_info = nullptr | N/A | Should be successful |
  * | 02 | Create `dm_assoc_sta_mld_t` object with null AP MLD information | ap_mld_info = nullptr | N/A | Should be successful |
  */
-/* 
 TEST(dm_assoc_sta_mld_t_Test, NullAPMLDInformation) {
     std::cout << "Entering NullAPMLDInformation test";
     em_assoc_sta_mld_info_t* ap_mld_info = nullptr;
     EXPECT_ANY_THROW(dm_assoc_sta_mld_t assoc_sta_mld(ap_mld_info));  
     std::cout << "Exiting NullAPMLDInformation test";
-}
-*/      
+}     
 
 /**
  * @brief Test to validate the behavior of the dm_assoc_sta_mld_t class when initialized with an invalid MAC address.
@@ -1171,7 +1156,6 @@ TEST(dm_assoc_sta_mld_t_Test, MaximumNumberOfAffiliatedStations) {
  * | 02| Create dm_assoc_sta_mld_t object with ap_mld_info | dm_assoc_sta_mld_t assoc_sta_mld(&ap_mld_info) | Object should be created successfully | Should be successful |
  * | 03| Initialized values should match  | assoc_sta_mld.m_assoc_sta_mld_info.num_affiliated_sta = ap_mld_info.num_affiliated_sta | Values should match | Should Pass |
  */
-/* 
 TEST(dm_assoc_sta_mld_t_Test, ExceedingMaximumNumberOfAffiliatedStations) {
     std::cout << "Entering ExceedingMaximumNumberOfAffiliatedStations test";
     em_assoc_sta_mld_info_t ap_mld_info;
@@ -1179,8 +1163,7 @@ TEST(dm_assoc_sta_mld_t_Test, ExceedingMaximumNumberOfAffiliatedStations) {
     dm_assoc_sta_mld_t assoc_sta_mld(&ap_mld_info);
     EXPECT_NE(assoc_sta_mld.m_assoc_sta_mld_info.num_affiliated_sta, ap_mld_info.num_affiliated_sta);
     std::cout << "Exiting ExceedingMaximumNumberOfAffiliatedStations test";
-}
-*/    
+}   
 
 /**
  * @brief Test the copy constructor of dm_assoc_sta_mld_t with valid input
@@ -1240,7 +1223,6 @@ TEST(dm_assoc_sta_mld_t_Test, CopyConstructorWithValidInput) {
  * | 02 | Copy construct a new object from the original | dm_assoc_sta_mld_t copy(original) | MAC address of copy object should be 0 | Should Pass |
  * | 03 | Verify each byte of the MAC address in the copied object | EXPECT_EQ(copy.m_assoc_sta_mld_info.mac_addr[i], 0) | Each byte of MAC address in copy object is 0 | Should Pass |
  */
-/* 
 TEST(dm_assoc_sta_mld_t_Test, CopyConstructorWithInvalidMacAddressInput) {
     std::cout << "Entering CopyConstructorWithInvalidMacAddressInput" << std::endl;
     EXPECT_ANY_THROW({
@@ -1252,8 +1234,7 @@ TEST(dm_assoc_sta_mld_t_Test, CopyConstructorWithInvalidMacAddressInput) {
         }
     });
     std::cout << "Exiting CopyConstructorWithInvalidMacAddressInput" << std::endl;
-}
-*/    
+}   
 
 /**
  * @brief Test the copy constructor of dm_assoc_sta_mld_t with maximum affiliated stations

@@ -44,7 +44,7 @@
  * | 03 | Assert that the result of the decode function is 0 | result = 0 | Assertion should pass | Should Pass |
  * | 04 | Clean up the cJSON object | validJson = cJSON object | cJSON object deleted successfully | Should be successful |
  */
-TEST(dm_bsta_mld_Test, DecodeValidJsonObjectWithValidParentID) {
+TEST(dm_bsta_mld_t_Test, DecodeValidJsonObjectWithValidParentID) {
     std::cout << "Entering DecodeValidJsonObjectWithValidParentIDTEST" << std::endl;
     cJSON* validJson = cJSON_Parse("{\"key\":\"value\"}");
     int parent_id = 1;
@@ -76,8 +76,7 @@ TEST(dm_bsta_mld_Test, DecodeValidJsonObjectWithValidParentID) {
  * | 03 | Assert the result of the decode function | ASSERT_EQ(result, -1) | result is -1 | Should Pass |
  * | 04 | Delete the parsed JSON object | cJSON_Delete(validJson) | validJson is deleted | Should be successful |
  */
-/*
-TEST(dm_bsta_mld_Test, DecodeValidJsonObjectWithNullParentID) {
+TEST(dm_bsta_mld_t_Test, DecodeValidJsonObjectWithNullParentID) {
     std::cout << "Entering DecodeValidJsonObjectWithNullParentIDTEST" << std::endl;
     cJSON* validJson = cJSON_Parse("{\"key\":\"value\"}");
     dm_bsta_mld_t instance;
@@ -85,8 +84,7 @@ TEST(dm_bsta_mld_Test, DecodeValidJsonObjectWithNullParentID) {
     ASSERT_EQ(result, -1);
     cJSON_Delete(validJson);
     std::cout << "Exiting DecodeValidJsonObjectWithNullParentIDTEST" << std::endl;
-}
-*/     
+}    
  
 /**
  * @brief TEST the decode function with a null JSON object and a valid parent ID.
@@ -106,16 +104,14 @@ TEST(dm_bsta_mld_Test, DecodeValidJsonObjectWithNullParentID) {
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Call the decode function with a null JSON object and a valid parent ID | json_object = nullptr, parent_id = 1 | Result should be -1 | Should Pass |
  */
-/* 
-TEST(dm_bsta_mld_Test, DecodeNullJsonObjectWithValidParentID) {
+TEST(dm_bsta_mld_t_Test, DecodeNullJsonObjectWithValidParentID) {
     std::cout << "Entering DecodeNullJsonObjectWithValidParentIDTEST" << std::endl;
     int parent_id = 1;
     dm_bsta_mld_t instance;
     int result = instance.decode(nullptr, &parent_id);
     ASSERT_EQ(result, -1);
     std::cout << "Exiting DecodeNullJsonObjectWithValidParentIDTEST" << std::endl;
-}
-*/    
+}   
  
 /**
  * @brief TEST to decode an invalid JSON object with a valid parent ID.
@@ -138,8 +134,7 @@ TEST(dm_bsta_mld_Test, DecodeNullJsonObjectWithValidParentID) {
  * | 03 | Assert the result of the decode function | result = -1 | result should be -1 | Should Fail |
  * | 04 | Delete the invalid JSON object | invalidJson = "{key:value}" | invalidJson should be deleted | Should be successful |
  */
-/* 
-TEST(dm_bsta_mld_Test, DecodeInvalidJsonObjectWithValidParentID) {
+TEST(dm_bsta_mld_t_Test, DecodeInvalidJsonObjectWithValidParentID) {
     std::cout << "Entering DecodeInvalidJsonObjectWithValidParentIDTEST" << std::endl;
     cJSON* invalidJson = cJSON_Parse("{key:value}");
     int parent_id = 1;
@@ -148,8 +143,7 @@ TEST(dm_bsta_mld_Test, DecodeInvalidJsonObjectWithValidParentID) {
     ASSERT_EQ(result, -1);
     cJSON_Delete(invalidJson);
     std::cout << "Exiting DecodeInvalidJsonObjectWithValidParentIDTEST" << std::endl;
-}
-*/    
+}   
  
 /**
  * @brief TEST decoding a valid JSON object with an invalid parent ID
@@ -171,8 +165,7 @@ TEST(dm_bsta_mld_Test, DecodeInvalidJsonObjectWithValidParentID) {
  * | 02 | Call the decode function with the valid JSON object and an invalid parent ID | validJson = {"key":"value"}, invalid_parent_id = -1 | Result should be -1 | Should Pass |
  * | 03 | Delete the cJSON object to clean up | validJson = {"key":"value"} | cJSON object deleted successfully | Should be successful |
  */
-/* 
-TEST(dm_bsta_mld_Test, DecodeValidJsonObjectWithInvalidParentID) {
+TEST(dm_bsta_mld_t_Test, DecodeValidJsonObjectWithInvalidParentID) {
     std::cout << "Entering DecodeValidJsonObjectWithInvalidParentIDTEST" << std::endl;
     cJSON* validJson = cJSON_Parse("{\"key\":\"value\"}");
     int invalid_parent_id = -1;
@@ -181,8 +174,7 @@ TEST(dm_bsta_mld_Test, DecodeValidJsonObjectWithInvalidParentID) {
     ASSERT_EQ(result, -1);
     cJSON_Delete(validJson);
     std::cout << "Exiting DecodeValidJsonObjectWithInvalidParentIDTEST" << std::endl;
-}
-*/    
+}   
  
 /**
  * @brief TEST the encoding functionality with a valid cJSON object.
@@ -207,7 +199,7 @@ TEST(dm_bsta_mld_Test, DecodeValidJsonObjectWithInvalidParentID) {
  * | 04 | Verify that the object is still a valid cJSON object | cJSON_IsObject(obj) | Assertion passes | Should Pass |
  * | 05 | Clean up the cJSON object | cJSON_Delete(obj) | Object is deleted | Should be successful |
  */
-TEST(dm_bsta_mld_Test, EncodeWithValidCJSONObject) {
+TEST(dm_bsta_mld_t_Test, EncodeWithValidCJSONObject) {
     std::cout << "Entering EncodeWithValidCJSONObject" << std::endl;
     EXPECT_NO_THROW({
       cJSON*obj = cJSON_CreateObject();
@@ -246,7 +238,7 @@ TEST(dm_bsta_mld_Test, EncodeWithValidCJSONObject) {
  * | 03 | Verify that the object is still a valid JSON object | cJSON_IsObject(obj) | Assertion passed | Should Pass |
  * | 04 | Clean up the JSON object | cJSON_Delete(obj) | JSON object deleted | Should be successful |
  */
-TEST(dm_bsta_mld_Test, EncodeWithSpecialCharacters) {
+TEST(dm_bsta_mld_t_Test, EncodeWithSpecialCharacters) {
       std::cout << "Entering EncodeWithSpecialCharacters" << std::endl;
       EXPECT_NO_THROW({
             cJSON*obj = cJSON_CreateObject();
@@ -281,7 +273,7 @@ TEST(dm_bsta_mld_Test, EncodeWithSpecialCharacters) {
  * | 03 | Verify the object is still a valid cJSON object | obj = encoded cJSON object | ASSERT_TRUE(cJSON_IsObject(obj)) | Should Pass |
  * | 04 | Delete the cJSON object | obj = encoded cJSON object | None | Should be successful |
  */
-TEST(dm_bsta_mld_Test, EncodeWithEmptyCJSONObject) {
+TEST(dm_bsta_mld_t_Test, EncodeWithEmptyCJSONObject) {
       std::cout << "Entering EncodeWithEmptyCJSONObject" << std::endl;
       EXPECT_NO_THROW({
             cJSON*obj = cJSON_CreateObject();
@@ -314,16 +306,14 @@ TEST(dm_bsta_mld_Test, EncodeWithEmptyCJSONObject) {
  * | 02 | Call the encode function with the null cJSON object | instance.encode(obj) | Function handles null input gracefully | Should Pass |
  * | 03 | Verify that the cJSON object remains null after encoding | ASSERT_EQ(obj, nullptr) | obj is still null | Should Pass |
  */
-/*  
-TEST(dm_bsta_mld_Test, EncodeWithNullCJSONObject) {
+TEST(dm_bsta_mld_t_Test, EncodeWithNullCJSONObject) {
       std::cout << "Entering EncodeWithNullCJSONObject" << std::endl;
       cJSON*obj = nullptr;
       dm_bsta_mld_t instance;
       EXPECT_ANY_THROW(instance.encode(obj));
       ASSERT_EQ(obj, nullptr);
       std::cout << "Exiting EncodeWithNullCJSONObject" << std::endl;
-}
-*/      
+}     
  
 /**
  * @brief TEST the encoding function with an invalid JSON structure.
@@ -348,8 +338,7 @@ TEST(dm_bsta_mld_Test, EncodeWithNullCJSONObject) {
  * | 03 | Verify that the JSON structure is still an array after encoding | cJSON_IsArray(obj) | Assertion should be true | Should Pass |
  * | 04 | Clean up the JSON object | cJSON_Delete(obj) | JSON object should be deleted successfully | Should be successful |
  */
-/* 
-TEST(dm_bsta_mld_Test, EncodeWithInvalidJSONStructure) {
+TEST(dm_bsta_mld_t_Test, EncodeWithInvalidJSONStructure) {
     std::cout << "Entering EncodeWithInvalidJSONStructure" << std::endl;
     cJSON* obj = cJSON_CreateArray();
     cJSON_AddItemToArray(obj, cJSON_CreateString("invalid"));
@@ -359,8 +348,7 @@ TEST(dm_bsta_mld_Test, EncodeWithInvalidJSONStructure) {
     });
     cJSON_Delete(obj);
     std::cout << "Exiting EncodeWithInvalidJSONStructure" << std::endl;
-}
-*/    
+}   
  
 /**
  * @brief TEST to verify the retrieval of AP MLD information with valid data.
@@ -389,7 +377,7 @@ TEST(dm_bsta_mld_Test, EncodeWithInvalidJSONStructure) {
  * | 08 | Validate `emlsr` field | `retrieved_info->emlsr` | Should be true | Should Pass |
  * | 09 | Validate `emlmr` field | `retrieved_info->emlmr` | Should be true | Should Pass |
  */
-TEST(dm_bsta_mld_Test, RetrieveAPMLDInfoWithValidData) {
+TEST(dm_bsta_mld_t_Test, RetrieveAPMLDInfoWithValidData) {
       std::cout << "Entering RetrieveAPMLDInfoWithValidDataTEST" << std::endl;
       em_bsta_mld_info_t info{};
       info.mac_addr_valid = true;
@@ -431,8 +419,7 @@ TEST(dm_bsta_mld_Test, RetrieveAPMLDInfoWithValidData) {
  * | 01 | Initialize the instance to null | dm_bsta_mld_t(nullptr) | Instance initialized successfully | Should be successful |
  * | 02 | Retrieve AP MLD information | info = instance.get_bsta_mld_info() | info != nullptr | Should Pass |
  */
-/* 
-TEST(dm_bsta_mld_Test, RetrieveAPMLDInfoAfterNullInitialization) {
+TEST(dm_bsta_mld_t_Test, RetrieveAPMLDInfoAfterNullInitialization) {
       std::cout << "Entering RetrieveAPMLDInfoAfterNullInitializationTEST" << std::endl;
       EXPECT_ANY_THROW({
             dm_bsta_mld_t instance(nullptr);
@@ -440,8 +427,7 @@ TEST(dm_bsta_mld_Test, RetrieveAPMLDInfoAfterNullInitialization) {
             ASSERT_NE(info, nullptr);
       });
       std::cout << "Exiting RetrieveAPMLDInfoAfterNullInitializationTEST" << std::endl;
-}
-*/          
+}         
  
 /**
  * @brief TEST the initialization of m_bsta_mld_info structure
@@ -462,7 +448,7 @@ TEST(dm_bsta_mld_Test, RetrieveAPMLDInfoAfterNullInitialization) {
  * | 01 | Call the init() method on the instance | instance.init() | result = 0 | Should Pass |
  * | 02 | Verify the result of the init() method | ASSERT_EQ(result, 0) | result = 0 | Should Pass |
  */
-TEST(dm_bsta_mld_Test, Initialize_m_bsta_mld_info_structure) {
+TEST(dm_bsta_mld_t_Test, Initialize_m_bsta_mld_info_structure) {
       std::cout << "Entering Initialize_m_bsta_mld_info_structureTEST" << std::endl;
       EXPECT_NO_THROW({
             dm_bsta_mld_t instance;
@@ -494,7 +480,7 @@ TEST(dm_bsta_mld_Test, Initialize_m_bsta_mld_info_structure) {
  * | 03 | Call the init() function for the second time | None | result2 = 0 | Should Pass |
  * | 04 | Assert the result of the second init() call | result2 = 0 | Assertion should be true | Should be successful |
  */
-TEST(dm_bsta_mld_Test, Initialize_m_bsta_mld_info_structure_multiple_times) {
+TEST(dm_bsta_mld_t_Test, Initialize_m_bsta_mld_info_structure_multiple_times) {
       std::cout << "Entering Initialize_m_bsta_mld_info_structure_multiple_timesTEST" << std::endl;
       EXPECT_NO_THROW({
             dm_bsta_mld_t instance;
@@ -525,7 +511,7 @@ TEST(dm_bsta_mld_Test, Initialize_m_bsta_mld_info_structure_multiple_times) {
  * | 01| Create two identical objects of dm_bsta_mld_t | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1} , obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1} | Objects should be identical | Should Pass |
  * | 02| Compare the two objects using the equality operator | obj1 == obj2 | EXPECT_TRUE(obj1 == obj2) | Should Pass |
  */
-TEST(dm_btsa_mld_Test, BothObjectsAreIdentical) {
+TEST(dm_bsta_mld_t_Test, BothObjectsAreIdentical) {
       std::cout << "Entering BothObjectsAreIdentical" << std::endl;
       dm_bsta_mld_t obj1{}, obj2{};
       auto& info1 = obj1.m_bsta_mld_info;
@@ -568,7 +554,7 @@ TEST(dm_btsa_mld_Test, BothObjectsAreIdentical) {
  * | 01 | Create two instances of dm_bsta_mld_t with different MAC addresses | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1}, obj2.m_bsta_mld_info = {false, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1} | Instances created successfully | Should be successful |
  * | 02 | Compare the two instances using the equality operator | obj1 == obj2 | EXPECT_FALSE(obj1 == obj2) | Should Pass |
  */
-TEST(dm_btsa_mld_Test, ObjectsHaveDifferentMacAddrValid) {
+TEST(dm_bsta_mld_t_Test, ObjectsHaveDifferentMacAddrValid) {
       std::cout << "Entering ObjectsHaveDifferentMacAddrValid" << std::endl;
       dm_bsta_mld_t obj1{}, obj2{};
       auto& info1 = obj1.m_bsta_mld_info;
@@ -611,7 +597,7 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentMacAddrValid) {
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01| Create two instances of dm_bsta_mld_t with different AP MLD MAC addresses | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1}, {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01}}}}, obj2.m_bsta_mld_info = {true, false, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1} | Two objects should not be equal | Should Pass |
  */
-TEST(dm_btsa_mld_Test, ObjectsHaveDifferentApMldMacAddrValid) {
+TEST(dm_bsta_mld_t_Test, ObjectsHaveDifferentApMldMacAddrValid) {
       std::cout << "Entering ObjectsHaveDifferentApMldMacAddrValid" << std::endl;
       dm_bsta_mld_t obj1{}, obj2{};      
       auto& info1 = obj1.m_bsta_mld_info;
@@ -655,7 +641,7 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentApMldMacAddrValid) {
  * | 01| Create two instances of `dm_bsta_mld_t` and set their MAC addresses | obj1.m_bsta_mld_info.mac_addr = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, obj2.m_bsta_mld_info.mac_addr = {0x00, 0x11, 0x22, 0x33, 0x44, 0x56} | Instances should have different MAC addresses | Should Pass |
  * | 02| Compare the two instances using `EXPECT_FALSE` | obj1 == obj2 | The comparison should return false | Should Pass |
  */
-TEST(dm_btsa_mld_Test, ObjectsHaveDifferentMacAddr) {
+TEST(dm_bsta_mld_t_Test, ObjectsHaveDifferentMacAddr) {
       std::cout << "Entering ObjectsHaveDifferentMacAddr" << std::endl;
       dm_bsta_mld_t obj1{}, obj2{};
       auto& info1 = obj1.m_bsta_mld_info;
@@ -699,7 +685,7 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentMacAddr) {
  * | 01| Create two instances of dm_bsta_mld_t and set their m_bsta_mld_info with different AP MLD MAC addresses | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1}, obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBC}, true, true, true, true, 1} | Objects should be different | Should Pass |
  * | 02| Check if the equality operator identifies them as different | EXPECT_FALSE(obj1 == obj2) |TEST should pass | Should Pass |
  */
-TEST(dm_btsa_mld_Test, ObjectsHaveDifferentApMldMacAddr) {
+TEST(dm_bsta_mld_t_Test, ObjectsHaveDifferentApMldMacAddr) {
       std::cout << "Entering ObjectsHaveDifferentApMldMacAddr" << std::endl;
       dm_bsta_mld_t obj1{}, obj2{};
       auto& info1 = obj1.m_bsta_mld_info;
@@ -743,7 +729,7 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentApMldMacAddr) {
  * | 01| Create two objects of dm_bsta_mld_t and set their m_bsta_mld_info structures with different values | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1}, obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, false, true, true, true, 1} | Objects should have different m_bsta_mld_info structures | Should Pass |
  * | 02| Compare the two objects using the equality operator | obj1 == obj2 | EXPECT_FALSE(obj1 == obj2) | Should Pass |
  */
-TEST(dm_btsa_mld_Test, ObjectsHaveDifferentStr) {
+TEST(dm_bsta_mld_t_Test, ObjectsHaveDifferentStr) {
       std::cout << "Entering ObjectsHaveDifferentStr" << std::endl;
       dm_bsta_mld_t obj1{}, obj2{};
       auto& info1 = obj1.m_bsta_mld_info;
@@ -787,7 +773,7 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentStr) {
  * | 01| Create two objects of dm_bsta_mld_t and set their m_bsta_mld_info with different nstr values | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1}, obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, false, true, true, 1} | Objects should have different nstr values | Should be successful |
  * | 02| Check if the equality operator identifies them as not equal | EXPECT_FALSE(obj1 == obj2) | The objects should not be equal | Should Pass |
  */
-TEST(dm_btsa_mld_Test, ObjectsHaveDifferentNstr) {
+TEST(dm_bsta_mld_t_Test, ObjectsHaveDifferentNstr) {
       std::cout << "Entering ObjectsHaveDifferentNstr" << std::endl;
       dm_bsta_mld_t obj1{}, obj2{};
       auto& info1 = obj1.m_bsta_mld_info;
@@ -831,7 +817,7 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentNstr) {
  * | 01| Create two instances of dm_bsta_mld_t with different Emlsr values | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1}, obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, false, true, 1} | Instances should not be equal | Should Pass |
  * | 02| Compare the two instances using EXPECT_FALSE | EXPECT_FALSE(obj1 == obj2) | The comparison should return false | Should Pass |
  */
-TEST(dm_btsa_mld_Test, ObjectsHaveDifferentEmlsr) {
+TEST(dm_bsta_mld_t_Test, ObjectsHaveDifferentEmlsr) {
       std::cout << "Entering ObjectsHaveDifferentEmlsr" << std::endl;
       dm_bsta_mld_t obj1{}, obj2{};
       auto& info1 = obj1.m_bsta_mld_info;
@@ -875,7 +861,7 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentEmlsr) {
  * | 01| Create two instances of dm_bsta_mld_t with different EMLMR values | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1}, obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, false, 1} | Two objects should not be equal | Should Pass |
  * | 02| Compare the two instances using EXPECT_FALSE | EXPECT_FALSE(obj1 == obj2) | The comparison should return false | Should Pass |
  */
-TEST(dm_btsa_mld_Test, ObjectsHaveDifferentEmlmr) {
+TEST(dm_bsta_mld_t_Test, ObjectsHaveDifferentEmlmr) {
       std::cout << "Entering ObjectsHaveDifferentEmlmr" << std::endl;
       dm_bsta_mld_t obj1{}, obj2{};
       auto& info1 = obj1.m_bsta_mld_info;
@@ -918,7 +904,7 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentEmlmr) {
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01| Create two objects of dm_bsta_mld_t with different number of affiliated BSTA | obj1.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 1}, obj2.m_bsta_mld_info = {true, true, {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}, true, true, true, true, 2} | Objects should not be equal | Should Pass |
  */
-TEST(dm_btsa_mld_Test, ObjectsHaveDifferentNumAffiliatedBsta) {
+TEST(dm_bsta_mld_t_Test, ObjectsHaveDifferentNumAffiliatedBsta) {
       std::cout << "Entering ObjectsHaveDifferentNumAffiliatedBsta" << std::endl;
       dm_bsta_mld_t obj1{}, obj2{};
       auto& info1 = obj1.m_bsta_mld_info;
@@ -969,7 +955,7 @@ TEST(dm_btsa_mld_Test, ObjectsHaveDifferentNumAffiliatedBsta) {
  * | 08| Verify emlsr field | obj1.m_bsta_mld_info.emlsr, obj2.m_bsta_mld_info.emlsr | ASSERT_EQ(obj1.m_bsta_mld_info.emlsr, obj2.m_bsta_mld_info.emlsr) | Should Pass |
  * | 09| Verify emlmr field | obj1.m_bsta_mld_info.emlmr, obj2.m_bsta_mld_info.emlmr | ASSERT_EQ(obj1.m_bsta_mld_info.emlmr, obj2.m_bsta_mld_info.emlmr) | Should Pass |
  */
-TEST(dm_bsta_mld_Test, AssigningMixedFieldValues) {
+TEST(dm_bsta_mld_t_Test, AssigningMixedFieldValues) {
       std::cout << "Entering AssigningMixedFieldValuesTEST";
       dm_bsta_mld_t obj1{};
       dm_bsta_mld_t obj2{};
@@ -1012,7 +998,7 @@ TEST(dm_bsta_mld_Test, AssigningMixedFieldValues) {
  * | 03| Assign obj2 to obj1 | obj1 = obj2 | obj1 should have the same num_affiliated_bsta as obj2 | Should Pass |
  * | 04| Assert that num_affiliated_bsta of obj1 equals num_affiliated_bsta of obj2 | ASSERT_EQ(obj1.m_bsta_mld_info.num_affiliated_bsta, obj2.m_bsta_mld_info.num_affiliated_bsta) | Assertion should pass | Should Pass |
  */
-TEST(dm_bsta_mld_Test, AssigningMaxAffiliatedBsta) {
+TEST(dm_bsta_mld_t_Test, AssigningMaxAffiliatedBsta) {
       std::cout << "Entering AssigningMaxAffiliatedBstaTEST";
       dm_bsta_mld_t obj1{};
       dm_bsta_mld_t obj2{};
@@ -1045,7 +1031,7 @@ TEST(dm_bsta_mld_Test, AssigningMaxAffiliatedBsta) {
  * | 03| Assign obj2 to obj1 | obj1 = obj2 | obj1.m_bsta_mld_info.num_affiliated_bsta should be equal to obj2.m_bsta_mld_info.num_affiliated_bsta | Should Pass |
  * | 04| Assert the equality of num_affiliated_bsta | ASSERT_EQ(obj1.m_bsta_mld_info.num_affiliated_bsta, obj2.m_bsta_mld_info.num_affiliated_bsta) | Assertion should pass | Should Pass |
  */
-TEST(dm_bsta_mld_Test, AssigningMinAffiliatedBsta) {
+TEST(dm_bsta_mld_t_Test, AssigningMinAffiliatedBsta) {
       std::cout << "Entering AssigningMinAffiliatedBstaTEST";
       dm_bsta_mld_t obj1{};
       dm_bsta_mld_t obj2{};
@@ -1076,7 +1062,7 @@ TEST(dm_bsta_mld_Test, AssigningMinAffiliatedBsta) {
  * | 01 | Initialize MLD information with valid values for few fields | mac_addr_valid = true, ap_mld_mac_addr_valid = true, str = false, nstr = false, emlsr = true, emlmr = false, num_affiliated_bsta = 1 | Object should be initialized with the provided values | Should Pass |
  * | 02 | Check if initialized values are retrieved as expected | mac_addr_valid = true, ap_mld_mac_addr_valid = true, str = false, nstr = false, emlsr = true, emlmr = false, num_affiliated_bsta = 1 | Values should be same as initialized values | Should Pass |
  */
-TEST(dm_bsta_mld_Test, ValidMLDInformationAllFields) {
+TEST(dm_bsta_mld_t_Test, ValidMLDInformationAllFields) {
       std::cout << "Entering ValidMLDInformationAllFieldsTEST";
       em_bsta_mld_info_t ap_mld_info{};
       memset(&ap_mld_info, 0, sizeof(ap_mld_info));
@@ -1118,7 +1104,7 @@ TEST(dm_bsta_mld_Test, ValidMLDInformationAllFields) {
  * | 02| Invoke copy constructor | dm_bsta_mld_t copy(original) | New object should be created with same field values as original | Should Pass |
  * | 03| Verify copied fields | copy.m_bsta_mld_info.mac_addr_valid = true, copy.m_bsta_mld_info.ap_mld_mac_addr_valid = true, copy.m_bsta_mld_info.str = false, copy.m_bsta_mld_info.nstr = false, copy.m_bsta_mld_info.emlsr = true, copy.m_bsta_mld_info.emlmr = false, copy.m_bsta_mld_info.num_affiliated_bsta = EM_MAX_AP_MLD | All fields in the copied object should match the original | Should Pass |
  */
-TEST(dm_bsta_mld_Test, CopyConstructorWithAllFieldsInitialized) {
+TEST(dm_bsta_mld_t_Test, CopyConstructorWithAllFieldsInitialized) {
       std::cout << "Entering CopyConstructorWithAllFieldsInitialized" << std::endl;
       dm_bsta_mld_t original{};
       memset(&original.m_bsta_mld_info, 0, sizeof(original.m_bsta_mld_info));
@@ -1160,7 +1146,7 @@ TEST(dm_bsta_mld_Test, CopyConstructorWithAllFieldsInitialized) {
  * | 02| Create a copy of the original instance using the copy constructor | dm_bsta_mld_t copy(original) | Copy created successfully | Should be successful |
  * | 03| Compare the MAC addresses of the original and the copy | original.get_bsta_mld_info(), copy.get_bsta_mld_info() | MAC addresses should be equal | Should Pass |
  */
-TEST(dm_bsta_mld_Test, CopyConstructorWithInvalidMacAddressValues) {
+TEST(dm_bsta_mld_t_Test, CopyConstructorWithInvalidMacAddressValues) {
       std::cout << "Entering CopyConstructorWithInvalidMacAddressValues" << std::endl;
       dm_bsta_mld_t original{};
       memset(&original.m_bsta_mld_info, 0, sizeof(original.m_bsta_mld_info));

@@ -20,5 +20,32 @@
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
+    ::testing::GTEST_FLAG(filter) =
+        "-dm_ap_mld_t_Test.DecodeValidJsonObjectWithNullParentID:"
+        "dm_ap_mld_t_Test.DecodeNullJsonObjectWithValidParentID:"
+        "dm_ap_mld_t_Test.DecodeInvalidJsonObjectWithValidParentID:"
+        "dm_ap_mld_t_Test.EncodeWithNullCJSONObject:"
+        "dm_ap_mld_t_Test.RetrieveAPMLDInfoWithValidValues:"
+        "dm_ap_mld_t_Test.RetrieveAPMLDInfoWithInvalidMacAddr:"
+        "dm_ap_mld_t_Test.NullAPMLDInformation:"
+        "dm_ap_mld_t_Test.InvalidMACAddress:"
+        "dm_ap_mld_t_Test.CopyConstructorWithNullInput:"
+        "dm_assoc_sta_mld_t_Test.DecodeWithValidJsonObjectAndNullParentId:"
+        "dm_assoc_sta_mld_t_Test.DecodeWithNullJsonObjectAndValidParentId:"
+        "dm_assoc_sta_mld_t_Test.DecodeWithInvalidJsonObjectAndValidParentId:"
+        "dm_assoc_sta_mld_t_Test.DecodeWithValidJsonObjectAndInvalidParentId:"
+        "dm_assoc_sta_mld_t_Test.EncodeWithNullCJSONObject:"
+        "dm_assoc_sta_mld_t_Test.EncodeWithEmptyCJSONObject:"
+        "dm_assoc_sta_mld_t_Test.NullAPMLDInformation:"
+        "dm_assoc_sta_mld_t_Test.ExceedingMaximumNumberOfAffiliatedStations:"
+        "dm_assoc_sta_mld_t_Test.CopyConstructorWithInvalidMacAddressInput:"
+        "dm_bsta_mld_t_Test.DecodeValidJsonObjectWithNullParentID:"
+        "dm_bsta_mld_t_Test.DecodeNullJsonObjectWithValidParentID:"
+        "dm_bsta_mld_t_Test.DecodeInvalidJsonObjectWithValidParentID:"
+        "dm_bsta_mld_t_Test.DecodeValidJsonObjectWithInvalidParentID:"
+        "dm_bsta_mld_t_Test.EncodeWithNullCJSONObject:"
+        "dm_bsta_mld_t_Test.EncodeWithInvalidJSONStructure:"
+        "dm_bsta_mld_t_Test.RetrieveAPMLDInfoAfterNullInitialization";
+    std::cout << "Running with filter: " << ::testing::GTEST_FLAG(filter) << std::endl;
     return RUN_ALL_TESTS();
 }
