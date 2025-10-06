@@ -4656,7 +4656,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 	unsigned int size = 0, cipher_len, plain_len;
 	unsigned char iv[AES_BLOCK_SIZE];
 	unsigned char plain[MAX_EM_BUFF_SZ];
-	unsigned short auth_type = 0x0010;
+	unsigned short auth_type;
 	em_network_ssid_info_t *net_ssid_info;
 	em_haul_type_t haultype_precedence[em_haul_type_max] = {em_haul_type_fronthaul, em_haul_type_backhaul, em_haul_type_iot, em_haul_type_configurator, em_haul_type_hotspot};
 	memset(plain, 0, MAX_EM_BUFF_SZ);
@@ -4686,7 +4686,9 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 	}
 
 	if (get_band() == 2) {
-		auth_type = 0x0200;
+		auth_type = 0x0200; // WPA3-Personal
+	} else {
+		auth_type = 0x0400; // WPA3-Personal-Transition
 	}
 
 	printf("%s:%d No of haultype=%d radio no of bss=%d \n", __func__, __LINE__,no_of_haultype, radio->m_radio_info.number_of_bss);
@@ -4712,7 +4714,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 			continue;
 		}
 		printf("%s:%d: ssid: %s, passphrase: %s\n", __func__, __LINE__, net_ssid_info->ssid, net_ssid_info->pass_phrase);
-	
+
 		// haultype
 		attr = reinterpret_cast<data_elem_attr_t *> (tmp);
 		attr->id = htons(attr_id_haul_type);

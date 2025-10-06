@@ -185,6 +185,23 @@ public:
 	 */
 	bool compare_db(db_client_t& db_client, const dm_sta_t& sta);
     bool operator == (const db_easy_mesh_t& obj);
+
+	/**!
+	 * @brief Updates a row in the database using the provided database client.
+	 *
+	 * This function modifies a specific row in the database as specified by the
+	 * additional parameters (not fully listed here).
+	 *
+	 * @param[in] db_client Reference to the database client used for the operation.
+	 *
+	 * @returns int Status code of the operation.
+	 * @retval 0 on success.
+	 * @retval non-zero on failure.
+	 *
+	 * @note Ensure that the database client is properly initialized before calling
+	 * this function.
+	 */
+	int update_row(db_client_t& db_client, ...);
     
 	/**!
 	 * @brief Sets the configuration using the provided JSON object.

@@ -1,0 +1,883 @@
+{
+  "system_info": {
+    "version": "6.2.1",
+    "build": "2025.08.28.001",
+    "release_date": "2025-08-28T00:00:00Z",
+    "controller_id": "ESM-R6-CTRL-001",
+    "mesh_id": "EasyMesh-R6-Network-001",
+    "deployment_mode": "enterprise",
+    "license_type": "professional",
+    "supported_standards": ["IEEE 802.11be", "IEEE 802.11ax", "IEEE 802.11ac", "IEEE 1905.1", "Wi-Fi Multi-AP R6"],
+    "last_updated": "2025-08-28T10:30:00Z"
+  },
+  
+  "controller_settings": {
+    "hostname": "easymesh-r6-controller",
+    "description": "Primary EasyMesh R6 Controller - Enterprise Network",
+    "time_zone": "America/Los_Angeles",
+    "ntp_servers": [
+      "time.google.com",
+      "time.cloudflare.com",
+      "pool.ntp.org"
+    ],
+    "auto_optimization": {
+      "enabled": true,
+      "algorithm": "ai_enhanced",
+      "optimization_interval_minutes": 30,
+      "learning_mode": "adaptive",
+      "interference_mitigation": "advanced",
+      "load_balancing": "dynamic",
+      "channel_planning": "dfs_aware",
+      "power_management": "efficient"
+    },
+    "mesh_coordination": {
+      "coordinated_scanning": true,
+      "scan_interval_seconds": 300,
+      "channel_report_interval_seconds": 60,
+      "neighbor_report_interval_seconds": 120,
+      "beacon_report_interval_seconds": 180,
+      "optimized_roaming": true,
+      "fast_transition_enabled": true,
+      "btm_enabled": true,
+      "rrm_enabled": true,
+      "multi_link_operation": true
+    },
+    "backup_configuration": {
+      "auto_backup": true,
+      "backup_interval_hours": 24,
+      "backup_retention_days": 30,
+      "backup_location": "/config/backups/",
+      "encryption_enabled": true,
+      "remote_backup": {
+        "enabled": false,
+        "server": "",
+        "protocol": "sftp",
+        "credentials": ""
+      }
+    },
+    "high_availability": {
+      "enabled": false,
+      "backup_controller": "",
+      "heartbeat_interval_seconds": 30,
+      "failover_timeout_seconds": 90,
+      "automatic_failback": true
+    }
+  },
+  
+  "network_settings": {
+    "management_interface": {
+      "vlan_id": 1,
+      "ip_address": "192.168.1.1",
+      "subnet_mask": "255.255.255.0",
+      "gateway": "192.168.1.254",
+      "dns_servers": ["8.8.8.8", "8.8.4.4", "1.1.1.1"]
+    },
+    "dhcp_server": {
+      "enabled": true,
+      "start_ip": "192.168.1.100",
+      "end_ip": "192.168.1.200",
+      "lease_time_hours": 24,
+      "max_leases": 500,
+      "reservations": [
+        {
+          "mac": "44:85:00:12:34:56",
+          "ip": "192.168.1.101",
+          "hostname": "MacBook Pro M3",
+          "description": "Executive laptop"
+        },
+        {
+          "mac": "B0:22:7A:44:55:66",
+          "ip": "192.168.1.104",
+          "hostname": "Legion Gaming Laptop",
+          "description": "Development workstation"
+        }
+      ]
+    },
+    "vlans": [
+      {
+        "vlan_id": 10,
+        "name": "Corporate",
+        "description": "Corporate devices and users",
+        "subnet": "192.168.10.0/24",
+        "gateway": "192.168.10.1",
+        "dhcp_enabled": true,
+        "dhcp_range": "192.168.10.100-192.168.10.200",
+        "dns_servers": ["192.168.1.1", "8.8.8.8"],
+        "isolation": false,
+        "guest_network": false
+      },
+      {
+        "vlan_id": 20,
+        "name": "Guest",
+        "description": "Guest network access",
+        "subnet": "192.168.20.0/24",
+        "gateway": "192.168.20.1",
+        "dhcp_enabled": true,
+        "dhcp_range": "192.168.20.100-192.168.20.200",
+        "dns_servers": ["8.8.8.8", "8.8.4.4"],
+        "isolation": true,
+        "guest_network": true,
+        "bandwidth_limit_mbps": 50,
+        "time_restriction": {
+          "enabled": true,
+          "allowed_hours": "08:00-22:00",
+          "allowed_days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        }
+      },
+      {
+        "vlan_id": 30,
+        "name": "IoT",
+        "description": "IoT and smart home devices",
+        "subnet": "192.168.30.0/24",
+        "gateway": "192.168.30.1",
+        "dhcp_enabled": true,
+        "dhcp_range": "192.168.30.100-192.168.30.250",
+        "dns_servers": ["192.168.1.1", "1.1.1.1"],
+        "isolation": true,
+        "guest_network": false,
+        "bandwidth_limit_mbps": 20
+      }
+    ],
+    "port_forwarding": [
+      {
+        "name": "Web Server",
+        "external_port": 80,
+        "internal_ip": "192.168.1.101",
+        "internal_port": 8080,
+        "protocol": "tcp",
+        "enabled": false
+      },
+      {
+        "name": "SSH Access",
+        "external_port": 2222,
+        "internal_ip": "192.168.1.101",
+        "internal_port": 22,
+        "protocol": "tcp",
+        "enabled": false
+      }
+    ]
+  },
+  
+  "wireless_settings": {
+    "global_policies": {
+      "band_steering": {
+        "enabled": true,
+        "algorithm": "rssi_load_balanced",
+        "rssi_threshold_2g4": -70,
+        "rssi_threshold_5g": -65,
+        "rssi_threshold_6g": -60,
+        "utilization_threshold_percent": 75,
+        "steering_policy": "aggressive",
+        "block_time_seconds": 30,
+        "probe_response_suppression": true
+      },
+      "load_balancing": {
+        "enabled": true,
+        "algorithm": "airtime_fairness",
+        "rebalance_interval_seconds": 60,
+        "client_count_threshold": 15,
+        "utilization_threshold_percent": 70,
+        "rssi_difference_threshold": 10
+      },
+      "airtime_fairness": {
+        "enabled": true,
+        "mode": "per_station",
+        "weight_factor": 1.0,
+        "queue_management": "fq_codel"
+      }
+    },
+    "radio_policies": {
+      "2.4ghz": {
+        "enabled": true,
+        "auto_channel": true,
+        "channel_list": [1, 6, 11],
+        "channel_width": 40,
+        "tx_power_mode": "auto",
+        "max_tx_power_dbm": 20,
+        "country_code": "US",
+        "beacon_interval_ms": 100,
+        "dtim_period": 2,
+        "rts_threshold": 2347,
+        "fragmentation_threshold": 2346,
+        "short_gi": true,
+        "legacy_rates_enabled": true,
+        "minimum_basic_rate": "1Mbps",
+        "multicast_rate": "6Mbps"
+      },
+      "5ghz": {
+        "enabled": true,
+        "auto_channel": true,
+        "channel_list": [36, 40, 44, 48, 149, 153, 157, 161],
+        "dfs_channels": [52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144],
+        "channel_width": 80,
+        "tx_power_mode": "auto",
+        "max_tx_power_dbm": 24,
+        "country_code": "US",
+        "beacon_interval_ms": 100,
+        "dtim_period": 2,
+        "rts_threshold": 2347,
+        "fragmentation_threshold": 2346,
+        "short_gi": true,
+        "dfs_enabled": true,
+        "radar_detection": true,
+        "minimum_basic_rate": "6Mbps",
+        "multicast_rate": "12Mbps"
+      },
+      "6ghz": {
+        "enabled": true,
+        "auto_channel": true,
+        "channel_list": [37, 41, 45, 49, 53, 57, 61, 65, 69, 73, 77, 81, 85, 89, 93, 97, 101, 105, 109, 113, 117, 121, 125, 129, 133, 137, 141, 145, 149, 153, 157, 161, 165, 169, 173, 177],
+        "channel_width": 160,
+        "tx_power_mode": "auto",
+        "max_tx_power_dbm": 30,
+        "country_code": "US",
+        "beacon_interval_ms": 100,
+        "dtim_period": 2,
+        "psc_channels_only": false,
+        "minimum_basic_rate": "6Mbps",
+        "multicast_rate": "12Mbps",
+        "wifi7_features": {
+          "multi_link_operation": true,
+          "eht_enabled": true,
+          "320mhz_support": false,
+          "multi_ru": true,
+          "punctured_preamble": true
+        }
+      }
+    },
+    "advanced_features": {
+      "ofdma": {
+        "enabled": true,
+        "ul_ofdma": true,
+        "dl_ofdma": true,
+        "trigger_frame_padding": "auto"
+      },
+      "mu_mimo": {
+        "enabled": true,
+        "ul_mu_mimo": true,
+        "dl_mu_mimo": true,
+        "max_users": 8
+      },
+      "beamforming": {
+        "explicit_beamforming": true,
+        "implicit_beamforming": false,
+        "su_beamforming": true,
+        "mu_beamforming": true
+      },
+      "target_wake_time": {
+        "enabled": true,
+        "broadcast_twt": true,
+        "individual_twt": true,
+        "flexible_twt": true
+      },
+      "spatial_reuse": {
+        "enabled": true,
+        "srp_disallowed": false,
+        "non_srg_obss_pd_max_offset": 20,
+        "srg_obss_pd_min_offset": -82,
+        "srg_obss_pd_max_offset": -62
+      }
+    }
+  },
+  
+  "security_settings": {
+    "global_security": {
+      "security_level": "enterprise",
+      "encryption_standard": "WPA3-SAE",
+      "pmf_mode": "required",
+      "sae_groups": [19, 20, 21],
+      "sae_anti_clogging_threshold": 5,
+      "sae_sync": 5,
+      "owe_groups": [19, 20, 21],
+      "transition_disable": true
+    },
+    "network_profiles": [
+      {
+        "profile_id": "corporate",
+        "name": "Corporate Network",
+        "ssid": "EasyMesh-Corporate",
+        "security_type": "WPA3-Enterprise",
+        "encryption": "AES-256",
+        "hidden": false,
+        "vlan_id": 10,
+        "radius_servers": [
+          {
+            "server_ip": "192.168.1.10",
+            "port": 1812,
+            "shared_secret": "radius_secret_key",
+            "timeout_seconds": 5,
+            "retries": 3,
+            "accounting_port": 1813
+          }
+        ],
+        "eap_methods": ["EAP-TLS", "EAP-TTLS", "EAP-PEAP"],
+        "certificate_validation": true,
+        "fast_transition": true,
+        "pmf_required": true
+      },
+      {
+        "profile_id": "home",
+        "name": "Home Network",
+        "ssid": "EasyMesh-Home",
+        "security_type": "WPA3-SAE",
+        "passphrase": "SecureHome2024!",
+        "encryption": "AES-256",
+        "hidden": false,
+        "vlan_id": 1,
+        "fast_transition": true,
+        "pmf_required": true,
+        "sae_password_identifier": "home_network"
+      },
+      {
+        "profile_id": "guest",
+        "name": "Guest Network",
+        "ssid": "EasyMesh-Guest",
+        "security_type": "WPA3-SAE",
+        "passphrase": "Guest2024!",
+        "encryption": "AES-256",
+        "hidden": false,
+        "vlan_id": 20,
+        "guest_network": true,
+        "captive_portal": {
+          "enabled": true,
+          "splash_page": "default",
+          "terms_acceptance": true,
+          "session_timeout_minutes": 240,
+          "bandwidth_limit_mbps": 50
+        }
+      },
+      {
+        "profile_id": "iot",
+        "name": "IoT Devices",
+        "ssid": "EasyMesh-IoT",
+        "security_type": "WPA3-SAE",
+        "passphrase": "IoTSecure2024!",
+        "encryption": "AES-256",
+        "hidden": true,
+        "vlan_id": 30,
+        "device_isolation": true,
+        "bandwidth_limit_mbps": 20
+      }
+    ],
+    "access_control": {
+      "mac_filtering": {
+        "enabled": false,
+        "default_policy": "deny",
+        "whitelist": [],
+        "blacklist": [
+          "00:00:00:00:00:00"
+        ]
+      },
+      "time_based_access": {
+        "enabled": false,
+        "default_policy": "allow",
+        "rules": []
+      },
+      "device_policies": [
+        {
+          "device_type": "iot",
+          "internet_access": true,
+          "local_network_access": false,
+          "bandwidth_limit_mbps": 10,
+          "time_restrictions": {
+            "enabled": false,
+            "schedule": "24/7"
+          }
+        },
+        {
+          "device_type": "guest",
+          "internet_access": true,
+          "local_network_access": false,
+          "bandwidth_limit_mbps": 50,
+          "time_restrictions": {
+            "enabled": true,
+            "schedule": "08:00-22:00"
+          }
+        }
+      ]
+    },
+    "intrusion_detection": {
+      "enabled": true,
+      "detection_mode": "active",
+      "signature_updates": "automatic",
+      "alert_threshold": "medium",
+      "block_suspicious_devices": true,
+      "honeypot_enabled": false,
+      "deauth_protection": true,
+      "evil_twin_detection": true,
+      "rogue_ap_detection": true
+    },
+    "threat_protection": {
+      "enabled": true,
+      "dns_filtering": true,
+      "malware_protection": true,
+      "phishing_protection": true,
+      "botnet_protection": true,
+      "content_filtering": {
+        "enabled": false,
+        "categories": []
+      },
+      "threat_feeds": [
+        "openphish",
+        "malwaredomains",
+        "emerging_threats"
+      ]
+    }
+  },
+  
+  "qos_settings": {
+    "global_qos": {
+      "enabled": true,
+      "algorithm": "dscp_priority_queue",
+      "total_bandwidth_mbps": 1000,
+      "upload_bandwidth_mbps": 50,
+      "download_bandwidth_mbps": 950,
+      "queue_management": "fq_codel",
+      "congestion_control": "bbr"
+    },
+    "traffic_classes": [
+      {
+        "class_id": "voice",
+        "name": "Voice Traffic",
+        "priority": 7,
+        "dscp_markings": ["EF"],
+        "bandwidth_percentage": 10,
+        "latency_target_ms": 5,
+        "jitter_target_ms": 1,
+        "packet_loss_target_percent": 0.1,
+        "applications": ["SIP", "RTP", "Skype", "Teams", "Zoom_Audio"],
+        "ports": ["5060-5061", "16384-32767"]
+      },
+      {
+        "class_id": "video",
+        "name": "Video Traffic",
+        "priority": 5,
+        "dscp_markings": ["AF41", "AF42", "AF43"],
+        "bandwidth_percentage": 30,
+        "latency_target_ms": 20,
+        "jitter_target_ms": 5,
+        "packet_loss_target_percent": 0.5,
+        "applications": ["Netflix", "YouTube", "Teams_Video", "Zoom_Video", "WebRTC"],
+        "ports": ["443", "80", "1935"]
+      },
+      {
+        "class_id": "gaming",
+        "name": "Gaming Traffic",
+        "priority": 6,
+        "dscp_markings": ["AF31", "AF32", "AF33"],
+        "bandwidth_percentage": 15,
+        "latency_target_ms": 10,
+        "jitter_target_ms": 2,
+        "packet_loss_target_percent": 0.2,
+        "applications": ["Steam", "PlayStation", "Xbox", "Nintendo", "Battle.net"],
+        "ports": ["3478-3480", "27015-27030"]
+      },
+      {
+        "class_id": "business",
+        "name": "Business Applications",
+        "priority": 4,
+        "dscp_markings": ["AF21", "AF22", "AF23"],
+        "bandwidth_percentage": 25,
+        "latency_target_ms": 50,
+        "jitter_target_ms": 10,
+        "packet_loss_target_percent": 1.0,
+        "applications": ["Office365", "Salesforce", "SAP", "VPN", "Email"],
+        "ports": ["443", "993", "587"]
+      },
+      {
+        "class_id": "background",
+        "name": "Background Traffic",
+        "priority": 1,
+        "dscp_markings": ["CS1"],
+        "bandwidth_percentage": 5,
+        "latency_target_ms": 200,
+        "jitter_target_ms": 50,
+        "packet_loss_target_percent": 5.0,
+        "applications": ["Backup", "Updates", "File_Sync", "P2P"],
+        "ports": ["80", "443", "21"]
+      },
+      {
+        "class_id": "best_effort",
+        "name": "Best Effort",
+        "priority": 0,
+        "dscp_markings": ["BE"],
+        "bandwidth_percentage": 15,
+        "latency_target_ms": 100,
+        "jitter_target_ms": 20,
+        "packet_loss_target_percent": 2.0,
+        "applications": ["Web", "Social_Media", "General"],
+        "ports": ["80", "443"]
+      }
+    ],
+    "device_policies": [
+      {
+        "device_type": "smartphone",
+        "upload_limit_mbps": 25,
+        "download_limit_mbps": 100,
+        "priority_boost": false,
+        "adaptive_qos": true
+      },
+      {
+        "device_type": "laptop",
+        "upload_limit_mbps": 50,
+        "download_limit_mbps": 200,
+        "priority_boost": true,
+        "adaptive_qos": true
+      },
+      {
+        "device_type": "gaming-console",
+        "upload_limit_mbps": 30,
+        "download_limit_mbps": 150,
+        "priority_boost": true,
+        "adaptive_qos": true,
+        "gaming_accelerator": true
+      },
+      {
+        "device_type": "iot-device",
+        "upload_limit_mbps": 5,
+        "download_limit_mbps": 10,
+        "priority_boost": false,
+        "adaptive_qos": false
+      }
+    ]
+  },
+  
+  "monitoring_settings": {
+    "metrics_collection": {
+      "enabled": true,
+      "collection_interval_seconds": 30,
+      "retention_days": 90,
+      "detailed_client_metrics": true,
+      "radio_metrics": true,
+      "performance_metrics": true,
+      "security_metrics": true,
+      "storage_location": "/var/lib/easymesh/metrics/",
+      "compression": "gzip",
+      "export_format": "json"
+    },
+    "alerts": {
+      "enabled": true,
+      "alert_channels": ["email", "webhook", "syslog"],
+      "email_settings": {
+        "smtp_server": "smtp.gmail.com",
+        "smtp_port": 587,
+        "username": "admin@company.com",
+        "password_encrypted": "encrypted_password",
+        "recipients": ["admin@company.com", "network@company.com"],
+        "tls_enabled": true
+      },
+      "webhook_settings": {
+        "url": "https://monitoring.company.com/webhooks/easymesh",
+        "secret": "webhook_secret_key",
+        "timeout_seconds": 30,
+        "retry_count": 3
+      },
+      "alert_rules": [
+        {
+          "name": "Device Offline",
+          "condition": "device_status == 'offline'",
+          "severity": "warning",
+          "threshold": "1 device",
+          "duration_minutes": 5,
+          "enabled": true
+        },
+        {
+          "name": "High Channel Utilization",
+          "condition": "channel_utilization > 80",
+          "severity": "warning",
+          "threshold": "80%",
+          "duration_minutes": 10,
+          "enabled": true
+        },
+        {
+          "name": "Client Disconnection Rate",
+          "condition": "client_disconnection_rate > 10",
+          "severity": "critical",
+          "threshold": "10 per hour",
+          "duration_minutes": 60,
+          "enabled": true
+        },
+        {
+          "name": "Security Threat Detected",
+          "condition": "security_threat_detected == true",
+          "severity": "critical",
+          "threshold": "1 threat",
+          "duration_minutes": 0,
+          "enabled": true
+        },
+        {
+          "name": "Firmware Update Available",
+          "condition": "firmware_update_available == true",
+          "severity": "info",
+          "threshold": "1 device",
+          "duration_minutes": 0,
+          "enabled": true
+        }
+      ]
+    },
+    "reporting": {
+      "enabled": true,
+      "auto_reports": true,
+      "report_frequency": "weekly",
+      "report_day": "Monday",
+      "report_time": "09:00",
+      "report_recipients": ["admin@company.com"],
+      "report_types": [
+        "network_performance",
+        "client_usage",
+        "security_summary",
+        "device_health",
+        "capacity_planning"
+      ],
+      "custom_reports": [
+        {
+          "name": "Executive Summary",
+          "template": "executive_template",
+          "frequency": "monthly",
+          "recipients": ["cto@company.com", "admin@company.com"],
+          "sections": ["overview", "performance", "security", "recommendations"]
+        }
+      ]
+    },
+    "logging": {
+      "log_level": "info",
+      "max_log_size_mb": 100,
+      "log_retention_days": 30,
+      "log_rotation": true,
+      "remote_logging": {
+        "enabled": false,
+        "syslog_server": "",
+        "syslog_port": 514,
+        "protocol": "udp",
+        "facility": "local0"
+      },
+      "log_categories": {
+        "system": true,
+        "wireless": true,
+        "security": true,
+        "client": true,
+        "performance": true,
+        "debug": false
+      }
+    }
+  },
+  
+  "firmware_management": {
+    "auto_update": {
+      "enabled": true,
+      "channel": "stable",
+      "check_interval_hours": 24,
+      "maintenance_window": {
+        "enabled": true,
+        "start_time": "02:00",
+        "end_time": "04:00",
+        "days": ["Sunday", "Wednesday"]
+      },
+      "staging": {
+        "enabled": true,
+        "test_devices": ["AA:BB:CC:00:00:02"],
+        "validation_period_hours": 48,
+        "rollback_on_failure": true
+      }
+    },
+    "update_server": {
+      "primary": "https://updates.easymesh.com/r6/",
+      "mirror": "https://mirror.easymesh.com/r6/",
+      "custom_server": "",
+      "authentication": {
+        "api_key": "update_api_key",
+        "certificate_validation": true
+      }
+    },
+    "version_control": {
+      "minimum_version": "6.0.0",
+      "target_version": "latest_stable",
+      "beta_testing": false,
+      "version_pinning": {
+        "enabled": false,
+        "pinned_devices": []
+      }
+    },
+    "backup_before_update": true,
+    "notification_on_update": true,
+    "rollback_capability": true,
+    "factory_reset_protection": true
+  },
+  
+  "advanced_features": {
+    "ai_optimization": {
+      "enabled": true,
+      "learning_algorithm": "neural_network",
+      "training_mode": "online",
+      "optimization_targets": ["performance", "coverage", "efficiency"],
+      "data_collection": {
+        "client_behavior": true,
+        "traffic_patterns": true,
+        "interference_analysis": true,
+        "environmental_factors": true
+      },
+      "model_update_interval_hours": 168,
+      "prediction_horizon_minutes": 60
+    },
+    "network_slicing": {
+      "enabled": true,
+      "slices": [
+        {
+          "slice_id": "enterprise",
+          "name": "Enterprise Services",
+          "bandwidth_guarantee_mbps": 400,
+          "latency_guarantee_ms": 10,
+          "isolation_level": "high",
+          "allowed_vlans": [1, 10]
+        },
+        {
+          "slice_id": "iot",
+          "name": "IoT Devices",
+          "bandwidth_guarantee_mbps": 50,
+          "latency_guarantee_ms": 100,
+          "isolation_level": "medium",
+          "allowed_vlans": [30]
+        },
+        {
+          "slice_id": "guest",
+          "name": "Guest Access",
+          "bandwidth_guarantee_mbps": 100,
+          "latency_guarantee_ms": 50,
+          "isolation_level": "high",
+          "allowed_vlans": [20]
+        }
+      ]
+    },
+    "edge_computing": {
+      "enabled": false,
+      "edge_services": [],
+      "service_discovery": false,
+      "container_runtime": "docker",
+      "resource_allocation": {
+        "cpu_percentage": 20,
+        "memory_mb": 512,
+        "storage_gb": 10
+      }
+    },
+    "mesh_analytics": {
+      "enabled": true,
+      "machine_learning": true,
+      "predictive_analytics": true,
+      "anomaly_detection": true,
+      "capacity_planning": true,
+      "performance_prediction": true,
+      "client_behavior_analysis": true
+    },
+    "zero_trust_networking": {
+      "enabled": false,
+      "device_certificates": false,
+      "mutual_authentication": false,
+      "micro_segmentation": false,
+      "policy_engine": "attribute_based"
+    }
+  },
+  
+  "integration_settings": {
+    "cloud_management": {
+      "enabled": false,
+      "cloud_provider": "aws",
+      "region": "us-west-2",
+      "api_endpoint": "",
+      "credentials": {
+        "access_key": "",
+        "secret_key": "",
+        "session_token": ""
+      },
+      "sync_interval_minutes": 15,
+      "offline_capability": true
+    },
+    "third_party_systems": {
+      "network_management": {
+        "snmp": {
+          "enabled": true,
+          "version": "v3",
+          "community": "public",
+          "users": [
+            {
+              "username": "easymesh_monitor",
+              "auth_protocol": "SHA",
+              "auth_password": "snmp_auth_password",
+              "priv_protocol": "AES",
+              "priv_password": "snmp_priv_password"
+            }
+          ],
+          "allowed_hosts": ["192.168.1.0/24"]
+        },
+        "netconf": {
+          "enabled": false,
+          "port": 830,
+          "ssh_enabled": true
+        }
+      },
+      "identity_management": {
+        "active_directory": {
+          "enabled": false,
+          "domain": "",
+          "server": "",
+          "bind_dn": "",
+          "bind_password": ""
+        },
+        "ldap": {
+          "enabled": false,
+          "server": "",
+          "port": 389,
+          "base_dn": "",
+          "bind_dn": "",
+          "bind_password": ""
+        }
+      },
+      "api_integrations": [
+        {
+          "name": "Monitoring System",
+          "type": "rest_api",
+          "endpoint": "https://monitoring.company.com/api/v1/",
+          "authentication": "bearer_token",
+          "token": "api_bearer_token",
+          "enabled": false
+        }
+      ]
+    }
+  },
+  
+  "compliance_settings": {
+    "regulatory_compliance": {
+      "region": "North America",
+      "standards": ["FCC Part 15", "IC RSS-247", "Wi-Fi Alliance"],
+      "certification_numbers": {
+        "fcc": "2AOKB-ESM-R6-001",
+        "ic": "20954-ESM-R6-001"
+      },
+      "power_limits": {
+        "2.4ghz_dbm": 20,
+        "5ghz_dbm": 24,
+        "6ghz_dbm": 30
+      },
+      "channel_restrictions": {
+        "dfs_compliance": true,
+        "power_control": true,
+        "radar_detection": true
+      }
+    },
+    "data_protection": {
+      "gdpr_compliance": true,
+      "data_anonymization": true,
+      "user_consent": true,
+      "data_retention_policy": "90 days",
+      "right_to_deletion": true,
+      "data_portability": true,
+      "privacy_by_design": true
+    },
+    "security_frameworks": {
+      "nist_cybersecurity": true,
+      "iso_27001": false,
+      "pci_dss": false,
+      "hipaa": false,
+      "sox": false
+    }
+  }
+}
