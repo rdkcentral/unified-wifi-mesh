@@ -281,9 +281,9 @@ TEST(dm_ap_mld_t_Test, EncodeWithCJSONObjectContainingSpecialCharacters) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set few of the m_ap_mld_info member values | instance.m_ap_mld_info.num_affiliated_ap = EM_MAX_AP_MLD, instance.m_ap_mld_info.mac_addr_valid = false, instance.m_ap_mld_info.nstr = true, instance.m_ap_mld_info.nstr = false, instance.m_ap_mld_info.emlmr = true, instance.m_ap_mld_info.emlsr = false | Value should be set successfully | Should be successful |
+ * | 01 | Set few of the m_ap_mld_info member values | instance.m_ap_mld_info.num_affiliated_ap = EM_MAX_AP_MLD, instance.m_ap_mld_info.mac_addr_valid = false, instance.m_ap_mld_info.str = true, instance.m_ap_mld_info.nstr = false, instance.m_ap_mld_info.emlmr = true, instance.m_ap_mld_info.emlsr = false | Value should be set successfully | Should be successful |
  * | 02 | Retrieve the AP MLD information using `get_ap_mld_info` | info = instance.get_ap_mld_info() | `info` should not be nullptr | Should Pass |
- * | 03 | Verify if the values are retrieved same as the set values | info->num_affiliated_ap = EM_MAX_AP_MLD, info->mac_addr_valid = false, info->nstr = true, info->nstr = false, info->emlmr = true, info->emlsr = false | Should return true | Ensures the value is correctly stored and retrieved |
+ * | 03 | Verify if the values are retrieved same as the set values | info->num_affiliated_ap = EM_MAX_AP_MLD, info->mac_addr_valid = false, info->str = true, info->nstr = false, info->emlmr = true, info->emlsr = false | Should return true | Ensures the value is correctly stored and retrieved |
  */
 TEST(dm_ap_mld_t_Test, RetrieveAPMLDInfoWithValidValues) {
     std::cout << "Entering RetrieveAPMLDInfoWithValidValues test" << std::endl;
@@ -291,7 +291,7 @@ TEST(dm_ap_mld_t_Test, RetrieveAPMLDInfoWithValidValues) {
         dm_ap_mld_t instance;
         instance.m_ap_mld_info.num_affiliated_ap = EM_MAX_AP_MLD;
         instance.m_ap_mld_info.mac_addr_valid = false;
-        instance.m_ap_mld_info.nstr = true;    
+        instance.m_ap_mld_info.str = true;    
         instance.m_ap_mld_info.nstr = false;    
         instance.m_ap_mld_info.emlmr = true;    
         instance.m_ap_mld_info.emlsr = false; 
@@ -299,7 +299,7 @@ TEST(dm_ap_mld_t_Test, RetrieveAPMLDInfoWithValidValues) {
         ASSERT_NE(info, nullptr);
         ASSERT_EQ(info->num_affiliated_ap, EM_MAX_AP_MLD);
         ASSERT_EQ(info->mac_addr_valid, false);
-        ASSERT_EQ(info->nstr, true);   
+        ASSERT_EQ(info->str, true);   
         ASSERT_EQ(info->nstr, false);    
         ASSERT_EQ(info->emlmr, true);   
         ASSERT_EQ(info->emlsr, false);
