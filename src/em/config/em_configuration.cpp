@@ -857,7 +857,8 @@ void em_configuration_t::handle_ap_vendor_operational_bss(unsigned char *value, 
 			dm_bss->m_bss_info.vap_mode = static_cast<em_vap_mode_t> (bss->vap_mode);
 
             if ((dm_bss->m_bss_info.id.haul_type == em_haul_type_backhaul) && (bss->vap_mode == em_vap_mode_ap)) {
-                if (memcmp(bss->bssid, ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0) {
+                if ( (memcmp(bss->bssid, ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0) &&
+                     (dm->get_colocated() == false) ) {
                     memcpy(dm->m_device.m_device_info.backhaul_mac.mac, bss->bssid, sizeof(mac_address_t));
                     em_printfout("Backhaul mac updated to: %s", util::mac_to_string(dm->m_device.m_device_info.backhaul_mac.mac).c_str());
 
@@ -1386,6 +1387,7 @@ int em_configuration_t::handle_bsta_radio_cap(unsigned char *buff, unsigned int 
     dm_easy_mesh_t *dm = get_data_model();
     em_bh_sta_radio_cap_t *bsta_radio_cap = reinterpret_cast<em_bh_sta_radio_cap_t*>(buff);
     mac_addr_str_t mac_str, r_str;
+    bool is_colocated = dm->get_colocated();
 
     em_printfout("Rcvd Backhaul STA Radio Capabilities received, sta mac: %s for radio: %s, mac present?: %d",
         util::mac_to_string(bsta_radio_cap->bsta_addr).c_str(),
@@ -1408,8 +1410,11 @@ int em_configuration_t::handle_bsta_radio_cap(unsigned char *buff, unsigned int 
     em_printfout("Update BSTA Cap for Device id: %s",
         util::mac_to_string(dev->id.dev_mac).c_str());
 
-    memcpy(dm->m_device.m_device_info.backhaul_sta, bsta_radio_cap->bsta_addr, sizeof(mac_address_t));
-    dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
+    if( is_colocated == false )
+    {
+        memcpy(dm->m_device.m_device_info.backhaul_sta, bsta_radio_cap->bsta_addr, sizeof(mac_address_t));
+        dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
+    }
 
     return 0;
 }
@@ -2887,6 +2892,7 @@ int em_configuration_t::create_bsta_radio_cap_tlv(uint8_t *buff)
             }
         }
     }
+
     em_printfout("Backhaul STA Radio Capabilities TLV: BSTA: %s of rad: %s",
         util::mac_to_string(bsta_radio_cap->bsta_addr).c_str(),
         util::mac_to_string(bsta_radio_cap->ruid).c_str());
@@ -3726,7 +3732,10 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
             memcpy(dev_info.serial_number, attr->val, htons(attr->len));
             set_serial_number(dev_info.serial_number);
             //printf("%s:%d: Manufacturer:%s\n", __func__, __LINE__, dev_info.serial_number);
-            memcpy(dm->m_device.m_device_info.backhaul_alid.mac, get_peer_mac(), sizeof(mac_address_t));
+            if( dm->get_colocated() == false )
+            {
+                memcpy(dm->m_device.m_device_info.backhaul_alid.mac, get_peer_mac(), sizeof(mac_address_t));
+            }
 
             em_printfout("Updated dm dev_info's backhaul_mac: %s and backhaul_alid: %s",
                 util::mac_to_string(dm->m_device.m_device_info.backhaul_mac.mac).c_str(),
