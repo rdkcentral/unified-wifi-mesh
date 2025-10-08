@@ -1603,13 +1603,255 @@ handleWebSocketMessage(data) {
     this.showNotification(`Block requested for ${mac}`, 'warning');
   }
 
+  /**
+   * Load wifi reset default config
+   */
+  async loadWifiResetConfig() {
+    try {
+      const res = await fetch("/api/v1/wifireset");
+
+      if (!res.ok) {
+        throw new Error(`HTTP error! Status: ${res.status}`);
+      }
+
+      const data = await res.json();
+
+      const select = document.getElementById("almac-select");
+      select.innerHTML = '<option value="">Choose AL MAC Address</option>';
+
+      data.options.forEach(mac => {
+        const option = document.createElement("option");
+        option.value = mac;
+        option.textContent = mac;
+        // parse only the AL MAC
+        const alMac = mac.split(" ")[0];
+        if (alMac === data.selectedOption) {
+          option.selected = true;
+        }
+        select.appendChild(option);
+      });
+
+      // Add "Other" option
+      const otherOption = document.createElement("option");
+      otherOption.value = "Other";
+      otherOption.textContent = "Other (Enter manually)";
+      select.appendChild(otherOption);
+
+      // Manual MAC input toggle
+      const manualMacContainer = document.getElementById("manual-almac-container");
+      if (select && manualMacContainer) {
+        select.addEventListener("change", function () {
+          const isOtherSelected = this.value === "Other";
+          manualMacContainer.style.display = isOtherSelected ? "block" : "none";
+
+          const manualInput = document.getElementById("manual-almac");
+          if (!isOtherSelected && manualInput) {
+            manualInput.value = "";
+          }
+        });
+
+        // Trigger change event in case "Other" is pre-selected
+        const event = new Event("change");
+        select.dispatchEvent(event);
+      }
+
+      // Populate HaulType dropdown
+      const haulContainer = document.getElementById("haultype-options");
+      haulContainer.innerHTML = ""; // Clear previous content
+
+      const haulTypes = new Set();
+      data.ssidHaulConfig.forEach(config => {
+        const haul = config.HaulType;
+        if (typeof haul === "string") {
+          haulTypes.add(haul);
+        }
+      });
+
+      haulTypes.forEach(ht => {
+        const match = data.ssidHaulConfig.find(config => config.HaulType === ht);
+
+        // Create a grid container for each HaulType block
+        const gridWrapper = document.createElement("div");
+        gridWrapper.className = "haul-block";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.id = `haul-${ht}`;
+        checkbox.name = "haulType";
+        checkbox.value = ht;
+
+        const label = document.createElement("label");
+        label.htmlFor = checkbox.id;
+        label.textContent = ht;
+
+        const checkboxWrapper = document.createElement("div");
+        checkboxWrapper.className = "haul-checkbox"
+        checkboxWrapper.appendChild(checkbox);
+        checkboxWrapper.appendChild(label);
+
+        gridWrapper.appendChild(checkboxWrapper);
+        haulContainer.appendChild(gridWrapper);
+
+        // Add event listener to show SSID and password fields
+        checkbox.addEventListener("change", () => {
+          const existingFields = document.getElementById(`ssid-fields-${ht}`);
+
+          if (checkbox.checked) {
+            if (match && !existingFields) {
+              const fieldWrapper = document.createElement("div");
+              fieldWrapper.id = `ssid-fields-${ht}`;
+              fieldWrapper.className = "haul-fields";
+
+              // SSID row
+              const ssidRow = document.createElement("div");
+              ssidRow.className = "ssid-password-row";
+
+              const ssidLabel = document.createElement("label");
+              ssidLabel.textContent = "SSID:";
+              ssidLabel.setAttribute("for", `ssid-${ht}`);
+
+              const ssidInput = document.createElement("input");
+              ssidInput.type = "text";
+              ssidInput.id = `ssid-${ht}`;
+              ssidInput.value = match.SSID || "";
+              ssidInput.placeholder = "Enter SSID";
+
+              ssidRow.appendChild(ssidLabel);
+              ssidRow.appendChild(ssidInput);
+
+              // Password row
+              const passRow = document.createElement("div");
+              passRow.className = "ssid-password-row";
+
+              const passLabel = document.createElement("label");
+              passLabel.textContent = "Password:";
+              passLabel.setAttribute("for", `password-${ht}`);
+
+              const passInput = document.createElement("input");
+              passInput.type = "text";
+              passInput.id = `password-${ht}`;
+              passInput.value = match.PassPhrase || "";
+              passInput.placeholder = "Enter Password";
+
+              passRow.appendChild(passLabel);
+              passRow.appendChild(passInput);
+
+              // Append rows to wrapper
+              fieldWrapper.appendChild(ssidRow);
+              fieldWrapper.appendChild(passRow);
+              gridWrapper.appendChild(fieldWrapper);
+            }
+          } else {
+            // Remove SSID/password fields if unchecked
+            if (existingFields) {
+              gridWrapper.removeChild(existingFields);
+            }
+          }
+        });
+      });
+    } catch (err) {
+      console.error("Failed to load Wi-Fi interfaces:", err);
+      this.showNotification("Failed to load Wi-Fi interfaces", "error");
+    }
+  }
+
   // ---- Tab-specific loaders (safe stubs) ----
   async loadPerformanceData() { /* fetch & update performance tab */ }
   async loadInterferenceData() { /* fetch & update interference tab */ }
   async loadSecurityData() { /* fetch & update security tab */ }
   async loadFirmwareStatus() { /* fetch & update firmware tab */ }
   async loadReportsData() { /* fetch & update reports tab */ }
-  async loadSystemSettings() { /* fetch & update settings tab */ }
+  async loadSystemSettings() {
+      try {
+        // Fetch and update system settings here
+        console.log("🔧 Loading system settings...");
+
+        // Load Wi-Fi AL MAC interfaces when settings tab is opened
+        if (typeof this.loadWifiResetConfig === 'function') {
+          console.log("Loading Wi-Fi Reset config");
+          await this.loadWifiResetConfig();
+        }
+
+        document.getElementById("reset-btn").addEventListener("click", async () => {
+        const payload = collectResetPayload();
+        const confirmed = confirm("Resetting the WiFi configuration may require the controller to restart.\nDo you want to continue?");
+        if (!confirmed) return;
+
+        try {
+          const response = await sendResetPayload(payload);
+          handleResetSuccess(response);
+
+          // Reload the latest Wi-Fi config after successful reset
+          if (typeof this.loadWifiResetConfig === 'function') {
+            console.log("Reloading Wi-Fi Reset config after reset");
+            await this.loadWifiResetConfig();
+          }
+        } catch (error) {
+          handleResetError(error);
+        }
+        });
+      } catch (err) {
+        console.error("Failed to load system settings:", err);
+        this.showNotification("Failed to load system settings", "error");
+      }
+  }
+}
+
+function collectResetPayload() {
+  const select = document.getElementById("almac-select");
+  const manualInput = document.getElementById("manual-almac");
+
+  let selectedMac = select.value;
+
+  if (selectedMac === "Other") {
+    selectedMac = manualInput.value.trim();
+    if (!selectedMac) {
+      alert("Please enter a valid AL MAC address.");
+      throw new Error("Manual AL MAC address is required.");
+    }
+  }
+
+
+  const haulTypes = Array.from(document.querySelectorAll("input[name='haulType']:checked")).map(checkbox => {
+    const haulType = checkbox.value;
+    const ssid = document.getElementById(`ssid-${haulType}`)?.value || "";
+    const password = document.getElementById(`password-${haulType}`)?.value || "";
+
+    return {
+      HaulType: haulType,
+      SSID: ssid,
+      PassPhrase: password
+    };
+  });
+
+  return { selectedMac, haulTypes };
+}
+
+async function sendResetPayload(payload) {
+  const res = await fetch("/api/v1/wifireset", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(errorText);
+  }
+
+  return await res.json();
+}
+
+function handleResetSuccess(response) {
+  console.log("Reset result:", response);
+  alert("Wi-Fi configuration reset successfully!");
+}
+
+function handleResetError(error) {
+  console.error("Reset failed:", error);
+  alert(`Failed to reset Wi-Fi configuration:\n${error.message}`);
 }
 
 // -------- Global helpers for HTML onclick handlers --------
