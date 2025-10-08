@@ -370,7 +370,8 @@ int dm_device_t::update_easymesh_json_cfg(bool colocated_mode)
 	// Create a JSON object
 	cJSON *root = cJSON_CreateObject();
 
-	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (m_device_info.backhaul_mac.mac), mac_str);
+	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (m_device_info.intf.mac), mac_str);
+
 	cJSON_AddStringToObject(root, "AL_MAC_ADDR", const_cast<char*> (mac_str));
 	cJSON_AddNumberToObject(root, "Colocated_mode", static_cast<int> (colocated_mode));
 	//Configuring Mesh Backhaul with default SSID and KeyPassphrase
