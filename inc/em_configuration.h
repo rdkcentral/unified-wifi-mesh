@@ -38,6 +38,7 @@ class em_configuration_t {
 	 * @param[out] buff Pointer to the buffer where the response message will be stored.
 	 * @param[in] band The frequency band for which the response message is being created.
 	 * @param[in] dst Pointer to the destination address for the response message.
+	 * @param[in] msg_id The message ID of the original request being responded to.
 	 * @param[in] chirp Optional pointer to a DPP chirp value to include in the message.
 	 * @param[in] hash_len Length of the hash to be included in the chirp (can be 0 if no chirp is present).
 	 *
@@ -45,7 +46,7 @@ class em_configuration_t {
 	 *
 	 * @note Ensure that the buffer is adequately sized to hold the response message.
 	 */
-	int create_autoconfig_resp_msg(unsigned char *buff, em_freq_band_t band, unsigned char *dst, em_dpp_chirp_value_t *chirp = nullptr, size_t hash_len = 0);
+	int create_autoconfig_resp_msg(unsigned char *buff, em_freq_band_t band, unsigned char *dst, unsigned short msg_id, em_dpp_chirp_value_t *chirp = nullptr, size_t hash_len = 0);
     
 	/**!
 	 * @brief Creates an auto-configuration search message.
@@ -86,6 +87,7 @@ class em_configuration_t {
 	 * @param[out] buff Pointer to the buffer where the generated message will be stored.
 	 * @param[in] haul_type Array of haul types used in the configuration.
 	 * @param[in] num_hauls Number of haul types in the array.
+	 * @param[in] msg_id The message ID of the original request being responded to.
 	 *
 	 * @returns int Status code indicating success or failure of the message creation.
 	 * @retval 0 on success.
@@ -93,7 +95,7 @@ class em_configuration_t {
 	 *
 	 * @note Ensure that the buffer is adequately sized to hold the generated message.
 	 */
-	int create_autoconfig_wsc_m2_msg(unsigned char *buff, em_haul_type_t haul_type[], unsigned int num_hauls);
+	int create_autoconfig_wsc_m2_msg(unsigned char *buff, em_haul_type_t haul_type[], unsigned int num_hauls, unsigned short msg_id);
     
 	/**!
 	 * @brief Creates a BSS configuration request message.
@@ -119,6 +121,8 @@ class em_configuration_t {
 	 *
 	 * @param[out] buff Pointer to the buffer where the response message will be stored.
 	 * @param[in] dest_al_mac  The destination AL MAC address for the message.
+	 * @param[in] enrollee_nak Pointer to an SSL_KEY structure containing the enrollee's NAK information.
+	 * @param[in] msg_id The message ID of the original request being responded to.
 	 *
 	 * @returns int Status code indicating success or failure of the operation.
 	 * @retval the size of the response message on success.
@@ -126,7 +130,7 @@ class em_configuration_t {
 	 *
 	 * @note Ensure the buffer is allocated with sufficient size before calling this function.
 	 */
-	int create_bss_config_rsp_msg(uint8_t *buff, uint8_t dest_al_mac[ETH_ALEN], SSL_KEY* enrollee_nak);
+	int create_bss_config_rsp_msg(uint8_t *buff, uint8_t dest_al_mac[ETH_ALEN], SSL_KEY* enrollee_nak, unsigned short msg_id);
     
 	/**!
 	 * @brief Creates a BSS configuration response message.
@@ -135,6 +139,7 @@ class em_configuration_t {
 	 *
 	 * @param[out] buff Pointer to the buffer where the response message will be stored.
 	 * @param[in] dest_al_mac  The destination AL MAC address for the message.
+	 * @param[in] msg_id The message ID of the original request being responded to.
 	 *
 	 * @returns int Status code indicating success or failure.
 	 * @retval the size of the response message on success.
@@ -142,7 +147,7 @@ class em_configuration_t {
 	 *
 	 * @note Ensure the buffer is allocated with sufficient size before calling this function.
 	 */
-	int create_bss_config_res_msg(uint8_t *buff, uint8_t dest_al_mac[ETH_ALEN]);
+	int create_bss_config_res_msg(uint8_t *buff, uint8_t dest_al_mac[ETH_ALEN], unsigned short msg_id);
 
 
 	/**!
@@ -436,6 +441,7 @@ class em_configuration_t {
 	 * This function is responsible for sending a topology response message to the specified destination.
 	 *
 	 * @param[in] dst Pointer to the destination address where the message will be sent.
+	 * @param[in] msg_id The message ID of the original request being responded to.
 	 *
 	 * @returns int
 	 * @retval 0 on success
@@ -443,7 +449,7 @@ class em_configuration_t {
 	 *
 	 * @note Ensure that the destination address is valid before calling this function.
 	 */
-	int send_topology_response_msg(unsigned char *dst);
+	int send_topology_response_msg(unsigned char *dst, unsigned short msg_id);
     
 	/**!
 	 * @brief Sends a topology notification by client.
@@ -514,6 +520,7 @@ class em_configuration_t {
 	 * This function is responsible for sending a configuration response message to the specified destination.
 	 *
 	 * @param[in] dst Pointer to the destination address where the message will be sent.
+	 * @param[in] msg_id The message ID of the original request being responded to.
 	 *
 	 * @returns int
 	 * @retval 0 on success
@@ -521,7 +528,7 @@ class em_configuration_t {
 	 *
 	 * @note Ensure that the destination address is valid and properly initialized before calling this function.
 	 */
-	int send_ap_mld_config_resp_msg(unsigned char *dst);
+	int send_ap_mld_config_resp_msg(unsigned char *dst, unsigned short msg_id);
     
 	/**!
 	 * @brief Sends a 1905 acknowledgment message to a specified station.
@@ -532,6 +539,7 @@ class em_configuration_t {
 	 *
 	 * @param[in] sta_mac The MAC address of the station to which the acknowledgment
 	 * message is to be sent.
+	 * @param[in] msg_id The message ID of the original message being acknowledged.
 	 *
 	 * @returns int
 	 * @retval 0 on success
@@ -540,7 +548,7 @@ class em_configuration_t {
 	 * @note Ensure that the MAC address is valid and the station is reachable
 	 * before calling this function.
 	 */
-	int send_1905_ack_message(mac_addr_t sta_mac);
+	int send_1905_ack_message(mac_addr_t sta_mac, unsigned short msg_id);
     
 	
 
@@ -1568,7 +1576,7 @@ public:
 
 	bool send_autoconf_search_ext_chirp(em_dpp_chirp_value_t *chirp, size_t hash_len);
 
-	bool send_autoconf_search_resp_ext_chirp(em_dpp_chirp_value_t *chirp, size_t len, uint8_t dest_mac[ETH_ALEN]);
+	bool send_autoconf_search_resp_ext_chirp(em_dpp_chirp_value_t *chirp, size_t len, uint8_t dest_mac[ETH_ALEN], unsigned short msg_id);
 
 	bool send_bss_config_req_msg(uint8_t dest_al_mac[ETH_ALEN]);
     

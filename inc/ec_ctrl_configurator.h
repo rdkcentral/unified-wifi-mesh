@@ -89,7 +89,7 @@ public:
 	 * @return true on success, otherwise false.
 	 * 
 	 */
-	bool handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, size_t len, uint8_t src_mac[ETH_ALEN]) override;
+	bool handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, size_t len, uint8_t src_mac[ETH_ALEN], unsigned short msg_id) override;
 
     
 	/**

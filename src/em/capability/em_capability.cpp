@@ -72,6 +72,7 @@ int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
 
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_type);
+    //TBD: The msg_id should match with that received in AP Capability Query
     cmdu->id = htons(msg_id);
     cmdu->last_frag_ind = 1;
 
@@ -144,7 +145,7 @@ int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
     // AP EHT Operations 17.2.103
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_eht_operations;
-    sz = create_eht_operations_tlv(tlv->value);
+    sz = static_cast<short> (create_eht_operations_tlv(tlv->value));
     tlv->len = htons(static_cast<uint16_t> (sz));
 
     tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
@@ -229,7 +230,7 @@ int em_capability_t::send_client_cap_query()
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    unsigned short  msg_id = em_msg_type_client_cap_query;
+    unsigned short  msg_type = em_msg_type_client_cap_query;
     size_t len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
@@ -256,8 +257,8 @@ int em_capability_t::send_client_cap_query()
     cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
-    cmdu->type = htons(msg_id);
-    cmdu->id = htons(msg_id);
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
     cmdu->last_frag_ind = 1;
     cmdu->relay_ind = 0;
 
@@ -365,7 +366,7 @@ short em_capability_t::create_error_code_tlv(unsigned char *buff, mac_address_t 
     return len;
 }
 
-int em_capability_t::send_client_cap_report_msg(mac_address_t sta, bssid_t bss)
+int em_capability_t::send_client_cap_report_msg(mac_address_t sta, bssid_t bss, unsigned short msg_id)
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
@@ -376,7 +377,6 @@ int em_capability_t::send_client_cap_report_msg(mac_address_t sta, bssid_t bss)
     unsigned char *tmp = buff;
     short sz = 0;
     unsigned short type = htons(ETH_P_1905);
-    unsigned short msg_id = em_msg_type_client_cap_rprt;
     dm_easy_mesh_t *dm = get_data_model();
     mac_addr_str_t mac_str;
 
@@ -547,20 +547,19 @@ void em_capability_t::handle_client_cap_query(unsigned char *buff, unsigned int 
         return;
     }
 
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
     memcpy(bss, tlv->value, sizeof(bssid_t));
     memcpy(sta, tlv->value + sizeof(mac_address_t), sizeof(bssid_t));
 
-    send_client_cap_report_msg(sta, bss);
+    send_client_cap_report_msg(sta, bss, ntohs(cmdu->id));
     set_state(em_state_agent_configured);
 }
 
 void em_capability_t::process_msg(unsigned char *data, unsigned int len)
 {
-    em_cmdu_t *cmdu;
-
-    cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
 
     switch (htons(cmdu->type)) {
         case em_msg_type_client_cap_rprt:
