@@ -3557,8 +3557,9 @@ int em_configuration_t::create_autoconfig_search_msg(unsigned char *buff, em_dpp
     tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_searched_role, &role, sizeof(role));
 
     // One AutoconfigFreqBand TLV (see Table 6-23)
-    em_freq_band_t band = get_band();
-    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_autoconf_freq_band, reinterpret_cast<uint8_t*>(&band), sizeof(band));
+    uint8_t band = static_cast<uint8_t>(get_band());
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_autoconf_freq_band,
+                        &band, sizeof(band));
 
     // Extended fields
     // Zero or one SupportedService TLV (see section 17.2.1).
@@ -3571,8 +3572,8 @@ int em_configuration_t::create_autoconfig_search_msg(unsigned char *buff, em_dpp
     tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_searched_service, searched_service, sizeof(searched_service));
 
     // One Multi-AP Profile TLV (see section 17.2.47).
-    em_profile_type_t profile = get_profile_type();
-    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_profile, reinterpret_cast<uint8_t*>(&profile), sizeof(profile));
+    uint8_t profile = static_cast<uint8_t>(get_profile_type());
+    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_profile, &profile, sizeof(profile));
 
     // Zero or One DPP Chirp TLV (section 17.2.83)
     if (chirp) {
