@@ -172,7 +172,18 @@ class em_discovery_t {
 	virtual em_cmd_t *get_current_cmd() = 0;
     
 public:
-    
+
+	/**!
+	 * @brief Retrieves the manager instance.
+	 *
+	 * This function returns a pointer to the manager instance associated with the steering module.
+	 *
+	 * @returns A pointer to the manager instance of type `em_mgr_t`.
+	 *
+	 * @note This is a pure virtual function and must be implemented by derived classes.
+	 */
+	virtual em_mgr_t *get_mgr() = 0;
+
 	/**!
 	 * @brief Processes a message with the given data and length.
 	 *

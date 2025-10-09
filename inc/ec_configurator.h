@@ -236,10 +236,11 @@ public:
 	 * @param chirp The DPP chirp.
 	 * @param len The length of the chirp hash (can be 0).
 	 * @param src_mac Where it came from (Enrollee).
+	 * @param msg_id The message ID of the Autoconf Search (extended) message.
 	 * @return true on success, otherwise false.
 	 * 
 	 */
-	virtual bool handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, size_t len, uint8_t src_mac[ETH_ALEN]) {
+	virtual bool handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, size_t len, uint8_t src_mac[ETH_ALEN], unsigned short msg_id) {
 		// impl'd by Controller Configurator only
 		return false;
 	} 

@@ -186,12 +186,13 @@ public:
 	* @param[in] dst The destination MAC address.
 	* @param[in] src The source MAC address.
 	* @param[in] msg_type The type of message to be added.
+	* @param[in] msg_id The message ID.
 	*
 	* @return unsigned char* A pointer to the new buffer with the added header.
 	*
 	* @note Ensure that the buffer has enough space to accommodate the new header.
 	*/
-	static unsigned char* add_1905_header(unsigned char *buff, unsigned int *len, mac_addr_t dst, mac_addr_t src, em_msg_type_t msg_type);
+	static unsigned char* add_1905_header(unsigned char *buff, unsigned int *len, mac_addr_t dst, mac_addr_t src, em_msg_type_t msg_type, unsigned short msg_id);
 
     
 	/**!
