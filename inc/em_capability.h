@@ -43,7 +43,18 @@ class em_capability_t {
 	 * @note This is a pure virtual function and must be implemented by derived classes.
 	 */
 	virtual int send_frame(unsigned char *buff, unsigned int len, bool multicast = false) = 0;
-    
+
+	/**!
+	 * @brief Retrieves the manager instance.
+	 *
+	 * This function is a pure virtual function that must be implemented by derived classes.
+	 *
+	 * @returns A pointer to the em_mgr_t instance.
+	 *
+	 * @note This function does not take any parameters and returns a non-null pointer to the manager instance.
+	 */
+	virtual em_mgr_t *get_mgr() = 0;
+
 	/**!
 	 * @brief Retrieves the data model.
 	 *
@@ -444,6 +455,7 @@ class em_capability_t {
 	 *
 	 * @param[in] sta The MAC address of the client station.
 	 * @param[in] bss The BSSID to which the report message is sent.
+	 * @param[in] msg_id The message ID for the report message.
 	 *
 	 * @returns int
 	 * @retval 0 on success
@@ -451,7 +463,7 @@ class em_capability_t {
 	 *
 	 * @note Ensure that the MAC address and BSSID are valid before calling this function.
 	 */
-	int send_client_cap_report_msg(mac_address_t sta, bssid_t bss);
+	int send_client_cap_report_msg(mac_address_t sta, bssid_t bss, unsigned short msg_id);
     
 	/**!
 	 * @brief Creates an AP capability report message.

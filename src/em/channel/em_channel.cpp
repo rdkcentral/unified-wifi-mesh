@@ -208,7 +208,7 @@ int em_channel_t::send_channel_scan_request_msg()
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    unsigned short  msg_id = em_msg_type_channel_scan_req;
+    unsigned short  msg_type = em_msg_type_channel_scan_req;
     unsigned int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
@@ -234,8 +234,8 @@ int em_channel_t::send_channel_scan_request_msg()
     cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
-    cmdu->type = htons(msg_id);
-    cmdu->id = htons(msg_id);
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
     cmdu->last_frag_ind = 1;
     cmdu->relay_ind = 0;
 
@@ -431,7 +431,7 @@ short em_channel_t::create_channel_scan_res_tlv(unsigned char *buff, unsigned in
 int em_channel_t::send_channel_scan_report_msg(unsigned int *last_index)
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
-    unsigned short  msg_id = em_msg_type_channel_scan_rprt;
+    unsigned short  msg_type = em_msg_type_channel_scan_rprt;
     unsigned int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
@@ -460,8 +460,8 @@ int em_channel_t::send_channel_scan_report_msg(unsigned int *last_index)
     cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
-    cmdu->type = htons(msg_id);
-    cmdu->id = htons(msg_id);
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
     cmdu->last_frag_ind = 1;
     cmdu->relay_ind = 0;
 
@@ -553,7 +553,7 @@ int em_channel_t::send_channel_sel_request_msg()
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    unsigned short  msg_id = em_msg_type_channel_sel_req;
+    unsigned short  msg_type = em_msg_type_channel_sel_req;
     unsigned int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
@@ -579,8 +579,8 @@ int em_channel_t::send_channel_sel_request_msg()
     cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
-    cmdu->type = htons(msg_id);
-    cmdu->id = htons(msg_id);
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
     cmdu->last_frag_ind = 1;
     cmdu->relay_ind = 0;
 
@@ -617,7 +617,7 @@ int em_channel_t::send_channel_sel_request_msg()
     // Zero or one EHT Operations TLV (see section 17.2.103)
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_eht_operations;
-    sz = create_eht_operations_tlv(tlv->value);
+    sz = static_cast<short> (create_eht_operations_tlv(tlv->value));
     tlv->len = htons(static_cast<short unsigned int> (sz));
 
     tmp += (sizeof(em_tlv_t) + static_cast<short unsigned int> (sz));
@@ -813,7 +813,7 @@ int em_channel_t::send_operating_channel_report_msg()
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    unsigned short  msg_id = em_msg_type_op_channel_rprt;
+    unsigned short  msg_type = em_msg_type_op_channel_rprt;
     short sz;
     unsigned int len = 0;
     em_cmdu_t *cmdu;
@@ -840,8 +840,8 @@ int em_channel_t::send_operating_channel_report_msg()
     cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
-    cmdu->type = htons(msg_id);
-    cmdu->id = htons(msg_id);
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
     cmdu->last_frag_ind = 1;
     cmdu->relay_ind = 0;
 
@@ -869,7 +869,7 @@ int em_channel_t::send_operating_channel_report_msg()
     // Zero or more EHT Operations TLV (see section 17.2.103)
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_eht_operations;
-    sz = create_eht_operations_tlv(tlv->value);
+    sz = static_cast<short> (create_eht_operations_tlv(tlv->value));
     tlv->len = htons(static_cast<short unsigned int> (sz));
 
     tmp += sizeof(em_tlv_t) + static_cast<short unsigned int> (sz);
@@ -901,7 +901,7 @@ int em_channel_t::send_channel_pref_query_msg()
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    unsigned short  msg_id = em_msg_type_channel_pref_query;
+    unsigned short  msg_type = em_msg_type_channel_pref_query;
     unsigned int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
@@ -926,8 +926,8 @@ int em_channel_t::send_channel_pref_query_msg()
     cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
-    cmdu->type = htons(msg_id);
-    cmdu->id = htons(msg_id);
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
     cmdu->last_frag_ind = 1;
     cmdu->relay_ind = 0;
 
@@ -1223,7 +1223,7 @@ int em_channel_t::send_channel_pref_report_msg()
     // Zero or one EHT Operations TLV (see section 17.2.103)
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_eht_operations;
-    sz = create_eht_operations_tlv(tlv->value);
+    sz = static_cast<short> (create_eht_operations_tlv(tlv->value));
     tlv->len = htons(static_cast<uint16_t> (sz));
 
     tmp += (sizeof(em_tlv_t) + static_cast<long unsigned int> (sz));
@@ -1256,7 +1256,7 @@ int em_channel_t::send_available_spectrum_inquiry_msg()
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    unsigned short  msg_id = em_msg_type_avail_spectrum_inquiry;
+    unsigned short  msg_type = em_msg_type_avail_spectrum_inquiry;
     unsigned int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
@@ -1282,8 +1282,8 @@ int em_channel_t::send_available_spectrum_inquiry_msg()
     cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
-    cmdu->type = htons(msg_id);
-    cmdu->id = htons(msg_id);
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
     cmdu->last_frag_ind = 1;
     cmdu->relay_ind = 0;
 
@@ -1464,6 +1464,11 @@ int em_channel_t::handle_eht_operations_tlv_ctrl(unsigned char *buff, unsigned i
     unsigned char num_radios;
     unsigned char num_bss;
 
+    // 32 octets are reserved for future use, so skip 32 octets
+    unsigned int reserved_octets = 32;
+    tmp += reserved_octets;
+    tmp_len += reserved_octets;
+
     memcpy(&num_radios, tmp, sizeof(unsigned char));
     tmp += sizeof(unsigned char);
     tmp_len += sizeof(unsigned char);
@@ -1633,10 +1638,8 @@ int em_channel_t::handle_eht_operations_tlv(unsigned char *buff, em_eht_operatio
 
 int em_channel_t::handle_channel_pref_query(unsigned char *buff, unsigned int len)
 {
-    em_cmdu_t *cmdu;
     em_bus_event_type_channel_pref_query_params_t params;
-
-    cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
 
     memcpy(params.mac, get_radio_interface_mac(), sizeof(mac_address_t));
     params.msg_id = ntohs(cmdu->id);
@@ -1896,9 +1899,7 @@ int em_channel_t::handle_channel_scan_rprt(unsigned char *buff, unsigned int len
 
 void em_channel_t::process_msg(unsigned char *data, unsigned int len)
 {
-    em_cmdu_t *cmdu;
-    
-    cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
     switch (htons(cmdu->type)) {
         case em_msg_type_channel_pref_query:
 		if (get_service_type() == em_service_type_agent) {
@@ -1929,7 +1930,7 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
         case em_msg_type_channel_sel_req:
             if ((get_service_type() == em_service_type_agent)  && ((get_state() < em_state_agent_channel_select_configuration_pending) || (get_state() >= em_state_agent_configured))) {
                 handle_channel_sel_req(data, len);
-                send_channel_sel_response_msg(em_chan_sel_resp_code_type_accept, htons(cmdu->id));
+                send_channel_sel_response_msg(em_chan_sel_resp_code_type_accept, ntohs(cmdu->id));
             }
             break;
 

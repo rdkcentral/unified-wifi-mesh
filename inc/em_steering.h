@@ -93,6 +93,7 @@ class em_steering_t {
 	 *
 	 * @param[in] sta_mac The MAC address of the station to which the acknowledgment
 	 * message will be sent.
+	 * @param[in] msg_id The message ID of the original message being acknowledged.
 	 *
 	 * @returns int
 	 * @retval 0 on success
@@ -101,7 +102,7 @@ class em_steering_t {
 	 * @note Ensure that the MAC address is valid and the station is reachable
 	 * before calling this function.
 	 */
-	int send_1905_ack_message(mac_addr_t sta_mac);
+	int send_1905_ack_message(mac_addr_t sta_mac, unsigned short msg_id);
     
 	/**!
 	 * @brief Handles the client steering request.

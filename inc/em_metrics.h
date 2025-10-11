@@ -22,6 +22,7 @@
 #include "em_base.h"
 #include "dm_easy_mesh.h"
 
+class em_mgr_t;
 class em_metrics_t {
 
     
@@ -131,6 +132,7 @@ class em_metrics_t {
 	 * associated with a specific station identified by its MAC address.
 	 *
 	 * @param[in] sta_mac The MAC address of the station for which the link metrics response is to be sent.
+	 * @param[in] msg_id The message ID associated with the link metrics response.
 	 *
 	 * @returns int Status code indicating the success or failure of the operation.
 	 * @retval 0 on success.
@@ -139,7 +141,7 @@ class em_metrics_t {
 	 * @note Ensure that the MAC address provided is valid and that the system is
 	 * capable of sending the response before calling this function.
 	 */
-	int send_associated_link_metrics_response(mac_address_t sta_mac);
+	int send_associated_link_metrics_response(mac_address_t sta_mac, unsigned short msg_id);
 
 	/**!
 	 * @brief Sends link metrics message for associated stations.
@@ -525,6 +527,17 @@ class em_metrics_t {
 	short create_assoc_wifi6_sta_sta_report_tlv(unsigned char *buff, const dm_sta_t *const sta);
 
 public:
+
+	/**!
+	 * @brief Retrieves the manager instance.
+	 *
+	 * This function returns a pointer to the manager instance associated with the steering module.
+	 *
+	 * @returns A pointer to the manager instance of type `em_mgr_t`.
+	 *
+	 * @note This is a pure virtual function and must be implemented by derived classes.
+	 */
+	virtual em_mgr_t *get_mgr() = 0;
     
 	/**!
 	 * @brief Processes a message.

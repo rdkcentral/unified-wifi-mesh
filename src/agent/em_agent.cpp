@@ -1450,7 +1450,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 
 		if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
 			len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_al_mac_address(ruid) == false) {
-			printf("%s:%d: Could not find radio_id for em_msg_type_topo_query\n", __func__, __LINE__);
+			printf("%s:%d: Could not find radio_id for em_msg_type_autoconf_renew\n", __func__, __LINE__);
 			return NULL;
 		}
 		dm_easy_mesh_t::macbytes_to_string(ruid, al_mac_str);

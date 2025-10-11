@@ -1180,6 +1180,12 @@ unsigned short em_t::create_eht_operations_tlv(unsigned char *buff)
     unsigned char num_radios = static_cast<unsigned char> (dm->get_num_radios());
     unsigned char num_bss;
 
+    // 32 octets are reserved for future use, so skip 32 octets
+    unsigned int reserved_octets = 32;
+    memset(tmp, 0, reserved_octets);
+    tmp += reserved_octets;
+    len += reserved_octets;
+
     memcpy(tmp, &num_radios, sizeof(unsigned char));
     tmp += sizeof(unsigned char);
     len += sizeof(unsigned char);
@@ -1219,7 +1225,7 @@ unsigned short em_t::create_eht_operations_tlv(unsigned char *buff)
         }
     }
 
-    return static_cast<short> (len);
+    return len;
 }
 
 cJSON *em_t::create_enrollee_bsta_list(uint8_t pa_al_mac[ETH_ALEN])
@@ -1820,7 +1826,7 @@ bool em_t::initialize_ec_manager(){
                                                 this, std::placeholders::_1);
         ops.send_autoconf_search_resp =
             std::bind(&em_t::send_autoconf_search_resp_ext_chirp, this, std::placeholders::_1,
-                      std::placeholders::_2, std::placeholders::_3);
+                      std::placeholders::_2, std::placeholders::_3, std::placeholders::_4);
     }
 
     // Read in the persistent security context for the controller or agent

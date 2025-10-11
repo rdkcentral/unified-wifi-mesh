@@ -82,7 +82,7 @@ int em_steering_t::send_client_assoc_ctrl_req_msg(em_client_assoc_ctrl_req_t *as
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    unsigned short  msg_id = em_msg_type_client_assoc_ctrl_req;
+    unsigned short  msg_type = em_msg_type_client_assoc_ctrl_req;
     size_t len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
@@ -107,8 +107,8 @@ int em_steering_t::send_client_assoc_ctrl_req_msg(em_client_assoc_ctrl_req_t *as
     cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
-    cmdu->type = htons(msg_id);
-    cmdu->id = htons(static_cast<uint16_t> (msg_id));
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
     cmdu->last_frag_ind = 1;
     cmdu->relay_ind = 0;
 
@@ -151,7 +151,7 @@ int em_steering_t::send_client_steering_req_msg()
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    unsigned short  msg_id = em_msg_type_client_steering_req;
+    unsigned short  msg_type = em_msg_type_client_steering_req;
     short sz = 0;
     size_t len = 0;
     em_cmdu_t *cmdu;
@@ -177,8 +177,8 @@ int em_steering_t::send_client_steering_req_msg()
     cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
-    cmdu->type = htons(msg_id);
-    cmdu->id = htons(static_cast<uint16_t> (msg_id));
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
     cmdu->last_frag_ind = 1;
     cmdu->relay_ind = 0;
 
@@ -229,7 +229,6 @@ int em_steering_t::send_btm_report_msg(mac_address_t sta, bssid_t bss)
     unsigned char *tmp = buff;
     short sz = 0;
     unsigned short type = htons(ETH_P_1905);
-    short msg_id = em_msg_type_client_steering_btm_rprt;
     dm_easy_mesh_t *dm = get_data_model();
 
     memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
@@ -248,7 +247,7 @@ int em_steering_t::send_btm_report_msg(mac_address_t sta, bssid_t bss)
 
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_type);
-    cmdu->id = htons(static_cast<uint16_t> (msg_id));
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
     cmdu->last_frag_ind = 1;
 
     tmp += sizeof(em_cmdu_t);
@@ -286,7 +285,7 @@ int em_steering_t::send_btm_report_msg(mac_address_t sta, bssid_t bss)
     return static_cast<int> (len);
 }
 
-int em_steering_t::send_1905_ack_message(mac_addr_t sta_mac)
+int em_steering_t::send_1905_ack_message(mac_addr_t sta_mac, unsigned short msg_id)
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
@@ -297,7 +296,6 @@ int em_steering_t::send_1905_ack_message(mac_addr_t sta_mac)
     unsigned char *tmp = buff;
     short sz = 0;
     unsigned short type = htons(ETH_P_1905);
-    short msg_id = em_msg_type_1905_ack;
     dm_easy_mesh_t *dm = get_data_model();
 
 
@@ -317,7 +315,7 @@ int em_steering_t::send_1905_ack_message(mac_addr_t sta_mac)
 
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_type);
-    cmdu->id = htons(static_cast<uint16_t> (msg_id));
+    cmdu->id = htons(msg_id);
     cmdu->last_frag_ind = 1;
 
     tmp += sizeof(em_cmdu_t);
@@ -442,13 +440,14 @@ int em_steering_t::handle_client_steering_req(unsigned char *buff, unsigned int 
 
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     steer_req =  reinterpret_cast<em_steering_req_t *> (&tlv->value);
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
 
     dm_easy_mesh_t::macbytes_to_string(steer_req->sta_mac_addr, mac_str);
     printf("%s:%d Recived steer req for sta=%s\n", __func__, __LINE__, mac_str);
     
 	get_mgr()->io_process(em_bus_event_type_bss_tm_req, reinterpret_cast<unsigned char *> (steer_req), sizeof(em_steering_req_t));
 
-    send_1905_ack_message(steer_req->sta_mac_addr);
+    send_1905_ack_message(steer_req->sta_mac_addr, ntohs(cmdu->id));
 
     return 0;
 }
@@ -516,9 +515,7 @@ void em_steering_t::process_agent_state()
 
 void em_steering_t::process_msg(unsigned char *data, unsigned int len)
 {
-    em_cmdu_t *cmdu;
-
-    cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
 
     switch (htons(cmdu->type)) {
         case em_msg_type_client_steering_req:

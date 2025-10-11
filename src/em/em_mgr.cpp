@@ -491,6 +491,15 @@ void em_mgr_t::handle_timeout()
 
 }
 
+unsigned short em_mgr_t::get_next_msg_id()
+{
+    m_msg_id++;
+    if (m_msg_id == 0) {
+        m_msg_id = 1;
+    }
+    return m_msg_id;
+}
+
 int em_mgr_t::start()
 {
     int rc;
@@ -576,6 +585,7 @@ int em_mgr_t::init(const char *data_model_path)
     pthread_cond_init(&m_queue.cond, NULL);
 
     m_queue.timeout = EM_MGR_TOUT;
+    m_msg_id = 0;
 
     orch_init();
     return data_model_init(data_model_path);

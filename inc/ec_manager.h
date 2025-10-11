@@ -291,9 +291,9 @@ public:
 	 * @return true on success, otherwise false.
 	 * 
 	 */
-	bool handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, size_t len, uint8_t src_mac[ETH_ALEN]) {
+	bool handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, size_t len, uint8_t src_mac[ETH_ALEN], unsigned short msg_id) {
 		if (m_configurator) {
-			return m_configurator->handle_autoconf_chirp(chirp, len, src_mac);
+			return m_configurator->handle_autoconf_chirp(chirp, len, src_mac, msg_id);
 		}
 		// Not valid for Enrollee
 		return false;

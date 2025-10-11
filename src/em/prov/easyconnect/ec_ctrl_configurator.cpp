@@ -322,7 +322,7 @@ bool ec_ctrl_configurator_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, ui
     return did_finish;
 }
 
-bool ec_ctrl_configurator_t::handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, size_t len, uint8_t src_mac[ETH_ALEN])
+bool ec_ctrl_configurator_t::handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, size_t len, uint8_t src_mac[ETH_ALEN], unsigned short msg_id)
 {
     em_printfout("Received Autoconf Search (extended) chirp from Enrollee '%s'", util::mac_to_string(src_mac).c_str());
     if (!chirp) {
@@ -372,7 +372,7 @@ bool ec_ctrl_configurator_t::handle_autoconf_chirp(em_dpp_chirp_value_t* chirp, 
         return false;
     }
 
-    if (!m_send_autoconf_resp_fn(resp_chirp, resp_chirp_len, src_mac)) {
+    if (!m_send_autoconf_resp_fn(resp_chirp, resp_chirp_len, src_mac, msg_id)) {
         em_printfout("Failed to send Autoconf Response (extended) with Chirp TLV");
         free(resp_chirp);
         return false;

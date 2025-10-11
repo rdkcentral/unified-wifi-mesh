@@ -326,7 +326,7 @@ int dm_bss_list_t::sync_db(db_client_t& db_client, void *ctx)
         info.r2_disallowed = db_client.get_number(ctx, 18);
         info.multi_bssid = db_client.get_number(ctx, 19);
         info.transmitted_bssid = db_client.get_number(ctx, 20);
-        info.vlan_id = db_client.get_number(ctx, 21);
+        info.vlan_id = static_cast<unsigned int> (db_client.get_number(ctx, 21));
 
         update_list(dm_bss_t(&info), dm_orch_type_db_insert);
     }

@@ -2818,7 +2818,7 @@ void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
 
     // Find existing MLD by MAC
     em_printfout("m_num_ap_mld %d", m_num_ap_mld);
-    for (int i = 0; i < m_num_ap_mld; i++) {
+    for (unsigned int i = 0; i < m_num_ap_mld; i++) {
         if (memcmp(m_ap_mld[i].m_ap_mld_info.mac_addr, ap_mld_info->mac_addr, sizeof(mac_address_t)) == 0) {
             target_mld = &m_ap_mld[i].m_ap_mld_info;
             em_printfout("Found existing MLD at index %d", i);
