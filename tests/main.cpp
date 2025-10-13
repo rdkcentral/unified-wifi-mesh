@@ -77,7 +77,7 @@ int main(int argc, char **argv) {
 	"dm_device_t_Test.SetPrimaryDeviceType_NullPointer:"
 	"dm_device_t_Test.SetPrimaryDeviceType_ExceedingBufferSize:"
 	"dm_device_t_Test.SetSoftwareVersion_NullVersionString:"
-        "dm_device_t_Test.SetDeviceInterfaceNameWithNullPointer:"
+	"dm_device_t_Test.SetDeviceInterfaceNameWithNullPointer:"
 	"dm_device_t_Test.UpdateEasyMeshJsonCfg_ColocatedModeEnabled:"
 	"dm_device_t_Test.UpdateEasyMeshJsonCfg_ColocatedModeDisabled:"
 	"dm_device_t_Test.DifferentDevMac:"
@@ -85,6 +85,5 @@ int main(int argc, char **argv) {
 	"dm_device_t_Test.DifferentProfiles:"
 	"dm_device_t_Test.AssigningValidDeviceInformation:"
 	"dm_device_t_Test.InitializeWithNullDeviceInfo";
-    std::cout << "Running with filter: " << ::testing::GTEST_FLAG(filter) << std::endl;
     return RUN_ALL_TESTS();
 }
