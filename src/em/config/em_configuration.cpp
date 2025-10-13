@@ -4698,12 +4698,6 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 		}
 	}
 
-	if (get_band() == 2) {
-		auth_type = 0x0200; // WPA3-Personal
-	} else {
-		auth_type = 0x0400; // WPA3-Personal-Transition
-	}
-
 	printf("%s:%d No of haultype=%d radio no of bss=%d \n", __func__, __LINE__,no_of_haultype, radio->m_radio_info.number_of_bss);
 
 	// haultype
@@ -4727,6 +4721,16 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 			continue;
 		}
 		printf("%s:%d: ssid: %s, passphrase: %s\n", __func__, __LINE__, net_ssid_info->ssid, net_ssid_info->pass_phrase);
+
+		if (get_band() == 2) {
+			auth_type = 0x0200; // WPA3-Personal
+		} else {
+			if (haul_type == em_haul_type_fronthaul) {
+				auth_type = 0x0400; // WPA3-Personal-Transition
+			} else {
+				auth_type = 0x0010; // WPA2-Personal
+			}
+		}
 
 		// haultype
 		attr = reinterpret_cast<data_elem_attr_t *> (tmp);
