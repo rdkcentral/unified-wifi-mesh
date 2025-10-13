@@ -1,15 +1,15 @@
 /*
   If not stated otherwise in this file or this component's LICENSE file the
   following copyright and licenses apply:
- 
+
   Copyright 2023 RDK Management
- 
+
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
   You may obtain a copy of the License at
- 
+
   http://www.apache.org/licenses/LICENSE-2.0
- 
+
   Unless required by applicable law or agreed to in writing, software
   distributed under the License is distributed on an "AS IS" BASIS,
   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -19,24 +19,53 @@
 
 package main
 
+/*
+#cgo CFLAGS: -I../../inc -I../../../OneWifi/include -I../../../OneWifi/source/utils -I../../../halinterface/include
+#cgo LDFLAGS: -L../../install/lib -lemcli -lcjson -lreadline
+#include <stdio.h>
+#include <readline/readline.h>
+#include <readline/history.h>
+#include "em_cli_apis.h"
+*/
+import "C"
+
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
+	"math"
+	"math/rand"
+	"net"
 	"net/http"
 	"os"
+	"regexp"
+	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
-        "math"
-        "math/rand"
-        "sort"
+	"unsafe"
+
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 )
 
 // ===== SIMPLIFIED DATA MODELS =====
+
+type HaulConfig struct {
+	HaulType   string `json:"HaulType"`
+    SSID       string   `json:"SSID"`
+    PassPhrase string   `json:"PassPhrase"`
+}
+
+
+//structure of the incoming wifireset payload
+type WifiResetPayload struct {
+    SelectedMac string       `json:"selectedMac"`
+    HaulTypes   []HaulConfig `json:"haulTypes"`
+}
 
 type Device struct {
 	MAC             string         `json:"mac"`
@@ -437,7 +466,7 @@ func initDefaultFloorPlans() {
 	defaultPlan := &FloorPlan{
 		ID:        "1st-floor",
 		Name:      "1st Floor",
-		URL:       "/static/floorplans/1st-floor.jpg",
+		URL:       "../../src/rdkb-cli/static/floorplans/1st-floor.jpg",
 		Width:     1000,
 		Height:    600,
 		Scale:     0.1, // 10cm per pixel
@@ -2368,7 +2397,7 @@ func getDefaultAdvancedSettings() *AdvancedWirelessSettings {
 
 
 func loadDevices() {
-	file, err := os.Open("devices.json")
+	file, err := os.Open("../../src/rdkb-cli/devices.json")
 	if err != nil {
 		log.Printf("Warning: Could not load devices.json: %v", err)
 		devices = getDefaultDevices()
@@ -2385,7 +2414,7 @@ func loadDevices() {
 }
 
 func loadClients() {
-	file, err := os.Open("clients.json")
+	file, err := os.Open("../../src/rdkb-cli/clients.json")
 	if err != nil {
 		log.Printf("Warning: Could not load clients.json: %v", err)
 		clients = getSampleClients()
@@ -2409,10 +2438,25 @@ func loadSystemConfig() {
 // ===== MAIN SERVER =====
 
 func main() {
+
+	// Get the IP address and port number of controller device.
+	remoteIP, remotePort, err := getLocalIP()
+	if err != nil {
+		fmt.Println("Error getting controller IP:", err)
+		return
+	}
+
+	// Set remote IP and port for ssh connection
+	err = setRemoteIPandPort(remoteIP, remotePort)
+	if err != nil {
+		fmt.Println("Failed to configure remote IP and port:", err)
+		return
+	}
+
 	router := mux.NewRouter()
 
 	// Serve static files
-	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))
+	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("../../src/rdkb-cli/static/"))))
 	router.HandleFunc("/", serveIndex).Methods("GET")
 
 	// API Routes
@@ -2523,6 +2567,9 @@ func main() {
 	api.HandleFunc("/system/status", getSystemStatusHandler).Methods("GET")
 	api.HandleFunc("/system/logs", getSystemLogsHandler).Methods("GET")
 
+	//system setting Wifi Reset
+	api.HandleFunc("/wifireset", WifiResetHandler).Methods("GET", "POST")
+
 	// Enable CORS
 	router.Use(corsMiddleware)
 
@@ -2557,7 +2604,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 // ===== HANDLERS =====
 
 func serveIndex(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, "./static/index.html")
+	http.ServeFile(w, r, "../../src/rdkb-cli/static/index.html")
 }
 
 func getDevicesHandler(w http.ResponseWriter, r *http.Request) {
@@ -2982,6 +3029,339 @@ func getSystemLogsHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+/* func: WifiResetHandler()
+ * Description:
+ * Wifi reset handler to handle GET and POST request from browser
+ * returns: NA
+ */
+func WifiResetHandler(w http.ResponseWriter, r *http.Request) {
+
+    // Get the reset tree
+    resetTree := C.exec(C.CString("get_reset OneWifiMesh"), C.strlen(C.CString("get_reset OneWifiMesh")), nil)
+    if resetTree == nil {
+        http.Error(w, "Failed to fetch reset tree", http.StatusInternalServerError)
+        return
+    }
+
+    switch r.Method {
+        case http.MethodGet:
+            log.Println("Received GET request for wifireset")
+            collocatedValue := getTreeValue(resetTree, "CollocatedAgentID")
+
+            // Interface MACs
+            interfacesList := C.get_network_tree_by_key(resetTree, C.CString("List"))
+            macOptions := getInterfacePrefence(interfacesList)
+
+            // Parse NetworkSSIDList
+            ssidHaulConfig := getConfiguredHauls(resetTree)
+
+            type MacResponse struct {
+                Options         []string `json:"options"`
+                SelectedOption  string   `json:"selectedOption"`
+                SSIDHaulConfig  []HaulConfig `json:"ssidHaulConfig"`
+            }
+
+            response := MacResponse{
+                Options:        macOptions,
+                SelectedOption: collocatedValue,
+                SSIDHaulConfig: ssidHaulConfig,
+            }
+
+            json.NewEncoder(w).Encode(response)
+
+        case http.MethodPost:
+            log.Println("Received POST request to update WiFi reset config")
+
+            var payload WifiResetPayload
+            errorsList := []string{}
+
+            if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+                http.Error(w, "Invalid request payload", http.StatusBadRequest)
+                return
+            }
+
+            if payload.SelectedMac != "" {
+                selectedMac := strings.Split(payload.SelectedMac, " ")[0]
+
+                // update the CollocatedAgentID in reset tree
+                if err := updateCollocatedAgentID(resetTree, selectedMac); err != nil {
+                    msg := fmt.Sprintf("Update failed for AL_MAC Interface: %v", err)
+                    errorsList = append(errorsList, msg)
+                }
+            } else {
+                msg := fmt.Sprintf("Received empty value for AL MAC")
+                errorsList = append(errorsList, msg)
+            }
+
+            for _, haul := range payload.HaulTypes {
+                if err := validateSSID(haul.SSID); err != nil {
+                    http.Error(w, fmt.Sprintf("Invalid SSID for %s: %v", haul.HaulType, err), http.StatusBadRequest)
+                    return
+                }
+                if err := validatePassPhrase(haul.PassPhrase); err != nil {
+                    http.Error(w, fmt.Sprintf("Invalid PassPhrase for %s: %v", haul.HaulType, err), http.StatusBadRequest)
+                    return
+                }
+                if err := updateSSIDPassForHaulType(resetTree, haul.HaulType, haul.SSID, haul.PassPhrase); err != nil {
+                    http.Error(w, fmt.Sprintf("Update failed for %s: %v", haul.HaulType, err), http.StatusInternalServerError)
+                    return
+                }
+            }
+
+            if applyResetConfig(resetTree) != true {
+                msg := fmt.Sprintf("Failed to apply wifi reset config")
+                errorsList = append(errorsList, msg)
+            }
+
+            w.Header().Set("Content-Type", "application/json")
+            if len(errorsList) > 0 {
+                // Return failure response with error details
+                w.WriteHeader(http.StatusInternalServerError)
+                json.NewEncoder(w).Encode(map[string]interface{}{
+                    "status":  "failure",
+                    "message": "Wi-Fi configuration reset failed",
+                    "errors":  errorsList,
+                })
+            } else {
+                // Return success response
+                json.NewEncoder(w).Encode(map[string]string{
+                    "status":  "success",
+                    "message": "Wi-Fi configuration reset successfully",
+                })
+            }
+        default:
+            http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+    }
+}
+
+//------------------------------------------------------------
+//                    Helper Functions
+//--------------------------------------------------------------
+
+/* func: getConfiguredHauls()
+ * Description: it extracts WiFi haul configurations from the given tree.
+ * Returns: Array of HaulConfig
+ */
+func getConfiguredHauls(tree *C.em_network_node_t) []HaulConfig {
+    var haulConfigs []HaulConfig
+    networkssidListNode := C.get_network_tree_by_key(tree, C.CString("NetworkSSIDList"))
+    if networkssidListNode == nil {
+        return haulConfigs
+    }
+
+    for i := 0; i < int(networkssidListNode.num_children); i++ {
+        node := networkssidListNode.child[i]
+
+        // Handle HaulType as list
+        haulTypeNode := C.get_network_tree_by_key(node, C.CString("HaulType"))
+        if haulTypeNode == nil || int(haulTypeNode.num_children) == 0 {
+            continue
+        }
+
+        haul := C.GoString(&haulTypeNode.child[0].value_str[0])
+        config := HaulConfig{
+            HaulType: haul,
+            SSID: getTreeValue(node, "SSID"),
+            PassPhrase: getTreeValue(node, "PassPhrase"),
+        }
+
+        haulConfigs = append(haulConfigs, config)
+    }
+
+    return haulConfigs
+}
+
+/* func: updateCollocatedAgentID
+ * Description:
+ * updates the CollocatedAgentID value in the given reset configuration tree
+ * based on the selected or manually entered MAC address, validates its format,
+ * and executes the reset command to apply the updated configuration.
+ * Return: true or false
+ */
+func updateCollocatedAgentID(resetTree *C.em_network_node_t, selectedMac string) error {
+    if !isValidMac(selectedMac) {
+        return fmt.Errorf("invalid MAC address: %s", selectedMac)
+    }
+
+    cMac := C.CString(selectedMac)
+    cKey := C.CString("CollocatedAgentID")
+    defer C.free(unsafe.Pointer(cMac))
+    defer C.free(unsafe.Pointer(cKey))
+
+    node := C.get_network_tree_by_key(resetTree, cKey)
+    if node == nil {
+        return fmt.Errorf("CollocatedAgentID node not found in reset tree")
+    }
+
+    buf := (*[256]byte)(unsafe.Pointer(&node.value_str[0]))
+    for i := range buf {
+        buf[i] = 0
+    }
+    copy(buf[:], selectedMac)
+
+    return nil
+}
+
+/* func: updateSSIDPassForHaulType()
+ * Description:
+ * Searches the NetworkSSIDList for a matching HaulType and updates its SSID and PassPhrase fields.
+ * returns: nil on successful update; otherwise an error if the list or matching HaulType is not found.
+ */
+func updateSSIDPassForHaulType(networkSSIDTree *C.em_network_node_t, haulType, newSSID, newPass string) error {
+    networkKey := C.CString("NetworkSSIDList")
+    defer C.free(unsafe.Pointer(networkKey))
+
+    ssidListNode := C.get_network_tree_by_key(networkSSIDTree, networkKey)
+    if ssidListNode == nil {
+        return fmt.Errorf("NetworkSSIDList node not found in reset tree")
+    }
+
+    for i := 0; i < int(ssidListNode.num_children); i++ {
+        item := ssidListNode.child[i]
+        if item == nil {
+            continue
+        }
+
+        haulKey := C.CString("HaulType")
+        haulNode := C.get_network_tree_by_key(item, haulKey)
+        C.free(unsafe.Pointer(haulKey))
+        if haulNode == nil || int(haulNode.num_children) == 0 {
+            continue
+        }
+
+        haulTypeStr := C.GoString(&haulNode.child[0].value_str[0])
+        if strings.Contains(haulTypeStr, haulType) {
+            updateNodeValue(item, "SSID", newSSID)
+            updateNodeValue(item, "PassPhrase", newPass)
+        }
+    }
+    return nil
+}
+
+/* func: updateNodeValue()
+ * Description: helper function to set the updated node value
+ * Return: NA
+ */
+func updateNodeValue(parent *C.em_network_node_t, key, newVal string) {
+    cKey := C.CString(key)
+    defer C.free(unsafe.Pointer(cKey))
+
+    node := C.get_network_tree_by_key(parent, cKey)
+    if node == nil {
+        log.Printf("Key '%s' not found in tree", key)
+        return
+    }
+
+    // Safely zero out and copy string into fixed-size buffer
+    const bufSize = 256
+    buf := (*[bufSize]byte)(unsafe.Pointer(&node.value_str[0]))
+
+    for i := range buf {
+        buf[i] = 0
+    }
+    copy(buf[:], newVal)
+}
+
+/* func: applyResetConfig()
+ * Description:
+ * Executes the WiFi reset command on the configuration tree by locating the
+ * "wfa-dataelements:Reset" node and invoking the associated reset operation.
+ * returns: true if the reset command was successfully executed, otherwise false.
+ */
+func applyResetConfig(resetTree *C.em_network_node_t) bool {
+    resetKey := C.CString("wfa-dataelements:Reset")
+    cmd := C.CString("reset OneWifiMesh")
+    defer C.free(unsafe.Pointer(resetKey))
+    defer C.free(unsafe.Pointer(cmd))
+
+    resetNode := C.get_network_tree_by_key(resetTree, resetKey)
+    if resetNode == nil {
+        log.Println("Reset node not found")
+        return false
+    }
+
+    C.exec(cmd, C.strlen(cmd), resetNode)
+    return true
+}
+
+/* func: isValidMac()
+ * Description:
+ * Validates whether the given string is a properly formatted MAC address.
+ * returns: true for MAC address format, otherwise false.
+ */
+func isValidMac(mac string) bool {
+    // Normalize to lowercase and remove interface name, if present
+    mac = strings.Split(mac, " ")[0]
+
+    // MAC format: 6 pairs of hex digits separated by colons
+    re := regexp.MustCompile(`^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$`)
+    return re.MatchString(mac)
+}
+
+/* func: validateSSID()
+ * Description: helper function to validate the ssid name
+ * Return: NA
+ */
+func validateSSID(ssid string) error {
+    if ssid == "" {
+        return fmt.Errorf("SSID cannot be empty")
+    }
+    if len(ssid) > 32 {
+        return fmt.Errorf("SSID must be 32 characters or fewer")
+    }
+    if matched, _ := regexp.MatchString(`^[\w\-\. ]+$`, ssid); !matched {
+        return fmt.Errorf("SSID contains invalid characters")
+    }
+    return nil
+}
+
+/* func: validatePassPhrase()
+ * Description: helper function to validate the passphase
+ * Return: NA
+ */
+func validatePassPhrase(pass string) error {
+    if pass == "" {
+        return fmt.Errorf("PassPhrase cannot be empty")
+    }
+    if len(pass) < 8 || len(pass) > 63 {
+        return fmt.Errorf("PassPhrase must be 8-63 characters")
+    }
+    return nil
+}
+
+func getLocalIP() (string, int, error) {
+	ctrlPort := 49153
+    conn, err := net.Dial("udp", "8.8.8.8:8888")
+    if err != nil {
+        return "", ctrlPort, err
+    }
+    defer conn.Close()
+
+    ctrlAddr := conn.LocalAddr().(*net.UDPAddr)
+
+    return ctrlAddr.IP.String(), ctrlPort, nil
+}
+
+/* func: printTree()
+ * Description:
+ * Print the tree for debug purpose
+ * returns: NA.
+ */
+func printTree(node *C.em_network_node_t, indent int) {
+    if node == nil {
+        return
+    }
+
+    prefix := strings.Repeat("  ", indent)
+    key := C.GoString(&node.key[0])
+    value := C.GoString(&node.value_str[0])
+    fmt.Printf("%s%s: %s\n", prefix, key, value)
+
+    for i := 0; i < int(node.num_children); i++ {
+        printTree(node.child[i], indent+1)
+    }
+}
+
 // ===== WEBSOCKET HANDLER =====
 
 func websocketHandler(w http.ResponseWriter, r *http.Request) {
@@ -3159,6 +3539,84 @@ func updateClientMetrics() {
 		clients[i].ClientMetrics.LastUpdated = time.Now()
 		clients[i].LastActivity = time.Now()
 	}
+}
+
+/* func: getInterfacePrefence()
+ * Description:
+ * It recursively traverses the provided em_network_node_t tree
+ * and extracts all string values representing interface MAC addresses.
+ * It supports nested arrays and objects.
+ * returns: list of MAC strings.
+ */
+func getInterfacePrefence(tree *C.em_network_node_t) []string {
+    var macList []string
+
+    if tree == nil {
+        return macList
+    }
+
+    nodeType := C.get_node_type(tree)
+    if nodeType == C.em_network_node_data_type_array_obj ||
+        nodeType == C.em_network_node_data_type_array_num ||
+        nodeType == C.em_network_node_data_type_array_str ||
+        nodeType == C.em_network_node_data_type_obj {
+        for i := 0; i < int(tree.num_children); i++ {
+            childMacs := getInterfacePrefence(tree.child[i])
+            macList = append(macList, childMacs...)
+        }
+    } else if nodeType == C.em_network_node_data_type_string {
+        mac := C.GoString(&tree.value_str[0])
+        macList = append(macList, mac)
+    }
+
+    return macList
+}
+
+/* func: getTreeValue()
+ * Description: helper function to get value for respective key
+ * Return: value of key in String format.
+ */
+func getTreeValue(tree *C.em_network_node_t, key string) string {
+    node := C.get_network_tree_by_key(tree, C.CString(key))
+    if node != nil {
+        switch C.get_node_type(node) {
+        case C.em_network_node_data_type_string:
+            return C.GoString(&node.value_str[0])
+        case C.em_network_node_data_type_false:
+            return "false"
+        case C.em_network_node_data_type_true:
+            return "true"
+        }
+    }
+    return ""
+}
+
+/* func: setRemoteIPandPort()
+ * Description: helper function to set remote IP and port for ssh connection
+ * Return: NA
+ */
+func setRemoteIPandPort(remoteIP string, remotePort int) error {
+
+    // Convert to uint32 in little-endian
+	ip := net.ParseIP(remoteIP)
+	if ip == nil {
+		return fmt.Errorf("invalid IP address: %s", remoteIP)
+	}
+	ip = ip.To4()
+	if ip == nil {
+		return fmt.Errorf("not a valid IPv4 address: %s", remoteIP)
+	}
+
+	// Validate port
+	if remotePort < 1 || remotePort > 65535 {
+		return fmt.Errorf("invalid port: %d", remotePort)
+	}
+
+	// Convert to uint32 in little-endian
+	ipLE := binary.LittleEndian.Uint32(ip)
+
+	C.set_remote_addr(C.uint(ipLE), C.uint(remotePort), C.bool(true))
+	return nil
 }
 
 // ===== DEFAULT DATA =====
