@@ -29,6 +29,7 @@ class em_mgr_t {
     bool m_exit;
     em_queue_t  m_queue;
 	unsigned int m_tick_demultiplex;
+	unsigned short m_msg_id;
 
 public:
 	pthread_mutex_t m_mutex;
@@ -244,7 +245,7 @@ public:
 	 * this function to avoid unexpected behavior.
 	 */
 	int reset_listeners();
-    
+
 	/**!
 	 * @brief Handles the timeout event.
 	 *
@@ -256,7 +257,17 @@ public:
 	 */
 	void handle_timeout();
 
-    
+	/**!
+	 * @brief Returns the next msg_id to be updated in the cmdu header of the 1905 request.
+	 *
+	 * This function provides the next message ID to be used in the CMDU header.
+	 *
+	 * @returns An unsigned short representing the next message ID.
+	 *
+	 * @note The message ID is incremented with each call and wraps around at 0xFFFF.
+	 */
+	unsigned short get_next_msg_id();
+
 	/**!
 	 * @brief Listens to manager nodes.
 	 *
@@ -272,7 +283,7 @@ public:
 	 * calling this function.
 	 */
 	static void *mgr_nodes_listen(void *arg);
-    
+
 	/**!
 	 * @brief Listens for input events in the manager.
 	 *
@@ -287,7 +298,6 @@ public:
 	 */
 	static void *mgr_input_listen(void *arg);
 
-    
 	/**
 	 * @brief Refresh the OneWifi subdoc with current information + provided data and send to OneWifi.
 	 *

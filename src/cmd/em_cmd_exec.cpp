@@ -367,30 +367,30 @@ void em_cmd_exec_t::deinit()
 
 int em_cmd_exec_t::init()
 {
-	const SSL_METHOD *method;
+    const SSL_METHOD *method;
 
     pthread_cond_init(&m_cond, NULL);
     pthread_mutex_init(&m_lock, NULL);
 
-	OpenSSL_add_all_algorithms();
+    OpenSSL_add_all_algorithms();
     SSL_load_error_strings();
-    
-	method = TLSv1_2_server_method();
+
+    method = TLS_server_method();
     if ((m_ssl_ctx = SSL_CTX_new(method)) == NULL) {
         printf("%s:%d: Failed to create SSL context\n", __func__, __LINE__);
-		return -1;
+        return -1;
     }
-	
-	SSL_CTX_set_cipher_list(m_ssl_ctx, "ALL:eNULL");
+    SSL_CTX_set_min_proto_version(m_ssl_ctx, TLS1_2_VERSION);
+    SSL_CTX_set_cipher_list(m_ssl_ctx, "ALL:eNULL");
 
     if (SSL_CTX_load_verify_locations(m_ssl_ctx, EM_CERT_FILE, EM_KEY_FILE) != 1) {
-		printf("%s:%d: Failed to verify certificate locations\n", __func__, __LINE__);
+        printf("%s:%d: Failed to verify certificate locations\n", __func__, __LINE__);
         SSL_CTX_free(m_ssl_ctx);
         return -1;
     }
 
     if (SSL_CTX_set_default_verify_paths(m_ssl_ctx) != 1) {
-		printf("%s:%d: Failed to verify paths\n", __func__, __LINE__);
+        printf("%s:%d: Failed to verify paths\n", __func__, __LINE__);
         SSL_CTX_free(m_ssl_ctx);
         return -1;
     }
@@ -406,8 +406,7 @@ int em_cmd_exec_t::init()
         SSL_CTX_free(m_ssl_ctx);
         return -1;
     }
-	
-	return 0;
+    return 0;
 }
 
 em_cmd_exec_t::em_cmd_exec_t()

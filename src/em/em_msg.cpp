@@ -354,11 +354,10 @@ unsigned char* em_msg_t::add_tlv(unsigned char *buff, unsigned int *len, em_tlv_
     return buff + (sizeof(em_tlv_t) + value_len);
     
 }
-unsigned char* em_msg_t::add_1905_header(unsigned char *buff, unsigned int *len, mac_addr_t dst, mac_addr_t src, em_msg_type_t msg_type)
+unsigned char* em_msg_t::add_1905_header(unsigned char *buff, unsigned int *len, mac_addr_t dst, mac_addr_t src, em_msg_type_t msg_type, unsigned short msg_id)
 {
 
     uint16_t type = htons(ETH_P_1905);
-    uint16_t  msg_id = msg_type;
 
     unsigned char* tmp = buff;
     tmp = em_msg_t::add_buff_element(tmp, len, reinterpret_cast<uint8_t *>(dst), sizeof(mac_address_t));
@@ -368,7 +367,7 @@ unsigned char* em_msg_t::add_1905_header(unsigned char *buff, unsigned int *len,
     em_cmdu_t cmdu = {
         .ver = 0,
         .reserved = 0,
-        .type = htons(msg_id),
+        .type = htons(msg_type),
         .id = htons(msg_id),
         .frag_id = 0,
         .reserved_field = 0,

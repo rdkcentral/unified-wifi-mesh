@@ -59,7 +59,8 @@ int em_provisioning_t::create_cce_ind_msg(uint8_t *buff, bool enable)
     */
     mac_address_t   multi_addr = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x13};
 
-    uint8_t* tmp = em_msg_t::add_1905_header(buff, &len, multi_addr, get_al_interface_mac(), em_msg_type_dpp_cce_ind);
+    uint8_t* tmp = em_msg_t::add_1905_header(buff, &len, multi_addr, get_al_interface_mac(), em_msg_type_dpp_cce_ind,
+                        get_mgr()->get_next_msg_id());
 
     // One DPP CCE Indication tlv 17.2.82
     uint8_t cce_enable = (enable ? 1 : 0); 
@@ -93,7 +94,8 @@ int em_provisioning_t::send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, si
     unsigned int len = 0;
     uint8_t *tmp = buff;
 
-    tmp = em_msg_t::add_1905_header(tmp, &len, dest_al_mac, get_al_interface_mac(), em_msg_type_proxied_encap_dpp);
+    tmp = em_msg_t::add_1905_header(tmp, &len, dest_al_mac, get_al_interface_mac(), em_msg_type_proxied_encap_dpp,
+                        get_mgr()->get_next_msg_id());
 
     // One 1905 Encap DPP TLV 17.2.79
     tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_1905_encap_dpp, reinterpret_cast<uint8_t *> (encap_dpp_tlv), static_cast<unsigned int> (encap_dpp_len));
@@ -149,7 +151,8 @@ int em_provisioning_t::send_direct_encap_dpp_msg(uint8_t* dpp_frame, size_t dpp_
     unsigned int len = 0;
     uint8_t *tmp = buff;
 
-    tmp = em_msg_t::add_1905_header(tmp, &len, dest_al_mac, get_al_interface_mac(), em_msg_type_direct_encap_dpp);
+    tmp = em_msg_t::add_1905_header(tmp, &len, dest_al_mac, get_al_interface_mac(), em_msg_type_direct_encap_dpp,
+                        get_mgr()->get_next_msg_id());
 
     // One 1905 Encap DPP TLV 17.2.86
     tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_dpp_msg, dpp_frame, static_cast<unsigned int> (dpp_frame_len));
@@ -195,7 +198,8 @@ int em_provisioning_t::send_1905_eapol_encap_msg(uint8_t* eapol_frame, size_t ea
     unsigned int len = 0;
     uint8_t *tmp = buff;
 
-    tmp = em_msg_t::add_1905_header(tmp, &len, dest_al_mac, get_al_interface_mac(), em_msg_type_1905_encap_eapol);
+    tmp = em_msg_t::add_1905_header(tmp, &len, dest_al_mac, get_al_interface_mac(), em_msg_type_1905_encap_eapol,
+                        get_mgr()->get_next_msg_id());
 
     // One 1905 Encap DPP TLV 17.2.86
     tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_1905_encap_eapol, eapol_frame, static_cast<unsigned int> (eapol_frame_len));
@@ -235,7 +239,8 @@ int em_provisioning_t::send_1905_rekey_msg(uint8_t dest_al_mac[ETH_ALEN])
     unsigned int len = 0;
     uint8_t *tmp = buff;
 
-    tmp = em_msg_t::add_1905_header(tmp, &len, dest_al_mac, get_al_interface_mac(), em_msg_type_1905_rekey_req);
+    tmp = em_msg_t::add_1905_header(tmp, &len, dest_al_mac, get_al_interface_mac(), em_msg_type_1905_rekey_req,
+                        get_mgr()->get_next_msg_id());
     // No TLVs
     tmp = em_msg_t::add_eom_tlv(tmp, &len);
 
@@ -284,7 +289,8 @@ int em_provisioning_t::send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t 
     unsigned int len = 0;
     uint8_t *tmp = buff;
 
-    tmp = em_msg_t::add_1905_header(tmp, &len, dest_al_mac, get_al_interface_mac(), em_msg_type_chirp_notif);
+    tmp = em_msg_t::add_1905_header(tmp, &len, dest_al_mac, get_al_interface_mac(), em_msg_type_chirp_notif,
+                        get_mgr()->get_next_msg_id());
 
     // One DPP Chirp value tlv 17.2.83
     tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_dpp_chirp_value, reinterpret_cast<uint8_t *> (chirp), static_cast<unsigned int> (chirp_len));
@@ -311,7 +317,7 @@ int em_provisioning_t::send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t 
 
 int em_provisioning_t::create_dpp_direct_encap_msg(uint8_t *buff, uint8_t *frame, uint16_t frame_len)
 {
-    uint16_t  msg_id = em_msg_type_direct_encap_dpp;
+    uint16_t  msg_type = em_msg_type_direct_encap_dpp;
     unsigned int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
@@ -333,8 +339,8 @@ int em_provisioning_t::create_dpp_direct_encap_msg(uint8_t *buff, uint8_t *frame
     cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
-    cmdu->type = htons(msg_id);
-    cmdu->id = htons(msg_id);
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
     cmdu->last_frag_ind = 1;
 
     tmp += sizeof(em_cmdu_t);
@@ -426,9 +432,7 @@ int em_provisioning_t::handle_cce_ind_msg(uint8_t *buff, unsigned int len)
 
 void em_provisioning_t::process_msg(uint8_t *data, unsigned int len)
 {
-    em_cmdu_t *cmdu;
-
-    cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
 
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(data);
     uint8_t *src_al_mac = hdr->src;

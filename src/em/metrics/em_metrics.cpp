@@ -146,8 +146,9 @@ int em_metrics_t::handle_associated_sta_link_metrics_query(unsigned char *buff, 
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
     memcpy(sta, tlv->value, sizeof(mac_address_t));
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
 
-    send_associated_link_metrics_response(sta);
+    send_associated_link_metrics_response(sta, ntohs(cmdu->id));
     set_state(em_state_agent_configured);
 
     return 0;
@@ -479,7 +480,7 @@ int em_metrics_t::send_associated_sta_link_metrics_msg(mac_address_t sta_mac)
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    unsigned short  msg_id = em_msg_type_assoc_sta_link_metrics_query;
+    unsigned short  msg_type = em_msg_type_assoc_sta_link_metrics_query;
     size_t len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
@@ -504,8 +505,8 @@ int em_metrics_t::send_associated_sta_link_metrics_msg(mac_address_t sta_mac)
     cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
-    cmdu->type = htons(msg_id);
-    cmdu->id = htons(msg_id);
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
     cmdu->last_frag_ind = 1;
     cmdu->relay_ind = 0;
 
@@ -566,13 +567,13 @@ void em_metrics_t::send_associated_sta_link_metrics_resp_msg()
     dm = get_current_cmd()->get_data_model();
     sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_assoc_map));
     while (sta != NULL) {
-        send_associated_link_metrics_response(sta->m_sta_info.id);
+        send_associated_link_metrics_response(sta->m_sta_info.id, dm->get_msg_id());
         sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_assoc_map, sta));
     }
     set_state(em_state_agent_configured);
 }
 
-int em_metrics_t::send_associated_link_metrics_response(mac_address_t sta_mac)
+int em_metrics_t::send_associated_link_metrics_response(mac_address_t sta_mac, unsigned short msg_id)
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
@@ -602,8 +603,6 @@ int em_metrics_t::send_associated_link_metrics_response(mac_address_t sta_mac)
         return -1;
     }
 
-    short msg_id = em_msg_type_assoc_sta_link_metrics_rsp;
-
     dm_easy_mesh_t::macbytes_to_string(sta_mac, mac_str);
 
     memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
@@ -622,7 +621,7 @@ int em_metrics_t::send_associated_link_metrics_response(mac_address_t sta_mac)
 
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_type);
-    cmdu->id = htons(static_cast<uint16_t> (msg_id));
+    cmdu->id = htons(msg_id);
     cmdu->last_frag_ind = 1;
 
     tmp += sizeof(em_cmdu_t);
@@ -690,7 +689,7 @@ short em_metrics_t::send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bss
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    unsigned short  msg_id = em_msg_type_beacon_metrics_query;
+    unsigned short  msg_type = em_msg_type_beacon_metrics_query;
     short sz = 0;
 	size_t len = 0;
     em_cmdu_t *cmdu;
@@ -716,8 +715,8 @@ short em_metrics_t::send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bss
     cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
-    cmdu->type = htons(msg_id);
-    cmdu->id = htons(msg_id);
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
     cmdu->last_frag_ind = 1;
     cmdu->relay_ind = 0;
 
@@ -773,8 +772,6 @@ int em_metrics_t::send_beacon_metrics_response()
 
     sta = reinterpret_cast<dm_sta_t *> (hash_map_get_first(get_current_cmd()->get_data_model()->m_sta_map));
 
-    short msg_id = em_msg_type_beacon_metrics_rsp;
-
     memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
@@ -791,7 +788,8 @@ int em_metrics_t::send_beacon_metrics_response()
 
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_type);
-    cmdu->id = htons(static_cast<uint16_t> (msg_id));
+    //TBD: MID should be same as beacon metrics query msg id
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
     cmdu->last_frag_ind = 1;
 
     tmp += sizeof(em_cmdu_t);
@@ -852,7 +850,6 @@ int em_metrics_t::send_ap_metrics_response()
     dm_easy_mesh_t *dm = get_data_model();
     mac_addr_str_t mac_str;
     dm_sta_t *sta;
-    short msg_id = em_msg_type_ap_metrics_rsp;
     int bss_index = 0;
 
     memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
@@ -871,7 +868,7 @@ int em_metrics_t::send_ap_metrics_response()
 
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_type);
-    cmdu->id = htons(static_cast<uint16_t> (msg_id));
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
     cmdu->last_frag_ind = 1;
 
     tmp += sizeof(em_cmdu_t);
@@ -1383,8 +1380,7 @@ short em_metrics_t::create_error_code_tlv(unsigned char *buff, mac_address_t sta
 
 void em_metrics_t::process_msg(unsigned char *data, unsigned int len)
 {
-    em_cmdu_t *cmdu;
-    cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
 
     switch (htons(cmdu->type)) {
         case em_msg_type_assoc_sta_link_metrics_rsp:

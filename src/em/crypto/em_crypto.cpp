@@ -334,8 +334,10 @@ uint8_t em_crypto_t::platform_hmac_hash(const EVP_MD * hashing_algo, uint8_t *ke
 
     /* Release resources */
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    EVP_PKEY_free(pkey);
-    EVP_MD_CTX_free(ctx);
+    if (pkey)
+        EVP_PKEY_free(pkey);
+    if (ctx)
+        EVP_MD_CTX_free(ctx);
 #elif OPENSSL_VERSION_NUMBER >= 0x10100000L
     HMAC_CTX_free(ctx);
 #else
@@ -346,8 +348,10 @@ uint8_t em_crypto_t::platform_hmac_hash(const EVP_MD * hashing_algo, uint8_t *ke
 
 bail:
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    EVP_PKEY_free(pkey);
-    EVP_MD_CTX_free(ctx);
+    if (pkey)
+        EVP_PKEY_free(pkey);
+    if (ctx)
+        EVP_MD_CTX_free(ctx);
 #elif OPENSSL_VERSION_NUMBER >= 0x10100000L
     HMAC_CTX_free(ctx);
 #else
