@@ -148,9 +148,9 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 
         case em_cmd_type_em_config:
-            printf("%s:%d: %s(%s) state: %s\n", __func__, __LINE__,
-                    em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type),
-					em_t::state_2_str(get_state()));
+            em_printfout("%s(%s) state: %s radio mac:%s", em_cmd_t::get_orch_op_str(pcmd->get_orch_op()),
+                    em_cmd_t::get_cmd_type_str(pcmd->m_type), em_t::state_2_str(get_state()),
+                    util::mac_to_string(em_t::get_radio_interface_mac()).c_str());
             if ((pcmd->get_orch_op() == dm_orch_type_topo_sync) && (m_sm.get_state() == em_state_ctrl_wsc_m2_sent)) {
                 m_sm.set_state(em_state_ctrl_topo_sync_pending);
             } else if ((pcmd->get_orch_op() == dm_orch_type_channel_pref) && (m_sm.get_state() == em_state_ctrl_topo_synchronized)) {

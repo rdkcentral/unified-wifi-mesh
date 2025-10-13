@@ -276,15 +276,15 @@ int dm_easy_mesh_agent_t::analyze_onewifi_vap_cb(em_bus_event_t *evt, em_cmd_t *
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
     if (webconfig_init(&config) != webconfig_error_none) {
-        printf( "[%s]:%d Init WiFi Web Config  fail\n",__func__,__LINE__);
+        em_printfout( "Init WiFi Web Config  fail");
         return 0;
     }
 
     if ((webconfig_easymesh_decode(&config, reinterpret_cast<char *> (evt->u.raw_buff),
             &ext, &type)) == webconfig_error_none) {
-        printf("%s:%d Private subdoc decode success\n",__func__, __LINE__);
+        em_printfout("Private subdoc decode success");
     } else {
-        printf("%s:%d Private subdoc decode fail\n",__func__, __LINE__);
+        em_printfout("Private subdoc decode fail");
     }
 
 	if (dm.get_num_bss() != 0) {
@@ -295,19 +295,19 @@ int dm_easy_mesh_agent_t::analyze_onewifi_vap_cb(em_bus_event_t *evt, em_cmd_t *
 	} else {
 		cJSON *json = cJSON_Parse(json_data);
 		if (json == NULL) {
-			printf("%s:%d Error parsing JSON\n", __func__, __LINE__);
+			em_printfout("Error parsing JSON");
 			return 0;
 		}
 		cJSON *subdoc_name = cJSON_GetObjectItemCaseSensitive(json, "SubDocName");
 		if (cJSON_IsString(subdoc_name) && (subdoc_name->valuestring != NULL)) {
 			if (strcmp(subdoc_name->valuestring, "Vap_5G") == 0) {
 				freq_band = em_freq_band_5 ;
-				printf("%s:%d Found SubDocName:Vap 5G recv\n", __func__, __LINE__);
+				em_printfout("Found SubDocName:Vap 5G recv");
 			} else if (strcmp(subdoc_name->valuestring, "Vap_2.4G") == 0) {
-				printf("%s:%d Found SubDocName:Vap 2.4G recv\n", __func__, __LINE__);
+				em_printfout("Found SubDocName:Vap 2.4G recv");
 				freq_band = em_freq_band_24;
 			} else if (strcmp(subdoc_name->valuestring, "Vap_6G") == 0) {
-				printf("%s:%d Found SubDocName:Vap 6G recv\n", __func__, __LINE__);
+				em_printfout("Found SubDocName:Vap 6G recv");
 				freq_band = em_freq_band_60;
 			}
 		}
@@ -320,7 +320,7 @@ int dm_easy_mesh_agent_t::analyze_onewifi_vap_cb(em_bus_event_t *evt, em_cmd_t *
 		}
 	}
 	dm_easy_mesh_t::macbytes_to_string(dm.get_bss(index)->get_bss_info()->ruid.mac, mac_str);
-	printf("%s:%d %s in owconfig\n", __func__, __LINE__,mac_str);
+	em_printfout("%s in owconfig", mac_str);
 	pcmd[num] = new em_cmd_ow_cb_t(evt->params, dm);
 	tmp = pcmd[num];
 	num++;

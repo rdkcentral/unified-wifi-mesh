@@ -431,7 +431,7 @@ int em_configuration_t::create_operational_bss_tlv_topology(unsigned char *buff)
 	em_ap_op_bss_radio_t	*radio;
 	em_ap_operational_bss_t *bss;
 	dm_easy_mesh_t	*dm;
-	unsigned int i, j, all_bss_len = 0;
+	unsigned int radio_index, bss_index, all_bss_len = 0;
 	unsigned short tlv_len = 0;
 
 	dm = get_data_model();
@@ -442,29 +442,27 @@ int em_configuration_t::create_operational_bss_tlv_topology(unsigned char *buff)
 	printf("first tlv_len in em_configuration_t::create_operational_bss_tlv = %d\n",tlv_len);
 
 	ap = reinterpret_cast<em_ap_op_bss_t *> (tlv->value);
-	ap->radios_num = 1;  //Hard-Coding since topology response is per radio
+	ap->radios_num = dm->get_num_radios();
 	radio = ap->radios;
-	for (i = 0; i < dm->get_num_radios(); i++) {
-		if (memcmp(dm->get_radio_by_ref(i).get_radio_interface_mac(), get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
-			memcpy(radio->ruid, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t));
-			radio->bss_num = 0;
-			bss = radio->bss;
-			all_bss_len = 0;
-			for (j = 0; j < dm->get_num_bss(); j++) {
-				if (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
-					continue;
-				}
-				radio->bss_num++;
-				memcpy(bss->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
-				strncpy(bss->ssid, dm->m_bss[j].m_bss_info.ssid, sizeof(ssid_t));
-				bss->ssid_len = static_cast<unsigned char> (strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
-				all_bss_len += static_cast<unsigned int> (sizeof(em_ap_operational_bss_t) + bss->ssid_len);
-				bss = reinterpret_cast<em_ap_operational_bss_t *>(reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_operational_bss_t) + bss->ssid_len);
-			}
-			radio = reinterpret_cast<em_ap_op_bss_radio_t *>(reinterpret_cast<unsigned char *> (radio) + sizeof(em_ap_op_bss_radio_t) + all_bss_len);
-			tlv_len += static_cast<short unsigned int> (sizeof(em_ap_op_bss_radio_t) + all_bss_len);
-		}
-	}
+	for (radio_index = 0; radio_index < dm->get_num_radios(); radio_index++) {
+        memcpy(radio->ruid, dm->get_radio_by_ref(radio_index).get_radio_interface_mac(), sizeof(mac_address_t));
+        radio->bss_num = 0;
+        bss = radio->bss;
+        all_bss_len = 0;
+        for (bss_index = 0; bss_index < dm->get_num_bss(); bss_index++) {
+            if (memcmp(dm->m_bss[bss_index].m_bss_info.ruid.mac, radio->ruid, sizeof(mac_address_t)) != 0) {
+                continue;
+            }
+            radio->bss_num++;
+            memcpy(bss->bssid, dm->m_bss[bss_index].m_bss_info.bssid.mac, sizeof(mac_address_t));
+            strncpy(bss->ssid, dm->m_bss[bss_index].m_bss_info.ssid, sizeof(ssid_t));
+            bss->ssid_len = static_cast<unsigned char>(strlen(dm->m_bss[bss_index].m_bss_info.ssid) + 1);
+            all_bss_len += static_cast<unsigned int>(sizeof(em_ap_operational_bss_t) + bss->ssid_len);
+            bss = reinterpret_cast<em_ap_operational_bss_t *>(reinterpret_cast<unsigned char *>(bss) + sizeof(em_ap_operational_bss_t) + bss->ssid_len);
+        }
+        radio = reinterpret_cast<em_ap_op_bss_radio_t *>(reinterpret_cast<unsigned char *>(radio) + sizeof(em_ap_op_bss_radio_t) + all_bss_len);
+        tlv_len += static_cast<short unsigned int>(sizeof(em_ap_op_bss_radio_t) + all_bss_len);
+    }
 
 	tlv->len = htons(tlv_len);
 	print_ap_operational_bss_tlv(tlv->value, tlv->len);
@@ -755,40 +753,37 @@ int em_configuration_t::create_vendor_operational_bss_tlv(unsigned char *buff)
 	em_ap_vendor_operational_bss_t *bss;
 	em_ap_vendor_op_bss_t *ap;
 	dm_easy_mesh_t	*dm;
-	unsigned int i, j, all_bss_len = 0;
+	unsigned int radio_index, bss_index, all_bss_len = 0;
 	unsigned short tlv_len = 0;
 
 	dm = get_data_model();
 
 	tlv = reinterpret_cast<em_tlv_t *> (tmp);
 	tlv->type = em_tlv_type_vendor_operational_bss;
-	//tlv_len = sizeof(em_ap_vendor_op_bss_radio_t);
 	printf("first tlv_len in em_configuration_t::create_custom_operational_bss_tlv = %d\n",tlv_len);
 	ap = reinterpret_cast<em_ap_vendor_op_bss_t *> (tlv->value);
-	ap->radios_num = 1;
+	ap->radios_num = dm->get_num_radios();
 	radio = ap->radios;
-	for (i = 0; i < dm->get_num_radios(); i++) {
-		if (memcmp(dm->get_radio_by_ref(i).get_radio_interface_mac(), get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
-			memcpy(radio->ruid, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t));
-			radio->bss_num = 0;
-			bss = radio->bss;
-			for (j = 0; j < dm->get_num_bss(); j++) {
-					if (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
-						continue;
-					}
-					radio->bss_num++;
-					memcpy(bss->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
-					bss->haultype = static_cast<short unsigned int> (dm->m_bss[j].m_bss_info.id.haul_type);
-					bss->vap_mode = static_cast<short unsigned int> (dm->m_bss[j].m_bss_info.vap_mode);
-					bss = reinterpret_cast<em_ap_vendor_operational_bss_t *> (reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_vendor_operational_bss_t));
-					all_bss_len += sizeof(em_ap_vendor_operational_bss_t);
-			}
-			radio = reinterpret_cast<em_ap_vendor_op_bss_radio_t *>(reinterpret_cast<unsigned char *> (radio) + sizeof(em_ap_vendor_op_bss_radio_t) + all_bss_len);
-			tlv_len += static_cast<short unsigned int> (sizeof(em_ap_vendor_op_bss_radio_t) + all_bss_len);
-			all_bss_len = 0;
-		}
-	}
-	tlv->len = htons(tlv_len);
+    for (radio_index = 0; radio_index < dm->get_num_radios(); radio_index++) {
+        memcpy(radio->ruid, dm->get_radio_by_ref(radio_index).get_radio_interface_mac(), sizeof(mac_address_t));
+        radio->bss_num = 0;
+        bss = radio->bss;
+        for (bss_index = 0; bss_index < dm->get_num_bss(); bss_index++) {
+            if (memcmp(dm->m_bss[bss_index].m_bss_info.ruid.mac, radio->ruid, sizeof(mac_address_t)) != 0) {
+                continue;
+            }
+            radio->bss_num++;
+            memcpy(bss->bssid, dm->m_bss[bss_index].m_bss_info.bssid.mac, sizeof(mac_address_t));
+            bss->haultype = static_cast<short unsigned int>(dm->m_bss[bss_index].m_bss_info.id.haul_type);
+            bss->vap_mode = static_cast<short unsigned int>(dm->m_bss[bss_index].m_bss_info.vap_mode);
+            bss = reinterpret_cast<em_ap_vendor_operational_bss_t *>(reinterpret_cast<unsigned char *>(bss) + sizeof(em_ap_vendor_operational_bss_t));
+            all_bss_len += sizeof(em_ap_vendor_operational_bss_t);
+        }
+        radio = reinterpret_cast<em_ap_vendor_op_bss_radio_t *>(reinterpret_cast<unsigned char *>(radio) + sizeof(em_ap_vendor_op_bss_radio_t) + all_bss_len);
+        tlv_len += static_cast<short unsigned int>(sizeof(em_ap_vendor_op_bss_radio_t) + all_bss_len);
+        all_bss_len = 0;
+    }
+    tlv->len = htons(tlv_len);
 	print_ap_vendor_operational_bss_tlv(tlv->value, tlv->len);
 	return tlv_len;
 }
@@ -941,7 +936,7 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst, unsigned 
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *> (dst);
 
     dm = get_data_model();
-    printf("%s:%d: Testing topo, number of radios: %d, bss: %d\n", __func__, __LINE__,
+    printf("%s:%d: Number of radios: %d, bss: %d\n", __func__, __LINE__,
                         dm->get_num_radios(), dm->get_num_bss());
 
     memcpy(tmp, reinterpret_cast<unsigned char *> (hdr->src), sizeof(mac_address_t));
@@ -981,15 +976,6 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst, unsigned 
 
     tmp += (sizeof(em_tlv_t) + sizeof(em_enum_type_t) + 1);
     len += static_cast<unsigned int> (sizeof(em_tlv_t) + sizeof(em_enum_type_t) + 1);
-
-    // One AP Radio Identifier tlv 17.2.3
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_radio_id;
-    memcpy(tlv->value, get_radio_interface_mac(), sizeof(mac_address_t));
-    tlv->len = htons(sizeof(mac_address_t));
-
-    tmp += (sizeof(em_tlv_t) + sizeof(mac_address_t));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + sizeof(mac_address_t));
 
     // AP operational BSS
     tlv_len = static_cast<short unsigned int> (create_operational_bss_tlv_topology(tmp));
@@ -1073,7 +1059,7 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst, unsigned 
         return -1;
     }
 
-    printf("%s:%d: Testing topo, frame length: %d\n", __func__, __LINE__, len);
+    em_printfout("frame length: %d", len);
     if (send_frame(buff, len)  < 0) {
         printf("%s:%d: Topology Response send failed, error:%d\n", __func__, __LINE__, errno);
         return -1;
@@ -1392,7 +1378,7 @@ int em_configuration_t::handle_bsta_radio_cap(unsigned char *buff, unsigned int 
     mac_addr_str_t mac_str, r_str;
     bool is_colocated = dm->get_colocated();
 
-    em_printfout("Rcvd Backhaul STA Radio Capabilities received, sta mac: %s for radio: %s, mac present?: %d",
+    em_printfout("Backhaul STA Radio Capabilities received, sta mac: %s for radio: %s, mac present: %d",
         util::mac_to_string(bsta_radio_cap->bsta_addr).c_str(),
         util::mac_to_string(bsta_radio_cap->ruid).c_str(), bsta_radio_cap->bsta_mac_present);
 
@@ -2880,27 +2866,23 @@ int em_configuration_t::create_bsta_radio_cap_tlv(uint8_t *buff)
     int len = 0;
     em_bh_sta_radio_cap_t *bsta_radio_cap = reinterpret_cast<em_bh_sta_radio_cap_t*>(buff);
 
-    for (unsigned int i = 0; i < dm->get_num_radios(); i++) {
-        if (memcmp(dm->get_radio_by_ref(i).get_radio_interface_mac(), get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
-            for (unsigned int j = 0; j < dm->get_num_bss(); j++) {
-                auto* bss_info = dm->get_bss_info(j);
-                if (!bss_info) continue;
+    for (unsigned int j = 0; j < dm->get_num_bss(); j++) {
+        auto* bss_info = dm->get_bss_info(j);
+        if (!bss_info) continue;
 
-                em_printfout("BSSID %s, vap_mode:%d, vap name: %s, haul type: %d",
-                    util::mac_to_string(bss_info->bssid.mac).c_str(), bss_info->vap_mode, bss_info->bssid.name,  bss_info->id.haul_type);
+        em_printfout("BSSID %s, vap_mode:%d, vap name: %s, haul type: %d",
+            util::mac_to_string(bss_info->bssid.mac).c_str(), bss_info->vap_mode, bss_info->bssid.name,  bss_info->id.haul_type);
 
-                if (bss_info->id.haul_type != em_haul_type_backhaul ||
-                    bss_info->vap_mode != em_vap_mode_sta) {
-                    continue;
-                }
-                memcpy(bsta_radio_cap->ruid, bss_info->ruid.mac, sizeof(mac_address_t));
-                len = static_cast <int> (sizeof(mac_address_t) + sizeof(uint8_t)); // RUID + MAC present flag
-                memcpy(bsta_radio_cap->bsta_addr, bss_info->sta_mac, sizeof(mac_address_t));
-                bsta_radio_cap->bsta_mac_present = 1;
-                len += static_cast <int> (sizeof(mac_address_t)); // BSTA MAC
-                break;
-            }
+        if (bss_info->id.haul_type != em_haul_type_backhaul ||
+            bss_info->vap_mode != em_vap_mode_sta) {
+            continue;
         }
+        memcpy(bsta_radio_cap->ruid, bss_info->ruid.mac, sizeof(mac_address_t));
+        len = static_cast <int> (sizeof(mac_address_t) + sizeof(uint8_t)); // RUID + MAC present flag
+        memcpy(bsta_radio_cap->bsta_addr, bss_info->sta_mac, sizeof(mac_address_t));
+        bsta_radio_cap->bsta_mac_present = 1;
+        len += static_cast <int> (sizeof(mac_address_t)); // BSTA MAC
+        break;
     }
     if (len) {
         em_printfout("Backhaul STA Radio Capabilities TLV: BSTA: %s of rad: %s",
@@ -5224,23 +5206,48 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
             break;
 
         case em_msg_type_topo_query:
-            if ((get_service_type() == em_service_type_agent) && (get_state() == em_state_agent_onewifi_bssconfig_ind)) {
-                send_topology_response_msg(data, ntohs(cmdu->id));
+            {
+                int len = 0;
+                std::vector<em_t*> em_radios;
+                get_mgr()->get_all_em_for_al_mac(hdr->dst, em_radios);
+                for (auto &em : em_radios) {
+                    if ((em->get_service_type() == em_service_type_agent) && (em->get_state() < em_state_agent_onewifi_bssconfig_ind)) {
+                        em_printfout("radio %s is not configured, ignoring", util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                        return;
+                    }
+                }
+                em_printfout("All radios are configured for al_mac:%s, sending topology response", util::mac_to_string(hdr->dst).c_str());
+                len = send_topology_response_msg(data, ntohs(cmdu->id));
+                if(len) {
+                    for(auto &em : em_radios) {
+                            em->set_state(em_state_agent_topo_synchronized);
+                    }
+                    em_printfout("Sent topology response message, set state to em_state_agent_topo_synchronized");
+                }
+                em_radios.clear();
             }
 			break;
 
         case em_msg_type_topo_resp:
-            if ((get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_topo_sync_pending)) {
-			    if (handle_topology_response(data, len) == 0) {
-					set_state(em_state_ctrl_topo_synchronized);
-                    printf("%s:%d em_msg_type_topo_resp handle success, state: %s\n", __func__, __LINE__, em_t::state_2_str(get_state()));
-                    //update network topology here
+            if ((get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_topo_sync_pending)){
+                if (handle_topology_response(data, len) == 0) {
+                    std::vector<em_t *> em_radios;
+                    dm_easy_mesh_t *dm = get_data_model();
+                    em_printfout("Topology response handled successfully by em radio:%s agent al_mac:%s src_mac:%s",
+                        util::mac_to_string(get_radio_interface_mac()).c_str(), util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
+                        util::mac_to_string(hdr->src).c_str());
+                    get_mgr()->get_all_em_for_al_mac(hdr->src, em_radios);
+                    for (auto &em : em_radios) {
+                        em->set_state(em_state_ctrl_topo_synchronized);
+                        printf("%s:%d em_msg_type_topo_resp handle success, state: %s\n", __func__, __LINE__, em_t::state_2_str(em->get_state()));
+                    }
+                    em_radios.clear();
+                    // update network topology here
                     get_mgr()->update_network_topology();
-				} else {
-					printf("%s:%d em_msg_type_topo_resp handle failed \n", __func__, __LINE__);
-				}
-				
-            }			
+                } else {
+                    printf("%s:%d em_msg_type_topo_resp handle failed \n", __func__, __LINE__);
+                }
+            }
             break;
 
         case em_msg_type_topo_notif:
@@ -5421,7 +5428,34 @@ void em_configuration_t::process_ctrl_state()
             break;
 
         case em_state_ctrl_topo_sync_pending:
-            send_topology_query_msg();
+            {
+                std::vector<em_t *> em_radios;
+                dm_easy_mesh_t *dm = get_data_model();
+                get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
+                for (auto &em : em_radios) {
+                    if (em->get_state() != em_state_ctrl_topo_sync_pending) {
+                        em_printfout("radio %s is not in topo sync pending state, ignoring",
+                            util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                        return;
+                    }
+                }
+                // If all radios are in topo sync pending state, send topo query on one of them, 
+                // ignore sending topo query on other radios
+                dm_radio_t *radio = get_radio_from_dm(true);
+                if (radio == NULL) {
+                    radio = get_radio_from_dm();
+                }
+                if (radio != NULL && radio->get_radio_info()->band == em_freq_band_5) {
+                    em_printfout("Sending topology query from radio %s for band:%d",
+                        util::mac_to_string(radio->get_radio_interface_mac()).c_str(),
+                        radio->get_radio_info()->band);
+                    send_topology_query_msg();
+                }
+                else {
+                    em_printfout("No 5GHz radio found, do nothing");
+                }
+                em_radios.clear();
+            }
             break;
 
         case em_state_ctrl_ap_mld_config_pending:

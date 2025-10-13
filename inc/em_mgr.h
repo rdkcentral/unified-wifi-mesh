@@ -220,7 +220,13 @@ public:
 	*/
 	em_t *get_phy_al_node();
 
-    
+	/**
+	* @brief Get vector of em's associated with the al_mac
+	* In other words, the actual `em_t` nodes of radios that is associated with a particular al_mac.
+	*
+	*/
+	void get_all_em_for_al_mac(mac_address_t mac, std::vector<em_t*> &em_radios);
+
 	/**!
 	 * @brief Listener for node events.
 	 *

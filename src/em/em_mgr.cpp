@@ -279,6 +279,25 @@ em_t *em_mgr_t::get_phy_al_node()
     return phy_al_em;
 }
 
+void em_mgr_t::get_all_em_for_al_mac(mac_address_t mac, std::vector<em_t*> &em_radios)
+{
+    em_t* em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+    std::string mac_str = util::mac_to_string(mac);
+    //em_printfout("*****al_mac:%s******", util::mac_to_string(mac).c_str());
+    while (em != NULL) {
+        dm_easy_mesh_t* dm = em->get_data_model();
+        unsigned char* al_mac = dm->get_device()->get_dev_interface_mac();
+        if (!(em->is_al_interface_em()) && (memcmp(al_mac, mac, MAC_ADDR_LEN) == 0)) {
+            em_radios.push_back(em);
+            //em_printfout("Added em with radio_mac:%s",
+            //    util::mac_to_string(em->get_radio_interface_mac()).c_str());
+        }
+        em = static_cast<em_t*>(hash_map_get_next(m_em_map, em));
+    }
+    //em_printfout("******end*******");
+}
+
+
 void *em_mgr_t::mgr_input_listen(void *arg)
 {
     size_t stack_size2;
