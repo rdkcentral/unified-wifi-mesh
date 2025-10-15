@@ -42,7 +42,7 @@
 
 unsigned int em_discovery_t::create_topo_query_msg(unsigned char *buff)
 {
-    unsigned short	msg_id = em_msg_type_topo_query;
+    unsigned short	msg_type = em_msg_type_topo_query;
     unsigned int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
@@ -64,8 +64,8 @@ unsigned int em_discovery_t::create_topo_query_msg(unsigned char *buff)
     cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
-    cmdu->type = htons(msg_id);
-    cmdu->id = htons(msg_id);
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
     cmdu->last_frag_ind = 1;
 
     tmp += sizeof(em_cmdu_t);
@@ -92,7 +92,7 @@ unsigned int em_discovery_t::create_topo_query_msg(unsigned char *buff)
 
 unsigned int em_discovery_t::create_topo_discovery_msg(unsigned char *buff)
 {
-    unsigned short	msg_id = em_msg_type_topo_disc;
+    unsigned short	msg_type = em_msg_type_topo_disc;
     unsigned int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
@@ -115,8 +115,8 @@ unsigned int em_discovery_t::create_topo_discovery_msg(unsigned char *buff)
     cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
-    cmdu->type = htons(msg_id);
-    cmdu->id = htons(msg_id);
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
     cmdu->last_frag_ind = 1;
 
     tmp += sizeof(em_cmdu_t);

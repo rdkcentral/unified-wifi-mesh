@@ -73,7 +73,7 @@ bool db_easy_mesh_t::is_table_empty(db_client_t& db_client)
 
 int db_easy_mesh_t::get_strings_by_token(char *parent, int token, unsigned int argc, char *argv[])
 {
-    unsigned int num = 0, i;
+    unsigned int num = 0, i, max_len;
     em_2xlong_string_t str_copy;
     char *tmp, *orig;
 
@@ -88,18 +88,19 @@ int db_easy_mesh_t::get_strings_by_token(char *parent, int token, unsigned int a
     snprintf(str_copy, sizeof(str_copy), "%s", parent);
     tmp = str_copy;
     orig = str_copy;
+    max_len = sizeof(em_short_string_t) - 1;
 
     while (tmp != NULL) {
         if ((tmp = strchr(orig, token)) != NULL) {
             *tmp = 0;
             assert (num < argc - 1 && "number of extracted values exceeds the limit");
-            snprintf(argv[num], sizeof(em_short_string_t), "%s", orig);
+            snprintf(argv[num], sizeof(em_short_string_t), "%.*s", max_len, orig);
             tmp++; num++;
             orig = tmp;
         }
     }
 
-    snprintf(argv[num], sizeof(em_short_string_t), "%s", orig);
+    snprintf(argv[num], sizeof(em_short_string_t), "%.*s", max_len, orig);
     num++;
 
     return static_cast<int> (num);

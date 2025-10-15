@@ -654,10 +654,10 @@ typedef struct {
 } __attribute__((__packed__)) em_cce_indication_t;
 
 typedef struct {
-    unsigned char enrollee_mac_addr_present : 1;
-    unsigned char reserved : 1;
+    unsigned char reserved : 5;
     unsigned char dpp_frame_indicator : 1;
-    unsigned char reserved2 : 5;
+    unsigned char reserved2 : 1;
+    unsigned char enrollee_mac_addr_present : 1;
 /*
     Contains:
         - dest_mac_addr (6 bytes, if enrollee_mac_addr_present)
@@ -695,9 +695,9 @@ typedef struct {
     mac_address_t ruid;
     unsigned char op_lass;
     unsigned char channel;
-    unsigned char cas_method : 3;
-    unsigned char cac_completion_action : 3;
     unsigned char reserved : 2;
+    unsigned char cac_completion_action : 3;
+    unsigned char cas_method : 3;
 }__attribute__((__packed__)) em_cac_req_t;
 
 typedef struct {
@@ -768,8 +768,8 @@ typedef struct {
 } __attribute__((__packed__)) em_channel_scan_req_op_class_t;
 
 typedef struct {
-    unsigned char perform_fresh_scan : 1;
     unsigned char reserved : 7;
+    unsigned char perform_fresh_scan : 1;
     unsigned char num_radios;
     mac_address_t ruid;
     unsigned char num_op_classes;
@@ -816,11 +816,11 @@ typedef struct {
 
 typedef struct {
     bssid_t bssid;
-    unsigned char req_mode : 1;
-    unsigned char btm_dissoc_imminent : 1;
-    unsigned char btm_abridged : 1;
-    unsigned char btm_link_removal_imminent : 1;
     unsigned char reserved : 4;
+    unsigned char btm_link_removal_imminent : 1;
+    unsigned char btm_abridged : 1;
+    unsigned char btm_dissoc_imminent : 1;
+    unsigned char req_mode : 1;
     unsigned short steering_opportunity_window;
     unsigned short btm_dissoc_timer;
     unsigned char sta_list_count;
@@ -973,11 +973,11 @@ typedef struct {
     bssid_t bssid;
     unsigned char channel_util;
     unsigned short num_sta;
-    unsigned char est_service_params_BE_bit : 1;
-    unsigned char est_service_params_BK_bit : 1;
-    unsigned char est_service_params_VO_bit : 1;
-    unsigned char est_service_params_VI_bit : 1;
     unsigned char reserved : 4;
+    unsigned char est_service_params_VI_bit : 1;
+    unsigned char est_service_params_VO_bit : 1;
+    unsigned char est_service_params_BK_bit : 1;
+    unsigned char est_service_params_BE_bit : 1;
     unsigned char est_service_params_BE[3];
     unsigned char est_service_params_BK[3];
     unsigned char est_service_params_VO[3];
@@ -1045,15 +1045,15 @@ typedef struct {
 
 typedef struct {
     mac_address_t ruid;
-    unsigned char reserved1 : 1;
-    unsigned char partial_bss_color : 1;
     unsigned char bss_color : 6;
-    unsigned char reserved2 : 3;
-    unsigned char hesiga_spatial_reuse_value15_allowed : 1;
-    unsigned char srg_info_valid : 1;
-    unsigned char non_srg_offset_valid : 1;
-    unsigned char reserved3 : 1;
+    unsigned char partial_bss_color : 1;
+    unsigned char reserved1 : 1;
     unsigned char psr_disallowed : 1;
+    unsigned char reserved2 : 1;
+    unsigned char non_srg_offset_valid : 1;
+    unsigned char srg_info_valid : 1;
+    unsigned char hesiga_spatial_reuse_value15_allowed : 1;
+    unsigned char reserved3 : 3;
     unsigned char non_srg_obsspd_max_offset;
     unsigned char srg_obsspd_min_offset;
     unsigned char srg_obsspd_max_offset;
@@ -1116,14 +1116,14 @@ typedef struct {
 
 typedef struct {
     mac_address_t ruid;
-    unsigned char reserved1 : 2;
     unsigned char bss_color : 6;
-    unsigned char reserved2 : 3;
-    unsigned char hesiga_spatial_reuse_value15_allowed : 1;
-    unsigned char srg_info_valid : 1;
-    unsigned char non_srg_offset_valid : 1;
-    unsigned char reserved3: 1;
+    unsigned char reserved1: 2;
     unsigned char psr_disallowed : 1;
+    unsigned char reserved2 : 1;
+    unsigned char non_srg_offset_valid : 1;
+    unsigned char srg_info_valid : 1;
+    unsigned char hesiga_spatial_reuse_value15_allowed : 1;
+    unsigned char reserved3 : 3;
     unsigned char non_srg_obsspd_max_offset;
     unsigned char srg_obsspd_min_offset;
     unsigned char srg_obsspd_max_offset;
@@ -1331,8 +1331,8 @@ typedef struct {
 
 typedef struct {
     unsigned short primary_vlan_id;
-    unsigned char  default_pcp : 3;
     unsigned char  reserved : 5;
+    unsigned char  default_pcp : 3;
 } __attribute__((__packed__)) em_8021q_settings_t;
 
 typedef struct {
@@ -1371,8 +1371,8 @@ typedef struct {
 } __attribute__((__packed__)) em_akm_suite_info_t;
 typedef struct {
     mac_address_t  ruid;
-    unsigned char  bsta_mac_present : 1;
     unsigned char  reserved : 7;
+    unsigned char  bsta_mac_present : 1;
     mac_address_t  bsta_addr;
 } __attribute__((__packed__)) em_bh_sta_radio_cap_t;
 
@@ -1384,22 +1384,22 @@ typedef struct {
 typedef struct {
     unsigned char  max_prior_rule;
     unsigned char  reserved1;
-    unsigned char  byte_counter_units : 2;
-    unsigned char  prioritization : 1;
-    unsigned char  dpp_onboarding : 1;
-    unsigned char  traffic_separation : 1;
     unsigned char  reserved2 : 3;
+    unsigned char  traffic_separation : 1;
+    unsigned char  dpp_onboarding : 1;
+    unsigned char  prioritization : 1;
+    unsigned char  byte_counter_units : 2;
     unsigned char  max_vid_count;
 } __attribute__((__packed__)) em_profile_2_ap_cap_t;
 
 typedef struct {
     unsigned int   rule_id;
-    unsigned char  add_rule : 1;
     unsigned char  reserved1 : 7;
+    unsigned char  add_rule : 1;
     unsigned char  rule_precedence;
     unsigned char  rule_output;
-    unsigned char  always_match : 1;
     unsigned char  reserved2 : 7;
+    unsigned char  always_match : 1;
 } __attribute__((__packed__)) em_service_prio_rule_t;
 
 typedef struct {
@@ -1500,74 +1500,76 @@ typedef struct {
 
 typedef struct {
     mac_address_t  ruid;
-    unsigned char  max_sprt_tx_streams : 2;
-    unsigned char  max_sprt_rx_streams : 2;
-    unsigned char  gi_sprt_20mhz : 1;
-    unsigned char  gi_sprt_40mhz : 1;
-    unsigned char  ht_sprt_40mhz : 1;
     unsigned char  reserved : 1;
+    unsigned char  ht_sprt_40mhz : 1;
+    unsigned char  gi_sprt_40mhz : 1;
+    unsigned char  gi_sprt_20mhz : 1;
+    unsigned char  max_sprt_rx_streams : 2;
+    unsigned char  max_sprt_tx_streams : 2;
 } __attribute__((__packed__)) em_ap_ht_cap_t;
 
 typedef struct {
     mac_address_t  ruid;
     unsigned short sprt_tx_mcs;
     unsigned short sprt_rx_mcs;
-    unsigned char  max_sprt_tx_streams : 3;
-    unsigned char  max_sprt_rx_streams : 3;
-    unsigned char  gi_sprt_80mhz : 1;
     unsigned char  gi_sprt_160mhz : 1;
-    unsigned char  sprt_80_80_mhz : 1;
-    unsigned char  sprt_160mhz : 1;
-    unsigned char  su_beamformer_cap : 1;
-    unsigned char  mu_beamformer_cap : 1;
+    unsigned char  gi_sprt_80mhz : 1;
+    unsigned char  max_sprt_rx_streams : 3;
+    unsigned char  max_sprt_tx_streams : 3;
     unsigned char  reserved : 4;
+    unsigned char  mu_beamformer_cap : 1;
+    unsigned char  su_beamformer_cap : 1;
+    unsigned char  sprt_160mhz : 1;
+    unsigned char  sprt_80_80_mhz : 1;
 } __attribute__((__packed__)) em_ap_vht_cap_t;
 
 typedef struct {
     mac_address_t  ruid;
     unsigned char  sprt_mcs_len;
     unsigned short sprt_tx_rx_mcs[MAX_MCS];
-    unsigned char  max_sprt_tx_streams : 3;
-    unsigned char  max_sprt_rx_streams : 3;
-    unsigned char  sprt_80_80_mhz : 1;
     unsigned char  sprt_160mhz : 1;
-    unsigned char  su_beamformer_cap : 1;
-    unsigned char  mu_beamformer_cap : 1;
-    unsigned char  ul_mimo_cap : 1;
-    unsigned char  ul_mimo_ofdma_cap : 1;
-    unsigned char  dl_mimo_ofdma_cap : 1;
-    unsigned char  ul_ofdma_cap : 1;
-    unsigned char  dl_ofdma_cap : 1;
+    unsigned char  sprt_80_80_mhz : 1;
+    unsigned char  max_sprt_rx_streams : 3;
+    unsigned char  max_sprt_tx_streams : 3;
     unsigned char  reserved : 1;
+    unsigned char  dl_ofdma_cap : 1;
+    unsigned char  ul_ofdma_cap : 1;
+    unsigned char  dl_mimo_ofdma_cap : 1;
+    unsigned char  ul_mimo_ofdma_cap : 1;
+    unsigned char  ul_mimo_cap : 1;
+    unsigned char  mu_beamformer_cap : 1;
+    unsigned char  su_beamformer_cap : 1;
 } __attribute__((__packed__))em_ap_he_cap_t;
 
 
 typedef struct {
-    unsigned char  agent_role : 2;
-    unsigned char  he_160 : 1;
-    unsigned char  he_8080 : 1;
+    mac_address_t  ruid;
+    unsigned char  num_role;
     unsigned char  mcs_nss_num : 4;
+    unsigned char  he_8080 : 1;
+    unsigned char  he_160 : 1;
+    unsigned char  agent_role : 2;
     unsigned short mcs_nss[MAX_MCS_NSS];
-    unsigned char  su_beam_former : 1;
-    unsigned char  su_beam_formee : 1;
-    unsigned char  mu_beam_former : 1;
-    unsigned char  beam_formee_sts_l80 : 1;
-    unsigned char  beam_formee_sts_g80 : 1;
-    unsigned char  ul_mumimo : 1;
-    unsigned char  ul_ofdma : 1;
     unsigned char  dl_ofdma : 1;
-    unsigned char  max_dl_mumimo_tx : 4;
+    unsigned char  ul_ofdma : 1;
+    unsigned char  ul_mumimo : 1;
+    unsigned char  beam_formee_sts_g80 : 1;
+    unsigned char  beam_formee_sts_l80 : 1;
+    unsigned char  mu_beam_former : 1;
+    unsigned char  su_beam_formee : 1;
+    unsigned char  su_beam_former : 1;
     unsigned char  max_ul_mumimo_rx : 4;
+    unsigned char  max_dl_mumimo_tx : 4;
     unsigned char  max_dl_ofdma_tx;
     unsigned char  max_ul_ofdma_rx;
-    unsigned char  rts : 1;
-    unsigned char  mu_rts : 1;
-    unsigned char  multi_bssid : 1;
-    unsigned char  mu_edca : 1;
-    unsigned char  twt_req : 1;
-    unsigned char  twt_resp : 1;
+    unsigned char  anticipated_channel_usage : 1;
     unsigned char  spatial_reuse : 1;
-    unsigned char  reserved : 1;
+    unsigned char  twt_resp : 1;
+    unsigned char  twt_req : 1;
+    unsigned char  mu_edca : 1;
+    unsigned char  multi_bssid : 1;
+    unsigned char  mu_rts : 1;
+    unsigned char  rts : 1;
 } __attribute__((__packed__)) em_radio_wifi6_cap_data_t;
 
 typedef struct {
@@ -1578,8 +1580,8 @@ typedef struct {
 
 typedef struct {
     mac_address_t ruid;
-    unsigned char freq_sep : 5;
     unsigned char reserved : 3;
+    unsigned char freq_sep : 5;
 } __attribute__((__packed__)) em_radio_wifi7_freq_record_t;
 
 typedef struct {
@@ -1589,26 +1591,26 @@ typedef struct {
 
 typedef struct {
     unsigned char max_num_mlds;
-    unsigned char ap_max_links : 4;
-    unsigned char bsta_max_links : 4;
-    unsigned char tid_link_mapping_cap : 2;
     unsigned char reserved1 : 6;
+    unsigned char tid_link_mapping_cap : 2;
+    unsigned char bsta_max_links : 4;
+    unsigned char ap_max_links : 4;
     unsigned char reserved2[13];
 } __attribute__((__packed__)) em_radio_wifi7_cap_data_t;
 
 typedef struct {
     mac_address_t ruid;
     unsigned char reserved3[24];
-    unsigned char ap_str_support : 1;
-    unsigned char ap_nstr_support : 1;
-    unsigned char ap_emlsr_support : 1;
-    unsigned char ap_emlmr_support : 1;
     unsigned char reserved4 : 4;
-    unsigned char bsta_str_support : 1;
-    unsigned char bsta_nstr_support : 1;
-    unsigned char bsta_emlrs_support : 1;
-    unsigned char bsta_emlmr_support : 1;
+    unsigned char ap_emlmr_support : 1;
+    unsigned char ap_emlsr_support : 1;
+    unsigned char ap_nstr_support : 1;
+    unsigned char ap_str_support : 1;
     unsigned char reserved5 : 4;
+    unsigned char bsta_emlmr_support : 1;
+    unsigned char bsta_emlsr_support : 1;
+    unsigned char bsta_nstr_support : 1;
+    unsigned char bsta_str_support : 1;
     em_radio_wifi7_freq_records_t ap_str;
     em_radio_wifi7_freq_records_t ap_nstr;
     em_radio_wifi7_freq_records_t ap_emlsr;
@@ -1627,12 +1629,12 @@ typedef struct {
 
 typedef struct {
     mac_address_t bssid;
-    unsigned char op_info_valid : 1;
-    unsigned char disabled_subchannel_valid : 1;
-    unsigned char default_pe_duration : 1;
-    unsigned char group_addr_bu_ind_limit : 1;
-    unsigned char group_addr_bu_ind_exp : 2;
     unsigned char reserved1 : 2;
+    unsigned char group_addr_bu_ind_exp : 2;
+    unsigned char group_addr_bu_ind_limit : 1;
+    unsigned char default_pe_duration : 1;
+    unsigned char disabled_subchannel_valid : 1;
+    unsigned char op_info_valid : 1;
     unsigned char eht_msc_nss_set[4];
     unsigned char control;
     unsigned char ccfs0;
@@ -1664,8 +1666,9 @@ typedef struct {
 
 typedef struct {
     mac_address_t  ruid;
-    unsigned char  boot_only : 1;
+    unsigned char  reserved : 5;
     unsigned char  scan_impact : 2;
+    unsigned char  boot_only : 1;
     unsigned int   min_scan_interval;
     unsigned char  op_classes_num;
     em_op_class_t  op_classes[EM_MAX_OP_CLASS];
@@ -1733,21 +1736,21 @@ typedef struct {
 } __attribute__((__packed__)) em_metric_rprt_policy_t;
 
 typedef struct {
-   unsigned char rprt_ind_ch_scan : 1;
    unsigned char reserved : 7;
+   unsigned char rprt_ind_ch_scan : 1;
 } __attribute__((__packed__)) em_channel_scan_rprt_policy_t;
 
 typedef struct {
-    unsigned char  rprt_flag : 1;
     unsigned char  reserved : 7;
+    unsigned char  rprt_flag : 1;
     unsigned int   max_rprt_rate;
 } __attribute__((__packed__)) em_unsuccessful_assoc_policy_t;
 
 typedef struct {
     mac_address_t  bssid;
-    unsigned char  p1_bsta_disallowed : 1;
-    unsigned char  p2_bsta_disallowed : 1;
     unsigned char  reserved : 6;
+    unsigned char  p2_bsta_disallowed : 1;
+    unsigned char  p1_bsta_disallowed : 1;
 } __attribute__((__packed__)) em_bh_bss_config_t;
 
 typedef struct {
@@ -1785,7 +1788,8 @@ typedef struct {
 } __attribute__((__packed__)) em_searched_service_t;
 
 typedef struct {
-    unsigned char   reserved:5;
+    unsigned char   reserved:4;
+    unsigned char   m8_bsta_reconfiguration:1;
     unsigned char   rcpi_steering:1;
     unsigned char   unassociated_client_link_metrics_non_op_channels:1;
     unsigned char   unassociated_client_link_metrics_op_channels:1;
@@ -1794,13 +1798,14 @@ typedef struct {
 
 typedef struct {
     mac_address_t   ruid;
-    unsigned char   comb_front_back : 1;
-    unsigned char   comp_prof1_prof2 : 1;
-    unsigned char   mscs : 1;
-    unsigned char   scs : 1;
-    unsigned char   qos_map : 1;
+    unsigned char   reserved : 1;
+    unsigned char   qm_scs_traffic_description : 1;
     unsigned char   dscp_policy : 1;
-    unsigned char   reserved : 2;
+    unsigned char   qos_map : 1;
+    unsigned char   scs : 1;
+    unsigned char   mscs : 1;
+    unsigned char   comp_prof1_prof2 : 1;
+    unsigned char   comb_front_back : 1;
 } __attribute__((__packed__)) em_ap_radio_advanced_cap_t;
 
 typedef enum {
@@ -1816,9 +1821,9 @@ typedef enum {
 } em_media_type_t;
 
 typedef struct {
-    uint8_t mac_present : 1;  // Bit 7: Enrollee MAC Address Present
-    uint8_t hash_valid : 1;   // Bit 6: Hash Validity
     uint8_t reserved : 6;     // Bits 5-0: Reserved
+    uint8_t hash_valid : 1;   // Bit 6: Hash Validity
+    uint8_t mac_present : 1;  // Bit 7: Enrollee MAC Address Present
     uint8_t data[0];           // Flexible array for MAC address (if present) + hash length + hash value
 } __attribute__((__packed__)) em_dpp_chirp_value_t;
 
@@ -2496,9 +2501,9 @@ typedef struct {
 } __attribute__((__packed__)) em_ap_mld_ssids_t;
 
 typedef struct {
-    unsigned char affiliated_mac_addr_valid : 1;
+    unsigned char reserved1 : 6;
     unsigned char link_id_valid : 1;
-    unsigned char reseverd1 : 6;
+    unsigned char affiliated_mac_addr_valid : 1;
     mac_address_t ruid;
     mac_addr_t affiliated_mac_addr;
     unsigned char link_id;
@@ -2506,16 +2511,16 @@ typedef struct {
 } __attribute__((__packed__)) em_affiliated_ap_mld_t;
 
 typedef struct {
-    unsigned char ap_mld_mac_addr_valid : 1;
     unsigned char reserved1 : 7;
+    unsigned char ap_mld_mac_addr_valid : 1;
     unsigned char ssid_len;
     ssid_t ssid;
     mac_addr_t ap_mld_mac_addr;
-    unsigned char str : 1;
-    unsigned char nstr : 1;
-    unsigned char emlsr : 1;
+    unsigned char reserved2 : 4;
     unsigned char emlmr : 1;
-    unsigned char reseverd2 : 4;
+    unsigned char emlsr : 1;
+    unsigned char nstr : 1;
+    unsigned char str : 1;
     unsigned char reserved3[20];
     unsigned char num_affiliated_ap;
     em_affiliated_ap_mld_t affiliated_ap_mld[0];
@@ -2527,24 +2532,24 @@ typedef struct {
 } __attribute__((__packed__)) em_ap_mld_config_t;
 
 typedef struct {
+    unsigned char reserved1 : 7;
     unsigned char affiliated_bsta_mac_addr_valid : 1;
-    unsigned char reseverd1 : 7;
     mac_address_t ruid;
     mac_addr_t affiliated_bsta_mac_addr;
     unsigned char reserved2[19];
 } __attribute__((__packed__)) em_affiliated_bsta_mld_t;
 
 typedef struct {
-    unsigned char bsta_mld_mac_addr_valid : 1;
-    unsigned char ap_mld_mac_addr_valid : 1;
     unsigned char reserved1 : 6;
+    unsigned char ap_mld_mac_addr_valid : 1;
+    unsigned char bsta_mld_mac_addr_valid : 1;
     mac_addr_t bsta_mld_mac_addr;
     mac_addr_t ap_mld_mac_addr;
-    unsigned char str : 1;
-    unsigned char nstr : 1;
-    unsigned char emlsr : 1;
-    unsigned char emlmr : 1;
     unsigned char reseverd2 : 4;
+    unsigned char emlmr : 1;
+    unsigned char emlsr : 1;
+    unsigned char nstr : 1;
+    unsigned char str : 1;
     unsigned char reserved3[17];
     unsigned char num_affiliated_bsta;
     em_affiliated_bsta_mld_t affiliated_bsta_mld[0];
@@ -2564,11 +2569,11 @@ typedef struct {
 typedef struct {
     mac_addr_t sta_mld_mac_addr;
     mac_addr_t ap_mld_mac_addr;
-    unsigned char str : 1;
-    unsigned char nstr : 1;
-    unsigned char emlsr : 1;
+    unsigned char reserved1 : 4;
     unsigned char emlmr : 1;
-    unsigned char reseverd1 : 4;
+    unsigned char emlsr : 1;
+    unsigned char nstr : 1;
+    unsigned char str : 1;
     unsigned char reserved2[18];
     unsigned char num_affiliated_sta;
     em_affiliated_sta_mld_t affiliated_sta_mld[0];
@@ -2580,15 +2585,15 @@ typedef struct {
 } __attribute__((__packed__)) em_assoc_sta_mld_config_report_t;
 
 typedef struct {
-    unsigned char add_remove : 1;
     unsigned char reserved4 : 7;
+    unsigned char add_remove : 1;
     mac_addr_t sta_mld_mac_addr;
-    unsigned char direction : 2;
-    unsigned char default_link_mapping : 1;
-    unsigned char map_switch_time_present : 1;
-    unsigned char exp_dur_present : 1;
-    unsigned char link_map_size : 1;
     unsigned char reserved5 : 2;
+    unsigned char link_map_size : 1;
+    unsigned char exp_dur_present : 1;
+    unsigned char map_switch_time_present : 1;
+    unsigned char default_link_mapping : 1;
+    unsigned char direction : 2;
     unsigned char link_map_presence_ind;
     unsigned char expected_duration[3];
     unsigned char tid_to_link_map[0];
@@ -2596,11 +2601,11 @@ typedef struct {
 } __attribute__((__packed__)) em_tid_to_link_mapping_t;
 
 typedef struct {
-    unsigned char is_bsta_config : 1;
     unsigned char reserved1 : 7;
+    unsigned char is_bsta_config : 1;
     mac_addr_t mld_mac_addr;
-    unsigned char tid_to_link_map_negotiation : 1;
     unsigned char reserved2 : 7;
+    unsigned char tid_to_link_map_negotiation : 1;
     unsigned char reserved3[22];
     unsigned char num_mapping;
     em_tid_to_link_mapping_t tid_to_link_mapping[0];

@@ -295,7 +295,7 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    unsigned short  msg_id = em_msg_type_map_policy_config_req;
+    unsigned short  msg_type = em_msg_type_map_policy_config_req;
     size_t len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
@@ -321,8 +321,8 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
     cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
     memset(tmp, 0, sizeof(em_cmdu_t));
-    cmdu->type = htons(msg_id);
-    cmdu->id = htons(static_cast<uint16_t> (msg_id));
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
     cmdu->last_frag_ind = 1;
     cmdu->relay_ind = 0;
 
@@ -511,9 +511,7 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
 
 void em_policy_cfg_t::process_msg(unsigned char *data, unsigned int len)
 {
-    em_cmdu_t *cmdu;
-    
-    cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
     
     switch (htons(cmdu->type)) {
 		case em_msg_type_map_policy_config_req:

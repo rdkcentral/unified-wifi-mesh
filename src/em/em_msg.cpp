@@ -354,25 +354,37 @@ unsigned char* em_msg_t::add_tlv(unsigned char *buff, unsigned int *len, em_tlv_
     return buff + (sizeof(em_tlv_t) + value_len);
     
 }
-unsigned char* em_msg_t::add_1905_header(unsigned char *buff, unsigned int *len, mac_addr_t dst, mac_addr_t src, em_msg_type_t msg_type)
+unsigned char* em_msg_t::add_1905_header(unsigned char *buff, unsigned int *len, mac_addr_t dst, mac_addr_t src, em_msg_type_t msg_type, unsigned short msg_id)
 {
 
     uint16_t type = htons(ETH_P_1905);
-    uint16_t  msg_id = msg_type;
 
     unsigned char* tmp = buff;
     tmp = em_msg_t::add_buff_element(tmp, len, reinterpret_cast<uint8_t *>(dst), sizeof(mac_address_t));
     tmp = em_msg_t::add_buff_element(tmp, len, reinterpret_cast<uint8_t *>(src), sizeof(mac_address_t));
     tmp = em_msg_t::add_buff_element(tmp, len, reinterpret_cast<uint8_t *> (&type), sizeof(uint16_t));
 
+    // Set relay_ind based on message type
+    uint8_t relay_ind = 0;
+    switch (msg_type) {
+        case em_msg_type_autoconf_search:
+        case em_msg_type_autoconf_renew:
+        case em_msg_type_topo_notif:
+            relay_ind = 1;
+            break;
+        default:
+            relay_ind = 0;
+            break;
+    }
+
     em_cmdu_t cmdu = {
         .ver = 0,
         .reserved = 0,
-        .type = htons(msg_id),
+        .type = htons(msg_type),
         .id = htons(msg_id),
         .frag_id = 0,
         .reserved_field = 0,
-        .relay_ind = 0,
+        .relay_ind = relay_ind,
         .last_frag_ind = 1
     };
 

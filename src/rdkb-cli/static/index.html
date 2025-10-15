@@ -1373,7 +1373,43 @@
                     <div class="page-header">
                         <h1><i class="fas fa-cog"></i> System Settings</h1>
                     </div>
-                    <div class="loading-message">System settings loading...</div>
+                    <div class="wifi-reset-section">
+                        <h2>Wi-Fi Reset</h2>
+                        <div class="almac-section">
+                            <div class="almac-row">
+                                <label for="almac-select">Select AL MAC Address</label>
+                                <select id="almac-select">
+                                    <option value="">Choose AL MAC Address</option>
+                                </select>
+                            </div>
+                            <!-- Hidden input for manual MAC entry -->
+                            <div id="manual-almac-container" style="display: none; margin-top: 10px;">
+                                <div class="almac-row">
+                                    <label for="manual-almac">Enter AL MAC Address</label>
+                                    <input type="text" id="manual-almac" placeholder="e.g. d8:3a:dd:0d:ff:99" />
+                                </div>
+                        </div>
+                        <!-- Haul Type Checkboxes -->
+                        <div class="haultype-section" style="margin-top: 20px;">
+                            <h2 class="haul-heading">Select Haul Types</h2>
+                            <div id="haultype-options"></div>
+                        </div>
+                        <!-- SSID and Password Inputs (hidden initially) -->
+                        <div id="ssid-password-container" style="display: none; margin-top: 20px;">
+                            <h3>Enter SSID and Password</h3>
+                            <div class="ssid-password-row">
+                                <label for="ssid">SSID:</label>
+                                <input type="text" id="ssid" placeholder="Enter SSID">
+                            </div>
+                            <div class="ssid-password-row">
+                                <label for="password">Password:</label>
+                                <input type="password" id="password" placeholder="Enter Password">
+                            </div>
+                        </div>
+                        <div class="reset-btn-container">
+                            <button id="reset-btn">Reset Wi-Fi</button>
+                        </div>
+                    </div>
                 </section>
 
             </main>

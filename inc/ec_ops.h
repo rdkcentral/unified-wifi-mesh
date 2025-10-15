@@ -54,7 +54,7 @@ using send_autoconf_search_func = std::function<bool(em_dpp_chirp_value_t *, siz
  * @return True on success otherwise false
  * 
  */
-using send_autoconf_search_resp_func = std::function<bool(em_dpp_chirp_value_t *, size_t, uint8_t[ETH_ALEN])>;
+using send_autoconf_search_resp_func = std::function<bool(em_dpp_chirp_value_t *, size_t, uint8_t[ETH_ALEN], unsigned short msg_id)>;
 
 /**
  * @brief Sends a chirp notification
