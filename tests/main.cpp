@@ -113,6 +113,8 @@ int main(int argc, char **argv) {
         "dm_bss_t_Test.CompareDifferentByteCounterUnits:"
         "dm_bss_t_Test.CompareDifferentEhtOps:"
         "dm_bss_t_Test.AssigningMixedValues:"
+	"dm_bss_t_Test.RemoveVendorIEWIthNullPointer:"
+	"dm_bss_t_Test.NullBSSInformation:"
         "dm_network_ssid_t_Test.NullJsonObject:"
         "dm_network_ssid_t_Test.NullParentID:"
         "dm_network_ssid_t_Test.JsonObjectWithInvalidType:"
