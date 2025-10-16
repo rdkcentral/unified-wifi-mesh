@@ -364,6 +364,25 @@ public:
     }
 
 	/**
+	 * @brief Attempts a connection between the backhaul STA to the specified BSS.
+	 * 
+	 * @param[in] ssid The SSID of the BSS to connect to.
+	 * @param[in] passphrase The passphrase for the BSS.
+	 * @param[in] bssid The BSSID of the BSS to connect to.
+	 * 
+	 * @returns true if the attempt at a connection was successful, false otherwise.
+	 * 
+	 * @note The return value being true only indicates that OneWifi will attempt to connect to the BSS
+	 * and does mean that the connection was successful and the bSTA is associated to the BSS.
+	 * 
+	 * @note This function is optional to implement and is only implemented by the agent
+	 */
+	virtual bool bsta_connect_bss(const std::string& ssid, const std::string passphrase, bssid_t bssid) {
+		printf("bsta_connect_bss not implemented\n");
+		return false;
+	}
+
+	/**
 	 * @brief Set the disconnected steady state.
 	 * 
 	 * This function temporarily interupts the disconnected-scanning state machine in OneWifi

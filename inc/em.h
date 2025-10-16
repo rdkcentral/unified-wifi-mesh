@@ -70,7 +70,7 @@ class em_t :
     bool m_is_al_em;
     bool dev_test_enable;
 
-	bool m_is_dpp_onboarding = false;
+	bool m_is_onboarding = false;
 
 	std::map<std::string, peer_1905_security_status> m_1905_layer_peer_security_statuses;
 
@@ -421,20 +421,6 @@ public:
 	bool toggle_cce(bool enable);
 
 	/**
-	 * @brief Attempts a connection between the backhaul STA to the specified BSS.
-	 * 
-	 * @param[in] ssid The SSID of the BSS to connect to.
-	 * @param[in] passphrase The passphrase for the BSS.
-	 * @param[in] bssid The BSSID of the BSS to connect to.
-	 * 
-	 * @returns true if the attempt at a connection was successful, false otherwise.
-	 * 
-	 * @note The return value being true only indicates that OneWifi will attempt to connect to the BSS
-	 * and does mean that the connection was successful and the bSTA is associated to the BSS.
-	 */
-	bool bsta_connect_bss(const std::string& ssid, const std::string passphrase, bssid_t bssid);
-
-	/**
 	 * @brief Triggers a station scan on all channels
 	 * 
 	 * @return true if the action was successful, false otherwise.
@@ -715,9 +701,9 @@ public:
 	 */
 	unsigned char *get_peer_mac() { return (m_service_type == em_service_type_ctrl) ? m_data_model->get_agent_al_interface_mac():m_data_model->get_controller_interface_mac(); }
 
-	bool get_is_dpp_onboarding() override { return m_is_dpp_onboarding; }
+	bool get_is_onboarding() override { return m_is_onboarding; }
 
-	void set_is_dpp_onboarding(bool is_onboarding) override { m_is_dpp_onboarding = is_onboarding; }
+	void set_is_onboarding(bool is_onboarding) override { m_is_onboarding = is_onboarding; }
 
     
 	/**!

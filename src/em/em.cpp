@@ -797,31 +797,6 @@ then we can say that adding the CCE IE to all of the backhaul BSSs (according to
     return true;
 }
 
-bool em_t::bsta_connect_bss(const std::string& ssid, const std::string passphrase, bssid_t bssid)
-{
-    em_bss_info_t *bsta_info = m_data_model->get_bsta_bss_info();
-    if (!bsta_info) {
-        em_printfout("No backhaul bSTA found to connect to BSS\n");
-        return false;
-    }
-
-    memset(bsta_info->ssid, 0, sizeof(bsta_info->ssid));
-    strcpy(bsta_info->ssid, ssid.c_str());
-
-    memcpy(bsta_info->bssid.mac, bssid, sizeof(bssid_t));
-
-    memset(bsta_info->mesh_sta_passphrase, 0, sizeof(bsta_info->mesh_sta_passphrase));
-    strcpy(bsta_info->mesh_sta_passphrase, passphrase.c_str());
-
-    // Kick out of disconnected steady state (will fail if not in that state)
-    m_mgr->set_disconnected_scan_none_state();
-
-    em_printfout("Starting Mesh STA Config");
-    int res = m_mgr->refresh_onewifi_subdoc("MESH STA CONFIG", webconfig_subdoc_type_mesh_backhaul_sta);
-    em_printfout("Finished Mesh STA Config");
-    return res == 1;
-}
-
 bool em_t::trigger_sta_scan()
 {
     em_bss_info_t *bsta_info = m_data_model->get_bsta_bss_info();
@@ -1802,7 +1777,7 @@ bool em_t::initialize_ec_manager(){
                                                 std::placeholders::_5);
     ops.toggle_cce                 = std::bind(&em_t::toggle_cce, this, std::placeholders::_1);
     ops.trigger_sta_scan           = std::bind(&em_t::trigger_sta_scan, this);
-    ops.bsta_connect               = std::bind(&em_t::bsta_connect_bss, this, 
+    ops.bsta_connect               = std::bind(&em_mgr_t::bsta_connect_bss, m_mgr, 
                                                 std::placeholders::_1, std::placeholders::_2, 
                                                 std::placeholders::_3);
     ops.can_onboard_additional_aps = std::bind(&em_mgr_t::can_onboard_additional_aps, m_mgr);

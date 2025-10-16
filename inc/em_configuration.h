@@ -2156,9 +2156,9 @@ public:
 	 */
 	void set_topo_query_tx_count(unsigned int cnt) { m_topo_query_tx_cnt = cnt; }
 
-	virtual bool get_is_dpp_onboarding() = 0;
+	virtual bool get_is_onboarding() = 0;
 
-	virtual void set_is_dpp_onboarding(bool is_onboarding) = 0;
+	virtual void set_is_onboarding(bool is_onboarding) = 0;
 
     static unsigned short msg_id;
 
