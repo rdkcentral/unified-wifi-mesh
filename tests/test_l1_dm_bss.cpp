@@ -247,16 +247,24 @@
   * | 04 | Clean up the JSON object | validJson = parsed JSON object | validJson is deleted | Should be successful |
   */
  TEST(dm_bss_t_Test, DecodeValidJsonObjectWithValidParentID) {
-      std::cout << "Entering DecodeValidJsonObjectWithValidParentIDTEST" << std::endl;
-      cJSON*validJson = cJSON_Parse("{\"key\":\"value\"}");
-      int parent_id;
-      dm_bss_t instance;
-      int result = instance.decode(validJson, &parent_id);
-      EXPECT_EQ(result, 0);
-      cJSON_Delete(validJson);
-      std::cout << "Exiting DecodeValidJsonObjectWithValidParentIDTEST" << std::endl;
- }
-  
+    std::cout << "Entering DecodeValidJsonObjectWithValidParentIDTEST" << std::endl;
+    const char* jsonStr =
+        "{"
+        "\"bssid\":\"AA:BB:CC:DD:EE:FF\","
+        "\"ssid\":\"MyNetwork\","
+        "\"channel\":11,"
+        "\"parent_id\":123"
+        "}";
+    cJSON* validJson = cJSON_Parse(jsonStr);
+    ASSERT_NE(validJson, nullptr);
+    int parent_id = 0;
+    dm_bss_t instance;
+    int result = instance.decode(validJson, &parent_id);
+    EXPECT_EQ(result, 0);
+    cJSON_Delete(validJson);
+    std::cout << "Exiting DecodeValidJsonObjectWithValidParentIDTEST" << std::endl;
+}
+
 /**
   * @brief TEST the decode function with a null JSON object and a valid parent ID
   *
