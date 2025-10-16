@@ -90,6 +90,7 @@ int main(int argc, char **argv) {
         "dm_bss_t_Test.AddVendorIEWIthNullPointer:"
         "dm_bss_t_Test.AddVendorIEWIthMaximumLength:"
         "dm_bss_t_Test.AddVendorIEWIthEmptyPayload:"
+	"dm_bss_t_Test.AddVendorIEWIthZeroLength:"
         "dm_bss_t_Test.DecodeNullJsonObjectWithValidParentID:"
         "dm_bss_t_Test.DecodeValidJsonObjectWithNullParentID:"
         "dm_bss_t_Test.DecodeEmptyJsonObjectWithValidParentID:"
