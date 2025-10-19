@@ -560,7 +560,6 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
     size_t frame_len = evt->data_len;
     unsigned int recv_freq = 0;
 
-    #ifdef FEATURE_RECV_FREQ_ACT_SUB
     // The frequency (and other wifi data) is prepended to the action frame data
     auto* frame_info = reinterpret_cast<wifi_frame_t*>(evt->u.raw_buff);
     em_printfout("Received WFA action frame at frequency %d MHz", frame_info->recv_freq);
@@ -568,7 +567,6 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
     mgmt_frame_buff += sizeof(wifi_frame_t);
     frame_len       -= sizeof(wifi_frame_t);
     recv_freq        = frame_info->recv_freq;
-    #endif
 
     const size_t mgmt_hdr_len = offsetof(struct ieee80211_mgmt, u);
     const size_t fixed_full_header_len = 
@@ -1226,12 +1224,10 @@ int em_agent_t::mgmt_action_frame_cb(char *event_name, raw_data_t *data, void *u
 
     uint8_t* mgmt_frame_data = (uint8_t*)data->raw_data.bytes;
     unsigned int mgmt_hdr_len = data->raw_data_len;
-    #ifdef FEATURE_RECV_FREQ_ACT_SUB
+
     // The frequency (and other wifi data) is prepended to the action frame data
-    // skip it
     mgmt_frame_data += sizeof(wifi_frame_t);
     mgmt_hdr_len -= sizeof(wifi_frame_t);
-    #endif
 
     struct ieee80211_mgmt *mgmt_frame = (struct ieee80211_mgmt *)mgmt_frame_data;
     
