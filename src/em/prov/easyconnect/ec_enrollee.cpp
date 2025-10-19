@@ -134,7 +134,6 @@ void ec_enrollee_t::generate_bss_channel_list(bool is_reconfig_list){
     // Clear existing channel list
     freq_list.erase(freq_list.begin(), freq_list.end());
     
-    #ifdef FEATURE_RECV_FREQ_ACT_SUB // Only use CCE channels if we can't get the frequency from the action frame subscription handler
     // This step is not present in EC-Reconfig for some reason (likely because of the SSID check)
     if (!is_reconfig_list) {
         /* EC #1
@@ -168,7 +167,7 @@ void ec_enrollee_t::generate_bss_channel_list(bool is_reconfig_list){
     freq_list.insert(5220); // 5 GHz: Channel 44 (5.220 GHz)
     freq_list.insert(60480); // 60 GHz: Channel 2 (60.48 GHz)
     freq_list.insert(920); // 920 MHz: Channel 37 
-    #endif
+
     /* EC-Reconfig #2
 
     For each channel on which the Enrollee detects the SSID for which it is currently configured, 
@@ -586,9 +585,8 @@ bool ec_enrollee_t::handle_auth_request(ec_frame_t *frame, size_t len, uint8_t s
     em_printfout("Recieved a DPP Authentication Request from '" MACSTRFMT "', stopping Presence Announcement\n", MAC2STR(src_mac));
     // Halt presence announcement once DPP Authentication frame is received.
     m_received_auth_frame.store(true);
-    #ifdef FEATURE_RECV_FREQ_ACT_SUB
     m_selected_freq = static_cast<uint32_t>(recv_freq);
-    #endif
+
     if (m_send_pres_announcement_thread.joinable()) m_send_pres_announcement_thread.join();
     size_t attrs_len = len - EC_FRAME_BASE_SIZE;
 
