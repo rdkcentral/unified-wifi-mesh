@@ -95,6 +95,7 @@ onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/cmd/em_cmd_beacon_report.cpp \
      $(top_srcdir)/src/cmd/em_cmd_mld_reconfig.cpp \
      $(top_srcdir)/src/cmd/em_cmd_get_mld_config.cpp \
+     $(top_srcdir)/src/cmd/em_cmd_bsta_cap.cpp \
      $(top_srcdir)/src/ctrl/dm_easy_mesh_ctrl.cpp \
      $(top_srcdir)/src/ctrl/em_cmd_ctrl.cpp \
      $(top_srcdir)/src/ctrl/em_ctrl.cpp \

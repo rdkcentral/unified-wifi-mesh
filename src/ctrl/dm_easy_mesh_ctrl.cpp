@@ -57,6 +57,7 @@
 #include "em_cmd_sta_disassoc.h"
 #include "em_cmd_get_mld_config.h"
 #include "em_cmd_mld_reconfig.h"
+#include "em_cmd_bsta_cap.h"
 
 extern em_network_topo_t *g_network_topology;
 
@@ -1017,6 +1018,24 @@ int dm_easy_mesh_ctrl_t::analyze_mld_reconfig(em_cmd_t *pcmd[])
     return num;
 }*/
 
+int dm_easy_mesh_ctrl_t::analyze_bsta_cap_req(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    int num = 0;
+    em_cmd_t *tmp;
+    dm_easy_mesh_t dm = *this;
+
+    em_printfout("analyze radio mac '%s' for bsta cap request", evt->u.raw_buff);
+
+    evt->params.u.args.num_args = 1;
+    strncpy(evt->params.u.args.args[0], (const char *)evt->u.raw_buff, sizeof(mac_addr_str_t));
+
+    pcmd[num] = new em_cmd_bsta_cap_t(evt->params, dm);
+    tmp = pcmd[num];
+    num++;
+
+    return num;
+}
+
 int dm_easy_mesh_ctrl_t::set_op_class_list(cJSON *op_class_list_obj, mac_address_t *radio_mac)
 {
     dm_op_class_list_t::set_config(m_db_client, op_class_list_obj, radio_mac);
@@ -1532,7 +1551,7 @@ void dm_easy_mesh_ctrl_t::get_config(em_long_string_t net_id, em_subdoc_info_t *
     }
 
     tmp = cJSON_Print(parent);
-    //printf("%s:%d: Subdoc: %s\n", __func__, __LINE__, tmp);
+    printf("%s:%d: Subdoc: %s\n", __func__, __LINE__, tmp);
     strncpy(subdoc->buff, tmp, strlen(tmp) + 1);
     cJSON_free(parent);
 }

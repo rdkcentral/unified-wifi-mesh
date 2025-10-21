@@ -24,6 +24,8 @@
 #include "em.h"
 
 class em_cmd_t;
+class em_mgr_t;
+
 class em_capability_t {
 
     
@@ -464,7 +466,35 @@ class em_capability_t {
 	 * @note Ensure that the MAC address and BSSID are valid before calling this function.
 	 */
 	int send_client_cap_report_msg(mac_address_t sta, bssid_t bss, unsigned short msg_id);
-    
+
+	/**!
+	 * @brief Sends a backhaul sta capability query message.
+	 *
+	 * This function is responsible for sending a backhaul sta capability query message for a Node.
+	 * 
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 * 
+	 * @note This is called when a new device joins into the network.
+	 */
+	int send_bsta_cap_query_msg();
+
+	/**!
+	 * @brief Sends a backhaul sta capability report message.
+	 *
+	 * This function is responsible for sending a backhaul sta capability report message.
+	 *
+	 * @param[in] msg_id The message ID for the report message.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure Sta mac address and BSSID are valid within the call of this function.
+	 */
+	int send_bsta_cap_report_msg(unsigned short msg_id);
+
 	/**!
 	 * @brief Creates an AP capability report message.
 	 *
@@ -575,6 +605,22 @@ class em_capability_t {
 	 */
 	short create_client_info_tlv(unsigned char *buff, mac_address_t sta, bssid_t bssid);
 
+	/**!
+	 * @brief Creates a backhaul sta radio capability information TLV
+	 * (Type-Length-Value) structure.
+	 *
+	 * This function constructs a TLV structure containing backhaul sta radio
+	 * capability information and stores it in the provided buffer.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the notification data.
+	 *
+	 * @returns A short integer indicating the success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the buffer is large enough to hold the TLV structure.
+	 */
+	int create_bsta_radio_cap_tlv(uint8_t *buff);
     
 	/**!
 	 * @brief Handles the client capability query.
@@ -604,6 +650,45 @@ class em_capability_t {
 	 */
 	int handle_client_cap_report(unsigned char *data, unsigned int len);
 
+	/**!
+	 * @brief Handles the backhaul sta capability query.
+	 *
+	 * This function processes the capability query received from the controller.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the notification data.
+	 * @param[in] len Length of the data received.
+	 * 
+	 * @returns int Status code indicating success or failure.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the data pointer is valid and the length is correct before calling this function.
+	 */
+	int handle_bsta_cap_query(unsigned char *buff, unsigned int len);
+
+	/**!
+	 * @brief Handles the backhaul sta capability report.
+	 *
+	 * This function processes the capability report received from the Extender.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the notification data.
+	 * @param[in] len Length of the data received.
+	 *
+	 * @note Ensure that the data pointer is valid and the length is correct before calling this function.
+	 */
+	int handle_bsta_cap_report(unsigned char *buff, unsigned int len);
+
+	/**!
+	 * @brief Handles the backhaul sta radio capability TLV
+	 *
+	 * This function processes the backhaul sta radio capability TLV.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the TLV data.
+	 * @param[in] len Length of the data received.
+	 *
+	 * @note Ensure that the data pointer is valid and the length is correct before calling this function.
+	 */
+	int handle_bsta_radio_cap(unsigned char *buff, unsigned int len);
 public:
     
 	/**!
@@ -627,7 +712,15 @@ public:
 	 */
 	void    process_agent_state();
 
-    
+	/**!
+	* @brief Processes the control state.
+	*
+	* This function is responsible for handling the current state of the control mechanism.
+	*
+	* @note Ensure that the control state is initialized before calling this function.
+	*/
+	void    process_ctrl_state();
+
 	/**!
 	 * @brief Retrieves the capability query transmission count.
 	 *

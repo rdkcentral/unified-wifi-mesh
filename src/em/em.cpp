@@ -239,6 +239,10 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_agent_ap_metrics_pending);
             break;
 
+        case em_cmd_type_bsta_cap:
+            m_sm.set_state(em_state_ctrl_bsta_cap_pending);
+            break;
+
         default:
             break;
 
@@ -335,6 +339,12 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
 
         case em_msg_type_map_policy_config_req:
             em_policy_cfg_t::process_msg(data, len);
+            break;
+
+        case em_msg_type_bh_sta_cap_query:
+        case em_msg_type_bh_sta_cap_rprt:
+            em_printfout("  proto_process, type rcvd: %d", htons(cmdu->type));
+            em_capability_t::process_msg(data, len);
             break;
 
         default:
@@ -479,6 +489,10 @@ void em_t::handle_ctrl_state()
 
         case em_cmd_type_mld_reconfig:
             em_configuration_t::process_ctrl_state();
+            break;
+
+        case em_cmd_type_bsta_cap:
+            em_capability_t::process_ctrl_state();
             break;
 
         default:
@@ -1733,6 +1747,7 @@ const char *em_t::state_2_str(em_state_t state)
         EM_STATE_2S(em_state_ctrl_bsta_mld_config_pending)
         EM_STATE_2S(em_state_ctrl_ap_mld_req_ack_rcvd)
         EM_STATE_2S(em_state_ctrl_avail_spectrum_inquiry_pending)
+        EM_STATE_2S(em_state_ctrl_bsta_cap_pending)
         EM_STATE_2S(em_state_agent_unconfigured)
         EM_STATE_2S(em_state_agent_autoconfig_rsp_pending)
         EM_STATE_2S(em_state_agent_wsc_m2_pending)

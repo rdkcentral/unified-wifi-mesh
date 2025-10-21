@@ -1526,7 +1526,9 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
     strncpy(dev->m_device_info.id.net_id, net_id, strlen(net_id) + 1);
 	if (colocated == true) {
 		dev->m_device_info.id.media = dm->m_network.m_net_info.media;
-		memcpy(dev->m_device_info.backhaul_mac.mac, al_intf->mac, sizeof(mac_address_t));
+		//TODO: Monitor Checks
+		//memcpy(dev->m_device_info.backhaul_mac.mac, al_intf->mac, sizeof(mac_address_t));
+		printf("Backhaul mac updated to : %s\n", util::mac_to_string(dev->m_device_info.backhaul_mac.mac).c_str());
 		dev->m_device_info.backhaul_mac.media = dm->m_network.m_net_info.media;
 		//Update the easymesh configuration file
 		dev->update_easymesh_json_cfg(colocated);
