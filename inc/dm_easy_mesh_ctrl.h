@@ -592,7 +592,24 @@ public:
 	 */
 	int analyze_mld_reconfig(em_cmd_t *pcmd[]);
 
-    
+	/**!
+	 * @brief Analyzes the Backhaul STA capability query command.
+	 *
+	 * This function processes the Backhaul STA capability query command provided in the
+	 * em_cmd_t structure array.
+	 *
+	 * @param[in] evt Pointer to the event structure containing event details.
+	 * @param[in] pcmd Array of command structures to be analyzed.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval non-zero error code on failure
+	 *
+	 * @note Ensure that the pcmd array is properly initialized before calling
+	 * this function.
+	 */
+	int analyze_bsta_cap_req(em_bus_event_t *evt, em_cmd_t *pcmd[]);
+
 	/**!
 	 * @brief Resets the configuration to its default state.
 	 *

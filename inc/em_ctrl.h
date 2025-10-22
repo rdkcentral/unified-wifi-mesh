@@ -428,6 +428,16 @@ public:
 	 */
 	void handle_mld_reconfig(em_bus_event_t *evt);
 
+	/**!
+	 * @brief Handles the Backhaul STA capability request event.
+	 *
+	 * This function processes the Backhaul STA capability request event received on the bus.
+	 *
+	 * @param[in] evt Pointer to the event structure containing Backhaul STA capability request details.
+	 *
+	 * @note Ensure that the event structure is properly initialized before calling this function.
+	 */
+	void handle_bsta_cap_req(em_bus_event_t *evt);
     
 	/**!
 	 * @brief 

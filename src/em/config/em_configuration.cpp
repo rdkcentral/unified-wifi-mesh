@@ -842,15 +842,6 @@ void em_configuration_t::handle_ap_vendor_operational_bss(unsigned char *value, 
 			dm_bss->m_bss_info.id.haul_type = static_cast<em_haul_type_t> (bss->haultype);
 			dm_bss->m_bss_info.vap_mode = static_cast<em_vap_mode_t> (bss->vap_mode);
 
-            if ((dm_bss->m_bss_info.id.haul_type == em_haul_type_backhaul) && (bss->vap_mode == em_vap_mode_ap)) {
-                if ( (memcmp(bss->bssid, ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0) &&
-                     (dm->get_colocated() == false) ) {
-                    memcpy(dm->m_device.m_device_info.backhaul_mac.mac, bss->bssid, sizeof(mac_address_t));
-                    em_printfout("Backhaul mac updated to: %s", util::mac_to_string(dm->m_device.m_device_info.backhaul_mac.mac).c_str());
-
-                    dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
-                }
-            }
 			bss = reinterpret_cast<em_ap_vendor_operational_bss_t *>(reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_vendor_operational_bss_t));
 			all_bss_len += sizeof(em_ap_vendor_operational_bss_t);
 		}
@@ -1375,23 +1366,48 @@ int em_configuration_t::handle_bsta_radio_cap(unsigned char *buff, unsigned int 
 
     //find device based on this radio
     em_device_info_t *dev = dm->get_device_info();
-    dm_radio_t *radio = dm->get_radio(bsta_radio_cap->ruid);
-    if (radio == NULL) {
-        em_printfout("Could not find radio: %s in data model",
-            util::mac_to_string(bsta_radio_cap->ruid).c_str());
-        return -1;
-    }
-
     if (dev == NULL) {
         em_printfout("Could not find device in data model");
         return -1;
     }
 
-    em_printfout("Update BSTA Cap for Device id: %s",
-        util::mac_to_string(dev->id.dev_mac).c_str());
+    //memcpy(dm->m_device.m_device_info.backhaul_sta, bsta_radio_cap->bsta_addr, sizeof(mac_address_t));
+    //also update the bss with the sta mac
+    for (int i = 0; i < dm->get_num_bss(); i++) {
+        if ( (memcmp(dm->m_bss[i].m_bss_info.ruid.mac, bsta_radio_cap->ruid, sizeof(mac_address_t)) == 0) &&
+                (dm->m_bss[i].m_bss_info.vap_mode == em_vap_mode_sta) ) {
+            memcpy(dm->m_bss[i].m_bss_info.sta_mac, bsta_radio_cap->bsta_addr, sizeof(mac_address_t));
+            em_printfout("Topo Response: BSS updated with backhaul sta mac: %s for radio: %s",
+                util::mac_to_string(bsta_radio_cap->bsta_addr).c_str(),
+                util::mac_to_string(bsta_radio_cap->ruid).c_str());
+            break;
+        }
+    }
 
-    if( is_colocated == false )
-    {
+    em_printfout("is_colocated val: %d for device id: %s, ctrl al_interface mac: %s \
+        , ctrl interface mac: %s", is_colocated, util::mac_to_string(dev->id.dev_mac).c_str(),
+        util::mac_to_string(dm->get_ctrl_al_interface_mac()).c_str(),
+        util::mac_to_string(dm->get_controller_interface_mac()).c_str());
+
+    mac_addr_str_t rad_mac_str;
+    dm_easy_mesh_t::macbytes_to_string(bsta_radio_cap->ruid, rad_mac_str);
+
+    get_mgr()->io_process(em_bus_event_type_bsta_cap_req, reinterpret_cast<unsigned char *> (&rad_mac_str), sizeof(mac_addr_str_t));
+    em_printfout("IO process for bcap query submitted with rad mac: %s", rad_mac_str);
+
+    if( is_colocated == true ) {
+        //Trigger event to request backhaul cap report, as this would handle the initial onboarding scenario, use the al em for this
+        //check if its the same device
+        if ( (memcmp(dev->id.dev_mac, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t)) != 0) ) {
+            em_printfout("Update BSTA Cap for Device id: %s",
+                util::mac_to_string(dev->id.dev_mac).c_str());
+            memcpy(dm->m_device.m_device_info.backhaul_sta, bsta_radio_cap->bsta_addr, sizeof(mac_address_t));
+            dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
+        }
+    } else {
+        em_printfout("Update BSTA Cap for Device id: %s",
+            util::mac_to_string(dev->id.dev_mac).c_str());
+
         memcpy(dm->m_device.m_device_info.backhaul_sta, bsta_radio_cap->bsta_addr, sizeof(mac_address_t));
         dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
     }
@@ -1528,8 +1544,8 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
             dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(), radio_mac_str);
             snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bssid_str, radio_mac_str);
 
-            //printf("%s:%d: Client Device:%s %s\n", __func__, __LINE__, sta_mac_str,
-            //        (assoc_evt_tlv->assoc_event == 1)?"associated":"disassociated");
+            //em_printfout("Client Device:%s %s to BSSID: %s\n", sta_mac_str,
+            //        (assoc_evt_tlv->assoc_event == 1)?"associated":"disassociated", bssid_str);
 
             if ((sta = static_cast<dm_sta_t *> (hash_map_get(dm->m_sta_map, key))) == NULL) {
                 eligible_to_req_cap = true;
@@ -1547,9 +1563,7 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
             if(eligible_to_req_cap == true) {
                 memcpy(raw.dev, dev_mac, sizeof(mac_address_t));
                 memcpy(reinterpret_cast<unsigned char *> (&raw.assoc), reinterpret_cast<unsigned char *> (assoc_evt_tlv), sizeof(em_client_assoc_event_t));
-
 				get_mgr()->io_process(em_bus_event_type_sta_assoc, reinterpret_cast<unsigned char *> (&raw), sizeof(em_bus_event_type_client_assoc_params_t));
-
             } else {
                 memset(&sta_info, 0, sizeof(em_sta_info_t));
                 memcpy(sta_info.id, assoc_evt_tlv->cli_mac_address, sizeof(mac_address_t));
@@ -3718,7 +3732,7 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
             //printf("%s:%d: Manufacturer:%s\n", __func__, __LINE__, dev_info.serial_number);
             if( dm->get_colocated() == false )
             {
-                memcpy(dm->m_device.m_device_info.backhaul_alid.mac, get_peer_mac(), sizeof(mac_address_t));
+                memcpy(dm->m_device.m_device_info.backhaul_alid.mac, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
             }
 
             em_printfout("Updated dm dev_info's backhaul_mac: %s and backhaul_alid: %s",
@@ -5469,4 +5483,5 @@ em_configuration_t::~em_configuration_t()
 {
 
 }
+
 

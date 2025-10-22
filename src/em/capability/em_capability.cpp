@@ -366,6 +366,41 @@ short em_capability_t::create_error_code_tlv(unsigned char *buff, mac_address_t 
     return len;
 }
 
+int em_capability_t::create_bsta_radio_cap_tlv(uint8_t *buff)
+{
+    ASSERT_NOT_NULL(buff, -1, "%s:%d: Buffer is null\n", __func__, __LINE__);
+    dm_easy_mesh_t *dm = get_data_model();
+    ASSERT_NOT_NULL(dm, -1, "%s:%d: Data model is null\n", __func__, __LINE__);
+
+    int len = 0;
+    em_bh_sta_radio_cap_t *bsta_radio_cap = reinterpret_cast<em_bh_sta_radio_cap_t*>(buff);
+
+    for (unsigned int j = 0; j < dm->get_num_bss(); j++) {
+        auto* bss_info = dm->get_bss_info(j);
+        if (!bss_info) continue;
+
+        em_printfout("BSSID %s, vap_mode:%d, vap name: %s, haul type: %d",
+            util::mac_to_string(bss_info->bssid.mac).c_str(), bss_info->vap_mode, bss_info->bssid.name,  bss_info->id.haul_type);
+
+        if (bss_info->id.haul_type != em_haul_type_backhaul ||
+            bss_info->vap_mode != em_vap_mode_sta) {
+            continue;
+        }
+        memcpy(bsta_radio_cap->ruid, bss_info->ruid.mac, sizeof(mac_address_t));
+        len = static_cast <int> (sizeof(mac_address_t) + sizeof(uint8_t)); // RUID + MAC present flag
+        memcpy(bsta_radio_cap->bsta_addr, bss_info->sta_mac, sizeof(mac_address_t));
+        bsta_radio_cap->bsta_mac_present = 1;
+        len += static_cast <int> (sizeof(mac_address_t)); // BSTA MAC
+        break;
+    }
+    if (len) {
+        em_printfout("Backhaul STA Radio Capabilities TLV: BSTA: %s of rad: %s",
+            util::mac_to_string(bsta_radio_cap->bsta_addr).c_str(),
+            util::mac_to_string(bsta_radio_cap->ruid).c_str());
+    }
+    return len;
+}
+
 int em_capability_t::send_client_cap_report_msg(mac_address_t sta, bssid_t bss, unsigned short msg_id)
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
@@ -380,8 +415,6 @@ int em_capability_t::send_client_cap_report_msg(mac_address_t sta, bssid_t bss, 
     dm_easy_mesh_t *dm = get_data_model();
     mac_addr_str_t mac_str;
 
-    em_printfout("send_client_cap_report_msg for controller mac address:%s",
-        util::mac_to_string(dm->get_ctl_mac()).c_str());
     memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
@@ -451,6 +484,154 @@ int em_capability_t::send_client_cap_report_msg(mac_address_t sta, bssid_t bss, 
 
     dm_easy_mesh_t::macbytes_to_string(sta, mac_str);
     printf("%s:%d: Client Capablity report Send Successful for sta:%s\n", __func__, __LINE__, mac_str);
+
+    return static_cast<int> (len);
+}
+
+int em_capability_t::send_bsta_cap_query_msg()
+{
+    unsigned char buff[MAX_EM_BUFF_SZ];
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    unsigned int len = 0;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    em_enum_type_t profile;
+    unsigned char *tmp = buff;
+    unsigned short type = htons(ETH_P_1905);
+    dm_easy_mesh_t* dm = NULL;
+
+    dm = get_data_model();
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
+
+    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
+
+    memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += static_cast<unsigned int> (sizeof(unsigned short));
+
+    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
+
+    memset(tmp, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(em_msg_type_bh_sta_cap_query);
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
+    cmdu->last_frag_ind = 1;
+    cmdu->relay_ind = 0;
+
+    tmp += sizeof(em_cmdu_t);
+    len += static_cast<unsigned int> (sizeof(em_cmdu_t));
+
+    // No Tlv
+
+    // End of message
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_eom;
+    tlv->len = 0;
+
+    tmp += (sizeof (em_tlv_t));
+    len += static_cast<unsigned int> (sizeof (em_tlv_t));
+
+    if (em_msg_t(em_msg_type_bh_sta_cap_query, em_profile_type_3, buff, len).validate(errors) == 0) {
+        printf("Backhaul Sta capability Query msg failed validation in tnx end\n");
+        return -1;
+    }
+
+    if (send_frame(buff, len)  < 0) {
+        printf("%s:%d: Backhaul Sta capability Query send failed, error:%d\n", __func__, __LINE__, errno);
+        return -1;
+    }
+
+    em_printfout("Backhaul Sta capability Query Sent for radio: %s", util::mac_to_string(get_radio_interface_mac()).c_str());
+
+    return 0;
+}
+
+int em_capability_t::send_bsta_cap_report_msg(unsigned short msg_id)
+{
+    unsigned char buff[MAX_EM_BUFF_SZ];
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    unsigned short  msg_type = em_msg_type_bh_sta_cap_rprt;
+    size_t len = 0;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    unsigned char *tmp = buff;
+    short sz = 0;
+    unsigned short type = htons(ETH_P_1905);
+    dm_easy_mesh_t *dm = get_data_model();
+    mac_addr_str_t mac_str;
+
+    memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += sizeof(unsigned short);
+
+    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
+
+    memset(tmp, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(msg_id);
+    cmdu->last_frag_ind = 1;
+
+    tmp += sizeof(em_cmdu_t);
+    len += sizeof(em_cmdu_t);
+
+    // 17.2.65 Backhaul STA Radio Capabilities TLV
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_bh_sta_radio_cap;
+
+    sz = create_bsta_radio_cap_tlv(tlv->value);
+    tlv->len = htons(static_cast<uint16_t> (sz));
+
+    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+
+    em_bss_info_t* bss_info = dm->get_backhaul_bss_info();
+    if (bss_info != NULL)
+    {
+        // 17.2.18 Client Info TLV
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        tlv->type = em_tlv_type_client_info;
+        //here BSSID = mesh backhaul's BSSID
+        sz = create_client_info_tlv(tlv->value, bss_info->sta_mac, bss_info->bssid.mac);
+        em_printfout("bss_info->sta_mac = %s and bss_info->bssid.mac = %s",
+            util::mac_to_string(bss_info->sta_mac).c_str(),
+            util::mac_to_string(bss_info->bssid.mac).c_str());
+        tlv->len = htons(static_cast<uint16_t> (sz));
+
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    }
+
+    // End of message
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_eom;
+    tlv->len = 0;
+
+    tmp += (sizeof (em_tlv_t));
+    len += (sizeof (em_tlv_t));
+
+    if (em_msg_t(em_msg_type_bh_sta_cap_rprt, em_profile_type_3, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
+        em_printfout("Backhaul Sta capability report validation failed");
+        return -1;
+    }
+
+    if (send_frame(buff, static_cast<unsigned int> (len))  < 0) {
+        em_printfout("Backhaul Sta capability report send failed");
+        return -1;
+    }
+
+    em_printfout("Backhaul Sta capability report Send Successful");
 
     return static_cast<int> (len);
 }
@@ -557,6 +738,135 @@ void em_capability_t::handle_client_cap_query(unsigned char *buff, unsigned int 
     set_state(em_state_agent_configured);
 }
 
+int em_capability_t::handle_bsta_cap_query(unsigned char *buff, unsigned int len)
+{
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
+
+    if (em_msg_t(em_msg_type_bh_sta_cap_query, em_profile_type_3, buff, len).validate(errors) == 0) {
+        em_printfout("Backhaul Sta Capability query message validation failed");
+        return -1;
+    }
+
+    em_printfout("Backhaul Sta Capability query message rcvd");
+
+    send_bsta_cap_report_msg(ntohs(cmdu->id));
+
+    return 0;
+}
+
+int em_capability_t::handle_bsta_radio_cap(unsigned char *buff, unsigned int len)
+{
+    dm_easy_mesh_t *dm = get_data_model();
+    em_bh_sta_radio_cap_t *bsta_radio_cap = reinterpret_cast<em_bh_sta_radio_cap_t*>(buff);
+    mac_addr_str_t mac_str, r_str;
+
+    em_printfout("Rcvd Backhaul STA Radio Capabilities received, sta mac: %s for radio: %s, mac present?: %d",
+        util::mac_to_string(bsta_radio_cap->bsta_addr).c_str(),
+        util::mac_to_string(bsta_radio_cap->ruid).c_str(), bsta_radio_cap->bsta_mac_present);
+
+    //find device based on this radio
+    em_device_info_t *dev = dm->get_device_info();
+    if (dev == NULL) {
+        em_printfout("Could not find device in data model");
+        return -1;
+    }
+
+    em_printfout("Update BSTA Cap for Device id: %s",
+        util::mac_to_string(dev->id.dev_mac).c_str());
+
+    if( dm->get_colocated() == true ) {
+        //Trigger event to request backhaul cap report, as this would handle the initial onboarding scenario, use the al em for this
+        //check if its the same device
+        if ( (memcmp(dev->id.dev_mac, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t)) != 0) ) {
+            em_printfout("Update BSTA Cap for Device id: %s",
+                util::mac_to_string(dev->id.dev_mac).c_str());
+            memcpy(dm->m_device.m_device_info.backhaul_sta, bsta_radio_cap->bsta_addr, sizeof(mac_address_t));
+            dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
+        }
+    } else {
+        em_printfout("Update BSTA Cap for Device id: %s",
+            util::mac_to_string(dev->id.dev_mac).c_str());
+
+        memcpy(dm->m_device.m_device_info.backhaul_sta, bsta_radio_cap->bsta_addr, sizeof(mac_address_t));
+        dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
+    }
+
+    return 0;
+}
+
+int em_capability_t::handle_bsta_cap_report(unsigned char *buff, unsigned int len)
+{
+    em_tlv_t *tlv;
+    unsigned int tmp_len;
+    int ret = 0;
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    bool found_op_bss = false;
+    bool found_profile = false;
+    bool found_bss_config_rprt = false;
+    em_profile_type_t profile = em_profile_type_reserved;
+    dm_easy_mesh_t *dm;
+
+    dm = get_data_model();
+
+    tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    em_printfout("Backhaul Sta Capability report message rcvd");
+
+    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        if (tlv->type != em_tlv_type_bh_sta_radio_cap) {
+            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+            tlv = reinterpret_cast <em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+            continue;
+        } else {
+            handle_bsta_radio_cap(tlv->value, tlv->len);
+            break;
+        }
+        tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+    em_device_info_t *dev = dm->get_device_info();
+    if (dev == NULL) {
+        em_printfout("Could not find device in data model");
+        return -1;
+    }
+
+    tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        if (tlv->type == em_tlv_type_client_info) {
+            if( dm->get_colocated() == true ) {
+                //Trigger event to request backhaul cap report, as this would handle the initial onboarding scenario, use the al em for this
+                //check if its the same device
+                if ( (memcmp(dev->id.dev_mac, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t)) != 0) ) {
+                    em_printfout("Cap: Update backhaul mac for Device id: %s",
+                        util::mac_to_string(dev->id.dev_mac).c_str());
+
+                    memcpy(dm->m_device.m_device_info.backhaul_mac.mac, tlv->value, sizeof(mac_address_t));
+                    dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
+                }
+            } else {
+                em_printfout("Cap: Update backhaul mac for Device id(non-coloc): %s",
+                    util::mac_to_string(dev->id.dev_mac).c_str());
+
+                memcpy(dm->m_device.m_device_info.backhaul_mac.mac, tlv->value, sizeof(mac_address_t));
+                dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
+            }
+            break;
+        }
+
+        tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+    set_state(em_state_ctrl_configured);
+    em_printfout("Cap: Bsta Capability report proceesed, ctrl configured");
+
+    return 0;
+}
+
 void em_capability_t::process_msg(unsigned char *data, unsigned int len)
 {
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
@@ -574,7 +884,28 @@ void em_capability_t::process_msg(unsigned char *data, unsigned int len)
             }
             break;
 
+        case em_msg_type_bh_sta_cap_query:
+            handle_bsta_cap_query(data, len);
+            break;
+
+        case em_msg_type_bh_sta_cap_rprt:
+            handle_bsta_cap_report(data, len);
+            break;
+
         default:
+            break;
+    }
+}
+
+void em_capability_t::process_ctrl_state()
+{
+    switch (get_state()) {
+        case em_state_ctrl_bsta_cap_pending:
+            send_bsta_cap_query_msg();
+            break;
+
+        default:
+            printf("%s:%d: unhandled case %s\n", __func__, __LINE__, em_t::state_2_str(get_state()));
             break;
     }
 }
