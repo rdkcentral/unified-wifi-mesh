@@ -52,10 +52,34 @@
 */
 TEST(dm_policy_t_Test, DecodeWithValidJSONObjectAndDifferentPolicyTypes) {
     std::cout << "Entering DecodeWithValidJSONObjectAndDifferentPolicyTypes test";
-    cJSON obj;
+
+    const char* valid_json_str = R"({
+        "Disallowed STA": [{"MAC": "AA:BB:CC:DD:EE:FF"}],
+        "Steering Policy": 1,
+        "Utilization Threshold": 75,
+        "RCPI Thresold": 60,
+        "Interval": 30,
+        "Managed Client Marker": "marker",
+        "STA RCPI Threshold": 50,
+        "STA RCPI Hysteresis": 5,
+        "AP Utilization Thresold": 80,
+        "STA Traffic Stats": 1,
+        "STA Link Metrics": 1,
+        "STA Status": 1,
+        "Primay VLAN ID": 100,
+        "Default PCP": 3,
+        "Traffic Separation": [{"SSID Name": "TestSSID"}],
+        "VLAN ID": 200,
+        "Report Independent Channel Scans": 1
+    })";
+
+    cJSON* obj = cJSON_Parse(valid_json_str);
+    ASSERT_NE(obj, nullptr);  // Ensure JSON was parsed correctly
+
     const char* valid_parent_id_str = "device1@00:11:22:33:44:55@01:23:45:67:89:AB@2";
-    void* parent_id = static_cast<void*>(const_cast<char*>(valid_parent_id_str));
+    void* parent_id = (void*)valid_parent_id_str;
     dm_policy_t policy;
+
     em_policy_id_type_t policy_types[] = {
         em_policy_id_type_steering_local,
         em_policy_id_type_unknown,
@@ -66,10 +90,13 @@ TEST(dm_policy_t_Test, DecodeWithValidJSONObjectAndDifferentPolicyTypes) {
         em_policy_id_type_radio_metrics_rep,
         em_policy_id_type_backhaul_bss_config
     };
+
     for (auto plicy : policy_types) {
-        int result = policy.decode(&obj, parent_id, plicy);
+        int result = policy.decode(obj, parent_id, plicy);
         EXPECT_EQ(result, 0);
     }
+
+    cJSON_Delete(obj);  // Clean up
     std::cout << "Exiting DecodeWithValidJSONObjectAndDifferentPolicyTypes test";
 }
 
