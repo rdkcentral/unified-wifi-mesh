@@ -54,7 +54,7 @@ TEST(dm_policy_t_Test, DecodeWithValidJSONObjectAndDifferentPolicyTypes) {
     std::cout << "Entering DecodeWithValidJSONObjectAndDifferentPolicyTypes test";
     cJSON obj;
     const char* valid_parent_id_str = "device1@00:11:22:33:44:55@01:23:45:67:89:AB@2";
-    void* parent_id = (void*)valid_parent_id_str;
+    void* parent_id = static_cast<void*>(const_cast<char*>(valid_parent_id_str));
     dm_policy_t policy;
     em_policy_id_type_t policy_types[] = {
         em_policy_id_type_steering_local,
@@ -97,7 +97,7 @@ TEST(dm_policy_t_Test, DecodeWithValidJSONObjectAndDifferentPolicyTypes) {
 TEST(dm_policy_t_Test, DecodeWithNullJSONObject) {
     std::cout << "Entering DecodeWithNullJSONObject test";
     const char* valid_parent_id_str = "device1@00:11:22:33:44:55@01:23:45:67:89:AB@2";
-    void* parent_id = (void*)valid_parent_id_str;
+    void* parent_id = static_cast<void*>(const_cast<char*>(valid_parent_id_str));
     dm_policy_t policy;
     int result = policy.decode(nullptr, parent_id, em_policy_id_type_steering_local);
     EXPECT_NE(result, 0);
@@ -157,7 +157,7 @@ TEST(dm_policy_t_Test, DecodeWithInvalidJSONObject) {
     cJSON obj;
     obj.type = -1; // Malformed JSON object
     const char* parent_id_str = "device1@00:11:22:33:44:55@01:23:45:67:89:AB@2";
-    void* parent_id = (void*)parent_id_str;
+    void* parent_id = static_cast<void*>(const_cast<char*>(parent_id_str));
     dm_policy_t policy;
     int result = policy.decode(&obj, parent_id, em_policy_id_type_steering_local);
     EXPECT_NE(result, 0);
@@ -187,7 +187,6 @@ TEST(dm_policy_t_Test, DecodeWithInvalidJSONObject) {
 TEST(dm_policy_t_Test, CopyConstructorWithModifiedPolicy) {
     std::cout << "Entering CopyConstructorWithModifiedPolicy" << std::endl;
     dm_policy_t policy1 {};
-    memset(&policy1, 0, sizeof(dm_policy_t));
     policy1.m_policy.sta_traffic_stats = true;
     policy1.m_policy.sta_link_metric = false;
     policy1.m_policy.sta_status = true;
@@ -528,7 +527,6 @@ TEST(dm_policy_t_Test, EncodeWithValidJSONObjectAndInvalidPolicyID) {
 TEST(dm_policy_t_Test, RetrievePolicyAfterInitialization) {
     std::cout << "Entering RetrievePolicyAfterInitialization" << std::endl;
     dm_policy_t policy_obj {};
-    memset(&policy_obj, 0, sizeof(dm_policy_t));
     // Use snprintf to safely copy strings into char arrays
     snprintf(policy_obj.m_policy.id.net_id, sizeof(policy_obj.m_policy.id.net_id), "TestNetID");
     policy_obj.m_policy.id.dev_mac[0] = 0x01;
@@ -632,7 +630,6 @@ TEST(dm_policy_t_Test, InitializePolicyStructureSuccessfully) {
 TEST(dm_policy_t_Test, AssigningDmPolicyObjectWithMaxMinValues) {
     std::cout << "Entering AssigningDmPolicyObjectWithMaxMinValues test";
     dm_policy_t obj1 {};
-    memset(&obj1, 0, sizeof(dm_policy_t));
     obj1.m_policy.num_sta = UINT_MAX;
     obj1.m_policy.util_threshold = USHRT_MAX;
     obj1.m_policy.rcpi_threshold = 0;
@@ -682,8 +679,6 @@ TEST(dm_policy_t_Test, AssigningDmPolicyObjectWithMaxMinValues) {
 TEST(dm_policy_t_Test, CompareIdenticalObjects) {
     std::cout << "Entering CompareIdenticalObjects test";
     dm_policy_t obj1 {}, obj2 {};
-    memset(&obj1, 0, sizeof(dm_policy_t));
-    memset(&obj2, 0, sizeof(dm_policy_t));
     obj1.m_policy.sta_traffic_stats = obj2.m_policy.sta_traffic_stats = true;
     obj1.m_policy.sta_link_metric = obj2.m_policy.sta_link_metric = false;
     obj1.m_policy.sta_status = obj2.m_policy.sta_status = true;
@@ -719,8 +714,6 @@ TEST(dm_policy_t_Test, CompareDifferentNetId) {
     std::cout << "Entering CompareDifferentNetId test";
     dm_policy_t obj1 {};
     dm_policy_t obj2 {};
-    memset(&obj1, 0, sizeof(dm_policy_t));
-    memset(&obj2, 0, sizeof(dm_policy_t));
     strcpy(obj1.m_policy.id.net_id, "Network1");
     strcpy(obj2.m_policy.id.net_id, "Network2");
     EXPECT_FALSE(obj1 == obj2);
@@ -752,8 +745,6 @@ TEST(dm_policy_t_Test, CompareDifferentDevMac) {
     std::cout << "Entering CompareDifferentDevMac test" << std::endl;
     dm_policy_t obj1 {};
     dm_policy_t obj2 {};
-    memset(&obj1, 0, sizeof(dm_policy_t));
-    memset(&obj2, 0, sizeof(dm_policy_t));
     unsigned char mac1[6] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
     unsigned char mac2[6] = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB};
     memcpy(obj1.m_policy.id.dev_mac, mac1, sizeof(mac1));
@@ -787,8 +778,6 @@ TEST(dm_policy_t_Test, CompareDifferentRadioMac) {
     std::cout << "Entering CompareDifferentRadioMac test";
     dm_policy_t obj1 {};
     dm_policy_t obj2 {};
-    memset(&obj1, 0, sizeof(dm_policy_t));
-    memset(&obj2, 0, sizeof(dm_policy_t));
     unsigned char mac1[6] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
     unsigned char mac2[6] = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB};
     memcpy(obj1.m_policy.id.radio_mac, mac1, sizeof(mac1));
@@ -820,8 +809,6 @@ TEST(dm_policy_t_Test, CompareDifferentType) {
     std::cout << "Entering CompareDifferentType test";
     dm_policy_t obj1 {};
     dm_policy_t obj2 {};
-    memset(&obj1, 0, sizeof(dm_policy_t));
-    memset(&obj2, 0, sizeof(dm_policy_t));
     obj1.m_policy.id.type = em_policy_id_type_steering_local;
     obj2.m_policy.id.type = em_policy_id_type_steering_btm;
     EXPECT_FALSE(obj1 == obj2);
@@ -851,8 +838,6 @@ TEST(dm_policy_t_Test, CompareDifferentNumSta) {
     std::cout << "Entering CompareDifferentNumSta test";
     dm_policy_t obj1 {};
     dm_policy_t obj2 {};
-    memset(&obj1, 0, sizeof(dm_policy_t));
-    memset(&obj2, 0, sizeof(dm_policy_t));
     obj1.m_policy.num_sta = 5;
     obj2.m_policy.num_sta = 10;
     EXPECT_FALSE(obj1 == obj2);
@@ -882,8 +867,6 @@ TEST(dm_policy_t_Test, CompareDifferentStaMac) {
     std::cout << "Entering CompareDifferentStaMac test";
     dm_policy_t obj1 {};
     dm_policy_t obj2 {};
-    memset(&obj1, 0, sizeof(dm_policy_t));
-    memset(&obj2, 0, sizeof(dm_policy_t));
     unsigned char mac1[6] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
     unsigned char mac2[6] = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB};
     memcpy(obj1.m_policy.sta_mac[0], mac1, sizeof(mac1));
@@ -915,8 +898,6 @@ TEST(dm_policy_t_Test, CompareDifferentPolicy) {
     std::cout << "Entering CompareDifferentPolicy test";
     dm_policy_t obj1 {};
     dm_policy_t obj2 {};
-    memset(&obj1, 0, sizeof(dm_policy_t));
-    memset(&obj2, 0, sizeof(dm_policy_t));
     obj1.m_policy.policy = em_steering_policy_type_disallowed;
     obj2.m_policy.policy = em_steering_policy_type_rcpi_mandated;
     EXPECT_FALSE(obj1 == obj2);
@@ -946,8 +927,6 @@ TEST(dm_policy_t_Test, CompareDifferentUtilThreshold) {
     std::cout << "Entering CompareDifferentUtilThreshold test";
     dm_policy_t obj1 {};
     dm_policy_t obj2 {};
-    memset(&obj1, 0, sizeof(dm_policy_t));
-    memset(&obj2, 0, sizeof(dm_policy_t));
     obj1.m_policy.util_threshold = 50;
     obj2.m_policy.util_threshold = 75;
     EXPECT_FALSE(obj1 == obj2);
@@ -977,8 +956,6 @@ TEST(dm_policy_t_Test, CompareDifferentRcpiThreshold) {
     std::cout << "Entering CompareDifferentRcpiThreshold test";
     dm_policy_t obj1 {};
     dm_policy_t obj2 {};
-    memset(&obj1, 0, sizeof(dm_policy_t));
-    memset(&obj2, 0, sizeof(dm_policy_t));
     obj1.m_policy.rcpi_threshold = 30;
     obj2.m_policy.rcpi_threshold = 60;
     EXPECT_FALSE(obj1 == obj2);
@@ -1008,8 +985,6 @@ TEST(dm_policy_t_Test, CompareDifferentInterval) {
     std::cout << "Entering CompareDifferentInterval test";
     dm_policy_t obj1 {};
     dm_policy_t obj2 {};
-    memset(&obj1, 0, sizeof(dm_policy_t));
-    memset(&obj2, 0, sizeof(dm_policy_t));
     obj1.m_policy.interval = 100;
     obj2.m_policy.interval = 200;
     EXPECT_FALSE(obj1 == obj2);
@@ -1040,8 +1015,6 @@ TEST(dm_policy_t_Test, CompareDifferentRcpiHysteresis) {
     std::cout << "Entering CompareDifferentRcpiHysteresis test";
     dm_policy_t obj1 {};
     dm_policy_t obj2 {};
-    memset(&obj1, 0, sizeof(dm_policy_t));
-    memset(&obj2, 0, sizeof(dm_policy_t));
     obj1.m_policy.rcpi_hysteresis = 10;
     obj2.m_policy.rcpi_hysteresis = 20;
     EXPECT_FALSE(obj1 == obj2);
@@ -1071,8 +1044,6 @@ TEST(dm_policy_t_Test, CompareDifferentStaTrafficStats) {
     std::cout << "Entering CompareDifferentStaTrafficStats test";
     dm_policy_t obj1 {};
     dm_policy_t obj2 {};
-    memset(&obj1, 0, sizeof(dm_policy_t));
-    memset(&obj2, 0, sizeof(dm_policy_t));
     obj1.m_policy.sta_traffic_stats = true;
     obj2.m_policy.sta_traffic_stats = false;
     EXPECT_FALSE(obj1 == obj2);
@@ -1102,8 +1073,6 @@ TEST(dm_policy_t_Test, CompareDifferentStaLinkMetric) {
     std::cout << "Entering CompareDifferentStaLinkMetric test";
     dm_policy_t obj1 {};
     dm_policy_t obj2 {};
-    memset(&obj1, 0, sizeof(dm_policy_t));
-    memset(&obj2, 0, sizeof(dm_policy_t));
     obj1.m_policy.sta_link_metric = true;
     obj2.m_policy.sta_link_metric = false;
     EXPECT_FALSE(obj1 == obj2);
@@ -1133,8 +1102,6 @@ TEST(dm_policy_t_Test, CompareDifferentStaStatus) {
     std::cout << "Entering CompareDifferentStaStatus test";
     dm_policy_t obj1 {};
     dm_policy_t obj2 {};
-    memset(&obj1, 0, sizeof(dm_policy_t));
-    memset(&obj2, 0, sizeof(dm_policy_t));
     obj1.m_policy.sta_status = true;
     obj2.m_policy.sta_status = false;
     EXPECT_FALSE(obj1 == obj2);
@@ -1166,8 +1133,6 @@ TEST(dm_policy_t_Test, CompareDifferentManagedStaMarker) {
     std::cout << "Entering CompareDifferentManagedStaMarker test";
     dm_policy_t obj1 {};
     dm_policy_t obj2 {};
-    memset(&obj1, 0, sizeof(dm_policy_t));
-    memset(&obj2, 0, sizeof(dm_policy_t));
     strcpy(obj1.m_policy.managed_sta_marker, "Marker1");
     strcpy(obj2.m_policy.managed_sta_marker, "Marker2");
     EXPECT_FALSE(obj1 == obj2);
@@ -1197,8 +1162,6 @@ TEST(dm_policy_t_Test, CompareDifferentIndependentScanReport) {
     std::cout << "Entering CompareDifferentIndependentScanReport test";
     dm_policy_t obj1 {};
     dm_policy_t obj2 {};
-    memset(&obj1, 0, sizeof(dm_policy_t));
-    memset(&obj2, 0, sizeof(dm_policy_t));
     obj1.m_policy.independent_scan_report = true;
     obj2.m_policy.independent_scan_report = false;
     EXPECT_FALSE(obj1 == obj2);
@@ -1228,8 +1191,6 @@ TEST(dm_policy_t_Test, CompareDifferentProfile1StaDisallowed) {
     std::cout << "Entering CompareDifferentProfile1StaDisallowed test";
     dm_policy_t obj1 {};
     dm_policy_t obj2 {};
-    memset(&obj1, 0, sizeof(dm_policy_t));
-    memset(&obj2, 0, sizeof(dm_policy_t));
     obj1.m_policy.profile_1_sta_disallowed = true;
     obj2.m_policy.profile_1_sta_disallowed = false;
     EXPECT_FALSE(obj1 == obj2);
@@ -1259,8 +1220,6 @@ TEST(dm_policy_t_Test, CompareDifferentProfile2StaDisallowed) {
     std::cout << "Entering CompareDifferentProfile2StaDisallowed test";
     dm_policy_t obj1 {};
     dm_policy_t obj2 {};
-    memset(&obj1, 0, sizeof(dm_policy_t));
-    memset(&obj2, 0, sizeof(dm_policy_t));
     obj1.m_policy.profile_2_sta_disallowed = true;
     obj2.m_policy.profile_2_sta_disallowed = false;
     EXPECT_FALSE(obj1 == obj2);

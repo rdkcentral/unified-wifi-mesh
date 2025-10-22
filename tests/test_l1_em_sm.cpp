@@ -42,14 +42,13 @@
 * | 01| Retrieve the state value using getstate method | state = <the initialized state value> | Retrieved value should match the initialized value | Should Pass |
 */
 TEST(em_sm_t_Test, GetValidStateValues) {
-    std::cout << "Entering GetValidStateValues test";
-    em_sm_t obj {};
-    memset(&obj, 0, sizeof(em_sm_t));
+    std::cout << "Entering GetValidStateValues test" << std::endl;
+    em_sm_t obj{};
     em_state_t retrieved_state = obj.get_state();
     std::cout << "The retrieved state value is " << static_cast<int>(retrieved_state) << std::endl;
     EXPECT_GE(retrieved_state, em_state_agent_unconfigured);
     EXPECT_LT(retrieved_state, em_state_max);
-    std::cout << "Exiting GetValidStateValues test";
+    std::cout << "Exiting GetValidStateValues test" << std::endl;
 }
 
 /**
@@ -72,22 +71,20 @@ TEST(em_sm_t_Test, GetValidStateValues) {
 */
 TEST(em_sm_t_Test, InitializeStateMachineWithValidServiceTypes) {
     std::cout << "Entering InitializeStateMachineWithValidServiceTypes" << std::endl;
-
     em_service_type_t valid_services[] = {
         em_service_type_ctrl,
         em_service_type_agent,
         em_service_type_cli
     };
-
     for (auto service : valid_services) {
-        std::cout << "Testing with service: " << service << std::endl;
+        std::cout << "Testing with service: " << static_cast<unsigned int>(service) << std::endl;
         EXPECT_NO_THROW({
             em_sm_t sm;
             sm.init_sm(service);
-            std::cout << "init_sm executed successfully for service " << service << std::endl;
+            std::cout << "init_sm executed successfully for service "
+                      << static_cast<unsigned int>(service) << std::endl;
         });
     }
-
     std::cout << "Exiting InitializeStateMachineWithValidServiceTypes" << std::endl;
 }
 
