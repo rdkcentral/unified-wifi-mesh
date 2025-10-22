@@ -122,7 +122,24 @@ int main(int argc, char **argv) {
         "dm_network_ssid_t_Test.JsonObjectWithEmptyObject:"
         "dm_network_ssid_t_Test.CopyConstructorWithNullObject:"
         "dm_network_ssid_t_Test.NullPointerAsInput:"
-        "dm_network_ssid_t_Test.EncodeNullPointer";
+        "dm_network_ssid_t_Test.EncodeNullPointer:"
+        "dm_ieee_1905_security_t_Test.DecodeCJsonObjectWithInvalidType:"
+        "dm_ieee_1905_security_t_Test.DecodeNullCJsonObject:"
+        "dm_ieee_1905_security_t_Test.CopyConstructorWithNullInput:"
+        "dm_ieee_1905_security_t_Test.NullNetworkSSIDInformation:"
+	"AlServiceDataUnitTest.SetInvalidMacAddressShortLength:"
+	"AlServiceDataUnitTest.SetInvalidMacAddressLongLength:"
+	"AlServiceDataUnitTest.SetMacAddressWithNonHexCharacters:"
+	"AlServiceDataUnitTest.SetMacAddressWithAllOnes:"
+	"AlServiceDataUnitTest.SetDestinationMacAddress_InvalidFormat1:"
+	"AlServiceDataUnitTest.SetDestinationMacAddress_InvalidFormat2:"
+	"AlServiceDataUnitTest.SetDestinationMacAddress_InvalidCharacters1:"
+	"AlServiceExceptionTest.ConstructorWithEmptyMessageAndRequestFailed:"
+	"AlServiceExceptionTest.ConstructorWithValidMessageAndInvalidError:"
+	"emDiscoveryTest.HandlingNullDataPointer_NonZeroLength:"
+	"emDiscoveryTest.HandlingNullDataPointer_ZeroLength:"
+	"EmMetricsTest.ProcessMessageNullDataNonZeroLength:"
+	"EmSteeringTest.NullDataPointerNonZeroLength";
 
     return RUN_ALL_TESTS();
 }
