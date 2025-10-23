@@ -156,10 +156,10 @@ int main(int argc, char **argv) {
         "dm_policy_t_Test.NullKeyInput:"
         "dm_policy_t_Test.NullIdInput:"
         "dm_policy_t_Test.EncodeWithValidJSONObjectAndInvalidPolicyID:"
-	"em_sm_t_Test.GetValidStateValues:"
+        "em_sm_t_Test.GetValidStateValues:"
         "em_sm_t_Test.SetStateToInvalidState:"
-	"em_sm_t_Test.ValidateValidStates:"
-	"em_sm_t_Test.ValidateInvalidState";
+        "em_sm_t_Test.ValidateValidStates:"
+        "em_sm_t_Test.ValidateInvalidState";
 
     return RUN_ALL_TESTS();
 }
