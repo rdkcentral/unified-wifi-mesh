@@ -1852,6 +1852,37 @@ int dm_easy_mesh_t::name_from_mac_address(const mac_address_t *mac, char *ifname
     return (found == true) ? 0:-1;
 }
 
+bool dm_easy_mesh_t::mac_exists_on_device(const mac_address_t input_mac)
+{
+    struct ifaddrs *ifaddr = NULL, *ifa = NULL;
+    bool found = false;
+
+    if (getifaddrs(&ifaddr) == -1) {
+        perror("getifaddrs");
+        return false;
+    }
+
+    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+        if (!ifa->ifa_addr)
+            continue;
+
+        if (ifa->ifa_addr->sa_family == AF_PACKET) {
+            struct sockaddr_ll *s = (struct sockaddr_ll *)ifa->ifa_addr;
+
+            if (s->sll_halen == 6) {
+                if (memcmp(s->sll_addr, input_mac, sizeof(mac_address_t)) == 0) {
+                    em_printfout("MAC found on interface: %s\n", ifa->ifa_name);
+                    found = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    freeifaddrs(ifaddr);
+    return found;
+}
+
 rdk_wifi_radio_t *dm_easy_mesh_t::get_radio_data(em_interface_t *interface)
 {
 	unsigned int i;

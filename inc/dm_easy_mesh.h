@@ -2246,7 +2246,22 @@ public:
 	 * @note Ensure that the buffer for `ifname` is sufficiently large to hold the interface name.
 	 */
 	static int name_from_mac_address(const mac_address_t *mac, char *ifname);
-	
+
+	/**!
+	 * @brief Identifies if the interface name associated with physically with current device.
+	 *
+	 * This function searches for the network interface that corresponds to the provided MAC address.
+	 *
+	 * @param[in] mac address of the interface to find.
+	 *
+	 * @returns bool Status code indicating found or not.
+	 * @retval 1 if found.
+	 * @retval 0 if not found.
+	 *
+	 * @note Ensure that a valid mac address is passed.
+	 */
+	static bool mac_exists_on_device(const mac_address_t input_mac);
+
 	/**!
 	 * @brief Retrieves the list of interfaces.
 	 *
