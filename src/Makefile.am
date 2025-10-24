@@ -19,6 +19,6 @@
 if EM_EXTENDER
 SUBDIRS = al-sap agent
 else
-SUBDIRS = cli al-sap ctrl agent
+SUBDIRS = cli al-sap ctrl agent network_optimiser
 endif
 
