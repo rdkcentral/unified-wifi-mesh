@@ -484,7 +484,7 @@ int em_provisioning_t::handle_dpp_chirp_notif(uint8_t *buff, unsigned int len, u
         em_printfout("Failed to process chirp notification");
         return -1;
     }
-    set_is_dpp_onboarding(true);
+    set_is_onboarding(true);
 
     return 0;
 }
