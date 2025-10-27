@@ -1395,22 +1395,11 @@ int em_configuration_t::handle_bsta_radio_cap(unsigned char *buff, unsigned int 
     get_mgr()->io_process(em_bus_event_type_bsta_cap_req, reinterpret_cast<unsigned char *> (&rad_mac_str), sizeof(mac_addr_str_t));
     em_printfout("IO process for bcap query submitted with rad mac: %s", rad_mac_str);
 
-    if( is_colocated == true ) {
-        //Trigger event to request backhaul cap report, as this would handle the initial onboarding scenario, use the al em for this
-        //check if its the same device
-        if ( (memcmp(dev->id.dev_mac, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t)) != 0) ) {
-            em_printfout("Update BSTA Cap for Device id: %s",
-                util::mac_to_string(dev->id.dev_mac).c_str());
-            memcpy(dm->m_device.m_device_info.backhaul_sta, bsta_radio_cap->bsta_addr, sizeof(mac_address_t));
-            dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
-        }
-    } else {
-        em_printfout("Update BSTA Cap for Device id: %s",
-            util::mac_to_string(dev->id.dev_mac).c_str());
+    em_printfout("Update BSTA Cap for Device id: %s",
+        util::mac_to_string(dev->id.dev_mac).c_str());
 
-        memcpy(dm->m_device.m_device_info.backhaul_sta, bsta_radio_cap->bsta_addr, sizeof(mac_address_t));
-        dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
-    }
+    memcpy(dm->m_device.m_device_info.backhaul_sta, bsta_radio_cap->bsta_addr, sizeof(mac_address_t));
+    dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
 
     return 0;
 }
@@ -1596,6 +1585,10 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     bool found_bss_config_rprt = false;
     em_profile_type_t profile = em_profile_type_reserved;
 	dm_easy_mesh_t *dm;
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+    uint8_t *src_al_mac = hdr->src;
+    uint8_t *dst_al_mac = hdr->dst;
+    em_interface_name_t name;
     
 	dm = get_data_model();
 
@@ -1722,7 +1715,22 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     }
     em_printfout("No of AP MLDs: %d", dm->m_num_ap_mld);
 
-	dm->set_db_cfg_param(db_cfg_type_policy_list_update, "");
+    em_printfout("Src al mac: " MACSTRFMT, MAC2STR(src_al_mac));
+
+    if (dm_easy_mesh_t::name_from_mac_address(reinterpret_cast<const mac_address_t*>(src_al_mac), name) == 0) {
+        em_printfout("MAC address exists on this device.");
+        memset(dm->m_device.m_device_info.backhaul_alid.mac, 0, sizeof(mac_address_t));
+    } else {
+        em_printfout("MAC address not found on any interface.");
+        memcpy(dm->m_device.m_device_info.backhaul_alid.mac, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    }
+
+    em_printfout("updated dm dev_info's backhaul_mac: %s and backhaul_alid: %s", dm->get_colocated(),
+        util::mac_to_string(dm->m_device.m_device_info.backhaul_mac.mac).c_str(),
+        util::mac_to_string(dm->m_device.m_device_info.backhaul_alid.mac).c_str());
+
+    dm->set_db_cfg_param(db_cfg_type_policy_list_update, "");
+
 	return ret;
 }
 
@@ -2869,6 +2877,7 @@ int em_configuration_t::create_bsta_radio_cap_tlv(uint8_t *buff)
     ASSERT_NOT_NULL(dm, -1, "%s:%d: Data model is null\n", __func__, __LINE__);
 
     int len = 0;
+    em_interface_name_t name;
     em_bh_sta_radio_cap_t *bsta_radio_cap = reinterpret_cast<em_bh_sta_radio_cap_t*>(buff);
 
     for (unsigned int j = 0; j < dm->get_num_bss(); j++) {
@@ -2884,7 +2893,13 @@ int em_configuration_t::create_bsta_radio_cap_tlv(uint8_t *buff)
         }
         memcpy(bsta_radio_cap->ruid, bss_info->ruid.mac, sizeof(mac_address_t));
         len = static_cast <int> (sizeof(mac_address_t) + sizeof(uint8_t)); // RUID + MAC present flag
-        memcpy(bsta_radio_cap->bsta_addr, bss_info->sta_mac, sizeof(mac_address_t));
+        if (dm_easy_mesh_t::name_from_mac_address((reinterpret_cast<const mac_address_t*>(dm->get_ctl_mac())), name) == 0) {
+            em_printfout("MAC address exists on this device.");
+            memset(bsta_radio_cap->bsta_addr, 0, sizeof(mac_address_t));
+        } else {
+            em_printfout("MAC address not found on any interface.");
+            memcpy(bsta_radio_cap->bsta_addr, bss_info->sta_mac, sizeof(mac_address_t));
+        }
         bsta_radio_cap->bsta_mac_present = 1;
         len += static_cast <int> (sizeof(mac_address_t)); // BSTA MAC
         break;
