@@ -1224,3 +1224,20 @@ bool ec_crypto::add_common_jwk_fields(cJSON *json_obj, const EC_GROUP* key_group
 
     return true;
 }
+
+bool ec_crypto::validate_point_is_on_curve(ec_connection_context_t& ctx, const EC_POINT* point, int expected_nid)
+{
+    if (!point) {
+        em_printfout("Point is nullptr");
+        return false;
+    }
+
+    scoped_ec_group point_group(EC_GROUP_new_by_curve_name(expected_nid));
+    if (!point_group) {
+        em_printfout("Could not create EC_GROUP for expected NID: %d", expected_nid);
+        return false;
+    }
+
+    int on_curve = EC_POINT_is_on_curve(point_group.get(), point, ctx.bn_ctx);
+    return on_curve == 1;
+}

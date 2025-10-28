@@ -1156,6 +1156,17 @@ public:
 	 * @endcode
 	 */
 	static bool add_common_jwk_fields(cJSON *json_obj, const EC_GROUP* key_group, const EC_POINT *key_point);
+
+    /**
+     * @brief Validate that an EC_POINT is on the expected curve.
+     *
+     * @param ctx The connection context containing the BN context
+     * @param point The EC_POINT to validate
+     * @param expected_nid The expected NID of the curve
+     *
+     * @return true if the point is on the expected curve, false otherwise
+     */
+    static bool validate_point_is_on_curve(ec_connection_context_t& ctx, const EC_POINT* point, int expected_nid);
 };
 
 #endif // EC_CRYPTO_H
