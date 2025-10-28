@@ -48,7 +48,7 @@ TEST(dm_network_ssid_t_Test, ValidJsonObjectWithValidParentID) {
     cJSON_AddStringToObject(obj, "ssid", "TestSSID");
     const char* parent_str = "parent_1";
     dm_network_ssid_t ssid;
-    int result = ssid.decode(obj, (void*)parent_str);
+    int result = ssid.decode(obj, const_cast<void*>(static_cast<const void*>(parent_str)));
     EXPECT_EQ(result, 0);
     cJSON_Delete(obj);
     std::cout << "Exiting ValidJsonObjectWithValidParentID" << std::endl;
@@ -77,10 +77,11 @@ TEST(dm_network_ssid_t_Test, NullJsonObject) {
     std::cout << "Entering NullJsonObject" << std::endl;
     const char* parent_str = "parent_1";
     dm_network_ssid_t ssid;
-    int result = ssid.decode(nullptr, (void*)parent_str);
+    int result = ssid.decode(nullptr, const_cast<void*>(static_cast<const void*>(parent_str)));
     EXPECT_EQ(result, -1);
     std::cout << "Exiting NullJsonObject" << std::endl;
 }
+
 
 /**
  * @brief Test to verify the behavior of the decode function when a null parent ID is provided.
@@ -137,10 +138,11 @@ TEST(dm_network_ssid_t_Test, JsonObjectWithInvalidType) {
     obj.type = -1;
     const void* parent_id = "parent_1";
     dm_network_ssid_t ssid;
-    int result = ssid.decode(&obj, (void*)parent_id);
+    int result = ssid.decode(&obj, const_cast<void*>(parent_id));
     EXPECT_EQ(result, -1);
     std::cout << "Exiting JsonObjectWithInvalidType" << std::endl;
 }
+
 
 /**
  * @brief Test the decoding of a JSON object with nested objects.
@@ -171,11 +173,12 @@ TEST(dm_network_ssid_t_Test, JsonObjectWithNestedObjects) {
     cJSON_AddItemToObject(obj, "nested", nested);
     const void* parent_id = "parent_1";
     dm_network_ssid_t ssid;
-    int result = ssid.decode(obj, (void*)parent_id);
+    int result = ssid.decode(obj, const_cast<void*>(parent_id));
     EXPECT_EQ(result, 0);
     cJSON_Delete(obj);
     std::cout << "Exiting JsonObjectWithNestedObjects" << std::endl;
 }
+
 
 /**
  * @brief Test the decoding of a JSON object with an array type.
@@ -204,7 +207,7 @@ TEST(dm_network_ssid_t_Test, JsonObjectWithArray) {
     cJSON_AddItemToArray(array, cJSON_CreateString("ssid2"));
     const void* parent_id = "parent_1";
     dm_network_ssid_t ssid;
-    int result = ssid.decode(array, (void*)parent_id);
+    int result = ssid.decode(array, const_cast<void*>(parent_id));
     EXPECT_EQ(result, 0);
     cJSON_Delete(array);
     std::cout << "Exiting JsonObjectWithArray" << std::endl;
@@ -230,13 +233,14 @@ TEST(dm_network_ssid_t_Test, JsonObjectWithArray) {
  * | 02| Create an instance of dm_network_ssid_t | dm_network_ssid_t ssid | N/A | Should be successful |
  * | 03| Call the decode function with the empty JSON object and parent_id = "parent_1" | ssid.decode(&obj, parent_id) | obj.child = nullptr, parent_id = "parent_1" | result = -1, EXPECT_EQ(result, -1) | Should Pass |
  */
+ 
 TEST(dm_network_ssid_t_Test, JsonObjectWithEmptyObject) {
     std::cout << "Entering JsonObjectWithEmptyObject" << std::endl;
     cJSON* obj = cJSON_CreateObject();
     ASSERT_NE(obj, nullptr);
     const void* parent_id = "parent_1";
     dm_network_ssid_t ssid;
-    int result = ssid.decode(obj, (void*)parent_id);
+    int result = ssid.decode(obj, const_cast<void*>(parent_id));
     EXPECT_EQ(result, -1);
     cJSON_Delete(obj);
     std::cout << "Exiting JsonObjectWithEmptyObject" << std::endl;
