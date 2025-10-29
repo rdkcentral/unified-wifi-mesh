@@ -220,6 +220,5 @@ int main(int argc, char **argv) {
     "dm_sta_t_Test.KeyWithMissingMACAddresses:"
     "dm_sta_t_Test.InvalidMacAddress:"
     "dm_sta_t_Test.NullKey";
-
     return RUN_ALL_TESTS();
 }
