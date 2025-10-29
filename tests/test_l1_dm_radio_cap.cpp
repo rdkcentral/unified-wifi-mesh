@@ -1168,20 +1168,19 @@ TEST(dm_radio_cap_t_Test, CompareDifferentMetricInterval) {
 * | Variation / Step | Description | Test Data | Expected Result | Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
 * | 01 | Initialize dm_radio_cap_t objects | obj1, obj2 | Objects initialized | Should be successful |
-* | 02 | Modify reserved field of obj2 | obj2.m_radio_cap_info.eht_ops.radios[0].reserved[0] = 1 | Reserved field modified | Should be successful |
+* | 02 | Modify reserved field of obj2 and obj1 | obj1.m_radio_cap_info.eht_ops.radios[0].reserved[0] = 10, obj2.m_radio_cap_info.eht_ops.radios[0].reserved[0] = 20 | Reserved field modified | Should be successful |
 * | 03 | Compare obj1 and obj2 using equality operator | obj1 == obj2 | EXPECT_FALSE(obj1 == obj2) | Should Pass |
 */
 TEST(dm_radio_cap_t_Test, CompareDifferentEHTOpsReserved) {
     std::cout << "Entering CompareDifferentEHTOpsReserved" << std::endl;
     dm_radio_cap_t obj1{};
     dm_radio_cap_t obj2{};
-    obj1.m_radio_cap_info.eht_ops.radios[0].reserved[0] = -1;
-    obj2.m_radio_cap_info.eht_ops.radios[0].reserved[0] = 1;
+    obj1.m_radio_cap_info.eht_ops.radios[0].reserved[0] = 10;
+    obj2.m_radio_cap_info.eht_ops.radios[0].reserved[0] = 20;
+    EXPECT_FALSE(obj1 == obj2);
     EXPECT_FALSE(obj1 == obj2);
     std::cout << "Exiting CompareDifferentEHTOpsReserved" << std::endl;
 }
-
-
 
 /**
 * @brief Test to compare different EHT capabilities
