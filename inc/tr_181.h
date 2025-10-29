@@ -25,6 +25,8 @@
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_CONTROLLERID		"Device.WiFi.DataElements.Network.ControllerID"
 //#define DEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD "Device.WiFi.DataElements.Network.SetSSID()"
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD		"Device.WiFi.DataElements.Network.SetSSID"
+//Orchestrator
+#define DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY			"Device.WiFi.DataElements.Network.Topology"
 
 typedef struct {
 	em_short_string_t ssid;

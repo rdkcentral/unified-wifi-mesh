@@ -76,7 +76,16 @@ class em_agent_t : public em_mgr_t {
 	 */
 	void update_network_topology() { }
 
-    
+	/**!
+	 * @brief Publish the network topology.
+	 *
+	 * This function is responsible for publishing the current network topology.
+	 *
+	 * @note Ensure that the network topology is properly updated
+	 * before calling this function.
+	 */
+	void publish_network_topology(){ }
+
 	/**!
 	 * @brief Handles the 5-second tick event.
 	 *
@@ -1043,7 +1052,6 @@ public:
 	 */
 	AlServiceAccessPoint* al_sap_register(const std::string& data_socket_path=DATA_SOCKET_PATH, const std::string& control_socket_path=CONTROL_SOCKET_PATH);
 #endif
-
     
 	/**!
 	 * @brief Constructor for em_agent_t class.
