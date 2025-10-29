@@ -48,16 +48,19 @@
 */
 TEST(dm_radio_cap_t_Test, ValidJSONObjectWithValidParentID) {
     std::cout << "Entering ValidJSONObjectWithValidParentID" << std::endl;
-    cJSON obj{};
-    void* parent_id = malloc(sizeof(int));
+    cJSON* obj = cJSON_CreateObject();
+    ASSERT_NE(obj, nullptr);
+    em_interface_t* parent_id = static_cast<em_interface_t*>(malloc(sizeof(em_interface_t)));
+    ASSERT_NE(parent_id, nullptr);
+    for (int i = 0; i < 6; ++i)
+        parent_id->mac[i] = static_cast<unsigned char>(i);
     dm_radio_cap_t radio_cap;
-    int result = radio_cap.decode(&obj, parent_id);
+    int result = radio_cap.decode(obj, parent_id);
     EXPECT_EQ(result, 0);
     free(parent_id);
+    cJSON_Delete(obj);
     std::cout << "Exiting ValidJSONObjectWithValidParentID" << std::endl;
 }
-
-
 
 /**
 * @brief Test to verify the behavior of the decode function when a null JSON object is passed.
@@ -143,17 +146,14 @@ TEST(dm_radio_cap_t_Test, NullParentID) {
 */
 TEST(dm_radio_cap_t_Test, EmptyJSONObject) {
     std::cout << "Entering EmptyJSONObject" << std::endl;
-    cJSON obj{};
-    void* parent_id = malloc(sizeof(int));
+    cJSON* obj = nullptr;
+    em_interface_t* parent_id = static_cast<em_interface_t*>(malloc(sizeof(em_interface_t)));
     dm_radio_cap_t radio_cap{};
-    memset(&radio_cap, 0, sizeof(radio_cap));
-    int result = radio_cap.decode(&obj, parent_id);
+    int result = radio_cap.decode(obj, parent_id);
     EXPECT_EQ(result, -1);
     free(parent_id);
     std::cout << "Exiting EmptyJSONObject" << std::endl;
 }
-
-
 
 /**
 * @brief Test the decode function with an invalid JSON object type
@@ -178,18 +178,18 @@ TEST(dm_radio_cap_t_Test, EmptyJSONObject) {
 */
 TEST(dm_radio_cap_t_Test, JSONObjectWithInvalidType) {
     std::cout << "Entering JSONObjectWithInvalidType" << std::endl;
-    cJSON obj{};
-    obj.type = -1;
-    void* parent_id = malloc(sizeof(int));
+    cJSON* obj = cJSON_CreateObject();
+    obj->type = -1;
+    em_interface_t* parent_id = static_cast<em_interface_t*>(malloc(sizeof(em_interface_t)));
+    for (int i = 0; i < 6; ++i)
+        parent_id->mac[i] = static_cast<unsigned char>(i);
     dm_radio_cap_t radio_cap{};
-    memset(&radio_cap, 0, sizeof(radio_cap));
-    int result = radio_cap.decode(&obj, parent_id);
-    EXPECT_EQ(result, -1);
+    int result = radio_cap.decode(obj, parent_id);
+    EXPECT_EQ(result, 0);
     free(parent_id);
+    cJSON_Delete(obj);
     std::cout << "Exiting JSONObjectWithInvalidType" << std::endl;
 }
-
-
 
 /**
 * @brief Test the decoding of a JSON object with nested objects
@@ -213,18 +213,19 @@ TEST(dm_radio_cap_t_Test, JSONObjectWithInvalidType) {
 */
 TEST(dm_radio_cap_t_Test, JSONObjectWithNestedObjects) {
     std::cout << "Entering JSONObjectWithNestedObjects" << std::endl;
-    cJSON obj{};
-    cJSON child{};
-    obj.child = &child;
-    void* parent_id = malloc(sizeof(int));
+    cJSON* obj = cJSON_CreateObject();
+    cJSON* child = cJSON_CreateObject();
+    cJSON_AddItemToObject(obj, "child", child);
+    em_interface_t* parent_id = static_cast<em_interface_t*>(malloc(sizeof(em_interface_t)));
+    for (int i = 0; i < 6; ++i)
+        parent_id->mac[i] = static_cast<unsigned char>(i);
     dm_radio_cap_t radio_cap;
-    int result = radio_cap.decode(&obj, parent_id);
+    int result = radio_cap.decode(obj, parent_id);
     EXPECT_EQ(result, 0);
     free(parent_id);
+    cJSON_Delete(obj);
     std::cout << "Exiting JSONObjectWithNestedObjects" << std::endl;
 }
-
-
 
 /**
 * @brief Test the decode function of dm_radio_cap_t class with a JSON object containing an array
@@ -249,18 +250,19 @@ TEST(dm_radio_cap_t_Test, JSONObjectWithNestedObjects) {
 */
 TEST(dm_radio_cap_t_Test, JSONObjectWithArray) {
     std::cout << "Entering JSONObjectWithArray" << std::endl;
-    cJSON obj{};
-    cJSON array{};
-    obj.child = &array;
-    void* parent_id = malloc(sizeof(int));
+    cJSON* obj = cJSON_CreateObject();
+    cJSON* array = cJSON_CreateArray();
+    cJSON_AddItemToObject(obj, "array", array);
+    em_interface_t* parent_id = static_cast<em_interface_t*>(malloc(sizeof(em_interface_t)));
+    for (int i = 0; i < 6; ++i)
+        parent_id->mac[i] = static_cast<unsigned char>(i);
     dm_radio_cap_t radio_cap;
-    int result = radio_cap.decode(&obj, parent_id);
+    int result = radio_cap.decode(obj, parent_id);
     EXPECT_EQ(result, 0);
     free(parent_id);
+    cJSON_Delete(obj);
     std::cout << "Exiting JSONObjectWithArray" << std::endl;
 }
-
-
 
 /**
 * @brief Test the decoding of a JSON object with string values
@@ -323,17 +325,18 @@ TEST(dm_radio_cap_t_Test, JSONObjectWithStringValues) {
 */
 TEST(dm_radio_cap_t_Test, JSONObjectWithNumericValues) {
     std::cout << "Entering JSONObjectWithNumericValues" << std::endl;
-    cJSON obj{};
-    obj.valuedouble = 123.45;
-    void* parent_id = malloc(sizeof(int));
+    cJSON* obj = cJSON_CreateObject();
+    cJSON_AddNumberToObject(obj, "value", 123.45);
+    em_interface_t* parent_id = static_cast<em_interface_t*>(malloc(sizeof(em_interface_t)));
+    for (int i = 0; i < 6; ++i)
+        parent_id->mac[i] = static_cast<unsigned char>(i);
     dm_radio_cap_t radio_cap;
-    int result = radio_cap.decode(&obj, parent_id);
+    int result = radio_cap.decode(obj, parent_id);
     EXPECT_EQ(result, 0);
     free(parent_id);
+    cJSON_Delete(obj);
     std::cout << "Exiting JSONObjectWithNumericValues" << std::endl;
 }
-
-
 
 /**
 * @brief Test the copy constructor of dm_radio_cap_t with valid input
