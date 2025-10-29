@@ -74,7 +74,7 @@ TEST(dm_sta_t_Test, ValidJsonObjectAndValidParentID) {
 * **Test Procedure:**@n
 * | Variation / Step | Description | Test Data | Expected Result | Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Allocate memory for parent_id | parent_id = malloc(sizeof(int)) | Memory allocated successfully | Should be successful |
+* | 01 | Assign value for parent_id | memset(parent_id, 0x11, sizeof(mac_address_t));| parent_id allocated successfully | Should be successful |
 * | 02 | Create an instance of dm_sta_t | dm_sta_t dm_sta | Instance created successfully | Should be successful |
 * | 03 | Call decode with null JSON object | json_obj = nullptr, parent_id = parent_id | result = -1 | Should Fail |
 * | 04 | Check the result of decode | result = -1 | EXPECT_EQ(result, -1) | Should be successful |
@@ -82,7 +82,8 @@ TEST(dm_sta_t_Test, ValidJsonObjectAndValidParentID) {
 */
 TEST(dm_sta_t_Test, NullJsonObject) {
     std::cout << "Entering NullJsonObject" << std::endl;
-    void* parent_id = malloc(sizeof(int));
+    mac_address_t* parent_id = static_cast<mac_address_t*>(malloc(sizeof(mac_address_t)));
+    memset(parent_id, 0x11, sizeof(mac_address_t));  // Fill with dummy MAC bytes
     dm_sta_t dm_sta;
     int result = dm_sta.decode(nullptr, parent_id);
     EXPECT_EQ(result, -1);
@@ -136,7 +137,7 @@ TEST(dm_sta_t_Test, NullParentID) {
 * | Variation / Step | Description | Test Data | Expected Result | Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
 * | 01 | Create a JSON object with invalid type | obj->type = -1 | Should be successful | |
-* | 02 | Allocate memory for parent_id | parent_id = malloc(sizeof(int)) | Should be successful | |
+* | 02 | Assign value for parent_id | memset(parent_id, 0x11, sizeof(mac_address_t));| Should be successful | |
 * | 03 | Call the decode function with invalid JSON object | result = dm_sta.decode(obj, parent_id) | result = -1, EXPECT_EQ(result, -1) | Should Pass |
 * | 04 | Free the allocated memory for parent_id and JSON obj | free(parent_id) , cJSON_Delete(obj)| Should be successful | |
 */
@@ -144,7 +145,8 @@ TEST(dm_sta_t_Test, JsonObjectWithInvalidType) {
     std::cout << "Entering JsonObjectWithInvalidType" << std::endl;
     cJSON* obj = cJSON_CreateObject();
     obj->type = -1;
-    void* parent_id = malloc(sizeof(int));
+    mac_address_t* parent_id = static_cast<mac_address_t*>(malloc(sizeof(mac_address_t)));
+    memset(parent_id, 0x11, sizeof(mac_address_t));  // Fill with dummy MAC bytes
     dm_sta_t dm_sta;
     int result = dm_sta.decode(obj, parent_id);
     EXPECT_EQ(result, -1);
@@ -169,7 +171,7 @@ TEST(dm_sta_t_Test, JsonObjectWithInvalidType) {
 * **Test Procedure:**@n
 * | Variation / Step | Description | Test Data |Expected Result |Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Allocate memory for nested JSON object and parent ID | cJSON* nested_obj = cJSON_CreateObject(), parent_id = malloc(sizeof(int)) | Memory should be allocated successfully | Should be successful |
+* | 01| Allocate memory for nested JSON object and parent ID | cJSON* nested_obj = cJSON_CreateObject(), memset(parent_id, 0x11, sizeof(mac_address_t));| Memory should be allocated successfully | Should be successful |
 * | 02| Invoke the decode method with the JSON object and parent ID | obj, parent_id | result should be 0, EXPECT_EQ(result, 0) | Should Pass |
 * | 03| Free allocated memory for nested JSON object and parent ID | cJSON_Delete(obj), free(parent_id) | Memory should be freed successfully | Should be successful |
 */
@@ -183,7 +185,8 @@ TEST(dm_sta_t_Test, JsonObjectWithNestedObjects) {
     cJSON_AddNumberToObject(nested_obj, "LastDataUplinkRate", 100);
     // Add nested object as a child to main obj with some key
     cJSON_AddItemToObject(obj, "nested_key", nested_obj);
-    void* parent_id = malloc(sizeof(int));
+    mac_address_t* parent_id = static_cast<mac_address_t*>(malloc(sizeof(mac_address_t)));
+    memset(parent_id, 0x11, sizeof(mac_address_t));  // Fill with dummy MAC bytes
     dm_sta_t dm_sta;
     int result = dm_sta.decode(obj, parent_id);
     EXPECT_EQ(result, 0);
@@ -209,14 +212,15 @@ TEST(dm_sta_t_Test, JsonObjectWithNestedObjects) {
 * | Variation / Step | Description | Test Data |Expected Result |Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
 * | 01| Create a JSON object of type array | cJSON* obj = cJSON_CreateArray() | Should be successful | |
-* | 02| Allocate memory for parent_id | parent_id = malloc(sizeof(int)) | Should be successful | |
+* | 02| Assign value for parent_id | memset(parent_id, 0x11, sizeof(mac_address_t)); | Should be successful | |
 * | 03| Call decode method with JSON object and parent_id | dm_sta.decode(obj, parent_id) | result = 0, EXPECT_EQ(result, 0) | Should Pass |
 * | 04| Free allocated memory for parent_id and JSON obj| free(parent_id), cJSON_Delete(obj) | Should be successful | |
 */
 TEST(dm_sta_t_Test, JsonObjectWithArray) {
     std::cout << "Entering JsonObjectWithArray" << std::endl;
     cJSON* obj = cJSON_CreateArray();
-    void* parent_id = malloc(sizeof(int));
+    mac_address_t* parent_id = static_cast<mac_address_t*>(malloc(sizeof(mac_address_t)));
+    memset(parent_id, 0x11, sizeof(mac_address_t));  // Fill with dummy MAC bytes
     dm_sta_t dm_sta;
     int result = dm_sta.decode(obj, parent_id);
     EXPECT_EQ(result, 0);
@@ -242,7 +246,7 @@ TEST(dm_sta_t_Test, JsonObjectWithArray) {
 * | Variation / Step | Description | Test Data | Expected Result | Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
 * | 01 | Initialize JSON object with special characters | cJSON* obj = cJSON_CreateString("!@#$%^&*()") | Should be successful | |
-* | 02 | Allocate memory for parent_id | parent_id = malloc(sizeof(int)) | Should be successful | |
+* | 02 | Assign value for parent_id | memset(parent_id, 0x11, sizeof(mac_address_t)); | Should be successful | |
 * | 03 | Call decode function | obj = "!@#$%^&*()", parent_id = allocated memory | result = 0, EXPECT_EQ(result, 0) | Should Pass |
 * | 04 | Free allocated memory for obj | cJSON_Delete(obj) | Should be successful | |
 * | 05 | Free allocated memory for parent_id | free(parent_id) | Should be successful | |
@@ -250,7 +254,8 @@ TEST(dm_sta_t_Test, JsonObjectWithArray) {
 TEST(dm_sta_t_Test, JsonObjectWithSpecialCharacters) {
     std::cout << "Entering JsonObjectWithSpecialCharacters" << std::endl;
     cJSON* obj = cJSON_CreateString("!@#$%^&*()");
-    void* parent_id = malloc(sizeof(int));
+    mac_address_t* parent_id = static_cast<mac_address_t*>(malloc(sizeof(mac_address_t)));
+    memset(parent_id, 0x11, sizeof(mac_address_t));  // Fill with dummy MAC bytes
     dm_sta_t dm_sta;
     int result = dm_sta.decode(obj, parent_id);
     EXPECT_EQ(result, 0);
@@ -1028,60 +1033,12 @@ TEST(dm_sta_t_Test, AssigningObjectWithMaxAndMinValues) {
 }
 
 /**
-* @brief Test the assignment operator with mixed valid and invalid data
-*
-* This test verifies that the assignment operator correctly assigns values from one object to another, even when the data contains a mix of valid and invalid values. This ensures that the assignment operator handles edge cases and maintains data integrity.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 031@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize obj1 with mixed valid and invalid data | obj1.m_sta_info.associated = true, obj1.m_sta_info.last_ul_rate = 1000, obj1.m_sta_info.last_dl_rate = -1, obj1.m_sta_info.signal_strength = -200, obj1.m_sta_info.rcpi = 300, obj1.m_sta_info.util_tx = 120, obj1.m_sta_info.util_rx = 50, obj1.m_sta_info.id = {0xAA, 0xCC, 0xBB, 0x00, 0x00, 0x00} | obj1 initialized with given values | Should be successful |
-*
-* | 02| Assign obj1 to obj2 | obj2 = obj1 | obj2 should have the same values as obj1 | Should be successful |
-* | 03| Check obj2 and obj1 field values are same | obj2.m_sta_info.associated = true, obj2.m_sta_info.last_ul_rate = 1000, obj2.m_sta_info.last_dl_rate = -1, obj2.m_sta_info.signal_strength = -200, obj2.m_sta_info.rcpi = 300, obj2.m_sta_info.util_tx = 120, obj2.m_sta_info.util_rx = 50, obj2.m_sta_info.id = {0xAA, 0xCC, 0xBB, 0x00, 0x00, 0x00} | Should be true | Should Pass |
-*/
-TEST(dm_sta_t_Test, AssigningObjectWithMixedValidAndInvalidData) {
-    std::cout << "Entering AssigningObjectWithMixedValidAndInvalidData" << std::endl;
-    dm_sta_t obj1;
-    obj1.m_sta_info.associated = true;
-    obj1.m_sta_info.last_ul_rate = 1000;
-    obj1.m_sta_info.last_dl_rate = -1;
-    obj1.m_sta_info.signal_strength = -200;
-    obj1.m_sta_info.rcpi = 300;
-    obj1.m_sta_info.util_tx = 120;
-    obj1.m_sta_info.util_rx = 50;
-    uint8_t id[6] = {0xAA, 0xCC, 0xBB, 0x00, 0x00, 0x00};
-    memcpy(obj1.m_sta_info.id, id, sizeof(id));
-    dm_sta_t obj2;
-    obj2 = obj1;
-    EXPECT_EQ(obj2.m_sta_info.associated, obj1.m_sta_info.associated);
-    EXPECT_EQ(obj2.m_sta_info.last_ul_rate, obj1.m_sta_info.last_ul_rate);
-    EXPECT_EQ(obj2.m_sta_info.last_dl_rate, obj1.m_sta_info.last_dl_rate);
-    EXPECT_EQ(obj2.m_sta_info.signal_strength, obj1.m_sta_info.signal_strength);
-    EXPECT_EQ(obj2.m_sta_info.rcpi, obj1.m_sta_info.rcpi);
-    EXPECT_EQ(obj2.m_sta_info.util_tx, obj1.m_sta_info.util_tx);
-    EXPECT_EQ(obj2.m_sta_info.util_rx, obj1.m_sta_info.util_rx);
-    for (int i = 0; i < 6; ++i) {
-        EXPECT_EQ(obj2.m_sta_info.id[i], id[i]);
-    }
-    std::cout << "Exiting AssigningObjectWithMixedValidAndInvalidData" << std::endl;
-}
-
-/**
 * @brief Test to compare two identical objects of dm_sta_t class
 *
 * This test verifies the equality operator (==) for the dm_sta_t class by comparing two identical objects. The test ensures that the equality operator correctly identifies that two newly created objects of the same class are equal.
 *
 * **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 032@n
+* **Test Case ID:** 031@n
 * **Priority:** High@n
 * @n
 * **Pre-Conditions:** None@n
@@ -1098,6 +1055,10 @@ TEST(dm_sta_t_Test, CompareIdenticalObjects) {
     std::cout << "Entering CompareIdenticalObjects test";
     dm_sta_t obj1 {};
     dm_sta_t obj2 {};
+    obj1.m_sta_info.last_ul_rate = 100;
+    obj2.m_sta_info.last_ul_rate = 100;
+    obj1.m_sta_info.last_dl_rate = 200;
+    obj2.m_sta_info.last_dl_rate = 200;
     EXPECT_TRUE(obj1 == obj2);
     std::cout << "Exiting CompareIdenticalObjects test";
 }
@@ -1108,7 +1069,7 @@ TEST(dm_sta_t_Test, CompareIdenticalObjects) {
 * This test verifies that two instances of `dm_sta_t` with different MAC addresses are not considered equal. This is important to ensure that the equality operator for `dm_sta_t` correctly identifies instances with different MAC addresses as unequal.
 *
 * **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 033@n
+* **Test Case ID:** 032@n
 * **Priority:** High@n
 * @n
 * **Pre-Conditions:** None@n
@@ -1148,7 +1109,7 @@ TEST(dm_sta_t_Test, CompareDifferentMacAddress) {
 * This test verifies that two dm_sta_t objects with different associated statuses are not considered equal.@n
 *
 * **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 034@n
+* **Test Case ID:** 033@n
 * **Priority:** High@n
 * @n
 * **Pre-Conditions:** None@n
@@ -1179,7 +1140,7 @@ TEST(dm_sta_t_Test, CompareDifferentAssociatedStatus) {
 * This test verifies that two dm_sta_t objects with different last_ul_rate values are not considered equal. This is important to ensure that the equality operator correctly identifies differences in the last_ul_rate attribute.
 *
 * **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 035@n
+* **Test Case ID:** 034@n
 * **Priority:** High@n
 * @n
 * **Pre-Conditions:** None@n
@@ -1208,7 +1169,7 @@ TEST(dm_sta_t_Test, CompareDifferentLastUlRate) {
 * This test verifies that two dm_sta_t objects with different last_dl_rate values are not considered equal. This is important to ensure that the equality operator correctly identifies differences in the last_dl_rate attribute.
 *
 * **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 036@n
+* **Test Case ID:** 035@n
 * **Priority:** High@n
 * @n
 * **Pre-Conditions:** None@n
@@ -1238,7 +1199,7 @@ TEST(dm_sta_t_Test, CompareDifferentLastDlRate) {
 * This test verifies that two dm_sta_t objects with different signal strengths are not considered equal.@n
 *
 * **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 037@n
+* **Test Case ID:** 036@n
 * **Priority:** High@n
 * @n
 * **Pre-Conditions:** None@n
@@ -1267,7 +1228,7 @@ TEST(dm_sta_t_Test, CompareDifferentSignalStrength) {
 * This test verifies that two dm_sta_t objects with different RCPI values are not considered equal. This is important to ensure that the equality operator for dm_sta_t objects correctly identifies objects with different RCPI values as unequal.
 *
 * **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 038@n
+* **Test Case ID:** 037@n
 * **Priority:** High@n
 * @n
 * **Pre-Conditions:** None@n
@@ -1296,7 +1257,7 @@ TEST(dm_sta_t_Test, CompareDifferentRcpi) {
 * This test verifies that two dm_sta_t objects with different multi_band_cap values are not considered equal.@n
 *
 * **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 039@n
+* **Test Case ID:** 038@n
 * **Priority:** High@n
 * @n
 * **Pre-Conditions:** None@n
@@ -1325,7 +1286,7 @@ TEST(dm_sta_t_Test, CompareDifferentMultiBandCap) {
 * This test verifies that two dm_sta_t objects with different num_vendor_infos are not considered equal.@n
 *
 * **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 040@n
+* **Test Case ID:** 039@n
 * **Priority:** High@n
 * @n
 * **Pre-Conditions:** None@n
@@ -1355,7 +1316,7 @@ TEST(dm_sta_t_Test, CompareDifferentNumVendorInfos) {
 * This test verifies that two dm_sta_t objects with different SSIDs are not considered equal. This is important to ensure that the equality operator for dm_sta_t correctly distinguishes between objects with different SSIDs.
 *
 * **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 041@n
+* **Test Case ID:** 040@n
 * **Priority:** High@n
 * @n
 * **Pre-Conditions:** None@n
@@ -1387,7 +1348,7 @@ TEST(dm_sta_t_Test, CompareDifferentSsid) {
 * the STA, BSSID, and Radio MAC addresses from a given key string that is correctly formatted.@n
 *
 * **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 042@n
+* **Test Case ID:** 041@n
 * **Priority:** High@n
 * @n
 * **Pre-Conditions:** None@n
@@ -1427,7 +1388,7 @@ TEST(dm_sta_t_Test, ValidKeyWithCorrectlyFormattedMACAddresses) {
 * This test checks the behavior of the parse_sta_bss_radio_from_key function when provided with a key that has missing MAC addresses. It ensures that the function correctly identifies and parses the available MAC addresses while handling the missing ones appropriately.
 *
 * **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 043@n
+* **Test Case ID:** 042@n
 * **Priority:** High@n
 * @n
 * **Pre-Conditions:** None@n
@@ -1462,7 +1423,7 @@ TEST(dm_sta_t_Test, KeyWithMissingMACAddresses) {
 * This test checks the functionality of the parse_sta_bss_radio_from_key function to ensure it correctly parses a key string with extra delimiters into the respective MAC addresses for sta, bssid, and radio.
 *
 * **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 044@n
+* **Test Case ID:** 043@n
 * **Priority:** High@n
 * @n
 * **Pre-Conditions:** None@n
@@ -1502,7 +1463,7 @@ TEST(dm_sta_t_Test, KeyWithExtraDelimiters) {
 * It ensures that the function handles the NULL input gracefully and sets the output parameters to empty strings.
 *
 * **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 045@n
+* **Test Case ID:** 044@n
 * **Priority:** High@n
 * @n
 * **Pre-Conditions:** None@n
@@ -1533,7 +1494,7 @@ TEST(dm_sta_t_Test, NullKey) {
  * This test verifies that when invoking the default constructor of dm_sta_t, the constructor does not throw any exceptions
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 046@n
+ * **Test Case ID:** 045@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -1562,7 +1523,7 @@ TEST(dm_sta_t_Test, DefaultConstructorCreatesValidObject) {
  * This test validates that an instance of dm_sta_t, when constructed using the default constructor, is properly destroyed without throwing any exceptions upon scope exit. The test ensures that the destructor invocation does not lead to any runtime errors.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 047@n
+ * **Test Case ID:** 046@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n

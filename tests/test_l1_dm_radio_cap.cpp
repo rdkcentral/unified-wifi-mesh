@@ -83,7 +83,6 @@ TEST(dm_radio_cap_t_Test, NullJSONObject) {
     std::cout << "Entering NullJSONObject" << std::endl;
     void* parent_id = malloc(sizeof(int));
     dm_radio_cap_t radio_cap{};
-    memset(&radio_cap, 0, sizeof(radio_cap));
     int result = radio_cap.decode(nullptr, parent_id);
     EXPECT_EQ(result, -1);
     free(parent_id);
@@ -145,7 +144,6 @@ TEST(dm_radio_cap_t_Test, NullParentID) {
 TEST(dm_radio_cap_t_Test, EmptyJSONObject) {
     std::cout << "Entering EmptyJSONObject" << std::endl;
     cJSON obj{};
-    memset(&obj, 0, sizeof(obj));
     void* parent_id = malloc(sizeof(int));
     dm_radio_cap_t radio_cap{};
     memset(&radio_cap, 0, sizeof(radio_cap));
@@ -181,7 +179,6 @@ TEST(dm_radio_cap_t_Test, EmptyJSONObject) {
 TEST(dm_radio_cap_t_Test, JSONObjectWithInvalidType) {
     std::cout << "Entering JSONObjectWithInvalidType" << std::endl;
     cJSON obj{};
-    memset(&obj, 0, sizeof(obj));
     obj.type = -1;
     void* parent_id = malloc(sizeof(int));
     dm_radio_cap_t radio_cap{};
@@ -289,19 +286,19 @@ TEST(dm_radio_cap_t_Test, JSONObjectWithArray) {
 */
 TEST(dm_radio_cap_t_Test, JSONObjectWithStringValues) {
     std::cout << "Entering JSONObjectWithStringValues" << std::endl;
-    cJSON obj{};
-    char* str = strdup("test");
-    obj.valuestring = str;
-    void* parent_id = malloc(sizeof(int));
+    cJSON* obj = cJSON_CreateObject();
+    ASSERT_NE(obj, nullptr);
+    cJSON_AddStringToObject(obj, "dummy", "test");
+    em_interface_t* parent_id = static_cast<em_interface_t*>(malloc(sizeof(em_interface_t)));
+    ASSERT_NE(parent_id, nullptr);
+    for (int i = 0; i < 6; ++i) parent_id->mac[i] = static_cast<unsigned char>(i);
     dm_radio_cap_t radio_cap;
-    int result = radio_cap.decode(&obj, parent_id);
+    int result = radio_cap.decode(obj, parent_id);
     EXPECT_EQ(result, 0);
     free(parent_id);
-    free(str);
+    cJSON_Delete(obj);
     std::cout << "Exiting JSONObjectWithStringValues" << std::endl;
 }
-
-
 
 /**
 * @brief Test the decoding of a JSON object with numeric values
@@ -983,8 +980,6 @@ TEST(dm_radio_cap_t_Test, CompareDifferentMediaType) {
     std::cout << "Entering CompareDifferentMediaType" << std::endl;
     dm_radio_cap_t obj1{};
     dm_radio_cap_t obj2{};
-    std::memset(&obj1, 0, sizeof(obj1));
-    std::memset(&obj2, 0, sizeof(obj2));
     obj1.m_radio_cap_info.ruid.media = em_media_type_ieee80211g_24;
     obj2.m_radio_cap_info.ruid.media = em_media_type_ieee80211a_5;
     EXPECT_FALSE(obj1 == obj2);
@@ -1017,8 +1012,6 @@ TEST(dm_radio_cap_t_Test, CompareDifferentEnabledValue) {
     std::cout << "Entering CompareDifferentEnabledValue" << std::endl;
     dm_radio_cap_t obj1{};
     dm_radio_cap_t obj2{};
-    std::memset(&obj1, 0, sizeof(obj1));
-    std::memset(&obj2, 0, sizeof(obj2));
     obj1.m_radio_cap_info.ch_scan.enabled = false;
     obj2.m_radio_cap_info.ch_scan.enabled = true;
     EXPECT_FALSE(obj1 == obj2);
@@ -1050,8 +1043,6 @@ TEST(dm_radio_cap_t_Test, CompareDifferentEnabledValue) {
 TEST(dm_radio_cap_t_Test, CompareDifferentChipVendor) {
     std::cout << "Entering CompareDifferentChipVendor" << std::endl;
     dm_radio_cap_t obj1{}, obj2{};
-    std::memset(&obj1, 0, sizeof(obj1));
-    std::memset(&obj2, 0, sizeof(obj2));
     std::memcpy(obj1.m_radio_cap_info.ch_scan.chip_vendor, "vendorA", sizeof("vendorA"));
     std::memcpy(obj2.m_radio_cap_info.ch_scan.chip_vendor, "VendorX", sizeof("VendorX"));
     EXPECT_FALSE(obj1 == obj2);
@@ -1085,8 +1076,6 @@ TEST(dm_radio_cap_t_Test, CompareDifferentBSSColorBitmap) {
     std::cout << "Entering CompareDifferentBSSColorBitmap" << std::endl;
     dm_radio_cap_t obj1{};
     dm_radio_cap_t obj2{};
-    std::memset(&obj1, 0, sizeof(obj1));
-    std::memset(&obj2, 0, sizeof(obj2));
     obj1.m_radio_cap_info.ch_scan.srg_bss_color_bitmap[0] = 0;
     obj2.m_radio_cap_info.ch_scan.srg_bss_color_bitmap[0] = 1;
     EXPECT_FALSE(obj1 == obj2);
@@ -1119,8 +1108,6 @@ TEST(dm_radio_cap_t_Test, CompareDifferentQosMap) {
     std::cout << "Entering CompareDifferentQosMap" << std::endl;
     dm_radio_cap_t obj1{};
     dm_radio_cap_t obj2{};
-    std::memset(&obj1, 0, sizeof(obj1));
-    std::memset(&obj2, 0, sizeof(obj2));
     obj1.m_radio_cap_info.radio_ad_cap.qos_map = false;
     obj2.m_radio_cap_info.radio_ad_cap.qos_map = true;
     EXPECT_FALSE(obj1 == obj2);
@@ -1153,8 +1140,6 @@ TEST(dm_radio_cap_t_Test, CompareDifferentMetricInterval) {
     std::cout << "Entering CompareDifferentMetricInterval" << std::endl;
     dm_radio_cap_t obj1{};
     dm_radio_cap_t obj2{};
-    std::memset(&obj1, 0, sizeof(obj1));
-    std::memset(&obj2, 0, sizeof(obj2));
     obj1.m_radio_cap_info.metric_interval.metric_cltn_interval = 0;
     obj2.m_radio_cap_info.metric_interval.metric_cltn_interval = 100;
     EXPECT_FALSE(obj1 == obj2);

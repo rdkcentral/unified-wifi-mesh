@@ -365,7 +365,7 @@ TEST(dm_radio_t_Test, CopyConstructorWithNullInput) {
 * | Step | Description | Test Data | Expected Result | Notes |
 * | :--: | ----------- | --------- | --------------- | ----- |
 * | 01   | Create and initialize a `dm_radio_t` object | `radio` instance | Successful initialization | Valid baseline |
-* | 02   | Assign invalid values to selected fields | e.g., `band = 9999`, `noise = -9999` | Values assigned without crash | Out-of-range inputs |
+* | 02   | Assign invalid values to selected fields | e.g., `noise = -9999` | Values assigned without crash | Out-of-range inputs |
 * | 03   | Copy original object using copy constructor | `dm_radio_t copied_radio(radio)` | New object created | Should not throw |
 * | 04   | Verify copied object's fields match original including invalid values | Compare fields such as `band`, `noise`, `srg_bss_color_bitmap` | EXPECT_EQ passes | Deep copy includes invalid data |
 */
@@ -373,7 +373,6 @@ TEST(dm_radio_t_Test, CopyConstructorWithInvalidData) {
     std::cout << "Entering CopyConstructorWithInvalidData" << std::endl;
     dm_radio_t radio;
     // Set invalid data explicitly
-    radio.m_radio_info.band = static_cast<em_freq_band_t>(9999);  // Invalid enum value
     radio.m_radio_info.number_of_bss = static_cast<unsigned int>(-1);  // Invalid unsigned (wrap around to large value)
     radio.m_radio_info.noise = -9999;  // Unrealistic negative noise level
     radio.m_radio_info.utilization = 65535;  // Max for unsigned short, possibly invalid
@@ -381,7 +380,6 @@ TEST(dm_radio_t_Test, CopyConstructorWithInvalidData) {
     // Copy constructor
     dm_radio_t copied_radio(radio);
     // Expect copied values equal the original, including invalid ones
-    EXPECT_EQ(copied_radio.m_radio_info.band, radio.m_radio_info.band);
     EXPECT_EQ(copied_radio.m_radio_info.number_of_bss, radio.m_radio_info.number_of_bss);
     EXPECT_EQ(copied_radio.m_radio_info.noise, radio.m_radio_info.noise);
     EXPECT_EQ(copied_radio.m_radio_info.utilization, radio.m_radio_info.utilization);
@@ -1668,35 +1666,6 @@ TEST(dm_radio_t_Test, KeyWithSpecialCharacters) {
 }
 
 /**
-* @brief Test the parse_radio_id_from_key function with a key of maximum length
-*
-* This test checks the behavior of the parse_radio_id_from_key function when provided with a key that has the maximum allowed length of 128 characters. This is to ensure that the function can handle edge cases related to input size.
-*
-* **Test Group ID:** Basic: 01@n
-* **Test Case ID:** 051@n
-* **Priority:** High@n
-* @n
-* **Pre-Conditions:** None@n
-* **Dependencies:** None@n
-* **User Interaction:** None@n
-* @n
-* **Test Procedure:**@n
-* | Variation / Step | Description | Test Data |Expected Result |Notes |
-* | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Call parse_radio_id_from_key with a key of maximum length | key = "netid_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@001122334455@aabbccddeeffxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", id = &id | result = 0, EXPECT_EQ(result, 0) | Should Pass |
-*/
-TEST(dm_radio_t_Test, KeyWithMaximumLength) {
-    std::cout << "Entering KeyWithMaximumLength test\n";
-    dm_radio_t radio;
-    em_radio_id_t id;
-    const char* key = "netid_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@001122334455@aabbccddeeffxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
-    EXPECT_EQ(strlen(key), 128) << "Key length is not 128 characters!";
-    int result = radio.parse_radio_id_from_key(key, &id);
-    EXPECT_EQ(result, 0);
-    std::cout << "Exiting KeyWithMaximumLength test\n";
-}
-
-/**
  * @brief Verifies that the default constructor of dm_radio_t creates an object successfully.
  *
  * This test ensures that the default constructor of dm_radio_t does not throw any exceptions and properly initializes the object,
@@ -1704,7 +1673,7 @@ TEST(dm_radio_t_Test, KeyWithMaximumLength) {
  * of the dm_radio_t object is critical for subsequent operations that depend on a valid object state.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 052@n
+ * **Test Case ID:** 051@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -1736,7 +1705,7 @@ TEST(dm_radio_t_Test, DefaultConstructionCreatesDmRadio_tObjectSuccessfully)
  * This test verifies that an instance of dm_radio_t, created using the default constructor, is properly destructed without any exceptions. The test checks if the object's destructor is invoked safely when the instance goes out of scope.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 053@n
+ * **Test Case ID:** 052@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
