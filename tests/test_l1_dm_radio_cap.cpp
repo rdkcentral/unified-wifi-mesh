@@ -853,7 +853,7 @@ TEST(dm_radio_cap_t_Test, AssigningMixedValues) {
     obj2.m_radio_cap_info.ch_scan.noise = -100;
     obj1 = obj2;
     EXPECT_EQ(obj1.m_radio_cap_info.wifi7_cap.radios_num, 3);
-    EXPECT_EQ(obj2.m_radio_cap_info.ch_scan.noise, -100);
+    EXPECT_EQ(obj1.m_radio_cap_info.ch_scan.noise, -100);
     std::cout << "Exiting AssigningMixedValues test";
 }
 
