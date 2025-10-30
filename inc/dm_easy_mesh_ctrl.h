@@ -1588,6 +1588,16 @@ public:
 	 */
 	void update_network_topology();
 
+	/**!
+	 * @brief Publish the network topology.
+	 *
+	 * This function is responsible for publishing the current network topology
+	 * over the bus.
+	 *
+	 * @note Ensure that the network topology is properly updated
+	 * before calling this function.
+	 */
+	void publish_network_topology();
     
 	/**!
 	 * @brief Handles the dirty data management process.

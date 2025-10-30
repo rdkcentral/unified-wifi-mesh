@@ -570,8 +570,16 @@ public:
 	 * @note This function does not take any parameters and does not return any value.
 	 */
 	virtual void update_network_topology() = 0;
+
+	/**!
+	 * @brief Publish the network topology.
+	 *
+	 * This function is a pure virtual function that must be implemented by derived classes.
+	 *
+	 * @note This function does not take any parameters and does not return any value.
+	 */
+	virtual void publish_network_topology() = 0;
     
- 
 	/**!
 	 * @brief Retrieves the first data model from the list.
 	 * 

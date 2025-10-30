@@ -471,6 +471,15 @@ public:
 	void update_network_topology() { m_data_model.update_network_topology(); }
 
 	/**!
+	 * @brief Publish the network topology using the data model.
+	 *
+	 * This function publishes the current network topology over the bus.
+	 *
+	 * @note Ensure that `m_data_model` is properly updated before calling this function.
+	 */
+	void publish_network_topology();
+
+	/**!
 	 * @brief Retrieves the first data model in the agent list.
 	 *
 	 * @returns A pointer to the first `dm_easy_mesh_t` data model, or nullptr if no dms are available.
@@ -633,7 +642,6 @@ public:
 	* @param[i] user_data get the bus handle
 	*/
 	//static bus_error_t cmd_setssid (const char *event_name, bus_data_prop_t const *input_data, bus_data_prop_t *output_data, void *user_data);
-
 
 #ifdef AL_SAP
     

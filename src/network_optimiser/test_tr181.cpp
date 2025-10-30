@@ -28,7 +28,8 @@
 typedef enum{
     CONTROLLERID,
     COLOCATEDAGENTID,
-    SETSSID
+    SETSSID,
+    TOPO_PUBLISH
 }test_tr;
 
 void print_options()
@@ -38,6 +39,7 @@ void print_options()
     printf("\nDEVICE_WIFI_DATAELEMENTS_NETWORK_CONTROLLERID:%d",CONTROLLERID);
     printf("\nDEVICE_WIFI_DATAELEMENTS_NETWORK_COLOCATEDAGENTID:%d",COLOCATEDAGENTID);
     printf("\nDEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD:%d",SETSSID);
+    printf("\nDEVICE_WIFI_DATAELEMENTS_NETWORK_TOPO_PUBLISH:%d",TOPO_PUBLISH);
     printf("\n ---------------------------------------------------");
     printf("\n");
 }
@@ -49,6 +51,14 @@ void output_cb(char const* methodName, bus_error_t error, bus_data_prop_t *param
     //wait all devices are online and check ssid details of all devices
 }
 
+
+int topo_cb(char *event_name, raw_data_t *data, void *userData)
+{
+    printf("%s:%d Received Frame data for event [%s] and data :\n%s\n", __func__, __LINE__, event_name, data->raw_data.bytes);
+    (void)userData;
+
+    return 0;
+}
 
 int main()
 {
@@ -176,6 +186,13 @@ int main()
             }
 
             printf("%s:%d bus_set_fn SUCCESS: %d\n", __func__, __LINE__, bus_error_val);
+        } else if (input == TOPO_PUBLISH) {
+            printf("\n%s:%d PUBLISH TOPOLOGY start\n", __func__, __LINE__);
+            if (desc->bus_event_subs_fn(&m_bus_hdl, DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY, reinterpret_cast<void *>(&topo_cb), nullptr, 0) != 0) {
+                printf("Failed to subscribe to 'Device.WiFi.DataElements.Network.Topology'\n");
+            }
+        } else {
+            printf("\n%s:%d Invalid Input\n", __func__, __LINE__);
         }
     }
     return 0;

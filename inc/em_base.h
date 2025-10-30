@@ -1962,6 +1962,7 @@ typedef enum {
     em_state_ctrl_ap_mld_req_ack_rcvd,
     em_state_ctrl_avail_spectrum_inquiry_pending,
     em_state_ctrl_bsta_cap_pending,
+    em_state_ctrl_topo_publish_pending,
 
     em_state_max,
 } em_state_t;
@@ -2764,6 +2765,7 @@ typedef enum {
     dm_orch_type_net_ssid_update,
     dm_orch_type_topo_sync,
     dm_orch_type_topo_update,
+    dm_orch_type_topo_publish,
     dm_orch_type_channel_pref,
     dm_orch_type_channel_sel,
     dm_orch_type_channel_cnf,

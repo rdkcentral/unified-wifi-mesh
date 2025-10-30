@@ -163,6 +163,8 @@ void em_t::orch_execute(em_cmd_t *pcmd)
                 m_sm.set_state(em_state_ctrl_set_policy_pending);
             } else if ((pcmd->get_orch_op() == dm_orch_type_channel_scan_req) && (m_sm.get_state() == em_state_ctrl_configured)) {
                 m_sm.set_state(em_state_ctrl_channel_scan_pending);
+            } else if ((pcmd->get_orch_op() == dm_orch_type_topo_publish) && (m_sm.get_state() == em_state_ctrl_configured)) {
+                m_sm.set_state(em_state_ctrl_topo_publish_pending);
             }
             break;
 
@@ -1748,6 +1750,7 @@ const char *em_t::state_2_str(em_state_t state)
         EM_STATE_2S(em_state_ctrl_ap_mld_req_ack_rcvd)
         EM_STATE_2S(em_state_ctrl_avail_spectrum_inquiry_pending)
         EM_STATE_2S(em_state_ctrl_bsta_cap_pending)
+        EM_STATE_2S(em_state_ctrl_topo_publish_pending)
         EM_STATE_2S(em_state_agent_unconfigured)
         EM_STATE_2S(em_state_agent_autoconfig_rsp_pending)
         EM_STATE_2S(em_state_agent_wsc_m2_pending)

@@ -537,6 +537,38 @@ void em_ctrl_t::handle_event(em_event_t *evt)
 
 }
 
+void em_ctrl_t::publish_network_topology()
+{
+    assert(g_network_topology != NULL);
+
+	wifi_bus_desc_t *desc = NULL;
+    cJSON *parent = NULL;
+    char *str = NULL;
+    raw_data_t raw;
+    dm_easy_mesh_ctrl_t *dm_ctrl = NULL;
+
+    if((desc = get_bus_descriptor()) == NULL) {
+        printf("%s:%d descriptor is null\n", __func__, __LINE__);
+    }
+
+    parent = cJSON_CreateObject();
+    dm_ctrl = reinterpret_cast<dm_easy_mesh_ctrl_t *>(get_data_model(GLOBAL_NET_ID));
+    dm_ctrl->get_network_config(parent, GLOBAL_NET_ID);
+
+    str = cJSON_Print(parent);
+    em_printfout("    ===============Publish Network Topology Json:\n%s\n===============\n",str);
+
+	raw.data_type    = bus_data_type_string;
+    raw.raw_data.bytes = reinterpret_cast<unsigned char *> (str);
+    raw.raw_data_len = static_cast<unsigned int> (strlen(str));
+
+    if (desc->bus_event_publish_fn(&g_ctrl.m_bus_hdl, DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY, &raw)== 0) {
+        printf("%s:%d Topology published successfull\n",__func__, __LINE__);
+    } else {
+        printf("%s:%d Topology publish fail\n",__func__, __LINE__);
+    }
+}
+
 int em_ctrl_t::data_model_init(const char *data_model_path)
 {
     em_t *em = NULL;
@@ -874,7 +906,10 @@ void em_ctrl_t::start_complete()
 		// 	{ bus_data_type_string, false, 0, 0, 0, NULL } },
 		// { DEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD, bus_element_type_method,
 		// 	{ NULL, NULL, NULL, NULL, NULL, cmd_setssid}, slow_speed, ZERO_TABLE,
-			{ bus_data_type_string, true, 0, 0, 0, NULL } }
+			{ bus_data_type_string, true, 0, 0, 0, NULL } },
+		{ DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY, bus_element_type_method,
+			{ NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+			{ bus_data_type_string, false, 0, 0, 0, NULL } },
 	};
 
 	if (m_data_model.is_initialized() == false) {
