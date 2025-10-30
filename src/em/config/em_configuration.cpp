@@ -5481,6 +5481,12 @@ void em_configuration_t::process_ctrl_state()
         case em_state_ctrl_ap_mld_config_pending:
             send_ap_mld_config_req_msg();
             break;
+
+        case em_state_ctrl_topo_publish_pending:
+            get_mgr()->publish_network_topology();
+            set_state(em_state_ctrl_configured);
+            break;
+
         default:
             em_printfout("unhandled state:%s in config state machine.", em_t::state_2_str(get_state()));
             break;
