@@ -46,7 +46,7 @@ extern "C"
 #define EM_MAC_ADDR_LEN 6
 #define EM_MAC_STR_LEN  17
 #define EM_MAX_COLS     32
-#define EM_MAX_DM_CHILDREN	32
+#define EM_MAX_DM_CHILDREN	64
 #define EM_MAX_E4_TABLE_CHANNEL 64
 #define EM_DATE_TIME_BUFF_SZ	64
 #define EM_PROTO_TOUT   1
