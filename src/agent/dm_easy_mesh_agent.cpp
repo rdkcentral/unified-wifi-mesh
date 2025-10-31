@@ -386,11 +386,6 @@ int dm_easy_mesh_agent_t::analyze_channel_pref_query(em_bus_event_t *evt, em_cmd
     em_bus_event_type_channel_pref_query_params_t *params;
     
     params = reinterpret_cast<em_bus_event_type_channel_pref_query_params_t *> (evt->u.raw_buff);
-    dm.set_num_radios(1);
-    radio = dm.get_radio_info(0);
-    if (radio != NULL) {
-        memcpy(&radio->intf.mac, &params->mac, sizeof(mac_address_t));
-    }
     dm.set_msg_id(params->msg_id);
     pcmd[num] = new em_cmd_channel_pref_query_t(em_service_type_agent, evt->params, dm);
     num++;

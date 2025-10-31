@@ -629,6 +629,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
     em_2xlong_string_t key;
     unsigned int i;
     bool found;
+    em_string_t al_mac_str;
     mac_addr_str_t mac_str1, mac_str2, dev_mac_str, radio_mac_str;
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
@@ -853,7 +854,6 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         break;
 
         case em_msg_type_bh_sta_cap_rprt:
-            em_string_t al_mac_str;
             dm_easy_mesh_t::macbytes_to_string(hdr->src, al_mac_str);
             strcat(al_mac_str, "_al");
             if ((em = (em_t *)hash_map_get(m_em_map, al_mac_str)) != NULL) {

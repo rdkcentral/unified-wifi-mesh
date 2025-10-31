@@ -222,6 +222,7 @@ public:
 	 * TLV (Type-Length-Value) and storing it in the provided buffer.
 	 *
 	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 * @param[in] index The index of the radio operation restriction to be created.
 	 *
 	 * @returns A short integer indicating the success or failure of the operation.
 	 * @retval 0 on success.
@@ -229,7 +230,7 @@ public:
 	 *
 	 * @note Ensure that the buffer is properly allocated before calling this function.
 	 */
-	short create_radio_op_restriction_tlv(unsigned char *buff);
+	short create_radio_op_restriction_tlv(unsigned char *buff, unsigned int index);
     
 	/**!
 	 * @brief Creates a complete CAC report TLV.
@@ -265,6 +266,7 @@ public:
 	 * This function is responsible for creating a channel preference TLV agent using the provided buffer.
 	 *
 	 * @param[out] buff Pointer to the buffer where the channel preference TLV agent will be created.
+	 * @param[in] index The index of the channel preference TLV agent to be created.
 	 *
 	 * @returns short
 	 * @retval 0 on success
@@ -272,7 +274,7 @@ public:
 	 *
 	 * @note Ensure that the buffer is properly allocated before calling this function.
 	 */
-	short create_channel_pref_tlv_agent(unsigned char *buff);
+	short create_channel_pref_tlv_agent(unsigned char *buff, unsigned int index);
     
 	/**!
 	 * @brief Creates a TLV for transmit power limit.

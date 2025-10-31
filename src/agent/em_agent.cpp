@@ -1491,34 +1491,15 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 			break;
 
         case em_msg_type_topo_query:
+        case em_msg_type_channel_pref_query:
             em_string_t al_mac_str;
             dm_easy_mesh_t::macbytes_to_string(hdr->dst, al_mac_str);
             strcat(al_mac_str, "_al");
             if ((em = (em_t *)hash_map_get(m_em_map, al_mac_str)) != NULL) {
-                em_printfout("Received topo query, found al_mac agent:%s", al_mac_str);
+                em_printfout("Received query message, found al_mac agent:%s", al_mac_str);
             } else {
-                em_printfout("Discarding topo query, al_mac agent:%s not found",
+                em_printfout("Discarding query message, al_mac agent:%s not found",
                     al_mac_str);
-                return NULL;
-            }
-            break;
-
-        case em_msg_type_channel_pref_query:
-            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
-                	len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
-                printf("%s:%d: Could not find radio_id for em_msg_type_channel_pref_query\n", __func__, __LINE__);
-                return NULL;
-            }
-
-            dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
-            if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
-                if (em->is_al_interface_em() == false) {
-                        printf("%s:%d: Received channel preference query recv, found existing radio:%s\n", __func__, __LINE__, mac_str1);
-                } else {
-                        return NULL;
-                }
-            } else {
-                printf("%s:%d: Could not find em for em_msg_type_channel_pref_query\n", __func__, __LINE__);
                 return NULL;
             }
             break;
