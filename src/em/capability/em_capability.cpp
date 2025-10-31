@@ -502,7 +502,6 @@ int em_capability_t::send_bsta_cap_query_msg()
     unsigned int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
-    em_enum_type_t profile;
     unsigned char *tmp = buff;
     unsigned short type = htons(ETH_P_1905);
     dm_easy_mesh_t* dm = NULL;
@@ -569,7 +568,6 @@ int em_capability_t::send_bsta_cap_report_msg(unsigned short msg_id)
     short sz = 0;
     unsigned short type = htons(ETH_P_1905);
     dm_easy_mesh_t *dm = get_data_model();
-    mac_addr_str_t mac_str;
 
     memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
@@ -766,7 +764,6 @@ int em_capability_t::handle_bsta_radio_cap(unsigned char *buff, unsigned int len
 {
     dm_easy_mesh_t *dm = get_data_model();
     em_bh_sta_radio_cap_t *bsta_radio_cap = reinterpret_cast<em_bh_sta_radio_cap_t*>(buff);
-    mac_addr_str_t mac_str, r_str;
 
     em_printfout("Rcvd Backhaul STA Radio Capabilities received, sta mac: %s for radio: %s, mac present?: %d",
         util::mac_to_string(bsta_radio_cap->bsta_addr).c_str(),
@@ -792,12 +789,6 @@ int em_capability_t::handle_bsta_cap_report(unsigned char *buff, unsigned int le
 {
     em_tlv_t *tlv;
     unsigned int tmp_len;
-    int ret = 0;
-    char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    bool found_op_bss = false;
-    bool found_profile = false;
-    bool found_bss_config_rprt = false;
-    em_profile_type_t profile = em_profile_type_reserved;
     dm_easy_mesh_t *dm;
 
     dm = get_data_model();
