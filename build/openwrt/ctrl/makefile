@@ -109,6 +109,7 @@ CTRL_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/ctrl/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/db/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/dm/*.cpp) \
+	$(wildcard $(ONEWIFI_EM_SRC)/ctrl/tr_181/*.cpp) \
 	$(ONEWIFI_EM_SRC)/orch/em_orch.cpp \
 	$(ONEWIFI_EM_SRC)/orch/em_orch_ctrl.cpp \
 	$(wildcard $(ONEWIFI_EM_SRC)/utils/*.cpp) \
