@@ -138,8 +138,8 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     dm_easy_mesh_t::macbytes_to_string(params->assoc.cli_mac_address, sta_mac_str);
     dm_easy_mesh_t::macbytes_to_string(params->assoc.bssid, bss_mac_str);
     
-    //printf("%s:%d: Client:%s %s BSS: %s of Device: %s\n", __func__, __LINE__,
-        //sta_mac_str, (params->assoc.assoc_event == 1)?"associated with":"disassociated from", bss_mac_str, dev_mac_str);
+    printf("%s:%d: Client:%s %s BSS: %s of Device: %s\n", __func__, __LINE__,
+        sta_mac_str, (params->assoc.assoc_event == 1)?"associated with":"disassociated from", bss_mac_str, dev_mac_str);
 
     evt->params.u.args.num_args = 4;
     strncpy(evt->params.u.args.args[0], dev_mac_str, sizeof(em_long_string_t));

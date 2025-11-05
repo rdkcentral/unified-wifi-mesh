@@ -46,6 +46,7 @@
 #include "util.h"
 #include "wifi_util.h"
 #include "tr_181.h"
+#include "wfa_data_model_parser.h"
 
 #ifdef AL_SAP
 #include "al_service_access_point.h"
@@ -883,20 +884,11 @@ void em_ctrl_t::io(void *data, bool input)
     delete m_ctrl_cmd;
 }
 
-void em_ctrl_t::start_complete()
+void em_ctrl_t::wfa_dml_init()
 {
-	dm_easy_mesh_t *dm;
-	wifi_bus_desc_t *desc;
-	raw_data_t raw;
-	em_interface_t	*intf;
-	mac_addr_str_t	al_mac_str;
-	em_bus_event_type_cfg_renew_params_t ac_config_raw;
-	mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-	char service_name[] = "EasyMesh_Ctrl_Service";
-	int i = 0;
-	bus_error_t bus_error_val;
-	int num_elements = 0;
-
+#if 0
+    int num_elements = 0;
+    bus_error_t bus_error_val;
 	bus_data_element_t dataElements[] = {
 		{ DEVICE_WIFI_DATAELEMENTS_NETWORK_COLOCATEDAGENTID, bus_element_type_method,
 			{ get_device_wifi_dataelements_network_colocated_agentid, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
@@ -911,6 +903,32 @@ void em_ctrl_t::start_complete()
 			{ NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
 			{ bus_data_type_string, false, 0, 0, 0, NULL } },
 	};
+
+	num_elements = (sizeof(dataElements) / sizeof(bus_data_element_t));
+	bus_error_val = desc->bus_reg_data_element_fn(&m_bus_hdl, dataElements, num_elements);
+	if (bus_error_val != bus_error_success) {
+		printf("%s:%d bus: bus_regDataElements failed\n", __func__, __LINE__);
+	}
+#endif
+    // register_wfa_dml(&m_bus_hdl, m_data_model);
+        
+    // Initialize TR-181 when controller starts
+    tr_181_t* tr181 = tr_181_t::getInstance();
+    tr181->initialize(&m_bus_hdl, m_data_model);
+    // tr181->register_wfa_dml();
+}
+
+void em_ctrl_t::start_complete()
+{
+	dm_easy_mesh_t *dm;
+	wifi_bus_desc_t *desc;
+	raw_data_t raw;
+	em_interface_t	*intf;
+	mac_addr_str_t	al_mac_str;
+	em_bus_event_type_cfg_renew_params_t ac_config_raw;
+	mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+	char service_name[] = "EasyMesh_Ctrl_Service";
+	int i = 0;
 
 	if (m_data_model.is_initialized() == false) {
 		printf("%s:%d: Database not initialized ... needs reset\n", __func__, __LINE__);
@@ -942,11 +960,7 @@ void em_ctrl_t::start_complete()
        	printf("%s:%d Collocated agent ID: %s publish  fail\n",__func__, __LINE__, al_mac_str);
    	}
 
-	num_elements = (sizeof(dataElements) / sizeof(bus_data_element_t));
-	bus_error_val = desc->bus_reg_data_element_fn(&m_bus_hdl, dataElements, num_elements);
-	if (bus_error_val != bus_error_success) {
-		printf("%s:%d bus: bus_regDataElements failed\n", __func__, __LINE__);
-	}
+    wfa_dml_init();
 
 	// build initial network topology
 	init_network_topology();

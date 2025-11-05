@@ -54,7 +54,8 @@ class em_ctrl_t : public em_mgr_t {
 	void handle_bus_event(em_bus_event_t *evt);
 
 public:
-
+	
+	void wfa_dml_init();
     
 	/**!
 	 * @brief Listens for input events and processes them accordingly.

@@ -83,6 +83,7 @@ GENERIC_SOURCES = $(ONEWIFI_HOME)/source/utils/collection.c \
 	$(ONEWIFI_EM_SRC)/util_crypto/aes_siv.c \
 	$(ONEWIFI_HOME)/lib/common/util.c \
     $(ONEWIFI_HOME)/source/platform/linux/bus.c \
+	$(ONEWIFI_HOME)/source/platform/common/bus_common.c
 
 
 CTRL_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
@@ -101,6 +102,7 @@ CTRL_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/db/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/dm/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/ctrl/tr_181/*.cpp) \
+	$(wildcard $(ONEWIFI_EM_SRC)/ctrl/tr_181/wfa_data_model/*.cpp) \
 	$(ONEWIFI_EM_SRC)/orch/em_orch.cpp \
 	$(ONEWIFI_EM_SRC)/orch/em_orch_ctrl.cpp \
 	$(ONEWIFI_EM_SRC)/utils/util.cpp \

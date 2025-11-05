@@ -1516,8 +1516,8 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
             dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(), radio_mac_str);
             snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bssid_str, radio_mac_str);
 
-            //em_printfout("Client Device:%s %s to BSSID: %s\n", sta_mac_str,
-            //        (assoc_evt_tlv->assoc_event == 1)?"associated":"disassociated", bssid_str);
+            em_printfout("Client Device:%s %s to BSSID: %s\n", sta_mac_str,
+                   (assoc_evt_tlv->assoc_event == 1)?"associated":"disassociated", bssid_str);
 
             if ((sta = static_cast<dm_sta_t *> (hash_map_get(dm->m_sta_map, key))) == NULL) {
                 eligible_to_req_cap = true;
