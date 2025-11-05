@@ -30,6 +30,7 @@
 #include <netpacket/packet.h>
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
+#include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -426,6 +427,39 @@ void em_ctrl_t::input_listener()
     io(str, false);
 }
 
+void em_ctrl_t::handle_nb_event(em_nb_event_t *evt)
+{
+    bus_resp_get_t *resp = static_cast<bus_resp_get_t *> (calloc(1, sizeof(*resp)));
+    assert(resp != NULL);
+    resp->id = evt->id;
+
+    switch (evt->type) {
+        case NB_REQTYPE_GET: {
+            char *name = evt->u.get.name;
+            raw_data_t *property = static_cast<raw_data_t *> (evt->u.get.property);
+            bus_get_handler_t cb = (bus_get_handler_t) evt->cb;
+            /* TODO: sending property only for now */
+            resp->rc = cb(name, property, NULL);
+        } break;
+#if 0
+        case NB_REQTYPE_METHOD: {
+            const char *method = evt->u.method.method;
+            rbusObject_t in = static_cast<rbusObject_t> (evt->u.method.in);
+            rbusObject_t out = static_cast<rbusObject_t> (evt->u.method.out);
+            rbusMethodAsyncHandle_t async = static_cast<rbusMethodAsyncHandle_t> (evt->u.method.async);
+            rbusMethodHandler_t cb = (rbusMethodHandler_t) evt->cb;
+            resp->rc = cb(NULL, method, in, out, async);
+        } break;
+#endif
+        default:
+            break;
+    }
+
+    uintptr_t buf = (uintptr_t)resp;
+    ssize_t len = write(m_nb_pipe_wr, &buf, sizeof(buf));
+    assert(len == sizeof(buf));
+}
+
 void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
 {
     switch (evt->type) {
@@ -529,6 +563,10 @@ void em_ctrl_t::handle_event(em_event_t *evt)
     switch(evt->type) {
         case em_event_type_bus:
             handle_bus_event(&evt->u.bevt);
+            break;
+
+        case em_event_type_nb:
+            handle_nb_event(&evt->u.nevt);
             break;
 
         default:
@@ -898,15 +936,15 @@ void em_ctrl_t::start_complete()
 	int num_elements = 0;
 
 	bus_data_element_t dataElements[] = {
-		{ DEVICE_WIFI_DATAELEMENTS_NETWORK_COLOCATEDAGENTID, bus_element_type_method,
-			{ get_device_wifi_dataelements_network_colocated_agentid, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
-			{ bus_data_type_string, false, 0, 0, 0, NULL } },
-		{ DEVICE_WIFI_DATAELEMENTS_NETWORK_CONTROLLERID, bus_element_type_method,
-			{ get_device_wifi_dataelements_network_controllerid, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+		//{ DEVICE_WIFI_DATAELEMENTS_NETWORK_COLOCATEDAGENTID, bus_element_type_method,
+		//	{ get_device_wifi_dataelements_network_colocated_agentid, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+		//	{ bus_data_type_string, false, 0, 0, 0, NULL } },
+		//{ DEVICE_WIFI_DATAELEMENTS_NETWORK_CONTROLLERID, bus_element_type_method,
+		//	{ get_device_wifi_dataelements_network_controllerid, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
 		// 	{ bus_data_type_string, false, 0, 0, 0, NULL } },
 		// { DEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD, bus_element_type_method,
 		// 	{ NULL, NULL, NULL, NULL, NULL, cmd_setssid}, slow_speed, ZERO_TABLE,
-			{ bus_data_type_string, true, 0, 0, 0, NULL } },
+		//	{ bus_data_type_string, true, 0, 0, 0, NULL } },
 		{ DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY, bus_element_type_method,
 			{ NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
 			{ bus_data_type_string, false, 0, 0, 0, NULL } },
@@ -941,6 +979,18 @@ void em_ctrl_t::start_complete()
    	} else {
        	printf("%s:%d Collocated agent ID: %s publish  fail\n",__func__, __LINE__, al_mac_str);
    	}
+
+	int pipefd[2];
+	int rcp;
+	rcp = pipe2(pipefd, O_DIRECT);
+	if (rcp == -1) {
+		return;
+	}
+
+	m_nb_pipe_rd = pipefd[0];
+	m_nb_pipe_wr = pipefd[1];
+
+	tr181_reg_data_elements(&m_bus_hdl);
 
 	num_elements = (sizeof(dataElements) / sizeof(bus_data_element_t));
 	bus_error_val = desc->bus_reg_data_element_fn(&m_bus_hdl, dataElements, num_elements);
@@ -977,12 +1027,19 @@ void em_ctrl_t::start_complete()
 
 em_ctrl_t::em_ctrl_t()
 {
-
+    m_nb_pipe_rd = 0;
+    m_nb_pipe_rd = 0;
+    m_nb_evt_id = 0;
 }
 
 em_ctrl_t::~em_ctrl_t()
 {
-
+    if (m_nb_pipe_rd != 0) {
+        close(m_nb_pipe_rd);
+    }
+    if (m_nb_pipe_wr != 0) {
+        close(m_nb_pipe_wr);
+    }
 }
 
 #ifdef AL_SAP
