@@ -588,7 +588,6 @@ TEST_F(db_client_crud_Test, NextResultNoMoreRows) {
 
     void* result = dbClient->execute("SELECT username FROM users WHERE id = 1;");
     ASSERT_NE(result, nullptr);
-    result_context_t* ctx = static_cast<result_context_t*>(result);
     bool hasRow = dbClient->next_result(result);
     EXPECT_TRUE(hasRow) << "Expected first row to be available";
     bool hasNext = dbClient->next_result(result);

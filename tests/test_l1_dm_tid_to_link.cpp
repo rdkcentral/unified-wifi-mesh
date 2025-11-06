@@ -85,8 +85,7 @@ TEST(dm_tid_to_link_t_Test, InvalidJSONObjectNullPointer) {
     cJSON* obj = nullptr;
     int dummy_id = 123;
     void* parent_id = &dummy_id;
-    dm_tid_to_link_t instance{};
-    memset(&instance, 0, sizeof(instance));
+    dm_tid_to_link_t instance;
     int result = instance.decode(obj, parent_id);
     EXPECT_EQ(result, -1);  
     std::cout << "Exiting InvalidJSONObjectNullPointer" << std::endl;
@@ -117,15 +116,12 @@ TEST(dm_tid_to_link_t_Test, InvalidParentIdNullPointer) {
     std::cout << "Entering InvalidParentIdNullPointer" << std::endl;
     cJSON obj{};
     cJSON child{};
-    memset(&obj, 0, sizeof(obj));
-    memset(&child, 0, sizeof(child));
     obj.type = cJSON_Object;
     obj.child = &child;
     child.type = cJSON_String;
     child.valuestring = const_cast<char*>("valid_data");
     void* parent_id = nullptr;
-    dm_tid_to_link_t instance{};
-    memset(&instance, 0, sizeof(instance));
+    dm_tid_to_link_t instance;
     int result = instance.decode(&obj, parent_id);
     EXPECT_EQ(result, -1);
     std::cout << "Exiting InvalidParentIdNullPointer" << std::endl;
@@ -156,16 +152,13 @@ TEST(dm_tid_to_link_t_Test, ValidJSONObjectWithIncorrectType) {
     std::cout << "Entering ValidJSONObjectWithIncorrectType" << std::endl;
     cJSON obj{};
     cJSON child{};
-    std::memset(&obj, 0, sizeof(obj));
-    std::memset(&child, 0, sizeof(child));
     obj.type = cJSON_Number;
     obj.child = &child;
     child.type = cJSON_String;
     child.valuestring = const_cast<char*>("valid_data");
     int dummy_id = 123;
     void* parent_id = &dummy_id;
-    dm_tid_to_link_t instance{};
-    std::memset(&instance, 0, sizeof(instance));  // Ensure no garbage values
+    dm_tid_to_link_t instance;
     int result = 0;
     EXPECT_NO_THROW({
         result = instance.decode(&obj, parent_id);
@@ -988,8 +981,6 @@ TEST(dm_tid_to_link_t_Test, IdenticalNonDefaultValues) {
     std::cout << "Entering IdenticalNonDefaultValues test";
     dm_tid_to_link_t obj1{};
     dm_tid_to_link_t obj2{};
-    memset(&obj1, 0, sizeof(obj1));
-    memset(&obj2, 0, sizeof(obj2));
     obj1.m_tid_to_link_info.is_bsta_config = true;
     obj1.m_tid_to_link_info.tid_to_link_map_neg = true;
     obj1.m_tid_to_link_info.num_mapping = 5;
