@@ -194,6 +194,8 @@ int dm_network_t::init()
 
 	memset(&m_net_info, 0, sizeof(em_network_info_t)); 
 	strncpy(m_net_info.timestamp, date_time, EM_DATE_TIME_BUFF_SZ);
+	// set the default media to Ethernet
+	m_net_info.media = em_media_type_ieee8023ab;
 	return 0;
 }
 
