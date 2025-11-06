@@ -553,6 +553,8 @@ int em_mgr_t::start()
 						(is_data_model_initialized() == true)) {
 
                     handle_event(evt);
+                } else if (evt->type == em_event_type_nb) {
+                    handle_event(evt);
                 }
                 free(evt);
                 pthread_mutex_lock(&m_queue.lock);
