@@ -169,7 +169,6 @@ onewifi_em_ctrl_test_SOURCES = $(onewifi_em_ctrl_SOURCES) \
 	$(top_srcdir)/tests/test_l1_dm_radio.cpp \
 	$(top_srcdir)/tests/test_l1_dm_radio_cap.cpp \
 	$(top_srcdir)/tests/test_l1_dm_sta.cpp \
-	$(top_srcdir)/tests/test_l1_em_metrics.cpp \
 	$(top_srcdir)/tests/test_l1_em_discovery.cpp \
 	$(top_srcdir)/tests/test_l1_dm_dpp.cpp \
 	$(top_srcdir)/tests/test_l1_dm_tid_to_link.cpp \
