@@ -254,6 +254,7 @@ int main(int argc, char **argv) {
     "dm_tid_to_link_t_Test.NullTIDToLinkInformation:"
     "dm_tid_to_link_t_Test.InvalidJSONObjectNullPointer:"
     "dm_tid_to_link_t_Test.InvalidParentIdNullPointer:"
+    "dm_tid_to_link_t_Test.IdenticalNonDefaultValues:"
     "dm_network_t_Test.JsonObjectWithNestedObjects:"
     "dm_network_t_Test.NullNetworkInformation:"
     "dm_network_t_Test.NullJsonObject:"
