@@ -52,7 +52,14 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+const remoteCtrl_Addr_path = "/nvram/remoteCtrl.json"
+var timerCount = 0
 // ===== SIMPLIFIED DATA MODELS =====
+
+type RemoteIPConfig struct {
+    IP   string `json:"ip"`
+    Port string `json:"port"`
+}
 
 type HaulConfig struct {
 	HaulType   string `json:"HaulType"`
@@ -60,11 +67,63 @@ type HaulConfig struct {
     PassPhrase string   `json:"PassPhrase"`
 }
 
+type HaulTypeVisual struct {
+    Name        string     `json:"name"`
+    SSID        string     `json:"ssid"`
+    VlanId      int        `json:"VlanId"`
+    BSSList     []BSS      `json:"BSSList"`
+}
 
 //structure of the incoming wifireset payload
 type WifiResetPayload struct {
     SelectedMac string       `json:"selectedMac"`
     HaulTypes   []HaulConfig `json:"haulTypes"`
+}
+
+type TopologyNode struct {
+    Result struct {
+        Device NetworkDevice `json:"device"`
+    } `json:"result"`
+}
+
+type NetworkDevice struct {
+    ID        string     `json:"id"`
+    Name      string     `json:"-"`
+    Backhaul  *Backhaul  `json:"backhaul,omitempty"`
+    RadioList []Radio    `json:"radioList"`
+}
+
+type Backhaul struct {
+    MACAddress string          `json:"macAddress"`
+    MediaType  string          `json:"mediaType"`
+    Child      []NetworkDevice `json:"child"`
+}
+
+type Radio struct {
+    Band     int      `json:"band"`
+    Channel  int      `json:"channel"`
+    IEEE     string   `json:"IEEE"`
+    BSSList  []BSS    `json:"bssList"`
+}
+
+type BSS struct {
+    BSSID     string `json:"BSSID"`
+    MLDAddr   string `json:"MLDAddr"`
+    VapMode   int    `json:"vapMode"`
+    HaulType  string `json:"haulType"`
+    VlanId    int    `json:"VlanId"`
+    Band      int    `json:"Band"`
+    IEEE      string `json:"IEEE"`
+    SSID      string `json:"ssid"`
+    STAList   []STA  `json:"staList"`
+}
+
+type STA struct {
+    MACAddress  string `json:"MACAddress"`
+    MLDAddr     string `json:"MLDAddr"`
+    ClientType  string `json:"clientType"`
+    Associated  bool   `json:"Associated"`
+    SSID        string `json:"-"`
 }
 
 type Device struct {
@@ -2440,11 +2499,15 @@ func loadSystemConfig() {
 func main() {
 
 	// Get the IP address and port number of controller device.
-	remoteIP, remotePort, err := getLocalIP()
-	if err != nil {
-		fmt.Println("Error getting controller IP:", err)
-		return
-	}
+    remoteIP, remotePort, err := getControllerRemoteIP()
+    if err != nil {
+        remoteIP, remotePort, err = getLocalIP()
+        if err != nil {
+            log.Printf("Error getting controller IP: %s", err)
+            return
+        }
+    }
+    log.Printf("Connecting with controller IP %s and port: %d\n", remoteIP, remotePort)
 
 	// Set remote IP and port for ssh connection
 	err = setRemoteIPandPort(remoteIP, remotePort)
@@ -2461,6 +2524,9 @@ func main() {
 
 	// API Routes
 	api := router.PathPrefix("/api/v1").Subrouter()
+
+	//system setting Wifi Reset
+	api.HandleFunc("/controllerIPConfig", controllerIPHandler).Methods("GET", "POST")
 
 	// Device Management
 	api.HandleFunc("/devices", getDevicesHandler).Methods("GET")
@@ -2533,11 +2599,6 @@ func main() {
 	// Existing routes continue...
 	api.HandleFunc("/topology", getTopologyHandler).Methods("GET")
 	api.HandleFunc("/topology/optimize", optimizeTopologyHandler).Methods("POST")
-
-        //ckp1 end
-	// Topology and Network
-	api.HandleFunc("/topology", getTopologyHandler).Methods("GET")
-	api.HandleFunc("/topology/optimize", optimizeTopologyHandler).Methods("POST")
  
 	// Metrics and Monitoring
 	api.HandleFunc("/metrics/devices", getDeviceMetricsHandler).Methods("GET")
@@ -2607,6 +2668,47 @@ func serveIndex(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "../../src/rdkb-cli/static/index.html")
 }
 
+func controllerIPHandler(w http.ResponseWriter, r *http.Request) {
+    if r.Method == http.MethodPost {
+        var cfg struct {
+            IP   string `json:"ip"`
+            Port string `json:"port"`
+        }
+
+        err := json.NewDecoder(r.Body).Decode(&cfg)
+        if err != nil {
+            http.Error(w, "Invalid request", http.StatusBadRequest)
+            return
+        }
+
+        // Apply your logic to configure IP and Port here
+        log.Printf("Configuring Controller: IP=%s, Port=%s\n", cfg.IP, cfg.Port)
+
+        // Set remote IP and port for ssh connection
+        err = setRemoteIPandPort(cfg.IP, 49153)
+        if err != nil {
+            log.Printf("Failed to configure remote IP and port: %s", err)
+            return
+        }
+
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(map[string]string{
+            "message": "Controller IP and Port configured successfully",
+        })
+        return
+    }
+
+    if r.Method == http.MethodGet {
+        remoteIP, remotePort, _ := getControllerRemoteIP()
+        port_str := fmt.Sprintf("%d", remotePort)
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(map[string]string{
+            "ip":   remoteIP,
+            "port": port_str,
+        })
+    }
+
+}
 func getDevicesHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -2768,8 +2870,14 @@ func unblockClientHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getTopologyHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(meshTopology)
+
+    if len(os.Args) > 1 && os.Args[1] == "test" {
+        // Parse the static json file and send to JS
+        loadTopologyFromStaticJSON(w)
+    } else {
+        // Parse the live top;ogy data and send to JS
+        loadTopologyFromDeviceTree(w)
+    }
 }
 
 func optimizeTopologyHandler(w http.ResponseWriter, r *http.Request) {
@@ -3284,6 +3392,474 @@ func applyResetConfig(resetTree *C.em_network_node_t) bool {
     return true
 }
 
+func loadTopologyFromDeviceTree(w  http.ResponseWriter) {
+
+    agentCount := 1
+    extenderCount := 1
+    var length float32 = 230.0
+    var  angleStep = 60.0
+
+    nodes := []map[string]interface{}{}
+    edges := []map[string]interface{}{}
+
+    // Get network topology tree
+    cmd := C.CString("get_network OneWifiMesh")
+    defer C.free(unsafe.Pointer(cmd))
+
+    topologyTree := C.exec(cmd, C.strlen(cmd), nil)
+    if topologyTree == nil {
+        http.Error(w, "Failed to fetch reset tree", http.StatusInternalServerError)
+        return
+    }
+
+    topoDeviceTree := C.get_network_tree_by_key(topologyTree, C.CString("Device"))
+
+    // Helper to create STA list with circular layout
+    createSTAList := func(deviceX, deviceY float32, radioList []Radio) []map[string]interface{} {
+        var staList []map[string]interface{}
+
+        for _, radio := range radioList {
+            for _, bss := range radio.BSSList {
+                for _, sta := range bss.STAList {
+                    if sta.Associated == false || sta.SSID == "" {
+                        continue
+                    }
+                    if bss.HaulType == "Backhaul" && bss.SSID == sta.SSID {
+                       continue
+                    }
+                    staList = append(staList, map[string]interface{}{
+                        "staMAC":     sta.MACAddress,
+                        "clientType": sta.ClientType,
+                        "MLDAddr":    sta.MLDAddr,
+                        "band":       radio.Band,
+                        "ssid":       bss.SSID,
+                    })
+                }
+            }
+        }
+        return staList
+    }
+
+    // Recursive traversal
+    var traverse func(deviceNode *C.em_network_node_t, parentX, parentY float32, angle float64, depth int)
+    traverse = func(deviceNode *C.em_network_node_t, parentX, parentY float32, angle float64, depth int) {
+        if deviceNode == nil {
+            return
+        }
+
+        // get the device ID
+        deviceID := getTreeValue(deviceNode, "ID")
+
+        backhaulTree := C.get_network_tree_by_key(deviceNode, C.CString("Backhaul"))
+        if backhaulTree == nil {
+            return
+        }
+
+        radioList := parseRadioList(deviceNode.child[2])
+        haulTypes := buildHaulTypes(radioList)
+
+        backhaulMacAddr := getTreeValue(backhaulTree, "MACAddress")
+        backhaulMediaType := getTreeValue(backhaulTree, "MediaType")
+
+        var deviceName string
+        if depth == 0 {
+            deviceName = "Controller"
+        } else {
+            if backhaulMacAddr == "00:00:00:00:00:00" || backhaulMediaType  == "Ethernet" {
+                deviceName = fmt.Sprintf("Agent-%d", agentCount)
+                agentCount++
+            } else {
+                deviceName = fmt.Sprintf("Extender-%d", extenderCount)
+                extenderCount++
+            }
+        }
+
+        var x, y float32
+        if depth == 0 {
+            x, y = 0, 0
+        } else {
+            theta := angle * (math.Pi / 180)
+            var currentLength float32
+            if depth == 1 {
+                currentLength = length * 0.7
+            } else {
+                currentLength = length
+            }
+            x = parentX + float32(currentLength)*float32(math.Cos(theta))
+            y = parentY + float32(currentLength)*float32(math.Sin(theta))
+        }
+
+        nodes = append(nodes, map[string]interface{}{
+            "id":     deviceID,
+            "name":   deviceName,
+            "haulTypes":  haulTypes,
+            "x":      x,
+            "y":      y,
+            "fixed":  map[string]bool{"x": true, "y": true},
+            "STAList": createSTAList(x, y, radioList),
+        })
+
+        childList := C.get_network_tree_by_key(backhaulTree, C.CString("Child"))
+        if childList == nil {
+            return
+        }
+
+        angleSpread := float64(childList.num_children-1) * angleStep
+        startAngle := angle - angleSpread/2
+        for i := 0; i < int(childList.num_children); i++ {
+            child := childList.child[i]
+            childID := getTreeValue(child, "ID")
+            childAngle := startAngle + float64(i)*angleStep
+
+            band := -1
+            channel := 0
+
+            // parse the band with extender connected
+            band, channel = getBandAndChannelFromRadioTree(child.child[2])
+
+           edges = append(edges, map[string]interface{}{
+                "from":     deviceID,
+                "to":       childID,
+                "band":     band,
+                "channel":  channel,
+            })
+            traverse(child, x, y, childAngle, depth+1)
+        }
+    }
+
+    traverse(topoDeviceTree, 0, 0, 0, 0)
+
+    // Send the response to frontend
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]interface{}{
+        "nodes": nodes,
+        "edges": edges,
+    })
+}
+
+func loadTopologyFromStaticJSON(w http.ResponseWriter) {
+    var topo TopologyNode
+    var length float32 = 230.0
+    var  angleStep = 60.0
+
+    // Load from file or memory
+	jsonFile := getTestJSONFile()
+	file, err := os.Open(jsonFile)
+    if err != nil {
+        http.Error(w, "Failed to open topology file", http.StatusInternalServerError)
+        return
+    }
+    defer file.Close()
+
+    if err := json.NewDecoder(file).Decode(&topo); err != nil {
+        http.Error(w, "Failed to parse topology", http.StatusInternalServerError)
+        return
+    }
+
+    timerCount++
+    // Handle overflow: reset timer
+    if timerCount == 4 {
+        timerCount = 0
+    }
+
+    // Traverse and flatten into a frontend-friendly format
+    nodes := []map[string]interface{}{}
+    edges := []map[string]interface{}{}
+    agentCount := 1
+    extenderCount := 1
+
+    // Helper to create STA list with circular layout
+    createSTAList := func(deviceX, deviceY float32, radioList []Radio) []map[string]interface{} {
+        var staList []map[string]interface{}
+
+        for _, radio := range radioList {
+            for _, bss := range radio.BSSList {
+                for _, sta := range bss.STAList {
+                    staList = append(staList, map[string]interface{}{
+                        "staMAC":     sta.MACAddress,
+                        "clientType": sta.ClientType,
+                        "MLDAddr":    sta.MLDAddr,
+                        "band":       radio.Band,
+                        "haulType":   bss.HaulType,
+                        "ssid":       bss.SSID,
+                    })
+                }
+            }
+        }
+        return staList
+    }
+
+    var traverse func(device NetworkDevice, parentX, parentY float32, angle float64, depth int)
+    traverse = func(device NetworkDevice, parentX, parentY float32, angle float64, depth int) {
+        haulTypes := buildHaulTypes(device.RadioList)
+
+        // Compute position
+        if depth == 0 {
+            device.Name = "Controller"
+        } else {
+            if device.Backhaul.MACAddress == "00:00:00:00:00:00" ||
+              device.Backhaul.MediaType  == "Ethernet" {
+                device.Name = fmt.Sprintf("Agent-%d", agentCount)
+                agentCount++
+            } else {
+                device.Name = fmt.Sprintf("Extender-%d", extenderCount)
+                extenderCount++
+            }
+        }
+
+        var x, y float32
+        if depth == 0 {
+            x, y = 0, 0
+        } else {
+            theta := angle * (math.Pi / 180)
+            var currentLength float32
+            if depth == 1 {
+                currentLength = length * 0.7
+            } else {
+                currentLength = length
+            }
+            x = parentX + float32(currentLength)*float32(math.Cos(theta))
+            y = parentY + float32(currentLength)*float32(math.Sin(theta))
+        }
+
+        nodes = append(nodes, map[string]interface{}{
+            "id"       : device.ID,
+            "name"     : device.Name,
+            "haulTypes": haulTypes,
+            "x"        : x,
+            "y"        : y,
+            "fixed"    : map[string]bool{"x": true, "y": true},
+            "STAList"  : createSTAList(x, y, device.RadioList),
+        })
+
+        if device.Backhaul != nil {
+            childCount := len(device.Backhaul.Child)
+            if childCount > 0 {
+                angleSpread := float64(childCount-1) * angleStep
+                startAngle := angle - angleSpread/2
+
+                for i, child := range device.Backhaul.Child {
+                    childAngle := startAngle + float64(i)*angleStep
+
+                    band := -1
+                    channel := 0
+
+                    for _, radio := range child.RadioList {
+                        for _, bss := range radio.BSSList {
+                            if bss.VapMode == 1 && bss.BSSID != "00:00:00:00:00:00"{
+                                band = radio.Band
+                                channel = radio.Channel
+                                break
+                            }
+                        }
+                        if band != -1 {
+                            break
+                        }
+                    }
+
+                    edges = append(edges, map[string]interface{}{
+                        "from": device.ID,
+                        "to":   child.ID,
+                        "band": band,
+                        "channel":  channel,
+                    })
+                    traverse(child, x, y, childAngle, depth+1)
+                }
+            }
+        }
+    }
+
+    traverse(topo.Result.Device, 0, 0, 0, 0)
+
+    // Enable deblug print for debugging
+    /*log.Println(" Parsed Topology Nodes:")
+    for _, node := range nodes {
+        log.Printf("Node: %+v\n", node)
+    }
+
+    log.Println("\n\n Parsed Topology Edges:")
+    for _, edge := range edges {
+        log.Printf("Edge: %+v\n", edge)
+    }*/
+
+    // Send response
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]interface{}{
+        "nodes": nodes,
+        "edges": edges,
+    })
+}
+
+/* func: parseRadioList()
+ * Description:
+ * this function Parse the necessary info from Radio node
+ * returns: []Radio
+ */
+func parseRadioList(tree *C.em_network_node_t) []Radio {
+    var radios []Radio
+    if tree == nil {
+        return radios
+    }
+
+    for i := 0; i < int(tree.num_children); i++ {
+        radio := tree.child[i]
+        if radio == nil {
+            continue
+        }
+
+        bssNode := C.get_network_tree_by_key(radio, C.CString("BSSList"))
+        var bssList []BSS
+        for j := 0; j < int(bssNode.num_children); j++ {
+            bss := bssNode.child[j]
+            if bss == nil {
+                continue
+            }
+
+            staNode := C.get_network_tree_by_key(bss, C.CString("STAList"))
+            var staList []STA
+            for k := 0; k < int(staNode.num_children); k++ {
+                sta := staNode.child[k]
+                if sta != nil {
+                    staList = append(staList, parseSTA(sta))
+                }
+            }
+
+            bssList = append(bssList, BSS{
+                BSSID:    getTreeValue(bss, "BSSID"),
+                MLDAddr:  getTreeValue(bss, "MLDAddr"),
+                SSID:     getTreeValue(bss, "SSID"),
+                HaulType: getTreeValue(bss, "HaulType"),
+                VapMode:  getKeyIntValue(bss, "VapMode"),
+                Band:     getKeyIntValue(bss, "Band"),
+                VlanId:   getKeyIntValue(bss, "VlanID"),
+                STAList:  staList,
+            })
+        }
+
+        radios = append(radios, Radio{
+            Band:               getKeyIntValue(radio, "Band"),
+            Channel:            getKeyIntValue(radio, "Channel"),
+            IEEE:               getTreeValue(radio, "IEEE"),
+            BSSList:            bssList,
+        })
+    }
+    return radios
+}
+
+/* func: getBandAndChannelFromRadioTree()
+ * Description:
+ * this function Parse the RadioList node and get the band info
+ * returns: band
+ */
+func getBandAndChannelFromRadioTree(node *C.em_network_node_t) (int, int) {
+
+    // Iterate through the radiolist child
+    for i := 0; i < int(node.num_children); i++ {
+        radio := node.child[i]
+        if radio == nil {
+            continue
+        }
+
+        // BSSList node
+        bssListNode := C.get_network_tree_by_key(radio, C.CString("BSSList"))
+        for i := 0; i < int(bssListNode.num_children); i++ {
+            bss := bssListNode.child[i]
+            vapMode := getKeyIntValue(bss, "VapMode")
+            if vapMode == 1 && getTreeValue(bss, "BSSID")!= "00:00:00:00:00:00"{
+				// return the band if vapMode is set
+                return getKeyIntValue(radio, "Band") , getKeyIntValue(radio, "Channel")
+            }
+        }
+    }
+    // If no valid connected band found
+    return -1, 0
+}
+
+/* func: buildHaulTypes()
+ * Description:
+ * This is a helper function to create a haulTypeMap
+ * returns: []HaulTypeVisual
+ */
+func buildHaulTypes(radioList []Radio) []HaulTypeVisual {
+    haulTypeMap := make(map[string]*HaulTypeVisual)
+
+    for _, radio := range radioList {
+        for _, bss := range radio.BSSList {
+            if bss.HaulType == "" {
+                continue
+            }
+
+            // Initialize if not already present
+            if _, exists := haulTypeMap[bss.HaulType]; !exists {
+                haulTypeMap[bss.HaulType] = &HaulTypeVisual{
+                    Name:        bss.HaulType,
+                    SSID:        bss.SSID,
+                    VlanId:      bss.VlanId,
+                    BSSList:     []BSS{},
+                }
+            }
+
+            // Append BSS info with Band
+            haulTypeMap[bss.HaulType].BSSList = append(haulTypeMap[bss.HaulType].BSSList, BSS{
+                BSSID:     bss.BSSID,
+                MLDAddr:   bss.MLDAddr,
+                HaulType:  bss.HaulType,
+                SSID:      bss.SSID,
+                VapMode:   bss.VapMode,
+                Band:      radio.Band,
+                VlanId:    bss.VlanId,
+                IEEE:      radio.IEEE,
+            })
+        }
+    }
+
+    // Convert map to sorted slice
+    sortedNames := make([]string, 0, len(haulTypeMap))
+    for ht := range haulTypeMap {
+        sortedNames = append(sortedNames, ht)
+    }
+    sort.Strings(sortedNames)
+
+    haulTypes := make([]HaulTypeVisual, 0, len(sortedNames))
+    for _, ht := range sortedNames {
+        haulTypes = append(haulTypes, *haulTypeMap[ht])
+    }
+
+    return haulTypes
+}
+
+/* func: parseSTA()
+ * Description:
+ * this function Parse the necessary info from STA node and set the STA struct
+ * returns: NA
+ */
+func parseSTA(node *C.em_network_node_t) STA {
+    var associated bool
+
+    if getTreeValue(node, "Associated") == "true" {
+        associated = true
+    } else {
+        associated =  false
+    }
+    return STA{
+        MACAddress: getTreeValue(node, "MACAddress"),
+        MLDAddr:    getTreeValue(node, "MLDAddr"),
+        ClientType: getTreeValue(node, "ClientType"),
+        SSID:       getTreeValue(node, "SSID"),
+        Associated: associated,
+    }
+}
+
+func getTestJSONFile() string {
+    files := []string{
+        "../../src/rdkb-cli/static/example/topology.json",
+        "../../src/rdkb-cli/static/example/topology1.json",
+        "../../src/rdkb-cli/static/example/topology2.json",
+        "../../src/rdkb-cli/static/example/topology3.json",
+    }
+    index := (timerCount) % len(files)
+    return files[index]
+}
 /* func: isValidMac()
  * Description:
  * Validates whether the given string is a properly formatted MAC address.
@@ -3327,6 +3903,30 @@ func validatePassPhrase(pass string) error {
         return fmt.Errorf("PassPhrase must be 8-63 characters")
     }
     return nil
+}
+
+func getControllerRemoteIP() (string, int, error) {
+    var remoteIPcfg RemoteIPConfig
+    data, err := os.ReadFile(remoteCtrl_Addr_path)
+    if err != nil {
+        // fallback if file doesn't exist
+        return "", 49153, err
+    }
+
+    if err := json.Unmarshal(data, &remoteIPcfg); err != nil {
+        return "", 49153, err
+    }
+
+    ip := remoteIPcfg.IP
+    port := 49153 // default port
+
+    if remoteIPcfg.Port != "" {
+        if p, err := strconv.Atoi(remoteIPcfg.Port); err == nil {
+            port = p
+        }
+    }
+
+    return ip, port, nil
 }
 
 func getLocalIP() (string, int, error) {
@@ -3470,6 +4070,7 @@ func startWebSocketBroadcaster() {
 			"timestamp":         time.Now(),
 			"connected_clients": cc,
 		})
+
 	}
 }
 
@@ -3591,12 +4192,29 @@ func getTreeValue(tree *C.em_network_node_t, key string) string {
     return ""
 }
 
+/* func: getKeyIntValue()
+ * Description:
+ * get the int value from node key
+ * returns: int value of node.
+ */
+func getKeyIntValue(tree *C.em_network_node_t, key string) int {
+    node := C.get_network_tree_by_key(tree, C.CString(key))
+    if node != nil {
+        switch C.get_node_type(node) {
+        case C.em_network_node_data_type_number:
+            return int(node.value_int)
+        }
+    }
+    return 0
+}
+
 /* func: setRemoteIPandPort()
  * Description: helper function to set remote IP and port for ssh connection
  * Return: NA
  */
 func setRemoteIPandPort(remoteIP string, remotePort int) error {
 
+    var remoteIPcfg RemoteIPConfig
     // Convert to uint32 in little-endian
 	ip := net.ParseIP(remoteIP)
 	if ip == nil {
@@ -3615,8 +4233,14 @@ func setRemoteIPandPort(remoteIP string, remotePort int) error {
 	// Convert to uint32 in little-endian
 	ipLE := binary.LittleEndian.Uint32(ip)
 
-	C.set_remote_addr(C.uint(ipLE), C.uint(remotePort), C.bool(true))
-	return nil
+    C.set_remote_addr(C.uint(ipLE), C.uint(remotePort), C.bool(true))
+
+    // Save to config file
+    remoteIPcfg.IP = remoteIP
+    remoteIPcfg.Port = fmt.Sprintf("%d", remotePort)
+    newData, _ := json.MarshalIndent(remoteIPcfg, "", "  ")
+    _ = os.WriteFile(remoteCtrl_Addr_path, newData, 0644)
+    return nil
 }
 
 // ===== DEFAULT DATA =====
