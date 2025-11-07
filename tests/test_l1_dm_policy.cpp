@@ -2,7 +2,7 @@
  * If not stated otherwise in this file or this component's LICENSE file the
  * following copyright and licenses apply:
  *
- * Copyright 2025 RDK Management
+ * Copyright 2024 RDK Management
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -77,7 +77,7 @@ TEST(dm_policy_t_Test, DecodeWithValidJSONObjectAndDifferentPolicyTypes) {
     ASSERT_NE(obj, nullptr);  // Ensure JSON was parsed correctly
 
     const char* valid_parent_id_str = "device1@00:11:22:33:44:55@01:23:45:67:89:AB@2";
-    void* parent_id = (void*)valid_parent_id_str;
+    void* parent_id = static_cast<void*>(const_cast<char*>(valid_parent_id_str));
     dm_policy_t policy;
 
     em_policy_id_type_t policy_types[] = {
