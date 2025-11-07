@@ -1528,8 +1528,10 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
 		dev->m_device_info.id.media = dm->m_network.m_net_info.media;
 		//TODO: Monitor Checks
 		//memcpy(dev->m_device_info.backhaul_mac.mac, al_intf->mac, sizeof(mac_address_t));
-		printf("Backhaul mac updated to : %s\n", util::mac_to_string(dev->m_device_info.backhaul_mac.mac).c_str());
 		dev->m_device_info.backhaul_mac.media = dm->m_network.m_net_info.media;
+		em_printfout("Backhaul mac updated to :%s device media:%d backhaul media:%d",
+			util::mac_to_string(dev->m_device_info.backhaul_mac.mac).c_str(),
+			dev->m_device_info.id.media, dev->m_device_info.backhaul_mac.media);
 		//Update the easymesh configuration file
 		dev->update_easymesh_json_cfg(colocated);
 	}

@@ -40,8 +40,11 @@ class em_ctrl_t : public em_mgr_t {
     em_cmd_ctrl_t   *m_ctrl_cmd;
     em_orch_ctrl_t *m_orch;
 	bus_handle_t m_bus_hdl;
+	int m_nb_pipe_rd;
+	int m_nb_pipe_wr;
+	uint32_t m_nb_evt_id;
 	em_dev_test_t dev_test;
-    
+
 	/**!
 	 * @brief Handles a bus event.
 	 *
@@ -52,6 +55,17 @@ class em_ctrl_t : public em_mgr_t {
 	 * @note Ensure that the event pointer is valid before calling this function.
 	 */
 	void handle_bus_event(em_bus_event_t *evt);
+
+	/**!
+	 * @brief Handles a bus event.
+	 *
+	 * This function processes the given bus event and performs the necessary actions.
+	 *
+	 * @param[in] evt Pointer to the north bound event to be handled.
+	 *
+	 * @note Ensure that the event pointer is valid before calling this function.
+	 */
+	void handle_nb_event(em_nb_event_t *evt);
 
 public:
 
@@ -611,6 +625,34 @@ public:
 	 */
 	em_t *find_em_for_msg_type(unsigned char *data, unsigned int len, em_t *al_em);
 
+
+	/**!
+	 * @brief Retrieves the read pipe file descriptor.
+	 *
+	 * This function returns the read pipe file descriptor for northbound requests.
+	 *
+	 * @returns The pipe file descriptor.
+	 */
+	int get_nb_pipe_rd() { return m_nb_pipe_rd; }
+
+	/**!
+	 * @brief Retrieves the write pipe file descriptor.
+	 *
+	 * This function returns the write pipe file descriptor for northbound requests.
+	 *
+	 * @returns The pipe file descriptor.
+	 */
+	int get_nb_pipe_wr() { return m_nb_pipe_wr; }
+
+	/**!
+	 * @brief Retrieves the next northbound event id.
+	 *
+	 * This function returns the write pipe file descriptor for northbound requests.
+	 *
+	 * @returns The pipe file descriptor.
+	 */
+	uint32_t get_next_nb_evt_id() { return m_nb_evt_id++; }
+
 	/**!
 	* @brief Callback registered for getting colocated agent ID
 	*
@@ -642,6 +684,21 @@ public:
 	* @param[i] user_data get the bus handle
 	*/
 	//static bus_error_t cmd_setssid (const char *event_name, bus_data_prop_t const *input_data, bus_data_prop_t *output_data, void *user_data);
+
+	/**!
+	 *
+	 * @brief Register all data elements.
+	 *
+	 * This function register all tables, parameters, methods and events that are
+	 * needed to be accessed over bus
+	 *
+	 * @param[in] bus_handle The bus handle
+	 *
+	 * @returns int Status of the register operation.
+	 * @retval 0 on success
+	 * @retval non-zero error code on failure
+	 */
+	int tr181_reg_data_elements(bus_handle_t *bus_handle);
 
 #ifdef AL_SAP
     

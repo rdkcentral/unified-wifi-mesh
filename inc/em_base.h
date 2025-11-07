@@ -2031,6 +2031,7 @@ typedef enum {
     em_event_type_device,
     em_event_type_node,
     em_event_type_bus,
+    em_event_type_nb,
     em_event_type_max
 } em_event_type_t;
 
@@ -2999,11 +3000,35 @@ typedef struct {
     } u;
 } __attribute__((__packed__)) em_bus_event_t;
 
+typedef enum {
+    NB_REQTYPE_GET,
+    NB_REQTYPE_METHOD,
+} nb_req_type_e;
+
+typedef struct {
+    uint32_t id;
+    nb_req_type_e type;
+    void *cb;
+    union {
+        struct {
+            char *name;
+            void *property;
+        } get;
+        struct {
+            const char *method;
+            void *in;
+            void *out;
+            void *async;
+        } method;
+    } u;
+} __attribute__((__packed__)) em_nb_event_t;
+
 typedef struct {
     em_event_type_t     type;
     union {
         em_frame_event_t    fevt;
         em_bus_event_t      bevt;
+        em_nb_event_t       nevt;
     } u;    
 } __attribute__((__packed__)) em_event_t;
 

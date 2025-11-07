@@ -40,4 +40,10 @@ typedef struct {
 	em_short_string_t mobility_domain;
 	em_short_string_t haul_type;
 } tr_cmd_setssid;
-#endif
+
+typedef struct {
+    uint32_t id;
+    bus_error_t rc;
+} bus_resp_get_t;
+
+#endif // TR_181_H
