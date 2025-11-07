@@ -29,6 +29,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
     <!-- Added Chart.js library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -63,12 +64,27 @@
                         <i class="fas fa-bell"></i>
                         <span class="notification-badge" style="display: none;">0</span>
                     </button>
-                    <div class="user-avatar">
+                    <div class="user-avatar" id="user-avatar">
                         <i class="fas fa-user-shield"></i>
                     </div>
                 </div>
             </div>
         </header>
+
+        <!-- Popup Dialog -->
+        <div id="ipPortDialog" class="dialog">
+            <div class="dialog-content">
+                <h3>Controller Address</h3>
+                <label for="ip">IP Address:</label>
+                <input type="text" id="ip" placeholder="192.168.1.2">
+                <br><br>
+                <label for="port">Port:</label>
+                <input type="text" id="port" placeholder="49153">
+                <br><br>
+                <button id="saveBtn">Save</button>
+                <button id="closeBtn">Close</button>
+            </div>
+        </div>
 
         <div class="app-body">
             <!-- Sidebar Navigation -->
@@ -347,50 +363,11 @@
                     </div>
 
                     <div class="topology-container">
-                        <div class="topology-sidebar">
-                            <div class="topology-controls">
-                                <h3>View Options</h3>
-                                <div class="control-group">
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" checked id="show-signal-strength">
-                                        <span>Signal Strength</span>
-                                    </label>
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" checked id="show-bandwidth">
-                                        <span>Bandwidth Usage</span>
-                                    </label>
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="show-client-count">
-                                        <span>Client Count</span>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <div class="topology-legend">
-                                <h3>Legend</h3>
-                                <div class="legend-item">
-                                    <div class="legend-icon controller"></div>
-                                    <span>Controller</span>
-                                </div>
-                                <div class="legend-item">
-                                    <div class="legend-icon agent"></div>
-                                    <span>Agent</span>
-                                </div>
-                                <div class="legend-item">
-                                    <div class="legend-line ethernet"></div>
-                                    <span>Ethernet</span>
-                                </div>
-                                <div class="legend-item">
-                                    <div class="legend-line wireless"></div>
-                                    <span>Wireless</span>
-                                </div>
-                            </div>
-                        </div>
-
                         <div class="topology-main">
                             <div id="topology-visualization">
                                 <div class="loading-message">Loading network topology...</div>
                             </div>
+                            <div id="custom-tooltip"></div>
                         </div>
                     </div>
                 </section>

@@ -140,6 +140,75 @@ class EasyMeshController {
       });
     }
 
+    // user-avatar
+    const avatar = document.getElementById('user-avatar');
+    const dialog = document.getElementById('ipPortDialog');
+    const ipInput = document.getElementById('ip');
+    const portInput = document.getElementById('port');
+    avatar.addEventListener('click', () => {
+      // Fetch existing configuration from backend
+      fetch('/api/v1/controllerIPConfig', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Failed to fetch current configuration');
+        }
+        return response.json();
+      })
+      .then(data => {
+        // Populate fields with existing values
+        ipInput.value = data.ip || '';
+        portInput.value = data.port || '';
+        dialog.style.display = 'flex';
+      })
+      .catch(error => {
+        alert(`Error fetching configuration: ${error.message}`);
+        dialog.style.display = 'flex'; // Still show dialog even if fetch fails
+      });
+    });
+
+    const closeBtn = document.getElementById('closeBtn');
+    closeBtn.addEventListener('click', () => {
+      dialog.style.display = 'none';
+    });
+
+    const saveBtn = document.getElementById('saveBtn');
+    saveBtn.addEventListener('click', () => {
+      const ip = ipInput.value;
+      const port = portInput.value;
+
+      if (!ip || !port) {
+        alert('Please enter both IP and Port.');
+        return;
+      }
+
+      // Send data to Go backend
+      fetch('/api/v1/controllerIPConfig', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ ip, port })
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Failed to configure IP and Port');
+        }
+        return response.json();
+      })
+      .then(data => {
+        alert(`Configuration successful: ${data.message}`);
+        dialog.style.display = 'none';
+      })
+      .catch(error => {
+        alert(`Error: ${error.message}`);
+      });
+    });
+
     // Dashboard actions
     document.getElementById('refresh-dashboard')?.addEventListener('click', () => {
       this.refreshDashboard();
@@ -211,10 +280,10 @@ class EasyMeshController {
       this.updateConnectionStatus(true);
     };
 
-    this.wsConnection.onmessage = (event) => {
+    this.wsConnection.onmessage = async (event) => {
       let data;
       try { data = JSON.parse(event.data); } catch { return; }
-      this.handleWebSocketMessage(data);
+      await this.handleWebSocketMessage(data);
     };
 
     this.wsConnection.onerror = (err) => {
@@ -235,12 +304,12 @@ class EasyMeshController {
   }
 }
 
-handleWebSocketMessage(data) {
+async handleWebSocketMessage(data) {
   switch (data.type) {
     case 'initial':
       this.devices = data.devices || [];
       this.clients = data.clients || [];
-      this.topology = data.topology || {};
+      this.topology = await this.apiCall('/topology');
       this.updateAllDisplays();
       break;
     case 'metrics_update':
@@ -253,7 +322,8 @@ handleWebSocketMessage(data) {
       this.updateClient(data.client);
       break;
     case 'topology_change':
-      this.updateTopology(data.topology);
+      const freshTopology = await this.apiCall('/topology');
+      await this.updateTopology(freshTopology);
       break;
     case 'security_event':
       this.handleSecurityEvent(data.event);
@@ -805,129 +875,511 @@ handleWebSocketMessage(data) {
    * Update topology visualization
    */
   updateTopologyVisualization() {
-    const container = document.getElementById('topology-visualization');
-    if (!container) return;
+    const container = d3.select('#topology-visualization');
+    const tooltip = d3.select('#custom-tooltip');
+    const width = container.node().clientWidth;
+    const height = container.node().clientHeight;
+    const self = this;
 
-    // Clear existing content
-    container.innerHTML = '';
-
-    // Create SVG
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('width', '100%');
-    svg.setAttribute('height', '100%');
-    svg.setAttribute('viewBox', '0 0 800 600');
-
-    // Define node positions
-    const nodes = this.calculateNodePositions();
-
-    // Draw connections
-    this.drawTopologyConnections(svg, nodes);
-
-    // Draw nodes
-    this.drawTopologyNodes(svg, nodes);
-
-    container.appendChild(svg);
-  }
-
-  /**
-   * Calculate node positions for topology
-   */
-  calculateNodePositions() {
-    const nodes = [];
-    const centerX = 400;
-    const centerY = 300;
-    const radius = 200;
-
-    const others = this.devices.filter(d => d.role !== 'Controller');
-    const controller = this.devices.find(d => d.role === 'Controller');
-
-    if (controller) {
-      nodes.push({ device: controller, x: centerX, y: centerY, isController: true });
+    // Return if container is not ready
+    if (width === 0 || height === 0) {
+      setTimeout(() => this.updateTopologyVisualization(), 100);
+      return;
     }
 
-    others.forEach((device, index) => {
-      const angle = (index * 2 * Math.PI) / Math.max(1, others.length);
-      nodes.push({
-        device,
-        x: centerX + Math.cos(angle) * radius,
-        y: centerY + Math.sin(angle) * radius,
-        isController: false
+    // Return if container is empty
+    if (!this.topology?.nodes?.length) return;
+
+    // Clear previous content
+    container.selectAll('*').remove();
+
+    // Create SVG and zoom behavior
+    const svg = container.append('svg')
+    .attr('width', width)
+    .attr('height', height)
+    .call(d3.zoom().on('zoom', (event) => {
+      svgGroup.attr('transform', event.transform);
+    }));
+
+    const svgGroup = svg.append('g');
+
+    // Normalize node and edge IDs to strings
+    this.topology.nodes.forEach(n => n.id = String(n.id));
+    this.topology.edges.forEach(e => {
+      e.from = String(e.from);
+      e.to = String(e.to);
+    });
+
+    // Validate edges
+    const nodeIds = new Set(this.topology.nodes.map(n => n.id));
+    const invalidEdges = this.topology.edges.filter(e => !nodeIds.has(e.from) || !nodeIds.has(e.to));
+
+    if (invalidEdges.length > 0) {
+      console.error('Invalid edges found:', invalidEdges);
+      throw new Error('Topology contains edges with undefined nodes.');
+    }
+
+    // Transform edges to use source/target for D3
+    const edges = this.topology.edges.map(e => ({
+      ...e,
+      source: e.from,
+      target: e.to
+    }));
+
+    // Define haulType colors
+    const haulColors = {
+      Fronthaul: '#c3cbf8ff',
+      Backhaul: '#e68b8bff',
+      Iot: '#d3ced3ff'
+    };
+
+    const circleOffsets = [
+      { x: -65, y: 50 },
+      { x: 65, y: 50 },
+      { x: 0, y: -65 }
+    ];
+
+    const bandColors = {
+      '-1': '#0bd476ff',
+      '0': '#8B4513',
+      '1': '#5a82c2ff',
+      '2': '#d83131ff',
+    };
+
+    const bandWavelengths = {
+      '-1': 0,
+      '0': 25,
+      '1': 15,
+      '2': 10,
+      'default': 20
+    };
+
+    const minX = d3.min(this.topology.nodes, d => d.x);
+    const maxX = d3.max(this.topology.nodes, d => d.x);
+    const minY = d3.min(this.topology.nodes, d => d.y);
+    const maxY = d3.max(this.topology.nodes, d => d.y);
+    const graphWidth = maxX - minX;
+    const graphHeight = maxY - minY;
+    const offsetX = (width - graphWidth) / 2 - minX -250;
+    const offsetY = (height - graphHeight) / 2 - minY;
+
+    this.topology.nodes.forEach(node => {
+      node.fx = node.x + offsetX;
+      node.fy = node.y + offsetY;
+    });
+
+    // Create simulation
+    const simulation = d3.forceSimulation(this.topology.nodes)
+    .force('link', d3.forceLink(edges).id(d => d.id))
+    .force('charge', d3.forceManyBody().strength(-500))
+    .force('center', d3.forceCenter(width / 2, height / 2));
+
+    const nodeGroup = svgGroup.append('g').attr('class', 'nodes');
+    const edgeGroup = svgGroup.append('g').attr('class', 'edges');
+    const staGroup  = svgGroup.append('g').attr('class', 'sta-nodes');
+
+    const node = nodeGroup.selectAll('g')
+    .data(this.topology.nodes)
+    .enter()
+    .append('g')
+    .attr('class', 'node')
+    .call(d3.drag()
+      .on('start', dragstarted)
+      .on('drag', dragged)
+      .on('end', dragended));
+
+    // Draw overlapping haulType circles and icon
+    node.each(function(d) {
+      const g = d3.select(this);
+      const haulTypes = d.haulTypes?.map(ht => ht.name) || [];
+
+      haulTypes.forEach((type, i) => {
+        const offset = circleOffsets[i] || { x: 0, y: 0 };
+        const verticalShift = offset.x < 0 ? -8 : offset.x > 0 ? 8 : 0;
+
+        // SSID heading inside the each circle
+        const haul = d.haulTypes?.[i];
+        const ssid = haul?.ssid || 'SSID N/A';
+        const vlanId = haul?.VlanId || 'N/A';
+        const mldMap = new Map();
+
+        // Extract BSS-band details
+        const bssDetails = haul.BSSList
+        .filter(bss => bss.vapMode !== 1)
+        .map(bss => {
+          const bandLabel = bss.Band === 0 ? '2.4GHz' :
+            bss.Band === 1 ? '5GHz' :
+            bss.Band === 2 ? '6GHz' : 'Unknown';
+
+            if (bss.MLDAddr && bss.MLDAddr !== "") {
+              if (!mldMap.has(bss.MLDAddr)) {
+                mldMap.set(bss.MLDAddr, new Set());
+              }
+              mldMap.get(bss.MLDAddr).add(bandLabel);
+            }
+
+            if (bss.IEEE == "" ) {
+              if (bss.Band == 0 || bss.Band == 1) {
+                bss.IEEE= "802.11ax"
+              } else {
+                bss.IEEE= "802.11be"
+              }
+            }
+
+            return `${bss.BSSID} - (${bandLabel}) - ${bss.IEEE}`;
+          });
+
+          const mldSummary = Array.from(mldMap.entries()).map(([addr, bands]) => {
+            return `${addr} - ${bands.size} - ${Array.from(bands).join(', ')}`;
+          });
+
+        const hasMLD = haul.BSSList.some(bss => bss.MLDAddr && bss.MLDAddr !== "");
+
+        // Draw haultype overlapping circle
+        g.append('circle')
+          .attr('r', 80)
+          .attr('cx', offset.x)
+          .attr('cy', offset.y)
+          .attr('fill', haulColors[type] || '#ccc')
+          .attr('opacity', 0.6)
+          .attr('stroke', hasMLD ? '#45f88aff': 'none')
+          .attr('stroke-width', hasMLD ? 3: 0)
+          .style('pointer-events', 'visiblePainted')
+          .on('mouseover', function(event) {
+            let mldInfo = '';
+            if (mldSummary.length > 0) {
+              mldInfo = `<br><b>MLD Summary:</b><br>${mldSummary.join('<br>')}`;
+            }
+            tooltip.style('display', 'block')
+           .html(`<b>SSID: ${ssid}</b><br>${bssDetails.join('<br>')}<br>VLAN ID: ${vlanId}<br>${mldInfo}`);
+          })
+          .on('mousemove', function(event) {
+            self.positionTooltip(event, tooltip);
+          })
+          .on('mouseout', function() {
+            tooltip.style('display', 'none');
+          });
+
+        g.append('text')
+          .attr('x', offset.x)
+          .attr('y', offset.y + verticalShift)
+          .attr('text-anchor', 'middle')
+          .attr('dominant-baseline', 'middle')
+          .attr('font-size', '12px')
+          .attr('fill', '#9b9a9aff')
+          .attr('font-weight', 'bold')
+          .text(ssid);
+      });
+
+      // STA Placement
+      if (Array.isArray(d.STAList) && d.STAList.length > 0) {
+        const iconCenterX = d.fx ?? d.x;
+        const iconCenterY = d.fy ?? d.y;
+
+        const staList = d.STAList;
+        const baseRadius = 80;
+        const angleStep = (2 * Math.PI) / staList.length;
+
+        staList.forEach((sta, i) => {
+          const staElement = staGroup.append('g').attr('class', 'sta-node');
+
+          const seed = i + sta.staMAC.length;
+          let angle = angleStep * i;
+          if (staList.length < 5) {
+            angle += (self.seededRandom(seed) * 2 - 0.5) * 0.5;
+          }
+          const radius = baseRadius + self.seededRandom(seed + 2) * 40;
+          const totalSTA = staList.length;
+          const staX = iconCenterX + radius * Math.cos(angle);
+          const staY = iconCenterY + radius * Math.sin(angle);
+
+          // maximum icon size
+          const maxSize = 30;
+          // minimum icon size
+          const minSize = 15;
+          const nodeRadius = 20;
+
+          const iconSize = Math.max(minSize, maxSize - totalSTA);
+          const angleFromCenter = Math.atan2(staY - iconCenterY, staX - iconCenterX);
+          const from = {
+            x: iconCenterX + nodeRadius * Math.cos(angleFromCenter),
+            y: iconCenterY + nodeRadius * Math.sin(angleFromCenter)
+          };
+
+          const to = { x: staX, y: staY };
+          const staWaveLength = bandWavelengths[sta.band] || bandWavelengths['default'];
+          const sinePathData = self.generateSineWavePath(from, to, {
+            amplitude: 5,
+            wavelength: staWaveLength
+          });
+
+          staElement.append('path')
+            .attr('d', sinePathData.path)
+            .attr('fill', 'none')
+            .attr('stroke', '#141313ff')
+            .attr('stroke-width', 1)
+            .attr('stroke', d => bandColors[sta.band] || '#000');
+
+          // Draw STA node
+          const iconUrl = self.getClientIcon(sta.clientType);
+
+          staElement.append('image')
+           .attr('xlink:href', iconUrl)
+           .attr('x', staX - iconSize / 2)
+           .attr('y', staY - iconSize / 2)
+           .attr('width', iconSize)
+           .attr('height', iconSize)
+           .on('mouseover', function(event) {
+              let mldInfo = '';
+              if (sta.MLDAddr && sta.MLDAddr !== '') {
+                mldInfo = `<br>MLD Address: ${sta.MLDAddr}`;
+              }
+              tooltip.style('display', 'block')
+              .html(`<b>STA:</b> ${sta.clientType || 'Unknown'}<br>MAC: ${sta.staMAC}${mldInfo}<br>SSID: ${sta.ssid}`);
+            })
+           .on('mousemove', function(event) {
+              self.positionTooltip(event, tooltip);
+            })
+            .on('mouseout', function() {
+              tooltip.style('display', 'none');
+            });
+        });
+      }
+
+      const nodeIconUrl = self.getNodeIcon(d.name);
+      let isController = false;
+      if (d.name?.toLowerCase().includes('controller')) {
+        isController = true;
+      }
+
+      g.append('image')
+        .attr('xlink:href', nodeIconUrl)
+        .attr('x', isController ? -25 : -20)
+        .attr('y', isController ? -25 : -20)
+        .attr('width', isController ? 50 : 35)
+        .attr('height', isController ? 50 : 35)
+        .on('mouseover', function(event) {
+          tooltip.style('display', 'block')
+          .html(`<b>${d.name || d.id}</b><br>MAC Address: ${d.id}`);
+        })
+        .on('mousemove', function(event) {
+          self.positionTooltip(event, tooltip);
+        })
+        .on('mouseout', function() {
+          tooltip.style('display', 'none');
+        });
+
+      g.append('text')
+        .attr('x', 0)
+        .attr('y', isController ? 30: 25)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '9px')
+        .attr('fill', '#333')
+        .attr('font-weight', 'bold')
+        .text(d.name);
+    });
+
+    const edge = edgeGroup.selectAll('path')
+    .data(edges)
+    .enter()
+    .append('path')
+    .attr('fill', 'none')
+    .attr('stroke-width', 2)
+    .attr('stroke', d => bandColors[d.band] || '#000');
+
+    const channelLabels = edgeGroup.selectAll('g.channel-label')
+    .data(edges.filter(d => String(d.band) !== '-1')) // Only for non -1 bands
+    .enter()
+    .append('g')
+    .attr('class', 'channel-label');
+
+    channelLabels.append('circle')
+    .attr('r', 13)
+    .attr('fill', '#fff')
+    .attr('stroke-width', 2)
+    .attr('stroke', d => bandColors[d.band] || '#000');
+
+    channelLabels.append('text')
+    .attr('text-anchor', 'middle')
+    .attr('dominant-baseline', 'middle')
+    .attr('font-size', '10px')
+    .attr('font-weight', 'bold')
+    .text(d => d.channel);
+
+    simulation.on('tick', () => {
+      node.attr('transform', d => `translate(${d.x},${d.y})`);
+
+      edge.attr('d', d => {
+        const from = d.source;
+        const to = d.target;
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const length = Math.sqrt(dx * dx + dy * dy);
+        const ux = dx / length;
+        const uy = dy / length;
+
+        const edgeOffset = 25;
+        const adjustedFrom = {
+          x: from.x + ux * edgeOffset,
+          y: from.y + uy * edgeOffset
+        };
+        const adjustedTo = {
+          x: to.x - ux * edgeOffset,
+          y: to.y - uy * edgeOffset
+        };
+
+        const band = String(d.band);
+        if (band === '-1') {
+          d._midpoint = [(adjustedFrom.x + adjustedTo.x) / 2, (adjustedFrom.y + adjustedTo.y) / 2];
+          return `M${adjustedFrom.x},${adjustedFrom.y} L${adjustedTo.x},${adjustedTo.y}`;
+        }
+
+        const wavelength = bandWavelengths[band] || bandWavelengths['default'];
+        const amplitude = 7;
+        const { path, midpoint } = self.generateSineWavePath(adjustedFrom, adjustedTo, { amplitude, wavelength });
+        d._midpoint = midpoint;
+        return path;
+      });
+
+      channelLabels
+      .attr('transform', d => {
+        const mid = d._midpoint || [(d.source.x + d.target.x) / 2, (d.source.y + d.target.y) / 2];
+        return `translate(${mid[0]},${mid[1]})`;
       });
     });
 
-    return nodes;
-  }
+    function dragstarted(event, d) {
+      if (!event.active) simulation.alphaTarget(0.3).restart();
+      d.fx = d.x;
+      d.fy = d.y;
+    }
 
-  /**
-   * Draw topology connections
-   */
-  drawTopologyConnections(svg, nodes) {
-    const controller = nodes.find(n => n.isController);
+    function dragged(event, d) {
+      d.fx = event.x;
+      d.fy = event.y;
+    }
 
-    nodes.forEach(node => {
-      if (!node.isController && controller) {
-        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        line.setAttribute('x1', controller.x);
-        line.setAttribute('y1', controller.y);
-        line.setAttribute('x2', node.x);
-        line.setAttribute('y2', node.y);
-        line.setAttribute('stroke', '#3b82f6');
-        line.setAttribute('stroke-width', '2');
-        line.setAttribute('stroke-dasharray', '5,5');
-        svg.appendChild(line);
+    function dragended(event, d) {
+      if (!event.active) simulation.alphaTarget(0);
+
+      // Only release if not originally fixed
+      if (!(d.fixed?.x === true && d.fixed?.y === true)) {
+        d.fx = null;
+        d.fy = null;
       }
-    });
+    }
   }
 
   /**
-   * Draw topology nodes
+   * generate the sign wave connecting to node and STA
    */
-  drawTopologyNodes(svg, nodes) {
-    nodes.forEach(node => {
-      // Node circle
-      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      circle.setAttribute('cx', node.x);
-      circle.setAttribute('cy', node.y);
-      circle.setAttribute('r', node.isController ? '25' : '20');
-      circle.setAttribute('fill', node.isController ? '#2563eb' : '#10b981');
-      circle.setAttribute('stroke', '#ffffff');
-      circle.setAttribute('stroke-width', '3');
-      circle.style.cursor = 'pointer';
-      circle.addEventListener('click', () => this.showDeviceDetails(node.device));
-      svg.appendChild(circle);
+  generateSineWavePath(from, to, options = {}) {
+    const amplitude = options.amplitude || 7;
+    const wavelength = options.wavelength || 20;
+    const edgeOffset = options.edgeOffset || 0;
+    const minSteps = 100;
 
-      // Device icon
-      const icon = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      icon.setAttribute('x', node.x);
-      icon.setAttribute('y', node.y + 5);
-      icon.setAttribute('text-anchor', 'middle');
-      icon.setAttribute('fill', '#ffffff');
-      icon.setAttribute('font-family', 'Font Awesome 6 Free');
-      icon.setAttribute('font-size', '16');
-      icon.textContent = node.isController ? '\uf233' : '\uf1eb'; // router icons
-      svg.appendChild(icon);
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const length = Math.sqrt(dx * dx + dy * dy);
+    if (length === 0) return { path: '', midpoint: [from.x, from.y], points: [] };
 
-      // Device label
-      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      label.setAttribute('x', node.x);
-      label.setAttribute('y', node.y + 45);
-      label.setAttribute('text-anchor', 'middle');
-      label.setAttribute('fill', '#374151');
-      label.setAttribute('font-size', '12');
-      label.setAttribute('font-weight', '600');
-      label.textContent = node.device.model;
-      svg.appendChild(label);
+    const ux = dx / length;
+    const uy = dy / length;
 
-      // Status indicator
-      const status = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      status.setAttribute('cx', node.x + (node.isController ? 18 : 15));
-      status.setAttribute('cy', node.y - (node.isController ? 18 : 15));
-      status.setAttribute('r', '6');
-      status.setAttribute('fill', node.device.status === 'Online' ? '#10b981' : '#ef4444');
-      status.setAttribute('stroke', '#ffffff');
-      status.setAttribute('stroke-width', '2');
-      svg.appendChild(status);
-    });
+    const adjustedFrom = {
+      x: from.x + ux * edgeOffset,
+      y: from.y + uy * edgeOffset
+    };
+    const adjustedTo = {
+      x: to.x - ux * edgeOffset,
+      y: to.y - uy * edgeOffset
+    };
+
+    const newDx = adjustedTo.x - adjustedFrom.x;
+    const newDy = adjustedTo.y - adjustedFrom.y;
+    const newLength = Math.sqrt(newDx * newDx + newDy * newDy);
+
+    const cycles = Math.max(1, Math.floor(newLength / wavelength));
+    const steps = Math.max(minSteps, cycles * 50);
+    const angle = Math.atan2(newDy, newDx);
+    const perpendicularAngle = angle + Math.PI / 2;
+
+    const points = [];
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const x = adjustedFrom.x + newDx * t;
+      const y = adjustedFrom.y + newDy * t;
+      const sineOffset = Math.sin(t * cycles * 2 * Math.PI) * amplitude;
+      const offsetX = Math.cos(perpendicularAngle) * sineOffset;
+      const offsetY = Math.sin(perpendicularAngle) * sineOffset;
+      points.push([x + offsetX, y + offsetY]);
+    }
+
+    const midpoint = points[Math.floor(points.length / 2)];
+
+    const lineGenerator = d3.line()
+      .x(d => d[0])
+      .y(d => d[1])
+      .curve(d3.curveLinear);
+
+    const path = lineGenerator(points);
+
+    return { path, midpoint, points };
+  }
+
+  /**
+   * tooltip position for hoover
+   */
+  positionTooltip(event, tooltip) {
+    const tooltipWidth = tooltip.node().offsetWidth;
+    const tooltipHeight = tooltip.node().offsetHeight;
+    const pageWidth = window.innerWidth;
+    const pageHeight = window.innerHeight;
+
+    let left = event.pageX + 10;
+    let top = event.pageY + 10;
+
+    // Prevent overflow on the right
+    if (left + tooltipWidth > pageWidth) {
+      left = event.pageX - tooltipWidth - 10;
+    }
+
+    // Prevent overflow at the bottom
+    if (top + tooltipHeight > pageHeight) {
+      top = event.pageY - tooltipHeight - 10;
+    }
+
+    tooltip.style('left', `${left}px`)
+      .style('top', `${top}px`);
+  }
+
+  /**
+   * get the icon for STA based on STA types
+   */
+  getClientIcon(clientType) {
+    const type = clientType?.toLowerCase() || '';
+
+    if (type.includes('ipad')) return'static/icons/ipad.png';
+    if (type.includes('iphone')) return 'static/icons/iphone.png';
+    if (type.includes('android')) return 'static/icons/android.png';
+    if (type.includes('laptop')) return 'static/icons/laptop.png';
+    return 'static/icons/android.png';
+  }
+
+  /**
+   * get the icon for nodes based on node name
+   */
+  getNodeIcon(nodeName) {
+    const type = nodeName?.toLowerCase() || '';
+
+    if (type.includes('controller') || type.includes('agent')) return'static/icons/controller.png';
+    return 'static/icons/extender.png';
+  }
+
+  seededRandom(seed) {
+    let x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
   }
 
   /**
@@ -1419,8 +1871,17 @@ handleWebSocketMessage(data) {
     }, 30000);
 
     // Refresh topology every 60 seconds
-    this.refreshIntervals.topology = setInterval(() => {
-      if (this.currentTab === 'topology') this.updateTopologyVisualization();
+    this.refreshIntervals.topology = setInterval(async () => {
+      if (this.currentTab === 'topology') {
+        try {
+          const response = await this.apiCall('/topology');
+          this.topology = response;
+          this.updateTopologyVisualization();
+        } catch (error) {
+          console.error('Failed to refresh topology:', error);
+          this.showNotification('Failed to refresh topology', 'error');
+        }
+      }
     }, 60000);
   }
 
@@ -1560,7 +2021,8 @@ handleWebSocketMessage(data) {
     this.updateSecurityCenter?.();
   }
 
-  updateTopology(newTopo) {
+  async updateTopology(newTopo) {
+    console.log('Fetching fresh topology from backend...');
     this.topology = newTopo || {};
     if (this.currentTab === 'topology') this.updateTopologyVisualization();
   }
