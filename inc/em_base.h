@@ -210,6 +210,11 @@ extern "C"
 #define EM_MEDIA_WIFI_80211af       htons(EM_MEDIA_WIFI | 0x07)
 #define EM_MEDIA_WIFI_80211ax_6     htons(EM_MEDIA_WIFI | 0x08)
 
+#define EM_MEDIA_WIFI_ROLE_AP           0x00
+#define EM_MEDIA_WIFI_ROLE_STA          0x40
+#define EM_MEDIA_WIFI_ROLE_P2P_CLIENT   0x80
+#define EM_MEDIA_WIFI_ROLE_P2P_GO       0x90
+
 #define 	EM_PARSE_NO_ERR			0
 #define 	EM_PARSE_ERR_GEN		EM_PARSE_NO_ERR	- 1	
 #define 	EM_PARSE_ERR_NET_ID		EM_PARSE_NO_ERR	- 2	
