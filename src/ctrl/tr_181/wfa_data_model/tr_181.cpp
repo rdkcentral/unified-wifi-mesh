@@ -161,156 +161,151 @@ bus_error_t tr_181_t::wifi_elem_num_of_table_row(char* event_name, uint32_t* tab
 {
     // Return 0 rows for all tables for now
     if (table_row_size != NULL) {
-        *table_row_size = 1;
+        *table_row_size = 0;
     }
     em_printfout("enter:%s\\r\\n", event_name);
     return bus_error_success;
 }
 
-/**
- * @brief Parses JSON keys from the file and generates DML namespaces (refined).
- * 
- * This version properly handles indexed arrays to generate paths like:
- * Network.DeviceList.{i}.APMLD.STAMLD
- *
- * @param handle The bus handle
- * @param filename The path to the JSON file
- */
-void tr_181_t::generate_namespaces_without_lib_refined(bus_handle_t *handle, const std::string& filename)
+void tr_181_t::register_cjson_namespace(bus_handle_t *handle, cJSON *node, const std::string &prefix)
 {
-    bus_name_string_t      name_prefix;
-    bus_element_type_t     element_type     = bus_element_type_property;
-    bus_callback_table_t   cb_table         = { 0 };
-    data_model_properties_t   data_model_value;
+    if (!node)
+        return;
 
+    bus_callback_table_t cb_table = {0};
+    data_model_properties_t data_model_value;
+
+    for (cJSON *child = node->child; child; child = child->next)
+    {
+        std::string key = child->string ? child->string : "";
+        std::string full_path;
+        if(prefix.empty()) {
+            full_path = key;
+        } else if(prefix.back() == '.') {
+            full_path = prefix + key;
+        } else {
+            full_path = prefix + "." + key;
+        }
+
+        if (cJSON_IsObject(child))
+        {
+            em_printfout("%s", full_path.c_str());
+            wfa_set_bus_callbackfunc_pointers(full_path.c_str(), &cb_table);
+            memset(&data_model_value, 0, sizeof(data_model_value));
+            wfa_bus_register_namespace(handle, (char *)full_path.c_str(),
+                                       bus_element_type_property, cb_table, data_model_value, 1);
+
+            // Recurse into the object's children
+            register_cjson_namespace(handle, child, full_path);
+        }
+        else if (cJSON_IsArray(child))
+        {
+            std::string array_path;
+            if(prefix.empty()) {
+                array_path = key + ".{i}.";
+            } else if(prefix.back() == '.') {
+                array_path = prefix + key + ".{i}.";
+            } else {
+                array_path = prefix + "." + key + ".{i}.";
+            }
+
+            em_printfout("%s", array_path.c_str());
+            wfa_set_bus_callbackfunc_pointers(array_path.c_str(), &cb_table);
+            memset(&data_model_value, 0, sizeof(data_model_value));
+
+            // Now inspect the first element of the array
+            cJSON *first_item = cJSON_GetArrayItem(child, 0);
+            if (first_item && cJSON_IsObject(first_item))
+            {
+                //set the get and set handlers NULL for table entries
+                cb_table.get_handler = NULL;
+                cb_table.set_handler = NULL;
+                wfa_bus_register_namespace(handle, (char *)array_path.c_str(),
+                                       bus_element_type_table, cb_table, data_model_value, 0);
+                register_cjson_namespace(handle, first_item, array_path);
+            }
+            else if (first_item && (cJSON_IsString(first_item) || cJSON_IsNumber(first_item)))
+            {
+                std::string prop_path;
+                if(prefix.empty())
+                    prop_path = key;
+                else if(prefix.back() == '.')
+                    prop_path = prefix + key;
+                else
+                    prop_path = prefix + "." + key;
+
+                em_printfout("%s Primitive array as property", prop_path.c_str());
+                wfa_set_bus_callbackfunc_pointers(prop_path.c_str(), &cb_table);
+                memset(&data_model_value, 0, sizeof(data_model_value));
+                wfa_bus_register_namespace(handle, (char *)prop_path.c_str(),
+                                       bus_element_type_property, cb_table, data_model_value, 1);
+            }
+        }
+        else if (cJSON_IsString(child) || cJSON_IsNumber(child) || cJSON_IsBool(child))
+        {
+            em_printfout("%s", full_path.c_str());
+            wfa_set_bus_callbackfunc_pointers(full_path.c_str(), &cb_table);
+            memset(&data_model_value, 0, sizeof(data_model_value));
+            wfa_bus_register_namespace(handle, (char *)full_path.c_str(),
+                                       bus_element_type_property, cb_table, data_model_value, 1);
+        }
+        else
+        {
+            em_printfout("Ignoring unsupported node: %s", full_path.c_str());
+        }
+    }
+}
+
+/**
+ * Main entry: Parse JSON file and register Network hierarchy into RBUS.
+ * Root key: "wfa-dataelements:Network"
+ */
+void tr_181_t::generate_namespaces_without_lib_refined(bus_handle_t *handle, const std::string &filename)
+{
     std::ifstream file(filename);
-    if (!file.is_open()) {
-        std::cerr << "Error: Could not open file " << filename << ". Please ensure it exists." << std::endl;
+    if (!file.is_open())
+    {
+        std::cerr << "Error: Could not open " << filename << std::endl;
         return;
     }
 
-    // Map to track the path segments by indentation level
-    std::map<int, std::string> hierarchy;
-    
-    std::cout << "--- WARNING: Using string parsing (Still Fragile!) ---" << std::endl;
-    std::cout << "Generated Namespaces (full_namespace):" << std::endl;
-    std::cout << "---------------------------------------" << std::endl;
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    std::string json_str = buffer.str();
 
-    // Initialize with the root path 'Network' at level 1
-    int root_level = 1;
-    hierarchy[root_level] = "Network";
-
-    std::string line;
-    while (std::getline(file, line)) {
-        // 1. Calculate Indentation Level (Assuming 4 spaces per level for pretty-printed JSON)
-        int indent_count = 0;
-        for (char c : line) {
-            if (c == ' ') indent_count++;
-            else if (c == '\t') indent_count += 4;
-            else break;
-        }
-        int current_level = (indent_count / 4) + root_level;
-        
-        std::string trimmed_line = trim(line);
-
-        if (trimmed_line.empty() || trimmed_line.find('{') == 0 || trimmed_line.find('}') == 0 || 
-            trimmed_line.find(']') == 0 || trimmed_line.find('[') == 0) {
-            continue; // Ignore pure structural lines
-        }
-
-        // 2. Extract Key
-        size_t quote_start = trimmed_line.find('"');
-        size_t quote_end = (quote_start != std::string::npos) ? trimmed_line.find('"', quote_start + 1) : std::string::npos;
-        size_t colon_pos = (quote_end != std::string::npos) ? trimmed_line.find(':', quote_end + 1) : std::string::npos;
-        
-        std::string key;
-        if (quote_start != std::string::npos && quote_end != std::string::npos && colon_pos != std::string::npos) {
-            key = trimmed_line.substr(quote_start + 1, quote_end - quote_start - 1);
-        } else {
-            continue; // Not a standard key-value line
-        }
-
-        // Handle the root tag 'wfa-dataelements:Network' exclusion
-        if (key == "wfa-dataelements:Network") {
-            continue;
-        }
-
-        // 3. Update Hierarchy and Track Array Context
-        bool has_indexed_parent = false;
-        std::string parent_path;
-        
-        // Check if we have a parent and if it's an indexed array
-        if (current_level > root_level && hierarchy.count(current_level - 1)) {
-            parent_path = hierarchy[current_level - 1];
-            has_indexed_parent = (parent_path.find(".{i}") != std::string::npos);
-        }
-
-        // Clear deeper hierarchy paths
-        for (auto it = hierarchy.begin(); it != hierarchy.end();) {
-            if (it->first > current_level) {
-                it = hierarchy.erase(it);
-            } else {
-                ++it;
-            }
-        }
-
-        // Store the current key in hierarchy
-        hierarchy[current_level] = key;
-        
-        // 4. Construct Full Namespace
-        std::string full_path = "";
-        for (int i = root_level; i <= current_level; ++i) {
-            if (hierarchy.count(i)) {
-                if (!full_path.empty()) full_path += ".";
-                full_path += hierarchy[i];
-            }
-        }
-
-        // If we're under an indexed parent, reconstruct the path to include {i}
-        std::string indexed_full_path = full_path;
-        if (has_indexed_parent) {
-            // Find the last segment of the parent path (before our key)
-            size_t last_dot = full_path.find_last_of('.');
-            if (last_dot != std::string::npos) {
-                // Replace the last segment to include .{i}
-                indexed_full_path = full_path.substr(0, last_dot) + ".{i}." + key;
-            }
-        }
-        
-        // 5. Apply DML Rules
-        
-        // Check for Array/Object Table Opener
-        if (trimmed_line.find(":{") != std::string::npos || trimmed_line.find(": [") != std::string::npos) {
-            // If the structure starts with an array, register the indexed path
-            if (trimmed_line.find(": [") != std::string::npos) {
-                std::string table_path = has_indexed_parent ? indexed_full_path : full_path;
-                std::string array_path = table_path + ".{i}";
-                
-                // Print and register the array path
-                em_printfout("%s", array_path.c_str());
-                
-                wfa_set_bus_callbackfunc_pointers(array_path.c_str(), &cb_table);
-                memset(&data_model_value, 0, sizeof(data_model_value));
-                wfa_bus_register_namespace(handle, const_cast<char*>(array_path.c_str()), 
-                                         bus_element_type_table, cb_table, data_model_value, 1);
-
-                // Update hierarchy to include {i} for children of this array
-                hierarchy[current_level] = key + ".{i}";
-            }
-        }
-        // Handle Leaf Parameters
-        else if (trimmed_line.find(':') != std::string::npos && trimmed_line.back() != '{' && trimmed_line.back() != '[') {
-            // Use the indexed path if we're under an array parent, otherwise use normal path
-            std::string leaf_path = has_indexed_parent ? indexed_full_path : full_path;
-            
-            em_printfout("%s", leaf_path.c_str());
-            wfa_set_bus_callbackfunc_pointers(leaf_path.c_str(), &cb_table);
-            memset(&data_model_value, 0, sizeof(data_model_value));
-            wfa_bus_register_namespace(handle, const_cast<char*>(leaf_path.c_str()), 
-                                     bus_element_type_method, cb_table, data_model_value, 1);
-        }
+    cJSON *root = cJSON_Parse(json_str.c_str());
+    if (!root)
+    {
+        std::cerr << "Error parsing JSON" << std::endl;
+        return;
     }
-    printf("\n\n==========================\n\n");
+
+    // Root node of interest: wfa-dataelements:Network
+    cJSON *network_node = cJSON_GetObjectItem(root, "wfa-dataelements:Network");
+    if (!network_node)
+    {
+        std::cerr << "Root key 'wfa-dataelements:Network' not found." << std::endl;
+        cJSON_Delete(root);
+        return;
+    }
+
+    bus_callback_table_t cb_table = {0};
+    data_model_properties_t data_model_value;
+    std::string root_path = "Network";
+
+    // Register the root property node
+    em_printfout("%s", root_path.c_str());
+    wfa_set_bus_callbackfunc_pointers(root_path.c_str(), &cb_table);
+    memset(&data_model_value, 0, sizeof(data_model_value));
+    wfa_bus_register_namespace(handle, (char *)root_path.c_str(),
+                               bus_element_type_property, cb_table, data_model_value, 1);
+
+    // Recurse through the full JSON hierarchy
+    register_cjson_namespace(handle, network_node, root_path);
+
+    //print_registered_elems(get_bus_mux_reg_cb_map(), 0);
+    cJSON_Delete(root);
+    std::cout << "\nJSON namespace registration complete.\n";
 }
 
 int tr_181_t::register_wfa_dml(bus_handle_t *handle)

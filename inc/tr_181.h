@@ -135,6 +135,7 @@ public:
     
     // File operations
     void generate_namespaces_without_lib_refined(bus_handle_t* handle, const std::string& filename);
+    void register_cjson_namespace(bus_handle_t *handle, cJSON *node, const std::string &prefix);
 };
 
 #endif // TR_181_H
