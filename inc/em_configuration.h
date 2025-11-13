@@ -1165,7 +1165,7 @@ class em_configuration_t {
 	 * @note Ensure that the spec pointer is valid and points to a properly allocated
 	 * em_media_spec_data_t structure before calling this function.
 	 */
-	void fill_media_data(em_media_spec_data_t *spec);
+	void fill_media_data(em_media_spec_data_t *spec, dm_bss_t *bss);
 
 	
 	/**!
