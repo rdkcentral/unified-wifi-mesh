@@ -175,7 +175,12 @@ onewifi_em_ctrl_test_SOURCES = $(onewifi_em_ctrl_SOURCES) \
 	$(top_srcdir)/tests/test_l1_dm_network.cpp \
 	$(top_srcdir)/tests/test_l1_dm_op_class.cpp \
 	$(top_srcdir)/tests/test_l1_em_onewifi.cpp \
-	$(top_srcdir)/tests/test_l1_db_client.cpp
+	$(top_srcdir)/tests/test_l1_db_client.cpp \
+	$(top_srcdir)/tests/test_l1_em_metrics.cpp \
+	$(top_srcdir)/tests/test_l1_em_orch.cpp \
+	$(top_srcdir)/tests/test_l1_em_provisioning.cpp \
+	$(top_srcdir)/tests/test_l1_dm_scan_result.cpp \
+	$(top_srcdir)/tests/test_l1_db_column.cpp	
 onewifi_em_ctrl_test_CPPFLAGS = $(onewifi_em_ctrl_CPPFLAGS) \
                                 -I$(PKG_CONFIG_SYSROOT_DIR)$(includedir)/gtest \
                                 -DTESTING
