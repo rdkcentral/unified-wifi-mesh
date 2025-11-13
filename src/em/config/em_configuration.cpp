@@ -543,7 +543,11 @@ int em_configuration_t::create_device_info_type_tlv(unsigned char *buff)
 				continue;
             }
 			no_of_bss++;
-			memcpy(local_intf->mac_addr, dm->m_bss[i].m_bss_info.bssid.mac, sizeof(mac_address_t));
+			if (dm->m_bss[j].m_bss_info.vap_mode == em_vap_mode_ap) {
+				memcpy(local_intf->mac_addr, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
+			} else {
+				memcpy(local_intf->mac_addr, dm->m_bss[j].m_bss_info.sta_mac, sizeof(mac_address_t));
+			}
 			// fill test data
 			fill_media_data(&dm->m_radio[i].m_radio_info.media_data);
 			memcpy(&local_intf->media_data, &dm->m_radio[i].m_radio_info.media_data, sizeof(em_media_spec_data_t));
