@@ -28,8 +28,9 @@
 class MockEmMgr : public em_mgr_t {
 public:
     unsigned short get_next_msg_id() {
-        return 42; // dummy message ID
+        return 42;
     }
+    void publish_network_topology() override {}
     bool is_data_model_initialized() override {
         return true;
     }
