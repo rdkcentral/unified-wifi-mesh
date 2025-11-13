@@ -230,17 +230,14 @@ TEST_F(EmMetricsTest, ProcessCtrlStateProperlyInitializedSystem) {
 TEST_F(EmMetricsTest, ProcessValidMessageBuffer) {
     std::cout << "Entering ProcessValidMessageBuffer test" << std::endl;
     const unsigned int payload_len = 10;
-    const unsigned int total_len =
-        sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t) + payload_len;
+    const unsigned int total_len = sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t) + payload_len;
     std::vector<unsigned char> validData(total_len, 0);
     // Fill payload at correct offset
-    unsigned char* payload_ptr =
-        validData.data() + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
-    //strncpy(reinterpret_cast<char*>(payload_ptr), "1234567890", payload_len);
-	snprintf(reinterpret_cast<char*>(payload_ptr), payload_len, "%s", "1234567890");
+    unsigned char* payload_ptr = validData.data() + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
+    strncpy(reinterpret_cast<char*>(payload_ptr), "1234567890", payload_len - 1);
+    payload_ptr[payload_len - 1] = '\0';
     // Set a valid msg type
-    em_cmdu_t* cmdu =
-        reinterpret_cast<em_cmdu_t*>(validData.data() + sizeof(em_raw_hdr_t));
+    em_cmdu_t* cmdu = reinterpret_cast<em_cmdu_t*>(validData.data() + sizeof(em_raw_hdr_t));
     cmdu->type = htons(em_msg_type_assoc_sta_link_metrics_query);
     std::cout << "Invoking process_msg with correctly built buffer" << std::endl;
     EXPECT_NO_THROW({
@@ -248,56 +245,6 @@ TEST_F(EmMetricsTest, ProcessValidMessageBuffer) {
     });
     std::cout << "Exiting ProcessValidMessageBuffer test" << std::endl;
 }
- /*
-TEST_F(EmMetricsTest, ProcessValidMessageBuffer) {
-    std::cout << "Entering ProcessValidMessageBuffer test" << std::endl;
-    unsigned char validData[11] = {0};
-    const char payload[] = "1234567890";
-    std::cout << "Assigning valid payload using strncpy. Payload: " << payload << std::endl;
-    strncpy(reinterpret_cast<char*>(validData), payload, 10);
-    std::cout << "ValidData buffer values: ";
-    for (unsigned int i = 0; i < 10; i++) {
-        std::cout << "0x" << std::hex << static_cast<int>(validData[i]) << " ";
-    }
-    std::cout << std::dec << std::endl;
-    std::cout << "Invoking process_msg with validData pointer and length 10" << std::endl;
-    EXPECT_NO_THROW({
-        emMetrics->process_msg(validData, 10);
-    });
-    std::cout << "process_msg executed without error for valid message buffer" << std::endl;
-    std::cout << "Exiting ProcessValidMessageBuffer test" << std::endl;
-}
-*/
-/*
-TEST_F(EmMetricsTest, ProcessValidMessageBuffer) {
-    std::cout << "Entering ProcessValidMessageBuffer test" << std::endl;
-
-    const unsigned int payload_len = 10;
-    const unsigned int total_len =
-        sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t) + payload_len;
-
-    std::vector<unsigned char> validData(total_len, 0);
-
-    // Fill payload at correct offset
-    unsigned char* payload_ptr =
-        validData.data() + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
-    //strncpy(reinterpret_cast<char*>(payload_ptr), "1234567890", payload_len);
-	snprintf(reinterpret_cast<char*>(payload_ptr), payload_len, "%s", "1234567890");
-
-    // Set a valid msg type
-    em_cmdu_t* cmdu =
-        reinterpret_cast<em_cmdu_t*>(validData.data() + sizeof(em_raw_hdr_t));
-    cmdu->type = htons(em_msg_type_assoc_sta_link_metrics_query);
-
-    std::cout << "Invoking process_msg with correctly built buffer" << std::endl;
-
-    EXPECT_NO_THROW({
-        emMetrics->process_msg(validData.data(), total_len);
-    });
-
-    std::cout << "Exiting ProcessValidMessageBuffer test" << std::endl;
-}
-*/
 
 /**
  * @brief Verify process_msg handles NULL data pointer with non-zero length without exceptions
@@ -368,51 +315,6 @@ TEST_F(EmMetricsTest, ProcessMessageValidDataZeroLength) {
     std::cout << "process_msg executed correctly for minimal buffer" << std::endl;
     std::cout << "Exiting ProcessMessageValidDataZeroLength test" << std::endl;
 }
- /*
-TEST_F(EmMetricsTest, ProcessMessageValidDataZeroLength) {
-    std::cout << "Entering ProcessMessageValidDataZeroLength test" << std::endl;
-    unsigned char dummyData[11] = {0};
-    const char dummyPayload[] = "ABCDEFGHIJ";
-    std::cout << "Assigning dummy payload using strncpy. Dummy Payload: " << dummyPayload << std::endl;
-    strncpy(reinterpret_cast<char*>(dummyData), dummyPayload, 10);
-    std::cout << "DummyData buffer values: ";
-    for (unsigned int i = 0; i < 10; i++) {
-        std::cout << "0x" << std::hex << static_cast<int>(dummyData[i]) << " ";
-    }
-    std::cout << std::dec << std::endl;
-    unsigned int length = 0;
-    std::cout << "Invoking process_msg with dummyData pointer and length " << length << std::endl;
-    EXPECT_NO_THROW({
-        emMetrics->process_msg(dummyData, length);
-    });
-    std::cout << "process_msg executed correctly for valid data pointer with zero length" << std::endl;
-    std::cout << "Exiting ProcessMessageValidDataZeroLength test" << std::endl;
-}
-*/
-/*
-TEST_F(EmMetricsTest, ProcessMessageValidDataZeroLength) {
-    std::cout << "Entering ProcessMessageValidDataZeroLength test" << std::endl;
-
-    const unsigned int total_len =
-        sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t); // minimum valid size
-
-    std::vector<unsigned char> dummyData(total_len, 0);
-
-    // Set valid type
-    em_cmdu_t* cmdu =
-        reinterpret_cast<em_cmdu_t*>(dummyData.data() + sizeof(em_raw_hdr_t));
-    cmdu->type = htons(em_msg_type_assoc_sta_link_metrics_query);
-
-    std::cout << "Invoking process_msg with minimal valid header buffer" << std::endl;
-
-    EXPECT_NO_THROW({
-        emMetrics->process_msg(dummyData.data(), total_len);
-    });
-
-    std::cout << "process_msg executed correctly for minimal buffer" << std::endl;
-    std::cout << "Exiting ProcessMessageValidDataZeroLength test" << std::endl;
-}
-*/
 
 /**
  * @brief Tests the proper creation and destruction of a stack allocated DummyEmMetrics object
