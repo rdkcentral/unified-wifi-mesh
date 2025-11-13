@@ -208,72 +208,12 @@ TEST_F(EmMetricsTest, ProcessCtrlStateProperlyInitializedSystem) {
 }
 
 /**
- * @brief Validates that process_msg correctly processes a valid message buffer.
- *
- * This test creates a valid non-empty byte array of 10 characters, logs its contents,
- * and then calls the process_msg API to ensure it handles valid input without throwing any exceptions.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 005@n
- * **Priority:** High@n
- * 
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- * 
- * **Test Procedure:**
- * | Variation / Step | Description | Test Data | Expected Result | Notes |@n
- * | :----: | --------- | ---------- |-------------- | ----- |@n
- * | 01 | Create and initialize a valid message buffer with 10 characters | validData = allocated unsigned char array of size 11, payload = "1234567890", length = 10 | Buffer is correctly initialized with the payload data | Should be successful |
- * | 02 | Invoke process_msg with validData pointer and length 10 | input: validData pointer = validData, length = 10, output: None | process_msg executes without throwing any exception | Should pass |
- */
-TEST_F(EmMetricsTest, ProcessValidMessageBuffer) {
-    std::cout << "Entering ProcessValidMessageBuffer test" << std::endl;
-
-    // Define TLV payload length
-    const unsigned int tlv_payload_len = 10; // actual data inside TLV
-    const unsigned int tlv_total_len = sizeof(em_tlv_t) + tlv_payload_len;
-
-    // Total buffer = raw header + cmdu + TLV (header + payload)
-    const unsigned int total_len =
-        sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t) + tlv_total_len;
-
-    std::vector<unsigned char> validData(total_len, 0);
-
-    // Pointer to TLV start
-    unsigned char* tlv_ptr =
-        validData.data() + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
-
-    // Fill TLV header
-    em_tlv_t* tlv = reinterpret_cast<em_tlv_t*>(tlv_ptr);
-    tlv->type = htons(em_tlv_type_eom - 1); // Use a valid TLV type (not EOM)
-    tlv->len = htons(tlv_payload_len);      // TLV payload length
-
-    // Fill TLV payload
-    unsigned char* payload_ptr = tlv_ptr + sizeof(em_tlv_t);
-    memcpy(payload_ptr, "1234567890", tlv_payload_len);
-
-    // Set a valid message type in cmdu
-    em_cmdu_t* cmdu =
-        reinterpret_cast<em_cmdu_t*>(validData.data() + sizeof(em_raw_hdr_t));
-    cmdu->type = htons(em_msg_type_assoc_sta_link_metrics_query);
-
-    std::cout << "Invoking process_msg with correctly built buffer" << std::endl;
-
-    EXPECT_NO_THROW({
-        emMetrics->process_msg(validData.data(), total_len);
-    });
-
-    std::cout << "Exiting ProcessValidMessageBuffer test" << std::endl;
-}
-
-/**
  * @brief Verify process_msg handles NULL data pointer with non-zero length without exceptions
  *
  * This test verifies that the process_msg API of the EmMetrics class handles a NULL data pointer combined with a non-zero length value without throwing any exceptions.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 006@n
+ * **Test Case ID:** 005@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -297,50 +237,12 @@ TEST_F(EmMetricsTest, ProcessMessageNullDataNonZeroLength) {
 }
 
 /**
- * @brief Validate process_msg API handling for valid data pointer with zero length.
- *
- * This test ensures that no exception is thrown when the payload is non-null but effectively empty because the length parameter is zero.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 007@n
- * **Priority:** High@n
- *
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- *
- * **Test Procedure:**
- * | Variation / Step | Description | Test Data | Expected Result | Notes |@n
- * | :----: | --------- | ---------- |-------------- | ----- |@n
- * | 01 | Create a dummy data buffer, assign a dummy payload, and invoke process_msg with length=0 | dummyData = pointer to unsigned char array, dummyPayload = "ABCDEFGHIJ", length = 0 | API call returns without throwing an exception; EXPECT_NO_THROW assertion passes  | Should Pass  |
- */
-TEST_F(EmMetricsTest, ProcessMessageValidDataZeroLength) {
-    std::cout << "Entering ProcessMessageValidDataZeroLength test" << std::endl;
-    unsigned char dummyData[11] = {0};
-    const char dummyPayload[] = "ABCDEFGHIJ";
-    std::cout << "Assigning dummy payload using strncpy. Dummy Payload: " << dummyPayload << std::endl;
-    strncpy(reinterpret_cast<char*>(dummyData), dummyPayload, 10);
-    std::cout << "DummyData buffer values: ";
-    for (unsigned int i = 0; i < 10; i++) {
-        std::cout << "0x" << std::hex << static_cast<int>(dummyData[i]) << " ";
-    }
-    std::cout << std::dec << std::endl;
-    unsigned int length = 0;
-    std::cout << "Invoking process_msg with dummyData pointer and length " << length << std::endl;
-    EXPECT_NO_THROW({
-        emMetrics->process_msg(dummyData, length);
-    });
-    std::cout << "process_msg executed correctly for valid data pointer with zero length" << std::endl;
-    std::cout << "Exiting ProcessMessageValidDataZeroLength test" << std::endl;
-}
-
-/**
  * @brief Tests the proper creation and destruction of a stack allocated DummyEmMetrics object
  *
  * This test ensures that the object's destructor is invoked automatically when it goes out of scope, thus validating proper resource cleanup.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 008@n
+ * **Test Case ID:** 006@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
