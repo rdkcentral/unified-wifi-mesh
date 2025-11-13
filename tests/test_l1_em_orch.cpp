@@ -962,21 +962,6 @@ TEST_F(EmOrchTest, NullCommandStructurePointerTest) {
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Initialize em_cmd_t structure and invoke submit_command API. | input: cmd pointer = address of cmd, cmd->m_svc = em_service_type_ctrl, cmd->m_type = em_cmd_type_get_radio, output: retVal expected = true | Returns true; assertion (EXPECT_TRUE(retVal)) passes | Should Pass |
  */
- /*
-TEST_F(EmOrchTest, SubmitCommandProperlyInitialized) {
-    std::cout << "Entering SubmitCommandProperlyInitialized test" << std::endl;
-	em_cmd_t* cmd = new em_cmd_t();
-    cmd->m_svc = em_service_type_ctrl;
-    cmd->m_type = em_cmd_type_get_radio;
-    cmd->m_em_candidates = queue_create();
-    ASSERT_NE(cmd->m_em_candidates, nullptr);
-    std::cout << "Invoking submit_command with properly initialized em_cmd_t structure." << std::endl;
-    bool retVal = orch->submit_command(cmd);
-    std::cout << "submit_command returned: " << retVal << std::endl;
-    EXPECT_TRUE(retVal);
-    std::cout << "Exiting SubmitCommandProperlyInitialized test" << std::endl;
-}
-*/
 TEST_F(EmOrchTest, SubmitCommandProperlyInitialized) {
     std::cout << "Entering SubmitCommandProperlyInitialized test" << std::endl;
     dm_easy_mesh_t dm;
@@ -1047,31 +1032,6 @@ TEST_F(EmOrchTest, SubmitCommandWithNullPointer) {
  * | 02 | Invoke submit_commands API with the array of command pointers and num = 5 | input: cmds = array of 5 pointers, num = 5; output: result | submit_commands returns 5 and EXPECT_EQ(result, 5) passes | Should Pass |
  * | 03 | Delete allocated command pointers and set each pointer to nullptr | For i = 0,1,2,3,4: delete cmds[i], cmds[i] = nullptr | All allocated command pointers are properly deallocated | Should be successful |
  */
- /*
-TEST_F(EmOrchTest, ValidSubmission) {
-    std::cout << "Entering ValidSubmission test" << std::endl;
-    em_cmd_t* cmds[5];
-    for (unsigned int i = 0; i < 5; ++i) {
-        cmds[i] = new em_cmd_t();
-        cmds[i]->m_svc = em_service_type_ctrl;
-        cmds[i]->m_type = em_cmd_type_get_radio;
-        cmds[i]->m_em_candidates = queue_create();
-        ASSERT_NE(cmds[i]->m_em_candidates, nullptr);
-        dm_easy_mesh_t dm;
-        dm.init();
-        cmds[i]->m_data_model = dm;
-    }
-    std::cout << "Invoking submit_commands with array of command pointers and num = 5" << std::endl;
-    unsigned int result = orch->submit_commands(cmds, 5);
-    std::cout << "submit_commands returned: " << result << std::endl;
-    EXPECT_EQ(result, 5);
-    for (unsigned int i = 0; i < 5; ++i) {
-        delete cmds[i];
-        cmds[i] = nullptr;
-    }
-    std::cout << "Exiting ValidSubmission test" << std::endl;
-}
-*/
 TEST_F(EmOrchTest, ValidSubmission) {
     std::cout << "Entering ValidSubmission test" << std::endl;
     em_cmd_t* cmds[5];
