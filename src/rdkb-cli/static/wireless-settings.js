@@ -26,10 +26,12 @@
 class WirelessSettings {
   constructor() {
     this.networkProfiles = [];
+    this.updatedNetworkProfiles = [];
     this.radioConfigs = {};
     this.scanResults = {};
     this.isScanning = false;
     this.currentEditingProfile = null;
+    this.updatedProfileKeys = new Set();
 
     // Initialize when DOM is ready
     if (document.readyState === 'loading') {
@@ -82,12 +84,6 @@ class WirelessSettings {
       });
     });
 
-    // Network profile management
-    const addProfileBtn = document.getElementById('add-network-profile');
-    if (addProfileBtn) {
-      addProfileBtn.addEventListener('click', () => this.showProfileModal());
-    }
-
     const profileForm = document.getElementById('network-profile-form');
     if (profileForm) {
       profileForm.addEventListener('submit', (e) => this.saveNetworkProfile(e));
@@ -98,14 +94,6 @@ class WirelessSettings {
     if (securitySelect) {
       securitySelect.addEventListener('change', (e) => {
         this.handleSecurityTypeChange(e.target.value);
-      });
-    }
-
-    // Guest network toggle
-    const guestToggle = document.getElementById('profile-guest');
-    if (guestToggle) {
-      guestToggle.addEventListener('change', (e) => {
-        this.handleGuestNetworkToggle(e.target.checked);
       });
     }
 
@@ -121,8 +109,37 @@ class WirelessSettings {
       saveBtn.addEventListener('click', () => this.saveWirelessSettings());
     }
 
+    // Save network profilesettings
+    const ssidApplyBtn = document.getElementById('save-profile-settings');
+    if (ssidApplyBtn) {
+      ssidApplyBtn.addEventListener('click', () => this.saveNetworkProfileSettings());
+    }
+
+    // toggle eye button to show/hide passphase
+    document.getElementById('toggle-passphrase').addEventListener('click', function () {
+      const passInput = document.getElementById('profile-passphrase');
+      const isHidden = passInput.type === 'password';
+      passInput.type = isHidden ? 'text' : 'password';
+
+      this.classList.toggle('active', isHidden);
+      this.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+    });
+
     // Advanced feature toggles
     this.setupAdvancedFeatureHandlers();
+  }
+
+  /**
+   * update network profile apply button state
+  */
+  updateProfileApplyButtonState() {
+    // Enable only if at least one profile has been updated
+    const shouldEnable = this.updatedProfileKeys.size > 0;
+
+    const applyBtn = document.getElementById('save-profile-settings');
+    if (applyBtn) {
+      applyBtn.disabled = !shouldEnable;
+    }
   }
 
   /**
@@ -230,9 +247,11 @@ class WirelessSettings {
    */
   async loadWirelessSettings() {
     try {
+
       // Load network profiles
       const profilesResponse = await this.apiCall('/wireless/profiles');
-      this.networkProfiles = profilesResponse.profiles || [];
+      this.networkProfiles = profilesResponse.haulConfig || [];
+      this.updatedNetworkProfiles = JSON.parse(JSON.stringify(this.networkProfiles));
 
       // Load radio configurations
       const radioResponse = await this.apiCall('/wireless/radios');
@@ -241,6 +260,10 @@ class WirelessSettings {
       // Load advanced settings
       const advancedResponse = await this.apiCall('/wireless/advanced');
       this.advancedSettings = advancedResponse.settings || {};
+
+      // clear updatedProfileKeys
+      this.updatedProfileKeys.clear();
+      this.updateProfileApplyButtonState();
 
       console.log('✅ Wireless settings loaded successfully');
     } catch (error) {
@@ -267,18 +290,17 @@ class WirelessSettings {
 
     grid.innerHTML = '';
 
-    if (this.networkProfiles.length === 0) {
+    if (this.updatedNetworkProfiles.length === 0) {
       grid.innerHTML = `
         <div class="empty-state">
           <i class="fas fa-wifi"></i>
           <h4>No Network Profiles</h4>
-          <p>Create your first network profile to get started</p>
         </div>
       `;
       return;
     }
 
-    this.networkProfiles.forEach(profile => {
+    this.updatedNetworkProfiles.forEach(profile => {
       const profileCard = this.createProfileCard(profile);
       grid.appendChild(profileCard);
     });
@@ -290,20 +312,25 @@ class WirelessSettings {
   createProfileCard(profile) {
     const card = document.createElement('div');
     card.className = `profile-card ${profile.enabled ? 'active' : ''}`;
-    card.onclick = () => this.editProfile(profile.id);
+    let profileName = profile.HaulType
+    if (profileName == "Fronthaul") {
+      profileName = "Home Network"
+    } else if (profileName == "IoT") {
+      profileName = "IOT"
+    }
+    card.onclick = () => this.editProfile(profile.HaulType);
 
-    const securityIcon = this.getSecurityIcon(profile.security_type);
-    const bandInfo = this.getBandInfo(profile);
+    const securityIcon = this.getSecurityIcon(profile.Security);
 
     card.innerHTML = `
       <div class="profile-header">
         <div class="profile-info">
-          <h4>${profile.name}</h4>
-          <div class="profile-ssid">${profile.ssid}</div>
+          <h4>${profileName}</h4>
+          <div class="profile-ssid">${profile.SSID}</div>
         </div>
-        <div class="profile-status ${profile.enabled ? 'enabled' : 'disabled'}">
+        <div class="profile-status ${profile.Enable ? 'enabled' : 'disabled'}">
           <i class="fas fa-circle"></i>
-          ${profile.enabled ? 'Enabled' : 'Disabled'}
+          ${profile.Enable ? 'Enabled' : 'Disabled'}
         </div>
       </div>
 
@@ -312,35 +339,27 @@ class WirelessSettings {
           <span class="label">Security</span>
           <span class="value">
             <i class="fas ${securityIcon}"></i>
-            ${profile.security_type}
+            ${profile.Security}
           </span>
         </div>
         <div class="profile-detail">
           <span class="label">VLAN</span>
-          <span class="value">${profile.vlan_id || 1}</span>
+          <span class="value">${profile.vlanId || 0}</span>
         </div>
         <div class="profile-detail">
           <span class="label">Bands</span>
-          <span class="value">${bandInfo}</span>
-        </div>
-        <div class="profile-detail">
-          <span class="label">Clients</span>
-          <span class="value">${this.getProfileClientCount(profile.ssid)}</span>
+          <span class="value">${profile.Band}</span>
         </div>
       </div>
 
       <div class="profile-actions">
-        <button class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); window.WirelessSettings.toggleProfile('${profile.id}')">
+        <button class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); window.WirelessSettings.toggleProfile('${profile.HaulType}')" disabled>
           <i class="fas fa-power-off"></i>
-          ${profile.enabled ? 'Disable' : 'Enable'}
+          ${profile.Enable ? 'Disable' : 'Enable'}
         </button>
-        <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); window.WirelessSettings.editProfile('${profile.id}')">
+        <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); window.WirelessSettings.editProfile('${profile.HaulType}')">
           <i class="fas fa-edit"></i>
           Edit
-        </button>
-        <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); window.WirelessSettings.deleteProfile('${profile.id}')">
-          <i class="fas fa-trash"></i>
-          Delete
         </button>
       </div>
     `;
@@ -360,21 +379,6 @@ class WirelessSettings {
       'Open': 'fa-unlock'
     };
     return icons[securityType] || 'fa-lock';
-  }
-
-  /**
-   * Get band information for profile
-   */
-  getBandInfo(profile) {
-    const bands = [];
-    if (profile.bands) {
-      if (profile.bands.includes('2.4GHz')) bands.push('2.4G');
-      if (profile.bands.includes('5GHz')) bands.push('5G');
-      if (profile.bands.includes('6GHz')) bands.push('6G');
-    } else {
-      bands.push('All');
-    }
-    return bands.join(', ');
   }
 
   /**
@@ -482,15 +486,14 @@ class WirelessSettings {
     this.currentEditingProfile = profileId;
     
     if (profileId) {
-      const profile = this.networkProfiles.find(p => p.id === profileId);
+      const profile = this.updatedNetworkProfiles.find(p => p.HaulType === profileId);
       if (profile) {
         title.textContent = 'Edit Network Profile';
         this.populateProfileForm(profile);
       }
     } else {
-      title.textContent = 'Add Network Profile';
-      form.reset();
-      this.handleSecurityTypeChange('WPA3-SAE');
+        console.error('Could not found a valid network profile: ', profileId);
+        this.showNotification('Could not found a valid network profile', 'profileId');
     }
 
     modal.classList.add('active');
@@ -500,20 +503,28 @@ class WirelessSettings {
    * Populate profile form with data
    */
   populateProfileForm(profile) {
-    document.getElementById('profile-name').value = profile.name || '';
-    document.getElementById('profile-ssid').value = profile.ssid || '';
-    document.getElementById('profile-security').value = profile.security_type || 'WPA3-SAE';
-    document.getElementById('profile-passphrase').value = profile.passphrase || '';
-    document.getElementById('profile-vlan').value = profile.vlan_id || 1;
-    document.getElementById('profile-hidden').checked = profile.hidden || false;
-    document.getElementById('profile-guest').checked = profile.guest_network || false;
-    
-    if (profile.bandwidth_limit_mbps) {
-      document.getElementById('profile-bandwidth').value = profile.bandwidth_limit_mbps;
+    let profileName = profile.HaulType
+    if (profileName == "Fronthaul") {
+      profileName = "Home Network"
+    } else if (profileName == "IoT") {
+      profileName = "IOT"
     }
 
-    this.handleSecurityTypeChange(profile.security_type);
-    this.handleGuestNetworkToggle(profile.guest_network);
+    document.getElementById('profile-name').value = profileName || '';
+    document.getElementById('profile-ssid').value = profile.SSID || '';
+    document.getElementById('profile-security').value = profile.Security || 'WPA3-SAE';
+    document.getElementById('profile-passphrase').value = profile.PassPhrase || '';
+    document.getElementById('profile-vlan').value = profile.vlanId || 0;
+    document.getElementById('profile-hidden').checked = profile.hidden || false;
+
+    // hide the passphrase by default
+    const passInput = document.getElementById('profile-passphrase');
+    const toggleBtn = document.getElementById('toggle-passphrase');
+    if (passInput.type === "text") {
+      passInput.type = "password";
+      toggleBtn?.setAttribute('aria-label', 'Show password');
+      toggleBtn?.classList.toggle('active', false);
+    }
   }
 
   /**
@@ -551,45 +562,38 @@ class WirelessSettings {
       passphrase: document.getElementById('profile-passphrase').value,
       vlan_id: parseInt(document.getElementById('profile-vlan').value),
       hidden: document.getElementById('profile-hidden').checked,
-      guest_network: document.getElementById('profile-guest').checked,
       enabled: true
     };
 
-    if (profileData.guest_network) {
-      const bandwidthLimit = document.getElementById('profile-bandwidth').value;
-      if (bandwidthLimit) {
-        profileData.bandwidth_limit_mbps = parseInt(bandwidthLimit);
-      }
+    // Store updated data locally, will send complete update on apply button
+    if (this.currentEditingProfile) {
+      const index = this.networkProfiles.findIndex(p => p.HaulType === this.currentEditingProfile);
+        if (index !== -1) {
+          if((profileData.ssid !== this.networkProfiles[index].SSID) || 
+             (profileData.passphrase !== this.networkProfiles[index].PassPhrase)) {
+              this.updatedProfileKeys.add(this.networkProfiles[index].HaulType);
+          } else {
+            if (this.updatedProfileKeys.has(this.networkProfiles[index].HaulType)) {
+              this.updatedProfileKeys.delete(this.networkProfiles[index].HaulType);
+            }
+          }
+          const updateIndex = this.updatedNetworkProfiles.findIndex(p => p.HaulType === this.currentEditingProfile);
+            if (updateIndex !== -1) {
+              this.updatedNetworkProfiles[updateIndex].SSID = profileData.ssid;
+              this.updatedNetworkProfiles[updateIndex].PassPhrase = profileData.passphrase;
+              this.updatedNetworkProfiles[updateIndex].vlanId = profileData.vlan_id;
+            }
+        }
     }
 
-    try {
-      let response;
-      if (this.currentEditingProfile) {
-        response = await this.apiCall(`/wireless/profiles/${this.currentEditingProfile}`, {
-          method: 'PUT',
-          body: profileData
-        });
-      } else {
-        response = await this.apiCall('/wireless/profiles', {
-          method: 'POST',
-          body: profileData
-        });
-      }
+    this.showNotification(
+        this.currentEditingProfile ? 'Profile updated locally' : 'Profile created locally',
+        'info'
+    );
 
-      if (response.success) {
-        this.showNotification(
-          this.currentEditingProfile ? 'Profile updated successfully' : 'Profile created successfully',
-          'success'
-        );
-        
-        await this.loadWirelessSettings();
-        this.updateNetworkProfiles();
-        this.closeModal('network-profile-modal');
-      }
-    } catch (error) {
-      console.error('Failed to save profile:', error);
-      this.showNotification('Failed to save profile', 'error');
-    }
+    this.updateProfileApplyButtonState();
+    this.updateNetworkProfiles();
+    this.closeModal('network-profile-modal');
   }
 
   /**
@@ -622,33 +626,6 @@ class WirelessSettings {
     } catch (error) {
       console.error('Failed to toggle profile:', error);
       this.showNotification('Failed to toggle profile', 'error');
-    }
-  }
-
-  /**
-   * Delete profile
-   */
-  async deleteProfile(profileId) {
-    const profile = this.networkProfiles.find(p => p.id === profileId);
-    if (!profile) return;
-
-    if (!confirm(`Are you sure you want to delete "${profile.name}"?`)) {
-      return;
-    }
-
-    try {
-      const response = await this.apiCall(`/wireless/profiles/${profileId}`, {
-        method: 'DELETE'
-      });
-
-      if (response.success) {
-        this.networkProfiles = this.networkProfiles.filter(p => p.id !== profileId);
-        this.updateNetworkProfiles();
-        this.showNotification('Profile deleted successfully', 'success');
-      }
-    } catch (error) {
-      console.error('Failed to delete profile:', error);
-      this.showNotification('Failed to delete profile', 'error');
     }
   }
 
@@ -770,6 +747,40 @@ class WirelessSettings {
     }).join('');
   }
 
+  /**
+   * Send updated network profiles to backend 
+  */
+  async saveNetworkProfileSettings() {
+    const saveBtn = document.getElementById('save-profile-settings');
+
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    }
+
+    try {
+      const settings = this.updatedNetworkProfiles;
+
+      const response = await this.apiCall('/wireless/profiles', {
+        method: 'POST',
+        body: settings
+      });
+
+      if (response.success) {
+        this.showNotification('Wireless network profile saved successfully', 'success');
+        await this.loadWirelessSettings();
+        this.updateAllDisplays();
+      }
+    } catch (error) {
+      console.error('Failed to save wireless settings:', error);
+      this.showNotification('Failed to save wireless network profile  settings', 'error');
+    } finally {
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-save"></i> Apply Network profile';
+      }
+    }
+  }
   /**
    * Save wireless settings
    */
