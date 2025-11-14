@@ -1337,7 +1337,8 @@ typedef struct {
 
 typedef struct {
     unsigned char  ssid_len;
-    char  ssid[0];
+    char  ssid[EM_MAX_SSID_LEN];
+    unsigned short vlan_id;
 } __attribute__((__packed__)) em_traffic_sep_policy_ssid_t;
 
 typedef struct {
@@ -1769,7 +1770,7 @@ typedef struct {
     em_steering_policy_t steering_policy;
     em_metric_rprt_policy_t metrics_policy;
     em_8021q_settings_t def_8021q_settings;
-    em_traffic_sep_policy_ssid_t traffic_separation_policy;
+    em_traffic_sep_policy_t traffic_separation_policy;
     em_channel_scan_rprt_policy_t channel_scan_policy;
     em_unsuccessful_assoc_policy_t unsuccessful_assoc_policy;
     em_bh_bss_config_t bh_bss_cfg_policy;

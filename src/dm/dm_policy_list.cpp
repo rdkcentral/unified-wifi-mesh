@@ -151,7 +151,7 @@ int dm_policy_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, v
 int dm_policy_list_t::set_config(db_client_t& db_client, dm_policy_t& policy, void *parent_id)
 {
     dm_orch_type_t op;
-
+    parse_dev_radio_mac_from_key(static_cast<char *>(parent_id), &policy.m_policy.id);
     update_db(db_client, (op = get_dm_orch_type(db_client, policy)), policy.get_policy());
     update_list(policy, op);
 
@@ -400,14 +400,14 @@ void dm_policy_list_t::init_columns()
     m_columns[m_num_cols++] = db_column_t("IndependentScanRep", db_data_type_tinyint, 0);
     m_columns[m_num_cols++] = db_column_t("Profile_1_Disallowed", db_data_type_tinyint, 0);
     m_columns[m_num_cols++] = db_column_t("Profile_2_Disallowed", db_data_type_tinyint, 0);
-    m_columns[m_num_cols++] = db_column_t("PrimaryVlanId", db_data_type_tinyint, 0);
+    m_columns[m_num_cols++] = db_column_t("PrimaryVlanId", db_data_type_smallint, 0);
     m_columns[m_num_cols++] = db_column_t("DefaultPcp", db_data_type_tinyint, 0);
 
     for (int i = 0; i < em_haul_type_max; i++) {
         snprintf(col_name, sizeof(col_name), "SSID_%d", i);
         m_columns[m_num_cols++] = db_column_t(col_name, db_data_type_char, 64);
         snprintf(col_name, sizeof(col_name), "VlanId_%d", i);
-        m_columns[m_num_cols++] = db_column_t(col_name, db_data_type_tinyint, 0);
+        m_columns[m_num_cols++] = db_column_t(col_name, db_data_type_smallint, 0);
 
     }
 }
