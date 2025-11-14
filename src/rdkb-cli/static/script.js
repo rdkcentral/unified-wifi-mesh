@@ -309,7 +309,6 @@ async handleWebSocketMessage(data) {
     case 'initial':
       this.devices = data.devices || [];
       this.clients = data.clients || [];
-      this.topology = await this.apiCall('/topology');
       this.updateAllDisplays();
       break;
     case 'metrics_update':

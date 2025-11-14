@@ -442,8 +442,11 @@
             <button class="btn btn-secondary" id="wireless-scan-channels">
                 <i class="fas fa-radar"></i> Scan Channels
             </button>
+            <button class="btn btn-primary" id="save-profile-settings" disabled>
+                <i class="fas fa-save"></i> Apply profile Settings
+            </button>
             <button class="btn btn-primary" id="save-wireless-settings">
-                <i class="fas fa-save"></i> Apply Settings
+                <i class="fas fa-save"></i> Apply Radio Settings
             </button>
         </div>
     </div>
@@ -454,9 +457,6 @@
             <div class="card">
                 <div class="card-header">
                     <h3><i class="fas fa-network-wired"></i> Network Profiles</h3>
-                    <button class="btn btn-sm btn-primary" id="add-network-profile">
-                        <i class="fas fa-plus"></i> Add Profile
-                    </button>
                 </div>
                 <div class="card-content">
                     <div class="profiles-grid" id="network-profiles-grid">
@@ -841,7 +841,7 @@
                     <div class="form-grid">
                         <div class="form-group">
                             <label class="form-label">Profile Name</label>
-                            <input type="text" id="profile-name" class="form-input" required>
+                            <input type="text" id="profile-name" class="form-input" disabled>
                         </div>
                         <div class="form-group">
                             <label class="form-label">SSID</label>
@@ -849,32 +849,31 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label">Security Type</label>
-                            <select id="profile-security" class="form-select">
+                            <select id="profile-security" class="form-select" disabled>
                                 <option value="WPA3-SAE">WPA3-SAE</option>
                                 <option value="WPA3-Enterprise">WPA3-Enterprise</option>
                                 <option value="WPA2-PSK">WPA2-PSK (Legacy)</option>
                                 <option value="Enhanced-Open">Enhanced Open</option>
+                                <option value="WPA2 Personal">WPA2 Personal</option>
+                                <option value="WPA3 Transition/ WPA3 Personal">WPA3 Transitional/ WPA3 Personal</option>
                                 <option value="Open">Open</option>
                             </select>
                         </div>
                         <div class="form-group" id="passphrase-group">
                             <label class="form-label">Passphrase</label>
-                            <input type="password" id="profile-passphrase" class="form-input">
+                            <div style="position: relative;">
+                                <input type="password" id="profile-passphrase" class="form-input">
+                                <button type="button" id="toggle-passphrase" class="eye-icon" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer;"></button>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label class="form-label">VLAN ID</label>
-                            <input type="number" id="profile-vlan" class="form-input" value="1" min="1" max="4094">
+                            <input type="number" id="profile-vlan" class="form-input" value="1" min="1" max="4094" disabled>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">
-                                <input type="checkbox" id="profile-hidden">
-                                Hidden Network
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">
-                                <input type="checkbox" id="profile-guest">
-                                Guest Network
+                        <div class="form-group hidden-network">
+                            <label class="form-label disabled-label">
+                                <input type="checkbox" id="profile-hidden" disabled>
+                                <span class="label-text">Hidden Network</span>
                             </label>
                         </div>
                         <div class="form-group" id="bandwidth-limit-group" style="display: none;">

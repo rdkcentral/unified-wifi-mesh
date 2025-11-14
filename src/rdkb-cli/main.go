@@ -62,9 +62,13 @@ type RemoteIPConfig struct {
 }
 
 type HaulConfig struct {
-	HaulType   string `json:"HaulType"`
-    SSID       string   `json:"SSID"`
-    PassPhrase string   `json:"PassPhrase"`
+    HaulType     string `json:"HaulType"`
+    SSID         string `json:"SSID"`
+    PassPhrase   string `json:"PassPhrase"`
+    Enabled      bool   `json:"Enable"`
+    Bands        string `json:"Band"`
+    SecurityType string `json:"Security"`
+    VlanID       int    `json:"vlanId"`
 }
 
 type HaulTypeVisual struct {
@@ -1658,158 +1662,75 @@ func initWirelessSettings() {
 	advancedSettings = getDefaultAdvancedSettings()
 	log.Printf("Initialized wireless settings with %d profiles", len(wirelessProfiles))
 }
+
 // ===== WIRELESS PROFILE HANDLERS =====
-
 func getWirelessProfilesHandler(w http.ResponseWriter, r *http.Request) {
-	wirelessMutex.RLock()
-	defer wirelessMutex.RUnlock()
 
-	response := map[string]interface{}{
-		"profiles":  wirelessProfiles,
-		"total":     len(wirelessProfiles),
-		"timestamp": time.Now(),
-	}
+    // formate get SSID tree
+    ssidCmd := C.CString("get_ssid OneWifiMesh")
+    defer C.free(unsafe.Pointer(ssidCmd))
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
-}
+    // Get SSID
+    ssidTree := C.exec(ssidCmd, C.strlen(ssidCmd), nil)
+    if ssidTree == nil {
+        http.Error(w, "Failed to fetch ssid tree", http.StatusInternalServerError)
+        return
+    }
 
-func createWirelessProfileHandler(w http.ResponseWriter, r *http.Request) {
-	var profile WirelessProfile
-	if err := json.NewDecoder(r.Body).Decode(&profile); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
+    switch r.Method {
+        case http.MethodGet:
+            log.Println("Received GET request for get SSID\n")
 
-	// Validate profile
-	if err := validateWirelessProfile(&profile); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
+            // Parse NetworkSSIDList
+            ssidHaulConfig := getConfiguredHauls(ssidTree)
 
-	wirelessMutex.Lock()
-	defer wirelessMutex.Unlock()
+            response := map[string]interface{}{
+                "haulConfig": ssidHaulConfig,
+                "total":     len(ssidHaulConfig),
+            }
 
-	// Generate ID and timestamps
-	profile.ID = generateProfileID()
-	profile.CreatedAt = time.Now()
-	profile.UpdatedAt = time.Now()
-	
-	// Set default bands if not specified
-	if len(profile.Bands) == 0 {
-		profile.Bands = []string{"2.4GHz", "5GHz", "6GHz"}
-	}
+            w.Header().Set("Content-Type", "application/json")
+            json.NewEncoder(w).Encode(response)
 
-	wirelessProfiles = append(wirelessProfiles, profile)
+        case http.MethodPost:
+            log.Println("Received POST request to update SSID config")
 
-	// Broadcast update
-	broadcastWirelessUpdate("profile_created", profile)
+            var payload []HaulConfig
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true,
-		"message": "Profile created successfully",
-		"profile": profile,
-	})
-}
+            if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+                http.Error(w, "Invalid request payload", http.StatusBadRequest)
+                return
+            }
 
-func updateWirelessProfileHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	profileID := vars["id"]
+            for _, haul := range payload {
+                if err := validateSSID(haul.SSID); err != nil {
+                    http.Error(w, fmt.Sprintf("Invalid SSID for %s: %v", haul.HaulType, err), http.StatusBadRequest)
+                    return
+                }
+                if err := validatePassPhrase(haul.PassPhrase); err != nil {
+                    http.Error(w, fmt.Sprintf("Invalid PassPhrase for %s: %v", haul.HaulType, err), http.StatusBadRequest)
+                    return
+                }
+                if err := updateSSIDPassForHaulType(ssidTree, haul.HaulType, haul.SSID, haul.PassPhrase); err != nil {
+                    http.Error(w, fmt.Sprintf("Update failed for %s: %v", haul.HaulType, err), http.StatusInternalServerError)
+                    return
+                }
+            }
 
-	var updatedProfile WirelessProfile
-	if err := json.NewDecoder(r.Body).Decode(&updatedProfile); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
+            if applyNetworkNameConfig(ssidTree) != true {
+                http.Error(w, fmt.Sprintf("Failed to update networkssid list"), http.StatusInternalServerError)
+            }
 
-	wirelessMutex.Lock()
-	defer wirelessMutex.Unlock()
+            // Return success response
+            w.Header().Set("Content-Type", "application/json")
+            json.NewEncoder(w).Encode(map[string]interface{}{
+                "success": true,
+                "message": "Profile updated successfully",
+            })
 
-	for i, profile := range wirelessProfiles {
-		if profile.ID == profileID {
-			// Preserve created time and ID
-			updatedProfile.ID = profile.ID
-			updatedProfile.CreatedAt = profile.CreatedAt
-			updatedProfile.UpdatedAt = time.Now()
-
-			// Validate updated profile
-			if err := validateWirelessProfile(&updatedProfile); err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			wirelessProfiles[i] = updatedProfile
-
-			// Broadcast update
-			broadcastWirelessUpdate("profile_updated", updatedProfile)
-
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"success": true,
-				"message": "Profile updated successfully",
-				"profile": updatedProfile,
-			})
-			return
-		}
-	}
-
-	http.Error(w, "Profile not found", http.StatusNotFound)
-}
-
-func deleteWirelessProfileHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	profileID := vars["id"]
-
-	wirelessMutex.Lock()
-	defer wirelessMutex.Unlock()
-
-	for i, profile := range wirelessProfiles {
-		if profile.ID == profileID {
-			wirelessProfiles = append(wirelessProfiles[:i], wirelessProfiles[i+1:]...)
-
-			// Broadcast update
-			broadcastWirelessUpdate("profile_deleted", map[string]string{"id": profileID})
-
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"success": true,
-				"message": "Profile deleted successfully",
-			})
-			return
-		}
-	}
-
-	http.Error(w, "Profile not found", http.StatusNotFound)
-}
-
-func toggleWirelessProfileHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	profileID := vars["id"]
-
-	wirelessMutex.Lock()
-	defer wirelessMutex.Unlock()
-
-	for i, profile := range wirelessProfiles {
-		if profile.ID == profileID {
-			wirelessProfiles[i].Enabled = !profile.Enabled
-			wirelessProfiles[i].UpdatedAt = time.Now()
-
-			// Broadcast update
-			broadcastWirelessUpdate("profile_toggled", wirelessProfiles[i])
-
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"success": true,
-				"message": fmt.Sprintf("Profile %s", 
-					map[bool]string{true: "enabled", false: "disabled"}[wirelessProfiles[i].Enabled]),
-				"enabled": wirelessProfiles[i].Enabled,
-			})
-			return
-		}
-	}
-
-	http.Error(w, "Profile not found", http.StatusNotFound)
+        default:
+            http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+    }
 }
 
 // ===== RADIO CONFIGURATION HANDLERS =====
@@ -2539,15 +2460,11 @@ func main() {
 	api.HandleFunc("/clients/{mac}/disconnect", disconnectClientHandler).Methods("POST")
 	api.HandleFunc("/clients/{mac}/block", blockClientHandler).Methods("POST")
 	api.HandleFunc("/clients/{mac}/unblock", unblockClientHandler).Methods("POST")
-        //ckp1 start
-        // ===== NEW WIRELESS SETTINGS ROUTES =====
+
+    // ===== WIRELESS SETTINGS =====
 	
 	// Wireless Profile Management
-	api.HandleFunc("/wireless/profiles", getWirelessProfilesHandler).Methods("GET")
-	api.HandleFunc("/wireless/profiles", createWirelessProfileHandler).Methods("POST")
-	api.HandleFunc("/wireless/profiles/{id}", updateWirelessProfileHandler).Methods("PUT")
-	api.HandleFunc("/wireless/profiles/{id}", deleteWirelessProfileHandler).Methods("DELETE")
-	api.HandleFunc("/wireless/profiles/{id}/toggle", toggleWirelessProfileHandler).Methods("POST")
+	api.HandleFunc("/wireless/profiles", getWirelessProfilesHandler).Methods("GET", "POST")
 
 	// Radio Configuration
 	api.HandleFunc("/wireless/radios", getRadioConfigsHandler).Methods("GET")
@@ -3258,6 +3175,10 @@ func getConfiguredHauls(tree *C.em_network_node_t) []HaulConfig {
     }
 
     for i := 0; i < int(networkssidListNode.num_children); i++ {
+        enabled := false
+        var bandList []string
+        var securityMode string
+        var vlanId int
         node := networkssidListNode.child[i]
 
         // Handle HaulType as list
@@ -3267,10 +3188,54 @@ func getConfiguredHauls(tree *C.em_network_node_t) []HaulConfig {
         }
 
         haul := C.GoString(&haulTypeNode.child[0].value_str[0])
+        if getTreeValue(node, "Enable") == "true" {
+            enabled = true
+        } else {
+            enabled = false
+        }
+
+        // Prase the available band for the haultype
+        BandObj := C.get_network_tree_by_key(node, C.CString("Band"))
+        if BandObj == nil || int(BandObj.num_children) == 0 {
+            continue
+        }
+
+        for i:=0; i< int(BandObj.num_children); i++ {
+            band := C.GoString(&BandObj.child[i].value_str[0])
+            bandList = append(bandList, band+"GHz")
+        }
+        bands := strings.Join(bandList, ", ")
+
+        //TODO: As of now hardcoded security mode and vlanid is being used,
+        // we will update this code to fetch these details from controller and configure.
+        if haul == "Fronthaul" {
+            securityMode = "WPA3 Transition"
+            if strings.Contains(bands, "6GHz") {
+                securityMode += "/ WPA3 Personal"
+            }
+            vlanId = 12
+        } else if haul == "Backhaul" {
+            securityMode = "WPA2 Personal"
+            vlanId = 13
+        }else if haul == "IoT" {
+        securityMode = "WPA2 Personal"
+            vlanId = 14
+        }else if haul == "Configurator" {
+            securityMode = "WPA2 Personal"
+            vlanId = 15
+        }else if haul == "Hotspot" {
+            securityMode = "WPA2 Personal"
+            vlanId = 16
+        }
+
         config := HaulConfig{
+            Enabled: enabled,
             HaulType: haul,
             SSID: getTreeValue(node, "SSID"),
             PassPhrase: getTreeValue(node, "PassPhrase"),
+            Bands: bands,
+            SecurityType: securityMode,
+            VlanID: vlanId,
         }
 
         haulConfigs = append(haulConfigs, config)
@@ -3940,6 +3905,28 @@ func getLocalIP() (string, int, error) {
     ctrlAddr := conn.LocalAddr().(*net.UDPAddr)
 
     return ctrlAddr.IP.String(), ctrlPort, nil
+}
+
+/* func: applyNetworkNameConfig()
+ * Description:
+ * Executes the set ssid command on the update NetworkSSIDList with
+ * updated ssid and phassphase.
+ * returns: true if the reset command was successfully executed, otherwise false.
+ */
+func applyNetworkNameConfig(ssidTree *C.em_network_node_t) bool {
+    networkSSIDKey := C.CString("Result")
+    cmd := C.CString("set_ssid OneWifiMesh")
+    defer C.free(unsafe.Pointer(networkSSIDKey))
+    defer C.free(unsafe.Pointer(cmd))
+
+    ssidNode := C.get_network_tree_by_key(ssidTree, networkSSIDKey)
+    if ssidNode == nil {
+        log.Println("NetworkSSIDList node not found")
+        return false
+    }
+
+    C.exec(cmd, C.strlen(cmd), ssidNode)
+    return true
 }
 
 /* func: printTree()
