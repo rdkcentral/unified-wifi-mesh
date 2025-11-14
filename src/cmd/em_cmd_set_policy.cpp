@@ -45,9 +45,12 @@ em_cmd_set_policy_t::em_cmd_set_policy_t(em_cmd_params_t param, dm_easy_mesh_t& 
     memset(reinterpret_cast<unsigned char *> (&m_orch_desc[0]), 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
 
     m_orch_op_idx = 0;
-    m_num_orch_desc = 1;
-    m_orch_desc[0].op = dm_orch_type_policy_cfg;
-    m_orch_desc[0].submit = true;
+    m_num_orch_desc = 3;
+    m_orch_desc[0].op = dm_orch_type_db_cfg;
+    m_orch_desc[1].op = dm_orch_type_em_update;
+    m_orch_desc[1].submit = true;
+    m_orch_desc[2].op = dm_orch_type_policy_cfg;
+    m_orch_desc[2].submit = true;
 
     strncpy(m_name, "set_policy", strlen("set_policy") + 1);
     m_svc = em_service_type_ctrl;
