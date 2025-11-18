@@ -39,14 +39,24 @@
 class em_cmd_t;
 class dm_easy_mesh_t;
 class em_mgr_t;
+class em_ctrl_t;
+
+extern em_ctrl_t g_ctrl;
 
 class dm_easy_mesh_ctrl_t :
     public dm_network_list_t, public dm_device_list_t, public dm_network_ssid_list_t,
     public dm_ieee_1905_security_list_t, public dm_radio_list_t, public dm_radio_cap_list_t,
-        
     public dm_op_class_list_t, public dm_bss_list_t, public dm_sta_list_t, public dm_policy_list_t,
 	public dm_scan_result_list_t {
+public:
+	em_ctrl_t& m_ctrl = g_ctrl;
+    void get_network();
+	void device_get();
+	bus_error_t device_tget_impl(char* event_name, raw_data_t* p_data, bus_user_data *user_data);
+	bus_error_t bus_get_cb_fwd(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data, bus_get_handler_t cb);
+	static bus_error_t device_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
+private:
     db_client_t m_db_client;
     bool	m_initialized;
     bool	m_network_initialized;
@@ -54,7 +64,6 @@ class dm_easy_mesh_ctrl_t :
     dm_easy_mesh_list_t	m_data_model_list;
 	em_network_topo_t   *m_topology;
 
-    
 	/**!
 	 * @brief Sets the device list.
 	 *

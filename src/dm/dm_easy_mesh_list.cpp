@@ -42,7 +42,8 @@
 #include "em_cmd_dev_init.h"
 #include <cjson/cJSON.h>
 #include "em_cmd_sta_list.h"
-#include "em_cmd_ap_cap.h" 
+#include "em_cmd_ap_cap.h"
+#include "tr_181.h"
 
 dm_network_t *dm_easy_mesh_list_t::get_first_network()
 {
@@ -225,6 +226,8 @@ void dm_easy_mesh_list_t::put_device(const char *key, const dm_device_t *dev)
         //printf("%s:%d: device at key: %s not found\n", __func__, __LINE__, key);
 	    dm = create_data_model(dev->m_device_info.id.net_id, &dev->m_device_info.intf, dev->m_device_info.profile);
         pdev = dm->get_device();
+        tr_181_t::add_table_row(DE_DEVICE_TABLE);
+        //add_table_row(DE_DEVICE_TABLE);
     }
     *pdev = *dev;
 	
@@ -234,6 +237,8 @@ void dm_easy_mesh_list_t::put_device(const char *key, const dm_device_t *dev)
 		printf("%s:%d: Device:%s inserted in network:%s\n", __func__, __LINE__, mac_str, id.net_id);
 		dm->m_network.m_net_info.num_of_devices++;
 	}
+
+
 }
 
 dm_radio_t *dm_easy_mesh_list_t::get_first_radio()
@@ -349,6 +354,7 @@ void dm_easy_mesh_list_t::put_radio(const char *key, const dm_radio_t *radio)
         //printf("%s:%d: Current Number of Radios: %d\n", __func__, __LINE__, dm->get_num_radios());
         dm->set_num_radios(dm->get_num_radios() + 1);
         pradio = dm->get_radio(dm->get_num_radios() - 1);
+        tr_181_t::add_table_row(DE_RADIO_TABLE);
     }
     *pradio = *radio;
 
@@ -514,6 +520,7 @@ void dm_easy_mesh_list_t::put_bss(const char *key, const dm_bss_t *bss)
 	if ((pbss = dm->find_matching_bss(&id)) == NULL) {
 		pbss = &dm->m_bss[dm->m_num_bss];
 		dm->m_num_bss++;
+        tr_181_t::add_table_row(DE_BSS_TABLE);
 	}	
 
 	*pbss = *bss;

@@ -32,8 +32,7 @@ class dm_easy_mesh_list_t {
     em_mgr_t *m_mgr;
 
 public:
-
-    
+   
 	/**!
 	 * @brief Retrieves the data model associated with a given network ID and AL MAC address.
 	 *
