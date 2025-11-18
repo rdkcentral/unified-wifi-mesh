@@ -15,7 +15,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-
+#if 0
 #include <stdio.h>
 #include <assert.h>
 #include <unistd.h>
@@ -2144,3 +2144,4 @@ int em_ctrl_t::tr181_reg_data_elements(bus_handle_t *bus_handle)
 
     return 0;
 }
+#endif

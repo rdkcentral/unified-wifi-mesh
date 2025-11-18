@@ -40,9 +40,9 @@ class em_ctrl_t : public em_mgr_t {
     em_cmd_ctrl_t   *m_ctrl_cmd;
     em_orch_ctrl_t *m_orch;
 	bus_handle_t m_bus_hdl;
-	int m_nb_pipe_rd;
-	int m_nb_pipe_wr;
-	uint32_t m_nb_evt_id;
+	// int m_nb_pipe_rd;
+	// int m_nb_pipe_wr;
+	// uint32_t m_nb_evt_id;
 	em_dev_test_t dev_test;
 
 	/**!
@@ -626,32 +626,32 @@ public:
 	em_t *find_em_for_msg_type(unsigned char *data, unsigned int len, em_t *al_em);
 
 
-	/**!
-	 * @brief Retrieves the read pipe file descriptor.
-	 *
-	 * This function returns the read pipe file descriptor for northbound requests.
-	 *
-	 * @returns The pipe file descriptor.
-	 */
-	int get_nb_pipe_rd() { return m_nb_pipe_rd; }
+	// /**!
+	//  * @brief Retrieves the read pipe file descriptor.
+	//  *
+	//  * This function returns the read pipe file descriptor for northbound requests.
+	//  *
+	//  * @returns The pipe file descriptor.
+	//  */
+	// int get_nb_pipe_rd() { return m_nb_pipe_rd; }
 
-	/**!
-	 * @brief Retrieves the write pipe file descriptor.
-	 *
-	 * This function returns the write pipe file descriptor for northbound requests.
-	 *
-	 * @returns The pipe file descriptor.
-	 */
-	int get_nb_pipe_wr() { return m_nb_pipe_wr; }
+	// /**!
+	//  * @brief Retrieves the write pipe file descriptor.
+	//  *
+	//  * This function returns the write pipe file descriptor for northbound requests.
+	//  *
+	//  * @returns The pipe file descriptor.
+	//  */
+	// int get_nb_pipe_wr() { return m_nb_pipe_wr; }
 
-	/**!
-	 * @brief Retrieves the next northbound event id.
-	 *
-	 * This function returns the write pipe file descriptor for northbound requests.
-	 *
-	 * @returns The pipe file descriptor.
-	 */
-	uint32_t get_next_nb_evt_id() { return m_nb_evt_id++; }
+	// /**!
+	//  * @brief Retrieves the next northbound event id.
+	//  *
+	//  * This function returns the write pipe file descriptor for northbound requests.
+	//  *
+	//  * @returns The pipe file descriptor.
+	//  */
+	// uint32_t get_next_nb_evt_id() { return m_nb_evt_id++; }
 
 	/**!
 	* @brief Callback registered for getting colocated agent ID

@@ -46,7 +46,8 @@
 #include "em_orch_ctrl.h"
 #include "util.h"
 #include "wifi_util.h"
-#include "tr_181.h"
+// #include "tr_181.h"
+// #include "wfa_data_model_parser.h"
 
 #ifdef AL_SAP
 #include "al_service_access_point.h"
@@ -456,7 +457,7 @@ void em_ctrl_t::handle_nb_event(em_nb_event_t *evt)
     }
 
     uintptr_t buf = (uintptr_t)resp;
-    ssize_t len = write(m_nb_pipe_wr, &buf, sizeof(buf));
+    ssize_t len = write(m_data_model.m_nb_pipe_wr, &buf, sizeof(buf));
     assert(len == sizeof(buf));
 }
 
@@ -932,23 +933,6 @@ void em_ctrl_t::start_complete()
 	mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 	char service_name[] = "EasyMesh_Ctrl_Service";
 	int i = 0;
-	bus_error_t bus_error_val;
-	int num_elements = 0;
-
-	bus_data_element_t dataElements[] = {
-		//{ DEVICE_WIFI_DATAELEMENTS_NETWORK_COLOCATEDAGENTID, bus_element_type_method,
-		//	{ get_device_wifi_dataelements_network_colocated_agentid, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
-		//	{ bus_data_type_string, false, 0, 0, 0, NULL } },
-		//{ DEVICE_WIFI_DATAELEMENTS_NETWORK_CONTROLLERID, bus_element_type_method,
-		//	{ get_device_wifi_dataelements_network_controllerid, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
-		// 	{ bus_data_type_string, false, 0, 0, 0, NULL } },
-		// { DEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD, bus_element_type_method,
-		// 	{ NULL, NULL, NULL, NULL, NULL, cmd_setssid}, slow_speed, ZERO_TABLE,
-		//	{ bus_data_type_string, true, 0, 0, 0, NULL } },
-		{ DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY, bus_element_type_method,
-			{ NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
-			{ bus_data_type_string, false, 0, 0, 0, NULL } },
-	};
 
 	if (m_data_model.is_initialized() == false) {
 		printf("%s:%d: Database not initialized ... needs reset\n", __func__, __LINE__);
@@ -980,23 +964,24 @@ void em_ctrl_t::start_complete()
        	printf("%s:%d Collocated agent ID: %s publish  fail\n",__func__, __LINE__, al_mac_str);
    	}
 
-	int pipefd[2];
-	int rcp;
-	rcp = pipe2(pipefd, O_DIRECT);
-	if (rcp == -1) {
-		return;
-	}
+	// int pipefd[2];
+	// int rcp;
+	// rcp = pipe2(pipefd, O_DIRECT);
+	// if (rcp == -1) {
+	// 	return;
+	// }
 
-	m_nb_pipe_rd = pipefd[0];
-	m_nb_pipe_wr = pipefd[1];
+	// m_nb_pipe_rd = pipefd[0];
+	// m_nb_pipe_wr = pipefd[1];
 
-	tr181_reg_data_elements(&m_bus_hdl);
+	// tr181_reg_data_elements(&m_bus_hdl);
 
-	num_elements = (sizeof(dataElements) / sizeof(bus_data_element_t));
-	bus_error_val = desc->bus_reg_data_element_fn(&m_bus_hdl, dataElements, num_elements);
-	if (bus_error_val != bus_error_success) {
-		printf("%s:%d bus: bus_regDataElements failed\n", __func__, __LINE__);
-	}
+	// num_elements = (sizeof(dataElements) / sizeof(bus_data_element_t));
+	// bus_error_val = desc->bus_reg_data_element_fn(&m_bus_hdl, dataElements, num_elements);
+	// if (bus_error_val != bus_error_success) {
+	// 	printf("%s:%d bus: bus_regDataElements failed\n", __func__, __LINE__);
+	// }
+    // wfa_dml_init();
 
 	// build initial network topology
 	init_network_topology();
@@ -1027,19 +1012,19 @@ void em_ctrl_t::start_complete()
 
 em_ctrl_t::em_ctrl_t()
 {
-    m_nb_pipe_rd = 0;
-    m_nb_pipe_rd = 0;
-    m_nb_evt_id = 0;
+    // m_nb_pipe_rd = 0;
+    // m_nb_pipe_rd = 0;
+    // m_nb_evt_id = 0;
 }
 
 em_ctrl_t::~em_ctrl_t()
 {
-    if (m_nb_pipe_rd != 0) {
-        close(m_nb_pipe_rd);
-    }
-    if (m_nb_pipe_wr != 0) {
-        close(m_nb_pipe_wr);
-    }
+    // if (m_nb_pipe_rd != 0) {
+    //     close(m_nb_pipe_rd);
+    // }
+    // if (m_nb_pipe_wr != 0) {
+    //     close(m_nb_pipe_wr);
+    // }
 }
 
 #ifdef AL_SAP

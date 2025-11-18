@@ -1994,6 +1994,137 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
     return 0;
 }
 
+void dm_easy_mesh_ctrl_t::get_network()
+{
+
+}
+
+void dm_easy_mesh_ctrl_t::device_get()
+{
+
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::device_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, user_data, device_tget_inner);
+    //return bus_error_success;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *root = event_name;
+    char path[512] = { 0 };
+    bus_data_prop_t *property = NULL;
+    bus_error_t rc = bus_error_success;
+
+    if (!event_name || !p_data) {
+        return bus_error_invalid_input;
+    }
+#if 0
+    dm_easy_mesh_t *dm = get_first_dm();
+    if (dm == NULL) {
+        printf("data model is NULL\n");
+        return bus_error_invalid_input;
+    }
+
+    unsigned int idx = 0;
+    while (dm != NULL) {
+        dm_device_t *dev = dm->get_device();
+        if (dev == NULL) {
+            dm = get_next_dm(dm);
+            continue;
+        }
+        em_device_info_t *di = dev->get_device_info();
+        if (memcmp(di->id.dev_mac, ZERO_MAC_ADDR, sizeof(di->id.dev_mac)) == 0) {
+            dm = get_next_dm(dm);
+            continue;
+        }
+        ++idx;
+
+        property_append_tail(&property, root, idx, "ID", di->id.dev_mac);
+        property_append_tail(&property, root, idx, "Manufacturer", di->manufacturer);
+        property_append_tail(&property, root, idx, "SerialNumber", di->serial_number);
+        property_append_tail(&property, root, idx, "ManufacturerModel", di->manufacturer_model);
+        property_append_tail(&property, root, idx, "SoftwareVersion", di->software_ver);
+        property_append_tail(&property, root, idx, "ExecutionEnv", di->exec_env);
+        property_append_tail(&property, root, idx, "CountryCode", di->country_code);
+        if (memcmp(di->backhaul_mac.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) == 0) {
+            property_append_tail(&property, root, idx, "BackhaulMACAddress", "");
+        } else {
+            property_append_tail(&property, root, idx, "BackhaulMACAddress", di->backhaul_mac.mac);
+        }
+        if (memcmp(di->backhaul_mac.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) == 0) {
+            property_append_tail(&property, root, idx, "BackhaulALID", "");
+        } else {
+            dm_device_t *bhdev = get_dm_dev(di->id.dev_mac, di->backhaul_mac.mac);
+            if (bhdev == NULL) {
+                property_append_tail(&property, root, idx, "BackhaulALID", "");
+            } else {
+                em_device_info_t *bhdi = bhdev->get_device_info();
+                property_append_tail(&property, root, idx, "BackhaulALID", bhdi->id.dev_mac);
+            }
+        }
+        if (memcmp(di->backhaul_mac.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) == 0) {
+            property_append_tail(&property, root, idx, "BackhaulMediaType", di->backhaul_media_type);
+        } else {
+            property_append_tail(&property, root, idx, "BackhaulMediaType", WIFI_80211_VARIANT_AC);
+        }
+        property_append_tail(&property, root, idx, "RadioNumberOfEntries", dm->get_num_radios());
+        property_append_tail(&property, root, idx, "CACStatusNumberOfEntries", 0U);
+        property_append_tail(&property, root, idx, "BackhaulDownNumberOfEntries", di->num_backhaul_down_mac);
+
+        snprintf(path, sizeof(path) - 1, "%s%d.Radio.", root, idx);
+        radio_tget_params(dm, path, &property);
+
+        dm = get_next_dm(dm);
+    }
+
+    if (property) {
+        raw_data_set(p_data, property);
+    }
+#endif
+    return rc;
+}
+
+/* Rbus runs callbacks from a different thread. Accessing data in controller
+   directly may result in race condition. Requested callback is forwarded to
+   event queue for safe procesing */
+bus_error_t dm_easy_mesh_ctrl_t::bus_get_cb_fwd(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data, bus_get_handler_t cb)
+{
+    uint32_t s_id;
+    bus_error_t err = bus_error_success;
+    em_event_t *req;
+    bus_resp_get_t *resp = NULL;
+    uintptr_t buf;
+
+    do {
+        req = (em_event_t *) malloc(sizeof(em_event_t));
+        if (!req) {
+            err = bus_error_out_of_resources;
+            break;
+        }
+        s_id = tr_181_t::get_next_nb_evt_id();
+        req->type = em_event_type_nb;
+        req->u.nevt.id = s_id;
+        req->u.nevt.type = NB_REQTYPE_GET;
+        req->u.nevt.u.get.name = event_name;
+        req->u.nevt.u.get.property = p_data;
+        req->u.nevt.cb = (void *) cb;
+
+        m_ctrl.push_to_queue(req);
+
+        ssize_t len = read(get_nb_pipe_rd(), &buf, sizeof(buf));
+        assert(len == sizeof(buf));
+        resp = (bus_resp_get_t *) buf;
+        assert(resp->id == s_id);
+        err = resp->rc;
+    } while (0);
+
+    free(resp);
+    return err;
+}
+
 void dm_easy_mesh_ctrl_t::update_network_topology()
 {
     dm_easy_mesh_t *dm;
@@ -2059,10 +2190,15 @@ int dm_easy_mesh_ctrl_t::init(const char *data_model_path, em_mgr_t *mgr)
         return -1;
     }
 
+    tr_181_t::init(this);
+
     if ((rc = load_tables()) != 0) {
         printf("%s:%d: Load operation failed, err: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(static_cast<dm_orch_type_t> (rc)));
         return -1;
     }
+
+
+    
     return 0;
 }
 
