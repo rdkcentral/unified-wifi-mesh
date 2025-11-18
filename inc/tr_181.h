@@ -258,27 +258,15 @@ class dm_easy_mesh_ctrl_t;
 
 class tr_181_t {
 private:
-    static bus_handle_t m_bus_handle;
-    static dm_easy_mesh_ctrl_t* m_ctrl;
+    static bus_handle_t m_bus_handle;//remove static
+    static dm_easy_mesh_ctrl_t* m_ctrl;// remove static
 
 public:
-    int m_nb_pipe_rd;
-	int m_nb_pipe_wr;
-	uint32_t m_nb_evt_id;
 
     tr_181_t() {
-        m_nb_pipe_rd = 0;
-        m_nb_pipe_rd = 0;
-        m_nb_evt_id = 0;
     }
     
     ~tr_181_t() {
-        if (m_nb_pipe_rd != 0) {
-            close(m_nb_pipe_rd);
-        }
-        if (m_nb_pipe_wr != 0) {
-            close(m_nb_pipe_wr);
-        }
     }
     
     // Delete copy constructor and assignment
@@ -335,10 +323,13 @@ public:
 	virtual bus_error_t bus_get_cb_fwd(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data, bus_get_handler_t cb) = 0;
     //virtual bus_error_t device_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
     virtual bus_error_t device_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
+    virtual bus_error_t radio_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
+    virtual bus_error_t bss_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
+    virtual bus_error_t ssid_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
 
-	int get_nb_pipe_rd() { return m_nb_pipe_rd; }
-	int get_nb_pipe_wr() { return m_nb_pipe_wr; }
-	uint32_t get_next_nb_evt_id() { return m_nb_evt_id++; }
+	// int get_nb_pipe_rd() { return m_nb_pipe_rd; }
+	// int get_nb_pipe_wr() { return m_nb_pipe_wr; }
+    // uint32_t get_next_nb_evt_id() { return m_nb_evt_id++; }
 
     // Data model access
     // wfa_dml_data_model_t* get_dml_data_model_param();
