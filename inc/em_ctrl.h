@@ -39,7 +39,7 @@ class em_ctrl_t : public em_mgr_t {
     dm_easy_mesh_ctrl_t m_data_model;
     em_cmd_ctrl_t   *m_ctrl_cmd;
     em_orch_ctrl_t *m_orch;
-	bus_handle_t m_bus_hdl;
+	// bus_handle_t m_bus_hdl;
 	// int m_nb_pipe_rd;
 	// int m_nb_pipe_wr;
 	// uint32_t m_nb_evt_id;
