@@ -2106,7 +2106,7 @@ bus_error_t dm_easy_mesh_ctrl_t::bus_get_cb_fwd(char *event_name, raw_data_t *p_
             err = bus_error_out_of_resources;
             break;
         }
-        s_id = tr_181_t::get_next_nb_evt_id();
+        s_id = get_next_nb_evt_id();
         req->type = em_event_type_nb;
         req->u.nevt.id = s_id;
         req->u.nevt.type = NB_REQTYPE_GET;
@@ -2218,10 +2218,18 @@ int dm_easy_mesh_ctrl_t::init(const char *data_model_path, em_mgr_t *mgr)
 dm_easy_mesh_ctrl_t::dm_easy_mesh_ctrl_t()
 {
     m_initialized = false;
+     m_nb_pipe_rd = 0;
+        m_nb_pipe_rd = 0;
+        m_nb_evt_id = 0;
 }
 
 dm_easy_mesh_ctrl_t::~dm_easy_mesh_ctrl_t()
 {
-
+if (m_nb_pipe_rd != 0) {
+            close(m_nb_pipe_rd);
+        }
+        if (m_nb_pipe_wr != 0) {
+            close(m_nb_pipe_wr);
+        }
 }
 

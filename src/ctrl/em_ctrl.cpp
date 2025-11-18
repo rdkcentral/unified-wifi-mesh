@@ -601,11 +601,11 @@ void em_ctrl_t::publish_network_topology()
     raw.raw_data.bytes = reinterpret_cast<unsigned char *> (str);
     raw.raw_data_len = static_cast<unsigned int> (strlen(str));
 
-    if (desc->bus_event_publish_fn(&g_ctrl.m_bus_hdl, DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY, &raw)== 0) {
-        printf("%s:%d Topology published successfull\n",__func__, __LINE__);
-    } else {
-        printf("%s:%d Topology publish fail\n",__func__, __LINE__);
-    }
+    // if (desc->bus_event_publish_fn(&g_ctrl.m_bus_hdl, DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY, &raw)== 0) {
+    //     printf("%s:%d Topology published successfull\n",__func__, __LINE__);
+    // } else {
+    //     printf("%s:%d Topology publish fail\n",__func__, __LINE__);
+    // }
 }
 
 int em_ctrl_t::data_model_init(const char *data_model_path)
@@ -939,16 +939,16 @@ void em_ctrl_t::start_complete()
 		return;
 	}
 
-    bus_init(&m_bus_hdl);
+    // bus_init(&m_bus_hdl);
         
-    if((desc = get_bus_descriptor()) == NULL) {
-        printf("%s:%d descriptor is null\n", __func__, __LINE__);
-    }
+    // if((desc = get_bus_descriptor()) == NULL) {
+    //     printf("%s:%d descriptor is null\n", __func__, __LINE__);
+    // }
 
-    if (desc->bus_open_fn(&m_bus_hdl, service_name) != 0) {
-        printf("%s:%d bus open failed\n",__func__, __LINE__);
-        return;
-    }
+    // if (desc->bus_open_fn(&m_bus_hdl, service_name) != 0) {
+    //     printf("%s:%d bus open failed\n",__func__, __LINE__);
+    //     return;
+    // }
 
 	intf = m_data_model.get_ctrl_al_interface(const_cast<char*>(GLOBAL_NET_ID));
 	assert(intf != NULL);
@@ -958,11 +958,11 @@ void em_ctrl_t::start_complete()
    	raw.raw_data.bytes   = al_mac_str;
    	raw.raw_data_len = static_cast<unsigned int> (strlen(al_mac_str));
 
-   	if (desc->bus_set_fn(&m_bus_hdl, "Device.WiFi.Ctrl.CollocateAgentID", &raw)== 0) {
-       	printf("%s:%d Collocated Agent ID: %s publish successfull\n",__func__, __LINE__, al_mac_str);
-   	} else {
-       	printf("%s:%d Collocated agent ID: %s publish  fail\n",__func__, __LINE__, al_mac_str);
-   	}
+   	// if (desc->bus_set_fn(&m_bus_hdl, "Device.WiFi.Ctrl.CollocateAgentID", &raw)== 0) {
+    //    	printf("%s:%d Collocated Agent ID: %s publish successfull\n",__func__, __LINE__, al_mac_str);
+   	// } else {
+    //    	printf("%s:%d Collocated agent ID: %s publish  fail\n",__func__, __LINE__, al_mac_str);
+   	// }
 
 	// int pipefd[2];
 	// int rcp;

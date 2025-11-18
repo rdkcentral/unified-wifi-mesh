@@ -49,7 +49,15 @@ class dm_easy_mesh_ctrl_t :
     public dm_op_class_list_t, public dm_bss_list_t, public dm_sta_list_t, public dm_policy_list_t,
 	public dm_scan_result_list_t {
 public:
+    int m_nb_pipe_rd;
+	int m_nb_pipe_wr;
+	uint32_t m_nb_evt_id;
+	
 	em_ctrl_t& m_ctrl = g_ctrl;
+	int get_nb_pipe_rd() { return m_nb_pipe_rd; }
+	int get_nb_pipe_wr() { return m_nb_pipe_wr; }
+    uint32_t get_next_nb_evt_id() { return m_nb_evt_id++; }
+
     void get_network();
 	void device_get();
 	bus_error_t device_tget_impl(char* event_name, raw_data_t* p_data, bus_user_data *user_data);
