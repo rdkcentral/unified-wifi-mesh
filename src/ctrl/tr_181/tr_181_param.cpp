@@ -39,6 +39,60 @@ bus_error_t curops_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_in
 bus_error_t bss_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property);
 bus_error_t sta_tget_params(dm_easy_mesh_t *dm, const char *root, em_bss_info_t *bi, bus_data_prop_t **property);
 
+mac_addr_str_t g_temp_node_mac = {0};
+
+bus_error_t em_ctrl_t::get_node_sync(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    p_data->data_type       = bus_data_type_string;
+    p_data->raw_data.bytes  = malloc(sizeof(mac_addr_str_t));
+    if (p_data->raw_data.bytes == NULL) {
+        em_printfout("Memory allocation is failed\r");
+        return bus_error_out_of_resources;
+    }
+    em_printfout(" get_node_sync: node mac len: %d", sizeof(mac_addr_str_t));
+
+    strncpy((char *)p_data->raw_data.bytes, (const char *)g_temp_node_mac, sizeof(g_temp_node_mac));
+    p_data->raw_data_len    = sizeof(mac_addr_str_t);
+
+    em_printfout(" get_node_sync: node mac: %s", p_data->raw_data.bytes);
+
+    return bus_error_success;
+}
+
+bus_error_t em_ctrl_t::set_node_sync(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    wifi_bus_desc_t *desc = NULL;
+    raw_data_t raw;
+
+    em_printfout(" Event rcvd: %s for node mac: %s", event_name, p_data->raw_data.bytes);
+
+    snprintf(g_temp_node_mac, sizeof(mac_addr_str_t), "%s", (char *)p_data->raw_data.bytes);
+
+    if((desc = get_bus_descriptor()) == NULL) {
+        em_printfout("%s:%d descriptor is null\n", __func__, __LINE__);
+    }
+
+    //TODO: Temp code to publish node sync once received
+    raw.data_type    = bus_data_type_string;
+    raw.raw_data.bytes = reinterpret_cast<unsigned char *> (g_temp_node_mac);
+    raw.raw_data_len = static_cast<unsigned int> (strlen(g_temp_node_mac));
+
+    if (desc->bus_event_publish_fn(&g_ctrl.m_bus_hdl, DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC, &raw)== 0) {
+        em_printfout("Node sync published successfull\n",__func__, __LINE__);
+    } else {
+        em_printfout("Node sync publish fail\n",__func__, __LINE__);
+    }
+
+    return bus_error_success;
+}
+
+bus_error_t em_ctrl_t::policy_config(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_printfout(" Event rcvd: %s\n Policy cfg is: \n%s\n", event_name, p_data->raw_data.bytes);
+
+    return bus_error_success;
+}
+
 bus_error_t em_ctrl_t::get_device_wifi_dataelements_network_colocated_agentid (char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     em_interface_t  *intf;

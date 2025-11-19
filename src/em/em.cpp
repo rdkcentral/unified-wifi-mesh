@@ -175,7 +175,11 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_agent_onewifi_bssconfig_ind);
             break;
         case em_cmd_type_sta_assoc:
-            m_sm.set_state(em_state_ctrl_sta_cap_pending);
+            if ((pcmd->get_orch_op() == dm_orch_type_topo_publish) && (m_sm.get_state() == em_state_ctrl_configured)) {
+                m_sm.set_state(em_state_ctrl_topo_publish_pending);
+            } else {
+                m_sm.set_state(em_state_ctrl_sta_cap_pending);
+            }
             break;
 
         case em_cmd_type_channel_pref_query:
@@ -470,7 +474,8 @@ void em_t::handle_ctrl_state()
             break;
 
         case em_cmd_type_sta_assoc:
-            em_capability_t::process_agent_state();
+            em_capability_t::process_ctrl_state();
+            em_configuration_t::process_ctrl_state();
             break;
 
         case em_cmd_type_sta_link_metrics:
