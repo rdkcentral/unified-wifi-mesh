@@ -4721,11 +4721,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 		if (get_band() == 2) {
 			auth_type = 0x0200; // WPA3-Personal
 		} else {
-			if (haul_type == em_haul_type_fronthaul) {
-				auth_type = 0x0400; // WPA3-Personal-Transition
-			} else {
-				auth_type = 0x0010; // WPA2-Personal
-			}
+			auth_type = 0x0400; // WPA3-Personal-Transition
 		}
 
 		// haultype
