@@ -24,6 +24,7 @@
 #include <string>
 #include <memory>
 #include <cjson/cJSON.h>
+#include "dm_easy_mesh.h"
 
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_COLOCATEDAGENTID	"Device.WiFi.DataElements.Network.ColocatedAgentID"
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_CONTROLLERID		"Device.WiFi.DataElements.Network.ControllerID"
@@ -258,8 +259,8 @@ class dm_easy_mesh_ctrl_t;
 
 class tr_181_t {
 private:
-    static bus_handle_t m_bus_handle;//remove static
-    static dm_easy_mesh_ctrl_t* m_ctrl;// remove static
+    bus_handle_t m_bus_handle;
+    dm_easy_mesh_ctrl_t* m_ctrl;
 
 public:
 
@@ -294,7 +295,7 @@ public:
     static bus_error_t default_event_sub_handler(char* eventName, bus_event_sub_action_t action, int32_t interval, bool* autoPublish);
 
     //Table callback handlers
-    static bus_error_t add_table_row(char const *name);
+    static bus_error_t add_table_row(char const *name, dm_easy_mesh_t *dm);
 
     //Network
     static bus_error_t network_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
