@@ -2069,7 +2069,6 @@ int dm_easy_mesh_ctrl_t::init(const char *data_model_path, em_mgr_t *mgr)
 
        //Load tables and update rc to check it for non-empty database
        rc = load_tables();
-       assert(rc != -1);
     }
 
     if (rc != 0) {
