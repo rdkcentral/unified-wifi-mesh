@@ -18,7 +18,7 @@
 #include "em_ctrl.h"
 #include "tr_181.h"
 
-extern em_ctrl_t g_ctrl;
+// extern em_ctrl_t g_ctrl;
 extern char *global_netid;
 
 #define MAX_PARAM_LEN 128

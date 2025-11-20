@@ -31,10 +31,12 @@
 // #include "wfa_data_model.h"
 #include "util.h"
 #include "dm_easy_mesh_ctrl.h"
+#include "em_ctrl.h"
 
 // class dm_easy_mesh_ctrl_t;
-//bus_handle_t tr_181_t::m_bus_handle;
-//dm_easy_mesh_ctrl_t* tr_181_t::m_ctrl = nullptr;
+// class em_ctrl_t;
+
+// dm_easy_mesh_ctrl_t *tr_181_t::m_ctrl = NULL;
 
 void tr_181_t::init(void* ptr)
 {
@@ -43,15 +45,15 @@ void tr_181_t::init(void* ptr)
     int pipefd[2];
 	int rcp;
 
-    m_ctrl = static_cast<dm_easy_mesh_ctrl_t*>(ptr);
+    // tr_181_t::m_ctrl = static_cast<dm_easy_mesh_ctrl_t*>(ptr);
 
 	rcp = pipe2(pipefd, O_DIRECT);
 	if (rcp == -1) {
 		return;
 	}
 
-	m_nb_pipe_rd = pipefd[0];
-	m_nb_pipe_wr = pipefd[1];
+	// m_nb_pipe_rd = pipefd[0];
+	// m_nb_pipe_wr = pipefd[1];
 
 
     bus_init(&m_bus_handle);
@@ -64,8 +66,6 @@ void tr_181_t::init(void* ptr)
         printf("%s:%d bus open failed\n",__func__, __LINE__);
         return;
     }
-
-    //m_ctrl = static_cast<dm_easy_mesh_ctrl_t*> (ptr);
 
     register_wfa_dml();
 }
@@ -203,11 +203,13 @@ bus_error_t tr_181_t::default_event_sub_handler(char* eventName, bus_event_sub_a
 
 bus_error_t tr_181_t::network_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
     em_printfout("event name: %s\n", event_name);
-    if (m_ctrl != NULL)
+    if (em_ctrl != NULL)
     {
         //m_ctrl->device_tget_impl(event_name, p_data, user_data, device_tget_inner);
-        m_ctrl->device_tget_impl(event_name, p_data, user_data);
+        em_ctrl->get_dm_ctrl()->device_tget_impl(event_name, p_data, user_data);
         return bus_error_success;
     }
     
@@ -216,11 +218,13 @@ bus_error_t tr_181_t::network_get(char *event_name, raw_data_t *p_data, bus_user
 
 bus_error_t tr_181_t::ssid_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
     em_printfout("event name: %s\n", event_name);
-    if (m_ctrl != NULL)
+    if (em_ctrl != NULL)
     {
         //m_ctrl->device_tget_impl(event_name, p_data, user_data, device_tget_inner);
-        m_ctrl->device_tget_impl(event_name, p_data, user_data);
+        em_ctrl->get_dm_ctrl()->device_tget_impl(event_name, p_data, user_data);
         return bus_error_success;
     }
     
@@ -229,11 +233,13 @@ bus_error_t tr_181_t::ssid_tget(char *event_name, raw_data_t *p_data, bus_user_d
 
 bus_error_t tr_181_t::ssid_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
     em_printfout("event name: %s\n", event_name);
-    if (m_ctrl != NULL)
+    if (em_ctrl != NULL)
     {
         //m_ctrl->device_tget_impl(event_name, p_data, user_data, device_tget_inner);
-        m_ctrl->device_tget_impl(event_name, p_data, user_data);
+        em_ctrl->get_dm_ctrl()->device_tget_impl(event_name, p_data, user_data);
         return bus_error_success;
     }
     
@@ -242,11 +248,13 @@ bus_error_t tr_181_t::ssid_get(char *event_name, raw_data_t *p_data, bus_user_da
 
 bus_error_t tr_181_t::device_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
     em_printfout("event name: %s\n", event_name);
-    if (m_ctrl != NULL)
+    if (em_ctrl != NULL)
     {
         //m_ctrl->device_tget_impl(event_name, p_data, user_data, device_tget_inner);
-        m_ctrl->device_tget_impl(event_name, p_data, user_data);
+        em_ctrl->get_dm_ctrl()->device_tget_impl(event_name, p_data, user_data);
         return bus_error_success;
     }
     
@@ -255,11 +263,13 @@ bus_error_t tr_181_t::device_tget(char *event_name, raw_data_t *p_data, bus_user
 
 bus_error_t tr_181_t::radio_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
     em_printfout("event name: %s\n", event_name);
-    if (m_ctrl != NULL)
+    if (em_ctrl != NULL)
     {
         //m_ctrl->device_tget_impl(event_name, p_data, user_data, device_tget_inner);
-        m_ctrl->device_tget_impl(event_name, p_data, user_data);
+        em_ctrl->get_dm_ctrl()->device_tget_impl(event_name, p_data, user_data);
         return bus_error_success;
     }
     
@@ -268,11 +278,13 @@ bus_error_t tr_181_t::radio_tget(char *event_name, raw_data_t *p_data, bus_user_
 
 bus_error_t tr_181_t::bss_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
     em_printfout("event name: %s\n", event_name);
-    if (m_ctrl != NULL)
+    if (em_ctrl != NULL)
     {
         //m_ctrl->device_tget_impl(event_name, p_data, user_data, device_tget_inner);
-        m_ctrl->device_tget_impl(event_name, p_data, user_data);
+        em_ctrl->get_dm_ctrl()->device_tget_impl(event_name, p_data, user_data);
         return bus_error_success;
     }
     
@@ -281,11 +293,13 @@ bus_error_t tr_181_t::bss_tget(char *event_name, raw_data_t *p_data, bus_user_da
 
 bus_error_t tr_181_t::sta_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
     em_printfout("event name: %s\n", event_name);
-    if (m_ctrl != NULL)
+    if (em_ctrl != NULL)
     {
         //m_ctrl->device_tget_impl(event_name, p_data, user_data, device_tget_inner);
-        m_ctrl->device_tget_impl(event_name, p_data, user_data);
+        em_ctrl->get_dm_ctrl()->device_tget_impl(event_name, p_data, user_data);
         return bus_error_success;
     }
     
@@ -341,27 +355,66 @@ bool remove_substring(char *str)
     return false;
 }
 
-bus_error_t tr_181_t::add_table_row(char const *name, dm_easy_mesh_t *dm)
+#define DEVICE_LIST "DeviceList."
+#define RADIO_LIST  "RadioList."
+#define BSS_LIST    "BSSList."
+
+bus_error_t tr_181_t::reg_table_row(char *name, int index)
 {
     wifi_bus_desc_t *desc;
-    int index = 0;
     bus_error_t rc = bus_error_invalid_input;
-    em_printfout("Inside");
 
     if((desc = get_bus_descriptor()) == NULL) {
         printf("%s:%d descriptor is null\n", __func__, __LINE__);
     }
+    em_printfout("Calling reg_table for name:%s index:%d", name, index);
+    rc = desc->bus_reg_table_row_fn(&m_bus_handle, name, index, NULL);
 
-    em_printfout("Namespace:%s", name);
+    return rc;
+}
+
+bus_error_t tr_181_t::add_table_row(char const *name, dm_easy_mesh_t *dm)
+{
+    int device_index = 0;
+    int i = 0;
+    bus_error_t rc = bus_error_invalid_input;
     char namespace_full[256];
-    strncpy(namespace_full, name, sizeof(namespace_full));
-    namespace_full[sizeof(namespace_full)-1] = '\0';
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
     
-    remove_substring(namespace_full);
-    index = dm->m_instance_num;
-    //TODO: find a way to map this against the corresponding handler from the table
-    em_printfout("Calling reg_table for name:%s index:%d", namespace_full, index);
-    rc = desc->bus_reg_table_row_fn(&m_bus_handle, namespace_full, index, NULL);
+    if (em_ctrl == NULL) {
+        em_printfout("em_ctrl is NULL");
+        return rc;        
+    }
+
+    em_printfout("Inside");
+
+    em_printfout("Name:%s device_num:%d", name, device_index);
+    device_index = dm->m_instance_num;
+
+    if(strcmp(name, DE_DEVICE_TABLE) == 0) {
+        em_printfout("Inside DeviceList. device_num:%d", device_index);
+        snprintf(namespace_full, sizeof(namespace_full), "%s%s",
+            DATAELEMS_NETWORK, DEVICE_LIST);
+        rc = em_ctrl->get_dm_ctrl()->reg_table_row(namespace_full, device_index);
+    } else if(strcmp(name, DE_RADIO_TABLE) == 0) {
+        em_printfout("Inside RadioList. radio_num:%d", dm->m_num_radios);
+        snprintf(namespace_full, sizeof(namespace_full), "%s%s%d.%s", 
+            DATAELEMS_NETWORK, DEVICE_LIST, device_index, RADIO_LIST);
+        rc = em_ctrl->get_dm_ctrl()->reg_table_row(namespace_full, dm->m_num_radios);
+        if(rc != bus_error_success) {
+            em_printfout("Error in registering row for namespace : %s", namespace_full);
+            //return rc;
+        }
+    } else if(strcmp(name, DE_BSS_TABLE) == 0) {
+        em_printfout("Inside BSSList. bss_num:%d", dm->m_num_bss);
+        snprintf(namespace_full, sizeof(namespace_full), "%s%s%d.%s%d.%s", 
+            DATAELEMS_NETWORK, DEVICE_LIST, device_index, RADIO_LIST, dm->m_num_radios, BSS_LIST);
+        rc = em_ctrl->get_dm_ctrl()->reg_table_row(namespace_full, dm->m_num_bss);
+        if(rc != bus_error_success) {
+            em_printfout("Error in registering row for namespace : %s", namespace_full);
+            //return rc;
+        }
+    }
 
     return rc;
 }

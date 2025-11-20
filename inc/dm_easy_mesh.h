@@ -83,6 +83,7 @@ public:
     unsigned int    m_num_assoc_sta_mld;
     dm_assoc_sta_mld_t m_assoc_sta_mld[EM_MAX_ASSOC_STA_MLD];
     dm_tid_to_link_t m_tid_to_link;
+	int m_instance_num;
 
 public:
 	static em_e4_table_t m_e4_table[];

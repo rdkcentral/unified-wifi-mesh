@@ -260,7 +260,7 @@ class dm_easy_mesh_ctrl_t;
 class tr_181_t {
 private:
     bus_handle_t m_bus_handle;
-    dm_easy_mesh_ctrl_t* m_ctrl;
+    //static dm_easy_mesh_ctrl_t* m_ctrl;
 
 public:
 
@@ -268,6 +268,9 @@ public:
     }
     
     ~tr_181_t() {
+    }
+bus_handle_t *get_bus_hdl(){
+        return &m_bus_handle;
     }
     
     // Delete copy constructor and assignment
@@ -296,6 +299,7 @@ public:
 
     //Table callback handlers
     static bus_error_t add_table_row(char const *name, dm_easy_mesh_t *dm);
+    bus_error_t reg_table_row(char *name, int index);
 
     //Network
     static bus_error_t network_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
@@ -324,9 +328,9 @@ public:
 	virtual bus_error_t bus_get_cb_fwd(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data, bus_get_handler_t cb) = 0;
     //virtual bus_error_t device_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
     virtual bus_error_t device_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
-    virtual bus_error_t radio_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
-    virtual bus_error_t bss_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
-    virtual bus_error_t ssid_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
+    // virtual bus_error_t radio_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
+    // virtual bus_error_t bss_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
+    // virtual bus_error_t ssid_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
 
 	// int get_nb_pipe_rd() { return m_nb_pipe_rd; }
 	// int get_nb_pipe_wr() { return m_nb_pipe_wr; }
