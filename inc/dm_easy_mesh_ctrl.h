@@ -35,13 +35,14 @@
 #include "db_client.h"
 #include "dm_easy_mesh_list.h"
 #include "em_network_topo.h"
+// #include "em_ctrl.h"
 
 class em_cmd_t;
 class dm_easy_mesh_t;
 class em_mgr_t;
 class em_ctrl_t;
 
-extern em_ctrl_t g_ctrl;
+// extern em_ctrl_t g_ctrl;
 
 class dm_easy_mesh_ctrl_t :
     public dm_network_list_t, public dm_device_list_t, public dm_network_ssid_list_t,
@@ -53,7 +54,7 @@ public:
 	int m_nb_pipe_wr;
 	uint32_t m_nb_evt_id;
 	
-	em_ctrl_t& m_ctrl = g_ctrl;
+	//em_ctrl_t& m_ctrl = g_ctrl;
 	int get_nb_pipe_rd() { return m_nb_pipe_rd; }
 	int get_nb_pipe_wr() { return m_nb_pipe_wr; }
     uint32_t get_next_nb_evt_id() { return m_nb_evt_id++; }

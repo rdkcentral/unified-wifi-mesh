@@ -36,10 +36,11 @@ class AlServiceAccessPoint;
 
 class em_ctrl_t : public em_mgr_t {
 
+	static em_ctrl_t *s_em_ctrl;
+
     dm_easy_mesh_ctrl_t m_data_model;
     em_cmd_ctrl_t   *m_ctrl_cmd;
     em_orch_ctrl_t *m_orch;
-	// bus_handle_t m_bus_hdl;
 	// int m_nb_pipe_rd;
 	// int m_nb_pipe_wr;
 	// uint32_t m_nb_evt_id;
@@ -69,6 +70,15 @@ class em_ctrl_t : public em_mgr_t {
 
 public:
 
+	static em_ctrl_t *get_em_ctrl_instance()
+	{
+		if (s_em_ctrl == nullptr) {
+			s_em_ctrl = new em_ctrl_t();
+		}
+		return s_em_ctrl;
+	}
+
+	dm_easy_mesh_ctrl_t *get_dm_ctrl() { return &m_data_model; }
     
 	/**!
 	 * @brief Listens for input events and processes them accordingly.

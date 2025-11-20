@@ -29,7 +29,7 @@
 #include "dm_easy_mesh_ctrl.h"
 #include "em_ctrl.h"
 
-extern em_ctrl_t g_ctrl;
+// extern em_ctrl_t g_ctrl;
 extern em_network_topo_t *g_network_topology;
 
 void em_network_topo_t::encode(cJSON *parent)
@@ -68,7 +68,7 @@ void em_network_topo_t::encode(cJSON *parent)
 				bss_obj = cJSON_CreateObject();
 				m_data_model->m_bss[j].encode(bss_obj, true);
 				sta_list_obj = cJSON_AddArrayToObject(bss_obj, "STAList");
-				dm_easy_mesh_ctrl_t *dm_ctrl = reinterpret_cast<dm_easy_mesh_ctrl_t *>(g_ctrl.get_data_model(GLOBAL_NET_ID));
+				dm_easy_mesh_ctrl_t *dm_ctrl = reinterpret_cast<dm_easy_mesh_ctrl_t *>(em_ctrl_t::get_em_ctrl_instance()->get_data_model(GLOBAL_NET_ID));
 				if (dm_ctrl != NULL) {
 					// Get the Station associated with this bss only if vap mode is ap
 					if (m_data_model->m_bss[j].m_bss_info.vap_mode == em_vap_mode_ap) {

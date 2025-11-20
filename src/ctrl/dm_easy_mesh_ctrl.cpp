@@ -36,6 +36,8 @@
 #include <sys/uio.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include "dm_easy_mesh_ctrl.h"
 #include "dm_easy_mesh.h"
 #include <cjson/cJSON.h>
@@ -2114,7 +2116,7 @@ bus_error_t dm_easy_mesh_ctrl_t::bus_get_cb_fwd(char *event_name, raw_data_t *p_
         req->u.nevt.u.get.property = p_data;
         req->u.nevt.cb = (void *) cb;
 
-        m_ctrl.push_to_queue(req);
+        em_ctrl_t::get_em_ctrl_instance()->push_to_queue(req);
 
         ssize_t len = read(get_nb_pipe_rd(), &buf, sizeof(buf));
         assert(len == sizeof(buf));
@@ -2191,6 +2193,17 @@ int dm_easy_mesh_ctrl_t::init(const char *data_model_path, em_mgr_t *mgr)
         printf("%s:%d db init failed\n", __func__, __LINE__);
         return -1;
     }
+    int pipefd[2];
+	int rcp;
+
+
+	rcp = pipe2(pipefd, O_DIRECT);
+	if (rcp == -1) {
+		return -1;
+	}
+    m_nb_pipe_rd = pipefd[0];
+	m_nb_pipe_wr = pipefd[1];
+
 
     tr_181_t::init(this);
     rc = load_tables();

@@ -21,10 +21,10 @@
 
 #include "em_cmd_exec.h"
 
-extern em_ctrl_t g_ctrl;
+// extern em_ctrl_t g_ctrl;
 
 class em_cmd_ctrl_t : public em_cmd_exec_t { 
-    em_ctrl_t& m_ctrl = g_ctrl;
+    //em_ctrl_t& m_ctrl = g_ctrl;
 
 public:
     
