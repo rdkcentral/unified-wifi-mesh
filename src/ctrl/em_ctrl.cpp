@@ -53,7 +53,8 @@
 #include "al_service_access_point.h"
 #endif
 
-em_ctrl_t g_ctrl;
+// em_ctrl_t g_ctrl;
+em_ctrl_t *em_ctrl_t::s_em_ctrl = NULL;
 em_network_topo_t *g_network_topology = NULL;
 
 #ifdef AL_SAP
@@ -931,7 +932,6 @@ void em_ctrl_t::start_complete()
 	mac_addr_str_t	al_mac_str;
 	em_bus_event_type_cfg_renew_params_t ac_config_raw;
 	mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-	char service_name[] = "EasyMesh_Ctrl_Service";
 	int i = 0;
 
 	if (m_data_model.is_initialized() == false) {
@@ -939,16 +939,9 @@ void em_ctrl_t::start_complete()
 		return;
 	}
 
-    // bus_init(&m_bus_hdl);
-        
-    // if((desc = get_bus_descriptor()) == NULL) {
-    //     printf("%s:%d descriptor is null\n", __func__, __LINE__);
-    // }
-
-    // if (desc->bus_open_fn(&m_bus_hdl, service_name) != 0) {
-    //     printf("%s:%d bus open failed\n",__func__, __LINE__);
-    //     return;
-    // }
+    if((desc = get_bus_descriptor()) == NULL) {
+        printf("%s:%d descriptor is null\n", __func__, __LINE__);
+    }
 
 	intf = m_data_model.get_ctrl_al_interface(const_cast<char*>(GLOBAL_NET_ID));
 	assert(intf != NULL);
@@ -958,11 +951,11 @@ void em_ctrl_t::start_complete()
    	raw.raw_data.bytes   = al_mac_str;
    	raw.raw_data_len = static_cast<unsigned int> (strlen(al_mac_str));
 
-   	// if (desc->bus_set_fn(&m_bus_hdl, "Device.WiFi.Ctrl.CollocateAgentID", &raw)== 0) {
-    //    	printf("%s:%d Collocated Agent ID: %s publish successfull\n",__func__, __LINE__, al_mac_str);
-   	// } else {
-    //    	printf("%s:%d Collocated agent ID: %s publish  fail\n",__func__, __LINE__, al_mac_str);
-   	// }
+   	if (desc->bus_set_fn(m_data_model.get_bus_hdl(), "Device.WiFi.Ctrl.CollocateAgentID", &raw)== 0) {
+       	printf("%s:%d Collocated Agent ID: %s publish successfull\n",__func__, __LINE__, al_mac_str);
+   	} else {
+       	printf("%s:%d Collocated agent ID: %s publish  fail\n",__func__, __LINE__, al_mac_str);
+   	}
 
 	// int pipefd[2];
 	// int rcp;
@@ -975,13 +968,6 @@ void em_ctrl_t::start_complete()
 	// m_nb_pipe_wr = pipefd[1];
 
 	// tr181_reg_data_elements(&m_bus_hdl);
-
-	// num_elements = (sizeof(dataElements) / sizeof(bus_data_element_t));
-	// bus_error_val = desc->bus_reg_data_element_fn(&m_bus_hdl, dataElements, num_elements);
-	// if (bus_error_val != bus_error_success) {
-	// 	printf("%s:%d bus: bus_regDataElements failed\n", __func__, __LINE__);
-	// }
-    // wfa_dml_init();
 
 	// build initial network topology
 	init_network_topology();
@@ -1058,11 +1044,12 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
 int main(int argc, const char *argv[])
 {
 #ifdef AL_SAP
-    g_sap = g_ctrl.al_sap_register("/tmp/al_em_ctrl_data_socket", "/tmp/al_em_ctrl_control_socket");
+    em_ctrl_t  *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+    g_sap = em_ctrl->al_sap_register("/tmp/al_em_ctrl_data_socket", "/tmp/al_em_ctrl_control_socket");
 #endif
 
-    if (g_ctrl.init(argv[1]) == 0) {
-        g_ctrl.start();
+    if (em_ctrl->init(argv[1]) == 0) {
+        em_ctrl->start();
     }
 
     return 0;

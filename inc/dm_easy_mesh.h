@@ -84,6 +84,7 @@ public:
     dm_assoc_sta_mld_t m_assoc_sta_mld[EM_MAX_ASSOC_STA_MLD];
     dm_tid_to_link_t m_tid_to_link;
     bool m_topo_changed = false;
+	int m_instance_num;
 
 public:
 
