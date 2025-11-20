@@ -230,6 +230,55 @@ short em_policy_cfg_t::create_def_8021q_settings_policy_tlv(unsigned char *buff)
 short em_policy_cfg_t::create_traffic_sep_policy_tlv(unsigned char *buff)
 {
     size_t len = 0;
+    dm_easy_mesh_t *dm = NULL;
+    dm_policy_t *policy;
+    bool found_match = false;
+    unsigned char *tmp = buff;
+    unsigned int i = 0;
+
+    if (get_current_cmd()->get_type() == em_cmd_type_em_config) {
+        dm = get_data_model();
+    } else if (get_current_cmd()->get_type() == em_cmd_type_set_policy) {
+        dm = get_current_cmd()->get_data_model();
+    }
+
+    for (i = 0; i < dm->get_num_policy(); i++) {
+        policy = &dm->m_policy[i];
+        if (policy->m_policy.id.type == em_policy_id_type_traffic_separation) {
+            found_match = true;
+            break;
+        }
+    }
+
+    if (found_match == false) {
+        printf("%s:%d [TRAFFIC_SEP] Found Match False\n", __func__, __LINE__);
+        return 0;
+    }
+
+    unsigned char ssids_num = static_cast<unsigned char>(policy->m_policy.traffic_separ.num_ssids);
+    *tmp = ssids_num;
+    tmp += sizeof(unsigned char);
+    len += sizeof(unsigned char);
+
+    for (unsigned int i = 0; i < policy->m_policy.traffic_separ.num_ssids; i++) {
+        auto &info = policy->m_policy.traffic_separ.ssid_info[i];
+
+        std::vector<unsigned char> ssid_bytes(info.ssid, info.ssid + strlen(info.ssid));
+        unsigned char ssid_len = static_cast<unsigned char>(ssid_bytes.size());
+
+        *tmp = ssid_len;
+        tmp += sizeof(unsigned char);
+        len += sizeof(unsigned char);
+
+        memcpy(tmp, ssid_bytes.data(), ssid_len);
+        tmp += ssid_len;
+        len += ssid_len;
+
+        unsigned short vlan_n = htons(info.vlan_id);
+        memcpy(tmp, &vlan_n, sizeof(vlan_n));
+        tmp += sizeof(unsigned short);
+        len += sizeof(unsigned short);
+    }
 
     return static_cast<short> (len);
 }
@@ -488,6 +537,31 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
             data_len += (metrics->radios_num * sizeof(em_metric_rprt_policy_radio_t));
         } else if (tlv->type == em_tlv_type_dflt_8021q_settings) {
         } else if (tlv->type == em_tlv_type_traffic_separation_policy) {
+            unsigned char *tmp = static_cast<unsigned char *>(tlv->value);
+            policy.traffic_separation_policy.ssids_num = *tmp;
+            tmp += sizeof(unsigned char);
+            data_len += sizeof(unsigned char);
+            for ( i = 0; i < policy.traffic_separation_policy.ssids_num ; i++ ) {
+                int ssid_len = *tmp;
+                tmp += sizeof(unsigned char);
+                data_len += sizeof(unsigned char);
+
+                memcpy(policy.traffic_separation_policy.ssids[i].ssid, tmp, ssid_len);
+                policy.traffic_separation_policy.ssids[i].ssid[ssid_len] = '\0';
+                policy.traffic_separation_policy.ssids[i].ssid_len = ssid_len ;
+
+                tmp += ssid_len;
+                data_len += ssid_len;
+                
+                unsigned short net_vlan = 0;
+                memcpy(&net_vlan, tmp, sizeof(net_vlan));
+                policy.traffic_separation_policy.ssids[i].vlan_id = ntohs(net_vlan);
+                tmp += sizeof(unsigned short);
+                data_len += sizeof(unsigned short);
+
+                printf("%s:%d [TRAFFIC_SEP] Recvd Traffic Separation policy SSID='%s' Len=%u, VLAN=%u\n",__func__, __LINE__,
+                        policy.traffic_separation_policy.ssids[i].ssid , ssid_len ,policy.traffic_separation_policy.ssids[i].vlan_id);    
+            }
         } else if (tlv->type == em_tlv_type_channel_scan_rprt_policy) {
         } else if (tlv->type == em_tlv_type_unsucc_assoc_policy) {
         } else if (tlv->type == em_tlv_type_backhaul_bss_conf) {
