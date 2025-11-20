@@ -123,11 +123,13 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
         case em_cmd_type_sta_assoc:
             if (em->get_cap_query_tx_count() >= EM_MAX_CAP_QUERY_TX_THRESH) {
                 em->set_cap_query_tx_count(0);
-                printf("%s:%d: Maximum renew tx threshold crossed, transitioning to fini\n", __func__, __LINE__);
+                em_printfout("Maximum renew tx threshold crossed, transitioning to fini");
                 em->set_state(em_state_ctrl_configured);
                 return true;
             } else if (em->get_state() == em_state_ctrl_sta_cap_confirmed) {
                 em->set_state(em_state_ctrl_configured);
+                return true;
+            } else if (em->get_state() == em_state_ctrl_configured) {
                 return true;
             }
             break;
@@ -380,12 +382,14 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
 			mgr_dm->set_db_cfg_param(db_cfg_type_bss_list_delete, criteria);
 			break;
 
-		case dm_orch_type_topo_update:
-			if (pcmd->get_type() != em_cmd_type_em_config) {
-				break;
-			}
-			break;
+        case dm_orch_type_topo_update:
+            if (pcmd->get_type() == em_cmd_type_em_config) {
+                break;
+            }
+            m_mgr->update_network_topology();
+            break;
 
+        case dm_orch_type_topo_publish:
         case dm_orch_type_bsta_cap_query:
 			break;
 
