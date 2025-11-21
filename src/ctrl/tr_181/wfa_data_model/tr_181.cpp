@@ -548,6 +548,7 @@ bus_error_t tr_181_t::wifi_elem_num_of_table_row(char* event_name, uint32_t* tab
     return bus_error_success;
 }
 
+#if 0
 void tr_181_t::register_cjson_namespace(cJSON *node, const std::string &prefix)
 {
     if (!node)
@@ -688,10 +689,200 @@ void tr_181_t::generate_namespaces_without_lib_refined(const std::string &filena
     cJSON_Delete(root);
     std::cout << "\nJSON namespace registration complete.\n";
 }
+#endif
+
+bool tr_181_t::parseFile(const std::string& filePath) {
+    std::ifstream file(filePath);
+    if (!file.is_open()) {
+        std::cerr << "Error opening file: " << filePath << std::endl;
+        return false;
+    }
+
+    std::string rawJson((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    cJSON* root = cJSON_Parse(rawJson.c_str());
+    if (!root) {
+        std::cerr << "JSON parse error: " << cJSON_GetErrorPtr() << std::endl;
+        return false;
+    }
+
+    bool result = decodeJsonObject(root);
+    cJSON_Delete(root);
+    return result;
+}
+
+bool tr_181_t::decodeJsonObject(cJSON* root) {
+    cJSON* properties = cJSON_GetObjectItem(root, "properties");
+    if (!properties) {
+        std::cerr << "Missing 'properties' in schema." << std::endl;
+        return false;
+    }
+
+    cJSON* networkObj = cJSON_GetObjectItem(properties, "wfa-dataelements:Network");
+    if (networkObj) {
+        cJSON* networkProps = cJSON_GetObjectItem(networkObj, "properties");
+        if (networkProps) {
+            decodeObjectsRecursive(networkProps, nullptr, "Network");
+        }
+    }
+    return true;
+}
+
+void tr_181_t::processDefinitions(cJSON* definitions) {
+    // For now, just log definitions
+    cJSON* def = definitions->child;
+    while (def) {
+        std::cout << "Definition found: " << def->string << std::endl;
+        def = def->next;
+    }
+}
+
+void tr_181_t::decodeObjectsRecursive(cJSON* node, cJSON* defObj, const std::string& namePrefix) {
+    if (!node) return;
+
+    cJSON* child = node->child;
+    while (child) {
+        if (!child->string) {
+            child = child->next;
+            continue;
+        }
+
+        // Strip wfa-dataelements: prefix if present
+        std::string keyName = child->string;
+        if (keyName.find("wfa-dataelements:") == 0) {
+            keyName = keyName.substr(strlen("wfa-dataelements:"));
+        }
+
+        std::string currentName = namePrefix.empty() ? keyName : namePrefix + "." + keyName;
+
+        bus_callback_table_t cbTable = {0};
+        data_model_properties_t data_model_value{};
+
+        // Register container object
+        wfa_set_bus_callbackfunc_pointers(currentName.c_str(), &cbTable);
+        memset(&data_model_value, 0, sizeof(data_model_value));
+        registerNamespace(currentName, data_model_value, bus_element_type_property, cbTable, 0);
+
+        // Check type
+        cJSON* typeItem = cJSON_GetObjectItem(child, "type");
+        if (typeItem && cJSON_IsString(typeItem)) {
+            const char* typeVal = typeItem->valuestring;
+
+            if (strcmp(typeVal, "array") == 0) {
+                // Array of objects → table
+                std::string arrayNamespace = currentName + ".{i}";
+                wfa_set_bus_callbackfunc_pointers(arrayNamespace.c_str(), &cbTable);
+                cbTable.get_handler = NULL;
+                cbTable.set_handler = NULL;
+                memset(&data_model_value, 0, sizeof(data_model_value));
+                registerNamespace(arrayNamespace, data_model_value, bus_element_type_table, cbTable, 0);
+
+                // Dive into items
+                cJSON* items = cJSON_GetObjectItem(child, "items");
+                if (items) {
+                    cJSON* itemProps = cJSON_GetObjectItem(items, "properties");
+                    if (itemProps) {
+                        decodeObjectsRecursive(itemProps, defObj, arrayNamespace);
+                    }
+                }
+            }
+            else if (strcmp(typeVal, "object") != 0) {
+                // Leaf property
+                wfa_set_bus_callbackfunc_pointers(currentName.c_str(), &cbTable);
+                memset(&data_model_value, 0, sizeof(data_model_value));
+                registerNamespace(currentName, data_model_value, bus_element_type_property, cbTable, 0);
+            }
+        }
+
+        // Dive into nested properties
+        cJSON* properties = cJSON_GetObjectItem(child, "properties");
+        if (properties && cJSON_IsObject(properties)) {
+            decodeObjectsRecursive(properties, defObj, currentName);
+        }
+
+        child = child->next;
+    }
+}
+
+void tr_181_t::constructNamespaceAndRegister(cJSON* cfgParam, cJSON* defObj, const std::string& namePrefix) {
+    if (cJSON_IsObject(cfgParam)) {
+        cJSON* currentElement = cfgParam->child;
+        bus_callback_table_t cbTable = {0};
+        data_model_properties_t data_model_value;
+
+        while (currentElement) {
+            std::string fullNamespace = namePrefix + "." + currentElement->string;
+
+            if (cJSON_IsArray(currentElement)) {
+                int numTables = 1;
+                if (currentElement->prev && strcmp(currentElement->prev->string, MAX_NUM_OF_OBJECTS_NAME) == 0) {
+                    numTables = currentElement->prev->valuedouble;
+                }
+                cbTable.get_handler = nullptr;
+                cbTable.set_handler = nullptr;
+
+                memset(&data_model_value, 0, sizeof(data_model_value));
+                std::string arrayNamespace = fullNamespace + ".{i}";
+                wfa_set_bus_callbackfunc_pointers(arrayNamespace.c_str(), &cbTable);
+                registerNamespace(fullNamespace + ".{i}", data_model_value, bus_element_type_table, cbTable, numTables);
+                addArrayNodeElements(currentElement, cJSON_GetArraySize(currentElement), fullNamespace, defObj, cbTable);
+            } else {
+                data_model_properties_t props = {};
+                cJSON* typeItem = cJSON_GetObjectItem(currentElement, "type");
+                if (typeItem && cJSON_IsString(typeItem)) {
+                    getDataModelProperties(defObj, typeItem->valuestring, props);
+                }
+                cJSON* writableItem = cJSON_GetObjectItem(currentElement, "writable");
+                props.data_permission = (writableItem && writableItem->type == cJSON_True);
+                wfa_set_bus_callbackfunc_pointers(fullNamespace.c_str(), &cbTable);
+                registerNamespace(fullNamespace, props, bus_element_type_property, cbTable, 0);
+            }
+            currentElement = currentElement->next;
+        }
+    }
+}
+
+void tr_181_t::addArrayNodeElements(cJSON* arrayObj, int numElements, const std::string& namePrefix, cJSON* defObj, bus_callback_table_t cbTable) {
+    for (int i = 0; i < numElements; i++) {
+        cJSON* currentElement = cJSON_GetArrayItem(arrayObj, i);
+        if (!currentElement) continue;
+
+        std::string fullNamespace = namePrefix + "." + currentElement->string;
+        data_model_properties_t props = {};
+        cJSON* typeItem = cJSON_GetObjectItem(currentElement, "type");
+        if (typeItem && cJSON_IsString(typeItem)) {
+            getDataModelProperties(defObj, typeItem->valuestring, props);
+        }
+        cJSON* writableItem = cJSON_GetObjectItem(currentElement, "writable");
+        props.data_permission = (writableItem && writableItem->type == cJSON_True);
+        wfa_set_bus_callbackfunc_pointers(fullNamespace.c_str(), &cbTable);
+        registerNamespace(fullNamespace, props, bus_element_type_property, cbTable, 0);
+    }
+}
+
+void tr_181_t::registerNamespace(const std::string& fullNamespace, const data_model_properties_t& props, bus_element_type_t type, bus_callback_table_t cbTable, int numRows) {
+    std::cout << "Registering namespace: " << fullNamespace << std::endl;
+    wfa_bus_register_namespace(const_cast<char*>(fullNamespace.c_str()), type, cbTable, props, numRows);
+}
+
+void tr_181_t::getDataModelProperties(cJSON* defObj, const char* typeStr, data_model_properties_t& props) {
+    cJSON* param = cJSON_GetObjectItem(defObj, typeStr);
+    if (!param) return;
+
+    cJSON* child = param->child;
+    while (child) {
+        if (strcmp(child->string, "minimum") == 0) {
+            props.min_data_range = child->valuedouble;
+        } else if (strcmp(child->string, "maximum") == 0) {
+            props.max_data_range = child->valuedouble;
+        }
+        child = child->next;
+    }
+}
 
 int tr_181_t::register_wfa_dml()
 {
-    const std::string filename = "Data_Elements_MultiAP_Example_JSON_v3.0.json";
-    generate_namespaces_without_lib_refined(filename);
+    //const std::string filename = "Data_Elements_MultiAP_Example_JSON_v3.0.json";
+    const std::string filename = "Data_Elements_JSON_Schema_v3.0.json";
+    parseFile(filename);
     return RETURN_OK;
 }
