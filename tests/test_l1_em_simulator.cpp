@@ -21,7 +21,6 @@
 #include <gmock/gmock.h>
 #include <stdio.h>
 #include <cstring>
-#include "dm_easy_mesh_agent.h"
 #include "em_simulator.h"
 
 /**

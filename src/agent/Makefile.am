@@ -22,7 +22,7 @@ AM_CFLAGS += -D_ANSC_LITTLE_ENDIAN_
 
 ACLOCAL_AMFLAGS = -I m4
 hardware_platform = i686-linux-gnu
-bin_PROGRAMS = onewifi_em_agent
+bin_PROGRAMS = onewifi_em_agent onewifi_em_agent_test
 
 onewifi_em_agent_CPPFLAGS = \
     -I$(top_srcdir)/inc \
