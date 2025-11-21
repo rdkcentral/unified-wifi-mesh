@@ -327,9 +327,9 @@ bus_handle_t *get_bus_hdl(){
     static bus_error_t sta_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t sta_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
 
-	virtual bus_error_t bus_get_cb_fwd(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data, bus_get_handler_t cb) = 0;
-    //virtual bus_error_t device_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
-    virtual bus_error_t device_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
+	virtual bus_error_t bus_get_cb_fwd(char *event_name, raw_data_t *p_data, bus_get_handler_t cb) = 0;
+    virtual bus_error_t network_get(char *event_name, raw_data_t *p_data) = 0;
+    virtual bus_error_t device_tget(char *event_name, raw_data_t *p_data) = 0;
     // virtual bus_error_t radio_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
     // virtual bus_error_t bss_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
     // virtual bus_error_t ssid_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
