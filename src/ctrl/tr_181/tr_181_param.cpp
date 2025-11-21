@@ -521,18 +521,18 @@ bus_error_t raw_data_set(raw_data_t *p_data, wifi_ieee80211Variant_t var)
     return raw_data_set(p_data, var_str);
 }
 
-bus_error_t raw_data_set(raw_data_t *p_data, bus_data_prop_t *property)
-{
-    p_data->data_type = bus_data_type_property;
-    p_data->raw_data.bytes = malloc(sizeof(bus_data_prop_t));
-    if (p_data->raw_data.bytes == NULL) {
-        return bus_error_out_of_resources;
-    }
-    memcpy(p_data->raw_data.bytes, property, sizeof(bus_data_prop_t));
-    p_data->raw_data_len = sizeof(bus_data_prop_t);
+// bus_error_t raw_data_set(raw_data_t *p_data, bus_data_prop_t *property)
+// {
+//     p_data->data_type = bus_data_type_property;
+//     p_data->raw_data.bytes = malloc(sizeof(bus_data_prop_t));
+//     if (p_data->raw_data.bytes == NULL) {
+//         return bus_error_out_of_resources;
+//     }
+//     memcpy(p_data->raw_data.bytes, property, sizeof(bus_data_prop_t));
+//     p_data->raw_data_len = sizeof(bus_data_prop_t);
 
-    return bus_error_success;
-}
+//     return bus_error_success;
+// }
 
 template <typename T> bus_data_prop_t *property_init_value(const char *root, unsigned int idx, const char *param, T value)
 {

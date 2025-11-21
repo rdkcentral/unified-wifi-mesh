@@ -2013,9 +2013,10 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget(char *event_name, raw_data_t *p_dat
 bus_error_t dm_easy_mesh_ctrl_t::network_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     em_printfout(" network_get_inner ");
-        const char *name = event_name;
+    const char *name = event_name;
     const char *param;
     bus_error_t rc = bus_error_success;
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
 
     if (!name || !p_data) {
         return bus_error_invalid_input;
@@ -2030,20 +2031,20 @@ bus_error_t dm_easy_mesh_ctrl_t::network_get_inner(char *event_name, raw_data_t 
     em_string_t str_val = { 0 };
     if (strcmp(param, "ID") == 0) {
         strncpy(str_val, GLOBAL_NET_ID, sizeof(str_val) - 1);
-        rc = raw_data_set(p_data, str_val);
+        rc = dm_ctrl->raw_data_set(p_data, str_val);
     } else if (strcmp(param, "ControllerID") == 0) {
-        dm_easy_mesh_t *dm = g_ctrl.get_first_dm();
+        dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
         dm_easy_mesh_t::macbytes_to_string(dm->get_controller_interface_mac(), str_val);
         //dm_easy_mesh_t::macbytes_to_string(dm->get_network_info()->ctrl_id.mac, str_val);
-        rc = raw_data_set(p_data, str_val);
+        rc = dm_ctrl->raw_data_set(p_data, str_val);
     } else if (strcmp(param, "ColocatedAgentID") == 0) {
-        dm_easy_mesh_t *dm = g_ctrl.get_first_dm();
+        dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
         dm_easy_mesh_t::macbytes_to_string(dm->get_ctrl_al_interface_mac(), str_val);
         //dm_easy_mesh_t::macbytes_to_string(dm->get_network_info()->ctrl_id.mac, str_val);
-        rc = raw_data_set(p_data, str_val);
+        rc = dm_ctrl->raw_data_set(p_data, str_val);
     } else if (strcmp(param, "DeviceNumberOfEntries") == 0) {
         unsigned int dev_cnt = 0;
-        dm_easy_mesh_t *dm = g_ctrl.get_first_dm();
+        dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
         while (dm != NULL) {
             dm_device_t *dev = dm->get_device();
             if (dev != NULL) {
@@ -2052,9 +2053,9 @@ bus_error_t dm_easy_mesh_ctrl_t::network_get_inner(char *event_name, raw_data_t 
                     ++dev_cnt;
                 }
             }
-            dm = g_ctrl.get_next_dm(dm);
+            dm = dm_ctrl->get_next_dm(dm);
         }
-        rc = raw_data_set(p_data, dev_cnt);
+        rc = dm_ctrl->raw_data_set(p_data, dev_cnt);
     } else {
         rc = bus_error_invalid_input;
     }

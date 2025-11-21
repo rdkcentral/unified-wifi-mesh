@@ -155,6 +155,126 @@ int tr_181_t::wfa_bus_register_namespace(char *full_namespace, bus_element_type_
     return RETURN_OK;
 }
 
+bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, bool b)
+{
+    p_data->data_type = bus_data_type_boolean;
+    p_data->raw_data.b = b;
+    return bus_error_success;
+}
+
+bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, int32_t i)
+{
+    p_data->data_type = bus_data_type_int32;
+    p_data->raw_data.i32 = i;
+    return bus_error_success;
+}
+
+bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, uint8_t u)
+{
+    p_data->data_type = bus_data_type_uint8;
+    p_data->raw_data.u8 = u;
+    return bus_error_success;
+}
+
+bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, uint16_t u)
+{
+    p_data->data_type = bus_data_type_uint16;
+    p_data->raw_data.u16 = u;
+    return bus_error_success;
+}
+
+bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, uint32_t u)
+{
+    p_data->data_type = bus_data_type_uint32;
+    p_data->raw_data.u32 = u;
+    return bus_error_success;
+}
+
+bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, const char *str)
+{
+    uint32_t str_size;
+
+    str_size = strlen(str) + 1;
+    p_data->data_type = bus_data_type_string;
+    p_data->raw_data.bytes = malloc(str_size);
+    if (p_data->raw_data.bytes == NULL) {
+        return bus_error_out_of_resources;
+    }
+    memcpy(p_data->raw_data.bytes, str, str_size);
+    p_data->raw_data_len = str_size;
+
+    return bus_error_success;
+}
+
+bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, mac_address_t mac)
+{
+    mac_addr_str_t mac_str;
+
+    p_data->data_type = bus_data_type_string;
+    p_data->raw_data.bytes = malloc(sizeof(mac_addr_str_t));
+    if (p_data->raw_data.bytes == NULL) {
+        return bus_error_out_of_resources;
+    }
+    dm_easy_mesh_t::macbytes_to_string(mac, mac_str);
+    memcpy(p_data->raw_data.bytes, mac_str, sizeof(mac_addr_str_t));
+    p_data->raw_data_len = sizeof(mac_addr_str_t);
+
+    return bus_error_success;
+}
+
+bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, wifi_ieee80211Variant_t var)
+{
+    const char *var_str;
+
+    switch (var) {
+        case WIFI_80211_VARIANT_A:
+            var_str = "IEEE 802.11a";
+            break;
+        case WIFI_80211_VARIANT_B:
+            var_str = "IEEE 802.11b";
+            break;
+        case WIFI_80211_VARIANT_G:
+            var_str = "IEEE 802.11g";
+            break;
+        case WIFI_80211_VARIANT_N:
+            var_str = "IEEE 802.11n 2.4";
+            break;
+        case WIFI_80211_VARIANT_H:
+            var_str = "IEEE 802.11n 5.0";
+            break;
+        case WIFI_80211_VARIANT_AC:
+            var_str = "IEEE 802.11ac";
+            break;
+        case WIFI_80211_VARIANT_AD:
+            var_str = "IEEE 802.11ad";
+            break;
+        case WIFI_80211_VARIANT_AX:
+            var_str = "IEEE 802.11ax";
+            break;
+        case WIFI_80211_VARIANT_BE:
+            var_str = "IEEE 802.11be";
+            break;
+        default:
+            var_str = "Generic PHY";
+            break;
+    }
+
+    return raw_data_set(p_data, var_str);
+}
+
+bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, bus_data_prop_t *property)
+{
+    p_data->data_type = bus_data_type_property;
+    p_data->raw_data.bytes = malloc(sizeof(bus_data_prop_t));
+    if (p_data->raw_data.bytes == NULL) {
+        return bus_error_out_of_resources;
+    }
+    memcpy(p_data->raw_data.bytes, property, sizeof(bus_data_prop_t));
+    p_data->raw_data_len = sizeof(bus_data_prop_t);
+
+    return bus_error_success;
+}
+
 bus_error_t tr_181_t::default_get_param_value(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data) {
     // Default implementation for get parameter value
    // (void)p_data;

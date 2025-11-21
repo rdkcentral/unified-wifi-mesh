@@ -289,6 +289,21 @@ bus_handle_t *get_bus_hdl(){
                                  bus_callback_table_t cb_table, 
                                  data_model_properties_t data_model_value, 
                                  int num_of_rows);
+    bus_error_t raw_data_set(raw_data_t *p_data, bool b);
+    bus_error_t raw_data_set(raw_data_t *p_data, int32_t i);
+    bus_error_t raw_data_set(raw_data_t *p_data, uint8_t u);
+    bus_error_t raw_data_set(raw_data_t *p_data, uint16_t u);
+    bus_error_t raw_data_set(raw_data_t *p_data, uint32_t u);
+    bus_error_t raw_data_set(raw_data_t *p_data, const char *str);
+    bus_error_t raw_data_set(raw_data_t *p_data, mac_address_t mac);
+    bus_error_t raw_data_set(raw_data_t *p_data, wifi_ieee80211Variant_t var);
+    bus_error_t raw_data_set(raw_data_t *p_data, bus_data_prop_t *property);
+
+    virtual bus_error_t bus_get_cb_fwd(char *event_name, raw_data_t *p_data, bus_get_handler_t cb) = 0;
+    
+    //Table callback handlers
+    static bus_error_t add_table_row(char const *name, dm_easy_mesh_t *dm);
+    bus_error_t reg_table_row(char *name, int index);
 
     // Bus callback handlers
     static bus_error_t default_get_param_value(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);
@@ -296,10 +311,6 @@ bus_handle_t *get_bus_hdl(){
     static bus_error_t default_table_add_row_handler(const char* tableName, const char* aliasName, uint32_t* instNum);
     static bus_error_t default_table_remove_row_handler(const char* rowName);
     static bus_error_t default_event_sub_handler(char* eventName, bus_event_sub_action_t action, int32_t interval, bool* autoPublish);
-
-    //Table callback handlers
-    static bus_error_t add_table_row(char const *name, dm_easy_mesh_t *dm);
-    bus_error_t reg_table_row(char *name, int index);
 
     //Network
     static bus_error_t network_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
@@ -325,7 +336,6 @@ bus_handle_t *get_bus_hdl(){
     static bus_error_t sta_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t sta_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
 
-	virtual bus_error_t bus_get_cb_fwd(char *event_name, raw_data_t *p_data, bus_get_handler_t cb) = 0;
     virtual bus_error_t network_get(char *event_name, raw_data_t *p_data) = 0;
     virtual bus_error_t device_tget(char *event_name, raw_data_t *p_data) = 0;
     // virtual bus_error_t radio_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
