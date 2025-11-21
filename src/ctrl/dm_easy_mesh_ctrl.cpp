@@ -1996,20 +1996,70 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
     return 0;
 }
 
-void dm_easy_mesh_ctrl_t::get_network()
+bus_error_t dm_easy_mesh_ctrl_t::network_get(char *event_name, raw_data_t *p_data)
 {
-
-}
-
-void dm_easy_mesh_ctrl_t::device_get()
-{
-
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::device_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    return bus_get_cb_fwd(event_name, p_data, user_data, device_tget_inner);
+    em_printfout(" network_get ");
+    return bus_get_cb_fwd(event_name, p_data, network_get_inner);
     //return bus_error_success;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::device_tget(char *event_name, raw_data_t *p_data)
+{
+    em_printf(" device_tget ");
+    return bus_get_cb_fwd(event_name, p_data, device_tget_inner);
+    //return bus_error_success;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::network_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_printfout(" network_get_inner ");
+        const char *name = event_name;
+    const char *param;
+    bus_error_t rc = bus_error_success;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        return bus_error_invalid_input;
+    }
+    ++param;
+
+    em_string_t str_val = { 0 };
+    if (strcmp(param, "ID") == 0) {
+        strncpy(str_val, GLOBAL_NET_ID, sizeof(str_val) - 1);
+        rc = raw_data_set(p_data, str_val);
+    } else if (strcmp(param, "ControllerID") == 0) {
+        dm_easy_mesh_t *dm = g_ctrl.get_first_dm();
+        dm_easy_mesh_t::macbytes_to_string(dm->get_controller_interface_mac(), str_val);
+        //dm_easy_mesh_t::macbytes_to_string(dm->get_network_info()->ctrl_id.mac, str_val);
+        rc = raw_data_set(p_data, str_val);
+    } else if (strcmp(param, "ColocatedAgentID") == 0) {
+        dm_easy_mesh_t *dm = g_ctrl.get_first_dm();
+        dm_easy_mesh_t::macbytes_to_string(dm->get_ctrl_al_interface_mac(), str_val);
+        //dm_easy_mesh_t::macbytes_to_string(dm->get_network_info()->ctrl_id.mac, str_val);
+        rc = raw_data_set(p_data, str_val);
+    } else if (strcmp(param, "DeviceNumberOfEntries") == 0) {
+        unsigned int dev_cnt = 0;
+        dm_easy_mesh_t *dm = g_ctrl.get_first_dm();
+        while (dm != NULL) {
+            dm_device_t *dev = dm->get_device();
+            if (dev != NULL) {
+                em_device_info_t *di = dev->get_device_info();
+                if (memcmp(di->id.dev_mac, ZERO_MAC_ADDR, sizeof(di->id.dev_mac)) != 0) {
+                    ++dev_cnt;
+                }
+            }
+            dm = g_ctrl.get_next_dm(dm);
+        }
+        rc = raw_data_set(p_data, dev_cnt);
+    } else {
+        rc = bus_error_invalid_input;
+    }
+
+    return rc;
 }
 
 bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
@@ -2092,7 +2142,7 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
 /* Rbus runs callbacks from a different thread. Accessing data in controller
    directly may result in race condition. Requested callback is forwarded to
    event queue for safe procesing */
-bus_error_t dm_easy_mesh_ctrl_t::bus_get_cb_fwd(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data, bus_get_handler_t cb)
+bus_error_t dm_easy_mesh_ctrl_t::bus_get_cb_fwd(char *event_name, raw_data_t *p_data, bus_get_handler_t cb)
 {
     uint32_t s_id;
     bus_error_t err = bus_error_success;
@@ -2121,6 +2171,8 @@ bus_error_t dm_easy_mesh_ctrl_t::bus_get_cb_fwd(char *event_name, raw_data_t *p_
         resp = (bus_resp_get_t *) buf;
         assert(resp->id == s_id);
         err = resp->rc;
+
+        em_printfout("  push to queue success\n");
     } while (0);
 
     free(resp);

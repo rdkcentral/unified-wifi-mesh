@@ -73,7 +73,7 @@ void tr_181_t::init(void* ptr)
 int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_callback_table_t *cb_table)
 {
     em_printfout(" namespace:[%s]\n", full_namespace);
-    /*bus_data_cb_func_t bus_data_cb[] = {
+    bus_data_cb_func_t bus_data_cb[] = {
         ELEMENT(DE_NETWORK_ID, CB(.get_handler = network_get)),
         ELEMENT(DE_NETWORK_CTRLID, CB(.get_handler = network_get)),
         ELEMENT(DE_NETWORK_COLAGTID, CB(.get_handler = network_get)),
@@ -97,7 +97,7 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT_TABLE_ROW(DE_RADIO_TABLE, CB(.table_add_row_handler = radio_table_add_row_handler)),
         ELEMENT_TABLE_ROW(DE_BSS_TABLE, CB(.table_add_row_handler = bss_table_add_row_handler)),
         ELEMENT(DE_STA_TABLE, CB(.table_add_row_handler = sta_table_add_row_handler)), 
-    };*/
+    };
 
     bus_data_cb_func_t bus_default_data_cb = { " ",
         { default_get_param_value, default_set_param_value, default_table_add_row_handler,
@@ -107,14 +107,14 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
     uint32_t index = 0;
     bool     table_found = false;
 
-    /*for (index = 0; index < (uint32_t)ARRAY_SIZE(bus_data_cb); index++) {
+    for (index = 0; index < (uint32_t)ARRAY_SIZE(bus_data_cb); index++) {
         if (strcmp(full_namespace, bus_data_cb[index].cb_table_name)) {
             memcpy(cb_table, &bus_data_cb[index].cb_func, sizeof(bus_callback_table_t));
             table_found = true;
              em_printfout("strcmp namespace:[%s]\n", full_namespace);
             break;
         }
-    }*/
+    }
 
     if (table_found == false) {
         em_printfout("default cb set for namespace:[%s]\n", full_namespace);
@@ -208,8 +208,7 @@ bus_error_t tr_181_t::network_get(char *event_name, raw_data_t *p_data, bus_user
     em_printfout("event name: %s\n", event_name);
     if (em_ctrl != NULL)
     {
-        //m_ctrl->device_tget_impl(event_name, p_data, user_data, device_tget_inner);
-        em_ctrl->get_dm_ctrl()->device_tget_impl(event_name, p_data, user_data);
+        em_ctrl->get_dm_ctrl()->network_get(event_name, p_data);
         return bus_error_success;
     }
     
@@ -223,8 +222,8 @@ bus_error_t tr_181_t::ssid_tget(char *event_name, raw_data_t *p_data, bus_user_d
     em_printfout("event name: %s\n", event_name);
     if (em_ctrl != NULL)
     {
-        //m_ctrl->device_tget_impl(event_name, p_data, user_data, device_tget_inner);
-        em_ctrl->get_dm_ctrl()->device_tget_impl(event_name, p_data, user_data);
+        //m_ctrl->device_tget(event_name, p_data, user_data, device_tget_inner);
+        em_ctrl->get_dm_ctrl()->device_tget(event_name, p_data);
         return bus_error_success;
     }
     
@@ -238,8 +237,8 @@ bus_error_t tr_181_t::ssid_get(char *event_name, raw_data_t *p_data, bus_user_da
     em_printfout("event name: %s\n", event_name);
     if (em_ctrl != NULL)
     {
-        //m_ctrl->device_tget_impl(event_name, p_data, user_data, device_tget_inner);
-        em_ctrl->get_dm_ctrl()->device_tget_impl(event_name, p_data, user_data);
+        //m_ctrl->device_tget(event_name, p_data, user_data, device_tget_inner);
+        em_ctrl->get_dm_ctrl()->device_tget(event_name, p_data);
         return bus_error_success;
     }
     
@@ -253,8 +252,8 @@ bus_error_t tr_181_t::device_tget(char *event_name, raw_data_t *p_data, bus_user
     em_printfout("event name: %s\n", event_name);
     if (em_ctrl != NULL)
     {
-        //m_ctrl->device_tget_impl(event_name, p_data, user_data, device_tget_inner);
-        em_ctrl->get_dm_ctrl()->device_tget_impl(event_name, p_data, user_data);
+        //m_ctrl->device_tget(event_name, p_data, user_data, device_tget_inner);
+        em_ctrl->get_dm_ctrl()->device_tget(event_name, p_data);
         return bus_error_success;
     }
     
@@ -268,8 +267,8 @@ bus_error_t tr_181_t::radio_tget(char *event_name, raw_data_t *p_data, bus_user_
     em_printfout("event name: %s\n", event_name);
     if (em_ctrl != NULL)
     {
-        //m_ctrl->device_tget_impl(event_name, p_data, user_data, device_tget_inner);
-        em_ctrl->get_dm_ctrl()->device_tget_impl(event_name, p_data, user_data);
+        //m_ctrl->device_tget(event_name, p_data, user_data, device_tget_inner);
+        em_ctrl->get_dm_ctrl()->device_tget(event_name, p_data);
         return bus_error_success;
     }
     
@@ -283,8 +282,8 @@ bus_error_t tr_181_t::bss_tget(char *event_name, raw_data_t *p_data, bus_user_da
     em_printfout("event name: %s\n", event_name);
     if (em_ctrl != NULL)
     {
-        //m_ctrl->device_tget_impl(event_name, p_data, user_data, device_tget_inner);
-        em_ctrl->get_dm_ctrl()->device_tget_impl(event_name, p_data, user_data);
+        //m_ctrl->device_tget(event_name, p_data, user_data, device_tget_inner);
+        em_ctrl->get_dm_ctrl()->device_tget(event_name, p_data);
         return bus_error_success;
     }
     
@@ -298,8 +297,8 @@ bus_error_t tr_181_t::sta_tget(char *event_name, raw_data_t *p_data, bus_user_da
     em_printfout("event name: %s\n", event_name);
     if (em_ctrl != NULL)
     {
-        //m_ctrl->device_tget_impl(event_name, p_data, user_data, device_tget_inner);
-        em_ctrl->get_dm_ctrl()->device_tget_impl(event_name, p_data, user_data);
+        //m_ctrl->device_tget(event_name, p_data, user_data, device_tget_inner);
+        em_ctrl->get_dm_ctrl()->device_tget(event_name, p_data);
         return bus_error_success;
     }
     
