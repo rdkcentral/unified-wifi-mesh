@@ -835,66 +835,61 @@ TEST(em_cmd_t, PositiveCopyMinimalBusEvent) {
 TEST(em_cmd_t, PositiveCopyCompleteBusEvent) {
     std::cout << "Entering PositiveCopyCompleteBusEvent test" << std::endl;
 
-    // Prepare a complete bus event with type = em_bus_event_type_get_device, data_len > 0
+    // Prepare a complete bus event with type = em_bus_event_type_get_device and data_len > 0
     em_bus_event_t evt;
     std::memset(&evt, 0, sizeof(evt));
     evt.type = em_bus_event_type_get_device;
-    evt.data_len = 100;
+    evt.data_len = 20;  // Reduced to avoid potential overflow during memcpy
 
-    std::cout << "Initialized evt with type = " 
-              << bus_event_type_to_str(evt.type)
-              << " and data_len = " << evt.data_len << std::endl;
+    // Fill buffer for verification
+    for (unsigned int i = 0; i < evt.data_len; i++) {
+        evt.u.subdoc.buff[i] = static_cast<unsigned char>(0xA0 + i);
+    }
 
-    // Populate one of the union members (subdoc name)
+    // Populate subdoc name
     const char* subdocName = "TestSubdoc";
     strncpy(evt.u.subdoc.name, subdocName, sizeof(evt.u.subdoc.name) - 1);
     evt.u.subdoc.name[sizeof(evt.u.subdoc.name) - 1] = '\0';
-    std::cout << "Assigned evt.u.subdoc.name = " << evt.u.subdoc.name << std::endl;
 
-    // Populate parameters (arguments)
+    // Populate arguments
     evt.params.u.args.num_args = 2;
-    const char* arg1 = "arg1_value";
-    const char* arg2 = "arg2_value";
-    strncpy(evt.params.u.args.args[0], arg1, sizeof(evt.params.u.args.args[0]) - 1);
-    strncpy(evt.params.u.args.args[1], arg2, sizeof(evt.params.u.args.args[1]) - 1);
-    evt.params.u.args.args[0][sizeof(evt.params.u.args.args[0]) - 1] = '\0';
-    evt.params.u.args.args[1][sizeof(evt.params.u.args.args[1]) - 1] = '\0';
-
-    std::cout << "Assigned evt.params.u.args.num_args = " << evt.params.u.args.num_args << std::endl;
-    std::cout << "Assigned evt.params.u.args.args[0] = " << evt.params.u.args.args[0] << std::endl;
-    std::cout << "Assigned evt.params.u.args.args[1] = " << evt.params.u.args.args[1] << std::endl;
+    strncpy(evt.params.u.args.args[0], "arg1_value", sizeof(evt.params.u.args.args[0]) - 1);
+    strncpy(evt.params.u.args.args[1], "arg2_value", sizeof(evt.params.u.args.args[1]) - 1);
 
     EXPECT_NO_THROW({
         em_cmd_t cmd;
-        std::cout << "Invoking copy_bus_event with complete bus event" << std::endl;
         EXPECT_NO_THROW(cmd.copy_bus_event(&evt));
 
-        ASSERT_NE(cmd.m_evt, nullptr) << "m_evt is NULL after copy_bus_event";
-
-        // Validate deep copy of the bus event
-        EXPECT_EQ(cmd.m_evt->type, em_event_type_bus)
-            << "Expected m_evt->type to be em_event_type_bus after copy";
+        ASSERT_NE(cmd.m_evt, nullptr) << "m_evt should not be NULL after copy";
+        ASSERT_EQ(cmd.m_evt->type, em_event_type_bus) << "Event type mismatch after copy";
 
         const em_bus_event_t &copied = cmd.m_evt->u.bevt;
 
-        std::cout << "Copied bus event type: " << bus_event_type_to_str(copied.type) << std::endl;
-        std::cout << "Copied data_len: " << copied.data_len << std::endl;
+        // --- Validate raw struct clone ---
         EXPECT_EQ(copied.type, evt.type);
         EXPECT_EQ(copied.data_len, evt.data_len);
 
-        std::cout << "Copied subdoc name: " << copied.u.subdoc.name << std::endl;
-        EXPECT_STREQ(copied.u.subdoc.name, evt.u.subdoc.name);
+        // Validate name (deep comparison)
+        EXPECT_STREQ(copied.u.subdoc.name, evt.u.subdoc.name) << "Subdoc name mismatch";
 
-        std::cout << "Copied args num: " << copied.params.u.args.num_args << std::endl;
+        // Validate args
         EXPECT_EQ(copied.params.u.args.num_args, evt.params.u.args.num_args);
-        std::cout << "Copied arg[0]: " << copied.params.u.args.args[0] << std::endl;
-        std::cout << "Copied arg[1]: " << copied.params.u.args.args[1] << std::endl;
         EXPECT_STREQ(copied.params.u.args.args[0], evt.params.u.args.args[0]);
         EXPECT_STREQ(copied.params.u.args.args[1], evt.params.u.args.args[1]);
+
+        // --- Validate copied buffer ---
+        ASSERT_LE(evt.data_len, sizeof(evt.u.subdoc.buff))
+            << "Data length exceeds internal buffer boundary";
+        
+        EXPECT_EQ(
+            std::memcmp(copied.u.subdoc.buff, evt.u.subdoc.buff, evt.data_len),
+            0
+        ) << "Copied buffer contents mismatch!";
     });
 
     std::cout << "Exiting PositiveCopyCompleteBusEvent test" << std::endl;
 }
+
 /**
  * @brief Validate that the copy_bus_event API correctly duplicates the bus event for various enum event types.
  *
