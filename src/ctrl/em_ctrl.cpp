@@ -435,6 +435,8 @@ void em_ctrl_t::handle_nb_event(em_nb_event_t *evt)
     assert(resp != NULL);
     resp->id = evt->id;
 
+    em_printfout("handle_nb_event =================");
+
     switch (evt->type) {
         case NB_REQTYPE_GET: {
             char *name = evt->u.get.name;
