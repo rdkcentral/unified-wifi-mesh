@@ -35,6 +35,9 @@
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC          "Device.WiFi.DataElements.Network.NodeSynchronize"
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY    "Device.WiFi.DataElements.Network.NodeConfigurePolicy"
 
+#define LIST_OF_DEFINITION_NAME "List_Of_Def"
+#define MAX_NUM_OF_OBJECTS_NAME "Num_Of_Objects"
+
 // typedef struct {
 //     em_short_string_t ssid;
 //     bool enable;
@@ -355,6 +358,16 @@ bus_handle_t *get_bus_hdl(){
     // File operations
     void generate_namespaces_without_lib_refined(const std::string& filename);
     void register_cjson_namespace(cJSON *node, const std::string &prefix);
+
+    //Data_Elements_JSON_Schema_v3.0 parsing related functions
+    bool tr_181_t::parseFile(const std::string& filePath);
+    bool tr_181_t::decodeJsonObject(cJSON* root);
+    void tr_181_t::processDefinitions(cJSON* definitions);
+    void tr_181_t::decodeObjectsRecursive(cJSON* node, cJSON* defObj, const std::string& namePrefix);
+    void tr_181_t::constructNamespaceAndRegister(cJSON* cfgParam, cJSON* defObj, const std::string& namePrefix);
+    void tr_181_t::addArrayNodeElements(cJSON* arrayObj, int numElements, const std::string& namePrefix, cJSON* defObj, bus_callback_table_t cbTable);
+    void tr_181_t::registerNamespace(const std::string& fullNamespace, const data_model_properties_t& props, bus_element_type_t type, bus_callback_table_t cbTable, int numRows);
+    void tr_181_t::getDataModelProperties(cJSON* defObj, const char* typeStr, data_model_properties_t& props);
 };
 
 #endif // TR_181_H
