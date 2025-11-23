@@ -511,12 +511,13 @@ private:
 	 *
 	 * This function generates a configuration request and returns it as a pair consisting of a pointer to the data and its size.
 	 * @param (optional) reconfiguration flags if being called during Reconfiguration
+	 * @param (optional) POP tag (Auth-I if DPP_STATUS_NEW_KEY_NEEDED received during Configuration Response handling)
 	 * @returns A pair containing a pointer to the configuration request data and its size.
 	 * @retval std::pair<uint8_t*, size_t> A pair where the first element is a pointer to the data and the second element is the size of the data.
 	 *
 	 * @note Ensure that the returned pointer is managed properly to avoid memory leaks.
 	 */
-	std::pair<uint8_t*, size_t> create_config_request(std::optional<ec_dpp_reconfig_flags_t> recfg_flags = std::nullopt);
+	std::pair<uint8_t*, size_t> create_config_request(std::optional<ec_dpp_reconfig_flags_t> recfg_flags = std::nullopt, std::optional<std::vector<uint8_t>> pop_tag = std::nullopt);
 
     
 	/**
