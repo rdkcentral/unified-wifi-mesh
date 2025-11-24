@@ -1714,8 +1714,6 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         util::mac_to_string(dm->m_device.m_device_info.backhaul_mac.mac).c_str(),
         util::mac_to_string(dm->m_device.m_device_info.backhaul_alid.mac).c_str());
 
-    dm->set_db_cfg_param(db_cfg_type_policy_list_update, "");
-
 	return ret;
 }
 
@@ -5250,6 +5248,7 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                     em_radios.clear();
                     // update network topology here
                     get_mgr()->update_network_topology();
+                    dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
                 } else {
                     printf("%s:%d em_msg_type_topo_resp handle failed \n", __func__, __LINE__);
                 }

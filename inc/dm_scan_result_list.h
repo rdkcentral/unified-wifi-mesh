@@ -22,6 +22,7 @@
 #include "em_base.h"
 #include "dm_scan_result.h"
 #include "db_easy_mesh.h"
+#include "tr_181.h"
 
 #define scan_result_self_index 0xFFF
 
@@ -31,7 +32,7 @@ typedef struct {
 } db_update_scan_result_t;
 
 class dm_easy_mesh_t;
-class dm_scan_result_list_t : public dm_scan_result_t, public db_easy_mesh_t {
+class dm_scan_result_list_t : public dm_scan_result_t, public db_easy_mesh_t, virtual public tr_181_t {
 
 public:
     

@@ -22,9 +22,10 @@
 #include "em_base.h"
 #include "dm_op_class.h"
 #include "db_easy_mesh.h"
+#include "tr_181.h"
 
 class dm_easy_mesh_t;
-class dm_op_class_list_t : public dm_op_class_t, public db_easy_mesh_t {
+class dm_op_class_list_t : public dm_op_class_t, public db_easy_mesh_t, virtual public tr_181_t {
 
 public:
     

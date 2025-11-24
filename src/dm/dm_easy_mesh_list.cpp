@@ -138,6 +138,7 @@ void dm_easy_mesh_list_t::put_network(const char *key, const dm_network_t *net)
 			
     /* try to find any data model with this network, if exists, the colocated dm must be there, otherwise create one */
     if ((dm = get_data_model(key, net_info->colocated_agent_id.mac)) == NULL) {
+        em_printfout("  =====>>> put_network, create_data_model");
 		dm = create_data_model(key, &net_info->colocated_agent_id, em_profile_type_3, true);
 		pnet = dm->get_network();
 		*pnet = *net;	
@@ -218,21 +219,18 @@ void dm_easy_mesh_list_t::put_device(const char *key, const dm_device_t *dev)
     dm_device_t *pdev;
     mac_addr_str_t mac_str;
 	em_device_id_t	id;
-    static unsigned int device_instance = 1;
+    //static unsigned int device_instance = 1;
 
     printf("        ==================== Inside\n", __func__, __LINE__);
 	dm_device_t::parse_device_id_from_key(key, &id);
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, mac_str);
 
     if ((pdev = get_device(key)) == NULL) {
-        printf("%s:%d: device at key: %s not found\n", __func__, __LINE__, key);
+        em_printfout("device at key: %s not found\n", key);
 	    dm = create_data_model(dev->m_device_info.id.net_id, &dev->m_device_info.intf, dev->m_device_info.profile);
         pdev = dm->get_device();
-        dm->m_instance_num = device_instance;
-        printf("        ==================== Calling add_table_row with Device instance : %d\n", dm->m_instance_num);
+        em_printfout("        ==================== Calling add_table_row with Device instance : %d\n", dm->get_id());
         tr_181_t::add_table_row(DE_DEVICE_TABLE, dm);
-        device_instance++;
-        //add_table_row(DE_DEVICE_TABLE);
     }
     *pdev = *dev;
 	
@@ -242,8 +240,6 @@ void dm_easy_mesh_list_t::put_device(const char *key, const dm_device_t *dev)
 		printf("%s:%d: Device:%s inserted in network:%s\n", __func__, __LINE__, mac_str, id.net_id);
 		dm->m_network.m_net_info.num_of_devices++;
 	}
-
-
 }
 
 dm_radio_t *dm_easy_mesh_list_t::get_first_radio()
@@ -1530,8 +1526,9 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
 
     dm = new dm_easy_mesh_t();
     dm->init();
-    printf("%s:%d: Created data model for net_id: %s mac: %s, coloc:%d\n", __func__, __LINE__, net_id, mac_str, colocated);
+    printf("%s:%d: Created data model for net_id: %s mac: %s, coloc:%d and id: %d\n", __func__, __LINE__, net_id, mac_str, colocated, dm->get_id());
     dm->set_colocated(colocated);
+
 
     dev = dm->get_device();
     memcpy(dev->m_device_info.intf.mac, al_intf->mac, sizeof(mac_address_t));
@@ -1546,7 +1543,10 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
 			dev->m_device_info.id.media, dev->m_device_info.backhaul_mac.media);
 		//Update the easymesh configuration file
 		dev->update_easymesh_json_cfg(colocated);
-	}
+	} else {
+        em_printfout("dm->get_id():%d", dm->get_id());
+        dm->set_id();
+    }
     dev->m_device_info.profile = profile;
 	dm->set_channels_list(op_class, EM_MAX_PRE_SET_CHANNELS);
 	

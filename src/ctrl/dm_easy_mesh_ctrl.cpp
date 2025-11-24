@@ -1704,7 +1704,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
 		dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (dm->m_device.m_device_info.intf.mac), dev_mac_str);
     	snprintf(key, sizeof(em_2xlong_string_t), "%s@%s@%d", dm->m_network.m_net_info.id, 
 					dev_mac_str, dm->m_device.m_device_info.id.media);
-        if (dm_device_list_t::set_config(m_db_client, dm->get_device_by_ref(), key) == 0) {
+        if (dm_device_list_t::set_config(m_db_client, dm->get_device_by_ref(), key, criteria) == 0) {
             dm->reset_db_cfg_type(db_cfg_type_device_list_update);
         }
     }
@@ -2005,7 +2005,7 @@ bus_error_t dm_easy_mesh_ctrl_t::network_get(char *event_name, raw_data_t *p_dat
 
 bus_error_t dm_easy_mesh_ctrl_t::device_tget(char *event_name, raw_data_t *p_data)
 {
-    em_printf(" device_tget ");
+    em_printfout(" device_tget ");
     return bus_get_cb_fwd(event_name, p_data, device_tget_inner);
     //return bus_error_success;
 }
@@ -2042,14 +2042,17 @@ bus_error_t dm_easy_mesh_ctrl_t::network_get_inner(char *event_name, raw_data_t 
         dm_easy_mesh_t::macbytes_to_string(dm->get_ctrl_al_interface_mac(), str_val);
         //dm_easy_mesh_t::macbytes_to_string(dm->get_network_info()->ctrl_id.mac, str_val);
         rc = dm_ctrl->raw_data_set(p_data, str_val);
-    } else if (strcmp(param, "DeviceNumberOfEntries") == 0) {
+    // } else if (strcmp(param, "DeviceNumberOfEntries") == 0) {
+    } else if (strcmp(param, "NumberOfDevices") == 0) {
         unsigned int dev_cnt = 0;
         dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
         while (dm != NULL) {
             dm_device_t *dev = dm->get_device();
             if (dev != NULL) {
                 em_device_info_t *di = dev->get_device_info();
+                em_printfout("  ===>>> dev %d mac: %s", dev_cnt, util::mac_to_string(di->id.dev_mac).c_str());
                 if (memcmp(di->id.dev_mac, ZERO_MAC_ADDR, sizeof(di->id.dev_mac)) != 0) {
+                    em_printfout("  ===>>> dev %d mac: %s", dev_cnt, util::mac_to_string(di->id.dev_mac).c_str());
                     ++dev_cnt;
                 }
             }
@@ -2074,8 +2077,9 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
     if (!event_name || !p_data) {
         return bus_error_invalid_input;
     }
-#if 0
-    dm_easy_mesh_t *dm = get_first_dm();
+#if 1
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
     if (dm == NULL) {
         printf("data model is NULL\n");
         return bus_error_invalid_input;
@@ -2085,59 +2089,205 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
     while (dm != NULL) {
         dm_device_t *dev = dm->get_device();
         if (dev == NULL) {
-            dm = get_next_dm(dm);
+            dm = dm_ctrl->get_next_dm(dm);
             continue;
         }
         em_device_info_t *di = dev->get_device_info();
         if (memcmp(di->id.dev_mac, ZERO_MAC_ADDR, sizeof(di->id.dev_mac)) == 0) {
-            dm = get_next_dm(dm);
+            dm = dm_ctrl->get_next_dm(dm);
             continue;
         }
         ++idx;
 
-        property_append_tail(&property, root, idx, "ID", di->id.dev_mac);
-        property_append_tail(&property, root, idx, "Manufacturer", di->manufacturer);
-        property_append_tail(&property, root, idx, "SerialNumber", di->serial_number);
-        property_append_tail(&property, root, idx, "ManufacturerModel", di->manufacturer_model);
-        property_append_tail(&property, root, idx, "SoftwareVersion", di->software_ver);
-        property_append_tail(&property, root, idx, "ExecutionEnv", di->exec_env);
-        property_append_tail(&property, root, idx, "CountryCode", di->country_code);
+        dm_ctrl->property_append_tail(&property, root, idx, "ID", di->id.dev_mac);
+        dm_ctrl->property_append_tail(&property, root, idx, "Manufacturer", di->manufacturer);
+        dm_ctrl->property_append_tail(&property, root, idx, "SerialNumber", di->serial_number);
+        dm_ctrl->property_append_tail(&property, root, idx, "ManufacturerModel", di->manufacturer_model);
+        dm_ctrl->property_append_tail(&property, root, idx, "SoftwareVersion", di->software_ver);
+        dm_ctrl->property_append_tail(&property, root, idx, "ExecutionEnv", di->exec_env);
+        dm_ctrl->property_append_tail(&property, root, idx, "CountryCode", di->country_code);
         if (memcmp(di->backhaul_mac.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) == 0) {
-            property_append_tail(&property, root, idx, "BackhaulMACAddress", "");
+            dm_ctrl->property_append_tail(&property, root, idx, "BackhaulMACAddress", "");
         } else {
-            property_append_tail(&property, root, idx, "BackhaulMACAddress", di->backhaul_mac.mac);
+            dm_ctrl->property_append_tail(&property, root, idx, "BackhaulMACAddress", di->backhaul_mac.mac);
         }
         if (memcmp(di->backhaul_mac.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) == 0) {
-            property_append_tail(&property, root, idx, "BackhaulALID", "");
+            dm_ctrl->property_append_tail(&property, root, idx, "BackhaulALID", "");
         } else {
-            dm_device_t *bhdev = get_dm_dev(di->id.dev_mac, di->backhaul_mac.mac);
+            dm_device_t *bhdev = dm_ctrl->get_dm_dev(di->id.dev_mac, di->backhaul_mac.mac);
             if (bhdev == NULL) {
-                property_append_tail(&property, root, idx, "BackhaulALID", "");
+                dm_ctrl->property_append_tail(&property, root, idx, "BackhaulALID", "");
             } else {
                 em_device_info_t *bhdi = bhdev->get_device_info();
-                property_append_tail(&property, root, idx, "BackhaulALID", bhdi->id.dev_mac);
+                dm_ctrl->property_append_tail(&property, root, idx, "BackhaulALID", bhdi->id.dev_mac);
             }
         }
         if (memcmp(di->backhaul_mac.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) == 0) {
-            property_append_tail(&property, root, idx, "BackhaulMediaType", di->backhaul_media_type);
+            dm_ctrl->property_append_tail(&property, root, idx, "BackhaulMediaType", di->backhaul_media_type);
         } else {
-            property_append_tail(&property, root, idx, "BackhaulMediaType", WIFI_80211_VARIANT_AC);
+            dm_ctrl->property_append_tail(&property, root, idx, "BackhaulMediaType", WIFI_80211_VARIANT_AC);
         }
-        property_append_tail(&property, root, idx, "RadioNumberOfEntries", dm->get_num_radios());
-        property_append_tail(&property, root, idx, "CACStatusNumberOfEntries", 0U);
-        property_append_tail(&property, root, idx, "BackhaulDownNumberOfEntries", di->num_backhaul_down_mac);
+        dm_ctrl->property_append_tail(&property, root, idx, "RadioNumberOfEntries", dm->get_num_radios());
+        dm_ctrl->property_append_tail(&property, root, idx, "CACStatusNumberOfEntries", 0U);
+        dm_ctrl->property_append_tail(&property, root, idx, "BackhaulDownNumberOfEntries", di->num_backhaul_down_mac);
 
         snprintf(path, sizeof(path) - 1, "%s%d.Radio.", root, idx);
         radio_tget_params(dm, path, &property);
 
-        dm = get_next_dm(dm);
+        dm = dm_ctrl->get_next_dm(dm);
     }
 
     if (property) {
-        raw_data_set(p_data, property);
+        dm_ctrl->raw_data_set(p_data, property);
     }
 #endif
     return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property)
+{
+    char path[512];
+    char caps_str[MAX_CAPS_STR_LEN] = { 0 };
+    bus_error_t rc = bus_error_success;
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    for (unsigned int idx = 1; idx <= dm->get_num_radios(); idx++) {
+        dm_radio_t *radio = dm->get_radio(idx - 1);
+        if (radio == NULL) {
+            continue;
+        }
+        em_radio_info_t *ri = radio->get_radio_info();
+#if 0 // enable when libubox is added
+        char id_str[16] = { 0 };
+
+        b64_encode(ri->id.ruid, sizeof(ri->id.ruid), id_str, sizeof(id_str));
+        dm_ctrl->property_append_tail(property, root, idx, "ID", id_str);
+#else
+        dm_ctrl->property_append_tail(property, root, idx, "ID", ri->id.ruid);
+#endif
+        dm_ctrl->property_append_tail(property, root, idx, "Enabled", ri->enabled);
+        dm_ctrl->property_append_tail(property, root, idx, "Noise", static_cast<unsigned int> (ri->noise));
+        dm_ctrl->property_append_tail(property, root, idx, "Utilization", ri->utilization);
+        dm_ctrl->property_append_tail(property, root, idx, "Transmit", 0U);
+        dm_ctrl->property_append_tail(property, root, idx, "ReceiveSelf", 0U);
+        dm_ctrl->property_append_tail(property, root, idx, "ReceiveOther", 0U);
+        dm_ctrl->property_append_tail(property, root, idx, "ChipsetVendor", ri->chip_vendor);
+        dm_ctrl->property_append_tail(property, root, idx, "CurrentOperatingClassProfileNumberOfEntries", 0U);
+        dm_ctrl->property_append_tail(property, root, idx, "BSSNumberOfEntries", ri->number_of_bss);
+
+        dm_sta_t *bh_sta = dm_ctrl->get_dm_bh_sta(dm, radio);
+        if (bh_sta == NULL) {
+            dm_ctrl->property_append_tail(property, root, idx, "BackhaulSta.MACAddress", "");
+        } else {
+            em_sta_info_t *si = bh_sta->get_sta_info();
+            if (ri->number_of_bss != 4) { /* Very nasty hack, only report backhaulsta for radio with 4 bss */
+                dm_ctrl->property_append_tail(property, root, idx, "BackhaulSta.MACAddress", "");
+            } else {
+                dm_ctrl->property_append_tail(property, root, idx, "BackhaulSta.MACAddress", si->id);
+            }
+        }
+
+        dm_radio_cap_t *radio_cap = dm->get_radio_cap(ri->id.ruid);
+        if (radio_cap != NULL) {
+            em_radio_cap_info_t *rci = radio_cap->get_radio_cap_info();
+            //get_ht_caps_str(&rci->ht_cap, caps_str, sizeof(caps_str));
+            dm_ctrl->property_append_tail(property, root, idx, "Capabilities.HTCapabilities", caps_str);
+            //get_vht_caps_str(&rci->vht_cap, caps_str, sizeof(caps_str));
+            dm_ctrl->property_append_tail(property, root, idx, "Capabilities.VHTCapabilities", caps_str);
+            dm_ctrl->property_append_tail(property, root, idx, "Capabilities.CapableOperatingClassProfileNumberOfEntries", 0U);
+        } else {
+            dm_ctrl->property_append_tail(property, root, idx, "Capabilities.HTCapabilities", "");
+            dm_ctrl->property_append_tail(property, root, idx, "Capabilities.VHTCapabilities", "");
+            dm_ctrl->property_append_tail(property, root, idx, "Capabilities.CapableOperatingClassProfileNumberOfEntries", 0U);
+        }
+
+        snprintf(path, sizeof(path) - 1, "%s%d.CurrentOperatingClassProfile.", root, idx);
+        //curops_tget_params(dm, path, ri, property);
+
+        snprintf(path, sizeof(path) - 1, "%s%d.BSS.", root, idx);
+        //bss_tget_params(dm, path, ri, property);
+    }
+
+    return rc;
+}
+
+dm_device_t *dm_easy_mesh_ctrl_t::get_dm_dev(mac_address_t dev_mac, mac_address_t bmac)
+{
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    
+    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
+    do {
+        dm_device_t *dev = dm->get_device();
+        if (dev == NULL) {
+            dm = dm_ctrl->get_next_dm(dm);
+            continue;
+        }
+        em_device_info_t *sdi = dev->get_device_info();
+        if (memcmp(dev_mac, sdi->id.dev_mac, sizeof(sdi->id.dev_mac)) == 0) {
+            dm = dm_ctrl->get_next_dm(dm);
+            continue;
+        }
+
+        for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
+            dm_bss_t *bss = dm->get_bss(i);
+            if (bss == NULL) {
+                continue;
+            }
+            em_bss_info_t *bi = bss->get_bss_info();
+            if (memcmp(bmac, bi->bssid.mac, sizeof(bi->bssid.mac)) == 0) {
+                return dev;
+            }
+        }
+        dm = dm_ctrl->get_next_dm(dm);
+    } while (dm != NULL);
+
+    return NULL;
+}
+
+dm_sta_t *dm_easy_mesh_ctrl_t::get_dm_bh_sta(dm_easy_mesh_t *dm, dm_radio_t *radio)
+{
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    dm_device_t *dev = dm->get_device();
+    if (dev == NULL) {
+        return NULL;
+    }
+    em_device_info_t *di = dev->get_device_info();
+    if (memcmp(di->backhaul_mac.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) == 0) {
+        return NULL;
+    }
+
+    dm_easy_mesh_t *sdm = dm_ctrl->get_first_dm();
+    do {
+        dm_device_t *sdev = sdm->get_device();
+        if (sdev == NULL) {
+            sdm = dm_ctrl->get_next_dm(sdm);
+            continue;
+        }
+        em_device_info_t *sdi = sdev->get_device_info();
+        if (memcmp(di->id.dev_mac, sdi->id.dev_mac, sizeof(di->id.dev_mac)) == 0) {
+            sdm = dm_ctrl->get_next_dm(sdm);
+            continue;
+        }
+
+        dm_sta_t *sta = static_cast<dm_sta_t *> (hash_map_get_first(sdm->m_sta_map));
+        while (sta != NULL) {
+            em_sta_info_t *si = sta->get_sta_info();
+            if (si->associated == 0) {
+                sta = static_cast<dm_sta_t *> (hash_map_get_next(sdm->m_sta_map, sta));
+                continue;
+            }
+            //si->radiomac; radio->m_radio_info.
+            if (memcmp(di->backhaul_mac.mac, si->bssid, sizeof(si->bssid)) == 0) {
+                return sta;
+            }
+            sta = static_cast<dm_sta_t *> (hash_map_get_next(sdm->m_sta_map, sta));
+        }
+
+        sdm = dm_ctrl->get_next_dm(sdm);
+    } while (sdm != NULL);
+
+    return NULL;
 }
 
 /* Rbus runs callbacks from a different thread. Accessing data in controller
