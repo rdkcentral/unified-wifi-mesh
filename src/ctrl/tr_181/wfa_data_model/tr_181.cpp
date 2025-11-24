@@ -277,7 +277,7 @@ bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, bus_data_prop_t *property
 
 bus_error_t tr_181_t::default_get_param_value(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data) {
     // Default implementation for get parameter value
-   // (void)p_data;
+
         p_data->data_type = bus_data_type_boolean;
     p_data->raw_data.b = 0;
     p_data->raw_data_len = sizeof(bool);
@@ -354,10 +354,9 @@ bus_error_t tr_181_t::ssid_get(char *event_name, raw_data_t *p_data, bus_user_da
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    em_printfout("event name: %s\n", event_name);
+    em_printfout("event name: %s", event_name);
     if (em_ctrl != NULL)
     {
-        //m_ctrl->device_tget(event_name, p_data, user_data, device_tget_inner);
         em_ctrl->get_dm_ctrl()->device_tget(event_name, p_data);
         return bus_error_success;
     }
@@ -369,10 +368,9 @@ bus_error_t tr_181_t::device_tget(char *event_name, raw_data_t *p_data, bus_user
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    em_printfout("event name: %s\n", event_name);
+    em_printfout("event name: %s", event_name);
     if (em_ctrl != NULL)
     {
-        //m_ctrl->device_tget(event_name, p_data, user_data, device_tget_inner);
         em_ctrl->get_dm_ctrl()->device_tget(event_name, p_data);
         return bus_error_success;
     }
@@ -384,10 +382,9 @@ bus_error_t tr_181_t::radio_tget(char *event_name, raw_data_t *p_data, bus_user_
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    em_printfout("event name: %s\n", event_name);
+    em_printfout("event name: %s", event_name);
     if (em_ctrl != NULL)
     {
-        //m_ctrl->device_tget(event_name, p_data, user_data, device_tget_inner);
         em_ctrl->get_dm_ctrl()->device_tget(event_name, p_data);
         return bus_error_success;
     }
@@ -399,10 +396,9 @@ bus_error_t tr_181_t::bss_tget(char *event_name, raw_data_t *p_data, bus_user_da
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    em_printfout("event name: %s\n", event_name);
+    em_printfout("event name: %s", event_name);
     if (em_ctrl != NULL)
     {
-        //m_ctrl->device_tget(event_name, p_data, user_data, device_tget_inner);
         em_ctrl->get_dm_ctrl()->device_tget(event_name, p_data);
         return bus_error_success;
     }
@@ -414,10 +410,9 @@ bus_error_t tr_181_t::sta_tget(char *event_name, raw_data_t *p_data, bus_user_da
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    em_printfout("event name: %s\n", event_name);
+    em_printfout("event name: %s", event_name);
     if (em_ctrl != NULL)
     {
-        //m_ctrl->device_tget(event_name, p_data, user_data, device_tget_inner);
         em_ctrl->get_dm_ctrl()->device_tget(event_name, p_data);
         return bus_error_success;
     }
@@ -427,31 +422,31 @@ bus_error_t tr_181_t::sta_tget(char *event_name, raw_data_t *p_data, bus_user_da
 
 bus_error_t tr_181_t::device_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number)
 {
-    em_printfout("table name: %s\n", table_name);
+    em_printfout("table name: %s", table_name);
     return bus_error_success;
 }
 
 bus_error_t tr_181_t::radio_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number)
 {
-    em_printfout("table name: %s\n", table_name);
+    em_printfout("table name: %s", table_name);
     return bus_error_success;
 }
 
 bus_error_t tr_181_t::bss_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number)
 {
-    em_printfout("table name: %s\n", table_name);
+    em_printfout("table name: %s", table_name);
     return bus_error_success;
 }
 
 bus_error_t tr_181_t::ssid_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number)
 {
-    em_printfout("table name: %s\n", table_name);
+    em_printfout("table name: %s", table_name);
     return bus_error_success;
 }
 
 bus_error_t tr_181_t::sta_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number)
 {
-    em_printfout("table name: %s\n", table_name);
+    em_printfout("table name: %s", table_name);
     return bus_error_success;
 }
 
@@ -486,9 +481,10 @@ bus_error_t tr_181_t::reg_table_row(char *name, int index)
     if((desc = get_bus_descriptor()) == NULL) {
         printf("%s:%d descriptor is null\n", __func__, __LINE__);
     }
+
     em_printfout("Calling reg_table for name:%s index:%d", name, index);
     rc = desc->bus_reg_table_row_fn(&m_bus_handle, name, index, NULL);
-
+    
     return rc;
 }
 
@@ -497,18 +493,12 @@ bus_error_t tr_181_t::add_table_row(char const *name, dm_easy_mesh_t *dm)
     int device_index = 0;
     int i = 0;
     bus_error_t rc = bus_error_invalid_input;
-    char namespace_full[256];
+    char namespace_full[256], temp[256];
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
     
-    if (em_ctrl == NULL) {
-        em_printfout("em_ctrl is NULL");
-        return rc;        
-    }
-
     em_printfout("Inside");
-
     em_printfout("Name:%s device_num:%d", name, device_index);
-    device_index = dm->m_instance_num;
+    device_index = dm->get_id();
 
     if(strcmp(name, DE_DEVICE_TABLE) == 0) {
         em_printfout("Inside DeviceList. device_num:%d", device_index);

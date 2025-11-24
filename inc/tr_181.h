@@ -19,7 +19,6 @@
 #ifndef TR_181_H
 #define TR_181_H
 
-// #include "em_ctrl.h"
 #include "bus.h"
 #include <string>
 #include <memory>
@@ -93,7 +92,8 @@ typedef struct bus_data_cb_func {
 #define DE_NETWORK_ID           DATAELEMS_NETWORK       "ID"
 #define DE_NETWORK_CTRLID       DATAELEMS_NETWORK       "ControllerID"
 #define DE_NETWORK_COLAGTID     DATAELEMS_NETWORK       "ColocatedAgentID"
-#define DE_NETWORK_DEVNOE       DATAELEMS_NETWORK       "DeviceNumberOfEntries"
+// #define DE_NETWORK_DEVNOE       DATAELEMS_NETWORK       "DeviceNumberOfEntries"NumberOfDevices
+#define DE_NETWORK_DEVNOE       DATAELEMS_NETWORK       "NumberOfDevices"
 #define DE_NETWORK_SETSSID      DATAELEMS_NETWORK       "SetSSID()"
 /* Device.WiFi.DataElements.Network.SSID */
 // #define DE_NETWORK_SSID         DATAELEMS_NETWORK       "SSID.{i}."
@@ -265,25 +265,19 @@ class dm_easy_mesh_ctrl_t;
 class tr_181_t {
 private:
     bus_handle_t m_bus_handle;
-    //static dm_easy_mesh_ctrl_t* m_ctrl;
 
 public:
 
-    tr_181_t() {
-    }
+    tr_181_t() {}
+    virtual ~tr_181_t() {}
     
-    ~tr_181_t() {
-    }
-bus_handle_t *get_bus_hdl(){
-        return &m_bus_handle;
-    }
+    bus_handle_t *get_bus_hdl() { return &m_bus_handle; }
     
     // Delete copy constructor and assignment
     tr_181_t(const tr_181_t&) = delete;
     tr_181_t& operator=(const tr_181_t&) = delete;
     
     // Initialization
-    //void initialize(bus_handle_t* handle, dm_easy_mesh_ctrl_t& dm_ctrl);
     void init(void* ptr);
     
     // WFA DML interface
@@ -303,6 +297,10 @@ bus_handle_t *get_bus_hdl(){
     bus_error_t raw_data_set(raw_data_t *p_data, mac_address_t mac);
     bus_error_t raw_data_set(raw_data_t *p_data, wifi_ieee80211Variant_t var);
     bus_error_t raw_data_set(raw_data_t *p_data, bus_data_prop_t *property);
+    template <typename T> 
+    bus_data_prop_t *property_init_value(const char *root, unsigned int idx, const char *param, T value);
+    template <typename T> 
+    void property_append_tail(bus_data_prop_t **property, const char *root, unsigned int idx, const char *param, T value);
 
     virtual bus_error_t bus_get_cb_fwd(char *event_name, raw_data_t *p_data, bus_get_handler_t cb) = 0;
     
@@ -360,14 +358,52 @@ bus_handle_t *get_bus_hdl(){
     void register_cjson_namespace(cJSON *node, const std::string &prefix);
 
     //Data_Elements_JSON_Schema_v3.0 parsing related functions
-    bool tr_181_t::parseFile(const std::string& filePath);
-    bool tr_181_t::decodeJsonObject(cJSON* root);
-    void tr_181_t::processDefinitions(cJSON* definitions);
-    void tr_181_t::decodeObjectsRecursive(cJSON* node, cJSON* defObj, const std::string& namePrefix);
-    void tr_181_t::constructNamespaceAndRegister(cJSON* cfgParam, cJSON* defObj, const std::string& namePrefix);
-    void tr_181_t::addArrayNodeElements(cJSON* arrayObj, int numElements, const std::string& namePrefix, cJSON* defObj, bus_callback_table_t cbTable);
-    void tr_181_t::registerNamespace(const std::string& fullNamespace, const data_model_properties_t& props, bus_element_type_t type, bus_callback_table_t cbTable, int numRows);
-    void tr_181_t::getDataModelProperties(cJSON* defObj, const char* typeStr, data_model_properties_t& props);
+    bool parseFile(const std::string& filePath);
+    bool decodeJsonObject(cJSON* root);
+    void processDefinitions(cJSON* definitions);
+    void decodeObjectsRecursive(cJSON* node, cJSON* defObj, const std::string& namePrefix);
+    void constructNamespaceAndRegister(cJSON* cfgParam, cJSON* defObj, const std::string& namePrefix);
+    void addArrayNodeElements(cJSON* arrayObj, int numElements, const std::string& namePrefix, cJSON* defObj, bus_callback_table_t cbTable);
+    void registerNamespace(const std::string& fullNamespace, const data_model_properties_t& props, bus_element_type_t type, bus_callback_table_t cbTable, int numRows);
+    void getDataModelProperties(cJSON* defObj, const char* typeStr, data_model_properties_t& props);
 };
+
+template <typename T> bus_data_prop_t *tr_181_t::property_init_value(const char *root, unsigned int idx, const char *param, T value)
+{
+    bus_data_prop_t *property = (bus_data_prop_t *)calloc(1, sizeof(bus_data_prop_t));
+
+    if (property == NULL) {
+        return NULL;
+    }
+
+    snprintf(property->name, sizeof(bus_name_string_t), "%s%d.%s", root, idx, param);
+    raw_data_set(&property->value, value);
+    property->name_len = static_cast<uint32_t>(strlen(property->name));
+    property->is_data_set = true;
+
+    return property;
+}
+
+template <typename T> void tr_181_t::property_append_tail(bus_data_prop_t **property, const char *root, unsigned int idx, const char *param, T value)
+{
+    bus_data_prop_t *tail;
+    bus_data_prop_t *last;
+
+    if (*property == NULL) {
+        *property = property_init_value(root, idx, param, value);
+    } else {
+        tail = (bus_data_prop_t *)calloc(1, sizeof(bus_data_prop_t));
+        snprintf(tail->name, sizeof(bus_name_string_t), "%s%d.%s", root, idx, param);
+        raw_data_set(&tail->value, value);
+        tail->name_len = static_cast<uint32_t>(strlen(tail->name));
+        tail->is_data_set = true;
+
+        last = *property;
+        while (last->next_data) {
+            last = last->next_data;
+        }
+        last->next_data = tail;
+    }
+}
 
 #endif // TR_181_H

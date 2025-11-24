@@ -26,7 +26,7 @@
 
 class dm_easy_mesh_t;
 
-class dm_device_list_t : public dm_device_t, public db_easy_mesh_t, public tr_181_t {
+class dm_device_list_t : public dm_device_t, public db_easy_mesh_t, virtual public tr_181_t {
 
 public:
 
@@ -59,7 +59,7 @@ public:
 	 *
 	 * @note Ensure that the database client is properly initialized before calling this function.
 	 */
-	dm_orch_type_t get_dm_orch_type(db_client_t& db_client, const dm_device_t& dev);
+	dm_orch_type_t get_dm_orch_type(db_client_t& db_client, const dm_device_t& dev, const char *criteria = NULL);
     
 	/**!
 	 * @brief Updates the device list based on the operation type.
@@ -184,7 +184,7 @@ public:
 	 *
 	 * @note Ensure that the database client is properly initialized before calling this function.
 	 */
-	int set_config(db_client_t& db_client, dm_device_t& device, void *parent_id);
+	int set_config(db_client_t& db_client, dm_device_t& device, void *parent_id, const char *criteria);
     
 	/**!
 	 * @brief Retrieves the configuration details from a JSON object.

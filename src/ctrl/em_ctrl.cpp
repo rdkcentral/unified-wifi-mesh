@@ -66,15 +66,46 @@ void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
 {
     em_commit_info_t *info;
     mac_addr_str_t  mac_str;
-    dm_easy_mesh_t *dm;
+    dm_easy_mesh_t *dm, new_dm;
+    em_interface_t *intf;
+    dm_easy_mesh_t *ref_dm;
+    dm_network_t *net, *pnet;
+    dm_network_ssid_t *net_ssid, *pnet_ssid;
 
     info = &evt->u.commit;
 
+    em_printfout("======>>>>>> handle_dm_commit: %p \n", &new_dm);
     dm_easy_mesh_t::macbytes_to_string(info->mac, mac_str);
+
     dm = m_data_model.get_data_model(info->net_id, info->mac);
-    if (dm != NULL) {
-        printf("%s:%d: commiting data model mac: %s network: %s \n", __func__, __LINE__, mac_str, info->net_id);
-        m_data_model.set_config(dm);
+    if (dm == NULL) {
+        new_dm.init();
+        em_printfout(" data model mac: %s and info->net_id : %s\n",mac_str, info->net_id);
+        memcpy(new_dm.m_device.m_device_info.id.dev_mac, info->mac, sizeof(mac_addr_t));
+        memcpy(new_dm.m_device.m_device_info.intf.mac, info->mac, sizeof(mac_addr_t));
+        strncpy(new_dm.m_device.m_device_info.id.net_id, info->net_id, strlen(info->net_id) + 1);
+        em_printfout("======>>>>>>  data model dev mac: %s and int.mac: %s\n", util::mac_to_string(new_dm.m_device.m_device_info.id.dev_mac).c_str(),
+            util::mac_to_string(new_dm.m_device.m_device_info.intf.mac).c_str());
+
+        if ((net = m_data_model.get_network(info->net_id)) != NULL) {
+            em_printfout("  ===>>> net id: %s", net->m_net_info.id);
+            pnet = new_dm.get_network();
+            *pnet = *net;
+
+            ref_dm = get_data_model(net->m_net_info.id, net->m_net_info.colocated_agent_id.mac);
+            assert(ref_dm != NULL);
+            new_dm.set_num_network_ssid(ref_dm->get_num_network_ssid());
+            em_printfout("  ===>>> Number of network ssid in reference data model: %d\n", ref_dm->get_num_network_ssid());
+            for (int i = 0; i < ref_dm->get_num_network_ssid(); i++) {
+                pnet_ssid = new_dm.get_network_ssid(i);
+                net_ssid = ref_dm->get_network_ssid(i);
+                *pnet_ssid = *net_ssid;
+            }
+        }
+        em_printfout("======>>>>>>  data model dev mac: %s and int.mac: %s\n", util::mac_to_string(new_dm.m_device.m_device_info.id.dev_mac).c_str(),
+            util::mac_to_string(new_dm.m_device.m_device_info.intf.mac).c_str());
+        new_dm.set_db_cfg_param(db_cfg_type_device_list_update, "");
+        m_data_model.set_config(&new_dm);
     }
 }
 
@@ -672,6 +703,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
     unsigned int i;
     bool found;
     mac_addr_str_t mac_str1, mac_str2, dev_mac_str, radio_mac_str;
+    em_commit_info_t dm_commit;
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
     if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
@@ -702,8 +734,11 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_profile(&profile) == false) {
                     profile = em_profile_type_1;
                 }
-                dm = create_data_model(GLOBAL_NET_ID, const_cast<const em_interface_t *> (&intf), profile);
-                printf("%s:%d: Created data model for mac: %s net: %s\n", __func__, __LINE__, mac_str1, GLOBAL_NET_ID);
+                //dm = create_data_model(GLOBAL_NET_ID, const_cast<const em_interface_t *> (&intf), profile);
+                memcpy(dm_commit.mac, intf.mac, sizeof(mac_addr_t));
+                strncpy(dm_commit.net_id, GLOBAL_NET_ID, sizeof(GLOBAL_NET_ID));
+                io_process(em_bus_event_type_dm_commit, reinterpret_cast<unsigned char *> (&dm_commit), sizeof(em_commit_info_t));
+                printf("%s:%d: Creating data model for mac: %s net: %s\n", __func__, __LINE__, mac_str1, GLOBAL_NET_ID);
             } else {
                 dm_easy_mesh_t::macbytes_to_string(dm->get_agent_al_interface_mac(), mac_str1);
                 printf("%s:%d: Found existing data model for mac: %s net: %s\n", __func__, __LINE__, mac_str1, GLOBAL_NET_ID);
@@ -728,6 +763,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             } else {
                 if ((dm = get_data_model(GLOBAL_NET_ID, const_cast<const unsigned char *> (hdr->src))) == NULL) {
                     printf("%s:%d: Can not find data model\n", __func__, __LINE__);
+                    break;
                 }
 
                 dm_easy_mesh_t::macbytes_to_string(hdr->src, mac_str1);

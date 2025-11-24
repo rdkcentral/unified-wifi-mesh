@@ -60,6 +60,8 @@ public:
     uint32_t get_next_nb_evt_id() { return m_nb_evt_id++; }
 
     bus_error_t bus_get_cb_fwd(char *event_name, raw_data_t *p_data, bus_get_handler_t cb);
+    dm_device_t *get_dm_dev(mac_address_t dev_mac, mac_address_t bmac);
+    dm_sta_t *get_dm_bh_sta(dm_easy_mesh_t *dm, dm_radio_t *radio);
     
     bus_error_t network_get(char *event_name, raw_data_t *p_data);
     static bus_error_t network_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
@@ -67,6 +69,7 @@ public:
     bus_error_t device_tget(char* event_name, raw_data_t* p_data);
     static bus_error_t device_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
+    static bus_error_t radio_tget_params(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property);
 
 
 private:
