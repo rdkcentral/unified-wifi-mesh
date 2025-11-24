@@ -25,6 +25,7 @@
 #include <cjson/cJSON.h>
 
 class db_easy_mesh_t {
+	bool m_stale_entries = true;
 
 public: 
     db_table_name_t m_table_name;

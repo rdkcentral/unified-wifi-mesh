@@ -22,11 +22,12 @@
 #include "em_base.h"
 #include "dm_network_ssid.h"
 #include "db_easy_mesh.h"
+#include "tr_181.h"
 
 class dm_easy_mesh_t;
 class em_cmd_t;
 
-class dm_network_ssid_list_t : public dm_network_ssid_t, public db_easy_mesh_t {
+class dm_network_ssid_list_t : public dm_network_ssid_t, public db_easy_mesh_t, virtual public tr_181_t {
 
 public:
     
