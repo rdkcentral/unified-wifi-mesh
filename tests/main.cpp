@@ -330,6 +330,25 @@ int main(int argc, char **argv) {
     "db_column_tTest.AssignMaxLengthNameDbColumn:"
     "db_column_tTest.AssignSpecialCharsNameDbColumn:"
     "db_column_tTest.AssignNullNameDbColumn:"
-    "db_column_tTest.EmptyNameValidTypeValidArgs";
+    "db_column_tTest.EmptyNameValidTypeValidArgs:"
+    "em_cmd_t.NegativeCopyNullPointer:"
+    "em_cmd_t.NullPointer:"
+    "em_cmd_t.DumpBusEvent_InvalidEvent:"
+    "em_cmd_t.InvalidCmdTypeMax:"
+    "em_cmd_t.Retrieve_event_data_length_as_zero_when_m_evt_pointer_is_null:"
+    "em_cmd_t.ValidConstructionNonEmptyCommandParameters:"
+    "em_cmd_t.Retrieve_correct_event_data_length_when_valid_non_empty_event_data_is_set:"
+    "em_cmd_t.Retrieve_correct_frame_data_length_when_valid_non_empty_frame_data_is_set:"
+    "em_cmd_t.status_to_string_handle_null_buffer:"
+    "em_cmd_t.override_op_invalid_index_out_of_range:"
+    "em_cmd_t.override_op_null_descriptor:"
+    "em_cmd_t.OutOfRangeIndex:"
+    "em_cmd_t.RetrieveValidEventBus:"
+    "em_cmd_t.get_orch_desc_maxindex_retrieval:"
+    "em_cmd_t.get_radio_interface_index_out_of_range:"
+    "em_cmd_t.get_network_ssid_index_uint_max:"
+    "em_cmd_t.CloneForNextEmptyOrchDescReturnsNull:"
+    "EmSimulatorTest.ConfigureWithNullScanParameters:"
+    "EmSimulatorTest.RunWithProperlyInitializedDmEasyMeshAgent";    
     return RUN_ALL_TESTS();
 }
