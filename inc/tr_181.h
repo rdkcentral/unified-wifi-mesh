@@ -305,6 +305,7 @@ public:
     //Table callback handlers
     static bus_error_t add_table_row(char const *name, dm_easy_mesh_t *dm);
     bus_error_t reg_table_row(char *name, int index);
+    int find_radio(dm_easy_mesh_t *dm);
 
     // Bus callback handlers
     static bus_error_t default_get_param_value(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);

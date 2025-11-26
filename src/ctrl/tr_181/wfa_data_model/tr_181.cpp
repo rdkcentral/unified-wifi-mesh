@@ -79,7 +79,7 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_NETWORK_COLAGTID, CB(.get_handler = network_get)),
         ELEMENT(DE_NETWORK_DEVNOE, CB(.get_handler = network_get)),
         //ELEMENT_TABLE_ROW(DE_SSID_TABLE, CB(.get_handler = ssid_tget, .table_add_row_handler = ssid_table_add_row_handler)),
-        ELEMENT_TABLE_ROW(DE_SSID_TABLE, CB(.table_add_row_handler = ssid_table_add_row_handler)),
+        /*ELEMENT_TABLE_ROW(DE_SSID_TABLE, CB(.table_add_row_handler = ssid_table_add_row_handler)),
         ELEMENT(DE_SSID_SSID, CB(.get_handler = ssid_get)),
         ELEMENT(DE_SSID_BAND, CB(.get_handler = ssid_get)),
         ELEMENT(DE_SSID_ENABLE, CB(.get_handler = ssid_get)),
@@ -96,7 +96,7 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT_TABLE_ROW(DE_DEVICE_TABLE, CB(.table_add_row_handler = device_table_add_row_handler)),
         ELEMENT_TABLE_ROW(DE_RADIO_TABLE, CB(.table_add_row_handler = radio_table_add_row_handler)),
         ELEMENT_TABLE_ROW(DE_BSS_TABLE, CB(.table_add_row_handler = bss_table_add_row_handler)),
-        ELEMENT(DE_STA_TABLE, CB(.table_add_row_handler = sta_table_add_row_handler)), 
+        ELEMENT(DE_STA_TABLE, CB(.table_add_row_handler = sta_table_add_row_handler)),*/
     };
 
     bus_data_cb_func_t bus_default_data_cb = { " ",
@@ -108,7 +108,8 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
     bool     table_found = false;
 
     for (index = 0; index < (uint32_t)ARRAY_SIZE(bus_data_cb); index++) {
-        if (strcmp(full_namespace, bus_data_cb[index].cb_table_name)) {
+	    em_printfout("comparing %s--%s", full_namespace, bus_data_cb[index].cb_table_name);
+        if (strcmp(full_namespace, bus_data_cb[index].cb_table_name) == 0) {
             memcpy(cb_table, &bus_data_cb[index].cb_func, sizeof(bus_callback_table_t));
             table_found = true;
              em_printfout("strcmp namespace:[%s]\n", full_namespace);
@@ -488,10 +489,29 @@ bus_error_t tr_181_t::reg_table_row(char *name, int index)
     return rc;
 }
 
+int tr_181_t::find_radio(dm_easy_mesh_t *dm)
+{
+    int i = 0;
+    mac_addr_str_t  radio_str, bss_str;
+
+    for (i = 0; i < dm->get_num_radios(); i++) {
+        //DEBUG
+        dm_easy_mesh_t::macbytes_to_string(dm->get_radio_info(i)->id.ruid, radio_str);
+        dm_easy_mesh_t::macbytes_to_string(dm->m_bss[dm->m_num_bss].m_bss_info.id.ruid, bss_str);
+        em_printfout("Comparing i:%d mac radio:%s bss:%s", i, radio_str, bss_str);
+
+        if (strcmp(bss_str, radio_str) == 0) {
+            return i;
+        }
+    }
+
+    return 0;
+}
+
 bus_error_t tr_181_t::add_table_row(char const *name, dm_easy_mesh_t *dm)
 {
     int device_index = 0;
-    int i = 0;
+    int i = 0, radio_num = 0;
     bus_error_t rc = bus_error_invalid_input;
     char namespace_full[256], temp[256];
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
@@ -516,8 +536,9 @@ bus_error_t tr_181_t::add_table_row(char const *name, dm_easy_mesh_t *dm)
         }
     } else if(strcmp(name, DE_BSS_TABLE) == 0) {
         em_printfout("Inside BSSList. bss_num:%d", dm->m_num_bss);
+        radio_num = em_ctrl->get_dm_ctrl()->find_radio(dm);
         snprintf(namespace_full, sizeof(namespace_full), "%s%s%d.%s%d.%s", 
-            DATAELEMS_NETWORK, DEVICE_LIST, device_index, RADIO_LIST, dm->m_num_radios, BSS_LIST);
+            DATAELEMS_NETWORK, DEVICE_LIST, device_index, RADIO_LIST, radio_num, BSS_LIST);
         rc = em_ctrl->get_dm_ctrl()->reg_table_row(namespace_full, dm->m_num_bss);
         if(rc != bus_error_success) {
             em_printfout("Error in registering row for namespace : %s", namespace_full);
@@ -538,7 +559,6 @@ bus_error_t tr_181_t::wifi_elem_num_of_table_row(char* event_name, uint32_t* tab
     return bus_error_success;
 }
 
-#if 0
 void tr_181_t::register_cjson_namespace(cJSON *node, const std::string &prefix)
 {
     if (!node)
@@ -679,9 +699,8 @@ void tr_181_t::generate_namespaces_without_lib_refined(const std::string &filena
     cJSON_Delete(root);
     std::cout << "\nJSON namespace registration complete.\n";
 }
-#endif
 
-bool tr_181_t::parseFile(const std::string& filePath) {
+/*bool tr_181_t::parseFile(const std::string& filePath) {
     std::ifstream file(filePath);
     if (!file.is_open()) {
         std::cerr << "Error opening file: " << filePath << std::endl;
@@ -867,12 +886,12 @@ void tr_181_t::getDataModelProperties(cJSON* defObj, const char* typeStr, data_m
         }
         child = child->next;
     }
-}
+}*/
 
 int tr_181_t::register_wfa_dml()
 {
-    //const std::string filename = "Data_Elements_MultiAP_Example_JSON_v3.0.json";
-    const std::string filename = "Data_Elements_JSON_Schema_v3.0.json";
-    parseFile(filename);
+    const std::string filename = "Data_Elements_MultiAP_Example_JSON_v3.0.json";
+    //const std::string filename = "Data_Elements_JSON_Schema_v3.0.json";
+    generate_namespaces_without_lib_refined(filename);
     return RETURN_OK;
 }
