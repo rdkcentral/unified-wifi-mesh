@@ -30,6 +30,7 @@ class WirelessSettings {
     this.radioConfigs = {};
     this.scanResults = {};
     this.isScanning = false;
+    this.updateChannelConfig = {};
     this.currentEditingProfile = null;
     this.updatedProfileKeys = new Set();
 
@@ -48,7 +49,6 @@ class WirelessSettings {
     console.log('🔧 Initializing Wireless Settings');
     
     this.setupEventHandlers();
-    await this.loadWirelessSettings();
     this.updateAllDisplays();
   }
 
@@ -104,9 +104,9 @@ class WirelessSettings {
     }
 
     // Save settings
-    const saveBtn = document.getElementById('save-wireless-settings');
+    const saveBtn = document.getElementById('save-radio-settings');
     if (saveBtn) {
-      saveBtn.addEventListener('click', () => this.saveWirelessSettings());
+      saveBtn.addEventListener('click', () => this.saveRadioSettings());
     }
 
     // Save network profilesettings
@@ -397,41 +397,246 @@ class WirelessSettings {
    * Update radio configurations
    */
   updateRadioConfigurations() {
-    Object.entries(this.radioConfigs).forEach(([band, config]) => {
-      const bandKey = band.replace('.', '').replace('GHz', 'g');
-      
-      // Update radio enabled status
-      const enabledToggle = document.getElementById(`radio-${bandKey}-enabled`);
-      if (enabledToggle) enabledToggle.checked = config.enabled;
+    // Validate for empty radioConfigs
+    if (!Array.isArray(this.radioConfigs)) {
+      console.warn('radioConfigs is not an array:', this.radioConfigs);
+      this.updateChannelConfig = {};
+      // Toggle enable button to disable
+      this.setAllRadioPanelsDisabled(true);
+      return;
+    }
 
-      // Update channel settings
-      const channelMode = config.auto_channel ? 'auto' : 'manual';
-      const channelRadio = document.querySelector(`input[name="channel-${bandKey}-mode"][value="${channelMode}"]`);
-      if (channelRadio) channelRadio.checked = true;
+    if (!this.updateChannelConfig) this.updateChannelConfig = {};
 
+    this.radioConfigs.forEach((config) => {
+      const bandLabel = String(config?.band ?? '').trim();
+      if (!bandLabel) {
+        console.warn('Missing band label in config:', config);
+      }
+
+      // Normalize band key to match with html IDs
+      const bandKey = bandLabel.replace('.', '_').replace(/ghz/i, 'g');
+      const bandIndex = this.getRadioIndexFromBand(bandKey);
+
+      // ---- DOM elements ----
+      const radioEnabledToggle = document.getElementById(`radio-${bandKey}-enabled`);
+      const operatingClassSelect = document.getElementById(`radio-${bandKey}-class`);
       const manualChannel = document.getElementById(`channel-${bandKey}-manual`);
-      if (manualChannel) {
-        manualChannel.value = config.channel;
-        manualChannel.disabled = config.auto_channel;
+      const panel = document.getElementById(`radio-${bandKey}hz`);
+
+      if (!radioEnabledToggle) {
+        console.warn(`Missing #radio-${bandKey}-enabled element`);
+        return;
+      } else {
+          // Initialize toggle from config.enabled (default false)
+          const isEnabled = Boolean(config?.enabled);
+          radioEnabledToggle.checked = isEnabled;
+
+          if (panel) {
+            operatingClassSelect.disabled = !isEnabled;
+            panel.classList.toggle('disabled', !isEnabled);
+          }
+
+          // Avoid duplicate listeners if function runs multiple times
+          radioEnabledToggle.onchange = null;
+          radioEnabledToggle.addEventListener('change', (e) => {
+          const checked = Boolean(e.target.checked);
+          config.enabled = checked;
+
+          // Disable class/channel controls when radio is off
+          if (operatingClassSelect) operatingClassSelect.disabled = !checked;
+          if (manualChannel) manualChannel.disabled = !checked || Boolean(config?.auto_channel);
+
+          if (panel) panel.classList.toggle('disabled', !checked);
+        }, { once: false });
       }
 
-      // Update channel width
-      const channelWidth = document.getElementById(`channel-width-${bandKey}`);
-      if (channelWidth) channelWidth.value = config.channel_width;
-
-      // Update power settings
-      const powerMode = config.tx_power_auto ? 'auto' : 'manual';
-      const powerRadio = document.querySelector(`input[name="power-${bandKey}-mode"][value="${powerMode}"]`);
-      if (powerRadio) powerRadio.checked = true;
-
-      const manualPower = document.getElementById(`power-${bandKey}-manual`);
-      if (manualPower) {
-        manualPower.value = config.tx_power_dbm;
-        manualPower.disabled = config.tx_power_auto;
-        this.updatePowerDisplay(manualPower);
+      if (!operatingClassSelect) {
+        console.warn(`Missing #radio-${bandKey}-class element`);
+        return;
       }
+      if (!manualChannel) {
+        console.warn(`Missing #channel-${bandKey}-manual element`);
+        return;
+      }
+
+      // Supported operating classes
+      const supportedClass = Array.isArray(config.supported_class) ? config.supported_class : [];
+
+      // Previously selected class and channel
+      const prevSelectedClass    = String(config?.selected_config?.class ?? '').trim();
+      const PrevSelectedChannel = Array.isArray(config.selected_config.channels)
+        ? String(config.selected_config.channels[0] ?? '') : '';
+
+      // Clear the previous options fo operating class.
+      operatingClassSelect.innerHTML = '';
+
+      if (supportedClass.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'No classes available';
+        opt.disabled = true;
+        opt.selected = true;
+        operatingClassSelect.appendChild(opt);
+
+        // Also clear channels
+        manualChannel.innerHTML = '';
+        manualChannel.disabled = true;
+        console.warn(`No supported_class for ${bandLabel}`);
+        return;
+      }
+
+      // Build class options,
+      const classFrag = document.createDocumentFragment();
+      supportedClass.forEach((clsObj, idx) => {
+        const clsValue = String(clsObj?.class ?? '').trim();
+        if (!clsValue) {
+          console.warn(`Missing "class" in supported_class[${idx}] for ${bandLabel}`, clsObj);
+          return;
+        }
+        const opt = document.createElement('option');
+        opt.value = clsValue;
+        opt.textContent = clsValue;
+        classFrag.appendChild(opt);
+      });
+      operatingClassSelect.appendChild(classFrag);
+
+      // Respect auto_channel
+      manualChannel.disabled = Boolean(config?.auto_channel);
+
+      const populateChannelsForClass = (classValue) => {
+        const classValueStr = String(classValue).trim();
+
+        if (!this.updateChannelConfig[bandIndex]) {
+          this.updateChannelConfig[bandIndex] = {channels: [], class: '', radio_index: -1 };
+        }
+        this.updateChannelConfig[bandIndex].class = parseInt(classValueStr, 10) || 0;
+        this.updateChannelConfig[bandIndex].radio_index = bandIndex;
+
+        // Clear channel options
+        while (manualChannel.firstChild) manualChannel.removeChild(manualChannel.firstChild);
+
+        const clsObj = supportedClass.find(sc => String(sc?.class) === classValueStr);
+
+        if (!clsObj) {
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = 'No channels available for selected class';
+          opt.disabled = true;
+          opt.selected = true;
+          manualChannel.appendChild(opt);
+          this.updateChannelConfig[bandIndex].channels = [];
+          console.warn(`[${bandKey}] Class not found:`, classValueStr, supportedClass);
+          return;
+        }
+
+        const channels = Array.isArray(clsObj.supported_channels) ? clsObj.supported_channels : [];
+
+        if (channels.length === 0) {
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = 'No channels available';
+          opt.disabled = true;
+          opt.selected = true;
+          manualChannel.appendChild(opt);
+          console.warn(`[${bandKey}] No supported_channels for class ${classValueStr}`);
+          return;
+        }
+
+        // Build options efficiently
+        const chanFrag = document.createDocumentFragment();
+        channels.forEach((ch) => {
+          const s = String(ch);
+          const opt = document.createElement('option');
+          opt.value = s;
+          opt.textContent = s;
+          chanFrag.appendChild(opt);
+        });
+        manualChannel.appendChild(chanFrag);
+
+        const channelStrings = new Set(channels.map(String));
+        const currentValue = manualChannel.value;
+
+        let initialChannelValue = '';
+       if (PrevSelectedChannel && channelStrings.has(String(PrevSelectedChannel))) {
+          initialChannelValue = String(PrevSelectedChannel);
+        } else if (currentValue && channelStrings.has(String(currentValue))) {
+          initialChannelValue = String(currentValue);
+        } else {
+          initialChannelValue = String(channels[0]);
+        }
+
+        manualChannel.value = initialChannelValue;
+        this.updateChannelConfig[bandIndex].channels = initialChannelValue
+                    ? [Number.parseInt(initialChannelValue, 10)]: [];
+
+
+        // Attach listener on channel change
+        if (!manualChannel.__channelListenerAttached) {
+          manualChannel.addEventListener('change', (e) => {
+            const raw = e.target?.value ?? '';
+            const newChannel = raw.trim();
+            const nextChannels = newChannel ? [Number.parseInt(newChannel, 10)] : [];
+            this.updateChannelConfig[bandIndex] = {...this.updateChannelConfig[bandIndex], channels: nextChannels};
+            console.log(`[${bandKey}] channel changed ->`, nextChannels);
+
+          });
+          manualChannel.__channelListenerAttached = true;
+        }
+      };
+
+      // ----- Initial selection & population -----
+      const prevStr = String(prevSelectedClass).trim();
+      const selectStr = String(operatingClassSelect.value).trim();
+
+      const initialClassValue = (prevStr === "0") ? selectStr : prevStr;
+
+      operatingClassSelect.value = initialClassValue;
+      populateChannelsForClass(initialClassValue);
+
+      // ----- Class change listener
+      operatingClassSelect.onchange = null;
+
+      operatingClassSelect.addEventListener('change', (e) => {
+        const newVal = String(e.target.value);
+        console.log(`[${bandKey}] class changed:`, newVal);
+
+        if (!this.updateChannelConfig[bandIndex]) {
+          this.updateChannelConfig[bandIndex] = {class: parseInt(newVal, 10), channels: [] , radio_index: bandIndex};
+        } else {
+          this.updateChannelConfig[bandIndex].class = parseInt(newVal, 10);
+        }
+
+        populateChannelsForClass(newVal);
+      }, { once: false });
     });
   }
+
+  setAllRadioPanelsDisabled(disabled = true) {
+    const panelIds = ['2_4g', '5g', '6g'];
+    panelIds.forEach((pid) => {
+      const panel = document.getElementById(`radio-${pid}hz`);
+      if (!panel) {
+        console.warn(`Panel #${pid} not found`);
+        return;
+      }
+      const radioEnabledToggle = document.getElementById(`radio-${pid}-enabled`);
+      const operatingClassSelect = document.getElementById(`radio-${pid}-class`);
+      const manualChannel = document.getElementById(`channel-${pid}-manual`);
+      radioEnabledToggle.checked = false;
+      operatingClassSelect.disabled = disabled;
+      manualChannel.disabled = disabled;
+    });
+  }
+
+getRadioIndexFromBand(bandLabel) {
+  const s = String(bandLabel || '').toLowerCase().trim();
+  if (s.includes('2_4g')) return 0;
+  if (s.includes('5g'))   return 1;
+  if (s.includes('6g'))   return 2;
+  // Fallback (if band not recognized)
+  return -1;
+}
 
   /**
    * Update advanced settings
@@ -784,8 +989,8 @@ class WirelessSettings {
   /**
    * Save wireless settings
    */
-  async saveWirelessSettings() {
-    const saveBtn = document.getElementById('save-wireless-settings');
+  async saveRadioSettings() {
+    const saveBtn = document.getElementById('save-radio-settings');
     
     if (saveBtn) {
       saveBtn.disabled = true;
@@ -793,15 +998,35 @@ class WirelessSettings {
     }
 
     try {
-      const settings = this.collectAllSettings();
+      const settings = this.updateChannelConfig;
+      const channelConfigs = Object.values(settings).map(cfg => {
+        const radioIndex = typeof cfg.radio_index === 'string'
+          ? parseInt(cfg.radio_index, 10) : cfg.radio_index;
+
+        const classVal = typeof cfg.class === 'string'
+          ? parseInt(cfg.class, 10) : cfg.class;
+
+        // Ensure channels is an array of integers
+        const channels = Array.isArray(cfg.channels)
+          ? cfg.channels.map(ch => (typeof ch === 'string' ? parseInt(ch, 10) : ch)) : [];
+
+        return {
+          radio_index: Number.isInteger(radioIndex) ? radioIndex : 0,
+          class: Number.isInteger(classVal) ? classVal : 0,
+          channels,
+        };
+      });
+
+      console.log('Updating channel config: ', channelConfigs);
       
-      const response = await this.apiCall('/wireless/config', {
-        method: 'PUT',
-        body: settings
+      const response = await this.apiCall('/wireless/radios', {
+        method: 'POST',
+        body: channelConfigs
       });
 
       if (response.success) {
         this.showNotification('Wireless settings saved successfully', 'success');
+        this.updateChannelConfig = {};
         await this.loadWirelessSettings();
         this.updateAllDisplays();
       }
