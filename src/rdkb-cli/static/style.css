@@ -1460,6 +1460,12 @@ body {
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
 }
 
+
+.class-select:hover {
+    color: var(--text-primary);
+}
+
+
 /* Radio Button Labels */
 .radio-label {
     display: flex;
