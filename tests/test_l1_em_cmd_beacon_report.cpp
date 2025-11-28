@@ -193,7 +193,8 @@ TEST(em_cmd_beacon_report_t, em_cmd_beacon_report_t_create_minimal_valid_paramet
     EXPECT_STREQ(beaconReport.m_name, "beacon_report");
     EXPECT_EQ(beaconReport.m_orch_desc[0].op, dm_orch_type_beacon_report);
     EXPECT_EQ(beaconReport.m_svc, em_service_type_ctrl);
-    EXPECT_EQ(beaconReport.m_data_model.m_cmd_ctx.type, dm_orch_type_beacon_report);    
+    EXPECT_EQ(beaconReport.m_data_model.m_cmd_ctx.type, dm_orch_type_beacon_report);
+    beaconReport.deinit();
     std::cout << "Exiting em_cmd_beacon_report_t_create_minimal_valid_parameters test" << std::endl;
 }
 /**
