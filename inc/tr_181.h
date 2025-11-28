@@ -323,10 +323,11 @@ public:
     static bus_error_t ssid_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
 
     //Device Callbacks
-    static bus_error_t device_tget(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);
+    static bus_error_t device_get(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);
     static bus_error_t device_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
 
     //Radio
+    static bus_error_t radio_get(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);
     static bus_error_t radio_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t radio_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
 
@@ -339,7 +340,7 @@ public:
     static bus_error_t sta_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
 
     virtual bus_error_t network_get(char *event_name, raw_data_t *p_data) = 0;
-    virtual bus_error_t device_tget(char *event_name, raw_data_t *p_data) = 0;
+    virtual bus_error_t device_get(char *event_name, raw_data_t *p_data) = 0;
     // virtual bus_error_t radio_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
     // virtual bus_error_t bss_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
     // virtual bus_error_t ssid_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;

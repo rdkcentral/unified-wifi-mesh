@@ -2003,10 +2003,17 @@ bus_error_t dm_easy_mesh_ctrl_t::network_get(char *event_name, raw_data_t *p_dat
     //return bus_error_success;
 }
 
-bus_error_t dm_easy_mesh_ctrl_t::device_tget(char *event_name, raw_data_t *p_data)
+bus_error_t dm_easy_mesh_ctrl_t::device_get(char *event_name, raw_data_t *p_data)
 {
-    em_printfout(" device_tget ");
-    return bus_get_cb_fwd(event_name, p_data, device_tget_inner);
+    em_printfout(" device_get ");
+    return bus_get_cb_fwd(event_name, p_data, device_get_inner);
+    //return bus_error_success;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::radio_get(char *event_name, raw_data_t *p_data)
+{
+    em_printfout(" radio_get ");
+    return bus_get_cb_fwd(event_name, p_data, radio_get_inner);
     //return bus_error_success;
 }
 
@@ -2066,81 +2073,107 @@ bus_error_t dm_easy_mesh_ctrl_t::network_get_inner(char *event_name, raw_data_t 
     return rc;
 }
 
-bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     (void) user_data;
-    const char *root = event_name;
-    char path[512] = { 0 };
-    bus_data_prop_t *property = NULL;
-    bus_error_t rc = bus_error_success;
+    const char *name = event_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    unsigned int device_instance = 0;
+    bus_error_t rc;
 
-    if (!event_name || !p_data) {
+    em_printfout("Incoming event:%s", event_name);
+    if (!name || !p_data) {
         return bus_error_invalid_input;
     }
-#if 1
+
+    em_printfout("Incoming event:%s", event_name);
+    if(sscanf(event_name, "Network.DeviceList.%d", &device_instance) == 1) {
+        em_printfout("Extracted device index:%d", device_instance);
+    }
+    else {
+        em_printfout("Unable to extract the device index");
+        //return bus_error_invalid_input;
+    }
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        return bus_error_invalid_input;
+    }
+    ++param;
+
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
     dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
-    if (dm == NULL) {
-        printf("data model is NULL\n");
-        return bus_error_invalid_input;
+
+    em_printfout("dev_id:%d", dm->get_id());
+    if (dm == NULL || (dm->get_id() != device_instance)) {
+        dm = dm_ctrl->get_next_dm(dm);
+        em_printfout("dev_id:%d", dm->get_id());
     }
 
-    unsigned int idx = 0;
-    while (dm != NULL) {
-        dm_device_t *dev = dm->get_device();
-        if (dev == NULL) {
-            dm = dm_ctrl->get_next_dm(dm);
-            continue;
-        }
-        em_device_info_t *di = dev->get_device_info();
-        if (memcmp(di->id.dev_mac, ZERO_MAC_ADDR, sizeof(di->id.dev_mac)) == 0) {
-            dm = dm_ctrl->get_next_dm(dm);
-            continue;
-        }
-        ++idx;
+    unsigned int idx = device_instance;
+    dm_device_t *dev = dm->get_device();
+    if (dev == NULL) {
+        em_printfout("NULL dev");
+        return bus_error_invalid_input;
+    }
+    em_device_info_t *di = dev->get_device_info();
+    em_printfout("intf.mac:%s", util::mac_to_string(di->intf.mac).c_str());
+    if (memcmp(di->intf.mac, ZERO_MAC_ADDR, sizeof(di->intf.mac)) == 0) {
+        em_printfout("NULL dev_info");
+        //return bus_error_invalid_input;
+    }
 
-        dm_ctrl->property_append_tail(&property, root, idx, "ID", di->id.dev_mac);
-        dm_ctrl->property_append_tail(&property, root, idx, "Manufacturer", di->manufacturer);
-        dm_ctrl->property_append_tail(&property, root, idx, "SerialNumber", di->serial_number);
-        dm_ctrl->property_append_tail(&property, root, idx, "ManufacturerModel", di->manufacturer_model);
-        dm_ctrl->property_append_tail(&property, root, idx, "SoftwareVersion", di->software_ver);
-        dm_ctrl->property_append_tail(&property, root, idx, "ExecutionEnv", di->exec_env);
-        dm_ctrl->property_append_tail(&property, root, idx, "CountryCode", di->country_code);
+    if (strcmp(param, "ID") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->intf.mac);
+    } else if (strcmp(param, "Manufacturer") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->manufacturer);
+    } else if (strcmp(param, "SerialNumber") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->serial_number);
+    } else if (strcmp(param, "ManufacturerModel") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->manufacturer_model);
+    } else if (strcmp(param, "SoftwareVersion") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->software_ver);
+    } else if (strcmp(param, "ExecutionEnv") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->exec_env);
+    } else if (strcmp(param, "CountryCode") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->country_code);
+    } else if (strcmp(param, "BackhaulMACAddress") == 0) {
         if (memcmp(di->backhaul_mac.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) == 0) {
-            dm_ctrl->property_append_tail(&property, root, idx, "BackhaulMACAddress", "");
+            rc = dm_ctrl->raw_data_set(p_data, "");
         } else {
-            dm_ctrl->property_append_tail(&property, root, idx, "BackhaulMACAddress", di->backhaul_mac.mac);
+            rc = dm_ctrl->raw_data_set(p_data, di->backhaul_mac.mac);
         }
+    } else if (strcmp(param, "BackhaulALID") == 0) {
         if (memcmp(di->backhaul_mac.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) == 0) {
-            dm_ctrl->property_append_tail(&property, root, idx, "BackhaulALID", "");
+            rc = dm_ctrl->raw_data_set(p_data, "");
         } else {
             dm_device_t *bhdev = dm_ctrl->get_dm_dev(di->id.dev_mac, di->backhaul_mac.mac);
             if (bhdev == NULL) {
-                dm_ctrl->property_append_tail(&property, root, idx, "BackhaulALID", "");
+                rc = dm_ctrl->raw_data_set(p_data, "");
             } else {
                 em_device_info_t *bhdi = bhdev->get_device_info();
-                dm_ctrl->property_append_tail(&property, root, idx, "BackhaulALID", bhdi->id.dev_mac);
+                rc = dm_ctrl->raw_data_set(p_data, bhdi->id.dev_mac);
             }
         }
+    } else if (strcmp(param, "BackhaulMediaType") == 0) {
         if (memcmp(di->backhaul_mac.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) == 0) {
-            dm_ctrl->property_append_tail(&property, root, idx, "BackhaulMediaType", di->backhaul_media_type);
+            rc = dm_ctrl->raw_data_set(p_data, di->backhaul_media_type);
         } else {
-            dm_ctrl->property_append_tail(&property, root, idx, "BackhaulMediaType", WIFI_80211_VARIANT_AC);
+            rc = dm_ctrl->raw_data_set(p_data, WIFI_80211_VARIANT_AC);
         }
-        dm_ctrl->property_append_tail(&property, root, idx, "RadioNumberOfEntries", dm->get_num_radios());
-        dm_ctrl->property_append_tail(&property, root, idx, "CACStatusNumberOfEntries", 0U);
-        dm_ctrl->property_append_tail(&property, root, idx, "BackhaulDownNumberOfEntries", di->num_backhaul_down_mac);
-
-        snprintf(path, sizeof(path) - 1, "%s%d.Radio.", root, idx);
-        radio_tget_params(dm, path, &property);
-
-        dm = dm_ctrl->get_next_dm(dm);
+    } else if (strcmp(param, "RadioNumberOfEntries") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, dm->get_num_radios());
+    } else if (strcmp(param, "CACStatusNumberOfEntries") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, 0U);
+    } else if (strcmp(param, "BackhaulDownNumberOfEntries") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->num_backhaul_down_mac);
+    } else {
+        em_printfout("Invalid param: %s", param);
+        rc = bus_error_invalid_input;
     }
 
-    if (property) {
-        dm_ctrl->raw_data_set(p_data, property);
-    }
-#endif
     return rc;
 }
 
@@ -2206,6 +2239,84 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const cha
 
         snprintf(path, sizeof(path) - 1, "%s%d.BSS.", root, idx);
         //bss_tget_params(dm, path, ri, property);
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    unsigned int device_instance = 0, radio_instance = 0;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    em_printfout("Incoming event:%s", event_name);
+    if(sscanf(event_name, "Network.DeviceList.%d.RadioList.%d", &device_instance, &radio_instance) == 2) {
+        em_printfout("Extracted device index:%d radio index:%d", device_instance, radio_instance);
+    }
+    else {
+        em_printfout("Unable to extract the device index");
+        //return bus_error_invalid_input;
+    }
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        return bus_error_invalid_input;
+    }
+    ++param;
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
+    em_printfout("dev_id:%d", dm->get_id());
+    if (dm == NULL || (dm->get_id() != device_instance)) {
+        dm = dm_ctrl->get_next_dm(dm);
+        em_printfout("dev_id:%d", dm->get_id());
+    }
+
+    dm_radio_t *radio = &dm->m_radio[radio_instance];
+    if (radio == NULL) {
+        printf("radio is NULL\n");
+        return bus_error_invalid_input;
+    }
+    em_radio_info_t *ri = &radio->get_radio_info();
+
+    if (strcmp(param, "ID") == 0) {
+#if 0 // enable when libubox is added
+        char id_str[16] = { 0 };
+        b64_encode(ri->id.ruid, sizeof(ri->id.ruid), id_str, sizeof(id_str));
+        rc = dm_ctrl->raw_data_set(p_data, id_str);
+#else
+        rc = dm_ctrl->raw_data_set(p_data, ri->id.ruid);
+#endif
+    } else if (strcmp(param, "Enabled") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, ri->enabled);
+    } else if (strcmp(param, "Noise") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<unsigned int> (ri->noise));
+    } else if (strcmp(param, "Utilization") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, ri->utilization);
+    } else if (strcmp(param, "Transmit") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, 0U);
+    } else if (strcmp(param, "ReceiveSelf") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, 0U);
+    } else if (strcmp(param, "ReceiveOther") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, 0U);
+    } else if (strcmp(param, "ChipsetVendor") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, ri->chip_vendor);
+    } else if (strcmp(param, "CurrentOperatingClassProfileNumberOfEntries") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, 0U);
+    } else if (strcmp(param, "BSSNumberOfEntries") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, ri->number_of_bss);
+    } else {
+        printf("Invalid param: %s\n", param);
+        rc = bus_error_invalid_input;
     }
 
     return rc;
