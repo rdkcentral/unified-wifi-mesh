@@ -79,7 +79,7 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_NETWORK_COLAGTID, CB(.get_handler = network_get)),
         ELEMENT(DE_NETWORK_DEVNOE, CB(.get_handler = network_get)),
         //ELEMENT_TABLE_ROW(DE_SSID_TABLE, CB(.get_handler = ssid_tget, .table_add_row_handler = ssid_table_add_row_handler)),
-        /*ELEMENT_TABLE_ROW(DE_SSID_TABLE, CB(.table_add_row_handler = ssid_table_add_row_handler)),
+        ELEMENT_TABLE_ROW(DE_SSID_TABLE, CB(.table_add_row_handler = ssid_table_add_row_handler)),
         ELEMENT(DE_SSID_SSID, CB(.get_handler = ssid_get)),
         ELEMENT(DE_SSID_BAND, CB(.get_handler = ssid_get)),
         ELEMENT(DE_SSID_ENABLE, CB(.get_handler = ssid_get)),
@@ -96,7 +96,30 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT_TABLE_ROW(DE_DEVICE_TABLE, CB(.table_add_row_handler = device_table_add_row_handler)),
         ELEMENT_TABLE_ROW(DE_RADIO_TABLE, CB(.table_add_row_handler = radio_table_add_row_handler)),
         ELEMENT_TABLE_ROW(DE_BSS_TABLE, CB(.table_add_row_handler = bss_table_add_row_handler)),
-        ELEMENT(DE_STA_TABLE, CB(.table_add_row_handler = sta_table_add_row_handler)),*/
+        ELEMENT(DE_STA_TABLE, CB(.table_add_row_handler = sta_table_add_row_handler)),
+        ELEMENT(DE_DEVICE_ID, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_MANUFACT, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_SERIALNO, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_MFCMODEL, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_SWVERSION,  CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_EXECENV,    CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_COUNTRCODE, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_BHMACADDR,  CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_BHALID,     CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_BHMEDIATYPE,CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_RADIONOE,   CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_CACSTATNOE, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_BHDOWNNOE,  CB(.get_handler = device_get)),
+        ELEMENT(DE_RADIO_ID,          CB(.get_handler = radio_get)),
+        ELEMENT(DE_RADIO_ENABLED,     CB(.get_handler = radio_get)),
+        ELEMENT(DE_RADIO_NOISE,       CB(.get_handler = radio_get)),
+        ELEMENT(DE_RADIO_UTILIZATION, CB(.get_handler = radio_get)),
+        ELEMENT(DE_RADIO_TRANSMIT,    CB(.get_handler = radio_get)),
+        ELEMENT(DE_RADIO_RECEIVESELF, CB(.get_handler = radio_get)),
+        ELEMENT(DE_RADIO_RECEIVEOTHER,CB(.get_handler = radio_get)),
+        ELEMENT(DE_RADIO_CHIPVENDOR,  CB(.get_handler = radio_get)),
+        ELEMENT(DE_RADIO_CURROPNOE,   CB(.get_handler = radio_get)),
+        ELEMENT(DE_RADIO_BSSNOE,      CB(.get_handler = radio_get)),
     };
 
     bus_data_cb_func_t bus_default_data_cb = { " ",
@@ -344,7 +367,7 @@ bus_error_t tr_181_t::ssid_tget(char *event_name, raw_data_t *p_data, bus_user_d
     if (em_ctrl != NULL)
     {
         //m_ctrl->device_tget(event_name, p_data, user_data, device_tget_inner);
-        em_ctrl->get_dm_ctrl()->device_tget(event_name, p_data);
+        em_ctrl->get_dm_ctrl()->device_get(event_name, p_data);
         return bus_error_success;
     }
     
@@ -358,21 +381,35 @@ bus_error_t tr_181_t::ssid_get(char *event_name, raw_data_t *p_data, bus_user_da
     em_printfout("event name: %s", event_name);
     if (em_ctrl != NULL)
     {
-        em_ctrl->get_dm_ctrl()->device_tget(event_name, p_data);
+        em_ctrl->get_dm_ctrl()->device_get(event_name, p_data);
         return bus_error_success;
     }
     
     return bus_error_general;
 }
 
-bus_error_t tr_181_t::device_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+bus_error_t tr_181_t::device_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
     em_printfout("event name: %s", event_name);
     if (em_ctrl != NULL)
     {
-        em_ctrl->get_dm_ctrl()->device_tget(event_name, p_data);
+        em_ctrl->get_dm_ctrl()->device_get(event_name, p_data);
+        return bus_error_success;
+    }
+    
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::radio_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    em_printfout("event name: %s", event_name);
+    if (em_ctrl != NULL)
+    {
+        em_ctrl->get_dm_ctrl()->radio_get(event_name, p_data);
         return bus_error_success;
     }
     
@@ -386,7 +423,7 @@ bus_error_t tr_181_t::radio_tget(char *event_name, raw_data_t *p_data, bus_user_
     em_printfout("event name: %s", event_name);
     if (em_ctrl != NULL)
     {
-        em_ctrl->get_dm_ctrl()->device_tget(event_name, p_data);
+        em_ctrl->get_dm_ctrl()->device_get(event_name, p_data);
         return bus_error_success;
     }
     
@@ -400,7 +437,7 @@ bus_error_t tr_181_t::bss_tget(char *event_name, raw_data_t *p_data, bus_user_da
     em_printfout("event name: %s", event_name);
     if (em_ctrl != NULL)
     {
-        em_ctrl->get_dm_ctrl()->device_tget(event_name, p_data);
+        em_ctrl->get_dm_ctrl()->device_get(event_name, p_data);
         return bus_error_success;
     }
     
@@ -414,7 +451,7 @@ bus_error_t tr_181_t::sta_tget(char *event_name, raw_data_t *p_data, bus_user_da
     em_printfout("event name: %s", event_name);
     if (em_ctrl != NULL)
     {
-        em_ctrl->get_dm_ctrl()->device_tget(event_name, p_data);
+        em_ctrl->get_dm_ctrl()->device_get(event_name, p_data);
         return bus_error_success;
     }
     
@@ -497,7 +534,7 @@ int tr_181_t::find_radio(dm_easy_mesh_t *dm)
     for (i = 0; i < dm->get_num_radios(); i++) {
         //DEBUG
         dm_easy_mesh_t::macbytes_to_string(dm->get_radio_info(i)->id.ruid, radio_str);
-        dm_easy_mesh_t::macbytes_to_string(dm->m_bss[dm->m_num_bss].m_bss_info.id.ruid, bss_str);
+        dm_easy_mesh_t::macbytes_to_string(dm->m_bss[dm->m_num_bss].m_bss_info.ruid.mac, bss_str);
         em_printfout("Comparing i:%d mac radio:%s bss:%s", i, radio_str, bss_str);
 
         if (strcmp(bss_str, radio_str) == 0) {
