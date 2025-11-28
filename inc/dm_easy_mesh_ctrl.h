@@ -66,9 +66,11 @@ public:
     bus_error_t network_get(char *event_name, raw_data_t *p_data);
     static bus_error_t network_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
-    bus_error_t device_tget(char* event_name, raw_data_t* p_data);
-    static bus_error_t device_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    bus_error_t device_get(char* event_name, raw_data_t* p_data);
+    static bus_error_t device_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
+    bus_error_t radio_get(char* event_name, raw_data_t* p_data);
+    static bus_error_t radio_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t radio_tget_params(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property);
 
 
