@@ -156,7 +156,8 @@ onewifi_em_agent_test_SOURCES = $(onewifi_em_agent_SOURCES) \
         $(top_srcdir)/tests/test_l1_em_cmd_sta_list.cpp \
         $(top_srcdir)/tests/test_l1_em_cmd_sta_steer.cpp \
         $(top_srcdir)/tests/test_l1_em_cmd_start_dpp.cpp \
-        $(top_srcdir)/tests/test_l1_em_cmd_topo_sync.cpp	
+        $(top_srcdir)/tests/test_l1_em_cmd_topo_sync.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_onewifi_cb.cpp	
 onewifi_em_agent_test_CPPFLAGS = $(onewifi_em_agent_CPPFLAGS) \
 	-I$(PKG_CONFIG_SYSROOT_DIR)$(includedir)/gtest \
 	-DTESTING

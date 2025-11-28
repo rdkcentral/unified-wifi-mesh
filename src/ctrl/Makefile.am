@@ -204,7 +204,9 @@ onewifi_em_ctrl_test_SOURCES = $(onewifi_em_ctrl_SOURCES) \
 	$(top_srcdir)/tests/test_l1_em_cmd_sta_steer.cpp \
 	$(top_srcdir)/tests/test_l1_em_cmd_start_dpp.cpp \
 	$(top_srcdir)/tests/test_l1_em_cmd_topo_sync.cpp \
-	$(top_srcdir)/tests/test_l1_em_network_topo.cpp
+	$(top_srcdir)/tests/test_l1_em_network_topo.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_bsta_cap.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_onewifi_cb.cpp
 onewifi_em_ctrl_test_CPPFLAGS = $(onewifi_em_ctrl_CPPFLAGS) \
                                 -I$(PKG_CONFIG_SYSROOT_DIR)$(includedir)/gtest \
                                 -DTESTING
