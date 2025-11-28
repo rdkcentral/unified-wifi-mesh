@@ -201,6 +201,9 @@ bool em_msg_t::get_radio_id(mac_address_t *mac)
 		} else if (tlv->type == em_tlv_type_radio_metric) {
             memcpy(mac, tlv->value, sizeof(mac_address_t));
             return true;
+        } else if (tlv->type == em_tlv_type_bh_sta_radio_cap) {
+            memcpy(mac, tlv->value, sizeof(mac_address_t));
+            return true;
         }
 
         len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));

@@ -888,6 +888,10 @@ void em_capability_t::process_ctrl_state()
             send_bsta_cap_query_msg();
             break;
 
+        case em_state_ctrl_sta_cap_pending:
+            send_client_cap_query();
+            break;
+
         default:
             printf("%s:%d: unhandled case %s\n", __func__, __LINE__, em_t::state_2_str(get_state()));
             break;
@@ -904,12 +908,6 @@ void em_capability_t::process_agent_state()
             break;
 
         case em_state_agent_client_cap_report:
-            break;
-
-        case em_state_ctrl_sta_cap_pending:
-            if (get_service_type() == em_service_type_ctrl) {
-                send_client_cap_query();
-            }
             break;
 
         default:

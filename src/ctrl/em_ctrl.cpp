@@ -892,14 +892,14 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         break;
 
         case em_msg_type_bh_sta_cap_rprt:
-            dm_easy_mesh_t::macbytes_to_string(hdr->src, al_mac_str);
-            strcat(al_mac_str, "_al");
-            if ((em = (em_t *)hash_map_get(m_em_map, al_mac_str)) != NULL) {
-                em_printfout("Received bsta report, found al_mac em:%s", al_mac_str);
-            } else {
-                em_printfout("Discarding bsta report, al_mac em :%s not found",
-                    al_mac_str);
+            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+                len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
                 return NULL;
+            }
+
+            dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
+            if ((em = static_cast<em_t *> (hash_map_get(m_em_map, mac_str1))) != NULL) {
+                em_printfout("Received bsta report, found em:%s", mac_str1);
             }
             break;
 
@@ -945,9 +945,15 @@ void em_ctrl_t::start_complete()
 		// { DEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD, bus_element_type_method,
 		// 	{ NULL, NULL, NULL, NULL, NULL, cmd_setssid}, slow_speed, ZERO_TABLE,
 		//	{ bus_data_type_string, true, 0, 0, 0, NULL } },
-		{ DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY, bus_element_type_method,
-			{ NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
-			{ bus_data_type_string, false, 0, 0, 0, NULL } },
+        { DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY, bus_element_type_method,
+            { NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+            { bus_data_type_string, false, 0, 0, 0, NULL } },
+        { DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC, bus_element_type_method,
+            { get_node_sync,  set_node_sync , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+            { bus_data_type_string, false, 0, 0, 0, NULL } },
+        { DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY, bus_element_type_method,
+            { NULL, policy_config , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+            { bus_data_type_string, false, 0, 0, 0, NULL } },
 	};
 
 	if (m_data_model.is_initialized() == false) {

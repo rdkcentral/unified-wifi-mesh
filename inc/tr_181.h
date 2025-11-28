@@ -21,12 +21,14 @@
 
 #include "em_ctrl.h"
 
-#define DEVICE_WIFI_DATAELEMENTS_NETWORK_COLOCATEDAGENTID	"Device.WiFi.DataElements.Network.ColocatedAgentID"
-#define DEVICE_WIFI_DATAELEMENTS_NETWORK_CONTROLLERID		"Device.WiFi.DataElements.Network.ControllerID"
+#define DEVICE_WIFI_DATAELEMENTS_NETWORK_COLOCATEDAGENTID   "Device.WiFi.DataElements.Network.ColocatedAgentID"
+#define DEVICE_WIFI_DATAELEMENTS_NETWORK_CONTROLLERID       "Device.WiFi.DataElements.Network.ControllerID"
 //#define DEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD "Device.WiFi.DataElements.Network.SetSSID()"
-#define DEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD		"Device.WiFi.DataElements.Network.SetSSID"
+#define DEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD        "Device.WiFi.DataElements.Network.SetSSID"
 //Orchestrator
-#define DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY			"Device.WiFi.DataElements.Network.Topology"
+#define DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY           "Device.WiFi.DataElements.Network.Topology"
+#define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC          "Device.WiFi.DataElements.Network.NodeSynchronize"
+#define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY    "Device.WiFi.DataElements.Network.NodeConfigurePolicy"
 
 typedef struct {
 	em_short_string_t ssid;

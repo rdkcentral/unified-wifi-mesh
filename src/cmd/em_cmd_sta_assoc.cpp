@@ -45,9 +45,11 @@ em_cmd_sta_assoc_t::em_cmd_sta_assoc_t(em_cmd_params_t param, dm_easy_mesh_t& dm
 	memset(reinterpret_cast<unsigned char *> (&m_orch_desc[0]), 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
 
     m_orch_op_idx = 0;
-    m_num_orch_desc = 1;
+    m_num_orch_desc = 2;
     m_orch_desc[0].op = dm_orch_type_sta_cap;
     m_orch_desc[0].submit = true;
+    m_orch_desc[1].op = dm_orch_type_topo_publish;
+    m_orch_desc[1].submit = true;
 
     strncpy(m_name, "sta_assoc", strlen("sta_assoc") + 1);
     m_svc = em_service_type_ctrl;

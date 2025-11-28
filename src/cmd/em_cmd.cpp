@@ -575,6 +575,7 @@ const char *em_cmd_t::get_orch_op_str(dm_orch_type_t type)
         ORCH_TYPE_2S(dm_orch_type_sta_disassoc)
         ORCH_TYPE_2S(dm_orch_type_policy_cfg)
         ORCH_TYPE_2S(dm_orch_type_mld_reconfig)
+        ORCH_TYPE_2S(dm_orch_type_topo_publish)
 
         default:
            break;
