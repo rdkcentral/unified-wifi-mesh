@@ -349,6 +349,15 @@ int main(int argc, char **argv) {
     "em_cmd_t.get_network_ssid_index_uint_max:"
     "em_cmd_t.CloneForNextEmptyOrchDescReturnsNull:"
     "EmSimulatorTest.ConfigureWithNullScanParameters:"
-    "EmSimulatorTest.RunWithProperlyInitializedDmEasyMeshAgent";    
+    "EmSimulatorTest.RunWithProperlyInitializedDmEasyMeshAgent:"
+    "em_network_topo_t.add_null_dm:"
+    "em_network_topo_t.add_network_topo_null_dm:"
+    "em_network_topo_t.encode_with_no_dm:"
+    "em_network_topo_t.encode_with_null_object:"
+    "em_network_topo_t.find_topology_null:"
+    "em_network_topo_t.print_topology_empty_topology:"
+    "em_network_topo_t.print_topology_null_dm:"
+    "em_cmd_sta_steer_t.em_cmd_sta_steer_t_invalid_target_channel_out_of_range:"
+    "em_cmd_sta_steer_t.em_cmd_sta_steer_t_invalid_request_mode_out_of_bound";
     return RUN_ALL_TESTS();
 }
