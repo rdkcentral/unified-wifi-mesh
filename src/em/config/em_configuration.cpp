@@ -1521,25 +1521,8 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
 
             //em_printfout("Client Device:%s %s to BSSID: %s\n", sta_mac_str,
             //        (assoc_evt_tlv->assoc_event == 1)?"associated":"disassociated", bssid_str);
-
-            if ((sta = static_cast<dm_sta_t *> (hash_map_get(dm->m_sta_map, key))) == NULL) {
-                eligible_to_req_cap = true;
-            } else {
-                sta = static_cast<dm_sta_t *> (hash_map_get(dm->m_sta_map, key));
-                // During an association if map data has empty frame for an existing entry, request cap report to update Frame body
-                if ((assoc_evt_tlv->assoc_event == true)) {
-                    eligible_to_req_cap = true;
-                    //In case ctrl is in em_state_ctrl_sta_link_metrics_pending state bcause of previous assoc state
-                    set_state(em_state_ctrl_configured);
-                }
-            }
-
-            // if associated for first time, orchestrate a client capability query/response
-            if(eligible_to_req_cap == true) {
-                memcpy(raw.dev, dev_mac, sizeof(mac_address_t));
-                memcpy(reinterpret_cast<unsigned char *> (&raw.assoc), reinterpret_cast<unsigned char *> (assoc_evt_tlv), sizeof(em_client_assoc_event_t));
-				get_mgr()->io_process(em_bus_event_type_sta_assoc, reinterpret_cast<unsigned char *> (&raw), sizeof(em_bus_event_type_client_assoc_params_t));
-            } else {
+            if ((assoc_evt_tlv->assoc_event == false)) {
+                //if disassoc, update db with thi sta_info info
                 memset(&sta_info, 0, sizeof(em_sta_info_t));
                 memcpy(sta_info.id, assoc_evt_tlv->cli_mac_address, sizeof(mac_address_t));
                 memcpy(sta_info.bssid, assoc_evt_tlv->bssid, sizeof(mac_address_t));
@@ -1549,14 +1532,19 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
                 hash_map_put(dm->m_sta_assoc_map, strdup(key), new dm_sta_t(&sta_info));
 
                 dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
-                em_printfout("Client updated to db: %s", key);
+                //em_printfout("Client updated to db: %s", key);
             }
+            memcpy(raw.dev, dev_mac, sizeof(mac_address_t));
+            memcpy(reinterpret_cast<unsigned char *> (&raw.assoc), reinterpret_cast<unsigned char *> (assoc_evt_tlv), sizeof(em_client_assoc_event_t));
+            get_mgr()->io_process(em_bus_event_type_sta_assoc, reinterpret_cast<unsigned char *> (&raw), sizeof(em_bus_event_type_client_assoc_params_t));
             break;
         }
             
 		tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
 		tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
+    set_state(em_state_ctrl_configured);
+
 	return 0;
 }
 
@@ -5246,6 +5234,7 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                     em_radios.clear();
                     // update network topology here
                     get_mgr()->update_network_topology();
+                    dm->set_topo_state(true);
                 } else {
                     printf("%s:%d em_msg_type_topo_resp handle failed \n", __func__, __LINE__);
                 }
@@ -5460,6 +5449,8 @@ void em_configuration_t::process_agent_state()
 
 void em_configuration_t::process_ctrl_state()
 {
+    dm_easy_mesh_t *dm = get_data_model();
+
     switch (get_state()) {
         case em_state_ctrl_misconfigured:
             send_autoconfig_renew_msg();
@@ -5503,7 +5494,11 @@ void em_configuration_t::process_ctrl_state()
             break;
 
         case em_state_ctrl_topo_publish_pending:
-            get_mgr()->publish_network_topology();
+            if (dm->get_topo_state() == true) {
+                em_printfout("Topology has changed for device: %s", util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
+                dm->set_topo_state(false);
+                get_mgr()->publish_network_topology();
+            }
             set_state(em_state_ctrl_configured);
             break;
 
