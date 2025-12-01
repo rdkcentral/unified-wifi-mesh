@@ -61,10 +61,20 @@ type RemoteIPConfig struct {
     Port string `json:"port"`
 }
 
+// classChannelMap struct to store channel capability
+type classChannelMap struct {
+	class       int
+	channelList []int
+}
+
 type HaulConfig struct {
-	HaulType   string `json:"HaulType"`
-    SSID       string   `json:"SSID"`
-    PassPhrase string   `json:"PassPhrase"`
+    HaulType     string `json:"HaulType"`
+    SSID         string `json:"SSID"`
+    PassPhrase   string `json:"PassPhrase"`
+    Enabled      bool   `json:"Enable"`
+    Bands        string `json:"Band"`
+    SecurityType string `json:"Security"`
+    VlanID       int    `json:"vlanId"`
 }
 
 type HaulTypeVisual struct {
@@ -293,7 +303,8 @@ type RadioConfig struct {
 	DFSEnabled      bool              `json:"dfs_enabled,omitempty"`
 	PSCOnly         bool              `json:"psc_only,omitempty"`
 	WiFi7Features   *WiFi7Features    `json:"wifi7_features,omitempty"`
-	SupportedChannels []ChannelInfo   `json:"supported_channels"`
+	SupportedClass  []ClassInfo       `json:"supported_class"`
+	SelectedConfig  channelConfig     `json:"selected_config,omitempty"`
 }
 type WiFi7Features struct {
 	MLOEnabled          bool `json:"mlo_enabled"`
@@ -310,6 +321,18 @@ type ChannelInfo struct {
 	Availability string `json:"availability"`
 	Utilization  float64 `json:"utilization,omitempty"`
 	NoiseFloor   int    `json:"noise_floor_dbm,omitempty"`
+}
+
+type ClassInfo struct {
+	Class      int      `json:"class"`
+	Channel    []int    `json:"supported_channels"`
+}
+
+// channelConfig struct to store previous configuration
+type channelConfig struct {
+	RadioIndex int     `json:"radio_index"`
+	Class      int     `json:"class"`
+	Channels   []int   `json:"channels"`
 }
 
 type AdvancedWirelessSettings struct {
@@ -1654,177 +1677,159 @@ func analyzeCurrentCoverage() {
 
 func initWirelessSettings() {
 	wirelessProfiles = getDefaultWirelessProfiles()
-	radioConfigs = getDefaultRadioConfigs()
+	//radioConfigs = getDefaultRadioConfigs()
 	advancedSettings = getDefaultAdvancedSettings()
 	log.Printf("Initialized wireless settings with %d profiles", len(wirelessProfiles))
 }
+
 // ===== WIRELESS PROFILE HANDLERS =====
-
 func getWirelessProfilesHandler(w http.ResponseWriter, r *http.Request) {
-	wirelessMutex.RLock()
-	defer wirelessMutex.RUnlock()
 
-	response := map[string]interface{}{
-		"profiles":  wirelessProfiles,
-		"total":     len(wirelessProfiles),
-		"timestamp": time.Now(),
-	}
+    // formate get SSID tree
+    ssidCmd := C.CString("get_ssid OneWifiMesh")
+    defer C.free(unsafe.Pointer(ssidCmd))
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
-}
+    // Get SSID
+    ssidTree := C.exec(ssidCmd, C.strlen(ssidCmd), nil)
+    if ssidTree == nil {
+        http.Error(w, "Failed to fetch ssid tree", http.StatusInternalServerError)
+        return
+    }
 
-func createWirelessProfileHandler(w http.ResponseWriter, r *http.Request) {
-	var profile WirelessProfile
-	if err := json.NewDecoder(r.Body).Decode(&profile); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
+    switch r.Method {
+        case http.MethodGet:
+            log.Println("Received GET request for get SSID\n")
 
-	// Validate profile
-	if err := validateWirelessProfile(&profile); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
+            // Parse NetworkSSIDList
+            ssidHaulConfig := getConfiguredHauls(ssidTree)
 
-	wirelessMutex.Lock()
-	defer wirelessMutex.Unlock()
+            response := map[string]interface{}{
+                "haulConfig": ssidHaulConfig,
+                "total":     len(ssidHaulConfig),
+            }
 
-	// Generate ID and timestamps
-	profile.ID = generateProfileID()
-	profile.CreatedAt = time.Now()
-	profile.UpdatedAt = time.Now()
-	
-	// Set default bands if not specified
-	if len(profile.Bands) == 0 {
-		profile.Bands = []string{"2.4GHz", "5GHz", "6GHz"}
-	}
+            w.Header().Set("Content-Type", "application/json")
+            json.NewEncoder(w).Encode(response)
 
-	wirelessProfiles = append(wirelessProfiles, profile)
+        case http.MethodPost:
+            log.Println("Received POST request to update SSID config")
 
-	// Broadcast update
-	broadcastWirelessUpdate("profile_created", profile)
+            var payload []HaulConfig
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true,
-		"message": "Profile created successfully",
-		"profile": profile,
-	})
-}
+            if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+                http.Error(w, "Invalid request payload", http.StatusBadRequest)
+                return
+            }
 
-func updateWirelessProfileHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	profileID := vars["id"]
+            for _, haul := range payload {
+                if err := validateSSID(haul.SSID); err != nil {
+                    http.Error(w, fmt.Sprintf("Invalid SSID for %s: %v", haul.HaulType, err), http.StatusBadRequest)
+                    return
+                }
+                if err := validatePassPhrase(haul.PassPhrase); err != nil {
+                    http.Error(w, fmt.Sprintf("Invalid PassPhrase for %s: %v", haul.HaulType, err), http.StatusBadRequest)
+                    return
+                }
+                if err := updateSSIDPassForHaulType(ssidTree, haul.HaulType, haul.SSID, haul.PassPhrase); err != nil {
+                    http.Error(w, fmt.Sprintf("Update failed for %s: %v", haul.HaulType, err), http.StatusInternalServerError)
+                    return
+                }
+            }
 
-	var updatedProfile WirelessProfile
-	if err := json.NewDecoder(r.Body).Decode(&updatedProfile); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
+            if applyNetworkNameConfig(ssidTree) != true {
+                http.Error(w, fmt.Sprintf("Failed to update networkssid list"), http.StatusInternalServerError)
+            }
 
-	wirelessMutex.Lock()
-	defer wirelessMutex.Unlock()
+            // Return success response
+            w.Header().Set("Content-Type", "application/json")
+            json.NewEncoder(w).Encode(map[string]interface{}{
+                "success": true,
+                "message": "Profile updated successfully",
+            })
 
-	for i, profile := range wirelessProfiles {
-		if profile.ID == profileID {
-			// Preserve created time and ID
-			updatedProfile.ID = profile.ID
-			updatedProfile.CreatedAt = profile.CreatedAt
-			updatedProfile.UpdatedAt = time.Now()
-
-			// Validate updated profile
-			if err := validateWirelessProfile(&updatedProfile); err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			wirelessProfiles[i] = updatedProfile
-
-			// Broadcast update
-			broadcastWirelessUpdate("profile_updated", updatedProfile)
-
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"success": true,
-				"message": "Profile updated successfully",
-				"profile": updatedProfile,
-			})
-			return
-		}
-	}
-
-	http.Error(w, "Profile not found", http.StatusNotFound)
-}
-
-func deleteWirelessProfileHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	profileID := vars["id"]
-
-	wirelessMutex.Lock()
-	defer wirelessMutex.Unlock()
-
-	for i, profile := range wirelessProfiles {
-		if profile.ID == profileID {
-			wirelessProfiles = append(wirelessProfiles[:i], wirelessProfiles[i+1:]...)
-
-			// Broadcast update
-			broadcastWirelessUpdate("profile_deleted", map[string]string{"id": profileID})
-
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"success": true,
-				"message": "Profile deleted successfully",
-			})
-			return
-		}
-	}
-
-	http.Error(w, "Profile not found", http.StatusNotFound)
-}
-
-func toggleWirelessProfileHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	profileID := vars["id"]
-
-	wirelessMutex.Lock()
-	defer wirelessMutex.Unlock()
-
-	for i, profile := range wirelessProfiles {
-		if profile.ID == profileID {
-			wirelessProfiles[i].Enabled = !profile.Enabled
-			wirelessProfiles[i].UpdatedAt = time.Now()
-
-			// Broadcast update
-			broadcastWirelessUpdate("profile_toggled", wirelessProfiles[i])
-
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"success": true,
-				"message": fmt.Sprintf("Profile %s", 
-					map[bool]string{true: "enabled", false: "disabled"}[wirelessProfiles[i].Enabled]),
-				"enabled": wirelessProfiles[i].Enabled,
-			})
-			return
-		}
-	}
-
-	http.Error(w, "Profile not found", http.StatusNotFound)
+        default:
+            http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+    }
 }
 
 // ===== RADIO CONFIGURATION HANDLERS =====
 
 func getRadioConfigsHandler(w http.ResponseWriter, r *http.Request) {
-	wirelessMutex.RLock()
-	defer wirelessMutex.RUnlock()
+    wirelessMutex.RLock()
+    defer wirelessMutex.RUnlock()
 
-	response := map[string]interface{}{
-		"radios":    radioConfigs,
-		"timestamp": time.Now(),
-	}
+    // Fetch tree for previous configuration tree
+    get_channel_Pref_cmd := C.CString("get_channel OneWifiMesh 1")
+    defer C.free(unsafe.Pointer(get_channel_Pref_cmd))
+    wifiChannelUpdateTree := C.exec(get_channel_Pref_cmd, C.strlen(get_channel_Pref_cmd), nil)
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+    switch r.Method {
+        case http.MethodGet:
+            log.Println("Received GET request for get SSID\n")
+            var configs []RadioConfig
+
+            // formate get channel tree
+            wifiChannelCmd := C.CString("get_channel OneWifiMesh 3")
+            defer C.free(unsafe.Pointer(wifiChannelCmd))
+
+            // Get SSID //Note: observed crash here one time
+            wifiChannelTree := C.exec(wifiChannelCmd, C.strlen(wifiChannelCmd), nil)
+            if wifiChannelTree == nil {
+                http.Error(w, "Failed to fetch channel tree", http.StatusInternalServerError)
+                return
+            }
+
+            //Get the DeviceList node
+            deviceListTree := C.get_network_tree_by_key(wifiChannelTree, C.CString("DeviceList"))
+            capabilityMap := getChannelCapabilityFromTree(deviceListTree)
+
+            bandLabelMap := map[int]string{0: "2.4GHz", 1: "5GHz", 2: "6GHz"}
+
+            prevConfigMap := getConfiguredChannels(wifiChannelUpdateTree)
+            for band, classMap := range capabilityMap {
+                prev, _ := findPrevSelection(prevConfigMap, band)
+                rc := RadioConfig{Band: bandLabelMap[band], Enabled: true, SelectedConfig: prev}
+                for _, item := range classMap {
+                    rc.SupportedClass = append(rc.SupportedClass, ClassInfo{
+                        Class:   item.class,
+                        Channel: item.channelList,
+                    })
+                }
+                configs = append(configs, rc)
+            }
+
+            response := map[string]interface{}{
+                "radios":    configs,
+                "timestamp": time.Now(),
+            }
+
+            w.Header().Set("Content-Type", "application/json")
+            json.NewEncoder(w).Encode(response)
+
+        case http.MethodPost:
+            log.Println("Received POST request to update channel config")
+
+            var payload []channelConfig
+
+            if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+                http.Error(w, "Invalid request payload", http.StatusBadRequest)
+                return
+            }
+
+            updateAnticipatedChannelPreference(wifiChannelUpdateTree, payload)
+
+           applyChannelConfig(wifiChannelUpdateTree)
+
+           // Return success response
+            w.Header().Set("Content-Type", "application/json")
+            json.NewEncoder(w).Encode(map[string]interface{}{
+                "success": true,
+                "message": "Radio profile updated successfully",
+            })
+
+        default:
+            http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+    }
 }
 
 func updateRadioConfigHandler(w http.ResponseWriter, r *http.Request) {
@@ -2340,7 +2345,7 @@ func getDefaultRadioConfigs() map[string]*RadioConfig {
 			DTIMPeriod:      2,
 			RTSThreshold:    2347,
 			FragThreshold:   2346,
-			SupportedChannels: generateSupportedChannels("2.4GHz"),
+			//SupportedChannels: generateSupportedChannels("2.4GHz"),
 		},
 		"5GHz": {
 			Band:            "5GHz",
@@ -2356,7 +2361,7 @@ func getDefaultRadioConfigs() map[string]*RadioConfig {
 			RTSThreshold:    2347,
 			FragThreshold:   2346,
 			DFSEnabled:      true,
-			SupportedChannels: generateSupportedChannels("5GHz"),
+			//SupportedChannels: generateSupportedChannels("5GHz"),
 		},
 		"6GHz": {
 			Band:            "6GHz",
@@ -2378,7 +2383,7 @@ func getDefaultRadioConfigs() map[string]*RadioConfig {
 				PuncturedPreamble: true,
 				Support320MHz:     false,
 			},
-			SupportedChannels: generateSupportedChannels("6GHz"),
+			//SupportedChannels: generateSupportedChannels("6GHz"),
 		},
 	}
 }
@@ -2539,18 +2544,14 @@ func main() {
 	api.HandleFunc("/clients/{mac}/disconnect", disconnectClientHandler).Methods("POST")
 	api.HandleFunc("/clients/{mac}/block", blockClientHandler).Methods("POST")
 	api.HandleFunc("/clients/{mac}/unblock", unblockClientHandler).Methods("POST")
-        //ckp1 start
-        // ===== NEW WIRELESS SETTINGS ROUTES =====
+
+    // ===== WIRELESS SETTINGS =====
 	
 	// Wireless Profile Management
-	api.HandleFunc("/wireless/profiles", getWirelessProfilesHandler).Methods("GET")
-	api.HandleFunc("/wireless/profiles", createWirelessProfileHandler).Methods("POST")
-	api.HandleFunc("/wireless/profiles/{id}", updateWirelessProfileHandler).Methods("PUT")
-	api.HandleFunc("/wireless/profiles/{id}", deleteWirelessProfileHandler).Methods("DELETE")
-	api.HandleFunc("/wireless/profiles/{id}/toggle", toggleWirelessProfileHandler).Methods("POST")
+	api.HandleFunc("/wireless/profiles", getWirelessProfilesHandler).Methods("GET", "POST")
 
 	// Radio Configuration
-	api.HandleFunc("/wireless/radios", getRadioConfigsHandler).Methods("GET")
+	api.HandleFunc("/wireless/radios", getRadioConfigsHandler).Methods("GET", "POST")
 	api.HandleFunc("/wireless/radios/{band}", updateRadioConfigHandler).Methods("PUT")
 
 	// Advanced Wireless Settings
@@ -3258,6 +3259,10 @@ func getConfiguredHauls(tree *C.em_network_node_t) []HaulConfig {
     }
 
     for i := 0; i < int(networkssidListNode.num_children); i++ {
+        enabled := false
+        var bandList []string
+        var securityMode string
+        var vlanId int
         node := networkssidListNode.child[i]
 
         // Handle HaulType as list
@@ -3267,10 +3272,54 @@ func getConfiguredHauls(tree *C.em_network_node_t) []HaulConfig {
         }
 
         haul := C.GoString(&haulTypeNode.child[0].value_str[0])
+        if getTreeValue(node, "Enable") == "true" {
+            enabled = true
+        } else {
+            enabled = false
+        }
+
+        // Prase the available band for the haultype
+        BandObj := C.get_network_tree_by_key(node, C.CString("Band"))
+        if BandObj == nil || int(BandObj.num_children) == 0 {
+            continue
+        }
+
+        for i:=0; i< int(BandObj.num_children); i++ {
+            band := C.GoString(&BandObj.child[i].value_str[0])
+            bandList = append(bandList, band+"GHz")
+        }
+        bands := strings.Join(bandList, ", ")
+
+        //TODO: As of now hardcoded security mode and vlanid is being used,
+        // we will update this code to fetch these details from controller and configure.
+        if haul == "Fronthaul" {
+            securityMode = "WPA3 Transition"
+            if strings.Contains(bands, "6GHz") {
+                securityMode += "/ WPA3 Personal"
+            }
+            vlanId = 12
+        } else if haul == "Backhaul" {
+            securityMode = "WPA2 Personal"
+            vlanId = 13
+        }else if haul == "IoT" {
+        securityMode = "WPA2 Personal"
+            vlanId = 14
+        }else if haul == "Configurator" {
+            securityMode = "WPA2 Personal"
+            vlanId = 15
+        }else if haul == "Hotspot" {
+            securityMode = "WPA2 Personal"
+            vlanId = 16
+        }
+
         config := HaulConfig{
+            Enabled: enabled,
             HaulType: haul,
             SSID: getTreeValue(node, "SSID"),
             PassPhrase: getTreeValue(node, "PassPhrase"),
+            Bands: bands,
+            SecurityType: securityMode,
+            VlanID: vlanId,
         }
 
         haulConfigs = append(haulConfigs, config)
@@ -3942,23 +3991,276 @@ func getLocalIP() (string, int, error) {
     return ctrlAddr.IP.String(), ctrlPort, nil
 }
 
-/* func: printTree()
+/* func: applyNetworkNameConfig()
+ * Description:
+ * Executes the set ssid command on the update NetworkSSIDList with
+ * updated ssid and phassphase.
+ * returns: true if the reset command was successfully executed, otherwise false.
+ */
+func applyNetworkNameConfig(ssidTree *C.em_network_node_t) bool {
+    networkSSIDKey := C.CString("Result")
+    cmd := C.CString("set_ssid OneWifiMesh")
+    defer C.free(unsafe.Pointer(networkSSIDKey))
+    defer C.free(unsafe.Pointer(cmd))
+
+    ssidNode := C.get_network_tree_by_key(ssidTree, networkSSIDKey)
+    if ssidNode == nil {
+        log.Println("NetworkSSIDList node not found")
+        return false
+    }
+
+    C.exec(cmd, C.strlen(cmd), ssidNode)
+    return true
+}
+
+/* func: getChannelCapabilityFromTree()
+ * Description:
+ * Get the support channels from the tree
+ * returns: struct of supported channels with respect to class.
+ */
+func getChannelCapabilityFromTree(tree *C.em_network_node_t) map[int][]classChannelMap {
+
+	isDuplicateEntries := false
+	capabilityMap := make(map[int][]classChannelMap)
+
+	if tree == nil || tree.num_children == 0 {
+		return capabilityMap
+	}
+
+    //Prepare and free C strings once (avoid per-iteration allocations).
+    radioListKey := C.CString("RadioList")
+    capabilityKey := C.CString("ChannelCapability")
+    nonOperableKey := C.CString("NonOperable")
+    channelListKey := C.CString("ChannelList")
+    defer func() {
+        C.free(unsafe.Pointer(radioListKey))
+        C.free(unsafe.Pointer(capabilityKey))
+        C.free(unsafe.Pointer(nonOperableKey))
+        C.free(unsafe.Pointer(channelListKey))
+    }()
+
+    for i := 0; i < int(tree.num_children); i++ {
+        item := tree.child[i]
+        if item == nil {
+            continue
+        }
+
+        radioListNode := C.get_network_tree_by_key(item, radioListKey)
+        if radioListNode == nil || radioListNode.num_children == 0 {
+            continue
+        }
+
+        //loop through all the radios
+        for r := 0; r < int(radioListNode.num_children); r++ {
+            radio := radioListNode.child[r]
+            if radio == nil {
+                continue
+            }
+            capabilityNode := C.get_network_tree_by_key(radio, capabilityKey)
+            if capabilityNode == nil || capabilityNode.num_children == 0 {
+                continue
+            }
+
+            // loop through the node and parse the necessary data
+            for j := 0; j < int(capabilityNode.num_children); j++ {
+                capabilityChild := capabilityNode.child[j]
+                bandVal := getKeyIntValue(capabilityChild, "Band")
+                classVal := getKeyIntValue(capabilityChild, "Class")
+                existing := capabilityMap[bandVal]
+                for _, cap := range existing {
+                    if cap.class == classVal {
+                        isDuplicateEntries = true
+                        break
+                    }
+                }
+
+                if isDuplicateEntries {
+                    continue
+                }
+                nonOperableNode := C.get_network_tree_by_key(capabilityChild, nonOperableKey)
+
+                var nonOperable []int
+                if nonOperableNode != nil {
+                    for k := 0; k < int(nonOperableNode.num_children); k++ {
+                        nonOperable = append(nonOperable, int(nonOperableNode.child[k].value_int))
+                    }
+                }
+
+                channelListNode := C.get_network_tree_by_key(capabilityChild, channelListKey)
+
+                var channelList []int
+                if channelListNode != nil {
+                    for k := 0; k < int(channelListNode.num_children); k++ {
+                        ch := int(channelListNode.child[k].value_int)
+                        if contains(nonOperable, ch) {
+                            continue
+                        }
+                        channelList = append(channelList, int(channelListNode.child[k].value_int))
+                    }
+                }
+
+                capability := classChannelMap{
+                    class:       classVal,
+                    channelList: channelList,
+                }
+                capabilityMap[bandVal] = append(capabilityMap[bandVal], capability)
+            }
+        }
+    }
+    return capabilityMap
+}
+
+/* func: getConfiguredChannels()
+ * Description:
+ * It parse the current channel tree and get the list of current
+ * channels with respect to class and band
+ * returns: array of channelConfig
+ */
+func getConfiguredChannels(tree *C.em_network_node_t) []channelConfig {
+    var result []channelConfig
+
+    // Get the AnticipatedChannelPreference
+    keyACP := C.CString("AnticipatedChannelPreference")
+    defer C.free(unsafe.Pointer(keyACP))
+
+    configuredChannelPrefNode := C.get_network_tree_by_key(tree, keyACP)
+    if configuredChannelPrefNode == nil {
+        log.Printf("Failed to get previous channel configuration")
+        return result
+    }
+
+    // Get the list of configured class with respect to class and band
+    for i := 0; i < int(configuredChannelPrefNode.num_children); i++ {
+        configuredChannel := configuredChannelPrefNode.child[i]
+        ConfigClass := getKeyIntValue(configuredChannel, "Class")
+        configChannelList := C.get_network_tree_by_key(configuredChannel, C.CString("ChannelList"))
+
+        var configChannels []int
+        if configChannelList != nil {
+            for j := 0; j < int(configChannelList.num_children); j++ {
+                configChannels = append(configChannels, int(configChannelList.child[j].value_int))
+            }
+        }
+        result = append(result, channelConfig{
+            RadioIndex: i,
+            Class:      ConfigClass,
+            Channels:   configChannels,
+        })
+    }
+
+    return result
+}
+
+/* func: updateAnticipatedChannelPreference()
+ * Description:
+ * update the AnticipatedChannelPreference in tree
+ * returns: updated device tree for set channel
+ */
+func updateAnticipatedChannelPreference(tree *C.em_network_node_t, updatedChannelArray []channelConfig) {
+    if tree == nil {
+		log.Printf("Invalid channel update tree")
+	}
+
+    channelPrefTree_cmd := C.CString("AnticipatedChannelPreference")
+    classNode_cmd := C.CString("Class")
+    defer C.free(unsafe.Pointer(channelPrefTree_cmd))
+    defer C.free(unsafe.Pointer(classNode_cmd))
+    channelPrefTree := C.get_network_tree_by_key(tree, channelPrefTree_cmd)
+
+    for _, cfg := range updatedChannelArray {
+        channelPrefNode := channelPrefTree.child[cfg.RadioIndex]
+        classNode := C.get_network_tree_by_key(channelPrefNode, classNode_cmd)
+        if classNode != nil {
+            classNode.value_int = C.uint(cfg.Class)
+        }
+        channelListNode := C.get_network_tree_by_key(channelPrefNode, C.CString("ChannelList"))
+        C.set_node_type(channelListNode, C.em_network_node_data_type_array_num)
+        channelListNode.num_children = 0
+        C.set_node_array_value(channelListNode, C.CString(mapchannelsToSlice(cfg.Channels)))
+    }
+}
+
+/* func: applyChannelConfig()
+ * Description:
+ * Executes the set ssid set_channel on the update channel list
+ * returns: true for successfully executed, otherwise false.
+ */
+func applyChannelConfig(ssidTree *C.em_network_node_t) bool {
+    resultKey := C.CString("Result")
+    cmd := C.CString("set_channel OneWifiMesh")
+    defer C.free(unsafe.Pointer(resultKey))
+    defer C.free(unsafe.Pointer(cmd))
+
+    // get the node for Set channel tree
+    set_channel_node := C.get_network_tree_by_key(ssidTree, resultKey)
+    if set_channel_node == nil {
+        log.Println("result node not found")
+        return false
+    }
+
+    //Execute the set_channel command with updated chanelList
+    C.exec(cmd, C.strlen(cmd), set_channel_node)
+    return true
+}
+
+/* func: findPrevSelection()
+ * Description:
+ * get the previously selected channel config
+ * returns: array of selected channels with respect to class.
+ */
+func findPrevSelection(prevList []channelConfig, band int) (channelConfig, bool) {
+    for _, cfg := range prevList {
+        if cfg.RadioIndex == band {
+            return cfg, true
+        }
+    }
+    var empty channelConfig
+    return empty, false
+}
+
+/* func: mapchannelsToSlice()
+ * Description:
+ * Convert the channelmap to string
+ * returns: channel list array in string format
+ */
+func mapchannelsToSlice(channels []int) string {
+    if len(channels) == 0 {
+        return "[]"
+    }
+    strKeys := make([]string, len(channels))
+    for i, val := range channels {
+        strKeys[i] = strconv.Itoa(val)
+    }
+    return "[" + strings.Join(strKeys, ", ") + "]"
+}
+
+/* func: dumpNetNode()
  * Description:
  * Print the tree for debug purpose
  * returns: NA.
  */
-func printTree(node *C.em_network_node_t, indent int) {
-    if node == nil {
-        return
-    }
+ func dumpNetNode(tree *C.em_network_node_t) {
+    log.Printf("\t%s", C.GoString(&tree.key[0]))
 
-    prefix := strings.Repeat("  ", indent)
-    key := C.GoString(&node.key[0])
-    value := C.GoString(&node.value_str[0])
-    fmt.Printf("%s%s: %s\n", prefix, key, value)
+    nodeType := C.get_node_type(tree)
 
-    for i := 0; i < int(node.num_children); i++ {
-        printTree(node.child[i], indent+1)
+    if nodeType == C.em_network_node_data_type_array_obj || nodeType == C.em_network_node_data_type_array_num ||
+        nodeType == C.em_network_node_data_type_array_str {
+        for i := 0; i < int(tree.num_children); i++ {
+            dumpNetNode(tree.child[i])
+        }
+    } else if nodeType == C.em_network_node_data_type_obj {
+        for i := 0; i < int(tree.num_children); i++ {
+            dumpNetNode(tree.child[i])
+        }
+    } else if nodeType == C.em_network_node_data_type_string {
+        log.Printf("\t%s", C.GoString(&tree.value_str[0]))
+    } else if nodeType == C.em_network_node_data_type_number {
+        log.Printf("\t%d", int(tree.value_int))
+    } else if nodeType == C.em_network_node_data_type_false {
+        log.Printf("\tfalse")
+    } else if nodeType == C.em_network_node_data_type_true {
+        log.Printf("\ttrue")
     }
 }
 

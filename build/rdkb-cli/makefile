@@ -22,7 +22,7 @@ include ../makefile.inc
 # program
 #
 
-PROGRAM = $(INSTALLDIR)/bin/onewifi_em_cli
+PROGRAM = $(INSTALLDIR)/bin/onewifi_em_rdkbcli
 EM_CLI_LIBRARY = $(INSTALLDIR)/lib/libemcli.so
 EM_CERT_SRC = $(INSTALLDIR)/config/test_cert.crt
 EM_KEY_SRC  = $(INSTALLDIR)/config/test_cert.key
@@ -131,6 +131,6 @@ clean:
 
 run:
 	@cd $(INSTALLDIR)/bin && \
-	LD_LIBRARY_PATH=$(INSTALLDIR)/lib ./onewifi_em_cli $(RUNARGS)
+	LD_LIBRARY_PATH=$(INSTALLDIR)/lib ./onewifi_em_rdkbcli $(RUNARGS)
 
 .PHONY: run

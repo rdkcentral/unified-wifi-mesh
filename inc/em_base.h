@@ -46,7 +46,7 @@ extern "C"
 #define EM_MAC_ADDR_LEN 6
 #define EM_MAC_STR_LEN  17
 #define EM_MAX_COLS     32
-#define EM_MAX_DM_CHILDREN	32
+#define EM_MAX_DM_CHILDREN	64
 #define EM_MAX_E4_TABLE_CHANNEL 64
 #define EM_DATE_TIME_BUFF_SZ	64
 #define EM_PROTO_TOUT   1
@@ -209,6 +209,11 @@ extern "C"
 #define EM_MEDIA_WIFI_80211ad_60    htons(EM_MEDIA_WIFI | 0x06)
 #define EM_MEDIA_WIFI_80211af       htons(EM_MEDIA_WIFI | 0x07)
 #define EM_MEDIA_WIFI_80211ax_6     htons(EM_MEDIA_WIFI | 0x08)
+
+#define EM_MEDIA_WIFI_ROLE_AP           0x00
+#define EM_MEDIA_WIFI_ROLE_STA          0x40
+#define EM_MEDIA_WIFI_ROLE_P2P_CLIENT   0x80
+#define EM_MEDIA_WIFI_ROLE_P2P_GO       0x90
 
 #define 	EM_PARSE_NO_ERR			0
 #define 	EM_PARSE_ERR_GEN		EM_PARSE_NO_ERR	- 1	

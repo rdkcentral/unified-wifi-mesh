@@ -543,10 +543,13 @@ int em_configuration_t::create_device_info_type_tlv(unsigned char *buff)
 				continue;
             }
 			no_of_bss++;
-			memcpy(local_intf->mac_addr, dm->m_bss[i].m_bss_info.bssid.mac, sizeof(mac_address_t));
+			if (dm->m_bss[j].m_bss_info.vap_mode == em_vap_mode_ap) {
+				memcpy(local_intf->mac_addr, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
+			} else {
+				memcpy(local_intf->mac_addr, dm->m_bss[j].m_bss_info.sta_mac, sizeof(mac_address_t));
+			}
 			// fill test data
-			fill_media_data(&dm->m_radio[i].m_radio_info.media_data);
-			memcpy(&local_intf->media_data, &dm->m_radio[i].m_radio_info.media_data, sizeof(em_media_spec_data_t));
+			fill_media_data(&local_intf->media_data, &dm->m_bss[j]);
 
 			local_intf = reinterpret_cast<em_local_interface_t *>(reinterpret_cast<unsigned char *> (local_intf) + sizeof(em_local_interface_t));
 			tlv_len = tlv_len + sizeof(em_local_interface_t);
@@ -4742,11 +4745,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 		if (get_band() == 2) {
 			auth_type = 0x0200; // WPA3-Personal
 		} else {
-			if (haul_type == em_haul_type_fronthaul) {
-				auth_type = 0x0400; // WPA3-Personal-Transition
-			} else {
-				auth_type = 0x0010; // WPA2-Personal
-			}
+			auth_type = 0x0400; // WPA3-Personal-Transition
 		}
 
 		// haultype
@@ -5412,10 +5411,46 @@ void em_configuration_t::handle_state_wsc_m2_pending()
     assert(get_service_type() == em_service_type_agent);
 }
 
-void em_configuration_t::fill_media_data(em_media_spec_data_t *spec)
+void em_configuration_t::fill_media_data(em_media_spec_data_t *spec, dm_bss_t *bss)
 {
-    spec->media_type = EM_MEDIA_WIFI_80211b_2_4;
+    em_bss_info_t *bss_info = bss->get_bss_info();
+    dm_easy_mesh_t  *dm = get_data_model();
+    dm_radio_t      *radio;
+
+    //update the media_type to 11ax
+    spec->media_type = EM_MEDIA_WIFI_80211ax_6;
     spec->media_spec_size = 10;
+    /* Update the media specific information here which includes
+       1. role : AP or STA
+       2. Band: 1 - 20Mhz, 2 - 40Mhz, 3 - 80Mhz, 4 - 160Mhz
+    */
+    if (bss_info->vap_mode == em_vap_mode_ap) {
+        memcpy(spec->network_memb, bss_info->bssid.mac, sizeof(mac_address_t));
+        spec->role = EM_MEDIA_WIFI_ROLE_AP;
+    } else {
+        memcpy(spec->network_memb, bss_info->sta_mac, sizeof(mac_address_t));
+        spec->role = EM_MEDIA_WIFI_ROLE_STA;
+    }
+    radio = dm->get_radio(bss_info->ruid.mac);
+    switch (radio->get_radio_info()->band) {
+        case em_freq_band_24:
+            spec->band = 0x01;
+            break;
+
+        case em_freq_band_5:
+            spec->band = 0x03;
+            break;
+
+        case em_freq_band_60:
+            spec->band = 0x04;
+            break;
+
+        default:
+            spec->band = 0x01;
+            break;
+    }
+    spec->center_freq_index_1 = 0;
+    spec->center_freq_index_2 = 0;
 }
 
 void em_configuration_t::process_agent_state()

@@ -1460,6 +1460,12 @@ body {
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
 }
 
+
+.class-select:hover {
+    color: var(--text-primary);
+}
+
+
 /* Radio Button Labels */
 .radio-label {
     display: flex;
@@ -1602,12 +1608,67 @@ body {
     display: flex;
     align-items: center;
     gap: var(--spacing-xs);
+    margin-right: var(--spacing-xs);
+}
+
+.form-group.hidden-network {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    order: 999;
+    width: 100%;
+    text-align: left;
+}
+
+.eye-icon {
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    position: relative;
+}
+
+/* Outer eye shape */
+.eye-icon::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 12px;
+    border: 2px solid #333;
+    border-radius: 50% / 50%;
+    transform: translate(-50%, -50%);
+}
+
+/* Pupil */
+.eye-icon::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 6px;
+    height: 6px;
+    background: #333;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.eye-icon.active::after {
+    background: #fff;
 }
 
 .form-label input[type="checkbox"] {
     width: 16px;
     height: 16px;
     accent-color: var(--primary-color);
+}
+
+
+#save-profile-settings.is-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none; /* optional */
 }
 
 /* Modal Actions */
@@ -2895,6 +2956,16 @@ body {
     overflow-y: auto;
     max-height: calc(90vh - 120px);
 }
+
+.disabled-label {
+  cursor: not-allowed;
+  opacity: 0.6; /* Makes the whole label look faded */
+}
+
+.disabled-label .label-text {
+  color: #6c757d; /* Bootstrap's secondary text color */
+}
+
 
 .notification-panel {
     position: fixed;

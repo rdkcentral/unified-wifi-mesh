@@ -26,10 +26,13 @@
 class WirelessSettings {
   constructor() {
     this.networkProfiles = [];
+    this.updatedNetworkProfiles = [];
     this.radioConfigs = {};
     this.scanResults = {};
     this.isScanning = false;
+    this.updateChannelConfig = {};
     this.currentEditingProfile = null;
+    this.updatedProfileKeys = new Set();
 
     // Initialize when DOM is ready
     if (document.readyState === 'loading') {
@@ -46,7 +49,6 @@ class WirelessSettings {
     console.log('🔧 Initializing Wireless Settings');
     
     this.setupEventHandlers();
-    await this.loadWirelessSettings();
     this.updateAllDisplays();
   }
 
@@ -82,12 +84,6 @@ class WirelessSettings {
       });
     });
 
-    // Network profile management
-    const addProfileBtn = document.getElementById('add-network-profile');
-    if (addProfileBtn) {
-      addProfileBtn.addEventListener('click', () => this.showProfileModal());
-    }
-
     const profileForm = document.getElementById('network-profile-form');
     if (profileForm) {
       profileForm.addEventListener('submit', (e) => this.saveNetworkProfile(e));
@@ -101,14 +97,6 @@ class WirelessSettings {
       });
     }
 
-    // Guest network toggle
-    const guestToggle = document.getElementById('profile-guest');
-    if (guestToggle) {
-      guestToggle.addEventListener('change', (e) => {
-        this.handleGuestNetworkToggle(e.target.checked);
-      });
-    }
-
     // Channel scanning
     const scanBtn = document.getElementById('wireless-scan-channels');
     if (scanBtn) {
@@ -116,13 +104,42 @@ class WirelessSettings {
     }
 
     // Save settings
-    const saveBtn = document.getElementById('save-wireless-settings');
+    const saveBtn = document.getElementById('save-radio-settings');
     if (saveBtn) {
-      saveBtn.addEventListener('click', () => this.saveWirelessSettings());
+      saveBtn.addEventListener('click', () => this.saveRadioSettings());
     }
+
+    // Save network profilesettings
+    const ssidApplyBtn = document.getElementById('save-profile-settings');
+    if (ssidApplyBtn) {
+      ssidApplyBtn.addEventListener('click', () => this.saveNetworkProfileSettings());
+    }
+
+    // toggle eye button to show/hide passphase
+    document.getElementById('toggle-passphrase').addEventListener('click', function () {
+      const passInput = document.getElementById('profile-passphrase');
+      const isHidden = passInput.type === 'password';
+      passInput.type = isHidden ? 'text' : 'password';
+
+      this.classList.toggle('active', isHidden);
+      this.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+    });
 
     // Advanced feature toggles
     this.setupAdvancedFeatureHandlers();
+  }
+
+  /**
+   * update network profile apply button state
+  */
+  updateProfileApplyButtonState() {
+    // Enable only if at least one profile has been updated
+    const shouldEnable = this.updatedProfileKeys.size > 0;
+
+    const applyBtn = document.getElementById('save-profile-settings');
+    if (applyBtn) {
+      applyBtn.disabled = !shouldEnable;
+    }
   }
 
   /**
@@ -230,9 +247,11 @@ class WirelessSettings {
    */
   async loadWirelessSettings() {
     try {
+
       // Load network profiles
       const profilesResponse = await this.apiCall('/wireless/profiles');
-      this.networkProfiles = profilesResponse.profiles || [];
+      this.networkProfiles = profilesResponse.haulConfig || [];
+      this.updatedNetworkProfiles = JSON.parse(JSON.stringify(this.networkProfiles));
 
       // Load radio configurations
       const radioResponse = await this.apiCall('/wireless/radios');
@@ -241,6 +260,10 @@ class WirelessSettings {
       // Load advanced settings
       const advancedResponse = await this.apiCall('/wireless/advanced');
       this.advancedSettings = advancedResponse.settings || {};
+
+      // clear updatedProfileKeys
+      this.updatedProfileKeys.clear();
+      this.updateProfileApplyButtonState();
 
       console.log('✅ Wireless settings loaded successfully');
     } catch (error) {
@@ -267,18 +290,17 @@ class WirelessSettings {
 
     grid.innerHTML = '';
 
-    if (this.networkProfiles.length === 0) {
+    if (this.updatedNetworkProfiles.length === 0) {
       grid.innerHTML = `
         <div class="empty-state">
           <i class="fas fa-wifi"></i>
           <h4>No Network Profiles</h4>
-          <p>Create your first network profile to get started</p>
         </div>
       `;
       return;
     }
 
-    this.networkProfiles.forEach(profile => {
+    this.updatedNetworkProfiles.forEach(profile => {
       const profileCard = this.createProfileCard(profile);
       grid.appendChild(profileCard);
     });
@@ -290,20 +312,25 @@ class WirelessSettings {
   createProfileCard(profile) {
     const card = document.createElement('div');
     card.className = `profile-card ${profile.enabled ? 'active' : ''}`;
-    card.onclick = () => this.editProfile(profile.id);
+    let profileName = profile.HaulType
+    if (profileName == "Fronthaul") {
+      profileName = "Home Network"
+    } else if (profileName == "IoT") {
+      profileName = "IOT"
+    }
+    card.onclick = () => this.editProfile(profile.HaulType);
 
-    const securityIcon = this.getSecurityIcon(profile.security_type);
-    const bandInfo = this.getBandInfo(profile);
+    const securityIcon = this.getSecurityIcon(profile.Security);
 
     card.innerHTML = `
       <div class="profile-header">
         <div class="profile-info">
-          <h4>${profile.name}</h4>
-          <div class="profile-ssid">${profile.ssid}</div>
+          <h4>${profileName}</h4>
+          <div class="profile-ssid">${profile.SSID}</div>
         </div>
-        <div class="profile-status ${profile.enabled ? 'enabled' : 'disabled'}">
+        <div class="profile-status ${profile.Enable ? 'enabled' : 'disabled'}">
           <i class="fas fa-circle"></i>
-          ${profile.enabled ? 'Enabled' : 'Disabled'}
+          ${profile.Enable ? 'Enabled' : 'Disabled'}
         </div>
       </div>
 
@@ -312,35 +339,27 @@ class WirelessSettings {
           <span class="label">Security</span>
           <span class="value">
             <i class="fas ${securityIcon}"></i>
-            ${profile.security_type}
+            ${profile.Security}
           </span>
         </div>
         <div class="profile-detail">
           <span class="label">VLAN</span>
-          <span class="value">${profile.vlan_id || 1}</span>
+          <span class="value">${profile.vlanId || 0}</span>
         </div>
         <div class="profile-detail">
           <span class="label">Bands</span>
-          <span class="value">${bandInfo}</span>
-        </div>
-        <div class="profile-detail">
-          <span class="label">Clients</span>
-          <span class="value">${this.getProfileClientCount(profile.ssid)}</span>
+          <span class="value">${profile.Band}</span>
         </div>
       </div>
 
       <div class="profile-actions">
-        <button class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); window.WirelessSettings.toggleProfile('${profile.id}')">
+        <button class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); window.WirelessSettings.toggleProfile('${profile.HaulType}')" disabled>
           <i class="fas fa-power-off"></i>
-          ${profile.enabled ? 'Disable' : 'Enable'}
+          ${profile.Enable ? 'Disable' : 'Enable'}
         </button>
-        <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); window.WirelessSettings.editProfile('${profile.id}')">
+        <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); window.WirelessSettings.editProfile('${profile.HaulType}')">
           <i class="fas fa-edit"></i>
           Edit
-        </button>
-        <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); window.WirelessSettings.deleteProfile('${profile.id}')">
-          <i class="fas fa-trash"></i>
-          Delete
         </button>
       </div>
     `;
@@ -363,21 +382,6 @@ class WirelessSettings {
   }
 
   /**
-   * Get band information for profile
-   */
-  getBandInfo(profile) {
-    const bands = [];
-    if (profile.bands) {
-      if (profile.bands.includes('2.4GHz')) bands.push('2.4G');
-      if (profile.bands.includes('5GHz')) bands.push('5G');
-      if (profile.bands.includes('6GHz')) bands.push('6G');
-    } else {
-      bands.push('All');
-    }
-    return bands.join(', ');
-  }
-
-  /**
    * Get client count for profile
    */
   getProfileClientCount(ssid) {
@@ -393,41 +397,246 @@ class WirelessSettings {
    * Update radio configurations
    */
   updateRadioConfigurations() {
-    Object.entries(this.radioConfigs).forEach(([band, config]) => {
-      const bandKey = band.replace('.', '').replace('GHz', 'g');
-      
-      // Update radio enabled status
-      const enabledToggle = document.getElementById(`radio-${bandKey}-enabled`);
-      if (enabledToggle) enabledToggle.checked = config.enabled;
+    // Validate for empty radioConfigs
+    if (!Array.isArray(this.radioConfigs)) {
+      console.warn('radioConfigs is not an array:', this.radioConfigs);
+      this.updateChannelConfig = {};
+      // Toggle enable button to disable
+      this.setAllRadioPanelsDisabled(true);
+      return;
+    }
 
-      // Update channel settings
-      const channelMode = config.auto_channel ? 'auto' : 'manual';
-      const channelRadio = document.querySelector(`input[name="channel-${bandKey}-mode"][value="${channelMode}"]`);
-      if (channelRadio) channelRadio.checked = true;
+    if (!this.updateChannelConfig) this.updateChannelConfig = {};
 
+    this.radioConfigs.forEach((config) => {
+      const bandLabel = String(config?.band ?? '').trim();
+      if (!bandLabel) {
+        console.warn('Missing band label in config:', config);
+      }
+
+      // Normalize band key to match with html IDs
+      const bandKey = bandLabel.replace('.', '_').replace(/ghz/i, 'g');
+      const bandIndex = this.getRadioIndexFromBand(bandKey);
+
+      // ---- DOM elements ----
+      const radioEnabledToggle = document.getElementById(`radio-${bandKey}-enabled`);
+      const operatingClassSelect = document.getElementById(`radio-${bandKey}-class`);
       const manualChannel = document.getElementById(`channel-${bandKey}-manual`);
-      if (manualChannel) {
-        manualChannel.value = config.channel;
-        manualChannel.disabled = config.auto_channel;
+      const panel = document.getElementById(`radio-${bandKey}hz`);
+
+      if (!radioEnabledToggle) {
+        console.warn(`Missing #radio-${bandKey}-enabled element`);
+        return;
+      } else {
+          // Initialize toggle from config.enabled (default false)
+          const isEnabled = Boolean(config?.enabled);
+          radioEnabledToggle.checked = isEnabled;
+
+          if (panel) {
+            operatingClassSelect.disabled = !isEnabled;
+            panel.classList.toggle('disabled', !isEnabled);
+          }
+
+          // Avoid duplicate listeners if function runs multiple times
+          radioEnabledToggle.onchange = null;
+          radioEnabledToggle.addEventListener('change', (e) => {
+          const checked = Boolean(e.target.checked);
+          config.enabled = checked;
+
+          // Disable class/channel controls when radio is off
+          if (operatingClassSelect) operatingClassSelect.disabled = !checked;
+          if (manualChannel) manualChannel.disabled = !checked || Boolean(config?.auto_channel);
+
+          if (panel) panel.classList.toggle('disabled', !checked);
+        }, { once: false });
       }
 
-      // Update channel width
-      const channelWidth = document.getElementById(`channel-width-${bandKey}`);
-      if (channelWidth) channelWidth.value = config.channel_width;
-
-      // Update power settings
-      const powerMode = config.tx_power_auto ? 'auto' : 'manual';
-      const powerRadio = document.querySelector(`input[name="power-${bandKey}-mode"][value="${powerMode}"]`);
-      if (powerRadio) powerRadio.checked = true;
-
-      const manualPower = document.getElementById(`power-${bandKey}-manual`);
-      if (manualPower) {
-        manualPower.value = config.tx_power_dbm;
-        manualPower.disabled = config.tx_power_auto;
-        this.updatePowerDisplay(manualPower);
+      if (!operatingClassSelect) {
+        console.warn(`Missing #radio-${bandKey}-class element`);
+        return;
       }
+      if (!manualChannel) {
+        console.warn(`Missing #channel-${bandKey}-manual element`);
+        return;
+      }
+
+      // Supported operating classes
+      const supportedClass = Array.isArray(config.supported_class) ? config.supported_class : [];
+
+      // Previously selected class and channel
+      const prevSelectedClass    = String(config?.selected_config?.class ?? '').trim();
+      const PrevSelectedChannel = Array.isArray(config.selected_config.channels)
+        ? String(config.selected_config.channels[0] ?? '') : '';
+
+      // Clear the previous options fo operating class.
+      operatingClassSelect.innerHTML = '';
+
+      if (supportedClass.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'No classes available';
+        opt.disabled = true;
+        opt.selected = true;
+        operatingClassSelect.appendChild(opt);
+
+        // Also clear channels
+        manualChannel.innerHTML = '';
+        manualChannel.disabled = true;
+        console.warn(`No supported_class for ${bandLabel}`);
+        return;
+      }
+
+      // Build class options,
+      const classFrag = document.createDocumentFragment();
+      supportedClass.forEach((clsObj, idx) => {
+        const clsValue = String(clsObj?.class ?? '').trim();
+        if (!clsValue) {
+          console.warn(`Missing "class" in supported_class[${idx}] for ${bandLabel}`, clsObj);
+          return;
+        }
+        const opt = document.createElement('option');
+        opt.value = clsValue;
+        opt.textContent = clsValue;
+        classFrag.appendChild(opt);
+      });
+      operatingClassSelect.appendChild(classFrag);
+
+      // Respect auto_channel
+      manualChannel.disabled = Boolean(config?.auto_channel);
+
+      const populateChannelsForClass = (classValue) => {
+        const classValueStr = String(classValue).trim();
+
+        if (!this.updateChannelConfig[bandIndex]) {
+          this.updateChannelConfig[bandIndex] = {channels: [], class: '', radio_index: -1 };
+        }
+        this.updateChannelConfig[bandIndex].class = parseInt(classValueStr, 10) || 0;
+        this.updateChannelConfig[bandIndex].radio_index = bandIndex;
+
+        // Clear channel options
+        while (manualChannel.firstChild) manualChannel.removeChild(manualChannel.firstChild);
+
+        const clsObj = supportedClass.find(sc => String(sc?.class) === classValueStr);
+
+        if (!clsObj) {
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = 'No channels available for selected class';
+          opt.disabled = true;
+          opt.selected = true;
+          manualChannel.appendChild(opt);
+          this.updateChannelConfig[bandIndex].channels = [];
+          console.warn(`[${bandKey}] Class not found:`, classValueStr, supportedClass);
+          return;
+        }
+
+        const channels = Array.isArray(clsObj.supported_channels) ? clsObj.supported_channels : [];
+
+        if (channels.length === 0) {
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = 'No channels available';
+          opt.disabled = true;
+          opt.selected = true;
+          manualChannel.appendChild(opt);
+          console.warn(`[${bandKey}] No supported_channels for class ${classValueStr}`);
+          return;
+        }
+
+        // Build options efficiently
+        const chanFrag = document.createDocumentFragment();
+        channels.forEach((ch) => {
+          const s = String(ch);
+          const opt = document.createElement('option');
+          opt.value = s;
+          opt.textContent = s;
+          chanFrag.appendChild(opt);
+        });
+        manualChannel.appendChild(chanFrag);
+
+        const channelStrings = new Set(channels.map(String));
+        const currentValue = manualChannel.value;
+
+        let initialChannelValue = '';
+       if (PrevSelectedChannel && channelStrings.has(String(PrevSelectedChannel))) {
+          initialChannelValue = String(PrevSelectedChannel);
+        } else if (currentValue && channelStrings.has(String(currentValue))) {
+          initialChannelValue = String(currentValue);
+        } else {
+          initialChannelValue = String(channels[0]);
+        }
+
+        manualChannel.value = initialChannelValue;
+        this.updateChannelConfig[bandIndex].channels = initialChannelValue
+                    ? [Number.parseInt(initialChannelValue, 10)]: [];
+
+
+        // Attach listener on channel change
+        if (!manualChannel.__channelListenerAttached) {
+          manualChannel.addEventListener('change', (e) => {
+            const raw = e.target?.value ?? '';
+            const newChannel = raw.trim();
+            const nextChannels = newChannel ? [Number.parseInt(newChannel, 10)] : [];
+            this.updateChannelConfig[bandIndex] = {...this.updateChannelConfig[bandIndex], channels: nextChannels};
+            console.log(`[${bandKey}] channel changed ->`, nextChannels);
+
+          });
+          manualChannel.__channelListenerAttached = true;
+        }
+      };
+
+      // ----- Initial selection & population -----
+      const prevStr = String(prevSelectedClass).trim();
+      const selectStr = String(operatingClassSelect.value).trim();
+
+      const initialClassValue = (prevStr === "0") ? selectStr : prevStr;
+
+      operatingClassSelect.value = initialClassValue;
+      populateChannelsForClass(initialClassValue);
+
+      // ----- Class change listener
+      operatingClassSelect.onchange = null;
+
+      operatingClassSelect.addEventListener('change', (e) => {
+        const newVal = String(e.target.value);
+        console.log(`[${bandKey}] class changed:`, newVal);
+
+        if (!this.updateChannelConfig[bandIndex]) {
+          this.updateChannelConfig[bandIndex] = {class: parseInt(newVal, 10), channels: [] , radio_index: bandIndex};
+        } else {
+          this.updateChannelConfig[bandIndex].class = parseInt(newVal, 10);
+        }
+
+        populateChannelsForClass(newVal);
+      }, { once: false });
     });
   }
+
+  setAllRadioPanelsDisabled(disabled = true) {
+    const panelIds = ['2_4g', '5g', '6g'];
+    panelIds.forEach((pid) => {
+      const panel = document.getElementById(`radio-${pid}hz`);
+      if (!panel) {
+        console.warn(`Panel #${pid} not found`);
+        return;
+      }
+      const radioEnabledToggle = document.getElementById(`radio-${pid}-enabled`);
+      const operatingClassSelect = document.getElementById(`radio-${pid}-class`);
+      const manualChannel = document.getElementById(`channel-${pid}-manual`);
+      radioEnabledToggle.checked = false;
+      operatingClassSelect.disabled = disabled;
+      manualChannel.disabled = disabled;
+    });
+  }
+
+getRadioIndexFromBand(bandLabel) {
+  const s = String(bandLabel || '').toLowerCase().trim();
+  if (s.includes('2_4g')) return 0;
+  if (s.includes('5g'))   return 1;
+  if (s.includes('6g'))   return 2;
+  // Fallback (if band not recognized)
+  return -1;
+}
 
   /**
    * Update advanced settings
@@ -482,15 +691,14 @@ class WirelessSettings {
     this.currentEditingProfile = profileId;
     
     if (profileId) {
-      const profile = this.networkProfiles.find(p => p.id === profileId);
+      const profile = this.updatedNetworkProfiles.find(p => p.HaulType === profileId);
       if (profile) {
         title.textContent = 'Edit Network Profile';
         this.populateProfileForm(profile);
       }
     } else {
-      title.textContent = 'Add Network Profile';
-      form.reset();
-      this.handleSecurityTypeChange('WPA3-SAE');
+        console.error('Could not found a valid network profile: ', profileId);
+        this.showNotification('Could not found a valid network profile', 'profileId');
     }
 
     modal.classList.add('active');
@@ -500,20 +708,28 @@ class WirelessSettings {
    * Populate profile form with data
    */
   populateProfileForm(profile) {
-    document.getElementById('profile-name').value = profile.name || '';
-    document.getElementById('profile-ssid').value = profile.ssid || '';
-    document.getElementById('profile-security').value = profile.security_type || 'WPA3-SAE';
-    document.getElementById('profile-passphrase').value = profile.passphrase || '';
-    document.getElementById('profile-vlan').value = profile.vlan_id || 1;
-    document.getElementById('profile-hidden').checked = profile.hidden || false;
-    document.getElementById('profile-guest').checked = profile.guest_network || false;
-    
-    if (profile.bandwidth_limit_mbps) {
-      document.getElementById('profile-bandwidth').value = profile.bandwidth_limit_mbps;
+    let profileName = profile.HaulType
+    if (profileName == "Fronthaul") {
+      profileName = "Home Network"
+    } else if (profileName == "IoT") {
+      profileName = "IOT"
     }
 
-    this.handleSecurityTypeChange(profile.security_type);
-    this.handleGuestNetworkToggle(profile.guest_network);
+    document.getElementById('profile-name').value = profileName || '';
+    document.getElementById('profile-ssid').value = profile.SSID || '';
+    document.getElementById('profile-security').value = profile.Security || 'WPA3-SAE';
+    document.getElementById('profile-passphrase').value = profile.PassPhrase || '';
+    document.getElementById('profile-vlan').value = profile.vlanId || 0;
+    document.getElementById('profile-hidden').checked = profile.hidden || false;
+
+    // hide the passphrase by default
+    const passInput = document.getElementById('profile-passphrase');
+    const toggleBtn = document.getElementById('toggle-passphrase');
+    if (passInput.type === "text") {
+      passInput.type = "password";
+      toggleBtn?.setAttribute('aria-label', 'Show password');
+      toggleBtn?.classList.toggle('active', false);
+    }
   }
 
   /**
@@ -551,45 +767,38 @@ class WirelessSettings {
       passphrase: document.getElementById('profile-passphrase').value,
       vlan_id: parseInt(document.getElementById('profile-vlan').value),
       hidden: document.getElementById('profile-hidden').checked,
-      guest_network: document.getElementById('profile-guest').checked,
       enabled: true
     };
 
-    if (profileData.guest_network) {
-      const bandwidthLimit = document.getElementById('profile-bandwidth').value;
-      if (bandwidthLimit) {
-        profileData.bandwidth_limit_mbps = parseInt(bandwidthLimit);
-      }
+    // Store updated data locally, will send complete update on apply button
+    if (this.currentEditingProfile) {
+      const index = this.networkProfiles.findIndex(p => p.HaulType === this.currentEditingProfile);
+        if (index !== -1) {
+          if((profileData.ssid !== this.networkProfiles[index].SSID) || 
+             (profileData.passphrase !== this.networkProfiles[index].PassPhrase)) {
+              this.updatedProfileKeys.add(this.networkProfiles[index].HaulType);
+          } else {
+            if (this.updatedProfileKeys.has(this.networkProfiles[index].HaulType)) {
+              this.updatedProfileKeys.delete(this.networkProfiles[index].HaulType);
+            }
+          }
+          const updateIndex = this.updatedNetworkProfiles.findIndex(p => p.HaulType === this.currentEditingProfile);
+            if (updateIndex !== -1) {
+              this.updatedNetworkProfiles[updateIndex].SSID = profileData.ssid;
+              this.updatedNetworkProfiles[updateIndex].PassPhrase = profileData.passphrase;
+              this.updatedNetworkProfiles[updateIndex].vlanId = profileData.vlan_id;
+            }
+        }
     }
 
-    try {
-      let response;
-      if (this.currentEditingProfile) {
-        response = await this.apiCall(`/wireless/profiles/${this.currentEditingProfile}`, {
-          method: 'PUT',
-          body: profileData
-        });
-      } else {
-        response = await this.apiCall('/wireless/profiles', {
-          method: 'POST',
-          body: profileData
-        });
-      }
+    this.showNotification(
+        this.currentEditingProfile ? 'Profile updated locally' : 'Profile created locally',
+        'info'
+    );
 
-      if (response.success) {
-        this.showNotification(
-          this.currentEditingProfile ? 'Profile updated successfully' : 'Profile created successfully',
-          'success'
-        );
-        
-        await this.loadWirelessSettings();
-        this.updateNetworkProfiles();
-        this.closeModal('network-profile-modal');
-      }
-    } catch (error) {
-      console.error('Failed to save profile:', error);
-      this.showNotification('Failed to save profile', 'error');
-    }
+    this.updateProfileApplyButtonState();
+    this.updateNetworkProfiles();
+    this.closeModal('network-profile-modal');
   }
 
   /**
@@ -622,33 +831,6 @@ class WirelessSettings {
     } catch (error) {
       console.error('Failed to toggle profile:', error);
       this.showNotification('Failed to toggle profile', 'error');
-    }
-  }
-
-  /**
-   * Delete profile
-   */
-  async deleteProfile(profileId) {
-    const profile = this.networkProfiles.find(p => p.id === profileId);
-    if (!profile) return;
-
-    if (!confirm(`Are you sure you want to delete "${profile.name}"?`)) {
-      return;
-    }
-
-    try {
-      const response = await this.apiCall(`/wireless/profiles/${profileId}`, {
-        method: 'DELETE'
-      });
-
-      if (response.success) {
-        this.networkProfiles = this.networkProfiles.filter(p => p.id !== profileId);
-        this.updateNetworkProfiles();
-        this.showNotification('Profile deleted successfully', 'success');
-      }
-    } catch (error) {
-      console.error('Failed to delete profile:', error);
-      this.showNotification('Failed to delete profile', 'error');
     }
   }
 
@@ -771,10 +953,44 @@ class WirelessSettings {
   }
 
   /**
+   * Send updated network profiles to backend 
+  */
+  async saveNetworkProfileSettings() {
+    const saveBtn = document.getElementById('save-profile-settings');
+
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    }
+
+    try {
+      const settings = this.updatedNetworkProfiles;
+
+      const response = await this.apiCall('/wireless/profiles', {
+        method: 'POST',
+        body: settings
+      });
+
+      if (response.success) {
+        this.showNotification('Wireless network profile saved successfully', 'success');
+        await this.loadWirelessSettings();
+        this.updateAllDisplays();
+      }
+    } catch (error) {
+      console.error('Failed to save wireless settings:', error);
+      this.showNotification('Failed to save wireless network profile  settings', 'error');
+    } finally {
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-save"></i> Apply Network profile';
+      }
+    }
+  }
+  /**
    * Save wireless settings
    */
-  async saveWirelessSettings() {
-    const saveBtn = document.getElementById('save-wireless-settings');
+  async saveRadioSettings() {
+    const saveBtn = document.getElementById('save-radio-settings');
     
     if (saveBtn) {
       saveBtn.disabled = true;
@@ -782,15 +998,35 @@ class WirelessSettings {
     }
 
     try {
-      const settings = this.collectAllSettings();
+      const settings = this.updateChannelConfig;
+      const channelConfigs = Object.values(settings).map(cfg => {
+        const radioIndex = typeof cfg.radio_index === 'string'
+          ? parseInt(cfg.radio_index, 10) : cfg.radio_index;
+
+        const classVal = typeof cfg.class === 'string'
+          ? parseInt(cfg.class, 10) : cfg.class;
+
+        // Ensure channels is an array of integers
+        const channels = Array.isArray(cfg.channels)
+          ? cfg.channels.map(ch => (typeof ch === 'string' ? parseInt(ch, 10) : ch)) : [];
+
+        return {
+          radio_index: Number.isInteger(radioIndex) ? radioIndex : 0,
+          class: Number.isInteger(classVal) ? classVal : 0,
+          channels,
+        };
+      });
+
+      console.log('Updating channel config: ', channelConfigs);
       
-      const response = await this.apiCall('/wireless/config', {
-        method: 'PUT',
-        body: settings
+      const response = await this.apiCall('/wireless/radios', {
+        method: 'POST',
+        body: channelConfigs
       });
 
       if (response.success) {
         this.showNotification('Wireless settings saved successfully', 'success');
+        this.updateChannelConfig = {};
         await this.loadWirelessSettings();
         this.updateAllDisplays();
       }
