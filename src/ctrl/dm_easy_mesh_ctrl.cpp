@@ -153,6 +153,8 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
         return -1;
     }
 
+    pdm->set_topo_state(true);
+
     for (i = 0; i < pdm->get_num_radios(); i++) {
         found = true;
         pbss = pdm->get_bss(pdm->get_radio_info(i)->id.ruid, params->assoc.bssid);
@@ -192,7 +194,7 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
 
     snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
     if ((get_sta(key) != NULL) && (params->assoc.assoc_event == false)){
-        desc.op = dm_orch_type_sta_update;
+        desc.op = dm_orch_type_topo_update;
         desc.submit = false;
         pcmd[num - 1]->override_op(0, &desc);
     }
