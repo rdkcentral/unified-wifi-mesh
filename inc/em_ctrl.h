@@ -700,6 +700,10 @@ public:
 	 */
 	int tr181_reg_data_elements(bus_handle_t *bus_handle);
 
+	static bus_error_t get_node_sync(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+	static bus_error_t set_node_sync(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+	static bus_error_t policy_config(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
 #ifdef AL_SAP
     
 	/**!

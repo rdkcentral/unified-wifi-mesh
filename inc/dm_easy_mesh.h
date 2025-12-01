@@ -83,8 +83,13 @@ public:
     unsigned int    m_num_assoc_sta_mld;
     dm_assoc_sta_mld_t m_assoc_sta_mld[EM_MAX_ASSOC_STA_MLD];
     dm_tid_to_link_t m_tid_to_link;
+    bool m_topo_changed = false;
 
 public:
+
+	bool get_topo_state() { return m_topo_changed; }
+	void set_topo_state(bool state) { m_topo_changed = state; }
+
 	static em_e4_table_t m_e4_table[];
 	
 	/**!
