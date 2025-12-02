@@ -632,7 +632,7 @@ int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[
 			dm.m_num_radios++;
 			radio = m_data_model_list.get_next_radio(dm.m_network.m_net_info.id, dm.m_device.m_device_info.intf.mac, radio);
 		}
-
+		dm.set_db_cfg_param(db_cfg_type_policy_list_update, "");
    		pcmd[num] = new em_cmd_set_policy_t(evt->params, dm);
    		tmp = pcmd[num];
    		num++;

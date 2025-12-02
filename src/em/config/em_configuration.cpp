@@ -1897,26 +1897,49 @@ unsigned short em_configuration_t::create_traffic_separation_policy(unsigned cha
 {
     unsigned short len = 0;
     unsigned int i;
-    em_traffic_sep_policy_t *policy;
-    em_traffic_sep_policy_ssid_t *policy_ssid;
     dm_easy_mesh_t *dm = get_data_model();
+    dm_policy_t *policy;
+    unsigned char *tmp = buff;
+    bool found_match = false;
 
-    policy = reinterpret_cast<em_traffic_sep_policy_t *> (buff);
-    policy->ssids_num = static_cast<unsigned char> (dm->m_num_net_ssids);
-    policy_ssid = policy->ssids;
-
-    len += static_cast<unsigned short int> (sizeof(em_traffic_sep_policy_t));
-
-    for (i = 0; i < dm->m_num_net_ssids; i++) {
-        policy_ssid->ssid_len = static_cast<unsigned char> (strlen(dm->m_network_ssid[i].m_network_ssid_info.ssid) + 1);
-        strncpy(policy_ssid->ssid, dm->m_network_ssid[i].m_network_ssid_info.ssid, policy_ssid->ssid_len);
-        len = len + static_cast<unsigned short int> (sizeof(em_traffic_sep_policy_ssid_t) + policy_ssid->ssid_len + sizeof(unsigned short));
-        policy_ssid = reinterpret_cast<em_traffic_sep_policy_ssid_t *>(reinterpret_cast<unsigned char *>(policy_ssid) + sizeof(em_traffic_sep_policy_ssid_t) + policy_ssid->ssid_len + sizeof(unsigned short));
-        //printf("%s:%d: SSID: %s SSID Len: %d\n", __func__, __LINE__, 
-        //    dm->m_network_ssid[i].m_network_ssid_info.ssid, strlen(dm->m_network_ssid[i].m_network_ssid_info.ssid));
+    for (i = 0; i < dm->get_num_policy(); i++) {
+        policy = &dm->m_policy[i];
+        if (policy->m_policy.id.type == em_policy_id_type_traffic_separation) {
+            found_match = true;
+            break;
+        }
+    }
+    if (found_match == false) {
+        em_printfout("Found Match False ");
+        return 0;
     }
 
-	//printf("%s:%d: Length: %d\n", __func__, __LINE__, len);
+    unsigned char ssids_num = static_cast<unsigned char>(policy->m_policy.traffic_separ.num_ssids);
+    *tmp = ssids_num;
+    tmp += sizeof(unsigned char);
+    len += sizeof(unsigned char);
+
+    for (i = 0; i < policy->m_policy.traffic_separ.num_ssids; i++) {
+        auto &info = policy->m_policy.traffic_separ.ssid_info[i];
+
+        std::vector<unsigned char> ssid_bytes(info.ssid, info.ssid + strlen(info.ssid));
+        unsigned char ssid_len = static_cast<unsigned char>(ssid_bytes.size());
+
+        *tmp = ssid_len;
+        tmp += sizeof(unsigned char);
+        len += sizeof(unsigned char);
+
+        memcpy(tmp, ssid_bytes.data(), ssid_len);
+        tmp += ssid_len;
+        len += ssid_len;
+
+        unsigned short vlan_n = htons(info.vlan_id);
+        memcpy(tmp, &vlan_n, sizeof(vlan_n));
+        tmp += sizeof(unsigned short);
+        len += sizeof(unsigned short);
+        em_printfout(" TRAFFIC SEPARATION SSID='%.*s' Len=%u, VLAN=%u ",ssid_bytes.data(), ssid_len, info.vlan_id);
+    }
+    em_printfout("Length: %d ", len);
     return len;
 }
 
