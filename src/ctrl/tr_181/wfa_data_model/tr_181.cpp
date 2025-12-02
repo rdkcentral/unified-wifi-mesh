@@ -98,18 +98,53 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT_TABLE_ROW(DE_BSS_TABLE, CB(.table_add_row_handler = bss_table_add_row_handler)),
         ELEMENT(DE_STA_TABLE, CB(.table_add_row_handler = sta_table_add_row_handler)),
         ELEMENT(DE_DEVICE_ID, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_MANUFACT, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_SERIALNO, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_MFCMODEL, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_SWVERSION,  CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_EXECENV,    CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_MAPCAP,    CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_NUMRADIO,  CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_COLLINT,   CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_RUASSOC,   CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_MAXRRATE,  CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_MAPPROF,   CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_APMERINT,  CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_MANUFACT,  CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_SERIALNO,  CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_MFCMODEL,  CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_SWVERSION, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_EXECENV, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_LSDSTALIST, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_BTMSDSTALIST, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_MAXVIDS, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_BPRIO, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_EPRIO, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_TSEPPOLI, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_STVMAP, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_DSCPM, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_MAXPRIRULE, CB(.get_handler = device_get)),
         ELEMENT(DE_DEVICE_COUNTRCODE, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_BHMACADDR,  CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_BHALID,     CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_BHMEDIATYPE,CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_RADIONOE,   CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_PRIOSUPP, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_REPINDSCAN, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_TRASEPALW, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_SERPRIOALW, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_STASDISALW, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_DFSENABLE, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_MAXUSASSOCREPRATE, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_STASSTATE, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_COORCACALW, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_CONOPMODE, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_BHMACADDR, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_BHDMACADDR, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_BHPHYRATE, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_TRSEPCAP, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_EASYCCAP, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_TESTCAP, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_BSTAMLDMACLINK, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_MACNUMMLDS, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_BHALID, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_TIDLMAP, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_ASSOCSTAREPINT, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_BHMEDIATYPE, CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_RADIONOE, CB(.get_handler = device_get)),
         ELEMENT(DE_DEVICE_CACSTATNOE, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_BHDOWNNOE,  CB(.get_handler = device_get)),
+        ELEMENT(DE_DEVICE_BHDOWNNOE, CB(.get_handler = device_get)),
         ELEMENT(DE_RADIO_ID,          CB(.get_handler = radio_get)),
         ELEMENT(DE_RADIO_ENABLED,     CB(.get_handler = radio_get)),
         ELEMENT(DE_RADIO_NOISE,       CB(.get_handler = radio_get)),
@@ -131,7 +166,7 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
     bool     table_found = false;
 
     for (index = 0; index < (uint32_t)ARRAY_SIZE(bus_data_cb); index++) {
-	    em_printfout("comparing %s--%s", full_namespace, bus_data_cb[index].cb_table_name);
+	    //em_printfout("comparing %s--%s", full_namespace, bus_data_cb[index].cb_table_name);
         if (strcmp(full_namespace, bus_data_cb[index].cb_table_name) == 0) {
             memcpy(cb_table, &bus_data_cb[index].cb_func, sizeof(bus_callback_table_t));
             table_found = true;
@@ -181,6 +216,7 @@ int tr_181_t::wfa_bus_register_namespace(char *full_namespace, bus_element_type_
 
 bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, bool b)
 {
+    em_printfout("Inside raw_data_set bool:%d", b);
     p_data->data_type = bus_data_type_boolean;
     p_data->raw_data.b = b;
     return bus_error_success;
@@ -188,6 +224,7 @@ bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, bool b)
 
 bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, int32_t i)
 {
+    em_printfout("Inside raw_data_set int32:%d", i);
     p_data->data_type = bus_data_type_int32;
     p_data->raw_data.i32 = i;
     return bus_error_success;
@@ -195,6 +232,7 @@ bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, int32_t i)
 
 bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, uint8_t u)
 {
+    em_printfout("Inside raw_data_set uint8:%d", u);
     p_data->data_type = bus_data_type_uint8;
     p_data->raw_data.u8 = u;
     return bus_error_success;
@@ -202,6 +240,7 @@ bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, uint8_t u)
 
 bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, uint16_t u)
 {
+    em_printfout("Inside raw_data_set uint16:%d", u);
     p_data->data_type = bus_data_type_uint16;
     p_data->raw_data.u16 = u;
     return bus_error_success;
@@ -209,6 +248,7 @@ bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, uint16_t u)
 
 bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, uint32_t u)
 {
+    em_printfout("Inside raw_data_set uint32:%d", u);
     p_data->data_type = bus_data_type_uint32;
     p_data->raw_data.u32 = u;
     return bus_error_success;
@@ -216,6 +256,7 @@ bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, uint32_t u)
 
 bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, const char *str)
 {
+    em_printfout("Inside raw_data_set const char:%s", str);
     uint32_t str_size;
 
     str_size = strlen(str) + 1;
@@ -232,6 +273,7 @@ bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, const char *str)
 
 bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, mac_address_t mac)
 {
+    em_printfout("Inside");
     mac_addr_str_t mac_str;
 
     p_data->data_type = bus_data_type_string;
@@ -248,6 +290,7 @@ bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, mac_address_t mac)
 
 bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, wifi_ieee80211Variant_t var)
 {
+    em_printfout("Inside");
     const char *var_str;
 
     switch (var) {
@@ -288,6 +331,7 @@ bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, wifi_ieee80211Variant_t v
 
 bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, bus_data_prop_t *property)
 {
+    em_printfout("Inside");
     p_data->data_type = bus_data_type_property;
     p_data->raw_data.bytes = malloc(sizeof(bus_data_prop_t));
     if (p_data->raw_data.bytes == NULL) {
@@ -416,6 +460,20 @@ bus_error_t tr_181_t::radio_get(char *event_name, raw_data_t *p_data, bus_user_d
     return bus_error_general;
 }
 
+bus_error_t tr_181_t::bss_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    em_printfout("event name: %s", event_name);
+    if (em_ctrl != NULL)
+    {
+        em_ctrl->get_dm_ctrl()->bss_get(event_name, p_data);
+        return bus_error_success;
+    }
+    
+    return bus_error_general;
+}
+
 bus_error_t tr_181_t::radio_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
@@ -528,20 +586,22 @@ bus_error_t tr_181_t::reg_table_row(char *name, int index)
 
 int tr_181_t::find_radio(dm_easy_mesh_t *dm)
 {
-    int i = 0;
+    unsigned int idx = 0;
     mac_addr_str_t  radio_str, bss_str;
 
-    for (i = 0; i < dm->get_num_radios(); i++) {
+    dm_easy_mesh_t::macbytes_to_string(dm->m_bss[(dm->m_num_bss - 1)].m_bss_info.ruid.mac, bss_str);
+    for (idx = 1; idx <= dm->get_num_radios(); idx++) {
         //DEBUG
-        dm_easy_mesh_t::macbytes_to_string(dm->get_radio_info(i)->id.ruid, radio_str);
-        dm_easy_mesh_t::macbytes_to_string(dm->m_bss[dm->m_num_bss].m_bss_info.ruid.mac, bss_str);
-        em_printfout("Comparing i:%d mac radio:%s bss:%s", i, radio_str, bss_str);
+        dm_easy_mesh_t::macbytes_to_string(dm->get_radio_info(idx - 1)->id.ruid, radio_str);
+        em_printfout("Comparing i:%d mac radio:%s bss:%s", idx, radio_str, bss_str);
 
         if (strcmp(bss_str, radio_str) == 0) {
-            return i;
+            em_printfout("Match found, returning %d", idx);
+            return idx;
         }
     }
 
+    em_printfout("No match found for bss:%s", bss_str);
     return 0;
 }
 
@@ -576,7 +636,7 @@ bus_error_t tr_181_t::add_table_row(char const *name, dm_easy_mesh_t *dm)
         radio_num = em_ctrl->get_dm_ctrl()->find_radio(dm);
         snprintf(namespace_full, sizeof(namespace_full), "%s%s%d.%s%d.%s", 
             DATAELEMS_NETWORK, DEVICE_LIST, device_index, RADIO_LIST, radio_num, BSS_LIST);
-        rc = em_ctrl->get_dm_ctrl()->reg_table_row(namespace_full, dm->m_num_bss);
+        rc = em_ctrl->get_dm_ctrl()->reg_table_row(namespace_full, dm->get_radio_info(radio_num - 1)->number_of_bss);
         if(rc != bus_error_success) {
             em_printfout("Error in registering row for namespace : %s", namespace_full);
             //return rc;
@@ -596,6 +656,7 @@ bus_error_t tr_181_t::wifi_elem_num_of_table_row(char* event_name, uint32_t* tab
     return bus_error_success;
 }
 
+#if 0
 void tr_181_t::register_cjson_namespace(cJSON *node, const std::string &prefix)
 {
     if (!node)
@@ -736,6 +797,7 @@ void tr_181_t::generate_namespaces_without_lib_refined(const std::string &filena
     cJSON_Delete(root);
     std::cout << "\nJSON namespace registration complete.\n";
 }
+#endif
 
 /*bool tr_181_t::parseFile(const std::string& filePath) {
     std::ifstream file(filePath);
@@ -925,10 +987,244 @@ void tr_181_t::getDataModelProperties(cJSON* defObj, const char* typeStr, data_m
     }
 }*/
 
+// Resolve $ref if present on the node; otherwise return the node itself.
+// This uses your existing resolve_ref method.
+cJSON* tr_181_t::follow_ref_if_any(cJSON* root, cJSON* node)
+{
+    if (!node) return nullptr;
+    cJSON* r = cJSON_GetObjectItem(node, "$ref");
+    if (r && cJSON_IsString(r)) {
+        cJSON* resolved = resolve_ref(root, r->valuestring);
+        return resolved ? resolved : node;
+    }
+    // handle combiners with refs like oneOf/anyOf: prefer first ref/object
+    cJSON* comb = cJSON_GetObjectItem(node, "oneOf");
+    if (!comb) comb = cJSON_GetObjectItem(node, "anyOf");
+    if (comb && cJSON_IsArray(comb)) {
+        cJSON* it = comb->child;
+        while (it) {
+            cJSON* maybeRef = cJSON_GetObjectItem(it, "$ref");
+            if (maybeRef && cJSON_IsString(maybeRef)) {
+                cJSON* resolved = resolve_ref(root, maybeRef->valuestring);
+                if (resolved) return resolved;
+            }
+            // if the variant itself has properties, prefer it
+            if (cJSON_GetObjectItem(it, "properties"))
+                return it;
+            it = it->next;
+        }
+    }
+    return node;
+}
+
+// ------------------------------------------------------------
+// Resolve $ref like "#/definitions/Default8021Q_g"
+// ------------------------------------------------------------
+cJSON* tr_181_t::resolve_ref(cJSON* root, const char* refStr)
+{
+    if (!root || !refStr || refStr[0] != '#') return nullptr;
+
+    std::string ref(refStr);
+    // strip "#/"
+    if (ref.rfind("#/", 0) == 0) ref = ref.substr(2);
+
+    cJSON* node = root;
+    size_t pos = 0;
+    while ((pos = ref.find('/')) != std::string::npos)
+    {
+        std::string key = ref.substr(0, pos);
+        ref.erase(0, pos + 1);
+        node = cJSON_GetObjectItem(node, key.c_str());
+        if (!node) return nullptr;
+    }
+    if (!ref.empty())
+        node = cJSON_GetObjectItem(node, ref.c_str());
+
+    return node;
+}
+
+// ------------------------------------------------------------
+// Extract min/max range, type, read/write from leaf node
+// ------------------------------------------------------------
+void tr_181_t::parse_property_constraints(cJSON* schemaNode, data_model_properties_t& props)
+{
+    // min / max from JSON schema
+    cJSON* minimum = cJSON_GetObjectItem(schemaNode, "minimum");
+    cJSON* maximum = cJSON_GetObjectItem(schemaNode, "maximum");
+
+    if (minimum && cJSON_IsNumber(minimum))
+        props.min_data_range = minimum->valuedouble;
+
+    if (maximum && cJSON_IsNumber(maximum))
+        props.max_data_range = maximum->valuedouble;
+}
+
+void tr_181_t::parse_readwrite(cJSON* schemaNode, data_model_properties_t& props)
+{
+    cJSON* writable = cJSON_GetObjectItem(schemaNode, "writable");
+    if (writable && writable->type == cJSON_True)
+        props.data_permission = 1;
+    else
+        props.data_permission = 0;
+}
+
+// ------------------------------------------------------------
+// Handle ANY property under an object: decide if TABLE or PROPERTY
+// ------------------------------------------------------------
+void tr_181_t::handle_property_node(cJSON* root, const std::string& fullPath, cJSON* propertySchema)
+{
+    if (!propertySchema) return;
+
+    bus_callback_table_t cbTable = {0};
+    data_model_properties_t data_model_value;
+    memset(&data_model_value, 0, sizeof(data_model_value));
+
+    // 1) follow top-level $ref / combiners if present
+    cJSON* effective = follow_ref_if_any(root, propertySchema);
+    if (!effective) return;
+
+    // 2) If effective has properties -> expand (this handles $ref -> object with properties)
+    cJSON* propsObj = cJSON_GetObjectItem(effective, "properties");
+    if (propsObj && cJSON_IsObject(propsObj)) {
+        traverse_schema(root, effective, fullPath);
+        return;
+    }
+
+    // 3) If type is array -> register TABLE and examine items
+    cJSON* typeNode = cJSON_GetObjectItem(effective, "type");
+    if (typeNode && cJSON_IsString(typeNode) && strcmp(typeNode->valuestring, "array") == 0) {
+        std::string tableName = fullPath + ".{i}";
+
+        // register table namespace
+        wfa_set_bus_callbackfunc_pointers(tableName.c_str(), &cbTable);
+        // reset and fill constraints for the array property itself
+        memset(&data_model_value, 0, sizeof(data_model_value));
+        parse_property_constraints(effective, data_model_value);
+        parse_readwrite(effective, data_model_value);
+        cbTable.get_handler = NULL;
+        cbTable.set_handler = NULL;
+        wfa_bus_register_namespace((char*)tableName.c_str(), bus_element_type_table, cbTable, data_model_value, 1);
+
+        // now inspect items
+        cJSON* items = cJSON_GetObjectItem(effective, "items");
+        if (!items) return;
+
+        cJSON* itemsEff = follow_ref_if_any(root, items);
+        if (!itemsEff) return;
+
+        cJSON* itemProps = cJSON_GetObjectItem(itemsEff, "properties");
+        if (itemProps && cJSON_IsObject(itemProps)) {
+            // expand row children under tableName (no trailing dot)
+            traverse_schema(root, itemsEff, tableName);
+        } else {
+            // primitive array -> register the row as property
+            memset(&data_model_value, 0, sizeof(data_model_value));
+            parse_property_constraints(itemsEff, data_model_value);
+            parse_readwrite(itemsEff, data_model_value);
+            wfa_set_bus_callbackfunc_pointers(tableName.c_str(), &cbTable);
+            wfa_bus_register_namespace((char*)tableName.c_str(), bus_element_type_property, cbTable, data_model_value, 1);
+        }
+        return;
+    }
+
+    // 4) If type is object (but had no direct properties above),
+    // try to resolve any nested $ref and check again
+    if (typeNode && cJSON_IsString(typeNode) && strcmp(typeNode->valuestring, "object") == 0) {
+        // we've already tried follow_ref_if_any at top-level; if still no properties, treat as leaf object
+        memset(&data_model_value, 0, sizeof(data_model_value));
+        parse_property_constraints(effective, data_model_value);
+        parse_readwrite(effective, data_model_value);
+        wfa_set_bus_callbackfunc_pointers(fullPath.c_str(), &cbTable);
+        wfa_bus_register_namespace((char*)fullPath.c_str(), bus_element_type_property, cbTable, data_model_value, 1);
+        return;
+    }
+
+    // 5) Fallback: primitive (string/number/boolean/enum) - register as property
+    memset(&data_model_value, 0, sizeof(data_model_value));
+    parse_property_constraints(effective, data_model_value);
+    parse_readwrite(effective, data_model_value);
+    wfa_set_bus_callbackfunc_pointers(fullPath.c_str(), &cbTable);
+    wfa_bus_register_namespace((char*)fullPath.c_str(), bus_element_type_property, cbTable, data_model_value, 1);
+}
+
+// ------------------------------------------------------------
+// Traverse object schema and process all "properties"
+// ------------------------------------------------------------
+void tr_181_t::traverse_schema(cJSON* root, cJSON* schemaNode, const std::string& basePath)
+{
+    if (!schemaNode) return;
+
+    // ensure we operate on resolved node (if schemaNode is a wrapper with $ref)
+    cJSON* effective = follow_ref_if_any(root, schemaNode);
+    if (!effective) return;
+
+    cJSON* props = cJSON_GetObjectItem(effective, "properties");
+    if (!props || !cJSON_IsObject(props)) return;
+
+    cJSON* child = props->child;
+    while (child) {
+        if (child->string) {
+            std::string newPath;
+            if (!basePath.empty() && basePath.back() != '.')
+                newPath = basePath + "." + child->string;
+            else
+                newPath = basePath + child->string;
+
+            // pass the child's schema node (not child->child) because child is a property pair
+            handle_property_node(root, newPath, child);
+        }
+        child = child->next;
+    }
+}
+
+// ------------------------------------------------------------
+// Entry function you call from parseFile()
+// ------------------------------------------------------------
+bool tr_181_t::parse_and_register_schema(const char *filename)
+{
+    // Load file
+    FILE* f = fopen(filename, "rb");
+    if (!f) return false;
+
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    std::vector<char> buf(size + 1);
+    fread(buf.data(), 1, size, f);
+    buf[size] = 0;
+    fclose(f);
+
+    cJSON* root = cJSON_Parse(buf.data());
+    if (!root) return false;
+
+    // Find top-level Network element
+    cJSON* props = cJSON_GetObjectItem(root, "properties");
+    if (!props) {
+        cJSON_Delete(root);
+        return false;
+    }
+
+    cJSON* child = props->child;
+    while (child)
+    {
+        if (child->string &&
+            std::string(child->string).find("Network") != std::string::npos)
+        {
+            traverse_schema(root, child, "Network");
+            break;
+        }
+        child = child->next;
+    }
+
+    cJSON_Delete(root);
+    return true;
+}
+
 int tr_181_t::register_wfa_dml()
 {
-    const std::string filename = "Data_Elements_MultiAP_Example_JSON_v3.0.json";
-    //const std::string filename = "Data_Elements_JSON_Schema_v3.0.json";
-    generate_namespaces_without_lib_refined(filename);
+    //const std::string filename = "Data_Elements_MultiAP_Example_JSON_v3.0.json";
+    const char *filename = "Data_Elements_JSON_Schema_v3.0.json";
+    parse_and_register_schema(filename);
     return RETURN_OK;
 }

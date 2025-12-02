@@ -73,7 +73,9 @@ public:
     static bus_error_t radio_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t radio_tget_params(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property);
 
-
+	void fill_comma_sep(em_short_string_t str[], size_t max, char *buf);
+	bus_error_t bss_get(char* event_name, raw_data_t* p_data);
+	static bus_error_t bss_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 private:
     db_client_t m_db_client;
     bool	m_initialized;
