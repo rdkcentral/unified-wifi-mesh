@@ -10,7 +10,7 @@ VETH_AGENT_PEER="${VETH_BASE_IFACE}_virt_peer" # Peer interface for veth pair
 BRIDGE_NAME="br-lan"
 
 # Process configuration
-PROG="/usr/bin/ieee1905"
+PROG="/usr/bin/ieee1905-core"
 PIDFILE="/tmp/ieee1905_agent.pid"
 ARGS="-f ieee1905::al_sap=trace,ieee1905::cmdu_handler=trace,ieee1905::cmdu_proxy=trace,ieee1905::cmdu_observer=trace -i"
 

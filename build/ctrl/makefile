@@ -147,8 +147,11 @@ clean:
 # Google Test integration
 TEST_DIR = $(ONEWIFI_EM_HOME)/tests
 TEST_EXEC = $(INSTALLDIR)/bin/onewifi_em_test
-# Common test files (everything except test_l1_al*.cpp)
-COMMON_TEST_SOURCES = $(filter-out $(TEST_DIR)/test_l1_al%.cpp, $(wildcard $(TEST_DIR)/*.cpp))
+# Common test files (everything except test_l1_em_simulator.cpp and test_l1_al*.cpp)
+EXCLUDE_TESTS = \
+    $(TEST_DIR)/test_l1_al%.cpp \
+    $(TEST_DIR)/test_l1_em_simulator.cpp
+COMMON_TEST_SOURCES = $(filter-out $(EXCLUDE_TESTS), $(wildcard $(TEST_DIR)/*.cpp))
 
 # SAP-specific test files
 SAP_TEST_SOURCES = $(wildcard $(TEST_DIR)/test_l1_al*.cpp)

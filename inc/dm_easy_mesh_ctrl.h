@@ -1651,8 +1651,9 @@ public:
 	 * This function initializes and loads the tables required for the easy mesh control operations.
 	 *
 	 * @returns int
-	 * @retval 0 on success
-	 * @retval -1 on failure
+	 * @retval  0 on success
+	 * @retval -1 on empty data base
+	 * @retval >0 on failure
 	 *
 	 * @note Ensure that the system is properly initialized before calling this function.
 	 */

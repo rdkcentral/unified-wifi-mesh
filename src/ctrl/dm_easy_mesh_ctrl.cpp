@@ -1637,29 +1637,29 @@ int dm_easy_mesh_ctrl_t::load_tables()
     } else if (dm_radio_list_t::load_table(m_db_client) != 0) {
         type = db_cfg_type_radio_list_update;
     } else if (dm_network_ssid_list_t::load_table(m_db_client) != 0) {
-		type = db_cfg_type_network_ssid_list_update;
-	} else if (dm_op_class_list_t::load_table(m_db_client) != 0) {
-		type = db_cfg_type_op_class_list_update;
-	} else if (dm_bss_list_t::load_table(m_db_client) != 0) {
-		type = db_cfg_type_bss_list_update;
-	} else if (dm_sta_list_t::load_table(m_db_client) != 0) {
-		type = db_cfg_type_sta_list_update;
-	} else if (dm_policy_list_t::load_table(m_db_client) != 0) {
-		type = db_cfg_type_policy_list_update;
-	} else if (dm_scan_result_list_t::load_table(m_db_client) != 0) {
-		type = db_cfg_type_scan_result_list_update;
+        type = db_cfg_type_network_ssid_list_update;
+    } else if (dm_op_class_list_t::load_table(m_db_client) != 0) {
+        type = db_cfg_type_op_class_list_update;
+    } else if (dm_bss_list_t::load_table(m_db_client) != 0) {
+        type = db_cfg_type_bss_list_update;
+    } else if (dm_sta_list_t::load_table(m_db_client) != 0) {
+        type = db_cfg_type_sta_list_update;
+    } else if (dm_policy_list_t::load_table(m_db_client) != 0) {
+        type = db_cfg_type_policy_list_update;
+    } else if (dm_scan_result_list_t::load_table(m_db_client) != 0) {
+        type = db_cfg_type_scan_result_list_update;
     }
 
-	if (type != db_cfg_type_none) {
-		return type;
-	}
+    if (type != db_cfg_type_none) {
+        return type;
+    }
 
     if (dm_network_list_t::is_table_empty(m_db_client) == true) {
-        printf("%s:%d: data base empty ... needs reset\n", __func__, __LINE__);
+        printf("%s:%d: data base empty ... needs reset / init setup\n", __func__, __LINE__);
         return -1;
     }
 
-	set_initialized();
+    set_initialized();
 
     return 0;
 }
@@ -2519,7 +2519,19 @@ int dm_easy_mesh_ctrl_t::init(const char *data_model_path, em_mgr_t *mgr)
 
     tr_181_t::init(this);
 
-    if ((rc = load_tables()) != 0) {
+    rc = load_tables();
+
+    //Database is empty and need to fill it, then load tables with data again
+    if (rc == -1) {
+       //Assuming this will not fail, and there is known setup script to fill data
+       printf("%s:%d: data base empty ... fill it from /usr/ccsp/EasyMesh/setup_mysql_db_post.sh\n", __func__, __LINE__);
+       std::system("/usr/ccsp/EasyMesh/setup_mysql_db_post.sh");
+
+       //Load tables and update rc to check it for non-empty database
+       rc = load_tables();
+    }
+
+    if (rc != 0) {
         printf("%s:%d: Load operation failed, err: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(static_cast<dm_orch_type_t> (rc)));
         return -1;
     }

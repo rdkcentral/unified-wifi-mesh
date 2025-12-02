@@ -10,7 +10,7 @@ VETH_CTRL_PEER="${VETH_BASE_IFACE}_virt_peer" # Peer interface for veth pair
 BRIDGE_NAME="br-lan"
 
 # Process 1 configuration
-PROG1="/usr/bin/ieee1905"
+PROG1="/usr/bin/ieee1905-core"
 PIDFILE1="/tmp/ieee1905_ctrl.pid"
 ARGS1="-f ieee1905::al_sap=trace,ieee1905::cmdu_handler=trace,ieee1905::cmdu_proxy=trace,ieee1905::cmdu_observer=trace --sap-data-path /tmp/al_em_ctrl_data_socket --sap-control-path /tmp/al_em_ctrl_control_socket -i"
 
