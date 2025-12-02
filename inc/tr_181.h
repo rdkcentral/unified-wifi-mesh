@@ -111,14 +111,49 @@ typedef struct bus_data_cb_func {
 #define DE_NETWORK_DEVICE       DATAELEMS_NETWORK       "DeviceList.{i}."
 #define DE_DEVICE_TABLE         DE_NETWORK_DEVICE
 #define DE_DEVICE_ID            DE_NETWORK_DEVICE       "ID"
+#define DE_DEVICE_MAPCAP        DE_NETWORK_DEVICE       "MultiAPCapabilities"
+#define DE_DEVICE_NUMRADIO      DE_NETWORK_DEVICE       "NumberOfRadios"
+#define DE_DEVICE_COLLINT       DE_NETWORK_DEVICE       "CollectionInterval"
+#define DE_DEVICE_RUASSOC       DE_NETWORK_DEVICE       "ReportUnsuccessfulAssociations"
+#define DE_DEVICE_MAXRRATE      DE_NETWORK_DEVICE       "MaxReportingRate"
+#define DE_DEVICE_MAPPROF       DE_NETWORK_DEVICE       "MultiAPProfile"
+#define DE_DEVICE_APMERINT      DE_NETWORK_DEVICE       "APMetricsReportingInterval"
 #define DE_DEVICE_MANUFACT      DE_NETWORK_DEVICE       "Manufacturer"
 #define DE_DEVICE_SERIALNO      DE_NETWORK_DEVICE       "SerialNumber"
 #define DE_DEVICE_MFCMODEL      DE_NETWORK_DEVICE       "ManufacturerModel"
 #define DE_DEVICE_SWVERSION     DE_NETWORK_DEVICE       "SoftwareVersion"
 #define DE_DEVICE_EXECENV       DE_NETWORK_DEVICE       "ExecutionEnv"
+#define DE_DEVICE_LSDSTALIST    DE_NETWORK_DEVICE       "LocalSteeringDisallowedSTAList"
+#define DE_DEVICE_BTMSDSTALIST  DE_NETWORK_DEVICE       "BTMSteeringDisallowedSTAList"
+#define DE_DEVICE_MAXVIDS       DE_NETWORK_DEVICE       "MaxVIDs"
+#define DE_DEVICE_BPRIO         DE_NETWORK_DEVICE       "BasicPrioritization"
+#define DE_DEVICE_EPRIO         DE_NETWORK_DEVICE       "EnhancedPrioritization"
+#define DE_DEVICE_TSEPPOLI      DE_NETWORK_DEVICE       "TrafficSeparationPolicy"
+#define DE_DEVICE_STVMAP        DE_NETWORK_DEVICE       "SSIDtoVIDMapping"
+#define DE_DEVICE_DSCPM         DE_NETWORK_DEVICE       "DSCPMap"
+#define DE_DEVICE_MAXPRIRULE    DE_NETWORK_DEVICE       "MaxPrioritizationRules"
 #define DE_DEVICE_COUNTRCODE    DE_NETWORK_DEVICE       "CountryCode"
+#define DE_DEVICE_PRIOSUPP      DE_NETWORK_DEVICE       "PrioritizationSupport"
+#define DE_DEVICE_REPINDSCAN    DE_NETWORK_DEVICE       "ReportIndependentScans"
+#define DE_DEVICE_TRASEPALW     DE_NETWORK_DEVICE       "TrafficSeparationAllowed"
+#define DE_DEVICE_SERPRIOALW    DE_NETWORK_DEVICE       "ServicePrioritizationAllowed"
+#define DE_DEVICE_STASDISALW    DE_NETWORK_DEVICE       "STASteeringDisallowed"
+#define DE_DEVICE_DFSENABLE     DE_NETWORK_DEVICE       "DFSEnable"
+#define DE_DEVICE_MAXUSASSOCREPRATE    DE_NETWORK_DEVICE       "MaxUnsuccessfulAssociationReportingRate"
+#define DE_DEVICE_STASSTATE     DE_NETWORK_DEVICE       "STASteeringState"
+#define DE_DEVICE_COORCACALW    DE_NETWORK_DEVICE       "CoordinatedCACAllowed"
+#define DE_DEVICE_CONOPMODE     DE_NETWORK_DEVICE       "ControllerOperationMode"
 #define DE_DEVICE_BHMACADDR     DE_NETWORK_DEVICE       "BackhaulMACAddress"
+#define DE_DEVICE_BHDMACADDR    DE_NETWORK_DEVICE       "BackhaulDownMACAddress"
+#define DE_DEVICE_BHPHYRATE     DE_NETWORK_DEVICE       "BackhaulPHYRate"
+#define DE_DEVICE_TRSEPCAP      DE_NETWORK_DEVICE       "TrafficSeparationCapability"
+#define DE_DEVICE_EASYCCAP      DE_NETWORK_DEVICE       "EasyConnectCapability"
+#define DE_DEVICE_TESTCAP       DE_NETWORK_DEVICE       "TestCapabilities"
+#define DE_DEVICE_BSTAMLDMACLINK    DE_NETWORK_DEVICE       "bSTAMLDMaxLinks"
+#define DE_DEVICE_MACNUMMLDS    DE_NETWORK_DEVICE       "MaxNumMLDs"
 #define DE_DEVICE_BHALID        DE_NETWORK_DEVICE       "BackhaulALID"
+#define DE_DEVICE_TIDLMAP       DE_NETWORK_DEVICE       "TIDLinkMapping"
+#define DE_DEVICE_ASSOCSTAREPINT    DE_NETWORK_DEVICE       "AssociatedSTAReportingInterval"
 #define DE_DEVICE_BHMEDIATYPE   DE_NETWORK_DEVICE       "BackhaulMediaType"
 #define DE_DEVICE_RADIONOE      DE_NETWORK_DEVICE       "RadioNumberOfEntries"
 #define DE_DEVICE_CACSTATNOE    DE_NETWORK_DEVICE       "CACStatusNumberOfEntries"
@@ -332,6 +367,7 @@ public:
     static bus_error_t radio_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
 
     //BSS
+    static bus_error_t bss_get(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);
     static bus_error_t bss_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t bss_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
 
@@ -358,14 +394,13 @@ public:
     void register_cjson_namespace(cJSON *node, const std::string &prefix);
 
     //Data_Elements_JSON_Schema_v3.0 parsing related functions
-    bool parseFile(const std::string& filePath);
-    bool decodeJsonObject(cJSON* root);
-    void processDefinitions(cJSON* definitions);
-    void decodeObjectsRecursive(cJSON* node, cJSON* defObj, const std::string& namePrefix);
-    void constructNamespaceAndRegister(cJSON* cfgParam, cJSON* defObj, const std::string& namePrefix);
-    void addArrayNodeElements(cJSON* arrayObj, int numElements, const std::string& namePrefix, cJSON* defObj, bus_callback_table_t cbTable);
-    void registerNamespace(const std::string& fullNamespace, const data_model_properties_t& props, bus_element_type_t type, bus_callback_table_t cbTable, int numRows);
-    void getDataModelProperties(cJSON* defObj, const char* typeStr, data_model_properties_t& props);
+    cJSON* follow_ref_if_any(cJSON* root, cJSON* node);
+    cJSON* resolve_ref(cJSON* root, const char* refStr);
+    void parse_property_constraints(cJSON* schemaNode, data_model_properties_t& props);
+    void parse_readwrite(cJSON* schemaNode, data_model_properties_t& props);
+    void handle_property_node(cJSON* root, const std::string& fullPath, cJSON* propertySchema);
+    void traverse_schema(cJSON* root, cJSON* schemaNode, const std::string& basePath);
+    bool parse_and_register_schema(const char *filename);
 };
 
 template <typename T> bus_data_prop_t *tr_181_t::property_init_value(const char *root, unsigned int idx, const char *param, T value)
