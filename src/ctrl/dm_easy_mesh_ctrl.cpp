@@ -1766,6 +1766,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
 			dm_easy_mesh_t::macbytes_to_string(bss.m_bss_info.bssid.mac, bssid_str);
 			snprintf(parent, sizeof(em_2xlong_string_t), "%s@%s@%s@%s@%d", dm->m_network.m_net_info.id, 
 					dev_mac_str, radio_mac_str, bssid_str, bss.m_bss_info.id.haul_type);
+            em_printfout("BSS[%d] Parent ID: %s\n", i, parent);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_bss_list_update);
             if (dm_bss_list_t::set_config(m_db_client, bss, parent) != 0) {
                 at_least_one_failed = true;
@@ -2019,6 +2020,13 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get(char *event_name, raw_data_t *p_data)
     //return bus_error_success;
 }
 
+bus_error_t dm_easy_mesh_ctrl_t::bss_get(char *event_name, raw_data_t *p_data)
+{
+    em_printfout(" bss_get ");
+    return bus_get_cb_fwd(event_name, p_data, bss_get_inner);
+    //return bus_error_success;
+}
+
 bus_error_t dm_easy_mesh_ctrl_t::network_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     em_printfout(" network_get_inner ");
@@ -2129,6 +2137,20 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
 
     if (strcmp(param, "ID") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->intf.mac);
+    } else if (strcmp(param, "MultiAPCapabilities") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->multi_ap_cap);
+    } else if (strcmp(param, "NumberOfRadios") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, dm->m_num_radios);
+    } else if (strcmp(param, "CollectionInterval") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->coll_interval);
+    } else if (strcmp(param, "ReportUnsuccessfulAssociations") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->report_unsuccess_assocs);
+    } else if (strcmp(param, "MaxReportingRate") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->max_reporting_rate);
+    } else if (strcmp(param, "MultiAPProfile") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->profile);
+    } else if (strcmp(param, "APMetricsReportingInterval") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->ap_metrics_reporting_interval);
     } else if (strcmp(param, "Manufacturer") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->manufacturer);
     } else if (strcmp(param, "SerialNumber") == 0) {
@@ -2139,14 +2161,70 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
         rc = dm_ctrl->raw_data_set(p_data, di->software_ver);
     } else if (strcmp(param, "ExecutionEnv") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->exec_env);
+    } else if (strcmp(param, "LocalSteeringDisallowedSTAList") == 0) {
+        //rc = dm_ctrl->raw_data_set(p_data, );
+    } else if (strcmp(param, "BTMSteeringDisallowedSTAList") == 0) {
+        //rc = dm_ctrl->raw_data_set(p_data, );
+    } else if (strcmp(param, "MaxVIDs") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->max_vids);
+    } else if (strcmp(param, "BasicPrioritization") == 0) {
+        //rc = dm_ctrl->raw_data_set(p_data, );
+    } else if (strcmp(param, "EnhancedPrioritization") == 0) {
+        //rc = dm_ctrl->raw_data_set(p_data, );
+    } else if (strcmp(param, "TrafficSeparationPolicy") == 0) {
+        //rc = dm_ctrl->raw_data_set(p_data, );
+    } else if (strcmp(param, "SSIDtoVIDMapping") == 0) {
+        //rc = dm_ctrl->raw_data_set(p_data, );
+    } else if (strcmp(param, "DSCPMap") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->dscp_map);
+    } else if (strcmp(param, "MaxPrioritizationRules") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->max_pri_rules);
     } else if (strcmp(param, "CountryCode") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->country_code);
+    } else if (strcmp(param, "PrioritizationSupport") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->prioritization_sup);
+    } else if (strcmp(param, "ReportIndependentScans") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->report_ind_scans);
+    } else if (strcmp(param, "TrafficSeparationAllowed") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->traffic_sep_allowed);
+    } else if (strcmp(param, "ServicePrioritizationAllowed") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->svc_prio_allowed);
+    } else if (strcmp(param, "STASteeringDisallowed") == 0) {
+        //rc = dm_ctrl->raw_data_set(p_data, );
+    } else if (strcmp(param, "DFSEnable") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->dfs_enable);
+    } else if (strcmp(param, "MaxUnsuccessfulAssociationReportingRate") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->max_unsuccessful_assoc_report_rate);
+    } else if (strcmp(param, "STASteeringState") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->sta_steer_state);
+    } else if (strcmp(param, "CoordinatedCACAllowed") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->coord_cac_allowed);
+    } else if (strcmp(param, "ControllerOperationMode") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->ctrl_operation_mode);
     } else if (strcmp(param, "BackhaulMACAddress") == 0) {
         if (memcmp(di->backhaul_mac.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) == 0) {
             rc = dm_ctrl->raw_data_set(p_data, "");
         } else {
             rc = dm_ctrl->raw_data_set(p_data, di->backhaul_mac.mac);
         }
+    } else if (strcmp(param, "BackhaulDownMACAddress") == 0) {
+        //if (memcmp(di->backhaul_mac.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) == 0) {
+            //rc = dm_ctrl->raw_data_set(p_data, "");
+        //} else {
+            //rc = dm_ctrl->raw_data_set(p_data, di->backhaul_mac.mac);
+        //}
+    } else if (strcmp(param, "BackhaulPHYRate") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->backhaul_phyrate);
+    } else if (strcmp(param, "TrafficSeparationCapability") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->traffic_sep_cap);
+    } else if (strcmp(param, "EasyConnectCapability") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->easy_conn_cap);
+    } else if (strcmp(param, "TestCapabilities") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->test_cap);
+    } else if (strcmp(param, "bSTAMLDMaxLinks") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->bstamld_maxlinks);
+    } else if (strcmp(param, "MaxNumMLDs") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->max_nummlds);
     } else if (strcmp(param, "BackhaulALID") == 0) {
         if (memcmp(di->backhaul_mac.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) == 0) {
             rc = dm_ctrl->raw_data_set(p_data, "");
@@ -2159,6 +2237,10 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
                 rc = dm_ctrl->raw_data_set(p_data, bhdi->id.dev_mac);
             }
         }
+    } else if (strcmp(param, "TIDLinkMapping") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->tidlink_map);
+    } else if (strcmp(param, "AssociatedSTAReportingInterval") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->assoc_sta_reporting_int);
     } else if (strcmp(param, "BackhaulMediaType") == 0) {
         if (memcmp(di->backhaul_mac.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) == 0) {
             rc = dm_ctrl->raw_data_set(p_data, di->backhaul_media_type);
@@ -2288,7 +2370,7 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
         printf("radio is NULL\n");
         return bus_error_invalid_input;
     }
-    em_radio_info_t *ri = &radio->get_radio_info();
+    em_radio_info_t *ri = radio->get_radio_info();
 
     if (strcmp(param, "ID") == 0) {
 #if 0 // enable when libubox is added
@@ -2316,6 +2398,119 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
         rc = dm_ctrl->raw_data_set(p_data, 0U);
     } else if (strcmp(param, "BSSNumberOfEntries") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, ri->number_of_bss);
+    } else {
+        printf("Invalid param: %s\n", param);
+        rc = bus_error_invalid_input;
+    }
+
+    return rc;
+}
+
+void dm_easy_mesh_ctrl_t::fill_comma_sep(em_short_string_t str[], size_t max, char *buf)
+{
+    unsigned int cnt = 0;
+    const char *delim = NULL;
+
+    if (max > 15) {
+        max = 15;
+    }
+
+    while (cnt < max) {
+        if (strlen(str[cnt]) > 0) {
+            if (delim) {
+                strcat(buf, delim);
+            } else {
+                delim = ",";
+            }
+            strcat(buf, str[cnt]);
+        } else {
+            break;
+        }
+        cnt++;
+    }
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    char val_str[1024] = { 0 };
+    int i = 0, count = 0;
+    unsigned int device_instance = 0, radio_instance = 0, bss_instance = 0;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    em_printfout("Incoming event:%s", event_name);
+    if(sscanf(event_name, "Network.DeviceList.%d.RadioList.%d.BSSList.%d", &device_instance, &radio_instance, &bss_instance) == 3) {
+        em_printfout("Extracted device index:%d radio index:%d bss index:%d", device_instance, radio_instance, bss_instance);
+    }
+    else {
+        em_printfout("Unable to extract the device index");
+        //return bus_error_invalid_input;
+    }
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        return bus_error_invalid_input;
+    }
+    ++param;
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
+    em_printfout("dev_id:%d", dm->get_id());
+    if (dm == NULL || (dm->get_id() != device_instance)) {
+        dm = dm_ctrl->get_next_dm(dm);
+        em_printfout("dev_id:%d", dm->get_id());
+    }
+
+    dm_radio_t *radio = &dm->m_radio[radio_instance];
+    if (radio == NULL) {
+        printf("radio is NULL\n");
+        return bus_error_invalid_input;
+    }
+    em_radio_info_t *ri = radio->get_radio_info();
+    em_bss_info_t *bi;
+
+    for(i = 1; i < dm->m_num_bss; i++) {
+        bi = dm->get_bss_info(i);
+        if(memcmp(ri->id.ruid, bi->ruid.mac, sizeof(mac_address_t)) == 0) {
+            count++;
+            if(count == bss_instance) {
+                break;
+            }
+        }
+    }
+
+    if (strcmp(param, "BSSID") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bi->bssid.mac);
+    } else if (strcmp(param, "SSID") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bi->ssid);
+    } else if (strcmp(param, "Enabled") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bi->enabled);
+    } else if (strcmp(param, "ByteCounterUnits") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bi->byte_counter_units);
+    } else if (strcmp(param, "BackhaulUse") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, (bi->id.haul_type == em_haul_type_backhaul));
+    } else if (strcmp(param, "FronthaulUse") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, (bi->id.haul_type == em_haul_type_fronthaul));
+    } else if (strcmp(param, "FronthaulAKMsAllowed") == 0) {
+        dm_ctrl->fill_comma_sep(bi->fronthaul_akm, ARRAY_SIZE(bi->fronthaul_akm), val_str);
+        rc = dm_ctrl->raw_data_set(p_data, val_str);
+    } else if (strcmp(param, "FronthaulSuiteSelector") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, 0U);
+    } else if (strcmp(param, "BackhaulAKMsAllowed") == 0) {
+        dm_ctrl->fill_comma_sep(bi->backhaul_akm, ARRAY_SIZE(bi->backhaul_akm), val_str);
+        rc = dm_ctrl->raw_data_set(p_data, val_str);
+    } else if (strcmp(param, "BackhaulSuiteSelector") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, 0U);
+    } else if (strcmp(param, "STANumberOfEntries") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bi->numberofsta);
     } else {
         printf("Invalid param: %s\n", param);
         rc = bus_error_invalid_input;
