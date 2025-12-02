@@ -131,7 +131,7 @@ onewifi_em_agent_SOURCES =  \
 onewifi_em_agent_LDFLAGS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwifi_webconfig -lrbus
 onewifi_em_agent_LDADD = $(top_builddir)/src/al-sap/libalsap.la
 onewifi_em_agent_test_SOURCES = \
-	$(filter-out $(top_srcdir)/src/agent/em_agent.cpp, $(onewifi_em_agent_SOURCES)) \
+	$(onewifi_em_agent_SOURCES) \
 	$(top_srcdir)/tests/main.cpp \
 	$(top_srcdir)/tests/test_l1_em_simulator.cpp \
 	$(top_srcdir)/tests/test_l1_em_cmd_scan_result.cpp \

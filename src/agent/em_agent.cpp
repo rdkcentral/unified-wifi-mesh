@@ -1857,7 +1857,7 @@ AlServiceAccessPoint* em_agent_t::al_sap_register(const std::string& data_socket
     return sap;
 }
 #endif
-
+#ifndef UNIT_TEST
 int main(int argc, const char *argv[])
 {
     std::vector<std::string> args;
@@ -1922,4 +1922,4 @@ int main(int argc, const char *argv[])
 
     return 0;
 }
-
+#endif
