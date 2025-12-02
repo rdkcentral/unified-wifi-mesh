@@ -130,7 +130,8 @@ onewifi_em_agent_SOURCES =  \
 
 onewifi_em_agent_LDFLAGS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwifi_webconfig -lrbus
 onewifi_em_agent_LDADD = $(top_builddir)/src/al-sap/libalsap.la
-onewifi_em_agent_test_SOURCES = $(onewifi_em_agent_SOURCES) \
+onewifi_em_agent_test_SOURCES = \
+	$(filter-out $(top_srcdir)/src/agent/em_agent.cpp, $(onewifi_em_agent_SOURCES)) \
 	$(top_srcdir)/tests/main.cpp \
 	$(top_srcdir)/tests/test_l1_em_simulator.cpp \
 	$(top_srcdir)/tests/test_l1_em_cmd_scan_result.cpp \
@@ -141,22 +142,22 @@ onewifi_em_agent_test_SOURCES = $(onewifi_em_agent_SOURCES) \
 	$(top_srcdir)/tests/test_l1_em_cmd_mld_reconfig.cpp \
 	$(top_srcdir)/tests/test_l1_em_cmd_sta_link_metrics.cpp \
 	$(top_srcdir)/tests/test_l1_em_cmd_beacon_report.cpp \
-        $(top_srcdir)/tests/test_l1_em_cmd_cfg_renew.cpp \
-        $(top_srcdir)/tests/test_l1_em_cmd_client_cap.cpp \
-        $(top_srcdir)/tests/test_l1_em_cmd_get_device.cpp \
-        $(top_srcdir)/tests/test_l1_em_cmd_get_mld_config.cpp \
-        $(top_srcdir)/tests/test_l1_em_cmd_op_channel_report.cpp \
-        $(top_srcdir)/tests/test_l1_em_cmd_remove_device.cpp \
-        $(top_srcdir)/tests/test_l1_em_cmd_reset.cpp \
-        $(top_srcdir)/tests/test_l1_em_cmd_scan_channel.cpp \
-        $(top_srcdir)/tests/test_l1_em_cmd_set_policy.cpp \
-        $(top_srcdir)/tests/test_l1_em_cmd_set_radio.cpp \
-        $(top_srcdir)/tests/test_l1_em_cmd_set_ssid.cpp \
-        $(top_srcdir)/tests/test_l1_em_cmd_sta_assoc.cpp \
-        $(top_srcdir)/tests/test_l1_em_cmd_sta_list.cpp \
-        $(top_srcdir)/tests/test_l1_em_cmd_sta_steer.cpp \
-        $(top_srcdir)/tests/test_l1_em_cmd_start_dpp.cpp \
-        $(top_srcdir)/tests/test_l1_em_cmd_topo_sync.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_cfg_renew.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_client_cap.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_get_device.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_get_mld_config.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_op_channel_report.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_remove_device.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_reset.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_scan_channel.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_set_policy.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_set_radio.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_set_ssid.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_sta_assoc.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_sta_list.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_sta_steer.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_start_dpp.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_topo_sync.cpp \
 	$(top_srcdir)/tests/test_l1_em_cmd_onewifi_cb.cpp	
 onewifi_em_agent_test_CPPFLAGS = $(onewifi_em_agent_CPPFLAGS) \
 	-I$(PKG_CONFIG_SYSROOT_DIR)$(includedir)/gtest \
