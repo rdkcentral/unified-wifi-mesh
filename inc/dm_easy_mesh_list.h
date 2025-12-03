@@ -271,7 +271,7 @@ public:
 	 * @note Ensure that the key is unique and the device structure is properly initialized before calling this function.
 	 */
 	void put_device(const char *key, const dm_device_t *dev);
-
+	void update_device(const char *key, const dm_device_t *dev);
     
 	/**!
 	 * @brief Retrieves the first radio from the list.

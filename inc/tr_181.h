@@ -20,6 +20,7 @@
 #define TR_181_H
 
 #include "bus.h"
+#include "dm_easy_mesh.h"
 #include <string>
 #include <memory>
 #include <cjson/cJSON.h>
@@ -37,42 +38,10 @@
 #define LIST_OF_DEFINITION_NAME "List_Of_Def"
 #define MAX_NUM_OF_OBJECTS_NAME "Num_Of_Objects"
 
-// typedef struct {
-//     em_short_string_t ssid;
-//     bool enable;
-//     em_short_string_t add_remove_change;
-//     em_short_string_t passphrase;
-//     em_short_string_t band;
-//     em_short_string_t akms_allowed;
-//     bool advertisement_enabled;
-//     em_short_string_t mfp_config;
-//     em_short_string_t mobility_domain;
-//     em_short_string_t haul_type;
-// } tr_cmd_setssid;
-
 typedef struct {
     uint32_t id;
     bus_error_t rc;
 } bus_resp_get_t;
-// Callback function typedefs
-// typedef bool (*dml_get_bool_cb_t)    (void *obj_ins_context, char *param_name, bool *value);
-// typedef bool (*dml_set_bool_cb_t)    (void *obj_ins_context, char *param_name, bool value);
-// typedef bool (*dml_get_int_cb_t)     (void *obj_ins_context, char *param_name, int *value);
-// typedef bool (*dml_set_int_cb_t)     (void *obj_ins_context, char *param_name, int value);
-// typedef bool (*dml_get_uint_cb_t)    (void *obj_ins_context, char *param_name, uint32_t *value);
-// typedef bool (*dml_set_uint_cb_t)    (void *obj_ins_context, char *param_name, uint32_t value);
-// typedef bool (*dml_get_string_cb_t)  (void *obj_ins_context, char *param_name, scratch_data_buff_t *value);
-// typedef bool (*dml_set_string_cb_t)  (void *obj_ins_context, char *param_name, scratch_data_buff_t *value);
-
-// typedef struct dml_callback_table {
-//     dml_get_bool_cb_t    get_bool_value;
-//     dml_get_int_cb_t     get_int_value;
-//     dml_set_bool_cb_t    set_bool_value;
-//     dml_set_int_cb_t     set_int_value;
-//     dml_set_uint_cb_t    set_uint_value;
-//     dml_set_string_cb_t  set_string_value;
-// } dml_callback_table_t;
-
 typedef struct bus_data_cb_func {
     char                  *cb_table_name;
     bus_callback_table_t  cb_func;
@@ -85,8 +54,6 @@ typedef struct bus_data_cb_func {
 #define MAX_INSTANCE_LEN        32
 #define MAX_CAPS_STR_LEN        32
 #define ARRAY_SIZE(a)           (sizeof(a) / sizeof(a[0]))
-
-
 
 /* Device.WiFi.DataElements.Network */
 #define DE_NETWORK_ID           DATAELEMS_NETWORK       "ID"
@@ -379,7 +346,6 @@ typedef struct bus_data_cb_func {
 #define ELEMENT_METHOD(n, f, t)     {n, bus_element_type_method, CALLBACK_METHOD(f), ELEMENT_DEFAULTS(t)}
 #define ELEMENT_TABLE(n, f, t)      {n, bus_element_type_table, CALLBACK_GETTER(f), ELEMENT_DEFAULTS(t)}
 
-
 #define CALLBACK_ADD_ROW(f)          {NULL, NULL, f, NULL, NULL, NULL}
 #define CB(...)                      (bus_callback_table_t){ __VA_ARGS__ }
 #define ELEMENT(n, f)                {n, f}
@@ -473,12 +439,7 @@ public:
     // virtual bus_error_t bss_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
     // virtual bus_error_t ssid_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
 
-	// int get_nb_pipe_rd() { return m_nb_pipe_rd; }
-	// int get_nb_pipe_wr() { return m_nb_pipe_wr; }
-    // uint32_t get_next_nb_evt_id() { return m_nb_evt_id++; }
-
     // Data model access
-    // wfa_dml_data_model_t* get_dml_data_model_param();
     bus_error_t wifi_elem_num_of_table_row(char* event_name, uint32_t* table_row_size);
     
     // File operations

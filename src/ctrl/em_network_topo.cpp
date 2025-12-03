@@ -29,7 +29,6 @@
 #include "dm_easy_mesh_ctrl.h"
 #include "em_ctrl.h"
 
-// extern em_ctrl_t g_ctrl;
 extern em_network_topo_t *g_network_topology;
 
 void em_network_topo_t::encode(cJSON *parent)

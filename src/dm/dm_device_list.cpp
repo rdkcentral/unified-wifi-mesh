@@ -62,13 +62,13 @@ int dm_device_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
     return 0;
 }
 
-int dm_device_list_t::set_config(db_client_t& db_client, dm_device_t& device, void *key, const char *criteria)
+int dm_device_list_t::set_config(db_client_t& db_client, dm_device_t& device, void *key)
 {
     dm_orch_type_t op;
 
 	dm_device_t::parse_device_id_from_key(static_cast<char *> (key), &device.m_device_info.id);
  
-    update_db(db_client, (op = get_dm_orch_type(db_client, device, criteria)), device.get_device_info());
+    update_db(db_client, (op = get_dm_orch_type(db_client, device)), device.get_device_info());
     update_list(device, op);
 
     return 0;
@@ -93,7 +93,7 @@ int dm_device_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, v
     return 0;
 }
 
-dm_orch_type_t dm_device_list_t::get_dm_orch_type(db_client_t& db_client, const dm_device_t& dev, const char *criteria)
+dm_orch_type_t dm_device_list_t::get_dm_orch_type(db_client_t& db_client, const dm_device_t& dev)
 {
     dm_device_t *pdev;
     mac_addr_str_t  mac_str;
@@ -104,22 +104,16 @@ dm_orch_type_t dm_device_list_t::get_dm_orch_type(db_client_t& db_client, const 
 
     pdev = get_device(key);
     
-    if (pdev != NULL) {
-
-        if (strcmp(criteria, "sync") == 0) {
-            em_printfout("Device: %s force sync, override stale db and dm", util::mac_to_string(pdev->m_device_info.id.dev_mac).c_str());
-            return dm_orch_type_db_insert;
-        }
-        
+    if (pdev != NULL) {        
         if (entry_exists_in_table(db_client, key) == false) {
-            printf("%s:%d: Device: %s does not exist in db\n", __func__, __LINE__, 
-                         dm_easy_mesh_t::macbytes_to_string(pdev->m_device_info.id.dev_mac, mac_str));
+            //printf("%s:%d: Device: %s does not exist in db\n", __func__, __LINE__, 
+                        //dm_easy_mesh_t::macbytes_to_string(pdev->m_device_info.id.dev_mac, mac_str));
             return dm_orch_type_db_insert;
         }
 
         if (*pdev == dev) { 
-            printf("%s:%d: Device: %s already in list\n", __func__, __LINE__, 
-                        dm_easy_mesh_t::macbytes_to_string(pdev->m_device_info.id.dev_mac, mac_str));
+            //printf("%s:%d: Device: %s already in list\n", __func__, __LINE__, 
+                        //dm_easy_mesh_t::macbytes_to_string(pdev->m_device_info.id.dev_mac, mac_str));
             if (compare_db(db_client, dev) != true) {
                 em_printfout("Dev and DB data mismatch, needs an update");
                 return dm_orch_type_db_update;
@@ -128,8 +122,8 @@ dm_orch_type_t dm_device_list_t::get_dm_orch_type(db_client_t& db_client, const 
         }
 
 
-        printf("%s:%d: Device: %s in list but needs update\n", __func__, __LINE__,
-            dm_easy_mesh_t::macbytes_to_string(pdev->m_device_info.id.dev_mac, mac_str));
+        //printf("%s:%d: Device: %s in list but needs update\n", __func__, __LINE__,
+            //dm_easy_mesh_t::macbytes_to_string(pdev->m_device_info.id.dev_mac, mac_str));
         return dm_orch_type_db_update;
     }  
 
@@ -141,6 +135,7 @@ void dm_device_list_t::update_list(const dm_device_t& dev, dm_orch_type_t op)
     dm_device_t *pdev;
     mac_addr_str_t	mac_str;
     em_2xlong_string_t	key;
+    dm_easy_mesh_t *dm;
 
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (dev.m_device_info.id.dev_mac), mac_str);
     snprintf(key, sizeof(em_2xlong_string_t), "%s@%s@%d", dev.m_device_info.id.net_id, mac_str, dev.m_device_info.id.media);
@@ -152,9 +147,8 @@ void dm_device_list_t::update_list(const dm_device_t& dev, dm_orch_type_t op)
             break;
 
         case dm_orch_type_db_update:
-        printf("    =============== dm_orch_type_db_update\n");
-            pdev = get_device(key);
-            memcpy(&pdev->m_device_info, &dev.m_device_info, sizeof(em_device_info_t));
+            printf("    =============== dm_orch_type_db_update\n");
+            update_device(key, &dev);
             break;
 
         case dm_orch_type_db_delete:

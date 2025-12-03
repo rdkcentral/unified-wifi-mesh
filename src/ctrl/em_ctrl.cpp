@@ -46,14 +46,11 @@
 #include "em_orch_ctrl.h"
 #include "util.h"
 #include "wifi_util.h"
-// #include "tr_181.h"
-// #include "wfa_data_model_parser.h"
 
 #ifdef AL_SAP
 #include "al_service_access_point.h"
 #endif
 
-// em_ctrl_t g_ctrl;
 em_ctrl_t *em_ctrl_t::s_em_ctrl = NULL;
 em_network_topo_t *g_network_topology = NULL;
 
@@ -74,35 +71,32 @@ void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
 
     info = &evt->u.commit;
 
-    em_printfout("======>>>>>> handle_dm_commit: %p \n", &new_dm);
     dm_easy_mesh_t::macbytes_to_string(info->mac, mac_str);
-
     dm = m_data_model.get_data_model(info->net_id, info->mac);
     if (dm == NULL) {
         new_dm.init();
-        em_printfout(" data model mac: %s and info->net_id : %s\n",mac_str, info->net_id);
+        em_printfout("data model mac: %s and info->net_id : %s\n",mac_str, info->net_id);
         memcpy(new_dm.m_device.m_device_info.id.dev_mac, info->mac, sizeof(mac_addr_t));
         memcpy(new_dm.m_device.m_device_info.intf.mac, info->mac, sizeof(mac_addr_t));
         strncpy(new_dm.m_device.m_device_info.id.net_id, info->net_id, strlen(info->net_id) + 1);
-        em_printfout("======>>>>>>  data model dev mac: %s and int.mac: %s\n", util::mac_to_string(new_dm.m_device.m_device_info.id.dev_mac).c_str(),
+        em_printfout("data model dev mac: %s and int.mac: %s\n", util::mac_to_string(new_dm.m_device.m_device_info.id.dev_mac).c_str(),
             util::mac_to_string(new_dm.m_device.m_device_info.intf.mac).c_str());
 
         if ((net = m_data_model.get_network(info->net_id)) != NULL) {
-            em_printfout("  ===>>> net id: %s", net->m_net_info.id);
+            em_printfout("net id: %s", net->m_net_info.id);
             pnet = new_dm.get_network();
             *pnet = *net;
 
             ref_dm = get_data_model(net->m_net_info.id, net->m_net_info.colocated_agent_id.mac);
             assert(ref_dm != NULL);
             new_dm.set_num_network_ssid(ref_dm->get_num_network_ssid());
-            em_printfout("  ===>>> Number of network ssid in reference data model: %d\n", ref_dm->get_num_network_ssid());
             for (int i = 0; i < ref_dm->get_num_network_ssid(); i++) {
                 pnet_ssid = new_dm.get_network_ssid(i);
                 net_ssid = ref_dm->get_network_ssid(i);
                 *pnet_ssid = *net_ssid;
             }
         }
-        em_printfout("======>>>>>>  data model dev mac: %s and int.mac: %s\n", util::mac_to_string(new_dm.m_device.m_device_info.id.dev_mac).c_str(),
+        em_printfout("data model dev mac: %s and int.mac: %s\n", util::mac_to_string(new_dm.m_device.m_device_info.id.dev_mac).c_str(),
             util::mac_to_string(new_dm.m_device.m_device_info.intf.mac).c_str());
         new_dm.set_db_cfg_param(db_cfg_type_device_list_update, "");
         m_data_model.set_config(&new_dm);
@@ -466,8 +460,6 @@ void em_ctrl_t::handle_nb_event(em_nb_event_t *evt)
     assert(resp != NULL);
     resp->id = evt->id;
 
-    em_printfout("handle_nb_event =================");
-
     switch (evt->type) {
         case NB_REQTYPE_GET: {
             char *name = evt->u.get.name;
@@ -635,11 +627,11 @@ void em_ctrl_t::publish_network_topology()
     raw.raw_data.bytes = reinterpret_cast<unsigned char *> (str);
     raw.raw_data_len = static_cast<unsigned int> (strlen(str));
 
-    // if (desc->bus_event_publish_fn(&g_ctrl.m_bus_hdl, DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY, &raw)== 0) {
-    //     printf("%s:%d Topology published successfull\n",__func__, __LINE__);
-    // } else {
-    //     printf("%s:%d Topology publish fail\n",__func__, __LINE__);
-    // }
+    if (desc->bus_event_publish_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY, &raw)== 0) {
+        printf("%s:%d Topology published successfull\n",__func__, __LINE__);
+    } else {
+        printf("%s:%d Topology publish fail\n",__func__, __LINE__);
+    }
 }
 
 int em_ctrl_t::data_model_init(const char *data_model_path)
@@ -729,7 +721,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             }
 
             dm_easy_mesh_t::macbytes_to_string(intf.mac, mac_str1);
-            printf("%s:%d: Received autoconfig search from agent al mac: %s\n", __func__, __LINE__, mac_str1);
+            em_printfout("[%s] Received autoconfig search from agent al mac: %s\n", __func__, mac_str1);
             if ((dm = get_data_model(GLOBAL_NET_ID, const_cast<const unsigned char *> (intf.mac))) == NULL) {
                 if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_profile(&profile) == false) {
                     profile = em_profile_type_1;
@@ -738,10 +730,10 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 memcpy(dm_commit.mac, intf.mac, sizeof(mac_addr_t));
                 strncpy(dm_commit.net_id, GLOBAL_NET_ID, sizeof(GLOBAL_NET_ID));
                 io_process(em_bus_event_type_dm_commit, reinterpret_cast<unsigned char *> (&dm_commit), sizeof(em_commit_info_t));
-                printf("%s:%d: Creating data model for mac: %s net: %s\n", __func__, __LINE__, mac_str1, GLOBAL_NET_ID);
+                em_printfout("[%s] Creating data model for mac: %s net: %s\n", __func__, mac_str1, GLOBAL_NET_ID);
             } else {
                 dm_easy_mesh_t::macbytes_to_string(dm->get_agent_al_interface_mac(), mac_str1);
-                printf("%s:%d: Found existing data model for mac: %s net: %s\n", __func__, __LINE__, mac_str1, GLOBAL_NET_ID);
+                em_printfout("[%s] Found existing data model for mac: %s net: %s\n", __func__, mac_str1, GLOBAL_NET_ID);
             }
             em = al_em;
             break;
@@ -995,18 +987,6 @@ void em_ctrl_t::start_complete()
        	printf("%s:%d Collocated agent ID: %s publish  fail\n",__func__, __LINE__, al_mac_str);
    	}
 
-	// int pipefd[2];
-	// int rcp;
-	// rcp = pipe2(pipefd, O_DIRECT);
-	// if (rcp == -1) {
-	// 	return;
-	// }
-
-	// m_nb_pipe_rd = pipefd[0];
-	// m_nb_pipe_wr = pipefd[1];
-
-	// tr181_reg_data_elements(&m_bus_hdl);
-
 	// build initial network topology
 	init_network_topology();
 
@@ -1033,22 +1013,20 @@ void em_ctrl_t::start_complete()
 	}
 }
 
+em_ctrl_t *em_ctrl_t::get_em_ctrl_instance()
+{
+    if (s_em_ctrl == nullptr) {
+        s_em_ctrl = new em_ctrl_t();
+    }
+    return s_em_ctrl;
+}
 
 em_ctrl_t::em_ctrl_t()
 {
-    // m_nb_pipe_rd = 0;
-    // m_nb_pipe_rd = 0;
-    // m_nb_evt_id = 0;
 }
 
 em_ctrl_t::~em_ctrl_t()
 {
-    // if (m_nb_pipe_rd != 0) {
-    //     close(m_nb_pipe_rd);
-    // }
-    // if (m_nb_pipe_wr != 0) {
-    //     close(m_nb_pipe_wr);
-    // }
 }
 
 #ifdef AL_SAP
