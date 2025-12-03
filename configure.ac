@@ -53,7 +53,7 @@ AC_C_INLINE
 AC_FUNC_MALLOC
  
 AC_CONFIG_FILES(
-    src/cli/Makefile
+    src/rdkb-cli/Makefile
     src/network_optimiser/Makefile
     src/al-sap/Makefile
     src/ctrl/Makefile
