@@ -35,47 +35,44 @@
 #include "db_client.h"
 #include "dm_easy_mesh_list.h"
 #include "em_network_topo.h"
-// #include "em_ctrl.h"
 
 class em_cmd_t;
 class dm_easy_mesh_t;
 class em_mgr_t;
 class em_ctrl_t;
-
-// extern em_ctrl_t g_ctrl;
-
 class dm_easy_mesh_ctrl_t :
     public dm_network_list_t, public dm_device_list_t, public dm_network_ssid_list_t,
     public dm_ieee_1905_security_list_t, public dm_radio_list_t, public dm_radio_cap_list_t,
     public dm_op_class_list_t, public dm_bss_list_t, public dm_sta_list_t, public dm_policy_list_t,
 	public dm_scan_result_list_t {
+
 public:
     int m_nb_pipe_rd;
     int m_nb_pipe_wr;
     uint32_t m_nb_evt_id;
 
-    //em_ctrl_t& m_ctrl = g_ctrl;
     int get_nb_pipe_rd() { return m_nb_pipe_rd; }
     int get_nb_pipe_wr() { return m_nb_pipe_wr; }
     uint32_t get_next_nb_evt_id() { return m_nb_evt_id++; }
-
     bus_error_t bus_get_cb_fwd(char *event_name, raw_data_t *p_data, bus_get_handler_t cb);
-    dm_device_t *get_dm_dev(mac_address_t dev_mac, mac_address_t bmac);
-    dm_sta_t *get_dm_bh_sta(dm_easy_mesh_t *dm, dm_radio_t *radio);
-    
+    void fill_comma_sep(em_short_string_t str[], size_t max, char *buf);
+
     bus_error_t network_get(char *event_name, raw_data_t *p_data);
     static bus_error_t network_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
     bus_error_t device_get(char* event_name, raw_data_t* p_data);
     static bus_error_t device_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    dm_device_t *get_dm_dev(mac_address_t dev_mac, mac_address_t bmac);
 
     bus_error_t radio_get(char* event_name, raw_data_t* p_data);
     static bus_error_t radio_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t radio_tget_params(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property);
 
-	void fill_comma_sep(em_short_string_t str[], size_t max, char *buf);
-	bus_error_t bss_get(char* event_name, raw_data_t* p_data);
-	static bus_error_t bss_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    bus_error_t bss_get(char* event_name, raw_data_t* p_data);
+    static bus_error_t bss_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
+    dm_sta_t *get_dm_bh_sta(dm_easy_mesh_t *dm, dm_radio_t *radio);
+
 private:
     db_client_t m_db_client;
     bool	m_initialized;
@@ -1140,6 +1137,7 @@ public:
 	 */
 	void put_device(const char *key, const dm_device_t *dev) { m_data_model_list.put_device(key, dev); }
 
+	void update_device(const char *key, const dm_device_t *dev) { m_data_model_list.update_device(key, dev); }
     
 	/**!
 	 * @brief Retrieves the first radio from the data model list.

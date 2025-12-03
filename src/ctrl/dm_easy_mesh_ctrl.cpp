@@ -1706,7 +1706,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
 		dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (dm->m_device.m_device_info.intf.mac), dev_mac_str);
     	snprintf(key, sizeof(em_2xlong_string_t), "%s@%s@%d", dm->m_network.m_net_info.id, 
 					dev_mac_str, dm->m_device.m_device_info.id.media);
-        if (dm_device_list_t::set_config(m_db_client, dm->get_device_by_ref(), key, criteria) == 0) {
+        if (dm_device_list_t::set_config(m_db_client, dm->get_device_by_ref(), key) == 0) {
             dm->reset_db_cfg_type(db_cfg_type_device_list_update);
         }
     }
@@ -2778,26 +2778,24 @@ int dm_easy_mesh_ctrl_t::init(const char *data_model_path, em_mgr_t *mgr)
         return -1;
     }
 
-
-    
     return 0;
 }
 
 dm_easy_mesh_ctrl_t::dm_easy_mesh_ctrl_t()
 {
     m_initialized = false;
-     m_nb_pipe_rd = 0;
-        m_nb_pipe_rd = 0;
-        m_nb_evt_id = 0;
+    m_nb_pipe_rd = 0;
+    m_nb_pipe_rd = 0;
+    m_nb_evt_id = 0;
 }
 
 dm_easy_mesh_ctrl_t::~dm_easy_mesh_ctrl_t()
 {
-if (m_nb_pipe_rd != 0) {
-            close(m_nb_pipe_rd);
-        }
-        if (m_nb_pipe_wr != 0) {
-            close(m_nb_pipe_wr);
-        }
+    if (m_nb_pipe_rd != 0) {
+        close(m_nb_pipe_rd);
+    }
+    if (m_nb_pipe_wr != 0) {
+        close(m_nb_pipe_wr);
+    }
 }
 

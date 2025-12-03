@@ -36,14 +36,11 @@ class AlServiceAccessPoint;
 
 class em_ctrl_t : public em_mgr_t {
 
-	static em_ctrl_t *s_em_ctrl;
+    static em_ctrl_t *s_em_ctrl;
 
     dm_easy_mesh_ctrl_t m_data_model;
     em_cmd_ctrl_t   *m_ctrl_cmd;
     em_orch_ctrl_t *m_orch;
-	// int m_nb_pipe_rd;
-	// int m_nb_pipe_wr;
-	// uint32_t m_nb_evt_id;
 	em_dev_test_t dev_test;
 
 	/**!
@@ -70,13 +67,7 @@ class em_ctrl_t : public em_mgr_t {
 
 public:
 
-	static em_ctrl_t *get_em_ctrl_instance()
-	{
-		if (s_em_ctrl == nullptr) {
-			s_em_ctrl = new em_ctrl_t();
-		}
-		return s_em_ctrl;
-	}
+    static em_ctrl_t *get_em_ctrl_instance();
 
 	dm_easy_mesh_ctrl_t *get_dm_ctrl() { return &m_data_model; }
     
@@ -634,34 +625,6 @@ public:
 	 * @note Ensure that the data buffer is valid and the length is correctly specified.
 	 */
 	em_t *find_em_for_msg_type(unsigned char *data, unsigned int len, em_t *al_em);
-
-
-	// /**!
-	//  * @brief Retrieves the read pipe file descriptor.
-	//  *
-	//  * This function returns the read pipe file descriptor for northbound requests.
-	//  *
-	//  * @returns The pipe file descriptor.
-	//  */
-	// int get_nb_pipe_rd() { return m_nb_pipe_rd; }
-
-	// /**!
-	//  * @brief Retrieves the write pipe file descriptor.
-	//  *
-	//  * This function returns the write pipe file descriptor for northbound requests.
-	//  *
-	//  * @returns The pipe file descriptor.
-	//  */
-	// int get_nb_pipe_wr() { return m_nb_pipe_wr; }
-
-	// /**!
-	//  * @brief Retrieves the next northbound event id.
-	//  *
-	//  * This function returns the write pipe file descriptor for northbound requests.
-	//  *
-	//  * @returns The pipe file descriptor.
-	//  */
-	// uint32_t get_next_nb_evt_id() { return m_nb_evt_id++; }
 
 	/**!
 	* @brief Callback registered for getting colocated agent ID

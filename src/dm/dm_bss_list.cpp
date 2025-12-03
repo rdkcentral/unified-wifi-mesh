@@ -125,16 +125,16 @@ dm_orch_type_t dm_bss_list_t::get_dm_orch_type(db_client_t& db_client, const dm_
         }
 
         if (*pbss == bss) {
-            em_printfout("BSS: %s Radio: %s already in list\n", 
-                dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.bssid.mac, bss_mac_str),
-                dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.ruid.mac, radio_mac_str));
+            //em_printfout("BSS: %s Radio: %s already in list\n", 
+                //dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.bssid.mac, bss_mac_str),
+                //dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.ruid.mac, radio_mac_str));
             return dm_orch_type_none;
         }
 
 
-        em_printfout("BSS: %s Radio: %s in list but needs update\n",
-            dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.bssid.mac, bss_mac_str),
-            dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.ruid.mac, radio_mac_str));
+        //em_printfout("BSS: %s Radio: %s in list but needs update\n",
+            //dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.bssid.mac, bss_mac_str),
+            //dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.ruid.mac, radio_mac_str));
         return dm_orch_type_db_update;
     }
 

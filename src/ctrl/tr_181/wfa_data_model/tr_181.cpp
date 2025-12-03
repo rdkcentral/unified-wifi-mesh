@@ -202,13 +202,13 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         if (strcmp(full_namespace, bus_data_cb[index].cb_table_name) == 0) {
             memcpy(cb_table, &bus_data_cb[index].cb_func, sizeof(bus_callback_table_t));
             table_found = true;
-             em_printfout("strcmp namespace:[%s]\n", full_namespace);
+            //  em_printfout("strcmp namespace:[%s]\n", full_namespace);
             break;
         }
     }
 
     if (table_found == false) {
-        em_printfout("default cb set for namespace:[%s]\n", full_namespace);
+        // em_printfout("default cb set for namespace:[%s]\n", full_namespace);
         memcpy(cb_table, &bus_default_data_cb.cb_func, sizeof(bus_callback_table_t));
     }
 
@@ -233,7 +233,7 @@ int tr_181_t::wfa_bus_register_namespace(char *full_namespace, bus_element_type_
         } else {
             dataElements.num_of_table_row = num_of_rows;
         }
-        em_printfout("Add number of row:%d input value:%d\n", dataElements.num_of_table_row, num_of_rows);
+        // em_printfout("Add number of row:%d input value:%d\n", dataElements.num_of_table_row, num_of_rows);
     }
 
     uint32_t num_elements = 1;
@@ -241,7 +241,7 @@ int tr_181_t::wfa_bus_register_namespace(char *full_namespace, bus_element_type_
     if (rc != bus_error_success) {
         em_printfout("bus: bus_regDataElements failed:%s\n", full_namespace);
     }
-    em_printfout("bus: bus_regDataElements success:%s", full_namespace);
+    // em_printfout("bus: bus_regDataElements success:%s", full_namespace);
 
     return RETURN_OK;
 }
@@ -394,7 +394,7 @@ bus_error_t tr_181_t::default_set_param_value(char* event_name, raw_data_t* p_da
     p_data->raw_data_len = sizeof(bool);
 
     (void)user_data;
-    em_printfout("enter:%s\\r\\n", event_name);
+    // em_printfout("enter:%s\\r\\n", event_name);
     return bus_error_success;
 }
 
@@ -610,9 +610,23 @@ bus_error_t tr_181_t::reg_table_row(char *name, int index)
         printf("%s:%d descriptor is null\n", __func__, __LINE__);
     }
 
+    // rc = desc->bus_data_get_fn(&m_bus_handle, name, NULL);
+    // em_printfout("Table row add  get rc: %d", rc);
+    // if (rc == bus_error_success) {
+    //     em_printfout("Table row already exists for name:%s index:%d, rc:%d", name, index, rc);
+    //     return bus_error_success;
+    // }
+
+    rc = desc->bus_data_get_fn(&m_bus_handle, name, NULL);
+    em_printfout(" ====>>> Before Table row add  get rc: %d", rc);
+
     em_printfout("Calling reg_table for name:%s index:%d", name, index);
     rc = desc->bus_reg_table_row_fn(&m_bus_handle, name, index, NULL);
     
+
+    rc = desc->bus_data_get_fn(&m_bus_handle, name, NULL);
+    em_printfout(" ====>>> Table row add  get rc: %d", rc);
+
     return rc;
 }
 
@@ -639,13 +653,14 @@ int tr_181_t::find_radio(dm_easy_mesh_t *dm)
 
 bus_error_t tr_181_t::add_table_row(char const *name, dm_easy_mesh_t *dm)
 {
-    int device_index = 0;
+    int device_index = -1;
     int i = 0, radio_num = 0;
     bus_error_t rc = bus_error_invalid_input;
     char namespace_full[256], temp[256];
+    int index = 0;
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
     
-    em_printfout("Inside");
+    em_printfout("add_table_row with Device instance : %d\n", dm->get_id());
     device_index = dm->get_id();
     em_printfout("Name:%s device_num:%d", name, device_index);
 
@@ -653,27 +668,21 @@ bus_error_t tr_181_t::add_table_row(char const *name, dm_easy_mesh_t *dm)
         em_printfout("Inside DeviceList. device_num:%d", device_index);
         snprintf(namespace_full, sizeof(namespace_full), "%s%s",
             DATAELEMS_NETWORK, DEVICE_LIST);
-        rc = em_ctrl->get_dm_ctrl()->reg_table_row(namespace_full, device_index);
+        index = device_index;
     } else if(strcmp(name, DE_RADIO_TABLE) == 0) {
         em_printfout("Inside RadioList. radio_num:%d", dm->m_num_radios);
         snprintf(namespace_full, sizeof(namespace_full), "%s%s%d.%s", 
             DATAELEMS_NETWORK, DEVICE_LIST, device_index, RADIO_LIST);
-        rc = em_ctrl->get_dm_ctrl()->reg_table_row(namespace_full, dm->m_num_radios);
-        if(rc != bus_error_success) {
-            em_printfout("Error in registering row for namespace : %s", namespace_full);
-            //return rc;
-        }
+        index = device_index;
     } else if(strcmp(name, DE_BSS_TABLE) == 0) {
         em_printfout("Inside BSSList. bss_num:%d", dm->m_num_bss);
         radio_num = em_ctrl->get_dm_ctrl()->find_radio(dm);
         snprintf(namespace_full, sizeof(namespace_full), "%s%s%d.%s%d.%s", 
             DATAELEMS_NETWORK, DEVICE_LIST, device_index, RADIO_LIST, radio_num, BSS_LIST);
-        rc = em_ctrl->get_dm_ctrl()->reg_table_row(namespace_full, ++dm->m_radio[radio_num-1].m_num_bss);
-        if(rc != bus_error_success) {
-            em_printfout("Error in registering row for namespace : %s", namespace_full);
-            //return rc;
-        }
+        index = ++dm->m_radio[radio_num-1].m_num_bss;
     }
+
+    rc = em_ctrl->get_dm_ctrl()->reg_table_row(namespace_full, index);    
 
     return rc;
 }
@@ -684,7 +693,7 @@ bus_error_t tr_181_t::wifi_elem_num_of_table_row(char* event_name, uint32_t* tab
     if (table_row_size != NULL) {
         *table_row_size = 0;
     }
-    em_printfout("enter:%s\\r\\n", event_name);
+    //em_printfout("enter:%s\\r\\n", event_name);
     return bus_error_success;
 }
 
