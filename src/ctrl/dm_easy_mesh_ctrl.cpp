@@ -2476,9 +2476,13 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_d
     }
     em_radio_info_t *ri = radio->get_radio_info();
     em_bss_info_t *bi;
+    mac_addr_str_t  radio_str, bss_str;
 
-    for(i = 1; i < dm->m_num_bss; i++) {
+    em_printfout("m_num_bss:%d", dm->m_num_bss);
+    for(i = 0; i < dm->m_num_bss; i++) {
         bi = dm->get_bss_info(i);
+        dm_easy_mesh_t::macbytes_to_string(bi->ruid.mac, bss_str);
+        dm_easy_mesh_t::macbytes_to_string(ri->id.ruid, radio_str);
         if(memcmp(ri->id.ruid, bi->ruid.mac, sizeof(mac_address_t)) == 0) {
             count++;
             if(count == bss_instance) {
@@ -2493,24 +2497,66 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_d
         rc = dm_ctrl->raw_data_set(p_data, bi->ssid);
     } else if (strcmp(param, "Enabled") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, bi->enabled);
+    } else if (strcmp(param, "LastChange") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bi->last_change);
+    } else if (strcmp(param, "TimeStamp") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bi->timestamp);
+    } else if (strcmp(param, "UnicastBytesSent") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bi->unicast_bytes_sent);
+    } else if (strcmp(param, "UnicastBytesReceived") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bi->unicast_bytes_rcvd);
+    } else if (strcmp(param, "MulticastBytesSent") == 0) {
+        //rc = dm_ctrl->raw_data_set(p_data, bi->);
+    } else if (strcmp(param, "MulticastBytesReceived") == 0) {
+        //rc = dm_ctrl->raw_data_set(p_data, bi->);
+    } else if (strcmp(param, "BroadcastBytesSent") == 0) {
+        //rc = dm_ctrl->raw_data_set(p_data, bi->);
+    } else if (strcmp(param, "BroadcastBytesReceived") == 0) {
+        //rc = dm_ctrl->raw_data_set(p_data, bi->);
+    } else if (strcmp(param, "EstServiceParametersBE") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bi->est_svc_params_be);
+    } else if (strcmp(param, "EstServiceParametersBK") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bi->est_svc_params_bk);
+    } else if (strcmp(param, "EstServiceParametersVI") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bi->est_svc_params_vi);
+    } else if (strcmp(param, "EstServiceParametersVO") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bi->est_svc_params_vo);
     } else if (strcmp(param, "ByteCounterUnits") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, bi->byte_counter_units);
+    } else if (strcmp(param, "Profile1bSTAsDisallowed") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bi->profile_1b_sta_allowed);
+    } else if (strcmp(param, "Profile2bSTAsDisallowed") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bi->profile_2b_sta_allowed);
+    } else if (strcmp(param, "AssociationAllowanceStatus") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bi->assoc_allowed_status);
     } else if (strcmp(param, "BackhaulUse") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, (bi->id.haul_type == em_haul_type_backhaul));
     } else if (strcmp(param, "FronthaulUse") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, (bi->id.haul_type == em_haul_type_fronthaul));
+    } else if (strcmp(param, "R1disallowed") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bi->r1_disallowed);
+    } else if (strcmp(param, "R2disallowed") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bi->r2_disallowed);
+    } else if (strcmp(param, "MultiBSSID") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bi->multi_bssid);
+    } else if (strcmp(param, "TransmittedBSSID") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bi->transmitted_bssid);
     } else if (strcmp(param, "FronthaulAKMsAllowed") == 0) {
         dm_ctrl->fill_comma_sep(bi->fronthaul_akm, ARRAY_SIZE(bi->fronthaul_akm), val_str);
         rc = dm_ctrl->raw_data_set(p_data, val_str);
-    } else if (strcmp(param, "FronthaulSuiteSelector") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, 0U);
     } else if (strcmp(param, "BackhaulAKMsAllowed") == 0) {
         dm_ctrl->fill_comma_sep(bi->backhaul_akm, ARRAY_SIZE(bi->backhaul_akm), val_str);
         rc = dm_ctrl->raw_data_set(p_data, val_str);
+    } else if (strcmp(param, "QMDescriptor") == 0) {
+        //rc = dm_ctrl->raw_data_set(p_data, bi->);
+    } else if (strcmp(param, "NumberOfSTA") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bi->numberofsta);
+    } else if (strcmp(param, "LinkRemovalImminent") == 0) {
+        //rc = dm_ctrl->raw_data_set(p_data, bi->);
+    } else if (strcmp(param, "FronthaulSuiteSelector") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, 0U);
     } else if (strcmp(param, "BackhaulSuiteSelector") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, 0U);
-    } else if (strcmp(param, "STANumberOfEntries") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, bi->numberofsta);
     } else {
         printf("Invalid param: %s\n", param);
         rc = bus_error_invalid_input;

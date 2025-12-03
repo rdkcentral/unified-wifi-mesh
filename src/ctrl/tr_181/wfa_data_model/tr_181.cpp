@@ -155,6 +155,38 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_RADIO_CHIPVENDOR,  CB(.get_handler = radio_get)),
         ELEMENT(DE_RADIO_CURROPNOE,   CB(.get_handler = radio_get)),
         ELEMENT(DE_RADIO_BSSNOE,      CB(.get_handler = radio_get)),
+        ELEMENT(DE_BSS_BSSID,            CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_SSID,             CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_ENABLED,          CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_LASTCHG,          CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_TS,               CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_UCAST_TX,         CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_UCAST_RX,         CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_MCAST_TX,         CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_MCAST_RX,         CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_BCAST_TX,         CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_BCAST_RX,         CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_EST_BE,           CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_EST_BK,           CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_EST_VI,           CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_EST_VO,           CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_BYTCNTUNITS,      CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_PROF1_DIS,        CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_PROF2_DIS,        CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_ASSOC_STAT,       CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_BHAULUSE,         CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_FHAULUSE,         CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_R1_DIS,           CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_R2_DIS,           CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_MULTI_BSSID,      CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_TX_BSSID,         CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_FHAULAKMS,        CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_BHAULAKMS,        CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_QM_DESC,          CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_NUM_STA,          CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_LINK_IMM,         CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_FH_SUITE,         CB(.get_handler = bss_get)),
+		ELEMENT(DE_BSS_BH_SUITE,         CB(.get_handler = bss_get)),
     };
 
     bus_data_cb_func_t bus_default_data_cb = { " ",
@@ -614,8 +646,8 @@ bus_error_t tr_181_t::add_table_row(char const *name, dm_easy_mesh_t *dm)
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
     
     em_printfout("Inside");
-    em_printfout("Name:%s device_num:%d", name, device_index);
     device_index = dm->get_id();
+    em_printfout("Name:%s device_num:%d", name, device_index);
 
     if(strcmp(name, DE_DEVICE_TABLE) == 0) {
         em_printfout("Inside DeviceList. device_num:%d", device_index);
@@ -636,7 +668,7 @@ bus_error_t tr_181_t::add_table_row(char const *name, dm_easy_mesh_t *dm)
         radio_num = em_ctrl->get_dm_ctrl()->find_radio(dm);
         snprintf(namespace_full, sizeof(namespace_full), "%s%s%d.%s%d.%s", 
             DATAELEMS_NETWORK, DEVICE_LIST, device_index, RADIO_LIST, radio_num, BSS_LIST);
-        rc = em_ctrl->get_dm_ctrl()->reg_table_row(namespace_full, dm->get_radio_info(radio_num - 1)->number_of_bss);
+        rc = em_ctrl->get_dm_ctrl()->reg_table_row(namespace_full, ++dm->m_radio[radio_num-1].m_num_bss);
         if(rc != bus_error_success) {
             em_printfout("Error in registering row for namespace : %s", namespace_full);
             //return rc;

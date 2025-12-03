@@ -24,6 +24,7 @@
 class dm_radio_t {
 public:
     em_radio_info_t    m_radio_info;
+    int m_num_bss = 0;
 
 public:
     
