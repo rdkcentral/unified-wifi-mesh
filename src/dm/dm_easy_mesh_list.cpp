@@ -42,7 +42,8 @@
 #include "em_cmd_dev_init.h"
 #include <cjson/cJSON.h>
 #include "em_cmd_sta_list.h"
-#include "em_cmd_ap_cap.h" 
+#include "em_cmd_ap_cap.h"
+#include "tr_181.h"
 
 dm_network_t *dm_easy_mesh_list_t::get_first_network()
 {
@@ -222,9 +223,10 @@ void dm_easy_mesh_list_t::put_device(const char *key, const dm_device_t *dev)
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, mac_str);
 
     if ((pdev = get_device(key)) == NULL) {
-        //printf("%s:%d: device at key: %s not found\n", __func__, __LINE__, key);
+        em_printfout("device at key: %s not found\n", key);
 	    dm = create_data_model(dev->m_device_info.id.net_id, &dev->m_device_info.intf, dev->m_device_info.profile);
         pdev = dm->get_device();
+        tr_181_t::add_table_row(DE_DEVICE_TABLE, dm);
     }
     *pdev = *dev;
 	
@@ -234,6 +236,27 @@ void dm_easy_mesh_list_t::put_device(const char *key, const dm_device_t *dev)
 		printf("%s:%d: Device:%s inserted in network:%s\n", __func__, __LINE__, mac_str, id.net_id);
 		dm->m_network.m_net_info.num_of_devices++;
 	}
+}
+
+void dm_easy_mesh_list_t::update_device(const char *key, const dm_device_t *dev)
+{
+    dm_easy_mesh_t *dm;
+    dm_device_t *pdev;
+    mac_addr_str_t mac_str;
+	em_device_id_t	id;
+
+	dm_device_t::parse_device_id_from_key(key, &id);
+	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, mac_str);
+
+    if ((pdev = get_device(key)) != NULL) {
+        memcpy(&pdev->m_device_info, &dev->m_device_info, sizeof(em_device_info_t));
+	    dm = get_data_model(pdev->m_device_info.id.net_id, pdev->m_device_info.id.dev_mac);
+        if (dm == NULL) {
+            em_printfout("Could not find data model for device at key: %s@%s", pdev->m_device_info.id.net_id, mac_str);
+            return;
+        }
+        tr_181_t::add_table_row(DE_DEVICE_TABLE, dm);
+    }
 }
 
 dm_radio_t *dm_easy_mesh_list_t::get_first_radio()
@@ -336,21 +359,23 @@ void dm_easy_mesh_list_t::put_radio(const char *key, const dm_radio_t *radio)
     mac_addr_str_t  dev_mac;
     em_t *em = NULL;
 
-    //printf("%s:%d: Radio: %s\n", __func__, __LINE__, key);
+    printf("%s:%d: Radio: %s\n", __func__, __LINE__, key);
 
     if ((pradio = get_radio(key)) == NULL) {
         dm = get_data_model(radio->m_radio_info.id.net_id, radio->m_radio_info.id.dev_mac);
         dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (radio->m_radio_info.id.dev_mac), dev_mac);
-		//printf("%s:%d: dm: %p net: %s device: %s\n", __func__, __LINE__, dm, radio->m_radio_info.id.net_id, dev_mac);
+		printf("%s:%d: dm: %p net: %s device: %s\n", __func__, __LINE__, dm, radio->m_radio_info.id.net_id, dev_mac);
         if (dm == NULL) {
             return;
         }
 
-        //printf("%s:%d: Current Number of Radios: %d\n", __func__, __LINE__, dm->get_num_radios());
+        printf("%s:%d: Current Number of Radios: %d\n", __func__, __LINE__, dm->get_num_radios());
         dm->set_num_radios(dm->get_num_radios() + 1);
         pradio = dm->get_radio(dm->get_num_radios() - 1);
+        tr_181_t::add_table_row(DE_RADIO_TABLE, dm);
     }
     *pradio = *radio;
+    em_printfout("Radio dev_id is:%s", radio->m_radio_info.id.dev_mac);
 
     dm_easy_mesh_t::macbytes_to_string(pradio->m_radio_info.id.dev_mac, dev_mac);
     if ((em = m_mgr->create_node(&pradio->m_radio_info.intf, static_cast<em_freq_band_t> (pradio->m_radio_info.media_data.band), dm, false,
@@ -500,6 +525,7 @@ void dm_easy_mesh_list_t::put_bss(const char *key, const dm_bss_t *bss)
 	mac_addr_str_t	dev_mac_str, radio_mac_str, bssid_str;
 	dm_easy_mesh_t *dm;
 	dm_bss_t *pbss;
+    unsigned int null_bss = 0;
 
 	dm_bss_t::parse_bss_id_from_key(key, &id);
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
@@ -514,9 +540,14 @@ void dm_easy_mesh_list_t::put_bss(const char *key, const dm_bss_t *bss)
 	if ((pbss = dm->find_matching_bss(&id)) == NULL) {
 		pbss = &dm->m_bss[dm->m_num_bss];
 		dm->m_num_bss++;
+        null_bss = 1;
 	}	
 
 	*pbss = *bss;
+
+    if(null_bss == 1) {
+        tr_181_t::add_table_row(DE_BSS_TABLE, dm);
+    }
 }
 
 dm_sta_t *dm_easy_mesh_list_t::get_first_sta()
@@ -1518,8 +1549,9 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
 
     dm = new dm_easy_mesh_t();
     dm->init();
-    printf("%s:%d: Created data model for net_id: %s mac: %s, coloc:%d\n", __func__, __LINE__, net_id, mac_str, colocated);
+    em_printfout("Created data model for net_id: %s mac: %s, coloc:%d", net_id, mac_str, colocated);
     dm->set_colocated(colocated);
+
 
     dev = dm->get_device();
     memcpy(dev->m_device_info.intf.mac, al_intf->mac, sizeof(mac_address_t));
@@ -1534,7 +1566,10 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
 			dev->m_device_info.id.media, dev->m_device_info.backhaul_mac.media);
 		//Update the easymesh configuration file
 		dev->update_easymesh_json_cfg(colocated);
-	}
+	} else {
+        dm->set_id();
+        em_printfout("dm->get_id():%d", dm->get_id());
+    }
     dev->m_device_info.profile = profile;
 	dm->set_channels_list(op_class, EM_MAX_PRE_SET_CHANNELS);
 	
@@ -1542,7 +1577,7 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
 		dm->set_policy(policy[i]);
 	}
 
-	printf("%s:%d: Number of policies: %d\n", __func__, __LINE__, dm->get_num_policy());
+	em_printfout("Number of policies: %d", dm->get_num_policy());
 
     // is this the first data model
     if ((net = get_network(net_id)) != NULL) {
@@ -1559,8 +1594,11 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
             *pnet_ssid = *net_ssid;
         }
     }
-    printf("%s:%d: Putting data model at key: %s\n", __func__, __LINE__, key);
-    hash_map_put(m_list, strdup(key), dm);	
+    em_printfout("Putting data model at key: %s", key);
+    hash_map_put(m_list, strdup(key), dm);
+
+    //TODO: remove later, dbg code
+    dm_easy_mesh_t *test_dm = get_data_model(net_id, al_intf->mac);
 
     return dm;
 }

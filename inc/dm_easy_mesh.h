@@ -19,6 +19,7 @@
 #ifndef DM_EM_H
 #define DM_EM_H
 #include <vector>
+#include <atomic>
 #include "em_base.h"
 #include "wifi_webconfig.h"
 #include "dm_device.h"
@@ -45,6 +46,10 @@
 class em_t;
 
 class dm_easy_mesh_t {
+    static std::atomic<int> s_counter;
+    int m_instance_num;
+    bool m_topo_changed = false;
+
 public:
     webconfig_subdoc_data_t *m_wifi_data;
 	unsigned int m_num_preferences;
@@ -83,12 +88,13 @@ public:
     unsigned int    m_num_assoc_sta_mld;
     dm_assoc_sta_mld_t m_assoc_sta_mld[EM_MAX_ASSOC_STA_MLD];
     dm_tid_to_link_t m_tid_to_link;
-    bool m_topo_changed = false;
 
 public:
 
 	bool get_topo_state() { return m_topo_changed; }
 	void set_topo_state(bool state) { m_topo_changed = state; }
+	void set_id() { m_instance_num = ++s_counter; }
+	int get_id() const { return m_instance_num; }
 
 	static em_e4_table_t m_e4_table[];
 	
