@@ -93,6 +93,8 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                 em->set_channel_pref_query_tx_count(0);
 				em->set_channel_sel_req_tx_count(0);
                 return true;
+            } else if (em->get_state() == em_state_ctrl_ap_cap_report_received) {
+                return true;
             } else if (em->get_state() == em_state_ctrl_topo_synchronized) {
                 return true;
             } else if (em->get_state() == em_state_ctrl_channel_queried) {
@@ -207,6 +209,8 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 				return true;
             } else if (em->get_state() == em_state_ctrl_wsc_m2_sent) {
                 return true;
+            } else if (em->get_state() == em_state_ctrl_ap_cap_report_received){
+                return true;
             } else if (em->get_state() == em_state_ctrl_topo_synchronized) {
                 return true;
             } else if (em->get_state() == em_state_ctrl_channel_queried) {
@@ -264,6 +268,7 @@ void em_orch_ctrl_t::pre_process_cancel(em_cmd_t *pcmd, em_t *em)
            	em->set_state(em_state_ctrl_misconfigured);
             em->set_topo_query_tx_count(0);
             em->set_channel_pref_query_tx_count(0);
+            em->set_cap_query_tx_count(0);
 			// send cfg renew so that controller can orchestrate renew
 			ev.type = em_event_type_bus;
     		bev = &ev.u.bevt;

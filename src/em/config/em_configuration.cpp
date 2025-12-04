@@ -1476,12 +1476,10 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
     em_long_string_t    key;
     dm_easy_mesh_t  *dm;
     bool found_dev_mac = false;
-    dm_sta_t *sta;
     em_client_assoc_event_t *assoc_evt_tlv;
     em_sta_info_t sta_info;
     em_bus_event_type_client_assoc_params_t    raw;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    bool eligible_to_req_cap = false;
 
 	dm = get_data_model();
 	em_printfout("Topology Notification received, length: %d", len);
@@ -5200,8 +5198,9 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                 std::vector<em_t*> em_radios;
                 get_mgr()->get_all_em_for_al_mac(hdr->dst, em_radios);
                 for (auto &em : em_radios) {
-                    if ((em->get_service_type() == em_service_type_agent) && (em->get_state() < em_state_agent_onewifi_bssconfig_ind)) {
+                    if ((em->get_service_type() == em_service_type_agent) && (em->get_state() < em_state_agent_ap_cap_report)) {
                         em_printfout("radio %s is not configured, ignoring", util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                        em_radios.clear();
                         return;
                     }
                 }
@@ -5465,6 +5464,7 @@ void em_configuration_t::process_ctrl_state()
                     if (em->get_state() != em_state_ctrl_topo_sync_pending) {
                         em_printfout("radio %s is not in topo sync pending state, ignoring",
                             util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                        em_radios.clear();
                         return;
                     }
                 }
