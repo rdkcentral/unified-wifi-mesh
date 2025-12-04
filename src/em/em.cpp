@@ -151,7 +151,9 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             em_printfout("%s(%s) state: %s radio mac:%s", em_cmd_t::get_orch_op_str(pcmd->get_orch_op()),
                     em_cmd_t::get_cmd_type_str(pcmd->m_type), em_t::state_2_str(get_state()),
                     util::mac_to_string(em_t::get_radio_interface_mac()).c_str());
-            if ((pcmd->get_orch_op() == dm_orch_type_topo_sync) && (m_sm.get_state() == em_state_ctrl_wsc_m2_sent)) {
+            if ((pcmd->get_orch_op() == dm_orch_type_ap_cap_query) && (m_sm.get_state() == em_state_ctrl_wsc_m2_sent)) {
+                m_sm.set_state(em_state_ctrl_ap_cap_query_pending);
+            } else if ((pcmd->get_orch_op() == dm_orch_type_topo_sync) && (m_sm.get_state() == em_state_ctrl_ap_cap_report_received)) {
                 m_sm.set_state(em_state_ctrl_topo_sync_pending);
             } else if ((pcmd->get_orch_op() == dm_orch_type_channel_pref) && (m_sm.get_state() == em_state_ctrl_topo_synchronized)) {
                 m_sm.set_state(em_state_ctrl_channel_query_pending);
@@ -299,6 +301,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
             break;
 
         case em_msg_type_ap_cap_query:
+        case em_msg_type_ap_cap_rprt:
         case em_msg_type_client_cap_query:
         case em_msg_type_client_cap_rprt:
             em_capability_t::process_msg(data, len);
@@ -460,6 +463,7 @@ void em_t::handle_ctrl_state()
 
         case em_cmd_type_em_config:
         case em_cmd_type_set_channel:
+            em_capability_t::process_ctrl_state();
             em_configuration_t::process_ctrl_state();
             em_channel_t::process_ctrl_state();
 			em_policy_cfg_t::process_ctrl_state();
@@ -937,14 +941,14 @@ short em_t::create_ap_radio_basic_cap(unsigned char *buff) {
     cap->op_class_num = 0;
     op_class = cap->op_classes;
 
-	for (i = 0; i < get_current_cmd()->get_data_model()->get_num_bss(); i++) {
-		if (memcmp(get_radio_interface_mac(), get_current_cmd()->get_data_model()->get_bss(i)->get_bss_info()->ruid.mac, sizeof(mac_address_t)) == 0) {
+	for (i = 0; i < get_data_model()->get_num_bss(); i++) {
+		if (memcmp(get_radio_interface_mac(), get_data_model()->get_bss(i)->get_bss_info()->ruid.mac, sizeof(mac_address_t)) == 0) {
 			cap->num_bss = static_cast<unsigned char>(cap->num_bss +1);
 		}
 	}
-    for (i = 0; i < get_current_cmd()->get_data_model()->get_num_op_class(); i++) {
-        if (memcmp(get_radio_interface_mac(), get_current_cmd()->get_data_model()->get_op_class_info(i)->id.ruid, sizeof(mac_address_t)) == 0) {
-            em_op_class_info_t *op_class_info = get_current_cmd()->get_data_model()->get_op_class_info(i);
+    for (i = 0; i < get_data_model()->get_num_op_class(); i++) {
+        if (memcmp(get_radio_interface_mac(), get_data_model()->get_op_class_info(i)->id.ruid, sizeof(mac_address_t)) == 0) {
+            em_op_class_info_t *op_class_info = get_data_model()->get_op_class_info(i);
             if ((op_class_info != NULL) && (op_class_info->id.type == em_op_class_type_capability)) {
                 cap->op_class_num++;
                 op_class->op_class = static_cast<unsigned char>(op_class_info->op_class);
@@ -982,7 +986,7 @@ short em_t::create_ap_cap_tlv(unsigned char *buff)
     em_ap_capability_t *ap_cap = reinterpret_cast<em_ap_capability_t *>(buff);
 
     if ((ap_cap == NULL) || (radio_info == NULL)) {
-        printf("%s:%d No data Found\n", __func__, __LINE__);
+        em_printfout("No data Found");
         return 0;
     }
 
@@ -1017,27 +1021,45 @@ short em_t::create_ap_radio_advanced_cap_tlv(unsigned char *buff)
 short em_t::create_ht_tlv(unsigned char *buff)
 {
     short len = 0;
-    em_radio_cap_info_t* cap_info = get_data_model()->get_radio_cap(get_radio_interface_mac())->get_radio_cap_info();
-    em_ap_ht_cap_t *ht_cap = reinterpret_cast<em_ap_ht_cap_t *>(buff);
+    dm_easy_mesh_t  *dm;
+    dm = get_data_model();
+    dm_radio_cap_t *radio_cap = dm->get_radio_cap(get_radio_interface_mac());
 
-    if ((ht_cap == NULL) || (cap_info == NULL)) {
-        printf("%s:%d No data Found\n", __func__, __LINE__);
+    if (radio_cap == NULL) {
+        em_printfout("create_ht_tlv: radio_cap NULL for MAC %s\n",
+                     util::mac_to_string(get_radio_interface_mac()).c_str());
         return 0;
-    }
+    } else {
+        em_radio_cap_info_t* cap_info = radio_cap->get_radio_cap_info();
+        em_ap_ht_cap_t *ht_cap = reinterpret_cast<em_ap_ht_cap_t *>(buff);
 
-    memcpy(&ht_cap, &cap_info->ht_cap, sizeof(em_ap_ht_cap_t));
-    len = sizeof(em_ap_ht_cap_t);
+        if ((ht_cap == NULL) || (cap_info == NULL)) {
+            em_printfout("No data Found");
+            return 0;
+        }
+        memcpy(ht_cap, &cap_info->ht_cap, sizeof(em_ap_ht_cap_t));
+        len = sizeof(em_ap_ht_cap_t);
+    }
     return len;
 }
 
 short em_t::create_vht_tlv(unsigned char *buff)
 {
     short len = 0;
-    em_radio_cap_info_t* cap_info = get_data_model()->get_radio_cap(get_radio_interface_mac())->get_radio_cap_info();
+    dm_easy_mesh_t  *dm;
+    dm = get_data_model();
+    dm_radio_cap_t *radio_cap = dm->get_radio_cap(get_radio_interface_mac());
+
+    if (radio_cap == NULL) {
+        em_printfout("create_vht_tlv: radio_cap NULL for MAC %s\n",
+                     util::mac_to_string(get_radio_interface_mac()).c_str());
+        return 0;
+    }
+    em_radio_cap_info_t* cap_info = radio_cap->get_radio_cap_info();
     em_ap_vht_cap_t *vht_cap = reinterpret_cast<em_ap_vht_cap_t *>(buff);
 
     if ((vht_cap == NULL) || (cap_info == NULL)) {
-        printf("%s:%d No data Found\n", __func__, __LINE__);
+        em_printfout("No data Found");
         return 0;
     }
     memcpy(vht_cap, &cap_info->vht_cap, sizeof(em_ap_vht_cap_t));
@@ -1048,11 +1070,20 @@ short em_t::create_vht_tlv(unsigned char *buff)
 short em_t::create_he_tlv(unsigned char *buff)
 {
     short len = 0;
-    em_radio_cap_info_t* cap_info = get_data_model()->get_radio_cap(get_radio_interface_mac())->get_radio_cap_info();
+    dm_easy_mesh_t  *dm;
+    dm = get_data_model();
+    dm_radio_cap_t *radio_cap = dm->get_radio_cap(get_radio_interface_mac());
+
+    if (radio_cap == NULL) {
+        em_printfout("create_he_tlv: radio_cap NULL for MAC %s\n",
+                     util::mac_to_string(get_radio_interface_mac()).c_str());
+        return 0;
+    }
+    em_radio_cap_info_t* cap_info = radio_cap->get_radio_cap_info();
     em_ap_he_cap_t *he_cap = reinterpret_cast<em_ap_he_cap_t *>(buff);
 
     if ((he_cap == NULL) || (cap_info == NULL)) {
-        printf("%s:%d No data Found\n", __func__, __LINE__);
+        em_printfout("No data Found");
         return 0;
     }
     memcpy(he_cap, &cap_info->he_cap, sizeof(em_ap_he_cap_t));
@@ -1064,11 +1095,20 @@ short em_t::create_he_tlv(unsigned char *buff)
 short em_t::create_wifi6_tlv(unsigned char *buff)
 {
     short len = 0;
-    em_radio_cap_info_t* cap_info = get_data_model()->get_radio_cap(get_radio_interface_mac())->get_radio_cap_info();
+    dm_easy_mesh_t  *dm;
+    dm = get_data_model();
+    dm_radio_cap_t *radio_cap = dm->get_radio_cap(get_radio_interface_mac());
+
+    if (radio_cap == NULL) {
+        em_printfout("create_wifi6_tlv: radio_cap NULL for MAC %s\n",
+                     util::mac_to_string(get_radio_interface_mac()).c_str());
+        return 0;
+    }
+    em_radio_cap_info_t* cap_info = radio_cap->get_radio_cap_info();
     em_radio_wifi6_cap_data_t *wifi6_cap = reinterpret_cast<em_radio_wifi6_cap_data_t *>(buff);
 
     if ((wifi6_cap == NULL) || (cap_info == NULL)) {
-        printf("%s:%d No data Found\n", __func__, __LINE__);
+        em_printfout("No data Found");
         return 0;
     }
     memcpy(wifi6_cap, &cap_info->wifi6_cap, sizeof(em_radio_wifi6_cap_data_t));
@@ -1079,11 +1119,20 @@ short em_t::create_wifi6_tlv(unsigned char *buff)
 short em_t::create_wifi7_tlv(unsigned char *buff)
 {
     short len = 0;
-    em_radio_cap_info_t* cap_info = get_data_model()->get_radio_cap(get_radio_interface_mac())->get_radio_cap_info();
+    dm_easy_mesh_t  *dm;
+    dm = get_data_model();
+    dm_radio_cap_t *radio_cap = dm->get_radio_cap(get_radio_interface_mac());
+
+    if (radio_cap == NULL) {
+        em_printfout("create_wifi7_tlv: radio_cap NULL for MAC %s\n",
+                     util::mac_to_string(get_radio_interface_mac()).c_str());
+        return 0;
+    }
+    em_radio_cap_info_t* cap_info = radio_cap->get_radio_cap_info();
     em_wifi7_agent_cap_t *wifi7_cap = reinterpret_cast<em_wifi7_agent_cap_t *>(buff);
 
     if ((wifi7_cap == NULL) || (cap_info == NULL)) {
-        printf("%s:%d No data Found\n", __func__, __LINE__);
+        em_printfout("No data Found");
         return 0;
     }
     memcpy(wifi7_cap, &cap_info->wifi7_cap, sizeof(em_wifi7_agent_cap_t));
@@ -1094,11 +1143,20 @@ short em_t::create_wifi7_tlv(unsigned char *buff)
 short em_t::create_channelscan_tlv(unsigned char *buff)
 {
     short len = 0;
-    em_radio_cap_info_t* cap_info = get_data_model()->get_radio_cap(get_radio_interface_mac())->get_radio_cap_info();
+    dm_easy_mesh_t  *dm;
+    dm = get_data_model();
+    dm_radio_cap_t *radio_cap = dm->get_radio_cap(get_radio_interface_mac());
+
+    if (radio_cap == NULL) {
+        em_printfout("create_channelscan_tlv: radio_cap NULL for MAC %s\n",
+                     util::mac_to_string(get_radio_interface_mac()).c_str());
+        return 0;
+    }
+    em_radio_cap_info_t* cap_info = radio_cap->get_radio_cap_info();
     em_channel_scan_cap_radio_t *scan = reinterpret_cast<em_channel_scan_cap_radio_t *>(buff);
 
     if ((scan == NULL) || (cap_info == NULL)) {
-        printf("%s:%d No data Found\n", __func__, __LINE__);
+        em_printfout("No data Found");
         return 0;
     }
     memcpy(scan, &cap_info->ch_scan, sizeof(em_channel_scan_cap_radio_t));
@@ -1109,11 +1167,20 @@ short em_t::create_channelscan_tlv(unsigned char *buff)
 short em_t::create_prof_2_tlv(unsigned char *buff)
 {
     short len = 0;
-    em_radio_cap_info_t* cap_info = get_data_model()->get_radio_cap(get_radio_interface_mac())->get_radio_cap_info();
+    dm_easy_mesh_t  *dm;
+    dm = get_data_model();
+    dm_radio_cap_t *radio_cap = dm->get_radio_cap(get_radio_interface_mac());
+
+    if (radio_cap == NULL) {
+        em_printfout("create_prof_2_tlv: radio_cap NULL for MAC %s\n",
+                     util::mac_to_string(get_radio_interface_mac()).c_str());
+        return 0;
+    }
+    em_radio_cap_info_t* cap_info = radio_cap->get_radio_cap_info();
     em_profile_2_ap_cap_t *prof = reinterpret_cast<em_profile_2_ap_cap_t *>(buff);
 
     if ((prof == NULL) || (cap_info == NULL)) {
-        printf("%s:%d No data Found\n", __func__, __LINE__);
+        em_printfout("No data Found");
         return 0;
     }
 
@@ -1130,7 +1197,7 @@ short em_t::create_device_inventory_tlv(unsigned char *buff)
     em_device_inventory_t *invent = reinterpret_cast<em_device_inventory_t *>(buff);
 
     if ((invent == NULL) || (radio_info == NULL)) {
-        printf("%s:%d No data Found\n", __func__, __LINE__);
+        em_printfout("No data Found");
         return 0;
     }
 
@@ -1142,11 +1209,20 @@ short em_t::create_device_inventory_tlv(unsigned char *buff)
 short em_t::create_radioad_tlv(unsigned char *buff)
 {
     short len = 0;
-    em_radio_cap_info_t* cap_info = get_data_model()->get_radio_cap(get_radio_interface_mac())->get_radio_cap_info();
+    dm_easy_mesh_t  *dm;
+    dm = get_data_model();
+    dm_radio_cap_t *radio_cap = dm->get_radio_cap(get_radio_interface_mac());
+
+    if (radio_cap == NULL) {
+        em_printfout("create_radioad_tlv: radio_cap NULL for MAC %s\n",
+                     util::mac_to_string(get_radio_interface_mac()).c_str());
+        return 0;
+    }
+    em_radio_cap_info_t* cap_info = radio_cap->get_radio_cap_info();
     em_ap_radio_advanced_cap_t *ad = reinterpret_cast<em_ap_radio_advanced_cap_t *>(buff);
 
     if ((ad == NULL) || (cap_info == NULL)) {
-        printf("%s:%d No data Found\n", __func__, __LINE__);
+        em_printfout("No data Found");
         return 0;
     }
 
@@ -1158,11 +1234,20 @@ short em_t::create_radioad_tlv(unsigned char *buff)
 short em_t::create_metric_col_int_tlv(unsigned char *buff)
 {
     short len = 0;
-    em_radio_cap_info_t* cap_info = get_data_model()->get_radio_cap(get_radio_interface_mac())->get_radio_cap_info();
+    dm_easy_mesh_t  *dm;
+    dm = get_data_model();
+    dm_radio_cap_t *radio_cap = dm->get_radio_cap(get_radio_interface_mac());
+
+    if (radio_cap == NULL) {
+        em_printfout("create_metric_col_int_tlv: radio_cap NULL for MAC %s\n",
+                     util::mac_to_string(get_radio_interface_mac()).c_str());
+        return 0;
+    }
+    em_radio_cap_info_t* cap_info = radio_cap->get_radio_cap_info();
     em_metric_cltn_interval_t *clt = reinterpret_cast<em_metric_cltn_interval_t *>(buff);
 
     if ((clt == NULL) || (cap_info == NULL)) {
-        printf("%s:%d No data Found\n", __func__, __LINE__);
+        em_printfout("No data Found");
         return 0;
     }
 
@@ -1174,16 +1259,28 @@ short em_t::create_metric_col_int_tlv(unsigned char *buff)
 short em_t::create_cac_cap_tlv(unsigned char *buff)
 {
     short len = 0;
-    em_radio_cap_info_t* cap_info = get_data_model()->get_radio_cap(get_radio_interface_mac())->get_radio_cap_info();
-    em_cac_cap_t *cac = reinterpret_cast<em_cac_cap_t *>(buff);
+    dm_easy_mesh_t  *dm;
+    dm = get_data_model();
+    for(unsigned int index = 0; index < dm->get_num_radios(); index++){
+        dm_radio_t radio = dm->get_radio_by_ref(index);
+        dm_radio_cap_t *radio_cap = dm->get_radio_cap(radio.m_radio_info.intf.mac);
 
-    if ((cac == NULL) || (cap_info == NULL)) {
-        printf("%s:%d No data Found\n", __func__, __LINE__);
-        return 0;
+        if (radio_cap == NULL) {
+            em_printfout("create_cac_cap_tlv: radio_cap NULL for MAC %s\n",
+                         util::mac_to_string(get_radio_interface_mac()).c_str());
+            return 0;
+        }
+        em_radio_cap_info_t* cap_info = radio_cap->get_radio_cap_info();
+        em_cac_cap_t *cac = reinterpret_cast<em_cac_cap_t *>(buff);
+
+        if ((cac == NULL) || (cap_info == NULL)) {
+            em_printfout("No data Found");
+            return 0;
+        }
+
+        memcpy(&cac->radios[index], &cap_info->cac_cap, sizeof(em_cac_cap_radio_t));
+    	cac->radios_num = dm->get_num_radios();
     }
-
-    memcpy(&cac->radios[0], &cap_info->cac_cap, sizeof(em_cac_cap_radio_t));
-    cac->radios_num = 1;
     len = sizeof(em_cac_cap_t);
     return len;
 }
@@ -1730,6 +1827,8 @@ const char *em_t::state_2_str(em_state_t state)
         EM_STATE_2S(em_state_ctrl_unconfigured)
         EM_STATE_2S(em_state_ctrl_wsc_m1_pending)
         EM_STATE_2S(em_state_ctrl_wsc_m2_sent)
+        EM_STATE_2S(em_state_ctrl_ap_cap_query_pending)
+        EM_STATE_2S(em_state_ctrl_ap_cap_report_received)
         EM_STATE_2S(em_state_ctrl_topo_sync_pending)
         EM_STATE_2S(em_state_ctrl_topo_synchronized)
         EM_STATE_2S(em_state_ctrl_channel_query_pending)

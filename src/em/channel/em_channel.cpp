@@ -1974,9 +1974,11 @@ void em_channel_t::process_state()
                 for (auto &em : em_radios){
                     if ((em->get_service_type() == em_service_type_agent) && (em->get_state() >= em_state_agent_channel_selection_pending)){
                         em_printfout("radio %s is not in the right state, State = %d, ignoring", util::mac_to_string(em->get_radio_interface_mac()).c_str(), em->get_state());
+                        em_radios.clear();
                         return;
                     }
                 }
+                em_radios.clear();
                 em_printfout("All radios are configured for al_mac:%s, sending channel preference report",
                              util::mac_to_string(get_data_model()->get_agent_al_interface_mac()).c_str());
 
