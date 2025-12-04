@@ -437,7 +437,7 @@ void em_ctrl_t::handle_nb_event(em_nb_event_t *evt)
         case NB_REQTYPE_GET: {
             char *name = evt->u.get.name;
             raw_data_t *property = static_cast<raw_data_t *> (evt->u.get.property);
-            bus_get_handler_t cb = (bus_get_handler_t) evt->cb;
+            bus_get_handler_t cb = reinterpret_cast<bus_get_handler_t>(evt->cb);
             /* TODO: sending property only for now */
             resp->rc = cb(name, property, NULL);
         } break;
@@ -455,7 +455,7 @@ void em_ctrl_t::handle_nb_event(em_nb_event_t *evt)
             break;
     }
 
-    uintptr_t buf = (uintptr_t)resp;
+    uintptr_t buf = reinterpret_cast<uintptr_t>(resp);
     ssize_t len = write(m_nb_pipe_wr, &buf, sizeof(buf));
     assert(len == sizeof(buf));
 }
@@ -667,7 +667,6 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
     em_2xlong_string_t key;
     unsigned int i;
     bool found;
-    em_string_t al_mac_str;
     mac_addr_str_t mac_str1, mac_str2, dev_mac_str, radio_mac_str;
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
@@ -741,6 +740,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 
             break;
 
+        case em_msg_type_ap_cap_rprt:
         case em_msg_type_topo_resp:
         case em_msg_type_channel_pref_rprt:
         case em_msg_type_channel_sel_rsp:

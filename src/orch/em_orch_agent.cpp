@@ -83,7 +83,7 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             }
             break;
         case em_cmd_type_onewifi_cb:
-            if (em->get_state() == em_state_agent_topo_synchronized) {
+            if (em->get_state() == em_state_agent_ap_cap_report) {
                 return true;
             }
             break;
@@ -158,6 +158,8 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
     } else if (pcmd->m_type == em_cmd_type_onewifi_cb) {
         return true;
     } else if (pcmd->m_type == em_cmd_type_cfg_renew) {
+        return true;
+    } else if (pcmd->m_type == em_cmd_type_ap_cap_query) {
         return true;
     } else if ((pcmd->m_type == em_cmd_type_channel_pref_query) && (em->get_state() >= em_state_agent_topo_synchronized)) {
 		return true;
@@ -389,12 +391,10 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                 break;
 
 	        case em_cmd_type_ap_cap_query:
-                if (!(em->is_al_interface_em())) {
                     dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), dst_mac_str);
                     printf("%s:%d Radio CAP report build candidate MAC=%s\n", __func__, __LINE__,dst_mac_str);
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
-                }
 		        break;
 	        case em_cmd_type_client_cap_query:
                 if (!(em->is_al_interface_em())) {

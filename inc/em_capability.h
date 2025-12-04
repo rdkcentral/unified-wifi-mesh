@@ -468,6 +468,19 @@ class em_capability_t {
 	int send_client_cap_report_msg(mac_address_t sta, bssid_t bss, unsigned short msg_id);
 
 	/**!
+	 * @brief Sends a AP capability query message.
+	 *
+	 * This function is responsible for sending a AP capability query message for a Node.
+	 * 
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 * 
+	 * @note This is called when a new device joins into the network.
+	 */
+	int send_ap_cap_query_msg();
+
+	/**!
 	 * @brief Sends a backhaul sta capability query message.
 	 *
 	 * This function is responsible for sending a backhaul sta capability query message for a Node.
@@ -496,6 +509,38 @@ class em_capability_t {
 	int send_bsta_cap_report_msg(unsigned short msg_id);
 
 	/**!
+	 * @brief Handles the basic capabilities of the AP radio.
+	 *
+	 * This function processes the buffer containing the basic capabilities
+	 * of the AP radio and performs necessary operations based on the data.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the AP radio capabilities.
+	 * @param[in] len Length of the buffer.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure the buffer is properly initialized before calling this function.
+	 */
+	int handle_ap_radio_basic_cap(unsigned char *buff, unsigned int len);
+
+	/**!
+	 * @brief Handles EHT operations TLV.
+	 *
+	 * This function processes the EHT operations TLV from the provided buffer.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the TLV data.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure the buffer is properly allocated and contains valid TLV data before calling this function.
+	 */
+	int handle_eht_operations_tlv(unsigned char *buff);
+
+	/**!
 	 * @brief Creates an AP capability report message.
 	 *
 	 * This function generates a report message for AP capabilities and stores it in the provided buffer.
@@ -508,7 +553,7 @@ class em_capability_t {
 	 *
 	 * @note Ensure that the buffer is allocated with sufficient size before calling this function.
 	 */
-	int create_ap_cap_report_msg(unsigned char *buff);
+	int send_ap_cap_report_msg(unsigned char *buff, unsigned short msg_id);
  
     // state handlers 
     
@@ -633,6 +678,22 @@ class em_capability_t {
 	 * @note Ensure that the data pointer is valid and the length is correct before calling this function.
 	 */
 	void handle_client_cap_query(unsigned char *data, unsigned int len);
+
+		/**!
+	 * @brief Handles the AP capability report.
+	 *
+	 * This function processes the capability report received.
+	 *
+	 * @param[in] data Pointer to the data buffer containing the capability report.
+	 * @param[in] len Length of the data buffer.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the data buffer is valid and the length is correctly specified.
+	 */
+	int handle_ap_cap_report(unsigned char *data, unsigned int len);
     
 	/**!
 	 * @brief Handles the client capability report.

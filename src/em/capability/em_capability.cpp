@@ -45,28 +45,37 @@
 #include "em_cmd_exec.h"
 #include "em_cmd_client_cap.h"
 
-int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
+int em_capability_t::send_ap_cap_report_msg(unsigned char *dst, unsigned short msg_id)
 {
+    unsigned char buff[MAX_EM_BUFF_SZ + MAX_EM_BUFF_SZ];
+    //char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned short  msg_type = em_msg_type_ap_cap_rprt;
-    size_t len = 0;
+    unsigned int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     unsigned char *tmp = buff;
-    short sz = 0;
     unsigned short type = htons(ETH_P_1905);
-    unsigned short msg_id = get_current_cmd()->get_data_model()->get_msg_id();
+    dm_easy_mesh_t  *dm;
+    unsigned short sz = 0;
 
-    memcpy(tmp, reinterpret_cast<unsigned char *> (get_peer_mac()), sizeof(mac_address_t));
-    tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *> (dst);
 
-    memcpy(tmp, get_al_interface_mac(), sizeof(mac_address_t));
+    dm = get_data_model();
+    em_printfout("Number of radios: %d, bss: %d\n",
+                dm->get_num_radios(), dm->get_num_bss());
+
+
+    memcpy(tmp, reinterpret_cast<unsigned char *> (hdr->src), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
+    len += static_cast<unsigned int>(sizeof(mac_address_t));
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += static_cast<unsigned int>(sizeof(mac_address_t));
 
     memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
     tmp += sizeof(unsigned short);
-    len += sizeof(unsigned short);
+    len += static_cast<unsigned int>(sizeof(unsigned short));
 
     cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
 
@@ -77,151 +86,171 @@ int em_capability_t::create_ap_cap_report_msg(unsigned char *buff)
     cmdu->last_frag_ind = 1;
 
     tmp += sizeof(em_cmdu_t);
-    len += sizeof(em_cmdu_t);
+    len += static_cast<unsigned int>(sizeof(em_cmdu_t));
 
-    //AP Capability TLV 17.2.6
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_ap_cap;
-    sz = create_ap_cap_tlv(tlv->value);
-    tlv->len = htons(static_cast<uint16_t> (sz));
+    std::vector<em_t *> em_radios;
+    get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
+    for (auto &em : em_radios)
+    {
+        // AP Capability TLV 17.2.6
+        tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        tlv->type = em_tlv_type_ap_cap;
+        sz = static_cast<unsigned short>(em->create_ap_cap_tlv(tlv->value));
+        tlv->len = htons(static_cast<uint16_t>(sz));
 
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+        len += static_cast<unsigned short>(sizeof(em_tlv_t) + static_cast<size_t>(sz));
 
-    // AP radio basic capabilities 17.2.7
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_ap_radio_basic_cap;
-    sz = create_ap_radio_basic_cap(tlv->value);
-    tlv->len = htons(static_cast<uint16_t> (sz));
+        // AP radio basic capabilities 17.2.7
+        tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        tlv->type = em_tlv_type_ap_radio_basic_cap;
+        sz = static_cast<unsigned short>(em->create_ap_radio_basic_cap(tlv->value));
+        tlv->len = htons(static_cast<uint16_t>(sz));
 
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+        len += static_cast<unsigned int>(sizeof(em_tlv_t) + static_cast<size_t>(sz));
 
-    // AP HT capabilities 17.2.8
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_ht_cap;
-    sz = create_ht_tlv(tlv->value);
-    tlv->len = htons(static_cast<uint16_t> (sz));
+        // AP HT capabilities 17.2.8
+        tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        tlv->type = em_tlv_type_ht_cap;
+        sz = static_cast<unsigned short>(em->create_ht_tlv(tlv->value));
+        tlv->len = htons(static_cast<uint16_t>(sz));
 
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
 
-    // AP VHT capabilities 17.2.9
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_vht_cap;
-    sz = create_vht_tlv(tlv->value);
-    tlv->len = htons(static_cast<uint16_t> (sz));
+        // AP VHT capabilities 17.2.9
+        tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        tlv->type = em_tlv_type_vht_cap;
+        sz = static_cast<unsigned short>(em->create_vht_tlv(tlv->value));
+        tlv->len = htons(static_cast<uint16_t>(sz));
 
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
 
-    // AP HE capabilities 17.2.10
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_he_cap;
-    sz = create_he_tlv(tlv->value);
-    tlv->len = htons(static_cast<uint16_t> (sz));
+        // AP HE capabilities 17.2.10
+        tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        tlv->type = em_tlv_type_he_cap;
+        sz = static_cast<unsigned short>(em->create_he_tlv(tlv->value));
+        tlv->len = htons(static_cast<uint16_t>(sz));
 
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
 
-    // AP WiFi6 capabilities 17.2.72
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_ap_wifi6_cap;
-    sz = create_wifi6_tlv(tlv->value);
-    tlv->len = htons(static_cast<uint16_t> (sz));
+        // AP WiFi6 capabilities 17.2.72
+        tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        tlv->type = em_tlv_type_ap_wifi6_cap;
+        sz = static_cast<unsigned short>(em->create_wifi6_tlv(tlv->value));
+        tlv->len = htons(static_cast<uint16_t>(sz));
 
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
 
-    // AP WiFi7 capabilities 17.2.95
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_wifi7_agent_cap;
-    sz = create_wifi7_tlv(tlv->value);
-    tlv->len = htons(static_cast<uint16_t> (sz));
+        // AP WiFi7 capabilities 17.2.95
+        tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        tlv->type = em_tlv_type_wifi7_agent_cap;
+        sz = static_cast<unsigned short>(em->create_wifi7_tlv(tlv->value));
+        tlv->len = htons(static_cast<uint16_t>(sz));
 
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
 
-    // AP EHT Operations 17.2.103
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_eht_operations;
-    sz = static_cast<short> (create_eht_operations_tlv(tlv->value));
-    tlv->len = htons(static_cast<uint16_t> (sz));
+        // AP EHT Operations 17.2.103
+        tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        tlv->type = em_tlv_eht_operations;
+        sz = static_cast<unsigned short>(em->create_eht_operations_tlv(tlv->value));
+        tlv->len = htons(static_cast<uint16_t>(sz));
 
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
 
-    // AP Channel Scan capabilities 17.2.38
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_channel_scan_cap;
-    sz = create_channelscan_tlv(tlv->value);
-    tlv->len = htons(static_cast<uint16_t> (sz));
+        // AP Channel Scan capabilities 17.2.38
+        tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        tlv->type = em_tlv_type_channel_scan_cap;
+        sz = static_cast<unsigned short>(em->create_channelscan_tlv(tlv->value));
+        tlv->len = htons(static_cast<uint16_t>(sz));
 
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-/*
-    // 1905 layer security capability tlv 17.2.67
-    tlv = (em_tlv_t *)tmp;
-    tlv->type = em_tlv_type_1905_layer_security_cap;
-    tlv->len = htons(sizeof(em_ieee_1905_security_cap_t));
-    memcpy(tlv->value,get_ieee_1905_security_cap(), sizeof(em_ieee_1905_security_cap_t));
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
 
-    tmp += (sizeof(em_tlv_t) + sizeof(em_ieee_1905_security_cap_t));
-    len += (sizeof(em_tlv_t) + sizeof(em_ieee_1905_security_cap_t));
-*/
-    // CAC capabilities 17.2.46
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_cac_cap;
-    sz = create_cac_cap_tlv(tlv->value);
-    tlv->len = htons(static_cast<uint16_t> (sz));
+        // 1905 layer security capability tlv 17.2.67
+        tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        tlv->type = em_tlv_type_1905_layer_security_cap;
+        tlv->len = htons(sizeof(em_ieee_1905_security_cap_t));
+        memcpy(tlv->value, em->get_ieee_1905_security_cap(), sizeof(em_ieee_1905_security_cap_t));
 
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        tmp += (sizeof(em_tlv_t) + sizeof(em_ieee_1905_security_cap_t));
+        len += (sizeof(em_tlv_t) + sizeof(em_ieee_1905_security_cap_t));
 
-    // AP profile 2 capabilities 17.2.48
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_profile_2_ap_cap;
-    sz = create_prof_2_tlv(tlv->value);
-    tlv->len = htons(static_cast<uint16_t> (sz));
+        // CAC capabilities 17.2.46
+        tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        tlv->type = em_tlv_type_cac_cap;
+        sz = static_cast<unsigned short>(em->create_cac_cap_tlv(tlv->value));
+        tlv->len = htons(static_cast<uint16_t>(sz));
 
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
 
-    // Metric collection Interval capability tlv 17.2.59
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_metric_cltn_interval;
-    sz = create_metric_col_int_tlv(tlv->value);
-    tlv->len = htons(static_cast<uint16_t> (sz));
+        // AP profile 2 capabilities 17.2.48
+        tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        tlv->type = em_tlv_type_profile_2_ap_cap;
+        sz = static_cast<unsigned short>(em->create_prof_2_tlv(tlv->value));
+        tlv->len = htons(static_cast<uint16_t>(sz));
 
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
 
-    // Device Inventory tlv 17.2.76
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_device_inventory;
-    sz = create_device_inventory_tlv(tlv->value);
-    tlv->len = htons(static_cast<uint16_t> (sz));
+        // Metric collection Interval capability tlv 17.2.59
+        tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        tlv->type = em_tlv_type_metric_cltn_interval;
+        sz = static_cast<unsigned short>(em->create_metric_col_int_tlv(tlv->value));
+        tlv->len = htons(static_cast<uint16_t>(sz));
 
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
 
-    // One AP radio advanced capability tlv 17.2.52
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_ap_radio_advanced_cap;
-    sz = create_radioad_tlv(tlv->value);
-    tlv->len = htons(static_cast<uint16_t> (sz));
+        // Device Inventory tlv 17.2.76
+        tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        tlv->type = em_tlv_type_device_inventory;
+        sz = static_cast<unsigned short>(em->create_device_inventory_tlv(tlv->value));
+        tlv->len = htons(static_cast<uint16_t>(sz));
 
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
 
+        // One AP radio advanced capability tlv 17.2.52
+        tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        tlv->type = em_tlv_type_ap_radio_advanced_cap;
+        sz = static_cast<unsigned short>(em->create_radioad_tlv(tlv->value));
+        tlv->len = htons(static_cast<uint16_t>(sz));
+
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+
+        em->set_state(em_state_agent_ap_cap_report);
+    }
+    em_radios.clear();
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_eom;
     tlv->len = 0;
 
     tmp += (sizeof(em_tlv_t));
-    len += (sizeof(em_tlv_t));
+    len += static_cast<unsigned int>((sizeof(em_tlv_t)));
 
+    /*if (em_msg_t(em_msg_type_ap_cap_rprt, em_profile_type_3, buff, len).validate(errors) == 0) {
+        printf("Topology Response msg failed validation in tnx end\n");
+
+        return -1;
+    }*/
+
+    em_printfout("frame length: %d", len);
+    if (send_frame(buff, len)  < 0) {
+        em_printfout("AP capability report send failed, error:%d", errno);
+        return -1;
+    }
+    em_printfout("setting state to em_state_agent_ap_cap_report");
+    set_state(em_state_agent_ap_cap_report);
     return static_cast<int> (len);
 }
 
@@ -493,6 +522,66 @@ int em_capability_t::send_client_cap_report_msg(mac_address_t sta, bssid_t bss, 
     printf("%s:%d: Client Capablity report Send Successful for sta:%s\n", __func__, __LINE__, mac_str);
 
     return static_cast<int> (len);
+}
+
+int em_capability_t::send_ap_cap_query_msg()
+{
+    unsigned char buff[MAX_EM_BUFF_SZ];
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    unsigned int len = 0;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    unsigned char *tmp = buff;
+    unsigned short type = htons(ETH_P_1905);
+    dm_easy_mesh_t* dm = NULL;
+
+    dm = get_data_model();
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
+
+    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
+
+    memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += static_cast<unsigned int> (sizeof(unsigned short));
+
+    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
+
+    memset(tmp, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(em_msg_type_ap_cap_query);
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
+    cmdu->last_frag_ind = 1;
+    cmdu->relay_ind = 0;
+
+    tmp += sizeof(em_cmdu_t);
+    len += static_cast<unsigned int> (sizeof(em_cmdu_t));
+
+    // No Tlv
+
+    // End of message
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_eom;
+    tlv->len = 0;
+
+    tmp += (sizeof (em_tlv_t));
+    len += static_cast<unsigned int> (sizeof (em_tlv_t));
+
+    if (em_msg_t(em_msg_type_ap_cap_query, em_profile_type_3, buff, len).validate(errors) == 0) {
+        em_printfout("AP capability Query msg failed validation in tnx end");
+        return -1;
+    }
+
+    if (send_frame(buff, len)  < 0) {
+        em_printfout("%s:%d: AP capability Query send failed, error:%d", errno);
+        return -1;
+    }
+    em_printfout("AP capability Query Sent for radio: %s", util::mac_to_string(get_radio_interface_mac()).c_str());
+
+    return 0;
 }
 
 int em_capability_t::send_bsta_cap_query_msg()
@@ -851,39 +940,469 @@ int em_capability_t::handle_bsta_cap_report(unsigned char *buff, unsigned int le
     return 0;
 }
 
+int em_capability_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned int len)
+{
+	dm_radio_t * radio;
+	mac_address_t	ruid;
+	unsigned int i, j;
+	em_radio_info_t *radio_info;
+	bool radio_exists = false;
+	bool op_class_exists = false;
+	mac_addr_str_t mac_str;
+	em_ap_radio_basic_cap_t *radio_basic_cap = reinterpret_cast<em_ap_radio_basic_cap_t *> (buff);
+	em_op_class_t *basic_cap_op_class;
+	em_op_class_info_t	op_class_info;
+	dm_op_class_t *op_class_obj;
+
+	dm_easy_mesh_t *dm = get_data_model();
+
+	memcpy(ruid, radio_basic_cap->ruid, sizeof(mac_address_t));
+	dm_easy_mesh_t::macbytes_to_string(ruid, mac_str);
+	for (i = 0; i < dm->get_num_radios(); i++) {
+		radio = dm->get_radio(i);
+		if (memcmp(radio->m_radio_info.intf.mac, ruid, sizeof(mac_address_t)) == 0) {
+			radio_exists = true;
+			break;
+		}
+	}
+	if (radio_exists == false) {
+		em_printfout("Radio does not exist, getting radio at index: %d", dm->get_num_radios());
+		radio = dm->get_radio(dm->get_num_radios());
+		memset(&radio->m_radio_info, 0, sizeof(em_radio_info_t));	
+		dm->set_num_radios(dm->get_num_radios() + 1);
+	}
+
+	radio_info = &radio->m_radio_info;
+	memcpy(radio_info->intf.mac, ruid, sizeof(mac_address_t));
+	radio_info->enabled = true;
+	radio_info->number_of_bss = radio_basic_cap->num_bss;
+	dm->set_db_cfg_param(db_cfg_type_radio_list_update, "");
+
+	basic_cap_op_class = radio_basic_cap->op_classes;
+	if (basic_cap_op_class != NULL) {
+		for (i = 0; i < radio_basic_cap->op_class_num; i++) {
+			memset(&op_class_info, 0, sizeof(em_op_class_info_t));
+			memcpy(op_class_info.id.ruid, ruid, sizeof(mac_address_t));
+			op_class_info.id.type = em_op_class_type_capability;
+			op_class_info.op_class = static_cast<unsigned int> (basic_cap_op_class->op_class);
+			op_class_info.id.op_class = op_class_info.op_class;
+			op_class_info.max_tx_power = static_cast<int> (basic_cap_op_class->max_tx_eirp);
+			op_class_info.num_channels = static_cast<unsigned int> (basic_cap_op_class->num);
+			for (j = 0; j < op_class_info.num_channels; j++) {
+				op_class_info.channels[j] = static_cast<unsigned int> (basic_cap_op_class->channels.channel[j]);
+			}
+			basic_cap_op_class = reinterpret_cast<em_op_class_t *>(reinterpret_cast<unsigned char *> (basic_cap_op_class) + sizeof(em_op_class_t) + op_class_info.num_channels);
+ 			op_class_obj = &dm->m_op_class[0];
+			op_class_obj = &dm->m_op_class[0];
+			// now check if the op_class already exists
+			for (j = 0; j < dm->get_num_op_class(); j++) {
+				op_class_obj = &dm->m_op_class[j];
+				if (*op_class_obj == dm_op_class_t(&op_class_info)) {
+					op_class_exists = true;
+					break;
+				}
+			}
+
+			if (op_class_exists == true) {
+				op_class_exists = false;
+			} else {
+				op_class_obj = &dm->m_op_class[dm->get_num_op_class()];
+				dm->set_num_op_class(dm->get_num_op_class() + 1);
+			}
+			memcpy(&op_class_obj->m_op_class_info, &op_class_info, sizeof(em_op_class_info_t));
+			dm->set_db_cfg_param(db_cfg_type_op_class_list_update, "");
+		}
+	} else {
+		em_printfout("basic_cap_op_class is NULL");
+	}
+
+	return 0;
+}
+
+int em_capability_t::handle_eht_operations_tlv(unsigned char *buff)
+{
+    short len = 0;
+    unsigned int i = 0, j = 0, k = 0, l = 0;
+    unsigned char *tmp = buff;
+    unsigned char num_radios;
+    unsigned char num_bss = 0;
+    em_eht_operations_t eht_ops;
+    dm_easy_mesh_t *dm;
+
+    dm = get_data_model();
+
+    memcpy(&num_radios, tmp, sizeof(unsigned char));
+    
+    if (num_radios > EM_MAX_RADIO_PER_AGENT) {
+        em_printfout("Invalid num_radios=%d, max allowed=%d", num_radios, EM_MAX_RADIO_PER_AGENT);
+        return -1;
+    }
+    
+    eht_ops.radios_num = num_radios;
+    tmp += sizeof(unsigned char);
+    len += static_cast<short> (sizeof(unsigned char));
+
+    for (i = 0; i < num_radios; i++) {
+        memcpy(&eht_ops.radios[i].ruid, tmp, sizeof(mac_address_t));
+        tmp += sizeof(mac_address_t);
+        len += static_cast<short> (sizeof(mac_address_t));
+
+        memcpy(&num_bss, tmp, sizeof(unsigned char));
+        
+        if (num_bss > EM_MAX_BSS_PER_RADIO) {
+            em_printfout("Invalid num_bss=%d for radio %d, max allowed=%d", num_bss, i, EM_MAX_BSS_PER_RADIO);
+            return -1;
+        }
+        
+        eht_ops.radios[i].bss_num = num_bss;
+        tmp += sizeof(unsigned char);
+        len += static_cast<short> (sizeof(unsigned char));
+
+        for(j = 0; j < num_bss; j++) {
+            memcpy(&eht_ops.radios[i].bss[j], tmp, sizeof(em_eht_operations_bss_t));
+            tmp += sizeof(em_eht_operations_bss_t);
+            len += static_cast<short> (sizeof(em_eht_operations_bss_t));
+        }
+    }
+
+    bool found_radio = false;
+    bool found_bss = false;
+    for (i = 0; i < eht_ops.radios_num; i++) {
+        for (j = 0; j < dm->get_num_radios(); j++) {
+            if (memcmp(eht_ops.radios[i].ruid, dm->m_radio[j].m_radio_info.id.dev_mac, sizeof(mac_address_t)) == 0) {
+                found_radio = true;
+                break;
+            }
+        }
+        if (found_radio == false) {
+            em_printfout("Radio with RUID %s not found in data model",
+                util::mac_to_string(eht_ops.radios[i].ruid).c_str());
+            return -1;
+        }
+        found_radio = false;
+
+        for(k = 0; k < eht_ops.radios[i].bss_num; k++) {
+            for(l = 0; l < dm->get_num_bss(); l++) {
+                if (memcmp(eht_ops.radios[i].bss[k].bssid, dm->m_bss[l].m_bss_info.bssid.mac, sizeof(mac_address_t)) == 0) {
+                    found_bss = true;
+                    break;
+                }
+            }
+            if (found_bss == false) {
+                em_printfout("BSS with BSSID %s not found in data model",
+                    util::mac_to_string(eht_ops.radios[i].bss[k].bssid).c_str());
+                return -1;
+            }
+            found_bss = false;
+            memcpy(&dm->m_bss[l].get_bss_info()->eht_ops, &eht_ops.radios[i].bss[k], sizeof(em_eht_operations_bss_t));
+        }
+    }
+
+    return 0;
+}
+
+int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
+{
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
+
+    em_tlv_t *tlv;
+    unsigned int tmp_len;
+    dm_easy_mesh_t *dm;
+
+    dm = get_data_model();
+    
+    tlv =  reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *>(cmdu) + sizeof(em_cmdu_t));
+    tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    em_printfout("AP Capability report message rcvd");
+
+    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        if (tlv->type == em_tlv_type_ap_cap) {
+            dm_radio_t *radio = dm->get_radio(get_radio_interface_mac());
+            em_radio_info_t *radio_info = radio->get_radio_info();
+            em_ap_capability_t *ap_cap = reinterpret_cast<em_ap_capability_t *>(tlv->value);
+
+            if ((ap_cap == NULL) || (radio_info == NULL)){
+                em_printfout("No data Found");
+            }
+
+            radio_info->unassociated_sta_link_mterics_nonopclass_inclusion_policy = ap_cap->unassociated_client_link_metrics_non_op_channels;
+            radio_info->unassociated_sta_link_mterics_opclass_inclusion_policy = ap_cap->unassociated_client_link_metrics_op_channels;
+            radio_info->support_rcpi_steering = ap_cap->rcpi_steering;
+        } else if (tlv->type == em_tlv_type_ap_radio_basic_cap){
+            handle_ap_radio_basic_cap(tlv->value, htons(tlv->len));
+        } else if (tlv->type == em_tlv_type_ht_cap){
+            em_ap_ht_cap_t *ht_cap = reinterpret_cast<em_ap_ht_cap_t *>(tlv->value);
+            dm_radio_cap_t *radio_cap = dm->get_radio_cap(ht_cap->ruid);
+
+            if ((ht_cap != NULL) && (radio_cap != NULL)){
+                em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
+                if ((cap_info == NULL)){
+                    em_printfout("No data Found");
+                }
+                memcpy(&cap_info->ht_cap, ht_cap, sizeof(em_ap_ht_cap_t));
+            }
+        }
+        else if (tlv->type == em_tlv_type_vht_cap){
+            em_ap_vht_cap_t *vht_cap = reinterpret_cast<em_ap_vht_cap_t *>(tlv->value);
+            dm_radio_cap_t *radio_cap = dm->get_radio_cap(vht_cap->ruid);
+            if ((vht_cap != NULL) && (radio_cap != NULL)){
+                em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
+                if ((cap_info == NULL)){
+                    em_printfout("No data Found");
+                    return 0;
+                }
+                memcpy(&cap_info->vht_cap, vht_cap, sizeof(em_ap_vht_cap_t));
+            }
+        }
+        else if (tlv->type == em_tlv_type_he_cap){
+            em_ap_he_cap_t *he_cap = reinterpret_cast<em_ap_he_cap_t *>(tlv->value);
+            dm_radio_cap_t *radio_cap = dm->get_radio_cap(he_cap->ruid);
+
+            if ((he_cap != NULL) && (radio_cap != NULL)){
+                em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
+
+                if ((cap_info == NULL)){
+                    em_printfout("No data Found");
+                    return 0;
+                }
+                memcpy(&cap_info->he_cap, he_cap, sizeof(em_ap_he_cap_t));
+            }
+        }
+        else if (tlv->type == em_tlv_type_ap_wifi6_cap){
+            em_radio_wifi6_cap_data_t *wifi6_cap = reinterpret_cast<em_radio_wifi6_cap_data_t *>(tlv->value);
+            dm_radio_cap_t *radio_cap = dm->get_radio_cap(wifi6_cap->ruid);
+
+            if ((wifi6_cap != NULL) && radio_cap != NULL){
+                em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
+
+                if ((cap_info == NULL)){
+                    em_printfout("No data Found");
+                    return 0;
+                }
+                memcpy(&cap_info->wifi6_cap, wifi6_cap, sizeof(em_radio_wifi6_cap_data_t));
+            }
+        }
+        else if (tlv->type == em_tlv_type_wifi7_agent_cap){
+            em_wifi7_agent_cap_t *wifi7_cap = reinterpret_cast<em_wifi7_agent_cap_t *>(tlv->value);
+            for (int idx = 0; idx < wifi7_cap->radios_num; idx++)
+            {
+                dm_radio_cap_t *radio_cap = dm->get_radio_cap(wifi7_cap->radios[idx].ruid);
+                if ((wifi7_cap != NULL) && (radio_cap != NULL)){
+                    em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
+                    if ((cap_info == NULL)){
+                        em_printfout("No data Found");
+                        return 0;
+                    }
+                    memcpy(&cap_info->wifi7_cap, wifi7_cap, sizeof(em_wifi7_agent_cap_t));
+                }
+            }
+        }
+        else if (tlv->type == em_tlv_eht_operations){
+            handle_eht_operations_tlv(tlv->value);
+        }
+        else if (tlv->type == em_tlv_type_channel_scan_cap){
+            em_channel_scan_cap_radio_t *scan = reinterpret_cast<em_channel_scan_cap_radio_t *>(tlv->value);
+            dm_radio_cap_t *radio_cap = dm->get_radio_cap(scan->ruid);
+            if (radio_cap != NULL){
+                em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
+                if ((scan == NULL) && (cap_info == NULL)){
+                    em_printfout("No data Found");
+                    return 0;
+                }
+                memcpy(&cap_info->ch_scan, scan, sizeof(em_channel_scan_cap_radio_t));
+            }
+        }
+        else if (tlv->type == em_tlv_type_1905_layer_security_cap){
+        }
+        else if (tlv->type == em_tlv_type_cac_cap){
+            em_cac_cap_t *cac = reinterpret_cast<em_cac_cap_t *>(tlv->value);
+            for (int idx = 0; idx < cac->radios_num; idx++)
+            {
+                dm_radio_cap_t *radio_cap = dm->get_radio_cap(cac->radios[idx].ruid);
+                if ((cac != NULL) && (radio_cap != NULL)){
+                    em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
+                    if ((cap_info == NULL)){
+                        em_printfout("No data Found");
+                        return 0;
+                    }
+                    memcpy(&cap_info->cac_cap, &cac->radios[0], sizeof(em_cac_cap_t));
+                }
+            }
+        } else if (tlv->type == em_tlv_type_profile_2_ap_cap){
+            em_profile_2_ap_cap_t *prof = reinterpret_cast<em_profile_2_ap_cap_t *>(tlv->value);
+            dm_radio_cap_t *radio_cap = dm->get_radio_cap(get_radio_interface_mac());
+            if (radio_cap != NULL){
+            em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
+
+
+            if ((prof == NULL) || (cap_info == NULL)){
+                em_printfout("No data Found");
+                return 0;
+            }
+
+            memcpy(&cap_info->prof_2_ap_cap, &prof, sizeof(em_profile_2_ap_cap_t));
+            }
+        }
+        else if (tlv->type == em_tlv_type_metric_cltn_interval){
+        } else if (tlv->type == em_tlv_type_device_inventory){
+            em_device_inventory_t *invent = reinterpret_cast<em_device_inventory_t *>(tlv->value);
+            if (invent != NULL){
+                for (unsigned int index = 0; index < dm->get_num_radios(); index++)
+                {
+                    dm_radio_t *radio = dm->get_radio(invent->radios[index].ruid);
+                    if (radio == NULL) {
+                        continue;
+                    }
+                    em_radio_info_t *radio_info = radio->get_radio_info();
+
+                    if ((radio_info != NULL)){
+                        memcpy(&radio_info->inventory_info, invent, sizeof(em_device_inventory_t));
+                    }
+                }
+            }
+        } else if (tlv->type == em_tlv_type_ap_radio_advanced_cap){
+            uint16_t value_len = ntohs(tlv->len);
+
+            if (value_len % sizeof(em_ap_radio_advanced_cap_t) != 0) {
+                em_printfout("Invalid TLV length for advanced cap");
+                return -1;
+            }
+
+            uint16_t count = value_len / sizeof(em_ap_radio_advanced_cap_t);
+            uint8_t *adv = tlv->value;
+            for (uint16_t i = 0; i < count; ++i) {
+                em_ap_radio_advanced_cap_t *ad =
+                    reinterpret_cast<em_ap_radio_advanced_cap_t *>(adv);
+                    
+                dm_radio_cap_t *radio_cap = dm->get_radio_cap(ad->ruid);
+
+                if (radio_cap) {
+                    em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
+                    if (cap_info) {
+                        memcpy(&cap_info->radio_ad_cap, ad, sizeof(em_ap_radio_advanced_cap_t));
+                    }
+                 } else {
+                    em_printfout("Unknown RUID: %s",
+                        util::mac_to_string(ad->ruid).c_str());
+                }
+
+                adv += sizeof(em_ap_radio_advanced_cap_t);
+            }
+        }
+
+        tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+    /*if (em_msg_t(em_msg_type_ap_cap_rprt, em_profile_type_3, buff, len).validate(errors) == 0) {
+        printf("%s:%d:AP Capability report message validation failed\n",__func__,__LINE__);
+        return -1;
+    }*/
+
+    em_printfout("AP Capability report message rcvd for radio: %s", util::mac_to_string(get_radio_interface_mac()).c_str());
+
+    return 0;
+}
+
 void em_capability_t::process_msg(unsigned char *data, unsigned int len)
 {
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(data);
 
     switch (htons(cmdu->type)) {
-        case em_msg_type_client_cap_rprt:
-            if (get_service_type() == em_service_type_ctrl) {
-                handle_client_cap_report(data, len);
+        case em_msg_type_ap_cap_query:
+            {
+                std::vector<em_t *> em_radios;
+                get_mgr()->get_all_em_for_al_mac(hdr->dst, em_radios);
+                for (auto &em : em_radios){
+                    em_printfout(" em_msg_type_ap_cap_query received, state: %s\n", em_t::state_2_str(em->get_state()));
+                    if ((em->get_service_type() == em_service_type_agent) && (em->get_state() < em_state_agent_onewifi_bssconfig_ind)){
+                        em_printfout("radio %s is not configured, ignoring", util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                        em_radios.clear();
+                        return;
+                    }
+                }
+                em_radios.clear();
+                em_printfout("All radios are configured for al_mac:%s, sending AP capability response", util::mac_to_string(hdr->dst).c_str());
+                if ((get_service_type() == em_service_type_agent)){
+                    send_ap_cap_report_msg(data, ntohs(cmdu->id));
+                }
             }
             break;
+            case em_msg_type_ap_cap_rprt:
+                if (get_service_type() == em_service_type_ctrl)
+                {
+                    if (handle_ap_cap_report(data, len) == 0){
+                        set_state(em_state_ctrl_ap_cap_report_received);
+                        std::vector<em_t *> em_radios;
+                        dm_easy_mesh_t *dm = get_data_model();
+                        em_printfout("AP capability report handled successfully by em radio:%s agent al_mac:%s src_mac:%s",
+                                     util::mac_to_string(get_radio_interface_mac()).c_str(), util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
+                                     util::mac_to_string(hdr->src).c_str());
+                        get_mgr()->get_all_em_for_al_mac(hdr->src, em_radios);
+                        for (auto &em : em_radios)
+                        {
+                            em->set_state(em_state_ctrl_ap_cap_report_received);
+                            printf("%s:%d em_msg_type_ap_cap_rprt handle success, state: %s\n", __func__, __LINE__, em_t::state_2_str(em->get_state()));
+                        }
+                        em_radios.clear();
+                    } else {
+                        printf("%s:%d em_msg_type_ap_cap_rprt handle failed \n", __func__, __LINE__);
+                    }
+                }
+                break;
+            case em_msg_type_client_cap_rprt:
+                if (get_service_type() == em_service_type_ctrl){
+                    handle_client_cap_report(data, len);
+                }
+                break;
 
-        case em_msg_type_client_cap_query:
-            if (get_service_type() == em_service_type_agent) {
-                handle_client_cap_query(data, len);
+            case em_msg_type_client_cap_query:
+                if (get_service_type() == em_service_type_agent){
+                    handle_client_cap_query(data, len);
+                }
+                break;
+
+            case em_msg_type_bh_sta_cap_query:
+                handle_bsta_cap_query(data, len);
+                break;
+
+            case em_msg_type_bh_sta_cap_rprt:
+                handle_bsta_cap_report(data, len);
+                break;
+
+            default:
+                break;
             }
-            break;
-
-        case em_msg_type_bh_sta_cap_query:
-            handle_bsta_cap_query(data, len);
-            break;
-
-        case em_msg_type_bh_sta_cap_rprt:
-            handle_bsta_cap_report(data, len);
-            break;
-
-        default:
-            break;
-    }
 }
 
 void em_capability_t::process_ctrl_state()
 {
     switch (get_state()) {
+        case em_state_ctrl_ap_cap_query_pending:
+            {
+                std::vector<em_t *> em_radios;
+                dm_easy_mesh_t *dm = get_data_model();
+                get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
+                for (auto &em : em_radios)
+                {
+                    if (em->get_state() != em_state_ctrl_ap_cap_query_pending){
+                        em_printfout("radio %s is not in AP Capability query pending state, ignoring",
+                                     util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                        em_radios.clear();
+                        return;
+                    }
+                }
+                if (this == em_radios.front()){
+                    em_printfout("Sending the AP query message to agent al_mac:%s on radio: %s",
+                        util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
+                        util::mac_to_string(get_radio_interface_mac()).c_str());
+                    send_ap_cap_query_msg();
+                }
+                em_radios.clear();
+            }
+            break;
         case em_state_ctrl_bsta_cap_pending:
             send_bsta_cap_query_msg();
             break;
