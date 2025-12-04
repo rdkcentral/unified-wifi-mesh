@@ -548,7 +548,7 @@ func initDefaultFloorPlans() {
 	defaultPlan := &FloorPlan{
 		ID:        "1st-floor",
 		Name:      "1st Floor",
-		URL:       "../../src/rdkb-cli/static/floorplans/1st-floor.jpg",
+		URL:       "/nvram/static/floorplans/1st-floor.jpg",
 		Width:     1000,
 		Height:    600,
 		Scale:     0.1, // 10cm per pixel
@@ -2461,7 +2461,7 @@ func getDefaultAdvancedSettings() *AdvancedWirelessSettings {
 
 
 func loadDevices() {
-	file, err := os.Open("../../src/rdkb-cli/devices.json")
+	file, err := os.Open("/nvram/static/devices.json")
 	if err != nil {
 		log.Printf("Warning: Could not load devices.json: %v", err)
 		devices = getDefaultDevices()
@@ -2478,7 +2478,7 @@ func loadDevices() {
 }
 
 func loadClients() {
-	file, err := os.Open("../../src/rdkb-cli/clients.json")
+	file, err := os.Open("/nvram/static/clients.json")
 	if err != nil {
 		log.Printf("Warning: Could not load clients.json: %v", err)
 		clients = getSampleClients()
@@ -2524,7 +2524,7 @@ func main() {
 	router := mux.NewRouter()
 
 	// Serve static files
-	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("../../src/rdkb-cli/static/"))))
+	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("/nvram/static/"))))
 	router.HandleFunc("/", serveIndex).Methods("GET")
 
 	// API Routes
@@ -2666,7 +2666,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 // ===== HANDLERS =====
 
 func serveIndex(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, "../../src/rdkb-cli/static/index.html")
+	http.ServeFile(w, r, "/nvram/static/index.html")
 }
 
 func controllerIPHandler(w http.ResponseWriter, r *http.Request) {
@@ -3901,10 +3901,10 @@ func parseSTA(node *C.em_network_node_t) STA {
 
 func getTestJSONFile() string {
     files := []string{
-        "../../src/rdkb-cli/static/example/topology.json",
-        "../../src/rdkb-cli/static/example/topology1.json",
-        "../../src/rdkb-cli/static/example/topology2.json",
-        "../../src/rdkb-cli/static/example/topology3.json",
+        "/nvram/static/example/topology.json",
+        "/nvram/static/example/topology1.json",
+        "/nvram/static/example/topology2.json",
+        "/nvram/static/example/topology3.json",
     }
     index := (timerCount) % len(files)
     return files[index]
