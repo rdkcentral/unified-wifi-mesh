@@ -1490,6 +1490,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 			}
 			break;
 
+        case em_msg_type_ap_cap_query:
         case em_msg_type_topo_query:
         case em_msg_type_channel_pref_query:
             em_string_t al_mac_str;
