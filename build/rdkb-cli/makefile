@@ -24,6 +24,8 @@ include ../makefile.inc
 
 PROGRAM = $(INSTALLDIR)/bin/onewifi_em_rdkbcli
 EM_CLI_LIBRARY = $(INSTALLDIR)/lib/libemcli.so
+STATIC_SRC_DIR ?= $(ONEWIFI_EM_SRC)/rdkb-cli/static
+STATIC_DST_DIR ?= $(NVRAM_DIR)/static
 EM_CERT_SRC = $(INSTALLDIR)/config/test_cert.crt
 EM_KEY_SRC  = $(INSTALLDIR)/config/test_cert.key
 CERT_TARGETS = $(NVRAM_DIR)/test_cert.crt $(NVRAM_DIR)/test_cert.key
@@ -85,7 +87,7 @@ CLI_OBJECTS = $(CLI_SOURCES:.cpp=.o)
 GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o) 
 EMCLIOBJECTS = $(CLI_OBJECTS) $(GENERIC_OBJECTS)
 
-all: $(EM_CLI_LIBRARY) $(PROGRAM) $(CERT_TARGETS)
+all: $(EM_CLI_LIBRARY) $(PROGRAM) $(CERT_TARGETS) copy-static
 
 $(EM_CLI_LIBRARY): $(EMCLIOBJECTS)
 	$(CXX) -shared -o $@ $(EMCLIOBJECTS)
@@ -116,6 +118,12 @@ $(NVRAM_DIR)/test_cert.crt: $(EM_CERT_SRC) | $(NVRAM_DIR)
 
 $(NVRAM_DIR)/test_cert.key: $(EM_KEY_SRC) | $(NVRAM_DIR)
 	$(CP) $< $@
+
+# Copy entire static directory to /nvram/static
+.PHONY: copy-static
+copy-static: $(NVRAM_DIR)
+	@echo "Syncing $(STATIC_SRC_DIR) -> $(STATIC_DST_DIR)"
+	@sudo rsync -a --delete "$(STATIC_SRC_DIR)/" "$(STATIC_DST_DIR)/"
 
 # Clean target: "make -f Makefile.Linux clean" to remove unwanted objects and executables.
 #
