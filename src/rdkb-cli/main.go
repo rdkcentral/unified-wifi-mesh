@@ -1816,7 +1816,10 @@ func getRadioConfigsHandler(w http.ResponseWriter, r *http.Request) {
                 return
             }
 
-            updateAnticipatedChannelPreference(wifiChannelUpdateTree, payload)
+            if updateAnticipatedChannelPreference(wifiChannelUpdateTree, payload) != nil {
+                http.Error(w, "update Anticipated Channel Preference failed", http.StatusBadRequest)
+                return
+            }
 
            applyChannelConfig(wifiChannelUpdateTree)
 
@@ -4156,16 +4159,23 @@ func getConfiguredChannels(tree *C.em_network_node_t) []channelConfig {
  * update the AnticipatedChannelPreference in tree
  * returns: updated device tree for set channel
  */
-func updateAnticipatedChannelPreference(tree *C.em_network_node_t, updatedChannelArray []channelConfig) {
+func updateAnticipatedChannelPreference(tree *C.em_network_node_t, updatedChannelArray []channelConfig) error {
     if tree == nil {
-		log.Printf("Invalid channel update tree")
-	}
+        return fmt.Errorf("updateAnticipatedChannelPreference: nil root tree")
+    }
+
+    if len(updatedChannelArray) == 0 {
+        return fmt.Errorf("updateAnticipatedChannelPreference: updated channel array is nil")
+    }
 
     channelPrefTree_cmd := C.CString("AnticipatedChannelPreference")
     classNode_cmd := C.CString("Class")
     defer C.free(unsafe.Pointer(channelPrefTree_cmd))
     defer C.free(unsafe.Pointer(classNode_cmd))
     channelPrefTree := C.get_network_tree_by_key(tree, channelPrefTree_cmd)
+    if channelPrefTree == nil {
+        return fmt.Errorf("updateAnticipatedChannelPreference: missing 'AnticipatedChannelPreference' node")
+    }
 
     for _, cfg := range updatedChannelArray {
         channelPrefNode := channelPrefTree.child[cfg.RadioIndex]
@@ -4178,6 +4188,7 @@ func updateAnticipatedChannelPreference(tree *C.em_network_node_t, updatedChanne
         channelListNode.num_children = 0
         C.set_node_array_value(channelListNode, C.CString(mapchannelsToSlice(cfg.Channels)))
     }
+    return nil
 }
 
 /* func: applyChannelConfig()
