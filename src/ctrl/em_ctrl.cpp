@@ -777,16 +777,25 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         case em_msg_type_channel_pref_rprt:
         case em_msg_type_channel_sel_rsp:
         case em_msg_type_op_channel_rprt:
-            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
-                    len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
-                printf("%s:%d: Could not find radio id in msg:0x%04x\n", __func__, __LINE__, htons(cmdu->type));
-                return NULL;
-            }
-
-            dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
-            if ((em = static_cast<em_t *> (hash_map_get(m_em_map, mac_str1))) == NULL) {
-                printf("%s:%d: Could not find radio:%s\n", __func__, __LINE__, mac_str1);
-                return NULL;
+            {
+                std::vector<em_t *> em_radios;
+                get_all_em_for_al_mac(hdr->src, em_radios);
+                if (em_radios.size() > 0) {
+                    mac_addr_str_t radio_mac_str, al_mac_str;
+                    // Convert MACs to printable strings
+                    dm_easy_mesh_t::macbytes_to_string(em_radios.front()->get_radio_interface_mac(), radio_mac_str);
+                    dm_easy_mesh_t::macbytes_to_string(hdr->src, al_mac_str);
+                    // Print radio MAC, AL MAC and CMDU type (host order)
+                    em_printfout("Found the radio. radio_mac=%s al_mac=%s cmd_type=0x%04x",
+				    radio_mac_str, al_mac_str, ntohs(cmdu->type));
+                    em = em_radios.front();
+                } else {
+                    mac_addr_str_t al_mac_str;
+                    dm_easy_mesh_t::macbytes_to_string(hdr->src, al_mac_str);
+                    printf("%s:%d: Could not find any radios for al mac %s\n", __func__, __LINE__, al_mac_str);
+                    return NULL;
+                }
+                em_radios.clear();
             }
             break;
 
