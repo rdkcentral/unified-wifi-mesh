@@ -206,7 +206,17 @@ onewifi_em_ctrl_test_SOURCES = $(onewifi_em_ctrl_SOURCES) \
 	$(top_srcdir)/tests/test_l1_em_cmd_topo_sync.cpp \
 	$(top_srcdir)/tests/test_l1_em_network_topo.cpp \
 	$(top_srcdir)/tests/test_l1_em_cmd_bsta_cap.cpp \
-	$(top_srcdir)/tests/test_l1_em_cmd_onewifi_cb.cpp
+	$(top_srcdir)/tests/test_l1_em_cmd_onewifi_cb.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_ap_cap.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_channel_pref_query.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_dev_init.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_dev_test.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_em_config.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_get_channel.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_set_channel.cpp\
+	$(top_srcdir)/tests/test_l1_em_cmd_sta_disassoc.cpp \
+	$(top_srcdir)/tests/test_l1_em_net_node.cpp \
+	$(top_srcdir)/tests/test_l1_em_orch_ctrl.cpp	
 onewifi_em_ctrl_test_CPPFLAGS = $(onewifi_em_ctrl_CPPFLAGS) \
                                 -I$(PKG_CONFIG_SYSROOT_DIR)$(includedir)/gtest \
                                 -DTESTING
