@@ -364,6 +364,8 @@ void dm_bss_list_t::init_columns()
     m_columns[m_num_cols++] = db_column_t("R2disallowed", db_data_type_tinyint, 0);
     m_columns[m_num_cols++] = db_column_t("MultiBSSID", db_data_type_tinyint, 0);
     m_columns[m_num_cols++] = db_column_t("TransmittedBSSID", db_data_type_tinyint, 0);
+    // VLAN ID Range 1 to 4094 IEEE 802.1Q standard
+    m_columns[m_num_cols++] = db_column_t("VlanID", db_data_type_smallint, 0);
 }
 
 int dm_bss_list_t::init()
