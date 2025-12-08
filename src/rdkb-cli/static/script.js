@@ -252,6 +252,11 @@ class EasyMeshController {
       this.handleKeyboardShortcuts(e);
     });
 
+    // Wifi reset
+    document.getElementById('reset-btn')?.addEventListener('click', () => {
+      this.handleWifiResetApply();
+    });
+
     // Window resize handler for charts
     window.addEventListener('resize', () => {
       this.resizeCharts();
@@ -304,6 +309,68 @@ class EasyMeshController {
   }
 }
 
+async handleWifiResetApply() {
+  // Prevent re-entry
+  if (this._wifiResetInProgress) return;
+  this._wifiResetInProgress = true;
+
+  const resetBtn = document.getElementById('reset-btn');
+  const originalBtnText = resetBtn?.textContent;
+
+  // Confirmation dialog box
+  const confirmed = window.confirm(
+    "Resetting the Wi-Fi configuration may require the controller to restart.\nDo you want to continue?"
+  );
+  if (!confirmed) {
+    this._wifiResetInProgress = false;
+    return;
+  }
+
+  // Prepare UI state
+  try {
+    // payload
+    const payload = collectResetPayload();
+    // Disable button and show progress state
+    if (resetBtn) {
+      resetBtn.disabled = true;
+      resetBtn.textContent = "Applying reset...";
+      resetBtn.classList.add("is-loading");
+      resetBtn.setAttribute("aria-busy", "true");
+    }
+
+    // block navigation or keyboard shortcuts while in progress
+    this._blockShortcutsDuringReset?.(true);
+
+    // Send payload
+    const response = await sendResetPayload(payload);
+
+    // Success case
+    if (handleResetSuccess) {
+      try { await handleResetSuccess(response); } catch (noop) {}
+    }
+
+    if (typeof this.loadWifiResetConfig === 'function') {
+      console.log("Reloading Wi-Fi Reset config after reset");
+      await this.loadWifiResetConfig();
+    }
+  } catch (error) {
+    // Call custom error handler if provided
+    if (handleResetError) {
+      try { await handleResetError(error); } catch (noop) {}
+    }
+  } finally {
+    // Restore UI state
+    if (resetBtn) {
+      resetBtn.disabled = false;
+      resetBtn.textContent = originalBtnText ?? "Apply Reset";
+      resetBtn.classList.remove("is-loading");
+      resetBtn.removeAttribute("aria-busy");
+    }
+    this._blockShortcutsDuringReset?.(false);
+    this._wifiResetInProgress = false;
+  }
+}
+
 async handleWebSocketMessage(data) {
   switch (data.type) {
     case 'initial':
@@ -340,7 +407,6 @@ async handleWebSocketMessage(data) {
   }
 }
 
-
   /**
    * Load initial data from API
    */
@@ -355,9 +421,6 @@ async handleWebSocketMessage(data) {
       // Load clients
       const clientsResponse = await this.apiCall('/clients');
       this.clients = clientsResponse.clients || [];
-
-      // Load topology
-      this.topology = await this.apiCall('/topology');
 
       // Load system config
       this.systemConfig = await this.apiCall('/config');
@@ -1072,40 +1135,49 @@ async handleWebSocketMessage(data) {
 
       // STA Placement
       if (Array.isArray(d.STAList) && d.STAList.length > 0) {
-        const iconCenterX = d.fx ?? d.x;
-        const iconCenterY = d.fy ?? d.y;
-
         const staList = d.STAList;
         const baseRadius = 80;
         const angleStep = (2 * Math.PI) / staList.length;
+        const nodeRadius = 20;
+        const maxSize = 30;
+        const minSize = 15;
 
         staList.forEach((sta, i) => {
-          const staElement = staGroup.append('g').attr('class', 'sta-node');
+          const staElement = staGroup
+          .append('g')
+          .attr('class', 'sta-node')
+          .datum(() => {
+            const seed = i + sta.staMAC.length;
+            let angle = angleStep * i;
+            // small jitter for few STAs (computed once)
+            if (staList.length < 5) {
+              angle += (self.seededRandom(seed) * 2 - 0.5) * 0.5;
+            }
 
-          const seed = i + sta.staMAC.length;
-          let angle = angleStep * i;
-          if (staList.length < 5) {
-            angle += (self.seededRandom(seed) * 2 - 0.5) * 0.5;
-          }
-          const radius = baseRadius + self.seededRandom(seed + 2) * 40;
-          const totalSTA = staList.length;
-          const staX = iconCenterX + radius * Math.cos(angle);
-          const staY = iconCenterY + radius * Math.sin(angle);
+            const radius = baseRadius + self.seededRandom(seed + 2) * 40;
+            const iconSize = Math.max(minSize, maxSize - staList.length);
+            return {
+              nodeRef: d,
+              sta,
+              angle,
+              radius,
+              iconSize,
+              nodeRadius
+            };
+          });
 
-          // maximum icon size
-          const maxSize = 30;
-          // minimum icon size
-          const minSize = 15;
-          const nodeRadius = 20;
+          const data = staElement.datum();
 
-          const iconSize = Math.max(minSize, maxSize - totalSTA);
-          const angleFromCenter = Math.atan2(staY - iconCenterY, staX - iconCenterX);
+          // Compute local positions (relative to the node center)
+          const angleFromCenter = data.angle;
           const from = {
-            x: iconCenterX + nodeRadius * Math.cos(angleFromCenter),
-            y: iconCenterY + nodeRadius * Math.sin(angleFromCenter)
+            x: data.nodeRadius * Math.cos(angleFromCenter),
+            y: data.nodeRadius * Math.sin(angleFromCenter)
           };
-
-          const to = { x: staX, y: staY };
+          const to = {
+            x: data.radius * Math.cos(angleFromCenter),
+            y: data.radius * Math.sin(angleFromCenter)
+          };
           const staWaveLength = bandWavelengths[sta.band] || bandWavelengths['default'];
           const sinePathData = self.generateSineWavePath(from, to, {
             amplitude: 5,
@@ -1124,10 +1196,10 @@ async handleWebSocketMessage(data) {
 
           staElement.append('image')
            .attr('xlink:href', iconUrl)
-           .attr('x', staX - iconSize / 2)
-           .attr('y', staY - iconSize / 2)
-           .attr('width', iconSize)
-           .attr('height', iconSize)
+           .attr('x', to.x - data.iconSize / 2)
+           .attr('y', to.y - data.iconSize / 2)
+           .attr('width', data.iconSize)
+           .attr('height', data.iconSize)
            .on('mouseover', function(event) {
               let mldInfo = '';
               if (sta.MLDAddr && sta.MLDAddr !== '') {
@@ -1143,6 +1215,7 @@ async handleWebSocketMessage(data) {
               tooltip.style('display', 'none');
             });
         });
+
       }
 
       const nodeIconUrl = self.getNodeIcon(d.name);
@@ -1245,6 +1318,9 @@ async handleWebSocketMessage(data) {
         const mid = d._midpoint || [(d.source.x + d.target.x) / 2, (d.source.y + d.target.y) / 2];
         return `translate(${mid[0]},${mid[1]})`;
       });
+
+      staGroup.selectAll('.sta-node')
+       .attr('transform', d => `translate(${d.nodeRef.fx ?? d.nodeRef.x}, ${d.nodeRef.fy ?? d.nodeRef.y})`);
     });
 
     function dragstarted(event, d) {
@@ -1410,6 +1486,10 @@ async handleWebSocketMessage(data) {
    */
   async loadTabData(tabName) {
     switch (tabName) {
+      case 'topology':
+        const freshTopology = await this.apiCall('/topology');
+        await this.updateTopology(freshTopology);
+        break;
       case 'performance':
         await this.loadPerformanceData();
         break;
@@ -2076,6 +2156,10 @@ async handleWebSocketMessage(data) {
       }
 
       const data = await res.json();
+      if (!Array.isArray(data?.options) || !Array.isArray(data?.ssidHaulConfig)) {
+        this.showNotification("Could not received the wifi reset tree from controller, \nPlease check the controller or try again after sometime.");
+        return;
+      }
 
       const select = document.getElementById("almac-select");
       select.innerHTML = '<option value="">Choose AL MAC Address</option>';
@@ -2232,25 +2316,6 @@ async handleWebSocketMessage(data) {
           console.log("Loading Wi-Fi Reset config");
           await this.loadWifiResetConfig();
         }
-
-        document.getElementById("reset-btn").addEventListener("click", async () => {
-        const payload = collectResetPayload();
-        const confirmed = confirm("Resetting the WiFi configuration may require the controller to restart.\nDo you want to continue?");
-        if (!confirmed) return;
-
-        try {
-          const response = await sendResetPayload(payload);
-          handleResetSuccess(response);
-
-          // Reload the latest Wi-Fi config after successful reset
-          if (typeof this.loadWifiResetConfig === 'function') {
-            console.log("Reloading Wi-Fi Reset config after reset");
-            await this.loadWifiResetConfig();
-          }
-        } catch (error) {
-          handleResetError(error);
-        }
-        });
       } catch (err) {
         console.error("Failed to load system settings:", err);
         this.showNotification("Failed to load system settings", "error");
@@ -2258,68 +2323,68 @@ async handleWebSocketMessage(data) {
   }
 }
 
-function collectResetPayload() {
-  const select = document.getElementById("almac-select");
-  const manualInput = document.getElementById("manual-almac");
+  function collectResetPayload() {
+    const select = document.getElementById("almac-select");
+    const manualInput = document.getElementById("manual-almac");
 
-  let selectedMac = select.value;
+    let selectedMac = select.value;
 
-  if (selectedMac === "Other") {
-    selectedMac = manualInput.value.trim();
-    if (!selectedMac) {
-      alert("Please enter a valid AL MAC address.");
-      throw new Error("Manual AL MAC address is required.");
+    if (selectedMac === "Other") {
+      selectedMac = manualInput.value.trim();
+      if (!selectedMac) {
+        alert("Please enter a valid AL MAC address.");
+        throw new Error("Manual AL MAC address is required.");
+      }
     }
+
+
+    const haulTypes = Array.from(document.querySelectorAll("input[name='haulType']:checked")).map(checkbox => {
+      const haulType = checkbox.value;
+      const ssid = document.getElementById(`ssid-${haulType}`)?.value || "";
+      const password = document.getElementById(`password-${haulType}`)?.value || "";
+
+      return {
+        HaulType: haulType,
+        SSID: ssid,
+        PassPhrase: password
+      };
+    });
+
+    return { selectedMac, haulTypes };
   }
 
+  async function sendResetPayload(payload) {
+    const res = await fetch("/api/v1/wifireset", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
 
-  const haulTypes = Array.from(document.querySelectorAll("input[name='haulType']:checked")).map(checkbox => {
-    const haulType = checkbox.value;
-    const ssid = document.getElementById(`ssid-${haulType}`)?.value || "";
-    const password = document.getElementById(`password-${haulType}`)?.value || "";
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(errorText);
+    }
 
-    return {
-      HaulType: haulType,
-      SSID: ssid,
-      PassPhrase: password
-    };
-  });
-
-  return { selectedMac, haulTypes };
-}
-
-async function sendResetPayload(payload) {
-  const res = await fetch("/api/v1/wifireset", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(payload)
-  });
-
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(errorText);
+    return await res.json();
   }
 
-  return await res.json();
-}
+  async function handleResetSuccess(response) {
+    console.log("Reset result:", response);
+    alert("Wi-Fi configuration reset successfully!");
+  }
 
-function handleResetSuccess(response) {
-  console.log("Reset result:", response);
-  alert("Wi-Fi configuration reset successfully!");
-}
+  async function handleResetError(error) {
+    console.error("Reset failed:", error);
+    alert(`Failed to reset Wi-Fi configuration:\n${error.message}`);
+  }
 
-function handleResetError(error) {
-  console.error("Reset failed:", error);
-  alert(`Failed to reset Wi-Fi configuration:\n${error.message}`);
-}
-
-// -------- Global helpers for HTML onclick handlers --------
-function closeModal(modalId) {
-  const modal = document.getElementById(modalId);
-  if (modal) modal.classList.remove('active');
-}
+  // -------- Global helpers for HTML onclick handlers --------
+  function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.remove('active');
+  }
 
 // -------- Initialize when DOM is loaded --------
 document.addEventListener('DOMContentLoaded', () => {
