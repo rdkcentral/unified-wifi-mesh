@@ -366,9 +366,9 @@ async handleWifiResetApply() {
       resetBtn.classList.remove("is-loading");
       resetBtn.removeAttribute("aria-busy");
     }
-      this._blockShortcutsDuringReset?.(false);
-      this._wifiResetInProgress = false;
-    }
+    this._blockShortcutsDuringReset?.(false);
+    this._wifiResetInProgress = false;
+  }
 }
 
 async handleWebSocketMessage(data) {
