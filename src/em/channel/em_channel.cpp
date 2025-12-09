@@ -2023,7 +2023,26 @@ void em_channel_t::process_ctrl_state()
     switch (get_state()) {
         case em_state_ctrl_channel_query_pending:
 			if(get_service_type() == em_service_type_ctrl) {
-				send_channel_pref_query_msg();
+                std::vector<em_t *> em_radios;
+                dm_easy_mesh_t *dm = get_data_model();
+                get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
+                for (auto &em : em_radios) {
+                    if (em->get_state() != em_state_ctrl_channel_query_pending) {
+                        em_printfout("radio %s is not in channel query pending state, ignoring",
+                            util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                        em_radios.clear();
+                        return;
+                    }
+                }
+                // If all radios are in Channel pref query pending state, send channel pref query on one of them, 
+                // ignore sending channel query query on other radios
+                if (this == em_radios.front()){
+                    em_printfout("Sending the Channel pref query message to agent al_mac:%s on radio: %s",
+                        util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
+                        util::mac_to_string(get_radio_interface_mac()).c_str());
+				    send_channel_pref_query_msg();
+                }
+                em_radios.clear();
 				set_state(em_state_ctrl_channel_pref_report_pending);
 			}
             break;

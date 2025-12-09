@@ -5470,20 +5470,13 @@ void em_configuration_t::process_ctrl_state()
                 }
                 // If all radios are in topo sync pending state, send topo query on one of them, 
                 // ignore sending topo query on other radios
-                dm_radio_t *radio = get_radio_from_dm(true);
-                if (radio == NULL) {
-                    radio = get_radio_from_dm();
-                }
-                if (radio != NULL && radio->get_radio_info()->band == em_freq_band_5) {
-                    em_printfout("Sending topology query from radio %s for band:%d",
-                            util::mac_to_string(radio->get_radio_interface_mac()).c_str(),
-                            radio->get_radio_info()->band);
+                if (this == em_radios.front()){
+                    em_printfout("Sending the Topology query message to agent al_mac:%s on radio: %s",
+                        util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
+                        util::mac_to_string(get_radio_interface_mac()).c_str());
                     em_t *al_em = get_mgr()->get_al_node();
                     al_em->set_state(em_state_ctrl_topo_sync_pending);
                     send_topology_query_msg();
-                }
-                else {
-                    em_printfout("No 5GHz radio found, do nothing");
                 }
                 em_radios.clear();
             }
