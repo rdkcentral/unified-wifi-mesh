@@ -186,6 +186,7 @@ int em_cmd_cli_t::execute(char *result)
     param = get_param();
 
     evt->type = em_event_type_bus;
+    evt->u.bevt.data_len = 0;
     bevt = &evt->u.bevt;
     memcpy(&bevt->params, param, sizeof(em_cmd_params_t));
 
