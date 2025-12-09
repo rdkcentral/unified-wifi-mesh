@@ -117,6 +117,77 @@ AGENT_OBJECTS = $(AGENT_SOURCES:.cpp=.o)
 GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o) 
 ALLOBJECTS = $(AGENT_OBJECTS) $(GENERIC_OBJECTS)
 
+# Google Test integration
+TEST_DIR = $(ONEWIFI_EM_HOME)/tests
+TEST_EXEC = $(INSTALLDIR)/bin/onewifi_em_agent_test
+TEST_SOURCES = $(TEST_DIR)/main.cpp \
+	$(TEST_DIR)/test_l1_em_simulator.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_scan_result.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_ap_metrics_report.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_get_network.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_get_radio.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_get_ssid.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_mld_reconfig.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_sta_link_metrics.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_beacon_report.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_cfg_renew.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_client_cap.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_get_device.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_get_mld_config.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_op_channel_report.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_remove_device.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_reset.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_scan_channel.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_set_policy.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_set_radio.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_set_ssid.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_sta_assoc.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_sta_list.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_sta_steer.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_start_dpp.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_topo_sync.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_onewifi_cb.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_ap_cap.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_btm_report.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_channel_pref_query.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_dev_init.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_dev_test.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_em_config.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_get_channel.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_set_channel.cpp \
+	$(TEST_DIR)/test_l1_em_cmd_sta_disassoc.cpp \
+	$(TEST_DIR)/test_l1_em_net_node.cpp
+
+TEST_OBJECTS = $(TEST_SOURCES:.cpp=.o)
+TEST_CXXFLAGS = $(CXXFLAGS) -I/usr/include -I/usr/local/include -DTESTING
+
+# Test target
+test: check_test_files install_gtest $(TEST_OBJECTS)
+	@$(MAKE) $(ALLOBJECTS) TESTING=1
+	@echo "Building test executable with same link order as main build..."
+	$(CXX) -o $(TEST_EXEC) $(TEST_OBJECTS) $(ALLOBJECTS) $(LIBDIRS) $(LIBS) -lgtest -lgtest_main -pthread -fsanitize=address -fsanitize=undefined
+	@echo "Running tests..."
+	@cd $(TEST_DIR) && \
+	$(TEST_EXEC)
+
+# Compile test source files
+$(TEST_DIR)/%.o: $(TEST_DIR)/%.cpp
+	@echo "Compiling test file $<..."
+	$(CXX) $(TEST_CXXFLAGS) -o $@ -c $<
+
+# Check if any test files exist
+check_test_files:
+	@if [ -z "$(TEST_SOURCES)" ]; then \
+		echo "Error: No test files found in $(TEST_DIR)/"; \
+		exit 1; \
+	fi
+
+# Install GTest if needed
+install_gtest:
+	@echo "Checking and installing Google Test if needed..."
+	@chmod +x $(ONEWIFI_EM_HOME)/build/install-gtest.sh
+	@$(ONEWIFI_EM_HOME)/build/install-gtest.sh
+
 all: $(BUS_LIBRARY) $(PROGRAM)
 
 $(PROGRAM): $(ALLOBJECTS)
@@ -141,5 +212,10 @@ clean:
 # 
 
 run:
-	./$(PROGRAM) 
+	./$(PROGRAM)
 
+# Clean test files only
+clean_tests:
+	$(RM) $(TEST_OBJECTS) $(TEST_EXEC)
+
+.PHONY: all test install_gtest check_test_files clean_tests clean run
