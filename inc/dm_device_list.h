@@ -22,13 +22,14 @@
 #include "em_base.h"
 #include "dm_device.h"
 #include "db_easy_mesh.h"
+#include "tr_181.h"
 
 class dm_easy_mesh_t;
 
-class dm_device_list_t : public dm_device_t, public db_easy_mesh_t {
+class dm_device_list_t : public dm_device_t, public db_easy_mesh_t, virtual public tr_181_t {
 
 public:
-    
+
 	/**!
 	 * @brief Initializes the device list.
 	 *
@@ -264,6 +265,8 @@ public:
 	 * @note This is a pure virtual function and must be implemented by derived classes.
 	 */
 	virtual void put_device(const char *key, const dm_device_t *dev) = 0;
+
+	virtual void update_device(const char *key, const dm_device_t *dev) = 0;
 };
 
 #endif
