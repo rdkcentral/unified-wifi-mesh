@@ -144,18 +144,19 @@ clean:
 
 # Google Test integration
 TEST_DIR = $(ONEWIFI_EM_HOME)/tests
-TEST_EXEC = $(INSTALLDIR)/bin/onewifi_em_test
+TEST_EXEC = $(INSTALLDIR)/bin/onewifi_em_ctrl_test
 # Common test files (everything except agent specific unit test files and test_l1_al*.cpp)
 EXCLUDE_TESTS = \
     $(TEST_DIR)/test_l1_al%.cpp \
     $(TEST_DIR)/test_l1_em_simulator.cpp \
     $(TEST_DIR)/test_l1_em_cmd_scan_result.cpp \
-    $(TEST_DIR)/test_l1_em_cmd_ap_metrics_report.cpp
+    $(TEST_DIR)/test_l1_em_cmd_ap_metrics_report.cpp \
+    $(TEST_DIR)/test_l1_em_cmd_btm_report.cpp
 COMMON_TEST_SOURCES = $(filter-out $(EXCLUDE_TESTS), $(wildcard $(TEST_DIR)/*.cpp))
 
 # SAP-specific test files
 SAP_TEST_SOURCES = $(wildcard $(TEST_DIR)/test_l1_al*.cpp)
-
+SAP_TEST_OBJECTS = $(SAP_TEST_SOURCES:.cpp=.o)
 # Combine them based on WITH_SAP
 TEST_SOURCES = $(COMMON_TEST_SOURCES)
 ifeq ($(WITH_SAP), 1)
@@ -202,6 +203,6 @@ run:
 clean_tests:
 	$(RM) $(TEST_OBJECTS) $(TEST_EXEC)
 ifeq ($(WITH_SAP), 1)
-	@$(MAKE) -C $(AL_SAP_HOME) clean
+	$(RM) $(SAP_TEST_OBJECTS)
 endif
 .PHONY: all test install_gtest check_test_files clean_tests compile_test_objects clean run
