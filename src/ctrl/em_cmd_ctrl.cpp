@@ -47,6 +47,7 @@ int em_cmd_ctrl_t::execute(char *result)
     unsigned int sz = sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN;
     unsigned char *tmp;
     bool wait = false;
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
     m_cmd.reset();
 
@@ -59,6 +60,11 @@ int em_cmd_ctrl_t::execute(char *result)
     if ((ret = listen(lsock, 20)) == -1) {
         printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
         return -1;
+    }
+
+    if (em_ctrl == NULL) {
+        em_printfout("em_ctrl is NULL");
+        return -1;        
     }
 
     while (1) {
@@ -92,12 +98,13 @@ int em_cmd_ctrl_t::execute(char *result)
         	//get_event()->u.bevt.data_len, get_event()->u.bevt.u.subdoc.name, get_event()->u.bevt.u.subdoc.buff);
         
         switch (get_event()->type) {
+
             case em_event_type_bus:
-                if (m_ctrl.is_data_model_initialized() == true && m_ctrl.is_network_topology_initialized() == true) {
-                    wait = m_ctrl.io_process(get_event());
+                if (em_ctrl_t::get_em_ctrl_instance()->is_data_model_initialized() == true && em_ctrl->is_network_topology_initialized() == true) {
+                    wait = em_ctrl->io_process(get_event());
                 } else {
                     if ((get_event()->u.bevt.type == em_bus_event_type_reset) || (get_event()->u.bevt.type == em_bus_event_type_get_reset) ){
-                        wait = m_ctrl.io_process(get_event());
+                        wait = em_ctrl->io_process(get_event());
                     } else {
                         wait = false;
                     }

@@ -104,11 +104,10 @@ dm_orch_type_t dm_device_list_t::get_dm_orch_type(db_client_t& db_client, const 
 
     pdev = get_device(key);
     
-    if (pdev != NULL) {
-        
+    if (pdev != NULL) {        
         if (entry_exists_in_table(db_client, key) == false) {
             //printf("%s:%d: Device: %s does not exist in db\n", __func__, __LINE__, 
-                         //dm_easy_mesh_t::macbytes_to_string(pdev->m_device_info.id.dev_mac, mac_str));
+                        //dm_easy_mesh_t::macbytes_to_string(pdev->m_device_info.id.dev_mac, mac_str));
             return dm_orch_type_db_insert;
         }
 
@@ -136,18 +135,20 @@ void dm_device_list_t::update_list(const dm_device_t& dev, dm_orch_type_t op)
     dm_device_t *pdev;
     mac_addr_str_t	mac_str;
     em_2xlong_string_t	key;
+    dm_easy_mesh_t *dm;
 
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (dev.m_device_info.id.dev_mac), mac_str);
     snprintf(key, sizeof(em_2xlong_string_t), "%s@%s@%d", dev.m_device_info.id.net_id, mac_str, dev.m_device_info.id.media);
 
     switch (op) {
         case dm_orch_type_db_insert:
+            em_printfout("    =============== dm_orch_type_db_insert");
             put_device(key, &dev);
             break;
 
         case dm_orch_type_db_update:
-            pdev = get_device(key);
-            memcpy(&pdev->m_device_info, &dev.m_device_info, sizeof(em_device_info_t));
+            em_printfout("    =============== dm_orch_type_db_update");
+            update_device(key, &dev);
             break;
 
         case dm_orch_type_db_delete:
