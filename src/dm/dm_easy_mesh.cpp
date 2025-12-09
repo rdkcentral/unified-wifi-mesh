@@ -47,6 +47,8 @@
 #include "em_cmd_ap_cap.h"
 #include "em_cmd_client_cap.h"
 
+std::atomic<int> dm_easy_mesh_t::s_counter{0};
+
 dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
 {
     dm_sta_t *sta;
@@ -104,6 +106,7 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
     }
 
     m_em = obj.m_em;
+    m_instance_num = obj.m_instance_num;
 
     return *this;
 }
@@ -1996,6 +1999,8 @@ bool dm_easy_mesh_t::operator==(dm_easy_mesh_t const& obj)
     }
     ret += (memcmp(&this->m_network_ssid,&obj.m_network_ssid,sizeof(dm_network_ssid_t)) != 0);
 
+    ret += (memcmp(&m_instance_num, &obj.m_instance_num ,sizeof(m_instance_num)) != 0);
+
     if (ret > 0)
         return false;
     else
@@ -3007,7 +3012,7 @@ dm_easy_mesh_t::dm_easy_mesh_t()
 	m_num_policy = 0;
 	m_num_bss = 0;
     m_num_ap_mld = 0;
-        m_num_net_ssids = 0;
+    m_num_net_ssids = 0;
 	m_db_cfg_param.db_cfg_type = db_cfg_type_none;
     m_colocated = false;
 }
