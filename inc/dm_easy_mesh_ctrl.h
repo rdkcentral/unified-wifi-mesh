@@ -54,25 +54,62 @@ public:
     int get_nb_pipe_rd() { return m_nb_pipe_rd; }
     int get_nb_pipe_wr() { return m_nb_pipe_wr; }
     uint32_t get_next_nb_evt_id() { return m_nb_evt_id++; }
+
     bus_error_t bus_get_cb_fwd(char *event_name, raw_data_t *p_data, bus_get_handler_t cb);
-    void fill_comma_sep(em_short_string_t str[], size_t max, char *buf);
+    dm_easy_mesh_t *get_dm_easy_mesh(char *instance, bool is_num);
+    dm_device_t *get_dm_dev(mac_address_t dev_mac, mac_address_t bmac);
+    dm_radio_t *get_dm_radio(dm_easy_mesh_t *dm, char *instance, bool is_num);
+    dm_sta_t *get_dm_bh_sta(dm_easy_mesh_t *dm, dm_radio_t *radio);
 
     bus_error_t network_get(char *event_name, raw_data_t *p_data);
     static bus_error_t network_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
     bus_error_t device_get(char* event_name, raw_data_t* p_data);
     static bus_error_t device_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    dm_device_t *get_dm_dev(mac_address_t dev_mac, mac_address_t bmac);
+    bus_error_t device_tget(char *event_name, raw_data_t *p_data);
+    static bus_error_t device_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
     bus_error_t radio_get(char* event_name, raw_data_t* p_data);
     static bus_error_t radio_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    bus_error_t radio_tget(char* event_name, raw_data_t* p_data);
+    static bus_error_t radio_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t radio_tget_params(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property);
+    bus_error_t rbhsta_get(char *event_name, raw_data_t *p_data);
+    static bus_error_t rbhsta_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    bus_error_t curops_tget(char *event_name, raw_data_t *p_data);
+    static bus_error_t curops_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t curops_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property);
 
+    void fill_comma_sep(em_short_string_t str[], size_t max, char *buf);
     bus_error_t bss_get(char* event_name, raw_data_t* p_data);
     static bus_error_t bss_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    bus_error_t bss_tget(char* event_name, raw_data_t* p_data);
+    static bus_error_t bss_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t bss_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property);
 
-    dm_sta_t *get_dm_bh_sta(dm_easy_mesh_t *dm, dm_radio_t *radio);
+    bus_error_t ssid_get(char* event_name, raw_data_t* p_data);
+    static bus_error_t ssid_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    bus_error_t ssid_tget(char* event_name, raw_data_t* p_data);
+    static bus_error_t ssid_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t ssid_tget_params(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property);
 
+    char* get_ht_caps_str(em_ap_ht_cap_t *ht, char *buf, size_t buf_len);
+    char* get_vht_caps_str(em_ap_vht_cap_t *vht, char *buf, size_t buf_len);
+    bus_error_t rcaps_get(char* event_name, raw_data_t* p_data);
+    static bus_error_t rcaps_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t rcaps_tget_inner(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property);
+
+    dm_op_class_t* get_dm_curop(dm_easy_mesh_t *dm, dm_radio_t *radio, int instance);
+    bus_error_t curops_get(char* event_name, raw_data_t* p_data);
+    static bus_error_t curops_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
+    dm_sta_t* get_dm_sta(dm_easy_mesh_t *dm, em_bss_info_t *bi, int instance);
+    void fill_haul_type(em_haul_type_t hauls[], size_t max, char *buf);
+    bus_error_t sta_get(char* event_name, raw_data_t* p_data);
+    bus_error_t sta_tget(char *event_name, raw_data_t *p_data);
+    static bus_error_t sta_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t sta_tget_params(dm_easy_mesh_t *dm, const char *root, em_bss_info_t *bi, bus_data_prop_t **property);
+    static bus_error_t sta_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 private:
     db_client_t m_db_client;
     bool	m_initialized;

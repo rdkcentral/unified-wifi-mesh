@@ -226,7 +226,6 @@ void dm_easy_mesh_list_t::put_device(const char *key, const dm_device_t *dev)
         em_printfout("device at key: %s not found\n", key);
 	    dm = create_data_model(dev->m_device_info.id.net_id, &dev->m_device_info.intf, dev->m_device_info.profile);
         pdev = dm->get_device();
-        tr_181_t::add_table_row(DE_DEVICE_TABLE, dm);
     }
     *pdev = *dev;
 	
@@ -255,7 +254,6 @@ void dm_easy_mesh_list_t::update_device(const char *key, const dm_device_t *dev)
             em_printfout("Could not find data model for device at key: %s@%s", pdev->m_device_info.id.net_id, mac_str);
             return;
         }
-        tr_181_t::add_table_row(DE_DEVICE_TABLE, dm);
     }
 }
 
@@ -372,7 +370,6 @@ void dm_easy_mesh_list_t::put_radio(const char *key, const dm_radio_t *radio)
         printf("%s:%d: Current Number of Radios: %d\n", __func__, __LINE__, dm->get_num_radios());
         dm->set_num_radios(dm->get_num_radios() + 1);
         pradio = dm->get_radio(dm->get_num_radios() - 1);
-        tr_181_t::add_table_row(DE_RADIO_TABLE, dm);
     }
     *pradio = *radio;
     em_printfout("Radio dev_id is:%s", radio->m_radio_info.id.dev_mac);
@@ -525,7 +522,6 @@ void dm_easy_mesh_list_t::put_bss(const char *key, const dm_bss_t *bss)
 	mac_addr_str_t	dev_mac_str, radio_mac_str, bssid_str;
 	dm_easy_mesh_t *dm;
 	dm_bss_t *pbss;
-    unsigned int null_bss = 0;
 
 	dm_bss_t::parse_bss_id_from_key(key, &id);
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
@@ -540,14 +536,9 @@ void dm_easy_mesh_list_t::put_bss(const char *key, const dm_bss_t *bss)
 	if ((pbss = dm->find_matching_bss(&id)) == NULL) {
 		pbss = &dm->m_bss[dm->m_num_bss];
 		dm->m_num_bss++;
-        null_bss = 1;
 	}	
 
 	*pbss = *bss;
-
-    if(null_bss == 1) {
-        tr_181_t::add_table_row(DE_BSS_TABLE, dm);
-    }
 }
 
 dm_sta_t *dm_easy_mesh_list_t::get_first_sta()
