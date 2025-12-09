@@ -83,7 +83,6 @@ GENERIC_SOURCES = $(ONEWIFI_HOME)/source/utils/collection.c \
 	$(ONEWIFI_EM_SRC)/util_crypto/aes_siv.c \
 	$(ONEWIFI_HOME)/lib/common/util.c \
     $(ONEWIFI_HOME)/source/platform/linux/bus.c \
-	$(ONEWIFI_HOME)/source/platform/common/bus_common.c \
 
 
 CTRL_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
