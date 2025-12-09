@@ -2778,7 +2778,7 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
         return bus_error_invalid_input;
     }
 
-    dm_radio_t *radio = &dm->m_radio[radio_instance];
+    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
@@ -2921,7 +2921,7 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const cha
         snprintf(path, sizeof(path) - 1, "%s%d.CurrentOperatingClassProfile.", root, idx);
         dm_ctrl->curops_tget_params(dm, path, ri, property);
 
-        snprintf(path, sizeof(path) - 1, "%s%d.BSS.", root, idx);
+        snprintf(path, sizeof(path) - 1, "%s%d.BSSList.", root, idx);
         dm_ctrl->bss_tget_params(dm, path, ri, property);
     }
 
@@ -2967,7 +2967,7 @@ bus_error_t dm_easy_mesh_ctrl_t::rbhsta_get_inner(char *event_name, raw_data_t *
         return bus_error_invalid_input;
     }
 
-    dm_radio_t *radio = &dm->m_radio[radio_instance];
+    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
@@ -3030,7 +3030,7 @@ bus_error_t dm_easy_mesh_ctrl_t::rcaps_get_inner(char *event_name, raw_data_t *p
         return bus_error_invalid_input;
     }
 
-    dm_radio_t *radio = &dm->m_radio[radio_instance];
+    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
@@ -3125,7 +3125,7 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_get_inner(char *event_name, raw_data_t *
         return bus_error_invalid_input;
     }
 
-    dm_radio_t *radio = &dm->m_radio[radio_instance];
+    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
@@ -3186,7 +3186,7 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_tget_inner(char *event_name, raw_data_t 
         return bus_error_invalid_input;
     }
 
-    dm_radio_t *radio = &dm->m_radio[radio_instance];
+    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
@@ -3296,7 +3296,7 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_d
         return bus_error_invalid_input;
     }
 
-    dm_radio_t *radio = &dm->m_radio[radio_instance];
+    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
@@ -3425,7 +3425,7 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_tget_inner(char *event_name, raw_data_t *p_
         return bus_error_invalid_input;
     }
 
-    dm_radio_t *radio = &dm->m_radio[radio_instance];
+    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
@@ -3520,7 +3520,7 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
         return bus_error_invalid_input;
     }
 
-    dm_radio_t *radio = &dm->m_radio[radio_instance];
+    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
@@ -3643,7 +3643,7 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_inner(char *event_name, raw_data_t *p_
         return bus_error_invalid_input;
     }
 
-    dm_radio_t *radio = &dm->m_radio[radio_instance];
+    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
         return bus_error_invalid_input;

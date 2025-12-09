@@ -78,7 +78,7 @@ typedef struct bus_data_cb_func {
 /* Device.WiFi.DataElements.Network.Device */
 // #define DE_NETWORK_DEVICE       DATAELEMS_NETWORK       "Device.{i}."
 #define DE_NETWORK_DEVICE       DATAELEMS_NETWORK       "DeviceList.{i}."
-#define DE_DEVICE_TABLE         DATAELEMS_NETWORK       "DeviceList.{i}"
+#define DE_DEVICE_TABLE         DE_NETWORK_DEVICE
 #define DE_DEVICE_ID            DE_NETWORK_DEVICE       "ID"
 #define DE_DEVICE_MAPCAP        DE_NETWORK_DEVICE       "MultiAPCapabilities"
 #define DE_DEVICE_NUMRADIO      DE_NETWORK_DEVICE       "NumberOfRadios"
@@ -161,7 +161,7 @@ typedef struct bus_data_cb_func {
 /* Device.WiFi.DataElements.Network.Device.Radio */
 // #define DE_DEVICE_RADIO         DE_NETWORK_DEVICE       "Radio.{i}."
 #define DE_DEVICE_RADIO         DE_NETWORK_DEVICE       "RadioList.{i}."
-#define DE_RADIO_TABLE          DE_NETWORK_DEVICE       "RadioList.{i}"
+#define DE_RADIO_TABLE          DE_DEVICE_RADIO
 #define DE_RADIO_ID             DE_DEVICE_RADIO         "ID"
 #define DE_RADIO_ENABLED        DE_DEVICE_RADIO         "Enabled"
 #define DE_RADIO_NUMCUROPCLASS  DE_DEVICE_RADIO         "NumberOfCurrOpClass"
@@ -273,7 +273,7 @@ typedef struct bus_data_cb_func {
 /* Device.WiFi.DataElements.Network.Device.Radio.BSS */
 // #define DE_RADIO_BSS            DE_DEVICE_RADIO         "BSS.{i}."
 #define DE_RADIO_BSS            DE_DEVICE_RADIO         "BSSList.{i}."
-#define DE_BSS_TABLE            DE_DEVICE_RADIO         "BSSList.{i}"
+#define DE_BSS_TABLE            DE_RADIO_BSS
 #define DE_BSS_BSSID            DE_RADIO_BSS            "BSSID"
 #define DE_BSS_SSID             DE_RADIO_BSS            "SSID"
 #define DE_BSS_ENABLED          DE_RADIO_BSS            "Enabled"
@@ -423,9 +423,11 @@ public:
     //Radio
     static bus_error_t radio_get(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);
     static bus_error_t radio_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t rbhsta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t radio_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
     static bus_error_t rcaps_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t curops_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t curops_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
     //BSS
     static bus_error_t bss_get(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);

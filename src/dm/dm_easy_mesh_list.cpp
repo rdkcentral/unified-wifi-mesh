@@ -357,17 +357,17 @@ void dm_easy_mesh_list_t::put_radio(const char *key, const dm_radio_t *radio)
     mac_addr_str_t  dev_mac;
     em_t *em = NULL;
 
-    printf("%s:%d: Radio: %s\n", __func__, __LINE__, key);
+    //em_printfout("%s:%d: Radio: %s", __func__, __LINE__, key);
 
     if ((pradio = get_radio(key)) == NULL) {
         dm = get_data_model(radio->m_radio_info.id.net_id, radio->m_radio_info.id.dev_mac);
         dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (radio->m_radio_info.id.dev_mac), dev_mac);
-		printf("%s:%d: dm: %p net: %s device: %s\n", __func__, __LINE__, dm, radio->m_radio_info.id.net_id, dev_mac);
+		//em_printfout("%s:%d: dm: %p net: %s device: %s", __func__, __LINE__, dm, radio->m_radio_info.id.net_id, dev_mac);
         if (dm == NULL) {
             return;
         }
 
-        printf("%s:%d: Current Number of Radios: %d\n", __func__, __LINE__, dm->get_num_radios());
+        //em_printfout("%s:%d: Current Number of Radios: %d", __func__, __LINE__, dm->get_num_radios());
         dm->set_num_radios(dm->get_num_radios() + 1);
         pradio = dm->get_radio(dm->get_num_radios() - 1);
     }
@@ -1587,9 +1587,6 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
     }
     em_printfout("Putting data model at key: %s", key);
     hash_map_put(m_list, strdup(key), dm);
-
-    //TODO: remove later, dbg code
-    dm_easy_mesh_t *test_dm = get_data_model(net_id, al_intf->mac);
 
     return dm;
 }

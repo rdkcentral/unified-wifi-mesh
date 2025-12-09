@@ -70,6 +70,7 @@ void tr_181_t::init(void* ptr)
     register_wfa_dml();
 }
 
+#if 0
 int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_callback_table_t *cb_table)
 {
     bus_data_cb_func_t bus_data_cb[] = {
@@ -236,6 +237,7 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
 
     return RETURN_OK;
 }
+#endif
 
 int tr_181_t::wfa_bus_register_namespace(char *full_namespace, bus_element_type_t element_type,
                             bus_callback_table_t cb_table, data_model_properties_t  data_model_value, int num_of_rows)
@@ -547,6 +549,19 @@ bus_error_t tr_181_t::curops_get(char *event_name, raw_data_t *p_data, bus_user_
     return bus_error_general;
 }
 
+bus_error_t tr_181_t::curops_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL)
+    {
+        em_ctrl->get_dm_ctrl()->curops_tget(event_name, p_data);
+        return bus_error_success;
+    }
+    
+    return bus_error_general;
+}
+
 bus_error_t tr_181_t::sta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
@@ -567,6 +582,19 @@ bus_error_t tr_181_t::radio_tget(char *event_name, raw_data_t *p_data, bus_user_
     if (em_ctrl != NULL)
     {
         em_ctrl->get_dm_ctrl()->radio_tget(event_name, p_data);
+        return bus_error_success;
+    }
+    
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::rbhsta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL)
+    {
+        em_ctrl->get_dm_ctrl()->rbhsta_get(event_name, p_data);
         return bus_error_success;
     }
     
@@ -609,6 +637,7 @@ bus_error_t tr_181_t::wifi_elem_num_of_table_row(char* event_name, uint32_t* tab
     return bus_error_success;
 }
 
+#if 0
 // Resolve $ref if present on the node; otherwise return the node itself.
 cJSON* tr_181_t::follow_ref_if_any(cJSON* root, cJSON* node)
 {
@@ -839,10 +868,113 @@ bool tr_181_t::parse_and_register_schema(const char *filename)
     cJSON_Delete(root);
     return true;
 }
+#endif
 
 int tr_181_t::register_wfa_dml()
 {
-    const char *filename = "Data_Elements_JSON_Schema_v3.0.json";
-    parse_and_register_schema(filename);
+    uint32_t count;
+    bus_error_t rc;
+    wifi_bus_desc_t *bus_desc;
+    bus_data_element_t elements[] = {
+        ELEMENT_PROPERTY(DE_NETWORK_ID,        network_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_NETWORK_CTRLID,    network_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_NETWORK_COLAGTID,  network_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_NETWORK_DEVNOE,    network_get, bus_data_type_uint32),
+        ELEMENT_TABLE(DE_SSID_TABLE,           ssid_tget, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_SSID_SSID,         ssid_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_SSID_BAND,         ssid_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_SSID_ENABLE,       ssid_get, bus_data_type_boolean),
+        ELEMENT_PROPERTY(DE_SSID_AKMALLOWE,    ssid_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_SSID_SUITESEL,     ssid_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_SSID_ADVENABLED,   ssid_get, bus_data_type_boolean),
+        ELEMENT_PROPERTY(DE_SSID_MFPCONFIG,    ssid_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_SSID_MOBDOMAIN,    ssid_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_SSID_HAULTYPE,     ssid_get, bus_data_type_string),
+        ELEMENT_TABLE(DE_DEVICE_TABLE,         device_tget, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_DEVICE_ID,         device_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_DEVICE_MANUFACT,   device_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_DEVICE_SERIALNO,   device_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_DEVICE_MFCMODEL,   device_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_DEVICE_SWVERSION,  device_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_DEVICE_EXECENV,    device_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_DEVICE_COUNTRCODE, device_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_DEVICE_BHMACADDR,  device_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_DEVICE_BHALID,     device_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_DEVICE_BHMEDIATYPE, device_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_DEVICE_RADIONOE,   device_get, bus_data_type_uint32),
+        ELEMENT_PROPERTY(DE_DEVICE_CACSTATNOE, device_get, bus_data_type_uint32),
+        ELEMENT_PROPERTY(DE_DEVICE_BHDOWNNOE,  device_get, bus_data_type_uint32),
+        ELEMENT_TABLE(DE_RADIO_TABLE,          radio_tget, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_RADIO_ID,          radio_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_RADIO_ENABLED,     radio_get, bus_data_type_boolean),
+        ELEMENT_PROPERTY(DE_RADIO_NOISE,       radio_get, bus_data_type_uint32),
+        ELEMENT_PROPERTY(DE_RADIO_UTILIZATION, radio_get, bus_data_type_uint32),
+        ELEMENT_PROPERTY(DE_RADIO_TRANSMIT,    radio_get, bus_data_type_uint32),
+        ELEMENT_PROPERTY(DE_RADIO_RECEIVESELF, radio_get, bus_data_type_uint32),
+        ELEMENT_PROPERTY(DE_RADIO_RECEIVEOTHER, radio_get, bus_data_type_uint32),
+        ELEMENT_PROPERTY(DE_RADIO_CHIPVENDOR,  radio_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_RADIO_CURROPNOE,   radio_get, bus_data_type_uint32),
+        ELEMENT_PROPERTY(DE_RADIO_BSSNOE,      radio_get, bus_data_type_uint32),
+        ELEMENT_PROPERTY(DE_BHSTA_MACADDR,     rbhsta_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_RCAPS_HTCAPS,      rcaps_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_RCAPS_VHTCAPS,     rcaps_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_RCAPS_CAPOPNOE,    rcaps_get, bus_data_type_uint32),
+        ELEMENT_TABLE(DE_CUROP_TABLE,          curops_tget, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_CUROP_CLASS,       curops_get, bus_data_type_uint32),
+        ELEMENT_PROPERTY(DE_CUROP_CHANNEL,     curops_get, bus_data_type_uint32),
+        ELEMENT_PROPERTY(DE_CUROP_TXPOWER,     curops_get, bus_data_type_int32),
+        ELEMENT_TABLE(DE_BSS_TABLE,            bss_tget, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_BSS_BSSID,         bss_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_BSS_SSID,          bss_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_BSS_ENABLED,       bss_get, bus_data_type_boolean),
+        ELEMENT_PROPERTY(DE_BSS_BYTCNTUNITS,   bss_get, bus_data_type_uint32),
+        ELEMENT_PROPERTY(DE_BSS_BHAULUSE,      bss_get, bus_data_type_boolean),
+        ELEMENT_PROPERTY(DE_BSS_FHAULUSE,      bss_get, bus_data_type_boolean),
+        ELEMENT_PROPERTY(DE_BSS_FHAULAKMS,     bss_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_BSS_FH_SUITE,    bss_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_BSS_BHAULAKMS,     bss_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_BSS_BH_SUITE,    bss_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_BSS_NUM_STA,        bss_get, bus_data_type_uint32),
+        ELEMENT_TABLE(DE_STA_TABLE,            sta_tget, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_STA_MACADDR,       sta_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_STA_HTCAPS,        sta_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_STA_VHTCAPS,       sta_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_STA_CLIENTCAPS,    sta_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_STA_LSTDTADLR,     sta_get, bus_data_type_uint32),
+        ELEMENT_PROPERTY(DE_STA_LSTDTAULR,     sta_get, bus_data_type_uint32),
+        ELEMENT_PROPERTY(DE_STA_UTILRECV,      sta_get, bus_data_type_uint64),
+        ELEMENT_PROPERTY(DE_STA_UTILTRMT,      sta_get, bus_data_type_uint64),
+        ELEMENT_PROPERTY(DE_STA_ESTMACDTARDL,  sta_get, bus_data_type_uint32),
+        ELEMENT_PROPERTY(DE_STA_ESTMACDTARUL,  sta_get, bus_data_type_uint32),
+        ELEMENT_PROPERTY(DE_STA_SIGNALSTR,     sta_get, bus_data_type_uint32),
+        ELEMENT_PROPERTY(DE_STA_LASTCONNTIME,  sta_get, bus_data_type_uint32),
+        ELEMENT_PROPERTY(DE_STA_BYTESSNT,      sta_get, bus_data_type_uint64),
+        ELEMENT_PROPERTY(DE_STA_BYTESRCV,      sta_get, bus_data_type_uint64),
+        ELEMENT_PROPERTY(DE_STA_PCKTSSNT,      sta_get, bus_data_type_uint64),
+        ELEMENT_PROPERTY(DE_STA_PCKTSRCV,      sta_get, bus_data_type_uint64),
+        ELEMENT_PROPERTY(DE_STA_ERRSSNT,       sta_get, bus_data_type_uint64),
+        ELEMENT_PROPERTY(DE_STA_ERRSRCV,       sta_get, bus_data_type_uint64),
+        ELEMENT_PROPERTY(DE_STA_RETRANSCNT,    sta_get, bus_data_type_uint64),
+        ELEMENT_PROPERTY(DE_STA_IPV4ADDR,      sta_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_STA_IPV6ADDR,      sta_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_STA_HOSTNAME,      sta_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_STA_PAIRWSAKM,     sta_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_STA_PAIRWSCIPHER,  sta_get, bus_data_type_string),
+        ELEMENT_PROPERTY(DE_STA_RSNCAPS,       sta_get, bus_data_type_uint32)
+    };
+
+    bus_desc = get_bus_descriptor();
+    if (bus_desc == NULL) {
+        em_printfout("Bus is not initialized");
+        return RETURN_ERR;
+    }
+
+    count = sizeof(elements) / sizeof(bus_data_element_t);
+    rc = bus_desc->bus_reg_data_element_fn(&m_bus_handle, elements, count);
+    if (rc != bus_error_success) {
+        em_printfout("Bus register elements failed: %d", rc);
+        return RETURN_ERR;
+    }
+
     return RETURN_OK;
 }

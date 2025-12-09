@@ -142,12 +142,12 @@ void dm_device_list_t::update_list(const dm_device_t& dev, dm_orch_type_t op)
 
     switch (op) {
         case dm_orch_type_db_insert:
-        printf("    =============== dm_orch_type_db_insert\n");
+            em_printfout("    =============== dm_orch_type_db_insert");
             put_device(key, &dev);
             break;
 
         case dm_orch_type_db_update:
-            printf("    =============== dm_orch_type_db_update\n");
+            em_printfout("    =============== dm_orch_type_db_update");
             update_device(key, &dev);
             break;
 
