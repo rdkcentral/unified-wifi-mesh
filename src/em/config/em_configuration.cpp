@@ -1937,7 +1937,7 @@ unsigned short em_configuration_t::create_traffic_separation_policy(unsigned cha
         memcpy(tmp, &vlan_n, sizeof(vlan_n));
         tmp += sizeof(unsigned short);
         len += sizeof(unsigned short);
-        em_printfout(" TRAFFIC SEPARATION SSID='%.*s' Len=%u, VLAN=%u ",ssid_bytes.data(), ssid_len, info.vlan_id);
+	em_printfout(" TRAFFIC SEPARATION SSID='%.*s' Len=%u, VLAN=%u ",ssid_len,ssid_bytes.data(), ssid_len, info.vlan_id);
     }
     em_printfout("Length: %d ", len);
     return len;
