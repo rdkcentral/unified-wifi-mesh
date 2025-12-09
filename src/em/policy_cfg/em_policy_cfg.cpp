@@ -539,8 +539,7 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
         } else if (tlv->type == em_tlv_type_traffic_separation_policy) {
             unsigned char *tmp = static_cast<unsigned char *>(tlv->value);
             policy.traffic_separation_policy.ssids_num = *tmp;
-	    if(policy.traffic_separation_policy.ssids_num <= em_haul_type_max)
-	    {
+	        if(policy.traffic_separation_policy.ssids_num <= em_haul_type_max) {
             	tmp += sizeof(unsigned char);
             	data_len += sizeof(unsigned char);
             	for ( i = 0; i < policy.traffic_separation_policy.ssids_num ; i++ ) {
@@ -548,8 +547,7 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
                     tmp += sizeof(unsigned char);
                     data_len += sizeof(unsigned char);
 		
-		    if(ssid_len <= MAX_SSID_NAME_LEN)
-		    {
+		            if(ssid_len <= MAX_SSID_NAME_LEN) {
                         memcpy(policy.traffic_separation_policy.ssids[i].ssid, tmp, ssid_len);
                         policy.traffic_separation_policy.ssids[i].ssid[ssid_len] = '\0';
                         policy.traffic_separation_policy.ssids[i].ssid_len = ssid_len ;
@@ -562,10 +560,10 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
                         policy.traffic_separation_policy.ssids[i].vlan_id = ntohs(net_vlan);
                         tmp += sizeof(unsigned short);
                         data_len += sizeof(unsigned short);
-		    }
+		            }
                     em_printfout(" Recvd Traffic Separation policy SSID='%s' Len=%u, VLAN=%u ",policy.traffic_separation_policy.ssids[i].ssid , ssid_len ,policy.traffic_separation_policy.ssids[i].vlan_id);
                 }
-	    }
+	        }
         } else if (tlv->type == em_tlv_type_channel_scan_rprt_policy) {
         } else if (tlv->type == em_tlv_type_unsucc_assoc_policy) {
         } else if (tlv->type == em_tlv_type_backhaul_bss_conf) {
