@@ -464,7 +464,7 @@ public:
 
 template <typename T> bus_data_prop_t *tr_181_t::property_init_value(const char *root, unsigned int idx, const char *param, T value)
 {
-    bus_data_prop_t *property = (bus_data_prop_t *)calloc(1, sizeof(bus_data_prop_t));
+    bus_data_prop_t *property = static_cast<bus_data_prop_t *>(calloc(1, sizeof(bus_data_prop_t)));
 
     if (property == NULL) {
         return NULL;
@@ -486,7 +486,7 @@ template <typename T> void tr_181_t::property_append_tail(bus_data_prop_t **prop
     if (*property == NULL) {
         *property = property_init_value(root, idx, param, value);
     } else {
-        tail = (bus_data_prop_t *)calloc(1, sizeof(bus_data_prop_t));
+        tail = static_cast<bus_data_prop_t *>(calloc(1, sizeof(bus_data_prop_t)));
         snprintf(tail->name, sizeof(bus_name_string_t), "%s%d.%s", root, idx, param);
         raw_data_set(&tail->value, value);
         tail->name_len = static_cast<uint32_t>(strlen(tail->name));
