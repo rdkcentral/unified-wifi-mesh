@@ -1059,8 +1059,8 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
 #ifndef TESTING
 int main(int argc, const char *argv[])
 {
-#ifdef AL_SAP
     em_ctrl_t  *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+#ifdef AL_SAP
     g_sap = em_ctrl->al_sap_register("/tmp/al_em_ctrl_data_socket", "/tmp/al_em_ctrl_control_socket");
 #endif
 
