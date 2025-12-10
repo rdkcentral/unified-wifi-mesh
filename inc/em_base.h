@@ -1046,6 +1046,7 @@ typedef struct {
     mac_address_t  ruid;
     unsigned char  op_classes_num;
     em_op_class_ch_rprt_t  op_classes[0];
+    int8_t  current_transmit_power;
 } __attribute__((__packed__)) em_op_channel_rprt_t;
 
 typedef struct {
