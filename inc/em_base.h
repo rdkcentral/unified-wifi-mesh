@@ -1908,6 +1908,7 @@ typedef enum {
     attr_id_totalPnetworks,
     attr_id_uuid_e, 
     attr_id_uuid_r, 
+    attr_id_vendor_ext,
     attr_id_version,
     attr_id_primary_device_type = 0x1054,
 	attr_id_haul_type,
