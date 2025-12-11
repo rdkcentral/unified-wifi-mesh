@@ -33,11 +33,6 @@
 #include "dm_easy_mesh_ctrl.h"
 #include "em_ctrl.h"
 
-// class dm_easy_mesh_ctrl_t;
-// class em_ctrl_t;
-
-// dm_easy_mesh_ctrl_t *tr_181_t::m_ctrl = NULL;
-
 void tr_181_t::init(void* ptr)
 {
     wifi_bus_desc_t *desc;
@@ -45,25 +40,19 @@ void tr_181_t::init(void* ptr)
     int pipefd[2];
 	int rcp;
 
-    // tr_181_t::m_ctrl = static_cast<dm_easy_mesh_ctrl_t*>(ptr);
-
 	rcp = pipe2(pipefd, O_DIRECT);
 	if (rcp == -1) {
 		return;
 	}
 
-	// m_nb_pipe_rd = pipefd[0];
-	// m_nb_pipe_wr = pipefd[1];
-
-
     bus_init(&m_bus_handle);
 
     if((desc = get_bus_descriptor()) == NULL) {
-        printf("%s:%d descriptor is null\n", __func__, __LINE__);
+        em_printfout("descriptor is null");
     }
     
     if (desc->bus_open_fn(&m_bus_handle, service_name) != 0) {
-        printf("%s:%d bus open failed\n",__func__, __LINE__);
+        em_printfout("bus open failed");
         return;
     }
 
@@ -242,7 +231,7 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
 int tr_181_t::wfa_bus_register_namespace(char *full_namespace, bus_element_type_t element_type,
                             bus_callback_table_t cb_table, data_model_properties_t  data_model_value, int num_of_rows)
 {   
-    bus_data_element_t dataElements = { 0 };
+    bus_data_element_t dataElements = {};
 
     dataElements.full_name       = full_namespace;
     dataElements.type            = element_type;
@@ -255,7 +244,7 @@ int tr_181_t::wfa_bus_register_namespace(char *full_namespace, bus_element_type_
         if (wifi_elem_num_of_table_row(full_namespace, &num_of_table_rows) == bus_error_success) {
             dataElements.num_of_table_row = num_of_table_rows;
         } else {
-            dataElements.num_of_table_row = num_of_rows;
+            dataElements.num_of_table_row = static_cast<uint32_t>(num_of_rows);
         }
     }
 
