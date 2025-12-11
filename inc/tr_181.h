@@ -342,14 +342,14 @@ typedef struct bus_data_cb_func {
 #define ELEMENT_DEFAULTS(t)         slow_speed, ZERO_TABLE, {t, false, 0L, 0L, 0U, NULL}
 #define CALLBACK_GETTER(f)          {f, NULL, NULL, NULL, NULL, NULL}
 #define CALLBACK_METHOD(f)          {NULL, NULL, NULL, NULL, NULL, f}
-#define ELEMENT_PROPERTY(n, f, t)   {n, bus_element_type_property, CALLBACK_GETTER(f), ELEMENT_DEFAULTS(t)}
-#define ELEMENT_METHOD(n, f, t)     {n, bus_element_type_method, CALLBACK_METHOD(f), ELEMENT_DEFAULTS(t)}
-#define ELEMENT_TABLE(n, f, t)      {n, bus_element_type_table, CALLBACK_GETTER(f), ELEMENT_DEFAULTS(t)}
+#define ELEMENT_PROPERTY(n, f, t)   {const_cast<char*>(n), bus_element_type_property, CALLBACK_GETTER(f), ELEMENT_DEFAULTS(t)}
+#define ELEMENT_METHOD(n, f, t)     {const_cast<char*>(n), bus_element_type_method, CALLBACK_METHOD(f), ELEMENT_DEFAULTS(t)}
+#define ELEMENT_TABLE(n, f, t)      {const_cast<char*>(n), bus_element_type_table, CALLBACK_GETTER(f), ELEMENT_DEFAULTS(t)}
 
 #define CALLBACK_ADD_ROW(f)          {NULL, NULL, f, NULL, NULL, NULL}
 #define CB(...)                      (bus_callback_table_t){ __VA_ARGS__ }
-#define ELEMENT(n, f)                {n, f}
-#define ELEMENT_TABLE_ROW(n, f)      {n, f}
+#define ELEMENT(n, f)                {const_cast<char*>(n), f}
+#define ELEMENT_TABLE_ROW(n, f)      {const_cast<char*>(n), f}
 
 class dm_easy_mesh_ctrl_t;
 

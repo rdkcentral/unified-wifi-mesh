@@ -1025,16 +1025,14 @@ int dm_easy_mesh_ctrl_t::analyze_mld_reconfig(em_cmd_t *pcmd[])
 int dm_easy_mesh_ctrl_t::analyze_bsta_cap_req(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     int num = 0;
-    em_cmd_t *tmp;
     dm_easy_mesh_t dm = *this;
 
     em_printfout("analyze radio mac '%s' for bsta cap request", evt->u.raw_buff);
 
     evt->params.u.args.num_args = 1;
-    strncpy(evt->params.u.args.args[0], (const char *)evt->u.raw_buff, sizeof(mac_addr_str_t));
+    strncpy(evt->params.u.args.args[0], reinterpret_cast<const char*>(evt->u.raw_buff), sizeof(mac_addr_str_t));
 
     pcmd[num] = new em_cmd_bsta_cap_t(evt->params, dm);
-    tmp = pcmd[num];
     num++;
 
     return num;
@@ -2323,9 +2321,7 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
     (void) user_data;
     const char *name = event_name;
     const char *param;
-    char instance[MAX_INSTANCE_LEN] = { 0 };
-    bool is_num;
-    unsigned int device_instance = 0;
+    int device_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -2381,7 +2377,7 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
     } else if (strcmp(param, "MaxReportingRate") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->max_reporting_rate);
     } else if (strcmp(param, "MultiAPProfile") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, di->profile);
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<int32_t>(di->profile));
     } else if (strcmp(param, "APMetricsReportingInterval") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->ap_metrics_reporting_interval);
     } else if (strcmp(param, "Manufacturer") == 0) {
@@ -2577,8 +2573,6 @@ bus_error_t dm_easy_mesh_ctrl_t::ssid_get_inner(char *event_name, raw_data_t *p_
     (void) user_data;
     const char *name = event_name;
     const char *param;
-    char instance[MAX_INSTANCE_LEN] = { 0 };
-    bool is_num;
     char val_str[1024] = { 0 };
     unsigned int ssid_instance = 0;
     bus_error_t rc;
@@ -2744,9 +2738,7 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
     (void) user_data;
     const char *name = event_name;
     const char *param;
-    char instance[MAX_INSTANCE_LEN] = { 0 };
-    bool is_num;
-    unsigned int device_instance = 0, radio_instance = 0;
+    int device_instance = 0, radio_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -2824,9 +2816,7 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_inner(char *event_name, raw_data_t *
     (void) user_data;
     const char *name = event_name;
     const char *root = name;
-    char instance[MAX_INSTANCE_LEN] = { 0 };
-    bool is_num;
-    unsigned int device_instance = 0;
+    int device_instance = 0;
     bus_data_prop_t *property = NULL;
     bus_error_t rc;
 
@@ -2933,9 +2923,7 @@ bus_error_t dm_easy_mesh_ctrl_t::rbhsta_get_inner(char *event_name, raw_data_t *
     (void) user_data;
     const char *name = event_name;
     const char *param;
-    char instance[MAX_INSTANCE_LEN] = { 0 };
-    bool is_num;
-    unsigned int device_instance = 0, radio_instance = 0;
+    int device_instance = 0, radio_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -2995,10 +2983,8 @@ bus_error_t dm_easy_mesh_ctrl_t::rcaps_get_inner(char *event_name, raw_data_t *p
     (void) user_data;
     const char *name = event_name;
     const char *param;
-    char instance[MAX_INSTANCE_LEN] = { 0 };
-    bool is_num;
     char caps_str[MAX_CAPS_STR_LEN] = { 0 };
-    unsigned int device_instance = 0, radio_instance = 0;
+    int device_instance = 0, radio_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -3062,7 +3048,7 @@ bus_error_t dm_easy_mesh_ctrl_t::rcaps_get_inner(char *event_name, raw_data_t *p
 
 dm_op_class_t* dm_easy_mesh_ctrl_t::get_dm_curop(dm_easy_mesh_t *dm, dm_radio_t *radio, int instance)
 {
-    unsigned int ocnt = 0;
+    int ocnt = 0;
     em_radio_info_t *ri = radio->get_radio_info();
 
     for (unsigned int i = 0; i < dm->get_num_op_class(); i++) {
@@ -3091,8 +3077,7 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_get_inner(char *event_name, raw_data_t *
     (void) user_data;
     const char *name = event_name;
     const char *param;
-    char instance[MAX_INSTANCE_LEN] = { 0 };
-    unsigned int device_instance = 0, radio_instance = 0, curop_class_instance = 0;
+    int device_instance = 0, radio_instance = 0, curop_class_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -3157,10 +3142,8 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_tget_inner(char *event_name, raw_data_t 
     (void) user_data;
     const char *name = event_name;
     const char *root = name;
-    char instance[MAX_INSTANCE_LEN] = { 0 };
-    bool is_num;
     bus_data_prop_t *property = NULL;
-    unsigned int device_instance = 0, radio_instance = 0;
+    int device_instance = 0, radio_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -3231,7 +3214,7 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_tget_params(dm_easy_mesh_t *dm, const ch
 
 dm_sta_t* dm_easy_mesh_ctrl_t::get_dm_sta(dm_easy_mesh_t *dm, em_bss_info_t *bi, int instance)
 {
-    unsigned int scnt = 0;
+    int scnt = 0;
     mac_addr_str_t bss_str, sta_str;
 
     dm_sta_t *sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
@@ -3260,11 +3243,10 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_d
     (void) user_data;
     const char *name = event_name;
     const char *param;
-    char instance[MAX_INSTANCE_LEN] = { 0 };
-    bool is_num;
     char val_str[1024] = { 0 };
-    int i = 0, count = 0;
-    unsigned int device_instance = 0, radio_instance = 0, bss_instance = 0;
+    unsigned int i = 0;
+    int count = 0;
+    int device_instance = 0, radio_instance = 0, bss_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -3396,10 +3378,8 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_tget_inner(char *event_name, raw_data_t *p_
     (void) user_data;
     const char *name = event_name;
     const char *root = name;
-    char instance[MAX_INSTANCE_LEN] = { 0 };
-    bool is_num;
     bus_data_prop_t *property = NULL;
-    unsigned int device_instance = 0, radio_instance = 0;
+    int device_instance = 0, radio_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -3488,9 +3468,9 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
     (void) user_data;
     const char *name = event_name;
     const char *param;
-    char instance[MAX_INSTANCE_LEN] = { 0 };
-    int i = 0, count = 0;
-    unsigned int device_instance = 0, radio_instance = 0, bss_instance = 0, sta_instance = 0;
+    unsigned int i = 0;
+    int count = 0;
+    int device_instance = 0, radio_instance = 0, bss_instance = 0, sta_instance = 0;
     bus_error_t rc;
 
     if(sscanf(event_name, "Network.DeviceList.%d.RadioList.%d.BSSList.%d.STAList.%d", 
@@ -3611,11 +3591,10 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_inner(char *event_name, raw_data_t *p_
     (void) user_data;
     const char *name = event_name;
     const char *root = name;
-    char instance[MAX_INSTANCE_LEN] = { 0 };
-    bool is_num;
     bus_data_prop_t *property = NULL;
-    unsigned int device_instance = 0, radio_instance = 0, bss_instance = 0;
-    int count = 0, i = 0;
+    int device_instance = 0, radio_instance = 0, bss_instance = 0;
+    unsigned int i = 0;
+    int count = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -3731,7 +3710,7 @@ bus_error_t dm_easy_mesh_ctrl_t::bus_get_cb_fwd(char *event_name, raw_data_t *p_
     uintptr_t buf;
 
     do {
-        req = (em_event_t *) malloc(sizeof(em_event_t));
+        req = new em_event_t{};
         if (!req) {
             err = bus_error_out_of_resources;
             break;
@@ -3742,13 +3721,13 @@ bus_error_t dm_easy_mesh_ctrl_t::bus_get_cb_fwd(char *event_name, raw_data_t *p_
         req->u.nevt.type = NB_REQTYPE_GET;
         req->u.nevt.u.get.name = event_name;
         req->u.nevt.u.get.property = p_data;
-        req->u.nevt.cb = (void *) cb;
+        req->u.nevt.cb = reinterpret_cast<void*>(cb);
 
         em_ctrl_t::get_em_ctrl_instance()->push_to_queue(req);
 
         ssize_t len = read(get_nb_pipe_rd(), &buf, sizeof(buf));
         assert(len == sizeof(buf));
-        resp = (bus_resp_get_t *) buf;
+        resp = reinterpret_cast<bus_resp_get_t*>(buf);
         assert(resp->id == s_id);
         err = resp->rc;
 
