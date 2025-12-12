@@ -2024,8 +2024,9 @@ unsigned short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_ty
     // connection type flags    
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_conn_type_flags);
-    size = sizeof(unsigned short);
+    size = EM_CONN_TYPE_FLAGS_LEN;
     attr->len = htons(size);
+    memset(attr->val, 0, size);
     //memcpy(attr->val, &get_device_info()->sec_1905.conn_flags, size);
     
     len += static_cast<unsigned short int> (sizeof(data_elem_attr_t) + size);
@@ -2087,7 +2088,7 @@ unsigned short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_ty
     // primary device type
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_primary_device_type);
-    size = sizeof(em_short_string_t);
+    size = EM_PRIMARY_DEV_TYPE_LEN;
     attr->len = htons(size);
     memcpy(attr->val, get_primary_device_type(), size);
     
@@ -2148,9 +2149,10 @@ unsigned short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_ty
     // os version   
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_os_version);
-    size = sizeof(unsigned short);
+    size = EM_OS_VERSION_LEN;
     attr->len = htons(size);
-    memcpy(attr->val, &rf_band, sizeof(attr->val));
+    memset(attr->val, 0, size);
+    //memcpy(attr->val, &rf_band, sizeof(attr->val));
     
     len += static_cast<unsigned short int> (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -2438,9 +2440,10 @@ unsigned short em_configuration_t::create_m1_msg(unsigned char *buff)
     // connection type flags    
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_conn_type_flags);
-    size = sizeof(unsigned short);
+    size = EM_CONN_TYPE_FLAGS_LEN;
     attr->len = htons(size);
-    memcpy(attr->val, &get_device_info()->sec_1905.conn_flags, size);
+    memset(attr->val, 0, size);
+    //memcpy(attr->val, &get_device_info()->sec_1905.conn_flags, size);
 
     len += static_cast<unsigned short int> (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -2512,7 +2515,7 @@ unsigned short em_configuration_t::create_m1_msg(unsigned char *buff)
     // primary device type
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_primary_device_type);
-    size = sizeof(em_short_string_t);
+    size = EM_PRIMARY_DEV_TYPE_LEN;
     attr->len = htons(size);
     memcpy(attr->val, get_current_cmd()->get_primary_device_type(), size);
 
@@ -2574,9 +2577,10 @@ unsigned short em_configuration_t::create_m1_msg(unsigned char *buff)
     // os version   
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_os_version);
-    size = sizeof(unsigned short);
+    size = EM_OS_VERSION_LEN;
     attr->len = htons(size);
-    memcpy(attr->val, &rf_band, sizeof(attr->val));
+    memset(attr->val, 0, size);
+    //memcpy(attr->val, &rf_band, sizeof(attr->val));
 
     len += static_cast<unsigned short int> (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);

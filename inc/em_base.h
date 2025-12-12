@@ -177,6 +177,12 @@ extern "C"
 
 #define EM_MAX_SSID_LEN                33 
 #define EM_MAX_WIFI_PASSWORD_LEN       65 
+
+/* WSC Message TLV LENs */
+#define EM_CONN_TYPE_FLAGS_LEN         0x01
+#define EM_PRIMARY_DEV_TYPE_LEN        0x08
+#define EM_OS_VERSION_LEN              0x04
+
 /* Disallowed STAList */
 #define EM_MSCS_DISALLOWED_STA      10
 #define EM_SCS_DISALLOWED_STA       10
