@@ -284,7 +284,7 @@ void em_net_node_t::get_network_tree_node_string(char *str, em_network_node_t *n
 
     }
 
-    strncat(str, string, strlen(string));
+    strncat(str, string,  EM_LONG_IO_BUFF_SZ - strlen(str) - 1);
 
     if ((node->type == em_network_node_data_type_array_obj) && (node->num_children > 0) &&
             ((node->child[0]->type == em_network_node_data_type_number) ||
