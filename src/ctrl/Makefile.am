@@ -217,7 +217,8 @@ onewifi_em_ctrl_test_SOURCES = $(onewifi_em_ctrl_SOURCES) \
 	$(top_srcdir)/tests/test_l1_em_cmd_set_channel.cpp\
 	$(top_srcdir)/tests/test_l1_em_cmd_sta_disassoc.cpp \
 	$(top_srcdir)/tests/test_l1_em_net_node.cpp \
-	$(top_srcdir)/tests/test_l1_em_orch_ctrl.cpp	
+	$(top_srcdir)/tests/test_l1_em_orch_ctrl.cpp \
+	$(top_srcdir)/tests/test_l1_em_dev_test_ctrl.cpp	
 onewifi_em_ctrl_test_CPPFLAGS = $(onewifi_em_ctrl_CPPFLAGS) \
                                 -I$(PKG_CONFIG_SYSROOT_DIR)$(includedir)/gtest \
                                 -DTESTING

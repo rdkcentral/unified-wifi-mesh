@@ -414,6 +414,26 @@ int main(int argc, char **argv) {
     "em_net_node_t.set_node_array_value_null_fmt:"
     "em_net_node_t.set_node_array_value_null_node:"
     "em_net_node_t.set_node_scalar_value_negative_null_node_pointer:"
-    "em_net_node_t.set_node_scalar_value_negative_null_fmt_for_number_node";        
+    "em_net_node_t.set_node_scalar_value_negative_null_fmt_for_number_node:"
+    "em_orch_agent_t_TEST.DestroyNullCommand:"
+    "em_orch_agent_t_TEST.eligible_for_active_NullPointer:"
+    "em_orch_agent_t_TEST.HandleNullEventPointer:"
+    "em_orch_agent_t_TEST.is_cmd_type_renew_in_progress_null:"
+    "em_orch_agent_t_TEST.NullEmTest:"
+    "em_orch_agent_t_TEST.pop_stats_NullPointer:"
+    "em_orch_agent_t_TEST.NullCommandStructurePointerTest:"
+    "em_orch_agent_t_TEST.SubmitCommandWithNullPointer:"
+    "em_orch_agent_t_TEST.NullCommandsPointer:"
+    "em_orch_agent_t_TEST.NullInput_update_stats:"
+    "em_orch_agent_t_TEST.build_candidates_NullCommandPointer:"
+    "em_orch_agent_t_TEST.is_em_ready_for_orch_exec_null_cmd:"
+    "em_orch_agent_t_TEST.is_em_ready_for_orch_exec_null_em:"
+    "em_orch_agent_t_TEST.orch_transient_null_pcmd:"
+    "em_orch_agent_t_TEST.pre_process_orch_op_NullInputCommandPointer:"
+    "em_orch_agent_t_TEST.em_orch_agent_t_TEST_null_manager:"
+    "em_orch_agent_t_TEST.is_em_ready_for_orch_fini_vap_config:"
+    "em_orch_agent_t_TEST.pre_process_cancel_unhandled_command:"
+    "em_orch_agent_t_TEST.get_state_NullPointer:"
+    "em_orch_agent_t_TEST.is_em_ready_for_orch_exec_valid_inputs_return_true";
     return RUN_ALL_TESTS();
 }
