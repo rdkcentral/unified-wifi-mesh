@@ -766,14 +766,13 @@ short em_channel_t::create_operating_channel_report_tlv(unsigned char *buff)
 			len += static_cast<short unsigned int> (sizeof(em_op_class_ch_rprt_t));
 			tmp += sizeof(em_op_class_ch_rprt_t);
 
-			len += static_cast<short unsigned int> (sizeof(unsigned char));
-			tmp += sizeof(unsigned char);	
-
 			rprt_channel = reinterpret_cast<em_op_class_ch_rprt_t *> (tmp);
 
 			rprt_op_class->op_classes_num++;
 		}
 	}	
+	rprt_op_class->current_transmit_power = tx_power;
+	len += static_cast<short unsigned int> (sizeof(unsigned char));
 
 	return len;
 }
