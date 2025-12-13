@@ -939,8 +939,128 @@ bool ec_enrollee_t::handle_config_response(uint8_t *query_resp, size_t len, uint
         return false;
     }
 
+    const auto restart_announcements = [this](bool is_recfg) -> void {
+        ec_crypto::free_ephemeral_context(&m_c_ctx.eph_ctx, m_c_ctx.nonce_len, m_c_ctx.digest_len);
+        if (is_recfg) {
+            m_received_recfg_auth_frame.store(false);
+            m_send_recfg_announcement_thread = std::thread(&ec_enrollee_t::send_reconfiguration_announcement_frames, this);
+        }
+        else {
+            m_received_auth_frame.store(false);
+            m_send_pres_announcement_thread = std::thread(&ec_enrollee_t::send_presence_announcement_frames, this);
+        }
+    };
+
+    // See EasyConnect 6.4.3.2 for handling of status codes
+    switch (config_response_status_code) {
+    case DPP_STATUS_CONFIGURE_PENDING: {
+        restart_announcements(m_received_recfg_auth_frame.load());
+        return true;
+    }
+    case DPP_STATUS_NEW_KEY_NEEDED: {
+        auto finite_cyclic_group_attr = ec_util::get_attrib(query_resp, len, ec_attrib_id_finite_cyclic_group);
+        ASSERT_OPT_HAS_VALUE(finite_cyclic_group_attr, false, "%s:%d: No Finite Cyclic Group attribute found!\n", __func__, __LINE__);
+        auto P_c_attr = ec_util::get_attrib(query_resp, len, ec_attrib_id_resp_proto_key);
+        ASSERT_OPT_HAS_VALUE(P_c_attr, false, "%s:%d: No Responder Protocol Key (P_c) attribute found!\n", __func__, __LINE__);
+
+        // Ensure valid FCG
+        uint16_t fc_tls_group_id = SWAP_LITTLE_ENDIAN(*reinterpret_cast<uint16_t*>(finite_cyclic_group_attr->data));
+        int      fc_nid          = ec_crypto::get_nid_from_tls_group_id(fc_tls_group_id);
+        if (fc_nid == NID_undef) {
+            em_printfout("Received finite cyclic group is not a supported TLS Group ID: %d", fc_tls_group_id);
+            return true;
+        }
+
+        // Ensure valid P_c
+        scoped_ec_point P_c(ec_crypto::decode_ec_point(m_c_ctx, P_c_attr->data));
+        ASSERT_NOT_NULL(P_c, false, "%s:%d: Failed to decode Responder Protocol Key (P_c)!\n", __func__, __LINE__);
+
+        //  It shall check that the received public key, P_c, is a valid point on the curve indicate by the Finite Cyclic Group.
+        if (!ec_crypto::validate_point_is_on_curve(m_c_ctx, P_c.get(), fc_nid)) {
+            em_printfout("Received Responder Protocol Key (P_c) is not valid on the curve for TLS Group ID %d", fc_tls_group_id);
+            return false;
+        }
+
+        // It shall then generate a new keypair, pe/Pe, in that curve (curve is already in the connection context if point validation succeeds)
+        auto [p_e, P_e] = ec_crypto::generate_proto_keypair(m_c_ctx);
+        if (p_e == nullptr || P_e == nullptr) {
+            em_printfout("Failed to generate new ephemeral protocol keypair for new key exchange");
+            return false;
+        }
+
+        // Update Enrollee pub/priv keypair
+        BN_free(m_eph_ctx().priv_resp_proto_key);
+        EC_POINT_free(m_eph_ctx().public_resp_proto_key);
+        m_eph_ctx().priv_init_proto_key   = const_cast<BIGNUM*>(p_e);
+        m_eph_ctx().public_init_proto_key = const_cast<EC_POINT*>(P_e);
+
+        // Compute S = p_e * P_c (we only need S.x)
+        scoped_bn S(ec_crypto::compute_ec_ss_x(m_c_ctx, m_eph_ctx().priv_init_proto_key, P_c.get()));
+
+        // Compute k = HKDF(bk, "New DPP Protocol Key", S.x)
+        const BIGNUM* bn_inputs[1] = {S.get()};
+        uint8_t*      new_ke       = static_cast<uint8_t*>(calloc(m_c_ctx.digest_len, 1));
+
+        if (ec_crypto::compute_hkdf_key(m_c_ctx, new_ke, m_c_ctx.digest_len, "New DPP Protocol Key", bn_inputs, 1, m_eph_ctx().bk, m_c_ctx.digest_len) == 0) {
+            em_printfout("Failed to compute new k_e for new key exchange");
+            free(new_ke);
+            return false;
+        }
+        free(m_eph_ctx().ke);
+        m_eph_ctx().ke = new_ke;
+        new_ke = nullptr;
+
+        scoped_bn P_c_x(ec_crypto::get_ec_x(m_c_ctx, P_c.get()));
+        scoped_bn P_e_x(ec_crypto::get_ec_x(m_c_ctx, m_eph_ctx().public_init_proto_key));
+
+        // Compute Auth-I = HMAC(k, E-nonce | Pc .x | Pe. x)
+        int pc_len = BN_num_bytes(P_c_x.get());
+        int pe_len = BN_num_bytes(P_e_x.get());
+
+        std::vector<uint8_t> pc_bytes(static_cast<size_t>(pc_len));
+        std::vector<uint8_t> pe_bytes(static_cast<size_t>(pe_len));
+
+        BN_bn2binpad(P_c_x.get(), pc_bytes.data(), pc_len);
+        BN_bn2binpad(P_e_x.get(), pe_bytes.data(), pe_len);
+        uint8_t  auth_i[m_c_ctx.digest_len] = {0};
+        uint8_t* addr[3]                    = {m_eph_ctx().e_nonce, pc_bytes.data(), pe_bytes.data()};
+        size_t   lens[3]                    = {m_c_ctx.nonce_len, pc_bytes.size(), pe_bytes.size()};
+        if (!em_crypto_t::platform_hmac_hash(m_c_ctx.hash_fcn, m_eph_ctx().ke, m_c_ctx.digest_len, 3, addr, lens, auth_i)) {
+            em_printfout("Failed to compute Auth-I for new key exchange");
+            return false;
+        }
+
+        std::vector<uint8_t> auth_i_vec(auth_i, auth_i + sizeof(auth_i));
+
+        // The Enrollee shall then construct a DPP Configuration Request frame with the same E-nonce,
+        // its new public protocol key Pe , the POP tag Auth-I, and the original Configuration Request object.
+        auto [config_request_frame, config_request_frame_len] = create_config_request(std::nullopt, auth_i_vec);
+        if (config_request_frame == nullptr || config_request_frame_len == 0) {
+            em_printfout("Failed to create Configuration Request frame for new key exchange");
+            return false;
+        }
+        bool sent = send_phy_frame(sa, config_request_frame, config_request_frame_len, m_selected_freq);
+        free(config_request_frame);
+        if (!sent) {
+            em_printfout("Failed to send Configuration Request frame for new key exchange");
+            return false;
+        }
+        em_printfout("Sent Configuration Request frame for new key exchange to Configurator");
+        return true;
+    }
+    case DPP_STATUS_CSR_BAD: {
+        break;
+    }
+    case DPP_STATUS_OK: {
+        // Nothing to do.
+        break;
+    }
+    default:
+        break;
+    }
+
     // Currently un-handled status codes. 
-    if (config_response_status_code == DPP_STATUS_CONFIGURE_PENDING || config_response_status_code == DPP_STATUS_NEW_KEY_NEEDED || config_response_status_code == DPP_STATUS_CSR_BAD) {
+    if (config_response_status_code == DPP_STATUS_CSR_BAD) {
         // TODO: EasyConnect 6.4.3.2
         em_printfout("DPP status is %d (%s), not handled!", config_response_status_code, ec_util::status_code_to_string(config_response_status_code).c_str());
         return false;
@@ -1563,7 +1683,7 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_recfg_auth_response(uint8_t t
     return std::make_pair(reinterpret_cast<uint8_t *>(frame), EC_FRAME_BASE_SIZE + attribs_len);
 }
 
-std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request(std::optional<ec_dpp_reconfig_flags_t> recfg_flags)
+std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request(std::optional<ec_dpp_reconfig_flags_t> recfg_flags, std::optional<std::vector<uint8_t>> pop_tag)
 {
     // EasyConnect 6.4.2 DPP Configuration Request
     // Regardless of whether the Initiator or Responder took the role of Configurator, the DPP Configuration protocol is always
@@ -1667,6 +1787,9 @@ std::pair<uint8_t *, size_t> ec_enrollee_t::create_config_request(std::optional<
         uint8_t* wrapped_attribs = ec_util::add_attrib(nullptr, &wrapped_len, ec_attrib_id_enrollee_nonce, m_c_ctx.nonce_len, m_eph_ctx().e_nonce);
         if (replace_key) {
             wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_init_proto_key, static_cast<uint16_t>(BN_num_bytes(m_c_ctx.prime) * 2), ec_crypto::encode_ec_point(m_c_ctx, m_eph_ctx().public_resp_proto_key));
+        }
+        if (pop_tag.has_value()) {
+            wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_init_auth_tag, static_cast<uint16_t>(pop_tag.value().size()), pop_tag.value().data());
         }
         wrapped_attribs = ec_util::add_attrib(wrapped_attribs, &wrapped_len, ec_attrib_id_dpp_config_req_obj, cjson_utils::stringify(dpp_config_request_obj));
         return std::make_pair(wrapped_attribs, wrapped_len);
