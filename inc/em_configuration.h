@@ -85,8 +85,6 @@ class em_configuration_t {
 	 * This function generates a WSC (Wi-Fi Simple Configuration) M2 message for auto-configuration purposes.
 	 *
 	 * @param[out] buff Pointer to the buffer where the generated message will be stored.
-	 * @param[in] haul_type Array of haul types used in the configuration.
-	 * @param[in] num_hauls Number of haul types in the array.
 	 * @param[in] msg_id The message ID of the original request being responded to.
 	 *
 	 * @returns int Status code indicating success or failure of the message creation.
@@ -95,7 +93,7 @@ class em_configuration_t {
 	 *
 	 * @note Ensure that the buffer is adequately sized to hold the generated message.
 	 */
-	int create_autoconfig_wsc_m2_msg(unsigned char *buff, em_haul_type_t haul_type[], unsigned int num_hauls, unsigned short msg_id);
+	int create_autoconfig_wsc_m2_msg(unsigned char *buff, unsigned short msg_id);
     
 	/**!
 	 * @brief Creates a BSS configuration request message.

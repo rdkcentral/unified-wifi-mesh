@@ -1917,8 +1917,8 @@ typedef enum {
     attr_id_vendor_ext,
     attr_id_version,
     attr_id_primary_device_type = 0x1054,
-	attr_id_haul_type,
-	attr_id_no_of_haul_type,
+    attr_id_haul_type,
+    attr_id_no_of_haul_type,
 } data_elem_attr_id_t;
 
 typedef enum {
