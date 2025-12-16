@@ -543,7 +543,7 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
             	tmp += sizeof(unsigned char);
             	data_len += sizeof(unsigned char);
             	for ( i = 0; i < policy.traffic_separation_policy.ssids_num ; i++ ) {
-                    int ssid_len = *tmp;
+                    size_t ssid_len = *tmp;
                     tmp += sizeof(unsigned char);
                     data_len += sizeof(unsigned char);
 		

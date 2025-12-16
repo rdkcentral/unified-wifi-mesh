@@ -2363,6 +2363,11 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
         em_printfout("NULL dev_info");
         return bus_error_invalid_input;
     }
+    em_ieee_1905_security_cap_t *sec_cap = dm->get_ieee_1905_security_cap();
+    if (sec_cap == NULL) {
+        em_printfout("NULL sec_cap");
+        return bus_error_invalid_input;
+    }
 
     if (strcmp(param, "ID") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->intf.mac);
@@ -2482,6 +2487,12 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
         rc = dm_ctrl->raw_data_set(p_data, 0U);
     } else if (strcmp(param, "BackhaulDownNumberOfEntries") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->num_backhaul_down_mac);
+    } else if (strcmp(param, "OnboardingProtocol") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, sec_cap->onboarding_proto);
+    } else if (strcmp(param, "IntegrityAlgorithm") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, sec_cap->integrity_algo);
+    } else if (strcmp(param, "EncryptionAlgorithm") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, sec_cap->encryption_algo);
     } else {
         em_printfout("Invalid param: %s", param);
         rc = bus_error_invalid_input;
@@ -2522,6 +2533,11 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
             continue;
         }
         ++idx;
+        em_ieee_1905_security_cap_t *sec_cap = dm->get_ieee_1905_security_cap();
+        if (sec_cap == NULL) {
+            em_printfout("NULL sec_cap");
+            return bus_error_invalid_input;
+        }
 
         dm_ctrl->property_append_tail(&property, root, idx, "ID", di->id.dev_mac);
         dm_ctrl->property_append_tail(&property, root, idx, "Manufacturer", di->manufacturer);
@@ -2554,6 +2570,9 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
         dm_ctrl->property_append_tail(&property, root, idx, "RadioNumberOfEntries", dm->get_num_radios());
         dm_ctrl->property_append_tail(&property, root, idx, "CACStatusNumberOfEntries", 0U);
         dm_ctrl->property_append_tail(&property, root, idx, "BackhaulDownNumberOfEntries", di->num_backhaul_down_mac);
+        dm_ctrl->property_append_tail(&property, root, idx, "OnboardingProtocol", sec_cap->onboarding_proto);
+        dm_ctrl->property_append_tail(&property, root, idx, "IntegrityAlgorithm", sec_cap->integrity_algo);
+        dm_ctrl->property_append_tail(&property, root, idx, "EncryptionAlgorithm", sec_cap->encryption_algo);
 
         snprintf(path, sizeof(path) - 1, "%s%d.RadioList.", root, idx);
         dm_ctrl->radio_tget_params(dm, path, &property);
@@ -3710,7 +3729,7 @@ bus_error_t dm_easy_mesh_ctrl_t::bus_get_cb_fwd(char *event_name, raw_data_t *p_
     uintptr_t buf;
 
     do {
-        req = new em_event_t{};
+        req = static_cast<em_event_t *>(malloc(sizeof(em_event_t)));
         if (!req) {
             err = bus_error_out_of_resources;
             break;
