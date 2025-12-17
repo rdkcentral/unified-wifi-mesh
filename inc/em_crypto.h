@@ -336,7 +336,7 @@ public:
 	 * @note Ensure that the key and iv are correctly set before calling this function.
 	 */
 	static uint8_t platform_aes_128_cbc_decrypt(uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len){
-        return platform_cipher_decrypt(EVP_aes_128_cbc(), key, iv, data, data_len);
+        return platform_cipher_decrypt(EVP_aes_128_cbc(), key, iv, data, data_len, false);
     }
     
     
@@ -355,7 +355,7 @@ public:
 	 * @return 1 on success, 0 on failure.
 	 */
 	static uint8_t platform_aes_128_cbc_encrypt(uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher_text, uint32_t *cipher_len){
-        return platform_cipher_encrypt(EVP_aes_128_cbc(), key, iv, plain, plain_len, cipher_text, cipher_len);
+        return platform_cipher_encrypt(EVP_aes_128_cbc(), key, iv, plain, plain_len, cipher_text, cipher_len, false);
     }
 
 
