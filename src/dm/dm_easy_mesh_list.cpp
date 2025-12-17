@@ -354,30 +354,27 @@ void dm_easy_mesh_list_t::put_radio(const char *key, const dm_radio_t *radio)
 {
     dm_radio_t *pradio = NULL;
     dm_easy_mesh_t	*dm = NULL;
-    mac_addr_str_t  dev_mac;
     em_t *em = NULL;
 
-    //em_printfout("%s:%d: Radio: %s", __func__, __LINE__, key);
+    //em_printfout("Radio: %s", key);
 
     if ((pradio = get_radio(key)) == NULL) {
         dm = get_data_model(radio->m_radio_info.id.net_id, radio->m_radio_info.id.dev_mac);
-        dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (radio->m_radio_info.id.dev_mac), dev_mac);
-		//em_printfout("%s:%d: dm: %p net: %s device: %s", __func__, __LINE__, dm, radio->m_radio_info.id.net_id, dev_mac);
+        //em_printfout("dm: %p net: %s device: %s", dm, radio->m_radio_info.id.net_id,
+        //      util::mac_to_string(radio->m_radio_info.id.dev_mac).c_str());
         if (dm == NULL) {
             return;
         }
 
-        //em_printfout("%s:%d: Current Number of Radios: %d", __func__, __LINE__, dm->get_num_radios());
+        //em_printfout("Current Number of Radios: %d", dm->get_num_radios());
         dm->set_num_radios(dm->get_num_radios() + 1);
         pradio = dm->get_radio(dm->get_num_radios() - 1);
     }
     *pradio = *radio;
-    em_printfout("Radio dev_id is:%s", radio->m_radio_info.id.dev_mac);
-
-    dm_easy_mesh_t::macbytes_to_string(pradio->m_radio_info.id.dev_mac, dev_mac);
+    em_printfout("Radio dev_id is:%s", util::mac_to_string(pradio->m_radio_info.id.dev_mac).c_str());
     if ((em = m_mgr->create_node(&pradio->m_radio_info.intf, static_cast<em_freq_band_t> (pradio->m_radio_info.media_data.band), dm, false,
             em_profile_type_3, em_service_type_ctrl)) != NULL) {
-        em_printfout("Node created successfully for radio:%s almac:%s", key, dev_mac);
+        em_printfout("Node created successfully for radio:%s almac:%s", key, util::mac_to_string(pradio->m_radio_info.id.dev_mac).c_str());
     }
 }
 
