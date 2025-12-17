@@ -64,7 +64,6 @@ void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
     em_commit_info_t *info;
     mac_addr_str_t  mac_str;
     dm_easy_mesh_t *dm, new_dm;
-    em_interface_t *intf;
     dm_easy_mesh_t *ref_dm;
     dm_network_t *net, *pnet;
     dm_network_ssid_t *net_ssid, *pnet_ssid;
@@ -90,7 +89,7 @@ void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
             ref_dm = get_data_model(net->m_net_info.id, net->m_net_info.colocated_agent_id.mac);
             assert(ref_dm != NULL);
             new_dm.set_num_network_ssid(ref_dm->get_num_network_ssid());
-            for (int i = 0; i < ref_dm->get_num_network_ssid(); i++) {
+            for (unsigned int i = 0; i < ref_dm->get_num_network_ssid(); i++) {
                 pnet_ssid = new_dm.get_network_ssid(i);
                 net_ssid = ref_dm->get_network_ssid(i);
                 *pnet_ssid = *net_ssid;
@@ -618,7 +617,7 @@ void em_ctrl_t::publish_network_topology()
 
     parent = cJSON_CreateObject();
     dm_ctrl = reinterpret_cast<dm_easy_mesh_ctrl_t *>(get_data_model(GLOBAL_NET_ID));
-    dm_ctrl->get_network_config(parent, GLOBAL_NET_ID);
+    dm_ctrl->get_network_config(parent, const_cast<char*>(GLOBAL_NET_ID));
 
     str = cJSON_Print(parent);
     em_printfout("    ===============Publish Network Topology Json:\n%s\n===============\n",str);
@@ -728,7 +727,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 }
                 //dm = create_data_model(GLOBAL_NET_ID, const_cast<const em_interface_t *> (&intf), profile);
                 memcpy(dm_commit.mac, intf.mac, sizeof(mac_addr_t));
-                strncpy(dm_commit.net_id, GLOBAL_NET_ID, sizeof(GLOBAL_NET_ID));
+                strncpy(dm_commit.net_id, GLOBAL_NET_ID, sizeof(dm_commit.net_id));
                 io_process(em_bus_event_type_dm_commit, reinterpret_cast<unsigned char *> (&dm_commit), sizeof(em_commit_info_t));
                 em_printfout("[%s] Creating data model for mac: %s net: %s\n", __func__, mac_str1, GLOBAL_NET_ID);
             } else {

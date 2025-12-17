@@ -65,7 +65,7 @@ typedef struct bus_data_cb_func {
 /* Device.WiFi.DataElements.Network.SSID */
 // #define DE_NETWORK_SSID         DATAELEMS_NETWORK       "SSID.{i}."
 #define DE_NETWORK_SSID         DATAELEMS_NETWORK       "NetworkSSIDList.{i}."
-#define DE_SSID_TABLE           DE_NETWORK_SSID
+#define DE_SSID_TABLE           DATAELEMS_NETWORK       "NetworkSSIDList.{i}"
 #define DE_SSID_SSID            DE_NETWORK_SSID         "SSID"
 #define DE_SSID_BAND            DE_NETWORK_SSID         "Band"
 #define DE_SSID_ENABLE          DE_NETWORK_SSID         "Enable"
@@ -78,7 +78,7 @@ typedef struct bus_data_cb_func {
 /* Device.WiFi.DataElements.Network.Device */
 // #define DE_NETWORK_DEVICE       DATAELEMS_NETWORK       "Device.{i}."
 #define DE_NETWORK_DEVICE       DATAELEMS_NETWORK       "DeviceList.{i}."
-#define DE_DEVICE_TABLE         DE_NETWORK_DEVICE
+#define DE_DEVICE_TABLE         DATAELEMS_NETWORK       "DeviceList.{i}"
 #define DE_DEVICE_ID            DE_NETWORK_DEVICE       "ID"
 #define DE_DEVICE_MAPCAP        DE_NETWORK_DEVICE       "MultiAPCapabilities"
 #define DE_DEVICE_NUMRADIO      DE_NETWORK_DEVICE       "NumberOfRadios"
@@ -161,7 +161,7 @@ typedef struct bus_data_cb_func {
 /* Device.WiFi.DataElements.Network.Device.Radio */
 // #define DE_DEVICE_RADIO         DE_NETWORK_DEVICE       "Radio.{i}."
 #define DE_DEVICE_RADIO         DE_NETWORK_DEVICE       "RadioList.{i}."
-#define DE_RADIO_TABLE          DE_DEVICE_RADIO
+#define DE_RADIO_TABLE          DATAELEMS_NETWORK       "RadioList.{i}"
 #define DE_RADIO_ID             DE_DEVICE_RADIO         "ID"
 #define DE_RADIO_ENABLED        DE_DEVICE_RADIO         "Enabled"
 #define DE_RADIO_NUMCUROPCLASS  DE_DEVICE_RADIO         "NumberOfCurrOpClass"
@@ -248,7 +248,7 @@ typedef struct bus_data_cb_func {
 #define DE_CAPOP_NONOPCNT       DE_CAPS_CAPOP           "NumberOfNonOperChan"
 /* Device.WiFi.DataElements.Network.Device.Radio.CurrentOperatingClassProfile */
 #define DE_RADIO_CUROP          DE_DEVICE_RADIO         "CurrentOperatingClassProfile.{i}."
-#define DE_CUROP_TABLE          DE_RADIO_CUROP
+#define DE_CUROP_TABLE          DE_DEVICE_RADIO         "CurrentOperatingClassProfile.{i}"
 #define DE_CUROP_CLASS          DE_RADIO_CUROP          "Class"
 #define DE_CUROP_CHANNEL        DE_RADIO_CUROP          "Channel"
 #define DE_CUROP_TXPOWER        DE_RADIO_CUROP          "TxPower"
@@ -273,7 +273,7 @@ typedef struct bus_data_cb_func {
 /* Device.WiFi.DataElements.Network.Device.Radio.BSS */
 // #define DE_RADIO_BSS            DE_DEVICE_RADIO         "BSS.{i}."
 #define DE_RADIO_BSS            DE_DEVICE_RADIO         "BSSList.{i}."
-#define DE_BSS_TABLE            DE_RADIO_BSS
+#define DE_BSS_TABLE            DATAELEMS_NETWORK       "BSSList.{i}"
 #define DE_BSS_BSSID            DE_RADIO_BSS            "BSSID"
 #define DE_BSS_SSID             DE_RADIO_BSS            "SSID"
 #define DE_BSS_ENABLED          DE_RADIO_BSS            "Enabled"
@@ -308,7 +308,7 @@ typedef struct bus_data_cb_func {
 #define DE_BSS_BH_SUITE    		DE_RADIO_BSS 			"BackhaulSuiteSelector"
 /* Device.WiFi.DataElements.Network.Device.Radio.BSS.STA */
 #define DE_BSS_STA              DE_RADIO_BSS            "STA.{i}."
-#define DE_STA_TABLE            DE_BSS_STA
+#define DE_STA_TABLE            DE_RADIO_BSS            "STA.{i}"
 #define DE_STA_MACADDR          DE_BSS_STA              "MACAddress"
 #define DE_STA_HTCAPS           DE_BSS_STA              "HTCapabilities"
 #define DE_STA_VHTCAPS          DE_BSS_STA              "VHTCapabilities"
@@ -457,6 +457,7 @@ public:
     cJSON* resolve_ref(cJSON* root, const char* refStr);
     void parse_property_constraints(cJSON* schemaNode, data_model_properties_t& props);
     void parse_readwrite(cJSON* schemaNode, data_model_properties_t& props);
+    bool schema_has_type(cJSON* schema, const char* want);
     void handle_property_node(cJSON* root, const std::string& fullPath, cJSON* propertySchema);
     void traverse_schema(cJSON* root, cJSON* schemaNode, const std::string& basePath);
     bool parse_and_register_schema(const char *filename);

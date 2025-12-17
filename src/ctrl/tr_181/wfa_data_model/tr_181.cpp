@@ -59,7 +59,6 @@ void tr_181_t::init(void* ptr)
     register_wfa_dml();
 }
 
-#if 0
 int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_callback_table_t *cb_table)
 {
     bus_data_cb_func_t bus_data_cb[] = {
@@ -142,6 +141,7 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_RCAPS_HTCAPS,      CB(.get_handler = rcaps_get)),
         ELEMENT(DE_RCAPS_VHTCAPS,     CB(.get_handler = rcaps_get)),
         ELEMENT(DE_RCAPS_CAPOPNOE,    CB(.get_handler = rcaps_get)),
+        ELEMENT(DE_CUROP_TABLE,       CB(.get_handler = curops_tget)),
         ELEMENT(DE_CUROP_CLASS,       CB(.get_handler = curops_get)),
         ELEMENT(DE_CUROP_CHANNEL,     CB(.get_handler = curops_get)),
         ELEMENT(DE_CUROP_TXPOWER,     CB(.get_handler = curops_get)),
@@ -204,7 +204,7 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_STA_RSNCAPS,       CB(.get_handler = sta_get))
     };
 
-    bus_data_cb_func_t bus_default_data_cb = { " ",
+    bus_data_cb_func_t bus_default_data_cb = { const_cast<char*>(" "),
         { default_get_param_value, default_set_param_value, default_table_add_row_handler,
           default_table_remove_row_handler, default_event_sub_handler, NULL }
     };
@@ -212,7 +212,7 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
     uint32_t index = 0;
     bool     table_found = false;
 
-    for (index = 0; index < (uint32_t)ARRAY_SIZE(bus_data_cb); index++) {
+    for (index = 0; index < static_cast<uint32_t>(ARRAY_SIZE(bus_data_cb)); index++) {
         if (strcmp(full_namespace, bus_data_cb[index].cb_table_name) == 0) {
             memcpy(cb_table, &bus_data_cb[index].cb_func, sizeof(bus_callback_table_t));
             table_found = true;
@@ -226,7 +226,6 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
 
     return RETURN_OK;
 }
-#endif
 
 int tr_181_t::wfa_bus_register_namespace(char *full_namespace, bus_element_type_t element_type,
                             bus_callback_table_t cb_table, data_model_properties_t  data_model_value, int num_of_rows)
@@ -440,7 +439,7 @@ bus_error_t tr_181_t::ssid_tget(char *event_name, raw_data_t *p_data, bus_user_d
 
     if (em_ctrl != NULL)
     {
-        em_ctrl->get_dm_ctrl()->device_get(event_name, p_data);
+        em_ctrl->get_dm_ctrl()->ssid_tget(event_name, p_data);
         return bus_error_success;
     }
     
@@ -453,7 +452,7 @@ bus_error_t tr_181_t::ssid_get(char *event_name, raw_data_t *p_data, bus_user_da
 
     if (em_ctrl != NULL)
     {
-        em_ctrl->get_dm_ctrl()->device_get(event_name, p_data);
+        em_ctrl->get_dm_ctrl()->ssid_get(event_name, p_data);
         return bus_error_success;
     }
     
@@ -626,31 +625,53 @@ bus_error_t tr_181_t::wifi_elem_num_of_table_row(char* event_name, uint32_t* tab
     return bus_error_success;
 }
 
-#if 0
 // Resolve $ref if present on the node; otherwise return the node itself.
 cJSON* tr_181_t::follow_ref_if_any(cJSON* root, cJSON* node)
 {
     if (!node) return nullptr;
-    cJSON* r = cJSON_GetObjectItem(node, "$ref");
-    if (r && cJSON_IsString(r)) {
-        cJSON* resolved = resolve_ref(root, r->valuestring);
-        return resolved ? resolved : node;
+
+    /* resolve $ref */
+    cJSON* ref = cJSON_GetObjectItem(node, "$ref");
+    if (ref && cJSON_IsString(ref)) {
+        cJSON* resolved = resolve_ref(root, ref->valuestring);
+        if (resolved)
+            return follow_ref_if_any(root, resolved);
     }
-    // handle combiners with refs like oneOf/anyOf: prefer first ref/object
+
+    /* unwrap oneOf / anyOf, skip null */
     cJSON* comb = cJSON_GetObjectItem(node, "oneOf");
-    if (!comb) comb = cJSON_GetObjectItem(node, "anyOf");
+    if (!comb)
+        comb = cJSON_GetObjectItem(node, "anyOf");
+
     if (comb && cJSON_IsArray(comb)) {
         cJSON* it = comb->child;
         while (it) {
-            cJSON* maybeRef = cJSON_GetObjectItem(it, "$ref");
-            if (maybeRef && cJSON_IsString(maybeRef)) {
-                cJSON* resolved = resolve_ref(root, maybeRef->valuestring);
-                if (resolved) return resolved;
+            cJSON* type = cJSON_GetObjectItem(it, "type");
+
+            /* skip null-only variants */
+            if (type) {
+                if (cJSON_IsString(type) &&
+                    strcmp(type->valuestring, "null") == 0) {
+                    it = it->next;
+                    continue;
+                }
+                if (cJSON_IsArray(type)) {
+                    bool onlyNull = true;
+                    cJSON* t = type->child;
+                    while (t) {
+                        if (strcmp(t->valuestring, "null") != 0) {
+                            onlyNull = false;
+                            break;
+                        }
+                        t = t->next;
+                    }
+                    if (onlyNull) {
+                        it = it->next;
+                        continue;
+                    }
+                }
             }
-            // if the variant itself has properties, prefer it
-            if (cJSON_GetObjectItem(it, "properties"))
-                return it;
-            it = it->next;
+            return follow_ref_if_any(root, it);
         }
     }
     return node;
@@ -707,6 +728,27 @@ void tr_181_t::parse_readwrite(cJSON* schemaNode, data_model_properties_t& props
         props.data_permission = 0;
 }
 
+bool tr_181_t::schema_has_type(cJSON* schema, const char* want)
+{
+    if (!schema) return false;
+
+    cJSON* type = cJSON_GetObjectItem(schema, "type");
+    if(!type) return false;
+
+    if(cJSON_IsString(type))
+        return strcmp(type->valuestring, want) == 0;
+
+    if(cJSON_IsArray(type)) {
+        cJSON* it = type->child;
+        while(it) {
+            if(strcmp(it->valuestring, want) == 0)
+                return true;
+            it = it->next;
+        }
+    }
+    return false;
+}
+
 // ------------------------------------------------------------
 // Handle ANY property under an object: decide if TABLE or PROPERTY
 // ------------------------------------------------------------
@@ -714,7 +756,7 @@ void tr_181_t::handle_property_node(cJSON* root, const std::string& fullPath, cJ
 {
     if (!propertySchema) return;
 
-    bus_callback_table_t cbTable = {0};
+    bus_callback_table_t cbTable = {};
     data_model_properties_t data_model_value;
     memset(&data_model_value, 0, sizeof(data_model_value));
 
@@ -730,8 +772,7 @@ void tr_181_t::handle_property_node(cJSON* root, const std::string& fullPath, cJ
     }
 
     // 3) If type is array -> register TABLE and examine items
-    cJSON* typeNode = cJSON_GetObjectItem(effective, "type");
-    if (typeNode && cJSON_IsString(typeNode) && strcmp(typeNode->valuestring, "array") == 0) {
+    if (schema_has_type(effective, "array")) {
         std::string tableName = fullPath + ".{i}";
 
         // register table namespace
@@ -740,7 +781,7 @@ void tr_181_t::handle_property_node(cJSON* root, const std::string& fullPath, cJ
         memset(&data_model_value, 0, sizeof(data_model_value));
         parse_property_constraints(effective, data_model_value);
         parse_readwrite(effective, data_model_value);
-        wfa_bus_register_namespace((char*)tableName.c_str(), bus_element_type_table, cbTable, data_model_value, 1);
+        wfa_bus_register_namespace(const_cast<char*>(tableName.c_str()), bus_element_type_table, cbTable, data_model_value, 1);
 
         // now inspect items
         cJSON* items = cJSON_GetObjectItem(effective, "items");
@@ -759,20 +800,20 @@ void tr_181_t::handle_property_node(cJSON* root, const std::string& fullPath, cJ
             parse_property_constraints(itemsEff, data_model_value);
             parse_readwrite(itemsEff, data_model_value);
             wfa_set_bus_callbackfunc_pointers(tableName.c_str(), &cbTable);
-            wfa_bus_register_namespace((char*)tableName.c_str(), bus_element_type_property, cbTable, data_model_value, 1);
+            wfa_bus_register_namespace(const_cast<char*>(tableName.c_str()), bus_element_type_property, cbTable, data_model_value, 1);
         }
         return;
     }
 
     // 4) If type is object (but had no direct properties above),
     // try to resolve any nested $ref and check again
-    if (typeNode && cJSON_IsString(typeNode) && strcmp(typeNode->valuestring, "object") == 0) {
+    if (schema_has_type(effective, "object")) {
         // we've already tried follow_ref_if_any at top-level; if still no properties, treat as leaf object
         memset(&data_model_value, 0, sizeof(data_model_value));
         parse_property_constraints(effective, data_model_value);
         parse_readwrite(effective, data_model_value);
         wfa_set_bus_callbackfunc_pointers(fullPath.c_str(), &cbTable);
-        wfa_bus_register_namespace((char*)fullPath.c_str(), bus_element_type_property, cbTable, data_model_value, 1);
+        wfa_bus_register_namespace(const_cast<char*>(fullPath.c_str()), bus_element_type_property, cbTable, data_model_value, 1);
         return;
     }
 
@@ -781,7 +822,7 @@ void tr_181_t::handle_property_node(cJSON* root, const std::string& fullPath, cJ
     parse_property_constraints(effective, data_model_value);
     parse_readwrite(effective, data_model_value);
     wfa_set_bus_callbackfunc_pointers(fullPath.c_str(), &cbTable);
-    wfa_bus_register_namespace((char*)fullPath.c_str(), bus_element_type_property, cbTable, data_model_value, 1);
+    wfa_bus_register_namespace(const_cast<char*>(fullPath.c_str()), bus_element_type_property, cbTable, data_model_value, 1);
 }
 
 // ------------------------------------------------------------
@@ -827,10 +868,15 @@ bool tr_181_t::parse_and_register_schema(const char *filename)
     long size = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    std::vector<char> buf(size + 1);
-    fread(buf.data(), 1, size, f);
-    buf[size] = 0;
+    if (size < 0) {
+        fclose(f);
+        return false;
+    }
+    const size_t uSize = static_cast<size_t>(size);
+    std::vector<char> buf(uSize + 1);
+    const size_t read = std::fread(buf.data(), 1, uSize, f);
     fclose(f);
+    buf[(read < uSize) ? read : uSize] = '\0';
 
     cJSON* root = cJSON_Parse(buf.data());
     if (!root) return false;
@@ -857,113 +903,11 @@ bool tr_181_t::parse_and_register_schema(const char *filename)
     cJSON_Delete(root);
     return true;
 }
-#endif
 
 int tr_181_t::register_wfa_dml()
 {
-    uint32_t count;
-    bus_error_t rc;
-    wifi_bus_desc_t *bus_desc;
-    bus_data_element_t elements[] = {
-        ELEMENT_PROPERTY(DE_NETWORK_ID,        network_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_NETWORK_CTRLID,    network_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_NETWORK_COLAGTID,  network_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_NETWORK_DEVNOE,    network_get, bus_data_type_uint32),
-        ELEMENT_TABLE(DE_SSID_TABLE,           ssid_tget, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_SSID_SSID,         ssid_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_SSID_BAND,         ssid_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_SSID_ENABLE,       ssid_get, bus_data_type_boolean),
-        ELEMENT_PROPERTY(DE_SSID_AKMALLOWE,    ssid_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_SSID_SUITESEL,     ssid_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_SSID_ADVENABLED,   ssid_get, bus_data_type_boolean),
-        ELEMENT_PROPERTY(DE_SSID_MFPCONFIG,    ssid_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_SSID_MOBDOMAIN,    ssid_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_SSID_HAULTYPE,     ssid_get, bus_data_type_string),
-        ELEMENT_TABLE(DE_DEVICE_TABLE,         device_tget, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_DEVICE_ID,         device_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_DEVICE_MANUFACT,   device_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_DEVICE_SERIALNO,   device_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_DEVICE_MFCMODEL,   device_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_DEVICE_SWVERSION,  device_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_DEVICE_EXECENV,    device_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_DEVICE_COUNTRCODE, device_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_DEVICE_BHMACADDR,  device_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_DEVICE_BHALID,     device_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_DEVICE_BHMEDIATYPE, device_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_DEVICE_RADIONOE,   device_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_DEVICE_CACSTATNOE, device_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_DEVICE_BHDOWNNOE,  device_get, bus_data_type_uint32),
-        ELEMENT_TABLE(DE_RADIO_TABLE,          radio_tget, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_RADIO_ID,          radio_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_RADIO_ENABLED,     radio_get, bus_data_type_boolean),
-        ELEMENT_PROPERTY(DE_RADIO_NOISE,       radio_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_RADIO_UTILIZATION, radio_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_RADIO_TRANSMIT,    radio_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_RADIO_RECEIVESELF, radio_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_RADIO_RECEIVEOTHER, radio_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_RADIO_CHIPVENDOR,  radio_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_RADIO_CURROPNOE,   radio_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_RADIO_BSSNOE,      radio_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_BHSTA_MACADDR,     rbhsta_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_RCAPS_HTCAPS,      rcaps_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_RCAPS_VHTCAPS,     rcaps_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_RCAPS_CAPOPNOE,    rcaps_get, bus_data_type_uint32),
-        ELEMENT_TABLE(DE_CUROP_TABLE,          curops_tget, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_CUROP_CLASS,       curops_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_CUROP_CHANNEL,     curops_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_CUROP_TXPOWER,     curops_get, bus_data_type_int32),
-        ELEMENT_TABLE(DE_BSS_TABLE,            bss_tget, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_BSS_BSSID,         bss_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_BSS_SSID,          bss_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_BSS_ENABLED,       bss_get, bus_data_type_boolean),
-        ELEMENT_PROPERTY(DE_BSS_BYTCNTUNITS,   bss_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_BSS_BHAULUSE,      bss_get, bus_data_type_boolean),
-        ELEMENT_PROPERTY(DE_BSS_FHAULUSE,      bss_get, bus_data_type_boolean),
-        ELEMENT_PROPERTY(DE_BSS_FHAULAKMS,     bss_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_BSS_FH_SUITE,    bss_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_BSS_BHAULAKMS,     bss_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_BSS_BH_SUITE,    bss_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_BSS_NUM_STA,        bss_get, bus_data_type_uint32),
-        ELEMENT_TABLE(DE_STA_TABLE,            sta_tget, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_STA_MACADDR,       sta_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_STA_HTCAPS,        sta_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_STA_VHTCAPS,       sta_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_STA_CLIENTCAPS,    sta_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_STA_LSTDTADLR,     sta_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_STA_LSTDTAULR,     sta_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_STA_UTILRECV,      sta_get, bus_data_type_uint64),
-        ELEMENT_PROPERTY(DE_STA_UTILTRMT,      sta_get, bus_data_type_uint64),
-        ELEMENT_PROPERTY(DE_STA_ESTMACDTARDL,  sta_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_STA_ESTMACDTARUL,  sta_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_STA_SIGNALSTR,     sta_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_STA_LASTCONNTIME,  sta_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_STA_BYTESSNT,      sta_get, bus_data_type_uint64),
-        ELEMENT_PROPERTY(DE_STA_BYTESRCV,      sta_get, bus_data_type_uint64),
-        ELEMENT_PROPERTY(DE_STA_PCKTSSNT,      sta_get, bus_data_type_uint64),
-        ELEMENT_PROPERTY(DE_STA_PCKTSRCV,      sta_get, bus_data_type_uint64),
-        ELEMENT_PROPERTY(DE_STA_ERRSSNT,       sta_get, bus_data_type_uint64),
-        ELEMENT_PROPERTY(DE_STA_ERRSRCV,       sta_get, bus_data_type_uint64),
-        ELEMENT_PROPERTY(DE_STA_RETRANSCNT,    sta_get, bus_data_type_uint64),
-        ELEMENT_PROPERTY(DE_STA_IPV4ADDR,      sta_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_STA_IPV6ADDR,      sta_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_STA_HOSTNAME,      sta_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_STA_PAIRWSAKM,     sta_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_STA_PAIRWSCIPHER,  sta_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_STA_RSNCAPS,       sta_get, bus_data_type_uint32)
-    };
-
-    bus_desc = get_bus_descriptor();
-    if (bus_desc == NULL) {
-        em_printfout("Bus is not initialized");
-        return RETURN_ERR;
-    }
-
-    count = sizeof(elements) / sizeof(bus_data_element_t);
-    rc = bus_desc->bus_reg_data_element_fn(&m_bus_handle, elements, count);
-    if (rc != bus_error_success) {
-        em_printfout("Bus register elements failed: %d", rc);
-        return RETURN_ERR;
-    }
+    const char *filename = "Data_Elements_JSON_Schema_v3.0.json";
+    parse_and_register_schema(filename);
 
     return RETURN_OK;
 }
