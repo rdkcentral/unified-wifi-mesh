@@ -182,6 +182,7 @@ extern "C"
 #define EM_CONN_TYPE_FLAGS_LEN         0x01
 #define EM_PRIMARY_DEV_TYPE_LEN        0x08
 #define EM_OS_VERSION_LEN              0x04
+#define EM_KEY_WRAP_TLV_LEN            0x08
 
 /* Disallowed STAList */
 #define EM_MSCS_DISALLOWED_STA      10
