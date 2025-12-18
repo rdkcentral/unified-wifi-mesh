@@ -4780,7 +4780,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 
 	memcpy(buff, iv, AES_BLOCK_SIZE);
 
-	plain_len = static_cast<unsigned int> (len + (AES_BLOCK_SIZE - len%AES_BLOCK_SIZE));
+	plain_len = static_cast<unsigned int> (len);
 
 	// encrypt the m2 data
 	if (em_crypto_t::platform_aes_128_cbc_encrypt(m_key_wrap_key, iv, plain, plain_len, buff + AES_BLOCK_SIZE, &cipher_len) != 1) {
