@@ -56,6 +56,8 @@
 
 // Initialize the static member variables
 unsigned short em_configuration_t::msg_id = 0;
+ // OUI value of Comcast
+static const unsigned char em_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
 
 /* Extract N bytes (ignore endianess) */
 static inline void _EnB(uint8_t **packet_ppointer, void *memory_pointer, uint32_t n)
@@ -3895,14 +3897,24 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count)
         attr = reinterpret_cast<data_elem_attr_t *> (plain);
         tmp_len = plain_len;
 
+        // Set the haultype to the wsc index by default
+        if (wsc_index >= em_haul_type_max) {
+            em_printfout("wsc_index:%d exceeds max haul types:%d, not proceeding further", wsc_index, em_haul_type_max);
+            return 0;
+        }
+        radioconfig.haultype[wsc_index] = static_cast<em_haul_type_t> (wsc_index);
         while (tmp_len > 0) {
-
             id = htons(attr->id);
-            if (id == attr_id_no_of_haul_type) {
-                radioconfig.noofbssconfig += attr->val[0];
-                em_printfout("##num bss configuration=%d", radioconfig.noofbssconfig);
-            } else if (id == attr_id_haul_type) {
-                radioconfig.haultype[wsc_index] = static_cast<em_haul_type_t> (attr->val[0]);
+            if (id == attr_id_vendor_ext) {
+                // Handle only em_vendor_oui
+                unsigned short attr_len = htons(attr->len);
+                if ((attr_len > EM_VENDOR_OUI_SIZE) && (memcmp(attr->val, em_vendor_oui, EM_VENDOR_OUI_SIZE) == 0)) {
+                    unsigned char vendor_attr_id = attr->val[EM_VENDOR_OUI_SIZE];
+                    if (vendor_attr_id == vendor_ext_attr_id_haul_type) {
+                        radioconfig.haultype[wsc_index] = static_cast<em_haul_type_t> (attr->val[EM_VENDOR_OUI_SIZE + 1]);
+                        em_printfout("##vendor_ext haul_type attrib[%d]: %d", wsc_index, radioconfig.haultype[wsc_index]);
+                    }
+                }
             } else if (id == attr_id_ssid) {
                 //If controller does not support no of haultype parameter
                 memcpy(radioconfig.ssid[wsc_index], attr->val, sizeof(radioconfig.ssid[wsc_index]));
@@ -3929,8 +3941,10 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count)
             tmp_len -= static_cast<int> (sizeof(data_elem_attr_t) + htons(attr->len));
             attr = reinterpret_cast<data_elem_attr_t *> (reinterpret_cast<unsigned char *>(attr) + sizeof(data_elem_attr_t) + htons(attr->len));
         }
+        radioconfig.noofbssconfig++;
     }
 
+    em_printfout("##num bss configuration=%d", radioconfig.noofbssconfig);
     for (unsigned int i = 0; i < radioconfig.noofbssconfig; i++){
         radioconfig.freq[i] = get_band();
     }
@@ -4675,7 +4689,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 	len = 0;
 
 	dm_easy_mesh_t *dm = get_data_model();
-	unsigned int no_of_haultype = 0, radio_exists, i;
+	unsigned int radio_exists, i;
 	dm_radio_t * radio = NULL;
 
 	for (i = 0; i < dm->get_num_radios(); i++) {
@@ -4688,10 +4702,8 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 	if (radio_exists == false) {
 		em_printfout("Radio does not exist, return len as 0.");
 		return len;
-	} else {
-		// encoding a single haul type
-		no_of_haultype = 1;
 	}
+
     em_printfout("radio:%s haul_type=%d radio no of bss=%d",
         util::mac_to_string(get_radio_interface_mac()).c_str(), haul_type, radio->m_radio_info.number_of_bss);
 
@@ -4701,28 +4713,20 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     }
 	em_printfout("ssid: %s, passphrase: %s", net_ssid_info->ssid, net_ssid_info->pass_phrase);
 
-    // haultype
-	attr = reinterpret_cast<data_elem_attr_t *> (tmp);
-	attr->id = htons(attr_id_no_of_haul_type);
-	size = 1;
-	attr->len = htons(static_cast<short unsigned int> (size));
-	memcpy(reinterpret_cast<char *> (attr->val), reinterpret_cast<unsigned char *> (&no_of_haultype), size);
-
-	len += static_cast<short> (sizeof(data_elem_attr_t) + size);
-	tmp += (sizeof(data_elem_attr_t) + size);
-
     if (get_band() == 2) {
         auth_type = 0x0200; // WPA3-Personal
     } else {
         auth_type = 0x0400; // WPA3-Personal-Transition
     }
 
-    // haultype
+    // Add vendor extension for haul type
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
-    attr->id = htons(attr_id_haul_type);
-    size = sizeof(em_haul_type_t);
+    attr->id = htons(attr_id_vendor_ext);
+    size = EM_VENDOR_OUI_SIZE + sizeof(vendor_ext_attr_id_t) + sizeof(em_haul_type_t);
     attr->len = htons(static_cast<short unsigned int> (size));
-    attr->val[0] = haul_type;
+    memcpy(reinterpret_cast<char *> (attr->val), em_vendor_oui, EM_VENDOR_OUI_SIZE);
+    attr->val[EM_VENDOR_OUI_SIZE] = static_cast<unsigned char> (vendor_ext_attr_id_haul_type);
+    attr->val[EM_VENDOR_OUI_SIZE + 1] = static_cast<unsigned char> (haul_type);
 
     len += static_cast<short> (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
