@@ -3215,10 +3215,9 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
     unsigned char *tmp = buff;
     unsigned short sz = 0;
     unsigned short type = htons(ETH_P_1905);
-	dm_radio_t *radio, *pradio;
+    dm_radio_t *radio;
 
-	radio = get_radio_from_dm();
-	pradio = get_radio_from_dm(true);
+    radio = get_radio_from_dm();
 
     // first compute keys
     if (compute_keys(get_e_public(), static_cast<short unsigned int> (get_e_public_len()), get_r_private(), static_cast<short unsigned int> (get_r_private_len())) != 1) {
@@ -3256,22 +3255,6 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
     
     tmp += (sizeof(em_tlv_t) + sizeof(mac_address_t));
     len += static_cast<int> (sizeof(em_tlv_t) + sizeof(mac_address_t));
-
-	// RDK proprietary tlv for radio enable/disable
-	tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_rdk_radio_enable;
-	
-	if (pradio != NULL) {
-    	memcpy(tlv->value, &pradio->m_radio_info.enabled, sizeof(unsigned char));
-		radio->m_radio_info.enabled = pradio->m_radio_info.enabled;
-	} else {
-    	memcpy(tlv->value, &radio->m_radio_info.enabled, sizeof(unsigned char));
-	}
-
-    tlv->len = htons(sizeof(unsigned char));
-    
-    tmp += (sizeof(em_tlv_t) + sizeof(unsigned char));
-    len += static_cast<int> (sizeof(em_tlv_t) + sizeof(unsigned char));
 
     // Add as many wsc tlv in M2 as number of BSS associated with this radio
     if (radio && radio->m_radio_info.number_of_bss < num_hauls) {
@@ -4773,7 +4756,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 
     // key wrap
     keywrap_data_addr[0] = plain;
-    keywrap_data_length[0] = len;
+    keywrap_data_length[0] = static_cast<size_t> (len);
     if (em_crypto_t::platform_hmac_SHA256(m_auth_key, WPS_AUTHKEY_LEN, 1, keywrap_data_addr, keywrap_data_length, hash) != 1) {
 	    printf("%s:%d: Authenticator create failed\n", __func__, __LINE__);
 	    return 0;

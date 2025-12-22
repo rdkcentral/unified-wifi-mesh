@@ -615,9 +615,6 @@ typedef enum {
     em_tlv_type_vendor_sta_metrics = 0xf1,
     em_tlv_vendor_plolicy_cfg = 0xf2,
     em_tlv_type_vendor_operational_bss = 0xf3,
-
-	// RDK Proprietary TLV values
-	em_tlv_type_rdk_radio_enable = 0xfe,
 } em_tlv_type_t;
 
 typedef struct {
