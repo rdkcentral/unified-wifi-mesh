@@ -4666,6 +4666,9 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 	unsigned char iv[AES_BLOCK_SIZE];
 	unsigned char plain[MAX_EM_BUFF_SZ];
 	unsigned short auth_type;
+	unsigned char hash[SHA256_MAC_LEN];
+	unsigned char *keywrap_data_addr[1];
+	size_t keywrap_data_length[1];
 	em_network_ssid_info_t *net_ssid_info;
 	memset(plain, 0, MAX_EM_BUFF_SZ);
 	tmp = plain;
@@ -4765,10 +4768,17 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     tmp += (sizeof(data_elem_attr_t) + size);
 
     // key wrap
+    keywrap_data_addr[0] = plain;
+    keywrap_data_length[0] = len;
+    if (em_crypto_t::platform_hmac_SHA256(m_auth_key, WPS_AUTHKEY_LEN, 1, keywrap_data_addr, keywrap_data_length, hash) != 1) {
+	    printf("%s:%d: Authenticator create failed\n", __func__, __LINE__);
+	    return 0;
+    }
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_key_wrap_authenticator);
-    size = 32;
+    size = EM_KEY_WRAP_TLV_LEN;
     attr->len = htons(static_cast<short unsigned int> (size));
+    memcpy(reinterpret_cast<char *> (attr->val), const_cast<unsigned char *> (hash), EM_KEY_WRAP_TLV_LEN);
 
     len += static_cast<short> (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
