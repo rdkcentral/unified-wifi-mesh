@@ -56,7 +56,7 @@
 
 // Initialize the static member variables
 unsigned short em_configuration_t::msg_id = 0;
- // OUI value of Comcast
+// OUI value of Comcast
 static const unsigned char em_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
 
 /* Extract N bytes (ignore endianess) */
@@ -3872,7 +3872,7 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count)
         em_printfout("##handle_encrypted_settings wsc_index:%d plain_len: %d", wsc_index, plain_len);
 
         // first decrypt the encrypted m2 data
-        if (em_crypto_t::platform_aes_128_cbc_decrypt(m_key_wrap_key, &m_m2_encrypted_settings[wsc_index][0], plain, plain_len) != 1) {
+        if ((plain_len = em_crypto_t::platform_aes_128_cbc_decrypt(m_key_wrap_key, &m_m2_encrypted_settings[wsc_index][0], plain, plain_len)) == 0) {
             em_printfout("Platform decrypt failed for wsc_tlv:%d", wsc_index);
             return 0;
         }
@@ -4656,37 +4656,36 @@ int em_configuration_t::handle_agent_list_msg(uint8_t *buff, unsigned int len, u
 
 int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_type_t haul_type)
 {
-	data_elem_attr_t *attr;
-	short len = 0;
-	unsigned char *tmp;
-	unsigned int size = 0, cipher_len, plain_len;
-	unsigned char iv[AES_BLOCK_SIZE];
-	unsigned char plain[MAX_EM_BUFF_SZ];
-	unsigned short auth_type;
-	unsigned char hash[SHA256_MAC_LEN];
-	unsigned char *keywrap_data_addr[1];
-	size_t keywrap_data_length[1];
-	em_network_ssid_info_t *net_ssid_info;
-	memset(plain, 0, MAX_EM_BUFF_SZ);
-	tmp = plain;
-	len = 0;
+    data_elem_attr_t *attr;
+    short len = 0;
+    unsigned char *tmp;
+    unsigned int size = 0, cipher_len, plain_len;
+    unsigned char iv[AES_BLOCK_SIZE];
+    unsigned char plain[MAX_EM_BUFF_SZ];
+    unsigned short auth_type;
+    unsigned char hash[SHA256_MAC_LEN];
+    unsigned char *keywrap_data_addr[1];
+    size_t keywrap_data_length[1];
+    em_network_ssid_info_t *net_ssid_info;
+    memset(plain, 0, MAX_EM_BUFF_SZ);
+    tmp = plain;
+    len = 0;
 
-	dm_easy_mesh_t *dm = get_data_model();
-	unsigned int radio_exists, i;
-	dm_radio_t * radio = NULL;
+    dm_easy_mesh_t *dm = get_data_model();
+    unsigned int no_of_haultype = 0, radio_exists, i;
+    dm_radio_t * radio = NULL;
 
-	for (i = 0; i < dm->get_num_radios(); i++) {
-		radio = dm->get_radio(i);
-		if (memcmp(radio->m_radio_info.id.ruid, get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
-			radio_exists = true;
-			break;
-		}
-	}
-	if (radio_exists == false) {
-		em_printfout("Radio does not exist, return len as 0.");
-		return len;
-	}
-
+    for (i = 0; i < dm->get_num_radios(); i++) {
+        radio = dm->get_radio(i);
+        if (memcmp(radio->m_radio_info.id.ruid, get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
+            radio_exists = true;
+            break;
+        }
+    }
+    if (radio_exists == false) {
+        em_printfout("Radio does not exist, return len as 0.");
+        return len;
+    }
     em_printfout("radio:%s haul_type=%d radio no of bss=%d",
         util::mac_to_string(get_radio_interface_mac()).c_str(), haul_type, radio->m_radio_info.number_of_bss);
 
@@ -4694,7 +4693,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
         em_printfout("Could not find network ssid information for haul type %d", haul_type);
         return 0;
     }
-	em_printfout("ssid: %s, passphrase: %s", net_ssid_info->ssid, net_ssid_info->pass_phrase);
+    em_printfout("ssid: %s, passphrase: %s", net_ssid_info->ssid, net_ssid_info->pass_phrase);
 
     if (get_band() == 2) {
         auth_type = 0x0200; // WPA3-Personal
@@ -4770,24 +4769,24 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     len += static_cast<short> (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
 
-	if (em_crypto_t::generate_iv(iv, AES_BLOCK_SIZE) != 1) {
-		printf("%s:%d: iv generate failed\n", __func__, __LINE__);
-		return 0;
-	}
+    if (em_crypto_t::generate_iv(iv, AES_BLOCK_SIZE) != 1) {
+	    printf("%s:%d: iv generate failed\n", __func__, __LINE__);
+	    return 0;
+    }
 
-	memcpy(buff, iv, AES_BLOCK_SIZE);
+    memcpy(buff, iv, AES_BLOCK_SIZE);
 
-	plain_len = static_cast<unsigned int> (len + (AES_BLOCK_SIZE - len%AES_BLOCK_SIZE));
+    plain_len = static_cast<unsigned int> (len);
 
-	// encrypt the m2 data
-	if (em_crypto_t::platform_aes_128_cbc_encrypt(m_key_wrap_key, iv, plain, plain_len, buff + AES_BLOCK_SIZE, &cipher_len) != 1) {
-		printf("%s:%d: platform encrypt failed\n", __func__, __LINE__);
-		return 0;
-	}
+    // encrypt the m2 data
+    if (em_crypto_t::platform_aes_128_cbc_encrypt(m_key_wrap_key, iv, plain, plain_len, buff + AES_BLOCK_SIZE, &cipher_len) != 1) {
+	    printf("%s:%d: platform encrypt failed\n", __func__, __LINE__);
+	    return 0;
+    }
 
     em_printfout("Encrypted for radio:%s haul_type:%d length:%u plain_len:%u",
         util::mac_to_string(get_radio_interface_mac()).c_str(), haul_type, cipher_len + AES_BLOCK_SIZE, plain_len);
-	return static_cast<int> (cipher_len) + AES_BLOCK_SIZE;
+    return static_cast<int> (cipher_len) + AES_BLOCK_SIZE;
 }
 
 int em_configuration_t::create_authenticator(unsigned char *buff)

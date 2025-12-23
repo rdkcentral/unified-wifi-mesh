@@ -289,11 +289,11 @@ public:
 	 * @param[in] data_len Length of input ciphertext.
 	 * @param[in] disable_padding If true, disables padding (default is true).
 	 *
-	 * @return 1 on success, 0 on failure.
+	 * @return the length of plain data on success, 0 on failure.
 	 *
 	 * @note Padding is disabled. Input length must be a multiple of the block size.
 	 */
-	static uint8_t platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len, bool disable_padding = true);
+	static uint32_t platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len, bool disable_padding = true);
 
     
 	/**
@@ -331,12 +331,12 @@ public:
 	 * @param[in,out] data Data to decrypt, which will be overwritten with the plaintext.
 	 * @param[in] data_len Length of the data to be decrypted.
 	 *
-	 * @return 1 on success, 0 on failure.
+	 * @return the length of plain data on success, 0 on failure.
 	 *
 	 * @note Ensure that the key and iv are correctly set before calling this function.
 	 */
-	static uint8_t platform_aes_128_cbc_decrypt(uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len){
-        return platform_cipher_decrypt(EVP_aes_128_cbc(), key, iv, data, data_len);
+	static uint32_t platform_aes_128_cbc_decrypt(uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len){
+        return platform_cipher_decrypt(EVP_aes_128_cbc(), key, iv, data, data_len, false);
     }
     
     
@@ -355,7 +355,7 @@ public:
 	 * @return 1 on success, 0 on failure.
 	 */
 	static uint8_t platform_aes_128_cbc_encrypt(uint8_t *key, uint8_t *iv, uint8_t *plain, uint32_t plain_len, uint8_t *cipher_text, uint32_t *cipher_len){
-        return platform_cipher_encrypt(EVP_aes_128_cbc(), key, iv, plain, plain_len, cipher_text, cipher_len);
+        return platform_cipher_encrypt(EVP_aes_128_cbc(), key, iv, plain, plain_len, cipher_text, cipher_len, false);
     }
 
 
