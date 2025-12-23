@@ -154,8 +154,6 @@ em_tlv_type_t types[] = {
     em_tlv_type_vendor_sta_metrics,
     em_tlv_vendor_plolicy_cfg,
     em_tlv_type_vendor_operational_bss,
-    // RDK Proprietary TLV values
-    em_tlv_type_rdk_radio_enable,
 };
 
 #define TLV_TYPE_COUNT 123

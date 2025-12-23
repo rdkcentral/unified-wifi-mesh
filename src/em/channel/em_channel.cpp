@@ -57,7 +57,7 @@ short em_channel_t::create_channel_pref_tlv_agent(unsigned char *buff, unsigned 
 
     dm = get_data_model();
     pref = reinterpret_cast<em_channel_pref_t *> (buff);
-    memcpy(pref->ruid, dm-> get_radio_by_ref(index).get_radio_interface_mac(), sizeof(mac_address_t));
+    memcpy(pref->ruid, dm->get_radio_by_ref(index).get_radio_interface_mac(), sizeof(mac_address_t));
     pref_op_class = pref->op_classes;
     pref->op_classes_num = 0;
 
