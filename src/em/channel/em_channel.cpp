@@ -2023,7 +2023,7 @@ void em_channel_t::process_ctrl_state()
 {
     switch (get_state()) {
         case em_state_ctrl_channel_query_pending:
-			if(get_service_type() == em_service_type_ctrl) {
+            if(get_service_type() == em_service_type_ctrl) {
                 std::vector<em_t *> em_radios;
                 dm_easy_mesh_t *dm = get_data_model();
                 get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
@@ -2044,8 +2044,7 @@ void em_channel_t::process_ctrl_state()
 				    send_channel_pref_query_msg();
                 }
                 em_radios.clear();
-				set_state(em_state_ctrl_channel_pref_report_pending);
-			}
+            }
             break;
 
         case em_state_ctrl_channel_select_pending:
