@@ -4659,20 +4659,21 @@ int em_configuration_t::handle_agent_list_msg(uint8_t *buff, unsigned int len, u
 
 int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_type_t haul_type)
 {
-    data_elem_attr_t *attr;
-    short len = 0;
-    unsigned char *tmp;
-    unsigned int size = 0, cipher_len, plain_len;
-    unsigned char iv[AES_BLOCK_SIZE];
-    unsigned char plain[MAX_EM_BUFF_SZ];
-    unsigned short auth_type;
-    unsigned char hash[SHA256_MAC_LEN];
-    unsigned char *keywrap_data_addr[1];
-    size_t keywrap_data_length[1];
-    em_network_ssid_info_t *net_ssid_info;
-    memset(plain, 0, MAX_EM_BUFF_SZ);
-    tmp = plain;
-    len = 0;
+	data_elem_attr_t *attr;
+	short len = 0;
+	unsigned char *tmp;
+	unsigned int size = 0, cipher_len, plain_len;
+	unsigned char iv[AES_BLOCK_SIZE];
+	unsigned char plain[MAX_EM_BUFF_SZ];
+	unsigned short auth_type;
+	unsigned short encr_type;
+	unsigned char hash[SHA256_MAC_LEN];
+	unsigned char *keywrap_data_addr[1];
+	size_t keywrap_data_length[1];
+	em_network_ssid_info_t *net_ssid_info;
+	memset(plain, 0, MAX_EM_BUFF_SZ);
+	tmp = plain;
+	len = 0;
 
     dm_easy_mesh_t *dm = get_data_model();
     unsigned int no_of_haultype = 0, radio_exists, i;
@@ -4711,12 +4712,6 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     len += static_cast<short> (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
 
-    if (get_band() == 2) {
-        auth_type = 0x0200; // WPA3-Personal
-    } else {
-        auth_type = 0x0400; // WPA3-Personal-Transition
-    }
-
     // haultype
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_haul_type);
@@ -4738,11 +4733,25 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     tmp += (sizeof(data_elem_attr_t) + size);
 
     // auth type
+    auth_type = EM_AUTH_WPA2PSK | EM_AUTH_SAE_AKM8;
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_auth_type);
     size = sizeof(auth_type);
     attr->len = htons(static_cast<short unsigned int> (size));
+    auth_type = htons(auth_type);
     memcpy(reinterpret_cast<char *> (attr->val), reinterpret_cast<unsigned char *> (&auth_type), size);
+
+    len += static_cast<short> (sizeof(data_elem_attr_t) + size);
+    tmp += (sizeof(data_elem_attr_t) + size);
+
+    //encr type
+    encr_type = EM_ENCR_AES;
+    attr = reinterpret_cast<data_elem_attr_t *> (tmp);
+    attr->id = htons(attr_id_encryption_type);
+    size = sizeof(encr_type);
+    attr->len = htons(static_cast<short unsigned int> (size));
+    encr_type = htons(encr_type);
+    memcpy(reinterpret_cast<char *> (attr->val), reinterpret_cast<unsigned char *> (&encr_type), size);
 
     len += static_cast<short> (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
