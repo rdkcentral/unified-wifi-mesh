@@ -4662,7 +4662,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     unsigned int size = 0, cipher_len, plain_len;
     unsigned char iv[AES_BLOCK_SIZE];
     unsigned char plain[MAX_EM_BUFF_SZ];
-    unsigned short auth_type;
+    unsigned short auth_type = 0x0200; // WPA3-Personal
     unsigned char hash[SHA256_MAC_LEN];
     unsigned char *keywrap_data_addr[1];
     size_t keywrap_data_length[1];
@@ -4694,12 +4694,6 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
         return 0;
     }
     em_printfout("ssid: %s, passphrase: %s", net_ssid_info->ssid, net_ssid_info->pass_phrase);
-
-    if (get_band() == 2) {
-        auth_type = 0x0200; // WPA3-Personal
-    } else {
-        auth_type = 0x0400; // WPA3-Personal-Transition
-    }
 
     // Add vendor extension for haul type
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
