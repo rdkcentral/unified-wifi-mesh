@@ -115,6 +115,10 @@ extern "C"
 #define EM_AUTH_TYPES (EM_AUTH_OPEN | EM_AUTH_WPAPSK | EM_AUTH_SHARED | \
             EM_AUTH_WPA | EM_AUTH_WPA2 | EM_AUTH_WPA2PSK | EM_AUTH_SAE_AKM8 | \
             EM_AUTH_DPP_AKM | EM_AUTH_SAE_AKM24 )
+
+#define EM_AUTH_ENHANCED_OPEN 0x1000
+#define EM_AUTH_WPA3_PERSONAL 0x0200
+#define EM_AUTH_WPA3_TRANSITION 0x0400
     
 /* Encryption Type Flags */
 #define EM_ENCR_NONE 0x0001
@@ -129,6 +133,11 @@ extern "C"
 #define EM_RF_50GHZ 0x02
 #define EM_RF_60GHZ 0x04
 #define EM_RF_6GHZ  0x08
+
+/*  Bands */
+#define EM_BAND_2_4_GHZ  0
+#define EM_BAND_5_GHZ    1
+#define EM_BAND_6_GHZ    2
 
 /* Config Methods */
 #define EM_CONFIG_USBA 0x0001
@@ -2191,6 +2200,7 @@ typedef struct {
     mac_address_t   mobility_domain;
     unsigned char   num_hauls;
     em_haul_type_t haul_type[EM_MAX_HAUL_TYPES];   
+    em_string_t auth_type;
 } em_network_ssid_info_t;
 
 typedef enum {
@@ -3280,6 +3290,19 @@ typedef struct{
         em_haul_type_t haul_type;
         em_freq_band_t freq_band;
 }em_dev_test_info;
+
+typedef struct {
+    const char *name;
+    uint32_t hex;
+} SecurityTypeMap;
+
+static const SecurityTypeMap securityTypeMap[] = {
+    { "Open",            EM_AUTH_OPEN },
+    { "WPA2 Personal",   EM_AUTH_WPA2 },
+    { "Enhanced Open",   EM_AUTH_ENHANCED_OPEN },
+    { "WPA3 Personal",   EM_AUTH_WPA3_PERSONAL },
+    { "WPA3 Transition", EM_AUTH_WPA3_TRANSITION }
+};
 
 #ifndef SSL_KEY
 #if OPENSSL_VERSION_NUMBER < 0x30000000L

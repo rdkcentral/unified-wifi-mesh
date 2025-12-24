@@ -97,6 +97,10 @@ int dm_network_ssid_t::decode(const cJSON *obj, void *parent_id)
         }
         m_network_ssid_info.num_hauls = static_cast<unsigned char> (j);
     }
+
+    if ((tmp = cJSON_GetObjectItem(obj, "AuthType")) != NULL) {
+        snprintf(m_network_ssid_info.auth_type, sizeof(m_network_ssid_info.auth_type), "%s", cJSON_GetStringValue(tmp));
+    }
     snprintf(m_network_ssid_info.id, sizeof(em_long_string_t), "%s@%s", dm_network_ssid_t::haul_type_to_string(m_network_ssid_info.haul_type[0], haul_str), net_id);
     return 0;
 }
@@ -141,6 +145,9 @@ void dm_network_ssid_t::encode(cJSON *obj)
     }
     // Add the array to the object
     cJSON_AddItemToObject(obj, "HaulType", haultype_Array);
+
+    // Add authentication type to the object
+    cJSON_AddStringToObject(obj, "AuthType", m_network_ssid_info.auth_type);
 }
 
 bool dm_network_ssid_t::operator == (const dm_network_ssid_t& obj)
@@ -166,6 +173,7 @@ bool dm_network_ssid_t::operator == (const dm_network_ssid_t& obj)
     for (i = 0; i < this->m_network_ssid_info.num_hauls; i++) {
     ret += (this->m_network_ssid_info.haul_type[i] == obj.m_network_ssid_info.haul_type[i]);
 }
+    ret += (memcmp(&this->m_network_ssid_info.auth_type, &obj.m_network_ssid_info.auth_type, sizeof(em_string_t)) != 0);
     //em_util_info_print(EM_MGR, "%s:%d: MUH ret=%d\n", __func__, __LINE__,ret);
 
     if (ret > 0)
@@ -199,7 +207,7 @@ void dm_network_ssid_t::operator = (const dm_network_ssid_t& obj)
     for (int i = 0; i < this->m_network_ssid_info.num_hauls; i++) {
         this->m_network_ssid_info.haul_type[i] = obj.m_network_ssid_info.haul_type[i];
     }
-
+    memcpy(&this->m_network_ssid_info.auth_type, &obj.m_network_ssid_info.auth_type, sizeof(em_string_t));
 }
 
 char *dm_network_ssid_t::haul_type_to_string(em_haul_type_t type, em_string_t   str)
