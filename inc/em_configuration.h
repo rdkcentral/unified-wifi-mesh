@@ -2074,6 +2074,18 @@ public:
 	 */
 	int compute_keys(unsigned char *remote_pub, unsigned short pub_len, unsigned char *local_priv, unsigned short priv_len);
 
+	/**!
+	 * @brief Map authentication type hex value based on security mode string selected.
+	 *
+	 * This function takes a security mode as string and return the respective hex value.
+	 *
+	 * @param[in] security_mode security mode as string, examples
+	 * WPA3 Personal, WPA3 Transition, WPA2 Personal, etc.
+	 *
+	 * @returns int return the hex value of respective security mode.
+	 *
+	 */
+	uint32_t get_Auth_type_hex(const char *security_mode);
     //void test_topology_response_msg() { send_topology_response_msg(); }
     
 	/**!

@@ -54,6 +54,7 @@ import (
 
 const remoteCtrl_Addr_path = "/nvram/remoteCtrl.json"
 var timerCount = 0
+
 // ===== SIMPLIFIED DATA MODELS =====
 
 type RemoteIPConfig struct {
@@ -1730,7 +1731,7 @@ func getWirelessProfilesHandler(w http.ResponseWriter, r *http.Request) {
                     http.Error(w, fmt.Sprintf("Invalid PassPhrase for %s: %v", haul.HaulType, err), http.StatusBadRequest)
                     return
                 }
-                if err := updateSSIDPassForHaulType(ssidTree, haul.HaulType, haul.SSID, haul.PassPhrase); err != nil {
+                if err := updateNetworkSSIDList(ssidTree, haul.HaulType, haul.SSID, haul.PassPhrase, haul.SecurityType); err != nil {
                     http.Error(w, fmt.Sprintf("Update failed for %s: %v", haul.HaulType, err), http.StatusInternalServerError)
                     return
                 }
@@ -3214,7 +3215,7 @@ func WifiResetHandler(w http.ResponseWriter, r *http.Request) {
                     http.Error(w, fmt.Sprintf("Invalid PassPhrase for %s: %v", haul.HaulType, err), http.StatusBadRequest)
                     return
                 }
-                if err := updateSSIDPassForHaulType(resetTree, haul.HaulType, haul.SSID, haul.PassPhrase); err != nil {
+                if err := updateNetworkSSIDList(resetTree, haul.HaulType, haul.SSID, haul.PassPhrase, haul.SecurityType); err != nil {
                     http.Error(w, fmt.Sprintf("Update failed for %s: %v", haul.HaulType, err), http.StatusInternalServerError)
                     return
                 }
@@ -3293,25 +3294,20 @@ func getConfiguredHauls(tree *C.em_network_node_t) []HaulConfig {
         }
         bands := strings.Join(bandList, ", ")
 
-        //TODO: As of now hardcoded security mode and vlanid is being used,
+        // Security mode
+        securityMode = getTreeValue(node, "AuthType")
+
+        //TODO: As of now hardcoded vlanid is being used,
         // we will update this code to fetch these details from controller and configure.
         if haul == "Fronthaul" {
-            securityMode = "WPA3 Transition"
-            if strings.Contains(bands, "6GHz") {
-                securityMode += "/ WPA3 Personal"
-            }
             vlanId = 12
         } else if haul == "Backhaul" {
-            securityMode = "WPA2 Personal"
             vlanId = 13
         }else if haul == "IoT" {
-        securityMode = "WPA2 Personal"
             vlanId = 14
         }else if haul == "Configurator" {
-            securityMode = "WPA2 Personal"
             vlanId = 15
         }else if haul == "Hotspot" {
-            securityMode = "WPA2 Personal"
             vlanId = 16
         }
 
@@ -3362,12 +3358,12 @@ func updateCollocatedAgentID(resetTree *C.em_network_node_t, selectedMac string)
     return nil
 }
 
-/* func: updateSSIDPassForHaulType()
+/* func: updateNetworkSSIDList()
  * Description:
  * Searches the NetworkSSIDList for a matching HaulType and updates its SSID and PassPhrase fields.
  * returns: nil on successful update; otherwise an error if the list or matching HaulType is not found.
  */
-func updateSSIDPassForHaulType(networkSSIDTree *C.em_network_node_t, haulType, newSSID, newPass string) error {
+func updateNetworkSSIDList(networkSSIDTree *C.em_network_node_t, haulType, newSSID, newPass string, newAuthType string) error {
     networkKey := C.CString("NetworkSSIDList")
     defer C.free(unsafe.Pointer(networkKey))
 
@@ -3393,6 +3389,7 @@ func updateSSIDPassForHaulType(networkSSIDTree *C.em_network_node_t, haulType, n
         if strings.Contains(haulTypeStr, haulType) {
             updateNodeValue(item, "SSID", newSSID)
             updateNodeValue(item, "PassPhrase", newPass)
+            updateNodeValue(item, "AuthType", newAuthType)
         }
     }
     return nil
