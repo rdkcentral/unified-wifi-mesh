@@ -206,27 +206,28 @@ static const yang_to_tr181_map g_yang_map[] = {
 /* Device.WiFi.DataElements.Network.Device.Radio.Capabilities.WiFi6APRole */
 #define DE_CAPS_WF6AP           DE_RADIO_CAPS           "WiFi6APRole."
 #define DE_WF6AP_HE160          DE_CAPS_WF6AP           "HE160"
+#define DE_WF6AP_HE8080         DE_CAPS_WF6AP           "HE8080"
 #define DE_WF6AP_MCSNSS         DE_CAPS_WF6AP           "MCSNSS"
-#define DE_RADIO_SU_BFER        DE_DEVICE_RADIO   	    "SUBeamformer"
-#define DE_RADIO_SU_BFEE        DE_DEVICE_RADIO   		"SUBeamformee"
-#define DE_RADIO_MU_BFER        DE_DEVICE_RADIO   		"MUBeamformer"
-#define DE_RADIO_BFEE_80_LESS   DE_DEVICE_RADIO   		"Beamformee80orLess"
-#define DE_RADIO_BFEE_ABV_80    DE_DEVICE_RADIO   		"BeamformeeAbove80"
-#define DE_RADIO_UL_MUMIMO      DE_DEVICE_RADIO   		"ULMUMIMO"
-#define DE_RADIO_UL_OFDMA       DE_DEVICE_RADIO   		"ULOFDMA"
-#define DE_RADIO_DL_OFDMA       DE_DEVICE_RADIO   		"DLOFDMA"
-#define DE_RADIO_MAX_DL_MUMIMO  DE_DEVICE_RADIO   		"MaxDLMUMIMO"
-#define DE_RADIO_MAX_UL_MUMIMO  DE_DEVICE_RADIO   		"MaxULMUMIMO"
-#define DE_RADIO_MAX_DL_OFDMA   DE_DEVICE_RADIO   		"MaxDLOFDMA"
-#define DE_RADIO_MAX_UL_OFDMA   DE_DEVICE_RADIO   		"MaxULOFDMA"
-#define DE_RADIO_RTS            DE_DEVICE_RADIO   		"RTS"
-#define DE_RADIO_MU_RTS         DE_DEVICE_RADIO   		"MURTS"
-#define DE_RADIO_MULTI_BSSID    DE_DEVICE_RADIO   		"MultiBSSID"
-#define DE_RADIO_MUEDCA         DE_DEVICE_RADIO   		"MUEDCA"
-#define DE_RADIO_TWT_REQ        DE_DEVICE_RADIO   		"TWTRequestor"
-#define DE_RADIO_TWT_RSP        DE_DEVICE_RADIO   		"TWTResponder"
-#define DE_RADIO_SPATIAL_REUSE  DE_DEVICE_RADIO   		"SpatialReuse"
-#define DE_RADIO_ANT_CH_USAGE   DE_DEVICE_RADIO   		"AnticipatedChannelUsage"
+#define DE_WF6AP_SU_BFER        DE_CAPS_WF6AP   	    "SUBeamformer"
+#define DE_WF6AP_SU_BFEE        DE_CAPS_WF6AP   		"SUBeamformee"
+#define DE_WF6AP_MU_BFER        DE_CAPS_WF6AP   		"MUBeamformer"
+#define DE_WF6AP_BFEE_80L       DE_CAPS_WF6AP   		"Beamformee80orLess"
+#define DE_WF6AP_BFEE_80A       DE_CAPS_WF6AP   		"BeamformeeAbove80"
+#define DE_WF6AP_UL_MUMIMO      DE_CAPS_WF6AP   		"ULMUMIMO"
+#define DE_WF6AP_UL_OFDMA       DE_CAPS_WF6AP   		"ULOFDMA"
+#define DE_WF6AP_DL_OFDMA       DE_CAPS_WF6AP   		"DLOFDMA"
+#define DE_WF6AP_MAX_DL_MUMIMO  DE_CAPS_WF6AP   		"MaxDLMUMIMO"
+#define DE_WF6AP_MAX_UL_MUMIMO  DE_CAPS_WF6AP   		"MaxULMUMIMO"
+#define DE_WF6AP_MAX_DL_OF      DE_CAPS_WF6AP   		"MaxDLOFDMA"
+#define DE_WF6AP_MAX_UL_OF      DE_CAPS_WF6AP   		"MaxULOFDMA"
+#define DE_WF6AP_RTS            DE_CAPS_WF6AP   		"RTS"
+#define DE_WF6AP_MU_RTS         DE_CAPS_WF6AP   		"MURTS"
+#define DE_WF6AP_MULTI_BSS      DE_CAPS_WF6AP   		"MultiBSSID"
+#define DE_WF6AP_MU_EDCA        DE_CAPS_WF6AP   		"MUEDCA"
+#define DE_WF6AP_TWT_REQ        DE_CAPS_WF6AP   		"TWTRequestor"
+#define DE_WF6AP_TWT_RSP        DE_CAPS_WF6AP   		"TWTResponder"
+#define DE_WF6AP_SPAT_REUSE     DE_CAPS_WF6AP   		"SpatialReuse"
+#define DE_WF6AP_ANT_CH_USE     DE_CAPS_WF6AP   		"AnticipatedChannelUsage"
 /* Device.WiFi.DataElements.Network.Device.Radio.Capabilities.WiFi6bSTARole */
 #define DE_CAPS_WF6BSTA         DE_RADIO_CAPS           "WiFi6bSTARole."
 #define DE_WF6BSTA_HE160        DE_CAPS_WF6BSTA         "HE160"
@@ -265,12 +266,12 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_CUROP_CHANNEL        DE_RADIO_CUROP          "Channel"
 #define DE_CUROP_TXPOWER        DE_RADIO_CUROP          "TxPower"
 /* Device.WiFi.DataElements.Network.Device.Radio.Capabilities.WiFi7APRole */
-#define DE_CAPS_WF7AP            DE_DEVICE_RADIO          "WiFi7APRole."
-#define DE_RADIO_7_EMLMR         DE_DEVICE_RADIO 	    "EMLMRSupport"
-#define DE_RADIO_7_EMLSR         DE_DEVICE_RADIO 	    "EMLSRSupport"
-#define DE_RADIO_7_STR           DE_DEVICE_RADIO 	    "STRSupport"
-#define DE_RADIO_7_NSTR          DE_DEVICE_RADIO 	    "NSTRSupport"
-#define DE_RADIO_7_TIDMAPNEG     DE_DEVICE_RADIO 	    "TIDLinkMapNegotiation"
+#define DE_CAPS_WF7AP            DE_RADIO_CAPS           "WiFi7APRole."
+#define DE_WF7AP_EMLMR           DE_CAPS_WF7AP           "EMLMRSupport"
+#define DE_WF7AP_EMLSR           DE_CAPS_WF7AP           "EMLSRSupport"
+#define DE_WF7AP_STR             DE_CAPS_WF7AP           "STRSupport"
+#define DE_WF7AP_NSTR            DE_CAPS_WF7AP           "NSTRSupport"
+#define DE_WF7AP_TID_MAP         DE_CAPS_WF7AP           "TIDLinkMapNegotiation"
 /* Device.WiFi.DataElements.Network.Device.Radio.Capabilities.WiFi7bSTARole */
 #define DE_CAPS_WF7BSTA          DE_DEVICE_RADIO          "WiFi7bSTARole."
 #define DE_RADIO_7BSTA_EMLMR     DE_DEVICE_RADIO        "EMLMRSupport"
@@ -441,6 +442,10 @@ public:
     static bus_error_t rbhsta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t radio_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
     static bus_error_t rcaps_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t wf6ap_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t wf6ap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t wf7ap_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t wf7ap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t curops_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t curops_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 

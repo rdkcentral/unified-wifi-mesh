@@ -141,6 +141,36 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_RCAPS_HTCAPS,           CALLBACK_GETTER(rcaps_get)),
         ELEMENT(DE_RCAPS_VHTCAPS,          CALLBACK_GETTER(rcaps_get)),
         ELEMENT(DE_RCAPS_CAPOPNOE,         CALLBACK_GETTER(rcaps_get)),
+        ELEMENT(DE_CAPS_WF6AP,             CALLBACK_GETTER(wf6ap_tget)),
+        ELEMENT(DE_WF6AP_HE160,            CALLBACK_GETTER(wf6ap_get)),
+        ELEMENT(DE_WF6AP_HE8080,           CALLBACK_GETTER(wf6ap_get)),
+        ELEMENT(DE_WF6AP_MCSNSS,           CALLBACK_GETTER(wf6ap_get)),
+        ELEMENT(DE_WF6AP_SU_BFER,          CALLBACK_GETTER(wf6ap_get)),
+        ELEMENT(DE_WF6AP_SU_BFEE,          CALLBACK_GETTER(wf6ap_get)),
+        ELEMENT(DE_WF6AP_MU_BFER,          CALLBACK_GETTER(wf6ap_get)),
+        ELEMENT(DE_WF6AP_BFEE_80L,         CALLBACK_GETTER(wf6ap_get)),
+        ELEMENT(DE_WF6AP_BFEE_80A,         CALLBACK_GETTER(wf6ap_get)),
+        ELEMENT(DE_WF6AP_UL_MUMIMO,        CALLBACK_GETTER(wf6ap_get)),
+        ELEMENT(DE_WF6AP_UL_OFDMA,         CALLBACK_GETTER(wf6ap_get)),
+        ELEMENT(DE_WF6AP_DL_OFDMA,         CALLBACK_GETTER(wf6ap_get)),
+        ELEMENT(DE_WF6AP_MAX_DL_MUMIMO,    CALLBACK_GETTER(wf6ap_get)),
+        ELEMENT(DE_WF6AP_MAX_UL_MUMIMO,    CALLBACK_GETTER(wf6ap_get)),
+        ELEMENT(DE_WF6AP_MAX_DL_OF,        CALLBACK_GETTER(wf6ap_get)),
+        ELEMENT(DE_WF6AP_MAX_UL_OF,        CALLBACK_GETTER(wf6ap_get)),
+        ELEMENT(DE_WF6AP_RTS,              CALLBACK_GETTER(wf6ap_get)),
+        ELEMENT(DE_WF6AP_MU_RTS,           CALLBACK_GETTER(wf6ap_get)),
+        ELEMENT(DE_WF6AP_MULTI_BSS,        CALLBACK_GETTER(wf6ap_get)),
+        ELEMENT(DE_WF6AP_MU_EDCA,          CALLBACK_GETTER(wf6ap_get)),
+        ELEMENT(DE_WF6AP_TWT_REQ,          CALLBACK_GETTER(wf6ap_get)),
+        ELEMENT(DE_WF6AP_TWT_RSP,          CALLBACK_GETTER(wf6ap_get)),
+        ELEMENT(DE_WF6AP_SPAT_REUSE,       CALLBACK_GETTER(wf6ap_get)),
+        ELEMENT(DE_WF6AP_ANT_CH_USE,       CALLBACK_GETTER(wf6ap_get)),
+        ELEMENT(DE_CAPS_WF7AP,             CALLBACK_GETTER(wf7ap_tget)),
+        ELEMENT(DE_WF7AP_EMLMR,            CALLBACK_GETTER(wf7ap_get)),
+        ELEMENT(DE_WF7AP_EMLSR,            CALLBACK_GETTER(wf7ap_get)),
+        ELEMENT(DE_WF7AP_STR,              CALLBACK_GETTER(wf7ap_get)),
+        ELEMENT(DE_WF7AP_NSTR,             CALLBACK_GETTER(wf7ap_get)),
+        ELEMENT(DE_WF7AP_TID_MAP,          CALLBACK_GETTER(wf7ap_get)),
         ELEMENT(DE_CUROP_TABLE,            CALLBACK_GETTER(curops_tget)),
         ELEMENT(DE_CUROP_CLASS,            CALLBACK_GETTER(curops_get)),
         ELEMENT(DE_CUROP_CHANNEL,          CALLBACK_GETTER(curops_get)),
@@ -536,6 +566,58 @@ bus_error_t tr_181_t::rcaps_get(char *event_name, raw_data_t *p_data, bus_user_d
         return bus_error_success;
     }
     
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::wf6ap_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL)
+    {
+        em_ctrl->get_dm_ctrl()->wf6ap_get(event_name, p_data);
+        return bus_error_success;
+    }
+    
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::wf6ap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL)
+    {
+        em_ctrl->get_dm_ctrl()->wf6ap_tget(event_name, p_data);
+        return bus_error_success;
+    }
+    
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::wf7ap_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL)
+    {
+        em_ctrl->get_dm_ctrl()->wf7ap_get(event_name, p_data);
+        return bus_error_success;
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::wf7ap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL)
+    {
+        em_ctrl->get_dm_ctrl()->wf7ap_tget(event_name, p_data);
+        return bus_error_success;
+    }
+
     return bus_error_general;
 }
 
