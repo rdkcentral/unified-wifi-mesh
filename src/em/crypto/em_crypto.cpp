@@ -511,7 +511,7 @@ uint8_t em_crypto_t::platform_cipher_encrypt(const EVP_CIPHER *cipher_type, uint
 
     return 1;
 }
-uint8_t em_crypto_t::platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len, bool disable_padding)
+uint32_t em_crypto_t::platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint8_t *key, uint8_t *iv, uint8_t *data, uint32_t data_len, bool disable_padding)
 {
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX _ctx;
@@ -552,7 +552,6 @@ uint8_t em_crypto_t::platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint
         EVP_CIPHER_CTX_set_padding(ctx, 0);
     }
     
-
     plen = static_cast<int> (data_len);
     if (EVP_DecryptUpdate(ctx, data, &plen, data, static_cast<int> (data_len)) != 1) {
         unsigned long err = ERR_get_error();
@@ -580,9 +579,10 @@ uint8_t em_crypto_t::platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint
 #endif
         return 0;
     }
-    
+    plen += len;
+
     // For non-wrap ciphers, len should be 0 after final
-    if (EVP_CIPHER_mode(cipher_type) != EVP_CIPH_WRAP_MODE && len != 0) {
+    if (disable_padding && EVP_CIPHER_mode(cipher_type) != EVP_CIPH_WRAP_MODE && len != 0) {
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
         EVP_CIPHER_CTX_cleanup(ctx);
 #else
@@ -597,7 +597,7 @@ uint8_t em_crypto_t::platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uint
     EVP_CIPHER_CTX_free(ctx);
 #endif
 
-    return 1;
+    return static_cast<uint32_t>(plen);
 }
 
 uint8_t em_crypto_t::aes_key_wrap(uint8_t *kek, size_t kek_len, 
@@ -653,7 +653,7 @@ uint8_t em_crypto_t::aes_key_unwrap(uint8_t *kek, size_t kek_len,
     memcpy(unwrapped, wrapped, wrapped_len);
     
     // Use platform_cipher_decrypt with padding DISABLED for wrap mode (true = disable padding)
-    if (platform_cipher_decrypt(cipher, kek, iv, unwrapped, wrapped_len, true) != 1) {
+    if (platform_cipher_decrypt(cipher, kek, iv, unwrapped, wrapped_len, true) == 0) {
         return 0;
     }
     

@@ -56,6 +56,8 @@
 
 // Initialize the static member variables
 unsigned short em_configuration_t::msg_id = 0;
+// OUI value of Comcast
+static const unsigned char em_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
 
 /* Extract N bytes (ignore endianess) */
 static inline void _EnB(uint8_t **packet_ppointer, void *memory_pointer, uint32_t n)
@@ -3213,10 +3215,9 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
     unsigned char *tmp = buff;
     unsigned short sz = 0;
     unsigned short type = htons(ETH_P_1905);
-	dm_radio_t *radio, *pradio;
+    dm_radio_t *radio;
 
-	radio = get_radio_from_dm();
-	pradio = get_radio_from_dm(true);
+    radio = get_radio_from_dm();
 
     // first compute keys
     if (compute_keys(get_e_public(), static_cast<short unsigned int> (get_e_public_len()), get_r_private(), static_cast<short unsigned int> (get_r_private_len())) != 1) {
@@ -3254,22 +3255,6 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
     
     tmp += (sizeof(em_tlv_t) + sizeof(mac_address_t));
     len += static_cast<int> (sizeof(em_tlv_t) + sizeof(mac_address_t));
-
-	// RDK proprietary tlv for radio enable/disable
-	tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_rdk_radio_enable;
-	
-	if (pradio != NULL) {
-    	memcpy(tlv->value, &pradio->m_radio_info.enabled, sizeof(unsigned char));
-		radio->m_radio_info.enabled = pradio->m_radio_info.enabled;
-	} else {
-    	memcpy(tlv->value, &radio->m_radio_info.enabled, sizeof(unsigned char));
-	}
-
-    tlv->len = htons(sizeof(unsigned char));
-    
-    tmp += (sizeof(em_tlv_t) + sizeof(unsigned char));
-    len += static_cast<int> (sizeof(em_tlv_t) + sizeof(unsigned char));
 
     // Add as many wsc tlv in M2 as number of BSS associated with this radio
     if (radio && radio->m_radio_info.number_of_bss < num_hauls) {
@@ -3887,7 +3872,7 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count)
         em_printfout("##handle_encrypted_settings wsc_index:%d plain_len: %d", wsc_index, plain_len);
 
         // first decrypt the encrypted m2 data
-        if (em_crypto_t::platform_aes_128_cbc_decrypt(m_key_wrap_key, &m_m2_encrypted_settings[wsc_index][0], plain, plain_len) != 1) {
+        if ((plain_len = em_crypto_t::platform_aes_128_cbc_decrypt(m_key_wrap_key, &m_m2_encrypted_settings[wsc_index][0], plain, plain_len)) == 0) {
             em_printfout("Platform decrypt failed for wsc_tlv:%d", wsc_index);
             return 0;
         }
@@ -3895,14 +3880,24 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count)
         attr = reinterpret_cast<data_elem_attr_t *> (plain);
         tmp_len = plain_len;
 
+        // Set the haultype to the wsc index by default
+        if (wsc_index >= em_haul_type_max) {
+            em_printfout("wsc_index:%d exceeds max haul types:%d, not proceeding further", wsc_index, em_haul_type_max);
+            return 0;
+        }
+        radioconfig.haultype[wsc_index] = static_cast<em_haul_type_t> (wsc_index);
         while (tmp_len > 0) {
-
             id = htons(attr->id);
-            if (id == attr_id_no_of_haul_type) {
-                radioconfig.noofbssconfig += attr->val[0];
-                em_printfout("##num bss configuration=%d", radioconfig.noofbssconfig);
-            } else if (id == attr_id_haul_type) {
-                radioconfig.haultype[wsc_index] = static_cast<em_haul_type_t> (attr->val[0]);
+            if (id == attr_id_vendor_ext) {
+                // Handle only em_vendor_oui
+                unsigned short attr_len = htons(attr->len);
+                if ((attr_len > EM_VENDOR_OUI_SIZE) && (memcmp(attr->val, em_vendor_oui, EM_VENDOR_OUI_SIZE) == 0)) {
+                    unsigned char vendor_attr_id = attr->val[EM_VENDOR_OUI_SIZE];
+                    if (vendor_attr_id == vendor_ext_attr_id_haul_type) {
+                        radioconfig.haultype[wsc_index] = static_cast<em_haul_type_t> (attr->val[EM_VENDOR_OUI_SIZE + 1]);
+                        em_printfout("##vendor_ext haul_type attrib[%d]: %d", wsc_index, radioconfig.haultype[wsc_index]);
+                    }
+                }
             } else if (id == attr_id_ssid) {
                 //If controller does not support no of haultype parameter
                 memcpy(radioconfig.ssid[wsc_index], attr->val, sizeof(radioconfig.ssid[wsc_index]));
@@ -3929,8 +3924,10 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count)
             tmp_len -= static_cast<int> (sizeof(data_elem_attr_t) + htons(attr->len));
             attr = reinterpret_cast<data_elem_attr_t *> (reinterpret_cast<unsigned char *>(attr) + sizeof(data_elem_attr_t) + htons(attr->len));
         }
+        radioconfig.noofbssconfig++;
     }
 
+    em_printfout("##num bss configuration=%d", radioconfig.noofbssconfig);
     for (unsigned int i = 0; i < radioconfig.noofbssconfig; i++){
         radioconfig.freq[i] = get_band();
     }
@@ -4659,36 +4656,36 @@ int em_configuration_t::handle_agent_list_msg(uint8_t *buff, unsigned int len, u
 
 int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_type_t haul_type)
 {
-	data_elem_attr_t *attr;
-	short len = 0;
-	unsigned char *tmp;
-	unsigned int size = 0, cipher_len, plain_len;
-	unsigned char iv[AES_BLOCK_SIZE];
-	unsigned char plain[MAX_EM_BUFF_SZ];
-	unsigned short auth_type;
-	em_network_ssid_info_t *net_ssid_info;
-	memset(plain, 0, MAX_EM_BUFF_SZ);
-	tmp = plain;
-	len = 0;
+    data_elem_attr_t *attr;
+    short len = 0;
+    unsigned char *tmp;
+    unsigned int size = 0, cipher_len, plain_len;
+    unsigned char iv[AES_BLOCK_SIZE];
+    unsigned char plain[MAX_EM_BUFF_SZ];
+    unsigned short auth_type;
+    unsigned char hash[SHA256_MAC_LEN];
+    unsigned char *keywrap_data_addr[1];
+    size_t keywrap_data_length[1];
+    em_network_ssid_info_t *net_ssid_info;
+    memset(plain, 0, MAX_EM_BUFF_SZ);
+    tmp = plain;
+    len = 0;
 
-	dm_easy_mesh_t *dm = get_data_model();
-	unsigned int no_of_haultype = 0, radio_exists, i;
-	dm_radio_t * radio = NULL;
+    dm_easy_mesh_t *dm = get_data_model();
+    unsigned int no_of_haultype = 0, radio_exists, i;
+    dm_radio_t * radio = NULL;
 
-	for (i = 0; i < dm->get_num_radios(); i++) {
-		radio = dm->get_radio(i);
-		if (memcmp(radio->m_radio_info.id.ruid, get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
-			radio_exists = true;
-			break;
-		}
-	}
-	if (radio_exists == false) {
-		em_printfout("Radio does not exist, return len as 0.");
-		return len;
-	} else {
-		// encoding a single haul type
-		no_of_haultype = 1;
-	}
+    for (i = 0; i < dm->get_num_radios(); i++) {
+        radio = dm->get_radio(i);
+        if (memcmp(radio->m_radio_info.id.ruid, get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
+            radio_exists = true;
+            break;
+        }
+    }
+    if (radio_exists == false) {
+        em_printfout("Radio does not exist, return len as 0.");
+        return len;
+    }
     em_printfout("radio:%s haul_type=%d radio no of bss=%d",
         util::mac_to_string(get_radio_interface_mac()).c_str(), haul_type, radio->m_radio_info.number_of_bss);
 
@@ -4696,17 +4693,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
         em_printfout("Could not find network ssid information for haul type %d", haul_type);
         return 0;
     }
-	em_printfout("ssid: %s, passphrase: %s", net_ssid_info->ssid, net_ssid_info->pass_phrase);
-
-    // haultype
-	attr = reinterpret_cast<data_elem_attr_t *> (tmp);
-	attr->id = htons(attr_id_no_of_haul_type);
-	size = 1;
-	attr->len = htons(static_cast<short unsigned int> (size));
-	memcpy(reinterpret_cast<char *> (attr->val), reinterpret_cast<unsigned char *> (&no_of_haultype), size);
-
-	len += static_cast<short> (sizeof(data_elem_attr_t) + size);
-	tmp += (sizeof(data_elem_attr_t) + size);
+    em_printfout("ssid: %s, passphrase: %s", net_ssid_info->ssid, net_ssid_info->pass_phrase);
 
     if (get_band() == 2) {
         auth_type = 0x0200; // WPA3-Personal
@@ -4714,12 +4701,14 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
         auth_type = 0x0400; // WPA3-Personal-Transition
     }
 
-    // haultype
+    // Add vendor extension for haul type
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
-    attr->id = htons(attr_id_haul_type);
-    size = sizeof(em_haul_type_t);
+    attr->id = htons(attr_id_vendor_ext);
+    size = EM_VENDOR_OUI_SIZE + sizeof(vendor_ext_attr_id_t) + sizeof(em_haul_type_t);
     attr->len = htons(static_cast<short unsigned int> (size));
-    attr->val[0] = haul_type;
+    memcpy(reinterpret_cast<char *> (attr->val), em_vendor_oui, EM_VENDOR_OUI_SIZE);
+    attr->val[EM_VENDOR_OUI_SIZE] = static_cast<unsigned char> (vendor_ext_attr_id_haul_type);
+    attr->val[EM_VENDOR_OUI_SIZE + 1] = static_cast<unsigned char> (haul_type);
 
     len += static_cast<short> (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -4765,32 +4754,39 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     tmp += (sizeof(data_elem_attr_t) + size);
 
     // key wrap
+    keywrap_data_addr[0] = plain;
+    keywrap_data_length[0] = static_cast<size_t> (len);
+    if (em_crypto_t::platform_hmac_SHA256(m_auth_key, WPS_AUTHKEY_LEN, 1, keywrap_data_addr, keywrap_data_length, hash) != 1) {
+	    printf("%s:%d: Authenticator create failed\n", __func__, __LINE__);
+	    return 0;
+    }
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_key_wrap_authenticator);
-    size = 32;
+    size = EM_KEY_WRAP_TLV_LEN;
     attr->len = htons(static_cast<short unsigned int> (size));
+    memcpy(reinterpret_cast<char *> (attr->val), const_cast<unsigned char *> (hash), EM_KEY_WRAP_TLV_LEN);
 
     len += static_cast<short> (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
 
-	if (em_crypto_t::generate_iv(iv, AES_BLOCK_SIZE) != 1) {
-		printf("%s:%d: iv generate failed\n", __func__, __LINE__);
-		return 0;
-	}
+    if (em_crypto_t::generate_iv(iv, AES_BLOCK_SIZE) != 1) {
+	    printf("%s:%d: iv generate failed\n", __func__, __LINE__);
+	    return 0;
+    }
 
-	memcpy(buff, iv, AES_BLOCK_SIZE);
+    memcpy(buff, iv, AES_BLOCK_SIZE);
 
-	plain_len = static_cast<unsigned int> (len + (AES_BLOCK_SIZE - len%AES_BLOCK_SIZE));
+    plain_len = static_cast<unsigned int> (len);
 
-	// encrypt the m2 data
-	if (em_crypto_t::platform_aes_128_cbc_encrypt(m_key_wrap_key, iv, plain, plain_len, buff + AES_BLOCK_SIZE, &cipher_len) != 1) {
-		printf("%s:%d: platform encrypt failed\n", __func__, __LINE__);
-		return 0;
-	}
+    // encrypt the m2 data
+    if (em_crypto_t::platform_aes_128_cbc_encrypt(m_key_wrap_key, iv, plain, plain_len, buff + AES_BLOCK_SIZE, &cipher_len) != 1) {
+	    printf("%s:%d: platform encrypt failed\n", __func__, __LINE__);
+	    return 0;
+    }
 
     em_printfout("Encrypted for radio:%s haul_type:%d length:%u plain_len:%u",
         util::mac_to_string(get_radio_interface_mac()).c_str(), haul_type, cipher_len + AES_BLOCK_SIZE, plain_len);
-	return static_cast<int> (cipher_len) + AES_BLOCK_SIZE;
+    return static_cast<int> (cipher_len) + AES_BLOCK_SIZE;
 }
 
 int em_configuration_t::create_authenticator(unsigned char *buff)

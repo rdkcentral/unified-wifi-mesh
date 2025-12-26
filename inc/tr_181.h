@@ -47,9 +47,22 @@ typedef struct bus_data_cb_func {
     bus_callback_table_t  cb_func;
 } bus_data_cb_func_t;
 
+struct yang_to_tr181_map {
+    const char* yang;
+    const char* tr181;
+};
 
-// #define DATAELEMS_NETWORK       "Device.WiFi.DataElements.Network."
-#define DATAELEMS_NETWORK       "Network."
+static const yang_to_tr181_map g_yang_map[] = {
+    { "DeviceList", "Device" },
+    { "RadioList", "Radio" },
+    { "BSSList", "BSS" },
+    { "STAList", "STA" },
+    { "NetworkSSIDList", "SSID" },
+
+    { nullptr, nullptr } // Default case
+};
+
+#define DATAELEMS_NETWORK       "Device.WiFi.DataElements.Network."
 
 #define MAX_INSTANCE_LEN        32
 #define MAX_CAPS_STR_LEN        32
@@ -63,9 +76,8 @@ typedef struct bus_data_cb_func {
 #define DE_NETWORK_DEVNOE       DATAELEMS_NETWORK       "NumberOfDevices"
 #define DE_NETWORK_SETSSID      DATAELEMS_NETWORK       "SetSSID()"
 /* Device.WiFi.DataElements.Network.SSID */
-// #define DE_NETWORK_SSID         DATAELEMS_NETWORK       "SSID.{i}."
-#define DE_NETWORK_SSID         DATAELEMS_NETWORK       "NetworkSSIDList.{i}."
-#define DE_SSID_TABLE           DATAELEMS_NETWORK       "NetworkSSIDList.{i}"
+#define DE_NETWORK_SSID         DATAELEMS_NETWORK       "SSID.{i}."
+#define DE_SSID_TABLE           DATAELEMS_NETWORK       "SSID.{i}"
 #define DE_SSID_SSID            DE_NETWORK_SSID         "SSID"
 #define DE_SSID_BAND            DE_NETWORK_SSID         "Band"
 #define DE_SSID_ENABLE          DE_NETWORK_SSID         "Enable"
@@ -76,9 +88,8 @@ typedef struct bus_data_cb_func {
 #define DE_SSID_MOBDOMAIN       DE_NETWORK_SSID         "MobilityDomain"
 #define DE_SSID_HAULTYPE        DE_NETWORK_SSID         "HaulType"
 /* Device.WiFi.DataElements.Network.Device */
-// #define DE_NETWORK_DEVICE       DATAELEMS_NETWORK       "Device.{i}."
-#define DE_NETWORK_DEVICE       DATAELEMS_NETWORK       "DeviceList.{i}."
-#define DE_DEVICE_TABLE         DATAELEMS_NETWORK       "DeviceList.{i}"
+#define DE_NETWORK_DEVICE       DATAELEMS_NETWORK       "Device.{i}."
+#define DE_DEVICE_TABLE         DATAELEMS_NETWORK       "Device.{i}"
 #define DE_DEVICE_ID            DE_NETWORK_DEVICE       "ID"
 #define DE_DEVICE_MAPCAP        DE_NETWORK_DEVICE       "MultiAPCapabilities"
 #define DE_DEVICE_NUMRADIO      DE_NETWORK_DEVICE       "NumberOfRadios"
@@ -97,6 +108,8 @@ typedef struct bus_data_cb_func {
 #define DE_DEVICE_MAXVIDS       DE_NETWORK_DEVICE       "MaxVIDs"
 #define DE_DEVICE_BPRIO         DE_NETWORK_DEVICE       "BasicPrioritization"
 #define DE_DEVICE_EPRIO         DE_NETWORK_DEVICE       "EnhancedPrioritization"
+#define DE_DEVICE_DE8021QPVID   DE_NETWORK_DEVICE       "Default8021Q.PrimaryVID"
+#define DE_DEVICE_DE8021QDPCP   DE_NETWORK_DEVICE       "Default8021Q.DefaultPCP"
 #define DE_DEVICE_TSEPPOLI      DE_NETWORK_DEVICE       "TrafficSeparationPolicy"
 #define DE_DEVICE_STVMAP        DE_NETWORK_DEVICE       "SSIDtoVIDMapping"
 #define DE_DEVICE_DSCPM         DE_NETWORK_DEVICE       "DSCPMap"
@@ -159,9 +172,8 @@ typedef struct bus_data_cb_func {
 #define DE_MDBHSTATS_LSTDTADLR  DE_MAPDEVBH_STATS       "LastDataDownlinkRate"
 #define DE_MDBHSTATS_LSTDTAULR  DE_MAPDEVBH_STATS       "LastDataUplinkRate"
 /* Device.WiFi.DataElements.Network.Device.Radio */
-// #define DE_DEVICE_RADIO         DE_NETWORK_DEVICE       "Radio.{i}."
-#define DE_DEVICE_RADIO         DE_NETWORK_DEVICE       "RadioList.{i}."
-#define DE_RADIO_TABLE          DATAELEMS_NETWORK       "RadioList.{i}"
+#define DE_DEVICE_RADIO         DE_NETWORK_DEVICE       "Radio.{i}."
+#define DE_RADIO_TABLE          DATAELEMS_NETWORK       "Radio.{i}"
 #define DE_RADIO_ID             DE_DEVICE_RADIO         "ID"
 #define DE_RADIO_ENABLED        DE_DEVICE_RADIO         "Enabled"
 #define DE_RADIO_NUMCUROPCLASS  DE_DEVICE_RADIO         "NumberOfCurrOpClass"
@@ -271,9 +283,8 @@ typedef struct bus_data_cb_func {
 #define DE_RADIO_NUM_OPCLSCANS   DE_CAPS_SCANCAP          "NumberOfOpClassScans"
 #define DE_RADIO_SCAN_TS         DE_CAPS_SCANCAP          "TimeStamp"
 /* Device.WiFi.DataElements.Network.Device.Radio.BSS */
-// #define DE_RADIO_BSS            DE_DEVICE_RADIO         "BSS.{i}."
-#define DE_RADIO_BSS            DE_DEVICE_RADIO         "BSSList.{i}."
-#define DE_BSS_TABLE            DATAELEMS_NETWORK       "BSSList.{i}"
+#define DE_RADIO_BSS            DE_DEVICE_RADIO         "BSS.{i}."
+#define DE_BSS_TABLE            DATAELEMS_NETWORK       "BSS.{i}"
 #define DE_BSS_BSSID            DE_RADIO_BSS            "BSSID"
 #define DE_BSS_SSID             DE_RADIO_BSS            "SSID"
 #define DE_BSS_ENABLED          DE_RADIO_BSS            "Enabled"
@@ -348,6 +359,7 @@ typedef struct bus_data_cb_func {
 
 #define CALLBACK_ADD_ROW(f)          {NULL, NULL, f, NULL, NULL, NULL}
 #define CB(...)                      (bus_callback_table_t){ __VA_ARGS__ }
+#define CALLBACK_GETTER(f)           {f, NULL, NULL, NULL, NULL, NULL}
 #define ELEMENT(n, f)                {const_cast<char*>(n), f}
 #define ELEMENT_TABLE_ROW(n, f)      {const_cast<char*>(n), f}
 
@@ -420,6 +432,9 @@ public:
     static bus_error_t device_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t device_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
 
+    //Policy Callbacks
+    static bus_error_t policy_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
     //Radio
     static bus_error_t radio_get(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);
     static bus_error_t radio_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
@@ -453,6 +468,7 @@ public:
     void register_cjson_namespace(cJSON *node, const std::string &prefix);
 
     //Data_Elements_JSON_Schema_v3.0 parsing related functions
+    std::string yang_to_tr181_path(const std::string& in);
     cJSON* follow_ref_if_any(cJSON* root, cJSON* node);
     cJSON* resolve_ref(cJSON* root, const char* refStr);
     void parse_property_constraints(cJSON* schemaNode, data_model_properties_t& props);
