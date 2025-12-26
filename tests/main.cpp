@@ -508,6 +508,10 @@ int main(int argc, char **argv) {
     "dm_easy_mesh_list_tTEST.remove_radio_nonExistentKey:"
     "dm_easy_mesh_list_tTEST.remove_radio_nullPointerKey:"
     "dm_easy_mesh_list_tTEST.remove_sta_non_existing_sta:"
-    "dm_easy_mesh_list_tTEST.remove_sta_null_key";    
+    "dm_easy_mesh_list_tTEST.remove_sta_null_key:"
+    "dm_neighbor_t.decode_null_json_object:"
+    "dm_neighbor_t.decode_invalid_field_types:"
+    "dm_neighbor_t.decode_valid_json_parent_null:"
+    "dm_neighbor_t.encode_null_obj_pointer";    
     return RUN_ALL_TESTS();
 }
