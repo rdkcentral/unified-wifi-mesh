@@ -1317,7 +1317,7 @@ void em_capability_t::process_msg(unsigned char *data, unsigned int len)
                 get_mgr()->get_all_em_for_al_mac(hdr->dst, em_radios);
                 for (auto &em : em_radios){
                     em_printfout(" em_msg_type_ap_cap_query received, state: %s\n", em_t::state_2_str(em->get_state()));
-                    if ((em->get_service_type() == em_service_type_agent) && (em->get_state() < em_state_agent_onewifi_bssconfig_ind)){
+                    if ((em->get_service_type() == em_service_type_agent) && (em->get_state() < em_state_agent_topo_synchronized)){
                         em_printfout("radio %s is not configured, ignoring", util::mac_to_string(em->get_radio_interface_mac()).c_str());
                         em_radios.clear();
                         return;

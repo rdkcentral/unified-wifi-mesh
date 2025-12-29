@@ -1934,6 +1934,7 @@ typedef enum {
     em_state_agent_onewifi_bssconfig_ind,
 	em_state_agent_autoconfig_renew_pending,
     em_state_agent_topo_synchronized,
+    em_state_agent_ap_cap_report,
 	em_state_agent_channel_pref_query,
 	em_state_agent_channel_selection_pending,
 	em_state_agent_channel_select_configuration_pending,
@@ -1943,7 +1944,6 @@ typedef enum {
 	
 	// Transient agent stats
     em_state_agent_topology_notify,
-    em_state_agent_ap_cap_report,
     em_state_agent_client_cap_report,
     em_state_agent_sta_link_metrics_pending,
     em_state_agent_steer_btm_res_pending,

@@ -83,7 +83,7 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             }
             break;
         case em_cmd_type_onewifi_cb:
-            if (em->get_state() == em_state_agent_ap_cap_report) {
+            if (em->get_state() == em_state_agent_topo_synchronized) {
                 return true;
             }
             break;
@@ -161,7 +161,7 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
         return true;
     } else if (pcmd->m_type == em_cmd_type_ap_cap_query) {
         return true;
-    } else if ((pcmd->m_type == em_cmd_type_channel_pref_query) && (em->get_state() >= em_state_agent_topo_synchronized)) {
+    } else if ((pcmd->m_type == em_cmd_type_channel_pref_query) && (em->get_state() >= em_state_agent_ap_cap_report)) {
 		return true;
     } else if (pcmd->m_type == em_cmd_type_op_channel_report) {
         return true;
@@ -424,7 +424,7 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                 break;
 			case em_cmd_type_channel_pref_query:
 				if ((em->is_al_interface_em())) {
-					if ((em->get_state() >= em_state_agent_topo_synchronized)
+					if ((em->get_state() >= em_state_agent_ap_cap_report)
 							&& (em->get_state() < em_state_agent_configured)) {
 						queue_push(pcmd->m_em_candidates, em);
 						count++;
