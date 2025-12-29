@@ -85,8 +85,6 @@ class em_configuration_t {
 	 * This function generates a WSC (Wi-Fi Simple Configuration) M2 message for auto-configuration purposes.
 	 *
 	 * @param[out] buff Pointer to the buffer where the generated message will be stored.
-	 * @param[in] haul_type Array of haul types used in the configuration.
-	 * @param[in] num_hauls Number of haul types in the array.
 	 * @param[in] msg_id The message ID of the original request being responded to.
 	 *
 	 * @returns int Status code indicating success or failure of the message creation.
@@ -95,7 +93,7 @@ class em_configuration_t {
 	 *
 	 * @note Ensure that the buffer is adequately sized to hold the generated message.
 	 */
-	int create_autoconfig_wsc_m2_msg(unsigned char *buff, em_haul_type_t haul_type[], unsigned int num_hauls, unsigned short msg_id);
+	int create_autoconfig_wsc_m2_msg(unsigned char *buff, unsigned short msg_id);
     
 	/**!
 	 * @brief Creates a BSS configuration request message.
@@ -707,6 +705,7 @@ class em_configuration_t {
 	 *
 	 * @param[in] buff Pointer to the buffer containing the WSC M2 message.
 	 * @param[in] len Length of the buffer.
+	 * @param[in] index Index of the WSC TLV.
 	 *
 	 * @returns int
 	 * @retval 0 on success.
@@ -714,7 +713,7 @@ class em_configuration_t {
 	 *
 	 * @note Ensure that the buffer is properly allocated and contains a valid WSC M2 message before calling this function.
 	 */
-	int handle_wsc_m2(unsigned char *buff, unsigned int len);
+	int handle_wsc_m2(unsigned char *buff, unsigned int len, unsigned int index);
     
 	/**!
 	 * @brief Handles the renewal of auto-configuration.
@@ -1567,10 +1566,10 @@ private:
     size_t m_m1_length;
     size_t m_m2_length;
 
-    unsigned char m_m2_authenticator[SHA256_MAC_LEN];
-    unsigned int m_m2_authenticator_len;
-    unsigned char m_m2_encrypted_settings[MAX_EM_BUFF_SZ];
-    unsigned int m_m2_encrypted_settings_len;
+    unsigned char m_m2_authenticator[em_haul_type_max][SHA256_MAC_LEN];
+    unsigned int m_m2_authenticator_len[em_haul_type_max];
+    unsigned char m_m2_encrypted_settings[em_haul_type_max][MAX_EM_BUFF_SZ];
+    unsigned int m_m2_encrypted_settings_len[em_haul_type_max];
 
 public:
 
@@ -1666,7 +1665,7 @@ public:
 	 * @note Ensure that the encryption keys are properly initialized
 	 * before calling this function.
 	 */
-	int handle_encrypted_settings();
+	int handle_encrypted_settings(unsigned int wsc_tlv_count);
     
 	/**!
 	 * @brief Creates encrypted settings based on the provided buffer and haul type.

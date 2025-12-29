@@ -57,7 +57,7 @@ short em_channel_t::create_channel_pref_tlv_agent(unsigned char *buff, unsigned 
 
     dm = get_data_model();
     pref = reinterpret_cast<em_channel_pref_t *> (buff);
-    memcpy(pref->ruid, dm-> get_radio_by_ref(index).get_radio_interface_mac(), sizeof(mac_address_t));
+    memcpy(pref->ruid, dm->get_radio_by_ref(index).get_radio_interface_mac(), sizeof(mac_address_t));
     pref_op_class = pref->op_classes;
     pref->op_classes_num = 0;
 
@@ -746,6 +746,7 @@ short em_channel_t::create_operating_channel_report_tlv(unsigned char *buff)
 	em_op_class_ch_rprt_t *rprt_channel;
 	dm_op_class_t	*op_class;	
 	unsigned char *tmp;
+	int8_t curr_txpwr_dbm = 0;
 
 	dm = get_data_model();
 
@@ -766,14 +767,14 @@ short em_channel_t::create_operating_channel_report_tlv(unsigned char *buff)
 			len += static_cast<short unsigned int> (sizeof(em_op_class_ch_rprt_t));
 			tmp += sizeof(em_op_class_ch_rprt_t);
 
-			len += static_cast<short unsigned int> (sizeof(unsigned char));
-			tmp += sizeof(unsigned char);	
-
 			rprt_channel = reinterpret_cast<em_op_class_ch_rprt_t *> (tmp);
 
 			rprt_op_class->op_classes_num++;
 		}
 	}	
+	curr_txpwr_dbm = static_cast<int8_t>(op_class->m_op_class_info.tx_power);
+	memcpy(buff + len, &curr_txpwr_dbm, sizeof(curr_txpwr_dbm));
+	len += static_cast<short>(sizeof(curr_txpwr_dbm));
 
 	return len;
 }
@@ -2022,7 +2023,7 @@ void em_channel_t::process_ctrl_state()
 {
     switch (get_state()) {
         case em_state_ctrl_channel_query_pending:
-			if(get_service_type() == em_service_type_ctrl) {
+            if(get_service_type() == em_service_type_ctrl) {
                 std::vector<em_t *> em_radios;
                 dm_easy_mesh_t *dm = get_data_model();
                 get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
@@ -2043,8 +2044,7 @@ void em_channel_t::process_ctrl_state()
 				    send_channel_pref_query_msg();
                 }
                 em_radios.clear();
-				set_state(em_state_ctrl_channel_pref_report_pending);
-			}
+            }
             break;
 
         case em_state_ctrl_channel_select_pending:

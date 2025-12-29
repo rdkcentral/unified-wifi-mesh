@@ -37,7 +37,7 @@
 
 int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t type)
 {
-    cJSON *tmp, *sta_arr_obj, *arr_obj, *tmp_obj, *traffic_sep_arr_obj, *traffic_sep_obj;
+    cJSON *tmp, *sta_arr_obj, *traffic_sep_arr_obj, *traffic_sep_obj;
 	em_policy_id_t id;
 	int i;
 	unsigned char len = 0;

@@ -132,10 +132,8 @@ dm_orch_type_t dm_device_list_t::get_dm_orch_type(db_client_t& db_client, const 
 
 void dm_device_list_t::update_list(const dm_device_t& dev, dm_orch_type_t op)
 {
-    dm_device_t *pdev;
     mac_addr_str_t	mac_str;
     em_2xlong_string_t	key;
-    dm_easy_mesh_t *dm;
 
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (dev.m_device_info.id.dev_mac), mac_str);
     snprintf(key, sizeof(em_2xlong_string_t), "%s@%s@%d", dev.m_device_info.id.net_id, mac_str, dev.m_device_info.id.media);

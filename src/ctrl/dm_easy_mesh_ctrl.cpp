@@ -2214,6 +2214,12 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget(char *event_name, raw_data_t *p_dat
     return bus_get_cb_fwd(event_name, p_data, device_tget_inner);
 }
 
+bus_error_t dm_easy_mesh_ctrl_t::policy_get(char *event_name, raw_data_t *p_data)
+{
+    em_printfout("Inside");
+    return bus_get_cb_fwd(event_name, p_data, policy_get_inner);
+}
+
 bus_error_t dm_easy_mesh_ctrl_t::radio_get(char *event_name, raw_data_t *p_data)
 {
     return bus_get_cb_fwd(event_name, p_data, radio_get_inner);
@@ -2262,6 +2268,34 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get(char *event_name, raw_data_t *p_data)
 bus_error_t dm_easy_mesh_ctrl_t::sta_tget(char *event_name, raw_data_t *p_data)
 {
     return bus_get_cb_fwd(event_name, p_data, sta_tget_inner);
+}
+
+const char* dm_easy_mesh_ctrl_t::get_table_instance(const char *src, char *instance, size_t max_len, bool *is_num)
+{
+	char *dst = instance;
+	size_t len = 0;
+
+    src = strstr(src, ".");
+    ++src;
+
+	if (*src == '[') {
+		*is_num = false;
+		++src;
+		while (*src && *src != ']' && ++len < max_len) {
+			*dst++ = *src++;
+		}
+		*dst++ = 0;
+		src += 2;
+	} else {
+		*is_num = true;
+		while (*src && *src != '.' && ++len < max_len) {
+			*dst++ = *src++;
+		}
+		*dst++ = 0;
+		src++;
+	}
+
+	return src;
 }
 
 bus_error_t dm_easy_mesh_ctrl_t::network_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
@@ -2321,18 +2355,12 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
     (void) user_data;
     const char *name = event_name;
     const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
     int device_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
-        return bus_error_invalid_input;
-    }
-
-    if(sscanf(event_name, "Network.DeviceList.%d", &device_instance) == 1) {
-        em_printfout("Extracted device index:%d", device_instance);
-    }
-    else {
-        em_printfout("Unable to extract the device index");
         return bus_error_invalid_input;
     }
 
@@ -2342,7 +2370,12 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
     }
     ++param;
 
+
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    device_instance = is_num ? atoi(instance) : 0;
+
     dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
     if (dm == NULL || (dm->get_id() != device_instance)) {
         dm = dm_ctrl->get_next_dm(dm);
@@ -2361,6 +2394,11 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
     em_device_info_t *di = dev->get_device_info();
     if (memcmp(di->intf.mac, ZERO_MAC_ADDR, sizeof(di->intf.mac)) == 0) {
         em_printfout("NULL dev_info");
+        return bus_error_invalid_input;
+    }
+    em_ieee_1905_security_cap_t *sec_cap = dm->get_ieee_1905_security_cap();
+    if (sec_cap == NULL) {
+        em_printfout("NULL sec_cap");
         return bus_error_invalid_input;
     }
 
@@ -2482,6 +2520,12 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
         rc = dm_ctrl->raw_data_set(p_data, 0U);
     } else if (strcmp(param, "BackhaulDownNumberOfEntries") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->num_backhaul_down_mac);
+    } else if (strcmp(param, "OnboardingProtocol") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, sec_cap->onboarding_proto);
+    } else if (strcmp(param, "IntegrityAlgorithm") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, sec_cap->integrity_algo);
+    } else if (strcmp(param, "EncryptionAlgorithm") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, sec_cap->encryption_algo);
     } else {
         em_printfout("Invalid param: %s", param);
         rc = bus_error_invalid_input;
@@ -2522,6 +2566,11 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
             continue;
         }
         ++idx;
+        em_ieee_1905_security_cap_t *sec_cap = dm->get_ieee_1905_security_cap();
+        if (sec_cap == NULL) {
+            em_printfout("NULL sec_cap");
+            return bus_error_invalid_input;
+        }
 
         dm_ctrl->property_append_tail(&property, root, idx, "ID", di->id.dev_mac);
         dm_ctrl->property_append_tail(&property, root, idx, "Manufacturer", di->manufacturer);
@@ -2554,8 +2603,11 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
         dm_ctrl->property_append_tail(&property, root, idx, "RadioNumberOfEntries", dm->get_num_radios());
         dm_ctrl->property_append_tail(&property, root, idx, "CACStatusNumberOfEntries", 0U);
         dm_ctrl->property_append_tail(&property, root, idx, "BackhaulDownNumberOfEntries", di->num_backhaul_down_mac);
+        dm_ctrl->property_append_tail(&property, root, idx, "OnboardingProtocol", sec_cap->onboarding_proto);
+        dm_ctrl->property_append_tail(&property, root, idx, "IntegrityAlgorithm", sec_cap->integrity_algo);
+        dm_ctrl->property_append_tail(&property, root, idx, "EncryptionAlgorithm", sec_cap->encryption_algo);
 
-        snprintf(path, sizeof(path) - 1, "%s%d.RadioList.", root, idx);
+        snprintf(path, sizeof(path) - 1, "%s%d.Radio.", root, idx);
         dm_ctrl->radio_tget_params(dm, path, &property);
 
         dm = dm_ctrl->get_next_dm(dm);
@@ -2568,24 +2620,18 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
     return rc;
 }
 
-bus_error_t dm_easy_mesh_ctrl_t::ssid_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+bus_error_t dm_easy_mesh_ctrl_t::policy_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     (void) user_data;
     const char *name = event_name;
     const char *param;
-    char val_str[1024] = { 0 };
-    unsigned int ssid_instance = 0;
-    bus_error_t rc;
+    unsigned int count = 0;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    int device_instance = 0;
+    bus_error_t rc = bus_error_success;
 
     if (!name || !p_data) {
-        return bus_error_invalid_input;
-    }
-
-    if(sscanf(event_name, "Network.NetworkSSIDList.%d", &ssid_instance) == 1) {
-        em_printfout("Extracted ssid index:%d", ssid_instance);
-    }
-    else {
-        em_printfout("Unable to extract the index");
         return bus_error_invalid_input;
     }
 
@@ -2596,6 +2642,79 @@ bus_error_t dm_easy_mesh_ctrl_t::ssid_get_inner(char *event_name, raw_data_t *p_
     ++param;
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    device_instance = is_num ? atoi(instance) : 0;
+
+    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
+    if (dm == NULL || (dm->get_id() != device_instance)) {
+        dm = dm_ctrl->get_next_dm(dm);
+    }
+
+    dm_device_t *dev = dm->get_device();
+    if (dev == NULL) {
+        em_printfout("NULL dev");
+        return bus_error_invalid_input;
+    }
+
+    em_device_info_t *di = dev->get_device_info();
+    if (memcmp(di->intf.mac, ZERO_MAC_ADDR, sizeof(di->intf.mac)) == 0) {
+        em_printfout("NULL dev_info");
+        return bus_error_invalid_input;
+    }
+
+    dm_policy_t *pi = &dm->m_policy[count];
+    em_printfout("num_policy:%d", dm->m_num_policy);
+    while (pi == NULL && count < dm->m_num_policy) {
+        em_printfout("policy is NULL, checking next:%d", count);
+        count++;
+        pi = &dm->m_policy[count];
+    }
+
+    if(pi == NULL) {
+        em_printfout("policy is NULL");
+        return bus_error_invalid_input;
+    }
+    em_8021q_settings_policy_t *policy = &pi->m_policy.def_8021q_settings;
+
+    if (strcmp(param, "PrimaryVID") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, policy->primary_vid);
+    } else if (strcmp(param, "DefaultPCP") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, policy->default_pcp);
+    } else {
+        em_printfout("Invalid param: %s", param);
+        rc = bus_error_invalid_input;
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::ssid_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    char val_str[1024] = { 0 };
+    unsigned int ssid_instance = 0;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        return bus_error_invalid_input;
+    }
+    ++param;
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    ssid_instance = is_num ? static_cast<unsigned int>(atoi(instance)) : 0;
+
     dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
     if (dm == NULL) {
         dm = dm_ctrl->get_next_dm(dm);
@@ -2738,18 +2857,12 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
     (void) user_data;
     const char *name = event_name;
     const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
     int device_instance = 0, radio_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
-        return bus_error_invalid_input;
-    }
-
-    if(sscanf(event_name, "Network.DeviceList.%d.RadioList.%d", &device_instance, &radio_instance) == 2) {
-        em_printfout("Extracted device index:%d radio index:%d", device_instance, radio_instance);
-    }
-    else {
-        em_printfout("Unable to extract the device index");
         return bus_error_invalid_input;
     }
 
@@ -2760,6 +2873,10 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
     ++param;
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    device_instance = is_num ? atoi(instance) : 0;
+
     dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
     if (dm == NULL || (dm->get_id() != device_instance)) {
         dm = dm_ctrl->get_next_dm(dm);
@@ -2770,6 +2887,8 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
         return bus_error_invalid_input;
     }
 
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    radio_instance = is_num ? atoi(instance) : 0;
     dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
@@ -2817,6 +2936,8 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_inner(char *event_name, raw_data_t *
     const char *name = event_name;
     const char *root = name;
     int device_instance = 0;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
     bus_data_prop_t *property = NULL;
     bus_error_t rc;
 
@@ -2824,15 +2945,11 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_inner(char *event_name, raw_data_t *
         return bus_error_invalid_input;
     }
 
-    if(sscanf(event_name, "Network.DeviceList.%d", &device_instance) == 1) {
-        em_printfout("Extracted device index:%d", device_instance);
-    }
-    else {
-        em_printfout("Unable to extract the device index");
-        return bus_error_invalid_input;
-    }
-
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    device_instance = is_num ? atoi(instance) : 0;
+
     dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
     if (dm == NULL || (dm->get_id() != device_instance)) {
         dm = dm_ctrl->get_next_dm(dm);
@@ -2911,7 +3028,7 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const cha
         snprintf(path, sizeof(path) - 1, "%s%d.CurrentOperatingClassProfile.", root, idx);
         dm_ctrl->curops_tget_params(dm, path, ri, property);
 
-        snprintf(path, sizeof(path) - 1, "%s%d.BSSList.", root, idx);
+        snprintf(path, sizeof(path) - 1, "%s%d.BSS.", root, idx);
         dm_ctrl->bss_tget_params(dm, path, ri, property);
     }
 
@@ -2923,6 +3040,8 @@ bus_error_t dm_easy_mesh_ctrl_t::rbhsta_get_inner(char *event_name, raw_data_t *
     (void) user_data;
     const char *name = event_name;
     const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
     int device_instance = 0, radio_instance = 0;
     bus_error_t rc;
 
@@ -2936,15 +3055,11 @@ bus_error_t dm_easy_mesh_ctrl_t::rbhsta_get_inner(char *event_name, raw_data_t *
     }
     ++param;
 
-    if(sscanf(event_name, "Network.DeviceList.%d.RadioList.%d", &device_instance, &radio_instance) == 2) {
-        em_printfout("Extracted device index:%d radio index:%d", device_instance, radio_instance);
-    }
-    else {
-        em_printfout("Unable to extract the device index");
-        return bus_error_invalid_input;
-    }
-
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    device_instance = is_num ? atoi(instance) : 0;
+
     dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
     if (dm == NULL || (dm->get_id() != device_instance)) {
         dm = dm_ctrl->get_next_dm(dm);
@@ -2955,6 +3070,8 @@ bus_error_t dm_easy_mesh_ctrl_t::rbhsta_get_inner(char *event_name, raw_data_t *
         return bus_error_invalid_input;
     }
 
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    radio_instance = is_num ? atoi(instance) : 0;
     dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
@@ -2984,18 +3101,12 @@ bus_error_t dm_easy_mesh_ctrl_t::rcaps_get_inner(char *event_name, raw_data_t *p
     const char *name = event_name;
     const char *param;
     char caps_str[MAX_CAPS_STR_LEN] = { 0 };
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
     int device_instance = 0, radio_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
-        return bus_error_invalid_input;
-    }
-
-    if(sscanf(event_name, "Network.DeviceList.%d.RadioList.%d", &device_instance, &radio_instance) == 2) {
-        em_printfout("Extracted device index:%d radio index:%d", device_instance, radio_instance);
-    }
-    else {
-        em_printfout("Unable to extract the device index");
         return bus_error_invalid_input;
     }
 
@@ -3006,6 +3117,10 @@ bus_error_t dm_easy_mesh_ctrl_t::rcaps_get_inner(char *event_name, raw_data_t *p
     ++param;
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    device_instance = is_num ? atoi(instance) : 0;
+
     dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
     if (dm == NULL || (dm->get_id() != device_instance)) {
         dm = dm_ctrl->get_next_dm(dm);
@@ -3016,6 +3131,8 @@ bus_error_t dm_easy_mesh_ctrl_t::rcaps_get_inner(char *event_name, raw_data_t *p
         return bus_error_invalid_input;
     }
 
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    radio_instance = is_num ? atoi(instance) : 0;
     dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
@@ -3077,19 +3194,12 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_get_inner(char *event_name, raw_data_t *
     (void) user_data;
     const char *name = event_name;
     const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
     int device_instance = 0, radio_instance = 0, curop_class_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
-        return bus_error_invalid_input;
-    }
-
-    if(sscanf(event_name, "Network.DeviceList.%d.RadioList.%d.CurrentOperatingClasses.%d", 
-        &device_instance, &radio_instance, &curop_class_instance) == 3) {
-        em_printfout("Extracted device index:%d radio index:%d", device_instance, radio_instance, curop_class_instance);
-    }
-    else {
-        em_printfout("Unable to extract the device index");
         return bus_error_invalid_input;
     }
 
@@ -3100,6 +3210,10 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_get_inner(char *event_name, raw_data_t *
     ++param;
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    device_instance = is_num ? atoi(instance) : 0;
+
     dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
     if (dm == NULL || (dm->get_id() != device_instance)) {
         dm = dm_ctrl->get_next_dm(dm);
@@ -3110,12 +3224,16 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_get_inner(char *event_name, raw_data_t *
         return bus_error_invalid_input;
     }
 
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    radio_instance = is_num ? atoi(instance) : 0;
     dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
     }
 
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    curop_class_instance = is_num ? atoi(instance) : 0;
     dm_op_class_t *op_class = dm_ctrl->get_dm_curop(dm, radio, curop_class_instance);
     if (op_class == NULL) {
         em_printfout("op_class is NULL\n");
@@ -3143,6 +3261,8 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_tget_inner(char *event_name, raw_data_t 
     const char *name = event_name;
     const char *root = name;
     bus_data_prop_t *property = NULL;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
     int device_instance = 0, radio_instance = 0;
     bus_error_t rc;
 
@@ -3150,15 +3270,11 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_tget_inner(char *event_name, raw_data_t 
         return bus_error_invalid_input;
     }
 
-    if(sscanf(event_name, "Network.DeviceList.%d.RadioList.%d", &device_instance, &radio_instance) == 2) {
-        em_printfout("Extracted device index:%d radio index:%d", device_instance, radio_instance);
-    }
-    else {
-        em_printfout("Unable to extract the device index");
-        return bus_error_invalid_input;
-    }
-
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    device_instance = is_num ? atoi(instance) : 0;
+
     dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
     if (dm == NULL || (dm->get_id() != device_instance)) {
         dm = dm_ctrl->get_next_dm(dm);
@@ -3169,6 +3285,8 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_tget_inner(char *event_name, raw_data_t 
         return bus_error_invalid_input;
     }
 
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    radio_instance = is_num ? atoi(instance) : 0;
     dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
@@ -3246,18 +3364,12 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_d
     char val_str[1024] = { 0 };
     unsigned int i = 0;
     int count = 0;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
     int device_instance = 0, radio_instance = 0, bss_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
-        return bus_error_invalid_input;
-    }
-
-    if(sscanf(event_name, "Network.DeviceList.%d.RadioList.%d.BSSList.%d", &device_instance, &radio_instance, &bss_instance) == 3) {
-        em_printfout("Extracted device index:%d radio index:%d bss index:%d", device_instance, radio_instance, bss_instance);
-    }
-    else {
-        em_printfout("Unable to extract the device index");
         return bus_error_invalid_input;
     }
 
@@ -3268,6 +3380,10 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_d
     ++param;
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    device_instance = is_num ? atoi(instance) : 0;
+
     dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
     if (dm == NULL || (dm->get_id() != device_instance)) {
         dm = dm_ctrl->get_next_dm(dm);
@@ -3278,6 +3394,8 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_d
         return bus_error_invalid_input;
     }
 
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    radio_instance = is_num ? atoi(instance) : 0;
     dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
@@ -3287,6 +3405,8 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_d
     em_bss_info_t *bi;
     mac_addr_str_t  radio_str, bss_str;
 
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    bss_instance = is_num ? atoi(instance) : 0;
     for(i = 0; i < dm->m_num_bss; i++) {
         bi = dm->get_bss_info(i);
         dm_easy_mesh_t::macbytes_to_string(bi->ruid.mac, bss_str);
@@ -3379,6 +3499,8 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_tget_inner(char *event_name, raw_data_t *p_
     const char *name = event_name;
     const char *root = name;
     bus_data_prop_t *property = NULL;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
     int device_instance = 0, radio_instance = 0;
     bus_error_t rc;
 
@@ -3386,15 +3508,11 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_tget_inner(char *event_name, raw_data_t *p_
         return bus_error_invalid_input;
     }
 
-    if(sscanf(event_name, "Network.DeviceList.%d.RadioList.%d.", &device_instance, &radio_instance) == 2) {
-        em_printfout("Extracted device index:%d radio index:%d", device_instance, radio_instance);
-    }
-    else {
-        em_printfout("Unable to extract the device index");
-        return bus_error_invalid_input;
-    }
-
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    device_instance = is_num ? atoi(instance) : 0;
+
     dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
     if (dm == NULL || (dm->get_id() != device_instance)) {
         dm = dm_ctrl->get_next_dm(dm);
@@ -3405,6 +3523,8 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_tget_inner(char *event_name, raw_data_t *p_
         return bus_error_invalid_input;
     }
 
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    radio_instance = is_num ? atoi(instance) : 0;
     dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
@@ -3470,18 +3590,10 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
     const char *param;
     unsigned int i = 0;
     int count = 0;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
     int device_instance = 0, radio_instance = 0, bss_instance = 0, sta_instance = 0;
     bus_error_t rc;
-
-    if(sscanf(event_name, "Network.DeviceList.%d.RadioList.%d.BSSList.%d.STAList.%d", 
-        &device_instance, &radio_instance, &bss_instance, &sta_instance) == 4) {
-        em_printfout("Extracted device index:%d radio index:%d bss index:%d sta index:%d", 
-            device_instance, radio_instance, bss_instance, sta_instance);
-    }
-    else {
-        em_printfout("Unable to extract the device index");
-        return bus_error_invalid_input;
-    }
 
     param = strrchr(name, '.');
     if (param == NULL) {
@@ -3490,6 +3602,10 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
     ++param;
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    device_instance = is_num ? atoi(instance) : 0;
+
     dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
     if (dm == NULL || (dm->get_id() != device_instance)) {
         dm = dm_ctrl->get_next_dm(dm);
@@ -3500,6 +3616,8 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
         return bus_error_invalid_input;
     }
 
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    radio_instance = is_num ? atoi(instance) : 0;
     dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
@@ -3509,6 +3627,8 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
     em_bss_info_t *bi;
     mac_addr_str_t  radio_str, bss_str;
 
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    bss_instance = is_num ? atoi(instance) : 0;
     for(i = 0; i < dm->m_num_bss; i++) {
         bi = dm->get_bss_info(i);
         dm_easy_mesh_t::macbytes_to_string(bi->ruid.mac, bss_str);
@@ -3521,6 +3641,8 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
         }
     }
 
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    sta_instance = is_num ? atoi(instance) : 0;
     dm_sta_t *sta = dm_ctrl->get_dm_sta(dm, bi, sta_instance);
     if (sta == NULL) {
         em_printfout("sta is NULL\n");
@@ -3592,6 +3714,8 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_inner(char *event_name, raw_data_t *p_
     const char *name = event_name;
     const char *root = name;
     bus_data_prop_t *property = NULL;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
     int device_instance = 0, radio_instance = 0, bss_instance = 0;
     unsigned int i = 0;
     int count = 0;
@@ -3601,17 +3725,11 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_inner(char *event_name, raw_data_t *p_
         return bus_error_invalid_input;
     }
 
-    if(sscanf(event_name, "Network.DeviceList.%d.RadioList.%d.BSSList.%d", 
-        &device_instance, &radio_instance, &bss_instance) == 3) {
-        em_printfout("Extracted device index:%d radio index:%d bss index:%d", 
-            device_instance, radio_instance, bss_instance);
-    }
-    else {
-        em_printfout("Unable to extract index");
-        return bus_error_invalid_input;
-    }
-
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    device_instance = is_num ? atoi(instance) : 0;
+
     dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
     if (dm == NULL || (dm->get_id() != device_instance)) {
         dm = dm_ctrl->get_next_dm(dm);
@@ -3622,6 +3740,8 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_inner(char *event_name, raw_data_t *p_
         return bus_error_invalid_input;
     }
 
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    radio_instance = is_num ? atoi(instance) : 0;
     dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
@@ -3631,6 +3751,8 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_inner(char *event_name, raw_data_t *p_
     em_bss_info_t *bi;
     mac_addr_str_t  radio_str, bss_str;
 
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    bss_instance = is_num ? atoi(instance) : 0;
     for(i = 0; i < dm->m_num_bss; i++) {
         bi = dm->get_bss_info(i);
         dm_easy_mesh_t::macbytes_to_string(bi->ruid.mac, bss_str);
@@ -3710,7 +3832,7 @@ bus_error_t dm_easy_mesh_ctrl_t::bus_get_cb_fwd(char *event_name, raw_data_t *p_
     uintptr_t buf;
 
     do {
-        req = new em_event_t{};
+        req = static_cast<em_event_t *>(malloc(sizeof(em_event_t)));
         if (!req) {
             err = bus_error_out_of_resources;
             break;

@@ -174,9 +174,17 @@ extern "C"
 #define EM_KEY_FILE	"/nvram//test_cert.key"
 
 #define EM_CFG_FILE "/nvram/EasymeshCfg.json"
+#define EM_VENDOR_OUI_SIZE 3
 
 #define EM_MAX_SSID_LEN                33 
 #define EM_MAX_WIFI_PASSWORD_LEN       65 
+
+/* WSC Message TLV LENs */
+#define EM_CONN_TYPE_FLAGS_LEN         0x01
+#define EM_PRIMARY_DEV_TYPE_LEN        0x08
+#define EM_OS_VERSION_LEN              0x04
+#define EM_KEY_WRAP_TLV_LEN            0x08
+
 /* Disallowed STAList */
 #define EM_MSCS_DISALLOWED_STA      10
 #define EM_SCS_DISALLOWED_STA       10
@@ -607,9 +615,6 @@ typedef enum {
     em_tlv_type_vendor_sta_metrics = 0xf1,
     em_tlv_vendor_plolicy_cfg = 0xf2,
     em_tlv_type_vendor_operational_bss = 0xf3,
-
-	// RDK Proprietary TLV values
-	em_tlv_type_rdk_radio_enable = 0xfe,
 } em_tlv_type_t;
 
 typedef struct {
@@ -1911,9 +1916,13 @@ typedef enum {
     attr_id_vendor_ext,
     attr_id_version,
     attr_id_primary_device_type = 0x1054,
-	attr_id_haul_type,
-	attr_id_no_of_haul_type,
 } data_elem_attr_id_t;
+
+typedef enum {
+    // Vendor Extension Attribute for Haul Type with data
+    // of 1 byte having value corresponding to em_haul_type_t
+    vendor_ext_attr_id_haul_type = 0x01,
+} vendor_ext_attr_id_t;
 
 typedef enum {
     em_state_agent_unconfigured,

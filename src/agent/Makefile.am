@@ -168,7 +168,11 @@ onewifi_em_agent_test_SOURCES = \
 	$(top_srcdir)/tests/test_l1_em_cmd_get_channel.cpp \
 	$(top_srcdir)/tests/test_l1_em_cmd_set_channel.cpp \
 	$(top_srcdir)/tests/test_l1_em_cmd_sta_disassoc.cpp \
-	$(top_srcdir)/tests/test_l1_em_net_node.cpp
+	$(top_srcdir)/tests/test_l1_em_net_node.cpp \
+	$(top_srcdir)/tests/test_l1_em_orch_agent.cpp \
+	$(top_srcdir)/tests/test_l1_em_msg.cpp \
+	$(top_srcdir)/tests/test_l1_timer.cpp \
+	$(top_srcdir)/tests/test_l1_util.cpp
 onewifi_em_agent_test_CPPFLAGS = $(onewifi_em_agent_CPPFLAGS) \
 	-I$(PKG_CONFIG_SYSROOT_DIR)$(includedir)/gtest \
 	-DTESTING

@@ -60,6 +60,7 @@ public:
     dm_device_t *get_dm_dev(mac_address_t dev_mac, mac_address_t bmac);
     dm_radio_t *get_dm_radio(dm_easy_mesh_t *dm, char *instance, bool is_num);
     dm_sta_t *get_dm_bh_sta(dm_easy_mesh_t *dm, dm_radio_t *radio);
+    const char* get_table_instance(const char *src, char *instance, size_t max_len, bool *is_num);
 
     bus_error_t network_get(char *event_name, raw_data_t *p_data);
     static bus_error_t network_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
@@ -68,6 +69,9 @@ public:
     static bus_error_t device_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     bus_error_t device_tget(char *event_name, raw_data_t *p_data);
     static bus_error_t device_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
+    bus_error_t policy_get(char* event_name, raw_data_t* p_data);
+    static bus_error_t policy_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
     bus_error_t radio_get(char* event_name, raw_data_t* p_data);
     static bus_error_t radio_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);

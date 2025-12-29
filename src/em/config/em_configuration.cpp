@@ -56,6 +56,8 @@
 
 // Initialize the static member variables
 unsigned short em_configuration_t::msg_id = 0;
+// OUI value of Comcast
+static const unsigned char em_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
 
 /* Extract N bytes (ignore endianess) */
 static inline void _EnB(uint8_t **packet_ppointer, void *memory_pointer, uint32_t n)
@@ -2024,8 +2026,9 @@ unsigned short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_ty
     // connection type flags    
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_conn_type_flags);
-    size = sizeof(unsigned short);
+    size = EM_CONN_TYPE_FLAGS_LEN;
     attr->len = htons(size);
+    memset(attr->val, 0, size);
     //memcpy(attr->val, &get_device_info()->sec_1905.conn_flags, size);
     
     len += static_cast<unsigned short int> (sizeof(data_elem_attr_t) + size);
@@ -2087,7 +2090,7 @@ unsigned short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_ty
     // primary device type
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_primary_device_type);
-    size = sizeof(em_short_string_t);
+    size = EM_PRIMARY_DEV_TYPE_LEN;
     attr->len = htons(size);
     memcpy(attr->val, get_primary_device_type(), size);
     
@@ -2148,9 +2151,10 @@ unsigned short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_ty
     // os version   
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_os_version);
-    size = sizeof(unsigned short);
+    size = EM_OS_VERSION_LEN;
     attr->len = htons(size);
-    memcpy(attr->val, &rf_band, sizeof(attr->val));
+    memset(attr->val, 0, size);
+    //memcpy(attr->val, &rf_band, sizeof(attr->val));
     
     len += static_cast<unsigned short int> (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -2438,9 +2442,10 @@ unsigned short em_configuration_t::create_m1_msg(unsigned char *buff)
     // connection type flags    
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_conn_type_flags);
-    size = sizeof(unsigned short);
+    size = EM_CONN_TYPE_FLAGS_LEN;
     attr->len = htons(size);
-    memcpy(attr->val, &get_device_info()->sec_1905.conn_flags, size);
+    memset(attr->val, 0, size);
+    //memcpy(attr->val, &get_device_info()->sec_1905.conn_flags, size);
 
     len += static_cast<unsigned short int> (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -2512,7 +2517,7 @@ unsigned short em_configuration_t::create_m1_msg(unsigned char *buff)
     // primary device type
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_primary_device_type);
-    size = sizeof(em_short_string_t);
+    size = EM_PRIMARY_DEV_TYPE_LEN;
     attr->len = htons(size);
     memcpy(attr->val, get_current_cmd()->get_primary_device_type(), size);
 
@@ -2574,9 +2579,10 @@ unsigned short em_configuration_t::create_m1_msg(unsigned char *buff)
     // os version   
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_os_version);
-    size = sizeof(unsigned short);
+    size = EM_OS_VERSION_LEN;
     attr->len = htons(size);
-    memcpy(attr->val, &rf_band, sizeof(attr->val));
+    memset(attr->val, 0, size);
+    //memcpy(attr->val, &rf_band, sizeof(attr->val));
 
     len += static_cast<unsigned short int> (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -3199,20 +3205,19 @@ int em_configuration_t::compute_keys(unsigned char *remote_pub, unsigned short p
     return 1;
 }
 
-int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, em_haul_type_t haul_type[], unsigned int num_hauls, unsigned short msg_id)
+int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsigned short msg_id)
 {
     unsigned short  msg_type = em_msg_type_autoconf_wsc;
     int len = 0;
-    unsigned int i;
+    unsigned int i, num_hauls = em_haul_type_max;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     unsigned char *tmp = buff;
     unsigned short sz = 0;
     unsigned short type = htons(ETH_P_1905);
-	dm_radio_t *radio, *pradio;
+    dm_radio_t *radio;
 
-	radio = get_radio_from_dm();
-	pradio = get_radio_from_dm(true);
+    radio = get_radio_from_dm();
 
     // first compute keys
     if (compute_keys(get_e_public(), static_cast<short unsigned int> (get_e_public_len()), get_r_private(), static_cast<short unsigned int> (get_r_private_len())) != 1) {
@@ -3251,29 +3256,24 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, em_hau
     tmp += (sizeof(em_tlv_t) + sizeof(mac_address_t));
     len += static_cast<int> (sizeof(em_tlv_t) + sizeof(mac_address_t));
 
-	// RDK proprietary tlv for radio enable/disable
-	tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_rdk_radio_enable;
-	
-	if (pradio != NULL) {
-    	memcpy(tlv->value, &pradio->m_radio_info.enabled, sizeof(unsigned char));
-		radio->m_radio_info.enabled = pradio->m_radio_info.enabled;
-	} else {
-    	memcpy(tlv->value, &radio->m_radio_info.enabled, sizeof(unsigned char));
-	}
+    // Add as many wsc tlv in M2 as number of BSS associated with this radio
+    if (radio && radio->m_radio_info.number_of_bss < num_hauls) {
+        num_hauls = radio->m_radio_info.number_of_bss;
+        em_printfout("Adjusting number of hauls to: %d", num_hauls);
+    } else if (!radio) {
+        em_printfout("Radio is NULL for WSC haul type TLV creation");
+        num_hauls = 0;
+    }
 
-    tlv->len = htons(sizeof(unsigned char));
-    
-    tmp += (sizeof(em_tlv_t) + sizeof(unsigned char));
-    len += static_cast<int> (sizeof(em_tlv_t) + sizeof(unsigned char));
-
-    // As many wsc tlv containing M2 as number of BSS
     for (i = 0; i < num_hauls; i++) {
         tlv = reinterpret_cast<em_tlv_t *> (tmp);
         tlv->type = em_tlv_type_wsc;
-        sz = create_m2_msg(tlv->value, haul_type[i]);
+        sz = create_m2_msg(tlv->value, static_cast<em_haul_type_t> (i));
+        if (sz == 0) {
+            em_printfout("Not adding haul_type: %d as size returned is 0", i);
+            continue;
+        }
         tlv->len = htons(sz);
-
         tmp += (sizeof(em_tlv_t) + sz);
         len += static_cast<int> (sizeof(em_tlv_t) + sz);
     }
@@ -3595,14 +3595,14 @@ int em_configuration_t::create_autoconfig_search_msg(unsigned char *buff, em_dpp
     return static_cast<int>(len);
 }
 
-int em_configuration_t::handle_wsc_m2(unsigned char *buff, unsigned int len)
+int em_configuration_t::handle_wsc_m2(unsigned char *buff, unsigned int len, unsigned int index)
 {
     data_elem_attr_t    *attr;
     int ret = 0;
     unsigned int tmp_len;
     unsigned short id;
 
-    printf("%s:%d: Parsing m2 message, len: %d\n", __func__, __LINE__, len);
+    em_printfout("Parsing m2 message, index: %d, len: %d", index, len);
 
     m_m2_length = len - 12;
     memcpy(m_m2_msg, buff, m_m2_length);
@@ -3623,11 +3623,11 @@ int em_configuration_t::handle_wsc_m2(unsigned char *buff, unsigned int len)
         } else if (id == attr_id_public_key) {
             set_r_public(attr->val, htons(attr->len));
         } else if (id == attr_id_encrypted_settings) {
-            memcpy(m_m2_encrypted_settings, attr->val, htons(attr->len));
-            m_m2_encrypted_settings_len = htons(attr->len);
-            m_m2_encrypted_settings_len = sizeof(m_m2_encrypted_settings); //work around
+            memcpy(&m_m2_encrypted_settings[index][0], attr->val, htons(attr->len));
+            m_m2_encrypted_settings_len[index] = htons(attr->len);
+            //em_printfout("Copied encrypted setting[%d] len:%d", index, htons(attr->len));
         } else if (id == attr_id_authenticator) {
-            memcpy(m_m2_authenticator, attr->val, htons(attr->len));
+            memcpy(m_m2_authenticator[index], attr->val, htons(attr->len));
         }
 
         tmp_len -= static_cast<unsigned int> (sizeof(data_elem_attr_t) + htons(attr->len));
@@ -3773,8 +3773,8 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
 {
     em_tlv_t *tlv;
     int tmp_len;
+    unsigned int wsc_tlv_count = 0;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    bool found_wsc = false;
     unsigned char hash[SHA256_MAC_LEN];
     dm_easy_mesh_t *dm;
     dm_network_t network;
@@ -3790,66 +3790,45 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
     tmp_len = static_cast<int> (len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type != em_tlv_type_wsc) {
-            tmp_len -= static_cast<int> (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        if (tlv->type == em_tlv_type_ap_mld_config) {
+            em_printfout("Found AP MLD details in message");
+            handle_ap_mld_config_tlv(tlv->value, htons(tlv->len));
+        } else if (tlv->type == em_tlv_type_wsc) {
+            em_printfout("Handle wsc TLV, count: %d", wsc_tlv_count);
+            //Storing m2 address and length in static variable;
+            set_e_mac(get_radio_interface_mac());
+            handle_wsc_m2(tlv->value, htons(tlv->len), wsc_tlv_count);
 
-            continue;
+            // first compute keys
+            if (compute_keys(get_r_public(), static_cast<short unsigned int> (get_r_public_len()), get_e_private(), static_cast<short unsigned int> (get_e_private_len())) != 1) {
+                printf("%s:%d: Keys computation failed\n", __func__, __LINE__);
+                return -1;
+            }
 
-        } else {
-            found_wsc = true;
-            break; 
+            if (create_authenticator(hash) == -1) {
+                printf("%s:%d: Authenticator create failed\n", __func__, __LINE__);
+                return -1;
+            } else {
+                printf("%s:%d: Authenticator verification succeeded\n", __func__, __LINE__);
+            }
+
+            if (memcmp(m_m2_authenticator[wsc_tlv_count], hash, AUTHENTICATOR_LEN) != 0) {
+                printf("%s:%d: Authenticator validation failed\n", __func__, __LINE__);
+                //return -1;
+            }
+            wsc_tlv_count++;
         }
+        tmp_len -= static_cast<int> (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
-    if (found_wsc == false) {
-        printf("%s:%d: Could not find wcs, failing mesaage\n", __func__, __LINE__);
-        return -1;
-    }
-            
-    //Storing m2 address and length in static variable;
-
-    set_e_mac(get_radio_interface_mac());
-    handle_wsc_m2(tlv->value, htons(tlv->len));
-
-    bool found_ap_mld = false;
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type != em_tlv_type_ap_mld_config) {
-            tmp_len -= static_cast<int> (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
-
-            continue;
-
-        } else {
-            found_ap_mld = true;
-            break;
-       }
-    }
-    if (found_ap_mld == true) {
-        em_printfout("Found AP MLD details in message");
-        handle_ap_mld_config_tlv(tlv->value, htons(tlv->len));
-    }
-
-    // first compute keys
-    if (compute_keys(get_r_public(), static_cast<short unsigned int> (get_r_public_len()), get_e_private(), static_cast<short unsigned int> (get_e_private_len())) != 1) {
-        printf("%s:%d: Keys computation failed\n", __func__, __LINE__);
+    if (wsc_tlv_count == 0) {
+        em_printfout("Could not find wsc, failing message");
         return -1;
     }
 
-    if (create_authenticator(hash) == -1) {
-        printf("%s:%d: Authenticator create failed\n", __func__, __LINE__);
-        return -1;
-    } else {
-        printf("%s:%d: Authenticator verification succeeded\n", __func__, __LINE__);
-    }
-
-    if (memcmp(m_m2_authenticator, hash, AUTHENTICATOR_LEN) != 0) {
-        printf("%s:%d: Authenticator validation failed\n", __func__, __LINE__);
-        //return -1;
-    }
-
-    if (handle_encrypted_settings() == -1) {
-        printf("%s:%d: Error in decrypting settings\n", __func__, __LINE__);
+    if (handle_encrypted_settings(wsc_tlv_count) == -1) {
+        em_printfout("Error in decrypting settings wsc_tlv_count:%d", wsc_tlv_count);
         return -1;
     }
 
@@ -3867,77 +3846,88 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
                 get_ec_mgr().start_secure_1905_layer(hdr->src);
             }
 #endif
-
         }
     }
     return 0;
 }
 
-int em_configuration_t::handle_encrypted_settings()
+int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count)
 {
     data_elem_attr_t    *attr;
     int tmp_len, ret = 0;
     unsigned short id;
     char pass[64] = {0};
-    mac_addr_str_t mac_str;
     unsigned char *plain;
     unsigned short plain_len;
     unsigned short auth_type;
-    int index = -1;
     m2ctrl_radioconfig radioconfig;
-    plain = m_m2_encrypted_settings + AES_BLOCK_SIZE;
-    plain_len = static_cast<short unsigned int> (m_m2_encrypted_settings_len - AES_BLOCK_SIZE);
+
+    memset(&radioconfig, 0, sizeof(m2ctrl_radioconfig));
     radioconfig.noofbssconfig = 0;
 
-    // first decrypt the encrypted m2 data
+    em_printfout("Total wsc_tlv_count:%d for radio:%s", wsc_tlv_count, util::mac_to_string(get_radio_interface_mac()).c_str());
+    for(unsigned int wsc_index = 0;((wsc_index < wsc_tlv_count) && (wsc_index < EM_MAX_BSS_PER_RADIO)); wsc_index++) {
+        plain = static_cast<unsigned char *> (m_m2_encrypted_settings[wsc_index]) + AES_BLOCK_SIZE;
+        plain_len = static_cast<short unsigned int> (m_m2_encrypted_settings_len[wsc_index]) - AES_BLOCK_SIZE;
+        em_printfout("##handle_encrypted_settings wsc_index:%d plain_len: %d", wsc_index, plain_len);
 
-    if (em_crypto_t::platform_aes_128_cbc_decrypt(m_key_wrap_key, m_m2_encrypted_settings, plain, plain_len) != 1) {
-        printf("%s:%d: platform decrypt failed\n", __func__, __LINE__);
-        return 0;
-    }
-
-    attr = reinterpret_cast<data_elem_attr_t *> (plain);
-    tmp_len = plain_len;
-
-    while (tmp_len > 0) {
-
-        id = htons(attr->id);
-        if (id == attr_id_no_of_haul_type) {
-            radioconfig.noofbssconfig	 = attr->val[0];
-            printf("%s:%d: noofbss configuration recv=%d\n", __func__, __LINE__,radioconfig.noofbssconfig);
-        } else if (id == attr_id_haul_type) {
-            index++;
-            radioconfig.haultype[index] = static_cast<em_haul_type_t> (attr->val[0]);
-        } else if (id == attr_id_ssid) {
-        //If controller does not support no of haultype parameter
-            if (index == -1) {
-                index = 0;
-            }
-            memcpy(radioconfig.ssid[index], attr->val, sizeof(radioconfig.ssid[index]));
-            radioconfig.enable[index] = true;
-            printf("%s:%d: ssid attrib: %s\n", __func__, __LINE__, radioconfig.ssid[index]);
-            memcpy(radioconfig.radio_mac[index], get_radio_interface_mac(), sizeof(mac_address_t));
-        } else if (id == attr_id_auth_type) {
-            memcpy(reinterpret_cast<char *> (&auth_type), reinterpret_cast<unsigned char *> (attr->val), htons(attr->len));
-            radioconfig.authtype[index] = static_cast<unsigned int>(auth_type);
-        } else if (id == attr_id_encryption_type) {
-            printf("%s:%d: encr type attrib\n", __func__, __LINE__);
-        } else if (id == attr_id_network_key) {
-            memcpy(pass, attr->val, htons(attr->len));
-            memcpy(radioconfig.password[index], attr->val, htons(attr->len));
-            printf("%s:%d: network key attrib: %s\n", __func__, __LINE__, pass);
-        } else if (id == attr_id_mac_address) {
-            dm_easy_mesh_t::macbytes_to_string(attr->val, mac_str);
-            printf("%s:%d: mac address attrib: %s\n", __func__, __LINE__, mac_str);
-            memcpy(radioconfig.radio_mac[index], attr->val, sizeof(mac_address_t));
-        } else if (id == attr_id_key_wrap_authenticator) {
-            printf("%s:%d: key wrap auth attrib\n", __func__, __LINE__);
-            radioconfig.key_wrap_authenticator[index] = attr->val[0];
+        // first decrypt the encrypted m2 data
+        if ((plain_len = em_crypto_t::platform_aes_128_cbc_decrypt(m_key_wrap_key, &m_m2_encrypted_settings[wsc_index][0], plain, plain_len)) == 0) {
+            em_printfout("Platform decrypt failed for wsc_tlv:%d", wsc_index);
+            return 0;
         }
-        tmp_len -= static_cast<int> (sizeof(data_elem_attr_t) + htons(attr->len));
-        attr = reinterpret_cast<data_elem_attr_t *> (reinterpret_cast<unsigned char *>(attr) + sizeof(data_elem_attr_t) + htons(attr->len));
+
+        attr = reinterpret_cast<data_elem_attr_t *> (plain);
+        tmp_len = plain_len;
+
+        // Set the haultype to the wsc index by default
+        if (wsc_index >= em_haul_type_max) {
+            em_printfout("wsc_index:%d exceeds max haul types:%d, not proceeding further", wsc_index, em_haul_type_max);
+            return 0;
+        }
+        radioconfig.haultype[wsc_index] = static_cast<em_haul_type_t> (wsc_index);
+        while (tmp_len > 0) {
+            id = htons(attr->id);
+            if (id == attr_id_vendor_ext) {
+                // Handle only em_vendor_oui
+                unsigned short attr_len = htons(attr->len);
+                if ((attr_len > EM_VENDOR_OUI_SIZE) && (memcmp(attr->val, em_vendor_oui, EM_VENDOR_OUI_SIZE) == 0)) {
+                    unsigned char vendor_attr_id = attr->val[EM_VENDOR_OUI_SIZE];
+                    if (vendor_attr_id == vendor_ext_attr_id_haul_type) {
+                        radioconfig.haultype[wsc_index] = static_cast<em_haul_type_t> (attr->val[EM_VENDOR_OUI_SIZE + 1]);
+                        em_printfout("##vendor_ext haul_type attrib[%d]: %d", wsc_index, radioconfig.haultype[wsc_index]);
+                    }
+                }
+            } else if (id == attr_id_ssid) {
+                //If controller does not support no of haultype parameter
+                memcpy(radioconfig.ssid[wsc_index], attr->val, sizeof(radioconfig.ssid[wsc_index]));
+                radioconfig.enable[wsc_index] = true;
+                em_printfout("##ssid attrib[%d]: %s", wsc_index, radioconfig.ssid[wsc_index]);
+                memcpy(radioconfig.radio_mac[wsc_index], get_radio_interface_mac(), sizeof(mac_address_t));
+            } else if (id == attr_id_auth_type) {
+                memcpy(reinterpret_cast<char *> (&auth_type), reinterpret_cast<unsigned char *> (attr->val), htons(attr->len));
+                radioconfig.authtype[wsc_index] = static_cast<unsigned int>(auth_type);
+                em_printfout("##authtype[%d]: %x", wsc_index, radioconfig.authtype[wsc_index]);
+            } else if (id == attr_id_encryption_type) {
+                em_printfout("##encr type attrib for wsc_index:%d", wsc_index);
+            } else if (id == attr_id_network_key) {
+                memcpy(pass, attr->val, htons(attr->len));
+                memcpy(radioconfig.password[wsc_index], attr->val, htons(attr->len));
+                em_printfout("##network key[%d]: %s", wsc_index, pass);
+            } else if (id == attr_id_mac_address) {
+                memcpy(radioconfig.radio_mac[wsc_index], attr->val, sizeof(mac_address_t));
+                em_printfout("##mac address[%d]: %s", wsc_index, util::mac_to_string(radioconfig.radio_mac[wsc_index]).c_str());
+            } else if (id == attr_id_key_wrap_authenticator) {
+                radioconfig.key_wrap_authenticator[wsc_index] = attr->val[0];
+                em_printfout("##key wrap auth[%d]: %u", wsc_index, radioconfig.key_wrap_authenticator[wsc_index]);
+            }
+            tmp_len -= static_cast<int> (sizeof(data_elem_attr_t) + htons(attr->len));
+            attr = reinterpret_cast<data_elem_attr_t *> (reinterpret_cast<unsigned char *>(attr) + sizeof(data_elem_attr_t) + htons(attr->len));
+        }
+        radioconfig.noofbssconfig++;
     }
 
+    em_printfout("##num bss configuration=%d", radioconfig.noofbssconfig);
     for (unsigned int i = 0; i < radioconfig.noofbssconfig; i++){
         radioconfig.freq[i] = get_band();
     }
@@ -4666,148 +4656,137 @@ int em_configuration_t::handle_agent_list_msg(uint8_t *buff, unsigned int len, u
 
 int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_type_t haul_type)
 {
-	data_elem_attr_t *attr;
-	short len = 0;
-	unsigned char *tmp;
-	unsigned int size = 0, cipher_len, plain_len;
-	unsigned char iv[AES_BLOCK_SIZE];
-	unsigned char plain[MAX_EM_BUFF_SZ];
-	unsigned short auth_type;
-	em_network_ssid_info_t *net_ssid_info;
-	em_haul_type_t haultype_precedence[em_haul_type_max] = {em_haul_type_fronthaul, em_haul_type_backhaul, em_haul_type_iot, em_haul_type_configurator, em_haul_type_hotspot};
-	memset(plain, 0, MAX_EM_BUFF_SZ);
-	tmp = plain;
-	len = 0;
+    data_elem_attr_t *attr;
+    short len = 0;
+    unsigned char *tmp;
+    unsigned int size = 0, cipher_len, plain_len;
+    unsigned char iv[AES_BLOCK_SIZE];
+    unsigned char plain[MAX_EM_BUFF_SZ];
+    unsigned short auth_type;
+    unsigned char hash[SHA256_MAC_LEN];
+    unsigned char *keywrap_data_addr[1];
+    size_t keywrap_data_length[1];
+    em_network_ssid_info_t *net_ssid_info;
+    memset(plain, 0, MAX_EM_BUFF_SZ);
+    tmp = plain;
+    len = 0;
 
-	dm_easy_mesh_t *dm = get_data_model();
-	unsigned int no_of_haultype = 0, radio_exists, i;
-	dm_radio_t * radio = NULL;
-	bool is_colocated = dm->get_colocated();
+    dm_easy_mesh_t *dm = get_data_model();
+    unsigned int no_of_haultype = 0, radio_exists, i;
+    dm_radio_t * radio = NULL;
 
-	for (i = 0; i < dm->get_num_radios(); i++) {
-		radio = dm->get_radio(i);
-		if (memcmp(radio->m_radio_info.id.ruid, get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
-			radio_exists = true;
-			break;
-		}
-	}
-	if (radio_exists == false) {
-		printf("%s:%d: Radio does not exist, getting radio at index: %d\n", __func__, __LINE__, dm->get_num_radios());
-		no_of_haultype = 1;
-	} else {
-		no_of_haultype = radio->m_radio_info.number_of_bss;
-		if (no_of_haultype >= em_haul_type_max) {
-			no_of_haultype = em_haul_type_max ;
-		}
-	}
+    for (i = 0; i < dm->get_num_radios(); i++) {
+        radio = dm->get_radio(i);
+        if (memcmp(radio->m_radio_info.id.ruid, get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
+            radio_exists = true;
+            break;
+        }
+    }
+    if (radio_exists == false) {
+        em_printfout("Radio does not exist, return len as 0.");
+        return len;
+    }
+    em_printfout("radio:%s haul_type=%d radio no of bss=%d",
+        util::mac_to_string(get_radio_interface_mac()).c_str(), haul_type, radio->m_radio_info.number_of_bss);
 
-	printf("%s:%d No of haultype=%d radio no of bss=%d \n", __func__, __LINE__,no_of_haultype, radio->m_radio_info.number_of_bss);
+    if ((net_ssid_info = get_network_ssid_info_by_haul_type(haul_type)) == NULL) {
+        em_printfout("Could not find network ssid information for haul type %d", haul_type);
+        return 0;
+    }
+    em_printfout("ssid: %s, passphrase: %s", net_ssid_info->ssid, net_ssid_info->pass_phrase);
 
-	// haultype
-	attr = reinterpret_cast<data_elem_attr_t *> (tmp);
-	attr->id = htons(attr_id_no_of_haul_type);
-	size = 1;
-	attr->len = htons(static_cast<short unsigned int> (size));
-	memcpy(reinterpret_cast<char *> (attr->val), reinterpret_cast<unsigned char *> (&no_of_haultype), size);
+    if (get_band() == 2) {
+        auth_type = 0x0200; // WPA3-Personal
+    } else {
+        auth_type = 0x0400; // WPA3-Personal-Transition
+    }
 
-	len += static_cast<short> (sizeof(data_elem_attr_t) + size);
-	tmp += (sizeof(data_elem_attr_t) + size);
-	for (i = 0; i < no_of_haultype; i++) {
-		if(is_colocated && no_of_haultype == 1 && (memcmp(get_radio_interface_mac(), dm->get_agent_al_interface_mac(), ETH_ALEN) == 0)) {
-			printf("\n%s:%d: Colocated and Single BSS. Configuring em_haul_type_backhaul \n", __func__, __LINE__);
-			haul_type = em_haul_type_backhaul;
-		} else {
-			haul_type = static_cast<em_haul_type_t> (haultype_precedence[i]);
-		}
-		if ((net_ssid_info = get_network_ssid_info_by_haul_type(haul_type)) == NULL) {
-			printf("%s:%d: Could not find network ssid information for haul type %d\n", __func__, __LINE__, haul_type);
-			continue;
-		}
-		printf("%s:%d: ssid: %s, passphrase: %s\n", __func__, __LINE__, net_ssid_info->ssid, net_ssid_info->pass_phrase);
+    // Add vendor extension for haul type
+    attr = reinterpret_cast<data_elem_attr_t *> (tmp);
+    attr->id = htons(attr_id_vendor_ext);
+    size = EM_VENDOR_OUI_SIZE + sizeof(vendor_ext_attr_id_t) + sizeof(em_haul_type_t);
+    attr->len = htons(static_cast<short unsigned int> (size));
+    memcpy(reinterpret_cast<char *> (attr->val), em_vendor_oui, EM_VENDOR_OUI_SIZE);
+    attr->val[EM_VENDOR_OUI_SIZE] = static_cast<unsigned char> (vendor_ext_attr_id_haul_type);
+    attr->val[EM_VENDOR_OUI_SIZE + 1] = static_cast<unsigned char> (haul_type);
 
-		if (get_band() == 2) {
-			auth_type = 0x0200; // WPA3-Personal
-		} else {
-			auth_type = 0x0400; // WPA3-Personal-Transition
-		}
+    len += static_cast<short> (sizeof(data_elem_attr_t) + size);
+    tmp += (sizeof(data_elem_attr_t) + size);
 
-		// haultype
-		attr = reinterpret_cast<data_elem_attr_t *> (tmp);
-		attr->id = htons(attr_id_haul_type);
-		size = sizeof(em_haul_type_t);
-		attr->len = htons(static_cast<short unsigned int> (size));
-		attr->val[0] = haul_type;
+    // ssid
+    attr = reinterpret_cast<data_elem_attr_t *> (tmp);
+    attr->id = htons(attr_id_ssid);
+    size = static_cast<unsigned int> (strlen(net_ssid_info->ssid) + 1);
+    attr->len = htons(static_cast<short unsigned int> (size));
+    snprintf(reinterpret_cast<char *> (attr->val), size, "%s", net_ssid_info->ssid);
 
-		len += static_cast<short> (sizeof(data_elem_attr_t) + size);
-		tmp += (sizeof(data_elem_attr_t) + size);
+    len += static_cast<short> (sizeof(data_elem_attr_t) + size);
+    tmp += (sizeof(data_elem_attr_t) + size);
 
-		// ssid
-		attr = reinterpret_cast<data_elem_attr_t *> (tmp);
-		attr->id = htons(attr_id_ssid);
-		size = static_cast<unsigned int> (strlen(net_ssid_info->ssid) + 1);
-		attr->len = htons(static_cast<short unsigned int> (size));
-		snprintf(reinterpret_cast<char *> (attr->val), size, "%s", net_ssid_info->ssid);
+    // auth type
+    attr = reinterpret_cast<data_elem_attr_t *> (tmp);
+    attr->id = htons(attr_id_auth_type);
+    size = sizeof(auth_type);
+    attr->len = htons(static_cast<short unsigned int> (size));
+    memcpy(reinterpret_cast<char *> (attr->val), reinterpret_cast<unsigned char *> (&auth_type), size);
 
-		len += static_cast<short> (sizeof(data_elem_attr_t) + size);
-		tmp += (sizeof(data_elem_attr_t) + size);
+    len += static_cast<short> (sizeof(data_elem_attr_t) + size);
+    tmp += (sizeof(data_elem_attr_t) + size);
 
-		// auth type
-		attr = reinterpret_cast<data_elem_attr_t *> (tmp);
-		attr->id = htons(attr_id_auth_type);
-		size = sizeof(auth_type);
-		attr->len = htons(static_cast<short unsigned int> (size));
-		memcpy(reinterpret_cast<char *> (attr->val), reinterpret_cast<unsigned char *> (&auth_type), size);
+    // network key
+    attr = reinterpret_cast<data_elem_attr_t *> (tmp);
+    attr->id = htons(attr_id_network_key);
+    size = static_cast<unsigned int> (strlen(net_ssid_info->pass_phrase) + 1);
+    attr->len = htons(static_cast<short unsigned int> (size));
+    snprintf(reinterpret_cast<char *> (attr->val), size, "%s", net_ssid_info->pass_phrase);
 
-		len += static_cast<short> (sizeof(data_elem_attr_t) + size);
-		tmp += (sizeof(data_elem_attr_t) + size);
+    len += static_cast<short> (sizeof(data_elem_attr_t) + size);
+    tmp += (sizeof(data_elem_attr_t) + size);
 
-		// network key
-		attr = reinterpret_cast<data_elem_attr_t *> (tmp);
-		attr->id = htons(attr_id_network_key);
-		size = static_cast<unsigned int> (strlen(net_ssid_info->pass_phrase) + 1);
-		attr->len = htons(static_cast<short unsigned int> (size));
-		snprintf(reinterpret_cast<char *> (attr->val), size, "%s", net_ssid_info->pass_phrase);
+    // mac address
+    attr = reinterpret_cast<data_elem_attr_t *> (tmp);
+    attr->id = htons(attr_id_mac_address);
+    size = sizeof(mac_address_t);
+    attr->len = htons(static_cast<short unsigned int> (size));
+    memcpy(reinterpret_cast<char *> (attr->val), const_cast<unsigned char *> (get_radio_interface_mac()), size);
 
-		len += static_cast<short> (sizeof(data_elem_attr_t) + size);
-		tmp += (sizeof(data_elem_attr_t) + size);
+    len += static_cast<short> (sizeof(data_elem_attr_t) + size);
+    tmp += (sizeof(data_elem_attr_t) + size);
 
-		// mac adress
-		attr = reinterpret_cast<data_elem_attr_t *> (tmp);
-		attr->id = htons(attr_id_mac_address);
-		size = sizeof(mac_address_t);
-		attr->len = htons(static_cast<short unsigned int> (size));
-		memcpy(reinterpret_cast<char *> (attr->val), const_cast<unsigned char *> (get_radio_interface_mac()), size);
+    // key wrap
+    keywrap_data_addr[0] = plain;
+    keywrap_data_length[0] = static_cast<size_t> (len);
+    if (em_crypto_t::platform_hmac_SHA256(m_auth_key, WPS_AUTHKEY_LEN, 1, keywrap_data_addr, keywrap_data_length, hash) != 1) {
+	    printf("%s:%d: Authenticator create failed\n", __func__, __LINE__);
+	    return 0;
+    }
+    attr = reinterpret_cast<data_elem_attr_t *> (tmp);
+    attr->id = htons(attr_id_key_wrap_authenticator);
+    size = EM_KEY_WRAP_TLV_LEN;
+    attr->len = htons(static_cast<short unsigned int> (size));
+    memcpy(reinterpret_cast<char *> (attr->val), const_cast<unsigned char *> (hash), EM_KEY_WRAP_TLV_LEN);
 
-		len += static_cast<short> (sizeof(data_elem_attr_t) + size);
-		tmp += (sizeof(data_elem_attr_t) + size);
+    len += static_cast<short> (sizeof(data_elem_attr_t) + size);
+    tmp += (sizeof(data_elem_attr_t) + size);
 
-		// key wrap
-		attr = reinterpret_cast<data_elem_attr_t *> (tmp);
-		attr->id = htons(attr_id_key_wrap_authenticator);
-		size = 32;
-		attr->len = htons(static_cast<short unsigned int> (size));
+    if (em_crypto_t::generate_iv(iv, AES_BLOCK_SIZE) != 1) {
+	    printf("%s:%d: iv generate failed\n", __func__, __LINE__);
+	    return 0;
+    }
 
-		len += static_cast<short> (sizeof(data_elem_attr_t) + size);
-		tmp += (sizeof(data_elem_attr_t) + size);
+    memcpy(buff, iv, AES_BLOCK_SIZE);
 
-	}
+    plain_len = static_cast<unsigned int> (len);
 
-	if (em_crypto_t::generate_iv(iv, AES_BLOCK_SIZE) != 1) {
-		printf("%s:%d: iv generate failed\n", __func__, __LINE__);
-		return 0;
-	}
+    // encrypt the m2 data
+    if (em_crypto_t::platform_aes_128_cbc_encrypt(m_key_wrap_key, iv, plain, plain_len, buff + AES_BLOCK_SIZE, &cipher_len) != 1) {
+	    printf("%s:%d: platform encrypt failed\n", __func__, __LINE__);
+	    return 0;
+    }
 
-	memcpy(buff, iv, AES_BLOCK_SIZE);
-
-	plain_len = static_cast<unsigned int> (len + (AES_BLOCK_SIZE - len%AES_BLOCK_SIZE));
-
-	// encrypt the m2 data
-	if (em_crypto_t::platform_aes_128_cbc_encrypt(m_key_wrap_key, iv, plain, plain_len, buff + AES_BLOCK_SIZE, &cipher_len) != 1) {
-		printf("%s:%d: platform encrypt failed\n", __func__, __LINE__);
-		return 0;
-	}
-
-	return static_cast<int> (cipher_len) + AES_BLOCK_SIZE;
+    em_printfout("Encrypted for radio:%s haul_type:%d length:%u plain_len:%u",
+        util::mac_to_string(get_radio_interface_mac()).c_str(), haul_type, cipher_len + AES_BLOCK_SIZE, plain_len);
+    return static_cast<int> (cipher_len) + AES_BLOCK_SIZE;
 }
 
 int em_configuration_t::create_authenticator(unsigned char *buff)
@@ -4956,14 +4935,13 @@ int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned 
 
 int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned int len)
 {
-    unsigned char msg[MAX_EM_BUFF_SZ*EM_MAX_BANDS];
+    unsigned char msg[MAX_EM_BUFF_SZ*em_haul_type_max];
     unsigned int sz;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     mac_addr_str_t  mac_str;
     em_tlv_t    *tlv;
     unsigned int tlv_len;
     em_bus_event_type_m2_tx_params_t   raw;
-    em_haul_type_t haul_type[1];
 
 
     dm_easy_mesh_t::macbytes_to_string(get_peer_mac(), mac_str);
@@ -4993,8 +4971,7 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
-    haul_type[0] = em_haul_type_fronthaul;
-    sz = static_cast<unsigned int> (create_autoconfig_wsc_m2_msg(msg, haul_type, 1, ntohs(cmdu->id)));
+    sz = static_cast<unsigned int> (create_autoconfig_wsc_m2_msg(msg, ntohs(cmdu->id)));
 
     if (em_msg_t(em_msg_type_autoconf_wsc, em_profile_type_3, msg, sz).validate(errors) == 0) {
         printf("Autoconfig wsc m2 msg failed validation in tnx end\n");

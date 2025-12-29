@@ -59,152 +59,153 @@ void tr_181_t::init(void* ptr)
     register_wfa_dml();
 }
 
-#if 0
 int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_callback_table_t *cb_table)
 {
     bus_data_cb_func_t bus_data_cb[] = {
-        ELEMENT(DE_NETWORK_ID, CB(.get_handler = network_get)),
-        ELEMENT(DE_NETWORK_CTRLID, CB(.get_handler = network_get)),
-        ELEMENT(DE_NETWORK_COLAGTID, CB(.get_handler = network_get)),
-        ELEMENT(DE_NETWORK_DEVNOE, CB(.get_handler = network_get)),
-        ELEMENT(DE_SSID_TABLE, CB(.get_handler = ssid_tget)),
-        ELEMENT(DE_SSID_SSID, CB(.get_handler = ssid_get)),
-        ELEMENT(DE_SSID_BAND, CB(.get_handler = ssid_get)),
-        ELEMENT(DE_SSID_ENABLE, CB(.get_handler = ssid_get)),
-        ELEMENT(DE_SSID_AKMALLOWE, CB(.get_handler = ssid_get)),
-        ELEMENT(DE_SSID_SUITESEL, CB(.get_handler = ssid_get)),
-        ELEMENT(DE_SSID_ADVENABLED, CB(.get_handler = ssid_get)),
-        ELEMENT(DE_SSID_MFPCONFIG, CB(.get_handler = ssid_get)),
-        ELEMENT(DE_SSID_MOBDOMAIN, CB(.get_handler = ssid_get)),
-        ELEMENT(DE_SSID_HAULTYPE, CB(.get_handler = ssid_get)),
-        ELEMENT(DE_DEVICE_TABLE, CB(.get_handler = device_tget)),
-        ELEMENT(DE_RADIO_TABLE, CB(.get_handler = radio_tget)),
-        ELEMENT(DE_BSS_TABLE, CB(.get_handler = bss_tget)),
-        ELEMENT(DE_STA_TABLE, CB(.get_handler = sta_tget)),
-        ELEMENT(DE_DEVICE_ID, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_MAPCAP,    CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_NUMRADIO,  CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_COLLINT,   CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_RUASSOC,   CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_MAXRRATE,  CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_MAPPROF,   CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_APMERINT,  CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_MANUFACT,  CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_SERIALNO,  CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_MFCMODEL,  CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_SWVERSION, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_EXECENV, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_LSDSTALIST, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_BTMSDSTALIST, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_MAXVIDS, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_BPRIO, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_EPRIO, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_TSEPPOLI, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_STVMAP, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_DSCPM, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_MAXPRIRULE, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_COUNTRCODE, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_PRIOSUPP, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_REPINDSCAN, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_TRASEPALW, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_SERPRIOALW, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_STASDISALW, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_DFSENABLE, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_MAXUSASSOCREPRATE, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_STASSTATE, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_COORCACALW, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_CONOPMODE, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_BHMACADDR, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_BHDMACADDR, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_BHPHYRATE, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_TRSEPCAP, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_EASYCCAP, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_TESTCAP, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_BSTAMLDMACLINK, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_MACNUMMLDS, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_BHALID, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_TIDLMAP, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_ASSOCSTAREPINT, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_BHMEDIATYPE, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_RADIONOE, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_CACSTATNOE, CB(.get_handler = device_get)),
-        ELEMENT(DE_DEVICE_BHDOWNNOE, CB(.get_handler = device_get)),
-        ELEMENT(DE_RADIO_ID,          CB(.get_handler = radio_get)),
-        ELEMENT(DE_RADIO_ENABLED,     CB(.get_handler = radio_get)),
-        ELEMENT(DE_RADIO_NOISE,       CB(.get_handler = radio_get)),
-        ELEMENT(DE_RADIO_UTILIZATION, CB(.get_handler = radio_get)),
-        ELEMENT(DE_RADIO_TRANSMIT,    CB(.get_handler = radio_get)),
-        ELEMENT(DE_RADIO_RECEIVESELF, CB(.get_handler = radio_get)),
-        ELEMENT(DE_RADIO_RECEIVEOTHER,CB(.get_handler = radio_get)),
-        ELEMENT(DE_RADIO_CHIPVENDOR,  CB(.get_handler = radio_get)),
-        ELEMENT(DE_RADIO_CURROPNOE,   CB(.get_handler = radio_get)),
-        ELEMENT(DE_RADIO_BSSNOE,      CB(.get_handler = radio_get)),
-        ELEMENT(DE_RCAPS_HTCAPS,      CB(.get_handler = rcaps_get)),
-        ELEMENT(DE_RCAPS_VHTCAPS,     CB(.get_handler = rcaps_get)),
-        ELEMENT(DE_RCAPS_CAPOPNOE,    CB(.get_handler = rcaps_get)),
-        ELEMENT(DE_CUROP_CLASS,       CB(.get_handler = curops_get)),
-        ELEMENT(DE_CUROP_CHANNEL,     CB(.get_handler = curops_get)),
-        ELEMENT(DE_CUROP_TXPOWER,     CB(.get_handler = curops_get)),
-        ELEMENT(DE_BSS_BSSID,         CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_SSID,          CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_ENABLED,       CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_LASTCHG,       CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_TS,            CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_UCAST_TX,      CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_UCAST_RX,      CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_MCAST_TX,      CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_MCAST_RX,      CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_BCAST_TX,      CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_BCAST_RX,      CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_EST_BE,        CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_EST_BK,        CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_EST_VI,        CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_EST_VO,        CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_BYTCNTUNITS,   CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_PROF1_DIS,     CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_PROF2_DIS,     CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_ASSOC_STAT,    CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_BHAULUSE,      CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_FHAULUSE,      CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_R1_DIS,        CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_R2_DIS,        CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_MULTI_BSSID,   CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_TX_BSSID,      CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_FHAULAKMS,     CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_BHAULAKMS,     CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_QM_DESC,       CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_NUM_STA,       CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_LINK_IMM,      CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_FH_SUITE,      CB(.get_handler = bss_get)),
-        ELEMENT(DE_BSS_BH_SUITE,      CB(.get_handler = bss_get)),
-        ELEMENT(DE_STA_MACADDR,       CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_HTCAPS,        CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_VHTCAPS,       CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_CLIENTCAPS,    CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_LSTDTADLR,     CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_LSTDTAULR,     CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_UTILRECV,      CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_UTILTRMT,      CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_ESTMACDTARDL,  CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_ESTMACDTARUL,  CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_SIGNALSTR,     CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_LASTCONNTIME,  CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_BYTESSNT,      CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_BYTESRCV,      CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_PCKTSSNT,      CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_PCKTSRCV,      CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_ERRSSNT,       CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_ERRSRCV,       CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_RETRANSCNT,    CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_IPV4ADDR,      CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_IPV6ADDR,      CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_HOSTNAME,      CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_PAIRWSAKM,     CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_PAIRWSCIPHER,  CB(.get_handler = sta_get)),
-        ELEMENT(DE_STA_RSNCAPS,       CB(.get_handler = sta_get))
+        ELEMENT(DE_NETWORK_ID,            CALLBACK_GETTER(network_get)),
+        ELEMENT(DE_NETWORK_CTRLID,        CALLBACK_GETTER(network_get)),
+        ELEMENT(DE_NETWORK_COLAGTID,      CALLBACK_GETTER(network_get)),
+        ELEMENT(DE_NETWORK_DEVNOE,        CALLBACK_GETTER(network_get)),
+        ELEMENT(DE_SSID_TABLE,            CALLBACK_GETTER(ssid_tget)),
+        ELEMENT(DE_SSID_SSID,             CALLBACK_GETTER(ssid_get)),
+        ELEMENT(DE_SSID_BAND,             CALLBACK_GETTER(ssid_get)),
+        ELEMENT(DE_SSID_ENABLE,           CALLBACK_GETTER(ssid_get)),
+        ELEMENT(DE_SSID_AKMALLOWE,        CALLBACK_GETTER(ssid_get)),
+        ELEMENT(DE_SSID_SUITESEL,         CALLBACK_GETTER(ssid_get)),
+        ELEMENT(DE_SSID_ADVENABLED,       CALLBACK_GETTER(ssid_get)),
+        ELEMENT(DE_SSID_MFPCONFIG,        CALLBACK_GETTER(ssid_get)),
+        ELEMENT(DE_SSID_MOBDOMAIN,        CALLBACK_GETTER(ssid_get)),
+        ELEMENT(DE_SSID_HAULTYPE,         CALLBACK_GETTER(ssid_get)),
+        ELEMENT(DE_DEVICE_TABLE,          CALLBACK_GETTER(device_tget)),
+        ELEMENT(DE_RADIO_TABLE,           CALLBACK_GETTER(radio_tget)),
+        ELEMENT(DE_BSS_TABLE,             CALLBACK_GETTER(bss_tget)),
+        ELEMENT(DE_STA_TABLE,             CALLBACK_GETTER(sta_tget)),
+        ELEMENT(DE_DEVICE_ID,                     CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_MAPCAP,                 CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_NUMRADIO,               CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_COLLINT,                CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_RUASSOC,                CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_MAXRRATE,               CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_MAPPROF,                CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_APMERINT,               CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_MANUFACT,               CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_SERIALNO,               CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_MFCMODEL,               CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_SWVERSION,              CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_EXECENV,                CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_LSDSTALIST,             CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_BTMSDSTALIST,           CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_MAXVIDS,                CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_BPRIO,                  CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_EPRIO,                  CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_TSEPPOLI,               CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_STVMAP,                 CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_DSCPM,                  CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_MAXPRIRULE,             CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_COUNTRCODE,             CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_PRIOSUPP,               CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_REPINDSCAN,             CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_TRASEPALW,              CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_SERPRIOALW,             CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_STASDISALW,             CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_DFSENABLE,              CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_MAXUSASSOCREPRATE,      CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_STASSTATE,              CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_COORCACALW,             CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_CONOPMODE,              CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_BHMACADDR,              CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_BHDMACADDR,             CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_BHPHYRATE,              CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_TRSEPCAP,               CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_EASYCCAP,               CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_TESTCAP,                CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_BSTAMLDMACLINK,         CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_MACNUMMLDS,             CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_BHALID,                 CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_TIDLMAP,                CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_ASSOCSTAREPINT,         CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_BHMEDIATYPE,            CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_RADIONOE,               CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_CACSTATNOE,             CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_BHDOWNNOE,              CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_RADIO_ID,               CALLBACK_GETTER(radio_get)),
+        ELEMENT(DE_RADIO_ENABLED,          CALLBACK_GETTER(radio_get)),
+        ELEMENT(DE_RADIO_NOISE,            CALLBACK_GETTER(radio_get)),
+        ELEMENT(DE_RADIO_UTILIZATION,      CALLBACK_GETTER(radio_get)),
+        ELEMENT(DE_RADIO_TRANSMIT,         CALLBACK_GETTER(radio_get)),
+        ELEMENT(DE_RADIO_RECEIVESELF,      CALLBACK_GETTER(radio_get)),
+        ELEMENT(DE_RADIO_RECEIVEOTHER,     CALLBACK_GETTER(radio_get)),
+        ELEMENT(DE_RADIO_CHIPVENDOR,       CALLBACK_GETTER(radio_get)),
+        ELEMENT(DE_RADIO_CURROPNOE,        CALLBACK_GETTER(radio_get)),
+        ELEMENT(DE_RADIO_BSSNOE,           CALLBACK_GETTER(radio_get)),
+        ELEMENT(DE_RCAPS_HTCAPS,           CALLBACK_GETTER(rcaps_get)),
+        ELEMENT(DE_RCAPS_VHTCAPS,          CALLBACK_GETTER(rcaps_get)),
+        ELEMENT(DE_RCAPS_CAPOPNOE,         CALLBACK_GETTER(rcaps_get)),
+        ELEMENT(DE_CUROP_TABLE,            CALLBACK_GETTER(curops_tget)),
+        ELEMENT(DE_CUROP_CLASS,            CALLBACK_GETTER(curops_get)),
+        ELEMENT(DE_CUROP_CHANNEL,          CALLBACK_GETTER(curops_get)),
+        ELEMENT(DE_CUROP_TXPOWER,          CALLBACK_GETTER(curops_get)),
+        ELEMENT(DE_BSS_BSSID,              CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_SSID,               CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_ENABLED,            CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_LASTCHG,            CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_TS,                 CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_UCAST_TX,           CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_UCAST_RX,           CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_MCAST_TX,           CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_MCAST_RX,           CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_BCAST_TX,           CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_BCAST_RX,           CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_EST_BE,             CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_EST_BK,             CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_EST_VI,             CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_EST_VO,             CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_BYTCNTUNITS,        CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_PROF1_DIS,          CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_PROF2_DIS,          CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_ASSOC_STAT,         CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_BHAULUSE,           CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_FHAULUSE,           CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_R1_DIS,             CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_R2_DIS,             CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_MULTI_BSSID,        CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_TX_BSSID,           CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_FHAULAKMS,          CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_BHAULAKMS,          CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_QM_DESC,            CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_NUM_STA,            CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_LINK_IMM,           CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_FH_SUITE,           CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_BH_SUITE,           CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_STA_MACADDR,            CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_HTCAPS,             CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_VHTCAPS,            CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_CLIENTCAPS,         CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_LSTDTADLR,          CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_LSTDTAULR,          CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_UTILRECV,           CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_UTILTRMT,           CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_ESTMACDTARDL,       CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_ESTMACDTARUL,       CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_SIGNALSTR,          CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_LASTCONNTIME,       CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_BYTESSNT,           CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_BYTESRCV,           CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_PCKTSSNT,           CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_PCKTSRCV,           CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_ERRSSNT,            CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_ERRSRCV,            CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_RETRANSCNT,         CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_IPV4ADDR,           CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_IPV6ADDR,           CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_HOSTNAME,           CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_PAIRWSAKM,          CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_PAIRWSCIPHER,       CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_RSNCAPS,            CALLBACK_GETTER(sta_get))
     };
 
-    bus_data_cb_func_t bus_default_data_cb = { " ",
+
+    bus_data_cb_func_t bus_default_data_cb = { const_cast<char*>(" "),
         { default_get_param_value, default_set_param_value, default_table_add_row_handler,
           default_table_remove_row_handler, default_event_sub_handler, NULL }
     };
@@ -212,7 +213,7 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
     uint32_t index = 0;
     bool     table_found = false;
 
-    for (index = 0; index < (uint32_t)ARRAY_SIZE(bus_data_cb); index++) {
+    for (index = 0; index < static_cast<uint32_t>(ARRAY_SIZE(bus_data_cb)); index++) {
         if (strcmp(full_namespace, bus_data_cb[index].cb_table_name) == 0) {
             memcpy(cb_table, &bus_data_cb[index].cb_func, sizeof(bus_callback_table_t));
             table_found = true;
@@ -226,7 +227,6 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
 
     return RETURN_OK;
 }
-#endif
 
 int tr_181_t::wfa_bus_register_namespace(char *full_namespace, bus_element_type_t element_type,
                             bus_callback_table_t cb_table, data_model_properties_t  data_model_value, int num_of_rows)
@@ -440,7 +440,7 @@ bus_error_t tr_181_t::ssid_tget(char *event_name, raw_data_t *p_data, bus_user_d
 
     if (em_ctrl != NULL)
     {
-        em_ctrl->get_dm_ctrl()->device_get(event_name, p_data);
+        em_ctrl->get_dm_ctrl()->ssid_tget(event_name, p_data);
         return bus_error_success;
     }
     
@@ -453,7 +453,7 @@ bus_error_t tr_181_t::ssid_get(char *event_name, raw_data_t *p_data, bus_user_da
 
     if (em_ctrl != NULL)
     {
-        em_ctrl->get_dm_ctrl()->device_get(event_name, p_data);
+        em_ctrl->get_dm_ctrl()->ssid_get(event_name, p_data);
         return bus_error_success;
     }
     
@@ -483,6 +483,20 @@ bus_error_t tr_181_t::device_tget(char *event_name, raw_data_t *p_data, bus_user
         return bus_error_success;
     }
     
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::policy_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_printfout("Inside");
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL)
+    {
+        em_ctrl->get_dm_ctrl()->policy_get(event_name, p_data);
+        return bus_error_success;
+    }
+
     return bus_error_general;
 }
 
@@ -626,31 +640,82 @@ bus_error_t tr_181_t::wifi_elem_num_of_table_row(char* event_name, uint32_t* tab
     return bus_error_success;
 }
 
-#if 0
+//Helper to convert YANG path to TR-181 path
+std::string tr_181_t::yang_to_tr181_path(const std::string& in)
+{
+    std::string out = in;
+    em_printfout("Converting YANG path: %s", in.c_str());
+
+    for (int i = 0; g_yang_map[i].yang; ++i) {
+        const std::string from = g_yang_map[i].yang;
+        const std::string to = g_yang_map[i].tr181;
+
+        size_t pos = 0;
+        while ((pos = out.find(from, pos)) != std::string::npos) {
+            /* ensure whole-token replacement */
+            bool left_ok = (pos == 0 || out[pos - 1] == '.');
+            bool right_ok = (pos + from.size() == out.size() ||
+                              out[pos + from.size()] == '.');
+
+            if (left_ok && right_ok) {
+                out.replace(pos, from.size(), to);
+                pos += to.size();
+            } else {
+                pos += from.size();
+            }
+        }
+    }
+
+    return out;
+}
+
 // Resolve $ref if present on the node; otherwise return the node itself.
 cJSON* tr_181_t::follow_ref_if_any(cJSON* root, cJSON* node)
 {
     if (!node) return nullptr;
-    cJSON* r = cJSON_GetObjectItem(node, "$ref");
-    if (r && cJSON_IsString(r)) {
-        cJSON* resolved = resolve_ref(root, r->valuestring);
-        return resolved ? resolved : node;
+
+    /* resolve $ref */
+    cJSON* ref = cJSON_GetObjectItem(node, "$ref");
+    if (ref && cJSON_IsString(ref)) {
+        cJSON* resolved = resolve_ref(root, ref->valuestring);
+        if (resolved)
+            return follow_ref_if_any(root, resolved);
     }
-    // handle combiners with refs like oneOf/anyOf: prefer first ref/object
+
+    /* unwrap oneOf / anyOf, skip null */
     cJSON* comb = cJSON_GetObjectItem(node, "oneOf");
-    if (!comb) comb = cJSON_GetObjectItem(node, "anyOf");
+    if (!comb)
+        comb = cJSON_GetObjectItem(node, "anyOf");
+
     if (comb && cJSON_IsArray(comb)) {
         cJSON* it = comb->child;
         while (it) {
-            cJSON* maybeRef = cJSON_GetObjectItem(it, "$ref");
-            if (maybeRef && cJSON_IsString(maybeRef)) {
-                cJSON* resolved = resolve_ref(root, maybeRef->valuestring);
-                if (resolved) return resolved;
+            cJSON* type = cJSON_GetObjectItem(it, "type");
+
+            /* skip null-only variants */
+            if (type) {
+                if (cJSON_IsString(type) &&
+                    strcmp(type->valuestring, "null") == 0) {
+                    it = it->next;
+                    continue;
+                }
+                if (cJSON_IsArray(type)) {
+                    bool onlyNull = true;
+                    cJSON* t = type->child;
+                    while (t) {
+                        if (strcmp(t->valuestring, "null") != 0) {
+                            onlyNull = false;
+                            break;
+                        }
+                        t = t->next;
+                    }
+                    if (onlyNull) {
+                        it = it->next;
+                        continue;
+                    }
+                }
             }
-            // if the variant itself has properties, prefer it
-            if (cJSON_GetObjectItem(it, "properties"))
-                return it;
-            it = it->next;
+            return follow_ref_if_any(root, it);
         }
     }
     return node;
@@ -707,6 +772,27 @@ void tr_181_t::parse_readwrite(cJSON* schemaNode, data_model_properties_t& props
         props.data_permission = 0;
 }
 
+bool tr_181_t::schema_has_type(cJSON* schema, const char* want)
+{
+    if (!schema) return false;
+
+    cJSON* type = cJSON_GetObjectItem(schema, "type");
+    if(!type) return false;
+
+    if(cJSON_IsString(type))
+        return strcmp(type->valuestring, want) == 0;
+
+    if(cJSON_IsArray(type)) {
+        cJSON* it = type->child;
+        while(it) {
+            if(strcmp(it->valuestring, want) == 0)
+                return true;
+            it = it->next;
+        }
+    }
+    return false;
+}
+
 // ------------------------------------------------------------
 // Handle ANY property under an object: decide if TABLE or PROPERTY
 // ------------------------------------------------------------
@@ -714,7 +800,7 @@ void tr_181_t::handle_property_node(cJSON* root, const std::string& fullPath, cJ
 {
     if (!propertySchema) return;
 
-    bus_callback_table_t cbTable = {0};
+    bus_callback_table_t cbTable = {};
     data_model_properties_t data_model_value;
     memset(&data_model_value, 0, sizeof(data_model_value));
 
@@ -730,17 +816,16 @@ void tr_181_t::handle_property_node(cJSON* root, const std::string& fullPath, cJ
     }
 
     // 3) If type is array -> register TABLE and examine items
-    cJSON* typeNode = cJSON_GetObjectItem(effective, "type");
-    if (typeNode && cJSON_IsString(typeNode) && strcmp(typeNode->valuestring, "array") == 0) {
+    if (schema_has_type(effective, "array")) {
         std::string tableName = fullPath + ".{i}";
 
-        // register table namespace
-        wfa_set_bus_callbackfunc_pointers(tableName.c_str(), &cbTable);
         // reset and fill constraints for the array property itself
         memset(&data_model_value, 0, sizeof(data_model_value));
         parse_property_constraints(effective, data_model_value);
         parse_readwrite(effective, data_model_value);
-        wfa_bus_register_namespace((char*)tableName.c_str(), bus_element_type_table, cbTable, data_model_value, 1);
+        std::string tr181Path = yang_to_tr181_path(tableName);
+        wfa_set_bus_callbackfunc_pointers(tr181Path.c_str(), &cbTable);
+        wfa_bus_register_namespace(const_cast<char*>(tr181Path.c_str()), bus_element_type_table, cbTable, data_model_value, 1);
 
         // now inspect items
         cJSON* items = cJSON_GetObjectItem(effective, "items");
@@ -758,21 +843,23 @@ void tr_181_t::handle_property_node(cJSON* root, const std::string& fullPath, cJ
             memset(&data_model_value, 0, sizeof(data_model_value));
             parse_property_constraints(itemsEff, data_model_value);
             parse_readwrite(itemsEff, data_model_value);
-            wfa_set_bus_callbackfunc_pointers(tableName.c_str(), &cbTable);
-            wfa_bus_register_namespace((char*)tableName.c_str(), bus_element_type_property, cbTable, data_model_value, 1);
+            std::string tr181Path = yang_to_tr181_path(tableName);
+            wfa_set_bus_callbackfunc_pointers(tr181Path.c_str(), &cbTable);
+            wfa_bus_register_namespace(const_cast<char*>(tr181Path.c_str()), bus_element_type_property, cbTable, data_model_value, 1);
         }
         return;
     }
 
     // 4) If type is object (but had no direct properties above),
     // try to resolve any nested $ref and check again
-    if (typeNode && cJSON_IsString(typeNode) && strcmp(typeNode->valuestring, "object") == 0) {
+    if (schema_has_type(effective, "object")) {
         // we've already tried follow_ref_if_any at top-level; if still no properties, treat as leaf object
         memset(&data_model_value, 0, sizeof(data_model_value));
         parse_property_constraints(effective, data_model_value);
         parse_readwrite(effective, data_model_value);
-        wfa_set_bus_callbackfunc_pointers(fullPath.c_str(), &cbTable);
-        wfa_bus_register_namespace((char*)fullPath.c_str(), bus_element_type_property, cbTable, data_model_value, 1);
+        std::string tr181Path = yang_to_tr181_path(fullPath);
+        wfa_set_bus_callbackfunc_pointers(tr181Path.c_str(), &cbTable);
+        wfa_bus_register_namespace(const_cast<char*>(tr181Path.c_str()), bus_element_type_property, cbTable, data_model_value, 1);
         return;
     }
 
@@ -780,8 +867,9 @@ void tr_181_t::handle_property_node(cJSON* root, const std::string& fullPath, cJ
     memset(&data_model_value, 0, sizeof(data_model_value));
     parse_property_constraints(effective, data_model_value);
     parse_readwrite(effective, data_model_value);
-    wfa_set_bus_callbackfunc_pointers(fullPath.c_str(), &cbTable);
-    wfa_bus_register_namespace((char*)fullPath.c_str(), bus_element_type_property, cbTable, data_model_value, 1);
+    std::string tr181Path = yang_to_tr181_path(fullPath);
+    wfa_set_bus_callbackfunc_pointers(tr181Path.c_str(), &cbTable);
+    wfa_bus_register_namespace(const_cast<char*>(tr181Path.c_str()), bus_element_type_property, cbTable, data_model_value, 1);
 }
 
 // ------------------------------------------------------------
@@ -827,10 +915,15 @@ bool tr_181_t::parse_and_register_schema(const char *filename)
     long size = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    std::vector<char> buf(size + 1);
-    fread(buf.data(), 1, size, f);
-    buf[size] = 0;
+    if (size < 0) {
+        fclose(f);
+        return false;
+    }
+    const size_t uSize = static_cast<size_t>(size);
+    std::vector<char> buf(uSize + 1);
+    const size_t read = std::fread(buf.data(), 1, uSize, f);
     fclose(f);
+    buf[(read < uSize) ? read : uSize] = '\0';
 
     cJSON* root = cJSON_Parse(buf.data());
     if (!root) return false;
@@ -848,7 +941,7 @@ bool tr_181_t::parse_and_register_schema(const char *filename)
         if (child->string &&
             std::string(child->string).find("Network") != std::string::npos)
         {
-            traverse_schema(root, child, "Network");
+            traverse_schema(root, child, "Device.WiFi.DataElements.Network");
             break;
         }
         child = child->next;
@@ -857,113 +950,11 @@ bool tr_181_t::parse_and_register_schema(const char *filename)
     cJSON_Delete(root);
     return true;
 }
-#endif
 
 int tr_181_t::register_wfa_dml()
 {
-    uint32_t count;
-    bus_error_t rc;
-    wifi_bus_desc_t *bus_desc;
-    bus_data_element_t elements[] = {
-        ELEMENT_PROPERTY(DE_NETWORK_ID,        network_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_NETWORK_CTRLID,    network_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_NETWORK_COLAGTID,  network_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_NETWORK_DEVNOE,    network_get, bus_data_type_uint32),
-        ELEMENT_TABLE(DE_SSID_TABLE,           ssid_tget, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_SSID_SSID,         ssid_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_SSID_BAND,         ssid_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_SSID_ENABLE,       ssid_get, bus_data_type_boolean),
-        ELEMENT_PROPERTY(DE_SSID_AKMALLOWE,    ssid_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_SSID_SUITESEL,     ssid_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_SSID_ADVENABLED,   ssid_get, bus_data_type_boolean),
-        ELEMENT_PROPERTY(DE_SSID_MFPCONFIG,    ssid_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_SSID_MOBDOMAIN,    ssid_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_SSID_HAULTYPE,     ssid_get, bus_data_type_string),
-        ELEMENT_TABLE(DE_DEVICE_TABLE,         device_tget, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_DEVICE_ID,         device_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_DEVICE_MANUFACT,   device_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_DEVICE_SERIALNO,   device_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_DEVICE_MFCMODEL,   device_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_DEVICE_SWVERSION,  device_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_DEVICE_EXECENV,    device_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_DEVICE_COUNTRCODE, device_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_DEVICE_BHMACADDR,  device_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_DEVICE_BHALID,     device_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_DEVICE_BHMEDIATYPE, device_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_DEVICE_RADIONOE,   device_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_DEVICE_CACSTATNOE, device_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_DEVICE_BHDOWNNOE,  device_get, bus_data_type_uint32),
-        ELEMENT_TABLE(DE_RADIO_TABLE,          radio_tget, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_RADIO_ID,          radio_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_RADIO_ENABLED,     radio_get, bus_data_type_boolean),
-        ELEMENT_PROPERTY(DE_RADIO_NOISE,       radio_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_RADIO_UTILIZATION, radio_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_RADIO_TRANSMIT,    radio_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_RADIO_RECEIVESELF, radio_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_RADIO_RECEIVEOTHER, radio_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_RADIO_CHIPVENDOR,  radio_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_RADIO_CURROPNOE,   radio_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_RADIO_BSSNOE,      radio_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_BHSTA_MACADDR,     rbhsta_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_RCAPS_HTCAPS,      rcaps_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_RCAPS_VHTCAPS,     rcaps_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_RCAPS_CAPOPNOE,    rcaps_get, bus_data_type_uint32),
-        ELEMENT_TABLE(DE_CUROP_TABLE,          curops_tget, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_CUROP_CLASS,       curops_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_CUROP_CHANNEL,     curops_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_CUROP_TXPOWER,     curops_get, bus_data_type_int32),
-        ELEMENT_TABLE(DE_BSS_TABLE,            bss_tget, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_BSS_BSSID,         bss_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_BSS_SSID,          bss_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_BSS_ENABLED,       bss_get, bus_data_type_boolean),
-        ELEMENT_PROPERTY(DE_BSS_BYTCNTUNITS,   bss_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_BSS_BHAULUSE,      bss_get, bus_data_type_boolean),
-        ELEMENT_PROPERTY(DE_BSS_FHAULUSE,      bss_get, bus_data_type_boolean),
-        ELEMENT_PROPERTY(DE_BSS_FHAULAKMS,     bss_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_BSS_FH_SUITE,    bss_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_BSS_BHAULAKMS,     bss_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_BSS_BH_SUITE,    bss_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_BSS_NUM_STA,        bss_get, bus_data_type_uint32),
-        ELEMENT_TABLE(DE_STA_TABLE,            sta_tget, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_STA_MACADDR,       sta_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_STA_HTCAPS,        sta_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_STA_VHTCAPS,       sta_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_STA_CLIENTCAPS,    sta_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_STA_LSTDTADLR,     sta_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_STA_LSTDTAULR,     sta_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_STA_UTILRECV,      sta_get, bus_data_type_uint64),
-        ELEMENT_PROPERTY(DE_STA_UTILTRMT,      sta_get, bus_data_type_uint64),
-        ELEMENT_PROPERTY(DE_STA_ESTMACDTARDL,  sta_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_STA_ESTMACDTARUL,  sta_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_STA_SIGNALSTR,     sta_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_STA_LASTCONNTIME,  sta_get, bus_data_type_uint32),
-        ELEMENT_PROPERTY(DE_STA_BYTESSNT,      sta_get, bus_data_type_uint64),
-        ELEMENT_PROPERTY(DE_STA_BYTESRCV,      sta_get, bus_data_type_uint64),
-        ELEMENT_PROPERTY(DE_STA_PCKTSSNT,      sta_get, bus_data_type_uint64),
-        ELEMENT_PROPERTY(DE_STA_PCKTSRCV,      sta_get, bus_data_type_uint64),
-        ELEMENT_PROPERTY(DE_STA_ERRSSNT,       sta_get, bus_data_type_uint64),
-        ELEMENT_PROPERTY(DE_STA_ERRSRCV,       sta_get, bus_data_type_uint64),
-        ELEMENT_PROPERTY(DE_STA_RETRANSCNT,    sta_get, bus_data_type_uint64),
-        ELEMENT_PROPERTY(DE_STA_IPV4ADDR,      sta_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_STA_IPV6ADDR,      sta_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_STA_HOSTNAME,      sta_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_STA_PAIRWSAKM,     sta_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_STA_PAIRWSCIPHER,  sta_get, bus_data_type_string),
-        ELEMENT_PROPERTY(DE_STA_RSNCAPS,       sta_get, bus_data_type_uint32)
-    };
-
-    bus_desc = get_bus_descriptor();
-    if (bus_desc == NULL) {
-        em_printfout("Bus is not initialized");
-        return RETURN_ERR;
-    }
-
-    count = sizeof(elements) / sizeof(bus_data_element_t);
-    rc = bus_desc->bus_reg_data_element_fn(&m_bus_handle, elements, count);
-    if (rc != bus_error_success) {
-        em_printfout("Bus register elements failed: %d", rc);
-        return RETURN_ERR;
-    }
+    const char *filename = "Data_Elements_JSON_Schema_v3.0.json";
+    parse_and_register_schema(filename);
 
     return RETURN_OK;
 }
