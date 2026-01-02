@@ -48,9 +48,9 @@ em_cmd_em_config_t::em_cmd_em_config_t(em_cmd_params_t param, dm_easy_mesh_t& dm
     m_num_orch_desc = 10;
     m_orch_desc[0].op = dm_orch_type_bss_delete;
     m_orch_desc[0].submit = false;
-    m_orch_desc[1].op = dm_orch_type_ap_cap_query;
+    m_orch_desc[1].op = dm_orch_type_topo_sync;
     m_orch_desc[1].submit = true;
-    m_orch_desc[2].op = dm_orch_type_topo_sync;
+    m_orch_desc[2].op = dm_orch_type_ap_cap_query;
     m_orch_desc[2].submit = true;
     m_orch_desc[3].op = dm_orch_type_channel_pref;
     m_orch_desc[3].submit = true;

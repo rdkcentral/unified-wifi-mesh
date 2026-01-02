@@ -4662,7 +4662,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     unsigned int size = 0, cipher_len, plain_len;
     unsigned char iv[AES_BLOCK_SIZE];
     unsigned char plain[MAX_EM_BUFF_SZ];
-    unsigned short auth_type;
+    unsigned short auth_type = 0x0200; // WPA3-Personal
     unsigned char hash[SHA256_MAC_LEN];
     unsigned char *keywrap_data_addr[1];
     size_t keywrap_data_length[1];
@@ -5210,7 +5210,7 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                 std::vector<em_t*> em_radios;
                 get_mgr()->get_all_em_for_al_mac(hdr->dst, em_radios);
                 for (auto &em : em_radios) {
-                    if ((em->get_service_type() == em_service_type_agent) && (em->get_state() < em_state_agent_ap_cap_report)) {
+                    if ((em->get_service_type() == em_service_type_agent) && (em->get_state() < em_state_agent_onewifi_bssconfig_ind)) {
                         em_printfout("radio %s is not configured, ignoring", util::mac_to_string(em->get_radio_interface_mac()).c_str());
                         em_radios.clear();
                         return;
