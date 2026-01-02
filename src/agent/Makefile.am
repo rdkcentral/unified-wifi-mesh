@@ -173,7 +173,9 @@ onewifi_em_agent_test_SOURCES = \
 	$(top_srcdir)/tests/test_l1_em_msg.cpp \
 	$(top_srcdir)/tests/test_l1_timer.cpp \
 	$(top_srcdir)/tests/test_l1_util.cpp \
-	$(top_srcdir)/tests/test_l1_ec_1905_encrypt_layer.cpp
+	$(top_srcdir)/tests/test_l1_ec_1905_encrypt_layer.cpp \
+	$(top_srcdir)/tests/test_l1_ec_enrollee.cpp \
+        $(top_srcdir)/tests/test_l1_ec_util.cpp
 onewifi_em_agent_test_CPPFLAGS = $(onewifi_em_agent_CPPFLAGS) \
 	-I$(PKG_CONFIG_SYSROOT_DIR)$(includedir)/gtest \
 	-DTESTING
