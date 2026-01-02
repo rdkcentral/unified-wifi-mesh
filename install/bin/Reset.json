@@ -24,7 +24,8 @@
                 "AdvertisementEnabled": true,
                 "MFPConfig": "Optional",
                 "MobilityDomain":"00:01:02:03:04:05",
-                "HaulType": ["Fronthaul"]
+                "HaulType": ["Fronthaul"],
+                "AuthType": "WPA3 Personal"
             }, {
                 "SSID": "iot_ssid",
                 "Passphrase": "test-backhaul",
@@ -35,7 +36,8 @@
                 "AdvertisementEnabled": true,
                 "MFPConfig": "Required",
                 "MobilityDomain":"00:01:02:03:04:05",
-                "HaulType": ["IoT"]
+                "HaulType": ["IoT"],
+                "AuthType": "WPA3 Personal"
             }, {
                 "SSID": "lnf_radius",
                 "Passphrase": "test-backhaul",
@@ -46,7 +48,8 @@
                 "AdvertisementEnabled": true,
                 "MFPConfig": "Required",
                 "MobilityDomain":"00:01:02:03:04:05",
-                "HaulType": ["Configurator"]
+                "HaulType": ["Configurator"],
+                "AuthType": "WPA3 Personal"
             }, {
                 "SSID": "mesh_backhaul",
                 "Passphrase": "test-backhaul",
@@ -57,18 +60,20 @@
                 "AdvertisementEnabled": true,
                 "MFPConfig": "Required",
                 "MobilityDomain":"00:01:02:03:04:05",
-                "HaulType": ["Backhaul"]
-			},{
-				"SSID":	"hotspot",
-				"PassPhrase":	"test-hotspot",
-				"Band":	["2.4", "5", "6"],
-				"Enable":	true,
-				"AKMsAllowed":	["dpp", "sae", "SuiteSelector"],
-				"SuiteSelector":	"00010203",
-				"AdvertisementEnabled":	true,
-				"MFPConfig":	"Required",
-				"MobilityDomain":	"00:01:02:03:04:05",
-				"HaulType":	["Hotspot"]
+                "HaulType": ["Backhaul"],
+                "AuthType": "WPA3 Personal"
+            },{
+                "SSID":	"hotspot",
+                "PassPhrase":	"test-hotspot",
+                "Band":	["2.4", "5", "6"],
+                "Enable":	true,
+                "AKMsAllowed":	["dpp", "sae", "SuiteSelector"],
+                "SuiteSelector":	"00010203",
+                "AdvertisementEnabled":	true,
+                "MFPConfig":	"Required",
+                "MobilityDomain":	"00:01:02:03:04:05",
+                "HaulType":	["Hotspot"],
+                "AuthType": "WPA3 Personal"
             }
         ]
     }
