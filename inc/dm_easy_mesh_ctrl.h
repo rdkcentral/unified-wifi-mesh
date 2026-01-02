@@ -102,6 +102,17 @@ public:
     bus_error_t rcaps_get(char* event_name, raw_data_t* p_data);
     static bus_error_t rcaps_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t rcaps_tget_inner(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property);
+    bus_error_t wf6ap_get(char* event_name, raw_data_t* p_data);
+    bus_error_t wf6ap_tget(char* event_name, raw_data_t* p_data);
+    static bus_error_t wf6ap_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t wf6ap_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t wf6ap_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property, int idx);
+
+    bus_error_t wf7ap_get(char* event_name, raw_data_t* p_data);
+    bus_error_t wf7ap_tget(char* event_name, raw_data_t* p_data);
+    static bus_error_t wf7ap_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t wf7ap_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t wf7ap_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property, int idx);
 
     dm_op_class_t* get_dm_curop(dm_easy_mesh_t *dm, dm_radio_t *radio, int instance);
     bus_error_t curops_get(char* event_name, raw_data_t* p_data);
