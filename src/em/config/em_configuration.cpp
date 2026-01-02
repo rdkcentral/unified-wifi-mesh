@@ -4693,7 +4693,17 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
         em_printfout("Could not find network ssid information for haul type %d", haul_type);
         return 0;
     }
-    em_printfout("ssid: %s, passphrase: %s", net_ssid_info->ssid, net_ssid_info->pass_phrase);
+    em_printfout("ssid: %s, passphrase: %s, Auth Type: %s\n", net_ssid_info->ssid, net_ssid_info->pass_phrase, net_ssid_info->auth_type);
+
+    auth_type = get_Auth_type_hex(net_ssid_info->auth_type);
+
+    if((get_band() == EM_BAND_6_GHZ) && ((auth_type == EM_AUTH_WPA2) ||
+                                         (auth_type == EM_AUTH_OPEN) ||
+                                         (auth_type == EM_AUTH_WPA3_TRANSITION))) {
+        // WPA2 Personal and open and WPA3 personal transition authentication type does not
+        // support for 6Ghz, Hence settings default authentication type.
+        auth_type = EM_AUTH_WPA3_PERSONAL;
+    }
 
     // Add vendor extension for haul type
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
@@ -4781,6 +4791,16 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     em_printfout("Encrypted for radio:%s haul_type:%d length:%u plain_len:%u",
         util::mac_to_string(get_radio_interface_mac()).c_str(), haul_type, cipher_len + AES_BLOCK_SIZE, plain_len);
     return static_cast<int> (cipher_len) + AES_BLOCK_SIZE;
+}
+
+uint32_t em_configuration_t::get_Auth_type_hex(const char *security_mode) {
+    for (size_t i = 0; i < sizeof(securityTypeMap)/sizeof(securityTypeMap[0]); i++) {
+        if (strcmp(security_mode, securityTypeMap[i].name) == 0) {
+            return securityTypeMap[i].hex;
+        }
+    }
+    // Return the default value.
+    return EM_AUTH_WPA3_PERSONAL;
 }
 
 int em_configuration_t::create_authenticator(unsigned char *buff)

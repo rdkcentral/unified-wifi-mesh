@@ -92,6 +92,7 @@ int dm_network_ssid_list_t::get_config(cJSON *obj_arr, void *parent_id, bool sum
             cJSON_AddItemToArray(hauls_arr, cJSON_CreateString(haul_str));
 		}
 
+		cJSON_AddStringToObject(obj, "AuthType", pnet_ssid->m_network_ssid_info.auth_type);
 
 		cJSON_AddItemToArray(obj_arr, obj);		
 		pnet_ssid = get_next_network_ssid(pnet_ssid);
@@ -305,6 +306,11 @@ bool dm_network_ssid_list_t::operator == (const db_easy_mesh_t& obj)
 		return false;
 	}
 
+	if (strncmp(m_network_ssid_info.auth_type, pnet_ssid->m_network_ssid_info.auth_type, strlen(m_network_ssid_info.auth_type)) != 0) {
+		printf("%s:%d: Auth type is different\n", __func__, __LINE__);
+		return false;
+	}
+
 	return true;
 }
 
@@ -346,11 +352,11 @@ int dm_network_ssid_list_t::update_db(db_client_t& db_client, dm_orch_type_t op,
 	switch (op) {
 		case dm_orch_type_db_insert:
 			ret = insert_row(db_client, info->id, info->ssid, info->pass_phrase, bands, info->enable, akms, info->suite_select,
-						info->advertisement, info->mfp, dm_easy_mesh_t::macbytes_to_string(info->mobility_domain, mac_str), hauls);
+						info->advertisement, info->mfp, dm_easy_mesh_t::macbytes_to_string(info->mobility_domain, mac_str), hauls, info->auth_type);
 			break;
 
 		case dm_orch_type_db_update:
-			ret = update_row(db_client, info->ssid, info->pass_phrase, bands, info->enable, akms, info->suite_select, info->advertisement, info->mfp, dm_easy_mesh_t::macbytes_to_string(info->mobility_domain, mac_str), hauls, info->id);
+			ret = update_row(db_client, info->ssid, info->pass_phrase, bands, info->enable, akms, info->suite_select, info->advertisement, info->mfp, dm_easy_mesh_t::macbytes_to_string(info->mobility_domain, mac_str), hauls, info->auth_type, info->id);
 			break;
 
 		case dm_orch_type_db_delete:
@@ -433,6 +439,7 @@ int dm_network_ssid_list_t::sync_db(db_client_t& db_client, void *ctx)
 			//printf("%s:%d: Haul Type[%d]: %s\n", __func__, __LINE__, i, info.haul_type[i]);
 		}
 
+		db_client.get_string(ctx, info.auth_type, 12);
         
 		update_list(dm_network_ssid_t(&info), dm_orch_type_db_insert);
     }
@@ -459,6 +466,7 @@ void dm_network_ssid_list_t::init_columns()
     m_columns[m_num_cols++] = db_column_t("MFPConfig", db_data_type_char, 16);
     m_columns[m_num_cols++] = db_column_t("MobilityDomain", db_data_type_char, 17);
     m_columns[m_num_cols++] = db_column_t("HaulType", db_data_type_char, 64);
+    m_columns[m_num_cols++] = db_column_t("AuthType", db_data_type_char, 16);
 }
 
 int dm_network_ssid_list_t::init()

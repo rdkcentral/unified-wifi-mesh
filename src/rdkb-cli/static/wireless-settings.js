@@ -717,7 +717,7 @@ getRadioIndexFromBand(bandLabel) {
 
     document.getElementById('profile-name').value = profileName || '';
     document.getElementById('profile-ssid').value = profile.SSID || '';
-    document.getElementById('profile-security').value = profile.Security || 'WPA3-SAE';
+    document.getElementById('profile-security').value = profile.Security || '';
     document.getElementById('profile-passphrase').value = profile.PassPhrase || '';
     document.getElementById('profile-vlan').value = profile.vlanId || 0;
     document.getElementById('profile-hidden').checked = profile.hidden || false;
@@ -737,10 +737,14 @@ getRadioIndexFromBand(bandLabel) {
    */
   handleSecurityTypeChange(securityType) {
     const passphraseGroup = document.getElementById('passphrase-group');
-    if (passphraseGroup) {
-      const needsPassphrase = ['WPA3-SAE', 'WPA2-PSK'].includes(securityType);
-      passphraseGroup.style.display = needsPassphrase ? 'flex' : 'none';
-    }
+    if (!passphraseGroup) return;
+    const needsPassphrase = [
+      'WPA2 Personal',
+      'WPA3 Personal',
+      'WPA3 Transition'
+    ].includes(securityType);
+
+    passphraseGroup.style.display = needsPassphrase ? 'flex' : 'none';
   }
 
   /**
@@ -775,7 +779,8 @@ getRadioIndexFromBand(bandLabel) {
       const index = this.networkProfiles.findIndex(p => p.HaulType === this.currentEditingProfile);
         if (index !== -1) {
           if((profileData.ssid !== this.networkProfiles[index].SSID) || 
-             (profileData.passphrase !== this.networkProfiles[index].PassPhrase)) {
+             (profileData.passphrase !== this.networkProfiles[index].PassPhrase) ||
+             (profileData.security_type!== this.networkProfiles[index].security_type)) {
               this.updatedProfileKeys.add(this.networkProfiles[index].HaulType);
           } else {
             if (this.updatedProfileKeys.has(this.networkProfiles[index].HaulType)) {
@@ -786,6 +791,7 @@ getRadioIndexFromBand(bandLabel) {
             if (updateIndex !== -1) {
               this.updatedNetworkProfiles[updateIndex].SSID = profileData.ssid;
               this.updatedNetworkProfiles[updateIndex].PassPhrase = profileData.passphrase;
+              this.updatedNetworkProfiles[updateIndex].Security = profileData.security_type;
               this.updatedNetworkProfiles[updateIndex].vlanId = profileData.vlan_id;
             }
         }
