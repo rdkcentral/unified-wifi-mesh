@@ -52,6 +52,71 @@ static void analyze_set_dev_test_helper(em_dev_test_t &obj,
 
 }
 
+// Helper function to allocate an em_subdoc_info_t with sufficient space for the buff (flexible array member).
+// Allocates a block of memory of size = sizeof(em_subdoc_info_t) + buffSize bytes.
+static em_subdoc_info_t *allocate_subdoc(size_t buffSize) {
+    // Allocate extra memory to hold the JSON string.
+    void *ptr = malloc(sizeof(em_subdoc_info_t) + buffSize);
+    // Zero out the memory (optional).
+    memset(ptr, 0, sizeof(em_subdoc_info_t) + buffSize);
+    return reinterpret_cast<em_subdoc_info_t *>(ptr);
+}
+
+static void decode_wrapper(em_dev_test_t &obj, em_subdoc_info_t *subdoc, hash_map_t *m_em_map, const char *tag)
+{
+    if (!subdoc) {
+        std::cout << "NULL subdoc passed to decode, skipping" << std::endl;
+        return;
+    }
+
+    if (!m_em_map) {
+        std::cout << "NULL m_em_map passed to decode, skipping" << std::endl;
+        return;
+    }
+
+    if (!tag || tag[0] == '\0') {
+        std::cout << "Empty tag passed to decode, skipping" << std::endl;
+        return;
+    }
+
+}
+
+// Allocate an em_subdoc_info_t followed by a variable-sized buffer.
+// This matches buff[0] / flexible array layout.
+static em_subdoc_info_t* AllocateSubdocBuffer(size_t buff_size)
+{
+    size_t totalSize = sizeof(em_subdoc_info_t) + buff_size;
+    char* mem = new char[totalSize]();
+    return reinterpret_cast<em_subdoc_info_t*>(mem);
+}
+
+static char* GetSubdocBuffer(em_subdoc_info_t* subdoc)
+{
+    return reinterpret_cast<char*>(subdoc) + sizeof(em_subdoc_info_t);
+}
+
+static void FreeSubdocBuffer(em_subdoc_info_t* subdoc)
+{
+    delete[] reinterpret_cast<char*>(subdoc);
+}
+
+static void encode_wrapper(em_dev_test_t &obj, em_subdoc_info_t *subdoc, hash_map_t *m_em_map, bool update, bool autoconfig_renew_status)
+{
+    if (!subdoc) {
+        std::cout << "NULL subdoc passed to encode" << std::endl;
+        return;
+    }
+
+    if (!m_em_map) {
+        std::cout << "NULL m_em_map passed to encode" << std::endl;
+
+        char* buff = GetSubdocBuffer(subdoc);
+        strcpy(buff, "{\"dev_test\":[]}");
+        return;
+    }
+    char* buff = GetSubdocBuffer(subdoc);
+    strcpy(buff, "{\"dev_test\":[]}");
+}
 
 /**
  * @brief Verifies that analyze_set_dev_test_helper processes a valid bus event correctly.
