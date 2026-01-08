@@ -217,6 +217,12 @@ class EasyMeshController {
     document.getElementById('optimize-network')?.addEventListener('click', () => {
       this.optimizeNetwork();
     });
+     
+    // Performance tab refresh
+    document.getElementById('refresh-performance')?.addEventListener('click', () => {
+      this.loadPerformanceData();
+      this.showNotification('Performance data refreshed', 'success');
+    });
 
     // Time range selectors
     document.querySelectorAll('[data-range]').forEach(btn => {
@@ -549,6 +555,727 @@ async handleWebSocketMessage(data) {
   /**
    * Create device card element
    */
+   /**
+   * Update devices list (for Mesh Devices tab - keep original)
+   */
+  updateDevicesList() {
+    const devicesGrid = document.getElementById('devices-grid');
+    if (!devicesGrid) return;
+
+    devicesGrid.innerHTML = '';
+
+    if (this.devices.length === 0) {
+      devicesGrid.innerHTML = '<div class="loading-message">No devices found</div>';
+      return;
+    }
+
+    this.devices.forEach(device => {
+      const card = this.createDeviceCard(device);
+      devicesGrid.appendChild(card);
+    });
+  }
+
+  /**
+   * Update performance devices section (P2/P3 design in Performance tab)
+   */
+  updatePerformanceDevices() {
+    const devicesContainer = document.getElementById('performance-devices-list');
+    if (!devicesContainer) return;
+
+    devicesContainer.innerHTML = '';
+
+    if (this.devices.length === 0) {
+      devicesContainer.innerHTML = '<div class="loading-message">No devices found</div>';
+      return;
+    }
+
+    this.devices.forEach(device => {
+      const deviceSection = this.createDeviceSection(device);
+      devicesContainer.appendChild(deviceSection);
+    });
+  }
+
+  /**
+   * Create expandable device section (like P2/P3 design)
+   */
+  createDeviceSection(device) {
+    const section = document.createElement('div');
+    section.className = 'device-section';
+    section.id = `device-section-${device.mac.replace(/:/g, '')}`;
+
+    const statusClass = device.status === 'Online' ? 'online' : 'offline';
+    const clientCount = this.getDeviceClientCount(device.mac);
+
+    section.innerHTML = `
+      <div class="device-section-header">
+        <div class="device-section-info">
+          <i class="fas fa-network-wired"></i>
+          <h3>${device.vendor} ${device.model}</h3>
+        </div>
+        <div class="device-section-badges">
+          <span class="badge badge-${device.role.toLowerCase()}">${device.role}</span>
+          <span class="badge badge-${statusClass}">${device.status}</span>
+          <span class="badge badge-clients"><i class="fas fa-users"></i> ${clientCount} clients</span>
+        </div>
+        <button class="device-toggle-btn" onclick="window.EasyMeshController.toggleDeviceSection('${device.mac}')">
+          <i class="fas fa-chevron-down"></i>
+        </button>
+      </div>
+
+      <div class="device-section-content" id="device-content-${device.mac.replace(/:/g, '')}">
+        <!-- Individual charts will be populated here for each client -->
+        <div class="individual-client-charts" id="client-charts-${device.mac.replace(/:/g, '')}">
+          ${clientCount > 0 ? '<div class="loading-message">Loading client charts...</div>' : '<p class="no-clients">No clients connected</p>'}
+        </div>
+
+        <!-- Connected Clients Section -->
+        <div class="device-clients-section">
+          <h4><i class="fas fa-users"></i> Connected Clients</h4>
+          <div class="device-clients-list" id="device-clients-${device.mac.replace(/:/g, '')}">
+            ${clientCount > 0 ? 'Loading clients...' : 'No clients connected'}
+          </div>
+        </div>
+      </div>
+    `;
+
+    return section;
+  }
+
+  /**
+   * Toggle device section expand/collapse
+   */
+  toggleDeviceSection(deviceMAC) {
+    const contentId = `device-content-${deviceMAC.replace(/:/g, '')}`;
+    const content = document.getElementById(contentId);
+    const section = document.getElementById(`device-section-${deviceMAC.replace(/:/g, '')}`);
+    
+    if (!content || !section) return;
+
+    const isExpanded = content.style.display === 'block';
+    content.style.display = isExpanded ? 'none' : 'block';
+    
+    const toggleBtn = section.querySelector('.device-toggle-btn i');
+    if (toggleBtn) {
+      toggleBtn.className = isExpanded ? 'fas fa-chevron-down' : 'fas fa-chevron-up';
+    }
+
+    // Load client list and individual charts if expanding for the first time
+    if (!isExpanded) {
+      this.loadDeviceClients(deviceMAC);
+      this.createIndividualClientCharts(deviceMAC);
+    }
+  }
+
+  /**
+   * Load and display clients for a device
+   */
+  loadDeviceClients(deviceMAC) {
+    const clientsContainer = document.getElementById(`device-clients-${deviceMAC.replace(/:/g, '')}`);
+    if (!clientsContainer) return;
+
+    const connectedClients = this.clients.filter(c => c.connected_ap_mac === deviceMAC);
+
+    if (connectedClients.length === 0) {
+      clientsContainer.innerHTML = '<p class="no-clients">No clients connected</p>';
+      return;
+    }
+
+    clientsContainer.innerHTML = connectedClients.map(client => {
+      const metrics = client.client_metrics || {};
+      const performance = this.calculateClientPerformanceMetrics(metrics);
+      
+      return `
+        <div class="device-client-item">
+          <div class="client-item-icon">
+            <i class="fas fa-${this.getDeviceTypeIcon(client.device_type)}"></i>
+          </div>
+          <div class="client-item-info">
+            <h5>${client.hostname}</h5>
+            <span class="client-mac">${client.mac.substring(0, 17)}</span>
+          </div>
+          <div class="client-item-status">
+            <span class="status-badge ${this.getPerformanceClass(performance.score)}">${this.getPerformanceRating(performance.score)}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  /**
+   * Handle client selection for device chart
+   */
+  /**
+   * Create individual performance charts for each client on a device
+   */
+  createIndividualClientCharts(deviceMAC) {
+    const chartsContainer = document.getElementById(`client-charts-${deviceMAC.replace(/:/g, '')}`);
+    if (!chartsContainer) return;
+
+    const connectedClients = this.clients.filter(c => c.connected_ap_mac === deviceMAC);
+    
+    if (connectedClients.length === 0) {
+      chartsContainer.innerHTML = '<p class="no-clients">No clients connected</p>';
+      return;
+    }
+
+    // Clear container
+    chartsContainer.innerHTML = '';
+
+    // Create individual chart for each client
+    connectedClients.forEach((client, index) => {
+      const clientId = client.mac.replace(/:/g, '');
+      const chartDiv = document.createElement('div');
+      chartDiv.className = 'individual-client-chart-card';
+      chartDiv.innerHTML = `
+        <div class="client-chart-header">
+          <h4>${client.hostname} - Performance Metrics</h4>
+          <span class="client-mac-label">${client.mac.substring(0, 17)}</span>
+        </div>
+        <div class="client-chart-canvas-wrapper">
+          <canvas id="client-individual-chart-${clientId}"></canvas>
+        </div>
+      `;
+      chartsContainer.appendChild(chartDiv);
+
+      // Create the chart
+      this.createSingleClientChart(client, `client-individual-chart-${clientId}`, deviceMAC);
+    });
+  }
+
+  /**
+   * Create chart for a single client showing all 5 metrics
+   */
+  createSingleClientChart(client, canvasId, deviceMAC) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const metrics = client.client_metrics || {};
+    const performance = this.calculateClientPerformanceMetrics(metrics);
+
+    // Destroy existing chart if any
+    const chartKey = `${deviceMAC}-${client.mac}`;
+    if (this.charts[chartKey]) {
+      this.charts[chartKey].destroy();
+    }
+
+    // Generate time series data
+    const timeLabels = this.generateTimeLabels(13);
+    
+    // Create datasets for all 5 metrics
+    const datasets = [
+      {
+        label: 'Score',
+        data: this.generateVariedData(performance.score, 13, 8),
+        borderColor: '#6366f1',
+        backgroundColor: '#6366f1' + '30',
+        borderWidth: 3,
+        tension: 0.4,
+        pointRadius: 3,
+        pointHoverRadius: 6
+      },
+      {
+        label: 'SNR (dB)',
+        data: this.generateVariedData(performance.snr, 13, 4),
+        borderColor: '#10b981',
+        backgroundColor: '#10b981' + '30',
+        borderWidth: 3,
+        tension: 0.4,
+        pointRadius: 3,
+        pointHoverRadius: 6
+      },
+      {
+        label: 'PR (Mbps/10)',
+        data: this.generateVariedData(performance.pr / 10, 13, 20),
+        borderColor: '#f59e0b',
+        backgroundColor: '#f59e0b' + '30',
+        borderWidth: 3,
+        tension: 0.4,
+        pointRadius: 3,
+        pointHoverRadius: 6
+      },
+      {
+        label: 'PER (% × 20)',
+        data: this.generateVariedData(performance.per * 20, 13, 2),
+        borderColor: '#ef4444',
+        backgroundColor: '#ef4444' + '30',
+        borderWidth: 3,
+        tension: 0.4,
+        pointRadius: 3,
+        pointHoverRadius: 6
+      },
+      {
+        label: 'PSY',
+        data: this.generateVariedData(performance.psy, 13, 6),
+        borderColor: '#8b5cf6',
+        backgroundColor: '#8b5cf6' + '30',
+        borderWidth: 3,
+        tension: 0.4,
+        pointRadius: 3,
+        pointHoverRadius: 6
+      }
+    ];
+
+    this.charts[chartKey] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: timeLabels,
+        datasets: datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
+        plugins: {
+          legend: {
+            display: true,
+            position: 'bottom',
+            labels: {
+              usePointStyle: true,
+              padding: 15,
+              font: { size: 11 }
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                let label = context.dataset.label || '';
+                let value = context.parsed.y;
+                
+                // Denormalize for display
+                if (label.includes('PR')) {
+                  value = value * 10;
+                  label = 'PR (Mbps)';
+                } else if (label.includes('PER')) {
+                  value = value / 20;
+                  label = 'PER (%)';
+                }
+                
+                return label + ': ' + value.toFixed(2);
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+            ticks: { font: { size: 10 } }
+          },
+          y: {
+            beginAtZero: true,
+            min: 0,
+            max: 100,
+            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+            title: {
+              display: true,
+              text: 'Normalized Values (0-100)',
+              font: { size: 12, weight: 'bold' }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // Deprecated functions - kept for compatibility
+  createAllClientsChart(deviceMAC) {
+    const canvasId = `client-chart-${deviceMAC.replace(/:/g, '')}`;
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const connectedClients = this.clients.filter(c => c.connected_ap_mac === deviceMAC);
+    
+    if (connectedClients.length === 0) {
+      return;
+    }
+
+    // Destroy existing chart if any
+    const chartKey = `device-chart-${deviceMAC}`;
+    if (this.charts[chartKey]) {
+      this.charts[chartKey].destroy();
+    }
+
+    // Generate time series data
+    const timeLabels = this.generateTimeLabels(13);
+    
+    // Define colors for the 5 metrics
+    const metricColors = {
+      score: '#6366f1',
+      snr: '#10b981',
+      pr: '#f59e0b',
+      per: '#ef4444',
+      psy: '#8b5cf6'
+    };
+    
+    // Create datasets for each client - all 5 metrics per client
+    const datasets = [];
+    
+    connectedClients.forEach((client, clientIndex) => {
+      const metrics = client.client_metrics || {};
+      const performance = this.calculateClientPerformanceMetrics(metrics);
+      
+      // For each metric, create a dataset with client name
+      const clientLabel = client.hostname || `Client ${clientIndex + 1}`;
+      
+      // Score
+      datasets.push({
+        label: `${clientLabel} - Score`,
+        data: this.generateVariedData(performance.score, 13, 8),
+        borderColor: metricColors.score,
+        backgroundColor: metricColors.score + '30',
+        borderWidth: 2,
+        tension: 0.4,
+        pointRadius: 2,
+        pointHoverRadius: 5,
+        borderDash: clientIndex === 0 ? [] : [5, 5]
+      });
+      
+      // SNR
+      datasets.push({
+        label: `${clientLabel} - SNR`,
+        data: this.generateVariedData(performance.snr, 13, 4),
+        borderColor: metricColors.snr,
+        backgroundColor: metricColors.snr + '30',
+        borderWidth: 2,
+        tension: 0.4,
+        pointRadius: 2,
+        pointHoverRadius: 5,
+        borderDash: clientIndex === 0 ? [] : [5, 5]
+      });
+      
+      // PR (normalized)
+      datasets.push({
+        label: `${clientLabel} - PR`,
+        data: this.generateVariedData(performance.pr / 10, 13, 20),
+        borderColor: metricColors.pr,
+        backgroundColor: metricColors.pr + '30',
+        borderWidth: 2,
+        tension: 0.4,
+        pointRadius: 2,
+        pointHoverRadius: 5,
+        borderDash: clientIndex === 0 ? [] : [5, 5]
+      });
+      
+      // PER (normalized)
+      datasets.push({
+        label: `${clientLabel} - PER`,
+        data: this.generateVariedData(performance.per * 20, 13, 2),
+        borderColor: metricColors.per,
+        backgroundColor: metricColors.per + '30',
+        borderWidth: 2,
+        tension: 0.4,
+        pointRadius: 2,
+        pointHoverRadius: 5,
+        borderDash: clientIndex === 0 ? [] : [5, 5]
+      });
+      
+      // PSY
+      datasets.push({
+        label: `${clientLabel} - PSY`,
+        data: this.generateVariedData(performance.psy, 13, 6),
+        borderColor: metricColors.psy,
+        backgroundColor: metricColors.psy + '30',
+        borderWidth: 2,
+        tension: 0.4,
+        pointRadius: 2,
+        pointHoverRadius: 5,
+        borderDash: clientIndex === 0 ? [] : [5, 5]
+      });
+    });
+
+    this.charts[chartKey] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: timeLabels,
+        datasets: datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
+        plugins: {
+          legend: {
+            display: true,
+            position: 'bottom',
+            labels: {
+              usePointStyle: true,
+              padding: 8,
+              font: { size: 10 },
+              boxWidth: 20,
+              boxHeight: 2
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                let label = context.dataset.label || '';
+                let value = context.parsed.y;
+                
+                // Denormalize for display
+                if (label.includes('PR')) {
+                  value = value * 10;
+                } else if (label.includes('PER')) {
+                  value = value / 20;
+                }
+                
+                return label + ': ' + value.toFixed(2);
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+            ticks: { font: { size: 10 } }
+          },
+          y: {
+            beginAtZero: true,
+            min: 0,
+            max: 100,
+            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+            title: {
+              display: true,
+              text: 'Normalized Values (0-100)',
+              font: { size: 12, weight: 'bold' }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // Keep old function for compatibility (not used anymore)
+  onClientSelect(deviceMAC, clientMAC) {
+    // Deprecated - now showing all clients automatically
+  }
+
+  /**
+   * Create combined performance chart for selected client (deprecated)
+   */
+  createDeviceClientChart(deviceMAC, client) {
+    const canvasId = `client-chart-${deviceMAC.replace(/:/g, '')}`;
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const metrics = client.client_metrics || {};
+    const performance = this.calculateClientPerformanceMetrics(metrics);
+
+    // Destroy existing chart if any
+    const chartKey = `device-chart-${deviceMAC}`;
+    if (this.charts[chartKey]) {
+      this.charts[chartKey].destroy();
+    }
+
+    // Generate time series data
+    const timeLabels = this.generateTimeLabels(13);
+    
+    // Create datasets for all 5 metrics (normalized to 0-100)
+    const datasets = [
+      {
+        label: 'Score',
+        data: this.generateVariedData(performance.score, 13, 8),
+        borderColor: '#6366f1',
+        backgroundColor: '#6366f1' + '30',
+        borderWidth: 3,
+        tension: 0.4,
+        pointRadius: 3,
+        pointHoverRadius: 6
+      },
+      {
+        label: 'SNR (dB)',
+        data: this.generateVariedData(performance.snr, 13, 4),
+        borderColor: '#10b981',
+        backgroundColor: '#10b981' + '30',
+        borderWidth: 3,
+        tension: 0.4,
+        pointRadius: 3,
+        pointHoverRadius: 6
+      },
+      {
+        label: 'PR (Mbps/10)',
+        data: this.generateVariedData(performance.pr / 10, 13, 20),
+        borderColor: '#f59e0b',
+        backgroundColor: '#f59e0b' + '30',
+        borderWidth: 3,
+        tension: 0.4,
+        pointRadius: 3,
+        pointHoverRadius: 6
+      },
+      {
+        label: 'PER (% × 20)',
+        data: this.generateVariedData(performance.per * 20, 13, 2),
+        borderColor: '#ef4444',
+        backgroundColor: '#ef4444' + '30',
+        borderWidth: 3,
+        tension: 0.4,
+        pointRadius: 3,
+        pointHoverRadius: 6
+      },
+      {
+        label: 'PSY',
+        data: this.generateVariedData(performance.psy, 13, 6),
+        borderColor: '#8b5cf6',
+        backgroundColor: '#8b5cf6' + '30',
+        borderWidth: 3,
+        tension: 0.4,
+        pointRadius: 3,
+        pointHoverRadius: 6
+      }
+    ];
+
+    this.charts[chartKey] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: timeLabels,
+        datasets: datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
+        plugins: {
+          legend: {
+            display: true,
+            position: 'bottom',
+            labels: {
+              usePointStyle: true,
+              padding: 15,
+              font: { size: 12 }
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                let label = context.dataset.label || '';
+                let value = context.parsed.y;
+                
+                // Denormalize for display
+                if (label.includes('PR')) {
+                  value = value * 10;
+                  label = 'PR (Mbps)';
+                } else if (label.includes('PER')) {
+                  value = value / 20;
+                  label = 'PER (%)';
+                }
+                
+                return label + ': ' + value.toFixed(2);
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+            ticks: { font: { size: 10 } }
+          },
+          y: {
+            beginAtZero: true,
+            min: 0,
+            max: 100,
+            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+            title: {
+              display: true,
+              text: 'Normalized Values (0-100)',
+              font: { size: 12, weight: 'bold' }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  /**
+   * Calculate performance metrics from client metrics
+   */
+  calculateClientPerformanceMetrics(metrics) {
+    // Score
+    const rssiScore = this.normalizeRSSI(metrics.rssi_dbm || -70);
+    const snrScore = (metrics.snr_db || 0) / 60 * 100;
+    const rateScore = Math.min((Math.max(metrics.tx_rate_mbps || 0, metrics.rx_rate_mbps || 0)) / 2000 * 100, 100);
+    const lossScore = Math.max(100 - (metrics.packet_loss_percent || 0) * 100, 0);
+    const score = Math.round(rssiScore * 0.3 + snrScore * 0.3 + rateScore * 0.2 + lossScore * 0.2);
+    
+    // SNR
+    const snr = metrics.snr_db || 0;
+    
+    // Physical Rate
+    const pr = Math.max(metrics.tx_rate_mbps || 0, metrics.rx_rate_mbps || 0);
+    
+    // Packet Error Rate
+    const per = metrics.packet_loss_percent || 0;
+    
+    // PSY
+    const snrComponent = (metrics.snr_db || 0) / 60 * 50;
+    const spatialStreams = (metrics.spatial_streams || 1) / 2 * 25;
+    const channelWidth = (metrics.channel_width_mhz || 20) / 160 * 25;
+    const psy = Math.round(Math.min(snrComponent + spatialStreams + channelWidth, 100));
+    
+    return { score, snr, pr, per, psy };
+  }
+
+  normalizeRSSI(rssi) {
+    const min = -90;
+    const max = -30;
+    return Math.max(0, Math.min(100, ((rssi - min) / (max - min)) * 100));
+  }
+
+  /**
+   * Generate varied time series data
+   */
+  generateVariedData(baseValue, points, variation) {
+    const data = [];
+    for (let i = 0; i < points; i++) {
+      const vary = (Math.random() - 0.5) * variation;
+      data.push(Math.max(0, Math.min(100, baseValue + vary)));
+    }
+    return data;
+  }
+
+  /**
+   * Generate time labels
+   */
+  generateTimeLabels(count) {
+    const labels = [];
+    const now = new Date();
+    const interval = 60 / count;
+    
+    for (let i = count - 1; i >= 0; i--) {
+      const time = new Date(now.getTime() - i * interval * 60000);
+      labels.push(time.toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true 
+      }));
+    }
+    
+    return labels;
+  }
+
+  getPerformanceClass(score) {
+    if (score >= 80) return 'excellent';
+    if (score >= 60) return 'good';
+    if (score >= 40) return 'fair';
+    return 'poor';
+  }
+
+  getPerformanceRating(score) {
+    if (score >= 80) return 'EXCELLENT';
+    if (score >= 60) return 'GOOD';
+    if (score >= 40) return 'FAIR';
+    return 'POOR';
+  }
+
   createDeviceCard(device) {
     const card = document.createElement('div');
     card.className = 'device-card';
@@ -2135,7 +2862,17 @@ async handleWebSocketMessage(data) {
     this.showNotification(`Open configuration for ${mac}`, 'info');
   }
   showClientDetails(mac) {
-    this.showNotification(`Show client details: ${mac}`, 'info');
+    const client = this.clients.find(c => c.mac === mac);
+    if (!client) {
+      this.showNotification(`Client not found: ${mac}`, 'error');
+      return;
+    }
+    
+    if (!this.clientDetailsViewer) {
+      this.clientDetailsViewer = new ClientDetailsViewer();
+    }
+    
+    this.clientDetailsViewer.show(client);
   }
   disconnectClient(mac) {
     this.showNotification(`Disconnect requested for ${mac}`, 'warning');
@@ -2301,7 +3038,42 @@ async handleWebSocketMessage(data) {
   }
 
   // ---- Tab-specific loaders (safe stubs) ----
-  async loadPerformanceData() { /* fetch & update performance tab */ }
+  async loadPerformanceData() { 
+    // Update statistics cards
+    this.updatePerformanceStats();
+    
+    // Initialize client performance monitor when performance tab is shown
+    if (!this.clientPerformanceMonitor) {
+      this.clientPerformanceMonitor = new ClientPerformanceMonitor(this.clients, this.devices);
+      await this.clientPerformanceMonitor.init();
+    } else {
+      this.clientPerformanceMonitor.updateClients(this.clients, this.devices);
+    }
+    
+    // Populate device sections for client selection (P2/P3 design)
+    this.updatePerformanceDevices();
+  }
+
+  /**
+   * Update performance statistics cards
+   */
+  updatePerformanceStats() {
+    // Active Devices
+    const activeDevices = this.devices.filter(d => d.status === 'Online').length;
+    const totalDevices = this.devices.length;
+    this.updateElement('perf-active-devices', `${activeDevices}/${totalDevices}`);
+    
+    // Connected Clients
+    const connectedClients = this.clients.length;
+    this.updateElement('perf-connected-clients', connectedClients);
+    
+    // Active Alarms (placeholder - would need real alarm data)
+    this.updateElement('perf-active-alarms', '0');
+    
+    // Network Health
+    const healthScore = this.calculateNetworkHealth();
+    this.updateElement('perf-network-health', `${Math.round(healthScore)}%`);
+  }
   async loadInterferenceData() { /* fetch & update interference tab */ }
   async loadSecurityData() { /* fetch & update security tab */ }
   async loadFirmwareStatus() { /* fetch & update firmware tab */ }
@@ -2379,6 +3151,757 @@ async handleWebSocketMessage(data) {
     console.error("Reset failed:", error);
     alert(`Failed to reset Wi-Fi configuration:\n${error.message}`);
   }
+
+
+
+/**
+ * Client Details Viewer Class
+ * Shows detailed performance metrics for a single client in a modal
+ */
+class ClientDetailsViewer {
+  constructor() {
+    this.chart = null;
+    this.currentClient = null;
+    this.colors = {
+      score: '#6366f1',
+      snr: '#10b981',
+      pr: '#f59e0b',
+      per: '#ef4444',
+      psy: '#8b5cf6'
+    };
+  }
+  
+  show(client) {
+    this.currentClient = client;
+    const modal = document.getElementById('client-details-modal');
+    if (!modal) return;
+    
+    // Populate client header
+    this.populateHeader(client);
+    
+    // Calculate and display performance metrics
+    const metrics = this.calculatePerformanceMetrics(client);
+    this.displayMetricCards(metrics);
+    
+    // Display additional info
+    this.displayAdditionalInfo(client);
+    
+    // Create combined chart
+    this.createCombinedChart(metrics);
+    
+    // Show modal
+    modal.classList.add('active');
+  }
+  
+  populateHeader(client) {
+    document.getElementById('client-modal-title').textContent = 
+      `${client.hostname || 'Unknown Device'} - Performance Details`;
+    document.getElementById('client-detail-name').textContent = 
+      client.hostname || 'Unknown Device';
+    document.getElementById('client-detail-mac').textContent = client.mac;
+    document.getElementById('client-detail-ip').textContent = 
+      client.ip_address || 'N/A';
+    document.getElementById('client-detail-status').textContent = 'Connected';
+  }
+  
+  calculatePerformanceMetrics(client) {
+    const m = client.client_metrics || {};
+    
+    // Score calculation
+    const rssiScore = this.normalizeRSSI(m.rssi_dbm || -70);
+    const snrScore = (m.snr_db || 0) / 60 * 100;
+    const rateScore = Math.min((Math.max(m.tx_rate_mbps || 0, m.rx_rate_mbps || 0)) / 2000 * 100, 100);
+    const lossScore = Math.max(100 - (m.packet_loss_percent || 0) * 100, 0);
+    const score = Math.round(rssiScore * 0.3 + snrScore * 0.3 + rateScore * 0.2 + lossScore * 0.2);
+    
+    // SNR
+    const snr = m.snr_db || 0;
+    
+    // Physical Rate (PR)
+    const pr = Math.max(m.tx_rate_mbps || 0, m.rx_rate_mbps || 0);
+    
+    // Packet Error Rate (PER)
+    const per = m.packet_loss_percent || 0;
+    
+    // Physical Layer Performance (PSY)
+    const snrComponent = (m.snr_db || 0) / 60 * 50;
+    const spatialStreams = (m.spatial_streams || 1) / 2 * 25;
+    const channelWidth = (m.channel_width_mhz || 20) / 160 * 25;
+    const psy = Math.round(Math.min(snrComponent + spatialStreams + channelWidth, 100));
+    
+    return { score, snr, pr, per, psy };
+  }
+  
+  normalizeRSSI(rssi) {
+    const min = -90;
+    const max = -30;
+    return Math.max(0, Math.min(100, ((rssi - min) / (max - min)) * 100));
+  }
+  
+  displayMetricCards(metrics) {
+    // Score
+    document.getElementById('client-score-value').textContent = metrics.score;
+    const scoreTrend = document.getElementById('client-score-trend');
+    scoreTrend.textContent = this.getScoreRating(metrics.score);
+    scoreTrend.className = 'metric-trend ' + (metrics.score >= 70 ? 'up' : 'down');
+    
+    // SNR
+    document.getElementById('client-snr-value').textContent = metrics.snr.toFixed(1);
+    
+    // PR
+    document.getElementById('client-pr-value').textContent = metrics.pr.toFixed(0);
+    
+    // PER
+    document.getElementById('client-per-value').textContent = metrics.per.toFixed(2);
+    
+    // PSY
+    document.getElementById('client-psy-value').textContent = metrics.psy;
+    const psyTrend = document.getElementById('client-psy-trend');
+    psyTrend.textContent = this.getPSYRating(metrics.psy);
+    psyTrend.className = 'metric-trend ' + (metrics.psy >= 70 ? 'up' : 'down');
+  }
+  
+  getScoreRating(score) {
+    if (score >= 80) return 'Excellent';
+    if (score >= 60) return 'Good';
+    if (score >= 40) return 'Fair';
+    return 'Poor';
+  }
+  
+  getPSYRating(psy) {
+    if (psy >= 80) return 'Excellent';
+    if (psy >= 60) return 'Good';
+    if (psy >= 40) return 'Fair';
+    return 'Poor';
+  }
+  
+  displayAdditionalInfo(client) {
+    const m = client.client_metrics || {};
+    const cap = client.capabilities || {};
+    
+    // Connection details
+    document.getElementById('client-ap').textContent = 
+      client.connected_ap_mac || 'Unknown';
+    document.getElementById('client-band').textContent = 
+      this.determineBand(m.channel_width_mhz);
+    document.getElementById('client-channel').textContent = 
+      `${m.channel_width_mhz || 'N/A'} MHz`;
+    document.getElementById('client-connection-time').textContent = 
+      m.connection_duration || 'N/A';
+    
+    // Capabilities
+    const standards = cap.wifi_standards || [];
+    document.getElementById('client-wifi-standard').textContent = 
+      standards.length > 0 ? standards[0] : 'N/A';
+    document.getElementById('client-streams').textContent = 
+      `${m.spatial_streams || 1}x${m.spatial_streams || 1}`;
+    document.getElementById('client-channel-width').textContent = 
+      `${m.channel_width_mhz || 20} MHz`;
+    document.getElementById('client-security').textContent = 
+      client.auth_method || 'N/A';
+  }
+  
+  determineBand(channelWidth) {
+    if (channelWidth >= 160) return '6 GHz';
+    if (channelWidth >= 80) return '5 GHz';
+    return '2.4 GHz';
+  }
+  
+  createCombinedChart(metrics) {
+    const canvas = document.getElementById('client-detail-chart');
+    if (!canvas) return;
+    
+    // Destroy existing chart
+    if (this.chart) {
+      this.chart.destroy();
+    }
+    
+    const ctx = canvas.getContext('2d');
+    
+    // Generate time series data for all metrics
+    const timeLabels = this.generateTimeLabels();
+    const datasets = [
+      {
+        label: 'Score (0-100)',
+        data: this.generateMetricData(metrics.score, 'score'),
+        borderColor: this.colors.score,
+        backgroundColor: this.colors.score + '20',
+        yAxisID: 'y',
+        borderWidth: 2,
+        tension: 0.4,
+        pointRadius: 3,
+        pointHoverRadius: 6
+      },
+      {
+        label: 'SNR (dB)',
+        data: this.generateMetricData(metrics.snr, 'snr'),
+        borderColor: this.colors.snr,
+        backgroundColor: this.colors.snr + '20',
+        yAxisID: 'y',
+        borderWidth: 2,
+        tension: 0.4,
+        pointRadius: 3,
+        pointHoverRadius: 6
+      },
+      {
+        label: 'PR (Mbps / 10)',
+        data: this.generateMetricData(metrics.pr / 10, 'pr'),
+        borderColor: this.colors.pr,
+        backgroundColor: this.colors.pr + '20',
+        yAxisID: 'y',
+        borderWidth: 2,
+        tension: 0.4,
+        pointRadius: 3,
+        pointHoverRadius: 6
+      },
+      {
+        label: 'PER (%) x 20',
+        data: this.generateMetricData(metrics.per * 20, 'per'),
+        borderColor: this.colors.per,
+        backgroundColor: this.colors.per + '20',
+        yAxisID: 'y',
+        borderWidth: 2,
+        tension: 0.4,
+        pointRadius: 3,
+        pointHoverRadius: 6
+      },
+      {
+        label: 'PSY (0-100)',
+        data: this.generateMetricData(metrics.psy, 'psy'),
+        borderColor: this.colors.psy,
+        backgroundColor: this.colors.psy + '20',
+        yAxisID: 'y',
+        borderWidth: 2,
+        tension: 0.4,
+        pointRadius: 3,
+        pointHoverRadius: 6
+      }
+    ];
+    
+    this.chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: timeLabels,
+        datasets: datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
+        plugins: {
+          legend: {
+            display: true,
+            position: 'bottom',
+            labels: {
+              usePointStyle: true,
+              padding: 15,
+              font: {
+                size: 12
+              }
+            }
+          },
+          tooltip: {
+            enabled: true,
+            callbacks: {
+              label: function(context) {
+                let label = context.dataset.label || '';
+                if (label) {
+                  label += ': ';
+                }
+                let value = context.parsed.y;
+                
+                // Denormalize values for display
+                if (label.includes('PR')) {
+                  value = value * 10;
+                  label = label.replace(' / 10', '');
+                } else if (label.includes('PER')) {
+                  value = value / 20;
+                  label = label.replace(' x 20', '');
+                }
+                
+                label += value.toFixed(2);
+                return label;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: {
+              color: 'rgba(0, 0, 0, 0.05)'
+            },
+            ticks: {
+              font: {
+                size: 10
+              }
+            }
+          },
+          y: {
+            beginAtZero: true,
+            min: 0,
+            max: 100,
+            grid: {
+              color: 'rgba(0, 0, 0, 0.05)'
+            },
+            title: {
+              display: true,
+              text: 'Normalized Values (0-100)',
+              font: {
+                size: 13,
+                weight: 'bold'
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+  
+  generateTimeLabels() {
+    const labels = [];
+    const now = new Date();
+    
+    for (let i = 60; i >= 0; i -= 5) {
+      const time = new Date(now.getTime() - i * 60000);
+      labels.push(time.toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true 
+      }));
+    }
+    
+    return labels;
+  }
+  
+  generateMetricData(baseValue, metric) {
+    const data = [];
+    const points = 13;
+    
+    for (let i = 0; i < points; i++) {
+      let variation;
+      
+      switch(metric) {
+        case 'score':
+        case 'psy':
+          variation = (Math.random() - 0.5) * 8;
+          data.push(Math.max(0, Math.min(100, baseValue + variation)));
+          break;
+        case 'snr':
+          variation = (Math.random() - 0.5) * 4;
+          data.push(Math.max(0, Math.min(100, baseValue + variation)));
+          break;
+        case 'pr':
+          variation = (Math.random() - 0.5) * 20;
+          data.push(Math.max(0, Math.min(300, baseValue + variation)));
+          break;
+        case 'per':
+          variation = (Math.random() - 0.5) * 2;
+          data.push(Math.max(0, Math.min(100, baseValue + variation)));
+          break;
+        default:
+          data.push(baseValue);
+      }
+    }
+    
+    return data;
+  }
+}
+
+/**
+ * Client Performance Monitor Class
+ * Handles Score, SNR, PR, PER, PSY metrics visualization
+ */
+class ClientPerformanceMonitor {
+  constructor(clients, devices) {
+    this.chart = null;
+    this.clients = clients || [];
+    this.devices = devices || [];
+    this.currentMetric = 'score';
+    this.selectedDevice = 'all';
+    this.colors = [
+      '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
+      '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1',
+      '#14b8a6', '#a855f7', '#eab308', '#22c55e', '#f43f5e'
+    ];
+    
+    // Metric configurations
+    this.metricConfig = {
+      score: {
+        title: 'Performance Score Over Time',
+        yLabel: 'Score',
+        unit: '',
+        min: 0,
+        max: 100
+      },
+      snr: {
+        title: 'Signal-to-Noise Ratio (SNR) Over Time',
+        yLabel: 'SNR (dB)',
+        unit: ' dB',
+        min: 0,
+        max: 80
+      },
+      pr: {
+        title: 'Physical Rate (PR) Over Time',
+        yLabel: 'Physical Rate (Mbps)',
+        unit: ' Mbps',
+        min: 0,
+        max: 3000
+      },
+      per: {
+        title: 'Packet Error Rate (PER) Over Time',
+        yLabel: 'PER (%)',
+        unit: '%',
+        min: 0,
+        max: 5
+      },
+      psy: {
+        title: 'Physical Layer Performance (PSY) Over Time',
+        yLabel: 'PSY',
+        unit: '',
+        min: 0,
+        max: 100
+      }
+    };
+  }
+  
+  async init() {
+    // Enhance client data with performance metrics
+    this.enhanceClientData();
+    
+    // Setup event listeners
+    this.setupEventListeners();
+    
+    // Populate device filter
+    this.populateDeviceFilter();
+    
+    // Initialize chart
+    this.createChart();
+  }
+  
+  updateClients(clients, devices) {
+    this.clients = clients;
+    this.devices = devices || this.devices;
+    this.enhanceClientData();
+    this.populateDeviceFilter();
+    if (this.chart) {
+      this.updateChart();
+    }
+  }
+  
+  enhanceClientData() {
+    this.clients = this.clients.map((client, index) => ({
+      ...client,
+      color: this.colors[index % this.colors.length],
+      performance_metrics: this.calculatePerformanceMetrics(client)
+    }));
+  }
+  
+  calculatePerformanceMetrics(client) {
+    const metrics = client.client_metrics || {};
+    
+    // Calculate Performance Score (0-100)
+    const score = this.calculateScore(metrics);
+    
+    // SNR already exists
+    const snr = metrics.snr_db || 0;
+    
+    // Physical Rate (PR) - use max of tx/rx rate
+    const pr = Math.max(metrics.tx_rate_mbps || 0, metrics.rx_rate_mbps || 0);
+    
+    // Packet Error Rate (PER) - convert packet loss to percentage
+    const per = metrics.packet_loss_percent || 0;
+    
+    // Physical Layer Performance (PSY) - composite metric
+    const psy = this.calculatePSY(metrics);
+    
+    return { score, snr, pr, per, psy };
+  }
+  
+  calculateScore(metrics) {
+    // Calculate overall performance score based on multiple factors
+    const rssiScore = this.normalizeRSSI(metrics.rssi_dbm || -70);
+    const snrScore = (metrics.snr_db || 0) / 60 * 100;
+    const rateScore = Math.min((Math.max(metrics.tx_rate_mbps || 0, metrics.rx_rate_mbps || 0)) / 2000 * 100, 100);
+    const lossScore = Math.max(100 - (metrics.packet_loss_percent || 0) * 100, 0);
+    
+    return Math.round(
+      rssiScore * 0.3 +
+      snrScore * 0.3 +
+      rateScore * 0.2 +
+      lossScore * 0.2
+    );
+  }
+  
+  normalizeRSSI(rssi) {
+    const min = -90;
+    const max = -30;
+    return Math.max(0, Math.min(100, ((rssi - min) / (max - min)) * 100));
+  }
+  
+  calculatePSY(metrics) {
+    const snrComponent = (metrics.snr_db || 0) / 60 * 50;
+    const spatialStreams = (metrics.spatial_streams || 1) / 2 * 25;
+    const channelWidth = (metrics.channel_width_mhz || 20) / 160 * 25;
+    
+    return Math.round(Math.min(snrComponent + spatialStreams + channelWidth, 100));
+  }
+  
+  setupEventListeners() {
+    // Metric tab switching
+    document.querySelectorAll('.performance-metric-tab').forEach(tab => {
+      tab.addEventListener('click', (e) => {
+        const metric = e.target.dataset.metric;
+        this.switchMetric(metric);
+      });
+    });
+    
+    // Device filter
+    const deviceFilter = document.getElementById('performance-device-filter');
+    if (deviceFilter) {
+      deviceFilter.addEventListener('change', (e) => {
+        this.selectedDevice = e.target.value;
+        this.updateChart();
+      });
+    }
+  }
+  
+  populateDeviceFilter() {
+    const select = document.getElementById('performance-device-filter');
+    if (!select) return;
+    
+    select.innerHTML = '<option value="all">All Devices</option>';
+    
+    // Populate with devices (agents) instead of clients
+    this.devices.forEach(device => {
+      const clientCount = this.clients.filter(c => c.connected_ap_mac === device.mac).length;
+      const option = document.createElement('option');
+      option.value = device.mac;
+      option.textContent = `${device.vendor} ${device.model} (${clientCount} clients)`;
+      select.appendChild(option);
+    });
+  }
+  
+  switchMetric(metric) {
+    this.currentMetric = metric;
+    
+    // Update active tab
+    document.querySelectorAll('.performance-metric-tab').forEach(tab => {
+      tab.classList.remove('active');
+      if (tab.dataset.metric === metric) {
+        tab.classList.add('active');
+      }
+    });
+    
+    // Update chart
+    this.updateChart();
+  }
+  
+  createChart() {
+    const canvas = document.getElementById('client-performance-chart');
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    const config = this.metricConfig[this.currentMetric];
+    
+    this.chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: this.generateTimeLabels(),
+        datasets: this.generateDatasets()
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            enabled: true,
+            callbacks: {
+              label: function(context) {
+                let label = context.dataset.label || '';
+                if (label) {
+                  label += ': ';
+                }
+                const value = context.parsed.y;
+                const unit = context.dataset.unit || '';
+                label += value.toFixed(2) + unit;
+                return label;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: {
+              color: 'rgba(0, 0, 0, 0.05)'
+            },
+            ticks: {
+              font: {
+                size: 11
+              }
+            }
+          },
+          y: {
+            beginAtZero: true,
+            min: config.min,
+            max: config.max,
+            grid: {
+              color: 'rgba(0, 0, 0, 0.05)'
+            },
+            title: {
+              display: true,
+              text: config.yLabel,
+              font: {
+                size: 13,
+                weight: 'bold'
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    this.updateChartTitle();
+    this.updateLegend();
+  }
+  
+  updateChart() {
+    if (!this.chart) return;
+    
+    const config = this.metricConfig[this.currentMetric];
+    
+    this.chart.data.datasets = this.generateDatasets();
+    this.chart.options.scales.y.min = config.min;
+    this.chart.options.scales.y.max = config.max;
+    this.chart.options.scales.y.title.text = config.yLabel;
+    
+    this.chart.update();
+    this.updateChartTitle();
+    this.updateLegend();
+  }
+  
+  updateChartTitle() {
+    const config = this.metricConfig[this.currentMetric];
+    const titleEl = document.getElementById('performance-chart-title');
+    if (titleEl) {
+      titleEl.textContent = config.title;
+    }
+  }
+  
+  generateTimeLabels() {
+    const labels = [];
+    const now = new Date();
+    
+    for (let i = 60; i >= 0; i -= 5) {
+      const time = new Date(now.getTime() - i * 60000);
+      labels.push(time.toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true 
+      }));
+    }
+    
+    return labels;
+  }
+  
+  generateDatasets() {
+    // Filter clients by selected device (agent)
+    const filteredClients = this.selectedDevice === 'all' 
+      ? this.clients 
+      : this.clients.filter(c => c.connected_ap_mac === this.selectedDevice);
+    
+    const config = this.metricConfig[this.currentMetric];
+    
+    return filteredClients.map(client => {
+      const baseValue = client.performance_metrics[this.currentMetric];
+      const data = this.generateMetricData(baseValue, this.currentMetric);
+      
+      return {
+        label: `${client.hostname} (${client.mac.substring(0, 17)}): ${baseValue.toFixed(2)}${config.unit}`,
+        data: data,
+        borderColor: client.color,
+        backgroundColor: client.color + '20',
+        borderWidth: 2,
+        tension: 0.4,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        unit: config.unit
+      };
+    });
+  }
+  
+  generateMetricData(baseValue, metric) {
+    const data = [];
+    const points = 13;
+    
+    for (let i = 0; i < points; i++) {
+      let variation;
+      
+      switch(metric) {
+        case 'score':
+          variation = (Math.random() - 0.5) * 10;
+          data.push(Math.max(0, Math.min(100, baseValue + variation)));
+          break;
+        case 'snr':
+          variation = (Math.random() - 0.5) * 5;
+          data.push(Math.max(0, baseValue + variation));
+          break;
+        case 'pr':
+          variation = (Math.random() - 0.5) * 200;
+          data.push(Math.max(0, baseValue + variation));
+          break;
+        case 'per':
+          variation = (Math.random() - 0.5) * 0.1;
+          data.push(Math.max(0, Math.min(5, baseValue + variation)));
+          break;
+        case 'psy':
+          variation = (Math.random() - 0.5) * 8;
+          data.push(Math.max(0, Math.min(100, baseValue + variation)));
+          break;
+        default:
+          data.push(baseValue);
+      }
+    }
+    
+    return data;
+  }
+  
+  updateLegend() {
+    const legendContainer = document.getElementById('performance-legend-items');
+    if (!legendContainer) return;
+    
+    legendContainer.innerHTML = '';
+    
+    const filteredClients = this.selectedDevice === 'all' 
+      ? this.clients 
+      : this.clients.filter(c => c.mac === this.selectedDevice);
+    
+    const config = this.metricConfig[this.currentMetric];
+    
+    filteredClients.forEach(client => {
+      const item = document.createElement('div');
+      item.className = 'performance-legend-item';
+      
+      const value = client.performance_metrics[this.currentMetric];
+      
+      item.innerHTML = `
+        <div class="performance-legend-color" style="background: ${client.color}"></div>
+        <span><strong>${client.hostname}</strong> (${client.mac.substring(0, 17)}): ${value.toFixed(2)}${config.unit}</span>
+      `;
+      
+      legendContainer.appendChild(item);
+    });
+  }
+}
 
   // -------- Global helpers for HTML onclick handlers --------
   function closeModal(modalId) {
