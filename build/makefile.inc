@@ -38,3 +38,4 @@ CC ?= gcc
 AR ?= ar cr
 RM = -rm -rf
 CP = cp
+CXXFLAGS += -D_PLATFORM_RASPBERRYPI_

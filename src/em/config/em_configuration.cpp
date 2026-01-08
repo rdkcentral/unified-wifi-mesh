@@ -1792,6 +1792,11 @@ int em_configuration_t::handle_eht_operations_tlv(unsigned char *buff)
 
     dm = get_data_model();
 
+    // 32 octets are reserved for future use, so skip 32 octets
+    short reserved_octets = 32;
+    tmp += reserved_octets;
+    len += reserved_octets;
+
     memcpy(&num_radios, tmp, sizeof(unsigned char));
     
     if (num_radios > EM_MAX_RADIO_PER_AGENT) {
@@ -1824,6 +1829,10 @@ int em_configuration_t::handle_eht_operations_tlv(unsigned char *buff)
             tmp += sizeof(em_eht_operations_bss_t);
             len += static_cast<short> (sizeof(em_eht_operations_bss_t));
         }
+        // 25 octets are reserved for future use in radio, so skip 25 octets
+        short radio_reserved_octets = 25;
+        tmp += radio_reserved_octets;
+        len += radio_reserved_octets;
     }
 
     bool found_radio = false;
@@ -1856,7 +1865,6 @@ int em_configuration_t::handle_eht_operations_tlv(unsigned char *buff)
             memcpy(&dm->m_bss[l].get_bss_info()->eht_ops, &eht_ops.radios[i].bss[k], sizeof(em_eht_operations_bss_t));
         }
     }
-
     return 0;
 }
 
@@ -4662,7 +4670,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     unsigned int size = 0, cipher_len, plain_len;
     unsigned char iv[AES_BLOCK_SIZE];
     unsigned char plain[MAX_EM_BUFF_SZ];
-    unsigned short auth_type = 0x0200; // WPA3-Personal
+    unsigned short auth_type;
     unsigned char hash[SHA256_MAC_LEN];
     unsigned char *keywrap_data_addr[1];
     size_t keywrap_data_length[1];
@@ -4672,7 +4680,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     len = 0;
 
     dm_easy_mesh_t *dm = get_data_model();
-    unsigned int no_of_haultype = 0, radio_exists, i;
+    unsigned int radio_exists, i;
     dm_radio_t * radio = NULL;
 
     for (i = 0; i < dm->get_num_radios(); i++) {
@@ -4704,6 +4712,14 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
         // support for 6Ghz, Hence settings default authentication type.
         auth_type = EM_AUTH_WPA3_PERSONAL;
     }
+
+#if defined(_PLATFORM_RASPBERRYPI_)
+    // For Raspberry Pi, we need to use WPA3 Transition mode instead of WPA3 Personal
+    // as Raspberry Pi supplicant version does not have full support of WPA3 Personal.
+    if (auth_type == EM_AUTH_WPA3_PERSONAL) {
+        auth_type = EM_AUTH_WPA3_TRANSITION;
+    }
+#endif
 
     // Add vendor extension for haul type
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
