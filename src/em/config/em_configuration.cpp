@@ -1960,8 +1960,19 @@ unsigned short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_ty
     unsigned char *tmp;
     tmp = buff;
     em_freq_band_t rf_band;
-	char *str;
+    char *str;
+    em_network_ssid_info_t *net_ssid_info;
  
+    if ((net_ssid_info = get_network_ssid_info_by_haul_type(haul_type)) == NULL) {
+        em_printfout("Could not find network ssid information for haul type %d", haul_type);
+        return 0;
+    }
+
+    // skipping the m2 msg if haultype if diabled
+    if(net_ssid_info->enable == false) {
+        return 0;
+    }
+
     // version
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_version);
@@ -3278,7 +3289,7 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
         tlv->type = em_tlv_type_wsc;
         sz = create_m2_msg(tlv->value, static_cast<em_haul_type_t> (i));
         if (sz == 0) {
-            em_printfout("Not adding haul_type: %d as size returned is 0", i);
+            em_printfout("skipping M2 for haul_type: %d as it's disable, Return value: %d", i, sz);
             continue;
         }
         tlv->len = htons(sz);
