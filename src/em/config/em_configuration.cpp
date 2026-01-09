@@ -3906,6 +3906,7 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count)
                 memcpy(radioconfig.radio_mac[wsc_index], get_radio_interface_mac(), sizeof(mac_address_t));
             } else if (id == attr_id_auth_type) {
                 memcpy(reinterpret_cast<char *> (&auth_type), reinterpret_cast<unsigned char *> (attr->val), htons(attr->len));
+                auth_type = ntohs(auth_type);
                 radioconfig.authtype[wsc_index] = static_cast<unsigned int>(auth_type);
                 em_printfout("##authtype[%d]: %x", wsc_index, radioconfig.authtype[wsc_index]);
             } else if (id == attr_id_encryption_type) {
@@ -4662,7 +4663,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     unsigned int size = 0, cipher_len, plain_len;
     unsigned char iv[AES_BLOCK_SIZE];
     unsigned char plain[MAX_EM_BUFF_SZ];
-    unsigned short auth_type = 0x0200; // WPA3-Personal
+    unsigned short auth_type, encr_type;
     unsigned char hash[SHA256_MAC_LEN];
     unsigned char *keywrap_data_addr[1];
     size_t keywrap_data_length[1];
@@ -4732,7 +4733,20 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     attr->id = htons(attr_id_auth_type);
     size = sizeof(auth_type);
     attr->len = htons(static_cast<short unsigned int> (size));
+    auth_type = htons(auth_type);
     memcpy(reinterpret_cast<char *> (attr->val), reinterpret_cast<unsigned char *> (&auth_type), size);
+
+    len += static_cast<short> (sizeof(data_elem_attr_t) + size);
+    tmp += (sizeof(data_elem_attr_t) + size);
+
+    // encr type
+    encr_type = EM_ENCR_AES;
+    attr = reinterpret_cast<data_elem_attr_t *> (tmp);
+    attr->id = htons(attr_id_encryption_type);
+    size = sizeof(encr_type);
+    attr->len = htons(static_cast<short unsigned int> (size));
+    encr_type = htons(encr_type);
+    memcpy(reinterpret_cast<char *> (attr->val), reinterpret_cast<unsigned char *> (&encr_type), size);
 
     len += static_cast<short> (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
