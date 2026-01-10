@@ -43,6 +43,8 @@ void em_orch_ctrl_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 {
     em_cmd_stats_t *stats;
     em_short_string_t key;
+    em_ctrl_t *ctrl = static_cast<em_ctrl_t *>(m_mgr);
+    std::vector<em_t*> em_radios;
 
     snprintf(key, sizeof(em_short_string_t), "%d", pcmd->get_type());
 
@@ -55,6 +57,16 @@ void em_orch_ctrl_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 	
 	switch (pcmd->m_type) {
 		case em_cmd_type_em_config:
+            if ((pcmd->get_orch_op() == dm_orch_type_topo_sync) && (em->get_state() == em_state_ctrl_misconfigured)) {
+                    em_printfout("Orchestration transient:%s(%s), em state:%s\n",
+                                           em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
+                                           em_t::state_2_str(em->get_state()));
+                    em_printfout("Canceling cmd: %s because of misconfiguration", pcmd->get_cmd_name());
+                    ctrl->get_all_em_for_al_mac(em->get_data_model()->get_device()->get_dev_interface_mac(), em_radios);
+                    cancel_command(pcmd->get_type(), em_radios);
+                    ctrl->start_complete();
+                    em_radios.clear();
+            }
     		if (stats->time > (EM_MAX_CMD_GEN_TTL + EM_MAX_CMD_EXT_TTL)) {
         		printf("%s:%d: Canceling cmd: %s because time limit exceeded\n", __func__, __LINE__, pcmd->get_cmd_name());
         		cancel_command(pcmd->get_type());
