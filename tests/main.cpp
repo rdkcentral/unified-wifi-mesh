@@ -512,6 +512,11 @@ int main(int argc, char **argv) {
     "dm_neighbor_t.decode_null_json_object:"
     "dm_neighbor_t.decode_invalid_field_types:"
     "dm_neighbor_t.decode_valid_json_parent_null:"
-    "dm_neighbor_t.encode_null_obj_pointer";    
+    "dm_neighbor_t.encode_null_obj_pointer:"
+    "EcUtilTest.GetAttrib_Positive:"
+    "EcUtilTest.UnwrapWrappedAttrib_WrongKey_Negative:"
+    "EcUtilTest.UnwrapWrappedAttrib_Positive:"
+    "ECEnrollee_t.HandleAuthRequest_NullFrame:"
+    "ECEnrollee_t.HandleAuthConfirm_NullFrame";
     return RUN_ALL_TESTS();
 }
