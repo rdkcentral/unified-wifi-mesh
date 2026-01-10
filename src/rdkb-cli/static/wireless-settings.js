@@ -318,9 +318,13 @@ class WirelessSettings {
     } else if (profileName == "IoT") {
       profileName = "IOT"
     }
-    card.onclick = () => this.editProfile(profile.HaulType);
 
     const securityIcon = this.getSecurityIcon(profile.Security);
+    const bands = profile.Band;
+    const bandString = bands.length ? bands.join(', ') : 'N/A';
+
+    // toggle should be disabled (greyed out) for backhaul
+    const isMeshBackhaul = profile.HaulType === 'Backhaul';
 
     card.innerHTML = `
       <div class="profile-header">
@@ -328,12 +332,20 @@ class WirelessSettings {
           <h4>${profileName}</h4>
           <div class="profile-ssid">${profile.SSID}</div>
         </div>
-        <div class="profile-status ${profile.Enable ? 'enabled' : 'disabled'}">
-          <i class="fas fa-circle"></i>
-          ${profile.Enable ? 'Enabled' : 'Disabled'}
+        <div class="profile-disable">
+          <label class="toggle-switch ${isMeshBackhaul ? 'toggle-disabled' : ''}" ${isMeshBackhaul ? 'aria-disabled="true"' : ''}>
+            <input
+              type="checkbox"
+              id="profile_enable_disable"
+              ${profile.Enable ? 'checked' : ''}
+              aria-checked="${profile.Enable ? 'true' : 'false'}"
+              ${isMeshBackhaul ? 'disabled' : ''}
+              title="${isMeshBackhaul ? 'Backhaul settings are managed automatically' : 'Enable/disable this profile'}"
+            >
+            <span class="toggle-slider"></span>
+          </label>
         </div>
       </div>
-
       <div class="profile-details">
         <div class="profile-detail">
           <span class="label">Security</span>
@@ -348,22 +360,51 @@ class WirelessSettings {
         </div>
         <div class="profile-detail">
           <span class="label">Bands</span>
-          <span class="value">${profile.Band}</span>
+          <span class="value">${bandString}</span>
         </div>
       </div>
-
       <div class="profile-actions">
-        <button class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); window.WirelessSettings.toggleProfile('${profile.HaulType}')" disabled>
-          <i class="fas fa-power-off"></i>
-          ${profile.Enable ? 'Disable' : 'Enable'}
-        </button>
-        <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); window.WirelessSettings.editProfile('${profile.HaulType}')">
+        <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); window.WirelessSettings.editProfile('${profile.HaulType}')"
+         ${profile.Enable ? '' : 'disabled aria-disabled="true"'}
+          title="${profile.Enable ? 'Edit profile' : 'Enable the profile to edit'}">
           <i class="fas fa-edit"></i>
           Edit
         </button>
       </div>
     `;
 
+    // event listener for toggle button
+    const toggleInput = card.querySelector('#profile_enable_disable');
+    if (toggleInput && !isMeshBackhaul) {
+      toggleInput.addEventListener('click', (event) => {
+        const isChecked = event.target.checked;
+
+        // update the Enable state based on toggle button
+        profile.Enable = isChecked;
+
+        // Grey out the Edit button if profile is toggled to disabled.
+        const editBtn = card.querySelector('.btn.btn-sm.btn-primary')
+        if (editBtn) {
+          editBtn.disabled = !isChecked;;
+          editBtn.setAttribute('aria-disabled', String(!isChecked));
+          editBtn.title = isChecked ? 'Edit profile' : 'Enable the profile to edit';
+        }
+
+        // Check if Enable state is changes as per original state.
+        const index = this.networkProfiles.findIndex(p => p.HaulType === profile.HaulType);
+        if (index !== -1) {
+          if(this.networkProfiles[index].Enable !== profile.Enable) {
+            this.updatedProfileKeys.add(this.networkProfiles[index].Enable);
+          } else {
+            if (this.updatedProfileKeys.has(this.networkProfiles[index].Enable)) {
+              this.updatedProfileKeys.delete(this.networkProfiles[index].Enable);
+            }
+          }
+        }
+        // Enable/diable the Apply button if state is changed.
+        this.updateProfileApplyButtonState();
+      });
+    }
     return card;
   }
 
@@ -730,6 +771,24 @@ getRadioIndexFromBand(bandLabel) {
       toggleBtn?.setAttribute('aria-label', 'Show password');
       toggleBtn?.classList.toggle('active', false);
     }
+
+    const selectedBands = Array.isArray(profile.Band) ? profile.Band.map(b => b) : [];
+
+    // Clear Previous state for band
+    document.getElementById('band-24').checked = false;
+    document.getElementById('band-5').checked  = false;
+    document.getElementById('band-6').checked  = false;
+
+    // Set updated value as per available band
+    if (selectedBands.includes('2.4GHz')) {
+      document.getElementById('band-24').checked = true;
+    }
+    if (selectedBands.includes('5GHz')) {
+      document.getElementById('band-5').checked = true;
+    }
+    if (selectedBands.includes('6GHz')) {
+      document.getElementById('band-6').checked = true;
+    }
   }
 
   /**
@@ -763,7 +822,11 @@ getRadioIndexFromBand(bandLabel) {
   async saveNetworkProfile(event) {
     event.preventDefault();
     
-    const formData = new FormData(event.target);
+    const form = event.target;
+    const formData = new FormData(form);
+    const selectedBands = Array.from(
+        form.querySelectorAll('input[name="bands"]:checked')).map(el => el.value);
+
     const profileData = {
       name: formData.get('profile-name') || document.getElementById('profile-name').value,
       ssid: formData.get('profile-ssid') || document.getElementById('profile-ssid').value,
@@ -771,6 +834,7 @@ getRadioIndexFromBand(bandLabel) {
       passphrase: document.getElementById('profile-passphrase').value,
       vlan_id: parseInt(document.getElementById('profile-vlan').value),
       hidden: document.getElementById('profile-hidden').checked,
+      selectedBands,
       enabled: true
     };
 
@@ -812,32 +876,6 @@ getRadioIndexFromBand(bandLabel) {
    */
   editProfile(profileId) {
     this.showProfileModal(profileId);
-  }
-
-  /**
-   * Toggle profile enabled/disabled
-   */
-  async toggleProfile(profileId) {
-    const profile = this.networkProfiles.find(p => p.id === profileId);
-    if (!profile) return;
-
-    try {
-      const response = await this.apiCall(`/wireless/profiles/${profileId}/toggle`, {
-        method: 'POST'
-      });
-
-      if (response.success) {
-        profile.enabled = !profile.enabled;
-        this.updateNetworkProfiles();
-        this.showNotification(
-          `Profile ${profile.enabled ? 'enabled' : 'disabled'}`,
-          'success'
-        );
-      }
-    } catch (error) {
-      console.error('Failed to toggle profile:', error);
-      this.showNotification('Failed to toggle profile', 'error');
-    }
   }
 
   /**
